@@ -170,6 +170,58 @@ extension StepExecutor {
         }
     }
 
+    /// secure 欄へ打った後の**文字数の照合**(中身は読めないが伏せ字の数は読める)。iOS は secure 欄が受けない文字
+    /// (日本語・絵文字・タブ等)を黙って捨てるのに、ランナーも in-app も伏せ字は読み返しの材料にしない(`isMaskedInput`)ので ok になっていた。
+    /// **足りないと確かに言えるときだけ失敗**: 欄が全部伏せ字で数が `撃つ前の数 + 本文の文字数` に届かない、または欄が空のままで
+    /// 本文に非 ASCII を含む(読めない値の secure 欄で ASCII の本文を赤にしない)。多い・同数は通す(欄が文字を分けて数える
+    /// 差があっても誤って赤にしない)。本文に改行を含むなら送信が走りうるので見ない。nil = 通す(値は文言に含めない)
+    func maskedTypeShortfall(_ driver: AppDriver, element: ElementInfo, priorValue: String, text: String,
+                             replaced: Bool, phase: inout PhaseAccumulator) async -> String? {
+        guard TypeReadback.isMaskedInput(element), !text.isEmpty, !text.contains("\n") else { return nil }
+        let clock = ContinuousClock()
+        let start = clock.now
+        guard let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass),
+              let after = TypeReadback.match(of: element, in: snap.elements) else { return nil }
+        phase.snapshotMs += Self.ms(clock.now - start)
+        return Self.maskedShortfallMessage(afterValue: TypeReadback.normalizedValue(of: after),
+                                           priorValue: priorValue, text: text, replaced: replaced)
+    }
+
+    /// `maskedTypeShortfall` の判定(純粋)
+    static func maskedShortfallMessage(afterValue value: String, priorValue: String, text: String,
+                                       replaced: Bool) -> String? {
+        let masks: Set<Character> = ["•", "●", "*"]
+        let priorCount = replaced ? 0 : (priorValue.allSatisfy { masks.contains($0) } ? priorValue.count : 0)
+        let expectedCount = priorCount + text.count
+        if value.isEmpty {
+            guard !text.allSatisfy(\.isASCII) else { return nil }
+        } else {
+            guard value.allSatisfy({ masks.contains($0) }), value.count < expectedCount else { return nil }
+        }
+        return "type reported success but the masked field holds \(value.count) character(s) instead of at least"
+            + " \(expectedCount) — the field did not accept some of the typed characters"
+            + " (a secure field may reject characters such as non-ASCII text)"
+    }
+
+    /// 改行を含む本文を XCUITest へ回した後の**宛先の照合**。ランナーは改行入りを一括で打って読み返さないので、
+    /// 焦点が別の欄に残ったままだと文字がそちらへ入って ok になっていた(CMP)。**対象の欄が撃つ前のまま・かつ別の入力欄の値が
+    /// 変わったときだけ**失敗(ランナーの 422 と同じ判定 = `TypeReadback.otherInputThatChanged`)。改行で終わる本文は送信が走って
+    /// 欄が空になりうるので、対象が変わらない形でも見ない。nil = 通す
+    func newlineTypeMisdelivery(_ driver: AppDriver, element: ElementInfo, before: [ElementInfo], valueBefore: String,
+                                text: String, phase: inout PhaseAccumulator) async -> String? {
+        guard text.contains("\n"), !text.hasSuffix("\n"), TypeReadback.isTextInput(element) else { return nil }
+        let clock = ContinuousClock()
+        let start = clock.now
+        guard let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass),
+              let target = TypeReadback.match(of: element, in: snap.elements) else { return nil }
+        phase.snapshotMs += Self.ms(clock.now - start)
+        guard TypeReadback.normalizedValue(of: target) == valueBefore,
+              let other = TypeReadback.otherInputThatChanged(element, before: before, after: snap.elements) else { return nil }
+        let name = other.identifier.map { "#\($0)" } ?? other.label.map { "\"\($0)\"" } ?? other.type
+        return "the text did not go into the field — another input field (\(name)) changed instead, so the tap"
+            + " meant to focus the field most likely landed on that one"
+    }
+
     /// 打った文字が欄の領域に描かれているかを OCR で見る(`verifyTypedText` の「値が1文字も動かない」形の
     /// 判別だけに使う)。**認識器のコンパイルが終わるまで待ってから読む**(コンパイル前のまま読むと読み返しの予算を
     /// 使い切って届かなかった側へ倒れ、追送で重複した。実測 `apap`)。待った時間は `DeadlineExclusion` が
@@ -432,7 +484,8 @@ extension StepExecutor {
 
     /// **窓がキーボードの上へ縮んで、下の要素が木から消えている**(Android の adjustResize)ときの解決。Android は
     /// キーボードの矩形を申告せず `keyboardShown` だけ来ることがある(sut-ec-mobile の住所フォーム)ので、出ていれば対象にする。
-    /// iOS は覆われた要素も木に載るので、窓が縮んだと言える木だけ。人はキーボードを
+    /// iOS も、キーボードが出ているのに対象が木に無ければ同じ(Compose の中身がキーボードの上へ縮んでも根は全画面のまま残り、
+    /// 窓の縮みとは判定できない = 押し出された欄が見つからないで赤になっていた)。人はキーボードを
     /// 閉じれば押せるので、見つからないと言う前に副作用の無い手段で閉じて探し直す(`reachPastKeyboard` と同じ方針)。
     /// **待ち切った後だけ**撃つ(先に閉じると、キーボードと一緒に出る候補一覧などを待たずに消してしまう)。
     /// tap・type・clearInput だけ(他の操作はキーボードの下を狙わない)。nil = 対象外・閉じても見つからない
@@ -440,9 +493,9 @@ extension StepExecutor {
                                      phase: inout PhaseAccumulator)
         async throws -> (element: ElementInfo, usedFallback: FlowLocator?, snapshot: SnapshotResponse, note: String)? {
         guard ["tap", "type", "clearInput"].contains(action),
-              isAndroid ? KeyboardWait.isShown(snapshot)
-                : KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                            screen: snapshot.screen).windowResizedAboveKeyboard,
+              KeyboardWait.isShown(snapshot) || (!isAndroid
+                && KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                             screen: snapshot.screen).windowResizedAboveKeyboard),
               case .closed(let note, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) else {
             return nil
         }

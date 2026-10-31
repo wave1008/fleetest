@@ -1064,6 +1064,15 @@ extension StepExecutor {
                         pendingTypeKeyboardCheck = true
                         pendingTypeEndedWithNewline = text.hasSuffix("\n")
                     }
+                    if let failure = await newlineTypeMisdelivery(td, element: element, before: snapshot.elements,
+                                                                  valueBefore: existingValue,
+                                                                  text: text, phase: &phase) {
+                        return StepOutcome(status: .failed(failure))
+                    }
+                    if let failure = await maskedTypeShortfall(td, element: element, priorValue: priorValue,
+                                                               text: text, replaced: step.replace == true, phase: &phase) {
+                        return StepOutcome(status: .failed(failure))
+                    }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
                     return StepOutcome(status: .passed, healedStep: healedStep,
                                        healedByFingerprint: healedByFingerprint,
@@ -1091,6 +1100,10 @@ extension StepExecutor {
                                                                 phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
+                }
+                if let failure = await maskedTypeShortfall(actingDriver, element: element, priorValue: priorValue,
+                                                           text: text, replaced: step.replace == true, phase: &phase) {
+                    return StepOutcome(status: .failed(failure))
                 }
             } catch {
                 // 409 = inapp が非 UIKit 入力欄で first responder を張れない兆候。type は要素個別の
