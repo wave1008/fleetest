@@ -725,6 +725,7 @@ extension MCPServer {
         // **マスク欄は偽警告にしない**: パスワード欄の読み返しは伏せ字(•/●/*…)なので、
         // 期待値自体がマスク文字でない限り不一致は「違う」ではなく「確かめようがない」
         if Self.looksMasked(value), !Self.looksMasked(normalizedExpected) {
+            if let short = Self.maskedShortfallWarning(held: value.count, atLeast: normalizedExpected.count) { return short }
             return " (\(requestedAs) requested; the field reads back masked, so the result could not be"
                 + " verified)"
         }
@@ -771,6 +772,10 @@ extension MCPServer {
         // プレースホルダ)。DSL は normalizedValue が空を返して黙るので、こちらも黙る
         if value == normalizedTyped { return "" }
         if Self.looksMasked(value), !Self.looksMasked(normalizedTyped) {
+            let priorCount = Self.looksMasked(prior) ? prior.count : 0
+            if let short = Self.maskedShortfallWarning(held: value.count, atLeast: priorCount + normalizedTyped.count) {
+                return short
+            }
             return " (the field held a value before this and ft_type appends, but it reads back"
                 + " masked, so the result could not be verified)"
         }
@@ -778,6 +783,14 @@ extension MCPServer {
             + " ft_type appends, so it now reads"
             + " \"\(SnapshotRenderer.truncate(value, 60))\"."
             + " Call ft_clear_input first if you meant to replace it)"
+    }
+
+    /// 伏せ字の数は読める: 打った文字数に届かないなら、欄が一部の文字を受けなかった(iOS の secure 欄は非 ASCII を捨てる)。
+    /// 同数・多いは何も言わない(欄が文字を分けて数える差で誤って警告しない)
+    static func maskedShortfallWarning(held: Int, atLeast: Int) -> String? {
+        guard held < atLeast else { return nil }
+        return " (warning: the masked field holds \(held) character(s) but at least \(atLeast) were typed —"
+            + " the field did not accept some of the characters, e.g. non-ASCII text in a secure field)"
     }
 
     /// パスワード欄などの読み返しが伏せ字だけで構成されているか。**1文字でも非マスクなら false**

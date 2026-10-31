@@ -774,8 +774,11 @@ extension MCPServer {
     /// (フォーカス済みの欄へキーで撃つ経路は通る)。
     /// 走査から切り離した純粋関数(デバイスが要ると、この枝はテストで一度も実行されない)
     static func setTextRefusedHint(tool: String, args: [String: Any], message: String) -> String {
+        // 受理済み(届いたか分からない)の失敗には撃ち直しの手を勧めない: 本文が「打つ前に確かめろ」と言っており、
+        // 「ref なしで撃ち直せ」は同じ本文で矛盾し、従うと二重に入る
         guard tool == "ft_type", args["ref"] != nil,
-              message.contains(setTextRefusalMarker) else { return "" }
+              message.contains(setTextRefusalMarker),
+              !message.contains(setTextDeliveryUnknownMarker) else { return "" }
         return " This call already tapped the field before typing into it — that tap may have"
             + " switched focus to a different field (a search box that hands off to a real input,"
             + " common in browsers). Do not re-tap the ref you passed (it is likely no longer in"
@@ -788,6 +791,9 @@ extension MCPServer {
     /// 上のガードが二度と当たらなくなる。`SetTextRefusedHintJavaSyncTests` がこの定数の値が
     /// Java 側のソースに実在するかを機械確認する(Java 側は編集しない)
     static let setTextRefusalMarker = "cannot type into the field that was tapped"
+
+    /// InputInjector.deliveryUnknownNote の文言(`SetTextRefusedHintJavaSyncTests` が実在を確認)
+    static let setTextDeliveryUnknownMarker = "whether the text reached the field is unknown"
 
     /// Android の a11y 根が一時的に読めない(422・DriverError.isNoReadableWindow)ときの対処。
     /// **判定(status + 本文接頭辞)は FTCore が持つ・文言はここだけ**(共有するのは判定であって
