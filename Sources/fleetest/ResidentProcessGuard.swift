@@ -17,6 +17,10 @@ enum ResidentProcessGuard {
         var commandStartedAt: DispatchTime?
         var commandAllowanceSeconds: Double = 0
         var commandWatchdogTimer: DispatchSourceTimer?
+        /// 強制終了の直前に撃つ「この命令の結果は出せなかった」通知(操作の命令だけが持つ)。
+        /// 命令が既に結果を出していれば撃たない(1命令に結果は1本)
+        var stallNotice: (@Sendable (_ limitSeconds: Int) -> Void)?
+        var resultEmitted = false
     }
     private static let state = Mutex(State())
 
@@ -83,7 +87,8 @@ enum ResidentProcessGuard {
                 if elapsed > limit {
                     logStderr(logLabel,
                         "A single command stalled for over \(Int(limit))s — force-quitting (command watchdog)")
-                    exit(0)
+                    Self.emitStallNotice(limitSeconds: Int(limit))
+                    exit(1)
                 }
             }
             timer.resume()
@@ -97,7 +102,36 @@ enum ResidentProcessGuard {
         state.withLock {
             $0.commandStartedAt = .now()
             $0.commandAllowanceSeconds = max(0, allowanceSeconds)
+            $0.stallNotice = nil
+            $0.resultEmitted = false
         }
+    }
+
+    /// 操作の命令(結果が「届いたか不明」になりうるもの)が、結果を出す前に強制終了されるときの通知を登録する。
+    /// これが無いと利用者は結果を受け取れず、撃ち直す判断材料(届いたか不明)が消えて二重に押す
+    static func setStallNotice(_ notice: @escaping @Sendable (_ limitSeconds: Int) -> Void) {
+        state.withLock { $0.stallNotice = notice }
+    }
+
+    /// 命令の結果(actionResult)を出したことを記録する(以後の強制終了は通知を撃たない)
+    static func noteResultEmitted() {
+        state.withLock { $0.resultEmitted = true }
+    }
+
+    /// 登録済みで、まだ結果を出していなければ撃つ。stdout が詰まっていても終了を遅らせないよう、別スレッドで撃って
+    /// 1 秒だけ待つ(根拠: 通知は1行の書き出しだけ。詰まっているなら待っても出ない)
+    private static func emitStallNotice(limitSeconds: Int) {
+        let notice: (@Sendable (Int) -> Void)? = state.withLock {
+            defer { $0.resultEmitted = true }
+            return $0.resultEmitted ? nil : $0.stallNotice
+        }
+        guard let notice else { return }
+        let done = DispatchSemaphore(value: 0)
+        Thread.detachNewThread {
+            notice(limitSeconds)
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 1)
     }
 
     /// コマンドの途中で次の段(期限つきの呼び出し1本)へ進んだことを記録し、窓をそこから張り直す

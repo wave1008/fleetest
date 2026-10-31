@@ -81,6 +81,30 @@ struct ServicesCommand: AsyncParsableCommand {
         return RuntimeCLI(runtime: located)
     }
 
+    /// 控えの containers のうち、ランタイムが「止まっている」と答えたもの(inspect の事実だけ。読めなければ入れない)。
+    /// Docker で終了コード 0 のものは入れない(`service_completed_successfully` の一回きりのジョブは正しく終わっている)。
+    /// Apple は終了コードを持たないので、そのジョブも止まった名前に載る = 警告の文言は「止まっている」だけを言う
+    static func stoppedContainers(of lease: ServicesLease) -> [String] {
+        guard let kind = ServiceRuntime(rawValue: lease.runtime),
+              let executable = ServicesRuntimeLocator.executable(for: kind) else { return [] }
+        let cli = RuntimeCLI(runtime: LocatedRuntime(kind: kind, executable: executable, endpoint: lease.endpoint))
+        return lease.containers.keys.sorted().filter { name in
+            let inspect = cli.run(cli.commands.containerInspect(name))
+            guard inspect.succeeded, let json = RuntimeListing.decodeJSON(inspect.output),
+                  let fact = RuntimeListing.containerState(json: json, isDocker: cli.isDocker), fact.exited
+            else { return false }
+            return fact.exitCode != 0
+        }
+    }
+
+    /// `up` が「already up」と言う直前の警告(止まったコンテナが無ければ nil)。起こし直しはしない(所有者の健全性は起動時だけ見る)
+    static func stoppedContainersWarning(_ lease: ServicesLease) -> String? {
+        let stopped = stoppedContainers(of: lease)
+        guard !stopped.isEmpty else { return nil }
+        return "⚠️ services: container(s) [\(stopped.joined(separator: ", "))] are not running now; the owner does not restart them."
+            + " Run `fleetest services down` and then `fleetest services up` to start them again"
+    }
+
     /// 所有者(pid・開始時刻)の終了を待つ。上限はその控えの片付けの予算。尽きたら false(所有者は片付けを続けている)。
     static func waitForExit(pid: Int32, startedAt: String, budgetSeconds: Double) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + budgetSeconds
@@ -119,6 +143,7 @@ struct ServicesCommand: AsyncParsableCommand {
             // run が握っていれば断る
             if let existing = try await Self.settleExistingOwner(target: target) {
                 ConsoleOut.out("→ services: already up (\(existing.holderDescription)); stop with `fleetest services down`")
+                if let warning = ServicesCommand.stoppedContainersWarning(existing) { ConsoleOut.out(warning) }
                 Self.printPublished(existing)
                 return
             }
@@ -391,6 +416,7 @@ struct ServicesCommand: AsyncParsableCommand {
                     ConsoleOut.out("lease \(entry.url.lastPathComponent): \(lease.holderDescription) \(orphan ? "not running (orphan)" : "running"),"
                         + " phase \(lease.phase.rawValue), \(lease.runtime), containers [\(lease.containers.keys.sorted().joined(separator: ", "))],"
                         + " networks [\(lease.networks.keys.sorted().joined(separator: ", "))]")
+                    if !orphan, let warning = ServicesCommand.stoppedContainersWarning(lease) { ConsoleOut.out(warning) }
                     for line in lease.publishedSummary { ConsoleOut.out("  published \(line)") }
                     for reverse in lease.adbReverse { ConsoleOut.out("  adb reverse \(reverse.serial) tcp:\(reverse.hostPort)") }
                 }

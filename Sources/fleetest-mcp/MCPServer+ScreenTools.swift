@@ -521,6 +521,15 @@ extension MCPServer {
                     + " results off this image; trust ft_snapshot, and re-take the screenshot"
                     + " after interacting with the screen."]]
             }
+            // 画面が一色のままなのに木には要素がある = 表示が落ちている(スリープ明けの全面黒等)可能性。
+            // 木は読めるので ft_tap 等は「done」と言うが、入力が届いていないことがある。警告だけ(一色の動画・起動画面もありうる)
+            if BlankFrameDetector.isUniformBlank(pngData: png), !after.elements.isEmpty {
+                staleNote += [["type": "text", "text":
+                    "note: this screenshot is a single flat colour while the element tree lists \(after.elements.count)"
+                    + " elements — the display may be off or blank (for example right after the device woke from sleep),"
+                    + " in which case taps may not reach the app even though they report done. If the screen really"
+                    + " should show content, wake or unlock the device and re-check with ft_snapshot."]]
+            }
             lastScreenshots[key] = record
         }
         guard (args["fullSize"] as? Bool) != true else {

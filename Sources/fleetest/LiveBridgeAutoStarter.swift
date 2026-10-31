@@ -37,6 +37,9 @@ actor LiveBridgeAutoStarter {
     private var consecutiveFailures = 0
     /// 直近の自動起動が成功してから、まだ呼び手が宛先を引き直していないか(takeStarted で消費)
     private var startedSinceLastCheck = false
+    /// 直近の自動起動を「断った」理由(他のセッションが使用中・同じ台の別ランナー)。idle のまま対処の要る理由を伝える
+    /// (`bridgeStarting` は false = 拡張は「接続中」の中立表示にせずエラーとして出す)。成功・本物の失敗で消す
+    private var skippedDetail: String?
 
     init(repoRoot: URL, udid: String, port: UInt16, physical: Bool, wired: Bool) {
         self.repoRoot = repoRoot
@@ -52,6 +55,17 @@ actor LiveBridgeAutoStarter {
     /// 「Connection refused」と書くと、生きたランナーを片付けた回の切り分けができない → MN-62.1
     func noteConnectionRefused(trigger: String = "Connection refused") -> String {
         if case .idle = state {
+            // **シミュレータは起動処理の前に他のセッションの印を見る**(起動タスクが即座に断る形で、一瞬 starting を
+            // 報告して「接続中」と誤表示しない)。実機は launchBridge が先に USB トンネルの張り直しを試す
+            // (相手のブリッジを止めない回復)ので、断りの判断は launchBridge に残す
+            if !physical, RunnerAccessibilityHealth.hasForeignLease(
+                udid: udid, stateDir: repoRoot.appendingPathComponent(".fleetest")) {
+                let detail = RunnerAccessibilityHealth.deviceHeldByAnotherSessionMessage(
+                    device: udid, what: "starting the bridge")
+                skippedDetail = detail
+                logStderr("Bridge auto-start skipped: \(detail)")
+                return suffix()
+            }
             state = .starting
             logStderr("\(trigger) — auto-starting the bridge (udid: \(udid), port: \(port))")
             let repoRoot = self.repoRoot
@@ -132,7 +146,7 @@ actor LiveBridgeAutoStarter {
     private func suffix() -> String {
         switch state {
         case .idle:
-            return ""
+            return skippedDetail.map { "(Bridge auto-start skipped: \($0))" } ?? ""
         case .starting:
             return ""
         case .failed(let detail):
@@ -155,6 +169,7 @@ actor LiveBridgeAutoStarter {
         switch result {
         case .success:
             state = .idle
+            skippedDetail = nil
             consecutiveFailures = 0
             startedSinceLastCheck = true
             logStderr("Bridge auto-start succeeded (udid: \(udid), port: \(port))")
@@ -162,15 +177,18 @@ actor LiveBridgeAutoStarter {
             // 連続失敗に数えない —— 数えると、他のセッションが使っている間に上限へ達して failed(恒久)に
             // 固定され、そのセッションが終わっても二度と自動起動しない
             state = .idle
+            skippedDetail = detail
             logStderr("Bridge auto-start skipped: \(detail)")
         case .failure(let error):
             // 同じ台に別のランナー(起動途中・忙しい)が居て断った回も数えない —— 起動途中のランナーを待つ間に上限へ達して
             // failed に固定されると、そのランナーが準備できた後も二度と自動起動しない
             if case LauncherError.deviceRunnerElsewhere = error {
                 state = .idle
+                skippedDetail = error.localizedDescription
                 logStderr("Bridge auto-start skipped: \(error.localizedDescription)")
                 return
             }
+            skippedDetail = nil
             consecutiveFailures += 1
             let detail = error.localizedDescription
             if consecutiveFailures >= Self.maxConsecutiveFailures {

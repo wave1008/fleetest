@@ -56,13 +56,23 @@ struct Bridge: AsyncParsableCommand {
         /// 「Unable to find a device matching the provided destination specifier」で落ちた)。UDID 指定なら
         /// 綴りに関わらず通る。同名複数・0台は推測で1台を選ばず、SimulatorCatalog.resolve の判定に断らせる
         static func resolveDeviceUDID(device: String, physical: Bool,
-                                      devices: () throws -> [SimDeviceInfo]) throws -> String {
+                                      devices: () throws -> [SimDeviceInfo],
+                                      physicalDevices: () -> [IOSPhysicalDeviceInfo] = {
+                                          (try? IOSPhysicalDeviceCatalog.devices()) ?? []
+                                      }) throws -> String {
             let isUDID = physical || (device.count == 36 && device.split(separator: "-").count == 5)
             guard !isUDID else { return device }
             do {
                 return try SimulatorCatalog.resolve(
                     spec: DeviceSpec(name: device, mode: "xcuitest"), in: try devices()).udid
             } catch {
+                // シミュレータに無い名前が、つながっている実機の udid・名前なら --physical を言う(一覧 90 台を並べない)
+                if case SimulatorCatalogError.nameNotFound = error,
+                   let match = physicalDevices().first(where: {
+                       $0.udid == device || $0.deviceCtlIdentifier == device || $0.name == device }) {
+                    throw ValidationError("\(device) is a physical device (\(match.name)), not a simulator —"
+                        + " pass --physical with its hardware UDID \(match.udid)")
+                }
                 throw ValidationError((error as? LocalizedError)?.errorDescription ?? "\(error)")
             }
         }

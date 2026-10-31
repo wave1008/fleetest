@@ -255,6 +255,13 @@ struct ApiLiveServe: AsyncParsableCommand {
             // ので、その再生時間ぶん・launch/activate/install は内側の上限ぶん watchdog を延ばす
             // (watchdogAllowanceSeconds 参照)
             ResidentProcessGuard.noteCommandStart(allowanceSeconds: command.watchdogWindowAllowanceSeconds)
+            if command.drivesDevice {
+                ResidentProcessGuard.setStallNotice { limit in
+                    emitLine(ApiLiveActionResultEvent(
+                        ok: false, error: Self.stalledCommandMessage(limitSeconds: limit), app: nil, dsl: nil,
+                        dslSelector: nil, bridgeStarting: false, deliveryUnknown: true))
+                }
+            }
             // 自動起動が成功した直後は宛先を引き直す(実機 LAN: 起動前の loopback から告知アドレスへ。
             // usb: host はループバックのままだが establish が新たに token を記録している ——
             // host だけで判定すると usb は再取得されず、起動前の token 無し driver を握ったままになる)
@@ -910,6 +917,11 @@ struct ApiLiveServe: AsyncParsableCommand {
         + " problem with the app or this tool. The read was already retried for a few seconds."
         + " Wait a moment and try again; if it keeps happening, restart the simulator/device."
 
+    /// 操作の命令が command watchdog の窓を使い切って serve が終了するときの actionResult の文
+    static func stalledCommandMessage(limitSeconds: Int) -> String {
+        "The device gave no answer within \(limitSeconds)s and the live session is being restarted." + deliveryUnknownHint
+    }
+
     /// 届いたか分からない操作の失敗に足す文(判定は `DriverError.deliveryIsUnknown`)
     static let deliveryUnknownHint =
         " The action may already have taken effect — check the screen before doing it again."
@@ -1519,6 +1531,7 @@ private enum ServeCommandError: Error, LocalizedError {
 /// 1行 JSON を stdout に出力する(ApiMonitorCommand.emitLine と同方針。withoutEscapingSlashes は
 /// snapshot の image(base64。"/" を含みうる)向け)
 private func emitLine<T: Encodable>(_ value: T) {
+    if value is ApiLiveActionResultEvent { ResidentProcessGuard.noteResultEmitted() }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     guard let data = try? encoder.encode(value),
