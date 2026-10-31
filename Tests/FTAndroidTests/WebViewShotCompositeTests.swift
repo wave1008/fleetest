@@ -166,9 +166,11 @@ final class WebViewShotCompositeTests: XCTestCase {
         XCTAssertFalse(WebViewShotComposite.warrantsBlankCaptureWarning(
             hasWebViewNode: false, reason: .noDevtoolsSocket),
             "証拠が無いのに案内した(WebView の無い画面への誤案内)")
-        XCTAssertTrue(WebViewShotComposite.warrantsBlankCaptureWarning(
+        XCTAssertFalse(WebViewShotComposite.warrantsBlankCaptureWarning(
             hasWebViewNode: false, reason: .captureFailed),
-            "ソケットはあった(=WebView が作られたことはある)のに黙った")
+            "ソケットは WebView の証拠でない: WebView を開いた後の普通の画面へ誤案内した")
+        XCTAssertTrue(WebViewShotComposite.warrantsBlankCaptureWarning(
+            hasWebViewNode: true, reason: .captureFailed), "ノードがあるのに黙った")
         XCTAssertTrue(WebViewShotComposite.warrantsBlankCaptureWarning(
             hasWebViewNode: true, reason: .noDevtoolsSocket),
             "木にノードがある(=WebView は居ると分かっている)のに黙った")

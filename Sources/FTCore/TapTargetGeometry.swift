@@ -742,7 +742,11 @@ public enum TapTargetGeometry {
               text.frame.width < container.width * pinnedBandMinimumWidthRatio,
               text.frame.height > 0, gap >= 0, gap <= text.frame.height,
               text.frame.y < target.frame.y + target.frame.height,
-              text.frame.y + text.frame.height > target.frame.y else { return nil }
+              text.frame.y + text.frame.height > target.frame.y,
+              // 見出しの帯は容器の幅いっぱいで、対象の上に重なる = 文字は対象の横の範囲に居る。横に離れた文字(同じ行の右の
+              // カウンタ等)は見出しでなく、帯と読むと覆われていない対象の手前で隠れたドラッグを撃つ
+              text.frame.x < target.frame.x + target.frame.width,
+              text.frame.x + text.frame.width > target.frame.x else { return nil }
         return FTRect(x: container.x, y: container.y, width: container.width, height: text.frame.height + gap * 2)
     }
 

@@ -10,6 +10,8 @@ extension StepExecutor {
     /// (`defaultLocatorRetrySeconds`)。変えるときは docs/commands.md の `waitSeconds:` 省略時の表と
     /// user-docs の tap / select_and_assert(約 0.7 秒と書いている)も直す
     static let defaultLocatorRetryAttempts = 3
+    /// 寄せの前後で枠の高さが縮んだと数えない差(pt / Android は px)。木の丸め。これを超えて縮めば「切られた」
+    static let nudgeHeightShrinkTolerance = 2.0
 
     /// 既定の探し直しの待ちの合計[秒](撮影の時間は含まない)。失敗文に出す数字の唯一の出どころ
     static var defaultLocatorRetrySeconds: Double {
@@ -649,6 +651,7 @@ extension StepExecutor {
             _ = try await settledSignature(phase: &phase)
             let refreshed = try await freshSnapshot(.afterOwnMove)
             if let (moved, _) = LocatorResolver.resolve(step: step, in: refreshed) {
+                let heightBeforeNudge = element.frame.height
                 snapshot = refreshed
                 element = moved
                 resolvedElementThisStep = element
@@ -659,6 +662,9 @@ extension StepExecutor {
                 let fullyInside = ContainerGeometry.clippingContainer(
                     of: moved, in: refreshed.elements, inferring: true
                 ).map { TapTargetGeometry.contains($0, moved.frame) } ?? false
+                // 寄せたのに枠の高さが縮んだ = 重なる別の面(タブ列等)で切られた木の枠。包含を満たしても
+                // 全体は見えていない(実測 SE3 CMP: 高さ 48 → 27・中心は当たり判定の外)
+                    && moved.frame.height >= heightBeforeNudge - Self.nudgeHeightShrinkTolerance
                 straddleNote = fullyInside
                     ? "nudged the element fully inside its container before touching it"
                     : "nudged the element toward the inside of its container, but it is not fully inside"

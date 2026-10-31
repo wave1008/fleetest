@@ -88,4 +88,12 @@ final class PinnedBandCoveringTests: XCTestCase {
         tree[1] = e(2, "button", "row_s_F3", y: 190, x: 0, w: 402, h: 54)
         XCTAssertNil(TapTargetGeometry.pinnedBandCovering(tree[1], in: tree, container: flutterContainer))
     }
+
+    /// 同じ行の横に離れた短い文字(カウンタ)は見出しでない(実測 Android CMP: 対象 32..454・文字 933..1048・容器 y=352)
+    func testTextBesideTheTargetIsNotAHeader() {
+        let container = FTRect(x: 0, y: 352, width: 1080, height: 1200)
+        let target = e(2, "button", "btn_tap_counter", y: 384, x: 32, w: 422, h: 126)
+        let counter = e(3, "staticText", "txt_tap_count", y: 384, x: 933, w: 115, h: 63)
+        XCTAssertNil(TapTargetGeometry.pinnedBandCovering(target, in: [target, counter], container: container))
+    }
 }

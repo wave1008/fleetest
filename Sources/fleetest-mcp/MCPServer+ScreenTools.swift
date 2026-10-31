@@ -71,6 +71,7 @@ extension MCPServer {
         // **プラットフォームはドライバの実体から採る**(profile 指定時は args["platform"] が
         // 空でもプロファイル側で解決済みなので、args を見ると取り違える)
         recordSnapshot(snapshot, snapshotDriver is AndroidDriver ? "android" : "ios", args)
+        markLastGenerationDelivered(args: args)
         return text(withPendingWarnings(
             await snapshotBody(snapshot, driver: snapshotDriver, args: args,
                                extraNote: inheritedNote + waitNote, foldsSelectorTables: false,

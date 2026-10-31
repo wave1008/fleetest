@@ -156,7 +156,8 @@ extension MCPServer {
                 let remapped = Self.remapped(native, base: last.base)
                 generations[generations.count - 1] = (base: last.base, snapshot: remapped,
                                                        actionCount: last.actionCount,
-                                                       followsOwnAction: last.followsOwnAction)
+                                                       followsOwnAction: last.followsOwnAction,
+                                                       delivered: last.delivered)
                 refGenerations[key] = generations
                 lastSnapshots[key] = remapped
                 return remapped
@@ -168,9 +169,12 @@ extension MCPServer {
         generations.append((base: base, snapshot: remapped,
                             actionCount: sessionActionCounts[key] ?? 0,
                             followsOwnAction: Self.currentCallID != 0
-                                && lastActionCallIDs[key] == Self.currentCallID))
-        if generations.count > Self.maxRefGenerations {
-            generations.removeFirst(generations.count - Self.maxRefGenerations)
+                                && lastActionCallIDs[key] == Self.currentCallID,
+                            delivered: false))
+        // 読み手へ返した世代は押し出さない(窓は最新 + 返した1本 + 古い順の残り)
+        while generations.count > Self.maxRefGenerations,
+              let evict = generations.firstIndex(where: { !$0.delivered }), evict < generations.count - 1 {
+            generations.remove(at: evict)
         }
         refGenerations[key] = generations
         let maxNativeRef = native.elements.map(\.ref).max() ?? -1
@@ -178,6 +182,14 @@ extension MCPServer {
         nextRefBase = base + maxNativeRef + 1
         lastSnapshots[key] = remapped
         return remapped
+    }
+
+    /// ft_snapshot が読み手へ返した最新世代に印を付ける(前の印は外す。`refGenerations` の `delivered`)
+    func markLastGenerationDelivered(args: [String: Any]) {
+        let key = Self.sessionKey(args)
+        guard var generations = refGenerations[key], !generations.isEmpty else { return }
+        for index in generations.indices { generations[index].delivered = index == generations.count - 1 }
+        refGenerations[key] = generations
     }
 
     /// セッション ref から要素を引く。世代を新しい順に探し、最初に見つかった世代の要素を返す。
