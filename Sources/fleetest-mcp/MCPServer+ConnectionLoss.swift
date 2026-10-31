@@ -96,7 +96,7 @@ extension MCPServer {
             case .vanished:
                 // 実機で Mac 側の待受(iproxy)が残っているなら、消えたのはランナーのほう(トンネルは開き直しで直らない)
                 return connectionLostAndForget(key: key, connection: connection, running: running,
-                                               macEndStillListening: bound)
+                                               macEndStillListening: bound, deliveryUnknown: mayHaveTakenEffect)
                     + Self.deliveryUnknownNote(mayHaveTakenEffect: mayHaveTakenEffect)
             }
         case DriverError.deliveryUnknown:
@@ -125,7 +125,7 @@ extension MCPServer {
     /// 捨てて、今の状況を添えたメッセージを組む
     func connectionLostAndForget(key: String, connection: String,
                                  running: [BridgeDiscovery.Found],
-                                 macEndStillListening: Bool = false) -> String {
+                                 macEndStillListening: Bool = false, deliveryUnknown: Bool = false) -> String {
         // **udid は忘れる前に読む**(レビュー指摘)。`forgetConnection` は
         // `forgetDeviceState` 経由で `udids[key]` も消すようになったので、後から読むと
         // 常に nil = 「同じ機のブリッジを先に挙げる」案内が**黙って死んでいた**
@@ -141,7 +141,7 @@ extension MCPServer {
         return Self.connectionLostMessage(connection: connection, running: running,
             sameDevice: Self.deviceName(forUDID: udid, in: running), bridge: bridge,
             udid: udid, tunnelOnly: physical && !macEndStillListening,
-            physicalRunnerGone: physical && macEndStillListening)
+            physicalRunnerGone: physical && macEndStillListening, deliveryUnknown: deliveryUnknown)
     }
 
     /// Android(serial 経由のブリッジ)の死活。**iOS のような安価な「待受しているか」判定が無い**
@@ -361,7 +361,7 @@ extension MCPServer {
     static func connectionLostMessage(connection: String, running: [BridgeDiscovery.Found],
                                       sameDevice: String? = nil, bridge: String?,
                                       udid: String? = nil, tunnelOnly: Bool = false,
-                                      physicalRunnerGone: Bool = false) -> String {
+                                      physicalRunnerGone: Bool = false, deliveryUnknown: Bool = false) -> String {
         let now = running.isEmpty
             ? "no iOS bridge is running now"
             : "running bridges now: \(Self.runningBridgesSummary(running, sameDevice: sameDevice))"
@@ -380,6 +380,14 @@ extension MCPServer {
                 + " behind it is gone (its xcodebuild is no longer running), so re-opening the tunnel will not help."
                 + " \(now). Start the runner with \(bridgeUp), then ft_launch your app again."
                 + " This session's remembered device was dropped — pass \(target)."
+        }
+        if tunnelOnly, deliveryUnknown {
+            // 届いたか分からない手の後に「もう一度呼べ」を最初の対処にしない(撃ち直すと二重実行になりうる)
+            return "\nNothing is listening on this Mac's end of \(connection) — on a physical device that is the USB tunnel"
+                + " (iproxy), and the XCUITest runner itself was not checked: it may well still be running."
+                + " Do not repeat the action yet: check the screen first with an ft_snapshot naming the device"
+                + " (pass \(target)) — the tunnel is re-opened for any call that names it. \(now)."
+                + " Only if that fails, start the runner with \(bridgeUp)."
         }
         if tunnelOnly {
             return "\nNothing is listening on this Mac's end of \(connection) — on a physical device that is the USB tunnel"

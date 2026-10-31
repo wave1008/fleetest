@@ -910,9 +910,14 @@ public struct BridgeProvisioner: Sendable {
             if case .foreign = rb.ownership { return true }
             return rb.sourceDigest == current
         }
+        // 実機の xcuitest は、台帳の親(xcodebuild)が居ないランナーを再利用しない(下の stopStalePort で止めて起動し直す)
+        func ownerlessPhysicalRunner(_ rb: RunningBridge) -> Bool {
+            bridge == "xcuitest" && sim.physical && rb.ownerGone
+        }
         if !(bridge == "inapp" && inappNeedsInstall),
            let port = running.first(where: {
             sameDevice($0.value) && $0.value.bridge == bridge && !claimed.contains($0.key)
+                && !ownerlessPhysicalRunner($0.value)
                 // inapp も版一致を要求する(旧 dylib のまま suspend/常駐しているブリッジを
                 // 再利用すると新エンドポイントが 404 になり、フォールバックも効かない)
                 && $0.value.protocolVersion == BridgeAPI.bridgeProtocolVersion
@@ -948,7 +953,7 @@ public struct BridgeProvisioner: Sendable {
         var stopStalePort: UInt16?
         if bridge == "xcuitest", let stale = running.first(where: {
             sameDevice($0.value) && $0.value.bridge == "xcuitest" && !claimed.contains($0.key)
-                && $0.value.protocolVersion != BridgeAPI.bridgeProtocolVersion
+                && ($0.value.protocolVersion != BridgeAPI.bridgeProtocolVersion || ownerlessPhysicalRunner($0.value))
         }) {
             // 別のワークスペースのものは止めない(1デバイス1ランナーなので、隣に起動しても相手を殺す)
             if case .foreign(let owner) = stale.value.ownership {
@@ -2028,10 +2033,14 @@ public struct BridgeProvisioner: Sendable {
         let sourceDigest: String?
         /// 持ち主(/status の ownerRepo と自分の台帳から。仕分けは BridgeOwnership.classify)
         let ownership: BridgeOwnership
+        /// 台帳 `.pid`(xcodebuild の pid)が読めて、そのプロセスがもう居ない。実機のランナーは USB が切れた後もしばらく
+        /// /status に答えうるので、答えただけでは再利用してよい証拠にならない(親が居ないランナーは数秒で消える)
+        let ownerGone: Bool
 
         init(udid: String?, name: String?, bridge: String, protocolVersion: Int?,
              sessionBundleID: String?, sourceDigest: String? = nil,
-             ownership: BridgeOwnership = .unknown) {
+             ownership: BridgeOwnership = .unknown, ownerGone: Bool = false) {
+            self.ownerGone = ownerGone
             self.udid = udid
             self.name = name
             self.bridge = bridge
@@ -2094,7 +2103,8 @@ public struct BridgeProvisioner: Sendable {
                                                 sessionBundleID: status.sessionBundleID,
                                                 sourceDigest: InAppBridgeState.sourceDigest(
                                                     stateDir: stateDir, port: port),
-                                                ownership: ownership))
+                                                ownership: ownership,
+                                                ownerGone: Self.ownerProcessGone(stateDir: stateDir, port: port)))
                 }
             }
             var result: [UInt16: RunningBridge] = [:]
@@ -2103,6 +2113,14 @@ public struct BridgeProvisioner: Sendable {
             }
             return result
         }
+    }
+
+    /// `.pid` が読めて指す pid が死んでいる(読めない・無いは false = 不明は「居る」側)。判定は `ProcessLiveness.isAlive`
+    static func ownerProcessGone(stateDir: URL, port: UInt16) -> Bool {
+        guard let text = try? String(contentsOf: stateDir.appendingPathComponent("bridge-\(port).pid"), encoding: .utf8),
+              let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return false }
+        return !ProcessLiveness.isAlive(pid)
     }
 
     /// 空きポートの採番: spec.port 指定があればそれ(使用中なら次へ)、なければ範囲の先頭から

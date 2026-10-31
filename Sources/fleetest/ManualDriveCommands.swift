@@ -44,6 +44,9 @@ struct Launch: AsyncParsableCommand {
     func validate() throws { try driverOptions.rejectDeviceTargetMismatch() }
 
     func run() async throws {
+        guard !bundleID.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw ValidationError("the app bundle identifier must not be empty")
+        }
         // ブリッジ自身は起動しない(撃つとブリッジが自滅する。判定は MCP・DSL・ライブ操作と共有)
         if BridgeSelfApps.isBridgeItself(bundleID) {
             throw ValidationError("\(bundleID) is fleetest's own bridge, not an app under test — launching it would stop"
@@ -236,7 +239,24 @@ struct Screenshot: AsyncParsableCommand {
 
     @OptionGroup var driverOptions: DriverOptions
 
-    func validate() throws { try driverOptions.rejectDeviceTargetMismatch() }
+    func validate() throws {
+        try driverOptions.rejectDeviceTargetMismatch()
+        try Self.validateOutputPath(output)
+    }
+
+    /// 書き込めない出力先を撮る前に断る(生の Foundation の文言は作業ディレクトリ名や別の名前を指す)
+    static func validateOutputPath(_ path: String) throws {
+        guard !path.isEmpty else { throw ValidationError("--output must not be empty") }
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+            throw ValidationError("--output \(path) is a directory; give a file path such as \(path)/screenshot.png")
+        }
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        var parentIsDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: parent, isDirectory: &parentIsDirectory), parentIsDirectory.boolValue else {
+            throw ValidationError("--output \(path): the folder \(parent) does not exist")
+        }
+    }
 
     func run() async throws {
         let data = try await driverOptions.makeDriver().screenshot()

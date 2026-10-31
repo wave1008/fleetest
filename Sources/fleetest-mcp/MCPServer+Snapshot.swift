@@ -842,7 +842,8 @@ extension MCPServer {
         return "note: \(RefGuard.describe(alert)) is in front of the app"
             + (buttons.isEmpty ? "" : " (buttons: " + buttons.map { "\"\($0)\"" }.joined(separator: " / ") + ")")
             + ". The screen behind it is left out of the list below — nothing there can be reached until the"
-            + " alert is closed. Handle the alert first: ft_tap one of its buttons by ref.\n"
+            + " alert is closed. Handle the alert first: ft_tap one of its buttons by ref"
+            + " (a system alert refuses a ref: use `ft_tap alertButton: \"<button>\"` for it).\n"
     }
 
     /// 明細を畳む注記の鍵(`FT_MCP_NOTES_BRIEF` の指定に足す)

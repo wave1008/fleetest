@@ -230,6 +230,17 @@ extension MCPServer {
         }
     }
 
+    /// hideKeyboard の失敗が「キーボードの話ではない」= 接続・本人確認・配達の失敗か。そうなら Enter を勧めない
+    /// (届いたか不明 = 閉じたかも分からず Return は送信を走らせる / 撃つ前に断られた失敗は別の手の話ではない)。
+    /// `default` を置かない(DriverError に case を足したらここで決めさせる)
+    static func hideKeyboardFailureIsNotAboutTheKeyboard(_ error: DriverError?) -> Bool {
+        guard let error else { return false }
+        switch error {
+        case .bridgeUnreachable, .deliveryUnknown, .bridgeConnectionRefused, .bridgeIdentityMismatch, .notDelivered: return true
+        case .badResponse, .staleRef, .systemAlertBlocked: return false
+        }
+    }
+
     /// StepExecutor へ委ねた手の失敗を投げる形へ。**投げられた `DriverError` は抱える**(`MCPError` に畳むと配達・覆い・a11y 停止の案内が消える)。
     /// **接続拒否だけ包まない**: 包むと接続の記憶が消え、次の呼び出しが起動し直せない。復帰の撃ち直しへ渡さないのは、手が途中まで届いていることがあるから
     static func executorFailure(_ outcome: StepOutcome, prefix: String = "", suffix: String = "") -> Error {
@@ -290,7 +301,7 @@ extension MCPServer {
         let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
         guard StepExecutor.isSuccess(outcome.status) else {
             // 届いたか分からない失敗では別の手を勧めない(閉じたかも分からない・Enter は送信や検索を走らせる)
-            throw Self.executorFailure(outcome, prefix: "hideKeyboard failed: ", suffix: isAndroid || outcome.thrownDriverError?.deliveryIsUnknown == true ? ""
+            throw Self.executorFailure(outcome, prefix: "hideKeyboard failed: ", suffix: isAndroid || Self.hideKeyboardFailureIsNotAboutTheKeyboard(outcome.thrownDriverError) ? ""
                 : " — ft_type pressEnter: true may close it, but Return also fires the field's action"
                     + " (submit, search or moving to the next field)")
         }
