@@ -31,7 +31,7 @@ final class MCPServer {
     var drivers: SessionMap<AppDriver> { SessionMap(server: self, path: \.driver) }
     var bridges: SessionMap<String> { SessionMap(server: self, path: \.bridge) }
     var lastSnapshots: SessionMap<SnapshotResponse> { SessionMap(server: self, path: \.lastSnapshot) }
-    var refGenerations: SessionMap<[(base: Int, snapshot: SnapshotResponse, actionCount: Int, followsOwnAction: Bool)]> { SessionMap(server: self, path: \.refGenerations) }
+    var refGenerations: SessionMap<[(base: Int, snapshot: SnapshotResponse, actionCount: Int, followsOwnAction: Bool, delivered: Bool)]> { SessionMap(server: self, path: \.refGenerations) }
     var sessionActionCounts: SessionMap<Int> { SessionMap(server: self, path: \.sessionActionCount) }
     var lastActionCallIDs: SessionMap<Int> { SessionMap(server: self, path: \.lastActionCallID) }
     var pendingTypeKeyboardChecks: SessionMap<PendingTypeKeyboardCheck> { SessionMap(server: self, path: \.pendingTypeKeyboardCheck) }

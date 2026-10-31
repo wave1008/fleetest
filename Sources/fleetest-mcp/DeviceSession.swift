@@ -26,8 +26,10 @@ struct DeviceSession {
     /// MCP 層で ref にオフセット(`base`)を掛け、セッション内で全世代の ref を一意にする ——
     /// ブリッジには一切触らない。古い順に並び、**直近5世代だけ**保持する(adoptSnapshot 参照)。
     /// `actionCount` は各世代を採った時点の `sessionActionCount`、`followsOwnAction` は
-    /// このセッションの操作と同じ呼び出しの中で、操作の後に読んだ世代か(どちらも出自判定用)
-    var refGenerations: [(base: Int, snapshot: SnapshotResponse, actionCount: Int, followsOwnAction: Bool)]?
+    /// このセッションの操作と同じ呼び出しの中で、操作の後に読んだ世代か(どちらも出自判定用)。
+    /// `delivered` は ft_snapshot が読み手へ返した世代(最新の1本だけ。窓から押し出さない = 操作前の内部の読み直しで
+    /// 世代が進んでも、読み手が持つ ref が5回目の操作で unknown ref にならない)
+    var refGenerations: [(base: Int, snapshot: SnapshotResponse, actionCount: Int, followsOwnAction: Bool, delivered: Bool)]?
     /// このセッションが撃った操作(tap/type/swipe/… — `recordAction` を通った回数)。
     /// **「このセッションは変えていない」と言ってよいかの唯一の判定材料**:
     /// `screenChangedUnderRefNote` は木の変化を「アプリ自身・他プロセス・人」のせいだと名指しするが、

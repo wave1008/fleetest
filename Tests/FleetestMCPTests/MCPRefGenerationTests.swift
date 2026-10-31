@@ -127,6 +127,22 @@ final class MCPRefGenerationTests: XCTestCase {
         XCTAssertFalse(text.contains("older snapshot"), text)
     }
 
+    /// 手の前の内部の読み直しが毎回別の木(カウンタが増える画面)でも、ft_snapshot が返した世代の ref は
+    /// 窓(5世代)から押し出されない(同じ ref の連打が6回目から unknown ref になっていた)
+    func testRefFromTheDeliveredSnapshotSurvivesManyInternalRereads() async throws {
+        func tree(_ n: Int) -> SnapshotResponse {
+            screen([element(ref: 1, id: "btn_ok", label: "OK"),
+                    element(ref: 2, type: "staticText", id: "txt_count", label: "count=\(n)", y: 80)])
+        }
+        driver.snapshotResponse = tree(0)
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        for n in 1...(MCPServer.maxRefGenerations + 4) {
+            driver.snapshotResponse = tree(n)
+            let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 1]))
+            XCTAssertFalse(text.contains("unknown ref"), "\(n) 回目: \(text)")
+        }
+    }
+
     /// 5. どの世代にも無い ref で ft_tap(世代列はある)→ 「unknown ref」の throw。
     /// 世代が無いとき(ft_snapshot を1度も挟んでいないとき)は撮ってから引く形と対比する
     func testTapWithARefFromNoGenerationThrowsUnknownRef() async throws {

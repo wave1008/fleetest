@@ -141,13 +141,15 @@ enum WebViewShotComposite {
     }
 
     /// **補えなかったことを言う価値があるか**(純粋)。木に webView ノードが無く、devtools
-    /// ソケットも無いなら、WebView が居る証拠がどこにも無い = 遷移中の一様フレームか素の画面
+    /// ソケットも無い(または有っても取得が空)なら、WebView が居る証拠がどこにも無い = 遷移中の一様フレームか素の画面
     /// (実測: 実機 Pixel 4a の 23 シナリオ run で 13 回、全部 WebView の無い画面
     /// ——ホーム/About 等—— で `largestUniformBand` の門(45%)だけが通っていた)。
     /// **黙る側に倒す** —— 「デバッグが OFF で a11y ノードも出ない」形は取りこぼすが、
     /// 13/23 の誤案内より軽い
     static func warrantsBlankCaptureWarning(hasWebViewNode: Bool, reason: BlankCaptureReason) -> Bool {
-        hasWebViewNode || reason != .noDevtoolsSocket
+        // ソケットは WebView の証拠ではない(一度でも WebView を作ったアプリはプロセスが続く限り持つ)ので、
+        // 木にノードが無い captureFailed も黙る(WebView を開いた後の普通の画面に毎回出ていた)
+        hasWebViewNode || (reason != .noDevtoolsSocket && reason != .captureFailed)
     }
 
     /// 補えなかった警告を**プロセス全体で serial ごとに1回だけ**通す門の**読み取りだけ**
