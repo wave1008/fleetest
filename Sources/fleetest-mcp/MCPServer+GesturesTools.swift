@@ -46,6 +46,7 @@ extension MCPServer {
             let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
             let executor = StepExecutor(driver: swipeDriver, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                         uiFramework: uiFrameworkHint)
+            executor.notesLandscapeWithoutRotate = false
             let outcome = await executor.execute(step)
             guard StepExecutor.isSuccess(outcome.status) else {
                 throw Self.executorFailure(outcome)
@@ -77,6 +78,7 @@ extension MCPServer {
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
         let executor = StepExecutor(driver: swipeDriver, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                     uiFramework: uiFrameworkHint)
+        executor.notesLandscapeWithoutRotate = false
         let outcome = await executor.execute(step)
         guard StepExecutor.isSuccess(outcome.status) else {
             // **容器なし/経路なしの文言は StepExecutor(FTCore)側の1本だけ**
@@ -246,6 +248,7 @@ extension MCPServer {
         let executor = StepExecutor(driver: driver, releasesScrollTouch: !isAndroid,
                                     isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFramework)
         executor.hideKeyboardFallsBackToEnter = false
+        executor.notesLandscapeWithoutRotate = false
         return (executor, isAndroid)
     }
 
@@ -290,7 +293,7 @@ extension MCPServer {
         let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
         guard StepExecutor.isSuccess(outcome.status) else {
             // 届いたか分からない失敗では別の手を勧めない(閉じたかも分からない・Enter は送信や検索を走らせる)
-            throw Self.executorFailure(outcome, prefix: "hideKeyboard failed: ", suffix: isAndroid || outcome.thrownDriverError?.deliveryIsUnknown == true ? ""
+            throw Self.executorFailure(outcome, prefix: "hideKeyboard failed: ", suffix: isAndroid || Self.returnKeyAdviceIsPointless(outcome.thrownDriverError) ? ""
                 : " — ft_type pressEnter: true may close it, but Return also fires the field's action"
                     + " (submit, search or moving to the next field)")
         }
@@ -300,6 +303,19 @@ extension MCPServer {
         if isAndroid { note += await awaitKeyboardLeftTree(hideDriver) }
         return text("hideKeyboard sent.\(note)" + waitForWithoutSnapshotAfterNote(args)
             + (await snapshotAfterBody(args, outsideTheAppTree: false)))
+    }
+
+    /// hideKeyboard の失敗に「Return で閉じられるかも」を添えない形。届いたか分からない(閉じたかも分からない・Return は送信を走らせる)・
+    /// アプリが前面に居ない(503)/ セッションが無い(409)・接続できない = 打てない相手への対処文になる。
+    /// 構造化された case とステータスだけで決める(文言は見ない)
+    static func returnKeyAdviceIsPointless(_ error: DriverError?) -> Bool {
+        guard let error else { return false }
+        if error.deliveryIsUnknown { return true }
+        switch error {
+        case .badResponse(let status, _): return status == 503 || status == 409
+        case .bridgeConnectionRefused, .notDelivered, .bridgeIdentityMismatch: return true
+        case .bridgeUnreachable, .deliveryUnknown, .staleRef, .systemAlertBlocked: return false
+        }
     }
 
     /// 木がキーボードを申告しなくなるまで待つ(上限 `FlowStep.defaultWaitSeconds` = DSL の

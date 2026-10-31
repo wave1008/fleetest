@@ -288,6 +288,8 @@ public final class StepExecutor {
     var judgmentAlertCovering: Bool?
     /// このシナリオ(= この実行器)で rotateTo を撃ったか(`landscapeWithoutRotate` の判定)
     var rotatedThisScenario = false
+    /// false = 向きの出どころを「このシナリオ」で語らない(MCP の呼び出しにはシナリオが無い)。`noteLandscapeWithoutRotate` が見る
+    public var notesLandscapeWithoutRotate = true
     /// 可視性検証の失敗文の事実(`undrawnScreenFact`)に渡すキーボードの枠。occlusionFlip の入口で判定に使う木から立てる
     /// (キーボードに覆われた文字の要素を「描かれていない」の母数に入れない)
     var guardKeyboardFrame: FTRect?
@@ -380,7 +382,7 @@ public final class StepExecutor {
     /// **失敗の文言にも添える**(実行器の注記は結果 JSON にしか載らず、人が読むレポートは文言を出す =
     /// annotatedWithSystemAlert と同じ見せ方)
     func noteLandscapeWithoutRotate(onFailure status: StepResult.Status) async -> StepResult.Status {
-        guard case .failed(let message) = status, !rotatedThisScenario, !landscapeCheckedOnFailure else { return status }
+        guard case .failed(let message) = status, !rotatedThisScenario, notesLandscapeWithoutRotate, !landscapeCheckedOnFailure else { return status }
         landscapeCheckedOnFailure = true
         guard (try? await driver.status())?.orientation == .landscape else { return status }
         noteCodesThisStep.insert(.landscapeWithoutRotate)

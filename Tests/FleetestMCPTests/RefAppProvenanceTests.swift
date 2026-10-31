@@ -30,6 +30,15 @@ final class RefAppProvenanceTests: XCTestCase {
         XCTAssertTrue(message!.contains("ft_snapshot"), message!)
     }
 
+    /// 前面がシェード(systemui)のときは、読み直しでなく閉じ方を言う(読み直してもシェードの木で欄は出てこない)
+    func testARefRefusedBehindTheShadeSaysHowToCloseIt() {
+        let message = MCPServer.refFromAnotherAppMessage(
+            ref: 3, takenFrom: snapshot("com.ftester.e2e"), fresh: snapshot("com.android.systemui"))
+        XCTAssertNotNil(message)
+        XCTAssertTrue(message!.contains("ft_navigate back"), message!)
+        XCTAssertFalse(message!.contains("use the new refs"), message!)
+    }
+
     /// 同じアプリなら何もしない(通常の再照合を邪魔しない)
     func testTheSameAppIsNotRefused() {
         XCTAssertNil(MCPServer.refFromAnotherAppMessage(

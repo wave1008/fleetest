@@ -40,7 +40,7 @@ final class DriverErrorMessageTests: XCTestCase {
                                                    detail: "adb forward failed: adb: device offline")
         XCTAssertEqual(text,
             "Cannot reach the driver (not running, or slow to respond). Check: adb devices,"
-                + " `fleetest doctor`, or try `fleetest bridge up --platform android`."
+                + " `fleetest doctor`, or try `fleetest bridge up --platform android --serial <serial>` (without --serial it restarts every connected Android device)."
                 + " adb forward failed: adb: device offline")
     }
 
@@ -49,7 +49,7 @@ final class DriverErrorMessageTests: XCTestCase {
                                                    detail: "adb forward failed: adb: device offline")
         XCTAssertEqual(text,
             "Cannot reach the driver (not running, or slow to respond). Check: adb devices,"
-                + " `fleetest doctor`, or try `fleetest bridge up --platform android`."
+                + " `fleetest doctor`, or try `fleetest bridge up --platform android --serial <serial>` (without --serial it restarts every connected Android device)."
                 + " adb forward failed: adb: device offline")
     }
 

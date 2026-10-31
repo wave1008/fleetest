@@ -100,6 +100,23 @@ final class PinchGestureTests: XCTestCase {
         XCTAssertEqual(fingers, expected)
     }
 
+    /// 外側の半径(幅/2×0.8)が8pt床以下の枠は、拡大が閉じる動きに化けるので断る(向きが逆になる誤った成功を塞ぐ)
+    func testIOSNarrowFrameThrowsInsteadOfReversingDirection() throws {
+        for width in [2.0, 12.0, 20.0] {
+            for scale in [2.0, 0.5] {
+                XCTAssertThrowsError(try PinchGesture.ios(
+                    frame: FTRect(x: 0, y: 0, width: width, height: width), scale: scale, durationSeconds: 0.5)) {
+                    XCTAssertTrue($0 is PinchGesture.FrameTooNarrow, "width \(width) scale \(scale)")
+                }
+            }
+        }
+        // 20pt を超えれば置ける。拡大の指は内側から外側へ開く(始点の間隔 < 終点の間隔)
+        let fingers = try PinchGesture.ios(frame: FTRect(x: 0, y: 0, width: 24, height: 24), scale: 2, durationSeconds: 0.5)
+        let startGap = abs(fingers[1].points[0].x - fingers[0].points[0].x)
+        let endGap = abs(fingers[1].points[3].x - fingers[0].points[3].x)
+        XCTAssertLessThan(startGap, endGap)
+    }
+
     func testIOSInvalidScaleThrows() {
         let frame = FTRect(x: 0, y: 0, width: 100, height: 100)
         for scale in [0.0, 1.0, -1.0] {

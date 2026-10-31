@@ -670,10 +670,11 @@ extension MCPServer {
         // **手が動く前の起点**(settle-lite の beforeAction と同じ役目)。ループ中は recordSnapshot
         // を呼ばない(呼ぶのは失敗時の throw 直前と成功時の末尾だけ)ので、ここで捕まえておけば
         // 上書きより先に取れる
-        let beforeBatch = lastSnapshots[Self.sessionKey(args)]
+        let beforeBatch = launchBaselineStale.contains(Self.sessionKey(args)) ? nil : lastSnapshots[Self.sessionKey(args)]
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(batchDriver, args: args)
         let executor = StepExecutor(driver: batchDriver, releasesScrollTouch: !isAndroid,
                                     isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFrameworkHint)
+        executor.notesLandscapeWithoutRotate = false
 
         // **1手目の ref はここで初めて解決する**(driver が要る: RefGuard の再照合と
         // SelectorNaming の一意性検査)。それでも実行ループの前 —— 「全手を実行前に検証する」を
@@ -800,6 +801,13 @@ extension MCPServer {
                 let stoppedNote = "\n\nStopped at step \(index + 1) of \(plans.count) — later steps were not run.\n\n"
                 // **撮れなくても手ごとの結果は返す** —— 撃った手でアプリが落ちると、ランナーは以後の読み取りを
                 // 422 で断る。ここで投げ直すと lines が届かず、何手目で何が起きたかが 422 の一文に置き換わる
+                // **ドライバが手に答えなかった(時限切れ)なら、読み直さない**: 読みも同じ時限切れを払い、
+                // 1手の失敗が手の分の何倍も返らなくなる(固まったランナーで 3 回分 = 162 秒)
+                if case .bridgeUnreachable? = outcome.thrownDriverError {
+                    throw MCPError(lines.joined(separator: "\n") + stoppedNote
+                        + "No snapshot was taken after the failure: the driver did not answer this step, so another read"
+                        + " would wait for its own timeout. Take an ft_snapshot once the driver answers again.")
+                }
                 let stopped: SnapshotResponse
                 do {
                     stopped = try await freshSnapshot(batchDriver, args: args)

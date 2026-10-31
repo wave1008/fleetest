@@ -247,7 +247,7 @@ extension MCPServer {
             // 固まった USB トンネルは切れた接続の要求も保持し、戻った瞬間に端末へ運ぶ(実測: 応答の後ろ最大4.5分)。ここで確かめても足りない
             return busy + " The action may already have been performed, or may still be performed later if the"
                 + " connection was stuck and recovers — take an ft_snapshot and check before repeating it, and check"
-                + " again a few seconds later if the screen did not change (repeating ft_type would type the text twice)."
+                + " again a few seconds later if the screen did not change (repeating a type would enter the text twice; a tap, swipe or long press would fire twice)."
         }
         return "\nThe in-app bridge behind \(connection) is not answering — it only answers while"
             + " the app it is injected into is in the foreground. Bring it back with ft_launch,"

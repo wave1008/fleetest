@@ -102,6 +102,9 @@ struct DeviceSession {
     /// (そちらは意図してアラートを読みに行く経路なので、覆いではなく本来の画面)。
     /// snapshotBody が読んで消費(先に消してから probe)し、forgetDeviceState / ft_terminate で捨てる
     var systemAlertProbePending = false
+    /// ft_launch の後でまだ木を読んでいない = `lastSnapshots` は起動前の画面で、「バッチの前の木」に使えない
+    /// (使うと画面を変えたバッチに「still identical」と言う)。木を記録するたびに消える
+    var launchBaselineStale = false
     /// **このセッションが `ft_navigate home` / `appSwitcher` でアプリを背面へ送ったまま**か。
     /// 次の ft_launch で消す。
     ///
