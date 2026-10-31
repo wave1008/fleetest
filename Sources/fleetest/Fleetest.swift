@@ -581,6 +581,9 @@ struct RunScenarios: AsyncParsableCommand {
         // 待たせる問題が起きない経路なので、ここで新しい検証を割り込ませない
         var earlyResolved: ResolvedProfile?
         if !dryRun { earlyResolved = try validateProfileDevicesBeforeLock() }
+        // project の解決とシナリオ名指しの検査もロックの前(`api run` と同じ順。待った後で打ち間違いを知らせない)
+        let testProject = try ScenarioHost.project(named: common.project)
+        if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
         // **この Mac のロックを、デバイスにもビルドにも触る前に取る**(ユーザー決定
         // 「1つのマシンで同時に複数の run は走らせない」)。リモートへのディスパッチが
         // dispatch.lock で守っていた不変条件を、手元で直接打った run にも同じロックで掛ける。
@@ -609,7 +612,6 @@ struct RunScenarios: AsyncParsableCommand {
             ).acquire(interruptCheck: { interruptState.isStopped })
         }
         runExit.dispatchLock = dispatchLock
-        let testProject = try ScenarioHost.project(named: common.project)
         PhaseLog.mark("project-resolved")
 
         // run 進捗の記帳(DS-18.1)。**ビルドより前に1本書く** —— 実測でシナリオの

@@ -172,8 +172,9 @@ enum ProfileRunner {
                 // ログと NDJSON は同じ if を通す(刻みが食い違わない。`fleetest api run` だけが出し口を渡す)
                 emitWaiting?(elapsed, waitLock)
             }
-            sleepSeconds(WaitLockPolling.pollIntervalSeconds)
-            elapsed += WaitLockPolling.pollIntervalSeconds
+            let nap = WaitLockPolling.nextSleepSeconds(elapsedSeconds: elapsed, limitSeconds: waitLock ?? 0)
+            sleepSeconds(nap)
+            elapsed += nap
         }
     }
 

@@ -77,4 +77,10 @@ final class BridgeStatusReportTests: XCTestCase {
         XCTAssertFalse(text.contains("no bridge is running"), text)
         XCTAssertTrue(text.contains("port 8128"), text)
     }
+
+    func testRunningPortsDescriptionListsAnsweringAndSilentPortsSorted() {
+        XCTAssertEqual(BridgeStatusReport.runningPortsDescription([], silent: []), "none")
+        XCTAssertEqual(BridgeStatusReport.runningPortsDescription(
+            [], silent: [BridgeDiscovery.Silent(port: 8128), BridgeDiscovery.Silent(port: 8125)]), "8125, 8128")
+    }
 }

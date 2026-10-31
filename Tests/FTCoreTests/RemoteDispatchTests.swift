@@ -1175,6 +1175,15 @@ final class RemoteDispatchTests: XCTestCase {
 
     // MARK: - WaitLockPolling(純粋なポーリング判断)
 
+    /// 上限を超えて待たない(`--wait-lock 5` が 10 秒待っていた)。上限までの残りが間隔より短ければ残りだけ
+    func testWaitLockPollingNeverSleepsPastTheLimit() {
+        XCTAssertEqual(WaitLockPolling.nextSleepSeconds(elapsedSeconds: 0, limitSeconds: 5), 5)
+        XCTAssertEqual(WaitLockPolling.nextSleepSeconds(elapsedSeconds: 0, limitSeconds: 400),
+                       WaitLockPolling.pollIntervalSeconds)
+        XCTAssertEqual(WaitLockPolling.nextSleepSeconds(elapsedSeconds: 30, limitSeconds: 33), 3)
+        XCTAssertEqual(WaitLockPolling.nextSleepSeconds(elapsedSeconds: 0, limitSeconds: 0), 1)
+    }
+
     func testWaitLockPollingRetriesBelowLimit() {
         XCTAssertEqual(WaitLockPolling.decide(elapsedSeconds: 0, limitSeconds: 30), .retry)
         XCTAssertEqual(WaitLockPolling.decide(elapsedSeconds: 20, limitSeconds: 30), .retry)

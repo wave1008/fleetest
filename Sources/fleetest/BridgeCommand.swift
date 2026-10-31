@@ -376,6 +376,15 @@ struct Bridge: AsyncParsableCommand {
             // 元から接続中の全 serial を列挙しており、非対称でもあった。**動いているものを全部出す**
             // 答えなかったポートも出す: 忙しいブリッジが一覧から消え、全部忙しいと「無い」と言い切っていた
             let scanned = await BridgeDiscovery.scanDetailed(excluding: 0, repoRoot: try? RepoRoot.find())
+            // **--port を明示したのに、そのポートに何も居ないなら、一覧を出して終わりにしない**(exit 非0。
+            // スクリプトが判定に使える)。印だけでは「そのポートに無い」が読み取れない
+            if let port = driverOptions.port,
+               !scanned.found.contains(where: { $0.port == port }),
+               !scanned.silent.contains(where: { $0.port == port }) {
+                throw ValidationError("no bridge is listening on port \(port) on this machine"
+                    + " (running: \(BridgeStatusReport.runningPortsDescription(scanned.found, silent: scanned.silent)))."
+                    + " Start one with: fleetest bridge up --port \(port)")
+            }
             ConsoleOut.out(BridgeStatusReport.render(
                 scanned.found, silent: scanned.silent, requested: driverOptions.resolvedPort))
         }
@@ -385,6 +394,12 @@ struct Bridge: AsyncParsableCommand {
 /// `fleetest bridge status`(iOS)の表示。**純関数にしてあるのはテストのため** ——
 /// 走査そのものはブリッジが要るのでテストから通せない
 enum BridgeStatusReport {
+    static func runningPortsDescription(_ found: [BridgeDiscovery.Found],
+                                        silent: [BridgeDiscovery.Silent]) -> String {
+        let ports = (found.map(\.port) + silent.map(\.port)).sorted()
+        return ports.isEmpty ? "none" : ports.map(String.init).joined(separator: ", ")
+    }
+
     static func render(_ found: [BridgeDiscovery.Found], silent: [BridgeDiscovery.Silent],
                        requested: UInt16) -> String {
         // **「無い」と言えるのは、答えたものも待受だけのものも無いときだけ**
@@ -410,7 +425,13 @@ enum BridgeStatusReport {
 
 enum AndroidBridgeCLI {
     static func serials(only serial: String?) throws -> [String] {
-        if let serial { return [serial] }
+        if let serial {
+            // 打ち間違い・外れた端末を「状態不明」で通さない(snapshot 等と同じ文言・exit 非0)
+            guard try AndroidDeviceCatalog.connectedSerials().contains(serial) else {
+                throw ValidationError(AndroidSerialResolver.notListedMessage(serial: serial))
+            }
+            return [serial]
+        }
         // adb の失敗は「つながっていない」ではない(connectedSerials が失敗の理由のまま投げる)
         let serials = try AndroidDeviceCatalog.connectedSerials()
         guard !serials.isEmpty else {

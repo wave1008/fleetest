@@ -649,8 +649,9 @@ struct RemoteRunDispatcher {
                 throw RemoteDispatchError.remoteSetupFailed(
                     status.refused())
             }
-            Thread.sleep(forTimeInterval: Double(WaitLockPolling.pollIntervalSeconds))
-            elapsed += WaitLockPolling.pollIntervalSeconds
+            let nap = WaitLockPolling.nextSleepSeconds(elapsedSeconds: elapsed, limitSeconds: limitSeconds)
+            Thread.sleep(forTimeInterval: Double(nap))
+            elapsed += nap
         }
     }
 

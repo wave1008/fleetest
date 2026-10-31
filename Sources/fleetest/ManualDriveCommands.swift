@@ -143,7 +143,17 @@ struct Tap: AsyncParsableCommand {
             try await driverOptions.makeDriver().tap(ref: ref)
             ConsoleOut.out("✅ tap [\(ref)]")
         } else if let x, let y {
-            try await driverOptions.makeDriver().tap(x: x, y: y)
+            let driver = try await driverOptions.makeDriver()
+            // 画面の外の座標は撃たずに断る(ライブ操作・MCP と同じ判定 = TapTargetGeometry.isPointOnScreen)。
+            // 画面の大きさを読めないときは断らない(撃って、ドライバの答えをそのまま見せる)
+            if let screen = (try? await driver.snapshot())?.screen,
+               !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: screen) {
+                throw ValidationError(
+                    "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is outside the screen"
+                    + " (\(FTSeconds.format(screen.width))x\(FTSeconds.format(screen.height))) —"
+                    + " refusing to send it. Use a point inside the visible screen.")
+            }
+            try await driver.tap(x: x, y: y)
             ConsoleOut.out("✅ tap (\(x), \(y))")
         } else {
             throw ValidationError("specify either --ref or --x/--y")

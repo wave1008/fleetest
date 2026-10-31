@@ -663,6 +663,12 @@ public enum WaitLockPolling {
         elapsedSeconds < limitSeconds ? .retry : .giveUp
     }
 
+    /// 次の試行までの待ち(秒)。**上限を超えて待たない** —— 間隔で刻むだけだと `--wait-lock 5` が 10 秒待つ。
+    /// 最低 1 秒(上限ちょうどの周では呼ばれない = decide が先に giveUp する)
+    public static func nextSleepSeconds(elapsedSeconds: Int, limitSeconds: Int) -> Int {
+        max(1, min(pollIntervalSeconds, limitSeconds - elapsedSeconds))
+    }
+
     /// 経過ログを出すか。elapsedSeconds==0(初回試行時点)は常に true
     public static func shouldLogProgress(elapsedSeconds: Int) -> Bool {
         elapsedSeconds == 0 || elapsedSeconds % progressIntervalSeconds == 0

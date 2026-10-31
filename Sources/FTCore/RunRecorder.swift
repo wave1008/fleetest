@@ -209,7 +209,7 @@ public final class RunRecorder: @unchecked Sendable {
             startedAt: ISO8601DateFormatter().string(from: Date()), durationMs: 0,
             steps: StepCountsRecord(total: 1, skipped: 1),
             failedSteps: [FailedStepRecord(index: 0, description: reason)],
-            skipKind: kind)
+            skipKind: kind, skipReason: kind == .notApplicable ? reason : nil)
         write(record)
         if kind.countsAsFailedLastTime { recordLastResultsFailed([scenarioID]) }
     }

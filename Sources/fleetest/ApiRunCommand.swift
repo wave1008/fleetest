@@ -301,6 +301,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             return
         }
 
+        if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // resolveProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない
         let preResolvedProfile = try common.profile.map {

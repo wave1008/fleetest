@@ -218,8 +218,9 @@ final class LocalDispatchLock {
                 dequeue(ticket)
                 throw LocalDispatchLockError(message: status.refused())
             }
-            sleepSeconds(WaitLockPolling.pollIntervalSeconds)
-            elapsed += WaitLockPolling.pollIntervalSeconds
+            let nap = WaitLockPolling.nextSleepSeconds(elapsedSeconds: elapsed, limitSeconds: limitSeconds)
+            sleepSeconds(nap)
+            elapsed += nap
         }
     }
 

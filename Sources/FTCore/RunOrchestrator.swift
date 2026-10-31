@@ -623,6 +623,12 @@ public enum ScenarioOutcome: Sendable, Equatable {
     /// `requeuesWithoutRetiring`)。iOS は先に `.failed` と同じ事後プローブ(bridgeUnreachable)を
     /// 通し(ここで早期に振り直すと起動し直しが起きなくなる)、ブリッジが生きていたときだけ振り直す
     case driverUnreachable
+    /// 子がアプリのクラッシュの証拠(`appCrash`)を持って落ちた。**振り直さず赤のまま残す** ——
+    /// in-app ブリッジはアプリの中に居るので、アプリの死はブリッジ不達としても現れる。
+    /// `.failed` / `.driverUnreachable` に混ぜると事後プローブが「不達」と言って結果ごと捨て、
+    /// 2回目が緑ならクラッシュするアプリが常に緑になる。
+    /// 事後プローブのうちデバイス消失・凍結は `.failed` と同じに通す(ブリッジ生存プローブだけ飛ばす)
+    case appCrashed
 }
 
 /// 「テストではなくデバイスが壊れていた」と機械的に言い切れる失敗のしるし。
@@ -763,7 +769,8 @@ public enum ScenarioRunner {
         let outcome = Self.outcome(passed: passed, frozen: frozen,
                                    environmentFault: environmentFault,
                                    driverUnreachable: driverUnreachableFailure,
-                                   notApplicable: notApplicableReason != nil)
+                                   notApplicable: notApplicableReason != nil,
+                                   appCrashed: appCrash != nil)
         onEvent(.flowFinished(worker: worker.label, flowURL: item.url, passed: frozen ? false : passed,
                               reportURL: reportURL, fm: fmUsage, appCrash: appCrash,
                               notApplicableReason: outcome == .notApplicable ? notApplicableReason : nil))
@@ -776,13 +783,15 @@ public enum ScenarioRunner {
         "\(worker.platform):\(worker.logicalName ?? worker.label)"
     }
 
-    /// 実行結果の確定(純粋関数)。**優先順位に意味がある**: 画面凍結 > 合否 > 環境の一過性エラー >
-    /// ドライバ不達。凍結はワーカーごと使えないので先に判定し、合否は環境エラー/ドライバ不達で
+    /// 実行結果の確定(純粋関数)。**優先順位に意味がある**: 画面凍結 > 合否 > アプリのクラッシュ >
+    /// 環境の一過性エラー > ドライバ不達。凍結はワーカーごと使えないので先に判定し、合否は環境エラー/ドライバ不達で
     /// 上書きしない(途中のステップがそれらでも、最終的に通ったならテストとしては合格)
     static func outcome(passed: Bool, frozen: Bool, environmentFault: Bool,
-                        driverUnreachable: Bool, notApplicable: Bool) -> ScenarioOutcome {
+                        driverUnreachable: Bool, notApplicable: Bool,
+                        appCrashed: Bool = false) -> ScenarioOutcome {
         if frozen { return .frozen }
         if passed { return notApplicable ? .notApplicable : .passed }
+        if appCrashed { return .appCrashed }
         if environmentFault { return .environmentFault }
         return driverUnreachable ? .driverUnreachable : .failed
     }
@@ -806,7 +815,7 @@ public enum ScenarioRunner {
             return true
         case .driverUnreachable:
             return true
-        case .passed, .notApplicable, .failed, .frozen:
+        case .passed, .notApplicable, .failed, .frozen, .appCrashed:
             return false
         }
     }
@@ -2086,7 +2095,7 @@ public final class RunOrchestrator: Sendable {
             var unusableReason: String? = outcome == .frozen ? "a frozen screen" : nil
             // unusableReason と**同時に**決める(型から。文言の後解析はしない)
             var unusableCause: WorkerAnomalyCause? = outcome == .frozen ? .frozen : nil
-            if unusableReason == nil, outcome == .failed || outcome == .driverUnreachable,
+            if unusableReason == nil, outcome == .failed || outcome == .driverUnreachable || outcome == .appCrashed,
                worker.platform == "android",
                let serial = worker.connection.serial {
                 if await deviceUnreachable(serial) {

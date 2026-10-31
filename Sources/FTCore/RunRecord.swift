@@ -778,8 +778,9 @@ public struct ScenarioRunRecord: Codable, Sendable {
     /// recordSkipped の合成レコードだけが持つ理由の種別(通常実行は nil。旧レコードも nil)
     public var skipKind: ScenarioSkipKind?
     /// 子(シナリオ実行バイナリ)が実行中に「このシナリオはこの環境では成り立たない」と宣言した理由
-    /// (`skipKind: notApplicable` と対。合成レコードの理由は failedSteps[0].description にあるので持たない)。
-    /// この形の記録は `passed: true`(失敗ではない)・steps は実行済みの分 + skipped
+    /// (`skipKind: notApplicable` と対)。宣言による対象外の合成レコード(`recordSkipped(kind: .notApplicable)`)も
+    /// 同じ理由を書く(failedSteps[0] にも同文。noWorker / interrupted の合成レコードは failedSteps[0] だけ)。
+    /// 子が宣言した形の記録は `passed: true`(失敗ではない)・steps は実行済みの分 + skipped
     public var skipReason: String?
     /// **run が中断(SIGINT/SIGTERM)された後に失敗で終わった**(中断はシナリオ子へ SIGTERM を送るので、
     /// そのとき走っていたシナリオはシナリオ自身の性質と無関係に落ちる)。true のときだけ書く。

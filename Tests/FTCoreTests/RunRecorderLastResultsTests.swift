@@ -50,6 +50,23 @@ final class RunRecorderLastResultsTests: XCTestCase {
         XCTAssertEqual(LastResultsStore.recordedCount(stateDir: stateDir), 0, "対象外は記録自体を作らない")
     }
 
+    /// 宣言による対象外の合成レコードも、子が宣言した形と同じく `skipReason` を持つ(noWorker は持たない)
+    func testDeclaredNotApplicableRecordCarriesSkipReason() throws {
+        let recorder = makeRecorder(lastResultsDir: nil)
+        recorder.recordSkipped(scenarioID: "C.three", title: nil, platform: "android", worker: nil,
+                               reason: "not applicable: declared platform ios", kind: .notApplicable)
+        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil, reason: "no worker")
+        let dir = recorder.runDir.appendingPathComponent("scenarios")
+        var reasons: [String: String?] = [:]
+        for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            let r = try JSONDecoder().decode(ScenarioRunRecord.self, from: Data(contentsOf: file))
+            reasons[r.scenarioID] = .some(r.skipReason)
+        }
+        XCTAssertEqual(reasons["C.three"] ?? nil, "not applicable: declared platform ios")
+        XCTAssertNil(reasons["A.one"] ?? nil)
+        XCTAssertEqual(reasons.count, 2)
+    }
+
     /// 始まらなかったシナリオは、前回緑だった記録を失敗で上書きする(後勝ち)
     func testSkippedOverwritesAnEarlierPass() {
         LastResultsStore.record(stateDir: stateDir, scenarioID: "A.one", passed: true)

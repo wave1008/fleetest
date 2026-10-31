@@ -390,6 +390,19 @@ extension InAppLauncher {
     }
 }
 
+extension InAppLauncherError: StepFailureKindProviding {
+    /// **起動後の ready 待ちが尽きた(`notReady`)だけ名乗る** —— 注入起動したアプリが ready にならなかった事実
+    /// (起動直後の SIGKILL・別デバイスの応答など)で、同じ原因が `exist` 等で出た回は `driver-unreachable` で
+    /// 振り直されるので揃える。クラッシュの証拠(`appCrash`)がある回は RunOrchestrator が振り直さず赤にする。
+    /// それ以外(ビルド・起動コマンドの失敗・dylib 欠落)は端末やアプリの一過性と言えないので名乗らない(nil)
+    public var stepFailureKind: StepFailureKind? {
+        switch self {
+        case .notReady: return .driverUnreachable
+        case .dylibMissing, .repoRootInvalid, .buildFailed, .bootFailed, .launchFailed: return nil
+        }
+    }
+}
+
 public enum InAppLauncherError: Error, LocalizedError {
     case dylibMissing(String)
     case repoRootInvalid(String)

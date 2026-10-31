@@ -97,6 +97,29 @@ final class EnvironmentFaultTests: XCTestCase {
                        .environmentFault)
     }
 
+    /// **アプリのクラッシュの証拠がある失敗は振り直さない**(`.appCrashed`)。環境の一過性・ドライバ不達
+    /// より優先し、合格・凍結は上書きしない。in-app ブリッジはアプリの中に居るので、クラッシュは
+    /// ドライバ不達としても現れる(これを `.driverUnreachable` にすると振り直しで緑になる)
+    func testAppCrashEvidenceKeepsTheFailureRed() {
+        XCTAssertEqual(ScenarioRunner.outcome(passed: false, frozen: false, environmentFault: false,
+                                              driverUnreachable: true, notApplicable: false,
+                                              appCrashed: true),
+                       .appCrashed)
+        XCTAssertEqual(ScenarioRunner.outcome(passed: false, frozen: false, environmentFault: true,
+                                              driverUnreachable: true, notApplicable: false,
+                                              appCrashed: true),
+                       .appCrashed)
+        XCTAssertEqual(ScenarioRunner.outcome(passed: true, frozen: false, environmentFault: false,
+                                              driverUnreachable: false, notApplicable: false,
+                                              appCrashed: true),
+                       .passed)
+        XCTAssertEqual(ScenarioRunner.outcome(passed: false, frozen: true, environmentFault: false,
+                                              driverUnreachable: false, notApplicable: false,
+                                              appCrashed: true),
+                       .frozen)
+        XCTAssertFalse(ScenarioRunner.requeuesWithoutRetiring(outcome: .appCrashed))
+    }
+
     /// **ドライバ不達は OS を問わず振り直す**(2026-09-18 に揃えた)。iOS がここへ来るのは
     /// 事後プローブ(bridgeUnreachable)がブリッジの生存を確かめた後だけなので、
     /// 「デバイスは生きている」という前提は両 OS で同じ。死んでいれば呼び出し側が離脱経路へ回す
