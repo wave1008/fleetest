@@ -551,7 +551,7 @@ final class MCPVersionGateTests: XCTestCase {
         } catch {
             let text = error.localizedDescription
             XCTAssertTrue(text.contains("bridge protocol mismatch"), text)
-            XCTAssertTrue(text.contains("fleetest bridge down"), text)
+            XCTAssertTrue(text.contains("fleetest bridge up --device"), text)
             XCTAssertTrue(text.contains("allowVersionSkew"), text)
         }
     }

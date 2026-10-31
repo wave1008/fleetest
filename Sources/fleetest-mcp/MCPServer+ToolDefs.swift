@@ -772,8 +772,8 @@ extension MCPServer {
         // プレースホルダ)。DSL は normalizedValue が空を返して黙るので、こちらも黙る
         if value == normalizedTyped { return "" }
         if Self.looksMasked(value), !Self.looksMasked(normalizedTyped) {
-            let priorCount = Self.looksMasked(prior) ? prior.count : 0
-            if let short = Self.maskedShortfallWarning(held: value.count, atLeast: priorCount + normalizedTyped.count) {
+            // 前の伏せ字の数を足さない(焦点を取り戻した secure 欄は打つと全部置き換わる)
+            if let short = Self.maskedShortfallWarning(held: value.count, atLeast: normalizedTyped.count) {
                 return short
             }
             return " (the field held a value before this and ft_type appends, but it reads back"

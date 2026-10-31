@@ -172,27 +172,25 @@ extension StepExecutor {
 
     /// secure 欄へ打った後の**文字数の照合**(中身は読めないが伏せ字の数は読める)。iOS は secure 欄が受けない文字
     /// (日本語・絵文字・タブ等)を黙って捨てるのに、ランナーも in-app も伏せ字は読み返しの材料にしない(`isMaskedInput`)ので ok になっていた。
-    /// **足りないと確かに言えるときだけ失敗**: 欄が全部伏せ字で数が `撃つ前の数 + 本文の文字数` に届かない、または欄が空のままで
+    /// **足りないと確かに言えるときだけ失敗**: 欄が全部伏せ字で数が本文の文字数に届かない(焦点を取り戻した欄は置き換わるので前の数は足さない)、または欄が空のままで
     /// 本文に非 ASCII を含む(読めない値の secure 欄で ASCII の本文を赤にしない)。多い・同数は通す(欄が文字を分けて数える
     /// 差があっても誤って赤にしない)。本文に改行を含むなら送信が走りうるので見ない。nil = 通す(値は文言に含めない)
-    func maskedTypeShortfall(_ driver: AppDriver, element: ElementInfo, priorValue: String, text: String,
-                             replaced: Bool, phase: inout PhaseAccumulator) async -> String? {
+    func maskedTypeShortfall(_ driver: AppDriver, element: ElementInfo, text: String,
+                             phase: inout PhaseAccumulator) async -> String? {
         guard TypeReadback.isMaskedInput(element), !text.isEmpty, !text.contains("\n") else { return nil }
         let clock = ContinuousClock()
         let start = clock.now
         guard let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass),
               let after = TypeReadback.match(of: element, in: snap.elements) else { return nil }
         phase.snapshotMs += Self.ms(clock.now - start)
-        return Self.maskedShortfallMessage(afterValue: TypeReadback.normalizedValue(of: after),
-                                           priorValue: priorValue, text: text, replaced: replaced)
+        return Self.maskedShortfallMessage(afterValue: TypeReadback.normalizedValue(of: after), text: text)
     }
 
     /// `maskedTypeShortfall` の判定(純粋)
-    static func maskedShortfallMessage(afterValue value: String, priorValue: String, text: String,
-                                       replaced: Bool) -> String? {
+    static func maskedShortfallMessage(afterValue value: String, text: String) -> String? {
         let masks: Set<Character> = ["•", "●", "*"]
-        let priorCount = replaced ? 0 : (priorValue.allSatisfy { masks.contains($0) } ? priorValue.count : 0)
-        let expectedCount = priorCount + text.count
+        // **前の伏せ字の数を足さない**: 焦点を取り戻した secure 欄は打つと全部置き換わる(`•••` に `de` で `••`)
+        let expectedCount = text.count
         if value.isEmpty {
             guard !text.allSatisfy(\.isASCII) else { return nil }
         } else {

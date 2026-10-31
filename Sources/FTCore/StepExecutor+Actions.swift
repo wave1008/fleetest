@@ -1075,8 +1075,8 @@ extension StepExecutor {
                                                                   text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
-                    if let failure = await maskedTypeShortfall(td, element: element, priorValue: priorValue,
-                                                               text: text, replaced: step.replace == true, phase: &phase) {
+                    if let failure = await maskedTypeShortfall(td, element: element,
+                                                               text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
@@ -1107,8 +1107,8 @@ extension StepExecutor {
                         return StepOutcome(status: .failed(failure))
                     }
                 }
-                if let failure = await maskedTypeShortfall(actingDriver, element: element, priorValue: priorValue,
-                                                           text: text, replaced: step.replace == true, phase: &phase) {
+                if let failure = await maskedTypeShortfall(actingDriver, element: element,
+                                                           text: text, phase: &phase) {
                     return StepOutcome(status: .failed(failure))
                 }
             } catch {
