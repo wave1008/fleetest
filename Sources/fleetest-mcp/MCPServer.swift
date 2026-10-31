@@ -68,6 +68,7 @@ final class MCPServer {
     var connectedAndroidSerials: SessionMap<String> { SessionMap(server: self, path: \.connectedAndroidSerial) }
     var versionSkew: SessionMap<String> { SessionMap(server: self, path: \.versionSkew) }
     var uiFrameworkUnknownPending: SessionFlags { SessionFlags(server: self, path: \.uiFrameworkUnknownPending) }
+    var launchBaselineStale: SessionFlags { SessionFlags(server: self, path: \.launchBaselineStale) }
     var systemAlertProbePending: SessionFlags { SessionFlags(server: self, path: \.systemAlertProbePending) }
     var backgroundedByNavigate: SessionFlags { SessionFlags(server: self, path: \.backgroundedByNavigate) }
     var webPageCeilingLatched: SessionFlags { SessionFlags(server: self, path: \.webPageCeilingLatched) }

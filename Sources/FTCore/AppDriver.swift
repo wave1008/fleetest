@@ -354,7 +354,7 @@ public enum DriverErrorMessage {
         case .iosXCUITest:
             hint = " Check: fleetest bridge up."
         case .android:
-            hint = " Check: adb devices, `fleetest doctor`, or try `fleetest bridge up --platform android`."
+            hint = " Check: adb devices, `fleetest doctor`, or try `fleetest bridge up --platform android --serial <serial>` (without --serial it restarts every connected Android device)."
         }
         return detail.isEmpty ? "\(base)\(hint)" : "\(base)\(hint) \(detail)"
     }

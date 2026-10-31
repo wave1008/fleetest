@@ -160,6 +160,7 @@ extension MCPServer {
                                                        delivered: last.delivered)
                 refGenerations[key] = generations
                 lastSnapshots[key] = remapped
+                launchBaselineStale.remove(key)
                 return remapped
             }
         }
@@ -181,6 +182,7 @@ extension MCPServer {
         // **セッション共通の採番**(sessionKey ごとではない。宣言のコメント参照)
         nextRefBase = base + maxNativeRef + 1
         lastSnapshots[key] = remapped
+        launchBaselineStale.remove(key)
         return remapped
     }
 
@@ -231,7 +233,10 @@ extension MCPServer {
         return "[\(ref)] was taken from \(taken) but the app in front is now \(now)"
             + " — refusing, because refs are per-device and not per-app: sibling apps can expose"
             + " the same ids and labels, so this would silently hit a different app's element."
-            + " Take a fresh ft_snapshot and use the new refs."
+            + (now == SystemUITreeKind.systemUIPackage
+                ? " The system UI (notification shade, quick settings or lock screen) is in front, so a fresh"
+                    + " ft_snapshot would only show its tree: close it first (ft_navigate back), then take a fresh ft_snapshot."
+                : " Take a fresh ft_snapshot and use the new refs.")
     }
 
     /// **ref を採ったときの木と、撃つ直前の木が違う**ことの警告(Simulator で再現)。
@@ -1639,6 +1644,7 @@ extension MCPServer {
                                     releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                     uiFramework: uiFrameworkHint,
                                     defersPartialSheetRecovery: true)
+        executor.notesLandscapeWithoutRotate = false
         // **所要時間の内訳の起点**: (a) 1回目の探索 + (b) シート展開救済だけを測る
         // (driver 解決・scrollFrame 解決は上ですでに終わっている)。成功応答だけに載せる
         let timingClock = ContinuousClock()
@@ -1756,6 +1762,7 @@ extension MCPServer {
                 let retryExecutor = StepExecutor(driver: scrollDriver,
                                                  releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                                  uiFramework: uiFrameworkHint)
+                retryExecutor.notesLandscapeWithoutRotate = false
                 SlowCallWatchdog.mark("sheet rescue: searching again")
                 outcome = await retryExecutor.execute(step)
                 after = try await freshSnapshot(scrollDriver, args: args)
@@ -1871,6 +1878,19 @@ extension MCPServer {
                     + " read the screen it should be on with ft_snapshot maxElements:"
                     + " \(BridgeAPI.maxSnapshotElementsCeiling) before concluding it is not there.\n"
                 : ""
+            // **アプリ内アラートが前面なら、アラートを閉じる案内だけを足す**: 探索はアラートの背面を動かせない(アラートの中の
+            // 無名のスクロール領域を scrollFrame 候補に挙げたり、背面のラベルを並べたりしても従えない)
+            if let alert = AlertTreeScope.frontInAppAlert(in: after) {
+                let buttons = AlertTreeScope.buttonLabels(of: alert, in: after)
+                let alertFailure = failedSwitched + "note: \(RefGuard.describe(alert)) is in front of the app"
+                    + (buttons.isEmpty ? "" : " (buttons: " + buttons.map { "\"\($0)\"" }.joined(separator: " / ") + ")") + ".\n"
+                    + "scrollTo \"\(selectorText)\" did not reach the element (\(reason)) — scrolling cannot move the screen behind"
+                    + " the alert, so close it first and search again."
+                if let cause = outcome.thrownDriverError {
+                    throw MCPAnnotatedError(underlying: cause, suffix: "", fullMessage: alertFailure)
+                }
+                throw MCPError(alertFailure)
+            }
             let failureMessage: String = (failedSwitched + scrollFrameLabelNote + sheetNote + containerGoneNote
                 + truncatedDuringSearch
                 + Self.scrollTimingNote(totalMs: Int((timingClock.now - timingStart)

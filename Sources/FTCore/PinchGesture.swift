@@ -17,6 +17,21 @@ public enum PinchGesture {
         public let scale: Double
     }
 
+    /// 枠が狭すぎて指2本を向きを保ったまま置けないときに投げる(iOS)。
+    /// 内側の床(`iosMinimumHalfSpan`)が外側以上になると、拡大の始点と終点が入れ替わって閉じる動きになる
+    public struct FrameTooNarrow: Error, Equatable, Sendable, LocalizedError {
+        public let extent: Double
+        public let minimumExtent: Double
+        public var errorDescription: String? {
+            "pinch region is too narrow (\(Int(extent.rounded()))pt along the finger axis; needs more than "
+                + "\(Int(minimumExtent.rounded()))pt): the two fingers cannot be placed without reversing the direction. "
+                + "Pass a larger radius or a wider element, or move away from the screen edge."
+        }
+    }
+
+    /// 指を置ける枠の最小の長さ[pt]。外側の半径(長さ/2×内側寄せ)が内側の床を超える長さ
+    public static var iosMinimumExtent: Double { iosMinimumHalfSpan * 2 / iosEdgeInset }
+
     // MARK: - iOS(座標ピンチ。XCUITest ランナー・in-app 共通)
 
     /// 押してから動き出す / 止まってから離すまでに置く保持(所要に対する割合)。
@@ -47,6 +62,9 @@ public enum PinchGesture {
         let centreX = frame.x + frame.width / 2
         let centreY = frame.y + frame.height / 2
         let outerHalf = (vertical ? frame.height : frame.width) / 2 * iosEdgeInset
+        guard outerHalf > iosMinimumHalfSpan else {
+            throw FrameTooNarrow(extent: vertical ? frame.height : frame.width, minimumExtent: iosMinimumExtent)
+        }
         let innerHalf = max(outerHalf * min(scale, 1 / scale), iosMinimumHalfSpan)
         func points(_ halfSpan: Double) -> [(x: Double, y: Double)] {
             vertical

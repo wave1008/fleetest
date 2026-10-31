@@ -36,4 +36,14 @@ final class AndroidRotationRestoreTests: XCTestCase {
         XCTAssertEqual(AndroidDriver.rotationStallCapSeconds, 20)
         XCTAssertEqual(AndroidDriver.rotationRefusalConfirmations, 2)
     }
+
+    /// 起動(monkey)が回転の固定を解いたときだけ書き戻す。もともと auto の端末は触らない
+    func testLaunchRestoresOnlyALockItReleased() {
+        XCTAssertTrue(AndroidDriver.rotationLockWasReleased(
+            before: (userRotation: 1, accelerometerRotation: 0), after: (userRotation: 1, accelerometerRotation: 1)))
+        XCTAssertFalse(AndroidDriver.rotationLockWasReleased(
+            before: (userRotation: 1, accelerometerRotation: 0), after: (userRotation: 1, accelerometerRotation: 0)))
+        XCTAssertFalse(AndroidDriver.rotationLockWasReleased(
+            before: (userRotation: 0, accelerometerRotation: 1), after: (userRotation: 0, accelerometerRotation: 1)))
+    }
 }

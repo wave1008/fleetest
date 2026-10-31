@@ -1368,6 +1368,30 @@ extension MCPServer {
     /// 判定は `ForegroundState.judge`(シェードは入力フォーカスを持つ窓の事実で、前面のアプリ名より先に見る =
     /// シェードの下でも `foregroundAppID` は下のアプリを返す)。読めなければ黙る
     func coordinateFrontAppWarning(_ driver: AppDriver, args: [String: Any]) async -> String {
+        let probed = await coordinateFrontAppWarningFromProbes(driver, args: args)
+        return probed.isEmpty ? Self.lastTreeCoverWarning(lastSnapshots[Self.sessionKey(args)]) : probed
+    }
+
+    /// 直近に読んだ木(古びうる)が、アプリ内アラート・画面の中心を覆うオーバーレイの窓を申告していたら言う。
+    /// 座標の操作とスワイプはその手前の面に当たる(背面は動かない)。木は撃つ前に読み直さない = 「直近の木では」と断る
+    static func lastTreeCoverWarning(_ tree: SnapshotResponse?) -> String {
+        guard let tree else { return "" }
+        if let alert = AlertTreeScope.frontInAppAlert(in: tree) {
+            return " (warning: the last snapshot showed \(RefGuard.describe(alert)) in front of the app — a touch or swipe"
+                + " acts on the alert, not on the screen behind it. Handle the alert first: ft_tap one of its buttons)"
+        }
+        let centreX = tree.screen.x + tree.screen.width / 2
+        let centreY = tree.screen.y + tree.screen.height / 2
+        let covering = OverlayWindowOcclusion.resolve(reported: tree.overlayWindowFrames).frames.contains {
+            centreX >= $0.x && centreX <= $0.x + $0.width && centreY >= $0.y && centreY <= $0.y + $0.height
+        }
+        return covering
+            ? " (warning: the last snapshot reported an overlay window drawn over the centre of the screen — a touch or swipe"
+                + " acts on that overlay, not on the app behind it. Dismiss it first, then read the screen again)"
+            : ""
+    }
+
+    private func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any]) async -> String {
         guard let launched = launchedBundleIDs[Self.sessionKey(args)] else { return "" }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
         if let android = driver as? AndroidDriver {

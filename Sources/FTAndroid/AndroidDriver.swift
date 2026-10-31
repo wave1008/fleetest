@@ -539,6 +539,8 @@ public final class AndroidDriver: AppDriver {
         // force-stop+monkey+am start フォールバックと整定待ちはブリッジ側 handleLaunch() が持つ
         // (ここでの追加 sleep は不要)
         try AndroidPackageName.require(bundleID)
+        let lockBefore = rotationLockedSettings()
+        defer { restoreRotationLock(lockBefore) }
         try await withBridge { try await $0.launch(bundleID: bundleID) }
         // 再起動で旧 snapshot の ref は無効。メモリ・永続化の両方から落とし、
         // 以後の tap(ref:) を「先に snapshot」エラーに倒す(古い座標への誤タップ防止)
@@ -582,6 +584,8 @@ public final class AndroidDriver: AppDriver {
     public func activate(bundleID: String) async throws {
         try AndroidPackageName.require(bundleID)
         try requireDeviceAnswers()
+        let lockBefore = rotationLockedSettings()
+        defer { restoreRotationLock(lockBefore) }
         let result = try adb(["shell", "monkey", "-p", bundleID,
                               "-c", "android.intent.category.LAUNCHER", "1"])
         guard result.status == 0 else {
@@ -1309,6 +1313,28 @@ public final class AndroidDriver: AppDriver {
         let userRotation = Int(userResult.output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         let accel = Int(accelResult.output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 1
         return (userRotation, accel)
+    }
+
+    /// 起動に使う `monkey` は終わりに回転の固定を解く(accelerometer_rotation=0 → 1 に戻り縦へ回る。実測)ので、
+    /// 起動の前に固定されていたときだけ控える。読めなければ nil(何もしない)
+    private func rotationLockedSettings() -> (userRotation: Int, accelerometerRotation: Int)? {
+        guard let settings = try? currentRotationSettings(), settings.accelerometerRotation == 0 else { return nil }
+        return settings
+    }
+
+    /// 起動の後に固定が解けていたら書き戻す。**user_rotation を先に**(rotate(to:) と同じ順)。起動前から固定でなければ触らない
+    /// (端末の元の設定を書き換えない)
+    private func restoreRotationLock(_ before: (userRotation: Int, accelerometerRotation: Int)?) {
+        guard let before, let after = try? currentRotationSettings(),
+              Self.rotationLockWasReleased(before: before, after: after) else { return }
+        _ = try? adbAnswering(["shell", "settings", "put", "system", "user_rotation", String(before.userRotation)])
+        _ = try? adbAnswering(["shell", "settings", "put", "system", "accelerometer_rotation", "0"])
+    }
+
+    /// 起動の前は固定(accelerometer_rotation=0)で、後は auto(0 以外)になっていたか(純粋)
+    static func rotationLockWasReleased(before: (userRotation: Int, accelerometerRotation: Int),
+                                        after: (userRotation: Int, accelerometerRotation: Int)) -> Bool {
+        before.accelerometerRotation == 0 && after.accelerometerRotation != 0
     }
 
     /// 回転の待ちの安全上限[秒]。**判定には使わない** —— 回れない形(縦専用・ランチャー等の宣言)は
