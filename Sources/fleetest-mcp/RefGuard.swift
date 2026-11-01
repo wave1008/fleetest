@@ -395,6 +395,8 @@ enum RefGuard {
         case rowsIndistinct(Matcher, taken: Int, now: Int)
         /// id の無いボタン系が、同じラベル・型の仲間の間隔の半分以上動き、行も区別できない = 隣の行の同じ部品かもしれない。撃たない
         case travelledPastNeighbour(taken: Int, now: Int)
+        /// id の無いボタン系が元の枠を離れ、周りは1つも同じだけ動いていない = スクロールではなく、別の場所に同じ見た目の部品が出た。撃たない
+        case movedAlone
         /// このセッションの操作の後でラベルが変わり、位置・周り・画面の顔ぶれも変わった = 別の画面の同じ id。撃たない
         case labelChangedElsewhere
     }
@@ -449,6 +451,7 @@ enum RefGuard {
                 if let pitch = others.map({ distance($0.frame, target.frame) }).min(), moved * 2 >= pitch {
                     return .travelledPastNeighbour(taken: takenCount, now: nowCount)
                 }
+                if movedAlone(target, found, taken: taken, fresh: fresh) { return .movedAlone }
                 // 仲間が居ない・近くない: 断る根拠は無い(スクロールで動いただけかもしれない)。注記だけ
                 return .rowsIndistinct(.label, taken: takenCount, now: nowCount)
             }
@@ -500,6 +503,8 @@ enum RefGuard {
             return (ambiguousRetargetRefusal(ref: ref, old: target, matcher: matcher, taken: takenCount, now: nowCount), "")
         case .travelledPastNeighbour(let takenCount, let nowCount):
             return (travelledPastNeighbourRefusal(ref: ref, old: target, taken: takenCount, now: nowCount), "")
+        case .movedAlone:
+            return (movedAloneRefusal(ref: ref, old: target), "")
         case .rowsIndistinct(let matcher, let takenCount, let nowCount):
             return (nil, " (note: \(describe(target)) matched \(takenCount) element(s) with the same \(matcher == .identifier ? "id" : "label") when snapshotted and \(nowCount) now, and its row cannot be told"
                 + " apart (no id or label around it), so this may be the same part of another row — verify the outcome)" + labelNote)
@@ -518,6 +523,37 @@ enum RefGuard {
             + " snapshotted sits in a different row now (the elements around it changed), so this can be the same-looking part of another row"
             + " (same \(key)). Nothing was sent."
             + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
+    }
+
+    static func movedAloneRefusal(ref: Int, old: ElementInfo) -> String {
+        "refusing [\(ref)]: \(describe(old)) has no id, and the element it now matches left its old position while nothing"
+            + " around it moved the same way, so this is not a scroll — it can be the same-looking part of another row. Nothing was sent."
+            + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
+    }
+
+    /// `target` の枠を離れ(新旧の枠が重ならない)、周りの要素が1つも同じだけ動いていないか。スクロールや上の要素の伸縮なら周りが揃って動く。
+    /// 周りは id か「ラベル + 型」が両方の木で1件の要素。**自分の枠の中(子の文字)は数えない**(一緒に動くので常に「揃った」になる)。
+    /// 比べられる相手が2件に満たないときは判定しない = false(`movedTogether` と同じ下限)
+    static func movedAlone(_ target: ElementInfo, _ found: ElementInfo, taken: [ElementInfo], fresh: [ElementInfo]) -> Bool {
+        func overlaps(_ a: FTRect, _ b: FTRect) -> Bool {
+            a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+        }
+        guard !overlaps(target.frame, found.frame) else { return false }
+        func unique(_ tree: [ElementInfo], excluding own: ElementInfo) -> [String: ElementInfo] {
+            let keyed = tree.filter { !contains(own.frame, $0.frame) }.compactMap { element -> (String, ElementInfo)? in
+                if let id = element.identifier, !id.isEmpty { return ("#\(id)", element) }
+                if let label = element.label, !label.isEmpty { return ("\(element.type)|\(label)", element) }
+                return nil
+            }
+            return Dictionary(grouping: keyed, by: \.0).compactMapValues { $0.count == 1 ? $0[0].1 : nil }
+        }
+        let before = unique(taken, excluding: target), after = unique(fresh, excluding: found)
+        let pairs = before.compactMap { key, old in after[key].map { (old, $0) } }
+        guard pairs.count >= 2 else { return false }
+        let (dx, dy) = (found.frame.x - target.frame.x, found.frame.y - target.frame.y)
+        return !pairs.contains { old, now in
+            abs((now.frame.x - old.frame.x) - dx) < 2 && abs((now.frame.y - old.frame.y) - dy) < 2
+        }
     }
 
     static func travelledPastNeighbourRefusal(ref: Int, old: ElementInfo, taken: Int, now: Int) -> String {

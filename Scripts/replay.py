@@ -74,12 +74,14 @@ class MCP:
 
 
 def resolve_refs(arguments, tree):
-    """`$ref:<id>` を直近の ft_snapshot の木の ref 番号へ置き換える(ref は木ごとに振り直される)"""
+    """`$ref:<id>` を直近の ft_snapshot の木の ref 番号へ置き換える(ref は木ごとに振り直される)。id の無い要素は `$ref:label=<ラベル>`"""
     resolved = {}
     for key, value in arguments.items():
         match = REF.match(value) if isinstance(value, str) else None
         if match:
-            found = re.search(rf"\[(\d+)\][^\n]*id={re.escape(match.group(1))}\b", tree)
+            label = match.group(1).removeprefix("label=")
+            found = re.search(rf"\[(\d+)\] button \"{re.escape(label)}\"", tree) if label != match.group(1) \
+                else re.search(rf"\[(\d+)\][^\n]*id={re.escape(match.group(1))}\b", tree)
             if not found:
                 raise ValueError(f"木に id={match.group(1)} がありません")
             value = int(found.group(1))

@@ -99,6 +99,29 @@ final class TapRefGuardTests: XCTestCase {
         XCTAssertEqual(try verdict(old, [plain(3, "削除", y: 150)], taken: [old]), .rowsIndistinct(.label, taken: 1, now: 1))
     }
 
+    /// 実測の木(E2EX-iOS スワイプで削除): 行の id は「削除」の親に出ない。周りが揃って動かないので断る。
+    /// スクロール(周りも同じだけ動く)は注記のまま・子の文字が一緒に動いても「揃った」に数えない
+    func testIdlessButtonThatMovedAloneIsRefused() throws {
+        func narrowRow(_ ref: Int, _ id: String, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "staticText", identifier: id, label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: -52, y: y, width: 370, height: 52), depth: 2)
+        }
+        let rows = [narrowRow(10, "swipe_row_1", y: 223), narrowRow(11, "swipe_row_3", y: 328)]
+        let old = plain(1, "削除", y: 227)
+        func text(_ ref: Int, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "staticText", identifier: nil, label: "削除", value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 339, y: y, width: 24, height: 15), depth: 4)
+        }
+        let oldText = text(2, y: 241)
+        let moved = plain(3, "削除", y: 332)
+        let movedText = text(4, y: 346)
+        XCTAssertEqual(try verdict(old, rows + [moved, movedText], taken: rows + [old, oldText]), .movedAlone)
+
+        let scrolled = [narrowRow(12, "swipe_row_1", y: 328), narrowRow(13, "swipe_row_3", y: 433)]
+        XCTAssertEqual(try verdict(old, scrolled + [moved, movedText], taken: rows + [old, oldText]),
+                       .rowsIndistinct(.label, taken: 1, now: 1))
+    }
+
     /// CMP のボタンは子に同じ文字の staticText を出す。押してラベルが変わっても子の文字は行の顔ぶれに数えない = 2回目も通る
     func testChildTextOfTheButtonIsNotPartOfItsRow() throws {
         func toggle(_ ref: Int, _ label: String) -> ElementInfo {

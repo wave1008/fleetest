@@ -2,18 +2,40 @@
   "id": "inapp-F3",
   "finding": "secure 欄へ ab のあと abかな を追記すると、かなが落ちても ok になる(前 2 + ASCII 2 = 本文の長さ 4)",
   "platform": "ios",
-  "redNote": "統合時に確認(デバイス未使用。直しを外した版で赤・直した版で緑を確かめる)",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.ios"}]],
-  "reset": [["ft_launch", {"bundleId": "com.ftester.e2e.ios", "resume": true}]],
+  "setup": [],
+  "reset": [
+    [
+      "ft_terminate",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
   "resetSeconds": 1,
   "rounds": 3,
   "forms": [
     {
       "name": "ft_batch セレクタ: ab → abかな(焦点を保つ)",
-      "steps": [["ft_batch", {"steps": "type '#field_password' 'ab'\ntype '#field_password' 'abかな'"}]],
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'\ntype '#field_password' 'ab'\ntype '#field_password' 'abかな'"
+          }
+        ]
+      ],
       "allowErrors": true,
       "replyOnly": true,
-      "replyExpect": ["did not accept"]
+      "replyExpect": [
+        "did not accept"
+      ]
     }
-  ]
+  ],
+  "redConfirmed": true
 }
