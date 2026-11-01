@@ -775,6 +775,7 @@ extension StepExecutor {
             // 「この操作を撃つ直前の画面」でなければ意味がない
             recordInteraction(step: step, element: element, in: snapshot)
             lastTapTarget = element
+            armKeyboardAppearanceWaitAfterFieldTap(element, in: snapshot)
             driverFallback = Self.joinNotes(driverFallback, enabledWaitNote)
             // **注記が出るときは解決先を1回だけ名乗る**(受け手報告)。
             // 連鎖(`A||B`)や型+順序(`.textField[1]`)では**書いた文字列から解決先が読めない**ので、
@@ -1465,6 +1466,18 @@ extension StepExecutor {
         }
         return StepOutcome(status: .passed,
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
+    }
+
+    /// Android で入力欄を叩く tap の後、次のロケータ操作の解決の前にキーボードが木に出るのを待たせる(`pendingTypeKeyboardCheck` の
+    /// 出現待ちをそのまま使う)。叩いた直後の木は上がる途中のキーボードを持たず、CMP の横向きでは欄が押し出されて木から消える
+    /// 直前の位置で解決され、続く type がタップ点に欄を見つけず 500 で落ちる(OI-114。Emulator の横向き CMP で 1/2)。
+    /// 既にキーボードが出ている・この端末で出なかったと観測済み(`keyboardKnownAbsent`)なら立てない(毎回の上限待ちを避ける)
+    func armKeyboardAppearanceWaitAfterFieldTap(_ element: ElementInfo, in snapshot: SnapshotResponse) {
+        guard isAndroid, !keyboardKnownAbsent, TypeReadback.isTextInput(element),
+              !KeyboardWait.onScreen(snapshot.keyboardFrame, screen: snapshot.screen) else { return }
+        keyboardFrameBeforeType = snapshot.keyboardFrame
+        pendingTypeEndedWithNewline = false
+        pendingTypeKeyboardCheck = true
     }
 
     /// `pendingTypeKeyboardCheck` を消化する: 直前の type の前後でキーボードが動いた(出た・出る途中・出し直しで隠れた)なら、

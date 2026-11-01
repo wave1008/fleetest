@@ -576,7 +576,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the preceding type shifted the on-screen layout (keyboard), so this waited for"
                 + " it to settle before resolving the target"
         case .keyboardNotShownAfterType:
-            return "the soft keyboard did not appear within the wait after the preceding type, so this"
+            return "the soft keyboard did not appear within the wait after the preceding type (or the tap into a text field), so this"
                 + " resolved the target without it"
         case .keyboardAppearedLate:
             return "the soft keyboard appeared only after the wait following the preceding type had"
