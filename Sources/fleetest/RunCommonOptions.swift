@@ -204,6 +204,16 @@ extension RunCommonOptions {
         if profile == nil, !hasFleet, remoteDir != nil {
             throw ValidationError("--remote-dir requires --profile (it names the runner-side directory of a remote dispatch)")
         }
+        // `--remote-timeout` は遠隔ディスパッチ全体の上限。0 以下は `RemoteTimeout.seconds` が黙って最小値(1800 秒)へ丸めるので
+        // 「0 = 無制限」と読んだ利用者の指定が別の値で効く。--remote-dir と同じく遠隔へ行かない run では効く相手が無い
+        if let remoteTimeout {
+            if remoteTimeout < 1 {
+                throw ValidationError("--remote-timeout must be a positive number of seconds (got \(remoteTimeout); omit it to size the timeout from the scenario count)")
+            }
+            if profile == nil, !hasFleet {
+                throw ValidationError("--remote-timeout requires --profile (it caps a remote dispatch)")
+            }
+        }
         // `--all-machines` は「--device の名前が2つ以上の機械に当たる」ときの解決口。--device が無ければ効く相手が無い
         if !hasFleet, allMachines, devices.isEmpty {
             throw ValidationError("--all-machines requires --device (it only applies when a --device name matches devices on more than one machine)")

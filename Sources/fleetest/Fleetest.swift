@@ -867,6 +867,10 @@ struct RunScenarios: AsyncParsableCommand {
             if runner != nil {
                 ConsoleOut.out("ℹ️ --dry-run touches no device, so --runner is not used"
                       + " (the scenarios are validated locally, from the same source the remote would run)")
+                if let runner, let warning = dryRunRunnerWarning(
+                    runner: runner, entries: LocalConfig.load().remoteHosts ?? []) {
+                    ConsoleOut.out(warning)
+                }
             }
             if let fleet {
                 // プロファイルと同じく、使わなくても実在と形は確かめる(打ち間違いを素通りさせない)

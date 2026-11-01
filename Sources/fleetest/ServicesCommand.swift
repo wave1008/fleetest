@@ -520,6 +520,7 @@ struct ServicesCommand: AsyncParsableCommand {
         /// 相手の控えを消すと、消した後に資源が作られる)③取り直して判定し直し、持ち主がいなければその同じ排他の中で全部消す
         /// (待っている間に現れた新しい所有者は ① からやり直す)。合図は forcedStopRounds 回まで・最後の周は判定だけ
         private func forceReset(target: Target, log: (String) -> Void) throws {
+            var stoppedOwners = false
             for round in 0...Self.forcedStopRounds {
                 let lastRound = round == Self.forcedStopRounds
                 let decision: ForceDecision = try ServicesLock.withLock(prefix: target.prefix, stateDir: target.stateDir) {
@@ -527,8 +528,9 @@ struct ServicesCommand: AsyncParsableCommand {
                     let decision = Self.forceDecision(entries: entries, isAlive: ServicesProcessIdentity.isAlive)
                     switch decision {
                     case .removeNow:
-                        try removeEverything(target: target)
+                        try removeEverything(target: target, stoppedOwners: stoppedOwners)
                     case .stop(let owners) where !lastRound:
+                        stoppedOwners = true
                         for lease in owners {
                             log("→ services: stopping \(lease.holderDescription) before the reset")
                             _ = kill(lease.pid, SIGTERM)
@@ -584,7 +586,7 @@ struct ServicesCommand: AsyncParsableCommand {
         }
 
         /// 接頭辞の資源と控えを全部消す(排他の中で呼ぶ)
-        private func removeEverything(target: Target) throws {
+        private func removeEverything(target: Target, stoppedOwners: Bool = false) throws {
             let entries = ServicesLeaseStore.entries(stateDir: target.stateDir, prefix: target.prefix)
             let cli: RuntimeCLI
             do {
@@ -618,8 +620,14 @@ struct ServicesCommand: AsyncParsableCommand {
                 ServicesLeaseStore.remove(at: entry.url, home: NSHomeDirectory())
                 ServicesReaper.removePrivateDirectory(home: NSHomeDirectory(), pid: entry.pid)
             }
-            ConsoleOut.out("→ services reset: \(listing.containers.count) container(s), \(listing.networks.count) network(s),"
-                + " \(listing.volumes.count) volume(s) removed; \(entries.count) lease(s) cleared")
+            ConsoleOut.out(Self.summaryLine(containers: listing.containers.count, networks: listing.networks.count,
+                                            volumes: listing.volumes.count, leases: entries.count, stoppedOwners: stoppedOwners))
+        }
+
+        /// 数えるのは所有者を止めた**後**なので、所有者が自分で片付けたぶんは 0 になる。止めた事実を添えて 0 を「何も無かった」と読ませない
+        static func summaryLine(containers: Int, networks: Int, volumes: Int, leases: Int, stoppedOwners: Bool) -> String {
+            "→ services reset: \(containers) container(s), \(networks) network(s), \(volumes) volume(s) removed; \(leases) lease(s) cleared"
+                + (stoppedOwners ? " (counted after the stopped owner had removed its own resources)" : "")
         }
 
         private func report(_ what: String, _ result: RuntimeCLIResult, _ failed: inout [String]) {

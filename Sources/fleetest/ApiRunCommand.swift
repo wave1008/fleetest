@@ -294,6 +294,10 @@ struct ApiRunCommand: AsyncParsableCommand {
         if dryRun, runner != nil {
             ConsoleOut.err("ℹ️ --dry-run touches no device, so --runner is not used"
                   + " (the scenarios are validated locally, from the same source the remote would run)")
+            if let runner, let warning = dryRunRunnerWarning(
+                runner: runner, entries: LocalConfig.load().remoteHosts ?? []) {
+                ConsoleOut.err(warning)
+            }
         } else if let dispatch = try resolveEffectiveDispatchTarget(
         explicitTarget: runner, profile: common.profile, project: common.project,
             requireProfileMachine: !dryRun) {

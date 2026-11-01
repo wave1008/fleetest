@@ -985,6 +985,18 @@ func resolveRemoteTarget(_ dispatch: EffectiveDispatchTarget, remoteDirOverride:
     return try RemoteHostResolver.resolve(rawHost: dispatch.rawTarget, remoteDirOverride: remoteDirOverride)
 }
 
+/// dry-run は `--runner` を使わない(ローカルで検証する)ので、実在しない名前を打っても緑になる。
+/// 本実行なら登録簿に無い名前は ssh 宛先として扱われる(`user@host` を直に書ける)ため断れず、事実だけを警告する。
+/// 判定は純粋関数(登録簿は呼び手が渡す)。`run` / `api run` の dry-run が共有する
+func dryRunRunnerWarning(runner: String, entries: [RemoteHostEntry]) -> String? {
+    guard case .rawTarget(let raw) = RemoteHostRegistry.resolve(runner, entries: entries) else { return nil }
+    let registered = entries.map(\.machine).sorted()
+    return "⚠️ --runner \(raw) is not a registered machine (" + (registered.isEmpty
+        ? "none registered — fleetest remote machines add <name> --host <user@host>"
+        : "registered: \(registered.joined(separator: ", "))")
+        + "); a real run would treat it as an ssh destination"
+}
+
 // MARK: - shared helpers
 
 /// マシン混在プロファイルの単一マシンディスパッチに付ける --device/--device-machine を決める
