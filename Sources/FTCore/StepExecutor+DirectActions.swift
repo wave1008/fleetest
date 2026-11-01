@@ -830,6 +830,8 @@ extension StepExecutor {
         let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
         var lastReason = ""
         var point: KeyboardDismissPoint.Choice?
+        // 叩ける空きが無いときの OS の入力補助バーの Done(WebView の欄。KeyboardAccessoryDone)
+        var accessoryDone: ElementInfo?
         var unconfirmed = false
         // 木だけで決める経路(XCUITest)で前回の木が選んだ点。次の木も同じ点を選んだときだけ叩く
         var unconfirmedSeen: KeyboardDismissPoint.Choice?
@@ -852,6 +854,11 @@ extension StepExecutor {
             if candidates.isEmpty {
                 lastReason = "there is no empty spot above the keyboard (every point is on an element that could react"
                     + " or on a text, an image, a card or an overlay)"
+                // 空きが無くても、OS の入力補助バーに Done があれば人はそれを押す(待たずに)。Enter は欄の確定操作が走る
+                if let done = KeyboardAccessoryDone.target(in: before.elements, keyboard: keyboard) {
+                    accessoryDone = done
+                    break searching
+                }
             }
             var refusals: [String] = []
             for candidate in candidates.prefix(Self.keyboardDismissProbeLimit) {
@@ -904,9 +911,23 @@ extension StepExecutor {
                 return .closed(note: notes.joined(separator: " / "), after: after)
             }
             tried.append("tapping \(place) did not close it")
-        } else {
+        } else if accessoryDone == nil {
             tried.append("\(lastReason) (waited \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s), so nothing"
                 + " was tapped")
+        }
+        // 空きを叩いても閉じなかった・叩ける空きが無かったときは、OS の入力補助バーの Done を押す(KeyboardAccessoryDone)
+        if let done = accessoryDone ?? KeyboardAccessoryDone.target(in: before.elements, keyboard: keyboard) {
+            let x = done.frame.centerX, y = done.frame.centerY
+            let start = clock.now
+            try await driver.tap(x: x, y: y)
+            phase.actionMs += Self.ms(clock.now - start)
+            let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
+            if !KeyboardWait.isShown(after) {
+                let why = tried.isEmpty ? lastReason : tried.joined(separator: "; ")
+                return .closed(note: "closed the keyboard by tapping the Done button of its toolbar at (\(Int(x)), \(Int(y)))"
+                    + (why.isEmpty ? "" : " (\(why))"), after: after)
+            }
+            tried.append("tapping the Done button of the keyboard's toolbar did not close it")
         }
         return .notClosed(tried.joined(separator: "; "))
     }
