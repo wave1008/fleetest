@@ -22,6 +22,11 @@ public enum TypedInputVerdict {
         return !isAndroid && !text.allSatisfy(\.isASCII)
     }
 
+    /// 撃つ前の値(`priorCount` 文字)があったのに、読み返しが打った文字そのものだけになったか(追記でなく置換)
+    public static func replacedPriorValue(priorCount: Int, typedOnly: String, actual: String) -> Bool {
+        priorCount > 0 && !typedOnly.isEmpty && actual == typedOnly
+    }
+
     /// 打った後の木で、本文を受けた secure 欄。
     /// target あり: 同じ欄が secure ならそれ。普通の入力欄なら nil。**入力欄でない(id が外側の other に付く Flutter)なら、その枠の中で焦点を持つ
     /// secure 欄**を1つだけ引く。target なし: 焦点を持つ要素が secure ならそれ

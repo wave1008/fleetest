@@ -302,6 +302,12 @@ extension DriverError {
     }
 }
 
+extension DriverError {
+    /// 届いたか分からない失敗に足す文(そうでなければ空)。**CLI の操作コマンドとライブ操作が失敗文の後ろへ付ける**
+    /// (MCP は自前の同趣旨の注記を持つ)。判定は `deliveryIsUnknown`・自動リトライは足さない
+    public var deliveryAdvice: String { deliveryIsUnknown ? DriverErrorMessage.deliveryUnknownNote : "" }
+}
+
 extension DriverError: StepFailureKindProviding {
     /// 到達できなかった(接続拒否・応答なし・アプリのプロセス死・別デバイスへの奪取)/
     /// 到達したがエラー応答、の2つ
@@ -332,10 +338,25 @@ public struct DriverErrorContext: Sendable, Equatable {
     }
     public let bridge: Bridge
     public let physicalDevice: Bool
-    public init(bridge: Bridge, physicalDevice: Bool) {
+    /// アプリがどうなったかを**測れたときだけ**入る(測れなければ nil = 従来の文言)。in-app ブリッジはアプリの中にいるので、
+    /// 接続断の原因は「ブリッジの再起動」でなくアプリの終了。推測では入れない(.ips の発見・自分の terminate の記録だけ)
+    public let appFate: AppFate?
+    public init(bridge: Bridge, physicalDevice: Bool, appFate: AppFate? = nil) {
         self.bridge = bridge
         self.physicalDevice = physicalDevice
+        self.appFate = appFate
     }
+    public func with(appFate: AppFate?) -> DriverErrorContext {
+        DriverErrorContext(bridge: bridge, physicalDevice: physicalDevice, appFate: appFate)
+    }
+}
+
+/// 接続断のときにアプリが辿った運命の、測れた事実(`DriverErrorContext.appFate`)
+public enum AppFate: Sendable, Equatable {
+    /// .ips が見つかった(失敗の detail にそのパスと終了理由がある)
+    case crashed
+    /// このセッションが `terminate` を撃ち、その後 launch していない
+    case stoppedBySession
 }
 
 /// `DriverError.errorDescription` の文言組み立て(純粋関数。`DriverErrorMessageTests` が
@@ -344,7 +365,17 @@ public struct DriverErrorContext: Sendable, Equatable {
 /// (「シミュレータ専用」)が付き、iOS xcuitest ランナーを外から殺した接続拒否で
 /// 「アプリが落ちた」が第一容疑にされていた(xcuitest はアプリと別プロセスなので的外れ)
 public enum DriverErrorMessage {
+    /// 要求を送った後に切れた・時限切れの手は端末で実行されていることがある(撃ち直すと二重に打つ・押す)。
+    /// **操作の呼び手(CLI の操作・ライブ操作)が `DriverError.deliveryUnknownAdvice` 経由で付ける**。
+    /// エラー文そのものには含めない(読むだけの呼び出しと、自前の注記を持つ MCP に二重に出さない)
+    static let deliveryUnknownNote = " If this was an action (tap, type, swipe, …), it may already have been"
+        + " performed or may still be performed: check the screen before repeating it — repeating a type or tap that"
+        + " did go through would do it twice."
+
     public static func unreachable(context: DriverErrorContext, detail: String) -> String {
+        if let fate = context.appFate, let text = appFateMessage(fate, detail: detail) {
+            return text
+        }
         let base = "Cannot reach the driver (not running, or slow to respond)."
         let hint: String
         switch context.bridge {
@@ -359,7 +390,21 @@ public enum DriverErrorMessage {
         return detail.isEmpty ? "\(base)\(hint)" : "\(base)\(hint) \(detail)"
     }
 
+    /// アプリの運命が測れているときの先頭の文(bridge up を勧めない。in-app ブリッジはアプリの中にいる)
+    static func appFateMessage(_ fate: AppFate, detail: String) -> String? {
+        switch fate {
+        case .crashed:
+            return "The app under test crashed, and the in-app bridge went down with it — restarting the bridge"
+                + " will not help; launch the app again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
+                + (detail.isEmpty ? "" : " \(detail)")
+        case .stoppedBySession:
+            return "The app under test is not running: this session stopped it (terminateApp / terminate) and has not"
+                + " launched it since. Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
+        }
+    }
+
     public static func connectionRefused(context: DriverErrorContext, detail: String) -> String {
+        if let fate = context.appFate, let text = appFateMessage(fate, detail: detail) { return text }
         let base = "Connection to the driver was refused (nothing listening on the port)."
         let suspect: String
         switch context.bridge {

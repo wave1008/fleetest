@@ -1360,7 +1360,7 @@ final class BridgeRouter {
         if let app, app.state != .runningForeground {
             throw BridgeError(422, "the session's app (\(sessionBundleID ?? "?")) left the foreground or stopped"
                 + " while waiting for the rotation to \(req.orientation.rawValue), so it could not be confirmed."
-                + " Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>"))")
+                + " Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>"))")
         }
         throw BridgeError(422, "orientation did not settle to \(req.orientation.rawValue) within "
             + "\(RotationSettle.deadlineSeconds)s (the app stayed "
@@ -1605,7 +1605,7 @@ final class BridgeRouter {
             throw BridgeError(422, "the app switcher cannot be opened on a home-button iPhone:"
                 + " the bottom-edge swipe up is Control Center by design, and the switcher is a"
                 + " hardware double-press XCUITest cannot send. Switch apps with a launch instead"
-                + " (DSL: launchApp / MCP: ft_launch <bundleId>).")
+                + " (DSL: launchApp / MCP: ft_launch <bundleId> / CLI: fleetest launch <bundleId>).")
         }
         let start = sb.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.999))
         let end = sb.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48))
@@ -1774,7 +1774,7 @@ final class BridgeRouter {
         guard app.state != .notRunning, app.state != .unknown else {
             throw BridgeError(503, "the target app (\(sessionBundleID ?? "?")) is not running, so"
                 + " it cannot be driven (it may have exited or crashed in an earlier step)."
-                + " Launch it again (DSL: launchApp / MCP: ft_launch)")
+                + " Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)")
         }
         return app
     }
@@ -1808,7 +1808,7 @@ final class BridgeRouter {
         guard app.state == .runningForeground else {
             throw BridgeError(422, "the session's app (\(sessionBundleID ?? "?")) is not in the foreground,"
                 + " so nothing can be typed into it (querying its keyboard focus in this state takes the"
-                + " runner down). Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>")"
+                + " runner down). Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>")"
                 + " — resume: true keeps its state)")
         }
         return app
@@ -1825,7 +1825,7 @@ final class BridgeRouter {
         guard app.state == .runningForeground else {
             throw BridgeError(422, "the session's app (\(sessionBundleID ?? "?")) is not in the foreground,"
                 + " so the gesture cannot be sent to it (locating its window in this state takes the"
-                + " runner down). Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>")"
+                + " runner down). Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>")"
                 + " — resume: true keeps its state), or point the session at what IS in front"
                 + " (MCP: ft_launch com.apple.springboard for the home screen)")
         }
@@ -1839,7 +1839,7 @@ final class BridgeRouter {
         guard app.state == .runningForeground else {
             throw BridgeError(422, "the session's app (\(sessionBundleID ?? "?")) is not in the foreground,"
                 + " so it cannot be rotated (reading its window in this state takes the runner down)."
-                + " Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>")"
+                + " Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>")"
                 + " — resume: true keeps its state)")
         }
         return app
@@ -1852,7 +1852,7 @@ final class BridgeRouter {
             throw BridgeError(422, "the session's app (\(sessionBundleID ?? "?")) is not in the"
                 + " foreground — another app is. Reading the tree in this state hangs XCUITest and"
                 + " takes this runner (and the bridge) down with it, so it is refused. Bring it back"
-                + " (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>")), or point"
+                + " (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>")), or point"
                 + " the session at whatever IS in front (MCP: ft_launch with that bundle id;"
                 + " com.apple.springboard reads the home screen or a system dialog)")
         }
@@ -1863,8 +1863,9 @@ final class BridgeRouter {
         guard let app else {
             // status は 409 のまま変えないこと(ホスト側 SessionRecoveryDriver がこの1箇所の
             // 409 だけを「セッション消失」と断定して判定に使う)
-            throw BridgeError(409, "the XCUITest runner has no session (it may have been lost to a"
-                + " runner restart); the host re-establishes it with /session")
+            throw BridgeError(409, "the XCUITest runner has no session: no app has been launched through it since the"
+                + " runner started, or the app was terminated. Launch the app to create a session"
+                + " (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)")
         }
         return app
     }

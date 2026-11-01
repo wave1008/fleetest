@@ -104,10 +104,7 @@ public final class SessionRecoveryDriver: AppDriver {
         } catch {
             guard isSessionLost(error) else { throw error }
             guard lastBundleID != nil else {
-                throw DriverError.badResponse(status: 409, body:
-                    "the XCUITest runner has no session: the app has not been launched from this"
-                    + " session yet (or it was terminated)."
-                    + " Launch it first (DSL: launchApp / MCP: ft_launch)")
+                throw DriverError.badResponse(status: 409, body: Self.noSessionMessage)
             }
             if let dead = await appNotRunningMessage() { throw DriverError.badResponse(status: 409, body: dead) }
             await recover()
@@ -343,19 +340,23 @@ public final class SessionRecoveryDriver: AppDriver {
         }
     }
 
+    /// launch 前・terminate 後の「セッションが無い」(`withRecovery` と `recoverAndRethrow` の共通文)
+    static let noSessionMessage = "the XCUITest runner has no session: the app has not been launched from this"
+        + " session yet (or it was terminated). Launch it first"
+        + " (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)"
+
     private func recoverAndRethrow(_ error: Error) async throws -> Never {
         guard isSessionLost(error) else { throw error }
         // launch 前(lastBundleID なし)は張り直す相手が分からない。実際に張り直したときだけ
         // 「復帰します」と言う(していないのに言うと切り分けを誤らせる)。
         if let dead = await appNotRunningMessage() { throw DriverError.badResponse(status: 409, body: dead) }
-        let recovered = lastBundleID != nil
-        if recovered { await recover() }
+        // launch 前・terminate 後は「ランナーが再起動した」と言う根拠が無い(ブリッジの PID は変わっていない)。
+        // 他の操作(withRecovery)と同じ事実を言う
+        guard lastBundleID != nil else { throw DriverError.badResponse(status: 409, body: Self.noSessionMessage) }
+        await recover()
         throw DriverError.badResponse(status: 409, body:
             "the XCUITest runner session was lost (the runner may have restarted). "
-            + (recovered
-               ? "The session was re-established; the next step recovers. "
-               : "There is nothing to re-establish the session against (not launched, or already terminated). "
-                 + "Launch the app first (DSL: launchApp / MCP: ft_launch <bundleId>). ")
+            + "The session was re-established; the next step recovers. "
             // DSL と MCP の両方がこの層を通る(呼び方は両方を併記する)。ref 無しの操作
             // (フォーカス中の欄への type / clearInput)もここへ来るので「its ref」と言い切らない
             + "This step is not retried: whatever it targeted was read from the lost session's tree")
