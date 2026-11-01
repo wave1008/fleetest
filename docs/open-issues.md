@@ -551,20 +551,6 @@
 - ft_batch の終わりの前面の照会は、Android では木の bundle が前面のパッケージなので常に前面 = 1往復の無駄。意図して別アプリへ移る batch も「前面を離れたかも」と言う
 - Android の launch で systemui が居座ったときの失敗文が、シェードを閉じた事実を書かない・PowerManager が読めないと時点の注記が落ちる
 
-### OI-80 PIN ロック中の Android 実機: `isLockScreenOrAlwaysOnTree` が bouncer を見分けない
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
-
-- 待つのはセッションの最初の1回だけになり、警告も応答へ載る。残りは bouncer の木の見分け(e F1)
-
-### OI-81 iOS で type の途中にアプリが死ぬと生の 500
-- 状態: 経路確定
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
-
-- ft_status は launchctl / devicectl で死んだと言うようになった。残りは type の途中で死んだ形の文言(b F8)
-
 ### OI-83 固まったアプリで XCUITest ランナーごと落ち、bridge up まで戻らない・起動し直しのポートが run の in-app ブリッジと衝突
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -745,7 +731,6 @@
 - 経緯: 発見: 11/1 朝の探索的テスト(cli F4・F7・F9・F11)。各 1〜3 回で決定的
 
 - 登録簿に無い `--runner` は本実行で ssh 宛先として有効なので、dry-run は断らず警告する(断るなら未登録名の扱いの決定が要る)
-- iOS で `fleetest terminate` の後の `fleetest tap --x --y` は「409 … the XCUITest runner has no session …; the host re-establishes it with /session」exit 1(3/3)。利用者が撃てる対処でなく、`fleetest launch <bundle>` で戻る。文言はランナーの生の 409 で、直すにはブリッジが構造化した理由を返す形が要る
 
 ### OI-119 ランナーが固まった間の ft_batch は、手の前の読みも個別に時限切れを待つ
 - 状態: 推測
