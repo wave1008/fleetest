@@ -74,7 +74,8 @@ public enum ContainerGeometry {
             // 容器の下端(778)を 18pt はみ出した要素(776..796)が「見えている」で探索を止めていた。
             // 実際にはタブバーの裏で 2pt しか描かれておらず、FM の転写が正しく反転する = 探索側の穴。
             // 申告が無い木は nil のまま(下流は nil と画面全体を別物として扱う)
-            return nearestScrollableAncestor(of: element, at: index, in: elements)?.frame
+            guard let scroller = nearestScrollableAncestor(of: element, at: index, in: elements) else { return nil }
+            return holdsContentLike(element, scroller: scroller, in: elements) ? scroller.frame : nil
         }
         if let scroller = nearestScrollableAncestor(of: element, at: index, in: elements),
            let clipped = ScrollGeometry.intersection(tight, scroller.frame),
@@ -82,6 +83,20 @@ public enum ContainerGeometry {
             return scroller.frame
         }
         return tight
+    }
+
+    /// 深さの規則が候補を出せなかった要素を、`scroller`(preorder + depth で復元した申告の祖先)の中身と見てよいか。
+    /// 見てよいのは、枠が容器と交わる(縁をまたぐ最後の行など)か、同じ深さの別の要素が容器の中に居るとき。
+    /// **どちらでもない = 容器の外に固定された別の物**: RN の FlatList はラッパー(testID 付き)と内側の scroll が別ノードで出て
+    /// (`SnapshotDedupe.wrapperScrollMerge` が内側を畳む)、一覧の下の入力バーが木の上ではラッパーの子に再配線される。
+    /// それを容器の外へ押し出された行(ghost)と読むと、救済のスワイプ2本・6〜7 秒・「飲まれたかも」の警告が出る
+    private static func holdsContentLike(_ element: ElementInfo, scroller: ElementInfo,
+                                         in elements: [ElementInfo]) -> Bool {
+        if ScrollGeometry.intersection(element.frame, scroller.frame) != nil { return true }
+        return LocatorResolver.descendants(of: scroller, in: elements).contains {
+            $0.ref != element.ref && $0.depth == element.depth
+                && ScrollGeometry.intersection($0.frame, scroller.frame) != nil
+        }
     }
 
     /// 「同じ深さの子を2つ持つ直近の祖先」= Compose iOS 向けの近似(申告の無い木ではこれが唯一の手)。
