@@ -254,7 +254,7 @@ extension MCPServer {
                 // 焦点の別の欄まで消えていないか(DSL の performClearInput と同じ判定)
                 if let after = afterClear,
                    let other = TypedInputVerdict.otherInputCleared(target: priorElement, before: treeBeforeType, after: after.elements) {
-                    throw MCPError(TypedInputVerdict.clearedOtherInputMessage(other) + " (replace: nothing was typed)")
+                    note += " — warning: " + TypedInputVerdict.clearedOtherInputMessage(other)
                 }
                 guard let refound = refoundField else {
                     throw MCPError("the field was cleared for replace:, but it could not be found on the screen afterwards"
@@ -544,14 +544,15 @@ extension MCPServer {
         if verification == nil {
             verification = try? await clearDriver.snapshot(bypassingCache: clearDriver.supportsCacheBypass)
         }
-        // 焦点の別の欄まで空になっていないか(DSL の performClearInput と同じ判定)
+        // 焦点の別の欄まで空になっていないか(DSL の performClearInput と同じ判定。警告止まり)
+        var otherClearedNote = ""
         if let clearTarget, let verification,
            let other = TypedInputVerdict.otherInputCleared(target: clearTarget, before: treeBeforeClear, after: verification.elements) {
-            throw MCPError(TypedInputVerdict.clearedOtherInputMessage(other))
+            otherClearedNote = " — warning: " + TypedInputVerdict.clearedOtherInputMessage(other)
         }
         let clearedVerdict = Self.replaceVerificationNote(
             target: clearTarget, expected: "", fresh: verification, requestedAs: "clear")
-        return text("clearInput sent\(clearNote)\(clearedVerdict)"
+        return text("clearInput sent\(clearNote)\(clearedVerdict)\(otherClearedNote)"
             + (clearRef.map { reproductionNote(resolvedRef: $0, args: args) } ?? "")
             + waitForWithoutSnapshotAfterNote(args) + afterBody)
     }

@@ -296,6 +296,28 @@ def device_run_problems(words, env, full_ok, depth):
     return reasons
 
 
+def pkill_problems(words):
+    """`pkill -f <パターン>` が VS Code / Claude Code に当たるなら断る(パターンは正規表現でコマンドライン全体に当たる。
+    `c.py` が `--enable-zero-copy` に一致して VS Code を落とした)。今のプロセス一覧で見るので長さの定数を置かない"""
+    if not words or os.path.basename(words[0]) != "pkill":
+        return []
+    args = [w for w in words[1:] if not re.fullmatch(r"-[A-Z0-9]+", w)]
+    flags = [w for w in args if w.startswith("-")]
+    if not any("f" in w for w in flags if not w.startswith("--")):
+        return []
+    patterns = [w for w in args if not w.startswith("-")]
+    if not patterns or "$" in patterns[-1]:
+        return []
+    r = subprocess.run(["pgrep", "-fl", "--", patterns[-1]], capture_output=True, text=True)
+    hits = [l for l in r.stdout.splitlines()
+            if re.search(r"Visual Studio Code|claude-code|\.vscode/extensions", l)
+            and not re.search(r"test-scope-guard|/bin/zsh -c", l)]
+    if hits:
+        return [f"`pkill -f {patterns[-1]}` は VS Code / Claude Code の {len(hits)} 個のプロセスにも当たる(パターンは正規表現で"
+                " コマンドライン全体に当たる)。自分が起こした PID か、完全な文字列で止める"]
+    return []
+
+
 def check(command, env=None, full_ok=None, depth=0, cwd=None):
     """断る理由の一覧(空 = 通す)。cwd = コマンドを撃つ場所(フックの入力の cwd)。`cd <dir>` を追ってテストクラスを集める作業ツリーを決める"""
     outer = strip_heredocs(command)
@@ -326,6 +348,7 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
             if os.path.basename(tok) in SHELLS and words[i + 1] == "-c" and i + 2 < len(words):
                 reasons.extend(check(words[i + 2], env, full_ok, depth, cwd))  # 中身は打ったコマンドそのもの = 同じ深さ
         reasons.extend(device_run_problems(words, env, full_ok, depth))
+        reasons.extend(pkill_problems(words))
         if len(words) >= 2 and os.path.basename(words[0]) == "swift" and words[1] == "test":
             if "--help" in words or "-h" in words:
                 continue

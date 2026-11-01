@@ -620,9 +620,10 @@ extension StepExecutor {
             }
             // 焦点が別の欄に残ったままだと、消す操作が焦点の欄まで空にする(対象は消えているので上の検証は通る)
             if let after = actingSnapshot,
-               let other = TypedInputVerdict.otherInputCleared(target: target, before: refreshed?.snapshot.elements ?? elements,
-                                                               after: after.elements) {
-                return .failed(TypedInputVerdict.clearedOtherInputMessage(other))
+               TypedInputVerdict.otherInputCleared(target: target, before: refreshed?.snapshot.elements ?? elements,
+                                                   after: after.elements) != nil {
+                // 警告止まり: 対象を消すと連動して別の欄が空になるアプリを赤にしない(新しい検知)
+                noteCodesThisStep.insert(.otherInputCleared)
             }
             return .cleared(driverFallback: nil, actingDriverSnapshot: actingSnapshot)
         } catch {

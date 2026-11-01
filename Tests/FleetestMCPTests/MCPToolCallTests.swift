@@ -572,7 +572,8 @@ final class MCPToolCallTests: XCTestCase {
     func testTypeWithRef() async throws {
         seedRefsTwoToFour()
         _ = try await server.call(tool: "ft_type", args: ["text": "あいう", "ref": 2])
-        XCTAssertEqual(driver.calls, verified(2) + ["type(ref:2,text:あいう)"])
+        // 非 ASCII は打った後の木で secure 欄の照合を決める(TypedInputVerdict.wantsMaskedCheck)ので1回読む
+        XCTAssertEqual(driver.calls, verified(2) + ["type(ref:2,text:あいう)", "snapshot"])
     }
 
     /// ref 省略時は「フォーカス中の要素」= ref nil をドライバへ渡す
@@ -593,7 +594,8 @@ final class MCPToolCallTests: XCTestCase {
     func testTypeReplaceFalseStillAppends() async throws {
         seedRefsTwoToFour()
         _ = try await server.call(tool: "ft_type", args: ["text": "あいう", "ref": 2, "replace": false])
-        XCTAssertEqual(driver.calls, verified(2) + ["type(ref:2,text:あいう)"])
+        // 非 ASCII は打った後の木で secure 欄の照合を決める(TypedInputVerdict.wantsMaskedCheck)ので1回読む
+        XCTAssertEqual(driver.calls, verified(2) + ["type(ref:2,text:あいう)", "snapshot"])
     }
 
     /// replace: true のときは「追記」警告(the field already held ...)を出さず、

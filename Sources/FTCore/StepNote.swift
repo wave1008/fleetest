@@ -411,6 +411,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// アプリの領域が一色なのに木は文字の要素を報告している画面を検出し、デバイスの描画の状態として公表した
     /// (`DeviceScreenStateStore`・`RenderCollapse.Finding.blankAppArea`)。事実だけ。原因は推測しない
     case screenBlank = "screen-blank"
+    /// 消した後に、撃つ前に値のあった別の入力欄が空になった(`TypedInputVerdict.otherInputCleared`)。焦点が動かなかった形か、連動して空になるアプリか、ツールには分からないので赤にしない
+    case otherInputCleared = "other-input-cleared"
     /// 図形は描かれているが文字の要素が1つも描かれていない画面を検出し、デバイスの描画の状態として公表した
     /// (`RenderCollapse.Finding.noTextDrawn`)。事実だけ
     case screenTextless = "screen-textless"
@@ -576,6 +578,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .inAppActivationPointOffCentre:
             return "in-app activated the element at its activation point, which is not the centre of its"
                 + " frame that a coordinate tap presses"
+        case .otherInputCleared:
+            return "another input field was emptied too (input focus may not have moved to the target)"
         case .screenBlank:
             return "the app's area of the screenshot was a single colour although the tree reports text there"
         case .screenTextless:
