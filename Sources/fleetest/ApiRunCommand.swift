@@ -594,6 +594,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // **dry-run では外さない** —— デバイスに触らないので全件を構文検査したい。
         // --platform/--port/--serial 直指定(resolvedProfile == nil)も対象外 ——
         // その経路は「この run が回す OS の集合」を宣言していないので、判定材料が無い
+        var declaredNotApplicableCount = 0
         if let resolvedProfile, !dryRun {
             let runPlatforms = Set(resolvedProfile.devices.map(\.platform))
             let applicability = PlatformApplicability.partition(selected,
@@ -609,6 +610,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                                         platform: declared, worker: nil, reason: reason,
                                         kind: .notApplicable)
             }
+            declaredNotApplicableCount = applicability.notApplicable.count
             selected = applicability.runnable
         }
 
@@ -734,7 +736,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 赤の run はサービスのログの末尾も記録へ(ProfileRunner.run と同じ。片付けの前に読む)
         if outcome.failed > 0, let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
         // fmSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
-        let slowWorkers = recorder?.finish(total: selected.count * measuredCopies, passed: outcome.passed, failed: outcome.failed,
+        let slowWorkers = recorder?.finish(total: selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
                          degradedWorkers: outcome.degradedWorkers,
                          freezeRetries: outcome.freezeRetries,
                          blankRepairs: outcome.blankRepairs,
@@ -771,7 +773,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             HealSourceWriteBack.run(records: RunResultsStore.records(runDir: recorder.runDir),
                                     project: testProject) { logStderr($0) }
         }
-        emitLine(ApiRunFinishedEvent(passed: outcome.passed, failed: outcome.failed, skipped: outcome.skipped,
+        emitLine(ApiRunFinishedEvent(passed: outcome.passed, failed: outcome.failed,
+                                     skipped: outcome.skipped + declaredNotApplicableCount,
                                      testSeconds: outcome.testSeconds,
                                      scenarioTotalSeconds: outcome.scenarioTotalSeconds,
                                      runID: recorder?.runID))

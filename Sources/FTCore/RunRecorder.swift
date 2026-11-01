@@ -205,7 +205,7 @@ public final class RunRecorder: @unchecked Sendable {
                               kind: ScenarioSkipKind = .noWorker) {
         let record = ScenarioRunRecord(
             runID: runID, scenarioID: scenarioID, title: title, platform: platform, worker: worker,
-            host: machine, profile: profile, passed: false, timedOut: false,
+            host: machine, profile: profile, passed: kind == .notApplicable, timedOut: false,
             startedAt: ISO8601DateFormatter().string(from: Date()), durationMs: 0,
             steps: StepCountsRecord(total: 1, skipped: 1),
             failedSteps: [FailedStepRecord(index: 0, description: reason)],

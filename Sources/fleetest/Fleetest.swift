@@ -982,7 +982,7 @@ struct RunScenarios: AsyncParsableCommand {
             // --work-queue の子は渡された候補のうち配られた分だけ回す(残りは他のマシンの担当)= 差は対象外ではない
             let notApplicable = broadcast || common.workQueue ? 0 : max(0, items.count - ranCount)
             PhaseLog.mark("profile-run-done")
-            let slowWorkers = recorder.finish(total: ranCount, passed: ranCount - failedCount - runSummary.skipped, failed: failedCount,
+            let slowWorkers = recorder.finish(total: ranCount + notApplicable, passed: ranCount - failedCount - runSummary.skipped, failed: failedCount,
                             degradedWorkers: runSummary.degradedWorkers,
                             freezeRetries: runSummary.freezeRetries,
                             blankRepairs: runSummary.blankRepairs,
