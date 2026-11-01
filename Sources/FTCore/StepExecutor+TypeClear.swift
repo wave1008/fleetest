@@ -292,9 +292,11 @@ extension StepExecutor {
             let start = clock.now
             let snap = try await driver.snapshot()
             phase.snapshotMs += Self.ms(clock.now - start)
-            return TypeReadback.match(of: element, in: snap.elements).map {
-                (FlowMatchMode.normalizeInvisibleCharacters(TypeReadback.normalizedValue(of: $0)), $0.ref)
-            }
+            if TypeReadback.leftTheTree(element, in: snap.elements) { noteCodesThisStep.insert(.typeTargetLeftTree) }
+            // 焦点で secure に変わった欄(Flutter)は読み返しの材料にしない(isMaskedInput)
+            guard let field = TypeReadback.match(of: element, in: snap.elements),
+                  !TypeReadback.isMaskedInput(field) else { return nil }
+            return (FlowMatchMode.normalizeInvisibleCharacters(TypeReadback.normalizedValue(of: field)), field.ref)
         }
         guard var (lastValue, liveRef) = try await read() else { return nil }
         var lastChange = Date()

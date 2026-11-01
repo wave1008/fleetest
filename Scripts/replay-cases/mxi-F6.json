@@ -1,0 +1,165 @@
+{
+  "id": "mxi-F6",
+  "finding": "Flutter の iOS の数字だけの欄で、入力が全部捨てられても type が ok(id が外側の other に付き、読み返しが外れていた)",
+  "platform": "ios",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.flutter"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.flutter"
+      }
+    ]
+  ],
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "ft_batch の type(全部捨てられる)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_number' 'abc'"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyExpect": [
+        "did not change after re-sending"
+      ]
+    },
+    {
+      "name": "ft_batch の type(一部だけ捨てられる = 加工として受理)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_number' '12a3'"
+          }
+        ]
+      ],
+      "expect": [
+        "number=123"
+      ]
+    },
+    {
+      "name": "ft_batch の追記(前の値を消さない)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_number' '12'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_number' '1'"
+          }
+        ]
+      ],
+      "expect": [
+        "number=121"
+      ]
+    },
+    {
+      "name": "ft_batch の秘密欄(対照)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_password' 'pw12'"
+          }
+        ]
+      ],
+      "expect": [
+        "password_len=4"
+      ]
+    },
+    {
+      "name": "ft_type ref(id の付いた外側 = 撃つ前に断る)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_type",
+          {
+            "ref": "$ref:field_number",
+            "text": "abc"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyExpect": [
+        "not a text field"
+      ]
+    },
+    {
+      "name": "ft_type ref なし(焦点の欄)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_inputs' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#field_number'"
+          }
+        ],
+        [
+          "ft_type",
+          {
+            "text": "abc"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyExpect": [
+        "did not change after re-sending"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 242
+    public static let bridgeProtocolVersion = 243
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1389,7 +1389,10 @@ public enum FocusedElementMatch {
             if byID.count == 1 { return byID[0] }
         }
         let byFrame = elements.indices.filter { close(elements[$0].frame, frame) }
-        return byFrame.count == 1 ? byFrame[0] : nil
+        if byFrame.count == 1 { return byFrame[0] }
+        // Flutter は id を外側の other に載せ、同じ枠の textField に焦点を持たせる。ここで諦めると読み返しが丸ごと外れる
+        let inputs = byFrame.filter { TypeReadback.isTextInput(elements[$0]) }
+        return inputs.count == 1 ? inputs[0] : nil
     }
 
     private static func close(_ a: FTRect, _ b: FTRect) -> Bool {

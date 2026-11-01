@@ -11,6 +11,30 @@ import XCTest
 
 final class TypeReadbackTargetTests: XCTestCase {
 
+    private func node(_ type: String, id: String?, value: String? = nil) -> ElementInfo {
+        ElementInfo(ref: 1, type: type, identifier: id, label: nil, value: value, placeholder: nil, enabled: true,
+                    frame: FTRect(x: 16, y: 287, width: 370, height: 56), depth: 1)
+    }
+
+    /// Flutter: 同じ枠に id 付きの other が重なっても、id の無い欄の値を読める(複数候補 = 検証不能に落ちない)
+    func testIdlessFieldIsReadPastTheOverlappingOuterNode() {
+        let field = node("textField", id: nil)
+        let tree = [node("other", id: "field_number"), node("textField", id: nil, value: "123")]
+        XCTAssertEqual(TypeReadback.value(of: field, in: tree), "123")
+        XCTAssertEqual(TypeReadback.match(of: field, in: tree)?.value, "123")
+    }
+
+    func testIdlessFieldsSharingAFrameStayAmbiguous() {
+        let tree = [node("textField", id: nil, value: "a"), node("textField", id: nil, value: "b")]
+        XCTAssertNil(TypeReadback.value(of: tree[0], in: tree))
+    }
+
+    func testLeftTheTreeNeedsAnIdentifierThatIsGone() {
+        XCTAssertTrue(TypeReadback.leftTheTree(node("textView", id: "field_fruit"), in: [node("other", id: "x")]))
+        XCTAssertFalse(TypeReadback.leftTheTree(node("textView", id: "x"), in: [node("other", id: "x")]))
+        XCTAssertFalse(TypeReadback.leftTheTree(node("textField", id: nil), in: []), "id が無ければ居なくなったと言えない")
+    }
+
     /// **witness**: ヒントが value に載る欄。撃った文字だけが残っていたら目標を採り直す
     func testFallsBackToTypedTextWhenThePriorValueWasHintText() {
         XCTAssertEqual(
@@ -109,6 +133,51 @@ final class TypeReadbackTargetTests: XCTestCase {
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(
             FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "hello123"))
         XCTAssertFalse(outcome.notes.contains(.typeRetypeAbandoned), "\(outcome.notes)")
+    }
+
+    // ---- id が外側の other に付く Flutter の欄・打った後に消える欄(OI-107 の2つの形) ----
+
+    private func type(_ text: String, values: [String], shape: ReadbackSequenceDriver.Shape,
+                      onScreen: Bool = false) async -> (StepOutcome, ReadbackSequenceDriver) {
+        StepExecutor.typedTextOnScreenOverrideForTesting = { _ in (onScreen, nil) }
+        defer { StepExecutor.typedTextOnScreenOverrideForTesting = nil }
+        let driver = ReadbackSequenceDriver(values: values, shape: shape)
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(
+            FlowStep(action: "type", locator: FlowLocator(id: "field"), text: text))
+        return (outcome, driver)
+    }
+
+    /// 全部捨てられた入力を ok にしない
+    func testOverlappingFieldThatDroppedEverythingFails() async {
+        let (outcome, driver) = await type("abc", values: ["", "", "", ""], shape: .flutterOverlap(secureAfterTyping: false))
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(driver.typedTexts, ["abc", "abc"])
+    }
+
+    /// 外側の要素の空の値を「撃つ前の値」にすると、`12` への `1` が二重入力に見えて消される
+    func testOverlappingFieldKeepsItsPriorValue() async {
+        let (outcome, driver) = await type("1", values: ["12", "121"], shape: .flutterOverlap(secureAfterTyping: false))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(driver.clears, 0)
+        XCTAssertEqual(driver.typedTexts, ["1"])
+    }
+
+    /// 焦点で secure に変わる欄は読み返さない(空や伏せ字を読んで追送すると、秘密欄へ二重に打つ)
+    func testFieldTurningSecureIsNotResent() async {
+        let (outcome, driver) = await type("pw", values: ["", "", ""], shape: .flutterOverlap(secureAfterTyping: true))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(driver.typedTexts, ["pw"])
+    }
+
+    func testTargetLeavingTheTreeIsNotedButNotFailed() async {
+        let (outcome, _) = await type("zzz", values: ["", ""], shape: .goneAfterTyping)
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertTrue(outcome.notes.contains(.typeTargetLeftTree), "\(outcome.notes)")
+    }
+
+    func testFieldStayingInTheTreeIsNotNotedAsGone() async {
+        let (outcome, _) = await type("ok", values: ["", "ok"], shape: .plain)
+        XCTAssertFalse(outcome.notes.contains(.typeTargetLeftTree), "\(outcome.notes)")
     }
 
     // ---- 値が入力を映さない欄と、届かなかった入力の判別(E2EX-CMP の 15_検索バー。2026-09-28) ----
@@ -367,21 +436,35 @@ private final class ReadbackStubDriver: AppDriver {
 /// `type` / `clearInput` のたびに次の値へ進む欄。`values[0]` は撃つ前、以後は type 1回ごとに1つ進む
 /// (clearInput は進めない = in-app の clear が値を消しても読み返しは次の type の後にしか撮らない)
 private final class ReadbackSequenceDriver: AppDriver {
+    /// plain: id の付いた欄 / flutterOverlap: id は外側の other・同じ枠に id の無い欄(打つと secure になる形も) / goneAfterTyping: 打つと木から消える
+    enum Shape { case plain, flutterOverlap(secureAfterTyping: Bool), goneAfterTyping }
     private let values: [String]
+    private let shape: Shape
     private var index = 0
     private(set) var clears = 0
     private(set) var typedTexts: [String] = []
-    init(values: [String]) { self.values = values }
+    init(values: [String], shape: Shape = .plain) { self.values = values; self.shape = shape }
+
+    private func node(_ ref: Int, _ type: String, id: String?, value: String?) -> ElementInfo {
+        ElementInfo(ref: ref, type: type, identifier: id, label: nil, value: value, placeholder: nil, enabled: true,
+                    frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 1)
+    }
 
     private var response: SnapshotResponse {
-        SnapshotResponse(sessionBundleID: nil,
-                         screen: FTRect(x: 0, y: 0, width: 400, height: 800),
-                         elements: [ElementInfo(ref: 1, type: "textField", identifier: "field",
-                                                label: nil, value: values[min(index, values.count - 1)],
-                                                placeholder: nil, enabled: true,
-                                                frame: FTRect(x: 0, y: 0, width: 100, height: 40),
-                                                depth: 1)],
-                         truncatedCount: 0)
+        let value = values[min(index, values.count - 1)]
+        let elements: [ElementInfo]
+        switch shape {
+        case .plain:
+            elements = [node(1, "textField", id: "field", value: value)]
+        case .flutterOverlap(let secure):
+            elements = [node(1, "other", id: "field", value: nil),
+                        node(2, secure && index > 0 ? "secureTextField" : "textField", id: nil, value: value)]
+        case .goneAfterTyping:
+            elements = index > 0 ? [node(1, "button", id: "other", value: nil)]
+                : [node(1, "textView", id: "field", value: value)]
+        }
+        return SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                elements: elements, truncatedCount: 0)
     }
     func status() async throws -> StatusResponse {
         StatusResponse(ready: true, device: "stub", osVersion: "-", sessionBundleID: nil)

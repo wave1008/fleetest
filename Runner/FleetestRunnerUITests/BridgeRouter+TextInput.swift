@@ -89,7 +89,7 @@ extension BridgeRouter {
         if !main.contains("\n"),
            let target = req.ref.flatMap({ refElements[$0] }),
            TypeReadback.isTextInput(target), !TypeReadback.isMaskedInput(target) {
-            let note = try performTypeReadback(app, target: target, main: main)
+            let note = try performTypeReadback(app, target: target, main: main, elementsBeforeTyping: Array(refElements.values))
             // 本文を入れ切ってから発火する(app 全体へ送るのは従来どおり。要素への typeText は
             // ランナーごと落ちうる)
             if hasTrailingNewline { ResponseMeasurement.noteInjection(); app.typeText("\n") }
@@ -117,7 +117,8 @@ extension BridgeRouter {
            let captured = try? captureOnce(app),
            let target = Self.matchFocusedElement(focusAfter, in: captured.elements),
            TypeReadback.isTextInput(target), !TypeReadback.isMaskedInput(target) {
-            let note = try performTypeReadback(app, target: target, main: main)
+            // 基準はタップの後の木(撃つ前の木だと、タップで変わった焦点の表示を「アプリの反応」と読む)
+            let note = try performTypeReadback(app, target: target, main: main, elementsBeforeTyping: captured.elements)
             if hasTrailingNewline { ResponseMeasurement.noteInjection(); app.typeText("\n") }
             return note
         }
@@ -138,9 +139,10 @@ extension BridgeRouter {
     /// `TypeReadback.isTextInput` かつ `!isMaskedInput` であることを確認してから呼ぶこと
     /// (secure 欄を読み返しに乗せると伏せ字を literal 文字として撃ち込む。TypeReadback.isMaskedInput の doc)。
     /// 戻り値は driverFallback へ運ぶ注記(打ち直しが起きたときだけ non-nil)。
+    /// `elementsBeforeTyping` は全文が欠けたときの判定にだけ使う。
     /// 末尾の改行は呼び手が本体の読み返し成立後に別送する(呼び手側のコメント参照)
-    private func performTypeReadback(_ app: XCUIApplication, target: ElementInfo,
-                                     main: String) throws -> String? {
+    private func performTypeReadback(_ app: XCUIApplication, target: ElementInfo, main: String,
+                                     elementsBeforeTyping: [ElementInfo]) throws -> String? {
         let expected = TypeReadback.normalizedValue(of: target) + main
         var pending = main
         var previous: String?
@@ -151,10 +153,9 @@ extension BridgeRouter {
         var retypeAbandoned = false
         var consumedByApp = false
         var whitespaceAltered = false
+        var targetLeftTree = false
         // 直前の追送を撃った時点の値。追送の後も同じ値なら、それ以上撃っても重複するだけ(ホストの verifyTypedText と同じ規律)
         var valueAtLastResend: String?
-        // 打つ前の木(ホストは /type の直前に snapshot を撮っている)。全文が欠けたときの判定にだけ使う
-        let elementsBeforeTyping = Array(refElements.values)
         let deadline = Date().addingTimeInterval(Self.typeBudgetSeconds)
         loop: while true {
             if !pending.isEmpty {  // 空 = 打ち直しの結果を読み直すだけの周回(TypeReadback.retypeEnd)
@@ -164,7 +165,10 @@ extension BridgeRouter {
             rounds += 1
             // 読めない・曖昧 = 検証不能なので受理する(TypeReadback.value 参照)
             guard let actual = try awaitCommit(app, target: target,
-                                               expected: expected, deadline: deadline) else { break }
+                                               expected: expected, deadline: deadline) else {
+                targetLeftTree = TypeReadback.leftTheTree(target, in: try captureOnce(app).elements)
+                break
+            }
             // 目標は撃つ前の値 + 本文が既定で、ヒントが value に載る欄では本文だけへ採り直す
             // (規則はホストと共有 = TypeReadback.readbackTarget。採り直さないと `.retype` が
             // ヒント文字列ごと打ち込む)
@@ -236,6 +240,7 @@ extension BridgeRouter {
             }
         }
         // 打ち直した事実は注記で返す(ホストは driverFallback へ載せる = 緑の run で何回起きたかを数える口)
+        if targetLeftTree { return TypeReadback.targetLeftTreeNote }
         if consumedByApp {
             return "the field was back to its previous value after typing, but the screen outside it changed —"
                 + " taken as the app consuming the input (e.g. submitting a complete code); not re-sent"

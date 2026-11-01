@@ -166,6 +166,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 追送すると入力が重複する)。**値そのものは読み返していない** —— 必要なら後段で確かめる
     case typeReadbackUnchanged = "type-readback-unchanged"
 
+    /// 打った後に対象が木から居なくなり、読み返せなかった(読み取り専用の欄の候補一覧・打ち終えて自動送信した画面)。赤にしない
+    case typeTargetLeftTree = "type-target-left-tree"
+
     /// `swipeBy` の比率が片側 `ScrollGeometry.maxPanRatio` を超えていたので丸めた(比率は対象の大きさに対する
     /// 割合)。**新しい検知なので警告から**。対象より遠くへ払いたい指定の書き誤り
     case swipeByRatioCapped = "swipe-by-ratio-capped"
@@ -518,6 +521,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .typeReadbackUnchanged:
             return "the field's value did not reflect the input, but the typed text was seen in the"
                 + " field on screen (OCR), so it was not sent again"
+        case .typeTargetLeftTree:
+            return TypeReadback.targetLeftTreeNote
         case .launchURLBeforeInteractiveUI:
             return "the URL was delivered before any tappable element appeared, so the app may not"
                 + " have been listening yet"

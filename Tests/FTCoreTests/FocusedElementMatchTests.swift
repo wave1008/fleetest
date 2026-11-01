@@ -30,6 +30,16 @@ final class FocusedElementMatchTests: XCTestCase {
                                                in: elements))
     }
 
+    /// Flutter: id 付きの other と焦点を持つ textField が同じ枠で重なる
+    func testSameFrameOverlapPicksTheTextInput() {
+        let frame = FTRect(x: 16, y: 287, width: 370, height: 56)
+        var outer = element(1, id: "field_number", frame)
+        outer.type = "other"
+        var field = element(2, id: nil, frame)
+        field.type = "textField"
+        XCTAssertEqual(FocusedElementMatch.index(identifier: nil, frame: frame, in: [outer, field]), 1)
+    }
+
     /// 曖昧なら印を付けない(別の要素に付けると、焦点の要素を取り違えて救済・読み返しが別の欄へ向く)
     func testAmbiguousCandidatesYieldNoMatch() {
         let frame = FTRect(x: 20, y: 160, width: 300, height: 44)

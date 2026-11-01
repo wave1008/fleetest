@@ -1153,12 +1153,22 @@ extension StepExecutor {
                 // in-app は「200 が返った = 入った」を保証しない(insertText の成否しか見ていない)。
                 // xcuitest ランナー/Android 注入器は自前で読み返し済みなので二重にしない
                 // (verifiesTypedText == true のドライバはここへ来ない)
-                if !actingDriver.verifiesTypedText, TypeReadback.isTextInput(element) {
-                    if let failure = try await verifyTypedText(actingDriver, element: element,
-                                                                expected: existingValue + text,
-                                                                typedOnly: text,
-                                                                phase: &phase) {
-                        return StepOutcome(status: .failed(failure))
+                if !actingDriver.verifiesTypedText {
+                    if TypeReadback.isTextInput(element) {
+                        if let failure = try await verifyTypedText(actingDriver, element: element,
+                                                                    expected: existingValue + text,
+                                                                    typedOnly: text,
+                                                                    phase: &phase) {
+                            return StepOutcome(status: .failed(failure))
+                        }
+                    } else if let field = TypeReadback.sameFrameInput(of: element, in: snapshot.elements) {
+                        let fieldValue = step.replace == true ? "" : TypeReadback.normalizedValue(of: field)
+                        if let failure = try await verifyTypedText(actingDriver, element: field,
+                                                                    expected: fieldValue + text,
+                                                                    typedOnly: text,
+                                                                    phase: &phase) {
+                            return StepOutcome(status: .failed(failure))
+                        }
                     }
                 }
                 // 改行入りの宛先の照合は typeDriver 経路だけでなく主経路にも要る(xcuitest モード・MCP の ft_batch は typeDriver が無い)

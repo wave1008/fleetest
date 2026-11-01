@@ -1,0 +1,46 @@
+{
+  "id": "mxi-F7",
+  "finding": "CMP の読み取り専用メニューの欄への type が、タップで欄が木から消えて読み返せないのに注記なしで ok",
+  "platform": "ios",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex"
+      }
+    ]
+  ],
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "ft_batch の type",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_menu' scroll: .down waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_fruit' 'zzz'"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyExpect": [
+        "left the screen after typing"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

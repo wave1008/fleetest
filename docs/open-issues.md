@@ -839,15 +839,6 @@
 - E2EY RN の反転チャット(一番下 = at_bottom=true の直後。`list_chat` (0,233 402x581)・`field_chat` (8,822 316x43) = 一覧の下の固定バー)で `tap '#nav_chat'; type '#field_chat' 'zz'` が `ok (7289ms) (the element is still reported outside its scroll container (3 re-resolve(s), 2 extra swipe(s)); the interaction may be swallowed)`(type 5/5・tap 1/1)。文字は欄に入る。Flutter・CMP の同じ手は 1.1 秒・注記なし。RN で一度上へ送った後(at_bottom=false)は 480ms・注記なし = 状態で割れる
 - 根拠(推測): `StepExecutor+Actions.swift:490`(ghost 経路)。`ContainerGeometry.clippingContainer` が RN の木で欄を一覧の子と見る。OI-103 に近いが窓またぎではない
 
-### OI-107 iOS の type が、1文字も入らない・読み取り専用の欄で ok になる(Flutter の数字だけの欄・CMP の読み取り専用メニュー)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F6・F7)
-
-- Flutter の数字だけの欄(E2EX `#field_number`。入力の絞り込みあり・木は textField "数量"・id は外側): `type '#field_number' 'abc'` が `ok (922〜1396ms)` で注記なし(5/5)・echo `number=` は空のまま。`'12a3'` は ok で `number=123`(1文字欠落)。CMP・RN は欄が受ける(number=abc)= Flutter 固有。`ft_type text=Q`(宛先なし)だけは「could not be confirmed」と注記する。セレクタが id の付いた外側へ解決され値を読む相手が欄でない(推測。`#field_otp` は「the target is a other, not a text field」と注記するが、この経路は注記が無い)
-- CMP の読み取り専用メニュー(E2EX `#field_fruit` = `ExposedDropdownMenuBox` の TextField。木は textView): `type '#field_fruit' 'zzz'` が `ok (約 3 秒)` で注記なし(4/4)・木に value は無く echo `fruit=none`・候補の一覧だけ開く。Flutter・RN は同じ手が 422「nothing has keyboard focus」。CMP の読み返しが値の無い欄を「確認できない」で通している(推測)
-- OI-86 は「読みだけで判定できない」打ち直し側。文字が消える・入らない形はここ
-
 ### OI-108 Compose のキーボードの下の欄が木に幽霊の枠で残り、`tap` は ok のまま別の欄を叩く(Android・iOS 実機の CMP)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
@@ -980,6 +971,12 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 
 ### OI-130 回帰で一度だけ赤になった形
 73a31d8b と 0316a138 のフル回帰で、Emulator の白紙と E2EY-CMP の「大半まで払うと削除まで走る」が各1回赤。後者は単独の 144 本で再現しない。回帰の負荷でだけ出るかは未測定。
+
+### OI-132 Flutter の iOS で別の欄へ打った後、キーボードの裏へ送られた欄が木から消えて `type` が赤
+E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_first" "a"; type "#field_number" "1"` が「cannot resolve the locator … tapping (8, 512) above the keyboard did not close it」で赤。修正なしの版で 7/25、OI-107 の修正後で 3/24(8 台の --broadcast × 3 周)= 以前からある形。低率の形なので2つの差は判定できない。キーボードを閉じる手(背景のタップ)が閉じなかった回に出る。原因は未調査。
+
+### OI-133 MCP で一度触った端末は、MCP プロセスが生きている間ずっと実行中のランプが点く
+`mcp-<udid>@<pid>.lease` は呼び出しごとに書くが、消すのはプロセスの終了だけ(モニターは `MCPDeviceLease.hasMCPHolder` を `inMCP` としてランプに出す)。操作が終わって何も動いていなくても点いたままで、実行中と見分けがつかない。
 
 ### OI-131 既存シナリオを横向きで回す手段が無い
 検証が縦向きに偏っている(横向きの所見が多い)。案: `ScenarioExecutionSettings` に `orientation` を足し、`launchApp` の直後に `rotateTo` を1回通す。`launchApp` が向きを保つかの実測から始める。

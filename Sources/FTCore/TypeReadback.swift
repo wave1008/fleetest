@@ -233,14 +233,27 @@ public enum TypeReadback {
     /// 全文を打ち直し、二重入力になる。
     /// 突き合わせは identifier 優先(キーボードの出現で frame は動く)、無ければ frame 一致
     public static func value(of target: ElementInfo, in elements: [ElementInfo]) -> String? {
-        let matches = elements.filter { element in
-            if let identifier = target.identifier, !identifier.isEmpty {
-                return element.identifier == identifier
-            }
-            return element.frame == target.frame
-        }
+        let matches = elements.filter { sameField(target, $0) }
         guard matches.count == 1, let match = matches.first else { return nil }
         return normalizedValue(of: match)
+    }
+
+    /// 読み返しの突き合わせ。id の無い入力欄は枠で引き、**入力欄だけを候補にする**
+    /// (Flutter は同じ枠に id 付きの other が重なる。数えると複数候補 = 検証不能になる)
+    static func sameField(_ target: ElementInfo, _ element: ElementInfo) -> Bool {
+        if let identifier = target.identifier, !identifier.isEmpty { return element.identifier == identifier }
+        return element.frame == target.frame && (!isTextInput(target) || isTextInput(element))
+    }
+
+    /// `leftTheTree` のときの注記(ランナーの応答と StepNote が共有)
+    public static let targetLeftTreeNote = "the target left the screen after typing, so whether the text went in was not"
+        + " read back — a read-only field that opens a list does not take typed text; check the result with textIs"
+
+    /// 打った後に、id を持つ対象が木から居なくなったか(読み返せなかった理由の事実)。
+    /// 読み取り専用の欄のタップで候補の一覧へ切り替わった形と、打ち終えて自動送信された形は区別できないので、呼び手は赤にせず言うだけ
+    public static func leftTheTree(_ target: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        guard let identifier = target.identifier, !identifier.isEmpty else { return false }
+        return !elements.contains { $0.identifier == identifier }
     }
 
     /// 値の正規化(nil・placeholder と同値は「未入力」= 空文字)
