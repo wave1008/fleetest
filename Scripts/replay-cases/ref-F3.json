@@ -1,0 +1,44 @@
+{
+  "id": "ref-F3",
+  "finding": "id の無い要素(ラベルで引き直す「削除」ボタン)の古い ref が、別の行の「削除」へ付け替わって別の行が消える(行の顔ぶれが違うのに断らない)。ft_tap / ft_long_press / ft_double_tap が同じ口で断る",
+  "platform": "ios",
+  "redNote": "統合時に確認(デバイス無しで書いた下書き。手順は explore-20261101f/findings-sim.md の sim F3: 行1を途中まで払って snapshot → 行3の本体寄りをタップして行1を閉じ、行3を払う → 行1で採った「削除」の ref を撃つ。ft_drag の座標と ref は画面の寸法で合わせる)。修正前は 105pt 動いた「削除」を行3へ付け替えて swipe_row_3 が消える(removed=3)。期待は断り(Nothing was sent)で swipe_row_3 が残ること",
+  "setup": [
+    ["ft_launch", { "bundleId": "com.ftester.e2ex.ios" }]
+  ],
+  "reset": [
+    ["ft_terminate", { "bundleId": "com.ftester.e2ex.ios" }],
+    ["ft_launch", { "bundleId": "com.ftester.e2ex.ios" }],
+    ["ft_batch", { "steps": "scrollTo '#nav_swipe'; tap '#nav_swipe'" }]
+  ],
+  "resetSeconds": 1.5,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "ft_tap: 行1で採った「削除」の ref を、行3だけが開いた画面で撃つ",
+      "steps": [
+        ["ft_drag", { "fromX": 340, "fromY": 240, "toX": 200, "toY": 240 }],
+        ["ft_snapshot", {}],
+        ["ft_batch", { "steps": "tap '#swipe_row_3'" }],
+        ["ft_drag", { "fromX": 340, "fromY": 345, "toX": 200, "toY": 345 }],
+        ["ft_tap", { "ref": "$ref:削除" }]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 0.5,
+      "reject": ["removed=3"]
+    },
+    {
+      "name": "ft_double_tap: 同じ手順(以前は注記も無く通っていた)",
+      "steps": [
+        ["ft_drag", { "fromX": 340, "fromY": 240, "toX": 200, "toY": 240 }],
+        ["ft_snapshot", {}],
+        ["ft_batch", { "steps": "tap '#swipe_row_3'" }],
+        ["ft_drag", { "fromX": 340, "fromY": 345, "toX": 200, "toY": 345 }],
+        ["ft_double_tap", { "ref": "$ref:削除" }]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 0.5,
+      "reject": ["removed=3"]
+    }
+  ]
+}

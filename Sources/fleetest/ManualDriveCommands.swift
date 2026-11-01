@@ -128,13 +128,34 @@ struct Snapshot: AsyncParsableCommand {
     }
 }
 
-/// `--ref` の対象が画面の外のとき MCP の ft_tap と同じ注記(判定は TapTargetGeometry.offscreenAdvisory の1箇所)を出す。
-/// 撃つ前の木で見る(撃った後だと画面が変わっている)。木を読めない・ref が無いときは注記なし(撃って答えをそのまま見せる)
-enum RefOffscreenNote {
-    static func advisory(driver: AppDriver, ref: Int) async -> String? {
+/// `--ref` の対象を撃つ前に MCP の ft_tap と同じ守り(判定は `FTCore.RefFireCheck` の1箇所)を通す。
+/// 撃つ前の木で見る(撃った後だと画面が変わっている)。**キーボードの下・せり上がったバーの覆いは撃たずに非0で断る**
+/// (XCUITest は指がキーに落ちて焦点の欄へ文字が入る)。別の物に当たりうる形は撃って ⚠️ を stderr に出す(戻り値)。
+/// 木を読めない・ref が無いときは守りなし(撃って答えをそのまま見せる)。**ref を撃つ CLI の手は全部これを通す**
+enum RefFireGate {
+    static func check(driver: AppDriver, ref: Int, isAndroid: Bool, allowFocused: Bool = false) async throws -> String? {
         guard let snapshot = try? await driver.snapshot(),
               let element = snapshot.elements.first(where: { $0.ref == ref }) else { return nil }
-        return TapTargetGeometry.offscreenAdvisory(for: element, screen: snapshot.screen)
+        let result = RefFireCheck.evaluate(element, in: snapshot, isAndroid: isAndroid, allowFocused: allowFocused)
+        if let refusal = result.refusal { throw ValidationError(refusalMessage(refusal, ref: ref, element: element)) }
+        return result.advisory
+    }
+
+    static func refusalMessage(_ refusal: RefFireCheck.Refusal, ref: Int, element: ElementInfo) -> String {
+        let target = TapTargetGeometry.describe(element)
+        switch refusal {
+        case .underKeyboard(let advisory):
+            return "refusing [\(ref)]: \(target) — \(advisory). On iOS the finger would press a key and type into the"
+                + " focused field. Nothing was sent. Dismiss the keyboard first, then run snapshot again and use the new ref"
+        case .keyboardCover(let cover):
+            let why: String
+            switch cover {
+            case .raisedBar(let bar): why = "covered by \(TapTargetGeometry.describe(bar)), which rose above the keyboard"
+            case .collapsed: why = "collapsed to a thin band (\(Int(element.frame.width))x\(Int(element.frame.height)))"
+            }
+            return "refusing [\(ref)]: \(target) is \(why) while the on-screen keyboard is up, so a touch would not land on it."
+                + " Nothing was sent. Dismiss the keyboard first, then run snapshot again and use the new ref"
+        }
     }
 }
 
@@ -163,7 +184,7 @@ struct Tap: AsyncParsableCommand {
     func run() async throws {
         if let ref {
             let driver = try await driverOptions.makeDriver()
-            let note = await RefOffscreenNote.advisory(driver: driver, ref: ref)
+            let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android")
             try await driver.tap(ref: ref)
             ConsoleOut.out("✅ tap [\(ref)]")
             if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
@@ -202,8 +223,15 @@ struct TypeCommand: AsyncParsableCommand {
     func validate() throws { try driverOptions.rejectDeviceTargetMismatch() }
 
     func run() async throws {
-        try await driverOptions.makeDriver().type(ref: ref, text: text)
+        let driver = try await driverOptions.makeDriver()
+        var note: String?
+        if let ref {
+            note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
+                                               allowFocused: true)
+        }
+        try await driver.type(ref: ref, text: text)
         ConsoleOut.out("✅ type \"\(text)\"")
+        if let ref, let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }
 }
 
@@ -259,7 +287,7 @@ struct Press: AsyncParsableCommand {
 
     func run() async throws {
         let driver = try await driverOptions.makeDriver()
-        let note = await RefOffscreenNote.advisory(driver: driver, ref: ref)
+        let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android")
         try await driver.press(ref: ref, duration: holdSeconds)
         ConsoleOut.out("✅ press [\(ref)] \(holdSeconds)s")
         if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }

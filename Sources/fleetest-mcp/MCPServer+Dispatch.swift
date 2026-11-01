@@ -103,7 +103,9 @@ extension MCPServer {
                                                 keyboardShown: KeyboardWait.isShown(fresh),
                                                 inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
         case .ghost(let found):
-            return (found, gateNote + retarget)
+            // ft_tap / ft_long_press(verifiedRef の .ghost)と同じ警告。撃つが、何に当たりうるかを言う
+            return (found, gateNote + retarget
+                + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
         case .found(let found, _):
             return (found, gateNote + retarget)
         }

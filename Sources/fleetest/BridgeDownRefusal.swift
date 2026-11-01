@@ -9,6 +9,15 @@ import FTAndroid
 import FTBridgeClient
 
 enum BridgeDownRefusal {
+    /// 止めた直後も誰かがそのポートを待受しているときの事実(`holder` = `PortHolder.describe`。nil = 待受なし = nil を返す)。
+    /// 「止めた」と言わない。固まったランナーは TERM を受けずに待受を続けるので、名指しして止め方を言う
+    static func survivorMessage(port: UInt16, holder: String?) -> String? {
+        guard let holder else { return nil }
+        return "The bridge process was signalled, but port \(port) is still being listened on (\(holder)),"
+            + " so it did not stop. A stuck runner ignores SIGTERM; stop that process yourself (kill -9 <pid>),"
+            + " then check with `fleetest bridge status`"
+    }
+
     static func decide(
         targets: [(name: String, keys: [String])],
         force: Bool,

@@ -91,7 +91,8 @@ final class MCPSharedGuardParityTests: XCTestCase {
             ("verifiedRef", ["keyboardCoverRefusal(", "refFrontAppNote("]),
             ("refGestureGuard", ["keyboardCoverRefusal(", "refFrontAppNote("]),
             ("batch", ["refusalForRefLessBatchStep(", "flatScreenNoteIfNothingChanged("]),
-            ("refusalForRefLessBatchStep", ["PreFireGuard.refLessInput(", "refusalForRefLessInputOnOtherApp("]),
+            ("refusalForRefLessBatchStep", ["PreFireGuard.refLessInput(", "refLessBatchRefusal(", "coordinateFrontAppWarningFromProbes("]),
+            ("refLessBatchRefusal", ["PreFireGuard.refLessInput(", "PreFireGuard.refLessInputRefusal("]),
             ("refusalForRefLessInputOnOtherApp", ["PreFireGuard.refLessInputRefusal("]),
         ]
         for row in table {
