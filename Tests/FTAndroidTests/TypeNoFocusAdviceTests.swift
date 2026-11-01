@@ -26,6 +26,29 @@ final class TypeNoFocusAdviceTests: XCTestCase {
         XCTAssertTrue(body.contains("TextInputEditText"), "容器と中身の話が要る: \(body)")
     }
 
+    /// OI-76: キーボードが出ているなら欄が木から押し出されている話であって、容器(TextInputLayout)の話ではない
+    func testKeyboardShownBlamesTheKeyboardNotTheContainer() throws {
+        guard case .badResponse(_, let body)? = AndroidDriver.typeNoFocusAdvice(
+            after: .badResponse(status: 500, body: noFocus), hadRef: false, keyboardShown: true) else {
+            return XCTFail("書き換えていない")
+        }
+        XCTAssertTrue(body.contains(noFocus), body)
+        XCTAssertTrue(body.contains("soft keyboard is showing"), body)
+        XCTAssertTrue(body.contains("hideKeyboard"), body)
+        XCTAssertFalse(body.contains("TextInputEditText"), body)
+    }
+
+    /// 覆い・別アプリが前面なら、キーボードより前面の話が先
+    func testFrontAdviceWinsOverTheKeyboardAdvice() throws {
+        guard case .badResponse(_, let body)? = AndroidDriver.typeNoFocusAdvice(
+            after: .badResponse(status: 500, body: noFocus), hadRef: false,
+            front: "com.android.systemui", lastTreePackage: "com.app", keyboardShown: true) else {
+            return XCTFail("書き換えていない")
+        }
+        XCTAssertTrue(body.contains("notification shade"), body)
+        XCTAssertFalse(body.contains("soft keyboard is showing"), body)
+    }
+
     /// **ref 付きで落ちたら別の話**(掴んだ要素へ撃って失敗している)ので触らない
     func testLeavesRefTypeFailuresAlone() {
         XCTAssertNil(AndroidDriver.typeNoFocusAdvice(

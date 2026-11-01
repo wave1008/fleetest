@@ -877,6 +877,13 @@ public final class AndroidDriver: AppDriver {
             ? "com.android.systemui" : AndroidForegroundWindows.topmostAppPackage(dumpsys: result.output)
     }
 
+    /// 落ちた直後にソフトキーボードが出ているか(読めない・ブリッジの失敗以外は false)。ref 無しの type の案内用
+    private func noInputFocusKeyboardShown(after error: DriverError) -> Bool {
+        guard case .badResponse = error,
+              let result = try? adbAnswering(["shell", "dumpsys", "window", "windows"]), result.status == 0 else { return false }
+        return AndroidForegroundWindows.keyboardVisible(dumpsys: result.output)
+    }
+
     /// 通知シェード・クイック設定・解除画面が入力フォーカスを持つか。読めないときは false(覆いの案内も、追加の BACK も撃たない側)
     public func shadeHoldsInputFocus() -> Bool {
         guard let windows = try? adbAnswering(["shell", "dumpsys", "window", "windows"]), windows.status == 0 else { return false }
@@ -980,7 +987,8 @@ public final class AndroidDriver: AppDriver {
             // 失敗の種類に依らず覆い・アプリ不在を言う(ロック画面の下の SET_TEXT 拒否・アプリが落ちた後の読み返しの失敗)
             let front = noInputFocusFront(after: error)
             let lastTree = currentPackage ?? lastTreeForegroundPackage
-            throw Self.typeNoFocusAdvice(after: error, hadRef: ref != nil, front: front, lastTreePackage: lastTree)
+            throw Self.typeNoFocusAdvice(after: error, hadRef: ref != nil, front: front, lastTreePackage: lastTree,
+                                         keyboardShown: ref == nil && noInputFocusKeyboardShown(after: error))
                 ?? Self.noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTree) ?? error
         }
         do {
@@ -1021,11 +1029,19 @@ public final class AndroidDriver: AppDriver {
     /// (解決とフォーカスをツール側が引き受ける)。ref 付きで落ちた場合は別の話なので触らない
     /// `front` = 落ちた直後の前面パッケージ(不明は nil)。`com.android.systemui` なら、欄が無いのではなく覆いが
     /// 入力フォーカスを持っている(シェードを開いたままの ft_type が「ref でタップせよ」と言い、ref のタップは覆いで断られる袋小路だった)
+    /// `keyboardShown` = 落ちた直後にソフトキーボードが出ている(OI-76: 横向きの CMP は欄を叩くとキーボードが欄を押し出して
+    /// 木から消し、ブリッジが焦点の欄を掴めない。容器の話ではない)
     static func typeNoFocusAdvice(after error: DriverError, hadRef: Bool, front: String? = nil,
-                                  lastTreePackage: String? = nil) -> DriverError? {
+                                  lastTreePackage: String? = nil, keyboardShown: Bool = false) -> DriverError? {
         guard !hadRef, case .badResponse(let status, let body) = error,
               body.contains(noInputFocusMarker) else { return nil }
         if let advice = noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTreePackage) { return advice }
+        if keyboardShown {
+            return DriverError.badResponse(status: status, body: body
+                + " — the soft keyboard is showing, so the field you tapped may be pushed out of the accessibility tree"
+                + " (typical in landscape or in a short window), which hides the focused field from the bridge."
+                + " Close the keyboard (hideKeyboard) and type again, or type by selector: type(<selector>, \"…\")")
+        }
         return DriverError.badResponse(status: status, body: body
             + " — nothing was tapped into focus. On Android an input is often a container"
             + " (TextInputLayout) wrapping the editable field (TextInputEditText), and the id"

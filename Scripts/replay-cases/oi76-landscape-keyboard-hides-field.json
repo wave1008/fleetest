@@ -1,0 +1,31 @@
+{
+  "id": "oi76",
+  "finding": "CMP の横向きで欄を叩くとキーボードが欄を木から押し出し、ref なしの ft_type が no-input-focus と TextInputLayout の帰属で断る(キーボードの話をしない)",
+  "platform": "android",
+  "redConfirmed": true,
+  "redNote": "直しの無い版(本線の fleetest-mcp)で 3/3 周赤・直し入りで 3/3 周緑を確かめた(2026-11-02)。このケースは文言だけを見る(replyExpect)。打てるようにはしていない(ブリッジが焦点の欄を掴めない = ブリッジ側の話)",
+  "setup": [
+    ["ft_launch", { "bundleId": "com.ftester.e2e" }],
+    ["ft_batch", { "steps": "tap '#nav_input' scroll: .down" }],
+    ["ft_rotate", { "orientation": "landscape" }]
+  ],
+  "reset": [
+    ["ft_hide_keyboard", {}]
+  ],
+  "resetSeconds": 0.8,
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "欄を叩いて ref なしで打つ",
+      "steps": [
+        ["ft_snapshot", {}],
+        ["ft_tap", { "ref": "$ref:field_single" }],
+        ["ft_type", { "text": "ab" }]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyExpect": ["soft keyboard is showing"],
+      "replyReject": ["TextInputEditText"]
+    }
+  ]
+}
