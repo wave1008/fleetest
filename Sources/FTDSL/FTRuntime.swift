@@ -1676,7 +1676,8 @@ public final class FTDriveCore {
             // 意図して止めたアプリの読み失敗(接続拒否・「動いていない」)は、不成立の根拠にしてよい「無い」。
             // 型で絞る(driverUnreachable / driverError。timeout など別の失敗は止めた事実では説明できないので従来どおり)
             if !found, let unread, appStoppedByScenario,
-               unread.kind == .driverUnreachable || unread.kind == .driverError {
+               unread.kind == .driverUnreachable || unread.kind == .driverError
+                || unread.kind == .appStoppedBySession {
                 return CanSelectOutcome(found: false, dismissed: dismissed, unread: nil, stoppedByScenario: true)
             }
             return CanSelectOutcome(found: found, dismissed: dismissed, unread: found ? nil : unread)

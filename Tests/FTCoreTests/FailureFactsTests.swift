@@ -107,6 +107,26 @@ final class FailureFactsTests: XCTestCase {
                        .driverError)
     }
 
+    /// セッションが止めたアプリへの操作の接続断は driverUnreachable にしない(run が「不達ブリッジ」として再キューする = 二重実行になりうる)。
+    /// 分けるのは同伴データの `appFate`(文言ではない)。run の結果は再キュー対象外の `.failed` になる
+    func testSessionStoppedAppIsNotDriverUnreachable() {
+        let stopped = DriverErrorContext(bridge: .iosInApp, physicalDevice: false, appFate: .stoppedBySession)
+        let crashed = DriverErrorContext(bridge: .iosInApp, physicalDevice: false, appFate: .crashed)
+        for error in [DriverError.bridgeUnreachable(context: stopped, detail: "x"),
+                      DriverError.bridgeConnectionRefused(context: stopped, detail: "x")] {
+            XCTAssertEqual(StepExecutor.failureKind(thrown: error), .appStoppedBySession)
+        }
+        XCTAssertEqual(StepExecutor.failureKind(thrown: DriverError.bridgeConnectionRefused(context: crashed, detail: "x")),
+                       .driverUnreachable)
+        let kind = StepFailureKind.appStoppedBySession
+        XCTAssertEqual(kind.rawValue, "app-stopped-by-session")
+        let outcome = ScenarioRunner.outcome(passed: false, frozen: false, environmentFault: false,
+                                             driverUnreachable: kind == .driverUnreachable,
+                                             notApplicable: false)
+        XCTAssertEqual(outcome, .failed)
+        XCTAssertFalse(ScenarioRunner.requeuesWithoutRetiring(outcome: outcome))
+    }
+
     /// **知らない型は nil**(「その他」に丸めない = 読み手が「言えていない」と分かる)
     func testUnknownErrorsAreNotGuessed() {
         struct Unknown: Error {}

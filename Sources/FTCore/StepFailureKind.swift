@@ -30,6 +30,11 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
     /// **ステップの内容とは独立**に起きる形
     case driverUnreachable = "driver-unreachable"
 
+    /// **このセッション自身が止めたアプリ**(terminateApp / terminate の後に launch していない)への操作が、接続できずに落ちた。
+    /// ブリッジの不達ではなくシナリオの書き方の事実なので、run は再キューもブリッジ不達の帰属もしない
+    /// (`DriverErrorContext.appFate == .stoppedBySession` から `DriverError` の case + 同伴データで決める)
+    case appStoppedBySession = "app-stopped-by-session"
+
     /// ドライバは応答したがエラーを返した(HTTP のエラー応答)。到達はしている
     case driverError = "driver-error"
 
