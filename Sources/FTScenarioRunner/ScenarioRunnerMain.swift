@@ -517,6 +517,10 @@ struct RunScenario: AsyncParsableCommand {
                     let expected = BridgeIdentityCheck.Expected(
                         port: preflightPort, udid: udid, physical: physical, bridge: "xcuitest",
                         deviceName: deviceName)
+                    if let refusal = BridgeIdentityCheck.inAppBridgeOnXCUITestLane(
+                        port: preflightPort, status: preflightStatus) {
+                        throw DriverError.bridgeIdentityMismatch(refusal)
+                    }
                     if case .mismatch(let detail) = BridgeIdentityCheck.verdict(
                         expected: expected, status: preflightStatus,
                         remedy: BridgeIdentityCheck.runLaneRemedy) {
@@ -643,6 +647,8 @@ struct RunScenario: AsyncParsableCommand {
         defer { if let temp = core.directoryForTemp { try? FileManager.default.removeItem(at: temp) } }
 
         // 失敗時に「アプリより手前の別 window」を添える(Android のみ。adb を叩くのでここで注入する)
+        // 緑で終わった回の「誰も見ていなかったクラッシュ」の警告の材料(iOS Simulator だけ)
+        var simulatorCrashWatch: (bundle: String, udid: String, since: Date)?
         if runPlatform == "android", let serial {
             let package = appBundleID
             core.foregroundOverlays = {
@@ -677,6 +683,7 @@ struct RunScenario: AsyncParsableCommand {
             // 実測: E2EY-iOS の選択モード S0020 が AXCoreUtilities の例外で落ちた)。.ips は Mac 側にしか無いので実機は除く
             let bundle = appBundleID
             let scenarioStartedAt = Date()
+            simulatorCrashWatch = (bundle, udid, scenarioStartedAt)
             core.appProcessEvidence = {
                 SimulatorAppProcess.failureEvidence(bundleID: bundle, udid: udid, scenarioStartedAt: scenarioStartedAt)
             }
@@ -789,6 +796,17 @@ struct RunScenario: AsyncParsableCommand {
             reportNotices.append(notice)
         }
 
+        // **緑で終わったのに、このシナリオの間にアプリのクラッシュレポートが出ていた**(クラッシュの後にステップが
+        // 無い・読みを「無い」で済ませる形)。クラッシュを見たステップが無いので appCrash は空のまま緑になる。
+        // 赤にはしない(クラッシュを意図したシナリオがある)・警告だけ。.ips は落ちてから遅れて書かれるので待たない
+        if passed, !deviceTeardownOnly, LastAppCrash.shared.snapshot() == nil, let watch = simulatorCrashWatch,
+           let hit = SimulatorCrashReport.findRecent(bundleID: watch.bundle, udid: watch.udid,
+                                                     within: Date().timeIntervalSince(watch.since)) {
+            let notice = "the app crashed while this scenario was running, but no step observed it: \(hit.path)"
+                + (hit.reason.map { " (\($0))" } ?? "")
+            ConsoleOut.err("⚠️ \(notice)")
+            reportNotices.append(notice)
+        }
         let reportURL = try? ScenarioReportWriter.write(
             record: record, to: URL(fileURLWithPath: reportDir), notices: reportNotices,
             notApplicableReason: passed ? core.notApplicableReason : nil)

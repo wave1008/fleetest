@@ -214,6 +214,8 @@ public enum ScenarioHost {
             throw ScenarioHostError.packageRootNotFound
         }
 
+        // 死んだ run-file の置き場を通常の run に混ぜない(指紋の計算より前 = 残骸込みの指紋にしない)
+        StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
         let fingerprint = BuildFingerprint.compute(repoRoot: root, scenariosDir: project.scenariosDir)
         if !buildNeeded(fingerprint: fingerprint, project: project, root: root),
            let runner = try? runnerURL(project: project) {
@@ -276,6 +278,7 @@ public enum ScenarioHost {
     /// `fleetest run` はこれが true の回だけ、ビルドの前に供給を起こして並行に進める
     public static func buildNeeded(project: TestProject) -> Bool {
         guard let root = packageRoot() else { return true }
+        StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
         return buildNeeded(fingerprint: BuildFingerprint.compute(repoRoot: root, scenariosDir: project.scenariosDir),
                            project: project, root: root)
     }

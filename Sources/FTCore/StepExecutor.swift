@@ -1131,6 +1131,8 @@ public final class StepExecutor {
     public var screenStatePublisher: (@Sendable (DeviceScreenState?) -> Void)?
     /// 画素で文字を確かめて公表を消した後か(検証のたびにファイルを消しに行かない)
     var screenStateConfirmedDrawn = false
+    /// このシナリオの間に、画素で文字を確かめた検証が1度でもあったか(失敗文の「いつから」の語を分ける)
+    var drawingConfirmedThisScenario = false
     /// 直近の可視性検証の `notRendered` の絵(赤が確定した時点で判定する = `publishScreenStateAfterNotRendered`)
     var lastNotRenderedFrame: (screenshot: Data, elements: [ElementInfo], screen: FTRect)?
     /// 直近の `renderCollapseVerdict` が公表した状態の注記(区切りの失敗ステップへ FTRuntime が載せる)

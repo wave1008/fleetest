@@ -126,9 +126,11 @@ final class SimulatorCrashReportTests: XCTestCase {
     /// `device`: 実物の .ips(macOS 27・シミュレータのアプリを SIGSEGV で落として採取)と同じ形で
     /// coalitionName / procPath を書く。`procPathOnly` は coalitionName を欠いた形
     private func writeIPS(name: String, bundleID: String, mtime: Date,
-                          device: String? = nil, procPathOnly: Bool = false) throws -> URL {
+                          device: String? = nil, procPathOnly: Bool = false,
+                          captureTime: String? = nil) throws -> URL {
         let header = #"{"bundleID":"\#(bundleID)","app_name":"SampleApp"}"#
         var fields = [#""exception" : {"type":"EXC_CRASH","signal":"SIGABRT"}"#]
+        if let captureTime { fields.append(#""captureTime" : "\#(captureTime)""#) }
         if let device {
             fields.append(#""procPath" : "\/Users\/USER\/Library\/Developer\/CoreSimulator\/Devices\/\#(device)\/data\/Containers\/Bundle\/Application\/89E82350-5D56-4D3F-B9B3-2D33677A45F0\/SampleApp.app\/SampleApp""#)
             if !procPathOnly {
@@ -170,6 +172,28 @@ final class SimulatorCrashReportTests: XCTestCase {
         let hit = SimulatorCrashReport.findRecent(bundleID: "com.sutec.mobile", udid: nil, dir: dir, now: now)
 
         XCTAssertEqual(resolved(hit?.path), resolved(newest.path))
+    }
+
+    /// 保持上限に達した macOS は最古の .ips の mtime だけを進める。中身の時刻が窓の外なら指さない
+    func testFindRecentIgnoresReportWhoseCaptureTimeIsOutsideWindowEvenIfMtimeIsFresh() throws {
+        let now = Date()
+        _ = try writeIPS(name: "old.ips", bundleID: "com.sutec.mobile", mtime: now,
+                         captureTime: "2026-11-01 13:10:17.4421 +0900")
+        let hit = SimulatorCrashReport.findRecent(bundleID: "com.sutec.mobile", udid: nil, within: 120,
+                                                  dir: dir, now: now)
+        XCTAssertNil(hit)
+    }
+
+    func testFindRecentAcceptsReportWhoseCaptureTimeIsInsideWindow() throws {
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
+        let target = try writeIPS(name: "new.ips", bundleID: "com.sutec.mobile", mtime: now,
+                                  captureTime: formatter.string(from: now.addingTimeInterval(-3)))
+        let hit = SimulatorCrashReport.findRecent(bundleID: "com.sutec.mobile", udid: nil, within: 120,
+                                                  dir: dir, now: now)
+        XCTAssertEqual(resolved(hit?.path), resolved(target.path))
     }
 
     func testFindRecentReturnsNilForNonMatchingBundleID() throws {

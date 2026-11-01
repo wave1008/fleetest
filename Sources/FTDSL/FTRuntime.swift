@@ -938,6 +938,8 @@ public final class FTDriveCore {
                        notes: [.heldValue], command: command)
             trackIDResolution(step: step, status: .passed, description: description)
             noteAssertionUnlessSkipped(.passed)
+            // 掴んだ値で済ませた検証は画素を見ていない(描画崩壊の確かめの義務に数える)
+            executor.noteTreeReadCheck(assert, step: step, status: .passed, afterExecution: false)
             return PerformResult(status: .passed, element: heldElement)
         }
 
@@ -987,6 +989,10 @@ public final class FTDriveCore {
         let hostFinishedAt = ISO8601Millis.string(from: Date())
         let status = outcome?.status
             ?? .failed("the command timed out (\(Int(FTSync.commandTimeout))s)")
+        // select は木から要素を掴むだけの検証としても使われる。画素で文字を確かめていなければ義務に数える
+        if outcome != nil, step.action == "select" {
+            executor.noteTreeReadCheck("select", step: step, status: status, afterExecution: true)
+        }
         // outcome が nil = FTSync が打ち切った(StepExecutor は素性を返せていない)ときだけ
         // .timeout で埋める。outcome があるのに failureKind が nil(StepExecutor が素性を
         // 名乗らなかった)は nil のまま —— ここを .timeout で埋めると、実際はタイムアウトしていない
@@ -1612,6 +1618,15 @@ public final class FTDriveCore {
         let found: Bool
         /// 判定中に閉じた割り込み(検出セレクタの要約と回数)。閉じていなければ nil
         let dismissed: (key: String, count: Int)?
+        /// **画面を読めなかった**ときの事実(`found == false` と同時にだけ立つ)。読めなかったことを
+        /// 「無い」と言わない —— クラッシュ・接続断・固まりの後に不成立で緑へ抜ける
+        var unread: SnapshotReadFailure? = nil
+    }
+
+    /// canSelect の最後の読みが失敗した理由。kind は**エラーの型**から採る(文言で仕分けない)
+    struct SnapshotReadFailure {
+        let reason: String
+        let kind: StepFailureKind?
     }
 
     func canSelect(_ selector: FTSelector, waitSeconds: Double) -> CanSelectOutcome {
@@ -1625,13 +1640,32 @@ public final class FTDriveCore {
         // 判定1回 = 1ステップとして数え直す(直前のステップの回数を引き継がない)
         executor.beginInterruptionScope()
         var dismissed: (key: String, count: Int)?
+        // 直近の主ドライバの読みが失敗していればその事実。読めれば nil に戻る
+        // (途中の一過性の失敗は、後の読みが成功すれば不成立の根拠に影響しない)
+        var unread: SnapshotReadFailure?
+        func readPrimary() -> SnapshotResponse? {
+            switch FTSync.runThrowing({ try await driver.snapshot() }) {
+            case .success(let snapshot):
+                unread = nil
+                return snapshot
+            case .failure(let error):
+                unread = SnapshotReadFailure(reason: error.localizedDescription,
+                                             kind: StepExecutor.failureKind(thrown: error))
+                return nil
+            case nil:
+                unread = SnapshotReadFailure(
+                    reason: "the screen could not be read: the snapshot timed out (\(Int(FTSync.commandTimeout))s)",
+                    kind: .timeout)
+                return nil
+            }
+        }
         func result(_ found: Bool) -> CanSelectOutcome {
-            CanSelectOutcome(found: found, dismissed: dismissed)
+            CanSelectOutcome(found: found, dismissed: dismissed, unread: found ? nil : unread)
         }
         let deadline = Date().addingTimeInterval(waitSeconds)
         let foundWhilePolling: Bool = IdleAllowance.during(seconds: waitSeconds) {
             repeat {
-                let snapshot = FTSync.run { try? await driver.snapshot() } ?? nil
+                let snapshot = readPrimary()
                 if let snapshot,
                    LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true) != nil {
                     return true
@@ -1678,7 +1712,7 @@ public final class FTDriveCore {
         guard FTSync.run({ await executor.dismissSystemAlert(in: fsnap, via: fb) }) ?? nil != nil else {
             return result(false)
         }
-        guard let after = FTSync.run({ try? await driver.snapshot() }) ?? nil else { return result(false) }
+        guard let after = readPrimary() else { return result(false) }
         return result(LocatorResolver.resolve(step: step, in: after, strictForAssert: true) != nil)
     }
 
