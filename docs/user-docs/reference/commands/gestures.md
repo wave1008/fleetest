@@ -15,6 +15,8 @@ gesture builder for anything those three cannot express.
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | Replays one or more finger paths as a single continuous touch — for a pattern-lock swipe, a long-press that then drags, a two-finger rotate, or anything `pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` cannot express. |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | Runs the block while the finger stays down (for checking a component that only shows while pressed). `holdSeconds` defaults to 3 seconds. See the `hold` section below. |
 
+When the centre of the target is outside the screen, `doubleTap`, a long press (`tap(sel, holdSeconds:)`) and (on Android) `pinchOut` / `pinchIn` fail without sending anything, because a touch outside the screen lands nowhere. Targets larger than the screen are not refused. Scroll the target into view first.
+
 See [swipe](./swipe.md) for `swipeBy(sel?, dxRatio:dyRatio:durationSeconds:)`, the panning
 gesture these are usually combined with.
 

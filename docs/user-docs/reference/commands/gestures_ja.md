@@ -15,6 +15,8 @@
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | 指1本以上の経路を、離さない1本のタッチ列として再生します —— パターンロック・長押しからのドラッグ・2本指回転など、`pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` で表せない動き用です。 |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | 指を下げたままブロックを実行します(押している間だけ出る部品の確認用)。`holdSeconds` の既定は 3 秒です。下の「`hold`」の節を参照してください。 |
 
+対象の中心が画面の外のとき、`doubleTap`・長押し(`tap(sel, holdSeconds:)`)・(Android の)`pinchOut` / `pinchIn` は何も送らずに失敗します。画面の外へのタッチはどこにも当たらないためです。画面より大きい対象は断りません。先にスクロールして画面内へ入れてください。
+
 これらとよく組み合わせるパンのジェスチャ `swipeBy(sel?, dxRatio:dyRatio:durationSeconds:)` は
 [swipe](./swipe_ja.md) を参照してください。
 

@@ -747,6 +747,11 @@ extension StepExecutor {
             }
         }
 
+        if let refusal = Self.offscreenCentreRefusal(action: action, step: step, element: element,
+                                                     screen: snapshot.screen, isAndroid: isAndroid) {
+            return StepOutcome(status: .failed(refusal))
+        }
+
         switch action {
         case "select":
             // 掴むだけでデバイス操作はしない。ただし**可視性は exist と同じ規律で確かめる**
@@ -1289,6 +1294,10 @@ extension StepExecutor {
                         + (hint.map { ". \($0)" } ?? "")
                         + Self.truncationHint(snapshot)
                         + Self.keyboardResizedHint(snapshot)))
+            }
+            if let refusal = Self.offscreenCentreRefusal(action: action, step: step, element: endElement,
+                                                         screen: snapshot.screen, isAndroid: isAndroid, role: "end target") {
+                return StepOutcome(status: .failed(refusal))
             }
             // 終点がキーボードの下なら指はキーボードの上で離れる(始点は入口が閉じて撃つ)。撃つ点が決まっているので注記のみ
             driverFallback = Self.joinNotes(driverFallback,
