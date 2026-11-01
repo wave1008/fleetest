@@ -472,9 +472,10 @@ public enum TapTargetGeometry {
         // ⑵ 既に遮蔽として名指しできているなら、この経路は要らない
         guard OcclusionGeometry.overlayCovering(element, in: elements, screen: screen) == nil
         else { return false }
-        // ⑶ victim がスクロール容器の中(= スクロールで潜り得る位置に居る)
+        // ⑶ victim がスクロール容器の中(= スクロールで潜り得る位置に居る)。
+        //    容器の外なら、隠れて描かれていないバーの部品の形だけ別に拾う
         guard ancestors(of: element, in: elements).contains(where: { $0.scrollable == true })
-        else { return false }
+        else { return isBarControlOverScroller(element, in: elements, screen: screen) }
         let cx = element.frame.x + element.frame.width / 2
         let cy = element.frame.y + element.frame.height / 2
         let inner = Set(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
@@ -504,6 +505,28 @@ public enum TapTargetGeometry {
                 && !OcclusionGeometry.isOriginClamped(other, in: elements)
         }
     }
+
+    /// 画面の縁に接する(または画面の外へはみ出す)**容器の外の操作部品**で、その中心が
+    /// スクロール容器の枠の内側にあるもの。隠れて描かれていないバー(SwiftUI は枠が画面内に
+    /// 残る)は覆う相手が木に居ないので ⑷ では拾えず、ref の tap が背後の行を押しても無警告だった。
+    /// 「縁の帯の操作部品すべて」は 35% 発火で不採用 —— 接するのは `edgeContactPt` 以内に絞る
+    static func isBarControlOverScroller(_ element: ElementInfo, in elements: [ElementInfo],
+                                         screen: FTRect) -> Bool {
+        guard interactiveTypes.contains(element.type), screen.height > 0 else { return false }
+        let touchesBottom = element.frame.y + element.frame.height >= screen.y + screen.height - edgeContactPt
+        let touchesTop = element.frame.y <= screen.y + edgeContactPt
+        guard touchesBottom || touchesTop else { return false }
+        let cx = element.frame.x + element.frame.width / 2
+        let cy = element.frame.y + element.frame.height / 2
+        return elements.contains { other in
+            other.scrollable == true && other.ref != element.ref
+                && other.frame.x <= cx && cx <= other.frame.x + other.frame.width
+                && other.frame.y <= cy && cy <= other.frame.y + other.frame.height
+        }
+    }
+
+    /// 画面の縁に「接する」とみなす距離(pt / px)。測った発火率で決めた値(テストの上限 6%)
+    static let edgeContactPt: Double = 1
 
     /// 画面の縁に貼り付いた帯(= chrome)とみなす幅。画面高に対する比。
     ///

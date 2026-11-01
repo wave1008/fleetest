@@ -58,6 +58,19 @@ final class ExploreFixes1102MCPTests: XCTestCase {
         XCTAssertFalse(TapTargetGeometry.suspectedHiddenUnderChrome(clear, in: [list, band, clear], screen: screen))
     }
 
+    /// 隠れて描かれていないバーのボタン(画面の下端に接し、枠が背後の一覧の内側に残る)は照会を払う
+    func testBarControlTouchingScreenEdgeOverAScrollerIsSuspected() {
+        let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+        let list = el(1, "list", "scrollView", x: 0, y: 0, w: 402, h: 874, depth: 1, scrollable: true)
+        let bar = el(2, "btn_bottom_a", x: 16, y: 830, w: 74, h: 44, depth: 1)
+        XCTAssertTrue(TapTargetGeometry.suspectedHiddenUnderChrome(bar, in: [list, bar], screen: screen))
+        let inner = el(2, "btn_bottom_a", x: 16, y: 500, w: 74, h: 44, depth: 1)
+        XCTAssertFalse(TapTargetGeometry.suspectedHiddenUnderChrome(inner, in: [list, inner], screen: screen),
+                       "縁に接しない部品は聞かない")
+        XCTAssertFalse(TapTargetGeometry.suspectedHiddenUnderChrome(bar, in: [bar], screen: screen),
+                       "隣接する容器が無ければ聞かない")
+    }
+
     /// 実アプリのコーパスで照会を払う操作部品の割合の上限。上げるときは増えた分を1件ずつ見る(毎タップ 72〜146ms)
     func testHiddenUnderChromeGateRateOnTheRealCorpus() throws {
         var fired = 0, total = 0
