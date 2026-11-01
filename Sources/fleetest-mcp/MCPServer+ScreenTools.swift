@@ -621,8 +621,10 @@ extension MCPServer {
             lastScreenshots[key] = record
         }
         guard (args["fullSize"] as? Bool) != true else {
+            // 横向きの PNG は画素が縦のまま向きを eXIf で持つ。画素を読む相手のために表示の向きへ回す
             return staleNote
-                + [["type": "image", "data": png.base64EncodedString(), "mimeType": "image/png"]]
+                + [["type": "image", "data": (ImageDownscale.displayOrientedPNG(png: png) ?? png).base64EncodedString(),
+                    "mimeType": "image/png"]]
         }
         // 縮小できないとき(壊れた PNG・ImageIO 失敗)は絵を返さないより原寸のほうがまし
         guard let scaled = ImageDownscale.jpeg(
