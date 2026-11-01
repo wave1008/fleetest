@@ -1091,6 +1091,16 @@ extension MCPServer {
     /// ここで読み手が撃つべきは撮り直しではなく `waitFor` 付きの1回
     static func emptyTreeNote(_ snapshot: SnapshotResponse) -> String {
         guard snapshot.elements.isEmpty else { return "" }
+        // 全画面のキーボード(横向きの抽出ビュー)の下ではアプリの窓が窓一覧に出ず、木は本当に空になる = 遷移中ではない(OI-51)。
+        // 「大半」= 画面の高さの過半(定数ではなく定義)。矩形が申告されない回は大きさを言えないので従来の文のまま
+        if KeyboardWait.isShown(snapshot), let kb = snapshot.keyboardFrame, snapshot.screen.height > 0,
+           kb.height * 2 > snapshot.screen.height {
+            return "note: the element list is empty and the soft keyboard covers most of the screen"
+                + " (\(Int(kb.width))x\(Int(kb.height)) of \(Int(snapshot.screen.width))x\(Int(snapshot.screen.height)))"
+                + " — a full-screen keyboard (such as the landscape extract view) hides the app's window from the tree, so"
+                + " this is not a screen mid-transition. Close the keyboard (ft_hide_keyboard; ft_navigate back on Android),"
+                + " then take a fresh ft_snapshot.\n"
+        }
         return "note: the element list is empty — the app published no accessibility element at"
             + " all. That is almost always a screen mid-transition (or one that has not finished"
             + " loading), not an empty screen: read it again with ft_snapshot waitFor set to"

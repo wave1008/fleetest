@@ -40,4 +40,25 @@ final class EmptyTreeNoteTests: XCTestCase {
         XCTAssertNotNil(entry)
         XCTAssertEqual(entry?.contexts, [.snapshot, .scrollTo])
     }
+
+    // OI-51: 全画面のキーボードで木が空のときは遷移中と言わない
+
+    private func emptyWithKeyboard(height: Double, shown: Bool = true) -> SnapshotResponse {
+        var snap = snapshot([])
+        snap.keyboardFrame = FTRect(x: 0, y: shown ? 2424 - height : 2424, width: 1080, height: height)
+        return snap
+    }
+
+    func testFullScreenKeyboardIsNamedInsteadOfATransition() {
+        let note = MCPServer.emptyTreeNote(emptyWithKeyboard(height: 1500))
+        XCTAssertTrue(note.contains("soft keyboard covers most of the screen"), note)
+        XCTAssertTrue(note.contains("ft_hide_keyboard"), note)
+        XCTAssertFalse(note.contains("mid-transition (or"), "遷移中と読ませない: \(note)")
+    }
+
+    func testSmallOrHiddenKeyboardKeepsTheTransitionNote() {
+        for snap in [emptyWithKeyboard(height: 1000), emptyWithKeyboard(height: 1500, shown: false)] {
+            XCTAssertTrue(MCPServer.emptyTreeNote(snap).contains("the app published no accessibility element"))
+        }
+    }
 }
