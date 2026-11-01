@@ -318,6 +318,8 @@ public struct SelectorNaming {
     /// アンカーに使える**一意な名指し**(`#id` か素のラベル)。`:` を含むものは相対記法の区切りと
     /// 混ざるので使わない
     private func anchorName(for element: ElementInfo) -> String? {
+        // キーボードの部品はキーボードが引っ込めば消える = 錨にすると、キーボードを出していた画面でだけ通るセレクタになる
+        if let id = element.identifier, TapTargetGeometry.keyboardChromeIdentifiers.contains(id) { return nil }
         if let id = element.identifier, Self.isWritableIdentifier(id), idCounts[id] == 1, !id.contains(":") {
             return "#\(id)"
         }
