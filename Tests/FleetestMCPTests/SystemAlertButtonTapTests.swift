@@ -69,6 +69,7 @@ final class SystemAlertButtonTapTests: XCTestCase {
         arrangeLocationAlert()
         let board = driver.snapshotResponse
         driver.scriptedSnapshots = [board, app, app]
+        driver.tapClosesSystemAlert = true
         driver.snapshotResponse = app
         server.settleWaitSeconds = 0
         let result = try await server.call(tool: "ft_tap",

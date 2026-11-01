@@ -81,6 +81,8 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
 
     /// `GET /systemalert` の答え。既定 nil = 出ていない(同上)
     var scriptedSystemAlert: SystemAlertProbeResponse?
+    /// true = ref のタップでアラートが閉じる(本物はボタンを押すと閉じる)
+    var tapClosesSystemAlert = false
 
     func systemAlert() async throws -> SystemAlertProbeResponse? {
         try record("systemAlert", "systemAlert")
@@ -220,6 +222,7 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
     var tapError: Error?
 
     func tap(ref: Int) async throws {
+        if tapClosesSystemAlert { scriptedSystemAlert = nil }
         lastActionNote = nil
         lastTapHitAreaMiss = nil
         try record("tap(ref:\(ref))", "tap")
