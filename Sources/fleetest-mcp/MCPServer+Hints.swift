@@ -252,6 +252,12 @@ extension MCPServer {
     /// 木に居るだけで描かれていないものを「画面にある」「スクロールした」と言わない
     /// `underKeyboard` = 着いた要素の中心がソフトキーボードの下(`keyboardCoverageNote` が「beneath it」と言うのと同じ判定)。
     /// 成功の見出しと注記が食い違うと「届いた」と読まれる(OI-115)。ここでは到達を言わず、キーボードの下だと言う
+    /// 届かなかった ft_scroll_to が画面を動かした事実の TODO(下書きへ。行は残さない)
+    static func failedScrollTodo(selector: String, swipes: Int) -> String {
+        "TODO: during the exploration scrollTo \"\(selector)\" did not reach the element after \(swipes) swipe(s),"
+            + " so the screen was scrolled from where it was — the steps after this one assume that position"
+    }
+
     static func scrollToHeadline(_ selectorText: String, swipes: Int?, hiddenUnderChrome: Bool, underKeyboard: Bool) -> String {
         if underKeyboard {
             return "\"\(selectorText)\" is in the tree but under the soft keyboard — scrolling did not bring it clear of"

@@ -413,7 +413,9 @@ extension MCPServer {
         // **セッション内2回目以降は短縮形**(once)にする — 同じ探索で添字セレクタが何度も
         // 出る画面(一覧行の連打など)では、同じ長文がそのぶん下書きに繰り返される
         step.note = selector == nil ? nil : Self.indexedSelectorNote(durability).map { full in
-            once("indexedSelectorNote", full: full, short: "index-based selector (see the first note)")
+            // 鍵は耐久性ごと: 相対が先に出ても、索引形の初出は完全形で言う
+            once("selectorNote-\(durability)", full: full,
+                 short: DraftNotes.selectorDurabilityShort(durability) ?? full)
         }
         let detail = [selector.map { "\"\($0)\"" }, text.map { "\"\($0)\"" }, direction]
             .compactMap { $0 }.joined(separator: " ")

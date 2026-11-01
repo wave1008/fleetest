@@ -1907,6 +1907,13 @@ extension MCPServer {
                     launched: failedLaunched, snapshot: after, driver: scrollDriver, args: args),
                 stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
                 keyguardShowing: await Self.keyguardFact(for: after, driver: scrollDriver))
+            // 届かなくてもスワイプを撃った探索は画面を動かした。下書きに行は残さず(再生しても届かない)、動かした事実だけ TODO に残す
+            if let swipes = outcome.scrollSwipes, swipes > 0 {
+                var entry = InteractionLog.Entry(
+                    step: nil, unresolved: nil, summary: "scrollTo \"\(selectorText)\" (did not reach it)")
+                entry.todoNote = Self.failedScrollTodo(selector: selectorText, swipes: swipes)
+                recordAction(entry, args: args)
+            }
             // **fail-fast(scrollFrame 未解決)は別の文で伝える**: 通常の「did not reach the
             // element」はスワイプを何本か送った前提の文言で、fail-fast は1本も送っていないので
             // そのままでは誤解を招く(StepNote.scrollFrameMissing = DSL と共有した判定)
