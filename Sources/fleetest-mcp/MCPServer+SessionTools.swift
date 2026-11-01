@@ -293,6 +293,7 @@ extension MCPServer {
         // 再起動した以上、以後の不在は今回の ft_clear_app_data/ft_install のせいではない
         toolStoppedBundleIDs[launchKey] = nil
         backgroundedByNavigate.remove(launchKey)
+        switcherOpenedByNavigate.remove(launchKey)
         // 次の ft_snapshot で一度だけ system alert を確かめる(systemAlertProbePending 参照)。
         // **springboard 自身への attach では立てない** —— そちらはアラートを読みに行く
         // 正規の経路そのものなので、覆いとして扱ってはいけない

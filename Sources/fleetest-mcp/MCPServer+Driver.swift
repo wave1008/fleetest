@@ -1927,10 +1927,14 @@ extension MCPServer {
     /// 戻っていれば言うことは無い(ランチャーから開き直した等。ft_launch を経ない戻り方)。戻っていなければ
     /// 木は「今の画面」で、前面のパッケージを「戻すべきアプリ」と名指ししない(launch の記録が無ければ "the app")。
     /// iOS は木がアプリ自身のままでも前面とは限らないので、記録は ft_launch でだけ消す
-    static func navigatedAwayNote(launched: String?, treeSession: String?,
+    /// `switcherOpened`: このセッションが appSwitcher を送ったまま。Android の前面の窓はスイッチャーの間もアプリのままなので、
+    /// 木がアプリのものでも「戻った」とは読まない(既定値を置かない = 呼び手に決めさせる)
+    static func navigatedAwayNote(launched: String?, treeSession: String?, switcherOpened: Bool,
                                   isAndroid: Bool) -> (note: String, appIsBack: Bool) {
         if isAndroid {
-            if let launched, treeSession == launched { return ("", true) }
+            if let launched, treeSession == launched {
+                return switcherOpened ? (sentToBackgroundNote(launched, treeIsAppsOwn: true), false) : ("", true)
+            }
             return (sentToBackgroundNote(launched, treeIsAppsOwn: false), false)
         }
         return (sentToBackgroundNote(

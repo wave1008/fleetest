@@ -71,6 +71,7 @@ final class MCPServer {
     var launchBaselineStale: SessionFlags { SessionFlags(server: self, path: \.launchBaselineStale) }
     var systemAlertProbePending: SessionFlags { SessionFlags(server: self, path: \.systemAlertProbePending) }
     var backgroundedByNavigate: SessionFlags { SessionFlags(server: self, path: \.backgroundedByNavigate) }
+    var switcherOpenedByNavigate: SessionFlags { SessionFlags(server: self, path: \.switcherOpenedByNavigate) }
     var webPageCeilingLatched: SessionFlags { SessionFlags(server: self, path: \.webPageCeilingLatched) }
     var preparedPhysicalAndroid: SessionFlags { SessionFlags(server: self, path: \.preparedPhysicalAndroid) }
     var bridgeRecoveryFailed: SessionFlags { SessionFlags(server: self, path: \.bridgeRecoveryFailed) }

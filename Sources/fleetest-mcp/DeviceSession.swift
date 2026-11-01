@@ -115,6 +115,9 @@ struct DeviceSession {
     /// スクリーンショットでも確認済み)。木も session もアプリのままなので、ツールが送った
     /// 事実だけが唯一の確かな材料になる。**プラットフォームの答えに上書きさせない**
     var backgroundedByNavigate = false
+    /// このセッションが `ft_navigate appSwitcher` を送ったまま(`ft_launch` / `ft_navigate back|home` で消す)。
+    /// Android はスイッチャーを開いても前面の窓がアプリのままなので、木の出所の照合(`navigatedAwayNote`)では「戻っている」と読まれる。送った事実だけが材料
+    var switcherOpenedByNavigate = false
     /// ft_screenshot の鮮度判定用。**静止画面の2連続 ft_screenshot は PNG が
     /// バイト単位で同一**(実測: Android 83,028B×2 / iOS 95,076B×2)—— これが成り立つから
     /// 「木は変わったのに絵が前回と同一 = 古いフレームを返し続けている」と言える(treeFingerprint の

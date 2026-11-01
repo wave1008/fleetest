@@ -28,7 +28,7 @@ public enum AndroidGuestReadiness {
     }
 
     public static func stillStartingMessage(marker: String, serial: String) -> String {
-        "the Android guest's system server on \(serial) is still starting"
+        "the system server on \(serial) is still starting"
             + " (adb reported: \(marker)) — settings and the bridge APK cannot be applied"
             + " until it settles; the next attempt retries"
     }

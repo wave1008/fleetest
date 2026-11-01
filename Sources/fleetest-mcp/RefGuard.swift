@@ -399,6 +399,8 @@ enum RefGuard {
         case movedAlone
         /// このセッションの操作の後でラベルが変わり、位置・周り・画面の顔ぶれも変わった = 別の画面の同じ id。撃たない
         case labelChangedElsewhere
+        /// このセッションの操作の後で、残った id が全部同じ量だけ動き、同じ数以上の新しい id が現れた = 遷移の途中。撃たない
+        case screenTransition(shifted: Int, arrivals: Int)
     }
 
     /// 付け替えが何で同一視したか(件数の数え方と文言を決める)
@@ -456,12 +458,41 @@ enum RefGuard {
                 return .rowsIndistinct(.label, taken: takenCount, now: nowCount)
             }
         }
+        if ownActionSince, moved >= movedThreshold,
+           let t = transitionShape(target, found, taken: taken, fresh: fresh) {
+            return .screenTransition(shifted: t.shifted, arrivals: t.arrivals)
+        }
         if ownActionSince, labelChangeNote(old: target.label, new: found.label) != nil {
             let sameSpot = moved < movedThreshold && sameRow == true
                 && identifierShare(of: taken, keptIn: fresh) >= sameScreenIdentifierShare
             if !sameSpot { return .labelChangedElsewhere }
         }
         return .proceed
+    }
+
+    /// 遷移の途中の形: 採った木と今の木の両方に1件ずつある id(`target` 以外)が3件以上あり、**全部**が `target` と同じ量だけ動き、
+    /// 今の木にだけある id がその件数以上ある(新しい画面の要素が出揃っている)。
+    /// 短いスクロールは新しい id が数行しか出ないので「新しい id ≥ 動いた件数」に届かない。尽きたとき(届いた)は撃たない側
+    /// (断っても失うのは撮り直し1回。撃つと新しい画面の別の要素を押す)。閾値の3は「全兄弟が揃った」を偶然と区別する下限で実測の裏づけは無い
+    static func transitionShape(_ target: ElementInfo, _ found: ElementInfo,
+                                taken: [ElementInfo], fresh: [ElementInfo]) -> (shifted: Int, arrivals: Int)? {
+        func unique(_ tree: [ElementInfo], excluding own: ElementInfo) -> [String: ElementInfo] {
+            let ids = tree.filter { $0.ref != own.ref }.compactMap { e -> (String, ElementInfo)? in
+                guard let id = e.identifier, !id.isEmpty, id != own.identifier else { return nil }
+                return (id, e)
+            }
+            return Dictionary(grouping: ids, by: \.0).compactMapValues { $0.count == 1 ? $0[0].1 : nil }
+        }
+        let before = unique(taken, excluding: target), after = unique(fresh, excluding: found)
+        let pairs = before.compactMap { key, old in after[key].map { (old, $0) } }
+        guard pairs.count >= 3 else { return nil }
+        let (dx, dy) = (found.frame.x - target.frame.x, found.frame.y - target.frame.y)
+        guard pairs.allSatisfy({ old, now in
+            abs((now.frame.x - old.frame.x) - dx) < 2 && abs((now.frame.y - old.frame.y) - dy) < 2
+        }) else { return nil }
+        let takenIDs = Set(taken.compactMap { $0.identifier }.filter { !$0.isEmpty })
+        let arrivals = Set(fresh.compactMap { $0.identifier }.filter { !$0.isEmpty }).subtracting(takenIDs).count
+        return arrivals >= pairs.count ? (pairs.count, arrivals) : nil
     }
 
     /// 同じ画面とみなす識別子の残存割合の下限。**過半**: トグルの押下は識別子を足し引きしても大半が残り、
@@ -510,6 +541,11 @@ enum RefGuard {
                 + " apart (no id or label around it), so this may be the same part of another row — verify the outcome)" + labelNote)
         case .labelChangedElsewhere:
             return (labelChangedAfterOwnActionRefusal(ref: ref, old: target, new: found), "")
+        case .screenTransition(let shifted, let arrivals):
+            return ("refusing [\(ref)]: it was taken before your own later actions, and since then all \(shifted) other element(s) with an id"
+                + " shifted by the same amount as \(describe(target)) while \(arrivals) new id(s) appeared — the screen is most likely"
+                + " mid-transition, so the element it now matches may belong to the next screen. Nothing was sent."
+                + " Take a fresh ft_snapshot (after the transition settles; waitFor on the next screen) and use its ref", "")
         }
     }
 
