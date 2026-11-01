@@ -999,6 +999,18 @@ func dryRunRunnerWarning(runner: String, entries: [RemoteHostEntry]) -> String? 
 
 // MARK: - shared helpers
 
+/// `--device` の名前が、そのマシンで `enabled: false` のデバイスに当たるときの断りの文(当たらなければ nil)。
+/// 純粋関数。「割り当て外」と言うと、事実(プロファイルには載っているが無効)と食い違う
+func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [RunDeviceMachine], profile: String) -> String? {
+    let hits = missing.filter { name in
+        disabled.contains { $0.name == name && DeviceMachineGrouping.display($0.machine) == targetMachine }
+    }
+    guard !hits.isEmpty else { return nil }
+    let names = hits.map { "\"\($0)\"" }.joined(separator: ", ")
+    return "\(names) is disabled (\"enabled\": false) in profile \"\(profile)\" on machine \"\(targetMachine)\""
+        + " — set \"enabled\": true on that device in profiles/runs/\(profile).json (or the monitor's device list) to use it"
+}
+
 /// マシン混在プロファイルの単一マシンディスパッチに付ける --device/--device-machine を決める
 /// (判定は FTRemote.RemoteDispatchDeviceScope / 明示 --device 付きは RemoteDispatchExplicitDeviceScope)。
 /// 呼び出し側が既に --device-machine を持つときは呼ばないこと。`requestedDevices` は利用者の
@@ -1019,6 +1031,11 @@ func machineScopedDeviceFilter(
         case .notOnMachine(let missing, let available):
             let names = missing.map { "\"\($0)\"" }.joined(separator: ", ")
             let there = available.map { "\"\($0)\"" }.joined(separator: ", ")
+            // 実行から外れている(enabled:false)名前は「割り当て外」ではなく無効なので、有効化の場所を言う
+            let disabled = disabledDevicesNote(
+                missing: missing, targetMachine: targetMachine,
+                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile)
+            if let disabled { throw RemoteDispatchError.invalidDevice(disabled) }
             throw RemoteDispatchError.invalidDevice(
                 "\(names) is not assigned to machine \"\(targetMachine)\" in profile \"\(profile)\""
                 + (available.isEmpty ? " (it has no devices there)" : " (its devices there: \(there))")

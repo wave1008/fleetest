@@ -1324,6 +1324,19 @@ public enum ProfileResolver {
             .map { RunDeviceMachine(machine: $0.machine, name: $0.name, platform: $0.platform) }
     }
 
+    /// `enabled: false` で実行から外れているデバイス(machine 含む)。`runDeviceMachines` に載らない理由を言うために引く。
+    public static func disabledRunDevices(project: TestProject, runProfileName: String,
+                                          overrides: [String: RunProfileSetValue] = [:]) -> [RunDeviceMachine] {
+        let runURL = project.runsDir.appendingPathComponent("\(runProfileName).json")
+        guard let runData = try? Data(contentsOf: runURL),
+              let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData) else { return [] }
+        let runDoc = loadedRunDoc.applyingOverrides(overrides)
+        return (runDoc.devices ?? []).filter { !$0.isEnabled }.map { device in
+            RunDeviceMachine(machine: MachineDispatch.normalize(device.spec.machine), name: device.spec.name,
+                             platform: device.platform)
+        }
+    }
+
     /// 実行プロファイルの文書(`--set` 適用後)が計測の run か。**フルの resolve() を経由しない** —— 機械別の分割の前の台数の検査
     /// (DeviceMachineRunner.plan)が使い、選んでいない別のデバイスの設定の誤りで resolve が失敗しても判定を飛ばさないため。
     /// 読めない・デコードできないときは false(そのときは runDeviceMachines も空 = 分割の計画は作られない)
