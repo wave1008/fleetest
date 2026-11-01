@@ -18,7 +18,7 @@ final class SupplyAbandon: Sendable {
 /// **入口は `run(log:_:)` の1箇所**(`defer` の中では待てない)。**結果を書いた後に走る**(終了スクリプトに上限が無いので、先に片付けると
 /// 刺さった回の run.json が残らない)。順序: 供給のタスクを待つ → 片付け → 進捗の控えを消す →
 /// dispatch.lock の解放 → 中断の登録の解除。本体の `defer` でロックを外すと、走っている供給・終了スクリプトの横で
-/// 次の run がロックを取る。控えもロックの直前に消す(シナリオの前に落ちた回。始まった run の控えは orchestrator の終了が消す)
+/// 次の run がロックを取る。控えもロックの直前に消す(始まった run の控えも orchestrator は消さない = 片付けの間マシンが空いて見えない)
 final class RunExitGuard {
     /// 供給のタスクが終わるまで待つ。起こしていなければ nil
     var settle: (() async -> Void)?

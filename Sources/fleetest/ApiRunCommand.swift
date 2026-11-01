@@ -412,7 +412,6 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 条件は androidWorkersTask/iosWorkersTask を起こす条件(下)と同じ = runWithProfileParallel
         // が実際に呼ばれる経路だけに書く。**後始末**: そこへ到達できずに関数を抜けたら控えを消す
         let progressPid = ProcessInfo.processInfo.processIdentifier
-        var progressHandedToRunWithProfileParallel = false
         // 書き直しても**入口の時刻のまま**(経過が巻き戻らない)
         let progressStartedAt = ISO8601DateFormatter().string(from: Date())
         let entryProgress = PreparingProgressWriter(
@@ -432,8 +431,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             writeProgress(phase: "preparing")
         }
         runExit.removeProgress = {
-            if resolvedProfile != nil, !dryRun, debugOptions == nil,
-               !progressHandedToRunWithProfileParallel {
+            if resolvedProfile != nil, !dryRun, debugOptions == nil {
                 entryProgress.close()
                 RunProgressLedger.remove(pid: progressPid, directory: RunProgressLedger.directory())
             }
@@ -686,7 +684,6 @@ struct ApiRunCommand: AsyncParsableCommand {
                     logSupply(RunStartLine.text(
                         androidWorkers: androidWorkers.count, eagerIOSWorkers: eagerIOSWorkers.count,
                         hasLateIOS: hasLateIOS))
-                    progressHandedToRunWithProfileParallel = true
                     responseTrace = await ResponseTraceSession.startIfNeeded(resolved: resolvedProfile) { logStderr($0) }
                     outcome = try await runWithProfileParallel(
                         resolved: resolvedProfile, project: testProject, selected: selected,

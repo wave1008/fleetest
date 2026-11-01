@@ -27,12 +27,11 @@ final class RunProgressLedgerWiringTests: XCTestCase {
             XCTAssertTrue(text.contains("writeRunProgress: { record in"),
                           "\(path): writeRunProgress を注入していない(この経路の run が" +
                           " フリート横断ボードに出ない)")
-            XCTAssertTrue(text.contains("removeRunProgress: {"),
-                          "\(path): removeRunProgress を注入していない(run 終了後も台帳が残る)")
+            // OI-98: orchestrator の終了では控えを消さない(片付けの間マシンが空いて見える)。消すのは RunExitGuard.removeProgress
+            XCTAssertTrue(text.contains("removeRunProgress: {},"),
+                          "\(path): removeRunProgress が控えを消している(片付けより先に run ボードから消える)")
             XCTAssertTrue(text.contains("RunProgressLedger.write("),
                           "\(path): writeRunProgress が RunProgressLedger.write を呼んでいない")
-            XCTAssertTrue(text.contains("RunProgressLedger.remove("),
-                          "\(path): removeRunProgress が RunProgressLedger.remove を呼んでいない")
             XCTAssertTrue(text.contains("profile: profile,"),
                           "\(path): RunOrchestrator へプロファイル名を渡していない" +
                           " (RunProgressRecord.profile が常に nil になる)")
@@ -219,5 +218,16 @@ final class RunProgressLedgerWiringTests: XCTestCase {
                                  encoding: .utf8)
         XCTAssertTrue(factory.contains("BridgeProvisioner(repoRoot: repoRoot, supplyStage: supplyStage,"),
                       "buildIOSWorkers が BridgeProvisioner へ通知を渡していない")
+    }
+
+    /// OI-98: 控えを消す RunExitGuard.removeProgress は2経路とも、orchestrator へ渡した後でも消す(「渡し済みなら消さない」条件を置かない)
+    func testExitGuardRemovesTheLedgerEvenAfterHandOff() throws {
+        for path in ["Sources/fleetest/Fleetest.swift", "Sources/fleetest/ApiRunCommand.swift"] {
+            let text = try Self.code(path)
+            let start = try XCTUnwrap(text.range(of: "runExit.removeProgress = {"), path)
+            let body = String(text[start.lowerBound...].prefix(400))
+            XCTAssertTrue(body.contains("RunProgressLedger.remove("), path)
+            XCTAssertFalse(body.contains("Handed"), "\(path): 渡し済みの run の控えを消さない条件が戻っている")
+        }
     }
 }
