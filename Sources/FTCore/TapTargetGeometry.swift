@@ -1086,6 +1086,7 @@ public enum TapTargetGeometry {
     public static func centreIsAboveScreen(_ element: ElementInfo, screen: FTRect) -> Bool {
         guard element.frame.height <= screen.height else { return false }
         return isPointAboveScreen(x: element.frame.centerX, y: element.frame.centerY, screen: screen)
+    }
 
     /// DSL の `swipePointToPoint` の始点・終点が**画面の外**か。`isPointOnScreen` と違い**縁ちょうどは内**(閉区間 =
     /// in-app ブリッジの画面内判定と同じ。幅 402 の終点 x=402 を使うシナリオを赤にしない)。

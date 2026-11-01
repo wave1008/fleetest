@@ -2,36 +2,87 @@
   "id": "oi84-ref-above-screen",
   "finding": "ref の経路は中心が画面の上の外(y<0)の要素を撃ち、ステータスバーを押して一覧が先頭へ戻る。座標の経路は断る(OI-84 後半)",
   "platform": "android",
-  "redConfirmed": false,
-  "redNote": "デバイスで確かめていない(この担当はデバイスを使えない)。直しを外した版で赤になることは MCPOpenIssuesSweepTests の変異で確かめた。デバイスで確かめるには、直しを外した fleetest-mcp で形を撃ち、ft_tap が done を返す(= 撃ってしまう)ことを見る。$ref:ID の ID は上へ払い出した行の id に合わせて書き直す(下の row_first_above は仮)",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]],
+  "redNote": "デバイスでも変異でもまだ確かめていない。直しを外した fleetest-mcp で形を撃ち、応答が赤になることを確かめる",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ]
+  ],
   "reset": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}],
-    ["ft_batch", {"steps": "tap '#nav_scroll'"}],
-    ["ft_snapshot", {}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_scroll'"
+      }
+    ],
+    [
+      "ft_snapshot",
+      {}
+    ]
   ],
   "rounds": 3,
   "forms": [
     {
       "name": "一覧を払って上の外へ出た行の ref を ft_tap",
       "steps": [
-        ["ft_swipe", {"finger": "down"}],
-        ["ft_snapshot", {}],
-        ["ft_tap", {"ref": "$ref:row_first_above"}]
+        [
+          "ft_swipe",
+          {
+            "finger": "down"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:row_first_above"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyReject": ["done"],
-      "replyExpect": ["above the top of the screen"]
+      "replyReject": [
+        "done"
+      ],
+      "replyExpect": [
+        "above the top of the screen"
+      ]
     },
     {
       "name": "同じ要素を ft_double_tap(ref)",
       "steps": [
-        ["ft_swipe", {"finger": "down"}],
-        ["ft_snapshot", {}],
-        ["ft_double_tap", {"ref": "$ref:row_first_above"}]
+        [
+          "ft_swipe",
+          {
+            "finger": "down"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_double_tap",
+          {
+            "ref": "$ref:row_first_above"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["above the top of the screen"]
+      "replyExpect": [
+        "above the top of the screen"
+      ]
     }
   ]
 }

@@ -2,20 +2,45 @@
   "id": "oi115-scrollto-under-keyboard",
   "finding": "キーボード表示中の ft_scroll_to が「scrolled to」と成功で返し、同じ応答の注記は同じ要素がキーボードの下と言う(OI-115)",
   "platform": "android",
-  "redConfirmed": false,
-  "redNote": "デバイスで確かめていない(この担当はデバイスを使えない)。直しを外した版で赤になることは MCPOpenIssuesSweepTests の変異で確かめた。デバイスでは、直しを外した fleetest-mcp で応答に scrolled to が出ることで赤を確かめる。キーボードの下へ欄が入る形は wm size 1080x2000(gate-pre-fire と同じ)で作る",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]],
+  "redNote": "デバイスでも変異でもまだ確かめていない。直しを外した fleetest-mcp で形を撃ち、応答が赤になることを確かめる",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ]
+  ],
   "reset": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}],
-    ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_password'"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_input'; tap '#field_password'"
+      }
+    ]
   ],
   "rounds": 3,
   "forms": [
     {
       "name": "キーボード表示中に ft_scroll_to '#field_multiline'",
-      "steps": [["ft_scroll_to", {"selector": "#field_multiline"}]],
+      "steps": [
+        [
+          "ft_scroll_to",
+          {
+            "selector": "#field_multiline"
+          }
+        ]
+      ],
       "allowErrors": true,
-      "replyReject": ["scrolled to \"#field_multiline\""]
+      "replyReject": [
+        "scrolled to \"#field_multiline\""
+      ]
     }
   ]
 }

@@ -2,26 +2,60 @@
   "id": "oi122-batch-last-type-keyboard",
   "finding": "最後の手が type の ft_batch が返す木にキーボードが無く、続く座標の手もキーボードの上で無注記(OI-122)",
   "platform": "android",
-  "redConfirmed": false,
-  "redNote": "デバイスで確かめていない(この担当はデバイスを使えない)。直しを外した版で赤になることは MCPOpenIssuesSweepTests の変異で確かめた。デバイスでは、直しを外した fleetest-mcp で replyExpect の文言が出ないことで赤を確かめる",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]],
+  "redNote": "デバイスでも変異でもまだ確かめていない。直しを外した fleetest-mcp で形を撃ち、応答が赤になることを確かめる",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ]
+  ],
   "reset": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}],
-    ["ft_batch", {"steps": "tap '#nav_input'"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_input'"
+      }
+    ]
   ],
   "rounds": 5,
   "forms": [
     {
       "name": "type で終わる ft_batch の木にキーボードが載る",
-      "steps": [["ft_batch", {"steps": "tap '#field_password'; type 'abc'"}]],
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#field_password'; type 'abc'"
+          }
+        ]
+      ],
       "allowErrors": true,
-      "replyExpect": ["keyboard"]
+      "replyExpect": [
+        "keyboard"
+      ]
     },
     {
       "name": "type の後の座標 tap がキーボードの上で警告する",
-      "steps": [["ft_batch", {"steps": "tap '#field_password'; type 'abc'; tap x:540 y:2000"}]],
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#field_password'; type 'abc'; tap x:540 y:2000"
+          }
+        ]
+      ],
       "allowErrors": true,
-      "replyExpect": ["inside the soft keyboard"]
+      "replyExpect": [
+        "inside the soft keyboard"
+      ]
     }
   ]
 }
