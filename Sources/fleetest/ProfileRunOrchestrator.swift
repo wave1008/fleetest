@@ -146,10 +146,9 @@ enum ProfileRunOrchestrator {
             writeRunProgress: { record in
                 RunProgressLedger.write(record, directory: RunProgressLedger.directory())
             },
-            removeRunProgress: {
-                RunProgressLedger.remove(pid: ProcessInfo.processInfo.processIdentifier,
-                                         directory: RunProgressLedger.directory())
-            },
+            // 控えは orchestrator の終了では消さない。消すのは片付け(終了スクリプト・供給の後始末)の後の RunExitGuard.removeProgress
+            // (先に消すと片付けの間マシンが空いて見える。死んだ pid の控えは読み手が弾く)
+            removeRunProgress: {},
             supplyProgress: supply,
             progressHistoryRuns: progressHistoryRuns,
             clearResidualSystemAlert: { worker in

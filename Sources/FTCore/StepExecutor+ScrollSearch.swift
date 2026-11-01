@@ -361,6 +361,14 @@ extension StepExecutor {
         return elements.filter { frame(region, containsX: $0.frame.centerX, y: $0.frame.centerY) }
     }
 
+    /// 探索の基準にするアプリ。始点の木が起こしたアプリのものでない(送る前から前面を離れていた = Android の木はランチャー)ときは
+    /// 起こしたアプリを基準にする(木のままだとランチャーを払い続け、動かない木を「端」と見て前面の確認も通る)。
+    /// `launchedBundleID` が nil(起こしていない・home / アプリ切替 / 終了の後 = 意図して別の面に居うる)なら木のまま
+    static func searchBaselineBundleID(treeSession: String?, launched: String?) -> String? {
+        guard let launched, !launched.isEmpty, let treeSession, treeSession != launched else { return treeSession }
+        return launched
+    }
+
     /// 探索の対象のアプリ(`sessionBundleID`)が前面に居ないとき、前面(または覆っている面)の呼び名を返す。居る・確かめられない
     /// (ドライバが答えない・照会が失敗)は nil = 従来どおり端の判定へ進む(嘘を足さない)。
     /// 前面を名指しできないドライバ(iOS)は `isAppForeground` だけで判断し、名前は "another app"。
@@ -743,7 +751,7 @@ extension StepExecutor {
                 snapshot = try await consumePendingTypeKeyboardCheck(snapshot, phase: &phase)
                 // hideKeyboard の後も同じ(閉じかけのキーボードの木で判断すると、要らない送りや早すぎる停止になる)
                 snapshot = try await consumePendingHideKeyboardWait(snapshot, phase: &phase)
-                searchBundleID = snapshot.sessionBundleID
+                searchBundleID = Self.searchBaselineBundleID(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
             } else {
                 let start = clock.now
                 // **スワイプ直後は必ずキャッシュを捨てて撮る**(Android のみ実費。iOS は素通し)。

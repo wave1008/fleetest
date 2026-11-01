@@ -38,4 +38,35 @@ public enum ImageDownscale {
         guard CGImageDestinationFinalize(dest) else { return nil }
         return (out as Data, image.width, image.height)
     }
+
+    /// PNG の EXIF の向き(eXIf)が 2〜8 のとき、保存の画素を表示の向きへ回した絵。向き 1・向き無しは元のまま(回さない)。
+    /// 横向きの画面のスクリーンショットは画素が縦のまま向きだけを持つので、画素を読む側(切り出し・fullSize)は
+    /// 回してから使う。向きを絵から推さない = 回すのは PNG が申告した向きだけ
+    public static func displayOriented(png: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(png as CFData, nil) else { return nil }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let orientation = (properties?[kCGImagePropertyOrientation] as? Int) ?? 1
+        guard (2...8).contains(orientation) else { return CGImageSourceCreateImageAtIndex(source, 0, nil) }
+        let width = (properties?[kCGImagePropertyPixelWidth] as? Int) ?? 0
+        let height = (properties?[kCGImagePropertyPixelHeight] as? Int) ?? 0
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(width, height, 1),
+            kCGImageSourceCreateThumbnailWithTransform: true,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    /// 向きを持つ PNG だけ、画素を表示の向きへ回した PNG(向きの申告は付けない)にして返す。回す必要が無い・回せないときは nil
+    public static func displayOrientedPNG(png: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(png as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let orientation = properties[kCGImagePropertyOrientation] as? Int, (2...8).contains(orientation),
+              let image = displayOriented(png: png) else { return nil }
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out as CFMutableData, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(dest, image, nil)
+        return CGImageDestinationFinalize(dest) ? out as Data : nil
+    }
 }

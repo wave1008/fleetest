@@ -17,6 +17,23 @@ final class ScrollAppLeftForegroundWordingTests: XCTestCase {
         XCTAssertFalse(m.contains("reached its end"), m)
     }
 
+    /// OI-87: 探索の前にアプリが落ちて始点の木がランチャーなら、起こしたアプリを基準にする。起こしていなければ木のまま
+    func testSearchBaselineIsTheLaunchedAppWhenTheTreeStartedElsewhere() {
+        XCTAssertEqual(StepExecutor.searchBaselineBundleID(treeSession: "com.android.launcher", launched: "com.example"), "com.example")
+        XCTAssertEqual(StepExecutor.searchBaselineBundleID(treeSession: "com.example", launched: "com.example"), "com.example")
+        XCTAssertEqual(StepExecutor.searchBaselineBundleID(treeSession: "com.android.launcher", launched: nil), "com.android.launcher")
+        XCTAssertNil(StepExecutor.searchBaselineBundleID(treeSession: nil, launched: "com.example"))
+    }
+
+    /// 探索の基準の取り方が配線されている(木の名前を直に入れる形へ戻すと落ちる)
+    func testScrollSearchUsesTheBaseline() throws {
+        let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift").path
+        let source = try String(contentsOfFile: path, encoding: .utf8)
+        XCTAssertTrue(source.contains("searchBundleID = Self.searchBaselineBundleID("))
+        XCTAssertFalse(source.contains("searchBundleID = snapshot.sessionBundleID"))
+    }
+
     func testFailFastMessageNamesTheFrontWhenTheAppLeft() {
         var scrollFrameStep = step
         scrollFrameStep.scrollFrame = FlowLocator(id: "list")

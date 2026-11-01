@@ -244,6 +244,12 @@ extension MCPServer {
     /// 埋もれる。救済ありは長さに関わらず出す(遅さの主因を切り分けたい回だから)
     static let scrollTimingNoteThresholdMs = 2000
 
+    /// 届かなかった ft_scroll_to が画面を動かした事実の TODO(下書きへ。行は残さない)
+    static func failedScrollTodo(selector: String, swipes: Int) -> String {
+        "TODO: during the exploration scrollTo \"\(selector)\" did not reach the element after \(swipes) swipe(s),"
+            + " so the screen was scrolled from where it was — the steps after this one assume that position"
+    }
+
     /// ft_scroll_to の所要時間の内訳(成功・見つからない の両方の応答の先頭)。**純粋関数**にして計測点(ContinuousClock)と
     /// 切り離す。swipes が nil(runScrollSearch を経由しなかった)でも壊れない
     /// ft_scroll_to の応答の見出し。**1回もスワイプしていなければ「スクロールした」と言わない**(目的の要素が最初から

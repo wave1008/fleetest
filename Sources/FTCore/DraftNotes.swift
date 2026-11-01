@@ -30,4 +30,13 @@ public enum DraftNotes {
         case .relative: return "relative selector — breaks if the layout around it changes"
         }
     }
+
+    /// `selectorDurability` の2回目以降の短縮形。呼び名は耐久性ごとに合わせる(相対を「index-based」と呼ばない)
+    public static func selectorDurabilityShort(_ durability: Durability) -> String? {
+        switch durability {
+        case .stable: return nil
+        case .indexed: return "index-based selector (see the first note)"
+        case .relative: return "relative selector (see the first note)"
+        }
+    }
 }

@@ -638,7 +638,6 @@ struct RunScenarios: AsyncParsableCommand {
         // ので、「building」の書き手はここに置く。**後始末**: ProfileRunner.run へ到達できずに
         // 関数を抜けたら控えを消す
         let progressPid = ProcessInfo.processInfo.processIdentifier
-        var progressHandedToProfileRunner = false
         let recordsProgress = common.profile != nil && !dryRun
         // 書き直しても**入口の時刻のまま**(経過が巻き戻らない)
         let progressStartedAt = ISO8601DateFormatter().string(from: Date())
@@ -662,7 +661,7 @@ struct RunScenarios: AsyncParsableCommand {
             writeProgress(phase: "preparing")
         }
         runExit.removeProgress = {
-            if common.profile != nil, !dryRun, !progressHandedToProfileRunner {
+            if common.profile != nil, !dryRun {
                 entryProgress.close()
                 RunProgressLedger.remove(pid: progressPid, directory: RunProgressLedger.directory())
             }
@@ -918,7 +917,6 @@ struct RunScenarios: AsyncParsableCommand {
         if let profile = common.profile {
             let runSummary: RunSummary
             let fmSettings: FMSettingsRecord
-            progressHandedToProfileRunner = true
             let servicesBox = ServicesSessionBox()
             do {
                 (runSummary, fmSettings) = try await ProfileRunner.run(

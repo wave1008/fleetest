@@ -101,6 +101,47 @@ final class ImageDownscaleTests: XCTestCase {
         XCTAssertEqual(decoded.height, 225)
     }
 
+    private func orientedPNG(width: Int, height: Int, orientation: Int) throws -> Data {
+        let stored = checkerboardPNG(width: width, height: height)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(stored as CFData, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let out = NSMutableData()
+        let dest = try XCTUnwrap(CGImageDestinationCreateWithData(out as CFMutableData, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, image, [kCGImagePropertyOrientation: orientation] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(dest))
+        let readBack = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(
+            try XCTUnwrap(CGImageSourceCreateWithData(out as CFData, nil)), 0, nil) as? [CFString: Any])
+        try XCTSkipUnless((readBack[kCGImagePropertyOrientation] as? Int) == orientation, "この環境の ImageIO は PNG に向きを書かない")
+        return out as Data
+    }
+
+    /// OI-62: 向き 6 の縦の画素は fullSize で表示の向き(横)の画素になり、向きの申告は残らない
+    func testDisplayOrientedPNGRotatesPixelsAndDropsOrientation() throws {
+        let png = try orientedPNG(width: 600, height: 1200, orientation: 6)
+        let rotated = try XCTUnwrap(ImageDownscale.displayOrientedPNG(png: png))
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(rotated as CFData, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(image.width, 1200)
+        XCTAssertEqual(image.height, 600)
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        XCTAssertEqual((props?[kCGImagePropertyOrientation] as? Int) ?? 1, 1)
+    }
+
+    /// 向き無しは回さない(nil = 元の PNG をそのまま返す)
+    func testDisplayOrientedPNGLeavesUnorientedAlone() {
+        XCTAssertNil(ImageDownscale.displayOrientedPNG(png: checkerboardPNG(width: 600, height: 1200)))
+    }
+
+    /// OI-62: 横向きの画面に向き 6 の縦の画素でも、切り出しは回してから切る(checkIsON / findImage / ft_capture_element 共有)
+    func testCropRotatesAPNGThatDeclaresItsOrientation() throws {
+        let png = try orientedPNG(width: 600, height: 1200, orientation: 6)
+        let screen = FTRect(x: 0, y: 0, width: 600, height: 300)
+        let crop = try XCTUnwrap(VisionClassifier.crop(
+            png: png, frame: FTRect(x: 0, y: 0, width: 100, height: 100), screen: screen))
+        XCTAssertEqual(crop.width, 200)
+        XCTAssertEqual(crop.height, 200)
+    }
+
     func testCorruptInputReturnsNilWithoutCrashing() {
         XCTAssertNil(ImageDownscale.jpeg(png: Data([0x00, 0x01]), maxWidth: 300, quality: 0.6))
         XCTAssertNil(ImageDownscale.jpeg(png: Data(), maxWidth: 300, quality: 0.6))
