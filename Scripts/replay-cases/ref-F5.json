@@ -1,0 +1,22 @@
+{
+  "id": "ref-F5",
+  "finding": "押すとラベルが変わるトグル(ティッカー開始 → 停止)の同じ ref を続けて撃っても、別の要素らしいと断らない",
+  "platform": "ios",
+  "redNote": "統合時に確認(デバイス未使用のため、直しを外した版の赤は未確認)",
+  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.ios"}]],
+  "reset": [["ft_launch", {"bundleId": "com.ftester.e2e.ios"}]],
+  "resetSeconds": 1.5,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "同じ ref の ft_tap を2回(開始 → 停止)",
+      "steps": [["ft_snapshot", {}], ["ft_tap", {"ref": "$ref:btn_ticker_toggle"}], ["ft_tap", {"ref": "$ref:btn_ticker_toggle"}]],
+      "allowErrors": true, "replyOnly": true, "replyReject": ["refusing"], "settleSeconds": 0.3
+    },
+    {
+      "name": "ft_double_tap(経路違い)",
+      "steps": [["ft_snapshot", {}], ["ft_tap", {"ref": "$ref:btn_ticker_toggle"}], ["ft_double_tap", {"ref": "$ref:btn_ticker_toggle"}]],
+      "allowErrors": true, "replyOnly": true, "replyReject": ["refusing"], "settleSeconds": 0.3
+    }
+  ]
+}

@@ -114,7 +114,16 @@ struct Snapshot: AsyncParsableCommand {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             ConsoleOut.out(String(data: try encoder.encode(snapshot), encoding: .utf8)!)
         } else {
-            ConsoleOut.out(SnapshotRenderer.render(snapshot))
+            // 印の判定は MCP の ft_snapshot と共有(`SnapshotGhostFlags`)。文言は CLI 側で持つ
+            let flags = SnapshotGhostFlags.flags(snapshot)
+            ConsoleOut.out(SnapshotRenderer.render(snapshot, flagging: flags))
+            let values = Set(flags.values)
+            if values.contains(SnapshotGhostFlags.offscreenMark) {
+                ConsoleOut.out("note: \(SnapshotGhostFlags.offscreenMark) lines are outside the screen (a tap on them lands off-screen)")
+            }
+            if values.contains(SnapshotGhostFlags.leftoverMark) {
+                ConsoleOut.out("note: \(SnapshotGhostFlags.leftoverMark) lines are not drawn where their frames say, so tapping them may hit something else")
+            }
         }
     }
 }

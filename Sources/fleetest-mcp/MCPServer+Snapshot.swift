@@ -1350,7 +1350,11 @@ extension MCPServer {
         // **木に出ないオーバーレイ・ウィンドウ**(Android のポップアップ)。keyboardFrame と
         // 同じく申告からしか言えない —— 覆っている実体が fresh.elements に1要素も載らない
         let overlayWindows = OverlayWindowOcclusion.resolve(reported: fresh.overlayWindowFrames)
-        switch RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen) {
+        let outcome = RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen)
+        // **付け替えの判定は ghost も .found も1つの口**(`RefGuard.retargetOutcome`。verifiedElement・scrollFrame の ref と共通)
+        let retarget = try Self.retargetNote(outcome, ref: ref, target: target, fresh: fresh.elements,
+                                             taken: lastRendered, ownActionSince: actedSinceTakenFrom)
+        switch outcome {
         case .gone:
             throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                 truncatedCount: fresh.truncatedCount,
@@ -1362,7 +1366,7 @@ extension MCPServer {
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
                 throw MCPError(refusal)
             }
-            return (found.ref, originNote
+            return (found.ref, originNote + retarget
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
                                         overlayWindows: overlayWindows)
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
@@ -1375,20 +1379,7 @@ extension MCPServer {
                                                        label: "[\(ref)]") {
                 throw MCPError(refusal)
             }
-            // **同じ id が複数ある木で動いた位置のものへ付け替わるなら撃たない**(別の行の同じ部品を押す)
-            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements,
-                                                              taken: lastRendered) {
-                throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
-            }
-            // **ラベルが変わっていないかも見る**。moved の大小とは無関係に出す ——
-            // 動かずにラベルだけ変わった行も同じ危険(RefGuard.labelChangeNote 参照)
-            let labelNote = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""
-            // **採った後にこのセッションが操作していて、ラベルも変わっていたら撃たない**: 画面が替わり、同じ id の別の要素に
-            // 付け替わった形(Simulator の E2EX: 入力画面の題名の ref を、戻った後のホームの題名へ付け替えて押した)。
-            // 撃った後の注意では、別の要素を押した後になる。操作を挟まずにラベルだけ変わる(時計・件数)形は従来どおり注意だけ
-            if actedSinceTakenFrom, !labelNote.isEmpty {
-                throw MCPError(RefGuard.labelChangedAfterOwnActionRefusal(ref: ref, old: target, new: found))
-            }
+            let labelNote = retarget
             // **ghost でなくても別の物に当たり得る**2形(上に描かれた overlay / 同一矩形への
             // 積み重なり)。どちらも容器の内側なので RefGuard.relocate では .found になる
             let overlap = originNote
@@ -1422,6 +1413,21 @@ extension MCPServer {
                 + RefGuard.movedNote(found: found, moved: moved, cause: cause,
                                    unit: Self.platformName(args) == "android" ? "px" : "pt") + straddle + labelNote)
         }
+    }
+
+    /// ref の付け替えの断り(throw)と注記。`verifiedRef` / `verifiedElement` / scrollFrame の ref が通る**唯一の口**
+    /// (`TapRefGuardTests` が3箇所の呼び出しを数える)。`.gone` は呼び手が断る
+    static func retargetNote(_ outcome: RefGuard.Outcome, ref: Int, target: ElementInfo, fresh: [ElementInfo],
+                             taken: [ElementInfo], ownActionSince: Bool) throws -> String {
+        let found: ElementInfo
+        switch outcome {
+        case .gone: return ""
+        case .found(let element, _), .ghost(let element): found = element
+        }
+        let result = RefGuard.retargetOutcome(ref: ref, target: target, found: found, in: fresh,
+                                              taken: taken, ownActionSince: ownActionSince)
+        if let refusal = result.refusal { throw MCPError(refusal) }
+        return result.note
     }
 
     /// 要素が出るまでスクロールして探す。**探索そのものは DSL と同じ StepExecutor に委ねる**。
@@ -1481,7 +1487,12 @@ extension MCPServer {
             // **別アプリの同名容器の中でジェスチャが走る**
             if let message = Self.refFromAnotherAppMessage(
                 ref: ref, takenFrom: takenFrom, fresh: fresh) { throw MCPError(message) }
-            switch RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen) {
+            let outcome = RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen)
+            let retarget = try Self.retargetNote(
+                outcome, ref: ref, target: target, fresh: fresh.elements, taken: takenFrom?.elements ?? [],
+                ownActionSince: (sessionActionCounts[Self.sessionKey(args)] ?? 0)
+                    > (generationActionCount(containing: ref, args: args) ?? 0))
+            switch outcome {
             case .gone:
                 throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                     truncatedCount: fresh.truncatedCount,
@@ -1494,7 +1505,7 @@ extension MCPServer {
                     throw MCPError("scrollFrame ref [\(ref)] \(RefGuard.describe(found)) has a"
                         + " zero-size frame, so there is nothing to swipe inside")
                 }
-                var note = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""
+                var note = retarget
                 // **ref はどんな要素の frame も掴める**(scrollable 申告を確かめない —— それが
                 // この逃げ道の存在意義: id の重複・欠落で選べない容器も frame さえ分かれば渡せる)。
                 // ただし黙って撃つと「マークされた容器の中を振った」という誤った印象を残すので、
