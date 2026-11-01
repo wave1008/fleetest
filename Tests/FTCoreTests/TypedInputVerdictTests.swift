@@ -11,6 +11,21 @@ final class TypedInputVerdictTests: XCTestCase {
 
     // MARK: maskedShortfall(打つ前の値)
 
+    /// 焦点を保った打鍵は追記だけ: `ab` + `abかな` の4文字は置き換えと同じ数でも、かなが落ちた形
+    func testFocusedAppendWhoseCountEqualsTheBodyLengthFails() {
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "••", priorFocused: true, afterValue: "••••", text: "abかな"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "••", priorFocused: false, afterValue: "••••", text: "abかな"),
+                     "タップで置き換わった形は通す")
+    }
+
+    /// 伏せ字は UTF-16 の単位で増える: 絵文字2文字は4
+    func testEmojiIsCountedInUTF16Units() {
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "••••", text: "😀😀"),
+                     "置き換わった形")
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "•••", text: "😀😀"),
+                        "数が動かない形は赤のまま")
+    }
+
     /// 値が既にある secure 欄へ非 ASCII だけを打って数が動かない(受けなかった文字が ok になっていた)
     func testNonASCIIIntoAFieldThatAlreadyHoldsMasksFailsWhenTheCountDidNotMove() {
         XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "•••", text: "かな"))
