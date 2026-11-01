@@ -817,6 +817,7 @@ public final class StepExecutor {
         notVisibleSelectionThisStep = nil
         scrollSwipesThisStep = nil
         slowDragsThisStep = nil
+        gestureDeliveredThisStep = false
         noteCodesThisStep = []
         firstFrameBlankObserved = false
         failureKindThisStep = nil
@@ -956,7 +957,9 @@ public final class StepExecutor {
                                // 分からない型は nil のまま = 推測しない
                                failureKind: Self.failureKind(thrown: error)
                                    ?? failureKindThisStep,
-                               thrownDriverError: error as? DriverError,
+                               thrownDriverError: (error as? DriverError).map {
+                                   gestureDeliveredThisStep ? $0.afterDeliveredGesture() : $0
+                               },
                                response: thrownResponse,
                                opensReadyObservation: thrownOpensReadyObservation)
         }
@@ -1170,6 +1173,10 @@ public final class StepExecutor {
     var scrollSwipesThisStep: Int?
     /// このステップで撃った slowDrag の本数(execute が StepOutcome.slowDrags に載せる)。slowDrag が書く
     var slowDragsThisStep: Int?
+    /// このステップで、スワイプ/座標ドラッグ(`swipeWithFallback` / `dragWithFallback`)が正常に返った = 端末に届いた。
+    /// 後続の読み取りが投げた失敗の配達の帰属に使う(`DriverError.afterDeliveredGesture`)。**立つのはこの2入口だけ**
+    /// (タップ・入力は含めない = false は「届いていない」を意味しない)
+    var gestureDeliveredThisStep = false
     /// このステップで立った機械可読な注記(execute が StepOutcome.notes に載せる)。
     /// アクション/検証のどの return 経路から立てても拾えるようインスタンスで持つ
     /// (scrollSearchNote / observedCheckedThisStep と同じ受け渡し形)。

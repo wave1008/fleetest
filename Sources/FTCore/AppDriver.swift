@@ -306,6 +306,22 @@ extension DriverError {
     /// 届いたか分からない失敗に足す文(そうでなければ空)。**CLI の操作コマンドとライブ操作が失敗文の後ろへ付ける**
     /// (MCP は自前の同趣旨の注記を持つ)。判定は `deliveryIsUnknown`・自動リトライは足さない
     public var deliveryAdvice: String { deliveryIsUnknown ? DriverErrorMessage.deliveryUnknownNote : "" }
+
+    /// **同じステップで先に撃ったジェスチャが正常に返った(= 端末に届いた)後に、読み取りが投げた失敗の帰属**。
+    /// 接続拒否・「送っていない」はその読み取り自身についての事実で、ステップとしては届いた操作が既にある —— そのまま渡すと
+    /// 「未送信」と読まれて撃ち直され二重に動く。届いたか不明の側へ倒す(`deliveryUnknown`)。
+    /// それ以外の case はそのまま(応答があった・不明は既に不明の側・ref の拒否は撃つ手自身の拒否)。**`default` を置かない**
+    public func afterDeliveredGesture() -> DriverError {
+        switch self {
+        case .bridgeConnectionRefused(let context, _), .notDelivered(let context, _):
+            return .deliveryUnknown(
+                context: context,
+                detail: "An earlier gesture of this step had already been delivered; this failure came from a later"
+                    + " read of the screen, not from that gesture. \(localizedDescription)")
+        case .bridgeUnreachable, .deliveryUnknown, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked:
+            return self
+        }
+    }
 }
 
 extension DriverError: StepFailureKindProviding {

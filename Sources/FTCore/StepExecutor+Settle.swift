@@ -644,14 +644,17 @@ extension StepExecutor {
         }
         if dragFallbackLatched, let td = typeDriver {
             try await drag(td)
+            gestureDeliveredThisStep = true
             return
         }
         do {
             try await drag(driver)
+            gestureDeliveredThisStep = true
         } catch {
             guard DriverError.isBridgeIncapable(error), let td = typeDriver else { throw error }
             dragFallbackLatched = true
             try await drag(td)
+            gestureDeliveredThisStep = true
         }
     }
 
@@ -667,6 +670,7 @@ extension StepExecutor {
         if typeDriverGestures.contains("swipe") || latched, let td = typeDriver {
             let start = clock.now
             try await td.swipe(direction, intent: intent, path: path)
+            gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
             return true
@@ -674,6 +678,7 @@ extension StepExecutor {
         do {
             let start = clock.now
             try await driver.swipe(direction, intent: intent, path: path)
+            gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: false)
             return false
@@ -685,6 +690,7 @@ extension StepExecutor {
             guard DriverError.isBridgeIncapable(error), let td = typeDriver else { throw error }
             let start = clock.now
             try await td.swipe(direction, intent: intent, path: path)
+            gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             if path == nil { swipeFallbackLatched = true } else { pathSwipeFallbackLatched = true }
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
