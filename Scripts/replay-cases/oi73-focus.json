@@ -1,0 +1,47 @@
+{
+  "id": "oi73-focus",
+  "finding": "Android 13 の Compose で、焦点を移した後の ref なしの type / clear が前の欄へ入り「入った」と言う(findFocus の isFocused が古い)",
+  "platform": "android",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e"}]
+  ],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e"}]
+  ],
+  "resetSeconds": 0.5,
+  "rounds": 5,
+  "redConfirmed": true,
+  "forms": [
+    {
+      "name": "ft_batch: 欄 A に打ち、欄 B をタップして ref なし type",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_single'; type '#field_single' 'S'; tap '#field_password'; type 'P1'"}],
+        ["ft_snapshot", {}]
+      ],
+      "expect": ["password=P1", "single=S\""],
+      "reject": ["single=SP1"],
+      "settleSeconds": 1
+    },
+    {
+      "name": "ft_tap + ft_type(ref なし)",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_single'; type '#field_single' 'S'"}],
+        ["ft_batch", {"steps": "tap '#field_password'"}],
+        ["ft_type", {"text": "P1"}]
+      ],
+      "expect": ["password=P1"],
+      "reject": ["single=SP1"],
+      "settleSeconds": 1
+    },
+    {
+      "name": "ft_batch: 欄 A に打ち、欄 B をタップして ref なし clearInput",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_single'; type '#field_single' 'SX'; tap '#field_password'; clearInput"}],
+        ["ft_snapshot", {}]
+      ],
+      "expect": ["single=SX"],
+      "reject": ["staticText \"single=\""],
+      "settleSeconds": 1
+    }
+  ]
+}

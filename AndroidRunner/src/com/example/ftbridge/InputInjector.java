@@ -701,13 +701,21 @@ final class InputInjector {
      */
     private static AccessibilityNodeInfo focusedEditable(AccessibilityNodeInfo root) {
         AccessibilityNodeInfo focus = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-        if (focus != null && focus.isEditable()) return focus;
+        if (focus != null && focus.isEditable()) {
+            // **findFocus が返すノードの isFocused は焦点を移した後も true のまま古い**(Pixel 4a・Android 13 の Compose:
+            // 取り直すと false で、別の欄が true。logcat で実測)。取り直して今も焦点が立っているときだけ採る
+            if (focus.refresh() && focus.isFocused()) return focus;
+            AccessibilityNodeInfo other = findFocusedEditable(root);
+            // 木のどこにも焦点が見えなければ従来どおり findFocus の欄(焦点が一瞬どこにも無い Flutter 等)
+            return other != null ? other : focus;
+        }
         return findFocusedEditable(root);
     }
 
+    /** 木から `isFocused && isEditable` を探す。**editable は取り直してから isFocused を読む**(木のキャッシュの isFocused は古いことがある) */
     private static AccessibilityNodeInfo findFocusedEditable(AccessibilityNodeInfo node) {
         if (node == null) return null;
-        if (node.isEditable() && node.isFocused()) return node;
+        if (node.isEditable() && node.refresh() && node.isFocused()) return node;
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo hit = findFocusedEditable(node.getChild(i));
             if (hit != null) return hit;
