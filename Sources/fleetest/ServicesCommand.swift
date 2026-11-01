@@ -119,6 +119,17 @@ struct ServicesCommand: AsyncParsableCommand {
             + " Run `fleetest services down` and then `fleetest services up` to start them again"
     }
 
+    /// 稼働中の控えより後に compose.yaml が書き換えられていれば警告する(無ければ nil)。控えは宣言の中身を持たないので、
+    /// 差そのものは言えない —— 「編集された」という事実だけを言い、`down` → `up` を案内する(稼働中のサービスは古い宣言のまま)。
+    /// 開始時刻は秒精度なので、同じ秒の編集は見逃す(誤って言うよりは言わない側)
+    static func composeEditedAfterStartWarning(composeModified: Date?, lease: ServicesLease) -> String? {
+        guard let composeModified,
+              let started = ISO8601DateFormatter().date(from: lease.pidStartedAt),
+              composeModified > started else { return nil }
+        return "⚠️ services: scripts/compose.yaml was edited after these services started, so they still run the old declaration."
+            + " Run `fleetest services down` and then `fleetest services up` to apply it"
+    }
+
     /// 所有者(pid・開始時刻)の終了を待つ。上限はその控えの片付けの予算。尽きたら false(所有者は片付けを続けている)。
     static func waitForExit(pid: Int32, startedAt: String, budgetSeconds: Double) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + budgetSeconds
@@ -158,6 +169,11 @@ struct ServicesCommand: AsyncParsableCommand {
             if let existing = try await Self.settleExistingOwner(target: target) {
                 ConsoleOut.out("→ services: already up (\(existing.holderDescription)); stop with `fleetest services down`")
                 if let warning = ServicesCommand.stoppedContainersWarning(existing) { ConsoleOut.out(warning) }
+                let composeModified = (try? FileManager.default.attributesOfItem(
+                    atPath: target.workspace.composeFile.path))?[.modificationDate] as? Date
+                if let warning = ServicesCommand.composeEditedAfterStartWarning(composeModified: composeModified, lease: existing) {
+                    ConsoleOut.out(warning)
+                }
                 Self.printPublished(existing)
                 return
             }
