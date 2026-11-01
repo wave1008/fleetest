@@ -1263,6 +1263,11 @@ extension MCPServer {
             + " Check with ft_screenshot, and bring the app back before operating it)"
     }
 
+    /// ゲートなしでヒットテストだけ聞く。`.hittable(false)` と断言されたときだけ true(答えられない・失敗は黙る)
+    static func isReportedNotHittable(nativeRef: Int, driver: AppDriver) async -> Bool {
+        (try? await driver.hitTest(ref: nativeRef)) == .hittable(false)
+    }
+
     /// **木では答えられない「上のクロムの下へ潜っているか」をプラットフォームに聞く**(iOS だけ)。
     ///
     /// ゲートは `TapTargetGeometry.suspectedHiddenUnderChrome`(粗くてよい。断定は
@@ -2050,6 +2055,11 @@ extension MCPServer {
                 landed = " → [\(found.ref)] \(RefGuard.describe(found))"
                 landedHidden = await !Self.hiddenUnderChromeWarning(
                     found, nativeRef: nativeRef(found.ref, args: args), in: after, driver: scrollDriver).isEmpty
+                // 「画面にある」「スクロールした」と言い切る前に1件だけ直接聞く(上のゲートは覆う相手が居ない
+                // 「描かれていないだけ」の形で開かない = 隠れたバーのボタンを「already on screen」と言っていた。1件 72〜146ms で探索の所要に比べ小さい)
+                if !landedHidden {
+                    landedHidden = await Self.isReportedNotHittable(nativeRef: nativeRef(found.ref, args: args), driver: scrollDriver)
+                }
                 landedUnderKeyboard = KeyboardOcclusion.resolve(
                     reported: after.keyboardFrame, in: after.elements, screen: after.screen).covers(found)
             case .gone:

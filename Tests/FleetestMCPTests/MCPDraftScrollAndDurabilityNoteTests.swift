@@ -49,6 +49,28 @@ final class MCPDraftScrollAndDurabilityNoteTests: XCTestCase {
         XCTAssertTrue(draft.contains("did not reach the element after 3 swipe(s)"), draft)
     }
 
+    /// OI-129 (sim F9): 覆う相手が居ない「描かれていないだけ」の要素でも、プラットフォームが hittable でないと答えたら
+    /// 「already on screen」と言わない(ゲートを通らない直接の問い合わせ)
+    func testScrollToDoesNotSayOnScreenWhenThePlatformReportsNotHittable() async throws {
+        let driver = FakeDriver()
+        let server = MCPServer(write: { _ in }, makeDriver: { _ in driver }, recordSnapshot: { _, _, _ in })
+        driver.hitTestAnswer = .hittable(false)
+        let content = try await server.call(tool: "ft_scroll_to", args: ["selector": "#login_btn"])
+        let text = content.compactMap { $0["text"] as? String }.joined(separator: "\n")
+        XCTAssertFalse(text.contains("was already on screen"), text)
+        XCTAssertTrue(text.contains("NOT hittable"), text)
+    }
+
+    /// 答えられない(既定)・hittable なら従来どおり
+    func testScrollToKeepsTheOnScreenHeadlineWhenHittable() async throws {
+        let driver = FakeDriver()
+        let server = MCPServer(write: { _ in }, makeDriver: { _ in driver }, recordSnapshot: { _, _, _ in })
+        driver.hitTestAnswer = .hittable(true)
+        let content = try await server.call(tool: "ft_scroll_to", args: ["selector": "#login_btn"])
+        let text = content.compactMap { $0["text"] as? String }.joined(separator: "\n")
+        XCTAssertTrue(text.contains("was already on screen"), text)
+    }
+
     private static func path(_ relative: String) -> String {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent(relative).path
