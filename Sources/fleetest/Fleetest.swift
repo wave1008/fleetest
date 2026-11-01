@@ -919,6 +919,7 @@ struct RunScenarios: AsyncParsableCommand {
             let runSummary: RunSummary
             let fmSettings: FMSettingsRecord
             progressHandedToProfileRunner = true
+            let servicesBox = ServicesSessionBox()
             do {
                 (runSummary, fmSettings) = try await ProfileRunner.run(
                     project: testProject, profileName: profile, items: items,
@@ -931,6 +932,7 @@ struct RunScenarios: AsyncParsableCommand {
                     deviceMachine: effectiveDeviceHost,
                     workspaceOverride: common.workspace,
                     recorder: recorder,
+                    servicesBox: servicesBox,
                     broadcast: broadcast,
                     workQueue: common.workQueue,
                     supplyProgress: supplyProgress,
@@ -945,6 +947,9 @@ struct RunScenarios: AsyncParsableCommand {
                 // プロファイル無しの基底で近似すると heal: false 等の効いていなかった値を「実効値」として残す
                 // (results-json の fmSettings は実効値の欄)。dry-run ではないのでここで nil にはならない
                 let effective = earlyResolved
+                // 先行供給(ビルドと並行)が上げたサービスは箱に入る前に失敗することがあるので、そちらも見る。api run の catch と対
+                let failedServices = servicesBox.session ?? earlySupply?.servicesSession
+                failedServices?.saveLogs(to: recorder.runDir) { ConsoleOut.out($0) }
                 recorder.finish(total: items.count, passed: 0, failed: items.count,
                                 performanceMode: performanceMode,
                                 fmSettings: FMSettingsRecord(
@@ -954,7 +959,7 @@ struct RunScenarios: AsyncParsableCommand {
                                     ocrTextVisibilityCheck: effective?.ocrTextVisibilityCheck
                                         ?? noProfileSettings.ocrTextVisibilityCheck),
                                 setOverrides: profileOverrides.mapValues(\.token),
-                                servicesWarnings: [],
+                                servicesWarnings: failedServices?.warnings ?? [],
                                 // resolve 前の失敗で計測モードかどうかを断定できない
                                 responseMeasurement: nil,
                                 interrupted: error is RunInterruptedBeforeStartError,
