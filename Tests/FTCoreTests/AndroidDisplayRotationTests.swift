@@ -30,7 +30,7 @@ final class AndroidDisplayRotationTests: XCTestCase {
 
     func testParsesTheFirstDisplayOnly() {
         XCTAssertEqual(AndroidDisplayRotation.parse(launcherDump),
-                       .init(requestedOrientation: 5, rotation: 0))
+                       .init(requestedOrientation: 5, rotation: 0, naturalSize: .init(width: 1080, height: 2424)))
         XCTAssertEqual(AndroidDisplayRotation.parse(pixel3aRotatedDump),
                        .init(requestedOrientation: -1, rotation: 1))
     }
@@ -44,7 +44,8 @@ final class AndroidDisplayRotationTests: XCTestCase {
             mLastOrientation=1
             mRotation=0 mDeferredRotationPauseCount=0
         """
-        XCTAssertEqual(AndroidDisplayRotation.parse(dump), .init(requestedOrientation: nil, rotation: nil))
+        XCTAssertEqual(AndroidDisplayRotation.parse(dump),
+                       .init(requestedOrientation: nil, rotation: nil, naturalSize: .init(width: 1080, height: 2424)))
     }
 
     func testUnreadableDumpIsUnknown() {

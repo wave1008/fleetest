@@ -14,10 +14,13 @@ public enum AndroidDisplayRotation {
         public let requestedOrientation: Int?
         /// 表示の回転(Surface.ROTATION_* = 0...3)。読めなければ nil
         public let rotation: Int?
+        /// 自然な向き(回転前)の大きさ = `init=WxH`。gRPC タッチの座標系(AndroidTouchRotation)。読めなければ nil
+        public let naturalSize: AndroidTouchRotation.Size?
 
-        public init(requestedOrientation: Int?, rotation: Int?) {
+        public init(requestedOrientation: Int?, rotation: Int?, naturalSize: AndroidTouchRotation.Size? = nil) {
             self.requestedOrientation = requestedOrientation
             self.rotation = rotation
+            self.naturalSize = naturalSize
         }
     }
 
@@ -31,16 +34,23 @@ public enum AndroidDisplayRotation {
         }
         var requested: Int?
         var rotation: Int?
+        var natural: AndroidTouchRotation.Size?
         for line in lines[(start + 1)...] {
             if line.hasPrefix("Display: mDisplayId=") { break }
             if requested == nil, line.hasPrefix("mLastOrientation=") {
                 requested = leadingInt(line.dropFirst("mLastOrientation=".count))
             }
+            if natural == nil, line.hasPrefix("init=") {
+                let size = line.dropFirst("init=".count).prefix { !$0.isWhitespace }.split(separator: "x")
+                if size.count == 2, let w = Int32(size[0]), let h = Int32(size[1]), w > 0, h > 0 {
+                    natural = AndroidTouchRotation.Size(width: w, height: h)
+                }
+            }
             if rotation == nil, line.hasPrefix("mRotation=") {
                 rotation = leadingInt(line.dropFirst("mRotation=".count))
             }
         }
-        return State(requestedOrientation: requested, rotation: rotation)
+        return State(requestedOrientation: requested, rotation: rotation, naturalSize: natural)
     }
 
     /// 前面の宣言がこの向きを禁じているときの理由(禁じていない・不明なら nil = 待つ側)。
