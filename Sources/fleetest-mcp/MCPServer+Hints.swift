@@ -1391,10 +1391,24 @@ extension MCPServer {
     /// 欄を書き換え・消し・送信していた(Enter は取り消せない)。判定は座標の警告と同じ(`coordinateFrontAppWarningFromProbes`)
     func refusalForRefLessInputOnOtherApp(_ driver: AppDriver, args: [String: Any], what: String) async -> String? {
         guard driver is AndroidDriver else { return nil }
-        let warning = await coordinateFrontAppWarningFromProbes(driver, args: args)
-        guard !warning.isEmpty else { return nil }
-        return "refusing \(what) without a ref: it would act on whatever field has focus right now, and nothing was sent."
-            + warning + " Bring the app back (ft_launch with resume: true) and pass the field's ref"
+        return PreFireGuard.refLessInputRefusal(
+            what: what, frontWarning: await coordinateFrontAppWarningFromProbes(driver, args: args))
+    }
+
+    /// **ft_batch の ref なし入力(type / clearInput / pressEnter)も、撃つ前に同じ断りを通す**(`ft_type` / `ft_clear_input` と
+    /// 同じ `refusalForRefLessInputOnOtherApp`。判定する手は `PreFireGuard.refLessInput`)。ref あり・他の手は nil
+    func refusalForRefLessBatchStep(_ step: FlowStep, driver: AppDriver, args: [String: Any]) async -> String? {
+        guard let input = PreFireGuard.refLessInput(step) else { return nil }
+        return await refusalForRefLessInputOnOtherApp(driver, args: args, what: PreFireGuard.refLessVerb(input))
+    }
+
+    /// **ref で引いた対象の木が、このセッションが起動したのと別のアプリのもの**のときの注記(座標の警告と同じ文言)。
+    /// 新しい木は別アプリの出自なので `verifiedRef` の出自照合は通ってしまう(断りの案内の前半だけ従うと、別アプリのまま ref で撃てる)。
+    /// 判定材料は木の `sessionBundleID` だけ = 読みを足さない。システムのダイアログのパッケージは `frontAppWarning` が黙る
+    func refFrontAppNote(_ tree: SnapshotResponse?, args: [String: Any]) -> String {
+        guard let launched = launchedBundleIDs[Self.sessionKey(args)], launched != "com.apple.springboard",
+              let front = tree?.sessionBundleID, !front.isEmpty else { return "" }
+        return Self.frontAppWarning(launched: launched, front: front)
     }
 
     /// `lastTreeCoverWarning` を、撃つ前の確認として使える形にしたもの(ft_navigate back もここを通る)

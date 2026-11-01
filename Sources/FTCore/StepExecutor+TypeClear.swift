@@ -471,10 +471,10 @@ extension StepExecutor {
     /// 窓の縮みとは判定できない = 押し出された欄が見つからないで赤になっていた)。人はキーボードを
     /// 閉じれば押せるので、見つからないと言う前に副作用の無い手段で閉じて探し直す(`reachPastKeyboard` と同じ方針)。
     /// **待ち切った後だけ**撃つ(先に閉じると、キーボードと一緒に出る候補一覧などを待たずに消してしまう)。
-    /// tap・type・clearInput だけ(他の操作はキーボードの下を狙わない)。nil = 対象外・閉じても見つからない
+    /// 対象を引く指の操作(`PreFireGuard.keyboardSensitiveActions`)。nil = 対象外・閉じても見つからない
     func resolveAfterClosingKeyboard(_ action: String, step: FlowStep, in snapshot: SnapshotResponse,
                                      phase: inout PhaseAccumulator) async throws -> KeyboardRetry {
-        guard ["tap", "type", "clearInput"].contains(action),
+        guard PreFireGuard.keyboardSensitiveActions.contains(action),
               KeyboardWait.isShown(snapshot) || (!isAndroid
                 && KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                              screen: snapshot.screen).windowResizedAboveKeyboard) else {

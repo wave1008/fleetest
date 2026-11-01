@@ -57,6 +57,8 @@ final class TapRefGuardTests: XCTestCase {
         let screen = try source("MCPServer+ScreenTools.swift")
         XCTAssertEqual(screen.components(separatedBy: "refusalForRefLessInputOnOtherApp(").count - 1, 2,
                        "ft_type と ft_clear_input の ref なしが前面を確かめていない")
+        XCTAssertTrue(try source("MCPServer+Batch.swift").contains("refusalForRefLessBatchStep("),
+                      "ft_batch の ref なし入力が前面を確かめていない")
         let gestures = try source("MCPServer+GesturesTools.swift")
         XCTAssertTrue(gestures.contains("pinchResolvedRef == nil, pinchCoordinate == nil"))
         XCTAssertTrue(gestures.contains("verifiedTreeCoverWarning("))

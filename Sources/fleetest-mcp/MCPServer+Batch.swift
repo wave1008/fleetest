@@ -762,6 +762,12 @@ extension MCPServer {
                 throw MCPError(lines.joined(separator: "\n")
                     + "\n\nStopped at step \(index + 1) of \(plans.count) — later steps were not run.")
             }
+            // ref なしの type / clearInput / pressEnter は焦点の欄へ撃つ。別のアプリが前面なら撃つ前に断る(ft_type / ft_clear_input と同じ門)
+            if let refusal = await refusalForRefLessBatchStep(plan.step, driver: batchDriver, args: args) {
+                lines.append("\(index + 1). \(plan.summary) — REFUSED, nothing was sent: \(refusal)")
+                throw MCPError(lines.joined(separator: "\n")
+                    + "\n\nStopped at step \(index + 1) of \(plans.count) — later steps were not run.")
+            }
             if let mistake = Self.typeTextLooksLikeSelector(plan.step, tree: treeBeforeStep?.elements) {
                 throw MCPError(lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n")
                     + "\(index + 1). \(plan.summary) — REFUSED, nothing was sent: \(mistake)")
@@ -906,6 +912,8 @@ extension MCPServer {
             recordSnapshot(final, batchDriver is AndroidDriver ? "android" : "ios", args)
             flagUnchangedTap(now: final.elements)
             applyUnchangedTaps(final: final)
+            let waitFlatNote = await flatScreenNoteIfNothingChanged(
+                driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty)
             let explainMiss = waited.found ? false : firstTime("waitMissExplained")
             let waitNote = waited.found
                 ? Self.waitForAppearedNote(waitFor, in: final,
@@ -921,7 +929,7 @@ extension MCPServer {
             return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
                                                                        appLeftFront: await appLeftFront(final))
                 + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
-                + waitNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
+                + waitNote + waitFlatNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
         }
         let unchangedNote: String
         let final: SnapshotResponse
@@ -942,13 +950,24 @@ extension MCPServer {
         recordSnapshot(final, batchDriver is AndroidDriver ? "android" : "ios", args)
         flagUnchangedTap(now: final.elements)
         applyUnchangedTaps(final: final)
-        let displayOffNote = unchangedTaps.isEmpty ? ""
-            : await displayOffNoteAfterUnchangedAction(driver: batchDriver, elementCount: final.elements.count) ?? ""
+        // **全面黒の注記は「どの手でも」画面が変わらなかったときに出す**(tap の無変化だけでなく、全手成功なのに木がバッチ前と同じ)
+        let displayOffNote = await flatScreenNoteIfNothingChanged(
+            driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty)
         let leftFront = await appLeftFront(final)
         return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
                                                                    appLeftFront: leftFront)
             + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
             + (leftFront ? "" : unchangedNote) + displayOffNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
+    }
+
+    /// ft_batch の全面黒の注記の出口(全手が成功した後の1箇所)。出す条件は tap の無変化(`tapsUnchanged`)か、
+    /// 木がバッチ前と同じ(`looksUnchanged`)。**絵を撮るのは条件を満たすときだけ**(`displayOffNoteAfterUnchangedAction`)。
+    /// 失敗で止まった手の後は呼ばない(止まった理由が先に出る)
+    func flatScreenNoteIfNothingChanged(driver: AppDriver, beforeBatch: SnapshotResponse?, final: SnapshotResponse,
+                                        tapsUnchanged: Bool) async -> String {
+        let treeUnchanged = beforeBatch.map { Self.looksUnchanged($0, final) } ?? false
+        guard tapsUnchanged || treeUnchanged else { return "" }
+        return await displayOffNoteAfterUnchangedAction(driver: driver, elementCount: final.elements.count) ?? ""
     }
 
     /// セレクタを書かず本文だけの `type` の本文が、直近の木にある id そのもの(`#field_x`)のとき、本文の書き忘れの疑いを返す。

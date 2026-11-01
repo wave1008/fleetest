@@ -80,4 +80,25 @@ final class MCPSharedGuardParityTests: XCTestCase {
         let missing = savers.filter { !$0.body.contains("BlankFrameDetector.isUnjudgeable") }.map(\.name)
         XCTAssertEqual(missing, [], "一色の絵を見本に保存しうる")
     }
+
+    /// **撃つ前の守りの表(経路 × 守り)**。空の升があると落ちる。判定は FTCore.PreFireGuard の1つ、呼び手は写すだけ。
+    ///   ref を引く全経路(verifiedRef・refGestureGuard): キーボードに潰された/せり上がったバーに覆われた対象の断り + 別アプリの木の注記
+    ///   ft_batch: ref なし入力の前面の確認(ft_type / ft_clear_input と同じ門)+ 全手成功で木が不変のときの全面黒の注記
+    func testPreFireGuardTableHasNoEmptyCell() throws {
+        let handlers = Dictionary(try functions(in: "Sources/fleetest-mcp").map { ($0.name, $0.body) },
+                                  uniquingKeysWith: { a, b in a + "\n" + b })
+        let table: [(function: String, mustCall: [String])] = [
+            ("verifiedRef", ["keyboardCoverRefusal(", "refFrontAppNote("]),
+            ("refGestureGuard", ["keyboardCoverRefusal(", "refFrontAppNote("]),
+            ("batch", ["refusalForRefLessBatchStep(", "flatScreenNoteIfNothingChanged("]),
+            ("refusalForRefLessBatchStep", ["PreFireGuard.refLessInput(", "refusalForRefLessInputOnOtherApp("]),
+            ("refusalForRefLessInputOnOtherApp", ["PreFireGuard.refLessInputRefusal("]),
+        ]
+        for row in table {
+            let body = try XCTUnwrap(handlers[row.function], "\(row.function) を拾えていない")
+            for call in row.mustCall {
+                XCTAssertTrue(body.contains(call), "\(row.function) が \(call) を通っていない")
+            }
+        }
+    }
 }
