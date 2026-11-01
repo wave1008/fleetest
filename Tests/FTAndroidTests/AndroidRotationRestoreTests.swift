@@ -37,13 +37,20 @@ final class AndroidRotationRestoreTests: XCTestCase {
         XCTAssertEqual(AndroidDriver.rotationRefusalConfirmations, 2)
     }
 
-    /// 起動(monkey)が回転の固定を解いたときだけ書き戻す。もともと auto の端末は触らない
-    func testLaunchRestoresOnlyALockItReleased() {
-        XCTAssertTrue(AndroidDriver.rotationLockWasReleased(
-            before: (userRotation: 1, accelerometerRotation: 0), after: (userRotation: 1, accelerometerRotation: 1)))
-        XCTAssertFalse(AndroidDriver.rotationLockWasReleased(
-            before: (userRotation: 1, accelerometerRotation: 0), after: (userRotation: 1, accelerometerRotation: 0)))
-        XCTAssertFalse(AndroidDriver.rotationLockWasReleased(
-            before: (userRotation: 0, accelerometerRotation: 1), after: (userRotation: 0, accelerometerRotation: 1)))
+    /// 起動(monkey)が回転設定を変えたら起動前へ戻す。固定は両方の値を比べる・auto は accelerometer だけ戻す・同じなら何も書かない
+    func testLaunchRestoresTheSettingsMonkeyChanged() {
+        func writes(_ b: (Int, Int), _ a: (Int, Int)) -> [String] {
+            AndroidDriver.rotationRestoreWrites(before: (userRotation: b.0, accelerometerRotation: b.1),
+                                                after: (userRotation: a.0, accelerometerRotation: a.1))
+                .map { "\($0.key)=\($0.value)" }
+        }
+        let lock = ["user_rotation=1", "accelerometer_rotation=0"]
+        XCTAssertEqual(writes((1, 0), (1, 1)), lock)      // 固定が解けた
+        XCTAssertEqual(writes((1, 0), (0, 0)), lock)      // 縦へ落ちた(accelerometer は 0 のまま)
+        XCTAssertEqual(writes((1, 0), (0, 1)), lock)
+        XCTAssertEqual(writes((1, 0), (1, 0)), [])
+        XCTAssertEqual(writes((0, 1), (0, 0)), ["accelerometer_rotation=1"])  // auto を切られた
+        XCTAssertEqual(writes((0, 1), (1, 1)), [])
+        XCTAssertEqual(writes((0, 1), (0, 1)), [])
     }
 }

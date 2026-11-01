@@ -735,6 +735,8 @@ extension StepExecutor {
         }
         // **背景で閉じなければ Enter**(ユーザー決定)。Enter はキーボードを閉じる操作ではなく欄の確定操作(検索・送信・
         // 次の欄への移動)なので、撃ったことを必ず注記に出す
+        // 焦点の欄の値を Enter の前に控える(複数行の欄では Enter が改行を入れる。閉じなかったとき事実で言うため。値は文言に出さない)
+        let focusedBeforeEnter = try? await freshSnapshot(.afterOwnMove).elements.first { $0.focused == true }
         let enter = try await executeDirectPressEnter(phase: &phase)
         guard StepExecutor.isSuccess(enter.status) else {
             return StepOutcome(status: .failed("the keyboard was not closed: \(tried), and"
@@ -750,12 +752,27 @@ extension StepExecutor {
         let enterNote = "sent Enter, which also fires the field's return-key action (search, submit or moving to the next field;"
             + " in a multi-line field it inserts a newline)"
         guard !KeyboardWait.isShown(afterEnter) else {
+            let changed = Self.focusedValueChanged(before: focusedBeforeEnter, after: afterEnter)
             return StepOutcome(status: .failed("the keyboard is still shown: \(tried), and \(enterNote)"
-                + " did not close it either"))
+                + " did not close it either"
+                + (changed ? " — the focused field's value changed after Enter (a newline was probably added to it; every"
+                    + " further hideKeyboard() adds another)" : "")))
         }
         return StepOutcome(status: .passed,
                            driverFallback: Self.joinNotes("closed the keyboard: \(tried), so \(enterNote)",
                                                           enter.driverFallback))
+    }
+
+    /// Enter の前に焦点を持っていた欄の値が、後の木の同じ欄で変わったか(純粋)。同じ欄 = identifier(あれば)、無ければ枠の左上。
+    /// 見つからない・前に焦点の欄が無ければ false(言えないことは言わない)
+    static func focusedValueChanged(before: ElementInfo?, after: SnapshotResponse) -> Bool {
+        guard let before else { return false }
+        let match = after.elements.first {
+            if let id = before.identifier { return $0.identifier == id && $0.type == before.type }
+            return $0.type == before.type && $0.frame.x == before.frame.x && $0.frame.y == before.frame.y
+        }
+        guard let match else { return false }
+        return match.value != before.value
     }
 
     /// キーボードを閉じた結果。`after` は閉じたのを確かめた木(主ドライバ)

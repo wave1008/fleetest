@@ -3,6 +3,7 @@
 // 判定は純関数 `MCPServer.pinchRadiusHonouringMinimumSpan` に置く(AndroidDriver は FakeDriver から模せない)
 
 import XCTest
+import FTCore
 @testable import fleetest_mcp
 
 final class MCPPinchMinimumSpanTests: XCTestCase {
@@ -27,5 +28,17 @@ final class MCPPinchMinimumSpanTests: XCTestCase {
         XCTAssertTrue(code.contains("if pinchRadius == nil, let android = pinchDriver as? AndroidDriver,"),
                       "Android 限定・明示 radius 優先の条件が消えている")
         XCTAssertTrue(code.contains("let minimumSpan = android.minimumScalingSpanPx()"), "最小距離を端末から採っていない")
+    }
+
+    /// 注記は実際の指の間隔(短辺 × 0.9)で言う: 560px の枠 = 504px は最小 446px を超えるので「届かない」と言わない(横向きの実測)。
+    /// 本当に届かない枠(400px = 360px)だけが警告する
+    func testSpanNoteComparesTheRealFingerSpan() {
+        let reached = MCPServer.androidPinchSpanNote(area: FTRect(x: 0, y: 0, width: 560, height: 560), widened: 325, minimumSpan: 446)
+        XCTAssertFalse(reached?.contains("span only") ?? false, "504px の間隔は 446px を超えている: \(reached ?? "nil")")
+        XCTAssertNil(MCPServer.androidPinchSpanNote(area: FTRect(x: 0, y: 0, width: 560, height: 560), widened: 400, minimumSpan: 446))
+        let short = MCPServer.androidPinchSpanNote(area: FTRect(x: 0, y: 0, width: 400, height: 400), widened: 325, minimumSpan: 446)
+        XCTAssertTrue(short?.contains("span only 360 px") ?? false, short ?? "nil")
+        let widenedNote = MCPServer.androidPinchSpanNote(area: FTRect(x: 0, y: 0, width: 700, height: 700), widened: 325, minimumSpan: 446)
+        XCTAssertTrue(widenedNote?.contains("radius widened to 325 px") ?? false)
     }
 }

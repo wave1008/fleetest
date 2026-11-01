@@ -1252,6 +1252,20 @@ extension MCPServer {
         return max(defaultRadius, (minimumSpan * pinchSpanHeadroom / (2 * bridgePinchSpanRatio)).rounded(.up))
     }
 
+    /// 明示の radius が無い Android の座標ピンチの注記。**実際に撃つ指の間隔(`PinchGesture.androidWidestSpan` = 枠の短辺 × 0.9)**を
+    /// 最小スケール距離と比べる(枠の幅・半径は単位が違い、届いているのに「届かない」と言っていた)。
+    /// 届かないときだけ警告・広げた半径に届いているなら広げたと言う・間隔は足りるが半径は縮んだときは何も言わない
+    static func androidPinchSpanNote(area: FTRect, widened: Double, minimumSpan: Double) -> String? {
+        let span = PinchGesture.androidWidestSpan(frame: area)
+        if span < minimumSpan {
+            return " (the fingers span only \(Int(span)) px here — the screen edge is closer than Android's minimum"
+                + " scaling span of \(Int(minimumSpan)) px, so the zoom may not register; pinch nearer the middle)"
+        }
+        guard area.width / 2 >= widened else { return nil }
+        return " (radius widened to \(Int(widened)) px so the fingers exceed Android's minimum scaling span of"
+            + " \(Int(minimumSpan)) px — pass radius to override)"
+    }
+
     /// (x,y) を中心にした正方形の対象領域。**画面が分かるなら内側へ収める** ——
     /// 画面外へはみ出した指はタッチとして届かず、要求より小さいズームになる。
     /// 収め方は**中心を動かさず半径を縮める**(中心を寄せるとズームの支点が変わり、

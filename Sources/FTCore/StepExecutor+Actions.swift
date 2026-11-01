@@ -601,23 +601,42 @@ extension StepExecutor {
                 note(.healUnwritable, into: &notes)
             }
             driverFallback = Self.joinNotes(driverFallback, notes.joined(separator: " / "))
-        } else if let reached = try await resolveAfterClosingKeyboard(action, step: step, in: snapshot, phase: &phase) {
-            element = reached.element
-            snapshot = reached.snapshot
-            if let fallback = reached.usedFallback { status = .passedViaFallback(fallback) }
-            driverFallback = Self.joinNotes(driverFallback, reached.note)
         } else {
-            // 惜しい候補を添える。これが無いと直すために snapshot を取り直す往復が必要になる
-            // (レポート側の全要素一覧は ScenarioReportWriter が別途出す)
-            let hint = LocatorResolver.candidateHint(for: step, in: snapshot)
-            return StepOutcome(status: failed(
-                .notFound,
-                "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
-                    + Self.defaultWaitHint(step)
-                    + Self.truncationHint(snapshot)
-                    + Self.keyboardResizedHint(snapshot)
-                    + Self.webViewPathHint(snapshot)
-                    + unresolvedActionTapHint(snapshot.elements)))
+            let retry = try await resolveAfterClosingKeyboard(action, step: step, in: snapshot, phase: &phase)
+            if case .reached(let reachedElement, let usedFallback, let reachedSnapshot, let reachedNote) = retry {
+                element = reachedElement
+                snapshot = reachedSnapshot
+                if let usedFallback { status = .passedViaFallback(usedFallback) }
+                driverFallback = Self.joinNotes(driverFallback, reachedNote)
+            } else {
+                // 惜しい候補を添える。これが無いと直すために snapshot を取り直す往復が必要になる
+                // (レポート側の全要素一覧は ScenarioReportWriter が別途出す)
+                // 閉じる試みをした回は、その結果(閉じた・閉じられなかった)を事実で言い、閉じた後の木で候補を作る
+                let hintSnapshot: SnapshotResponse
+                let keyboardClause: String
+                switch retry {
+                case .closedButNotFound(let closedNote, let after):
+                    hintSnapshot = after
+                    keyboardClause = " (the soft keyboard was up: \(closedNote); the target is not on the screen after it closed either"
+                        + " — the keyboard is closed now, so closing it is not the fix)"
+                case .notClosed(let tried):
+                    hintSnapshot = snapshot
+                    keyboardClause = " (the soft keyboard is up and the target is not in the tree; closing it without side effects failed:"
+                        + " \(tried). Elements that sat below the keyboard may be gone from the tree, not just covered)"
+                default:
+                    hintSnapshot = snapshot
+                    keyboardClause = Self.keyboardResizedHint(snapshot)
+                }
+                let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
+                return StepOutcome(status: failed(
+                    .notFound,
+                    "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
+                        + Self.defaultWaitHint(step)
+                        + Self.truncationHint(hintSnapshot)
+                        + keyboardClause
+                        + Self.webViewPathHint(hintSnapshot)
+                        + unresolvedActionTapHint(hintSnapshot.elements)))
+            }
         }
         resolvedElementThisStep = element
         // セレクタが2件以上に一致していたら数を控える(1件目を撃った。ft_batch が行に添える)。

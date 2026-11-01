@@ -1,0 +1,36 @@
+{
+  "id": "emu-F1",
+  "finding": "ft_launch が端末の auto-rotate を約 15% で黙って切り(accelerometer_rotation 1→0)、後の ft_rotate portrait が「orientation locked before this session」と事実と違う帰属を言う",
+  "platform": "android",
+  "redNote": "デバイスを動かさずに足したケース。統合時に確認(起動前の auto が起動後も auto に戻ること。確率が低いので rounds を多く)",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}]
+  ],
+  "reset": [
+    ["$adb", {"args": ["shell", "settings", "put", "system", "accelerometer_rotation", "1"], "seconds": 0.3}]
+  ],
+  "resetSeconds": 0.5,
+  "rounds": 30,
+  "forms": [
+    {
+      "name": "auto の端末で launch → rotateTo portrait",
+      "steps": [
+        ["ft_launch", {"bundleId": "com.ftester.e2e.android"}],
+        ["ft_batch", {"steps": "rotateTo orientation: .portrait"}]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyReject": ["locked before this session"]
+    },
+    {
+      "name": "auto の端末で resume の launch → rotateTo portrait",
+      "steps": [
+        ["ft_launch", {"bundleId": "com.ftester.e2e.android", "resume": true}],
+        ["ft_batch", {"steps": "rotateTo orientation: .portrait"}]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyReject": ["locked before this session"]
+    }
+  ]
+}
