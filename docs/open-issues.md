@@ -580,12 +580,12 @@
 - 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
 - E2EY-CMP の横向き `scrollToTop` が 50 払いの上限で `msg_08` までしか戻らない(2/2。411px の窓で 60 件)
 - 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
-### OI-76 CMP の横向きで焦点の欄がキーボードに押し出されて木から消えると、ref なしの ft_type / ft_clear_input が no-input-focus と TextInputLayout の帰属で断る
+### OI-76 CMP の横向きで焦点の欄がキーボードに押し出されて木から消えると、ref なしの ft_type / ft_clear_input が打てない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 午後の探索的テスト(Emulator・E2E-CMP 横向き = emu F1 の ref なしの形)
 
-- ref+replace はキーボードを閉じて引き直すようになった。ref なしの経路は従来の断りのまま。帰属の文(`AndroidDriver.typeNoFocusAdvice`)が直前の手を見ずに一律に TextInputLayout と言う(emu F7)
+- 文言は直した(キーボードが欄を押し出していると言う)。打てるようにするには、ブリッジが木の外の焦点の欄を掴める必要がある。adb input text への切替は届いたか不明の規律で採らない
 
 ### OI-77 10-30 のコードレビュー(3回目)で直さずに残したもの
 - 状態: 経路確定
@@ -777,7 +777,7 @@
 - 経緯: 発見: 11/1 朝の探索的テスト(Emulator = mxa F5)
 
 - E2EX ドロワー画面・横向きで `tap '#nav_drawer' scroll: .down; tap '#btn_open_drawer'; tap '#drawer_item_sent'` が全部 ok・注記なし(7/8。縦向きは 0/6)。終わった木は `drawer_item_sent (284,652 803x147)`(開いたまま)・echo は drawer=sent にならない。閉じた木(1回)は `drawer_item_sent (0,652 142x147)`(ラベルなし・縦向きの閉じた木には居ない)で、2手目の直後の読みがまだ閉じた木 = 3手目が古い帯へ撃つ(推測)。2手目に「the screen did not change」が 5/7
-- 根拠(推測): `TapTargetGeometry` に切り欠きの帯(x<142)の判定が無い(下の gesture band はある)。本物の CMP `ModalNavigationDrawer` の木で SUT の問題ではない
+- 11/2 に測定: 木が画面に追いつくのが遅い。連続 tap 2/2 失敗・間に wait(1.0) でも 2/2 失敗・間に waitForSettle() は 2/2 成功。整定は同じ木が2枚続くと止まるので古い木のまま通る。直すなら木が変わらなかった tap の後に画像の静止を待つ形で、費用が全 tap に乗る = 判断待ち。帯の判定は機種依存で採らない
 
 ### OI-111 iOS の Flutter で ft_launch の直後の座標 ft_tap が「done」のまま飲まれる(launch の所要が約 2.45 秒の回だけ)
 - 状態: 再現済み
@@ -801,13 +801,6 @@
 
 - 消灯の直前に撃った tap が ok なのに届いていない: ft_batch `tap '#btn_tap_counter'` ×12 + 途中で `input keyevent 26` → 20 回中 2 回 `ok` の後に次の手が FAILED・起こした後の echo は tap=0(他の ok は tap=1 と一致 7/7)。単発の最終手なら緑のまま。期待(所見): 操作の後に `mWakefulness` が眠っていたら「届いたか分からない」を添える
 - 消灯の後の step の失敗文(Pixel 4a・ロック無し・5/5): `tap "#btn_tap_counter"` ×6〜12 の ft_batch の開始 2 秒後に `KEYCODE_SLEEP` → 「the target was covered, so the container was scrolled before touching it, but the target could not be found」+「⚠️ com.android.systemui … drawn over …(シェードが開いている・ft_navigate back で閉じる)」。dumpsys power は Dozing で木は常時表示(keyguard_status_view / ambient_indication_container)。3a・ロックあり(スワイプ解除)の ⚠️ は正しく「lock screen / always-on display」と言う(3/3)が、step 本文の「the target was covered …」は両方で残る(8/8)。呼び出しの開始時の起こし直しは正常で、消灯後に呼び出しを分ければ tap / swipe は全部届く。`StepExecutor+Actions.swift:1636` の文言は遮蔽の経路の結果。常時表示の判定は MCP の呼び出しの開始にだけある。DSL の run で同じ経路かは未確認
-
-### OI-114 Compose の横向きで `tap "#field"; type "#field" "ab"` が、タップをキーボードのキーへ当てて余計な "v" を欄に入れる(Android)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(Pixel 4a・Android 13・Gboard = pixel F5)
-
-- E2E-CMP テキスト入力・横向きで 5/7 が step 2 FAILED(約 4.1 秒)「cannot type into the field that was tapped (target node not found, 4000ms waited; … the IME window is in front; giving up rather than typing into the wrong field)」。キーボードを閉じると single=v・Gboard の候補列に v / g / good(画面中央 = 欄の中心の座標は v キーの上)。レポートは「何も入らなかった」に読める。成功の回は 2/7(`closed the keyboard` の経路)。tap の後に 0.5 秒置く形は 10/10 正常(4a・3a 各5)= 開いていく途中のキーボードの判定をすり抜ける。推測: `AndroidDriver.type` の直前のタップが、キーボードが立つ前の枠・判定で撃たれる
 
 ### OI-115 ft_list_devices が端末の不在を言わない(iOS 実機の探索)
 - 状態: 再現済み
@@ -866,7 +859,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 `mcp-<udid>@<pid>.lease` は呼び出しごとに書くが、消すのはプロセスの終了だけ(モニターは `MCPDeviceLease.hasMCPHolder` を `inMCP` としてランプに出す)。操作が終わって何も動いていなくても点いたままで、実行中と見分けがつかない。
 
 ### OI-131 既存シナリオを横向きで回す手段が無い
-検証が縦向きに偏っている(横向きの所見が多い)。案: `ScenarioExecutionSettings` に `orientation` を足し、`launchApp` の直後に `rotateTo` を1回通す。`launchApp` が向きを保つかの実測から始める。
+検証が縦向きに偏っている(横向きの所見が多い)。11/2 に測定: `launchApp` は向きを保つ(Emulator。launch の間の約2秒だけ縦に戻る)。案: `ScenarioExecutionSettings` に `orientation`、launch 直後に `rotateTo` を1回。実行プロファイルのキーが増えるので判断待ち。
 
 ## 設計判断で据え置いているもの(直さないと決めた。症状が出たら見直す)
 
