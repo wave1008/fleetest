@@ -248,8 +248,14 @@ extension MCPServer {
     /// 切り離す。swipes が nil(runScrollSearch を経由しなかった)でも壊れない
     /// ft_scroll_to の応答の見出し。**1回もスワイプしていなければ「スクロールした」と言わない**(目的の要素が最初から
     /// 画面に居た形。実測: 「scrolled to」と返り、動いたと読まれた)。回数が分からない(nil)ときは従来の文
-    static func scrollToHeadline(_ selectorText: String, swipes: Int?) -> String {
-        swipes == 0 ? "\"\(selectorText)\" was already on screen (no scroll needed)"
+    /// `hiddenUnderChrome` = プラットフォームが「その位置では hittable でない」と答えた(`hiddenUnderChromeWarning`)。
+    /// 木に居るだけで描かれていないものを「画面にある」「スクロールした」と言わない
+    static func scrollToHeadline(_ selectorText: String, swipes: Int?, hiddenUnderChrome: Bool) -> String {
+        if hiddenUnderChrome {
+            return "\"\(selectorText)\" is in the tree but the platform reports it is NOT hittable at its position"
+                + " — it is hidden under a bar or overlay (or not drawn), so it is not on screen in a tappable form"
+        }
+        return swipes == 0 ? "\"\(selectorText)\" was already on screen (no scroll needed)"
             : "scrolled to \"\(selectorText)\""
     }
 

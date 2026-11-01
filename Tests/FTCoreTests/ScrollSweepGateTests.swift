@@ -11,9 +11,10 @@ final class ScrollSweepGateTests: XCTestCase {
         var r = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0, swipes: 3)
         r.scrollFrameOtherAxis = true
         r.reverseSweepRan = true
+        r.reverseSweepDrags = 2
         let m = StepExecutor.scrollNotFoundMessage(step, r, defaultMaxSwipes: 8)
         XCTAssertTrue(m.contains("scrolls horizontally"), m)
-        XCTAssertTrue(m.contains("up to \(StepExecutor.reverseSweepMaxSwipes) slow drags"), m)
+        XCTAssertTrue(m.contains("2 slow drag(s)"), m)
         XCTAssertFalse(m.contains("position: "), m)
     }
 }

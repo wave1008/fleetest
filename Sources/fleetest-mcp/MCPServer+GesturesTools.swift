@@ -678,12 +678,8 @@ extension MCPServer {
     /// 「上の領域で払った」は言えない(払いがキー・抽出欄に乗って欄に文字が入った)。判定は `PinchRegion.usableScreen` と同じ向き(下半分に無ければ画面のまま)
     static func keyboardSwipeAreaNote(_ snapshot: SnapshotResponse?) -> String {
         guard let snapshot else { return " (the soft keyboard was up — swiped in the area above it)." }
-        let screen = snapshot.screen
-        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: screen).frame
-        if let keyboard, screen.height > 0, keyboard.y <= screen.y + screen.height / 2 {
-            return " (warning: the soft keyboard covers most of the screen (\(Int(keyboard.x)),\(Int(keyboard.y))"
-                + " \(Int(keyboard.width))x\(Int(keyboard.height))), so there is little room above it and the swipe may have landed on"
-                + " keys or the keyboard's own text field and typed — check the field's value with ft_snapshot; close the keyboard first (ft_hide_keyboard))."
+        if let keyboard = KeyboardSwipeCoverage.coveringFrame(snapshot) {
+            return " (" + KeyboardSwipeCoverage.note(keyboard) + ")."
         }
         return " (the soft keyboard was up — swiped in the area above it)."
     }

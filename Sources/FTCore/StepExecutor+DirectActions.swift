@@ -29,6 +29,10 @@ extension StepExecutor {
         var notes: [String] = []
         if viaXCUITest { notes.append("fell back to XCUITest") }
         if !settled { note(.settleCapped, into: &notes) }
+        // MCP の keyboardSwipeAreaNote と同じ判定(KeyboardSwipeCoverage)。払いは変えず、打鍵になりうることだけ言う
+        if hasKeyboard, let keyboard = KeyboardSwipeCoverage.coveringFrame(snapshot) {
+            notes.append(KeyboardSwipeCoverage.note(keyboard))
+        }
         return StepOutcome(status: .passed,
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
     }

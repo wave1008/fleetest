@@ -1508,8 +1508,8 @@ final class MCPRefGuardTests: XCTestCase {
 
     /// **1回もスワイプしていなければ「スクロールした」と言わない**(目的の要素が最初から画面に居た形)
     func testScrollToHeadlineDoesNotClaimAScrollWhenNoSwipeWasNeeded() {
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 0), "\"*円*\" was already on screen (no scroll needed)")
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 2), "scrolled to \"*円*\"")
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: nil), "scrolled to \"*円*\"", "回数が分からなければ従来の文")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 0, hiddenUnderChrome: false), "\"*円*\" was already on screen (no scroll needed)")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 2, hiddenUnderChrome: false), "scrolled to \"*円*\"")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: nil, hiddenUnderChrome: false), "scrolled to \"*円*\"", "回数が分からなければ従来の文")
     }
 }

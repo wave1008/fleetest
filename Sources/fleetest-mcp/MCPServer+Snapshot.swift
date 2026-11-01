@@ -1997,10 +1997,15 @@ extension MCPServer {
         // (MCP の ref 世代管理を経由していない)。表示するのは `after`(adoptSnapshot 済み =
         // セッション ref)の番号でなければ tap に使えないので、同一性で引き直す
         var landed = ""
+        // 着いた要素を疑わしいときだけプラットフォームに聞く(ft_tap と同じゲート・同じ照会)。
+        // 描かれていない(隠れたバー等)と答えられたら見出しを「画面にある」とは言わない
+        var landedHidden = false
         if let resolved = outcome.resolvedElement {
             switch RefGuard.relocate(resolved, in: after.elements, screen: after.screen) {
             case .found(let found, _), .ghost(let found):
                 landed = " → [\(found.ref)] \(RefGuard.describe(found))"
+                landedHidden = await !Self.hiddenUnderChromeWarning(
+                    found, nativeRef: nativeRef(found.ref, args: args), in: after, driver: scrollDriver).isEmpty
             case .gone:
                 landed = ""
             }
@@ -2055,14 +2060,14 @@ extension MCPServer {
         markLastGenerationDelivered(args: args)   // ft_scroll_to の木も返した世代(snapshotBody と同じ理由)
         if let inAppAlert = AlertTreeScope.frontInAppAlert(in: after) {
             return text(switched + scrollFrameLabelNote + sheetNote + timingNote
-                + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes) + "\(landed)\(fallbackNote).\n"
+                + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden) + "\(landed)\(fallbackNote).\n"
                 + Self.inAppAlertNote(inAppAlert, in: after)
                 + SnapshotRenderer.render(AlertTreeScope.alertOnly(inAppAlert, in: after), flagging: [:],
                                           collapsingBulk: collapsingBulk, interactiveOnly: false,
                                           unit: Self.coordinateUnit(scrollDriver)))
         }
         return text(switched + scrollFrameLabelNote + sheetNote + timingNote
-            + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes) + "\(landed)\(fallbackNote)."
+            + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden) + "\(landed)\(fallbackNote)."
             + " The refs below are fresh\n" + inheritedNote + scrollAreaNote
             // **ft_snapshot より少ない**(scrollFrame 候補・重複 id 系は出さない)。その差は
             // NoteCatalog の contexts が持つ = 2箇所の並びを読み比べる必要はない

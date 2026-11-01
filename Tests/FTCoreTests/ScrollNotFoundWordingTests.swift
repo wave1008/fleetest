@@ -15,6 +15,7 @@ final class ScrollNotFoundWordingTests: XCTestCase {
                                                 hintJumps: 0, swipes: 3, stoppedUnmoving: true,
                                                 contentEverMoved: moved)
         r.reverseSweepRan = sweepRan
+        r.reverseSweepDrags = sweepRan ? 2 : 0
         r.directionMatchedScrollFrameCandidate = candidate
         return r
     }
@@ -31,7 +32,7 @@ final class ScrollNotFoundWordingTests: XCTestCase {
     func testFailureMentionsTheReverseSweepWhenItRan() {
         let m = StepExecutor.scrollNotFoundMessage(step("scrollTo"), stopped(moved: true, sweepRan: true),
                                                    defaultMaxSwipes: 8)
-        XCTAssertTrue(m.contains("reverse sweep of up to \(StepExecutor.reverseSweepMaxSwipes) slow drags"), m)
+        XCTAssertTrue(m.contains("reverse sweep of 2 slow drag(s)"), m)
         XCTAssertTrue(m.contains("not counted in the 3 above"), m)
     }
 

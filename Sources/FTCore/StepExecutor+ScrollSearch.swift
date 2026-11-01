@@ -77,6 +77,9 @@ extension StepExecutor {
         /// 文言は読まない)。失敗文が「after N scroll(s)」と言うだけだと、直後に反対向きへ遅いドラッグが走り画面が
         /// 動いたこと・所要時間の大半がそれであることが読み手に見えない
         var reverseSweepRan: Bool = false
+        /// 実際に撃った逆走査のドラッグ本数(`reverseSweepDragsSent`)。失敗文は上限でなくこの数を言う
+        /// (最初の slowDrag が撃てずに打ち切る回があり、上限を言うと探索の範囲を実際より広く読ませる)
+        var reverseSweepDrags: Int = 0
         /// 端まで来ても見つからず、**逆向きの細刻みで拾い直した**回数(0 か 1。注記に載せる)
         var reverseSweeps: Int = 0
         /// 拾い直しに使った容器を**そのまま書けるセレクタ**にしたもの(nil = 名指しできない)。
@@ -310,7 +313,7 @@ extension StepExecutor {
         // 逆走査を撃った失敗だけ(数に入らない遅いドラッグが走り、画面が戻されていることを見せる)。
         // **「reached its end」「not reaching a scrolling area」を含めない**: 順方向の事実を言う別の分岐の語
         let sweepNote = result?.reverseSweepRan == true
-            ? " (then a reverse sweep of up to \(Self.reverseSweepMaxSwipes) slow drags the opposite way"
+            ? " (then a reverse sweep of \(result?.reverseSweepDrags ?? 0) slow drag(s) the opposite way"
               + " (not counted in the \(swipes) above) also found nothing, so the screen is left at the swept-back position)"
             : ""
         // 入れ子で外側の一覧が動いた失敗(動かなかった形は上の stopped が言う)。払いが届いたのは scrollFrame ではない
@@ -1131,6 +1134,7 @@ extension StepExecutor {
                                                                       searching: direction, phase: &phase)
                         // 撃てた本数で決める(最初の1本が撃てずに諦めた回に「逆走査した」と言わない)
                         result.reverseSweepRan = reverseSweepDragsSent > 0
+                        result.reverseSweepDrags = reverseSweepDragsSent
                         if let recovered = recoveredBySweep {
                             result.found = true
                             result.fallback = recovered
@@ -1186,6 +1190,7 @@ extension StepExecutor {
         // 横カルーセルで 2/10 残った。既に通り過ぎている公算が高い局面で、失敗経路限定なので
         // 正常系のコストはゼロ。ゲートは stoppedUnmoving 側の逆走査と同じ)
         var reverseSweepRan = false
+        var reverseSweepDrags = 0
         // **「動いた」の根拠が木全体の署名だけのときは撃たない**: 領域が採れない画面(searchContentRegion が nil)で、位置の動いた/
         // 入れ替わった容器(scrolledContainer)を1度も観測していないなら、動いたのは容器の外の動き続ける表示(時計・ティッカー)かもしれず、
         // 動いていない一覧を先頭側へ引き戻す(順方向で動かなかった探索は逆走査しない、という決定の裏口になる)
@@ -1199,6 +1204,7 @@ extension StepExecutor {
             let recoveredBySweep = try await reverseSweep(step: step, container: container,
                                                           searching: direction, phase: &phase)
             reverseSweepRan = reverseSweepDragsSent > 0
+            reverseSweepDrags = reverseSweepDragsSent
             if let recovered = recoveredBySweep {
                 var result = ScrollSearchResult(found: true, fallback: recovered,
                                                 viaXCUITest: viaXCUITest,
@@ -1214,6 +1220,7 @@ extension StepExecutor {
                                            hintJumps: hintJumps, swipes: swipes,
                                            reverseSweepRan: reverseSweepRan,
                                            maxTruncatedDuringSearch: truncatedDuringSearch)
+        exhausted.reverseSweepDrags = reverseSweepDrags
         exhausted.scrollFrameOtherAxis = frameOtherAxis
         // 最後の払いで動いたときだけ(途中で動いて末尾で止まった探索に「端に着いていない」と言わない)
         exhausted.exhaustedWhileMoving = movedByEvidence && lastSwipeMoved

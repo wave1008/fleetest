@@ -121,3 +121,23 @@ public enum PinchRegion {
             && inner.y + inner.height <= outer.y + outer.height
     }
 }
+
+/// キーボードが画面の大半を覆っているか(座標なしの払いの注記が「キーボードの上を撃った」と言えない形)。
+/// **MCP(`keyboardSwipeAreaNote`)と DSL(`executeDirectSwipe`)が共有する** —— 判定は `PinchRegion.usableScreen` と同じ向き
+/// (キーボードの上端が画面の上半分にある = 上に残る帯が狭い。横向きの全画面 IME 等)
+public enum KeyboardSwipeCoverage {
+    /// 画面の上半分から始まるキーボードの枠。無い・下半分から始まる(普通の下端のキーボード)なら nil
+    public static func coveringFrame(_ snapshot: SnapshotResponse) -> FTRect? {
+        let screen = snapshot.screen
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: screen).frame
+        guard let keyboard, screen.height > 0, keyboard.y <= screen.y + screen.height / 2 else { return nil }
+        return keyboard
+    }
+
+    /// 払いがキー・抽出欄に乗って打鍵になりうる、という注記(払い自体は変えない)
+    public static func note(_ keyboard: FTRect) -> String {
+        "warning: the soft keyboard covers most of the screen (\(Int(keyboard.x)),\(Int(keyboard.y))"
+            + " \(Int(keyboard.width))x\(Int(keyboard.height))), so the swipe may have landed on keys or the keyboard's"
+            + " own text field and typed — check the field's value; close the keyboard first (hideKeyboard)"
+    }
+}
