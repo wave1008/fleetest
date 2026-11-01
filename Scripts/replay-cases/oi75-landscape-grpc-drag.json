@@ -1,0 +1,66 @@
+{
+  "id": "oi75",
+  "finding": "Android の横向きで座標の ft_drag が縦の座標系で撃たれる(Emulator の gRPC タッチは自然な向きの座標を取る)。上スワイプが届かない",
+  "platform": "android",
+  "redConfirmed": true,
+  "redNote": "直しを外した版で TestProjects/E2E-CMP の座標ドラッグのシナリオが「swipe=up」の照合で赤(2026-11-02)。実測: user_rotation=1 で表示 (2000,300) の gRPC タッチは getevent の生値が自然座標 (2000,300) の比率で出る",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#tab_home'; tap '#nav_gesture' scroll: .down"
+      }
+    ],
+    [
+      "ft_rotate",
+      {
+        "orientation": "landscape"
+      }
+    ]
+  ],
+  "reset": [],
+  "resetSeconds": 0.5,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "横向きで座標を上へドラッグ",
+      "steps": [
+        [
+          "ft_drag",
+          {
+            "fromX": 1200,
+            "fromY": 800,
+            "toX": 1200,
+            "toY": 300
+          }
+        ]
+      ],
+      "expect": [
+        "swipe=up"
+      ]
+    },
+    {
+      "name": "横向きで座標を左へドラッグ",
+      "steps": [
+        [
+          "ft_drag",
+          {
+            "fromX": 1600,
+            "fromY": 600,
+            "toX": 800,
+            "toY": 600
+          }
+        ]
+      ],
+      "expect": [
+        "swipe=left"
+      ]
+    }
+  ]
+}

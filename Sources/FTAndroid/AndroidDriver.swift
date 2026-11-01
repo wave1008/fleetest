@@ -1495,9 +1495,12 @@ public final class AndroidDriver: AppDriver {
         let toXi = try Self.checkedInt32(toX, field: "toX")
         let toYi = try Self.checkedInt32(toY, field: "toY")
         try await requireDeviceAnswersOffPool()
-        if let serial, try await Self.gestureFinished(
-            EmulatorControl.drag(serial: serial, fromX: fromXi, fromY: fromYi,
-                                 toX: toXi, toY: toYi, durationMs: durationMs),
+        // gRPC は自然な向きの座標を取る(表示の回転を知らない)。回転が読めなければ撃たず adb(表示の座標)へ
+        if let serial, let from = await nativeTouchPoint(x: fromXi, y: fromYi),
+           let to = await nativeTouchPoint(x: toXi, y: toYi),
+           try await Self.gestureFinished(
+            EmulatorControl.drag(serial: serial, fromX: from.x, fromY: from.y,
+                                 toX: to.x, toY: to.y, durationMs: durationMs),
             verb: "drag", context: androidContext()) {
             return
         }
@@ -1510,6 +1513,19 @@ public final class AndroidDriver: AppDriver {
             throw DriverError.badResponse(status: Int(result.status),
                 body: "drag failed: \(result.tail)")
         }
+    }
+
+    /// 表示の座標 → gRPC タッチの座標(`AndroidTouchRotation`)。回転は撃つ直前の `dumpsys window displays` から引く
+    /// (アプリ・OS が回すので控えない。約 0.13 秒)。読めない・範囲外なら nil = gRPC を撃たず adb で撃つ
+    func nativeTouchPoint(x: Int32, y: Int32) async -> (x: Int32, y: Int32)? {
+        let driver = UncheckedTransfer(self)
+        let dump = try? await Self.offCooperativePool {
+            try driver.value.adb(["shell", "dumpsys", "window", "displays"]).outputIfSucceeded
+        }
+        guard let dump else { return nil }
+        let state = AndroidDisplayRotation.parse(dump)
+        guard let rotation = state.rotation, let natural = state.naturalSize else { return nil }
+        return AndroidTouchRotation.nativePoint(x: x, y: y, rotation: rotation, natural: natural)
     }
 
     /// 座標は `ArgumentBounds` で `.unbounded` なので桁外れの値(`1e308`)が DSL/MCP/ライブ操作から
@@ -1544,8 +1560,9 @@ public final class AndroidDriver: AppDriver {
         let xi = try Self.checkedInt32(x, field: "x")
         let yi = try Self.checkedInt32(y, field: "y")
         try await requireDeviceAnswersOffPool()
-        if let serial, try await Self.gestureFinished(
-            EmulatorControl.longPress(serial: serial, x: xi, y: yi, durationMs: durationMs),
+        if let serial, let native = await nativeTouchPoint(x: xi, y: yi),
+           try await Self.gestureFinished(
+            EmulatorControl.longPress(serial: serial, x: native.x, y: native.y, durationMs: durationMs),
             verb: "long-press", context: androidContext()) {
             return
         }
