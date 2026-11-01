@@ -132,9 +132,9 @@ final class ExploreFixes1102MCPTests: XCTestCase {
     // MARK: sim F9 隠れた対象を「画面にある」と言わない
 
     func testHiddenTargetIsNotReportedAsOnScreen() {
-        let hidden = MCPServer.scrollToHeadline("#btn_top_action", swipes: 0, hiddenUnderChrome: true)
+        let hidden = MCPServer.scrollToHeadline("#btn_top_action", swipes: 0, hiddenUnderChrome: true, underKeyboard: false)
         XCTAssertTrue(hidden.contains("NOT hittable"), hidden)
         XCTAssertFalse(hidden.contains("already on screen"), hidden)
-        XCTAssertTrue(MCPServer.scrollToHeadline("#a", swipes: 0, hiddenUnderChrome: false).contains("already on screen"))
+        XCTAssertTrue(MCPServer.scrollToHeadline("#a", swipes: 0, hiddenUnderChrome: false, underKeyboard: false).contains("already on screen"))
     }
 }

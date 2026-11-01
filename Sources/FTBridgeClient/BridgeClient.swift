@@ -758,6 +758,16 @@ public final class BridgeClient: AppDriver, Sendable {
                                            timeout: sessionTimeout)
     }
 
+    /// Android ブリッジの `/launch` 応答の `stoppedForeground`(前面に居座っていた別アプリを止めたときだけ付く。v116〜)。
+    /// DTO(BridgeDTO.swift)はブリッジ入力集合なので、ここだけで読む専用の型を使う。旧ブリッジ・付かない応答は nil
+    struct LaunchReply: Decodable { var stoppedForeground: String? }
+
+    public func launchReportingStoppedForeground(bundleID: String) async throws -> String? {
+        let reply: LaunchReply = try await post("/session", body: LaunchRequest(bundleID: bundleID),
+                                          timeout: sessionTimeout)
+        return reply.stoppedForeground
+    }
+
     public func activate(bundleID: String) async throws {
         let _: OKResponse = try await post("/session", body: LaunchRequest(bundleID: bundleID, activate: true),
                                            timeout: sessionTimeout)

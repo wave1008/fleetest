@@ -705,12 +705,14 @@ extension MCPServer {
             throw MCPToolFailure(content: await decorated(bridgeStarted.prepended(to: failure.content)))
         } catch {
             // run がデバイスを使っている最中は失敗しやすい(アプリの起こし直し・ブリッジの起動し直し)ので、失敗にも言う
-            let runNote = Self.toolAcceptsDeviceTarget(tool) ? markDeviceInUse(args: resolved) : nil
+            let runNote = Self.toolAcceptsDeviceTarget(tool) && !(error is MCPVersionGuardRefusal)
+                ? markDeviceInUse(args: resolved) : nil
             // 案内は元のエラーの種類から決める(呼び手が文を足した MCPAnnotatedError でも消さない)
             let cause = (error as? MCPAnnotatedError)?.underlying ?? error
             // 覆い(通知センター等)による断りは、ランナーの文言(別のアプリ・アラートのボタンを押せ)より先に事実を言う
             let coveredHint = await coveredDriverErrorHint(cause, args: resolved)
-            let hint = await connectionLostHint(cause, args: resolved, tool: tool)
+            let hint = await connectionLostHint(cause, args: resolved, tool: tool,
+                                                keepsMemory: Self.isWrappedConnectionRefusal(error))
                 + Self.setTextRefusedHint(tool: tool, args: resolved,
                                           message: cause.localizedDescription)
                 + Self.noReadableWindowHint(cause)
@@ -722,6 +724,14 @@ extension MCPServer {
             guard !hint.isEmpty || !note.isEmpty else { throw error }
             throw MCPError(note + error.localizedDescription + hint)
         }
+    }
+
+    /// 呼び手が文を足して包んだ接続拒否か(種類で決める。文言の一致では見ない)。`attemptXCUITestBridgeRecovery` は包まれた
+    /// 拒否を見ない(撃ち直さない)ので、ここで記憶まで捨てると次の呼び出しも復帰できない
+    static func isWrappedConnectionRefusal(_ error: Error) -> Bool {
+        guard let wrapped = error as? MCPAnnotatedError,
+              case DriverError.bridgeConnectionRefused = wrapped.underlying else { return false }
+        return true
     }
 
     /// 実機で uiFramework が判定できないまま探索した回の直後に1回だけ(resolveExecutorHints が立てる)

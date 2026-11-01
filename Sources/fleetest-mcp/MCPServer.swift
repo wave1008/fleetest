@@ -453,6 +453,9 @@ final class MCPServer {
     /// 更新は lastExplicitIOSTarget と同じ箇所・同じ条件(driver(_:) 参照)。
     /// forgetConnection が死んだポートを取り除く(消えた機は候補として名乗る意味が無い)
     var seenExplicitIOSPorts: Set<UInt16> = []
+    /// `seenExplicitIOSPorts` の各 port が指す udid(分かるものだけ)。**同じ udid の port が動いただけ**(ブリッジの起動し直しで
+    /// 8123→8137)なら古い port を集合から外し、1台を2台と数えない(宛先を省いた呼び出しが曖昧で断られ続ける = OI-68)
+    var seenExplicitIOSUDIDs: [UInt16: String] = [:]
     /// Android 版の同じ延べ集合(serial)
     var seenExplicitAndroidSerials: Set<String> = []
     /// **このセッションが一度でも宛先を名指ししたか**(一度立ったら降ろさない)。
@@ -612,6 +615,13 @@ extension MCPServer {
 struct MCPError: Error, LocalizedError {
     let message: String
     init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
+
+/// **版ガード(`enforceVersion`)が撃つ前に断った失敗**。デバイスは駆動していないので、使用中の印(lease)を書かない
+/// (書くと、断った MCP が端末を握って `bridge down --port` を止める = OI-68)。種類で見分ける(文言の一致では決めない)
+struct MCPVersionGuardRefusal: Error, LocalizedError {
+    let message: String
     var errorDescription: String? { message }
 }
 

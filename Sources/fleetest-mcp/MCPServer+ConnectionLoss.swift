@@ -18,7 +18,11 @@ extension MCPServer {
     /// ("<device name> port/serial <値>")は "port"/"serial " のどちらの接頭辞にも一致しない ——
     /// 直接指定と profile とで判別条件を分けると、profile 経由はどちらの回復ハンドラにも
     /// 一度も入らず、死んだブリッジへ永久に再ダイヤルし続ける(実機の陽性対照で確認)
-    func connectionLostHint(_ error: Error, args: [String: Any], tool: String) async -> String {
+    ///
+    /// **`keepsMemory`**: 包まれた接続拒否(`MCPAnnotatedError` の underlying が `bridgeConnectionRefused`)では記憶を捨てない。
+    /// 捨てると `attemptXCUITestBridgeRecovery`(覚えたポートが前提)が次の呼び出しで働かない。包まれた失敗は手が途中まで届いて
+    /// いることがあるので、この呼び出しは撃ち直さず、次の呼び出しに任せる(OI-93)
+    func connectionLostHint(_ error: Error, args: [String: Any], tool: String, keepsMemory: Bool = false) async -> String {
         // 差し替えドライバ(テスト)では走査しない = 実ポートを叩かない。`connectionFacts` を差し替えたテストだけは
         // 偽の観測で分岐を通す(`makeDriver` の意味は変えない)
         guard makeDriver == nil || connectionFacts != nil else { return "" }
@@ -27,7 +31,8 @@ extension MCPServer {
         guard let connection = connections[key] else { return "" }
         if connectedPorts[key] != nil {
             return await iosConnectionLostHint(error, key: key, connection: connection, facts: facts,
-                                               mayHaveTakenEffect: Self.mayHaveTakenEffect(tool: tool))
+                                               mayHaveTakenEffect: Self.mayHaveTakenEffect(tool: tool),
+                                               keepsMemory: keepsMemory)
         }
         if let serial = connectedAndroidSerials[key] {
             return await androidConnectionLostHint(error, key: key, connection: connection, serial: serial,
@@ -40,12 +45,12 @@ extension MCPServer {
     /// iOS(port 経由のブリッジ)の死活。Android には無い判定材料(BridgeDiscovery.isBound/scan)を
     /// 使うので、判定そのものを共有しない(androidConnectionLostHint 参照)
     func iosConnectionLostHint(_ error: Error, key: String, connection: String, facts: ConnectionFacts,
-                               mayHaveTakenEffect: Bool) async -> String {
+                               mayHaveTakenEffect: Bool, keepsMemory: Bool = false) async -> String {
         switch error {
         case DriverError.bridgeConnectionRefused:
             // 接続拒否は「誰も待受していない」が確定しているので、走査は今の状況を添えるだけ
             let running = await facts.scan(try? RepoRoot.find())
-            return connectionLostAndForget(key: key, connection: connection, running: running)
+            return connectionLostAndForget(key: key, connection: connection, running: running, keepsMemory: keepsMemory)
         case DriverError.bridgeUnreachable:
             // **タイムアウトは死を意味しない**(実アプリ監査で踏んだ): 素の文言は
             // 「未起動 / 遅い / suspend」の3択を並べるだけで、直後に ft_status を撃つと
@@ -125,7 +130,8 @@ extension MCPServer {
     /// 捨てて、今の状況を添えたメッセージを組む
     func connectionLostAndForget(key: String, connection: String,
                                  running: [BridgeDiscovery.Found],
-                                 macEndStillListening: Bool = false, deliveryUnknown: Bool = false) -> String {
+                                 macEndStillListening: Bool = false, deliveryUnknown: Bool = false,
+                                 keepsMemory: Bool = false) -> String {
         // **udid は忘れる前に読む**(レビュー指摘)。`forgetConnection` は
         // `forgetDeviceState` 経由で `udids[key]` も消すようになったので、後から読むと
         // 常に nil = 「同じ機のブリッジを先に挙げる」案内が**黙って死んでいた**
@@ -137,11 +143,12 @@ extension MCPServer {
         // **実機で接続拒否 = この Mac 側の待ち受け(USB トンネル iproxy)が無い**ことしか言えない。ランナーの生死は確かめていない
         // (トンネルだけが消えた形では udid を名指しして呼ぶだけで張り直され、ランナーもセッションも生きていた)
         let physical = udid.flatMap { SimulatorCatalog.isPhysical(udid: $0) } == true
-        forgetConnection(key)
+        if !keepsMemory { forgetConnection(key) }
         return Self.connectionLostMessage(connection: connection, running: running,
             sameDevice: Self.deviceName(forUDID: udid, in: running), bridge: bridge,
             udid: udid, tunnelOnly: physical && !macEndStillListening,
-            physicalRunnerGone: physical && macEndStillListening, deliveryUnknown: deliveryUnknown)
+            physicalRunnerGone: physical && macEndStillListening, deliveryUnknown: deliveryUnknown,
+            memoryKept: keepsMemory)
     }
 
     /// Android(serial 経由のブリッジ)の死活。**iOS のような安価な「待受しているか」判定が無い**
@@ -304,6 +311,7 @@ extension MCPServer {
             // 消えたポートは「このセッションで触った他の候補」として名乗る意味が無い
             // (rememberedDeviceNote が曖昧さの判定に使う集合。生きているものだけ残す)
             seenExplicitIOSPorts.remove(port)
+            seenExplicitIOSUDIDs[port] = nil
         }
         // **`connections[key]` の書式から抽出しない**: profile 経由のラベルは
         // "<device name> serial <serial>" で `hasPrefix("serial ")` に一致せず、profile で
@@ -361,7 +369,11 @@ extension MCPServer {
     static func connectionLostMessage(connection: String, running: [BridgeDiscovery.Found],
                                       sameDevice: String? = nil, bridge: String?,
                                       udid: String? = nil, tunnelOnly: Bool = false,
-                                      physicalRunnerGone: Bool = false, deliveryUnknown: Bool = false) -> String {
+                                      physicalRunnerGone: Bool = false, deliveryUnknown: Bool = false,
+                                      memoryKept: Bool = false) -> String {
+        let memorySentence = memoryKept
+            ? " This session still remembers the device: the next call goes to it again."
+            : " This session's remembered device was dropped — pass \(udid.map { "udid \($0)" } ?? "the device's udid")."
         let now = running.isEmpty
             ? "no iOS bridge is running now"
             : "running bridges now: \(Self.runningBridgesSummary(running, sameDevice: sameDevice))"
@@ -379,7 +391,7 @@ extension MCPServer {
             return "\nThe USB tunnel (iproxy) on this Mac's end of \(connection) is still listening, but the XCUITest runner"
                 + " behind it is gone (its xcodebuild is no longer running), so re-opening the tunnel will not help."
                 + " \(now). Start the runner with \(bridgeUp), then ft_launch your app again."
-                + " This session's remembered device was dropped — pass \(target)."
+                + memorySentence
         }
         if tunnelOnly, deliveryUnknown {
             // 届いたか分からない手の後に「もう一度呼べ」を最初の対処にしない(撃ち直すと二重実行になりうる)
@@ -399,7 +411,7 @@ extension MCPServer {
             + " same simulator kicks out the first, and the app under test crashing takes an in-app"
             + " bridge with it). \(now). Start one with \(bridgeUp). The runner's session does not survive:"
             + " if the app under test is still running, ft_launch with resume: true brings it back with its state;"
-            + " otherwise ft_launch your app again. This session's remembered device was dropped — pass \(target)."
+            + " otherwise ft_launch your app again." + memorySentence
     }
 
     /// **同じ端末を先に、残りは件数へ畳む**(純粋関数)。`sameDevice` が分かるとき(死んだ接続の

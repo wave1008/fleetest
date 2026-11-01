@@ -672,16 +672,24 @@ final class MCPRefGuardTests: XCTestCase {
     /// 実測(2026-08-08・Compose iOS のカレンダー): スクロールでヘッダ裏へ抜けた
     /// `#slot_07` (0,-46 402x56) への ft_tap が無警告の "done" を返し、画面は無変化だった。
     /// ウィンドウ外のタッチは hitTest に乗らず黙って落ちる
-    func testTapWarnsWhenTheCentreIsOffscreen() async throws {
+    /// OI-84: 上の外は撃たずに断る(座標の経路と同じ。ステータスバーを押して一覧が先頭へ戻る)。下の外は従来どおり警告して撃つ
+    func testTapRefusesAboveTheScreenAndWarnsBelowIt() async throws {
         driver.snapshotResponse = screen([
             element(ref: 1, id: "slot_07", label: nil, x: 0, y: -46, w: 390, h: 56, depth: 2),
             element(ref: 2, id: "slot_11", label: "11:00", x: 0, y: 182, w: 390, h: 56, depth: 2),
+            element(ref: 3, id: "slot_99", label: nil, x: 0, y: 900, w: 390, h: 56, depth: 2),
         ])
         _ = try await server.call(tool: "ft_snapshot", args: [:])
-        let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 1]))
-        XCTAssertTrue(text.contains("outside the visible screen"),
-                      "画面外の中心を警告すること: \(text)")
-        XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, "拒否ではなく警告して撃つこと")
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["ref": 1])
+            XCTFail("画面の上の外を撃った")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("above the top of the screen"), error.localizedDescription)
+        }
+        XCTAssertFalse(actions.contains { $0.hasPrefix("tap") }, "断ったのに撃った")
+        let below = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 3]))
+        XCTAssertTrue(below.contains("outside the visible screen"), "下の外は警告して撃つ: \(below)")
+        XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, "下の外は拒否ではなく警告して撃つこと")
         // 画面内の要素では黙る
         let ok = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 2]))
         XCTAssertFalse(ok.contains("outside the visible screen"), ok)
@@ -1508,8 +1516,8 @@ final class MCPRefGuardTests: XCTestCase {
 
     /// **1回もスワイプしていなければ「スクロールした」と言わない**(目的の要素が最初から画面に居た形)
     func testScrollToHeadlineDoesNotClaimAScrollWhenNoSwipeWasNeeded() {
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 0, hiddenUnderChrome: false), "\"*円*\" was already on screen (no scroll needed)")
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 2, hiddenUnderChrome: false), "scrolled to \"*円*\"")
-        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: nil, hiddenUnderChrome: false), "scrolled to \"*円*\"", "回数が分からなければ従来の文")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 0, hiddenUnderChrome: false, underKeyboard: false), "\"*円*\" was already on screen (no scroll needed)")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: 2, hiddenUnderChrome: false, underKeyboard: false), "scrolled to \"*円*\"")
+        XCTAssertEqual(MCPServer.scrollToHeadline("*円*", swipes: nil, hiddenUnderChrome: false, underKeyboard: false), "scrolled to \"*円*\"", "回数が分からなければ従来の文")
     }
 }

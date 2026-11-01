@@ -40,16 +40,22 @@ extension MCPServer {
         guard let serial = connectedAndroidSerials[key] else { return }
         // エミュレータも起こし直し後にロック画面のまま残るので、毎回の確認だけは撃つ。
         // 初回の prepareForRun(点灯・解除を最後まで待つ)は実機だけ
+        // 解除できなかった旨(⚠️)は stderr だけにせず応答の警告へ載せる(MCP クライアントには stderr が見えない)。
+        // 一度待ち切れた端末は以後待たない(`retriesAfterGivingUp: false`)ので、警告は毎回の応答が言う = OI-80
+        let log: (String) -> Void = { [self] line in
+            Self.logStderr(line)
+            if line.hasPrefix("⚠️") { pendingWarnings[key, default: []].append(line) }
+        }
         guard DevicePicker.isPhysicalAndroidSerial(serial) else {
-            await AndroidPhysicalDevice.wakeIfAsleep(serial: serial, log: Self.logStderr)
+            await AndroidPhysicalDevice.wakeIfAsleep(serial: serial, log: log, retriesAfterGivingUp: false)
             return
         }
         guard !preparedPhysicalAndroid.contains(key) else {
-            await AndroidPhysicalDevice.wakeIfAsleep(serial: serial, log: Self.logStderr)
+            await AndroidPhysicalDevice.wakeIfAsleep(serial: serial, log: log, retriesAfterGivingUp: false)
             return
         }
         preparedPhysicalAndroid.insert(key)
-        await AndroidPhysicalDevice.prepareForRun(serial: serial, log: Self.logStderr)
+        await AndroidPhysicalDevice.prepareForRun(serial: serial, log: log)
     }
 
     // **MCP の iOS は常に XCUITest**(ユーザー決定。in-app は使わない)。profile 指定時は resolveProfileTarget が
@@ -202,6 +208,12 @@ extension MCPServer {
             // loopback 経由ではないため probePort が常に nil(iosDriver 参照)——
             // それをそのまま渡すと実機の宛先が rememberResolvedTarget の `guard let iosPort` で
             // 弾かれ、実機がまた記録されなくなる
+            // **profile 経由もゲートを通す**(G-2 の「全操作系」): BridgeProvisioner が版で
+            // 再利用可否を決めるので普段はここで落ちないが、**落ちないことと検査しないことは別**
+            // —— 供給の判断とホストの期待がズレた回に、黙って旧ブリッジを操作させない
+            try await enforceVersion(driver: created, key: key, args: args)
+            // **記録は版ガードを通った後**(断られた呼び出しを「駆動した」に数えない = OI-68。数えると宛先を省いた次の呼び出しが
+            // 断られた機を指す・2台目と数えて曖昧の拒否に入る)
             switch target {
             case .ios(let provisioned, _):
                 rememberResolvedTarget(platform: "ios", args: args,
@@ -211,10 +223,6 @@ extension MCPServer {
                 rememberResolvedTarget(platform: "android", args: args,
                                        iosPort: nil, iosUDID: nil, androidSerial: serial)
             }
-            // **profile 経由もゲートを通す**(G-2 の「全操作系」): BridgeProvisioner が版で
-            // 再利用可否を決めるので普段はここで落ちないが、**落ちないことと検査しないことは別**
-            // —— 供給の判断とホストの期待がズレた回に、黙って旧ブリッジを操作させない
-            try await enforceVersion(driver: created, key: key, args: args)
             // **プロファイルの autoInstall は MCP でも効かせる**: 供給がアプリを先に入れるのは in-app のときだけで、
             // MCP は XCUITest で供給する(resolveProfileTarget)ので、ここで入れないと inapp-boost モード / in-app のプロファイルで
             // 「入っていない」と ft_launch が断る。**入っていないときだけ**入れる(入れ直しは動いているアプリを
@@ -317,8 +325,6 @@ extension MCPServer {
             // 「2台を触った」で断られる(実地で踏んだ: port 8123 の後に udid → 8137)
             connections[key] = Self.connectionLabel(port: resolved.port, udid: resolved.udid)
             connectedPorts[key] = resolved.port
-            rememberResolvedTarget(platform: "ios", args: args,
-                                   iosPort: resolved.port, iosUDID: resolved.udid, androidSerial: nil)
             // **稼働中のブリッジが古いままではないか**を1度だけ確かめる(踏んだ実例)。
             // profile 経由は BridgeProvisioner が版で再利用可否を決めるが、**この経路は
             // 生きているポートへ素で繋ぐだけ**なので、版を上げても旧ランナーが使われ続ける。
@@ -326,6 +332,9 @@ extension MCPServer {
             // 返し続け、`bridge down && bridge up` するまで「直っていない」に見えた。
             // Android は AndroidBridge が expectedBridgeVersionCode で入れ替えるのでこの穴が無い
             try await enforceVersion(driver: created, key: key, args: args)
+            // 記録は版ガードの後(profile 経路と同じ理由。OI-68)
+            rememberResolvedTarget(platform: "ios", args: args,
+                                   iosPort: resolved.port, iosUDID: resolved.udid, androidSerial: nil)
         case "android":
             // iOS と同じ理由で記憶の「適用」は入口(foldInRememberedDevice)側だけに置く
             let explicitSerial = args["serial"] as? String
@@ -360,7 +369,7 @@ extension MCPServer {
         versionSkew[key] = skew
         guard args["allowVersionSkew"] as? Bool == true else {
             drivers[key] = nil
-            throw MCPError(skew)
+            throw MCPVersionGuardRefusal(message: skew)
         }
         pendingWarnings[key, default: []].append(Self.skewOverrideWarning(skew))
     }
@@ -1411,7 +1420,8 @@ extension MCPServer {
                 resolvedPort: iosPort, resolvedUDID: iosUDID) else { return }
             lastExplicitIOSTarget = remembered
             lastExplicitPlatform = "ios"
-            seenExplicitIOSPorts.insert(remembered.port)
+            Self.dropSupersededPorts(seen: &seenExplicitIOSPorts, udids: &seenExplicitIOSUDIDs,
+                                     port: remembered.port, udid: remembered.udid)
             everNamedIOSTarget = true
         case "android":
             guard let androidSerial, let remembered = Self.androidMemoryAfterResolve(
@@ -1424,6 +1434,19 @@ extension MCPServer {
             everNamedAndroidTarget = true
         default: break
         }
+    }
+
+    /// 同じ udid が新しい port で明示されたら、その udid の古い port を延べ集合から外して新しい port を足す(純粋関数)。
+    /// udid が分からない(nil/空)port は同一性を言えないので外さない
+    static func dropSupersededPorts(seen: inout Set<UInt16>, udids: inout [UInt16: String], port: UInt16, udid: String?) {
+        if let udid, !udid.isEmpty {
+            for (oldPort, oldUDID) in udids where oldUDID == udid && oldPort != port {
+                seen.remove(oldPort)
+                udids[oldPort] = nil
+            }
+            udids[port] = udid
+        }
+        seen.insert(port)
     }
 
     /// profile 無しの iOS 宛先。**明示 port は探索しない**(利用者が宛先を決めている)。

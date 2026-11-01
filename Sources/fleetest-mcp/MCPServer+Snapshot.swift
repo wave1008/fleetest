@@ -1038,6 +1038,17 @@ extension MCPServer {
             + " on some screens but fires the field's action, and in a multiline field it adds a newline instead"
     }
 
+    /// **ref の経路も座標の経路と同じく、中心が画面の上の外なら撃たずに断る**(`offscreenCoordinateError` の上の外と同じ判定
+    /// `TapTargetGeometry.isPointAboveScreen`)。撃つとステータスバーが押され、一覧が先頭へ戻って別の画面になる(OI-84)。
+    /// 下・横の外は従来どおり警告して撃つ(探索が動かせる)。ref を引く全経路(`verifiedRef` と `refGestureGuard`)が呼ぶ
+    static func aboveScreenRefusal(_ found: ElementInfo, screen: FTRect, label: String) -> String? {
+        guard TapTargetGeometry.centreIsAboveScreen(found, screen: screen) else { return nil }
+        return "refusing \(label): \(RefGuard.describe(found))'s centre (\(Int(found.frame.centerX)), \(Int(found.frame.centerY)))"
+            + " is above the top of the screen (y < \(Int(screen.y))) — a touch there lands on the status bar"
+            + " (which scrolls the list back to its top), not on the element. Nothing was sent."
+            + " ft_scroll_to it (or swipe the other way), then take a fresh ft_snapshot and use the new ref"
+    }
+
     /// `PreFireGuard.keyboardCover` の断り(ref を引く全経路 = `verifiedRef` と `refGestureGuard` が呼ぶ)
     static func keyboardCoverRefusal(_ found: ElementInfo, in tree: SnapshotResponse,
                                      keyboardOcclusion: KeyboardOcclusion, label: String) -> String? {
@@ -1367,6 +1378,9 @@ extension MCPServer {
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
                 throw MCPError(refusal)
             }
+            if let refusal = Self.aboveScreenRefusal(found, screen: fresh.screen, label: "[\(ref)]") {
+                throw MCPError(refusal)
+            }
             return (found.ref, originNote + retarget
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
                                         overlayWindows: overlayWindows)
@@ -1378,6 +1392,9 @@ extension MCPServer {
             // **キーボードで枠が細い帯に潰れた・せり上がったバーに覆われた対象は撃たない**(DSL は閉じてから撃つ。判定は `PreFireGuard`)
             if let refusal = Self.keyboardCoverRefusal(found, in: fresh, keyboardOcclusion: keyboardOcclusion,
                                                        label: "[\(ref)]") {
+                throw MCPError(refusal)
+            }
+            if let refusal = Self.aboveScreenRefusal(found, screen: fresh.screen, label: "[\(ref)]") {
                 throw MCPError(refusal)
             }
             let labelNote = retarget
@@ -2000,12 +2017,15 @@ extension MCPServer {
         // 着いた要素を疑わしいときだけプラットフォームに聞く(ft_tap と同じゲート・同じ照会)。
         // 描かれていない(隠れたバー等)と答えられたら見出しを「画面にある」とは言わない
         var landedHidden = false
+        var landedUnderKeyboard = false
         if let resolved = outcome.resolvedElement {
             switch RefGuard.relocate(resolved, in: after.elements, screen: after.screen) {
             case .found(let found, _), .ghost(let found):
                 landed = " → [\(found.ref)] \(RefGuard.describe(found))"
                 landedHidden = await !Self.hiddenUnderChromeWarning(
                     found, nativeRef: nativeRef(found.ref, args: args), in: after, driver: scrollDriver).isEmpty
+                landedUnderKeyboard = KeyboardOcclusion.resolve(
+                    reported: after.keyboardFrame, in: after.elements, screen: after.screen).covers(found)
             case .gone:
                 landed = ""
             }
@@ -2060,14 +2080,14 @@ extension MCPServer {
         markLastGenerationDelivered(args: args)   // ft_scroll_to の木も返した世代(snapshotBody と同じ理由)
         if let inAppAlert = AlertTreeScope.frontInAppAlert(in: after) {
             return text(switched + scrollFrameLabelNote + sheetNote + timingNote
-                + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden) + "\(landed)\(fallbackNote).\n"
+                + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden, underKeyboard: landedUnderKeyboard) + "\(landed)\(fallbackNote).\n"
                 + Self.inAppAlertNote(inAppAlert, in: after)
                 + SnapshotRenderer.render(AlertTreeScope.alertOnly(inAppAlert, in: after), flagging: [:],
                                           collapsingBulk: collapsingBulk, interactiveOnly: false,
                                           unit: Self.coordinateUnit(scrollDriver)))
         }
         return text(switched + scrollFrameLabelNote + sheetNote + timingNote
-            + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden) + "\(landed)\(fallbackNote)."
+            + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden, underKeyboard: landedUnderKeyboard) + "\(landed)\(fallbackNote)."
             + " The refs below are fresh\n" + inheritedNote + scrollAreaNote
             // **ft_snapshot より少ない**(scrollFrame 候補・重複 id 系は出さない)。その差は
             // NoteCatalog の contexts が持つ = 2箇所の並びを読み比べる必要はない

@@ -803,6 +803,9 @@ extension MCPServer {
                                                                  label: "[\(element.ref)]") {
             throw MCPError(refusal)
         }
+        if let snapshot, let refusal = Self.aboveScreenRefusal(element, screen: snapshot.screen, label: "[\(element.ref)]") {
+            throw MCPError(refusal)
+        }
         return refFrontAppNote(snapshot, args: args) + RefGuard.preTapWarnings(
             element, keyboardOcclusion: keyboard,
             overlayWindows: OverlayWindowOcclusion.resolve(reported: snapshot?.overlayWindowFrames))

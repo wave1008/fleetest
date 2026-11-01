@@ -1074,6 +1074,20 @@ public enum TapTargetGeometry {
             && y >= screen.y && y < screen.y + screen.height
     }
 
+    /// 点が画面の**上の外**(y < screen.y)か。`isPointOnScreen` と同じ screen(分からなければ false・非有限は false)。
+    /// 上の外へ撃つとステータスバーのタップ(先頭へ戻る)になり、要素は押されない。下・横の外は探索が動かせるので含めない
+    public static func isPointAboveScreen(x: Double, y: Double, screen: FTRect) -> Bool {
+        guard screen.width > 0, screen.height > 0, x.isFinite, y.isFinite else { return false }
+        return y < screen.y
+    }
+
+    /// 要素の中心が画面の上の外にあるか。**画面より背の高い要素は除く**(中心の位置が「押せる場所」を言わない =
+    /// `offscreenScrollGateAdvisory` の寸法免除と同じ考え方)
+    public static func centreIsAboveScreen(_ element: ElementInfo, screen: FTRect) -> Bool {
+        guard element.frame.height <= screen.height else { return false }
+        return isPointAboveScreen(x: element.frame.centerX, y: element.frame.centerY, screen: screen)
+    }
+
     /// スクロール探索の「見つかった」ゲート専用の画面外判定。`StepExecutor.isClippedByViewport`
     /// と同じサイズ免除を**軸ごとに**重ねる ——ある軸のサイズが `0 < size <= screen` に収まる
     /// ときだけ、その軸の中心はみ出しを判定に使う。収まらない(oversized/ゼロ)軸は判定から外す。
