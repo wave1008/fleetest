@@ -1,0 +1,51 @@
+{
+  "id": "se3-F18",
+  "finding": "別ウィンドウのモーダルを開いた手の直後の木に中身が無い(約1秒で載る)のに「画面が変わらなかった」とだけ言い、2度押しを誘う",
+  "platform": "ios",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "ft_tap ref の snapshotAfter",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_dialog' waitSeconds: 8"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:btn_show_overlay",
+            "snapshotAfter": true
+          }
+        ]
+      ],
+      "replyOnly": true,
+      "replyExpect": [
+        "read the screen again before repeating the action"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

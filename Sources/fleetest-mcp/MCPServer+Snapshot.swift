@@ -794,7 +794,9 @@ extension MCPServer {
                 if Self.looksUnchanged(snapshot, reread) {
                     stillUnchanged = true
                     settleNote = "note: the tree still looked unchanged after a short re-read"
-                        + " wait — the action may not have changed the screen."
+                        + " wait — the action may not have changed the screen, or a window it opened"
+                        + " has not reached the tree yet (an overlay window took about a second): read the"
+                        + " screen again before repeating the action."
                         + Self.unrepresentedScreenCaveat(reread)
                         + (await Self.systemDialogHint(bridge: bridges[Self.sessionKey(args)],
                                                        driver: snapshotDriver)) + "\n"
