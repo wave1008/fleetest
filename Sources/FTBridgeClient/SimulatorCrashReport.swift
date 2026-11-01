@@ -183,7 +183,7 @@ public enum SimulatorCrashReport {
     }
 
     /// レポートが書く発生時刻(ペイロードの `captureTime`、無ければヘッダの `timestamp`)。
-    /// 「2026-11-01 13:10:17.4421 +0900」の形でタイムゾーンを持つものだけ読む。読めなければ nil
+    /// 「YYYY-MM-DD hh:mm:ss.ffff +0900」の形でタイムゾーンを持つものだけ読む。読めなければ nil
     public static func reportTime(inReport content: String) -> Date? {
         for key in ["captureTime", "timestamp"] {
             let pattern = "\"\(key)\"\\s*:\\s*\"(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})(?:\\.\\d+)? ([+-]\\d{4})\""

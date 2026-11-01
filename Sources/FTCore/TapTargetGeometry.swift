@@ -732,13 +732,6 @@ public enum TapTargetGeometry {
         return nil
     }
 
-    /// 2つの枠が同じ部品の二重表現とみなせるほど重なるか(互いの面積の 95% 以上。実測の RN の欄とタブは重なり 0.89 = 別の部品)。ラベルと clickable の包みなど
-    static func isSameWidgetFrame(_ a: FTRect, _ b: FTRect, ratio: Double = 0.95) -> Bool {
-        guard let i = ScrollGeometry.intersection(a, b) else { return false }
-        let area = i.width * i.height
-        return area >= ratio * a.width * a.height && area >= ratio * b.width * b.height
-    }
-
     /// **貼り付く見出しが対象の中心を覆っているときの注記**(MCP の ref の経路が使う。DSL は `liftCoveredTarget` が送って外す)。
     /// 判定は `pinnedBandCovering` の1つ。容器が分からなければ nil。**警告のみ**
     public static func pinnedBandNote(for element: ElementInfo, in elements: [ElementInfo],

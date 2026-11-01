@@ -589,7 +589,7 @@ final class LiveAutoStarterDuplicateRunnerWiringTests: XCTestCase {
             .appendingPathComponent("Sources/fleetest/LiveBridgeAutoStarter.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         guard let finish = code.range(of: "private func finishLaunch"),
-              let skip = code.range(of: "if case LauncherError.deviceRunnerElsewhere = error {", range: finish.upperBound..<code.endIndex),
+              let skip = code.range(of: "if case LauncherError.deviceRunnerElsewhere(_, let elsewhere, _, _) = error {", range: finish.upperBound..<code.endIndex),
               let count = code.range(of: "consecutiveFailures += 1", range: finish.upperBound..<code.endIndex) else {
             return XCTFail("finishLaunch の分岐が見当たらない — テストを見直すこと")
         }

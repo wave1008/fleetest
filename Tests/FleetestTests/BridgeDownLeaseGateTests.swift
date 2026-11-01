@@ -158,9 +158,9 @@ final class BridgeDownLeaseGateTests: XCTestCase {
         XCTAssertEqual(body.components(separatedBy: "BridgeDownRefusal.decide(").count - 1, 1,
                        "--all の経路は BridgeDownRefusal.decide を通す"
                        + "(応答しないが udid が読めた台の targets も同じ1回に合流する。B5)")
-        XCTAssertEqual(body.components(separatedBy: "throw ExitCode(1)").count - 1, 6,
+        XCTAssertEqual(body.components(separatedBy: "throw ExitCode(1)").count - 1, 7,
                        "3経路の保持者チェック + iOS の2経路の「応答しないが待受している」チェック"
-                       + " + --port の「応答しないが udid が読めた」チェック(B5)")
+                       + " + --port の「応答しないが udid が読めた」チェック(B5) + 止めた後も待受が残るとき")
         // **応答しないポートを素通しさせない門も本数で固定する** —— `--port` と `--all` の
         // どちらから消えても、もう片方の呼び出しが残って素通りする
         XCTAssertEqual(

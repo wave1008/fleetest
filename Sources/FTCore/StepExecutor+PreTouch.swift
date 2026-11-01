@@ -47,27 +47,6 @@ extension StepExecutor {
         }
     }
 
-    /// **覆われていて、送る先(スクロールの容器)も無い**ときの覆い。`liftCoveredTarget` は送る先が無いと nil を返し、
-    /// 「覆い無し」と区別が付かないまま撃っていた(RN のテキスト入力は ScrollView でなく、キーボード上のタブが欄の中心を覆ったまま撃って遷移した)。
-    /// 確度の高い判定だけ: 操作できる要素が手前で中心を覆う(`overlayCoveringForUncover`)・同じ部品の二重表現(枠がほぼ同じ)は除く。
-    /// 推定の覆い・操作できない覆いは対象外(注記に止める)
-    static func coverWithoutWayOut(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> ElementInfo? {
-        guard ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
-                                                  inferring: step.containerInference ?? true) == nil,
-              TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) == nil,
-              let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements,
-                                                                     screen: snapshot.screen),
-              BridgeSnapshotThinning.operableTypes.contains(over.type),
-              !TapTargetGeometry.isSameWidgetFrame(element.frame, over.frame) else { return nil }
-        return over
-    }
-
-    static func coverWithoutWayOutMessage(_ step: FlowStep, over: ElementInfo) -> String {
-        "refusing to touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)) and there is no"
-            + " scroll container to move it clear, so the touch would land on \(TapTargetGeometry.describe(over)) instead."
-            + " Nothing was sent. Close or dismiss what covers it first"
-    }
-
     /// **要素を指で触る操作の撃つ前の入口**: 容器の縁の帯に潜っていれば送って外す → キーボードで潰れた・せり上がったバーに
     /// 覆われた対象はキーボードを閉じて引き直す → なお中心がキーボードの下なら閉じてから届かせる(閉じられなければ断る)。
     /// tap と type が使う部品(`liftCoveredTarget` / `closeKeyboardWithoutSideEffects` / `reachPastKeyboard`)をそのまま通す。
@@ -103,9 +82,6 @@ extension StepExecutor {
                 element = reached
                 notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
             }
-        }
-        if liftsTarget, let over = Self.coverWithoutWayOut(element, in: snapshot, step: step) {
-            return .refused(Self.coverWithoutWayOutMessage(step, over: over), kind: nil)
         }
         switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap",
                                            snapshotSource: snapshotSource, phase: &phase) {

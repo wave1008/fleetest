@@ -86,26 +86,6 @@ final class StepActionCoverageTests: XCTestCase {
             .contains("the tap will land") == true)
     }
 
-    /// 覆いあり・送る先なし(容器が無い)は撃たない。覆いが操作できない・覆いが無い・二重表現は対象外
-    func testCoverWithoutWayOutOnlyForConfirmedOperableOverlayAndNoContainer() {
-        let field = e(1, "field", FTRect(x: 0, y: 900, width: 700, height: 120))
-        let tab = e(2, "tab", FTRect(x: 0, y: 880, width: 700, height: 130))
-        let big = FTRect(x: 0, y: 0, width: 800, height: 1400)
-        var snap = SnapshotResponse(sessionBundleID: nil, screen: big, elements: [field, tab], truncatedCount: 0)
-        let step = FlowStep(action: "tap", locator: FlowLocator(id: "field"))
-        XCTAssertEqual(StepExecutor.coverWithoutWayOut(field, in: snap, step: step)?.identifier, "tab")
-        XCTAssertTrue(StepExecutor.coverWithoutWayOutMessage(step, over: tab).contains("Nothing was sent"))
-        // 同じ部品の二重表現
-        snap.elements = [field, e(3, "twin", field.frame)]
-        XCTAssertNil(StepExecutor.coverWithoutWayOut(field, in: snap, step: step))
-        // 覆いが無い
-        snap.elements = [field]
-        XCTAssertNil(StepExecutor.coverWithoutWayOut(field, in: snap, step: step))
-        // 覆いが操作できない(暗幕)
-        snap.elements = [field, e(2, "tab", tab.frame, type: "other")]
-        XCTAssertNil(StepExecutor.coverWithoutWayOut(field, in: snap, step: step))
-    }
-
     /// 貼り付く見出しが木で容器の直前に並んでも、祖先と読まれず帯として拾われる
     func testPinnedBandIsNotMisreadAsAncestorWhenItPrecedesTheContainer() {
         let container = FTRect(x: 0, y: 160, width: 360, height: 500)

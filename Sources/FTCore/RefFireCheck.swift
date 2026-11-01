@@ -4,7 +4,7 @@ import Foundation
 /// MCP の `keyboardRefusal` / `keyboardCoverRefusal` / `preTapWarnings` / `overlapWarning` と同じ部品
 /// `KeyboardOcclusion` / `PreFireGuard.keyboardCover` / `OverlayWindowOcclusion` / `TapTargetGeometry.occlusionAdvisory` を通す)。
 /// 文言は呼び手ごとに持つ(CLI は英語・フラグ名で書く)。**撃つ手の入口を足したら呼ぶ**
-/// (`RefFireCheckWiringTests` が CLI の経路を固定する)。
+/// (`RefFireGateWiringTests` が CLI の経路を固定する)。
 public enum RefFireCheck {
 
     /// 撃たずに断る形(キーを押して欄へ文字が入る・触っても当たらない)

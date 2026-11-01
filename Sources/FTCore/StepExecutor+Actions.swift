@@ -858,10 +858,6 @@ extension StepExecutor {
                 }
                 break
             }
-            // **覆われていて送る先も無いなら撃たない**(判定は coverWithoutWayOut。人が操作できないときはエラー)
-            if let over = Self.coverWithoutWayOut(element, in: snapshot, step: step) {
-                return StepOutcome(status: .failed(Self.coverWithoutWayOutMessage(step, over: over)))
-            }
             // **縁の帯に潜っているだけなら、撃つ前に1回だけ送って外す**。
             // 判定と手順は liftCoveredTarget の1箇所。type も同じものを通る
             if let lifted = try await liftCoveredTarget(
