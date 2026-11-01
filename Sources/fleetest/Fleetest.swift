@@ -130,6 +130,13 @@ struct DriverOptions: ParsableArguments {
         }
     }
 
+    /// `--platform` の値は ios / android だけ(`bridge status` / `bridge down` は makeDriver を通らず、誤字が iOS 扱いで動いていた)
+    static func rejectUnknownPlatform(_ platform: String?) throws {
+        if let platform, platform != "ios", platform != "android" {
+            throw ValidationError("platform must be ios or android: \(platform)")
+        }
+    }
+
     /// **platform と宛先(--port は iOS 専用・--serial は Android 専用)の食い違いを断る**
     /// (判定は `FTCore.DeviceTargetConsistency` の1箇所。MCP の `MCPServer.deviceTargetMismatchRefusal`
     /// と共有——片方だけ変えない)。**ArgumentParser は OptionGroup の `validate()` を自動で呼ばない**
@@ -139,6 +146,7 @@ struct DriverOptions: ParsableArguments {
     ///   (`api live serve` 等)は自分の udid の有無をここへ渡す
     func rejectDeviceTargetMismatch(extraIOSTarget: Bool = false) throws {
         try Self.rejectZeroPort(port)
+        try Self.rejectUnknownPlatform(platform)
         if let mismatch = FTCore.DeviceTargetConsistency.mismatch(
             platform: platform, gaveIOSTarget: port != nil || extraIOSTarget, gaveAndroidTarget: serial != nil) {
             throw ValidationError(Self.deviceTargetMismatchMessage(mismatch))

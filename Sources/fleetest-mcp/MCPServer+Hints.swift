@@ -1310,19 +1310,32 @@ extension MCPServer {
         }
     }
 
-    static func offscreenBatchCoordinateError(_ step: FlowStep, screen: FTRect?, bridge: String?) -> MCPError? {
+    /// バッチの座標の手が撃つ点(tap / doubleTap = 1点・swipePointToPoint = 始点と終点)。画面外の門とキーボードの警告が共有する
+    static func batchCoordinatePoints(_ step: FlowStep) -> [(Double, Double)] {
         var points: [(Double, Double)] = []
         switch step.action ?? "" {
         case "tap", "doubleTap":
-            guard step.locator == nil, let x = step.x, let y = step.y else { return nil }
+            guard step.locator == nil, let x = step.x, let y = step.y else { return [] }
             points = [(x, y)]
         case "swipePointToPoint":
             if let x = step.x, let y = step.y { points.append((x, y)) }
             if let toX = step.toX, let toY = step.toY { points.append((toX, toY)) }
         default:
-            return nil
+            return []
         }
-        for (x, y) in points {
+        return points
+    }
+
+    /// バッチの座標の手がキーボードの中を撃つときの警告(ft_tap / ft_double_tap / ft_drag の座標形と同じ判定・文言)。撃つ前に呼ぶ。無ければ空
+    func batchKeyboardCoordinateWarning(_ step: FlowStep, driver: AppDriver, args: [String: Any]) async -> String {
+        let points = Self.batchCoordinatePoints(step)
+        guard !points.isEmpty else { return "" }
+        let tree = await coordinateKeyboardTree(driver, args: args)
+        return points.map { Self.keyboardCoordinateWarning(x: $0.0, y: $0.1, tree: tree) }.first { !$0.isEmpty } ?? ""
+    }
+
+    static func offscreenBatchCoordinateError(_ step: FlowStep, screen: FTRect?, bridge: String?) -> MCPError? {
+        for (x, y) in batchCoordinatePoints(step) {
             if let error = offscreenCoordinateError(x: x, y: y, screen: screen, bridge: bridge) { return error }
         }
         return nil
@@ -1349,11 +1362,7 @@ extension MCPServer {
     }
 
     static func keyboardCoordinateWarning(x: Double, y: Double, tree: SnapshotResponse?) -> String {
-        guard let snapshot = tree else { return "" }
-        let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
-        guard let frame = occlusion.frame,
-              x >= frame.x, x < frame.x + frame.width, y >= frame.y, y < frame.y + frame.height
-        else { return "" }
+        guard let frame = CoordinateGuards.keyboardFrame(containing: x, y, in: tree) else { return "" }
         return " (warning: (\(FTSeconds.format(x)), \(FTSeconds.format(y))) is inside the soft keyboard"
             + " (\(FTSeconds.format(frame.x)),\(FTSeconds.format(frame.y)) \(FTSeconds.format(frame.width))x"
             + "\(FTSeconds.format(frame.height))) — this presses a key, not the app behind it. Dismiss the"
