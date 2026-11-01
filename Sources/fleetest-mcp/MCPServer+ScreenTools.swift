@@ -139,6 +139,7 @@ extension MCPServer {
             if let offscreen = Self.offscreenCoordinateError(
                 x: x, y: y, screen: await coordinateScreen(d, args: args),
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
+            let keyboardWarning = await keyboardCoordinateWarning(d, x: x, y: y, args: args)
             let frontWarning = await coordinateFrontAppWarning(d, args: args)
             // **座標でシステムアラートを押すのは正規の操作**(systemAlertGate の doc)。アラートはアプリの木の外なので、
             // 押す前に出ていたなら snapshotAfter は操作前の木と比べない(閉じてもアプリの木は変わらないのが正常)。
@@ -150,7 +151,7 @@ extension MCPServer {
             try await d.tap(x: x, y: y)
             recordInteraction(action: "tap", resolvedRef: nil, args: args, coordinate: (x, y))
             lastTapTargets[Self.sessionKey(args)] = nil
-            return text("tap (\(x), \(y)) done" + keyboardCoordinateWarning(x: x, y: y, args: args)
+            return text("tap (\(x), \(y)) done" + keyboardWarning
                 + frontWarning
                 + once("coordinateReproductionNote",
                 full: Self.coordinateReproductionNote,

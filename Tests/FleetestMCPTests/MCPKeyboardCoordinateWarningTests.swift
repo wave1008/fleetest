@@ -45,6 +45,37 @@ final class MCPKeyboardCoordinateWarningTests: XCTestCase {
         XCTAssertTrue(press.contains("is inside the soft keyboard"), press)
     }
 
+    /// 直近の木にキーボードが無くても、その後に自分で操作していたら読み直して言う(ft_type の直後の座標の手が全部黙っていた)。
+    /// 撃つ前の木で言う = 撃った後に閉じても言う。操作が無ければ読み直さない
+    func testRereadsTheTreeAfterOwnActionBeforeFiring() async throws {
+        let shown = driver.snapshotResponse.keyboardFrame
+        driver.snapshotResponse.keyboardFrame = nil
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let quiet = text(try await server.call(tool: "ft_pinch", args: ["x": 540.0, "y": 2000.0, "scale": 2.0]))
+        XCTAssertFalse(quiet.contains("soft keyboard"), quiet)
+        driver.snapshotResponse.keyboardFrame = shown
+        for (tool, extra) in [("ft_pinch", ["scale": 2.0]), ("ft_tap", [:]), ("ft_long_press", [:])] as [(String, [String: Any])] {
+            let body = text(try await server.call(tool: tool, args: extra.merging(["x": 540.0, "y": 2000.0]) { a, _ in a }))
+            XCTAssertTrue(body.contains("is inside the soft keyboard"), "\(tool): \(body)")
+        }
+    }
+
+    /// type はキーボードの表示を待たずに返る: 読み直しの1回目にはまだ居ない。実測の形(出現を待ってから言う)
+    func testWaitsForTheKeyboardRightAfterType() async throws {
+        let shown = driver.snapshotResponse.keyboardFrame
+        driver.snapshotResponse.keyboardFrame = nil
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        _ = try await server.call(tool: "ft_type", args: ["text": "ab", "ref": 1])
+        var reads = 0
+        let fake = driver!
+        driver.onSnapshot = {
+            reads += 1
+            if reads >= 2 { fake.snapshotResponse.keyboardFrame = shown }
+        }
+        let body = text(try await server.call(tool: "ft_pinch", args: ["x": 540.0, "y": 2000.0, "scale": 2.0]))
+        XCTAssertTrue(body.contains("is inside the soft keyboard"), body)
+    }
+
     /// 陰性: キーボードの外・キーボードが無い木では黙る
     func testStaysSilentOutsideTheKeyboardAndWithoutOne() async throws {
         _ = try await server.call(tool: "ft_snapshot", args: [:])

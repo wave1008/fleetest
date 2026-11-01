@@ -447,7 +447,7 @@ extension MCPServer {
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
             doubleTapPoint = (x, y)
             doubleTapWhat = "(\(x), \(y))"
-            doubleTapNote = keyboardCoordinateWarning(x: x, y: y, args: args)
+            doubleTapNote = (await keyboardCoordinateWarning(doubleTapDriver, x: x, y: y, args: args))
                 + (await coordinateFrontAppWarning(doubleTapDriver, args: args))
             doubleTapSelector = once("doubleTapCoordinateNote",
                                      full: Self.doubleTapCoordinateNote,
@@ -490,7 +490,7 @@ extension MCPServer {
                 x: x, y: y, screen: await coordinateScreen(dragDriver, args: args),
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
             fromPoint = (x, y)
-            dragSelector = keyboardCoordinateWarning(x: x, y: y, args: args)
+            dragSelector = (await keyboardCoordinateWarning(dragDriver, x: x, y: y, args: args))
                 + (await coordinateFrontAppWarning(dragDriver, args: args))
                 + once("dragCoordinateNote",
                        full: Self.dragCoordinateNote,
@@ -579,6 +579,8 @@ extension MCPServer {
                 + (args["radius"] != nil ? " (radius was ignored: ref pinches the element's own frame — use x and y with radius"
                     + " to pinch a region)" : "")
                 + (try refGestureGuard(element, isAndroid: pinchDriver is AndroidDriver, args: args))
+                + (pinchDriver is AndroidDriver && PinchGesture.mayRegisterAsTapOnAndroid(element)
+                    ? " (" + PinchGesture.androidTapRiskNote(element) + " — verify with ft_snapshot)" : "")
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
             // **地図・キャンバスには ref が無い**(実測): Apple マップの場所カードを
             // 半分出したまま ref 無しで撃つと、指が画面全体に開くのでシートが掴まれ、
@@ -589,7 +591,7 @@ extension MCPServer {
             if let offscreen = Self.offscreenCoordinateError(
                 x: x, y: y, screen: pinchScreen, bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
             pinchCoordinate = (x, y)
-            pinchSelector += keyboardCoordinateWarning(x: x, y: y, args: args)
+            pinchSelector += (await keyboardCoordinateWarning(pinchDriver, x: x, y: y, args: args))
                 + (await coordinateFrontAppWarning(pinchDriver, args: args))
             var pinchRadius = try Self.doubleArgument(args, "radius")
             // Android は最小スケール距離(27 mm)に届く半径まで既定を広げる(pinchRadiusHonouringMinimumSpan の doc)
@@ -686,8 +688,9 @@ extension MCPServer {
         case .success(let ok): validatedGesture = ok
         }
         // 指の始点がキーボードの上なら言う(ft_tap / ft_drag の座標形と同じ警告。1指につき1回まで)
+        let gestureKeyboardTree = await coordinateKeyboardTree(gestureDriver, args: args)
         let gestureKeyboardWarning = validatedGesture.fingers.compactMap(\.points.first)
-            .map { keyboardCoordinateWarning(x: $0.x, y: $0.y, args: args) }.first { !$0.isEmpty } ?? ""
+            .map { Self.keyboardCoordinateWarning(x: $0.x, y: $0.y, tree: gestureKeyboardTree) }.first { !$0.isEmpty } ?? ""
         let gestureFrontWarning = gestureKeyboardWarning
             + (await coordinateFrontAppWarning(gestureDriver, args: args))
         try await gestureDriver.gesture(validatedGesture)
@@ -745,6 +748,7 @@ extension MCPServer {
             if let offscreen = Self.offscreenCoordinateError(
                 x: x, y: y, screen: await coordinateScreen(pressDriver, args: args),
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
+            let keyboardWarning = await keyboardCoordinateWarning(pressDriver, x: x, y: y, args: args)
             let frontWarning = await coordinateFrontAppWarning(pressDriver, args: args)
             try await pressDriver.press(x: x, y: y, duration: pressDuration)
             recordInteraction(action: "press", resolvedRef: nil, args: args, coordinate: (x, y),
@@ -752,7 +756,7 @@ extension MCPServer {
                               maxGestureSeconds: pressCap)
             let pressLeftAppNote = await leftAppAfterGestureNote(
                 pressDriver, args: args, alreadyWarned: !frontWarning.isEmpty)
-            return text("press (\(x), \(y)) done." + keyboardCoordinateWarning(x: x, y: y, args: args)
+            return text("press (\(x), \(y)) done." + keyboardWarning
                 + frontWarning + pressLeftAppNote
                 + once("coordinateHoldReproductionNote",
                 full: Self.coordinateHoldReproductionNote(

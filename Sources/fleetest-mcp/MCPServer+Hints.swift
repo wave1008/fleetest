@@ -1331,9 +1331,25 @@ extension MCPServer {
     /// **座標がソフトキーボードの中にある**ときの警告(ft_tap / ft_double_tap / ft_long_press の座標形)。
     /// ref 形は RefGuard.keyboardWarning が言うのに、座標形は無警告で done と返し、実機 Pixel 3a では
     /// 欄にスペースが入った。**拒否はしない**(キーそのものを押す意図があり得る)。
-    /// 判定は直近の木の申告(`KeyboardOcclusion` = ref 形・DSL と同じ型)。木が無ければ黙る
-    func keyboardCoordinateWarning(x: Double, y: Double, args: [String: Any]) -> String {
-        guard let snapshot = lastSnapshots[Self.sessionKey(args)] else { return "" }
+    /// 判定は撃つ前の木の申告(`KeyboardOcclusion` = ref 形・DSL と同じ型)。**撃つ前に呼ぶ**。木が無ければ黙る
+    func keyboardCoordinateWarning(_ driver: AppDriver, x: Double, y: Double, args: [String: Any]) async -> String {
+        Self.keyboardCoordinateWarning(x: x, y: y, tree: await coordinateKeyboardTree(driver, args: args))
+    }
+
+    /// キーボードの判定に使う木。直近の木の後にこのセッションが操作を撃っていたら、キーボードはその後で出入りしたかもしれない
+    /// (ft_type の直後は木にキーボードが無く、座標の手が全部黙ってキーを押した)ので生で読み直す
+    /// (生読み = lastSnapshots・世代を動かさない。読めなければ直近の木で言う)
+    func coordinateKeyboardTree(_ driver: AppDriver, args: [String: Any]) async -> SnapshotResponse? {
+        let key = Self.sessionKey(args)
+        let actedSinceTree = (sessionActionCounts[key] ?? 0) > (refGenerations[key]?.last?.actionCount ?? 0)
+        guard actedSinceTree, lastSnapshots[key] != nil else { return lastSnapshots[key] }
+        guard let fresh = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) else { return lastSnapshots[key] }
+        // type はキーボードの表示を待たずに返る。出現待ちは ref の経路(verifiedRef)と同じ1箇所を通す
+        return (try? await consumePendingTypeKeyboardCheck(fresh, driver: driver, args: args)) ?? fresh
+    }
+
+    static func keyboardCoordinateWarning(x: Double, y: Double, tree: SnapshotResponse?) -> String {
+        guard let snapshot = tree else { return "" }
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
         guard let frame = occlusion.frame,
               x >= frame.x, x < frame.x + frame.width, y >= frame.y, y < frame.y + frame.height

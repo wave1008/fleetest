@@ -9,6 +9,16 @@ import XCTest
 @testable import FTCore
 
 final class PinchGestureTests: XCTestCase {
+    func testAndroidTapRiskIsForButtonsNotScrollContainers() {
+        func element(_ type: String, scrollable: Bool? = nil) -> ElementInfo {
+            ElementInfo(ref: 1, type: type, identifier: "t", label: nil, value: nil, placeholder: nil, enabled: true,
+                        frame: FTRect(x: 0, y: 0, width: 300, height: 120), depth: 1, scrollable: scrollable)
+        }
+        XCTAssertTrue(PinchGesture.mayRegisterAsTapOnAndroid(element("button")))
+        XCTAssertFalse(PinchGesture.mayRegisterAsTapOnAndroid(element("image")))
+        XCTAssertFalse(PinchGesture.mayRegisterAsTapOnAndroid(element("button", scrollable: true)))
+    }
+
 
     // MARK: - iOS
 

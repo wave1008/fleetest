@@ -99,6 +99,16 @@ public enum PinchGesture {
         min(frame.width, frame.height) * androidMaxSpanRatio
     }
 
+    /// Android のボタンの中に2本の指が収まったまま離れると、タップとして効く(実機 Pixel 3a・4a で 15/15。指が枠の中で離れるのが原因という推測で、人の指では測っていない)。
+    /// スクロールの容器は対象外。**注記だけ**(断らない = ボタンのピンチの反応を確かめる書き方は正当)
+    public static func mayRegisterAsTapOnAndroid(_ element: ElementInfo) -> Bool {
+        TapTargetGeometry.interactiveTypes.contains(element.type) && element.scrollable != true
+    }
+
+    public static func androidTapRiskNote(_ element: ElementInfo) -> String {
+        "note: \(TapTargetGeometry.describe(element)) is a button — on Android a pinch that stays inside it can register as a tap"
+    }
+
     /// 45度の対角線に指を置く(水平/垂直だとその向きのスクロールと競合しやすい)。
     /// 各軸への射影は `span/2 * cos45`
     private static let androidDiagonalAxis = 0.5.squareRoot()

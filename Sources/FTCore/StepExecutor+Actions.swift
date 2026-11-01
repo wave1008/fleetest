@@ -1253,11 +1253,14 @@ extension StepExecutor {
                                                 screen: snapshot.screen)
                         .advisory(for: element, operation: StepAction.touchNoun(for: action))
                     : nil)
+            let pinchTapNote = isAndroid && ["pinchOut", "pinchIn"].contains(action)
+                && PinchGesture.mayRegisterAsTapOnAndroid(element)
+                ? PinchGesture.androidTapRiskNote(element) : nil
             let outcome = try await performGesture(action, step: step, target: element.frame,
                                                    identifier: element.identifier,
                                                    viewport: snapshot.screen, phase: &phase)
             guard case .passed = outcome.status else { return outcome }
-            driverFallback = Self.joinNotes(driverFallback, gestureAdvisory,
+            driverFallback = Self.joinNotes(driverFallback, gestureAdvisory, pinchTapNote,
                                             outcome.driverFallback)
         case "swipeElementToElement":
             guard let endLocator = step.endLocator else {
