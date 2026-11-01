@@ -297,6 +297,10 @@ public enum ContainerGeometry {
                 && ScrollGeometry.intersection(other.frame, container) != nil
         }
         guard !sameHeightInside else { return false }
+        // **画面の端に接して全幅に広がる**単独の物は、行ではなく常駐のバー・シート(下端のミニプレーヤー等)。
+        // 同じ高さの仲間が容器の内側に居る行(上の判定)は既に除いてあり、行がちょうど画面の縁に全幅で接するのは
+        // 容器がそこまで伸びているとき = 容器の外ではない。相棒のバーが居なくても(6)を待たない
+        if gap <= tol, f.width >= screen.width - tol { return true }
         if topBand && followsAscendingRows(element, container: container, in: elements) { return true }
         return elements.contains { other in
             other.ref != element.ref && other.depth == element.depth

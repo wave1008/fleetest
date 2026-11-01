@@ -84,4 +84,19 @@ final class SwipeInertiaThenTapTests: XCTestCase {
         _ = await executor.execute(tap)
         XCTAssertEqual(driver.dragCalls.count, 0)
     }
+
+    /// 座標ドラッグの払い(swipePointToPoint / swipeElementToElement / swipeBy / flick)も慣性を残す。
+    /// 立てるのは swipeWithFallback を通る swipe 系だけで、座標の払いは立てていなかった(分類は StepAction.dragsByCoordinates)
+    func testTapAfterAPointToPointSwipeAbsorbsTheMomentum() async {
+        let (executor, driver) = make(.compose)
+        _ = await executor.execute(FlowStep(action: "swipePointToPoint", x: 200, y: 600, toX: 200, toY: 300))
+        XCTAssertEqual(driver.dragCalls.count, 1, "払い自身の1本だけ")
+        _ = await executor.execute(tap)
+        XCTAssertEqual(driver.dragCalls.count, 2, "次の tap の前に空打ちで吸う")
+    }
+
+    func testDragClassificationTable() {
+        let dragging = Set(StepAction.allCases.filter(\.dragsByCoordinates))
+        XCTAssertEqual(dragging, [.flick, .swipePointToPoint, .swipeElementToElement, .swipeBy])
+    }
 }

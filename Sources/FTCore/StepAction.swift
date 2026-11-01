@@ -33,6 +33,20 @@ public enum StepAction: String, CaseIterable {
         }
     }
 
+    /// 座標ドラッグで指を動かす操作(本物のタッチ = 終わった後に慣性が残りうる)。`swipeWithFallback` を通る
+    /// swipe / scroll 系は経路の中で慣性を立てるので含めない。**ここが true の操作は `executeActionRetryingUndelivered` が
+    /// 成功の後に `swipeInertiaPending` を立てる**(次の触る操作が空打ちで吸う)。default の無い switch = case を足すと分類が要る
+    public var dragsByCoordinates: Bool {
+        switch self {
+        case .flick, .swipePointToPoint, .swipeElementToElement, .swipeBy:
+            return true
+        case .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge, .scrollTo, .fold, .unfold,
+             .hinge, .rotateTo, .pressEnter, .hideKeyboard, .holdEnd, .waitForSettle, .select, .tap, .type,
+             .clearInput, .doubleTap, .holdStart, .pinchOut, .pinchIn, .gesture:
+            return false
+        }
+    }
+
     /// 注記の語(「the tap will land on the keyboard」の tap の所)
     public var touchNoun: String {
         switch self {

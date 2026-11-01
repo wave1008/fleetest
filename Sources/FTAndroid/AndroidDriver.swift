@@ -662,11 +662,14 @@ public final class AndroidDriver: AppDriver {
 
     static let bottomGestureBandFallbackDp = BottomGestureBandTap.maxBandHeightDp
 
-    /// 読めた値(3ボタン navigation の (0,0,0) を含む)は端末ごとに1度だけ控える。**読めなかった回は
+    /// 読めた値(3ボタン navigation の (0,0,0) を含む)は縦向きのときだけ端末ごとに1度控える。**読めなかった回は
     /// 控えない** —— adb の一時的な失敗を控えると、その端末では以後ずっと帯を避けなくなる。
     /// 失敗は投げず除外なし側へ倒す(`AndroidBackGestureEdges.parse` 参照)
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
-        if let cachedBackGestureEdgeWidths { return cachedBackGestureEdgeWidths }
+        // **帯の実幅は向きで変わる**(横向きは切り欠き側の inset が乗り、回転方向で左右も入れ替わる)ので、控えるのは縦向きだけ。
+        // 向きは直近の木の画面の縦横で見る(未取得 = 幅 0 は縦向き扱いにせず控えない)
+        let portrait = screen.width > 0 && screen.width <= screen.height
+        if portrait, let cachedBackGestureEdgeWidths { return cachedBackGestureEdgeWidths }
         let result = try? adbProbe(["shell", "dumpsys", "activity", "service",
                                     "com.android.systemui/.SystemUIService"], timeout: Self.deviceAnswerTimeoutSeconds)
         // 下端の帯はダンプに高さが出ない版がある。フォールバックは AOSP の 3ボタンバー高(48dp)=
@@ -675,7 +678,7 @@ public final class AndroidDriver: AppDriver {
         let value = result?.outputIfSucceeded.flatMap {
             AndroidBackGestureEdges.parse($0, bottomFallback: bottomFallback)
         }
-        if let value { cachedBackGestureEdgeWidths = value }
+        if portrait, let value { cachedBackGestureEdgeWidths = value }
         return value
     }
 

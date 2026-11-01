@@ -281,9 +281,27 @@ extension StepExecutor {
         // viewport クリップ(ScrollGeometry.viewport)がキーボードを避けた始点を作るようになる。
         // キーボードが無ければ nil のまま(3度目の暗黙座標化にはしない)
         if KeyboardWait.isShown(snapshot) {
-            return snapshot.screen
+            return Self.keyboardScrollContainer(in: snapshot, vertical: vertical)?.frame ?? snapshot.screen
         }
         return nil
+    }
+
+    /// キーボード表示中の枠なし払いの容器。画面全体を容器にすると始点が一覧の外(固定ヘッダ・反転チャットの上の帯)に落ちて
+    /// 何も動かない(払いの始点は枠の比で決まる)ので、**キーボードの上に残った領域の中心を含む最大の scrollable**を採る
+    /// (最大 = 入れ子なら外側。ブリッジ既定の全画面払いが外側を動かしていたのと同じ側)。払う軸と違う軸だけを申告する容器は外す。
+    /// 無ければ nil = 画面全体のまま
+    static func keyboardScrollContainer(in snapshot: SnapshotResponse, vertical: Bool) -> ElementInfo? {
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame,
+                                                 in: snapshot.elements, screen: snapshot.screen).frame
+        let viewport = ScrollGeometry.viewport(snapshot.screen, excludingKeyboard: keyboard)
+        let cx = viewport.centerX, cy = viewport.centerY
+        return snapshot.elements
+            .filter { element in
+                element.scrollable == true
+                    && StepExecutor.frame(element.frame, containsX: cx, y: cy)
+                    && !declaresOnlyOtherAxis(element.scrollActions, vertical: vertical)
+            }
+            .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
     }
 
     /// `scrollContainer` と同じ解決規則で、rect ではなく**この swipe が当たる要素そのもの**を返す

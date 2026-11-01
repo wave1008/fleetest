@@ -525,9 +525,15 @@ extension StepExecutor {
         try await dragWithFallback(fromX: startX, fromY: startY, toX: toX, toY: toY, pressSeconds: FlowStep.defaultDragPressSeconds,
                                    durationSeconds: step.duration ?? tunables.defaultSwipeDuration)
         phase.actionMs += Self.ms(clock.now - start)
+        // 払いの尾(慣性)が止まるまで待つ(swipeBy と同じ整定。待たないと Android では次の tap が慣性に吸われる)
+        var settleNotes: [String] = []
+        if !(skippingSettle(step) ? true : try await settledSignature(phase: &phase).settled) {
+            note(.settleCapped, into: &settleNotes)
+        }
         return StepOutcome(status: .passed,
                            driverFallback: Self.joinNotes(
-                               dragFallbackLatched && !latchedBefore ? "fell back to XCUITest" : nil, bandNote))
+                               dragFallbackLatched && !latchedBefore ? "fell back to XCUITest" : nil, bandNote,
+                               settleNotes.first))
     }
 
     static let sideBandNote = "start point moved clear of the Android back-gesture band at the screen edge (a touch there is taken as back)"

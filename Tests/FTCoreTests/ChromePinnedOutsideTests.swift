@@ -123,6 +123,26 @@ final class ChromePinnedOutsideTests: XCTestCase {
                       "同じ帯に他のタブが1本も無いので、バーの形と確認できず ghost のまま")
     }
 
+    // MARK: - (e2) 画面下端に接して全幅の単独の常駐シート(ミニプレーヤー)
+
+    /// Pixel 4a・E2EY-CMP の引き伸ばせるシート(畳んだ状態): 容器 (0,494 1080x1604) の下 y=2231 から画面の下端 2340 まで全幅。
+    /// 相棒のバーが居なくても leftover ではない。幅が全幅でない・下端から離れた単独要素は従来どおり ghost
+    func testFullWidthSheetFlushWithTheScreenEdgeIsNotAGhost() {
+        let screen = FTRect(x: 0, y: 0, width: 1080, height: 2340)
+        let container = el(1, "scrollView", 9, 0, 494, 1080, 1604, id: "scroll", scrollable: true)
+        let row = el(2, "cell", 10, 0, 500, 1080, 200, id: "row_00")
+        let player = el(3, "clickable", 10, 0, 2231, 1080, 109, id: "mini_player")
+        let elements = [container, row, player]
+        XCTAssertFalse(ContainerGeometry.isOutsideContainer(player, in: elements, screen: screen))
+
+        let narrow = el(3, "clickable", 10, 0, 2231, 800, 109, id: "mini_player")
+        XCTAssertTrue(ContainerGeometry.isOutsideContainer(narrow, in: [container, row, narrow], screen: screen),
+                      "全幅でない単独要素は従来どおり")
+        let lifted = el(3, "clickable", 10, 0, 2200, 1080, 109, id: "mini_player")
+        XCTAssertTrue(ContainerGeometry.isOutsideContainer(lifted, in: [container, row, lifted], screen: screen),
+                      "画面の下端に接していない単独要素は従来どおり")
+    }
+
     // MARK: - (f) 2列グリッドの最終行(容器の内側に同じ高さの兄弟が居る = 条件7で弾かれる)
 
     /// 2列グリッドの最終行が容器の下端を越えると、2セルは「同じ depth・同じ y/高さ・横に重ならない・

@@ -101,4 +101,26 @@ final class StepActionCoverageTests: XCTestCase {
         let child = e(5, "child", FTRect(x: 10, y: 170, width: 100, height: 30), type: "staticText", depth: 10)
         XCTAssertNil(TapTargetGeometry.pinnedBandCovering(child, in: [parent, child], container: container))
     }
+
+    /// キーボード表示中の枠なし払いは、キーボードの上に残った領域の中心を含む最大の scrollable を容器にする
+    /// (画面全体だと始点が一覧の外の固定ヘッダに落ちて動かない。反転チャットの一覧は (0,485) から始まる)
+    func testKeyboardScrollContainerPicksTheListNotTheWholeScreen() {
+        let screenRect = FTRect(x: 0, y: 0, width: 1080, height: 2400)
+        let list = ElementInfo(ref: 1, type: "scrollView", identifier: "list_chat", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 485, width: 1080, height: 930), depth: 2, scrollable: true)
+        let carousel = ElementInfo(ref: 2, type: "scrollView", identifier: "tags", label: nil, value: nil,
+                                   placeholder: nil, enabled: true,
+                                   frame: FTRect(x: 0, y: 600, width: 1080, height: 300), depth: 3, scrollable: true,
+                                   scrollActions: ["left", "right"])
+        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screenRect, elements: [list, carousel],
+                                        truncatedCount: 0, keyboardShown: true,
+                                        keyboardFrame: FTRect(x: 0, y: 1541, width: 1080, height: 859))
+        XCTAssertEqual(StepExecutor.keyboardScrollContainer(in: snapshot, vertical: true)?.identifier, "list_chat")
+        let none = SnapshotResponse(sessionBundleID: nil, screen: screenRect, elements: [carousel],
+                                    truncatedCount: 0, keyboardShown: true,
+                                    keyboardFrame: FTRect(x: 0, y: 1541, width: 1080, height: 859))
+        XCTAssertNil(StepExecutor.keyboardScrollContainer(in: none, vertical: true),
+                     "縦に払えない容器しか無ければ nil(画面全体のまま)")
+    }
 }

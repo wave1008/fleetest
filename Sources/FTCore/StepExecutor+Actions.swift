@@ -1320,6 +1320,13 @@ extension StepExecutor {
                 }
                 driverFallback = "fell back to XCUITest"
             }
+            // 払いの尾(慣性)が止まるまで待つ。swipeBy と同じ整定(待たないと Android では次の tap が慣性を止めるだけで ok のまま押せない)
+            let dragSettled = skippingSettle(step) ? true : try await settledSignature(phase: &phase).settled
+            if !dragSettled {
+                var settleNotes: [String] = []
+                note(.settleCapped, into: &settleNotes)
+                driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
+            }
         default:
             return StepOutcome(status: .skipped("unknown action: \(action)"))
         }

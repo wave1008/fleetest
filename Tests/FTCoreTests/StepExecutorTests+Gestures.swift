@@ -310,7 +310,8 @@ extension StepExecutorTests {
         guard case .passed = outcome.status else {
             XCTFail("swipeElementToElement の passed を期待したが \(outcome.status) だった"); return
         }
-        XCTAssertEqual(log.entries, ["primary.snapshot", "primary.drag"])
+        // 払いの後は swipeBy と同じ整定(静止した木が2枚続くまで)で慣性の尾を待つ
+        XCTAssertEqual(log.entries, ["primary.snapshot", "primary.drag", "primary.snapshot", "primary.snapshot"])
         XCTAssertEqual(primary.lastDragArgs?.fromX, 10)
         XCTAssertEqual(primary.lastDragArgs?.fromY, 110)
         XCTAssertEqual(primary.lastDragArgs?.toX, 220)

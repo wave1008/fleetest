@@ -41,7 +41,13 @@ extension StepExecutor {
             let savedUnchanged = unchangedEarlierTaps
             let savedTapTarget = lastTapTarget
             do {
-                return try await executeAction(action, step: step, fingerprint: fingerprint, phase: &phase)
+                let outcome = try await executeAction(action, step: step, fingerprint: fingerprint, phase: &phase)
+                // 座標ドラッグの払いは経路ごとに慣性を立てていなかった(swipePointToPoint / swipeElementToElement の後の tap が
+                // 慣性を止めるだけで ok のまま押せない)。分類は StepAction.dragsByCoordinates の1箇所
+                if case .passed = outcome.status, StepAction(rawValue: action)?.dragsByCoordinates == true {
+                    swipeInertiaPending = true
+                }
+                return outcome
             } catch {
                 let blockedByAlert = Self.isUndeliveredBySystemAlert(error)
                     && systemAlertWatchlist.isWatching && fallbackDriver != nil

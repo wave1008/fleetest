@@ -1,0 +1,32 @@
+{
+  "id": "dsl-emu-F2",
+  "finding": "Android: swipePointToPoint / swipeElementToElement の直後の tap が慣性に吸われ、ok のまま押せていない",
+  "platform": "android",
+  "redNote": "デバイスを動かさずに書いた。統合時に確認: 直しを外した版(払いの後の整定を外す)で selected が row_03 のまま赤になること",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}]
+  ],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.android", "resume": true}]
+  ],
+  "resetSeconds": 1,
+  "rounds": 10,
+  "forms": [
+    {
+      "name": "swipePointToPoint の後の tap",
+      "steps": [
+        ["ft_batch", {"script": "tap '#btn_scroll_top'\ntap '#row_03'\nswipePointToPoint startX: 540 startY: 1800 endX: 540 endY: 700\ntap '#row_08'"}]
+      ],
+      "settleSeconds": 1,
+      "expect": ["selected=row_08"]
+    },
+    {
+      "name": "swipeElementToElement の後の tap",
+      "steps": [
+        ["ft_batch", {"script": "tap '#btn_scroll_top'\ntap '#row_03'\nswipeElementToElement '#row_09' '#row_02'\ntap '#row_08'"}]
+      ],
+      "settleSeconds": 1,
+      "expect": ["selected=row_08"]
+    }
+  ]
+}

@@ -111,4 +111,24 @@ final class AndroidBackGestureEdgesTests: XCTestCase {
         XCTAssertEqual(widths?.left, 0)
         XCTAssertEqual(widths?.bottom, 0)
     }
+
+    /// 横向きは切り欠き側の inset が帯の幅に乗る(Pixel 4a の実測: mLeftInset=136 + 82 = 218)。縦向きの inset 0 は従来と同じ
+    func testLandscapeInsetsAreAddedToTheBand() {
+        let landscape = """
+          EdgeBackGestureHandler:
+            mIsGestureHandlingEnabled=true
+            mEdgeWidthLeft=82
+            mEdgeWidthRight=82
+            mLeftInset=136
+            mRightInset=0
+          mLastReportedConfig=
+        """
+        let widths = AndroidBackGestureEdges.parse(landscape)
+        XCTAssertEqual(widths?.left, 218)
+        XCTAssertEqual(widths?.right, 82)
+        let rotated = landscape.replacingOccurrences(of: "mLeftInset=136", with: "mLeftInset=0")
+            .replacingOccurrences(of: "mRightInset=0", with: "mRightInset=136")
+        XCTAssertEqual(AndroidBackGestureEdges.parse(rotated)?.right, 218)
+        XCTAssertEqual(AndroidBackGestureEdges.parse(Self.gestureNavSnippet)?.left, 78, "inset の欄が無い版は従来どおり")
+    }
 }
