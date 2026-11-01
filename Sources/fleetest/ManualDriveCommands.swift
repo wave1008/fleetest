@@ -266,6 +266,15 @@ struct TypeCommand: AsyncParsableCommand {
 
     func validate() throws { try driverOptions.rejectDeviceTargetMismatch() }
 
+    /// 文中の改行の後ろに文字がある入力への注記(無ければ nil)。1行の欄は改行で入力が確定/打ち切られ、後ろが入らないことがあるが、
+    /// `type` は読み返さないので成功と区別できない。欄の種類を知らないので「入らないことがある」と言う
+    static func lineBreakNote(_ text: String) -> String? {
+        let parts = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+        guard parts.count > 1, parts.dropFirst().contains(where: { !$0.isEmpty }) else { return nil }
+        return "the text contains a line break followed by more text; a single-line field may not take the part after it"
+            + " — type does not read the field back, so check it (snapshot) before relying on it"
+    }
+
     func run() async throws {
         let driver = try await driverOptions.makeDriver()
         var note: String?
@@ -275,6 +284,7 @@ struct TypeCommand: AsyncParsableCommand {
         }
         try await DeliveryAdvice.relaying { try await driver.type(ref: ref, text: text) }
         ConsoleOut.out("✅ type \"\(text)\"")
+        if let lineBreak = Self.lineBreakNote(text) { ConsoleOut.err("⚠️ \(lineBreak)") }
         if let ref, let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }
 }
