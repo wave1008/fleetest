@@ -934,10 +934,17 @@ extension StepExecutor {
                 + " was tapped")
         }
         // 空きを叩いても閉じなかった・叩ける空きが無かったときは、OS の入力補助バーの Done を押す(KeyboardAccessoryDone)
-        if let done = accessoryDone ?? KeyboardAccessoryDone.target(in: before.elements, keyboard: keyboard) {
+        // inapp-boost モードの主ドライバの木に OS のバーは載らない(別の窓)ので、XCUITest の木で探して XCUITest で押す
+        var done = accessoryDone ?? KeyboardAccessoryDone.target(in: before.elements, keyboard: keyboard)
+        var doneDriver = driver
+        if done == nil, let td = typeDriver, let tree = try? await td.snapshot() {
+            done = KeyboardAccessoryDone.target(in: tree.elements, keyboard: tree.keyboardFrame ?? keyboard)
+            doneDriver = td
+        }
+        if let done {
             let x = done.frame.centerX, y = done.frame.centerY
             let start = clock.now
-            try await driver.tap(x: x, y: y)
+            try await doneDriver.tap(x: x, y: y)
             phase.actionMs += Self.ms(clock.now - start)
             let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
             if !KeyboardWait.isShown(after) {

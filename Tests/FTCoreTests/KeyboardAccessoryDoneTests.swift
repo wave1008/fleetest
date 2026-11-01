@@ -35,6 +35,12 @@ final class KeyboardAccessoryDoneTests: XCTestCase {
         XCTAssertNil(KeyboardAccessoryDone.target(in: osToolbar(id: nil), keyboard: keyboard))
     }
 
+    /// 実測: 予測変換の帯を挟むとバーの下端とキー面の上端の間が 55pt 空く
+    func testAPredictionBarBetweenTheToolbarAndTheKeysIsAllowed() {
+        let keys = FTRect(x: 0, y: 583, width: 402, height: 233)
+        XCTAssertEqual(KeyboardAccessoryDone.target(in: osToolbar(), keyboard: keys)?.ref, 25)
+    }
+
     /// キーボードの上に付いていないバー(画面の上の方のツールバー)は対象外
     func testAToolbarFarFromTheKeyboardIsNotTouched() {
         let far = osToolbar().map { element -> ElementInfo in
@@ -70,5 +76,27 @@ final class KeyboardAccessoryDoneTests: XCTestCase {
         XCTAssertEqual(primary.coordinateTaps.first?.y, 504)
         XCTAssertFalse(log.entries.contains { $0.contains("pressEnter") }, "Enter を送っている: \(log.entries)")
         XCTAssertTrue(outcome.driverFallback?.contains("Done button of its toolbar") == true, outcome.driverFallback ?? "nil")
+    }
+
+    /// inapp-boost モード: バーは主ドライバの木に載らないので、XCUITest の木で見つけて XCUITest で押す
+    func testInAppPrimaryFindsDoneInTheXCUITestTreeAndTapsItThere() async {
+        let log = CallLog()
+        let page = element(1, "button", label: "page", depth: 1, 0, 0, 402, 538)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[page]])
+        primary.keyboardFrame = keyboard
+        let xcuitest = FakeAppDriver(name: "xcuitest", log: log, snapshotElements: [[page] + osToolbar()])
+        xcuitest.keyboardFrame = keyboard
+        xcuitest.afterCoordinateTap = {
+            primary.keyboardFrame = nil
+            primary.keyboardShownFrames = [false]
+        }
+        let executor = StepExecutor(driver: primary, typeDriver: xcuitest, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.5))
+
+        let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
+
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(xcuitest.coordinateTaps.first?.x, 361)
+        XCTAssertTrue(primary.coordinateTaps.isEmpty, "主ドライバで撃っている: \(primary.coordinateTaps)")
+        XCTAssertFalse(log.entries.contains { $0.contains("pressEnter") }, "Enter を送っている: \(log.entries)")
     }
 }

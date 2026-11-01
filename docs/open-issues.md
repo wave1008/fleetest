@@ -33,7 +33,7 @@
 
 - 場所: `Sources/FTBridgeClient/WebViewDelegatingDriver.swift`(委譲中は XCUITest の木を返す)/ `Sources/FTCore/KeyboardWait.swift`
 - 要る材料: inapp-boost モードで WebView の入力欄に打った後の `keyboardIsNotShown` の実例(木と失敗文)
-- 2026-11-02(E2E-iOS inapp-boost): 「cannot determine」は 0/6。別件として同じ手順の `hideKeyboard` が 9/9 で閉じられなかった(OI-70 の Done の直しより前の版で測定)
+- 2026-11-02(E2E-iOS inapp-boost): 「cannot determine」は 0/6
 ### OI-3 MCP で払った `ft_snapshot waitFor` が `ft_draft_scenario` の下書きに写らず、下書きの `tap("#id")` が DSL 既定の約 0.7 秒の再試行しか持たず、遅い画面で赤になりうる
 - 状態: 経路確定
 - 確認: コミット未記録(2026-10-20)

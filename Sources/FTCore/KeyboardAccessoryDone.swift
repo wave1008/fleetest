@@ -13,11 +13,12 @@ public enum KeyboardAccessoryDone {
     static let toolbarIdentifier = "Toolbar"
 
     /// `keyboard`(申告されたキー面)のすぐ上にある OS のバーの Done。無ければ nil。
-    /// 「すぐ上」= バーの下端がキー面の上端から自分の高さ以内(バーとキー面の間のすき間を許す根拠を数字で持たない)
+    /// 「すぐ上」= バーの下端とキー面の上端の差がバー2本分以内。間に予測変換の帯が挟まる(実測: バーの下端 528・キー面の上端 583・
+    /// バーの高さ 48 = 差 55pt)。画面の上の方のバーはこの範囲に入らない
     public static func target(in elements: [ElementInfo], keyboard: FTRect) -> ElementInfo? {
         for toolbar in elements where toolbar.type == "toolbar" && toolbar.identifier == toolbarIdentifier {
             let bottom = toolbar.frame.y + toolbar.frame.height
-            guard toolbar.frame.height > 0, abs(bottom - keyboard.y) <= toolbar.frame.height else { continue }
+            guard toolbar.frame.height > 0, abs(bottom - keyboard.y) <= toolbar.frame.height * 2 else { continue }
             let buttons = LocatorResolver.descendants(of: toolbar, in: elements)
                 .filter { $0.type == "button" && $0.enabled && $0.frame.width > 0 && $0.frame.height > 0 }
             if let done = buttons.last { return done }
