@@ -296,26 +296,39 @@ def device_run_problems(words, env, full_ok, depth):
     return reasons
 
 
-def pkill_problems(words):
-    """`pkill -f <パターン>` が VS Code / Claude Code に当たるなら断る(パターンは正規表現でコマンドライン全体に当たる。
-    `c.py` が `--enable-zero-copy` に一致して VS Code を落とした)。今のプロセス一覧で見るので長さの定数を置かない"""
-    if not words or os.path.basename(words[0]) != "pkill":
-        return []
-    args = [w for w in words[1:] if not re.fullmatch(r"-[A-Z0-9]+", w)]
-    flags = [w for w in args if w.startswith("-")]
-    if not any("f" in w for w in flags if not w.startswith("--")):
-        return []
-    patterns = [w for w in args if not w.startswith("-")]
-    if not patterns or "$" in patterns[-1]:
-        return []
-    r = subprocess.run(["pgrep", "-fl", "--", patterns[-1]], capture_output=True, text=True)
-    hits = [l for l in r.stdout.splitlines()
-            if re.search(r"Visual Studio Code|claude-code|\.vscode/extensions", l)
-            and not re.search(r"test-scope-guard|/bin/zsh -c", l)]
-    if hits:
-        return [f"`pkill -f {patterns[-1]}` は VS Code / Claude Code の {len(hits)} 個のプロセスにも当たる(パターンは正規表現で"
-                " コマンドライン全体に当たる)。自分が起こした PID か、完全な文字列で止める"]
-    return []
+def pkill_problems(text):
+    """`pkill -f` がエディタに当たるなら断る(heredoc・スクリプトの本文も行ごとに見る)。パターンは正規表現でコマンドライン全体に当たる:
+    `c.py` が `--enable-zero-copy` の copy に一致した。**BSD の pkill は最初のパターンより後ろをオプションと読まない**ので
+    `pkill -f X -n` の `-n` は2つ目のパターンになり、`--num-raster-threads` の VS Code と `-no-window` の Emulator まで落とした。
+    今のプロセス一覧で見るので長さの定数を置かない。パターンの中の `$VAR` は何にでも当たるものとして見る"""
+    reasons = []
+    for line in logical_lines(text):
+        for found in re.finditer(r"(?:^|[\s;&|(\"'])pkill\s+([^;&|\n]*)", line):
+            try:
+                args = shlex.split(found.group(1))
+            except ValueError:
+                continue
+            patterns = []
+            full = False
+            while args and args[0].startswith("-") and args[0] != "--":   # 最初のパターンまでがオプション
+                flag = args.pop(0)
+                full = full or (not flag.startswith("--") and "f" in flag)
+                if flag in ("-t", "-u", "-g", "-G", "-P", "-U", "-s", "-F") and args:
+                    args.pop(0)
+            patterns = [a for a in args if a != "--"]
+            if not full or not patterns:
+                continue
+            for pattern in patterns:
+                probe = re.sub(r"\$\{?\w+\}?", ".*", pattern)
+                r = subprocess.run(["pgrep", "-fl", "--", probe], capture_output=True, text=True)
+                hits = [l for l in r.stdout.splitlines()
+                        if re.search(r"Visual Studio Code|claude-code|\.vscode/extensions|qemu-system", l)
+                        and not re.search(r"test-scope-guard|/bin/zsh -c", l)]
+                if hits:
+                    reasons.append(f"`pkill -f` のパターン `{pattern}` は VS Code / Claude Code / Emulator の {len(hits)} 個のプロセスにも当たる"
+                                   "(パターンは正規表現でコマンドライン全体に当たる。パターンの後ろのオプションも別のパターンになる)。"
+                                   "自分が起こした PID か、完全な文字列で止める")
+    return reasons
 
 
 def check(command, env=None, full_ok=None, depth=0, cwd=None):
@@ -338,7 +351,7 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
             class_cache[root] = test_classes(root)
         return class_cache[root]
 
-    reasons = []
+    reasons = pkill_problems(command)
     for tokens in segs:
         words = [t for t in tokens if not re.match(r"^\w+=", t)]  # 先頭の VAR=value を飛ばす
         if len(words) >= 2 and words[0] == "cd":
@@ -348,7 +361,6 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
             if os.path.basename(tok) in SHELLS and words[i + 1] == "-c" and i + 2 < len(words):
                 reasons.extend(check(words[i + 2], env, full_ok, depth, cwd))  # 中身は打ったコマンドそのもの = 同じ深さ
         reasons.extend(device_run_problems(words, env, full_ok, depth))
-        reasons.extend(pkill_problems(words))
         if len(words) >= 2 and os.path.basename(words[0]) == "swift" and words[1] == "test":
             if "--help" in words or "-h" in words:
                 continue
