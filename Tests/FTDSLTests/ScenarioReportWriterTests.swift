@@ -4,6 +4,35 @@ import FTCore
 
 final class ScenarioReportWriterTests: XCTestCase {
 
+    // MARK: - 届いたことしか確かめていない操作の1行
+
+    private func step(_ i: Int, _ section: String?, _ status: StepResult.Status = .passed) -> DSLStepRecord {
+        DSLStepRecord(index: i, section: section, description: "s\(i)", status: status, file: "", line: 0)
+    }
+
+    func testUncheckedActionLineCountsOnlyActionBlocksNotFollowedByExpectation() {
+        var checked = SceneRecordData(number: 1, title: "a")
+        checked.steps = [step(1, "action"), step(2, "action"), step(3, "expectation")]
+        var unchecked = SceneRecordData(number: 2, title: "b")
+        unchecked.steps = [step(4, "action"), step(5, "action"), step(6, "condition"), step(7, "action"),
+                           step(8, "action", .failed("x"))]
+        XCTAssertNil(ScenarioReportWriter.uncheckedActionLine([checked]))
+        let line = ScenarioReportWriter.uncheckedActionLine([checked, unchecked])
+        XCTAssertTrue(line?.contains("3 passed step(s)") == true, line ?? "nil")
+    }
+
+    func testWriteAppendsTheUncheckedLineWithoutChangingTheResult() throws {
+        var scene = SceneRecordData(number: 1, title: "a")
+        scene.steps = [step(1, "action")]
+        var record = ScenarioRecordData(id: "S.t", title: "", app: "a", platform: "ios")
+        record.scenes = [scene]
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let text = try String(contentsOf: try ScenarioReportWriter.write(record: record, to: dir), encoding: .utf8)
+        XCTAssertTrue(text.contains("- Result: ✅ passed"), text)
+        XCTAssertTrue(text.contains("1 passed step(s) in `action` blocks"), text)
+    }
+
     // MARK: - deviceLine (フォーマット単体)
 
     func testDeviceLineBothPresent() {

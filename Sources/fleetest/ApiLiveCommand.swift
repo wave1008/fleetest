@@ -1026,20 +1026,28 @@ struct ApiLiveServe: AsyncParsableCommand {
         return (element.frame.centerX, y)
     }
 
-    /// ref で撃つ type / clear の門(判定は `TapTargetGeometry.typeTargetVerdict` = DSL・MCP と共有)。
-    /// 型でボタン等と言い切れる要素は撃つ前に断る —— ドライバはまず対象をタップするので、押してから「入力欄が無い」で
-    /// 失敗する。断る範囲は DSL と同じ(`clickable` 等は自前描画の本物の欄でありうるので撃つ)。
-    /// 木に無い ref は判定せずドライバの断りに任せる
-    private static func requireTextInputTarget(ref: Int, driver: AppDriver) async throws {
+    /// **ref で撃つ手の入口**(tap / type / clear / doubleTap / pinch の ref 形は全部ここを通す。CLI の `RefFireGate` と同じ判定 =
+    /// `FTCore.RefFireCheck`)。キーボードの下・せり上がったバーの覆い・入力欄でない対象への入力は撃たずに断る。
+    /// 別の物に当たりうる助言(⚠️)はライブ操作の応答に載せ口が無いので出さない。木に無い ref は判定せずドライバの断りに任せる
+    private static func requireFireable(ref: Int, typing: Bool, driver: AppDriver, isAndroid: Bool) async throws {
         let snapshot = try await driver.snapshot()
-        guard let target = snapshot.elements.first(where: { $0.ref == ref }),
-              TapTargetGeometry.typeTargetVerdict(target, in: snapshot.elements) == .notATextField(positively: true)
-        else { return }
-        throw ServeCommandError.invalidArguments(
-            "[\(ref)] is a \(target.type), not a text field, and it does not contain exactly one text field"
-            + " either — refusing before anything is typed or cleared (the element would be tapped first,"
-            + " firing whatever it is). Click the input field itself, or omit ref to act on the field that"
-            + " has focus.")
+        guard let target = snapshot.elements.first(where: { $0.ref == ref }) else { return }
+        guard let refusal = RefFireCheck.evaluate(target, in: snapshot, isAndroid: isAndroid, typing: typing).refusal else { return }
+        let what = TapTargetGeometry.describe(target)
+        switch refusal {
+        case .notATextField:
+            throw ServeCommandError.invalidArguments(
+                "[\(ref)] is a \(target.type), not a text field — refusing before anything is typed or cleared"
+                + " (the element would be tapped first, firing whatever it is). Click the input field itself,"
+                + " or omit ref to act on the field that has focus.")
+        case .underKeyboard(let advisory):
+            throw ServeCommandError.invalidArguments(
+                "[\(ref)] \(what) — \(advisory). Nothing was sent. Dismiss the keyboard first, then take a fresh screenshot.")
+        case .keyboardCover:
+            throw ServeCommandError.invalidArguments(
+                "[\(ref)] \(what) is covered or collapsed while the on-screen keyboard is up, so a touch would not land on it."
+                + " Nothing was sent. Dismiss the keyboard first, then take a fresh screenshot.")
+        }
     }
 
     /// **撃つ前にセッションを前面へ追従させる**コマンド(画面を触る操作)。セッションそのものを
@@ -1131,6 +1139,7 @@ struct ApiLiveServe: AsyncParsableCommand {
         switch command.cmd {
         case "tap":
             if let ref = command.ref {
+                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
                 // 中心が Android の下端のジェスチャ帯の中なら帯より上の部分を座標で(ref はブリッジが中心へ解決する)。
                 // 枠が要るので Android の ref の tap だけ木を1回撮る(座標のクリックには払わせない)
                 if driverOptions.resolvedPlatform == "android",
@@ -1149,12 +1158,16 @@ struct ApiLiveServe: AsyncParsableCommand {
             guard let text = command.text else {
                 throw ServeCommandError.invalidArguments("type requires text")
             }
-            if let ref = command.ref { try await Self.requireTextInputTarget(ref: ref, driver: driver) }
+            if let ref = command.ref {
+                try await Self.requireFireable(ref: ref, typing: true, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
+            }
             try await Self.firing(await Self.seen(command.ref, screenMemo)) {
                 try await driver.type(ref: command.ref, text: text)
             }
         case "clear":
-            if let ref = command.ref { try await Self.requireTextInputTarget(ref: ref, driver: driver) }
+            if let ref = command.ref {
+                try await Self.requireFireable(ref: ref, typing: true, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
+            }
             try await Self.firing(await Self.seen(command.ref, screenMemo)) {
                 try await driver.clearInput(ref: command.ref)
             }
@@ -1185,6 +1198,7 @@ struct ApiLiveServe: AsyncParsableCommand {
         case "doubleTap":
             // **座標へ畳んでから撃つ**(ref はブリッジごとに別名前空間。AppDriver.doubleTap の注記参照)
             if let ref = command.ref {
+                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
                 let (element, screen) = try await Self.elementAndScreen(ref: ref, driver: driver)
                 try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
                 let bandY = await BottomGestureBandTap.tapY(
@@ -1207,6 +1221,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             if let ref = command.ref {
                 // ref 指定時は frame と identifier の両方を渡す(経路で対象の伝え方が違う。
                 // FTCore/BridgeDTO の PinchRequest)
+                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
                 let element = try await Self.element(ref: ref, driver: driver)
                 try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
                 try await driver.pinch(frame: element.frame, identifier: element.identifier,

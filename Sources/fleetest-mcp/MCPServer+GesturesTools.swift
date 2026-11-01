@@ -507,7 +507,7 @@ extension MCPServer {
         // 終点は絶対座標か相対移動のどちらか(相対は「グラバーを 400 上へ」を素直に書ける)
         let toX = try Self.doubleArgument(args, "toX") ?? (from.x + (try Self.doubleArgument(args, "dx") ?? 0))
         let toY = try Self.doubleArgument(args, "toY") ?? (from.y + (try Self.doubleArgument(args, "dy") ?? 0))
-        guard toX != from.x || toY != from.y else {
+        guard !CoordinateGuards.dragDoesNotMove(fromX: from.x, fromY: from.y, toX: toX, toY: toY) else {
             throw MCPError("the drag does not move: pass toX/toY, or dx/dy")
         }
         // **終点も門に通す**(ライブ操作の drag は始点・終点の両方を見る = 片方だけだと同じ座標が

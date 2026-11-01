@@ -139,6 +139,8 @@ public enum ScenarioReportWriter {
             md += "\n(Sources are not rewritten automatically. Applying the above removes the dependency on self-healing.)\n"
         }
 
+        if let line = uncheckedActionLine(record.scenes) { md += "\n\(line)\n" }
+
         for (name, data) in screenshots {
             try data.write(to: dir.appendingPathComponent(name))
         }
@@ -151,6 +153,34 @@ public enum ScenarioReportWriter {
             try? FailureEvidence(scenes: evidenceScenes).write(forReport: url)
         }
         return url
+    }
+
+    /// 届いたことしか確かめていない操作の数(事実の1行。合否は変えない)。数え方は「`action` ブロックのうち、直後が `expectation`
+    /// ブロックでないものの、成功したステップ」(区分で数える。ステップの中身は読まない = 検証を呼ぶ操作の判別は description に頼らない)。
+    /// 無ければ nil。数えるのはレポートの1行だけで結果 JSON には出さない
+    static func uncheckedActionLine(_ scenes: [SceneRecordData]) -> String? {
+        var count = 0
+        for scene in scenes {
+            let steps = scene.steps
+            var i = 0
+            while i < steps.count {
+                guard steps[i].section == "action" else { i += 1; continue }
+                var j = i
+                while j < steps.count, steps[j].section == "action" { j += 1 }
+                if !(j < steps.count && steps[j].section == "expectation") {
+                    count += steps[i..<j].filter {
+                        switch $0.status {
+                        case .passed, .passedViaFallback, .healed: return true
+                        default: return false
+                        }
+                    }.count
+                }
+                i = j
+            }
+        }
+        guard count > 0 else { return nil }
+        return "ℹ️ \(count) passed step(s) in `action` blocks are not directly followed by an `expectation` block:"
+            + " they were only confirmed to have been delivered (counted by block, not by what each step does)."
     }
 
     /// 実行デバイス行のテキスト(論理名+括弧で技術識別子)。両方 nil なら行自体を省略するため nil を返す
