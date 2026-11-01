@@ -522,7 +522,7 @@ extension StepExecutorTests {
                       "打鍵は消去の後の木の番号で撃つ: \(log.entries)")
         XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.type(ref:1)") },
                        "撃つ前の番号で打つと別の欄へ入る: \(log.entries)")
-        XCTAssertTrue(outcome.driverFallback?.contains("replaced the field's prior content") == true,
+        XCTAssertTrue(outcome.driverFallback?.contains("cleared the field's prior content before typing") == true,
                       "前の値は消去の前に控える(引き直した要素は空): \(outcome.driverFallback ?? "nil")")
     }
 

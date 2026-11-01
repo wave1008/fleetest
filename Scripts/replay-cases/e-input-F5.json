@@ -1,0 +1,29 @@
+{
+  "id": "e-input-F5",
+  "finding": "伏せ字の入った secure 欄へ ref なしでかなを追記して全部落ちても ok(ft_batch / ft_type)",
+  "platform": "ios",
+  "redNote": "デバイスを動かさない回の修正のため赤は未確認(統合時に TypedInputCheck の ref なしの前の値を外して確かめる)",
+  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.ios", "clearData": true}]],
+  "reset": [["ft_launch", {"bundleId": "com.ftester.e2e.ios", "resume": true}]],
+  "resetSeconds": 1,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "ft_batch ref なし type 'かな' を伏せ字の欄へ",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_input'; type '#field_password' 'abcde'; type 'かな'"}]
+      ],
+      "allowErrors": true,
+      "replyReject": ["All 3 step(s) passed"]
+    },
+    {
+      "name": "ft_type ref なし(同じ状態)",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_input'; type '#field_password' 'abcde'"}],
+        ["ft_type", {"text": "かな"}]
+      ],
+      "allowErrors": true,
+      "replyReject": ["Typed: \"かな\" (into #field_password; the field reads back masked"]
+    }
+  ]
+}

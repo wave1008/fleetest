@@ -336,6 +336,17 @@ extension MCPServer {
             // targetRef はセッション ref。ブリッジへ渡す直前にだけ native へ戻す
             let resolvedTypeRef = rescuedNativeRef ?? relocatedNativeRef ?? nativeTargetRef
             let keyboardBeforeType = lastSnapshots[Self.sessionKey(args)]
+            // 事後の照合の「打つ前」(`TypedInputCheck`。DSL と同じ入口)。ref なしは前の数が要る形だけ打つ直前に木を読む
+            let typedPrior: TypedInputCheck.Prior
+            if let priorElement {
+                typedPrior = TypedInputCheck.Prior(target: priorElement, priorValue: priorValue ?? "", replace: wantsReplace,
+                                                   treeBefore: treeBeforeType)
+            } else if TypedInputCheck.needsPriorRead(text: content, isAndroid: Self.platformName(args) == "android") {
+                let before = try? await typeDriver.snapshot(bypassingCache: typeDriver.supportsCacheBypass)
+                typedPrior = TypedInputCheck.Prior(focusedIn: before?.elements)
+            } else {
+                typedPrior = TypedInputCheck.Prior(focusedIn: nil)
+            }
             do {
                 do {
                     try await typeDriver.type(ref: resolvedTypeRef, text: content)
@@ -403,28 +414,14 @@ extension MCPServer {
             }
             // **secure 欄の文字数・改行入りの宛先の照合**(判定は DSL と共有 = `TypedInputVerdict`)。ref あり / なしとも。
             // 打った文字は既に届いているので、失敗にしても撃ち直しは勧めない
-            let wantsMaskedCheck = TypedInputVerdict.wantsMaskedCheck(
-                target: priorElement, text: content, isAndroid: Self.platformName(args) == "android")
-            let wantsNewlineCheck = content.contains("\n") && !content.hasSuffix("\n")
-                && priorElement.map(TypeReadback.isTextInput) == true
-            if wantsMaskedCheck || wantsNewlineCheck, let fresh = await cachedVerification() {
-                let valueBefore = wantsReplace ? "" : (priorValue ?? "")
-                var failure: String?
-                if wantsNewlineCheck, let priorElement {
-                    failure = TypedInputVerdict.newlineMisdelivery(
-                        target: priorElement, before: treeBeforeType, after: fresh.elements,
-                        valueBefore: valueBefore, text: content)
-                }
-                if failure == nil, wantsMaskedCheck,
-                   let field = TypedInputVerdict.maskedField(target: priorElement, in: fresh.elements) {
-                    failure = TypedInputVerdict.maskedShortfall(
-                        priorValue: valueBefore, afterValue: TypeReadback.normalizedValue(of: field), text: content)
-                }
-                if let failure {
-                    recordInteraction(action: "type", resolvedRef: targetRef, args: args, text: content,
-                                      replace: wantsReplace)
-                    throw MCPError(failure + " (the text was already sent; ft_snapshot shows the field — do not type it again blindly)")
-                }
+            let isAndroidTarget = Self.platformName(args) == "android"
+            if TypedInputCheck.needsAfterRead(prior: typedPrior, text: content, isAndroid: isAndroidTarget),
+               let fresh = await cachedVerification(),
+               let failure = TypedInputCheck.failure(prior: typedPrior, text: content, isAndroid: isAndroidTarget,
+                                                     after: fresh.elements) {
+                recordInteraction(action: "type", resolvedRef: targetRef, args: args, text: content,
+                                  replace: wantsReplace)
+                throw MCPError(failure + " (the text was already sent; ft_snapshot shows the field — do not type it again blindly)")
             }
             if wantsReplace {
                 // **無条件の「replaced」を断言しない**: clearInput → type の後、

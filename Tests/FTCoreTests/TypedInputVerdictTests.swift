@@ -130,14 +130,8 @@ final class TypedInputVerdictTests: XCTestCase {
                 .deletingLastPathComponent()
             return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
         }
-        let actions = try source("Sources/FTCore/StepExecutor+Actions.swift")
-        XCTAssertEqual(actions.components(separatedBy: "await maskedTypeShortfall(").count - 1, 2, "typeDriver 経路と主経路")
-        XCTAssertEqual(actions.components(separatedBy: "await newlineTypeMisdelivery(").count - 1, 2, "typeDriver 経路と主経路")
-        let direct = try source("Sources/FTCore/StepExecutor+DirectActions.swift")
-        XCTAssertEqual(direct.components(separatedBy: "await maskedTypeShortfall(").count - 1, 2, "ロケータ無しの2経路")
         let mcp = try source("Sources/fleetest-mcp/MCPServer+ScreenTools.swift")
-        for needle in ["TypedInputVerdict.maskedShortfall(", "TypedInputVerdict.newlineMisdelivery(",
-                       "TypedInputVerdict.otherInputCleared("] {
+        for needle in ["TypedInputVerdict.otherInputCleared("] {
             XCTAssertTrue(mcp.contains(needle), "MCP が \(needle) を呼んでいない")
         }
         XCTAssertEqual(mcp.components(separatedBy: "TypedInputVerdict.otherInputCleared(").count - 1, 2, "ft_type replace と ft_clear_input")

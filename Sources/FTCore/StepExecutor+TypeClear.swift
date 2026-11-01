@@ -170,39 +170,32 @@ extension StepExecutor {
         }
     }
 
-    /// secure 欄へ打った後の**文字数の照合**(中身は読めないが伏せ字の数は読める)。iOS は secure 欄が受けない文字
-    /// (日本語・絵文字・タブ等)を黙って捨てるのに、ランナーも in-app も伏せ字は読み返しの材料にしない(`isMaskedInput`)ので ok になっていた。
-    /// 判定は `TypedInputVerdict`(MCP の ft_type と共有)。`element` が nil = ロケータ無しの type(焦点の欄を見る)。
-    /// **門は打った後の木で決める**(Flutter は焦点が入るまで textField・id が外側の other に付く)。
-    /// `priorValue` = 打つ前の値(replace なら消した後なので空)。nil = 通す(値は文言に含めない)
-    func maskedTypeShortfall(_ driver: AppDriver, element: ElementInfo?, priorValue: String? = nil, text: String,
-                             phase: inout PhaseAccumulator) async -> String? {
-        guard TypedInputVerdict.wantsMaskedCheck(target: element, text: text, isAndroid: isAndroid) else { return nil }
+    /// type の事後の照合(secure 欄の文字数・改行入りの宛先)の**唯一の入口**。判定は `TypedInputCheck` / `TypedInputVerdict`
+    /// (MCP の ft_type と共有)。**ロケータ有り・無しの全経路がここを通る**(経路の表は `TypedInputCheckRoutesTests`)。
+    /// iOS は secure 欄が受けない文字(日本語・絵文字・タブ等)を黙って捨てるのに、ランナーも in-app も伏せ字は読み返しの
+    /// 材料にしない(`isMaskedInput`)ので ok になっていた。**門は打った後の木で決める**(Flutter は焦点が入るまで textField・
+    /// id が外側の other に付く)。読めなかった・門が閉じている = nil(通す)
+    func typedInputFailure(_ driver: AppDriver, prior: TypedInputCheck.Prior, text: String,
+                           phase: inout PhaseAccumulator) async -> String? {
+        guard TypedInputCheck.needsAfterRead(prior: prior, text: text, isAndroid: isAndroid) else { return nil }
         let clock = ContinuousClock()
         let start = clock.now
         guard let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) else { return nil }
         phase.snapshotMs += Self.ms(clock.now - start)
-        guard let field = TypedInputVerdict.maskedField(target: element, in: snap.elements) else { return nil }
-        return TypedInputVerdict.maskedShortfall(priorValue: priorValue,
-                                                 afterValue: TypeReadback.normalizedValue(of: field), text: text)
+        return TypedInputCheck.failure(prior: prior, text: text, isAndroid: isAndroid, after: snap.elements)
     }
 
-    /// `maskedTypeShortfall` の判定のうち前の値を使わない形(純粋)
-    static func maskedShortfallMessage(afterValue value: String, text: String) -> String? {
-        TypedInputVerdict.maskedShortfall(priorValue: nil, afterValue: value, text: text)
-    }
-
-    /// 改行を含む本文の**宛先の照合**(判定は `TypedInputVerdict.newlineMisdelivery`。MCP の ft_type と共有)。
-    /// ロケータ有りの type の全経路(typeDriver・主経路)から呼ぶ
-    func newlineTypeMisdelivery(_ driver: AppDriver, element: ElementInfo, before: [ElementInfo], valueBefore: String,
-                                text: String, phase: inout PhaseAccumulator) async -> String? {
-        guard text.contains("\n"), !text.hasSuffix("\n"), TypeReadback.isTextInput(element) else { return nil }
+    /// ロケータ無しの type の「打つ前の値」。前の数が要る形(`needsPriorRead`)だけ打つ直前に木を1枚読む
+    /// (replace の消去は反映済み)。要らない形・読めない形は前の値なし
+    func focusedPriorForTyping(_ driver: AppDriver, text: String, phase: inout PhaseAccumulator) async -> TypedInputCheck.Prior {
+        guard TypedInputCheck.needsPriorRead(text: text, isAndroid: isAndroid) else {
+            return TypedInputCheck.Prior(focusedIn: nil)
+        }
         let clock = ContinuousClock()
         let start = clock.now
-        guard let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) else { return nil }
+        let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass)
         phase.snapshotMs += Self.ms(clock.now - start)
-        return TypedInputVerdict.newlineMisdelivery(target: element, before: before, after: snap.elements,
-                                                    valueBefore: valueBefore, text: text)
+        return TypedInputCheck.Prior(focusedIn: snap?.elements)
     }
 
     /// 打った文字が欄の領域に描かれているかを OCR で見る(`verifyTypedText` の「値が1文字も動かない」形の
