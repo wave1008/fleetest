@@ -347,6 +347,8 @@ extension MCPServer {
         // 余計な往復を増やすだけ)。指紋は記憶から読むだけなので往復は増えない
         let wantsSnapshotAfter = args["snapshotAfter"] as? Bool == true
         let beforeBack = target == "back" ? lastSnapshots[Self.sessionKey(args)] : nil
+        // back はアラート・覆いが前面にあるとそちらへ届く(座標の経路と同じ「直近の木」の確認。撃つ前に読む)
+        let backCoverWarning = target == "back" ? await verifiedTreeCoverWarning(navigation, args: args) : ""
         switch target {
         case "back": try await navigation.back()
         case "home": try await navigation.home()
@@ -412,7 +414,7 @@ extension MCPServer {
         return text("\(target) sent"
             + Self.changedHint(args, otherwise: ". Take a fresh ft_snapshot to see the result")
             + Self.backNoOpNote(target: target, bridge: bridges[Self.sessionKey(args)])
-            + backIneffectiveNote
+            + backIneffectiveNote + backCoverWarning
             + Self.backgroundedAppNote(target: target, bridge: bridges[Self.sessionKey(args)])
             + Self.backgroundingNavigationNote(target: target, bridge: bridges[Self.sessionKey(args)],
                                                          switcherSeen: switcherSeen)
@@ -632,6 +634,10 @@ extension MCPServer {
             }
         } else {
             whole = true
+        }
+        // 的の指定が無い(木から選んだ領域・画面全体)形も座標の経路と同じ前面の確認を通す(アラート・覆いの下を撃たない)
+        if pinchResolvedRef == nil, pinchCoordinate == nil {
+            pinchSelector += await coordinateFrontAppWarning(pinchDriver, args: args)
         }
         let pinchDuration = try Self.doubleArgument(args, "durationSeconds")
             ?? FlowStep.defaultPinchDurationSeconds

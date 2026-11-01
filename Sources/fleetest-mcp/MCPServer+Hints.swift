@@ -1369,7 +1369,31 @@ extension MCPServer {
     /// シェードの下でも `foregroundAppID` は下のアプリを返す)。読めなければ黙る
     func coordinateFrontAppWarning(_ driver: AppDriver, args: [String: Any]) async -> String {
         let probed = await coordinateFrontAppWarningFromProbes(driver, args: args)
-        return probed.isEmpty ? Self.lastTreeCoverWarning(lastSnapshots[Self.sessionKey(args)]) : probed
+        return probed.isEmpty ? await verifiedTreeCoverWarning(driver, args: args) : probed
+    }
+
+    /// **ref なしの type / clear / Enter(焦点の欄へ撃つ形)を、別のアプリが前面のときに断る**(Android だけ = iOS はランナーが断る)。
+    /// ref 付きは `verifiedRef` が出自の違うアプリを断り、座標は警告するが、ref なしは確認が無く、アプリが落ちて前面に出た別アプリの
+    /// 欄を書き換え・消し・送信していた(Enter は取り消せない)。判定は座標の警告と同じ(`coordinateFrontAppWarningFromProbes`)
+    func refusalForRefLessInputOnOtherApp(_ driver: AppDriver, args: [String: Any], what: String) async -> String? {
+        guard driver is AndroidDriver else { return nil }
+        let warning = await coordinateFrontAppWarningFromProbes(driver, args: args)
+        guard !warning.isEmpty else { return nil }
+        return "refusing \(what) without a ref: it would act on whatever field has focus right now, and nothing was sent."
+            + warning + " Bring the app back (ft_launch with resume: true) and pass the field's ref"
+    }
+
+    /// `lastTreeCoverWarning` を、撃つ前の確認として使える形にしたもの(ft_navigate back もここを通る)
+    func verifiedTreeCoverWarning(_ driver: AppDriver, args: [String: Any]) async -> String {
+        let key = Self.sessionKey(args)
+        let warning = Self.lastTreeCoverWarning(lastSnapshots[key])
+        // 直近の木の後にこのセッションが操作を撃っていたら、その木のアラート・覆いは閉じた後かもしれない
+        // (自分の ft_tap で閉じた直後の座標の手に誤警告が出ていた)。言う前に生で読み直して確かめる
+        // (生読み = lastSnapshots・世代を動かさない。読めなければ確かめられないので言う)
+        let actedSinceTree = (sessionActionCounts[key] ?? 0) > (refGenerations[key]?.last?.actionCount ?? 0)
+        guard !warning.isEmpty, actedSinceTree else { return warning }
+        guard let reread = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) else { return warning }
+        return Self.lastTreeCoverWarning(reread)
     }
 
     /// 直近に読んだ木(古びうる)が、アプリ内アラート・画面の中心を覆うオーバーレイの窓を申告していたら言う。
@@ -1391,7 +1415,7 @@ extension MCPServer {
             : ""
     }
 
-    private func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any]) async -> String {
+    func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any]) async -> String {
         guard let launched = launchedBundleIDs[Self.sessionKey(args)] else { return "" }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
         if let android = driver as? AndroidDriver {

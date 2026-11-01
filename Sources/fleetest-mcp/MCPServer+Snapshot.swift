@@ -497,6 +497,8 @@ extension MCPServer {
                        + Self.shorteningAdvice(snapshot, cache: cache) + "\n",
                    short: "")
             : ""
+        // 木を読み手へ返す口はここ1箇所(ft_snapshot / snapshotAfter / ft_batch の末尾 / ft_rotate / ft_fold)。返した世代は窓から押し出さない
+        markLastGenerationDelivered(args: args)
         if let inAppAlert = AlertTreeScope.frontInAppAlert(in: snapshot) {
             return switchedNote + ceilingNote + extraNote + backgroundNote
                 + Self.inAppAlertNote(inAppAlert, in: snapshot)
@@ -1354,6 +1356,22 @@ extension MCPServer {
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
                 throw MCPError(refusal)
             }
+            // **キーボードで枠が細い帯に潰れた対象は撃たない**(DSL は閉じてから撃つ。中心を撃っても要素に当たらず焦点の欄へ届く)
+            if KeyboardWait.isShown(fresh) {
+                let raisedBar = TapTargetGeometry.coveredByBarRaisedAboveKeyboard(
+                    found, in: fresh.elements, screen: fresh.screen, keyboard: keyboardOcclusion.frame)
+                if TapTargetGeometry.isCollapsedFrame(found) || raisedBar != nil {
+                    throw MCPError("refusing [\(ref)]: \(RefGuard.describe(found)) is "
+                        + (raisedBar.map { "covered by \(RefGuard.describe($0)), which rose above the keyboard" }
+                            ?? "collapsed to a thin band (\(Int(found.frame.width))x\(Int(found.frame.height)))")
+                        + " while the on-screen keyboard is up, so a touch would not land on it. Nothing was sent."
+                        + " Close the keyboard (ft_hide_keyboard), take a fresh ft_snapshot and use the new ref")
+                }
+            }
+            // **同じ id が複数ある木で動いた位置のものへ付け替わるなら撃たない**(別の行の同じ部品を押す)
+            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements) {
+                throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
+            }
             // **ラベルが変わっていないかも見る**。moved の大小とは無関係に出す ——
             // 動かずにラベルだけ変わった行も同じ危険(RefGuard.labelChangeNote 参照)
             let labelNote = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""
@@ -2012,6 +2030,7 @@ extension MCPServer {
         // 応答1回ぶんのキャッシュ。SnapshotAnnotationCache のコメント参照(寿命はこの呼び出しだけ)
         let cache = SnapshotAnnotationCache()
         // **アプリ内のアラートが前面なら、木はアラートの部分木だけ**(snapshotBody と同じ規律 = `AlertTreeScope`)
+        markLastGenerationDelivered(args: args)   // ft_scroll_to の木も返した世代(snapshotBody と同じ理由)
         if let inAppAlert = AlertTreeScope.frontInAppAlert(in: after) {
             return text(switched + scrollFrameLabelNote + sheetNote + timingNote
                 + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes) + "\(landed)\(fallbackNote).\n"

@@ -385,6 +385,22 @@ enum RefGuard {
             + " verify the outcome"
     }
 
+    /// **同じ id が今の木に複数あり、採った要素から動いた位置のものへ付け替わる**ときの同 id の件数(無ければ nil)。
+    /// id だけで最寄りを採ると、一覧の別の行の同じ部品(chevron 等)へ黙って付け替わる(ラベルの無い部品は labelChangeNote も効かない)。
+    /// 動いていない(`movedThreshold` 未満)なら採った要素そのものなので nil。型も同じものだけ数える
+    static func ambiguousRetargetCount(target: ElementInfo, found: ElementInfo, moved: Double,
+                                       in fresh: [ElementInfo]) -> Int? {
+        guard moved >= movedThreshold, let id = target.identifier, !id.isEmpty else { return nil }
+        let count = fresh.filter { $0.identifier == id && $0.type == found.type }.count
+        return count >= 2 ? count : nil
+    }
+
+    static func ambiguousRetargetRefusal(ref: Int, old: ElementInfo, count: Int) -> String {
+        "refusing [\(ref)]: \(describe(old)) now matches \(count) elements with the same id, and the one nearest to where it was"
+            + " snapshotted has moved, so this can be the same-looking part of a different row. Nothing was sent."
+            + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
+    }
+
     /// 古い ref が、このセッションの操作の後でラベルの違う要素に付け替わったときの断り(撃っていない)
     static func labelChangedAfterOwnActionRefusal(ref: Int, old: ElementInfo, new: ElementInfo) -> String {
         "refusing [\(ref)]: it was taken before your own later actions, and the element it now matches,"

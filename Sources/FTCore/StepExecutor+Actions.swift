@@ -672,6 +672,27 @@ extension StepExecutor {
             }
         }
 
+        // **キーボードで枠が細い帯に潰れた対象は、閉じてから引き直して撃つ**(実機 CMP: 高さ 2 に潰れた送信・クリアを撃つと焦点の欄へ当たり
+        // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられない・引けなければ従来どおり撃つ
+        if action == "tap", !switchedToFallbackDriver, KeyboardWait.isShown(snapshot),
+           TapTargetGeometry.isCollapsedFrame(element)
+            || TapTargetGeometry.coveredByBarRaisedAboveKeyboard(
+                element, in: snapshot.elements, screen: snapshot.screen,
+                keyboard: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                    screen: snapshot.screen).frame) != nil,
+           case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+            let start = ContinuousClock().now
+            let after = try await freshSnapshot(.afterOwnMove)
+            phase.snapshotMs += Self.ms(ContinuousClock().now - start)
+            if let (reached, _) = LocatorResolver.resolve(step: step, in: after) {
+                snapshot = after
+                element = reached
+                resolvedElementThisStep = element
+                driverFallback = Self.joinNotes(driverFallback,
+                    closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
+            }
+        }
+
         // **無効な対象は操作可能になるまで待ってから撃つ**(ユーザー決定)。
         // 画面が出た直後は、要素は木に居るのに**まだ触れない**ことがある(受け手の実アプリ:
         // ログインフォームが読み込み中は入力欄が無効で、id を持たない透明な clickable が
