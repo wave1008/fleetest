@@ -39,6 +39,31 @@ final class TypeNoteAndWaitMissWordingTests: XCTestCase {
         XCTAssertTrue(note.contains("whether it landed was not checked"), note)
     }
 
+    private func focusedSecure(value: String) -> SnapshotResponse {
+        var field = ElementInfo(ref: 1, type: "secureTextField", identifier: "password", label: nil,
+                                value: value, placeholder: nil, enabled: true,
+                                frame: FTRect(x: 0, y: 0, width: 200, height: 40), depth: 1)
+        field.focused = true
+        return SnapshotResponse(sessionBundleID: "com.example.app",
+                                screen: FTRect(x: 0, y: 0, width: 390, height: 844),
+                                elements: [field], truncatedCount: 0)
+    }
+
+    /// 伏せ字の値は包含で照合しない(正しく入っているのに「landed していない」と警告していた)
+    func testMaskedFieldValueDoesNotRaiseALandedWarning() async {
+        let note = await MCPServer.typedIntoNote(driver: FakeDriver(), expected: "ab", snapshot: focusedSecure(value: "••"))
+        XCTAssertFalse(note.contains("warning"), note)
+    }
+
+    /// secure 欄が伏せ字でなく本文を返す形(Flutter の Android)で「replaced」と言わず、値を繰り返さない
+    func testPlaintextInASecureFieldIsNotClaimedAsReplaced() {
+        let fresh = focusedSecure(value: "secret 123")
+        let target = fresh.elements[0]
+        let note = MCPServer.replaceVerificationNote(target: target, expected: "secret\n123", fresh: fresh)
+        XCTAssertFalse(note.contains("replaced the field"), note)
+        XCTAssertFalse(note.contains("secret"), note)
+    }
+
     func testQuietStopHeadlineDoesNotRecommendWaitForChangeToACallerThatLacksIt() {
         let batch = MCPServer.waitMissHeadline("#x", seconds: 12, quietStopAfter: 4.3, canWaitForChange: false)
         XCTAssertTrue(batch.contains("ft_snapshot waitForChange: true"), batch)

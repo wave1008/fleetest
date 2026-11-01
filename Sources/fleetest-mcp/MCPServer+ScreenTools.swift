@@ -180,6 +180,7 @@ extension MCPServer {
         // 撃つ前の値は verifiedRef が撮り直した木から引く(追加の snapshot を払わない)
         var priorValue: String?
         var priorElement: ElementInfo?
+        var treeBeforeType: [ElementInfo] = []
         if let ref = targetRef {
             let verified = try await verifiedRef(ref, driver: typeDriver, args: args)
             targetRef = verified.ref
@@ -190,6 +191,7 @@ extension MCPServer {
             // `placeholder` と同値の空欄(iOS 全般 / Android の CMP)でも MCP だけが
             // 追記警告を出していた —— StepExecutor は normalizedValue で黙る側
             priorValue = priorElement.map(TypeReadback.normalizedValue)
+            treeBeforeType = lastSnapshots[Self.sessionKey(args)]?.elements ?? []
             // **入力欄でないものへ打とうとしていないか**。判定は DSL と共有
             // (TapTargetGeometry.nonInputTypeTargetNote。実測と理由はそちらの doc)。
             // MCP は StepExecutor を経由しない別経路なので、ここにも配線が要る。
@@ -244,6 +246,11 @@ extension MCPServer {
                         note += " (closed the keyboard — the field was not on the screen while it was up)"
                     }
                 }
+                // 焦点の別の欄まで消えていないか(DSL の performClearInput と同じ判定)
+                if let after = afterClear,
+                   let other = TypedInputVerdict.otherInputCleared(target: priorElement, before: treeBeforeType, after: after.elements) {
+                    throw MCPError(TypedInputVerdict.clearedOtherInputMessage(other) + " (replace: nothing was typed)")
+                }
                 guard let refound = refoundField else {
                     throw MCPError("the field was cleared for replace:, but it could not be found on the screen afterwards"
                         + " (nothing was typed) — ft_snapshot, then ft_type the new text")
@@ -276,6 +283,14 @@ extension MCPServer {
                 return try? await typeDriver.snapshot(bypassingCache: typeDriver.supportsCacheBypass)
             }
             return lastSnapshots[Self.sessionKey(args)]
+        }
+        // 同じ手の中で複数の判定(secure の数・改行の宛先・replace / 追記の読み返し)が読むので1回だけ読む
+        var verificationCache: SnapshotResponse??
+        func cachedVerification() async -> SnapshotResponse? {
+            if let cached = verificationCache { return cached }
+            let read = await verificationSnapshot()
+            verificationCache = .some(read)
+            return read
         }
         // **検証の読み直し(verificationSnapshot)が新しい世代を採る前に、ref の解決と再現セレクタを済ませる**:
         // 後で nativeRef / reproductionNote を呼ぶと新世代の base / 木で引くので、別の番号を撃ち、注記も消える
@@ -377,8 +392,34 @@ extension MCPServer {
                 // 操作後の木になってしまい「変化なし」と誤報する
                 let rawAfterType = try? await typeDriver.snapshot(
                     bypassingCache: typeDriver.supportsCacheBypass)
+                verificationCache = .some(rawAfterType)
                 note += await Self.typedIntoNote(driver: typeDriver, expected: content,
                                                  snapshot: rawAfterType)
+            }
+            // **secure 欄の文字数・改行入りの宛先の照合**(判定は DSL と共有 = `TypedInputVerdict`)。ref あり / なしとも。
+            // 打った文字は既に届いているので、失敗にしても撃ち直しは勧めない
+            let wantsMaskedCheck = TypedInputVerdict.wantsMaskedCheck(
+                target: priorElement, text: content, isAndroid: Self.platformName(args) == "android")
+            let wantsNewlineCheck = content.contains("\n") && !content.hasSuffix("\n")
+                && priorElement.map(TypeReadback.isTextInput) == true
+            if wantsMaskedCheck || wantsNewlineCheck, let fresh = await cachedVerification() {
+                let valueBefore = wantsReplace ? "" : (priorValue ?? "")
+                var failure: String?
+                if wantsNewlineCheck, let priorElement {
+                    failure = TypedInputVerdict.newlineMisdelivery(
+                        target: priorElement, before: treeBeforeType, after: fresh.elements,
+                        valueBefore: valueBefore, text: content)
+                }
+                if failure == nil, wantsMaskedCheck,
+                   let field = TypedInputVerdict.maskedField(target: priorElement, in: fresh.elements) {
+                    failure = TypedInputVerdict.maskedShortfall(
+                        priorValue: valueBefore, afterValue: TypeReadback.normalizedValue(of: field), text: content)
+                }
+                if let failure {
+                    recordInteraction(action: "type", resolvedRef: targetRef, args: args, text: content,
+                                      replace: wantsReplace)
+                    throw MCPError(failure + " (the text was already sent; ft_snapshot shows the field — do not type it again blindly)")
+                }
             }
             if wantsReplace {
                 // **無条件の「replaced」を断言しない**: clearInput → type の後、
@@ -387,12 +428,12 @@ extension MCPServer {
                 // 「replaced」と嘘をつく。読み返して期待どおり/マスクで検証不能/旧値残存/
                 // 読めないの4形に分ける(replaceVerificationNote)
                 note += Self.replaceVerificationNote(
-                    target: priorElement, expected: content, fresh: await verificationSnapshot())
+                    target: priorElement, expected: content, fresh: await cachedVerification())
             } else if let prior = priorValue, !prior.isEmpty {
                 // **予告ではなく観測**(appendVerificationNote の doc に witness)
                 note += Self.appendVerificationNote(target: priorElement, typed: content,
                                                     prior: prior,
-                                                    fresh: await verificationSnapshot())
+                                                    fresh: await cachedVerification())
             }
         } else {
             // **clear-only({replace:true, text:"" or 省略})も無条件に「cleared」と断言しない**
@@ -400,7 +441,7 @@ extension MCPServer {
             // (replaceVerificationNote は expected 空でこの3形を返す)
             if wantsReplace {
                 note += Self.replaceVerificationNote(
-                    target: priorElement, expected: "", fresh: await verificationSnapshot())
+                    target: priorElement, expected: "", fresh: await cachedVerification())
             }
             if let nativeTarget = nativeTargetRef, let ref = targetRef {
                 // 入力せず Enter だけ撃つときも、対象が指定されていればフォーカスを立ててから。
@@ -447,12 +488,14 @@ extension MCPServer {
         var clearRef = try Self.intArgument(args, "ref")
         var clearNote = ""
         var clearTarget: ElementInfo?
+        var treeBeforeClear: [ElementInfo] = []
         if let ref = clearRef {
             let verified = try await verifiedRef(ref, driver: clearDriver, args: args)
             clearRef = verified.ref
             clearNote = verified.note
             clearTarget = lastSnapshots[Self.sessionKey(args)]?
                 .elements.first { $0.ref == verified.ref }
+            treeBeforeClear = lastSnapshots[Self.sessionKey(args)]?.elements ?? []
             // ft_type と同じ門(そちらの doc 参照)。容器(内側に入力欄がちょうど1つ)は
             // 警告のうえで撃つが、それ以外の非入力欄は撃つ前に拒否する
             if let clearTarget, let elements = lastSnapshots[Self.sessionKey(args)]?.elements {
@@ -491,6 +534,11 @@ extension MCPServer {
         }
         if verification == nil {
             verification = try? await clearDriver.snapshot(bypassingCache: clearDriver.supportsCacheBypass)
+        }
+        // 焦点の別の欄まで空になっていないか(DSL の performClearInput と同じ判定)
+        if let clearTarget, let verification,
+           let other = TypedInputVerdict.otherInputCleared(target: clearTarget, before: treeBeforeClear, after: verification.elements) {
+            throw MCPError(TypedInputVerdict.clearedOtherInputMessage(other))
         }
         let clearedVerdict = Self.replaceVerificationNote(
             target: clearTarget, expected: "", fresh: verification, requestedAs: "clear")

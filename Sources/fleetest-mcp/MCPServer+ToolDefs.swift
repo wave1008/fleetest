@@ -659,6 +659,12 @@ extension MCPServer {
             return " (into \(name), which now reads \"\(SnapshotRenderer.truncate(value, 40))\"; the text was only invisible"
                 + " characters, so whether it landed was not checked)"
         }
+        // **伏せ字(または secure 欄)の値は包含で照合しない**(中身は読めない。数の照合は呼び手が `TypedInputVerdict` で行う)。
+        // ref 付きの経路は `looksMasked` を中立に扱うので揃える(正しく入っているのに「landed していない」と警告していた)
+        if TypeReadback.isMaskedInput(field)
+            || (TypedInputVerdict.looksMasked(value) && !TypedInputVerdict.looksMasked(normalizedExpected)) {
+            return " (into \(name); the field reads back masked, so what landed could not be read)"
+        }
         guard !value.contains(normalizedExpected) else {
             return " (into \(name), which now reads \"\(SnapshotRenderer.truncate(value, 40))\")"
         }
@@ -709,6 +715,12 @@ extension MCPServer {
                 return " (\(requestedAs) requested; its value could not be read back)"
             }
             return " (cleared the field)"
+        }
+        // **secure 欄が伏せ字でなく本文を返す形**(Flutter の Android は改行入りの SET_TEXT の本文を a11y の値に持ち続ける)。
+        // 実値と違うまま「replaced」と言わず、値をここへ繰り返さない
+        if TypeReadback.isMaskedInput(found), !rawValue.isEmpty, !Self.looksMasked(rawValue) {
+            return " (\(requestedAs) requested; the masked field reads back its text instead of dots, so the result could not be"
+                + " verified — the value is not repeated here)"
         }
         // **正規化してから比較する**: typedIntoNote と同じゼロ幅文字の扱いを
         // expected 側にもかける —— これが無いと、両辺が実質同じ文字列でも不一致の警告が出る

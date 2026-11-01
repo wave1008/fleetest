@@ -1075,7 +1075,7 @@ extension StepExecutor {
                                                                   text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
-                    if let failure = await maskedTypeShortfall(td, element: element,
+                    if let failure = await maskedTypeShortfall(td, element: element, priorValue: existingValue,
                                                                text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
@@ -1107,7 +1107,12 @@ extension StepExecutor {
                         return StepOutcome(status: .failed(failure))
                     }
                 }
-                if let failure = await maskedTypeShortfall(actingDriver, element: element,
+                // 改行入りの宛先の照合は typeDriver 経路だけでなく主経路にも要る(xcuitest モード・MCP の ft_batch は typeDriver が無い)
+                if let failure = await newlineTypeMisdelivery(actingDriver, element: element, before: snapshot.elements,
+                                                              valueBefore: existingValue, text: text, phase: &phase) {
+                    return StepOutcome(status: .failed(failure))
+                }
+                if let failure = await maskedTypeShortfall(actingDriver, element: element, priorValue: existingValue,
                                                            text: text, phase: &phase) {
                     return StepOutcome(status: .failed(failure))
                 }

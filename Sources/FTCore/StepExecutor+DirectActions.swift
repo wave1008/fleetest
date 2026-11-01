@@ -631,6 +631,11 @@ extension StepExecutor {
                     return StepOutcome(status: .failed(failure))
                 }
             }
+            if let failure = await maskedTypeShortfall(driver, element: recovered,
+                                                       priorValue: TypeReadback.normalizedValue(of: recovered),
+                                                       text: text, phase: &phase) {
+                return StepOutcome(status: .failed(failure))
+            }
             // ロケータ有り type(case "type")と同じ判定(keyboardFrameBeforeType の doc)。
             // 「打った後」はここでは読まない —— 次のロケータ操作が解決のために撮る最初の
             // 木で比べる(ブリッジに依存しない)
@@ -661,6 +666,10 @@ extension StepExecutor {
             try await driver.type(ref: nil, text: text)
         }
         phase.actionMs += Self.ms(clock.now - start)
+        // ロケータ有りの type と同じ secure 欄の文字数の照合(焦点の欄を見る。打つ前の値は読んでいないので前の数は使わない)
+        if let failure = await maskedTypeShortfall(driver, element: nil, text: text, phase: &phase) {
+            return StepOutcome(status: .failed(failure))
+        }
         // **改行(IME アクション)で焦点は次の欄へ移りうる** —— 叩いた欄を覚えたままだと、続くロケータなしの type が
         // 「焦点が木に無い」(次の欄がキーボードの下)を救済の対象と読んで、叩いた欄(移る前の欄)へ打つ
         if text.contains("\n") { lastTapTarget = nil }
