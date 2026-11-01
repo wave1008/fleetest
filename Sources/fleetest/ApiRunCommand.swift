@@ -483,8 +483,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         let triageBox = BlankTriageBox()
         // 供給フェーズ(install・凍結triage)の間も run-lease を保つ。RunOrchestrator の lease は
         // シナリオ実行中しか書かれず、その手前に start-device が割り込む穴が空くため
-        let supplyLease = (try? RepoRoot.find())
-            .map { SupplyLeaseHolder(stateDir: $0.appendingPathComponent(".fleetest")) }
+        let supplyLease = ProfileRunner.supplyLeaseHolder(repoRoot: try? RepoRoot.find())
         cleanup.supplyLease = supplyLease
         let androidWorkersTask: Task<[RunWorker], Error>?
         var iosWorkersTask: Task<[RunWorker], Never>?
@@ -492,10 +491,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             let resolved = resolvedProfile
             let shouldStop = runExit.supplyAbandon.shouldStop(interruptState)
             androidWorkersTask = Task {
-                let deviceList = resolved.devices
-                    .map { "\($0.name)(\($0.platform))" }.joined(separator: ", ")
-                logSupply("🧩 Profile \(resolved.runName): \(resolved.appName)")
-                logSupply("   Devices: \(deviceList)")
+                for line in ProfileRunner.supplyHeaderLines(profileName: resolved.runName, resolved: resolved) { logSupply(line) }
                 // 手順は ProfileSupplyLanes.android の1箇所(fleetest run と同じ関数)。凍結 triage で全台が
                 // 除外されたら投げる = run を止める(ユーザー決定: 全滅は異常)
                 let workers = try await ProfileSupplyLanes.android(
@@ -1023,14 +1019,10 @@ struct ApiRunCommand: AsyncParsableCommand {
         let triageBox = BlankTriageBox()
         var workers: [RunWorker] = []
         // 供給フェーズ(install・凍結triage)の間も run-lease を保つ(理由は並列経路の同処理を参照)
-        let supplyLease = (try? RepoRoot.find())
-            .map { SupplyLeaseHolder(stateDir: $0.appendingPathComponent(".fleetest")) }
+        let supplyLease = ProfileRunner.supplyLeaseHolder(repoRoot: try? RepoRoot.find())
         defer { supplyLease?.release() }
         if !dryRun {
-            let deviceList = resolved.devices
-                .map { "\($0.name)(\($0.platform))" }.joined(separator: ", ")
-            logSupply("🧩 Profile \(profileName): \(resolved.appName)")
-            logSupply("   Devices: \(deviceList)")
+            for line in ProfileRunner.supplyHeaderLines(profileName: profileName, resolved: resolved) { logSupply(line) }
             // 手順は並列経路と同じ ProfileSupplyLanes を順に呼ぶ(この経路は --debug の単発実行で、
             // 遅延参加が無いので iOS も開始前に待つ)。台帳へは記帳しないので supplyStage は渡さない
             workers = try await ProfileSupplyLanes.android(

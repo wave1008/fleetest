@@ -158,6 +158,18 @@ extension ProfileRunner {
         }
     }
 
+    /// 供給の先頭に出す2行(run と api run が共有)。違い: run は `prepareSupply` が同期に出し、api run は Android のレーンのタスクの先頭で
+    /// `logSupply`(stderr + NDJSON)へ出す。出す場所・順序は呼び手の事情なので寄せない(行の中身だけ共有)
+    static func supplyHeaderLines(profileName: String, resolved: ResolvedProfile) -> [String] {
+        let deviceList = resolved.devices.map { "\($0.name)(\($0.platform))" }.joined(separator: ", ")
+        return ["🧩 Profile \(profileName): \(resolved.appName)", "   Devices: \(deviceList)"]
+    }
+
+    /// 供給フェーズの間も run-lease を保つ保持者(run と api run が共有)。リポジトリ外では nil(書かない)
+    static func supplyLeaseHolder(repoRoot: URL?) -> SupplyLeaseHolder? {
+        repoRoot.map { SupplyLeaseHolder(stateDir: $0.appendingPathComponent(".fleetest")) }
+    }
+
     /// 準備の段。`iosScenarios` / `androidScenarios` は台数の見積りに使う本数(nil = 分からないので絞らない・0 = その OS の台を用意しない)、
     /// `scenarioCount` は表示用(分からなければ nil)。`failureLogDir` = 開始スクリプトが落ちたときにサービスのログを残す場所
     /// (無ければレポートの出力先)
@@ -201,17 +213,14 @@ extension ProfileRunner {
         // fm は full から計算する(filteringDevices/limitingDevices/broadcast は devices だけを変える)
         await Self.warnIfFMDegraded(fm: full.fm) { ConsoleOut.out($0) }
         RunEnvironment.apply(resolved)
-        let deviceList = resolved.devices
-            .map { "\($0.name)(\($0.platform))" }.joined(separator: ", ")
-        ConsoleOut.out("🧩 Profile \(profileName): \(resolved.appName)")
-        ConsoleOut.out("   Devices: \(deviceList)")
+        for line in supplyHeaderLines(profileName: profileName, resolved: resolved) { ConsoleOut.out(line) }
 
         let repoRoot = try RepoRoot.find()
         await BackendHealthCheck.warnIfUnreachable(resolved: resolved) { ConsoleOut.out($0) }
         // 供給フェーズ(install・凍結triage)の間も run-lease を保つ。RunOrchestrator の lease は
         // シナリオ実行中しか書かれず、その手前に start-device が割り込む穴が空くため。best-effort: リポジトリ外
         // 実行等で root が取れない場合は書かない(monitor 側の inRun 判定が false になるだけで安全)
-        let supplyLease = leaseStateDir.map { SupplyLeaseHolder(stateDir: $0) }
+        let supplyLease = supplyLeaseHolder(repoRoot: repoRoot)
         cleanup.supplyLease = supplyLease
         // 両レーンの実行前 triage を run.json(blankRepairs/blankExclusions/workerAnomalies)へ運ぶ
         let triageBox = BlankTriageBox()
