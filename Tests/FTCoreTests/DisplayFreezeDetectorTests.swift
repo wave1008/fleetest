@@ -58,19 +58,42 @@ final class LaneDisplayCheckOrchestratorPartsTests: XCTestCase {
         let passed = RunEvent.flowFinished(worker: "w", flowURL: url, passed: true,
                                            reportURL: URL(fileURLWithPath: "/tmp/r.md"), fm: nil, appCrash: nil,
                                            notApplicableReason: nil)
-        guard case .flowFinished(let worker, let flowURL, let ok, let report, _, _, let na) =
-                RunOrchestrator.failedFinish(passed) else { return XCTFail("not a flowFinished") }
+        guard case .flowFinished(let worker, let flowURL, let ok, let report, _, _, let na, let discarded) =
+                RunOrchestrator.failedFinish(passed, discardReason: "a blank screen") else { return XCTFail("not a flowFinished") }
         XCTAssertFalse(ok)
         XCTAssertEqual(worker, "w")
         XCTAssertEqual(flowURL, url)
         XCTAssertEqual(report?.lastPathComponent, "r.md")
         XCTAssertNil(na)
+        XCTAssertEqual(discarded, "a blank screen")
+    }
+
+    /// 赤で終わった回の結果は子の赤のまま(捨てた理由を出すのは「緑だったのに」の回だけ)
+    func testFailedFinishDoesNotCallARedRunDiscarded() {
+        let failed = RunEvent.flowFinished(worker: "w", flowURL: url, passed: false, reportURL: nil, fm: nil,
+                                           appCrash: nil, notApplicableReason: nil)
+        guard case .flowFinished(_, _, _, _, _, _, _, let discarded) =
+                RunOrchestrator.failedFinish(failed, discardReason: "a blank screen") else { return XCTFail("not a flowFinished") }
+        XCTAssertNil(discarded)
+    }
+
+    func testDiscardedNoticeGoesRightAfterTheTimestampAndKeepsTheResultLine() {
+        let report = "# Scenario run report\n\n- Result: ✅ passed\n- Timestamp: t\n\n## scene 1\n"
+        let lines = ScenarioReportNotice.withDiscardedNotice(report, reason: "a blank screen")
+            .components(separatedBy: "\n")
+        XCTAssertTrue(lines.contains("- Result: ✅ passed"))
+        let timestamp = lines.firstIndex(of: "- Timestamp: t")!
+        XCTAssertTrue(lines[timestamp + 2].hasPrefix("> ⚠️ This result was discarded: a blank screen"), "\(lines)")
+    }
+
+    func testDiscardedNoticeLeavesAReportWithoutTheHeaderAlone() {
+        XCTAssertEqual(ScenarioReportNotice.withDiscardedNotice("no header", reason: "x"), "no header")
     }
 
     func testFailedFinishLeavesANotApplicableDeclarationAlone() {
         let skipped = RunEvent.flowFinished(worker: "w", flowURL: url, passed: true, reportURL: nil, fm: nil,
                                             appCrash: nil, notApplicableReason: "android only")
-        guard case .flowFinished(_, _, let ok, _, _, _, let na) = RunOrchestrator.failedFinish(skipped)
+        guard case .flowFinished(_, _, let ok, _, _, _, let na, _) = RunOrchestrator.failedFinish(skipped, discardReason: "a blank screen")
         else { return XCTFail("not a flowFinished") }
         XCTAssertTrue(ok)
         XCTAssertEqual(na, "android only")

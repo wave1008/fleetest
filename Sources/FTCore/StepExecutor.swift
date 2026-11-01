@@ -1135,6 +1135,8 @@ public final class StepExecutor {
     var lastNotRenderedFrame: (screenshot: Data, elements: [ElementInfo], screen: FTRect)?
     /// 直近の `renderCollapseVerdict` が公表した状態の注記(区切りの失敗ステップへ FTRuntime が載せる)
     public internal(set) var renderCollapseNotes: [StepNote] = []
+    /// 赤にしない構成で見つけた崩壊の文(`renderCollapseVerdict` が nil を返す回のステップの説明に出す)
+    public internal(set) var renderCollapseWarning: String?
     /// iOS の hideKeyboard が、背景を叩いても閉じないとき Enter まで送るか。DSL は送る(ユーザー決定)。MCP は送らない ——
     /// エージェントは「閉じたい」だけで送信・検索を起こしうる(Return は欄の確定操作)。要るなら Enter を明示して送る
     public var hideKeyboardFallsBackToEnter = true

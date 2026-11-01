@@ -240,6 +240,8 @@ export interface ScenarioFinishedEvent {
   /** 子が「この環境では成り立たない」と宣言した理由(passed は true のまま)。ある = スキップ
    *  (緑でも赤でもない)。無ければキーごと欠落(Sources/FTCore/ScenarioEvent.swift と同期)。 */
   notApplicableReason?: string;
+  /** 子は緑で終えたが、親が結果を捨てた理由。passed は false で来る */
+  resultDiscardedReason?: string;
 }
 
 /** ScenarioEvent(kind: "log")。ユーザー print の混入行などホスト側の付随情報。 */

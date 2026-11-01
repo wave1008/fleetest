@@ -191,6 +191,17 @@ test("runStarted は cleared を出す", () => {
 });
 
 // FM の供給元は hostMetrics ストリーム(host-metrics プロセス)に一本化されており、
+test("親が結果を捨てた scenarioFinished は失敗ではなく破棄の理由を出す", () => {
+  const state = createRunLaneState();
+  const actions = feed(state, [
+    { kind: "scenarioStarted", scenario: "S.A", title: "A", worker: "ios:シミュ1" },
+    { kind: "scenarioFinished", scenario: "S.A", passed: false, resultDiscardedReason: "a blank screen", worker: "ios:シミュ1" },
+  ]);
+  const text = JSON.stringify(actions);
+  assert.ok(text.includes("a blank screen"), text);
+  assert.ok(!text.includes("❌"), text);
+});
+
 // scenarioFinished の event.fm はレーン側では読まない(NDJSON の欄自体は他の受け手のため残る。
 // model.ts の RunEvent.fm 参照)。ここでは event.fm があっても何も特別なアクションを出さない
 // ことだけ確かめる(クラッシュしない・fmUsage 型のアクションを作らない)。

@@ -100,6 +100,7 @@ final class ScreenStatePublicationTests: XCTestCase {
         XCTAssertNil(message)
         XCTAssertEqual(sink.all, [.textless])
         XCTAssertEqual(executor.renderCollapseNotes, [.screenTextless])
+        XCTAssertTrue(executor.renderCollapseWarning?.contains("the screen is not rendered") == true, "\(String(describing: executor.renderCollapseWarning))")
     }
 
     func testBlankIsPublished() async {
@@ -115,6 +116,7 @@ final class ScreenStatePublicationTests: XCTestCase {
         let message = await verdict(executor)
         XCTAssertNotNil(message)
         XCTAssertEqual(sink.all, [.textless])
+        XCTAssertNil(executor.renderCollapseWarning, "赤になる回はステップの失敗文が同じ事実を言う")
     }
 
     /// 異常が無い確かめは公表を消す
@@ -122,6 +124,7 @@ final class ScreenStatePublicationTests: XCTestCase {
         let (executor, sink) = executor(RenderCollapseTests.png(shapes: [button], inked: texts), redChecks: false)
         _ = await verdict(executor)
         XCTAssertEqual(sink.all, [nil])
+        XCTAssertNil(executor.renderCollapseWarning)
     }
 
     /// 全画面の一色は凍結の担当: 公表も消去もしない

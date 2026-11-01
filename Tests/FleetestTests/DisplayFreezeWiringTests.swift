@@ -35,7 +35,7 @@ final class DisplayFreezeWiringTests: XCTestCase {
         XCTAssertLessThan(check.lowerBound, video.lowerBound, "録画へ合否を渡すのは表示の確認の後")
         // 終了イベントは確認まで保留し、確認の後に(凍結なら失敗として)流す
         XCTAssertTrue(text.contains("heldFinish.withLock { $0 = (event, at) }"), "終了イベントを保留していない")
-        let release = text.range(of: "Self.failedFinish(held.event)")!
+        let release = text.range(of: "Self.failedFinish(held.event, discardReason: discardReason)")!
         XCTAssertTrue(text.contains("continuation.yield(.flowEndedAt(worker: heldWorker, flowURL: heldURL, at: held.at))"),
                       "保留した終了イベントの実際の終了時刻を所要の集計へ運んでいない")
         XCTAssertTrue(text.contains("continuation.yield(.flowStartedAt(worker: worker, flowURL: flowURL, at: Date()))"),

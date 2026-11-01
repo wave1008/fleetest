@@ -275,7 +275,7 @@ struct ScenarioTimingTracker {
             firstStart = min(firstStart ?? now, now)
             startedAt[flowURL, default: [:]][worker] = now
             hasScenario = true
-        case .flowFinished(let worker, let flowURL, _, _, _, _, _):
+        case .flowFinished(let worker, let flowURL, _, _, _, _, _, _):
             let now = sentEndAt[flowURL]?.removeValue(forKey: worker) ?? now
             lastFinish = max(lastFinish ?? now, now)
             let platform = Self.platform(ofWorker: worker)

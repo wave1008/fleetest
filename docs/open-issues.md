@@ -497,6 +497,7 @@
 
 - `scrollFrame: "#list_chat"` を付ければ動く。全画面の払いの始点・終点が一覧の外に落ちる疑い(払いは画面の高さの固定割合)
 - 手がかり: その画面の木を固定し、全画面の払いの座標と一覧の枠を突き合わせる。候補に上がらない理由(申告・縦横比)も同じ木で確かめる
+- 11/1 の探索(mxa F4): 高さ 659px の一覧(Flutter・グリッド・一覧の枠 0,421 2424x659)でも横向きで同じ文が出る。上へだけ動かない(`scrollTo '#cell_60' direction: .up` が 1.7 秒で「nothing moved at all」・`ft_swipe finger=down` も不動・`scrollFrame` を付けると動く。同じ画面の下向きは全画面でも動く)。推測: 全画面の払い(0.3→0.7)の始点が固定の見出し(y<421)に落ちる。411px に限らず始点の位置で決まる
 
 ### OI-59 iOS のアラートの入力欄への ft_type(replace)を「アラートが前面で届かない。ボタンを押せ」と断る
 - 状態: 再現済み
@@ -505,13 +506,6 @@
 
 - replace なしの古い ref は照合し直して打てる。replace の経路(消去の前の ref の検査)で、キーボードで動いた欄の枠がアラートの枠の外と読まれている疑い
 - 手がかり: 断る直前の木で、欄とアラートの枠を突き合わせる
-
-### OI-60 iOS の CMP で replace の消去の後に欄が木から消える形の再確認
-- 状態: 推測
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 10-30 午後の探索的テスト(SE3 実機・E2E-CMP のパスワード欄 = se3 F8 の CMP の形)
-
-- 当時の経路(`hideKeyboardIfShown` が XCUITest で 501)は通らなくなった。引き直しは DSL も MCP も `closeKeyboardWithoutEnter`(iOS はキーボードの外を叩く)。SE3 実機で同じ形を確かめたら閉じる
 
 ### OI-62 横向きの ft_screenshot で maxWidth が高さの上限として効き、fullSize の PNG の画素が縦のまま(向きは eXIf だけ)
 - 状態: 経路確定
@@ -609,6 +603,7 @@
 - 「`findFocus(FOCUS_INPUT)` が前の欄の古いノードを返す」前提で、取り直して focused でなければ木から探す直しを入れたが、確認で効かなかった(4a で 2/2)ので取り消した。前提は否定も確認もされていない
 - emu F13 は `type "#field_first" "Taro\n"; type "Jiro"` の形は直った(改行入りの type の後に叩いた欄の控えを捨てる)。典型の `tap; type; pressEnter; type` は 2/2 で 1つ目の欄へ入り All passed
 - 手がかり: IME の「次へ」の後に、ブリッジが焦点として掴むノードの id と、画面の焦点(echo の focus=)を並べて記録する
+- 11/1 の探索(pixel F1): Android 13 の Pixel 4a・E2E-CMP で悪化形。`tap "#field_single"; type "#field_single" "S"; tap "#field_password"` → ref なし ft_type "P1" が「into #field_password」と答えて single=SP1・password 空(4a 12/12)。ft_clear_input は single が消える(3/5)。ft_type pressEnter は前の欄の IME アクションが発火する(3/3)。DSL と同じ判定の ft_batch `tap; type; pressEnter; tap; type` も All passed で single=AAABBB(3/3)。**同じ手順で Android 12 の Pixel 3a は CMP 0/6、4a の View・Flutter・RN は各 0/3** = Android の版と Compose で分かれる。パスワード欄に値がある回は正しく入った回もある(2/2)。画面の枠とカーソル・`adb shell input text` はパスワード欄 = 実際の焦点はそこ。応答の欄名(ホスト側の推定。`MCPServer+ToolDefs.swift` 付近)と書き込み(ブリッジの `setTextAppending` / `clearFocused`)が別経路
 
 ### OI-75 Android の横向きで、座標の ft_drag / ft_long_press(x,y) と DSL の座標ジェスチャが縦の座標系で撃たれる
 - 状態: 再現済み
@@ -617,6 +612,11 @@
 
 - gRPC のタッチ合成(`EmulatorControl.drag` / `longPress`)が表示の回転を反映しない。getScreenshot の `format.rotation` で戻す直しは、端末の中で回した向きがそこに反映されず(PORTRAIT のまま)効かなかったので取り消した(ジェスチャごとに画面取得が1回増えるだけ)
 - 手がかり: 回転は `dumpsys input` / `wm` の向き(ブリッジの申告)から引く。ref 起点の drag も同じく外れる。ブリッジ経由の ref long press・swipe・pinch・double tap は正しい
+- 11/1 の探索(mxa F1・F3・F6): 座標を書かない DSL にも届く。見切れ回復・逆走査の slowDrag と端送りが同じ gRPC の drag を使う
+  - 横向きの Flutter で `scrollTo '#card_0_14' direction: .right scrollFrame: '#shelf_0'` が 9/9 で 6.9 秒後に「scrollFrame disappeared … the lock screen was in front」の赤(端末はロックされておらず、`NotificationShade` が開いて 0.4 秒で閉じる。直後の木では対象が見切れで居る)。`ft_drag fromX=1800 fromY=660 toX=600 toY=660` 単独でシェードが開いて残る(1/1)。`direction: .left` は ok 9/9・CMP・RN・View は ok 3/3
+  - 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
+  - 横向きの View(RecyclerView)で `scrollToBottom` が ok(1.4 秒)なのに一覧は動かない(5/5・`scrollToTop` 1/1)。同じ位置からの `ft_swipe finger=up` は動く。「画面が変わらなかった」の注記だけ
+  - 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
 
 ### OI-76 CMP の横向きで焦点の欄がキーボードに押し出されて木から消えると、ref なしの ft_type / ft_clear_input が no-input-focus と TextInputLayout の帰属で断る
 - 状態: 再現済み
@@ -821,6 +821,130 @@
 
 - `runで共有するメモ` が短く終わった回だけ `recordings/index.json` に載らない(`clipsFailed` は 0 = 失敗としては数えられない)。同じシナリオでも 2 秒以上かかった回は載る。シナリオの合否には影響しない
 - 手がかり: 切り出しが短い区間を黙って捨てる経路か、録画の開始が間に合わない形かは未調査。`Scripts/check-recordings.py` の件数の比較が、クリップの作られない回を見分けていない
+
+### OI-105 探索の「まだ動いていた」「一覧の端」の判定が、バウンスと常駐シートに吸われた払いを正しく読まない(iOS・MCP)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F1・F2)
+
+- 全く送れない一覧(Flutter・E2EY ホーム。12 行が全部収まり容器 756pt)で `ft_scroll_to selector=#nothing_here maxSwipes=N` が 6/6 で「the content was still moving … raise maxSwipes (now N)」。maxSwipes=14 に上げても同文で 21.7 秒・`direction=up` も同文 29.9 秒。直後の木は行が y=126(元 118)= バウンスの途中で読んだ跡で、行の増減は無い。`StepExecutor+ScrollSearch.swift:1219` の `exhaustedWhileMoving = movedByEvidence && lastSwipeMoved` が枠の揺れを移動と読む疑い(推測)。OI-72 の逆走査と同じ根
+- CMP の引き伸ばせるシートを半分にし `#btn_player_collapse` で畳んだ後、`tap '#row_main_30' scroll: .down` が 5/5 で「scroll area reached its end … raising maxSwipes will not help」。失敗後の木は row_main_00 が元の y=192 で背面は動かず、動いたのはシート(`ft_swipe finger=up` の直後 sheet=expanded)。半分を経ない同じ手は 3/3 緑。`ft_scroll_to maxSwipes=3` は「still moving … raise maxSwipes」で 20.4 秒。`sheetHint`(`StepExecutor+ScrollSearch.swift:267`)は `stoppedUnmoving` のときだけ出る。容器が 0,0 402x874 の1枚で背面とシートを分けられない(推測)
+- 手がかり: ずれの判定は容器の中の要素の増減で見る(OI-72 と同じ)。シートの peek 切替が引き金の癖は SUT 側(Material3)
+
+### OI-106 RN の反転チャットで、一覧の外に固定された入力欄が「一覧の外に居る幽霊」と扱われ、余計なスワイプ2本・6〜7 秒・「飲まれたかも」の警告が出る
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F3)
+
+- E2EY RN の反転チャット(一番下 = at_bottom=true の直後。`list_chat` (0,233 402x581)・`field_chat` (8,822 316x43) = 一覧の下の固定バー)で `tap '#nav_chat'; type '#field_chat' 'zz'` が `ok (7289ms) (the element is still reported outside its scroll container (3 re-resolve(s), 2 extra swipe(s)); the interaction may be swallowed)`(type 5/5・tap 1/1)。文字は欄に入る。Flutter・CMP の同じ手は 1.1 秒・注記なし。RN で一度上へ送った後(at_bottom=false)は 480ms・注記なし = 状態で割れる
+- 根拠(推測): `StepExecutor+Actions.swift:490`(ghost 経路)。`ContainerGeometry.clippingContainer` が RN の木で欄を一覧の子と見る。OI-103 に近いが窓またぎではない
+
+### OI-107 iOS の type が、1文字も入らない・読み取り専用の欄で ok になる(Flutter の数字だけの欄・CMP の読み取り専用メニュー)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F6・F7)
+
+- Flutter の数字だけの欄(E2EX `#field_number`。入力の絞り込みあり・木は textField "数量"・id は外側): `type '#field_number' 'abc'` が `ok (922〜1396ms)` で注記なし(5/5)・echo `number=` は空のまま。`'12a3'` は ok で `number=123`(1文字欠落)。CMP・RN は欄が受ける(number=abc)= Flutter 固有。`ft_type text=Q`(宛先なし)だけは「could not be confirmed」と注記する。セレクタが id の付いた外側へ解決され値を読む相手が欄でない(推測。`#field_otp` は「the target is a other, not a text field」と注記するが、この経路は注記が無い)
+- CMP の読み取り専用メニュー(E2EX `#field_fruit` = `ExposedDropdownMenuBox` の TextField。木は textView): `type '#field_fruit' 'zzz'` が `ok (約 3 秒)` で注記なし(4/4)・木に value は無く echo `fruit=none`・候補の一覧だけ開く。Flutter・RN は同じ手が 422「nothing has keyboard focus」。CMP の読み返しが値の無い欄を「確認できない」で通している(推測)
+- OI-86 は「読みだけで判定できない」打ち直し側。文字が消える・入らない形はここ
+
+### OI-108 Compose のキーボードの下の欄が木に幽霊の枠で残り、`tap` は ok のまま別の欄を叩く(Android・iOS 実機の CMP)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(Pixel 4a・3a = pixel F2 / iPhone SE3 実機 = se3 F2)
+
+- Android: E2E-CMP テキスト入力でキーボード表示中、`tap "#field_single"; tap "#field_multiline"` が ok(警告は「did not change … swallowed」だけ)で 4a 5/5・3a 5/5 とも続く `adb input text` がパスワード欄へ入る(multiline は空)。木は `secureTextField (44,1016 992x84)` と `field_multiline (44,1100 992x110)`(キーボードを閉じた木では (44,1434 992x286))= 木の枠が描画と一致せず、打った中心 y=1155 は本物のパスワード欄。E2E-Android(View)は `closed the keyboard (back key)` で閉じて撃つ 5/5 正常・Flutter・RN も 5/5 正常。座標の tap だけ・Compose だけ。`type "#field_multiline" "MM"`(ノード経路)は欄へ正しく入る。推測: 窓の縮みの判定が木の枠を信じる(Compose の a11y が縮んだ窓へ枠を丸めている)
+- iOS(SE3 実機・E2E-CMP): `tap '#nav_input'; type '#field_password' 'pN' replace: true; tap '#field_multiline'; type '#field_multiline' 'MM'` で tap は ok(MCP の ft_tap ref も 2/2)・type は「another input field (#field_single) changed instead」で FAILED(DSL 6/6)。echo は single=MM・multiline 空 = 文字は既に別の欄に入っている。木は field_multiline (16,303 343x40)・field_single (16,276 343x27) と言うが、絵の単一行の欄は y 276〜326 で複数行の欄は描かれていない
+- 期待(所見): 見えていない欄と判定して閉じてから撃つか失敗する(View・iOS のネイティブと同じ)
+
+### OI-109 横向きの CMP で、閉じたドロワーの項目が左の切り欠きの帯に木に居て、`tap` が ok のまま押されない(Android)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(Emulator = mxa F5)
+
+- E2EX ドロワー画面・横向きで `tap '#nav_drawer' scroll: .down; tap '#btn_open_drawer'; tap '#drawer_item_sent'` が全部 ok・注記なし(7/8。縦向きは 0/6)。終わった木は `drawer_item_sent (284,652 803x147)`(開いたまま)・echo は drawer=sent にならない。閉じた木(1回)は `drawer_item_sent (0,652 142x147)`(ラベルなし・縦向きの閉じた木には居ない)で、2手目の直後の読みがまだ閉じた木 = 3手目が古い帯へ撃つ(推測)。2手目に「the screen did not change」が 5/7
+- 根拠(推測): `TapTargetGeometry` に切り欠きの帯(x<142)の判定が無い(下の gesture band はある)。本物の CMP `ModalNavigationDrawer` の木で SUT の問題ではない
+
+### OI-110 注入起動したアプリが起動 1〜3 秒で SIGKILL されても、launch は 30 秒待ち切る
+- 状態: 経路確定
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の run ループ監査(la F3。iPhone 17 Pro -02 の E2E-iOS ios-inapp-boost で 2 run・3 回。自分では起こせていない)
+
+- 06:11:36 terminate → 37.079 Bootstrapping → 38.06 `termination reported by launchd (2, 9, 9)`(SIGKILL・SpringBoard は `Scene create failed … XPC error`)。launch の step は `the in-app bridge did not respond in time: connection refused`・durationMs 30721。`InAppLauncher.swift:360` の待ちはブリッジの応答だけを見る。SIGKILL の送り主は未特定(simctl の log に `Termination requested` が無い = terminate ではない)
+- 期待(所見): 待ちの間にプロセスの死を見て早く返す(死は launchd / simctl の事実で確定できる)
+- 同じ事象で `exist` の途中に出た回は `driver-unreachable` で再キューされ緑。起動後の ready 待ち切れ(`notReady`)も `driver-unreachable` を名乗る直しは入れた
+
+### OI-111 iOS の Flutter で ft_launch の直後の座標 ft_tap が「done」のまま飲まれる(launch の所要が約 2.45 秒の回だけ)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 07 = la F4)
+
+- `ft_launch com.ftester.e2e.flutter` → 待たずに `ft_tap x:201 y:294`(#nav_input の中心)→ 10/24 + 別の周で 2/10 が外れる。外れた回は全部 launch が 2.44〜2.58 秒・応答は `tap (201.0, 294.0) done`・画面はホームのまま・注記なし。当たった回は 2.81〜3.36 秒。対照: CMP(iOS)0/10・Flutter(Android)0/10・RN(Android)0/10。Flutter(iOS)でも ft_snapshot を挟めば ref の tap 0/14、ft_batch `tap '#nav_input'` 0/10 = 木に載るまで待つ経路は外れない
+- 推測: XCUITest の launch が戻るのが 2 通りで、早い回は Flutter の最初のフレームの前。`MCPServer+SessionTools.swift:256 ftLaunch` は launch の後に描画を待たない
+
+### OI-112 CLI・xcuitest の文言: enabled:false の名指しの断り・OS の「パスワードを保存」シートの下で木が空
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro -10 = inapp F1・F5)
+
+- `fleetest run --project E2E-CMP --profile ios-inapp-boost --device '…-10' --runner local` が 3/3 で「not assigned to machine "local" … pass --device-machine to target another machine's device of the same name」。事実はプロファイルに `machine:"local"`・`enabled:false` で載っている。`--device-machine local` も `matched no device in run profile` で断られる。`Sources/fleetest/RemoteCommands.swift:1011`(`RemoteDispatchExplicitDeviceScope` が有効な行だけを見る。推測)。期待: 「enabled:false」と言い有効化の場所を名指しする
+- xcuitest モード(`--set iosMode=xcuitest`・SampleApp ログインテスト)で、ログイン後に OS の「パスワードを保存しますか?」シートが出ると、step 8 `ifCanSelect "今はしない"` が not met・step 9 `exist "#welcome_text||ようこそ"` が 8 秒で `element not found`(3/3)。失敗の要素一覧は `screen: 402x874` の1行だけ(0 件)・注記なし。スクリーンショットにはシートと背面の「ようこそ」。inapp-boost は同じシナリオが緑(step 8 も not met)。推測: シートは別プロセスの AutoFill でシステムアラートの照会に載らない。step 8 のタイミングは未測定(シートの出現時刻を測っていない)
+
+### OI-113 手の途中の消灯(Android): ok の tap が届いておらず、次の手の失敗文は消灯を言わない
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(emulator-5554 = emu F3 / Pixel 4a・3a = pixel F3)。OI-52 と同じ型の別の形
+
+- 消灯の直前に撃った tap が ok なのに届いていない: ft_batch `tap '#btn_tap_counter'` ×12 + 途中で `input keyevent 26` → 20 回中 2 回 `ok` の後に次の手が FAILED・起こした後の echo は tap=0(他の ok は tap=1 と一致 7/7)。単発の最終手なら緑のまま。期待(所見): 操作の後に `mWakefulness` が眠っていたら「届いたか分からない」を添える
+- 消灯の後の step の失敗文(Pixel 4a・ロック無し・5/5): `tap "#btn_tap_counter"` ×6〜12 の ft_batch の開始 2 秒後に `KEYCODE_SLEEP` → 「the target was covered, so the container was scrolled before touching it, but the target could not be found」+「⚠️ com.android.systemui … drawn over …(シェードが開いている・ft_navigate back で閉じる)」。dumpsys power は Dozing で木は常時表示(keyguard_status_view / ambient_indication_container)。3a・ロックあり(スワイプ解除)の ⚠️ は正しく「lock screen / always-on display」と言う(3/3)が、step 本文の「the target was covered …」は両方で残る(8/8)。呼び出しの開始時の起こし直しは正常で、消灯後に呼び出しを分ければ tap / swipe は全部届く。`StepExecutor+Actions.swift:1636` の文言は遮蔽の経路の結果。常時表示の判定は MCP の呼び出しの開始にだけある。DSL の run で同じ経路かは未確認
+
+### OI-114 Compose の横向きで `tap "#field"; type "#field" "ab"` が、タップをキーボードのキーへ当てて余計な "v" を欄に入れる(Android)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(Pixel 4a・Android 13・Gboard = pixel F5)
+
+- E2E-CMP テキスト入力・横向きで 5/7 が step 2 FAILED(約 4.1 秒)「cannot type into the field that was tapped (target node not found, 4000ms waited; … the IME window is in front; giving up rather than typing into the wrong field)」。キーボードを閉じると single=v・Gboard の候補列に v / g / good(画面中央 = 欄の中心の座標は v キーの上)。レポートは「何も入らなかった」に読める。成功の回は 2/7(`closed the keyboard` の経路)。tap の後に 0.5 秒置く形は 10/10 正常(4a・3a 各5)= 開いていく途中のキーボードの判定をすり抜ける。推測: `AndroidDriver.type` の直前のタップが、キーボードが立つ前の枠・判定で撃たれる
+
+### OI-115 ft_scroll_to の成功の本文が注記と食い違う・ft_list_devices が端末の不在を言わない(iOS 実機の探索)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone SE3 実機 = se3 F3・F8)
+
+- Flutter・RN のテキスト入力・キーボード表示中(キーボード上端 434・`#field_multiline` 中心 y=471〜496)の `ft_scroll_to '#field_multiline'` が 3.9 秒で「2 swipe(s)」「scrolled to …」と成功で返し、同じ応答の注記は同じ要素が「beneath it」(2/2)。枠は撃つ前と同じ = 動いていない。次の type は閉じられず FAILED
+- deep sleep の 3 秒後(idevice_id が空)に ft_list_devices は「running, no bridge listening on this Mac」・ほかの道具(ft_install / ft_open_url / ft_clear_app_data / ft_list_apps / ft_screenshot)は「a bridge … is listening on port 8123」と言い、端末の不在を言わない(1/1)
+
+### OI-116 CLI の入力検査と文言の残り
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(cli F4・F7・F9・F11)。各 1〜3 回で決定的
+
+- `fleetest run --dry-run --runner nosuch` が実在しないランナーを検めず「All 1 scenario(s) passed the dry-run」exit 0(`--remote-timeout 0` も `--runner` なしで黙って通る)
+- iOS で `fleetest terminate` の後の `fleetest tap --x --y` は「409 … the XCUITest runner has no session …; the host re-establishes it with /session」exit 1(3/3)。利用者が撃てる対処でなく、`fleetest launch <bundle>` で戻る
+- `fleetest services reset --force` は owner の片付けの後に数えるので「0 container(s) … removed; 0 lease(s) cleared」と言う(3/3。実際は `container ls -a` が 1 行から 0 行)。`ServicesCommand.swift:609`
+- 引数の説明と実挙動のずれ: `api live serve --max-width -1` はヘルプが「0 or less = original size」なのに「Missing value」(`results list --limit -1` 等も同じで理由が分からない)・`--profile is required (available: )` はプロファイルが無いプロジェクトで空の一覧・`project create <300 字>` は「The item couldn't be saved because the file name "_disabled" is invalid.」
+
+### OI-117 compose.yaml を編集した後の `services up` は「already up」で古い宣言のまま
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(cli F10)
+
+- ポートを 18091→18092 に変えて `services up` しても 18091 を案内し差を言わない(編集 1/1・curl 18092 は接続拒否)。期待(所見): 宣言の差を検知して言う(down / up を案内)。止まったコンテナを警告する直しは入れたが、編集した宣言との差は見ていない
+
+### OI-118 宣言による対象外の記録が、実行時に判定した対象外と集計で食い違う
+- 状態: 経路確定
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の run ループ監査(la F1)
+
+- `@iOS` のシナリオを android の run へ名指しすると、scenarios/*.json は `{"passed":false,"skipKind":"notApplicable"}`・run.json は total 14 / passed 14 で scenarios/ は 15 ファイル・NDJSON の `runFinished` は `skipped:0`。実行時の対象外(hinge の `折りたたみの開閉を跨いで操作できること.S0020`)は `passed:true`・total 14 / passed 13・CLI は「All 13 passed (1 skipped: not applicable)」。`skipReason` を書く直しは入れた(宣言の経路の呼び手 `RunRecorder.swift:201` 付近)。残りは passed の値と total・skipped の数え方
+- 期待(所見): 同じ skipKind なら passed と数え方が揃う
+
+### OI-119 ランナーが固まった間の ft_batch は、手の前の読みも個別に時限切れを待つ
+- 状態: 推測
+- 確認: コミット未記録(2026-11-01)
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro -09 = sim F7)
+
+- SIGSTOP(port 指定)で `ft_batch tap '#btn_input_clear'` が 1 手でも 162 秒(ft_tap は 45 秒)・応答の所要は手の分(46000ms)だけ。stderr の slow call は GET /systemui/covering・GET /snapshot を順に待つ。失敗の後の読み直しを打ち切る直しは入れた。手の前の読みが同じ条件で個別に待つかは未確認
+- 別の1回は解凍で 62 秒で終わり `ok (406ms)`・実行された
 
 ## 設計判断で据え置いているもの(直さないと決めた。症状が出たら見直す)
 

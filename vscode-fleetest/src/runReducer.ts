@@ -323,7 +323,16 @@ function scenarioFinishedActions(
         ];
 
   return [
-    { type: "output", scenario: event.scenario, text: `${tLane("lane.failed")}${reportSuffix}`, worker: event.worker },
+    {
+      type: "output",
+      scenario: event.scenario,
+      text: `${
+        event.resultDiscardedReason !== undefined
+          ? tLane("lane.resultDiscarded", { reason: event.resultDiscardedReason })
+          : tLane("lane.failed")
+      }${reportSuffix}`,
+      worker: event.worker,
+    },
     { type: "failed", scenario: event.scenario, messages, durationMs },
   ];
 }

@@ -1481,7 +1481,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             return [suggestion.encodedLine()]
 
         case .flowFinished(let worker, let flowURL, let passed, let reportURL, let fm, let appCrash,
-                           let notApplicableReason):
+                           let notApplicableReason, let resultDiscardedReason):
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.worker = workerID.id(for: worker)
             finished.scenario = itemByURL[flowURL]?.info.id
@@ -1491,6 +1491,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             finished.fm = fm
             finished.appCrash = appCrash
             finished.notApplicableReason = notApplicableReason
+            finished.resultDiscardedReason = resultDiscardedReason
             return [finished.encodedLine()]
 
         case .flowSkipped(let flowURL, let reason):

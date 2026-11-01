@@ -92,7 +92,7 @@ public struct WorkerAnomalyRecord: Codable, Sendable {
     public static func rebootAdvice(_ worker: RunWorker, state: DeviceScreenState) -> WorkerAnomalyRecord {
         WorkerAnomalyRecord(
             kind: "rebootAdvised", worker: RunOrchestrator.workerID(worker), label: worker.label,
-            reason: "restarting the device did not bring the screen back (\(state.rawValue)); restarting the machine is recommended",
+            reason: "restarting the device did not bring the screen back (\(state.rawValue)); the machine may need a restart",
             cause: .rendering)
     }
 

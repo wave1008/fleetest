@@ -1415,7 +1415,8 @@ public enum ScenarioLogFormatter {
             return ["    ⏸ Paused before \(event.index ?? 0). \(event.description ?? "")"]
         case "scenarioFinished":
             var lines = [event.notApplicableReason != nil ? "  → ⏭ skipped (not applicable)"
-                         : event.passed == true ? "  → ✅ passed" : "  → ❌ failed"]
+                         : event.passed == true ? "  → ✅ passed"
+                         : event.resultDiscardedReason.map { "  → 🗑 result discarded: \($0)" } ?? "  → ❌ failed"]
             if let report = event.reportPath { lines.append("  → report: \(report)") }
             return lines
         case "log":

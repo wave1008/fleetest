@@ -66,13 +66,13 @@ test("再起動しても戻らないデバイスの案内は、どの台かを�
     device("Pixel 9-07", { machine: "M1Max", rebootAdvised: true })] });
   assert.ok(advice.classList.contains("visible"));
   assert.equal(advice.textContent, "⚠️ デバイスを再起動しても画面の描画が回復しませんでした: Pixel 9-05、Pixel 9-07 (M1Max)。"
-    + "マシンの再起動をおすすめします(対象マシン: ローカル、M1Max)");
+    + "マシンの再起動が必要かもしれません(対象マシン: ローカル、M1Max)");
   assert.equal(tipOf(advice), "", "省略が無ければホバーは本文の繰り返しなので出さない");
   assert.doesNotMatch(advice.textContent, /Pixel 9-06/);
   // 1マシンの全台が落ちても上部の1行を伸ばさない
   send({ type: "devices", devices: ["a", "b", "c", "d", "e"].map((name) => device(name, { machine: "M1Max", rebootAdvised: true })) });
   assert.equal(advice.textContent, "⚠️ デバイスを再起動しても画面の描画が回復しませんでした: a (M1Max)、b (M1Max)、c (M1Max)、ほか2台。"
-    + "マシンの再起動をおすすめします(対象マシン: M1Max)");
+    + "マシンの再起動が必要かもしれません(対象マシン: M1Max)");
   assert.equal(tipOf(advice), "a (M1Max)\nb (M1Max)\nc (M1Max)\nd (M1Max)\ne (M1Max)", "全台はホバーで見る");
   send({ type: "devices", devices: [device("Pixel 9-05", {})] });
   assert.ok(!advice.classList.contains("visible"));

@@ -353,12 +353,14 @@ iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起
   写像は `RenderCollapse.screenState(of:)` の1箇所(`blankAppArea` → blank・`noTextDrawn` → textless・`wholeScreenBlank` は凍結の担当なので公表しない)。
   公表する検査点は2つ: 上の検査点の確かめ(緑で異常が無ければその鍵の公表を消す)と、テキストの可視性検証の赤が `notRendered` で確定したとき
   (poll の途中では判定しない。撮影は足さず、手元の絵と木を1回判定する)。**書いた時刻だけで鮮度を見る**(シナリオのプロセスは短命で pid の生死が使えない。
-  上限 `DeviceScreenStateStore.stalenessSeconds` = 30 分)。ステップの注記は `screen-blank` / `screen-textless`
+  上限 `DeviceScreenStateStore.stalenessSeconds` = 30 分)。ステップの注記は `screen-blank` / `screen-textless`。
+  赤にしない構成でも検査点のステップの説明に事実の文を載せる(`renderCollapseWarning`。ステップの状態は passed のまま)。
+  緑で終わった回を親が捨てたら `scenarioFinished` の `passed: false` + `resultDiscardedReason`(表示は `🗑 result discarded` で、数えるのは `passed`)。レポートの `Result` は子の記録のまま、親が注記を足す(`ScenarioReportNotice`)
 - **見つけたあとの手当て(OI-88)**: 切り離し(`RenderingLaneBook` が判定。同じプラットフォームに他のレーンが居るときだけ・同じシナリオが別のレーンで同じ状態を
   報告済みならアプリ側の事実として残す)→ 離脱後・revive の前に回復を1回(`ScreenRenderingRecovery`。撃つ操作は凍結の回復 `DisplayFreezeWatch.productionRepair` と同じ)→
   直後に OS 側の絵で測る。**1台1回 = マシンの1回の起動につき1回**(`ScreenRecoveryLedger`。鮮度は時間の定数でなくマシンの起動時刻。マシンの再起動が数え直しの契機で、
   案内もそれを勧める)。戻らない・再発したら撃たず `UnrecoveredDeviceStore` に公表し、モニターの `devices[].rebootAdvised` と run の最後のログで
-  「マシンの再起動をおすすめします」(ツールはマシンを再起動しない)。run の前にも公表が残る Simulator / Emulator へ同じ手順(`ScreenRenderingRecoverer.prepareBeforeRun`)。
+  「マシンの再起動が必要かもしれません」(ツールはマシンを再起動しない)。run の前にも公表が残る Simulator / Emulator へ同じ手順(`ScreenRenderingRecoverer.prepareBeforeRun`)。
   文字消えの Android は sleep/wake の次に必ずゲストの再起動へ(絵が一様でないので sleep/wake の効きを絵で測れない)。記録の欄は docs/results-json.md「描画の状態の手当て」
 - **閾値 3 の根拠**: iOS の失敗スクリーンショット 2,453 枚(レポートの要素一覧 + PNG)の全数走査で、目視で崩壊と確かめた最小は文字要素 2 個、
   全てインク無しだが崩壊でなかった最大は 2 個(木と絵の取得時刻が違う)。向きの違う横長のスクリーンショットがもう一つの崩壊でない当たりで、向きの門の理由

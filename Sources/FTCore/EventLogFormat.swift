@@ -79,7 +79,8 @@ public enum EventLogFormat {
         case "paused":
             return ["    ⏸ Paused before \(event.index ?? 0). \(event.description ?? "")"]
         case "scenarioFinished":
-            var lines = [event.passed == true ? "  → ✅ passed" : "  → ❌ failed"]
+            var lines = [event.passed == true ? "  → ✅ passed"
+                         : event.resultDiscardedReason.map { "  → 🗑 result discarded: \($0)" } ?? "  → ❌ failed"]
             if let report = event.reportPath { lines.append("  → report: \(report)") }
             return lines
         case "log":

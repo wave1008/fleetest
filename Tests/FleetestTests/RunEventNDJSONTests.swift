@@ -97,6 +97,15 @@ final class RunEventNDJSONTests: XCTestCase {
         XCTAssertEqual(event["notApplicableReason"] as? String, "no biometrics")
     }
 
+    /// 結果を捨てた理由は scenarioFinished に運ぶ(落とすと拡張には素の失敗に見える)
+    func testFlowFinishedCarriesResultDiscardedReason() throws {
+        let event = try single(.flowFinished(
+            worker: workerLabel, flowURL: flowURL, passed: false, reportURL: nil, fm: nil,
+            notApplicableReason: nil, resultDiscardedReason: "a blank screen"))
+        XCTAssertEqual(event["passed"] as? Bool, false)
+        XCTAssertEqual(event["resultDiscardedReason"] as? String, "a blank screen")
+    }
+
     func testSceneStartedAndFinished() throws {
         let started = try single(.sceneStarted(worker: workerLabel, flowURL: flowURL,
                                                scene: 2, sceneTitle: "ログイン"))

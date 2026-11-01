@@ -74,6 +74,7 @@ extension StepExecutor {
     /// 撮れない・読めないは nil(判定できないことを崩壊と呼ばない)。呼ぶと義務は下ろす
     public func renderCollapseVerdict() async -> String? {
         renderCollapseNotes = []
+        renderCollapseWarning = nil
         guard tracksRenderCollapse, !assertionsWithoutPixelProof.isEmpty else { return nil }
         let pending = assertionsWithoutPixelProof
         assertionsWithoutPixelProof.removeAll()
@@ -87,8 +88,12 @@ extension StepExecutor {
             return nil
         }
         renderCollapseNotes = reflectScreenState(finding, clearsWhenHealthy: true).map { [$0] } ?? []
-        guard renderCollapseCheckEnabled else { return nil }
-        return Self.renderCollapseMessage(finding, unverified: pending)
+        let message = Self.renderCollapseMessage(finding, unverified: pending)
+        guard renderCollapseCheckEnabled else {
+            renderCollapseWarning = renderCollapseNotes.isEmpty ? nil : message
+            return nil
+        }
+        return message
     }
 
     /// 撮影と木を1組読んで判定する

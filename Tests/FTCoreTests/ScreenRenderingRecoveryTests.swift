@@ -149,7 +149,7 @@ final class ScreenRenderingRecoveryTests: XCTestCase {
                        UnrecoveredDeviceStore.Entry(key: "K2", name: "z", at: 0)]
         let text = UnrecoveredDeviceStore.closingNotice(entries, used: [], excludedBeforeRun: ["K1"])!
         XCTAssertTrue(text.contains("did not bring the screen back on a "), text)
-        XCTAssertTrue(text.contains("restarting this machine"), text)
+        XCTAssertTrue(text.contains("this machine may need a restart"), text)
         XCTAssertTrue(text.contains("not used by this run): z"), text)
     }
 
@@ -158,7 +158,7 @@ final class ScreenRenderingRecoveryTests: XCTestCase {
         XCTAssertTrue(text.contains("did not bring the screen back on a "), text)
         XCTAssertTrue(text.contains("not used by this run): z"), text)
         let only = UnrecoveredDeviceStore.closingNotice(names: [], notUsedByThisRun: ["z"])!
-        XCTAssertFalse(only.contains("restarting this machine"), "使っていない台について再起動を勧めない: \(only)")
+        XCTAssertFalse(only.contains("may need a restart"), "使っていない台について再起動を勧めない: \(only)")
     }
 
     func testTheOtherLaneIsNamedByLabelNotByKey() {
@@ -180,7 +180,7 @@ final class ScreenRenderingRecoveryTests: XCTestCase {
         XCTAssertNil(UnrecoveredDeviceStore.closingNotice(names: [], notUsedByThisRun: []))
         let text = UnrecoveredDeviceStore.closingNotice(names: ["a", "b"], notUsedByThisRun: [])!
         XCTAssertTrue(text.contains("did not bring the screen back on a, b"))
-        XCTAssertTrue(text.contains("restarting this machine is recommended"))
+        XCTAssertTrue(text.contains("this machine may need a restart"))
     }
 
     func testDefaultsAndNamesArePinned() {

@@ -26,6 +26,13 @@ final class ChildDeclaredNotApplicableCountingTests: XCTestCase {
             notApplicableReason: nil)).first, "  → ❌ failed")
     }
 
+    func testDiscardedResultIsNotPrintedAsAFailure() {
+        let lines = RunLogFormatter.lines(for: .flowFinished(
+            worker: "ios:1", flowURL: url, passed: false, reportURL: URL(fileURLWithPath: "/tmp/r.md"), fm: nil, appCrash: nil,
+            notApplicableReason: nil, resultDiscardedReason: "a blank screen"))
+        XCTAssertEqual(lines.first, "  → 🗑 result discarded: a blank screen — report: /tmp/r.md")
+    }
+
     func testSummaryCountsSkippedInsideTotalButNotAsPassed() {
         let summary = RunSummary(total: 5, failed: 1, skipped: 2)
         XCTAssertEqual(summary.passed, 2)

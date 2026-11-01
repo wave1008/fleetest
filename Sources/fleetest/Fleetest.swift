@@ -1622,7 +1622,7 @@ struct RunScenarios: AsyncParsableCommand {
                 buffers[url, default: []].append(contentsOf: lines)
             case .step(_, let url, _):
                 buffers[url, default: []].append(contentsOf: lines)
-            case .flowFinished(_, let url, let passed, _, _, _, let notApplicableReason):
+            case .flowFinished(_, let url, let passed, _, _, _, let notApplicableReason, _):
                 let all = (buffers.removeValue(forKey: url) ?? []) + lines
                 if quiet {
                     ConsoleOut.out(notApplicableReason != nil ? "⏭ \(names[url] ?? url.lastPathComponent)"

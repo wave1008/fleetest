@@ -30,12 +30,15 @@ public enum RunLogFormatter {
             return ["  ⏸ Paused before \(index). \(description)"]
         case .fixSuggestion:
             return []
-        case .flowFinished(_, _, let passed, let reportURL, _, _, let notApplicableReason):
+        case .flowFinished(_, _, let passed, let reportURL, _, _, let notApplicableReason, let resultDiscardedReason):
             var lines: [String] = []
             if let notApplicableReason {
                 lines.append("  → ⏭ skipped (not applicable): \(notApplicableReason)")
             } else if passed {
                 lines.append("  → ✅ passed")
+            } else if let resultDiscardedReason {
+                let report = reportURL.map { " — report: \($0.path)" } ?? ""
+                lines.append("  → 🗑 result discarded: \(resultDiscardedReason)\(report)")
             } else {
                 if let reportURL {
                     lines.append("  → ❌ failed — report: \(reportURL.path)")

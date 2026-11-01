@@ -164,7 +164,7 @@ public enum ScreenRenderingRecoverer {
                 fired.append(entry)
             } else {
                 log("⚠️ \(entry.worker.label): a \(entry.state.rawValue) screen is still published, but this device was already"
-                    + " restarted since the machine started — not restarting it again; restarting the machine is recommended")
+                    + " restarted since the machine started — not restarting it again; the machine may need a restart")
                 unrecovered.append((entry.worker, entry.state))
             }
         }

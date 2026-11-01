@@ -141,6 +141,8 @@ public struct ScenarioEvent: Codable, Sendable {
     /// 親は結果 JSON に `skipKind: notApplicable` + `skipReason` で残し、RunEvent.flowFinished と
     /// api NDJSON の scenarioFinished にも運ぶ(緑でも赤でもない = skipped。立たなければキーごと省略)
     public var notApplicableReason: String?
+    /// scenarioFinished だけ。子は緑で終えたが、親が結果を捨てた理由(白紙・文字消え・凍結)。`passed` は false で来る
+    public var resultDiscardedReason: String?
     /// kind == step / scenarioFinished: 前のイベントからの間にデバイスへ実際に送った操作の回数(`ActionCountingDriver`)。
     /// 0 は載せない(キーごと省略)。scenarioFinished は最後のステップの後の端数を運ぶ
     public var actions: Int?

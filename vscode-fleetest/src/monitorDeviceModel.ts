@@ -109,7 +109,7 @@ export interface MonitorDevice {
   /** アプリの描画の状態(Sources/fleetest の MonitorScreenState。無いときも null を送る)。 */
   readonly screenState: "blank" | "textless" | null;
   /** 再起動しても描画が戻らなかったデバイスか(Sources/fleetest の ApiMonitorDeviceInfo.rebootAdvised)。
-   * モニター上部の「マシンの再起動をおすすめします」の1行に数える。 */
+   * モニター上部の「マシンの再起動が必要かもしれません」の1行に数える。 */
   readonly rebootAdvised: boolean;
   /** このデバイスが居る機械(登録名。手元は undefined)。**`host` はブリッジ宛先の IP で別物**。
    * モニターは手元のデバイスしか触れないので、リモートのタイルは状態を観測できない ——

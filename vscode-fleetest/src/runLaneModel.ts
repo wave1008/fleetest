@@ -286,7 +286,10 @@ export function reduceLaneEvent(state: RunLaneState, event: RunEvent, nowMs: num
         actions.push(...pushLine(state, laneId, `${tLane("lane.passed")}${suffix}`));
       } else {
         const reportSuffix = event.reportPath ? tLane("lane.reportSuffix", { path: event.reportPath }) : "";
-        actions.push(...pushLine(state, laneId, `${tLane("lane.failed")}${reportSuffix}`));
+        const head = event.resultDiscardedReason !== undefined
+          ? tLane("lane.resultDiscarded", { reason: event.resultDiscardedReason })
+          : tLane("lane.failed");
+        actions.push(...pushLine(state, laneId, `${head}${reportSuffix}`));
       }
       if (event.worker && state.runningWorkers.has(event.worker)) {
         state.runningWorkers.delete(event.worker);

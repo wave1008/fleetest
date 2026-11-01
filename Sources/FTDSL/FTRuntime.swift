@@ -821,7 +821,8 @@ public final class FTDriveCore {
         guard let message = verdict else {
             // 赤にしない構成の検出もステップとして残す(run ボードの数え口は step の注記 = RunProgressState)
             if !executor.renderCollapseNotes.isEmpty {
-                recordStep(description: description, status: .passed, file: "", line: 0,
+                let warning = executor.renderCollapseWarning.map { ": ⚠️ \($0)" } ?? ""
+                recordStep(description: description + warning, status: .passed, file: "", line: 0,
                            at: ISO8601Millis.string(from: Date()), notes: executor.renderCollapseNotes)
             }
             return

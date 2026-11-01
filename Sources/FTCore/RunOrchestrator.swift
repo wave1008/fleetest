@@ -200,9 +200,11 @@ public enum RunEvent: Sendable {
     /// appCrash: scenarioFinished の同名欄(同じ理由で運ぶ)。
     /// notApplicableReason: 子が「この環境では成り立たない」と宣言したシナリオ(passed == true と対)。
     /// 緑でも赤でもない = 表示・集計は skipped に数える。**既定値を置かない**(新しい構築箇所が決める)
+    /// resultDiscardedReason: 子は緑で終えたが、親が結果を捨てた理由(`failedFinish`)。`passed` は false で来る。
+    /// 表示だけが読み、集計は `passed` のまま(振り直しの上限に達した回は赤として数える)
     case flowFinished(worker: String, flowURL: URL, passed: Bool,
                       reportURL: URL?, fm: FMUsageRecord?, appCrash: AppCrashRecord? = nil,
-                      notApplicableReason: String?)
+                      notApplicableReason: String?, resultDiscardedReason: String? = nil)
     /// **ホストの中だけのイベント**(NDJSON・ログには出さない): 直後の flowStarted / flowFinished が**送られた**時刻。
     /// ScenarioTimingTracker は開始・終了とも同じ基準(送り手の時刻)で数える —— 受け取り時刻で数えると、境目の表示の確認が
     /// 終了イベントを保留した分(確認・回復の時間)が実働に入り、片方だけ送り手の時刻にすると読み手の遅れで所要が負になる。
@@ -1777,11 +1779,12 @@ public final class RunOrchestrator: Sendable {
     }
 
     /// 終了イベントの合否を失敗へ直す(対象外の宣言はそのまま = 画面を見ていない)。他の欄は変えない
-    static func failedFinish(_ event: RunEvent) -> RunEvent {
-        guard case .flowFinished(let worker, let url, _, let report, let fm, let crash, let notApplicable) = event,
+    static func failedFinish(_ event: RunEvent, discardReason: String?) -> RunEvent {
+        guard case .flowFinished(let worker, let url, let passed, let report, let fm, let crash, let notApplicable, _) = event,
               notApplicable == nil else { return event }
         return .flowFinished(worker: worker, flowURL: url, passed: false, reportURL: report, fm: fm,
-                             appCrash: crash, notApplicableReason: nil)
+                             appCrash: crash, notApplicableReason: nil,
+                             resultDiscardedReason: passed ? discardReason : nil)
     }
 
     private func retireUnusable(_ item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue,
@@ -1931,7 +1934,7 @@ public final class RunOrchestrator: Sendable {
                     // **FM 全滅のまま走ったシナリオを数える**(合否は変えない。summary の
                     // fmUnavailableScenarios。ここで数えるのは、実行結果に FM の可否が
                     // 現れないため —— 失敗は各呼び出し箇所が握って素通りさせる契約)
-                    if case .flowFinished(_, _, _, _, let fm, _, _) = event,
+                    if case .flowFinished(_, _, _, _, let fm, _, _, _) = event,
                        RunSummary.fmUnavailable(fm) {
                         Task { await fmCounter.increment() }
                     }
@@ -1952,7 +1955,7 @@ public final class RunOrchestrator: Sendable {
                     if case .flowStarted(let worker, let flowURL, _, _) = event {
                         continuation.yield(.flowStartedAt(worker: worker, flowURL: flowURL, at: Date()))
                     }
-                    if case .flowFinished(let worker, let flowURL, _, _, _, _, _) = event {
+                    if case .flowFinished(let worker, let flowURL, _, _, _, _, _, _) = event {
                         let at = Date()
                         if holdsFinish {
                             heldFinish.withLock { $0 = (event, at) }
@@ -2009,9 +2012,17 @@ public final class RunOrchestrator: Sendable {
             }
             // 保留した終了イベントを流す(凍結が確定したら失敗として。振り直しの requeued はこの後に続く = 凍結の失敗と同じ並び)
             if let held = heldFinish.withLock({ $0 }),
-               case .flowFinished(let heldWorker, let heldURL, _, _, _, _, _) = held.event {
+               case .flowFinished(let heldWorker, let heldURL, let heldPassed, let heldReport, _, _, _, _) = held.event {
                 continuation.yield(.flowEndedAt(worker: heldWorker, flowURL: heldURL, at: held.at))
-                continuation.yield(displayFreeze == nil && renderingDetach == nil ? held.event : Self.failedFinish(held.event))
+                let discardReason = displayFreeze.map { "a frozen display (\($0.detail))" }
+                    ?? renderingDetach.map { "a \($0.rawValue) screen" }
+                if let discardReason {
+                    continuation.yield(Self.failedFinish(held.event, discardReason: discardReason))
+                    // レポートは子が緑のまま書き終えている。親だけが捨てたことを知っている
+                    if heldPassed, let heldReport { ScenarioReportNotice.addDiscarded(reason: discardReason, to: heldReport) }
+                } else {
+                    continuation.yield(held.event)
+                }
             }
             await videoRecording?.scenarioFinished(
                 workerLabel: worker.label, at: scenarioEndedAt,

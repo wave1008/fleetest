@@ -160,7 +160,7 @@ public enum UnrecoveredDeviceStore {
         var text = ""
         if !names.isEmpty {
             text = "⚠️ Restarting the device did not bring the screen back on \(names.joined(separator: ", ")) —"
-                + " restarting this machine is recommended (fleetest does not restart it)"
+                + " this machine may need a restart (fleetest does not restart it)"
         }
         if !notUsedByThisRun.isEmpty {
             text += (text.isEmpty ? "ℹ️ " : "; ")
@@ -223,7 +223,7 @@ public enum ScreenRenderingRecovery {
         guard let key else { return .notAttempted }
         guard begin(key: key, name: name, stateDir: stateDir, bootTime: bootTime) == .fire else {
             log("⚠️ \(name): the screen state was found again, but this device was already restarted since the machine"
-                + " started — not restarting it again; restarting the machine is recommended")
+                + " started — not restarting it again; the machine may need a restart")
             return .advised
         }
         return await fire(key: key, name: name, stateDir: stateDir, repair: repair, drawn: drawn, log: log)
@@ -238,7 +238,7 @@ public enum ScreenRenderingRecovery {
         let outcome = conclude(key: key, name: name, stateDir: stateDir, kind: kind, drawn: isDrawn)
         switch outcome {
         case .recovered(let kind): log("✅ \(name): the screen is drawing again after \(recoveredPhrase(kind))")
-        case .notRecovered: log("⚠️ \(name): restarting the device did not bring the screen back — restarting the machine is recommended")
+        case .notRecovered: log("⚠️ \(name): restarting the device did not bring the screen back — the machine may need a restart")
         default: break
         }
         return outcome

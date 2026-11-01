@@ -21,6 +21,10 @@ export const laneStrings = {
     ja: "  ⏭ スキップ(対象外): {reason}",
     en: "  ⏭ Skipped (not applicable): {reason}",
   },
+  "lane.resultDiscarded": {
+    ja: "  🗑 結果を破棄: {reason}",
+    en: "  🗑 Result discarded: {reason}",
+  },
   "lane.fixSuggestion": { ja: "  💡 修正提案: {detail}", en: "  💡 Fix suggestion: {detail}" },
   "lane.paused": { ja: "  ⏸ 一時停止: {description}", en: "  ⏸ Paused: {description}" },
   "lane.runFinishedWithSkipped": {
