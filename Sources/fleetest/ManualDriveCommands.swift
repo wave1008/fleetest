@@ -177,6 +177,18 @@ enum RefFireGate {
     }
 }
 
+/// 操作が届いたか分からない失敗に、撃ち直す前に画面を確かめよと添える(`DriverError.deliveryAdvice`。撃ち直さない)
+enum DeliveryAdvice {
+    static func relaying(_ fire: () async throws -> Void) async throws {
+        do {
+            try await fire()
+        } catch let error as DriverError {
+            if !error.deliveryAdvice.isEmpty { ConsoleOut.err("⚠️ " + error.deliveryAdvice) }
+            throw error
+        }
+    }
+}
+
 struct Tap: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Tap an element or a coordinate")
 
@@ -208,7 +220,7 @@ struct Tap: AsyncParsableCommand {
             let driver = try await driverOptions.makeDriver()
             let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
                                                    memoKey: driverOptions.refMemoKey)
-            try await driver.tap(ref: ref)
+            try await DeliveryAdvice.relaying { try await driver.tap(ref: ref) }
             ConsoleOut.out("✅ tap [\(ref)]")
             if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
         } else if let x, let y {
@@ -228,7 +240,7 @@ struct Tap: AsyncParsableCommand {
                 ? "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is inside the soft keyboard — this presses a key, not the app behind it."
                     + " Dismiss the keyboard first unless a key was meant"
                 : nil
-            try await driver.tap(x: x, y: y)
+            try await DeliveryAdvice.relaying { try await driver.tap(x: x, y: y) }
             ConsoleOut.out("✅ tap (\(x), \(y))")
             if let keyboardWarning { ConsoleOut.err("⚠️ \(keyboardWarning)") }
         } else {
@@ -261,7 +273,7 @@ struct TypeCommand: AsyncParsableCommand {
             note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
                                                typing: true, memoKey: driverOptions.refMemoKey)
         }
-        try await driver.type(ref: ref, text: text)
+        try await DeliveryAdvice.relaying { try await driver.type(ref: ref, text: text) }
         ConsoleOut.out("✅ type \"\(text)\"")
         if let ref, let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }
@@ -281,7 +293,8 @@ struct Swipe: AsyncParsableCommand {
         guard let dir = FTSwipeDirection(rawValue: direction) else {
             throw ValidationError("direction must be one of up / down / left / right")
         }
-        try await driverOptions.makeDriver().swipe(dir)
+        let swipeDriver = try await driverOptions.makeDriver()
+        try await DeliveryAdvice.relaying { try await swipeDriver.swipe(dir) }
         ConsoleOut.out("✅ swipe \(direction)")
     }
 }
@@ -321,7 +334,7 @@ struct Press: AsyncParsableCommand {
         let driver = try await driverOptions.makeDriver()
         let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
                                                memoKey: driverOptions.refMemoKey)
-        try await driver.press(ref: ref, duration: holdSeconds)
+        try await DeliveryAdvice.relaying { try await driver.press(ref: ref, duration: holdSeconds) }
         ConsoleOut.out("✅ press [\(ref)] \(holdSeconds)s")
         if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }

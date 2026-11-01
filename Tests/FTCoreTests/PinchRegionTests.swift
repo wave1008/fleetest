@@ -117,15 +117,15 @@ extension PinchRegionTests {
     func testTheAreaIsNotUsedOnAndroid() throws {
         let dsl = try source("Sources/FTCore/StepExecutor+Actions.swift")
             + source("Sources/FTCore/StepExecutor+DirectActions.swift")
-        let call = try XCTUnwrap(dsl.range(of: "PinchRegion.area(elements: snapshot.elements,"))
-        XCTAssertTrue(String(dsl[..<call.lowerBound].suffix(160)).contains("!isAndroid"),
+        let call = try XCTUnwrap(dsl.range(of: "PinchRegion.area(in: snapshot)"))
+        XCTAssertTrue(String(dsl[call.upperBound...].prefix(160)).contains("!isAndroid"),
                       "Android では領域を渡さないこと")
         let live = try source("Sources/fleetest/ApiLiveCommand.swift")
-        let liveCall = try XCTUnwrap(live.range(of: "PinchRegion.area(elements: snapshot.elements,"))
+        let liveCall = try XCTUnwrap(live.range(of: "PinchRegion.area(in: snapshot)"))
         XCTAssertTrue(String(live[..<liveCall.lowerBound].suffix(160)).contains("== \"ios\""),
                       "ライブ操作も iOS のときだけ渡すこと")
         let mcp = try source("Sources/fleetest-mcp/MCPServer+GesturesTools.swift")
-        let mcpCall = try XCTUnwrap(mcp.range(of: "PinchRegion.area(elements: snapshot.elements,"))
+        let mcpCall = try XCTUnwrap(mcp.range(of: "PinchRegion.area(in: snapshot)"))
         XCTAssertTrue(String(mcp[..<mcpCall.lowerBound].suffix(420)).contains("AndroidDriver"),
                       "MCP も Android を外すこと")
     }

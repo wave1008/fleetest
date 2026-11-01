@@ -9,6 +9,14 @@ import XCTest
 @testable import fleetest
 
 final class RefFireGateWiringTests: XCTestCase {
+    /// 届いたか分からない操作の4コマンド5経路は全部 `DeliveryAdvice.relaying` を通す(CLI の時間切れが「ブリッジを確かめよ」とだけ言っていた)
+    func testEveryDrivingCommandRelaysTheDeliveryAdvice() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest/ManualDriveCommands.swift")
+        let code = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertEqual(code.components(separatedBy: "DeliveryAdvice.relaying {").count - 1, 5)
+    }
+
     private func source() throws -> [String] {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

@@ -1217,8 +1217,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                 // —— 領域があれば座標で撃てる(端ちょうどには置かない)= DSL と同じ扱いにする
                 let snapshot = try await driver.snapshot()
                 let area = driverOptions.resolvedPlatform == "ios"
-                    ? (PinchRegion.area(elements: snapshot.elements, screen: snapshot.screen)
-                        ?? snapshot.screen)
+                    ? PinchRegion.area(in: snapshot).region
                     : nil
                 try await driver.pinch(frame: area, identifier: nil, scale: scale,
                                        durationSeconds: duration)

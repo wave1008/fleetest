@@ -564,8 +564,10 @@ extension StepExecutor {
         // **ピンチだけは領域を絞る** —— 指の2点が別々のものに載るとパンに化ける
         // (理由と実測は PinchRegion)。doubleTap は中心を叩くだけ・swipeBy は比率の基準が
         // 変わるので絞らない。Android は領域の短辺から指の幅を決めるので渡さない
+        // キーボードが出ていればその上だけ(`PinchRegion.area(in:)` = MCP と同じ。キーの上の指は欄の文字を消す)
+        let picked = PinchRegion.area(in: snapshot)
         let area = !isAndroid && ["pinchOut", "pinchIn"].contains(action)
-            ? PinchRegion.area(elements: snapshot.elements, screen: snapshot.screen) : nil
+            && (picked.narrowed || picked.region != snapshot.screen) ? picked.region : nil
         let outcome = try await performGesture(
             action, step: step, target: area ?? snapshot.screen, identifier: nil,
             viewport: snapshot.screen, phase: &phase)
