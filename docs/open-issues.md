@@ -532,6 +532,7 @@
 - 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
 - E2EY-CMP の横向き `scrollToTop` が 50 払いの上限で `msg_08` までしか戻らない(2/2。411px の窓で 60 件)
 - 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
+- 11/2: E2EY-CMP の android 8 台で測ると「not fully inside」ではなく端に達する赤になり、frozen screen の離脱で測れなかった。Emulator を 2 台ほどに絞って測り直す。寄せが収束しないときは枠の中心を撃つ作り(`StepExecutor+Actions.swift`)で、失敗にするかは判断待ち
 ### OI-76 CMP の横向きで焦点の欄がキーボードに押し出されて木から消えると、ref なしの ft_type / ft_clear_input が打てない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -566,7 +567,7 @@
 - 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
 
 - DSL は次のタップの前に空打ちで吸うようにした(容器の中の要素・Compose だけ)。MCP は ft_swipe ごとに実行器を作り捨てるので効かず、注記で案内するだけ(c F5)。続く ref の ft_tap は CMP・Flutter とも 16/16 が done のまま押せていない(3 秒待てば押せる)
-
+- 11/2: 手元の CMP(E2EX の無限スクロール)で再現せず 4/4 届いた。手順に ft_snapshot を挟んでいるので、挟まない形(snapshotAfter の ref)で測り直す
 ### OI-86 打ち直しの結果を読みだけで判定できない(RN の単一行・数字だけの欄)
 - 状態: 経路確定
 - 確認: コミット未記録(2026-10-30)
@@ -768,6 +769,10 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 
 ### OI-132 Flutter の iOS で別の欄へ打った後、キーボードの裏へ送られた欄が木から消えて `type` が赤
 E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_first" "a"; type "#field_number" "1"` が「cannot resolve the locator … tapping (8, 512) above the keyboard did not close it」で赤。修正なしの版で 7/25、OI-107 の修正後で 3/24(8 台の --broadcast × 3 周)= 以前からある形。低率の形なので2つの差は判定できない。キーボードを閉じる手(背景のタップ)が閉じなかった回に出る。原因は未調査。
+
+11/2 朝に測定: 手元の 5 台の --broadcast で 1/160(失敗の回は 1 ステップの読みが 3.2 秒 = 高負荷の局面)。押す点は `KeyboardDismissPoint.candidates` の先頭の x=8。Flutter の戻るジェスチャの帯に入る疑いと、負荷でタップが落ちる疑いは未検証。率が低いので効果の判定に数百周が要る。
+### OI-134 launch 直後の最初の replace の type が「nothing has keyboard focus」で赤
+E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)` が launch 直後の最初の手のとき 5 台中 1 台が 422(11/2)。原因は未調査。
 
 ### OI-133 MCP で一度触った端末は、MCP プロセスが生きている間ずっと実行中のランプが点く
 `mcp-<udid>@<pid>.lease` は呼び出しごとに書くが、消すのはプロセスの終了だけ(モニターは `MCPDeviceLease.hasMCPHolder` を `inMCP` としてランプに出す)。操作が終わって何も動いていなくても点いたままで、実行中と見分けがつかない。
