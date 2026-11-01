@@ -188,8 +188,8 @@ public enum RunnerAccessibilityHealth {
             ? "`fleetest bridge down --port \(port)` (live control starts it again on the next action)"
             : "`fleetest bridge down --port \(port)`, then start it again"
         return "the xcuitest bridge on port \(port) \(measured); normal is under 0.3s, and every"
-            + " operation here pays that wait on each accessibility query (a stale remote element"
-            + " after a system daemon restart). Restart the bridge first: \(restart);"
+            + " operation here pays that wait on each accessibility query."
+            + " Restart the bridge first: \(restart);"
             + " if it is still this slow afterwards, reboot the simulator"
     }
 
@@ -197,8 +197,7 @@ public enum RunnerAccessibilityHealth {
     public static func restartMessage(name: String, port: UInt16, probe: ProbeOutcome?, injected: Bool) -> String {
         let measured = injected ? "injected as slow (FT_FAKE_SLOW_RUNNER_PORTS)" : measuredPhrase(probe)
         return "⚠️ \(name): the xcuitest bridge on port \(port) \(measured); normal is under 0.3s"
-            + " (a stale remote element after a system daemon restart makes every query wait"
-            + " ~\(Int(slowProbeSeconds * 2))s) — restarting it (SpringBoard first on a simulator)"
+            + " — restarting it (SpringBoard first on a simulator)"
     }
 
     // MARK: - 印を run をまたいで持ち越す(RunnerSlownessStore)

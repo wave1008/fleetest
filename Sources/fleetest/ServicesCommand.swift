@@ -88,13 +88,25 @@ struct ServicesCommand: AsyncParsableCommand {
         guard let kind = ServiceRuntime(rawValue: lease.runtime),
               let executable = ServicesRuntimeLocator.executable(for: kind) else { return [] }
         let cli = RuntimeCLI(runtime: LocatedRuntime(kind: kind, executable: executable, endpoint: lease.endpoint))
+        // inspect が失敗したとき「消された」と「ランタイムに問えなかった」を分ける: 一覧が読めて名前が無いときだけ消された(止まった扱い)。
+        // 一覧が読めなければ従来どおり入れない
+        let listing = cli.run(cli.commands.listContainers)
+        let listed: Set<String>? = listing.succeeded
+            ? Set(RuntimeListing.parse(listing.output, isDocker: cli.isDocker).map(\.name)) : nil
         return lease.containers.keys.sorted().filter { name in
             let inspect = cli.run(cli.commands.containerInspect(name))
-            guard inspect.succeeded, let json = RuntimeListing.decodeJSON(inspect.output),
+            if !inspect.succeeded { return isMissing(name, listed: listed) }
+            guard let json = RuntimeListing.decodeJSON(inspect.output),
                   let fact = RuntimeListing.containerState(json: json, isDocker: cli.isDocker), fact.exited
             else { return false }
             return fact.exitCode != 0
         }
+    }
+
+    /// 控えにあるコンテナがランタイムの一覧に無い(= 消された)。一覧を読めていない(nil)ときは false
+    static func isMissing(_ name: String, listed: Set<String>?) -> Bool {
+        guard let listed else { return false }
+        return !listed.contains(name)
     }
 
     /// `up` が「already up」と言う直前の警告(止まったコンテナが無ければ nil)。起こし直しはしない(所有者の健全性は起動時だけ見る)

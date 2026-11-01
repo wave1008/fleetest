@@ -193,11 +193,12 @@ struct DriverOptions: ParsableArguments {
             }
             let driver = PortDirectIOSTarget(port: resolvedPort).makeDriver()
             if let skew = await BridgeTargetResolution.versionSkew(driver: driver) {
+                let udid = try? await driver.status().udid
                 guard allowVersionSkew else {
-                    throw ValidationError(Self.skewMessage(skew, port: resolvedPort))
+                    throw ValidationError(Self.skewMessage(skew, port: resolvedPort, udid: udid))
                 }
                 ConsoleOut.err("⚠️ --allow-version-skew: proceeding despite a bridge/host mismatch. "
-                               + Self.skewMessage(skew, port: resolvedPort))
+                               + Self.skewMessage(skew, port: resolvedPort, udid: udid, proceeding: true))
             }
             return driver
         case "android":
@@ -211,12 +212,19 @@ struct DriverOptions: ParsableArguments {
     /// `BridgeVersionSkew`(FTBridgeClient・MCP と共有)** —— ここは対処の言い回しだけ持つ
     /// (MCP は `fleetest-mcp`/`bridge down --all` を名指しする。こちらは `fleetest` の
     /// 再ビルドと、この宛先だけを起動し直す `bridge down --port` を名指しする。文言は呼び手ごと)
-    static func skewMessage(_ skew: BridgeVersionSkew, port: UInt16) -> String {
+    /// **`bridge up` は引数なしだと既定のデバイス・ポートを起こす**ので、版違いの端末を直すには udid を渡す
+    /// (/status の udid。読めなければ `<udid>` の穴あき)。`proceeding` = `--allow-version-skew` で押し通している回
+    /// (断りの文を付けない)
+    static func skewMessage(_ skew: BridgeVersionSkew, port: UInt16, udid: String? = nil,
+                            proceeding: Bool = false) -> String {
+        let device = udid ?? "<its udid>"
+        let physical = udid.flatMap { SimulatorCatalog.isPhysical(udid: $0) } == true ? " --physical" : ""
         let side = skew.bridgeIsNewer
             ? "the bridge on port \(port) is NEWER than this build (v\(skew.running) > v\(skew.expected)) —"
                 + " your fleetest binary is stale, so rebuild it (swift build --product fleetest) or pull"
             : "the bridge on port \(port) is OLDER than this build (v\(skew.running) < v\(skew.expected)) —"
-                + " restart it with `fleetest bridge down --port \(port) && fleetest bridge up`"
+                + " restart it with `fleetest bridge down --port \(port) && fleetest bridge up --device \(device)\(physical)`"
+        if proceeding { return "bridge protocol mismatch: \(side)." }
         return "bridge protocol mismatch: \(side)."
             + " Refusing to operate: a stale bridge answers with the behaviour of its own version."
             + " Pass --allow-version-skew to proceed anyway."

@@ -30,4 +30,18 @@ final class DriverOptionsSkewMessageTests: XCTestCase {
         let message = DriverOptions.skewMessage(BridgeVersionSkew(running: 90, expected: 91), port: 8123)
         XCTAssertTrue(message.contains("--allow-version-skew"), message)
     }
+
+    /// 引数なしの `bridge up` は既定のデバイスを起こすので、版違いの端末の udid を渡す案内にする
+    func testOlderBridgeNamesTheDeviceToStart() {
+        let message = DriverOptions.skewMessage(BridgeVersionSkew(running: 90, expected: 91), port: 8135, udid: "UDID-A")
+        XCTAssertTrue(message.contains("fleetest bridge up --device UDID-A"), message)
+        XCTAssertFalse(message.contains("&& fleetest bridge up`"), message)
+    }
+
+    func testProceedingMessageDoesNotSayRefusing() {
+        let message = DriverOptions.skewMessage(
+            BridgeVersionSkew(running: 90, expected: 91), port: 8135, udid: "UDID-A", proceeding: true)
+        XCTAssertFalse(message.contains("Refusing"), message)
+        XCTAssertFalse(message.contains("Pass --allow-version-skew"), message)
+    }
 }

@@ -942,11 +942,13 @@ extension MCPServer {
         recordSnapshot(final, batchDriver is AndroidDriver ? "android" : "ios", args)
         flagUnchangedTap(now: final.elements)
         applyUnchangedTaps(final: final)
+        let displayOffNote = unchangedTaps.isEmpty ? ""
+            : await displayOffNoteAfterUnchangedAction(driver: batchDriver, elementCount: final.elements.count) ?? ""
         let leftFront = await appLeftFront(final)
         return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
                                                                    appLeftFront: leftFront)
             + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
-            + (leftFront ? "" : unchangedNote) + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
+            + (leftFront ? "" : unchangedNote) + displayOffNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
     }
 
     /// セレクタを書かず本文だけの `type` の本文が、直近の木にある id そのもの(`#field_x`)のとき、本文の書き忘れの疑いを返す。

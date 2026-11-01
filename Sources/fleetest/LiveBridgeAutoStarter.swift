@@ -40,6 +40,11 @@ actor LiveBridgeAutoStarter {
     /// 直近の自動起動を「断った」理由(他のセッションが使用中・同じ台の別ランナー)。idle のまま対処の要る理由を伝える
     /// (`bridgeStarting` は false = 拡張は「接続中」の中立表示にせずエラーとして出す)。成功・本物の失敗で消す
     private var skippedDetail: String?
+    /// 直近の自動起動を断った理由が「同じ台の別ポートにランナーが居る」のとき、そのポート。
+    /// 断りは launchBridge の中(非同期)で分かるので、呼び手(serve のコマンドループ)が毎コマンド読んで、
+    /// そのポートが自分のデバイスの答えるブリッジなら乗り換える(乗り換えない限り、元のポートへ撃って
+    /// 起動 → 断りを繰り返す)。成功・本物の失敗で消す
+    private(set) var runnerElsewherePort: UInt16?
 
     init(repoRoot: URL, udid: String, port: UInt16, physical: Bool, wired: Bool) {
         self.repoRoot = repoRoot
@@ -170,6 +175,7 @@ actor LiveBridgeAutoStarter {
         case .success:
             state = .idle
             skippedDetail = nil
+            runnerElsewherePort = nil
             consecutiveFailures = 0
             startedSinceLastCheck = true
             logStderr("Bridge auto-start succeeded (udid: \(udid), port: \(port))")
@@ -182,13 +188,15 @@ actor LiveBridgeAutoStarter {
         case .failure(let error):
             // 同じ台に別のランナー(起動途中・忙しい)が居て断った回も数えない —— 起動途中のランナーを待つ間に上限へ達して
             // failed に固定されると、そのランナーが準備できた後も二度と自動起動しない
-            if case LauncherError.deviceRunnerElsewhere = error {
+            if case LauncherError.deviceRunnerElsewhere(_, let elsewhere, _, _) = error {
+                runnerElsewherePort = elsewhere
                 state = .idle
                 skippedDetail = error.localizedDescription
                 logStderr("Bridge auto-start skipped: \(error.localizedDescription)")
                 return
             }
             skippedDetail = nil
+            runnerElsewherePort = nil
             consecutiveFailures += 1
             let detail = error.localizedDescription
             if consecutiveFailures >= Self.maxConsecutiveFailures {

@@ -499,6 +499,22 @@ extension MCPServer {
             + waitForWithoutSnapshotAfterNote(args) + afterBody)
     }
 
+    /// 全面一色の絵 + 木に要素がある、の注記(ft_screenshot と ft_batch の「画面が変わらなかった」の後で同じ文)
+    static func flatScreenshotNote(elementCount: Int) -> String {
+        "note: this screenshot is a single flat colour while the element tree lists \(elementCount)"
+            + " elements — the display may be off or blank (for example right after the device woke from sleep),"
+            + " in which case taps may not reach the app even though they report done. If the screen really"
+            + " should show content, wake or unlock the device and re-check with ft_snapshot."
+    }
+
+    /// **操作の後で画面が変わらなかったときだけ**絵を1枚撮り、全面一色なら注記を返す(操作のたびに撮らない。
+    /// 実機は白紙・文字消えの検出が効かないので、ここで拾えるのは「撃っても変わらず、絵も一色」の組だけ)。撮れなければ nil
+    func displayOffNoteAfterUnchangedAction(driver: AppDriver, elementCount: Int) async -> String? {
+        guard elementCount > 0, let png = try? await driver.screenshot(),
+              BlankFrameDetector.isUniformBlank(pngData: png) else { return nil }
+        return "\n" + Self.flatScreenshotNote(elementCount: elementCount)
+    }
+
     func ftScreenshot(_ args: [String: Any]) async throws -> [[String: Any]] {
         let screenshotDriver = try await driver(args)
         // 鮮度判定は StaleFrameDetector.judge(FTCore。DSL の occlusion-guard と共有・
@@ -524,11 +540,7 @@ extension MCPServer {
             // 画面が一色のままなのに木には要素がある = 表示が落ちている(スリープ明けの全面黒等)可能性。
             // 木は読めるので ft_tap 等は「done」と言うが、入力が届いていないことがある。警告だけ(一色の動画・起動画面もありうる)
             if BlankFrameDetector.isUniformBlank(pngData: png), !after.elements.isEmpty {
-                staleNote += [["type": "text", "text":
-                    "note: this screenshot is a single flat colour while the element tree lists \(after.elements.count)"
-                    + " elements — the display may be off or blank (for example right after the device woke from sleep),"
-                    + " in which case taps may not reach the app even though they report done. If the screen really"
-                    + " should show content, wake or unlock the device and re-check with ft_snapshot."]]
+                staleNote += [["type": "text", "text": Self.flatScreenshotNote(elementCount: after.elements.count)]]
             }
             lastScreenshots[key] = record
         }
