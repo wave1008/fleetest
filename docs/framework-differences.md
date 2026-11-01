@@ -253,6 +253,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | 座標ドラッグ(`swipeBy` / `swipeElementToElement` / `swipePointToPoint`・探索の寄せ・空打ち) | **Compose・Flutter は in-app の `/drag`**(実時間 60Hz で move を処理させ、終点の後に1刻み待って同じ点で離す = 位置も離す瞬間の速度も届く)。XCUITest の合成では Compose の行が払った距離どおりに動かないことがあった(E2EY-CMP の行払いが負荷下で 24 回中 11 回 Actions で止まった → in-app で 24/24。撃った要求は赤緑で同一。仕組みは推測 = 最後の移動が離す操作と同着になり Compose の drag() が捨てる)。終点で止めてから離す案は速度で決まる部品(Flutter のパッド・Compose の `SwipeToDismissBox`)を壊したので不採用。**xcuitest モードで直接合成(XCPointerEventPath)に替え、離す操作だけを最後の移動の 1/60 秒後ろへ置く案も不採用** —— 同じ 8 台で交互に測ると行払いは悪化した(赤 9/24 対 従来 3/24。パッド・`SwipeToDismissBox` は両方 24/24。直接合成は 50ms より細かく刻めない = in-app の 60Hz と同じ効果は出せない。2026-10-26)。SwiftUI・UIKit・RN は 501 → XCUITest | Android は注入器が終点の MOVE を UP の前に撃つ | B |
 | `gesture`(多点・時刻つき経路) | XCUITest へ(in-app にこの経路自体が無い) | XCUITest へ | A(フレームワークを問わず同じ結果。座標ピンチと同じ非公開 API でフォールバック無し = 使えない Xcode では 422) |
 | `hideKeyboard`(iOS) | 背景タップで閉じるのは Compose(E2E-CMP で実測)。SwiftUI(E2E-iOS)と Flutter は背景タップでは閉じず、続けて送る Enter で閉じる。React Native は自前 SUT では背景タップでも Enter でも閉じなかった。sut-ec-mobile の Compose の住所フォームは背景タップで閉じず Enter で閉じる(iOS Simulator で実測) | 背景タップと Enter の順で試す(経路は全フレームワーク共通・モード非依存。どれも閉じなければ失敗) | B |
+| `hideKeyboard`(iOS・WebView の欄) | WKWebView の欄はキーボードの上に OS の入力補助バー(識別子 `Toolbar` の Previous / Next / Done)を出し、バーは `keyboardFrame` に含まれない。ページが押せる部品で埋まっていると背景タップの空きが無い(E2E-iOS の WebView で実測) | 空きが無い・叩いても閉じないときは Enter の前にバーの Done を押す(アプリ独自のバーは押さない) | B |
 | 戻る | Compose / Flutter には BackButton が無い → エッジスワイプ | 戻るボタンがあれば押す | C |
 
 ---

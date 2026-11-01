@@ -757,6 +757,15 @@ extension StepExecutor {
                 phase.snapshotMs += Self.ms(clock.now - start)
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
+            // **同じ顔ぶれの要素が枠だけ違うなら、整定してから比べる**(払いの直後の1枚は端のバウンスの途中かもしれない。
+            // 全部が収まる一覧を「まだ動いていた」と読んで maxSwipes まで回り、逆走査まで撃っていた。ScrollSearchBounce)。
+            // 整定後も違えば本物の移動。顔ぶれが変わる普通のスクロールには掛からない
+            if let earlier = previousSnapshot, searchSignature(earlier) != searchSignature(snapshot),
+               ScrollSearchBounce.sameElementsOnlyDisplaced(
+                   Self.elementsInside(Self.searchContentRegion(step, in: earlier), earlier.elements),
+                   Self.elementsInside(Self.searchContentRegion(step, in: snapshot), snapshot.elements)) {
+                snapshot = try await settledSignature(phase: &phase).snapshot
+            }
             // **キーボードの実効矩形は周回ごとに引き直す**(整定待ち中に閉じることがある)。
             // hintDrag/slowDrag の viewport クリップと、末尾の keyboardFrame 注記の両方で使う
             let effectiveKeyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame,
