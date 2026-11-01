@@ -528,14 +528,14 @@
 
 - 午前に足した「waitSeconds の間は端と確定しない」は `step.timeout` を見るので scrollTo には効かない。待つ口を足すのは DSL の変更(利用者の決定と docs の更新が要る)
 
-### OI-69 下書きの残り: 付け替えて撃った手・失敗した ft_scroll_to が画面を動かした事実・アラートの欄のセレクタ
+### OI-69 下書きの残り: 付け替えて撃った手・失敗した ft_scroll_to が画面を動かした事実
 - 状態: 経路確定
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 午後の探索的テスト(Simulator = sim8 F6・F8・sim9 F3)
 
 - 無効な要素を叩いた手は TODO を残すようにした(sim8 F2)。付け替え(RefGuard の movedNote)は構造化された印が無く、下書きへ渡せていない
 - 失敗した ft_scroll_to は記録されない(ScenarioTools 側)
-- アラートの id の無い欄のセレクタが、一意の placeholder ではなくキーボードの部品を錨にする(`SelectorNaming` が `keyboardChromeIdentifiers` を錨にしない・`DraftNotes.selectorDurability` が相対セレクタを「index-based」と呼ぶ)
+- `DraftNotes.selectorDurability` が相対セレクタを「index-based」と呼ぶ
 
 ### OI-70 iOS の WebView の欄でキーボードを出すと hideKeyboard が閉じられず、画面の Done(✓)を試しも案内もしない
 - 状態: 再現済み
@@ -698,7 +698,7 @@
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
 
-- Flutter の横向きで焦点のある欄への ft_type(ref)を断る(d F2)・ft_tap(x,y)が ANR kill を挟んで18秒後に done(d F5)・タブ文字が空白に変わっても Typed(d F8)・長い type の途中の消灯の文言(d F9)・ロック中の ft_screenshot が真っ黒を注記なしで返す(c F7)
+- Flutter の横向きで焦点のある欄への ft_type(ref)を断る(d F2)・ft_tap(x,y)が ANR kill を挟んで18秒後に done(d F5)・長い type の途中の消灯の文言(d F9)
 
 ### OI-92 探索(10/31)の Android で直さなかったもの
 - 状態: 経路確定
@@ -709,13 +709,6 @@
 - adb が端末を見失った間(撃つ前)の `ft_navigate` が「届いたか分からない」と言う(p F5)。終了コード 1 だけでは撃つ前の失敗と送った後の切断を分けられず、文言の一致で確定しない規律なので不明のまま。注記の文言だけ「切れた」と断定しない形にした
 
 ## リファクタリングの精査(2026-11-01)で見つかり、まだ直していないもの
-
-### OI-94 届いたか分からない操作の案内が、次の観測の失敗のバナーで「もう一度」に置き換わる
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 配達の注記の修正のレビュー
-
-- `actionError` のバナーは1枠で、続く refresh の失敗(`annotated` の operated: false)が上書きする(monitorLiveController.ts の postActionError)。probe が timedOut / answered なら「try again」が残る
 
 ### OI-96 複数の要求からなるステップの配達の注記は、最後に投げられた1要求で決まる
 - 状態: 経路確定
@@ -858,9 +851,6 @@ in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。�
 
 ### OI-125 live と CLI の残り
 別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
-
-### OI-126 変異を確かめていない新しいテスト
-コミット済みのテストは `test-scope-guard.py` が新しいテストと数えないので、1クラス1件だけ確かめた。未確認の案は `_work/explore-20261101f/mut-all.json` の 6 件(行の顔ぶれの間隔・子の文字・ghost・件数の文・bridge down・見出しと注記の操作名)。大きな面の判定の変異も未確認。
 
 ### OI-127 手元の Emulator の白紙が回帰の終盤に集中した
 配信なしのフル回帰(73a31d8b)で、23:06 前後に手元の Emulator 4台が白紙になり `E2EX-RN/android` の1本が赤。`E2EY-Android` も1本が再実行。同じ対象を単独で3周(144 本)回すと白紙0件で再現しない。終了時の手元は `videoEncoder=dead`。原因は未測定。
