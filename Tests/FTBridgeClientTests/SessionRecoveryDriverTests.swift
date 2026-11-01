@@ -52,7 +52,8 @@ private final class FakeAppDriver: AppDriver {
     }
 
     func tap(x: Double, y: Double) async throws {}
-    func type(ref: Int?, text: String) async throws {}
+    var typeError: Error?
+    func type(ref: Int?, text: String) async throws { if let typeError { throw typeError } }
     func swipe(_ direction: FTSwipeDirection) async throws {}
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
              pressSeconds: Double, durationSeconds: Double) async throws {}
@@ -257,6 +258,24 @@ final class SessionRecoveryDriverTests: XCTestCase {
         } catch let DriverError.badResponse(_, body) {
             XCTAssertTrue(body.contains("has not been launched"), body)
             XCTAssertTrue(body.contains("ft_launch"), "次の一手を出すこと: \(body)")
+        }
+    }
+
+    /// type の途中でアプリが死んだ 500 は、アプリが居ないと確かめられたときだけ事実を添える(居る・不明は素通し)
+    func testTypeFailureNamesTheDeadAppOnlyWhenItIsGone() async throws {
+        for (answer, expectFact) in [(false as Bool?, true), (true, false), (nil, false)] {
+            let fake = FakeAppDriver()
+            fake.typeError = DriverError.badResponse(status: 500, body: "XCTest failure")
+            let driver = SessionRecoveryDriver(base: fake, appIsRunning: { _ in answer })
+            try await driver.launch(bundleID: "com.example.app")
+            do {
+                try await driver.type(ref: nil, text: "abc")
+                XCTFail()
+            } catch {
+                guard case DriverError.badResponse(500, let body) = error else { return XCTFail("\(error)") }
+                XCTAssertEqual(body.contains("is no longer running"), expectFact, body)
+                XCTAssertTrue(body.hasPrefix("XCTest failure"), body)
+            }
         }
     }
 
