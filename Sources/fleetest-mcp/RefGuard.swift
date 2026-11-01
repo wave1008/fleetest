@@ -387,17 +387,31 @@ enum RefGuard {
 
     /// **同じ id が今の木に複数あり、採った要素から動いた位置のものへ付け替わる**ときの同 id の件数(無ければ nil)。
     /// id だけで最寄りを採ると、一覧の別の行の同じ部品(chevron 等)へ黙って付け替わる(ラベルの無い部品は labelChangeNote も効かない)。
-    /// 動いていない(`movedThreshold` 未満)なら採った要素そのものなので nil。型も同じものだけ数える
+    /// 型も同じものだけ数える。**同じ座標でも別の行がある**(一覧が行の高さの倍数だけ送られると別の行の同じ部品が同じ座標へ来る。
+    /// スクロール後の chevron で 3/4)ので、動いていなくても、その点を含む親(行)の顔ぶれが変わっていれば付け替えと見る。
+    /// `taken` = ref を返した木。無ければ座標だけで見る
     static func ambiguousRetargetCount(target: ElementInfo, found: ElementInfo, moved: Double,
-                                       in fresh: [ElementInfo]) -> Int? {
-        guard moved >= movedThreshold, let id = target.identifier, !id.isEmpty else { return nil }
+                                       in fresh: [ElementInfo], taken: [ElementInfo]) -> Int? {
+        guard let id = target.identifier, !id.isEmpty else { return nil }
+        guard moved >= movedThreshold || (!taken.isEmpty
+            && enclosingRow(of: target, in: taken) != enclosingRow(of: found, in: fresh)) else { return nil }
         let count = fresh.filter { $0.identifier == id && $0.type == found.type }.count
         return count >= 2 ? count : nil
     }
 
+    /// 要素の中心を含む他の要素の id とラベル(値は見ない = トグルの状態の変化を別の行と呼ばない)
+    private static func enclosingRow(of element: ElementInfo, in tree: [ElementInfo]) -> Set<String> {
+        let x = element.frame.x + element.frame.width / 2, y = element.frame.y + element.frame.height / 2
+        return Set(tree.filter {
+            $0.ref != element.ref && $0.identifier != element.identifier
+                && x >= $0.frame.x && x <= $0.frame.x + $0.frame.width
+                && y >= $0.frame.y && y <= $0.frame.y + $0.frame.height
+        }.map { "\($0.identifier ?? "")|\($0.label ?? "")" })
+    }
+
     static func ambiguousRetargetRefusal(ref: Int, old: ElementInfo, count: Int) -> String {
         "refusing [\(ref)]: \(describe(old)) now matches \(count) elements with the same id, and the one nearest to where it was"
-            + " snapshotted has moved, so this can be the same-looking part of a different row. Nothing was sent."
+            + " snapshotted moved or sits in a different row now, so this can be the same-looking part of another row. Nothing was sent."
             + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
     }
 

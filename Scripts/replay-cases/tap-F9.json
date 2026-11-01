@@ -2,33 +2,79 @@
   "id": "tap-F9",
   "finding": "id の重複する古い ref(スクロール後の chevron)が別の行へ付け替わって押される",
   "platform": "ios",
-  "redNote": "デバイスを動かさずに書いた。統合時に直しを外した版で赤(別の画面へ遷移)を確認する",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2ex.ios"}]],
-  "reset": [["ft_launch", {"bundleId": "com.ftester.e2ex.ios", "resume": true}]],
-  "resetSeconds": 1,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.ios"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.ios"
+      }
+    ]
+  ],
+  "resetSeconds": 1.5,
   "rounds": 5,
   "forms": [
     {
       "name": "snapshot → swipe up → ft_tap 古い ref(chevron)",
       "steps": [
-        ["ft_snapshot", {}],
-        ["ft_swipe", {"finger": "up"}],
-        ["ft_tap", {"ref": "$ref:chevron.forward"}]
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_swipe",
+          {
+            "finger": "up"
+          }
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:chevron.forward"
+          }
+        ]
       ],
       "allowErrors": true,
       "replyOnly": true,
-      "replyReject": ["done"]
+      "replyReject": [
+        "done"
+      ],
+      "settleSeconds": 0.3
     },
     {
       "name": "ft_double_tap 古い ref(経路違い)",
       "steps": [
-        ["ft_snapshot", {}],
-        ["ft_swipe", {"finger": "up"}],
-        ["ft_double_tap", {"ref": "$ref:chevron.forward"}]
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_swipe",
+          {
+            "finger": "up"
+          }
+        ],
+        [
+          "ft_double_tap",
+          {
+            "ref": "$ref:chevron.forward"
+          }
+        ]
       ],
       "allowErrors": true,
       "replyOnly": true,
-      "replyReject": ["done"]
+      "replyReject": [
+        "done"
+      ],
+      "settleSeconds": 0.3
     }
-  ]
+  ],
+  "redConfirmed": true
 }

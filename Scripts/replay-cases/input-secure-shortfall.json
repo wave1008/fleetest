@@ -2,59 +2,151 @@
   "id": "input-secure-shortfall",
   "finding": "secure 欄の非 ASCII が落ちても、セレクタ無し・ft_type・値が既にある欄・ft_batch で ok になる(文字数の照合が DSL のセレクタ付き経路にしか無かった)",
   "platform": "ios",
-  "redNote": "統合時に確認(デバイス未使用)。直しを外す = TypedInputVerdict の配線(StepExecutor の maskedTypeShortfall / ft_type の maskedShortfall)を外した版で、各形の応答に 'did not accept' が出ず緑になること。secure 欄がかなを捨てる XCUITest ブリッジの構成が要る",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2e.ios"}]],
-  "reset": [["ft_launch", {"bundleId": "com.ftester.e2e.ios"}]],
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
   "rounds": 5,
   "forms": [
     {
       "name": "ft_batch セレクタ無しの type",
       "steps": [
-        ["ft_batch", {"steps": "tap '#nav_input'"}],
-        ["ft_batch", {"steps": "tap '#field_password'; type 'かな'"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#field_password'; type 'かな'"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["did not accept some of the typed characters"]
+      "replyExpect": [
+        "did not accept some of the typed characters"
+      ]
     },
     {
       "name": "ft_batch セレクタ付き(対照)",
       "steps": [
-        ["ft_batch", {"steps": "tap '#nav_input'"}],
-        ["ft_batch", {"steps": "type '#field_password' 'かな'"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_password' 'かな'"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["did not accept some of the typed characters"]
+      "replyExpect": [
+        "did not accept some of the typed characters"
+      ]
     },
     {
       "name": "値が既にある欄へ ft_batch",
       "steps": [
-        ["ft_batch", {"steps": "tap '#nav_input'"}],
-        ["ft_batch", {"steps": "type '#field_password' 'abc'"}],
-        ["ft_batch", {"steps": "type '#field_password' 'かな'"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_password' 'abc'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_password' 'かな'"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["did not accept some of the typed characters"]
+      "replyExpect": [
+        "did not accept some of the typed characters"
+      ]
     },
     {
       "name": "ft_type ref(空の欄)",
       "steps": [
-        ["ft_batch", {"steps": "tap '#nav_input'"}],
-        ["ft_snapshot", {}],
-        ["ft_type", {"ref": "$ref:field_password", "text": "かな"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_type",
+          {
+            "ref": "$ref:field_password",
+            "text": "かな"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["did not accept some of the typed characters"]
+      "replyExpect": [
+        "did not accept some of the typed characters"
+      ]
     },
     {
       "name": "ft_type ref(値が既にある欄)",
       "steps": [
-        ["ft_batch", {"steps": "tap '#nav_input'"}],
-        ["ft_batch", {"steps": "type '#field_password' 'abc'"}],
-        ["ft_snapshot", {}],
-        ["ft_type", {"ref": "$ref:field_password", "text": "かな"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_input'"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_password' 'abc'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_type",
+          {
+            "ref": "$ref:field_password",
+            "text": "かな"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["did not accept some of the typed characters"]
+      "replyExpect": [
+        "did not accept some of the typed characters"
+      ]
     }
-  ]
+  ],
+  "redConfirmed": true
 }

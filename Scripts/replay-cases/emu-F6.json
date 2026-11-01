@@ -2,33 +2,63 @@
   "id": "emu-F6",
   "finding": "見つからない対象の tap / type / clearInput は、キーボードを黙って閉じた上で「the soft keyboard is up … Close it first (hideKeyboard())」と言う(既に閉じている)",
   "platform": "android",
-  "redNote": "デバイスを動かさずに足したケース。統合時に確認(直しを外した版で赤になること = 応答に Close it first が出る)",
   "setup": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e"
+      }
+    ]
   ],
   "reset": [
-    ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_single'"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_input'; tap '#field_single'"
+      }
+    ]
   ],
-  "resetSeconds": 1,
+  "resetSeconds": 1.5,
   "rounds": 5,
   "forms": [
     {
       "name": "ft_batch の tap(見つからない id)",
       "steps": [
-        ["ft_batch", {"steps": "tap '#no_such' waitSeconds: 1"}]
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#no_such' waitSeconds: 1"
+          }
+        ]
       ],
       "allowErrors": true,
       "replyOnly": true,
-      "replyReject": ["Close it first"]
+      "replyReject": [
+        "Close it first"
+      ]
     },
     {
       "name": "ft_batch の type(見つからない id)",
       "steps": [
-        ["ft_batch", {"steps": "type '#no_such' 'x' waitSeconds: 1"}]
+        [
+          "ft_batch",
+          {
+            "steps": "type '#no_such' 'x' waitSeconds: 1"
+          }
+        ]
       ],
       "allowErrors": true,
       "replyOnly": true,
-      "replyReject": ["Close it first"]
+      "replyReject": [
+        "Close it first"
+      ]
     }
-  ]
+  ],
+  "redConfirmed": true
 }

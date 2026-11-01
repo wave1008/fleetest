@@ -102,7 +102,8 @@ extension MCPServer {
             return (found, gateNote)
         case .found(let found, let moved):
             // verifiedRef と同じ断り(同じ id が複数ある木で動いた位置のものへ付け替わる)
-            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements) {
+            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements,
+                                                              taken: takenFrom?.elements ?? []) {
                 throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
             }
             let labelNote = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""

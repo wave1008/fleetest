@@ -16,16 +16,30 @@ final class TapRefGuardTests: XCTestCase {
         let fresh = [chevron(10, y: 200), chevron(11, y: 285), chevron(12, y: 370)]
         let found = try XCTUnwrap(RefGuard.match(old, in: fresh))
         let moved = RefGuard.distance(old.frame, found.frame)
-        XCTAssertEqual(RefGuard.ambiguousRetargetCount(target: old, found: found, moved: moved, in: fresh), 3)
+        XCTAssertEqual(RefGuard.ambiguousRetargetCount(target: old, found: found, moved: moved, in: fresh, taken: []), 3)
+    }
+
+    /// 行の高さの倍数だけ送られると別の行の chevron が同じ座標へ来る。動いていなくても親の行が違えば付け替え
+    func testSameCoordinatesInADifferentRowIsAmbiguous() throws {
+        func row(_ ref: Int, _ id: String, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 16, y: y, width: 370, height: 52), depth: 2)
+        }
+        let old = chevron(1, y: 300)
+        let taken = [row(2, "nav_pager", y: 280), old]
+        let moved = [row(3, "nav_grid", y: 280), chevron(4, y: 300), chevron(5, y: 352)]
+        XCTAssertEqual(RefGuard.ambiguousRetargetCount(target: old, found: moved[1], moved: 0, in: moved, taken: taken), 2)
+        let same = [row(3, "nav_pager", y: 280), chevron(4, y: 300), chevron(5, y: 352)]
+        XCTAssertNil(RefGuard.ambiguousRetargetCount(target: old, found: same[1], moved: 0, in: same, taken: taken))
     }
 
     /// 動いていない・同じ id が1つだけなら付け替えではないので通す
     func testUnmovedOrUniqueRetargetIsNotAmbiguous() {
         let old = chevron(1, y: 300)
         let fresh = [chevron(10, y: 200), chevron(11, y: 300)]
-        XCTAssertNil(RefGuard.ambiguousRetargetCount(target: old, found: fresh[1], moved: 0, in: fresh))
+        XCTAssertNil(RefGuard.ambiguousRetargetCount(target: old, found: fresh[1], moved: 0, in: fresh, taken: []))
         let single = [chevron(11, y: 285)]
-        XCTAssertNil(RefGuard.ambiguousRetargetCount(target: old, found: single[0], moved: 15, in: single))
+        XCTAssertNil(RefGuard.ambiguousRetargetCount(target: old, found: single[0], moved: 15, in: single, taken: []))
     }
 
     /// 木を読み手へ返す口は返した世代の印を付ける・ref なしの入力は前面を確かめる・座標のない pinch と back も覆いを確かめる

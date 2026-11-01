@@ -1369,7 +1369,8 @@ extension MCPServer {
                 }
             }
             // **同じ id が複数ある木で動いた位置のものへ付け替わるなら撃たない**(別の行の同じ部品を押す)
-            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements) {
+            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements,
+                                                              taken: lastRendered) {
                 throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
             }
             // **ラベルが変わっていないかも見る**。moved の大小とは無関係に出す ——
