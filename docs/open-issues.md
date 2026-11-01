@@ -436,14 +436,6 @@
 
 - 比較は `executor.lastTapTreeBefore` どうし。次の tap が前の tap の効果の出る前の木で解決している疑い(DSL の `unchangedEarlierTaps` にも同じ型で効きうる。その場合は警告より実害が大きい)
 
-### OI-51 横向きで全画面の IME(抽出ビュー)が出ていると Android の木が空になり「画面遷移の途中」と言う
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 の探索的テスト
-
-- 全画面 IME の下ではアプリの窓が窓一覧に出ない = 木は本当に空
-- 手がかり: 木が空でキーボードが画面の大半を覆うときに「全画面のキーボードがアプリを隠している。ft_hide_keyboard で閉じる」と言う(注記は MCPServer+Hints.swift)
-
 ### OI-52 待ちの途中で端末が消灯すると(常時表示)、MCP は画面を起こさずに常時表示の木を読み続ける
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -451,14 +443,6 @@
 
 - 起こすのは呼び出しの開始時だけ(`wakeIfAsleep`)。常時表示・ロック画面の木を「system dialog」と言う誤りは直した(`isLockScreenOrAlwaysOnTree`)
 - 残り: waitFor / snapshotAfter の読み直しの間に消灯した分を起こす
-
-### OI-53 Android で前面に居座ったアプリを止めて起動し直した ft_launch が、止めたことを言わない
-- 状態: 経路確定
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 の探索的テスト
-
-- Android ブリッジの `/launch` は v116 から `stoppedForeground` を返す。ホスト(AndroidDriver.launch・ft_launch)はまだ読まない
-- 手がかり: 応答を読み、`Launched: X (force-stopped <pkg> that stayed in front)` と添える
 
 ### OI-54 ft_batch で FAILED になった手が、下書きに印なしの普通の行として入る
 - 状態: 再現済み
@@ -544,23 +528,6 @@
 
 - 午前に足した「waitSeconds の間は端と確定しない」は `step.timeout` を見るので scrollTo には効かない。待つ口を足すのは DSL の変更(利用者の決定と docs の更新が要る)
 
-### OI-67 CLI の残り: 書けない --report-dir がシナリオの失敗として出る・api run --debug の「解決後に1本」の検査が供給とビルドの後・メモ/値の行でブレークポイントが止まらない
-- 状態: 経路確定
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 午後の探索的テスト(CLI = cli F6・F7・F8)
-
-- F6: `--junit` と同じ事前検査を `validateSingleTarget` に置く
-- F7: ApiRunCommand の検査をロック・供給・ビルドより前へ(ソース読みだけ・未再現)
-- F8: checkpoint が `FTDSL/FTRuntime.swift` の perform 系3箇所だけ。メモ・値の行にも置く
-
-### OI-68 同じ udid のブリッジの port が変わっただけで「2台を動かした」と数え、宛先を省いた呼び出しを断り続ける
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 午後の探索的テスト(Simulator = sim8 F1)
-
-- `MCPServer+DeviceMemory.swift` の `rememberedDeviceRefusal` / `allSeenLabels` が port 単位で数える。同じ udid は1台として新しい port へ向け直す。版ガードで断られた呼び出しは「駆動した」に数えない
-- 同じく、版ガードで断った MCP が端末の使用中の印を握り `bridge down --port` を止める(mxios F1 の後半)
-
 ### OI-69 下書きの残り: 付け替えて撃った手・失敗した ft_scroll_to が画面を動かした事実・アラートの欄のセレクタ
 - 状態: 経路確定
 - 確認: コミット未記録(2026-10-30)
@@ -637,12 +604,12 @@
 - ft_batch の終わりの前面の照会は、Android では木の bundle が前面のパッケージなので常に前面 = 1往復の無駄。意図して別アプリへ移る batch も「前面を離れたかも」と言う
 - Android の launch で systemui が居座ったときの失敗文が、シェードを閉じた事実を書かない・PowerManager が読めないと時点の注記が落ちる
 
-### OI-80 PIN ロック中の Android 実機は全呼び出しが 22 秒空回りし、原因が応答に出ない
+### OI-80 PIN ロック中の Android 実機: `isLockScreenOrAlwaysOnTree` が bouncer を見分けない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
 
-- `prepareAndroidDeviceIfNeeded` / `AndroidPhysicalDevice.wakeIfAsleep` の「解除できなかった」が stderr だけ。セッションで1回待ったら以後は待たず、応答の警告へ載せる。`isLockScreenOrAlwaysOnTree` は bouncer を見分けない(e F1)
+- 待つのはセッションの最初の1回だけになり、警告も応答へ載る。残りは bouncer の木の見分け(e F1)
 
 ### OI-81 iOS でアプリが死んだ後の ft_status が「別アプリかホーム」と言う・type の途中で死ぬと生の 500
 - 状態: 経路確定
@@ -660,13 +627,12 @@
 - 起動し直しの `DeviceSpec` に port が無く先頭の 8123 を選ぶ(b F4)。失敗は60秒後に再挑戦するようにしたが、ポートの選び直しは `BridgeProvisioner` 側
 - 応答途中の切断で宛先の記憶を捨てる(`forgetConnection`。udid の名指しで戻れる = b F2。テストが今の挙動を固定)
 
-### OI-84 MCP の ft_swipe の直後の ref の tap は慣性を吸わない・ref の経路は y<0 を撃つ
+### OI-84 MCP の ft_swipe の直後の ref の tap は慣性を吸わない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 夜の負荷テスト(答え合わせ・故障の注入)
 
 - DSL は次のタップの前に空打ちで吸うようにした(容器の中の要素・Compose だけ)。MCP は ft_swipe ごとに実行器を作り捨てるので効かず、注記で案内するだけ(c F5)。続く ref の ft_tap は CMP・Flutter とも 16/16 が done のまま押せていない(3 秒待てば押せる)
-- 座標の経路は上の外を断り、ref の経路は撃つ(ステータスバーで一覧が先頭へ戻る。文言だけ直した = mxa F1)
 
 ### OI-86 打ち直しの結果を読みだけで判定できない(RN の単一行・数字だけの欄)
 - 状態: 経路確定
@@ -745,27 +711,12 @@
 
 ## リファクタリングの精査(2026-11-01)で見つかり、まだ直していないもの
 
-### OI-93 MCP で接続拒否を `MCPAnnotatedError` に包む経路は、接続の記憶を捨てて次の呼び出しの自動復帰を止める
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 配達の注記の修正のレビュー
-
-- `call` の catch は underlying を取り出して `connectionLostAndForget` を呼ぶが、`attemptXCUITestBridgeRecovery` は包まれた拒否を見ない。ft_scroll_to・ft_batch の launch:・ft_type が該当
-- 手がかり: 呼び手ごとに避けず、catch の1箇所で「包まれた拒否では記憶を捨てない」と決める(`executorFailure` は包まない形で避けている)。復帰の撃ち直しへ渡さない = 手が途中まで届いていることがある
-
 ### OI-94 届いたか分からない操作の案内が、次の観測の失敗のバナーで「もう一度」に置き換わる
 - 状態: 経路確定
 - 確認: コミット未記録(2026-11-01)
 - 経緯: 発見: 配達の注記の修正のレビュー
 
 - `actionError` のバナーは1枠で、続く refresh の失敗(`annotated` の operated: false)が上書きする(monitorLiveController.ts の postActionError)。probe が timedOut / answered なら「try again」が残る
-
-### OI-95 ft_batch の失敗の後の撮り直しが失敗すると、接続断の案内と記憶の破棄が出ない
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 配達の注記の修正のレビュー
-
-- `unreadableAfterBatch`(MCPServer+Batch.swift)が `MCPError` に畳む。ft_scroll_to の同じ分岐は投げられた case を抱える
 
 ### OI-96 複数の要求からなるステップの配達の注記は、最後に投げられた1要求で決まる
 - 状態: 経路確定
@@ -788,13 +739,6 @@
 - 経緯: 発見: RunExitGuard のレビュー
 
 - レーンが見るのは段の境目だけ。ビルド中に2回目の中断を送ると `exit(143)` で片付けとロックの解放が飛ぶ。始まった run の控えは orchestrator の終了が消すので、片付けの間マシンが空いて見える。`fleetest run` で Android の供給が失敗した回は控えが残る(死んだ pid は読み手が弾く)
-
-### OI-99 `fleetest run` の供給失敗は、サービスのログと servicesWarnings を run の記録に残さない
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: api run の合流のレビュー
-
-- 片付けが結果の後になり catch の時点でサービスは動いているので読める。`api run` は catch で `saveLogs` と `servicesWarnings` を記録する。CLI は `servicesWarnings: []` のまま
 
 ### OI-100 供給のタスクの起動は run と api run に二重のまま
 - 状態: 経路確定
@@ -873,12 +817,11 @@
 - `ft_launch com.ftester.e2e.flutter` → 待たずに `ft_tap x:201 y:294`(#nav_input の中心)→ 10/24 + 別の周で 2/10 が外れる。外れた回は全部 launch が 2.44〜2.58 秒・応答は `tap (201.0, 294.0) done`・画面はホームのまま・注記なし。当たった回は 2.81〜3.36 秒。対照: CMP(iOS)0/10・Flutter(Android)0/10・RN(Android)0/10。Flutter(iOS)でも ft_snapshot を挟めば ref の tap 0/14、ft_batch `tap '#nav_input'` 0/10 = 木に載るまで待つ経路は外れない
 - 推測: XCUITest の launch が戻るのが 2 通りで、早い回は Flutter の最初のフレームの前。`MCPServer+SessionTools.swift:256 ftLaunch` は launch の後に描画を待たない
 
-### OI-112 CLI・xcuitest の文言: enabled:false の名指しの断り・OS の「パスワードを保存」シートの下で木が空
+### OI-112 xcuitest: OS の「パスワードを保存」シートの下で木が空
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro -10 = inapp F1・F5)
 
-- `fleetest run --project E2E-CMP --profile ios-inapp-boost --device '…-10' --runner local` が 3/3 で「not assigned to machine "local" … pass --device-machine to target another machine's device of the same name」。事実はプロファイルに `machine:"local"`・`enabled:false` で載っている。`--device-machine local` も `matched no device in run profile` で断られる。`Sources/fleetest/RemoteCommands.swift:1011`(`RemoteDispatchExplicitDeviceScope` が有効な行だけを見る。推測)。期待: 「enabled:false」と言い有効化の場所を名指しする
 - xcuitest モード(`--set iosMode=xcuitest`・SampleApp ログインテスト)で、ログイン後に OS の「パスワードを保存しますか?」シートが出ると、step 8 `ifCanSelect "今はしない"` が not met・step 9 `exist "#welcome_text||ようこそ"` が 8 秒で `element not found`(3/3)。失敗の要素一覧は `screen: 402x874` の1行だけ(0 件)・注記なし。スクリーンショットにはシートと背面の「ようこそ」。inapp-boost は同じシナリオが緑(step 8 も not met)。推測: シートは別プロセスの AutoFill でシステムアラートの照会に載らない。step 8 のタイミングは未測定(シートの出現時刻を測っていない)
 
 ### OI-113 手の途中の消灯(Android): ok の tap が届いておらず、次の手の失敗文は消灯を言わない
@@ -896,12 +839,12 @@
 
 - E2E-CMP テキスト入力・横向きで 5/7 が step 2 FAILED(約 4.1 秒)「cannot type into the field that was tapped (target node not found, 4000ms waited; … the IME window is in front; giving up rather than typing into the wrong field)」。キーボードを閉じると single=v・Gboard の候補列に v / g / good(画面中央 = 欄の中心の座標は v キーの上)。レポートは「何も入らなかった」に読める。成功の回は 2/7(`closed the keyboard` の経路)。tap の後に 0.5 秒置く形は 10/10 正常(4a・3a 各5)= 開いていく途中のキーボードの判定をすり抜ける。推測: `AndroidDriver.type` の直前のタップが、キーボードが立つ前の枠・判定で撃たれる
 
-### OI-115 ft_scroll_to の成功の本文が注記と食い違う・ft_list_devices が端末の不在を言わない(iOS 実機の探索)
+### OI-115 ft_list_devices が端末の不在を言わない(iOS 実機の探索)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone SE3 実機 = se3 F3・F8)
 
-- Flutter・RN のテキスト入力・キーボード表示中(キーボード上端 434・`#field_multiline` 中心 y=471〜496)の `ft_scroll_to '#field_multiline'` が 3.9 秒で「2 swipe(s)」「scrolled to …」と成功で返し、同じ応答の注記は同じ要素が「beneath it」(2/2)。枠は撃つ前と同じ = 動いていない。次の type は閉じられず FAILED
+- 直すなら実機で devicectl の `state` と `probeReachable` の食い違いを測ってから(`connection.state` は両方向に信用できない)
 - deep sleep の 3 秒後(idevice_id が空)に ft_list_devices は「running, no bridge listening on this Mac」・ほかの道具(ft_install / ft_open_url / ft_clear_app_data / ft_list_apps / ft_screenshot)は「a bridge … is listening on port 8123」と言い、端末の不在を言わない(1/1)
 
 ### OI-116 CLI の入力検査と文言の残り
@@ -909,25 +852,8 @@
 - 確認: コミット未記録(2026-11-01)
 - 経緯: 発見: 11/1 朝の探索的テスト(cli F4・F7・F9・F11)。各 1〜3 回で決定的
 
-- `fleetest run --dry-run --runner nosuch` が実在しないランナーを検めず「All 1 scenario(s) passed the dry-run」exit 0(`--remote-timeout 0` も `--runner` なしで黙って通る)
-- iOS で `fleetest terminate` の後の `fleetest tap --x --y` は「409 … the XCUITest runner has no session …; the host re-establishes it with /session」exit 1(3/3)。利用者が撃てる対処でなく、`fleetest launch <bundle>` で戻る
-- `fleetest services reset --force` は owner の片付けの後に数えるので「0 container(s) … removed; 0 lease(s) cleared」と言う(3/3。実際は `container ls -a` が 1 行から 0 行)。`ServicesCommand.swift:609`
-- 引数の説明と実挙動のずれ: `api live serve --max-width -1` はヘルプが「0 or less = original size」なのに「Missing value」(`results list --limit -1` 等も同じで理由が分からない)・`--profile is required (available: )` はプロファイルが無いプロジェクトで空の一覧・`project create <300 字>` は「The item couldn't be saved because the file name "_disabled" is invalid.」
-
-### OI-117 compose.yaml を編集した後の `services up` は「already up」で古い宣言のまま
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(cli F10)
-
-- ポートを 18091→18092 に変えて `services up` しても 18091 を案内し差を言わない(編集 1/1・curl 18092 は接続拒否)。期待(所見): 宣言の差を検知して言う(down / up を案内)。止まったコンテナを警告する直しは入れたが、編集した宣言との差は見ていない
-
-### OI-118 宣言による対象外の記録が、実行時に判定した対象外と集計で食い違う
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の run ループ監査(la F1)
-
-- `@iOS` のシナリオを android の run へ名指しすると、scenarios/*.json は `{"passed":false,"skipKind":"notApplicable"}`・run.json は total 14 / passed 14 で scenarios/ は 15 ファイル・NDJSON の `runFinished` は `skipped:0`。実行時の対象外(hinge の `折りたたみの開閉を跨いで操作できること.S0020`)は `passed:true`・total 14 / passed 13・CLI は「All 13 passed (1 skipped: not applicable)」。`skipReason` を書く直しは入れた(宣言の経路の呼び手 `RunRecorder.swift:201` 付近)。残りは passed の値と total・skipped の数え方
-- 期待(所見): 同じ skipKind なら passed と数え方が揃う
+- 登録簿に無い `--runner` は本実行で ssh 宛先として有効なので、dry-run は断らず警告する(断るなら未登録名の扱いの決定が要る)
+- iOS で `fleetest terminate` の後の `fleetest tap --x --y` は「409 … the XCUITest runner has no session …; the host re-establishes it with /session」exit 1(3/3)。利用者が撃てる対処でなく、`fleetest launch <bundle>` で戻る。文言はランナーの生の 409 で、直すにはブリッジが構造化した理由を返す形が要る
 
 ### OI-119 ランナーが固まった間の ft_batch は、手の前の読みも個別に時限切れを待つ
 - 状態: 推測
@@ -945,9 +871,6 @@ RN・Flutter の横向きのテキスト入力は容器が無く、タブが欄�
 ### OI-121 ref なしの secure 欄の追記の誤った緑
 `ab` のあと ref なしで `abかな` を打つとかなが落ちても緑。木からは「焦点を保った」と「タップで取り戻した」を区別できない(ロケータありは赤)。直すには直前に同じ欄へ打った記憶が要る。
 
-### OI-122 ft_batch の読み取りと注記の残り
-最後の手が type のとき返す木にキーボードが無い。座標の手(tap x:y:・doubleTap x:y:・swipePointToPoint)はキーボードの上でも注記が無い。launch 付きでは全面黒の注記が tap 以外で出ない。
-
 ### OI-123 画面の外の対象への DSL の操作が ok のまま何も起きない
 中心が画面の下へはみ出した対象への doubleTap・長押し・swipeElementToElement・pinchOut(Emulator)。
 
@@ -955,7 +878,7 @@ RN・Flutter の横向きのテキスト入力は容器が無く、タブが欄�
 terminateApp 直後の exist / tap の振り直し、2回目の terminateApp の 409(in-app ブリッジ)。ステップの無い区間の .ips の検索に上限がある。
 
 ### OI-125 live と CLI の残り
-別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。CLI の `type` は文中の改行の後ろが欄に入らなくても注記なしで ✅。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
+別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
 
 ### OI-126 変異を確かめていない新しいテスト
 コミット済みのテストは `test-scope-guard.py` が新しいテストと数えないので、1クラス1件だけ確かめた。未確認の案は `_work/explore-20261101f/mut-all.json` の 6 件(行の顔ぶれの間隔・子の文字・ghost・件数の文・bridge down・見出しと注記の操作名)。大きな面の判定の変異も未確認。
