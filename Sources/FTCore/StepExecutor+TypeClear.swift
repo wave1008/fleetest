@@ -44,8 +44,10 @@ extension StepExecutor {
     /// (値そのものは含めない。パスワード欄も通る経路)
     ///
     /// **private ではない**: StepExecutor+DirectActions.swift の executeDirectUnfocusedType からも呼ぶ
+    /// `consumptionBaseline`: 全文が欠けたときに「アプリが消費した」を見分ける打つ前の木(ランナーの `performTypeReadback` と同じ判定)。
+    /// 6 桁そろうと送信して欄を空にする欄へ追送すると、アプリへ二度目の入力になる
     func verifyTypedText(_ driver: AppDriver, element: ElementInfo, expected: String,
-                                 typedOnly: String,
+                                 typedOnly: String, consumptionBaseline: [ElementInfo]? = nil,
                                  phase: inout PhaseAccumulator) async throws -> String? {
         // secure 欄は伏せ字しか読めず、`expected` の既存値も伏せ字。ここで比べると `•` を本文として打ち直す(isMaskedInput)
         guard !TypeReadback.isMaskedInput(element) else { return nil }
@@ -123,6 +125,19 @@ extension StepExecutor {
                     + (screenCheckFact.map { "; before re-sending, the screen was checked for the"
                         + " typed text: \($0)" } ?? "")
             case .resend(let missing):
+                if let consumptionBaseline, valueAtLastResend == nil, missing == typedOnly || missing == target {
+                    let start = clock.now
+                    let after = try await driver.snapshot().elements
+                    phase.snapshotMs += Self.ms(clock.now - start)
+                    if let other = TypeReadback.otherInputThatChanged(element, before: consumptionBaseline, after: after) {
+                        return "the text did not go into the field — another input field (\(TypedInputVerdict.describe(other)))"
+                            + " changed instead; not re-sent so that field does not receive it twice"
+                    }
+                    if TypeReadback.screenChangedOutsideField(element, before: consumptionBaseline, after: after) {
+                        noteCodesThisStep.insert(.typeConsumedByApp)
+                        return nil
+                    }
+                }
                 // **1文字も動いていない**(足りない分が打った全文)なら、追送の前に画面を見る。
                 // 届かなかったのか、欄の値が入力を映さない(M3 SearchBar の iOS は value に説明文を
                 // 出す)のかは値からは区別できず、後者で追送すると入力が重複する。欄に打った文字が

@@ -1172,6 +1172,7 @@ extension StepExecutor {
                         if let failure = try await verifyTypedText(actingDriver, element: field,
                                                                     expected: fieldValue + text,
                                                                     typedOnly: text,
+                                                                    consumptionBaseline: snapshot.elements,
                                                                     phase: &phase) {
                             return StepOutcome(status: .failed(failure))
                         }

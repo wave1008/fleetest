@@ -154,6 +154,18 @@ final class TypeReadbackTargetTests: XCTestCase {
         XCTAssertEqual(driver.typedTexts, ["abc", "abc"])
     }
 
+    /// **witness**: E2EY-Flutter の OTP。6 桁そろうとアプリが消費して欄を空にする = 追送するとアプリへ二度目の入力になる
+    func testOverlappingFieldConsumedByTheAppIsNotResent() async {
+        StepExecutor.typedTextOnScreenOverrideForTesting = { _ in (false, nil) }
+        defer { StepExecutor.typedTextOnScreenOverrideForTesting = nil }
+        let driver = ReadbackSequenceDriver(values: ["", "", ""], shape: .flutterOverlap(secureAfterTyping: false), screenReactsToTyping: true)
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(
+            FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "246810"))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(driver.typedTexts, ["246810"], "二度打っている")
+        XCTAssertTrue(outcome.notes.contains(.typeConsumedByApp), "\(outcome.notes)")
+    }
+
     /// 外側の要素の空の値を「撃つ前の値」にすると、`12` への `1` が二重入力に見えて消される
     func testOverlappingFieldKeepsItsPriorValue() async {
         let (outcome, driver) = await type("1", values: ["12", "121"], shape: .flutterOverlap(secureAfterTyping: false))
@@ -443,7 +455,10 @@ private final class ReadbackSequenceDriver: AppDriver {
     private var index = 0
     private(set) var clears = 0
     private(set) var typedTexts: [String] = []
-    init(values: [String], shape: Shape = .plain) { self.values = values; self.shape = shape }
+    private let screenReactsToTyping: Bool
+    init(values: [String], shape: Shape = .plain, screenReactsToTyping: Bool = false) {
+        self.values = values; self.shape = shape; self.screenReactsToTyping = screenReactsToTyping
+    }
 
     private func node(_ ref: Int, _ type: String, id: String?, value: String?) -> ElementInfo {
         ElementInfo(ref: ref, type: type, identifier: id, label: nil, value: value, placeholder: nil, enabled: true,
@@ -463,8 +478,10 @@ private final class ReadbackSequenceDriver: AppDriver {
             elements = index > 0 ? [node(1, "button", id: "other", value: nil)]
                 : [node(1, "textView", id: "field", value: value)]
         }
+        let reaction = screenReactsToTyping && index > 0 ? [ElementInfo(ref: 9, type: "staticText", identifier: "result", label: "sent",
+            value: nil, placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 100, width: 100, height: 20), depth: 1)] : []
         return SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
-                                elements: elements, truncatedCount: 0)
+                                elements: elements + reaction, truncatedCount: 0)
     }
     func status() async throws -> StatusResponse {
         StatusResponse(ready: true, device: "stub", osVersion: "-", sessionBundleID: nil)

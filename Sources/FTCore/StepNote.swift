@@ -166,6 +166,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 追送すると入力が重複する)。**値そのものは読み返していない** —— 必要なら後段で確かめる
     case typeReadbackUnchanged = "type-readback-unchanged"
 
+    /// 打った後に欄が打つ前の値のままで、欄の外の画面が変わった = アプリの消費と読んで追送しなかった(6 桁で送信して欄を空にする等)
+    case typeConsumedByApp = "type-consumed-by-app"
+
     /// 打った後に対象が木から居なくなり、読み返せなかった(読み取り専用の欄の候補一覧・打ち終えて自動送信した画面)。赤にしない
     case typeTargetLeftTree = "type-target-left-tree"
 
@@ -523,6 +526,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " field on screen (OCR), so it was not sent again"
         case .typeTargetLeftTree:
             return TypeReadback.targetLeftTreeNote
+        case .typeConsumedByApp:
+            return "the field was back to its previous value after typing, but the screen outside it changed —"
+                + " taken as the app consuming the input (e.g. submitting a complete code); not re-sent"
         case .launchURLBeforeInteractiveUI:
             return "the URL was delivered before any tappable element appeared, so the app may not"
                 + " have been listening yet"
