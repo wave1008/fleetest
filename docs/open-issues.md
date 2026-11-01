@@ -394,15 +394,6 @@
 
 ## 探索的テスト(2026-10-30)で見つかり、まだ直していないもの
 
-### OI-46 アプリ自身のタップで出たシステムの権限アラートが前面でも、MCP の ft_snapshot が背面の木を注記なしで返す
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 の探索的テスト
-
-- 照会(`/systemalert`)は launch 系ツールの直後の1回だけ(`systemAlertProbePending`)
-- 操作のたびに照会する直しは、iOS の MCP の毎手に照会の往復(約 0.6 秒)を足すので取り消した
-- 手がかり: 照会を足さずに、撃った手の後の木が「操作の前とほぼ同じで、前面のアプリの窓が触れない」形のときだけ照会する
-
 ### OI-47 容器の端で半分切れた行への MCP の ft_tap(ref)は中心を撃って空振りし、同じ手の DSL は見えている部分へ寄せて当たる
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -489,7 +480,7 @@
 - 経緯: 発見: 10-30 の探索的テスト(Simulator・E2EX の入力つきアラート)。RefGuard の文言の直し(的がアラートの枠の中なら断らない)は入れたが、確認(10-30)で残った
 
 - replace なしの古い ref は照合し直して打てる。replace の経路(消去の前の ref の検査)で、キーボードで動いた欄の枠がアラートの枠の外と読まれている疑い
-- 手がかり: 断る直前の木で、欄とアラートの枠を突き合わせる
+- 11/2 に再現せず(10 回超・ref を遅らせる・横向きとも成功)。机上の仮説: 無名の欄は `RefGuard.match` が同じ枠でしか照合できず、キーボードで欄が動く機種で `.gone` になる。小さい画面での再現が要る
 
 ### OI-62 横向きの ft_screenshot の fullSize の PNG の画素が縦のまま(向きは eXIf だけ)
 - 状態: 経路確定
@@ -520,6 +511,7 @@
 - 経緯: 発見: 10-30 午後の探索的テスト(SE3 実機 = se3 F18)
 
 - `captureSettled` の静止判定は要素の署名だけ。窓の数を署名に足す・整定後にもう1回だけ読む、のどちらかを実機で測ってから
+- `captureSettled` はランナーの中なので、直すならブリッジの版上げを伴う
 
 ### OI-66 scrollTo に待つ口(waitSeconds)が無く、読み込み中の一覧で 1.8 秒で「端に居る・上を探せ」と失敗する
 - 状態: 据え置き
@@ -537,14 +529,12 @@
 - 失敗した ft_scroll_to は記録されない(ScenarioTools 側)
 - `DraftNotes.selectorDurability` が相対セレクタを「index-based」と呼ぶ
 
-### OI-70 iOS の WebView の欄でキーボードを出すと hideKeyboard が閉じられず、画面の Done(✓)を試しも案内もしない
+### OI-70 軽い誤警告の残り
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 午後の探索的テスト(M1Max の Simulator = mxios F4)
+- 経緯: 発見: 10-30 午後の探索的テスト(M1Max の Simulator = mxios F5・F11)
 
-- DSL は Enter まで送ってから失敗する(フォームが送信される)。キーボードの上の入力補助バーはキーボードの枠に含まれず、その下の要素への tap は ok
-- 同じく軽いもの: Flutter で空の replace の後に「Scan Text」の編集メニューが残る(mxios F11)・自分のラベルに中心を覆われていると誤警告(mxios F5 の後半。`OcclusionGeometry.occluder`、SweepHarnessTests の件数に触れうる)
-
+- Flutter で空の replace の後に「Scan Text」の編集メニューが残る(mxios F11)・自分のラベルに中心を覆われていると誤警告(mxios F5 の後半。`OcclusionGeometry.occluder`、SweepHarnessTests の件数に触れうる)
 ### OI-71 ft_batch の途中の手でアプリが落ちても、続く手を撃ち続ける(前面の別アプリに効く)
 - 状態: 据え置き
 - 確認: コミット未記録(2026-10-30)
@@ -560,7 +550,6 @@
 - 逆走査の門は「署名が変わったか」(contentEverMoved)で、位置表示の文字・端のバウンスでも「動いた」になる(反転チャットで動かない探索の後に遅いドラッグ 8 本)。本数も常に上限の 8 本
 - 「中身が実際にずれたか」の門と「最後の1本の移動量から本数を決める」直しを入れたが取り消した: id の無い行の一覧では本物のスクロールも「ずれていない」と読み(固定のバーだけが id を持つ)、通り過ぎた対象を拾う逆走査が止まる(コードレビューの指摘・既存のテスト3件が落ちた)
 - 手がかり: ずれの判定は、送った容器の中の要素だけで見る(容器の外の固定の要素を数えない)。id の無い行は枠の並びで見る
-- 弾切れでも1回逆走査する挙動は RN の横カルーセルの対策。docs/commands.md は「端に着いて見つからなかったときだけ」と書くので、docs を直すか挙動を絞るかは判断が要る
 
 ### OI-73 Android の Compose で、焦点を移した後の ref なしの type / clear が前の欄へ入り「#B に入った」と言う
 - 状態: 再現済み
@@ -745,22 +734,14 @@
 - 配信との関係は未確定: 11/01 に同じシナリオを 6 台 × 10 周ずつ交互に回して、配信あり 0/60・なし 0/60(赤も割れも無し。0/60 の 95% 上限は約 5%)。所要の中央値は 7.1 秒 / 5.8 秒・最大 12.1 秒 / 6.8 秒。低率の形なので、この周回では判定できない
 - 再生ケースは無い: MCP は分類器を通らず、古い絵を DSL の実行へ注入する口も無い(赤は `CheckStateClassifierTests` の差し替えドライバで確かめた)
 
-### OI-105 探索の「まだ動いていた」「一覧の端」の判定が、バウンスと常駐シートに吸われた払いを正しく読まない(iOS・MCP)
+### OI-105 探索の「一覧の端」の判定が、常駐シートに吸われた払いを正しく読まない(iOS・MCP)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F1・F2)
 
-- 全く送れない一覧(Flutter・E2EY ホーム。12 行が全部収まり容器 756pt)で `ft_scroll_to selector=#nothing_here maxSwipes=N` が 6/6 で「the content was still moving … raise maxSwipes (now N)」。maxSwipes=14 に上げても同文で 21.7 秒・`direction=up` も同文 29.9 秒。直後の木は行が y=126(元 118)= バウンスの途中で読んだ跡で、行の増減は無い。`StepExecutor+ScrollSearch.swift:1219` の `exhaustedWhileMoving = movedByEvidence && lastSwipeMoved` が枠の揺れを移動と読む疑い(推測)。OI-72 の逆走査と同じ根
 - CMP の引き伸ばせるシートを半分にし `#btn_player_collapse` で畳んだ後、`tap '#row_main_30' scroll: .down` が 5/5 で「scroll area reached its end … raising maxSwipes will not help」。失敗後の木は row_main_00 が元の y=192 で背面は動かず、動いたのはシート(`ft_swipe finger=up` の直後 sheet=expanded)。半分を経ない同じ手は 3/3 緑。`ft_scroll_to maxSwipes=3` は「still moving … raise maxSwipes」で 20.4 秒。`sheetHint`(`StepExecutor+ScrollSearch.swift:267`)は `stoppedUnmoving` のときだけ出る。容器が 0,0 402x874 の1枚で背面とシートを分けられない(推測)
 - 手がかり: ずれの判定は容器の中の要素の増減で見る(OI-72 と同じ)。シートの peek 切替が引き金の癖は SUT 側(Material3)
-
-### OI-106 RN の反転チャットで、一覧の外に固定された入力欄が「一覧の外に居る幽霊」と扱われ、余計なスワイプ2本・6〜7 秒・「飲まれたかも」の警告が出る
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F3)
-
-- E2EY RN の反転チャット(一番下 = at_bottom=true の直後。`list_chat` (0,233 402x581)・`field_chat` (8,822 316x43) = 一覧の下の固定バー)で `tap '#nav_chat'; type '#field_chat' 'zz'` が `ok (7289ms) (the element is still reported outside its scroll container (3 re-resolve(s), 2 extra swipe(s)); the interaction may be swallowed)`(type 5/5・tap 1/1)。文字は欄に入る。Flutter・CMP の同じ手は 1.1 秒・注記なし。RN で一度上へ送った後(at_bottom=false)は 480ms・注記なし = 状態で割れる
-- 根拠(推測): `StepExecutor+Actions.swift:490`(ghost 経路)。`ContainerGeometry.clippingContainer` が RN の木で欄を一覧の子と見る。OI-103 に近いが窓またぎではない
+- 11/2 に再現 3/3: 失敗後の木は echo が `sheet=collapsed` なのに `mini_player` が (0,531)・ハンドルが y=483 のまま。木の嘘か実際に半分の高さかはスクリーンショットで未確認
 
 ### OI-108 Compose のキーボードの下の欄が木に幽霊の枠で残り、`tap` は ok のまま別の欄を叩く(Android・iOS 実機の CMP)
 - 状態: 再現済み
@@ -785,6 +766,7 @@
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 07 = la F4)
 
 - `ft_launch com.ftester.e2e.flutter` → 待たずに `ft_tap x:201 y:294`(#nav_input の中心)→ 10/24 + 別の周で 2/10 が外れる。外れた回は全部 launch が 2.44〜2.58 秒・応答は `tap (201.0, 294.0) done`・画面はホームのまま・注記なし。当たった回は 2.81〜3.36 秒。対照: CMP(iOS)0/10・Flutter(Android)0/10・RN(Android)0/10。Flutter(iOS)でも ft_snapshot を挟めば ref の tap 0/14、ft_batch `tap '#nav_input'` 0/10 = 木に載るまで待つ経路は外れない
+- 11/2 に再現せず 0/60(負荷 約 63 で launch が 3.7〜9 秒。所見の 2.44〜2.58 秒の回が1度も出ない)。静かなマシンで速い回を狙う必要がある
 - 推測: XCUITest の launch が戻るのが 2 通りで、早い回は Flutter の最初のフレームの前。`MCPServer+SessionTools.swift:256 ftLaunch` は launch の後に描画を待たない
 
 ### OI-112 xcuitest: OS の「パスワードを保存」シートの下で木が空
