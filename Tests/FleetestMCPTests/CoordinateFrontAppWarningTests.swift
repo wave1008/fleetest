@@ -59,7 +59,7 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         let code = source.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         let calls = code.components(separatedBy: "await coordinateFrontAppWarning(").count - 1
-        XCTAssertEqual(calls, 7, "座標で撃つ経路と警告の配線の本数がずれた")
+        XCTAssertEqual(calls, 8, "座標で撃つ経路と警告の配線の本数がずれた")
         for (warning, fire) in [
             ("coordinateFrontAppWarning(d, args: args)", "try await d.tap(x: x, y: y)"),
             ("coordinateFrontAppWarning(swipeDriver, args: args)", "try await swipeDriver.swipe(direction)"),
