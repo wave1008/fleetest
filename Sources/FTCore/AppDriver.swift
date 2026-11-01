@@ -316,7 +316,9 @@ extension DriverError: StepFailureKindProviding {
         // notDelivered = 送る前に到達不能と確定(refused と同じ側 = 再キューしてよい)。
         // deliveryUnknown = ブリッジ以外の理由で届いたか不明: ブリッジは健全かもしれないので driverUnreachable にせず、
         // run のシナリオ再キュー・ブレーカの対象にしない(再キューは二重実行になりうる)
-        case .bridgeUnreachable, .bridgeConnectionRefused, .bridgeIdentityMismatch, .notDelivered: return .driverUnreachable
+        case .bridgeUnreachable(let context, _), .bridgeConnectionRefused(let context, _):
+            return context.appFate == .stoppedBySession ? .appStoppedBySession : .driverUnreachable
+        case .bridgeIdentityMismatch, .notDelivered: return .driverUnreachable
         case .badResponse, .staleRef, .deliveryUnknown: return .driverError
         case .systemAlertBlocked: return .systemUICovered
         }

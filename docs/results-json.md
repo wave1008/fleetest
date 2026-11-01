@@ -163,6 +163,7 @@ jq -r 'select(.workerAnomalies == null) | .runID' results/runs/2026-08/*/run.jso
 | `not-found` | ロケータが解決できなかった(スクロール探索を含めて木に居ない) |
 | `assertion` | 要素は掴めたが期待した値・状態と違った |
 | `driver-unreachable` | ブリッジへ到達できなかった(接続拒否・応答なし・アプリのプロセス死) |
+| `app-stopped-by-session` | このセッション自身が止めたアプリ(terminateApp 後に launch していない)へ操作して接続できなかった。run はブリッジ不達として再キューしない |
 | `driver-error` | ドライバは応答したがエラーを返した(HTTP エラー応答) |
 | `timeout` | ステップが制限時間内に返らなかった |
 | `app-not-installed` | 対象アプリがデバイスに入っていなかった(起動前の検査で確定) |

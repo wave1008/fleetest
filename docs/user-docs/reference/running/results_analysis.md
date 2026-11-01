@@ -108,7 +108,7 @@ The tool records only observable facts — it does not guess whether a failure w
 
 `failureKind` values: `selector-syntax` (caught before touching a device), `not-found` (locator
 never resolved, even after scroll search), `assertion` (value/state mismatch), `driver-unreachable`
-(bridge unreachable), `driver-error` (bridge returned an error), `timeout`, `app-not-installed`,
+(bridge unreachable), `driver-error` (bridge returned an error), `timeout`, `app-not-installed`, `app-stopped-by-session` (the scenario acted on an app it stopped with `terminateApp` without launching it again),
 `system-ui-covered` (an OS system UI, such as a permission alert, was covering the app while
 `iosAlertHandler` was registered). A missing `failureKind` means the tool could not tell —
 it is left out rather than guessed.
