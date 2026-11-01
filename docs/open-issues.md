@@ -480,7 +480,7 @@
 - 経緯: 発見: 10-30 の探索的テスト(Emulator・4 フレームワークとも 4/4)。失敗文の候補選びを申告の軸で見る直しは入れたが、確認(10-30)で未修正のまま
 
 - `scrollFrame: "#list_chat"` を付ければ動く。全画面の払いの始点・終点が一覧の外に落ちる疑い(払いは画面の高さの固定割合)
-- 手がかり: その画面の木を固定し、全画面の払いの座標と一覧の枠を突き合わせる。候補に上がらない理由(申告・縦横比)も同じ木で確かめる
+- 11/2 に測定: 枠なしの払いは `scrollContainer` が nil でブリッジ既定の `/swipe`(画面高の 0.3〜0.7)。1080 の画面で始点 324 が一覧 (y≥480) の外へ落ちる。直すには暗黙の座標化を戻すかブリッジの始点を変える = 判断待ち(OI-129 の「キーボードなしはブリッジ既定に任せる決定」)
 - 11/1 の探索(mxa F4): 高さ 659px の一覧(Flutter・グリッド・一覧の枠 0,421 2424x659)でも横向きで同じ文が出る。上へだけ動かない(`scrollTo '#cell_60' direction: .up` が 1.7 秒で「nothing moved at all」・`ft_swipe finger=down` も不動・`scrollFrame` を付けると動く。同じ画面の下向きは全画面でも動く)。推測: 全画面の払い(0.3→0.7)の始点が固定の見出し(y<421)に落ちる。411px に限らず始点の位置で決まる
 
 ### OI-59 iOS のアラートの入力欄への ft_type(replace)を「アラートが前面で届かない。ボタンを押せ」と断る
@@ -572,19 +572,14 @@
 - 手がかり: IME の「次へ」の後に、ブリッジが焦点として掴むノードの id と、画面の焦点(echo の focus=)を並べて記録する
 - 11/1 の探索(pixel F1): Android 13 の Pixel 4a・E2E-CMP で悪化形。`tap "#field_single"; type "#field_single" "S"; tap "#field_password"` → ref なし ft_type "P1" が「into #field_password」と答えて single=SP1・password 空(4a 12/12)。ft_clear_input は single が消える(3/5)。ft_type pressEnter は前の欄の IME アクションが発火する(3/3)。DSL と同じ判定の ft_batch `tap; type; pressEnter; tap; type` も All passed で single=AAABBB(3/3)。**同じ手順で Android 12 の Pixel 3a は CMP 0/6、4a の View・Flutter・RN は各 0/3** = Android の版と Compose で分かれる。パスワード欄に値がある回は正しく入った回もある(2/2)。画面の枠とカーソル・`adb shell input text` はパスワード欄 = 実際の焦点はそこ。応答の欄名(ホスト側の推定。`MCPServer+ToolDefs.swift` 付近)と書き込み(ブリッジの `setTextAppending` / `clearFocused`)が別経路
 
-### OI-75 Android の横向きで、座標の ft_drag / ft_long_press(x,y) と DSL の座標ジェスチャが縦の座標系で撃たれる
+### OI-75 Android の横向きの残り(CMP の行の端・Flutter の端の誤判定)
 - 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 午後の探索的テスト(Emulator・横向き = mxand F1)
+- 確認: コミット未記録(2026-11-02)
+- 経緯: gRPC のタッチの回転は直した(`AndroidTouchRotation`)。回転とは別の原因の疑いが残る形
 
-- gRPC のタッチ合成(`EmulatorControl.drag` / `longPress`)が表示の回転を反映しない。getScreenshot の `format.rotation` で戻す直しは、端末の中で回した向きがそこに反映されず(PORTRAIT のまま)効かなかったので取り消した(ジェスチャごとに画面取得が1回増えるだけ)
-- 手がかり: 回転は `dumpsys input` / `wm` の向き(ブリッジの申告)から引く。ref 起点の drag も同じく外れる。ブリッジ経由の ref long press・swipe・pinch・double tap は正しい
-- 11/1 の探索(mxa F1・F3・F6): 座標を書かない DSL にも届く。見切れ回復・逆走査の slowDrag と端送りが同じ gRPC の drag を使う
-  - 横向きの Flutter で `scrollTo '#card_0_14' direction: .right scrollFrame: '#shelf_0'` が 9/9 で 6.9 秒後に「scrollFrame disappeared … the lock screen was in front」の赤(端末はロックされておらず、`NotificationShade` が開いて 0.4 秒で閉じる。直後の木では対象が見切れで居る)。`ft_drag fromX=1800 fromY=660 toX=600 toY=660` 単独でシェードが開いて残る(1/1)。`direction: .left` は ok 9/9・CMP・RN・View は ok 3/3
-  - 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
-  - 横向きの View(RecyclerView)で `scrollToBottom` が ok(1.4 秒)なのに一覧は動かない(5/5・`scrollToTop` 1/1)。同じ位置からの `ft_swipe finger=up` は動く。「画面が変わらなかった」の注記だけ
-  - 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
-
+- 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
+- E2EY-CMP の横向き `scrollToTop` が 50 払いの上限で `msg_08` までしか戻らない(2/2。411px の窓で 60 件)
+- 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
 ### OI-76 CMP の横向きで焦点の欄がキーボードに押し出されて木から消えると、ref なしの ft_type / ft_clear_input が no-input-focus と TextInputLayout の帰属で断る
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
