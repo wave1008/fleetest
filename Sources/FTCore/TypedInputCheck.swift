@@ -12,12 +12,16 @@ public enum TypedInputCheck {
         public let target: ElementInfo?
         public let valueBefore: String
         public let treeBefore: [ElementInfo]
+        /// 打つ前(**タップの前**の木)に欄が焦点を持っていたか。ref なしは区別できず false。焦点を保ったままの打鍵は追記・取り戻した欄は置き換えなので、
+        /// 伏せ字の数の期待が変わる(`maskedShortfall` の doc)
+        public let wasFocused: Bool
 
         /// ロケータ有り / ref あり: 対象と、解決した木から引いた値
         public init(target: ElementInfo, priorValue: String, replace: Bool, treeBefore: [ElementInfo]) {
             self.target = target
             self.valueBefore = replace ? "" : priorValue
             self.treeBefore = treeBefore
+            self.wasFocused = (TypeReadback.match(of: target, in: treeBefore) ?? target).focused == true
         }
 
         /// ref なし / ロケータ無し: **打つ直前に読んだ木**の焦点の欄(ちょうど1つのときだけ)を前の値とする。
@@ -27,6 +31,8 @@ public enum TypedInputCheck {
             self.target = nil
             self.valueBefore = focused.count == 1 ? TypeReadback.normalizedValue(of: focused[0]) : ""
             self.treeBefore = tree ?? []
+            // 直前の木の焦点は「焦点を保った」か「タップで取り戻した」かを区別できない(どちらも焦点あり)ので false
+            self.wasFocused = false
         }
     }
 
@@ -56,6 +62,7 @@ public enum TypedInputCheck {
         guard TypedInputVerdict.wantsMaskedCheck(target: prior.target, text: text, isAndroid: isAndroid),
               let field = TypedInputVerdict.maskedField(target: prior.target, in: after) else { return nil }
         return TypedInputVerdict.maskedShortfall(
-            priorValue: prior.valueBefore, afterValue: TypeReadback.normalizedValue(of: field), text: text)
+            priorValue: prior.valueBefore, priorFocused: prior.wasFocused,
+            afterValue: TypeReadback.normalizedValue(of: field), text: text)
     }
 }

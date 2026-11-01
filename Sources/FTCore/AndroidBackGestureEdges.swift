@@ -9,7 +9,7 @@ import Foundation
 
 public enum AndroidBackGestureEdges {
 
-    /// - Returns: `mIsGestureHandlingEnabled=true` のときだけ `(mEdgeWidthLeft, mEdgeWidthRight, 下端の帯の高さ)`。
+    /// - Returns: ジェスチャナビが有効(`mIsGestureHandlingEnabled` か、Android 12・13 の実機が出す `mIsGesturalModeEnabled`)のときだけ `(mEdgeWidthLeft, mEdgeWidthRight, 下端の帯の高さ)`。
     ///   下端は `mBottomGestureHeight` が読めればその値、読めなければ `bottomFallback`(OS の版で
     ///   ダンプに出ない。呼び手が dp 上限 × 密度で渡す。根拠は `AndroidDriver.backGestureEdgeWidths`)。
     ///   `false`(3ボタン navigation)は除外不要なので `(0, 0, 0)`。ブロックが無い/値が読めないときは
@@ -17,13 +17,19 @@ public enum AndroidBackGestureEdges {
     ///   現れうるが、値は同一なので最初の1つを採る**
     public static func parse(_ dumpsys: String, bottomFallback: Double = 0) -> (left: Double, right: Double, bottom: Double)? {
         guard let block = block(named: "EdgeBackGestureHandler:", in: dumpsys) else { return nil }
-        guard let enabled = boolValue(named: "mIsGestureHandlingEnabled", in: block) else { return nil }
+        guard let enabled = gestureEnabled(in: block) else { return nil }
         guard enabled else { return (0, 0, 0) }
         guard let left = doubleValue(named: "mEdgeWidthLeft", in: block),
               let right = doubleValue(named: "mEdgeWidthRight", in: block) else { return nil }
         let reported = doubleValue(named: "mBottomGestureHeight", in: block)
         let bottom = reported.flatMap { $0 > 0 ? $0 : nil } ?? max(bottomFallback, 0)
         return (left, right, bottom)
+    }
+
+    /// 有効かの欄の名前は OS の版で違う。**両方あれば `mIsGestureHandlingEnabled` を優先**(Android 15 の実測の形)。
+    /// どちらも無ければ nil(除外しない側に倒す)
+    private static func gestureEnabled(in block: [Substring]) -> Bool? {
+        boolValue(named: "mIsGestureHandlingEnabled", in: block) ?? boolValue(named: "mIsGesturalModeEnabled", in: block)
     }
 
     /// ヘッダ行より深いインデントの行だけをブロックとして切り出す(次に同じ/浅いインデントの
