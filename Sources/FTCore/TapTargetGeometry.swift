@@ -1074,6 +1074,16 @@ public enum TapTargetGeometry {
             && y >= screen.y && y < screen.y + screen.height
     }
 
+    /// DSL の `swipePointToPoint` の始点・終点が**画面の外**か。`isPointOnScreen` と違い**縁ちょうどは内**(閉区間 =
+    /// in-app ブリッジの画面内判定と同じ。幅 402 の終点 x=402 を使うシナリオを赤にしない)。
+    /// `screen` が nil(まだ読んでいない)のときは**読まずに言える分だけ**: 非有限と原点より前(負の座標)。
+    /// 画面の大きさの外は読んだときだけ言える(払いの毎手に木の読みを足さない)。画面が分からない(幅高さ 0)ときは false
+    public static func isDragPointOffScreen(x: Double, y: Double, screen: FTRect?) -> Bool {
+        guard x.isFinite, y.isFinite else { return true }
+        guard let screen, screen.width > 0, screen.height > 0 else { return x < 0 || y < 0 }
+        return x < screen.x || x > screen.x + screen.width || y < screen.y || y > screen.y + screen.height
+    }
+
     /// スクロール探索の「見つかった」ゲート専用の画面外判定。`StepExecutor.isClippedByViewport`
     /// と同じサイズ免除を**軸ごとに**重ねる ——ある軸のサイズが `0 < size <= screen` に収まる
     /// ときだけ、その軸の中心はみ出しを判定に使う。収まらない(oversized/ゼロ)軸は判定から外す。

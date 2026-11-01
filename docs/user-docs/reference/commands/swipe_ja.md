@@ -13,6 +13,8 @@
 | `swipeElementToElement(開始sel, 終点sel, durationSeconds: 1.5, maxGestureSeconds:, settle:, waitSeconds:)` | ある要素から別の要素までドラッグします(スライダー・並べ替え・限られた領域内のドラッグ用)。自己修復の対象は**始点だけ**で、終点はヒールされません。上限は `swipePointToPoint` と同じです。押してから動かすまでは 0.05 秒固定なので、長押しから始まる並べ替えは起動しません([gesture](./gestures_ja.md) を使ってください)。 |
 | `swipeBy(sel?, dxRatio:dyRatio:durationSeconds: 1.5, maxGestureSeconds:, settle:, waitSeconds:)` | 対象の中心から**比率**で指を動かします。横方向・縦方向の両方を非 0 にすると斜めのドラッグになります。比率の符号が指の向きを表します。比率は**対象の幅・高さに対する割合で、片側 0.9 が上限**です(指が対象の枠の中に収まる範囲。超えた指定は 0.9 に丸め、注記 `swipe-by-ratio-capped` を残します)。対象より遠くへ払うには `swipeElementToElement` か `swipePointToPoint` を使います。セレクタを省略すると画面全体が対象になります。上限は `swipePointToPoint` と同じです。 |
 
+画面の外の点は何も送らずに失敗にします。`swipePointToPoint` は始点・終点が負の値、または画面の外のとき失敗します(画面の端ちょうどは許します)。`swipeElementToElement` はどちらかの要素の中心が画面の外のとき失敗します。先にスクロールして画面内へ入れてください。
+
 ## 例
 
 ```swift
