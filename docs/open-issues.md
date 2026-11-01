@@ -264,6 +264,7 @@
 - 未確認: 枠が止まった後の中心で hitTest が UIStackView を返すのに、その UIStackView が項目の view の祖先にならない理由
   (メニューの項目の AX 要素と view の対応)。注記は判定を変えない(緑のまま)ので、急ぎではない
 - 2026-11-02(inapp-boost・5 周 × 3 台): 注記 9/15・緑のまま
+- 11/2 に特定: AX 要素は `_UIContextMenuCellContentView`、本物のタッチは同じ構成の別インスタンスの階層の `UIStackView` に当たり、`isDescendant` が false になる。押した結果は正しい(`context=row2:copy`)。除外するとプライベートクラスの構造に依存し、セル内の別のボタンの真陽性を消す恐れがあるので入れていない
 ### OI-15 E2EX-Flutter の XCUITest で、探索の終わりの空打ちが対象の行そのものを押す
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-08)
@@ -676,15 +677,6 @@
 - 配信との関係は未確定: 11/01 に同じシナリオを 6 台 × 10 周ずつ交互に回して、配信あり 0/60・なし 0/60(赤も割れも無し。0/60 の 95% 上限は約 5%)。所要の中央値は 7.1 秒 / 5.8 秒・最大 12.1 秒 / 6.8 秒。低率の形なので、この周回では判定できない
 - 再生ケースは無い: MCP は分類器を通らず、古い絵を DSL の実行へ注入する口も無い(赤は `CheckStateClassifierTests` の差し替えドライバで確かめた)
 
-### OI-105 探索の「一覧の端」の判定が、常駐シートに吸われた払いを正しく読まない(iOS・MCP)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro 03 = mxi F1・F2)
-
-- CMP の引き伸ばせるシートを半分にし `#btn_player_collapse` で畳んだ後、`tap '#row_main_30' scroll: .down` が 5/5 で「scroll area reached its end … raising maxSwipes will not help」。失敗後の木は row_main_00 が元の y=192 で背面は動かず、動いたのはシート(`ft_swipe finger=up` の直後 sheet=expanded)。半分を経ない同じ手は 3/3 緑。`ft_scroll_to maxSwipes=3` は「still moving … raise maxSwipes」で 20.4 秒。`sheetHint`(`StepExecutor+ScrollSearch.swift:267`)は `stoppedUnmoving` のときだけ出る。容器が 0,0 402x874 の1枚で背面とシートを分けられない(推測)
-- 手がかり: ずれの判定は容器の中の要素の増減で見る(OI-72 と同じ)。シートの peek 切替が引き金の癖は SUT 側(Material3)
-- 11/2 に再現 3/3: 失敗後の木は echo が `sheet=collapsed` なのに `mini_player` が (0,531)・ハンドルが y=483 のまま。木の嘘か実際に半分の高さかはスクリーンショットで未確認
-
 ### OI-108 Compose のキーボードの下の欄が木に幽霊の枠で残り、`tap` は ok のまま別の欄を叩く(Android・iOS 実機の CMP)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
@@ -773,7 +765,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 11/2 朝に測定: 手元の 5 台の --broadcast で 1/160(失敗の回は 1 ステップの読みが 3.2 秒 = 高負荷の局面)。押す点は `KeyboardDismissPoint.candidates` の先頭の x=8。Flutter の戻るジェスチャの帯に入る疑いと、負荷でタップが落ちる疑いは未検証。率が低いので効果の判定に数百周が要る。
 ### OI-134 launch 直後の最初の replace の type が「nothing has keyboard focus」で赤
 E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)` が launch 直後の最初の手のとき 5 台中 1 台が 422(11/2)。原因は未調査。
-
+11/2 に測り直して 0/96(4 台)。launch が速い回・高負荷では未測定。
 ### OI-133 MCP で一度触った端末は、MCP プロセスが生きている間ずっと実行中のランプが点く
 `mcp-<udid>@<pid>.lease` は呼び出しごとに書くが、消すのはプロセスの終了だけ(モニターは `MCPDeviceLease.hasMCPHolder` を `inMCP` としてランプに出す)。操作が終わって何も動いていなくても点いたままで、実行中と見分けがつかない。
 
