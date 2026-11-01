@@ -6,6 +6,7 @@
 // ロックの前にビルドしない = その回の検査は従来どおりビルドの後)。一覧を引けない・
 // 一覧に載らない形の指定は何も言わず通す(本検査は従来の場所が行う)。
 
+import ArgumentParser
 import FTCore
 import Foundation
 
