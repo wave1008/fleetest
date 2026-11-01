@@ -11,8 +11,13 @@ public enum ImageDownscale {
     public static func jpeg(png: Data, maxWidth: Int, quality: Double) -> (data: Data, width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(png as CFData, nil) else { return nil }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        let sourceWidth = (properties?[kCGImagePropertyPixelWidth] as? Int) ?? maxWidth
-        let sourceHeight = (properties?[kCGImagePropertyPixelHeight] as? Int) ?? maxWidth
+        let storedWidth = (properties?[kCGImagePropertyPixelWidth] as? Int) ?? maxWidth
+        let storedHeight = (properties?[kCGImagePropertyPixelHeight] as? Int) ?? maxWidth
+        // 出力は kCGImageSourceCreateThumbnailWithTransform で表示の向きへ回る。EXIF の向き 5〜8 は 90° 回転なので
+        // 保存の幅・高さが入れ替わる(横向きの PNG は eXIf だけで向きを持つ)。入れ替えないと maxWidth が高さの上限として効く
+        let orientation = (properties?[kCGImagePropertyOrientation] as? Int) ?? 1
+        let (sourceWidth, sourceHeight) = (5...8).contains(orientation)
+            ? (storedHeight, storedWidth) : (storedWidth, storedHeight)
         let longSide: Int = {
             guard sourceWidth > 0, maxWidth < sourceWidth else { return max(sourceWidth, sourceHeight) }
             let scale = Double(maxWidth) / Double(sourceWidth)
