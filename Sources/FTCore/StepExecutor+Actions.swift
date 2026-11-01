@@ -693,12 +693,11 @@ extension StepExecutor {
 
         // **キーボードで枠が細い帯に潰れた対象は、閉じてから引き直して撃つ**(実機 CMP: 高さ 2 に潰れた送信・クリアを撃つと焦点の欄へ当たり
         // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられない・引けなければ従来どおり撃つ
-        if action == "tap", !switchedToFallbackDriver, KeyboardWait.isShown(snapshot),
-           TapTargetGeometry.isCollapsedFrame(element)
-            || TapTargetGeometry.coveredByBarRaisedAboveKeyboard(
-                element, in: snapshot.elements, screen: snapshot.screen,
-                keyboard: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                                    screen: snapshot.screen).frame) != nil,
+        if action == "tap", !switchedToFallbackDriver,
+           PreFireGuard.keyboardCover(
+               of: element, in: snapshot,
+               keyboard: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                   screen: snapshot.screen)) != nil,
            case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
@@ -728,6 +727,22 @@ extension StepExecutor {
             resolvedElementThisStep = element
             noteCodesThisStep.insert(.waitedForEnabled)
             enabledWaitNote = "waited \(waited.waitedMs)ms for the target to become enabled"
+        }
+
+        // **要素を指で触る操作(長押し・doubleTap・要素から要素へのドラッグ・holdStart)の撃つ前の入口**。
+        // 押すだけの tap は下の自前の経路で同じ部品を通る(判定の置き場は PreFireGuard / reachBeforeTouch)
+        if Self.reachesTargetBeforeTouch(action: action, step: step) {
+            switch try await reachBeforeTouch(
+                element, in: snapshot, step: step, action: action,
+                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+            case .refused(let message, let kind):
+                return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
+            case .proceed(let reached, let after, let note):
+                element = reached
+                snapshot = after
+                resolvedElementThisStep = element
+                driverFallback = Self.joinNotes(driverFallback, note)
+            }
         }
 
         switch action {
@@ -1219,6 +1234,8 @@ extension StepExecutor {
             // **doubleTap も指で触る操作**なので、tap と同じ注記を載せる
             // (MCP の ft_double_tap も同じ内容を出す。片方だけ黙ると判断が食い違う)。
             // pinch / swipeBy は「要素を掴んで動かす」形で、無効でも意味があるので対象外
+            // pinch / gesture は中心がキーボードの下ならそう言う(注記のみ。swipeBy は容器の枠がキーボードの下まで伸びるのが通常で、
+            // 中心が下でも払いは画面の中で切られるので言わない = 毎回の注記にしない)
             let gestureAdvisory = action == "doubleTap"
                 ? Self.joinNotes(
                     TapTargetGeometry.advisory(for: element, in: snapshot.elements,
@@ -1229,7 +1246,10 @@ extension StepExecutor {
                                                   reported: snapshot.overlayWindowFrames),
                                                isAndroid: isAndroid),
                     duplicateRegionAdvisory(element, in: snapshot))
-                : nil
+                : (["pinchOut", "pinchIn", "gesture"].contains(action)
+                    ? KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                screen: snapshot.screen).advisory(for: element)
+                    : nil)
             let outcome = try await performGesture(action, step: step, target: element.frame,
                                                    identifier: element.identifier,
                                                    viewport: snapshot.screen, phase: &phase)

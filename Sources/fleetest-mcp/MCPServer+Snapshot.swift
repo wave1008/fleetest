@@ -1037,6 +1037,20 @@ extension MCPServer {
             + " on some screens but fires the field's action, and in a multiline field it adds a newline instead"
     }
 
+    /// `PreFireGuard.keyboardCover` の断り(ref を引く全経路 = `verifiedRef` と `refGestureGuard` が呼ぶ)
+    static func keyboardCoverRefusal(_ found: ElementInfo, in tree: SnapshotResponse,
+                                     keyboardOcclusion: KeyboardOcclusion, label: String) -> String? {
+        guard let cover = PreFireGuard.keyboardCover(of: found, in: tree, keyboard: keyboardOcclusion) else { return nil }
+        let why: String
+        switch cover {
+        case .raisedBar(let bar): why = "covered by \(RefGuard.describe(bar)), which rose above the keyboard"
+        case .collapsed: why = "collapsed to a thin band (\(Int(found.frame.width))x\(Int(found.frame.height)))"
+        }
+        return "refusing \(label): \(RefGuard.describe(found)) is \(why)"
+            + " while the on-screen keyboard is up, so a touch would not land on it. Nothing was sent."
+            + " Close the keyboard (ft_hide_keyboard), take a fresh ft_snapshot and use the new ref"
+    }
+
     /// **システムアラートが前面にある間、ref の操作は断る**(ref 操作 = ft_tap / ft_type / ft_clear_input /
     /// ft_long_press / ft_batch の1手目 = `verifiedRef`、ft_double_tap / ft_drag / ft_pinch = `verifiedElement`。
     /// **ref を座標に畳む経路も同じ門を通す** —— 畳んだ先は座標の操作だが、ref で指した以上アラートの
@@ -1327,7 +1341,7 @@ extension MCPServer {
         if !screenChangedNote.isEmpty, takenRightAfterOwnAction, !actedSinceTakenFrom {
             loadingRefNoteShown.insert(key)
         }
-        let originNote = staleNote + probeNote + screenChangedNote
+        let originNote = staleNote + probeNote + screenChangedNote + refFrontAppNote(fresh, args: args)
         // **申告 keyboardFrame はキー面だけ**(サジェストバー・地球儀/Dictate 行を含まない)。
         // 木の chrome で広げ、chrome 自身とその部分木は除外する(KeyboardOcclusion の doc)。
         // DSL 側(StepExecutor+Actions.swift)も同じ型で揃える —— 片方だけ広げると
@@ -1356,17 +1370,10 @@ extension MCPServer {
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
                 throw MCPError(refusal)
             }
-            // **キーボードで枠が細い帯に潰れた対象は撃たない**(DSL は閉じてから撃つ。中心を撃っても要素に当たらず焦点の欄へ届く)
-            if KeyboardWait.isShown(fresh) {
-                let raisedBar = TapTargetGeometry.coveredByBarRaisedAboveKeyboard(
-                    found, in: fresh.elements, screen: fresh.screen, keyboard: keyboardOcclusion.frame)
-                if TapTargetGeometry.isCollapsedFrame(found) || raisedBar != nil {
-                    throw MCPError("refusing [\(ref)]: \(RefGuard.describe(found)) is "
-                        + (raisedBar.map { "covered by \(RefGuard.describe($0)), which rose above the keyboard" }
-                            ?? "collapsed to a thin band (\(Int(found.frame.width))x\(Int(found.frame.height)))")
-                        + " while the on-screen keyboard is up, so a touch would not land on it. Nothing was sent."
-                        + " Close the keyboard (ft_hide_keyboard), take a fresh ft_snapshot and use the new ref")
-                }
+            // **キーボードで枠が細い帯に潰れた・せり上がったバーに覆われた対象は撃たない**(DSL は閉じてから撃つ。判定は `PreFireGuard`)
+            if let refusal = Self.keyboardCoverRefusal(found, in: fresh, keyboardOcclusion: keyboardOcclusion,
+                                                       label: "[\(ref)]") {
+                throw MCPError(refusal)
             }
             // **同じ id が複数ある木で動いた位置のものへ付け替わるなら撃たない**(別の行の同じ部品を押す)
             if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements,

@@ -1,0 +1,50 @@
+{
+  "id": "gate-pre-fire",
+  "finding": "撃つ前の守りが tap と ft_type にしか無く、ft_batch の ref なし入力(別アプリが前面)と doubleTap(キーボードの下・せり上がったバー)が素通りして別アプリの欄・別のタブを操作した(pixel F1・F3 / emu F1 / se3 F1)",
+  "platform": "android",
+  "redNote": "デバイスを動かさずに書いた。統合時に確認: 直しを外す(refusalForRefLessBatchStep を空にする)と type の形で RN の #field_single が KEEPZZ になる",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]
+  ],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.rn", "resume": true}]
+  ],
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "別アプリが前面のとき ft_batch type を撃つ",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#field_single'; type 'KEEP'"}],
+        ["ft_launch", {"bundleId": "com.ftester.e2e"}],
+        ["$killApp", {"bundleId": "com.ftester.e2e", "seconds": 1}],
+        ["ft_batch", {"steps": "type 'ZZ'"}],
+        ["ft_snapshot", {}]
+      ],
+      "allowErrors": true,
+      "reject": ["KEEPZZ"],
+      "replyExpect": ["nothing was sent"]
+    },
+    {
+      "name": "別アプリが前面のとき ft_batch pressEnter",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#field_single'; type 'KEEP'"}],
+        ["ft_launch", {"bundleId": "com.ftester.e2e"}],
+        ["$killApp", {"bundleId": "com.ftester.e2e", "seconds": 1}],
+        ["ft_batch", {"steps": "pressEnter"}],
+        ["ft_snapshot", {}]
+      ],
+      "allowErrors": true,
+      "replyExpect": ["nothing was sent"]
+    },
+    {
+      "name": "キーボード表示中の doubleTap(バーに覆われた欄・DSL)",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#field_password'"}],
+        ["ft_batch", {"steps": "doubleTap '#btn_input_clear'"}],
+        ["ft_snapshot", {}]
+      ],
+      "allowErrors": true,
+      "reject": ["コントロール"]
+    }
+  ]
+}

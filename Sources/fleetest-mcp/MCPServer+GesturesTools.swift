@@ -776,7 +776,11 @@ extension MCPServer {
         if let refusal = Self.keyboardRefusal(element, keyboardOcclusion: keyboard) {
             throw MCPError(refusal)
         }
-        return RefGuard.preTapWarnings(
+        if let snapshot, let refusal = Self.keyboardCoverRefusal(element, in: snapshot, keyboardOcclusion: keyboard,
+                                                                 label: "[\(element.ref)]") {
+            throw MCPError(refusal)
+        }
+        return refFrontAppNote(snapshot, args: args) + RefGuard.preTapWarnings(
             element, keyboardOcclusion: keyboard,
             overlayWindows: OverlayWindowOcclusion.resolve(reported: snapshot?.overlayWindowFrames))
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],

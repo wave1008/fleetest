@@ -556,7 +556,7 @@ extension MCPServer {
 
     /// 全面一色の絵 + 木に要素がある、の注記(ft_screenshot と ft_batch の「画面が変わらなかった」の後で同じ文)
     static func flatScreenshotNote(elementCount: Int) -> String {
-        "note: this screenshot is a single flat colour while the element tree lists \(elementCount)"
+        "note: the screen is a single flat colour (judged from a screenshot) while the element tree lists \(elementCount)"
             + " elements — the display may be off or blank (for example right after the device woke from sleep),"
             + " in which case taps may not reach the app even though they report done. If the screen really"
             + " should show content, wake or unlock the device and re-check with ft_snapshot."
@@ -567,7 +567,7 @@ extension MCPServer {
     func displayOffNoteAfterUnchangedAction(driver: AppDriver, elementCount: Int) async -> String? {
         guard elementCount > 0, let png = try? await driver.screenshot(),
               BlankFrameDetector.isUniformBlank(pngData: png) else { return nil }
-        return "\n" + Self.flatScreenshotNote(elementCount: elementCount)
+        return "\n" + Self.flatScreenshotNote(elementCount: elementCount) + "\n"
     }
 
     func ftScreenshot(_ args: [String: Any]) async throws -> [[String: Any]] {
