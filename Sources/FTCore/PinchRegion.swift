@@ -54,6 +54,25 @@ public enum PinchRegion {
         return nil
     }
 
+    /// **ソフトキーボードを除いた画面**(キーボードが下端にあるときだけ、その上端まで)。キーボードは木に出ないので
+    /// `area` はキーの上にも指を置き、押しっぱなしの delete になって入力済みの文字が消えた(実機 SE3・SwiftUI)。
+    /// キーボードが画面の下半分に無い(横向きの全画面 IME など)・画面の外なら画面のまま
+    public static func usableScreen(_ snapshot: SnapshotResponse) -> FTRect {
+        let screen = snapshot.screen
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: screen).frame
+        guard let keyboard, keyboard.width > 0, keyboard.y > screen.y + screen.height / 2,
+              keyboard.y < screen.y + screen.height else { return screen }
+        return FTRect(x: screen.x, y: screen.y, width: screen.width, height: keyboard.y - screen.y)
+    }
+
+    /// 対象未指定のピンチの領域(キーボードを除く)。**呼び手は `area(elements:screen:)` でなくこちらを呼ぶ**
+    /// (どちらの呼び出しもキーボードを知らない側に倒れる)。絞れなくても `usableScreen` を返す
+    public static func area(in snapshot: SnapshotResponse) -> (region: FTRect, narrowed: Bool) {
+        let usable = usableScreen(snapshot)
+        if let narrowed = area(elements: snapshot.elements, screen: usable) { return (narrowed, true) }
+        return (usable, false)
+    }
+
     /// 領域の中で指が置かれる**もっとも外側**の2点。
     /// **向きの規則は `PinchGesture.ios` と同じ** —— 原則は横並びで、
     /// よほど縦長の枠のときだけ縦(縦に並べると縦スクロールの recognizer が指を取る)。

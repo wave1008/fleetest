@@ -54,7 +54,7 @@ extension MCPServer {
             recordInteraction(action: "swipe", resolvedRef: nil, args: args,
                               direction: direction.rawValue)
             return text("swipe \(direction.rawValue) sent"
-                + " (the soft keyboard was up — swiped in the area above it)."
+                + Self.keyboardSwipeAreaNote(cached)
                 + Self.changedHint(args, otherwise: " If anything moved, the old refs are stale"
                     + " — take a fresh ft_snapshot before using any ref")
                 + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
@@ -367,6 +367,11 @@ extension MCPServer {
         if target == "home" || (target == "appSwitcher" && switcherSeen != false) {
             backgroundedByNavigate.insert(Self.sessionKey(args))
         }
+        if target == "appSwitcher", switcherSeen != false {
+            switcherOpenedByNavigate.insert(Self.sessionKey(args))
+        } else if target == "home" || target == "back" {
+            switcherOpenedByNavigate.remove(Self.sessionKey(args))
+        }
         // **snapshotAfter を渡されたら木はそちらが撮る**。ここで撮り直すと同じ木を2回
         // 取りに行くだけになるので、**先に本文を組み立ててから**その結果で無効を判定する
         // (`snapshotAfterBody` は adoptSnapshot 経由で `lastSnapshots` を更新するので、
@@ -620,13 +625,17 @@ extension MCPServer {
             // **直近の木から、両方の指が同じものに載る位置を選ぶ**(画面全体だと指が端に着き、
             // 手前のシートに1本を取られてパンになる。実測と理由は PinchRegion)。
             // **絞れなくても画面矩形は渡す** —— 領域があれば座標で撃てる = DSL / ライブと同じ扱い
-            if let area = PinchRegion.area(elements: snapshot.elements, screen: snapshot.screen) {
-                frame = area
+            // **キーボードが出ているときはその上だけ**(`PinchRegion.area(in:)`。キーの上の指は delete になって入力が消える)
+            let picked = PinchRegion.area(in: snapshot)
+            frame = picked.region
+            if picked.narrowed {
                 pinchSelector += " (no ref/x/y: pinched the middle of the screen,"
                     + " where both fingers stay on the same thing)"
             } else {
-                frame = snapshot.screen
                 whole = true
+            }
+            if picked.region != snapshot.screen {
+                pinchSelector += " (the soft keyboard was up — the fingers stayed in the area above it)"
             }
         } else {
             whole = true
@@ -663,6 +672,20 @@ extension MCPServer {
             // ブリッジの助言(iosModeHint)は付けない —— ピンチは全フレームワークとも両ブリッジで
             // 届く(docs/commands.md の表。Flutter も ios-xcuitest で実測済み)
             + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
+    }
+
+    /// キーボード表示中の座標なしスワイプの断り書き。**キーボードの上端が画面の上半分にある**(横向きの全画面 IME 等 = 上に残る帯が狭い)と、
+    /// 「上の領域で払った」は言えない(払いがキー・抽出欄に乗って欄に文字が入った)。判定は `PinchRegion.usableScreen` と同じ向き(下半分に無ければ画面のまま)
+    static func keyboardSwipeAreaNote(_ snapshot: SnapshotResponse?) -> String {
+        guard let snapshot else { return " (the soft keyboard was up — swiped in the area above it)." }
+        let screen = snapshot.screen
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: screen).frame
+        if let keyboard, screen.height > 0, keyboard.y <= screen.y + screen.height / 2 {
+            return " (warning: the soft keyboard covers most of the screen (\(Int(keyboard.x)),\(Int(keyboard.y))"
+                + " \(Int(keyboard.width))x\(Int(keyboard.height))), so there is little room above it and the swipe may have landed on"
+                + " keys or the keyboard's own text field and typed — check the field's value with ft_snapshot; close the keyboard first (ft_hide_keyboard))."
+        }
+        return " (the soft keyboard was up — swiped in the area above it)."
     }
 
     func ftGesture(_ args: [String: Any]) async throws -> [[String: Any]] {

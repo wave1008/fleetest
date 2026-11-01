@@ -426,6 +426,7 @@ extension MCPServer {
         if backgroundNote.isEmpty, backgroundedByNavigate.contains(Self.sessionKey(args)) {
             let decision = Self.navigatedAwayNote(launched: launchedBundleIDs[Self.sessionKey(args)],
                                                   treeSession: snapshot.sessionBundleID,
+                                                  switcherOpened: switcherOpenedByNavigate.contains(Self.sessionKey(args)),
                                                   isAndroid: driver is AndroidDriver)
             // iOS は記録を ft_launch でだけ消していたため、ツール外(simctl launch・手で開く)で戻っても偽の注記が出続けた。
             // 戻ったと言える証拠(/appstate が前面 + 覆い無し + 木の要素がライブのヒットテストで引き当てられる)が揃ったときだけ消す。
@@ -1409,9 +1410,9 @@ extension MCPServer {
             let cause = RefGuard.movedTogether(target, found,
                                                before: lastRendered, after: fresh.elements,
                                                ownActionSince: actedSinceTakenFrom)
-            return (found.ref, originNote
-                + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
-                                        overlayWindows: overlayWindows)
+            // **動いた後の位置にも同じ警告を全部付ける**(`overlap` = 画面外・覆い・貼り付く見出し・ヒットテスト。
+            // 動いた経路だけ省くと、付け替えた先の中心が画面の外でも無警告になっていた)
+            return (found.ref, overlap
                 + RefGuard.movedNote(found: found, moved: moved, cause: cause,
                                    unit: Self.platformName(args) == "android" ? "px" : "pt") + straddle + labelNote)
         }

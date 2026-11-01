@@ -454,10 +454,12 @@ public enum TapTargetGeometry {
     /// `drawnAbove` が権威なので、黙っているのが正しい判断であり、そもそも聞く先も無い。
     /// 実測でも Android だけで32件鳴っていた(`and-place_expanded` 17・`and-results` 15)。
     ///
-    /// **条件は5つ**: ⑴ 木が z を持たない ⑵ 現状の遮蔽判定が黙っている
+    /// **条件**: ⑴ 木が z を持たない ⑵ 現状の遮蔽判定が黙っている
     /// ⑶ victim がスクロール容器の中 ⑷ 中心を覆う相手が居て、自分の子孫でも
     /// 自分を丸ごと収める相手でもなく、**木の順序ではそれが下**にある(= 木では前後を
-    /// 決められない当のケース)⑸ その相手が**画面の縁の帯に居る**(= chrome)。
+    /// 決められない当のケース)。**相手が縁の帯に居る条件は「縁の帯に居る、または操作部品」へ緩めた**(写真の上に重ねたハートのような画像・文字の覆いは今までどおり聞かない。CMP の折りたたみヘッダで、行を覆うタブ帯・echo の帯は
+    /// 帯の外に居る操作部品で ref の tap が無警告だった)。
+    /// **「縁の帯に居る操作部品の自分自身」にも聞く案は採らない**: 同じコーパスで 35%(365/1050)が発火し、毎タップの照会が常時になる
     ///
     /// **費用は固定コーパスで測る**(発火した要素をタップしたときだけ 72〜146ms の照会を払う):
     /// 3094 要素中 82 件 = 2.7%。⑷ を「容器の外」にしていた頃は 14 件だったが、
@@ -495,7 +497,7 @@ public enum TapTargetGeometry {
         return elements.contains { other in
             other.ref != element.ref && !inner.contains(other.ref)
                 && !contains(other.frame, element.frame)
-                && pinnedNearScreenEdge(other, screen: screen)
+                && (pinnedNearScreenEdge(other, screen: screen) || interactiveTypes.contains(other.type))
                 && other.frame.x <= cx && cx <= other.frame.x + other.frame.width
                 && other.frame.y <= cy && cy <= other.frame.y + other.frame.height
                 && !PaintOrder.drawnAbove(other, element)
@@ -512,10 +514,8 @@ public enum TapTargetGeometry {
     /// 上げるほど、ただ重なっているだけの兄弟にヒットテストを払い始める
     static let chromeBandRatio: Double = 0.2
 
-    /// 覆っている相手が**画面の縁の帯に居る**か。chrome(バー・sticky ヘッダ)は画面に固定される
-    /// ので、この条件が「ただ重なっている兄弟」と分ける。**これが無いと、商品写真の上に重ねた
-    /// お気に入りボタンのような普通の重なりまで毎回ヒットテストを払う**(実測の木で
-    /// カード内のハート4件が該当した)
+    /// 要素が**画面の縁の帯に居る**か(バー・sticky ヘッダ・タブ帯は画面に固定される)。
+    /// 照会を払う範囲を「帯の操作部品」に絞る条件(全部品に付けると毎タップ払う)
     static func pinnedNearScreenEdge(_ element: ElementInfo, screen: FTRect) -> Bool {
         guard screen.height > 0 else { return false }
         let band = screen.height * chromeBandRatio
@@ -721,7 +721,10 @@ public enum TapTargetGeometry {
             .union(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
         func covers(_ f: FTRect) -> Bool { cx >= f.x && cx <= f.x + f.width && cy >= f.y && cy <= f.y + f.height }
         for band in elements where band.ref != element.ref && !related.contains(band.ref)
-            && !BridgeSnapshotThinning.operableTypes.contains(band.type) {
+            && !BridgeSnapshotThinning.operableTypes.contains(band.type)
+            // 容器そのもの(スクロール容器・枠が容器と一致する要素)は見出しでない。縁をまたぐ行は祖先に数えられず、容器が上端に揃う帯に見えていた
+            && band.scrollable != true
+            && !(frameContains(band.frame, container) && frameContains(container, band.frame)) {
             if isPinnedTextBand(band, in: container), covers(band.frame) { return band }
             if let inferred = inferredPinnedBand(band, over: element, in: container), covers(inferred) {
                 var widened = band
@@ -1020,6 +1023,14 @@ public enum TapTargetGeometry {
         let inside = cx >= screen.x - pad && cx <= screen.x + screen.width + pad
             && cy >= screen.y - pad && cy <= screen.y + screen.height + pad
         guard !inside else { return nil }
+        // 枠の一部が画面に見えているなら「何も起きない」と断言しない(横向きで下へはみ出した行は押せた・下端の細い帯は押せなかった =
+        // 見える部分があっても当たるかは位置次第で、木からは分からない)
+        let visibleW = min(element.frame.x + element.frame.width, screen.x + screen.width) - max(element.frame.x, screen.x)
+        let visibleH = min(element.frame.y + element.frame.height, screen.y + screen.height) - max(element.frame.y, screen.y)
+        if visibleW > 0, visibleH > 0 {
+            return "its centre (\(Int(cx)), \(Int(cy))) is outside the visible screen, although part of it"
+                + " (\(Int(visibleW))x\(Int(visibleH))) is drawn — a touch at the centre does not land on the element, so this may have done nothing"
+        }
         return "its centre (\(Int(cx)), \(Int(cy))) is outside the visible screen,"
             + " so this almost certainly did nothing"
     }

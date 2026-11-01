@@ -1414,6 +1414,11 @@ extension MCPServer {
     /// 新しい木は別アプリの出自なので `verifiedRef` の出自照合は通ってしまう(断りの案内の前半だけ従うと、別アプリのまま ref で撃てる)。
     /// 判定材料は木の `sessionBundleID` だけ = 読みを足さない。システムのダイアログのパッケージは `frontAppWarning` が黙る
     func refFrontAppNote(_ tree: SnapshotResponse?, args: [String: Any]) -> String {
+        // appSwitcher を送ったまま(Android は木がアプリのままでも画面はスイッチャー。ref の tap はカードに当たる)
+        if switcherOpenedByNavigate.contains(Self.sessionKey(args)) {
+            return " (warning: this session sent appSwitcher and has not returned — the screen is probably the app switcher, so"
+                + " a tap by ref can land on an app card instead. Check with ft_screenshot, and ft_launch the app to return)"
+        }
         guard let launched = launchedBundleIDs[Self.sessionKey(args)], launched != "com.apple.springboard",
               let front = tree?.sessionBundleID, !front.isEmpty else { return "" }
         return Self.frontAppWarning(launched: launched, front: front)
