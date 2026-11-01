@@ -1,0 +1,76 @@
+{
+  "id": "oi46",
+  "finding": "アプリ自身のタップで出たシステムの権限アラートが前面でも、操作の後の ft_snapshot が背面の木を注記なしで返す(木が変わらないので launch 直後の1回の照会にも掛からない)",
+  "platform": "ios",
+  "redConfirmed": true,
+  "redNote": "直しを外した版(shouldProbeAfterUnchangedTree を常に false)は 6/6 周で赤、直した版は 0/6(11/2、iPhone 17 Pro iOS 27.0 の Simulator)。前の周のアラートは次の周の最初の手(alertButton)で閉じてから clear する(clear の後に閉じると、リセットした権限が「許可しない」で決まり、次の周はアラートが出ない)",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "reset": [],
+  "rounds": 6,
+  "forms": [
+    {
+      "name": "診断画面で写真の権限を要求するボタンを押した後の ft_snapshot",
+      "steps": [
+        [
+          "ft_tap",
+          {
+            "alertButton": "許可しない"
+          }
+        ],
+        [
+          "ft_clear_app_data",
+          {
+            "bundleId": "com.ftester.e2e.ios"
+          }
+        ],
+        [
+          "ft_launch",
+          {
+            "bundleId": "com.ftester.e2e.ios"
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_diagnostics' scroll: .down"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:btn_request_photos"
+          }
+        ],
+        [
+          "$wait",
+          {
+            "seconds": 3
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyExpect": [
+        "is in front of the app"
+      ],
+      "replyReject": [
+        "btn_request_photos"
+      ]
+    }
+  ]
+}
