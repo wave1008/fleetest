@@ -53,6 +53,8 @@ struct ApiListScenarios: AsyncParsableCommand {
         if !skipBuild {
             logStderr("→ Building scenarios (\(testProject.name))...")
             try ScenarioHost.build(project: testProject)
+        } else {
+            ScenarioHost.warnIfSkipBuildStale(project: testProject) { logStderr($0) }
         }
 
         let infos = try ScenarioHost.list(project: testProject)
@@ -247,6 +249,8 @@ struct ApiSteps: AsyncParsableCommand {
         if !skipBuild {
             logStderr("→ Building scenarios (\(testProject.name))...")
             try ScenarioHost.build(project: testProject)
+        } else {
+            ScenarioHost.warnIfSkipBuildStale(project: testProject) { logStderr($0) }
         }
 
         let events = try await ScenarioHost.dryRunSteps(

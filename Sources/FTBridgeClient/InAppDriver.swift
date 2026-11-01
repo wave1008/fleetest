@@ -363,6 +363,11 @@ public final class InAppDriver: AppDriver {
             return detail + " / no recent crash report found, and the app process is still running"
                 + " — it is not answering (a hang, or it is suspended because another app is in front)"
         case false, nil:
+            if let simulatorUDID,
+               let rewritten = SimulatorAppProcess.rewrittenReportCrash(bundleID: bundleID, udid: simulatorUDID, within: 10) {
+                LastAppCrash.shared.record(rewritten)
+                return detail + " / " + (rewritten.summary ?? "")
+            }
             return detail + " / no recent crash report found"
                 + " (no .ips appeared within 4s — possibly killed by the OS, memory pressure or a voluntary exit. "
                 + "In inapp-boost mode the backgrounded app can be suspended or terminated)"

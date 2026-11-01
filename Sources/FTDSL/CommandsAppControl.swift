@@ -786,7 +786,7 @@ private func ifCanSelectImpl(_ selector: FTSelector, waitSeconds: Double,
     // 不成立は **skipped** で記録する(passed にすると「セレクタが腐って毎回飛んでいる」状態が
     // 緑のまま見えなくなる)。run 終了時のサマリにも不成立を残す
     let description = "ifCanSelect \"\(selector.text)\" → \(found ? "ran" : "not met")"
-        + interruptSuffix(outcome)
+        + interruptSuffix(outcome) + stoppedSuffix(outcome)
     core.recordStep(description: description,
                     status: found ? .passed : .skipped("condition not met"),
                     file: "\(file)", line: Int(line),
@@ -862,6 +862,11 @@ private func interruptSuffix(_ outcome: FTDriveCore.CanSelectOutcome) -> String 
     guard let dismissed = outcome.dismissed else { return "" }
     let times = dismissed.count > 1 ? " ×\(dismissed.count)" : ""
     return "(dismissed the interruption \(dismissed.key)\(times))"
+}
+
+/// 読めなかった不成立が「止めたアプリだから」のとき、その事実を記録に残す(「本当に無い」と区別できる)
+private func stoppedSuffix(_ outcome: FTDriveCore.CanSelectOutcome) -> String {
+    outcome.stoppedByScenario ? "(the app was stopped by terminateApp)" : ""
 }
 
 public struct FTBranch {

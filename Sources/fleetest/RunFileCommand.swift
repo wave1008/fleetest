@@ -89,7 +89,7 @@ struct RunFileCommand: AsyncParsableCommand {
             ConsoleOut.out("→ Running as a registered scenario of \(owner.name)")
         } else {
             target = try ScenarioHost.project(named: project)
-            stagedDir = try Self.stage(urls, into: target)
+            stagedDir = try Self.stage(urls, into: target, waitSeconds: waitLock ?? 0)
             ConsoleOut.out("→ Staging temporarily into \(target.name): "
                 + urls.map(\.lastPathComponent).joined(separator: ", "))
         }
@@ -153,12 +153,13 @@ struct RunFileCommand: AsyncParsableCommand {
     }
 
     @discardableResult
-    static func stage(_ urls: [URL], into project: TestProject) throws -> URL {
+    static func stage(_ urls: [URL], into project: TestProject, waitSeconds: Int = 0) throws -> URL {
         let dir = StagedScenarioSweep.stageDirectory(scenariosDir: project.scenariosDir)
-        // 持ち主が死んだ残骸だけ消す。生きている別の run-file の置き場は壊さず断る
-        StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
-        if FileManager.default.fileExists(atPath: dir.path) {
-            throw ValidationError("another run-file is staging into \(project.name) right now; wait for it to finish")
+        // 持ち主が死んだ残骸だけ消す。生きている別の run-file の置き場は壊さず、`--wait-lock` の秒数まで待って、尽きたら断る
+        if !StagedScenarioSweep.waitUntilFree(scenariosDir: project.scenariosDir, waitSeconds: waitSeconds) {
+            let waited = waitSeconds > 0 ? " (waited \(waitSeconds)s)" : "; pass --wait-lock <seconds> to wait for it"
+            throw ValidationError(
+                "another run-file is staging into \(project.name) right now\(waited); wait for it to finish")
         }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try StagedScenarioSweep.claim(stageDir: dir)

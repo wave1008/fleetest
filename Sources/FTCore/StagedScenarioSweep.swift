@@ -27,6 +27,24 @@ public enum StagedScenarioSweep {
         return (try? FileManager.default.removeItem(at: dir)) != nil
     }
 
+    /// `--wait-lock` の置き場の待ち: 別の run-file の生きた置き場が空くまで、最大 `waitSeconds` 秒待つ(0 = 待たない)。
+    /// 空いた(または死んだ持ち主の置き場を消した)なら true。尽きたら false(呼び手が待った秒数つきで断る)。
+    /// 間隔 1 秒は、置き場を握る側が 1 シナリオ数十秒〜数分かかる実行であることに対して十分に粗い(待つ側は何も撃たない)
+    public static func waitUntilFree(scenariosDir: URL, waitSeconds: Int,
+                                     pollSeconds: Double = 1,
+                                     isAlive: (pid_t) -> Bool = ProcessLiveness.isAlive,
+                                     sleep: (Double) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                                     now: () -> Date = Date.init) -> Bool {
+        let dir = stageDirectory(scenariosDir: scenariosDir)
+        let deadline = now().addingTimeInterval(Double(max(0, waitSeconds)))
+        while true {
+            sweepIfAbandoned(scenariosDir: scenariosDir, isAlive: isAlive)
+            if !FileManager.default.fileExists(atPath: dir.path) { return true }
+            if now() >= deadline { return false }
+            sleep(pollSeconds)
+        }
+    }
+
     static func ownerPID(stageDir: URL) -> pid_t? {
         guard let text = try? String(contentsOf: stageDir.appendingPathComponent(ownerFileName), encoding: .utf8) else { return nil }
         return pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))

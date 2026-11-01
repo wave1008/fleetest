@@ -309,6 +309,11 @@ public struct InAppLauncher: Sendable {
         guard let hit = SimulatorCrashReport.findRecent(bundleID: bundleID,
                                                         udid: udid == "booted" ? nil : udid,
                                                         within: 60) else {
+            if udid != "booted",
+               let rewritten = SimulatorAppProcess.rewrittenReportCrash(bundleID: bundleID, udid: udid, within: 60) {
+                LastAppCrash.shared.record(rewritten)
+                return detail + " / " + (rewritten.summary ?? "")
+            }
             return detail + " (no recent crash report for \(bundleID) —"
                 + " the app process may have been killed without one, or never launched)"
         }

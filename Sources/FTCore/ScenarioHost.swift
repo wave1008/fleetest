@@ -321,7 +321,14 @@ public enum ScenarioHost {
     /// は意図してビルドを省く口なので、食い違いも意図的なことがある。新しい検知は警告から)。
     /// フィンガープリントが計算できない(Sources/ 列挙失敗等)なら判定材料が無いので黙る(安全側)。
     /// `run`/`api run` の両方の `--skip-build` 分岐から呼ぶ
+    /// **`--skip-build` の入口でも死んだ run-file の置き場を消す**(`build` / `buildNeeded` が通らない経路。残すと次のビルドまで
+    /// 通常のシナリオとして残る)。バイナリはその置き場込みでビルドされているので、消してもバイナリの一覧にはその ID が残る —— そう言う
     public static func warnIfSkipBuildStale(project: TestProject, log: (String) -> Void) {
+        if StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir) {
+            log("⚠️ --skip-build: removed the staging folder an interrupted `fleetest run-file` left in"
+                + " \(project.name) (scenarios/\(StagedScenarioSweep.dirName)); the existing binary was built with it"
+                + " and still lists those scenarios until the next build")
+        }
         guard let root = packageRoot() else { return }
         guard let fingerprint = BuildFingerprint.compute(
             repoRoot: root, scenariosDir: project.scenariosDir) else { return }

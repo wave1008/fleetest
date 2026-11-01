@@ -196,6 +196,32 @@ final class SimulatorCrashReportTests: XCTestCase {
         XCTAssertEqual(resolved(hit?.path), resolved(target.path))
     }
 
+    /// 上限の上書き(mtime だけ新しい・中身は古い)は findRecent が捨て、findRewrittenInPlace だけが指す
+    func testFindRewrittenInPlaceReturnsTheStaleContentReportWithFreshMtime() throws {
+        let now = Date()
+        let old = try writeIPS(name: "old.ips", bundleID: "com.sutec.mobile", mtime: now,
+                               captureTime: "2026-11-01 13:10:17.4421 +0900")
+        XCTAssertNil(SimulatorCrashReport.findRecent(bundleID: "com.sutec.mobile", udid: nil, within: 120,
+                                                     dir: dir, now: now))
+        let path = SimulatorCrashReport.findRewrittenInPlace(bundleID: "com.sutec.mobile", within: 120,
+                                                             dir: dir, now: now)
+        XCTAssertEqual(resolved(path), resolved(old.path))
+    }
+
+    func testFindRewrittenInPlaceIgnoresGenuinelyNewOtherAppAndUnreadableTimeReports() throws {
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
+        _ = try writeIPS(name: "new.ips", bundleID: "com.sutec.mobile", mtime: now,
+                         captureTime: formatter.string(from: now.addingTimeInterval(-3)))
+        _ = try writeIPS(name: "other.ips", bundleID: "com.other.app", mtime: now,
+                         captureTime: "2026-11-01 13:10:17.4421 +0900")
+        _ = try writeIPS(name: "notime.ips", bundleID: "com.sutec.mobile", mtime: now)
+        XCTAssertNil(SimulatorCrashReport.findRewrittenInPlace(bundleID: "com.sutec.mobile", within: 120,
+                                                               dir: dir, now: now))
+    }
+
     func testFindRecentReturnsNilForNonMatchingBundleID() throws {
         let now = Date()
         _ = try writeIPS(name: "a.ips", bundleID: "com.other.app", mtime: now)

@@ -1590,6 +1590,17 @@ public final class FTDriveCore {
     }
 
     private var _notApplicableReason: String?
+    /// このシナリオが `terminateApp()` で止めたアプリが、まだ止まったままか(stateLock で守る)。
+    /// 意図して止めたあとの「読めない」は「無い」であり、クラッシュではない(`canSelect` の不成立・失敗の文言が見る)。
+    /// 失敗でないステップが入ると解ける(別の操作がアプリを起こしうる)。**失敗したステップでは解かない** ——
+    /// 失敗の直後に呼ばれる `handleFailure` が「止めたのはこのシナリオ」と言えるように
+    private var _appStoppedByScenario = false
+    var appStoppedByScenario: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return _appStoppedByScenario
+    }
+    /// 止めた状態を保つコマンド(アプリへ触らない読みと待ち)
+    private static let keepsStoppedAppState: Set<String> = ["terminateApp", "ifCanSelect", "repeatWhileCanSelect", "wait"]
     /// 子が「このシナリオはこの環境では成り立たない」と宣言した理由(scenarioFinished.notApplicableReason へ運ぶ)。
     /// 失敗ではない: 宣言以降の手順は skipped になり、シナリオの合否は宣言までの手順だけで決まる
     public var notApplicableReason: String? {
@@ -1621,6 +1632,8 @@ public final class FTDriveCore {
         /// **画面を読めなかった**ときの事実(`found == false` と同時にだけ立つ)。読めなかったことを
         /// 「無い」と言わない —— クラッシュ・接続断・固まりの後に不成立で緑へ抜ける
         var unread: SnapshotReadFailure? = nil
+        /// 読めなかったが、**このシナリオが `terminateApp()` で止めたアプリ**なので「無い」として扱った(`unread` は nil)
+        var stoppedByScenario = false
     }
 
     /// canSelect の最後の読みが失敗した理由。kind は**エラーの型**から採る(文言で仕分けない)
@@ -1660,7 +1673,13 @@ public final class FTDriveCore {
             }
         }
         func result(_ found: Bool) -> CanSelectOutcome {
-            CanSelectOutcome(found: found, dismissed: dismissed, unread: found ? nil : unread)
+            // 意図して止めたアプリの読み失敗(接続拒否・「動いていない」)は、不成立の根拠にしてよい「無い」。
+            // 型で絞る(driverUnreachable / driverError。timeout など別の失敗は止めた事実では説明できないので従来どおり)
+            if !found, let unread, appStoppedByScenario,
+               unread.kind == .driverUnreachable || unread.kind == .driverError {
+                return CanSelectOutcome(found: false, dismissed: dismissed, unread: nil, stoppedByScenario: true)
+            }
+            return CanSelectOutcome(found: found, dismissed: dismissed, unread: found ? nil : unread)
         }
         let deadline = Date().addingTimeInterval(waitSeconds)
         let foundWhilePolling: Bool = IdleAllowance.during(seconds: waitSeconds) {
@@ -1775,6 +1794,13 @@ public final class FTDriveCore {
         stateLock.lock()
         defer { stateLock.unlock() }
         stepCounter += 1
+        if case .failed = status {} else if let command {
+            if command == "terminateApp" {
+                if case .passed = status { _appStoppedByScenario = true }
+            } else if !Self.keepsStoppedAppState.contains(command) {
+                _appStoppedByScenario = false
+            }
+        }
         // group の名前はここでだけ前置する(修正提案の description は素のまま = ソース行との照合に使うため)
         let displayed = groupStack.isEmpty
             ? description
@@ -1936,7 +1962,14 @@ public final class FTDriveCore {
         }
         // **process が無いことは window の覆いより優先度が高い容疑**なので先に確かめる
         // (プロセスが落ちていれば別プロセスの window どうこうは無意味な情報になる)
-        let processEvidence = appProcessEvidenceRequiresLaunch && !appLaunchedInThisProcess
+        // **このシナリオが止めたアプリなら、居ないのは当然**: 「クラッシュしたかも」と言わず、止めた事実を言う
+        // (ここで問うと .ips の待ちを払ううえ、前の回の報告をこのシナリオのクラッシュとして記録しうる)
+        let stoppedByScenario = appStoppedByScenario
+        if stoppedByScenario {
+            emit(.log("The app process is not running: this scenario stopped it with terminateApp()"
+                      + " and no later step started it again"))
+        }
+        let processEvidence = stoppedByScenario || (appProcessEvidenceRequiresLaunch && !appLaunchedInThisProcess)
             ? [] : appProcessEvidence?() ?? []
         if !processEvidence.isEmpty {
             let recordedProcess = withState { () -> Bool in

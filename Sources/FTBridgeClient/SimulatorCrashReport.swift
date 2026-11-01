@@ -146,6 +146,42 @@ public enum SimulatorCrashReport {
         return nil
     }
 
+    /// **mtime だけが窓に入り、中身(captureTime)は窓より古い**同じアプリの報告のパス。`findRecent` が捨てる形:
+    /// 同じアプリの .ips が保持上限に達すると、以後のクラッシュは新しいファイルを作らず最古の1件の mtime だけを進める。
+    /// これは「新しい報告」ではない(中身は前のクラッシュ)ので**このクラッシュの報告として指さない**。
+    /// 呼び手はアプリの死を別途観測したときだけ「報告が上書きされた可能性」の証拠にする(mtime だけでは他の更新と区別できない)
+    public static func findRewrittenInPlace(
+        bundleID: String,
+        within seconds: TimeInterval,
+        dir: URL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/DiagnosticReports"),
+        now: Date = Date()
+    ) -> String? {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]
+        ) else { return nil }
+        let cutoff = now.addingTimeInterval(-seconds)
+        let candidates = entries
+            .filter { $0.pathExtension == "ips" }
+            .compactMap { url -> (URL, Date)? in
+                guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+                      let mtime = values.contentModificationDate, mtime >= cutoff else { return nil }
+                return (url, mtime)
+            }
+            .sorted { $0.1 > $1.1 }
+            .prefix(50)
+        for (url, _) in candidates {
+            guard let content = readWholeText(url) else { continue }
+            let summary = splitHeaderAndPayload(content)
+                .flatMap { summarize(headerLine: $0.header, payload: $0.payload) }
+                ?? summarizeTextFormat(content)
+            guard let summary, summary.bundleID == bundleID,
+                  let captured = reportTime(inReport: content), captured < cutoff else { continue }
+            return url.path
+        }
+        return nil
+    }
+
     /// レポートが書く発生時刻(ペイロードの `captureTime`、無ければヘッダの `timestamp`)。
     /// 「2026-11-01 13:10:17.4421 +0900」の形でタイムゾーンを持つものだけ読む。読めなければ nil
     public static func reportTime(inReport content: String) -> Date? {

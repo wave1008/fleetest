@@ -98,4 +98,39 @@ final class IfCanSelectUnreadScreenTests: XCTestCase {
         let step = steps.first { ($0.description ?? "").hasPrefix("repeatWhileCanSelect") }
         XCTAssertEqual(step?.status, "failed")
     }
+
+    // MARK: - terminateApp の直後(シナリオが止めたアプリは「読めない」でなく「無い」)
+
+    func testIfCanSelectAfterTerminateAppIsNotMetNotFailed() {
+        var ran = false
+        let steps = run(FlakyDriver(failures: -1)) {
+            terminateApp()
+            ifCanSelect("#email", waitSeconds: 0) { ran = true }
+        }
+        XCTAssertFalse(ran)
+        let step = steps.first { ($0.description ?? "").hasPrefix("ifCanSelect") }
+        XCTAssertEqual(step?.status, "skipped", "止めたアプリの読み失敗は不成立(失敗でも crashed でもない)")
+        XCTAssertTrue(step?.description?.contains("stopped by terminateApp") == true, step?.description ?? "")
+    }
+
+    func testRepeatWhileCanSelectAfterTerminateAppRunsZeroTimes() {
+        let steps = run(FlakyDriver(failures: -1)) {
+            terminateApp()
+            repeatWhileCanSelect("#more", waitSeconds: 0) {}
+        }
+        let step = steps.first { ($0.description ?? "").hasPrefix("repeatWhileCanSelect") }
+        XCTAssertEqual(step?.status, "passed")
+        XCTAssertTrue(step?.description?.contains("0 time(s)") == true, step?.description ?? "")
+    }
+
+    func testAnOperationAfterTerminateAppEndsTheStoppedState() {
+        // 失敗でない別の操作(アプリを起こしうる)が入ったら、以後の読み失敗は従来どおり失敗
+        let steps = run(FlakyDriver(failures: -1)) {
+            terminateApp()
+            launchApp()
+            ifCanSelect("#email", waitSeconds: 0) {}
+        }
+        let step = steps.first { ($0.description ?? "").hasPrefix("ifCanSelect") }
+        XCTAssertNotEqual(step?.status, "skipped")
+    }
 }

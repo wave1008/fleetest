@@ -78,17 +78,36 @@ public enum SimulatorAppProcess {
         return nil
     }
 
+    /// .ips が見つからなかった死の事実。**アプリのプロセスが居ない(false)**うえで、同じアプリの報告の mtime だけが窓の中で
+    /// 進んでいる(上限の上書き = `findRewrittenInPlace`)ときだけ返す。報告の中身は前のクラッシュなので path は持たない
+    /// (古い報告を「このクラッシュの報告」と言わない)。返れば呼び手は赤の根拠(`appCrash`)にし振り直さない
+    public static func rewrittenReportCrash(bundleID: String, udid: String, within seconds: TimeInterval) -> AppCrashRecord? {
+        guard isRunning(udid: udid, bundleID: bundleID) == false,
+              let path = SimulatorCrashReport.findRewrittenInPlace(bundleID: bundleID, within: seconds) else { return nil }
+        return AppCrashRecord(evidence: .crashReport, path: nil, summary: rewrittenSummary(path: path))
+    }
+
+    static func rewrittenSummary(path: String) -> String {
+        "the app process is gone and macOS just rewrote an older crash report in place (\(path)) —"
+            + " its contents are from an earlier crash, not this one (the per-app report limit was reached)"
+    }
+
     /// 失敗時のプロセス証拠(`FTRuntime.appProcessEvidence` の iOS Simulator 版)。生きている・判定できないなら空。
     /// 居なければ "process not running" と、このシナリオの開始以降の .ips があればその事実を返し、
     /// クラッシュとして記録する(`LastAppCrash`。in-app ドライバが切断の時点で記録済みなら重ねない)
     public static func failureEvidence(bundleID: String, udid: String, scenarioStartedAt: Date) -> [String] {
         guard isRunning(udid: udid, bundleID: bundleID) == false else { return [] }
         if let recorded = LastAppCrash.shared.snapshot() {
-            return ["process not running"] + (recorded.path.map { [crashReportLine(path: $0, reason: recorded.summary)] } ?? [])
+            return ["process not running"] + (recorded.path.map { [crashReportLine(path: $0, reason: recorded.summary)] }
+                ?? recorded.summary.map { [$0] } ?? [])
         }
         // 前のシナリオ・前の run の同じアプリの .ips を拾わないよう、このシナリオの開始以降に絞る
         let within = Date().timeIntervalSince(scenarioStartedAt)
         guard let hit = awaitCrashReport(bundleID: bundleID, udid: udid, within: within) else {
+            if let rewritten = rewrittenReportCrash(bundleID: bundleID, udid: udid, within: within) {
+                LastAppCrash.shared.record(rewritten)
+                return ["process not running", rewritten.summary ?? ""]
+            }
             return ["process not running"]
         }
         LastAppCrash.shared.record(AppCrashRecord(evidence: .crashReport, path: hit.path, summary: hit.reason))
