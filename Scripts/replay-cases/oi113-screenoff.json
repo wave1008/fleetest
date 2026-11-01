@@ -1,0 +1,26 @@
+{
+  "id": "oi113-screenoff",
+  "finding": "手の最中に Android の画面が消灯しても、ok の tap や次の手の失敗が消灯に触れない",
+  "platform": "android",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}]
+  ],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}]
+  ],
+  "resetSeconds": 0.5,
+  "rounds": 3,
+  "redConfirmed": true,
+  "forms": [
+    {
+      "name": "ft_batch の最中に消灯する",
+      "steps": [
+        ["$adbLater", {"after": 1.5, "args": ["shell", "input", "keyevent", "KEYCODE_SLEEP"]}],
+        ["ft_batch", {"steps": "tap '#nav_gesture'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'; tap '#btn_tap_counter'"}]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyExpect": ["the screen is off or locked after this call"]
+    }
+  ]
+}

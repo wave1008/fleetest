@@ -683,6 +683,9 @@ extension MCPServer {
             if let note = takeUIFrameworkUnknownNote(args: resolved) {
                 content = [["type": "text", "text": note]] + content
             }
+            if let note = screenOffAfterCallNote(tool: tool, args: resolved) {
+                content = [["type": "text", "text": note]] + content
+            }
             // ドライバの供給で溜まったプロファイル警告(複数台の「先頭を使う」等)を、それを生んだ呼び出し自身の応答で吐く。
             // ft_status / ft_snapshot は本文の組み立てで先に取り出すので二重にはならず、他の道具では次の ft_snapshot まで遅れていた
             if Self.toolAcceptsDeviceTarget(tool) {
@@ -717,6 +720,7 @@ extension MCPServer {
                 + (coveredHint.isEmpty ? Self.systemAlertBlockedHint(cause) : coveredHint)
                 + Self.accessibilityOutageHint(cause)
                 + (runNote.map { " " + $0 } ?? "")
+                + (screenOffAfterCallNote(tool: tool, args: resolved).map { " " + $0 } ?? "")
                 + (unknownArgumentNote.isEmpty ? "" : " " + unknownArgumentNote)
             let note = bridgeStarted.started ? Self.bridgeStartedForUDIDNote + "\n" : ""
             guard !hint.isEmpty || !note.isEmpty else { throw error }

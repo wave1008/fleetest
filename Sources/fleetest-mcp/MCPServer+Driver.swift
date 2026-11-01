@@ -52,6 +52,25 @@ extension MCPServer {
         await AndroidPhysicalDevice.prepareForRun(serial: serial, log: Self.logStderr)
     }
 
+    /// **操作の後に Android の画面が消灯・ロックしていたら言う**(実測: 手の途中で消灯すると、直前の tap は `ok` なのに
+    /// アプリへ届いておらず、次の手の失敗文は遮蔽の経路の文言のままで消灯に触れない)。操作の前の起こし直し
+    /// (`prepareAndroidDeviceIfNeeded`)は呼び出しの開始時だけなので、**呼び出しの最中の消灯**はこの確認だけが拾う。
+    /// 端末を動かすツールだけ・Android だけ・差し替えドライバ(テスト)では撃たない。確認は1往復(`screenAwakeAndUnlocked`)
+    func screenOffAfterCallNote(tool: String, args: [String: Any]) -> String? {
+        guard makeDriver == nil, Self.toolEffects[tool] == .drivesDevice,
+              let serial = connectedAndroidSerials[Self.sessionKey(args)],
+              AndroidPhysicalDevice.screenAwakeAndUnlocked(serial: serial) == false else { return nil }
+        return Self.screenOffAfterCallText(serial: serial)
+    }
+
+    /// 文言は事実だけ(いつ消えたかは分からない = 呼び出しの最中とは言わない)。ok の操作が届いたかは断定しない
+    static func screenOffAfterCallText(serial: String) -> String {
+        "⚠️ \(serial): the screen is off or locked after this call. If it went off while the call was running, an"
+            + " operation reported as done may not have reached the app, and a failure may be the screen's, not the"
+            + " target's — check with ft_snapshot before acting again (the next call wakes the screen first; the tool"
+            + " does not keep it on)"
+    }
+
     // **MCP の iOS は常に XCUITest**(ユーザー決定。in-app は使わない)。profile 指定時は resolveProfileTarget が
     // ft_run_scenario と同じデバイスを XCUITest で供給し、profile 無しは ExploreDriverResolver が in-app のポートでも
     // 同じデバイスの XCUITest へ振り替える
