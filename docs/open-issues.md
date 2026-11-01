@@ -491,12 +491,12 @@
 - replace なしの古い ref は照合し直して打てる。replace の経路(消去の前の ref の検査)で、キーボードで動いた欄の枠がアラートの枠の外と読まれている疑い
 - 手がかり: 断る直前の木で、欄とアラートの枠を突き合わせる
 
-### OI-62 横向きの ft_screenshot で maxWidth が高さの上限として効き、fullSize の PNG の画素が縦のまま(向きは eXIf だけ)
+### OI-62 横向きの ft_screenshot の fullSize の PNG の画素が縦のまま(向きは eXIf だけ)
 - 状態: 経路確定
 - 確認: コミット未記録(2026-10-30)
 - 経緯: 発見: 10-30 午後の探索的テスト(M1Max の Simulator = mxios F8)
 
-- `ImageDownscale.jpeg` が向きを当てる前の `kCGImagePropertyPixelWidth` で長辺を測る。EXIF の向きが 5〜8 なら幅と高さを入れ替える。fullSize は表示の向きへ回した画素で返す
+- 縮小の長辺は直した。残りは fullSize の PNG の画素を表示の向きへ回すこと(`MCPServer+ScreenTools.swift`)
 - 同じ根の ft_capture_element(mxios F9)は「絵が画面の向きでない」と事実を言うようにした(回転はしない)。`VisionClassifier.crop` を使う DSL の checkIsON / imageIs / findImage も横向きで同じく切れない疑い(推測)
 
 ### OI-103 容器の推定が窓をまたぐ(`ContainerGeometry`)
@@ -681,7 +681,6 @@
 - `bridge up --device` が別セッションの保持を見ずに起こし直す(la F1 の後半)・kickstart 直後の ft_status の「no running bridge」(b F2)
 - 画面が真っ黒で入力が届かない SE3 にツールが正常と答えた(端末の再起動で解消・原因不明・再現 0/1。lb F1)
 - run の前の絞り込み(`Using 1 of 3`)が印のある台を避けない(run F9)
-- DSL の swipePointToPoint は画面外の座標を断らない(ft_batch だけ断る。画面端ちょうどの終点を使うシナリオが赤になるおそれ。mxl F3)
 
 ### OI-91 in-app の背面の要素・焦点の受け口(10/31 探索 inapp・mxa)
 - 状態: 推測
@@ -758,14 +757,6 @@
 - 配信との関係は未確定: 11/01 に同じシナリオを 6 台 × 10 周ずつ交互に回して、配信あり 0/60・なし 0/60(赤も割れも無し。0/60 の 95% 上限は約 5%)。所要の中央値は 7.1 秒 / 5.8 秒・最大 12.1 秒 / 6.8 秒。低率の形なので、この周回では判定できない
 - 再生ケースは無い: MCP は分類器を通らず、古い絵を DSL の実行へ注入する口も無い(赤は `CheckStateClassifierTests` の差し替えドライバで確かめた)
 
-### OI-104 ごく短いシナリオ(実測 148〜412ms)は録画のクリップが作られず、録画の整合チェックが赤になる
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 再起動後の録画ありの E2E-iOS(エンコーダ正常)。E2E-Flutter / android の不足2本も同じ形
-
-- `runで共有するメモ` が短く終わった回だけ `recordings/index.json` に載らない(`clipsFailed` は 0 = 失敗としては数えられない)。同じシナリオでも 2 秒以上かかった回は載る。シナリオの合否には影響しない
-- 手がかり: 切り出しが短い区間を黙って捨てる経路か、録画の開始が間に合わない形かは未調査。`Scripts/check-recordings.py` の件数の比較が、クリップの作られない回を見分けていない
-
 ### OI-105 探索の「まだ動いていた」「一覧の端」の判定が、バウンスと常駐シートに吸われた払いを正しく読まない(iOS・MCP)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
@@ -799,15 +790,6 @@
 
 - E2EX ドロワー画面・横向きで `tap '#nav_drawer' scroll: .down; tap '#btn_open_drawer'; tap '#drawer_item_sent'` が全部 ok・注記なし(7/8。縦向きは 0/6)。終わった木は `drawer_item_sent (284,652 803x147)`(開いたまま)・echo は drawer=sent にならない。閉じた木(1回)は `drawer_item_sent (0,652 142x147)`(ラベルなし・縦向きの閉じた木には居ない)で、2手目の直後の読みがまだ閉じた木 = 3手目が古い帯へ撃つ(推測)。2手目に「the screen did not change」が 5/7
 - 根拠(推測): `TapTargetGeometry` に切り欠きの帯(x<142)の判定が無い(下の gesture band はある)。本物の CMP `ModalNavigationDrawer` の木で SUT の問題ではない
-
-### OI-110 注入起動したアプリが起動 1〜3 秒で SIGKILL されても、launch は 30 秒待ち切る
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の run ループ監査(la F3。iPhone 17 Pro -02 の E2E-iOS ios-inapp-boost で 2 run・3 回。自分では起こせていない)
-
-- 06:11:36 terminate → 37.079 Bootstrapping → 38.06 `termination reported by launchd (2, 9, 9)`(SIGKILL・SpringBoard は `Scene create failed … XPC error`)。launch の step は `the in-app bridge did not respond in time: connection refused`・durationMs 30721。`InAppLauncher.swift:360` の待ちはブリッジの応答だけを見る。SIGKILL の送り主は未特定(simctl の log に `Termination requested` が無い = terminate ではない)
-- 期待(所見): 待ちの間にプロセスの死を見て早く返す(死は launchd / simctl の事実で確定できる)
-- 同じ事象で `exist` の途中に出た回は `driver-unreachable` で再キューされ緑。起動後の ready 待ち切れ(`notReady`)も `driver-unreachable` を名乗る直しは入れた
 
 ### OI-111 iOS の Flutter で ft_launch の直後の座標 ft_tap が「done」のまま飲まれる(launch の所要が約 2.45 秒の回だけ)
 - 状態: 再現済み
@@ -871,11 +853,8 @@ RN・Flutter の横向きのテキスト入力は容器が無く、タブが欄�
 ### OI-121 ref なしの secure 欄の追記の誤った緑
 `ab` のあと ref なしで `abかな` を打つとかなが落ちても緑。木からは「焦点を保った」と「タップで取り戻した」を区別できない(ロケータありは赤)。直すには直前に同じ欄へ打った記憶が要る。
 
-### OI-123 画面の外の対象への DSL の操作が ok のまま何も起きない
-中心が画面の下へはみ出した対象への doubleTap・長押し・swipeElementToElement・pinchOut(Emulator)。
-
 ### OI-124 terminateApp 前後
-terminateApp 直後の exist / tap の振り直し、2回目の terminateApp の 409(in-app ブリッジ)。ステップの無い区間の .ips の検索に上限がある。
+in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。ステップの無い区間の .ips の検索の上限は、箇所を特定できていない。
 
 ### OI-125 live と CLI の残り
 別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。

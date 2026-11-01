@@ -779,8 +779,8 @@ struct RunScenario: AsyncParsableCommand {
         if !passed, runPlatform == "android", let serial,
            AndroidPhysicalDevice.screenAwakeAndUnlocked(serial: serial) == false {
             let notice = "\(serial): the screen was off or locked when this scenario failed — steps after"
-                + " it went off could not reach the app (the next scenario wakes it; the tool does not keep"
-                + " the screen on)"
+                + " it went off could not reach the app, and a step reported ok just before it went off may not have"
+                + " reached it either (the next scenario wakes it; the tool does not keep the screen on)"
             ConsoleOut.err("⚠️ \(notice)")
             reportNotices.append(notice)
         }

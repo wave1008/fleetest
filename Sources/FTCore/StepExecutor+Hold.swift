@@ -48,7 +48,7 @@ extension StepExecutor {
         if let lifted = try await liftCoveredTarget(element, in: snapshot, step: step,
                                                     verb: "touching", snapshotSource: .primary, phase: &phase) {
             guard let liftedElement = lifted.element else {
-                return (element, lifted.snapshot, driverFallback, Self.coverLiftLostMessage(step, verb: "touching")
+                return (element, lifted.snapshot, driverFallback, Self.coverLiftLostMessage(step, verb: "touching", after: lifted.snapshot)
                     + (await leftForegroundSuffix(snapshot.sessionBundleID)))
             }
             element = liftedElement

@@ -511,6 +511,9 @@ extension StepExecutor {
         guard let x = step.x, let y = step.y, let toX = step.toX, let toY = step.toY else {
             return StepOutcome(status: .failed("swipePointToPoint needs startX, startY, endX and endY"))
         }
+        if let refusal = Self.offscreenDragPointRefusal(x: x, y: y, toX: toX, toY: toY, screen: nil) {
+            return StepOutcome(status: .failed(refusal))
+        }
         let clock = ContinuousClock()
         let start = clock.now
         let latchedBefore = dragFallbackLatched
@@ -519,6 +522,9 @@ extension StepExecutor {
         var bandNote: String?
         if let band = await driver.backGestureEdgeWidths(), band.bottom > 0 || band.left > 0 || band.right > 0 {
             let screen = try await snapshotForScrollFrame(phase: &phase).screen
+            if let refusal = Self.offscreenDragPointRefusal(x: x, y: y, toX: toX, toY: toY, screen: screen) {
+                return StepOutcome(status: .failed(refusal))
+            }
             let cleared = ScrollGeometry.clearingBottomGestureBand(y: y, viewport: screen, bottom: band.bottom)
             startY = cleared.y
             if cleared.moved { bandNote = Self.bottomBandNote }
@@ -538,6 +544,18 @@ extension StepExecutor {
                            driverFallback: Self.joinNotes(
                                dragFallbackLatched && !latchedBefore ? "fell back to XCUITest" : nil, bandNote,
                                settleNotes.first))
+    }
+
+    /// 始点か終点が画面の外なら撃たずに断る文(判定は `TapTargetGeometry.isDragPointOffScreen`。縁ちょうどは内)。
+    /// `screen` が nil の段は木を読まずに言える負の座標・非有限だけ、Android の帯の補正で木を読んだ段は画面の大きさまで見る
+    static func offscreenDragPointRefusal(x: Double, y: Double, toX: Double, toY: Double, screen: FTRect?) -> String? {
+        let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
+        for (label, px, py) in [("start", x, y), ("end", toX, toY)]
+        where TapTargetGeometry.isDragPointOffScreen(x: px, y: py, screen: screen) {
+            return "swipePointToPoint: the \(label) point (\(px), \(py)) is outside the screen\(size), so the drag would"
+                + " not start or end on the screen and nothing was sent. Use coordinates inside the screen"
+        }
+        return nil
     }
 
     static let sideBandNote = "start point moved clear of the Android back-gesture band at the screen edge (a touch there is taken as back)"

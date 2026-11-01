@@ -157,7 +157,11 @@ public struct InAppLauncher: Sendable {
                                sourceDigest: try? BridgeSourceSet.inApp.digest(repoRoot: repoRoot))
         let waitStart = clock.now
         do {
-            try await waitUntilReady()
+            let probe = SimulatorAppProcess.recoveryProbe(simulatorUDID: udid)
+            let appIsRunning: (@Sendable () async -> Bool?)? = probe.map { probe in
+                { @Sendable () async -> Bool? in await probe(bundleID) }
+            }
+            try await waitUntilReady(appIsRunning: appIsRunning)
         } catch let InAppLauncherError.notReady(detail) {
             // **一次原因を添える**: 「did not respond in time: connection refused」の裏が
             // アプリの即死(例: ランタイム共有キャッシュ破損の dyld エラー = OS_REASON_DYLD。
@@ -362,7 +366,19 @@ public struct InAppLauncher: Sendable {
     }
 
     /// 実機は endpoint(iproxy のループバック + token)へ、シミュレータはループバックへ到達待ちする
-    public func waitUntilReady(endpoint: BridgeEndpoint? = nil, timeout: TimeInterval = 30) async throws {
+    /// 待ちの途中でアプリのプロセスの生死を聞く間隔(秒)と、「居ない」を確定するのに要る連続回数。
+    /// 間隔: 照会は `simctl spawn launchctl list`(同期・最大 5 秒)で毎周(80ms)撃つと重い。死が分かるのが 1 秒遅れても、
+    /// 30 秒待ち切るより十分早い。回数: 起こし直しの直後は launchd の表に新旧のラベルが入れ替わる瞬間がありうるので、
+    /// 1 回の「居ない」では確定しない(2 回続いて初めて死と言う = 最短で 1 秒後)
+    static let processProbeIntervalSeconds: TimeInterval = 1
+    static let processGoneConfirmations = 2
+
+    /// 待ちの途中で「アプリが死んでいる」と確定したときの文(`notReady` の detail)
+    static let appExitedDetail = "the app process exited before the in-app bridge answered"
+        + " (launchd lists no running process for it) — it was killed or crashed right after launch"
+
+    public func waitUntilReady(endpoint: BridgeEndpoint? = nil, timeout: TimeInterval = 30,
+                               appIsRunning: (@Sendable () async -> Bool?)? = nil) async throws {
         let client: BridgeClient
         if let endpoint {
             client = BridgeClient(endpoint: endpoint, timeoutSeconds: 3, physicalUDID: physical ? udid : nil)
@@ -371,7 +387,20 @@ public struct InAppLauncher: Sendable {
         }
         let deadline = Date().addingTimeInterval(timeout)
         var lastError: Error?
+        var nextProbe = Date().addingTimeInterval(Self.processProbeIntervalSeconds)
+        var goneCount = 0
         while Date() < deadline {
+            // **プロセスの死は launchd の事実で確かめ、ブリッジの応答だけを待って 30 秒使い切らない**。
+            // 判定できない(nil)ときは生きているとも死んでいるとも言わず、待ち続ける
+            if let appIsRunning, Date() >= nextProbe {
+                nextProbe = Date().addingTimeInterval(Self.processProbeIntervalSeconds)
+                if await appIsRunning() == false {
+                    goneCount += 1
+                    if goneCount >= Self.processGoneConfirmations { throw InAppLauncherError.notReady(Self.appExitedDetail) }
+                } else {
+                    goneCount = 0
+                }
+            }
             do {
                 // **答えた相手が自分の注入先かも見る**: ポートが別の端末のブリッジに使われていると、その `ready` で
                 // 起動できたと読み、以後の操作が別の端末へ届く(ポートは端末をまたいで使い回され、台帳は古いまま残る)。

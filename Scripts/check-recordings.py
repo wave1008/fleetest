@@ -3,7 +3,9 @@
 Scripts/e2e.sh --record が各 run 後に呼ぶ録画パイプラインの整合チェック。
 <project>/results/runs/ 配下の最新 runDir を検査する:
   (a) recordings/index.json が schemaVersion 2
-  (b) index.json のクリップ数 == scenarios/*.json のシナリオ記録数
+  (b) クリップの無いシナリオ記録が、切り出しの下限(MIN_CLIP_MS)未満の短いものだけであること
+      (VideoRecordingCoordinator.makeClips は実長 500ms 未満の区間を黙って捨てる。クリップ数 == シナリオ数と比べると、
+       148〜412ms の短いシナリオの回が赤になる = OI-104)。クリップがシナリオ記録より多いのは常に不一致
   (c) 各クリップの segments 合計 durationMs が対応するシナリオの durationMs と ±2秒以内
   (d) 参照先 mp4 が存在し 0 バイトでない
 不一致は詳細を stderr に出し、exit 非0で終える(e2e.sh 側がこれを FAILED 扱いにする)。
@@ -15,6 +17,31 @@ import sys
 from pathlib import Path
 
 DURATION_TOLERANCE_MS = 2000
+# VideoRecordingCoordinator.makeClips の `>= 0.5`(秒)と同期。これ未満のシナリオはクリップが作られないのが正常
+MIN_CLIP_MS = 500
+
+
+def unexplained_missing_clips(recordings: list[dict], scenario_records: dict[str, list[dict]]) -> list[str]:
+    """クリップの数が合わない理由を、短いシナリオで説明できない分だけ返す(空なら整合)。
+    シナリオID ごとに、クリップを長いほうの記録から割り当て、余った記録がすべて MIN_CLIP_MS 未満であることを見る。
+    リトライ等で同じ ID の記録が複数ある回にも効く。"""
+    problems: list[str] = []
+    clips_by_id: dict[str, int] = {}
+    for entry in recordings:
+        key = entry.get("scenarioID", "")
+        clips_by_id[key] = clips_by_id.get(key, 0) + 1
+    for scenario_id, count in clips_by_id.items():
+        have = len(scenario_records.get(scenario_id, []))
+        if count > have:
+            problems.append(f"{scenario_id}: クリップ({count})がシナリオ記録({have})より多い")
+    for scenario_id, records in scenario_records.items():
+        ordered = sorted(records, key=lambda r: r.get("durationMs", 0), reverse=True)
+        leftover = ordered[clips_by_id.get(scenario_id, 0):]
+        too_long = [r for r in leftover if r.get("durationMs", 0) >= MIN_CLIP_MS]
+        if too_long:
+            problems.append(f"{scenario_id}: クリップが無い記録が {len(too_long)} 件あります"
+                            f"(実行時間 {[r.get('durationMs', 0) for r in too_long]}ms は下限 {MIN_CLIP_MS}ms 以上)")
+    return problems
 
 
 def find_latest_run_dir(project_root: Path) -> Path | None:
@@ -81,13 +108,9 @@ def main() -> int:
                 errors.append(f"{f.name}: 読み込めません: {e}")
                 continue
             scenario_records.setdefault(record.get("scenarioID", ""), []).append(record)
-    scenario_count = sum(len(v) for v in scenario_records.values())
 
-    # (b) クリップ数 == シナリオ数
-    if len(recordings) != scenario_count:
-        errors.append(
-            f"クリップ数({len(recordings)}) != シナリオ記録数({scenario_count})。"
-            "スキップ(担当ワーカーなし)や録画失敗が無いか確認してください")
+    # (b) クリップの無い記録は、切り出しの下限未満の短いシナリオだけ
+    errors.extend(unexplained_missing_clips(recordings, scenario_records))
 
     for entry in recordings:
         scenario_id = entry.get("scenarioID", "<unknown>")

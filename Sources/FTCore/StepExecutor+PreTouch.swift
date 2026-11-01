@@ -62,7 +62,7 @@ extension StepExecutor {
            let lifted = try await liftCoveredTarget(element, in: snapshot, step: step, verb: "touching",
                                                     snapshotSource: snapshotSource, phase: &phase) {
             guard let liftedElement = lifted.element else {
-                return .refused(Self.coverLiftLostMessage(step, verb: "touching")
+                return .refused(Self.coverLiftLostMessage(step, verb: "touching", after: lifted.snapshot)
                     + (await leftForegroundSuffix(snapshot.sessionBundleID)), kind: .notFound)
             }
             element = liftedElement
@@ -94,5 +94,25 @@ extension StepExecutor {
         }
         return .proceed(element: element, snapshot: snapshot,
                         note: notes.compactMap { $0 }.isEmpty ? nil : notes.compactMap { $0 }.joined(separator: " / "))
+    }
+
+    /// **frame の中心を撃つ指の操作で、中心が画面の外なら撃たずに断る文**(長押し・doubleTap・要素から要素へのドラッグの始点と終点・
+    /// Android のピンチ)。ウィンドウ外のタッチは黙って落ちるので撃っても何も起きず ok になる。
+    /// 判定は `TapTargetGeometry.offscreenScrollGateCentre`(MCP・スクロール探索の「見つかった」ゲートと共有。画面より大きい軸は免除)。
+    /// **tap の押すだけの形は対象外**(`visibleTapRect` で見えている部分へ寄せる経路があり、助言に止めている)。
+    /// iOS のピンチは XCUITest が identifier の要素へ撃つので対象外(中心の外を撃つとは限らない)。文言は呼び手ごと
+    static func offscreenCentreRefusal(action: String, step: FlowStep, element: ElementInfo,
+                                       screen: FTRect, isAndroid: Bool, role: String? = nil) -> String? {
+        let fires: Bool
+        switch action {
+        case "doubleTap", "swipeElementToElement": fires = true
+        case "tap": fires = (step.duration ?? FlowStep.defaultTapHoldSeconds) > 0
+        case "pinchOut", "pinchIn": fires = isAndroid
+        default: fires = false
+        }
+        guard fires, let c = TapTargetGeometry.offscreenScrollGateCentre(for: element, screen: screen) else { return nil }
+        return "cannot \(action): the \(role ?? "target")'s centre (\(Int(c.x)), \(Int(c.y))) is outside the visible screen"
+            + " (\(Int(screen.width))x\(Int(screen.height))), so the touch would land nowhere and nothing was sent."
+            + " Bring it into view first (scroll: / scrollTo)"
     }
 }

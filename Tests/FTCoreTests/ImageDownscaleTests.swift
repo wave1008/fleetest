@@ -58,6 +58,23 @@ final class ImageDownscaleTests: XCTestCase {
         XCTAssertEqual(result?.height, 780)
     }
 
+    /// OI-62: EXIF の向き 5〜8 は表示で幅と高さが入れ替わる。保存の幅で測ると maxWidth が高さの上限として効く
+    func testOrientationSixMeasuresWidthInDisplayOrientation() throws {
+        let stored = checkerboardPNG(width: 600, height: 1200)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(stored as CFData, nil))
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let out = NSMutableData()
+        let dest = try XCTUnwrap(CGImageDestinationCreateWithData(out as CFMutableData, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(dest))
+        let readBack = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(
+            try XCTUnwrap(CGImageSourceCreateWithData(out as CFData, nil)), 0, nil) as? [CFString: Any])
+        try XCTSkipUnless((readBack[kCGImagePropertyOrientation] as? Int) == 6, "この環境の ImageIO は PNG に向きを書かない")
+        let result = try XCTUnwrap(ImageDownscale.jpeg(png: out as Data, maxWidth: 300, quality: 0.6))
+        XCTAssertEqual(result.width, 300)
+        XCTAssertEqual(result.height, 150)
+    }
+
     func testMaxWidthLargerThanSourceDoesNotUpscale() {
         let png = checkerboardPNG(width: 200, height: 100)
         let result = ImageDownscale.jpeg(png: png, maxWidth: 800, quality: 0.6)

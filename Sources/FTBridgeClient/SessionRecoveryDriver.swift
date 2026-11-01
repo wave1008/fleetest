@@ -20,6 +20,8 @@ import FTCore
 public final class SessionRecoveryDriver: AppDriver {
     private let base: AppDriver
     private var lastBundleID: String?
+    /// このセッションが terminate を撃ってから launch / activate / attach していない間 true
+    private var stoppedBySession = false
     /// false = 409 をセッション消失と読まない(回復も文言の差し替えもしない)。**包む相手が in-app ブリッジ
     /// 自身のとき**に使う(探索用の組み立ての縮退 = XCUITest ブリッジを用意できず in-app のポートが残った)——
     /// in-app の 409 は「キーウィンドウ無し・フォーカス無し」の一時的な競合で、読み違えると正当な失敗が
@@ -146,16 +148,19 @@ public final class SessionRecoveryDriver: AppDriver {
     public func launch(bundleID: String) async throws {
         try await base.launch(bundleID: bundleID)
         lastBundleID = bundleID
+        stoppedBySession = false
     }
 
     public func activate(bundleID: String) async throws {
         try await base.activate(bundleID: bundleID)
         lastBundleID = bundleID
+        stoppedBySession = false
     }
 
     public func attach(bundleID: String) async throws {
         try await base.attach(bundleID: bundleID)
         lastBundleID = bundleID
+        stoppedBySession = false
     }
 
     public func openAppSwitcher() async throws { try await withRecovery { try await base.openAppSwitcher() } }
@@ -296,14 +301,23 @@ public final class SessionRecoveryDriver: AppDriver {
     /// 明示的な terminateApp を黙って打ち消してしまう。
     /// **409(アプリが既に落ちてセッションが無い)で失敗しても控えを消す** —— 残すと次の読みの回復が、止めようとしたアプリを
     /// activate で起こし直す。届いたか分からない失敗(時間切れ・接続断)では消さない(アプリが生きていれば回復が要る)
+    ///
+    /// **このセッションが terminate を撃って以後 launch / activate / attach していないなら、続く terminate の 409 は no-op の成功**
+    /// (止めたアプリをもう一度止める = 何も起きない。ランナーはセッションを失っているので 409 を返すが、止める相手が
+    /// 既に居ないのは自分の記録で確定している)。それ以外の 409(起動中のアプリへ撃った・launch の記録が無い)は従来どおり呼び手へ返す
     public func terminate() async throws {
+        let alreadyStoppedBySession = stoppedBySession
         do {
             try await base.terminate()
         } catch {
-            if case DriverError.badResponse(409, _) = error { lastBundleID = nil }
+            if case DriverError.badResponse(409, _) = error {
+                lastBundleID = nil
+                if alreadyStoppedBySession { return }
+            }
             throw error
         }
         lastBundleID = nil
+        stoppedBySession = true
     }
 
     // ref を使う操作は再試行禁止(冒頭コメント参照)。409 はセッションだけ張り直した上で
