@@ -180,6 +180,11 @@ extension MCPServer {
         // 撃つ前の値は verifiedRef が撮り直した木から引く(追加の snapshot を払わない)
         var priorValue: String?
         var priorElement: ElementInfo?
+        if targetRef == nil,
+           let refusal = await refusalForRefLessInputOnOtherApp(
+               typeDriver, args: args, what: content == nil ? "pressing Enter" : "typing") {
+            throw MCPError(refusal)
+        }
         var treeBeforeType: [ElementInfo] = []
         if let ref = targetRef {
             let verified = try await verifiedRef(ref, driver: typeDriver, args: args)
@@ -488,6 +493,10 @@ extension MCPServer {
         var clearRef = try Self.intArgument(args, "ref")
         var clearNote = ""
         var clearTarget: ElementInfo?
+        if clearRef == nil,
+           let refusal = await refusalForRefLessInputOnOtherApp(clearDriver, args: args, what: "clearing") {
+            throw MCPError(refusal)
+        }
         var treeBeforeClear: [ElementInfo] = []
         if let ref = clearRef {
             let verified = try await verifiedRef(ref, driver: clearDriver, args: args)

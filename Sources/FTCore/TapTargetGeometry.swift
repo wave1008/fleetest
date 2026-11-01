@@ -731,7 +731,8 @@ public enum TapTargetGeometry {
     }
 
     /// 文字の幅しか申告しない貼り付く見出しの帯(容器の幅 × 文字の上下に同じ余白)。名前を持つ文字が**容器の上端から
-    /// 文字の高さ以内**に居て、**対象の枠と縦に重なる**ときだけ(重ならない見出しは普通の行の並びで、帯を推定する理由が無い)。
+    /// 文字の高さ以内**に居るときだけ。**対象との縦の重なりは見ない**(帯の中に中心があるかは呼び手 `pinnedBandCovering` が決める =
+    /// 見出しの下に数 pt だけ残った行は文字と縦に重ならないが、帯には覆われている)。
     /// **対象自身のラベルの文字は除く** —— XCUITest の木は行のラベルを行の子でなく兄弟として出すことがあり、上端の行が自分の
     /// ラベルを見出しと読むと、覆われていない行を送ってしまう
     static func inferredPinnedBand(_ text: ElementInfo, over target: ElementInfo, in container: FTRect) -> FTRect? {
@@ -741,8 +742,6 @@ public enum TapTargetGeometry {
         guard !name.isEmpty, name != target.label, name != target.identifier,
               text.frame.width < container.width * pinnedBandMinimumWidthRatio,
               text.frame.height > 0, gap >= 0, gap <= text.frame.height,
-              text.frame.y < target.frame.y + target.frame.height,
-              text.frame.y + text.frame.height > target.frame.y,
               // 見出しの帯は容器の幅いっぱいで、対象の上に重なる = 文字は対象の横の範囲に居る。横に離れた文字(同じ行の右の
               // カウンタ等)は見出しでなく、帯と読むと覆われていない対象の手前で隠れたドラッグを撃つ
               text.frame.x < target.frame.x + target.frame.width,
@@ -1119,6 +1118,27 @@ public enum TapTargetGeometry {
     public static let edgeSliverThinDimension: Double = 14
     /// 画面端とみなす許容誤差(pt/px)。縁の丸め差を「接していない」と誤判定しないための猶予
     public static let edgeSliverTolerance: Double = 1
+
+    /// 枠が細い帯(高さか幅が `sliverThinDimension` 以下・もう一辺が `sliverLongDimension` 以上)に潰れた要素。ラベルは問わない。
+    /// キーボードで窓が縮み、下のボタンの枠が高さ 2 まで潰れて残る形(実機 CMP)の判定に使う = 中心を撃っても要素には当たらない
+    public static func isCollapsedFrame(_ element: ElementInfo) -> Bool {
+        let w = element.frame.width, h = element.frame.height
+        return (h <= sliverThinDimension && w >= sliverLongDimension)
+            || (w <= sliverThinDimension && h >= sliverLongDimension)
+    }
+
+    /// キーボードが出ている間に、下のバー(タブ列等)が縮んだ窓の底へ上がってきて対象の中心を覆っている形(実機 RN: キーボード表示中に
+    /// 下のクリアボタンを撃つとタブへ当たる)。覆いの下端がキーボードの上端に接している(`keyboardTouchTolerance` 以内か食い込む)ときだけ。
+    /// キーボードを閉じればバーは下へ戻る = 人は閉じてから押す。**覆いが別の理由で居るとき(モーダル等)は言わない**
+    public static func coveredByBarRaisedAboveKeyboard(_ element: ElementInfo, in elements: [ElementInfo],
+                                                       screen: FTRect, keyboard: FTRect?) -> ElementInfo? {
+        guard let keyboard,
+              let over = overlayCoveringForUncover(element, in: elements, screen: screen),
+              over.frame.y + over.frame.height >= keyboard.y - keyboardTouchTolerance else { return nil }
+        return over
+    }
+    /// 覆いの下端がキーボードの上端に「接している」とみなす隙間(pt / px)。丸め・影の差を許す
+    static let keyboardTouchTolerance = 2.0
 
     public static func isClippedSliver(_ element: ElementInfo, screen: FTRect) -> Bool {
         let label = FlowMatchMode.normalizeInvisibleCharacters(element.label ?? "")

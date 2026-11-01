@@ -100,7 +100,11 @@ extension MCPServer {
                                                 inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
         case .ghost(let found):
             return (found, gateNote)
-        case .found(let found, _):
+        case .found(let found, let moved):
+            // verifiedRef と同じ断り(同じ id が複数ある木で動いた位置のものへ付け替わる)
+            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements) {
+                throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
+            }
             let labelNote = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""
             // verifiedRef と同じ断り(採った後にこのセッションが操作し、ラベルも変わった = 別の要素に付け替わった疑い)
             if !labelNote.isEmpty,
