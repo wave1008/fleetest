@@ -466,7 +466,15 @@ extension MCPServer {
         // 消し忘れると再入(snapshotAfter 経由の二重呼び出し等)で二重に払う
         var alertNote = ""
         let alertKey = Self.sessionKey(args)
-        if systemAlertProbePending.contains(alertKey) {
+        // **操作の後なのに木が前と同じ**(adoptSnapshot が世代を使い回した)ときも1回だけ聞く(OI-46)。アプリ自身のタップで出た権限アラートは
+        // 前面でも木はアプリの背面の木のまま変わらない。毎手の往復(約 0.6 秒)は払わず、変化が無かった手の後だけ・同じ操作の後は1回だけ
+        let probesAfterUnchangedTree = Self.shouldProbeAfterUnchangedTree(
+            isAndroid: driver is AndroidDriver,
+            lastGenerationActionCount: refGenerations[alertKey]?.last?.actionCount,
+            sessionActionCount: sessionActionCounts[alertKey] ?? 0,
+            probedAtActionCount: alertProbedAtActionCounts[alertKey])
+        if probesAfterUnchangedTree { alertProbedAtActionCounts[alertKey] = sessionActionCounts[alertKey] ?? 0 }
+        if systemAlertProbePending.contains(alertKey) || probesAfterUnchangedTree {
             systemAlertProbePending.remove(alertKey)
             let alert = await Self.systemAlertNote(driver: driver)
             if !alert.isEmpty {
@@ -1019,6 +1027,15 @@ extension MCPServer {
         return "note: \(what) is in front of the app. The app's element list is left out while it is up —"
             + " nothing in the app can be reached until the alert is closed, and the alert is drawn by"
             + " SpringBoard so it never appears in the list. \(handleAlertFirst)."
+    }
+
+    /// 操作の後なのに木が前の世代と同じ(= 最新世代の操作数が今のセッションの操作数より古い)とき、前面のシステムアラートを聞くか。
+    /// iOS だけ(Android は覆いが木に載る)。同じ操作数では1回だけ(`probedAtActionCount`)= 何も変えない手の後に ft_snapshot を
+    /// 重ねても往復を払い続けない。launch 系の予約(`systemAlertProbePending`)とは別の入口で、どちらでも聞けば答えは同じ
+    static func shouldProbeAfterUnchangedTree(isAndroid: Bool, lastGenerationActionCount: Int?,
+                                              sessionActionCount: Int, probedAtActionCount: Int?) -> Bool {
+        guard !isAndroid, let generation = lastGenerationActionCount else { return false }
+        return sessionActionCount > generation && probedAtActionCount != sessionActionCount
     }
 
     /// **中心がソフトキーボードの下にある要素への ref 操作は断る**(ユーザー決定)。

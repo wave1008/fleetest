@@ -70,6 +70,7 @@ final class MCPServer {
     var uiFrameworkUnknownPending: SessionFlags { SessionFlags(server: self, path: \.uiFrameworkUnknownPending) }
     var launchBaselineStale: SessionFlags { SessionFlags(server: self, path: \.launchBaselineStale) }
     var systemAlertProbePending: SessionFlags { SessionFlags(server: self, path: \.systemAlertProbePending) }
+    var alertProbedAtActionCounts: SessionMap<Int> { SessionMap(server: self, path: \.alertProbedAtActionCount) }
     var backgroundedByNavigate: SessionFlags { SessionFlags(server: self, path: \.backgroundedByNavigate) }
     var switcherOpenedByNavigate: SessionFlags { SessionFlags(server: self, path: \.switcherOpenedByNavigate) }
     var webPageCeilingLatched: SessionFlags { SessionFlags(server: self, path: \.webPageCeilingLatched) }

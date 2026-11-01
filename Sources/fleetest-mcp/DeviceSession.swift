@@ -104,6 +104,8 @@ struct DeviceSession {
     /// (そちらは意図してアラートを読みに行く経路なので、覆いではなく本来の画面)。
     /// snapshotBody が読んで消費(先に消してから probe)し、forgetDeviceState / ft_terminate で捨てる
     var systemAlertProbePending = false
+    /// 木が前と同じだった手の後に前面のシステムアラートを聞いた時点のセッションの操作数(`shouldProbeAfterUnchangedTree`)。同じ操作数では聞き直さない
+    var alertProbedAtActionCount: Int?
     /// ft_launch の後でまだ木を読んでいない = `lastSnapshots` は起動前の画面で、「バッチの前の木」に使えない
     /// (使うと画面を変えたバッチに「still identical」と言う)。木を記録するたびに消える
     var launchBaselineStale = false
