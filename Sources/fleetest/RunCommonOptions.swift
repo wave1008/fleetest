@@ -134,6 +134,15 @@ extension RunCommonOptions {
         }
     }
 
+    /// 書けない `--report-dir` を断る。レポートは run の後に書くので、書けない先は始める前に言う
+    /// (`--junit` と同じ。判定は `JUnitOutputPath.unwritableDirectoryReason` の1箇所)。両 validate() が呼ぶ
+    static func rejectUnwritableReportDir(_ reportDir: String?) throws {
+        guard let reportDir, !RunProfileDocument.isBlankReportDir(reportDir) else { return }
+        if let reason = JUnitOutputPath.unwritableDirectoryReason(path: reportDir) {
+            throw ValidationError("--report-dir \(reportDir) cannot be written: \(reason)")
+        }
+    }
+
     /// 負の `--wait-lock`(0 = 待たない)を断る。両 validate() が呼ぶ
     static func rejectNegativeWaitLock(_ waitLock: Int?) throws {
         if let waitLock, waitLock < 0 {

@@ -120,6 +120,7 @@ struct ApiRunCommand: AsyncParsableCommand {
     func validate() throws {
         try RunCommonOptions.rejectZeroPorts(ports)
         try RunCommonOptions.rejectBlankReportDir(reportDir)
+        try RunCommonOptions.rejectUnwritableReportDir(reportDir)
         try RunCommonOptions.rejectNegativeWaitLock(waitLock)
         guard !scenarios.isEmpty else {
             throw ValidationError("specify at least one --scenario")
@@ -305,7 +306,9 @@ struct ApiRunCommand: AsyncParsableCommand {
             return
         }
 
-        if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
+        if !dryRun {
+            try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios, requireSingle: debug)
+        }
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // resolveProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない
         let preResolvedProfile = try common.profile.map {
@@ -571,7 +574,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
         // validate() の「ちょうど1本」は引数の個数だけ見る。クラス名・フォルダは解決後に複数本へ展開されるので、ここで本数を見る
         if debug, selected.count != 1 {
-            throw ValidationError("--debug can only be used with exactly one scenario (the --scenario selection resolves to \(selected.count))")
+            throw ValidationError(ScenarioPreflight.debugNeedsOneScenarioMessage(resolvedCount: selected.count))
         }
 
         // dry-run/debug は実測にならない(dry-run はデバイス未接続、debug は人間介入前提)ため記録しない。

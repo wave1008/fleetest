@@ -27,7 +27,28 @@ public enum JUnitOutputPath {
                 ? nil : "the file already there is not writable"
         }
 
-        // 実在する最も近い祖先まで遡る(まだ無い中間ディレクトリは書き出し側が作る)
+        return ancestorReason(of: url)
+    }
+
+    /// `--report-dir` 用の「書けない理由」。ディレクトリを作らず引数だけで決める点は `unwritableReason` と同じ。
+    /// 既存のディレクトリは書ければ nil・同名のファイルがあれば理由を返す(ファイル版と判定が逆)
+    public static func unwritableDirectoryReason(path: String) -> String? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "the path is empty" }
+        let manager = FileManager.default
+        let url = URL(fileURLWithPath: trimmed).standardizedFileURL
+        var isDirectory: ObjCBool = false
+        if manager.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else { return "a file already exists at that path" }
+            return manager.isWritableFile(atPath: url.path) ? nil : "the directory is not writable"
+        }
+        return ancestorReason(of: url)
+    }
+
+    /// 実在する最も近い祖先まで遡る(まだ無い中間ディレクトリは書き出し側が作る)
+    private static func ancestorReason(of url: URL) -> String? {
+        let manager = FileManager.default
+        var isDirectory: ObjCBool = false
         var ancestor = url.deletingLastPathComponent()
         while true {
             if manager.fileExists(atPath: ancestor.path, isDirectory: &isDirectory) {

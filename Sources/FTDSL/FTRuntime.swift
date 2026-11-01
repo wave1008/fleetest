@@ -1562,7 +1562,7 @@ public final class FTDriveCore {
 
     /// 停止条件に合致したら paused イベントを流してブロックし、再開コマンドを待つ。
     /// stop コマンドはシナリオ中断(以降のステップは skipped)として扱う
-    private func debugCheckpoint(description: String, file: String, line: Int) {
+    func debugCheckpoint(description: String, file: String, line: Int) {
         guard let debug = debugControl, !scenarioAborted else { return }
         let result = debug.checkpoint(file: file, line: line) {
             var event = ScenarioEvent(kind: "paused")
@@ -1998,7 +1998,7 @@ public final class FTDriveCore {
         }
     }
 
-    private func relativePath(_ path: String) -> String {
+    func relativePath(_ path: String) -> String {
         let cwd = FileManager.default.currentDirectoryPath + "/"
         return path.hasPrefix(cwd) ? String(path.dropFirst(cwd.count)) : path
     }

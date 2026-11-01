@@ -405,6 +405,7 @@ struct RunScenarios: AsyncParsableCommand {
         try RunCommonOptions.rejectZeroPorts(ports)
         try RunCommonOptions.rejectDuplicatePorts(ports)
         try RunCommonOptions.rejectBlankReportDir(reportDir)
+        try RunCommonOptions.rejectUnwritableReportDir(reportDir)
         try RunCommonOptions.rejectNegativeWaitLock(waitLock)
         // レポートは run 後に書くので、書けない先は**始める前に**言う(フリート run では
         // 20 分走ってから分かっていた)。末尾の書き込み失敗が警告のみの規律は変えない
