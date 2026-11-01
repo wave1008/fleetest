@@ -337,8 +337,20 @@ public final class SessionRecoveryDriver: AppDriver {
         do {
             try await base.type(ref: ref, text: text)
         } catch {
+            // 500(XCTest の失敗)の後でアプリのプロセスが居ないと確かめられたら、その事実を添える。
+            // 打鍵のどこまで届いたかは分からないので、撃ち直しは勧めない
+            if case DriverError.badResponse(500, let body) = error, let dead = await appDiedFact() {
+                throw DriverError.badResponse(status: 500, body: body + " — " + dead)
+            }
             try await recoverAndRethrow(error)
         }
+    }
+
+    /// アプリのプロセスが居ないと確かめられたときだけ非 nil(判定できない・居るは nil)
+    func appDiedFact() async -> String? {
+        guard let appIsRunning, let lastBundleID, await appIsRunning(lastBundleID) == false else { return nil }
+        return "the app \(lastBundleID) is no longer running; it ended during or before this type,"
+            + " so some of the text may have been typed. Read the screen before typing again"
     }
 
     public func clearInput(ref: Int?) async throws {
