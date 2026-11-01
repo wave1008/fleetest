@@ -28,7 +28,7 @@ final class LiveControlExitParityTests: XCTestCase {
         // 黙って起動し直すと片方だけ別のデバイスへ操作を撃ち続ける
         "differentDevice",
         // ref で撃つ type / clear の対象が入力欄か(入力欄でなければ撃つ前に断る。撃つとボタン等を押してから失敗する)
-        "RefFireCheck.evaluate", // typeTargetVerdict はこの入口の中
+        "typeTargetVerdict",
         // 操作が届いたか分からない(撃ち直すと二重実行になりうる)
         "deliveryIsUnknown",
     ]
@@ -58,8 +58,10 @@ final class LiveControlExitParityTests: XCTestCase {
     }
 
     private func liveControlSource() throws -> String {
+        // type の対象の判定はライブ操作が `RefFireCheck.evaluate` 越しに呼ぶ(CLI と共有の入口)
         try Self.code(of: Self.repoRoot()
             .appendingPathComponent("Sources/fleetest/ApiLiveCommand.swift"))
+            + Self.code(of: Self.repoRoot().appendingPathComponent("Sources/FTCore/RefFireCheck.swift"))
     }
 
     /// 走査が届いていることの確認(空文字を検索すると何を書いても通る)
