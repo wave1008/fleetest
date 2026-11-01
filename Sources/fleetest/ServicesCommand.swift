@@ -34,7 +34,9 @@ struct ServicesCommand: AsyncParsableCommand {
         } else if names.count == 1, let only = names.first {
             profileName = only
         } else {
-            throw ValidationError("--profile is required (available: \(names.joined(separator: ", ")))")
+            throw ValidationError(names.isEmpty
+                ? "this project has no run profiles (profiles/runs/*.json); services need one to find the workspace"
+                : "--profile is required (available: \(names.joined(separator: ", ")))")
         }
         let resolved = try ProfileResolver.resolve(project: testProject, runName: profileName)
         let workspace = ServicesFacts.workspace(for: resolved)
