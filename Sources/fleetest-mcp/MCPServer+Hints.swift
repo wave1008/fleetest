@@ -442,18 +442,7 @@ extension MCPServer {
     /// `waitFor` も素の存在しか見ないので、ghost だけで条件が満たされることがある。
     /// **叩けば RefGuard が止める**が、そこまで行かずに気付けるほうが往復が減る
     static func ghostRefs(_ snapshot: SnapshotResponse) -> [Int] {
-        snapshot.elements
-            .filter {
-                RefGuard.isUntappableGhost($0, in: snapshot.elements, screen: snapshot.screen)
-                    // **申告されたスクロール容器の外**も同じ印に混ぜる。
-                    // `isUntappableGhost` の入口は容器の*推測*なので、申告のある UIKit/SwiftUI の
-                    // 木では1件も付かず、カードを送って上へ抜けた行が**可視の行と同じ形**で
-                    // 並んでいた。利用者から見て原因(そこには描かれていない)も対処
-                    // (ft_scroll_to で出してから撮り直す)も同じなので、印は割らない
-                    || RefGuard.outsideDeclaredScroller($0, in: snapshot.elements,
-                                                        screen: snapshot.screen) != nil
-            }
-            .map(\.ref)
+        SnapshotGhostFlags.ghostRefs(snapshot)
     }
 
     /// 残像の行に付ける印。**先頭の注記だけでは足りない**(外部フィードバック):
@@ -462,13 +451,13 @@ extension MCPServer {
     /// 積み重なり(`stackedRefs`)にも同じ印を付ける —— 利用者から見ると原因は同じ
     /// 「スクロールの残骸がそこに描かれていない」で、対処(`ft_scroll_to` で出してから撮り直す)
     /// も同じ。**印を2種類に割らない**(見分けても打ち手が変わらないものを増やさない)
-    static let leftoverMark = "⚠️scroll-leftover"
+    static let leftoverMark = SnapshotGhostFlags.leftoverMark
     /// 単に画面の外に居るだけの行。**危険度が違うので印を割る**。
     /// 上の `ghostFlags` の設計方針は「打ち手が変わらないものは割らない」だが、ここは
     /// **打ち手ではなく危険度**が違う —— leftover は「撃つと別の物に当たる」(沈黙した誤操作)、
     /// offscreen は「今そこに無い」だけ。実測(Apple マップの経路詳細)では、シートを広げた後に
     /// `y=-59` の行まで「別の物に当たるかも」と警告され、本物の leftover と同じ重さで並んでいた
-    static let offscreenMark = "⚠️offscreen"
+    static let offscreenMark = SnapshotGhostFlags.offscreenMark
 
     /// **実計算の回数**(観測用。production の分岐には使わない)。`SnapshotAnnotationCache` 側の
     /// カウンタと違い、**キャッシュを迂回した呼び出しも数える** —— あちらだけを数えると、
@@ -483,14 +472,7 @@ extension MCPServer {
 
     static func ghostFlags(_ snapshot: SnapshotResponse) -> [Int: String] {
         ghostFlagsComputationsStore.withLock { $0 += 1 }
-        let refs = Set(ghostRefs(snapshot)).union(RefGuard.stackedRefs(snapshot.elements))
-        var flags: [Int: String] = [:]
-        for element in snapshot.elements where refs.contains(element.ref) {
-            // 画面外判定は DSL と共有(TapTargetGeometry)。2つ目の実装を作らない
-            flags[element.ref] = TapTargetGeometry.offscreenAdvisory(
-                for: element, screen: snapshot.screen) != nil ? offscreenMark : leftoverMark
-        }
-        return flags
+        return SnapshotGhostFlags.flags(snapshot)
     }
 
     /// offscreen 行がどちら側にはみ出しているか(ft_scroll_to の direction 選び用)。
@@ -1372,10 +1354,11 @@ extension MCPServer {
     /// アプリへのジェスチャを自分で断り、in-app は前面から外れると撃てない。ただし**通知センター・スイッチャーが覆う間は
     /// アプリが前面のまま座標が覆いに当たる**ので、iOS は SpringBoard の覆い(`systemUICovering`)を1回だけ聞く。
     /// 権限ダイアログ(`systemDialogPackages`)は座標で押すのが正規の操作なので黙る
-    static func frontAppWarning(launched: String, front: String?) -> String {
+    /// `sent: false` = 撃たずに断る側の文(「this would act on」。撃った後の文を継ぐと「nothing was sent」と矛盾する)
+    static func frontAppWarning(launched: String, front: String?, sent: Bool = true) -> String {
         guard let front, front != launched, !systemDialogPackages.contains(front) else { return "" }
         return " (warning: \(front) was in front, not \(launched) (the app this session launched)"
-            + " — this acted on \(front). ft_launch \(launched) to come back, or ft_snapshot to see"
+            + " — this \(sent ? "acted on" : "would act on") \(front). ft_launch \(launched) to come back, or ft_snapshot to see"
             + " what is on screen)"
     }
 
@@ -1391,7 +1374,7 @@ extension MCPServer {
     /// 欄を書き換え・消し・送信していた(Enter は取り消せない)。判定は座標の警告と同じ(`coordinateFrontAppWarningFromProbes`)
     func refusalForRefLessInputOnOtherApp(_ driver: AppDriver, args: [String: Any], what: String) async -> String? {
         guard driver is AndroidDriver else { return nil }
-        let warning = await coordinateFrontAppWarningFromProbes(driver, args: args)
+        let warning = await coordinateFrontAppWarningFromProbes(driver, args: args, sent: false)
         guard !warning.isEmpty else { return nil }
         return "refusing \(what) without a ref: it would act on whatever field has focus right now, and nothing was sent."
             + warning + " Bring the app back (ft_launch with resume: true) and pass the field's ref"
@@ -1429,7 +1412,8 @@ extension MCPServer {
             : ""
     }
 
-    func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any]) async -> String {
+    func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any], sent: Bool = true) async -> String {
+        let acted = sent ? "acted on" : "would act on"
         guard let launched = launchedBundleIDs[Self.sessionKey(args)] else { return "" }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
         if let android = driver as? AndroidDriver {
@@ -1441,20 +1425,20 @@ extension MCPServer {
         switch ForegroundState.judge(facts) {
         case .covered(.shade):
             return " (warning: the notification shade or quick settings is open over \(launched) (the app this session launched)"
-                + " — this acted on the shade, not the app. ft_navigate back closes it and keeps the app's state"
+                + " — this \(acted) the shade, not the app. ft_navigate back closes it and keeps the app's state"
                 // ロック画面の窓も入力フォーカスを持つので、シェードと分けられない(解除が先)
                 + " (if back changes nothing, this is the lock screen: unlock the device first),"
                 + " or ft_snapshot to see what is on screen)"
         case .locked:
             return " (warning: the lock screen is up over \(launched) (the app this session launched)"
-                + " — this acted on the lock screen, not the app. The tool cannot enter a PIN, pattern or password:"
+                + " — this \(acted) the lock screen, not the app. The tool cannot enter a PIN, pattern or password:"
                 + " unlock the device by hand, then ft_launch \(launched) with resume: true)"
         case .covered(let surface):
             return " (warning: \(Self.coveringSurfaceName(surface)) is drawn over \(launched) (the app this session launched)"
-                + " — this acted on that surface, not the app. Dismiss it first (swipe up from the bottom edge, or"
+                + " — this \(acted) that surface, not the app. Dismiss it first (swipe up from the bottom edge, or"
                 + " ft_navigate home), or ft_snapshot to see what is on screen)"
         case .otherApp(let name?):
-            return Self.frontAppWarning(launched: launched, front: name)
+            return Self.frontAppWarning(launched: launched, front: name, sent: sent)
         default:
             return ""
         }

@@ -92,6 +92,17 @@ final class MCPMapAuditFixesTests: XCTestCase {
         XCTAssertTrue(MCPServer.ghostNote(snap).contains("#CuratedGuidesSection"))
     }
 
+    /// 印の判定は FTCore の1箇所(MCP と CLI の snapshot が共有)。MCP は転送するだけで、CLI は同じ関数で印を付ける
+    func testGhostFlagsAreSharedWithTheCLISnapshot() throws {
+        let snap = try fixture("ios-place_guides_scrolled")
+        XCTAssertEqual(MCPServer.ghostFlags(snap), SnapshotGhostFlags.flags(snap))
+        XCTAssertTrue(SnapshotGhostFlags.flags(snap).values.contains(SnapshotGhostFlags.offscreenMark))
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let cli = try String(contentsOf: root.appendingPathComponent("Sources/fleetest/ManualDriveCommands.swift"), encoding: .utf8)
+        XCTAssertTrue(cli.contains("SnapshotRenderer.render(snapshot, flagging: flags)"), "CLI の snapshot が印を渡していない")
+    }
+
     /// **画面内に居る残骸は ⚠️scroll-leftover のまま**(印を割った副作用で、危険な側が
     /// 「ただの画面外」に化けていないこと)。同一矩形へクランプされた行は画面の中に描かれており、
     /// 撃つと別の行に当たる —— こちらが2種のうち重いほうの印

@@ -58,7 +58,15 @@ actor LiveBridgeAutoStarter {
     /// = xcodebuild の二重起動を防ぐ)。戻り値は更新後の状態サフィックス。
     /// `trigger` は**何を見て起動したか**(ログの事実)。応答なしから probe の判定で起動した回を
     /// 「Connection refused」と書くと、生きたランナーを片付けた回の切り分けができない → MN-62.1
-    func noteConnectionRefused(trigger: String = "Connection refused") -> String {
+    func noteConnectionRefused(trigger: String = "Connection refused") async -> String {
+        // **別ポートのランナーを理由に断った後は、そのランナーが居る間は撃ち直さない**(撃ち直すと毎コマンド idle → starting へ
+        // 入れ直して理由が error に載らず、断りの待ちで約7秒止まる)。居なくなった(誰も listen していない)ときだけ起動へ戻る
+        if case .idle = state, let elsewhere = runnerElsewherePort {
+            let probe = await BridgeDiscovery.probeStatus(port: elsewhere, repoRoot: repoRoot)
+            if Self.elsewhereSkipHolds(probe: probe) { return suffix() }
+            runnerElsewherePort = nil
+            skippedDetail = nil
+        }
         if case .idle = state {
             // **シミュレータは起動処理の前に他のセッションの印を見る**(起動タスクが即座に断る形で、一瞬 starting を
             // 報告して「接続中」と誤表示しない)。実機は launchBridge が先に USB トンネルの張り直しを試す
@@ -85,6 +93,13 @@ actor LiveBridgeAutoStarter {
             }
         }
         return suffix()
+    }
+
+    /// 別ポートのランナーを理由にした断りを保つか。**居る(答える・答えないが待受はしている)間は保つ** ——
+    /// 答えないランナーは起動途中か固まっているかを区別できないので、どちらも「断った理由」をそのまま出す。
+    /// 誰も listen していなければランナーは居ないので、断りを捨てて自動起動へ戻る
+    static func elsewhereSkipHolds(probe: BridgeDiscovery.StatusProbe) -> Bool {
+        probe != .notBound
     }
 
     /// 状態サフィックスのみ返す(起動はトリガーしない)

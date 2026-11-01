@@ -385,18 +385,58 @@ enum RefGuard {
             + " verify the outcome"
     }
 
-    /// **同じ id が今の木に複数あり、採った要素から動いた位置のものへ付け替わる**ときの同 id の件数(無ければ nil)。
-    /// id だけで最寄りを採ると、一覧の別の行の同じ部品(chevron 等)へ黙って付け替わる(ラベルの無い部品は labelChangeNote も効かない)。
-    /// 型も同じものだけ数える。**同じ座標でも別の行がある**(一覧が行の高さの倍数だけ送られると別の行の同じ部品が同じ座標へ来る。
-    /// スクロール後の chevron で 3/4)ので、動いていなくても、その点を含む親(行)の顔ぶれが変わっていれば付け替えと見る。
-    /// `taken` = ref を返した木。無ければ座標だけで見る
-    static func ambiguousRetargetCount(target: ElementInfo, found: ElementInfo, moved: Double,
-                                       in fresh: [ElementInfo], taken: [ElementInfo]) -> Int? {
-        guard let id = target.identifier, !id.isEmpty else { return nil }
-        guard moved >= movedThreshold || (!taken.isEmpty
-            && enclosingRow(of: target, in: taken) != enclosingRow(of: found, in: fresh)) else { return nil }
-        let count = fresh.filter { $0.identifier == id && $0.type == found.type }.count
-        return count >= 2 ? count : nil
+    /// 付け替えの判定(`verifiedRef` / `verifiedElement` / scrollFrame の ref が**全部ここ1つ**を通す。ghost も同じ)。
+    enum RetargetVerdict: Equatable {
+        case proceed
+        /// 同じ id が複数ある木で、採った行とは別の行の部品へ付け替わる。撃たない
+        case differentRow(count: Int)
+        /// 同じ id が複数あり動いたが、親に id もラベルも無く行を区別できない。**断らず注記だけ**(断ると同じ行が少し動くだけで全部断る)
+        case rowsIndistinct(count: Int)
+        /// このセッションの操作の後でラベルが変わり、位置・周り・画面の顔ぶれも変わった = 別の画面の同じ id。撃たない
+        case labelChangedElsewhere
+    }
+
+    /// **「同じ行か」は親の行の顔ぶれ(id・ラベルの集合)の変化だけで決める**。動いた距離では決めない
+    /// (同じ行が数 pt〜数十 pt 動くだけで断っていた。親ごと動くので顔ぶれは変わらない)。
+    /// 同じ id の件数は採った木と今の木の**多いほう**(今の木で1件だけ残る形 = 別の行へ付け替わる最悪の形を通さない)。
+    /// 親の顔ぶれが両方空(行を区別できない)なら動いたときだけ `rowsIndistinct`。採った木が無い(`taken` 空)も同じ。
+    /// ラベル変化は**このセッションの操作の後**に限り、位置が動かず・親の顔ぶれが同じで・画面の識別子の過半が残っているなら
+    /// 同じ部品の状態変化(押すと「開始」→「停止」になるトグル)として通す
+    static func retargetVerdict(target: ElementInfo, found: ElementInfo, in fresh: [ElementInfo],
+                                taken: [ElementInfo], ownActionSince: Bool) -> RetargetVerdict {
+        let moved = distance(target.frame, found.frame)
+        let rowBefore = taken.isEmpty ? nil : enclosingRow(of: target, in: taken)
+        let rowAfter = enclosingRow(of: found, in: fresh)
+        let sameRow = rowBefore.map { $0 == rowAfter }
+        if let id = target.identifier, !id.isEmpty {
+            let same: ([ElementInfo]) -> Int = { tree in
+                tree.filter { $0.identifier == id && $0.type == found.type }.count
+            }
+            let count = max(same(fresh), same(taken))
+            if count >= 2 {
+                if sameRow == false { return .differentRow(count: count) }
+                if moved >= movedThreshold, sameRow == nil || (rowBefore?.isEmpty == true && rowAfter.isEmpty) {
+                    return .rowsIndistinct(count: count)
+                }
+            }
+        }
+        if ownActionSince, labelChangeNote(old: target.label, new: found.label) != nil {
+            let sameSpot = moved < movedThreshold && sameRow == true
+                && identifierShare(of: taken, keptIn: fresh) >= sameScreenIdentifierShare
+            if !sameSpot { return .labelChangedElsewhere }
+        }
+        return .proceed
+    }
+
+    /// 同じ画面とみなす識別子の残存割合の下限。**過半**: トグルの押下は識別子を足し引きしても大半が残り、
+    /// 画面の入れ替え(入力画面 → ホーム)は共通の枠(ナビ・タブ)の分しか残らない。実測の裏づけは無い目安で、尽きたときは断る側(撃たない)
+    static let sameScreenIdentifierShare = 0.5
+
+    private static func identifierShare(of taken: [ElementInfo], keptIn fresh: [ElementInfo]) -> Double {
+        let before = Set(taken.compactMap { $0.identifier }.filter { !$0.isEmpty })
+        guard !before.isEmpty else { return 0 }
+        let after = Set(fresh.compactMap { $0.identifier }.filter { !$0.isEmpty })
+        return Double(before.intersection(after).count) / Double(before.count)
     }
 
     /// 要素の中心を含む他の要素の id とラベル(値は見ない = トグルの状態の変化を別の行と呼ばない)
@@ -409,9 +449,26 @@ enum RefGuard {
         }.map { "\($0.identifier ?? "")|\($0.label ?? "")" })
     }
 
+    /// 付け替えの結果を呼び手が使える形にする(断りは throw する文言・注記は撃った後の応答へ足す文)。**全呼び手が同じ口**
+    static func retargetOutcome(ref: Int, target: ElementInfo, found: ElementInfo, in fresh: [ElementInfo],
+                                taken: [ElementInfo], ownActionSince: Bool) -> (refusal: String?, note: String) {
+        let labelNote = labelChangeNote(old: target.label, new: found.label) ?? ""
+        switch retargetVerdict(target: target, found: found, in: fresh, taken: taken, ownActionSince: ownActionSince) {
+        case .proceed:
+            return (nil, labelNote)
+        case .differentRow(let count):
+            return (ambiguousRetargetRefusal(ref: ref, old: target, count: count), "")
+        case .rowsIndistinct(let count):
+            return (nil, " (note: \(describe(target)) now matches \(count) elements with the same id and its row cannot be told"
+                + " apart (no id or label around it), so this may be the same part of another row — verify the outcome)" + labelNote)
+        case .labelChangedElsewhere:
+            return (labelChangedAfterOwnActionRefusal(ref: ref, old: target, new: found), "")
+        }
+    }
+
     static func ambiguousRetargetRefusal(ref: Int, old: ElementInfo, count: Int) -> String {
         "refusing [\(ref)]: \(describe(old)) now matches \(count) elements with the same id, and the one nearest to where it was"
-            + " snapshotted moved or sits in a different row now, so this can be the same-looking part of another row. Nothing was sent."
+            + " snapshotted sits in a different row now (the elements around it changed), so this can be the same-looking part of another row. Nothing was sent."
             + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
     }
 
@@ -420,7 +477,8 @@ enum RefGuard {
         "refusing [\(ref)]: it was taken before your own later actions, and the element it now matches,"
             + " \(describe(new)), reads \"\(SnapshotRenderer.truncate(new.label ?? "", SnapshotRenderer.labelDisplayLimit))\""
             + " instead of \"\(SnapshotRenderer.truncate(old.label ?? "", SnapshotRenderer.labelDisplayLimit))\""
-            + " — the screen likely changed, so this is probably a different element. Nothing was sent."
+            + " — and it also moved or sits among different elements, so the screen likely changed and this is probably a different element."
+            + " Nothing was sent."
             + " Take a fresh ft_snapshot and use its ref"
     }
 

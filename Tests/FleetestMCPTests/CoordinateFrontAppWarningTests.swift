@@ -21,6 +21,18 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         XCTAssertTrue(warning.contains("ft_launch \(app)"), warning)
     }
 
+    /// 撃たずに断る側の文は「would act on」(「nothing was sent」と「this acted on」を同時に言わない)。
+    /// ref なしの断りはその文を使う
+    func testRefusalSideSaysWouldActOn() throws {
+        let warning = MCPServer.frontAppWarning(launched: app, front: "com.other", sent: false)
+        XCTAssertTrue(warning.contains("would act on com.other"), warning)
+        XCTAssertFalse(warning.contains("acted on"), warning)
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Hints.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("coordinateFrontAppWarningFromProbes(driver, args: args, sent: false)"))
+    }
+
     /// 前面のアプリ名を答えないドライバ(iOS)では黙る(答えられないことを「前面ではない」と読まない)
     func testSilentWhenTheDriverCannotTell() {
         XCTAssertEqual(MCPServer.frontAppWarning(launched: app, front: nil), "")

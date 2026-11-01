@@ -92,27 +92,20 @@ extension MCPServer {
             }
             return (element, gateNote)
         }
-        switch RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen) {
+        let outcome = RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen)
+        let retarget = try Self.retargetNote(
+            outcome, ref: ref, target: target, fresh: fresh.elements, taken: takenFrom?.elements ?? [],
+            ownActionSince: (sessionActionCounts[key] ?? 0) > (generationActionCount(containing: ref, args: args) ?? 0))
+        switch outcome {
         case .gone:
             throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                 truncatedCount: fresh.truncatedCount,
                                                 keyboardShown: KeyboardWait.isShown(fresh),
                                                 inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
         case .ghost(let found):
-            return (found, gateNote)
-        case .found(let found, let moved):
-            // verifiedRef と同じ断り(同じ id が複数ある木で動いた位置のものへ付け替わる)
-            if let count = RefGuard.ambiguousRetargetCount(target: target, found: found, moved: moved, in: fresh.elements,
-                                                              taken: takenFrom?.elements ?? []) {
-                throw MCPError(RefGuard.ambiguousRetargetRefusal(ref: ref, old: target, count: count))
-            }
-            let labelNote = RefGuard.labelChangeNote(old: target.label, new: found.label) ?? ""
-            // verifiedRef と同じ断り(採った後にこのセッションが操作し、ラベルも変わった = 別の要素に付け替わった疑い)
-            if !labelNote.isEmpty,
-               (sessionActionCounts[key] ?? 0) > (generationActionCount(containing: ref, args: args) ?? 0) {
-                throw MCPError(RefGuard.labelChangedAfterOwnActionRefusal(ref: ref, old: target, new: found))
-            }
-            return (found, gateNote + labelNote)
+            return (found, gateNote + retarget)
+        case .found(let found, _):
+            return (found, gateNote + retarget)
         }
     }
 
