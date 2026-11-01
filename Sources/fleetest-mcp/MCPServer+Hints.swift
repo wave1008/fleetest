@@ -1381,8 +1381,17 @@ extension MCPServer {
     /// **ft_batch の ref なし入力(type / clearInput / pressEnter)も、撃つ前に同じ断りを通す**(`ft_type` / `ft_clear_input` と
     /// 同じ `refusalForRefLessInputOnOtherApp`。判定する手は `PreFireGuard.refLessInput`)。ref あり・他の手は nil
     func refusalForRefLessBatchStep(_ step: FlowStep, driver: AppDriver, args: [String: Any]) async -> String? {
-        guard let input = PreFireGuard.refLessInput(step) else { return nil }
-        return await refusalForRefLessInputOnOtherApp(driver, args: args, what: PreFireGuard.refLessVerb(input))
+        guard PreFireGuard.refLessInput(step) != nil, driver is AndroidDriver else { return nil }
+        return Self.refLessBatchRefusal(
+            step, isAndroid: true,
+            frontWarning: await coordinateFrontAppWarningFromProbes(driver, args: args, sent: false))
+    }
+
+    /// 断るかの決定(プローブの結果 `frontWarning` を受けて決める純粋部分。動作テストの入口)。
+    /// 断る = Android かつ ref なしの入力の手かつ前面が別アプリ(警告が空でない)
+    static func refLessBatchRefusal(_ step: FlowStep, isAndroid: Bool, frontWarning: String) -> String? {
+        guard isAndroid, let input = PreFireGuard.refLessInput(step) else { return nil }
+        return PreFireGuard.refLessInputRefusal(what: PreFireGuard.refLessVerb(input), frontWarning: frontWarning)
     }
 
     /// **ref で引いた対象の木が、このセッションが起動したのと別のアプリのもの**のときの注記(座標の警告と同じ文言)。

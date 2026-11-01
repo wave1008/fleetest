@@ -386,20 +386,33 @@ enum RefGuard {
     }
 
     /// 付け替えの判定(`verifiedRef` / `verifiedElement` / scrollFrame の ref が**全部ここ1つ**を通す。ghost も同じ)。
+    /// 件数は「採った木」と「今の木」を別々に持つ(断りの文が事実どおりの数を言う)
     enum RetargetVerdict: Equatable {
         case proceed
-        /// 同じ id が複数ある木で、採った行とは別の行の部品へ付け替わる。撃たない
-        case differentRow(count: Int)
+        /// 採った行とは別の行の部品へ付け替わる。撃たない
+        case differentRow(Matcher, taken: Int, now: Int)
         /// 同じ id が複数あり動いたが、親に id もラベルも無く行を区別できない。**断らず注記だけ**(断ると同じ行が少し動くだけで全部断る)
-        case rowsIndistinct(count: Int)
+        case rowsIndistinct(Matcher, taken: Int, now: Int)
+        /// id の無いボタン系が、同じラベル・型の仲間の間隔の半分以上動き、行も区別できない = 隣の行の同じ部品かもしれない。撃たない
+        case travelledPastNeighbour(taken: Int, now: Int)
         /// このセッションの操作の後でラベルが変わり、位置・周り・画面の顔ぶれも変わった = 別の画面の同じ id。撃たない
         case labelChangedElsewhere
     }
 
+    /// 付け替えが何で同一視したか(件数の数え方と文言を決める)
+    enum Matcher: Equatable { case identifier, label }
+
     /// **「同じ行か」は親の行の顔ぶれ(id・ラベルの集合)の変化だけで決める**。動いた距離では決めない
     /// (同じ行が数 pt〜数十 pt 動くだけで断っていた。親ごと動くので顔ぶれは変わらない)。
-    /// 同じ id の件数は採った木と今の木の**多いほう**(今の木で1件だけ残る形 = 別の行へ付け替わる最悪の形を通さない)。
+    /// 同じ id(id が無ければ同じラベル・型)の件数は採った木と今の木の**多いほう**(今の木で1件だけ残る形 = 別の行へ付け替わる最悪の形を通さない)。
     /// 親の顔ぶれが両方空(行を区別できない)なら動いたときだけ `rowsIndistinct`。採った木が無い(`taken` 空)も同じ。
+    ///
+    /// **id の無い対象(ラベルで引き直した要素)も行の顔ぶれを見る**(「削除」ボタンが別の行の「削除」へ付け替わって別の行が消えた)。
+    /// 件数が1件ずつ(採った木も今の木も1件)でも、別の行へ動いた形は起きる(行を閉じて別の行を開くと「削除」は常に1件)ので、
+    /// **ボタン系(`interactiveTypes`)が動き、かつ周りの顔ぶれが変わったときは件数に関わらず断る**。動かない・顔ぶれが同じなら通す
+    /// (周りのラベルだけ変わる形で誤って断らない)。顔ぶれが区別できない(両方空)形は、同じラベル・型の仲間が複数あり
+    /// **動いた距離が仲間との最短間隔の半分以上**のときだけ断る(半分未満なら最も近い候補は元の要素と取り違えようがない)。
+    /// 尽きたとき(撃たなかったとき)は断りの文が新しい ft_snapshot の ref を使わせる。
     /// ラベル変化は**このセッションの操作の後**に限り、位置が動かず・親の顔ぶれが同じで・画面の識別子の過半が残っているなら
     /// 同じ部品の状態変化(押すと「開始」→「停止」になるトグル)として通す
     static func retargetVerdict(target: ElementInfo, found: ElementInfo, in fresh: [ElementInfo],
@@ -408,16 +421,36 @@ enum RefGuard {
         let rowBefore = taken.isEmpty ? nil : enclosingRow(of: target, in: taken)
         let rowAfter = enclosingRow(of: found, in: fresh)
         let sameRow = rowBefore.map { $0 == rowAfter }
+        let indistinct = moved >= movedThreshold
+            && (sameRow == nil || (rowBefore?.isEmpty == true && rowAfter.isEmpty))
         if let id = target.identifier, !id.isEmpty {
             let same: ([ElementInfo]) -> Int = { tree in
                 tree.filter { $0.identifier == id && $0.type == found.type }.count
             }
-            let count = max(same(fresh), same(taken))
-            if count >= 2 {
-                if sameRow == false { return .differentRow(count: count) }
-                if moved >= movedThreshold, sameRow == nil || (rowBefore?.isEmpty == true && rowAfter.isEmpty) {
-                    return .rowsIndistinct(count: count)
+            let (nowCount, takenCount) = (same(fresh), same(taken))
+            if max(nowCount, takenCount) >= 2 {
+                if sameRow == false { return .differentRow(.identifier, taken: takenCount, now: nowCount) }
+                if indistinct { return .rowsIndistinct(.identifier, taken: takenCount, now: nowCount) }
+            }
+        } else if let label = target.label, !label.isEmpty {
+            let sameKind: ([ElementInfo]) -> [ElementInfo] = { tree in
+                tree.filter { $0.label == label && $0.type == found.type }
+            }
+            let (nowCount, takenCount) = (sameKind(fresh).count, sameKind(taken).count)
+            let buttonLike = TapTargetGeometry.interactiveTypes.contains(found.type)
+            if buttonLike, moved >= movedThreshold, sameRow == false {
+                return .differentRow(.label, taken: takenCount, now: nowCount)
+            }
+            if buttonLike, indistinct {
+                // 仲間との最短間隔(採った木があれば動く前の並び。ref は木ごとの番号なので自分の木の中でだけ除く)
+                let others = taken.isEmpty
+                    ? sameKind(fresh).filter { $0.ref != found.ref }
+                    : sameKind(taken).filter { $0.ref != target.ref }
+                if let pitch = others.map({ distance($0.frame, target.frame) }).min(), moved * 2 >= pitch {
+                    return .travelledPastNeighbour(taken: takenCount, now: nowCount)
                 }
+                // 仲間が居ない・近くない: 断る根拠は無い(スクロールで動いただけかもしれない)。注記だけ
+                return .rowsIndistinct(.label, taken: takenCount, now: nowCount)
             }
         }
         if ownActionSince, labelChangeNote(old: target.label, new: found.label) != nil {
@@ -439,11 +472,18 @@ enum RefGuard {
         return Double(before.intersection(after).count) / Double(before.count)
     }
 
+    /// 自分の枠の中に収まる、より深い要素(子孫)。**行の顔ぶれに数えない**: CMP のボタンは子に同じ文字の staticText を出すので、
+    /// 押してラベルが変わると「周りが変わった」と読んで同じトグルの2回目を断っていた
+    private static func isDescendant(_ candidate: ElementInfo, of element: ElementInfo) -> Bool {
+        candidate.depth > element.depth && TapTargetGeometry.contains(element.frame, candidate.frame)
+    }
+
     /// 要素の中心を含む他の要素の id とラベル(値は見ない = トグルの状態の変化を別の行と呼ばない)
     private static func enclosingRow(of element: ElementInfo, in tree: [ElementInfo]) -> Set<String> {
         let x = element.frame.x + element.frame.width / 2, y = element.frame.y + element.frame.height / 2
         return Set(tree.filter {
             $0.ref != element.ref && $0.identifier != element.identifier
+                && !isDescendant($0, of: element)
                 && x >= $0.frame.x && x <= $0.frame.x + $0.frame.width
                 && y >= $0.frame.y && y <= $0.frame.y + $0.frame.height
         }.map { "\($0.identifier ?? "")|\($0.label ?? "")" })
@@ -456,19 +496,34 @@ enum RefGuard {
         switch retargetVerdict(target: target, found: found, in: fresh, taken: taken, ownActionSince: ownActionSince) {
         case .proceed:
             return (nil, labelNote)
-        case .differentRow(let count):
-            return (ambiguousRetargetRefusal(ref: ref, old: target, count: count), "")
-        case .rowsIndistinct(let count):
-            return (nil, " (note: \(describe(target)) now matches \(count) elements with the same id and its row cannot be told"
+        case .differentRow(let matcher, let takenCount, let nowCount):
+            return (ambiguousRetargetRefusal(ref: ref, old: target, matcher: matcher, taken: takenCount, now: nowCount), "")
+        case .travelledPastNeighbour(let takenCount, let nowCount):
+            return (travelledPastNeighbourRefusal(ref: ref, old: target, taken: takenCount, now: nowCount), "")
+        case .rowsIndistinct(let matcher, let takenCount, let nowCount):
+            return (nil, " (note: \(describe(target)) matched \(takenCount) element(s) with the same \(matcher == .identifier ? "id" : "label") when snapshotted and \(nowCount) now, and its row cannot be told"
                 + " apart (no id or label around it), so this may be the same part of another row — verify the outcome)" + labelNote)
         case .labelChangedElsewhere:
             return (labelChangedAfterOwnActionRefusal(ref: ref, old: target, new: found), "")
         }
     }
 
-    static func ambiguousRetargetRefusal(ref: Int, old: ElementInfo, count: Int) -> String {
-        "refusing [\(ref)]: \(describe(old)) now matches \(count) elements with the same id, and the one nearest to where it was"
-            + " snapshotted sits in a different row now (the elements around it changed), so this can be the same-looking part of another row. Nothing was sent."
+    /// 件数は**採った木と今の木で別々に言う**(今の木の件数だけ言うと、採った木では複数あった事実が消える。逆も同じ)
+    static func ambiguousRetargetRefusal(ref: Int, old: ElementInfo, matcher: Matcher, taken: Int, now: Int) -> String {
+        let key = matcher == .identifier ? "id" : "label"
+        let peers = matcher == .identifier
+            ? "\(taken) element(s) with the same id when snapshotted, \(now) now"
+            : "\(taken) element(s) with the same label and type when snapshotted, \(now) now"
+        return "refusing [\(ref)]: \(describe(old)) matched \(peers); the one nearest to where it was"
+            + " snapshotted sits in a different row now (the elements around it changed), so this can be the same-looking part of another row"
+            + " (same \(key)). Nothing was sent."
+            + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
+    }
+
+    static func travelledPastNeighbourRefusal(ref: Int, old: ElementInfo, taken: Int, now: Int) -> String {
+        "refusing [\(ref)]: \(describe(old)) has no id, and the element it now matches moved at least half the distance to"
+            + " its nearest look-alike (same label and type; \(taken) element(s) when snapshotted, \(now) now) while nothing around it tells the rows apart,"
+            + " so this can be the same-looking part of a neighbouring row. Nothing was sent."
             + " Take a fresh ft_snapshot and use its ref (or target the row by a label / a unique selector)"
     }
 

@@ -337,6 +337,12 @@ struct Bridge: AsyncParsableCommand {
                 // stop() 側が条件分岐しない宣言をしている)ので false でよい
                 let launcher = BridgeLauncher(repoRoot: root, port: resolvedPort, physical: false)
                 try launcher.stop()
+                // 止めた直後に測る: stop() が止めるのは xcodebuild で、固まったランナー本体は生きて待受を続けうる
+                if let survivor = BridgeDownRefusal.survivorMessage(
+                    port: resolvedPort, holder: PortHolder.describe(port: resolvedPort)) {
+                    ConsoleOut.out("❌ \(survivor)")
+                    throw ExitCode(1)
+                }
                 ConsoleOut.out("✅ Stopped the bridge (port: \(resolvedPort))")
                 if let deviceUDID, let notice = Self.remainingRunnerNotice(
                     stopped: resolvedPort,

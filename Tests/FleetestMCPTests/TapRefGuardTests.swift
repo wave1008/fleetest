@@ -26,9 +26,9 @@ final class TapRefGuardTests: XCTestCase {
         let old = chevron(1, y: 300)
         let taken = [row(2, "nav_pager", y: 280), old]
         let sameCoordinates = [row(3, "nav_grid", y: 280), chevron(4, y: 300), chevron(5, y: 352)]
-        XCTAssertEqual(try verdict(old, sameCoordinates, taken: taken), .differentRow(count: 2))
+        XCTAssertEqual(try verdict(old, sameCoordinates, taken: taken), .differentRow(.identifier, taken: 1, now: 2))
         let moved = [row(3, "nav_grid", y: 265), chevron(4, y: 285), chevron(5, y: 337)]
-        XCTAssertEqual(try verdict(old, moved, taken: taken), .differentRow(count: 2))
+        XCTAssertEqual(try verdict(old, moved, taken: taken), .differentRow(.identifier, taken: 1, now: 2))
     }
 
     /// 同じ行が動いただけ(親ごと動く)は通す = sim F2。動いた距離では決めない
@@ -45,17 +45,98 @@ final class TapRefGuardTests: XCTestCase {
         let taken = [row(2, "group_fruit", y: 280), old, row(3, "group_veg", y: 340), chevron(4, y: 360),
                      row(5, "group_drink", y: 400), chevron(6, y: 420)]
         let fresh = [row(7, "group_drink", y: 280), chevron(8, y: 300)]
-        XCTAssertEqual(try verdict(old, fresh, taken: taken), .differentRow(count: 3))
+        XCTAssertEqual(try verdict(old, fresh, taken: taken), .differentRow(.identifier, taken: 3, now: 1))
     }
 
     /// 親に id もラベルも無く行を区別できない: 動いたときだけ注記(断らない)・動かなければ通す
     func testIndistinctRowsOnlyNote() throws {
         let old = chevron(1, y: 300)
         let taken = [old, chevron(2, y: 352)]
-        XCTAssertEqual(try verdict(old, [chevron(3, y: 280), chevron(4, y: 332)], taken: taken), .rowsIndistinct(count: 2))
+        XCTAssertEqual(try verdict(old, [chevron(3, y: 280), chevron(4, y: 332)], taken: taken), .rowsIndistinct(.identifier, taken: 2, now: 2))
         XCTAssertEqual(try verdict(old, [chevron(3, y: 300), chevron(4, y: 352)], taken: taken), .proceed)
         // 採った木が無い = 行を比べられない
-        XCTAssertEqual(try verdict(old, [chevron(3, y: 280), chevron(4, y: 332)], taken: []), .rowsIndistinct(count: 2))
+        XCTAssertEqual(try verdict(old, [chevron(3, y: 280), chevron(4, y: 332)], taken: []), .rowsIndistinct(.identifier, taken: 0, now: 2))
+    }
+
+    // MARK: - id の無い要素(ラベルで引き直す形)
+
+    private func plain(_ ref: Int, _ label: String, y: Double, type: String = "button") -> ElementInfo {
+        ElementInfo(ref: ref, type: type, identifier: nil, label: label, value: nil, placeholder: nil,
+                    enabled: true, frame: FTRect(x: 327, y: y, width: 48, height: 43), depth: 3)
+    }
+
+    /// 実測の形: 行1で採った「削除」(id なし・1件)が、行3だけが開いた今の木の「削除」(105pt 下)へ付け替わる。
+    /// 周りの行の id が違うので断る(件数はどちらも1件ずつ)
+    func testIdlessButtonRetargetedToAnotherRowIsRefused() throws {
+        let old = plain(1, "削除", y: 227)
+        let taken = [row(2, "swipe_row_1", y: 200), old]
+        let fresh = [row(3, "swipe_row_3", y: 305), plain(4, "削除", y: 332)]
+        XCTAssertEqual(try verdict(old, fresh, taken: taken), .differentRow(.label, taken: 1, now: 1))
+        let refusal = RefGuard.ambiguousRetargetRefusal(ref: 1, old: old, matcher: .label, taken: 1, now: 1)
+        XCTAssertTrue(refusal.contains("matched 1 element(s) with the same label and type when snapshotted, 1 now"), refusal)
+    }
+
+    /// 同じ行のまま動いた(親ごと動く)・動かない・ボタン系でない型は断らない
+    func testIdlessSameRowOrStaticOrUnmovedPasses() throws {
+        let old = plain(1, "削除", y: 227)
+        let taken = [row(2, "swipe_row_1", y: 200), old]
+        XCTAssertEqual(try verdict(old, [row(3, "swipe_row_1", y: 150), plain(4, "削除", y: 177)], taken: taken), .proceed)
+        // 動かなければ周りの顔ぶれが違っても通す
+        XCTAssertEqual(try verdict(old, [row(3, "swipe_row_3", y: 200), plain(4, "削除", y: 227)], taken: taken), .proceed)
+        let text = plain(1, "削除", y: 227, type: "staticText")
+        let freshText = [row(3, "swipe_row_3", y: 305), plain(4, "削除", y: 332, type: "staticText")]
+        XCTAssertEqual(try verdict(text, freshText, taken: [row(2, "swipe_row_1", y: 200), text]), .proceed)
+    }
+
+    /// 周りで行を区別できない形: 仲間との間隔の半分以上動いたら断る・半分未満なら注記だけ・仲間が居なければ注記だけ
+    func testIdlessIndistinctRowsRefuseOnlyPastHalfThePitch() throws {
+        let old = plain(1, "削除", y: 200)
+        let taken = [old, plain(2, "削除", y: 300)]
+        XCTAssertEqual(try verdict(old, [plain(3, "削除", y: 250), plain(4, "削除", y: 350)], taken: taken),
+                       .travelledPastNeighbour(taken: 2, now: 2))
+        XCTAssertEqual(try verdict(old, [plain(3, "削除", y: 230), plain(4, "削除", y: 330)], taken: taken),
+                       .rowsIndistinct(.label, taken: 2, now: 2))
+        XCTAssertEqual(try verdict(old, [plain(3, "削除", y: 150)], taken: [old]), .rowsIndistinct(.label, taken: 1, now: 1))
+    }
+
+    /// CMP のボタンは子に同じ文字の staticText を出す。押してラベルが変わっても子の文字は行の顔ぶれに数えない = 2回目も通る
+    func testChildTextOfTheButtonIsNotPartOfItsRow() throws {
+        func toggle(_ ref: Int, _ label: String) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: "btn_ticker_toggle", label: label, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 220, y: 182, width: 116, height: 48), depth: 10)
+        }
+        func child(_ ref: Int, _ label: String) -> ElementInfo {
+            ElementInfo(ref: ref, type: "staticText", identifier: "txt_\(label)", label: label, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 240, y: 192, width: 80, height: 28), depth: 11)
+        }
+        func screen(_ ids: [String]) -> [ElementInfo] {
+            ids.enumerated().map { row(100 + $0.offset, $0.element, y: 400 + Double($0.offset) * 60) }
+        }
+        let common = ["a", "b", "c", "d"]
+        let old = toggle(1, "ティッカー開始")
+        let taken = [old, child(2, "ティッカー開始")] + screen(common)
+        let fresh = [toggle(3, "ティッカー停止"), child(4, "ティッカー停止")] + screen(common)
+        XCTAssertEqual(try verdict(old, fresh, taken: taken, acted: true), .proceed)
+    }
+
+    /// 断りの文は採った木の件数と今の木の件数を別々に言う(今の木で1件なのに「now matches 3」と言わない)
+    func testRefusalSaysTakenAndNowCountsSeparately() {
+        let old = chevron(1, y: 300)
+        let text = RefGuard.ambiguousRetargetRefusal(ref: 1, old: old, matcher: .identifier, taken: 3, now: 1)
+        XCTAssertTrue(text.contains("3 element(s) with the same id when snapshotted, 1 now"), text)
+        XCTAssertFalse(text.contains("now matches"), text)
+    }
+
+    /// ghost の ref は ft_tap / long_press(verifiedRef)も double_tap / drag / pinch(verifiedElement)も同じ警告を付ける
+    func testGhostWarningIsAttachedOnBothRefEntries() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        for name in ["MCPServer+Snapshot.swift", "MCPServer+Dispatch.swift"] {
+            let code = try String(contentsOf: root.appendingPathComponent("Sources/fleetest-mcp/\(name)"), encoding: .utf8)
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
+            XCTAssertTrue(code.contains("RefGuard.ghostWarning("), "\(name): .ghost の経路に ghostWarning が無い")
+        }
     }
 
     /// 同じ id が1つだけ(どの木でも)なら付け替えではない
