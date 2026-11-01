@@ -176,6 +176,9 @@ export class MonitorLiveController implements vscode.Disposable {
   /** 直近 post した actionError バナーが接続系(isConnectionClassMessage)かどうか。true の間は
    * serve 復帰(handleConnectionOk)で自動的に消す。個々の操作失敗バナーは false のまま。 */
   private connectionBannerShown = false;
+  /** 直近の actionError バナーが「届いたか分からない操作」の案内か。true の間は続く観測(画面の撮り直し)の失敗で
+   * 上書きしない —— 上書きすると「もう一度」の文言が残り、効いた操作の二重実行を勧める。次の操作の結果(成功・失敗)で解く。 */
+  private deliveryUnknownBannerShown = false;
   /** list-devices のワンショット spawn(専用。runOneShot 経由)。 */
   private activeChild: PipeProcess | undefined;
 
@@ -951,7 +954,9 @@ export class MonitorLiveController implements vscode.Disposable {
       if (result.bridgeStarting) {
         return;
       }
-      this.postActionError(result.error);
+      if (!this.deliveryUnknownBannerShown) {
+        this.postActionError(result.error);
+      }
       return;
     }
     this.handleConnectionOk();
@@ -1021,6 +1026,7 @@ export class MonitorLiveController implements vscode.Disposable {
         } else {
           this.postActionError(action.error);
         }
+        this.deliveryUnknownBannerShown = action.deliveryUnknown;
         if (options?.logLabel) {
           this.postOperationLog(withDslSelector(options.logLabel, action.dslSelector), false,
             action.dsl ?? undefined, loggedDeviceId);
@@ -1032,6 +1038,7 @@ export class MonitorLiveController implements vscode.Disposable {
       // 状況が直っても残り続ける。
       this.post({ type: "actionError", message: "" });
       this.connectionBannerShown = false;
+      this.deliveryUnknownBannerShown = false;
       if (options?.logLabel) {
         this.postOperationLog(withDslSelector(options.logLabel, action?.dslSelector), true,
           action?.dsl ?? undefined, loggedDeviceId);
