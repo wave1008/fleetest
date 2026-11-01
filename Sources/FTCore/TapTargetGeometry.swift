@@ -1193,9 +1193,19 @@ public struct KeyboardOcclusion: Sendable {
     /// `screen` が nil(分からない)なら申告どおり
     public static func resolve(reported: FTRect?, in elements: [ElementInfo],
                                screen: FTRect?) -> KeyboardOcclusion {
-        guard let reported else { return .none }
+        guard var reported else { return .none }
         if let screen, !KeyboardWait.onScreen(reported, screen: screen) { return .none }
-        let seeds = chromeElements(intersecting: reported, in: elements)
+        // 横向きの XCUITest は縦の座標系のままの枠(694x694 等 = 画面より高い)を申告・chrome の枠にも混ぜる(実機 iPhone 13 で再現)。
+        // 画面に収まらない申告は木の `inputView` の枠に替え、収まらない chrome は実効矩形を広げる種にしない
+        // (広げると画面の上半分を「キーボードの下」と断る)。ブリッジの `plausibleKeyboardFrame` の高さの規則と同じ向き —— 片方だけ変えない
+        if let screen, !isPlausibleKeyboard(reported, screen: screen),
+           let inputView = elements.first(where: { $0.identifier == "inputView" && isPlausibleKeyboard($0.frame, screen: screen) }) {
+            reported = inputView.frame
+        }
+        let seeds = chromeElements(intersecting: reported, in: elements).filter { chrome in
+            guard let screen else { return true }
+            return isPlausibleKeyboard(chrome.frame, screen: screen)
+        }
         guard !seeds.isEmpty else {
             return KeyboardOcclusion(frame: reported, excluded: [],
                                       windowResizedAboveKeyboard: resizedAboveKeyboard(
@@ -1219,6 +1229,12 @@ public struct KeyboardOcclusion: Sendable {
         return KeyboardOcclusion(frame: expanded, excluded: excluded,
                                   windowResizedAboveKeyboard: resizedAboveKeyboard(
                                     frame: expanded, excluded: excluded, in: elements))
+    }
+
+    /// 画面より低い枠か(縦の座標系のまま横向きに申告された枠は画面より高くなる)。Runner の `isPlausibleKeyboard` の部分集合で、
+    /// 幅・左右の位置は見ない(1pt 未満の食い違いで本物の chrome を落とさない)
+    static func isPlausibleKeyboard(_ f: FTRect, screen: FTRect) -> Bool {
+        f.width > 0 && f.height > 0 && f.height < screen.height
     }
 
     private static func resizedAboveKeyboard(frame: FTRect, excluded: Set<Int>,

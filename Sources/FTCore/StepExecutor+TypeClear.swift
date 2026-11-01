@@ -473,21 +473,41 @@ extension StepExecutor {
     /// **待ち切った後だけ**撃つ(先に閉じると、キーボードと一緒に出る候補一覧などを待たずに消してしまう)。
     /// tap・type・clearInput だけ(他の操作はキーボードの下を狙わない)。nil = 対象外・閉じても見つからない
     func resolveAfterClosingKeyboard(_ action: String, step: FlowStep, in snapshot: SnapshotResponse,
-                                     phase: inout PhaseAccumulator)
-        async throws -> (element: ElementInfo, usedFallback: FlowLocator?, snapshot: SnapshotResponse, note: String)? {
+                                     phase: inout PhaseAccumulator) async throws -> KeyboardRetry {
         guard ["tap", "type", "clearInput"].contains(action),
               KeyboardWait.isShown(snapshot) || (!isAndroid
                 && KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                             screen: snapshot.screen).windowResizedAboveKeyboard),
-              case .closed(let note, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) else {
-            return nil
+                                             screen: snapshot.screen).windowResizedAboveKeyboard) else {
+            return .notAttempted
+        }
+        let closed = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
+        // 閉じる試みの結果は捨てない: 失敗文が「閉じた・閉じられなかった」を事実で言う(閉じてから失敗したのに「閉じろ」と言わない)
+        let note: String
+        switch closed {
+        case .notShown: return .notAttempted
+        case .notClosed(let tried): return .notClosed(tried)
+        case .closed(let closedNote, _): note = closedNote
         }
         let clock = ContinuousClock()
         let start = clock.now
         let after = try await freshSnapshot(.afterOwnMove)
         phase.snapshotMs += Self.ms(clock.now - start)
-        guard let (found, usedFallback) = LocatorResolver.resolve(step: step, in: after) else { return nil }
-        return (found, usedFallback, after, note + " — the target was not on the screen while the keyboard was up")
+        guard let (found, usedFallback) = LocatorResolver.resolve(step: step, in: after) else {
+            return .closedButNotFound(note: note, snapshot: after)
+        }
+        return .reached(element: found, usedFallback: usedFallback, snapshot: after,
+                        note: note + " — the target was not on the screen while the keyboard was up")
+    }
+
+    /// `resolveAfterClosingKeyboard` の結果。呼び手(`StepExecutor+Actions`)が失敗文を決める
+    enum KeyboardRetry {
+        /// キーボードが出ていない・種類が対象外・閉じる前に既に消えていた
+        case notAttempted
+        case reached(element: ElementInfo, usedFallback: FlowLocator?, snapshot: SnapshotResponse, note: String)
+        /// 閉じられなかった(値は試したこと)
+        case notClosed(String)
+        /// 閉じた(= 画面を変えた)が、閉じた後の木にも対象が無い
+        case closedButNotFound(note: String, snapshot: SnapshotResponse)
     }
 
     enum KeyboardReach {

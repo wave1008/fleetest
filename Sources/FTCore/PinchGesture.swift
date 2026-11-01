@@ -25,7 +25,7 @@ public enum PinchGesture {
         public var errorDescription: String? {
             "pinch region is too narrow (\(Int(extent.rounded()))pt along the finger axis; needs more than "
                 + "\(Int(minimumExtent.rounded()))pt): the two fingers cannot be placed without reversing the direction. "
-                + "Pass a larger radius or a wider element, or move away from the screen edge."
+                + "Pinch a wider element, or move away from the screen edge."
         }
     }
 
@@ -94,6 +94,11 @@ public enum PinchGesture {
     /// 先に狭い方を決めて scale 倍すると領域からはみ出し、クランプで倍率が黙って目減りする
     private static let androidMaxSpanRatio = 0.9
 
+    /// `android(frame:...)` が広い側の指に置く間隔[px]。最小スケール距離との比較は半径や枠の幅でなくこの値で行う
+    public static func androidWidestSpan(frame: FTRect) -> Double {
+        min(frame.width, frame.height) * androidMaxSpanRatio
+    }
+
     /// 45度の対角線に指を置く(水平/垂直だとその向きのスクロールと競合しやすい)。
     /// 各軸への射影は `span/2 * cos45`
     private static let androidDiagonalAxis = 0.5.squareRoot()
@@ -104,7 +109,7 @@ public enum PinchGesture {
         guard scale.isFinite, scale > 0, scale != 1 else { throw InvalidScale(scale: scale) }
         let centreX = frame.x + frame.width / 2
         let centreY = frame.y + frame.height / 2
-        let maxSpan = min(frame.width, frame.height) * androidMaxSpanRatio
+        let maxSpan = androidWidestSpan(frame: frame)
         let startSpan: Double
         let endSpan: Double
         if scale > 1 {

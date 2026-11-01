@@ -576,6 +576,8 @@ extension MCPServer {
             identifier = element.identifier
             pinchResolvedRef = element.ref
             pinchSelector = reproductionNote(resolvedRef: element.ref, args: args) + labelNote
+                + (args["radius"] != nil ? " (radius was ignored: ref pinches the element's own frame — use x and y with radius"
+                    + " to pinch a region)" : "")
                 + (try refGestureGuard(element, isAndroid: pinchDriver is AndroidDriver, args: args))
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
             // **地図・キャンバスには ref が無い**(実測): Apple マップの場所カードを
@@ -609,15 +611,7 @@ extension MCPServer {
             // 広げた半径は画面の余白で詰め直されうる = 実際に撃つ半径で言う(広げたと言って縮めていた)
             if args["radius"] == nil, let android = pinchDriver as? AndroidDriver,
                let minimumSpan = android.minimumScalingSpanPx(), let widened = pinchRadius {
-                if area.width / 2 >= widened {
-                    pinchSelector += " (radius widened to \(Int(widened)) px so the fingers exceed"
-                        + " Android's minimum scaling span of \(Int(minimumSpan)) px — pass radius"
-                        + " to override)"
-                } else {
-                    pinchSelector += " (the fingers span only \(Int(area.width)) px here — the screen edge"
-                        + " is closer than Android's minimum scaling span of \(Int(minimumSpan)) px, so the"
-                        + " zoom may not register; pinch nearer the middle)"
-                }
+                pinchSelector += Self.androidPinchSpanNote(area: area, widened: widened, minimumSpan: minimumSpan) ?? ""
             }
         } else if !(pinchDriver is AndroidDriver),
                   let snapshot = lastSnapshots[Self.sessionKey(args)] {
@@ -641,8 +635,15 @@ extension MCPServer {
         }
         let pinchDuration = try Self.doubleArgument(args, "durationSeconds")
             ?? FlowStep.defaultPinchDurationSeconds
-        try await pinchDriver.pinch(frame: frame, identifier: identifier, scale: scale,
-                                    durationSeconds: pinchDuration)
+        do {
+            try await pinchDriver.pinch(frame: frame, identifier: identifier, scale: scale,
+                                        durationSeconds: pinchDuration)
+        } catch let narrow as PinchGesture.FrameTooNarrow where pinchCoordinate != nil {
+            // x/y の領域は radius と画面の縁までの距離の小さいほう(`pinchArea`)。どちらが理由かはここでは言えない
+            throw MCPError((narrow.errorDescription ?? "")
+                + " The region around x/y is limited by radius and by the distance to the screen edge: pass a larger"
+                + " radius, or move x/y away from the edge.")
+        }
         // 記録は DSL の語彙(pinchOut/pinchIn)で。既定の所要時間は落とす(DSL の pinchStep と同じ判定)
         recordInteraction(action: scale > 1 ? "pinchOut" : "pinchIn",
                           resolvedRef: pinchResolvedRef, args: args,

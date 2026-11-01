@@ -44,22 +44,46 @@ public enum KeyboardDismissPoint {
         let bottom = min(keyboard.y, screen.y + screen.height)
         guard bottom > top, screen.width > 0 else { return [] }
         let step = screen.width / Double(gridColumns)
-        let xs = samples(from: screen.x, length: screen.width, step: step)
-        var result: [Choice] = []
-        var seenContainers: Set<Int> = []  // 入れ物の ref(どの要素にも重ならない点は -1)
         let keyboardRefs = keyboardSubtreeRefs(elements)
-        var y = bottom - step / 2
-        while y > top {
-            for x in xs {
-                guard !overlays.contains(where: { contains($0, x: x, y: y) }),
-                      let container = emptySpotContainer(x: x, y: y, elements: elements, screen: screen,
-                                                         keyboardTop: keyboard.y, keyboardRefs: keyboardRefs),
-                      seenContainers.insert(container).inserted else { continue }
-                result.append(Choice(x: x, y: y))
+        func scan(_ xs: [Double]) -> [Choice] {
+            var result: [Choice] = []
+            var seenContainers: Set<Int> = []  // 入れ物の ref(どの要素にも重ならない点は -1)
+            var y = bottom - step / 2
+            while y > top {
+                for x in xs {
+                    guard !overlays.contains(where: { contains($0, x: x, y: y) }),
+                          let container = emptySpotContainer(x: x, y: y, elements: elements, screen: screen,
+                                                             keyboardTop: keyboard.y, keyboardRefs: keyboardRefs),
+                          seenContainers.insert(container).inserted else { continue }
+                    result.append(Choice(x: x, y: y))
+                }
+                y -= step
             }
-            y -= step
+            return result
         }
-        return result
+        let allXs = samples(from: screen.x, length: screen.width, step: step)
+        // 横向きは左右に切り欠きの帯(safe area)があり、アプリの中身が届かない帯の点は叩いても何も起きず閉じない
+        // (iOS 横向きの CMP で毎回 (18,199) を選んで失敗した)。中身の横の範囲の点を先に試し、無ければ全幅へ戻る
+        if screen.width > screen.height, let extent = contentHorizontalExtent(elements, screen: screen, keyboardTop: keyboard.y, keyboardRefs: keyboardRefs),
+           extent.upperBound - extent.lowerBound < screen.width - step {
+            let inside = scan(allXs.filter { extent.contains($0) })
+            if !inside.isEmpty { return inside }
+        }
+        return scan(allXs)
+    }
+
+    /// 画面幅いっぱいでない・キーボードでない要素の横の範囲(アプリの中身がある帯)。無ければ nil
+    static func contentHorizontalExtent(_ elements: [ElementInfo], screen: FTRect, keyboardTop: Double,
+                                        keyboardRefs: Set<Int>) -> ClosedRange<Double>? {
+        let content = elements.filter {
+            !keyboardRefs.contains($0.ref) && $0.frame.y < keyboardTop
+                && !TapTargetGeometry.keyboardChromeIdentifiers.contains($0.identifier ?? "") && !isScreenWide($0, screen: screen) && $0.frame.width > 0
+                && $0.frame.x + $0.frame.width > screen.x && $0.frame.x < screen.x + screen.width
+        }
+        guard let lo = content.map({ max($0.frame.x, screen.x) }).min(),
+              let hi = content.map({ min($0.frame.x + $0.frame.width, screen.x + screen.width) }).max(),
+              hi > lo else { return nil }
+        return lo...hi
     }
 
     /// 区間の中の点。区間が刻みより狭ければ中央の1点
