@@ -27,6 +27,7 @@ public func writeMemo(_ key: String, _ text: String,
                       file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "writeMemo")
     let description = "writeMemo \"\(key)\" = \"\(text)\""
+    core.debugCheckpoint(description: description, file: core.relativePath("\(file)"), line: Int(line))
     if core.scenarioAborted {
         core.recordStep(description: description, status: .skipped(core.skipReason),
                         file: "\(file)", line: Int(line), command: "writeMemo")
@@ -42,6 +43,7 @@ public func writeMemo(_ key: String, _ text: String,
 public func readMemo(_ key: String,
                      file: StaticString = #filePath, line: UInt = #line) -> String {
     let core = FTRuntime.requireCore(command: "readMemo")
+    core.debugCheckpoint(description: "readMemo \"\(key)\"", file: core.relativePath("\(file)"), line: Int(line))
     if core.scenarioAborted {
         core.recordStep(description: "readMemo \"\(key)\"", status: .skipped(core.skipReason),
                         file: "\(file)", line: Int(line), command: "readMemo")
@@ -60,6 +62,7 @@ public func readMemo(_ key: String,
 /// このデバイスのメモを全部消す
 public func clearMemo(file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "clearMemo")
+    core.debugCheckpoint(description: "clearMemo", file: core.relativePath("\(file)"), line: Int(line))
     if core.scenarioAborted {
         core.recordStep(description: "clearMemo", status: .skipped(core.skipReason),
                         file: "\(file)", line: Int(line), command: "clearMemo")
@@ -78,6 +81,7 @@ extension FTElement {
     public func memoTextAs(_ key: String,
                            file: StaticString = #filePath, line: UInt = #line) -> FTElement {
         let core = FTRuntime.requireCore(command: "memoTextAs")
+        core.debugCheckpoint(description: "memoTextAs \"\(key)\"", file: core.relativePath("\(file)"), line: Int(line))
         let filePath = "\(file)"
         if core.scenarioAborted {
             core.recordStep(description: "memoTextAs \"\(key)\"", status: .skipped(core.skipReason),
@@ -106,6 +110,7 @@ extension String {
     public func memoTextAs(_ key: String,
                            file: StaticString = #filePath, line: UInt = #line) -> String {
         let core = FTRuntime.requireCore(command: "memoTextAs")
+        core.debugCheckpoint(description: "memoTextAs \"\(key)\"", file: core.relativePath("\(file)"), line: Int(line))
         if core.scenarioAborted {
             core.recordStep(description: "memoTextAs \"\(key)\"", status: .skipped(core.skipReason),
                             file: "\(file)", line: Int(line), command: "memoTextAs")

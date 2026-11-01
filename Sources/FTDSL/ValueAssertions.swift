@@ -15,6 +15,7 @@ extension Optional where Wrapped == Any {
         let description = "\(verb) \(detail)"
         // verify() のブロック内アサーション数を数える(perform() 側の同種フックと対になる)
         core.noteAssertion()
+        core.debugCheckpoint(description: description, file: core.relativePath("\(file)"), line: Int(line))
         if core.scenarioAborted {
             core.recordStep(description: description, status: .skipped(core.skipReason),
                             file: "\(file)", line: Int(line), command: verb)

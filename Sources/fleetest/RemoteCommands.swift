@@ -985,7 +985,31 @@ func resolveRemoteTarget(_ dispatch: EffectiveDispatchTarget, remoteDirOverride:
     return try RemoteHostResolver.resolve(rawHost: dispatch.rawTarget, remoteDirOverride: remoteDirOverride)
 }
 
+/// dry-run は `--runner` を使わない(ローカルで検証する)ので、実在しない名前を打っても緑になる。
+/// 本実行なら登録簿に無い名前は ssh 宛先として扱われる(`user@host` を直に書ける)ため断れず、事実だけを警告する。
+/// 判定は純粋関数(登録簿は呼び手が渡す)。`run` / `api run` の dry-run が共有する
+func dryRunRunnerWarning(runner: String, entries: [RemoteHostEntry]) -> String? {
+    guard case .rawTarget(let raw) = RemoteHostRegistry.resolve(runner, entries: entries) else { return nil }
+    let registered = entries.map(\.machine).sorted()
+    return "⚠️ --runner \(raw) is not a registered machine (" + (registered.isEmpty
+        ? "none registered — fleetest remote machines add <name> --host <user@host>"
+        : "registered: \(registered.joined(separator: ", "))")
+        + "); a real run would treat it as an ssh destination"
+}
+
 // MARK: - shared helpers
+
+/// `--device` の名前が、そのマシンで `enabled: false` のデバイスに当たるときの断りの文(当たらなければ nil)。
+/// 純粋関数。「割り当て外」と言うと、事実(プロファイルには載っているが無効)と食い違う
+func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [RunDeviceMachine], profile: String) -> String? {
+    let hits = missing.filter { name in
+        disabled.contains { $0.name == name && DeviceMachineGrouping.display($0.machine) == targetMachine }
+    }
+    guard !hits.isEmpty else { return nil }
+    let names = hits.map { "\"\($0)\"" }.joined(separator: ", ")
+    return "\(names) is disabled (\"enabled\": false) in profile \"\(profile)\" on machine \"\(targetMachine)\""
+        + " — set \"enabled\": true on that device in profiles/runs/\(profile).json (or the monitor's device list) to use it"
+}
 
 /// マシン混在プロファイルの単一マシンディスパッチに付ける --device/--device-machine を決める
 /// (判定は FTRemote.RemoteDispatchDeviceScope / 明示 --device 付きは RemoteDispatchExplicitDeviceScope)。
@@ -1007,6 +1031,11 @@ func machineScopedDeviceFilter(
         case .notOnMachine(let missing, let available):
             let names = missing.map { "\"\($0)\"" }.joined(separator: ", ")
             let there = available.map { "\"\($0)\"" }.joined(separator: ", ")
+            // 実行から外れている(enabled:false)名前は「割り当て外」ではなく無効なので、有効化の場所を言う
+            let disabled = disabledDevicesNote(
+                missing: missing, targetMachine: targetMachine,
+                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile)
+            if let disabled { throw RemoteDispatchError.invalidDevice(disabled) }
             throw RemoteDispatchError.invalidDevice(
                 "\(names) is not assigned to machine \"\(targetMachine)\" in profile \"\(profile)\""
                 + (available.isEmpty ? " (it has no devices there)" : " (its devices there: \(there))")

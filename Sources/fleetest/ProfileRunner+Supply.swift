@@ -239,3 +239,10 @@ extension ProfileRunner {
             triageBox: triageBox, androidTask: androidTask, iosTask: iosTask, cleanup: cleanup)
     }
 }
+
+/// `ProfileRunner.run` が準備の段で上げたサービスの控えを、呼び手(供給段の失敗を記録する catch)へ渡す箱。
+/// run が throw すると戻り値が無く、サービスは呼び手の catch の時点でまだ動いている(片付けは結果の後)ので、ログと警告を読める。
+/// 単一の async 文脈の中でだけ読み書きする(並行に触らない)
+final class ServicesSessionBox: @unchecked Sendable {
+    var session: ServicesSession?
+}

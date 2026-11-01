@@ -120,6 +120,7 @@ struct ApiRunCommand: AsyncParsableCommand {
     func validate() throws {
         try RunCommonOptions.rejectZeroPorts(ports)
         try RunCommonOptions.rejectBlankReportDir(reportDir)
+        try RunCommonOptions.rejectUnwritableReportDir(reportDir)
         try RunCommonOptions.rejectNegativeWaitLock(waitLock)
         guard !scenarios.isEmpty else {
             throw ValidationError("specify at least one --scenario")
@@ -294,6 +295,10 @@ struct ApiRunCommand: AsyncParsableCommand {
         if dryRun, runner != nil {
             ConsoleOut.err("ℹ️ --dry-run touches no device, so --runner is not used"
                   + " (the scenarios are validated locally, from the same source the remote would run)")
+            if let runner, let warning = dryRunRunnerWarning(
+                runner: runner, entries: LocalConfig.load().remoteHosts ?? []) {
+                ConsoleOut.err(warning)
+            }
         } else if let dispatch = try resolveEffectiveDispatchTarget(
         explicitTarget: runner, profile: common.profile, project: common.project,
             requireProfileMachine: !dryRun) {
@@ -301,7 +306,9 @@ struct ApiRunCommand: AsyncParsableCommand {
             return
         }
 
-        if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
+        if !dryRun {
+            try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios, requireSingle: debug)
+        }
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // resolveProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない
         let preResolvedProfile = try common.profile.map {
@@ -567,7 +574,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
         // validate() の「ちょうど1本」は引数の個数だけ見る。クラス名・フォルダは解決後に複数本へ展開されるので、ここで本数を見る
         if debug, selected.count != 1 {
-            throw ValidationError("--debug can only be used with exactly one scenario (the --scenario selection resolves to \(selected.count))")
+            throw ValidationError(ScenarioPreflight.debugNeedsOneScenarioMessage(resolvedCount: selected.count))
         }
 
         // dry-run/debug は実測にならない(dry-run はデバイス未接続、debug は人間介入前提)ため記録しない。
@@ -587,6 +594,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // **dry-run では外さない** —— デバイスに触らないので全件を構文検査したい。
         // --platform/--port/--serial 直指定(resolvedProfile == nil)も対象外 ——
         // その経路は「この run が回す OS の集合」を宣言していないので、判定材料が無い
+        var declaredNotApplicableCount = 0
         if let resolvedProfile, !dryRun {
             let runPlatforms = Set(resolvedProfile.devices.map(\.platform))
             let applicability = PlatformApplicability.partition(selected,
@@ -602,6 +610,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                                         platform: declared, worker: nil, reason: reason,
                                         kind: .notApplicable)
             }
+            declaredNotApplicableCount = applicability.notApplicable.count
             selected = applicability.runnable
         }
 
@@ -727,7 +736,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 赤の run はサービスのログの末尾も記録へ(ProfileRunner.run と同じ。片付けの前に読む)
         if outcome.failed > 0, let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
         // fmSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
-        let slowWorkers = recorder?.finish(total: selected.count * measuredCopies, passed: outcome.passed, failed: outcome.failed,
+        let slowWorkers = recorder?.finish(total: selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
                          degradedWorkers: outcome.degradedWorkers,
                          freezeRetries: outcome.freezeRetries,
                          blankRepairs: outcome.blankRepairs,
@@ -764,7 +773,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             HealSourceWriteBack.run(records: RunResultsStore.records(runDir: recorder.runDir),
                                     project: testProject) { logStderr($0) }
         }
-        emitLine(ApiRunFinishedEvent(passed: outcome.passed, failed: outcome.failed, skipped: outcome.skipped,
+        emitLine(ApiRunFinishedEvent(passed: outcome.passed, failed: outcome.failed,
+                                     skipped: outcome.skipped + declaredNotApplicableCount,
                                      testSeconds: outcome.testSeconds,
                                      scenarioTotalSeconds: outcome.scenarioTotalSeconds,
                                      runID: recorder?.runID))

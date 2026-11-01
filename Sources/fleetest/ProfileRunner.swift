@@ -298,6 +298,7 @@ enum ProfileRunner {
                     deviceMachine: String? = nil,
                     workspaceOverride: String? = nil,
                     recorder: RunRecorder? = nil,
+                    servicesBox: ServicesSessionBox? = nil,
                     broadcast: Bool = false,
                     // `--work-queue`: 分配を親からの1本ずつ(`ScenarioDispatch.pulled`)に差し替える。broadcast とは併用不可(validate が断る)
                     workQueue: Bool = false,
@@ -384,6 +385,7 @@ enum ProfileRunner {
         let supplyLease = prepared.supplyLease
         let triageBox = prepared.triageBox
         let servicesSession = prepared.servicesSession
+        servicesBox?.session = servicesSession
         // 失敗の証跡: 赤の run の後に、各サービスのログの末尾を run の記録(無ければレポートの出力先)へ残す
         let servicesLogDir = recorder?.runDir ?? reportDir
         // 計測 run の識別は finish を待たず run.json に書く(殺された run にも残す。ApiRunCommand.run と同じ)

@@ -34,7 +34,9 @@ struct ServicesCommand: AsyncParsableCommand {
         } else if names.count == 1, let only = names.first {
             profileName = only
         } else {
-            throw ValidationError("--profile is required (available: \(names.joined(separator: ", ")))")
+            throw ValidationError(names.isEmpty
+                ? "this project has no run profiles (profiles/runs/*.json); services need one to find the workspace"
+                : "--profile is required (available: \(names.joined(separator: ", ")))")
         }
         let resolved = try ProfileResolver.resolve(project: testProject, runName: profileName)
         let workspace = ServicesFacts.workspace(for: resolved)
@@ -117,6 +119,17 @@ struct ServicesCommand: AsyncParsableCommand {
             + " Run `fleetest services down` and then `fleetest services up` to start them again"
     }
 
+    /// 稼働中の控えより後に compose.yaml が書き換えられていれば警告する(無ければ nil)。控えは宣言の中身を持たないので、
+    /// 差そのものは言えない —— 「編集された」という事実だけを言い、`down` → `up` を案内する(稼働中のサービスは古い宣言のまま)。
+    /// 開始時刻は秒精度なので、同じ秒の編集は見逃す(誤って言うよりは言わない側)
+    static func composeEditedAfterStartWarning(composeModified: Date?, lease: ServicesLease) -> String? {
+        guard let composeModified,
+              let started = ISO8601DateFormatter().date(from: lease.pidStartedAt),
+              composeModified > started else { return nil }
+        return "⚠️ services: scripts/compose.yaml was edited after these services started, so they still run the old declaration."
+            + " Run `fleetest services down` and then `fleetest services up` to apply it"
+    }
+
     /// 所有者(pid・開始時刻)の終了を待つ。上限はその控えの片付けの予算。尽きたら false(所有者は片付けを続けている)。
     static func waitForExit(pid: Int32, startedAt: String, budgetSeconds: Double) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + budgetSeconds
@@ -156,6 +169,11 @@ struct ServicesCommand: AsyncParsableCommand {
             if let existing = try await Self.settleExistingOwner(target: target) {
                 ConsoleOut.out("→ services: already up (\(existing.holderDescription)); stop with `fleetest services down`")
                 if let warning = ServicesCommand.stoppedContainersWarning(existing) { ConsoleOut.out(warning) }
+                let composeModified = (try? FileManager.default.attributesOfItem(
+                    atPath: target.workspace.composeFile.path))?[.modificationDate] as? Date
+                if let warning = ServicesCommand.composeEditedAfterStartWarning(composeModified: composeModified, lease: existing) {
+                    ConsoleOut.out(warning)
+                }
                 Self.printPublished(existing)
                 return
             }
@@ -520,6 +538,7 @@ struct ServicesCommand: AsyncParsableCommand {
         /// 相手の控えを消すと、消した後に資源が作られる)③取り直して判定し直し、持ち主がいなければその同じ排他の中で全部消す
         /// (待っている間に現れた新しい所有者は ① からやり直す)。合図は forcedStopRounds 回まで・最後の周は判定だけ
         private func forceReset(target: Target, log: (String) -> Void) throws {
+            var stoppedOwners = false
             for round in 0...Self.forcedStopRounds {
                 let lastRound = round == Self.forcedStopRounds
                 let decision: ForceDecision = try ServicesLock.withLock(prefix: target.prefix, stateDir: target.stateDir) {
@@ -527,8 +546,9 @@ struct ServicesCommand: AsyncParsableCommand {
                     let decision = Self.forceDecision(entries: entries, isAlive: ServicesProcessIdentity.isAlive)
                     switch decision {
                     case .removeNow:
-                        try removeEverything(target: target)
+                        try removeEverything(target: target, stoppedOwners: stoppedOwners)
                     case .stop(let owners) where !lastRound:
+                        stoppedOwners = true
                         for lease in owners {
                             log("→ services: stopping \(lease.holderDescription) before the reset")
                             _ = kill(lease.pid, SIGTERM)
@@ -584,7 +604,7 @@ struct ServicesCommand: AsyncParsableCommand {
         }
 
         /// 接頭辞の資源と控えを全部消す(排他の中で呼ぶ)
-        private func removeEverything(target: Target) throws {
+        private func removeEverything(target: Target, stoppedOwners: Bool = false) throws {
             let entries = ServicesLeaseStore.entries(stateDir: target.stateDir, prefix: target.prefix)
             let cli: RuntimeCLI
             do {
@@ -618,8 +638,14 @@ struct ServicesCommand: AsyncParsableCommand {
                 ServicesLeaseStore.remove(at: entry.url, home: NSHomeDirectory())
                 ServicesReaper.removePrivateDirectory(home: NSHomeDirectory(), pid: entry.pid)
             }
-            ConsoleOut.out("→ services reset: \(listing.containers.count) container(s), \(listing.networks.count) network(s),"
-                + " \(listing.volumes.count) volume(s) removed; \(entries.count) lease(s) cleared")
+            ConsoleOut.out(Self.summaryLine(containers: listing.containers.count, networks: listing.networks.count,
+                                            volumes: listing.volumes.count, leases: entries.count, stoppedOwners: stoppedOwners))
+        }
+
+        /// 数えるのは所有者を止めた**後**なので、所有者が自分で片付けたぶんは 0 になる。止めた事実を添えて 0 を「何も無かった」と読ませない
+        static func summaryLine(containers: Int, networks: Int, volumes: Int, leases: Int, stoppedOwners: Bool) -> String {
+            "→ services reset: \(containers) container(s), \(networks) network(s), \(volumes) volume(s) removed; \(leases) lease(s) cleared"
+                + (stoppedOwners ? " (counted after the stopped owner had removed its own resources)" : "")
         }
 
         private func report(_ what: String, _ result: RuntimeCLIResult, _ failed: inout [String]) {

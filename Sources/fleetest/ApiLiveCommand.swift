@@ -140,7 +140,7 @@ struct ApiLiveServe: AsyncParsableCommand {
         abstract: "Stay resident for the live-control panel and process NDJSON commands from stdin"
             + " (see the protocol at the top of ApiLiveCommand.swift; diagnostics on stderr only)")
 
-    @Option(name: .customLong("max-width"), help: "Maximum size of the screenshot long edge in px (0 or less = original size; default 0)")
+    @Option(name: .customLong("max-width"), help: "Maximum size of the screenshot long edge in px (0 = original size; default 0; a negative value must be written --max-width=-1)")
     var maxWidth: Int = 0
 
     @Option(help: "Simulator UDID used to auto-start the XCUITest bridge when the connection fails (iOS only; no auto-start when omitted)")

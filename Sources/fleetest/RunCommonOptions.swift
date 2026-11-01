@@ -134,6 +134,15 @@ extension RunCommonOptions {
         }
     }
 
+    /// 書けない `--report-dir` を断る。レポートは run の後に書くので、書けない先は始める前に言う
+    /// (`--junit` と同じ。判定は `JUnitOutputPath.unwritableDirectoryReason` の1箇所)。両 validate() が呼ぶ
+    static func rejectUnwritableReportDir(_ reportDir: String?) throws {
+        guard let reportDir, !RunProfileDocument.isBlankReportDir(reportDir) else { return }
+        if let reason = JUnitOutputPath.unwritableDirectoryReason(path: reportDir) {
+            throw ValidationError("--report-dir \(reportDir) cannot be written: \(reason)")
+        }
+    }
+
     /// 負の `--wait-lock`(0 = 待たない)を断る。両 validate() が呼ぶ
     static func rejectNegativeWaitLock(_ waitLock: Int?) throws {
         if let waitLock, waitLock < 0 {
@@ -203,6 +212,16 @@ extension RunCommonOptions {
         // `--fleet` の各エントリは自分の --profile を持つ)
         if profile == nil, !hasFleet, remoteDir != nil {
             throw ValidationError("--remote-dir requires --profile (it names the runner-side directory of a remote dispatch)")
+        }
+        // `--remote-timeout` は遠隔ディスパッチ全体の上限。0 以下は `RemoteTimeout.seconds` が黙って最小値(1800 秒)へ丸めるので
+        // 「0 = 無制限」と読んだ利用者の指定が別の値で効く。--remote-dir と同じく遠隔へ行かない run では効く相手が無い
+        if let remoteTimeout {
+            if remoteTimeout < 1 {
+                throw ValidationError("--remote-timeout must be a positive number of seconds (got \(remoteTimeout); omit it to size the timeout from the scenario count)")
+            }
+            if profile == nil, !hasFleet {
+                throw ValidationError("--remote-timeout requires --profile (it caps a remote dispatch)")
+            }
         }
         // `--all-machines` は「--device の名前が2つ以上の機械に当たる」ときの解決口。--device が無ければ効く相手が無い
         if !hasFleet, allMachines, devices.isEmpty {

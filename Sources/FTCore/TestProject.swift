@@ -51,7 +51,7 @@ public enum ProjectStoreError: Error, LocalizedError {
                 + " (candidates: \(available.joined(separator: ", ")))"
         case .invalidName(let name):
             return "invalid project name: \(name) (allowed: letters, digits, _ and -, starting with a letter, digit or _. "
-                + "It becomes an SPM target name, so Japanese is not allowed)"
+                + "It becomes an SPM target name, so Japanese is not allowed; at most \(ProjectStore.maxNameBytes) bytes)"
         }
     }
 }
@@ -108,7 +108,11 @@ public enum ProjectStore {
     }
 
     /// SPM のターゲット/モジュール名になるためのバリデーション
+    /// 名前の上限(バイト)。根拠: ファイル名の上限 NAME_MAX = 255 の半分。名前から `<name>_disabled` や
+    /// ビルド成果物の名前が派生するので、255 ちょうどまで許すと派生名が作れず「file name is invalid」で落ちる
+    public static let maxNameBytes = 128
+
     public static func isValidName(_ name: String) -> Bool {
-        name.range(of: "^[A-Za-z0-9_][A-Za-z0-9_-]*$", options: .regularExpression) != nil
+        name.utf8.count <= maxNameBytes && name.range(of: "^[A-Za-z0-9_][A-Za-z0-9_-]*$", options: .regularExpression) != nil
     }
 }

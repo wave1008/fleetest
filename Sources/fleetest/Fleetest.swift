@@ -405,6 +405,7 @@ struct RunScenarios: AsyncParsableCommand {
         try RunCommonOptions.rejectZeroPorts(ports)
         try RunCommonOptions.rejectDuplicatePorts(ports)
         try RunCommonOptions.rejectBlankReportDir(reportDir)
+        try RunCommonOptions.rejectUnwritableReportDir(reportDir)
         try RunCommonOptions.rejectNegativeWaitLock(waitLock)
         // レポートは run 後に書くので、書けない先は**始める前に**言う(フリート run では
         // 20 分走ってから分かっていた)。末尾の書き込み失敗が警告のみの規律は変えない
@@ -867,6 +868,10 @@ struct RunScenarios: AsyncParsableCommand {
             if runner != nil {
                 ConsoleOut.out("ℹ️ --dry-run touches no device, so --runner is not used"
                       + " (the scenarios are validated locally, from the same source the remote would run)")
+                if let runner, let warning = dryRunRunnerWarning(
+                    runner: runner, entries: LocalConfig.load().remoteHosts ?? []) {
+                    ConsoleOut.out(warning)
+                }
             }
             if let fleet {
                 // プロファイルと同じく、使わなくても実在と形は確かめる(打ち間違いを素通りさせない)
@@ -914,6 +919,7 @@ struct RunScenarios: AsyncParsableCommand {
             let runSummary: RunSummary
             let fmSettings: FMSettingsRecord
             progressHandedToProfileRunner = true
+            let servicesBox = ServicesSessionBox()
             do {
                 (runSummary, fmSettings) = try await ProfileRunner.run(
                     project: testProject, profileName: profile, items: items,
@@ -926,6 +932,7 @@ struct RunScenarios: AsyncParsableCommand {
                     deviceMachine: effectiveDeviceHost,
                     workspaceOverride: common.workspace,
                     recorder: recorder,
+                    servicesBox: servicesBox,
                     broadcast: broadcast,
                     workQueue: common.workQueue,
                     supplyProgress: supplyProgress,
@@ -940,6 +947,9 @@ struct RunScenarios: AsyncParsableCommand {
                 // プロファイル無しの基底で近似すると heal: false 等の効いていなかった値を「実効値」として残す
                 // (results-json の fmSettings は実効値の欄)。dry-run ではないのでここで nil にはならない
                 let effective = earlyResolved
+                // 先行供給(ビルドと並行)が上げたサービスは箱に入る前に失敗することがあるので、そちらも見る。api run の catch と対
+                let failedServices = servicesBox.session ?? earlySupply?.servicesSession
+                failedServices?.saveLogs(to: recorder.runDir) { ConsoleOut.out($0) }
                 recorder.finish(total: items.count, passed: 0, failed: items.count,
                                 performanceMode: performanceMode,
                                 fmSettings: FMSettingsRecord(
@@ -949,7 +959,7 @@ struct RunScenarios: AsyncParsableCommand {
                                     ocrTextVisibilityCheck: effective?.ocrTextVisibilityCheck
                                         ?? noProfileSettings.ocrTextVisibilityCheck),
                                 setOverrides: profileOverrides.mapValues(\.token),
-                                servicesWarnings: [],
+                                servicesWarnings: failedServices?.warnings ?? [],
                                 // resolve 前の失敗で計測モードかどうかを断定できない
                                 responseMeasurement: nil,
                                 interrupted: error is RunInterruptedBeforeStartError,
@@ -972,7 +982,7 @@ struct RunScenarios: AsyncParsableCommand {
             // --work-queue の子は渡された候補のうち配られた分だけ回す(残りは他のマシンの担当)= 差は対象外ではない
             let notApplicable = broadcast || common.workQueue ? 0 : max(0, items.count - ranCount)
             PhaseLog.mark("profile-run-done")
-            let slowWorkers = recorder.finish(total: ranCount, passed: ranCount - failedCount - runSummary.skipped, failed: failedCount,
+            let slowWorkers = recorder.finish(total: ranCount + notApplicable, passed: ranCount - failedCount - runSummary.skipped, failed: failedCount,
                             degradedWorkers: runSummary.degradedWorkers,
                             freezeRetries: runSummary.freezeRetries,
                             blankRepairs: runSummary.blankRepairs,
