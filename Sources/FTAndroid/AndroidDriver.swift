@@ -535,13 +535,17 @@ public final class AndroidDriver: AppDriver {
         }
     }
 
+    /// 直近の launch でブリッジが止めた「前面に居座っていたアプリ」(止めていなければ nil)。ft_launch が応答の文に添える
+    public private(set) var lastLaunchStoppedForeground: String?
+
     public func launch(bundleID: String) async throws {
+        lastLaunchStoppedForeground = nil
         // force-stop+monkey+am start フォールバックと整定待ちはブリッジ側 handleLaunch() が持つ
         // (ここでの追加 sleep は不要)
         try AndroidPackageName.require(bundleID)
         let lockBefore = rotationSettingsBeforeLaunch()
         defer { restoreRotationSettings(lockBefore) }
-        try await withBridge { try await $0.launch(bundleID: bundleID) }
+        lastLaunchStoppedForeground = try await withBridge { try await $0.launchReportingStoppedForeground(bundleID: bundleID) }
         // 再起動で旧 snapshot の ref は無効。メモリ・永続化の両方から落とし、
         // 以後の tap(ref:) を「先に snapshot」エラーに倒す(古い座標への誤タップ防止)
         refCenters = [:]

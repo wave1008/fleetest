@@ -322,8 +322,15 @@ extension MCPServer {
         // SpringBoard は常に走っていて attach するだけ = 走っていたかを確かめない分の「起動し直したかも」を言わない
         return text(springBoardNote + (resumes && !attachesToSpringBoard
                                        ? Self.resumeSummary(bundleID: bundleID, wasRunning: wasRunningBeforeResume)
-                                       : resumes ? "Activated: \(bundleID)" : "Launched: \(bundleID)")
+                                       : resumes ? "Activated: \(bundleID)"
+                : "Launched: \(bundleID)" + Self.stoppedForegroundClause((launchDriver as? AndroidDriver)?.lastLaunchStoppedForeground))
             + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: true)))
+    }
+
+    /// Android ブリッジが前面に居座っていた別アプリを force-stop して起動したときの添え文。止めていなければ空
+    static func stoppedForegroundClause(_ stopped: String?) -> String {
+        guard let stopped, !stopped.isEmpty else { return "" }
+        return " (force-stopped \(stopped) that stayed in front)"
     }
 
     /// ft_launch resume: true の応答の1行目。**走っていたかで言い分けを変える**(止まっていたのに「relaunch せず」と言うと、
