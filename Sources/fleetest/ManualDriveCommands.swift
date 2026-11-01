@@ -119,6 +119,16 @@ struct Snapshot: AsyncParsableCommand {
     }
 }
 
+/// `--ref` の対象が画面の外のとき MCP の ft_tap と同じ注記(判定は TapTargetGeometry.offscreenAdvisory の1箇所)を出す。
+/// 撃つ前の木で見る(撃った後だと画面が変わっている)。木を読めない・ref が無いときは注記なし(撃って答えをそのまま見せる)
+enum RefOffscreenNote {
+    static func advisory(driver: AppDriver, ref: Int) async -> String? {
+        guard let snapshot = try? await driver.snapshot(),
+              let element = snapshot.elements.first(where: { $0.ref == ref }) else { return nil }
+        return TapTargetGeometry.offscreenAdvisory(for: element, screen: snapshot.screen)
+    }
+}
+
 struct Tap: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Tap an element or a coordinate")
 
@@ -143,8 +153,11 @@ struct Tap: AsyncParsableCommand {
 
     func run() async throws {
         if let ref {
-            try await driverOptions.makeDriver().tap(ref: ref)
+            let driver = try await driverOptions.makeDriver()
+            let note = await RefOffscreenNote.advisory(driver: driver, ref: ref)
+            try await driver.tap(ref: ref)
             ConsoleOut.out("✅ tap [\(ref)]")
+            if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
         } else if let x, let y {
             let driver = try await driverOptions.makeDriver()
             // 画面の外の座標は撃たずに断る(ライブ操作・MCP と同じ判定 = TapTargetGeometry.isPointOnScreen)。
@@ -236,8 +249,11 @@ struct Press: AsyncParsableCommand {
     }
 
     func run() async throws {
-        try await driverOptions.makeDriver().press(ref: ref, duration: holdSeconds)
+        let driver = try await driverOptions.makeDriver()
+        let note = await RefOffscreenNote.advisory(driver: driver, ref: ref)
+        try await driver.press(ref: ref, duration: holdSeconds)
         ConsoleOut.out("✅ press [\(ref)] \(holdSeconds)s")
+        if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }
 }
 

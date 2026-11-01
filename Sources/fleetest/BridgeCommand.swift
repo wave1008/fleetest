@@ -372,11 +372,25 @@ struct Bridge: AsyncParsableCommand {
             try driverOptions.rejectDeviceTargetMismatch()
         }
 
+        /// `--serial` を明示したのに端末が期限内に adb へ答えなかったとき(状態を確かめられなかった)は非0にする
+        /// (iOS の `--port` が「居ない」で非0なのと同じく、スクリプトが判定に使える)。「止まっている」は
+        /// 自動で起きるので 0 のまま。`--serial` 省略の全台の一覧は1台が答えなくても出し続ける
+        static func explicitSerialFailure(serial: String, explicit: Bool, answered: Bool, summary: String) -> String? {
+            guard explicit, !answered else { return nil }
+            return "\(serial): \(summary)"
+        }
+
         func run() async throws {
             if driverOptions.resolvedPlatform == "android" {
                 for serial in try AndroidBridgeCLI.serials(only: driverOptions.serial) {
                     let driver = try AndroidDriver(serial: serial)
-                    ConsoleOut.out("\(serial): \(driver.bridgeDoctorSummary())")
+                    let report = driver.bridgeDoctorReport()
+                    if let failure = Self.explicitSerialFailure(
+                        serial: serial, explicit: driverOptions.serial != nil,
+                        answered: report.answered, summary: report.summary) {
+                        throw ValidationError(failure)
+                    }
+                    ConsoleOut.out("\(serial): \(report.summary)")
                 }
                 return
             }

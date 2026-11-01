@@ -33,7 +33,7 @@ final class LiveRunnerHealthTests: XCTestCase {
         XCTAssertEqual(auto,
             "the xcuitest bridge on port 8170 answered a one-element accessibility query in 17.3s;"
             + " normal is under 0.3s, and every operation here pays that wait on each accessibility"
-            + " query (a stale remote element after a system daemon restart). Restart the bridge first:"
+            + " query. Restart the bridge first:"
             + " `fleetest bridge down --port 8170` (live control starts it again on the next action);"
             + " if it is still this slow afterwards, reboot the simulator")
         let manual = RunnerAccessibilityHealth.liveDegradedNote(port: 8123, probe: nil,

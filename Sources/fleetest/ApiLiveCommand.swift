@@ -274,6 +274,18 @@ struct ApiLiveServe: AsyncParsableCommand {
                 await runnerHealth.reset()
                 logStderr("switched the driver to \(endpoint.host):\(port) (announced by the runner)")
             }
+            // 自動起動が「同じ台の別ポートにランナーが居る」と断ったら、そのポートがこのデバイスのブリッジとして
+            // 答える時点で乗り換える(起動 → 断りの繰り返しを終わらせる。答えない間 = 起動途中は今のまま待つ)
+            if let current = starter, driverOptions.resolvedPlatform == "ios", let udid,
+               let elsewhere = await current.runnerElsewherePort, elsewhere != port,
+               let repoRoot = try? RepoRoot.find(),
+               let moved = await moveToRunnerElsewhere(
+                   port: elsewhere, udid: udid, physical: physical, repoRoot: repoRoot) {
+                logStderr("this device's runner answers on port \(elsewhere) — switching from port \(port)")
+                (driver, port, ownAppBundleID, primaryBridge) = moved
+                starter = makeAutoStarter(port: port)
+                await runnerHealth.reset()
+            }
             // **port の本人確認(udid + ブリッジ)を毎コマンド撃つ**(MN-51.2・MN-51.10 と同型の穴):
             // makeLiveDriver は起動時に1回組むきりで、フリートが run のたびにブリッジを
             // 起動し直すと port が別デバイス、あるいは**同じデバイスの別ブリッジ**へ移り得る ——
@@ -524,6 +536,22 @@ struct ApiLiveServe: AsyncParsableCommand {
         // 待つ間にこのポートへ別のデバイスのブリッジが立つと、nil のままでは操作がそのまま届く。
         // 立つのは LiveBridgeAutoStarter の XCUITest だけなので "xcuitest"。無応答の間は .none で素通し
         return (placeholder, freePort, nil, "xcuitest")
+    }
+
+    /// 同じ台の別ポートのランナーが `udid` のブリッジとして答えるときだけ、そのポートのドライバを返す
+    /// (答えない・別デバイス・組めない = nil。nil のときは今の宛先のまま)
+    private func moveToRunnerElsewhere(
+        port: UInt16, udid: String, physical: Bool, repoRoot: URL
+    ) async -> (AppDriver, UInt16, String?, String?)? {
+        let resolution = await XCUIBridgeResolver.resolve(
+            preferred: port, repoRoot: repoRoot, autoStart: false,
+            logger: { message in ConsoleOut.err("[live serve] " + message) })
+        guard resolution.endpoint.port == port else { return nil }
+        let isInAppOnly = resolution.inApp?.endpoint.port == port
+        guard await Self.portIdentity(
+            endpoint: resolution.endpoint, requestedUDID: udid, physical: physical, isInApp: isInAppOnly) == .mine
+        else { return nil }
+        return try? await composeDriver(resolution: resolution, physical: physical, repoRoot: repoRoot)
     }
 
     /// 同じシミュレータの別ポートのランナー(xcodebuild)のうち、残骸と言えないもの(待受している・起動途中)のポート。
