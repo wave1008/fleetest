@@ -869,7 +869,7 @@ extension StepExecutor {
                 element, in: snapshot, step: step, verb: "touching",
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 guard let liftedElement = lifted.element else {
-                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "touching")
+                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "touching", after: lifted.snapshot)
                         + (await leftForegroundSuffix(snapshot.sessionBundleID))))
                 }
                 element = liftedElement
@@ -1099,7 +1099,7 @@ extension StepExecutor {
                 element, in: snapshot, step: step, verb: "typing",
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 guard let liftedElement = lifted.element else {
-                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "typing")
+                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "typing", after: lifted.snapshot)
                         + (await leftForegroundSuffix(snapshot.sessionBundleID))))
                 }
                 element = liftedElement
@@ -1205,7 +1205,7 @@ extension StepExecutor {
                 element, in: snapshot, step: step, verb: "clearing",
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 guard let liftedElement = lifted.element else {
-                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "clearing")
+                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "clearing", after: lifted.snapshot)
                         + (await leftForegroundSuffix(snapshot.sessionBundleID))))
                 }
                 element = liftedElement
@@ -1734,8 +1734,19 @@ extension StepExecutor {
     }
 
     /// 送った後に対象を見失ったときの失敗文(撃つ前の ref で撃たない理由を言う)
-    static func coverLiftLostMessage(_ step: FlowStep, verb: String) -> String {
-        "the target was covered, so the container was scrolled before \(verb) it, but the target could not be"
+    ///
+    /// **送った後の木がロック画面・常時表示(消灯)なら「覆われた」と言わない** —— 端末の画面が落ちた(か施錠された)事実を言う。
+    /// 覆いの経路の文を出すと、画面が消えただけなのにアプリの UI が対象を覆ったように読める。送った分のスクロールが
+    /// アプリに届いたかも言えない。木は送った後に読んだものを使う(追加の読みは無い)
+    static func coverLiftLostMessage(_ step: FlowStep, verb: String, after: SnapshotResponse? = nil) -> String {
+        let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
+        if let after, SystemUITreeKind.isLockScreenOrAlwaysOn(
+            sessionBundleID: after.sessionBundleID, identifiers: after.elements.map(\.identifier)) {
+            return "the target could not be found on the screen: \(step.locatorSummary) — the lock screen / always-on display is in front"
+                + " (the device screen went dark or is locked), so the app is not being shown; the container scroll sent before \(verb)"
+                + " it may not have reached the app (nothing was \(done))"
+        }
+        return "the target was covered, so the container was scrolled before \(verb) it, but the target could not be"
             + " found on the screen afterwards: \(step.locatorSummary) (nothing was \(verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"))"
     }
 
