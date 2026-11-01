@@ -32,6 +32,14 @@ final class RefFireGateWiringTests: XCTestCase {
         XCTAssertEqual(refCalls.count, fires.count)
     }
 
+    /// ref の古さの控え: 3つの手は全部 memoKey を渡し、snapshot は控えを書き、type だけが typing: true
+    func testEveryGateCallCarriesTheMemoKeyAndSnapshotWritesTheMemo() throws {
+        let text = try source().joined(separator: "\n")
+        XCTAssertEqual(text.components(separatedBy: "memoKey: driverOptions.refMemoKey").count - 1, 3)
+        XCTAssertEqual(text.components(separatedBy: "typing: true").count - 1, 1)
+        XCTAssertTrue(text.contains("CLIRefMemo.store(key: driverOptions.refMemoKey"))
+    }
+
     func testBridgeDownDoesNotClaimStoppedWhileTheRunnerStillListens() {
         XCTAssertNil(BridgeDownRefusal.survivorMessage(port: 8135, holder: nil))
         let message = BridgeDownRefusal.survivorMessage(port: 8135, holder: "pid 17680: FleetestRunner-Runner")

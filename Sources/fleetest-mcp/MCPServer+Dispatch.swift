@@ -521,8 +521,15 @@ extension MCPServer {
         ],
     ]
 
+    /// x / y の両方を省けるが片方だけは意味を成さない道具(`targetExclusivityViolation` が見る)
+    static let partialCoordinateTools: Set<String> = ["ft_pinch"]
+
     /// 違反なら文言、無ければ nil。`checkArgumentBounds` の直後(デバイス/ブリッジに触る前)で呼ぶ
     static func targetExclusivityViolation(tool: String, args: [String: Any]) -> String? {
+        // 座標を省ける道具(ft_pinch = 省くと画面中央)は x だけ・y だけを黙って捨てて中央を撃っていた
+        if partialCoordinateTools.contains(tool), (args["x"] != nil) != (args["y"] != nil) {
+            return "\(tool) takes x and y together (one alone would be ignored): pass both, or neither to act on the middle of the screen"
+        }
         guard let checks = exclusiveArgumentGroups[tool] else { return nil }
         for groups in checks {
             let populated = groups.filter { keys in keys.contains { args[$0] != nil } }

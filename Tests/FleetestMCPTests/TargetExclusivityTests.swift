@@ -3,12 +3,30 @@
 // `MCPServer.targetExclusivityViolation` が入口で断ることを表の全ツールぶん固定する。
 
 import XCTest
+import FTCore
 @testable import fleetest_mcp
 
 final class TargetExclusivityTests: XCTestCase {
 
     private func refusal(_ tool: String, _ args: [String: Any]) -> String? {
         MCPServer.targetExclusivityViolation(tool: tool, args: args)
+    }
+
+    /// ft_pinch は座標を省ける(中央)が、x だけ・y だけは黙って捨てられていた
+    func testPinchWithOnlyOneCoordinateIsRefused() {
+        XCTAssertNotNil(refusal("ft_pinch", ["scale": 2.0, "x": 187.0]))
+        XCTAssertNotNil(refusal("ft_pinch", ["scale": 2.0, "y": 300.0]))
+        XCTAssertNil(refusal("ft_pinch", ["scale": 2.0, "x": 187.0, "y": 300.0]))
+        XCTAssertNil(refusal("ft_pinch", ["scale": 2.0]))
+    }
+
+    /// ft_batch の座標の手(tap / doubleTap = 1点・swipePointToPoint = 始点と終点)の点の取り出し。キーボードの警告と画面外の門が共有する
+    func testBatchCoordinatePoints() {
+        let tap = FlowStep(action: "tap", x: 1, y: 2)
+        XCTAssertEqual(MCPServer.batchCoordinatePoints(tap).count, 1)
+        let swipe = FlowStep(action: "swipePointToPoint", x: 1, y: 2, toX: 3, toY: 4)
+        XCTAssertEqual(MCPServer.batchCoordinatePoints(swipe).count, 2)
+        XCTAssertTrue(MCPServer.batchCoordinatePoints(FlowStep(action: "scrollTo")).isEmpty)
     }
 
     func testTapRefAndCoordinatesTogetherIsRefused() {

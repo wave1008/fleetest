@@ -983,6 +983,26 @@ struct ApiLiveServe: AsyncParsableCommand {
         }
     }
 
+    /// 利用者が最後の観測で見ていた ref の要素(`LiveScreenMemo`)。観測の前の ref は nil = 照合しない
+    private static func seen(_ ref: Int?, _ memo: LiveScreenMemo) async -> ElementInfo? {
+        guard let ref else { return nil }
+        return await memo.snapshot?.elements.first { $0.ref == ref }
+    }
+
+    /// 利用者が見ていた要素を期待として ref を撃つ。ドライバ・ブリッジが自分の最新の表と照らし、別プロセスが表を入れ替えて
+    /// ref が別の要素を指していれば撃たずに `DriverError.staleRef` で断る(`RefExpectationScope`。何も撃っていない断り)
+    private static func firing<T>(_ seen: ElementInfo?, _ body: () async throws -> T) async throws -> T {
+        guard let seen else { return try await body() }
+        return try await RefExpectationScope.firing(seen) { try await body() }
+    }
+
+    /// 撮り直した木から引いた要素が、利用者が見ていた要素と食い違えば断る(座標へ畳む doubleTap / pinch 用)
+    private static func refuseIfNotWhatWasSeen(_ now: ElementInfo, seen: ElementInfo?) throws {
+        guard let seen, RefExpectationScope.contradicts(RefExpectation(seen), latest: RefExpectation(now)) else { return }
+        throw DriverError.staleRef(detail: RefExpectationScope.refusalDetail(
+            ref: now.ref, expected: RefExpectation(seen), latest: RefExpectation(now)))
+    }
+
     /// ref から要素を引く(doubleTap / pinch が対象の座標・identifier を採るため)。
     /// **snapshot を撮り直す**: ref は直近スナップショット基準なので、ここで採り直しても同じ番号を指す
     private static func element(ref: Int, driver: AppDriver) async throws -> ElementInfo {
@@ -1117,7 +1137,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                    let point = try await Self.bottomBandPoint(ref: ref, driver: driver) {
                     try await driver.tap(x: point.x, y: point.y)
                 } else {
-                    try await driver.tap(ref: ref)
+                    try await Self.firing(await Self.seen(ref, screenMemo)) { try await driver.tap(ref: ref) }
                 }
             } else if let x = command.x, let y = command.y {
                 try await requireOnScreen([(x, y)], driver: driver, screenMemo: screenMemo)
@@ -1130,10 +1150,14 @@ struct ApiLiveServe: AsyncParsableCommand {
                 throw ServeCommandError.invalidArguments("type requires text")
             }
             if let ref = command.ref { try await Self.requireTextInputTarget(ref: ref, driver: driver) }
-            try await driver.type(ref: command.ref, text: text)
+            try await Self.firing(await Self.seen(command.ref, screenMemo)) {
+                try await driver.type(ref: command.ref, text: text)
+            }
         case "clear":
             if let ref = command.ref { try await Self.requireTextInputTarget(ref: ref, driver: driver) }
-            try await driver.clearInput(ref: command.ref)
+            try await Self.firing(await Self.seen(command.ref, screenMemo)) {
+                try await driver.clearInput(ref: command.ref)
+            }
         case "hideKeyboard":
             if let refusal = Self.hideKeyboardRefusal(platform: driverOptions.resolvedPlatform) {
                 throw ServeCommandError.invalidArguments(refusal)
@@ -1150,6 +1174,10 @@ struct ApiLiveServe: AsyncParsableCommand {
                   let toX = command.toX, let toY = command.toY else {
                 throw ServeCommandError.invalidArguments("drag requires fromX/fromY/toX/toY")
             }
+            // 始点=終点は動かない = 実際にはタップになる(MCP の ft_drag と同じ判定。撃たずに断る)
+            if CoordinateGuards.dragDoesNotMove(fromX: fromX, fromY: fromY, toX: toX, toY: toY) {
+                throw ServeCommandError.invalidArguments("the drag does not move: toX/toY must differ from fromX/fromY")
+            }
             try await requireOnScreen([(fromX, fromY), (toX, toY)], driver: driver, screenMemo: screenMemo)
             try await driver.drag(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
                                   pressSeconds: command.press ?? ApiLiveGestureDefaults.dragPressSeconds,
@@ -1158,6 +1186,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             // **座標へ畳んでから撃つ**(ref はブリッジごとに別名前空間。AppDriver.doubleTap の注記参照)
             if let ref = command.ref {
                 let (element, screen) = try await Self.elementAndScreen(ref: ref, driver: driver)
+                try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
                 let bandY = await BottomGestureBandTap.tapY(
                     for: element.frame, screen: screen,
                     isAndroid: driverOptions.resolvedPlatform == "android", driver: driver)
@@ -1179,6 +1208,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                 // ref 指定時は frame と identifier の両方を渡す(経路で対象の伝え方が違う。
                 // FTCore/BridgeDTO の PinchRequest)
                 let element = try await Self.element(ref: ref, driver: driver)
+                try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
                 try await driver.pinch(frame: element.frame, identifier: element.identifier,
                                        scale: scale, durationSeconds: duration)
             } else {
