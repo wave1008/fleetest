@@ -346,7 +346,7 @@
 - 見立て: Flutter のセマンティクスが、欄が捨てた入力で更新されない。注入(ACTION_SET_TEXT)の読み返しが更新されない value を信じる
 - 手がかり: 読み返しの後に画面(OCR)で欄の中身を確かめるか、Flutter の欄だけ読み返しの根拠を変えるか。誤った緑なので、どちらも
   実データ(他の Flutter の欄)で誤検知を測ってから
-
+- 11/2 に測定(Pixel 3a・Android 12): 2/2 再現。3 秒待っても `xyz` のまま・別の欄へ焦点を移すと消える。ブリッジに拒否の信号は無い。残る手は OCR で欄を確かめる形(OCR のトグルとの関係は判断待ち)か semantics の更新を強いる形(未検証)
 ### OI-41 一覧の外に描かれた行(容器の外の残像)への MCP の ref タップが、背景が空白だと無警告で空振りする
 - 状態: 再現済み
 - 確認: 7ac53b33(2026-10-29)
@@ -356,16 +356,6 @@
   だけで空振り。同じ画面の DSL の `tap('#msg_04')` は「容器の外」と判定して送り直してから押す
 - 場所: MCP の印(`RefGuard.isUntappableGhost`)は誤検知5形の対策で「中心に覆いがある」を条件にしている = 中心の下が空白の残像には付かない
 - 手がかり: 条件を緩めるなら、実アプリのコーパス(`Tests/Fixtures/RealAppSnapshots/`)で誤検知を数えてから
-
-### OI-42 Pixel 4a(Android 13)でアプリ切り替え画面を出している間も、木がアプリの画面のまま返る
-- 状態: 再現済み
-- 確認: 7ac53b33(2026-10-29)
-- 経緯: 発見: 10-29 の探索(実機 Pixel 4a・ジェスチャナビ)
-
-- 症状: ft_navigate appSwitcher の後も木はアプリの画面のまま(`dumpsys window` の mCurrentFocus もアプリ)。ref のタップは
-  「done (selector: …)」で Recents に吸われ、中央のカードの別アプリが開いたこともある。Pixel 3a(Android 12)は
-  `no-active-window-root` で正しく「読めない」と言う
-- 手がかり: Android 13 で Recents が前面のときにブリッジが見ている窓(アクティブウィンドウの根)を調べる
 
 ### OI-43 CLI の `fleetest tap --ref` が、画面が変わった後の古い ref をそのまま撃つ
 - 状態: 経路確定
@@ -434,7 +424,7 @@
 
 - 起こすのは呼び出しの開始時だけ(`wakeIfAsleep`)。常時表示・ロック画面の木を「system dialog」と言う誤りは直した(`isLockScreenOrAlwaysOnTree`)
 - 残り: waitFor / snapshotAfter の読み直しの間に消灯した分を起こす
-
+- 応答の後に消灯・ロックしていたら事実を添えるようにした(`screenOffAfterCallNote`)。waitFor の最中に起こすかは判断待ち
 ### OI-54 ft_batch で FAILED になった手が、下書きに印なしの普通の行として入る
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -542,16 +532,6 @@
 - 逆走査の門は「署名が変わったか」(contentEverMoved)で、位置表示の文字・端のバウンスでも「動いた」になる(反転チャットで動かない探索の後に遅いドラッグ 8 本)。本数も常に上限の 8 本
 - 「中身が実際にずれたか」の門と「最後の1本の移動量から本数を決める」直しを入れたが取り消した: id の無い行の一覧では本物のスクロールも「ずれていない」と読み(固定のバーだけが id を持つ)、通り過ぎた対象を拾う逆走査が止まる(コードレビューの指摘・既存のテスト3件が落ちた)
 - 手がかり: ずれの判定は、送った容器の中の要素だけで見る(容器の外の固定の要素を数えない)。id の無い行は枠の並びで見る
-
-### OI-73 Android の Compose で、焦点を移した後の ref なしの type / clear が前の欄へ入り「#B に入った」と言う
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 経緯: 発見: 10-30 午後の探索的テスト(Pixel 4a・E2E-CMP / E2EX-CMP = pixel F13・emu F13 の典型形)
-
-- 「`findFocus(FOCUS_INPUT)` が前の欄の古いノードを返す」前提で、取り直して focused でなければ木から探す直しを入れたが、確認で効かなかった(4a で 2/2)ので取り消した。前提は否定も確認もされていない
-- emu F13 は `type "#field_first" "Taro\n"; type "Jiro"` の形は直った(改行入りの type の後に叩いた欄の控えを捨てる)。典型の `tap; type; pressEnter; type` は 2/2 で 1つ目の欄へ入り All passed
-- 手がかり: IME の「次へ」の後に、ブリッジが焦点として掴むノードの id と、画面の焦点(echo の focus=)を並べて記録する
-- 11/1 の探索(pixel F1): Android 13 の Pixel 4a・E2E-CMP で悪化形。`tap "#field_single"; type "#field_single" "S"; tap "#field_password"` → ref なし ft_type "P1" が「into #field_password」と答えて single=SP1・password 空(4a 12/12)。ft_clear_input は single が消える(3/5)。ft_type pressEnter は前の欄の IME アクションが発火する(3/3)。DSL と同じ判定の ft_batch `tap; type; pressEnter; tap; type` も All passed で single=AAABBB(3/3)。**同じ手順で Android 12 の Pixel 3a は CMP 0/6、4a の View・Flutter・RN は各 0/3** = Android の版と Compose で分かれる。パスワード欄に値がある回は正しく入った回もある(2/2)。画面の枠とカーソル・`adb shell input text` はパスワード欄 = 実際の焦点はそこ。応答の欄名(ホスト側の推定。`MCPServer+ToolDefs.swift` 付近)と書き込み(ブリッジの `setTextAppending` / `clearFocused`)が別経路
 
 ### OI-75 Android の横向きの残り(CMP の行の端・Flutter の端の誤判定)
 - 状態: 再現済み
@@ -736,7 +716,7 @@
 - Android: E2E-CMP テキスト入力でキーボード表示中、`tap "#field_single"; tap "#field_multiline"` が ok(警告は「did not change … swallowed」だけ)で 4a 5/5・3a 5/5 とも続く `adb input text` がパスワード欄へ入る(multiline は空)。木は `secureTextField (44,1016 992x84)` と `field_multiline (44,1100 992x110)`(キーボードを閉じた木では (44,1434 992x286))= 木の枠が描画と一致せず、打った中心 y=1155 は本物のパスワード欄。E2E-Android(View)は `closed the keyboard (back key)` で閉じて撃つ 5/5 正常・Flutter・RN も 5/5 正常。座標の tap だけ・Compose だけ。`type "#field_multiline" "MM"`(ノード経路)は欄へ正しく入る。推測: 窓の縮みの判定が木の枠を信じる(Compose の a11y が縮んだ窓へ枠を丸めている)
 - iOS(SE3 実機・E2E-CMP): `tap '#nav_input'; type '#field_password' 'pN' replace: true; tap '#field_multiline'; type '#field_multiline' 'MM'` で tap は ok(MCP の ft_tap ref も 2/2)・type は「another input field (#field_single) changed instead」で FAILED(DSL 6/6)。echo は single=MM・multiline 空 = 文字は既に別の欄に入っている。木は field_multiline (16,303 343x40)・field_single (16,276 343x27) と言うが、絵の単一行の欄は y 276〜326 で複数行の欄は描かれていない
 - 期待(所見): 見えていない欄と判定して閉じてから撃つか失敗する(View・iOS のネイティブと同じ)
-
+- 11/2 に測定(Pixel 4a): 3/3 再現。キーボード表示中の木は password (44,1016 992x84)・multiline (44,1100 992x110) で、絵の password は 1018〜1170 = multiline は幽霊の枠。閉じた木と比べずに決める規則は見つかっていない
 ### OI-109 横向きの CMP で、閉じたドロワーの項目が左の切り欠きの帯に木に居て、`tap` が ok のまま押されない(Android)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
@@ -760,14 +740,6 @@
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro -10 = inapp F1・F5)
 
 - xcuitest モード(`--set iosMode=xcuitest`・SampleApp ログインテスト)で、ログイン後に OS の「パスワードを保存しますか?」シートが出ると、step 8 `ifCanSelect "今はしない"` が not met・step 9 `exist "#welcome_text||ようこそ"` が 8 秒で `element not found`(3/3)。失敗の要素一覧は `screen: 402x874` の1行だけ(0 件)・注記なし。スクリーンショットにはシートと背面の「ようこそ」。inapp-boost は同じシナリオが緑(step 8 も not met)。推測: シートは別プロセスの AutoFill でシステムアラートの照会に載らない。step 8 のタイミングは未測定(シートの出現時刻を測っていない)
-
-### OI-113 手の途中の消灯(Android): ok の tap が届いておらず、次の手の失敗文は消灯を言わない
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 経緯: 発見: 11/1 朝の探索的テスト(emulator-5554 = emu F3 / Pixel 4a・3a = pixel F3)。OI-52 と同じ型の別の形
-
-- 消灯の直前に撃った tap が ok なのに届いていない: ft_batch `tap '#btn_tap_counter'` ×12 + 途中で `input keyevent 26` → 20 回中 2 回 `ok` の後に次の手が FAILED・起こした後の echo は tap=0(他の ok は tap=1 と一致 7/7)。単発の最終手なら緑のまま。期待(所見): 操作の後に `mWakefulness` が眠っていたら「届いたか分からない」を添える
-- 消灯の後の step の失敗文(Pixel 4a・ロック無し・5/5): `tap "#btn_tap_counter"` ×6〜12 の ft_batch の開始 2 秒後に `KEYCODE_SLEEP` → 「the target was covered, so the container was scrolled before touching it, but the target could not be found」+「⚠️ com.android.systemui … drawn over …(シェードが開いている・ft_navigate back で閉じる)」。dumpsys power は Dozing で木は常時表示(keyguard_status_view / ambient_indication_container)。3a・ロックあり(スワイプ解除)の ⚠️ は正しく「lock screen / always-on display」と言う(3/3)が、step 本文の「the target was covered …」は両方で残る(8/8)。呼び出しの開始時の起こし直しは正常で、消灯後に呼び出しを分ければ tap / swipe は全部届く。`StepExecutor+Actions.swift:1636` の文言は遮蔽の経路の結果。常時表示の判定は MCP の呼び出しの開始にだけある。DSL の run で同じ経路かは未確認
 
 ### OI-115 ft_list_devices が端末の不在を言わない(iOS 実機の探索)
 - 状態: 再現済み
