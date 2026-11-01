@@ -103,7 +103,14 @@ extension StepExecutor {
                     return "the field does not hold the typed text after retyping"
                         + " (expected \(expected.count) character(s)); not retyped again"
                 }
-            case .done, .unverifiable:
+            case .done:
+                // 撃つ前の値が読み返しから丸ごと消え、打った文字だけが残った = 追記でなく置換(選択範囲の置き換えは
+                // 受理するが、type は追記の契約なので事実として注記する。失敗にはしない)
+                if TypedInputVerdict.replacedPriorValue(priorCount: priorCount, typedOnly: typedOnly, actual: actual) {
+                    noteCodesThisStep.insert(.typeReplacedPriorValue)
+                }
+                return nil
+            case .unverifiable:
                 return nil
             case .whitespaceAltered:
                 noteCodesThisStep.insert(.typeWhitespaceAltered)

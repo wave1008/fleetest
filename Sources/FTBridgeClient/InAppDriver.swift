@@ -13,6 +13,8 @@ public final class InAppDriver: AppDriver {
     // terminate() は bundleID を取らないため、直近 launch のものを使う
     private var lastBundleID: String?
     private var lastLaunchTimingValue: LaunchTiming?
+    /// このセッションが terminate を撃ってから launch していない間 true(接続断の帰属 = `AppFate.stoppedBySession`)
+    private var stoppedBySession = false
 
     /// **simulatorUDID を渡し切る**: install/uninstall/clearAppData は simctl 経路で、宛先を
     /// 知らないと `/status` に聞きに行く。in-app ブリッジは対象アプリのプロセス内に住むので、
@@ -45,6 +47,7 @@ public final class InAppDriver: AppDriver {
     public func launch(bundleID: String) async throws {
         if let refusal = Self.foreignLaunchRefusal(bundleID: bundleID, own: ownBundleID) { throw refusal }
         lastBundleID = bundleID
+        stoppedBySession = false
         lastLaunchTimingValue = nil   // 失敗時に前回成功分の内訳を出さないための明示リセット
         uiFrameworkCache = nil        // 再注入先が変わり得るため判定も採り直す
         lastLaunchTimingValue = try await launcher.relaunch(bundleID: bundleID)
@@ -60,6 +63,7 @@ public final class InAppDriver: AppDriver {
         if target == nil { target = try? await client.status(timeout: 3).sessionBundleID }
         guard let bundleID = target else { return }
         launcher.terminate(bundleID: bundleID)
+        stoppedBySession = true
     }
 
     // 以下は in-app ブリッジへ HTTP 委譲(XCUITest と同一プロトコル)
@@ -326,11 +330,11 @@ public final class InAppDriver: AppDriver {
         do {
             return try await op()
         } catch let DriverError.bridgeConnectionRefused(_, detail) {
-            throw DriverError.bridgeConnectionRefused(context: context,
-                                                       detail: await crashAnnotated(detail))
+            let (text, fate) = await crashAnnotated(detail)
+            throw DriverError.bridgeConnectionRefused(context: context.with(appFate: fate), detail: text)
         } catch let DriverError.bridgeUnreachable(_, detail) {
-            throw DriverError.bridgeUnreachable(context: context,
-                                                 detail: await crashAnnotated(detail))
+            let (text, fate) = await crashAnnotated(detail)
+            throw DriverError.bridgeUnreachable(context: context.with(appFate: fate), detail: text)
         }
     }
 
@@ -342,9 +346,12 @@ public final class InAppDriver: AppDriver {
     /// 約 2 秒後。TestProjects/E2E-iOS の 91_クラッシュ検知 で確認)。切断直後に1回だけ探すと
     /// ファイルがまだ無く「見つかりませんでした」になるため、短くポーリングして待つ。
     /// この経路は既に失敗が確定しているので、待ち時間が正常系を遅らせることはない。
-    private func crashAnnotated(_ detail: String) async -> String {
+    /// 戻り値の `AppFate` は測れたときだけ(.ips の発見・自分の terminate)。他は nil で従来の文言
+    private func crashAnnotated(_ detail: String) async -> (String, AppFate?) {
+        // 自分で止めたアプリへの接続断は、クラッシュ報告を探さず事実(自分で止めた)を言う
+        if stoppedBySession { return (detail, .stoppedBySession) }
         // .ips もプロセスの生死もこの Mac の Simulator でしか引けない。実機で探すと何も確かめないまま「OS に殺されたかも」と言う
-        guard !context.physicalDevice, let bundleID = lastBundleID else { return detail }
+        guard !context.physicalDevice, let bundleID = lastBundleID else { return (detail, nil) }
         for attempt in 0..<8 {
             // within を既定(120s)のままにすると、**前の実行が残した .ips** が先に窓へ入って
             // 古いパスと終了理由を報告してしまう(実測: 94 秒前のレポートを拾った)。
@@ -352,7 +359,7 @@ public final class InAppDriver: AppDriver {
             if let hit = SimulatorCrashReport.findRecent(bundleID: bundleID, udid: simulatorUDID, within: 10) {
                 let suffix = hit.reason.map { " (\($0))" } ?? ""
                 LastAppCrash.shared.record(AppCrashRecord(evidence: .crashReport, path: hit.path, summary: hit.reason))
-                return detail + " / the app crashed: \(hit.path)\(suffix)"
+                return (detail + " / the app crashed: \(hit.path)\(suffix)", .crashed)
             }
             if attempt < 7 { try? await Task.sleep(for: .milliseconds(500)) }
         }
@@ -360,17 +367,17 @@ public final class InAppDriver: AppDriver {
         // プロセスとして生きたまま無応答だった)。生死を確かめてから事実どおりの文言に分ける
         switch await appIsStillRunning(bundleID: bundleID) {
         case true:
-            return detail + " / no recent crash report found, and the app process is still running"
-                + " — it is not answering (a hang, or it is suspended because another app is in front)"
+            return (detail + " / no recent crash report found, and the app process is still running"
+                + " — it is not answering (a hang, or it is suspended because another app is in front)", nil)
         case false, nil:
             if let simulatorUDID,
                let rewritten = SimulatorAppProcess.rewrittenReportCrash(bundleID: bundleID, udid: simulatorUDID, within: 10) {
                 LastAppCrash.shared.record(rewritten)
-                return detail + " / " + (rewritten.summary ?? "")
+                return (detail + " / " + (rewritten.summary ?? ""), nil)
             }
-            return detail + " / no recent crash report found"
+            return (detail + " / no recent crash report found"
                 + " (no .ips appeared within 4s — possibly killed by the OS, memory pressure or a voluntary exit. "
-                + "In inapp-boost mode the backgrounded app can be suspended or terminated)"
+                + "In inapp-boost mode the backgrounded app can be suspended or terminated)", nil)
         }
     }
 
