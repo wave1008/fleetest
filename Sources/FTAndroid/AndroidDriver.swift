@@ -1084,8 +1084,10 @@ public final class AndroidDriver: AppDriver {
               status == 404 || status == 409 || status == 501 else { return error }
         guard body.contains(noInputFocusMarker) else { return nil }
         return DriverError.badResponse(status: status,
-            body: "pressEnter did nothing: no field has input focus."
-                + " Tap the field by ref first (ft_type with ref does this for you)")
+            body: "pressEnter did nothing: no field has input focus (the bridge found no focused input field to send Enter to)."
+                + " Tap the field by ref first (ft_type with ref does this for you). If the field is not in the tree"
+                + " (the keyboard can push it off the screen) that tap is not possible: the text may already be in the"
+                + " field, so read it with ft_snapshot after ft_hide_keyboard instead of typing it again")
     }
 
     public func pressEnter() async throws {

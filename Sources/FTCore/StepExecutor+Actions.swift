@@ -1054,7 +1054,7 @@ extension StepExecutor {
             // (マスク欄の実値をログへ出さない)。**replace は clear 済みなので空として扱う**
             let existingValue = step.replace == true ? "" : priorValue
             let existingValueNote: String? = step.replace == true
-                ? (priorValue.isEmpty ? nil : "replaced the field's prior content")
+                ? (priorValue.isEmpty ? nil : "cleared the field's prior content before typing (the result was not read back)")
                 : (priorValue.isEmpty ? nil
                     : element.type == "secureTextField"
                         ? "the field already holds a value; a masked field may append or replace it,"
@@ -1097,6 +1097,9 @@ extension StepExecutor {
             // **入力欄でないものへ打とうとしていないか**(TypeReadback の doc に実測)。
             // 検証は両側とも空になる経路なので、せめて内側の欄を名指しして知らせる
             let nonInputNote = TapTargetGeometry.nonInputTypeTargetNote(element, in: snapshot.elements)
+            // 事後の照合の「打つ前」(`TypedInputCheck`。element・snapshot は撃つ直前の解決結果)
+            let typedPrior = TypedInputCheck.Prior(target: element, priorValue: priorValue, replace: step.replace == true,
+                                                   treeBefore: snapshot.elements)
             // **押し上げ検知の「打つ前」の基準**(keyboardFrameBeforeType の doc)。以下のどの経路
             // (typeDriver 優先/通常/409フォールバック)で打っても、成功したら等しく次のロケータ
             // 操作へ引き継ぐ —— モードで挙動を変えない(読み返しの有無に依存しない)
@@ -1110,13 +1113,7 @@ extension StepExecutor {
                         pendingTypeKeyboardCheck = true
                         pendingTypeEndedWithNewline = text.hasSuffix("\n")
                     }
-                    if let failure = await newlineTypeMisdelivery(td, element: element, before: snapshot.elements,
-                                                                  valueBefore: existingValue,
-                                                                  text: text, phase: &phase) {
-                        return StepOutcome(status: .failed(failure))
-                    }
-                    if let failure = await maskedTypeShortfall(td, element: element, priorValue: existingValue,
-                                                               text: text, phase: &phase) {
+                    if let failure = await typedInputFailure(td, prior: typedPrior, text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
@@ -1148,12 +1145,7 @@ extension StepExecutor {
                     }
                 }
                 // 改行入りの宛先の照合は typeDriver 経路だけでなく主経路にも要る(xcuitest モード・MCP の ft_batch は typeDriver が無い)
-                if let failure = await newlineTypeMisdelivery(actingDriver, element: element, before: snapshot.elements,
-                                                              valueBefore: existingValue, text: text, phase: &phase) {
-                    return StepOutcome(status: .failed(failure))
-                }
-                if let failure = await maskedTypeShortfall(actingDriver, element: element, priorValue: existingValue,
-                                                           text: text, phase: &phase) {
+                if let failure = await typedInputFailure(actingDriver, prior: typedPrior, text: text, phase: &phase) {
                     return StepOutcome(status: .failed(failure))
                 }
             } catch {

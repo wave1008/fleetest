@@ -631,9 +631,10 @@ extension StepExecutor {
                     return StepOutcome(status: .failed(failure))
                 }
             }
-            if let failure = await maskedTypeShortfall(driver, element: recovered,
-                                                       priorValue: TypeReadback.normalizedValue(of: recovered),
-                                                       text: text, phase: &phase) {
+            let recoveredPrior = TypedInputCheck.Prior(
+                target: recovered, priorValue: TypeReadback.normalizedValue(of: recovered), replace: false,
+                treeBefore: [])
+            if let failure = await typedInputFailure(driver, prior: recoveredPrior, text: text, phase: &phase) {
                 return StepOutcome(status: .failed(failure))
             }
             // ロケータ有り type(case "type")と同じ判定(keyboardFrameBeforeType の doc)。
@@ -659,6 +660,8 @@ extension StepExecutor {
         if text.contains("\n"), typeDriver != nil, lastTapTarget != nil {
             focusNote = try await awaitFocusBeforeKeyInput("type", phase: &phase)
         }
+        // 事後の照合の「打つ前」: 前の数が要る形(iOS の非 ASCII)だけ打つ直前に木を1枚読む(`TypedInputCheck.Prior(focusedIn:)`)
+        let typedPrior = await focusedPriorForTyping(driver, text: text, phase: &phase)
         let start = clock.now
         if text.contains("\n"), let td = typeDriver {
             try await td.type(ref: nil, text: text)
@@ -666,8 +669,7 @@ extension StepExecutor {
             try await driver.type(ref: nil, text: text)
         }
         phase.actionMs += Self.ms(clock.now - start)
-        // ロケータ有りの type と同じ secure 欄の文字数の照合(焦点の欄を見る。打つ前の値は読んでいないので前の数は使わない)
-        if let failure = await maskedTypeShortfall(driver, element: nil, text: text, phase: &phase) {
+        if let failure = await typedInputFailure(driver, prior: typedPrior, text: text, phase: &phase) {
             return StepOutcome(status: .failed(failure))
         }
         // **改行(IME アクション)で焦点は次の欄へ移りうる** —— 叩いた欄を覚えたままだと、続くロケータなしの type が
