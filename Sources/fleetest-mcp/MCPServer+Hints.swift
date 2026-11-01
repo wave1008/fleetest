@@ -250,7 +250,13 @@ extension MCPServer {
     /// 画面に居た形。実測: 「scrolled to」と返り、動いたと読まれた)。回数が分からない(nil)ときは従来の文
     /// `hiddenUnderChrome` = プラットフォームが「その位置では hittable でない」と答えた(`hiddenUnderChromeWarning`)。
     /// 木に居るだけで描かれていないものを「画面にある」「スクロールした」と言わない
-    static func scrollToHeadline(_ selectorText: String, swipes: Int?, hiddenUnderChrome: Bool) -> String {
+    /// `underKeyboard` = 着いた要素の中心がソフトキーボードの下(`keyboardCoverageNote` が「beneath it」と言うのと同じ判定)。
+    /// 成功の見出しと注記が食い違うと「届いた」と読まれる(OI-115)。ここでは到達を言わず、キーボードの下だと言う
+    static func scrollToHeadline(_ selectorText: String, swipes: Int?, hiddenUnderChrome: Bool, underKeyboard: Bool) -> String {
+        if underKeyboard {
+            return "\"\(selectorText)\" is in the tree but under the soft keyboard — scrolling did not bring it clear of"
+                + " the keyboard, so a tap or type there would hit the keyboard (close it first: ft_hide_keyboard)"
+        }
         if hiddenUnderChrome {
             return "\"\(selectorText)\" is in the tree but the platform reports it is NOT hittable at its position"
                 + " — it is hidden under a bar or overlay (or not drawn), so it is not on screen in a tappable form"
@@ -1333,10 +1339,13 @@ extension MCPServer {
     }
 
     /// バッチの座標の手がキーボードの中を撃つときの警告(ft_tap / ft_double_tap / ft_drag の座標形と同じ判定・文言)。撃つ前に呼ぶ。無ければ空
-    func batchKeyboardCoordinateWarning(_ step: FlowStep, driver: AppDriver, args: [String: Any]) async -> String {
+    /// `actedEarlierInBatch`: 同じバッチの前の手(launch: を含む)がこの手の前にデバイスを動かした。バッチの手は `sessionActionCounts` を
+    /// 進めないので、それを見る `coordinateKeyboardTree` は前の type で出たキーボードを知らない木で黙る(OI-122)。その場合は生で読み直す
+    func batchKeyboardCoordinateWarning(_ step: FlowStep, driver: AppDriver, args: [String: Any],
+                                        actedEarlierInBatch: Bool) async -> String {
         let points = Self.batchCoordinatePoints(step)
         guard !points.isEmpty else { return "" }
-        let tree = await coordinateKeyboardTree(driver, args: args)
+        let tree = await coordinateKeyboardTree(driver, args: args, forceFresh: actedEarlierInBatch)
         return points.map { Self.keyboardCoordinateWarning(x: $0.0, y: $0.1, tree: tree) }.first { !$0.isEmpty } ?? ""
     }
 
@@ -1358,10 +1367,11 @@ extension MCPServer {
     /// キーボードの判定に使う木。直近の木の後にこのセッションが操作を撃っていたら、キーボードはその後で出入りしたかもしれない
     /// (ft_type の直後は木にキーボードが無く、座標の手が全部黙ってキーを押した)ので生で読み直す
     /// (生読み = lastSnapshots・世代を動かさない。読めなければ直近の木で言う)
-    func coordinateKeyboardTree(_ driver: AppDriver, args: [String: Any]) async -> SnapshotResponse? {
+    func coordinateKeyboardTree(_ driver: AppDriver, args: [String: Any], forceFresh: Bool = false) async -> SnapshotResponse? {
         let key = Self.sessionKey(args)
-        let actedSinceTree = (sessionActionCounts[key] ?? 0) > (refGenerations[key]?.last?.actionCount ?? 0)
-        guard actedSinceTree, lastSnapshots[key] != nil else { return lastSnapshots[key] }
+        let actedSinceTree = forceFresh
+            || (sessionActionCounts[key] ?? 0) > (refGenerations[key]?.last?.actionCount ?? 0)
+        guard actedSinceTree, forceFresh || lastSnapshots[key] != nil else { return lastSnapshots[key] }
         guard let fresh = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) else { return lastSnapshots[key] }
         // type はキーボードの表示を待たずに返る。出現待ちは ref の経路(verifiedRef)と同じ1箇所を通す
         return (try? await consumePendingTypeKeyboardCheck(fresh, driver: driver, args: args)) ?? fresh

@@ -104,10 +104,16 @@ public enum AndroidPhysicalDevice {
     /// 起こすのが run 開始時の1回だけだと、途中で1回消えた後の全シナリオが「アプリが前面に来ない」
     /// (launch の 500)で落ち、消灯に一言も触れなかった(Pixel 4a 実測: 1回の消灯で 22/24 赤)。
     /// 確認は1往復(端末側で grep。Pixel 4a / 3a で 0.07〜0.15 秒)なので、シナリオごと・MCP の呼び出しごとに払う
+    ///
+    /// `retriesAfterGivingUp: false`(MCP): 一度解除を待ち切れた端末(PIN・パターン)は、間隔が過ぎても二度と待たない。
+    /// MCP は対話の呼び出しごとに撃たれ、間隔ごとに 20 秒の空回りを払うと全ての道具が遅くなる(OI-80)。手で解除されれば
+    /// `screenAwakeAndUnlocked` が先に true を返すので待たずに進む。run は従来どおり間隔で再挑戦する
     @discardableResult
-    public static func wakeIfAsleep(serial: String, log: (String) -> Void = { _ in }) async -> Bool {
+    public static func wakeIfAsleep(serial: String, log: (String) -> Void = { _ in },
+                                    retriesAfterGivingUp: Bool = true) async -> Bool {
         guard screenAwakeAndUnlocked(serial: serial) == false else { return false }
-        if inUnlockCooldown(failedAt: unlockFailedAt.withLock({ $0[serial] }), now: Date()) {
+        let gaveUpAt = unlockFailedAt.withLock({ $0[serial] })
+        if inUnlockCooldown(failedAt: gaveUpAt, now: Date()) || (!retriesAfterGivingUp && gaveUpAt != nil) {
             log(lockedStillMessage(serial: serial))
             return false
         }

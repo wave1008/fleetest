@@ -763,7 +763,8 @@ extension MCPServer {
                     + "\n\nStopped at step \(index + 1) of \(plans.count) — later steps were not run.")
             }
             // キーボードの中の座標の手は撃つが警告する(断らない = キーを押す意図もありうる。撃つ前の木で見る)
-            let keyboardCoordinateWarning = await batchKeyboardCoordinateWarning(plan.step, driver: batchDriver, args: args)
+            let keyboardCoordinateWarning = await batchKeyboardCoordinateWarning(
+                plan.step, driver: batchDriver, args: args, actedEarlierInBatch: index > 0 || args["launch"] != nil)
             // ref なしの type / clearInput / pressEnter は焦点の欄へ撃つ。別のアプリが前面なら撃つ前に断る(ft_type / ft_clear_input と同じ門)
             if let refusal = await refusalForRefLessBatchStep(plan.step, driver: batchDriver, args: args) {
                 lines.append("\(index + 1). \(plan.summary) — REFUSED, nothing was sent: \(refusal)")
@@ -894,10 +895,10 @@ extension MCPServer {
             return !(await Self.backgroundedSessionNote(tree, driver: batchDriver)).isEmpty
         }
         // 全手を撃った後の読みが失敗した(落ちた・前面を離れた)。手の一覧は捨てない —— 捨てると撃ち直しを誘う(届いた手の二重実行)
-        func unreadableAfterBatch(_ error: Error) -> [[String: Any]] {
-            text(lines.joined(separator: "\n") + "\n\nAll \(plans.count) step(s) were sent, but reading the screen afterwards failed: "
-                + ((error as? LocalizedError)?.errorDescription ?? "\(error)")
-                + " — the app may have crashed or left the front. Do not re-send the steps; check ft_status / ft_logs.\n")
+        // **投げられた case は抱える**(MCPError / text に畳むと、接続断の案内と記憶の破棄が出ない = OI-95。executorFailure と同じ形)
+        func unreadableAfterBatch(_ error: Error) -> Error {
+            MCPAnnotatedError(underlying: error, suffix: "", fullMessage: Self.unreadableAfterBatchMessage(
+                stepLines: lines, stepCount: plans.count, error: error))
         }
         // **waitFor は「変化なし」の撮り直しの代わり**(snapshotAfter と同じ = 待つ理由が同じなので両方は二重に待つだけ)
         if let waitFor = args["waitFor"] as? String {
@@ -906,16 +907,20 @@ extension MCPServer {
             let waited: (found: Bool, snapshot: SnapshotResponse, partialSeenAfter: Double?, partialHint: String,
                          refetched: Bool, quietStopAfter: Double?)
             do {
-                first = try await freshSnapshot(batchDriver, args: args)
+                // 最後の手が type なら、キーボードが上がりきるのを払ってから読む(返す木にキーボードが無いと、
+                // 直後の座標の手・ref の手が「キーボードは無い」前提で撃たれる = OI-122)
+                first = try await consumePendingTypeKeyboardCheck(
+                    try await freshSnapshot(batchDriver, args: args), driver: batchDriver, args: args)
                 waited = try await Self.waitFor(waitFor, driver: batchDriver, first: first, seconds: seconds,
                                                 elementLimit: try pollElementLimit(args))
-            } catch { return unreadableAfterBatch(error) }
+            } catch { throw unreadableAfterBatch(error) }
             let final = waited.refetched ? adoptSnapshot(waited.snapshot, args: args) : waited.snapshot
             recordSnapshot(final, batchDriver is AndroidDriver ? "android" : "ios", args)
             flagUnchangedTap(now: final.elements)
             applyUnchangedTaps(final: final)
             let waitFlatNote = await flatScreenNoteIfNothingChanged(
-                driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty)
+                driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty,
+            launchedInBatch: args["launch"] != nil)
             let explainMiss = waited.found ? false : firstTime("waitMissExplained")
             let waitNote = waited.found
                 ? Self.waitForAppearedNote(waitFor, in: final,
@@ -937,7 +942,9 @@ extension MCPServer {
         let final: SnapshotResponse
         do {
             (unchangedNote, final) = try await Self.batchUnchangedNote(
-                beforeBatch: beforeBatch, final: try await freshSnapshot(batchDriver, args: args),
+                beforeBatch: beforeBatch,
+                final: try await consumePendingTypeKeyboardCheck(
+                    try await freshSnapshot(batchDriver, args: args), driver: batchDriver, args: args),
                 stepCount: plans.count, bridge: bridges[Self.sessionKey(args)],
                 probeSystemAlert: {
                     // 「居ない」と言い切る前に、遅れて出るアラート(tap が権限を求める典型)を settle-lite と同じ間隔で1回だけ読み直す
@@ -948,13 +955,14 @@ extension MCPServer {
                 }) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }
-        } catch { return unreadableAfterBatch(error) }
+        } catch { throw unreadableAfterBatch(error) }
         recordSnapshot(final, batchDriver is AndroidDriver ? "android" : "ios", args)
         flagUnchangedTap(now: final.elements)
         applyUnchangedTaps(final: final)
         // **全面黒の注記は「どの手でも」画面が変わらなかったときに出す**(tap の無変化だけでなく、全手成功なのに木がバッチ前と同じ)
         let displayOffNote = await flatScreenNoteIfNothingChanged(
-            driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty)
+            driver: batchDriver, beforeBatch: beforeBatch, final: final, tapsUnchanged: !unchangedTaps.isEmpty,
+            launchedInBatch: args["launch"] != nil)
         let leftFront = await appLeftFront(final)
         return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
                                                                    appLeftFront: leftFront)
@@ -965,10 +973,12 @@ extension MCPServer {
     /// ft_batch の全面黒の注記の出口(全手が成功した後の1箇所)。出す条件は tap の無変化(`tapsUnchanged`)か、
     /// 木がバッチ前と同じ(`looksUnchanged`)。**絵を撮るのは条件を満たすときだけ**(`displayOffNoteAfterUnchangedAction`)。
     /// 失敗で止まった手の後は呼ばない(止まった理由が先に出る)
+    /// `launchedInBatch`: launch: が起点の木を捨てる(`beforeBatch` が nil)ので「変わらなかった」を言えない。tap 以外の手でも
+    /// 全面黒を拾えるよう、起動した回は無変化の条件なしで絵を1枚見る(OI-122。警告だけ・一色の起動画面もありうる)
     func flatScreenNoteIfNothingChanged(driver: AppDriver, beforeBatch: SnapshotResponse?, final: SnapshotResponse,
-                                        tapsUnchanged: Bool) async -> String {
+                                        tapsUnchanged: Bool, launchedInBatch: Bool) async -> String {
         let treeUnchanged = beforeBatch.map { Self.looksUnchanged($0, final) } ?? false
-        guard tapsUnchanged || treeUnchanged else { return "" }
+        guard tapsUnchanged || treeUnchanged || launchedInBatch else { return "" }
         return await displayOffNoteAfterUnchangedAction(driver: driver, elementCount: final.elements.count) ?? ""
     }
 
@@ -1021,6 +1031,13 @@ extension MCPServer {
         return "\n   (the connection to the driver failed during this step: unless the error above says the connection was"
             + " refused — nothing listening, so the step was never sent — this step may already have been performed."
             + " Check the screen before repeating it; do not simply run the step again)"
+    }
+
+    /// 全手を撃った後の読みが失敗した回の文。手の一覧は捨てない(捨てると撃ち直しを誘う = 届いた手の二重実行)
+    static func unreadableAfterBatchMessage(stepLines: [String], stepCount: Int, error: Error) -> String {
+        stepLines.joined(separator: "\n") + "\n\nAll \(stepCount) step(s) were sent, but reading the screen afterwards failed: "
+            + ((error as? LocalizedError)?.errorDescription ?? "\(error)")
+            + " — the app may have crashed or left the front. Do not re-send the steps; check ft_status / ft_logs.\n"
     }
 
     /// 結論の行。ok でも何も起きていないかもしれない手(`suspects` = 手の番号)があれば「passed」と言わない
