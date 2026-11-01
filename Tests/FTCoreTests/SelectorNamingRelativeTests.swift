@@ -37,6 +37,20 @@ final class SelectorNamingRelativeTests: XCTestCase {
         }
     }
 
+    /// キーボードの部品(inputView 等)は錨にしない: 近くにあっても、無名の要素の相対セレクタの基準に採らない
+    func testKeyboardChromeIsNeverTheAnchor() {
+        var keyboard = element(1, type: "other", x: 0, y: 500, width: 400)
+        keyboard = ElementInfo(ref: 1, type: "other", identifier: "inputView", label: nil, value: nil,
+                               placeholder: nil, enabled: true, frame: keyboard.frame, depth: 1)
+        let snap = snapshot([
+            keyboard,
+            element(2, type: "switch", x: 300, y: 460, width: 50),
+            element(3, type: "switch", x: 300, y: 100, width: 50),
+        ])
+        let selector = SelectorNaming(snap).selector(for: snap.elements[1], in: snap)
+        XCTAssertFalse(selector?.contains("inputView") ?? false, selector ?? "nil")
+    }
+
     /// 基準にできる一意な要素が無ければ、これまでどおり書けない(nil)
     func testNoUniqueAnchorStillYieldsNil() {
         let snap = snapshot([
