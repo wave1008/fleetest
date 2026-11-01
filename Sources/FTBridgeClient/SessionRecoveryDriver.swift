@@ -34,6 +34,9 @@ public final class SessionRecoveryDriver: AppDriver {
     /// (判定できないことで正当な回復を赤にしない)。無指定(nil)= 判定しない(run 側は従来どおり)
     private let appIsRunning: (@Sendable (String) async -> Bool?)?
 
+    /// アプリのプロセスが居るか(iOS。nil = 判定できない)。前面に居ないときに「死んだ」と「別アプリが前面」を分ける
+    public func appProcessRunning(bundleID: String) async -> Bool? { await appIsRunning?(bundleID) }
+
     public init(base: AppDriver, readsConflictAsSessionLoss: Bool = true,
                 appIsRunning: (@Sendable (String) async -> Bool?)? = nil) {
         self.base = base

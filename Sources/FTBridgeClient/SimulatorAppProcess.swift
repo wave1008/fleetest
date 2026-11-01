@@ -33,7 +33,7 @@ public enum SimulatorAppProcess {
     static func asksAboutProcess(bundleID: String) -> Bool { bundleID != systemShellBundleID }
 
     /// SessionRecoveryDriver の `appIsRunning` に渡す口。Simulator は launchctl・実機は devicectl(`IOSPhysicalRunningApps.isRunning`。
-    /// 照会は 409 を受けた回復の経路でしか撃たれず、実測 0.6 秒前後 × 2 本)で聞く。どちらでもなければ nil = 判定しない。
+    /// 照会は 409 の回復と ft_status の前面が no の回だけ、実測 0.6 秒前後 × 2 本)で聞く。どちらでもなければ nil = 判定しない。
     /// 協調スレッドプールを塞がないよう Task.detached で包む
     public static func recoveryProbe(simulatorUDID: String?, physicalUDID: String? = nil)
         -> (@Sendable (String) async -> Bool?)? {

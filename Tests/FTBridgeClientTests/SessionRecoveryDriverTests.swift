@@ -260,6 +260,16 @@ final class SessionRecoveryDriverTests: XCTestCase {
         }
     }
 
+    /// ft_status が「死んだ」と「別アプリが前面」を分ける材料。口が無ければ判定しない(nil)
+    func testAppProcessRunningAnswersThroughTheProbe() async {
+        let gone = SessionRecoveryDriver(base: FakeAppDriver(), appIsRunning: { _ in false })
+        let unknown = SessionRecoveryDriver(base: FakeAppDriver())
+        let goneAnswer = await gone.appProcessRunning(bundleID: "com.example.app")
+        let unknownAnswer = await unknown.appProcessRunning(bundleID: "com.example.app")
+        XCTAssertEqual(goneAnswer, false)
+        XCTAssertNil(unknownAnswer)
+    }
+
     /// pressEnter は ref を使わない(フォーカス中要素へ作用する)ので tap(x:y:) と同じ扱い:
     /// 409 → activate → 1回だけ再試行する
     func testPressEnterRecoversAfterSingle409() async throws {

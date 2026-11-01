@@ -73,6 +73,10 @@ extension MCPServer {
             // iOS は前面のアプリ名を答えない = 真偽だけ聞く(Android は名前で足りる)
             if facts.front.value == nil {
                 facts.sessionInForeground = await ForegroundState.inForegroundProbe(foregroundDriver, bundleID: session)
+                if facts.sessionInForeground.value == false,
+                   let running = await (foregroundDriver as? SessionRecoveryDriver)?.appProcessRunning(bundleID: session) {
+                    facts.processRunning = .value(running)
+                }
             }
         }
         let foreground = Self.statusForegroundText(ForegroundState.judge(facts), launched: launched,

@@ -1,0 +1,45 @@
+{
+  "id": "c-F8",
+  "finding": "iOS でアプリが死んだ後の ft_status が「別アプリかホーム」と言う(死んだと別アプリの前面を区別しない)",
+  "platform": "ios",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.ios"
+      }
+    ]
+  ],
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "死んだ後の ft_status",
+      "steps": [
+        [
+          "$killApp",
+          {
+            "bundleId": "com.ftester.e2e.ios",
+            "seconds": 3
+          }
+        ],
+        [
+          "ft_status",
+          {}
+        ]
+      ],
+      "replyOnly": true,
+      "replyExpect": [
+        "has no process any more"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}
