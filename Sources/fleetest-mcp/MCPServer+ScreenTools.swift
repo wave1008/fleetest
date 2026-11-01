@@ -162,6 +162,14 @@ extension MCPServer {
         throw MCPError("ref or x/y is required")
     }
 
+    /// タブ文字は欄によって空白に置き換わる・次の欄へ焦点が移るので、Typed と言っても入力どおりとは限らない。
+    /// 読み返しは空白と区別できない場合があるため、撃つ前に事実だけ言う(断らない)
+    static func tabCharacterNote(_ text: String?) -> String? {
+        guard let text, text.contains("\t") else { return nil }
+        return " (note: the text contains a tab character — a text field may turn it into a space or move focus"
+            + " to the next field instead of inserting it; check the field's value with ft_snapshot)"
+    }
+
     func ftType(_ args: [String: Any]) async throws -> [[String: Any]] {
         // **Enter は別ツールにしない**が、**入力を伴わない pressEnter も要る**:
         // iOS はソフトキーボードを閉じる手段が pressEnter しかない(hideKeyboard は Android 専用。
@@ -174,7 +182,7 @@ extension MCPServer {
         }
         let typeDriver = try await driver(args)
         var targetRef = try Self.intArgument(args, "ref")
-        var note = ""
+        var note = Self.tabCharacterNote(content) ?? ""
         // **type は追記**(docs/commands.md)。既に入っている欄へ撃つと連結された文字列になり、
         // 戻り値が `Typed: "東京タワー"` だけだと気づけない —— 検索欄なら検索自体は成立するので
         // **沈黙した誤りになる**(Google マップで `レストラン東京タワー` を実測)。
@@ -563,6 +571,15 @@ extension MCPServer {
             + " should show content, wake or unlock the device and re-check with ft_snapshot."
     }
 
+    /// ロック画面の木 + 全面一色の絵。ロック画面は画面の保護で絵が真っ黒になりうる(木は読める)ので、
+    /// 木に要素が無くても言う。一色でなければ nil(ロック画面が普通に映る端末では言わない)
+    static func lockedBlankScreenshotNote(snapshot: SnapshotResponse, isBlank: Bool) -> String? {
+        guard isBlank, isLockScreenOrAlwaysOnTree(snapshot) else { return nil }
+        return "note: the device is on the lock screen (or the always-on display) and this image is a single flat"
+            + " colour — the lock screen can hide its content from screenshots, so a black image does not mean the"
+            + " app is blank. Unlock the device and take the screenshot again."
+    }
+
     /// **操作の後で画面が変わらなかったときだけ**絵を1枚撮り、全面一色なら注記を返す(操作のたびに撮らない。
     /// 実機は白紙・文字消えの検出が効かないので、ここで拾えるのは「撃っても変わらず、絵も一色」の組だけ)。撮れなければ nil
     func displayOffNoteAfterUnchangedAction(driver: AppDriver, elementCount: Int) async -> String? {
@@ -595,7 +612,10 @@ extension MCPServer {
             }
             // 画面が一色のままなのに木には要素がある = 表示が落ちている(スリープ明けの全面黒等)可能性。
             // 木は読めるので ft_tap 等は「done」と言うが、入力が届いていないことがある。警告だけ(一色の動画・起動画面もありうる)
-            if BlankFrameDetector.isUniformBlank(pngData: png), !after.elements.isEmpty {
+            let isBlank = BlankFrameDetector.isUniformBlank(pngData: png)
+            if let lockNote = Self.lockedBlankScreenshotNote(snapshot: after, isBlank: isBlank) {
+                staleNote += [["type": "text", "text": lockNote]]
+            } else if isBlank, !after.elements.isEmpty {
                 staleNote += [["type": "text", "text": Self.flatScreenshotNote(elementCount: after.elements.count)]]
             }
             lastScreenshots[key] = record

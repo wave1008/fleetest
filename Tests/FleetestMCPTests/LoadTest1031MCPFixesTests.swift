@@ -29,6 +29,21 @@ final class LoadTest1031MCPFixesTests: XCTestCase {
             tree(["quick_settings_container", "keyguard_message_area_container"])))
     }
 
+    /// ロック中の ft_screenshot が一色の絵を注記なしで返していた(OI-85): ロック画面の木 + 一色のときだけ言う
+    func testLockedBlankScreenshotIsNotedOnlyWhenBlankOnTheLockScreen() {
+        let locked = tree(["quick_settings_container", "keyguard_pin_view", "key1"])
+        let note = MCPServer.lockedBlankScreenshotNote(snapshot: locked, isBlank: true)
+        XCTAssertTrue(note?.contains("lock screen") == true, note ?? "nil")
+        XCTAssertNil(MCPServer.lockedBlankScreenshotNote(snapshot: locked, isBlank: false))
+        XCTAssertNil(MCPServer.lockedBlankScreenshotNote(snapshot: tree(["btn"], bundle: "com.example"), isBlank: true))
+    }
+
+    func testTabCharacterNoteOnlyWhenTheTextHasATab() {
+        XCTAssertTrue(MCPServer.tabCharacterNote("a\tb")?.contains("tab character") == true)
+        XCTAssertNil(MCPServer.tabCharacterNote("a b"))
+        XCTAssertNil(MCPServer.tabCharacterNote(nil))
+    }
+
     /// 解除画面の本体が無いロック画面はシェードと木で分けられない。back が効かない場合の出口を言う
     func testShadeNoteNamesTheWayOutOfALockScreenItCannotTellApart() {
         let note = MCPServer.switchedAppNote(launched: "com.ftester.e2e", snapshot: tree(["quick_settings_container"]))
