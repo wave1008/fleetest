@@ -13,33 +13,33 @@ final class TypedInputVerdictTests: XCTestCase {
 
     /// 値が既にある secure 欄へ非 ASCII だけを打って数が動かない(受けなかった文字が ok になっていた)
     func testNonASCIIIntoAFieldThatAlreadyHoldsMasksFailsWhenTheCountDidNotMove() {
-        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", afterValue: "•••", text: "かな"))
-        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "••••", afterValue: "••••", text: "あい"))
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "•••", text: "かな"))
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "••••", priorFocused: false, afterValue: "••••", text: "あい"))
     }
 
     /// 混在(ASCII だけ受けた): 追記なら前 + 1 で本文の分に足りない
     func testPartialAppendFails() {
-        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "••••", afterValue: "•••••", text: "xあ"))
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: "••••", priorFocused: false, afterValue: "•••••", text: "xあ"))
     }
 
     /// 置き換わった(本文の文字数ちょうど)・追記された(前 + 本文)はどちらも通す = 焦点を取り戻すと置き換わる欄を赤にしない
     func testReplacedOrAppendedPasses() {
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", afterValue: "••", text: "かな"))
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", afterValue: "•••••", text: "かな"))
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", afterValue: "•••••••", text: "かな"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "••", text: "かな"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "•••••", text: "かな"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "•••••••", text: "かな"))
         // ASCII だけの本文は前の数を使わない(置き換わって前より減る)
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", afterValue: "••", text: "de"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: "•••", priorFocused: false, afterValue: "••", text: "de"))
     }
 
     func testPriorValueUnknownKeepsTheOldRule() {
-        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: nil, afterValue: "", text: "かな"))
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, afterValue: "", text: "abc"))
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, afterValue: "•••", text: "かな"))
+        XCTAssertNotNil(TypedInputVerdict.maskedShortfall(priorValue: nil, priorFocused: false, afterValue: "", text: "かな"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, priorFocused: false, afterValue: "", text: "abc"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, priorFocused: false, afterValue: "•••", text: "かな"))
     }
 
     /// 末尾改行・改行入りは見ない(送信が走りうる)
     func testNewlineTextIsNotJudged() {
-        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, afterValue: "", text: "あ\n"))
+        XCTAssertNil(TypedInputVerdict.maskedShortfall(priorValue: nil, priorFocused: false, afterValue: "", text: "あ\n"))
     }
 
     // MARK: 門と対象の欄

@@ -82,4 +82,33 @@ final class AndroidBackGestureEdgesTests: XCTestCase {
         XCTAssertEqual(widths?.left, 78)
         XCTAssertEqual(widths?.right, 78)
     }
+
+    /// Android 12・13 の実機(Pixel 4a・3a)の実測: 有効の欄の名前が mIsGesturalModeEnabled。下端は mBottomGestureHeight
+    func testParsesTheAndroid13DeviceFieldName() {
+        let snippet = """
+              EdgeBackGestureHandler:
+                mIsEnabled=true
+                mIsGesturalModeEnabled=true
+                mEdgeWidthLeft=82
+                mEdgeWidthRight=82
+                mBottomGestureHeight=88.0
+              mLastReportedConfig=
+            """
+        let widths = AndroidBackGestureEdges.parse(snippet)
+        XCTAssertEqual(widths?.left, 82)
+        XCTAssertEqual(widths?.right, 82)
+        XCTAssertEqual(widths?.bottom, 88)
+    }
+
+    func testAndroid13ThreeButtonNavigationReturnsZeroes() {
+        let snippet = """
+              EdgeBackGestureHandler:
+                mIsGesturalModeEnabled=false
+                mEdgeWidthLeft=82
+                mEdgeWidthRight=82
+            """
+        let widths = AndroidBackGestureEdges.parse(snippet)
+        XCTAssertEqual(widths?.left, 0)
+        XCTAssertEqual(widths?.bottom, 0)
+    }
 }

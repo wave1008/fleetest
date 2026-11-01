@@ -44,19 +44,22 @@ public enum TypedInputVerdict {
     /// `priorValue` = **打つ前の欄の値**(分かるときだけ。伏せ字の数だけを使う)。
     /// - 欄が空のまま: 本文に非 ASCII を含むとき赤(ASCII だけなら読めない値として通す)
     /// - 全部伏せ字で数が足りない: 本文の文字数に届かなければ赤(焦点を取り戻した欄は置き換わるので前の数は足さない)
-    /// - **打つ前に伏せ字があり本文に非 ASCII を含む**: 置き換わったなら数は本文の文字数ちょうど・追記なら前 + 本文以上。
-    ///   どちらでもなければ(前の数のまま・一部だけ増えた)非 ASCII が落ちている。前の数と本文の文字数が偶然同じで
-    ///   動いていない形は区別できないので通す
-    public static func maskedShortfall(priorValue: String?, afterValue value: String, text: String) -> String? {
+    /// - **打つ前に伏せ字があり本文に非 ASCII を含む**: 置き換わったなら数は本文の長さちょうど・追記なら前 + 本文以上。
+    ///   どちらでもなければ(前の数のまま・一部だけ増えた)非 ASCII が落ちている。前の数と本文の長さが偶然同じで
+    ///   動いていない形は区別できないので通す。**打つ前に焦点が有った(`priorFocused`)なら追記しか起きない**ので
+    ///   置き換えの数(本文の長さちょうど)は通さない(前 + 本文の ASCII だけが入った数と一致しうる = 誤った緑)
+    /// - **本文の長さは UTF-16 の単位**(iOS の伏せ字は UTF-16 の単位ごとに1つ。`String.count` だと絵文字が 1 になり誤った赤)
+    public static func maskedShortfall(priorValue: String?, priorFocused: Bool, afterValue value: String, text: String) -> String? {
         guard !text.isEmpty, !text.contains("\n") else { return nil }
-        let full = text.count
+        let full = text.utf16.count
         let prior = priorValue.map { looksMasked($0) ? $0.count : 0 } ?? 0
         if value.isEmpty {
             guard !text.allSatisfy(\.isASCII) else { return nil }
         } else {
             guard looksMasked(value) else { return nil }
             if prior > 0, !text.allSatisfy(\.isASCII) {
-                guard value.count != full, value.count < prior + full else { return nil }
+                let replacedWhole = !priorFocused && value.count == full
+                guard !replacedWhole, value.count < prior + full else { return nil }
                 return "type reported success but the masked field holds \(value.count) character(s) after \(full) were typed"
                     + " into a field that held \(prior) — the field did not accept some of the typed characters"
                     + " (a secure field may reject characters such as non-ASCII text)"
