@@ -17,7 +17,7 @@ struct RunFileCommand: AsyncParsableCommand {
         abstract: "Run an unregistered .swift scenario as-is (profiles are borrowed from an existing project)")
 
     /// ステージ先。scenarios/ 直下のサブフォルダは SPM ターゲットに含まれる(_disabled のみ除外)
-    static let stageDirName = "_runfile"
+    static let stageDirName = StagedScenarioSweep.dirName
 
     @Argument(help: "Scenario .swift file (pass several and they are compiled together as helpers)")
     var files: [String]
@@ -43,6 +43,10 @@ struct RunFileCommand: AsyncParsableCommand {
     @Option(name: .customLong("port"), help: "Bridge port for running iOS scenarios in parallel. Repeatable (--port 8123 --port 8124)")
     var ports: [UInt16] = []
 
+    @Option(name: .customLong("wait-lock"),
+            help: "Instead of failing fast when another run holds this Mac, wait for it up to this many seconds (relayed to `run --wait-lock`)")
+    var waitLock: Int?
+
     /// --profile 無しで回すときのアプリの指定
     /// (--profile があればアプリプロファイルから解決されるので不要)
     @Option(name: .customLong("app-id"),
@@ -59,6 +63,7 @@ struct RunFileCommand: AsyncParsableCommand {
 
     func validate() throws {
         try ports.forEach { try DriverOptions.rejectZeroPort($0) }  // 判定は DriverOptions の1箇所
+        try RunCommonOptions.rejectNegativeWaitLock(waitLock)
     }
 
     func run() async throws {
@@ -110,6 +115,7 @@ struct RunFileCommand: AsyncParsableCommand {
         if let reportDir { arguments += ["--report-dir", reportDir] }
         for port in ports { arguments += ["--port", String(port)] }
         if let appID { arguments += ["--app-id", appID] }
+        if let waitLock { arguments += ["--wait-lock", String(waitLock)] }
         if let platform { arguments += ["--platform", platform] }
         if let serial { arguments += ["--serial", serial] }
         // RunScenarios.parse(arguments) は `run`(RunScenarios)自身の Usage を焼き込んだ形で
@@ -148,9 +154,14 @@ struct RunFileCommand: AsyncParsableCommand {
 
     @discardableResult
     static func stage(_ urls: [URL], into project: TestProject) throws -> URL {
-        let dir = project.scenariosDir.appendingPathComponent(stageDirName)
-        try? FileManager.default.removeItem(at: dir)  // 前回の残骸を掃除してから作る
+        let dir = StagedScenarioSweep.stageDirectory(scenariosDir: project.scenariosDir)
+        // 持ち主が死んだ残骸だけ消す。生きている別の run-file の置き場は壊さず断る
+        StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
+        if FileManager.default.fileExists(atPath: dir.path) {
+            throw ValidationError("another run-file is staging into \(project.name) right now; wait for it to finish")
+        }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try StagedScenarioSweep.claim(stageDir: dir)
         for url in urls {
             let destination = dir.appendingPathComponent(url.lastPathComponent)
             guard !FileManager.default.fileExists(atPath: destination.path) else {

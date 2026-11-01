@@ -79,6 +79,17 @@ public enum BridgeIdentityCheck {
             + " — expected \(expectedID). \(remedy)"
     }
 
+    /// **XCUITest ブリッジを駆る経路の主ポートに in-app ブリッジが居たときの断り**(事実だけ。居なければ nil)。
+    /// udid が一致すると `verdict` は ok を返すので、in-app のポートを `--port` に渡した xcuitest モードの
+    /// launchApp が自分のアプリを注入なしで起こし直し、in-app ブリッジを失ったうえ「ランナーが止まった」と帰属された。
+    /// 呼び手は**撃つ前**(接続確認の段)で呼ぶ
+    public static func inAppBridgeOnXCUITestLane(port: UInt16, status: StatusResponse) -> String? {
+        guard status.bridge == "inapp" else { return nil }
+        return "port \(port) serves the in-app bridge, but this run drives the app through the XCUITest bridge"
+            + " (nothing was sent to the app). Pass the XCUITest bridge's port, or run the profile"
+            + " (inapp-boost mode drives both bridges)"
+    }
+
     /// **detail が要らない呼び手用**(文言を作らないので `remedy` も要らない。判定は `verdict` の1箇所)
     public static func matches(expected: Expected, status: StatusResponse) -> Bool {
         if case .mismatch = verdict(expected: expected, status: status, remedy: "") { return false }

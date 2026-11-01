@@ -153,6 +153,28 @@ final class RenderCollapseTests: XCTestCase {
         XCTAssertNil(again, "義務は1回の確かめで下りる")
     }
 
+    /// 木から読んだだけの検証(select・掴んだ値で済ませた textIs)も義務に数え、確認が1度も無い回は「いつから」を言い分ける
+    func testTreeReadChecksCountAndTheMessageNamesTheScenarioStart() async throws {
+        let (executor, _) = executor(screenshots: [Self.png(shapes: [button])])
+        let select = FlowStep(action: "select", locator: FlowLocator(id: "btn"))
+        executor.noteTreeReadCheck("select", step: select, status: .passed, afterExecution: true)
+        executor.noteTreeReadCheck("textEquals", step: FlowStep(assert: "textEquals", locator: FlowLocator(id: "btn")),
+                                   status: .passed, afterExecution: false)
+        let verdict = await executor.renderCollapseVerdict()
+        let message = try XCTUnwrap(verdict)
+        XCTAssertTrue(message.contains("2 check(s) since the start of the scenario"), message)
+        XCTAssertTrue(message.contains("select"), message)
+        XCTAssertTrue(message.contains("textEquals"), message)
+    }
+
+    /// 掴んだ値で済ませた回は前のステップの `pixelsShowedTextThisStep` を引き継がない(画素は見ていない)
+    func testHeldValueCheckIgnoresStalePixelFlag() async {
+        let (executor, _) = executor(screenshots: [Self.png(shapes: [button])])
+        executor.pixelsShowedTextThisStep = true
+        executor.noteTreeReadCheck("textEquals", step: FlowStep(assert: "textEquals"), status: .passed, afterExecution: false)
+        XCTAssertEqual(executor.assertionsWithoutPixelProof.count, 1)
+    }
+
     func testHealthyScreenIsNotReported() async {
         let (executor, _) = executor(screenshots: [Self.png(shapes: [button], inked: texts)])
         _ = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "btn")))

@@ -59,6 +59,7 @@ extension StepExecutor {
         guard tracksRenderCollapse, Self.isSuccess(status) else { return }
         if pixelsShowedTextThisStep {
             assertionsWithoutPixelProof.removeAll()
+            drawingConfirmedThisScenario = true
             // 描けていると分かったので前の公表を消す。義務が無いと区切りの確かめは走らない = ここで消さないと印が鮮度切れまで残る
             if !screenStateConfirmedDrawn {
                 screenStateConfirmedDrawn = true
@@ -67,6 +68,18 @@ extension StepExecutor {
             return
         }
         assertionsWithoutPixelProof.append(step.locator == nil ? assert : "\(assert) \(step.locatorSummary)")
+    }
+
+    /// **木から読んだだけの検証**(`select` と、掴んだ値で済ませた `textIs` 等)も、画素で文字を確かめていなければ義務に数える。
+    /// `afterExecution`: executor を通った直後(`pixelsShowedTextThisStep` がそのステップのもの)なら true。
+    /// 掴んだ値で済ませた回は executor を通らず、前のステップの値が残っているので false(画素は見ていない)
+    public func noteTreeReadCheck(_ check: String, step: FlowStep, status: StepResult.Status, afterExecution: Bool) {
+        if afterExecution {
+            noteAssertionForRenderCollapse(check, step: step, status: status)
+            return
+        }
+        guard tracksRenderCollapse, Self.isSuccess(status) else { return }
+        assertionsWithoutPixelProof.append(step.locator == nil ? check : "\(check) \(step.locatorSummary)")
     }
 
     /// 区切りで1回撮って描画崩壊を確かめる。崩壊していれば失敗文、それ以外(義務が無い・崩壊していない・撮れない)は nil。
@@ -88,7 +101,8 @@ extension StepExecutor {
             return nil
         }
         renderCollapseNotes = reflectScreenState(finding, clearsWhenHealthy: true).map { [$0] } ?? []
-        let message = Self.renderCollapseMessage(finding, unverified: pending)
+        let message = Self.renderCollapseMessage(finding, unverified: pending,
+                                                 confirmedBefore: drawingConfirmedThisScenario)
         guard renderCollapseCheckEnabled else {
             renderCollapseWarning = renderCollapseNotes.isEmpty ? nil : message
             return nil
@@ -108,7 +122,8 @@ extension StepExecutor {
     }
 
     /// 失敗文(事実だけ。原因は書かない = ツールには測れない)
-    static func renderCollapseMessage(_ finding: RenderCollapse.Finding, unverified: [String]) -> String {
+    static func renderCollapseMessage(_ finding: RenderCollapse.Finding, unverified: [String],
+                                      confirmedBefore: Bool) -> String {
         let seen: String
         switch finding {
         case .blankAppArea(let count):
@@ -123,7 +138,7 @@ extension StepExecutor {
         }
         let names = unverified.prefix(3).joined(separator: ", ") + (unverified.count > 3 ? ", …" : "")
         return "the screen is not rendered: \(seen), on two screenshots \(FTSeconds.format(renderCollapseRetakeSeconds))s"
-            + " apart. \(unverified.count) check(s) since the last confirmed drawing passed without looking at the"
+            + " apart. \(unverified.count) check(s) since \(confirmedBefore ? "the last confirmed drawing" : "the start of the scenario") passed without looking at the"
             + " screen (\(names)), so their results cannot be trusted"
     }
 

@@ -135,8 +135,30 @@ public enum SimulatorCrashReport {
                 .flatMap { summarize(headerLine: $0.header, payload: $0.payload) }
                 ?? summarizeTextFormat(content)
             guard let summary, summary.bundleID == bundleID else { continue }
+            // **ファイルの mtime は証拠にならない**: 同じアプリの .ips が macOS の保持上限に達すると、
+            // 以後のクラッシュは新しいファイルを作らず最古の1件の mtime だけを進める。中身が書く
+            // 時刻(captureTime)で窓に入るかを確かめ、古い別プロセスの報告を指さない。
+            // 時刻を読めない形(旧テキスト形式・タイムゾーン無し)は mtime のまま
+            if let captured = reportTime(inReport: content), captured < cutoff { continue }
             if let udid, deviceUDID(inReport: content) != udid.uppercased() { continue }
             return (url.path, summary.reason)
+        }
+        return nil
+    }
+
+    /// レポートが書く発生時刻(ペイロードの `captureTime`、無ければヘッダの `timestamp`)。
+    /// 「2026-11-01 13:10:17.4421 +0900」の形でタイムゾーンを持つものだけ読む。読めなければ nil
+    public static func reportTime(inReport content: String) -> Date? {
+        for key in ["captureTime", "timestamp"] {
+            let pattern = "\"\(key)\"\\s*:\\s*\"(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})(?:\\.\\d+)? ([+-]\\d{4})\""
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: content, range: NSRange(content.startIndex..., in: content)),
+                  let local = Range(match.range(at: 1), in: content),
+                  let zone = Range(match.range(at: 2), in: content) else { continue }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+            if let date = formatter.date(from: "\(content[local]) \(content[zone])") { return date }
         }
         return nil
     }

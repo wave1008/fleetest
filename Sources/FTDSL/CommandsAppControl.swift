@@ -746,6 +746,19 @@ private func rejectsOutOfRangeSeconds(_ core: FTDriveCore, _ values: KeyValuePai
     return true
 }
 
+/// canSelect が画面を読めなかったときに失敗として記録する(true = 記録した)。
+/// 失敗の素性は読みが投げたエラーの型から(`SnapshotReadFailure.kind`)
+private func recordUnread(_ core: FTDriveCore, _ outcome: FTDriveCore.CanSelectOutcome, command: String,
+                          selector: FTSelector, file: StaticString, line: UInt) -> Bool {
+    guard let unread = outcome.unread else { return false }
+    let description = "\(command) \"\(selector.text)\""
+    let reason = "could not read the screen to evaluate the condition: \(unread.reason)"
+    core.recordStep(description: description, status: .failed(reason),
+                    file: "\(file)", line: Int(line), command: command, failureKind: unread.kind)
+    core.handleFailure(stepDescription: description, reason: reason)
+    return true
+}
+
 @discardableResult
 private func ifCanSelectImpl(_ selector: FTSelector, waitSeconds: Double,
                              file: StaticString, line: UInt,
@@ -765,6 +778,10 @@ private func ifCanSelectImpl(_ selector: FTSelector, waitSeconds: Double,
         return FTBranch(taken: false)
     }
     let outcome = core.canSelect(selector, waitSeconds: waitSeconds)
+    // 画面を読めなかったのは「不成立」ではない(クラッシュ・接続断・固まりの後に分岐が黙って飛んで緑になる)
+    if recordUnread(core, outcome, command: "ifCanSelect", selector: selector, file: file, line: line) {
+        return FTBranch(taken: false)
+    }
     let found = outcome.found
     // 不成立は **skipped** で記録する(passed にすると「セレクタが腐って毎回飛んでいる」状態が
     // 緑のまま見えなくなる)。run 終了時のサマリにも不成立を残す
@@ -932,6 +949,9 @@ private func repeatWhileCanSelectImpl(_ selector: FTSelector, maxLoopCount: Int,
     var dismissedInterruption: FTDriveCore.CanSelectOutcome = .init(found: false, dismissed: nil)
     while iterations < maxLoopCount {
         let outcome = core.canSelect(selector, waitSeconds: waitSeconds)
+        if recordUnread(core, outcome, command: "repeatWhileCanSelect", selector: selector, file: file, line: line) {
+            return
+        }
         // 閉じた事実は**最後に閉じた周回のもの**を残す(周回ごとに記録を増やさない)
         if outcome.dismissed != nil { dismissedInterruption = outcome }
         guard outcome.found else { break }

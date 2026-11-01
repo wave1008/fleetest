@@ -12,6 +12,18 @@ final class BridgeIdentityCheckTests: XCTestCase {
                       bridge: bridge, udid: udid)
     }
 
+    /// udid が一致するので `verdict` は ok を返す形(in-app のポートを xcuitest の経路へ渡した)。撃つ前に断る
+    func testInAppBridgeOnXCUITestLaneIsRefusedEvenWhenUDIDMatches() {
+        let expected = BridgeIdentityCheck.Expected(port: 8131, udid: "SIM-1", physical: false, bridge: "xcuitest")
+        let inApp = status(bridge: "inapp", udid: "SIM-1")
+        XCTAssertEqual(BridgeIdentityCheck.verdict(expected: expected, status: inApp, remedy: "R"), .ok)
+        let refusal = BridgeIdentityCheck.inAppBridgeOnXCUITestLane(port: 8131, status: inApp)
+        XCTAssertNotNil(refusal)
+        XCTAssertTrue(refusal?.contains("in-app bridge") == true)
+        XCTAssertNil(BridgeIdentityCheck.inAppBridgeOnXCUITestLane(port: 8132, status: status(bridge: "xcuitest", udid: "SIM-1")))
+        XCTAssertNil(BridgeIdentityCheck.inAppBridgeOnXCUITestLane(port: 8132, status: status(bridge: nil, udid: "SIM-1")))
+    }
+
     func testMatchingUDIDIsOK() {
         let expected = BridgeIdentityCheck.Expected(port: 8138, udid: "SIM-1", physical: false, bridge: "xcuitest")
         XCTAssertEqual(BridgeIdentityCheck.verdict(expected: expected, status: status(udid: "SIM-1"), remedy: "REMEDY"), .ok)
