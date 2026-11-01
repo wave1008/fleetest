@@ -786,5 +786,6 @@ extension MCPServer {
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],
                                       screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0),
                                       isAndroid: isAndroid)
+            + (TapTargetGeometry.pinnedBandNote(for: element, in: snapshot?.elements ?? [], operation: "touch") ?? "")
     }
 }

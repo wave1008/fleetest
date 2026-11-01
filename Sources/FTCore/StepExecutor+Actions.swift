@@ -731,10 +731,12 @@ extension StepExecutor {
 
         // **要素を指で触る操作(長押し・doubleTap・要素から要素へのドラッグ・holdStart)の撃つ前の入口**。
         // 押すだけの tap は下の自前の経路で同じ部品を通る(判定の置き場は PreFireGuard / reachBeforeTouch)
-        if Self.reachesTargetBeforeTouch(action: action, step: step) {
+        let entrance = Self.entrancePlan(action: action, step: step, element: element, screen: snapshot.screen)
+        if entrance != .skip {
             switch try await reachBeforeTouch(
                 element, in: snapshot, step: step, action: action,
-                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary,
+                liftsTarget: entrance == .full, phase: &phase) {
             case .refused(let message, let kind):
                 return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
             case .proceed(let reached, let after, let note):
@@ -855,6 +857,10 @@ extension StepExecutor {
                     driverFallback = Self.joinNotes(driverFallback, "fell back to XCUITest")
                 }
                 break
+            }
+            // **覆われていて送る先も無いなら撃たない**(判定は coverWithoutWayOut。人が操作できないときはエラー)
+            if let over = Self.coverWithoutWayOut(element, in: snapshot, step: step) {
+                return StepOutcome(status: .failed(Self.coverWithoutWayOutMessage(step, over: over)))
             }
             // **縁の帯に潜っているだけなら、撃つ前に1回だけ送って外す**。
             // 判定と手順は liftCoveredTarget の1箇所。type も同じものを通る
@@ -1248,7 +1254,8 @@ extension StepExecutor {
                     duplicateRegionAdvisory(element, in: snapshot))
                 : (["pinchOut", "pinchIn", "gesture"].contains(action)
                     ? KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                                screen: snapshot.screen).advisory(for: element)
+                                                screen: snapshot.screen)
+                        .advisory(for: element, operation: StepAction.touchNoun(for: action))
                     : nil)
             let outcome = try await performGesture(action, step: step, target: element.frame,
                                                    identifier: element.identifier,
@@ -1284,6 +1291,10 @@ extension StepExecutor {
                         + Self.truncationHint(snapshot)
                         + Self.keyboardResizedHint(snapshot)))
             }
+            // 終点がキーボードの下なら指はキーボードの上で離れる(始点は入口が閉じて撃つ)。撃つ点が決まっているので注記のみ
+            driverFallback = Self.joinNotes(driverFallback,
+                KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
+                    .advisory(for: endElement, operation: "drag end"))
             let swipeDuration = step.duration ?? tunables.defaultSwipeDuration
             let startY: Double
             if let band = await driver.backGestureEdgeWidths(), band.bottom > 0 {

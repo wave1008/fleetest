@@ -1387,6 +1387,8 @@ extension MCPServer {
                                         overlayWindows: overlayWindows)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,
                                         isAndroid: Self.platformName(args) == "android")
+                // 貼り付く見出しの下(DSL は送って外す。判定は TapTargetGeometry.pinnedBandNote)
+                + (TapTargetGeometry.pinnedBandNote(for: found, in: fresh.elements, operation: "touch") ?? "")
                 + (await Self.hiddenUnderChromeWarning(found, nativeRef: nativeRef(found.ref, args: args),
                                                        in: fresh, driver: driver))
                 // SpringBoard に attach している間は「面がアプリを覆っている」系の注記を出さない

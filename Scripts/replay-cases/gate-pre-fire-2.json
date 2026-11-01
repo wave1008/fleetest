@@ -1,0 +1,45 @@
+{
+  "id": "gate-pre-fire-2",
+  "finding": "swipeBy・pinchOut・pinchIn・gesture が撃つ前の入口を通らず、キーボードの下の対象でも ok のままキーを押した(emu F1 / se3 F1 / pixel F2)",
+  "platform": "android",
+  "redNote": "統合時に確認(デバイスを使わない担当。直しを外した版で赤になることを確かめる)。形の作り方は gate-pre-fire と同じ(wm size 1080x2000。途中で止まったら wm size reset で手で戻す)。swipeBy の ime=0 は gate-pre-fire の長押しの形と同じ観測を前提にした推測",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]
+  ],
+  "reset": [
+    ["$adb", {"args": ["shell", "am", "force-stop", "com.ftester.e2e"], "seconds": 0.2}],
+    ["$adb", {"args": ["shell", "wm", "size", "1080x2000"], "seconds": 1}],
+    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}],
+    ["ft_batch", {"steps": "tap '#nav_input'; tap '#field_password'; type 'abc'"}]
+  ],
+  "resetSeconds": 0.3,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "キーボードの下の pinchOut(DSL)= 閉じてから撃つ・キーを押さない",
+      "steps": [
+        ["ft_batch", {"steps": "pinchOut '#btn_input_clear' scale: 2"}],
+        ["$adb", {"args": ["shell", "wm", "size", "reset"], "seconds": 1}]
+      ],
+      "reject": ["password=abc4"],
+      "expect": ["ime=0"]
+    },
+    {
+      "name": "キーボードの下の pinchIn(DSL)= 閉じてから撃つ・キーを押さない",
+      "steps": [
+        ["ft_batch", {"steps": "pinchIn '#btn_input_clear' scale: 0.5"}],
+        ["$adb", {"args": ["shell", "wm", "size", "reset"], "seconds": 1}]
+      ],
+      "reject": ["password=abc4"],
+      "expect": ["ime=0"]
+    },
+    {
+      "name": "キーボードの下の swipeBy(ボタン・DSL)= 閉じてから撃つ",
+      "steps": [
+        ["ft_batch", {"steps": "swipeBy '#btn_input_clear' dxRatio: 0.3 dyRatio: 0"}],
+        ["$adb", {"args": ["shell", "wm", "size", "reset"], "seconds": 1}]
+      ],
+      "expect": ["ime=0"]
+    }
+  ]
+}

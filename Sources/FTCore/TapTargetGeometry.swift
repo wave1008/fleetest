@@ -715,7 +715,9 @@ public enum TapTargetGeometry {
     public static func pinnedBandCovering(_ element: ElementInfo, in elements: [ElementInfo],
                                           container: FTRect) -> ElementInfo? {
         let cx = element.frame.centerX, cy = element.frame.centerY
-        let related = Set(ancestors(of: element, in: elements).map(\.ref))
+        // 祖先は preorder + depth から復元するので、木で容器の直前に並んだ貼り付く見出しは「祖先」と読まれる(Flutter)。
+        // 本物の祖先は対象の枠を含むので、含まないものは祖先に数えない
+        let related = Set(ancestors(of: element, in: elements).filter { frameContains($0.frame, element.frame) }.map(\.ref))
             .union(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
         func covers(_ f: FTRect) -> Bool { cx >= f.x && cx <= f.x + f.width && cy >= f.y && cy <= f.y + f.height }
         for band in elements where band.ref != element.ref && !related.contains(band.ref)
@@ -728,6 +730,31 @@ public enum TapTargetGeometry {
             }
         }
         return nil
+    }
+
+    /// 2つの枠が同じ部品の二重表現とみなせるほど重なるか(互いの面積の 95% 以上。実測の RN の欄とタブは重なり 0.89 = 別の部品)。ラベルと clickable の包みなど
+    static func isSameWidgetFrame(_ a: FTRect, _ b: FTRect, ratio: Double = 0.95) -> Bool {
+        guard let i = ScrollGeometry.intersection(a, b) else { return false }
+        let area = i.width * i.height
+        return area >= ratio * a.width * a.height && area >= ratio * b.width * b.height
+    }
+
+    /// **貼り付く見出しが対象の中心を覆っているときの注記**(MCP の ref の経路が使う。DSL は `liftCoveredTarget` が送って外す)。
+    /// 判定は `pinnedBandCovering` の1つ。容器が分からなければ nil。**警告のみ**
+    public static func pinnedBandNote(for element: ElementInfo, in elements: [ElementInfo],
+                                      inferContainer: Bool = true, operation: String) -> String? {
+        guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferContainer),
+              let band = pinnedBandCovering(element, in: elements, container: container) else { return nil }
+        return " (warning: \(describe(element))'s centre is under the sticky header \(describe(band)), so this \(operation)"
+            + " may land on the header instead — scroll the element clear of it first with ft_scroll_to or by dragging)"
+    }
+
+    /// 外枠が内枠を含むか(丸めの差を `pinnedBandEdgeTolerance` で許す)
+    static func frameContains(_ outer: FTRect, _ inner: FTRect) -> Bool {
+        let t = pinnedBandEdgeTolerance
+        return inner.x >= outer.x - t && inner.y >= outer.y - t
+            && inner.x + inner.width <= outer.x + outer.width + t
+            && inner.y + inner.height <= outer.y + outer.height + t
     }
 
     /// 文字の幅しか申告しない貼り付く見出しの帯(容器の幅 × 文字の上下に同じ余白)。名前を持つ文字が**容器の上端から
@@ -1094,13 +1121,13 @@ public enum TapTargetGeometry {
     /// **chrome 自身の除外はこの関数の責務ではない** —— それは `KeyboardOcclusion.advisory(for:)`
     /// が呼び出し前に行う。直接呼ぶ側(単体テスト等)は中心点だけで判定される
     public static func keyboardCoveredAdvisory(_ element: ElementInfo,
-                                               keyboardFrame: FTRect?) -> String? {
+                                               keyboardFrame: FTRect?, operation: String = "tap") -> String? {
         guard let keyboardFrame else { return nil }
         let cx = element.frame.centerX
         let cy = element.frame.centerY
         guard cx >= keyboardFrame.x, cx <= keyboardFrame.x + keyboardFrame.width,
               cy >= keyboardFrame.y, cy <= keyboardFrame.y + keyboardFrame.height else { return nil }
-        return "its centre (\(Int(cx)), \(Int(cy))) is under the soft keyboard — the tap will land"
+        return "its centre (\(Int(cx)), \(Int(cy))) is under the soft keyboard — the \(operation) will land"
             + " on the keyboard, not this element. Close the keyboard first (hideKeyboard), or scroll"
             + " the element clear of it"
     }
@@ -1259,9 +1286,9 @@ public struct KeyboardOcclusion: Sendable {
 
     /// 「中心がソフトキーボードの下」。**chrome 自身とその部分木には言わない**
     /// (地球儀キー・変換候補バー等は覆っている側であり、覆われているとは言えない)
-    public func advisory(for element: ElementInfo) -> String? {
+    public func advisory(for element: ElementInfo, operation: String = "tap") -> String? {
         guard !excluded.contains(element.ref) else { return nil }
-        return TapTargetGeometry.keyboardCoveredAdvisory(element, keyboardFrame: frame)
+        return TapTargetGeometry.keyboardCoveredAdvisory(element, keyboardFrame: frame, operation: operation)
     }
 
     public func covers(_ element: ElementInfo) -> Bool { advisory(for: element) != nil }

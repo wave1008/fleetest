@@ -25,15 +25,14 @@ public enum PreFireGuard {
     }
 
     /// 要素の位置を指で触る操作(撃つ前に `reachBeforeTouch` を通す = キーボードの下・覆いを外してから撃つ)。
-    /// tap は自前の経路(押すだけの tap)で同じ部品を通る。長押しは tap の `holdSeconds > 0`
-    public static let elementTouchActions: Set<String> = ["doubleTap", "swipeElementToElement", "holdStart"]
+    /// 導出元は `StepAction.touchClass`(手書きの集合を持たない)。tap は自前の経路で同じ部品を通る。長押しは tap の `holdSeconds > 0`
+    public static let elementTouchActions: Set<String> = Set(
+        StepAction.allCases.filter { $0.touchClass == .touchesElement }.map(\.rawValue))
 
-    /// ロケータで対象を引く操作のうち、対象がキーボードの下で木から消えうるもの。
+    /// ロケータで対象を引く操作のうち、対象がキーボードの下で木から消えうるもの(= 要素へ撃つ全部)。
     /// 見つからないときにキーボードを閉じて探し直す・失敗文でキーボードの事実を言う対象(`resolveAfterClosingKeyboard`)
-    public static let keyboardSensitiveActions: Set<String> = [
-        "tap", "type", "clearInput", "doubleTap", "swipeBy", "pinchOut", "pinchIn", "gesture",
-        "swipeElementToElement", "holdStart",
-    ]
+    public static let keyboardSensitiveActions: Set<String> = Set(
+        StepAction.allCases.filter { $0.touchClass != .noElementTouch }.map(\.rawValue))
 
     /// ref なし(焦点の欄へ撃つ形)の入力。nil = ref なしの入力ではない
     public enum RefLessInput: String {

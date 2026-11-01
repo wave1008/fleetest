@@ -9,11 +9,63 @@ extension StepExecutor {
         case refused(String, kind: StepFailureKind?)
     }
 
-    /// この手が撃つ前の入口(`reachBeforeTouch`)を通るか。tap の押すだけの形は自前の経路(lift → 閉じる → 撃つ)で
-    /// 同じ部品を通るので含めない。**長押し(tap の hold > 0)・doubleTap・要素から要素へのドラッグ・holdStart** が対象
-    static func reachesTargetBeforeTouch(action: String, step: FlowStep) -> Bool {
-        if PreFireGuard.elementTouchActions.contains(action) { return true }
-        return action == "tap" && (step.duration ?? FlowStep.defaultTapHoldSeconds) > 0
+    /// 撃つ前の入口の使い方
+    enum EntrancePlan: Equatable {
+        /// 通さない(tap の押すだけの形は自前の経路 / 要素を触らない操作 / 大きな面への swipeBy)
+        case skip
+        case full
+        /// 容器を送って覆いを外す段(`liftCoveredTarget`)を除く。大きな面へのピンチ・ジェスチャは対象そのものが容器で、送ると
+        /// 操作の対象が動く
+        case withoutLift
+    }
+
+    /// 大きな面か: スクロールの容器と申告した・高さが画面の半分以上。**キーボードの下まで伸びるのが通常**で、中心が下でも
+    /// swipeBy の払いは画面の中で切られる = 閉じて撃つ・断る対象にしない(緑を赤にしない)
+    static func isSurfaceTarget(_ element: ElementInfo, screen: FTRect) -> Bool {
+        element.scrollable == true || (screen.height > 0 && element.frame.height >= screen.height / 2)
+    }
+
+    /// この手が撃つ前の入口(`reachBeforeTouch`)を通るか。分類は `StepAction.touchClass`(手書きの集合を持たない)。
+    /// tap の押すだけの形は自前の経路(lift → 閉じる → 撃つ)で同じ部品を通るので含めない。tap の hold > 0 は通す
+    static func entrancePlan(action: String, step: FlowStep, element: ElementInfo, screen: FTRect) -> EntrancePlan {
+        guard let known = StepAction(rawValue: action) else { return .skip }
+        switch known.touchClass {
+        case .noElementTouch: return .skip
+        case .ownGuardedPath:
+            return known == .tap && (step.duration ?? FlowStep.defaultTapHoldSeconds) > 0 ? .full : .skip
+        case .touchesElement:
+            guard isSurfaceTarget(element, screen: screen) else { return .full }
+            switch known {
+            case .swipeBy: return .skip
+            case .pinchOut, .pinchIn, .gesture: return .withoutLift
+            case .doubleTap, .holdStart, .swipeElementToElement: return .full
+            case .tap, .type, .clearInput, .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge,
+                 .flick, .scrollTo, .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo, .pressEnter,
+                 .hideKeyboard, .holdEnd, .waitForSettle, .select:
+                return .full
+            }
+        }
+    }
+
+    /// **覆われていて、送る先(スクロールの容器)も無い**ときの覆い。`liftCoveredTarget` は送る先が無いと nil を返し、
+    /// 「覆い無し」と区別が付かないまま撃っていた(RN のテキスト入力は ScrollView でなく、キーボード上のタブが欄の中心を覆ったまま撃って遷移した)。
+    /// 確度の高い判定だけ: 操作できる要素が手前で中心を覆う(`overlayCoveringForUncover`)・同じ部品の二重表現(枠がほぼ同じ)は除く。
+    /// 推定の覆い・操作できない覆いは対象外(注記に止める)
+    static func coverWithoutWayOut(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> ElementInfo? {
+        guard ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
+                                                  inferring: step.containerInference ?? true) == nil,
+              TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) == nil,
+              let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements,
+                                                                     screen: snapshot.screen),
+              BridgeSnapshotThinning.operableTypes.contains(over.type),
+              !TapTargetGeometry.isSameWidgetFrame(element.frame, over.frame) else { return nil }
+        return over
+    }
+
+    static func coverWithoutWayOutMessage(_ step: FlowStep, over: ElementInfo) -> String {
+        "refusing to touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)) and there is no"
+            + " scroll container to move it clear, so the touch would land on \(TapTargetGeometry.describe(over)) instead."
+            + " Nothing was sent. Close or dismiss what covers it first"
     }
 
     /// **要素を指で触る操作の撃つ前の入口**: 容器の縁の帯に潜っていれば送って外す → キーボードで潰れた・せり上がったバーに
@@ -22,12 +74,13 @@ extension StepExecutor {
     /// 覆いの判定は `PreFireGuard` + `OcclusionGeometry` の1つ。**木の並びで手前が読めない覆い**(Flutter の貼り付く見出し)は
     /// `pinnedBandCovering` の帯の推定の範囲でだけ送る(推定の外は注記に止める = 誤って断らない)
     func reachBeforeTouch(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
-                          snapshotSource: CoverLiftSnapshotSource,
+                          snapshotSource: CoverLiftSnapshotSource, liftsTarget: Bool,
                           phase: inout PhaseAccumulator) async throws -> PreTouch {
         var element = element
         var snapshot = snapshot
         var notes: [String?] = []
-        if let lifted = try await liftCoveredTarget(element, in: snapshot, step: step, verb: "touching",
+        if liftsTarget,
+           let lifted = try await liftCoveredTarget(element, in: snapshot, step: step, verb: "touching",
                                                     snapshotSource: snapshotSource, phase: &phase) {
             guard let liftedElement = lifted.element else {
                 return .refused(Self.coverLiftLostMessage(step, verb: "touching")
@@ -50,6 +103,9 @@ extension StepExecutor {
                 element = reached
                 notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
             }
+        }
+        if liftsTarget, let over = Self.coverWithoutWayOut(element, in: snapshot, step: step) {
+            return .refused(Self.coverWithoutWayOutMessage(step, over: over), kind: nil)
         }
         switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap",
                                            snapshotSource: snapshotSource, phase: &phase) {

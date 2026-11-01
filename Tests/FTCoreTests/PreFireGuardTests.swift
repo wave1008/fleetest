@@ -47,32 +47,6 @@ final class PreFireGuardTests: XCTestCase {
             .contains("nothing was sent") == true)
     }
 
-    /// **操作 × 撃つ前の入口** の表。指で要素を触る操作が入口に載っていないと落ちる
-    func testEveryElementTouchActionPassesTheEntrance() {
-        var longPress = FlowStep(action: "tap")
-        longPress.duration = 0.8
-        let table: [(name: String, step: FlowStep, enters: Bool)] = [
-            ("doubleTap", FlowStep(action: "doubleTap"), true),
-            ("swipeElementToElement", FlowStep(action: "swipeElementToElement"), true),
-            ("holdStart", FlowStep(action: "holdStart"), true),
-            ("tap + hold", longPress, true),
-            // 押すだけの tap は自前の経路が同じ部品を通る
-            ("tap", FlowStep(action: "tap"), false),
-            // 容器の枠はキーボードの下まで伸びるのが通常 = 注記のみ
-            ("swipeBy", FlowStep(action: "swipeBy"), false),
-            ("pinchOut", FlowStep(action: "pinchOut"), false),
-            ("gesture", FlowStep(action: "gesture"), false),
-            // 自前の経路(lift → reachPastKeyboard)
-            ("type", FlowStep(action: "type"), false),
-            ("clearInput", FlowStep(action: "clearInput"), false),
-        ]
-        for row in table {
-            XCTAssertEqual(StepExecutor.reachesTargetBeforeTouch(action: row.step.action ?? "", step: row.step),
-                           row.enters, row.name)
-        }
-        XCTAssertEqual(PreFireGuard.elementTouchActions, ["doubleTap", "swipeElementToElement", "holdStart"])
-    }
-
     /// 入口を呼ぶのは Actions の1箇所(要素の操作の switch の前)。case ごとの個別の呼び出しを足さない
     func testEntranceIsCalledOnceBeforeTheActionSwitch() throws {
         let root = URL(fileURLWithPath: #filePath)
