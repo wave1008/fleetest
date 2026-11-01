@@ -1,37 +1,165 @@
 {
   "id": "ref-F1",
-  "finding": "同 id の古い ref の付け替え: 同 id が採った木で複数・今の木で1件だけ残る形は断る / 同じ行が少し動くだけなら断らない(親の行の顔ぶれだけで判定)",
+  "finding": "同 id の古い ref の付け替え: 同 id が採った木で複数・今の木で1件だけ残る形は断る(飲み物が開かない) / 同じ行が少し動くだけなら断らない(親の行の顔ぶれだけで判定)",
   "platform": "ios",
-  "redNote": "統合時に確認(デバイス未使用のため、直しを外した版の赤は未確認)",
-  "setup": [["ft_launch", {"bundleId": "com.ftester.e2ex.ios"}]],
-  "reset": [["ft_launch", {"bundleId": "com.ftester.e2ex.ios"}]],
+  "redNote": "2026-11-01 修正前の fleetest-mcp で 3 周: ft_tap / ft_long_press / ft_double_tap は 3/3 赤(飲み物が開く・done)。drag 30pt の形は修正前でも 0/3 で赤にならない(chevron の ref が通った)。ft_batch の `tap ref:` の形は replay.py が文字列の中の $ref を置き換えないので再生できず、形から外して手で確かめる",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.ios"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_terminate",
+      {
+        "bundleId": "com.ftester.e2ex.ios"
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.ios"
+      }
+    ]
+  ],
   "resetSeconds": 1.5,
   "rounds": 5,
   "forms": [
     {
       "name": "展開後に果物の chevron の古い ref を ft_tap(飲み物の行へ付け替えない)",
-      "steps": [["ft_snapshot", {}], ["ft_batch", {"steps": "tap '#group_fruit'; tap '#group_veg'"}], ["ft_tap", {"ref": "$ref:collapsed"}]],
-      "allowErrors": true, "replyOnly": true, "replyReject": ["done"], "settleSeconds": 0.3
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollTo '#nav_expand'; tap '#nav_expand'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#group_fruit'; tap '#group_veg'"
+          }
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:collapsed"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 0.5,
+      "reject": [
+        "item_drink_1"
+      ]
     },
     {
       "name": "ft_long_press(経路違い)",
-      "steps": [["ft_snapshot", {}], ["ft_batch", {"steps": "tap '#group_fruit'; tap '#group_veg'"}], ["ft_long_press", {"ref": "$ref:collapsed"}]],
-      "allowErrors": true, "replyOnly": true, "replyReject": ["done"], "settleSeconds": 0.3
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollTo '#nav_expand'; tap '#nav_expand'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#group_fruit'; tap '#group_veg'"
+          }
+        ],
+        [
+          "ft_long_press",
+          {
+            "ref": "$ref:collapsed"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 0.5,
+      "reject": [
+        "item_drink_1"
+      ]
     },
     {
-      "name": "ft_double_tap(経路違い)",
-      "steps": [["ft_snapshot", {}], ["ft_batch", {"steps": "tap '#group_fruit'; tap '#group_veg'"}], ["ft_double_tap", {"ref": "$ref:collapsed"}]],
-      "allowErrors": true, "replyOnly": true, "replyReject": ["done"], "settleSeconds": 0.3
+      "name": "ft_double_tap(経路違い。開閉で戻るので応答で見る)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollTo '#nav_expand'; tap '#nav_expand'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#group_fruit'; tap '#group_veg'"
+          }
+        ],
+        [
+          "ft_double_tap",
+          {
+            "ref": "$ref:collapsed"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 0.5,
+      "reject": [
+        "item_drink_1"
+      ],
+      "replyReject": [
+        "done"
+      ]
     },
     {
-      "name": "ft_batch の tap ref(経路違い)",
-      "steps": [["ft_snapshot", {}], ["ft_batch", {"steps": "tap '#group_fruit'; tap '#group_veg'"}], ["ft_batch", {"steps": "tap ref: $ref:collapsed"}]],
-      "allowErrors": true, "replyOnly": true, "replyReject": ["resolved to this selector"], "settleSeconds": 0.3
-    },
-    {
-      "name": "同じ行が少し動いただけ(ft_drag 30pt)の chevron の ref は断らない",
-      "steps": [["ft_snapshot", {}], ["ft_drag", {"fromX": 200, "fromY": 500, "toX": 200, "toY": 470}], ["ft_tap", {"ref": "$ref:chevron.forward"}]],
-      "allowErrors": true, "replyOnly": true, "replyReject": ["refusing"], "settleSeconds": 0.3
+      "name": "同じ行が少し動いただけ(ft_drag 30pt)の chevron の ref は断らない(ページャ画面へ入る)",
+      "steps": [
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_drag",
+          {
+            "fromX": 200,
+            "fromY": 500,
+            "toX": 200,
+            "toY": 470
+          }
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:chevron.forward"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyReject": [
+        "refusing"
+      ],
+      "expect": [],
+      "settleSeconds": 0.8,
+      "reject": [
+        "E2EX ホーム\" id=txt_screen_title"
+      ]
     }
-  ]
+  ],
+  "redConfirmed": true
 }

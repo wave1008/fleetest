@@ -1,50 +1,467 @@
 {
   "id": "gate-pre-fire",
-  "finding": "撃つ前の守りが tap と ft_type にしか無く、ft_batch の ref なし入力(別アプリが前面)と doubleTap(キーボードの下・せり上がったバー)が素通りして別アプリの欄・別のタブを操作した(pixel F1・F3 / emu F1 / se3 F1)",
+  "finding": "撃つ前の守りが tap と ft_type にしか無く、ft_batch の ref なし入力(別アプリが前面)と doubleTap・長押し・要素のドラッグ(キーボードの下)が素通りして別アプリの欄を書き換え・キーを押した(pixel F1・F3 / emu F1 / se3 F1)",
   "platform": "android",
-  "redNote": "デバイスを動かさずに書いた。統合時に確認: 直しを外す(refusalForRefLessBatchStep を空にする)と type の形で RN の #field_single が KEEPZZ になる",
+  "redConfirmed": true,
+  "redNote": "別アプリは am start で前面に出す(ft_launch で出すとセッションの起動アプリ自体が変わり、前面は別アプリにならない)。キーボードの下は wm size 1080x2000 で作る(RN は窓が縮まないので #btn_input_clear の中心がキーボードの下に入る)。各形の末尾で wm size reset で戻す。途中で回せず止まったら手で戻す。修正前(13:02 の本線の fleetest-mcp)で 3/3 赤を確かめたのは6形。キーボードの下の ft_double_tap ref・ft_drag fromRef・ft_pinch ref の3形は修正前から断る(赤にならない)= 回帰の見張り。バーに覆われた形(pixel F3)は Emulator の RN ではキーボード中にタブが木から消えるので作れない",
   "setup": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.rn"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ]
   ],
   "reset": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.rn", "resume": true}]
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2e"
+        ],
+        "seconds": 0.2
+      }
+    ],
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "wm",
+          "size",
+          "1080x2000"
+        ],
+        "seconds": 1
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2e.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_input'; tap '#field_password'; type 'abc'"
+      }
+    ]
   ],
+  "resetSeconds": 0.3,
   "rounds": 5,
   "forms": [
     {
-      "name": "別アプリが前面のとき ft_batch type を撃つ",
+      "name": "別アプリが前面のとき ft_batch type を撃つ(別アプリの欄に焦点)",
       "steps": [
-        ["ft_batch", {"steps": "tap '#field_single'; type 'KEEP'"}],
-        ["ft_launch", {"bundleId": "com.ftester.e2e"}],
-        ["$killApp", {"bundleId": "com.ftester.e2e", "seconds": 1}],
-        ["ft_batch", {"steps": "type 'ZZ'"}],
-        ["ft_snapshot", {}]
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "am",
+              "start",
+              "-n",
+              "com.ftester.e2e/.MainActivity"
+            ],
+            "seconds": 2.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "625"
+            ],
+            "seconds": 1.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "887"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "type 'ZZ'"
+          }
+        ]
       ],
       "allowErrors": true,
-      "reject": ["KEEPZZ"],
-      "replyExpect": ["nothing was sent"]
+      "reject": [
+        "single=ZZ",
+        "value=\"ZZ\""
+      ],
+      "replyExpect": [
+        "nothing was sent"
+      ]
+    },
+    {
+      "name": "別アプリが前面のとき ft_batch clearInput",
+      "steps": [
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "am",
+              "start",
+              "-n",
+              "com.ftester.e2e/.MainActivity"
+            ],
+            "seconds": 2.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "625"
+            ],
+            "seconds": 1.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "887"
+            ],
+            "seconds": 0.7
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "text",
+              "KEEP"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "clearInput"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "expect": [
+        "single=KEEP"
+      ],
+      "replyExpect": [
+        "nothing was sent"
+      ]
     },
     {
       "name": "別アプリが前面のとき ft_batch pressEnter",
       "steps": [
-        ["ft_batch", {"steps": "tap '#field_single'; type 'KEEP'"}],
-        ["ft_launch", {"bundleId": "com.ftester.e2e"}],
-        ["$killApp", {"bundleId": "com.ftester.e2e", "seconds": 1}],
-        ["ft_batch", {"steps": "pressEnter"}],
-        ["ft_snapshot", {}]
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "am",
+              "start",
+              "-n",
+              "com.ftester.e2e/.MainActivity"
+            ],
+            "seconds": 2.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "625"
+            ],
+            "seconds": 1.5
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "input",
+              "tap",
+              "540",
+              "887"
+            ],
+            "seconds": 1
+          }
+        ],
+        [
+          "ft_batch",
+          {
+            "steps": "pressEnter"
+          }
+        ]
       ],
       "allowErrors": true,
-      "replyExpect": ["nothing was sent"]
+      "expect": [
+        "ime=0"
+      ],
+      "replyExpect": [
+        "nothing was sent"
+      ]
     },
     {
-      "name": "キーボード表示中の doubleTap(バーに覆われた欄・DSL)",
+      "name": "キーボードの下の doubleTap(DSL)= 閉じてから対象に届く",
       "steps": [
-        ["ft_batch", {"steps": "tap '#field_password'"}],
-        ["ft_batch", {"steps": "doubleTap '#btn_input_clear'"}],
-        ["ft_snapshot", {}]
+        [
+          "ft_batch",
+          {
+            "steps": "doubleTap '#btn_input_clear'"
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
+      ],
+      "reject": [
+        "password=abc"
+      ]
+    },
+    {
+      "name": "キーボードの下の長押し(DSL)= 閉じてから対象に届く",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#btn_input_clear' holdSeconds: 1"
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
+      ],
+      "reject": [
+        "password=abc"
+      ]
+    },
+    {
+      "name": "キーボードの下から始まる swipeElementToElement(DSL)= キーを押さない・閉じる",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "swipeElementToElement '#btn_input_clear' '#field_single'"
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
+      ],
+      "expect": [
+        "password=abc\""
+      ],
+      "replyReject": [
+        "soft keyboard covers"
+      ]
+    },
+    {
+      "name": "キーボードの下の ft_double_tap ref は断る",
+      "steps": [
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_double_tap",
+          {
+            "ref": "$ref:btn_input_clear"
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
       ],
       "allowErrors": true,
-      "reject": ["コントロール"]
+      "expect": [
+        "password=abc\""
+      ],
+      "replyExpect": [
+        "refusing"
+      ]
+    },
+    {
+      "name": "キーボードの下の ft_drag fromRef は断る",
+      "steps": [
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_drag",
+          {
+            "fromRef": "$ref:btn_input_clear",
+            "dx": 200,
+            "dy": 0
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "expect": [
+        "password=abc\""
+      ],
+      "replyExpect": [
+        "refusing"
+      ]
+    },
+    {
+      "name": "キーボードの下の ft_pinch ref は断る",
+      "steps": [
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_pinch",
+          {
+            "ref": "$ref:btn_input_clear",
+            "scale": 2.0
+          }
+        ],
+        [
+          "$adb",
+          {
+            "args": [
+              "shell",
+              "wm",
+              "size",
+              "reset"
+            ],
+            "seconds": 1
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "expect": [
+        "password=abc\""
+      ],
+      "replyExpect": [
+        "refusing"
+      ]
     }
   ]
 }
