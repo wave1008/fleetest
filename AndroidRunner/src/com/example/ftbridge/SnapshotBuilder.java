@@ -149,6 +149,32 @@ final class SnapshotBuilder {
         }
     }
 
+    /** アクティブウィンドウの根が窓の一覧に居ない = その窓は画面に出ていない(待たずに断る合図。
+     *  handleSnapshot は WAKEUP の再試行をせず no-active-window-root を返す) */
+    static final class RootNotOnScreen extends IllegalStateException {
+        RootNotOnScreen() { super("the active window is not among the windows on screen"); }
+    }
+
+    /**
+     * Android 13 でアプリ切り替え(Recents)を出している間、getRootInActiveWindow() は画面に出ていない
+     * アプリの窓を返し続け(実測 Pixel 4a: Active Window = アプリ・窓の一覧は Home とステータスバーだけ)、
+     * アプリの画面のままの木を読ませる。**根の窓が getWindows() の一覧に無ければ画面に出ていない**と読む。
+     * 一覧が取れない(空/null/例外)ときは判定せず従来どおり読む。
+     */
+    static boolean isRootListedAmongWindows(UiAutomation ua, AccessibilityNodeInfo root) {
+        try {
+            List<AccessibilityWindowInfo> windows = ua.getWindows();
+            if (windows == null || windows.isEmpty()) return true;
+            int rootWindowId = root.getWindowId();
+            for (AccessibilityWindowInfo window : windows) {
+                if (window != null && window.getId() == rootWindowId) return true;
+            }
+            return false;
+        } catch (RuntimeException ignored) {
+            return true;
+        }
+    }
+
     /**
      * ディスプレイ全体の矩形。**アクティブウィンドウの根では代用できない** —— ダイアログが
      * 出ている間はそれがダイアログの DecorView になる(実測 1024x427)。
@@ -195,6 +221,7 @@ final class SnapshotBuilder {
         if (root == null) {
             throw new IllegalStateException("cannot read the UI tree of the active window");
         }
+        if (!isRootListedAmongWindows(ua, root)) throw new RootNotOnScreen();
 
         List<UINode> nodes = new ArrayList<>();
         // uiautomator dump の XML は hierarchy=depth1、root ノード=depth2 相当。
