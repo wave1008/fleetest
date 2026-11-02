@@ -630,12 +630,24 @@ extension StepExecutor {
         OcclusionCorpusDump.write(pngData: screenshot, frame: element.frame, screen: screen, entry: entry)
     }
 
+    /// 要素が容器の可視域と重ならない、または見えている部分が床に届かず中心が外に落ちる(= 画面に描かれていない)
+    static func isClippedAwayByItsContainer(_ element: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: true) else {
+            return false
+        }
+        if ScrollGeometry.intersection(element.frame, container) == nil { return true }
+        return TapTargetGeometry.thinVisibleSliver(for: element, in: elements, inferring: true) != nil
+    }
+
     /// 失敗メッセージに「対象を覆っているアプリ内要素」を添える(あれば)。
     /// **アプリ内メッセージ・モーダルの検出はこれが唯一の手段**(同一プロセスなので
     /// AndroidForegroundWindows では捕まらない)。FM が落ちていても効く幾何判定。
     /// 過検出寄りなので**判定は変えず、文言を足すだけ**にする(ステップの成否には触らない)
     static func coveringHint(element: ElementInfo?, elements: [ElementInfo], screen: FTRect) -> String {
         guard let element,
+              // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(OI-151①。
+              // 固定領域の echo が「覆い」に見えるだけ)
+              !Self.isClippedAwayByItsContainer(element, in: elements),
               let cover = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)
         else { return "" }
         // **`TapTargetGeometry.describe` と同じ「名指し」**。失敗文言に混ぜる
