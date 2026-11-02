@@ -769,7 +769,10 @@ extension StepExecutor {
         do {
             try await driver.pressEnter()
         } catch {
-            guard DriverError.isTextInputFallback(error), let td = typeDriver else { throw error }
+            guard DriverError.isTextInputFallback(error) else { throw error }
+            guard let td = typeDriver else {
+                return StepOutcome(status: .failed("the in-app bridge refused to press Enter in the focused field (HTTP 409), and no XCUITest bridge is available to retry"))
+            }
             try await td.pressEnter()
             phase.actionMs += Self.ms(clock.now - start)
             return StepOutcome(status: .passed,

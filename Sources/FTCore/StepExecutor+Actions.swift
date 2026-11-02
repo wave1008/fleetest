@@ -76,7 +76,9 @@ extension StepExecutor {
         }
         // 焦点救済の「直前」は tap → type の並びだけ(select は掴むだけで焦点を動かさない)。
         // **ロケータを持つ type も捨てる**(欄を名指しした後のロケータなし type は、その欄の続き = MCP の recordInteraction と同じ)
-        tapTargetBeforeThisStep = lastTapTarget
+        // 直前が tap、または直前の type / clearInput がこの欄を叩いて焦点を立てた形(Flutter の iOS 横向き: 欄は焦点を取るとキーボードの下へ潜る)
+        tapTargetBeforeThisStep = lastTapTarget ?? lastFieldTouchTarget
+        if !grabsOnly { lastFieldTouchTarget = nil }
         if !grabsOnly, action != "type" || step.locator != nil {
             lastTapTarget = nil
             tapTreeForRescue = nil
@@ -560,6 +562,8 @@ extension StepExecutor {
         // FTRuntime の修正提案(セレクタ更新)は誘発しない
         var driverFallback: String?
         var element: ElementInfo
+        // このステップが(自分の手で)キーボードを閉じて木を引き直したか。閉じた後の木では覆いの送り・断りをやり直す
+        var keyboardClosedThisStep = false
 
         if let (found, usedFallback) = resolved {
             element = found
@@ -607,6 +611,7 @@ extension StepExecutor {
             if case .reached(let reachedElement, let usedFallback, let reachedSnapshot, let reachedNote) = retry {
                 element = reachedElement
                 snapshot = reachedSnapshot
+                keyboardClosedThisStep = true
                 if let usedFallback { status = .passedViaFallback(usedFallback) }
                 driverFallback = Self.joinNotes(driverFallback, reachedNote)
             } else {
@@ -711,7 +716,8 @@ extension StepExecutor {
            PreFireGuard.keyboardCover(
                of: element, in: snapshot,
                keyboard: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                                   screen: snapshot.screen)) != nil,
+                                                   screen: snapshot.screen)) != nil
+               || PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework),
            case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
@@ -724,8 +730,9 @@ extension StepExecutor {
             snapshot = after
             element = reached
             resolvedElementThisStep = element
+            keyboardClosedThisStep = true
             driverFallback = Self.joinNotes(driverFallback,
-                closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
+                closedNote + " — the target was collapsed, covered by a bar raised above the keyboard, or inside a scroll view that only dismisses the keyboard on the first tap, while it was up")
         }
 
         // **無効な対象は操作可能になるまで待ってから撃つ**(ユーザー決定)。
@@ -753,7 +760,7 @@ extension StepExecutor {
             switch try await reachBeforeTouch(
                 element, in: snapshot, step: step, action: action,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary,
-                liftsTarget: entrance == .full, phase: &phase) {
+                liftsTarget: entrance == .full, keyboardClosedEarlier: keyboardClosedThisStep, phase: &phase) {
             case .refused(let message, let kind):
                 return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
             case .proceed(let reached, let after, let note):
@@ -901,6 +908,7 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
             var keyboardVisiblePartTap: FTRect?
+            var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "tap", allowsVisiblePart: true, priorTap: nil,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
@@ -915,6 +923,25 @@ extension StepExecutor {
                 recordInteraction(step: step, element: reached, in: after)
                 lastTapTarget = reached
                 driverFallback = Self.joinNotes(driverFallback, note)
+                keyboardClosedThisStep = true
+                // 閉じた後の木には覆いの送りをまだ当てていない(送りは閉じる前の木で済んでいる)
+                relitAfterClose = true
+            }
+            if keyboardClosedThisStep {
+                switch try await settleCoverAfterKeyboardClose(
+                    element, in: snapshot, step: step, verb: "touching", relift: relitAfterClose,
+                    snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                case .refused(let message, let kind):
+                    return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
+                case .settled(let settledElement, let settledSnapshot, let note):
+                    element = settledElement
+                    snapshot = settledSnapshot
+                    if relitAfterClose {
+                        recordInteraction(step: step, element: settledElement, in: settledSnapshot)
+                        lastTapTarget = settledElement
+                    }
+                    driverFallback = Self.joinNotes(driverFallback, note)
+                }
             }
             // **出てきたばかりのダイアログ・シートの中を、本物の指と同じ経路で押す前だけ待つ**(切り替えの最中の tap は
             // UIKit に捨てられる。判定と根拠は PresentedOverlayTapWait)。打ち直さない・画素を撮らない
@@ -1152,8 +1179,11 @@ extension StepExecutor {
                 snapshot = lifted.snapshot
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
+            var relitAfterClose = false
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false, priorTap: tapTargetBeforeThisStep,
+                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
+                // replace の消去は欄を叩いて焦点を立て済み(欄は引き直した後のもの)
+                priorTap: step.replace == true ? element : tapTargetBeforeThisStep,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1162,7 +1192,23 @@ extension StepExecutor {
                 element = reached
                 snapshot = after
                 driverFallback = Self.joinNotes(driverFallback, note)
+                keyboardClosedThisStep = true
+                relitAfterClose = true
             }
+            if keyboardClosedThisStep {
+                switch try await settleCoverAfterKeyboardClose(
+                    element, in: snapshot, step: step, verb: "typing", relift: relitAfterClose,
+                    snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                case .refused(let message, let kind):
+                    return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
+                case .settled(let settledElement, let settledSnapshot, let note):
+                    element = settledElement
+                    snapshot = settledSnapshot
+                    driverFallback = Self.joinNotes(driverFallback, note)
+                }
+            }
+            // 改行で焦点は次の欄へ移りうる(続く操作を「同じ欄」と読ませない)
+            lastFieldTouchTarget = (step.text ?? "").contains("\n") ? nil : element
             // **入力欄でないものへ打とうとしていないか**(TypeReadback の doc に実測)。
             // 検証は両側とも空になる経路なので、せめて内側の欄を名指しして知らせる
             let nonInputNote = TapTargetGeometry.nonInputTypeTargetNote(element, in: snapshot.elements)
@@ -1289,6 +1335,7 @@ extension StepExecutor {
                 snapshot = lifted.snapshot
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
+            var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "clearInput", allowsVisiblePart: false, priorTap: tapTargetBeforeThisStep,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
@@ -1299,7 +1346,22 @@ extension StepExecutor {
                 element = reached
                 snapshot = after
                 driverFallback = Self.joinNotes(driverFallback, note)
+                keyboardClosedThisStep = true
+                relitAfterClose = true
             }
+            if keyboardClosedThisStep {
+                switch try await settleCoverAfterKeyboardClose(
+                    element, in: snapshot, step: step, verb: "clearing", relift: relitAfterClose,
+                    snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                case .refused(let message, let kind):
+                    return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
+                case .settled(let settledElement, let settledSnapshot, let note):
+                    element = settledElement
+                    snapshot = settledSnapshot
+                    driverFallback = Self.joinNotes(driverFallback, note)
+                }
+            }
+            lastFieldTouchTarget = element
             if let td = typeDriver, preferTypeDriver,
                try await clearViaTypeDriver(td, step: step, phase: &phase) {
                 return StepOutcome(status: .passed, healedStep: healedStep,
@@ -1845,12 +1907,16 @@ extension StepExecutor {
             + " could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
     }
 
-    /// in-app ブリッジが type を 409 で断ったときの DSL 向けの失敗文。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
-    /// 言うのは事実だけ: 断られた・XCUITest での撃ち直しを試みたか(試みて対象を引けなかった)
-    static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
-        "the in-app bridge refused to type into \(step.locatorSummary) (HTTP 409: it could not give the field keyboard focus)"
+    /// in-app ブリッジが type / clearInput / pressEnter を 409 で断ったときの DSL 向けの失敗文。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
+    /// 言うのは事実だけ: 断られた・XCUITest での撃ち直しを試みたか。**断った理由を推測で言わない**(焦点が欄に立っていても 409 は返る)
+    static func inputFocusMissMessage(_ step: FlowStep, verb: String, tried: Bool) -> String {
+        "the in-app bridge refused to \(verb) \(step.locatorSummary) (HTTP 409)"
             + (tried ? ", and the XCUITest bridge could not find the field in its own tree either"
                      : ", and no XCUITest bridge is available to retry")
+    }
+
+    static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
+        inputFocusMissMessage(step, verb: "type into", tried: tried)
     }
 
     static func coverLiftLostMessage(_ step: FlowStep, verb: String, after: SnapshotResponse? = nil) -> String {

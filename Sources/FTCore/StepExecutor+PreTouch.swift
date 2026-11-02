@@ -53,8 +53,9 @@ extension StepExecutor {
     /// 覆いの判定は `PreFireGuard` + `OcclusionGeometry` の1つ。**木の並びで手前が読めない覆い**(Flutter の貼り付く見出し)は
     /// `pinnedBandCovering` の帯の推定の範囲でだけ送る(推定の外は注記に止める = 誤って断らない)
     func reachBeforeTouch(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
-                          snapshotSource: CoverLiftSnapshotSource, liftsTarget: Bool,
+                          snapshotSource: CoverLiftSnapshotSource, liftsTarget: Bool, keyboardClosedEarlier: Bool,
                           phase: inout PhaseAccumulator) async throws -> PreTouch {
+        var keyboardClosed = keyboardClosedEarlier
         var element = element
         var snapshot = snapshot
         var notes: [String?] = []
@@ -72,7 +73,8 @@ extension StepExecutor {
         let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                  screen: snapshot.screen)
         if case .primary = snapshotSource,
-           PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil,
+           PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil
+               || PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework),
            case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
@@ -84,6 +86,7 @@ extension StepExecutor {
             }
             snapshot = after
             element = reached
+            keyboardClosed = true
             notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
         }
         switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap", allowsVisiblePart: false,
@@ -94,10 +97,59 @@ extension StepExecutor {
         case .reached(let reached, let after, let note)?:
             element = reached
             snapshot = after
+            keyboardClosed = true
             notes.append(note)
+        }
+        if keyboardClosed, liftsTarget {
+            switch try await settleCoverAfterKeyboardClose(element, in: snapshot, step: step, verb: "touching",
+                                                           relift: liftsTarget, snapshotSource: snapshotSource, phase: &phase) {
+            case .refused(let message, let kind): return .refused(message, kind: kind)
+            case .settled(let settledElement, let settledSnapshot, let note):
+                element = settledElement
+                snapshot = settledSnapshot
+                notes.append(note)
+            }
         }
         return .proceed(element: element, snapshot: snapshot,
                         note: notes.compactMap { $0 }.isEmpty ? nil : notes.compactMap { $0 }.joined(separator: " / "))
+    }
+
+    enum KeyboardCloseSettle {
+        case settled(element: ElementInfo, snapshot: SnapshotResponse, note: String?)
+        case refused(String, kind: StepFailureKind?)
+    }
+
+    /// **キーボードを閉じて窓が伸びた後の木で、覆いの送り(`liftCoveredTarget`)をやり直し、外れなければ撃たずに断る**。
+    /// キーボードが出ている間はタブ列も対象も窓の外(縮んだ窓の下)で最初の送りは何もせず、閉じた後に初めて下のタブ列が
+    /// 中心を覆うことがある(Android の横向き: 覆いを注記だけにして撃つと、タブを押して別の画面へ遷移した)。
+    /// 閉じたのは自分の手なので、閉じた後の画面で人が見る状態に対して判断する: 木に載る操作可能な帯が中心を覆っているなら、
+    /// 送って外せたときだけ撃つ。`relift` = 呼び手がこの直前に送りを済ませていない(閉じた後の木へは未適用)。
+    /// 断るときは何も撃たない(送りのドラッグは撃っている)。
+    func settleCoverAfterKeyboardClose(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, verb: String,
+                                       relift: Bool, snapshotSource: CoverLiftSnapshotSource,
+                                       phase: inout PhaseAccumulator) async throws -> KeyboardCloseSettle {
+        var element = element
+        var snapshot = snapshot
+        var note: String?
+        if relift,
+           let lifted = try await liftCoveredTarget(element, in: snapshot, step: step, verb: verb,
+                                                    snapshotSource: snapshotSource, phase: &phase) {
+            guard let liftedElement = lifted.element else {
+                return .refused(Self.coverLiftLostMessage(step, verb: verb, after: lifted.snapshot)
+                    + (await leftForegroundSuffix(snapshot.sessionBundleID)), kind: .notFound)
+            }
+            element = liftedElement
+            snapshot = lifted.snapshot
+            note = lifted.note
+        }
+        if let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
+            let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
+            return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
+                + " (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
+                + " which scrolling its container did not clear — a touch there would land on \(TapTargetGeometry.describe(over))"
+                + " (nothing was \(done))", kind: nil)
+        }
+        return .settled(element: element, snapshot: snapshot, note: note)
     }
 
     /// **frame の中心を撃つ指の操作で、中心が画面の外なら撃たずに断る文**(長押し・doubleTap・要素から要素へのドラッグの始点と終点・

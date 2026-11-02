@@ -24,6 +24,18 @@ public enum PreFireGuard {
         return TapTargetGeometry.isCollapsedFrame(element) ? .collapsed : nil
     }
 
+    /// **キーボードが出ている間の最初のタップが、スクロールの中身では「キーボードを閉じるだけ」になる構成か**。
+    /// React Native の既定(`keyboardShouldPersistTaps="never"`)は ScrollView / FlatList の中のタップをキーボードを閉じるのに使い、
+    /// 中の部品へ届けない(人は2回押す)。ScrollView の外(入力バーの送信ボタン等)は影響しない。
+    /// 真なら撃つ前に副作用の無い手段で閉じて引き直す。入力欄は焦点を取り直すので対象にしない。
+    /// 構成は `AppUIFrameworkQuery` の答え(木の形から推定しない)で、不明は偽
+    public static func tapOnlyDismissesKeyboard(_ element: ElementInfo, in snapshot: SnapshotResponse,
+                                                framework: AppUIFramework?) -> Bool {
+        guard framework == .reactNative, KeyboardWait.isShown(snapshot),
+              !SnapshotRenderer.textInputTypes.contains(element.type) else { return false }
+        return TapTargetGeometry.ancestors(of: element, in: snapshot.elements).contains { $0.scrollable == true }
+    }
+
     /// 要素の位置を指で触る操作(撃つ前に `reachBeforeTouch` を通す = キーボードの下・覆いを外してから撃つ)。
     /// 導出元は `StepAction.touchClass`(手書きの集合を持たない)。tap は自前の経路で同じ部品を通る。長押しは tap の `holdSeconds > 0`
     public static let elementTouchActions: Set<String> = Set(

@@ -578,7 +578,14 @@ extension StepExecutor {
         do {
             try await driver.clearInput(ref: nil)
         } catch {
-            guard DriverError.isClearInputFallback(error), let td = typeDriver else { throw error }
+            guard DriverError.isClearInputFallback(error) else { throw error }
+            guard let td = typeDriver else {
+                // ブリッジの文言は ref を渡す前提の案内を含むので載せない(DSL に ref は無い)
+                if DriverError.isTextInputFallback(error) {
+                    return .failed("the in-app bridge refused to clear the focused field (HTTP 409), and no XCUITest bridge is available to retry")
+                }
+                throw error
+            }
             try await td.clearInput(ref: nil)
             phase.actionMs += Self.ms(clock.now - start)
             // 焦点のある欄が木に無ければ読み返す材料が無い。黙って緑にせず注記で言う
@@ -657,13 +664,24 @@ extension StepExecutor {
             }
             return .cleared(driverFallback: nil, actingDriverSnapshot: actingSnapshot)
         } catch {
-            guard DriverError.isClearInputFallback(error), let td = typeDriver else { throw error }
+            guard DriverError.isClearInputFallback(error) else { throw error }
+            guard let td = typeDriver else {
+                if DriverError.isTextInputFallback(error) {
+                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: false))
+                }
+                throw error
+            }
             // **対象が確実に入力欄でないなら撃ち直さない**(type ケースの catch と同じ理由・
             // TypeReadback.isPositivelyNonTextInput の doc)
             if TypeReadback.isPositivelyNonTextInput(element, selfRendered: uiFramework?.isSelfRendered) {
                 return .failed(Self.nonTextInputFallbackRefusal(element, in: elements, action: "clearInput"))
             }
-            guard try await clearViaTypeDriver(td, step: step, phase: &phase) else { throw error }
+            guard try await clearViaTypeDriver(td, step: step, phase: &phase) else {
+                if DriverError.isTextInputFallback(error) {
+                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: true))
+                }
+                throw error
+            }
             // フォールバック経路も同じ事後検証を通す(**どのパスなら検証されるかに例外を作らない**。
             // 規則が無いと将来の変更で無検証の穴が復活する)
             if let residual = try await residualClearValue(td, step: step,
