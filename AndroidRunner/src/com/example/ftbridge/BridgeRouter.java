@@ -1206,17 +1206,21 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             KeyguardManager keyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
             Boolean interactive = power == null ? null : power.isInteractive();
             Boolean locked = keyguard == null ? null : keyguard.isKeyguardLocked();
+            String recovery;
             if (Boolean.FALSE.equals(interactive) || Boolean.TRUE.equals(locked)) {
                 shell("input keyevent KEYCODE_WAKEUP");
                 shell("wm dismiss-keyguard");
+                recovery = "wake and keyguard dismissal were requested";
             } else {
                 shell("cmd statusbar collapse");
+                recovery = "closing the shade was requested";
             }
             if (attemptLaunch(bundleID)) return ok();
-            // 言えるのは回復を試す前に測った状態だけ(読めなかった欄は書かない)
-            StringBuilder measured = new StringBuilder();
-            if (interactive != null) measured.append(interactive ? "; before the retry the screen was on" : "; before the retry the screen was off (it was woken)");
-            if (locked != null) measured.append(locked ? ", keyguard locked (dismissal was requested)" : ", keyguard not locked");
+            // 言えるのは回復を試す前に測った状態と撃った手だけ(読めなかった欄は書かない)。
+            // 状態が読めなくても撃った手は必ず書く
+            StringBuilder measured = new StringBuilder("; " + recovery);
+            if (interactive != null) measured.append(interactive ? ", before the retry the screen was on" : ", before the retry the screen was off");
+            if (locked != null) measured.append(locked ? ", keyguard locked" : ", keyguard not locked");
             throw new BridgeException(500, "the app never came to the foreground: " + bundleID
                     + " (com.android.systemui stayed in front" + measured + "; systemui was not force-stopped)");
         }

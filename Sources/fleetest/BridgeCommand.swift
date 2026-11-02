@@ -152,6 +152,16 @@ struct Bridge: AsyncParsableCommand {
                 BridgeLauncher.probeForeignBridge(port: port, timeout: BridgeLauncher.quickProbeTimeoutSeconds)
                     .map { $0.protocolVersion != BridgeAPI.bridgeProtocolVersion } ?? false
             })
+            // **旧版を名乗るブリッジは provision が止めて起こし直す** = 別の run / MCP セッションが握っているデバイスなら
+            // 止める操作と同じ門で断る(再利用だけで済む場合は止めないので門を通さない)
+            if !stalePorts.isEmpty,
+               let refusal = DeviceBooter.deviceInUseRefusal(
+                   deviceName: device, keys: [resolvedUDID], force: false, offersForce: false,
+                   leaseStateDir: root.appendingPathComponent(".fleetest")) {
+                ConsoleOut.out("❌ \(refusal) The running bridge on this device is from an older build and would be restarted;"
+                    + " wait for the session to finish, or stop that session first.")
+                throw ExitCode(1)
+            }
             // 起動は provision() 経由(直接 startDetached しない)。同一シミュレータに XCUITest
             // ランナーは1本しか同居できず(全ポート共通 bundle id のため2本目が先代を蹴り出し双方
             // signal kill で死ぬ)、直接起動は同一デバイスへの二重起動を防げない。provision() は

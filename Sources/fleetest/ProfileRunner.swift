@@ -232,6 +232,16 @@ enum ProfileRunner {
             MCPDeviceLease.liveHolders(stateDir: $0, excluding: [getpid(), getppid()])
         } ?? [:]
         var heldBy: [ResolvedDevice: Int32] = [:]
+        // 描画の印(白紙・文字消え。`DeviceScreenStateStore`)が立っているデバイスも、ほかで足りるなら避ける
+        // (印のある台を選ぶと run の前の回復を撃つ羽目になる)。警告は MCP の保持だけ(印は断る理由ではない)。
+        // 印が1つも無ければデバイスの実体を引かない
+        var marked: Set<ResolvedDevice> = []
+        if trim, let dir = leaseStateDir, screenStateMarkExists(stateDir: dir) {
+            for entry in leaseKeysByDevice(resolved: full)
+            where DeviceScreenStateStore.current(stateDir: dir, key: entry.key) != nil {
+                marked.insert(entry.device)
+            }
+        }
         if !holders.isEmpty {
             for entry in leaseKeysByDevice(resolved: full) {
                 if let pid = holders[entry.key] { heldBy[entry.device] = pid }
@@ -239,7 +249,7 @@ enum ProfileRunner {
         }
         let resolved = trim
             ? full.limitingDevices(iosScenarios: iosScenarios, androidScenarios: androidScenarios,
-                                   avoiding: { heldBy[$0] != nil })
+                                   avoiding: { heldBy[$0] != nil || marked.contains($0) })
             : full
         // trim の理由は数で言う(「空きが無かった」は実測で誤り: 実際は「空きはあったが、
         // 本数に足りなかった」ことが起きる。ResolvedProfile.limitingDevices の
@@ -247,7 +257,7 @@ enum ProfileRunner {
         func reason(for platform: String, scenarios: Int?) -> String {
             guard trim else { return "--broadcast runs on every device" }
             let list = platform == "ios" ? full.iosDevices : full.androidDevices
-            let free = list.filter { heldBy[$0] == nil }.count
+            let free = list.filter { heldBy[$0] == nil && !marked.contains($0) }.count
             let needed = ResolvedProfile.deviceKeepCount(available: list.count, scenarios: scenarios)
             return Self.shortageReason(needed: needed, scenarios: scenarios, free: free)
         }
@@ -260,6 +270,12 @@ enum ProfileRunner {
                 + " (\(why)); the session will see the run's screens"
         }
         return (resolved, warnings)
+    }
+
+    /// `screen-state-*.json` が1つでもあるか(読むだけ。鮮度の判定は `DeviceScreenStateStore.current`)
+    static func screenStateMarkExists(stateDir: URL) -> Bool {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: stateDir.path)) ?? []
+        return names.contains { $0.hasPrefix("screen-state-") && $0.hasSuffix(".json") }
     }
 
     /// デバイスが足りず MCP のデバイスを使うときの理由を事実で組み立てる(純粋関数)。

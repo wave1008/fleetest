@@ -134,6 +134,19 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
     }
 
+    /// 描画の印(白紙)が立っているデバイスは、ほかで足りるなら選ばない(OI-89 run F9)。警告は出ない / 足りないときは使う
+    func testRunAvoidsADeviceWithAPublishedScreenState() {
+        DeviceScreenStateStore.publish(stateDir: stateDir, key: "UA", state: .blank)
+        let three = profile([phone("A", udid: "UA"), phone("B", udid: "UB"), phone("C", udid: "UC")])
+        let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
+            three, iosScenarios: 1, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+        XCTAssertEqual(resolved.devices.map(\.name), ["B"])
+        XCTAssertTrue(warnings.isEmpty, "\(warnings)")
+        let (all, _) = ProfileRunner.limitingDevicesAvoidingMCP(
+            three, iosScenarios: 3, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+        XCTAssertEqual(all.devices.count, 3)
+    }
+
     // MARK: - 理由文(事実ベース。実測 9/16: 空きが1台あっても「no other device was free」と
     // 出ていた。真の理由は「本数ぶんに足りない」ことなので数で言う)
 
