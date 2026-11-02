@@ -492,4 +492,30 @@ final class ScrollGeometryTests: XCTestCase {
         XCTAssertEqual(ScrollGeometry.startMarginClearingBottomChrome(
             start: 0.25, area: landscape, viewportBottom: 390, direction: .up), 0.25)
     }
+
+    // MARK: - Android のタッチの遊びの補い
+
+    /// 終点だけを指の向きに遊びの分だけ延ばす(始点は縁から離したまま)
+    func testTouchSlopExtendsOnlyTheEndAlongTheFinger() {
+        let path = FTSwipePath(fromX: 200, fromY: 600, toX: 200, toY: 400)
+        let out = ScrollGeometry.compensatingTouchSlop(path, slop: 24, viewport: screen)
+        XCTAssertEqual(out.fromY, 600, accuracy: 0.001)
+        XCTAssertEqual(out.toY, 376, accuracy: 0.001)
+        XCTAssertEqual(out.toX, 200, accuracy: 0.001)
+        let right = ScrollGeometry.compensatingTouchSlop(
+            FTSwipePath(fromX: 100, fromY: 300, toX: 300, toY: 300), slop: 24, viewport: screen)
+        XCTAssertEqual(right.toX, 324, accuracy: 0.001)
+    }
+
+    /// 延ばした終点は viewport の外へ出さない
+    func testTouchSlopEndStaysInsideTheViewport() {
+        let out = ScrollGeometry.compensatingTouchSlop(
+            FTSwipePath(fromX: 200, fromY: 300, toX: 200, toY: 10), slop: 24, viewport: screen)
+        XCTAssertEqual(out.toY, 0, accuracy: 0.001)
+    }
+
+    func testAndroidTouchSlopIsPinned() {
+        XCTAssertEqual(ScrollGeometry.androidTouchSlopDp, 8)
+    }
 }
+

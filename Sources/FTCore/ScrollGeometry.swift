@@ -62,6 +62,24 @@ public enum ScrollGeometry {
     }
 
     /// **下部 chrome の上で指を置かないよう始点マージンを底上げする**(純粋)。
+    /// Android のタッチの遊び(dp)。`ViewConfiguration` の TOUCH_SLOP(8dp)で、一覧は指がこれを越えてから動き始め、
+    /// 越えるまでの分は動かない(Pixel 10 Pro・480dpi の実測: 指 200/100/60px に対し中身は 176/75/36px = 約 24px 欠ける。
+    /// Compose・View・Flutter で同じ)。低い一覧(横向きの 104px)では刻みの半分が消え、探索が maxSwipes に届いた
+    public static let androidTouchSlopDp: Double = 8
+
+    /// 終点を指の向きに `slop` だけ先へ延ばす(中身が刻みどおりに動くように)。始点は動かさない(縁ぎりぎりは掴めない)。
+    /// 終点は viewport の中に留める(容器の外へ出てよい = 指は押した要素に届き続ける)。
+    /// 延ばせる余地が無ければそのまま返す
+    public static func compensatingTouchSlop(_ path: FTSwipePath, slop: Double, viewport: FTRect) -> FTSwipePath {
+        let dx = path.toX - path.fromX, dy = path.toY - path.fromY
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard slop > 0, length > 0 else { return path }
+        var out = path
+        out.toX = min(max(path.toX + dx / length * slop, viewport.x), viewport.x + viewport.width - 1)
+        out.toY = min(max(path.toY + dy / length * slop, viewport.y), viewport.y + viewport.height - 1)
+        return out
+    }
+
     /// 返すのは新しい `startMarginRatio` で、`path` に渡すこと(あちらの `clampMargin` が
     /// 上限 `maxMarginRatio` を掛け、動かせる幅が残らなければ `path` が nil を返す)。
     ///

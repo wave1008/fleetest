@@ -20,6 +20,7 @@ private final class PathRecordingDriver: AppDriver {
     var keyboardFrame: FTRect?
     private(set) var snapshotCount = 0
     private(set) var paths: [FTSwipePath?] = []
+    var pointScale: Double = 1
 
     init(elements: [[ElementInfo]], keyboardFrame: FTRect? = nil) {
         self.elements = elements
@@ -241,4 +242,24 @@ final class ScrollSpanShrinkTests: XCTestCase {
         XCTAssertFalse(StepExecutor.scrollNotFoundMessage(step, noKeyboard, defaultMaxSwipes: 8).contains("soft keyboard"),
                        "キーボードが無いのに名指ししてはいけない")
     }
+
+    /// **Android は終点をタッチの遊び(8dp × 密度)だけ延ばす**(指が遊びを越えるまで中身が動かず、刻みから約 24px 欠けた)。
+    /// iOS は延ばさない
+    func testAndroidPathIsExtendedByTheTouchSlop() async throws {
+        let step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "missing"),
+                            direction: "up", maxSwipes: 1,
+                            scrollFrame: FlowLocator(id: "list_rows"))
+        let ios = PathRecordingDriver(elements: [Self.frame(anchorY: 400)])
+        _ = await StepExecutor(driver: ios, isAndroid: false, tunables: RunTunables()).execute(step)
+        let android = PathRecordingDriver(elements: [Self.frame(anchorY: 400)])
+        android.pointScale = 3
+        _ = await StepExecutor(driver: android, isAndroid: true, tunables: RunTunables()).execute(step)
+
+        let base = try XCTUnwrap(ios.paths.compactMap { $0 }.first)
+        let extended = try XCTUnwrap(android.paths.compactMap { $0 }.first)
+        XCTAssertEqual(extended.fromY, base.fromY, accuracy: 0.001, "始点は動かさない")
+        XCTAssertEqual(span(extended), span(base) + 24, accuracy: 0.001,
+                       "終点が遊び(8dp × 3)だけ延びていない: \(span(base)) → \(span(extended))")
+    }
 }
+

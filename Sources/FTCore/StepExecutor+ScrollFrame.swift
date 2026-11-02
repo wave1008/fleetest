@@ -222,12 +222,17 @@ extension StepExecutor {
                 start: margins.start, area: area,
                 viewportBottom: viewport.y + viewport.height, direction: direction)
         }
-        let path = ScrollGeometry.path(
+        var path = ScrollGeometry.path(
             container: container,
             viewport: viewport,
             direction: direction,
             startMarginRatio: margins.start,
             endMarginRatio: margins.end)
+        // Android は指がタッチの遊びを越えるまで中身が動かない = 刻みから遊びの分が欠ける。終点を延ばして刻みどおり動かす
+        if isAndroid, let base = path {
+            path = ScrollGeometry.compensatingTouchSlop(
+                base, slop: ScrollGeometry.androidTouchSlopDp * driver.pointScale, viewport: viewport)
+        }
         // **容器は解決したのに動かせる幅が無い**(margin で潰れた・画面と交差しない等)。
         // fail-fast はここを通らない(容器自体は見つかっている)ので、黙って全画面へ落ちる前に
         // 理由を残す(1ステップにつき1回 = pendingScrollFrameNote の空きで判定)

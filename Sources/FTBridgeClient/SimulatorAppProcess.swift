@@ -20,10 +20,55 @@ public enum SimulatorAppProcess {
     /// 生きていれば true・居なければ false・simctl が答えなければ nil(判定できない = 生きていない、にはしない)。
     /// **同期で最大 5 秒ブロックする**(協調スレッドプールから呼ぶなら Task.detached で包む)
     public static func isRunning(udid: String, bundleID: String) -> Bool? {
+        if hostProcessFound(udid: udid, bundleID: bundleID) { return true }
         guard let result = try? Shell.run(["xcrun", "simctl", "spawn", udid, "launchctl", "list"],
                                           timeout: launchctlListTimeoutSeconds),
               result.status == 0 else { return nil }
         return processIsRunning(inLaunchctlListOutput: result.output, bundleID: bundleID)
+    }
+
+    /// 速い経路(数 ms。launchctl は1回約 0.95 秒で、ft_batch は iOS で毎手これを聞く): Simulator のアプリはホストのプロセスなので、
+    /// 実行ファイルがこのデバイスのアプリの置き場の下にあり、その .app の bundle ID が一致するプロセスを探す。
+    /// **見つかったときだけ true**。見つからないことを「居ない」と読まない —— シナリオのサンドボックスの中ではホストのプロセスが
+    /// 見えないことがあり、システムのアプリは置き場の外にある(呼び手は launchctl へ落ちる)
+    static func hostProcessFound(udid: String, bundleID: String) -> Bool {
+        let needed = proc_listallpids(nil, 0)
+        guard needed > 0 else { return false }
+        var pids = [pid_t](repeating: 0, count: Int(needed) + 64)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard filled > 0 else { return false }
+        let marker = appContainerMarker(udid: udid)
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        for pid in pids.prefix(Int(filled)) where pid > 0 {
+            let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+            guard length > 0 else { continue }
+            let path = String(decoding: buffer.prefix(Int(length)).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            guard let bundle = appBundleDirectory(ofExecutable: path, marker: marker) else { continue }
+            if installedBundleID(atAppDirectory: bundle) == bundleID { return true }
+        }
+        return false
+    }
+
+    static func appContainerMarker(udid: String) -> String {
+        "/CoreSimulator/Devices/\(udid)/data/Containers/Bundle/Application/"
+    }
+
+    /// 実行ファイルの親が置き場の下の `.app` なら、その `.app` のパス。拡張(`.appex`)は自分の bundle ID を持つので本体と取り違えない
+    static func appBundleDirectory(ofExecutable path: String, marker: String) -> String? {
+        guard path.contains(marker) else { return nil }
+        let parent = (path as NSString).deletingLastPathComponent
+        return parent.hasSuffix(".app") ? parent : nil
+    }
+
+    /// `.app` のパスは入れ直すたびに変わる(GUID の階層)ので、パスで控えれば古い値を引かない
+    private static let bundleIDCache = LockedValue<[String: String]>([:])
+
+    static func installedBundleID(atAppDirectory directory: String) -> String? {
+        if let cached = bundleIDCache.withLock({ $0[directory] }) { return cached }
+        guard let info = NSDictionary(contentsOfFile: directory + "/Info.plist"),
+              let id = info["CFBundleIdentifier"] as? String else { return nil }
+        bundleIDCache.withLock { $0[directory] = id }
+        return id
     }
 
     /// 生死の問いを撃たない対象。SpringBoard はアプリではなく(launchctl に `UIKitApplication:` の行が無い = 常に「居ない」と読める)、
