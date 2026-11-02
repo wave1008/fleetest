@@ -1335,7 +1335,7 @@ final class MCPRefGuardTests: XCTestCase {
             element(ref: 1, type: "button", id: "btn_ok", label: "OK",
                     x: 16, y: 168, w: 370, h: 108),
         ])
-        driver.systemUICoveringResponse = nil
+        driver.answers = .iosInApp   // 照会の口が無い構成(答える構成の nil は「覆い無し」になる)
         _ = try await server.call(tool: "ft_snapshot", args: [:])
         let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 1]))
         XCTAssertFalse(text.contains("drawn over the app"), text)

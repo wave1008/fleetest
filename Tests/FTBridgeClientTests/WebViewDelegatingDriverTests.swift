@@ -40,6 +40,8 @@ private final class FakeDriver: AppDriver, @unchecked Sendable {
     /// 覆いの照会の答え(既定 = in-app と同じく答えられない)
     var coveringAnswer: Probe<SystemUICoveringResponse> = .notAnswerable
     func systemUICovering() async -> Probe<SystemUICoveringResponse> { calls.append("systemUICovering"); return coveringAnswer }
+    var alertAnswer: Probe<SystemAlertProbeResponse> = .notAnswerable
+    func systemAlert() async -> Probe<SystemAlertProbeResponse> { calls.append("systemAlert"); return alertAnswer }
     func launch(bundleID: String) async throws { calls.append("launch") }
     func terminate() async throws { calls.append("terminate") }
     func tap(ref: Int) async throws { calls.append("tap(\(ref))") }
@@ -97,6 +99,19 @@ final class WebViewDelegatingDriverTests: XCTestCase {
 
         XCTAssertEqual(answer.value?.marker, "SBCoverSheetWindow")
         XCTAssertFalse(primary.calls.contains("systemUICovering"), "\(primary.calls)")
+    }
+
+    /// アラートの照会も XCUITest(delegated)へ聞く(StepExecutor のアラートの判定が inapp-boost モードで頼る)
+    func testSystemAlertIsAskedOfTheXCUITestSide() async throws {
+        let primary = FakeDriver(snapshots: [snapshot([element(1, "Button")])])
+        let delegated = FakeDriver(snapshots: [snapshot([element(1, "Button")])])
+        delegated.alertAnswer = .value(SystemAlertProbeResponse(present: true, title: "t", buttons: ["OK"]))
+        let driver = WebViewDelegatingDriver(primary: primary, delegated: delegated)
+
+        let answer = await driver.systemAlert()
+
+        XCTAssertEqual(answer.value?.present, true)
+        XCTAssertFalse(primary.calls.contains("systemAlert"), "\(primary.calls)")
     }
 
     /// 通常画面: in-app の結果をそのまま返し、操作も in-app へ行く(XCUITest を触らない)

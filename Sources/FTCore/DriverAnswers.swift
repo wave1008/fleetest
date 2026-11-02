@@ -15,7 +15,8 @@ public struct DriverAnswers: OptionSet, Sendable {
 
     /// XCUITest ブリッジ(BridgeClient)。前面のアプリ名は XCUITest に問う口が無い
     public static let iosXCUITest: DriverAnswers = [.systemAlert, .systemUICovering]
-    /// inapp-boost モード: HybridFallbackDriver がアラートと覆いを XCUITest ブリッジへ回す
+    /// inapp-boost モード: 包む相手を2つ持つドライバ(ライブ操作の HybridFallbackDriver・シナリオ実行の WebViewDelegatingDriver)が
+    /// アラートと覆いを XCUITest ブリッジへ回す(in-app へ回すと常に `.notAnswerable`。回し先は DriverAnswersConformanceTests が縛る)
     public static let iosInAppBoost: DriverAnswers = [.systemAlert, .systemUICovering]
     /// in-app ブリッジ単体(InAppDriver)。自プロセスの外は見えない
     public static let iosInApp: DriverAnswers = []

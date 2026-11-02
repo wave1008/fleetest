@@ -114,6 +114,7 @@ final class SystemAlertSnapshotNoteTests: XCTestCase {
 
     /// 答えられない(nil。旧ブリッジ・in-app・Android)ときも沈黙する
     func testNilProbeStaysSilent() async throws {
+        driver.answers = .iosInApp   // 照会の口が無い構成(答える構成の nil は「出ていない」になる)
         driver.scriptedSystemAlert = nil
         _ = try await server.call(tool: "ft_launch", args: ["bundleId": "com.example.app"])
         let first = try await server.call(tool: "ft_snapshot", args: [:])

@@ -18,7 +18,8 @@ extension MCPServer {
         switch await d.systemAlert() {
         case .value(let answer): probe = answer
         case .notAnswerable:
-            throw MCPError("alertButton: this bridge cannot check for a system alert — nothing was tapped")
+            throw MCPError("alertButton: this driver cannot check for a system alert (on Android a system dialog is in the"
+                + " element list — tap its button by ref) — nothing was tapped")
         case .failed(let reason):
             throw MCPError("alertButton: could not check for a system alert"
                 + " (\(reason)) — nothing was tapped")

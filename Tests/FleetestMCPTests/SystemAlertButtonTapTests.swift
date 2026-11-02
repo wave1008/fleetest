@@ -134,6 +134,20 @@ final class SystemAlertButtonTapTests: XCTestCase {
         XCTAssertFalse(driver.calls.contains { $0.hasPrefix("tap(") }, "\(driver.calls)")
     }
 
+    /// 照会の口が無い構成(Android)では「アラートは無い」と言わず、ref で押すよう案内して何も押さない
+    func testSaysItCannotCheckInsteadOfNoAlertWhenTheDriverCannotAnswer() async throws {
+        driver.answers = .android
+        _ = try await server.call(tool: "ft_launch", args: ["bundleId": "com.apple.Maps"])
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["alertButton": "許可しない"])
+            XCTFail("確かめられないのに通った")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("cannot check for a system alert"), error.localizedDescription)
+            XCTAssertFalse(error.localizedDescription.contains("no system alert"), error.localizedDescription)
+        }
+        XCTAssertFalse(driver.calls.contains { $0.hasPrefix("tap(") }, "\(driver.calls)")
+    }
+
     /// udid だけの呼び出しは XCUITest のポートを先に採る(MCP の iOS は常に XCUITest)。走査の順に依らない
     func testUDIDOnlyCallsPreferTheXCUITestBridge() {
         let found = [
