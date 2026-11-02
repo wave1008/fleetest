@@ -336,7 +336,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             result = SnapshotBuilder.build(ua(), instrumentation.getContext(), forceRefresh, maxElements);
         } catch (SnapshotBuilder.RootNotOnScreen notOnScreen) {
             throw new BridgeException(422, NO_ACTIVE_WINDOW_ROOT
-                    + " the active window is not on screen (the app switcher is showing), so the UI tree"
+                    + " the active window stayed off the list of windows on screen (the app switcher or a window transition), so the UI tree"
                     + " cannot be read right now. It clears on its own once an app is in the foreground again.");
         } catch (IllegalStateException first) {
             // root=null が waitForRoot の 2s を超えて続く一時ストール(高負荷時の画面消灯/描画停止で

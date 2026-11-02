@@ -161,6 +161,23 @@ final class SnapshotBuilder {
      * アプリの画面のままの木を読ませる。**根の窓が getWindows() の一覧に無ければ画面に出ていない**と読む。
      * 一覧が取れない(空/null/例外)ときは判定せず従来どおり読む。
      */
+    /**
+     * 根の窓が一覧に載るまで読み直して返す。**回転・遷移の途中は一覧が一瞬追いつかない**ので、1回の不一致では断らない
+     * (Emulator の回転の直後の読みで断って赤になった)。期限は根の待ちと同じ BUILD_ROOT_WAIT_MS で、
+     * 続くのはアプリ切り替えの間だけ。一覧に載る通常の読みには費用が乗らない
+     */
+    static AccessibilityNodeInfo rootSettledAmongWindows(UiAutomation ua, AccessibilityNodeInfo first) {
+        long deadline = SystemClock.uptimeMillis() + BUILD_ROOT_WAIT_MS;
+        AccessibilityNodeInfo root = first;
+        while (!isRootListedAmongWindows(ua, root)) {
+            if (SystemClock.uptimeMillis() >= deadline) throw new RootNotOnScreen();
+            SystemClock.sleep(ROOT_POLL_MS);
+            AccessibilityNodeInfo latest = ua.getRootInActiveWindow();
+            if (latest != null) root = latest;
+        }
+        return root;
+    }
+
     static boolean isRootListedAmongWindows(UiAutomation ua, AccessibilityNodeInfo root) {
         try {
             List<AccessibilityWindowInfo> windows = ua.getWindows();
@@ -250,7 +267,7 @@ final class SnapshotBuilder {
         if (root == null) {
             throw new IllegalStateException("cannot read the UI tree of the active window");
         }
-        if (!isRootListedAmongWindows(ua, root)) throw new RootNotOnScreen();
+        root = rootSettledAmongWindows(ua, root);
 
         List<UINode> nodes = new ArrayList<>();
         // uiautomator dump の XML は hierarchy=depth1、root ノード=depth2 相当。

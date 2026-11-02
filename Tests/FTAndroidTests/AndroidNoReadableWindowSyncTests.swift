@@ -41,8 +41,10 @@ final class AndroidNoReadableWindowSyncTests: XCTestCase {
     func testSnapshotRefusesARootThatIsNotAmongTheWindowsOnScreen() throws {
         let builder = try String(contentsOf: repoRoot.appendingPathComponent(
             "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java"), encoding: .utf8)
-        XCTAssertTrue(builder.contains("if (!isRootListedAmongWindows(ua, root)) throw new RootNotOnScreen();"),
-                      "build は根の窓が getWindows() に居なければ読まずに断ること")
+        XCTAssertTrue(builder.contains("root = rootSettledAmongWindows(ua, root);"),
+                      "build は根の窓が getWindows() に居ないまま続けば読まずに断ること")
+        XCTAssertTrue(builder.contains("if (SystemClock.uptimeMillis() >= deadline) throw new RootNotOnScreen();"),
+                      "1回の不一致では断らない(回転の途中は一覧が追いつかない)")
         XCTAssertTrue(builder.contains("window.getId() == rootWindowId"),
                       "突き合わせは窓の id で行うこと")
         let router = try routerSource
