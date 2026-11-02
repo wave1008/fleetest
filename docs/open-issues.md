@@ -18,83 +18,15 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 18 | OI-1・OI-40・OI-50・OI-58・OI-70・OI-72・OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-100・OI-112・OI-115・OI-129・OI-135・OI-136 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 4 | OI-64・OI-77・OI-116・OI-129 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 10 | OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-100・OI-112・OI-129・OI-136 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 6 | OI-40・OI-58・OI-64・OI-77・OI-116・OI-129 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-1・OI-2・OI-40・OI-41・OI-45・OI-48・OI-64・OI-76・OI-89・OI-92・OI-102・OI-108・OI-109・OI-112・OI-120・OI-121・OI-128・OI-129 |
 | 低率の赤 | 数十〜数百回に1回の赤で、効果の判定に多くの周回が要るもの | 15 | OI-5・OI-6・OI-7・OI-13・OI-14・OI-15・OI-16・OI-17・OI-89・OI-102・OI-111・OI-127・OI-130・OI-132・OI-134 |
-| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 32 | OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-137・OI-138 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 10 | OI-4・OI-7・OI-8・OI-9・OI-10・OI-11・OI-12・OI-17・OI-89・OI-137 |
+| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 37 | OI-1・OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-70・OI-72・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-115・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-135・OI-137・OI-138 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-4・OI-7・OI-8・OI-9・OI-10・OI-11・OI-12・OI-17・OI-89 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 11 | OI-2・OI-22・OI-23・OI-24・OI-25・OI-26・OI-27・OI-28・OI-38・OI-52・OI-109 |
 
 ## 着手可
-
-### OI-1 キーボードで押し上げられてステータスバーの下に入った要素を、done のまま外す
-- 状態: 推測
-- 確認: c87b8c8f(2026-10-07)
-- 属性: 着手可・木に材料なし
-- 経緯: 発見: 09-11
-
-- 場所: ステータスバーの帯を見る判定が MCP・`TapTargetGeometry`・`RefGuard` のどこにも無い
-- 確かめた範囲: Android Emulator の4つの SUT(View/XML・CMP・Flutter・RN)のテキスト入力画面で、いちばん下の欄に焦点を
-  立ててキーボードを出しても、上端の帯(142px)に入る要素は出なかった(RN の見出しが帯の直下で止まる)。iOS の
-  キーボードの覆い画面は押し上げない作り
-- 要る材料: 実例の木。ステータスバーの高さは木に載らない(画面の枠だけ)ので、定数で帯を決めると機種で黙って誤る。
-  ブリッジが安全領域(safeAreaInsets / WindowInsets)を申告する形なら根拠のある判定になる
-- 11/2: 安全領域の上端の申告を足した(in-app ブリッジ・Android = 実測値、XCUITest = 不明)。帯の中の対象へのタップは MCP・DSL とも警告する。XCUITest モードでは不明なので言わない
-- 11/2(デバイス): in-app ブリッジ(iPhone 18 Pro)は `measured top=62`・Android(Pixel 10 Pro)は `measured top=156`・XCUITest は `measured=false` を申告した。帯の中の対象へのタップの警告そのものはデバイスでは未確認(帯に入る形を作れていない)
-
-### OI-40 Flutter の数字だけの欄に英字を打つと、置き換え入力が ok になる(画面の欄は空なのに木の value が打った文字列のまま)
-- 状態: 再現済み
-- 確認: 7ac53b33(2026-10-29)
-- 属性: 着手可・木に材料なし
-- 経緯: 発見: 10-29 の探索(Android Emulator・E2EX-Flutter の入力の種類画面 `#field_number`)
-
-- 症状: `type '#field_number >> .textField' 'xyz' replace: true` は DSL / ft_batch で ok。ft_type の replace は警告する(ツール間で食い違う)。
-  直後の木の value は `xyz` のまま、画面の欄は空
-- 見立て: Flutter のセマンティクスが、欄が捨てた入力で更新されない。注入(ACTION_SET_TEXT)の読み返しが更新されない value を信じる
-- 手がかり: 読み返しの後に画面(OCR)で欄の中身を確かめるか、Flutter の欄だけ読み返しの根拠を変えるか。誤った緑なので、どちらも
-  実データ(他の Flutter の欄)で誤検知を測ってから
-- 11/2 に測定(Pixel 3a・Android 12): 2/2 再現。3 秒待っても `xyz` のまま・別の欄へ焦点を移すと消える。ブリッジに拒否の信号は無い。残る手は OCR で欄を確かめる形(OCR のトグルとの関係は判断待ち)か semantics の更新を強いる形(未検証)
-- 11/2: OCR の段がオンのときだけ、数字系の名前の欄の置き換え入力を OCR で確かめ、描かれていなければ `typed-text-not-drawn` の警告を付ける(赤にしない)。OCR がオフなら誤った緑のまま
-- 11/2(Pixel 9・Android 15・E2EX-Flutter): `#field_number >> .textField` で `typed-text-not-drawn` が付かなかった。この時の手元の Mac は Vision の OCR が何も読めない状態(`Hello 123` の絵でも空)だったので、検知の確認になっていない。健全なマシンで測り直す
-- 11/2(再起動後・文字認識のテストは緑): `#field_number` と `#field_first` のどちらも注記なしの緑(各 1 回)。OCR が走ったか・木の id が判定に届いたかは未確認。`shouldCheck` を通ったかの記録が無いので、まずそこを見る
-- 11/2(再起動後・Pixel 10 Pro): 警告は効いている(結果の記録の `notes` に `typed-text-not-drawn`。OCR は欄を空と読んだ)。コンソールとレポートの行には出ない(多くの注記と同じ扱い)。前の確認で見えなかったのはこのため。typeDriver 経由の打鍵の成功経路からも確認を呼ぶようにした(呼んでいなかった)
-
-### OI-50 CMP で効いた tap の後に tap が続く ft_batch が「画面が変わらなかった = 飲まれたかも」と警告する
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 属性: 着手可・再現待ち
-- 経緯: 発見: 10-30 の探索的テスト
-
-- 比較は `executor.lastTapTreeBefore` どうし。次の tap が前の tap の効果の出る前の木で解決している疑い(DSL の `unchangedEarlierTaps` にも同じ型で効きうる。その場合は警告より実害が大きい)
-- 2026-11-02: iOS の CMP では 0 件(16 手)。Android の CMP は未測定。原因が tap の後の a11y キャッシュなら `nextResolveBypassesCache` を毎手に足す形になる
-
-### OI-58 横向きで低い縦の一覧の枠なしの払いが一覧に当たらない
-- 状態: 経路確定
-- 確認: コミット未記録(2026-11-02)
-- 属性: 着手可
-- 経緯: 発見: 10-30 の探索的テスト
-
-- 「nothing moved at all」の経路でだけ、唯一のスクロール容器の中で払い直すようにした(E2EY-Flutter の横向きの `#list_chat` で 0/3)。修正を外した版で 3/3 が赤・修正ありで 0/3(同じ Emulator・`oi58-scrollto-low-list-landscape`)
-- 容器が2つ以上の画面(E2E-Android のスクロール画面 = 高さ 94px の一覧とカルーセル)は払い直さず `scrollFrame` を勧めるだけで、枠なしの `scrollTo` は赤のまま
-
-### OI-70 軽い誤警告の残り
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 属性: 着手可
-- 経緯: 発見: 10-30 午後の探索的テスト(M1Max の Simulator = mxios F5・F11)
-
-- Flutter で空の replace の後に「Scan Text」の編集メニューが残る(mxios F11)・自分のラベルに中心を覆われていると誤警告(mxios F5 の後半。`OcclusionGeometry.occluder`、SweepHarnessTests の件数に触れうる)
-
-### OI-72 スクロール探索の逆走査が、動かなかった探索・弾切れの後にも走り、進んだ分のほぼ全部を戻す
-- 状態: 再現済み
-- 確認: コミット未記録(2026-10-30)
-- 属性: 着手可
-- 経緯: 発見: 10-30 午後の探索的テスト(Simulator・E2EY = sim8 F4・F7・F10・se3 F13・mxios F6)
-
-- 逆走査の門は「署名が変わったか」(contentEverMoved)で、位置表示の文字・端のバウンスでも「動いた」になる(反転チャットで動かない探索の後に遅いドラッグ 8 本)。本数も常に上限の 8 本
-- 「中身が実際にずれたか」の門と「最後の1本の移動量から本数を決める」直しを入れたが取り消した: id の無い行の一覧では本物のスクロールも「ずれていない」と読み(固定のバーだけが id を持つ)、通り過ぎた対象を拾う逆走査が止まる(コードレビューの指摘・既存のテスト3件が落ちた)
-- 手がかり: ずれの判定は、送った容器の中の要素だけで見る(容器の外の固定の要素を数えない)。id の無い行は枠の並びで見る
 
 ### OI-75 Android の横向きの残り(CMP の行の端・Flutter の端の誤判定)
 - 状態: 再現済み
@@ -115,7 +47,7 @@
 
 - Android の ref なしの入力の前の「欄を押す」は、物理キーボードで IME が出ない端末では毎回押す(Flutter の入力接続の切れは IME の窓と無関係なので条件にしなかった)。カーソルの移動・貼り付けの吹き出し・押すと開く欄が起きうる。押す条件を「Flutter のアプリ」に絞るなら、ブリッジはフレームワークを知らないのでホストから渡す
 - replace の引き直しの ④placeholder / ラベル ⑤焦点のある同じ型の要素 は推測の段(`ClearedFieldRelocation.relocate`)。消去で焦点が別の欄へ移った画面では別の欄に打ちうる。DSL も MCP と同じ段を使うようになった
-- ft_hide_keyboard は、このセッションの type の後は上限(1.5 秒)まで出現を待つ(今日より前と同じ)。物理キーボードでキーボードが出ない構成では毎回 1.5 秒かかる。`KeyboardWait.shouldAwaitAppearance` は iOS で枠が無い木を「出ない」と読むので、type の直後の ref 操作でも出現を待たない疑い(推測。直すなら共有の判定の側で)
+- ft_hide_keyboard は、このセッションの type の後は上限(1.5 秒)まで出現を待つ(今日より前と同じ)。物理キーボードでキーボードが出ない構成では毎回 1.5 秒かかる
 - ft_batch の終わりの前面の照会は、Android では木の bundle が前面のパッケージなので常に前面 = 1往復の無駄。意図して別アプリへ移る batch も「前面を離れたかも」と言う
 - Android の launch で systemui が居座ったときの失敗文が、シェードを閉じた事実を書かない・PowerManager が読めないと時点の注記が落ちる
 - 11/2: replace の引き直しの読み直しは、撃つ側が同じドライバのときだけ省いた。ft_batch の終わりの前面の照会を Android で省く件は、木の bundle(アクセシビリティの根)と前面(dumpsys)の一致をソースで示せないので入れていない(デバイスで測ってから)
@@ -146,6 +78,7 @@
 
 - iOS で探索の途中に別アプリへ奪われ、打ち切りの時点で戻っていると「reached its end」と言う(3/8)
 - ロック画面の下の ft_type の文言は未確認(PIN の仮設定が要る)
+- 次の手: 前面の照会(`frontAppIfSessionAppLeft`)を、動かなかった周回ごとにも引くか、木の持ち主(`sessionBundleID`)の変化を探索中に記録して打ち切りで使う。照会は往復が増えるので、まず後者の費用を測る
 
 ### OI-89 探索・負荷(10/31)で直さなかったもの
 - 状態: 経路確定
@@ -179,23 +112,7 @@
 - 経緯: 発見: 11/1 朝の探索的テスト(iPhone 17 Pro -10 = inapp F1・F5)
 
 - xcuitest モード(`--set iosMode=xcuitest`・SampleApp ログインテスト)で、ログイン後に OS の「パスワードを保存しますか?」シートが出ると、step 8 `ifCanSelect "今はしない"` が not met・step 9 `exist "#welcome_text||ようこそ"` が 8 秒で `element not found`(3/3)。失敗の要素一覧は `screen: 402x874` の1行だけ(0 件)・注記なし。スクリーンショットにはシートと背面の「ようこそ」。inapp-boost は同じシナリオが緑(step 8 も not met)。推測: シートは別プロセスの AutoFill でシステムアラートの照会に載らない。step 8 のタイミングは未測定(シートの出現時刻を測っていない)
-
-### OI-115 ft_list_devices が端末の不在を言わない(iOS 実機の探索)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-01)
-- 属性: 着手可
-- 経緯: 発見: 11/1 朝の探索的テスト(iPhone SE3 実機 = se3 F3・F8)
-
-- 直すなら実機で devicectl の `state` と `probeReachable` の食い違いを測ってから(`connection.state` は両方向に信用できない)
-- deep sleep の 3 秒後(idevice_id が空)に ft_list_devices は「running, no bridge listening on this Mac」・ほかの道具(ft_install / ft_open_url / ft_clear_app_data / ft_list_apps / ft_screenshot)は「a bridge … is listening on port 8123」と言い、端末の不在を言わない(1/1)
-- 11/2: devicectl が接続中と言いブリッジの無い実機の行だけ `devicectl device info details` を照会し、完走して非ゼロのときだけ「unreachable」と言うようにした(期限切れ・起動失敗は今のまま)。deep sleep の実機での確認は未実施
-
-### OI-135 xcuitest モードの CMP の複数行で、焦点を取り戻した打ち足しが先頭へ入る
-- 状態: 再現済み
-- 確認: 430d1097(2026-11-02)
-- 属性: 着手可
-
-`テキスト入力が正しくechoされること.S0060` が `xL3` で赤。M1Ultra 13/18・M1Max 1/4・手元 0/24(手元の赤4件は OI-137)。Cmd+↓ で末尾へ送る処理(`moveCursorToEndAfterRefocus`)が効かない回がある。同じランナーの入力の処理で今朝は緑だったので、タイミングの疑い(推測)。
+- 次の手: シートが出ている間に、`com.apple.springboard` の alerts と AutoFill のプロセスの木を XCUITest で照会して、どこに載っているかを測る(載る場所が分かれば `InterruptionGuard` か木の取り込みに足す)
 
 ### OI-136 横向きのジェスチャ画面で、右への払いの始点が「長押し」ボタンに乗る(E2E の SUT の配置)
 - 状態: 経路確定
@@ -206,6 +123,32 @@
 
 ## 要判断
 
+### OI-40 Flutter の数字だけの欄に英字を打つと、置き換え入力が ok になる(画面の欄は空なのに木の value が打った文字列のまま)
+- 状態: 再現済み
+- 確認: 7ac53b33(2026-10-29)
+- 属性: 要判断・木に材料なし
+- 経緯: 発見: 10-29 の探索(Android Emulator・E2EX-Flutter の入力の種類画面 `#field_number`)
+
+- 症状: `type '#field_number >> .textField' 'xyz' replace: true` は DSL / ft_batch で ok。ft_type の replace は警告する(ツール間で食い違う)。
+  直後の木の value は `xyz` のまま、画面の欄は空
+- 見立て: Flutter のセマンティクスが、欄が捨てた入力で更新されない。注入(ACTION_SET_TEXT)の読み返しが更新されない value を信じる
+- 手がかり: 読み返しの後に画面(OCR)で欄の中身を確かめるか、Flutter の欄だけ読み返しの根拠を変えるか。誤った緑なので、どちらも
+  実データ(他の Flutter の欄)で誤検知を測ってから
+- 11/2 に測定(Pixel 3a・Android 12): 2/2 再現。3 秒待っても `xyz` のまま・別の欄へ焦点を移すと消える。ブリッジに拒否の信号は無い。残る手は OCR で欄を確かめる形(OCR のトグルとの関係は判断待ち)か semantics の更新を強いる形(未検証)
+- 11/2: OCR の段がオンのときだけ、数字系の名前の欄の置き換え入力を OCR で確かめ、描かれていなければ `typed-text-not-drawn` の警告を付ける(赤にしない)。OCR がオフなら誤った緑のまま。オフのときも確かめるか(OCR のトグルとの関係)は判断待ち
+- 11/2(Pixel 9・Android 15・E2EX-Flutter): `#field_number >> .textField` で `typed-text-not-drawn` が付かなかった。この時の手元の Mac は Vision の OCR が何も読めない状態(`Hello 123` の絵でも空)だったので、検知の確認になっていない。健全なマシンで測り直す
+- 11/2(再起動後・文字認識のテストは緑): `#field_number` と `#field_first` のどちらも注記なしの緑(各 1 回)。OCR が走ったか・木の id が判定に届いたかは未確認。`shouldCheck` を通ったかの記録が無いので、まずそこを見る
+- 11/2(再起動後・Pixel 10 Pro): 警告は効いている(結果の記録の `notes` に `typed-text-not-drawn`。OCR は欄を空と読んだ)。コンソールとレポートの行には出ない(多くの注記と同じ扱い)。前の確認で見えなかったのはこのため。typeDriver 経由の打鍵の成功経路からも確認を呼ぶようにした(呼んでいなかった)
+
+### OI-58 横向きで低い縦の一覧の枠なしの払いが一覧に当たらない
+- 状態: 経路確定
+- 確認: コミット未記録(2026-11-02)
+- 属性: 要判断
+- 経緯: 発見: 10-30 の探索的テスト
+
+- 「nothing moved at all」の経路でだけ、唯一のスクロール容器の中で払い直すようにした(E2EY-Flutter の横向きの `#list_chat` で 0/3)。修正を外した版で 3/3 が赤・修正ありで 0/3(同じ Emulator・`oi58-scrollto-low-list-landscape`)
+- 容器が2つ以上の画面(E2E-Android のスクロール画面 = 高さ 94px の一覧とカルーセル)は払い直さず `scrollFrame` を勧めるだけで、枠なしの `scrollTo` は赤のまま。複数容器の画面でどの容器へ払い直すかの選択は判断待ち
+
 ### OI-116 CLI の入力検査と文言の残り
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-01)
@@ -215,15 +158,6 @@
 - 登録簿に無い `--runner` は本実行で ssh 宛先として有効なので、dry-run は断らず警告する(断るなら未登録名の扱いの決定が要る)
 
 ## 木に材料なし
-
-### OI-2 xcuitest モードの `keyboardIsNotShown` は必ず赤になる
-- 状態: 据え置き
-- 確認: コミット未記録(2026-11-02)
-- 属性: 木に材料なし・据え置き
-- 経緯: 2026-10-20 の仕様監査
-
-- XCUITest ブリッジは「見た/不明」しか言わないので赤(docs/commands.md の設計 = 不明を非表示と読まない)
-- 11/2 に測定: 落ち着いた木に `.keyboard` が無ければ非表示と読む形を入れて取り消した。Compose の入力の直後、`keyboardIsNotShown` の次の `keyboardIsShown` まで通る回が 6/8 で、キーボードが出ていても木に一時的に載らない。直すなら木の外の材料が要る
 
 ### OI-41 一覧の外に描かれた行(容器の外の残像)への MCP の ref タップが、背景が空白だと無警告で空振りする
 - 状態: 再現済み
@@ -342,7 +276,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 属性: 低率の赤・再現待ち
 - 経緯: 2026-10-22 の回帰・負荷テスト。いずれも再現の材料なし
 
-- E2EX-Flutter Android「スワイプで行を削除」S0010(`Dismissible`): 3/58(10/5〜)。Android の注入は終点の MOVE を UP の前に撃つので上の型とは別
+- E2EX-Flutter Android「スワイプで行を削除」S0010(`Dismissible`): 3/58(10/5〜)。Android の注入は終点の MOVE を UP の前に撃つので、iOS の XCUITest の full swipe が削除まで走らない型(下の E2EY-CMP「スワイプの距離で結果が変わること」)とは別
 - E2EY-RN iOS XCUITest「入れ子の横の一覧の画面外のカードへ届くこと」S0010(2026-10-25・M1Max の4台同時で 1/12。単独 3/3 緑):
   `tap("#card_7_12")` の横の探索が 8 回の送りを使い切り、失敗時の木では段 7 がカード 7-01〜03(ほぼ先頭)のまま。緑の回も
   13 秒前後と「見えている部分を押した / 整定前に撮った」注記付きの 22 秒前後の2群に割れる
@@ -370,7 +304,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
   注記は `ocr-shortcut-not-ready`(この Mac は OCR が死んでいた = 突き合わせの相手が居ない)
 - 次に見るもの: 同じ切り抜きを FM に何度か渡して空が返る率。空の転写を「描かれていない」の根拠にしてよいか(インク量が十分ある絵で)
 - 2026-10-24: **OCR の段がオンの構成は救うようにした**(確かめの OCR も未準備の Vision の空を受けていた = 24 本同時で 23/24 赤 → 0/24。
-  MN-104.4)。残るのは FM の空振りの率そのものと、OCR の段がオフの構成(下の項目)
+  MN-104.4)。残るのは FM の空振りの率そのものと、OCR の段がオフの構成(FM だけで判定する。突き合わせる OCR の相手が居ない)
 
 ### OI-14 E2EX-CMP の XCUITest で「貼り付く見出しのリストを扱えること」が断続的に赤
 - 状態: 再現済み
@@ -445,7 +379,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
   **読み手が失敗していたら、ステップの外枠の中で戻るのを待って読み直すようにした**(`StepExecutor+LinkText.swift`。外枠の無い MCP は待たない)。
   注入口(`FT_FAKE_OCR_DEAD=1`)のデバイス実行で、外枠 120 秒の中で約 118 秒待ってから両方の事実を言って落ちることを確かめた。
   読み手が戻った回に緑になることは単体テストだけで、デバイスでは確かめていない(故障を意図して起こせない)
-- 2026-11-02(E2EY-CMP の文中リンク・iOS・静かでない条件ではない Android の高負荷の形は未測定): 0/12
+- 2026-11-02(E2EY-CMP の文中リンク・iOS・Android の高負荷の形は未測定): 0/12
 
 ### OI-127 手元の Emulator の白紙が回帰の終盤に集中した
 - 状態: 再現済み
@@ -479,6 +413,21 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 11/2 に測り直して 0/96(4 台)。launch が速い回・高負荷では未測定。
 
 ## 再現待ち
+
+### OI-1 キーボードで押し上げられてステータスバーの下に入った要素を、done のまま外す
+- 状態: 推測
+- 確認: c87b8c8f(2026-10-07)
+- 属性: 再現待ち・木に材料なし
+- 経緯: 発見: 09-11
+
+- 場所: ステータスバーの帯の判定は `TapTargetGeometry.topSafeAreaAdvisory`(ブリッジが申告した安全領域の上端が根拠。下の 11/2 の行)
+- 確かめた範囲: Android Emulator の4つの SUT(View/XML・CMP・Flutter・RN)のテキスト入力画面で、いちばん下の欄に焦点を
+  立ててキーボードを出しても、上端の帯(142px)に入る要素は出なかった(RN の見出しが帯の直下で止まる)。iOS の
+  キーボードの覆い画面は押し上げない作り
+- 要る材料: 実例の木。ステータスバーの高さは木に載らない(画面の枠だけ)ので、定数で帯を決めると機種で黙って誤る。
+  ブリッジが安全領域(safeAreaInsets / WindowInsets)を申告する形なら根拠のある判定になる
+- 11/2: 安全領域の上端の申告を足した(in-app ブリッジ・Android = 実測値、XCUITest = 不明)。帯の中の対象へのタップは MCP・DSL とも警告する。XCUITest モードでは不明なので言わない
+- 11/2(デバイス): in-app ブリッジ(iPhone 18 Pro)は `measured top=62`・Android(Pixel 10 Pro)は `measured top=156`・XCUITest は `measured=false` を申告した。帯の中の対象へのタップの警告そのものはデバイスでは未確認(帯に入る形を作れていない)
 
 ### OI-3 MCP で払った `ft_snapshot waitFor` が `ft_draft_scenario` の下書きに写らず、下書きの `tap("#id")` が DSL 既定の約 0.7 秒の再試行しか持たず、遅い画面で赤になりうる
 - 状態: 経路確定
@@ -533,6 +482,15 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 - 浮きボタンの仮説: Android ブリッジの `SnapshotBuilder.assignPaintOrder` は zPath の共通部分が等しいとき浅い方を奥にする。Flutter の仮想ノードの描画順が全部同じだと、深いリストの行が浅い浮きボタンより手前に並ぶ(未確認)
 - 手がかり: その画面の `/snapshot` の JSON を `Tests/Fixtures/RealAppSnapshots/` に固定し、`ContainerGeometry.isOutsideContainer` / `PaintOrder` に当てて確定する
 
+### OI-50 CMP で効いた tap の後に tap が続く ft_batch が「画面が変わらなかった = 飲まれたかも」と警告する
+- 状態: 再現済み
+- 確認: コミット未記録(2026-10-30)
+- 属性: 再現待ち
+- 経緯: 発見: 10-30 の探索的テスト
+
+- 比較は `executor.lastTapTreeBefore` どうし。次の tap が前の tap の効果の出る前の木で解決している疑い(DSL の `unchangedEarlierTaps` にも同じ型で効きうる。その場合は警告より実害が大きい)
+- 2026-11-02: iOS の CMP では 0 件(16 手)。Android の CMP は未測定。原因が tap の後の a11y キャッシュなら `nextResolveBypassesCache` を毎手に足す形になる
+
 ### OI-59 iOS のアラートの入力欄への ft_type(replace)を「アラートが前面で届かない。ボタンを押せ」と断る
 - 状態: 再現済み
 - 確認: コミット未記録(2026-10-30)
@@ -541,6 +499,28 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 
 - replace なしの古い ref は照合し直して打てる。replace の経路(消去の前の ref の検査)で、キーボードで動いた欄の枠がアラートの枠の外と読まれている疑い
 - 11/2 に再現せず(10 回超・ref を遅らせる・横向きとも成功)。机上の仮説: 無名の欄は `RefGuard.match` が同じ枠でしか照合できず、キーボードで欄が動く機種で `.gone` になる。小さい画面での再現が要る
+
+### OI-70 軽い誤警告の残り
+- 状態: 再現済み
+- 確認: コミット未記録(2026-10-30)
+- 属性: 再現待ち
+- 経緯: 発見: 10-30 午後の探索的テスト(M1Max の Simulator = mxios F5・F11)
+
+- Flutter で空の replace の後に「Scan Text」の編集メニューが残る(mxios F11)・自分のラベルに中心を覆われていると誤警告(mxios F5 の後半。`OcclusionGeometry.occluder`、SweepHarnessTests の件数に触れうる)
+- 再現待ち: どちらも原因を分けた木が無い。採り直した実例の木で、覆った側が自分のラベル(子孫ではない別要素)かを見てから
+
+### OI-72 スクロール探索の逆走査が、動かなかった探索・弾切れの後にも走り、進んだ分のほぼ全部を戻す
+- 状態: 再現済み
+- 確認: コミット未記録(2026-10-30)
+- 属性: 再現待ち
+- 経緯: 発見: 10-30 午後の探索的テスト(Simulator・E2EY = sim8 F4・F7・F10・se3 F13・mxios F6)
+
+- 当初の症状: 逆走査の門が「署名が変わったか」(contentEverMoved)で、位置表示の文字・端のバウンスでも「動いた」になり、反転チャットで
+  動かなかった探索の後に遅いドラッグ 8 本が走って進んだ分を戻した
+- 手当て済みの前提: ずれの判定は容器の中だけで見る(`StepExecutor+ScrollSearch.swift` の `searchSignature`)・`movedByEvidence`・
+  `ScrollSearchBounce`・反対の端での打ち切り(`StepExecutor+Settle.swift`)
+- 次の手: 今のコードで再現するかを測り直す(E2EY の反転チャット・位置表示のある画面で、動かなかった探索・弾切れの後の逆走査の本数と戻った量)。
+  再現しなければ消す。id の無い行の一覧で本物のスクロールを「ずれていない」と読まないことは既存のテストが見ている
 
 ### OI-84 MCP の ft_swipe の直後の ref の tap は慣性を吸わない
 - 状態: 再現済み
@@ -623,7 +603,17 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 
 - `ft_launch com.ftester.e2e.flutter` → 待たずに `ft_tap x:201 y:294`(#nav_input の中心)→ 10/24 + 別の周で 2/10 が外れる。外れた回は全部 launch が 2.44〜2.58 秒・応答は `tap (201.0, 294.0) done`・画面はホームのまま・注記なし。当たった回は 2.81〜3.36 秒。対照: CMP(iOS)0/10・Flutter(Android)0/10・RN(Android)0/10。Flutter(iOS)でも ft_snapshot を挟めば ref の tap 0/14、ft_batch `tap '#nav_input'` 0/10 = 木に載るまで待つ経路は外れない
 - 11/2 に再現せず 0/60(負荷 約 63 で launch が 3.7〜9 秒。所見の 2.44〜2.58 秒の回が1度も出ない)。静かなマシンで速い回を狙う必要がある
-- 推測: XCUITest の launch が戻るのが 2 通りで、早い回は Flutter の最初のフレームの前。`MCPServer+SessionTools.swift:256 ftLaunch` は launch の後に描画を待たない
+- 推測: XCUITest の launch が戻るのが 2 通りで、早い回は Flutter の最初のフレームの前。`MCPServer+SessionTools.swift` の `ftLaunch` は launch の後に描画を待たない
+
+### OI-115 ft_list_devices が端末の不在を言わない(iOS 実機の探索)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-01)
+- 属性: 再現待ち
+- 経緯: 発見: 11/1 朝の探索的テスト(iPhone SE3 実機 = se3 F3・F8)
+
+- 直すなら実機で devicectl の `state` と `probeReachable` の食い違いを測ってから(`connection.state` は両方向に信用できない)
+- deep sleep の 3 秒後(idevice_id が空)に ft_list_devices は「running, no bridge listening on this Mac」・ほかの道具(ft_install / ft_open_url / ft_clear_app_data / ft_list_apps / ft_screenshot)は「a bridge … is listening on port 8123」と言い、端末の不在を言わない(1/1)
+- 11/2: devicectl が接続中と言いブリッジの無い実機の行だけ `devicectl device info details` を照会し、完走して非ゼロのときだけ「unreachable」と言うようにした(期限切れ・起動失敗は今のまま)。deep sleep の実機での確認は未実施
 
 ### OI-119 ランナーが固まった間の ft_batch は、手の前の読みも個別に時限切れを待つ
 - 状態: 推測
@@ -635,6 +625,14 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 - 別の1回は解凍で 62 秒で終わり `ok (406ms)`・実行された
 - 2026-11-02: SIGSTOP で再現せず(3 回とも約 5 秒・`接続が切れた`)。162 秒の形は未再現
 
+### OI-124 terminateApp 前後
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-02)
+- 属性: 再現待ち
+
+in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。ステップの無い区間の .ips の検索の上限は、箇所を特定できていない。
+- 11/2 にコードを読んだ: in-app の `terminateApp` は `simctl terminate` だけで HTTP を撃たず 409 を返さない(in-app の `/terminate` は 501)。409 を返せるのは XCUITest ランナーの `requireApp()` だけ = 直後の操作が XCUITest へ落ちた経路の疑い。再現のログが要る
+
 ### OI-125 live と CLI の残り
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-02)
@@ -642,10 +640,17 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 
 別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
 
+### OI-135 xcuitest モードの CMP の複数行で、焦点を取り戻した打ち足しが先頭へ入る
+- 状態: 再現済み
+- 確認: 430d1097(2026-11-02)
+- 属性: 再現待ち
+
+`テキスト入力が正しくechoされること.S0060` が `xL3` で赤。M1Ultra 13/18・M1Max 1/4・手元 0/24(手元の赤4件は OI-137)。Cmd+↓ で末尾へ送る処理(`moveCursorToEndAfterRefocus`)が効かない回がある。同じランナーの入力の処理で今朝は緑だったので、タイミングの疑い(推測)。
+
 ### OI-137 マシンの FM・Vision が止まっていた間に、Simulator の文字消えでレーンが外れた
 - 状態: 推測
 - 確認: 430d1097(2026-11-02)
-- 属性: 再現待ち・環境側
+- 属性: 再現待ち
 
 起動から約 11 時間の M2Ultra で FM が dead・Vision の OCR が空(`Hello 123` の絵も読めない)だった間、E2E-CMP の xcuitest が「none of the N text element(s) … is drawn」で 4/24 赤・レーン離脱。**この判定(`RenderCollapse`)は OCR ではなく切り出した領域の輝度のばらつきで見る**ので、絵に文字が無かったのは事実(当初「OCR が止まると誤って言う」と書いたのは誤り)。マシンの劣化(GPU / ANE)で Simulator の描画が崩れたのか、偶然の重なりかは分けていない。再起動後に同じ形が出るかで見る。`swift test` の RegionText 系 14 件の赤は同じ時刻の OCR の停止による。
 
@@ -655,14 +660,6 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 - 属性: 再現待ち
 
 `serial: emulator-5570` の `ft_batch` の木は E2EX-Flutter の入力画面(`value="xyz"`)だったのに、続く `ft_screenshot` は別の SUT のホーム画面だった(`adb -s emulator-5570 exec-out screencap` は入力画面)。同じ時刻に他の Emulator は E2E-Android のホームを表示していた。MCP のプロセスは約3時間前に起動した古い版で、その間に Emulator 8台を止めて別の8台が同じ serial で起動している。新しい MCP のプロセスで再現するかは未確認(1回)
-
-### OI-124 terminateApp 前後
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-02)
-- 属性: 再現待ち
-
-in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。ステップの無い区間の .ips の検索の上限は、箇所を特定できていない。
-- 11/2 にコードを読んだ: in-app の `terminateApp` は `simctl terminate` だけで HTTP を撃たず 409 を返さない(in-app の `/terminate` は 501)。409 を返せるのは XCUITest ランナーの `requireApp()` だけ = 直後の操作が XCUITest へ落ちた経路の疑い。再現のログが要る
 
 ## 環境側
 
@@ -822,6 +819,15 @@ in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。�
 
 ## 据え置き
 
+### OI-2 xcuitest モードの `keyboardIsNotShown` は必ず赤になる
+- 状態: 据え置き
+- 確認: コミット未記録(2026-11-02)
+- 属性: 据え置き・木に材料なし
+- 経緯: 2026-10-20 の仕様監査
+
+- XCUITest ブリッジは「見た/不明」しか言わないので赤(docs/commands.md の設計 = 不明を非表示と読まない)
+- 11/2 に測定: 落ち着いた木に `.keyboard` が無ければ非表示と読む形を入れて取り消した。Compose の入力の直後、`keyboardIsNotShown` の次の `keyboardIsShown` まで通る回が 6/8 で、キーボードが出ていても木に一時的に載らない。直すなら木の外の材料が要る
+
 ### OI-22 描画崩壊の判定は自前描画とフレームワーク不明のアプリだけ
 - 状態: 据え置き
 - 確認: コミット未記録(日付未記録)
@@ -838,7 +844,7 @@ in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。�
 - 属性: 据え置き
 
 - `activateSnapshotNode` の古い木: 撃つ前に `isReachable` で照合するが、UIView まで辿れないノードは許可する
-  (`InAppBridge/Sources/InAppBridge.swift:834-837`)ので、SwiftUI の AX だけのノードでは古いノードが発火し得る
+  (`InAppBridge.activateSnapshotNode`)ので、SwiftUI の AX だけのノードでは古いノードが発火し得る
 
 ### OI-24 `InAppSettle` は keyWindow だけを見る
 - 状態: 据え置き
@@ -876,7 +882,7 @@ in-app ブリッジの2回目の terminateApp の 409(xcuitest は直した)。�
 - I4 の DSL 側(XCUITest の DSL で ref を撃つと XCTest が拒否ボタンを押す): 断るのは MCP だけと決めた
 
 ### OI-38 E2EX-iOS の長押しメニューの項目で `inapp-tap-outside-hit-area` が出るが、本物の指でも押せる
-- 状態: 再現済み
+- 状態: 据え置き
 - 確認: 88f8bf8c(2026-10-28)
 - 属性: 据え置き
 - 経緯: 2026-10-28 の合成タッチの直前の待ち(v222〜)の後から、8 台同時の 29 回中 21 回で出る(直す前の run では出ていなかった)

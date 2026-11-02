@@ -156,12 +156,6 @@ final class SnapshotBuilder {
     }
 
     /**
-     * Android 13 でアプリ切り替え(Recents)を出している間、getRootInActiveWindow() は画面に出ていない
-     * アプリの窓を返し続け(実測 Pixel 4a: Active Window = アプリ・窓の一覧は Home とステータスバーだけ)、
-     * アプリの画面のままの木を読ませる。**根の窓が getWindows() の一覧に無ければ画面に出ていない**と読む。
-     * 一覧が取れない(空/null/例外)ときは判定せず従来どおり読む。
-     */
-    /**
      * 根の窓が一覧に載るまで読み直して返す。**回転・遷移の途中は一覧が一瞬追いつかない**ので、1回の不一致では断らない
      * (Emulator の回転の直後の読みで断って赤になった)。期限は根の待ちと同じ BUILD_ROOT_WAIT_MS で、
      * 続くのはアプリ切り替えの間だけ。一覧に載る通常の読みには費用が乗らない
@@ -178,6 +172,12 @@ final class SnapshotBuilder {
         return root;
     }
 
+    /**
+     * Android 13 でアプリ切り替え(Recents)を出している間、getRootInActiveWindow() は画面に出ていない
+     * アプリの窓を返し続け(実測 Pixel 4a: Active Window = アプリ・窓の一覧は Home とステータスバーだけ)、
+     * アプリの画面のままの木を読ませる。**根の窓が getWindows() の一覧に無ければ画面に出ていない**と読む。
+     * 一覧が取れない(空/null/例外)ときは判定せず従来どおり読む。
+     */
     static boolean isRootListedAmongWindows(UiAutomation ua, AccessibilityNodeInfo root) {
         try {
             List<AccessibilityWindowInfo> windows = ua.getWindows();

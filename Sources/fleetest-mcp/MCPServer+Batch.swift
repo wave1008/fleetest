@@ -673,7 +673,7 @@ extension MCPServer {
         // 上書きより先に取れる
         let beforeBatch = launchBaselineStale.contains(Self.sessionKey(args)) ? nil : lastSnapshots[Self.sessionKey(args)]
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(batchDriver, args: args)
-        let executor = StepExecutor(driver: batchDriver, releasesScrollTouch: !isAndroid,
+        let executor = StepExecutor(driver: batchDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid,
                                     isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFrameworkHint)
         executor.notesLandscapeWithoutRotate = false
 

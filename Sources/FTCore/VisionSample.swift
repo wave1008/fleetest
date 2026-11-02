@@ -95,7 +95,8 @@ public enum VisionSample {
     }
 
     /// 前面のアプリ ID: 木が答えた前面(Android は前面パッケージ・iOS はセッションのアプリ)、無ければドライバに聞く。
-    /// どちらも答えなければ nil
+    /// どちらも答えなければ nil。
+    /// **限界**: iOS の `sessionBundleID` はセッションのアプリであって前面ではない = iOS では「前面が別のアプリ」の警告は出ない
     public static func frontAppID(snapshot: SnapshotResponse, driver: AppDriver) async -> String? {
         if let id = snapshot.sessionBundleID, !id.isEmpty { return id }
         return (try? await driver.foregroundAppID()).flatMap { $0 }

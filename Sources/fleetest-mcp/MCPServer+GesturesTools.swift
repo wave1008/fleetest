@@ -44,7 +44,7 @@ extension MCPServer {
             }
             let step = FlowStep(action: "swipe", direction: direction.rawValue)
             let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
-            let executor = StepExecutor(driver: swipeDriver, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
+            let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                         uiFramework: uiFrameworkHint)
             executor.notesLandscapeWithoutRotate = false
             let outcome = await executor.execute(step)
@@ -76,7 +76,7 @@ extension MCPServer {
             : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n"
         let step = Self.swipeScrollFrameStep(direction: direction, scrollFrameArg: scrollFrameArg)
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
-        let executor = StepExecutor(driver: swipeDriver, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
+        let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                     uiFramework: uiFrameworkHint)
         executor.notesLandscapeWithoutRotate = false
         let outcome = await executor.execute(step)
@@ -245,7 +245,7 @@ extension MCPServer {
     /// **Enter へは進まない**(消したばかりの欄・入力中の欄で確定させない)
     func hideKeyboardExecutor(_ driver: AppDriver, args: [String: Any]) async -> (executor: StepExecutor, isAndroid: Bool) {
         let (isAndroid, uiFramework) = await resolveExecutorHints(driver, args: args)
-        let executor = StepExecutor(driver: driver, releasesScrollTouch: !isAndroid,
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid,
                                     isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFramework)
         executor.hideKeyboardFallsBackToEnter = false
         executor.notesLandscapeWithoutRotate = false

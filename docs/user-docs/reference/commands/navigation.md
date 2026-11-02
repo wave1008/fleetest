@@ -12,7 +12,7 @@ OS-level navigation: home screen, back, app switcher, home screen icon, screen r
 | `back(settle:)` | Goes back to the previous screen (Android = back key / iOS = the navigation bar's back button, falling back to a left-edge swipe when there is none). |
 | `appSwitcher()` | Opens the app switcher. On a home-button iPhone (e.g. iPhone SE) the switcher is a hardware double-press that cannot be sent, so the scenario is recorded as skipped (not applicable) from that step on instead of failing. |
 | `tapAppIcon(name?)` | Finds and taps the app icon on the home screen. `name` is matched **exactly** against the name shown under the icon on the home screen. When omitted it is the app profile's `appName` for that OS (`ios.appName` / `android.appName`). |
-| `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | Rotates the app UI to that orientation. Only these two values exist. |
+| `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | Rotates the app UI to that orientation. Only these two values exist. To run every scenario in landscape without writing this, set `orientation` in the [run profile](../project/run_profile.md). |
 | `fold(waitSeconds:)` | Folds a foldable device to the outer screen and waits until the device reports it switched (up to `waitSeconds`, default = the run's default timeout). Fails if it does not switch. |
 | `unfold(waitSeconds:)` | Unfolds to the inner (large) screen. Same rules as `fold`. |
 | `hinge(_ degrees)` | Sets the hinge angle, 0 (folded) to 180 (unfolded); about 130 is the half-open book posture. Does not check which screen shows. |

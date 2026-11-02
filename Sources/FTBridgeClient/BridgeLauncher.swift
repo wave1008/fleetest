@@ -102,19 +102,9 @@ public struct BridgeLauncher: Sendable {
             "-derivedDataPath", derivedDataPath.path,
         ] + signingArguments, cwd: repoRoot, abortable: true)
         guard result.status == 0 else {
-            // **署名で止まっているなら「次にやること」を出す** —— 生のビルドログは数十行あり、
-            // そのまま拡張のバナーへ流れると読み手は何をすればいいか分からない
-            // (XcodeSigningDiagnosis)。当てはまらないログには触らず生のまま出す
-            let problems = XcodeSigningDiagnosis.problems(inBuildLog: result.tail)
-            if !problems.isEmpty {
-                throw LauncherError.codeSigningIncomplete(
-                    problems: problems, logPath: writeBuildLog(result.tail)?.path)
-            }
-            // result.tail(単純な末尾30行)だと destination 不一致の原因行が対象外宛先の
-            // 一覧に押し出されて消えることがある(XcodebuildFailureSummary のコメント参照)
-            throw LauncherError.commandFailed(
-                "xcodebuild build-for-testing",
-                XcodebuildFailureSummary.summarize(output: result.output, tailLineCount: 30))
+            throw Self.buildForTestingError(
+                aborted: BuildAbort.isAborted, output: result.output, tail: result.tail,
+                writeLog: { writeBuildLog($0)?.path })
         }
         ToolchainFingerprint.store(at: Self.runnerFingerprintPath(derivedDataPath: derivedDataPath))
         if !signing.isEmpty {
@@ -180,6 +170,23 @@ public struct BridgeLauncher: Sendable {
                                     signing: currentSigningFingerprint()) != nil {
             try buildForTesting()
         }
+    }
+
+    /// build-for-testing が非0で終わったときの投げ先。**中断で止めたビルドは署名の診断にも「ビルドの失敗」にも回さない**
+    static func buildForTestingError(aborted: Bool, output: String, tail: String,
+                                     writeLog: (String) -> String?) -> LauncherError {
+        if aborted { return .buildInterrupted("xcodebuild build-for-testing") }
+        // **署名で止まっているなら「次にやること」を出す** —— 生のビルドログは数十行あり、
+        // そのまま拡張のバナーへ流れると読み手は何をすればいいか分からない
+        // (XcodeSigningDiagnosis)。当てはまらないログには触らず生のまま出す
+        let problems = XcodeSigningDiagnosis.problems(inBuildLog: tail)
+        if !problems.isEmpty {
+            return .codeSigningIncomplete(problems: problems, logPath: writeLog(tail))
+        }
+        // tail(単純な末尾30行)だと destination 不一致の原因行が対象外宛先の
+        // 一覧に押し出されて消えることがある(XcodebuildFailureSummary のコメント参照)
+        return .commandFailed("xcodebuild build-for-testing",
+                              XcodebuildFailureSummary.summarize(output: output, tailLineCount: 30))
     }
 
     /// 失敗したビルドの生出力を残す(畳んだ案内から辿れるように)。**書けなくても失敗させない**
@@ -1336,6 +1343,8 @@ public struct BridgeLauncher: Sendable {
 
 public enum LauncherError: Error, LocalizedError {
     case commandFailed(String, String)
+    /// run の中断でビルドを止めた(`BuildAbort`)。引数は止めたコマンド。ビルドの失敗ではない
+    case buildInterrupted(String)
     case xctestrunNotFound(String)
     /// port: どの pid ファイルを探して無かったか。**素の "bridge.pid" と言わない** ——
     /// 実在するのは常に `bridge-<port>.pid` で、その名前で grep しても何も出ない
@@ -1359,6 +1368,8 @@ public enum LauncherError: Error, LocalizedError {
         switch self {
         case .commandFailed(let cmd, let tail):
             return "\(cmd) failed:\n\(tail)"
+        case .buildInterrupted(let cmd):
+            return "\(cmd) was stopped by the run interruption"
         case .xctestrunNotFound(let path):
             return "xctestrun not found (build-for-testing must run first): \(path)"
         case .notRunning(let port):

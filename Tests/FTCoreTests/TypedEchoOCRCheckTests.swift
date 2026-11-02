@@ -39,12 +39,37 @@ final class TypedEchoOCRCheckTests: XCTestCase {
                                                      element: inner, locator: nil))
     }
 
+    private func snapshot(_ elements: [ElementInfo]) -> SnapshotResponse {
+        SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                         elements: elements, truncatedCount: 0, safeAreaTop: .unknown)
+    }
+
+    private func input(value: String, focused: Bool?, y: Double) -> ElementInfo {
+        ElementInfo(ref: 1, type: "textField", identifier: "f", label: nil, value: value, placeholder: nil,
+                    enabled: true, frame: FTRect(x: 0, y: y, width: 300, height: 56), depth: 1, focused: focused)
+    }
+
+    /// 打った後の木の、焦点のある欄で value が打った文字列のものの枠を使う(打つ前の位置ではない)
+    func testTheCropFrameComesFromTheFocusedFieldAfterTyping() {
+        let moved = input(value: "xyz", focused: true, y: 300)
+        let frame = TypedEchoOCRCheck.typedFieldFrame(
+            in: snapshot([input(value: "xyz", focused: false, y: 10), moved]), text: "xyz")
+        XCTAssertEqual(frame?.y, 300)
+    }
+
+    /// 見つからなければ nil(確認をしない)
+    func testNoFocusedFieldWithTheTypedValueMeansNoCheck() {
+        XCTAssertNil(TypedEchoOCRCheck.typedFieldFrame(in: snapshot([input(value: "xyz", focused: false, y: 10)]), text: "xyz"))
+        XCTAssertNil(TypedEchoOCRCheck.typedFieldFrame(in: snapshot([input(value: "abc", focused: true, y: 10)]), text: "xyz"))
+        XCTAssertNil(TypedEchoOCRCheck.typedFieldFrame(in: snapshot([input(value: "xyz", focused: nil, y: 10)]), text: "xyz"))
+    }
+
     func testTheTypePathCallsTheCheck() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Actions.swift"), encoding: .utf8)
         // 打鍵の成功経路は2つ(typeDriver 経由と主経路)。どちらからも確認を呼ぶ
         XCTAssertEqual(source.components(separatedBy: "TypedEchoOCRCheck.shouldCheck(").count - 1, 2)
-        XCTAssertEqual(source.components(separatedBy: "noteIfTypedTextNotDrawn(element:").count - 1, 2)
+        XCTAssertEqual(source.components(separatedBy: "noteIfTypedTextNotDrawn(driver:").count - 1, 2)
     }
 
     func testNeverRunsWhenOCRIsOffOrMeasure() {

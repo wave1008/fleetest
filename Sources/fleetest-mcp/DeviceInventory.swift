@@ -221,8 +221,8 @@ enum DeviceInventory {
             // 両方出す — 片方しか出さないと「動いているのにもう一方が見えない」になる
             parts.append("bridge " + row.bridges.map(bridgeLabel).joined(separator: ", "))
         } else if row.unreachable {
-            parts.append("devicectl lists it as connected, but `devicectl device info details` for this udid failed, so the"
-                + " device does not answer from this Mac (it may be asleep or its tunnel is down) — no bridge can be reached")
+            parts.append("devicectl lists it as connected, but `devicectl device info details` for this udid exited with a"
+                + " non-zero status — no bridge was found for it")
         } else if row.running, row.platform == "ios" {
             // **「動いているのに MCP からは触れない」を行から読めるようにする**(H-3)。
             // iOS の操作系はブリッジ越しなので、ブリッジが無い機は udid を渡しても port を渡しても

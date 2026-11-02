@@ -235,6 +235,7 @@ public enum TapTargetGeometry {
     }
 
     /// **撃つ前に言える「たぶん何も起きない/別の物に当たる」**を1文にする。空 = 心当たり無し。
+    /// **帯の警告(`topSafeAreaAdvisory`)は最後** —— disabled・遮蔽などより具体的な事実を隠さない。
     /// **申告由来(keyboard → overlay window)を先頭**に合成する —— どちらも木の遮蔽判定では
     /// 原理的に拾えず(覆っている実体が `elements` に載っていない)、確度が最も高いため。
     /// `keyboardFrame` を渡さない呼び出しは disabled から始まる。
@@ -255,9 +256,9 @@ public enum TapTargetGeometry {
                                 isAndroid: Bool) -> String? {
         keyboardOcclusion.advisory(for: element)
             ?? overlayWindows.advisory(for: element)
-            ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen)
             ?? disabledAdvisory(for: element)
             ?? occlusionAdvisory(for: element, in: elements, screen: screen, isAndroid: isAndroid)
+            ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen)
     }
 
     /// **座標に依る警告の優先順チェーン、当たった形**(強い事実から先に、最初の1件だけ)。

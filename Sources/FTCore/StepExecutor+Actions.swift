@@ -1155,7 +1155,7 @@ extension StepExecutor {
                     // 描かれたかの確認は主経路と同じ条件で(この経路で返すと届かない)
                     if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
                                                      replace: step.replace == true, text: text, element: element, locator: step.locator) {
-                        await noteIfTypedTextNotDrawn(element: element, text: text, screen: snapshot.screen, phase: &phase)
+                        await noteIfTypedTextNotDrawn(driver: actingDriver, text: text, phase: &phase)
                     }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
                     return StepOutcome(status: .passed, healedStep: healedStep,
@@ -1202,7 +1202,7 @@ extension StepExecutor {
                 }
                 if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
                                                  replace: step.replace == true, text: text, element: element, locator: step.locator) {
-                    await noteIfTypedTextNotDrawn(element: element, text: text, screen: snapshot.screen, phase: &phase)
+                    await noteIfTypedTextNotDrawn(driver: actingDriver, text: text, phase: &phase)
                 }
             } catch {
                 // 409 = inapp が非 UIKit 入力欄で first responder を張れない兆候。type は要素個別の

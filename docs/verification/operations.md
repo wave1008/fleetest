@@ -273,25 +273,38 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
 - **回帰に参加するマシンに入れておくもの**(`regress.py` の段 1 は SUT を各マシンでビルドするので、1台でも欠けると回帰全体が止まる。
   ランナー機そのものの前提は docs/remote-runner-setup.md。2026-11-02 に M4Max を足したとき、下の順に1つずつ止まった)。
   **版はここに書かない —— 入れるその時点の M2Ultra(回帰の発行側)の版を調べて、それを採用する**(書いた版はすぐ古くなり、
-  食い違ったまま入れると M2Ultra と違う版のマシンが回帰に混ざる)。道具と、M2Ultra で版を読むコマンド:
+  食い違ったまま入れると M2Ultra と違う版のマシンが回帰に混ざる)。
+  - **登録**: `fleetest remote machines add` でマシンを登録する(docs/remote-runner-setup.md)。さらに、回帰の対象のプロファイル全部の
+    `devices[]` に、そのマシンの iOS / Android の項目(`machine: "<名前>"`)を足す(`Scripts/regress.py` の冒頭のコメント:
+    `devices[].machine` が並べたマシンのデバイスだけが使われる。足さないとそのマシンは登録だけで run に参加しない)
+  - 道具と、M2Ultra で版を読むコマンド(Homebrew は実機等のときだけ要る前提の docs/remote-runner-setup.md と違い、回帰に参加するなら
+    CocoaPods・JDK 等を brew で入れるので Homebrew も要る):
 
   | 道具 | M2Ultra で版を読む | 入れ方・注意 |
   |---|---|---|
   | Xcode | `xcodebuild -version` | 製品版を合わせる(ビルド番号だけの差はディスパッチを止めない) |
   | iOS Simulator ランタイム | `xcrun simctl list runtimes`(iOS の版とビルド)| Xcode の設定から同じビルドを入れる。同じ版の別ビルドが並ぶと、選ばれるビルドがマシンで割れる |
-  | Flutter | `flutter --version`(版と revision)| `~/flutter` に git のその版のタグを置き、**`~/.zprofile`** の PATH に `~/flutter/bin` を足す(段 1 は `zsh -lc` で撃つので `~/.zshrc` は読まれない)。`flutter precache --ios --android` まで(docs/sut-framework-upgrade.md)|
-  | CocoaPods | `pod --version` | `brew install cocoapods`(Flutter・RN の iOS)。版が違えば gem で合わせる |
-  | Node | `node -v` | RN |
-  | JDK | `java -version` | |
-  | Android SDK の部品 | `ls ~/Library/Android/sdk/{platforms,build-tools,cmake,ndk}`・`grep Pkg.Revision ~/Library/Android/sdk/{platform-tools,emulator}/source.properties` | 同じ一覧を `sdkmanager "platforms;android-NN" "build-tools;X" "cmake;X" "ndk;X"` で入れる。**`cmake` は RN の `configureCMake` が要る**(無いと `Failed to install the following SDK components: cmake;…`)|
+  | Flutter | `flutter --version`(版と revision)| M2Ultra は Homebrew の cask。他のマシンは `~/flutter` に git のその版のタグを置いてもよい(revision の一致は `flutter --version` で見る)。その場合は **`~/.zprofile`** の PATH に `~/flutter/bin` を足す(段 1 は `zsh -lc` で撃つので `~/.zshrc` は読まれない)。`flutter precache --ios --android` まで(docs/sut-framework-upgrade.md)|
+  | CocoaPods | RN の `E2EAppRN/ios/Podfile.lock` の `COCOAPODS:` 行(M2Ultra は `pod --version`)| 使うのは **RN の iOS だけ**(Flutter の SUT に Podfile は無い)。`brew install cocoapods`。brew の版が Podfile.lock の行と違えば、その版を指定して入れる |
+  | Node | `node -v` | RN の `package.json` の `engines`(`E2E*AppRN`)を満たすこと。依存は `Scripts/rn-deps.sh` が `npm ci` でそろえる(手順は要らない) |
+  | JDK | `zsh -lc 'echo $JAVA_HOME; java -version'`(Gradle は `JAVA_HOME` を見る)| 同じ版を入れて `~/.zprofile` に `export JAVA_HOME=$(/usr/libexec/java_home -v <版>)`。`JAVA_HOME` が無いと既定の JDK が使われ Gradle が始まらないことがある(docs/sut-framework-upgrade.md の JDK の節)|
+  | Android SDK の部品 | 版は M2Ultra の `ls` の丸写しにせず SUT の宣言から決める。RN: `E2E*AppRN/android/build.gradle` の `buildToolsVersion`・`compileSdkVersion`・`ndkVersion` / CMP: `E2E*AppCMP/gradle/libs.versions.toml` の `androidCompileSdk` 等 / Flutter: SDK の既定。`platform-tools`・`emulator` は `grep Pkg.Revision ~/Library/Android/sdk/{platform-tools,emulator}/source.properties` | `sdkmanager "platforms;android-NN" "build-tools;X" "cmake;X" "ndk;X"`。`sdkmanager --licenses` の受諾も1回。**`cmake` は RN の `configureCMake` が要る**(無いと `Failed to install the following SDK components: cmake;…`)|
   | Android のシステムイメージ | プロファイルの AVD の `config.ini` の `image.sysdir.1` | `sdkmanager "system-images;…"` |
 
-  - **RN の Gradle が SDK を見つけられること**: ログインシェルに `ANDROID_HOME` が無ければ `E2EAppRN/android`・`E2EXAppRN/android`・
+  - **RN の Gradle が SDK を見つけられること**: ログインシェルに `ANDROID_HOME`(または `ANDROID_SDK_ROOT`)が無ければ `E2EAppRN/android`・`E2EXAppRN/android`・
     `E2EYAppRN/android` の `local.properties`(git 管理外)に `sdk.dir=<SDK の場所>` を書く(無いと `SDK location not found`)
-  - **デバイス**: 名前・機種・OS はプロファイル(`devices[]` の `name` / `osVersion` / `avd`)に書かれたものに合わせ、AVD の設定
-    (機種・`hw.ramSize`・`disk.dataPartition.size`)は M2Ultra の同じ名前の AVD の `config.ini` を写す。プロファイルの Simulator は `udid` を
+  - **デバイス**: 名前・機種・OS はプロファイル(`devices[]` の `name` / `osVersion` / `avd`)に書かれたものに合わせる。プロファイルの Simulator は `udid` を
     書かず `name` と `osVersion` で引くので、各マシンで同じ名前に作れば登録はそのまま効く
-  - 確かめ方: ランナーのクローンで `FT_FULL_TEST=1 Scripts/e2e.sh --build-only`(`e2ex.sh`・`e2ey.sh` も)が通ること
+    - iOS: `xcrun simctl create "<name>" <devicetype> <runtime>`(同じ版のランタイムが複数あると作れないことがある = 既存のものを複製する手もある)
+    - Android: `avdmanager create avd -n <avd> -k <システムイメージ> -d <機種>` の後、M2Ultra の `~/.android/avd/<avd>.avd/config.ini` の
+      `hw.ramSize`・`disk.dataPartition.size` 等を写す
+    - `fleetest api create-device`(`--platform` / `--name` / `--model` / `--os` / `--project` / `--profile`)でも作れる。ただし `--profile` の追記は**撃ったマシン自身のプロファイル**へ入る(ランナー機で撃っても M2Ultra の正のプロファイルには入らない)ので、回帰の登録は上の手順で手元のプロファイルへ足す。`--no-register` で作るだけ
+      (`--profile` を付けるとそのマシンのプロファイルへ項目を足す)
+  - **確かめ方**(段 1 と同じ環境で撃つ): M2Ultra から
+    `ssh <host> "zsh -lc 'cd ~/fleetest-runner/fleetest-mobile && FT_FULL_TEST=1 Scripts/e2e.sh --build-only --local'"`(`e2ex.sh`・`e2ey.sh` も)。
+    または `Scripts/regress.py --dry-run` で撃つコマンドを確かめる。
+    `--build-only` はデバイスとランタイムを確かめないので、`fleetest remote status` の RUNTIME 欄と、そのマシンのデバイスで1シナリオ回して
+    合流するか(`fleetest run --project E2E-CMP --profile android --scenario <1本> --runner <マシン>`)も見る
 - **`e2e.sh` / `e2ex.sh` / `e2ey.sh` は引数に関係なく「スイート全体」として `Scripts/test-scope-guard.py` が断る**(全実施を頼まれたときだけ
   `FT_FULL_TEST=1`)。絞った確認は `fleetest run --project <P> --profile <prof> --scenario <クラス>` で通るシナリオを名指しする
 - **回帰の分担(ユーザー指示 2026-09-28。`Scripts/regress.py` を使わないときの形)**: E2E はこの Mac(M2Ultra)で `Scripts/e2e.sh --local`、

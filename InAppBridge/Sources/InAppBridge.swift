@@ -243,12 +243,10 @@ final class FTInAppBridge {
         // **キーボードはキーウィンドウの外**(UITextEffectsWindow)に載るため、AX ツリー走査
         // (InAppSnapshot の sawKeyboard)では見つからない。表示中かと実矩形を同一時点で読むため
         // 1回の mainSync にまとめる(2回に分けると間でキーボードが閉じ、不整合な組が起こり得る)
-        let (keyboardShown, keyboardWindowFrame): (Bool, CGRect?) = mainSync {
-            (Self.keyboardIsVisible(), Self.keyboardFrameIfVisible())
-        }
-        // 上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)。キーウィンドウが無ければ不明
-        let safeAreaTop: SafeAreaTop = mainSync {
-            self.keyWindow().map { .measured(Double($0.safeAreaInsets.top)) } ?? .unknown
+        // 上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)も同じ mainSync で読む。キーウィンドウが無ければ不明
+        let (keyboardShown, keyboardWindowFrame, safeAreaTop): (Bool, CGRect?, SafeAreaTop) = mainSync {
+            (Self.keyboardIsVisible(), Self.keyboardFrameIfVisible(),
+             self.keyWindow().map { .measured(Double($0.safeAreaInsets.top)) } ?? .unknown)
         }
 
         // **mainSync の外で行う**: WKWebView の DOM 読みは evaluateJavaScript の完了を待つが、

@@ -30,8 +30,7 @@ public enum BuildAbort {
     }
 
     /// 走っているビルドへ合図を送り、以後のビルドを断る。戻り値は合図を送った数。
-    /// `Shell.runRaw` は子を新しいプロセスグループで起こさないので `killpg` は失敗し、直下の子(swift build・xcodebuild)にだけ届く
-    /// (どちらも SIGTERM で自分の子を畳む)。孫まで確実に止めるならグループで起こす必要がある
+    /// 合図は子のプロセスグループへ送る(pgid == 子の pid なので孫まで届く。`Shell.swift` の `killpg` と同じ)。`killpg` が失敗したときだけ直下の子へ送る
     /// `kill: false` = SIGTERM(1回目の中断)/ `true` = SIGKILL(SIGTERM を無視して残ったビルドへ)
     @discardableResult
     public static func abortAll(kill: Bool) -> Int {

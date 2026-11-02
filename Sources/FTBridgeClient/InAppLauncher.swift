@@ -58,12 +58,14 @@ public struct InAppLauncher: Sendable {
         }
         let result = try Shell.run(["bash", script], abortable: true)
         guard result.status == 0 else {
+            if BuildAbort.isAborted { throw InAppLauncherError.buildInterrupted }
             throw InAppLauncherError.buildFailed(result.tail)
         }
         // 実機は iphoneos 版も作る(署名は relaunch 時に per-app)
         if physical {
             let deviceResult = try Shell.run(["bash", script, "device"], abortable: true)
             guard deviceResult.status == 0 else {
+                if BuildAbort.isAborted { throw InAppLauncherError.buildInterrupted }
                 throw InAppLauncherError.buildFailed(deviceResult.tail)
             }
         }
@@ -432,7 +434,7 @@ extension InAppLauncherError: StepFailureKindProviding {
     public var stepFailureKind: StepFailureKind? {
         switch self {
         case .notReady: return .driverUnreachable
-        case .dylibMissing, .repoRootInvalid, .buildFailed, .bootFailed, .launchFailed: return nil
+        case .dylibMissing, .repoRootInvalid, .buildFailed, .buildInterrupted, .bootFailed, .launchFailed: return nil
         }
     }
 }
@@ -441,6 +443,8 @@ public enum InAppLauncherError: Error, LocalizedError {
     case dylibMissing(String)
     case repoRootInvalid(String)
     case buildFailed(String)
+    /// run の中断でビルドを止めた(`BuildAbort`)。ビルドの失敗ではない
+    case buildInterrupted
     case bootFailed(String)
     case launchFailed(String)
     case notReady(String)
@@ -456,6 +460,8 @@ public enum InAppLauncherError: Error, LocalizedError {
                 + "If it cannot be resolved, set the clone root via the FT_TOOL_ROOT environment variable"
         case .buildFailed(let tail):
             return "InAppBridge/build.sh failed:\n\(tail)"
+        case .buildInterrupted:
+            return "InAppBridge/build.sh was stopped by the run interruption"
         case .bootFailed(let tail):
             return "could not boot the simulator (simctl bootstatus -b):\n\(tail)"
         case .launchFailed(let tail):

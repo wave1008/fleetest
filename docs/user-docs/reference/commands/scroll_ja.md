@@ -8,7 +8,7 @@
 
 | 関数 | 説明 |
 |---|---|
-| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、画面が1度も動かないまま(読み込み中の一覧など)でも、その秒数の間は端と決めずに送り直します。省略時は2周動かなければ打ち切ります。端まで送っても見つからなかったときは、送りが行を飛び越した分を拾うために少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、反対側を探さずに失敗します。 |
+| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、スクロール領域の中身が最初から1度も動かないまま(一覧がまだ出ていない・骨組みのまま)でも、その秒数の間は端と決めずに送り直します。効くのは1度も動いていない間だけで、途中まで動いた後に末尾で止まったら `waitSeconds:` に関わらず端とみなします(続きの読み込みは待ちません)。送り直しも `maxSwipes:` の本数に数えるので、長く待つなら `maxSwipes:` も上げてください(既定の 8 本では、`waitSeconds:` を長くしても十数秒で打ち切られます)。省略時は2周動かなければ打ち切ります。端まで送っても見つからなかったときは、送りが行を飛び越した分を拾うために少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、反対側を探さずに失敗します。 |
 | `scrollDown(repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | 1画面ぶんスクロールします(`repeat:` 回繰り返します)。 |
 | `scrollToBottom(settle:, maxSwipes: 50)` / `scrollToTop` / `scrollToRightEdge` / `scrollToLeftEdge` | 端まで送ります(画面が変化しなくなるまで)。`maxSwipes` は暴走を止める上限で、上限で打ち切るとステップに注記が付きます。 |
 | `withScrollDown { … }` / `withScrollUp` / `withScrollRight` / `withScrollLeft` | ブロック内の `tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` を**すべてスクロール探索**にします(明示の `scroll:` があればそちらが優先)。**`notExist` は意味が変わります** —— 探索中に見つかった時点で失敗になります。 |

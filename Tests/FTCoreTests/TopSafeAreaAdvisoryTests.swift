@@ -49,6 +49,17 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
         XCTAssertTrue(note?.contains("safe-area band") == true, note ?? "")
     }
 
+    /// 帯は鎖の最後: 無効な要素が帯にあれば「無効」を言う
+    func testTheBandDoesNotHideAMoreSpecificAdvisory() {
+        let el = ElementInfo(ref: 1, type: "button", identifier: "back", label: "Back", value: nil,
+                             placeholder: nil, enabled: false,
+                             frame: FTRect(x: 16, y: 0, width: 85, height: 20), depth: 2)
+        let note = TapTargetGeometry.advisory(
+            for: el, in: [el], screen: screen, keyboardOcclusion: .none, overlayWindows: .none,
+            safeAreaTop: .measured(62), isAndroid: false)
+        XCTAssertTrue(note?.contains("disabled") == true, note ?? "")
+    }
+
     // MARK: ワイヤ形式
 
     func testWireRoundTripKeepsMeasuredAndUnknownApart() throws {

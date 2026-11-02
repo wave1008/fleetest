@@ -150,6 +150,8 @@ final class DeviceInventoryTests: XCTestCase {
         XCTAssertTrue(text.contains("unreachable"), text)
         XCTAssertFalse(text.contains("running"), text)
         XCTAssertFalse(text.contains("no bridge listening"), text)
+        XCTAssertTrue(text.contains("`devicectl device info details` for this udid exited with a non-zero status"), text)
+        XCTAssertFalse(text.contains("asleep") || text.contains("tunnel"), "原因を言い切らない: \(text)")
         XCTAssertTrue(DeviceInventory.line(marked[1]).contains("no bridge listening"))
     }
 

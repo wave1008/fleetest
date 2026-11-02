@@ -12,7 +12,7 @@
 | `back(settle:)` | 前の画面へ戻ります(Android = 戻るキー / iOS = ナビゲーションバーの戻るボタン、無ければ左端エッジスワイプ)。 |
 | `appSwitcher()` | アプリスイッチャーを開きます。ホームボタンの iPhone(iPhone SE など)ではスイッチャーがハードのダブルプレスで送れないため、失敗にせず、この step 以降を対象外(skipped)としてシナリオを記録します。 |
 | `tapAppIcon(name?)` | ホーム画面のアプリアイコンを探してタップします。`name` はホーム画面のアイコンの下に出る名前と**完全一致**で照合します。省略時はアプリプロファイルのその OS の `appName`(`ios.appName` / `android.appName`)です。 |
-| `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | 画面をその向きへ回します。値はこの2つだけです。 |
+| `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | 画面をその向きへ回します。値はこの2つだけです。書かずに全シナリオを横向きで回すなら、[実行プロファイル](../project/run_profile_ja.md)の `orientation` を使います。 |
 | `fold(waitSeconds:)` | 折りたたみ端末を外側の画面へ畳み、デバイスが切り替わったと報告するまで待ちます(上限 `waitSeconds`・省略時は実行の既定タイムアウト)。切り替わらなければ失敗します。 |
 | `unfold(waitSeconds:)` | 内側の(大きい)画面へ開きます。ルールは `fold` と同じです。 |
 | `hinge(_ degrees)` | ヒンジ角を 0(閉じる)〜180(全開)で設定します。約 130 が半開きのブック姿勢です。どちらの画面が出るかは確かめません。 |

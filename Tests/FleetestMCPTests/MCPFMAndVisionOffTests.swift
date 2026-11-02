@@ -39,4 +39,23 @@ final class MCPFMAndVisionOffTests: XCTestCase {
         XCTAssertTrue(text.contains("Not checked"), text)
         XCTAssertTrue(text.contains("fmAndVision: true"), text)
     }
+
+    /// MCP が作る StepExecutor は OCR の段を切る(既定の `.on` だと type の描画確認 `TypedEchoOCRCheck` が Vision を動かす)。
+    /// MCP の操作の道具は `fmAndVision` を持たないので常に `.off`
+    func testEveryMCPStepExecutorTurnsTheOCRStageOff() throws {
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp")
+        var constructions = 0
+        for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+        where file.pathExtension == "swift" {
+            let lines = try String(contentsOf: file, encoding: .utf8).components(separatedBy: "\n")
+            for (i, line) in lines.enumerated() where line.contains("StepExecutor(driver:")
+                && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+                constructions += 1
+                let call = lines[i...min(i + 2, lines.count - 1)].joined(separator: " ")
+                XCTAssertTrue(call.contains("occlusionOCRMode: .off"), "\(file.lastPathComponent):\(i + 1)")
+            }
+        }
+        XCTAssertEqual(constructions, 6, "StepExecutor を作る経路が増減した: 新しい経路も OCR の段を切ること")
+    }
 }

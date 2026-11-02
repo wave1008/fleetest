@@ -278,7 +278,7 @@ enum RefGuard {
             + " ft_scroll_to brings it into view, then re-snapshot)"
     }
 
-    /// keyboard + overlay window + disabled の組。**この順序で4箇所から呼ばれる** ——
+    /// keyboard + overlay window + disabled + 安全領域の帯の組(帯は最後 = `TapTargetGeometry.advisory` と同じ並び)。**この順序で4箇所から呼ばれる** ——
     /// 申告由来の2つを先にするのは、木からは判定できず ghost/overlap 側では検知できない
     /// 唯一の警告だから。**`overlayWindows` に既定値を置かない**(呼び忘れをコンパイルで止める)
     static func preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
@@ -286,8 +286,8 @@ enum RefGuard {
                                safeAreaTop: SafeAreaTop, screen: FTRect) -> String {
         (keyboardWarning(element, keyboardOcclusion: keyboardOcclusion) ?? "")
             + (overlayWindowWarning(element, overlayWindows: overlayWindows) ?? "")
-            + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen) ?? "")
             + disabledWarning(element)
+            + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen) ?? "")
     }
 
     /// **申告されたスクロール容器の外へ送り出された要素を撃とうとしている**ときの警告

@@ -20,6 +20,20 @@ final class TopSafeAreaWarningTests: XCTestCase {
         XCTAssertTrue(text.hasPrefix(" (warning:"), text)
     }
 
+    /// 無効な要素が帯の中にあっても、より具体的な「無効」が先に出る(帯は最後)
+    func testDisabledIsSaidBeforeTheBand() {
+        var el = inBand()
+        el = ElementInfo(ref: el.ref, type: el.type, identifier: nil, label: "Back", value: nil, placeholder: nil,
+                         enabled: false, frame: el.frame, depth: 2)
+        let text = RefGuard.preTapWarnings(el, keyboardOcclusion: .none, overlayWindows: .none,
+                                           safeAreaTop: .measured(62), screen: screen)
+        let disabled = text.range(of: "disabled")
+        let band = text.range(of: "safe-area band")
+        XCTAssertNotNil(disabled, text)
+        XCTAssertNotNil(band, text)
+        XCTAssertLessThan(disabled!.lowerBound, band!.lowerBound, text)
+    }
+
     func testPreTapWarningsSaysNothingWhenUnknown() {
         let text = RefGuard.preTapWarnings(inBand(), keyboardOcclusion: .none, overlayWindows: .none,
                                            safeAreaTop: .unknown, screen: screen)

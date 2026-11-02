@@ -35,6 +35,14 @@ public enum TypedEchoOCRCheck {
         words(name).contains(where: numericWords.contains) || numericJapaneseHints.contains(where: name.contains)
     }
 
+    /// 打った後の木から、OCR で読む欄の枠を引く: 焦点のある(`focused == true`)入力欄で value が打った文字列のもの。
+    /// 無ければ nil(確認をしない)
+    public static func typedFieldFrame(in snapshot: SnapshotResponse, text: String) -> FTRect? {
+        snapshot.elements.first {
+            $0.focused == true && TypeReadback.isTextInput($0) && $0.value == text
+        }?.frame
+    }
+
     /// 読み返しの後に画面の欄を OCR で確かめるか。全部満たすときだけ:
     /// Flutter(他のフレームワークでは木が画面を映す)・OCR の段がオン(利用者が切った段は使わない)・置き換え入力・
     /// 入力欄・打った文字列に数字以外が含まれる(数字だけの文字列は数字の欄が受ける)・名前が数字系

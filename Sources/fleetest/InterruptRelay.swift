@@ -306,4 +306,12 @@ struct RunInterruptedBeforeStartError: Error, LocalizedError {
     var errorDescription: String? {
         "interrupted before the run could start (during \(phase)) — cleaned up and exiting"
     }
+
+    /// ビルドの失敗を、中断で止めたビルドなら `RunInterruptedBeforeStartError` へ写す(それ以外はそのまま)。
+    /// `ScenarioHost.build` は中断で止めると `.buildInterrupted` を投げる = 「ビルドの失敗」(JUnit の失敗・interrupted: false)として
+    /// 記録されないよう、run / api run のビルド呼び出しはこれを通す
+    static func mappingBuildError(_ error: Error) -> Error {
+        if case ScenarioHostError.buildInterrupted = error { return RunInterruptedBeforeStartError(phase: "the scenario build") }
+        return error
+    }
 }
