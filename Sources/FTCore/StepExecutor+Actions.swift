@@ -1154,7 +1154,8 @@ extension StepExecutor {
                     }
                     // 描かれたかの確認は主経路と同じ条件で(この経路で返すと届かない)
                     if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
-                                                     replace: step.replace == true, text: text, element: element, locator: step.locator) {
+                                                     replace: step.replace == true, text: text,
+                                                     element: TypedEchoOCRCheck.judgedElement(element, in: snapshot.elements), locator: step.locator) {
                         await noteIfTypedTextNotDrawn(driver: actingDriver, text: text, phase: &phase)
                     }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
@@ -1201,7 +1202,8 @@ extension StepExecutor {
                     return StepOutcome(status: .failed(failure))
                 }
                 if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
-                                                 replace: step.replace == true, text: text, element: element, locator: step.locator) {
+                                                 replace: step.replace == true, text: text,
+                                                     element: TypedEchoOCRCheck.judgedElement(element, in: snapshot.elements), locator: step.locator) {
                     await noteIfTypedTextNotDrawn(driver: actingDriver, text: text, phase: &phase)
                 }
             } catch {

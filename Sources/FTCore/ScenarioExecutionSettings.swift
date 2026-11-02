@@ -27,7 +27,7 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
     /// 必ず `resolved.runName` を運ぶ
     public var profileName: String?
     /// 実行プロファイルの `orientation`。nil = 向きに触らない。子へは `--orientation <portrait|landscape>` で運び、
-    /// シナリオで最初の launchApp / restartApp の直後に1回 `rotateTo` する(FTDSL の `applyProfileOrientationOnce`)
+    /// launchApp / restartApp のたびに直後に `rotateTo` する(FTDSL の `applyProfileOrientation`)
     public var orientation: FTOrientation?
 
     /// 既定値はこの1箇所だけに置く。他の層(ScenarioHost/RunOrchestrator/CLI)に既定を書かない。

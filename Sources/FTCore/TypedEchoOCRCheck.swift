@@ -43,6 +43,12 @@ public enum TypedEchoOCRCheck {
         }?.frame
     }
 
+    /// 判定にかける要素。対象が入力欄の型でなければ(Flutter は id を外側の other に載せる)同じ枠の入力欄、無ければ対象のまま
+    public static func judgedElement(_ target: ElementInfo, in elements: [ElementInfo]) -> ElementInfo {
+        if TypeReadback.isTextInput(target) { return target }
+        return TypeReadback.sameFrameInput(of: target, in: elements) ?? target
+    }
+
     /// 読み返しの後に画面の欄を OCR で確かめるか。全部満たすときだけ:
     /// Flutter(他のフレームワークでは木が画面を映す)・OCR の段がオン(利用者が切った段は使わない)・置き換え入力・
     /// 入力欄・打った文字列に数字以外が含まれる(数字だけの文字列は数字の欄が受ける)・名前が数字系

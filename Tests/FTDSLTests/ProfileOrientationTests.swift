@@ -1,5 +1,5 @@
-// 実行プロファイルの `orientation`: シナリオで最初の launchApp / restartApp の直後に1回だけ rotateTo する。
-// 指定なし(nil)は向きに触らない。2回目以降の launch では撃たない(向きは launch をまたいで残る)。
+// 実行プロファイルの `orientation`: launchApp / restartApp のたびに直後に rotateTo する(起動し直すと向きが残らない経路がある)。
+// 指定なし(nil)は向きに触らない。
 
 import XCTest
 @testable import FTDSL
@@ -51,20 +51,21 @@ final class ProfileOrientationTests: XCTestCase {
         core.finalRecord.scenes.flatMap(\.steps).map(\.description)
     }
 
-    func testRotatesOnceRightAfterTheFirstLaunchOnly() {
+    func testRotatesRightAfterEveryLaunch() {
         let core = makeCore(orientation: .landscape)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
         launchApp()
         launchApp()
         restartApp()
-        XCTAssertEqual(driver.rotations, [.landscape])
+        XCTAssertEqual(driver.rotations, [.landscape, .landscape, .landscape])
         XCTAssertEqual(driver.launches, 3)
-        XCTAssertEqual(Array(descriptions(core).prefix(3)),
-                       ["launch com.example.app", "rotateTo landscape", "launch com.example.app"])
+        XCTAssertEqual(Array(descriptions(core).prefix(4)),
+                       ["launch com.example.app", "rotateTo landscape",
+                        "launch com.example.app", "rotateTo landscape"])
     }
 
-    func testRestartAppAsTheFirstLaunchAlsoRotates() {
+    func testRestartAppAlsoRotates() {
         let core = makeCore(orientation: .portrait)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }

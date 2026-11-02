@@ -888,12 +888,13 @@ extension MCPServer {
             }
             // **アプリのプロセスが消えたと確定したら、続く手を撃たない**。前面の変化では止めない
             // (権限ダイアログ・別アプリへの遷移の batch は正しい)。判定できない(nil)・iOS 以外は止めない。
-            // **プロセスを聞くのは前面が対象アプリでない手の後だけ**(`simctl spawn … launchctl list` は1回約 0.95 秒・実機の devicectl も
-            // 同程度。全ての手で聞くと batch が手の数だけ遅くなる)。アプリを止める手は batch に無い(`batchAppCommandAlternatives` が断る)
+            // **プロセスを聞くのは前面が対象アプリと分かっていない手の後だけ**(前面が違う、または分からない(nil。iOS の
+            // `foregroundAppID()` は常に nil なので iOS は毎手聞く))。`simctl spawn … launchctl list` は1回約 0.95 秒・実機の devicectl も
+            // 同程度。前面が対象アプリと分かる(Android)なら聞かない。アプリを止める手は batch に無い(`batchAppCommandAlternatives` が断る)
             if index < plans.count - 1,
                let bundleID = launchedBundleIDs[Self.sessionKey(args)],
                let recovery = batchDriver as? SessionRecoveryDriver,
-               let front = try? await recovery.foregroundAppID(), front != bundleID,
+               await Self.frontIsKnownToBeTheApp(recovery, bundleID: bundleID) == false,
                await recovery.appProcessRunning(bundleID: bundleID) == false {
                 let stoppedNote = Self.batchAppProcessGoneNote(
                     bundleID: bundleID, stoppedAfter: index + 1, total: plans.count)
@@ -1022,6 +1023,12 @@ extension MCPServer {
     }
 
     /// プロセスの消失で止めたときの応答。残りの手を撃たなかった事実を言う(撃ち直しを誘わない: 止めた手までは届いている)
+    /// 前面が対象アプリと分かっているときだけ true。nil(iOS)は分からない扱いでプロセスを聞く側へ倒す
+    static func frontIsKnownToBeTheApp(_ recovery: SessionRecoveryDriver, bundleID: String) async -> Bool {
+        guard let front = try? await recovery.foregroundAppID() else { return false }
+        return front == bundleID
+    }
+
     static func batchAppProcessGoneNote(bundleID: String, stoppedAfter: Int, total: Int) -> String {
         "\n\nStopped after step \(stoppedAfter) of \(total): the app process (\(bundleID)) is no longer running,"
             + " so the remaining \(total - stoppedAfter) step(s) were NOT sent. Steps 1–\(stoppedAfter) were delivered;"

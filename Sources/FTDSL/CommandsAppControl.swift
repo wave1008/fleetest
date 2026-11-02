@@ -64,15 +64,16 @@ public func launchApp(_ appID: String? = nil, url: String? = nil,
             try await driver.openURL(url, bundleID: bundle)
         }
     }
-    applyProfileOrientationOnce(core, file: file, line: line)
+    applyProfileOrientation(core, file: file, line: line)
 }
 
-/// 実行プロファイルの `orientation` を、シナリオで最初の launch(launchApp / restartApp)の直後に1回だけ撃つ。
-/// 2回目以降の launch では撃たない: 向きは Android の user_rotation・XCUITest の端末の向きとして launch をまたいで残り
-/// (launchApp は向きを保つ。Emulator で測定済み)、シナリオの終わりには rotateTo の復元が戻す。
+/// 実行プロファイルの `orientation` を、launch(launchApp / restartApp)のたびに直後に撃つ。
+/// 毎回撃つ理由: iOS inapp-boost の回転は scene への要求で、アプリを起動し直すと残らない(縦へ戻る)。
+/// 向きが残る経路(Android の user_rotation 等)では同じ向きへの回転が重なるだけ。
+/// シナリオの終わりには rotateTo の復元が最初の元の向きへ戻す(ドライバが元の向きを最初の1回だけ控える)。
 /// 通常の `rotateTo` ステップとしてレポートに載る
-func applyProfileOrientationOnce(_ core: FTDriveCore, file: StaticString, line: UInt) {
-    guard core.claimProfileOrientation(), let orientation = core.profileOrientation else { return }
+func applyProfileOrientation(_ core: FTDriveCore, file: StaticString, line: UInt) {
+    guard let orientation = core.profileOrientation else { return }
     rotateTo(orientation, file: file, line: line)
 }
 
@@ -103,7 +104,7 @@ public func restartApp(_ appID: String? = nil,
         try? await driver.terminate()
         try await driver.launch(bundleID: bundle)
     }
-    applyProfileOrientationOnce(core, file: file, line: line)
+    applyProfileOrientation(core, file: file, line: line)
 }
 
 /// データだけ消す。初回起動・オンボーディング・権限ダイアログを何度でも再現するために使う。

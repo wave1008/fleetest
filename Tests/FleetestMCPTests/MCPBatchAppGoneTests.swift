@@ -1,5 +1,5 @@
 // ft_batch: 途中の手の後にアプリのプロセスが消えたと確定したときだけ、続く手を撃たない。
-// 前面の変化・判定不能(nil)では止めない。プロセスを聞くのは前面が対象アプリでない手の後だけ(1回約 0.95 秒)。
+// 前面の変化・判定不能(nil)では止めない。プロセスを聞くのは前面が対象アプリと分かっていない手(違う・nil=iOS)の後だけ(1回約 0.95 秒)。
 
 import XCTest
 import FTBridgeClient
@@ -8,7 +8,7 @@ import FTCore
 
 final class MCPBatchAppGoneTests: XCTestCase {
 
-    private func make(running: Bool?, front: String = "com.apple.springboard",
+    private func make(running: Bool?, front: String? = "com.apple.springboard",
                       probes: LockedValue<Int> = LockedValue(0)) -> (MCPServer, FakeDriver) {
         let fake = FakeDriver()
         fake.foregroundBundleID = front
@@ -60,5 +60,14 @@ final class MCPBatchAppGoneTests: XCTestCase {
         XCTAssertFalse(text.contains("NOT sent"), text)
         XCTAssertEqual(fake.calls.filter { $0.hasPrefix("tap") }.count, 3, "\(fake.calls)")
         XCTAssertEqual(probes.withLock { $0 }, 0, "前面が対象アプリなら遅い問い合わせを撃たない")
+    }
+
+    func testProcessIsAskedWhenTheFrontIsUnknown() async {
+        let probes = LockedValue(0)
+        let (server, fake) = make(running: false, front: nil, probes: probes)
+        let text = await run(server, "tap '#login_btn'; tap '#login_btn'; tap '#login_btn'")
+        XCTAssertTrue(text.contains("Stopped after step 1 of 3"), text)
+        XCTAssertEqual(fake.calls.filter { $0.hasPrefix("tap") }.count, 1, "\(fake.calls)")
+        XCTAssertEqual(probes.withLock { $0 }, 1)
     }
 }

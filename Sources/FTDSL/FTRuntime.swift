@@ -239,8 +239,6 @@ public final class FTDriveCore {
     private var _foldOriginalState: FoldState?
     /// 実行プロファイルの `orientation`(`--orientation`)。nil = 何もしない
     public let profileOrientation: FTOrientation?
-    /// `profileOrientation` を撃ったか。stateLock の下
-    private var _profileOrientationClaimed = false
     let appBundleID: String
     let executor: StepExecutor
     let scenarioID: String
@@ -1208,15 +1206,6 @@ public final class FTDriveCore {
             return FoldControl.observeIOSSimulator(udid: udid)
         }
         return await systemDriver.foldObservation() ?? .unknown("this driver cannot read the fold state")
-    }
-
-    /// シナリオで最初の launch の直後に1回だけ `profileOrientation` を撃つ権利を取る(2回目以降は false)
-    func claimProfileOrientation() -> Bool {
-        stateLock.withLock {
-            guard profileOrientation != nil, !_profileOrientationClaimed else { return false }
-            _profileOrientationClaimed = true
-            return true
-        }
     }
 
     /// 最初の開閉の前の状態だけを控える(2回目以降は上書きしない)

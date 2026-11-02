@@ -450,9 +450,9 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
     /// 予防として1回だけ入力を入れる。**デバイスあたり1回**なので実行時間への影響はほぼゼロ。
     /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json と RunProfileFormFields
     public var homeOnStart: Bool?
-    /// 各シナリオで最初の launchApp / restartApp の直後に1回 `rotateTo` する向き(`portrait` / `landscape` =
+    /// 各シナリオの launchApp / restartApp のたびに直後に `rotateTo` する向き(`portrait` / `landscape` =
     /// DSL の `rotateTo` と同じ語彙。**既定は指定なし = 向きに触らない**)。シナリオの終わりには rotateTo の復元が元へ戻す。
-    /// 2回目以降の launch では撃たない(向きは launch をまたいで残る)。profile-less でも `--set orientation=` で効く。
+    /// 起動し直すと残らない経路(iOS inapp-boost)があるので毎回撃つ。profile-less でも `--set orientation=` で効く。
     /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
     public var orientation: String?
     /// Android の `adb install` で Play Protect の照会を通さないか(**既定 true**)。true で
