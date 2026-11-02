@@ -8,7 +8,7 @@
 //。
 
 import XCTest
-import FTCore
+@testable import FTCore
 @testable import fleetest_mcp
 
 final class MCPBatchTests: XCTestCase {
@@ -345,6 +345,16 @@ final class MCPBatchTests: XCTestCase {
         XCTAssertTrue(result.contains("step(s) 1, 2 may have done nothing"), result)
         XCTAssertFalse(result.contains("step(s) passed"), result)
         XCTAssertTrue(result.contains("the screen did not change after this tap"), result)
+    }
+
+    /// OI-151 ③: アプリが居ない失敗で「waitSeconds: を足せ」の対処文を外す(文は FTCore の `defaultWaitHint` が定義元)
+    func testDroppingDefaultWaitHintRemovesExactlyTheHint() {
+        let hint = StepExecutor.defaultWaitHint(FlowStep(action: "tap"))
+        XCTAssertFalse(hint.isEmpty)
+        let line = "1. tap \"#a\" — FAILED (700ms): cannot resolve the locator: id=a" + hint + "\n   (next line)"
+        XCTAssertEqual(MCPServer.droppingDefaultWaitHint(line),
+                       "1. tap \"#a\" — FAILED (700ms): cannot resolve the locator: id=a\n   (next line)")
+        XCTAssertEqual(MCPServer.droppingDefaultWaitHint("no hint here"), "no hint here")
     }
 
     /// iOS の飲まれた tap の警告は、別アプリが既に前面へ来ていた可能性も挙げる(OI-155: /appstate が遅れて前面と答える窓)。Android は挙げない

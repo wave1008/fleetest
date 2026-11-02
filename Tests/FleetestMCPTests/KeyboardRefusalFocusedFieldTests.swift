@@ -20,7 +20,7 @@ final class KeyboardRefusalFocusedFieldTests: XCTestCase {
     private func refusal(tool: String, focused: Bool) async -> String? {
         let (field, occlusion) = underKeyboard(focused: focused)
         return await MCPServer.$currentTool.withValue(tool) {
-            MCPServer.keyboardRefusal(field, keyboardOcclusion: occlusion)
+            MCPServer.keyboardRefusal(field, keyboardOcclusion: occlusion, tree: [field], isAndroid: false)
         }
     }
 
@@ -38,5 +38,24 @@ final class KeyboardRefusalFocusedFieldTests: XCTestCase {
         XCTAssertNotNil(unfocusedClear)
         let focusedTap = await refusal(tool: "ft_tap", focused: true)
         XCTAssertNotNil(focusedTap)
+    }
+
+    /// OI-85: Flutter の横向きでは focused が欄の内側のノードに立ち、ref の指す要素には付かない。内側/同じ枠の焦点のある要素があれば断らない
+    func testFocusOnAnInnerNodeOfTheTargetCountsAsFocused() async {
+        let (field, occlusion) = underKeyboard(focused: false)
+        var inner = ElementInfo(ref: 2, type: "textField", identifier: nil, label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 20, y: 500, width: 360, height: 70), depth: 2)
+        inner.focused = true
+        let message = await MCPServer.$currentTool.withValue("ft_type") {
+            MCPServer.keyboardRefusal(field, keyboardOcclusion: occlusion, tree: [field, inner], isAndroid: true)
+        }
+        XCTAssertNil(message)
+        var elsewhere = inner
+        elsewhere.frame = FTRect(x: 20, y: 100, width: 360, height: 40)
+        let refused = await MCPServer.$currentTool.withValue("ft_type") {
+            MCPServer.keyboardRefusal(field, keyboardOcclusion: occlusion, tree: [field, elsewhere], isAndroid: true)
+        }
+        XCTAssertNotNil(refused)
+        XCTAssertFalse(refused?.contains("XCUITest") ?? true, "Android の断りに XCUITest の説明を出さない")
     }
 }

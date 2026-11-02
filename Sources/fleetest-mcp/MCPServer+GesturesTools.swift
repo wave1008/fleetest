@@ -743,7 +743,7 @@ extension MCPServer {
         let pressDuration = try Self.doubleArgument(args, "holdSeconds") ?? Self.defaultLongPressHoldSeconds
         let pressCap = try Self.doubleArgument(args, "maxGestureSeconds")
         if let ref = try Self.intArgument(args, "ref") {
-            let pressTarget = try await verifiedRef(ref, driver: pressDriver, args: args)
+            let pressTarget = try await verifiedRef(ref, driver: pressDriver, args: args, operation: "long press")
             // pressTarget.ref はセッション ref。ブリッジへ渡す直前にだけ native へ戻す。帯の中なら ft_tap と同じく座標で
             let bandPoint = await bottomBandPoint(sessionRef: pressTarget.ref, driver: pressDriver, args: args)
             if let bandPoint {
@@ -801,7 +801,8 @@ extension MCPServer {
         let snapshot = lastSnapshots[Self.sessionKey(args)]
         let keyboard = KeyboardOcclusion.resolve(
             reported: snapshot?.keyboardFrame, in: snapshot?.elements ?? [], screen: snapshot?.screen)
-        if let refusal = Self.keyboardRefusal(element, keyboardOcclusion: keyboard) {
+        if let refusal = Self.keyboardRefusal(element, keyboardOcclusion: keyboard,
+                                                  tree: snapshot?.elements ?? [], isAndroid: isAndroid) {
             throw MCPError(refusal)
         }
         if let snapshot, let refusal = Self.keyboardCoverRefusal(element, in: snapshot, keyboardOcclusion: keyboard,
@@ -823,7 +824,7 @@ extension MCPServer {
             screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0))
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],
                                       screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0),
-                                      isAndroid: isAndroid)
+                                      isAndroid: isAndroid, operation: operation)
             + (TapTargetGeometry.pinnedBandNote(for: element, in: snapshot?.elements ?? [], operation: "touch") ?? "")
             + screenProbe
     }

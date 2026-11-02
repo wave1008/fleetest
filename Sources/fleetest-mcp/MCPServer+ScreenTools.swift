@@ -112,7 +112,7 @@ extension MCPServer {
             return try await tapSystemAlertButton(button, driver: d, args: args)
         }
         if let ref = try Self.intArgument(args, "ref") {
-            let target = try await verifiedRef(ref, driver: d, args: args)
+            let target = try await verifiedRef(ref, driver: d, args: args, operation: "tap")
             // **target.ref はセッション ref**。ブリッジは native の番号しか知らないので、
             // 撃つ直前にだけ nativeRef で戻す(応答・記録には引き続きセッション ref を使う)。
             // 中心が Android の下端のジェスチャ帯の中なら、帯より上の部分を座標で撃つ(ref はブリッジが中心へ解決する)
@@ -156,6 +156,12 @@ extension MCPServer {
                 + (await snapshotAfterBody(args, outsideTheAppTree: false)))
         }
         if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
+            // **launch の後に木を1度も読まずに座標を撃つ iOS の手は、先に1回読む**(OI-111: Flutter の最初のフレームが
+            // 描かれる前に撃った座標タップが done のまま飲まれた。木を読む経路 = ref・セレクタは 0/14 で外れなかった。
+            // 読みは XCUITest がアプリの静止を待つので、描画前に撃つ窓を閉じる。launchBaselineStale は読んだ時点で消える)
+            if !(d is AndroidDriver), launchBaselineStale.contains(Self.sessionKey(args)) {
+                _ = try? await freshSnapshot(d, args: args)
+            }
             if let offscreen = Self.offscreenCoordinateError(
                 x: x, y: y, screen: await coordinateScreen(d, args: args),
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
@@ -216,7 +222,7 @@ extension MCPServer {
         }
         var treeBeforeType: [ElementInfo] = []
         if let ref = targetRef {
-            let verified = try await verifiedRef(ref, driver: typeDriver, args: args)
+            let verified = try await verifiedRef(ref, driver: typeDriver, args: args, operation: "type")
             targetRef = verified.ref
             note = verified.note
             priorElement = lastSnapshots[Self.sessionKey(args)]?
@@ -525,7 +531,7 @@ extension MCPServer {
         }
         var treeBeforeClear: [ElementInfo] = []
         if let ref = clearRef {
-            let verified = try await verifiedRef(ref, driver: clearDriver, args: args)
+            let verified = try await verifiedRef(ref, driver: clearDriver, args: args, operation: "clear input")
             clearRef = verified.ref
             clearNote = verified.note
             clearTarget = lastSnapshots[Self.sessionKey(args)]?
@@ -683,7 +689,7 @@ extension MCPServer {
         let elements: [ElementInfo]
         var refNote = ""
         if let ref = try Self.intArgument(args, "ref") {
-            let target = try await verifiedRef(ref, driver: d, args: args)
+            let target = try await verifiedRef(ref, driver: d, args: args, operation: "capture")
             guard let snapshot = lastSnapshots[Self.sessionKey(args)],
                   let found = snapshot.elements.first(where: { $0.ref == target.ref }) else {
                 throw MCPError("[\(ref)] is not on the current screen. Take a fresh ft_snapshot")

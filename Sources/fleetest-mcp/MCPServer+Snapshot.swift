@@ -969,7 +969,7 @@ extension MCPServer {
     /// 問い合わせ対象が外れたという推論は成り立たないので聞かない(覆いは聞く)
     /// `operation` = 文言の操作名(ft_tap の経路は "tap"。ref のジェスチャは "double tap" / "drag" / "pinch")
     static func screenNotRepresentedWarning(_ found: ElementInfo, nativeRef: Int, driver: AppDriver,
-                                            insideInAppAlert: Bool, operation: String = "tap") async -> String {
+                                            insideInAppAlert: Bool, operation: String) async -> String {
         let covering = await systemUICoveringWarning(found, driver: driver, operation: operation)
         if !covering.isEmpty { return covering }
         if insideInAppAlert { return "" }
@@ -989,7 +989,7 @@ extension MCPServer {
     ///
     /// **アラートはここで聞かない**(`verifiedRef` / `verifiedElement` が毎回聞いて断る。`systemAlertGate` 参照)
     func memoizedScreenProbe(_ found: ElementInfo, fresh: SnapshotResponse,
-                             driver: AppDriver, args: [String: Any], operation: String = "tap") async -> String {
+                             driver: AppDriver, args: [String: Any], operation: String) async -> String {
         let key = Self.sessionKey(args)
         // **要素も鍵に入れる**: 答えには要素ごとに変わるもの(`/hittable`・警告の中の名指し)が
         // 混ざる。木の指紋だけで使い回すと、同じ画面の別の要素へ前の要素の答えが返る(全面の覆いの警告が前の要素を
@@ -1049,15 +1049,36 @@ extension MCPServer {
     /// in-app は 422 で断る = ブリッジで割れていた。判定は ref 形・DSL と同じ `KeyboardOcclusion`
     /// (chrome 自身とその部分木は除外済み)。**座標形は断らない**(キーを押す意図があり得る。
     /// `keyboardCoordinateWarning`)。DSL の tap は据え置き(注記のみ)
-    static func keyboardRefusal(_ target: ElementInfo, keyboardOcclusion: KeyboardOcclusion) -> String? {
+    static func keyboardRefusal(_ target: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
+                                tree: [ElementInfo], isAndroid: Bool) -> String? {
         guard let advisory = keyboardOcclusion.advisory(for: target) else { return nil }
         // いま焦点を持つ欄への ft_type / ft_clear_input は、ドライバがタップせずに打つので断らない(DSL の reachPastKeyboard と同じ)
-        if Self.currentTool == "ft_type" || Self.currentTool == "ft_clear_input", target.focused == true { return nil }
-        return "refusing to act on \(RefGuard.describe(target)): \(advisory). On XCUITest the finger"
-            + " would press a key and type into the focused field; the in-app bridge rejects it (422)."
+        if Self.currentTool == "ft_type" || Self.currentTool == "ft_clear_input",
+           holdsFocus(target, in: tree) { return nil }
+        // 断る理由はプラットフォームごとの事実だけを言う(Android に XCUITest の説明を出さない = OI-85)
+        let consequence = isAndroid
+            ? "A touch there would land on the keyboard, not on the element."
+            : "On XCUITest the finger would press a key and type into the focused field; the in-app bridge rejects it (422)."
+        return "refusing to act on \(RefGuard.describe(target)): \(advisory). \(consequence)"
             + " Close the keyboard with ft_hide_keyboard (it sends no Enter; ft_navigate back on Android), or"
             + " ft_scroll_to the element, then take a fresh ft_snapshot. ft_type pressEnter: true also closes it"
             + " on some screens but fires the field's action, and in a multiline field it adds a newline instead"
+    }
+
+    /// 対象がいま焦点を持つ欄か。**対象自身が focused、または焦点のある要素が対象の枠の中(同じ枠を含む)に収まる**(外側の容器が焦点を持つ形は数えない = 全画面の容器で免除しない)
+    /// (Flutter・Compose は焦点が欄の内側/外側のノードに立ち、ref の指す要素に focused が付かないことがある)
+    static func holdsFocus(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
+        if target.focused == true { return true }
+        let slack = 2.0
+        func contains(_ outer: FTRect, _ inner: FTRect) -> Bool {
+            inner.x >= outer.x - slack && inner.y >= outer.y - slack
+                && inner.x + inner.width <= outer.x + outer.width + slack
+                && inner.y + inner.height <= outer.y + outer.height + slack
+        }
+        return tree.contains { other in
+            other.focused == true && other.ref != target.ref
+                && contains(target.frame, other.frame)
+        }
     }
 
     /// **ref の経路も座標の経路と同じく、中心が画面の上の外なら撃たずに断る**(`offscreenCoordinateError` の上の外と同じ判定
@@ -1311,7 +1332,7 @@ extension MCPServer {
     /// (`submitted=-` → `submitted=physical`)。
     /// 返す ref は**セッション ref**(ブリッジへ渡す前に呼び手が `nativeRef` を通すこと)
     func verifiedRef(_ ref: Int, driver: AppDriver,
-                             args: [String: Any]) async throws -> (ref: Int, note: String) {
+                             args: [String: Any], operation: String) async throws -> (ref: Int, note: String) {
         sessions[Self.sessionKey(args), default: DeviceSession()].refRetarget = nil
         var sessionRef = resolveSessionRef(ref, args: args)
         // 撮ってから引いた木。下の「撃つ直前の読み直し」はこれを使う(間に操作が無いので読み直しと同じ = 2枚払わない)
@@ -1404,7 +1425,8 @@ extension MCPServer {
         case .ghost(let found):
             // **拒否せず警告して撃つ**(方針を後退させた。理由は RefGuard の宣言)。
             // **キーボード被覆だけは断る**(`keyboardRefusal` の doc)
-            if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
+            if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
+                                                      tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
                 throw MCPError(refusal)
             }
             if let refusal = Self.aboveScreenRefusal(found, screen: fresh.screen, label: "[\(ref)]") {
@@ -1416,7 +1438,8 @@ extension MCPServer {
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
         case .found(let found, let moved):
-            if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
+            if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
+                                                      tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
                 throw MCPError(refusal)
             }
             // **キーボードで枠が細い帯に潰れた・せり上がったバーに覆われた対象は撃たない**(DSL は閉じてから撃つ。判定は `PreFireGuard`)
@@ -1435,7 +1458,7 @@ extension MCPServer {
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,
-                                        isAndroid: Self.platformName(args) == "android")
+                                        isAndroid: Self.platformName(args) == "android", operation: operation)
                 // 貼り付く見出しの下(DSL は送って外す。判定は TapTargetGeometry.pinnedBandNote)
                 + (TapTargetGeometry.pinnedBandNote(for: found, in: fresh.elements, operation: "touch") ?? "")
                 + (await Self.hiddenUnderChromeWarning(found, nativeRef: nativeRef(found.ref, args: args),
@@ -1444,7 +1467,7 @@ extension MCPServer {
                 // —— その面(許可アラート等)のボタンを撃っている最中に「SpringBoard へ attach して
                 // 読め」と言うことになる(実機 iPhone 13 で実際に出た)
                 + (launchedBundleIDs[Self.sessionKey(args)] == "com.apple.springboard" ? ""
-                    : await memoizedScreenProbe(found, fresh: fresh, driver: driver, args: args))
+                    : await memoizedScreenProbe(found, fresh: fresh, driver: driver, args: args, operation: operation))
             // **容器の縁にまたがる行**(DSL は内側へ寄せてから撃つ。MCP は ref を撃つだけなので警告する)。
             // 判定は DSL と共有(`TapTargetGeometry.straddlingContainerEdge`)
             let straddle = TapTargetGeometry.straddleAdvisory(for: found, in: fresh.elements)

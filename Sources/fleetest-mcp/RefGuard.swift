@@ -310,15 +310,16 @@ enum RefGuard {
     /// **判定は `TapTargetGeometry.advisoryKind` の1箇所だけ**(DSL の `occlusionAdvisory` と共有)。
     /// ここは kind を MCP の文言(要素を名指しし、ft_screenshot / ft_scroll_to という MCP の
     /// ツール名で逃げ道を書く)へ写すだけ —— 順序・当たり判定を書き直さない
+    /// `operation` = 文言の操作名("tap" / "double tap" / "drag" / "type" 等。既定値を置かない = 呼び手に決めさせる)
     static func overlapWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
-                               isAndroid: Bool) -> String {
+                               isAndroid: Bool, operation: String) -> String {
         guard let kind = TapTargetGeometry.advisoryKind(for: found, in: elements, screen: screen)
         else { return "" }
         switch kind {
         case .zeroFrame:
             // **DSL にだけあり MCP のタップ時には出ていなかった形**(合流済み)
             return " (warning: \(describe(found))'s reported frame has zero width/height,"
-                + " so the tap may land on whatever is at that point — verify with ft_screenshot)"
+                + " so the \(operation) may land on whatever is at that point — verify with ft_screenshot)"
         case .offscreen:
             // 画面外の中心は「何にも当たらない」= 遮蔽・中身外しより強い事実なので先に言う
             return offscreenWarning(found, screen: screen)
@@ -332,7 +333,7 @@ enum RefGuard {
                 + " or scroll the element clear of the overlay first)"
         case .missedContent(let inner):
             return " (warning: \(describe(found)) is not interactive and its center is not over any"
-                + " of its own content, so this tap went to whatever is behind it."
+                + " of its own content, so this \(operation) went to whatever is behind it."
                 + " Target the content instead, e.g. \(describe(inner)))"
         case .nestedAction(let nested):
             // **子孫が中心を横取りしている**。`overlayCovering` は子孫を除外するので届かない

@@ -447,6 +447,8 @@ extension MCPServer {
         let ref: Int
         let raw: [String: Any]
         let builder: BatchStepBuilder
+        /// 警告の文言の操作名(バッチの手のコマンド名)
+        let command: String
     }
 
     /// 1手(DSL の呼び出し1行)の検証(**デバイスに触らない**。実行前に全行へ通す)。
@@ -513,7 +515,7 @@ extension MCPServer {
             var withoutRef = raw
             withoutRef["ref"] = nil
             return BatchPlannedStep(step: FlowStep(action: command), summary: "\(command) ref \(ref)",
-                                    pendingRef: PendingBatchRef(ref: ref, raw: withoutRef, builder: builder))
+                                    pendingRef: PendingBatchRef(ref: ref, raw: withoutRef, builder: builder, command: command))
         }
         let (step, summary) = try builder.build(raw)
         return BatchPlannedStep(step: step, summary: summary, pendingRef: nil)
@@ -548,7 +550,7 @@ extension MCPServer {
     private func resolvePendingBatchRef(_ pending: PendingBatchRef, driver: AppDriver,
                                         args: [String: Any]) async throws
         -> (step: FlowStep, summary: String, note: String) {
-        let (resolvedRef, refNote) = try await verifiedRef(pending.ref, driver: driver, args: args)
+        let (resolvedRef, refNote) = try await verifiedRef(pending.ref, driver: driver, args: args, operation: pending.command)
         guard let snapshot = lastSnapshots[Self.sessionKey(args)],
               let element = snapshot.elements.first(where: { $0.ref == resolvedRef }) else {
             // verifiedRef が撮り直した木に無いことは実際には起きない(見つからなければ .gone で
@@ -736,6 +738,20 @@ extension MCPServer {
                 if !suspectSteps.contains(tap.step) { suspectSteps.append(tap.step) }
             }
         }
+        // 最後の木が起動したアプリのものでなければ(落ちて下のアプリが出た・別アプリへ移った)、「通った」「変化なし」とは言わない。
+        // 「前と同じ木」は落ちた後に現れた別アプリを起動前の木と比べた結果にすぎない(snapshotBody が同じ注記で名指す)
+        // iOS の XCUITest はセッションのアプリの木(落ちた後は空・別アプリへ移った後は古い木)を返し続けるので sessionBundleID は
+        // 食い違わない —— 前面かどうかは /appstate(backgroundedSessionNote)で聞く
+        func appLeftFront(_ tree: SnapshotResponse) async -> Bool {
+            let launched = launchedBundleIDs[Self.sessionKey(args)]
+            if !Self.switchedAppNote(
+                launched: launched, snapshot: tree,
+                processEvidence: androidProcessEvidenceForSwitch(
+                    launched: launched, snapshot: tree, driver: batchDriver, args: args),
+                stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
+                keyguardShowing: await Self.keyguardFact(for: tree, driver: batchDriver)).isEmpty { return true }
+            return !(await Self.backgroundedSessionNote(tree, driver: batchDriver)).isEmpty
+        }
         for (index, plan) in plans.enumerated() {
             if plan.step.action == "irregularHandler" {
                 executor.interruptHandlers.append(try Self.interruptHandler(from: plan.step))
@@ -839,6 +855,11 @@ extension MCPServer {
                         + (await coveredDriverErrorHint(error, args: args)))
                 }
                 recordSnapshot(stopped, batchDriver is AndroidDriver ? "android" : "ios", args)
+                // **アプリが居ない・前面を離れた画面では「waitSeconds: を足せ」の対処文を外す**(待ちの長さは原因でなく、従えない。
+                // 事実は下の木の注記が言う。Android で手の途中にアプリが落ちた回に出ていた = OI-151 ③)
+                if !lines.isEmpty, await appLeftFront(stopped) {
+                    lines[lines.count - 1] = Self.droppingDefaultWaitHint(lines[lines.count - 1])
+                }
                 throw MCPError(lines.joined(separator: "\n") + stoppedNote
                     + inheritedNote + (await snapshotBody(stopped, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
             }
@@ -911,20 +932,6 @@ extension MCPServer {
         }
         // 最後の手が tap なら、その撃つ前の木。最後の手の後に出たアラートはその手の結果でありうる(吸われたとは言えない)
         let treeBeforeLastTap = pendingTap.flatMap { $0.step == plans.count ? $0.before : nil }
-        // 最後の木が起動したアプリのものでなければ(落ちて下のアプリが出た・別アプリへ移った)、「通った」「変化なし」とは言わない。
-        // 「前と同じ木」は落ちた後に現れた別アプリを起動前の木と比べた結果にすぎない(snapshotBody が同じ注記で名指す)
-        // iOS の XCUITest はセッションのアプリの木(落ちた後は空・別アプリへ移った後は古い木)を返し続けるので sessionBundleID は
-        // 食い違わない —— 前面かどうかは /appstate(backgroundedSessionNote)で聞く
-        func appLeftFront(_ tree: SnapshotResponse) async -> Bool {
-            let launched = launchedBundleIDs[Self.sessionKey(args)]
-            if !Self.switchedAppNote(
-                launched: launched, snapshot: tree,
-                processEvidence: androidProcessEvidenceForSwitch(
-                    launched: launched, snapshot: tree, driver: batchDriver, args: args),
-                stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
-                keyguardShowing: await Self.keyguardFact(for: tree, driver: batchDriver)).isEmpty { return true }
-            return !(await Self.backgroundedSessionNote(tree, driver: batchDriver)).isEmpty
-        }
         // 全手を撃った後の読みが失敗した(落ちた・前面を離れた)。手の一覧は捨てない —— 捨てると撃ち直しを誘う(届いた手の二重実行)
         // **投げられた case は抱える**(MCPError / text に畳むと、接続断の案内と記憶の破棄が出ない。executorFailure と同じ形)
         func unreadableAfterBatch(_ error: Error) -> Error {
@@ -1029,6 +1036,15 @@ extension MCPServer {
         "\n\nStopped after step \(stoppedAfter) of \(total): the app process (\(bundleID)) is no longer running,"
             + " so the remaining \(total - stoppedAfter) step(s) were NOT sent. Steps 1–\(stoppedAfter) were delivered;"
             + " relaunch the app (ft_launch) before sending the rest.\n\n"
+    }
+
+    /// 失敗の行から `StepExecutor.defaultWaitHint` の対処文(「waitSeconds: を足せ」)を外す。無ければそのまま
+    static func droppingDefaultWaitHint(_ line: String) -> String {
+        let opening = ". Without waitSeconds: this command looks for the element"
+        let closing = "(for example waitSeconds: 5)"
+        guard let start = line.range(of: opening), let end = line.range(of: closing, range: start.upperBound..<line.endIndex)
+        else { return line }
+        return line.replacingCharacters(in: start.lowerBound..<end.upperBound, with: "")
     }
 
     /// ok の手の後で画面(木の内容)が1つも変わっていなかった tap の行に添える。iOS の木はアプリの外(システムのアラート)を

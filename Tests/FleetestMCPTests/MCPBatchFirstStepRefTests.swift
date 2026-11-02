@@ -96,7 +96,7 @@ final class MCPBatchFirstStepRefTests: XCTestCase {
     }
 
     private func pendingTap(ref: Int, raw: [String: Any] = [:]) -> MCPServer.PendingBatchRef {
-        MCPServer.PendingBatchRef(ref: ref, raw: raw, builder: MCPServer.batchStepBuilders["tap"]!)
+        MCPServer.PendingBatchRef(ref: ref, raw: raw, builder: MCPServer.batchStepBuilders["tap"]!, command: "tap")
     }
 
     /// (a) 一意な id が引ける要素は stable セレクタへ解決し、注記に ref の出所を書く
