@@ -4,19 +4,17 @@
     {
       "platform": "ios",
       "machine": "M1Max",
-      "name": "iPhone 17 Pro(iOS 27.0)-01",
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "58CC649F-31C3-4AAA-911A-0BF693395FFD"
+      "name": "iPhone 18 Pro(iOS 27.2)-01",
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "M1Max",
-      "name": "iPhone 17 Pro(iOS 27.0)-02",
+      "name": "iPhone 18 Pro(iOS 27.2)-02",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "400455DE-CDD5-486B-BD3D-42E95202EE40"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     }
   ],
   "heal": true,

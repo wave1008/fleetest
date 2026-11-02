@@ -4,16 +4,15 @@
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)",
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "A012ADD8-EEA0-4F0C-B8BC-65E748F5906F"
+      "name": "iPhone 18 Pro(iOS 27.2)",
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "エミュ1",
-      "avd": "Pixel_9_Android_15_-01"
+      "name": "Pixel 10 Pro(Android 17)-01",
+      "avd": "Pixel_10_Pro_Android_17_-01"
     }
   ],
   "heal": true

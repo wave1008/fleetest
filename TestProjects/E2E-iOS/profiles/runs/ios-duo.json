@@ -6,16 +6,14 @@
       "machine": "local",
       "name": "iPhone Duo(iOS 27.2)-01",
       "model": "iPhone Duo",
-      "osVersion": "iOS 27.2",
-      "udid": "61C9B0E1-9F3C-475E-8DA9-24FF9C8BA684"
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
       "name": "iPhone Duo(iOS 27.2)-02",
       "model": "iPhone Duo",
-      "osVersion": "iOS 27.2",
-      "udid": "16FC30F9-50CD-4364-AE7C-2860E6285B9F"
+      "osVersion": "iOS 27.2"
     }
   ],
   "heal": true,

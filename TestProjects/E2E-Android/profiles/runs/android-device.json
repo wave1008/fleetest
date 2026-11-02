@@ -4,72 +4,72 @@
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-01",
+      "name": "Pixel 10 Pro(Android 17)-01",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-01"
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-02",
+      "name": "Pixel 10 Pro(Android 17)-02",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-02"
+      "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-03",
+      "name": "Pixel 10 Pro(Android 17)-03",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-03"
+      "avd": "Pixel_10_Pro_Android_17_-03"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-04",
+      "name": "Pixel 10 Pro(Android 17)-04",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-04"
+      "avd": "Pixel_10_Pro_Android_17_-04"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-05",
+      "name": "Pixel 10 Pro(Android 17)-05",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-05"
+      "avd": "Pixel_10_Pro_Android_17_-05"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-06",
+      "name": "Pixel 10 Pro(Android 17)-06",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-06"
+      "avd": "Pixel_10_Pro_Android_17_-06"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-07",
+      "name": "Pixel 10 Pro(Android 17)-07",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-07"
+      "avd": "Pixel_10_Pro_Android_17_-07"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-08",
+      "name": "Pixel 10 Pro(Android 17)-08",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-08"
+      "avd": "Pixel_10_Pro_Android_17_-08"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-09",
+      "name": "Pixel 10 Pro(Android 17)-09",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-09"
+      "avd": "Pixel_10_Pro_Android_17_-09"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-10",
+      "name": "Pixel 10 Pro(Android 17)-10",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-10"
+      "avd": "Pixel_10_Pro_Android_17_-10"
     },
     {
       "platform": "android",
@@ -92,93 +92,107 @@
     {
       "platform": "android",
       "machine": "M1Max",
-      "name": "Pixel 10(Android 14(API 34) / arm64-v8a)-01",
+      "name": "Pixel 10 Pro(Android 17)-01",
       "enabled": false,
-      "avd": "Pixel_10_Android_14_API_34_arm64-v8a_-01"
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "M1Max",
-      "name": "Pixel 9(Android 15)-01",
+      "name": "Pixel 10 Pro(Android 17)-02",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-01"
+      "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
       "machine": "M1Max",
-      "name": "Pixel 9(Android 15)-02",
+      "name": "Pixel 10 Pro(Android 17)-03",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-02"
+      "avd": "Pixel_10_Pro_Android_17_-03"
     },
     {
       "platform": "android",
       "machine": "M1Max",
-      "name": "Pixel 9(Android 15)-03",
+      "name": "Pixel 10 Pro(Android 17)-04",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-03"
+      "avd": "Pixel_10_Pro_Android_17_-04"
     },
     {
       "platform": "android",
-      "machine": "M1Max",
-      "name": "Pixel 9(Android 15)-04",
+      "machine": "M4Max",
+      "name": "Pixel 10 Pro(Android 17)-01",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-04"
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
-      "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-01",
+      "machine": "M4Max",
+      "name": "Pixel 10 Pro(Android 17)-02",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-01"
+      "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
-      "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-02",
+      "machine": "M4Max",
+      "name": "Pixel 10 Pro(Android 17)-03",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-02"
-    },
-    {
-      "platform": "android",
-      "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-03",
-      "enabled": false,
-      "avd": "Pixel_9_Android_15_-03"
+      "avd": "Pixel_10_Pro_Android_17_-03"
     },
     {
       "platform": "android",
       "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-04",
+      "name": "Pixel 10 Pro(Android 17)-01",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-04"
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-05",
+      "name": "Pixel 10 Pro(Android 17)-02",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-05"
+      "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
       "machine": "M1Ultra",
-      "name": "Pixel 9(Android 15)-06",
+      "name": "Pixel 10 Pro(Android 17)-03",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-06"
+      "avd": "Pixel_10_Pro_Android_17_-03"
+    },
+    {
+      "platform": "android",
+      "machine": "M1Ultra",
+      "name": "Pixel 10 Pro(Android 17)-04",
+      "enabled": false,
+      "avd": "Pixel_10_Pro_Android_17_-04"
+    },
+    {
+      "platform": "android",
+      "machine": "M1Ultra",
+      "name": "Pixel 10 Pro(Android 17)-05",
+      "enabled": false,
+      "avd": "Pixel_10_Pro_Android_17_-05"
+    },
+    {
+      "platform": "android",
+      "machine": "M1Ultra",
+      "name": "Pixel 10 Pro(Android 17)-06",
+      "enabled": false,
+      "avd": "Pixel_10_Pro_Android_17_-06"
     },
     {
       "platform": "android",
       "machine": "M1mini",
-      "name": "Pixel 9(Android 15)-01",
+      "name": "Pixel 10 Pro(Android 17)-01",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-01"
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "M1mini",
-      "name": "Pixel 9(Android 15)-02",
+      "name": "Pixel 10 Pro(Android 17)-02",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-02"
+      "avd": "Pixel_10_Pro_Android_17_-02"
     }
   ],
   "heal": true,

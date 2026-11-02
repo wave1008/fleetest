@@ -4,10 +4,9 @@
     {
       "platform": "ios",
       "machine": "M1Ultra",
-      "name": "iPhone 17 Pro",
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "6E7FD226-DF38-477E-8BB4-6363B688946F"
+      "name": "iPhone 18 Pro(iOS 27.2)",
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "android",

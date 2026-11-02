@@ -4,105 +4,97 @@
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-01",
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "E38DCA93-95F2-4DDF-B1FE-29527205D3EE"
+      "name": "iPhone 18 Pro(iOS 27.2)-01",
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-02",
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "C96A69C4-FE49-42EE-8C7F-ED5F603C346B"
+      "name": "iPhone 18 Pro(iOS 27.2)-02",
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-03",
+      "name": "iPhone 18 Pro(iOS 27.2)-03",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "B422AB58-6C79-45BC-92F0-BEF88061C8E1"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-04",
+      "name": "iPhone 18 Pro(iOS 27.2)-04",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "2C4FBE2E-5358-48CD-B32A-964B8EB817B4"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-05",
+      "name": "iPhone 18 Pro(iOS 27.2)-05",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "61A7E615-9C85-438E-BE3D-1BAC78640B11"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-06",
+      "name": "iPhone 18 Pro(iOS 27.2)-06",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "26FB5C4F-28B3-42D0-BB3A-A7B4D63917FF"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-07",
+      "name": "iPhone 18 Pro(iOS 27.2)-07",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "0B7E3ADA-B0E7-4A5B-99A7-B29091AE547A"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "ios",
       "machine": "local",
-      "name": "iPhone 17 Pro(iOS 27.0)-08",
+      "name": "iPhone 18 Pro(iOS 27.2)-08",
       "enabled": false,
-      "model": "iPhone 17 Pro",
-      "osVersion": "iOS 27.0",
-      "udid": "257324AF-D10D-42DE-AD7D-ADB682E8365F"
+      "model": "iPhone 18 Pro",
+      "osVersion": "iOS 27.2"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-01",
-      "avd": "Pixel_9_Android_15_-01"
+      "name": "Pixel 10 Pro(Android 17)-01",
+      "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-02",
-      "avd": "Pixel_9_Android_15_-02"
+      "name": "Pixel 10 Pro(Android 17)-02",
+      "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-03",
+      "name": "Pixel 10 Pro(Android 17)-03",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-03"
+      "avd": "Pixel_10_Pro_Android_17_-03"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-04",
+      "name": "Pixel 10 Pro(Android 17)-04",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-04"
+      "avd": "Pixel_10_Pro_Android_17_-04"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-05",
+      "name": "Pixel 10 Pro(Android 17)-05",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-05"
+      "avd": "Pixel_10_Pro_Android_17_-05"
     },
     {
       "platform": "android",
@@ -115,23 +107,23 @@
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-06",
+      "name": "Pixel 10 Pro(Android 17)-06",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-06"
+      "avd": "Pixel_10_Pro_Android_17_-06"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-07",
+      "name": "Pixel 10 Pro(Android 17)-07",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-07"
+      "avd": "Pixel_10_Pro_Android_17_-07"
     },
     {
       "platform": "android",
       "machine": "local",
-      "name": "Pixel 9(Android 15)-08",
+      "name": "Pixel 10 Pro(Android 17)-08",
       "enabled": false,
-      "avd": "Pixel_9_Android_15_-08"
+      "avd": "Pixel_10_Pro_Android_17_-08"
     }
   ],
   "containerInference": true,
