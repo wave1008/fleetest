@@ -118,6 +118,8 @@ enum BridgeRelayPlan {
 public enum ScenarioHostError: Error, LocalizedError {
     case runnerNotFound(product: String)
     case buildFailed(String)
+    /// run の中断でビルドを止めた(`BuildAbort`)
+    case buildInterrupted
     /// パッケージの外で打った(ビルドとは無関係。results 等も通る入口なので「ビルドに失敗」と言わない)
     case packageRootNotFound
     case listFailed(String)
@@ -129,6 +131,8 @@ public enum ScenarioHostError: Error, LocalizedError {
             return "\(product) not found (run: swift build --product \(product))"
         case .buildFailed(let log):
             return "failed to build the scenarios:\n\(log)"
+        case .buildInterrupted:
+            return "interrupted during the scenario build — cleaning up and exiting"
         case .packageRootNotFound:
             return "Package.swift not found (run this inside the repository)"
         case .listFailed(let detail):
@@ -230,8 +234,9 @@ public enum ScenarioHost {
         if ResolvedPinSync.pinnedResolveNeeded(packageRoot: root) {
             _ = try? Shell.run(["swift", "package", "resolve", "--only-use-versions-from-resolved-file"], cwd: root)
         }
-        let result = try Shell.run(["swift", "build", "--product", project.productName], cwd: root)
+        let result = try Shell.run(["swift", "build", "--product", project.productName], cwd: root, abortable: true)
         guard result.status == 0 else {
+            if BuildAbort.isAborted { throw ScenarioHostError.buildInterrupted }
             throw ScenarioHostError.buildFailed(result.tail)
         }
         if let fingerprint {
@@ -261,7 +266,7 @@ public enum ScenarioHost {
             if ResolvedPinSync.pinnedResolveNeeded(packageRoot: root) {
                 _ = try? Shell.run(["swift", "package", "resolve", "--only-use-versions-from-resolved-file"], cwd: root)
             }
-            if (try? Shell.run(["swift", "build"], cwd: root))?.status == 0 {
+            if (try? Shell.run(["swift", "build"], cwd: root, abortable: true))?.status == 0 {
                 for entry in stale {
                     if let fingerprint = entry.fingerprint {
                         BuildFingerprint.store(fingerprint, productName: entry.project.productName, repoRoot: root)

@@ -103,6 +103,29 @@ final class DraftArgumentAndSpringBoardTests: XCTestCase {
         XCTAssertEqual(lines.firstIndex { $0.hasPrefix("tap(\"#row\"") }.map { $0 > todo }, true, text)
     }
 
+    func testRetargetedStepLeavesATodoBeforeTheStepAndKeepsTheLine() async throws {
+        let server = server()
+        server.interactions.record(launch("com.example.app"))
+        var moved = tap("#row")
+        moved.retargeted = "(button \"Row\" had moved 40pt since the snapshot; retargeted to where it is now)"
+        server.interactions.record(moved)
+        let text = try await draft(server)
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let todo = try XCTUnwrap(lines.firstIndex { $0.contains("the tool retargeted this step's ref") }, text)
+        XCTAssertEqual(lines.firstIndex { $0.hasPrefix("tap(\"#row\"") }.map { $0 > todo }, true, text)
+    }
+
+    func testTakeRefRetargetIsConsumedOnceAndOnlyForTheSameRef() {
+        let server = server()
+        let args: [String: Any] = [:]
+        let key = MCPServer.sessionKey(args)
+        server.sessions[key, default: DeviceSession()].refRetarget = (7, "moved")
+        XCTAssertNil(server.takeRefRetarget(ref: 8, args: args))
+        XCTAssertNil(server.takeRefRetarget(ref: nil, args: args))
+        XCTAssertEqual(server.takeRefRetarget(ref: 7, args: args), "moved")
+        XCTAssertNil(server.takeRefRetarget(ref: 7, args: args))
+    }
+
     func testFailedStepIsATodoNotAPlainLine() async throws {
         let server = server()
         server.interactions.record(launch("com.example.app"))

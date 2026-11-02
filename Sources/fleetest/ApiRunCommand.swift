@@ -536,9 +536,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             // 食い違っていても止めない(警告のみ。)
             ScenarioHost.warnIfSkipBuildStale(project: testProject) { logStderr($0) }
         }
-        // **ビルドの後にも中断を見る**(`ScenarioHost.build` は子の生死を確かめられず
-        // `interruptState` に登録もしないので、ビルド中に届いた中断はここで初めて拾える ——
-        // その間 swift build 自体は最後まで走ってしまう。この限界は直せていない)
+        // **ビルドの後にも中断を見る**(ビルドの子は `BuildAbort` で止まる。止まる前に終わった回の中断を拾う)
         if interruptState.isStopped {
             throw RunInterruptedBeforeStartError(phase: "after the scenario build")
         }

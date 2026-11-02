@@ -185,6 +185,10 @@ struct DeviceSession {
     /// `direct:ios:0:` になる)なので、**udid ごとに覚える**(1 台の失敗で別の Simulator の回復まで止めない)。
     /// 失敗のときだけ入れる(成功したら次にまた消えたときは再挑戦してよい)
     var simulatorBridgeRebuildFailedUDIDs: Set<String> = []
+    /// 直近の `verifiedRef` が ref を撮り直しの木の別の位置へ付け替えて撃った印(セッション ref と movedNote の文)。
+    /// **撃つ操作の記録(`recordInteraction` / ft_batch の1手目)が `takeRefRetarget` で消費して `InteractionLog.Entry.retargeted` へ渡す**。
+    /// `verifiedRef` の冒頭で必ず消す(撃たずに終わった付け替えが次の記録へ付かない)。消費は ref の番号が一致するときだけ
+    var refRetarget: (ref: Int, note: String)?
     /// 版ズレの内容。ft_status が「失敗するが理由を返す」ために覚えておく
     var versionSkew: String?
 }

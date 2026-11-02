@@ -681,12 +681,16 @@ extension MCPServer {
         // SelectorNaming の一意性検査)。それでも実行ループの前 —— 「全手を実行前に検証する」を
         // 崩さない。パーサが ref を1手目にしか通さないので、plans[1...] は pendingRef を持たない
         var refResolutionNote: String?
+        var firstStepRetargeted: String?
         if let pending = plans[0].pendingRef {
             let resolved = try await resolvePendingBatchRef(pending, driver: batchDriver, args: args)
             plans[0].step = resolved.step
             plans[0].summary = resolved.summary
             plans[0].pendingRef = nil
             refResolutionNote = resolved.note
+            // verifiedRef が今この呼び出しの中で立てた印(冒頭で消してから立てる)を1手目の記録へ渡す
+            firstStepRetargeted = sessions[Self.sessionKey(args)]?.refRetarget?.note
+            sessions[Self.sessionKey(args)]?.refRetarget = nil
         }
 
         // **直前の ft_type / ft_batch の type が立てた出現待ちの印を、この executor の最初の解決へ渡す**
@@ -794,6 +798,7 @@ extension MCPServer {
                     recorded.note = DraftNotes.coordinates
                 }
                 var entry = InteractionLog.Entry(step: recorded, unresolved: nil, summary: plan.summary)
+                if index == 0 { entry.retargeted = firstStepRetargeted }
                 if !StepExecutor.isSuccess(outcome.status) {
                     entry.failure = Self.failureReason(outcome).split(whereSeparator: \.isNewline).first.map(String.init) ?? "failed"
                 }

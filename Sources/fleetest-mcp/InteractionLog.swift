@@ -40,6 +40,9 @@ struct InteractionLog {
         /// 撃ったが FAILED で終わった手の失敗の理由(1行)。nil = 失敗していない。**失敗した手も記録から消さない**
         /// (何を試して止まったかが追える)が、下書きでは印なしの普通の行にせず TODO で残す(`MCPServer.failedStepsAsTodo`)
         var failure: String?
+        /// 撃つ直前に ref を撮り直しの木の別の位置へ付け替えた手の注記(`RefGuard.movedNote` の文)。nil = 付け替えていない。
+        /// 手は消さず、下書きでは印なしの行にせず TODO を前に付ける(`failure` と同じ流儀。構造化した印 = 文言の一致で決めない)
+        var retargeted: String?
         /// step なしの手を、この文のまま TODO として行の位置に残す(下書きの生成時に作る)
         var todoNote: String?
     }

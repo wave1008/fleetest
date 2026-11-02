@@ -132,8 +132,8 @@ public enum Shell {
     /// Foundation の既定 = 親の stdin)
     @discardableResult
     public static func run(_ args: [String], cwd: URL? = nil, timeout: Double? = nil,
-                           stdin: Data? = nil) throws -> Result {
-        let (status, data) = try runRaw(args, cwd: cwd, timeout: timeout, stdin: stdin)
+                           stdin: Data? = nil, abortable: Bool = false) throws -> Result {
+        let (status, data) = try runRaw(args, cwd: cwd, timeout: timeout, stdin: stdin, abortable: abortable)
         return Result(status: status, output: String(data: data, encoding: .utf8) ?? "")
     }
 
@@ -155,7 +155,7 @@ public enum Shell {
 
     static func runRaw(_ args: [String], cwd: URL? = nil,
                        mergeStderr: Bool = true, timeout: Double? = nil,
-                       stdin: Data? = nil) throws -> (Int32, Data) {
+                       stdin: Data? = nil, abortable: Bool = false) throws -> (Int32, Data) {
         if let index = ProcessArguments.firstNULIndex(args) {
             throw ShellError.argumentContainsNUL(index: index)
         }
@@ -188,6 +188,12 @@ public enum Shell {
         try process.run()
         drain.start()
         let pid = process.processIdentifier
+        // run の中断で止めるビルド(`BuildAbort`)。登録の時点で中断済みなら起こした直後に止める
+        let registered = abortable && BuildAbort.register(pid: pid)
+        defer { if registered { BuildAbort.unregister(pid: pid) } }
+        if abortable, !registered {
+            if killpg(pid, SIGTERM) != 0 { _ = kill(pid, SIGTERM) }
+        }
         if let stdin, let stdinPipe {
             // 子が先に死んでいると読み手の無いパイプへの write は SIGPIPE でこのプロセスごと落ちる
             // (実測: signal 13)。fd 単位で SIGPIPE を止めて EPIPE を Swift のエラーで受ける

@@ -56,13 +56,13 @@ public struct InAppLauncher: Sendable {
         guard FileManager.default.fileExists(atPath: script) else {
             throw InAppLauncherError.repoRootInvalid(repoRoot.path)
         }
-        let result = try Shell.run(["bash", script])
+        let result = try Shell.run(["bash", script], abortable: true)
         guard result.status == 0 else {
             throw InAppLauncherError.buildFailed(result.tail)
         }
         // 実機は iphoneos 版も作る(署名は relaunch 時に per-app)
         if physical {
-            let deviceResult = try Shell.run(["bash", script, "device"])
+            let deviceResult = try Shell.run(["bash", script, "device"], abortable: true)
             guard deviceResult.status == 0 else {
                 throw InAppLauncherError.buildFailed(deviceResult.tail)
             }

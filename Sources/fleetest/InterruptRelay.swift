@@ -207,14 +207,18 @@ final class RunInterruptState: @unchecked Sendable {
     /// 1回目の中断で stderr に出す文。既定は run 向け —— run でない呼び手(`api services-owner`)は自分の文を渡す
     /// (「供給」「シナリオ」の無い文脈でその語を出さない)
     private let notice: String
+    /// 2回目の中断で呼ぶ終了(本番は `exit`。差し替え口 = テストがプロセスごと終わらないため)
+    private let forceExit: @Sendable (Int32) -> Void
 
     static let runNotice = "⏹ Interrupt received — stopping (the device supply or the running"
         + " scenario finishes its current step first; send it again to quit immediately"
         + " without the interruption record)"
 
-    init(recorder: RunRecorder?, notice: String = RunInterruptState.runNotice) {
+    init(recorder: RunRecorder?, notice: String = RunInterruptState.runNotice,
+         forceExit: @escaping @Sendable (Int32) -> Void = { exit($0) }) {
         self.recorder = recorder
         self.notice = notice
+        self.forceExit = forceExit
     }
 
     var isStopped: Bool {
@@ -242,9 +246,15 @@ final class RunInterruptState: @unchecked Sendable {
             ConsoleOut.err(notice)
         }
         for process in toKill where process.isRunning { process.terminate() }
+        // 走っているビルド(swift build・xcodebuild・InAppBridge/build.sh)も止める —— 段の境目まで待たない。
+        // 止めたビルドの Shell.run が非0で戻り、呼び手が投げて RunExitGuard の出口(片付け・ロックの解放)を通る
+        let signalledBuilds = BuildAbort.abortAll(kill: !firstTime)
         guard !firstTime else { return }
+        // 2回目: ビルドが走っていた = まだ片付けへ進めていないだけ。SIGKILL まで上げて出口へ戻らせ、強制終了しない
+        // (exit すると片付けとロックの解放が飛ぶ)。3回目の中断は止まったビルドが無いので下の強制終了に落ちる
+        if signalledBuilds > 0 { return }
         // rc=143 は「同じシグナルを2回受けた」ことの目印(1回目は下の通常経路で rc=1 になる)
-        exit(143)
+        forceExit(143)
     }
 
     /// 供給フェーズより前に立てた `RunInterruptState` へ、あとから組み上がった

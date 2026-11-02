@@ -136,6 +136,33 @@ final class DeviceInventoryTests: XCTestCase {
         XCTAssertNil(row.bridges.first?.port)
     }
 
+    private func physicalRow(udid: String, bridges: [DeviceInventory.Row.Bridge] = [], running: Bool = true,
+                             physical: Bool = true) -> DeviceInventory.Row {
+        DeviceInventory.Row(name: "iPhone", platform: "ios", identifier: udid, running: running, physical: physical,
+                            registered: true, bridges: bridges)
+    }
+
+    func testUnreachableIsSaidOnlyWhenTheProbeConfirmsIt() {
+        let rows = [physicalRow(udid: "A"), physicalRow(udid: "B"), physicalRow(udid: "C")]
+        let marked = DeviceInventory.markingUnreachable(rows) { ["A": .unreachable, "B": .unknown, "C": .reachable][$0]! }
+        XCTAssertEqual(marked.map(\.unreachable), [true, false, false])
+        let text = DeviceInventory.line(marked[0])
+        XCTAssertTrue(text.contains("unreachable"), text)
+        XCTAssertFalse(text.contains("running"), text)
+        XCTAssertFalse(text.contains("no bridge listening"), text)
+        XCTAssertTrue(DeviceInventory.line(marked[1]).contains("no bridge listening"))
+    }
+
+    func testRowsThatNeedNoProbeAreNeverProbed() {
+        let withBridge = physicalRow(udid: "A", bridges: [DeviceInventory.Row.Bridge(port: 8123, kind: nil)])
+        let notRunning = physicalRow(udid: "B", running: false)
+        let simulator = physicalRow(udid: "C", physical: false)
+        var asked: [String] = []
+        let marked = DeviceInventory.markingUnreachable([withBridge, notRunning, simulator]) { asked.append($0); return .unreachable }
+        XCTAssertEqual(asked, [])
+        XCTAssertEqual(marked.map(\.unreachable), [false, false, false])
+    }
+
     func testIOSRowPhysicalUsesConnectedFlagFromCatalog() {
         let connected = IOSPhysicalDeviceInfo(udid: "PHYS-1", name: "wave's iPhone", os: "iOS 18.5",
                                               connected: true, transport: "wired")

@@ -186,6 +186,22 @@ public enum IOSPhysicalDeviceCatalog {
         return result.status == 0
     }
 
+    /// `probeReachable` の3値版(一覧で接続中の端末が本当に届くかを事実だけで言うための照会)。
+    /// **届かないと確定するのは「照会が最後まで走り、非ゼロで終わった」ときだけ** —— 期限切れ・起動の失敗は `unknown`
+    /// (`probeReachable` はこの2つも false に畳む = 「届かない」と断定する材料にしない)
+    public enum Reachability: Equatable, Sendable {
+        case reachable
+        case unreachable
+        case unknown
+    }
+
+    public static func probeReachability(udid: String, timeout: Double = 20) -> Reachability {
+        guard let result = try? Shell.run(
+            ["xcrun", "devicectl", "device", "info", "details",
+             "--device", udid, "--json-output", "-", "-q"], timeout: timeout) else { return .unknown }
+        return result.status == 0 ? .reachable : .unreachable
+    }
+
     /// 到達性の判定はここ1箇所(`resolve` と `api start-device --udid` の両方が通る)。
     /// 一覧が接続中と言えばそれを信じ、言わなければ**訊いてから**結論する
     public static func confirmedConnected(_ device: IOSPhysicalDeviceInfo,

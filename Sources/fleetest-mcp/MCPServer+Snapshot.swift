@@ -1308,6 +1308,7 @@ extension MCPServer {
     /// 返す ref は**セッション ref**(ブリッジへ渡す前に呼び手が `nativeRef` を通すこと)
     func verifiedRef(_ ref: Int, driver: AppDriver,
                              args: [String: Any]) async throws -> (ref: Int, note: String) {
+        sessions[Self.sessionKey(args), default: DeviceSession()].refRetarget = nil
         var sessionRef = resolveSessionRef(ref, args: args)
         // 撮ってから引いた木。下の「撃つ直前の読み直し」はこれを使う(間に操作が無いので読み直しと同じ = 2枚払わない)
         var justRead: SnapshotResponse?
@@ -1455,9 +1456,10 @@ extension MCPServer {
                                                ownActionSince: actedSinceTakenFrom)
             // **動いた後の位置にも同じ警告を全部付ける**(`overlap` = 画面外・覆い・貼り付く見出し・ヒットテスト。
             // 動いた経路だけ省くと、付け替えた先の中心が画面の外でも無警告になっていた)
-            return (found.ref, overlap
-                + RefGuard.movedNote(found: found, moved: moved, cause: cause,
-                                   unit: Self.platformName(args) == "android" ? "px" : "pt") + straddle + labelNote)
+            let movedNote = RefGuard.movedNote(found: found, moved: moved, cause: cause,
+                                               unit: Self.platformName(args) == "android" ? "px" : "pt")
+            sessions[key, default: DeviceSession()].refRetarget = (found.ref, movedNote.trimmingCharacters(in: .whitespaces))
+            return (found.ref, overlap + movedNote + straddle + labelNote)
         }
     }
 

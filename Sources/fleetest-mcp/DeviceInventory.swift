@@ -35,6 +35,9 @@ enum DeviceInventory {
         /// (`resolveBridges` 参照)。0 なら何も出さない。黙って捨てると
         /// 「動いているのに一覧に出ない」になるので、本数だけは行に残す
         var unattributedByName: Int = 0
+        /// 実機で、一覧(devicectl)は接続中と言うが、名指しの照会が最後まで走って届かないと答えた(`markingUnreachable`)。
+        /// 推測の欄ではない: 照会の結果が `unreachable` と確定したときだけ立つ(期限切れ・起動失敗では立てない)
+        var unreachable: Bool = false
 
         struct Bridge: Equatable {
             let port: UInt16
@@ -209,7 +212,7 @@ enum DeviceInventory {
     static func line(_ row: Row) -> String {
         var parts = [row.platform, row.physical ? "physical" : "virtual",
                      row.registered ? "registered" : "unregistered",
-                     row.running ? "running" : "not running"]
+                     row.unreachable ? "unreachable" : row.running ? "running" : "not running"]
         if let identifier = row.identifier {
             parts.append((row.platform == "ios" ? "udid " : "serial ") + identifier)
         }
@@ -217,6 +220,9 @@ enum DeviceInventory {
             // **1端末に複数ブリッジが同時に立つのが常態**(in-app + XCUITest)。1行に畳んで
             // 両方出す — 片方しか出さないと「動いているのにもう一方が見えない」になる
             parts.append("bridge " + row.bridges.map(bridgeLabel).joined(separator: ", "))
+        } else if row.unreachable {
+            parts.append("devicectl lists it as connected, but `devicectl device info details` for this udid failed, so the"
+                + " device does not answer from this Mac (it may be asleep or its tunnel is down) — no bridge can be reached")
         } else if row.running, row.platform == "ios" {
             // **「動いているのに MCP からは触れない」を行から読めるようにする**(H-3)。
             // iOS の操作系はブリッジ越しなので、ブリッジが無い機は udid を渡しても port を渡しても
@@ -323,8 +329,41 @@ enum DeviceInventory {
         // 名前引きは両方に当たる
         let ambiguous = ambiguousDeviceNames(simDevices.filter(\.booted).map(\.name)
                                              + physicalDevices.filter(\.connected).map(\.name))
-        return specs.map { iosRow(spec: $0, simDevices: simDevices, physicalDevices: physicalDevices,
-                                  liveBridges: live, ambiguousNames: ambiguous) }
+        return await markingUnreachableByProbe(specs.map {
+            iosRow(spec: $0, simDevices: simDevices, physicalDevices: physicalDevices,
+                   liveBridges: live, ambiguousNames: ambiguous) })
+    }
+
+    /// 実機の行のうち「接続中・ブリッジ無し」のものだけ、到達性を照会して届かないと確定したら `unreachable` を立てる(純粋関数・テスト用)。
+    /// ブリッジが生きている行は照会しない(届いている)。`unknown` は何も変えない(推測で言わない)
+    static func markingUnreachable(_ rows: [Row], reachability: (String) -> IOSPhysicalDeviceCatalog.Reachability) -> [Row] {
+        rows.map { row in
+            guard row.platform == "ios", row.physical, row.running, row.bridges.isEmpty,
+                  let udid = row.identifier, reachability(udid) == .unreachable else { return row }
+            var marked = row
+            marked.unreachable = true
+            return marked
+        }
+    }
+
+    /// 照会を実機の行ごとに並行して撃つ(`Shell.run` はブロックするので協調プールに載せず、グローバルキューで)。
+    /// 照会するのは `markingUnreachable` が必要とする行だけ
+    private static func markingUnreachableByProbe(_ rows: [Row]) async -> [Row] {
+        let udids = rows.filter { $0.platform == "ios" && $0.physical && $0.running && $0.bridges.isEmpty }
+            .compactMap(\.identifier)
+        guard !udids.isEmpty else { return rows }
+        let answers = await withCheckedContinuation { (continuation: CheckedContinuation<[String: IOSPhysicalDeviceCatalog.Reachability], Never>) in
+            DispatchQueue.global().async {
+                let box = LockedValue<[String: IOSPhysicalDeviceCatalog.Reachability]>([:])
+                DispatchQueue.concurrentPerform(iterations: udids.count) { index in
+                    let udid = udids[index]
+                    let answer = IOSPhysicalDeviceCatalog.probeReachability(udid: udid)
+                    box.withLock { $0[udid] = answer }
+                }
+                continuation.resume(returning: box.value)
+            }
+        }
+        return markingUnreachable(rows) { answers[$0] ?? .unknown }
     }
 
     /// 生きているブリッジの引き方。**1つの辞書に名前と udid を混ぜない** —— どちらの鍵で
@@ -424,8 +463,8 @@ enum DeviceInventory {
         let physical = ((try? IOSPhysicalDeviceCatalog.devices()) ?? [])
         guard simulators.contains(where: \.booted) || physical.contains(where: \.connected)
         else { return [] }
-        return iosFallbackRows(simulators: simulators, physical: physical,
-                               live: await liveIOSBridges())
+        return await markingUnreachableByProbe(iosFallbackRows(
+            simulators: simulators, physical: physical, live: await liveIOSBridges()))
     }
 
     /// 純粋関数(テスト用): 実測カタログ2本を fallback の行へ組む。**絞り込みもここに置く**

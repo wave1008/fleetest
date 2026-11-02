@@ -100,7 +100,7 @@ public struct BridgeLauncher: Sendable {
             "-scheme", "FleetestRunner",
             "-destination", destination,
             "-derivedDataPath", derivedDataPath.path,
-        ] + signingArguments, cwd: repoRoot)
+        ] + signingArguments, cwd: repoRoot, abortable: true)
         guard result.status == 0 else {
             // **署名で止まっているなら「次にやること」を出す** —— 生のビルドログは数十行あり、
             // そのまま拡張のバナーへ流れると読み手は何をすればいいか分からない

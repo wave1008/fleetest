@@ -84,6 +84,9 @@ extension MCPServer {
                         "TODO: the tool warned that this step probably did nothing during the exploration (\(warning));"
                             + " a scenario's action waits for the target and performs it — check the state before relying on this step")
                 }
+                if let note = entry.retargeted {
+                    notesBeforeStep[resolved, default: []].append(Self.retargetedTodo(note))
+                }
                 resolved += 1
             } else if let todo = entry.todoNote {
                 notesBeforeStep[resolved, default: []].append(todo)
@@ -159,6 +162,12 @@ extension MCPServer {
                 + " is out of range (1…\(stepIndexForListing.count)) or repeated and was ignored.\n"
         }
         return header + Self.pruningListing(scope) + "\n" + code
+    }
+
+    /// 付け替えて撃った手の TODO。行は残す(手順の位置を保つ)が、探索で撃ったのは撮った時点と別の位置の要素
+    static func retargetedTodo(_ note: String) -> String {
+        "TODO: during the exploration the tool retargeted this step's ref to a different position of the screen \(note);"
+            + " the line below targets by selector — check that it picks out the element you meant"
     }
 
     /// FAILED で終わった手(`failure` あり)を TODO に落とす。再生しても同じ所で止まる行を印なしで残さない
@@ -326,6 +335,14 @@ extension MCPServer {
     /// このセッションが何かを撃った回数(`sessionActionCounts`)も刻む。**素の
     /// `interactions.record` を直に呼ばない** —— そちらへ戻すと、その手だけ
     /// `screenChangedUnderRefNote` の出自判定から抜け、木の変化を誤って外部要因のせいにする
+    /// `verifiedRef` が付け替えて撃った印を、同じ ref を撃った手の記録が1回だけ受け取る(番号が違えば残す = 別の手へ付けない)
+    func takeRefRetarget(ref: Int?, args: [String: Any]) -> String? {
+        let key = Self.sessionKey(args)
+        guard let ref, let pending = sessions[key]?.refRetarget, pending.ref == ref else { return nil }
+        sessions[key]?.refRetarget = nil
+        return pending.note
+    }
+
     func recordAction(_ entry: InteractionLog.Entry, args: [String: Any]) {
         sessionActionCounts[Self.sessionKey(args), default: 0] += 1
         lastActionCallIDs[Self.sessionKey(args)] = Self.currentCallID
@@ -435,6 +452,7 @@ extension MCPServer {
         var entry = InteractionLog.Entry(step: step, unresolved: nil,
                                          summary: detail.isEmpty ? action : "\(action) \(detail)")
         entry.noEffectWarning = noEffectWarning
+        entry.retargeted = takeRefRetarget(ref: resolvedRef, args: args)
         recordAction(entry, args: args)
     }
 

@@ -86,7 +86,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   段の境目で中断を見て既存の早期失敗の出口で抜ける(**出口の順序は `RunExitGuard` の1箇所** = 供給の完了待ち → 片付け → 進捗の控え → dispatch.lock の解放 → 中断の登録の解除。本体の `defer` でロックを外すと、走っている供給・終了スクリプトの横で次の run が取れる = 2026-11-01 に実地で再現)。遅く登録すると、その間のシグナル
   (fan-out の子は ssh 切断の SIGHUP)が OS 既定の即死になり、teardown が走らず dispatch.lock が死んだ pid のまま残り、
   孤児のビルド・供給と次の run が重なる(`InterruptRelayEarlyRegistrationWiringTests`)→ MN-51。
-  **限界: `swift build` の実行中の中断は、ビルドが終わってから拾う**(ビルドの子は interruptState に登録していない)。
+  **ビルドの子(`swift build`・`xcodebuild build-for-testing`・`InAppBridge/build.sh`)は `Shell.run(abortable: true)` で `BuildAbort` に載り、中断で止まる**(1回目 = SIGTERM・ビルド中の2回目 = SIGKILL に上げて `exit(143)` せず出口へ戻す。3回目で強制終了。`RunInterruptStateBuildAbortTests`)。
   **run-setup.sh / run-teardown.sh は `registerChildProcess` で中断を受け(run-teardown.sh は既に中断済みなら登録しない = 中断した run の片付けを起動の直後に止めない。`RunHookRunner.teardownInterrupt`)、終了は終了通知で待ち(パイプの EOF と独立)、終わったら
   プロセスグループに残った子孫へ SIGTERM → 2 s → SIGKILL**(`RunHookRunner.sweepProcessGroup`。`setsid` で離脱した子孫は検出できない)。
   gateway(`ServiceGatewayServer`)の子も同じ猶予で止める

@@ -1299,6 +1299,33 @@ extension StepExecutorTests {
         }
     }
 
+    /// replace の消去でキーボードが欄を木から押し出す形: 閉じた確認の木(`.closed` が持つ)をそのまま使い、
+    /// 同じドライバのまま読み直さない(閉じてから打つまでの間の snapshot は 1 回 = 閉じた確認の読みだけ)
+    func testReplaceAfterClearReusesTheClosedKeyboardTreeWithoutAnotherRead() async throws {
+        let log = CallLog()
+        let field = ElementInfo(ref: 1, type: "textField", identifier: "field_city", label: nil, value: "old",
+                                placeholder: nil, enabled: true, frame: FTRect(x: 20, y: 400, width: 360, height: 50), depth: 1)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field]])
+        primary.onMutatingCall = {
+            primary.snapshotElements = [[]]
+            primary.keyboardShownFrames = [true]
+        }
+        primary.afterHideKeyboard = {
+            primary.keyboardShownFrames = [false]
+            primary.snapshotElements = [[field]]
+        }
+        primary.verifiesTypedText = false
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_city"),
+                                                      text: "new", replace: true))
+        guard case .passed = outcome.status else { XCTFail("\(outcome.status) \(log.entries)"); return }
+        let hide = try XCTUnwrap(log.entries.firstIndex(of: "primary.hideKeyboard"), log.entries.description)
+        let typed = try XCTUnwrap(log.entries.firstIndex { $0.hasPrefix("primary.type(") }, log.entries.description)
+        XCTAssertEqual(log.entries[hide..<typed].filter { $0 == "primary.snapshot" }.count, 1, log.entries.description)
+        XCTAssertTrue(outcome.driverFallback?.contains("the field was not on the screen while it was up") == true,
+                      outcome.driverFallback ?? "nil")
+    }
+
     private static let phoneUnderKeyboard = ElementInfo(
         ref: 1, type: "textView", identifier: "field_phone", label: "電話番号", value: nil, placeholder: nil, enabled: true,
         frame: FTRect(x: 16, y: 619, width: 370, height: 65), depth: 1)
