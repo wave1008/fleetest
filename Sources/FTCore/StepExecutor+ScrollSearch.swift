@@ -532,6 +532,14 @@ extension StepExecutor {
     /// 上限は `waitSeconds` 自身。尽きたら従来の「nothing moved at all」を言う(予算を使い切った事実が失敗文の所要時間に出る)
     static let unmovedBudgetPollInterval: Duration = .milliseconds(500)
 
+    /// 書かれた `waitSeconds:` の予算を数え始める時刻。動かなかった探索 = 探索の開始、動いた後の端 = 端に着いた最初の時刻
+    static func endWaitStart(contentEverMoved: Bool, searchStart: ContinuousClock.Instant,
+                             firstEndClaim: inout ContinuousClock.Instant?, now: ContinuousClock.Instant) -> ContinuousClock.Instant {
+        guard contentEverMoved else { return searchStart }
+        if firstEndClaim == nil { firstEndClaim = now }
+        return firstEndClaim ?? now
+    }
+
     /// `scrollToEdge` が端と認めるまでに必要な「署名が不変だった周回数」。
     ///
     /// 既定は **2**。Android では次のスワイプがフリングの停止だけに消費されて1回空振りすることがあり、
@@ -737,6 +745,8 @@ extension StepExecutor {
                          phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
         let clock = ContinuousClock()
         let searchStart = clock.now
+        // 動いた後に端へ着いた最初の時刻(書かれた waitSeconds: の起点。endWaitStart)
+        var firstEndClaim: ContinuousClock.Instant?
         let direction = FTSwipeDirection(rawValue: step.direction ?? "") ?? .up
         // 負値だと 0...(-1) が ClosedRange 生成で trap(クラッシュ)するため 0 で下限クランプ
         let maxSwipes = max(0, step.maxSwipes ?? tunables.defaultMaxSwipes)
@@ -1101,9 +1111,13 @@ extension StepExecutor {
                     }
                     // **利用者が `waitSeconds:` を書いたのに何も動かないままなら、その予算の間は端と確定しない**
                     // (読み込み中の骨組みの一覧は数秒後に伸びる。1.5 秒で「何も動かない」と断ると予算を使い切らずに赤になった)。
-                    // 書かれていなければ従来どおり(既定の待ちで毎回の失敗探索を遅くしない)。動いた後の停止は端なので対象外
-                    if unmovedRounds >= Self.unmovedRoundsToStopSearch, !contentEverMoved, let budget = step.timeout,
-                       clock.now - searchStart < .seconds(budget) {
+                    // 書かれていなければ従来どおり(既定の待ちで毎回の失敗探索を遅くしない)。
+                    // **動いた後に端へ着いた探索も、書かれた予算の間は端と確定しない**(末尾で遅れて出る要素 = 読み込みの後の「再試行」を
+                    // 待つ。人は末尾で読み込みを待つ)。起点は端に着いた最初の時刻(探索に費やした時間を予算から引かない)。
+                    // 動かなかった探索は従来どおり探索の開始から数える
+                    if unmovedRounds >= Self.unmovedRoundsToStopSearch, let budget = step.timeout,
+                       clock.now - Self.endWaitStart(contentEverMoved: contentEverMoved, searchStart: searchStart,
+                                                     firstEndClaim: &firstEndClaim, now: clock.now) < .seconds(budget) {
                         let waitStart = clock.now
                         try await Task.sleep(for: Self.unmovedBudgetPollInterval)
                         phase.waitMs += Self.ms(clock.now - waitStart)
