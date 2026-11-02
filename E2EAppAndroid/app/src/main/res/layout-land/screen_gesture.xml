@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- screen_gesture.xml の横向き版(同じ id・同じ構造の約束)。横向きは横の払いの帯
+     (x=0.2w〜0.8w, y=0.5h)をボタンが塞がないよう、ボタン類を右端の幅 18% の列(x>=0.82w)へ
+     寄せ、読み取り専用の Text を左上へ回す。幅の割り当ては横の LinearLayout + weightSum
+     (縦の LinearLayout の layout_weight は幅に効かない。screen_gesture.xml 参照)。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:id="@+id/pad_swipe"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#EEEEEE"
+        android:contentDescription="スワイプ領域" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:weightSum="1">
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="0.82" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.18"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_tap_counter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="タップ" />
+
+            <!-- 通常タップでは増えず長押しでのみ増える。clickable=false + longClickable=true。 -->
+            <Button
+                android:id="@+id/btn_long_press"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="56dp"
+                android:clickable="false"
+                android:longClickable="true"
+                android:text="長押し" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:orientation="vertical"
+        android:gravity="start"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/txt_tap_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="tap=0" />
+
+        <TextView
+            android:id="@+id/txt_press_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="press=0" />
+
+        <TextView
+            android:id="@+id/txt_swipe_dir"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="swipe=-" />
+
+        <TextView
+            android:id="@+id/txt_last_gesture"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="last=-" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:weightSum="1">
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="0.82" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.18"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btn_gesture_reset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="ジェスチャクリア" />
+
+            <Button
+                android:id="@+id/nav_map"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="48dp"
+                android:text="マップ" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

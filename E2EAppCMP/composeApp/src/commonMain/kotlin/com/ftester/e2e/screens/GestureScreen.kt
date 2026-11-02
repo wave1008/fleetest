@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +37,8 @@ import kotlin.math.abs
 // よって #pad_swipe は**コンテンツ領域いっぱい**に敷き、その上に操作要素を重ねる構成にする。
 // 重ねてよいのは Text(ポインタを消費しない)だけ。ボタン類は始点を塞がないよう
 // 「幅 45% 以内(中央列 x=0.5w を空ける)」かつ「上下の端(中央行 y=0.5h を空ける)」に置く。
+// 横向き(幅 > 高さ)は横の払いの帯(x=0.2w〜0.8w)を空けるため、ボタン類を右端の幅 18% の列
+// (x>=0.82w)へ寄せ、読み取り専用の Text を左上へ回す(契約: ui-contract.md ジェスチャ画面)。
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GestureScreen(onOpenMap: () -> Unit = {}) {
@@ -44,7 +47,7 @@ fun GestureScreen(onOpenMap: () -> Unit = {}) {
     var swipeDir by remember { mutableStateOf("-") }
     var last by remember { mutableStateOf("-") }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -73,11 +76,16 @@ fun GestureScreen(onOpenMap: () -> Unit = {}) {
                 }
             }
     ) {
+        val landscape = maxWidth > maxHeight
+        val buttonWidth = if (landscape) 0.18f else 0.45f
         Text("スワイプ領域", modifier = Modifier.align(Alignment.Center))
 
-        // 上部左: タップ系。幅 45% で中央列を空ける。
+        // 上部左: タップ系。幅 45% で中央列を空ける(横向きは右上の幅 18% の列)。
         Column(
-            modifier = Modifier.align(Alignment.TopStart).fillMaxWidth(0.45f).padding(12.dp),
+            modifier = Modifier
+                .align(if (landscape) Alignment.TopEnd else Alignment.TopStart)
+                .fillMaxWidth(buttonWidth)
+                .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TaggedButton(Tags.BTN_TAP_COUNTER, "タップ", modifier = Modifier.fillMaxWidth()) {
@@ -98,10 +106,10 @@ fun GestureScreen(onOpenMap: () -> Unit = {}) {
             }
         }
 
-        // 右上: 読み取り専用の表示。Text はポインタを消費しないのでパッドの上に重ねてよい。
+        // 右上(横向きは左上): 読み取り専用の表示。Text はポインタを消費しないのでパッドの上に重ねてよい。
         Column(
-            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-            horizontalAlignment = Alignment.End,
+            modifier = Modifier.align(if (landscape) Alignment.TopStart else Alignment.TopEnd).padding(12.dp),
+            horizontalAlignment = if (landscape) Alignment.Start else Alignment.End,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             TaggedText(Tags.TXT_TAP_COUNT, "tap=$tap")
@@ -112,22 +120,38 @@ fun GestureScreen(onOpenMap: () -> Unit = {}) {
 
         // マップ画面への導線。**右下に置く**(ホーム末尾に足すと下部タブに重なってタップを
         // 吸われる。スワイプ経路は中央行・中央列なのでここは塞がない)
-        TaggedButton(
-            Tags.NAV_MAP,
-            "マップ",
-            modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.45f).padding(12.dp),
-            onClick = onOpenMap
-        )
-
-        TaggedButton(
-            Tags.BTN_GESTURE_RESET,
-            "ジェスチャクリア",
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(0.45f).padding(12.dp)
-        ) {
+        // 横向きは右下の幅 18% の列に ジェスチャクリア と縦に並べる。
+        val resetGesture = {
             tap = 0
             press = 0
             swipeDir = "-"
             last = "-"
+        }
+        if (landscape) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth(buttonWidth).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TaggedButton(Tags.BTN_GESTURE_RESET, "ジェスチャクリア", modifier = Modifier.fillMaxWidth()) {
+                    resetGesture()
+                }
+                TaggedButton(Tags.NAV_MAP, "マップ", modifier = Modifier.fillMaxWidth(), onClick = onOpenMap)
+            }
+        } else {
+            TaggedButton(
+                Tags.NAV_MAP,
+                "マップ",
+                modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.45f).padding(12.dp),
+                onClick = onOpenMap
+            )
+
+            TaggedButton(
+                Tags.BTN_GESTURE_RESET,
+                "ジェスチャクリア",
+                modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(0.45f).padding(12.dp)
+            ) {
+                resetGesture()
+            }
         }
     }
 }

@@ -6,6 +6,8 @@ import SwiftUI
 // よって #pad_swipe は**コンテンツ領域いっぱい**に敷き、その上に操作要素を重ねる構成にする。
 // 重ねてよいのは Text(ポインタを消費しない)だけ。ボタン類は始点を塞がないよう
 // 「幅 45% 以内(中央列 x=0.5w を空ける)」かつ「上下の端(中央行 y=0.5h を空ける)」に置く。
+// 横向き(幅 > 高さ)は横の払いの帯(x=0.2w〜0.8w)を空けるため、ボタン類を右端の幅 18% の列
+// (x>=0.82w)へ寄せ、読み取り専用の Text を左上へ回す(契約: ui-contract.md ジェスチャ画面)。
 struct GestureScreen: View {
     var onOpenMap: () -> Void = {}
     @State private var tapCount = 0
@@ -15,6 +17,8 @@ struct GestureScreen: View {
 
     var body: some View {
         GeometryReader { geo in
+            let landscape = geo.size.width > geo.size.height
+            let buttonWidth = geo.size.width * (landscape ? 0.18 : 0.45)
             ZStack {
                 Rectangle()
                     .fill(Color(.secondarySystemBackground))
@@ -47,37 +51,56 @@ struct GestureScreen: View {
                     }
                     longPressBox
                 }
-                .frame(width: geo.size.width * 0.45)
+                .frame(width: buttonWidth)
                 .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: landscape ? .topTrailing : .topLeading)
 
                 // 右上: 読み取り専用の表示。Text はポインタを消費しないのでパッドの上に重ねてよい。
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: landscape ? .leading : .trailing, spacing: 4) {
                     TaggedText(tag: Tags.txtTapCount, text: "tap=\(tapCount)")
                     TaggedText(tag: Tags.txtPressCount, text: "press=\(pressCount)")
                     TaggedText(tag: Tags.txtSwipeDir, text: "swipe=\(swipeDir)")
                     TaggedText(tag: Tags.txtLastGesture, text: "last=\(last)")
                 }
                 .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: landscape ? .topLeading : .topTrailing)
 
                 // マップ画面への導線。**右下に置く**(ホーム末尾に足すと下部タブに重なって
                 // タップを吸われる。スワイプ経路は中央行・中央列なのでここは塞がない)
-                TaggedButton(tag: Tags.navMap, label: "マップ", fillWidth: true, action: onOpenMap)
-                    .frame(width: geo.size.width * 0.45)
+                // 横向きは右下の幅 18% の列に ジェスチャクリア と縦に並べる。
+                if landscape {
+                    VStack(spacing: 8) {
+                        resetButton
+                        mapButton
+                    }
+                    .frame(width: buttonWidth)
                     .padding(12)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                } else {
+                    mapButton
+                        .frame(width: buttonWidth)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
 
-                TaggedButton(tag: Tags.btnGestureReset, label: "ジェスチャクリア", fillWidth: true) {
-                    tapCount = 0
-                    pressCount = 0
-                    swipeDir = "-"
-                    last = "-"
+                    resetButton
+                        .frame(width: buttonWidth)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
-                .frame(width: geo.size.width * 0.45)
-                .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
+        }
+    }
+
+    private var mapButton: some View {
+        TaggedButton(tag: Tags.navMap, label: "マップ", fillWidth: true, action: onOpenMap)
+    }
+
+    private var resetButton: some View {
+        TaggedButton(tag: Tags.btnGestureReset, label: "ジェスチャクリア", fillWidth: true) {
+            tapCount = 0
+            pressCount = 0
+            swipeDir = "-"
+            last = "-"
         }
     }
 

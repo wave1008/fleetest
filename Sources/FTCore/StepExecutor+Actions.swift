@@ -917,6 +917,14 @@ extension StepExecutor {
                     }
                 }
             }
+            // **見えている部分が床に届かず、中心が容器の外に落ちる要素は撃たない**(撃つ先が無い)。
+            // ref で撃つと frame の中心 = 容器の外の余白を叩き、何も押さないまま ok になる。
+            // 床は既存の `minimumVisibleTapExtent`(新しい定数は置かない)を木の単位へ換算したもの
+            if let thin = TapTargetGeometry.thinVisibleSliver(
+                for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
+                scale: driver.pointScale) {
+                return StepOutcome(status: failedWithoutKind(Self.thinVisibleSliverMessage(step, thin: thin)))
+            }
             start = clock.now
             // **中心が容器の外に落ちる要素だけ、見えている部分の中心を座標で撃つ**
             // (visibleTapRect 参照)。ref で撃つとブリッジが frame の中心へ解決するので、

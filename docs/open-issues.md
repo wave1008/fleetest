@@ -36,6 +36,7 @@
 
 - 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
 - E2EY-CMP の横向き `scrollToTop` が 50 払いの上限で `msg_08` までしか戻らない(2/2。411px の窓で 60 件)
+- 11/2: 中心が容器の外に落ち、見えている部分が床(`minimumVisibleTapExtent` × `pointScale`)に届かない要素への tap は、撃たずに失敗にした(`TapTargetGeometry.thinVisibleSliver`)。デバイスでは未確認
 - 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
 - 11/2: E2EY-CMP の android 8 台で測ると「not fully inside」ではなく端に達する赤になり、frozen screen の離脱で測れなかった。Emulator を 2 台ほどに絞って測り直す。寄せが収束しないときは枠の中心を撃つ作り(`StepExecutor+Actions.swift`)で、見えている高さが小さいときだけ赤にする(閾値は測り直してから)
 

@@ -34,8 +34,9 @@ final class AssignPortTests: XCTestCase {
             atomically: true, encoding: .utf8)
     }
 
-    private func writeInAppFile(port: UInt16) throws {
-        try "11111111-2222-3333-4444-555555555555 com.example.app".write(
+    /// 既定は供給するデバイス自身(ownerUDID)の in-app の台帳。別のデバイスのは `udid:` で渡す
+    private func writeInAppFile(port: UInt16, udid: String = "OWNER-UDID") throws {
+        try "\(udid) com.example.app".write(
             to: repoRoot.appendingPathComponent(".fleetest/bridge-\(port).inapp"),
             atomically: true, encoding: .utf8)
     }
@@ -224,6 +225,29 @@ final class AssignPortTests: XCTestCase {
         // 全ポートに .inapp が残る 2nd パスでも、別デバイス保有と読める 8123 は避ける
         XCTAssertEqual(
             try provisioner.assignPort(preferred: nil, used: &used, ownerUDID: ownerUDID), 8124)
+    }
+
+    func testSecondPassNeverTakesPortRecordedForAnotherDevicesInApp() throws {
+        // OI-83: 別のデバイスの in-app が記録されたポート(待受が無い瞬間は lsof に映らない)を 2nd パスで採ると、
+        // 起動前の回収(reclaimInApp)がそのデバイスのアプリを terminate する
+        for port: UInt16 in 8123...8125 { try writeInAppFile(port: port, udid: "OTHER-UDID") }
+        let provisioner = provisioner(portRange: 8123...8125)
+        var used: Set<UInt16> = []
+        XCTAssertThrowsError(
+            try provisioner.assignPort(preferred: nil, used: &used, ownerUDID: ownerUDID)
+        ) { error in
+            guard case BridgeProvisionerError.noFreePort = error else {
+                return XCTFail("noFreePort を期待: \(error)")
+            }
+        }
+    }
+
+    func testPreferredRecordedForAnotherDevicesInAppIsNotHonored() throws {
+        try writeInAppFile(port: 8127, udid: "OTHER-UDID")
+        let provisioner = provisioner()
+        var used: Set<UInt16> = []
+        let port = try provisioner.assignPort(preferred: 8127, used: &used, ownerUDID: ownerUDID)
+        XCTAssertNotEqual(port, 8127, "別のデバイスの in-app が記録された preferred は honor しない")
     }
 
     func testPreferredHeldByAnotherDeviceIsNotHonored() throws {

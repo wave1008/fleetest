@@ -1451,6 +1451,14 @@ public final class StepExecutor {
         TapTargetGeometry.visibleTapRect(for: element, in: elements, inferring: inferring, scale: scale)
     }
 
+    /// 見えている部分が床に届かず撃たなかったときの失敗文。数値は木の単位(iOS=pt / Android=px)
+    static func thinVisibleSliverMessage(_ step: FlowStep, thin: (visible: Double, floor: Double)) -> String {
+        func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
+        return "did not tap \(step.locatorSummary): only \(n(thin.visible)) of the target is visible inside its scroll container"
+            + " (the minimum is \(n(thin.floor)), in the snapshot's units), and its centre falls outside the container,"
+            + " so a tap would land outside the list. Scroll the target further into view first"
+    }
+
     /// **指で触る操作か**(縁にまたがった要素を寄せてから撃つ対象)。`select` は掴むだけ、
     /// `type` は入力欄が動くと厄介なので含めない
     public static func interactsByTouch(_ action: String) -> Bool {

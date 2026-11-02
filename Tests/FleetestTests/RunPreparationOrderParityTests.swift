@@ -82,4 +82,20 @@ final class RunPreparationOrderParityTests: XCTestCase {
         let junit = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("try? writeJUnitIfRequested(project: testProject, recorder: recorder,") })
         XCTAssertEqual(lines[junit - 1], "if !(error is RunInterruptedBeforeStartError) {")
     }
+
+    /// OI-100: `prepareSupply` の順序を api run に揃える —— 環境変数は run-setup.sh より前・run-setup.sh の後に中断を見てから
+    /// 死活確認、供給のタスクの前にも中断を見る。(意図した差: 出力先 = ConsoleOut と logSupply・wipeStatus は api run だけ・
+    /// 見出し行の位置・FM の確認の位置)
+    func testPrepareSupplyKeepsTheOrderOfApiRun() throws {
+        let needles = ["RunEnvironment.apply(resolved)", "prepareEnvironment(",
+                       "phase: \"the run setup script\"", "BackendHealthCheck.warnIfUnreachable(",
+                       "phase: \"device supply\"", "ProfileSupplyLanes.android("]
+        let lines = try code("Sources/fleetest/ProfileRunner+Supply.swift")
+        let start = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("static func prepareSupply(") })
+        try assertOrder(needles, in: lines[start...], "prepareSupply")
+        XCTAssertEqual(lines[start...].filter { $0.contains("RunEnvironment.apply(") }.count, 1)
+        let api = try code("Sources/fleetest/ApiRunCommand.swift")
+        let apiStart = try XCTUnwrap(api.firstIndex { $0.contains("RunEnvironment.apply(resolved)") })
+        try assertOrder(needles, in: api[apiStart...], "api run")
+    }
 }

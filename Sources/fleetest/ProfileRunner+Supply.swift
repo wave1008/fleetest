@@ -205,14 +205,19 @@ extension ProfileRunner {
         let cleanup = SupplyCleanup { ConsoleOut.out($0) }
         var handedOver = false
         defer { if !handedOver { cleanup.run() } }
+        // 環境変数は run-setup.sh・サービス・供給のどれより前に立てる(api run は絞り込みの直後に立てる。位置を揃える)
+        RunEnvironment.apply(resolved)
         // 失敗の証跡の置き場は run の記録(無ければレポートの出力先)
         try Self.prepareEnvironment(resolved: resolved, stateDir: leaseStateDir, cleanup: cleanup,
                                     failureLogDir: failureLogDir ?? reportDir, supplyProgress: supplyProgress,
                                     interruptState: interruptState) { ConsoleOut.out($0) }
 
         // fm は full から計算する(filteringDevices/limitingDevices/broadcast は devices だけを変える)
+        // run-setup.sh の後で中断を見る(api run と同じ。死活確認・FM の確認を撃つ前に抜ける)
+        if interruptState.isStopped {
+            throw RunInterruptedBeforeStartError(phase: "the run setup script")
+        }
         await Self.warnIfFMDegraded(fm: full.fm) { ConsoleOut.out($0) }
-        RunEnvironment.apply(resolved)
         for line in supplyHeaderLines(profileName: profileName, resolved: resolved) { ConsoleOut.out(line) }
 
         let repoRoot = try RepoRoot.find()

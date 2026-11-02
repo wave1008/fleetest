@@ -53,6 +53,8 @@ final class FakeAppDriver: AppDriver {
     /// テスト専用: snapshot() を返す前にこの分だけ待つ(SlowSnapshotBudget の配線を実際の
     /// StepExecutor ループで検証するため。nil = 待たない)
     var snapshotDelay: Duration?
+    /// snapshotElements と同じ「呼び出し回数ぶんの列(尽きたら最後を繰り返す)」規約で SnapshotResponse.sessionBundleID を差し替える。nil = 常に nil
+    var sessionBundleIDs: [String?]?
 
     init(name: String, log: CallLog, snapshotElements: [[ElementInfo]] = [],
          screenshots: [Data]? = nil) {
@@ -87,7 +89,9 @@ final class FakeAppDriver: AppDriver {
 
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
-    func isAppForeground(bundleID: String) async throws -> Bool { false }
+    /// isAppForeground の答え(既定 false = 従来どおり)
+    var appForeground = false
+    func isAppForeground(bundleID: String) async throws -> Bool { appForeground }
     func foregroundAppID() async throws -> String? { nil }
 
     func launch(bundleID: String) async throws {
@@ -123,7 +127,8 @@ final class FakeAppDriver: AppDriver {
         } else {
             effectiveKeyboardFrame = keyboardFrame
         }
-        return SnapshotResponse(sessionBundleID: nil,
+        let owner: String? = sessionBundleIDs.flatMap { $0.isEmpty ? nil : $0[min(snapshotCallCount - 1, $0.count - 1)] } ?? nil
+        return SnapshotResponse(sessionBundleID: owner,
                                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                                 elements: elements, truncatedCount: 0, keyboardShown: keyboardShown,
                                 keyboardFrame: effectiveKeyboardFrame,

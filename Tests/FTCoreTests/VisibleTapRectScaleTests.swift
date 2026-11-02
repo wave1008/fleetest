@@ -116,11 +116,34 @@ final class VisibleTapRectScaleTests: XCTestCase {
                        "pt の木で見えている部分へ寄せていない: \(pointTree.refTaps) / \(pointTree.coordinateTaps)")
 
         let pixelTree = TapRecordingDriver(elements: straddling(), pointScale: 3)
-        _ = await StepExecutor(driver: pixelTree, isAndroid: false, tunables: RunTunables())
+        let outcome = await StepExecutor(driver: pixelTree, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "row")))
         XCTAssertTrue(pixelTree.coordinateTaps.isEmpty,
                       "3倍密度で 5dp しか見えていない帯を座標で撃った: \(pixelTree.coordinateTaps)")
-        XCTAssertEqual(pixelTree.refTaps.count, 1)
+        // 細すぎる帯を ref で撃つと frame の中心(容器の外)を叩いて ok のまま押されない = 撃たずに失敗にする
+        XCTAssertTrue(pixelTree.refTaps.isEmpty, "容器の外に落ちる中心を ref で撃った: \(pixelTree.refTaps)")
+        guard case .failed(let message) = outcome.status else {
+            return XCTFail("細すぎる帯のタップが失敗にならなかった: \(outcome.status)")
+        }
+        XCTAssertTrue(message.contains("only 15 of the target is visible"), message)
+        XCTAssertTrue(message.contains("minimum is 24"), message)
+    }
+
+    /// 純粋関数: 細すぎて中心が容器の外 → (見えている厚み, 換算後の床)。十分見える・完全に中は nil
+    func testThinVisibleSliverReportsVisibleExtentAndScaledFloor() {
+        let elements = straddling()
+        let thin = TapTargetGeometry.thinVisibleSliver(for: elements[2], in: elements, inferring: true, scale: 3)
+        XCTAssertEqual(thin?.visible, 15)
+        XCTAssertEqual(thin?.floor, 24)
+        XCTAssertNil(TapTargetGeometry.thinVisibleSliver(for: elements[2], in: elements, inferring: true, scale: 1),
+                     "15pt は床 8pt を超える = 撃てる側は対象外")
+        XCTAssertNil(TapTargetGeometry.thinVisibleSliver(for: elements[1], in: elements, inferring: true, scale: 3),
+                     "完全に中の行は対象外")
+        // OI-75 の形: 容器の下端(500)に 2 だけ入った高さ 48 の行
+        var edge = element(4, id: "edge", frame: FTRect(x: 0, y: 498, width: 300, height: 48))
+        edge.depth = 2
+        let sliver = TapTargetGeometry.thinVisibleSliver(for: edge, in: elements + [edge], inferring: true, scale: 1)
+        XCTAssertEqual(sliver?.visible, 2)
     }
 
     /// 既定は 1(= 換算しない)。iOS 系ドライバの木は pt なので、既定が変わると

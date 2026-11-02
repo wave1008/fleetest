@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Tags } from '../tags';
 import { EchoText, TaggedButton } from '../ui';
@@ -8,7 +8,11 @@ import { EchoText, TaggedButton } from '../ui';
 // Android = 縦 0.3h↔0.7h・横 0.2w↔0.8w の固定座標)。よって #pad_swipe はコンテンツ領域いっぱいに
 // 敷き、操作要素はその上に重ねる。ボタン類は始点を塞がないよう幅45%以内(中央列を空ける)かつ
 // 上下の端(中央行を空ける)に置く。
+// 横向き(幅 > 高さ)は横の払いの帯(x=0.2w〜0.8w)を空けるため、ボタン類を右端の幅 18% の列
+// (x>=0.82w)へ寄せ、読み取り専用の Text を左上へ回す。契約: ui-contract.md ジェスチャ画面。
 export function GestureScreen({ onOpenMap }: { onOpenMap: () => void }) {
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [tap, setTap] = useState(0);
   const [press, setPress] = useState(0);
   const [swipeDir, setSwipeDir] = useState('-');
@@ -49,7 +53,7 @@ export function GestureScreen({ onOpenMap }: { onOpenMap: () => void }) {
       <View testID={Tags.padSwipe} style={[styles.pad, StyleSheet.absoluteFill]} {...panResponder.panHandlers}>
         <Text>スワイプ領域</Text>
       </View>
-      <View style={[styles.overlay, styles.topLeft]}>
+      <View style={[styles.overlay, landscape ? styles.topRightButtons : styles.topLeft, landscape && styles.narrow]}>
         <TaggedButton
           testID={Tags.btnTapCounter}
           label="タップ"
@@ -75,19 +79,29 @@ export function GestureScreen({ onOpenMap }: { onOpenMap: () => void }) {
           <Text style={styles.longPressLabel}>長押し</Text>
         </Pressable>
       </View>
-      <View style={[styles.overlay, styles.topRight]}>
+      <View style={[styles.overlay, landscape ? styles.topLeftText : styles.topRight]}>
         <EchoText testID={Tags.txtTapCount}>{`tap=${tap}`}</EchoText>
         <EchoText testID={Tags.txtPressCount}>{`press=${press}`}</EchoText>
         <EchoText testID={Tags.txtSwipeDir}>{`swipe=${swipeDir}`}</EchoText>
         <EchoText testID={Tags.txtLastGesture}>{`last=${last}`}</EchoText>
       </View>
-      {/* マップ画面への導線。右下に置く(ホーム末尾に足すとタブに吸われる事故を避ける)。 */}
-      <View style={[styles.overlay, styles.bottomRight]}>
-        <TaggedButton testID={Tags.navMap} label="マップ" fillWidth onPress={onOpenMap} />
-      </View>
-      <View style={[styles.overlay, styles.bottomLeft]}>
-        <TaggedButton testID={Tags.btnGestureReset} label="ジェスチャクリア" fillWidth onPress={reset} />
-      </View>
+      {/* マップ画面への導線。右下に置く(ホーム末尾に足すとタブに吸われる事故を避ける)。
+          横向きは右下の幅 18% の列に ジェスチャクリア と縦に並べる。 */}
+      {landscape ? (
+        <View style={[styles.overlay, styles.bottomRight, styles.narrow]}>
+          <TaggedButton testID={Tags.btnGestureReset} label="ジェスチャクリア" fillWidth onPress={reset} />
+          <TaggedButton testID={Tags.navMap} label="マップ" fillWidth onPress={onOpenMap} />
+        </View>
+      ) : (
+        <>
+          <View style={[styles.overlay, styles.bottomRight]}>
+            <TaggedButton testID={Tags.navMap} label="マップ" fillWidth onPress={onOpenMap} />
+          </View>
+          <View style={[styles.overlay, styles.bottomLeft]}>
+            <TaggedButton testID={Tags.btnGestureReset} label="ジェスチャクリア" fillWidth onPress={reset} />
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -108,6 +122,9 @@ const styles = StyleSheet.create({
   },
   topLeft: { top: 12, left: 12 },
   topRight: { top: 12, right: 12, alignItems: 'flex-end' },
+  topRightButtons: { top: 12, right: 12 },
+  topLeftText: { top: 12, left: 12, alignItems: 'flex-start' },
+  narrow: { width: '18%' },
   bottomLeft: { bottom: 12, left: 12 },
   bottomRight: { bottom: 12, right: 12 },
   longPressBox: {

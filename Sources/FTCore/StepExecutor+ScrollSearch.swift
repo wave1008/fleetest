@@ -119,6 +119,10 @@ extension StepExecutor {
         /// (iOS で前面を答えられないドライバでは "another app")。nil = 前面に居た・確かめられなかった。
         /// 木が変わらない理由が「端」ではなく「前面を奪われた」だったのに、失敗文が端と言い切っていた
         var appLeftForeground: String? = nil
+        /// 探索の途中の周回で、木の持ち主(`sessionBundleID`)が探索の基準のアプリから**別のものに変わっていた**とき、最初に見えた持ち主と周回番号。
+        /// 打ち切りの時点では戻っていても「途中で奪われて戻った」形が端と読まれるのを避けるため、事実として失敗文と注記に添える(判定は変えない。
+        /// 既に撮った木を見るだけで照会は足さない)
+        var ownerChangedDuringSearch: (bundleID: String, round: Int)? = nil
         /// 見つけた要素(found のときだけ)。scrollTo が「掴んだ要素」として返す
         /// (無いと DSL の `scrollTo` が lastElement を空で上書きしていた)
         var element: ElementInfo? = nil
@@ -197,8 +201,15 @@ extension StepExecutor {
             parts.append("found by sweeping back after overshooting it"
                 + " (\(how) to step within the container instead)")
         }
+        if !result.found, let changed = result.ownerChangedDuringSearch { parts.append(ownerChangeFact(changed)) }
         if let scrollFrameNote { parts.append(scrollFrameNote) }
         return parts.isEmpty ? nil : parts.joined(separator: " / ")
+    }
+
+    /// `ScrollSearchResult.ownerChangedDuringSearch` を失敗文・注記へ添える事実の文
+    static func ownerChangeFact(_ changed: (bundleID: String, round: Int)) -> String {
+        "during the search the screen's owner changed to \(changed.bundleID) (round \(changed.round)); the app may have lost the foreground"
+            + " and come back, so a stop in an unchanged screen is not proof of the end of the list"
     }
 
     /// `select` が掴めなかったときの skip 理由。**失敗ではない**(DSL は空要素を返す)ので、
@@ -322,7 +333,8 @@ extension StepExecutor {
               + " the swipes moved the enclosing scroll area, not the scrollFrame — search along its own axis with"
               + " \(step.action == "scrollTo" ? "direction" : "scroll"): \(vertical ? ".left / .right" : ".up / .down"))"
             : ""
-        return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote): \(step.locatorSummary)"
+        let ownerNote = result?.ownerChangedDuringSearch.map { " (\(ownerChangeFact($0)))" } ?? ""
+        return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote)\(ownerNote): \(step.locatorSummary)"
             + sheetHint + keyboardHint + scrollFrameHint
     }
 
@@ -728,6 +740,8 @@ extension StepExecutor {
         // 探索を始めた時点で木が名乗っていたアプリ。Android は木の持ち主が前面と一緒に替わるので、
         // 打ち切るときの「前面は探索の対象のままか」を現在の木ではなくこちらで引く(frontAppIfSessionAppLeft)
         var searchBundleID: String?
+        // 2周目以降の木で、持ち主が基準から変わっていた最初の周回(ScrollSearchResult.ownerChangedDuringSearch)
+        var ownerChanged: (bundleID: String, round: Int)?
         // 動いたかの比較(端・弾切れの判定)。**容器の中だけ**を比べる(領域は searchContentRegion: 名指し → 申告された容器 → 形から採った容器) ——
         // 容器の外の動き続ける表示(時計・カウンタ)を「動いた」と数えると端を検知できず、動かなかった探索で撃たない
         // はずの逆走査まで走って一覧が先頭へ戻された。領域が採れない画面だけ木全体
@@ -768,6 +782,10 @@ extension StepExecutor {
                 phase.snapshotMs += Self.ms(clock.now - start)
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
+            if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
+               let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base {
+                ownerChanged = (owner, attempt)
+            }
             // **同じ顔ぶれの要素が枠だけ違うなら、整定してから比べる**(払いの直後の1枚は端のバウンスの途中かもしれない。
             // 全部が収まる一覧を「まだ動いていた」と読んで maxSwipes まで回り、逆走査まで撃っていた。ScrollSearchBounce)。
             // 整定後も違えば本物の移動。顔ぶれが変わる普通のスクロールには掛からない
@@ -1162,6 +1180,7 @@ extension StepExecutor {
                                                         keyboardFrame: stoppedKeyboard)
                         result.scrollFrameOtherAxis = Self.scrollFrameRunsOtherAxis(
                             step: step, in: confirmed.snapshot, vertical: vertical)
+                        result.ownerChangedDuringSearch = ownerChanged
                         // 未指定の全画面探索が的外れな案内(シート展開・端到達)を出す前に、
                         // 探索方向に合う宣言済みの容器を名指しできないか確かめる
                         if step.scrollFrame == nil {
@@ -1276,6 +1295,7 @@ extension StepExecutor {
                                            maxTruncatedDuringSearch: truncatedDuringSearch)
         exhausted.reverseSweepDrags = reverseSweepDrags
         exhausted.scrollFrameOtherAxis = frameOtherAxis
+        exhausted.ownerChangedDuringSearch = ownerChanged
         // 最後の払いで動いたときだけ(途中で動いて末尾で止まった探索に「端に着いていない」と言わない)
         exhausted.exhaustedWhileMoving = movedByEvidence && lastSwipeMoved
         if step.scrollFrame == nil, let latest = previousSnapshot {

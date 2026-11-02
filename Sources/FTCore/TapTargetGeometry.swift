@@ -1018,6 +1018,23 @@ public enum TapTargetGeometry {
         return inside ? nil : visible
     }
 
+    /// **中心が容器の外に落ち、見えている部分が床(`minimumVisibleTapExtent` × scale)に届かない**要素の、
+    /// 見えている厚み(短いほうの辺)と換算後の床。`visibleTapRect` が nil を返す理由のうち
+    /// 「細すぎる」だけを取り出す —— nil のまま ref で撃つと frame の中心 = 容器の外の余白を叩き、
+    /// 何も押さないまま ok になる(横向き CMP の容器の下端に 2px だけ入った行)。
+    /// 容器と重ならない(交わりが無い)・中心が容器の中の要素は対象外(nil)。単位は木の単位(iOS=pt / Android=px)
+    public static func thinVisibleSliver(for element: ElementInfo, in elements: [ElementInfo],
+                                         inferring: Bool = ContainerGeometry.containerInferenceEnabled,
+                                         scale: Double = 1) -> (visible: Double, floor: Double)? {
+        let floor = minimumVisibleTapExtent * scale
+        guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring),
+              let visible = ScrollGeometry.intersection(element.frame, container),
+              visible.height < floor || visible.width < floor else { return nil }
+        let inside = element.frame.centerX >= container.x && element.frame.centerX <= container.x + container.width
+            && element.frame.centerY >= container.y && element.frame.centerY <= container.y + container.height
+        return inside ? nil : (min(visible.height, visible.width), floor)
+    }
+
     /// 縁またぎの警告文(MCP が使う。DSL は寄せるので文言を持たない)。
     /// 見えている部分を撃っても、Compose は focus 時に内容を動かして隣の行が指の下へ来ることがある
     public static func straddleAdvisory(for element: ElementInfo, in elements: [ElementInfo],

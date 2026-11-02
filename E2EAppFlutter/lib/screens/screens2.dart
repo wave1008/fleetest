@@ -29,7 +29,29 @@ class _GestureScreenState extends State<GestureScreen> {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => Stack(
+    builder: (context, constraints) {
+      // 横向き(幅 > 高さ)は横の払いの帯(x=0.2w〜0.8w)を空けるため、ボタン類を右端の幅 18% の列
+      // (x>=0.82w)へ寄せ、読み取り専用の Text を左上へ回す。契約: ui-contract.md ジェスチャ画面。
+      final landscape = constraints.maxWidth > constraints.maxHeight;
+      final buttonWidth = constraints.maxWidth * (landscape ? 0.18 : 0.45);
+      final resetButton = TaggedButton(
+        Tags.btnGestureReset,
+        'ジェスチャクリア',
+        fillWidth: true,
+        onTap: () => setState(() {
+          _tap = 0;
+          _press = 0;
+          _swipe = '-';
+          _last = '-';
+        }),
+      );
+      final mapButton = TaggedButton(
+        Tags.navMap,
+        'マップ',
+        fillWidth: true,
+        onTap: () => widget.onOpenMap?.call(),
+      );
+      return Stack(
       children: [
         Positioned.fill(
           child: tagged(
@@ -55,8 +77,9 @@ class _GestureScreenState extends State<GestureScreen> {
         ),
         Positioned(
           top: 12,
-          left: 12,
-          width: constraints.maxWidth * 0.45,
+          left: landscape ? null : 12,
+          right: landscape ? 12 : null,
+          width: buttonWidth,
           child: Column(
             children: [
               TaggedButton(
@@ -95,9 +118,10 @@ class _GestureScreenState extends State<GestureScreen> {
         ),
         Positioned(
           top: 12,
-          right: 12,
+          left: landscape ? 12 : null,
+          right: landscape ? null : 12,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: landscape ? CrossAxisAlignment.start : CrossAxisAlignment.end,
             children: [
               TaggedText(Tags.txtTapCount, 'tap=$_tap'),
               TaggedText(Tags.txtPressCount, 'press=$_press'),
@@ -108,35 +132,23 @@ class _GestureScreenState extends State<GestureScreen> {
         ),
         // マップ画面への導線。**右下に置く**(ホーム末尾に足すと下部タブに重なってタップを
         // 吸われる。スワイプ経路は中央行・中央列なのでここは塞がない)
-        Positioned(
-          bottom: 12,
-          right: 12,
-          width: constraints.maxWidth * 0.45,
-          child: TaggedButton(
-            Tags.navMap,
-            'マップ',
-            fillWidth: true,
-            onTap: () => widget.onOpenMap?.call(),
-          ),
-        ),
-        Positioned(
-          bottom: 12,
-          left: 12,
-          width: constraints.maxWidth * 0.45,
-          child: TaggedButton(
-            Tags.btnGestureReset,
-            'ジェスチャクリア',
-            fillWidth: true,
-            onTap: () => setState(() {
-              _tap = 0;
-              _press = 0;
-              _swipe = '-';
-              _last = '-';
-            }),
-          ),
-        ),
+        if (landscape)
+          Positioned(
+            bottom: 12,
+            right: 12,
+            width: buttonWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [resetButton, const SizedBox(height: 8), mapButton],
+            ),
+          )
+        else ...[
+          Positioned(bottom: 12, right: 12, width: buttonWidth, child: mapButton),
+          Positioned(bottom: 12, left: 12, width: buttonWidth, child: resetButton),
+        ],
       ],
-    ),
+    );
+    },
   );
 }
 
