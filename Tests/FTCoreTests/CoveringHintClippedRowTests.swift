@@ -29,4 +29,11 @@ final class CoveringHintClippedRowTests: XCTestCase {
         let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen)
         XCTAssertTrue(hint.contains("covered by"), hint)
     }
+
+    /// 検証の失敗文は何も撃っていないので「操作が吸われた」と言わない(事実は覆っている要素の名指しだけ)
+    func testHintDoesNotClaimAnInteractionWasSwallowed() {
+        let elements = tree(rowY: 350)
+        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen)
+        XCTAssertFalse(hint.contains("swallowed"), hint)
+    }
 }

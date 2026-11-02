@@ -661,7 +661,7 @@ extension StepExecutor {
         // **`TapTargetGeometry.describe` と同じ「名指し」**。失敗文言に混ぜる
         // 説明であって、読み手がそのまま貼れるセレクタである保証はしない(エスケープ未対応)
         let label = cover.identifier.map { "#\($0)" } ?? cover.label.map { "\"\($0)\"" } ?? cover.type
-        return " (the target is covered by \(label); the interaction may have been swallowed by it)"
+        return " (the target is covered by \(label))"
     }
 
     /// 待ちの途中で一度は見つかったが、**最後の読みでは木に無かった**ときの失敗。途中の値で「不一致」「違反」と
