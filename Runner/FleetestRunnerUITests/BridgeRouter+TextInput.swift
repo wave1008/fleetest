@@ -156,10 +156,16 @@ extension BridgeRouter {
         var targetLeftTree = false
         // 直前の追送を撃った時点の値。追送の後も同じ値なら、それ以上撃っても重複するだけ(ホストの verifyTypedText と同じ規律)
         var valueAtLastResend: String?
+        // 打ち直しの delete は末尾から消す前提。複数行の欄はカーソルが先頭寄りに残ることがある(TypeReadback.plan の位置違い)ので、先に末尾へ送る
+        var moveToEndBeforeTyping = false
         let deadline = Date().addingTimeInterval(Self.typeBudgetSeconds)
         loop: while true {
             if !pending.isEmpty {  // 空 = 打ち直しの結果を読み直すだけの周回(TypeReadback.retypeEnd)
                 ResponseMeasurement.noteInjection()
+                if moveToEndBeforeTyping {
+                    app.typeKey(.downArrow, modifierFlags: .command)
+                    moveToEndBeforeTyping = false
+                }
                 app.typeText(pending)
             }
             rounds += 1
@@ -226,6 +232,7 @@ extension BridgeRouter {
             case .retype:
                 // 中央の欠落 = 消してから全文を打ち直す(.deleteExcess と同じ機構。TypeReadback.Plan.retype)
                 pending = String(repeating: XCUIKeyboardKey.delete.rawValue, count: actual.count) + readbackTarget
+                moveToEndBeforeTyping = target.type == "textView"
                 retypes += 1
                 beforeRetype = actual
             }

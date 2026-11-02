@@ -40,6 +40,14 @@ final class TypeReadbackTests: XCTestCase {
 
     /// **末尾の欠落は今までどおり追送**(`hel` は `hello123` の部分列でもある —— 順序を入れ替えると
     /// 自己修復できていた形を打ち直しに変えてしまう)
+    /// 焦点を取り戻した後にカーソルが先頭へ戻り、打った文字が撃つ前の値の前に入った形(Compose の iOS の複数行)
+    func testTextInsertedBeforeThePriorValueIsRetyped() {
+        XCTAssertEqual(TypeReadback.plan(expected: "L3x", actual: "xL3", protectedPrefixCount: 2), .retype)
+        XCTAssertEqual(TypeReadback.plan(expected: "L3x", actual: "xL3", protectedPrefixCount: 0), .unverifiable,
+                       "撃つ前の値の長さが分からなければ加工と区別できない")
+        XCTAssertEqual(TypeReadback.plan(expected: "L3xy", actual: "xyL3", protectedPrefixCount: 2), .retype)
+    }
+
     func testPrefixDropsStillResendRatherThanRetype() {
         XCTAssertEqual(TypeReadback.plan(expected: "hello123", actual: "hel"), .resend("lo123"))
     }

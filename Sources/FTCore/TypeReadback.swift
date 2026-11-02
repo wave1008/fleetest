@@ -70,6 +70,13 @@ public enum TypeReadback {
         if isSubsequenceDroppingVisibleCharacters(actual, of: expected, protectedPrefixCount: protectedPrefixCount) {
             return .retype
         }
+        // **打った文字が撃つ前の値の前に入った**(`L3` に `x` で `xL3`)= 焦点を取り戻した後にカーソルが先頭へ戻った
+        // (Compose の iOS の複数行。Cmd+↓ で末尾へ送るより後に戻ることがある)。文字は全部入っていて位置だけ違うので打ち直す。
+        // 撃つ前の値の長さが分かるときだけ(分からなければ加工と区別できない)
+        if protectedPrefixCount > 0, protectedPrefixCount < expected.count,
+           actual == String(expected.dropFirst(protectedPrefixCount)) + String(expected.prefix(protectedPrefixCount)) {
+            return .retype
+        }
         return .unverifiable
     }
 
