@@ -853,8 +853,10 @@ extension StepExecutorTests {
         let outcome = await executor.execute(step)
 
         guard case .passed = outcome.status else { XCTFail("scrollToEdge は pass のはず"); return }
-        XCTAssertNil(outcome.driverFallback,
-                     "端に着いたと判定できていれば上限打ち切りの注記は付かない: \(outcome.driverFallback ?? "-")")
+        XCTAssertFalse(outcome.driverFallback?.contains("limit of") ?? false,
+                       "端に着いたと判定できていれば上限打ち切りの注記は付かない: \(outcome.driverFallback ?? "-")")
+        // 1行も動いていないので、端に着いたのとは区別して言う(OI-148)
+        XCTAssertTrue(outcome.driverFallback?.contains("did not move") ?? false, outcome.driverFallback ?? "-")
         let swipes = log.entries.filter { $0 == "primary.swipe" }.count
         XCTAssertLessThanOrEqual(swipes, 3,
                                  "連続2回不変で端と判定して止まるはず(実際は \(swipes) 回スワイプ)")

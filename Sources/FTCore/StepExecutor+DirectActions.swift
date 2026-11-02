@@ -132,6 +132,9 @@ extension StepExecutor {
         var unchanged = 0
         var reachedEdge = false
         var sawUnsettled = false
+        // 送りの間に見えている中身が一度でも変わった(または確かに動かしたと申告された)か。
+        // false のまま「端」と確定した = 1行も動いていない(OI-148。端に着いたのと区別して言う)
+        var contentEverMoved = false
         let limit = max(0, step.maxSwipes ?? FlowStep.defaultMaxEdgeSwipes)
         var hintJumps = 0
         var sentSwipes = 0
@@ -201,6 +204,7 @@ extension StepExecutor {
                 && seenSignatures.contains(contentSignature)
             unchanged = (contentSignature == previous || revisited) ? unchanged + 1 : 0
             if let previous, contentSignature != previous, !revisited { lastChangeAt = clock.now }
+            if let previous, contentSignature != previous { contentEverMoved = true }
             seenSignatures.insert(contentSignature)
             if let last = lastFullSwipe {
                 let moved = EdgeProbe.contentDisplacement(before: last.before.elements, after: settled.snapshot.elements,
@@ -306,6 +310,7 @@ extension StepExecutor {
             // **false(= 確かに動かした)は署名より強い「動いた」**: 端へ飛ぶたびにセルが同じ座標に並ぶ
             // 画面(RN の FlatList)では、動いても型と座標の署名が変わらず「不変」に見える
             if driver.reachedEdgeOnLastSwipe == false {
+                contentEverMoved = true
                 lastChangeAt = clock.now
                 previous = nil
             }
@@ -342,6 +347,10 @@ extension StepExecutor {
         // 「scrollToBottom したのに末尾が無い」の原因が読めなくなる
         var notes: [String] = []
         if !reachedEdge { notes.append("stopped at the limit of \(limit) (may not have reached the edge yet)") }
+        if reachedEdge, sentSwipes > 0, !contentEverMoved {
+            notes.append("the visible content did not move during \(sentSwipes) swipe(s) — the list was either already at"
+                + " that edge, or the swipes did not reach a scrolling list (pass scrollFrame: to aim at the list)")
+        }
         if let note = pendingScrollFrameNote { notes.append(note) }
         if viaXCUITest { notes.append("fell back to XCUITest") }
         if hintJumps > 0 { notes.append("\(hintJumps) long drag(s) from scroll hints") }
