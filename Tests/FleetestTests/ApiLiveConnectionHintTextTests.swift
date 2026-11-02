@@ -92,31 +92,29 @@ final class BridgeUnreachableGuidanceTests: XCTestCase {
         for probe: BridgeDiscovery.StatusProbe in [.transportFailed, .timedOut, .notBound, .answered] {
             XCTAssertEqual(
                 ApiLiveServe.BridgeUnreachableGuidance.decide(
-                    probe: probe, hasStarter: false, starterIsIdle: true, triggering: true),
+                    probe: probe, hasStarter: false, starterIsIdle: true),
                 .probeHint, "starter が無いとき(\(probe))")
         }
     }
 
     /// starter が starting/failed(非 idle)なら probe の中身を問わず starter の状態を使う ——
     /// 進行中の自動起動と矛盾する案内を出さない
-    func testNonIdleStarterSuppressesTheProbeHintRegardlessOfProbeOrTriggering() {
+    func testNonIdleStarterSuppressesTheProbeHintRegardlessOfProbe() {
         for probe: BridgeDiscovery.StatusProbe in [.transportFailed, .timedOut, .notBound, .answered] {
-            for triggering in [true, false] {
-                XCTAssertEqual(
-                    ApiLiveServe.BridgeUnreachableGuidance.decide(
-                        probe: probe, hasStarter: true, starterIsIdle: false, triggering: triggering),
-                    .useStarterSuffix, "starter が非 idle のとき(probe: \(probe), triggering: \(triggering))")
-            }
+            XCTAssertEqual(
+                ApiLiveServe.BridgeUnreachableGuidance.decide(
+                    probe: probe, hasStarter: true, starterIsIdle: false),
+                .useStarterSuffix, "starter が非 idle のとき(probe: \(probe))")
         }
     }
 
-    /// idle な starter + 能動経路(triggering) + ブリッジが消えている(transportFailed/notBound)
+    /// idle な starter + ブリッジが消えている(transportFailed/notBound)
     /// —— bridgeConnectionRefused と同じ状況なので起動をトリガーする
     func testIdleStarterTriggeringAndBridgeGoneTriggersTheStarter() {
         for probe: BridgeDiscovery.StatusProbe in [.transportFailed, .notBound] {
             XCTAssertEqual(
                 ApiLiveServe.BridgeUnreachableGuidance.decide(
-                    probe: probe, hasStarter: true, starterIsIdle: true, triggering: true),
+                    probe: probe, hasStarter: true, starterIsIdle: true),
                 .triggerStarter, "probe: \(probe)")
         }
     }
@@ -125,7 +123,7 @@ final class BridgeUnreachableGuidanceTests: XCTestCase {
     func testBusyStaysWaitEvenWithAnIdleStarter() {
         XCTAssertEqual(
             ApiLiveServe.BridgeUnreachableGuidance.decide(
-                probe: .timedOut, hasStarter: true, starterIsIdle: true, triggering: true),
+                probe: .timedOut, hasStarter: true, starterIsIdle: true),
             .probeHint)
     }
 
@@ -133,19 +131,8 @@ final class BridgeUnreachableGuidanceTests: XCTestCase {
     func testAnsweredStaysProbeHintEvenWithAnIdleStarter() {
         XCTAssertEqual(
             ApiLiveServe.BridgeUnreachableGuidance.decide(
-                probe: .answered, hasStarter: true, starterIsIdle: true, triggering: true),
+                probe: .answered, hasStarter: true, starterIsIdle: true),
             .probeHint)
-    }
-
-    /// 受動経路(emitFrame。triggering:false)は idle な starter + ブリッジ消失でもトリガーしない
-    /// —— 起動トリガーは能動的な操作の失敗経路からだけ
-    func testPassiveObservationNeverTriggersTheStarterEvenWhenIdleAndBridgeGone() {
-        for probe: BridgeDiscovery.StatusProbe in [.transportFailed, .notBound] {
-            XCTAssertEqual(
-                ApiLiveServe.BridgeUnreachableGuidance.decide(
-                    probe: probe, hasStarter: true, starterIsIdle: true, triggering: false),
-                .probeHint, "probe: \(probe)")
-        }
     }
 }
 

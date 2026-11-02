@@ -547,12 +547,11 @@ dry-run ではない run の終了時に、修復候補(同じ file・line・変
 選択デバイスごとに `fleetest api live serve` を常駐 spawn します。ドライバは serve プロセス起動時に
 1回だけ生成され、以降の全操作で使い回されます。
 
-- コマンドは stdin へ NDJSON で1行ずつ送ります: `{"cmd":"tap","ref":<Int>}` /
-  `{"cmd":"tap","x":..,"y":..}` / `{"cmd":"type","text":..,"ref":..|null}` /
+- コマンドは stdin へ NDJSON で1行ずつ送ります: `{"cmd":"tap","x":..,"y":..}` / `{"cmd":"type","text":..}` /
   `{"cmd":"drag","fromX":..,"fromY":..,"toX":..,"toY":..,"press":..,"duration":..}` /
-  `{"cmd":"press","x":..,"y":..,"duration":..}` / `{"cmd":"home"}` / `{"cmd":"appSwitcher"}` /
-  `{"cmd":"refresh"}`(観測のみ。screen+要素一覧付きの snapshot)。`launch` / `install` / `terminate` /
-  `frame` もプロトコル上定義されていますが、この UI からは呼ばれていません。
+  `{"cmd":"press","x":..,"y":..,"duration":..}` / `{"cmd":"doubleTap","x":..,"y":..}` / `{"cmd":"gesture",..}` /
+  `{"cmd":"pinch",..}` / `{"cmd":"home"}` / `{"cmd":"appSwitcher"}` / `{"cmd":"fold",..}` /
+  `{"cmd":"refresh"}`(観測のみ。screen+要素一覧付きの snapshot)。契約の正は `Sources/fleetest/ApiLiveCommand.swift` 冒頭。
 - 応答は stdout から NDJSON で届きます。`refresh` 以外はまず
   `{"kind":"actionResult","ok":true|false,"error":..|null}` を出し、続けて(操作の成否を問わず)
   観測イベントを出します: `refresh` を含む操作系は `{"kind":"snapshot","ok":true,"platform":..,

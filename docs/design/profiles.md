@@ -526,8 +526,6 @@ DeviceBooter.defaultLocale(実行プロファイルの locale が届くのは wi
 4. **自動インストール**: `appPath` あり+`autoInstall`(**未指定の既定は appPath/appPathPhysical の有無**。
    `false` 明示で opt-out)→ オーケストレータ投入前に各ワーカーへ並行 install
    (差分判定=installedIsCurrent も並列。失敗ワーカーは離脱、残ワーカーがキューを引き継ぐ)。
-   **ライブ操作(`api live serve` の install)も同じ差分判定**を通す(`ApiLiveServe`。無条件に入れ直すと
-   そのたびにアプリが終了し、状態が消える)
 5. RunOrchestrator で並列実行。ワーカーラベル=デバイスの論理名。レポートは
    `TestProjects/<P>/reports/`、ロケータの指紋は `--project-dir` 経由で `TestProjects/<P>/.fleetest/` に分離
    - **シナリオの振り分けは platform 別の静的分配**(ワークスティールではない)。
@@ -776,8 +774,7 @@ observing なし)は受け付けない(画面が変わる最中)。まだ撃っ�
   1行 = `{"at"(ISO 8601・UTC・ミリ秒), "label", "ok"}`。リモートのランナー機では serve も run も同じ workDir で動くので同じ置き場
 - **書き手は run がそのデバイスを使用中のときの serve だけ**(`RunLease.holderPID` が自分以外の生きた pid。判定は
   `LiveHumanOperation.shouldRecord`)。普段のライブ操作では台帳を育てない。操作の成否を問わず撃ち始めの時刻で1件
-  (`ApiLiveServe.handle`)。**入力した文字列は残さない**(`type` は文字数だけ。`LiveHumanOperation.label`)。
-  ref の要素名は直近の観測の表(`LiveScreenMemo.names`)から引く —— 操作の前に木を撮り直すと ref の番号を動かすので撮らない
+  (`ApiLiveServe.handle`)。**入力した文字列は残さない**(`type` は文字数だけ。`LiveHumanOperation.label`)
 - **読み手は `ScenarioHost.run` の確定点3つ**(起動前の失敗・タイムアウト・通常終了)。窓 [`startedAt`, 確定] の行を結果の
   `humanOperations` へ載せ(空なら欄ごと省く。Optional で足したので版は上げない)、通常終了では子が書いた Markdown レポートの末尾に
   `## Human operations` 節も足す(`HumanOperationReport`)。引くのは `ScenarioRecording.humanOperationsStateDir`(FTCore は `RepoRoot` を
@@ -824,18 +821,12 @@ observing なし)は受け付けない(画面が変わる最中)。まだ撃っ�
 - `checkAndRestartIfStale`(DS-12.2 の自己修復と同系統だが、ライブ操作の宛先だけを見る)も
   **本人確認が取れた相手にだけ**版差の再起動を掛ける
 
-**(b) launch / activate の門**: 判定は `FTBridgeClient.InstalledAppCheck.launchGuard` の1箇所で、
-**MCP の `ft_launch`(判定材料は `installedVerdict` が集めて渡す)とライブ操作が共有**する
-(「判定は1箇所・文言は呼び手ごと」)。`MCPServer.launchGuardDecision` は `InstalledAppCheck.launchGuard` への
-委譲で、MCP 向けの文言(ft_install を指す等)を組むだけ。門が無いと `{"cmd":"activate","bundle":""}` や
-`{"cmd":"launch","bundle":"no.such.app.live"}` で**そのコマンドが30秒刺さり、
-"A single command stalled for over 30s — force-quitting (command watchdog)" で serve が落ち、
-再起動時に健全なランナーまで掃除して起動し直しになった**(実地 2026-09-22。`XCUIApplication` は
-実在しない bundleID で返ってこない)。素通ししてよいのは Android と in-app ブリッジ(ランナーが
-死なない経路)だけで、`com.apple.springboard` は門の外 —— DS-13.2/MCP と同じ切り分け
-(`InstalledAppCheck.launchGuard`)。own app(inapp-boost モードで in-app ブリッジが既に繋がっているアプリ)への
-launch/activate はライブ操作側で門より前に素通しする(in-app は XCUITest を経由しないので
-未導入検査そのものが要らない)。
+**(b) 撃つ命令は拡張が撃つものだけ**: serve が受ける操作は拡張(グリッドビュー)が送るもの —— 座標の tap / doubleTap /
+press / drag・軌跡(gesture)・全画面の pinch・フォーカス中の欄への type・home / appSwitcher・fold —— だけで、**ref では撃たない**
+(ref で撃つのは MCP。ref の守り(人が見た要素との照合・キーボードの下の断り)を2つ目の入口で持たない)。アプリの起動・終了・
+インストール・データ消去は持たない(未インストールのまま launch を撃つとランナーが刺さる門 `InstalledAppCheck.launchGuard` は
+MCP の `ft_launch` と CLI の `fleetest launch` が持つ)。命令を足すなら、その命令の守り(門・watchdog の猶予・操作記録の DSL の行)も
+同時に足す。
 
 **(c) NDJSON の型違いは黙殺しない**: プロトコルは「壊れた行(JSON でない・`cmd` が無い)は stderr に
 1行ログして無視する」だが、**`cmd` が読めて値の型だけが違う行は黙殺しない** ——
@@ -846,8 +837,8 @@ launch/activate はライブ操作側で門より前に素通しする(in-app �
 拡張の `SERVE_REQUEST_TIMEOUT` で serve ごと再起動。原因は stderr にしか出ない)。
 `[String: Any]` から手で組み、cmd 以外の型違いを1件目だけ `decodeError` に残して
 `handle` が `actionResult(ok:false)` で答える。**答えは正常時と同じ終端イベントまで出す**
-(frame は `frame(ok:false)` の1行だけ、他は `actionResult(ok:false)` → 観測 = snapshot。操作は撃たない)。
-拡張は actionResult を保持して次の snapshot/frame で要求を解決するので、actionResult だけで終えると
+(`actionResult(ok:false)` → 観測 = snapshot。操作は撃たない)。
+拡張は actionResult を保持して次の snapshot で要求を解決するので、actionResult だけで終えると
 結局 20 秒待って serve を起動し直す(実地 2026-09-24。MN-49.6)。
 
 ## DS-14 実行結果のファイルベース DB

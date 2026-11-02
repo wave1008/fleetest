@@ -96,7 +96,7 @@ final class ApiLiveGestureCommandTests: XCTestCase {
 
     /// 空/欠落の fingers は断ること(cmd 単体では ArgumentBounds が検査できない業務ルール)
     func testEmptyFingersIsRefusedBeforeTouchingTheDriver() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "launch")
+        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "appSwitcher")
         XCTAssertTrue(body.contains("guard let fingers = command.fingers, !fingers.isEmpty else"),
                       "空の fingers を断ること: \(body)")
     }
@@ -104,7 +104,7 @@ final class ApiLiveGestureCommandTests: XCTestCase {
     /// **共有する判定は TouchGesture.validate の1箇所**(MCP の ft_gesture と同じ門)。
     /// ここを経由せず driver.gesture を直接撃つと、ライブ操作だけ本数・時刻・画面内の検査を欠く
     func testGestureGoesThroughTheSharedValidateBeforeTouchingTheDriver() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "launch")
+        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "appSwitcher")
         XCTAssertTrue(body.contains("TouchGesture.validate("), "共有の検査を通ること: \(body)")
         let validate = try XCTUnwrap(body.range(of: "TouchGesture.validate("))
         let drive = try XCTUnwrap(body.range(of: "driver.gesture("))
@@ -114,7 +114,7 @@ final class ApiLiveGestureCommandTests: XCTestCase {
 
     /// `maxGestureSeconds` はこの1回だけ既定 10 秒の上限を引き上げる(press/drag/pinch と同じ規律)
     func testGestureRespectsThePerCommandMaxGestureSecondsOverride() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "launch")
+        let body = try caseBody(try liveCommandSource(), cmd: "gesture", until: "appSwitcher")
         XCTAssertTrue(body.contains("command.maxGestureSeconds ?? BridgeAPI.defaultMaxGestureSeconds"), body)
     }
 }

@@ -223,62 +223,16 @@ final class LiveSessionFollowerTests: XCTestCase {
                        LiveSessionTarget.springboard)
     }
 
-    private func caseBody(_ source: String, cmd: String, until next: String) throws -> String {
-        let start = try XCTUnwrap(source.range(of: "case \"\(cmd)\":"))
-        let end = try XCTUnwrap(source.range(of: "case \"\(next)\":", range: start.upperBound..<source.endIndex))
-        return String(source[start.upperBound..<end.lowerBound])
-    }
-
-    /// `/terminate` はセッションの向き先を殺す。追従で springboard を向いたまま撃つと
-    /// **SpringBoard 自身を終了させる**ので、対象のアプリへ戻してからでなければならない
-    func testTerminatePointsTheSessionAtTheAppFirst() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "terminate", until: "clearAppData")
-        let pointAt = try XCTUnwrap(body.range(of: "pointAtApp"))
-        let terminate = try XCTUnwrap(body.range(of: "driver.terminate()"))
-        XCTAssertTrue(pointAt.lowerBound < terminate.lowerBound,
-                      "terminate は pointAtApp の後で撃つこと: \(body)")
-    }
-
-    /// clearAppData はホスト側で `terminate()`(= セッションのアプリ)を撃ってから
-    /// コンテナを消す。対象へ寄せずに撃つと別のものを殺す
-    func testClearAppDataPointsTheSessionAtTheTargetFirst() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "clearAppData", until: "install")
-        let pointAt = try XCTUnwrap(body.range(of: "pointAtApp"))
-        let clear = try XCTUnwrap(body.range(of: "driver.clearAppData("))
-        XCTAssertTrue(pointAt.lowerBound < clear.lowerBound,
-                      "clearAppData は pointAtApp の後で撃つこと: \(body)")
-    }
-
-    /// アプリを選んでいないセッションでは `/terminate` を撃たない —— 追従で springboard を
-    /// 向いているので、そのまま撃つと **SpringBoard 自身**を終了させる
-    func testTerminateRefusesWithoutAnAppInTheSession() throws {
-        let body = try caseBody(try liveCommandSource(), cmd: "terminate", until: "clearAppData")
-        XCTAssertTrue(body.contains("guard let target = follower.drivenApp()"),
-                      "駆動しているアプリが無いときは断ること: \(body)")
-    }
-
-    /// clearAppData の既定対象にセッションの springboard を採らない(同じ理由)
-    func testClearAppDataNeverDefaultsToSpringboard() throws {
-        let source = try liveCommandSource()
-        let start = try XCTUnwrap(source.range(of: "private func resolveBundleForClearAppData"))
-        let end = try XCTUnwrap(source.range(of: "\n    }", range: start.upperBound..<source.endIndex))
-        let body = String(source[start.upperBound..<end.lowerBound])
-        XCTAssertTrue(body.contains("!= LiveSessionTarget.springboard"),
-                      "セッションからの既定は springboard を除くこと: \(body)")
-    }
-
-    /// 追従させるのは画面を触るコマンドだけ。セッションを引数で名指しするコマンドを
-    /// ここへ入れると、自分で決めた向き先を追従が上書きする
+    /// 追従させるのは画面を触るコマンドだけ(観測の refresh は handle が撮る直前に追従させる。fold はセッションに依らない)
     func testOnlyScreenTouchingCommandsFollowTheFrontmostApp() throws {
         let source = try liveCommandSource()
         let start = try XCTUnwrap(source.range(of: "private static func followsFrontmost"))
         let end = try XCTUnwrap(source.range(of: "\n    }", range: start.upperBound..<source.endIndex))
         let body = String(source[start.upperBound..<end.lowerBound])
-        for cmd in ["tap", "type", "clear", "hideKeyboard", "swipe", "drag", "doubleTap", "pinch",
-                    "press", "back", "appSwitcher", "home"] {
+        for cmd in ["tap", "type", "drag", "doubleTap", "pinch", "press", "gesture", "appSwitcher", "home"] {
             XCTAssertTrue(body.contains("\"\(cmd)\""), "\(cmd) が追従の一覧から落ちている")
         }
-        for cmd in ["launch", "activate", "terminate", "clearAppData", "install", "frame", "refresh"] {
+        for cmd in ["fold", "refresh"] {
             XCTAssertFalse(body.contains("\"\(cmd)\""), "\(cmd) は追従させない")
         }
     }

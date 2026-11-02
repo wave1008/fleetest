@@ -112,8 +112,6 @@ struct Snapshot: AsyncParsableCommand {
 
     func run() async throws {
         let snapshot = try await driverOptions.makeDriver().snapshot()
-        // 利用者が見た木 = 次の `--ref` の古さの照合相手(RefFireGate)
-        CLIRefMemo.store(key: driverOptions.refMemoKey, elements: snapshot.elements)
         if json {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -133,59 +131,28 @@ struct Snapshot: AsyncParsableCommand {
     }
 }
 
-/// `--ref` の対象を撃つ前に MCP の ft_tap と同じ守り(判定は `FTCore.RefFireCheck` の1箇所)を通す。
-/// 撃つ前の木で見る(撃った後だと画面が変わっている)。**キーボードの下・せり上がったバーの覆いは撃たずに非0で断る**
-/// (XCUITest は指がキーに落ちて焦点の欄へ文字が入る)。別の物に当たりうる形は撃って ⚠️ を stderr に出す(戻り値)。
-/// 木を読めない・ref が無いときは守りなし(撃って答えをそのまま見せる)。**ref を撃つ CLI の手は全部これを通す**
-enum RefFireGate {
-    struct Checked {
-        /// 別の物に当たりうる形の ⚠️(断らない)
-        var advisory: String?
-        /// Android で中心が下端のジェスチャ帯の中なら、帯より上の部分の中心(`BottomGestureBandTap` = DSL・MCP・ライブ操作と共有)。
-        /// 控えとの照合を済ませた要素の座標なので、座標へ畳んでも ref の番号ずれで別の物を押さない。入力(typing)では求めない
-        var bandPoint: (x: Double, y: Double)?
+/// 座標で撃つ手(tap / press)が撃つ前に通す守り(判定はライブ操作・MCP と共有 = `TapTargetGeometry.isPointOnScreen` /
+/// `CoordinateGuards.keyboardFrame`)。画面の外は撃たずに断る。キーボードの中は撃つ(キーを押す意図もありうる)が ⚠️ を返す。
+/// 画面の大きさを読めないときは断らない(撃って、ドライバの答えをそのまま見せる)。**座標で撃つ CLI の手は全部これを通す**
+enum CoordinateFireGate {
+    static func check(driver: AppDriver, x: Double, y: Double) async throws -> String? {
+        let tree = try? await driver.snapshot()
+        if let screen = tree?.screen,
+           !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: screen) {
+            throw ValidationError(
+                "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is outside the screen"
+                + " (\(FTSeconds.format(screen.width))x\(FTSeconds.format(screen.height))) —"
+                + " refusing to send it. Use a point inside the visible screen.")
+        }
+        guard CoordinateGuards.keyboardFrame(containing: x, y, in: tree) != nil else { return nil }
+        return "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is inside the soft keyboard — this presses a key, not the app behind it."
+            + " Dismiss the keyboard first unless a key was meant"
     }
 
-    /// `memoKey`: 呼び出しをまたぐ ref の控え(`CLIRefMemo`)の鍵。**ここで撮る木が控えと食い違う ref は撃たずに断る**
-    /// (撃つ前の守りが木を撮り直すとブリッジの ref の表も今の木になり、ドライバ・ブリッジの照合は素通しになる)
-    static func check(driver: AppDriver, ref: Int, isAndroid: Bool, typing: Bool = false,
-                      memoKey: String) async throws -> Checked {
-        guard let snapshot = try? await driver.snapshot() else { return Checked() }
-        let remembered = CLIRefMemo.load(key: memoKey)
-        guard let element = snapshot.elements.first(where: { $0.ref == ref }) else { return Checked() }
-        if let detail = RefTableMemo.staleDetail(ref: ref, remembered: remembered, now: element) {
-            throw ValidationError("refusing [\(ref)]: \(detail). Nothing was sent. Run `fleetest snapshot` and use the new ref")
-        }
-        // 断らなかったときだけ控えを今の木へ進める(断った回に進めると、同じ古い ref の撃ち直しが通る)
-        CLIRefMemo.store(key: memoKey, elements: snapshot.elements)
-        let result = RefFireCheck.evaluate(element, in: snapshot, isAndroid: isAndroid, typing: typing)
-        if let refusal = result.refusal { throw ValidationError(refusalMessage(refusal, ref: ref, element: element)) }
-        var checked = Checked(advisory: result.advisory)
-        if !typing, let y = await BottomGestureBandTap.tapY(for: element.frame, screen: snapshot.screen,
-                                                           isAndroid: isAndroid, driver: driver) {
-            checked.bandPoint = (element.frame.centerX, y)
-        }
-        return checked
-    }
-
-    static func refusalMessage(_ refusal: RefFireCheck.Refusal, ref: Int, element: ElementInfo) -> String {
-        let target = TapTargetGeometry.describe(element)
-        switch refusal {
-        case .notATextField:
-            return "refusing [\(ref)]: \(target) is a \(element.type), not a text field — `type --ref` taps the target first,"
-                + " so it would fire (a button, a link). Nothing was sent. Run `fleetest snapshot` and pass the input"
-                + " field's ref, or omit --ref to type into the field that has focus"
-        case .underKeyboard(let advisory):
-            return "refusing [\(ref)]: \(target) — \(advisory). On iOS the finger would press a key and type into the"
-                + " focused field. Nothing was sent. Dismiss the keyboard first, then run snapshot again and use the new ref"
-        case .keyboardCover(let cover):
-            let why: String
-            switch cover {
-            case .raisedBar(let bar): why = "covered by \(TapTargetGeometry.describe(bar)), which rose above the keyboard"
-            case .collapsed: why = "collapsed to a thin band (\(Int(element.frame.width))x\(Int(element.frame.height)))"
-            }
-            return "refusing [\(ref)]: \(target) is \(why) while the on-screen keyboard is up, so a touch would not land on it."
-                + " Nothing was sent. Dismiss the keyboard first, then run snapshot again and use the new ref"
+    /// 有限でない座標はブリッジへの JSON にできず、Swift の EncodingError がそのまま出ていた(CLI ファズ: --x 1e400)
+    static func validateFinite(x: Double?, y: Double?) throws {
+        for (name, value) in [("--x", x), ("--y", y)] {
+            if let value, !value.isFinite { throw ValidationError("\(name) must be a finite number (got \(value))") }
         }
     }
 }
@@ -203,10 +170,7 @@ enum DeliveryAdvice {
 }
 
 struct Tap: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Tap an element or a coordinate")
-
-    @Option(help: "Reference number from snapshot")
-    var ref: Int?
+    static let configuration = CommandConfiguration(abstract: "Tap a coordinate")
 
     @Option(help: "X coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
     var x: Double?
@@ -218,65 +182,25 @@ struct Tap: AsyncParsableCommand {
 
     func validate() throws {
         try driverOptions.rejectDeviceTargetMismatch()
-        // 有限でない座標はブリッジへの JSON にできず、Swift の EncodingError がそのまま出ていた(CLI ファズ: --x 1e400)
-        for (name, value) in [("--x", x), ("--y", y)] {
-            if let value, !value.isFinite { throw ValidationError("\(name) must be a finite number (got \(value))") }
-        }
-        // ref が勝って座標が黙って捨てられていた(MCP の ft_tap は同じ併用を断る)
-        if ref != nil, x != nil || y != nil {
-            throw ValidationError("--ref cannot be combined with --x/--y: pass either --ref or --x/--y")
-        }
+        try CoordinateFireGate.validateFinite(x: x, y: y)
     }
 
     func run() async throws {
-        if let ref {
-            let driver = try await driverOptions.makeDriver()
-            let gate = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
-                                                   memoKey: driverOptions.refMemoKey)
-            let note = gate.advisory
-            if let point = gate.bandPoint {
-                try await DeliveryAdvice.relaying { try await driver.tap(x: point.x, y: point.y) }
-            } else {
-                try await DeliveryAdvice.relaying { try await driver.tap(ref: ref) }
-            }
-            ConsoleOut.out("✅ tap [\(ref)]")
-            if gate.bandPoint != nil { ConsoleOut.err("ℹ️ [\(ref)] \(StepExecutor.bottomBandTapNote)") }
-            if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
-        } else if let x, let y {
-            let driver = try await driverOptions.makeDriver()
-            // 画面の外の座標は撃たずに断る(ライブ操作・MCP と同じ判定 = TapTargetGeometry.isPointOnScreen)。
-            // 画面の大きさを読めないときは断らない(撃って、ドライバの答えをそのまま見せる)
-            let tree = try? await driver.snapshot()
-            if let screen = tree?.screen,
-               !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: screen) {
-                throw ValidationError(
-                    "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is outside the screen"
-                    + " (\(FTSeconds.format(screen.width))x\(FTSeconds.format(screen.height))) —"
-                    + " refusing to send it. Use a point inside the visible screen.")
-            }
-            // キーボードの中の座標は撃つが言う(キーを押す意図もありうるので断らない。判定は MCP の座標形と共有)
-            let keyboardWarning = CoordinateGuards.keyboardFrame(containing: x, y, in: tree) != nil
-                ? "(\(FTSeconds.format(x)), \(FTSeconds.format(y))) is inside the soft keyboard — this presses a key, not the app behind it."
-                    + " Dismiss the keyboard first unless a key was meant"
-                : nil
-            try await DeliveryAdvice.relaying { try await driver.tap(x: x, y: y) }
-            ConsoleOut.out("✅ tap (\(x), \(y))")
-            if let keyboardWarning { ConsoleOut.err("⚠️ \(keyboardWarning)") }
-        } else {
-            throw ValidationError("specify either --ref or --x/--y")
-        }
+        guard let x, let y else { throw ValidationError("specify --x and --y") }
+        let driver = try await driverOptions.makeDriver()
+        let keyboardWarning = try await CoordinateFireGate.check(driver: driver, x: x, y: y)
+        try await DeliveryAdvice.relaying { try await driver.tap(x: x, y: y) }
+        ConsoleOut.out("✅ tap (\(x), \(y))")
+        if let keyboardWarning { ConsoleOut.err("⚠️ \(keyboardWarning)") }
     }
 }
 
 struct TypeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "type",
-        abstract: "Type text (with --ref, taps the element first)",
+        abstract: "Type text into the focused element",
         discussion: "Text that starts with '-' (for example -5): put every option first, then `--`, then the text"
             + " — `fleetest type --port 8123 -- -5`.")
-
-    @Option(help: "Reference number of the target field (defaults to the focused element)")
-    var ref: Int?
 
     @Argument(help: "Text to type")
     var text: String
@@ -296,15 +220,9 @@ struct TypeCommand: AsyncParsableCommand {
 
     func run() async throws {
         let driver = try await driverOptions.makeDriver()
-        var note: String?
-        if let ref {
-            note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
-                                               typing: true, memoKey: driverOptions.refMemoKey).advisory
-        }
-        try await DeliveryAdvice.relaying { try await driver.type(ref: ref, text: text) }
+        try await DeliveryAdvice.relaying { try await driver.type(ref: nil, text: text) }
         ConsoleOut.out("✅ type \"\(text)\"")
         if let lineBreak = Self.lineBreakNote(text) { ConsoleOut.err("⚠️ \(lineBreak)") }
-        if let ref, let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }
 }
 
@@ -329,10 +247,13 @@ struct Swipe: AsyncParsableCommand {
 }
 
 struct Press: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Long-press an element")
+    static let configuration = CommandConfiguration(abstract: "Long-press a coordinate")
 
-    @Option(help: "Reference number")
-    var ref: Int
+    @Option(help: "X coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
+    var x: Double?
+
+    @Option(help: "Y coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
+    var y: Double?
 
     @Option(help: "Press duration in seconds")
     var holdSeconds: Double = 1.0
@@ -344,6 +265,7 @@ struct Press: AsyncParsableCommand {
 
     func validate() throws {
         try driverOptions.rejectDeviceTargetMismatch()
+        try CoordinateFireGate.validateFinite(x: x, y: y)
         // 判定は MCP の ft_long_press と同じ(既定 10 秒・上書きは 60 秒まで = BridgeAPI)。文言は CLI のフラグ名で持つ。0 は撃たない
         if let maxGestureSeconds, BridgeAPI.maxGestureSecondsViolation(maxGestureSeconds) != nil {
             throw ValidationError("--max-gesture-seconds must be greater than 0 and at most"
@@ -360,18 +282,12 @@ struct Press: AsyncParsableCommand {
     }
 
     func run() async throws {
+        guard let x, let y else { throw ValidationError("specify --x and --y") }
         let driver = try await driverOptions.makeDriver()
-        let gate = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
-                                               memoKey: driverOptions.refMemoKey)
-        let note = gate.advisory
-        if let point = gate.bandPoint {
-            try await DeliveryAdvice.relaying { try await driver.press(x: point.x, y: point.y, duration: holdSeconds) }
-        } else {
-            try await DeliveryAdvice.relaying { try await driver.press(ref: ref, duration: holdSeconds) }
-        }
-        ConsoleOut.out("✅ press [\(ref)] \(holdSeconds)s")
-        if gate.bandPoint != nil { ConsoleOut.err("ℹ️ [\(ref)] \(StepExecutor.bottomBandTapNote)") }
-        if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
+        let keyboardWarning = try await CoordinateFireGate.check(driver: driver, x: x, y: y)
+        try await DeliveryAdvice.relaying { try await driver.press(x: x, y: y, duration: holdSeconds) }
+        ConsoleOut.out("✅ press (\(x), \(y)) \(holdSeconds)s")
+        if let keyboardWarning { ConsoleOut.err("⚠️ \(keyboardWarning)") }
     }
 }
 

@@ -60,7 +60,7 @@ final class ApiLiveConnectionHintWiringTests: XCTestCase {
     func testOnlyTheOperationPathClaimsTheDeliveryIsUnknown() throws {
         let code = try source()
         XCTAssertEqual(code.components(separatedBy: "operated: true, port: port)").count - 1, 1)
-        XCTAssertEqual(code.components(separatedBy: "operated: false, port: port)").count - 1, 2)
+        XCTAssertEqual(code.components(separatedBy: "operated: false, port: port)").count - 1, 1)
         XCTAssertTrue(code.contains("retrySafe: !deliveryUnknown"))
         XCTAssertTrue(code.contains("deliveryUnknown: (error as? DriverError)?.deliveryIsUnknown == true"), "拡張へ事実を運んでいない")
         let perform = try XCTUnwrap(code.range(of: "try await perform(command: command"))
@@ -97,7 +97,7 @@ final class ApiLiveConnectionHintWiringTests: XCTestCase {
     }
 
     /// **成功パスへ往復を足さない**: BridgeDiscovery.probeStatus の呼び出しはファイル全体で
-    /// ちょうど1箇所(annotated の失敗パス)だけであること。emitObservation/emitFrame の
+    /// ちょうど1箇所(annotated の失敗パス)だけであること。emitObservation の
     /// 成功枝(catch の外)に漏れていれば、毎回の観測が毎回1往復増えることになる
     func testProbeStatusIsCalledFromExactlyOnePlace() throws {
         let code = try source()

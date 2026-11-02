@@ -77,10 +77,11 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   既定ポートの別の実機を「自分」と読む)→ MN-47。
   **1コマンドの中で撃つ外部呼び出しの timeout は command watchdog(30 秒)より十分短く**し、失敗は控えて
   毎コマンド撃ち直さない(`DevicectlBackoff`)—— watchdog が serve を殺すたびに自動起動が走る。
-  **内側の上限が command watchdog の基準値を超えるコマンド(`Timeout.session` 45秒で撃つ launch/activate/
-  appSwitcher/home/terminate/refresh/frame・その2回ぶんの clearAppData・install = 実機 devicectl の 600秒)は
+  **内側の上限が command watchdog の基準値を超えるコマンド(`Timeout.session` 45秒で撃つ appSwitcher/home/refresh)は
   `ApiLiveServeCommand.watchdogAllowanceSeconds` でその分を watchdog に足す**(拡張側は `serveCommandAllowanceMs` が
-  gesture/press/drag/pinch/fold を ms で持つ。拡張は launch/install を撃たないが、片方だけ変えない)。**窓は本人確認・操作・観測をまとめて数えるので、観測を撃つ命令は
+  gesture/press/drag/pinch/fold を ms で持つ。片方だけ変えない)。
+  **serve が受けるのは拡張が撃つ命令だけ・ref では撃たない**(ref で撃つのは MCP。命令を足すなら守り・猶予・DSL の行も同時に = DS-13.3 (b))。
+  **窓は本人確認・操作・観測をまとめて数えるので、観測を撃つ命令は
   `observationAllowanceSeconds`(session)も足す**(窓に渡すのは和の `watchdogWindowAllowanceSeconds`)——
   猶予が無いと、内側の期限より先に watchdog が serve ごと殺す → MN-66。
   **観測の段(前面追従・screenshot・snapshot・springboard 退避・失敗の注記)は段の数を猶予へ足さず、手前で

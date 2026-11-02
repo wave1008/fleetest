@@ -252,37 +252,12 @@ final class LiveSessionFollower {
             + " \(error.localizedDescription)")
     }
 
-    /// **セッションのアプリを対象に撃つ破壊的な操作**(terminate / clearAppData)の前に、
-    /// セッションをそのアプリへ戻す。springboard を向いたまま撃つと SpringBoard 自身を
-    /// 終了させる(clearAppData はホスト側で `terminate()` を撃ってからコンテナを消す)。
-    /// 前面に無ければ activate が前面へ出すが、**どちらもこの直後に終了させる操作**なので
-    /// 見えるのは一瞬で、取り違えて別のものを殺すほうが害が大きい
-    func pointAtApp(_ bundleID: String, driver: AppDriver) async throws {
-        await initializeIfNeeded(driver: driver)
-        guard sessionTarget != bundleID else { return }
-        try await driver.activate(bundleID: bundleID)
-        sessionTarget = bundleID
-    }
-
-    /// セッションを動かすコマンド(launch / activate)が成功した直後に呼ぶ
+    /// serve がセッションを動かした直後に呼ぶ(観測の springboard 退避 = `snapshotWithSessionFallback`)
     func noteSessionChanged(to bundleID: String) {
         initialized = true
         sessionTarget = bundleID
         preferred = bundleID == LiveSessionTarget.springboard ? nil : bundleID
     }
-
-    /// `/terminate` の後に呼ぶ。ランナーは session を落とす(`sessionBundleID = nil`)が、
-    /// **preferred は残す** —— 利用者が駆動しているアプリは変わっておらず、次の起動・
-    /// clearAppData の既定対象もそれのため
-    func noteSessionDropped() {
-        initialized = true
-        sessionTarget = nil
-    }
-
-    /// パネルが駆動しているアプリ(terminate の対象・clearAppData の bundle 省略時の既定)。
-    /// **`/status` を引く前にこちらを使う** —— セッションは springboard を向いていることがあり、
-    /// そのまま対象にすると SpringBoard を終了させる・そのデータを消す
-    func drivenApp() -> String? { preferred }
 
     private func initializeIfNeeded(driver: AppDriver) async {
         guard !initialized else { return }

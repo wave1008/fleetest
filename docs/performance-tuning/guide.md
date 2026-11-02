@@ -150,23 +150,14 @@ swift Scripts/bench.swift --project SampleApp --profile ios --iterations 3 \
 
 ### PT-4.1 ストリーミング vs ポーリングのキャプチャ負荷ベンチ
 
-`Scripts/stream_vs_poll_bench.py`(依存: python3 + 起動中の sim/emu)。デバイス画面配信の2方式
-(ストリーミング=`fleetest-simstream`/`fleetest-androidstream`、ポーリング=`fleetest api live serve` へ
-`{"cmd":"frame"}` を fps 間隔で送る経路。`monitor.pollingMode` トグルの2方式に対応)のキャプチャ負荷を
-静止/モーション × 隣接ベースラインで比較する。
-
-```bash
-# 起動中の sim/emu を自動検出、両OS・静止+モーション
-python3 Scripts/stream_vs_poll_bench.py
-# 片OS・静止のみ・計測窓を延ばして JSON 出力先指定
-python3 Scripts/stream_vs_poll_bench.py --platform ios --conditions static --meas 20 --out /tmp/r.json
-# 未起動なら start-device して計測(プロファイル名指定)
-python3 Scripts/stream_vs_poll_bench.py --boot-ios-name シミュ1 --boot-android-name エミュ1 --project SampleApp
-```
+デバイス画面配信の2方式(ストリーミング=`fleetest-simstream`/`fleetest-androidstream`、ポーリング=当時の
+`fleetest api live serve` の画像だけの取得命令)のキャプチャ負荷を、静止/モーション × 隣接ベースラインで比べた記録。
+**測ったスクリプト(`Scripts/stream_vs_poll_bench.py`)は撤去済み** —— ポーリング側の命令をライブ操作から外した
+(拡張のポーリングモードは `api monitor` の経路で、この命令を使っていなかった)。測り直すなら今のポーリングの経路で書き起こす。
 
 - **主指標=キャプチャプロセスの CPU(proc%/core、cputime デルタ/実時間、1コア=100%)**。ホスト差分
   (`host-metrics`、Mac 全体)は 10 コア分母で小信号が ambient 揺らぎ(±3pt)に埋もれるため補助。fps と
-  stream_kbps も出す。出力は `bench-results/stream-vs-poll/`(.gitignore 済み)+ 表を stdout。
+  stream_kbps も出した。
 - 実測(M1 Max / iPhone17Pro sim / Pixel9 emu / fps12・max-width900):静止 proc → ストリーミング **0.2%** /
   ポーリング **~23-26%**、モーション proc → ストリーミング **~5%** / ポーリング **~24%**。fps → ストリーミング
   **~12**(滑らか) / ポーリング **5-8**(スクショ同期往復に律速)。静止でもポーリングは device 側込みで
@@ -174,17 +165,15 @@ python3 Scripts/stream_vs_poll_bench.py --boot-ios-name シミュ1 --boot-androi
   (モニタの支配的状態)で圧倒的。**
 - **H.264+WebCodecs 化後の実測(2026-07-14。上記は MJPEG 経路の値)**: helper モーション時
   Android **5.2%→1.0%**(パススルー化)・iOS **1.5%→0.9%**(VT HWエンコード)、4台デモ65秒平均で
-  webview Renderer **8.4%**(MJPEG 時代は瞬時 30-65%)・拡張ホスト 1.4%。このスクリプトが測るのは
-  **MJPEG 経路だけ**(コーデック切替のフラグは無い)。h264 側(helper と、復号を担う
-  webview Renderer)は本番パネルでの cputime デルタでしか測れない
-- **計測の罠(スクリプト冒頭 docstring に全掲)**:
-  - `host-metrics`/`simstream`/`androidstream` は **stdin EOF で即終了**する常駐 CLI。Popen は
-    `stdin=PIPE` を開いたまま保持必須(未保持=/dev/null 継承で即死→0 サンプル/0 フレーム。静止 0 と誤診しやすい)
+  webview Renderer **8.4%**(MJPEG 時代は瞬時 30-65%)・拡張ホスト 1.4%。h264 側(helper と、復号を担う
+  webview Renderer)は本番パネルでの cputime デルタで測った
+- **計測の罠**(書き起こすときに踏まない):
+  - `host-metrics`/`simstream`/`androidstream` は **stdin EOF で即終了**する常駐 CLI。起こす側は
+    stdin を開いたまま保持する(未保持=/dev/null 継承で即死→0 サンプル/0 フレーム。静止 0 と誤診しやすい)
   - ストリーミングは変化駆動で静止は≈0fps(仕様)。負荷はモーション条件でしか見えない
   - ストリーミング helper が 0 フレームでも「壊れた/表示合成が要る」と即断しないこと。simstream は
     **Simulator.app 無し・ヘッドレスでも動く**(実測: 静止≈0fps・モーション≈10fps)。0 フレームの第一容疑は
-    上の stdin=PIPE 未保持による即死、次いで静止で変化が無いだけ(モーションを与えて切り分ける)
-  - `serve`/`host-metrics` は **cwd=リポジトリルート**で起動(iOS ブリッジ自動起動の repo-root 検出のため)
+    上の stdin 未保持による即死、次いで静止で変化が無いだけ(モーションを与えて切り分ける)
 
 ### PT-4.2 FM 呼び出しの実測(回数・レイテンシ)
 

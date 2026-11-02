@@ -98,7 +98,7 @@ final class DriverOptionsTargetMismatchTests: XCTestCase {
     /// `--serial` だけなら android へ解決する(ios に倒すと既定ポートの別のデバイスを操作する)
     func testSerialAloneResolvesToAndroid() throws {
         XCTAssertEqual(try Bridge.Status.parse(["--serial", "emulator-5554"]).driverOptions.resolvedPlatform, "android")
-        XCTAssertEqual(try Tap.parse(["--serial", "emulator-5554", "--ref", "1"]).driverOptions.resolvedPlatform, "android")
+        XCTAssertEqual(try Tap.parse(["--serial", "emulator-5554", "--x", "1", "--y", "1"]).driverOptions.resolvedPlatform, "android")
         XCTAssertEqual(try Bridge.Status.parse([]).driverOptions.resolvedPlatform, "ios")
     }
 }

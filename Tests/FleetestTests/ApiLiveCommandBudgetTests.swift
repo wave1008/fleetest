@@ -4,8 +4,8 @@ import FTBridgeClient
 import FTCore
 
 /// live serve の command watchdog と、正当に長く占有しうる操作の猶予(`watchdogAllowanceSeconds`)。
-/// press/drag/pinch/gesture は指定秒数ぶん、launch/activate/install は内側の上限
-/// (xcuitest の session 45秒・実機 install の 600秒)ぶん猶予が要る——猶予0だと、正当な
+/// press/drag/pinch/gesture は指定秒数ぶん、`Timeout.session` で撃つ命令は内側の上限
+/// (xcuitest の session 45秒)ぶん猶予が要る——猶予0だと、正当な
 /// 失敗の後始末(観測の撮り直し)中に watchdog が serve ごと殺す。
 /// ①watchdog の基準値を固定 ②猶予が perform() と同じ既定値から計算されることを固定する
 /// ③猶予が各コマンドの内側の上限を watchdog の基準値越しに超えることを固定する。
@@ -34,8 +34,8 @@ final class ApiLiveCommandBudgetTests: XCTestCase {
 
     /// 内側の上限が watchdog 基準値(30秒)を超えない通常のコマンドは allowance 0
     func testNonGestureCommandsHaveNoAllowance() {
-        XCTAssertEqual(command("tap", ["ref": 1]).watchdogAllowanceSeconds, 0)
-        XCTAssertEqual(command("back", [:]).watchdogAllowanceSeconds, 0)
+        XCTAssertEqual(command("tap", ["x": 1, "y": 1]).watchdogAllowanceSeconds, 0)
+        XCTAssertEqual(command("type", ["text": "a"]).watchdogAllowanceSeconds, 0)
     }
 
     /// press の allowance は指定した duration そのもの(縮めない)
@@ -93,22 +93,6 @@ final class ApiLiveCommandBudgetTests: XCTestCase {
         XCTAssertEqual(command("gesture", [:]).watchdogAllowanceSeconds, 0)
     }
 
-    // MARK: - launch/activate/install(内側の上限が watchdog 基準値を超えるコマンド)
-
-    /// launch/activate の allowance は BridgeClient.Timeout.session(xcuitest 経由の内側の上限)
-    func testLaunchAndActivateAllowanceIsTheSessionTimeout() {
-        XCTAssertEqual(command("launch", ["bundle": "com.example.app"]).watchdogAllowanceSeconds,
-                       BridgeClient.Timeout.session)
-        XCTAssertEqual(command("activate", ["bundle": "com.example.app"]).watchdogAllowanceSeconds,
-                       BridgeClient.Timeout.session)
-    }
-
-    /// install の allowance は実機 devicectl install の上限そのもの
-    func testInstallAllowanceIsThePhysicalInstallTimeout() {
-        XCTAssertEqual(command("install", ["path": "/tmp/App.app"]).watchdogAllowanceSeconds,
-                       BridgeClient.Timeout.physicalInstall)
-    }
-
     // MARK: - ArgumentBounds.gestureSecondsCeiling(60秒)まで allowance が伸びても watchdog は破綻しない
 
     /// **allowance を最大まで使った1コマンド**でも、watchdog の基準値+allowance は
@@ -128,38 +112,23 @@ final class ApiLiveCommandBudgetTests: XCTestCase {
         XCTAssertGreaterThan(totalWatchdogBudget, actualRequestTimeout)
     }
 
-    /// launch/activate の内側の上限(xcuitest の session)は45秒——watchdog 基準値+allowance は
-    /// それをリテラルの45で超えること(production の定数から計算しない = 定数自体が縮んだときも
-    /// この不等式で検出する)
-    func testWatchdogPlusLaunchAllowanceExceedsTheSessionTimeoutLiteral() {
-        let cmd = command("launch", ["bundle": "com.example.app"])
-        let totalWatchdogBudget = ApiLiveServe.commandWatchdogMaxSeconds + cmd.watchdogAllowanceSeconds
-        XCTAssertGreaterThan(totalWatchdogBudget, 45)
-    }
-
-    /// install の内側の上限(実機 devicectl)は600秒——同じ不等式をリテラルの600で固定する
-    func testWatchdogPlusInstallAllowanceExceedsThePhysicalInstallTimeoutLiteral() {
-        let cmd = command("install", ["path": "/tmp/App.app"])
-        let totalWatchdogBudget = ApiLiveServe.commandWatchdogMaxSeconds + cmd.watchdogAllowanceSeconds
-        XCTAssertGreaterThan(totalWatchdogBudget, 600)
-    }
-
     /// ブリッジへ `Timeout.session`(45秒)で撃つコマンドは、その期限ぶんの猶予を持つ
     /// (猶予0だと内側の期限より先に watchdog が serve ごと落とす。2026-10-04 の負荷テスト)
     func testSessionTimeoutCommandsGetTheSessionAllowance() {
-        for cmd in ["appSwitcher", "home", "terminate", "refresh", "frame"] {
+        for cmd in ["appSwitcher", "home", "refresh"] {
             XCTAssertEqual(command(cmd, [:]).watchdogAllowanceSeconds, 45, cmd)
         }
     }
 
-    /// clearAppData は activate(セッションを寄せる)と terminate の2回ぶん
-    func testClearAppDataAllowanceCoversActivateAndTerminate() {
-        XCTAssertEqual(command("clearAppData", ["bundle": "com.example"]).watchdogAllowanceSeconds, 90)
+    /// 猶予を足した上限が、内側の期限をリテラルの 45 秒で超える(production の定数から計算しない =
+    /// 定数自体が縮んだときもこの不等式で検出する)
+    func testWatchdogPlusSessionAllowanceExceedsTheSessionTimeoutLiteral() {
+        XCTAssertGreaterThan(ApiLiveServe.commandWatchdogMaxSeconds + command("home", [:]).watchdogAllowanceSeconds, 45)
     }
 
     /// 猶予を足した上限が、内側の期限(session)を必ず超える
     func testSessionCommandsOutlastTheirInnerTimeout() {
-        for cmd in ["appSwitcher", "home", "terminate", "refresh", "frame", "clearAppData"] {
+        for cmd in ["appSwitcher", "home", "refresh"] {
             XCTAssertGreaterThan(
                 ApiLiveServe.commandWatchdogMaxSeconds + command(cmd, [:]).watchdogAllowanceSeconds,
                 BridgeClient.Timeout.session, cmd)
@@ -168,14 +137,13 @@ final class ApiLiveCommandBudgetTests: XCTestCase {
 
     /// 操作の後に観測(snapshot)を撃つ命令は、その期限(45秒)ぶんを窓に足す
     func testDrivingCommandsAddTheObservationToTheWindow() {
-        XCTAssertEqual(command("tap", ["ref": 1]).observationAllowanceSeconds, 45)
+        XCTAssertEqual(command("tap", ["x": 1, "y": 1]).observationAllowanceSeconds, 45)
         XCTAssertEqual(command("press", ["x": 1, "y": 2, "duration": 1.2]).watchdogWindowAllowanceSeconds, 46.2)
     }
 
-    /// refresh/frame は観測そのものが命令なので二重に足さない(猶予は命令側の 45 秒だけ)
+    /// refresh は観測そのものが命令なので二重に足さない(猶予は命令側の 45 秒だけ)
     func testObservationOnlyCommandsAddNoObservation() {
         XCTAssertEqual(command("refresh", [:]).observationAllowanceSeconds, 0)
-        XCTAssertEqual(command("frame", [:]).observationAllowanceSeconds, 0)
         XCTAssertEqual(command("refresh", [:]).watchdogWindowAllowanceSeconds, 45)
     }
 

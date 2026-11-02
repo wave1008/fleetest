@@ -15,15 +15,6 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
         XCTAssertNil(command.scale, "型違いの値をなだれ込ませない")
     }
 
-    /// **整数の欄も検査する** —— 変異チェックで `intField` のエラー設定を消しても落ちなかった
-    /// (double / string の欄しか見ていなかった)。実地で来る形は `{"cmd":"tap","ref":"abc"}`
-    func testQuotedIntegerIsRejectedWithATypedMessage() {
-        let command = ApiLiveServeCommand(cmd: "tap", raw: ["cmd": "tap", "ref": "abc"])
-        guard let detail = command.decodeError else { return XCTFail("型違いは decodeError に載せる") }
-        XCTAssertTrue(detail.contains("ref must be an integer"), detail)
-        XCTAssertNil(command.ref, "型違いの値をなだれ込ませない")
-    }
-
     func testNumberInAStringFieldIsRejectedWithATypedMessage() {
         let command = ApiLiveServeCommand(cmd: "type", raw: ["cmd": "type", "text": 123])
         guard let detail = command.decodeError else { return XCTFail("型違いは decodeError に載せる") }
@@ -41,18 +32,18 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
     }
 
     /// **JSON の true は NSNumber(CFBoolean)で来て `as? Int` / `as? Double` を 1 として通る**(負荷テストで
-    /// `{"cmd":"type","ref":true}` が ref 1 としてドライバまで届いた)。実入力と同じく JSONSerialization で読む
+    /// 真偽値が数値としてドライバまで届いた)。実入力と同じく JSONSerialization で読む
     /// (Swift の `true` リテラルは CFBoolean にならないので、辞書リテラルでは再現しない)
     private func parsed(_ json: String) throws -> ApiLiveServeCommand {
         let raw = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
         return ApiLiveServeCommand(cmd: try XCTUnwrap(raw["cmd"] as? String), raw: raw)
     }
 
-    func testJSONBooleanIsRejectedForAnIntegerField() throws {
-        let command = try parsed(#"{"cmd":"type","text":"a","ref":true}"#)
-        guard let detail = command.decodeError else { return XCTFail("true を ref 1 として通さない") }
-        XCTAssertTrue(detail.contains("ref must be an integer (got the boolean true)"), detail)
-        XCTAssertNil(command.ref)
+    func testJSONBooleanIsRejectedForACoordinate() throws {
+        let command = try parsed(#"{"cmd":"tap","x":true,"y":1}"#)
+        guard let detail = command.decodeError else { return XCTFail("true を x 1 として通さない") }
+        XCTAssertTrue(detail.contains("x must be a number (got the boolean true)"), detail)
+        XCTAssertNil(command.x)
     }
 
     func testJSONBooleanIsRejectedForANumberField() throws {
@@ -77,9 +68,9 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
 
     /// NUL は入口で断る(MCP と同じ文言。外部コマンドへ流れると Process が abort する)
     func testNULInAStringFieldIsRejected() throws {
-        let command = try parsed(#"{"cmd":"launch","bundle":"com.x\u0000y"}"#)
-        XCTAssertEqual(command.decodeError, "bundle must not contain a NUL character (\\u0000)")
-        XCTAssertNil(command.bundle)
+        let command = try parsed(#"{"cmd":"type","text":"a\u0000b"}"#)
+        XCTAssertEqual(command.decodeError, "text must not contain a NUL character (\\u0000)")
+        XCTAssertNil(command.text)
     }
 
     /// 配列の欄の型違いに「JSON の文字列を渡せ」と言わない
@@ -91,10 +82,10 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
 
     func testCorrectTypesParseCleanlyWithNoDecodeError() {
         let command = ApiLiveServeCommand(
-            cmd: "pinch", raw: ["cmd": "pinch", "scale": 2.5, "ref": 7])
+            cmd: "pinch", raw: ["cmd": "pinch", "scale": 2.5, "duration": 0.7])
         XCTAssertNil(command.decodeError)
         XCTAssertEqual(command.scale, 2.5)
-        XCTAssertEqual(command.ref, 7)
+        XCTAssertEqual(command.duration, 0.7)
     }
 
     /// JSON の整数値({"scale":2}、小数点なし)も number として通す(NSNumber は Int/Double の
@@ -108,7 +99,7 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
     func testAbsentFieldsStayNilWithoutAnError() {
         let command = ApiLiveServeCommand(cmd: "refresh", raw: ["cmd": "refresh"])
         XCTAssertNil(command.decodeError)
-        XCTAssertNil(command.ref)
-        XCTAssertNil(command.bundle)
+        XCTAssertNil(command.x)
+        XCTAssertNil(command.text)
     }
 }

@@ -27,9 +27,8 @@ enum LiveOperationDSL {
 
     // MARK: 行
 
-    /// 撃ったコマンドの DSL の1行(行末コメントつき)。組めない(観測だけ・DSL に対応する行が無い・
-    /// ref が直近の観測に無い)ときは nil。
-    /// - snapshot: 利用者が見ていた直近の観測の木(ref の解決用。操作の**前**のもの)
+    /// 撃ったコマンドの DSL の1行(行末コメントつき)。組めない(観測だけ・DSL に対応する行が無い)ときは nil。
+    /// - snapshot: 利用者が見ていた直近の観測の木(座標の写し先の解決用。操作の**前**のもの)
     static func line(for command: ApiLiveServeCommand, platform: String?,
                      snapshot: SnapshotResponse?, screen: FTRect?) -> String? {
         rendered(for: command, platform: platform, snapshot: snapshot, screen: screen)?.line
@@ -55,9 +54,6 @@ enum LiveOperationDSL {
                      snapshot: SnapshotResponse?, screen: FTRect?) -> FlowStep? {
         switch command.cmd {
         case "tap":
-            if let ref = command.ref {
-                return refStep(action: "tap", ref: ref, snapshot: snapshot)
-            }
             guard let x = command.x, let y = command.y else { return nil }
             return pointStep(action: "tap", x: x, y: y, snapshot: snapshot)
         case "press":
@@ -67,31 +63,11 @@ enum LiveOperationDSL {
             step.maxGestureSeconds = command.maxGestureSeconds
             return step
         case "doubleTap":
-            if let ref = command.ref {
-                return refStep(action: "doubleTap", ref: ref, snapshot: snapshot)
-            }
             guard let x = command.x, let y = command.y else { return nil }
             return pointStep(action: "doubleTap", x: x, y: y, snapshot: snapshot)
         case "type":
             guard let text = command.text else { return nil }
-            var step = FlowStep(action: "type", text: text)
-            // ref を叩いてから打つ操作なので、書けるセレクタがあれば付ける(無ければフォーカス任せの行)
-            if let ref = command.ref, let named = named(ref: ref, snapshot: snapshot) {
-                step.locator = named.locator
-                step.note = named.note
-            }
-            return step
-        case "clear":
-            var step = FlowStep(action: "clearInput")
-            if let ref = command.ref, let named = named(ref: ref, snapshot: snapshot) {
-                step.locator = named.locator
-                step.note = named.note
-            }
-            return step
-        case "hideKeyboard": return FlowStep(action: "hideKeyboard")
-        case "swipe":
-            guard let raw = command.direction, FTSwipeDirection(rawValue: raw) != nil else { return nil }
-            return FlowStep(action: "swipe", direction: raw)
+            return FlowStep(action: "type", text: text)
         case "drag":
             return dragStep(command, platform: platform, screen: screen)
         case "gesture":
@@ -110,24 +86,14 @@ enum LiveOperationDSL {
             // 既定の所要時間は書かない(DSL の pinchStep と同じ判定)
             step.duration = duration == FlowStep.defaultPinchDurationSeconds ? nil : seconds(duration)
             step.maxGestureSeconds = command.maxGestureSeconds
-            if let ref = command.ref {
-                // 対象を名指しした操作を、全画面のピンチの行に化けさせない
-                guard let named = named(ref: ref, snapshot: snapshot) else { return nil }
-                step.locator = named.locator
-                step.note = named.note
-            }
             return step
         case "home": return FlowStep(action: "home")
-        case "back": return FlowStep(action: "back")
         case "appSwitcher": return FlowStep(action: "appSwitcher")
-        case "terminate": return FlowStep(action: "terminate")
         case "fold":
             guard command.state == "fold" || command.state == "unfold" else { return nil }
             return FlowStep(action: command.state)
         default:
-            // refresh / frame = 観測だけ。launch / activate / install は ScenarioCodeGen に対応する行が無い
-            // (launchApp は下書きでは condition に固定で出す形)。clearAppData は対象のアプリが撃つときに
-            // 決まる(resolveBundleForClearAppData)ので、撃つ前には行を組めない
+            // refresh = 観測だけ
             return nil
         }
     }
@@ -149,28 +115,6 @@ enum LiveOperationDSL {
     private static func coordinateStep(action: String, x: Double, y: Double) -> FlowStep {
         var step = FlowStep(action: action, x: point(x), y: point(y))
         step.note = DraftNotes.coordinates
-        return step
-    }
-
-    /// 直近の観測の木で ref の要素を引き、`SelectorNaming` で書けるセレクタを返す
-    private static func named(ref: Int, snapshot: SnapshotResponse?)
-        -> (locator: FlowLocator, note: String?)? {
-        guard let snapshot, let element = snapshot.elements.first(where: { $0.ref == ref }),
-              let graded = SelectorNaming(snapshot).graded(for: element, in: snapshot) else { return nil }
-        return (FTSelector.parse(graded.selector).primary, DraftNotes.selectorDurability(graded.durability))
-    }
-
-    /// ref で撃つ tap / doubleTap: セレクタが書ければそれ、無ければ要素の中心の座標(+ 座標の但し書き)。
-    /// ref が直近の観測に無ければ nil(撃った先を言えない)
-    private static func refStep(action: String, ref: Int, snapshot: SnapshotResponse?) -> FlowStep? {
-        guard let snapshot, let element = snapshot.elements.first(where: { $0.ref == ref }) else { return nil }
-        var step: FlowStep
-        if let named = named(ref: ref, snapshot: snapshot) {
-            step = FlowStep(action: action, locator: named.locator)
-            step.note = named.note
-        } else {
-            step = coordinateStep(action: action, x: element.frame.centerX, y: element.frame.centerY)
-        }
         return step
     }
 

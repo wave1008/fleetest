@@ -56,15 +56,14 @@ final class LiveDeviceLeaseTests: XCTestCase {
     }
 
     /// 観測だけのコマンドは操作に数えない(MCP への警告の根拠になるので、取り違えると見ているだけで警告が戻る)
-    func testOnlyRefreshAndFrameAreObservationOnly() {
+    func testOnlyRefreshIsObservationOnly() {
         func command(_ cmd: String, raw: [String: Any] = [:]) -> ApiLiveServeCommand {
             ApiLiveServeCommand(cmd: cmd, raw: raw.merging(["cmd": cmd]) { a, _ in a })
         }
         XCTAssertFalse(command("refresh").drivesDevice)
-        XCTAssertFalse(command("frame").drivesDevice)
         XCTAssertTrue(command("tap").drivesDevice)
-        XCTAssertTrue(command("launch").drivesDevice)
-        XCTAssertFalse(command("tap", raw: ["ref": "abc"]).drivesDevice,
+        XCTAssertTrue(command("home").drivesDevice)
+        XCTAssertFalse(command("tap", raw: ["x": "abc"]).drivesDevice,
                        "型違いの行は perform を撃たない")
     }
 }

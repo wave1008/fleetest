@@ -64,7 +64,7 @@ final class LiveWatchdogProgressScanTests: XCTestCase {
     func testEveryObservationStepRestartsTheWindowFirst() throws {
         let lines = try Self.codeLines()
         var checked = 0
-        for name in ["emitObservation", "emitFrame", "snapshotWithSessionFallback"] {
+        for name in ["emitObservation", "snapshotWithSessionFallback"] {
             let body = try Self.body(of: name, in: lines)
             for (i, line) in body.enumerated()
             where line.contains("await driver.") || line.contains("await annotated(") {
@@ -75,7 +75,7 @@ final class LiveWatchdogProgressScanTests: XCTestCase {
                 checked += 1
             }
         }
-        // 走査が段に届いていること(screenshot 2・snapshot 2・launch 1・annotated 2)
-        XCTAssertEqual(checked, 7)
+        // 走査が段に届いていること(screenshot 1・snapshot 2・launch 1・annotated 1)
+        XCTAssertEqual(checked, 5)
     }
 }

@@ -6,7 +6,7 @@ import FTCore
 /// (serve は1プロセスが1台を見続けるので、直前の1記録だけで足りる)。判定そのもの
 /// (画像ハッシュ×木指紋)は Tests/FTCoreTests/StaleFrameDetectorTests.swift が固定するので、
 /// ここでは「記録を1つ保持し、呼ぶたびに更新すること」「stale のときだけ注記を1件返すこと」を
-/// 確かめる。emitObservation/emitFrame からの配線は ApiLiveStaleFrameWiringTests が縛る。
+/// 確かめる。emitObservation からの配線は ApiLiveStaleFrameWiringTests が縛る。
 final class LiveStaleFrameTrackerTests: XCTestCase {
     private func element(label: String) -> ElementInfo {
         ElementInfo(ref: 1, type: "staticText", identifier: nil, label: label, value: nil,

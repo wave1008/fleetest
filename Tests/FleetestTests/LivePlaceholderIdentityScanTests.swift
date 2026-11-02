@@ -13,7 +13,7 @@ final class LivePlaceholderIdentityScanTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    /// `return (placeholder, …)` の4つ目(期待ブリッジ)が nil でないこと
+    /// `return (placeholder, …)` の3つ目(期待ブリッジ)が nil でないこと
     func testPlaceholderReturnCarriesAnExpectedBridge() throws {
         let text = try source()
         let pattern = #"return \(placeholder,[^)]*\)"#
@@ -24,7 +24,7 @@ final class LivePlaceholderIdentityScanTests: XCTestCase {
             let tuple = String(text[Range(match.range, in: text)!])
             let fields = tuple.dropFirst("return (".count).dropLast().split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
-            XCTAssertEqual(fields.count, 4, "想定外の形: \(tuple)")
+            XCTAssertEqual(fields.count, 3, "想定外の形: \(tuple)")
             XCTAssertNotEqual(fields.last, "nil", """
                 placeholder の期待ブリッジが nil — run() の毎コマンドの本人確認が飛び、自動起動を待つ間に \
                 同じポートへ立った別のデバイスのブリッジへ操作が届く: \(tuple)

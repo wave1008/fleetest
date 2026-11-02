@@ -15,13 +15,13 @@ final class LiveOperationDSLTests: XCTestCase {
                     enabled: true, frame: FTRect(x: 100, y: 200, width: 40, height: 20), depth: depth)
     }
 
-    /// ref 1 = `#login`(安定したセレクタが書ける)
+    /// `#login`(安定したセレクタが書ける)。枠は (100, 200, 40, 20)
     private var namedTree: SnapshotResponse {
         SnapshotResponse(sessionBundleID: "com.example.app", screen: screen,
                          elements: [element(1, id: "login")], truncatedCount: 0)
     }
 
-    /// ref 1 = id もラベルも無い唯一の要素(書けるセレクタが無い → 要素中心の座標になる)
+    /// id もラベルも無い唯一の要素(書けるセレクタが無い → 座標の行のまま)
     private var anonymousTree: SnapshotResponse {
         SnapshotResponse(sessionBundleID: "com.example.app", screen: screen,
                          elements: [element(1, id: nil)], truncatedCount: 0)
@@ -36,25 +36,11 @@ final class LiveOperationDSLTests: XCTestCase {
 
     // MARK: tap / press / doubleTap / type
 
-    func testTapByRefWritesTheSelectorWhenOneExists() {
-        XCTAssertEqual(dsl(["cmd": "tap", "ref": 1]), "tap(\"#login\")")
-    }
-
-    func testTapByRefFallsBackToTheElementCentreWithTheCoordinateNote() {
-        XCTAssertEqual(dsl(["cmd": "tap", "ref": 1], tree: anonymousTree), "tap(x: 120, y: 210)" + coordinateNote)
-    }
-
-    func testTapByRefThatIsNotInTheTreeIsNil() {
-        XCTAssertNil(dsl(["cmd": "tap", "ref": 99]))
-        XCTAssertNil(LiveOperationDSL.line(for: ApiLiveServeCommand(cmd: "tap", raw: ["cmd": "tap", "ref": 1]),
-                                           platform: "ios", snapshot: nil, screen: nil))
-    }
-
     func testTapByCoordinateRoundsToOneDecimalAndCarriesTheNote() {
         XCTAssertEqual(dsl(["cmd": "tap", "x": 12.34, "y": 56.78]), "tap(x: 12.3, y: 56.8)" + coordinateNote)
     }
 
-    /// 画面のクリックは座標で届く(拡張は ref を送らない)。押した点に書けるセレクタの要素があればその行
+    /// 画面のクリックは座標で届く。押した点に書けるセレクタの要素があればその行
     /// (`#login` の枠は (100, 200, 40, 20))。枠の外は座標の行のまま
     func testCoordinateTapOnANamedElementBecomesItsSelector() {
         XCTAssertEqual(dsl(["cmd": "tap", "x": 110, "y": 205]), "tap(\"#login\")")
@@ -94,17 +80,12 @@ final class LiveOperationDSLTests: XCTestCase {
     }
 
     func testDoubleTap() {
-        XCTAssertEqual(dsl(["cmd": "doubleTap", "ref": 1]), "doubleTap(\"#login\")")
-        XCTAssertEqual(dsl(["cmd": "doubleTap", "ref": 1], tree: anonymousTree),
-                       "doubleTap(x: 120, y: 210)" + coordinateNote)
         XCTAssertEqual(dsl(["cmd": "doubleTap", "x": 1, "y": 2]), "doubleTap(x: 1, y: 2)" + coordinateNote)
-        XCTAssertNil(dsl(["cmd": "doubleTap", "ref": 99]))
     }
 
-    func testTypeHasNoLocatorUnlessTheRefHasASelector() {
+    /// 入力先はフォーカス中の欄なので、対象を名指ししない行
+    func testTypeIsTheFocusedFieldForm() {
         XCTAssertEqual(dsl(["cmd": "type", "text": "hello"]), "type(\"hello\")")
-        XCTAssertEqual(dsl(["cmd": "type", "text": "hello", "ref": 1]), "type(\"#login\", \"hello\")")
-        XCTAssertEqual(dsl(["cmd": "type", "text": "hello", "ref": 1], tree: anonymousTree), "type(\"hello\")")
     }
 
     // MARK: drag(押してからの静止が長押し判定時間に届くか)
@@ -174,14 +155,11 @@ final class LiveOperationDSLTests: XCTestCase {
         XCTAssertEqual(dsl(["cmd": "pinch", "scale": 0.5]), "pinchIn()")
         XCTAssertEqual(dsl(["cmd": "pinch", "scale": 3.0, "duration": 0.8]), "pinchOut(scale: 3, durationSeconds: 0.8)")
         XCTAssertEqual(dsl(["cmd": "pinch", "scale": 0.25, "duration": 0.5]), "pinchIn(scale: 0.25)")
-        XCTAssertEqual(dsl(["cmd": "pinch", "scale": 2.0, "ref": 1]), "pinchOut(\"#login\")")
-        XCTAssertNil(dsl(["cmd": "pinch", "scale": 2.0, "ref": 99]), "名指しした対象を全画面のピンチに化けさせない")
     }
 
     func testNavigationAndFold() {
         XCTAssertEqual(dsl(["cmd": "home"]), "home()")
         XCTAssertEqual(dsl(["cmd": "appSwitcher"]), "appSwitcher()")
-        XCTAssertEqual(dsl(["cmd": "back"]), "back()")
         XCTAssertEqual(dsl(["cmd": "fold", "state": "fold"]), "fold()")
         XCTAssertEqual(dsl(["cmd": "fold", "state": "unfold"]), "unfold()")
         XCTAssertNil(dsl(["cmd": "fold", "state": "half"]))
@@ -189,35 +167,27 @@ final class LiveOperationDSLTests: XCTestCase {
 
     func testObservationOnlyCommandsAreNil() {
         XCTAssertNil(dsl(["cmd": "refresh"]))
-        XCTAssertNil(dsl(["cmd": "frame"]))
     }
 
     // MARK: serve が受けるコマンド種別の全数
 
-    /// 変換を書き忘れたコマンド種別を落とす。`perform` の `case "…":` の全数(+ handle が先に捌く refresh / frame)が
+    /// 変換を書き忘れたコマンド種別を落とす。`perform` の `case "…":` の全数(+ handle が先に捌く refresh)が
     /// 「行を持つ表」か「行を持たないと決めた表」のどちらかに載っていること。コマンドを足したらどちらかへ入れる
     /// (行を持たせるなら `LiveOperationDSL.step(for:)` に写像を足し、`minimalRaw` に最小の入力を足す)
     private static let commandsWithoutALine: Set<String> = [
-        "refresh", "frame",                                  // 観測だけ
-        "launch", "activate", "install",                     // ScenarioCodeGen に対応する行が無い
-        "clearAppData",                                      // 対象のアプリが撃つときに決まる
+        "refresh",                                           // 観測だけ
     ]
 
     private static var minimalRaw: [String: [String: Any]] { [
-        "tap": ["ref": 1],
+        "tap": ["x": 1, "y": 2],
         "type": ["text": "hello"],
-        "clear": [:],
-        "hideKeyboard": [:],
-        "swipe": ["direction": "up"],
         "drag": ["fromX": 1, "fromY": 2, "toX": 3, "toY": 4],
-        "doubleTap": ["ref": 1],
+        "doubleTap": ["x": 1, "y": 2],
         "pinch": ["scale": 2.0],
         "press": ["x": 1, "y": 2, "duration": 1.0],
         "gesture": ["fingers": [["points": [["x": 1, "y": 2, "t": 0], ["x": 5, "y": 6, "t": 0.5]]]]],
-        "back": [:],
         "home": [:],
         "appSwitcher": [:],
-        "terminate": [:],
         "fold": ["state": "fold"],
     ] }
 
@@ -238,8 +208,8 @@ final class LiveOperationDSLTests: XCTestCase {
     }
 
     func testEveryServeCommandKindEitherHasALineOrIsListedAsHavingNone() throws {
-        let known = try performCases().union(["refresh", "frame"])
-        XCTAssertGreaterThan(known.count, 15, "走査が perform の case を拾えていない")
+        let known = try performCases().union(["refresh"])
+        XCTAssertGreaterThan(known.count, 9, "走査が perform の case を拾えていない")
         let withLine = Set(Self.minimalRaw.keys)
         XCTAssertEqual(known, withLine.union(Self.commandsWithoutALine),
                        "コマンド種別の全数と、行を持つ表・持たない表の和が食い違う。"

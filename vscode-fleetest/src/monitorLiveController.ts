@@ -544,9 +544,7 @@ export class MonitorLiveController implements vscode.Disposable {
 
   /** 直前のデバイスのスナップショット(画面サイズ・要素一覧)を捨てる。デバイスを切り替えた
    * のに残っていると、**タップ座標が前のデバイスの画面サイズで換算され**(px の Android →
-   * pt の iOS で特に大きく外れる)、要素一覧の行タップは**新しいデバイスの木の同じ番号**を
-   * 叩く(ref はスナップショットごとの採番なので、別の要素に当たっても誰も気付けない)。
-   * webview 側も同時に捨てさせ、次のフレームで撮り直しを要求させる(clearSnapshot の doc)。 */
+   * pt の iOS で特に大きく外れる)。webview 側も同時に捨てさせ、次のフレームで撮り直しを要求させる(clearSnapshot の doc)。 */
   private clearSnapshotCache(): void {
     this.lastScreen = undefined;
     this.lastElements = [];

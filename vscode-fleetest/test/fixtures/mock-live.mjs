@@ -18,7 +18,7 @@
 //       refresh 以外は {"kind":"actionResult","ok":..,"error":..} → 続けて
 //       {"kind":"snapshot","ok":..,...} の2行、refresh は snapshot の1行だけ。
 //     コマンドに --fail(真偽ではなくコマンド自体のフィールドとして扱う)を模すため、
-//     このモックでは特別な入力値で失敗を再現する: tap の ref が 999 なら actionResult を
+//     このモックでは特別な入力値で失敗を再現する: tap の x が 999 なら actionResult を
 //     ok:false にする。--fail-all を付けて起動すると、以降の全操作(refresh 含む)の
 //     snapshot をずっと ok:false にする(常駐プロセスが壊れているケースの再現用)。
 //     stdin の EOF で exit 0 になる(実物と同じ)。
@@ -124,8 +124,8 @@ if (command === "list-devices") {
       emitSnapshot();
       return;
     }
-    // tap --ref 999 を「実行時の失敗」の再現用に予約する(実物の ok:false ケースの模擬)。
-    const failed = failAll || (cmd === "tap" && value.ref === 999);
+    // tap の x = 999 を「実行時の失敗」の再現用に予約する(実物の ok:false ケースの模擬)。
+    const failed = failAll || (cmd === "tap" && value.x === 999);
     emitStdout({
       kind: "actionResult",
       ok: !failed,

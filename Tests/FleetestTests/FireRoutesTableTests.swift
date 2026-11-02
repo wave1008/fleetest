@@ -37,9 +37,8 @@ final class FireRoutesTableTests: XCTestCase {
         .dsl: [.tapRef, .longPressRef, .typeRef, .clearRef, .dragRef, .doubleTapRef, .pinchRef,
                .tapCoord, .longPressCoord, .doubleTapCoord, .dragCoord, .typeRefLess, .clearRefLess, .pressEnter],
         .mcp: Op.allCases,
-        .cli: [.tapRef, .longPressRef, .typeRef, .tapCoord, .typeRefLess],
-        .live: [.tapRef, .typeRef, .clearRef, .doubleTapRef, .pinchRef,
-                .tapCoord, .longPressCoord, .doubleTapCoord, .dragCoord, .typeRefLess, .clearRefLess],
+        .cli: [.tapCoord, .longPressCoord, .typeRefLess],
+        .live: [.tapCoord, .longPressCoord, .doubleTapCoord, .dragCoord, .typeRefLess],
     ]
 
     static func applies(_ check: Check, to op: Op) -> Bool {
@@ -162,41 +161,15 @@ final class FireRoutesTableTests: XCTestCase {
             .pressEnter: [.frontApp: .scan(["MCPSharedGuardParityTests.testPreFireGuardTableHasNoEmptyCell"])],
         ],
         .cli: [
-            .tapRef: [.refIdentity: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                      .keyboard: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                      .covering: .exempt(runnerRefusesBackground), .frontApp: .exempt(cliNoSession),
-                      .bottomBand: .scan(["RefFireGateWiringTests.testRefTapAndPressClearTheBottomGestureBand"])],
-            .longPressRef: [.refIdentity: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                            .keyboard: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                            .covering: .exempt(runnerRefusesBackground), .frontApp: .exempt(cliNoSession),
-                            .bottomBand: .scan(["RefFireGateWiringTests.testRefTapAndPressClearTheBottomGestureBand"])],
-            .typeRef: [.refIdentity: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                       .keyboard: .scan(["RefFireGateWiringTests.testEveryRefFiringCommandPassesTheGateBeforeFiring"]),
-                       .covering: .exempt(runnerRefusesBackground), .frontApp: .exempt(cliNoSession)],
-            .tapCoord: [.onScreen: .pending("isPointOnScreen を通るが CLI の経路を縛るテストが無い"),
-                        .keyboard: .pure(["CoordinateGuardsTests.testKeyboardFrameContainingPoint"]),
+            .tapCoord: [.onScreen: .scan(["ManualDriveWiringTests.testEveryCoordinateFiringCommandPassesTheGateBeforeFiring"]),
+                        .keyboard: .scan(["ManualDriveWiringTests.testEveryCoordinateFiringCommandPassesTheGateBeforeFiring"]),
                         .covering: .exempt(runnerRefusesBackground), .frontApp: .exempt(cliNoSession)],
+            .longPressCoord: [.onScreen: .scan(["ManualDriveWiringTests.testEveryCoordinateFiringCommandPassesTheGateBeforeFiring"]),
+                              .keyboard: .scan(["ManualDriveWiringTests.testEveryCoordinateFiringCommandPassesTheGateBeforeFiring"]),
+                              .covering: .exempt(runnerRefusesBackground), .frontApp: .exempt(cliNoSession)],
             .typeRefLess: [.frontApp: .exempt(cliNoSession)],
         ],
         .live: [
-            .tapRef: [.refIdentity: .scan(["LiveRefAndDragGuardWiringTests.testRefOperationsCheckWhatTheUserSaw",
-                                           "LiveRefAndDragGuardWiringTests.testBottomBandTapChecksWhatTheUserSawBeforeFoldingToCoordinates"]),
-                      .keyboard: .scan(["FireEntryPathTableTests.testLiveRefFiringCasesPassRequireFireable"]),
-                      .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows),
-                      .bottomBand: .scan(["ApiLiveBottomGestureBandWiringTests.testRefTapAndDoubleTapClearTheBottomGestureBand"])],
-            .typeRef: [.refIdentity: .scan(["LiveRefAndDragGuardWiringTests.testRefOperationsCheckWhatTheUserSaw"]),
-                       .keyboard: .scan(["FireEntryPathTableTests.testLiveRefFiringCasesPassRequireFireable"]),
-                       .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows)],
-            .clearRef: [.refIdentity: .scan(["LiveRefAndDragGuardWiringTests.testRefOperationsCheckWhatTheUserSaw"]),
-                        .keyboard: .scan(["FireEntryPathTableTests.testLiveRefFiringCasesPassRequireFireable"]),
-                        .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows)],
-            .doubleTapRef: [.refIdentity: .scan(["LiveRefAndDragGuardWiringTests.testRefOperationsCheckWhatTheUserSaw"]),
-                            .keyboard: .scan(["FireEntryPathTableTests.testLiveRefFiringCasesPassRequireFireable"]),
-                            .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows),
-                            .bottomBand: .scan(["ApiLiveBottomGestureBandWiringTests.testRefTapAndDoubleTapClearTheBottomGestureBand"])],
-            .pinchRef: [.refIdentity: .scan(["LiveRefAndDragGuardWiringTests.testRefOperationsCheckWhatTheUserSaw"]),
-                        .keyboard: .scan(["FireEntryPathTableTests.testLiveRefFiringCasesPassRequireFireable"]),
-                        .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows)],
             .tapCoord: [.onScreen: .scan(["ApiLiveCoordinateOnScreenGuardTests.testTapCoordinateFormGoesThroughTheGuardBeforeTouchingTheDriver"]),
                         .keyboard: .exempt(liveHumanCoord), .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows)],
             .longPressCoord: [.onScreen: .scan(["ApiLiveCoordinateOnScreenGuardTests.testPressCoordinateFormGoesThroughTheGuardBeforeTouchingTheDriver"]),
@@ -206,12 +179,11 @@ final class FireRoutesTableTests: XCTestCase {
             .dragCoord: [.onScreen: .scan(["ApiLiveCoordinateOnScreenGuardTests.testDragChecksBothEndpointsBeforeTouchingTheDriver"]),
                          .keyboard: .exempt(liveHumanCoord), .covering: .exempt(liveFollows), .frontApp: .exempt(liveFollows)],
             .typeRefLess: [.frontApp: .exempt(liveFollows)],
-            .clearRefLess: [.frontApp: .exempt(liveFollows)],
         ],
     ]
 
     /// 未対応(確かめるテストが無いマス)の数。**直したら下げる・増やすなら理由を書いて上げる**
-    static let pendingCount = 10
+    static let pendingCount = 9
 
     // MARK: - テスト
 

@@ -1,7 +1,7 @@
 // CLI(Sources/fleetest)から任意の bundle ID で launch / activate を撃つ経路は、
 // 撃つ前に `InstalledAppCheck.launchGuard` の門を通すこと。未インストールのまま
 // `XCUIApplication.launch()` を撃つと XCUITest ランナーが約60秒ハングして自壊する ——
-// MCP(ft_launch)とライブ操作には門があったのに `fleetest launch` だけ素通しで、
+// MCP(ft_launch)には門があったのに `fleetest launch` だけ素通しで、
 // 実地でランナーを落とした。シナリオ実行の経路は
 // `LaunchPreflightDriver` が守るのでここでは見ない。
 //
@@ -25,9 +25,6 @@ final class LaunchInstallGateScanTests: XCTestCase {
             "springboard は常に在る(launchGuard も素通しにする)",
         "LiveSessionFollower.swift: try await driver.launch(bundleID: target)":
             "今まさに前面にあるアプリへ向け直すだけ(入っていることが観測で確定している)",
-        "LiveSessionFollower.swift: try await driver.activate(bundleID: bundleID)":
-            "pointAtApp。呼び手が門を通す(clearAppData = testLiveClearAppDataChecksBeforePointing・"
-            + "terminate = 駆動中のアプリなので入っている)",
     ]
 
     func testEveryLaunchOrActivateFromTheCLIGoesThroughTheInstallGate() throws {
@@ -64,19 +61,5 @@ final class LaunchInstallGateScanTests: XCTestCase {
         let gate = try XCTUnwrap(text.range(of: "try await Self.refuseIfNotInstalled(bundleID: bundleID"))
         let launch = try XCTUnwrap(text.range(of: "try await driver.launch(bundleID: bundleID)"))
         XCTAssertLessThan(gate.lowerBound, launch.lowerBound)
-    }
-
-    /// ライブ操作の clearAppData は名指しの bundle へセッションを寄せる(= activate)ので、
-    /// **寄せる前に** launch と同じ門を通すこと(未インストールの bundle でランナーが落ちた)
-    func testLiveClearAppDataChecksBeforePointing() throws {
-        let text = try String(contentsOf: Self.sourcesDir.appendingPathComponent("ApiLiveCommand.swift"),
-                              encoding: .utf8)
-        let caseStart = try XCTUnwrap(text.range(of: "case \"clearAppData\":"))
-        let caseEnd = try XCTUnwrap(text.range(of: "case \"install\":", range: caseStart.upperBound..<text.endIndex))
-        let body = text[caseStart.upperBound..<caseEnd.lowerBound]
-        let gate = try XCTUnwrap(body.range(of: "try await launchGuard(bundle: bundle"),
-                                 "clearAppData が門を通していない")
-        let point = try XCTUnwrap(body.range(of: "pointAtApp(bundle"))
-        XCTAssertLessThan(gate.lowerBound, point.lowerBound, "門は pointAtApp(activate)より前に撃つこと")
     }
 }

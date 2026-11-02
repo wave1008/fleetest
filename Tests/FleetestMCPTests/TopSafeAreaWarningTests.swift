@@ -1,4 +1,4 @@
-// 画面上端の安全領域の帯(OI-1)の MCP 側の文言と DSL 共有(RefFireCheck)の経路。判定は TopSafeAreaAdvisoryTests。
+// 画面上端の安全領域の帯(OI-1)の MCP 側の文言。判定は TopSafeAreaAdvisoryTests。
 
 import XCTest
 import FTCore
@@ -40,12 +40,4 @@ final class TopSafeAreaWarningTests: XCTestCase {
         XCTAssertFalse(text.contains("safe-area band"), text)
     }
 
-    /// DSL・CLI 共有の入口(RefFireCheck)も同じ事実を助言として運ぶ。断りにはしない(警告のみ)
-    func testRefFireCheckCarriesTheBandAsAdvisoryNotRefusal() {
-        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [inBand()],
-                                        truncatedCount: 0, safeAreaTop: .measured(62))
-        let result = RefFireCheck.evaluate(inBand(), in: snapshot, isAndroid: false)
-        XCTAssertNil(result.refusal)
-        XCTAssertTrue(result.advisory?.contains("safe-area band") == true, result.advisory ?? "nil")
-    }
 }

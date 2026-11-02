@@ -70,7 +70,7 @@ final class LiveRunnerHealthTests: XCTestCase {
         XCTAssertTrue(body.contains("await runnerHealth.reset()"), "自動起動の後に控えを解除していない")
 
         guard let start = code.range(of: "private func emitObservation("),
-              let stop = code.range(of: "private func emitFrame(") else {
+              let stop = code.range(of: "private func followFrontmost(") else {
             return XCTFail("emitObservation が見当たらない")
         }
         XCTAssertTrue(String(code[start.upperBound..<stop.lowerBound]).contains("runnerHealth.takeNotes()"),

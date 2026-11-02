@@ -2,22 +2,16 @@
 // 1回だけ生成して使い回し(操作ごとのプロセス起動を避ける)、stdin から NDJSON でコマンドを
 // 1行ずつ受けて逐次処理する。
 //
-// snapshot/tap/type/swipe/launch/terminate/install はこの serve コマンドに統合されている。
-//
 // プロトコル(stdin → serve、1行1コマンドの NDJSON):
-//   {"cmd":"tap","ref":<Int>}                           snapshot の参照番号をタップ
+//   **ref では撃たない**(拡張は座標で撃つ。ref で撃つのは MCP だけ)。拡張が撃つ命令だけを持つ
 //   {"cmd":"tap","x":<Double>,"y":<Double>}             座標(pt)をタップ
-//   {"cmd":"type","text":<String>,"ref":<Int省略可>}     テキスト入力(ref省略時はフォーカス中の要素)
-//   {"cmd":"clear","ref":<Int省略可>}                    入力欄をクリア(ref省略時はフォーカス中の要素)
-//   {"cmd":"hideKeyboard"}                              フォーカス中の入力のソフトキーボードを閉じる
-//                                                        (**Android のみ**。iOS はブリッジへ送らずに断る = hideKeyboardRefusal)
-//   {"cmd":"swipe","direction":"up"|"down"|"left"|"right"}
+//   {"cmd":"type","text":<String>}                      フォーカス中の要素へテキスト入力
 //   {"cmd":"drag","fromX":..,"fromY":..,"toX":..,"toY":..,"press":<秒省略可>,"duration":<秒省略可>,
 //    "maxGestureSeconds":<秒省略可>}                    **斜めのパンはこれで撃つ**(両軸を動かす)
-//   {"cmd":"doubleTap","ref":<Int>} / {"cmd":"doubleTap","x":..,"y":..}
-//   {"cmd":"pinch","scale":<Double>,"ref":<Int省略可>,"duration":<秒省略可>,"maxGestureSeconds":<秒省略可>}
-//                                                       ref 省略 = 画面全体。scale>1 拡大 / <1 縮小
 //                                                        2点間ドラッグ(座標はpt。press=押下静止時間、duration=移動時間)
+//   {"cmd":"doubleTap","x":..,"y":..}
+//   {"cmd":"pinch","scale":<Double>,"duration":<秒省略可>,"maxGestureSeconds":<秒省略可>}
+//                                                       画面全体。scale>1 拡大 / <1 縮小
 //   {"cmd":"press","x":<Double>,"y":<Double>,"duration":<秒>,"maxGestureSeconds":<秒省略可>}  座標ロングプレス
 //                                                       press/drag/pinch の秒数は既定 10 秒が上限。
 //                                                       maxGestureSeconds でこの1回だけ最大60秒まで上げられる
@@ -27,26 +21,16 @@
 //                                                        1本のタッチとして再生する(GestureRequest と
 //                                                        同じワイヤ形。検査は FTCore.TouchGesture.validate
 //                                                        の1箇所。MCP の ft_gesture と共有)
-//   {"cmd":"launch","bundle":<String>}                  bundle ID / パッケージ名を起動
-//   {"cmd":"activate","bundle":<String>}               状態を保持したまま前面切替(未起動なら起動)
 //   {"cmd":"appSwitcher"}                               アプリスイッチャー(タスク一覧)を開く
 //   {"cmd":"home"}                                       ホーム画面に戻る
-//   {"cmd":"back"}                                       前の画面へ戻る
-//   {"cmd":"terminate"}                                 対象アプリを終了
-//   {"cmd":"clearAppData","bundle":<String省略可>}       アプリは残しデータだけ消す(省略時は現在の
-//                                                        セッションが指すアプリ。iOS はシミュレータ専用)
 //   {"cmd":"fold","state":"fold"|"unfold"}              折りたたみ機を閉じる/開く(FoldControl。iPhone Duo の
 //                                                        Simulator・折りたたみの Android Emulator だけ。実機は断る)
-//   {"cmd":"install","path":<String>}                   パッケージファイル(iOS: .app / Android: .apk/.apks)
-//                                                        からインストール
 //   {"cmd":"refresh"}                                   操作は行わず観測のみ
-//   {"cmd":"frame"}                                     スクリーンショットのみ取得(AXツリーは取らない)
 // 壊れた行(JSON でない、cmd が無い)は stderr に1行ログして無視する(他の常駐 api コマンドと同じ
 // 「安全側で無視する」方針)。**cmd は読めたが他の引数の型が違う行は無視しない** ——
 // 操作は行わず、その cmd が正常なときと同じ終端イベントで答える(無応答のまま拡張の
-// SERVE_REQUEST_TIMEOUT を待たせて serve ごと再起動させない): frame は
-// {"kind":"frame","ok":false,"error":"<引数> must be …"} の1行だけ(actionResult は出さない)。
-// それ以外は {"kind":"actionResult","ok":false,"error":"<引数> must be …"} に続けて観測イベント
+// SERVE_REQUEST_TIMEOUT を待たせて serve ごと再起動させない):
+// {"kind":"actionResult","ok":false,"error":"<引数> must be …"} に続けて観測イベント
 // (snapshot)を出す。
 //
 // イベント(serve → stdout、1行1JSON。診断は stderr のみ):
@@ -66,8 +50,6 @@
 //      "elements":null,"notes":[],"bridgeStarting":<Bool>,"capturedAtMs":null}
 //   を出す(操作後の追加waitは無し。ブリッジの操作応答=UI整定済みのため)。
 //   refresh はこの観測イベント1行だけを出す(actionResult は出さない)。
-//   frame は {"kind":"frame","ok":..,"error":..,"image":"<base64 JPEG>"|null,"bridgeStarting":<Bool>}
-//   の1行だけを出す(actionResult・snapshot は出さない。ライブ操作パネルの自動画面更新用)。
 //   拡張側は actionResult が ok:false のとき、続く snapshot イベントは画面へ反映しない
 //   (直前の表示を保持したままエラーを表示する)。
 //   app は**その操作を撃った先**(セッションの向き先)。ライブ操作はセッションを前面のものへ
@@ -77,9 +59,8 @@
 //   dsl: **必須(値は null 可)**。撃ったコマンドと同じ操作の Swift DSL の1行(行末コメントつき。
 //   `tap("#login")` / `tap(x: 120, y: 340)  // coordinates — …`)。拡張は操作記録の右列にそのまま出す。
 //   変換は LiveOperationDSL.swift の1箇所(MCP の下書きと同じ FlowStep → ScenarioCodeGen を通る)。
-//   ref も座標の写し先(`PointTarget`)も**撃つ前の**直近の観測の木で引く(失敗した操作でも撃つ前に組めた行は返す)。
-//   組めない(refresh/frame/launch/activate/clearAppData/install・ref が木に無い・型違いの行・
-//   本人確認で断った行)は null。
+//   座標の写し先(`PointTarget`)は**撃つ前の**直近の観測の木で引く(失敗した操作でも撃つ前に組めた行は返す)。
+//   組めない(refresh・型違いの行・本人確認で断った行)は null。
 //   dslSelector: **必須(値は null 可)**。dsl の行が対象に書いたセレクタ(`#MapsSearchTextField` 等)。拡張は操作の列に
 //   `("…")` で添える(dsl の行から切り出さない)。座標の行・対象を取らない行・dsl が null なら null。
 //   deliveryUnknown: **必須(actionResult だけ)**。操作が届いたか分からない失敗か(`DriverError.deliveryIsUnknown`)。拡張は true なら
@@ -109,7 +90,7 @@
 // run() の冒頭・udidStartupOutcome 参照)。見つかれば、DriverError.bridgeConnectionRefused を
 // tap 等の実行時・観測(emitObservation)時に検知すると LiveBridgeAutoStarter がブリッジを自動起動し、
 // 進行状況は全イベント共通の bridgeStarting フラグ(上記)で伝える(詳細は LiveBridgeAutoStarter.swift)。
-// 自動フレーム(emitFrame)は状況の反映のみで起動はトリガーしない。serve 起動時に /status の
+// serve 起動時に /status の
 // protocolVersion を確認し、旧ビルドのブリッジは自動で再起動する。
 // **resolve が返した宛先は udid で本人確認する**
 // (FTCore.BridgeIdentityCheck。実地: 別デバイスの生きたブリッジを掴んで操作を撃ち、版差を
@@ -140,9 +121,6 @@ struct ApiLiveServe: AsyncParsableCommand {
         abstract: "Stay resident for the live-control panel and process NDJSON commands from stdin"
             + " (see the protocol at the top of ApiLiveCommand.swift; diagnostics on stderr only)")
 
-    @Option(name: .customLong("max-width"), help: "Maximum size of the screenshot long edge in px (0 = original size; default 0; a negative value must be written --max-width=-1)")
-    var maxWidth: Int = 0
-
     @Option(help: "Simulator UDID used to auto-start the XCUITest bridge when the connection fails (iOS only; no auto-start when omitted)")
     var udid: String?
 
@@ -163,7 +141,7 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// `ResidentProcessGuard.startCommandWatchdog(maxSeconds:)` に渡す基準値[秒]。拡張側の
     /// SERVE_REQUEST_TIMEOUT_MS(20秒。vscode-fleetest/src/monitorLiveController.ts)より大きくする
     /// —— 通常は拡張の kill→respawn が先に効き、これは拡張が kill しない場合の最終安全弁。
-    /// コマンドが正当にこれより長く占有しうるとき(軌跡・press/drag/pinch・`Timeout.session` で撃つもの・clearAppData・install)は
+    /// コマンドが正当にこれより長く占有しうるとき(軌跡・press/drag/pinch・`Timeout.session` で撃つもの)は
     /// `ApiLiveServeCommand.watchdogAllowanceSeconds` ぶん延ばす。観測の各段(前面追従・screenshot・snapshot・
     /// springboard 退避)の手前では `ResidentProcessGuard.noteCommandProgress` で窓を張り直す(段の数を猶予へ足さない)
     static let commandWatchdogMaxSeconds: Double = 30
@@ -189,7 +167,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             }
         }
 
-        var (driver, port, ownAppBundleID, primaryBridge) = try await makeLiveDriver()
+        var (driver, port, primaryBridge) = try await makeLiveDriver()
         // var: 別のデバイスにポートを取られたとき、解決し直した新しいポートの起動器へ差し替える(下の .refuse)
         var starter = makeAutoStarter(port: port)
         // **本人確認(下)も follower と同じ値を使う**(独立に導出すると判定用と実際の駆動用が
@@ -252,7 +230,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             }
             let command = ApiLiveServeCommand(cmd: cmd, raw: object)
             // 軌跡・press/drag/pinch の duration は利用者が指定した時間どおりに再生する(縮めない)
-            // ので、その再生時間ぶん・launch/activate/install は内側の上限ぶん watchdog を延ばす
+            // ので、その再生時間ぶん・`Timeout.session` で撃つものは内側の上限ぶん watchdog を延ばす
             // (watchdogAllowanceSeconds 参照)
             ResidentProcessGuard.noteCommandStart(allowanceSeconds: command.watchdogWindowAllowanceSeconds)
             if command.drivesDevice {
@@ -282,7 +260,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                let moved = await moveToRunnerElsewhere(
                    port: elsewhere, udid: udid, physical: physical, repoRoot: repoRoot) {
                 logStderr("this device's runner answers on port \(elsewhere) — switching from port \(port)")
-                (driver, port, ownAppBundleID, primaryBridge) = moved
+                (driver, port, primaryBridge) = moved
                 starter = makeAutoStarter(port: port)
                 await runnerHealth.reset()
             }
@@ -294,14 +272,13 @@ struct ApiLiveServe: AsyncParsableCommand {
             // ref 体系・サポート操作が別)へ届く。primaryBridge(composeDriver が決める。
             // inapp-boost/xcuitest モードは "xcuitest"、in-app ブリッジ単独は "inapp")を期待値にするので、
             // in-app 単独の構成を xcuitest 期待で誤検知しない。
-            // **frame(自動更新)には掛けない**(継続的に飛ぶので絶え間ない probe になる。
-            // ライブ操作は人の操作1つに1回なのでコマンドごとの probe は許容できる)。
+            // ライブ操作は人の操作1つに1回なのでコマンドごとの probe は許容できる。
             // 判定は MCP(fleetest-mcp)と同じ `FTBridgeClient.HybridFallbackIdentity`
             // (`FTCore.BridgeIdentityCheck`)の1箇所。**不明は「変わった」に倒さない**
             // **`expectedBridge` という別名で unwrap する**(`if let primaryBridge` にすると、
             // ブロック内の `primaryBridge` が外側の `var`(4行下の代入対象)を隠して
             // 「let への代入」でコンパイルエラーになる)
-            if command.cmd != "frame", driverOptions.resolvedPlatform == "ios", let udid,
+            if driverOptions.resolvedPlatform == "ios", let udid,
                let expectedBridge = primaryBridge,
                let repoRoot = try? RepoRoot.find() {
                 let drift = await HybridFallbackIdentity.drifted(
@@ -321,7 +298,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                     if resolution.endpoint.port == port,
                        let rebuilt = try? await composeDriver(
                            resolution: resolution, physical: physical, repoRoot: repoRoot) {
-                        (driver, port, ownAppBundleID, primaryBridge) = rebuilt
+                        (driver, port, primaryBridge) = rebuilt
                         logStderr("port \(port) no longer matched \(udid) (expected the \(expectedBridge)"
                                   + " bridge) — rebuilt the driver")
                     } else {
@@ -342,7 +319,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                     var refusal = message
                     if let resolved = try? await makeLiveDriver(), resolved.1 != port {
                         refusal = Self.reroutedMessage(fromPort: port, toPort: resolved.1, expectedUDID: udid)
-                        (driver, port, ownAppBundleID, primaryBridge) = resolved
+                        (driver, port, primaryBridge) = resolved
                         starter = makeAutoStarter(port: port)
                         await runnerHealth.reset()
                     }
@@ -360,7 +337,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             }
             let commandStarted = Date()
             await handle(command: command, driver: driver, starter: starter, follower: follower,
-                        ownAppBundleID: ownAppBundleID, deviceLease: deviceLease, port: port,
+                        deviceLease: deviceLease, port: port,
                         staleFrameTracker: staleFrameTracker, screenMemo: screenMemo,
                         runnerHealth: runnerHealth)
             ResidentProcessGuard.noteCommandEnd()
@@ -381,9 +358,7 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// そのまま使う(MCP の ft_* と同じ構成。二つ目の実装を書かない)。
     ///
     /// in-app が居ない(指定ポートが XCUITest・Android)ときは単独で使う。
-    /// 戻り値のポートは以後の自動起動・再起動が同じ宛先を見るために返す。3つ目の戻り値は
-    /// inapp-boost モードのとき in-app が住んでいる own app の bundleID(launchGuard が own app への
-    /// launch/activate を素通しするのに使う。inapp-boost モードでなければ nil)
+    /// 戻り値のポートは以後の自動起動・再起動が同じ宛先を見るために返す
     ///
     /// **resolve が返した宛先は udid で本人確認する**(FTCore.BridgeIdentityCheck。実地 L1:
     /// 既定ポートに別デバイスの生きたブリッジが居るのを見逃し、操作を撃ち・版差を理由に止めて
@@ -401,9 +376,9 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// ブリッジの期待」が無い(Android はブリッジ種別の概念が無く、プレースホルダは
     /// 何も応答しない = 自動起動の成功を「switched the driver」が拾ってから初めて分かる)。
     /// run() の毎コマンド確認は nil のときは何もしない
-    private func makeLiveDriver() async throws -> (AppDriver, UInt16, String?, String?) {
+    private func makeLiveDriver() async throws -> (AppDriver, UInt16, String?) {
         guard driverOptions.resolvedPlatform == "ios" else {
-            return (try await driverOptions.makeDriver(), driverOptions.resolvedPort, nil, nil)
+            return (try await driverOptions.makeDriver(), driverOptions.resolvedPort, nil)
         }
         let repoRoot = try? RepoRoot.find()
         // **autoStart:false**(= 走査までで止める)。serve は常駐で、拡張は応答が無いと
@@ -535,14 +510,14 @@ struct ApiLiveServe: AsyncParsableCommand {
         // 期待ブリッジは nil にしない(= 毎コマンドの本人確認を飛ばさない)。予約ではないので、自動起動を
         // 待つ間にこのポートへ別のデバイスのブリッジが立つと、nil のままでは操作がそのまま届く。
         // 立つのは LiveBridgeAutoStarter の XCUITest だけなので "xcuitest"。無応答の間は .none で素通し
-        return (placeholder, freePort, nil, "xcuitest")
+        return (placeholder, freePort, "xcuitest")
     }
 
     /// 同じ台の別ポートのランナーが `udid` のブリッジとして答えるときだけ、そのポートのドライバを返す
     /// (答えない・別デバイス・組めない = nil。nil のときは今の宛先のまま)
     private func moveToRunnerElsewhere(
         port: UInt16, udid: String, physical: Bool, repoRoot: URL
-    ) async -> (AppDriver, UInt16, String?, String?)? {
+    ) async -> (AppDriver, UInt16, String?)? {
         let resolution = await XCUIBridgeResolver.resolve(
             preferred: port, repoRoot: repoRoot, autoStart: false,
             logger: { message in ConsoleOut.err("[live serve] " + message) })
@@ -573,7 +548,7 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// probe してしまい、毎コマンド誤検知で作り直しを繰り返す
     private func composeDriver(
         resolution: XCUIBridgeResolver.Resolution, physical: Bool, repoRoot: URL?
-    ) async throws -> (AppDriver, UInt16, String?, String?) {
+    ) async throws -> (AppDriver, UInt16, String?) {
         let xcui = BridgeClient(endpoint: resolution.endpoint)
         // in-app が居て、かつ振り替え先(XCUITest)が別に取れているときだけ組む。
         // 同じ宛先しか無い = XCUITest が見つからなかった場合は、in-app 単独では home も
@@ -585,7 +560,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             // (inapp-boost モードになり得たのに repoRoot/udid が無くて諦めた)回は resolution.endpoint が
             // xcuitest 側なので、ここで inApp の有無だけで判定すると誤る
             let isInAppOnly = resolution.inApp.map { $0.endpoint.port == resolution.endpoint.port } ?? false
-            return (xcui, resolution.endpoint.port, nil, isInAppOnly ? "inapp" : "xcuitest")
+            return (xcui, resolution.endpoint.port, isInAppOnly ? "inapp" : "xcuitest")
         }
         // inapp-boost モードの in-app 側は別ポート(=別ブリッジ)なので、呼び出し元の確認はこちらを検分していない。
         // 無応答(.silent)は素通しする —— in-app は背面へ回ると答えないので、ここで断ると
@@ -606,7 +581,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             inApp: inAppDriver, attach: attach, foreignApp: xcui, bundleID: inApp.bundleID)
         // 以後の自動起動・再起動が見るのは **XCUITest 側**(in-app は dylib 注入で起動し直せない)。
         // fallback(xcuitest)側の期待ブリッジは常に "xcuitest"(MCP の hybridFallbackPorts と同じ)
-        return (driver, resolution.endpoint.port, inApp.bundleID, "xcuitest")
+        return (driver, resolution.endpoint.port, "xcuitest")
     }
 
     /// 毎コマンドの本人確認(`HybridFallbackIdentity.drifted` の3値)から、この1コマンドを
@@ -735,12 +710,12 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// 実測: sim の DragUI.druid の remote element に毎問 ~17s かかる状態で、ライブ操作は命令ごとに
     /// 30s の watchdog に当たって serve の強制終了を 15 回繰り返し、利用者には何も言っていなかった。
     /// 門は run の測り直しと同じ値(劣化したランナーでは 1 問を含む操作は必ずこれを越え、健全な速い
-    /// 操作では測らない)。frame(自動更新)は人の操作ではないので見ない。in-app 単独は XCUITest を持たない
+    /// 操作では測らない)。in-app 単独は XCUITest を持たない
     private func checkRunnerHealth(command: ApiLiveServeCommand, elapsed: TimeInterval,
                                    primaryBridge: String?, port: UInt16, autoStarts: Bool,
                                    memo: LiveRunnerHealthMemo) async {
         guard driverOptions.resolvedPlatform == "ios", primaryBridge == "xcuitest",
-              command.cmd != "frame", await !memo.warned,
+              await !memo.warned,
               let repoRoot = try? RepoRoot.find() else { return }
         let injected = RunnerAccessibilityHealth.injectedSlowPorts().contains(port)
         guard RunnerAccessibilityHealth.shouldRecheck(maxStepSnapshotMs: Int(elapsed * 1000),
@@ -756,7 +731,7 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// 続けて(操作の成否を問わず)観測イベントを出す。refresh は観測イベントのみ
     private func handle(
         command: ApiLiveServeCommand, driver: AppDriver, starter: LiveBridgeAutoStarter?,
-        follower: LiveSessionFollower?, ownAppBundleID: String?, deviceLease: LiveDeviceLease?,
+        follower: LiveSessionFollower?, deviceLease: LiveDeviceLease?,
         port: UInt16, staleFrameTracker: LiveStaleFrameTracker, screenMemo: LiveScreenMemo,
         runnerHealth: LiveRunnerHealthMemo
     ) async {
@@ -767,16 +742,11 @@ struct ApiLiveServe: AsyncParsableCommand {
         if let decodeError = command.decodeError {
             // cmd は読めたが他の引数の型が違う行。JSON でない/cmd が無い(黙殺)とは分け、
             // 操作は行わず、その cmd が正常なときと同じ終端イベントで答える —— 拡張は
-            // actionResult/frame の後に来るイベント(snapshot または frame そのもの)で初めて
-            // リクエストを解決するため、そこを省くと20秒の SERVE_REQUEST_TIMEOUT で serve ごと
-            // 再起動される(実地: launch/pinch/tap の型違い行がこれで無応答のまま再起動を誘発した)。
-            // frame は frame イベント1行だけ(actionResult は出さない=通常の frame 経路と同形)。
-            // それ以外は actionResult(ok:false) に続けて観測イベントを出す(通常経路と同形)
+            // actionResult の後に来る観測イベント(snapshot)で初めてリクエストを解決するため、
+            // そこを省くと20秒の SERVE_REQUEST_TIMEOUT で serve ごと再起動される
+            // (実地: pinch/tap の型違い行がこれで無応答のまま再起動を誘発した)。
+            // actionResult(ok:false) に続けて観測イベントを出す(通常経路と同形)
             let starting = await bridgeStartingFlag(starter)
-            if command.cmd == "frame" {
-                emitLine(ApiLiveFrameEvent(ok: false, error: decodeError, image: nil, bridgeStarting: starting))
-                return
-            }
             emitLine(ApiLiveActionResultEvent(ok: false, error: decodeError, app: follower?.sessionTarget,
                                               dsl: nil, dslSelector: nil, bridgeStarting: starting, deliveryUnknown: false))
             await followFrontmost(follower, driver: driver)
@@ -785,22 +755,12 @@ struct ApiLiveServe: AsyncParsableCommand {
                                   runnerHealth: runnerHealth)
             return
         }
-        if command.cmd == "frame" {
-            // 自動画面更新は `/screenshot`(XCUIScreen = 画面そのもの)だけなのでセッションに依らない。
-            // ここで追従させると、利用者が何もしていない間もセッションを動かすことになる
-            await emitFrame(driver: driver, starter: starter, port: port)
-            return
-        }
         if command.cmd != "refresh" {
             // run がこのデバイスを使用中の間の人の操作は、結果に時刻つきで残す(`HumanOperationLedger`)。
-            // 要素名は操作の**前**に引く(撃つと木が変わる)。台帳が書けなくても操作は止めない
-            let humanLabel: String? = await { () async -> String? in
-                guard command.drivesDevice, deviceLease?.runIsUsingDevice() == true else { return nil }
-                let name: String?
-                if let ref = command.ref { name = await screenMemo.name(ofRef: ref) } else { name = nil }
-                return LiveHumanOperation.label(for: command, elementName: name)
-            }()
-            // **DSL の行も操作の前に組む**(ref は利用者が見ていた直近の観測の木で引く。撃つと木が変わる。
+            // 台帳が書けなくても操作は止めない
+            let humanLabel = command.drivesDevice && deviceLease?.runIsUsingDevice() == true
+                ? LiveHumanOperation.label(for: command) : nil
+            // **DSL の行は操作の前に組む**(座標の写し先は利用者が見ていた直近の観測の木で引く。撃つと木が変わる。
             // 失敗した操作の行も返す)。観測の控えは emitObservation が操作の後で更新する
             let rendered = LiveOperationDSL.rendered(
                 for: command, platform: driverOptions.resolvedPlatform,
@@ -808,14 +768,14 @@ struct ApiLiveServe: AsyncParsableCommand {
             let operatedAt = Date()
             do {
                 try await perform(command: command, driver: driver, follower: follower,
-                                  ownAppBundleID: ownAppBundleID, screenMemo: screenMemo)
+                                  screenMemo: screenMemo)
                 if let humanLabel { deviceLease?.recordHumanOperation(label: humanLabel, ok: true, at: operatedAt) }
                 emitLine(ApiLiveActionResultEvent(ok: true, error: nil, app: follower?.sessionTarget,
                                                   dsl: rendered?.line, dslSelector: rendered?.selector,
                                                   bridgeStarting: await bridgeStartingFlag(starter), deliveryUnknown: false))
             } catch {
                 if let humanLabel { deviceLease?.recordHumanOperation(label: humanLabel, ok: false, at: operatedAt) }
-                let message = await annotated(error, starter: starter, triggering: true, operated: true, port: port)
+                let message = await annotated(error, starter: starter, operated: true, port: port)
                 // **annotated の後で読む**: noteConnectionRefused() が idle→starting へ遷移させ得るため
                 let starting = await bridgeStartingFlag(starter)
                 emitLine(ApiLiveActionResultEvent(ok: false, error: message, app: follower?.sessionTarget,
@@ -839,15 +799,9 @@ struct ApiLiveServe: AsyncParsableCommand {
         await starter?.isStarting ?? false
     }
 
-    /// error が DriverError.bridgeConnectionRefused のときだけ starter のサフィックスを連結する
-    /// (bridgeUnreachable やタイムアウトでは連結しない=生きているブリッジとの二重起動を防ぐ)。
-    /// triggering: true なら noteConnectionRefused(起動トリガーあり)、false なら
-    /// statusSuffix(起動トリガーなし。emitFrame は受動的観測のため)。
-    ///
-    /// **triggering の区別が効くのは bridgeConnectionRefused と bridgeUnreachable の2つ**。
-    /// 以下の1つは起動トリガーを持たない事実の注記なので、emitFrame(triggering:false)からも
-    /// 同じだけ付く:
-    /// - `DriverError.isNoReadableWindow` = Android の一時的な a11y 根欠落(422)。放置で自然回復する
+    /// error が DriverError.bridgeConnectionRefused のときだけ starter の起動トリガー(noteConnectionRefused)の
+    /// サフィックスを連結する(bridgeUnreachable やタイムアウトでは連結しない=生きているブリッジとの二重起動を防ぐ)。
+    /// `DriverError.isNoReadableWindow`(Android の一時的な a11y 根欠落 = 422。放置で自然回復する)には事実の注記を付ける。
     ///
     /// `DriverError.bridgeUnreachable`(iOS xcuitest のみ)は `BridgeUnreachableGuidance.decide` の
     /// 1箇所で starter の状態も加味して出口を決める(純粋関数 = デバイス無しでテストできる)。
@@ -858,11 +812,10 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// `operated` = 操作の命令の失敗(観測の失敗は false)。操作の前の読みで落ちた回も含む = 分けられないので届いたか不明の側に倒す。
     /// 届いたか分からない操作に「もう一度」と言わない = 人が二重に押す
     private func annotated(
-        _ error: Error, starter: LiveBridgeAutoStarter?, triggering: Bool, operated: Bool, port: UInt16
+        _ error: Error, starter: LiveBridgeAutoStarter?, operated: Bool, port: UInt16
     ) async -> String {
         let deliveryUnknown = operated && (error as? DriverError)?.deliveryIsUnknown == true
-        let message = await guidance(error, starter: starter, triggering: triggering,
-                                     retrySafe: !deliveryUnknown, port: port)
+        let message = await guidance(error, starter: starter, retrySafe: !deliveryUnknown, port: port)
         return Self.withDeliveryNote(message, deliveryUnknown: deliveryUnknown)
     }
 
@@ -872,11 +825,11 @@ struct ApiLiveServe: AsyncParsableCommand {
 
 
     private func guidance(
-        _ error: Error, starter: LiveBridgeAutoStarter?, triggering: Bool, retrySafe: Bool, port: UInt16
+        _ error: Error, starter: LiveBridgeAutoStarter?, retrySafe: Bool, port: UInt16
     ) async -> String {
         var message = error.localizedDescription
         if let starter, case DriverError.bridgeConnectionRefused = error {
-            message += triggering ? await starter.noteConnectionRefused() : await starter.statusSuffix()
+            message += await starter.noteConnectionRefused()
             return message
         }
         if DriverError.isNoReadableWindow(error) {
@@ -889,8 +842,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             let probe = await BridgeDiscovery.probeStatus(port: port, repoRoot: try? RepoRoot.find())
             let starterIsIdle = await starter?.isIdle ?? true
             switch BridgeUnreachableGuidance.decide(
-                probe: probe, hasStarter: starter != nil, starterIsIdle: starterIsIdle,
-                triggering: triggering) {
+                probe: probe, hasStarter: starter != nil, starterIsIdle: starterIsIdle) {
             case .useStarterSuffix:
                 message += await starter?.statusSuffix() ?? Self.bridgeUnreachableHint(probe: probe, retrySafe: retrySafe)
             case .triggerStarter:
@@ -909,18 +861,18 @@ struct ApiLiveServe: AsyncParsableCommand {
         /// starter が非 idle(starting/failed)—— probe の中身を問わず starter の状態を使う
         /// (probe が transportFailed でも、進行中の自動起動と矛盾する「自然には直らない」を出さない)
         case useStarterSuffix
-        /// starter が idle・能動経路(triggering)・probe がブリッジ消失(transportFailed/notBound)
+        /// starter が idle・probe がブリッジ消失(transportFailed/notBound)
         /// —— bridgeConnectionRefused と同じ状況なので同じ起動トリガーへ倒す
         case triggerStarter
-        /// 上記のどちらでもない(starter が無い/busy/応答あり/受動経路) —— そのまま probe のヒント
+        /// 上記のどちらでもない(starter が無い/busy/応答あり) —— そのまま probe のヒント
         case probeHint
 
         static func decide(
-            probe: BridgeDiscovery.StatusProbe, hasStarter: Bool, starterIsIdle: Bool, triggering: Bool
+            probe: BridgeDiscovery.StatusProbe, hasStarter: Bool, starterIsIdle: Bool
         ) -> Self {
             guard hasStarter else { return .probeHint }
             guard starterIsIdle else { return .useStarterSuffix }
-            guard triggering, probe == .transportFailed || probe == .notBound else { return .probeHint }
+            guard probe == .transportFailed || probe == .notBound else { return .probeHint }
             return .triggerStarter
         }
     }
@@ -983,130 +935,9 @@ struct ApiLiveServe: AsyncParsableCommand {
         }
     }
 
-    /// 利用者が最後の観測で見ていた ref の要素(`LiveScreenMemo`)。観測の前の ref は nil = 照合しない
-    private static func seen(_ ref: Int?, _ memo: LiveScreenMemo) async -> ElementInfo? {
-        guard let ref else { return nil }
-        return await memo.snapshot?.elements.first { $0.ref == ref }
-    }
-
-    /// 利用者が見ていた要素を期待として ref を撃つ。ドライバ・ブリッジが自分の最新の表と照らし、別プロセスが表を入れ替えて
-    /// ref が別の要素を指していれば撃たずに `DriverError.staleRef` で断る(`RefExpectationScope`。何も撃っていない断り)
-    private static func firing<T>(_ seen: ElementInfo?, _ body: () async throws -> T) async throws -> T {
-        guard let seen else { return try await body() }
-        return try await RefExpectationScope.firing(seen) { try await body() }
-    }
-
-    /// 撮り直した木から引いた要素が、利用者が見ていた要素と食い違えば断る(座標へ畳む doubleTap / pinch 用)
-    private static func refuseIfNotWhatWasSeen(_ now: ElementInfo, seen: ElementInfo?) throws {
-        guard let seen, RefExpectationScope.contradicts(RefExpectation(seen), latest: RefExpectation(now)) else { return }
-        throw DriverError.staleRef(detail: RefExpectationScope.refusalDetail(
-            ref: now.ref, expected: RefExpectation(seen), latest: RefExpectation(now)))
-    }
-
-    /// ref から要素を引く(doubleTap / pinch が対象の座標・identifier を採るため)。
-    /// **snapshot を撮り直す**: ref は直近スナップショット基準なので、ここで採り直しても同じ番号を指す
-    private static func element(ref: Int, driver: AppDriver) async throws -> ElementInfo {
-        try await elementAndScreen(ref: ref, driver: driver).element
-    }
-
-    private static func elementAndScreen(ref: Int, driver: AppDriver) async throws -> (element: ElementInfo, screen: FTRect) {
-        let snapshot = try await driver.snapshot()
-        guard let element = snapshot.elements.first(where: { $0.ref == ref }) else {
-            throw ServeCommandError.invalidArguments(
-                "unknown reference number [\(ref)]. Take a snapshot first")
-        }
-        return (element, snapshot.screen)
-    }
-
-    /// Android の ref の tap: 中心が下端のジェスチャ帯の中なら帯より上の部分の中心(判定は `BottomGestureBandTap` = DSL・MCP と共有)。
-    /// **座標へ畳むので `firing(seen)` を通らない** —— 撮り直した木で ref の番号が振り直されていると別の要素の座標を押すので、
-    /// 帯へ寄せる回は doubleTap と同じく見ていた要素と照合してから返す
-    private static func bottomBandPoint(ref: Int, seen: ElementInfo?, driver: AppDriver) async throws -> (x: Double, y: Double)? {
-        let (element, screen) = try await elementAndScreen(ref: ref, driver: driver)
-        guard let y = await BottomGestureBandTap.tapY(for: element.frame, screen: screen,
-                                                      isAndroid: true, driver: driver) else { return nil }
-        try refuseIfNotWhatWasSeen(element, seen: seen)
-        return (element.frame.centerX, y)
-    }
-
-    /// **ref で撃つ手の入口**(tap / type / clear / doubleTap / pinch の ref 形は全部ここを通す。CLI の `RefFireGate` と同じ判定 =
-    /// `FTCore.RefFireCheck`)。キーボードの下・せり上がったバーの覆い・入力欄でない対象への入力は撃たずに断る。
-    /// 別の物に当たりうる助言(⚠️)はライブ操作の応答に載せ口が無いので出さない。木に無い ref は判定せずドライバの断りに任せる
-    private static func requireFireable(ref: Int, typing: Bool, driver: AppDriver, isAndroid: Bool) async throws {
-        let snapshot = try await driver.snapshot()
-        guard let target = snapshot.elements.first(where: { $0.ref == ref }) else { return }
-        guard let refusal = RefFireCheck.evaluate(target, in: snapshot, isAndroid: isAndroid, typing: typing).refusal else { return }
-        let what = TapTargetGeometry.describe(target)
-        switch refusal {
-        case .notATextField:
-            throw ServeCommandError.invalidArguments(
-                "[\(ref)] is a \(target.type), not a text field — refusing before anything is typed or cleared"
-                + " (the element would be tapped first, firing whatever it is). Click the input field itself,"
-                + " or omit ref to act on the field that has focus.")
-        case .underKeyboard(let advisory):
-            throw ServeCommandError.invalidArguments(
-                "[\(ref)] \(what) — \(advisory). Nothing was sent. Dismiss the keyboard first, then take a fresh screenshot.")
-        case .keyboardCover:
-            throw ServeCommandError.invalidArguments(
-                "[\(ref)] \(what) is covered or collapsed while the on-screen keyboard is up, so a touch would not land on it."
-                + " Nothing was sent. Dismiss the keyboard first, then take a fresh screenshot.")
-        }
-    }
-
-    /// **撃つ前にセッションを前面へ追従させる**コマンド(画面を触る操作)。セッションそのものを
-    /// 動かすコマンド(launch / activate / terminate / clearAppData / install)は通さない ——
-    /// あちらは対象のアプリを引数で名指ししており、追従させると自分で決めた向き先を上書きする
+    /// **撃つ前にセッションを前面へ追従させる**コマンド(画面を触る操作)。fold はセッションに依らない
     private static func followsFrontmost(_ cmd: String) -> Bool {
-        ["tap", "type", "clear", "hideKeyboard", "swipe", "drag", "doubleTap", "pinch", "press",
-         "gesture", "back", "appSwitcher", "home"].contains(cmd)
-    }
-
-    /// launch/activate の前に確かめる(門は InstalledAppCheck.launchGuard の1箇所。MCP の
-    /// ft_launch と同じ判定・文言だけ呼び手ごと)。未インストールのまま
-    /// `XCUIApplication.launch()` を撃つとランナーが約60秒でハングして自壊する(実測 L2)。
-    /// own app(inapp-boost モードで in-app が既に繋がっているアプリ)への launch/activate は素通しする ——
-    /// in-app は XCUITest を経由せず、繋がっている時点でインストール済みが確定している
-    /// iOS の hideKeyboard はライブ操作では撃たない(ユーザー決定)。iOS にはキーボードだけを閉じるキーが無く、DSL・MCP の
-    /// hideKeyboard は「キーボードの上の空きを叩く(DSL はさらに Enter)」= 人が画面を見て自分でできる操作。ブリッジの 501 の
-    /// 古い文言(「Android 専用・pressEnter を使え」)を出さないよう、ブリッジへ送る前にここで断る。nil = 撃ってよい(Android)
-    static func hideKeyboardRefusal(platform: String?) -> String? {
-        guard platform != "android" else { return nil }
-        return "hideKeyboard is not available in live control on iOS — iOS has no key that only closes the keyboard."
-            + " Tap an empty spot outside the field, or press Return (which also fires the field's action:"
-            + " submit, search or moving to the next field)"
-    }
-
-    /// ブリッジ自身(`BridgeSelfApps`)は起動・前面化・データ消去の対象にしない(撃つとブリッジが自滅し、ライブ操作が切れる)。
-    /// 判定は MCP・DSL と共有し、文言はライブ操作の読み手(拡張を触っている人)向けにここで持つ
-    static func refuseBridgeItself(_ bundle: String) throws {
-        guard BridgeSelfApps.isBridgeItself(bundle) else { return }
-        throw ServeCommandError.invalidArguments(
-            "\(bundle) is fleetest's own bridge, not your app — launching or wiping it would stop the bridge"
-            + " this live view runs on. Nothing was sent. Choose your app instead.")
-    }
-
-    private func launchGuard(bundle: String, driver: AppDriver, ownAppBundleID: String?) async throws {
-        try Self.refuseBridgeItself(bundle)
-        guard bundle != ownAppBundleID else { return }
-        let isAndroid = driverOptions.resolvedPlatform == "android"
-        let verdict = LaunchInstallVerdict.read(bundleID: bundle, driver: driver,
-                                                isAndroid: isAndroid, udid: udid)
-        switch InstalledAppCheck.launchGuard(
-            verdict: verdict, isAndroid: isAndroid, bridge: isAndroid ? nil : "xcuitest", bundleID: bundle) {
-        case .allow:
-            return
-        case .refuse(.notInstalled):
-            throw ServeCommandError.invalidArguments(
-                "\(bundle) is not installed on this device."
-                + " Install it first with {\"cmd\":\"install\",\"path\":\"<.app or .apk>\"},"
-                + " or check the bundle ID.")
-        case .refuse(.unknown(let reason)):
-            throw ServeCommandError.invalidArguments(
-                "could not verify whether \(bundle) is installed (\(reason))."
-                + " Launching a missing app can hang the XCUITest bridge and force it to"
-                + " self-terminate — retry once the device is less busy, install it first,"
-                + " or double-check the bundle ID.")
-        }
+        ["tap", "type", "drag", "doubleTap", "pinch", "press", "gesture", "appSwitcher", "home"].contains(cmd)
     }
 
     /// x/y 座標が今の画面の外なら断る(判定は `TapTargetGeometry.isPointOnScreen` = MCP の
@@ -1136,55 +967,20 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// コマンドに応じたドライバ操作を実行する。引数不足・未知の cmd は ServeCommandError を投げる
     /// (呼び出し元 handle が actionResult の ok:false として拾う)
     private func perform(command: ApiLiveServeCommand, driver: AppDriver,
-                         follower: LiveSessionFollower?, ownAppBundleID: String?,
-                         screenMemo: LiveScreenMemo) async throws {
+                         follower: LiveSessionFollower?, screenMemo: LiveScreenMemo) async throws {
         if Self.followsFrontmost(command.cmd) { await followFrontmost(follower, driver: driver) }
         switch command.cmd {
         case "tap":
-            if let ref = command.ref {
-                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
-                // 中心が Android の下端のジェスチャ帯の中なら帯より上の部分を座標で(ref はブリッジが中心へ解決する)。
-                // 枠が要るので Android の ref の tap だけ木を1回撮る(座標のクリックには払わせない)
-                if driverOptions.resolvedPlatform == "android",
-                   let point = try await Self.bottomBandPoint(ref: ref, seen: await Self.seen(ref, screenMemo), driver: driver) {
-                    try await driver.tap(x: point.x, y: point.y)
-                } else {
-                    try await Self.firing(await Self.seen(ref, screenMemo)) { try await driver.tap(ref: ref) }
-                }
-            } else if let x = command.x, let y = command.y {
-                try await requireOnScreen([(x, y)], driver: driver, screenMemo: screenMemo)
-                try await driver.tap(x: x, y: y)
-            } else {
-                throw ServeCommandError.invalidArguments("tap requires ref or x/y")
+            guard let x = command.x, let y = command.y else {
+                throw ServeCommandError.invalidArguments("tap requires x/y")
             }
+            try await requireOnScreen([(x, y)], driver: driver, screenMemo: screenMemo)
+            try await driver.tap(x: x, y: y)
         case "type":
             guard let text = command.text else {
                 throw ServeCommandError.invalidArguments("type requires text")
             }
-            if let ref = command.ref {
-                try await Self.requireFireable(ref: ref, typing: true, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
-            }
-            try await Self.firing(await Self.seen(command.ref, screenMemo)) {
-                try await driver.type(ref: command.ref, text: text)
-            }
-        case "clear":
-            if let ref = command.ref {
-                try await Self.requireFireable(ref: ref, typing: true, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
-            }
-            try await Self.firing(await Self.seen(command.ref, screenMemo)) {
-                try await driver.clearInput(ref: command.ref)
-            }
-        case "hideKeyboard":
-            if let refusal = Self.hideKeyboardRefusal(platform: driverOptions.resolvedPlatform) {
-                throw ServeCommandError.invalidArguments(refusal)
-            }
-            try await driver.hideKeyboard()
-        case "swipe":
-            guard let raw = command.direction, let direction = FTSwipeDirection(rawValue: raw) else {
-                throw ServeCommandError.invalidArguments(
-                    "swipe direction must be one of up/down/left/right")
-            }
-            try await driver.swipe(direction)
+            try await driver.type(ref: nil, text: text)
         case "drag":
             guard let fromX = command.fromX, let fromY = command.fromY,
                   let toX = command.toX, let toY = command.toY else {
@@ -1199,21 +995,11 @@ struct ApiLiveServe: AsyncParsableCommand {
                                   pressSeconds: command.press ?? ApiLiveGestureDefaults.dragPressSeconds,
                                   durationSeconds: command.duration ?? ApiLiveGestureDefaults.dragDurationSeconds)
         case "doubleTap":
-            // **座標へ畳んでから撃つ**(ref はブリッジごとに別名前空間。AppDriver.doubleTap の注記参照)
-            if let ref = command.ref {
-                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
-                let (element, screen) = try await Self.elementAndScreen(ref: ref, driver: driver)
-                try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
-                let bandY = await BottomGestureBandTap.tapY(
-                    for: element.frame, screen: screen,
-                    isAndroid: driverOptions.resolvedPlatform == "android", driver: driver)
-                try await driver.doubleTap(x: element.frame.centerX, y: bandY ?? element.frame.centerY)
-            } else if let x = command.x, let y = command.y {
-                try await requireOnScreen([(x, y)], driver: driver, screenMemo: screenMemo)
-                try await driver.doubleTap(x: x, y: y)
-            } else {
-                throw ServeCommandError.invalidArguments("doubleTap requires ref or x/y")
+            guard let x = command.x, let y = command.y else {
+                throw ServeCommandError.invalidArguments("doubleTap requires x/y")
             }
+            try await requireOnScreen([(x, y)], driver: driver, screenMemo: screenMemo)
+            try await driver.doubleTap(x: x, y: y)
         case "pinch":
             let scale = command.scale ?? 2.0
             guard scale > 0, scale != 1, scale.isFinite else {
@@ -1221,25 +1007,15 @@ struct ApiLiveServe: AsyncParsableCommand {
                     "pinch scale must be positive and not 1 (>1 zooms in, <1 zooms out)")
             }
             let duration = command.duration ?? ApiLiveGestureDefaults.pinchDurationSeconds
-            if let ref = command.ref {
-                // ref 指定時は frame と identifier の両方を渡す(経路で対象の伝え方が違う。
-                // FTCore/BridgeDTO の PinchRequest)
-                try await Self.requireFireable(ref: ref, typing: false, driver: driver, isAndroid: driverOptions.resolvedPlatform == "android")
-                let element = try await Self.element(ref: ref, driver: driver)
-                try Self.refuseIfNotWhatWasSeen(element, seen: await Self.seen(ref, screenMemo))
-                try await driver.pinch(frame: element.frame, identifier: element.identifier,
-                                       scale: scale, durationSeconds: duration)
-            } else {
-                // **指の2点が別々のものに載らない位置を選ぶ**(実測と理由は PinchRegion)。
-                // Android は領域の短辺から指の幅を決めるので渡さない。**絞れなくても画面矩形は渡す**
-                // —— 領域があれば座標で撃てる(端ちょうどには置かない)= DSL と同じ扱いにする
-                let snapshot = try await driver.snapshot()
-                let area = driverOptions.resolvedPlatform == "ios"
-                    ? PinchRegion.area(in: snapshot).region
-                    : nil
-                try await driver.pinch(frame: area, identifier: nil, scale: scale,
-                                       durationSeconds: duration)
-            }
+            // **指の2点が別々のものに載らない位置を選ぶ**(実測と理由は PinchRegion)。
+            // Android は領域の短辺から指の幅を決めるので渡さない。**絞れなくても画面矩形は渡す**
+            // —— 領域があれば座標で撃てる(端ちょうどには置かない)= DSL と同じ扱いにする
+            let snapshot = try await driver.snapshot()
+            let area = driverOptions.resolvedPlatform == "ios"
+                ? PinchRegion.area(in: snapshot).region
+                : nil
+            try await driver.pinch(frame: area, identifier: nil, scale: scale,
+                                   durationSeconds: duration)
         case "press":
             guard let x = command.x, let y = command.y, let duration = command.duration else {
                 throw ServeCommandError.invalidArguments("press requires x/y/duration")
@@ -1262,95 +1038,15 @@ struct ApiLiveServe: AsyncParsableCommand {
             case .success(let validated):
                 try await driver.gesture(validated)
             }
-        case "launch":
-            guard let bundle = command.bundle, !bundle.isEmpty else {
-                throw ServeCommandError.invalidArguments("launch requires a non-empty bundle")
-            }
-            try await launchGuard(bundle: bundle, driver: driver, ownAppBundleID: ownAppBundleID)
-            try await driver.launch(bundleID: bundle)
-            follower?.noteSessionChanged(to: bundle)
-        case "activate":
-            guard let bundle = command.bundle, !bundle.isEmpty else {
-                throw ServeCommandError.invalidArguments("activate requires a non-empty bundle")
-            }
-            try await launchGuard(bundle: bundle, driver: driver, ownAppBundleID: ownAppBundleID)
-            try await driver.activate(bundleID: bundle)
-            follower?.noteSessionChanged(to: bundle)
         case "appSwitcher":
             try await driver.openAppSwitcher()
         case "home":
             try await driver.home()
-        case "back":
-            try await driver.back()
-        case "terminate":
-            // **セッションの向き先を対象に撃つ**ので、追従で springboard を向いていたら戻す。
-            // 駆動しているアプリが無ければ**断る** —— そのまま撃つと SpringBoard を終了させる
-            if let follower {
-                guard let target = follower.drivenApp() else {
-                    throw ServeCommandError.invalidArguments(
-                        "terminate needs an app in this session — launch one first")
-                }
-                try await follower.pointAtApp(target, driver: driver)
-            }
-            try await driver.terminate()
-            follower?.noteSessionDropped()
-        case "clearAppData":
-            let bundle = try await resolveBundleForClearAppData(
-                command: command, driver: driver, follower: follower)
-            try Self.refuseBridgeItself(bundle)  // 追従が無いと launchGuard を通らないので、ここでも断る
-            // clearAppData はホスト側で `terminate()`(= セッションのアプリ)を撃ってから
-            // コンテナを消すので、対象のアプリへセッションを寄せてからでないと別のものを殺す。
-            // 寄せるのは activate = 未インストールの bundle だとランナーが落ちるので launch と同じ門を先に通す
-            if let follower {
-                try await launchGuard(bundle: bundle, driver: driver, ownAppBundleID: ownAppBundleID)
-                try await follower.pointAtApp(bundle, driver: driver)
-            }
-            try await driver.clearAppData(bundleID: bundle)
-            follower?.noteSessionDropped()
         case "fold":
             try await performFold(state: command.state, driver: driver)
-        case "install":
-            guard let path = command.path else {
-                throw ServeCommandError.invalidArguments("install requires path")
-            }
-            guard FileManager.default.fileExists(atPath: path) else {
-                throw ServeCommandError.invalidArguments("package file not found: \(path)")
-            }
-            // 中身が同じなら入れ直さない(run 側 BridgeProvisioner と同じ規律)。
-            // 再インストールはアプリを終了させ、記録開始のたびに状態が消えるため
-            if driverOptions.resolvedPlatform == "ios", let udid,
-               let bundleID = Self.bundleID(inAppBundle: path),
-               InstalledAppCheck.simulatorAppIsCurrent(
-                   udid: udid, bundleID: bundleID, appPath: path) {
-                logStderr("→ install: skipped (contents identical to the installed app): \(bundleID)")
-                return
-            }
-            if let note = try await driver.install(packagePath: path) { logStderr(note) }
-            if driverOptions.resolvedPlatform == "ios", let udid,
-               let bundleID = Self.bundleID(inAppBundle: path) {
-                InstalledAppCheck.recordInstalled(udid: udid, bundleID: bundleID, appPath: path)
-            }
         default:
             throw ServeCommandError.invalidArguments("unknown cmd: \(command.cmd)")
         }
-    }
-
-    /// bundle 省略時は**パネルが駆動しているアプリ**、それも無ければセッションが指すアプリ
-    /// (/status.sessionBundleID)を対象にする。どちらも取れなければ引数不足として扱う
-    /// (terminate と違い clearAppData は bundleID が必須のため)
-    private func resolveBundleForClearAppData(
-        command: ApiLiveServeCommand, driver: AppDriver, follower: LiveSessionFollower?
-    ) async throws -> String {
-        if let bundle = command.bundle { return bundle }
-        // **追従役の preferred が先** —— セッションは springboard を向いていることがあり、
-        // そのまま既定にすると SpringBoard のデータを消す対象になる
-        if let preferred = follower?.drivenApp() { return preferred }
-        guard let sessionBundleID = try? await driver.status().sessionBundleID,
-              sessionBundleID != LiveSessionTarget.springboard else {
-            throw ServeCommandError.invalidArguments(
-                "clearAppData requires bundle (no active session to infer it from)")
-        }
-        return sessionBundleID
     }
 
     /// fold コマンド。判定・手順は FTCore.FoldControl(DSL の fold / unfold・MCP の ft_fold と共有)。
@@ -1418,8 +1114,7 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// スクリーンショット(ダウンスケール済み JPEG)とアクセシビリティツリーを観測イベントとして出す
     /// (MonitorImage.swift の MonitorImage を共有利用する)。refresh(ユーザーの「更新」
     /// ボタン)はこの経路しか通らないため、ここでの自動起動トリガーは必須。
-    /// **鮮度判定(StaleFrameDetector)はここだけ**——絵と木の両方を撮るのはこの経路だけで、
-    /// emitFrame は絵だけなので判定できない
+    /// 鮮度判定(StaleFrameDetector)もここで撮る絵と木で行う
     private func emitObservation(driver: AppDriver, starter: LiveBridgeAutoStarter?,
                                  follower: LiveSessionFollower?, port: UInt16,
                                  staleFrameTracker: LiveStaleFrameTracker,
@@ -1429,7 +1124,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             let capturedAt = Date()
             ResidentProcessGuard.noteCommandProgress()
             let png = try await driver.screenshot()
-            let jpeg = try MonitorImage.downscaledJPEG(pngData: png, maxWidth: maxWidth)
+            let jpeg = try MonitorImage.downscaledJPEG(pngData: png, maxWidth: 0)
             let snap = try await snapshotWithSessionFallback(driver: driver, follower: follower)
             let elements = snap.elements.map {
                 ApiLiveElement(ref: $0.ref, type: $0.type, label: $0.label,
@@ -1439,7 +1134,6 @@ struct ApiLiveServe: AsyncParsableCommand {
                 + runnerHealth.takeNotes()
             await screenMemo.note(snap.screen)
             await screenMemo.noteSnapshot(snap)
-            await screenMemo.noteNames(LiveHumanOperation.names(from: snap.elements))
             emitLine(ApiLiveSnapshotEvent(
                 ok: true, error: nil,
                 platform: driverOptions.resolvedPlatform,
@@ -1449,7 +1143,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                 capturedAtMs: Int64(capturedAt.timeIntervalSince1970 * 1000)))
         } catch {
             ResidentProcessGuard.noteCommandProgress()
-            let message = await annotated(error, starter: starter, triggering: true, operated: false, port: port)
+            let message = await annotated(error, starter: starter, operated: false, port: port)
             // **annotated の後で読む**(bridgeStartingFlag のコメント参照)
             emitLine(ApiLiveSnapshotEvent(
                 ok: false, error: message,
@@ -1466,26 +1160,6 @@ struct ApiLiveServe: AsyncParsableCommand {
         ResidentProcessGuard.noteCommandProgress()
         await follower.follow(driver: driver)
         ResidentProcessGuard.noteCommandProgress()
-    }
-
-    /// スクリーンショットのみの観測イベント(kind:"frame")。自動画面更新用に AX スナップショット
-    /// を省いて軽量化している(要素一覧は更新されない=鮮度判定に要る木が無いので撃たない)。
-    /// 自動フレームは受動的観測のため起動はトリガーせず、starter の既知の状態を bridgeStarting へ
-    /// 反映する(failed のときだけ error にも文言が付く)
-    private func emitFrame(driver: AppDriver, starter: LiveBridgeAutoStarter?, port: UInt16) async {
-        do {
-            ResidentProcessGuard.noteCommandProgress()
-            let png = try await driver.screenshot()
-            let jpeg = try MonitorImage.downscaledJPEG(pngData: png, maxWidth: maxWidth)
-            emitLine(ApiLiveFrameEvent(ok: true, error: nil, image: jpeg.data.base64EncodedString(),
-                                       bridgeStarting: await bridgeStartingFlag(starter)))
-        } catch {
-            ResidentProcessGuard.noteCommandProgress()
-            let message = await annotated(error, starter: starter, triggering: false, operated: false, port: port)
-            // **annotated の後で読む**(bridgeStartingFlag のコメント参照)
-            emitLine(ApiLiveFrameEvent(ok: false, error: message, image: nil,
-                                       bridgeStarting: await bridgeStartingFlag(starter)))
-        }
     }
 
     /// 木が読めない2つの状態から springboard 参照セッション(起動せず・非破壊。
@@ -1580,16 +1254,10 @@ actor LiveScreenMemo {
     private(set) var screen: FTRect?
     func note(_ screen: FTRect) { self.screen = screen }
 
-    /// 直近の観測の木そのもの(利用者が画面で見ていたもの)。操作記録の DSL の行が ref を
+    /// 直近の観測の木そのもの(利用者が画面で見ていたもの)。操作記録の DSL の行が座標を
     /// 要素・セレクタへ引くための控え(`LiveOperationDSL`)—— 操作の前に木を撮り直さない
     private(set) var snapshot: SnapshotResponse?
     func noteSnapshot(_ snapshot: SnapshotResponse) { self.snapshot = snapshot }
-
-    /// 直近の観測の ref → 表示名(`LiveHumanOperation.names`)。人の操作の label に要素名を添えるための控え
-    /// (操作の前に木を撮り直さない = ref の番号を動かさない)
-    private var names: [Int: String] = [:]
-    func noteNames(_ names: [Int: String]) { self.names = names }
-    func name(ofRef ref: Int) -> String? { names[ref] }
 }
 
 /// 引数不足・未知の cmd 等、コマンドの中身が不正なときのエラー(JSON 自体は壊れていない場合)
@@ -1644,13 +1312,9 @@ enum ApiLiveGestureDefaults {
 /// **private ではない**(テストが `@testable import fleetest` で直接組み立てて検査するため)
 struct ApiLiveServeCommand {
     let cmd: String
-    let ref: Int?
     let x: Double?
     let y: Double?
     let text: String?
-    let direction: String?
-    let bundle: String?
-    let path: String?
     /// fold コマンド専用("fold" / "unfold")。値の検査は perform(省略・他の値は invalidArguments)
     let state: String?
     let fromX: Double?
@@ -1670,9 +1334,9 @@ struct ApiLiveServeCommand {
     let decodeError: String?
 
     /// このコマンドがデバイスを操作するか(対話セッションへの警告に使う = `LiveDeviceLease.refresh`)。
-    /// 観測だけのコマンドは `refresh` / `frame` の2つ。型違いの行は操作しない(handle が perform を撃たない)
+    /// 観測だけのコマンドは `refresh`。型違いの行は操作しない(handle が perform を撃たない)
     var drivesDevice: Bool {
-        decodeError == nil && cmd != "refresh" && cmd != "frame"
+        decodeError == nil && cmd != "refresh"
     }
 
     /// このコマンドが正当に占有しうる時間[秒]。command watchdog の allowance
@@ -1682,21 +1346,15 @@ struct ApiLiveServeCommand {
     /// だけでは正当な長い指定(例: `maxGestureSeconds` で最大60秒)を待ち切れず、まだ実行中の
     /// ジェスチャを watchdog が force-quit してしまう。既定値は perform() と同じ
     /// `ApiLiveGestureDefaults` を使う(1箇所)。
-    /// **launch/activate**: 失敗しても直後に観測(snapshot)を撮り直すので、猶予はその分も
-    /// カバーする必要がある。内側の上限は xcuitest 経由が `BridgeClient.Timeout.session`
-    /// (45秒)で in-app(30秒)より大きいので、大きい方を猶予にする。
-    /// **install**: 実機は `devicectl device install app` に `BridgeClient.Timeout.physicalInstall`
-    /// (600秒)を渡すため、その全量を猶予にする。
-    /// **appSwitcher/home/terminate/refresh/frame**: ブリッジへ `Timeout.session` で撃つ(snapshot・screenshot を含む)
+    /// **appSwitcher/home/refresh**: ブリッジへ `Timeout.session` で撃つ(snapshot・screenshot を含む)
     /// ので、猶予が無いと内側の期限より先に watchdog が serve ごと落とす(負荷テストで appSwitcher 30.7 秒の強制終了)。
-    /// **clearAppData**: セッションを寄せる activate と terminate の2回をどちらも `Timeout.session` で撃つ。
     /// **他のコマンドは 0**(内側の上限 `Timeout.interaction` 20秒が固定の watchdog 基準値に収まる)
     /// 操作の後の観測(snapshot・frame)ぶんの猶予[秒]。watchdog の窓は本人確認・操作・観測をまとめて数えるので、
     /// 観測を撃つ命令は `Timeout.session` を足す(足さないと tap 20 秒 + 観測 45 秒が基準 30 秒を超え、
-    /// 負荷下の press 1.2 秒が 32 秒で強制終了された)。refresh/frame は観測そのものが命令なので
+    /// 負荷下の press 1.2 秒が 32 秒で強制終了された)。refresh は観測そのものが命令なので
     /// `watchdogAllowanceSeconds` 側で数え済み。型違いの行も actionResult(ok:false) の後に観測を撃つ(handle の注記)
     var observationAllowanceSeconds: Double {
-        guard cmd != "refresh", cmd != "frame" else { return 0 }
+        guard cmd != "refresh" else { return 0 }
         return BridgeClient.Timeout.session
     }
 
@@ -1714,16 +1372,12 @@ struct ApiLiveServeCommand {
                 + (duration ?? ApiLiveGestureDefaults.dragDurationSeconds)
         case "pinch":
             return duration ?? ApiLiveGestureDefaults.pinchDurationSeconds
-        case "launch", "activate", "appSwitcher", "home", "terminate", "refresh", "frame":
+        case "appSwitcher", "home", "refresh":
             return BridgeClient.Timeout.session
         case "fold":
             // 観測ループが最大この秒数続く(観測のたびに窓は張り直される)。送信・観測1回は
             // observationAllowanceSeconds(session)が覆う
             return ApiLiveGestureDefaults.foldWaitSeconds
-        case "clearAppData":
-            return 2 * BridgeClient.Timeout.session
-        case "install":
-            return BridgeClient.Timeout.physicalInstall
         default:
             return 0
         }
@@ -1732,13 +1386,9 @@ struct ApiLiveServeCommand {
     init(cmd: String, raw: [String: Any]) {
         self.cmd = cmd
         var error: String?
-        ref = Self.intField(raw, "ref", error: &error)
         x = Self.doubleField(raw, "x", error: &error)
         y = Self.doubleField(raw, "y", error: &error)
         text = Self.stringField(raw, "text", error: &error)
-        direction = Self.stringField(raw, "direction", error: &error)
-        bundle = Self.stringField(raw, "bundle", error: &error)
-        path = Self.stringField(raw, "path", error: &error)
         state = Self.stringField(raw, "state", error: &error)
         fromX = Self.doubleField(raw, "fromX", error: &error)
         fromY = Self.doubleField(raw, "fromY", error: &error)
@@ -1809,20 +1459,6 @@ struct ApiLiveServeCommand {
     /// 「この値をなだれ込ませるか」は別の軸。文言は MCP(MCPServer.intArgument/doubleArgument)と
     /// 揃える(L3)。**型が合っていても値域(`ArgumentBounds`)を外れれば同じく断る**
     /// (MCP と同じ表を引く — 2箇所に値を持たない)
-    private static func intField(_ raw: [String: Any], _ key: String, error: inout String?) -> Int? {
-        guard let value = raw[key] else { return nil }
-        // true は `as? Int` で 1 として通る(ArgumentBounds.isJSONBoolean)
-        guard !ArgumentBounds.isJSONBoolean(value), let number = value as? Int else {
-            if error == nil { error = typeError(key: key, value: value, expected: "an integer", numeric: true) }
-            return nil
-        }
-        if let violation = ArgumentBounds.violation(key, Double(number)) {
-            if error == nil { error = violation }
-            return nil
-        }
-        return number
-    }
-
     private static func doubleField(_ raw: [String: Any], _ key: String, error: inout String?) -> Double? {
         guard let value = raw[key] else { return nil }
         // {"scale":2} のような整数値も通す
@@ -1838,9 +1474,8 @@ struct ApiLiveServeCommand {
         return number
     }
 
-    /// 型が合っていても `ArgumentBounds.mustNotBeEmpty` に載っている鍵(bundle/path)は
-    /// 明示された空文字・空白のみを断る。**cmd を問わず一律**(decode 段は cmd を見ない)——
-    /// clearAppData の bundle / install の path はここで初めて空文字が断られる
+    /// 型が合っていても `ArgumentBounds.mustNotBeEmpty` に載っている鍵は明示された空文字・空白のみを断る
+    /// (**cmd を問わず一律**。decode 段は cmd を見ない)。NUL も断る
     private static func stringField(_ raw: [String: Any], _ key: String, error: inout String?) -> String? {
         guard let value = raw[key] else { return nil }
         guard let string = value as? String else {
@@ -1908,17 +1543,6 @@ private struct ApiLiveActionResultEvent: Encodable {
     }
 }
 
-extension ApiLiveServe {
-    /// .app/Info.plist の CFBundleIdentifier。取れなければ nil(= 差分判定をあきらめて素直に入れる)
-    static func bundleID(inAppBundle path: String) -> String? {
-        let plist = URL(fileURLWithPath: path).appendingPathComponent("Info.plist")
-        guard let data = try? Data(contentsOf: plist),
-              let object = try? PropertyListSerialization.propertyList(from: data, format: nil)
-                as? [String: Any] else { return nil }
-        return object["CFBundleIdentifier"] as? String
-    }
-}
-
 /// snapshot(観測)イベント。ok:true 時は platform/screen/image/elements が必ず埋まり、ok:false 時は
 /// それらが null になる。**notes は elements と違い null にしない**(注記が無い回は常に空配列 ——
 /// 拡張側に「無い」と「まだ知らない」を区別させない)
@@ -1952,27 +1576,6 @@ private struct ApiLiveSnapshotEvent: Encodable {
         try container.encode(notes, forKey: .notes)
         try container.encode(bridgeStarting, forKey: .bridgeStarting)
         try container.encode(capturedAtMs, forKey: .capturedAtMs)
-    }
-}
-
-/// frame(画像のみ観測)イベント。ok:true 時は image が必ず埋まる
-private struct ApiLiveFrameEvent: Encodable {
-    let kind = "frame"
-    let ok: Bool
-    let error: String?
-    let image: String?
-    /// LiveBridgeAutoStarter.isStarting(ファイル冒頭プロトコル・bridgeStartingFlag 参照)
-    let bridgeStarting: Bool
-
-    private enum CodingKeys: String, CodingKey { case kind, ok, error, image, bridgeStarting }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(kind, forKey: .kind)
-        try container.encode(ok, forKey: .ok)
-        try container.encode(error, forKey: .error)
-        try container.encode(image, forKey: .image)
-        try container.encode(bridgeStarting, forKey: .bridgeStarting)
     }
 }
 

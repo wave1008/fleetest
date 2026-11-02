@@ -1,9 +1,9 @@
 import XCTest
 
-/// live serve の全イベント(actionResult/snapshot/frame)が持つ必須フィールド `bridgeStarting`
+/// live serve の全イベント(actionResult/snapshot)が持つ必須フィールド `bridgeStarting`
 /// (LiveBridgeAutoStarter が自動起動を進行中か)の配線を固定する。実際の値は actor の状態
 /// (.starting)から来るため、デバイス無しでは実行時の値そのものは確かめられない——ここは
-/// 「3構造体とも必須の Bool として持ち encode すること」「失敗イベントは annotated(...) の
+/// 「2構造体とも必須の Bool として持ち encode すること」「失敗イベントは annotated(...) の
 /// 後で starter の状態を読むこと」「suffix() がもう進捗の文言を運ばないこと」をソース走査で縛る。
 final class ApiLiveBridgeStartingFlagWiringTests: XCTestCase {
 
@@ -16,13 +16,13 @@ final class ApiLiveBridgeStartingFlagWiringTests: XCTestCase {
         try String(contentsOf: repoRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    /// 3イベント構造体すべてが bridgeStarting を必須(非 Optional)フィールドとして持ち、
+    /// 2イベント構造体とも bridgeStarting を必須(非 Optional)フィールドとして持ち、
     /// encode(to:) でも書き出すこと(版と契約の同期: 後方互換の Optional 化・decodeIfPresent
     /// 相当の読み替えは置かない方針。ここは拡張側での decode ではなく Swift 側の encode だが、
     /// 「新しい欄は必須にする」規律は同じ)
-    func testAllThreeEventStructsDeclareAndEncodeBridgeStarting() throws {
+    func testEveryEventStructDeclaresAndEncodesBridgeStarting() throws {
         let code = try source("Sources/fleetest/ApiLiveCommand.swift")
-        for structName in ["ApiLiveActionResultEvent", "ApiLiveSnapshotEvent", "ApiLiveFrameEvent"] {
+        for structName in ["ApiLiveActionResultEvent", "ApiLiveSnapshotEvent"] {
             guard let structRange = code.range(of: "struct \(structName): Encodable {") else {
                 XCTFail("\(structName) が見当たらない")
                 continue
@@ -58,8 +58,8 @@ final class ApiLiveBridgeStartingFlagWiringTests: XCTestCase {
             checked += 1
             searchStart = annotatedCallRange.upperBound
         }
-        XCTAssertEqual(checked, 3, "annotated の呼び出し箇所(actionResult/snapshot/frame それぞれの"
-                       + " catch 節)が3箇所であること。増減していたらこのテストの前提を見直すこと")
+        XCTAssertEqual(checked, 2, "annotated の呼び出し箇所(actionResult/snapshot それぞれの"
+                       + " catch 節)が2箇所であること。増減していたらこのテストの前提を見直すこと")
     }
 
     /// starting の進捗はもう suffix() の文言(旧 "(Auto-starting the XCUITest bridge. …)")では

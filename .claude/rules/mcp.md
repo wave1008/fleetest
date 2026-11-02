@@ -3,7 +3,6 @@ paths:
   - "Bench/**"
   - "Scripts/bench-summary.mjs"
   - "Scripts/mcp-bench.sh"
-  - "Scripts/stream_vs_poll_bench.py"
   - "Sources/FTAndroid/AndroidBridge.swift"
   - "Sources/FTAndroid/AndroidDriver.swift"
   - "Sources/FTBridgeClient/BridgeDiscovery.swift"
@@ -151,10 +150,9 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   **「確かめられないなら撃たない」**側に倒す(在否は udid で引く =
   `InstalledAppCheck.simulatorInstallVerdict(udid:)`。**素通しでよいのは Android と in-app
   ブリッジだけ** = ランナーが死なない経路(MCP の iOS は XCUITest だけなので、MCP で素通しになるのは Android だけ)。`com.apple.springboard` は launch しないので門の外)。
-  **判定は `InstalledAppCheck.launchGuard` の1箇所で、MCP の `ft_launch` と
-  ライブ操作(`api live serve` の `launch` / `activate`)が共有する** —— ライブ操作に門が無かったため、
-  空文字列や端末に無い bundleID を渡すと**そのコマンドが 30 秒刺さって watchdog が serve を
-  force-quit し、健全なブリッジまで起動し直しになった**(T1 と同じ型の掃討漏れ → MN-42.7)。
+  **判定は `InstalledAppCheck.launchGuard` の1箇所で、MCP の `ft_launch` と CLI の `fleetest launch` が共有する**
+  (門が無いと端末に無い bundleID で**そのコマンドが 30 秒刺さり、健全なブリッジまで起動し直しになる** → MN-42.7)。
+  **ライブ操作(`api live serve`)は launch / activate を持たない**(拡張が撃つ命令だけ = DS-13.3 (b))。
   **ライブ操作の NDJSON は型違いを黙殺しない** —— `cmd` が読めた行は
   `{"kind":"actionResult","ok":false,"error":"<欄> must be …"}` を返す(文言は MCP の
   `intArgument`/`doubleArgument` と同じ)。黙殺すると拡張は応答を待って固まり、serve の再起動に至る。

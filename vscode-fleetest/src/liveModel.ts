@@ -275,11 +275,9 @@ export interface LiveGestureFinger {
 }
 
 export type LiveServeCommand =
-  | { readonly cmd: "tap"; readonly ref: number }
   | { readonly cmd: "tap"; readonly x: number; readonly y: number }
-  // ref は省くか整数。**null を送らない** —— serve(ApiLiveServeCommand.intField)はキーがあれば整数を要求し、
-  // null は型違いとして操作せずに断る(省略とは読まない)
-  | { readonly cmd: "type"; readonly text: string; readonly ref?: number }
+  // 入力先はデバイス側でフォーカスしている要素(serve は ref で撃たない)
+  | { readonly cmd: "type"; readonly text: string }
   | {
       readonly cmd: "drag";
       readonly fromX: number;
@@ -708,8 +706,7 @@ export type LiveToWebviewMessage =
       readonly capturedAtMs: number;
     }
   /** 直前のデバイスのスナップショット(画面サイズ・要素一覧)を捨てさせる。デバイスを
-   * 切り替えたのに残っていると、タップ座標が前のデバイスの画面サイズで換算され、要素一覧の
-   * 行タップが**別のデバイスの ref** を叩く。 */
+   * 切り替えたのに残っていると、タップ座標が前のデバイスの画面サイズで換算される。 */
   | { readonly type: "clearSnapshot" }
   /** neutral: true のときは失敗(エラー)としての見た目(赤)にしない。省略 = false
    * (bridgeStarting 中の操作失敗だけが true を送る。live.bridgeStartingActionNotice)。 */

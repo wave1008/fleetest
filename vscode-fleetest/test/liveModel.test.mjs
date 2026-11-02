@@ -299,7 +299,7 @@ test("parseLiveActionResult: ok が欠落/非boolean、error が非文字列、�
 
 test("serializeLiveServeCommand: JSON化して末尾に改行を付ける", () => {
   assert.equal(serializeLiveServeCommand({ cmd: "refresh" }), '{"cmd":"refresh"}\n');
-  assert.equal(serializeLiveServeCommand({ cmd: "tap", ref: 3 }), '{"cmd":"tap","ref":3}\n');
+  assert.equal(serializeLiveServeCommand({ cmd: "tap", x: 3, y: 4 }), '{"cmd":"tap","x":3,"y":4}\n');
   assert.equal(
     serializeLiveServeCommand({ cmd: "doubleTap", x: 10, y: 20 }),
     '{"cmd":"doubleTap","x":10,"y":20}\n',
@@ -995,7 +995,7 @@ test("統合: mock-live.mjs live serve の refresh は snapshot イベント1行
 
 test("統合: mock-live.mjs live serve の tap は actionResult(ok:true) → snapshot の2行を返す", async () => {
   const serve = spawnServe(process.execPath, [MOCK_LIVE, "live", "serve", "--platform", "ios"], process.cwd());
-  const [actionLine, snapshotLine] = await serve.send({ cmd: "tap", ref: 1 }, 2);
+  const [actionLine, snapshotLine] = await serve.send({ cmd: "tap", x: 1, y: 1 }, 2);
   const actionEvent = parseLiveServeEvent(actionLine);
   assert.deepEqual(actionEvent, { kind: "actionResult", result: { ok: true, bridgeStarting: false, dsl: 'tap("#mock")', dslSelector: "#mock" } });
   const snapshotEvent = parseLiveServeEvent(snapshotLine);
@@ -1003,9 +1003,9 @@ test("統合: mock-live.mjs live serve の tap は actionResult(ok:true) → sna
   await serve.close();
 });
 
-test("統合: mock-live.mjs live serve の tap --ref 999 は actionResult(ok:false) を返す", async () => {
+test("統合: mock-live.mjs live serve の tap(x: 999)は actionResult(ok:false) を返す", async () => {
   const serve = spawnServe(process.execPath, [MOCK_LIVE, "live", "serve", "--platform", "ios"], process.cwd());
-  const [actionLine] = await serve.send({ cmd: "tap", ref: 999 }, 1);
+  const [actionLine] = await serve.send({ cmd: "tap", x: 999, y: 1 }, 1);
   const actionEvent = parseLiveServeEvent(actionLine);
   assert.ok(actionEvent && actionEvent.kind === "actionResult" && actionEvent.result.ok === false);
   assert.ok(actionEvent.result.error.includes("tap"));

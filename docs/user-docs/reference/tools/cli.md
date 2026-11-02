@@ -96,13 +96,13 @@ bridge port; default 8123) and `--serial` (the Android device; optional when onl
 | Command | Description | Main options |
 |---|---|---|
 | `snapshot` | Print the accessibility tree of the current screen (compressed) | `--json` (raw JSON) |
-| `tap` | Tap an element or a coordinate | `--ref` (reference number from snapshot), `--x`, `--y` |
-| `type <text>` | Type text (with `--ref`, taps the element first) | `--ref` |
+| `tap` | Tap a coordinate | `--x`, `--y` (iOS: pt / Android: px, the same units as the snapshot frames) |
+| `type <text>` | Type text into the focused element | — |
 | `swipe <direction>` | Swipe (direction: up / down / left / right) | — |
-| `press` | Long-press an element | `--ref` (required), `--hold-seconds` (up to 10 s), `--max-gesture-seconds` (allow up to 60 s for this press) |
+| `press` | Long-press a coordinate | `--x`, `--y`, `--hold-seconds` (up to 10 s), `--max-gesture-seconds` (allow up to 60 s for this press) |
 | `screenshot` | Save a screenshot | `-o` / `--output` (default `screenshot.png`) |
 
-`install`, `launch` and `terminate` take the same target options. `--ref` is the reference number shown by the latest `snapshot`.
+`install`, `launch` and `terminate` take the same target options. To operate an element by its reference number, use the MCP tools (`ft_tap` and others).
 
 ## Services and hooks
 

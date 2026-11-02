@@ -106,7 +106,7 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
 
     func testHostCallersPassTheSnapshotsDeclaration() throws {
         for site in ["Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+Hold.swift",
-                     "Sources/FTCore/RefFireCheck.swift", "Sources/fleetest-mcp/MCPServer+Snapshot.swift",
+                     "Sources/fleetest-mcp/MCPServer+Snapshot.swift",
                      "Sources/fleetest-mcp/MCPServer+GesturesTools.swift"] {
             let text = try read(site)
             XCTAssertTrue(text.contains("safeAreaTop: snapshot.safeAreaTop")

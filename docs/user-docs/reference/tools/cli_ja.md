@@ -95,13 +95,13 @@ MCP の `ft_*` ツール([MCP サーバー](./mcp_server_ja.md))と同じ操作�
 | コマンド | 説明 | 主なオプション |
 |---|---|---|
 | `snapshot` | 今の画面のアクセシビリティの木を(圧縮して)表示する | `--json`(生の JSON) |
-| `tap` | 要素か座標をタップする | `--ref`(snapshot の参照番号)・`--x`・`--y` |
-| `type <テキスト>` | テキストを入力する(`--ref` を付けると先にその要素をタップする) | `--ref` |
+| `tap` | 座標をタップする | `--x`・`--y`(iOS は pt・Android は px。snapshot の枠と同じ単位) |
+| `type <テキスト>` | フォーカスしている要素へテキストを入力する | — |
 | `swipe <方向>` | スワイプする(方向は up / down / left / right) | — |
-| `press` | 要素を長押しする | `--ref`(必須)・`--hold-seconds`(10 秒まで)・`--max-gesture-seconds`(この1回だけ 60 秒まで延ばす) |
+| `press` | 座標を長押しする | `--x`・`--y`・`--hold-seconds`(10 秒まで)・`--max-gesture-seconds`(この1回だけ 60 秒まで延ばす) |
 | `screenshot` | スクリーンショットを保存する | `-o` / `--output`(既定 `screenshot.png`) |
 
-`install`・`launch`・`terminate` も同じ宛先オプションを取ります。`--ref` は直前の `snapshot` に出た参照番号です。
+`install`・`launch`・`terminate` も同じ宛先オプションを取ります。要素を参照番号で操作するときは MCP のツール(`ft_tap` など)を使います。
 
 ## サービスと hooks
 
