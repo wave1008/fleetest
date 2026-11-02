@@ -1,4 +1,4 @@
-// OI-69: 失敗した ft_scroll_to が画面を動かした事実を下書きに残す / 短縮形の呼び名が耐久性に合う
+// 失敗した ft_scroll_to が画面を動かした事実を下書きに残す / 短縮形の呼び名が耐久性に合う
 
 import XCTest
 import FTCore
