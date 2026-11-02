@@ -38,6 +38,22 @@ final class KeyboardDismissPointTests: XCTestCase {
         }
     }
 
+    /// 左右の端の1列は戻るジェスチャの帯に入るので、空きが他にあれば候補にしない(OI-132)。端の列にしか空きが無いときは全幅へ戻る
+    func testPrefersPointsAwayFromTheScreenEdges() throws {
+        let step = screen.width / Double(KeyboardDismissPoint.gridColumns)
+        let found = candidates(form())
+        XCTAssertFalse(found.isEmpty)
+        for choice in found {
+            XCTAssertGreaterThanOrEqual(choice.x, step, "左端の列を候補にした")
+            XCTAssertLessThanOrEqual(choice.x, screen.width - step, "右端の列を候補にした")
+        }
+        // 端の列を除いた全域が押せる部品で塞がっていれば、端の列へ戻る
+        let blocker = el(9, "button", "wide", FTRect(x: step, y: 0, width: screen.width - 2 * step, height: 538), depth: 2)
+        let edgeOnly = candidates(form(extra: [blocker]))
+        XCTAssertFalse(edgeOnly.isEmpty)
+        XCTAssertTrue(edgeOnly.allSatisfy { $0.x < step || $0.x > screen.width - step }, "\(edgeOnly)")
+    }
+
     /// トーストのような画面幅いっぱいでない入れ物の余白は空きに数えない
     func testAToastContainerIsNotAnEmptySpot() {
         let toast = el(4, "other", "toast", FTRect(x: 24, y: 470, width: 354, height: 60), depth: 1)

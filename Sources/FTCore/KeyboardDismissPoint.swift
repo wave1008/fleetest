@@ -62,14 +62,22 @@ public enum KeyboardDismissPoint {
             return result
         }
         let allXs = samples(from: screen.x, length: screen.width, step: step)
+        // 左右の端の1列(x = step/2 ≒ 8pt)は戻るジェスチャの帯(Flutter の Cupertino 遷移は端から 20pt = kBackGestureWidth)に入り、
+        // 叩いても背景の押下にならず閉じない回があった(OI-132。同じ点が選ばれ続けて 7/25 で閉じなかった)。端の1列を外した点を先に試し、
+        // 空きが無ければ全幅へ戻る(1列 = step ≒ 画面幅/24 ≒ 16pt なので外した後の最端は 24pt 以上で帯の外)
+        func scanPreferringInterior(_ xs: [Double]) -> [Choice] {
+            let interior = xs.filter { $0 - screen.x >= step && screen.x + screen.width - $0 >= step }
+            let preferred = interior.isEmpty ? [] : scan(interior)
+            return preferred.isEmpty ? scan(xs) : preferred
+        }
         // 横向きは左右に切り欠きの帯(safe area)があり、アプリの中身が届かない帯の点は叩いても何も起きず閉じない
         // (iOS 横向きの CMP で毎回 (18,199) を選んで失敗した)。中身の横の範囲の点を先に試し、無ければ全幅へ戻る
         if screen.width > screen.height, let extent = contentHorizontalExtent(elements, screen: screen, keyboardTop: keyboard.y, keyboardRefs: keyboardRefs),
            extent.upperBound - extent.lowerBound < screen.width - step {
-            let inside = scan(allXs.filter { extent.contains($0) })
+            let inside = scanPreferringInterior(allXs.filter { extent.contains($0) })
             if !inside.isEmpty { return inside }
         }
-        return scan(allXs)
+        return scanPreferringInterior(allXs)
     }
 
     /// 画面幅いっぱいでない・キーボードでない要素の横の範囲(アプリの中身がある帯)。無ければ nil

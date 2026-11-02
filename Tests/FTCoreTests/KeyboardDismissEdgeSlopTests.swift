@@ -59,7 +59,9 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
     /// (部品の周り全体を除くと候補が空になり、DSL の hideKeyboard が Enter = 改行へ落ちる)
     func testNarrowMarginsBesideATallTextViewStayCandidatesAboveTheEdgeBand() {
         let compose = [el(1, "other", nil, screen, depth: 0),
-                       el(2, "textView", "body", FTRect(x: 10, y: 60, width: 382, height: 486), depth: 1)]
+                       el(2, "textView", "body", FTRect(x: 10, y: 60, width: 382, height: 486), depth: 1),
+                       // 端の列を外した空きが他に無い形にする(端の列は戻るジェスチャの帯なので、空きがあればそちらを先に試す = OI-132)
+                       el(3, "button", "top_bar", FTRect(x: 0, y: 0, width: 402, height: 60), depth: 1)]
         let found = KeyboardDismissPoint.candidates(elements: compose, screen: screen, keyboard: keyboard, overlays: [])
         XCTAssertFalse(found.isEmpty, "脇の余白が1つも候補に残らない")
         // 候補は入れ物ごとに1点 = テキストビューより上(画面の最上部)の点でも空ではなくなるので、脇(テキストビューの縦の範囲)にあることを見る
