@@ -8,7 +8,7 @@ extension StepExecutor {
 
     /// 前のステップの swipe が残した慣性を取り出して下げる(ステップの入口で1回)
     func takeSwipeInertia() -> Bool {
-        defer { swipeInertiaPending = false }
+        defer { swipeInertiaPending = false; swipeInertiaDirection = nil }
         return swipeInertiaPending
     }
 
@@ -624,6 +624,7 @@ extension StepExecutor {
     /// (両経路とも失敗したら黙って進む = `try?` と同じ扱い)
     func emptyDrag(x: Double, y: Double, toX: Double, toY: Double) async {
         swipeInertiaPending = false
+        swipeInertiaDirection = nil
         try? await dragWithFallback(fromX: x, fromY: y, toX: toX, toY: toY,
                                     pressSeconds: FlowStep.defaultDragPressSeconds, durationSeconds: Self.emptyDragSeconds)
     }
@@ -673,6 +674,7 @@ extension StepExecutor {
             gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
+            swipeInertiaDirection = direction
             return true
         }
         do {
@@ -681,6 +683,7 @@ extension StepExecutor {
             gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: false)
+            swipeInertiaDirection = direction
             return false
         } catch {
             // 「このブリッジでは不可」(501 / ルート不明 404)だけ XCUITest へ回す。
@@ -694,6 +697,7 @@ extension StepExecutor {
             phase.actionMs += Self.ms(clock.now - start)
             if path == nil { swipeFallbackLatched = true } else { pathSwipeFallbackLatched = true }
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
+            swipeInertiaDirection = direction
             return true
         }
     }

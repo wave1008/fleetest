@@ -46,6 +46,7 @@ extension StepExecutor {
                 // 慣性を止めるだけで ok のまま押せない)。分類は StepAction.dragsByCoordinates の1箇所
                 if case .passed = outcome.status, StepAction(rawValue: action)?.dragsByCoordinates == true {
                     swipeInertiaPending = true
+                    swipeInertiaDirection = nil
                 }
                 return outcome
             } catch {

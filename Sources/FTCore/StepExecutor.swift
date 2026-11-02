@@ -529,6 +529,9 @@ public final class StepExecutor {
     var lastGreenTextByElement: [String: String] = [:]
     /// 直前の swipe が慣性を残しうる(`swipeWithFallback` が立て、`emptyDrag` が下げ、次のステップの入口の `takeSwipeInertia` が読んで下げる)
     var swipeInertiaPending = false
+    /// 慣性を残した直前の swipe の向き(座標ドラッグ由来など向きを持たない慣性は nil)。慣性を吸う空打ちを撃つ向きの軸を決める材料
+    /// (横に送った一覧を横の空打ちで払うと一覧が戻る。`emptyDragEnd` の `searching:`)。`swipeInertiaPending` と同じ箇所で立て・下げる
+    var swipeInertiaDirection: FTSwipeDirection?
     /// 直近の occlusionFlip が「絵が古い」で降りた(nil を返した)か。待ちのループを持つ呼び手(exists・テキスト比較)は
     /// これを「まだ整定していない」と読み、締め切りまで待って撮り直す(素通りは締め切りを過ぎても古いときだけ)。
     /// ループの無い select は素通りのまま(掴むだけ)

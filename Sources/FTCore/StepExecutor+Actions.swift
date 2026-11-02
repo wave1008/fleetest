@@ -35,6 +35,7 @@ extension StepExecutor {
                                phase: inout PhaseAccumulator) async throws -> StepOutcome {
         var step = step
         // 前のステップの swipe が残した慣性(このステップの swipe が立て直す分とは別。swipeInertiaPending の doc)
+        let inertiaDirection = swipeInertiaDirection
         let inertiaFromPriorStep = takeSwipeInertia()
         // waitForSettle は待ちの上限を必ず持たせてから解決する(ft_batch は waitSeconds 省略時に nil で来る)。
         // **上限の無いステップの解決は、容器の外の残骸(ghost)を戻すために容器を送る** = 待つだけのコマンドが画面を動かす。
@@ -447,7 +448,8 @@ extension StepExecutor {
             let y = min(target.frame.centerY,
                         snapshot.screen.y + snapshot.screen.height - Self.bottomUncoveredBand - 1)
             if Self.emptyDragIsSafe(x: x, y: y, of: target, in: snapshot.elements, screen: snapshot.screen),
-               let end = Self.emptyDragEnd(of: target, x: x, y: y, searching: nil, screen: snapshot.screen) {
+               let end = Self.emptyDragEnd(of: target, x: x, y: y, searching: inertiaDirection?.rawValue,
+                                           screen: snapshot.screen) {
                 await emptyDrag(x: x, y: y, toX: end.x, toY: end.y)
                 let settled = try await settledSignature(phase: &phase)
                 snapshot = settled.snapshot
