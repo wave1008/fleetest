@@ -166,6 +166,19 @@ final class TypeReadbackTargetTests: XCTestCase {
         XCTAssertTrue(outcome.notes.contains(.typeConsumedByApp), "\(outcome.notes)")
     }
 
+    /// **入力欄そのものへの type も同じ**(E2EY-RN の iOS の OTP 欄: 6 桁で送信して欄を空にする。入力欄そのものの枝が打つ前の木を
+    /// 渡し忘れ、足りない分を追送して二度目の入力にしていた)
+    func testPlainFieldConsumedByTheAppIsNotResent() async {
+        StepExecutor.typedTextOnScreenOverrideForTesting = { _ in (false, nil) }
+        defer { StepExecutor.typedTextOnScreenOverrideForTesting = nil }
+        let driver = ReadbackSequenceDriver(values: ["", "", ""], shape: .plain, screenReactsToTyping: true)
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(
+            FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "12345678"))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(driver.typedTexts, ["12345678"], "二度打っている")
+        XCTAssertTrue(outcome.notes.contains(.typeConsumedByApp), "\(outcome.notes)")
+    }
+
     /// 外側の要素の空の値を「撃つ前の値」にすると、`12` への `1` が二重入力に見えて消される
     func testOverlappingFieldKeepsItsPriorValue() async {
         let (outcome, driver) = await type("1", values: ["12", "121"], shape: .flutterOverlap(secureAfterTyping: false))

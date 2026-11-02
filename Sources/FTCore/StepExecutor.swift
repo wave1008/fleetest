@@ -1412,6 +1412,8 @@ public final class StepExecutor {
     /// 呼び出し元(`keyboardFrameBeforeType` の書き手)へ渡す橋渡し。呼び出し元は救済が
     /// 非 nil を返した直後にだけ読む
     var retypeRescueKeyboardFrame: FTRect?
+    /// 同じ救済が撮った木(= 打つ前の木)。読み返しの「アプリが消費した」の判定の基準(`verifyTypedText` の consumptionBaseline)
+    var retypeRescueTreeBefore: [ElementInfo] = []
 
     /// 容器の外に居る要素を可視域へ戻すのに必要な移動量(`hintDrag` の jump 規約 = 正なら指を上へ)。
     /// 収まっている/測れないときは nil。

@@ -45,9 +45,10 @@ extension StepExecutor {
     ///
     /// **private ではない**: StepExecutor+DirectActions.swift の executeDirectUnfocusedType からも呼ぶ
     /// `consumptionBaseline`: 全文が欠けたときに「アプリが消費した」を見分ける打つ前の木(ランナーの `performTypeReadback` と同じ判定)。
+    /// **既定値を置かない**(入力欄そのものへの type が渡し忘れ、消費した欄へ追送していた。空 = 木が無い = 判定しない)。
     /// 6 桁そろうと送信して欄を空にする欄へ追送すると、アプリへ二度目の入力になる
     func verifyTypedText(_ driver: AppDriver, element: ElementInfo, expected: String,
-                                 typedOnly: String, consumptionBaseline: [ElementInfo]? = nil,
+                                 typedOnly: String, consumptionBaseline: [ElementInfo],
                                  phase: inout PhaseAccumulator) async throws -> String? {
         // secure 欄は伏せ字しか読めず、`expected` の既存値も伏せ字。ここで比べると `•` を本文として打ち直す(isMaskedInput)
         guard !TypeReadback.isMaskedInput(element) else { return nil }
@@ -125,7 +126,7 @@ extension StepExecutor {
                     + (screenCheckFact.map { "; before re-sending, the screen was checked for the"
                         + " typed text: \($0)" } ?? "")
             case .resend(let missing):
-                if let consumptionBaseline, valueAtLastResend == nil, missing == typedOnly || missing == target {
+                if !consumptionBaseline.isEmpty, valueAtLastResend == nil, missing == typedOnly || missing == target {
                     let start = clock.now
                     let after = try await driver.snapshot().elements
                     phase.snapshotMs += Self.ms(clock.now - start)

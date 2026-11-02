@@ -695,7 +695,8 @@ extension StepExecutor {
                 let existingValue = TypeReadback.normalizedValue(of: recovered)
                 if let failure = try await verifyTypedText(driver, element: recovered,
                                                             expected: existingValue + text,
-                                                            typedOnly: text, phase: &phase) {
+                                                            typedOnly: text, consumptionBaseline: retypeRescueTreeBefore,
+                                                            phase: &phase) {
                     return StepOutcome(status: .failed(failure))
                 }
             }

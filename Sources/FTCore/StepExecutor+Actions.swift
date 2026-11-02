@@ -1207,6 +1207,7 @@ extension StepExecutor {
                         if let failure = try await verifyTypedText(actingDriver, element: element,
                                                                     expected: existingValue + text,
                                                                     typedOnly: text,
+                                                                    consumptionBaseline: snapshot.elements,
                                                                     phase: &phase) {
                             return StepOutcome(status: .failed(failure))
                         }
@@ -2068,6 +2069,7 @@ extension StepExecutor {
         // 呼び出し元(type のキーボード押し上げ検知)へ「打つ前」の状態を渡す橋渡し
         // (retypeRescueKeyboardFrame の doc。戻り値の型は変えない)
         retypeRescueKeyboardFrame = snapshot.keyboardFrame
+        retypeRescueTreeBefore = snapshot.elements
         return field
     }
 
