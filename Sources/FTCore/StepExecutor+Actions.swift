@@ -899,11 +899,15 @@ extension StepExecutor {
                 lastTapTarget = liftedElement
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
+            var keyboardVisiblePartTap: FTRect?
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "tap",
+                element, in: snapshot, step: step, action: "tap", allowsVisiblePart: true,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
+            case .visiblePart(let rect, let note)?:
+                keyboardVisiblePartTap = rect
+                driverFallback = Self.joinNotes(driverFallback, note)
             case .reached(let reached, let after, let note)?:
                 element = reached
                 snapshot = after
@@ -936,7 +940,7 @@ extension StepExecutor {
             // **見えている部分が床に届かず、中心が容器の外に落ちる要素は撃たない**(撃つ先が無い)。
             // ref で撃つと frame の中心 = 容器の外の余白を叩き、何も押さないまま ok になる。
             // 床は既存の `minimumVisibleTapExtent`(新しい定数は置かない)を木の単位へ換算したもの
-            if let thin = TapTargetGeometry.thinVisibleSliver(
+            if keyboardVisiblePartTap == nil, let thin = TapTargetGeometry.thinVisibleSliver(
                 for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
                 scale: driver.pointScale) {
                 return StepOutcome(status: failedWithoutKind(Self.thinVisibleSliverMessage(step, thin: thin)))
@@ -945,7 +949,10 @@ extension StepExecutor {
             // **中心が容器の外に落ちる要素だけ、見えている部分の中心を座標で撃つ**
             // (visibleTapRect 参照)。ref で撃つとブリッジが frame の中心へ解決するので、
             // 壊れた frame ではそのまま容器の外を叩いて黙って飲まれる
-            if let visible = Self.visibleTapRect(for: element, in: snapshot.elements,
+            if let kbVisible = keyboardVisiblePartTap {
+                // キーボードを閉じられず、上端だけが見えている(OI-153)。中心はキーボードの下なので見えている部分を撃つ
+                try await actingDriver.tap(x: kbVisible.centerX, y: kbVisible.centerY)
+            } else if let visible = Self.visibleTapRect(for: element, in: snapshot.elements,
                                                 inferring: step.containerInference ?? true,
                                                 scale: driver.pointScale) {
                 let bandY = await bottomBandTapY(for: visible, screen: snapshot.screen)
@@ -1145,10 +1152,11 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "type",
+                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
+            case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
             case .reached(let reached, let after, let note)?:
                 element = reached
                 snapshot = after
@@ -1274,10 +1282,11 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "clearInput",
+                element, in: snapshot, step: step, action: "clearInput", allowsVisiblePart: false,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
+            case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
             case .reached(let reached, let after, let note)?:
                 element = reached
                 snapshot = after

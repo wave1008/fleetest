@@ -1431,6 +1431,18 @@ public struct KeyboardOcclusion: Sendable {
 
     public func covers(_ element: ElementInfo) -> Bool { advisory(for: element) != nil }
 
+    /// **中心がキーボードの下でも、上端側がキーボードの上に見えている要素の、見えている部分**(人はそこを押せる)。
+    /// 床は `visibleTapRect` と同じ `minimumVisibleTapExtent` × scale(新しい定数は置かない)。
+    /// キーボードの部品自身・実効矩形が無い・見えている部分が床に届かないときは nil(OI-153)
+    public func visibleAboveKeyboard(_ element: ElementInfo, scale: Double = 1) -> FTRect? {
+        guard let kb = frame, !excluded.contains(element.ref) else { return nil }
+        let floor = TapTargetGeometry.minimumVisibleTapExtent * scale
+        let f = element.frame
+        let visibleHeight = min(f.y + f.height, kb.y) - f.y
+        guard f.y < kb.y, visibleHeight >= floor, f.width >= floor else { return nil }
+        return FTRect(x: f.x, y: f.y, width: f.width, height: visibleHeight)
+    }
+
     /// キーボードの部品(chrome 自身とその部分木)か。アプリの要素として数えない呼び手が使う
     public func isKeyboardChrome(_ element: ElementInfo) -> Bool { excluded.contains(element.ref) }
 }

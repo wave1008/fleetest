@@ -86,10 +86,11 @@ extension StepExecutor {
             element = reached
             notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
         }
-        switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap",
+        switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap", allowsVisiblePart: false,
                                            snapshotSource: snapshotSource, phase: &phase) {
         case nil: break
         case .refused(let message)?: return .refused(message, kind: nil)
+        case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
         case .reached(let reached, let after, let note)?:
             element = reached
             snapshot = after

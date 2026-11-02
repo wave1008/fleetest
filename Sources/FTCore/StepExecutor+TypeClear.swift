@@ -443,6 +443,7 @@ extension StepExecutor {
     /// 市区町村の欄に住所が3回追記された)。in-app は座標を使わず焦点を当てるので、**人ができない操作が iOS だけ緑になっていた**。
     /// 判定は MCP の門(`MCPServer.keyboardRefusal`)と同じ `KeyboardOcclusion`。nil = 覆われていない
     func reachPastKeyboard(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
+                           allowsVisiblePart: Bool,
                            snapshotSource: CoverLiftSnapshotSource,
                            phase: inout PhaseAccumulator) async throws -> KeyboardReach? {
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
@@ -457,6 +458,11 @@ extension StepExecutor {
         let note: String
         switch try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
         case .notClosed(let tried):
+            // 押すだけの tap は、閉じられなくても上端がキーボードの上に見えていれば、人と同じくその部分を押す(OI-153)
+            if allowsVisiblePart, let visible = occlusion.visibleAboveKeyboard(element, scale: driver.pointScale) {
+                return .visiblePart(visible, note: "the target's centre is under the soft keyboard and the keyboard could not be"
+                    + " closed without side effects (\(tried)) — tapped its visible part above the keyboard")
+            }
             return .refused("the target's centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is under"
                 + " the soft keyboard and the keyboard could not be closed without side effects (\(tried)) — \(nothing)."
                 + " The return key may close it, but it also fires the field's action (submit, search or moving to the"
@@ -531,6 +537,8 @@ extension StepExecutor {
     enum KeyboardReach {
         /// 閉じた後の木で引き当て直した対象(撃つ前の ref は無効)
         case reached(element: ElementInfo, snapshot: SnapshotResponse, note: String)
+        /// 閉じられなかったが上端が見えている(`allowsVisiblePart` の呼び手だけに返す)。撃つ先はこの矩形の中心
+        case visiblePart(FTRect, note: String)
         case refused(String)
     }
 
