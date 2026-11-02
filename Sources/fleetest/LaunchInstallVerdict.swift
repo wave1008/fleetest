@@ -1,5 +1,5 @@
-// launch/activate の前に「そのアプリが入っているか」を読む(CLI の `launch` とライブ操作の
-// launch/activate が共有する。MCP の ft_launch は fleetest-mcp 側に同じ読みを持つ)。
+// launch の前に「そのアプリが入っているか」を読む(CLI の `launch` が使う。MCP の ft_launch は
+// fleetest-mcp 側に同じ読みを持つ)。
 // 撃つか断るかの判定は `InstalledAppCheck.launchGuard` の1箇所 —— ここは読みだけ。
 
 import FTAndroid

@@ -88,6 +88,49 @@ final class ApiLiveServeCommandParsingTests: XCTestCase {
         XCTAssertEqual(command.duration, 0.7)
     }
 
+    /// **読まない欄は撃たずに断る**(黙って捨てると ref つきの type がフォーカス中の別の欄へ打つ・ref つきの pinch が全画面に化ける)
+    func testRefIsRefusedRatherThanIgnored() {
+        let typed = ApiLiveServeCommand(cmd: "type", raw: ["cmd": "type", "text": "secret", "ref": 3])
+        XCTAssertEqual(typed.decodeError, ApiLiveServeCommand.unknownKeyError("ref"))
+        XCTAssertFalse(typed.drivesDevice, "断った行は撃たない")
+        let pinch = ApiLiveServeCommand(cmd: "pinch", raw: ["cmd": "pinch", "scale": 2, "ref": 3])
+        XCTAssertEqual(pinch.decodeError, ApiLiveServeCommand.unknownKeyError("ref"))
+    }
+
+    func testAnyUnknownKeyIsRefused() {
+        let command = ApiLiveServeCommand(cmd: "tap", raw: ["cmd": "tap", "x": 1, "y": 2, "bundle": "com.example"])
+        XCTAssertEqual(command.decodeError, "bundle is not an argument of live control — nothing was sent")
+    }
+
+    /// 拡張が送る形(monitorLiveController.ts)はどれも断らない
+    func testEveryShapeTheExtensionSendsPasses() {
+        let shapes: [[String: Any]] = [
+            ["cmd": "refresh"], ["cmd": "tap", "x": 1, "y": 2], ["cmd": "type", "text": "a"],
+            ["cmd": "drag", "fromX": 1, "fromY": 2, "toX": 3, "toY": 4, "press": 0.1, "duration": 0.3],
+            ["cmd": "gesture", "fingers": [["points": [["x": 1, "y": 2, "t": 0]]]], "maxGestureSeconds": 12],
+            ["cmd": "press", "x": 1, "y": 2, "duration": 1], ["cmd": "doubleTap", "x": 1, "y": 2],
+            ["cmd": "pinch", "scale": 2, "duration": 0.5], ["cmd": "home"], ["cmd": "appSwitcher"],
+            ["cmd": "fold", "state": "fold"],
+        ]
+        for raw in shapes {
+            XCTAssertNil(ApiLiveServeCommand(cmd: raw["cmd"] as! String, raw: raw).decodeError, "\(raw)")
+        }
+    }
+
+    /// 表(knownKeys)は init が読む欄の全数と一致する(欄を足して表へ載せ忘れると、その欄を送る行が全部断られる)
+    func testKnownKeysMatchTheFieldsTheInitReads() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/fleetest/ApiLiveCommand.swift")
+        let code = try String(contentsOf: url, encoding: .utf8)
+        let regex = try NSRegularExpression(pattern: #"Self\.\w+Field\(raw, "(\w+)""#)
+        let read = Set(regex.matches(in: code, range: NSRange(code.startIndex..., in: code)).compactMap {
+            Range($0.range(at: 1), in: code).map { String(code[$0]) }
+        })
+        XCTAssertGreaterThan(read.count, 10, "走査が init に届いていない")
+        XCTAssertEqual(read.union(["cmd"]), ApiLiveServeCommand.knownKeys)
+    }
+
     /// JSON の整数値({"scale":2}、小数点なし)も number として通す(NSNumber は Int/Double の
     /// どちらでも来うる。整数値の double 引数を誤って型違いと断らない)
     func testWholeNumberJSONValuePassesADoubleField() {

@@ -677,7 +677,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
   **表示文字列で制御を分岐しない**(表記を整えるたびに判定が壊れる)。`connectedPorts[key]` は `probePort ?? provisioned.port`(`probePort` は実機で常に nil)。
   純粋関数・単体テストが緑でも、その配線の手前で弾かれていれば何も改善しない
 - **未インストールのアプリを launch させない**(`MCPServer.installedVerdict` が材料を集め、可否は `FTBridgeClient.InstalledAppCheck.launchGuard` の1箇所。
-  ライブ操作 `api live serve` の launch/activate と共有 → DS-13.3)。`XCUIApplication.launch()` が未インストールで失敗すると issue が main queue 上
+  CLI の `fleetest launch` と共有)。`XCUIApplication.launch()` が未インストールで失敗すると issue が main queue 上
   (テストのスタック外)で記録され**ランナーごと落ちる**(`requireLiveApp` が防ぐのと同じ経路。実測: 遊休ブリッジへ未インストールの bundleID で
   `POST /session` すると約5秒後、10秒以内にランナーが消える)。**判定できないときは素通し**(実機・同名デバイス複数・simctl/adb 不調)。
   システムアプリ(springboard/Safari)は `get_app_container` が runtime のパスを返すので弾かれない

@@ -441,7 +441,7 @@ public enum ScenarioSandbox {
         }
         let device = udid.map { NSRegularExpression.escapedPattern(for: $0) } ?? "[^/]+"
         // **`<UUID>` そのものは含めない**(その下だけ)。含めると子が `<UUID>` を symlink に差し替え、親の
-        // `clearAppData`(MCP・ライブ操作)が symlink の先の中身を消す(差し替えは実測で通った)
+        // `clearAppData`(MCP)が symlink の先の中身を消す(差し替えは実測で通った)
         return "^" + NSRegularExpression.escapedPattern(for: real)
             + "/Library/Developer/CoreSimulator/Devices/" + device + "/data/Containers/Data/Application/[^/]+/"
     }

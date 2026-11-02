@@ -83,8 +83,8 @@ public enum InstalledAppCheck {
             + " and the app is installed on some of them")
     }
 
-    /// **launch/activate する前に確かめる門(純粋関数)**。MCP(ft_launch)とライブ操作
-    /// (api live serve の launch/activate)の2経路が共有する唯一の判定元 ——
+    /// **launch/activate する前に確かめる門(純粋関数)**。MCP(ft_launch)と CLI(`fleetest launch`)の
+    /// 2経路が共有する唯一の判定元 ——
     /// **共有するのは判定だけで文言は呼び手ごとに持つ**(CLAUDE.md「判定は1箇所」)。
     ///
     /// `.unknown` を撃ってよいのは Android(未インストールの launch はランナーを道連れにしない)と

@@ -398,7 +398,7 @@ fleetest snapshot [--json] | tap | type | swipe | press | screenshot
   MCP 側の探索防御は CLI へ持ち込まない(1手ずつ確認する用途なので、2つ目の実装を作らない)。
   **CLI は ref で撃たない**(`tap` / `press` は座標・`type` はフォーカス中の欄)—— ref はその時点の木だけに通じる番号で、
   呼び出しごとに独立した CLI では人が見た番号と撃つ時の番号が食い違う(照合には呼び出しをまたぐ控えが要る)。
-  ref で撃つのは MCP とライブ操作だけ
+  ref で撃つのは MCP だけ(ライブ操作も座標で撃つ = DS-13.3 (b))
 - **`fleetest --version` と `fleetest api version` は用途が違う**: 前者は人間向け(revision + protocol 版の
   1行)、後者は従来どおりプロトコル版だけを JSON で返す機械可読な口(`ToolVersion.describe()` /
   `fleetestProtocolVersion`)

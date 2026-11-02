@@ -47,7 +47,7 @@ struct Launch: AsyncParsableCommand {
         guard !bundleID.trimmingCharacters(in: .whitespaces).isEmpty else {
             throw ValidationError("the app bundle identifier must not be empty")
         }
-        // ブリッジ自身は起動しない(撃つとブリッジが自滅する。判定は MCP・DSL・ライブ操作と共有)
+        // ブリッジ自身は起動しない(撃つとブリッジが自滅する。判定は MCP・DSL と共有)
         if BridgeSelfApps.isBridgeItself(bundleID) {
             throw ValidationError("\(bundleID) is fleetest's own bridge, not an app under test — launching it would stop"
                 + " the bridge itself. Nothing was sent. Pass your app's bundle ID / package.")
@@ -62,7 +62,7 @@ struct Launch: AsyncParsableCommand {
         }
     }
 
-    /// 撃つ前の門(判定は `InstalledAppCheck.launchGuard` の1箇所。MCP の ft_launch・ライブ操作と共有)。
+    /// 撃つ前の門(判定は `InstalledAppCheck.launchGuard` の1箇所。MCP の ft_launch と共有)。
     /// 未インストールのまま `XCUIApplication.launch()` を撃つと XCUITest ランナーが約60秒ハングして
     /// 自壊する。照会先の udid はブリッジの `/status` から取る —— `/status` が読めない(ブリッジに
     /// 届かない)ときは門を通さず、到達できないことを `launch` 自身に言わせる(落とすランナーが無い)
@@ -131,8 +131,8 @@ struct Snapshot: AsyncParsableCommand {
     }
 }
 
-/// 座標で撃つ手(tap / press)が撃つ前に通す守り(判定はライブ操作・MCP と共有 = `TapTargetGeometry.isPointOnScreen` /
-/// `CoordinateGuards.keyboardFrame`)。画面の外は撃たずに断る。キーボードの中は撃つ(キーを押す意図もありうる)が ⚠️ を返す。
+/// 座標で撃つ手(tap / press)が撃つ前に通す守り(画面の外 = ライブ操作・MCP と共有の `TapTargetGeometry.isPointOnScreen` /
+/// キーボードの中 = MCP と共有の `CoordinateGuards.keyboardFrame`)。画面の外は撃たずに断る。キーボードの中は撃つ(キーを押す意図もありうる)が ⚠️ を返す。
 /// 画面の大きさを読めないときは断らない(撃って、ドライバの答えをそのまま見せる)。**座標で撃つ CLI の手は全部これを通す**
 enum CoordinateFireGate {
     static func check(driver: AppDriver, x: Double, y: Double) async throws -> String? {
@@ -150,9 +150,9 @@ enum CoordinateFireGate {
     }
 
     /// 有限でない座標はブリッジへの JSON にできず、Swift の EncodingError がそのまま出ていた(CLI ファズ: --x 1e400)
-    static func validateFinite(x: Double?, y: Double?) throws {
-        for (name, value) in [("--x", x), ("--y", y)] {
-            if let value, !value.isFinite { throw ValidationError("\(name) must be a finite number (got \(value))") }
+    static func validateFinite(x: Double, y: Double) throws {
+        for (name, value) in [("--x", x), ("--y", y)] where !value.isFinite {
+            throw ValidationError("\(name) must be a finite number (got \(value))")
         }
     }
 }
@@ -173,10 +173,10 @@ struct Tap: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Tap a coordinate")
 
     @Option(help: "X coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
-    var x: Double?
+    var x: Double
 
     @Option(help: "Y coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
-    var y: Double?
+    var y: Double
 
     @OptionGroup var driverOptions: DriverOptions
 
@@ -186,7 +186,6 @@ struct Tap: AsyncParsableCommand {
     }
 
     func run() async throws {
-        guard let x, let y else { throw ValidationError("specify --x and --y") }
         let driver = try await driverOptions.makeDriver()
         let keyboardWarning = try await CoordinateFireGate.check(driver: driver, x: x, y: y)
         try await DeliveryAdvice.relaying { try await driver.tap(x: x, y: y) }
@@ -250,10 +249,10 @@ struct Press: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Long-press a coordinate")
 
     @Option(help: "X coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
-    var x: Double?
+    var x: Double
 
     @Option(help: "Y coordinate — iOS=pt / Android=px (same coordinate system as the snapshot frames)")
-    var y: Double?
+    var y: Double
 
     @Option(help: "Press duration in seconds")
     var holdSeconds: Double = 1.0
@@ -282,7 +281,6 @@ struct Press: AsyncParsableCommand {
     }
 
     func run() async throws {
-        guard let x, let y else { throw ValidationError("specify --x and --y") }
         let driver = try await driverOptions.makeDriver()
         let keyboardWarning = try await CoordinateFireGate.check(driver: driver, x: x, y: y)
         try await DeliveryAdvice.relaying { try await driver.press(x: x, y: y, duration: holdSeconds) }

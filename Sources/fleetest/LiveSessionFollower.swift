@@ -22,7 +22,7 @@ enum LiveSessionTarget {
 
     /// 次に向け直すべき bundle ID。**nil = 変更不要**(向け直しは refFrames を消すので、
     /// 同じ向き先なら撃たない = 直前のスナップショットの ref を生かしたままにする)。
-    /// - preferred: パネルが駆動しているアプリ(未選択・終了後は nil)
+    /// - preferred: パネルが駆動しているアプリ(起動時のセッションから採る。未選択・springboard へ退避した後は nil)
     /// **システムアラートが出ている間は springboard へ倒す** —— アラートは別プロセスの窓なので
     /// アプリの `.state` は `.runningForeground` のまま(BridgeRouter.handleAppState)で、前面判定
     /// だけでは向き先が変わらない。アプリを向いたままだとアラートは木に1要素も載らず、
@@ -252,11 +252,11 @@ final class LiveSessionFollower {
             + " \(error.localizedDescription)")
     }
 
-    /// serve がセッションを動かした直後に呼ぶ(観測の springboard 退避 = `snapshotWithSessionFallback`)
-    func noteSessionChanged(to bundleID: String) {
+    /// 観測が springboard へ退避した直後に呼ぶ(`snapshotWithSessionFallback`)。駆動していたアプリの記憶も捨てる
+    func noteFellBackToSpringboard() {
         initialized = true
-        sessionTarget = bundleID
-        preferred = bundleID == LiveSessionTarget.springboard ? nil : bundleID
+        sessionTarget = LiveSessionTarget.springboard
+        preferred = nil
     }
 
     private func initializeIfNeeded(driver: AppDriver) async {

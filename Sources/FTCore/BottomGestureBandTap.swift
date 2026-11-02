@@ -1,6 +1,6 @@
 // Android のジェスチャナビで、要素を押す点を画面下端のジェスチャ帯の外へ寄せる判定。
-// DSL(StepExecutor の tap・長押し・doubleTap)・MCP(ft_tap / ft_long_press / ft_double_tap)・
-// ライブ操作(tap / press / doubleTap)が共有する(文言は呼び手ごと)。幾何は ScrollGeometry.tapYClearingBottomGestureBand
+// DSL(StepExecutor の tap・長押し・doubleTap)と MCP(ft_tap / ft_long_press / ft_double_tap)が共有する
+// (文言は呼び手ごと。座標で撃つ CLI・ライブ操作は人が点を選ぶので寄せない)。幾何は ScrollGeometry.tapYClearingBottomGestureBand
 
 import Foundation
 

@@ -16,6 +16,14 @@ final class ManualDriveNumberBoundsTests: XCTestCase {
         XCTAssertNoThrow(try Tap.parse(["--x", "10", "--y", "20"]))
     }
 
+    /// 座標の片方でも欠ければ引数の検査で断る(撃つ前・使い方の表示つき)
+    func testMissingCoordinateIsAParseError() {
+        for command in [Tap.self as ParsableCommand.Type, Press.self] {
+            XCTAssertThrowsError(try command.parseAsRoot(["--x", "10"]), "\(command) の --y 欠落")
+            XCTAssertThrowsError(try command.parseAsRoot(["--y", "10"]), "\(command) の --x 欠落")
+        }
+    }
+
     func testPressRejectsAnOutOfRangeHold() {
         for bad in ["0", "-1", "1e400", "\(BridgeAPI.defaultMaxGestureSeconds + 1)"] {
             XCTAssertThrowsError(try Press.parse(["--x", "1", "--y", "1", "--hold-seconds=\(bad)"]), bad) { error in

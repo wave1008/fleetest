@@ -1645,7 +1645,7 @@ extension MCPServer {
     }
 
     /// **ft_launch の門**。nil = 撃ってよい・非 nil = その文言で断る。判定そのものは
-    /// `InstalledAppCheck.launchGuard`(ライブ操作の launch/activate と共有する唯一の定義元)へ
+    /// `InstalledAppCheck.launchGuard`(CLI の `fleetest launch` と共有する唯一の定義元)へ
     /// 委ね、ここは MCP 向けの文言(ft_install を指す等)を組むだけ
     static func launchGuardDecision(
         verdict: InstalledAppCheck.InstallVerdict, isAndroid: Bool, bridge: String?, bundleID: String

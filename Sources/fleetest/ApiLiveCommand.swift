@@ -1181,7 +1181,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                     where (status == 409 || status == 422) && Self.usesSpringboardFallback(platform: driverOptions.resolvedPlatform) {
             ResidentProcessGuard.noteCommandProgress()
             try await driver.launch(bundleID: LiveSessionTarget.springboard)
-            follower?.noteSessionChanged(to: LiveSessionTarget.springboard)
+            follower?.noteFellBackToSpringboard()
             ResidentProcessGuard.noteCommandProgress()
             return try await driver.snapshot()
         }
@@ -1349,7 +1349,7 @@ struct ApiLiveServeCommand {
     /// **appSwitcher/home/refresh**: ブリッジへ `Timeout.session` で撃つ(snapshot・screenshot を含む)
     /// ので、猶予が無いと内側の期限より先に watchdog が serve ごと落とす(負荷テストで appSwitcher 30.7 秒の強制終了)。
     /// **他のコマンドは 0**(内側の上限 `Timeout.interaction` 20秒が固定の watchdog 基準値に収まる)
-    /// 操作の後の観測(snapshot・frame)ぶんの猶予[秒]。watchdog の窓は本人確認・操作・観測をまとめて数えるので、
+    /// 操作の後の観測(snapshot)ぶんの猶予[秒]。watchdog の窓は本人確認・操作・観測をまとめて数えるので、
     /// 観測を撃つ命令は `Timeout.session` を足す(足さないと tap 20 秒 + 観測 45 秒が基準 30 秒を超え、
     /// 負荷下の press 1.2 秒が 32 秒で強制終了された)。refresh は観測そのものが命令なので
     /// `watchdogAllowanceSeconds` 側で数え済み。型違いの行も actionResult(ok:false) の後に観測を撃つ(handle の注記)
@@ -1404,7 +1404,24 @@ struct ApiLiveServeCommand {
         if error == nil, let violation = ArgumentBounds.gestureCapViolation(raw) {
             error = violation
         }
+        if error == nil, let unknown = raw.keys.filter({ !Self.knownKeys.contains($0) }).sorted().first {
+            error = Self.unknownKeyError(unknown)
+        }
         decodeError = error
+    }
+
+    /// 読む欄の全数(cmd と init の各 `…Field(raw, "<key>")`。`ApiLiveServeCommandParsingTests` が突き合わせる)。
+    /// **ここに無い欄は撃たずに断る** —— 黙って捨てると `{"cmd":"type","text":…,"ref":3}` がフォーカス中の別の欄へ打ち、
+    /// ref つきの pinch が全画面のピンチに化けて ok を返す(MCP の操作の道具が未知の引数を断るのと同じ規律)
+    static let knownKeys: Set<String> = [
+        "cmd", "x", "y", "text", "state", "fromX", "fromY", "toX", "toY", "press", "duration", "scale",
+        "maxGestureSeconds", "fingers",
+    ]
+
+    static func unknownKeyError(_ key: String) -> String {
+        key == "ref"
+            ? "ref is not accepted by live control — nothing was sent. Send x/y to touch a point; type goes into the focused field"
+            : "\(key) is not an argument of live control — nothing was sent"
     }
 
     /// "fingers"(gesture コマンド専用)。ワイヤ形は `GestureRequest.fingers` と同じ

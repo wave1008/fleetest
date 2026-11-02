@@ -13,21 +13,21 @@ final class DriverOptionsTargetMismatchTests: XCTestCase {
     // MARK: - 拒否すべき組み合わせ(複数コマンドを代表として当てる)
 
     func testTapRejectsSerialWithPlatformIOS() {
-        XCTAssertThrowsError(try Tap.parse(["--platform", "ios", "--serial", "emulator-5554"])) { error in
+        XCTAssertThrowsError(try Tap.parse(["--x", "1", "--y", "1", "--platform", "ios", "--serial", "emulator-5554"])) { error in
             let message = Tap.message(for: error)
             XCTAssertTrue(message.contains("--platform ios was given along with --serial"), message)
         }
     }
 
     func testTapRejectsPortWithPlatformAndroid() {
-        XCTAssertThrowsError(try Tap.parse(["--platform", "android", "--port", "8200"])) { error in
+        XCTAssertThrowsError(try Tap.parse(["--x", "1", "--y", "1", "--platform", "android", "--port", "8200"])) { error in
             let message = Tap.message(for: error)
             XCTAssertTrue(message.contains("--platform android was given along with an iOS target"), message)
         }
     }
 
     func testTapRejectsPortAndSerialWithNoPlatform() {
-        XCTAssertThrowsError(try Tap.parse(["--port", "8200", "--serial", "emulator-5554"])) { error in
+        XCTAssertThrowsError(try Tap.parse(["--x", "1", "--y", "1", "--port", "8200", "--serial", "emulator-5554"])) { error in
             let message = Tap.message(for: error)
             XCTAssertTrue(message.contains("with no --platform to say which one to use"), message)
         }
@@ -69,19 +69,19 @@ final class DriverOptionsTargetMismatchTests: XCTestCase {
     // MARK: - 陰性対照: 断ってはいけない組み合わせ
 
     func testTapAllowsSerialAlone() {
-        XCTAssertNoThrow(try Tap.parse(["--serial", "emulator-5554"]))
+        XCTAssertNoThrow(try Tap.parse(["--x", "1", "--y", "1", "--serial", "emulator-5554"]))
     }
 
     func testTapAllowsPlatformAndroidWithSerial() {
-        XCTAssertNoThrow(try Tap.parse(["--platform", "android", "--serial", "emulator-5554"]))
+        XCTAssertNoThrow(try Tap.parse(["--x", "1", "--y", "1", "--platform", "android", "--serial", "emulator-5554"]))
     }
 
     func testTapAllowsPlatformIOSWithPort() {
-        XCTAssertNoThrow(try Tap.parse(["--platform", "ios", "--port", "8200"]))
+        XCTAssertNoThrow(try Tap.parse(["--x", "1", "--y", "1", "--platform", "ios", "--port", "8200"]))
     }
 
     func testTapAllowsEverythingOmitted() {
-        XCTAssertNoThrow(try Tap.parse([]))
+        XCTAssertNoThrow(try Tap.parse(["--x", "1", "--y", "1"]))
     }
 
     func testApiLiveServeAllowsUDIDAlone() {

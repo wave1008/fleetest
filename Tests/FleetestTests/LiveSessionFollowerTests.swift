@@ -275,7 +275,7 @@ extension LiveSessionFollowerTests {
                       "409(セッション未作成)と 422(前面でない)の両方から回復すること: \(body)")
         XCTAssertTrue(body.contains("LiveSessionTarget.springboard"),
                       "倒す先は springboard(背面に回らないので必ず読める): \(body)")
-        XCTAssertTrue(body.contains("follower?.noteSessionChanged"),
+        XCTAssertTrue(body.contains("follower?.noteFellBackToSpringboard()"),
                       "倒したことを follower にも伝えること: \(body)")
     }
 }

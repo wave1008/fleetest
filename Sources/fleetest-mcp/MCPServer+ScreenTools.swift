@@ -80,7 +80,7 @@ extension MCPServer {
     }
 
     /// ref の要素の中心が Android の下端のジェスチャ帯の中なら、帯より上に出ている部分の中心(撃つ点)。
-    /// 判定は `BottomGestureBandTap`(DSL・ライブ操作と共有)。木は verifiedRef / verifiedElement が撮った直近のもの(セッション ref)
+    /// 判定は `BottomGestureBandTap`(DSL と共有)。木は verifiedRef / verifiedElement が撮った直近のもの(セッション ref)
     func bottomBandPoint(sessionRef: Int, driver: AppDriver, args: [String: Any]) async -> (x: Double, y: Double)? {
         guard let element = lastSnapshots[Self.sessionKey(args)]?.elements.first(where: { $0.ref == sessionRef })
         else { return nil }
