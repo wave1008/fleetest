@@ -9,6 +9,7 @@ import {
   Switch,
   Text,
   TextStyle,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from 'react-native';
@@ -283,14 +284,22 @@ export function ScreenShell({
   onTabChange: (tab: AppTab) => void;
   children: React.ReactNode;
 }) {
-  return (
-    <SafeAreaView style={styles.shell} edges={['top', 'left', 'right', 'bottom']}>
+  // 横向きは「戻る」を題名の行へ並べる。2段のままだと中身が高さの 35% から始まり、Android の全画面スワイプ
+  // (縦 0.3h↔0.7h)の下向きの始点がジェスチャ画面の #pad_swipe の外(戻るの行)に落ちる。題名 → 戻る の順は保つ
+  const { width, height } = useWindowDimensions();
+  const header = (
+    <>
       <Text testID={Tags.screenTitle} style={styles.title}>
         {title}
       </Text>
       {showBack && (
         <TaggedButton testID={Tags.back} label="戻る" onPress={onBack} style={styles.backButton} />
       )}
+    </>
+  );
+  return (
+    <SafeAreaView style={styles.shell} edges={['top', 'left', 'right', 'bottom']}>
+      {width > height ? <View style={styles.headerRow}>{header}</View> : header}
       <View style={styles.content}>{children}</View>
       <View style={styles.tabBar}>
         <TaggedButton
@@ -335,6 +344,10 @@ export const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginHorizontal: 16,
     marginBottom: 4,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   content: {
     flex: 1,

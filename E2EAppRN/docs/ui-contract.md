@@ -155,6 +155,9 @@ Flutter(in-app では `other`)とも違い、新しい型分岐をホスト側�
 (fleetest 側の不具合ではない)。**Info.plist を変えたらアプリを作り直すこと**
 (`scripts/build-ios.sh` → `dist/ios-simulator/`)。
 
+**横向きでは `#btn_back` を題名の行へ並べる**(`ScreenShell`。縦向きは2段のまま)。2段のままだと中身が高さの 35% から始まり、
+Android の全画面スワイプ(縦 0.3h↔0.7h)の下向きの始点がジェスチャ画面の `#pad_swipe` の外に落ちて `swipe(.down)` が検出されなかった。
+
 ## ビルド
 
 ```sh

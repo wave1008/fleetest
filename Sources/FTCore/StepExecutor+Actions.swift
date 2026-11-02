@@ -669,30 +669,35 @@ extension StepExecutor {
            await slowDrag(jump: jump, container: container, phase: &phase) {
             _ = try await settledSignature(phase: &phase)
             let refreshed = try await freshSnapshot(.afterOwnMove)
-            if let (moved, _) = LocatorResolver.resolve(step: step, in: refreshed) {
-                let heightBeforeNudge = element.frame.height
-                snapshot = refreshed
-                element = moved
-                resolvedElementThisStep = element
-                // **収束を確かめてから「fully inside」と言う**(実機 Pixel 4a の WebView: 寄せは 131px しか動かず、
-                // 行はまだ枠の上端をまたいでいたのに「fully inside」と出た)。1回で収まらなければ見えている部分を撃つ。
-                // **包含を直接見る**(straddlingContainerEdge の nil は「収まった」だけでなく、行き過ぎて外へ出た・容器が引けない・
-                // 容器より高い、も含む)
-                let fullyInside = ContainerGeometry.clippingContainer(
-                    of: moved, in: refreshed.elements, inferring: true
-                ).map { TapTargetGeometry.contains($0, moved.frame) } ?? false
-                // 寄せたのに枠の高さが縮んだ = 重なる別の面(タブ列等)で切られた木の枠。包含を満たしても
-                // 全体は見えていない(実測 SE3 CMP: 高さ 48 → 27・中心は当たり判定の外)
-                    && moved.frame.height >= heightBeforeNudge - Self.nudgeHeightShrinkTolerance
-                straddleNote = fullyInside
-                    ? "nudged the element fully inside its container before touching it"
-                    : "nudged the element toward the inside of its container, but it is not fully inside"
-                        + " — touched it where it is"
+            // **寄せの後に引けなければ撃たない**: 寄せの払いが押下になって画面が変わることがある(RN の iOS の横向き: 行の上で始めた
+            // XCUITest のドラッグがその行を押して遷移した)。寄せる前の ref は前の木の番号で、撃つと今の木の別の要素
+            // (タブバーのホーム)を押して ok になった
+            guard let (moved, _) = LocatorResolver.resolve(step: step, in: refreshed) else {
+                return StepOutcome(status: failed(.notFound, Self.nudgeLostMessage(step)
+                    + (await leftForegroundSuffix(snapshot.sessionBundleID))))
             }
+            let heightBeforeNudge = element.frame.height
+            snapshot = refreshed
+            element = moved
+            resolvedElementThisStep = element
+            // **収束を確かめてから「fully inside」と言う**(実機 Pixel 4a の WebView: 寄せは 131px しか動かず、
+            // 行はまだ枠の上端をまたいでいたのに「fully inside」と出た)。1回で収まらなければ見えている部分を撃つ。
+            // **包含を直接見る**(straddlingContainerEdge の nil は「収まった」だけでなく、行き過ぎて外へ出た・容器が引けない・
+            // 容器より高い、も含む)
+            let fullyInside = ContainerGeometry.clippingContainer(
+                of: moved, in: refreshed.elements, inferring: true
+            ).map { TapTargetGeometry.contains($0, moved.frame) } ?? false
+            // 寄せたのに枠の高さが縮んだ = 重なる別の面(タブ列等)で切られた木の枠。包含を満たしても
+            // 全体は見えていない(実測 SE3 CMP: 高さ 48 → 27・中心は当たり判定の外)
+                && moved.frame.height >= heightBeforeNudge - Self.nudgeHeightShrinkTolerance
+            straddleNote = fullyInside
+                ? "nudged the element fully inside its container before touching it"
+                : "nudged the element toward the inside of its container, but it is not fully inside"
+                    + " — touched it where it is"
         }
 
         // **キーボードで枠が細い帯に潰れた対象は、閉じてから引き直して撃つ**(実機 CMP: 高さ 2 に潰れた送信・クリアを撃つと焦点の欄へ当たり
-        // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられない・引けなければ従来どおり撃つ
+        // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられなければ従来どおり撃つ
         if action == "tap", !switchedToFallbackDriver,
            PreFireGuard.keyboardCover(
                of: element, in: snapshot,
@@ -702,13 +707,16 @@ extension StepExecutor {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
-            if let (reached, _) = LocatorResolver.resolve(step: step, in: after) {
-                snapshot = after
-                element = reached
-                resolvedElementThisStep = element
-                driverFallback = Self.joinNotes(driverFallback,
-                    closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
+            // 引けなければ撃たない(閉じる前の要素は前の木の ref と枠 = 撃つと別の物に当たる。寄せの後と同じ)
+            guard let (reached, _) = LocatorResolver.resolve(step: step, in: after) else {
+                return StepOutcome(status: failed(.notFound, Self.keyboardClosedLostMessage(step, closedNote: closedNote)
+                    + (await leftForegroundSuffix(snapshot.sessionBundleID))))
             }
+            snapshot = after
+            element = reached
+            resolvedElementThisStep = element
+            driverFallback = Self.joinNotes(driverFallback,
+                closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
         }
 
         // **無効な対象は操作可能になるまで待ってから撃つ**(ユーザー決定)。
@@ -1795,6 +1803,16 @@ extension StepExecutor {
     /// **送った後の木がロック画面・常時表示(消灯)なら「覆われた」と言わない** —— 端末の画面が落ちた(か施錠された)事実を言う。
     /// 覆いの経路の文を出すと、画面が消えただけなのにアプリの UI が対象を覆ったように読める。送った分のスクロールが
     /// アプリに届いたかも言えない。木は送った後に読んだものを使う(追加の読みは無い)
+    static func nudgeLostMessage(_ step: FlowStep) -> String {
+        "the target straddled its container's edge, so a slow drag was sent to bring it inside before touching it,"
+            + " but the target could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
+    }
+
+    static func keyboardClosedLostMessage(_ step: FlowStep, closedNote: String) -> String {
+        "the soft keyboard was covering the target, so it was closed before touching it (\(closedNote)), but the target"
+            + " could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
+    }
+
     static func coverLiftLostMessage(_ step: FlowStep, verb: String, after: SnapshotResponse? = nil) -> String {
         let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
         if let after, SystemUITreeKind.isLockScreenOrAlwaysOn(

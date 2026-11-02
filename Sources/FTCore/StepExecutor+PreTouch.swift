@@ -77,11 +77,14 @@ extension StepExecutor {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
-            if let (reached, _) = LocatorResolver.resolve(step: step, in: after) {
-                snapshot = after
-                element = reached
-                notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
+            // 引けなければ撃たない(閉じる前の要素は前の木の ref と枠 = 撃つと別の物に当たる。寄せの後と同じ)
+            guard let (reached, _) = LocatorResolver.resolve(step: step, in: after) else {
+                return .refused(Self.keyboardClosedLostMessage(step, closedNote: closedNote)
+                    + (await leftForegroundSuffix(snapshot.sessionBundleID)), kind: .notFound)
             }
+            snapshot = after
+            element = reached
+            notes.append(closedNote + " — the target was collapsed or covered by a bar raised above the keyboard while it was up")
         }
         switch try await reachPastKeyboard(element, in: snapshot, step: step, action: "tap",
                                            snapshotSource: snapshotSource, phase: &phase) {

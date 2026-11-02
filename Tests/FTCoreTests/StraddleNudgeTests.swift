@@ -25,12 +25,17 @@ private final class StraddlingDriver: AppDriver {
     /// ほかの行(他 01・他 02)もドラッグで動くか(false = 送りがどこにも効かなかった形)
     private let othersMove: Bool
     private var othersShift: Double = 0
+    /// ドラッグで画面が変わり対象が木から消える(寄せの払いが行の押下になって遷移した形)
+    private let dragLeavesScreen: Bool
+    private var leftScreen = false
     /// ほかの行が1回の送りで動く量。**動いたことが分かれば足りる**(指の移動量どおりに動かすと容器の外へ出て、容器の推定ごと変わる)
     private static let othersStep: Double = 10
 
     /// straddling: 縁をまたぐ(交差はする) / ghost: 完全に容器の外
-    init(straddling: Bool, ghost: Bool = false, dragScale: Double = 1, othersMove: Bool = true) {
+    init(straddling: Bool, ghost: Bool = false, dragScale: Double = 1, othersMove: Bool = true,
+         dragLeavesScreen: Bool = false) {
         self.dragScale = dragScale
+        self.dragLeavesScreen = dragLeavesScreen
         self.othersMove = othersMove
         rowY = ghost ? Self.container.y - 200
             : (straddling ? Self.container.y - 30 : Self.container.y + 100)
@@ -61,12 +66,21 @@ private final class StraddlingDriver: AppDriver {
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
               pressSeconds: Double, durationSeconds: Double) async throws {
         drags += 1
+        if dragLeavesScreen { leftScreen = true }
         rowY += (toY - fromY) * dragScale   // 指の動きぶん内容が動く(フリング無し)
         if othersMove { othersShift += toY > fromY ? Self.othersStep : -Self.othersStep }
     }
 
     func snapshot() async throws -> SnapshotResponse {
-        SnapshotResponse(
+        if leftScreen {
+            return SnapshotResponse(
+                sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 402, height: 874),
+                elements: [ElementInfo(ref: 1, type: "button", identifier: "btn_back", label: "戻る", value: nil,
+                                       placeholder: nil, enabled: true, frame: FTRect(x: 16, y: 60, width: 62, height: 48),
+                                       depth: 1)],
+                truncatedCount: 0)
+        }
+        return SnapshotResponse(
             sessionBundleID: nil,
             screen: FTRect(x: 0, y: 0, width: 402, height: 874),
             elements: [
@@ -103,6 +117,22 @@ final class StraddleNudgeTests: XCTestCase {
 
         XCTAssertGreaterThan(driver.drags, 0,
                              "縁にまたがった要素をそのまま撃っている(寄せが発火していない)")
+    }
+
+    /// **寄せの後に対象を引けなければ撃たずに失敗にする**(RN の iOS の横向き: 寄せの払いが行の押下になって遷移し、
+    /// 寄せる前の ref で撃ったタップが今の木のタブを押して ok になった)
+    func testTargetGoneAfterNudgeFailsWithoutTouching() async throws {
+        let driver = StraddlingDriver(straddling: true, dragLeavesScreen: true)
+
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(tapStep())
+
+        XCTAssertGreaterThan(driver.drags, 0)
+        XCTAssertEqual(driver.refTaps, 0, "寄せる前の ref で撃った")
+        XCTAssertTrue(driver.taps.isEmpty, "寄せる前の座標で撃った: \(driver.taps)")
+        guard case .failed(let message) = outcome.status else {
+            return XCTFail("寄せの後に対象が消えたのに失敗にならない: \(outcome.status)")
+        }
+        XCTAssertTrue(message.contains("could not be found on the screen afterwards"), message)
     }
 
     /// **収まったときだけ「fully inside」と言う**(実機 Pixel 4a の WebView: 寄せが一部しか効かず、まだまたいでいるのに

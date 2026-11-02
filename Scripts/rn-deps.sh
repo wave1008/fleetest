@@ -32,10 +32,27 @@ rn_sync_node_modules() {
   npm ci
 }
 
+# pod install が書く自動リンクの記録が、このクローンを指して在るか。無い・別の置き場所を指す記録のままだと、
+# ビルド時の codegen が WebView 等のネイティブ部品を登録しないアプリを作り、起動直後に落ちる
+# (「Module has not been registered as callable」。Pods は lock と一致するので Manifest.lock だけでは入れ直しに気づかない)
+_rn_autolinking_matches_checkout() {
+  python3 -I -c '
+import json, os, sys
+try:
+    root = json.load(open("ios/build/generated/autolinking/autolinking.json"))["root"]
+except (OSError, ValueError, KeyError):
+    sys.exit(1)
+sys.exit(0 if os.path.realpath(root) == os.path.realpath(".") else 1)'
+}
+
 rn_sync_pods() {
   # Manifest.lock は pod install が Pods/ に書く Podfile.lock の写し(CocoaPods 自身の同期判定と同じ)
-  cmp -s ios/Podfile.lock ios/Pods/Manifest.lock && return 0
-  echo "→ Pods が Podfile.lock と食い違うので pod install --deployment で入れ直します"
+  if cmp -s ios/Podfile.lock ios/Pods/Manifest.lock; then
+    _rn_autolinking_matches_checkout && return 0
+    echo "→ 自動リンクの記録が無い(または別の置き場所を指す)ので pod install --deployment で作り直します"
+  else
+    echo "→ Pods が Podfile.lock と食い違うので pod install --deployment で入れ直します"
+  fi
   # Local Podspecs は外部パスの podspec の前回の写し。RN の版を上げると CocoaPods がこの古い写しと比べ、
   # hermes-engine で「版が変わった」と止まるか、React-Core-prebuilt を黙って前の版のまま残す
   # (0.87 で前の版のヘッダの置き方が残り module.modulemap が無いと落ちる)。消せば node_modules から読み直す
