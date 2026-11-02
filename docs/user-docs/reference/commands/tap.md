@@ -26,6 +26,12 @@ tap(x: 120, y: 640)                    // only when no selector is available
 
 ## Notes
 
+- **When several elements match the selector**: if the first one is covered by another element in front and an uncovered
+  match exists, that one is tapped (with a note). If every match is covered and there is nowhere to press, nothing is tapped
+  and the step fails.
+- **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
+  to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
+  another app is never operated by mistake).
 - **`tap` waits for the target to become enabled before tapping.** A screen can render an
   element before it is actually interactive (a form still loading, a button disabled until
   validation passes). `tap` retries resolution until the element is `enabled`, up to the
