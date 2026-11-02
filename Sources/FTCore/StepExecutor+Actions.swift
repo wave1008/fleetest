@@ -1185,7 +1185,7 @@ extension StepExecutor {
                     return StepOutcome(status: .failed(failure))
                 }
                 if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
-                                                 replace: step.replace == true, text: text, element: element) {
+                                                 replace: step.replace == true, text: text, element: element, locator: step.locator) {
                     await noteIfTypedTextNotDrawn(element: element, text: text, screen: snapshot.screen, phase: &phase)
                 }
             } catch {

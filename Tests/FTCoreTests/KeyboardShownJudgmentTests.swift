@@ -35,16 +35,6 @@ final class KeyboardShownJudgmentTests: XCTestCase {
         XCTAssertFalse(KeyboardWait.isShown(snapshot(frame: nil, shown: nil)))
     }
 
-    /// XCUITest の「不明」(`.keyboard` ノードを見ていない)は、木が落ち着いたあとだけ非表示と読む。Android の不明・整定前は読み替えない
-    func testUnknownAfterSettleIsNotShownOnlyOnIOS() {
-        let unknown = snapshot(frame: nil, shown: nil)
-        XCTAssertEqual(KeyboardWait.shownStateAfterSettle(unknown, isAndroid: false, settled: true), false)
-        XCTAssertNil(KeyboardWait.shownStateAfterSettle(unknown, isAndroid: false, settled: false), "整定前は不明のまま")
-        XCTAssertNil(KeyboardWait.shownStateAfterSettle(unknown, isAndroid: true, settled: true), "Android の不明は非表示と読まない")
-        let up = snapshot(frame: FTRect(x: 0, y: 600, width: 402, height: 274), shown: nil)
-        XCTAssertEqual(KeyboardWait.shownStateAfterSettle(up, isAndroid: false, settled: true), true, "申告があればそれが答え")
-    }
-
     /// **chrome から帯を推定するのは、画面に掛かっている chrome だけ**(画面の外へ隠れたキーボードの chrome で帯を作らない)
     func testKeyboardBandFromChromeIgnoresChromeBelowTheScreen() {
         func chrome(y: Double) -> ElementInfo {

@@ -1,17 +1,42 @@
 {
   "id": "oi58",
-  "finding": "横向きで低い縦の一覧(Android)では、枠なしの払い(ブリッジ既定の始点)が一覧に当たらず scrollTo が「nothing moved at all」で失敗する。木に唯一の scrollable があれば、その中で払い直して続ける",
+  "finding": "横向きの低い縦の一覧(Android)では、枠なしの払い(ブリッジ既定の始点)が一覧に当たらず scrollTo が「nothing moved at all」で失敗する。木に唯一の scrollable があれば、その中で払い直して続ける。容器が2つ以上の画面(E2E-Android のスクロール画面)では払い直さず scrollFrame を勧める",
   "platform": "android",
   "redConfirmed": false,
-  "redNote": "デバイス実行をしていないので赤は未確認。要る条件: Emulator を横向きにして E2E-Android のスクロール画面で #row_40 を探し、runScrollSearch の払い直しの分岐(containerRedirectTried)を外した版で「nothing moved at all」の赤を確かめる。画面によっては既定の払いでも当たる(その場合は赤にならない)。単体は ScrollSearchContainerRedirectTests",
+  "redNote": "修正を外した版の赤は未確認。E2EY-Flutter の横向きの #list_chat で、runScrollSearch の払い直しの分岐(containerRedirectTried)を外した版を回して「nothing moved at all」の赤を確かめる。修正後は Emulator で 0/3",
   "setup": [
-    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}]
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.flutter"
+      }
+    ]
   ],
   "reset": [
-    ["ft_batch", {"steps": "rotateTo orientation: .portrait"}],
-    ["ft_launch", {"bundleId": "com.ftester.e2e.android"}],
-    ["ft_batch", {"steps": "tap '#nav_scroll'"}],
-    ["ft_batch", {"steps": "rotateTo orientation: .landscape"}]
+    [
+      "ft_batch",
+      {
+        "steps": "rotateTo orientation: .portrait"
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.flutter"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_chat' scroll: .down"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "rotateTo orientation: .landscape"
+      }
+    ]
   ],
   "resetSeconds": 1,
   "rounds": 5,
@@ -19,18 +44,34 @@
     {
       "name": "枠なしの scrollTo(MCP)",
       "steps": [
-        ["ft_scroll_to", {"selector": "#row_40", "direction": "up", "maxSwipes": 15}]
+        [
+          "ft_scroll_to",
+          {
+            "selector": "#msg_50",
+            "direction": "up",
+            "maxSwipes": 15
+          }
+        ]
       ],
       "replyOnly": true,
-      "replyReject": ["nothing moved at all"]
+      "replyReject": [
+        "nothing moved at all"
+      ]
     },
     {
       "name": "枠なしの scrollTo(DSL / ft_batch)",
       "steps": [
-        ["ft_batch", {"steps": "scrollTo('#row_40', direction: .up, maxSwipes: 15)"}]
+        [
+          "ft_batch",
+          {
+            "steps": "scrollTo '#msg_50' direction: .up maxSwipes: 15"
+          }
+        ]
       ],
       "replyOnly": true,
-      "replyReject": ["nothing moved at all"]
+      "replyReject": [
+        "nothing moved at all"
+      ]
     }
   ]
 }

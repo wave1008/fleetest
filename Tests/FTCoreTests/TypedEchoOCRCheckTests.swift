@@ -12,7 +12,7 @@ final class TypedEchoOCRCheckTests: XCTestCase {
     private func check(framework: AppUIFramework? = .flutter, ocr: RegionTextGateMode = .on, replace: Bool = true,
                        text: String = "xyz", element: ElementInfo? = nil) -> Bool {
         TypedEchoOCRCheck.shouldCheck(framework: framework, ocrMode: ocr, replace: replace, text: text,
-                                      element: element ?? field("field_number"))
+                                      element: element ?? field("field_number"), locator: nil)
     }
 
     func testChecksFlutterNumericNamedFieldWithOCROn() {
@@ -27,6 +27,16 @@ final class TypedEchoOCRCheckTests: XCTestCase {
             XCTAssertFalse(TypedEchoOCRCheck.hasNumericName(name), name)
         }
         XCTAssertTrue(TypedEchoOCRCheck.hasNumericName("電話番号"))
+    }
+
+    func testScopeIdOfTheWrittenSelectorCountsAsTheName() {
+        let inner = ElementInfo(ref: 1, type: "textField", identifier: nil, label: nil, value: "xyz", placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 0, width: 300, height: 56), depth: 2)
+        let scoped = FlowLocator(type: "textField", scope: [FlowLocator(id: "field_number")])
+        XCTAssertTrue(TypedEchoOCRCheck.shouldCheck(framework: .flutter, ocrMode: .on, replace: true, text: "xyz",
+                                                    element: inner, locator: scoped))
+        XCTAssertFalse(TypedEchoOCRCheck.shouldCheck(framework: .flutter, ocrMode: .on, replace: true, text: "xyz",
+                                                     element: inner, locator: nil))
     }
 
     func testTheTypePathCallsTheCheck() throws {

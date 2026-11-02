@@ -38,13 +38,15 @@ public enum TypedEchoOCRCheck {
     /// 読み返しの後に画面の欄を OCR で確かめるか。全部満たすときだけ:
     /// Flutter(他のフレームワークでは木が画面を映す)・OCR の段がオン(利用者が切った段は使わない)・置き換え入力・
     /// 入力欄・打った文字列に数字以外が含まれる(数字だけの文字列は数字の欄が受ける)・名前が数字系
+    /// `locator` は書かれたセレクタ。Flutter の欄の id は外側の要素に付き、`#field_number >> .textField` の内側には無いので、スコープの id も名前に数える
     public static func shouldCheck(framework: AppUIFramework?, ocrMode: RegionTextGateMode, replace: Bool,
-                                   text: String, element: ElementInfo) -> Bool {
+                                   text: String, element: ElementInfo, locator: FlowLocator?) -> Bool {
         guard framework == .flutter, ocrMode == .on, replace,
               TypeReadback.isTextInput(element), element.type != "secureTextField",
               !text.isEmpty, text.count <= 40,
               text.contains(where: { !$0.isNumber }) else { return false }
-        let name = [element.identifier, element.label, element.placeholder].compactMap { $0 }.joined(separator: " ")
+        let written = ([locator?.id] + (locator?.scope ?? []).map(\.id)).compactMap { $0 }
+        let name = ([element.identifier, element.label, element.placeholder].compactMap { $0 } + written).joined(separator: " ")
         return hasNumericName(name)
     }
 }

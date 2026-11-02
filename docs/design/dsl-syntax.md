@@ -567,9 +567,8 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 
 - **iOS xcuitest**: AX ツリー走査中に `.keyboard` ノードを見たか(`app.keyboards` クエリは使わない
   — キーボードが別プロセス扱いでタイムアウトする。`handleType` のコメントと同じ事情)。
-  **「非表示」を申告できない**(見なかった = 不明で `keyboardShown == nil`)ため、`keyboardIsNotShown` は
-  木が落ち着いてから `.keyboard` が無ければ非表示と読む(`KeyboardWait.shownStateAfterSettle`。上がる途中の木には
-  まだ載らないので整定が条件。`keyboardIsShown` 側は読み替えない)
+  **「非表示」を確定できない**(見なかった = 不明で `keyboardShown == nil`)ため、
+  `keyboardIsNotShown` はこのブリッジでは通らない(下記の nil 規約どおり明示的に失敗する)
 - **iOS in-app**: **`UITextEffectsWindow` の可視判定**。キーボードはキーウィンドウの外に載るので
   AX ツリー走査では見つからない(閉じても window は残るため、画面内に張り出しているかで見る)。
   **非表示を false で確定できる唯一の iOS 経路**(nil へ潰すと

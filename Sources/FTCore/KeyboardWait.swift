@@ -37,18 +37,6 @@ public enum KeyboardWait {
         return snapshot.keyboardShown
     }
 
-    /// 木が落ち着いた後の3値(`keyboardIsNotShown` の XCUITest の「不明」の読み)。矩形か `keyboardShown` の申告があればそれが答え。
-    /// **申告が無い iOS は、整定した木に `.keyboard` ノードが無い = 非表示と読む**: XCUITest ブリッジは `.keyboard` を見たときだけ
-    /// 申告し、見なかったときは nil しか返せない(非表示の申告を持たない)。整定を条件にするのは、キーボードが上がる途中の
-    /// 木には `.keyboard` がまだ載らないから(整定は欄の位置も含む署名が2回続けて一致するまで待つ)。
-    /// **Android の nil は読み替えない**(旧ブリッジ・フラグ未着火を非表示と読むと、開いたままのキーボードを閉じたと通す)。
-    /// 整定しきれなかった(`settled == false`)ときも nil のまま = 呼び手は待ちを続ける
-    public static func shownStateAfterSettle(_ snapshot: SnapshotResponse, isAndroid: Bool, settled: Bool) -> Bool? {
-        if let state = shownState(snapshot) { return state }
-        guard !isAndroid, settled else { return nil }
-        return false
-    }
-
     /// type の後にキーボードの出現を待つか(純粋関数)。
     /// **Android**: type が焦点を要求して書き込むとすぐ返り、IME の表示を待たないので、次の解決の木には
     /// まだ無く後から出てダイアログが動く。
