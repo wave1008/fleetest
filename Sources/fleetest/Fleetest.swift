@@ -294,7 +294,7 @@ struct RunScenarios: AsyncParsableCommand {
     var failed = false
 
     @Option(name: .customLong("report-dir"),
-            help: "Directory to write reports to (defaults to TestProjects/<name>/reports; a relative path is relative to the current directory, and so is a relative --set reportDir= without --profile, while a profile's reportDir is relative to the project root). Must not be empty. Cannot combine with --set reportDir=...")
+            help: "Directory to write reports to (defaults to TestProjects/<name>/reports; a relative --report-dir is relative to the current directory, while a relative reportDir (the profile's, or --set reportDir=, with or without --profile) is relative to the project root). Must not be empty. Cannot combine with --set reportDir=...")
     var reportDir: String?
 
     @Option(name: .customLong("port"),
@@ -1050,7 +1050,8 @@ struct RunScenarios: AsyncParsableCommand {
         // `--report-dir` が優先(validate() が両方指定を既にエラーにしている)。次点は
         // `--set reportDir=`。`defaultTimeout`/`scenarioTimeout` はこの経路(RunScenarios)に
         // 専用フラグが無いため `--set` だけが口
-        let reportDirPath = reportDir ?? noProfileSettings.reportDir ?? testProject.reportsDir.path
+        let reportDirPath = reportDir ?? noProfileSettings.reportDir.map { ProfileResolver.reportDirectory($0, project: testProject).path }
+            ?? testProject.reportsDir.path
         // --set record=true の可否(単一接続では録画セッションが無い)は validate() が既に検査済み
         let iosPorts: [UInt16] = ports.isEmpty ? [BridgeAPI.defaultPort] : ports
 
@@ -1387,8 +1388,7 @@ struct RunScenarios: AsyncParsableCommand {
                                               profileReportDir: profileReportDir)
         defer { tempDir.map { try? FileManager.default.removeItem(at: $0) } }
         let dryRunReportPath = tempDir?.path
-            ?? ApiRun.explicitReportDir(flag: reportDir, setOverrides: setOverrides, project: project,
-                                        withProfile: common.profile != nil) ?? profileReportDir?.path ?? project.reportsDir.path
+            ?? ApiRun.explicitReportDir(flag: reportDir, setOverrides: setOverrides, project: project) ?? profileReportDir?.path ?? project.reportsDir.path
 
         var failedCount = 0
         let deviceSession = RunDeviceSession()

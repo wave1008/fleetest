@@ -1,4 +1,4 @@
-// 残件台帳 OI-93 / 95 / 115 / 68 / 84 / 122 / 80 の MCP 側の直しを固定する。
+// MCP 側の残件の直しを固定する。
 // 各テストは直しを外す変異(MutationCases の案)で落ちる向きと、逆向き(常に出す)の両方を持つ。
 
 import XCTest
@@ -25,7 +25,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
                     frame: FTRect(x: 10, y: y, width: 100, height: height), depth: 1)
     }
 
-    // MARK: - OI-93 包まれた接続拒否では記憶を捨てない
+    // MARK: - 包まれた接続拒否では記憶を捨てない
 
     func testWrappedRefusalIsRecognisedByKindOnly() {
         let refused = DriverError.bridgeConnectionRefused(context: iosContext, detail: "x")
@@ -56,7 +56,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
         XCTAssertTrue(dispatch.contains("keepsMemory: Self.isWrappedConnectionRefusal(error)"))
     }
 
-    // MARK: - OI-95 全手の後の読みが失敗しても投げられた case を抱える
+    // MARK: - 全手の後の読みが失敗しても投げられた case を抱える
 
     func testUnreadableAfterBatchKeepsTheThrownError() async {
         let driver = FakeDriver()
@@ -99,7 +99,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
                        "両方の成功本文(アラート前面・通常)が同じ判定を渡す")
     }
 
-    // MARK: - OI-68 同じ udid の port 違いは 1 台
+    // MARK: - 同じ udid の port 違いは 1 台
 
     func testSamePortMovedOnTheSameUDIDIsOneDevice() {
         var seen: Set<UInt16> = []
@@ -210,7 +210,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
                        "ghost と found の両方")
     }
 
-    // MARK: - OI-122 ft_batch の読み取りと注記
+    // MARK: - ft_batch の読み取りと注記
 
     func testBatchFinalReadsPayThePendingKeyboardAppearance() throws {
         let batch = try source("Sources/fleetest-mcp/MCPServer+Batch.swift")
@@ -244,7 +244,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
         XCTAssertEqual(batch.components(separatedBy: "launchedInBatch: args[\"launch\"] != nil").count - 1, 2)
     }
 
-    // MARK: - OI-80 PIN ロック
+    // MARK: - PIN ロック
 
     func testMCPNeverRetriesTheUnlockWaitAfterGivingUp() throws {
         let driver = try source("Sources/fleetest-mcp/MCPServer+Driver.swift")

@@ -102,4 +102,28 @@ final class DraftArgumentAndSpringBoardTests: XCTestCase {
         let todo = try XCTUnwrap(lines.firstIndex { $0.contains("the tool warned that this step probably did nothing") }, text)
         XCTAssertEqual(lines.firstIndex { $0.hasPrefix("tap(\"#row\"") }.map { $0 > todo }, true, text)
     }
+
+    func testFailedStepIsATodoNotAPlainLine() async throws {
+        let server = server()
+        server.interactions.record(launch("com.example.app"))
+        server.interactions.record(tap("#ok"))
+        var failed = tap("#gone")
+        failed.failure = "element not found"
+        server.interactions.record(failed)
+        server.interactions.record(tap("#after"))
+        let text = try await draft(server)
+        XCTAssertTrue(text.contains("tap(\"#ok\""), text)
+        XCTAssertTrue(text.contains("tap(\"#after\""), text)
+        XCTAssertFalse(text.contains("tap(\"#gone\""), "失敗した手は普通の行にしない: \(text)")
+        XCTAssertTrue(text.contains("TODO: this step FAILED during the exploration"), text)
+        XCTAssertTrue(text.contains("element not found"), text)
+    }
+
+    /// ft_batch の記録が失敗の印を付けて残す(失敗した手を記録から消さない・印を付け忘れない)ソース走査
+    func testBatchRecordsFailureMark() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp/MCPServer+Batch.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("entry.failure = "), "ft_batch は失敗した手に failure を付けて記録する")
+    }
 }

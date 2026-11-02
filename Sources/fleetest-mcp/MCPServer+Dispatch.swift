@@ -695,6 +695,17 @@ extension MCPServer {
             return Self.withElapsed(content, since: start, clock: clock,
                                     breakdown: SlowCallWatchdog.breakdown())
         }
+        // モニターの実行中のランプ用に、呼び出しの進行中だけ印を立てる(lease とは別の印。MCPDeviceLease の `.active`)
+        if Self.toolAcceptsDeviceTarget(tool), let stateDir = deviceLeaseStateDir {
+            if let deviceKey = leaseDeviceKey(args: resolved) {
+                MCPDeviceLease.beginCall(stateDir: stateDir, key: deviceKey, pid: ProcessInfo.processInfo.processIdentifier)
+            }
+        }
+        defer {
+            if let stateDir = deviceLeaseStateDir {
+                MCPDeviceLease.endCall(stateDir: stateDir, pid: ProcessInfo.processInfo.processIdentifier)
+            }
+        }
         do {
             // **失敗したら1回だけブリッジを起動し直して撃ち直す**(MCPServer+BridgeRecovery.swift)。
             // 起動し直せなければ元のエラーがそのまま catch へ落ち、connectionLostHint 等はそのまま効く
@@ -754,14 +765,19 @@ extension MCPServer {
     /// デバイスの鍵は解決済みの記録(udids / connectedAndroidSerials)から採る = run の lease と同じ鍵。
     /// 記録が無い(接続する前に失敗した回)ときは引数の udid / serial。どれも無ければ何もしない
     func markDeviceInUse(args: [String: Any]) -> String? {
-        let key = Self.sessionKey(args)
-        let recorded = (udids[key] ?? nil) ?? connectedAndroidSerials[key]
-        guard let stateDir = deviceLeaseStateDir,
-              let deviceKey = recorded ?? (args["udid"] as? String) ?? (args["serial"] as? String),
-              !deviceKey.isEmpty else { return nil }
+        guard let stateDir = deviceLeaseStateDir, let deviceKey = leaseDeviceKey(args: args) else { return nil }
         // 印と文言は MCPDeviceLease の1箇所(ft_run_scenario も同じ口を使う)
         return MCPDeviceLease.writeAndWarnIfInUse(
             stateDir: stateDir, key: deviceKey, pid: ProcessInfo.processInfo.processIdentifier)
+    }
+
+    /// lease / 進行中の印の鍵(解決済みの記録を先に・無ければ引数の udid / serial)
+    func leaseDeviceKey(args: [String: Any]) -> String? {
+        let key = Self.sessionKey(args)
+        let recorded = (udids[key] ?? nil) ?? connectedAndroidSerials[key]
+        guard let deviceKey = recorded ?? (args["udid"] as? String) ?? (args["serial"] as? String),
+              !deviceKey.isEmpty else { return nil }
+        return deviceKey
     }
 
     /// ios/android 分岐の共通尾部(掃討・曖昧化対応で拡張):

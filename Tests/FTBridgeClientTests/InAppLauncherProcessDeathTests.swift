@@ -1,4 +1,4 @@
-// OI-110: 注入起動したアプリが ready の前に死んだら、30 秒待ち切らずに notReady で早く返す。
+// 注入起動したアプリが ready の前に死んだら、30 秒待ち切らずに notReady で早く返す。
 // 死は launchd の事実(appIsRunning == false)が連続して確定したときだけ。判定できない(nil)・生きている間は待ち続ける。
 
 import XCTest

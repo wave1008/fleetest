@@ -427,6 +427,14 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (`RenderCollapse.Finding.noTextDrawn`)。事実だけ
     case screenTextless = "screen-textless"
 
+    /// 枠なしの払いが1度も動かなかったので、木に1つだけある scrollable の中で払い直したところ動いた。
+    /// 以降の探索はその容器の中で続けた。**立つのは払い直しが効いた回だけ**。率が上がったら既定の払いの始点が一覧に当たらない画面が多い
+    case scrollRedirectedToContainer = "scroll-redirected-to-container"
+
+    /// Flutter の置き換え入力の後、OCR で画面の欄を読んだが打った文字列が描かれていなかった(木の value は打った文字列のまま = 欄が捨てた入力の疑い。OI-40)。
+    /// OCR の段がオンのときだけ・数字系の名前の欄だけ。**判定は変えない(警告)**。原因は推測しない
+    case typedTextNotDrawn = "typed-text-not-drawn"
+
     /// 人間向けの文言(FTRuntime がステップ説明へ括弧書きで付ける)
     public var text: String {
         switch self {
@@ -609,6 +617,11 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "nothing was written under this key on this device in this run (the memo is per device)"
         case .unchangedTapBeforeFailure:
             return "a tap before this failure did not change the app's tree at all"
+        case .typedTextNotDrawn:
+            return "OCR did not find the typed text drawn in the field although the tree reports it as the value"
+                + " (the field may have discarded the input)"
+        case .scrollRedirectedToContainer:
+            return "the default swipe moved nothing, so the search swiped inside the only scroll area on screen instead"
         case .actedOutsideContainer:
             return "the element was still reported outside its scroll container when this acted on it,"
                 + " so the interaction may have landed elsewhere"

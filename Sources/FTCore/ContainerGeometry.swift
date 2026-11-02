@@ -5,6 +5,25 @@ import Foundation
 
 public enum ContainerGeometry {
 
+    /// 木に**払う軸で動かせる scrollable がちょうど1つ**(枠の同じものは1つと数える)のときのその要素。複数・0 は nil。
+    /// 枠なしの払いが「nothing moved at all」で終わる経路の払い直し先。軸の違う向きだけを申告する容器は数えない。
+    /// 複数なら当てずっぽうに選ばない(別の一覧を動かす)ので nil = 呼び手は払い直さず `scrollFrame` を勧める
+    public static func uniqueScrollContainer(in snapshot: SnapshotResponse, vertical: Bool) -> ElementInfo? {
+        let axis: Set<String> = vertical ? ["up", "down"] : ["left", "right"]
+        let other: Set<String> = vertical ? ["left", "right"] : ["up", "down"]
+        var found: [ElementInfo] = []
+        for element in snapshot.elements where element.scrollable == true
+            && element.frame.width > 0 && element.frame.height > 0 {
+            if let actions = element.scrollActions {
+                let set = Set(actions)
+                if set.isDisjoint(with: axis), !set.isDisjoint(with: other) { continue }
+            }
+            if found.contains(where: { sameFrame($0.frame, element.frame) }) { continue }
+            found.append(element)
+        }
+        return found.count == 1 ? found[0] : nil
+    }
+
     /// **容器をツリーから推測して行う補正**の殺しスイッチ。`FT_CONTAINER_INFERENCE=off` で
     /// まとめて止め、推測を持たなかった頃の挙動(見切れ判定は画面基準・掴み直し無し・
     /// 座標補正無し・候補の除外無し)へ戻す。

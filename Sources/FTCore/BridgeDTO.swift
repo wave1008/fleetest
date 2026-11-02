@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 243
+    public static let bridgeProtocolVersion = 244
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1081,6 +1081,14 @@ public struct SnapshotResponse: Codable, Sendable {
     /// Android の SnapshotBuilder は tier3 を持たないので常に nil で、件数だけの報告に縮退する
     public var bulkExemptCount: Int?
 
+    /// **画面の上端の安全領域の高さ**(ステータスバー・ノッチ・Dynamic Island の帯。座標系は screen と同じ = iOS pt / Android px)。
+    /// **省略できない欄**: 3つのブリッジは必ず送り、測れないときは `.unknown` を明示する(欄の欠落と「不明」を混ぜない)。
+    /// 取得元は iOS in-app=キーウィンドウの `safeAreaInsets.top` / Android=`WindowMetrics` の
+    /// `getInsetsIgnoringVisibility(statusBars | displayCutout).top`(API 30 以上。それ未満は不明)/
+    /// iOS XCUITest=測る API が無いので常に不明(推定の定数を置かない)。
+    /// 読み手はホストのタップ警告(`TapTargetGeometry.topSafeAreaAdvisory`)。
+    public var safeAreaTop: SafeAreaTop
+
     /// `truncatedTiers` を出すときの並びと表示名。**ホストの表示順を固定する**ため、
     /// 辞書の列挙順に頼らない
     public static let truncatedTierOrder: [(key: String, label: String)] = [
@@ -1095,7 +1103,9 @@ public struct SnapshotResponse: Codable, Sendable {
                 offscreen: [ElementInfo]? = nil, keyboardShown: Bool? = nil,
                 keyboardFrame: FTRect? = nil, overlayWindowFrames: [FTRect]? = nil,
                 truncatedTiers: [String: Int]? = nil,
-                bulkExemptCount: Int? = nil) {
+                bulkExemptCount: Int? = nil,
+                safeAreaTop: SafeAreaTop = .unknown) {
+        self.safeAreaTop = safeAreaTop
         self.sessionBundleID = sessionBundleID
         self.screen = screen
         self.elements = elements
@@ -1108,6 +1118,35 @@ public struct SnapshotResponse: Codable, Sendable {
         self.overlayWindowFrames = overlayWindowFrames
         self.truncatedTiers = truncatedTiers
         self.bulkExemptCount = bulkExemptCount
+    }
+}
+
+/// 画面上端の安全領域の申告(`SnapshotResponse.safeAreaTop`)。ワイヤ形式は
+/// `{"measured":true,"top":59.0}` または `{"measured":false}`。`measured == true` なら `top` は必須。
+public enum SafeAreaTop: Codable, Equatable, Sendable {
+    case measured(Double)
+    case unknown
+
+    private enum CodingKeys: String, CodingKey { case measured, top }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if try c.decode(Bool.self, forKey: .measured) {
+            self = .measured(try c.decode(Double.self, forKey: .top))
+        } else {
+            self = .unknown
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .measured(let top):
+            try c.encode(true, forKey: .measured)
+            try c.encode(top, forKey: .top)
+        case .unknown:
+            try c.encode(false, forKey: .measured)
+        }
     }
 }
 

@@ -337,7 +337,10 @@ final class BridgeRouter {
             },
             overlayWindowFrames: cap.overlayWindowFrames.isEmpty ? nil : cap.overlayWindowFrames,
             truncatedTiers: cap.truncatedTiers.isEmpty ? nil : cap.truncatedTiers,
-            bulkExemptCount: cap.bulkExempt > 0 ? cap.bulkExempt : nil)
+            bulkExemptCount: cap.bulkExempt > 0 ? cap.bulkExempt : nil,
+            // XCUITest はランナーの別プロセスで、アプリの safeAreaInsets を読む API も、ステータスバーの帯を
+            // 木に載せる経路も無い。推定の定数は置かず不明を申告する
+            safeAreaTop: .unknown)
     }
 
     /// フォーカス中要素の申告(clearInput 事後検証用。ElementInfo.focused 参照)。

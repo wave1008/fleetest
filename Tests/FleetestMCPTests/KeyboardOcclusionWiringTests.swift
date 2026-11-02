@@ -51,7 +51,7 @@ final class KeyboardOcclusionWiringTests: XCTestCase {
         let text = compact(try source("fleetest-mcp/RefGuard.swift"))
         XCTAssertTrue(text.contains(compact("keyboardWarning(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion)")),
                       "RefGuard.keyboardWarning が KeyboardOcclusion を受けていない")
-        XCTAssertTrue(text.contains(compact("preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion, overlayWindows: OverlayWindowOcclusion)")),
+        XCTAssertTrue(text.contains(compact("preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion, overlayWindows: OverlayWindowOcclusion, safeAreaTop: SafeAreaTop, screen: FTRect)")),
                       "RefGuard.preTapWarnings が KeyboardOcclusion / OverlayWindowOcclusion を受けていない")
     }
 

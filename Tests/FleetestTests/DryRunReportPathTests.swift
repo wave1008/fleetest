@@ -50,15 +50,27 @@ final class DryRunReportPathTests: XCTestCase {
         XCTAssertNil(ApiRun.declaredProfileReportDir(profile(declared: false), project: project))
     }
 
-    /// 相対の `--set reportDir=` は本物の run と同じ規則で解く: プロファイルありならプロジェクトの root 基準・なしなら素の値(cwd 基準)
-    func testExplicitSetReportDirResolvesLikeARealRun() {
+    /// 相対の `--set reportDir=` は `--profile` の有無によらずプロジェクトの root 基準(dry-run と本物の run で同じ規則)
+    func testExplicitSetReportDirIsProjectRootRelative() {
         let project = TestProject(name: "P", rootURL: URL(fileURLWithPath: "/tmp/ws/TestProjects/P"))
-        XCTAssertEqual(ApiRun.explicitReportDir(flag: nil, setOverrides: ["heal=true", "reportDir=out"], project: project,
-                                                withProfile: true),
+        XCTAssertEqual(ApiRun.explicitReportDir(flag: nil, setOverrides: ["heal=true", "reportDir=out"], project: project),
                        "/tmp/ws/TestProjects/P/out")
-        XCTAssertEqual(ApiRun.explicitReportDir(flag: nil, setOverrides: ["reportDir=out"], project: project, withProfile: false),
+        XCTAssertNil(ApiRun.explicitReportDir(flag: nil, setOverrides: ["heal=true"], project: project))
+        // --report-dir は従来どおり作業ディレクトリ基準
+        XCTAssertEqual(ApiRun.explicitReportDir(flag: "out", setOverrides: [], project: project),
                        URL(fileURLWithPath: "out").path)
-        XCTAssertNil(ApiRun.explicitReportDir(flag: nil, setOverrides: ["heal=true"], project: project, withProfile: true))
+    }
+
+    /// profile-less の本物の run(`run` / `api run`)も `--set reportDir=` を ProfileResolver.reportDirectory で解く
+    /// (素の `noProfileSettings.reportDir` を cwd 基準のまま使う形を戻さない)
+    func testProfileLessRunsResolveSetReportDirAgainstTheProjectRoot() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest")
+        for file in ["Fleetest.swift", "ApiRunCommand.swift"] {
+            let code = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
+            XCTAssertTrue(code.contains("noProfileSettings.reportDir.map { ProfileResolver.reportDirectory("), file)
+            XCTAssertFalse(code.contains("noProfileSettings.reportDir ?? "), file)
+        }
     }
 
     /// 2経路の転送がどちらもこの関数を通る(素の event をそのまま書く行を戻さない)

@@ -1,4 +1,4 @@
-// OI-118: 宣言による対象外の合成レコードは、実行時の対象外(子が宣言した形)と同じ `passed: true`。noWorker は false のまま。
+// 宣言による対象外の合成レコードは、実行時の対象外(子が宣言した形)と同じ `passed: true`。noWorker は false のまま。
 
 import XCTest
 @testable import FTCore

@@ -851,5 +851,5 @@
         "y": 0
     },
     "sessionBundleID": "com.ftester.e2e.ios",
-    "truncatedCount": 0
+    "safeAreaTop":{"measured":false},"truncatedCount": 0
 }

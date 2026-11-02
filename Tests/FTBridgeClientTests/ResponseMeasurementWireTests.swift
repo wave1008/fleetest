@@ -76,7 +76,7 @@ final class ResponseMeasurementWireTests: XCTestCase {
     }
 
     func testObservationDecodesReadsAndTree() async throws {
-        let snapshot = #"{"screen":{"x":0,"y":0,"width":1080,"height":2400},"elements":[],"truncatedCount":0}"#
+        let snapshot = #"{"screen":{"x":0,"y":0,"width":1080,"height":2400},"elements":[],"truncatedCount":0,"safeAreaTop":{"measured":false}}"#
         let body = #"{"found":true,"firstDownTimeMs":100,"lastDownTimeMs":100,"injections":1,"endedAtMs":900,"endReason":"nextInjection","reads":[{"startMs":110,"endMs":150,"ok":true},{"startMs":150,"endMs":400,"ok":false}],"trees":[{"readIndex":0,"snapshot":"# + snapshot + #"}],"truncated":false}"#
         let stub = try RecordingStubServer(body: body)
         defer { stub.stop() }

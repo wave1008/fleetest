@@ -213,6 +213,35 @@ final class SnapshotBuilder {
         return fallback;
     }
 
+    /**
+     * 画面上端の安全領域(ステータスバー + 表示切り欠き)の高さ。**必ず送る欄**で、測れないときは
+     * `{"measured":false}`(欄を省略しない)。API 30 未満は WindowInsets の可視性無視の取得口が無いので不明。
+     * 可視性を無視する(ステータスバーを隠している全画面アプリでも帯の高さは同じ)。ホストの読み手は
+     * TapTargetGeometry.topSafeAreaAdvisory。座標は screen と同じ px
+     */
+    private static JSONObject safeAreaTopJSON(Context context) throws JSONException {
+        JSONObject out = new JSONObject();
+        try {
+            if (context != null && Build.VERSION.SDK_INT >= 30) {
+                WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+                if (wm != null) {
+                    android.view.WindowInsets insets = wm.getMaximumWindowMetrics().getWindowInsets();
+                    int top = insets.getInsetsIgnoringVisibility(
+                            android.view.WindowInsets.Type.statusBars()
+                                    | android.view.WindowInsets.Type.displayCutout()).top;
+                    out.put("measured", true);
+                    out.put("top", top);
+                    return out;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // 取得できない環境は不明を申告する
+        }
+        out = new JSONObject();
+        out.put("measured", false);
+        return out;
+    }
+
     /** forceRefresh: WebView 外のノードも refresh() してから読むか(既定は false。collect 参照)。
      *  context: displayBounds の WindowManager 取得用(null 可・その場合はウィンドウの根へ落ちる) */
     static Result build(UiAutomation ua, Context context, boolean forceRefresh, int maxElements)
@@ -340,6 +369,7 @@ final class SnapshotBuilder {
         response.put("screen", rectJSON(screen));
         response.put("elements", elements);
         response.put("truncatedCount", truncated);
+        response.put("safeAreaTop", safeAreaTopJSON(context));
         if (offscreen.length() > 0) response.put("offscreen", offscreen);
         WindowRects hidden = hiddenWindowRects(ua);
         if (hidden.keyboard != null) response.put("keyboardFrame", rectJSON(hidden.keyboard));

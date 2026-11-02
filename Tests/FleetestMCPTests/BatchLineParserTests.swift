@@ -90,6 +90,24 @@ final class BatchLineParserTests: XCTestCase {
         }
     }
 
+    /// scrollTo の `waitSeconds:` は ft_batch でも受け、FlowStep.timeout に載る(読み込み中の一覧で端と確定しない待ち)
+    func testScrollToWaitSecondsReachesTheStep() throws {
+        let signature = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == "scrollTo" }?.signature)
+        let builder = try XCTUnwrap(MCPServer.batchStepBuilders["scrollTo"])
+        let raw = try BatchStepResolver.resolve(
+            command: "scrollTo", signature: signature,
+            args: try BatchLineParser.parse("scrollTo '#row' waitSeconds: 6").args,
+            declaredKeys: builder.keys, stepIndex: 0)
+        let (step, _) = try builder.build(raw)
+        XCTAssertEqual(step.timeout, 6)
+        let (plain, _) = try builder.build(try BatchStepResolver.resolve(
+            command: "scrollTo", signature: signature,
+            args: try BatchLineParser.parse("scrollTo '#row'").args,
+            declaredKeys: builder.keys, stepIndex: 0))
+        XCTAssertNil(plain.timeout, "省略は従来どおり(待ちを足さない)")
+        XCTAssertTrue(ScenarioCodeGen.command(for: step)?.contains("waitSeconds: 6") == true)
+    }
+
     // MARK: - 位置引数とラベル付き引数の混在
 
     func testPositionalAndLabeledArgsMixed() throws {

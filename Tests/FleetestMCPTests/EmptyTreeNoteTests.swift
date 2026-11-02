@@ -41,7 +41,7 @@ final class EmptyTreeNoteTests: XCTestCase {
         XCTAssertEqual(entry?.contexts, [.snapshot, .scrollTo])
     }
 
-    // OI-51: 全画面のキーボードで木が空のときは遷移中と言わない
+    // 全画面のキーボードで木が空のときは遷移中と言わない
 
     private func emptyWithKeyboard(height: Double, shown: Bool = true) -> SnapshotResponse {
         var snap = snapshot([])

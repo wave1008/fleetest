@@ -1,4 +1,4 @@
-// OI-53: Android の /launch が返す stoppedForeground を ft_launch の文に添える。
+// Android の /launch が返す stoppedForeground を ft_launch の文に添える。
 
 import XCTest
 @testable import FTBridgeClient

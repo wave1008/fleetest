@@ -1,4 +1,4 @@
-// 残件台帳の CLI 系(OI-112 前半・OI-117・OI-125 の type・OI-67 F6/F7)の純粋関数を固定する。
+// CLI 系の残件の純粋関数を固定する。
 
 import ArgumentParser
 import FTCore
@@ -12,8 +12,6 @@ final class CLIResidueFixesTests: XCTestCase {
         ServicesLease(pid: 1, pidStartedAt: startedAt, kind: .owner, runtime: "apple", endpoint: "apple",
                       prefix: "fleetest-ab", generation: "g", workspace: "/ws", project: "p", profile: "r", phase: .running)
     }
-
-    // OI-117
     func testComposeEditedAfterStartIsReported() {
         let lease = lease(startedAt: "2026-11-01T00:00:00Z")
         let after = ISO8601DateFormatter().date(from: "2026-11-01T00:05:00Z")

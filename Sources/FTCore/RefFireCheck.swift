@@ -49,6 +49,8 @@ public enum RefFireCheck {
             }
         }
         let overlay = OverlayWindowOcclusion.resolve(reported: snapshot.overlayWindowFrames).advisory(for: element)
+        let topBand = TapTargetGeometry.topSafeAreaAdvisory(
+            for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen)
         let geometry = TapTargetGeometry.occlusionAdvisory(
             for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid)
         // 画面の縁の丸め許容(`offscreenAdvisory` の 2pt)の内側に中心が居ると助言が出ないが、座標形は縁の外として断る
@@ -58,7 +60,7 @@ public enum RefFireCheck {
             ? "its centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is on the edge of the visible screen"
                 + " or just outside it, so this almost certainly did nothing"
             : nil
-        let advisory = [overlay, geometry, edge, containerNote].compactMap { $0 }.joined(separator: "; ")
+        let advisory = [overlay, topBand, geometry, edge, containerNote].compactMap { $0 }.joined(separator: "; ")
         return Result(refusal: nil, advisory: advisory.isEmpty ? nil : advisory)
     }
 }

@@ -14,6 +14,8 @@ final class CLIEnglishStringsScanTests: XCTestCase {
 
     /// 日本語のリテラルを持ってよいファイル(前方一致)と、その理由。
     private static let exempt: [(prefix: String, reason: String)] = [
+        ("Sources/FTCore/TypedEchoOCRCheck.swift",
+         "日本語の欄の名前との照合表(画面の欄の id・ラベルと比べる語で、CLI の表示ではない)"),
         ("Sources/FTTestSupport/",
          "保守者だけが見る precondition / throw の文言(利用者の CLI 出力ではない)"),
         ("Sources/FTDSL/StepDescription.swift",

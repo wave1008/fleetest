@@ -5,7 +5,7 @@ Scripts/e2e.sh --record が各 run 後に呼ぶ録画パイプラインの整合
   (a) recordings/index.json が schemaVersion 2
   (b) クリップの無いシナリオ記録が、切り出しの下限(MIN_CLIP_MS)未満の短いものだけであること
       (VideoRecordingCoordinator.makeClips は実長 500ms 未満の区間を黙って捨てる。クリップ数 == シナリオ数と比べると、
-       148〜412ms の短いシナリオの回が赤になる = OI-104)。クリップがシナリオ記録より多いのは常に不一致
+       148〜412ms の短いシナリオの回が赤になる)。クリップがシナリオ記録より多いのは常に不一致
   (c) 各クリップの segments 合計 durationMs が対応するシナリオの durationMs と ±2秒以内
   (d) 参照先 mp4 が存在し 0 バイトでない
 不一致は詳細を stderr に出し、exit 非0で終える(e2e.sh 側がこれを FAILED 扱いにする)。

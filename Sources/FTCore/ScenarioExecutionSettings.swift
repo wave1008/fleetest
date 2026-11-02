@@ -26,6 +26,9 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
     /// (`LastResultsStore.noProfileKey`)へ記録される。`ResolvedProfile` 経由(`--profile` あり)は
     /// 必ず `resolved.runName` を運ぶ
     public var profileName: String?
+    /// 実行プロファイルの `orientation`。nil = 向きに触らない。子へは `--orientation <portrait|landscape>` で運び、
+    /// シナリオで最初の launchApp / restartApp の直後に1回 `rotateTo` する(FTDSL の `applyProfileOrientationOnce`)
+    public var orientation: FTOrientation?
 
     /// 既定値はこの1箇所だけに置く。他の層(ScenarioHost/RunOrchestrator/CLI)に既定を書かない。
     /// `homeOnStart` はデバイスに触る工程の設定なのでここには入れない
@@ -33,7 +36,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                 preferCheckStateClassifier: Bool = true, findImagePrewarm: Bool = true,
                 containerInference: Bool = true, responseMeasurement: Bool = false,
                 tunables: RunTunables = RunTunables(),
-                scenarioTimeout: Int? = nil, profileName: String? = nil) {
+                scenarioTimeout: Int? = nil, profileName: String? = nil,
+                orientation: FTOrientation? = nil) {
         self.fm = fm
         self.heal = heal
         self.occlusionOCR = occlusionOCR
@@ -44,6 +48,7 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
         self.tunables = tunables
         self.scenarioTimeout = scenarioTimeout
         self.profileName = profileName
+        self.orientation = orientation
     }
 
     public init(_ settings: DeviceIndependentRunSettings) {
@@ -53,7 +58,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                   preferCheckStateClassifier: settings.preferCheckStateClassifier,
                   containerInference: settings.containerInference,
                   responseMeasurement: settings.responseMeasurement,
-                  tunables: t, scenarioTimeout: settings.scenarioTimeout)
+                  tunables: t, scenarioTimeout: settings.scenarioTimeout,
+                  orientation: settings.orientation)
     }
 
     public init(_ resolved: ResolvedProfile) {
@@ -64,6 +70,6 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                   containerInference: resolved.containerInference,
                   responseMeasurement: resolved.responseMeasurement,
                   tunables: t, scenarioTimeout: resolved.scenarioTimeout,
-                  profileName: resolved.runName)
+                  profileName: resolved.runName, orientation: resolved.orientation)
     }
 }

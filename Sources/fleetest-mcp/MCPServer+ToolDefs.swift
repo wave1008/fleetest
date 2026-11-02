@@ -338,6 +338,10 @@ extension MCPServer {
                                 + "scroll areas: a selector (#id, label, .type, a||b) of a line marked "
                                 + "scroll, or any ft_snapshot ref with a non-zero frame (use a ref when "
                                 + "the id is missing or duplicated, or for a row interactiveOnly hides)"],
+            "waitSeconds": ["type": "number",
+                            "description": "Keep searching for this many seconds while nothing on screen moves "
+                                + "(a list still loading, so the end is not claimed early). Default: stop after "
+                                + "two unmoved rounds"],
             "maxSwipes": ["type": "integer", "description": "Swipe limit (default \(FlowStep.defaultMaxSwipes))"],
         ], extra: foldingProperties, required: ["selector"]),
         tool("ft_batch", "Run several operation/scroll DSL steps in one approval, stopping at the first "
@@ -584,7 +588,8 @@ extension MCPServer {
         tool("ft_services", "Start, stop or inspect the services a workspace declares in scripts/compose.yaml "
             + "(= fleetest services up|down|status). up starts them for exploration and scenario writing and keeps "
             + "them running until down; a real run (ft_start_run) takes them over and restarts them. Nothing happens "
-            + "for a workspace without compose.yaml. Requires approval like ft_start_run.", [
+            + "for a workspace without compose.yaml. status reads with the already-built fleetest (no rebuild, so it can be "
+            + "an older build than the sources); up and down rebuild first. Requires approval like ft_start_run.", [
             "action": ["type": "string", "enum": ["up", "down", "status"],
                        "description": "up / down need profile; status can omit it when the project has one profile"],
             "profile": ["type": "string", "description": "Run profile (profiles/runs/<name>.json); required for up and down"],

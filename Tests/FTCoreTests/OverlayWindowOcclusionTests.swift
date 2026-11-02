@@ -82,7 +82,7 @@ final class OverlayWindowOcclusionTests: XCTestCase {
         let note = TapTargetGeometry.advisory(
             for: para, in: [para], screen: screen,
             keyboardOcclusion: .none,
-            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), isAndroid: false)
+            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false)
         XCTAssertTrue(note?.contains("overlay window") == true, note ?? "")
     }
 
@@ -91,13 +91,13 @@ final class OverlayWindowOcclusionTests: XCTestCase {
     /// (型検査の効かない境界は往復で縛る)
     func testDecodesTheKeyTheAndroidBridgeWrites() throws {
         let json = #"{"screen":{"x":0,"y":0,"width":1080,"height":2340},"elements":[],"#
-            + #""truncatedCount":0,"overlayWindowFrames":"#
+            + #""truncatedCount":0,"safeAreaTop":{"measured":false},"overlayWindowFrames":"#
             + #"[{"x":96,"y":251,"width":950,"height":124}]}"#
         let decoded = try JSONDecoder().decode(SnapshotResponse.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.overlayWindowFrames, [toolbar])
         // 申告が無い応答は nil のまま(既存のブリッジと同じ形)
         let bare = #"{"screen":{"x":0,"y":0,"width":1080,"height":2340},"#
-            + #""elements":[],"truncatedCount":0}"#
+            + #""elements":[],"truncatedCount":0,"safeAreaTop":{"measured":false}}"#
         XCTAssertNil(try JSONDecoder().decode(SnapshotResponse.self,
                                               from: Data(bare.utf8)).overlayWindowFrames)
     }
@@ -136,7 +136,7 @@ final class OverlayWindowOcclusionTests: XCTestCase {
         let note = TapTargetGeometry.advisory(
             for: para, in: [para], screen: screen,
             keyboardOcclusion: KeyboardOcclusion.resolve(reported: toolbar, in: [para], screen: nil),
-            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), isAndroid: false)
+            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false)
         XCTAssertTrue(note?.contains("soft keyboard") == true, note ?? "")
     }
 }

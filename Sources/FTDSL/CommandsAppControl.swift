@@ -64,6 +64,16 @@ public func launchApp(_ appID: String? = nil, url: String? = nil,
             try await driver.openURL(url, bundleID: bundle)
         }
     }
+    applyProfileOrientationOnce(core, file: file, line: line)
+}
+
+/// 実行プロファイルの `orientation` を、シナリオで最初の launch(launchApp / restartApp)の直後に1回だけ撃つ。
+/// 2回目以降の launch では撃たない: 向きは Android の user_rotation・XCUITest の端末の向きとして launch をまたいで残り
+/// (launchApp は向きを保つ。Emulator で測定済み)、シナリオの終わりには rotateTo の復元が戻す。
+/// 通常の `rotateTo` ステップとしてレポートに載る
+func applyProfileOrientationOnce(_ core: FTDriveCore, file: StaticString, line: UInt) {
+    guard core.claimProfileOrientation(), let orientation = core.profileOrientation else { return }
+    rotateTo(orientation, file: file, line: line)
 }
 
 /// 起動済みのアプリへ URL(ディープリンク)を配送する。画面遷移を飛ばして目的の画面から
@@ -93,6 +103,7 @@ public func restartApp(_ appID: String? = nil,
         try? await driver.terminate()
         try await driver.launch(bundleID: bundle)
     }
+    applyProfileOrientationOnce(core, file: file, line: line)
 }
 
 /// データだけ消す。初回起動・オンボーディング・権限ダイアログを何度でも再現するために使う。

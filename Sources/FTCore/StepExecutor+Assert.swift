@@ -1682,6 +1682,12 @@ extension StepExecutor {
             try await dismissInterruption(in: &snapshot, phase: &phase)
             // 画面の外の矩形(隠れた・最小化したキーボード)を「出ている」と読まない(KeyboardWait.shownState)
             lastShown = KeyboardWait.shownState(snapshot)
+            // 否定形で XCUITest が「不明」(= `.keyboard` ノードを見ていない)のときだけ、木が落ち着いてから非表示と読む
+            // (KeyboardWait.shownStateAfterSettle。肯定形・Android の不明は読み替えない)
+            if !wantShown, lastShown == nil, !isAndroid {
+                let settled = try await settledSignature(phase: &phase)
+                lastShown = KeyboardWait.shownStateAfterSettle(settled.snapshot, isAndroid: isAndroid, settled: settled.settled)
+            }
             if lastShown == wantShown {
                 // **否定側(keyboardIsNotShown)だけ**通す前に確かめる。閉じたと読めた木が
                 // 古いと、開いたままのキーボードを「閉じている」と通す。肯定側は

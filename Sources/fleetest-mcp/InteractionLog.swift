@@ -37,6 +37,9 @@ struct InteractionLog {
         var deviceKey: String?
         /// ツール自身が「効かなかったはず」と警告した手の警告文(下書きが印なしの行にしない。記録する側が渡す)
         var noEffectWarning: String?
+        /// 撃ったが FAILED で終わった手の失敗の理由(1行)。nil = 失敗していない。**失敗した手も記録から消さない**
+        /// (何を試して止まったかが追える)が、下書きでは印なしの普通の行にせず TODO で残す(`MCPServer.failedStepsAsTodo`)
+        var failure: String?
         /// step なしの手を、この文のまま TODO として行の位置に残す(下書きの生成時に作る)
         var todoNote: String?
     }

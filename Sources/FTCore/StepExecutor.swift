@@ -1432,6 +1432,7 @@ public final class StepExecutor {
     }
 
     /// **報告された frame の中心が容器の外に落ちるとき、実際に見えている部分の矩形**を返す。
+    /// 判定の本体は `TapTargetGeometry.visibleTapRect`(MCP の ft_tap と共有)。理由・実測はそちらの doc。
     /// 中心が容器の中なら nil = ref でタップする(ブリッジが frame の中心へ解決)。
     ///
     /// フレームワークは縁をまたぐ行を「原点はクリップ前・サイズはクリップ後」の混成で返すため、
@@ -1447,20 +1448,7 @@ public final class StepExecutor {
     static func visibleTapRect(for element: ElementInfo, in elements: [ElementInfo],
                                inferring: Bool = ContainerGeometry.containerInferenceEnabled,
                                scale: Double = 1) -> FTRect? {
-        // **床は木の単位へ換算してから比べる**(scale = AppDriver.pointScale。iOS=1・Android=密度)。
-        // 換算しないと 3倍密度で床が約3倍緩くなり、この guard が防ぐはずの誤タップが素通りする
-        let floor = TapTargetGeometry.minimumVisibleTapExtent * scale
-        guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring),
-              let visible = ScrollGeometry.intersection(element.frame, container),
-              // **細すぎる帯は撃たない**。容器の推測が外れていた場合、わずかな重なりを
-              // 「見えている部分」と信じて叩くと**より悪い場所**へ当たる。実測の対象は
-              // 10pt 以上見えていた(容器 230 に対し 240〜244)ので、この床で取りこぼさない
-              visible.height >= floor,
-              visible.width >= floor else { return nil }
-        let center = (x: element.frame.centerX, y: element.frame.centerY)
-        let inside = center.x >= container.x && center.x <= container.x + container.width
-            && center.y >= container.y && center.y <= container.y + container.height
-        return inside ? nil : visible
+        TapTargetGeometry.visibleTapRect(for: element, in: elements, inferring: inferring, scale: scale)
     }
 
     /// **指で触る操作か**(縁にまたがった要素を寄せてから撃つ対象)。`select` は掴むだけ、

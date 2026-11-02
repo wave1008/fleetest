@@ -1,5 +1,5 @@
 // Scripts/check-recordings.py の (b): クリップが無い記録は、切り出しの下限(500ms。VideoRecordingCoordinator.makeClips)未満の
-// 短いシナリオだけ許す。クリップ数 == シナリオ数で比べると、148〜412ms のシナリオの回が赤になる(OI-104)。
+// 短いシナリオだけ許す。クリップ数 == シナリオ数で比べると、148〜412ms のシナリオの回が赤になる。
 // 逆向き(下限以上なのにクリップが無い・クリップが記録より多い)は不一致のまま。
 
 import assert from "node:assert/strict";

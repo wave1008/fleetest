@@ -269,13 +269,24 @@ enum RefGuard {
             + " ft_screenshot shows the overlay)"
     }
 
+    /// **画面上端の安全領域の帯の中にある要素を撃とうとしている**ときの警告(判定は
+    /// `TapTargetGeometry.topSafeAreaAdvisory` = DSL と共有。ブリッジの申告が `.unknown` なら言わない)
+    static func topSafeAreaWarning(_ element: ElementInfo, safeAreaTop: SafeAreaTop, screen: FTRect) -> String? {
+        guard let advisory = TapTargetGeometry.topSafeAreaAdvisory(
+            for: element, safeAreaTop: safeAreaTop, screen: screen) else { return nil }
+        return " (warning: \(describe(element)) — \(advisory);"
+            + " ft_scroll_to brings it into view, then re-snapshot)"
+    }
+
     /// keyboard + overlay window + disabled の組。**この順序で4箇所から呼ばれる** ——
     /// 申告由来の2つを先にするのは、木からは判定できず ghost/overlap 側では検知できない
     /// 唯一の警告だから。**`overlayWindows` に既定値を置かない**(呼び忘れをコンパイルで止める)
     static func preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
-                               overlayWindows: OverlayWindowOcclusion) -> String {
+                               overlayWindows: OverlayWindowOcclusion,
+                               safeAreaTop: SafeAreaTop, screen: FTRect) -> String {
         (keyboardWarning(element, keyboardOcclusion: keyboardOcclusion) ?? "")
             + (overlayWindowWarning(element, overlayWindows: overlayWindows) ?? "")
+            + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen) ?? "")
             + disabledWarning(element)
     }
 

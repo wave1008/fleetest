@@ -41,6 +41,8 @@ extension StepExecutor {
         adviseTarget(keyboardOcclusion.advisory(for: element))
         adviseTarget(OverlayWindowOcclusion.resolve(
             reported: snapshot.overlayWindowFrames).advisory(for: element))
+        adviseTarget(TapTargetGeometry.topSafeAreaAdvisory(
+            for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen))
         adviseTarget(TapTargetGeometry.disabledAdvisory(for: element))
         adviseTarget(duplicateRegionAdvisory(element, in: snapshot))
         // 縁の帯に潜っているだけなら、撃つ前に1回だけ送って外す(tap の長押し分岐と同じ手順)

@@ -21,7 +21,7 @@ extension MCPServer {
     ///
     /// **`keepsMemory`**: 包まれた接続拒否(`MCPAnnotatedError` の underlying が `bridgeConnectionRefused`)では記憶を捨てない。
     /// 捨てると `attemptXCUITestBridgeRecovery`(覚えたポートが前提)が次の呼び出しで働かない。包まれた失敗は手が途中まで届いて
-    /// いることがあるので、この呼び出しは撃ち直さず、次の呼び出しに任せる(OI-93)
+    /// いることがあるので、この呼び出しは撃ち直さず、次の呼び出しに任せる
     func connectionLostHint(_ error: Error, args: [String: Any], tool: String, keepsMemory: Bool = false) async -> String {
         // 差し替えドライバ(テスト)では走査しない = 実ポートを叩かない。`connectionFacts` を差し替えたテストだけは
         // 偽の観測で分岐を通す(`makeDriver` の意味は変えない)

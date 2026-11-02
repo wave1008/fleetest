@@ -41,7 +41,7 @@ extension MCPServer {
         // エミュレータも起こし直し後にロック画面のまま残るので、毎回の確認だけは撃つ。
         // 初回の prepareForRun(点灯・解除を最後まで待つ)は実機だけ
         // 解除できなかった旨(⚠️)は stderr だけにせず応答の警告へ載せる(MCP クライアントには stderr が見えない)。
-        // 一度待ち切れた端末は以後待たない(`retriesAfterGivingUp: false`)ので、警告は毎回の応答が言う = OI-80
+        // 一度待ち切れた端末は以後待たない(`retriesAfterGivingUp: false`)ので、警告は毎回の応答が言う
         let log: (String) -> Void = { [self] line in
             Self.logStderr(line)
             if line.hasPrefix("⚠️") { pendingWarnings[key, default: []].append(line) }
@@ -231,7 +231,7 @@ extension MCPServer {
             // 再利用可否を決めるので普段はここで落ちないが、**落ちないことと検査しないことは別**
             // —— 供給の判断とホストの期待がズレた回に、黙って旧ブリッジを操作させない
             try await enforceVersion(driver: created, key: key, args: args)
-            // **記録は版ガードを通った後**(断られた呼び出しを「駆動した」に数えない = OI-68。数えると宛先を省いた次の呼び出しが
+            // **記録は版ガードを通った後**(断られた呼び出しを「駆動した」に数えない。数えると宛先を省いた次の呼び出しが
             // 断られた機を指す・2台目と数えて曖昧の拒否に入る)
             switch target {
             case .ios(let provisioned, _):
@@ -351,7 +351,7 @@ extension MCPServer {
             // 返し続け、`bridge down && bridge up` するまで「直っていない」に見えた。
             // Android は AndroidBridge が expectedBridgeVersionCode で入れ替えるのでこの穴が無い
             try await enforceVersion(driver: created, key: key, args: args)
-            // 記録は版ガードの後(profile 経路と同じ理由。OI-68)
+            // 記録は版ガードの後(profile 経路と同じ理由)
             rememberResolvedTarget(platform: "ios", args: args,
                                    iosPort: resolved.port, iosUDID: resolved.udid, androidSerial: nil)
         case "android":
@@ -1933,7 +1933,7 @@ extension MCPServer {
     }
 
     /// 「前面ではない」と分かるが理由を言えないときの原因の並べ方(ft_status と共有)。iOS の `/appstate` は
-    /// 別アプリ・ホーム・プロセスの終了を区別しない(分けるにはブリッジの版上げが要る = OI-81)ので、断定せず並べる
+    /// 別アプリ・ホーム・プロセスの終了を区別しない(分けるにはブリッジの版上げが要る)ので、断定せず並べる
     static let notInFrontCauses = "another app, the home screen or a system screen is in front, or the app's process has ended"
 
     /// **このセッションが home / appSwitcher を送ったあと、まだ ft_launch で戻していない**

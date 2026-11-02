@@ -56,7 +56,7 @@ struct ApiRunCommand: AsyncParsableCommand {
     var setOverrides: [String] = []
 
     @Option(name: .customLong("report-dir"),
-            help: "Directory to write reports to (defaults to TestProjects/<name>/reports; with --profile it overrides the profile reportDir; a relative path is relative to the current directory, and so is a relative --set reportDir= without --profile, while a profile's reportDir is relative to the project root). Must not be empty. Cannot combine with --set reportDir=...")
+            help: "Directory to write reports to (defaults to TestProjects/<name>/reports; with --profile it overrides the profile reportDir; a relative --report-dir is relative to the current directory, while a relative reportDir (the profile's, or --set reportDir=, with or without --profile) is relative to the project root). Must not be empty. Cannot combine with --set reportDir=...")
     var reportDir: String?
 
     @Option(name: .customLong("default-timeout"),
@@ -867,7 +867,8 @@ struct ApiRunCommand: AsyncParsableCommand {
                                                       profileReportDir: nil)
         defer { dryRunReportDir.map { try? FileManager.default.removeItem(at: $0) } }
         let reportDirPath = dryRunReportDir?.path
-            ?? reportDir ?? noProfileSettings.reportDir ?? project.reportsDir.path
+            ?? reportDir ?? noProfileSettings.reportDir.map { ProfileResolver.reportDirectory($0, project: project).path }
+            ?? project.reportsDir.path
         let effectiveDefaultTimeout = defaultTimeout ?? noProfileSettings.defaultTimeout
         let effectiveScenarioTimeout = scenarioTimeout ?? noProfileSettings.scenarioTimeout
 

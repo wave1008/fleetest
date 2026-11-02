@@ -635,5 +635,5 @@
     "y" : 0
   },
   "sessionBundleID" : "com.google.android.apps.maps",
-  "truncatedCount" : 0
+  "safeAreaTop":{"measured":false},"truncatedCount" : 0
 }

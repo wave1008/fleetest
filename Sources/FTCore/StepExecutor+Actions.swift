@@ -819,6 +819,8 @@ extension StepExecutor {
             // keyboard と同じく座標に依らないので、この時点で載せてよい
             adviseTarget(OverlayWindowOcclusion.resolve(
                 reported: snapshot.overlayWindowFrames).advisory(for: element))
+            adviseTarget(TapTargetGeometry.topSafeAreaAdvisory(
+                for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen))
             adviseTarget(TapTargetGeometry.disabledAdvisory(for: element))
             adviseTarget(duplicateRegionAdvisory(element, in: snapshot))
             // 文中リンク: 要素の中の文字列の位置を座標で撃つ(中心へ黙って落とさない)
@@ -1182,6 +1184,10 @@ extension StepExecutor {
                 if let failure = await typedInputFailure(actingDriver, prior: typedPrior, text: text, phase: &phase) {
                     return StepOutcome(status: .failed(failure))
                 }
+                if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
+                                                 replace: step.replace == true, text: text, element: element) {
+                    await noteIfTypedTextNotDrawn(element: element, text: text, screen: snapshot.screen, phase: &phase)
+                }
             } catch {
                 // 409 = inapp が非 UIKit 入力欄で first responder を張れない兆候。type は要素個別の
                 // フォーカス有無に依存する一時的競合なので、press/swipe と違い 501 化しない
@@ -1263,6 +1269,7 @@ extension StepExecutor {
                                                   in: snapshot.elements, screen: snapshot.screen),
                                                overlayWindows: OverlayWindowOcclusion.resolve(
                                                   reported: snapshot.overlayWindowFrames),
+                                               safeAreaTop: snapshot.safeAreaTop,
                                                isAndroid: isAndroid),
                     duplicateRegionAdvisory(element, in: snapshot))
                 : (["pinchOut", "pinchIn", "gesture"].contains(action)
@@ -1471,7 +1478,7 @@ extension StepExecutor {
 
     /// Android で入力欄を叩く tap の後、次のロケータ操作の解決の前にキーボードが木に出るのを待たせる(`pendingTypeKeyboardCheck` の
     /// 出現待ちをそのまま使う)。叩いた直後の木は上がる途中のキーボードを持たず、CMP の横向きでは欄が押し出されて木から消える
-    /// 直前の位置で解決され、続く type がタップ点に欄を見つけず 500 で落ちる(OI-114。Emulator の横向き CMP で 1/2)。
+    /// 直前の位置で解決され、続く type がタップ点に欄を見つけず 500 で落ちる(Emulator の横向き CMP で 1/2)。
     /// 既にキーボードが出ている・この端末で出なかったと観測済み(`keyboardKnownAbsent`)なら立てない(毎回の上限待ちを避ける)
     func armKeyboardAppearanceWaitAfterFieldTap(_ element: ElementInfo, in snapshot: SnapshotResponse) {
         guard isAndroid, !keyboardKnownAbsent, TypeReadback.isTextInput(element),

@@ -135,7 +135,7 @@ final class TypeReadbackTargetTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.typeRetypeAbandoned), "\(outcome.notes)")
     }
 
-    // ---- id が外側の other に付く Flutter の欄・打った後に消える欄(OI-107 の2つの形) ----
+    // ---- id が外側の other に付く Flutter の欄・打った後に消える欄(2つの形) ----
 
     private func type(_ text: String, values: [String], shape: ReadbackSequenceDriver.Shape,
                       onScreen: Bool = false) async -> (StepOutcome, ReadbackSequenceDriver) {

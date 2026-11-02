@@ -779,6 +779,7 @@ public enum ScenarioHost {
         // **FM とは無関係**(幾何ヒューリスティックの既定)なので FMConfig には入れない
         if !containerInference { args.append("--no-container-inference") }
         if responseMeasurement { args.append("--response-measurement") }
+        if let orientation = settings.orientation { args += ["--orientation", orientation.rawValue] }
         // occlusion guard の OCR 事前判定(FMConfig の外。fmTextVisibilityCheck が off なら guard 自体が
         // 走らないためこの値は無意味 —— 別ゲートは追加しない)
         if !occlusionOCR { args.append("--no-ocr-text-visibility-check") }

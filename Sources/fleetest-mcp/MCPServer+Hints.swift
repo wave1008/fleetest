@@ -1097,7 +1097,7 @@ extension MCPServer {
     /// ここで読み手が撃つべきは撮り直しではなく `waitFor` 付きの1回
     static func emptyTreeNote(_ snapshot: SnapshotResponse) -> String {
         guard snapshot.elements.isEmpty else { return "" }
-        // 全画面のキーボード(横向きの抽出ビュー)の下ではアプリの窓が窓一覧に出ず、木は本当に空になる = 遷移中ではない(OI-51)。
+        // 全画面のキーボード(横向きの抽出ビュー)の下ではアプリの窓が窓一覧に出ず、木は本当に空になる = 遷移中ではない。
         // 「大半」= 画面の高さの過半(定数ではなく定義)。矩形が申告されない回は大きさを言えないので従来の文のまま
         if KeyboardWait.isShown(snapshot), let kb = snapshot.keyboardFrame, snapshot.screen.height > 0,
            kb.height * 2 > snapshot.screen.height {
@@ -1356,7 +1356,7 @@ extension MCPServer {
 
     /// バッチの座標の手がキーボードの中を撃つときの警告(ft_tap / ft_double_tap / ft_drag の座標形と同じ判定・文言)。撃つ前に呼ぶ。無ければ空
     /// `actedEarlierInBatch`: 同じバッチの前の手(launch: を含む)がこの手の前にデバイスを動かした。バッチの手は `sessionActionCounts` を
-    /// 進めないので、それを見る `coordinateKeyboardTree` は前の type で出たキーボードを知らない木で黙る(OI-122)。その場合は生で読み直す
+    /// 進めないので、それを見る `coordinateKeyboardTree` は前の type で出たキーボードを知らない木で黙る。その場合は生で読み直す
     func batchKeyboardCoordinateWarning(_ step: FlowStep, driver: AppDriver, args: [String: Any],
                                         actedEarlierInBatch: Bool) async -> String {
         let points = Self.batchCoordinatePoints(step)

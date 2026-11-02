@@ -237,6 +237,10 @@ public final class FTDriveCore {
     let deviceIdentifier: String?
     /// シナリオで最初に開閉を送る前の状態(シナリオの終わりに戻す。restoreFoldIfNeeded)。stateLock の下
     private var _foldOriginalState: FoldState?
+    /// 実行プロファイルの `orientation`(`--orientation`)。nil = 何もしない
+    public let profileOrientation: FTOrientation?
+    /// `profileOrientation` を撃ったか。stateLock の下
+    private var _profileOrientationClaimed = false
     let appBundleID: String
     let executor: StepExecutor
     let scenarioID: String
@@ -514,6 +518,8 @@ public final class FTDriveCore {
                 preferCheckStateClassifier: Bool = true,
                 // findImage の見本の暖機(ScenarioExecutionSettings.findImagePrewarm)
                 findImagePrewarm: Bool = true,
+                // 実行プロファイルの orientation(ScenarioExecutionSettings.orientation)
+                profileOrientation: FTOrientation? = nil,
                 dryRun: Bool = false,
                 fingerprintCacheURL: URL? = nil,
                 selectorInventoryURL: URL? = nil,
@@ -591,6 +597,7 @@ public final class FTDriveCore {
             ? selectorInventoryURL.flatMap { SelectorInventory.load(at: $0) }?.ids(platform: platform)
             : nil
         self.tunables = tunables
+        self.profileOrientation = profileOrientation
         self.defaultTimeout = tunables.defaultTimeout
         // DSL コマンドの壁時計の締切(FTSync はプロセス大域)。シナリオから書き換えられないよう FTSync は
         // internal のままここで設定する(DSL コマンドは core を組んだ後にしか走らない)
@@ -1201,6 +1208,15 @@ public final class FTDriveCore {
             return FoldControl.observeIOSSimulator(udid: udid)
         }
         return await systemDriver.foldObservation() ?? .unknown("this driver cannot read the fold state")
+    }
+
+    /// シナリオで最初の launch の直後に1回だけ `profileOrientation` を撃つ権利を取る(2回目以降は false)
+    func claimProfileOrientation() -> Bool {
+        stateLock.withLock {
+            guard profileOrientation != nil, !_profileOrientationClaimed else { return false }
+            _profileOrientationClaimed = true
+            return true
+        }
     }
 
     /// 最初の開閉の前の状態だけを控える(2回目以降は上書きしない)

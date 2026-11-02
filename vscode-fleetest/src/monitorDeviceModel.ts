@@ -94,7 +94,7 @@ export interface MonitorDevice {
   /** 対話セッション(MCP・ライブ操作)の使用中の印があるか(ApiMonitorCommand.swift の MCPDeviceLease.holderPID)。
    * ブリッジ監視が数えない・撃たないための入力(monitorBridgeWatchdog.ts)。 */
   readonly inSession: boolean;
-  /** MCP(fleetest-mcp)の印があるか(ApiMonitorCommand.swift の MCPDeviceLease.hasMCPHolder。ライブ操作の印は含まない)。
+  /** MCP(fleetest-mcp)の呼び出しが進行中か(ApiMonitorCommand.swift の MCPDeviceLease.isCallInProgress。呼び出しの外では false。lease・ライブ操作の印は含まない)。
    * 実行中のランプの入力(webview/monitor/deviceTiles.js の renderLamp)。 */
   readonly inMCP: boolean;
   /** このデバイスが画面録画中か。 */

@@ -262,5 +262,5 @@
   }
  ],
  "sessionBundleID": "com.ftester.e2e.rn",
- "truncatedCount": 0
+ "safeAreaTop":{"measured":false},"truncatedCount": 0
 }

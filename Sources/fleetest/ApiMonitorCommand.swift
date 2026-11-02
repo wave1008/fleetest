@@ -440,7 +440,7 @@ struct ApiMonitorCommand: AsyncParsableCommand {
                                                            excluding: [getpid(), getppid()]) != nil }
                 } ?? false
                 let inMCP = leaseStateDir.flatMap { dir in
-                    leaseKey.map { MCPDeviceLease.hasMCPHolder(stateDir: dir, key: $0,
+                    leaseKey.map { MCPDeviceLease.isCallInProgress(stateDir: dir, key: $0,
                                                               excluding: [getpid(), getppid()]) }
                 } ?? false
                 // 実機の宛先(LAN IP or ループバック)。拡張が画面配信ヘルパーに渡す

@@ -822,6 +822,7 @@ public struct BridgeProvisioner: Sendable {
     /// pid が生きていれば残す)
     static func sweepStaleLeases(repoRoot: URL) {
         let stateDir = repoRoot.appendingPathComponent(".fleetest")
+        MCPDeviceLease.sweepDeadActiveMarks(stateDir: stateDir)
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: stateDir, includingPropertiesForKeys: nil) else { return }
         for entry in entries where entry.pathExtension == "lease" {

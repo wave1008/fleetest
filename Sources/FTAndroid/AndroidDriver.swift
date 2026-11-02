@@ -1536,7 +1536,7 @@ public final class AndroidDriver: AppDriver {
     func nativeTouchPoint(x: Int32, y: Int32) async -> (x: Int32, y: Int32)? {
         let driver = UncheckedTransfer(self)
         let dump = try? await Self.offCooperativePool {
-            try driver.value.adb(["shell", "dumpsys", "window", "displays"]).outputIfSucceeded
+            try driver.value.adbAnswering(["shell", "dumpsys", "window", "displays"]).outputIfSucceeded
         }
         guard let dump else { return nil }
         let state = AndroidDisplayRotation.parse(dump)

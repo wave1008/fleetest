@@ -96,6 +96,13 @@ extension MCPServer {
         return (frame.centerX, y)
     }
 
+    /// 見えている部分の点を撃ったときの注記。先に出る警告(frame の中心を前提にした遮蔽・縁またぎ)は撃った点の話ではない
+    static func visiblePartTapNote(x: Double, y: Double) -> String {
+        " The element's reported frame has its centre outside its scroll container (a row cut in half at the edge),"
+            + " so the visible part was tapped at (\(Int(x.rounded())), \(Int(y.rounded()))) instead of the centre —"
+            + " nothing was scrolled and the ref is unchanged. Warnings above about the frame's centre do not describe this point."
+    }
+
     static let bottomBandTouchNote = " Its centre is inside the Android bottom gesture band (a touch there can go to"
         + " home / app switch), so the part of the element above the band was touched instead."
 
@@ -109,8 +116,20 @@ extension MCPServer {
             // **target.ref はセッション ref**。ブリッジは native の番号しか知らないので、
             // 撃つ直前にだけ nativeRef で戻す(応答・記録には引き続きセッション ref を使う)。
             // 中心が Android の下端のジェスチャ帯の中なら、帯より上の部分を座標で撃つ(ref はブリッジが中心へ解決する)
-            let bandPoint = await bottomBandPoint(sessionRef: target.ref, driver: d, args: args)
-            if let bandPoint {
+            // 中心が容器の外に落ちる(縁で半分切れた)行は、スクロールせず見えている部分の点を撃つ(ref は変えない。
+            // 判定は `TapTargetGeometry.visibleTapRect` = DSL と共有。見えている部分が無ければ従来どおり ref)
+            var visiblePoint: (x: Double, y: Double)?
+            if let tree = lastSnapshots[Self.sessionKey(args)]?.elements,
+               let element = tree.first(where: { $0.ref == target.ref }),
+               let visible = TapTargetGeometry.visibleTapRect(for: element, in: tree, scale: d.pointScale) {
+                visiblePoint = await bottomBandPoint(frame: visible, driver: d, args: args)
+                    ?? (visible.centerX, visible.centerY)
+            }
+            let bandPoint = visiblePoint == nil
+                ? await bottomBandPoint(sessionRef: target.ref, driver: d, args: args) : nil
+            if let visiblePoint {
+                try await d.tap(x: visiblePoint.x, y: visiblePoint.y)
+            } else if let bandPoint {
                 try await d.tap(x: bandPoint.x, y: bandPoint.y)
             } else {
                 try await d.tap(ref: nativeRef(target.ref, args: args))
@@ -125,6 +144,7 @@ extension MCPServer {
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
             return text("tap [\(ref)] done.\(target.note)" + (bandPoint != nil ? Self.bottomBandTouchNote : "")
+                + (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "")
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ

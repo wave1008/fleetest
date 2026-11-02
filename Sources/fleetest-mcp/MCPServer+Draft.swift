@@ -59,7 +59,7 @@ extension MCPServer {
         // drop の番号は lastN で絞った後の並びに振る(範囲の上限も絞った後の件数)
         let narrowedCount = lastN.map { $0 > 0 ? min($0, recorded.count) : recorded.count } ?? recorded.count
         let target = interactions.target(in: prunedScope, device: draftDevice)
-        let scope = Self.springBoardTapsAsTodo(Self.terminatesOtherAppAsTodo(prunedScope, target: target.app))
+        let scope = Self.failedStepsAsTodo(Self.springBoardTapsAsTodo(Self.terminatesOtherAppAsTodo(prunedScope, target: target.app)))
         let unresolved = scope.compactMap(\.unresolved)
         let steps = scope.compactMap(\.step)
         // **解決できなかった手はその場に残す**。まとめて先頭へ出すと action の
@@ -159,6 +159,19 @@ extension MCPServer {
                 + " is out of range (1…\(stepIndexForListing.count)) or repeated and was ignored.\n"
         }
         return header + Self.pruningListing(scope) + "\n" + code
+    }
+
+    /// FAILED で終わった手(`failure` あり)を TODO に落とす。再生しても同じ所で止まる行を印なしで残さない
+    /// (手は消さない = 手順の位置を保つ)。SpringBoard の変換より後に通す(その TODO は上書きしない)
+    static func failedStepsAsTodo(_ scope: [InteractionLog.Entry]) -> [InteractionLog.Entry] {
+        scope.map { entry in
+            guard let failure = entry.failure, entry.step != nil else { return entry }
+            var todo = entry
+            todo.step = nil
+            todo.todoNote = "TODO: this step FAILED during the exploration (\(entry.summary): \(failure)) —"
+                + " it is not written as a line; fix the selector or the preceding state, then add the step back"
+            return todo
+        }
     }
 
     /// `terminate <bundleID>` の記録で、止めた先が下書きの対象アプリでない手を TODO に落とす。DSL の `terminateApp()` は

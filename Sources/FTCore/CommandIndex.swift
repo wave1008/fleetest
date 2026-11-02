@@ -248,7 +248,7 @@ public enum DSLCommandIndex {
         // MARK: scroll
         .init("scrollTo", "scroll",
               "scrollTo(selector, direction:, scrollFrame:, startMarginRatio:, endMarginRatio:,"
-                  + " containerInference:, settle:, maxSwipes:)",
+                  + " containerInference:, settle:, waitSeconds:, maxSwipes:)",
               "Scrolls until the element is found. Does not tap it. Returns the element it found,"
                   + " so assertions chain directly."),
         .init("scrollDown", "scroll",

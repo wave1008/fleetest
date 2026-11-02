@@ -183,6 +183,10 @@ struct RunScenario: AsyncParsableCommand {
           help: "Response measurement mode (set by ScenarioHost from the run profile's responseMeasurement)")
     var responseMeasurement = false
 
+    @Option(name: .customLong("orientation"),
+            help: "Rotate once right after the first launchApp/restartApp: portrait or landscape (set by ScenarioHost from the run profile's orientation; omitted = leave the orientation alone)")
+    var orientation: String?
+
     @Flag(name: .customLong("no-ocr-text-visibility-check"), help: "Disable the Vision OCR stage of the occlusion guard (FM only; with --no-fm-text-visibility-check too, no guard)")
     var noOcclusionOCR = false
 
@@ -585,6 +589,16 @@ struct RunScenario: AsyncParsableCommand {
         let countedFallbackDriver = fallbackDriver.map { ActionCountingDriver(base: $0, counter: actionCounter) as AppDriver }
         let countedTypeDriver = typeDriver.map { ActionCountingDriver(base: $0, counter: actionCounter) as AppDriver }
         let countedHomeScreenDriver = homeScreenDriver.map { ActionCountingDriver(base: $0, counter: actionCounter) as AppDriver }
+        let profileOrientation: FTOrientation?
+        if let orientation {
+            guard let parsed = FTOrientation.parse(orientation) else {
+                throw ValidationError("--orientation must be one of "
+                    + "\(FTOrientation.allCases.map(\.rawValue).joined(separator: "/")): \(orientation)")
+            }
+            profileOrientation = parsed
+        } else {
+            profileOrientation = nil
+        }
         let core = FTDriveCore(driver: countedDriver, platform: runPlatform, app: appBundleID,
                                scenarioID: scenarioID, scenarioTitle: scenarioTitle,
                                delegate: delegate, healingEnabled: heal,
@@ -597,6 +611,7 @@ struct RunScenario: AsyncParsableCommand {
                                visionClassifierProjectRoot: projectDir.map { URL(fileURLWithPath: $0) },
                                preferCheckStateClassifier: !noPreferCheckStateClassifier,
                                findImagePrewarm: !noFindImagePrewarm,
+                               profileOrientation: profileOrientation,
                                dryRun: dryRun,
                                fingerprintCacheURL: fingerprintCacheURL,
                                selectorInventoryURL: selectorInventoryURL,

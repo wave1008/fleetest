@@ -1,7 +1,7 @@
 // MCPServer+Services.swift
 // ft_services: `fleetest services up|down|status` を本物の CLI で同期に実行する。
 //
-// **`swift run fleetest` 経由**: MCP のランチャーが作るのは fleetest-mcp だけで、隣の fleetest は古いことがある(ft_start_run と同じ)。
+// **`swift run fleetest` 経由**(読むだけの `status` は隣の fleetest が既にビルド済みなら `--skip-build`): MCP のランチャーが作るのは fleetest-mcp だけで、隣の fleetest は古いことがある(ft_start_run と同じ)。
 // **子の出力はパイプで読まない**(一時ファイルへ直接書き、終了後に末尾だけ読む。readDataToEndOfFile の走査対象外にする)。
 // **非0終了も MCPError にしない**(利用者が出力を読んで判断する)。承認は `ProjectScaffold.mcpServicesPermission`(ask)。
 
@@ -18,9 +18,11 @@ enum MCPServices {
     static let outputWindowBytes: UInt64 = 256 * 1024
 
     /// `physical` / `serials` は `up` だけが受ける(CLI の `services up --physical --serial`。他の動詞には渡さない)
+    /// `skipBuild` は読むだけの `status` にだけ効く(他の動詞は隣の fleetest を作り直してから撃つ)
     static func arguments(action: String, project: String?, profile: String?,
-                          physical: Bool = false, serials: [String] = []) -> [String] {
-        var args = ["swift", "run", "fleetest", "services", action]
+                          physical: Bool = false, serials: [String] = [], skipBuild: Bool = false) -> [String] {
+        var args = ["swift", "run"] + (skipBuild && action == "status" ? ["--skip-build"] : [])
+            + ["fleetest", "services", action]
         if let project { args += ["--project", project] }
         if let profile { args += ["--profile", profile] }
         if action == "up" {
@@ -28,6 +30,14 @@ enum MCPServices {
             for serial in serials { args += ["--serial", serial] }
         }
         return args
+    }
+
+    /// `status` を作り直しなしで撃ってよいか = 隣の fleetest が既にビルドされているとき。
+    /// 無ければ従来どおり `swift run`(ビルドする)に落とす(`--skip-build` は成果物が無いと失敗する)。
+    /// ビルド中の E2E と衝突させず(保守者の「E2E 中にビルドしない」)、古い fleetest が status を読む副作用は受け入れる
+    static func canSkipBuild(action: String, packageRoot: URL) -> Bool {
+        action == "status" && FileManager.default.isExecutableFile(
+            atPath: packageRoot.appendingPathComponent(".build/debug/fleetest").path)
     }
 
     /// `physical` / `androidSerials` は `up` だけが読む。**他の動詞に渡されたら断る**(`arguments` は黙って捨てていた =
@@ -86,7 +96,8 @@ extension MCPServer {
         }
         let resolvedProject = try ScenarioHost.project(named: project).name
         let arguments = MCPServices.arguments(action: action, project: resolvedProject, profile: profile,
-                                              physical: physical, serials: serials)
+                                              physical: physical, serials: serials,
+                                              skipBuild: MCPServices.canSkipBuild(action: action, packageRoot: packageRoot))
         let environment = MCPRunJobs.childEnvironment(packageRoot: packageRoot, toolRoot: try? RepoRoot.find())
         // CLI の終了まで**ブロッキングで**待つ(up は上がるまで返らない)ので、協調スレッドプールの外の専用 Thread で
         let outcome = await Self.runOffCooperativePool(name: "fleetest-mcp-services") {

@@ -17,7 +17,7 @@ extension ServicesResetDecisionTests {
     /// 残してよい ValidationError は引数の誤りだけ(等号で固定 = 新しい拒否を ValidationError で足すと落ちる)
     func testOnlyArgumentErrorsUseValidationError() throws {
         for (file, allowed) in [
-            ("Sources/fleetest/ServicesCommand.swift", ["--profile is required", "does not exist"]),
+            ("Sources/fleetest/ServicesCommand.swift", ["has no run profiles", "--profile is required", "does not exist"]),
             ("Sources/fleetest/ServicesOwnerLaunch.swift", []),
         ] {
             let throwing = try refusalSource(file).components(separatedBy: "\n")

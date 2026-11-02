@@ -29,6 +29,29 @@ final class MCPServicesToolTests: XCTestCase {
                        ["swift", "run", "fleetest", "services", "down", "--project", "P", "--profile", "r"])
     }
 
+    func testSkipBuildIsStatusOnly() {
+        XCTAssertEqual(MCPServices.arguments(action: "status", project: nil, profile: nil, skipBuild: true),
+                       ["swift", "run", "--skip-build", "fleetest", "services", "status"])
+        XCTAssertEqual(MCPServices.arguments(action: "up", project: "P", profile: "r", skipBuild: true),
+                       ["swift", "run", "fleetest", "services", "up", "--project", "P", "--profile", "r"])
+        XCTAssertEqual(MCPServices.arguments(action: "down", project: "P", profile: "r", skipBuild: true),
+                       ["swift", "run", "fleetest", "services", "down", "--project", "P", "--profile", "r"])
+    }
+
+    func testCanSkipBuildNeedsABuiltSiblingAndStatus() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        XCTAssertFalse(MCPServices.canSkipBuild(action: "status", packageRoot: root), "成果物が無ければ従来の経路")
+        let bin = root.appendingPathComponent(".build/debug")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let exe = bin.appendingPathComponent("fleetest")
+        try "#!/bin/sh\n".write(to: exe, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
+        XCTAssertTrue(MCPServices.canSkipBuild(action: "status", packageRoot: root))
+        XCTAssertFalse(MCPServices.canSkipBuild(action: "up", packageRoot: root))
+        XCTAssertFalse(MCPServices.canSkipBuild(action: "down", packageRoot: root))
+    }
+
     func testOptionLikeValuesAreRefused() {
         XCTAssertNotNil(MCPServices.optionLikeValueRefusal(project: nil, profile: "--set=x"))
         XCTAssertNotNil(MCPServices.optionLikeValueRefusal(project: " -p", profile: "ios"))

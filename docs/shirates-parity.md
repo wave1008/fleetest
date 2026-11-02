@@ -111,7 +111,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | `scrollableElement` | — | ➖ `scrollFrame` のセレクタ式で足りる |
 | `ScrollDirection.None` | `FTScrollDirection` に相当なし | ➖ 「スクロールしない」は `scroll: .noScroll` が担う(`scroll:` の省略は「ブロックの文脈に従う」で別) |
 | `scrollDurationSeconds` / `scrollIntervalSeconds` | — | ➖ フリング前提の実測値を優先(承認済み差分) |
-| — | `scrollTo(sel, direction:maxSwipes:)` | 🟢 |
+| — | `scrollTo(sel, direction:waitSeconds:maxSwipes:)` | 🟢 |
 | — | `swipeBy(sel?, dxRatio:dyRatio:)` | 🟢 2026-08-04 **斜めを含む相対ドラッグ**(マップのパン)。Shirates は縦横 4 方向しか持たない |
 | — | `doubleTap(sel?)` / `doubleTap(x:y:settle:)` | 🟢 2026-08-04 ブリッジ側の1操作(往復するとダブルタップ判定時間を超える)。座標形は `tap(x:y:)` と同じ座標系(戻り値なし) |
 | — | `pinchOut(sel?, scale:)` / `pinchIn(sel?, scale:)` | 🟢 2026-08-04 2本指ズーム。**Shirates(Classic) にピンチ系は無い**ので名前の準拠先も無い。対象指定は Android=座標合成 / iOS=XCUITest は identifier・in-app は座標。**指の座標は host 側 `FTCore.PinchGesture` の1箇所が決め、XCUITest は非公開 API で再生する**(2026-09-24)ので、ピンチは全フレームワークとも両モードで動く。Compose のダブルタップだけがモードで割れる(inapp-boost モードなら成立・xcuitest モードでは不成立。docs/commands.md の表) |

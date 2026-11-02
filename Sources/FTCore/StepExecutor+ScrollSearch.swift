@@ -375,7 +375,7 @@ extension StepExecutor {
     /// `tree` = 打ち切る時点の木。Android はシェード/ロック画面の下でも前面のアプリ名が下のアプリのままなので、
     /// 木が systemui のものなら木の種別で言う(費用ゼロ)。iOS の覆い(通知センター・スイッチャー等)は
     /// `systemUICovering` を1回聞く。`asksAppState: false` = 前面の名前・木・覆いだけで言う(/appstate の「前面ではない」は聞かない。
-    /// 成功が正の経路(scrollToEdge)で、名前を言えない iOS の `false` を失敗に倒さないため)(打ち切りの1回だけ。毎手の照会ではない = OI-46)
+    /// 成功が正の経路(scrollToEdge)で、名前を言えない iOS の `false` を失敗に倒さないため)(打ち切りの1回だけ。毎手の照会ではない)
     func frontAppIfSessionAppLeft(_ sessionBundleID: String?, tree: SnapshotResponse? = nil,
                                   asksAppState: Bool = true) async -> String? {
         guard let bundleID = sessionBundleID, !bundleID.isEmpty else { return nil }
@@ -731,8 +731,11 @@ extension StepExecutor {
         // 動いたかの比較(端・弾切れの判定)。**容器の中だけ**を比べる(領域は searchContentRegion: 名指し → 申告された容器 → 形から採った容器) ——
         // 容器の外の動き続ける表示(時計・カウンタ)を「動いた」と数えると端を検知できず、動かなかった探索で撃たない
         // はずの逆走査まで走って一覧が先頭へ戻された。領域が採れない画面だけ木全体
+        // 枠なしの払いが動かず、唯一の scrollable の中で払い直して動いたら、以降の探索はその容器を枠にして続ける
+        var searchStep = step
+        var containerRedirectTried = false
         let searchSignature: (SnapshotResponse) -> String = { snapshot in
-            Self.contentSignature(Self.elementsInside(Self.searchContentRegion(step, in: snapshot), snapshot.elements))
+            Self.contentSignature(Self.elementsInside(Self.searchContentRegion(searchStep, in: snapshot), snapshot.elements))
         }
         for attempt in 0...maxSwipes {
             // **1周目だけは静止を待ってから撮る**。直前の操作がプログラム的な
@@ -770,8 +773,8 @@ extension StepExecutor {
             // 整定後も違えば本物の移動。顔ぶれが変わる普通のスクロールには掛からない
             if let earlier = previousSnapshot, searchSignature(earlier) != searchSignature(snapshot),
                ScrollSearchBounce.sameElementsOnlyDisplaced(
-                   Self.elementsInside(Self.searchContentRegion(step, in: earlier), earlier.elements),
-                   Self.elementsInside(Self.searchContentRegion(step, in: snapshot), snapshot.elements)) {
+                   Self.elementsInside(Self.searchContentRegion(searchStep, in: earlier), earlier.elements),
+                   Self.elementsInside(Self.searchContentRegion(searchStep, in: snapshot), snapshot.elements)) {
                 snapshot = try await settledSignature(phase: &phase).snapshot
             }
             // **キーボードの実効矩形は周回ごとに引き直す**(整定待ち中に閉じることがある)。
@@ -1111,6 +1114,40 @@ extension StepExecutor {
                                 continue
                             }
                         }
+                        // **枠なしの払いが1度も動かなかったら、木に唯一の scrollable の中で1回だけ払い直す**(横向きの低い一覧で
+                        // 既定の始点が一覧の外に落ちる)。ブリッジ既定の始点は変えない = この失敗経路でだけ撃つ。
+                        // 動かなかったと観測した後の別の始点での払いで、探索の一部(届いたか分からない操作の撃ち直しではない)。
+                        // 容器が複数なら当てずに払わない(失敗文が scrollFrame を勧める)。動いたときだけ探索を続ける
+                        if !containerRedirectTried, !contentEverMoved, step.scrollFrame == nil, step.scrollFrameRect == nil,
+                           !KeyboardWait.isShown(confirmed.snapshot),
+                           let only = ContainerGeometry.uniqueScrollContainer(in: confirmed.snapshot, vertical: vertical) {
+                            containerRedirectTried = true
+                            var redirected = step
+                            redirected.scrollFrameRect = only.frame
+                            if let path = scrollPath(step: redirected, intent: .search, in: confirmed.snapshot) {
+                                let viaX = try await swipeWithFallback(direction, intent: .search, path: path, phase: &phase)
+                                if viaX { viaXCUITest = true }
+                                if !swipeLeavesNoInertia(swipedViaXCUITest: viaX) { leftInertia = true }
+                                swipes += 1
+                                let after = try await settledSignature(phase: &phase).snapshot
+                                let regionSignature: (SnapshotResponse) -> String = {
+                                    Self.contentSignature(Self.elementsInside(Self.searchContentRegion(redirected, in: $0), $0.elements))
+                                }
+                                if regionSignature(after) != regionSignature(confirmed.snapshot) {
+                                    searchStep = redirected
+                                    noteCodesThisStep.insert(.scrollRedirectedToContainer)
+                                    if pendingScrollFrameNote == nil {
+                                        pendingScrollFrameNote = "the default swipe moved nothing, so the search swiped inside the only scroll area on screen"
+                                            + " instead (pass scrollFrame: to do this from the first swipe)"
+                                    }
+                                    contentEverMoved = true
+                                    lastMoveAt = clock.now
+                                    unmovedRounds = 0
+                                    previousSnapshot = after
+                                    continue
+                                }
+                            }
+                        }
                         // 打ち切り確定時点(confirmed)で引き直す —— ループ先頭の effectiveKeyboard は
                         // この settledSignature 呼び出しより前の木の情報なので使い回さない
                         let stoppedKeyboard = KeyboardOcclusion.resolve(reported: confirmed.snapshot.keyboardFrame,
@@ -1193,7 +1230,7 @@ extension StepExecutor {
                 // 「動かなかった」に見える周回があり、そこで慣性を足すと対象を飛び越す
                 let intent: FTSwipeIntent = !contentEverMoved && unmovedRounds > 0 ? .searchFling : .search
                 let swipedViaXCUITest = try await swipeWithFallback(direction, intent: intent,
-                                                                    path: scrollPath(step: step, intent: intent,
+                                                                    path: scrollPath(step: searchStep, intent: intent,
                                                                                      in: snapshot),
                                                                     phase: &phase)
                 if swipedViaXCUITest { viaXCUITest = true }
@@ -1212,7 +1249,7 @@ extension StepExecutor {
         // 入れ替わった容器(scrolledContainer)を1度も観測していないなら、動いたのは容器の外の動き続ける表示(時計・ティッカー)かもしれず、
         // 動いていない一覧を先頭側へ引き戻す(順方向で動かなかった探索は逆走査しない、という決定の裏口になる)
         let movedByEvidence = contentEverMoved
-            && (scrolledContainer != nil || previousSnapshot.flatMap { Self.searchContentRegion(step, in: $0) } != nil)
+            && (scrolledContainer != nil || previousSnapshot.flatMap { Self.searchContentRegion(searchStep, in: $0) } != nil)
         // 順方向で1度も動かなかったら撃たない(端で打ち切った側の guard と同じ理由)
         if movedByEvidence, !frameOtherAxis, recoverOnMiss, step.containerInference ?? true,
            let latest = previousSnapshot,

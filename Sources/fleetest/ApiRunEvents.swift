@@ -358,14 +358,12 @@ enum ApiRun {
     }
 
     /// 明示されたレポート先を**本物の run と同じ規則で**解いたパス(両方の同時指定は入口が既に断る)。
-    /// `--report-dir` = 作業ディレクトリ基準 / `--set reportDir=` = プロファイルありならプロジェクトの root 基準
-    /// (`ProfileResolver.reportDirectory`)・プロファイルなしなら素の値(作業ディレクトリ基準。`noProfileSettings.reportDir` と同じ)。
+    /// `--report-dir` = 作業ディレクトリ基準 / `--set reportDir=` = `--profile` の有無によらずプロジェクトの root 基準
+    /// (`ProfileResolver.reportDirectory`。プロファイルなしの `noProfileSettings.reportDir` の解決も同じ関数)。
     /// 規則を別にすると、同じ指定で dry-run と本物の run が別の場所へ書く
-    static func explicitReportDir(flag: String?, setOverrides: [String], project: TestProject, withProfile: Bool) -> String? {
+    static func explicitReportDir(flag: String?, setOverrides: [String], project: TestProject) -> String? {
         if let flag { return URL(fileURLWithPath: flag).path }
-        return setReportDir(setOverrides).map {
-            withProfile ? ProfileResolver.reportDirectory($0, project: project).path : URL(fileURLWithPath: $0).path
-        }
+        return setReportDir(setOverrides).map { ProfileResolver.reportDirectory($0, project: project).path }
     }
 
     /// `--set reportDir=` の値。**`--set` の解析は `RunProfileSetOverride.parse` の1つだけ**(2つ目の解析器を作らない)。

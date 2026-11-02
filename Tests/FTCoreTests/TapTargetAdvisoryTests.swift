@@ -22,7 +22,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let off = element(1, "btn_always_disabled", "button", 42, 1544, 309, 126, enabled: false)
         let note = TapTargetGeometry.advisory(for: off, in: [off], screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false)
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
         XCTAssertEqual(note, "the target is disabled, so this almost certainly did nothing")
     }
 
@@ -49,7 +49,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
                      "ホイールの申告 frame は描画範囲ではないので遮蔽と言わないこと")
         XCTAssertNil(TapTargetGeometry.advisory(for: segment, in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
     }
 
     /// **入れ物ごと外したのではない**ことの対照: ピッカーの器そのものが中心を覆うなら
@@ -69,7 +69,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let on = element(1, "btn", "button", 0, 0, 100, 40)
         XCTAssertNil(TapTargetGeometry.advisory(for: on, in: [on], screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
     }
 
     /// 全幅の非対話コンテナで中身は右端の FAB だけ = 中心は地図の上
@@ -82,7 +82,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         let note = TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false)
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
         XCTAssertNotNil(note)
         XCTAssertTrue(note?.contains("#layers_fab") == true, note ?? "")
         XCTAssertTrue(note?.contains("behind it") == true, note ?? "")
@@ -97,7 +97,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         XCTAssertNil(TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
     }
 
     /// **覆いの目印**(デバイス上で「素の状態に出ない・その面で出る」を測った集合)。
@@ -230,7 +230,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let above = element(1, "slot_07", "button", 0, -46, 402, 56)
         let note = TapTargetGeometry.advisory(
             for: above, in: [above], screen: FTRect(x: 0, y: 0, width: 402, height: 874),
-            keyboardOcclusion: .none, overlayWindows: .none, isAndroid: false)
+            keyboardOcclusion: .none, overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
         XCTAssertNotNil(note)
         XCTAssertTrue(note?.contains("outside the visible screen") == true, note ?? "")
         XCTAssertTrue(note?.contains("(201, -18)") == true, note ?? "")
@@ -641,7 +641,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         // 判定されるので、chrome-pinned の免除とは無関係に出続けるはず
         XCTAssertEqual(TapTargetGeometry.advisory(for: tabB, in: elements, screen: screen,
                                                   keyboardOcclusion: .none, overlayWindows: .none,
-                                                  isAndroid: false),
+                                                  safeAreaTop: .unknown, isAndroid: false),
                        "the target is disabled, so this almost certainly did nothing")
     }
 
@@ -654,7 +654,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         XCTAssertEqual(TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, isAndroid: false),
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false),
                        "the target is disabled, so this almost certainly did nothing")
     }
 

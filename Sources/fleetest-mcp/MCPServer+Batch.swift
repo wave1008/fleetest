@@ -265,7 +265,7 @@ extension MCPServer {
             return (step, selector.map { "waitForSettle \"\($0.text)\"" } ?? "waitForSettle")
         },
         "scrollTo": BatchStepBuilder(
-            keys: ["selector", "direction", "settle", "maxSwipes", "scrollFrame"]
+            keys: ["selector", "direction", "settle", "waitSeconds", "maxSwipes", "scrollFrame"]
         ) { raw in
             let selector = try requiredBatchSelector(raw, command: "scrollTo")
             guard let direction = FTScrollDirection(rawValue: raw["direction"] as? String ?? "down") else {
@@ -273,6 +273,7 @@ extension MCPServer {
             }
             let step = FlowStep(action: "scrollTo", locator: selector.primary,
                                 fallbacks: batchFallbacks(selector), direction: direction.swipe.rawValue,
+                                timeout: raw["waitSeconds"] as? Double,
                                 maxSwipes: raw["maxSwipes"] as? Int ?? FlowStep.defaultMaxSwipes,
                                 settle: batchSettle(raw),
                                 scrollFrame: try batchScrollFrame(raw))
@@ -782,7 +783,7 @@ extension MCPServer {
             // scrollTo の記録と同じ理由)。ただし ref だった1手目は上で既にセレクタへ差し替え済み
             // なので、記録されるのも解決後のセレクタを持つ step(ref は下書きに書けない)。
             // 失敗した手も記録する: draft には失敗が残っていたほうが「何を試して止まったか」が
-            // 追える(InteractionLog は成否を持たず落とさない)
+            // 追える(失敗の印 `failure` を付けて記録 = 下書きでは TODO)
             // **キーボードが出ておらず何も送らなかった hideKeyboard は記録しない**(ft_hide_keyboard と同じ答え・同じ下書き)
             let sentNothing = plan.step.action == "hideKeyboard" && executor.hideKeyboardFoundNoKeyboard
             if !sentNothing {
@@ -792,8 +793,11 @@ extension MCPServer {
                    recorded.x != nil, recorded.y != nil, recorded.note == nil {
                     recorded.note = DraftNotes.coordinates
                 }
-                recordAction(InteractionLog.Entry(step: recorded, unresolved: nil,
-                                                  summary: plan.summary), args: args)
+                var entry = InteractionLog.Entry(step: recorded, unresolved: nil, summary: plan.summary)
+                if !StepExecutor.isSuccess(outcome.status) {
+                    entry.failure = Self.failureReason(outcome).split(whereSeparator: \.isNewline).first.map(String.init) ?? "failed"
+                }
+                recordAction(entry, args: args)
             }
             let refNote = index == 0 ? (refResolutionNote ?? "") : ""
             guard StepExecutor.isSuccess(outcome.status) else {
@@ -877,6 +881,25 @@ extension MCPServer {
             } else if executor.lastTapTreeBefore == nil {
                 pendingTap = nil
             }
+            // **アプリのプロセスが消えたと確定したら、続く手を撃たない**。前面の変化では止めない
+            // (権限ダイアログ・別アプリへの遷移の batch は正しい)。判定できない(nil)・iOS 以外は止めない。
+            // **プロセスを聞くのは前面が対象アプリでない手の後だけ**(`simctl spawn … launchctl list` は1回約 0.95 秒・実機の devicectl も
+            // 同程度。全ての手で聞くと batch が手の数だけ遅くなる)。アプリを止める手は batch に無い(`batchAppCommandAlternatives` が断る)
+            if index < plans.count - 1,
+               let bundleID = launchedBundleIDs[Self.sessionKey(args)],
+               let recovery = batchDriver as? SessionRecoveryDriver,
+               let front = try? await recovery.foregroundAppID(), front != bundleID,
+               await recovery.appProcessRunning(bundleID: bundleID) == false {
+                let stoppedNote = Self.batchAppProcessGoneNote(
+                    bundleID: bundleID, stoppedAfter: index + 1, total: plans.count)
+                if let stopped = try? await freshSnapshot(batchDriver, args: args) {
+                    recordSnapshot(stopped, batchDriver is AndroidDriver ? "android" : "ios", args)
+                    throw MCPError(lines.joined(separator: "\n") + stoppedNote
+                        + inheritedNote + (await snapshotBody(stopped, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
+                }
+                throw MCPError(lines.joined(separator: "\n") + stoppedNote
+                    + "No snapshot was taken: the app is not running. Take an ft_snapshot after relaunching it.")
+            }
         }
         // 最後の手が tap なら、その撃つ前の木。最後の手の後に出たアラートはその手の結果でありうる(吸われたとは言えない)
         let treeBeforeLastTap = pendingTap.flatMap { $0.step == plans.count ? $0.before : nil }
@@ -895,7 +918,7 @@ extension MCPServer {
             return !(await Self.backgroundedSessionNote(tree, driver: batchDriver)).isEmpty
         }
         // 全手を撃った後の読みが失敗した(落ちた・前面を離れた)。手の一覧は捨てない —— 捨てると撃ち直しを誘う(届いた手の二重実行)
-        // **投げられた case は抱える**(MCPError / text に畳むと、接続断の案内と記憶の破棄が出ない = OI-95。executorFailure と同じ形)
+        // **投げられた case は抱える**(MCPError / text に畳むと、接続断の案内と記憶の破棄が出ない。executorFailure と同じ形)
         func unreadableAfterBatch(_ error: Error) -> Error {
             MCPAnnotatedError(underlying: error, suffix: "", fullMessage: Self.unreadableAfterBatchMessage(
                 stepLines: lines, stepCount: plans.count, error: error))
@@ -908,7 +931,7 @@ extension MCPServer {
                          refetched: Bool, quietStopAfter: Double?)
             do {
                 // 最後の手が type なら、キーボードが上がりきるのを払ってから読む(返す木にキーボードが無いと、
-                // 直後の座標の手・ref の手が「キーボードは無い」前提で撃たれる = OI-122)
+                // 直後の座標の手・ref の手が「キーボードは無い」前提で撃たれる)
                 first = try await consumePendingTypeKeyboardCheck(
                     try await freshSnapshot(batchDriver, args: args), driver: batchDriver, args: args)
                 waited = try await Self.waitFor(waitFor, driver: batchDriver, first: first, seconds: seconds,
@@ -974,7 +997,7 @@ extension MCPServer {
     /// 木がバッチ前と同じ(`looksUnchanged`)。**絵を撮るのは条件を満たすときだけ**(`displayOffNoteAfterUnchangedAction`)。
     /// 失敗で止まった手の後は呼ばない(止まった理由が先に出る)
     /// `launchedInBatch`: launch: が起点の木を捨てる(`beforeBatch` が nil)ので「変わらなかった」を言えない。tap 以外の手でも
-    /// 全面黒を拾えるよう、起動した回は無変化の条件なしで絵を1枚見る(OI-122。警告だけ・一色の起動画面もありうる)
+    /// 全面黒を拾えるよう、起動した回は無変化の条件なしで絵を1枚見る(警告だけ・一色の起動画面もありうる)
     func flatScreenNoteIfNothingChanged(driver: AppDriver, beforeBatch: SnapshotResponse?, final: SnapshotResponse,
                                         tapsUnchanged: Bool, launchedInBatch: Bool) async -> String {
         let treeUnchanged = beforeBatch.map { Self.looksUnchanged($0, final) } ?? false
@@ -991,6 +1014,13 @@ extension MCPServer {
         return "the only argument \"\(text)\" is an element id on the current screen — was the text left out?"
             + " type(\"\(text)\", \"…\") takes the selector first. To type this exact text into the focused field,"
             + " use ft_type with text instead."
+    }
+
+    /// プロセスの消失で止めたときの応答。残りの手を撃たなかった事実を言う(撃ち直しを誘わない: 止めた手までは届いている)
+    static func batchAppProcessGoneNote(bundleID: String, stoppedAfter: Int, total: Int) -> String {
+        "\n\nStopped after step \(stoppedAfter) of \(total): the app process (\(bundleID)) is no longer running,"
+            + " so the remaining \(total - stoppedAfter) step(s) were NOT sent. Steps 1–\(stoppedAfter) were delivered;"
+            + " relaunch the app (ft_launch) before sending the rest.\n\n"
     }
 
     /// ok の手の後で画面(木の内容)が1つも変わっていなかった tap の行に添える。iOS の木はアプリの外(システムのアラート)を

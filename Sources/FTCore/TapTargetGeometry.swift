@@ -251,9 +251,11 @@ public enum TapTargetGeometry {
                                 screen: FTRect,
                                 keyboardOcclusion: KeyboardOcclusion,
                                 overlayWindows: OverlayWindowOcclusion,
+                                safeAreaTop: SafeAreaTop,
                                 isAndroid: Bool) -> String? {
         keyboardOcclusion.advisory(for: element)
             ?? overlayWindows.advisory(for: element)
+            ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen)
             ?? disabledAdvisory(for: element)
             ?? occlusionAdvisory(for: element, in: elements, screen: screen, isAndroid: isAndroid)
     }
@@ -989,6 +991,32 @@ public enum TapTargetGeometry {
         return (container, jump)
     }
 
+    /// **報告された frame の中心が容器の外に落ちるとき、実際に見えている部分の矩形**を返す。
+    /// 中心が容器の中なら nil = ref でタップする(ブリッジが frame の中心へ解決)。
+    /// DSL(`StepExecutor.visibleTapRect` が転送)と MCP の ft_tap(ref)が共有する唯一の判定。
+    ///
+    /// フレームワークは縁をまたぐ行を「原点はクリップ前・サイズはクリップ後」の混成で返すため、
+    /// **frame の中心が可視域の外に落ちる**。実測(S0110 を8並列で 80 サンプル):
+    /// **失敗 40 件の全部**でタップ座標が容器の外だった(完全に外 14 / またぎ 26)。
+    /// **整定でも追加スワイプでも直らない**(木は1ピクセルも動かない = frame は安定していて、ただ間違っている)。
+    /// 送る方向は 2/10 → 5/10 の自傷を実測済み。残るのは**座標そのものを直す**ことだけで、
+    /// 見えている部分は実在するのでそこを撃てば当たる
+    public static func visibleTapRect(for element: ElementInfo, in elements: [ElementInfo],
+                                      inferring: Bool = ContainerGeometry.containerInferenceEnabled,
+                                      scale: Double = 1) -> FTRect? {
+        // **床は木の単位へ換算してから比べる**(scale = AppDriver.pointScale。iOS=1・Android=密度)
+        let floor = minimumVisibleTapExtent * scale
+        guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring),
+              let visible = ScrollGeometry.intersection(element.frame, container),
+              // **細すぎる帯は撃たない**(容器の推測が外れていた場合、わずかな重なりを叩くと より悪い場所へ当たる)
+              visible.height >= floor,
+              visible.width >= floor else { return nil }
+        let center = (x: element.frame.centerX, y: element.frame.centerY)
+        let inside = center.x >= container.x && center.x <= container.x + container.width
+            && center.y >= container.y && center.y <= container.y + container.height
+        return inside ? nil : visible
+    }
+
     /// 縁またぎの警告文(MCP が使う。DSL は寄せるので文言を持たない)。
     /// 見えている部分を撃っても、Compose は focus 時に内容を動かして隣の行が指の下へ来ることがある
     public static func straddleAdvisory(for element: ElementInfo, in elements: [ElementInfo],
@@ -1158,6 +1186,23 @@ public enum TapTargetGeometry {
     public static func effectiveKeyboardFrame(reported: FTRect?, in elements: [ElementInfo],
                                               screen: FTRect?) -> FTRect? {
         KeyboardOcclusion.resolve(reported: reported, in: elements, screen: screen).frame
+    }
+
+    /// 「中心が画面上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)の中」の**中心点だけの判定**。
+    /// 材料はブリッジが申告する `SnapshotResponse.safeAreaTop` だけ —— 帯の高さは木に載らず機種で違うので、
+    /// 定数では決めない。**`.unknown`(XCUITest・API 30 未満の Android・キーウィンドウ無し)は何も言わない**
+    /// (「不明」を「帯が無い」とも「帯の中」とも読まない)。申告が 0(横向き等)も帯が無いので言わない。
+    /// 中心が画面の上端より上は `offscreenAdvisory` の担当なのでここでは言わない。**警告のみ**。
+    /// 文言の中核だけ共有し、前後の名指しと逃げ道は呼び手が足す(`KeyboardOcclusion.advisory` と同じ分担)
+    public static func topSafeAreaAdvisory(for element: ElementInfo, safeAreaTop: SafeAreaTop,
+                                           screen: FTRect) -> String? {
+        guard case .measured(let top) = safeAreaTop, top > 0, top.isFinite else { return nil }
+        let cx = element.frame.centerX
+        let cy = element.frame.centerY
+        guard cy >= screen.y, cy < screen.y + top else { return nil }
+        return "its centre (\(Int(cx)), \(Int(cy))) is inside the top safe-area band (the top \(Int(top)) of the screen:"
+            + " status bar / notch / Dynamic Island), where the touch can go to the system instead of"
+            + " this element. Scroll it clear of the band first if the tap has no effect"
     }
 
     /// 「中心がソフトキーボードの下」の**中心点だけの判定**。木からは判定できない

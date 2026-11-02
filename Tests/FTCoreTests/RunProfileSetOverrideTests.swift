@@ -293,6 +293,7 @@ final class RunProfileDocumentApplyingOverridesTests: XCTestCase {
         case "responseRepeat": return doc.responseRepeat.map(RunProfileSetValue.int)
         case "app": return doc.app.map(RunProfileSetValue.string)
         case "locale": return doc.locale.map(RunProfileSetValue.string)
+        case "orientation": return doc.orientation.map(RunProfileSetValue.string)
         case "wipeDataThresholdGB": return doc.wipeDataThresholdGB.map(RunProfileSetValue.double)
         default:
             XCTFail("fieldValue に未対応のキー: \(key)")
@@ -313,7 +314,7 @@ final class RunProfileDocumentApplyingOverridesTests: XCTestCase {
         "recordFullResolution": "true",
         "reportDir": "/tmp/out", "defaultTimeout": "12.5", "scenarioTimeout": "45",
         "recordBitrateKbps": "2000", "responseRepeat": "7", "app": "sample-app",
-        "locale": "en_US", "wipeDataThresholdGB": "4.5",
+        "locale": "en_US", "wipeDataThresholdGB": "4.5", "orientation": "landscape",
     ]
 
     func testEmptyOverridesReturnsTheSameValues() {

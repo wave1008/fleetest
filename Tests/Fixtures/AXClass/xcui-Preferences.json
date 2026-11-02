@@ -5,7 +5,7 @@
   "x": 0,
   "height": 874
  },
- "truncatedCount": 0,
+ "safeAreaTop":{"measured":false},"truncatedCount": 0,
  "note": "snapshot taken before the screen settled (budget)",
  "sessionBundleID": "com.apple.Preferences",
  "elements": [

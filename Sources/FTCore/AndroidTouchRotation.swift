@@ -1,7 +1,7 @@
 // AndroidTouchRotation.swift
 // Emulator の gRPC タッチ(`sendTouch`)の座標を、表示の座標から端末の自然な向き(パネル)の座標へ回す純粋関数。
 // gRPC は表示の回転を知らず、座標を **自然な向きの画素**(`dumpsys window displays` の `init=` の大きさ)で受ける。
-// 横向きで表示の座標をそのまま渡すと縦の座標系で撃たれる(実測 2026-11-02: user_rotation=1 で表示(2000,300)を渡すと
+// 横向きで表示の座標をそのまま渡すと縦の座標系で撃たれる(実測: user_rotation=1 で表示(2000,300)を渡すと
 // getevent の生値が自然座標 (2000,300) の比率で出た。逆変換した点を渡すと表示の狙った行に当たった。回転 1・2・3 とも)。
 // `adb shell input` は表示の座標を取るのでこの変換は要らない。変換の入口は AndroidDriver.drag / press の gRPC 経路の1箇所。
 

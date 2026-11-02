@@ -75,7 +75,7 @@ test("postActionError: neutral のときも connectionBannerShown を立てる(s
     "neutral:true は webview へ送る actionError メッセージにも載せること");
 });
 
-test("届いたか分からない操作の案内は、続く観測の失敗のバナーで上書きしない(OI-94)", () => {
+test("届いたか分からない操作の案内は、続く観測の失敗のバナーで上書きしない", () => {
   const src = controllerSource();
   const snap = methodBody(src, "private applySnapshotResult(", "private async fetchSnapshot(");
   assert.match(snap, /if \(!this\.deliveryUnknownBannerShown\) \{\s*\n\s*this\.postActionError\(result\.error\);/,

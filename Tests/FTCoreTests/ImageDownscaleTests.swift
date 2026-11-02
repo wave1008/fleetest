@@ -58,7 +58,7 @@ final class ImageDownscaleTests: XCTestCase {
         XCTAssertEqual(result?.height, 780)
     }
 
-    /// OI-62: EXIF の向き 5〜8 は表示で幅と高さが入れ替わる。保存の幅で測ると maxWidth が高さの上限として効く
+    /// EXIF の向き 5〜8 は表示で幅と高さが入れ替わる。保存の幅で測ると maxWidth が高さの上限として効く
     func testOrientationSixMeasuresWidthInDisplayOrientation() throws {
         let stored = checkerboardPNG(width: 600, height: 1200)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(stored as CFData, nil))
@@ -115,7 +115,7 @@ final class ImageDownscaleTests: XCTestCase {
         return out as Data
     }
 
-    /// OI-62: 向き 6 の縦の画素は fullSize で表示の向き(横)の画素になり、向きの申告は残らない
+    /// 向き 6 の縦の画素は fullSize で表示の向き(横)の画素になり、向きの申告は残らない
     func testDisplayOrientedPNGRotatesPixelsAndDropsOrientation() throws {
         let png = try orientedPNG(width: 600, height: 1200, orientation: 6)
         let rotated = try XCTUnwrap(ImageDownscale.displayOrientedPNG(png: png))
@@ -132,7 +132,7 @@ final class ImageDownscaleTests: XCTestCase {
         XCTAssertNil(ImageDownscale.displayOrientedPNG(png: checkerboardPNG(width: 600, height: 1200)))
     }
 
-    /// OI-62: 横向きの画面に向き 6 の縦の画素でも、切り出しは回してから切る(checkIsON / findImage / ft_capture_element 共有)
+    /// 横向きの画面に向き 6 の縦の画素でも、切り出しは回してから切る(checkIsON / findImage / ft_capture_element 共有)
     func testCropRotatesAPNGThatDeclaresItsOrientation() throws {
         let png = try orientedPNG(width: 600, height: 1200, orientation: 6)
         let screen = FTRect(x: 0, y: 0, width: 600, height: 300)

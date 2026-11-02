@@ -1,4 +1,4 @@
-// OI-123: 中心が画面の外の対象への長押し・doubleTap・要素から要素へのドラッグ・Android のピンチは、撃たずに失敗にする。
+// 中心が画面の外の対象への長押し・doubleTap・要素から要素へのドラッグ・Android のピンチは、撃たずに失敗にする。
 // 判定は TapTargetGeometry.offscreenScrollGateCentre(画面より大きい軸は免除)。
 
 import XCTest

@@ -640,5 +640,5 @@
   }
  ],
  "sessionBundleID": "com.apple.Maps",
- "truncatedCount": 0
+ "safeAreaTop":{"measured":false},"truncatedCount": 0
 }

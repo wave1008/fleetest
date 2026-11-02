@@ -119,10 +119,71 @@ public enum MCPDeviceLease {
             .filter { $0.key == key }.map { $0.pid }.min()
     }
 
-    /// MCP の形の印を持つ生きている保持者がいるか(ライブ操作の印は数えない = モニターでデバイスを選ぶだけで立つ)。
-    /// モニターの実行中のランプの入力(ApiMonitorCommand の inMCP)
-    public static func hasMCPHolder(stateDir: URL, key: String, excluding: Set<Int32>) -> Bool {
-        liveEntries(stateDir: stateDir, excluding: excluding).contains { $0.key == key && $0.role == .mcp }
+    // MARK: 呼び出しの進行中の印(モニターの実行中のランプ専用)
+    // `mcp-<鍵>@<pid>.active`。lease(`.lease`)は「このデバイスを触ったセッションが生きている」で、呼び出しの外でも
+    // 残る(run の回避・警告用)。ランプは「今この瞬間に呼び出しが進行中」だけ点けるので別の印にする。
+    // 拡張子が `.lease` でないので `isLeaseFile`・読み手の門には一切数えられない。
+    // 異常終了で消し損ねても読み手が pid + 開始時刻で生死を見るのでランプは残らず(時間の閾値は置かない)、ファイルは sweepStaleLeases が消す
+
+    static let activeSuffix = ".active"
+
+    static func activeURL(stateDir: URL, key: String, pid: Int32) -> URL {
+        stateDir.appendingPathComponent("\(prefix)\(key)\(pidSeparator)\(pid)\(activeSuffix)")
+    }
+
+    /// 呼び出しの開始で立てる(ベストエフォート)
+    public static func beginCall(stateDir: URL, key: String, pid: Int32) {
+        guard let started = ProcessLiveness.startTime(pid) else { return }
+        try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
+        try? "\(pid) \(Int(started.timeIntervalSince1970))".write(
+            to: activeURL(stateDir: stateDir, key: key, pid: pid), atomically: true, encoding: .utf8)
+    }
+
+    /// 呼び出しの終わりで、その pid の進行中の印を全部消す(ファイル名の pid で選ぶ)
+    public static func endCall(stateDir: URL, pid: Int32) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return }
+        for name in names where name.hasPrefix(prefix) && name.hasSuffix(activeSuffix) {
+            let core = name.dropFirst(prefix.count).dropLast(activeSuffix.count)
+            guard let sep = core.lastIndex(of: pidSeparator),
+                  Int32(core[core.index(after: sep)...]) == pid else { continue }
+            try? FileManager.default.removeItem(at: stateDir.appendingPathComponent(name))
+        }
+    }
+
+    /// その鍵で MCP の呼び出しが進行中か(印の pid が生きていて開始時刻も一致するときだけ)。
+    /// モニターの実行中のランプの入力(ApiMonitorCommand の inMCP)。ライブ操作の印・lease は数えない
+    public static func isCallInProgress(stateDir: URL, key: String, excluding: Set<Int32>) -> Bool {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return false }
+        let wanted = "\(prefix)\(key)\(pidSeparator)"
+        return names.contains { name in
+            guard name.hasPrefix(wanted), name.hasSuffix(activeSuffix),
+                  let pid = Int32(name.dropFirst(wanted.count).dropLast(activeSuffix.count)),
+                  !excluding.contains(pid) else { return false }
+            return activeMarkIsLive(at: stateDir.appendingPathComponent(name), pid: pid)
+        }
+    }
+
+    /// 進行中の印の書き手が今も同じプロセスか(pid の再利用で生き返らせない)
+    private static func activeMarkIsLive(at url: URL, pid: Int32) -> Bool {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return false }
+        let fields = text.split(separator: " ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard fields.count == 2, Int32(fields[0]) == pid, let recorded = Int(fields[1]),
+              ProcessLiveness.isAlive(pid), let started = ProcessLiveness.startTime(pid) else { return false }
+        return Int(started.timeIntervalSince1970) == recorded
+    }
+
+    /// 書き手の死んだ進行中の印を消す(異常終了の片付け。BridgeProvisioner.sweepStaleLeases)
+    static func sweepDeadActiveMarks(stateDir: URL) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return }
+        for name in names where name.hasPrefix(prefix) && name.hasSuffix(activeSuffix) {
+            let core = name.dropFirst(prefix.count).dropLast(activeSuffix.count)
+            let url = stateDir.appendingPathComponent(name)
+            guard let sep = core.lastIndex(of: pidSeparator), let pid = Int32(core[core.index(after: sep)...]),
+                  activeMarkIsLive(at: url, pid: pid) else {
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+        }
     }
 
     /// 生きている保持者の一覧(鍵 → pid)。`excluding` の pid が持つ印は数えない(自分・親)。
@@ -197,8 +258,9 @@ public enum MCPDeviceLease {
     }
 
     /// その pid が持つ印を全部消す(MCP / ライブ操作の終了時)。**ファイル名の pid で選ぶ**
-    /// (中身を読まない)ので、他人の (鍵, pid) のファイルは対象にならない
+    /// (中身を読まない)ので、他人の (鍵, pid) のファイルは対象にならない。進行中の印も消す
     public static func removeAll(stateDir: URL, pid: Int32) {
+        endCall(stateDir: stateDir, pid: pid)
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return }
         for name in names {
             guard let parsed = parse(fileName: name), parsed.pid == pid else { continue }

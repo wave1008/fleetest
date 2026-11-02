@@ -5,7 +5,7 @@
   "y": 0,
   "x": 0
  },
- "truncatedCount": 0,
+ "safeAreaTop":{"measured":false},"truncatedCount": 0,
  "note": "snapshot taken before the screen settled (budget)",
  "sessionBundleID": "com.ftester.e2e",
  "elements": [

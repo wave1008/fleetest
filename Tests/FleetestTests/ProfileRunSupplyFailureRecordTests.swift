@@ -1,4 +1,4 @@
-// OI-99: `fleetest run` の供給段の失敗は、サービスのログと servicesWarnings を run の記録に残す(api run の catch と対)。
+// `fleetest run` の供給段の失敗は、サービスのログと servicesWarnings を run の記録に残す(api run の catch と対)。
 // 型では守れない継ぎ目(箱を渡し忘れても緑のまま記録が黙って欠ける)なのでソース走査で固定する。
 
 import XCTest

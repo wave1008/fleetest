@@ -246,6 +246,10 @@ final class FTInAppBridge {
         let (keyboardShown, keyboardWindowFrame): (Bool, CGRect?) = mainSync {
             (Self.keyboardIsVisible(), Self.keyboardFrameIfVisible())
         }
+        // 上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)。キーウィンドウが無ければ不明
+        let safeAreaTop: SafeAreaTop = mainSync {
+            self.keyWindow().map { .measured(Double($0.safeAreaInsets.top)) } ?? .unknown
+        }
 
         // **mainSync の外で行う**: WKWebView の DOM 読みは evaluateJavaScript の完了を待つが、
         // その完了はメインキューへ配送されるため、メインを保持したまま待つとデッドロックする
@@ -278,7 +282,8 @@ final class FTInAppBridge {
                 FTRect(x: $0.origin.x, y: $0.origin.y, width: $0.width, height: $0.height)
             },
             truncatedTiers: merged.truncatedTiers.isEmpty ? nil : merged.truncatedTiers,
-            bulkExemptCount: merged.bulkExempt > 0 ? merged.bulkExempt : nil))
+            bulkExemptCount: merged.bulkExempt > 0 ? merged.bulkExempt : nil,
+            safeAreaTop: safeAreaTop))
     }
 
     /// keyboardWillChangeFrame の最新値(画面座標)。nil = 非表示または不明。

@@ -55,7 +55,8 @@ final class ScenarioExecutionSettingsTests: XCTestCase {
             reportDir: "/tmp/reports",
             defaultTimeout: 12.5,
             scenarioTimeout: 42,
-            recordBitrateKbps: 2500)
+            recordBitrateKbps: 2500,
+            orientation: .landscape)
         // findImagePrewarm はプロファイルの設定ではない(MCP が呼び出しごとに切る = MCPServer.withoutFMAndVision)
         assertNoFieldStaysDefault(ScenarioExecutionSettings(nonDefault), excluding: ["profileName", "findImagePrewarm"])
     }
@@ -89,7 +90,8 @@ final class ScenarioExecutionSettingsTests: XCTestCase {
             preferCheckStateClassifier: false,
             enableAnimations: false, responseMeasurement: true, responseRepeat: 5,
             homeOnStart: true, playProtectBypass: true, record: false, recordFailuresOnly: false,
-            recordBitrateKbps: 1500, recordFullResolution: false, warnings: [])
+            recordBitrateKbps: 1500, recordFullResolution: false, warnings: [],
+            orientation: .landscape)
         assertNoFieldStaysDefault(ScenarioExecutionSettings(profile), excluding: ["findImagePrewarm"])
     }
 }

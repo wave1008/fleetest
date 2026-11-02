@@ -1149,19 +1149,22 @@ public func withoutContainerInference(_ body: () -> Void) {
 
 // MARK: - スクロール
 
-/// 要素が見つかるまでスクロールする(見つかったら成功。タップはしない)
+/// 要素が見つかるまでスクロールする(見つかったら成功。タップはしない)。
+/// `waitSeconds:` を書くと、1度も動かないままの探索はその秒数の間は端と確定せず送り直す
+/// (読み込み中の一覧が後から伸びる形。省略 = 従来どおり)
 @discardableResult
 public func scrollTo(_ selector: String, direction: FTScrollDirection = .down,
                      scrollFrame: String? = nil,
                      startMarginRatio: Double? = nil, endMarginRatio: Double? = nil,
                      containerInference: Bool? = nil,
                      settle: Bool = true,
+                     waitSeconds: Double? = nil,
                      maxSwipes: Int? = nil,
                      file: StaticString = #filePath, line: UInt = #line) -> FTElement {
     scrollToImpl(FTSelector.parse(selector), direction: direction, scrollFrame: scrollFrame,
                  startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio,
                  maxSwipes: maxSwipes, containerInference: containerInference,
-                 settle: settle, file: file, line: line)
+                 settle: settle, waitSeconds: waitSeconds, file: file, line: line)
 }
 
 @discardableResult
@@ -1170,24 +1173,25 @@ public func scrollTo(_ selector: Sel, direction: FTScrollDirection = .down,
                      startMarginRatio: Double? = nil, endMarginRatio: Double? = nil,
                      containerInference: Bool? = nil,
                      settle: Bool = true,
+                     waitSeconds: Double? = nil,
                      maxSwipes: Int? = nil,
                      file: StaticString = #filePath, line: UInt = #line) -> FTElement {
     scrollToImpl(selector.ftSelector, direction: direction, scrollFrame: scrollFrame,
                  startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio,
                  maxSwipes: maxSwipes, containerInference: containerInference,
-                 settle: settle, file: file, line: line)
+                 settle: settle, waitSeconds: waitSeconds, file: file, line: line)
 }
 
 private func scrollToImpl(_ selector: FTSelector, direction: FTScrollDirection,
                           scrollFrame: String?, startMarginRatio: Double?,
                           endMarginRatio: Double?, maxSwipes: Int?, containerInference: Bool?,
-                          settle: Bool,
+                          settle: Bool, waitSeconds: Double?,
                           file: StaticString, line: UInt) -> FTElement {
     let core = FTRuntime.requireCore(command: "scrollTo")
     let frame = core.effectiveScrollFrame(scrollFrame)
     let step = FlowStep(action: "scrollTo", locator: selector.primary,
                         fallbacks: selector.stepFallbacks,
-                        direction: direction.swipe.rawValue, maxSwipes: maxSwipes ?? core.tunables.defaultMaxSwipes,
+                        direction: direction.swipe.rawValue, timeout: waitSeconds, maxSwipes: maxSwipes ?? core.tunables.defaultMaxSwipes,
                         settle: stepSettle(settle),
                         containerInference: core.effectiveContainerInference(containerInference),
                         scrollFrame: frame.map(FTSelector.parse)?.primary,

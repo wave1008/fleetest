@@ -1,5 +1,5 @@
 // 呼び出しの最中に Android の画面が消灯すると、直前の tap は ok なのにアプリへ届いておらず、次の手の失敗文は消灯に触れない
-// (OI-113)。操作の後の確認 `screenOffAfterCallNote` が成功・失敗の両方の応答へ載ることを固定する。
+// 。操作の後の確認 `screenOffAfterCallNote` が成功・失敗の両方の応答へ載ることを固定する。
 
 import XCTest
 @testable import fleetest_mcp

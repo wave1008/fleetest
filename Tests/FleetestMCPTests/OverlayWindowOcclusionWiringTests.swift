@@ -47,7 +47,7 @@ final class OverlayWindowOcclusionWiringTests: XCTestCase {
         let text = compact(try source("fleetest-mcp/RefGuard.swift"))
         XCTAssertTrue(text.contains(compact("overlayWindowWarning(_ element: ElementInfo, overlayWindows: OverlayWindowOcclusion)")),
                       "RefGuard.overlayWindowWarning のシグネチャが違う")
-        XCTAssertTrue(text.contains(compact("overlayWindows: OverlayWindowOcclusion)")),
+        XCTAssertTrue(text.contains(compact("overlayWindows: OverlayWindowOcclusion,")),
                       "RefGuard.preTapWarnings が OverlayWindowOcclusion を受けていない")
         XCTAssertFalse(text.contains(compact("overlayWindows: OverlayWindowOcclusion = .none")),
                        "既定引数が置かれている(呼び忘れがコンパイルで止まらなくなる)")

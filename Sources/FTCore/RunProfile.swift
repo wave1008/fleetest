@@ -450,6 +450,11 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
     /// 予防として1回だけ入力を入れる。**デバイスあたり1回**なので実行時間への影響はほぼゼロ。
     /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json と RunProfileFormFields
     public var homeOnStart: Bool?
+    /// 各シナリオで最初の launchApp / restartApp の直後に1回 `rotateTo` する向き(`portrait` / `landscape` =
+    /// DSL の `rotateTo` と同じ語彙。**既定は指定なし = 向きに触らない**)。シナリオの終わりには rotateTo の復元が元へ戻す。
+    /// 2回目以降の launch では撃たない(向きは launch をまたいで残る)。profile-less でも `--set orientation=` で効く。
+    /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
+    public var orientation: String?
     /// Android の `adb install` で Play Protect の照会を通さないか(**既定 true**)。true で
     /// install の間だけ `verifier_verify_adb_installs` を 0 にして元へ戻す(AdbInstallVerifier。
     /// テスト対象アプリを Google へ送らない = ユーザー決定)。**false はキルスイッチ**:
@@ -485,7 +490,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
                 locale: String? = nil, iosPreActionPing: Bool? = nil,
                 containerInference: Bool? = nil,
                 enableAnimations: Bool? = nil, responseMeasurement: Bool? = nil, responseRepeat: Int? = nil,
-                homeOnStart: Bool? = nil,
+                homeOnStart: Bool? = nil, orientation: String? = nil,
                 playProtectBypass: Bool? = nil, record: Bool? = nil,
                 recordFailuresOnly: Bool? = nil, recordBitrateKbps: Int? = nil,
                 recordFullResolution: Bool? = nil, remoteControl: RemoteControlSection? = nil) {
@@ -511,6 +516,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         self.responseMeasurement = responseMeasurement
         self.responseRepeat = responseRepeat
         self.homeOnStart = homeOnStart
+        self.orientation = orientation
         self.playProtectBypass = playProtectBypass
         self.record = record
         self.recordFailuresOnly = recordFailuresOnly
@@ -526,7 +532,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         "reportDir", "defaultTimeout", "scenarioTimeout",
         "iosMode", "wipeDataOnBloat", "updateWebView", "wipeDataThresholdGB",
         "recoverCpuFallbackToGpu", "locale",
-        "iosPreActionPing", "enableAnimations", "responseMeasurement", "responseRepeat", "homeOnStart",
+        "iosPreActionPing", "enableAnimations", "responseMeasurement", "responseRepeat", "homeOnStart", "orientation",
         "playProtectBypass",
         "containerInference",
         "record", "recordFailuresOnly", "recordBitrateKbps", "recordFullResolution", "remoteControl",
@@ -561,14 +567,14 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         "recordFullResolution": .bool,
         "reportDir": .string, "defaultTimeout": .double, "scenarioTimeout": .int,
         "recordBitrateKbps": .int, "responseRepeat": .int, "app": .string, "locale": .string, "iosMode": .string,
-        "wipeDataThresholdGB": .double,
+        "orientation": .string, "wipeDataThresholdGB": .double,
     ]
 
     /// 配列・オブジェクトの欄。`key=value` で表せないので専用のエラーで断る(未知キー扱いにしない)
     fileprivate static let arrayOrObjectKeys: Set<String> = ["devices", "remoteControl"]
 
     /// `fleetest run --set <key>=<value>` / `fleetest api run --set` が受け付けるキー全部
-    /// (Bool 18 + スカラー10。キー名はプロファイル JSON のキーそのもの ——
+    /// (Bool 18 + スカラー11。キー名はプロファイル JSON のキーそのもの ——
     /// kebab 変換をしない)。**`RunProfileDocument` の Bool/String/Int/Double 欄の全部から
     /// `devices`・`remoteControl`(配列・オブジェクトで `key=value` を持たない)を除いたもの**。
     /// この等号は `RunProfileSetOverrideKeysTests` が Mirror で固定する
@@ -594,6 +600,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
             case ("enableAnimations", .bool(let v)): copy.enableAnimations = v
             case ("responseMeasurement", .bool(let v)): copy.responseMeasurement = v
             case ("homeOnStart", .bool(let v)): copy.homeOnStart = v
+            case ("orientation", .string(let v)): copy.orientation = v
             case ("playProtectBypass", .bool(let v)): copy.playProtectBypass = v
             case ("updateWebView", .bool(let v)): copy.updateWebView = v
             case ("wipeDataOnBloat", .bool(let v)): copy.wipeDataOnBloat = v
@@ -733,6 +740,10 @@ public enum RunProfileSetOverride {
                     throw RunProfileSetOverrideError.outOfRange(
                         key: key, value: rawValue, reason: "must not be empty (omit it to use reports/)")
                 }
+                if key == "orientation", FTOrientation.parse(rawValue) == nil {
+                    throw RunProfileSetOverrideError.outOfRange(
+                        key: key, value: rawValue, reason: RunProfileDocument.orientationRule)
+                }
                 result[key] = .string(rawValue)
             }
         }
@@ -766,6 +777,11 @@ extension RunProfileDocument {
     public static func recordNeedsRejecting(record: Bool, hasRecordingSession: Bool) -> Bool {
         record && !hasRecordingSession
     }
+
+    /// `orientation` の値の規則(`--set`・解決・単体検査で同じ文言)
+    public static let orientationRule = "must be one of "
+        + FTOrientation.allCases.map(\.rawValue).joined(separator: "/")
+        + " (the same values as rotateTo)"
 
     /// `reportDir` / `--report-dir` が空(空白のみ含む)か。resolve・`--set`・専用フラグ・validate-profile の判定の唯一の定義元
     public static func isBlankReportDir(_ raw: String) -> Bool {
@@ -838,6 +854,8 @@ public struct DeviceIndependentRunSettings: Sendable, Equatable {
     /// 録画クリップの再エンコード bitrate(kbps。RunProfileDocument.recordBitrateKbps)。
     /// 未指定は `VideoRecordingConfig.defaultBitrateKbps`
     public let recordBitrateKbps: Int?
+    /// RunProfileDocument.orientation(既定 nil = 向きに触らない)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
+    public var orientation: FTOrientation? = nil
 
     /// `--profile` を使わない実行(`--port`/`--serial` 直指定)の基底。**プロファイルの既定を
     /// そのまま使わない** —— 3つだけ意図的に違う(`fmTextVisibilityCheck` はプロファイルと同じ既定 true。
@@ -883,7 +901,8 @@ public struct DeviceIndependentRunSettings: Sendable, Equatable {
             reportDir: doc.reportDir,
             defaultTimeout: doc.defaultTimeout,
             scenarioTimeout: doc.scenarioTimeout,
-            recordBitrateKbps: doc.recordBitrateKbps)
+            recordBitrateKbps: doc.recordBitrateKbps,
+            orientation: doc.orientation.flatMap(FTOrientation.parse))
     }
 }
 
@@ -1058,6 +1077,8 @@ public struct ResolvedProfile: Sendable {
     /// 「書いた」はパスの一致ではなくこの印で見る(既定と同じ `reports` を明記したプロファイルも書いた側。dry-run の置き場の判断)。
     /// **既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
     public var reportDirDeclared = false
+    /// RunProfileDocument.orientation(既定 nil = 向きに触らない)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
+    public var orientation: FTOrientation? = nil
 
     public var iosDevices: [ResolvedDevice] { devices.filter { $0.platform == "ios" } }
     /// platform を宣言していないシナリオをどちらの OS で走らせるか(iOS のデバイスがあれば ios)。**唯一の規則** ——
@@ -1179,6 +1200,7 @@ public enum ProfileError: Error, LocalizedError {
     /// 空(空白のみ含む)の `reportDir`。resolvePath が "" をプロジェクトルートそのものに解くので、レポートがルート直下へ散らばる
     case emptyReportDir(run: String)
     case invalidLocale(run: String)
+    case invalidOrientation(run: String, value: String)
     /// iosMode / devices[].mode が `IOSMode.all` のどれでもない(device = nil は iosMode)
     case invalidIOSMode(run: String, device: String?, value: String)
     /// kind=physical なのに同定に必要な識別子(iOS=udid / Android=serial)が無い
@@ -1229,6 +1251,8 @@ public enum ProfileError: Error, LocalizedError {
             return "reportDir in run profile \(run) must not be empty (omit it to use reports/)"
         case .invalidLocale(let run):
             return "locale in run profile \(run) must look like ja_JP"
+        case .invalidOrientation(let run, let value):
+            return "orientation \"\(value)\" in run profile \(run) \(RunProfileDocument.orientationRule)"
         case .invalidIOSMode(let run, let device, let value):
             let key = device.map { "mode of device \"\($0)\"" } ?? "iosMode"
             return "\(key) in run profile \(run) is \"\(value)\" — use \"inapp-boost\" or \"xcuitest\""
@@ -1674,6 +1698,9 @@ public enum ProfileResolver {
         guard isValidLocale(locale) else {
             throw ProfileError.invalidLocale(run: runName)
         }
+        if let raw = runDoc.orientation, FTOrientation.parse(raw) == nil {
+            throw ProfileError.invalidOrientation(run: runName, value: raw)
+        }
 
         // デバイスに依存しない実効設定(FM の子トグルからの合成含む)は `--profile` 無しの直接実行
         // (`fleetest run`/`fleetest api run` の profile-less パス)と1つの関数を共有する
@@ -1714,7 +1741,8 @@ public enum ProfileResolver {
             setupHook: setupHook,
             teardownHook: teardownHook,
             warnings: warnings,
-            reportDirDeclared: runDoc.reportDir != nil)
+            reportDirDeclared: runDoc.reportDir != nil,
+            orientation: settings.orientation)
     }
 
     /// 実機デバイスの整合検査。enabled のデバイスにのみ適用する
@@ -1831,6 +1859,9 @@ public enum ProfileResolver {
                 if !isValidLocale(locale) {
                     errors.append("\"locale\" must look like ja_JP")
                 }
+                if let raw = doc.orientation, FTOrientation.parse(raw) == nil {
+                    errors.append("\"orientation\" \(RunProfileDocument.orientationRule)")
+                }
             } else {
                 let reason: String
                 do { _ = try decoder.decode(RunProfileDocument.self, from: data); reason = "" }
@@ -1930,7 +1961,7 @@ extension ProfileError {
     public func isCoveredByStaticRunValidation(runFileName: String) -> Bool {
         switch self {
         case .emptyReportDir, .duplicateDeviceName, .missingAppReference, .missingDevices,
-             .invalidWipeDataThreshold, .invalidLocale, .physicalDeviceMissingIdentifier:
+             .invalidWipeDataThreshold, .invalidLocale, .invalidOrientation, .physicalDeviceMissingIdentifier:
             return true
         case .decodeFailed(let url, _):
             return url.deletingPathExtension().lastPathComponent == runFileName

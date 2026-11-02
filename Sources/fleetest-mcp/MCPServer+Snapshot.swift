@@ -466,7 +466,7 @@ extension MCPServer {
         // 消し忘れると再入(snapshotAfter 経由の二重呼び出し等)で二重に払う
         var alertNote = ""
         let alertKey = Self.sessionKey(args)
-        // **操作の後なのに木が前と同じ**(adoptSnapshot が世代を使い回した)ときも1回だけ聞く(OI-46)。アプリ自身のタップで出た権限アラートは
+        // **操作の後なのに木が前と同じ**(adoptSnapshot が世代を使い回した)ときも1回だけ聞く。アプリ自身のタップで出た権限アラートは
         // 前面でも木はアプリの背面の木のまま変わらない。毎手の往復(約 0.6 秒)は払わず、変化が無かった手の後だけ・同じ操作の後は1回だけ
         let probesAfterUnchangedTree = Self.shouldProbeAfterUnchangedTree(
             isAndroid: driver is AndroidDriver,
@@ -1217,7 +1217,7 @@ extension MCPServer {
     /// 読みの応答に添える「覆われている」注記。iOS XCUITest だけが答える(他は `.notAnswerable` で黙る)。
     /// 費用は `/systemui/covering` の1往復。**呼ぶのは ft_snapshot(1手ずつ読む口)と、操作の直後に木が変わらなかった
     /// snapshotAfter だけ** —— 覆いの下では木が操作の前と1バイト同じままなので「変わらなかった」形が唯一の手がかり。
-    /// 毎手の照会は OI-46 で取り消した(約 0.6 秒)ので足さない
+    /// 毎手の照会は取り消した(約 0.6 秒)ので足さない
     static func coveringNote(driver: AppDriver) async -> String {
         guard case .value(let surface?) = await ForegroundState.coveringProbe(driver) else { return "" }
         return "⚠️ \(coveringSurfaceName(surface)) is drawn over the app right now: the tree below is the app's own tree"
@@ -1407,7 +1407,8 @@ extension MCPServer {
             }
             return (found.ref, originNote + retarget
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
-                                        overlayWindows: overlayWindows)
+                                        overlayWindows: overlayWindows,
+                                        safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
         case .found(let found, let moved):
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion) {
@@ -1426,7 +1427,8 @@ extension MCPServer {
             // 積み重なり)。どちらも容器の内側なので RefGuard.relocate では .found になる
             let overlap = originNote
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
-                                        overlayWindows: overlayWindows)
+                                        overlayWindows: overlayWindows,
+                                        safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,
                                         isAndroid: Self.platformName(args) == "android")
                 // 貼り付く見出しの下(DSL は送って外す。判定は TapTargetGeometry.pinnedBandNote)
@@ -1706,6 +1708,7 @@ extension MCPServer {
             action: "scrollTo", locator: selector.primary,
             fallbacks: selector.fallbacks.isEmpty ? nil : selector.fallbacks,
             direction: direction.swipe.rawValue,
+            timeout: try Self.doubleArgument(args, "waitSeconds"),
             maxSwipes: try Self.intArgument(args, "maxSwipes") ?? FlowStep.defaultMaxSwipes,
             scrollFrame: scrollFrameArg.locator,
             scrollFrameRect: scrollFrameArg.rect)

@@ -420,5 +420,5 @@
   "y": 0
  },
  "sessionBundleID": "com.ftester.e2ey.rn",
- "truncatedCount": 0
+ "safeAreaTop":{"measured":false},"truncatedCount": 0
 }

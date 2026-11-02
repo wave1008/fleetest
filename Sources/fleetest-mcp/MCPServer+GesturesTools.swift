@@ -808,7 +808,9 @@ extension MCPServer {
         }
         return refFrontAppNote(snapshot, args: args) + RefGuard.preTapWarnings(
             element, keyboardOcclusion: keyboard,
-            overlayWindows: OverlayWindowOcclusion.resolve(reported: snapshot?.overlayWindowFrames))
+            overlayWindows: OverlayWindowOcclusion.resolve(reported: snapshot?.overlayWindowFrames),
+            safeAreaTop: snapshot?.safeAreaTop ?? .unknown,
+            screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0))
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],
                                       screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0),
                                       isAndroid: isAndroid)

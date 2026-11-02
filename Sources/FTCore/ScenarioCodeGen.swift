@@ -356,6 +356,7 @@ public enum ScenarioCodeGen {
                 }
                 args += scrollFrameArgs(step)
                 if step.skipsSettle { args.append("settle: false") }
+                if let timeout = step.timeout { args.append("waitSeconds: \(FTSeconds.format(timeout))") }
                 if let maxSwipes = step.maxSwipes, maxSwipes != FlowStep.defaultMaxSwipes {
                     args.append("maxSwipes: \(maxSwipes)")
                 }
