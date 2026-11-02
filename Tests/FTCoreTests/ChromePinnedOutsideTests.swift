@@ -286,4 +286,26 @@ final class ChromePinnedOutsideTests: XCTestCase {
         XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(title, in: tree, screen: screen),
                         "バーと並ばない要素まで chrome と読んだ")
     }
+
+    // MARK: - 上へ押し出された全幅の行が、上帯のボタンの段に重なる(E2E-RN の iOS 横向きのスクロール画面。screen 874x402)
+
+    /// 実際の木: 一覧 (78,149 718x75)・最後の行 `#row_40` (78,86 718x56) が一覧の上へ押し出され、縦の中心 114 が
+    /// 「先頭へ」(78,93 77x48)と「ティッカー開始」(256,93 125x48)の段に入る。行はボタンと横に重なる = バーの部品ではない
+    func testFullWidthRowOverlappingTheTopBarButtonsStaysAGhost() {
+        let screen = FTRect(x: 0, y: 0, width: 874, height: 402)
+        let tree = [el(1, "staticText", 3, 62, 6, 125, 40, id: "txt_screen_title"),
+                    el(3, "button", 3, 203, 0, 61, 48, id: "btn_back"),
+                    el(4, "staticText", 3, 78, 68, 70, 17, id: "txt_row_selected"),
+                    el(8, "button", 3, 78, 93, 77, 48, id: "btn_scroll_top"),
+                    el(9, "staticText", 3, 167, 108, 77, 17, id: "txt_scroll_top"),
+                    el(11, "button", 3, 256, 93, 125, 48, id: "btn_ticker_toggle"),
+                    el(12, "other", 3, 78, 149, 718, 75, id: "list_rows", scrollable: true),
+                    el(14, "button", 4, 78, 86, 718, 56, id: "row_40"),
+                    el(15, "other", 3, 78, 232, 718, 59, id: "carousel_tags", scrollable: true),
+                    el(25, "button", 3, 62, 333, 250, 48, id: "tab_home")]
+        let row = tree.first { $0.identifier == "row_40" }!
+        XCTAssertTrue(ContainerGeometry.isOutsideContainer(row, in: tree, screen: screen),
+                      "一覧の上へ押し出された全幅の行を、上帯のバーの一員と読んだ")
+    }
 }
+

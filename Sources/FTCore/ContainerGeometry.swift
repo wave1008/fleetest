@@ -112,10 +112,13 @@ public enum ContainerGeometry {
     private static func holdsContentLike(_ element: ElementInfo, scroller: ElementInfo,
                                          in elements: [ElementInfo]) -> Bool {
         if ScrollGeometry.intersection(element.frame, scroller.frame) != nil { return true }
-        return LocatorResolver.descendants(of: scroller, in: elements).contains {
-            $0.ref != element.ref && $0.depth == element.depth
-                && ScrollGeometry.intersection($0.frame, scroller.frame) != nil
+        let visible = LocatorResolver.descendants(of: scroller, in: elements).filter {
+            $0.ref != element.ref && ScrollGeometry.intersection($0.frame, scroller.frame) != nil
         }
+        // **窓の中に子孫が1つも無い**なら、外の子孫は送り出された中身(末尾の余白だけが見えている窓。横向きの RN で一覧 75pt <
+        // 末尾の余白 80pt になり、最後の行が窓の上へ出た)。入力バーの形は窓の中に行が見えているのでこちらに来ない
+        if visible.isEmpty { return true }
+        return visible.contains { $0.depth == element.depth }
     }
 
     /// 「同じ深さの子を2つ持つ直近の祖先」= Compose iOS 向けの近似(申告の無い木ではこれが唯一の手)。
@@ -314,8 +317,11 @@ public enum ContainerGeometry {
         // 戻るボタンと同じ段の題名は、背が低く縦に中央寄せされるので (4) の「上端からの隙間が自分の高さの2倍以内」に
         // 収まらない(Emulator の E2EX 入力画面: 戻る y=164 h=126 は通り、題名 y=185 h=82 は隙間 185 > 164 で ghost と読まれ、
         // 毎回 ⚠️scroll-leftover が付いていた)。判定の連鎖は1段だけ(joiningBars: false で呼ぶ)
+        // **横に並ぶものだけ**(バーの部品は横に重ならない)。重なる物は行: 横向きの RN で上へ押し出された全幅の行(縦の中心が
+        // 「先頭へ」ボタンの段に入った)がバーの一員と読まれ、容器の外の行を撃って ok になった
         if topBand, joiningBars, elements.contains(where: { other in
             other.ref != element.ref
+                && (other.frame.x + other.frame.width <= f.x + tol || other.frame.x >= f.x + f.width - tol)
                 && other.frame.y - tol <= f.y + f.height / 2 && f.y + f.height / 2 <= other.frame.y + other.frame.height + tol
                 && ScrollGeometry.intersection(other.frame, container) == nil
                 && chromeBarMember(other, container: container, in: elements, screen: screen, joiningBars: false)
