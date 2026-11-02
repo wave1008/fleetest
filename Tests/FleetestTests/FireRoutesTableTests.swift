@@ -245,7 +245,7 @@ final class FireRoutesTableTests: XCTestCase {
         XCTAssertEqual(pending.count, Self.pendingCount, pending.sorted().joined(separator: "\n"))
     }
 
-    /// 名指したテストが `class` か `extension` の中に実在する(改名・削除で表が嘘にならない)
+    /// 名指したテストが、その名前の型(`class` か `extension`。名前は完全一致)の中に実在する(改名・削除で表が嘘にならない)
     func testNamedTestsExist() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let files = try FileManager.default.subpathsOfDirectory(atPath: root.path)
@@ -263,15 +263,23 @@ final class FireRoutesTableTests: XCTestCase {
                 }
             }
         }
+        // 行頭(字下げ無し)の型の宣言で区切った塊ごとに、型の名前(完全一致)と中の func を集める
+        var methods: [String: Set<String>] = [:]
+        let header = /^(?:(?:public|private|fileprivate|internal|final)\s+)*(?:class|extension|struct)\s+(\w+)/
+        let function = /^\s+(?:@\w+\s+)*(?:(?:private|public|static|override)\s+)*func\s+(\w+)\(/
+        for text in files {
+            var current: String?
+            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                if let match = line.firstMatch(of: header) { current = String(match.1); continue }
+                if let current, let match = line.firstMatch(of: function) {
+                    methods[current, default: []].insert(String(match.1))
+                }
+            }
+        }
         var absent: [String] = []
         for name in names {
             let parts = name.split(separator: ".").map(String.init)
-            guard parts.count == 2 else { absent.append(name); continue }
-            let found = files.contains { text in
-                (text.contains("class \(parts[0])") || text.contains("extension \(parts[0])"))
-                    && text.contains("func \(parts[1])(")
-            }
-            if !found { absent.append(name) }
+            guard parts.count == 2, methods[parts[0]]?.contains(parts[1]) == true else { absent.append(name); continue }
         }
         XCTAssertEqual(absent.sorted(), [], "表が名指すテストが見つからない")
     }

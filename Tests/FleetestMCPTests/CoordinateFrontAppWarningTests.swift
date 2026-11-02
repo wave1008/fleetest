@@ -3,6 +3,7 @@
 // ランチャーや他のアプリへ黙って届いた(実機で実測 → MN-60)。
 
 import XCTest
+import FTCore
 @testable import fleetest_mcp
 
 final class CoordinateFrontAppWarningTests: XCTestCase {
@@ -32,6 +33,21 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
             .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Hints.swift"), encoding: .utf8)
         XCTAssertEqual(source.components(separatedBy: "frontAppWarning(probed.verdict, launched: probed.launched, sent: false)").count - 1, 2,
                        "ft_type / ft_clear_input と ft_batch の ref なし入力の断り")
+    }
+
+    /// **断る判定(`PreFireGuard.refLessInputBlocked`)と断り文の材料(`frontAppWarning`)が全ケースで一致する**。
+    /// 断り文は警告が空なら nil を返すので、片方だけに判定結果を足すと黙って断らなくなる(または断るのに理由が無くなる)
+    func testRefLessBlockingAndTheWarningAgreeForEveryVerdict() {
+        let verdicts: [ForegroundVerdict] = [
+            .inFront, .covered(.coverSheet), .covered(.shade), .covered(.controlCenter), .covered(.appSwitcher),
+            .covered(.other("x")), .locked, .dialog(package: "com.android.permissioncontroller"),
+            .otherApp(name: "com.other"), .otherApp(name: nil), .processGone, .toolStopped(by: "terminate"), .home,
+            .unknown(.failed), .unknown(.notAnswerable),
+        ]
+        for verdict in verdicts {
+            let warning = MCPServer.frontAppWarning(verdict, launched: app, sent: false)
+            XCTAssertEqual(PreFireGuard.refLessInputBlocked(by: verdict), !warning.isEmpty, "\(verdict): \(warning)")
+        }
     }
 
     /// 前面のアプリ名を答えないドライバ(iOS)では黙る(答えられないことを「前面ではない」と読まない)

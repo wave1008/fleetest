@@ -1333,6 +1333,7 @@ final class MCPRefGuardTests: XCTestCase {
             args[tool == "ft_drag" ? "fromRef" : "ref"] = 1
             let text = Self.text(try await server.call(tool: tool, args: args))
             XCTAssertTrue(text.contains("notification centre"), "\(tool): \(text)")
+            XCTAssertFalse(text.contains("This tap"), "ジェスチャを tap と言わない: \(tool): \(text)")
         }
     }
 

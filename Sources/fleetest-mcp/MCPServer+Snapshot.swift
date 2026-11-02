@@ -967,12 +967,13 @@ extension MCPServer {
     /// `/hittable` が引き当てられないことがあり(実機 SE3・SwiftUI の `.alert` で 5/5。押せば届いて閉じた)、
     /// 「アプリスイッチャー/別アプリ」と断じて撃ち直しを誘っていた。木がアラートを前面と言っている以上、
     /// 問い合わせ対象が外れたという推論は成り立たないので聞かない(覆いは聞く)
+    /// `operation` = 文言の操作名(ft_tap の経路は "tap"。ref のジェスチャは "double tap" / "drag" / "pinch")
     static func screenNotRepresentedWarning(_ found: ElementInfo, nativeRef: Int, driver: AppDriver,
-                                            insideInAppAlert: Bool) async -> String {
-        let covering = await systemUICoveringWarning(found, driver: driver)
+                                            insideInAppAlert: Bool, operation: String = "tap") async -> String {
+        let covering = await systemUICoveringWarning(found, driver: driver, operation: operation)
         if !covering.isEmpty { return covering }
         if insideInAppAlert { return "" }
-        return await treeDoesNotMatchScreenWarning(found, nativeRef: nativeRef, driver: driver)
+        return await treeDoesNotMatchScreenWarning(found, nativeRef: nativeRef, driver: driver, operation: operation)
     }
 
     /// **`screenNotRepresentedWarning` を毎タップ聞き直さない**。
@@ -988,7 +989,7 @@ extension MCPServer {
     ///
     /// **アラートはここで聞かない**(`verifiedRef` / `verifiedElement` が毎回聞いて断る。`systemAlertGate` 参照)
     func memoizedScreenProbe(_ found: ElementInfo, fresh: SnapshotResponse,
-                             driver: AppDriver, args: [String: Any]) async -> String {
+                             driver: AppDriver, args: [String: Any], operation: String = "tap") async -> String {
         let key = Self.sessionKey(args)
         // **要素も鍵に入れる**: 答えには要素ごとに変わるもの(`/hittable`・警告の中の名指し)が
         // 混ざる。木の指紋だけで使い回すと、同じ画面の別の要素へ前の要素の答えが返る(全面の覆いの警告が前の要素を
@@ -996,6 +997,7 @@ extension MCPServer {
         var hasher = Hasher()
         hasher.combine(Self.treeFingerprint(fresh))
         hasher.combine(found.ref)
+        hasher.combine(operation)   // 文言が操作名を含む(tap の答えを pinch へ返さない)
         let fingerprint = hasher.finalize()
         if let memo = lastScreenProbe[key], memo.fingerprint == fingerprint {
             return memo.warning
@@ -1004,7 +1006,8 @@ extension MCPServer {
             AlertTreeScope.alertOnly(alert, in: fresh).elements.contains { $0.ref == found.ref }
         } ?? false
         let warning = await Self.screenNotRepresentedWarning(found, nativeRef: nativeRef(found.ref, args: args),
-                                                             driver: driver, insideInAppAlert: insideAlert)
+                                                             driver: driver, insideInAppAlert: insideAlert,
+                                                             operation: operation)
         lastScreenProbe[key] = (fingerprint, warning)
         return warning
     }
@@ -1184,14 +1187,14 @@ extension MCPServer {
     /// エージェントは1手ずつ撃つので影響しないが、DSL は1 run で数千回撃つ。DSL へ広げるのは
     /// 実害を観測してから(現時点で DSL での観測は0件)。
     /// **警告のみ**(拒否しない)。答えられない(旧ブリッジ・in-app・Android)ときは黙る
-    static func systemUICoveringWarning(_ found: ElementInfo, driver: AppDriver) async -> String {
+    static func systemUICoveringWarning(_ found: ElementInfo, driver: AppDriver, operation: String = "tap") async -> String {
         guard let covering = await driver.systemUICovering().value, covering.covering
         else { return "" }
         let surface = Self.coveringSurfaceName(CoveringSurface.from(marker: covering.marker))
         return " (warning: \(surface) is drawn over the app right now, so \(RefGuard.describe(found))"
             + " is not actually reachable — the element list still shows what is underneath,"
             + " because the covering surface belongs to another process and never appears in it."
-            + " This tap landed on that surface. Dismiss it first, then read the screen again)"
+            + " This \(operation) landed on that surface. Dismiss it first, then read the screen again)"
     }
 
     /// 面の呼び名(ft_status・snapshot の注記・タップ後の警告で共有)
@@ -1252,15 +1255,15 @@ extension MCPServer {
     /// 同じ費用を毎ステップ払う判断は実測してから(今回は入れていない)
     /// `nativeRef` = ブリッジの番号(`found.ref` はセッションの番号 = 最初の世代以外は別の要素を指す)
     static func treeDoesNotMatchScreenWarning(_ found: ElementInfo, nativeRef: Int,
-                                              driver: AppDriver) async -> String {
+                                              driver: AppDriver, operation: String = "tap") async -> String {
         guard TapTargetGeometry.platformShouldResolve(found),
               (try? await driver.hitTest(ref: nativeRef)) == .unresolvable
         else { return "" }
         return " (warning: the platform cannot find \(RefGuard.describe(found)) at all, even though"
             + " the tree just listed it — the app is no longer the one being queried (the app"
             + " switcher is open, another app came to the front, or the device's screen is off or locked),"
-            + " and the tree still shows what was there before. This tap almost certainly did not reach the app,"
-            + " so \"done\" here only means the tap was sent."
+            + " and the tree still shows what was there before. This \(operation) almost certainly did not reach the app,"
+            + " so \"done\" here only means the \(operation) was sent."
             + " Check with ft_screenshot, and bring the app back before operating it)"
     }
 

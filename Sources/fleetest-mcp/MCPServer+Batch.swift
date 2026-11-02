@@ -815,7 +815,7 @@ extension MCPServer {
                 lines.append("\(index + 1). \(plan.summary) — FAILED (\(ms)ms): \(Self.batchWritableAdvice(reason))"
                     + (outcome.driverFallback.map { " (\($0))" } ?? "") + refNote
                     + Self.batchDeliveryUnknownNote(failureKind: outcome.failureKind, thrown: outcome.thrownDriverError)
-                    + coveredNote)
+                    + coveredNote + keyboardCoordinateWarning + frontAppWarning)
                 // **止まった位置と、そこで見えている画面を一緒に返す**(scrollTo の failure と
                 // 同じ形: throw で isError にする — 呼び手が要求した手が最後まで実行されなかった
                 // という点で、要素へ届かなかった scrollTo と同種の失敗)

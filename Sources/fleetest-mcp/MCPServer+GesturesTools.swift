@@ -443,7 +443,8 @@ extension MCPServer {
             doubleTapPoint = bandPoint ?? (element.frame.centerX, element.frame.centerY)
             doubleTapWhat = "[\(ref)]"
             doubleTapResolvedRef = element.ref
-            doubleTapNote = try await refGestureGuard(element, driver: doubleTapDriver, isAndroid: doubleTapDriver is AndroidDriver, args: args)
+            doubleTapNote = try await refGestureGuard(element, driver: doubleTapDriver, isAndroid: doubleTapDriver is AndroidDriver,
+                                                       operation: "double tap", args: args)
                 + labelNote + (bandPoint != nil ? Self.bottomBandTouchNote : "")
             doubleTapSelector = reproductionNote(resolvedRef: element.ref, args: args)
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
@@ -485,7 +486,8 @@ extension MCPServer {
             let (element, labelNote) = try await verifiedElement(ref, driver: dragDriver, args: args)
             fromPoint = (element.frame.centerX, element.frame.centerY)
             dragSelector = reproductionNote(resolvedRef: element.ref, args: args) + labelNote
-                + (try await refGestureGuard(element, driver: dragDriver, isAndroid: dragDriver is AndroidDriver, args: args))
+                + (try await refGestureGuard(element, driver: dragDriver, isAndroid: dragDriver is AndroidDriver,
+                                                operation: "drag", args: args))
         } else if let x = try Self.doubleArgument(args, "fromX"), let y = try Self.doubleArgument(args, "fromY") {
             // 宛先の無い呼び出しは木を読む前に断る(引数の検査はデバイスに触らない)
             guard args["toX"] != nil || args["toY"] != nil || args["dx"] != nil || args["dy"] != nil else {
@@ -583,7 +585,8 @@ extension MCPServer {
             pinchSelector = reproductionNote(resolvedRef: element.ref, args: args) + labelNote
                 + (args["radius"] != nil ? " (radius was ignored: ref pinches the element's own frame — use x and y with radius"
                     + " to pinch a region)" : "")
-                + (try await refGestureGuard(element, driver: pinchDriver, isAndroid: pinchDriver is AndroidDriver, args: args))
+                + (try await refGestureGuard(element, driver: pinchDriver, isAndroid: pinchDriver is AndroidDriver,
+                                                operation: "pinch", args: args))
                 + (pinchDriver is AndroidDriver && PinchGesture.mayRegisterAsTapOnAndroid(element)
                     ? " (" + PinchGesture.androidTapRiskNote(element) + " — verify with ft_snapshot)" : "")
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
@@ -792,7 +795,9 @@ extension MCPServer {
     /// (ft_tap は verifiedRef 経由で遮蔽・残像・中身外し・キーボード被覆も見ている)。ツールごとに見る範囲が違うと、
     /// 同じ要素に対して言うことが変わる。キーボード被覆だけは断り(keyboardRefusal の doc)、残りは警告して撃つ。
     /// 木は verifiedElement が撮り直したもの(lastSnapshots に反映済み)
-    func refGestureGuard(_ element: ElementInfo, driver: AppDriver, isAndroid: Bool, args: [String: Any]) async throws -> String {
+    /// `operation` = 警告の文言の操作名("double tap" / "drag" / "pinch")
+    func refGestureGuard(_ element: ElementInfo, driver: AppDriver, isAndroid: Bool, operation: String,
+                         args: [String: Any]) async throws -> String {
         let snapshot = lastSnapshots[Self.sessionKey(args)]
         let keyboard = KeyboardOcclusion.resolve(
             reported: snapshot?.keyboardFrame, in: snapshot?.elements ?? [], screen: snapshot?.screen)
@@ -809,7 +814,7 @@ extension MCPServer {
         // 覆う面・木と画面の食い違い(ft_tap の verifiedRef と同じ探針・同じメモ。SpringBoard へ attach 中は言わない)
         var screenProbe = ""
         if let snapshot, launchedBundleIDs[Self.sessionKey(args)] != "com.apple.springboard" {
-            screenProbe = await memoizedScreenProbe(element, fresh: snapshot, driver: driver, args: args)
+            screenProbe = await memoizedScreenProbe(element, fresh: snapshot, driver: driver, args: args, operation: operation)
         }
         return refFrontAppNote(snapshot, args: args) + RefGuard.preTapWarnings(
             element, keyboardOcclusion: keyboard,

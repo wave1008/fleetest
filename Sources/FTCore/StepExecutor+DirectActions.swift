@@ -470,8 +470,9 @@ extension StepExecutor {
     }
 
     /// 座標で撃つ操作(tap / press / doubleTap)の共通部。`fire` は撃つドライバを受ける。
-    /// **画面の外の点は撃たずに断る**(MCP・CLI・ライブ操作と同じ判定)。木を読まない経路は負の座標だけ
-    /// (`swipePointToPoint` と同じ = 正常系に往復を足さない)、木を読む経路(自前描画)は画面の大きさまで見る
+    /// **画面の外の点は撃たずに断る**。木を読まない経路は負の座標だけ(`swipePointToPoint` と同じ = 正常系に往復を足さない。
+    /// executor は直前の木を控えていない)、木を読む経路(iOS の inapp-boost の自前描画)は画面の大きさまで見る。
+    /// 正の画面外は木を読まない経路では各ブリッジの判定に任せる(フレームワークで割れる = framework-differences FD-2.1)
     private func executeCoordinateTouch(operation: String, x: Double, y: Double, phase: inout PhaseAccumulator,
                                         fire: (AppDriver) async throws -> Void) async throws -> StepOutcome {
         if let refusal = Self.offscreenTouchPointRefusal(operation: operation, x: x, y: y, screen: nil) {
@@ -507,12 +508,10 @@ extension StepExecutor {
         return StepOutcome(status: .passed, driverFallback: note)
     }
 
-    /// 座標の tap / doubleTap の点が画面の外なら断る文。`screen` が nil なら負の座標と非有限だけを見る
-    /// (`TapTargetGeometry.isDragPointOffScreen` と同じ)、あれば `isPointOnScreen`(MCP・CLI・ライブ操作と同じ)
+    /// 座標の tap / doubleTap の点が画面の外なら断る文。判定は `swipePointToPoint` と同じ `TapTargetGeometry.isDragPointOffScreen`
+    /// (`screen` が nil なら負の座標と非有限だけ・あれば閉区間 = 端ちょうどは内側。in-app ブリッジの画面内判定と同じ)
     static func offscreenTouchPointRefusal(operation: String, x: Double, y: Double, screen: FTRect?) -> String? {
-        let outside = screen.map { !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: $0) }
-            ?? TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: nil)
-        guard outside else { return nil }
+        guard TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: screen) else { return nil }
         let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
         return "\(operation): the point (\(x), \(y)) is outside the screen\(size), so nothing was sent."
             + " Use coordinates inside the screen"
@@ -588,7 +587,7 @@ extension StepExecutor {
         + " was not kept out of it — a drag that starts or ends at a screen edge can be taken as back"
 
     /// 要素を押す点を下端のジェスチャ帯の外へ寄せたときの注記(タップ・長押し・ダブルタップ)
-    static let bottomBandTapNote = "touched the part of the element above the Android bottom gesture band"
+    public static let bottomBandTapNote = "touched the part of the element above the Android bottom gesture band"
         + " (its centre is inside the band, where a touch can go to home / app switch)"
 
     /// 押す点を下端のジェスチャ帯の外へ寄せた y(寄せなければ nil)。判定は `BottomGestureBandTap`(MCP・ライブ操作と共有)
@@ -636,7 +635,9 @@ extension StepExecutor {
     /// 注記 `ref-less-input-on-other-app` を立てる(撃つ。断らない = 新しい検知は警告から。基準の `launchedBundleID` は
     /// openURL やアプリ内のリンクで別のアプリへ移っても残るので、断ると正しいシナリオを赤にする)。
     /// 判定は MCP(こちらは断る)と共有の `PreFireGuard.refLessInputBlocked`。聞くのは Android の前面のアプリ名だけ
-    /// (dumpsys 1回。Emulator で約 30ms)。起こしていない(home / アプリ切替の後)ときは聞かない
+    /// (dumpsys 1回。Emulator で約 30ms)。起こしていない(home / アプリ切替の後)ときは聞かない。
+    /// **限界**: シェード・ロック画面の下でも前面のアプリ名は下のアプリのままなので、それらは拾えない(MCP はシェードの窓と
+    /// キーガードも聞く。シェードの照会は AndroidDriver の具体型にあり FTCore から呼べない)
     func noteRefLessInputOnOtherApp() async {
         guard isAndroid, let launched = launchedBundleID else { return }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)

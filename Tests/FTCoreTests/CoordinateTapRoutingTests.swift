@@ -61,6 +61,13 @@ final class CoordinateTapRoutingTests: XCTestCase {
         XCTAssertEqual(primary.snapshotCount, 0, "正常系に往復を足さない")
     }
 
+    /// 端ちょうどは内側(in-app ブリッジ・swipePointToPoint と同じ閉区間)。1pt 外は断る
+    func testTheScreenEdgeIsInsideAndOnePastIsOutside() {
+        let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+        XCTAssertNil(StepExecutor.offscreenTouchPointRefusal(operation: "tap", x: 402, y: 874, screen: screen))
+        XCTAssertNotNil(StepExecutor.offscreenTouchPointRefusal(operation: "tap", x: 403, y: 400, screen: screen))
+    }
+
     /// 座標のダブルタップも同じ門を通る
     func testNegativePointIsRefusedForDoubleTapToo() async {
         let primary = CoordinateTapStub(elements: [menuItem])
