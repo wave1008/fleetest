@@ -16,13 +16,13 @@ final class LaneFailureStreakStoreTests: XCTestCase {
 
     func testRoundTripAndClear() {
         let key = "android:Pixel 8 (emu):1"
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 0)
-        LaneFailureStreakStore.save(stateDir: dir, key: key, consecutiveFailures: 2)
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 2)
-        LaneFailureStreakStore.save(stateDir: dir, key: key, consecutiveFailures: 3)
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 3)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 0)
+        LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "P", consecutiveFailures: 2)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 2)
+        LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "P", consecutiveFailures: 3)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 3)
         LaneFailureStreakStore.clear(stateDir: dir, key: key)
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 0)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 0)
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: LaneFailureStreakStore.entryURL(stateDir: dir, key: key).path))
     }
@@ -30,8 +30,8 @@ final class LaneFailureStreakStoreTests: XCTestCase {
     /// 0 を書くと「0 のファイル」ではなく削除
     func testSavingZeroRemovesTheFile() {
         let key = "ios:iPhone"
-        LaneFailureStreakStore.save(stateDir: dir, key: key, consecutiveFailures: 1)
-        LaneFailureStreakStore.save(stateDir: dir, key: key, consecutiveFailures: 0)
+        LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "P", consecutiveFailures: 1)
+        LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "P", consecutiveFailures: 0)
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: LaneFailureStreakStore.entryURL(stateDir: dir, key: key).path))
     }
@@ -40,17 +40,25 @@ final class LaneFailureStreakStoreTests: XCTestCase {
         let key = "android:emu"
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try Data("{not json".utf8).write(to: LaneFailureStreakStore.entryURL(stateDir: dir, key: key))
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 0)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 0)
         try Data("{\"consecutiveFailures\":-4,\"at\":0}".utf8)
             .write(to: LaneFailureStreakStore.entryURL(stateDir: dir, key: key))
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key), 0)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "P"), 0)
     }
 
     /// 鍵ごとに別ファイル(":" を含む鍵が潰れない)
     func testKeysDoNotCollide() {
-        LaneFailureStreakStore.save(stateDir: dir, key: "android:a", consecutiveFailures: 1)
-        LaneFailureStreakStore.save(stateDir: dir, key: "android_a", consecutiveFailures: 2)
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: "android:a"), 1)
-        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: "android_a"), 2)
+        LaneFailureStreakStore.save(stateDir: dir, key: "android:a", scope: "P", consecutiveFailures: 1)
+        LaneFailureStreakStore.save(stateDir: dir, key: "android_a", scope: "P", consecutiveFailures: 2)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: "android:a", scope: "P"), 1)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: "android_a", scope: "P"), 2)
+    }
+
+    /// 別プロジェクトの失敗は持ち越さない(OI-152)。同じプロジェクトには戻る
+    func testStreakOfAnotherProjectIsNotCarried() {
+        let key = "ios:iPhone-02"
+        LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "E2EY-RN", consecutiveFailures: 2)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "E2EY-iOS"), 0)
+        XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: key, scope: "E2EY-RN"), 2)
     }
 }

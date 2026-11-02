@@ -1096,7 +1096,7 @@ public final class RunOrchestrator: Sendable {
     /// 復活したレーンは最初の失敗で再び離脱し、直っていれば最初の通過で台帳が消える
     private func persistStreak(_ breaker: WorkerCircuitBreaker, key: String?) async {
         guard let s = laneStreakKey(key), await !stoppedByUser() else { return }
-        LaneFailureStreakStore.save(stateDir: s.dir, key: s.key,
+        LaneFailureStreakStore.save(stateDir: s.dir, key: s.key, scope: project.name,
                                     consecutiveFailures: breaker.consecutiveFailures)
     }
 
@@ -1879,7 +1879,7 @@ public final class RunOrchestrator: Sendable {
         var breaker = WorkerCircuitBreaker(
             threshold: WORKER_FAILURE_CIRCUIT_THRESHOLD,
             carriedFailures: laneStreakKey(streakKey).map {
-                LaneFailureStreakStore.load(stateDir: $0.dir, key: $0.key) } ?? 0)
+                LaneFailureStreakStore.load(stateDir: $0.dir, key: $0.key, scope: project.name) } ?? 0)
         // 実行前のブリッジ疎通確認(プレフライト)は不採用(ユーザー決定)。
         // 「取ってから判定」版は一過性の AX スパイクで9台一斉離脱、「取る前に2sで即断」版も
         // 負荷時の誤判定で品質が安定しなかった。ウェッジは失敗後の事後チェック

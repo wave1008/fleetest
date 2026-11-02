@@ -6,6 +6,7 @@
 // (実測: ロック画面の Android 1台が 3 run で 28 件落とした)。
 //
 // - 鍵は `RunOrchestrator.workerID`(`<platform>:<デバイス論理名>`)。論理名が無い経路は鍵が無く、台帳を使わない。
+// - 鍵に加えてプロジェクト名(scope)が一致するときだけ引き継ぐ(別アプリの失敗は不調の証拠にならない)。
 // - 通ったら消す。**期限は置かない**(回復したデバイスは最初の緑で戻る)。
 // - 壊れた・読めないファイルは 0 として扱う(落ちない・例外を投げない)。
 // - ブレーカに数えない失敗(environmentFault 等)と、中断で終わったシナリオの失敗は呼び手が書かない。
@@ -16,6 +17,9 @@ import Foundation
 public enum LaneFailureStreakStore {
     private struct Entry: Codable {
         let consecutiveFailures: Int
+        /// 数えた run のプロジェクト名。別プロジェクトの失敗(別アプリのシナリオの決定的な失敗)を
+        /// このデバイスの不調の証拠として持ち越さない
+        let scope: String
         let at: TimeInterval
     }
 
@@ -27,22 +31,22 @@ public enum LaneFailureStreakStore {
     }
 
     /// 引き継ぐ連続失敗数。無い・壊れている・負数は 0
-    public static func load(stateDir: URL, key: String) -> Int {
+    public static func load(stateDir: URL, key: String, scope: String) -> Int {
         guard let data = try? Data(contentsOf: entryURL(stateDir: stateDir, key: key)),
               let entry = try? JSONDecoder().decode(Entry.self, from: data),
-              entry.consecutiveFailures > 0 else { return 0 }
+              entry.consecutiveFailures > 0, entry.scope == scope else { return 0 }
         return entry.consecutiveFailures
     }
 
     /// 0 以下は削除(「0 と書かれたファイル」と「無い」の2形を持たない)
-    public static func save(stateDir: URL, key: String, consecutiveFailures: Int,
+    public static func save(stateDir: URL, key: String, scope: String, consecutiveFailures: Int,
                             now: Date = Date()) {
         guard consecutiveFailures > 0 else {
             clear(stateDir: stateDir, key: key)
             return
         }
         try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-        let entry = Entry(consecutiveFailures: consecutiveFailures, at: now.timeIntervalSince1970)
+        let entry = Entry(consecutiveFailures: consecutiveFailures, scope: scope, at: now.timeIntervalSince1970)
         guard let data = try? JSONEncoder().encode(entry) else { return }
         try? data.write(to: entryURL(stateDir: stateDir, key: key), options: .atomic)
     }
