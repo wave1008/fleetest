@@ -849,14 +849,9 @@ public enum TapTargetGeometry {
         guard named, container.height > 0 else { return nil }
         let targetCentreY = target.frame.y + target.frame.height / 2
         guard targetCentreY < container.y || targetCentreY > container.y + container.height else { return nil }
-        // 覆いが容器の**外側**(上なら容器の上端より上・下なら下端より下)に収まっていれば送る。縁に接している必要は無い
-        // (実測 E2EY-RN の iOS: 縮んだヘッダの下に潜った対象を覆うナビゲーションバーの下端 116 と容器の上端 187 の間に
-        // 縮んだヘッダの帯が挟まる。縁に接する形だけだと送らずに撃って、何も起きないまま ok になった = OI-147)。
-        // 容器の中へ食い込む覆い(中身の上に載った物)は容器を戻しても外れないので送らない
         let overBottom = over.frame.y + over.frame.height
-        if targetCentreY < container.y, overBottom <= container.y + pinnedBandEdgeTolerance { return -minimumJump }
-        if targetCentreY > container.y + container.height,
-           over.frame.y >= container.y + container.height - pinnedBandEdgeTolerance { return minimumJump }
+        if abs(overBottom - container.y) <= pinnedBandEdgeTolerance { return -minimumJump }
+        if abs(over.frame.y - (container.y + container.height)) <= pinnedBandEdgeTolerance { return minimumJump }
         return nil
     }
 
