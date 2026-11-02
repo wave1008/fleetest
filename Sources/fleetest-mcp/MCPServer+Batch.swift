@@ -678,6 +678,7 @@ extension MCPServer {
         let executor = StepExecutor(driver: batchDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid,
                                     isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFrameworkHint)
         executor.notesLandscapeWithoutRotate = false
+        wireAppGoneGuard(executor, driver: batchDriver, isAndroid: isAndroid, args: args)
 
         // **1手目の ref はここで初めて解決する**(driver が要る: RefGuard の再照合と
         // SelectorNaming の一意性検査)。それでも実行ループの前 —— 「全手を実行前に検証する」を
@@ -723,12 +724,20 @@ extension MCPServer {
         // line は lines の添字(launch: の行がある分だけ手の番号とずれる)、step は手の番号
         var pendingTap: (line: Int, step: Int, before: [ElementInfo])?
         var unchangedTaps: [(line: Int, step: Int)] = []
+        // 指で触った手(ok)と、そのうち次の読みで画面が変わったのを見た手。**最後に前面を離れていたら、変化を見ていない触る手は
+        // 別アプリへ届いたのかもしれない**(前面が移る途中の読みは「変わらなかった」の比較が成り立たず、手の行は警告なしの ok になる)
+        var touchedSteps: [Int] = []
+        var changeObservedSteps: Set<Int> = []
         func flagUnchangedTap(now: [ElementInfo]) {
             guard let pending = pendingTap else { return }
             pendingTap = nil
-            guard StepExecutor.sameContent(pending.before, now) else { return }
+            guard StepExecutor.sameContent(pending.before, now) else {
+                changeObservedSteps.insert(pending.step)
+                return
+            }
             unchangedTaps.append((pending.line, pending.step))
         }
+        func unobservedTouches() -> [Int] { touchedSteps.filter { !changeObservedSteps.contains($0) } }
         // 言うのは最後の木を見てから: **木が空同然の画面では「変化なし」が常に真**(batchUnchangedNote と同じ但し書きの閾値)
         // なので、そのときは手ごとに名指さない
         func applyUnchangedTaps(final: SnapshotResponse) {
@@ -898,6 +907,7 @@ extension MCPServer {
             okLine += keyboardCoordinateWarning + frontAppWarning + refNote
             lines.append(okLine)
             // 無効な要素への touch は撃った上で ok(DSL と同じ = 失敗にはしない)。結論で名指す
+            if StepExecutor.interactsByTouch(plan.step.action ?? "") { touchedSteps.append(index + 1) }
             if StepExecutor.interactsByTouch(plan.step.action ?? ""), outcome.resolvedElement?.enabled == false {
                 suspectSteps.append(index + 1)
             }
@@ -936,7 +946,7 @@ extension MCPServer {
         // **投げられた case は抱える**(MCPError / text に畳むと、接続断の案内と記憶の破棄が出ない。executorFailure と同じ形)
         func unreadableAfterBatch(_ error: Error) -> Error {
             MCPAnnotatedError(underlying: error, suffix: "", fullMessage: Self.unreadableAfterBatchMessage(
-                stepLines: lines, stepCount: plans.count, error: error))
+                stepLines: lines, stepCount: plans.count, error: error, unobservedTouches: unobservedTouches()))
         }
         // **waitFor は「変化なし」の撮り直しの代わり**(snapshotAfter と同じ = 待つ理由が同じなので両方は二重に待つだけ)
         if let waitFor = args["waitFor"] as? String {
@@ -972,7 +982,8 @@ extension MCPServer {
                     + Self.truncationHint(final) + Self.notationHint(waitFor, in: final)
                     + Self.similarLabelsHint(waitFor, in: final) + "\n"
             return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
-                                                                       appLeftFront: await appLeftFront(final))
+                                                                       appLeftFront: await appLeftFront(final),
+                                                                       unobservedTouches: unobservedTouches())
                 + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
                 + waitNote + waitFlatNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
         }
@@ -1003,7 +1014,8 @@ extension MCPServer {
             launchedInBatch: args["launch"] != nil)
         let leftFront = await appLeftFront(final)
         return text(lines.joined(separator: "\n") + Self.batchVerdict(stepCount: plans.count, suspects: suspectSteps,
-                                                                   appLeftFront: leftFront)
+                                                                   appLeftFront: leftFront,
+                                                                   unobservedTouches: unobservedTouches())
             + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
             + (leftFront ? "" : unchangedNote) + displayOffNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
     }
@@ -1091,18 +1103,31 @@ extension MCPServer {
     }
 
     /// 全手を撃った後の読みが失敗した回の文。手の一覧は捨てない(捨てると撃ち直しを誘う = 届いた手の二重実行)
-    static func unreadableAfterBatchMessage(stepLines: [String], stepCount: Int, error: Error) -> String {
+    static func unreadableAfterBatchMessage(stepLines: [String], stepCount: Int, error: Error,
+                                            unobservedTouches: [Int]) -> String {
         stepLines.joined(separator: "\n") + "\n\nAll \(stepCount) step(s) were sent, but reading the screen afterwards failed: "
             + ((error as? LocalizedError)?.errorDescription ?? "\(error)")
-            + " — the app may have crashed or left the front. Do not re-send the steps; check ft_status / ft_logs.\n"
+            + " — the app may have crashed or left the front. Do not re-send the steps; check ft_status / ft_logs."
+            + unobservedTouchesNote(unobservedTouches) + "\n"
+    }
+
+    /// 前面を離れた(または読めなかった)バッチの終わりに、**画面が変わったのを見ていない触る手**を名指す。
+    /// ok の行は警告なしでも、前面が移る途中の読みでは変化の有無を比べられないので、別アプリへ届いた手が混じりうる
+    /// (どの手かは言えない。事実は「変化を見ていない」だけ)。空なら何も足さない
+    static func unobservedTouchesNote(_ steps: [Int]) -> String {
+        guard !steps.isEmpty else { return "" }
+        return " Touch step(s) \(steps.map(String.init).joined(separator: ", ")) show no change on the app's own screen before"
+            + " this point, so they may have reached whatever was in front instead of the app."
     }
 
     /// 結論の行。ok でも何も起きていないかもしれない手(`suspects` = 手の番号)があれば「passed」と言わない
-    static func batchVerdict(stepCount: Int, suspects: [Int], appLeftFront: Bool = false) -> String {
+    static func batchVerdict(stepCount: Int, suspects: [Int], appLeftFront: Bool = false,
+                             unobservedTouches: [Int]) -> String {
         if appLeftFront {
             return "\n\nAll \(stepCount) step(s) ran, but the app is no longer in front after the last step — it may have"
                 + " crashed or moved to another app, possibly during an EARLIER step (then the steps after it acted on"
-                + " whatever was in front instead; see the note on the screen below).\n\n"
+                + " whatever was in front instead; see the note on the screen below)."
+                + unobservedTouchesNote(unobservedTouches) + "\n\n"
         }
         guard !suspects.isEmpty else { return "\n\nAll \(stepCount) step(s) passed.\n\n" }
         let numbers = suspects.sorted().map(String.init).joined(separator: ", ")

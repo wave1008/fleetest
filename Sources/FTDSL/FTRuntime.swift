@@ -488,6 +488,11 @@ public final class FTDriveCore {
     /// true = このプロセスでアプリを起動したときだけ `appProcessEvidence` を問い合わせる(afterAll の専用の子 =
     /// アプリを起動せずに走るので、メモの検証の失敗に「プロセスが無い・クラッシュしたかも」を添えると誤った帰属になる)
     public var appProcessEvidenceRequiresLaunch = false
+    /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない)。executor の `appProcessRunning` へ同期する
+    /// (プロセスが居ないのに別アプリの木で tap / exist が通る誤った緑を断る。判定は `AppProcessGone`)
+    public var appProcessRunning: (@Sendable (String) async -> Bool?)? {
+        didSet { executor.appProcessRunning = appProcessRunning }
+    }
     /// このプロセスで launchApp / restartApp を撃ったか(DSL スレッドからのみ触る。clearAppData / installApp は起動しないので数えない)
     private var appLaunchedInThisProcess = false
     /// stop コマンドで中断した場合 true。expectation 未到達なので成功扱いにしない

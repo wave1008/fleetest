@@ -77,7 +77,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
 
     func testUnreadableAfterBatchMessageKeepsTheStepLines() {
         let text = MCPServer.unreadableAfterBatchMessage(
-            stepLines: ["1. tap — ok (5ms)"], stepCount: 1, error: MCPError("boom"))
+            stepLines: ["1. tap — ok (5ms)"], stepCount: 1, error: MCPError("boom"), unobservedTouches: [])
         XCTAssertTrue(text.hasPrefix("1. tap — ok (5ms)"), text)
         XCTAssertTrue(text.contains("boom"), text)
     }

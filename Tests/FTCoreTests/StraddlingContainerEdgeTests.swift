@@ -28,14 +28,14 @@ final class StraddlingContainerEdgeTests: XCTestCase {
         let target = try XCTUnwrap(tree.first { $0.ref == 4 })
         let hit = try XCTUnwrap(TapTargetGeometry.straddlingContainerEdge(target, in: tree))
         XCTAssertLessThan(hit.jump, 0, "上端をまたぐので負(指を下へ)の寄せ量")
-        XCTAssertNotNil(TapTargetGeometry.straddleAdvisory(for: target, in: tree))
+        XCTAssertNotNil(TapTargetGeometry.straddleAdvisory(for: target, in: tree, operation: "tap"))
     }
 
     func testFullyInsideRowIsNotFlagged() throws {
         let tree = elements(rowY: container.y + 200)
         let target = try XCTUnwrap(tree.first { $0.ref == 4 })
         XCTAssertNil(TapTargetGeometry.straddlingContainerEdge(target, in: tree))
-        XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: tree))
+        XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: tree, operation: "tap"))
     }
 
     func testFullyOutsideRowIsNotFlagged() throws {

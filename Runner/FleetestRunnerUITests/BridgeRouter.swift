@@ -193,8 +193,20 @@ final class BridgeRouter {
                 return .error(InterruptionGuard.message(blocked), status: 422,
                               reason: InterruptionGuard.notDeliveredReason(path: request.path))
             }
-            return .error("\(error)", status: 500)
+            return .error(Self.describingLostConnection(error, appState: app?.state, bundleID: sessionBundleID), status: 500)
         }
+    }
+
+    /// XCTest の「Lost connection to the application」(ui-testing.error の 10009)で落ちた操作の文言。
+    /// **アプリのプロセスが居ない(`state == .notRunning`)と確かめられたときだけ**、`requireLiveApp` の 503 と同じ事実を先頭に言う
+    /// (生の XCTest の文言だけだと、アプリが居ないことが読み取れない)。居る・分からないときは元の文言のまま = 推測を足さない。
+    /// ステータスは呼び手が 500 のまま(届いたか分からない操作なので、503 の「撃つ前に断った」とは意味が違う)
+    static func describingLostConnection(_ error: Error, appState: XCUIApplication.State?, bundleID: String?) -> String {
+        let ns = error as NSError
+        guard ns.domain == "com.apple.dt.xctest.ui-testing.error", ns.code == 10009, appState == .notRunning else {
+            return "\(error)"
+        }
+        return "the target app (\(bundleID ?? "?")) is not running (XCTest lost its connection to it: \(error))"
     }
 
     // MARK: - Handlers

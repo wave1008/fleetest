@@ -60,7 +60,7 @@ final class DraftBatchNotesTests: XCTestCase {
     }
 
     func testVerdictDoesNotSayPassedWhenTheAppLeftTheFront() {
-        let verdict = MCPServer.batchVerdict(stepCount: 3, suspects: [], appLeftFront: true)
+        let verdict = MCPServer.batchVerdict(stepCount: 3, suspects: [], appLeftFront: true, unobservedTouches: [])
         XCTAssertFalse(verdict.contains("passed"), verdict)
         XCTAssertTrue(verdict.contains("no longer in front"), verdict)
     }

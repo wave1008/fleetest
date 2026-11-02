@@ -21,28 +21,28 @@ final class SideEdgeCentreAdvisoryTests: XCTestCase {
     func testCentreOutsideTheLeftEdgeWarns() throws {
         let elements = tree(tagX: -28)
         let target = try XCTUnwrap(elements.last)
-        let text = try XCTUnwrap(TapTargetGeometry.straddleAdvisory(for: target, in: elements))
+        let text = try XCTUnwrap(TapTargetGeometry.straddleAdvisory(for: target, in: elements, operation: "tap"))
         XCTAssertTrue(text.contains("centre (12, 530)"), text)
     }
 
     func testCentreOutsideTheRightEdgeWarns() throws {
         let elements = tree(tagX: 330)
         let target = try XCTUnwrap(elements.last)
-        XCTAssertNotNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements))
+        XCTAssertNotNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements, operation: "tap"))
     }
 
     /// 縁で切れていても中心が容器の中なら当たる = 黙る(カルーセルの端の項目ごとのノイズにしない)
     func testCentreInsideTheContainerStaysSilent() throws {
         let elements = tree(tagX: -10)
         let target = try XCTUnwrap(elements.last)
-        XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements))
+        XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements, operation: "tap"))
     }
 
     func testFullyInsideAndFullyOutsideStaySilent() throws {
         for x in [100.0, -300.0] {
             let elements = tree(tagX: x)
             let target = try XCTUnwrap(elements.last)
-            XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements), "x=\(x)")
+            XCTAssertNil(TapTargetGeometry.straddleAdvisory(for: target, in: elements, operation: "tap"), "x=\(x)")
         }
     }
 }

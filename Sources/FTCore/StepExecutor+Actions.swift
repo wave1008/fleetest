@@ -208,6 +208,10 @@ extension StepExecutor {
         nextResolveBypassesCache = false
         var snapshot = try await freshSnapshot(freshness)
         phase.snapshotMs += Self.ms(clock.now - start)
+        // アプリのプロセスが居ないのに別アプリの木で解決しようとしているなら、撃たずに断る(AppProcessGone)
+        if let gone = await appGoneFailure(owner: snapshot.sessionBundleID) {
+            return StepOutcome(status: failedWithoutKind(gone))
+        }
         // 起動直後の最初のロケータ操作だけ、配置の静止を待ってから解決する(pendingLaunchSettle の doc)。
         // **settledSignature が自分で phase へ計上する**(ここでは足さない)
         if pendingLaunchSettle {

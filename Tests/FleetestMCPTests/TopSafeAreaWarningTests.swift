@@ -14,7 +14,7 @@ final class TopSafeAreaWarningTests: XCTestCase {
     }
 
     func testPreTapWarningsNamesTheBandWhenMeasured() {
-        let text = RefGuard.preTapWarnings(inBand(), keyboardOcclusion: .none, overlayWindows: .none,
+        let text = RefGuard.preTapWarnings(inBand(), keyboardOcclusion: .none, suppressKeyboardWarning: false, overlayWindows: .none,
                                            safeAreaTop: .measured(62), screen: screen)
         XCTAssertTrue(text.contains("safe-area band"), text)
         XCTAssertTrue(text.hasPrefix(" (warning:"), text)
@@ -25,7 +25,7 @@ final class TopSafeAreaWarningTests: XCTestCase {
         var el = inBand()
         el = ElementInfo(ref: el.ref, type: el.type, identifier: nil, label: "Back", value: nil, placeholder: nil,
                          enabled: false, frame: el.frame, depth: 2)
-        let text = RefGuard.preTapWarnings(el, keyboardOcclusion: .none, overlayWindows: .none,
+        let text = RefGuard.preTapWarnings(el, keyboardOcclusion: .none, suppressKeyboardWarning: false, overlayWindows: .none,
                                            safeAreaTop: .measured(62), screen: screen)
         let disabled = text.range(of: "disabled")
         let band = text.range(of: "safe-area band")
@@ -35,7 +35,7 @@ final class TopSafeAreaWarningTests: XCTestCase {
     }
 
     func testPreTapWarningsSaysNothingWhenUnknown() {
-        let text = RefGuard.preTapWarnings(inBand(), keyboardOcclusion: .none, overlayWindows: .none,
+        let text = RefGuard.preTapWarnings(inBand(), keyboardOcclusion: .none, suppressKeyboardWarning: false, overlayWindows: .none,
                                            safeAreaTop: .unknown, screen: screen)
         XCTAssertFalse(text.contains("safe-area band"), text)
     }

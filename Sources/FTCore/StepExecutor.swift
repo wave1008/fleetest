@@ -339,6 +339,21 @@ public final class StepExecutor {
     /// 始点の木からは対象のアプリが分からない。nil = 起こしていない・home / アプリ切替 / 終了の後(意図して別の面に居るかもしれない)
     public var launchedBundleID: String?
 
+    /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない = 断らない)。`AppProcessGone` が木の持ち主が違うときだけ呼ぶ。
+    /// 注入元: DSL = ScenarioRunnerMain(FTRuntime 経由)/ MCP = ft_batch・ft_scroll_to の executor
+    public var appProcessRunning: (@Sendable (String) async -> Bool?)?
+    /// このステップが解決に読んだ木の持ち主(`freshSnapshot` / `assertionSnapshot` が最後に読んだもの)。execute の入口で戻す
+    var lastTreeOwnerThisStep: String?
+
+    /// 起こしたアプリのプロセスが居ないのに、いま読んだ木が別のアプリのものなら、断り文を返す(`AppProcessGone`)。
+    /// `launchedBundleID` が nil(起こしていない・home / アプリ切替 / 終了の後)・照会が注入されていない・iOS では何も言わない
+    func appGoneFailure(owner: String?) async -> String? {
+        guard let launched = launchedBundleID, let probe = appProcessRunning, let owner else { return nil }
+        guard await AppProcessGone.isGone(launched: launched, owner: owner, processRunning: { await probe(launched) })
+        else { return nil }
+        return AppProcessGone.message(launched: launched, owner: owner)
+    }
+
     public func noteAppLaunched(bundleID: String? = nil) {
         if let bundleID { launchedBundleID = bundleID }
         armUnregisteredSystemAlertProbe()
@@ -815,6 +830,7 @@ public final class StepExecutor {
         guardEnteredThisStep = false
         pixelsShowedTextThisStep = false
         resolvedElementThisStep = nil
+        lastTreeOwnerThisStep = nil
         notVisibleSelectionThisStep = nil
         scrollSwipesThisStep = nil
         slowDragsThisStep = nil
@@ -917,6 +933,10 @@ public final class StepExecutor {
                 // 見つからない・到達できないは内側で先に立っているので上書きされない
                 if case .failed = status { markFailure(.assertion) }
                 // 時間切れの原因が前面のシステムアラートなら題名を添える(登録が無いときだけ・1往復)
+                // 通った検証は、読んだ木が別アプリのものでアプリのプロセスが居ないなら通さない(別アプリの画面で緑になる)
+                if Self.isSuccess(status), let gone = await appGoneFailure(owner: lastTreeOwnerThisStep) {
+                    status = failedWithoutKind(gone)
+                }
                 status = await annotatedWithSystemAlert(status, phase: &phase)
                 status = await noteLandscapeWithoutRotate(onFailure: status)
                 noteHoldAlreadyReleased(onFailureOf: step, status: status)
@@ -1053,7 +1073,9 @@ public final class StepExecutor {
         }
         let bypass = bypassesCache(freshness)
         if bypass, case .repoll = freshness { markRepollBypassed() }
-        return try await driver.snapshot(bypassingCache: bypass)
+        let snapshot = try await driver.snapshot(bypassingCache: bypass)
+        lastTreeOwnerThisStep = snapshot.sessionBundleID
+        return snapshot
     }
 
     /// このステップで立った注記。順序を rawValue 固定にするのは、記録が run 間で決定的に

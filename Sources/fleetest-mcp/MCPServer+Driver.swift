@@ -2081,6 +2081,20 @@ extension MCPServer {
                                                 identifiers: snapshot.elements.map(\.identifier))
     }
 
+    /// MCP の executor に「起こしたアプリのプロセスが居ないのに別アプリの木で解決しない」門を付ける(Android のみ。判定は
+    /// FTCore の `AppProcessGone` で DSL と共有 = StepExecutor が撃つ前に断る)。起こした記憶が無ければ何もしない。
+    /// 持ち主が違うときだけ adb を払う
+    func wireAppGoneGuard(_ executor: StepExecutor, driver: AppDriver, isAndroid: Bool, args: [String: Any]) {
+        guard isAndroid, let launched = launchedBundleIDs[Self.sessionKey(args)] else { return }
+        let serial = (driver as? AndroidDriver)?.serial ?? (args["serial"] as? String)
+            ?? connectedAndroidSerials[Self.sessionKey(args)]
+        let probe = androidPackageRunning
+        executor.launchedBundleID = launched
+        executor.appProcessRunning = { package in
+            await Self.runOffCooperativePool(name: "fleetest-mcp-app-gone") { probe(package, serial) }
+        }
+    }
+
     /// `switchedAppNote` の `processEvidence` 引数を埋める(Android のみ・adb 2〜3往復)。
     /// **すり替わっていない通常の呼び出しでは adb を払わない**(session == launched ならここで
     /// 抜ける)。serial は明示引数か、このセッションが覚えている宛先(connectedAndroidSerials。

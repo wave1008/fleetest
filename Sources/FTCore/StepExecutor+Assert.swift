@@ -67,7 +67,9 @@ extension StepExecutor {
     func assertionSnapshot(_ retry: inout AssertFreshRetry) async throws -> SnapshotResponse {
         let bypass = retry.takeArmed()
         if retry.lastTakeWasRepollBypass { markRepollBypassed() }
-        return try await driver.snapshot(bypassingCache: bypass)
+        let snapshot = try await driver.snapshot(bypassingCache: bypass)
+        lastTreeOwnerThisStep = snapshot.sessionBundleID
+        return snapshot
     }
 
     /// 可視性照合(`requireVisible`)がこのステップで効くか。ステップ指定(DSL の requireVisible)

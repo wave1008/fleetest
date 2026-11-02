@@ -692,6 +692,9 @@ struct RunScenario: AsyncParsableCommand {
                 return ["process not running"] + evidence.crashSummary
             }
             core.appProcessEvidenceRequiresLaunch = afterAllOnly
+            core.appProcessRunning = { package in
+                AndroidAppProcessEvidenceQuery.query(package: package, serial: serial)?.running
+            }
         } else if runPlatform == "ios", !physical, let udid {
             // iOS Simulator も同じ形で添える(XCUITest モードでは、アプリが落ちても XCTest の
             // 「Lost connection to the application」しか出ず、.ips の事実が記録に残らなかった。

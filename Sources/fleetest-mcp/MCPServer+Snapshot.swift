@@ -1052,9 +1052,7 @@ extension MCPServer {
     static func keyboardRefusal(_ target: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
                                 tree: [ElementInfo], isAndroid: Bool) -> String? {
         guard let advisory = keyboardOcclusion.advisory(for: target) else { return nil }
-        // いま焦点を持つ欄への ft_type / ft_clear_input は、ドライバがタップせずに打つので断らない(DSL の reachPastKeyboard と同じ)
-        if Self.currentTool == "ft_type" || Self.currentTool == "ft_clear_input",
-           holdsFocus(target, in: tree) { return nil }
+        if typesWithoutTouching(target, in: tree) { return nil }
         // 断る理由はプラットフォームごとの事実だけを言う(Android に XCUITest の説明を出さない = OI-85)
         let consequence = isAndroid
             ? "A touch there would land on the keyboard, not on the element."
@@ -1063,6 +1061,13 @@ extension MCPServer {
             + " Close the keyboard with ft_hide_keyboard (it sends no Enter; ft_navigate back on Android), or"
             + " ft_scroll_to the element, then take a fresh ft_snapshot. ft_type pressEnter: true also closes it"
             + " on some screens but fires the field's action, and in a multiline field it adds a newline instead"
+    }
+
+    /// **いま焦点を持つ欄への ft_type / ft_clear_input は、ドライバがタップせずに打つ**(DSL の reachPastKeyboard と同じ)。
+    /// キーボードの下・細い帯に潰れた・せり上がったバーの下でも触らないので、断りも「タップがキーボードに当たる」警告も出さない
+    /// (`keyboardRefusal` / `keyboardCoverRefusal` / `RefGuard.preTapWarnings` が共有する1箇所)
+    static func typesWithoutTouching(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
+        (currentTool == "ft_type" || currentTool == "ft_clear_input") && holdsFocus(target, in: tree)
     }
 
     /// 対象がいま焦点を持つ欄か。**対象自身が focused、または焦点のある要素が対象の枠の中(同じ枠を含む)に収まる**(外側の容器が焦点を持つ形は数えない = 全画面の容器で免除しない)
@@ -1095,7 +1100,8 @@ extension MCPServer {
     /// `PreFireGuard.keyboardCover` の断り(ref を引く全経路 = `verifiedRef` と `refGestureGuard` が呼ぶ)
     static func keyboardCoverRefusal(_ found: ElementInfo, in tree: SnapshotResponse,
                                      keyboardOcclusion: KeyboardOcclusion, label: String) -> String? {
-        guard let cover = PreFireGuard.keyboardCover(of: found, in: tree, keyboard: keyboardOcclusion) else { return nil }
+        guard let cover = PreFireGuard.keyboardCover(of: found, in: tree, keyboard: keyboardOcclusion),
+              !typesWithoutTouching(found, in: tree.elements) else { return nil }
         let why: String
         switch cover {
         case .raisedBar(let bar): why = "covered by \(RefGuard.describe(bar)), which rose above the keyboard"
@@ -1434,6 +1440,7 @@ extension MCPServer {
             }
             return (found.ref, originNote + retarget
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
+                                        suppressKeyboardWarning: Self.typesWithoutTouching(found, in: fresh.elements),
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
@@ -1455,6 +1462,7 @@ extension MCPServer {
             // 積み重なり)。どちらも容器の内側なので RefGuard.relocate では .found になる
             let overlap = originNote
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
+                                        suppressKeyboardWarning: Self.typesWithoutTouching(found, in: fresh.elements),
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,
@@ -1470,8 +1478,7 @@ extension MCPServer {
                     : await memoizedScreenProbe(found, fresh: fresh, driver: driver, args: args, operation: operation))
             // **容器の縁にまたがる行**(DSL は内側へ寄せてから撃つ。MCP は ref を撃つだけなので警告する)。
             // 判定は DSL と共有(`TapTargetGeometry.straddlingContainerEdge`)
-            let straddle = TapTargetGeometry.straddleAdvisory(for: found, in: fresh.elements)
-                .map { " (warning: \(RefGuard.describe(found)): \($0))" } ?? ""
+            let straddle = Self.straddleWarning(found, in: fresh.elements, operation: operation)
             guard moved >= RefGuard.movedThreshold else {
                 return (found.ref, overlap + straddle + labelNote)
             }
@@ -1488,6 +1495,12 @@ extension MCPServer {
             sessions[key, default: DeviceSession()].refRetarget = (found.ref, movedNote.trimmingCharacters(in: .whitespaces))
             return (found.ref, overlap + movedNote + straddle + labelNote)
         }
+    }
+
+    /// 縁またぎの警告(ref を引く全経路 = `verifiedRef` と `refGestureGuard` が呼ぶ。文言は操作名で言う)
+    static func straddleWarning(_ found: ElementInfo, in elements: [ElementInfo], operation: String) -> String {
+        TapTargetGeometry.straddleAdvisory(for: found, in: elements, operation: operation)
+            .map { " (warning: \(RefGuard.describe(found)): \($0))" } ?? ""
     }
 
     /// ref の付け替えの断り(throw)と注記。`verifiedRef` / `verifiedElement` / scrollFrame の ref が通る**唯一の口**
@@ -1759,6 +1772,7 @@ extension MCPServer {
                                     uiFramework: uiFrameworkHint,
                                     defersPartialSheetRecovery: true)
         executor.notesLandscapeWithoutRotate = false
+        wireAppGoneGuard(executor, driver: scrollDriver, isAndroid: isAndroid, args: args)
         // **所要時間の内訳の起点**: (a) 1回目の探索 + (b) シート展開救済だけを測る
         // (driver 解決・scrollFrame 解決は上ですでに終わっている)。成功応答だけに載せる
         let timingClock = ContinuousClock()
@@ -1877,6 +1891,7 @@ extension MCPServer {
                                                  occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
                                                  uiFramework: uiFrameworkHint)
                 retryExecutor.notesLandscapeWithoutRotate = false
+                wireAppGoneGuard(retryExecutor, driver: scrollDriver, isAndroid: isAndroid, args: args)
                 SlowCallWatchdog.mark("sheet rescue: searching again")
                 outcome = await retryExecutor.execute(step)
                 after = try await freshSnapshot(scrollDriver, args: args)

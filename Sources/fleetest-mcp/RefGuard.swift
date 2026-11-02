@@ -281,10 +281,13 @@ enum RefGuard {
     /// keyboard + overlay window + disabled + 安全領域の帯の組(帯は最後 = `TapTargetGeometry.advisory` と同じ並び)。**この順序で4箇所から呼ばれる** ——
     /// 申告由来の2つを先にするのは、木からは判定できず ghost/overlap 側では検知できない
     /// 唯一の警告だから。**`overlayWindows` に既定値を置かない**(呼び忘れをコンパイルで止める)
+    /// `suppressKeyboardWarning`: 触らずに打つ操作(焦点の欄への ft_type / ft_clear_input = `typesWithoutTouching`)はキーボードの下でも
+    /// 「タップがキーボードに当たる」と言わない。既定値を置かない(呼び手に決めさせる)
     static func preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
+                               suppressKeyboardWarning: Bool,
                                overlayWindows: OverlayWindowOcclusion,
                                safeAreaTop: SafeAreaTop, screen: FTRect) -> String {
-        (keyboardWarning(element, keyboardOcclusion: keyboardOcclusion) ?? "")
+        (suppressKeyboardWarning ? "" : keyboardWarning(element, keyboardOcclusion: keyboardOcclusion) ?? "")
             + (overlayWindowWarning(element, overlayWindows: overlayWindows) ?? "")
             + disabledWarning(element)
             + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen) ?? "")

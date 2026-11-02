@@ -58,7 +58,7 @@ final class UnknownArgumentRefusalAllDrivingToolsTests: XCTestCase {
     }
 
     func testBatchVerdictNamesAnEarlierStepPossibility() {
-        let verdict = MCPServer.batchVerdict(stepCount: 3, suspects: [], appLeftFront: true)
+        let verdict = MCPServer.batchVerdict(stepCount: 3, suspects: [], appLeftFront: true, unobservedTouches: [])
         XCTAssertTrue(verdict.contains("EARLIER step"), verdict)
     }
 }

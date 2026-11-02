@@ -126,6 +126,8 @@ extension StepExecutor {
         /// 見つけた要素(found のときだけ)。scrollTo が「掴んだ要素」として返す
         /// (無いと DSL の `scrollTo` が lastElement を空で上書きしていた)
         var element: ElementInfo? = nil
+        /// 起こしたアプリのプロセスが居ないのに始点の木が別アプリのものだった(`AppProcessGone`)。探索せずに断った断り文
+        var appGone: String? = nil
     }
 
     /// **半開きシートを広げるドラッグ**(探索が半開きシートの中で1度も動かずに止まったときに1回だけ撃つ)。
@@ -220,6 +222,7 @@ extension StepExecutor {
     static func scrollNotFoundMessage(_ step: FlowStep,
                                       _ result: ScrollSearchResult? = nil,
                                       defaultMaxSwipes: Int) -> String {
+        if let gone = result?.appGone { return gone }
         // **fail-fast は別の文**: 実際にはスワイプを1本も送っていないので、通常の
         // 「N 回振って見つからなかった」は嘘になる
         if result?.scrollFrameMissing == true {
@@ -783,6 +786,11 @@ extension StepExecutor {
                 // hideKeyboard の後も同じ(閉じかけのキーボードの木で判断すると、要らない送りや早すぎる停止になる)
                 snapshot = try await consumePendingHideKeyboardWait(snapshot, phase: &phase)
                 searchBundleID = Self.searchBaselineBundleID(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
+                // 始点の木が、プロセスの居ないアプリに代わって前面へ出た別アプリのものなら、その画面を払わず断る(AppProcessGone)
+                if let gone = await appGoneFailure(owner: snapshot.sessionBundleID) {
+                    return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                              hintJumps: hintJumps, swipes: swipes, appGone: gone)
+                }
             } else {
                 let start = clock.now
                 // **スワイプ直後は必ずキャッシュを捨てて撮る**(Android のみ実費。iOS は素通し)。

@@ -1061,13 +1061,14 @@ public enum TapTargetGeometry {
 
     /// 縁またぎの警告文(MCP が使う。DSL は寄せるので文言を持たない)。
     /// 見えている部分を撃っても、Compose は focus 時に内容を動かして隣の行が指の下へ来ることがある
+    /// `operation` = 文言の操作名("tap" / "long press" / "double tap" / "drag" 等。既定値を置かない = 呼び手に決めさせる)
     public static func straddleAdvisory(for element: ElementInfo, in elements: [ElementInfo],
-                                        inferring: Bool = true) -> String? {
+                                        inferring: Bool = true, operation: String) -> String? {
         guard straddlingContainerEdge(element, in: elements, inferring: inferring) != nil else {
-            return sideEdgeCentreAdvisory(for: element, in: elements, inferring: inferring)
+            return sideEdgeCentreAdvisory(for: element, in: elements, inferring: inferring, operation: operation)
         }
         return "the target straddles the edge of its scroll container (partly clipped), so the"
-            + " tap may land on a neighbouring row — scroll it fully inside the container first"
+            + " \(operation) may land on a neighbouring row — scroll it fully inside the container first"
     }
 
     /// **横の容器の左右の縁で切れ、frame の中心が容器の外に落ちる**要素の警告(`straddleAdvisory` の横版)。
@@ -1077,7 +1078,7 @@ public enum TapTargetGeometry {
     /// (縁で切れていても中心は描かれていて当たる = 横カルーセルの端の項目ごとに警告すると毎回のノイズ)。
     /// 縦に切れた要素は `straddlingContainerEdge` の側が先に拾うので、ここは横の外側だけを見る
     static func sideEdgeCentreAdvisory(for element: ElementInfo, in elements: [ElementInfo],
-                                       inferring: Bool) -> String? {
+                                       inferring: Bool, operation: String) -> String? {
         guard let container = ContainerGeometry.clippingContainer(of: element, in: elements,
                                                                   inferring: inferring),
               container.width > 0, element.frame.width > 0,
@@ -1086,7 +1087,7 @@ public enum TapTargetGeometry {
         let centreX = element.frame.centerX
         guard centreX < container.x || centreX > container.x + container.width else { return nil }
         return "its centre (\(Int(centreX)), \(Int(element.frame.centerY))) falls outside the side edge of its scroll"
-            + " container (partly clipped), so the tap lands on the empty margin beside it, not on the visible part —"
+            + " container (partly clipped), so the \(operation) lands on the empty margin beside it, not on the visible part —"
             + " scroll it fully inside the container first"
     }
 

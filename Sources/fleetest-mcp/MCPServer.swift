@@ -140,6 +140,12 @@ final class MCPServer {
     /// 実機 iPhone ではレイアウトが収まる前に予算が尽きる(別の文脈の定数を流用しない)
     var rotationSettleDeadlineSeconds: Double = RotationSettle.deadlineSeconds
 
+    /// Android のアプリのプロセスが居るか(package, serial)。nil = 判定できない。executor の `appProcessRunning` の実体
+    /// (`wireAppGoneGuard`)。同期の adb を撃つのでテストは差し替える
+    var androidPackageRunning: @Sendable (_ package: String, _ serial: String?) -> Bool? = { package, serial in
+        AndroidAppProcessEvidenceQuery.query(package: package, serial: serial)?.running
+    }
+
     /// ft_terminate が宛先を「シミュレータ」と決める口と、シミュレータでアプリを止める口(テストで差し替える。
     /// ランナーの 409 の後に simctl で止める経路は実物では起こしにくく、ここを差し替えないと単体で通せない)。
     /// どちらも同期の simctl を撃つので、呼び手は協調スレッドプールの外で呼ぶ(mcp.md)
