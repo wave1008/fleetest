@@ -770,6 +770,9 @@ extension MCPServer {
             // キーボードの中の座標の手は撃つが警告する(断らない = キーを押す意図もありうる。撃つ前の木で見る)
             let keyboardCoordinateWarning = await batchKeyboardCoordinateWarning(
                 plan.step, driver: batchDriver, args: args, actedEarlierInBatch: index > 0 || args["launch"] != nil)
+            // 座標の手は前面のアプリも撃つ前に確かめて警告する(ft_tap の座標形と同じ `coordinateFrontAppWarning`。断らない)
+            let frontAppWarning = Self.hasCoordinateTarget(plan.step)
+                ? await coordinateFrontAppWarning(batchDriver, args: args) : ""
             // ref なしの type / clearInput / pressEnter は焦点の欄へ撃つ。別のアプリが前面なら撃つ前に断る(ft_type / ft_clear_input と同じ門)
             if let refusal = await refusalForRefLessBatchStep(plan.step, driver: batchDriver, args: args) {
                 lines.append("\(index + 1). \(plan.summary) — REFUSED, nothing was sent: \(refusal)")
@@ -871,7 +874,7 @@ extension MCPServer {
                     if hint.contains("apps do not receive"), !suspectSteps.contains(index + 1) { suspectSteps.append(index + 1) }
                 }
             }
-            okLine += keyboardCoordinateWarning + refNote
+            okLine += keyboardCoordinateWarning + frontAppWarning + refNote
             lines.append(okLine)
             // 無効な要素への touch は撃った上で ok(DSL と同じ = 失敗にはしない)。結論で名指す
             if StepExecutor.interactsByTouch(plan.step.action ?? ""), outcome.resolvedElement?.enabled == false {

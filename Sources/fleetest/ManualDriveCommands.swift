@@ -140,11 +140,19 @@ struct Snapshot: AsyncParsableCommand {
 enum RefFireGate {
     /// `memoKey`: 呼び出しをまたぐ ref の控え(`CLIRefMemo`)の鍵。**ここで撮る木が控えと食い違う ref は撃たずに断る**
     /// (撃つ前の守りが木を撮り直すとブリッジの ref の表も今の木になり、ドライバ・ブリッジの照合は素通しになる)
+    struct Checked {
+        /// 別の物に当たりうる形の ⚠️(断らない)
+        var advisory: String?
+        /// Android で中心が下端のジェスチャ帯の中なら、帯より上の部分の中心(`BottomGestureBandTap` = DSL・MCP・ライブ操作と共有)。
+        /// 控えとの照合を済ませた要素の座標なので、座標へ畳んでも ref の番号ずれで別の物を押さない。入力(typing)では求めない
+        var bandPoint: (x: Double, y: Double)?
+    }
+
     static func check(driver: AppDriver, ref: Int, isAndroid: Bool, typing: Bool = false,
-                      memoKey: String) async throws -> String? {
-        guard let snapshot = try? await driver.snapshot() else { return nil }
+                      memoKey: String) async throws -> Checked {
+        guard let snapshot = try? await driver.snapshot() else { return Checked() }
         let remembered = CLIRefMemo.load(key: memoKey)
-        guard let element = snapshot.elements.first(where: { $0.ref == ref }) else { return nil }
+        guard let element = snapshot.elements.first(where: { $0.ref == ref }) else { return Checked() }
         if let detail = RefTableMemo.staleDetail(ref: ref, remembered: remembered, now: element) {
             throw ValidationError("refusing [\(ref)]: \(detail). Nothing was sent. Run `fleetest snapshot` and use the new ref")
         }
@@ -152,7 +160,12 @@ enum RefFireGate {
         CLIRefMemo.store(key: memoKey, elements: snapshot.elements)
         let result = RefFireCheck.evaluate(element, in: snapshot, isAndroid: isAndroid, typing: typing)
         if let refusal = result.refusal { throw ValidationError(refusalMessage(refusal, ref: ref, element: element)) }
-        return result.advisory
+        var checked = Checked(advisory: result.advisory)
+        if !typing, let y = await BottomGestureBandTap.tapY(for: element.frame, screen: snapshot.screen,
+                                                           isAndroid: isAndroid, driver: driver) {
+            checked.bandPoint = (element.frame.centerX, y)
+        }
+        return checked
     }
 
     static func refusalMessage(_ refusal: RefFireCheck.Refusal, ref: Int, element: ElementInfo) -> String {
@@ -218,9 +231,14 @@ struct Tap: AsyncParsableCommand {
     func run() async throws {
         if let ref {
             let driver = try await driverOptions.makeDriver()
-            let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
+            let gate = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
                                                    memoKey: driverOptions.refMemoKey)
-            try await DeliveryAdvice.relaying { try await driver.tap(ref: ref) }
+            let note = gate.advisory
+            if let point = gate.bandPoint {
+                try await DeliveryAdvice.relaying { try await driver.tap(x: point.x, y: point.y) }
+            } else {
+                try await DeliveryAdvice.relaying { try await driver.tap(ref: ref) }
+            }
             ConsoleOut.out("✅ tap [\(ref)]")
             if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
         } else if let x, let y {
@@ -280,7 +298,7 @@ struct TypeCommand: AsyncParsableCommand {
         var note: String?
         if let ref {
             note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
-                                               typing: true, memoKey: driverOptions.refMemoKey)
+                                               typing: true, memoKey: driverOptions.refMemoKey).advisory
         }
         try await DeliveryAdvice.relaying { try await driver.type(ref: ref, text: text) }
         ConsoleOut.out("✅ type \"\(text)\"")
@@ -342,9 +360,14 @@ struct Press: AsyncParsableCommand {
 
     func run() async throws {
         let driver = try await driverOptions.makeDriver()
-        let note = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
+        let gate = try await RefFireGate.check(driver: driver, ref: ref, isAndroid: driverOptions.resolvedPlatform == "android",
                                                memoKey: driverOptions.refMemoKey)
-        try await DeliveryAdvice.relaying { try await driver.press(ref: ref, duration: holdSeconds) }
+        let note = gate.advisory
+        if let point = gate.bandPoint {
+            try await DeliveryAdvice.relaying { try await driver.press(x: point.x, y: point.y, duration: holdSeconds) }
+        } else {
+            try await DeliveryAdvice.relaying { try await driver.press(ref: ref, duration: holdSeconds) }
+        }
         ConsoleOut.out("✅ press [\(ref)] \(holdSeconds)s")
         if let note { ConsoleOut.err("⚠️ [\(ref)] \(note)") }
     }

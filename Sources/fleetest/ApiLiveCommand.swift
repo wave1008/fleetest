@@ -1018,11 +1018,14 @@ struct ApiLiveServe: AsyncParsableCommand {
         return (element, snapshot.screen)
     }
 
-    /// Android の ref の tap: 中心が下端のジェスチャ帯の中なら帯より上の部分の中心(判定は `BottomGestureBandTap` = DSL・MCP と共有)
-    private static func bottomBandPoint(ref: Int, driver: AppDriver) async throws -> (x: Double, y: Double)? {
+    /// Android の ref の tap: 中心が下端のジェスチャ帯の中なら帯より上の部分の中心(判定は `BottomGestureBandTap` = DSL・MCP と共有)。
+    /// **座標へ畳むので `firing(seen)` を通らない** —— 撮り直した木で ref の番号が振り直されていると別の要素の座標を押すので、
+    /// 帯へ寄せる回は doubleTap と同じく見ていた要素と照合してから返す
+    private static func bottomBandPoint(ref: Int, seen: ElementInfo?, driver: AppDriver) async throws -> (x: Double, y: Double)? {
         let (element, screen) = try await elementAndScreen(ref: ref, driver: driver)
         guard let y = await BottomGestureBandTap.tapY(for: element.frame, screen: screen,
                                                       isAndroid: true, driver: driver) else { return nil }
+        try refuseIfNotWhatWasSeen(element, seen: seen)
         return (element.frame.centerX, y)
     }
 
@@ -1143,7 +1146,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                 // 中心が Android の下端のジェスチャ帯の中なら帯より上の部分を座標で(ref はブリッジが中心へ解決する)。
                 // 枠が要るので Android の ref の tap だけ木を1回撮る(座標のクリックには払わせない)
                 if driverOptions.resolvedPlatform == "android",
-                   let point = try await Self.bottomBandPoint(ref: ref, driver: driver) {
+                   let point = try await Self.bottomBandPoint(ref: ref, seen: await Self.seen(ref, screenMemo), driver: driver) {
                     try await driver.tap(x: point.x, y: point.y)
                 } else {
                     try await Self.firing(await Self.seen(ref, screenMemo)) { try await driver.tap(ref: ref) }

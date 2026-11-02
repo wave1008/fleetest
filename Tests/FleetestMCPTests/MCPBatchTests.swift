@@ -81,6 +81,17 @@ final class MCPBatchTests: XCTestCase {
         XCTAssertTrue(driver.calls.contains { $0.hasPrefix("tap(x:") }, "\(driver.calls)")
     }
 
+    /// **座標の手は、前面が起動したアプリでなければ ft_tap の座標形と同じく警告する**(撃つ。断らない)。
+    /// 前面のアプリ名を答える構成(Android)で確かめる
+    func testCoordinateStepWarnsWhenAnotherAppIsInFront() async throws {
+        driver.answers = .android
+        _ = try await server.call(tool: "ft_launch", args: ["bundleId": "com.example.app"])
+        driver.foregroundBundleID = "com.example.other"
+        let text = body(try await server.call(tool: "ft_batch", args: steps("tap x: 120 y: 640")))
+        XCTAssertTrue(text.contains("com.example.other was in front, not com.example.app"), text)
+        XCTAssertTrue(driver.calls.contains { $0.hasPrefix("tap(x:") }, "\(driver.calls)")
+    }
+
     /// **セレクタと座標の併記は拒否する**。黙ってどちらかを選ぶと、読み手は自分が何を
     /// 撃ったのか分からないまま次の手を組む
     func testCoordinateTapWithASelectorIsRejected() async {

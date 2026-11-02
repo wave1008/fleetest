@@ -91,9 +91,11 @@ final class MCPSharedGuardParityTests: XCTestCase {
             ("verifiedRef", ["keyboardCoverRefusal(", "refFrontAppNote("]),
             ("refGestureGuard", ["keyboardCoverRefusal(", "refFrontAppNote("]),
             ("batch", ["refusalForRefLessBatchStep(", "flatScreenNoteIfNothingChanged("]),
-            ("refusalForRefLessBatchStep", ["PreFireGuard.refLessInput(", "refLessBatchRefusal(", "coordinateFrontAppWarningFromProbes("]),
+            ("refusalForRefLessBatchStep", ["PreFireGuard.refLessInput(", "refLessBatchRefusal(", "frontVerdictFromProbes(",
+                                            "PreFireGuard.refLessInputBlocked("]),
             ("refLessBatchRefusal", ["PreFireGuard.refLessInput(", "PreFireGuard.refLessInputRefusal("]),
-            ("refusalForRefLessInputOnOtherApp", ["PreFireGuard.refLessInputRefusal("]),
+            ("refusalForRefLessInputOnOtherApp", ["frontVerdictFromProbes(", "PreFireGuard.refLessInputBlocked(",
+                                                  "PreFireGuard.refLessInputRefusal("]),
         ]
         for row in table {
             let body = try XCTUnwrap(handlers[row.function], "\(row.function) を拾えていない")

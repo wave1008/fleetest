@@ -1317,6 +1317,25 @@ final class MCPRefGuardTests: XCTestCase {
         XCTAssertTrue(text.contains("notification centre"), text)
     }
 
+    /// **ref で指すダブルタップ・ドラッグ・ピンチも、ft_tap と同じく覆う面を言う**(`refGestureGuard` が同じ探針を通す)
+    func testRefGesturesNameTheSurfaceThatCoversTheApp() async throws {
+        driver.snapshotResponse = screen([
+            element(ref: 1, type: "button", id: "btn_ok", label: "OK",
+                    x: 16, y: 168, w: 370, h: 108),
+        ])
+        driver.systemUICoveringResponse = SystemUICoveringResponse(
+            covering: true, marker: "SBCoverSheetWindow")
+        for (tool, extra) in [("ft_double_tap", [String: Any]()),
+                              ("ft_drag", ["dy": 200.0] as [String: Any]),
+                              ("ft_pinch", ["scale": 2.0] as [String: Any])] {
+            _ = try await server.call(tool: "ft_snapshot", args: [:])
+            var args = extra
+            args[tool == "ft_drag" ? "fromRef" : "ref"] = 1
+            let text = Self.text(try await server.call(tool: tool, args: args))
+            XCTAssertTrue(text.contains("notification centre"), "\(tool): \(text)")
+        }
+    }
+
     /// **覆っていないときは黙る**(常時発火していないこと)
     func testTapStaysQuietWhenNothingCoversTheApp() async throws {
         driver.snapshotResponse = screen([

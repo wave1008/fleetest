@@ -1430,18 +1430,20 @@ extension MCPServer {
     /// ref 付きは `verifiedRef` が出自の違うアプリを断り、座標は警告するが、ref なしは確認が無く、アプリが落ちて前面に出た別アプリの
     /// 欄を書き換え・消し・送信していた(Enter は取り消せない)。判定は座標の警告と同じ(`coordinateFrontAppWarningFromProbes`)
     func refusalForRefLessInputOnOtherApp(_ driver: AppDriver, args: [String: Any], what: String) async -> String? {
-        guard driver is AndroidDriver else { return nil }
+        guard driver is AndroidDriver, let probed = await frontVerdictFromProbes(driver, args: args),
+              PreFireGuard.refLessInputBlocked(by: probed.verdict) else { return nil }
         return PreFireGuard.refLessInputRefusal(
-            what: what, frontWarning: await coordinateFrontAppWarningFromProbes(driver, args: args, sent: false))
+            what: what, frontWarning: Self.frontAppWarning(probed.verdict, launched: probed.launched, sent: false))
     }
 
     /// **ft_batch の ref なし入力(type / clearInput / pressEnter)も、撃つ前に同じ断りを通す**(`ft_type` / `ft_clear_input` と
     /// 同じ `refusalForRefLessInputOnOtherApp`。判定する手は `PreFireGuard.refLessInput`)。ref あり・他の手は nil
     func refusalForRefLessBatchStep(_ step: FlowStep, driver: AppDriver, args: [String: Any]) async -> String? {
-        guard PreFireGuard.refLessInput(step) != nil, driver is AndroidDriver else { return nil }
+        guard PreFireGuard.refLessInput(step) != nil, driver is AndroidDriver,
+              let probed = await frontVerdictFromProbes(driver, args: args),
+              PreFireGuard.refLessInputBlocked(by: probed.verdict) else { return nil }
         return Self.refLessBatchRefusal(
-            step, isAndroid: true,
-            frontWarning: await coordinateFrontAppWarningFromProbes(driver, args: args, sent: false))
+            step, isAndroid: true, frontWarning: Self.frontAppWarning(probed.verdict, launched: probed.launched, sent: false))
     }
 
     /// 断るかの決定(プローブの結果 `frontWarning` を受けて決める純粋部分。動作テストの入口)。
@@ -1498,8 +1500,13 @@ extension MCPServer {
     }
 
     func coordinateFrontAppWarningFromProbes(_ driver: AppDriver, args: [String: Any], sent: Bool = true) async -> String {
-        let acted = sent ? "acted on" : "would act on"
-        guard let launched = launchedBundleIDs[Self.sessionKey(args)] else { return "" }
+        guard let probed = await frontVerdictFromProbes(driver, args: args) else { return "" }
+        return Self.frontAppWarning(probed.verdict, launched: probed.launched, sent: sent)
+    }
+
+    /// 前面の判定(`ForegroundState.judge`)と、その基準にした起こしたアプリ。起こしていなければ nil
+    func frontVerdictFromProbes(_ driver: AppDriver, args: [String: Any]) async -> (launched: String, verdict: ForegroundVerdict)? {
+        guard let launched = launchedBundleIDs[Self.sessionKey(args)] else { return nil }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
         if let android = driver as? AndroidDriver {
             facts.shadeHoldsInputFocus = await Self.shadeProbe(android)
@@ -1507,7 +1514,13 @@ extension MCPServer {
         }
         else { facts.covering = await ForegroundState.coveringProbe(driver) }   // iOS: SpringBoard の覆い(通知センター・スイッチャー等)
         facts.front = await ForegroundState.frontProbe(driver)
-        switch ForegroundState.judge(facts) {
+        return (launched, ForegroundState.judge(facts))
+    }
+
+    /// 前面の判定の文言(座標の警告・ref なし入力の断りが共有)。言うことが無い判定は空
+    static func frontAppWarning(_ verdict: ForegroundVerdict, launched: String, sent: Bool) -> String {
+        let acted = sent ? "acted on" : "would act on"
+        switch verdict {
         case .covered(.shade):
             return " (warning: the notification shade or quick settings is open over \(launched) (the app this session launched)"
                 + " — this \(acted) the shade, not the app. ft_navigate back closes it and keeps the app's state"
@@ -1523,7 +1536,7 @@ extension MCPServer {
                 + " — this \(acted) that surface, not the app. Dismiss it first (swipe up from the bottom edge, or"
                 + " ft_navigate home), or ft_snapshot to see what is on screen)"
         case .otherApp(let name?):
-            return Self.frontAppWarning(launched: launched, front: name, sent: sent)
+            return frontAppWarning(launched: launched, front: name, sent: sent)
         default:
             return ""
         }

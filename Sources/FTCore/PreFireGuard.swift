@@ -49,6 +49,17 @@ public enum PreFireGuard {
         }
     }
 
+    /// **ref なしの入力を断る前面の判定**(MCP・DSL が共有。判定の材料は `ForegroundState.judge`)。
+    /// 別のアプリ(名前が分かるときだけ)・覆う面・ロック画面 = 焦点の欄は起こしたアプリのものではない。
+    /// システムのダイアログ・判定できないは断らない(ダイアログの欄へ打つのは正規の操作・読めないことを「別のアプリ」と読まない)
+    public static func refLessInputBlocked(by verdict: ForegroundVerdict) -> Bool {
+        switch verdict {
+        case .otherApp(let name): return name != nil
+        case .covered, .locked: return true
+        default: return false
+        }
+    }
+
     /// 別のアプリが前面のときの ref なし入力の断り文(`frontWarning` = 前面の事実を言う文。空なら断らない = nil)。
     /// 判定(前面が違うか)は呼び手が `ForegroundState.judge` で出す。文言はここ1箇所
     public static func refLessInputRefusal(what: String, frontWarning: String) -> String? {

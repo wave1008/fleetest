@@ -30,7 +30,8 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Hints.swift"), encoding: .utf8)
-        XCTAssertTrue(source.contains("coordinateFrontAppWarningFromProbes(driver, args: args, sent: false)"))
+        XCTAssertEqual(source.components(separatedBy: "frontAppWarning(probed.verdict, launched: probed.launched, sent: false)").count - 1, 2,
+                       "ft_type / ft_clear_input と ft_batch の ref なし入力の断り")
     }
 
     /// 前面のアプリ名を答えないドライバ(iOS)では黙る(答えられないことを「前面ではない」と読まない)
@@ -52,14 +53,14 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         XCTAssertFalse(source.contains("func foregroundAppID("))
     }
 
-    /// 座標で撃つ経路の集合を本数で固定する(tap / double tap / long press / drag / pinch / gesture / 全画面 swipe)。
+    /// 座標で撃つ経路の集合を本数で固定する(tap / double tap / long press / drag / pinch / gesture / 全画面 swipe / ft_batch の座標の手)。
     /// 経路を足したらここも増やす。**撃つ前に読むこと**は各経路で警告の取得が発火より前にあることで見る
     func testEveryCoordinatePathAsksBeforeFiring() throws {
         let source = try MCPServerSourceText.combined()
         let code = source.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         let calls = code.components(separatedBy: "await coordinateFrontAppWarning(").count - 1
-        XCTAssertEqual(calls, 8, "座標で撃つ経路と警告の配線の本数がずれた")
+        XCTAssertEqual(calls, 9, "座標で撃つ経路と警告の配線の本数がずれた")
         for (warning, fire) in [
             ("coordinateFrontAppWarning(d, args: args)", "try await d.tap(x: x, y: y)"),
             ("coordinateFrontAppWarning(swipeDriver, args: args)", "try await swipeDriver.swipe(direction)"),

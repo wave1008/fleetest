@@ -27,6 +27,12 @@ final class FakeAppDriver: AppDriver {
     /// nil のままなら空 Data(= BlankFrameDetector はデコードできず「白ではない」を返す)
     var screenshots: [Data]?
     private(set) var snapshotCallCount = 0
+    /// 前面のアプリ名の答え(既定 = 答えない。Android の経路を試すときだけ値を入れる = `DriverAnswers.android`)
+    var foregroundAppIDAnswer: Probe<String> = .notAnswerable
+    func foregroundAppID() async -> Probe<String> {
+        log.entries.append("\(name).foregroundAppID")
+        return foregroundAppIDAnswer
+    }
     /// このドライバでキャッシュ迂回が意味を持つか(既定は AppDriver の既定実装と同じ false)。
     /// bypassesCache の真理値表の検証で切り替える
     var bypassSupported = false

@@ -138,6 +138,11 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// `#id` が容器を指している(セレクタを取る `type` へ寄せる判断材料になる)
     case typeFocusRecovered = "type-focus-recovered"
 
+    /// ロケータなしの `type` / `clearInput` / `pressEnter` を撃つ直前、Android の前面が起こしたアプリではなかった
+    /// (焦点の欄が別のアプリのもの = その欄へ入った可能性)。**断る前の観測**: 率を見て、正しいシナリオ(openURL の先・
+    /// リンクで開いたブラウザ)での発火が無いと分かってから断る形へ上げる
+    case refLessInputOnOtherApp = "ref-less-input-on-other-app"
+
     /// ロケータ無しの `clearInput()` / `type(…, replace: true)` で、**消す前の木に焦点のある欄が無かった**ので
     /// 消えたかを読み返せないまま緑にした。読み返しの材料が無いだけで失敗ではない(in-app は Compose の焦点を
     /// 申告しない・背の低い端末ではキーボードで欄自身が木から消える)。黙って緑にすると、消えていない欄を
@@ -546,6 +551,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"
+        case .refLessInputOnOtherApp:
+            return "another app was in front, not the launched app, when this was sent without a selector,"
+                + " so it may have gone to that app's focused field — pass the field's selector"
         case .systemAlertPresent:
             return "a system alert was in front of the app with no iosAlertHandler registered for it,"
                 + " so the app behind it was operated anyway"

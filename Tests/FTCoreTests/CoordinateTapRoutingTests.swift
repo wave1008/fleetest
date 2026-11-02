@@ -52,6 +52,32 @@ final class CoordinateTapRoutingTests: XCTestCase {
         XCTAssertTrue(xcuitest.taps.isEmpty)
     }
 
+    /// **負の座標は木を読まずに断る**(どの構成でも。何も撃たない)
+    func testNegativePointIsRefusedWithoutReadingTheTree() async {
+        let (outcome, primary, xcuitest) = await run(uiFramework: .uikit, x: -4, y: 600)
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("outside the screen"), message)
+        XCTAssertTrue(primary.taps.isEmpty && xcuitest.taps.isEmpty)
+        XCTAssertEqual(primary.snapshotCount, 0, "正常系に往復を足さない")
+    }
+
+    /// 座標のダブルタップも同じ門を通る
+    func testNegativePointIsRefusedForDoubleTapToo() async {
+        let primary = CoordinateTapStub(elements: [menuItem])
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "doubleTap", x: 120, y: -1))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.hasPrefix("doubleTap: the point"), message)
+    }
+
+    /// **木を読む経路(自前描画)は画面の大きさまで見て断る**
+    func testPointBeyondTheScreenIsRefusedWhenTheTreeIsRead() async {
+        let (outcome, primary, xcuitest) = await run(uiFramework: .compose, x: 200, y: 900)
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("(402x874)"), message)
+        XCTAssertTrue(primary.taps.isEmpty && xcuitest.taps.isEmpty)
+    }
+
     /// XCUITest が無い構成(in-app 単独・Android)は今までどおり
     func testWithoutXCUITestTheTapStaysOnTheDriver() async {
         let (_, primary, _) = await run(uiFramework: .compose, x: 200, y: 600, withTypeDriver: false)

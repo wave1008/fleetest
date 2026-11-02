@@ -63,8 +63,9 @@ final class MCPToolCallTests: XCTestCase {
     /// 501 で別ドライバへ回るときに取り直しが要るため)
     func testDoubleTapResolvesRefToCoordinates() async throws {
         _ = try await server.call(tool: "ft_double_tap", args: ["ref": 1])
-        // "systemAlert" = ref の操作はアラートの門(`systemAlertGate`)を毎回通る(ft_tap と同じ)
-        XCTAssertEqual(driver.calls, ["snapshot", "systemAlert", "doubleTap(x:60.0,y:40.0)"])
+        // "systemAlert" = ref の操作はアラートの門(`systemAlertGate`)を毎回通る(ft_tap と同じ)。
+        // "systemUICovering" / "hitTest(1)" = 覆う面・木と画面の食い違いの探針(`refGestureGuard` → `memoizedScreenProbe`。ft_tap と同じ)
+        XCTAssertEqual(driver.calls, ["snapshot", "systemAlert", "systemUICovering", "hitTest(1)", "doubleTap(x:60.0,y:40.0)"])
     }
 
     func testDoubleTapAcceptsCoordinates() async throws {
@@ -83,7 +84,7 @@ final class MCPToolCallTests: XCTestCase {
     func testPinchPassesFrameAndIdentifierForRef() async throws {
         _ = try await server.call(tool: "ft_pinch", args: ["ref": 1, "scale": 3.0])
         XCTAssertEqual(driver.calls,
-                       ["snapshot", "systemAlert", "pinch(10.0,20.0,100.0x40.0,id:login_btn,scale:3.0)"])
+                       ["snapshot", "systemAlert", "systemUICovering", "hitTest(1)", "pinch(10.0,20.0,100.0x40.0,id:login_btn,scale:3.0)"])
     }
 
     /// ref 省略は画面全体(frame nil)

@@ -444,7 +444,7 @@ extension StepExecutor {
     func executeDirectCoordinateTap(step: FlowStep, x: Double, y: Double,
                                     phase: inout PhaseAccumulator) async throws -> StepOutcome {
         let hold = step.duration ?? FlowStep.defaultTapHoldSeconds
-        return try await executeCoordinateTouch(x: x, y: y, phase: &phase) { driver in
+        return try await executeCoordinateTouch(operation: "tap", x: x, y: y, phase: &phase) { driver in
             if hold > 0 {
                 try await driver.press(x: x, y: y, duration: hold)
             } else {
@@ -459,7 +459,7 @@ extension StepExecutor {
     /// ダブルタップはズーム等のアニメーションを起こすので、待たないと形によって次の解決が古い木を掴む)
     func executeDirectCoordinateDoubleTap(step: FlowStep, x: Double, y: Double,
                                           phase: inout PhaseAccumulator) async throws -> StepOutcome {
-        let outcome = try await executeCoordinateTouch(x: x, y: y, phase: &phase) {
+        let outcome = try await executeCoordinateTouch(operation: "doubleTap", x: x, y: y, phase: &phase) {
             try await $0.doubleTap(x: x, y: y)
         }
         let settled = skippingSettle(step) ? true : try await settledSignature(phase: &phase).settled
@@ -469,9 +469,14 @@ extension StepExecutor {
         return StepOutcome(status: outcome.status, driverFallback: notes.joined(separator: " / "))
     }
 
-    /// 座標で撃つ操作(tap / press / doubleTap)の共通部。`fire` は撃つドライバを受ける
-    private func executeCoordinateTouch(x: Double, y: Double, phase: inout PhaseAccumulator,
+    /// 座標で撃つ操作(tap / press / doubleTap)の共通部。`fire` は撃つドライバを受ける。
+    /// **画面の外の点は撃たずに断る**(MCP・CLI・ライブ操作と同じ判定)。木を読まない経路は負の座標だけ
+    /// (`swipePointToPoint` と同じ = 正常系に往復を足さない)、木を読む経路(自前描画)は画面の大きさまで見る
+    private func executeCoordinateTouch(operation: String, x: Double, y: Double, phase: inout PhaseAccumulator,
                                         fire: (AppDriver) async throws -> Void) async throws -> StepOutcome {
+        if let refusal = Self.offscreenTouchPointRefusal(operation: operation, x: x, y: y, screen: nil) {
+            return StepOutcome(status: .failed(refusal))
+        }
         let clock = ContinuousClock()
         let start = clock.now
         var note: String?
@@ -480,6 +485,9 @@ extension StepExecutor {
         // 届かないまま成功を返していた(実測: E2EX-CMP のメニュー。XCUITest では閉じる)
         if let td = typeDriver, uiFramework?.isSelfRendered != false {
             let snapshot = try await driver.snapshot()
+            if let refusal = Self.offscreenTouchPointRefusal(operation: operation, x: x, y: y, screen: snapshot.screen) {
+                return StepOutcome(status: .failed(refusal))
+            }
             if !snapshot.elements.contains(where: { Self.frame($0.frame, containsX: x, y: y) }) {
                 try await fire(td)
                 phase.actionMs += Self.ms(clock.now - start)
@@ -497,6 +505,17 @@ extension StepExecutor {
         }
         phase.actionMs += Self.ms(clock.now - start)
         return StepOutcome(status: .passed, driverFallback: note)
+    }
+
+    /// 座標の tap / doubleTap の点が画面の外なら断る文。`screen` が nil なら負の座標と非有限だけを見る
+    /// (`TapTargetGeometry.isDragPointOffScreen` と同じ)、あれば `isPointOnScreen`(MCP・CLI・ライブ操作と同じ)
+    static func offscreenTouchPointRefusal(operation: String, x: Double, y: Double, screen: FTRect?) -> String? {
+        let outside = screen.map { !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: $0) }
+            ?? TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: nil)
+        guard outside else { return nil }
+        let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
+        return "\(operation): the point (\(x), \(y)) is outside the screen\(size), so nothing was sent."
+            + " Use coordinates inside the screen"
     }
 
     /// 端ちょうどは含む(in-app ブリッジの画面内判定と同じ閉区間)
@@ -613,9 +632,24 @@ extension StepExecutor {
         return StepOutcome(status: .passed, driverFallback: note)
     }
 
+    /// **ロケータなしの type / clearInput / pressEnter は焦点の欄へ撃つ** —— Android で前面が起こしたアプリでなければ
+    /// 注記 `ref-less-input-on-other-app` を立てる(撃つ。断らない = 新しい検知は警告から。基準の `launchedBundleID` は
+    /// openURL やアプリ内のリンクで別のアプリへ移っても残るので、断ると正しいシナリオを赤にする)。
+    /// 判定は MCP(こちらは断る)と共有の `PreFireGuard.refLessInputBlocked`。聞くのは Android の前面のアプリ名だけ
+    /// (dumpsys 1回。Emulator で約 30ms)。起こしていない(home / アプリ切替の後)ときは聞かない
+    func noteRefLessInputOnOtherApp() async {
+        guard isAndroid, let launched = launchedBundleID else { return }
+        var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
+        facts.front = await ForegroundState.frontProbe(driver)
+        if PreFireGuard.refLessInputBlocked(by: ForegroundState.judge(facts)) {
+            noteCodesThisStep.insert(.refLessInputOnOtherApp)
+        }
+    }
+
     // ロケータ指定のない type はフォーカス中の要素へ送る(直前の tap でフォーカスした欄など)。
     // ref: nil = ブリッジがフォーカス中要素へ入力(iOS/Android とも)。ロケータ解決を挟まない。
     func executeDirectUnfocusedType(step: FlowStep, phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        await noteRefLessInputOnOtherApp()
         let clock = ContinuousClock()
         // **replace はここでも型の有無に関わらず効かせる**(下の clearInput ロケータなし版と
         // 同じヘルパを通す)。ここで見落とすと `type(text, replace: true)` だけ無言で追記に戻る
@@ -713,6 +747,7 @@ extension StepExecutor {
     // 出す。InAppBridge.handlePressEnter 参照)は type のロケータ版と同じ形で
     // typeDriver(xcuitest)へフォールバックする(判定は DriverError.isTextInputFallback)
     func executeDirectPressEnter(phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        await noteRefLessInputOnOtherApp()
         let clock = ContinuousClock()
         let focusNote = try await awaitFocusBeforeKeyInput("pressEnter", phase: &phase)
         let start = clock.now
@@ -1008,6 +1043,7 @@ extension StepExecutor {
     // 挟まない)。対象なし(409)またはこのブリッジでは未対応(isBridgeIncapable)なら
     // typeDriver(xcuitest)へフォールバックする
     func executeDirectUnfocusedClearInput(phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        await noteRefLessInputOnOtherApp()
         switch try await performClearInputFocused(phase: &phase) {
         case .cleared(let fallback, _):
             return StepOutcome(status: .passed, driverFallback: fallback)

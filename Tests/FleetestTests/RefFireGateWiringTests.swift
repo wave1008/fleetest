@@ -1,7 +1,7 @@
 // CLI の ref を撃つ手(tap / press / type)は全部 RefFireGate(= FTCore.RefFireCheck)を撃つ前に通す。
 // 経路の表: 操作 × 経路 × 守り(キーボードの下・せり上がったバーの覆い = 断る / 別の物に当たりうる形 = ⚠️)。
-//   tap --ref   → RefFireGate.check → driver.tap(ref:)
-//   press --ref → RefFireGate.check → driver.press(ref:)
+//   tap --ref   → RefFireGate.check → driver.tap(ref:)(Android の下端の帯の中なら check が返す帯より上の座標)
+//   press --ref → RefFireGate.check → driver.press(ref:)(同上)
 //   type --ref  → RefFireGate.check(allowFocused) → driver.type(ref:)
 // 止めた直後に待受が残る bridge down の事実の文も固める
 
@@ -9,12 +9,22 @@ import XCTest
 @testable import fleetest
 
 final class RefFireGateWiringTests: XCTestCase {
-    /// 届いたか分からない操作の4コマンド5経路は全部 `DeliveryAdvice.relaying` を通す(CLI の時間切れが「ブリッジを確かめよ」とだけ言っていた)
+    /// 届いたか分からない操作の4コマンド7経路は全部 `DeliveryAdvice.relaying` を通す(CLI の時間切れが「ブリッジを確かめよ」とだけ言っていた)
     func testEveryDrivingCommandRelaysTheDeliveryAdvice() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/fleetest/ManualDriveCommands.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertEqual(code.components(separatedBy: "DeliveryAdvice.relaying {").count - 1, 5)
+        XCTAssertEqual(code.components(separatedBy: "DeliveryAdvice.relaying {").count - 1, 7)
+    }
+
+    /// **ref の tap と press は Android の下端のジェスチャ帯を避ける**(DSL・MCP・ライブ操作と同じ `BottomGestureBandTap`)。
+    /// 帯の座標は照合を済ませた要素から check が求め、撃つ側はそれがあれば座標で撃つ
+    func testRefTapAndPressClearTheBottomGestureBand() throws {
+        let text = try source().joined(separator: "\n")
+        XCTAssertTrue(text.contains("BottomGestureBandTap.tapY(for: element.frame, screen: snapshot.screen"))
+        XCTAssertTrue(text.contains("checked.bandPoint = (element.frame.centerX, y)"), "判定の結果を撃つ側へ渡すこと")
+        XCTAssertTrue(text.contains("if let point = gate.bandPoint {\ntry await DeliveryAdvice.relaying { try await driver.tap(x: point.x, y: point.y) }"))
+        XCTAssertTrue(text.contains("if let point = gate.bandPoint {\ntry await DeliveryAdvice.relaying { try await driver.press(x: point.x, y: point.y, duration: holdSeconds) }"))
     }
 
     private func source() throws -> [String] {

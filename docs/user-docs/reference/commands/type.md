@@ -62,6 +62,12 @@ field.type("alice")                // same as type("#login_id", "alice")
   recover (the field is ambiguous), write the selector form instead —
   `type(sel, "some text")` resolves, focuses, and reads the value back in one step.
 
+- **On Android, typing without a selector while another app is in front is noted.** If the app in
+  front is not the one started with `launchApp` / `restartApp`, the step still sends the text but
+  gets the note `ref-less-input-on-other-app`: the focused field belongs to that other app, and the
+  text may have gone there. `clearInput()` and `pressEnter()` without a selector are noted the same
+  way. Pass the field's selector to make sure the text goes to your app.
+
 - **The typed value is read back and repaired.** A missing tail is re-sent, a doubled value is
   trimmed, and **a character dropped mid-string (`hello123` → `hllo123`) clears the field and
   retypes the whole text** (note `type-retyped`). It retypes at most once — if the same

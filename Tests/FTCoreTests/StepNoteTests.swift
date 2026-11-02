@@ -20,6 +20,7 @@ final class StepNoteTests: XCTestCase {
         XCTAssertEqual(StepNote.typeRetyped.rawValue, "type-retyped")
         XCTAssertEqual(StepNote.typeRetypeAbandoned.rawValue, "type-retype-abandoned")
         XCTAssertEqual(StepNote.clearInputUnverified.rawValue, "clear-input-unverified")
+        XCTAssertEqual(StepNote.refLessInputOnOtherApp.rawValue, "ref-less-input-on-other-app")
         XCTAssertEqual(StepNote.typeReadbackUnchanged.rawValue, "type-readback-unchanged")
         XCTAssertEqual(StepNote.swipeByRatioCapped.rawValue, "swipe-by-ratio-capped")
         XCTAssertEqual(StepNote.launchURLBeforeInteractiveUI.rawValue, "launch-url-before-interactive-ui")
