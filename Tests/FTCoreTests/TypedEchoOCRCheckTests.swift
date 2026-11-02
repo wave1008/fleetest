@@ -15,6 +15,19 @@ final class TypedEchoOCRCheckTests: XCTestCase {
                                       element: element ?? field("field_number"), locator: nil)
     }
 
+    /// Flutter の欄は id が外側の `other` に付き、入力欄は同じ枠の子にある(`type("#field_number", …)` の形)。
+    /// 外側のままだと入力欄の型でないので確認が掛からない = 同じ枠の入力欄で判定する
+    func testOuterOtherIsJudgedByTheInputInTheSameFrame() {
+        let outer = field("field_number", type: "other")
+        let inner = ElementInfo(ref: 2, type: "textField", identifier: nil, label: nil, value: "xyz", placeholder: "数量",
+                                enabled: true, frame: outer.frame, depth: 2)
+        let judged = TypedEchoOCRCheck.judgedElement(outer, in: [outer, inner])
+        XCTAssertEqual(judged.ref, 2)
+        XCTAssertTrue(check(element: judged))
+        XCTAssertFalse(check(element: outer), "外側の other のままなら確認しない")
+        XCTAssertEqual(TypedEchoOCRCheck.judgedElement(outer, in: [outer]).ref, 1, "同じ枠の入力欄が無ければ対象のまま")
+    }
+
     func testChecksFlutterNumericNamedFieldWithOCROn() {
         XCTAssertTrue(check())
     }
