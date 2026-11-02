@@ -125,7 +125,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 
 ### FD-2.1 タップ
 
-確認環境: 2026-10-25 の E2E(この Mac の全 SUT・両 OS・iOS は inapp-boost モード)で、この節の witness を含むシナリオが全部通った環境: macOS 27.2(26B118)・Xcode 27.2(27B48)・Simulator iPhone 17 Pro / iOS 27.0・Emulator Pixel 9 / Android 15・Compose Multiplatform 1.12.1・Kotlin 2.4.21・Flutter 3.47.7・React Native 0.87.1・iOS ブリッジ v214・Android ブリッジ VERSION_CODE 109。xcuitest モードでの差は未確認
+確認環境: 2026-10-25 の E2E(この Mac の全 SUT・両 OS・iOS は inapp-boost モード)で、この節の witness を含むシナリオが全部通った環境: macOS 27.2(26B118)・Xcode 27.2(27B48)・Simulator iPhone 17 Pro / iOS 27.0・Emulator Pixel 9 / Android 15・Compose Multiplatform 1.12.1・Kotlin 2.4.21・Flutter 3.47.7・React Native 0.87.1・iOS ブリッジ v214・Android ブリッジ VERSION_CODE 109。xcuitest モードでの差は未確認。この節の 2026-11-03 の行は Simulator iPhone 18 Pro / iOS 27.2・Emulator Pixel 10 Pro / Android 17・iOS ブリッジ v246・Android ブリッジ VERSION_CODE 123 で確かめた
 
 | フレームワーク | 違い | 区分 | ツールの動き |
 |---|---|---|---|
@@ -139,6 +139,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | 全部(iOS in-app) | activate も合成タッチ(要素の窓へ直接送る)も、手前の窓・重なった view を素通りして要素に届く(本物の指では押せない要素も押せる) | C | 撃った点で UIView の hitTest を1回行い、別の view が受けるなら注記 `inapp-tap-outside-hit-area`(判定は変えない)。**判定できるのは UIKit と、UIView に辿れる SwiftUI の要素**(重なった view・別の窓)。**SwiftUI の `.contentShape` 抜けは hitTest に出ない**(AX の当たり判定も「届く」)ので、活性化の点が枠の外側 4 分の 1 にあれば別の注記 `inapp-activation-point-off-centre`(SwiftUI / UIKit のアプリだけ。**RN は活性化の点が押せる範囲と無関係なので使わない**)。**Flutter は判定できない**(当たるのは常に FlutterView)(v159・v160。MN-77) |
 | 全部(iOS in-app) | 確認ダイアログ(iOS 27 は popover 形式で hitTest が背面のボタンに当たる)・全画面カバー・アラート・メニューの間、背面の要素が木に残って exist / tap / notExist が XCUITest と逆になった | A | 木の走査が `accessibilityViewIsModal` の可視の view を持つ階層で、その view と手前の兄弟だけを残す(`BridgeAPI.visibleModalChildStart`・UIKit / VoiceOver / XCUITest と同じ規則。v239。旗の実測は E2EX-iOS の4形)。背面への tap は XCUITest と同じ「cannot resolve」で赤になる |
 | React Native(iOS XCUITest・MCP の `ft_batch` を含む) | Modal(`animationType="fade"` = UIKit のクロスディゾルブ。RN は長さを指定しない)が開く 約 0.52 秒の間に届いた tap は UIKit に捨てられ、何も起きない(本物の指と同じ経路。in-app は合成タッチを窓へ直接送るので起きない)。E2E-RN の xcuitest でダイアログの3本が 16 本中 10 本赤 | A | **出てきたばかりのダイアログ・シートの中の要素を押す前だけ** 0.55 秒待つ(`PresentedOverlayTapWait`。条件: RN・XCUITest で押す・前の tap の木に無かった要素・木が画面の 30% 以上を空けている。注記 `waited-for-presented-overlay`)。**打ち直さない**(実験で、画面を変えないのが正しい「交互にダイアログ」を二重に押した)・**画素を撮らない**(負荷)。長さの実測: iOS 27 Simulator の描画プローブで開く 516〜517ms・閉じる 500ms(5 回)。全画面で開く Modal は拾えない |
+| React Native(iOS。寄せのドラッグが XCUITest へ回る経路) | 容器の縁をまたいだ行へのタップの前の寄せ(押して 0.15 秒 → ゆっくり送るドラッグ)を、押せる行の上から始めると、その行の押下になって遷移することがある(2026-11-03 E2E-RN の横向き: 始点が隣の「WebView」の行に乗り 3/3 で遷移) | A | 寄せの始点が押せる要素(ボタン・行・入力欄)に乗るなら、行と行の隙間へずらす(`TapTargetGeometry.dragStartOffPressables`。隙間が無い一覧では今までどおり)。直した後は 8/8 で押せた。寄せの後に対象を引けなければ撃たずに失敗にする(全フレームワーク)。寄せが収まりきらなかった回の次の画面の最初のタップが飲まれる形は残る(OI-146) |
 
 ### FD-2.2 スクロール探索の直後のタップ(空打ち)
 
@@ -166,7 +167,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 
 ### FD-2.3 スクロール
 
-確認環境: 2026-10-25 の E2E(この Mac の全 SUT・両 OS・iOS は inapp-boost モード)で、この節の witness を含むシナリオが全部通った環境: macOS 27.2(26B118)・Xcode 27.2(27B48)・Simulator iPhone 17 Pro / iOS 27.0・Emulator Pixel 9 / Android 15・Compose Multiplatform 1.12.1・Kotlin 2.4.21・Flutter 3.47.7・React Native 0.87.1・iOS ブリッジ v214・Android ブリッジ VERSION_CODE 109。xcuitest モードでの差は未確認
+確認環境: 2026-10-25 の E2E(この Mac の全 SUT・両 OS・iOS は inapp-boost モード)で、この節の witness を含むシナリオが全部通った環境: macOS 27.2(26B118)・Xcode 27.2(27B48)・Simulator iPhone 17 Pro / iOS 27.0・Emulator Pixel 9 / Android 15・Compose Multiplatform 1.12.1・Kotlin 2.4.21・Flutter 3.47.7・React Native 0.87.1・iOS ブリッジ v214・Android ブリッジ VERSION_CODE 109。xcuitest モードでの差は未確認。この節の 2026-11-03 の行は Simulator iPhone 18 Pro / iOS 27.2・Emulator Pixel 10 Pro / Android 17・iOS ブリッジ v246・Android ブリッジ VERSION_CODE 123 で確かめた
 
 | フレームワーク | 素の制約 | ツールの手段(iOS in-app) | 区分 |
 |---|---|---|---|
@@ -196,6 +197,10 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
   **Compose / Flutter の AX の scroll は「受理 = 動いた」と言わない**(Compose は端でも受理するので、言うと
   端を確定できず maxSwipes まで送る)
 
+- **Android の枠を指定した払いのタッチの遊び**(2026-11-03): Android は指がタッチの遊び(`ViewConfiguration` の 8dp)を越えるまで
+  中身が動かず、払いの刻みからその分が欠ける(Pixel 10 Pro・480dpi の実測: ゆっくり 200/100/60px 引いて 176/75/36px。Compose・View・Flutter で同じ。
+  RN は未測定)。低い一覧(横向きの高さ 104px)では刻みの半分が消えていた → 終点を 8dp × 密度だけ先へ延ばす
+  (`ScrollGeometry.compensatingTouchSlop`。始点は動かさない)。速い払いでは慣性が少し乗り、狙いの刻みを 6% ほど超える(536px の一覧で 322 → 340px)
 **揃っていない点(B)**:
 - 1回の送りで進む距離はブリッジ・フレームワークで違う(Compose / Flutter の in-app ブリッジは1ページ、XCUITest ブリッジは慣性つき
   約1.1画面、Android はフリング)。**1回で届く距離を前提にシナリオを書かない**(`scrollTo` / `withScroll*` の探索で届かせる)
@@ -451,6 +456,8 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| `519f468e` | Android の枠を指定した払いの終点をタッチの遊び(8dp × 密度)だけ延ばす(FD-2.3) |
+| — | 縁をまたいだ行の寄せのドラッグを、押せる要素の上から始めない(FD-2.1。RN の iOS で寄せが行の押下になっていた) |
 | iOS v220 | in-app ブリッジの `/tap` `/type` `/clear`(と ref 付きの `/doubleTap`)も、要求の `expect`(identifier・型)が自分の直近の `/snapshot` の控えと食い違えば、撃たずに 422 `stale-ref` で断る(XCUITest ランナーと同じ。`/press` は in-app では常に 501 で撃たない)。`expect` を送らない呼び手は従来どおり |
 | Android v115 | `/tap` `/press` `/type` `/clear` の ref 付き要求の `expect`(identifier・型)が直近の `/snapshot` の控えと食い違えば、撃たずに 422 `stale-ref` で断る(エラー JSON に `reason` を載せる)。ホストの `AndroidDriver` は `tap` / `press` を座標で送るので、効くのは ref を送る `type` / `clearInput` |
 | iOS v219 | 押さずに済ませるのはライブの焦点の欄が ref の欄のときだけ(控えだけでは決めない)・`clearInput` の後の `type` も押し直さない・消去の右端の押下は2周目の1回だけで、中心を押した直後なら 1 秒空ける |

@@ -16,6 +16,9 @@ private final class StraddlingDriver: AppDriver {
     /// 容器の上端をまたぐ位置(交差はするが完全には入っていない)
     private var rowY: Double
     private(set) var drags = 0
+    private(set) var dragStarts: [Double] = []
+    /// 寄せの始点(容器の上端 + 15% = 345)に乗る押せる行を置く
+    var rowOnTheDragStart = false
     private(set) var swipes = 0
     private(set) var taps: [(x: Double, y: Double)] = []
     private(set) var refTaps = 0
@@ -65,6 +68,7 @@ private final class StraddlingDriver: AppDriver {
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
               pressSeconds: Double, durationSeconds: Double) async throws {
         drags += 1
+        dragStarts.append(fromY)
         if dragLeavesScreen { leftScreen = true }
         rowY += (toY - fromY) * dragScale   // 指の動きぶん内容が動く(フリング無し)
         if othersMove { othersShift += toY > fromY ? Self.othersStep : -Self.othersStep }
@@ -96,7 +100,9 @@ private final class StraddlingDriver: AppDriver {
                 ElementInfo(ref: 4, type: "clickable", identifier: "target", label: "対象",
                             value: nil, placeholder: nil, enabled: true,
                             frame: FTRect(x: 16, y: rowY, width: 370, height: 56), depth: 2),
-            ],
+            ] + (rowOnTheDragStart ? [ElementInfo(ref: 5, type: "clickable", identifier: "other_00", label: "他 00",
+                                                  value: nil, placeholder: nil, enabled: true,
+                                                  frame: FTRect(x: 16, y: 330, width: 370, height: 40), depth: 2)] : []),
             truncatedCount: 0)
     }
 }
@@ -116,6 +122,17 @@ final class StraddleNudgeTests: XCTestCase {
 
         XCTAssertGreaterThan(driver.drags, 0,
                              "縁にまたがった要素をそのまま撃っている(寄せが発火していない)")
+    }
+
+    /// **寄せのドラッグを押せる行の上から始めない**(押下になって遷移する。RN の iOS の横向き)。行の隙間へずらす
+    func testNudgeDragStartsOffAPressableRow() async throws {
+        let driver = StraddlingDriver(straddling: true)
+        driver.rowOnTheDragStart = true
+
+        _ = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(tapStep())
+
+        let start = try XCTUnwrap(driver.dragStarts.first, "寄せが撃たれていない")
+        XCTAssertFalse(start >= 330 && start <= 370, "押せる行(330..370)の上から寄せた: \(start)")
     }
 
     /// **寄せの後に対象を引けなければ撃たずに失敗にする**(RN の iOS の横向き: 寄せの払いが行の押下になって遷移し、

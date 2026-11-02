@@ -689,6 +689,30 @@ public enum TapTargetGeometry {
             .filter { $0 >= low && $0 <= high && !onInput($0) }
         return candidates.min { abs($0 - fromY) < abs($1 - fromY) }
     }
+    /// 縦ドラッグの始点 y が**押せる要素(ボタン・行・入力欄)の上に乗るなら、要素と要素の隙間へずらす**(距離・向きは保つ)。
+    /// 押せる要素の上から始めたドラッグは、スクロールが引き取らずにその要素の押下になることがある(RN の iOS の横向き:
+    /// 寄せのドラッグが隣の行を押して遷移した)。ずらす先は `area` の中で終点も収まる範囲、元の始点に最も近い隙間。
+    /// **隙間が無ければ元の y**(行が隙間なく並ぶ一覧では今までどおり撃つ。寄せを止めると Compose の bringIntoView で隣の行が反応する)。
+    /// 容器ほどの大きさの押せる要素(一覧全体が1つの clickable)は避ける対象にしない(避けると置き場が無くなる)
+    public static func dragStartOffPressables(fromY: Double, x: Double, distance: Double, fingerUp: Bool,
+                                              area: FTRect, elements: [ElementInfo]) -> Double {
+        let pressables = elements.filter {
+            (interactiveTypes.contains($0.type) || TypeReadback.isTextInput($0))
+                && $0.frame.height < area.height * pressableAvoidanceMaxHeightRatio
+                && x >= $0.frame.x && x <= $0.frame.x + $0.frame.width
+        }.map(\.frame)
+        func onPressable(_ y: Double) -> Bool { pressables.contains { y >= $0.y && y <= $0.y + $0.height } }
+        guard onPressable(fromY) else { return fromY }
+        let low = fingerUp ? area.y + distance : area.y + dragStartEdgeClearance
+        let high = fingerUp ? area.y + area.height - dragStartEdgeClearance : area.y + area.height - distance
+        guard low <= high else { return fromY }
+        let candidates = pressables.flatMap { [$0.y - dragStartEdgeClearance, $0.y + $0.height + dragStartEdgeClearance] }
+            .filter { $0 >= low && $0 <= high && !onPressable($0) }
+        return candidates.min { abs($0 - fromY) < abs($1 - fromY) } ?? fromY
+    }
+    /// 避ける押せる要素の高さの上限(容器の高さに対する比)。これ以上は一覧そのもの(行ではない)とみなす
+    static let pressableAvoidanceMaxHeightRatio = 0.5
+
     /// 始点を欄の縁・領域の縁から離す量(pt / Android は px)。縁ちょうどは丸めで欄に乗りうる
     static let dragStartEdgeClearance = 4.0
 

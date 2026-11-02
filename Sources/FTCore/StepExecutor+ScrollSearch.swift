@@ -618,9 +618,17 @@ extension StepExecutor {
     /// `avoidingInputsIn` = 渡したら、始点が入力欄に乗るときにずらす(`dragStartAvoidingTextInputs`。縦だけ)
     func slowDrag(jump: Double, container: FTRect, vertical: Bool = true,
                   avoidingInputsIn elements: [ElementInfo]? = nil,
+                  avoidingPressablesIn pressableTree: [ElementInfo]? = nil,
                   phase: inout PhaseAccumulator) async -> Bool {
         guard var g = Self.dragGesture(jump: jump, container: container,
                                        viewport: container, vertical: vertical) else { return false }
+        if vertical, let pressableTree {
+            let distance = abs(g.toY - g.fromY)
+            let fromY = TapTargetGeometry.dragStartOffPressables(
+                fromY: g.fromY, x: g.fromX, distance: distance, fingerUp: g.toY < g.fromY,
+                area: container, elements: pressableTree)
+            g = (g.fromX, fromY, g.toX, g.toY < g.fromY ? fromY - distance : fromY + distance)
+        }
         if vertical, let elements {
             let distance = abs(g.toY - g.fromY)
             guard let fromY = TapTargetGeometry.dragStartAvoidingTextInputs(

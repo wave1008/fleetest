@@ -666,7 +666,7 @@ extension StepExecutor {
         // ref を引くので、fallback の木から解決した要素に primary の名前空間を混ぜる
         if !switchedToFallbackDriver, Self.interactsByTouch(action), step.containerInference ?? true,
            let (container, jump) = TapTargetGeometry.straddlingContainerEdge(element, in: snapshot.elements),
-           await slowDrag(jump: jump, container: container, phase: &phase) {
+           await slowDrag(jump: jump, container: container, avoidingPressablesIn: snapshot.elements, phase: &phase) {
             _ = try await settledSignature(phase: &phase)
             let refreshed = try await freshSnapshot(.afterOwnMove)
             // **寄せの後に引けなければ撃たない**: 寄せの払いが押下になって画面が変わることがある(RN の iOS の横向き: 行の上で始めた
