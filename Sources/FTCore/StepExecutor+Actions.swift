@@ -651,6 +651,14 @@ extension StepExecutor {
             let collapses = inChain.filter { TapTargetGeometry.interactiveTypes.contains($0.type) }.count <= 1
             let count = collapses ? candidates.count - inChain.count + 1 : candidates.count
             if count > 1 { ambiguousMatchCountThisStep = count }
+            // 先頭の候補が手前の要素に覆われ、覆われていない候補が別にあれば、そちらを撃つ(判定は `OcclusionGeometry` の1か所)
+            if Self.interactsByTouch(action), count > 1,
+               let uncovered = OcclusionGeometry.uncoveredAlternative(
+                   to: element, among: candidates, in: snapshot.elements, screen: snapshot.screen) {
+                element = uncovered
+                resolvedElementThisStep = element
+                driverFallback = Self.joinNotes(driverFallback, Self.uncoveredAlternativeNote(element))
+            }
         }
 
         // **容器の縁にまたがった要素はそのまま撃たない**。見えている部分を撃っても、
@@ -1803,6 +1811,12 @@ extension StepExecutor {
     /// **送った後の木がロック画面・常時表示(消灯)なら「覆われた」と言わない** —— 端末の画面が落ちた(か施錠された)事実を言う。
     /// 覆いの経路の文を出すと、画面が消えただけなのにアプリの UI が対象を覆ったように読める。送った分のスクロールが
     /// アプリに届いたかも言えない。木は送った後に読んだものを使う(追加の読みは無い)
+    static func uncoveredAlternativeNote(_ element: ElementInfo) -> String {
+        "the first match is covered by another element, so the uncovered match "
+            + (element.identifier.map { "#\($0)" } ?? "at (\(Int(element.frame.centerX)), \(Int(element.frame.centerY)))")
+            + " was touched instead"
+    }
+
     static func nudgeLostMessage(_ step: FlowStep) -> String {
         "the target straddled its container's edge, so a slow drag was sent to bring it inside before touching it,"
             + " but the target could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"

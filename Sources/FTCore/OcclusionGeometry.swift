@@ -126,6 +126,22 @@ public enum OcclusionGeometry {
         return hit
     }
 
+    /// 同じセレクタに一致した候補のうち、`chosen`(木の順で先頭)が手前の別要素に覆われ、覆われていない候補が別にあれば
+    /// その候補(木の順で最初のもの)。人が押すのは見えている方(RN の Swipeable は全行の「アーカイブ」を行の裏に常に置き、
+    /// 開いた行のものだけが露出する。先頭 = 1行目の裏のボタンを撃って1行目を開いた)。覆われていない候補は、容器の外の残像・
+    /// 中心が画面の外のものを除く。nil = 替えない(先頭が覆われていない・全部覆われている)
+    public static func uncoveredAlternative(to chosen: ElementInfo, among candidates: [ElementInfo],
+                                            in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {
+        guard overlayCovering(chosen, in: elements, screen: screen) != nil else { return nil }
+        return candidates.first { candidate in
+            candidate.ref != chosen.ref
+                && candidate.frame.centerX >= screen.x && candidate.frame.centerX <= screen.x + screen.width
+                && candidate.frame.centerY >= screen.y && candidate.frame.centerY <= screen.y + screen.height
+                && !ContainerGeometry.isOutsideContainer(candidate, in: elements, screen: screen)
+                && overlayCovering(candidate, in: elements, screen: screen) == nil
+        }
+    }
+
     /// **撃つと別の要素に当たる**ことが具体的に言えるときだけ ghost 扱いする。
     ///
     /// `isOutsideContainer` だけでは dock のアイコンを誤って弾く —— 容器の推測から外れる位置に
