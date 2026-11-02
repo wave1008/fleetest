@@ -572,7 +572,7 @@ extension StepExecutor {
         let margin = extent * 0.15
         let usable = extent - margin * 2
         // 可動域の床は撃つ距離の床と同じ値(`minimumDragDistance`)。別の床(旧: usable > 100)を持つと、
-        // 高さ 104px の一覧(usable 72.8)で距離が足りるのに黙って撃たれなかった(OI-149)
+        // 高さ 104px の一覧(usable 72.8)で距離が足りるのに黙って撃たれなかった
         guard usable > minimumDragDistance else { return nil }
         // 0.9 掛け: フリング分の過走を抑える(過走しても次周回の再計算で戻るが、往復は遅い)
         let distance = min(abs(jump) * 0.9, usable)

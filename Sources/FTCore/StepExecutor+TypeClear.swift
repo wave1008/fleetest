@@ -462,7 +462,7 @@ extension StepExecutor {
         let note: String
         switch try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
         case .notClosed(let tried):
-            // 押すだけの tap は、閉じられなくても上端がキーボードの上に見えていれば、人と同じくその部分を押す(OI-153)
+            // 押すだけの tap は、閉じられなくても上端がキーボードの上に見えていれば、人と同じくその部分を押す
             if allowsVisiblePart, let visible = occlusion.visibleAboveKeyboard(element, scale: driver.pointScale) {
                 return .visiblePart(visible, note: "the target's centre is under the soft keyboard and the keyboard could not be"
                     + " closed without side effects (\(tried)) — tapped its visible part above the keyboard")

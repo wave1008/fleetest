@@ -431,7 +431,7 @@ extension StepExecutorTests {
         XCTAssertNil(StepExecutor.dragGesture(jump: 1000,
                                               container: FTRect(x: 0, y: 0, width: 100, height: 60)))
         XCTAssertNil(StepExecutor.dragGesture(jump: 40, container: container))
-        // OI-149: 高さ 104px の低い一覧(usable 72.8)でも、距離が足りれば撃つ
+        //: 高さ 104px の低い一覧(usable 72.8)でも、距離が足りれば撃つ
         let low = StepExecutor.dragGesture(jump: 90, container: FTRect(x: 0, y: 100, width: 800, height: 104))
         XCTAssertNotNil(low)
         XCTAssertEqual(low!.fromY - low!.toY, 72.8, accuracy: 0.5)

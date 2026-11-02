@@ -217,6 +217,8 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | UIKit / SwiftUI / RN | `insertText` | `textFieldShouldReturn:` + EditingDidEndOnExit を再現(SwiftUI の `onSubmit` もこの経路) | 置換後に EditingChanged と通知を補う |
 | Flutter | `insertText` | Flutter engine の私有 API(`flutterTextInputView:performAction:withClient:`)へ配送。欠けていれば 409 | **in-app では非対応** → XCUITest へ |
 
+- **Flutter(iOS in-app)の焦点**(2026-11-03): in-app の木に焦点の印が出ないので、キーボードの下の欄への `type` / `clearInput` の免除(焦点のある欄)が効かず、横向きの `tap(欄)` → `type(欄)` が「キーボードの下で閉じられない」で断られていた(7/7)。直前のステップの `tap` がその欄を叩いていて、木のどこにも別の場所の焦点の申告が無ければ、焦点のある欄として閉じずに打つ(`InputFocusRescue.tapFocusedIt`。区分 A。直した後は 8/8 で打てた)
+
 - **Compose(iOS)の複数行は、別の欄を挟んで焦点を取り戻すとカーソルが先頭へ戻り、叩く位置を変えても動かない**(実測 2026-11-01 E2E-CMP・
   XCUITest: `type(欄,"L3"); type(別の欄,"p"); type(欄,"x")` が `xL3`・右端を2回叩いても `yL3`。読み返しは文字の集合しか見ず通っていた。
   clearInput は先頭への delete が空振りして4周で不発)。**XCUITest ランナーは、叩いて焦点を取り戻した値のある複数行の欄(型 `textView`)で、
@@ -456,6 +458,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| — | Flutter の iOS の in-app で、直前の tap が叩いた欄をキーボードの下でも焦点のある欄として打つ(FD-2.4) |
 | `519f468e` | Android の枠を指定した払いの終点をタッチの遊び(8dp × 密度)だけ延ばす(FD-2.3) |
 | — | 縁をまたいだ行の寄せのドラッグを、押せる要素の上から始めない(FD-2.1。RN の iOS で寄せが行の押下になっていた) |
 | iOS v220 | in-app ブリッジの `/tap` `/type` `/clear`(と ref 付きの `/doubleTap`)も、要求の `expect`(identifier・型)が自分の直近の `/snapshot` の控えと食い違えば、撃たずに 422 `stale-ref` で断る(XCUITest ランナーと同じ。`/press` は in-app では常に 501 で撃たない)。`expect` を送らない呼び手は従来どおり |

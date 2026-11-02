@@ -347,7 +347,7 @@ final class MCPBatchTests: XCTestCase {
         XCTAssertTrue(result.contains("the screen did not change after this tap"), result)
     }
 
-    /// OI-151 ③: アプリが居ない失敗で「waitSeconds: を足せ」の対処文を外す(文は FTCore の `defaultWaitHint` が定義元)
+    ///: アプリが居ない失敗で「waitSeconds: を足せ」の対処文を外す(文は FTCore の `defaultWaitHint` が定義元)
     func testDroppingDefaultWaitHintRemovesExactlyTheHint() {
         let hint = StepExecutor.defaultWaitHint(FlowStep(action: "tap"))
         XCTAssertFalse(hint.isEmpty)

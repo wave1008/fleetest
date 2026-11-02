@@ -186,7 +186,7 @@ extension StepExecutorTests {
         ])
     }
 
-    /// 409 の後に XCUITest でも対象を引けないとき、ブリッジの「ref を渡せ」を DSL の利用者へ出さない(OI-151④)
+    /// 409 の後に XCUITest でも対象を引けないとき、ブリッジの「ref を渡せ」を DSL の利用者へ出さない
     func testType409WithoutAResolvableFallbackDoesNotAdviseAPassingARef() async throws {
         let log = CallLog()
         let primary = FakeAppDriver(name: "primary", log: log,
@@ -870,7 +870,7 @@ extension StepExecutorTests {
         guard case .passed = outcome.status else { XCTFail("scrollToEdge は pass のはず"); return }
         XCTAssertFalse(outcome.driverFallback?.contains("limit of") ?? false,
                        "端に着いたと判定できていれば上限打ち切りの注記は付かない: \(outcome.driverFallback ?? "-")")
-        // 1行も動いていないので、端に着いたのとは区別して言う(OI-148)
+        // 1行も動いていないので、端に着いたのとは区別して言う
         XCTAssertTrue(outcome.driverFallback?.contains("did not move") ?? false, outcome.driverFallback ?? "-")
         let swipes = log.entries.filter { $0 == "primary.swipe" }.count
         XCTAssertLessThanOrEqual(swipes, 3,

@@ -1,4 +1,4 @@
-// OI-153: 中心がキーボードの下でも上端が見えている要素は、見えている部分を撃つ(判定は KeyboardOcclusion.visibleAboveKeyboard)
+//: 中心がキーボードの下でも上端が見えている要素は、見えている部分を撃つ(判定は KeyboardOcclusion.visibleAboveKeyboard)
 
 import XCTest
 @testable import FTCore

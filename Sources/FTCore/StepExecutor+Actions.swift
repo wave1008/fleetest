@@ -951,7 +951,7 @@ extension StepExecutor {
             // (visibleTapRect 参照)。ref で撃つとブリッジが frame の中心へ解決するので、
             // 壊れた frame ではそのまま容器の外を叩いて黙って飲まれる
             if let kbVisible = keyboardVisiblePartTap {
-                // キーボードを閉じられず、上端だけが見えている(OI-153)。中心はキーボードの下なので見えている部分を撃つ
+                // キーボードを閉じられず、上端だけが見えている。中心はキーボードの下なので見えている部分を撃つ
                 try await actingDriver.tap(x: kbVisible.centerX, y: kbVisible.centerY)
             } else if let visible = Self.visibleTapRect(for: element, in: snapshot.elements,
                                                 inferring: step.containerInference ?? true,
@@ -1246,7 +1246,7 @@ extension StepExecutor {
                 // (判定は DriverError.isTextInputFallback)。
                 guard DriverError.isTextInputFallback(error) else { throw error }
                 // **ブリッジの文言は ref を渡す前提で「ref を渡せ」と言う**が、ロケータで指す DSL には渡す口が無い。
-                // ブリッジの文言は載せず、起きた事実だけを言う(OI-151④。判定は status の 409 = `isTextInputFallback`)
+                // ブリッジの文言は載せず、起きた事実だけを言う(判定は status の 409 = `isTextInputFallback`)
                 guard let td = typeDriver else {
                     return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: false)))
                 }
@@ -1845,7 +1845,7 @@ extension StepExecutor {
             + " could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
     }
 
-    /// in-app ブリッジが type を 409 で断ったときの DSL 向けの失敗文(OI-151④)。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
+    /// in-app ブリッジが type を 409 で断ったときの DSL 向けの失敗文。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
     /// 言うのは事実だけ: 断られた・XCUITest での撃ち直しを試みたか(試みて対象を引けなかった)
     static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
         "the in-app bridge refused to type into \(step.locatorSummary) (HTTP 409: it could not give the field keyboard focus)"

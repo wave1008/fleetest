@@ -56,7 +56,7 @@ final class OcclusionSuspicionTests: XCTestCase {
             element: target, in: [target], screen: screen, looseMatch: true))
     }
 
-    // MARK: - touchesScrollEdge(OI-150)
+    // MARK: - touchesScrollEdge
 
     private func scrollEdgeFixture(textY: Double, textHeight: Double, scrollable: Bool = true) -> ([ElementInfo], ElementInfo) {
         var pane = ElementInfo(ref: 1, type: "scrollView", identifier: "pane", label: nil, value: nil,

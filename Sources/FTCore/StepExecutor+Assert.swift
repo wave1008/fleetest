@@ -206,7 +206,7 @@ extension StepExecutor {
         // 疑いのある低インク領域(覆い/空/減光)だけ FM に回すことで FM 呼出を大幅削減する。
         // sd は下の launch-storyboard 判定でも再利用する(同じ crop へ二重に払わない)。
         var sd: Double?
-        // 容器の縁に接した文字は見えている分しか枠に無い(切れて読めない文字でもインクはある = OI-150)ので足切りで通さず読ませる
+        // 容器の縁に接した文字は見えている分しか枠に無い(切れて読めない文字でもインクはある)ので足切りで通さず読ませる
         let atScrollEdge = OcclusionSuspicion.touchesScrollEdge(element: element, in: elements)
         if !geo, !atScrollEdge, occlusionInkThreshold > 0 {
             sd = RegionInk.luminanceStdDev(pngData: screenshot, frame: element.frame, screen: screen)
@@ -650,7 +650,7 @@ extension StepExecutor {
     /// 過検出寄りなので**判定は変えず、文言を足すだけ**にする(ステップの成否には触らない)
     static func coveringHint(element: ElementInfo?, elements: [ElementInfo], screen: FTRect) -> String {
         guard let element,
-              // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(OI-151①。
+              // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(
               // 固定領域の echo が「覆い」に見えるだけ)
               !Self.isClippedAwayByItsContainer(element, in: elements),
               let cover = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)

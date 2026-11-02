@@ -23,7 +23,7 @@ final class RefLessInputFrontAppNoteTests: XCTestCase {
         XCTAssertTrue(log.entries.contains("primary.type(ref:nil)"), "\(log.entries)")
     }
 
-    /// 通知シェード・ロック画面の下は前面のアプリ名が下のアプリのまま(OI-145)。焦点をシェードが持つなら言う
+    /// 通知シェード・ロック画面の下は前面のアプリ名が下のアプリのまま。焦点をシェードが持つなら言う
     func testShadeHoldingInputFocusIsNotedEvenWhileTheLaunchedAppNameIsInFront() async {
         let log = CallLog()
         let driver = FakeAppDriver(name: "primary", log: log)

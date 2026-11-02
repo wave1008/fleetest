@@ -478,7 +478,7 @@ extension StepExecutorTests {
         XCTAssertFalse(outcome.notes.contains(.firstFrameTimeout))
     }
 
-    /// OI-150: スクロール容器の縁に接した文字は、枠の中にインクがあっても足切りで素通りさせず読ませる
+    ///: スクロール容器の縁に接した文字は、枠の中にインクがあっても足切りで素通りさせず読ませる
     /// (見えている分しか枠に無い = 切れて読めない文字が検証なしで緑になっていた)
     func testTextTouchingScrollEdgeSkipsTheInkFilter() async throws {
         func run(scrollable: Bool) async -> (StepResult.Status, Int) {

@@ -133,7 +133,7 @@ extension StepExecutor {
         var reachedEdge = false
         var sawUnsettled = false
         // 送りの間に見えている中身が一度でも変わった(または確かに動かしたと申告された)か。
-        // false のまま「端」と確定した = 1行も動いていない(OI-148。端に着いたのと区別して言う)
+        // false のまま「端」と確定した = 1行も動いていない(端に着いたのと区別して言う)
         var contentEverMoved = false
         let limit = max(0, step.maxSwipes ?? FlowStep.defaultMaxEdgeSwipes)
         var hintJumps = 0

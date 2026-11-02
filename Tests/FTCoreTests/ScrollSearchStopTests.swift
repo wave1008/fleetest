@@ -300,7 +300,7 @@ final class ScrollSearchStopTests: XCTestCase {
             screen: FTRect(x: 0, y: 0, width: 402, height: 874)))
     }
 
-    /// 下端の隙間が閾値(34 = ホームインジケータの標準セーフエリア)ちょうどの容器はシートでなく通常画面の一覧(OI-151②)
+    /// 下端の隙間が閾値(34 = ホームインジケータの標準セーフエリア)ちょうどの容器はシートでなく通常画面の一覧
     func testLooksLikeBottomSheetRejectsAGapExactlyAtTheTolerance() {
         let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
         XCTAssertFalse(SheetGeometry.looksLikeBottomSheet(

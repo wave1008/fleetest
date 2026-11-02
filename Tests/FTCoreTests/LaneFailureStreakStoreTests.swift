@@ -54,7 +54,7 @@ final class LaneFailureStreakStoreTests: XCTestCase {
         XCTAssertEqual(LaneFailureStreakStore.load(stateDir: dir, key: "android_a", scope: "P"), 2)
     }
 
-    /// 別プロジェクトの失敗は持ち越さない(OI-152)。同じプロジェクトには戻る
+    /// 別プロジェクトの失敗は持ち越さない。同じプロジェクトには戻る
     func testStreakOfAnotherProjectIsNotCarried() {
         let key = "ios:iPhone-02"
         LaneFailureStreakStore.save(stateDir: dir, key: key, scope: "E2EY-RN", consecutiveFailures: 2)

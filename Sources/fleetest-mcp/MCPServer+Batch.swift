@@ -856,7 +856,7 @@ extension MCPServer {
                 }
                 recordSnapshot(stopped, batchDriver is AndroidDriver ? "android" : "ios", args)
                 // **アプリが居ない・前面を離れた画面では「waitSeconds: を足せ」の対処文を外す**(待ちの長さは原因でなく、従えない。
-                // 事実は下の木の注記が言う。Android で手の途中にアプリが落ちた回に出ていた = OI-151 ③)
+                // 事実は下の木の注記が言う。Android で手の途中にアプリが落ちた回に出ていた)
                 if !lines.isEmpty, await appLeftFront(stopped) {
                     lines[lines.count - 1] = Self.droppingDefaultWaitHint(lines[lines.count - 1])
                 }

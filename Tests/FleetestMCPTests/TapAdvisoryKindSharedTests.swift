@@ -25,7 +25,7 @@ final class TapAdvisoryKindSharedTests: XCTestCase {
                     scrollable: scrollable)
     }
 
-    /// OI-144: 警告は呼び手の操作名で言う(tap 以外の操作に「tap」と言わない)
+    ///: 警告は呼び手の操作名で言う(tap 以外の操作に「tap」と言わない)
     func testOverlapWarningUsesTheCallersOperationName() {
         let e = element(1, "z", "button", 100, 100, 0, 40)
         let warning = RefGuard.overlapWarning(found: e, in: [e], screen: screen, isAndroid: false, operation: "long press")
