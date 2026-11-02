@@ -12,12 +12,13 @@ final class TypeReadbackKeepsPriorValueTests: XCTestCase {
         XCTAssertEqual(TypeReadback.plan(expected: target, actual: actual, protectedPrefixCount: 11), .unverifiable)
     }
 
+    /// カーソルが先頭で撃った文字が元の値の前に入った形は、削除せず元の値ごと打ち直す(OI-135 の `.retype`)
     func testCursorAtStartIsNotDeleted() {
         let expected = "hello worldQ"
         let actual = "Qhello world"
         let target = TypeReadback.readbackTarget(expected: expected, typedOnly: "Q", actual: actual,
                                                  protectedPrefixCount: 11)
-        XCTAssertEqual(TypeReadback.plan(expected: target, actual: actual, protectedPrefixCount: 11), .unverifiable)
+        XCTAssertEqual(TypeReadback.plan(expected: target, actual: actual, protectedPrefixCount: 11), .retype)
     }
 
     func testHintFieldDoubleInputStillDeletes() {
