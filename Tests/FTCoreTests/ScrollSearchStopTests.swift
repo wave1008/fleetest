@@ -324,6 +324,24 @@ final class ScrollSearchStopTests: XCTestCase {
             "下端が画面下端から離れた容器はシートと判定しないはず")
     }
 
+    /// 横向きで固定のヘッダ・タブの下にある本文の一覧(下端の隙間 0・上端は画面の上 1/4 より下)をシートと読まない。
+    /// グラバーが木にあるときだけシートと読む。縦向きは従来どおり幾何だけ
+    func testLandscapeBodyListIsASheetOnlyWithAGrabber() {
+        let body = ElementInfo(ref: 1, type: "scrollView", identifier: "list", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 236, width: 874, height: 166), depth: 2, scrollable: true)
+        let grabber = ElementInfo(ref: 2, type: "other", identifier: "sheet_grabber", label: nil, value: nil,
+                                  placeholder: nil, enabled: true,
+                                  frame: FTRect(x: 400, y: 240, width: 60, height: 6), depth: 2)
+        func landscape(_ elements: [ElementInfo]) -> SnapshotResponse {
+            SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 874, height: 402),
+                             elements: elements, truncatedCount: 0)
+        }
+        XCTAssertFalse(SheetGeometry.declaredSheetExists(in: landscape([body])))
+        XCTAssertTrue(SheetGeometry.declaredSheetExists(in: landscape([body, grabber])))
+        XCTAssertTrue(SheetGeometry.declaredSheetExists(in: snapshot([scroller(1, y: 676, height: 189)])))
+    }
+
     /// 打ち切られていない(上限まで振った/探索が続いている)ときはシートの話は出さない
     func testStillGoingMessageDoesNotMentionTheSheet() {
         let step = scrollTo("missing", maxSwipes: 8)

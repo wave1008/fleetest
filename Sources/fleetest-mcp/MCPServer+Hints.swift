@@ -17,11 +17,7 @@ extension MCPServer {
     /// 下半分に居るものだけを対象にする —— 既に上まで開いているグラバーを更に引いても
     /// 広がらず、実装によっては閉じる
     static func sheetGrabber(in snapshot: SnapshotResponse) -> ElementInfo? {
-        snapshot.elements.first { element in
-            let name = ((element.identifier ?? "") + " " + (element.label ?? "")).lowercased()
-            guard name.contains("grabber") else { return false }
-            return element.frame.centerY > snapshot.screen.height * 0.3
-        }
+        SheetGeometry.grabber(in: snapshot)
     }
 
     /// 救済(半開きシートを広げての再試行)がレイアウトを変えた可能性を伝える。

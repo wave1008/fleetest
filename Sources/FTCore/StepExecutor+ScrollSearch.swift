@@ -30,11 +30,31 @@ public enum SheetGeometry {
         return (frame.y - screen.y) > screen.height * topMinRatioOfScreen
     }
 
+    /// 半開きシートのグラバー。**名前で特定できるときだけ**返す。下半分に居るものだけを対象にする
+    /// (既に上まで開いているグラバーを更に引いても広がらず、実装によっては閉じる)。MCP の展開の救済と
+    /// `isPlausibleSheet` が共有する
+    public static func grabber(in snapshot: SnapshotResponse) -> ElementInfo? {
+        snapshot.elements.first { element in
+            let name = ((element.identifier ?? "") + " " + (element.label ?? "")).lowercased()
+            guard name.contains("grabber") else { return false }
+            return element.frame.centerY > snapshot.screen.height * 0.3
+        }
+    }
+
+    /// 幾何が合い、かつ**シートと言える印がある**矩形。**横向き(幅 > 高さ)では位置だけでシートと読まない** ——
+    /// 固定のヘッダ・タブの下の本文の一覧は下端が画面の下端に接し上端が上 1/4 より下になるのが普通で、幾何は区別できない
+    /// (実測 E2EY-Flutter・RN の A11: 隙間 0 の本文の一覧に「半開のボトムシートなら広げて」が付いた)。
+    /// 横向きではグラバーが木にあるときだけシートと読む。縦向きは従来どおり幾何だけ
+    public static func isPlausibleSheet(frame: FTRect, in snapshot: SnapshotResponse) -> Bool {
+        guard looksLikeBottomSheet(frame: frame, screen: snapshot.screen) else { return false }
+        return snapshot.screen.width <= snapshot.screen.height || grabber(in: snapshot) != nil
+    }
+
     /// `scrollFrame` 未指定のときの、**申告された(scrollable)容器だけ**からの判定
     /// (推測まで混ぜると全画面リストでも鳴る)
     public static func declaredSheetExists(in snapshot: SnapshotResponse) -> Bool {
         snapshot.elements.contains {
-            $0.scrollable == true && looksLikeBottomSheet(frame: $0.frame, screen: snapshot.screen)
+            $0.scrollable == true && isPlausibleSheet(frame: $0.frame, in: snapshot)
         }
     }
 }
@@ -1125,7 +1145,7 @@ extension StepExecutor {
                         // だけ「シートを広げろ」が出て、そこで初めて解けた
                         let containerIsPartialHeight = scrollContainer(
                             step: step, in: snapshot, vertical: vertical)
-                            .map { SheetGeometry.looksLikeBottomSheet(frame: $0, screen: snapshot.screen) }
+                            .map { SheetGeometry.isPlausibleSheet(frame: $0, in: snapshot) }
                             ?? SheetGeometry.declaredSheetExists(in: snapshot)
                         // **半開きシートの中で1度も動かなかったら、1回だけシートを広げて探し直す**(sheetExpandDrag の doc)
                         // 容器は scrollFrame で指した物だけ(scrollContainer は未指定なら nil・キーボードが出ていれば画面全体 =
