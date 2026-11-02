@@ -1036,7 +1036,10 @@ extension MCPServer {
     static func batchUnchangedTapWarning(isAndroid: Bool) -> String {
         " (warning: the screen did not change after this tap — it may have been swallowed, e.g. it landed while a"
             + " sheet or transition was still animating in"
-            + (isAndroid ? "" : ", or it raised a system alert, which is drawn outside the app's tree") + ")"
+            + (isAndroid ? "" : ", or it raised a system alert, which is drawn outside the app's tree"
+                // iOS の /appstate は別アプリの起動後 1〜2 秒は前面と答え続けるので、前面の移動は終わりの確認では拾えないことがある
+                + ", or another app had already come to the front (the app's tree keeps its last state then — check ft_status and a screenshot)")
+            + ")"
     }
 
     /// ft_batch はブロック(`withScroll*(scrollFrame:) { }`)を書けない。DSL の探索失敗の「withScroll* で包め」は、

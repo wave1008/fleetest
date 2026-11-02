@@ -347,6 +347,12 @@ final class MCPBatchTests: XCTestCase {
         XCTAssertTrue(result.contains("the screen did not change after this tap"), result)
     }
 
+    /// iOS の飲まれた tap の警告は、別アプリが既に前面へ来ていた可能性も挙げる(OI-155: /appstate が遅れて前面と答える窓)。Android は挙げない
+    func testUnchangedTapWarningNamesAnotherAppInFrontOnIOSOnly() {
+        XCTAssertTrue(MCPServer.batchUnchangedTapWarning(isAndroid: false).contains("another app had already come to the front"))
+        XCTAssertFalse(MCPServer.batchUnchangedTapWarning(isAndroid: true).contains("another app"))
+    }
+
     /// **掴むだけの手(waitForSettle)を挟んでも、tap の前の木どうしを比べない**(実測: tap → waitForSettle で効いた tap を毎回名指した)
     func testAGrabOnlyStepAfterATapDoesNotNameIt() async throws {
         coverTheScreen()
