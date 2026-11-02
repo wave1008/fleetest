@@ -42,8 +42,9 @@ final class TypedEchoOCRCheckTests: XCTestCase {
     func testTheTypePathCallsTheCheck() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Actions.swift"), encoding: .utf8)
-        XCTAssertTrue(source.contains("TypedEchoOCRCheck.shouldCheck("))
-        XCTAssertTrue(source.contains("noteIfTypedTextNotDrawn(element:"))
+        // 打鍵の成功経路は2つ(typeDriver 経由と主経路)。どちらからも確認を呼ぶ
+        XCTAssertEqual(source.components(separatedBy: "TypedEchoOCRCheck.shouldCheck(").count - 1, 2)
+        XCTAssertEqual(source.components(separatedBy: "noteIfTypedTextNotDrawn(element:").count - 1, 2)
     }
 
     func testNeverRunsWhenOCRIsOffOrMeasure() {

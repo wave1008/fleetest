@@ -1141,6 +1141,11 @@ extension StepExecutor {
                     if let failure = await typedInputFailure(td, prior: typedPrior, text: text, phase: &phase) {
                         return StepOutcome(status: .failed(failure))
                     }
+                    // 描かれたかの確認は主経路と同じ条件で(この経路で返すと届かない)
+                    if TypedEchoOCRCheck.shouldCheck(framework: uiFramework, ocrMode: occlusionOCRMode,
+                                                     replace: step.replace == true, text: text, element: element, locator: step.locator) {
+                        await noteIfTypedTextNotDrawn(element: element, text: text, screen: snapshot.screen, phase: &phase)
+                    }
                     // ランナーの打ち直しの申告(OKResponse.note)はこの経路でも拾う(下の主経路と同じ)
                     return StepOutcome(status: .passed, healedStep: healedStep,
                                        healedByFingerprint: healedByFingerprint,

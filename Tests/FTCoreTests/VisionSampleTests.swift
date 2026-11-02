@@ -130,4 +130,50 @@ final class VisionSampleTests: XCTestCase {
                                                    label: "[Checked]", name: nil))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
     }
+
+    // MARK: - 前面のアプリの確認
+
+    func testWarnsWhenAnotherAppIsInFrontAndNamesBoth() throws {
+        let message = try XCTUnwrap(VisionSample.foregroundWarning(
+            front: "com.android.settings", expected: ["com.example.app"]))
+        XCTAssertTrue(message.contains("com.android.settings"))
+        XCTAssertTrue(message.contains("com.example.app"))
+    }
+
+    func testAllowsTheProjectAppAndAnyOfSeveral() {
+        XCTAssertNil(VisionSample.foregroundWarning(front: "com.example.app", expected: ["com.example.app"]))
+        XCTAssertNil(VisionSample.foregroundWarning(front: "com.example.b", expected: ["com.example.a", "com.example.b"]))
+    }
+
+    func testDoesNotStopWhenFrontOrExpectedIsUnknown() {
+        XCTAssertNil(VisionSample.foregroundWarning(front: nil, expected: ["com.example.app"]))
+        XCTAssertNil(VisionSample.foregroundWarning(front: "", expected: ["com.example.app"]))
+        XCTAssertNil(VisionSample.foregroundWarning(front: "com.other", expected: []))
+    }
+
+    func testExpectedAppIDsReadsThePlatformSectionOfEveryAppProfile() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("vs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = TestProject(name: "P", rootURL: root)
+        try FileManager.default.createDirectory(at: project.appsDir, withIntermediateDirectories: true)
+        try Data(#"{"ios":{"app":"com.example.ios"},"android":{"app":"com.example.android"}}"#.utf8)
+            .write(to: project.appsDir.appendingPathComponent("a.json"))
+        try Data(#"{"android":{"app":"com.example.second"}}"#.utf8)
+            .write(to: project.appsDir.appendingPathComponent("b.json"))
+        XCTAssertEqual(VisionSample.expectedAppIDs(project: project, platform: "ios"), ["com.example.ios"])
+        XCTAssertEqual(Set(VisionSample.expectedAppIDs(project: project, platform: "android")),
+                       ["com.example.android", "com.example.second"])
+    }
+
+    /// `vision capture` が保存の前に確認を呼ぶこと(配線。外すと別アプリの画面を黙って見本にする)
+    func testVisionCaptureCallsTheForegroundCheckBeforeSaving() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest/VisionCommands.swift")
+        let source = try String(contentsOf: file, encoding: .utf8)
+        let check = try XCTUnwrap(source.range(of: "VisionSample.foregroundWarning("))
+        let save = try XCTUnwrap(source.range(of: "VisionSample.save("))
+        XCTAssertLessThan(check.lowerBound, save.lowerBound)
+        XCTAssertTrue(source.contains("if let foregroundWarning { ConsoleOut.err("),
+                      "前面の取り違えは警告として出す(保存は止めない)")
+    }
 }

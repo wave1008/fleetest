@@ -74,6 +74,33 @@ public enum VisionSample {
         return nil
     }
 
+    /// プロジェクトのアプリプロファイル(profiles/apps/*.json)が platform で宣言するアプリ ID 全部
+    /// (アプリが複数あって1つに決まらないときは全部を許す = どれも前面でなければ断る)
+    public static func expectedAppIDs(project: TestProject, platform: String) -> [String] {
+        ProfileResolver.appProfileNames(project: project).compactMap { name in
+            guard let data = try? Data(contentsOf: project.appsDir.appendingPathComponent("\(name).json")),
+                  let profile = try? JSONDecoder().decode(AppProfile.self, from: data),
+                  let id = profile.section(for: platform).app, !id.isEmpty else { return nil }
+            return id
+        }
+    }
+
+    /// 前面のアプリが期待したアプリでなければ警告の文言(**保存は止めない** = 設定アプリ等を撮るのは正当)。
+    /// 前面が分からない(nil)・期待するアプリが宣言されていない(空)ときは nil。別のアプリが前面のとき、
+    /// その画面の同じ `#id` を見本として黙って保存した実例がある
+    public static func foregroundWarning(front: String?, expected: [String]) -> String? {
+        guard let front, !front.isEmpty, !expected.isEmpty, !expected.contains(front) else { return nil }
+        return "the sample was taken from \(front), not the project's app (\(expected.joined(separator: ", ")))."
+            + " If you meant the project's app, bring it to the front and capture again"
+    }
+
+    /// 前面のアプリ ID: 木が答えた前面(Android は前面パッケージ・iOS はセッションのアプリ)、無ければドライバに聞く。
+    /// どちらも答えなければ nil
+    public static func frontAppID(snapshot: SnapshotResponse, driver: AppDriver) async -> String? {
+        if let id = snapshot.sessionBundleID, !id.isEmpty { return id }
+        return (try? await driver.foregroundAppID()).flatMap { $0 }
+    }
+
     public static func defaultFileName(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

@@ -43,6 +43,10 @@ struct VisionCapture: AsyncParsableCommand {
 
         let driver = try await driverOptions.makeDriver()
         let snapshot = try await driver.snapshot()
+        // 断らない: 設定アプリ等、プロジェクトのアプリ以外の画面を撮るのは正当な使い方(ラベルの `@i/Settings/...`)。取り違えだけ知らせる
+        let foregroundWarning = VisionSample.foregroundWarning(
+            front: await VisionSample.frontAppID(snapshot: snapshot, driver: driver),
+            expected: VisionSample.expectedAppIDs(project: project, platform: driverOptions.resolvedPlatform))
         let parsed = FTSelector.parse(selector)
         let step = FlowStep(assert: "exists", locator: parsed.primary,
                             fallbacks: parsed.fallbacks.isEmpty ? nil : parsed.fallbacks)
@@ -65,6 +69,7 @@ struct VisionCapture: AsyncParsableCommand {
         } catch {
             throw ValidationError(ErrorText.user(error))
         }
+        if let foregroundWarning { ConsoleOut.err("⚠️ \(foregroundWarning)") }
         ConsoleOut.out("✅ saved \(image.width)x\(image.height) px of \(selector) to \(file.path)")
         ConsoleOut.out("   Check the classifier with: fleetest vision check --project \(project.name) --classifier \(classifier)")
     }

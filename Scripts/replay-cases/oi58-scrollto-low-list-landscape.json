@@ -2,8 +2,8 @@
   "id": "oi58",
   "finding": "横向きの低い縦の一覧(Android)では、枠なしの払い(ブリッジ既定の始点)が一覧に当たらず scrollTo が「nothing moved at all」で失敗する。木に唯一の scrollable があれば、その中で払い直して続ける。容器が2つ以上の画面(E2E-Android のスクロール画面)では払い直さず scrollFrame を勧める",
   "platform": "android",
-  "redConfirmed": false,
-  "redNote": "修正を外した版の赤は未確認。E2EY-Flutter の横向きの #list_chat で、runScrollSearch の払い直しの分岐(containerRedirectTried)を外した版を回して「nothing moved at all」の赤を確かめる。修正後は Emulator で 0/3",
+  "redConfirmed": true,
+  "redNote": "修正を外した版(払い直しの分岐を無効にした fleetest-mcp)で 3/3 が「nothing moved at all」の赤、修正ありで 0/3(同じ Emulator・Pixel 10 Pro Android 17・E2EY-Flutter の横向きの #list_chat)",
   "setup": [
     [
       "ft_launch",
