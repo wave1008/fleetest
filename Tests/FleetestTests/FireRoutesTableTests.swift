@@ -265,7 +265,7 @@ final class FireRoutesTableTests: XCTestCase {
         }
         // 行頭(字下げ無し)の型の宣言で区切った塊ごとに、型の名前(完全一致)と中の func を集める
         var methods: [String: Set<String>] = [:]
-        let header = /^(?:(?:public|private|fileprivate|internal|final)\s+)*(?:class|extension|struct)\s+(\w+)/
+        let header = /^(?:@\w+\s+)*(?:(?:public|private|fileprivate|internal|final)\s+)*(?:class|extension|struct|enum|actor|protocol)\s+(\w+)/
         let function = /^\s+(?:@\w+\s+)*(?:(?:private|public|static|override)\s+)*func\s+(\w+)\(/
         for text in files {
             var current: String?

@@ -508,10 +508,13 @@ extension StepExecutor {
         return StepOutcome(status: .passed, driverFallback: note)
     }
 
-    /// 座標の tap / doubleTap の点が画面の外なら断る文。判定は `swipePointToPoint` と同じ `TapTargetGeometry.isDragPointOffScreen`
-    /// (`screen` が nil なら負の座標と非有限だけ・あれば閉区間 = 端ちょうどは内側。in-app ブリッジの画面内判定と同じ)
+    /// 座標の tap / doubleTap の点が画面の外なら断る文。`screen` が nil なら負の座標と非有限だけ(`isDragPointOffScreen`)、
+    /// あれば MCP・CLI・ライブ操作と同じ `TapTargetGeometry.isPointOnScreen`(半開区間 = 幅ちょうどは外。ft_batch の座標の手と
+    /// 1:1 で書き換えられる行なので、同じ点の判定を MCP と割らない)
     static func offscreenTouchPointRefusal(operation: String, x: Double, y: Double, screen: FTRect?) -> String? {
-        guard TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: screen) else { return nil }
+        let outside = screen.map { !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: $0) }
+            ?? TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: nil)
+        guard outside else { return nil }
         let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
         return "\(operation): the point (\(x), \(y)) is outside the screen\(size), so nothing was sent."
             + " Use coordinates inside the screen"

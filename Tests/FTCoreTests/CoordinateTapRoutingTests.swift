@@ -61,11 +61,14 @@ final class CoordinateTapRoutingTests: XCTestCase {
         XCTAssertEqual(primary.snapshotCount, 0, "正常系に往復を足さない")
     }
 
-    /// 端ちょうどは内側(in-app ブリッジ・swipePointToPoint と同じ閉区間)。1pt 外は断る
-    func testTheScreenEdgeIsInsideAndOnePastIsOutside() {
+    /// 画面の大きさが分かるときは MCP の ft_tap・ft_batch と同じ判定(`isPointOnScreen` = 幅ちょうどは外)。
+    /// ft_batch の座標の手と 1:1 で書き換えられる行なので、同じ点で MCP と DSL の判断を割らない
+    func testTheScreenEdgeMatchesTheMCPJudgement() {
         let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
-        XCTAssertNil(StepExecutor.offscreenTouchPointRefusal(operation: "tap", x: 402, y: 874, screen: screen))
-        XCTAssertNotNil(StepExecutor.offscreenTouchPointRefusal(operation: "tap", x: 403, y: 400, screen: screen))
+        for (x, y) in [(401.0, 873.0), (402.0, 400.0), (200.0, 874.0), (0.0, 0.0)] {
+            XCTAssertEqual(StepExecutor.offscreenTouchPointRefusal(operation: "tap", x: x, y: y, screen: screen) != nil,
+                           !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: screen), "(\(x), \(y))")
+        }
     }
 
     /// 座標のダブルタップも同じ門を通る
