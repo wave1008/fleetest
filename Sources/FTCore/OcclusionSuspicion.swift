@@ -27,6 +27,27 @@ public enum OcclusionSuspicion {
                         overlapFraction: overlapFraction) != nil
     }
 
+    /// スクロール容器の上端・下端にぴったり接している文字の要素(OI-150)。木の枠は容器で切られた後の
+    /// 見えている分だけなので、20px だけ見えている行も「枠の中に何か描かれている」だけでインクの足切りを通り、
+    /// 切れて読めない文字が検証なしで緑になっていた。接しているだけでは切れているとは言えない
+    /// (先頭・末尾まで送った行も接する)ので**反転の根拠にはせず、足切りを外して OCR / FM に読ませるだけ**
+    /// (全部読めれば緑・読めなければ `TranscriptMatch` が決める)。縦の容器の上下だけ見る
+    public static func touchesScrollEdge(element: ElementInfo, in elements: [ElementInfo],
+                                         tol: Double = 1.0) -> Bool {
+        guard RenderCollapse.textTypes.contains(element.type.lowercased()) else { return false }
+        let t = element.frame
+        for container in TapTargetGeometry.ancestors(of: element, in: elements)
+        where container.scrollable == true
+            && container.frame.height > t.height + tol
+            && TapTargetGeometry.contains(container.frame, t) {
+            if abs(t.y - container.frame.y) <= tol
+                || abs((t.y + t.height) - (container.frame.y + container.frame.height)) <= tol {
+                return true
+            }
+        }
+        return false
+    }
+
     /// 対象を覆っている「手前寄りの別要素」。無ければ nil。
     /// **失敗メッセージ用**(アプリ内メッセージ・モーダルの特定)。同一プロセスの覆いは
     /// `AndroidForegroundWindows`(別プロセスの window)では捕まらないので、判定はこちらが担う。

@@ -56,6 +56,39 @@ final class OcclusionSuspicionTests: XCTestCase {
             element: target, in: [target], screen: screen, looseMatch: true))
     }
 
+    // MARK: - touchesScrollEdge(OI-150)
+
+    private func scrollEdgeFixture(textY: Double, textHeight: Double, scrollable: Bool = true) -> ([ElementInfo], ElementInfo) {
+        var pane = ElementInfo(ref: 1, type: "scrollView", identifier: "pane", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 100, width: 400, height: 300), depth: 0)
+        pane.scrollable = scrollable
+        let text = ElementInfo(ref: 2, type: "staticText", identifier: "echo", label: "page=0", value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 10, y: textY, width: 100, height: textHeight), depth: 1)
+        return ([pane, text], text)
+    }
+
+    func testTextFlushWithTheScrollContainersBottomEdgeIsSuspicious() {
+        let (elements, text) = scrollEdgeFixture(textY: 380, textHeight: 20)   // 下端 400 = 容器の下端
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
+    }
+
+    func testTextFlushWithTheScrollContainersTopEdgeIsSuspicious() {
+        let (elements, text) = scrollEdgeFixture(textY: 100, textHeight: 20)
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
+    }
+
+    func testTextInsideTheScrollContainerIsNotSuspicious() {
+        let (elements, text) = scrollEdgeFixture(textY: 200, textHeight: 20)
+        XCTAssertFalse(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
+    }
+
+    func testEdgeOfANonScrollingContainerIsNotSuspicious() {
+        let (elements, text) = scrollEdgeFixture(textY: 380, textHeight: 20, scrollable: false)
+        XCTAssertFalse(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
+    }
+
     // MARK: - covering(誰が覆っているか)
 
     /// 失敗メッセージ用。**どの要素が覆っているか**まで返す(geometric は真偽だけ)

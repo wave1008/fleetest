@@ -206,7 +206,9 @@ extension StepExecutor {
         // 疑いのある低インク領域(覆い/空/減光)だけ FM に回すことで FM 呼出を大幅削減する。
         // sd は下の launch-storyboard 判定でも再利用する(同じ crop へ二重に払わない)。
         var sd: Double?
-        if !geo, occlusionInkThreshold > 0 {
+        // 容器の縁に接した文字は見えている分しか枠に無い(切れて読めない文字でもインクはある = OI-150)ので足切りで通さず読ませる
+        let atScrollEdge = OcclusionSuspicion.touchesScrollEdge(element: element, in: elements)
+        if !geo, !atScrollEdge, occlusionInkThreshold > 0 {
             sd = RegionInk.luminanceStdDev(pngData: screenshot, frame: element.frame, screen: screen)
             if let value = sd, value >= occlusionInkThreshold {
                 // 入力欄・ボタンは枠や背景で構造が出るので、文字が描けた証拠にするのは文字の型だけ
@@ -391,9 +393,12 @@ extension StepExecutor {
                     return nil
                 }
                 ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation)
-            } else if occlusionOCRMode == .off,
-                      reaskedEmptyTranscripts.insert(ReaskKey(imageHash: memoImageHash, key: memoKey)).inserted {
-                // **OCR の段がオフの構成では FM に1回だけ訊き直す**(OCR で確かめられない = 空振りがそのまま赤になる)。
+            }
+            // **OCR で確かめられなかった回は FM に1回だけ訊き直す**: OCR の段がオフ、またはオンでも確かめの読みが読めなかった
+            // (Vision が空を返した = 突き合わせる相手が居ない。OI-13)
+            if occlusionOCRMode == .off || (occlusionOCRMode == .on && ocrReading == nil),
+               reaskedEmptyTranscripts.insert(ReaskKey(imageHash: memoImageHash, key: memoKey)).inserted {
+                // 訊き直す理由: 空振りがそのまま赤になる。
                 // **同じ絵には1回だけ**(控えが空振りの答えを返す撮り直しの周ごとに訊き直さない = reaskedEmptyTranscripts)。
                 // 計測(.measure)は訊き直さない(採取した FM の判定と結果が食い違う)。
                 // 訊き直しで読めたら緑・控えも読めた答えに替える(空振りの答えを次の周へ持ち越さない)

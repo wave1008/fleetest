@@ -15,6 +15,7 @@ extension StepExecutor {
         var blankShots = 0
         // 読み手が戻るのを待った時間(待った回だけ文言に添える)
         var readerWait: Duration?
+        var waitedForBlankShots = false
         if point == nil {
             // コンパイルを待つ(待った分は DeadlineExclusion が締め切りから差し引く。テキストの可視性検証の OCR と同じ使い方)
             _ = await RegionText.awaitModelCompile(mode: .on)
@@ -29,15 +30,21 @@ extension StepExecutor {
             // 文字は画面にあるので人なら押せる)。高負荷・FM が死ぬ前の ANE で数分のうちに読めたり読めなかったりした(OI-17)。
             // 上限はステップの外枠の中にもう1周(確かめ + 撮影 + OCR)が収まる間 = `SlowSnapshotBudget` と同じ見積もり。
             // 外枠の無い呼び手(MCP)は待たない
-            if point == nil, ocrLines.isEmpty, ocrAttempts > 0, blankShots < LinkTextLocator.ocrShotAttempts,
-               commandTimeoutMs != nil, !(await RegionText.readerIsAlive()) {
+            // **渡した絵が全部一色だったときも同じく待つ**(撮った絵が白い = 描画か撮影が追いついていない。撮り直しの 1 秒で
+            // 足りなかった高負荷の Emulator で、OCR が 1 文字も読めずに落ちた = OI-17)。読み手の故障の確かめは絵が描かれていた回だけ
+            let allShotsBlank = blankShots >= LinkTextLocator.ocrShotAttempts
+            let readerFailed = ocrAttempts > 0 && blankShots < LinkTextLocator.ocrShotAttempts
+                ? !(await RegionText.readerIsAlive()) : false
+            if point == nil, ocrLines.isEmpty, allShotsBlank || readerFailed, commandTimeoutMs != nil {
+                waitedForBlankShots = allShotsBlank
                 let waitStart = clock.now
                 var roundMs = Self.ms(clock.now - roundStart)
                 while SlowSnapshotBudget.mayRetake(stepElapsedMs: Self.ms(clock.now - stepStart), lastSnapshotMs: roundMs,
                                                    commandTimeoutMs: commandTimeoutMs) {
                     roundStart = clock.now
                     try? await Task.sleep(for: LinkTextLocator.ocrReshotInterval)
-                    guard await RegionText.readerIsAlive() else { roundMs = Self.ms(clock.now - roundStart); continue }
+                    let readerUp = allShotsBlank ? true : await RegionText.readerIsAlive()
+                    guard readerUp else { roundMs = Self.ms(clock.now - roundStart); continue }
                     blankShots = 0
                     if let failure = try await ocrRound(linkText, element: element, snapshot: snapshot, phase: &phase,
                                                         point: &point, lines: &ocrLines, attempts: &ocrAttempts,
@@ -55,7 +62,8 @@ extension StepExecutor {
             && blankShots < LinkTextLocator.ocrShotAttempts
             ? !(await RegionText.readerIsAlive()) : false
         let waitedFact = readerWait.map {
-            "waited \(FTSeconds.format((Double(Self.ms($0)) / 100).rounded() / 10))s for the OCR reader to recover"
+            "waited \(FTSeconds.format((Double(Self.ms($0)) / 100).rounded() / 10))s for "
+                + (waitedForBlankShots ? "a non-blank screenshot" : "the OCR reader to recover")
         }
         guard let point else {
             let read = (ocrLines.isEmpty ? "OCR read no text in the element"

@@ -112,6 +112,18 @@ final class StepExecutorLinkTextTests: XCTestCase {
         XCTAssertTrue(note.contains("waited") && note.contains("for the OCR reader to recover"), note)
     }
 
+    /// OI-17: 渡した絵が全部一色(描画か撮影が追いついていない)でも、外枠の中で待って撮り直す
+    func testWaitsForANonBlankScreenshotWhenEveryShotWasBlank() async throws {
+        _ = await RegionText.awaitModelCompile(mode: .on)
+        let blank = try shot(nil)
+        let (outcome, _) = await run(screenshots: [blank, blank, blank, try shot("Please accept the Terms of Service")],
+                                     linkText: "Terms of Service", commandTimeoutSeconds: 30)
+        guard case .passed = outcome.status else { XCTFail("実際は \(outcome.status)"); return }
+        let note = outcome.driverFallback ?? ""
+        XCTAssertTrue(note.contains("located by ocr"), note)
+        XCTAssertTrue(note.contains("for a non-blank screenshot"), note)
+    }
+
     /// 戻らなければ外枠の中で諦め、待った事実と読み手の故障の両方を言う(外枠を使い切って無情報の timeout にしない)
     func testGivesUpWithinTheCommandTimeoutWhenTheReaderStaysDead() async throws {
         setenv(OCRDeadInjection.environmentKey, "1", 1)

@@ -478,6 +478,34 @@ extension StepExecutorTests {
         XCTAssertFalse(outcome.notes.contains(.firstFrameTimeout))
     }
 
+    /// OI-150: スクロール容器の縁に接した文字は、枠の中にインクがあっても足切りで素通りさせず読ませる
+    /// (見えている分しか枠に無い = 切れて読めない文字が検証なしで緑になっていた)
+    func testTextTouchingScrollEdgeSkipsTheInkFilter() async throws {
+        func run(scrollable: Bool) async -> (StepResult.Status, Int) {
+            var container = ElementInfo(ref: 0, type: "scrollView", identifier: "pane", label: nil, value: nil,
+                                        placeholder: nil, enabled: true,
+                                        frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)
+            container.scrollable = scrollable
+            var text = textElement(id: "msg", label: "こんにちは")
+            text.depth = 1
+            let primary = FakeAppDriver(name: "primary", log: CallLog(),
+                                        snapshotElements: [[container, text]],
+                                        screenshots: [Self.inkedPNG])
+            let delegate = FakeVisibilityDelegate(visible: false)
+            let executor = StepExecutor(driver: primary, delegate: delegate, isAndroid: false, tunables: RunTunables())
+            executor.noteAppLaunched()
+            let step = FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
+                                timeout: 0, occlusionGuard: true)
+            let outcome = await executor.execute(step)
+            return (outcome.status, delegate.visibleCalls)
+        }
+        let edge = await run(scrollable: true)
+        XCTAssertGreaterThan(edge.1, 0, "縁に接した文字はインクがあっても FM / OCR の段へ回すはず")
+        let plain = await run(scrollable: false)
+        XCTAssertEqual(plain.1, 0, "スクロール容器でなければ従来どおりインクで素通り")
+        guard case .passed = plain.0 else { XCTFail("\(plain.0)"); return }
+    }
+
     /// textEquals 側(executeAssertTextComparison)も exists と同じ猶予を持つ
     func testFirstFrameGateExtendsDeadlineOnceForTextEqualsToo() async throws {
         let log = CallLog()

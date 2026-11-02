@@ -170,6 +170,31 @@ extension StepExecutorTests {
         XCTAssertEqual(delegate.visibleCalls, 2, "同じ絵に訊き直しを重ねた(最初の1回 + 訊き直し1回のはず)")
     }
 
+    /// OI-13: OCR の段がオンでも、確かめの OCR が読めなかった(Vision が空を返した)回は突き合わせる相手が居ないので、
+    /// オフの構成と同じく FM へ1回だけ訊き直し、読めたら緑
+    func testOCROnReasksFMOnceWhenTheConfirmationReadNothing() async throws {
+        RegionText.modelReadyOverrideForTesting = false
+        RegionText.modelCompileFinishOverrideForTesting = {}
+        defer {
+            RegionText.modelReadyOverrideForTesting = nil
+            RegionText.modelCompileFinishOverrideForTesting = nil
+        }
+        let primary = FakeAppDriver(name: "primary", log: CallLog(),
+                                    snapshotElements: [[textElement(id: "msg", label: "こんにちは")]],
+                                    screenshots: [Self.inkedPNG])
+        let delegate = FakeVisibilityDelegate(visible: false)
+        delegate.visibleFromCall = 2
+        let executor = StepExecutor(driver: primary, delegate: delegate, occlusionInkThreshold: 10_000,
+                                    isAndroid: false, tunables: RunTunables())
+        executor.occlusionOCRMode = .on
+        executor.awaitReadableVision = { true }
+        let outcome = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
+                                                      timeout: 0, occlusionGuard: true))
+        guard case .passed = outcome.status else { return XCTFail("訊き直しで読めたのに赤: \(outcome.status)") }
+        XCTAssertEqual(delegate.visibleCalls, 2)
+        XCTAssertTrue(outcome.notes.contains(.fmReaskedEmptyTranscript), "\(outcome.notes)")
+    }
+
     /// 確かめの OCR が「読めた」以外を返したら、その答えを失敗文へ事実として添える(判定は赤のまま)
     func testEmptyTranscriptOCRFactStatesWhatOCRAnswered() {
         let misread = RegionText.Reading(lines: ["wV_resuit=-"], elapsedMs: 1)
