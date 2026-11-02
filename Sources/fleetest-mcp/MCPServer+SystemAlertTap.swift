@@ -17,7 +17,8 @@ extension MCPServer {
         let probe: SystemAlertProbeResponse?
         switch await d.systemAlert() {
         case .value(let answer): probe = answer
-        case .notAnswerable: probe = nil
+        case .notAnswerable:
+            throw MCPError("alertButton: this bridge cannot check for a system alert — nothing was tapped")
         case .failed(let reason):
             throw MCPError("alertButton: could not check for a system alert"
                 + " (\(reason)) — nothing was tapped")

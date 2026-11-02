@@ -469,10 +469,12 @@ public final class AndroidDriver: AppDriver {
         return front == bundleID
     }
 
-    /// キーガードが出ているか。読めない・行が無いときは `.notAnswerable`(失敗も「分からない」に畳む = 今までどおり)
+    /// キーガードが出ているか。dumpsys が失敗したら `.failed`・行が無ければ `.notAnswerable`
     public func keyguardShowing() async -> Probe<Bool> {
-        guard let result = try? adbAnswering(["shell", "dumpsys", "window", "displays"]), result.status == 0,
-              let showing = AndroidForegroundWindows.keyguardShowing(displaysDumpsys: result.output) else { return .notAnswerable }
+        let result: Shell.Result
+        do { result = try adbAnswering(["shell", "dumpsys", "window", "displays"]) } catch { return .failed(error.localizedDescription) }
+        guard result.status == 0 else { return .failed("dumpsys window displays failed: \(result.tail)") }
+        guard let showing = AndroidForegroundWindows.keyguardShowing(displaysDumpsys: result.output) else { return .notAnswerable }
         return .value(showing)
     }
 

@@ -230,7 +230,7 @@ public protocol AppDriver {
     /// **OS のシステム UI(SpringBoard のアラート)が載っているか**。
     /// **観測4つ(systemAlert・systemUICovering・keyguardShowing・foregroundAppID)は `Probe` で返し、投げない**:
     /// `.notAnswerable` = この構成には口が無い(どれが答えるかは `DriverAnswers`)/ `.failed` = 聞いたが失敗。
-    /// 素の Optional だと呼び手の `try?` が「聞けない」を「無い」へ畳み、判定が黙って届かなくなる(ft_batch のアプリ落ちで実際に踏んだ)。
+    /// 素の Optional だと呼び手の `try?` が「聞けない」を「無い」へ畳み、判定が黙って届かなくなる。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由 ——
     /// 要件でないと存在型越しの呼び出しが静的ディスパッチで既定実装に落ち、黙って `.notAnswerable` になる)
     func systemAlert() async -> Probe<SystemAlertProbeResponse>

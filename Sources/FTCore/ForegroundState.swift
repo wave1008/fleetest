@@ -202,7 +202,7 @@ extension ForegroundState {
 }
 
 extension Probe {
-    public var isFailed: Bool { if case .failed = self { return true } else { return false } }
+    var isFailed: Bool { if case .failed = self { return true } else { return false } }
 }
 
 /// `ForegroundState.judge` の入力。**読んでいない欄は `.notAnswerable` のまま渡す**(既定値 = 「聞いていない」)

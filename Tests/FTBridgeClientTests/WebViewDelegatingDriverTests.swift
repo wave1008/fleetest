@@ -37,6 +37,9 @@ private final class FakeDriver: AppDriver, @unchecked Sendable {
         return false
     }
     func foregroundAppID() async -> Probe<String> { calls.append("foregroundAppID"); return .notAnswerable }
+    /// 覆いの照会の答え(既定 = in-app と同じく答えられない)
+    var coveringAnswer: Probe<SystemUICoveringResponse> = .notAnswerable
+    func systemUICovering() async -> Probe<SystemUICoveringResponse> { calls.append("systemUICovering"); return coveringAnswer }
     func launch(bundleID: String) async throws { calls.append("launch") }
     func terminate() async throws { calls.append("terminate") }
     func tap(ref: Int) async throws { calls.append("tap(\(ref))") }
@@ -80,6 +83,21 @@ private func snapshot(_ elements: [ElementInfo], webViewPath: String? = nil) -> 
 }
 
 final class WebViewDelegatingDriverTests: XCTestCase {
+
+    /// 覆いの照会は通常画面でも XCUITest(delegated)へ聞く。in-app は SpringBoard を見られないので、
+    /// primary へ回すと inapp-boost モードのシナリオ実行で覆いを名指しできない
+    func testCoveringIsAskedOfTheXCUITestSideEvenOnANormalScreen() async throws {
+        let primary = FakeDriver(snapshots: [snapshot([element(1, "Button")])])
+        let delegated = FakeDriver(snapshots: [snapshot([element(1, "Button")])])
+        delegated.coveringAnswer = .value(SystemUICoveringResponse(covering: true, marker: "SBCoverSheetWindow"))
+        let driver = WebViewDelegatingDriver(primary: primary, delegated: delegated)
+
+        _ = try await driver.snapshot()
+        let answer = await driver.systemUICovering()
+
+        XCTAssertEqual(answer.value?.marker, "SBCoverSheetWindow")
+        XCTAssertFalse(primary.calls.contains("systemUICovering"), "\(primary.calls)")
+    }
 
     /// 通常画面: in-app の結果をそのまま返し、操作も in-app へ行く(XCUITest を触らない)
     func testNonWebViewScreenStaysOnPrimary() async throws {

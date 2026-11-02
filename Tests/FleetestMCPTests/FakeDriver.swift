@@ -71,28 +71,36 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
     /// どの構成として観測に答えるか(`DriverAnswers`)。**既定は iOS の XCUITest = 前面のアプリ名は答えない**
     /// (本物の iOS が答えない観測に偽物が値を返すと、本番で届かない判定が緑になる)。Android の経路を試すテストは `.android` を宣言する
     var answers: DriverAnswers = .iosXCUITest
+    /// キーガード(Android の dumpsys)。nil = 行が無かった
+    var keyguardShowingAnswer: Bool?
+
+    func keyguardShowing() async -> Probe<Bool> {
+        do { try record("keyguardShowing", "keyguardShowing") } catch { return .failed(error.localizedDescription) }
+        guard answers.contains(.keyguardShowing), let keyguardShowingAnswer else { return .notAnswerable }
+        return .value(keyguardShowingAnswer)
+    }
 
     /// `GET /hittable` の答え。既定は「答えられない」= 旧ブリッジ / in-app / Android と同じ縮退
     var hitTestAnswer: HitTestAnswer = .unavailable
 
-    /// `GET /systemui/covering` の答え。既定 nil = 答えられない(同上)
+    /// `GET /systemui/covering` の答え。nil = 覆い無し(答える構成なら本物と同じく `covering: false` を返す)
     var systemUICoveringResponse: SystemUICoveringResponse?
 
     func systemUICovering() async -> Probe<SystemUICoveringResponse> {
         do { try record("systemUICovering", "systemUICovering") } catch { return .failed(error.localizedDescription) }
-        guard answers.contains(.systemUICovering), let systemUICoveringResponse else { return .notAnswerable }
-        return .value(systemUICoveringResponse)
+        guard answers.contains(.systemUICovering) else { return .notAnswerable }
+        return .value(systemUICoveringResponse ?? SystemUICoveringResponse(covering: false, marker: nil))
     }
 
-    /// `GET /systemalert` の答え。既定 nil = 出ていない(同上)
+    /// `GET /systemalert` の答え。nil = 出ていない(答える構成なら本物と同じく `present: false` を返す)
     var scriptedSystemAlert: SystemAlertProbeResponse?
     /// true = ref のタップでアラートが閉じる(本物はボタンを押すと閉じる)
     var tapClosesSystemAlert = false
 
     func systemAlert() async -> Probe<SystemAlertProbeResponse> {
         do { try record("systemAlert", "systemAlert") } catch { return .failed(error.localizedDescription) }
-        guard answers.contains(.systemAlert), let scriptedSystemAlert else { return .notAnswerable }
-        return .value(scriptedSystemAlert)
+        guard answers.contains(.systemAlert) else { return .notAnswerable }
+        return .value(scriptedSystemAlert ?? SystemAlertProbeResponse(present: false, title: nil, buttons: []))
     }
 
     func hitTest(ref: Int) async throws -> HitTestAnswer {

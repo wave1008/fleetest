@@ -1,6 +1,6 @@
 // `DriverAnswers`(構成ごとに答えられる観測の表)と本物のドライバの実装を突き合わせる(ソース走査)。
 // 観測の既定は `.notAnswerable` を返すので、実装の書き忘れも素通しの書き忘れもコンパイルが通り、判定が黙って届かなくなる
-// (既存の DefaultImplementationForwardingTests は「501 を投げる既定」だけを見ており、観測は対象外)。
+// (DefaultImplementationForwardingTests は「501 を投げる既定」だけを見る)。
 
 import XCTest
 import FTCore
@@ -81,5 +81,22 @@ final class DriverAnswersConformanceTests: XCTestCase {
             }
         }
         XCTAssertTrue(missing.isEmpty, "観測の素通しが無い(既定の .notAnswerable に落ちる): \(missing)")
+    }
+
+    /// 包む相手を2つ持つドライバは、アラートと覆いを XCUITest 側へ回す(in-app 側は常に `.notAnswerable`)。
+    /// 宣言の有無だけでは回し先の取り違えを捕まえられない
+    func testTwoInnerWrappersAskTheXCUITestSideForAlertsAndCovering() throws {
+        let receivers: [(String, String)] = [
+            ("Sources/FTBridgeClient/HybridFallbackDriver.swift", "fallback"),
+            ("Sources/FTBridgeClient/WebViewDelegatingDriver.swift", "delegated"),
+        ]
+        for (path, receiver) in receivers {
+            let lines = try source(path).split(separator: "\n").map(String.init)
+            for name in ["systemAlert", "systemUICovering"] {
+                let line = lines.first { $0.contains("func \(name)() async -> Probe<") }
+                XCTAssertEqual(line.map { $0.contains("await \(receiver).\(name)()") }, true,
+                               "\(path): \(name) は \(receiver) へ回すこと: \(line ?? "宣言が無い")")
+            }
+        }
     }
 }

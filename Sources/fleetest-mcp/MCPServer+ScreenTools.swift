@@ -163,7 +163,7 @@ extension MCPServer {
             let frontWarning = await coordinateFrontAppWarning(d, args: args)
             // **座標でシステムアラートを押すのは正規の操作**(systemAlertGate の doc)。アラートはアプリの木の外なので、
             // 押す前に出ていたなら snapshotAfter は操作前の木と比べない(閉じてもアプリの木は変わらないのが正常)。
-            // 聞くのは snapshotAfter のときだけ(照会は約 73ms。Android は既定実装が投げる = 聞かない)
+            // 聞くのは snapshotAfter のときだけ(照会は約 73ms。Android は既定の `.notAnswerable` = 往復しない)
             var alertWasInFront = false
             if args["snapshotAfter"] as? Bool == true {
                 alertWasInFront = await d.systemAlert().value?.present == true

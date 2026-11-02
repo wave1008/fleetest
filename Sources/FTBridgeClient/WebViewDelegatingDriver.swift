@@ -403,8 +403,10 @@ public final class WebViewDelegatingDriver: AppDriver {
         try await primary.isAppForeground(bundleID: bundleID)
     }
     public func foregroundAppID() async -> Probe<String> { await primary.foregroundAppID() }
-    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await primary.systemAlert() }
-    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await primary.systemUICovering() }
+    // **アラートと覆いは delegated(XCUITest)へ聞く**: in-app(primary)は SpringBoard を見られず常に `.notAnswerable`。
+    // primary へ回すと inapp-boost モードのシナリオ実行(主ドライバがこの型)で覆いの判定が黙って届かない(HybridFallbackDriver と同じ理由)
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await delegated.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await delegated.systemUICovering() }
     // Unrelated to WebView delegation mode, same as status()/isAppForeground — primary 固定
     public func rotate(to orientation: FTOrientation) async throws -> FTOrientation {
         try await primary.rotate(to: orientation)
