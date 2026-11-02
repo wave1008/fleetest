@@ -2185,7 +2185,8 @@ public final class RunOrchestrator: Sendable {
                 case .keep:
                     break
                 case .trip(let consecutive):
-                    unusableReason = "\(consecutive) consecutive worker failures"
+                    // 数えているのはこのレーンで赤になったシナリオの数(別のシナリオの赤も数える)。端末の故障とは言わない
+                    unusableReason = "\(consecutive) consecutive scenario failures on this lane"
                         + Self.carriedNote(breaker.carriedFailures, revived: revived)
                     unusableCause = .consecutiveFailures
                 case .held(let consecutive, let announce):
