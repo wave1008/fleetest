@@ -41,7 +41,7 @@ final class ExploreFixes1102MCPTests: XCTestCase {
     func testMovedPathCarriesTheSameWarningsAsTheStillPath() throws {
         let source = try MCPServerSourceText.combined()
         let compact = source.components(separatedBy: .whitespacesAndNewlines).joined()
-        XCTAssertTrue(compact.contains("return(found.ref,overlap+RefGuard.movedNote("),
+        XCTAssertTrue(compact.contains("return(found.ref,overlap+movedNote+"),
                       "動いた経路が overlap(画面外・覆い・貼り付く見出し・ヒットテスト)を付けていない")
     }
 

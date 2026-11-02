@@ -7,15 +7,16 @@ import XCTest
 /// 静かに崩れるので、集合の等号で縛る。変えるときは**全プロジェクト+この期待値**を一緒に。
 final class SuiteProfileLaneParityTests: XCTestCase {
     private static let iosLanes: Set<String> =
-        Set((1...8).map { String(format: "local|iPhone 17 Pro(iOS 27.0)-%02d", $0) })
-        .union((1...4).map { String(format: "M1Max|iPhone 17 Pro(iOS 27.0)-%02d", $0) })
-        .union((1...6).map { String(format: "M1Ultra|iPhone 17 Pro(iOS 27.0)-%02d", $0) })
-        .union(["M1mini|iPhone 17 Pro(iOS 27.0)-01"])
+        Set((1...8).map { String(format: "local|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
+        .union((1...4).map { String(format: "M1Max|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
+        .union((1...6).map { String(format: "M1Ultra|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
+        .union((1...3).map { String(format: "M4Max|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
     private static let androidLanes: Set<String> =
-        Set((1...6).map { String(format: "local|Pixel 9(Android 15)-%02d", $0) })
-        .union((1...4).map { String(format: "M1Max|Pixel 9(Android 15)-%02d", $0) })
-        .union((1...6).map { String(format: "M1Ultra|Pixel 9(Android 15)-%02d", $0) })
-        .union(["M1mini|Pixel 9(Android 15)-01"])
+        Set((1...6).map { String(format: "local|Pixel 10 Pro(Android 17)-%02d", $0) })
+        .union((1...4).map { String(format: "M1Max|Pixel 10 Pro(Android 17)-%02d", $0) })
+        .union((1...6).map { String(format: "M1Ultra|Pixel 10 Pro(Android 17)-%02d", $0) })
+        .union((1...3).map { String(format: "M4Max|Pixel 10 Pro(Android 17)-%02d", $0) })
+        .union(["M1mini|Pixel 10 Pro(Android 17)-01"])
 
     /// project -> このプロジェクトが持つ suite プロファイル(存在しない組は書かない)
     private static let suiteProfiles: [String: [String: Set<String>]] = [
