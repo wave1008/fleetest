@@ -13,7 +13,8 @@ const ROOT = resolve(import.meta.dirname, '../..')
 
 const lockOf = (packages) => JSON.stringify({ lockfileVersion: 3, packages: { '': { name: 'app' }, ...packages } })
 
-function fixture({ lock, installed, podfileLock = 'PODS: a\n', manifestLock = podfileLock, localPodspecs = false }) {
+// autolinking: pod install が書く自動リンクの記録の root。'self' = このアプリ自身・null = 記録なし・文字列 = その置き場所
+function fixture({ lock, installed, podfileLock = 'PODS: a\n', manifestLock = podfileLock, localPodspecs = false, autolinking = 'self' }) {
   const dir = mkdtempSync(join(tmpdir(), 'rn-deps-'))
   const app = join(dir, 'App')
   mkdirSync(join(app, 'ios/Pods'), { recursive: true })
@@ -24,6 +25,11 @@ function fixture({ lock, installed, podfileLock = 'PODS: a\n', manifestLock = po
   }
   writeFileSync(join(app, 'ios/Podfile.lock'), podfileLock)
   if (manifestLock !== null) writeFileSync(join(app, 'ios/Pods/Manifest.lock'), manifestLock)
+  if (autolinking !== null) {
+    mkdirSync(join(app, 'ios/build/generated/autolinking'), { recursive: true })
+    const root = autolinking === 'self' ? app : autolinking
+    writeFileSync(join(app, 'ios/build/generated/autolinking/autolinking.json'), JSON.stringify({ root }))
+  }
   if (localPodspecs) {
     mkdirSync(join(app, 'ios/Pods/Local Podspecs'))
     writeFileSync(join(app, 'ios/Pods/Local Podspecs/hermes-engine.podspec.json'), '{"version":"old"}')
@@ -75,6 +81,11 @@ test('optional のパッケージ(機種で入らないもの)が無くても入
 test('Pods が Podfile.lock と食い違えば ios で pod install --deployment(lock を書き換えない)', () => {
   assert.deepEqual(sync(fixture({ lock: RN86, installed: RN86, manifestLock: 'PODS: old\n' })), ['pod install --deployment (cwd=ios)'])
   assert.deepEqual(sync(fixture({ lock: RN86, installed: RN86, manifestLock: null })), ['pod install --deployment (cwd=ios)'])
+})
+
+test('Pods が揃っていても、自動リンクの記録が無い・別の置き場所を指すなら pod install --deployment で作り直す', () => {
+  assert.deepEqual(sync(fixture({ lock: RN86, installed: RN86, autolinking: null })), ['pod install --deployment (cwd=ios)'])
+  assert.deepEqual(sync(fixture({ lock: RN86, installed: RN86, autolinking: '/somewhere/else' })), ['pod install --deployment (cwd=ios)'])
 })
 
 test('Pods を入れ直す前に前回の podspec の写し(Local Podspecs)を消す(古い写しと比べて止まる・前の版を残す)', () => {
