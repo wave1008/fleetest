@@ -13,7 +13,7 @@ public enum RunLogFormatter {
             // 構造化フィールドとして参照できる)
             return []
         case .workerFailed(let worker, let message):
-            return ["❌ Worker \(worker) dropped out: \(message)"]
+            return ["❌ Worker \(worker) \(message)"]
         case .workerLog(let worker, let message):
             return ["ℹ️ [\(worker)] \(message)"]
         case .flowRequeued(_, _, let reason, let attempt, let limit):

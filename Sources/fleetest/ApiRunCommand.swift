@@ -1376,7 +1376,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         case .workerFailed(let worker, let message):
             var log = ScenarioEvent(kind: "log")
             log.worker = workerID.id(for: worker)
-            log.message = "❌ Worker \(log.worker ?? worker) dropped out: \(message)"
+            log.message = "❌ Worker \(log.worker ?? worker) \(message)"
             return [log.encodedLine()]
 
         case .workerLog(let worker, let message):

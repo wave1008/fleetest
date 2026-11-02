@@ -1823,7 +1823,7 @@ public final class RunOrchestrator: Sendable {
     private func runWorker(_ worker: RunWorker, queue: ScenarioQueue, revived: Bool) async -> WorkerExit {
         // 期限付き(ウェッジしたブリッジで 120s×N 待たないため。withDeadline 参照)。
         guard await withDeadline(seconds: 10, { try await worker.driver.status() }) != nil else {
-            await reportWorkerFailed(worker, "cannot connect (no response to status)", cause: .noResponse)
+            await reportWorkerFailed(worker, "dropped out — cannot connect (no response to status)", cause: .noResponse)
             // 接続不能もデバイス使用不能の一種として復帰トライの対象にする(監視側の再起動待ち等)。
             // lease の扱いは superviseWorker が決める(離脱の lease は復帰を諦めるまで保つ)
             return .retired(failed: 0, worker: worker)
@@ -2191,7 +2191,7 @@ public final class RunOrchestrator: Sendable {
                     unusableCause = .consecutiveFailures
                 case .held(let consecutive, let announce):
                     if announce {
-                        let message = "\(consecutive) consecutive failures on this lane"
+                        let message = "\(consecutive) consecutive scenario failures on this lane"
                             + Self.carriedNote(breaker.carriedFailures, revived: revived)
                             + " while no other lane"
                             + " has passed since the streak began — keeping the lane (a lane is retired"
