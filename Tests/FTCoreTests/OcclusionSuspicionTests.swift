@@ -89,6 +89,52 @@ final class OcclusionSuspicionTests: XCTestCase {
         XCTAssertFalse(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
     }
 
+    /// F2: 行(clickable・ラベルは子の文字から畳んだもの)が容器の上端に接している —— 文字の型でなくても読ませる
+    func testClickableRowFlushWithTheTopEdgeIsSuspicious() {
+        var (elements, _) = scrollEdgeFixture(textY: 100, textHeight: 25)
+        var row = elements[1]
+        row.type = "clickable"
+        row.label = "行 01"
+        elements[1] = row
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: row, in: elements))
+    }
+
+    /// F2(iOS): 行の枠は容器の下端を3pt だけ内側にして外へはみ出す(未クリップ)
+    func testRowSpillingPastTheBottomEdgeIsSuspicious() {
+        var (elements, _) = scrollEdgeFixture(textY: 397, textHeight: 56)
+        var row = elements[1]
+        row.type = "clickable"
+        elements[1] = row
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: row, in: elements))
+    }
+
+    /// F1(iOS): 容器の上端より外へ送られた見出し(枠が容器の外に丸ごと出ている)
+    func testTextEntirelyAboveTheContainerIsSuspicious() {
+        let (elements, text) = scrollEdgeFixture(textY: 60, textHeight: 20)
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: text, in: elements))
+    }
+
+    /// F3(iOS): 容器の下端より外(タブバーの下)に丸ごと潜ったボタンは MCP の scroll-leftover と同じ判定で拾う
+    func testButtonUnderTheTabBarIsScrollLeftover() {
+        let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+        func el(_ ref: Int, _ type: String, _ depth: Int, _ f: FTRect, scroll: Bool = false) -> ElementInfo {
+            var e = ElementInfo(ref: ref, type: type, identifier: nil, label: "e\(ref)", value: nil,
+                                placeholder: nil, enabled: true, frame: f, depth: depth)
+            if scroll { e.scrollable = true }
+            return e
+        }
+        let elements = [
+            el(1, "scrollView", 0, FTRect(x: 0, y: 114, width: 402, height: 663), scroll: true),
+            el(2, "button", 1, FTRect(x: 16, y: 200, width: 370, height: 50)),
+            el(3, "button", 1, FTRect(x: 16, y: 300, width: 370, height: 50)),
+            el(4, "button", 1, FTRect(x: 16, y: 788, width: 370, height: 62)),
+            el(5, "tabBar", 0, FTRect(x: 0, y: 778, width: 402, height: 96)),
+        ]
+        XCTAssertTrue(OcclusionSuspicion.isScrollLeftover(element: elements[3], in: elements, screen: screen))
+        XCTAssertTrue(OcclusionSuspicion.touchesScrollEdge(element: elements[3], in: elements))
+        XCTAssertFalse(OcclusionSuspicion.isScrollLeftover(element: elements[1], in: elements, screen: screen))
+    }
+
     // MARK: - covering(誰が覆っているか)
 
     /// 失敗メッセージ用。**どの要素が覆っているか**まで返す(geometric は真偽だけ)

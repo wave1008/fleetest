@@ -27,25 +27,32 @@ public enum OcclusionSuspicion {
                         overlapFraction: overlapFraction) != nil
     }
 
-    /// スクロール容器の上端・下端にぴったり接している文字の要素。木の枠は容器で切られた後の
-    /// 見えている分だけなので、20px だけ見えている行も「枠の中に何か描かれている」だけでインクの足切りを通り、
-    /// 切れて読めない文字が検証なしで緑になっていた。接しているだけでは切れているとは言えない
-    /// (先頭・末尾まで送った行も接する)ので**反転の根拠にはせず、足切りを外して OCR / FM に読ませるだけ**
-    /// (全部読めれば緑・読めなければ `TranscriptMatch` が決める)。縦の容器の上下だけ見る
+    /// スクロール容器の上端・下端に接する・またぐ・外へ出ている要素(文字の型に限らない)。
+    /// Android の木は枠を容器で切るので、20px だけ見えている行も「枠の中に何か描かれている」だけでインクの足切りを通り、
+    /// iOS の木は枠を切らず容器の外へはみ出した枠が来る(上へ送り出された見出し・下の縁でほぼ全部が外に出た行)ので、
+    /// 枠の位置に隣の要素のインクがあって足切りを通っていた。ラベルを子の文字から畳んだ行(clickable)も同じ。
+    /// 縁に接しているだけでは切れているとは言えない(先頭・末尾まで送った行も接する)ので
+    /// **反転の根拠にはせず、足切りを外して OCR / FM に読ませるだけ**(全部読めれば緑・読めなければ `TranscriptMatch` が決める)。
+    /// 縦の容器の上下だけ見る。容器より背の高い要素(中身を包む物)は対象外
     public static func touchesScrollEdge(element: ElementInfo, in elements: [ElementInfo],
                                          tol: Double = 1.0) -> Bool {
-        guard RenderCollapse.textTypes.contains(element.type.lowercased()) else { return false }
         let t = element.frame
         for container in TapTargetGeometry.ancestors(of: element, in: elements)
         where container.scrollable == true
-            && container.frame.height > t.height + tol
-            && TapTargetGeometry.contains(container.frame, t) {
-            if abs(t.y - container.frame.y) <= tol
-                || abs((t.y + t.height) - (container.frame.y + container.frame.height)) <= tol {
+            && container.frame.height > t.height + tol {
+            if t.y <= container.frame.y + tol
+                || t.y + t.height >= container.frame.y + container.frame.height - tol {
                 return true
             }
         }
         return false
+    }
+
+    /// MCP の `⚠️scroll-leftover`(`SnapshotGhostFlags.ghostRefs`)と同じ判定で「容器の外の残像」か。
+    /// 判定は1箇所 —— MCP が残像と言う要素を DSL の可視性検証が見えている扱いにしない(足切りを外して読ませる)
+    public static func isScrollLeftover(element: ElementInfo, in elements: [ElementInfo], screen: FTRect) -> Bool {
+        OcclusionGeometry.isUntappableGhost(element, in: elements, screen: screen)
+            || TapTargetGeometry.outsideDeclaredScroller(element, in: elements, screen: screen) != nil
     }
 
     /// 対象を覆っている「手前寄りの別要素」。無ければ nil。
