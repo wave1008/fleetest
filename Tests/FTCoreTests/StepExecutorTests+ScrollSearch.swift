@@ -429,8 +429,12 @@ extension StepExecutorTests {
         XCTAssertEqual(down!.toY - down!.fromY, 900, accuracy: 0.5)
         // 潰れたコンテナ・極小距離は nil
         XCTAssertNil(StepExecutor.dragGesture(jump: 1000,
-                                              container: FTRect(x: 0, y: 0, width: 100, height: 120)))
+                                              container: FTRect(x: 0, y: 0, width: 100, height: 60)))
         XCTAssertNil(StepExecutor.dragGesture(jump: 40, container: container))
+        // OI-149: 高さ 104px の低い一覧(usable 72.8)でも、距離が足りれば撃つ
+        let low = StepExecutor.dragGesture(jump: 90, container: FTRect(x: 0, y: 100, width: 800, height: 104))
+        XCTAssertNotNil(low)
+        XCTAssertEqual(low!.fromY - low!.toY, 72.8, accuracy: 0.5)
     }
 
     /// 見切れ回収の必要距離(符号は dragGesture 規約: + = 指を上/左)。
@@ -472,7 +476,7 @@ extension StepExecutorTests {
         XCTAssertEqual(right!.toX - right!.fromX, 180, accuracy: 0.5)
         // 幅が細い容器は nil(縦と同じ下限規則が幅に掛かる)
         XCTAssertNil(StepExecutor.dragGesture(
-            jump: 200, container: FTRect(x: 0, y: 0, width: 120, height: 800), vertical: false))
+            jump: 200, container: FTRect(x: 0, y: 0, width: 60, height: 800), vertical: false))
     }
 
     /// **容器は画面と交差させる**(scrollFrame 側と同じ規則)。交差を取らないと画面外の座標を撃つ

@@ -300,6 +300,15 @@ final class ScrollSearchStopTests: XCTestCase {
             screen: FTRect(x: 0, y: 0, width: 402, height: 874)))
     }
 
+    /// 下端の隙間が閾値(34 = ホームインジケータの標準セーフエリア)ちょうどの容器はシートでなく通常画面の一覧(OI-151②)
+    func testLooksLikeBottomSheetRejectsAGapExactlyAtTheTolerance() {
+        let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+        XCTAssertFalse(SheetGeometry.looksLikeBottomSheet(
+            frame: FTRect(x: 0, y: 300, width: 402, height: 540), screen: screen))   // 下端 840 = 隙間 34
+        XCTAssertTrue(SheetGeometry.looksLikeBottomSheet(
+            frame: FTRect(x: 0, y: 300, width: 402, height: 541), screen: screen))   // 隙間 33
+    }
+
     /// 下端は接していても、上端が画面の上のほうにある全画面寄りの容器は対象外
     func testLooksLikeBottomSheetRejectsAFullScreenContainer() {
         XCTAssertFalse(SheetGeometry.looksLikeBottomSheet(

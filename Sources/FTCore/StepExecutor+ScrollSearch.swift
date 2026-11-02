@@ -12,7 +12,7 @@ import Foundation
 /// `sheet-collapsed` が付いた)。ボトムシートは「下端が画面下端に接し、上端が画面の上のほうに
 /// 無い」という**位置**が本質なので、これを主判定にする
 public enum SheetGeometry {
-    /// 下端が画面下端からこれ以上離れていたら「別の chrome(タブバー等)が下に居る」とみなし
+    /// 下端が画面下端からこれ以上(**ちょうどを含む**)離れていたら「別の chrome(タブバー等)が下に居る」とみなし
     /// 対象外にする(pt/dp)。根拠: iOS のホームインジケータの標準セーフエリアが 34pt
     /// (`BridgeDTO.bottomChromeClearance` の内訳と同じ実測系列)—— これを超える隙間は
     /// 「シートが画面下端まで伸びていない」ことの印であって、量子化の揺らぎではない
@@ -26,7 +26,7 @@ public enum SheetGeometry {
     public static func looksLikeBottomSheet(frame: FTRect, screen: FTRect) -> Bool {
         guard screen.height > 0 else { return false }
         let bottomGap = (screen.y + screen.height) - (frame.y + frame.height)
-        guard bottomGap <= bottomEdgeTolerance else { return false }
+        guard bottomGap < bottomEdgeTolerance else { return false }
         return (frame.y - screen.y) > screen.height * topMinRatioOfScreen
     }
 
@@ -552,6 +552,10 @@ extension StepExecutor {
         }
     }
 
+    /// 撃つドラッグの距離の下限(pt/px)。これ以下はタッチの遊びに吸われて動かない(`TapTargetGeometry.uncoverScrollJump` の
+    /// `minimumJump` 60 はこの値と 0.9 掛けから逆算)
+    static let minimumDragDistance = 50.0
+
     /// 長距離ドラッグの1ジェスチャ分の始点・終点(純粋関数・単体テスト対象)。
     /// container(webView の可視矩形)内で、上下 15% のマージンを避けて縦線上を動かす。
     /// 1ジェスチャで賄えない距離は呼び手のループ(スナップショット→再計算)が刻む。
@@ -567,10 +571,12 @@ extension StepExecutor {
         let extent = vertical ? container.height : container.width
         let margin = extent * 0.15
         let usable = extent - margin * 2
-        guard usable > 100 else { return nil }
+        // 可動域の床は撃つ距離の床と同じ値(`minimumDragDistance`)。別の床(旧: usable > 100)を持つと、
+        // 高さ 104px の一覧(usable 72.8)で距離が足りるのに黙って撃たれなかった(OI-149)
+        guard usable > minimumDragDistance else { return nil }
         // 0.9 掛け: フリング分の過走を抑える(過走しても次周回の再計算で戻るが、往復は遅い)
         let distance = min(abs(jump) * 0.9, usable)
-        guard distance > 50 else { return nil }
+        guard distance > minimumDragDistance else { return nil }
         if vertical {
             let x = container.x + container.width / 2
             if jump > 0 {   // 指を上へ
