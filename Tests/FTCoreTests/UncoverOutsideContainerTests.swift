@@ -31,9 +31,17 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertLessThan(jump ?? 0, 0, "上の覆いは内容を下へ戻す向き(負)")
     }
 
-    func testCoverNotTouchingTheContainerEdgeIsNil() {
+    /// OI-147: 縁に接していなくても、容器の外(上)に収まる名前つきの覆いなら戻す(ナビゲーションバーと容器の間に縮んだヘッダが挟まる形)
+    func testCoverAboveTheContainerButNotTouchingItsEdgeStillPullsContentDown() {
         let target = el(1, "button", label: "x", FTRect(x: 333, y: 100, width: 56, height: 20))
         let cover = el(2, "staticText", label: "受信トレイ", FTRect(x: 16, y: 90, width: 305, height: 26))
+        XCTAssertLessThan(TapTargetGeometry.uncoverOutsideScrollJump(target: target, coveredBy: cover, container: list) ?? 0, 0)
+    }
+
+    /// 容器の中へ食い込む覆いは、容器を戻しても外れないので送らない
+    func testCoverReachingIntoTheContainerIsNil() {
+        let target = el(1, "button", label: "x", FTRect(x: 333, y: 100, width: 56, height: 20))
+        let cover = el(2, "staticText", label: "受信トレイ", FTRect(x: 16, y: 90, width: 305, height: 120))
         XCTAssertNil(TapTargetGeometry.uncoverOutsideScrollJump(target: target, coveredBy: cover, container: list))
     }
 
