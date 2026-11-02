@@ -270,6 +270,28 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   **先に commit → `Scripts/align.sh`**(リモートはアライン済みのコミットで動く)
   開始と終了で全マシンの状態(起動経過時間・load・FM・Vision・AVE の台帳)を `.fleetest/regress/<時刻>/machine-state.ndjson` へ残す
   (`Scripts/machine-state.py`。読むだけ・判定は置かない)。**赤の帰属を見る前にここを見る** —— 同じコミットで再起動だけで赤 19 → 全緑になった回がある
+- **回帰に参加するマシンに入れておくもの**(`regress.py` の段 1 は SUT を各マシンでビルドするので、1台でも欠けると回帰全体が止まる。
+  ランナー機そのものの前提は docs/remote-runner-setup.md。2026-11-02 に M4Max を足したとき、下の順に1つずつ止まった)。
+  **版はここに書かない —— 入れるその時点の M2Ultra(回帰の発行側)の版を調べて、それを採用する**(書いた版はすぐ古くなり、
+  食い違ったまま入れると M2Ultra と違う版のマシンが回帰に混ざる)。道具と、M2Ultra で版を読むコマンド:
+
+  | 道具 | M2Ultra で版を読む | 入れ方・注意 |
+  |---|---|---|
+  | Xcode | `xcodebuild -version` | 製品版を合わせる(ビルド番号だけの差はディスパッチを止めない) |
+  | iOS Simulator ランタイム | `xcrun simctl list runtimes`(iOS の版とビルド)| Xcode の設定から同じビルドを入れる。同じ版の別ビルドが並ぶと、選ばれるビルドがマシンで割れる |
+  | Flutter | `flutter --version`(版と revision)| `~/flutter` に git のその版のタグを置き、**`~/.zprofile`** の PATH に `~/flutter/bin` を足す(段 1 は `zsh -lc` で撃つので `~/.zshrc` は読まれない)。`flutter precache --ios --android` まで(docs/sut-framework-upgrade.md)|
+  | CocoaPods | `pod --version` | `brew install cocoapods`(Flutter・RN の iOS)。版が違えば gem で合わせる |
+  | Node | `node -v` | RN |
+  | JDK | `java -version` | |
+  | Android SDK の部品 | `ls ~/Library/Android/sdk/{platforms,build-tools,cmake,ndk}`・`grep Pkg.Revision ~/Library/Android/sdk/{platform-tools,emulator}/source.properties` | 同じ一覧を `sdkmanager "platforms;android-NN" "build-tools;X" "cmake;X" "ndk;X"` で入れる。**`cmake` は RN の `configureCMake` が要る**(無いと `Failed to install the following SDK components: cmake;…`)|
+  | Android のシステムイメージ | プロファイルの AVD の `config.ini` の `image.sysdir.1` | `sdkmanager "system-images;…"` |
+
+  - **RN の Gradle が SDK を見つけられること**: ログインシェルに `ANDROID_HOME` が無ければ `E2EAppRN/android`・`E2EXAppRN/android`・
+    `E2EYAppRN/android` の `local.properties`(git 管理外)に `sdk.dir=<SDK の場所>` を書く(無いと `SDK location not found`)
+  - **デバイス**: 名前・機種・OS はプロファイル(`devices[]` の `name` / `osVersion` / `avd`)に書かれたものに合わせ、AVD の設定
+    (機種・`hw.ramSize`・`disk.dataPartition.size`)は M2Ultra の同じ名前の AVD の `config.ini` を写す。プロファイルの Simulator は `udid` を
+    書かず `name` と `osVersion` で引くので、各マシンで同じ名前に作れば登録はそのまま効く
+  - 確かめ方: ランナーのクローンで `FT_FULL_TEST=1 Scripts/e2e.sh --build-only`(`e2ex.sh`・`e2ey.sh` も)が通ること
 - **`e2e.sh` / `e2ex.sh` / `e2ey.sh` は引数に関係なく「スイート全体」として `Scripts/test-scope-guard.py` が断る**(全実施を頼まれたときだけ
   `FT_FULL_TEST=1`)。絞った確認は `fleetest run --project <P> --profile <prof> --scenario <クラス>` で通るシナリオを名指しする
 - **回帰の分担(ユーザー指示 2026-09-28。`Scripts/regress.py` を使わないときの形)**: E2E はこの Mac(M2Ultra)で `Scripts/e2e.sh --local`、
