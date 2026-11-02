@@ -28,17 +28,12 @@
 
 ## 着手可
 
-### OI-75 Android の横向きの残り(CMP の行の端・Flutter の端の誤判定)
-- 状態: 再現済み
+### OI-75 Android の横向きの探索の失敗文が、画面の持ち主の取り違えで「ロック画面」と言う
+- 状態: 推測
 - 確認: コミット未記録(2026-11-02)
 - 属性: 着手可
-- 経緯: gRPC のタッチの回転は直した(`AndroidTouchRotation`)。回転とは別の原因の疑いが残る形
 
-- 横向きの CMP で `tap '#row_h_40' scroll: .down` が ok(3/3。「nudged … but it is not fully inside — touched it where it is」)なのに何も押さない(容器の下端 1017 に対し行は 1015 から = 2px だけ中)。Flutter は同型で存在する行を飛び越して「端に着いた」赤(1/4)
-- E2EY-CMP の横向き `scrollToTop` が 50 払いの上限で `msg_08` までしか戻らない(2/2。411px の窓で 60 件)
-- 11/2: 中心が容器の外に落ち、見えている部分が床(`minimumVisibleTapExtent` × `pointScale`)に届かない要素への tap は、撃たずに失敗にした(`TapTargetGeometry.thinVisibleSliver`)。デバイスでは未確認
-- 失敗文の「ロック画面」の帰属は別件(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` の木の種別)
-- 11/2: E2EY-CMP の android 8 台で測ると「not fully inside」ではなく端に達する赤になり、frozen screen の離脱で測れなかった。Emulator を 2 台ほどに絞って測り直す。寄せが収束しないときは枠の中心を撃つ作り(`StepExecutor+Actions.swift`)で、見えている高さが小さいときだけ赤にする(閾値は測り直してから)
+横向きの探索の失敗文に「ロック画面」の帰属が出た(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` が見る木の種別)。同じ項目にあった横向きの3つの症状(CMP の行の端への tap が何も押さずに ok・Flutter の端の誤判定・E2EY-CMP の横向きの `scrollToTop` が上端へ戻らない)は、11/2 にデバイスで解消を確かめた(CMP 3/3・Flutter 4/4 が押せた・`scrollToTop` 2/2 が `msg_00` へ戻った。見えている部分が床に届かない要素を撃たない直しと、Android の払いをタッチの遊びの分だけ延ばす直しの後)
 
 ### OI-77 10-30 のコードレビュー(3回目)で直さずに残したもの
 - 状態: 経路確定
