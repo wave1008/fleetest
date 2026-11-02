@@ -444,7 +444,7 @@ extension StepExecutor {
     /// 判定は MCP の門(`MCPServer.keyboardRefusal`)と同じ `KeyboardOcclusion`。nil = 覆われていない
     func reachPastKeyboard(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
                            allowsVisiblePart: Bool,
-                           snapshotSource: CoverLiftSnapshotSource,
+                           priorTap: ElementInfo?, snapshotSource: CoverLiftSnapshotSource,
                            phase: inout PhaseAccumulator) async throws -> KeyboardReach? {
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                   screen: snapshot.screen)
@@ -453,7 +453,11 @@ extension StepExecutor {
         // (XCUITest = alreadyFocusedInput・in-app = 座標を使わない)。人も焦点の欄にはそのまま打てる。
         // 複数行の欄はキーボードを閉じる副作用の無い手段が無く(hideKeyboard は改行を入れる)、ここで断ると打てる場面を失敗にする
         // clearInput も同じ(XCUITest ランナーの clear も `alreadyFocusedInput` で焦点の欄を叩かない。mxa F10)
-        if action == "type" || action == "clearInput", element.focused == true, KeyboardWait.isShown(snapshot) { return nil }
+        // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える(OI-91)
+        if action == "type" || action == "clearInput", KeyboardWait.isShown(snapshot),
+           element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements) {
+            return nil
+        }
         let nothing = "nothing was " + (action == "type" ? "typed" : action == "clearInput" ? "cleared" : "tapped")
         let note: String
         switch try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {

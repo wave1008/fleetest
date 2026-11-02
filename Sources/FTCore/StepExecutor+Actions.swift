@@ -76,6 +76,7 @@ extension StepExecutor {
         }
         // 焦点救済の「直前」は tap → type の並びだけ(select は掴むだけで焦点を動かさない)。
         // **ロケータを持つ type も捨てる**(欄を名指しした後のロケータなし type は、その欄の続き = MCP の recordInteraction と同じ)
+        tapTargetBeforeThisStep = lastTapTarget
         if !grabsOnly, action != "type" || step.locator != nil {
             lastTapTarget = nil
             tapTreeForRescue = nil
@@ -901,7 +902,7 @@ extension StepExecutor {
             }
             var keyboardVisiblePartTap: FTRect?
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "tap", allowsVisiblePart: true,
+                element, in: snapshot, step: step, action: "tap", allowsVisiblePart: true, priorTap: nil,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1152,7 +1153,7 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
+                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false, priorTap: tapTargetBeforeThisStep,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1243,7 +1244,12 @@ extension StepExecutor {
                 // 409 = inapp が非 UIKit 入力欄で first responder を張れない兆候。type は要素個別の
                 // フォーカス有無に依存する一時的競合なので、press/swipe と違い 501 化しない
                 // (判定は DriverError.isTextInputFallback)。
-                guard DriverError.isTextInputFallback(error), let td = typeDriver else { throw error }
+                guard DriverError.isTextInputFallback(error) else { throw error }
+                // **ブリッジの文言は ref を渡す前提で「ref を渡せ」と言う**が、ロケータで指す DSL には渡す口が無い。
+                // ブリッジの文言は載せず、起きた事実だけを言う(OI-151④。判定は status の 409 = `isTextInputFallback`)
+                guard let td = typeDriver else {
+                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: false)))
+                }
                 // **対象が確実に入力欄でないなら撃ち直さない**(TypeReadback.isPositivelyNonTextInput の
                 // doc)。in-app の /type は撃つ前に合成タップを撃っており、ここで XCUITest が
                 // もう一度タップすると対象(ボタン等)を2回押しかねない(送信・購入の二重実行)
@@ -1252,7 +1258,9 @@ extension StepExecutor {
                         element, in: snapshot.elements, action: "type")))
                 }
                 let routed = try await typeViaTypeDriver(td, step: step, phase: &phase)
-                guard routed.typed else { throw error }
+                guard routed.typed else {
+                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: true)))
+                }
                 // セレクタは正しくドライバが変わっただけ = .passedViaFallback(ロケータ用)は立てない
                 // (typeDriver = xcuitest が自前で読み返し済みなので、ここでも読み返さない)
                 driverFallback = Self.joinNotes("fell back to XCUITest", routed.note, td.lastActionNote,
@@ -1282,7 +1290,7 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
             switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "clearInput", allowsVisiblePart: false,
+                element, in: snapshot, step: step, action: "clearInput", allowsVisiblePart: false, priorTap: tapTargetBeforeThisStep,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1835,6 +1843,14 @@ extension StepExecutor {
     static func keyboardClosedLostMessage(_ step: FlowStep, closedNote: String) -> String {
         "the soft keyboard was covering the target, so it was closed before touching it (\(closedNote)), but the target"
             + " could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
+    }
+
+    /// in-app ブリッジが type を 409 で断ったときの DSL 向けの失敗文(OI-151④)。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
+    /// 言うのは事実だけ: 断られた・XCUITest での撃ち直しを試みたか(試みて対象を引けなかった)
+    static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
+        "the in-app bridge refused to type into \(step.locatorSummary) (HTTP 409: it could not give the field keyboard focus)"
+            + (tried ? ", and the XCUITest bridge could not find the field in its own tree either"
+                     : ", and no XCUITest bridge is available to retry")
     }
 
     static func coverLiftLostMessage(_ step: FlowStep, verb: String, after: SnapshotResponse? = nil) -> String {

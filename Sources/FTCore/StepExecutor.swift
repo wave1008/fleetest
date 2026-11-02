@@ -1321,6 +1321,9 @@ public final class StepExecutor {
     /// `lastInteraction` は次のアクションの入口で捨てられるので流用できない。
     /// tap 以外のアクションが走ったら捨てる = 「直前」の意味を保つ(`executeAction` の入口)
     var lastTapTarget: ElementInfo?
+    /// このステップが始まる前の `lastTapTarget`(入口で `lastTapTarget` を捨てる前に控える)。ロケータ付きの type / clearInput が
+    /// 「直前の tap が叩いた欄」を知るのに使う(`InputFocusRescue.tapFocusedIt`)
+    var tapTargetBeforeThisStep: ElementInfo?
     /// `lastTapTarget` を叩く直前の木(`InputFocusRescue.fieldToType` の `before`)。`lastTapTarget` と同じ寿命
     var tapTreeForRescue: [ElementInfo]?
 

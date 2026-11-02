@@ -1346,6 +1346,39 @@ extension StepExecutorTests {
         XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた")
     }
 
+    /// 焦点の印を木に出さない構成(Flutter の in-app)でも、直前の tap がその欄を叩いていて他に焦点が無ければ、キーボードの下でも
+    /// 閉じずに打つ(OI-91)。直前が tap でなければ従来どおり閉じようとする
+    func testTypeRightAfterTappingTheFieldUnderTheKeyboardTypesWithoutClosingIt() async throws {
+        let field = Self.phoneUnderKeyboard
+        let keyboard = FTRect(x: 0, y: 538, width: 402, height: 336)
+        for tapFirst in [true, false] {
+            let log = CallLog()
+            let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field]])
+            primary.tapProbeAnswer = TapProbeResponse(background: true, receiver: "UIView", reason: nil)
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                        uiFramework: .flutter)
+            if tapFirst {
+                // 欄の中心はキーボードの外に見えている間に叩き、叩いた後にキーボードが上がって覆う
+                primary.keyboardFrame = nil
+                var early = field
+                early.frame = FTRect(x: 16, y: 400, width: 370, height: 65)
+                primary.snapshotElements = [[early]]
+                _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "field_phone")))
+                primary.snapshotElements = [[field]]
+            }
+            primary.keyboardFrame = keyboard
+            log.entries.removeAll()
+            primary.coordinateTaps.removeAll()
+            _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "x"))
+            if tapFirst {
+                XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.type(") }, "tap の直後の欄に打っていない: \(log.entries)")
+                XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた: \(primary.coordinateTaps)")
+            } else {
+                XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.type(") }, "直前が tap でないのに閉じずに打った: \(log.entries)")
+            }
+        }
+    }
+
     /// clearInput も同じ(mxa F10): 焦点を持つ欄は、中心がキーボードの下でも閉じずに消す
     /// (XCUITest ランナーは `alreadyFocusedInput` で焦点の欄を叩かずに消す。閉じる手段が無い複数行の欄を失敗にしない)
     func testClearInputOnTheFocusedFieldUnderTheKeyboardClearsWithoutClosingIt() async throws {

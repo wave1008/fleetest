@@ -186,6 +186,21 @@ extension StepExecutorTests {
         ])
     }
 
+    /// 409 の後に XCUITest でも対象を引けないとき、ブリッジの「ref を渡せ」を DSL の利用者へ出さない(OI-151④)
+    func testType409WithoutAResolvableFallbackDoesNotAdviseAPassingARef() async throws {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log,
+                                    snapshotElements: [[textField(ref: 1, id: "field_email")]])
+        primary.typeError = DriverError.badResponse(
+            status: 409, body: "keyboard focus is not on the tapped element: pass the ref of the input element itself.")
+        let typeDriver = FakeAppDriver(name: "typedriver", log: log, snapshotElements: [[]])
+        let executor = StepExecutor(driver: primary, typeDriver: typeDriver, preferTypeDriver: false, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_email"), text: "hi"))
+        guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return }
+        XCTAssertFalse(message.contains("pass the ref"), message)
+        XCTAssertTrue(message.contains("HTTP 409") && message.contains("field_email"), message)
+    }
+
     /// 409 以外のエラーは typeDriver へ切り替えず、そのまま失敗させること
     func testTypeNon409DoesNotUseTypeDriver() async throws {
         let log = CallLog()

@@ -97,6 +97,20 @@ public enum InputFocusRescue {
         return contains(before.frame, centreOf: focused.frame)
     }
 
+    /// **直前の操作が tap で、その tap がこの欄を叩いていたか**(焦点の印を木に出さない構成 = Flutter の in-app の木で、焦点のある欄への
+    /// 打鍵の免除を効かせる。OI-91: 横向きの `tap` → `type` が「キーボードの下の欄」で断られた)。
+    /// 叩いた欄と同じ要素(id + 型。id が無ければ枠)で、**木のどの要素も別の場所の焦点を申告していない**ときだけ真
+    /// (他の欄が焦点を持っていれば、叩いても焦点は動いていない)。キーボードの表示は呼び手が見る
+    public static func tapFocusedIt(_ element: ElementInfo, priorTap: ElementInfo?, in elements: [ElementInfo]) -> Bool {
+        guard let priorTap else { return false }
+        if let id = priorTap.identifier, !id.isEmpty {
+            guard element.identifier == id, element.type == priorTap.type else { return false }
+        } else {
+            guard element.identifier.map({ $0.isEmpty }) ?? true, element.frame == priorTap.frame else { return false }
+        }
+        return !elements.contains { $0.focused == true && !contains(element.frame, centreOf: $0.frame) }
+    }
+
     private static func contains(_ rect: FTRect, centreOf inner: FTRect) -> Bool {
         let x = inner.x + inner.width / 2
         let y = inner.y + inner.height / 2
