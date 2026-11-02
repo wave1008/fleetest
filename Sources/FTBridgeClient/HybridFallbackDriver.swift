@@ -387,14 +387,12 @@ public final class HybridFallbackDriver: AppDriver {
     public func isAppForeground(bundleID: String) async throws -> Bool {
         try await active.isAppForeground(bundleID: bundleID)
     }
-    public func foregroundAppID() async throws -> String? { try await active.foregroundAppID() }
+    public func foregroundAppID() async -> Probe<String> { await active.foregroundAppID() }
     // **常に fallback(XCUITest)へ聞く** —— in-app(primary)は SpringBoard を見られず常に nil を
-    // 返す(InAppDriver)ので、`active` に乗せると delegating が false の間(通常時)ずっと nil に
+    // 返す(InAppDriver)ので、`active` に乗せると delegating が false の間(通常時)ずっと `.notAnswerable` に
     // 潰れて何も見えない。fallback はセッション不要の attach で常に居るので、どの状態でも答えられる
-    public func systemAlert() async throws -> SystemAlertProbeResponse? { try await fallback.systemAlert() }
-    public func systemUICovering() async throws -> SystemUICoveringResponse? {
-        try await fallback.systemUICovering()
-    }
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await fallback.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await fallback.systemUICovering() }
     public func captureKeyboardStateOnNextSnapshot() {
         primary.captureKeyboardStateOnNextSnapshot()
     }

@@ -225,7 +225,6 @@ private struct StubDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func snapshot() async throws -> SnapshotResponse { throw DriverError.badResponse(status: 501, body: "stub") }
     func tap(ref: Int) async throws {}
     func tap(x: Double, y: Double) async throws {}

@@ -40,7 +40,7 @@ final class CommandDispatchTests: XCTestCase {
             let index = min(isAppForegroundCallCount, foregroundMatches.count - 1)
             return foregroundMatches[index]
         }
-        func foregroundAppID() async throws -> String? { foregroundAppIDValue }
+        func foregroundAppID() async -> Probe<String> { foregroundAppIDValue.map { .value($0) } ?? .notAnswerable }
         private(set) var launchedBundleIDs: [String] = []
         private(set) var openURLCalls: [(url: String, bundleID: String?)] = []
         func launch(bundleID: String) async throws { launchedBundleIDs.append(bundleID) }
@@ -1289,7 +1289,6 @@ final class CommandDispatchTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         // アイコンを押したらアプリが前面になる(tapAppIcon は押した後に前面を確かめる)
         func isAppForeground(bundleID: String) async throws -> Bool { !tappedRefs.isEmpty }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func home() async throws { homeCount += 1 }
         func snapshot() async throws -> SnapshotResponse {

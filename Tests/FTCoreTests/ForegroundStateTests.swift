@@ -92,7 +92,7 @@ final class ForegroundStateTests: XCTestCase {
                 facts: ForegroundFacts(launched: app, sessionBundleID: app),
                 expected: .unknown(.notAnswerable)),
             Row(name: "every probe failed",
-                facts: ForegroundFacts(launched: app, sessionBundleID: app, front: .failed, sessionInForeground: .failed),
+                facts: ForegroundFacts(launched: app, sessionBundleID: app, front: .failed("x"), sessionInForeground: .failed("x")),
                 expected: .unknown(.failed)),
             Row(name: "no session and no launch",
                 facts: ForegroundFacts(),

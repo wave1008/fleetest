@@ -72,12 +72,12 @@ final class FakeAppDriver: AppDriver {
     /// 非 nil なら `GET /systemalert` が落ちる(USB の token 無し・待ち受け断の擬似)
     var systemAlertError: Error?
 
-    func systemAlert() async throws -> SystemAlertProbeResponse? {
+    func systemAlert() async -> Probe<SystemAlertProbeResponse> {
         systemAlertCallCount += 1
         log.entries.append("\(name).systemAlert")
-        if let systemAlertError { throw systemAlertError }
-        guard let frames = systemAlertFrames, !frames.isEmpty else { return nil }
-        return frames[min(systemAlertCallCount - 1, frames.count - 1)]
+        if let systemAlertError { return .failed(systemAlertError.localizedDescription) }
+        guard let frames = systemAlertFrames, !frames.isEmpty else { return .notAnswerable }
+        return .value(frames[min(systemAlertCallCount - 1, frames.count - 1)])
     }
 
     /// /status が申告する向き(nil = 申告しないブリッジ)
@@ -92,7 +92,6 @@ final class FakeAppDriver: AppDriver {
     /// isAppForeground の答え(既定 false = 従来どおり)
     var appForeground = false
     func isAppForeground(bundleID: String) async throws -> Bool { appForeground }
-    func foregroundAppID() async throws -> String? { nil }
 
     func launch(bundleID: String) async throws {
         log.entries.append("\(name).launch")

@@ -18,9 +18,9 @@ private final class ForegroundScriptedDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { true }
-    func foregroundAppID() async throws -> String? { swipes > 0 ? front : nil }
-    func systemUICovering() async throws -> SystemUICoveringResponse? {
-        coveringMarker.map { SystemUICoveringResponse(covering: true, marker: $0) }
+    func foregroundAppID() async -> Probe<String> { swipes > 0 ? front.map { .value($0) } ?? .notAnswerable : .notAnswerable }
+    func systemUICovering() async -> Probe<SystemUICoveringResponse> {
+        coveringMarker.map { .value(SystemUICoveringResponse(covering: true, marker: $0)) } ?? .notAnswerable
     }
     func terminate() async throws {}
     func screenshot() async throws -> Data { Data() }

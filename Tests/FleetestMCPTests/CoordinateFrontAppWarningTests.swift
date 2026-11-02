@@ -44,12 +44,12 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         XCTAssertEqual(MCPServer.frontAppWarning(launched: app, front: dialog), "")
     }
 
-    /// iOS のブリッジは前面のアプリ名を通信せずに nil と答える(座標の操作に往復を足さない前提)
+    /// iOS のブリッジは前面のアプリ名を実装せず既定の `.notAnswerable` で答える(座標の操作に往復を足さない前提)
     func testIOSBridgeClientAnswersNoFrontAppName() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/FTBridgeClient/BridgeClient.swift"), encoding: .utf8)
-        XCTAssertTrue(source.contains("public func foregroundAppID() async throws -> String? { nil }"))
+        XCTAssertFalse(source.contains("func foregroundAppID("))
     }
 
     /// 座標で撃つ経路の集合を本数で固定する(tap / double tap / long press / drag / pinch / gesture / 全画面 swipe)。

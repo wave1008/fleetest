@@ -338,9 +338,9 @@ public final class AppAttachDriver: AppDriver {
     public func isAppForeground(bundleID: String) async throws -> Bool {
         try await client.isAppForeground(bundleID: bundleID)
     }
-    public func foregroundAppID() async throws -> String? { try await client.foregroundAppID() }
-    public func systemAlert() async throws -> SystemAlertProbeResponse? { try await client.systemAlert() }
-    public func systemUICovering() async throws -> SystemUICoveringResponse? { try await client.systemUICovering() }
+    public func foregroundAppID() async -> Probe<String> { await client.foregroundAppID() }
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await client.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await client.systemUICovering() }
     public var lastActionNote: String? { client.lastActionNote }
     public var reachedEdgeOnLastSwipe: Bool? { client.reachedEdgeOnLastSwipe }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { client.lastTapHitAreaMiss }

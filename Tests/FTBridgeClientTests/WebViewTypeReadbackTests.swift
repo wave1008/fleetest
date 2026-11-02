@@ -38,7 +38,6 @@ private final class DOMPrimaryDriver: AppDriver, @unchecked Sendable {
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func launch(bundleID: String) async throws {}
     func tap(ref: Int) async throws {}
     func tap(x: Double, y: Double) async throws {}
@@ -70,7 +69,6 @@ private final class DelegatedDriver: AppDriver, @unchecked Sendable {
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func launch(bundleID: String) async throws {}
     func tap(ref: Int) async throws {}
     func swipe(_ direction: FTSwipeDirection) async throws {}

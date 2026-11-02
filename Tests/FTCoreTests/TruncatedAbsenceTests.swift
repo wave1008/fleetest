@@ -52,7 +52,6 @@ private final class TruncatingDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func tap(ref: Int) async throws {}
     func tap(x: Double, y: Double) async throws {}
     func type(ref: Int?, text: String) async throws {}
@@ -89,7 +88,6 @@ private final class TruncatingSearchDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { true }
-    func foregroundAppID() async throws -> String? { nil }
     func tap(ref: Int) async throws {}
     func tap(x: Double, y: Double) async throws {}
     func type(ref: Int?, text: String) async throws {}

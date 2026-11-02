@@ -31,7 +31,6 @@ final class SuppressHandlerTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             func element(_ ref: Int, _ id: String, _ y: Double) -> ElementInfo {
                 ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil,

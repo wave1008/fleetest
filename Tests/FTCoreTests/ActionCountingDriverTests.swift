@@ -57,7 +57,10 @@ private final class RecordingDriver: AppDriver {
     func press(ref: Int, duration: Double) async throws { try record("press(ref)") }
     func terminate() async throws { try record("terminate") }
     func isAppForeground(bundleID: String) async throws -> Bool { try record("isAppForeground"); return true }
-    func foregroundAppID() async throws -> String? { try record("foregroundAppID"); return nil }
+    func foregroundAppID() async -> Probe<String> {
+        do { try record("foregroundAppID") } catch { return .failed(error.localizedDescription) }
+        return .notAnswerable
+    }
     func restoreOrientationIfNeeded() async throws { try record("restoreOrientationIfNeeded") }
     func clearAppData(bundleID: String) async throws { try record("clearAppData") }
     func openURL(_ url: String, bundleID: String?) async throws { try record("openURL") }
@@ -124,9 +127,9 @@ final class ActionCountingDriverTests: XCTestCase {
         _ = await driver.tapProbe(x: 0, y: 0)
         _ = try await driver.screenshot()
         _ = try await driver.isAppForeground(bundleID: "a")
-        _ = try await driver.foregroundAppID()
-        _ = try await driver.systemAlert()
-        _ = try await driver.systemUICovering()
+        _ = await driver.foregroundAppID()
+        _ = await driver.systemAlert()
+        _ = await driver.systemUICovering()
         try await driver.activate(bundleID: "a")
         try await driver.attach(bundleID: "a")
         try await driver.uninstall(bundleID: "a")

@@ -739,7 +739,7 @@ extension MCPServer {
         // 言うのは**このセッションで操作したアプリ**が前面に来たときだけ(ランチャーが前面なのは止めた後の普通の姿)
         var terminateFrontNote = ""
         if terminateDriver is AndroidDriver, !terminateUnverified,
-           let front = (try? await terminateDriver.foregroundAppID()) ?? nil, !front.isEmpty,
+           let front = await terminateDriver.foregroundAppID().value, !front.isEmpty,
            front != terminateBundleID, appWasDrivenOnThisDevice(front, args: args) {
             terminateFrontNote = "\nnote: \(front) is in front now — the session follows it, so the next ft_snapshot shows"
                 + " \(front)'s tree, not \(terminateBundleID)'s (ft_launch your app to go back)."

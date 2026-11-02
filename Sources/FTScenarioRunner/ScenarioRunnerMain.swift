@@ -912,7 +912,7 @@ struct NullDriver: AppDriver {
     func screenshot() async throws -> Data { throw Unavailable() }
     func terminate() async throws { throw Unavailable() }
     func isAppForeground(bundleID: String) async throws -> Bool { throw Unavailable() }
-    func foregroundAppID() async throws -> String? { throw Unavailable() }
+    func foregroundAppID() async -> Probe<String> { .failed(Unavailable().localizedDescription) }
 }
 
 // (人間向けログ整形は FTCore.ScenarioLogFormatter を使用 — MCP 応答と共通)

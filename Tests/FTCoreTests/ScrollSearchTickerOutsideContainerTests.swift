@@ -26,7 +26,6 @@ private final class StaticListWithTickerDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { true }
-    func foregroundAppID() async throws -> String? { nil }
     func terminate() async throws {}
     func screenshot() async throws -> Data { Data() }
     func type(ref: Int?, text: String) async throws {}
@@ -76,7 +75,6 @@ private final class ListStoppingDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { true }
-    func foregroundAppID() async throws -> String? { nil }
     func terminate() async throws {}
     func screenshot() async throws -> Data { Data() }
     func type(ref: Int?, text: String) async throws {}

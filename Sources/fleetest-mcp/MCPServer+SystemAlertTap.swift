@@ -15,11 +15,12 @@ extension MCPServer {
                               args: [String: Any]) async throws -> [[String: Any]] {
         let key = Self.sessionKey(args)
         let probe: SystemAlertProbeResponse?
-        do {
-            probe = try await d.systemAlert()
-        } catch {
+        switch await d.systemAlert() {
+        case .value(let answer): probe = answer
+        case .notAnswerable: probe = nil
+        case .failed(let reason):
             throw MCPError("alertButton: could not check for a system alert"
-                + " (\(error.localizedDescription)) — nothing was tapped")
+                + " (\(reason)) — nothing was tapped")
         }
         guard let alert = probe, alert.present else {
             throw MCPError("alertButton: no system alert is in front of the app — nothing was tapped")

@@ -23,7 +23,6 @@ final class TapHitAreaMissNoteTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             let element = ElementInfo(ref: 1, type: "button", identifier: "btn_jump_bottom", label: "最新へ",
                                       value: nil, placeholder: nil, enabled: true,

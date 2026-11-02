@@ -26,7 +26,6 @@ final class TapWaitsForEnabledTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             snapshotCount += 1
             let element = ElementInfo(ref: 1, type: "button", identifier: "btnLogin", label: nil,
@@ -65,7 +64,6 @@ final class TapWaitsForEnabledTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             snapshotCount += 1
             var elements = [ElementInfo(ref: 1, type: "button", identifier: "btnLogin", label: nil,

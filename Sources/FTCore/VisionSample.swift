@@ -99,7 +99,7 @@ public enum VisionSample {
     /// **限界**: iOS の `sessionBundleID` はセッションのアプリであって前面ではない = iOS では「前面が別のアプリ」の警告は出ない
     public static func frontAppID(snapshot: SnapshotResponse, driver: AppDriver) async -> String? {
         if let id = snapshot.sessionBundleID, !id.isEmpty { return id }
-        return (try? await driver.foregroundAppID()).flatMap { $0 }
+        return await driver.foregroundAppID().value
     }
 
     public static func defaultFileName(_ date: Date) -> String {

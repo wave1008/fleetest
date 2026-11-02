@@ -1732,7 +1732,7 @@ extension MCPServer {
     /// 詰まった瞬間だけ `/systemalert` に聞いてから `systemDialogHint` を作る(ゲート外の bridge では聞かない)
     static func systemDialogHint(bridge: String?, driver: AppDriver) async -> String {
         guard bridge == nil || bridge == "xcuitest" else { return "" }
-        return systemDialogHint(bridge: bridge, probe: try? await driver.systemAlert())
+        return systemDialogHint(bridge: bridge, probe: await driver.systemAlert().value)
     }
 
     /// home/appSwitcher 直後の XCUITest は「セッションはアプリのまま・画面は別」になり、次の

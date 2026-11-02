@@ -402,9 +402,9 @@ public final class WebViewDelegatingDriver: AppDriver {
     public func isAppForeground(bundleID: String) async throws -> Bool {
         try await primary.isAppForeground(bundleID: bundleID)
     }
-    public func foregroundAppID() async throws -> String? { try await primary.foregroundAppID() }
-    public func systemAlert() async throws -> SystemAlertProbeResponse? { try await primary.systemAlert() }
-    public func systemUICovering() async throws -> SystemUICoveringResponse? { try await primary.systemUICovering() }
+    public func foregroundAppID() async -> Probe<String> { await primary.foregroundAppID() }
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await primary.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await primary.systemUICovering() }
     // Unrelated to WebView delegation mode, same as status()/isAppForeground — primary 固定
     public func rotate(to orientation: FTOrientation) async throws -> FTOrientation {
         try await primary.rotate(to: orientation)

@@ -1107,11 +1107,12 @@ extension MCPServer {
                                 bridge: String?) async -> SystemAlertGate {
         let probe: SystemAlertProbeResponse?
         SlowCallWatchdog.mark("probing for a system alert")
-        do {
-            probe = try await driver.systemAlert()
-        } catch {
+        switch await driver.systemAlert() {
+        case .value(let answer): probe = answer
+        case .notAnswerable: probe = nil
+        case .failed(let reason):
             return .proceed(note: " note: the system-alert check before acting on"
-                + " \(RefGuard.describe(target)) failed (\(error.localizedDescription)), so the"
+                + " \(RefGuard.describe(target)) failed (\(reason)), so the"
                 + " action went ahead without knowing whether an alert was in front of the app —"
                 + " if the screen did not respond, check for an alert with"
                 + " `ft_launch bundleId: com.apple.springboard`.")
@@ -1165,7 +1166,7 @@ extension MCPServer {
     // **internal**(MCPServer+ScreenTools.swift の ft_type ref なし失敗経路も使う。他ファイルの
     // 拡張から呼ぶので private のままにできない)。一発物の照会 = target 無しで前面のアラートだけ聞く
     static func frontSystemAlert(driver: AppDriver) async -> String? {
-        describeFrontSystemAlert(try? await driver.systemAlert())
+        describeFrontSystemAlert(await driver.systemAlert().value)
     }
 
     private static func describeFrontSystemAlert(_ probe: SystemAlertProbeResponse?) -> String? {
@@ -1184,7 +1185,7 @@ extension MCPServer {
     /// 実害を観測してから(現時点で DSL での観測は0件)。
     /// **警告のみ**(拒否しない)。答えられない(旧ブリッジ・in-app・Android)ときは黙る
     static func systemUICoveringWarning(_ found: ElementInfo, driver: AppDriver) async -> String {
-        guard let covering = try? await driver.systemUICovering(), covering.covering
+        guard let covering = await driver.systemUICovering().value, covering.covering
         else { return "" }
         let surface = Self.coveringSurfaceName(CoveringSurface.from(marker: covering.marker))
         return " (warning: \(surface) is drawn over the app right now, so \(RefGuard.describe(found))"

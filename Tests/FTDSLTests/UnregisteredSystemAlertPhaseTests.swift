@@ -19,7 +19,6 @@ final class UnregisteredSystemAlertPhaseTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func snapshot() async throws -> SnapshotResponse {
             SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
@@ -47,7 +46,6 @@ final class UnregisteredSystemAlertPhaseTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func snapshot() async throws -> SnapshotResponse {
             SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
@@ -60,10 +58,10 @@ final class UnregisteredSystemAlertPhaseTests: XCTestCase {
         func press(ref: Int, duration: Double) async throws {}
         func screenshot() async throws -> Data { Data() }
         func terminate() async throws {}
-        func systemAlert() async throws -> SystemAlertProbeResponse? {
+        func systemAlert() async -> Probe<SystemAlertProbeResponse> {
             probes += 1
-            return SystemAlertProbeResponse(present: true, title: "“App”は通知を送信します",
-                                            buttons: ["許可しない", "許可"])
+            return .value(SystemAlertProbeResponse(present: true, title: "“App”は通知を送信します",
+                                                   buttons: ["許可しない", "許可"]))
         }
     }
 

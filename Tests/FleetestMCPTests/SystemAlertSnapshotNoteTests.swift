@@ -166,7 +166,7 @@ final class HybridFallbackDriverSystemAlertWiringTests: XCTestCase {
 
     func testSystemAlertDoesNotDelegateThroughActive() throws {
         let text = try source()
-        let line = try body(of: "public func systemAlert() async throws -> SystemAlertProbeResponse? {",
+        let line = try body(of: "public func systemAlert() async -> Probe<SystemAlertProbeResponse> {",
                             in: text)
         XCTAssertFalse(line.contains("active."), "systemAlert() が active 経由に戻っている: \(line)")
         XCTAssertTrue(line.contains("fallback.systemAlert()"), line)
@@ -175,7 +175,7 @@ final class HybridFallbackDriverSystemAlertWiringTests: XCTestCase {
     func testSystemUICoveringDoesNotDelegateThroughActive() throws {
         let text = try source()
         let line = try body(
-            of: "public func systemUICovering() async throws -> SystemUICoveringResponse? {",
+            of: "public func systemUICovering() async -> Probe<SystemUICoveringResponse> {",
             in: text)
         XCTAssertFalse(line.contains("active."), "systemUICovering() が active 経由に戻っている: \(line)")
         XCTAssertTrue(line.contains("fallback.systemUICovering()"), line)

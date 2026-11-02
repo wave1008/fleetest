@@ -59,9 +59,9 @@ public final class LaunchPreflightDriver: AppDriver {
     public func isAppForeground(bundleID: String) async throws -> Bool {
         try await base.isAppForeground(bundleID: bundleID)
     }
-    public func foregroundAppID() async throws -> String? { try await base.foregroundAppID() }
-    public func systemAlert() async throws -> SystemAlertProbeResponse? { try await base.systemAlert() }
-    public func systemUICovering() async throws -> SystemUICoveringResponse? { try await base.systemUICovering() }
+    public func foregroundAppID() async -> Probe<String> { await base.foregroundAppID() }
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await base.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await base.systemUICovering() }
     public var lastActionNote: String? { base.lastActionNote }
     public var reachedEdgeOnLastSwipe: Bool? { base.reachedEdgeOnLastSwipe }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { base.lastTapHitAreaMiss }

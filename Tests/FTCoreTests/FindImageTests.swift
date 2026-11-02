@@ -190,7 +190,6 @@ final class FindImageTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { false }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func snapshot() async throws -> SnapshotResponse {
             SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 300, height: 100),

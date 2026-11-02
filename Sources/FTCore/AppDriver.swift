@@ -227,21 +227,24 @@ public protocol AppDriver {
     /// **前面を読めないときは false でなく `ForegroundUnreadable` を投げる**(false は「別のものが前面」の断定)。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由)
     func isAppForeground(bundleID: String) async throws -> Bool
-    /// **OS のシステム UI(SpringBoard のアラート)が載っているか**。分からないドライバは nil。
+    /// **OS のシステム UI(SpringBoard のアラート)が載っているか**。
+    /// **観測4つ(systemAlert・systemUICovering・keyguardShowing・foregroundAppID)は `Probe` で返し、投げない**:
+    /// `.notAnswerable` = この構成には口が無い(どれが答えるかは `DriverAnswers`)/ `.failed` = 聞いたが失敗。
+    /// 素の Optional だと呼び手の `try?` が「聞けない」を「無い」へ畳み、判定が黙って届かなくなる(ft_batch のアプリ落ちで実際に踏んだ)。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由 ——
-    /// 要件でないと存在型越しの呼び出しが静的ディスパッチで既定実装に落ち、黙って nil になる)
-    func systemAlert() async throws -> SystemAlertProbeResponse?
+    /// 要件でないと存在型越しの呼び出しが静的ディスパッチで既定実装に落ち、黙って `.notAnswerable` になる)
+    func systemAlert() async -> Probe<SystemAlertProbeResponse>
     /// **SpringBoard の面がアプリを覆っているか**(iOS xcuitest だけが答えられる)。
-    /// nil = 答えられない(in-app / Android / 旧ブリッジ)。**プロトコル要件として宣言すること**
+    /// `.notAnswerable` = 答えられない(in-app / Android / 旧ブリッジ)。**プロトコル要件として宣言すること**
     /// (存在型越しの呼び出しは要件でなければ既定実装へ静的ディスパッチされる)
-    func systemUICovering() async throws -> SystemUICoveringResponse?
+    func systemUICovering() async -> Probe<SystemUICoveringResponse>
     /// **キーガード(ロック画面・解除画面)が出ているか**(Android の `dumpsys window displays` の `isKeyguardShowing`)。
-    /// nil = 答えられない(iOS・読めなかった)。**プロトコル要件として宣言すること**(存在型越しの呼び出しが既定実装へ静的ディスパッチされない)
-    func keyguardShowing() async throws -> Bool?
-    /// 現在フォアグラウンドのアプリの bundleID/package(分かるプラットフォームだけ実値。
-    /// 分からなければ nil。DSL の appIs の失敗メッセージが actual として使う)。
+    /// `.notAnswerable` = 答えられない(iOS・読めなかった)。**プロトコル要件として宣言すること**(存在型越しの呼び出しが既定実装へ静的ディスパッチされない)
+    func keyguardShowing() async -> Probe<Bool>
+    /// 現在フォアグラウンドのアプリの bundleID/package(Android だけが答える。iOS は `.notAnswerable`)。
+    /// Android で前面にアプリの窓が無かった回も `.notAnswerable`(読めなかった = 投げた回は `.failed`)。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由)
-    func foregroundAppID() async throws -> String?
+    func foregroundAppID() async -> Probe<String>
     /// 直前のアクションで通常と違う経路を通ったときの説明(既定 nil)。失敗ではなく観測用。
     /// 「次のアクション呼び出しで上書き/クリアする」実装が前提(1シナリオ=1ドライバの逐次実行なので、
     /// クリアしないと前回の注記が別ステップに誤って付く)。デコレータ実装は base の値を透過すること
@@ -588,12 +591,13 @@ public enum DriverError: Error, LocalizedError {
 
 /// activate 未対応ドライバ(InAppDriver/SystemUIDriver 等)は launch(再起動)にフォールバックする。
 public extension AppDriver {
-    /// 既定は nil(= 判定しない)。**答えられるのは XCUITest ランナーを包むドライバだけ**で、
+    /// 既定は「答えられない」。**答えられるのは XCUITest ランナーを包むドライバだけ**で、
     /// in-app は自プロセスしか見えず、Android は木の根が active window なので判定自体が要らない
-    func systemAlert() async throws -> SystemAlertProbeResponse? { nil }
+    func systemAlert() async -> Probe<SystemAlertProbeResponse> { .notAnswerable }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
-    func systemUICovering() async throws -> SystemUICoveringResponse? { nil }
-    func keyguardShowing() async throws -> Bool? { nil }
+    func systemUICovering() async -> Probe<SystemUICoveringResponse> { .notAnswerable }
+    func keyguardShowing() async -> Probe<Bool> { .notAnswerable }
+    func foregroundAppID() async -> Probe<String> { .notAnswerable }
 
     var lastActionNote: String? { nil }
     /// 既定は「分からない」。答えられるのは**位置を直接動かせる**ドライバ(AndroidDriver の

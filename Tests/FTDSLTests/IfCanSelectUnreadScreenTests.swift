@@ -23,7 +23,6 @@ final class IfCanSelectUnreadScreenTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { false }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             if failuresLeft != 0 {
                 if failuresLeft > 0 { failuresLeft -= 1 }

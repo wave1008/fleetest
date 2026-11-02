@@ -102,7 +102,7 @@ public enum RunnerAccessibilityHealth {
         let client = BridgeClient(endpoint: BridgeEndpoint.load(port: port, repoRoot: repoRoot))
         let started = Date()
         do {
-            guard try await client.systemAlert() != nil else { return .unknown }  // 404 = 旧ランナー
+            guard try await client.fetchSystemAlert() != nil else { return .unknown }  // 404 = 旧ランナー
             return .answered(Date().timeIntervalSince(started))
         } catch DriverError.bridgeUnreachable {
             return classifyFailure(unreachable: true, waited: Date().timeIntervalSince(started))

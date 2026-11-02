@@ -131,7 +131,7 @@ final class LiveSessionFollower {
         // スイッチャーを開くと、探索が Safari を「前面」と拾って木が Safari のままだった)。
         // ForegroundState.judge に寄せない: ここの問いは「次にどのアプリへ向けるか」で、覆いを見つけたら向け直さない・
         // 前面アプリの探索まで含む。「いま前面か」を答える judge とは目的が別
-        let covered = ((try? await driver.systemUICovering()) ?? nil)?.covering == true
+        let covered = await driver.systemUICovering().value?.covering == true
         if covered {
             foreground = false
             lastFrontmost = nil // 面の向こうのアプリを「前面」として覚えない
@@ -149,7 +149,7 @@ final class LiveSessionFollower {
         // アラートの有無は**アプリへ向けることになる回だけ**聞く(LiveSessionTarget.shouldAskSystemAlert の doc)
         var systemAlertPresent = false
         if LiveSessionTarget.shouldAskSystemAlert(preferredIsForeground: foreground, frontmost: frontmost) {
-            systemAlertPresent = ((try? await driver.systemAlert()) ?? nil)?.present ?? false
+            systemAlertPresent = await driver.systemAlert().value?.present ?? false
         }
         guard let target = LiveSessionTarget.retarget(
             sessionTarget: sessionTarget, preferred: preferred, preferredIsForeground: foreground,

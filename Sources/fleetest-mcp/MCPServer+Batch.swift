@@ -888,13 +888,12 @@ extension MCPServer {
             }
             // **アプリのプロセスが消えたと確定したら、続く手を撃たない**。前面の変化では止めない
             // (権限ダイアログ・別アプリへの遷移の batch は正しい)。判定できない(nil)・iOS 以外は止めない。
-            // **プロセスを聞くのは前面が対象アプリと分かっていない手の後だけ**(前面が違う、または分からない(nil。iOS の
-            // `foregroundAppID()` は常に nil なので iOS は毎手聞く))。`simctl spawn … launchctl list` は1回約 0.95 秒・実機の devicectl も
-            // 同程度。前面が対象アプリと分かる(Android)なら聞かない。アプリを止める手は batch に無い(`batchAppCommandAlternatives` が断る)
+            // **毎手プロセスを聞く**: 包みの SessionRecoveryDriver は iOS の XCUITest だけで、前面のアプリ名は答えない
+            // (`DriverAnswers.iosXCUITest`)ので前面で省けない。`simctl spawn … launchctl list` は1回約 0.95 秒・実機の devicectl も
+            // 同程度。アプリを止める手は batch に無い(`batchAppCommandAlternatives` が断る)
             if index < plans.count - 1,
                let bundleID = launchedBundleIDs[Self.sessionKey(args)],
                let recovery = batchDriver as? SessionRecoveryDriver,
-               await Self.frontIsKnownToBeTheApp(recovery, bundleID: bundleID) == false,
                await recovery.appProcessRunning(bundleID: bundleID) == false {
                 let stoppedNote = Self.batchAppProcessGoneNote(
                     bundleID: bundleID, stoppedAfter: index + 1, total: plans.count)
@@ -977,10 +976,10 @@ extension MCPServer {
                 stepCount: plans.count, bridge: bridges[Self.sessionKey(args)],
                 probeSystemAlert: {
                     // 「居ない」と言い切る前に、遅れて出るアラート(tap が権限を求める典型)を settle-lite と同じ間隔で1回だけ読み直す
-                    let first = try? await batchDriver.systemAlert()
+                    let first = await batchDriver.systemAlert().value
                     guard first?.present == false else { return first }
                     try? await Task.sleep(nanoseconds: UInt64(max(0, self.settleWaitSeconds) * 1_000_000_000))
-                    return (try? await batchDriver.systemAlert()) ?? first
+                    return await batchDriver.systemAlert().value ?? first
                 }) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }
@@ -1023,12 +1022,6 @@ extension MCPServer {
     }
 
     /// プロセスの消失で止めたときの応答。残りの手を撃たなかった事実を言う(撃ち直しを誘わない: 止めた手までは届いている)
-    /// 前面が対象アプリと分かっているときだけ true。nil(iOS)は分からない扱いでプロセスを聞く側へ倒す
-    static func frontIsKnownToBeTheApp(_ recovery: SessionRecoveryDriver, bundleID: String) async -> Bool {
-        guard let front = try? await recovery.foregroundAppID() else { return false }
-        return front == bundleID
-    }
-
     static func batchAppProcessGoneNote(bundleID: String, stoppedAfter: Int, total: Int) -> String {
         "\n\nStopped after step \(stoppedAfter) of \(total): the app process (\(bundleID)) is no longer running,"
             + " so the remaining \(total - stoppedAfter) step(s) were NOT sent. Steps 1–\(stoppedAfter) were delivered;"

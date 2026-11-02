@@ -50,7 +50,7 @@ private struct UnusedDriver: AppDriver {
     func screenshot() async throws -> Data { throw Unused() }
     func terminate() async throws { throw Unused() }
     func isAppForeground(bundleID: String) async throws -> Bool { throw Unused() }
-    func foregroundAppID() async throws -> String? { throw Unused() }
+    func foregroundAppID() async -> Probe<String> { .failed(Unused().localizedDescription) }
 }
 
 private struct FixedSourceSession: DeviceVideoRecorderSession {

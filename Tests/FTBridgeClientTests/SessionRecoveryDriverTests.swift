@@ -25,7 +25,6 @@ private final class FakeAppDriver: AppDriver {
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func launch(bundleID: String) async throws {}
     func activate(bundleID: String) async throws { activateCalls.append(bundleID) }
     func openAppSwitcher() async throws {}

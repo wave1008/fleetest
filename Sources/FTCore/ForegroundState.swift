@@ -8,23 +8,24 @@
 import Foundation
 
 /// 照会の結果。`.notAnswerable` = 聞けない(その構成には口が無い・旧ブリッジ)/ `.failed` = 聞いたが失敗
+/// (理由は投げられたエラーの `localizedDescription`。呼び手が注記・失敗文へそのまま添える)
 public enum Probe<T: Sendable>: Sendable {
     case value(T)
     case notAnswerable
-    case failed
+    case failed(String)
 
     public var value: T? {
         if case .value(let v) = self { return v }
         return nil
     }
 
-    /// `call` が nil を返したら notAnswerable・投げたら failed。呼び手の `try?` で畳む前に使う
+    /// `call` が nil を返したら notAnswerable・投げたら failed。ドライバの観測の実装が投げる照会を写すのに使う
     public static func of(_ call: () async throws -> T?) async -> Probe<T> {
         do {
             if let v = try await call() { return .value(v) }
             return .notAnswerable
         } catch {
-            return .failed
+            return .failed(error.localizedDescription)
         }
     }
 }
@@ -176,7 +177,7 @@ public enum ForegroundState {
 /// ドライバへの照会を `Probe` に写す口(MCP と StepExecutor が共有。照会の組み合わせは呼び手が費用で選ぶ)
 extension ForegroundState {
     public static func frontProbe(_ driver: AppDriver) async -> Probe<String> {
-        await Probe.of { try await driver.foregroundAppID() }
+        await driver.foregroundAppID()
     }
 
     public static func inForegroundProbe(_ driver: AppDriver, bundleID: String) async -> Probe<Bool> {
@@ -185,11 +186,10 @@ extension ForegroundState {
 
     /// SpringBoard の覆い(iOS XCUITest だけが答える)。`.value(nil)` = 聞いて覆いは無かった
     public static func coveringProbe(_ driver: AppDriver) async -> Probe<CoveringSurface?> {
-        do {
-            guard let answer = try await driver.systemUICovering() else { return .notAnswerable }
-            return .value(answer.covering ? CoveringSurface.from(marker: answer.marker) : nil)
-        } catch {
-            return .failed
+        switch await driver.systemUICovering() {
+        case .value(let answer): return .value(answer.covering ? CoveringSurface.from(marker: answer.marker) : nil)
+        case .notAnswerable: return .notAnswerable
+        case .failed(let reason): return .failed(reason)
         }
     }
 }
@@ -197,12 +197,12 @@ extension ForegroundState {
 extension ForegroundState {
     /// キーガードの事実(Android だけが答える)。`.notAnswerable` = 答える口が無い
     public static func keyguardProbe(_ driver: AppDriver) async -> Probe<Bool> {
-        await Probe.of { try await driver.keyguardShowing() }
+        await driver.keyguardShowing()
     }
 }
 
 extension Probe {
-    var isFailed: Bool { if case .failed = self { return true } else { return false } }
+    public var isFailed: Bool { if case .failed = self { return true } else { return false } }
 }
 
 /// `ForegroundState.judge` の入力。**読んでいない欄は `.notAnswerable` のまま渡す**(既定値 = 「聞いていない」)

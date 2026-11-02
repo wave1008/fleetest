@@ -459,7 +459,7 @@ public final class AndroidDriver: AppDriver {
     /// ホスト側で dumpsys を引く(ブリッジはアプリ内 a11y ツリーしか見えず、他プロセスの
     /// window は見えない。AndroidForegroundWindows と同じ制約)
     public func isAppForeground(bundleID: String) async throws -> Bool {
-        try Self.isForeground(bundleID: bundleID, front: await foregroundAppID())
+        try Self.isForeground(bundleID: bundleID, front: readForegroundAppID())
     }
 
     /// **前面を読めないときは「前面でない」と答えず投げる**(`ForegroundUnreadable`)。false に畳むと、呼び手は
@@ -469,13 +469,20 @@ public final class AndroidDriver: AppDriver {
         return front == bundleID
     }
 
-    /// キーガードが出ているか。読めない・行が無いときは nil(失敗は投げず「分からない」)
-    public func keyguardShowing() async throws -> Bool? {
-        guard let result = try? adbAnswering(["shell", "dumpsys", "window", "displays"]), result.status == 0 else { return nil }
-        return AndroidForegroundWindows.keyguardShowing(displaysDumpsys: result.output)
+    /// キーガードが出ているか。読めない・行が無いときは `.notAnswerable`(失敗も「分からない」に畳む = 今までどおり)
+    public func keyguardShowing() async -> Probe<Bool> {
+        guard let result = try? adbAnswering(["shell", "dumpsys", "window", "displays"]), result.status == 0,
+              let showing = AndroidForegroundWindows.keyguardShowing(displaysDumpsys: result.output) else { return .notAnswerable }
+        return .value(showing)
     }
 
-    public func foregroundAppID() async throws -> String? {
+    /// 前面にアプリの窓が無い回も `.notAnswerable`(読めなかった = 投げた回だけ `.failed`)
+    public func foregroundAppID() async -> Probe<String> {
+        await Probe.of { try readForegroundAppID() }
+    }
+
+    /// `foregroundAppID()` の投げる口。`isAppForeground` は読めなかったことを `ForegroundUnreadable` へ写すのでこちらを使う
+    func readForegroundAppID() throws -> String? {
         let result = try adbAnswering(["shell", "dumpsys", "window", "windows"])
         guard result.status == 0 else {
             throw DriverError.badResponse(status: Int(result.status),

@@ -166,7 +166,7 @@ extension MCPServer {
             // 聞くのは snapshotAfter のときだけ(照会は約 73ms。Android は既定実装が投げる = 聞かない)
             var alertWasInFront = false
             if args["snapshotAfter"] as? Bool == true {
-                alertWasInFront = (try? await d.systemAlert())??.present == true
+                alertWasInFront = await d.systemAlert().value?.present == true
             }
             try await d.tap(x: x, y: y)
             recordInteraction(action: "tap", resolvedRef: nil, args: args, coordinate: (x, y))

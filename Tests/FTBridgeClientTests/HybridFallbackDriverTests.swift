@@ -47,7 +47,6 @@ private final class RecordingDriver: AppDriver, @unchecked Sendable {
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func launch(bundleID: String) async throws {
         lastLaunchedBundleID = bundleID
         try record("launch")

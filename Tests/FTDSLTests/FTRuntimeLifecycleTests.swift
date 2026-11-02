@@ -16,7 +16,6 @@ final class FTRuntimeLifecycleTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { false }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func clearAppData(bundleID: String) async throws { clearedAppData.append(bundleID) }
         func snapshot() async throws -> SnapshotResponse {

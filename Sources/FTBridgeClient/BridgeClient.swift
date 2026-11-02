@@ -665,12 +665,17 @@ public final class BridgeClient: AppDriver, Sendable {
     }
 
     /// SpringBoard のアラートが載っているか(`GET /systemalert`。XCUITest ランナーのみ)。
-    /// **旧ランナーは 404 を返す** → nil(不明)で返し、呼び手は判定しない
+    /// **旧ランナーは 404 を返す** → `.notAnswerable` で返し、呼び手は判定しない
     /// **上限は interaction(session ではない)**: SpringBoard に目印を1問聞くだけで(実測 25〜100ms)、session(45s)の
     /// 理由 = 木の直列化が並列で伸びる、が当てはまらない。45s まで待つのはランナーが死んでいる・塞がっているときだけで、
     /// tap の前の照会がそのまま 45s を払い、1手で 96s(シナリオ 117s・打ち切りの 120s 寸前)になった実例がある。
     /// 落ちても呼び手は「確かめられなかった」と注記するだけ(StepExecutor.probeSystemAlert)
-    public func systemAlert() async throws -> SystemAlertProbeResponse? {
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> {
+        await Probe.of { try await fetchSystemAlert() }
+    }
+
+    /// `systemAlert()` の投げる口。**エラーの型で分ける呼び手(`RunnerAccessibilityHealth` の bridgeUnreachable)だけが使う**
+    public func fetchSystemAlert() async throws -> SystemAlertProbeResponse? {
         do {
             return try await get("/systemalert", timeout: interactionTimeout) as SystemAlertProbeResponse
         } catch DriverError.badResponse(let status, _) where status == 404 {
@@ -679,14 +684,16 @@ public final class BridgeClient: AppDriver, Sendable {
     }
 
     /// `AppDriver.systemUICovering`。**XCUITest ブリッジだけが答えられる**。
-    /// 版 83 より古いブリッジは 404 を返すので、その場合も nil(呼び手は黙る)
-    public func systemUICovering() async throws -> SystemUICoveringResponse? {
-        do {
-            // 上限は systemAlert と同じ理由で interaction
-            return try await get("/systemui/covering",
-                                 timeout: interactionTimeout) as SystemUICoveringResponse
-        } catch DriverError.badResponse(let status, _) where status == 404 {
-            return nil
+    /// 版 83 より古いブリッジは 404 を返すので、その場合も `.notAnswerable`(呼び手は黙る)
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> {
+        await Probe.of {
+            do {
+                // 上限は systemAlert と同じ理由で interaction
+                return try await get("/systemui/covering",
+                                     timeout: interactionTimeout) as SystemUICoveringResponse
+            } catch DriverError.badResponse(let status, _) where status == 404 {
+                return nil
+            }
         }
     }
 
@@ -740,9 +747,7 @@ public final class BridgeClient: AppDriver, Sendable {
                                            timeout: interactionTimeout)
     }
 
-    /// iOS は任意の前面 bundle ID を取得する手段を持たない(XCUITest は他アプリの状態を見れず、
-    /// in-app は自分自身しか知らない)。appIs の失敗メッセージは actual なしで表示する
-    public func foregroundAppID() async throws -> String? { nil }
+    // foregroundAppID は実装しない(既定の `.notAnswerable`): XCUITest は他アプリの bundle ID を読めない(`DriverAnswers.iosXCUITest`)
 
     /// 起動済みのアプリへプロキシ接続だけ行う(前面でなければ失敗する)。前面化を撃たないので
     /// **画面を動かさない** —— FastLaunchDriver の時短(activate 比 約-1s)と、ライブ操作の

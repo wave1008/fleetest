@@ -24,7 +24,6 @@ private struct StubDriver: AppDriver {
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
     func isAppForeground(bundleID: String) async throws -> Bool { false }
-    func foregroundAppID() async throws -> String? { nil }
     func snapshot() async throws -> SnapshotResponse {
         SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 0, height: 0),
                          elements: [], truncatedCount: 0)

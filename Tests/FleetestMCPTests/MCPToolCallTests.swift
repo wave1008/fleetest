@@ -465,21 +465,33 @@ final class MCPToolCallTests: XCTestCase {
     func testStatusRendersReadyDeviceAndSession() async throws {
         driver.foregroundBundleID = "com.example.app"
         let content = try await server.call(tool: "ft_status", args: [:])
-        // 覆いの照会は前面の答えの前に毎回撃つ(通知センターが覆っていても /appstate は前面と答えることがある)
-        XCTAssertEqual(driver.calls, ["status", "systemUICovering", "foregroundAppID"])
+        // 覆いの照会は前面の答えの前に毎回撃つ(通知センターが覆っていても /appstate は前面と答えることがある)。
+        // iOS は前面のアプリ名を答えないので /appstate(isAppForeground)まで聞く
+        XCTAssertEqual(driver.calls, ["status", "systemUICovering", "foregroundAppID", "isAppForeground(com.example.app)"])
         let text = try XCTUnwrap(content.first?["text"] as? String)
         XCTAssertTrue(text.contains("iPhone 17"), text)
         XCTAssertTrue(text.contains("com.example.app"), text)
         XCTAssertTrue(text.contains("foreground: yes"), text)
     }
 
-    /// ホーム画面や別アプリが前面なら、**何が前に居るか**まで返す
+    /// iOS は前面のアプリ名を答えないので、前面でないことだけを言い、何が前に居るかは断定せず並べる
     func testStatusSaysWhenTheSessionAppIsNotInFront() async throws {
         driver.foregroundBundleID = "com.apple.springboard"
         let content = try await server.call(tool: "ft_status", args: [:])
         let text = try XCTUnwrap(content.first?["text"] as? String)
         XCTAssertTrue(text.contains("foreground: no"), text)
-        XCTAssertTrue(text.contains("com.apple.springboard"), text)
+        XCTAssertTrue(text.contains(MCPServer.notInFrontCauses), text)
+        XCTAssertFalse(text.contains("com.apple.springboard"), text)
+    }
+
+    /// 前面のアプリ名を答える構成(Android)なら、**何が前に居るか**まで返す
+    func testStatusNamesTheFrontAppWhenTheDriverAnswersIt() async throws {
+        driver.answers = .android
+        driver.foregroundBundleID = "com.example.other"
+        let content = try await server.call(tool: "ft_status", args: [:])
+        let text = try XCTUnwrap(content.first?["text"] as? String)
+        XCTAssertTrue(text.contains("foreground: no"), text)
+        XCTAssertTrue(text.contains("com.example.other"), text)
     }
 
     func testInstallPassesPackagePath() async throws {

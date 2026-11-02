@@ -431,7 +431,7 @@ public enum ProfileWorkerFactory {
     static func probeSystemAlert(_ client: BridgeClient) async -> SystemAlertProbeResponse? {
         let target = UncheckedTransfer(client)
         return await withTaskGroup(of: SystemAlertProbeResponse?.self) { group in
-            group.addTask { (try? await target.value.systemAlert()) ?? nil }
+            group.addTask { await target.value.systemAlert().value }
             group.addTask {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 return nil

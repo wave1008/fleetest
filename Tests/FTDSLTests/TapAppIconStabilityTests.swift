@@ -29,7 +29,6 @@ final class TapAppIconStabilityTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { foreground }
-        func foregroundAppID() async throws -> String? { nil }
         func launch(bundleID: String) async throws {}
         func home() async throws {}
         func snapshot() async throws -> SnapshotResponse {

@@ -66,7 +66,11 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         try record("uninstall(\(bundleID))", "uninstall")
     }
 
+    /// 画面の真実としての前面のアプリ(`isAppForeground` は構成に関わらずここから答える = iOS の /appstate も答える)
     var foregroundBundleID: String?
+    /// どの構成として観測に答えるか(`DriverAnswers`)。**既定は iOS の XCUITest = 前面のアプリ名は答えない**
+    /// (本物の iOS が答えない観測に偽物が値を返すと、本番で届かない判定が緑になる)。Android の経路を試すテストは `.android` を宣言する
+    var answers: DriverAnswers = .iosXCUITest
 
     /// `GET /hittable` の答え。既定は「答えられない」= 旧ブリッジ / in-app / Android と同じ縮退
     var hitTestAnswer: HitTestAnswer = .unavailable
@@ -74,9 +78,10 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
     /// `GET /systemui/covering` の答え。既定 nil = 答えられない(同上)
     var systemUICoveringResponse: SystemUICoveringResponse?
 
-    func systemUICovering() async throws -> SystemUICoveringResponse? {
-        try record("systemUICovering", "systemUICovering")
-        return systemUICoveringResponse
+    func systemUICovering() async -> Probe<SystemUICoveringResponse> {
+        do { try record("systemUICovering", "systemUICovering") } catch { return .failed(error.localizedDescription) }
+        guard answers.contains(.systemUICovering), let systemUICoveringResponse else { return .notAnswerable }
+        return .value(systemUICoveringResponse)
     }
 
     /// `GET /systemalert` の答え。既定 nil = 出ていない(同上)
@@ -84,9 +89,10 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
     /// true = ref のタップでアラートが閉じる(本物はボタンを押すと閉じる)
     var tapClosesSystemAlert = false
 
-    func systemAlert() async throws -> SystemAlertProbeResponse? {
-        try record("systemAlert", "systemAlert")
-        return scriptedSystemAlert
+    func systemAlert() async -> Probe<SystemAlertProbeResponse> {
+        do { try record("systemAlert", "systemAlert") } catch { return .failed(error.localizedDescription) }
+        guard answers.contains(.systemAlert), let scriptedSystemAlert else { return .notAnswerable }
+        return .value(scriptedSystemAlert)
     }
 
     func hitTest(ref: Int) async throws -> HitTestAnswer {
@@ -99,9 +105,10 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         return foregroundBundleID == bundleID
     }
 
-    func foregroundAppID() async throws -> String? {
-        try record("foregroundAppID", "foregroundAppID")
-        return foregroundBundleID
+    func foregroundAppID() async -> Probe<String> {
+        do { try record("foregroundAppID", "foregroundAppID") } catch { return .failed(error.localizedDescription) }
+        guard answers.contains(.foregroundAppID), let foregroundBundleID else { return .notAnswerable }
+        return .value(foregroundBundleID)
     }
 
     /// launch / activate / clearAppData を撃った瞬間に呼ぶ(段階の内訳の検証用)

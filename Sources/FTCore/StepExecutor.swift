@@ -413,11 +413,12 @@ public final class StepExecutor {
         let clock = ContinuousClock()
         let start = clock.now
         defer { phase.snapshotMs += Self.ms(clock.now - start) }
-        do {
-            return try await fb.systemAlert()
-        } catch {
+        switch await fb.systemAlert() {
+        case .value(let probe): return probe
+        case .notAnswerable: return nil
+        case .failed(let reason):
             noteCodesThisStep.insert(.systemAlertProbeFailed)
-            systemAlertProbeFailure = error.localizedDescription
+            systemAlertProbeFailure = reason
             return nil
         }
     }

@@ -36,7 +36,7 @@ private final class FakeDriver: AppDriver, @unchecked Sendable {
         calls.append("isAppForeground(\(bundleID))")
         return false
     }
-    func foregroundAppID() async throws -> String? { calls.append("foregroundAppID"); return nil }
+    func foregroundAppID() async -> Probe<String> { calls.append("foregroundAppID"); return .notAnswerable }
     func launch(bundleID: String) async throws { calls.append("launch") }
     func terminate() async throws { calls.append("terminate") }
     func tap(ref: Int) async throws { calls.append("tap(\(ref))") }

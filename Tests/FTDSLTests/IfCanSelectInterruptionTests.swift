@@ -37,7 +37,6 @@ final class IfCanSelectInterruptionTests: XCTestCase {
         func uninstall(bundleID: String) async throws {}
         func launch(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { false }
-        func foregroundAppID() async throws -> String? { nil }
         func snapshot() async throws -> SnapshotResponse {
             snapshotCount += 1
             let elements: [ElementInfo] = covered

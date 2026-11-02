@@ -142,10 +142,10 @@ public final class ActionCountingDriver: AppDriver {
     public func continueAfterFold() async { await base.continueAfterFold() }
     public func screenshot() async throws -> Data { try await base.screenshot() }
     public func isAppForeground(bundleID: String) async throws -> Bool { try await base.isAppForeground(bundleID: bundleID) }
-    public func systemAlert() async throws -> SystemAlertProbeResponse? { try await base.systemAlert() }
-    public func systemUICovering() async throws -> SystemUICoveringResponse? { try await base.systemUICovering() }
-    public func keyguardShowing() async throws -> Bool? { try await base.keyguardShowing() }
-    public func foregroundAppID() async throws -> String? { try await base.foregroundAppID() }
+    public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await base.systemAlert() }
+    public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await base.systemUICovering() }
+    public func keyguardShowing() async -> Probe<Bool> { await base.keyguardShowing() }
+    public func foregroundAppID() async -> Probe<String> { await base.foregroundAppID() }
     public var lastActionNote: String? { base.lastActionNote }
     public var lastLaunchTiming: LaunchTiming? { base.lastLaunchTiming }
     public var supportsCacheBypass: Bool { base.supportsCacheBypass }

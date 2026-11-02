@@ -274,9 +274,8 @@ public func appIs(_ appID: String, waitSeconds: Double? = nil,
         }
         guard !matched else { return }
         var message = "appIs \"\(appID)\" did not hold within \(FTSeconds.format(waitSeconds))s"
-        // try? はネストした Optional を1段へ平坦化する(SE-0230): throw でも nil 返却でも actual は
-        // nil になり、両方の場合を区別なく「省く」で扱える
-        if let actual = try? await driver.foregroundAppID() {
+        // 聞けない(iOS)・読めなかったは actual を省く
+        if let actual = await driver.foregroundAppID().value {
             message += " (actual=\"\(actual)\")"
         }
         throw FTCommandError.message(message)
