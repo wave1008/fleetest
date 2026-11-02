@@ -156,12 +156,6 @@ extension MCPServer {
                 + (await snapshotAfterBody(args, outsideTheAppTree: false)))
         }
         if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
-            // **launch の後に木を1度も読まずに座標を撃つ iOS の手は、先に1回読む**(OI-111: Flutter の最初のフレームが
-            // 描かれる前に撃った座標タップが done のまま飲まれた。木を読む経路 = ref・セレクタは 0/14 で外れなかった。
-            // 読みは XCUITest がアプリの静止を待つので、描画前に撃つ窓を閉じる。launchBaselineStale は読んだ時点で消える)
-            if !(d is AndroidDriver), launchBaselineStale.contains(Self.sessionKey(args)) {
-                _ = try? await freshSnapshot(d, args: args)
-            }
             if let offscreen = Self.offscreenCoordinateError(
                 x: x, y: y, screen: await coordinateScreen(d, args: args),
                 bridge: bridges[Self.sessionKey(args)]) { throw offscreen }
