@@ -23,4 +23,19 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertEqual(StepExecutor.relocateAfterClear(before, step: step, in: snapshot)?.ref, 11)
         XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: snapshot.elements)?.ref, 11)
     }
+
+    /// 推測の段(④ placeholder・⑤ 焦点)は、横の位置・幅が違う欄を同じ欄とは読まない(OI-77)
+    func testGuessingStepsOnlyAcceptAMoveAlongTheKeyboardsAxis() {
+        let before = field(3, y: 400, placeholder: "入力")
+        var sideways = field(11, y: 250, placeholder: "入力")
+        sideways.frame = FTRect(x: 40, y: 250, width: 300, height: 40)
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [sideways]), "横にずれた同じ placeholder の欄")
+        var focusedElsewhere = field(12, y: 250, placeholder: nil)
+        focusedElsewhere.frame = FTRect(x: 20, y: 250, width: 200, height: 40)
+        focusedElsewhere.focused = true
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedElsewhere]), "幅の違う焦点の欄")
+        var focusedAbove = field(13, y: 250, placeholder: nil)
+        focusedAbove.focused = true
+        XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: [focusedAbove])?.ref, 13, "縦に動いただけなら引く")
+    }
 }
