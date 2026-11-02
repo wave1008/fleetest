@@ -552,7 +552,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"
         case .refLessInputOnOtherApp:
-            return "another app was in front, not the launched app, when this was sent without a selector,"
+            return "another app, the notification shade or the lock screen was in front, not the launched app, when this was sent without a selector,"
                 + " so it may have gone to that app's focused field — pass the field's selector"
         case .systemAlertPresent:
             return "a system alert was in front of the app with no iosAlertHandler registered for it,"

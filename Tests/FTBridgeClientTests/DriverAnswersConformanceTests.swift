@@ -20,6 +20,7 @@ final class DriverAnswersConformanceTests: XCTestCase {
         (.keyguardShowing, "keyguardShowing"),
         (.systemAlert, "systemAlert"),
         (.systemUICovering, "systemUICovering"),
+        (.systemUIHoldsInputFocus, "systemUIHoldsInputFocus"),
     ]
 
     private func source(_ path: String) throws -> String {
@@ -36,7 +37,7 @@ final class DriverAnswersConformanceTests: XCTestCase {
             XCTAssertTrue(protocolSource.contains("func \(name)() async -> Probe<"), name)
         }
         XCTAssertEqual(Self.observations.reduce(DriverAnswers()) { $0.union($1.0) },
-                       [.foregroundAppID, .keyguardShowing, .systemAlert, .systemUICovering])
+                       [.foregroundAppID, .keyguardShowing, .systemAlert, .systemUICovering, .systemUIHoldsInputFocus])
     }
 
     /// 葉のドライバは表で「答える」観測だけを実装し、「答えない」観測は既定(`.notAnswerable`)に任せる
@@ -72,7 +73,7 @@ final class DriverAnswersConformanceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(wrappers.count, 7, "走査対象の包むドライバが見つからない: \(wrappers)")
         var targets = wrappers.map { ("Sources/FTBridgeClient/\($0)", iosAnswers) }
         targets.append(("Sources/FTCore/ActionCountingDriver.swift",
-                        [.foregroundAppID, .keyguardShowing, .systemAlert, .systemUICovering]))
+                        [.foregroundAppID, .keyguardShowing, .systemAlert, .systemUICovering, .systemUIHoldsInputFocus]))
         var missing: [String] = []
         for (path, required) in targets {
             let text = try source(path)

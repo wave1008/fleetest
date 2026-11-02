@@ -648,12 +648,13 @@ extension StepExecutor {
     /// openURL やアプリ内のリンクで別のアプリへ移っても残るので、断ると正しいシナリオを赤にする)。
     /// 判定は MCP(こちらは断る)と共有の `PreFireGuard.refLessInputBlocked`。聞くのは Android の前面のアプリ名だけ
     /// (dumpsys 1回。Emulator で約 30ms)。起こしていない(home / アプリ切替の後)ときは聞かない。
-    /// **限界**: シェード・ロック画面の下でも前面のアプリ名は下のアプリのままなので、それらは拾えない(MCP はシェードの窓と
-    /// キーガードも聞く。シェードの照会は AndroidDriver の具体型にあり FTCore から呼べない)
+    /// シェード・ロック画面の下は前面のアプリ名が下のアプリのままなので、シェードの焦点とキーガードも聞く(MCP と同じ材料)
     func noteRefLessInputOnOtherApp() async {
         guard isAndroid, let launched = launchedBundleID else { return }
         var facts = ForegroundFacts(launched: launched, sessionBundleID: launched)
         facts.front = await ForegroundState.frontProbe(driver)
+        facts.shadeHoldsInputFocus = await driver.systemUIHoldsInputFocus()
+        if facts.shadeHoldsInputFocus.value == true { facts.keyguardShowing = await ForegroundState.keyguardProbe(driver) }
         if PreFireGuard.refLessInputBlocked(by: ForegroundState.judge(facts)) {
             noteCodesThisStep.insert(.refLessInputOnOtherApp)
         }

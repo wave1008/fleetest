@@ -478,6 +478,18 @@ public final class AndroidDriver: AppDriver {
         return .value(showing)
     }
 
+    /// 窓の dumpsys が読めて、シェードの窓が可視でなければ `.value(false)`(焦点の dumpsys は撃たない)。読めなければ `.failed`
+    public func systemUIHoldsInputFocus() async -> Probe<Bool> {
+        let windows: Shell.Result
+        do { windows = try adbAnswering(["shell", "dumpsys", "window", "windows"]) } catch { return .failed(error.localizedDescription) }
+        guard windows.status == 0 else { return .failed("dumpsys window windows failed: \(windows.tail)") }
+        guard AndroidForegroundWindows.shadeCovering(dumpsys: windows.output) else { return .value(false) }
+        let focus: Shell.Result
+        do { focus = try adbAnswering(["shell", "dumpsys", "window", "displays"]) } catch { return .failed(error.localizedDescription) }
+        guard focus.status == 0 else { return .failed("dumpsys window displays failed: \(focus.tail)") }
+        return .value(AndroidForegroundWindows.inputFocusHeldByShade(dumpsys: focus.output))
+    }
+
     /// 前面にアプリの窓が無い回も `.notAnswerable`(読めなかった = 投げた回だけ `.failed`)
     public func foregroundAppID() async -> Probe<String> {
         await Probe.of { try readForegroundAppID() }

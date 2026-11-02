@@ -241,6 +241,10 @@ public protocol AppDriver {
     /// **キーガード(ロック画面・解除画面)が出ているか**(Android の `dumpsys window displays` の `isKeyguardShowing`)。
     /// `.notAnswerable` = 答えられない(iOS・読めなかった)。**プロトコル要件として宣言すること**(存在型越しの呼び出しが既定実装へ静的ディスパッチされない)
     func keyguardShowing() async -> Probe<Bool>
+    /// **通知シェード・クイック設定・解除画面が入力フォーカスを持つか**(Android の `dumpsys window`。前面のアプリ名はシェードの下でも
+    /// 下のアプリのままなので、ref なしの入力の前面の判定はこれも聞く)。`.value(false)` = 聞いて持っていなかった・`.notAnswerable` = 答えられない(iOS)。
+    /// **プロトコル要件として宣言すること**(存在型越しの呼び出しが既定実装へ静的ディスパッチされない)
+    func systemUIHoldsInputFocus() async -> Probe<Bool>
     /// 現在フォアグラウンドのアプリの bundleID/package(Android だけが答える。iOS は `.notAnswerable`)。
     /// Android で前面にアプリの窓が無かった回も `.notAnswerable`(読めなかった = 投げた回は `.failed`)。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由)
@@ -597,6 +601,7 @@ public extension AppDriver {
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func systemUICovering() async -> Probe<SystemUICoveringResponse> { .notAnswerable }
     func keyguardShowing() async -> Probe<Bool> { .notAnswerable }
+    func systemUIHoldsInputFocus() async -> Probe<Bool> { .notAnswerable }
     func foregroundAppID() async -> Probe<String> { .notAnswerable }
 
     var lastActionNote: String? { nil }

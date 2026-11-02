@@ -33,6 +33,9 @@ final class FakeAppDriver: AppDriver {
         log.entries.append("\(name).foregroundAppID")
         return foregroundAppIDAnswer
     }
+    /// シェードが入力フォーカスを持つかの答え(既定 = 答えない)
+    var systemUIHoldsInputFocusAnswer: Probe<Bool> = .notAnswerable
+    func systemUIHoldsInputFocus() async -> Probe<Bool> { systemUIHoldsInputFocusAnswer }
     /// このドライバでキャッシュ迂回が意味を持つか(既定は AppDriver の既定実装と同じ false)。
     /// bypassesCache の真理値表の検証で切り替える
     var bypassSupported = false

@@ -23,6 +23,21 @@ final class RefLessInputFrontAppNoteTests: XCTestCase {
         XCTAssertTrue(log.entries.contains("primary.type(ref:nil)"), "\(log.entries)")
     }
 
+    /// 通知シェード・ロック画面の下は前面のアプリ名が下のアプリのまま(OI-145)。焦点をシェードが持つなら言う
+    func testShadeHoldingInputFocusIsNotedEvenWhileTheLaunchedAppNameIsInFront() async {
+        let log = CallLog()
+        let driver = FakeAppDriver(name: "primary", log: log)
+        driver.foregroundAppIDAnswer = .value("com.example.app")
+        driver.systemUIHoldsInputFocusAnswer = .value(true)
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        executor.launchedBundleID = "com.example.app"
+        let outcome = await executor.execute(FlowStep(action: "type", text: "abc"))
+        XCTAssertTrue(outcome.notes.contains(.refLessInputOnOtherApp), "\(outcome.notes)")
+        driver.systemUIHoldsInputFocusAnswer = .value(false)
+        let quiet = await executor.execute(FlowStep(action: "type", text: "abc"))
+        XCTAssertFalse(quiet.notes.contains(.refLessInputOnOtherApp), "\(quiet.notes)")
+    }
+
     func testClearAndEnterAreNotedToo() async {
         for step in [FlowStep(action: "clearInput"), FlowStep(action: "pressEnter")] {
             let (outcome, _) = await run(step, front: .value("com.android.chrome"))

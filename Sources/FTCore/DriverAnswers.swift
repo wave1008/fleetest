@@ -12,6 +12,7 @@ public struct DriverAnswers: OptionSet, Sendable {
     public static let keyguardShowing = DriverAnswers(rawValue: 1 << 1)
     public static let systemAlert = DriverAnswers(rawValue: 1 << 2)
     public static let systemUICovering = DriverAnswers(rawValue: 1 << 3)
+    public static let systemUIHoldsInputFocus = DriverAnswers(rawValue: 1 << 4)
 
     /// XCUITest ブリッジ(BridgeClient)。前面のアプリ名は XCUITest に問う口が無い
     public static let iosXCUITest: DriverAnswers = [.systemAlert, .systemUICovering]
@@ -21,5 +22,5 @@ public struct DriverAnswers: OptionSet, Sendable {
     /// in-app ブリッジ単体(InAppDriver)。自プロセスの外は見えない
     public static let iosInApp: DriverAnswers = []
     /// Android は木の根が active window なのでアラート・覆いの照会は要らない(木に出る)
-    public static let android: DriverAnswers = [.foregroundAppID, .keyguardShowing]
+    public static let android: DriverAnswers = [.foregroundAppID, .keyguardShowing, .systemUIHoldsInputFocus]
 }
