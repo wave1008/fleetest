@@ -54,6 +54,24 @@ final class UncoveredAlternativeTests: XCTestCase {
         XCTAssertNil(OcclusionGeometry.uncoveredAlternative(to: candidates[0], among: candidates, in: tree, screen: screen))
     }
 
+    /// 全部覆われている(どの行も開いていない)なら撃たずに失敗にする(配線)
+    func testTapRefusesWhenEveryMatchIsCovered() async throws {
+        let driver = FixedTreeDriver(elements: swipeList(openRows: []), screen: screen)
+        let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "アーカイブ")))
+        XCTAssertTrue(driver.tappedRefs.isEmpty, "覆われたボタンを撃った: \(driver.tappedRefs)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("every one is covered"), message)
+    }
+
+    /// 1件しか実体が無ければ従来どおり撃つ(覆いの判定の誤検知を失敗にしない)
+    func testSingleCoveredMatchStillFires() {
+        let tree = swipeList(openRows: [])
+        let candidates = tree.filter { $0.identifier == "btn_sw_archive_1" }
+        XCTAssertNil(OcclusionGeometry.coveringWhenEveryMatchIsCovered(
+            chosen: candidates[0], among: candidates, in: tree, screen: screen))
+    }
+
     /// DSL の tap が覆われていない候補を撃つ(配線)
     func testTapTouchesTheExposedMatch() async throws {
         let driver = FixedTreeDriver(elements: swipeList(openRows: [4]), screen: screen)

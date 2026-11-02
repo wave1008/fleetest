@@ -142,6 +142,25 @@ public enum OcclusionGeometry {
         }
     }
 
+    /// 同じセレクタに**実体のある一致が2件以上**あり、そのどれもが手前の別要素に中心を覆われている(覆われていない候補への
+    /// 付け替え = `uncoveredAlternative` の対象が1件も無い)ときの、`chosen` を覆う要素。nil = それ以外。
+    /// 人はどれも押せない(RN の Swipeable: どの行も開いていないとき「アーカイブ」は全部行の裏)ので撃たない。
+    /// **実体のある一致 = 画面内に中心があり容器の外の残像でなく、`chosen` の祖先・子孫でないもの**
+    /// (1件だけが覆われている形は従来どおり警告のまま撃つ = 覆いの判定の誤検知を失敗にしない)
+    public static func coveringWhenEveryMatchIsCovered(chosen: ElementInfo, among candidates: [ElementInfo],
+                                                       in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {
+        guard let over = overlayCovering(chosen, in: elements, screen: screen),
+              uncoveredAlternative(to: chosen, among: candidates, in: elements, screen: screen) == nil else { return nil }
+        let chain = TapTargetGeometry.lineage(of: chosen, in: elements)
+        let others = candidates.filter { candidate in
+            candidate.ref != chosen.ref && !chain.contains(candidate.ref)
+                && candidate.frame.centerX >= screen.x && candidate.frame.centerX <= screen.x + screen.width
+                && candidate.frame.centerY >= screen.y && candidate.frame.centerY <= screen.y + screen.height
+                && !ContainerGeometry.isOutsideContainer(candidate, in: elements, screen: screen)
+        }
+        return others.isEmpty ? nil : over
+    }
+
     /// **撃つと別の要素に当たる**ことが具体的に言えるときだけ ghost 扱いする。
     ///
     /// `isOutsideContainer` だけでは dock のアイコンを誤って弾く —— 容器の推測から外れる位置に

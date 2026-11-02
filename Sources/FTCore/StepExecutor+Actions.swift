@@ -668,6 +668,11 @@ extension StepExecutor {
                 element = uncovered
                 resolvedElementThisStep = element
                 driverFallback = Self.joinNotes(driverFallback, Self.uncoveredAlternativeNote(element))
+            } else if Self.interactsByTouch(action), count > 1,
+                      let over = OcclusionGeometry.coveringWhenEveryMatchIsCovered(
+                          chosen: element, among: candidates, in: snapshot.elements, screen: snapshot.screen) {
+                // どの一致も覆われていて押せる候補が無い: 撃たない(撃つと覆っている物を押す)。種別は付けない(言える仕分けが無い)
+                return StepOutcome(status: .failed(Self.allMatchesCoveredMessage(step, count: count, over: over)))
             }
         }
 
@@ -1888,6 +1893,11 @@ extension StepExecutor {
     static func clearLostTargetMessage(_ step: FlowStep) -> String {
         "the field was cleared for replace:, but it could not be found on the screen afterwards:"
             + " \(step.locatorSummary) (nothing was typed)"
+    }
+
+    static func allMatchesCoveredMessage(_ step: FlowStep, count: Int, over: ElementInfo) -> String {
+        "did not touch \(step.locatorSummary): it matched \(count) elements and the centre of every one is covered by another element"
+            + " (the first by \(TapTargetGeometry.describe(over))), so touching any of them would hit what covers it (nothing was touched)"
     }
 
     /// 送った後に対象を見失ったときの失敗文(撃つ前の ref で撃たない理由を言う)
