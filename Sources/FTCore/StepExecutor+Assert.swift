@@ -114,7 +114,6 @@ extension StepExecutor {
         guardFrameStaleThisEval = false
         guardKeyboardFrame = keyboard
         guard visibilityGuardActive(perStepGuard: perStepGuard) else { return nil }
-        let clock = ContinuousClock()
         // **ここより後ろに置かない** —— 足切り(型・ラベル・インク)で FM を呼ばずに
         // 降りた回もガードが責任を持ったアサーションの総数(分母)に入れるため
         guardEnteredThisStep = true
