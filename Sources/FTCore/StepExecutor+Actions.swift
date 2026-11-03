@@ -1129,12 +1129,76 @@ extension StepExecutor {
             if let refusal = nonTextInputPreflightRefusal(element, in: snapshot.elements, action: "type") {
                 return StepOutcome(status: .failed(refusal))
             }
-            // **replace は3経路(typeDriver優先/通常/409フォールバック)より前に1回だけクリアする**。
+            // **replace は3経路(typeDriver優先/通常/409フォールバック)より前に1回だけクリアする**(下の送り・キーボードの段の後)。
             // 空にできていないのに書き足すと検証対象と違う値になるので、clear が失敗したら
             // type を撃たずこのステップを失敗させる
             var replaceFallbackNote: String?
             // 撃つ前の値(注記用)。replace は消去の後に要素を引き直すので、その前に控える
             let priorValue = TypeReadback.normalizedValue(of: element)
+            // **既存値の連結警告**(MCP の同名警告と揃える)。追加のデバイス往復はしない —
+            // 撃つ前に解決済みの `element.value` だけを見る。secureTextField は値を伏せる
+            // (マスク欄の実値をログへ出さない)。**replace は clear 済みなので空として扱う**
+            let existingValue = step.replace == true ? "" : priorValue
+            let existingValueNote: String? = step.replace == true
+                ? (priorValue.isEmpty ? nil : "cleared the field's prior content before typing (the result was not read back)")
+                : (priorValue.isEmpty ? nil
+                    : element.type == "secureTextField"
+                        ? "the field already holds a value; a masked field may append or replace it,"
+                            + " so the result may not be what you typed. Call clearInput first if you meant to replace it"
+                        // **連結後の値を予告しない**(MCP 側の同名警告と同じ理由)——
+                        // 空欄のヒント文字列が `value` に載り `placeholder` が来ないアプリ
+                        // (Google メッセージの宛先欄が witness)では前の値が実在の内容ではなく、
+                        // 予告は外れる。**ここでは読み返さない**(型ステップごとの往復を増やさない)
+                        // ので、観測していない値は名乗らず「撃つ前に入っていた値」だけを言う
+                        : "the field already held \"\(SnapshotRenderer.truncate(priorValue, 30))\";"
+                            + " type appends, so the result will not simply be what you typed."
+                            + " Call clearInput first if you meant to replace it")
+            // **キーボードの下の欄へは打たない**。焦点を当てるタップがキーボードに
+            // 当たるので焦点が移らず、**打鍵が直前に焦点のあった欄へ流れ込む**
+            // (受け手の 4.7 インチ実機で実測: 市区町村の欄に住所が3回ぶん追記された。
+            // 読み返しが 422 で止めるが、別の欄はすでに壊れている)。tap と同じ規則で
+            // 容器を送り、外せたら送った後の木で解決し直す。**送っても中心がキーボードの下に残るなら閉じてから打つ**
+            // (reachPastKeyboard の doc。送れない画面 = 内容が収まっているフォーム等)
+            if let lifted = try await liftCoveredTarget(
+                element, in: snapshot, step: step, verb: "typing",
+                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                guard let liftedElement = lifted.element else {
+                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "typing", after: lifted.snapshot)
+                        + (await leftForegroundSuffix(snapshot.sessionBundleID))))
+                }
+                element = liftedElement
+                snapshot = lifted.snapshot
+                driverFallback = Self.joinNotes(driverFallback, lifted.note)
+            }
+            var relitAfterClose = false
+            switch try await reachPastKeyboard(
+                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
+                priorTap: tapTargetBeforeThisStep,
+                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+            case nil: break
+            case .refused(let message)?: return StepOutcome(status: .failed(message))
+            case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
+            case .reached(let reached, let after, let note)?:
+                element = reached
+                snapshot = after
+                driverFallback = Self.joinNotes(driverFallback, note)
+                keyboardClosedThisStep = true
+                relitAfterClose = true
+            }
+            if keyboardClosedThisStep {
+                switch try await settleCoverAfterKeyboardClose(
+                    element, in: snapshot, step: step, verb: "typing", relift: relitAfterClose, allowsVisiblePart: false,
+                    snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
+                case .refused(let message, let kind):
+                    return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
+                case .settled(let settledElement, let settledSnapshot, let note):
+                    element = settledElement
+                    snapshot = settledSnapshot
+                    driverFallback = Self.joinNotes(driverFallback, note)
+                }
+            }
+            // **replace の消去は、容器を送る・キーボードの向こうへ届かせる段の後**(消去も欄へ焦点を当てるタップを伴う。先に撃つと
+            // キーボードの下の欄で焦点のタップがキーの上になり、ブリッジが撃たずに断って赤になった = 9周目の探索 im4 F1)
             if step.replace == true {
                 switch try await performClearInput(element: element, step: step,
                                                    actingDriver: actingDriver, in: snapshot.elements,
@@ -1196,68 +1260,6 @@ extension StepExecutor {
                     snapshot = relocatedSnapshot
                 case .failed(let message):
                     return StepOutcome(status: .failed(message))
-                }
-            }
-            // **既存値の連結警告**(MCP の同名警告と揃える)。追加のデバイス往復はしない —
-            // 撃つ前に解決済みの `element.value` だけを見る。secureTextField は値を伏せる
-            // (マスク欄の実値をログへ出さない)。**replace は clear 済みなので空として扱う**
-            let existingValue = step.replace == true ? "" : priorValue
-            let existingValueNote: String? = step.replace == true
-                ? (priorValue.isEmpty ? nil : "cleared the field's prior content before typing (the result was not read back)")
-                : (priorValue.isEmpty ? nil
-                    : element.type == "secureTextField"
-                        ? "the field already holds a value; a masked field may append or replace it,"
-                            + " so the result may not be what you typed. Call clearInput first if you meant to replace it"
-                        // **連結後の値を予告しない**(MCP 側の同名警告と同じ理由)——
-                        // 空欄のヒント文字列が `value` に載り `placeholder` が来ないアプリ
-                        // (Google メッセージの宛先欄が witness)では前の値が実在の内容ではなく、
-                        // 予告は外れる。**ここでは読み返さない**(型ステップごとの往復を増やさない)
-                        // ので、観測していない値は名乗らず「撃つ前に入っていた値」だけを言う
-                        : "the field already held \"\(SnapshotRenderer.truncate(priorValue, 30))\";"
-                            + " type appends, so the result will not simply be what you typed."
-                            + " Call clearInput first if you meant to replace it")
-            // **キーボードの下の欄へは打たない**。焦点を当てるタップがキーボードに
-            // 当たるので焦点が移らず、**打鍵が直前に焦点のあった欄へ流れ込む**
-            // (受け手の 4.7 インチ実機で実測: 市区町村の欄に住所が3回ぶん追記された。
-            // 読み返しが 422 で止めるが、別の欄はすでに壊れている)。tap と同じ規則で
-            // 容器を送り、外せたら送った後の木で解決し直す。**送っても中心がキーボードの下に残るなら閉じてから打つ**
-            // (reachPastKeyboard の doc。送れない画面 = 内容が収まっているフォーム等)
-            if let lifted = try await liftCoveredTarget(
-                element, in: snapshot, step: step, verb: "typing",
-                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
-                guard let liftedElement = lifted.element else {
-                    return StepOutcome(status: failed(.notFound, Self.coverLiftLostMessage(step, verb: "typing", after: lifted.snapshot)
-                        + (await leftForegroundSuffix(snapshot.sessionBundleID))))
-                }
-                element = liftedElement
-                snapshot = lifted.snapshot
-                driverFallback = Self.joinNotes(driverFallback, lifted.note)
-            }
-            var relitAfterClose = false
-            switch try await reachPastKeyboard(
-                element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
-                priorTap: tapTargetBeforeThisStep,
-                snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
-            case nil: break
-            case .refused(let message)?: return StepOutcome(status: .failed(message))
-            case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
-            case .reached(let reached, let after, let note)?:
-                element = reached
-                snapshot = after
-                driverFallback = Self.joinNotes(driverFallback, note)
-                keyboardClosedThisStep = true
-                relitAfterClose = true
-            }
-            if keyboardClosedThisStep {
-                switch try await settleCoverAfterKeyboardClose(
-                    element, in: snapshot, step: step, verb: "typing", relift: relitAfterClose, allowsVisiblePart: false,
-                    snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
-                case .refused(let message, let kind):
-                    return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
-                case .settled(let settledElement, let settledSnapshot, let note):
-                    element = settledElement
-                    snapshot = settledSnapshot
-                    driverFallback = Self.joinNotes(driverFallback, note)
                 }
             }
             // 改行で焦点は次の欄へ移りうる(続く操作を「同じ欄」と読ませない)

@@ -73,9 +73,9 @@ final class KeyboardInputPathsTests: XCTestCase {
         XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた: \(primary.coordinateTaps)")
     }
 
-    /// replace の type は、最初からキーボードの下にある欄でも閉じずに打つ(消去が欄を叩いて焦点を立てるので、その欄を焦点のある欄とみなす)。
-    /// 直前のステップの tap は無い = 直前の tap の免除には頼れない形
-    func testReplaceTypeIntoAFieldAlreadyUnderTheKeyboardDoesNotCloseIt() async throws {
+    /// replace の type も、replace なしと同じく、最初からキーボードの下にある欄へは「送る・副作用なく閉じる」を消去より先に試し、
+    /// どちらもできなければ消去も打鍵もせずに断る(消去の焦点のタップがキーの上になり、キーを押して焦点のある別の欄を書き換えうる)
+    func testReplaceTypeIntoAFieldUnderAKeyboardThatWillNotCloseRefusesBeforeClearing() async throws {
         let log = CallLog()
         let covered = el(1, "textField", "field_single", FTRect(x: 78, y: 260, width: 718, height: 48), value: "old")
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[covered]])
@@ -85,10 +85,10 @@ final class KeyboardInputPathsTests: XCTestCase {
                                     uiFramework: .flutter)
         let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_single"),
                                                       text: "abc", replace: true))
-        if case .failed(let message) = outcome.status {
-            XCTAssertFalse(message.contains("under the soft keyboard"), message)
-        }
-        XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた: \(primary.coordinateTaps)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
+        XCTAssertTrue(message.contains("under the soft keyboard") && message.contains("pressEnter()"), message)
+        XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.clearInput(") || $0.hasPrefix("primary.type(") },
+                       "消去・打鍵を撃った: \(log.entries)")
     }
 
     /// e2ey F5: RN の ScrollView の中の行は、キーボードが出ている間の最初のタップが閉じるだけなので撃つ前に閉じる

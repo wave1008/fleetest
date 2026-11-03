@@ -217,7 +217,8 @@ enum InAppSnapshot {
         guard view is UITableView || view is UICollectionView,
               let order = BridgeAPI.cellDisplayOrder(
                   screenFrames: subviews.map { $0.convert($0.bounds, to: nil) },
-                  isCell: subviews.map { ($0 is UITableViewCell || $0 is UICollectionViewCell) && !$0.isHidden && $0.alpha >= 0.01 })
+                  isCell: subviews.map { ($0 is UITableViewCell || $0 is UICollectionViewCell) && !$0.isHidden && $0.alpha >= 0.01 },
+                  listVisible: view.convert(view.bounds.inset(by: (view as? UIScrollView)?.adjustedContentInset ?? .zero), to: nil))
         else { return subviews }
         return order.map { subviews[$0] }
     }

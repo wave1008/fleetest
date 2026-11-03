@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 263
+    public static let bridgeProtocolVersion = 265
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -198,7 +198,10 @@ public enum BridgeAPI {
     /// セルの小数の枠・3x 画面の 1/3pt)ので、それを重なりに数えない。半 pt を超える重なりは重ねた配置(カード)とみなす
     public static let cellOverlapTolerance: CGFloat = 0.5
 
-    public static func cellDisplayOrder(screenFrames: [CGRect], isCell: [Bool]) -> [Int]? {
+    /// `listVisible` = 一覧の見える範囲(画面座標。呼び手は内側の余白 `adjustedContentInset` を除く = 余白の帯に回った行は描かれない)。**その範囲と交わらないセル(見える範囲の上・下に回った再利用待ちでない行)は、
+    /// 見えているセルの後ろへ回す** —— UITableView は見える範囲のすぐ外の行もセルとして持ち、位置の順の先頭が見えていない上の行に
+    /// なった(`.clickable` が最上段の1〜2行上を撃った = 9周目の探索 ilocal F4)。描かれていないセルは「表示」の順に入らない
+    public static func cellDisplayOrder(screenFrames: [CGRect], isCell: [Bool], listVisible: CGRect) -> [Int]? {
         precondition(screenFrames.count == isCell.count)
         let slots = isCell.indices.filter { isCell[$0] }
         guard slots.count > 1 else { return nil }
@@ -208,8 +211,9 @@ public enum BridgeAPI {
                 if overlap.width > cellOverlapTolerance && overlap.height > cellOverlapTolerance { return nil }
             }
         }
+        func hidden(_ i: Int) -> Int { screenFrames[i].intersects(listVisible) ? 0 : 1 }
         let ordered = slots.sorted {
-            (screenFrames[$0].minY, screenFrames[$0].minX) < (screenFrames[$1].minY, screenFrames[$1].minX)
+            (hidden($0), screenFrames[$0].minY, screenFrames[$0].minX) < (hidden($1), screenFrames[$1].minY, screenFrames[$1].minX)
         }
         var order = Array(isCell.indices)
         for (slot, cell) in zip(slots, ordered) { order[slot] = cell }
