@@ -59,7 +59,9 @@ class 横向きでも操作できること {
                     scrollTo("#nav_scroll")
                     tap("#nav_scroll")
                 }.expectation {
-                    exist("#row_01")
+                    // **行では確かめない**: SwiftUI の横向きでは行の一覧が高さ 0 に潰れて行が描かれない(木には残る =
+                    // 行のラベルが見えていない警告が正しく出る)。この画面に着いたことは横向きでも見えている部品で確かめる
+                    exist("#btn_scroll_top")
                 }
             }
             scene(2, "縦へ戻しても同じ画面のまま") {

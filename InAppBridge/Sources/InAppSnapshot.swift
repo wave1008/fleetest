@@ -192,7 +192,7 @@ enum InAppSnapshot {
 
     private static func axChildren(_ node: NSObject) -> [NSObject] {
         if let els = node.accessibilityElements as? [NSObject], !els.isEmpty { return els }
-        if let view = node as? UIView { return view.subviews }
+        if let view = node as? UIView { return cellsInDisplayOrder(view) }
         // **非 UIView 限定**: Flutter の SemanticsObjectContainer は accessibilityElements を
         // 実装せず、旧式の indexed UIAccessibilityContainer API(accessibilityElementCount /
         // accessibilityElement(at:))だけを実装する。これを辿らないと FlutterView の
@@ -209,6 +209,25 @@ enum InAppSnapshot {
             if !out.isEmpty { return out }
         }
         return []
+    }
+
+    /// UITableView / UICollectionView の子のうち**セル同士だけ**を表示の位置の順(上から・同じ高さなら左から)に並べ、セルが占めていた
+    /// 位置へ戻す。再利用されたセルは subviews の順が表示の順にならず(実測: 先頭が一覧の見える範囲の外の `row_08`)、`[n]` を
+    /// 書かないセレクタが見えていない行を掴んだ。XCUITest・Android の木は表示の順なので、ブリッジで並びが割れていた。
+    /// **セル以外(貼り付く見出し・スクロールの指示)の位置は変えない** —— 木の順は手前・奥の判定(`PaintOrder`)の代用でもあり、
+    /// 重なりうるのはそちら。セル同士は重ならないので、並べ替えても手前・奥は変わらない
+    private static func cellsInDisplayOrder(_ view: UIView) -> [NSObject] {
+        let subviews = view.subviews
+        guard view is UITableView || view is UICollectionView else { return subviews }
+        let isCell = { (v: UIView) in v is UITableViewCell || v is UICollectionViewCell }
+        let slots = subviews.indices.filter { isCell(subviews[$0]) }
+        guard slots.count > 1 else { return subviews }
+        let ordered = slots.map { subviews[$0] }.sorted {
+            ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX)
+        }
+        var out: [NSObject] = subviews
+        for (slot, cell) in zip(slots, ordered) { out[slot] = cell }
+        return out
     }
 
     private struct Included { let frame: CGRect }
