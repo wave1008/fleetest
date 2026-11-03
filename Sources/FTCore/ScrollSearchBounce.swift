@@ -29,3 +29,15 @@ public enum ScrollSearchBounce {
         return zip(before, after).contains { $0.frame != $1.frame }
     }
 }
+
+/// 払いの回数(maxSwipes)の数え方。**直前の払いが何も動かさなかった周回は、次の払いを回数に数えない**。
+/// 動かなかった払いは対象へ近づいていないので、数えると「読み込み中の骨組み(一覧が画面に収まる間)や端を確かめる払い」で
+/// 予算を使い、読み込みの後に実際に動く払いの分が足りなくなる(E2EY-iOS の読み込みの状態: 骨組みの間に2本使い、
+/// 読み込み後の4ページを送り切れず末尾の「再試行」に届かなかった)。
+/// 青天井にならない理由: 動かなかった周回は `unmovedRoundsToStopSearch` 回続けば探索を打ち切る(待ち・猶予の間は時間で尽きる)
+public enum ScrollSearchBudget {
+    /// 次の周回の `attempt`。`previousSwipeMoved == false`(木が変わらなかった)なら1つ戻して同じ番号で払う
+    public static func attemptAfterSending(attempt: Int, previousSwipeMoved: Bool) -> Int {
+        previousSwipeMoved ? attempt : attempt - 1
+    }
+}

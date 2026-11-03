@@ -800,6 +800,8 @@ extension StepExecutor {
         }
         // while で回すのは、書かれた waitSeconds: の待ちの周回に払いの回数(maxSwipes)を使わせないため
         var attempt = -1
+        // 直前の払いが木を動かしたか。動かさなかった払いは回数に数えない(ScrollSearchBudget)
+        var previousSwipeMoved = true
         while attempt < maxSwipes {
             attempt += 1
             // **1周目だけは静止を待ってから撮る**。直前の操作がプログラム的な
@@ -1101,6 +1103,7 @@ extension StepExecutor {
                    searchSignature(earlier)
                        == searchSignature(snapshot) {
                     unmovedRounds += 1
+                    previousSwipeMoved = false
                     // **最後に動いてから `edgeClaimGraceAfterMove` 経つまでは打ち切らず、残りを待って
                     // もう1本送る**(scrollToEdge と同じ猶予)。末尾に着いてから続きを読み込む一覧は、
                     // 読み込むまで「動かない」に見える(実測: SwiftUI の無限スクロールが loaded=40 で
@@ -1287,6 +1290,7 @@ extension StepExecutor {
                         return result
                     }
                 } else {
+                    previousSwipeMoved = true
                     // **比較が成立した回だけ**「動いた」と数える(1周目は previousSnapshot が
                     // 無いので、ここへ来ても何とも比べていない)
                     if let earlier = previousSnapshot {
@@ -1322,6 +1326,7 @@ extension StepExecutor {
                 if !swipeLeavesNoInertia(swipedViaXCUITest: swipedViaXCUITest) { leftInertia = true }
                 swipes += 1
                 previousSnapshot = snapshot
+                attempt = ScrollSearchBudget.attemptAfterSending(attempt: attempt, previousSwipeMoved: previousSwipeMoved)
             }
         }
         // **弾切れでも逆走査を1回だけ試す**(実測: 端のバウンスで内容署名が毎周
