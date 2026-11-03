@@ -204,7 +204,9 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `fleetest run --profile` はシナリオ一覧をビルドと並行に解決するので一覧を待てない —— 確定している `--scenario` の指定
   だけで判断する(`ApiRun.exactScenarioCount`)
 - **E2E 実行中に `swift build` / `swift test` を打たない** → MN-4.1。
-  **E2E を投げたらビルドを伴う作業は止める**
+  **E2E を投げたらビルドを伴う作業は止める**。**例外は単一のリモートへのディスパッチ**(`run --runner <機>`・
+  デバイスが全部1台のリモートにあるプロファイル)と `e2ex.sh --on` —— 前者は中継役を一時ディレクトリのコピーから
+  動かす(`DispatchSelfCopy`)、後者は手元で fleetest を動かさないので、回している間も手元でビルドしてよい
 - **モニターを止めるのは性能を測るときだけ**(ユーザー決定。合否を見るだけの実行では止めない)。
   **止めるのは `fleetest monitor pause [--for <分>]` / 再開は `resume`**(kill では止まらない ——
   拡張が数秒で再起動する。効くのはこの機械だけ。docs/verification/operations.md「モニターと E2E」)。

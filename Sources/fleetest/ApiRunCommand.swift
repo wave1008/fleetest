@@ -305,6 +305,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         } else if let dispatch = try resolveEffectiveDispatchTarget(
         explicitTarget: runner, profile: common.profile, project: common.project,
             requireProfileMachine: !dryRun) {
+            // 中継役をコピーから動かす(手元でビルドしても殺されない。DispatchSelfCopy の規律)
+            if !common.workQueue { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
             try await dispatchToRemoteHost(dispatch, project: testProject)
             return
         }
