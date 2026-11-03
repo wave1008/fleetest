@@ -105,5 +105,6 @@ final class WorkerCircuitBreakerTests: XCTestCase {
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(code.contains("if revived, let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear("))
+        XCTAssertTrue(code.contains("carriedFailures: revived ? 0 : laneStreakKey(streakKey)"), "消去が失敗しても読まない")
     }
 }

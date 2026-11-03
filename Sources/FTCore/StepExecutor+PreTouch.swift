@@ -72,7 +72,10 @@ extension StepExecutor {
         }
         let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                  screen: snapshot.screen)
-        let onlyDismissesKeyboard = PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
+        var onlyDismissesKeyboard = false
+        if case .primary = snapshotSource {
+            onlyDismissesKeyboard = PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
+        }
         var keyboardCloseOutcome: KeyboardClose?
         if case .primary = snapshotSource,
            PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil || onlyDismissesKeyboard {

@@ -1878,7 +1878,8 @@ public final class RunOrchestrator: Sendable {
         if revived, let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
         var breaker = WorkerCircuitBreaker(
             threshold: WORKER_FAILURE_CIRCUIT_THRESHOLD,
-            carriedFailures: laneStreakKey(streakKey).map {
+            // 消去(try?)が黙って失敗しても読まない = 復帰したレーンは必ず 0 から
+            carriedFailures: revived ? 0 : laneStreakKey(streakKey).map {
                 LaneFailureStreakStore.load(stateDir: $0.dir, key: $0.key, scope: project.name) } ?? 0)
         // 実行前のブリッジ疎通確認(プレフライト)は不採用(ユーザー決定)。
         // 「取ってから判定」版は一過性の AX スパイクで9台一斉離脱、「取る前に2sで即断」版も

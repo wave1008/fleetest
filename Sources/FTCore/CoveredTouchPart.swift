@@ -15,15 +15,14 @@ extension TapTargetGeometry {
     /// 床は `minimumVisibleTapExtent` × scale(新しい定数は置かない)。scale・inferring に既定値を置かない = 渡し忘れをコンパイルで止める
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double) -> CoveredTouch? {
-        guard let frontmost = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
+        guard let over = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
         // 次の3形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
-        // ⓪覆いが押せる型でなく、押せる祖先も無い: 防ぐ害は「別の押せる部品(タブ)に当たる」こと。背景・装飾・行の文字なら
-        //   中心を撃っても別の部品は押さず、塗り順の推測違い(見出しの容器が中の文字を覆うと読む)で断ると誤った赤になる。
-        //   最前面がタブの中の文字・アイコンなら、押されるのはそのタブ = 押せる祖先を覆いとする(対象の系譜は除く)
+        // ⓪覆い(中心の最前面)が押せる型でない: 防ぐ害は「別の押せる部品(タブ)に当たる」こと。背景・装飾・行の文字なら中心を
+        //   撃っても別の部品は押さず、塗り順の推測違い(見出しの容器が中の文字を覆うと読む)で断ると誤った赤になる。
+        //   **最前面を押せる祖先へ持ち上げない**: 祖先は preorder+depth の復元で、行の中の文字が行(cell)へ上がって浮いたボタンを
+        //   断る・対象を包む祖先が対象を丸ごと引く・平たい木で無関係のボタンを祖先と読む(タブの中の文字が最前面の形は従来の扱い)
+        guard BridgeSnapshotThinning.operableTypes.contains(over.type) else { return nil }
         let targetLineage = TapTargetGeometry.lineage(of: element, in: elements)
-        guard let over = ([frontmost] + ancestors(of: frontmost, in: elements)).first(where: {
-            BridgeSnapshotThinning.operableTypes.contains($0.type) && !targetLineage.contains($0.ref)
-        }) else { return nil }
         // ①対象が押せる型でない: 手前の押せる要素こそが受け手のことがある(OTP の箱の上に重ねた透明な入力欄)
         guard BridgeSnapshotThinning.operableTypes.contains(element.type) else { return nil }
         // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・

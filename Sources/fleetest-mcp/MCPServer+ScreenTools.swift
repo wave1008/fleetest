@@ -157,11 +157,16 @@ extension MCPServer {
             // 中心が容器の外に落ちる(縁で半分切れた)行は、スクロールせず見えている部分の点を撃つ(ref は変えない。
             // 判定は `TapTargetGeometry.visibleTapRect` = DSL と共有。見えている部分が無ければ従来どおり ref)
             var visiblePoint: (x: Double, y: Double)?
+            var visibleBandNote = ""
             if let tree = lastSnapshots[Self.sessionKey(args)]?.elements,
                let element = tree.first(where: { $0.ref == target.ref }),
                let visible = TapTargetGeometry.visibleTapRect(for: element, in: tree, scale: d.pointScale) {
-                visiblePoint = await bottomBandPoint(frame: visible, driver: d, args: args)
-                    ?? (visible.centerX, visible.centerY)
+                if let band = await bottomBandPoint(frame: visible, driver: d, args: args) {
+                    visiblePoint = band
+                    visibleBandNote = Self.bottomBandTouchNote
+                } else {
+                    visiblePoint = (visible.centerX, visible.centerY)
+                }
             }
             // 手前の覆いに中心を覆われた対象は、覆われていない見えている部分を押す(薄ければ撃たない)。DSL の tap と同じ判定
             var coverNote = ""
@@ -196,7 +201,8 @@ extension MCPServer {
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
             return text("tap [\(ref)] done.\(target.note)" + (bandPoint != nil ? Self.bottomBandTouchNote : "")
-                + (coverNote.isEmpty ? (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") : coverNote)
+                + (coverNote.isEmpty ? (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") + visibleBandNote
+                                     : coverNote)
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ

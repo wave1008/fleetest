@@ -66,7 +66,7 @@ final class ScrollSearchEndWaitTests: XCTestCase {
 
     /// 端に着いた後に出る要素は、waitSeconds: の間なら見つかる
     func testLateElementAtTheEndIsFoundWithinTheWrittenBudget() async throws {
-        let driver = LateFooterDriver(appearsAfterSwipes: 8)
+        let driver = LateFooterDriver(appearsAfterSwipes: .max, appearsAfterSeconds: 1.5)
         var phase = StepExecutor.PhaseAccumulator()
         let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .runScrollSearch(step: step(waitSeconds: 10), phase: &phase)
@@ -93,12 +93,20 @@ final class ScrollSearchEndWaitTests: XCTestCase {
         XCTAssertTrue(result.found, "待つ間に払いの回数を使い切った(swipes=\(driver.swipeCount))")
     }
 
-    /// 端でさらに払うと続きが読み込まれる一覧(引っ張りで読む形): 待つ間も払うので、8 本目の払いで出る要素を maxSwipes: 6 でも見つける
-    func testWaitingAtTheEndStillPullsForMoreWithoutSpendingTheBudget() async throws {
-        let driver = LateFooterDriver(appearsAfterSwipes: 8)
+    /// 待つ間は払わない(上端で払うと引っ張って更新が走る・古い木で払うと待つ間に出た行を飛ばす): 端に着いた後の払いは
+    /// 待ちに入る前の分だけ
+    func testWaitingAtTheEndDoesNotSwipe() async throws {
+        // 対照: 書かれた待ちが無ければ端で打ち切る = 端と決めるまでの払いの本数
+        let control = LateFooterDriver(appearsAfterSwipes: .max)
+        var controlPhase = StepExecutor.PhaseAccumulator()
+        _ = try await StepExecutor(driver: control, isAndroid: false, tunables: RunTunables())
+            .runScrollSearch(step: step(waitSeconds: nil, maxSwipes: 12), phase: &controlPhase)
+        let driver = LateFooterDriver(appearsAfterSwipes: .max, appearsAfterSeconds: 2)
         var phase = StepExecutor.PhaseAccumulator()
         let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
-            .runScrollSearch(step: step(waitSeconds: 10, maxSwipes: 6), phase: &phase)
-        XCTAssertTrue(result.found, "端で払わなかったか、回数を使い切った(swipes=\(driver.swipeCount))")
+            .runScrollSearch(step: step(waitSeconds: 8, maxSwipes: 12), phase: &phase)
+        XCTAssertTrue(result.found)
+        XCTAssertLessThanOrEqual(driver.swipeCount, control.swipeCount,
+                                 "待つ間に払った(対照 \(control.swipeCount) 本)")
     }
 }

@@ -1125,9 +1125,13 @@ extension StepExecutor {
                         try await Task.sleep(for: Self.unmovedBudgetPollInterval)
                         phase.waitMs += Self.ms(clock.now - waitStart)
                         unmovedRounds = Self.unmovedRoundsToStopSearch - 1
-                        // **待ちの周回は払いの回数(maxSwipes)に数えない**(数えると 0.5 秒ごとに1本ずつ食い、書かれた待ちより先に尽きる)。
-                        // 払いは撃つ: 末尾で引っ張って続きを読み込む一覧は、端でもう1本払わないと伸びない。待ちの上限は上の予算の時間
+                        // **待ちの周回は払わず、払いの回数(maxSwipes)にも数えない**(数えると 0.5 秒ごとに1本ずつ食い、書かれた待ちより
+                        // 先に尽きる)。払わないのは: 上端で払うと引っ張って更新が走る・待つ前に読んだ古い木で払うと待つ間に出た行を飛ばす。
+                        // 引っ張って読む一覧は、待ちに入る前の端の払い(unmovedRoundsToStopSearch 本)で読み込みが始まっている。
+                        // 木はこの周回の頭で撮ったもの = 次の周回の比較の基準(変われば上の else が動いたと読む)
+                        previousSnapshot = snapshot
                         attempt -= 1
+                        continue
                     }
                     if unmovedRounds >= Self.unmovedRoundsToStopSearch {
                         // **打ち切る前に整定まで待って確かめる**(Flutter/Android で
