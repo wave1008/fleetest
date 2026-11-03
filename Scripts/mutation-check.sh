@@ -28,6 +28,12 @@
 # 判定: 変異でテストが落ちれば OK(検出)、緑のまま通れば SURVIVED(そのテストは
 # その変異を殺せていない = テストを境界へ寄せるか、変異の置き場所を疑う)。
 # SURVIVED か適用エラーが1件でもあれば exit 1。
+# **変異の前に同じ --filter を無変異で1回回し、赤なら ERROR(baseline red)** —— これが無いと、
+# 壊れた worktree やシナリオの製品を要するテスト(下)で全変異が「検出した」と数えられる。
+#
+# **worktree の Package.swift からはシナリオのターゲット(`=== fleetest projects begin`〜`end`)を外す**:
+# `swift test` は --filter に関係なく全ターゲットを作るので、追いつきのビルドの大半が TestProjects の
+# シナリオ十数本に消えていた(2026-11-03 の4件の回: 各 worktree 約 261 秒)。シナリオの型チェックは本線の役目
 #
 # 環境変数: MUT_JOBS(同時実行数。既定 4 = 用意した worktree の本数。swift build 1 本で全コアを使うので増やしても総所要はほぼ変わらない・2026-09-15 実測)/ MUT_WORKTREE_ROOT(worktree の置き場。
 # 既定はリポジトリの隣の <repo名>-mutwt)
@@ -148,19 +154,51 @@ def run_one(index, mutation):
     finally:
         free_worktrees.put(wt)
 
+SCENARIO_BLOCK = re.compile(
+    r"^[ \t]*// === fleetest projects begin.*?^[ \t]*// === fleetest projects end ===[^\n]*\n",
+    re.MULTILINE | re.DOTALL)
+
+def manifest_without_scenarios():
+    src = open(os.path.join(repo, "Package.swift")).read()
+    stripped, n = SCENARIO_BLOCK.subn("", src)
+    if n != 1:
+        # 印が変わったら外さずに進む(全部ビルドに戻るだけで、誤った判定にはならない)
+        print(f"note: scenario block markers found {n} times in Package.swift (expected 1);"
+              " building the scenario targets too", file=sys.stderr)
+        return src
+    return stripped
+
+manifest = manifest_without_scenarios()
+safe = lambda s: re.sub(r"[^A-Za-z0-9._-]", "_", s)
+
+def run_tests(wt, log, filt):
+    with open(log, "w") as out:
+        r = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
+                           cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True)
+    return r.returncode, open(log, errors="replace").read()
+
 def run_in(wt, index, mutation):
     label = mutation.get("label", f"mutation {index + 1}")
     # 作業ツリーの現状(未コミット含む)を worktree へ同期。.build は消さない(温かい
     # キャッシュが並列化の前提)。--delete は「本線で消したファイルの残留」を防ぐ。
-    # 前の変異のテストが残した無視物は先に消す
+    # 前の変異のテストが残した無視物は先に消す。
+    # Package.swift は運ばず下で書く(毎回上書きすると mtime が動き、マニフェストを読み直す)
     purge_ignored(wt)
     r = sh(["rsync", "-a", "--delete",
             "--exclude=.git", "--exclude=.build", "--exclude=.fleetest",
             "--exclude=node_modules", "--exclude=results", "--exclude=reports",
+            "--exclude=/Package.swift",
             f"--exclude-from={exclude_file}",
             f"{repo}/", f"{wt}/"])
     if r.returncode != 0:
         return (label, "ERROR", f"rsync failed: {r.stderr.strip()[:200]}", None)
+    wt_manifest = os.path.join(wt, "Package.swift")
+    if not os.path.exists(wt_manifest) or open(wt_manifest).read() != manifest:
+        open(wt_manifest, "w").write(manifest)
+    base_log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.baseline.log")
+    code, body = run_tests(wt, base_log, mutation["filter"])
+    if code != 0:
+        return (label, "ERROR", "baseline red (the filter fails without the mutation) — see log", base_log)
     path = os.path.join(wt, mutation["file"])
     try:
         src = open(path).read()
@@ -170,15 +208,12 @@ def run_in(wt, index, mutation):
         return (label, "ERROR",
                 f"anchor found {src.count(mutation['old'])} times (must be exactly 1)", None)
     open(path, "w").write(src.replace(mutation["old"], mutation["new"], 1))
-    log = os.path.join(log_dir, f"{index + 1}-{re.sub(r'[^A-Za-z0-9._-]', '_', label)}.log")
-    with open(log, "w") as out:
-        r = subprocess.run(["swift", "test", "--parallel", "--filter", mutation["filter"]],
-                           cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True)
-    body = open(log, errors="replace").read()
+    log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.log")
+    code, body = run_tests(wt, log, mutation["filter"])
     failed = sorted(set(re.findall(r"\[\w+\.\w+ (test\w+)\]' failed", body)))
-    if r.returncode != 0 and not failed and "error:" in body:
+    if code != 0 and not failed and "error:" in body:
         return (label, "ERROR", "build failed (mutation does not compile) — see log", log)
-    return (label, "OK" if r.returncode != 0 else "SURVIVED",
+    return (label, "OK" if code != 0 else "SURVIVED",
             ", ".join(failed) if failed else "-", log)
 
 with ThreadPoolExecutor(max_workers=len(pool)) as executor:
@@ -194,6 +229,7 @@ for label, verdict, detail, log in results:
             print(f"{''.ljust(width)}  {'':9}  log: {log}")
 print(f"\n{len(results) - bad}/{len(results)} mutations detected. logs: {log_dir}")
 if bad:
-    print("SURVIVED = そのテストはその変異を殺せていない / ERROR = 変異を適用できていない")
+    print("SURVIVED = そのテストはその変異を殺せていない / ERROR = 変異を適用できていない"
+          "(baseline red = 変異の前から --filter が赤 = 判定できない)")
 sys.exit(1 if bad else 0)
 PYEOF
