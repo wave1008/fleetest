@@ -8,7 +8,8 @@ extension StepExecutor {
     /// typeDriver で type を試みる。ref はブリッジごとに別名前空間なので typeDriver 側 snapshot で
     /// 取り直す。解決できなければ false(呼び出し側で通常経路[inapp]へフォールバック/再スロー)。
     /// 戻り値の note は撃つ前に送ったときの注記(liftCoveredTarget)
-    func typeViaTypeDriver(_ td: AppDriver, step: FlowStep,
+    /// `keyboardWitness` は `clearViaTypeDriver` と同じ(主ドライバの申告したキーボードの枠で、撃つ前に突き合わせる)
+    func typeViaTypeDriver(_ td: AppDriver, step: FlowStep, keyboardWitness: FTRect?,
                                    phase: inout PhaseAccumulator) async throws -> (typed: Bool, note: String?) {
         let clock = ContinuousClock()
         var start = clock.now
@@ -26,6 +27,10 @@ extension StepExecutor {
             snapshot = lifted.snapshot
             guard let again = LocatorResolver.resolveDetailed(step: step, in: snapshot) else { return (false, note) }
             resolved = again
+        }
+        if let refusal = TapTargetGeometry.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
+                                                                 screen: snapshot.screen) {
+            throw DriverError.staleRef(detail: refusal)
         }
         start = clock.now
         try await RefExpectationScope.firing(resolved.element) {
@@ -407,24 +412,14 @@ extension StepExecutor {
         let snapshot = try await td.snapshot()
         phase.snapshotMs += Self.ms(clock.now - start)
         guard let resolved = LocatorResolver.resolveDetailed(step: step, in: snapshot) else { return false }
-        if let refusal = Self.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
-                                                    screen: snapshot.screen) {
+        if let refusal = TapTargetGeometry.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
+                                                                 screen: snapshot.screen) {
             throw DriverError.staleRef(detail: refusal)
         }
         start = clock.now
         try await td.clearInput(ref: resolved.element.ref)
         phase.actionMs += Self.ms(clock.now - start)
         return true
-    }
-
-    /// 焦点の無い欄の中心が(主ドライバの申告した)キーボードの下か。撃つ前の断りの文言(nil = 撃ってよい)。
-    /// 焦点のある欄はドライバが叩かずに消すので見ない(`reachPastKeyboard` の同じ例外)
-    static func focusTapUnderKeyboard(_ element: ElementInfo, keyboardWitness: FTRect?, screen: FTRect?) -> String? {
-        guard element.focused != true, let kb = keyboardWitness,
-              screen.map({ KeyboardWait.onScreen(kb, screen: $0) }) ?? true,
-              TapTargetGeometry.keyboardCoveredAdvisory(element, keyboardFrame: kb, operation: "clear") != nil else { return nil }
-        return "the field's centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is under the software keyboard"
-            + " in the fresh tree, so tapping it would press a key; nothing was sent"
     }
 
     enum ClearOutcome {
@@ -662,7 +657,8 @@ extension StepExecutor {
             actingSnapshot = check.snapshot ?? actingSnapshot
             if let residual = check.residual {
                 guard let td = typeDriver,
-                      try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase) else {
+                      try await clearViaTypeDriver(td, step: step, keyboardWitness: actingSnapshot?.keyboardFrame ?? keyboardWitness,
+                                                   phase: &phase) else {
                     return .failed("clearInput reported success but the value remained: \"\(residual)\"")
                 }
                 if let residual2 = try await residualClearValue(td, step: step,

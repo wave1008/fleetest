@@ -190,11 +190,13 @@ extension StepExecutor {
         }
         // 見えている部分を押す形(覆いが残っている)は、窓が伸びきるまで読み直す(閉じた直後の木は窓が伸びる途中で、タブ列を
         // 実際より下に申告する = その木で決めた部分がタブを押して遷移した。Flutter の Android 横向き 5 回中 1 回)。
-        // 対象と覆いの枠が続けて2回同じになったら決める。上限はステップの待ちの予算(新しい数字を置かない)
+        // 対象と覆いの枠が続けて2回同じになったら決める。少なくとも1回は読み直し、上限はステップの待ちの予算(新しい数字を置かない)。
+        // 読み直しはブリッジの ref の表を作り直すので、引けなくなったら前の木の要素では撃たない
         if allowsVisiblePart, TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) != nil {
             let clock = ContinuousClock()
             let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
-            while clock.now < deadline {
+            var settled = false
+            repeat {
                 let start = clock.now
                 let next: SnapshotResponse
                 switch snapshotSource {
@@ -202,23 +204,21 @@ extension StepExecutor {
                 case .driver(let other): next = try await other.snapshot(bypassingCache: true)
                 }
                 phase.snapshotMs += Self.ms(clock.now - start)
-                guard let (moved, _) = LocatorResolver.resolve(step: step, in: next) else { break }
-                let settled = Self.coverGeometryUnchanged(element, in: snapshot, moved, in: next)
+                guard let (moved, _) = LocatorResolver.resolve(step: step, in: next) else {
+                    let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
+                    return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target left"
+                        + " the screen while the window was growing back (nothing was \(done))", kind: .notFound)
+                }
+                settled = TapTargetGeometry.coverGeometryUnchanged(element, in: snapshot, moved, in: next)
                 element = moved
                 snapshot = next
-                if settled { break }
+            } while !settled && clock.now < deadline
+            if !settled {
+                note = Self.joinNotes(note, "the target or what covers it was still moving when the step's wait ran out —"
+                    + " the uncovered part was chosen from the last reading")
             }
         }
         return .settled(element: element, snapshot: snapshot, note: note)
-    }
-
-    /// 対象の枠と、その中心を覆う最前面の枠が、2つの木で同じか(`settleCoverAfterKeyboardClose` の読み直しの終わり)
-    static func coverGeometryUnchanged(_ before: ElementInfo, in a: SnapshotResponse,
-                                       _ after: ElementInfo, in b: SnapshotResponse) -> Bool {
-        guard before.frame == after.frame else { return false }
-        let coverA = TapTargetGeometry.overlayCoveringForUncover(before, in: a.elements, screen: a.screen)?.frame
-        let coverB = TapTargetGeometry.overlayCoveringForUncover(after, in: b.elements, screen: b.screen)?.frame
-        return coverA == coverB
     }
 
     /// **frame の中心を撃つ指の操作で、中心が画面の外なら撃たずに断る文**(長押し・doubleTap・要素から要素へのドラッグの始点と終点・

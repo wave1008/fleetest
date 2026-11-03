@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 258
+    public static let bridgeProtocolVersion = 259
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -472,13 +472,16 @@ extension FocusLanding {
     /// ③受け口が面積を持つ(CMP・UIKit)なら、**いまの受け口が叩き直す欄の中心を含む**。in-app から見えない経路
     /// (XCUITest で打った Enter)で焦点が次の欄へ移っても記録は残るので、①②だけだと移った先の欄を消した(OI-163 ①)。
     /// 面積の無い受け口(Flutter の 1x1)は位置で欄を指さないので見ない。含まなければ叩き直す(`focusTapPoint` が点を決める)
+    /// `liveCurrent` = 叩き直す欄の今の AX の枠(面積が無ければ nil)。③は撮った時点の枠ではなくこちらと比べる
+    /// (キーボードで欄が動いた後は、撮った時点の枠の中心に受け口は居ない)。無ければ撮った時点の枠で比べる
     public static func priorTapLanded(receiverMovedSinceThatTap: Bool, recordedTargetNow: CGRect?,
-                                      current: CGRect?, receiverNow: CGRect?) -> Bool {
+                                      current: CGRect?, receiverNow: CGRect?, liveCurrent: CGRect?) -> Bool {
         guard receiverMovedSinceThatTap, let target = recordedTargetNow, let current else { return false }
         let t = sameElementFrameTolerance
         guard target.insetBy(dx: -t, dy: -t).contains(current) else { return false }
         guard let receiverNow, receiverNow.width > 1, receiverNow.height > 1 else { return true }
-        return receiverNow.insetBy(dx: -t, dy: -t).contains(CGPoint(x: current.midX, y: current.midY))
+        let field = liveCurrent ?? current
+        return receiverNow.insetBy(dx: -t, dy: -t).contains(CGPoint(x: field.midX, y: field.midY))
     }
 
     /// 面積 0 に潰れた入力欄に焦点が立った形か: 受け口と叩いた欄の今の枠が、どちらも片辺が潰れていて同じ位置・大きさ(±`sameElementFrameTolerance`)。

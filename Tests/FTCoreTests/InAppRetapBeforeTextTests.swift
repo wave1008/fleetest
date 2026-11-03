@@ -79,14 +79,17 @@ final class InAppRetapBeforeTextTests: XCTestCase {
         let kb = FTRect(x: 0, y: 538, width: 402, height: 336)
         var field = ElementInfo(ref: 18, type: "textView", identifier: "field_first", label: "姓", value: "AB",
                                 placeholder: nil, enabled: true, frame: FTRect(x: 16, y: 608, width: 370, height: 64), depth: 3)
-        XCTAssertNotNil(StepExecutor.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
-        XCTAssertNil(StepExecutor.focusTapUnderKeyboard(field, keyboardWitness: nil, screen: screen))
-        XCTAssertNil(StepExecutor.focusTapUnderKeyboard(field, keyboardWitness: FTRect(x: 0, y: 891, width: 402, height: 233),
+        XCTAssertNotNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
+        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: nil, screen: screen))
+        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: FTRect(x: 0, y: 891, width: 402, height: 233),
                                                         screen: screen), "画面の外の枠はキーボード無し")
         field.focused = true
-        XCTAssertNil(StepExecutor.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen), "焦点の欄は叩かずに消す")
+        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen), "焦点の欄は叩かずに消す")
         field.focused = nil
         field.frame = FTRect(x: 16, y: 450, width: 370, height: 64)
-        XCTAssertNil(StepExecutor.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
+        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
+        field.frame = FTRect(x: 16, y: 484, width: 370, height: 112)
+        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen),
+                     "中心が縁にかかっても上側の帯が見えていればブリッジがそこを叩く(ブリッジと同じ規則)")
     }
 }

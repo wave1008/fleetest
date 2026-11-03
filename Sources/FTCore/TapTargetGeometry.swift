@@ -1271,6 +1271,33 @@ public enum TapTargetGeometry {
             + " the element clear of it"
     }
 
+    /// XCUITest で type / clear を撃つ前の確かめ: 焦点の無い欄へ焦点を当てるタップに、主ドライバ(inapp-boost モードの in-app)が
+    /// 申告したキーボードの枠で見て、押せる点が残っているか。ブリッジと同じ `FocusLanding.focusTapPoint`(中心が覆われても見えている
+    /// 帯があれば撃ってよい)で決め、帯が無いときだけ断りの文言を返す(nil = 撃ってよい)。XCUITest の枠は Enter で焦点が次の欄へ
+    /// 移る間に画面の外(y=891)で来るので、撮り直した欄の位置をこちらの枠と突き合わせる(焦点のタップがキーを押し、焦点のある
+    /// 別の欄を書き換えた = OI-163 ①)。焦点のある欄はドライバが叩かないので見ない(`reachPastKeyboard` の同じ例外)
+    public static func focusTapUnderKeyboard(_ element: ElementInfo, keyboardWitness: FTRect?, screen: FTRect?) -> String? {
+        guard element.focused != true, let kb = keyboardWitness,
+              screen.map({ KeyboardWait.onScreen(kb, screen: $0) }) ?? true else { return nil }
+        let f = element.frame
+        let field = CGRect(x: f.x, y: f.y, width: f.width, height: f.height)
+        let keyboard = CGRect(x: kb.x, y: kb.y, width: kb.width, height: kb.height)
+        guard FocusLanding.focusTapPoint(centre: CGPoint(x: field.midX, y: field.midY), field: field, keyboard: keyboard) == nil
+        else { return nil }
+        return "the field (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height))) is entirely under the software keyboard"
+            + " in the fresh tree, so tapping it would press a key; nothing was sent"
+    }
+
+    /// 対象の枠と、その中心を覆う最前面の枠が、2つの木で同じか(キーボードを閉じた後の読み直しの終わり =
+    /// `StepExecutor.settleCoverAfterKeyboardClose`)
+    public static func coverGeometryUnchanged(_ before: ElementInfo, in a: SnapshotResponse,
+                                              _ after: ElementInfo, in b: SnapshotResponse) -> Bool {
+        guard before.frame == after.frame else { return false }
+        let coverA = overlayCoveringForUncover(before, in: a.elements, screen: a.screen)?.frame
+        let coverB = overlayCoveringForUncover(after, in: b.elements, screen: b.screen)?.frame
+        return coverA == coverB
+    }
+
     /// 容器の縁で細い帯に切れた要素(ラベルは付いているが実際には掴めないほど狭い)。
     /// 実測(Apple マップ): 右端で幅9pxに切れたタブ「サンライズ瀬戸」(9x137)。
     /// アイコン(9x13 等)は縦横比条件(細い辺の対辺が `sliverLongDimension` 未満)で除外される

@@ -766,8 +766,10 @@ final class StepExecutorTests: XCTestCase {
         defer { RegionText.modelReadyOverrideForTesting = nil }
         let step = FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
                             timeout: 1, occlusionGuard: true)
-        // 並列のテストの負荷で OCR が予算(`RegionText.occlusionBudget`)を超えた回は読みが無く FM へ回る(前提が崩れた回)ので撃ち直す
+        // 並列のテストの負荷で OCR が予算(`RegionText.occlusionBudget`)を超えた回・前の読みが走っていて近道を撃たなかった回は
+        // 読みが無く FM へ回る(前提が崩れた回)ので撃ち直す
         for _ in 0..<3 {
+            await Self.awaitAbandonedOCRReads()
             let primary = FakeAppDriver(name: "primary", log: CallLog(),
                                         snapshotElements: [[screenFillingTextElement(label: label)]],
                                         screenshots: [screenFillingTextPNG(label)])
@@ -776,7 +778,7 @@ final class StepExecutorTests: XCTestCase {
                                         occlusionInkThreshold: 1000, isAndroid: false, tunables: RunTunables())
             executor.occlusionOCRMode = .on
             let outcome = await executor.execute(step)
-            if outcome.notes.contains(.ocrBudgetExhausted) { continue }
+            if outcome.notes.contains(.ocrBudgetExhausted) || outcome.notes.contains(.ocrShortcutBusy) { continue }
             guard case .passed = outcome.status else {
                 XCTFail("OCR で読めた回は FM を呼ばず pass のはず"); return
             }

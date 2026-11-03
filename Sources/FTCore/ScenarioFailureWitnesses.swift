@@ -7,9 +7,10 @@
 // (ロック画面のままの端末は、他の端末では通るシナリオで落ちる = 守る形は変わらない)。
 // 1 run で各シナリオを1回ずつ回すだけの初回は区別の材料が無いので、従来どおり数える。
 //
-// - 通ったら、そのシナリオの記録を消す(以後の失敗は再び1台目から)。
+// - 通ったら、そのシナリオの記録を消す(以後の失敗は再び1台目から)。対象外(notApplicable)では消さない(走らなかっただけ)。
 // - 期限は置かない(LaneFailureStreakStore と同じ。通れば消える)。
-// - 壊れた・読めないファイルは空として扱う。書き込みは全置換(書き手は run の中で RunOrchestrator の1か所)。
+// - 壊れた・読めないファイルは空として扱う。書き込みは全置換で、run の中の書き手は RunOrchestrator の錠の中の1か所。
+//   同じプロジェクトの run を同時に回すと後に書いた方が残る(失うのは数えない根拠だけ = 従来どおり数える側に倒れる)。
 
 import Foundation
 
@@ -21,11 +22,17 @@ public struct ScenarioFailureWitnesses: Codable, Equatable, Sendable {
         self.failedOn = failedOn
     }
 
-    /// 失敗を記録し、レーンの連続失敗に数えるかを返す
+    /// 失敗を記録し、レーンの連続失敗に数えるかを返す。「別のデバイス」は**同じ OS のデバイスだけ**(鍵の `<platform>:` が同じ)。
+    /// OS の片方だけの不具合で落ちたシナリオが、もう片方の不調機の失敗を見逃させない
     public mutating func recordFailure(scenario: String, worker: String) -> Bool {
         let before = failedOn[scenario, default: []]
         failedOn[scenario, default: []].insert(worker)
-        return before.subtracting([worker]).isEmpty
+        let platform = Self.platform(of: worker)
+        return !before.contains { $0 != worker && Self.platform(of: $0) == platform }
+    }
+
+    private static func platform(of worker: String) -> Substring {
+        worker.split(separator: ":", maxSplits: 1).first ?? Substring(worker)
     }
 
     public mutating func recordPass(scenario: String) {

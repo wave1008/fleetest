@@ -1273,7 +1273,7 @@ extension StepExecutor {
             // 操作へ引き継ぐ —— モードで挙動を変えない(読み返しの有無に依存しない)
             let keyboardBefore = snapshot.keyboardFrame
             if let td = typeDriver, preferTypeDriver || text.contains("\n") {
-                let routed = try await typeViaTypeDriver(td, step: step, phase: &phase)
+                let routed = try await typeViaTypeDriver(td, step: step, keyboardWitness: snapshot.keyboardFrame, phase: &phase)
                 if routed.typed {
                     // settle:false は次のステップへ待ちを持ち越さない(印を立てない)
                     if !step.skipsSettle {
@@ -1356,7 +1356,7 @@ extension StepExecutor {
                     return StepOutcome(status: .failed(Self.nonTextInputFallbackRefusal(
                         element, in: snapshot.elements, action: "type")))
                 }
-                let routed = try await typeViaTypeDriver(td, step: step, phase: &phase)
+                let routed = try await typeViaTypeDriver(td, step: step, keyboardWitness: snapshot.keyboardFrame, phase: &phase)
                 guard routed.typed else {
                     return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: true)))
                 }

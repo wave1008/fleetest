@@ -1107,12 +1107,14 @@ public final class RunOrchestrator: Sendable {
     /// 中断で終わった失敗は記録しない(persistStreak と同じ)
     private func witnessOutcome(scenario: String, worker key: String?, passed: Bool) async -> Bool {
         guard let key, await !stoppedByUser() else { return true }
-        let (counts, snapshot) = failureWitnesses.withLock { w -> (Bool, ScenarioFailureWitnesses) in
-            if passed { w.recordPass(scenario: scenario); return (true, w) }
-            return (w.recordFailure(scenario: scenario, worker: key), w)
+        // 書き込みも錠の中(錠の外で写しを書くと、後から書いたレーンの古い写しが新しい記録を上書きする)
+        return failureWitnesses.withLock { w -> Bool in
+            let counts: Bool
+            if passed { w.recordPass(scenario: scenario); counts = true }
+            else { counts = w.recordFailure(scenario: scenario, worker: key) }
+            if let dir = laneStreakStateDir { w.save(stateDir: dir, scope: project.name) }
+            return counts
         }
-        if let dir = laneStreakStateDir { snapshot.save(stateDir: dir, scope: project.name) }
-        return counts
     }
 
     /// 遅延参加の OS の供給が全滅したときの中止理由(**唯一の定義**。--debug の逐次経路も同じ文で止める)
@@ -2068,7 +2070,7 @@ public final class RunOrchestrator: Sendable {
                 if outcome == .notApplicable { await runSkipped.increment() }
                 breaker.recordPass()
                 if let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
-                _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true)
+                if outcome == .passed { _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true) }
                 await runPasses.increment()
                 await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: true)
                 // **レーンが空いている今だけ測り直す**(次の 1 件をまだ取っていない)。

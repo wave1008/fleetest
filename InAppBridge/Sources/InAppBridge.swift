@@ -533,8 +533,11 @@ final class FTInAppBridge {
         let now = Self.receiverMark()
         let moved = recorded.before.map { before in now.map { before.id != $0.id || before.rect != $0.rect } ?? true }
             ?? (now != nil)
+        let live = (nodes.object(forKey: NSNumber(value: ref)) as? NSObject).map { node in
+            rescales[ObjectIdentifier(node)].map { InAppSnapshot.frame(node, rescale: $0) } ?? node.accessibilityFrame
+        }.flatMap { $0.width > 0 && $0.height > 0 ? $0 : nil }
         return FocusLanding.priorTapLanded(receiverMovedSinceThatTap: moved, recordedTargetNow: recordedNow, current: current,
-                                           receiverNow: now?.rect)
+                                           receiverNow: now?.rect, liveCurrent: live)
     }
 
     private func handleTap(_ body: Data) throws -> InAppHTTPServer.Response {

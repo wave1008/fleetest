@@ -107,12 +107,21 @@ extension StepExecutorTests {
 
     /// OCR が予算(`RegionText.occlusionBudget`)内に読み終えた回の結果。並列のテストの負荷で予算を超えると読みが無く、
     /// 行の確かめ自体が走らない(警告が出ない・出ないことの確かめも素通り)ので、その回は撃ち直し、3 回とも超えたらスキップする
+    /// 予算を超えた読みが走り続けている間は近道を撃たない(`ocrShortcutBusy`)ので、その回も撃ち直し、撃つ前に走っている読みの終わりを待つ
     private func rowOCROutcomeWithinBudget(_ png: Data) async throws -> (StepResult.Status, Int, [StepNote]) {
         for _ in 0..<3 {
+            await Self.awaitAbandonedOCRReads()
             let outcome = await withModelReady { await rowOCROutcome(png) }
-            if !outcome.2.contains(.ocrBudgetExhausted) { return outcome }
+            if !outcome.2.contains(.ocrBudgetExhausted), !outcome.2.contains(.ocrShortcutBusy) { return outcome }
         }
         throw XCTSkip("OCR exceeded its budget three times under load; the row check did not run")
+    }
+
+    /// 予算を超えて諦めた読み(`RegionText.abandonedInFlight`)が終わるまで待つ(上限 10 秒 = 単体で 100〜300ms の読みに十分)
+    static func awaitAbandonedOCRReads() async {
+        for _ in 0..<200 where RegionText.abandonedInFlight > 0 {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
     }
 
     /// 別の文字が読めた行は警告(赤にしない)。FM は呼ばない
