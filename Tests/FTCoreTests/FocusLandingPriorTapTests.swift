@@ -81,6 +81,18 @@ final class FocusLandingPriorTapTests: XCTestCase {
         XCTAssertEqual(Double(FocusLanding.minimumVisibleBand), TapTargetGeometry.minimumVisibleTapExtent)
     }
 
+    /// 面積 0 に潰れた欄(CMP の iOS 横向き・キーボード表示中)は、受け口と同じ枠に潰れていれば着地(OI-163 ②)
+    func testReceiverCollapsedWithTheTargetLanded() {
+        let receiver = CGRect(x: 78, y: 154, width: 718, height: 0)
+        XCTAssertTrue(FocusLanding.receiverIsCollapsedTarget(receiver: receiver, liveTarget: CGRect(x: 78, y: 155, width: 718, height: 0)))
+        XCTAssertFalse(FocusLanding.receiverIsCollapsedTarget(receiver: receiver, liveTarget: CGRect(x: 78, y: 272, width: 718, height: 0)),
+                       "別の位置に潰れた欄")
+        XCTAssertFalse(FocusLanding.receiverIsCollapsedTarget(receiver: receiver, liveTarget: CGRect(x: 78, y: 154, width: 718, height: 22)),
+                       "潰れていない欄は従来の判定")
+        XCTAssertFalse(FocusLanding.receiverIsCollapsedTarget(receiver: CGRect(x: 78, y: 154, width: 1, height: 1),
+                                                              liveTarget: CGRect(x: 78, y: 154, width: 718, height: 0)))
+    }
+
     func testMissingFramesDidNotLand() {
         XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: nil, current: innerField, receiverNow: nil))
         XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: wrapperNow, current: nil, receiverNow: nil))

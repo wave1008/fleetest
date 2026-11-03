@@ -969,6 +969,7 @@ final class FTInAppBridge {
                 guard let reason = Self.focusRefusal(toward: centre, within: target,
                                                      targetIsInput: self.textInputRefs.contains(ref),
                                                      soleInnerInput: inner.count == 1 ? inner[0] : nil,
+                                                     collapsedTarget: axFrame,
                                                      before: before, landedByPriorTap: landedByPriorTap,
                                                      action: action)
                 else { return .focused }
@@ -995,9 +996,10 @@ final class FTInAppBridge {
         return ReceiverMark(id: ObjectIdentifier(view), rect: view.convert(view.bounds, to: nil))
     }
 
+    /// `collapsedTarget` = 叩いた要素の今の AX の枠(面積 0 でもそのまま)。`FocusLanding.receiverIsCollapsedTarget` の材料
     private static func focusRefusal(toward point: CGPoint, within target: CGRect?, targetIsInput: Bool,
-                                     soleInnerInput: CGRect?, before: ReceiverMark?, landedByPriorTap: Bool,
-                                     action: String) -> String? {
+                                     soleInnerInput: CGRect?, collapsedTarget: CGRect?, before: ReceiverMark?,
+                                     landedByPriorTap: Bool, action: String) -> String? {
         guard let receiver = FTCurrentTextReceiver() else {
             return "no focused input field after tapping the target — the ref is"
                 + " probably not a text input (tapping it does not move keyboard focus)."
@@ -1007,6 +1009,8 @@ final class FTInAppBridge {
         // 直前の tap が焦点を立てた欄への叩き直し(`FocusLanding.priorTapLanded`)。木の枠が欄の箱とずれる Flutter でも通す
         if landedByPriorTap { return nil }
         let rect = view.convert(view.bounds, to: nil)
+        if let collapsedTarget, targetIsInput,
+           FocusLanding.receiverIsCollapsedTarget(receiver: rect, liveTarget: collapsedTarget) { return nil }
         let moved = before.map { $0.id != ObjectIdentifier(view) || $0.rect != rect } ?? true
         guard FocusLanding.landed(receiver: rect, tapped: point, target: target, targetIsInput: targetIsInput,
                                   movedSinceTap: moved, soleInnerInput: soleInnerInput) else {

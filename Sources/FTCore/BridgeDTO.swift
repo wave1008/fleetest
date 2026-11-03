@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 257
+    public static let bridgeProtocolVersion = 258
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -479,6 +479,17 @@ extension FocusLanding {
         guard target.insetBy(dx: -t, dy: -t).contains(current) else { return false }
         guard let receiverNow, receiverNow.width > 1, receiverNow.height > 1 else { return true }
         return receiverNow.insetBy(dx: -t, dy: -t).contains(CGPoint(x: current.midX, y: current.midY))
+    }
+
+    /// 面積 0 に潰れた入力欄に焦点が立った形か: 受け口と叩いた欄の今の枠が、どちらも片辺が潰れていて同じ位置・大きさ(±`sameElementFrameTolerance`)。
+    /// CMP の iOS 横向きではキーボードが出ると欄が高さ 0 へ詰められ(実測: 受け口 (78,154 718x0)・欄は木から消える)、受け口の中心が
+    /// 撮った時点の枠に入らず「別の欄にある」と断っていた(焦点は立っていて、ロケータなしの type は入る)。呼び手は入力欄の ref だけに使う
+    public static func receiverIsCollapsedTarget(receiver: CGRect, liveTarget: CGRect) -> Bool {
+        let collapsed = { (r: CGRect) in r.width <= 1 || r.height <= 1 }
+        guard collapsed(receiver), collapsed(liveTarget) else { return false }
+        let t = sameElementFrameTolerance
+        return abs(receiver.minX - liveTarget.minX) <= t && abs(receiver.minY - liveTarget.minY) <= t
+            && abs(receiver.width - liveTarget.width) <= t && abs(receiver.height - liveTarget.height) <= t
     }
 
     /// 焦点を当てる合成タップの点が見えている帯として要る最小の厚み(pt)。`TapTargetGeometry.minimumVisibleTapExtent` と同じ値
