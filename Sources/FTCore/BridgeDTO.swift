@@ -496,7 +496,7 @@ extension FocusLanding {
     }
 
     /// 焦点を当てる合成タップの点が見えている帯として要る最小の厚み(pt)。`TapTargetGeometry.minimumVisibleTapExtent` と同じ値
-    /// (in-app はこのファイルだけをコンパイルするので写す。等号は `FocusTapPointTests` が固定)
+    /// (in-app はこのファイルだけをコンパイルするので写す。等号は `FocusLandingPriorTapTests.testFocusTapPointAvoidsTheKeyboard` が固定)
     public static let minimumVisibleBand: CGFloat = 8
 
     /// type / clear が欄へ焦点を当てる合成タップの点。中心がキーボードの下なら、欄のうちキーボードより上に見えている帯
