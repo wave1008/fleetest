@@ -467,7 +467,8 @@ extension StepExecutor {
         // clearInput も同じ(XCUITest ランナーの clear も `alreadyFocusedInput` で焦点の欄を叩かない。mxa F10)
         // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える(OI-91)
         if action == "type" || action == "clearInput", KeyboardWait.isShown(snapshot),
-           element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements) {
+           InputFocusRescue.holdsFocus(element, in: snapshot.elements)
+            || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements) {
             return nil
         }
         let nothing = "nothing was " + (action == "type" ? "typed" : action == "clearInput" ? "cleared" : "tapped")

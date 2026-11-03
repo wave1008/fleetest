@@ -1245,6 +1245,22 @@ extension StepExecutorTests {
         }
     }
 
+    /// 焦点のある要素が対象の枠の中に収まる欄(Flutter・Compose は焦点が欄の内側のノードに立つ)は、焦点のある欄として閉じずに打つ。
+    /// MCP の免除と同じ判定(`InputFocusRescue.holdsFocus`。OI-85)
+    func testTypeIntoAFieldWhoseInnerNodeHoldsFocusDoesNotCloseTheKeyboard() async throws {
+        let log = CallLog()
+        var inner = ElementInfo(ref: 2, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 24, y: 630, width: 350, height: 40), depth: 2)
+        inner.focused = true
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[Self.phoneUnderKeyboard, inner]])
+        primary.keyboardFrame = FTRect(x: 0, y: 538, width: 402, height: 336)
+        primary.tapProbeAnswer = TapProbeResponse(background: true, receiver: "UIView", reason: nil)
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(), uiFramework: .compose)
+        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "090"))
+        XCTAssertTrue(primary.coordinateTaps.isEmpty, "焦点のある欄なのにキーボードを閉じに行った: \(primary.coordinateTaps)")
+        XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.type(") }, "\(log.entries) \(outcome.status)")
+    }
+
     /// 副作用の無い手段で閉じなければ撃たずに失敗(Enter は欄の確定操作なので勝手に撃たない = ユーザー決定)
     func testTapTypeAndClearInputUnderAKeyboardThatWillNotCloseFailWithoutPressingEnter() async throws {
         for action in ["tap", "type", "clearInput"] {

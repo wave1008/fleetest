@@ -1067,23 +1067,7 @@ extension MCPServer {
     /// キーボードの下・細い帯に潰れた・せり上がったバーの下でも触らないので、断りも「タップがキーボードに当たる」警告も出さない
     /// (`keyboardRefusal` / `keyboardCoverRefusal` / `RefGuard.preTapWarnings` が共有する1箇所)
     static func typesWithoutTouching(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
-        (currentTool == "ft_type" || currentTool == "ft_clear_input") && holdsFocus(target, in: tree)
-    }
-
-    /// 対象がいま焦点を持つ欄か。**対象自身が focused、または焦点のある要素が対象の枠の中(同じ枠を含む)に収まる**(外側の容器が焦点を持つ形は数えない = 全画面の容器で免除しない)
-    /// (Flutter・Compose は焦点が欄の内側/外側のノードに立ち、ref の指す要素に focused が付かないことがある)
-    static func holdsFocus(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
-        if target.focused == true { return true }
-        let slack = 2.0
-        func contains(_ outer: FTRect, _ inner: FTRect) -> Bool {
-            inner.x >= outer.x - slack && inner.y >= outer.y - slack
-                && inner.x + inner.width <= outer.x + outer.width + slack
-                && inner.y + inner.height <= outer.y + outer.height + slack
-        }
-        return tree.contains { other in
-            other.focused == true && other.ref != target.ref
-                && contains(target.frame, other.frame)
-        }
+        (currentTool == "ft_type" || currentTool == "ft_clear_input") && InputFocusRescue.holdsFocus(target, in: tree)
     }
 
     /// **ref の経路も座標の経路と同じく、中心が画面の上の外なら撃たずに断る**(`offscreenCoordinateError` の上の外と同じ判定

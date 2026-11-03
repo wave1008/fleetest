@@ -97,6 +97,23 @@ public enum InputFocusRescue {
         return contains(before.frame, centreOf: focused.frame)
     }
 
+    /// 対象がいま焦点を持つ欄か。**対象自身が focused、または焦点のある要素が対象の枠の中(同じ枠を含む)に収まる**(外側の容器が
+    /// 焦点を持つ形は数えない = 全画面の容器で免除しない)。Flutter・Compose は焦点が欄の内側/外側のノードに立ち、対象に focused が
+    /// 付かないことがある。焦点のある欄への type / clearInput はドライバが叩かずに打つので、キーボードの下でも断らない。
+    /// MCP(`MCPServer.typesWithoutTouching`)と DSL(`StepExecutor.reachPastKeyboard`)が共有する(OI-85)
+    public static func holdsFocus(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
+        if target.focused == true { return true }
+        let slack = Double(FocusLanding.sameElementFrameTolerance)
+        func contains(_ outer: FTRect, _ inner: FTRect) -> Bool {
+            inner.x >= outer.x - slack && inner.y >= outer.y - slack
+                && inner.x + inner.width <= outer.x + outer.width + slack
+                && inner.y + inner.height <= outer.y + outer.height + slack
+        }
+        return tree.contains { other in
+            other.focused == true && other.ref != target.ref && contains(target.frame, other.frame)
+        }
+    }
+
     /// **直前の操作が tap で、その tap がこの欄を叩いていたか**(焦点の印を木に出さない構成 = Flutter の in-app の木で、焦点のある欄への
     /// 打鍵の免除を効かせる。OI-91: 横向きの `tap` → `type` が「キーボードの下の欄」で断られた)。
     /// 叩いた欄と同じ要素(id + 型。id が無ければ枠)で、**木のどの要素も別の場所の焦点を申告していない**ときだけ真
