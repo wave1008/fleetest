@@ -125,13 +125,20 @@ extension StepExecutor {
                            + " (\(Int(c.x)), \(Int(c.y))) is outside the screen, so it is not visible"
                            + " (scroll it into view before this step)")
         }
+        // 文字の型でない要素(行・ボタン)は、同じ label の文字の子を1つだけ持つならその子で確かめる
+        // (親は縁で切れて文字が消えていても枠の位置にインクがある。以降の全段 = 縁・容器の外の判定・インク・OCR・FM が子を見る)。
+        // 子が無い・複数なら従来どおり足切りで素通り(`OcclusionEligibility.sameLabelTextDescendant`)
+        var element = element
+        if let child = OcclusionEligibility.sameLabelTextDescendant(
+            of: element, expectedText: expectedText, isUserText: expectedIsUserText, in: elements) {
+            element = child
+        }
         // FM の段(fmTextVisibilityCheck)と OCR の段(ocrTextVisibilityCheck)は独立。**どちらも無ければ Tier-0 の幾何だけ**
         let fmConfigured = fmVisibilityCheckEnabled && delegate != nil
         guard fmConfigured || occlusionOCRMode != .off else { return nil }
         // 退化 frame(サイズ 0・クランプで潰れた等)は視覚照合の意味がないのでスキップ(素通り)
         guard element.frame.width >= 1, element.frame.height >= 1, !expectedText.isEmpty else { return nil }
         // Compose が兄弟のタッチ範囲で削った枠は、切り抜きに使う前に戻す(全段 = インク・OCR・FM が同じ枠を見る)
-        var element = element
         if let restored = TouchOverhangFrameRestore.restoredFrame(for: element, in: elements) {
             element.frame = restored
             noteCodesThisStep.insert(.a11yFrameRestored)

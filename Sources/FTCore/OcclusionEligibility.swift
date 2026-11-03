@@ -9,6 +9,33 @@ import Foundation
 public enum OcclusionEligibility {
     public struct Verdict { public let ok: Bool; public let reason: String }
 
+    private static let textTypes = ["staticText", "text", "textView", "label", "searchField", "textField"]
+
+    /// 文字の型か。接尾辞照合は大小無視(`secureTextField` が `textField` を、ベンダ接頭辞付きの型が素の型を含む)
+    public static func isTextType(_ type: String) -> Bool {
+        let lowered = type.lowercased()
+        return textTypes.contains { lowered == $0.lowercased() || lowered.hasSuffix($0.lowercased()) }
+    }
+
+    /// 文字の型でない要素(行の clickable・ボタン)の可視性検証の対象。**期待文字列と同じ label の文字の型の子孫を
+    /// ちょうど1つ持つとき、その子**(ラベルは子の文字から畳まれたもの = 描かれる文字は子の枠にある)。
+    /// 子が無い・複数・label が違う・子が足切りに掛かる(`eligible` が false)ときは nil = 従来どおり素通し
+    /// (アイコンのボタンの a11y ラベルは描かれないので、子の無い要素へ広げると誤った赤が出る)。
+    /// 要素自身が文字の型のときも nil(呼び手はそのまま使う)。DSL の `occlusionFlip` が唯一の呼び手
+    /// (MCP に同じ検証の口は無い。ref ガードは幾何で別軸)
+    public static func sameLabelTextDescendant(of element: ElementInfo, expectedText: String,
+                                               isUserText: Bool, in elements: [ElementInfo]) -> ElementInfo? {
+        guard !isTextType(element.type) else { return nil }
+        let matches = LocatorResolver.descendants(of: element, in: elements).filter {
+            isTextType($0.type) && $0.label == expectedText
+        }
+        guard matches.count == 1, let child = matches.first,
+              eligible(type: child.type, label: expectedText, isUserText: isUserText,
+                       value: child.value, placeholder: child.placeholder, web: child.web).ok
+        else { return nil }
+        return child
+    }
+
     /// FM occlusion 照合の対象にしてよいか。ok=false の要素はガードを素通りする(pass のまま)。
     /// isUserText: label が textEquals/valueEquals の**ユーザー期待値**(リテラル)か。true のときは
     /// 結合セマンティクスの `, ` 規則を当てない(ユーザーが句読点入りテキストを意図的に検証し得るため。
@@ -33,10 +60,8 @@ public enum OcclusionEligibility {
         // テキスト系の型のみ(Compose iOS/XCUITest とも本文テキストは "staticText")。
         // 型はホスト側で先頭小文字に正規化済み(ElementInfo.normalizedType)
         // image/button/cell/other 等はアイコン・画像でラベルが説明文になりがち。
-        let textTypes = ["staticText", "text", "textView", "label", "searchField", "textField"]
-        // 接尾辞照合は大小無視(`secureTextField` が `textField` を、ベンダ接頭辞付きの型が素の型を含む)
         let lowered = type.lowercased()
-        guard textTypes.contains(where: { lowered == $0.lowercased() || lowered.hasSuffix($0.lowercased()) }) else {
+        guard isTextType(type) else {
             return Verdict(ok: false, reason: "non-text type: \(type)")
         }
         // Web(DOM)経路の入力欄は label が常に aria-label(WebViewDOMSnapshot.swift の
