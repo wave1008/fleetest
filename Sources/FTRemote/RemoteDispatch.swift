@@ -72,7 +72,13 @@ public enum RevisionRelation: String, Sendable {
     case localBehind    // ローカルがランナーの祖先 = この機械が古い
     case remoteBehind   // ランナーがローカルの祖先 = ランナーが古い
     case diverged        // どちらでもない = ブランチ作業
+    case workingTreeDiffers  // 基点は同じで、中身(未コミットの変更)だけが違う = align で揃う
     case unknown         // 判定不能(git を実行できない・ランナーの rev がこの clone に無い等)
+}
+
+extension AlignSnapshot.RemoteToolState {
+    /// ランナーの HEAD が align のスナップショット(基点 = HEAD^1 が HEAD と別)か
+    public var isSnapshot: Bool { base != head }
 }
 
 public enum RemoteCompat {
@@ -91,8 +97,12 @@ public enum RemoteCompat {
     }
 
     /// 向き付きの案内(英語1文)。**localBehind は align を実行手順として案内しない** ——
-    /// ランナーはピン運用(RR-18.3)なので、遅れている側の人間が自分を上げる
-    public static func relationAdvice(_ relation: RevisionRelation) -> String {
+    /// ランナーはピン運用(RR-18.3)なので、遅れている側の人間が自分を上げる。
+    /// `workingTreeDiffers` だけが発行者の名前を使う: ランナーが**他の発行者**のスナップショットを持っているとき、
+    /// align はその未コミットの変更を上書きするので名指しする(止めはしない)。引数は呼び手が必ず渡す(既定値なし)
+    public static func relationAdvice(
+        _ relation: RevisionRelation, localIssuer: String?, remoteSnapshotIssuer: String?
+    ) -> String {
         switch relation {
         case .localBehind:
             return "This machine is behind the runner: update yourself (Scripts/update.sh, or git pull + rebuild)"
@@ -103,6 +113,13 @@ public enum RemoteCompat {
         case .diverged:
             return "Local and runner revisions have diverged (branch work) — a shared runner cannot track"
                 + " both branches; use a dedicated machine for branch verification (RR-18.3)."
+        case .workingTreeDiffers:
+            var text = "Both sides are on the same commit but the working tree contents differ"
+                + " (uncommitted changes): `fleetest remote align <host>` sends this machine's working tree to the runner."
+            if let other = remoteSnapshotIssuer, other != localIssuer {
+                text += " The runner currently holds uncommitted changes from \(other); aligning overwrites them."
+            }
+            return text
         case .unknown:
             return "Cannot tell which side is behind (the runner's revision is not in this clone)."
                 + " Run `git fetch` and retry — in most cases this machine is the one that is behind."
@@ -141,23 +158,39 @@ public enum RemoteCompat {
         public var isCompatible: Bool { blocking.isEmpty }
     }
 
-    /// 照会の失敗理由まで載せる形。**判定は verdict(remoteRevision:) と同じ fail-closed**
+    /// 手元のツールの同一性。`isClean` = 作業ツリーが HEAD と同じ(未コミットの変更なし)。
+    /// 照合は `digest`(中身の要約)で行い、`head` は表示と向きの判定(基点)に使う
+    public struct LocalTool: Equatable, Sendable {
+        public let head: String
+        public let digest: String
+        public let isClean: Bool
+        public init(head: String, digest: String, isClean: Bool) {
+            self.head = head
+            self.digest = digest
+            self.isClean = isClean
+        }
+    }
+
+    /// 照会の失敗理由まで載せる形。**判定は verdict(remoteTool:) と同じ fail-closed**
     /// (失敗は値が無いのと同じ扱いで blocking に倒す)で、足すのは説明だけ。
+    /// `remoteToolFailure` = ツールの照会(HEAD・要約)が取れなかった理由
     ///
-    /// 失敗行を**末尾に足す**のは呼び出し側のため —— 向きの案内(relationAdvice /
-    /// unpublishedRevisionMessage)は blocking の接頭辞 "git revision" で分岐するので、
+    /// 失敗行を**末尾に足す**のは呼び出し側のため —— 向きの案内(relationAdvice)は
+    /// blocking の接頭辞 "git revision" で分岐するので、
     /// 照会の失敗行がそこへ食い込まないよう別の接頭辞にしてある
     public static func verdict(
-        localRevision: String?, remoteRevision: ProbeOutcome,
+        local: LocalTool?, remoteTool: AlignSnapshot.RemoteToolState?, remoteToolFailure: String?,
         localToolchain: String?, remoteToolchain: ProbeOutcome
     ) -> CompatVerdict {
         let base = verdict(
-            localRevision: localRevision, remoteRevision: remoteRevision.capturedValue,
+            local: local, remoteTool: remoteTool,
             localToolchain: localToolchain, remoteToolchain: remoteToolchain.capturedValue)
         var blocking = base.blocking
-        for (label, probe) in [("git revision", remoteRevision), ("toolchain", remoteToolchain)] {
-            guard let detail = probe.failureDetail else { continue }
-            blocking.append("could not query the remote \(label): \(detail)")
+        if let detail = remoteToolFailure {
+            blocking.append("could not query the remote git revision: \(detail)")
+        }
+        if let detail = remoteToolchain.failureDetail {
+            blocking.append("could not query the remote toolchain: \(detail)")
         }
         return CompatVerdict(blocking: blocking, advisory: base.advisory)
     }
@@ -165,7 +198,9 @@ public enum RemoteCompat {
     /// fail-closed: 片方でも取得できなければ(nil)blocking に含める(古い/未検証の組で
     /// 黙って走らせない。CLAUDE.md「片方だけ変えない」規律をマシン間に広げる)。
     ///
-    /// **照合するのは rev と toolchain の2つだけ**。「送り先が想定の機械か」は ssh の宛先
+    /// **照合するのは「ツールの中身の要約」と toolchain の2つだけ**(コミットの SHA では比べない ——
+    /// 未コミットの変更を align で送った回も、同じ中身を後でコミットした回も一致し、
+    /// SHA が同じで中身が違う回は止まる)。「送り先が想定の機械か」は ssh の宛先
     /// (とホスト鍵)が保証するので、リモートの登録名は見ない。
     ///
     /// **toolchain だけ blocking/advisory が割れる**: リモートへ渡るのは TestProjects のソースだけで、
@@ -175,26 +210,37 @@ public enum RemoteCompat {
     /// 製品版ごとに1つしか無いため、製品版が同じで build が違えばどちらかが必ずベータ)ので advisory
     /// に落とす。製品版が違う(26 vs 27 等)・切り出せない・片方 nil はそのまま blocking
     public static func verdict(
-        localRevision: String?, remoteRevision: String?,
+        local: LocalTool?, remoteTool: AlignSnapshot.RemoteToolState?,
         localToolchain: String?, remoteToolchain: String?
     ) -> CompatVerdict {
         var blocking: [String] = []
         var advisory: [String] = []
-        appendRevision(&blocking, local: localRevision, remote: remoteRevision)
+        appendRevision(&blocking, local: local, remote: remoteTool)
         appendToolchain(&blocking, &advisory, local: localToolchain, remote: remoteToolchain)
         return CompatVerdict(blocking: blocking, advisory: advisory)
     }
 
-    private static func appendRevision(_ blocking: inout [String], local: String?, remote: String?) {
-        switch (local, remote) {
-        case let (local?, remote?) where local == remote:
+    /// 要約の一致で決める。**文言の接頭辞 "git revision" を変えない**(HostReport.revisionCompatible 等が拾う)
+    private static func appendRevision(
+        _ blocking: inout [String], local: LocalTool?, remote: AlignSnapshot.RemoteToolState?
+    ) {
+        let remoteDigest = remote?.digest
+        switch (local, remoteDigest) {
+        case let (local?, remoteDigest?) where local.digest == remoteDigest:
             return
-        case let (local?, remote?):
-            blocking.append("git revision mismatch: local=\(local) remote=\(remote)")
+        case let (local?, remoteDigest?):
+            let localLabel = short(local.head) + (local.isClean ? "" : "+uncommitted")
+            let remoteLabel = short(remote?.head ?? "") + (remote?.isSnapshot == true ? "+snapshot" : "")
+            blocking.append("git revision mismatch: the tool content differs"
+                + " (local=\(localLabel) digest=\(short(local.digest)),"
+                + " remote=\(remoteLabel) digest=\(short(remoteDigest)))")
         default:
-            appendMissingValueReason(&blocking, label: "git revision", local: local, remote: remote)
+            appendMissingValueReason(&blocking, label: "git revision",
+                                     local: local?.digest, remote: remoteDigest)
         }
     }
+
+    private static func short(_ sha: String) -> String { String(sha.prefix(7)) }
 
     private static func appendToolchain(
         _ blocking: inout [String], _ advisory: inout [String], local: String?, remote: String?
@@ -922,7 +968,8 @@ public enum RemoteProbe {
 /// nil にすると「到達したが1項目読めなかった」場合に他の全項目まで失う)
 public struct RemoteHostStatus: Equatable, Sendable {
     public let session: RemoteSessionInfo?
-    public let revision: String?
+    /// ランナーのツール(HEAD・中身の要約・基点・スナップショットの発行者)。nil = 読めない(クローンが無い等)
+    public let tool: AlignSnapshot.RemoteToolState?
     public let toolchain: String?
     public let binaryPresent: Bool
     public let freeKB: Int?
@@ -939,13 +986,16 @@ public struct RemoteHostStatus: Equatable, Sendable {
     /// iOS シミュレータのランタイムの指紋(`SimulatorRuntimeFingerprint`)。nil = 読めない = 不明
     public let simulatorRuntime: String?
 
+    /// ランナーのクローンの HEAD(表示用)
+    public var revision: String? { tool?.head }
+
     /// lock / fmLiveness / simulatorRuntime は既定 nil ―― 既存の5引数呼び出し(と、それを固定している
     /// テスト)を壊さない
-    public init(session: RemoteSessionInfo?, revision: String?, toolchain: String?,
+    public init(session: RemoteSessionInfo?, tool: AlignSnapshot.RemoteToolState?, toolchain: String?,
                 binaryPresent: Bool, freeKB: Int?, lock: RemoteDispatchLock.Probe? = nil,
                 fmLiveness: FMLiveness.Record? = nil, simulatorRuntime: String? = nil) {
         self.session = session
-        self.revision = revision
+        self.tool = tool
         self.toolchain = toolchain
         self.binaryPresent = binaryPresent
         self.freeKB = freeKB
@@ -982,7 +1032,9 @@ public enum RemoteStatusProbe {
         let devDirPrefix = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         var steps = [
             "echo $HOME; \(RemoteProbe.consoleUserCommand); id -un",
-            "git -C \(dquote(layout.toolRoot)) rev-parse HEAD 2>/dev/null || echo -",
+            // 4行(HEAD / 要約 / 基点 / スナップショットの issuer)。**同じブロックの中で行が増えるだけ**
+            // (ブロックを足すと parse の固定位置が後ろ全部ずれる)。toolRoot は dquote で `$HOME` を遅延展開させる
+            AlignSnapshot.remoteProbeCommand(quotedToolRoot: dquote(layout.toolRoot)),
             "xcodebuild -version",
             "xcrun --sdk iphonesimulator --show-sdk-build-version",
             "test -x \(dquote(layout.binary)) && echo yes || echo no",
@@ -1022,7 +1074,11 @@ public enum RemoteStatusProbe {
         func block(_ i: Int) -> String? { blocks.indices.contains(i) ? blocks[i] : nil }
 
         let session = block(0).flatMap(RemoteProbe.parseSessionInfo)
-        let revision = trimmedNonDash(block(1))
+        let tool = block(1).flatMap { text -> AlignSnapshot.RemoteToolState? in
+            var lines = text.components(separatedBy: "\n")
+            while lines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeLast() }
+            return AlignSnapshot.parseRemoteProbe(lines)
+        }
         let xcodeVersion = trimmedNonEmpty(block(2))
         let sdkBuild = trimmedNonEmpty(block(3))
         let toolchain = xcodeVersion.flatMap { xcode in
@@ -1039,7 +1095,7 @@ public enum RemoteStatusProbe {
             block(9).flatMap { SimulatorRuntimeFingerprint.compose(sdkVersion: sdk, runtimeList: $0) }
         }
 
-        return RemoteHostStatus(session: session, revision: revision, toolchain: toolchain,
+        return RemoteHostStatus(session: session, tool: tool, toolchain: toolchain,
                                 binaryPresent: binaryPresent, freeKB: freeKB, lock: lock,
                                 fmLiveness: fmLiveness, simulatorRuntime: simulatorRuntime)
     }
@@ -1084,11 +1140,6 @@ public enum RemoteStatusProbe {
         guard let s else { return nil }
         let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func trimmedNonDash(_ s: String?) -> String? {
-        guard let trimmed = trimmedNonEmpty(s), trimmed != "-" else { return nil }
-        return trimmed
     }
 
     /// `df -k` の最終行(ヘッダ抜き)から Available(4列目)を KB で取る。列数不足・非数値は nil

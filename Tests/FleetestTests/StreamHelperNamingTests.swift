@@ -33,16 +33,21 @@ final class StreamHelperNamingTests: XCTestCase {
                        ["fleetest-simstream", "fleetest-androidstream", "fleetest-devicepoll"])
     }
 
-    /// align がランナー機でビルドする製品は fleetest・配信ヘルパー・中継 `fleetest-services` の全部(等号)。
+    /// align がランナー機でビルドする製品は fleetest・配信ヘルパー・中継 `fleetest-services`・`fleetest-mcp` の全部で、
+    /// どれも本体のビルド(`buildScript`)か後回しのビルド(`deferredBuildCommand`)の**ちょうど片方**に載る。
     /// 中継が抜けると、ランナーで動く run-setup.sh から `fleetest-services: command not found` になる(M1Ultra の実測)
     func testAlignBuildsEveryProductTheRunnerNeeds() {
-        let command = RemoteSetupPlan.alignRevisionCommand(
-            layout: RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci"),
-            revision: "abc123", helperPath: "/tmp/fleetest-align/fleetest", developerDir: nil)
-        let builds = ["fleetest", "fleetest-simstream", "fleetest-androidstream", "fleetest-devicepoll", "fleetest-services",
-                      "fleetest-mcp"]
-            .map { "swift build --product \($0)" }.joined(separator: " && ")
-        let buildCommand = "git checkout 'abc123' && " + builds
-        XCTAssertTrue(command.hasSuffix("--build-command \(RemoteShell.quote(buildCommand))"))
+        let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        let main = RemoteAlignPlan.buildScript(layout: layout, revision: "abc123", digest: "d1", developerDir: nil)
+        let deferred = RemoteAlignPlan.deferredBuildCommand(layout: layout, digest: "d1", developerDir: nil)
+        func builds(_ script: String, _ product: String) -> Bool {
+            script.contains("swift build --product \(product) ") || script.hasSuffix("swift build --product \(product)")
+                || script.contains("swift build --product \(product);") || script.contains("ft_build \(product) ")
+        }
+        let products = ["fleetest"] + StreamHelpers.all + [ServiceGatewayWire.relayProductName, "fleetest-mcp"]
+        for product in products {
+            XCTAssertNotEqual(builds(main, product), builds(deferred, product),
+                              "\(product) must be built by exactly one of the main and the deferred build")
+        }
     }
 }

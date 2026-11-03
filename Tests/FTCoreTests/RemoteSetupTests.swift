@@ -238,52 +238,53 @@ final class RemoteSetupTests: XCTestCase {
     func testAlignBuildsWithTheSelectedXcode() {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         let command = RemoteSetupPlan.alignRevisionCommand(
-            layout: layout, revision: "9655a21", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
+            layout: layout, revision: "9655a21", digest: "d1", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
             developerDir: "/Applications/Xcode_27.2_Release_Candidate.app/Contents/Developer")
         XCTAssertTrue(command.hasPrefix("export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
             + "export DEVELOPER_DIR='/Applications/Xcode_27.2_Release_Candidate.app/Contents/Developer'; "), command)
         XCTAssertFalse(RemoteSetupPlan.alignRevisionCommand(
-            layout: layout, revision: "9655a21", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
+            layout: layout, revision: "9655a21", digest: "d1", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
             developerDir: nil).contains("DEVELOPER_DIR"), "ambient のときは何も足さない")
     }
 
-    func testAlignRevisionCommand() {
+    /// 外側(ヘルパーの置き場・trap・fm-align の呼び方)は文字列で固定する。**`git fetch origin` は無い**
+    /// (コミットは直送の push で先に届く)。ビルドの中身は `RemoteAlignPlan.buildScript` のテストが固定する
+    func testAlignRevisionCommand() throws {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        let command = RemoteSetupPlan.alignRevisionCommand(
+            layout: layout, revision: "9655a21", digest: "d1",
+            helperPath: "/tmp/fleetest-remote-align.12345678/fleetest", developerDir: nil)
+        let build = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil)
         XCTAssertEqual(
-            RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: "9655a21",
-                                                  helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
-                                                  developerDir: nil),
+            command,
             "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
                 + "ft_align_helper='/tmp/fleetest-remote-align.12345678/fleetest'; "
                 + "ft_align_helper_dir='/tmp/fleetest-remote-align.12345678'; "
                 + #"trap 'rm -f -- "$ft_align_helper"; rmdir -- "$ft_align_helper_dir"' EXIT; "#
-                + #"chmod 700 "$ft_align_helper" && cd '/Users/ci/fleetest-runner/fleetest-mobile' && git fetch origin && "#
+                + #"chmod 700 "$ft_align_helper" && cd '/Users/ci/fleetest-runner/fleetest-mobile' && "#
                 + #""$ft_align_helper" api fm-align "#
                 + "--target-executable '/Users/ci/fleetest-runner/fleetest-mobile/.build/debug/fleetest' "
-                + #"--build-command 'git checkout '\''9655a21'\'' && swift build --product fleetest"#
-                + " && swift build --product fleetest-simstream"
-                + " && swift build --product fleetest-androidstream"
-                + " && swift build --product fleetest-devicepoll"
-                + " && swift build --product fleetest-services"
-            + " && swift build --product fleetest-mcp'")
+                + "--build-command \(RemoteShell.quote(build))")
+        XCTAssertFalse(command.contains("git fetch"))
+        let syntax = try Shell.run(["/bin/sh", "-n", "-c", command])
+        XCTAssertEqual(syntax.status, 0, syntax.output)
     }
 
-    func testAlignRevisionCommandRemovesHelperWhenFetchFails() throws {
+    /// toolRoot が無ければ `cd` で落ちる。ヘルパーは EXIT の trap で後片付けされる
+    func testAlignRevisionCommandRemovesHelperWhenToolRootIsMissing() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let layout = RemoteLayout(base: root.appendingPathComponent("runner").path, issuer: "alice", home: root.path)
-        try FileManager.default.createDirectory(atPath: layout.toolRoot, withIntermediateDirectories: true)
         let helperDirectory = root.appendingPathComponent("maintenance")
         try FileManager.default.createDirectory(at: helperDirectory, withIntermediateDirectories: true)
         let helper = helperDirectory.appendingPathComponent("fleetest")
         try Data("not invoked".utf8).write(to: helper)
-        let command = RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: "9655a21", helperPath: helper.path,
-                                                           developerDir: nil)
+        let command = RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: "9655a21", digest: "d1",
+                                                           helperPath: helper.path, developerDir: nil)
 
-        // toolRoot は Git リポジトリではない。fetch の失敗を保ち、helper へ進まず後片付けする。
         let result = try Shell.run(["/bin/sh", "-c", command])
 
-        XCTAssertEqual(result.status, 128, result.output)
+        XCTAssertNotEqual(result.status, 0, result.output)
         XCTAssertFalse(FileManager.default.fileExists(atPath: helper.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: helperDirectory.path))
     }
@@ -319,7 +320,7 @@ final class RemoteSetupTests: XCTestCase {
         let helper = helperDirectory.appendingPathComponent("fleetest")
         try Data("#!/bin/sh\nexit 73\n".utf8).write(to: helper)
         let command = RemoteSetupPlan.alignRevisionCommand(
-            layout: layout, revision: newRevision, helperPath: helper.path, developerDir: nil)
+            layout: layout, revision: newRevision, digest: "d1", helperPath: helper.path, developerDir: nil)
 
         let result = try Shell.run(["/bin/sh", "-c", command])
 

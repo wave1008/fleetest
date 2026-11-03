@@ -317,13 +317,13 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   複数機に跨るプロファイル(E2E-Android/android)は**開始前**の適合チェックで弾かれるので、
   手元を更新した直後のフルスイートはそのプロファイルのリモート担当ぶんが丸ごと欠ける
   (実際に 22 本中 14 本しか走らず、結果表には「1 of 14 failed」としか出ない)。
-  `--align` を付けると実行前に `api remote-compat` を引き、**ランナーがこの clone の祖先
-  (`remoteBehind`)のホストだけ** `fleetest remote align` する。**対象のホストは同時に揃える**
+  `--align` を付けると実行前に `api remote-compat` を引き、**ランナーが古い(`remoteBehind`)か、同じコミットの上で未コミットの差がある(`workingTreeDiffers`)ホストだけ**
+  `fleetest remote align` する(手元の作業ツリーを直送するので push は要らない)。**対象のホストは同時に揃える**
   (出力は機ごとのログへ分けて最後にまとめて出す。`Scripts/align.sh` と同じ形。1機ずつ待つと台数ぶん伸びる)。
   **既定では触らない** —— align はランナーの `.build` を差し替えるので、他人(や自分の別セッション)の
   run の下で走らせるとその run を SIGKILL で殺す(RR-18.3 規則2)。
   **向きを取り違えない**: `localBehind`(この clone が古い)・`diverged`(ブランチ作業)・
-  未 push・toolchain 不一致・到達不能は**触らずに理由を1行出す**(align では直らない/直す側が逆)。
+  toolchain 不一致・到達不能は**触らずに理由を1行出す**(align では直らない/直す側が逆)。
   判定の写しは `Scripts/e2e-align-plan.py` の1箇所だけで、祖先関係の計算は Swift 側
   (`FTRemote.RemoteCompat`)に任せる(2つ目の実装を作らない)。
   align が見るプロファイル集合は `planned_profiles`(実行ループの写し)なので、

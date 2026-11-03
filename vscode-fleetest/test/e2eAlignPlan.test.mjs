@@ -8,7 +8,7 @@
 // ソース走査で秒未満に落とす。
 //
 // 併せて Scripts/e2e-align-plan.py の判定(どの関係のときに align するか)も実際に走らせて固定する。
-// **align してよいのは remoteBehind だけ** —— 向きを取り違えると、こちらが古いときに
+// **align してよいのは remoteBehind と workingTreeDiffers だけ** —— 向きを取り違えると、こちらが古いときに
 // ランナーを引き下げる(RR-18.3 規則1)。
 
 import assert from "node:assert/strict";
@@ -46,17 +46,18 @@ test("planned_profiles が実行ループの全プロファイルを網羅する
 });
 
 /** e2e-align-plan.py を実際に走らせる(実装の写しを置かない)。 */
-function plan(machines, published = true) {
+function plan(machines) {
   const out = execFileSync("python3", [path.join(ROOT, "Scripts/e2e-align-plan.py"), "T/p"], {
-    input: JSON.stringify({ machines, revisionPublished: published }), encoding: "utf8",
+    input: JSON.stringify({ machines }), encoding: "utf8",
   });
   return out.split("\n").filter(Boolean).map((l) => l.split("|"));
 }
 
-test("align するのはランナーが祖先(remoteBehind)のときだけ", () => {
+test("align するのはランナーが祖先(remoteBehind)か未コミットの差だけ(workingTreeDiffers)のときだけ", () => {
   const base = { reachable: true, revisionCompatible: false, toolchainCompatible: true };
   for (const [relation, action] of [
     ["remoteBehind", "align"],
+    ["workingTreeDiffers", "align"],   // 同じコミットの上の未コミットの差 → 直送で直る
     ["localBehind", "skip"],   // こちらが古い → 直すのは自分。ランナーを引き下げない
     ["diverged", "skip"],      // ブランチ作業 → 共有ランナーでは解決しない
     [null, "skip"],            // 向き不明 → 触らない
@@ -79,14 +80,6 @@ test("align で直らないズレは触らず理由を出す", () => {
   }]);
   assert.deepEqual(toolchain.map((r) => r[0]), ["skip"]);
   assert.match(toolchain[0][2], /toolchain/);
-
-  // 未 push の rev はランナーが fetch できない = align 案内が誤誘導になる
-  const unpublished = plan([{
-    machine: "H", reachable: true, revisionCompatible: false, revisionRelation: null,
-    toolchainCompatible: true,
-  }], false);
-  assert.deepEqual(unpublished.map((r) => r[0]), ["skip"]);
-  assert.match(unpublished[0][2], /push/);
 });
 
 test("版が合っているホストは何も出さない(無駄な align を撃たない)", () => {

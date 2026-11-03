@@ -67,7 +67,7 @@ struct RemoteCommand: AsyncParsableCommand {
                 }
             }
             let wantFM = fm
-            let localRevision = localGitRevision()
+            let localTool = localToolIdentity()
             let localToolchain = ToolchainFingerprint.current()
             let localRuntime = SimulatorRuntimeFingerprint.current()
 
@@ -84,7 +84,7 @@ struct RemoteCommand: AsyncParsableCommand {
             rows.append(contentsOf: probed)
 
             let reports = rows.map { row in
-                HostReport(row: row, localRevision: localRevision, localToolchain: localToolchain)
+                HostReport(row: row, localTool: localTool, localToolchain: localToolchain)
             }
 
             if json {
@@ -148,7 +148,7 @@ struct RemoteCommand: AsyncParsableCommand {
             let binary = r.status.map { $0.binaryPresent ? "yes" : "no" } ?? "-"
             let free = r.status?.freeKB.map(formatFreeSpace) ?? "-"
             return [r.sshTarget, "yes", login,
-                    mark(r, label: "git revision", value: r.status?.revision),
+                    mark(r, label: "git revision", value: Self.revisionCell(r.status?.tool)),
                     Self.toolchainCell(r, value: r.status?.toolchain),
                     Self.runtimeCell(local: localRuntime, remote: r.status?.simulatorRuntime),
                     fm, binary, free, Self.lockCell(r.status?.lock)]
@@ -206,6 +206,13 @@ struct RemoteCommand: AsyncParsableCommand {
             }
         }
 
+        /// REV セル。スナップショット(未コミットの変更つき)は `<head7>+wip(<issuer>)`
+        static func revisionCell(_ tool: AlignSnapshot.RemoteToolState?) -> String? {
+            guard let tool else { return nil }
+            guard tool.isSnapshot else { return tool.head }
+            return "\(tool.head.prefix(7))+wip(\(tool.snapshotIssuer ?? "?"))"
+        }
+
         private func mark(_ r: HostReport, label: String, value: String?) -> String {
             let icon = r.verdict.blocking.contains(where: { $0.hasPrefix(label) }) ? "⚠️" : "✅"
             return "\(icon) \(value ?? "?")"
@@ -225,7 +232,10 @@ struct RemoteCommand: AsyncParsableCommand {
                     reachable: r.reachable,
                     loggedIn: r.status?.session?.isLoggedIn,
                     consoleUser: r.status?.session?.consoleUser,
-                    revision: r.status?.revision,
+                    revision: r.status?.tool?.head,
+                    baseRevision: r.status?.tool?.base,
+                    snapshotIssuer: r.status?.tool?.snapshotIssuer,
+                    digest: r.status?.tool?.digest,
                     revisionCompatible: r.revisionCompatible,
                     toolchain: r.status?.toolchain,
                     toolchainCompatible: r.toolchainCompatible,
@@ -1155,7 +1165,7 @@ struct HostReport {
     /// row.xcodeSelectionRefusalReason をそのまま運ぶ(印字用。判定自体は verdict.blocking を見る)
     let xcodeSelectionRefusalReason: String?
 
-    init(row: HostRow, localRevision: String?, localToolchain: String?) {
+    init(row: HostRow, localTool: RemoteCompat.LocalTool?, localToolchain: String?) {
         sshTarget = row.sshTarget
         reachable = row.reachable
         detail = row.detail
@@ -1163,7 +1173,7 @@ struct HostReport {
         fmOK = row.fmOK
         xcodeSelectionRefusalReason = row.xcodeSelectionRefusalReason
         var base = row.status.map {
-            RemoteCompat.verdict(localRevision: localRevision, remoteRevision: $0.revision,
+            RemoteCompat.verdict(local: localTool, remoteTool: $0.tool,
                                  localToolchain: localToolchain, remoteToolchain: $0.toolchain)
         } ?? RemoteCompat.CompatVerdict()
         // **"toolchain" 接頭辞**にする —— toolchainCompatible/mark はこの接頭辞で blocking を
@@ -1192,12 +1202,19 @@ struct HostReport {
     }
 }
 
-private struct StatusHostJSON: Encodable {
+struct StatusHostJSON: Encodable {
     let host: String
     let reachable: Bool
     let loggedIn: Bool?
     let consoleUser: String?
     let revision: String?
+    /// 基点(スナップショットなら HEAD^1 = 作った人の HEAD、そうでなければ revision と同じ)
+    let baseRevision: String?
+    /// ランナーのスナップショットの発行者。スナップショットでなければ null
+    let snapshotIssuer: String?
+    /// ランナーのツールの中身の要約(照合はこれで行う)。読めなければ null
+    let digest: String?
+    /// 要約が手元と一致するか(blocking で止まるか)
     let revisionCompatible: Bool?
     let toolchain: String?
     /// blocking で止まるか(advisory = ベータ seed だけの差は true のまま)
@@ -1222,37 +1239,59 @@ private struct StatusHostJSON: Encodable {
     /// non-nil なら `toolchainCompatible` は false(TOOLCHAIN の ❌ と同じ判定)
     let xcodeSelectionError: String?
     let error: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case host, reachable, loggedIn, consoleUser, revision, baseRevision, snapshotIssuer, digest,
+             revisionCompatible, toolchain, toolchainCompatible, toolchainAdvisory, runtime, runtimeMatches,
+             fm, fmState, binaryPresent, freeKB, lock, xcodeSelectionError, error
+    }
+
+    /// 従来の欄は nil で省く(synthesized と同じ)。**足した3欄(baseRevision / snapshotIssuer / digest)は
+    /// 必須 = 読めなくても null で出す**(拡張・スクリプトがキー欠落と null を区別せずに読める)
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(host, forKey: .host)
+        try c.encode(reachable, forKey: .reachable)
+        try c.encodeIfPresent(loggedIn, forKey: .loggedIn)
+        try c.encodeIfPresent(consoleUser, forKey: .consoleUser)
+        try c.encodeIfPresent(revision, forKey: .revision)
+        try c.encode(baseRevision, forKey: .baseRevision)
+        try c.encode(snapshotIssuer, forKey: .snapshotIssuer)
+        try c.encode(digest, forKey: .digest)
+        try c.encodeIfPresent(revisionCompatible, forKey: .revisionCompatible)
+        try c.encodeIfPresent(toolchain, forKey: .toolchain)
+        try c.encodeIfPresent(toolchainCompatible, forKey: .toolchainCompatible)
+        try c.encodeIfPresent(toolchainAdvisory, forKey: .toolchainAdvisory)
+        try c.encodeIfPresent(runtime, forKey: .runtime)
+        try c.encodeIfPresent(runtimeMatches, forKey: .runtimeMatches)
+        try c.encodeIfPresent(fm, forKey: .fm)
+        try c.encodeIfPresent(fmState, forKey: .fmState)
+        try c.encodeIfPresent(binaryPresent, forKey: .binaryPresent)
+        try c.encodeIfPresent(freeKB, forKey: .freeKB)
+        try c.encodeIfPresent(lock, forKey: .lock)
+        try c.encodeIfPresent(xcodeSelectionError, forKey: .xcodeSelectionError)
+        try c.encodeIfPresent(error, forKey: .error)
+    }
 }
 
-private struct StatusJSON: Encodable {
+struct StatusJSON: Encodable {
     let hosts: [StatusHostJSON]
 }
 
-/// `remote status` と `api remote-compat` が共有(`api remote-compat` はホストが1台も無いときも
-/// ローカル revision を出すため呼ぶ)
-func localGitRevision() -> String? {
-    guard let root = try? RepoRoot.find(),
-          let result = try? Shell.run(["git", "-C", root.path, "rev-parse", "HEAD"]),
-          result.status == 0 else { return nil }
-    let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-    return output.isEmpty ? nil : output
+/// 手元のツールの同一性(HEAD・作業ツリーの要約・きれいか)。`remote status` / `api remote-compat` が共有する。
+/// git が失敗したら nil(= 照合は fail-closed の「手元の値が取れない」になる)
+func localToolIdentity() -> RemoteCompat.LocalTool? {
+    guard let root = try? RepoRoot.find(), let tree = try? AlignSnapshot.localTree(repoRoot: root) else { return nil }
+    return RemoteCompat.LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
 }
 
-/// そのコミットがリモート追跡ブランチに含まれるか(= push 済みか)。判定不能なら published 扱い
-/// (助言を足すかどうかの判断であって、実行を止める判定ではない)。RemoteRunDispatcher /
-/// RemoteSetupCommand.Setup / ApiRemoteCompatCommand が共有する
-func revisionIsPublished(repoRoot: URL, revision: String) -> Bool {
-    guard let result = try? Shell.run(
-        ["git", "-C", repoRoot.path, "branch", "-r", "--contains", revision]),
-          result.status == 0 else { return true }
-    return !result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-}
-
-/// rev 不一致の解消の向き(RR-18.3 規則1)。**fetch はしない**
-/// (チェック経路にネットワーク副作用を持ち込まない。update-check.sh と同じ思想) ——
+/// 不一致の解消の向き(RR-18.3 規則1)。**基点同士で比べる**(手元の基点 = 手元の HEAD、ランナーの基点 =
+/// `RemoteToolState.base`)。基点が同じなら `.workingTreeDiffers`(同じコミットの上で未コミットの差がある)。
+/// **fetch はしない**(チェック経路にネットワーク副作用を持ち込まない。update-check.sh と同じ思想) ——
 /// remoteRevision がこの clone に無ければ .unknown。RemoteRunDispatcher.checkCompatibility /
 /// ApiRemoteCompatCommand が共有する
 func revisionRelation(repoRoot: URL, localRevision: String, remoteRevision: String) -> RevisionRelation {
+    if localRevision == remoteRevision { return .workingTreeDiffers }
     guard let existsResult = try? Shell.run(
         ["git", "-C", repoRoot.path, "cat-file", "-e", "\(remoteRevision)^{commit}"]),
           existsResult.status == 0 else {

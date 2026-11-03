@@ -21,8 +21,8 @@
 #   Scripts/e2ey.sh --record        # 録画する(既定は録画しない = `--set record=false`。回帰は録画しないのが既定)
 #   Scripts/e2ey.sh --on M1Ultra    # **丸ごとその機械で回す**(ssh でランナーのクローンに入り、そこで SUT をビルドして
 #                                   # そこのデバイスで実行する。残りの引数はそのまま向こうへ渡す)。向こうで動くのは
-#                                   # align 済みのコミット + そこの clone の中身なので、ツールを直したら
-#                                   # commit → Scripts/align.sh → これ、の順。E2EY の既定はこの Mac(SUT もここでビルドする。
+#                                   # align 済みのツールの中身 + そこの clone の中身なので、ツールを直したら
+#                                   # Scripts/align.sh(未コミットの変更も送る)→ これ、の順。E2EY の既定はこの Mac(SUT もここでビルドする。
 #                                   # docs/sut-framework-upgrade.md)。
 #                                   # 向こうに要る道具(Flutter / CocoaPods / node)は ~/.zprofile の
 #                                   # fleetest-tools ブロックの PATH にある

@@ -3,6 +3,8 @@
 // (ssh を伴う本体は Tests/FleetestTests では検証しない=デバイス境界のバグは docs/verification/ 方針)。
 
 import FTCore
+import FTRemote
+import Foundation
 import XCTest
 
 @testable import fleetest
@@ -56,5 +58,39 @@ final class ApiRemoteCompatTests: XCTestCase {
             XCTAssertEqual(name, "no-such-profile-remote-compat")
             XCTAssertTrue(available.contains("ios-inapp-boost"), "実在するプロジェクトを読めていない: \(available)")
         }
+    }
+
+    // MARK: - JSON の契約(拡張・Scripts/e2e-align-plan.py と共有。キーを等号で固定する)
+
+    private func keys(_ value: some Encodable) throws -> Set<String> {
+        let data = try JSONEncoder().encode(value)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return Set(object.keys)
+    }
+
+    /// トップは machines / localRevision / localDigest だけ。`localDirty` と `revisionPublished` は出さない。
+    /// 値が null でもキーは出す(読み手がキー欠落と null を区別しない)
+    func testTopLevelKeysAreFixed() throws {
+        let output = RemoteCompatOutput(machines: [], localRevision: nil, localDigest: nil)
+        XCTAssertEqual(try keys(output), ["machines", "localRevision", "localDigest"])
+    }
+
+    func testMachineKeysAreFixedEvenWhenEverythingIsNull() throws {
+        let machine = RemoteCompatMachineJSON(
+            machine: "m", sshTarget: "h", reachable: false, revision: nil, baseRevision: nil, snapshotIssuer: nil,
+            digest: nil, revisionCompatible: nil, revisionRelation: nil, toolchain: nil, toolchainCompatible: nil,
+            toolchainAdvisory: nil, xcodeSelectionError: nil, error: nil)
+        XCTAssertEqual(try keys(machine), [
+            "machine", "sshTarget", "reachable", "revision", "baseRevision", "snapshotIssuer", "digest",
+            "revisionCompatible", "revisionRelation", "toolchain", "toolchainCompatible", "toolchainAdvisory",
+            "xcodeSelectionError", "error"])
+    }
+
+    /// 基点が同じなら workingTreeDiffers(git を撃たずに決まる)
+    func testSameBaseIsWorkingTreeDiffers() {
+        XCTAssertEqual(
+            revisionRelation(repoRoot: URL(fileURLWithPath: "/nonexistent"), localRevision: "abc", remoteRevision: "abc"),
+            .workingTreeDiffers)
+        XCTAssertEqual(RevisionRelation.workingTreeDiffers.rawValue, "workingTreeDiffers")
     }
 }

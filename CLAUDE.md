@@ -194,8 +194,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 - **回帰は E2E をこの Mac(M2Ultra)で・E2EX を M1Ultra で同時に回す**(ユーザー指示 2026-09-28。全マシンの待ち行列で回すなら
   `Scripts/regress.py` = docs/verification/operations.md):
   `Scripts/e2e.sh --local`(手元のデバイスだけ)と `Scripts/e2ex.sh --on M1Ultra`(ssh でランナーの
-  クローンに入り、そこで SUT をビルドして回す)を同時に起こす。先に commit → `Scripts/align.sh`
-  (向こうで動くのは align 済みのコミット)。E2EX の SUT は M1Ultra でビルドする(競合しない・負荷分散)
+  クローンに入り、そこで SUT をビルドして回す)を同時に起こす。先に `Scripts/align.sh M1Ultra`
+  (手元の作業ツリーを未コミットのまま直送する。push もコミットも要らない)。E2EX の SUT は M1Ultra でビルドする(競合しない・負荷分散)
 - **1シナリオの確認にフリート全台を用意しない**。`ProfileRunner` は回す本数から台数を絞る
   (`ResolvedProfile.deviceKeepCount` = 本数ぶん)。実測で iOS の1本実行が 21.8s → 9.3s。
   **予備は置かない**(欠けた台のぶんは残りの台が消化する。予備を起こして待つ・後から合流させる形の不採用理由は MN-103)。
@@ -349,7 +349,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `vscode-fleetest/src/protocolVersion.ts` の版を +1(両者一致必須・`protocolVersion.test.mjs` が
   検出。拡張は起動時に照合し不一致を警告)。**後方互換の読み替えは置かない**
   (ユーザー方針 2026-09-20)—— 欄を足すときも `decodeIfPresent ?? 既定値` で古い形を吸わず、
-  **必須にして版を +1** する。リモートは `Scripts/align.sh` で毎回全機を同じコミットへ揃える運用で、
+  **必須にして版を +1** する。リモートは `Scripts/align.sh` で毎回使う機械を手元と同じ中身へ揃える運用で、
   版がずれた状態は存在しない(ずれていれば適合チェックが止める)。互換を入れると、その経路は
   テストでしか踏まれずに腐り、**沈黙する縮退**(decode 失敗で機械1台ぶんの行が消える等)を作る
 - **`fleetest run` と `fleetest api run` は2実装**。共通のオプション宣言と検査は

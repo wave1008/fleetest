@@ -41,7 +41,7 @@ for u in org/jetbrains/compose/compose-gradle-plugin org/jetbrains/kotlin/kotlin
 
 1. **各機械の SDK・ツールを揃える**(下の各節)。`fleetest remote machines` の全機のうち、SUT をビルドする機械は必ず
 2. **SUT を書き換える**(3系統とも)
-3. **コミット → `Scripts/align.sh`**(アラインは指示を受けてから)。**未コミットのまま M1Ultra でビルドしない** ——
+3. **`Scripts/align.sh`**(アラインは指示を受けてから。未コミットの変更も送られる)。**M1Ultra でビルドする前に必ず align する** ——
    ビルドがランナーのクローンの追跡ファイル(lock 等)を書き換えると、次のアラインが止まる
 4. **回す**(全体の実行なので `FT_FULL_TEST=1` が要る = ユーザーに全実施の了承を取ってから):
 

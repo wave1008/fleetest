@@ -68,7 +68,62 @@ private func repointWorkManifest(hostSpec: RemoteHostSpec,
     return (.ok, "repointed the tool dependency in Package.swift from \(repointed.previousPath) to \(layout.toolRoot)")
 }
 
-private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, revision: String) throws -> Int32 {
+/// 送る中身(手元で決める)。**`developerDir` は判定とビルドで同じ値を使う**(`alignmentDeveloperDir` の解決は1回だけ)
+private struct AlignPrepared {
+    let repoRoot: URL
+    let commit: String
+    let digest: String
+    let developerDir: String?
+}
+
+/// 手元の作業ツリーを送るコミットにする(`AlignSnapshot`。未コミットの変更・未追跡のファイルも含む。
+/// 本物のインデックスもブランチも触らない)。**ネットワークより先に解く**(ローカルの失敗を ssh の後に出さない)
+private func prepareAlignment(hostSpec: RemoteHostSpec, repoRoot: URL) throws -> AlignPrepared {
+    let issuer = try resolveLayoutIssuer()
+    let local: AlignSnapshot.LocalTree
+    let commit: String
+    let untracked: (count: Int, bytes: Int64)
+    do {
+        local = try AlignSnapshot.localTree(repoRoot: repoRoot)
+        commit = try AlignSnapshot.commitToSend(repoRoot: repoRoot, local: local, issuer: issuer)
+        untracked = try AlignSnapshot.untrackedSummary(repoRoot: repoRoot)
+    } catch {
+        throw RemoteDispatchError.remoteSetupFailed("could not snapshot the local working tree: \(error.localizedDescription)")
+    }
+    try RemoteSetupPlan.validateRevision(commit)
+    say(RemoteAlignPlan.sendLine(commit: commit, isSnapshot: !local.isClean,
+                                 untrackedCount: untracked.count, untrackedBytes: untracked.bytes))
+    return AlignPrepared(repoRoot: repoRoot, commit: commit, digest: local.digest,
+                         developerDir: alignmentDeveloperDir(hostSpec: hostSpec))
+}
+
+/// ランナーが手元と同じ中身・同じ Xcode でビルド済みか(ssh 1往復。`RemoteAlignPlan.isAlreadyAligned`)。
+/// **読めなかったら false**(揃っていない側へ倒す = 余分にビルドするだけで、古いまま緑にはならない)。
+/// ssh の警告を行に混ぜない(stdout だけ読む)
+private func alignmentAlreadyDone(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) -> Bool {
+    guard let result = try? Shell.runData(setupSSHBase + ["-n", hostSpec.sshTarget,
+            RemoteAlignPlan.probeCommand(layout: layout, developerDir: prepared.developerDir)]),
+          result.status == 0, let text = String(data: result.data, encoding: .utf8),
+          let state = RemoteAlignPlan.parseProbe(text) else { return false }
+    return RemoteAlignPlan.isAlreadyAligned(localDigest: prepared.digest, developerDir: prepared.developerDir,
+                                            state: state)
+}
+
+/// 送って(`git push` の直送。origin も GitHub も通らない)ビルドする。戻り値はビルド(fm-align)の終了コード
+private func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout,
+                                   prepared: AlignPrepared) throws -> Int32 {
+    let push = try runInheritedSSH(RemoteAlignPlan.pushArguments(
+        repoRoot: prepared.repoRoot.path, sshTarget: hostSpec.sshTarget, toolRoot: layout.toolRoot,
+        commit: prepared.commit))
+    guard push == 0 else {
+        throw RemoteDispatchError.remoteSetupFailed(
+            "could not send \(prepared.commit.prefix(7)) to \(hostSpec.sshTarget):\(layout.toolRoot) (git push exited \(push);"
+            + " is the runner set up? run `fleetest remote setup`)")
+    }
+    return try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
+}
+
+private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) throws -> Int32 {
     guard let executable = ExecutablePath.current else {
         throw RemoteDispatchError.remoteSetupFailed("could not resolve the local alignment executable")
     }
@@ -96,8 +151,23 @@ private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, 
         throw RemoteDispatchError.remoteSetupFailed("could not copy the alignment executable (scp exited \(transfer))")
     }
     return try runInheritedSSH(setupSSHBase + [hostSpec.sshTarget,
-        RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: revision, helperPath: helper,
-                                             developerDir: alignmentDeveloperDir(hostSpec: hostSpec))])
+        RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: prepared.commit, digest: prepared.digest,
+                                             helperPath: helper, developerDir: prepared.developerDir)])
+}
+
+/// `fleetest-devicepoll` / `fleetest-mcp` の後回しのビルドを、**dispatch.lock を外した後**にランナーの裏ジョブとして起こす
+/// (`RemoteAlignPlan.deferredBuildCommand`)。失敗は警告1行(align の成否を変えない。次の align が「後回しが未成功」で撃ち直す)
+private func startDeferredBuild(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) {
+    let status = (try? runInheritedSSH(setupSSHBase + ["-n", hostSpec.sshTarget,
+        RemoteAlignPlan.deferredBuildCommand(layout: layout, digest: prepared.digest,
+                                             developerDir: prepared.developerDir)])) ?? -1
+    if status == 0 {
+        say("deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/")) started"
+            + " (log: \(RemoteAlignPlan.deferredLogPath(layout: layout)))")
+    } else {
+        say("warning: could not start the deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/"))"
+            + " on \(hostSpec.sshTarget) (ssh exited \(status)) — monitor streaming may be missing until the next align")
+    }
 }
 
 /// アラインのビルドに使う Xcode。**ディスパッチと同じ解決**(登録簿の pin > build 一致 > 製品版一致。
@@ -367,43 +437,35 @@ extension RemoteCommand {
 
             // MARK: align
 
-            say("==> align: copying maintenance helper, safely retiring FM, and building the remote clone...")
-            // 非ゼロの出力(「fatal: …」)をリビジョンとして扱わない
-            guard let localRevision = (try? Shell.run(["git", "-C", repoRoot.path, "rev-parse", "HEAD"]).outputIfSucceeded)
-                .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }), !localRevision.isEmpty else {
-                emit("align", .fail, "could not determine the local git revision")
-                try summarizeAndExit()
-            }
+            say("==> align: sending the working tree, building the remote clone, and safely retiring FM...")
+            let prepared: AlignPrepared
             do {
-                try RemoteSetupPlan.validateRevision(localRevision)
+                prepared = try prepareAlignment(hostSpec: hostSpec, repoRoot: repoRoot)
             } catch {
                 emit("align", .fail, error.localizedDescription)
                 try summarizeAndExit()
             }
-            if let porcelain = try? Shell.run(["git", "-C", repoRoot.path, "status", "--porcelain"]).outputIfSucceeded,
-               RemoteRunDispatcher.hasUncommittedToolChanges(porcelain: porcelain) {
-                say("⚠️ uncommitted changes to the tool itself (outside TestProjects/) will NOT reach"
-                    + " the remote (aligning to the last commit, \(localRevision.prefix(7)))")
+            var built = false
+            if alignmentAlreadyDone(hostSpec: hostSpec, layout: layout, prepared: prepared) {
+                emit("align", .ok, "already aligned (same contents and toolchain; nothing sent or built)")
+            } else {
+                let alignStatus: Int32
+                do {
+                    alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
+                } catch {
+                    emit("align", .fail, error.localizedDescription)
+                    try summarizeAndExit()
+                }
+                guard alignStatus == 0 else {
+                    emit("align", .fail, "build or FM resident alignment failed (exit \(alignStatus); see output above)")
+                    try summarizeAndExit()
+                }
+                built = true
+                emit("align", .ok, "aligned to \(prepared.commit.prefix(7)) and built; FM maintenance completed")
             }
-            // push 前だと checkout が exit 128 で落ちるだけで理由が読めない。ssh を張る前に落とす
-            if !revisionIsPublished(repoRoot: repoRoot, revision: localRevision) {
-                emit("align", .fail, RemoteSetupPlan.unpublishedRevisionMessage(revision: localRevision))
-                try summarizeAndExit()
-            }
-            let alignStatus: Int32
-            do {
-                alignStatus = try runRemoteAlignment(hostSpec: hostSpec, layout: layout, revision: localRevision)
-            } catch {
-                emit("align", .fail, error.localizedDescription)
-                try summarizeAndExit()
-            }
-            guard alignStatus == 0 else {
-                emit("align", .fail, "git fetch/checkout/build or FM resident alignment failed (exit \(alignStatus); see output above)")
-                try summarizeAndExit()
-            }
-            emit("align", .ok, "aligned to \(localRevision.prefix(7)) and built; FM maintenance completed")
             releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout)
             dispatchLockHeld = false
+            if built { startDeferredBuild(hostSpec: hostSpec, layout: layout, prepared: prepared) }
 
             // MARK: verify
 
@@ -519,7 +581,7 @@ extension RemoteCommand {
     struct Align: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "align",
-            abstract: "Fetch, checkout and build the local HEAD revision on a runner"
+            abstract: "Send the local working tree to a runner and build it"
                 + " (the align step of `remote setup` alone; RR-14)")
 
         @Argument(help: "Remote runner to align: a registered machine (fleetest remote machines) or a raw user@host/host")
@@ -538,23 +600,7 @@ extension RemoteCommand {
                 throw RemoteDispatchError.remoteSetupFailed(
                     "cannot resolve the local tool root (run this inside the fleetest-mobile repo)")
             }
-            // 非ゼロの出力(「fatal: …」)をリビジョンとして扱わない
-            guard let localRevision = (try? Shell.run(["git", "-C", repoRoot.path, "rev-parse", "HEAD"]).outputIfSucceeded)
-                .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }), !localRevision.isEmpty else {
-                throw RemoteDispatchError.remoteSetupFailed("could not determine the local git revision")
-            }
-            try RemoteSetupPlan.validateRevision(localRevision)
-            if let porcelain = try? Shell.run(["git", "-C", repoRoot.path, "status", "--porcelain"]).outputIfSucceeded,
-               RemoteRunDispatcher.hasUncommittedToolChanges(porcelain: porcelain) {
-                say("⚠️ uncommitted changes to the tool itself (outside TestProjects/) will NOT reach"
-                    + " the remote (aligning to the last commit, \(localRevision.prefix(7)))")
-            }
-            // push 前だと checkout が exit 128 で落ちるだけで理由が読めない。ssh を張る前に落とす
-            // (RemoteSetupCommand.Setup の align ステップと同じ規律)
-            guard revisionIsPublished(repoRoot: repoRoot, revision: localRevision) else {
-                say(RemoteSetupPlan.unpublishedRevisionMessage(revision: localRevision))
-                throw ExitCode(1)
-            }
+            let prepared = try prepareAlignment(hostSpec: hostSpec, repoRoot: repoRoot)
 
             say("==> reach: checking \(hostSpec.sshTarget)...")
             let (session, home, reachError) = remoteReach(hostSpec: hostSpec)
@@ -577,21 +623,31 @@ extension RemoteCommand {
                 throw ExitCode(1)
             }
 
+            // 同じなら何もしない(ロックも取らない・送らない・ビルドしない)
+            if alignmentAlreadyDone(hostSpec: hostSpec, layout: layout, prepared: prepared) {
+                say("✅ already aligned to \(prepared.commit.prefix(7)) (same contents and toolchain; nothing sent or built)")
+                return
+            }
+
             // align は稼働中バイナリを差し替えるので、走っている dispatch と衝突しないことを
-            // 先に確かめる(RR-18.3 規則2)
+            // 先に確かめる(RR-18.3 規則2)。**ロックを外すのは後回しのビルドを起こす前**
             if let failure = acquireRemoteDispatchLock(hostSpec: hostSpec, layout: layout) {
                 say(failure)
                 throw ExitCode(1)
             }
-            defer { releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout) }
+            var lockHeld = true
+            defer { if lockHeld { releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout) } }
 
-            say("==> align: copying maintenance helper, safely retiring FM, and building the remote clone...")
-            let alignStatus = try runRemoteAlignment(hostSpec: hostSpec, layout: layout, revision: localRevision)
+            say("==> align: sending the working tree, building the remote clone, and safely retiring FM...")
+            let alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
             guard alignStatus == 0 else {
-                say("git fetch/checkout/build or FM resident alignment failed (exit \(alignStatus); see output above)")
+                say("build or FM resident alignment failed (exit \(alignStatus); see output above)")
                 throw ExitCode(1)
             }
-            say("✅ aligned to \(localRevision.prefix(7)) and built; FM maintenance completed")
+            releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout)
+            lockHeld = false
+            startDeferredBuild(hostSpec: hostSpec, layout: layout, prepared: prepared)
+            say("✅ aligned to \(prepared.commit.prefix(7)) and built; FM maintenance completed")
         }
     }
 

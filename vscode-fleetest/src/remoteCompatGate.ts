@@ -10,6 +10,9 @@ export interface RemoteCompatMachine {
   readonly sshTarget?: string;
   readonly reachable: boolean;
   readonly revision?: string | null;
+  /** 非 null ならランナーが未コミットのスナップショットを持っている。値はそれを置いた発行者 */
+  readonly snapshotIssuer?: string | null;
+  /** 要約(ツールの中身。TestProjects/ は除く)の一致 */
   readonly revisionCompatible?: boolean | null;
   readonly revisionRelation?: string | null;
   readonly toolchain?: string | null;
@@ -28,13 +31,17 @@ export interface RemoteCompatMachine {
 export interface RemoteCompatReport {
   readonly machines: RemoteCompatMachine[];
   readonly localRevision?: string | null;
-  readonly localDirty?: boolean;
-  readonly revisionPublished?: boolean;
+  readonly localDigest?: string | null;
 }
 
 export interface RemoteCompatAdvisory {
   readonly machine: string;
   readonly advisory: string;
+}
+
+export interface RemoteCompatSnapshot {
+  readonly machine: string;
+  readonly issuer: string;
 }
 
 export type RemoteCompatDecision =
@@ -45,8 +52,8 @@ export type RemoteCompatDecision =
       readonly advisoryMachines: RemoteCompatAdvisory[];
       readonly canUpdate: boolean;
       readonly updatableMachines: string[];
-      readonly localDirty: boolean;
-      readonly revisionUnpublished: boolean;
+      /** 未コミットのスナップショットを持つランナーと、その発行者 */
+      readonly snapshotMachines: RemoteCompatSnapshot[];
       readonly localBehindMachines: string[];
       readonly divergedMachines: string[];
       readonly unknownRelationMachines: string[];
@@ -73,10 +80,11 @@ export function hasXcodeSelectionError(machine: RemoteCompatMachine): boolean {
 /**
  * report を判定する。hosts が空(プロファイルにリモート機なし)・全ホスト互換なら proceed。
  * それ以外は ask を返す。canUpdate は「align で直せる不一致だけか」の判定
- * (align は rev しか直せない。unreachable と toolchain 不一致は align では直らない。
- * さらに revisionRelation が "remoteBehind"(ランナーが古い)以外 —— localBehind(この機械が古い。
- * 巻き戻しは誤り。直すのは Scripts/update.sh)/ diverged(ブランチ分岐。共有ランナーでは実行不可)/
- * unknown(判定不能。多くの場合この機械が古い)—— が1機でも居たら align では直らない)。
+ * (align は中身の差しか直せない。unreachable と toolchain 不一致は align では直らない。
+ * さらに revisionRelation が "remoteBehind"(ランナーが古い)・"workingTreeDiffers"(同じコミットの上で
+ * 未コミットの差がある)以外 —— localBehind(この機械が古い。巻き戻しは誤り。直すのは Scripts/update.sh)/
+ * diverged(ブランチ分岐。共有ランナーでは実行不可)/ unknown(判定不能。多くの場合この機械が古い)——
+ * が1機でも居たら align では直らない)。
  * パース不能・想定外の形は proceed(最終ゲートは checkCompatibility 側に残っており、
  * ここでの判定失敗が run を止める理由にはならない)。
  * advisory(toolchainAdvisory 非 null。ベータ seed 違いなど)は止めない —— incompatible には
@@ -98,15 +106,14 @@ export function decideRemoteCompat(report: RemoteCompatReport | null | undefined
     return { kind: "proceed", advisoryMachines };
   }
 
-  const revisionUnpublished = report.revisionPublished === false;
   const canUpdate =
-    !revisionUnpublished
-    && incompatible.every(
+    incompatible.every(
       (machine) =>
         machine.reachable === true
         && machine.toolchainCompatible !== false
         && !hasXcodeSelectionError(machine)
         && (machine.revisionRelation === "remoteBehind"
+          || machine.revisionRelation === "workingTreeDiffers"
           || machine.revisionRelation === undefined
           || machine.revisionRelation === null),
     );
@@ -118,8 +125,9 @@ export function decideRemoteCompat(report: RemoteCompatReport | null | undefined
     advisoryMachines,
     canUpdate,
     updatableMachines,
-    localDirty: report.localDirty === true,
-    revisionUnpublished,
+    snapshotMachines: incompatible
+      .filter((machine) => typeof machine.snapshotIssuer === "string" && machine.snapshotIssuer.length > 0)
+      .map((machine) => ({ machine: machine.machine, issuer: machine.snapshotIssuer as string })),
     localBehindMachines: incompatible.filter((machine) => machine.revisionRelation === "localBehind").map((machine) => machine.machine),
     divergedMachines: incompatible.filter((machine) => machine.revisionRelation === "diverged").map((machine) => machine.machine),
     unknownRelationMachines: incompatible

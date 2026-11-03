@@ -162,13 +162,9 @@ export const runStrings = {
     ja: "リモートのfleetestのバージョンが本機と異なります",
     en: "The remote runners' fleetest version differs from this machine's.",
   },
-  "run.remoteCompat.revisionUnpublishedNote": {
-    ja: "手元の HEAD が push されていないため更新できません(先に push してください)。",
-    en: "Cannot update because the local HEAD hasn't been pushed yet (push first).",
-  },
-  "run.remoteCompat.localDirtyNote": {
-    ja: "未コミットの変更はリモートへ届きません。",
-    en: "Uncommitted changes will not reach the remote.",
+  "run.remoteCompat.snapshotNote": {
+    ja: "{name}: 未コミットのスナップショット({issuer})を持っています。更新すると手元の内容に置き換わります。",
+    en: "{name}: Holds an uncommitted snapshot ({issuer}). Updating replaces it with this machine's contents.",
   },
   "run.remoteCompat.localBehindNote": {
     ja: "{names}: このマシンのfleetestが古いため更新できません。Scripts/update.sh で本機を更新してください。",

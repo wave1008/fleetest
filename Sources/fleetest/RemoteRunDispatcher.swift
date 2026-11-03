@@ -346,45 +346,29 @@ struct RemoteRunDispatcher {
 
     // MARK: - 1. 適合チェック
 
-    /// `git status --porcelain`(未フィルタ)の出力から、`TestProjects/` 配下**以外**
-    /// (= ツール本体)に変更があるかを判定する。`TestProjects/<project>/` は run のたびに
-    /// rsync で運ばれる(RR-13)ので、そこだけの変更を「リモートへ届かない」と警告するのは誤誘導 ——
-    /// 未追跡のプロファイル JSON 等、受け手が日常的に持つ差分で毎回鳴っていた。
-    /// **rename 行("R  old -> new")は新パスで判定する**(旧パスがツール本体でも、置き場所が
-    /// 最終的に TestProjects 配下なら rsync で届く)。空・空白のみは false
-    static func hasUncommittedToolChanges(porcelain: String?) -> Bool {
-        guard let porcelain else { return false }
-        for rawLine in porcelain.split(separator: "\n", omittingEmptySubsequences: true) {
-            var path = String(rawLine.dropFirst(min(3, rawLine.count)))
-            if let arrowRange = path.range(of: " -> ") {
-                path = String(path[arrowRange.upperBound...])
-            }
-            path = path.trimmingCharacters(in: .whitespaces)
-            if path.hasPrefix("\""), path.hasSuffix("\""), path.count >= 2 {
-                path = String(path.dropFirst().dropLast())
-            }
-            guard !path.isEmpty else { continue }
-            if !path.hasPrefix("TestProjects/") { return true }
-        }
-        return false
-    }
-
     /// 戻り値 = このディスパッチで使う `DEVELOPER_DIR`(nil = ambient)。**このディスパッチの
     /// toolchain probe と、あとで撃つ run(runRemoteAndRelay → RemoteShell.remoteRunCommand)は
     /// 必ずこの1つの戻り値を使う** —— 別々に解決すると、ここで照合した Xcode と実際に走る Xcode が
     /// 食い違う(緑のまま別の Xcode で走る沈黙の退行)
     private func checkCompatibility(layout: RemoteLayout) throws -> String? {
-        let localRevision = localCapture(["git", "-C", localRepoRoot.path, "rev-parse", "HEAD"])
-        // TestProjects/<project>/ は run のたびに rsync で届く(RR-13)ので、そこだけの変更
-        // (未追跡のプロファイル JSON 等)で鳴らすのは誤誘導 —— 判定は hasUncommittedToolChanges の1箇所
-        let status = localCapture(["git", "-C", localRepoRoot.path, "status", "--porcelain"])
-        if Self.hasUncommittedToolChanges(porcelain: status) {
-            log("warning: uncommitted changes to the tool itself (outside TestProjects/)"
-                + " will NOT reach the remote")
+        // 照合は作業ツリーの要約で行う(コミットの SHA ではない)。取れなければ fail-closed で止める
+        // (手元の git が壊れているのに緑で走らせない)
+        let localTool: RemoteCompat.LocalTool
+        do {
+            let tree = try AlignSnapshot.localTree(repoRoot: localRepoRoot)
+            localTool = RemoteCompat.LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
+        } catch {
+            throw RemoteDispatchError.incompatible(
+                ["git revision: could not compute the local tool digest: \(describe(error))"])
         }
 
-        let revisionProbe = probeRemote("git revision") {
-            try sshCapture("git -C \(RemoteShell.quote(layout.toolRoot)) rev-parse HEAD")
+        // 4行(HEAD / 要約 / 基点 / 発行者)。先頭の余計な出力(シェル初期化ファイルの echo 等)に
+        // 読み位置をずらされないよう末尾の4行を採る
+        let toolProbe = probeRemote("git revision") {
+            try sshCapture(AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)))
+        }
+        let remoteTool: AlignSnapshot.RemoteToolState? = toolProbe.capturedValue.flatMap {
+            AlignSnapshot.parseRemoteProbe(Array($0.components(separatedBy: "\n").suffix(4)))
         }
         let localToolchain = ToolchainFingerprint.current()
 
@@ -398,26 +382,19 @@ struct RemoteRunDispatcher {
         let developerDir = xcodeOutcome.developerDir
 
         let toolchainProbe = probeRemote("toolchain") { try remoteToolchainFingerprint(developerDir: developerDir) }
-        let remoteRevision = revisionProbe.capturedValue
         let verdict = RemoteCompat.verdict(
-            localRevision: localRevision, remoteRevision: revisionProbe,
+            local: localTool, remoteTool: remoteTool, remoteToolFailure: toolProbe.failureDetail,
             localToolchain: localToolchain, remoteToolchain: toolchainProbe)
         // advisory(toolchain のベータ seed 差)はディスパッチを止めない —— 1行ずつ警告して続行する
         for advisory in verdict.advisory { log("warning: \(advisory)") }
         var reasons = verdict.blocking
-        // rev 不一致の**いちばん多い原因は「まだ push していない」**。ランナーは origin から
-        // fetch するので、押していないコミットへは remote setup でも合わせられない
-        // (そのままだと checkout が exit 128 で落ちるだけ。実際に踏んだ)
-        if reasons.contains(where: { $0.hasPrefix("git revision") }), let localRevision,
-           !revisionIsPublished(repoRoot: localRepoRoot, revision: localRevision) {
-            reasons.append(RemoteSetupPlan.unpublishedRevisionMessage(revision: localRevision))
-        } else if reasons.contains(where: { $0.hasPrefix("git revision") }),
-                  let localRevision, let remoteRevision {
-            // published のときだけ向きの案内を出す(未 push なら上の unpublishedRevisionMessage だけ ——
-            // このケースで align を案内すると誤誘導になる)
+        // 向きの案内は不一致なら常に出す(push 済みかは見ない = align は作業ツリーを直送する)。
+        // 基点が同じなら workingTreeDiffers(`revisionRelation` が先に判定する)
+        if reasons.contains(where: { $0.hasPrefix("git revision") }), let remoteTool {
             let relation = revisionRelation(
-                repoRoot: localRepoRoot, localRevision: localRevision, remoteRevision: remoteRevision)
-            reasons.append(RemoteCompat.relationAdvice(relation))
+                repoRoot: localRepoRoot, localRevision: localTool.head, remoteRevision: remoteTool.base)
+            reasons.append(RemoteCompat.relationAdvice(
+                relation, localIssuer: layout.issuer, remoteSnapshotIssuer: remoteTool.snapshotIssuer))
         }
         guard reasons.isEmpty else { throw RemoteDispatchError.incompatible(reasons) }
 
@@ -1395,12 +1372,6 @@ struct RemoteRunDispatcher {
     }
 
     // MARK: - process helpers
-
-    private func localCapture(_ args: [String]) -> String? {
-        guard let result = try? Shell.run(args), result.status == 0 else { return nil }
-        let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return output.isEmpty ? nil : output
-    }
 
     /// 全 ssh 共通の基底引数。
     /// キープアライブ(`SSHOptions.keepAliveArgs`)は接続**後**に黙って死んだ回線を切るためのもので

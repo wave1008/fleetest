@@ -199,36 +199,35 @@ public enum RemoteSetupPlan {
 
     private static let hexDigits = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
 
-    /// リモートのクローンを発行側と同じコミットへ合わせ、`fleetest` と**配信ヘルパー**を
-    /// 作り直し、稼働中の FM 常駐プロセスも揃える(RR-14 ステップ3 相当)。
+    /// リモートのクローンを送ったコミットへ合わせて製品をビルドし、稼働中の FM 常駐プロセスも揃える(RR-14 ステップ3 相当)。
     /// 呼び出し側は `validateRevision` を先に通し、独立した一時ディレクトリへ転送した現在の実行ファイルを
     /// helperPath へ渡す。保守の親自身をビルドで差し替えず、FM の安全な退役から新版の身元確認まで枠を保持する。
+    /// コミットは `RemoteAlignPlan.pushArguments` で先に届いている(**ランナーは fetch しない**)。
     ///
-    /// **ヘルパーを省かない** —— `fleetest` だけをビルドすると、そのランナーのタイルは状態は届くのに
-    /// 映像が1枚も来ない(`api device-stream` が exec 対象を見つけられず即死し、拡張は
-    /// 「映像なし」で諦める)。名前の定義元は `StreamHelpers`。**中継 `fleetest-services` も省かない** ——
-    /// 無いとランナーで動く run-setup.sh / run-teardown.sh がサービスに触れない(`ServiceGatewayWire.relayProductName`)。
-    /// **`fleetest-mcp` も省かない** —— 古いまま残ると、ブリッジが新しいランナー機で版ガードが全ツールを断る
+    /// ビルドの中身(必ずビルドする製品・配信ヘルパーを省く条件・成功の記録)は `RemoteAlignPlan.buildScript`。
+    /// devicepoll と mcp は `RemoteAlignPlan.deferredBuildCommand` で後回しにするだけで**省かない**
+    /// (ヘルパーが無いとそのランナーのタイルは状態は届くのに映像が1枚も来ない。名前の定義元は `StreamHelpers`。
+    /// 古い mcp が残ると、ブリッジが新しいランナー機で版ガードが全ツールを断る)。
+    /// 中継 `fleetest-services` は必ずビルドする(無いとランナーの run-setup.sh / run-teardown.sh がサービスに触れない)
     ///
-    /// `developerDir` はディスパッチと同じ `XcodeSelection.resolve` で選んだ Xcode(nil = ambient)。**ビルドもその Xcode で行う**
+    /// `developerDir` はディスパッチと同じ `XcodeSelection.resolve` で選んだ Xcode(nil = ambient)で、
+    /// **「同じなら何もしない」の判定と同じ値**を渡す。**ビルドもその Xcode で行う**
     /// —— 渡さないとランナーの `xcode-select` の既定でビルドし、そこがコマンドラインツールだと FoundationModels のマクロが無くて
     /// 落ちる(M1mini で実測: Xcode を入れ替えた後の既定がコマンドラインツールだった)。既定値は置かない
-    public static func alignRevisionCommand(layout: RemoteLayout, revision: String, helperPath: String,
-                                            developerDir: String?) -> String {
-        let builds = (["fleetest"] + StreamHelpers.all + [ServiceGatewayWire.relayProductName, "fleetest-mcp"])
-            .map { "swift build --product \($0)" }
-            .joined(separator: " && ")
-        let buildCommand = "git checkout \(RemoteShell.quote(revision)) && " + builds
+    public static func alignRevisionCommand(layout: RemoteLayout, revision: String, digest: String,
+                                            helperPath: String, developerDir: String?) -> String {
         let helperDirectory = URL(fileURLWithPath: helperPath).deletingLastPathComponent().path
         let target = layout.toolRoot + "/.build/debug/fleetest"
+        let build = RemoteAlignPlan.buildScript(layout: layout, revision: revision, digest: digest,
+                                                developerDir: developerDir)
         let devDirCmd = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         return "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; " + devDirCmd
             + "ft_align_helper=\(RemoteShell.quote(helperPath)); "
             + "ft_align_helper_dir=\(RemoteShell.quote(helperDirectory)); "
             + #"trap 'rm -f -- "$ft_align_helper"; rmdir -- "$ft_align_helper_dir"' EXIT; "#
-            + "chmod 700 \"$ft_align_helper\" && cd \(RemoteShell.quote(layout.toolRoot)) && git fetch origin && "
+            + "chmod 700 \"$ft_align_helper\" && cd \(RemoteShell.quote(layout.toolRoot)) && "
             + "\"$ft_align_helper\" api fm-align "
-            + "--target-executable \(RemoteShell.quote(target)) --build-command \(RemoteShell.quote(buildCommand))"
+            + "--target-executable \(RemoteShell.quote(target)) --build-command \(RemoteShell.quote(build))"
     }
 
     /// `remote teardown` が base ごと削除してよいかの判定(RR-14 撤去)。
@@ -260,13 +259,5 @@ public enum RemoteSetupPlan {
 
     public static func uninstallCommand(base: String) -> String {
         "rm -rf \(RemoteShell.quote(base))"
-    }
-
-    /// **ランナーは origin から fetch する**ので、手元だけにあるコミットへは合わせられない。
-    /// そのまま撃つと `git checkout` が exit 128 で落ちるだけで理由が読めない(実際に
-    /// 踏んだ)。押していないと分かっているなら、ssh を張る前にそう言う
-    public static func unpublishedRevisionMessage(revision: String) -> String {
-        "commit \(revision.prefix(7)) is not on any remote — the runner fetches from origin, "
-            + "so push the branch first (git push), then re-run this command"
     }
 }

@@ -81,7 +81,7 @@ fleetest remote setup <宛先> --project <プロジェクト>
 **初回は数分〜十数分かかる**(clone・`swift build` のコールドビルド)。
 逐次1行ずつ出るので、無音でなければ進んでいる。
 
-align は発行側の実行ファイルを一時転送し、**FM の安全な退役・起動予約 → checkout・ビルド → 新常駐の起動元・版確認**
+align は手元の作業ツリーを push 不要で直送し(中身が既に同じなら何もせず終わる)、発行側の実行ファイルを一時転送し、**FM の安全な退役・起動予約 → checkout・ビルド → 新常駐の起動元・版確認**
 を行う。発行側の現在の実行ファイル(約94MB)を各ランナーへSCPし、ランナー上で実行できることが前提。
 使用中の推論・暖機の終了を確認できなければ、停止・checkout・ビルドを行わず失敗する。
 FM が未起動ならビルドだけを行い、FM は起こさない。常駐を切り替えても古い監視プロセスは
@@ -198,7 +198,7 @@ profile=`<実行プロファイル>`)で始め、`ft_run_status` で結果を引
 
 | 症状 | 原因 | 対処 |
 |---|---|---|
-| `git revision mismatch` | 手元とランナー機の版が違う | 手元をコミット&push してから `fleetest remote setup <宛先>` を流し直す(align が合わせる)。**手元の未コミットの変更は届かない** |
+| `git revision mismatch` | 手元とランナー機の版が違う | `fleetest remote setup <宛先>` を流し直す(align が手元の作業ツリーを直送して合わせる。**コミットも push も要らない**。中身が既に同じなら何もせずに終わる)。手元が古い側(`localBehind`)のときは手元を更新する |
 | `FM alignment failed` / `FM resident alignment failed` | FM 常駐の切替・確認が未完了 | 使用中・保守ロック取得失敗なら処理終了後に再実行。安全な切替に非対応の旧常駐(通信版2・3)は自動停止しない。古い呼び手を止めて FM の利用終了を確認し、人手で一度だけ旧常駐を終了してから再実行する。常駐が手元より新しい場合は手元も更新。詳しくは docs/remote-runner-setup.md ステップ3。強制停止で押し切らない |
 | `toolchain mismatch` | 発行側の製品版に一致する Xcode がランナーに1つも無い(macOS は照合しない。ベータの build 番号だけの違いはこのエラーにならず `remote status` の TOOLCHAIN 欄に ⚠️(advisory)が出るだけで、ディスパッチは止まらない) | **`remote setup` では直らない**(Xcode の導入は GUI と sudo が要る)。🧑 に発行側と同じ Xcode 製品版を**ランナーの `/Applications` へ追加で**入れてもらう(既存の Xcode を消す必要はない。入れれば自動で選ばれる)。既存を置き換える運用にする場合だけ、フリートでは1台だけ更新して検証してから残りへ広げる |
 | `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナーの `/Applications` に同じ製品版の Xcode が複数ある | 登録簿に pin する: `fleetest remote machines add <名前> --host <宛先> --developer-dir <使わせたい Xcode.app のパス>` |
@@ -246,7 +246,7 @@ CI から回すなら `--junit <パス>` を足す(全エントリが1ファイ�
 
 - リモート実行分の結果は**そのまま `fleetest results` の集計に載る**(回収した results を
   読むだけなので、特別な操作は要らない)
-- **手元でコミットしたら push する** —— ランナーは origin から fetch するので、
-  押していないコミットには合わせられない(`remote setup` がそう言って止まる)
+- **コミットも push も要らない** —— align は手元の作業ツリー(未コミットを含む)をランナーへ直送する。
+  ツール本体を変えたら align し直すまでディスパッチが止まる。中身が既に同じなら即終わる
 - リポジトリ外の回避策(`StrictHostKeyChecking` の無効化・ベースディレクトリを
   ランナー機のローカルインストールと同じ場所にする等)

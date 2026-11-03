@@ -2,14 +2,15 @@
 """`fleetest api remote-compat` の JSON(stdin)から、e2e.sh --align が撃つ align の計画を出す。
 
 出力は1行1件の `action|host|reason`(`|` は区切りなので理由からは除去する):
-  align|<machine>|            揃える(ランナーがこの clone の祖先 = remoteBehind のときだけ)
+  align|<machine>|            揃える(remoteBehind = ランナーがこの clone の祖先 / workingTreeDiffers =
+                              同じコミットの上で未コミットの差がある、のときだけ)
   skip|<machine>|<説明>       触らない。**説明は必ず出す** —— 黙って飛ばすと、揃えたつもりで
                               プロファイルが開始前に落ちる理由が分からなくなる
 
 契約: 判定の定義元は `FTCore.RevisionRelation` / `RemoteCompat.classifyRelation`(Swift)。
 ここは**その分類を行動へ写すだけ**で、独自に祖先関係を計算しない(2つ目の実装を作らない)。
-`revisionRelation` は **published のときだけ**入る(未 push の rev は align 案内が誤誘導になるため
-Swift 側が nil にする)= nil を「揃えてよい」と読まない。
+`revisionRelation` が nil(向きを判定できなかった)を「揃えてよい」と読まない。
+align は未 push・未コミットの手元もランナーへ直送するので、未 push を理由に飛ばす分岐は無い。
 """
 import json
 import sys
@@ -27,7 +28,6 @@ except Exception as e:  # 解釈できない出力を「揃えるものなし」
     sys.stderr.write("cannot parse remote-compat JSON: %s\n" % e)
     raise SystemExit(2)
 
-published = data.get("revisionPublished", True)
 for m in data.get("machines", []):
     host = m.get("machine") or m.get("sshTarget") or "?"
     where = "%s %s" % (label, host)
@@ -39,13 +39,11 @@ for m in data.get("machines", []):
         emit("skip", host, "%s: toolchain が違います(align では直りません。Xcode を揃える)" % where)
     if m.get("revisionCompatible") is False:
         relation = m.get("revisionRelation")
-        if relation == "remoteBehind":
+        if relation in ("remoteBehind", "workingTreeDiffers"):
             emit("align", host)
         elif relation == "localBehind":
             emit("skip", host, "%s: この clone のほうが古いので触りません(先に自分を更新する)" % where)
         elif relation == "diverged":
             emit("skip", host, "%s: 版が分岐しています(ブランチ作業。共有ランナーでは解決しない)" % where)
-        elif not published:
-            emit("skip", host, "%s: HEAD が未 push なのでランナーが取得できません(先に push する)" % where)
         else:
             emit("skip", host, "%s: 版のズレの向きを判定できません(手で確認する)" % where)

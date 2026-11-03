@@ -50,7 +50,7 @@ test("blocking な不一致と advisory が混在: ask かつ advisoryMachines �
     toolchainCompatible: true,
     toolchainAdvisory: "Xcode 16.0 beta 3 vs beta 2 on M1Max",
   };
-  const decision = decideRemoteCompat({ machines: [staleRev, advisory], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [staleRev, advisory] });
   assert.equal(decision.kind, "ask");
   assert.deepEqual(decision.incompatible.map((m) => m.machine), ["M1Max"]);
   assert.deepEqual(decision.advisoryMachines, [
@@ -60,13 +60,12 @@ test("blocking な不一致と advisory が混在: ask かつ advisoryMachines �
 
 test("rev ズレのみ: ask かつ canUpdate=true・updatableMachines に名前が入る", () => {
   const machine = { ...okMachine("M1Max"), revision: "deadbee", revisionCompatible: false };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, true);
   assert.deepEqual(decision.updatableMachines, ["M1Max"]);
   assert.deepEqual(decision.incompatible, [machine]);
-  assert.equal(decision.localDirty, false);
-  assert.equal(decision.revisionUnpublished, false);
+  assert.deepEqual(decision.snapshotMachines, []);
 });
 
 test("unreachable が混在: ask かつ canUpdate=false(align では直らない)", () => {
@@ -82,7 +81,6 @@ test("unreachable が混在: ask かつ canUpdate=false(align では直らない
   };
   const decision = decideRemoteCompat({
     machines: [reachableButStale, unreachable, okMachine("M2Studio")],
-    revisionPublished: true,
   });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, false);
@@ -95,25 +93,47 @@ test("unreachable が混在: ask かつ canUpdate=false(align では直らない
 
 test("toolchain ズレ: ask かつ canUpdate=false(align は rev しか直せない)", () => {
   const machine = { ...okMachine("M1Max"), toolchain: "swift-5.9", toolchainCompatible: false };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
 });
 
-test("revisionPublished=false: ask かつ canUpdate=false・revisionUnpublished=true", () => {
-  const machine = { ...okMachine("M1Max"), revisionCompatible: false };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: false, localDirty: true });
+test("revisionRelation=workingTreeDiffers: ask かつ canUpdate=true(同じコミットの上の未コミットの差は align で直る)", () => {
+  const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "workingTreeDiffers" };
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
-  assert.equal(decision.canUpdate, false);
-  assert.deepEqual(decision.updatableMachines, []);
-  assert.equal(decision.revisionUnpublished, true);
-  assert.equal(decision.localDirty, true);
+  assert.equal(decision.canUpdate, true);
+  assert.deepEqual(decision.updatableMachines, ["M1Max"]);
+});
+
+test("remoteBehind と workingTreeDiffers が混在: canUpdate=true", () => {
+  const a = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "remoteBehind" };
+  const b = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "workingTreeDiffers" };
+  const decision = decideRemoteCompat({ machines: [a, b] });
+  assert.equal(decision.canUpdate, true);
+  assert.deepEqual(decision.updatableMachines, ["M1Max", "M1Ultra"]);
+});
+
+test("未 push・未コミットでも更新を止めない(localDirty / revisionPublished を読まない)", () => {
+  const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "remoteBehind" };
+  const decision = decideRemoteCompat({ machines: [machine], localDirty: true, revisionPublished: false });
+  assert.equal(decision.canUpdate, true);
+  assert.equal("localDirty" in decision, false);
+  assert.equal("revisionUnpublished" in decision, false);
+});
+
+test("snapshotIssuer が非 null の機械は snapshotMachines に発行者つきで載る(null・空は載らない)", () => {
+  const a = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "workingTreeDiffers", snapshotIssuer: "PC1" };
+  const b = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "remoteBehind", snapshotIssuer: null };
+  const c = { ...okMachine("M2Studio"), revisionCompatible: false, revisionRelation: "remoteBehind", snapshotIssuer: "" };
+  const decision = decideRemoteCompat({ machines: [a, b, c] });
+  assert.deepEqual(decision.snapshotMachines, [{ machine: "M1Max", issuer: "PC1" }]);
 });
 
 test("revisionRelation=localBehind: ask かつ canUpdate=false・localBehindMachines に名前が入る(この機械が古い側は align で直せない)", () => {
   const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "localBehind" };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
@@ -124,7 +144,7 @@ test("revisionRelation=localBehind: ask かつ canUpdate=false・localBehindMach
 
 test("revisionRelation=diverged: ask かつ canUpdate=false・divergedMachines に名前が入る", () => {
   const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "diverged" };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
@@ -133,7 +153,7 @@ test("revisionRelation=diverged: ask かつ canUpdate=false・divergedMachines �
 
 test("revisionRelation=unknown: ask かつ canUpdate=false・unknownRelationMachines に名前が入る", () => {
   const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "unknown" };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
@@ -143,16 +163,16 @@ test("revisionRelation=unknown: ask かつ canUpdate=false・unknownRelationMach
 test("revisionRelation=remoteBehind(複数マシン): canUpdate=true(従来条件を満たす場合)", () => {
   const machine1 = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "remoteBehind" };
   const machine2 = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "remoteBehind" };
-  const decision = decideRemoteCompat({ machines: [machine1, machine2], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine1, machine2] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, true);
   assert.deepEqual(decision.updatableMachines, ["M1Max", "M1Ultra"]);
 });
 
-test("revisionRelation フィールドが無い(旧 CLI の)JSON: 従来と同じ判定(後方互換)", () => {
+test("revisionRelation が null / 未設定(判定が付かなかった): 更新可能として扱う", () => {
   const machine = { ...okMachine("M1Max"), revisionCompatible: false };
   delete machine.revisionRelation;
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.equal(decision.canUpdate, true);
   assert.deepEqual(decision.updatableMachines, ["M1Max"]);
@@ -164,7 +184,7 @@ test("revisionRelation フィールドが無い(旧 CLI の)JSON: 従来と同�
 test("localBehind と remoteBehind が混在: canUpdate=false(1機でも align で直らないなら全体を止める)", () => {
   const behind = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "remoteBehind" };
   const localBehind = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "localBehind" };
-  const decision = decideRemoteCompat({ machines: [behind, localBehind], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [behind, localBehind] });
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
   assert.deepEqual(decision.localBehindMachines, ["M1Ultra"]);
@@ -182,14 +202,14 @@ test("xcodeSelectionError: 非 null なら toolchainCompatible が undefined で
   // ことを確かめる(ゲート単体で blocking へ倒す)
   const machine = { ...okMachine("M1Max"), toolchainCompatible: undefined,
                      xcodeSelectionError: "no matching Xcode; candidates: Xcode 26 (26A5xxx) at /Applications/Xcode_26.app" };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.kind, "ask");
   assert.deepEqual(decision.incompatible, [machine]);
 });
 
 test("xcodeSelectionError: canUpdate=false(align では直らない)・updatableMachines は空", () => {
   const machine = { ...okMachine("M1Max"), xcodeSelectionError: "no matching Xcode found" };
-  const decision = decideRemoteCompat({ machines: [machine], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [machine] });
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
 });
@@ -197,7 +217,7 @@ test("xcodeSelectionError: canUpdate=false(align では直らない)・updatable
 test("xcodeSelectionError と rev ズレが混在: 1機でも xcodeSelectionError があれば全体 canUpdate=false", () => {
   const selectionFailed = { ...okMachine("M1Max"), xcodeSelectionError: "no matching Xcode found" };
   const revBehind = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "remoteBehind" };
-  const decision = decideRemoteCompat({ machines: [selectionFailed, revBehind], revisionPublished: true });
+  const decision = decideRemoteCompat({ machines: [selectionFailed, revBehind] });
   assert.equal(decision.canUpdate, false);
   assert.deepEqual(decision.updatableMachines, []);
 });

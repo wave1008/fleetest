@@ -633,11 +633,8 @@ async function executeRun(
           detailLines.push(`${advisory.machine}: ${advisory.advisory}`);
         }
       }
-      if (decision.revisionUnpublished) {
-        detailLines.push(t("run.remoteCompat.revisionUnpublishedNote"));
-      }
-      if (decision.localDirty) {
-        detailLines.push(t("run.remoteCompat.localDirtyNote"));
+      for (const snapshot of decision.snapshotMachines) {
+        detailLines.push(t("run.remoteCompat.snapshotNote", { name: snapshot.machine, issuer: snapshot.issuer }));
       }
       if (decision.localBehindMachines.length > 0) {
         detailLines.push(t("run.remoteCompat.localBehindNote", { names: decision.localBehindMachines.join(", ") }));
@@ -653,7 +650,7 @@ async function executeRun(
       // 「そのまま実行」は置かない —— ダイアログが出た時点でリモート担当分は必ず
       // checkCompatibility に弾かれて failed になるので、続行は常に部分失敗の run にしかならない
       // (ユーザー決定。チェック自体を外す逃げ道は設定 fleetest.remoteCompatCheck)。
-      // align で直せないズレ(未 push・到達不能・toolchain 不一致)は実行を止めて理由を出す
+      // align で直せないズレ(到達不能・toolchain 不一致)は実行を止めて理由を出す
       if (!decision.canUpdate) {
         const message = t("run.remoteCompat.blockedMessage");
         await vscode.window.showErrorMessage(message, { modal: true, detail: detailLines.join("\n") });

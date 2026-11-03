@@ -42,8 +42,8 @@
 #   Scripts/e2e.sh --align         # **実行前に**リモートランナーの版を揃える(opt-in)。
 #                                   # 適合チェックは開始前に落ちるので、ズレたままだとその
 #                                   # プロファイルは1本も走らない(部分実行にすらならない)。
-#                                   # 揃えるのは**ランナーがこの clone の祖先のときだけ**
-#                                   # (自分が古い/分岐しているときは触らない。理由は下の align_runners)
+#                                   # 揃えるのは**ランナーが古いとき(remoteBehind)と、同じコミットの上で未コミットの差が
+#                                   # あるとき(workingTreeDiffers)だけ**(自分が古い/分岐しているときは触らない。理由は下の align_runners)
 #   Scripts/e2e.sh --negative      # 最後に陽性対照スイート(Scripts/e2e-negative.sh)も回す。
 #                                   # **既定では回さない**(ユーザーの指示があるときだけ。約 10 分)。
 #                                   # 見ている部分が前回 ✅ から変わった検証(陽性対照・heal-verify・fm-verify)は
@@ -221,11 +221,11 @@ RAN_PROFILES=""
 # **既定では触らない**。align はランナーの `<base>/tool/.build` を差し替えるので、他人(や自分の
 # 別セッション)の run の下で走らせるとその run を SIGKILL で殺す —— 「E2E 中に swift build を
 # 打たない」と同型で、だから align 自身が dispatch.lock を取る(RR-18.3 規則2)。
-# **揃えるのはランナーがこの clone の祖先(remoteBehind)のときだけ**。向きは適合チェックが
+# **揃えるのはランナーがこの clone の祖先(remoteBehind)か、同じコミットの上で未コミットの差がある(workingTreeDiffers)ときだけ**。向きは適合チェックが
 # 祖先関係で判定しており、取り違えると直る側が逆になる:
 #   localBehind = **この機械が古い** → 正解は手元の update。ランナーを引き下げてはいけない
 #   diverged    = ブランチ作業 → 共有ランナーでは解決しない(専用機の話)
-#   unknown / 未 push = 判断材料が無い(ランナーの rev がこの clone に無い等)
+#   unknown = 判断材料が無い(ランナーの rev がこの clone に無い等)
 # toolchain 不一致と到達不能は **align では直らない**ので、名指しして触らない。
 # 失敗しても中断しない —— そのプロファイルはどのみち適合チェックで落ちて赤くなる(=握り潰さない)。
 align_runners() {
@@ -263,7 +263,7 @@ EOF_PAIRS
   # 出力は機ごとのログへ分け、終わってから順に見せる(並列の出力が行単位で混ざると読めない)
   local logdir pids="" code
   logdir="$(mktemp -d)"
-  echo "==> fleetest remote align$hosts(並列。fetch → checkout → build。数分かかります)"
+  echo "==> fleetest remote align$hosts(並列。直送 → checkout → build。数分かかります)"
   for host in $hosts; do
     ( "$FLEETEST" remote align "$host" > "$logdir/$host.log" 2>&1; echo $? > "$logdir/$host.code" ) &
     pids="$pids $!"

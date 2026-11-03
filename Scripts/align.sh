@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# 手元の HEAD を全リモートランナーへ揃える(「アラインして」の機械作業ぶん)。
+# 手元の作業ツリー(未コミットを含む)を全リモートランナーへ揃える(「アラインして」の機械作業ぶん)。
 #
 # **なぜスクリプトなのか**: 手順そのものは短いが、**並列で撃つ**という一点が人の手だと必ず落ちる
 # (2026-09-03 と 2026-09-04 に計3回、`remote align` を1機ずつ送って前の出力を読んでから次を
 # 送っていた。うち1回は「並列で」と明示された直後)。台数ぶん待ち時間が伸びるだけの誤りなので、
 # **判断の余地を無くして機械に持たせる**。
 #
-# やること: ①作業ツリーが汚れていないことを確かめる ②push ③登録簿の全機へ `remote align` を
-# **同時に**投げる ④`remote status` で REV が手元の HEAD と一致することまで確かめる。
+# やること: ①対象の機械を決める ②ロック・到達性の確認 ③各機へ `remote align` を**同時に**投げる
+# ④`remote status --json` で各機の revisionCompatible(ツールの中身の要約の一致)が全部 true であることまで確かめる。
 #
-# 使い方: Scripts/align.sh
-#   コミットはしない(メッセージは人が書くもの)。**汚れたツリーでは何もせずに落ちる** ——
-#   ランナーは push されたコミットを取りに行くので、未コミットの変更は絶対に届かない。
+# 使い方: Scripts/align.sh [--force | --force-lock] [<machine>...]
+#   機械を省くと登録簿のうち有効(enabled)なものすべて。
+#   コミットも push もしない。`remote align` 自身が手元の作業ツリー(未コミット・未追跡を含む。.gitignore は効く)を
+#   ランナーのクローンへ ssh で直送する。中身が同じ機は何もせずに終わる。
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -28,24 +29,20 @@ case "${1:-}" in
   --force) FORCE=1; shift ;;
   --force-lock) FORCE=2; shift ;;
 esac
-[ $# -eq 0 ] || { echo "usage: Scripts/align.sh [--force | --force-lock]" >&2; exit 2; }
+case "${1:-}" in -*) echo "usage: Scripts/align.sh [--force | --force-lock] [<machine>...]" >&2; exit 2 ;; esac
 
 FLEETEST="${FLEETEST:-.build/debug/fleetest}"
 [ -x "$FLEETEST" ] || { echo "❌ $FLEETEST が無い(swift build を先に)" >&2; exit 1; }
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "❌ 作業ツリーに未コミットの変更がある。align はランナーに **push 済みのコミット** を" >&2
-  echo "   取りに行かせる操作なので、先にコミットすること:" >&2
-  git status --short >&2
-  exit 1
-fi
-
-HEAD_SHA="$(git rev-parse HEAD)"
-
-MACHINES=$("$FLEETEST" api remote-machines | python3 -c '
+if [ $# -gt 0 ]; then
+  MACHINES=$(printf '%s\n' "$@")
+else
+  # enabled が false のマシンは揃えない(キーが無ければ有効扱い)
+  MACHINES=$("$FLEETEST" api remote-machines | python3 -c '
 import json,sys
-print("\n".join(h["machine"] for h in json.load(sys.stdin).get("hosts", []) if h.get("machine")))')
-[ -n "$MACHINES" ] || { echo "❌ 登録簿にリモート機が無い(fleetest remote setup)" >&2; exit 1; }
+print("\n".join(h["machine"] for h in json.load(sys.stdin).get("hosts", []) if h.get("machine") and h.get("enabled", True)))')
+fi
+[ -n "$MACHINES" ] || { echo "❌ 揃える対象のリモート機が無い(登録簿が空か全部無効。fleetest remote setup)" >&2; exit 1; }
 
 HOST_ARGS=""
 for m in $MACHINES; do HOST_ARGS="$HOST_ARGS --runner $m"; done
@@ -84,7 +81,7 @@ elif [ -n "$BUSY" ] && [ "$FORCE" = 2 ]; then
   BUSY=$(busy_hosts)
 fi
 if [ -n "$BUSY" ]; then
-  echo "❌ 揃えられない機がある。push もしていない:" >&2
+  echo "❌ 揃えられない機がある。何も送っていない:" >&2
   echo "$BUSY" | sed 's/^/   /' >&2
   if [ "$FORCE" = 1 ]; then
     echo "   --force でも外れなかった = 走っている run か、他人のロック。**待つ**か、止まっていると確かめたうえで --force-lock" >&2
@@ -95,9 +92,6 @@ if [ -n "$BUSY" ]; then
   fi
   exit 1
 fi
-
-echo "==> push (HEAD=${HEAD_SHA:0:9})"
-git push origin HEAD
 
 LOGDIR="$(mktemp -d)"
 trap 'rm -rf "$LOGDIR"' EXIT
@@ -122,18 +116,22 @@ for m in $MACHINES; do
        cp "$LOGDIR/$m.log" "/tmp/align-$m.log"; echo "     ログを /tmp/align-$m.log に残した"; fi
 done
 
-# **align の成功報告だけで終わらせない**: 版が揃ったことは REV で確かめる
+# **align の成功報告だけで終わらせない**: 中身が揃ったことは各機の revisionCompatible で確かめる
 echo "==> verify"
-STATUS=$("$FLEETEST" remote status $HOST_ARGS 2>&1)
-echo "$STATUS"
-# **機械ごとに数える**(全体に1個あるかではない)。`echo | grep -q` は使わない ——
-# grep が先に閉じて echo が SIGPIPE を受け、`set -o pipefail` でパイプライン全体が
-# 非ゼロになる(揃っているのに「揃っていない」と報告した。2026-09-04 に実際に踏んだ)
-MATCHED=$(grep -c "$HEAD_SHA" <<< "$STATUS" || true)
+"$FLEETEST" remote status $HOST_ARGS 2>&1 || true
+RAW=$("$FLEETEST" remote status $HOST_ARGS --json 2>/dev/null | grep '^{' || true)
 EXPECTED=$(wc -l <<< "$MACHINES" | tr -d ' ')
+# 判定は stdin の JSON から python が出す1行(`ok/total`)だけを読む(grep と echo のパイプで SIGPIPE を踏まない)
+MATCHED=$(python3 - "$RAW" <<'PYEOF'
+import json, sys
+raw = sys.argv[1]
+hosts = json.loads(raw).get("hosts", []) if raw else []
+print(sum(1 for h in hosts if h.get("revisionCompatible") is True))
+PYEOF
+)
 if [ "$MATCHED" != "$EXPECTED" ]; then
-  echo "❌ REV が手元の HEAD と一致した機は $MATCHED/$EXPECTED" >&2
+  echo "❌ 中身が手元と一致した機は $MATCHED/$EXPECTED" >&2
   FAILED=1
 fi
-[ "$FAILED" = 0 ] && echo "✅ 全機 ${HEAD_SHA:0:9} に揃った"
+[ "$FAILED" = 0 ] && echo "✅ 全機 手元の内容に揃った"
 exit "$FAILED"

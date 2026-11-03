@@ -112,7 +112,7 @@ final class RemoteStatusFMProbeTests: XCTestCase {
     /// 旧ランナー(ブロックが7個しか無い出力)でも他の項目は読めて、FM だけ不明になる
     func testOldRunnerOutputStillParsesEverythingElse() {
         let sep = "\n---FT---\n"
-        let output = ["/Users/u\nu\nu", "abc123", "Xcode 27.0\nBuild version 27A1", "24A1",
+        let output = ["/Users/u\nu\nu", "abc123\nd1\nabc123\n-", "Xcode 27.0\nBuild version 27A1", "24A1",
                       "yes", "/dev/disk1 1 2 3000 1% /", "absent"].joined(separator: sep)
         let status = RemoteStatusProbe.parse(output)
         XCTAssertEqual(status.revision, "abc123")

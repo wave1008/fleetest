@@ -13,7 +13,7 @@ extension RemoteDispatchTests {
 
     func testVerdictEmptyWhenAllMatch() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: "abc",
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"),
             localToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1",
             remoteToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1")
         XCTAssertEqual(v.blocking, [])
@@ -23,18 +23,19 @@ extension RemoteDispatchTests {
 
     func testVerdictRevisionMismatchIsAlwaysBlocking() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: "def",
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("def"),
             localToolchain: "Xcode 27.0 Build A", remoteToolchain: "Xcode 27.0 Build A")
         XCTAssertEqual(v.blocking.count, 1)
         XCTAssertTrue(v.blocking[0].contains("git revision"), v.blocking[0])
         XCTAssertTrue(v.blocking[0].contains("local=abc") && v.blocking[0].contains("remote=def"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].hasPrefix("git revision mismatch"), v.blocking[0])
         XCTAssertEqual(v.advisory, [])
     }
 
     /// 製品版(27.0)が同じで build だけ違う = ベータ seed の差 → advisory(止めない)
     func testVerdictSameProductVersionDifferentBuildIsAdvisory() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: "abc",
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"),
             localToolchain: "Xcode 27.0 Build version 27A5228h / iphonesimulator 24A434",
             remoteToolchain: "Xcode 27.0 Build version 27A5231e / iphonesimulator 24A5423a")
         XCTAssertEqual(v.blocking, [])
@@ -47,7 +48,7 @@ extension RemoteDispatchTests {
     /// 製品版そのものが違う(26 vs 27)ときは build が違っても blocking のまま
     func testVerdictDifferentProductVersionIsBlocking() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: "abc",
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"),
             localToolchain: "Xcode 26.3 Build version 26C1 / iphonesimulator 26C1",
             remoteToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1")
         XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
@@ -58,27 +59,27 @@ extension RemoteDispatchTests {
     /// fail-closed: リモート値が取れない(nil)場合も blocking
     func testVerdictNilRemoteIsBlocking() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: nil,
+            local: Self.localTool("abc"), remoteTool: nil,
             localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0")
         XCTAssertEqual(v.blocking.count, 1)
         XCTAssertTrue(v.blocking[0].contains("could not determine the remote value"), v.blocking[0])
-        XCTAssertTrue(v.blocking[0].contains("local=abc"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("local=d-abc"), v.blocking[0])
     }
 
     /// fail-closed: ローカル値が取れない場合も blocking
     func testVerdictNilLocalIsBlocking() {
         let v = RemoteCompat.verdict(
-            localRevision: nil, remoteRevision: "abc",
+            local: nil, remoteTool: Self.remoteTool("abc"),
             localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0")
         XCTAssertEqual(v.blocking.count, 1)
         XCTAssertTrue(v.blocking[0].contains("could not determine the local value"), v.blocking[0])
-        XCTAssertTrue(v.blocking[0].contains("remote=abc"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("remote=d-abc"), v.blocking[0])
     }
 
     /// fail-closed: toolchain の片方が nil でも blocking(製品版が切り出せても advisory へは倒さない)
     func testVerdictNilToolchainIsBlockingNotAdvisory() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: "abc",
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"),
             localToolchain: "Xcode 27.0 Build A", remoteToolchain: nil)
         XCTAssertEqual(v.blocking.count, 1)
         XCTAssertTrue(v.blocking[0].hasPrefix("toolchain"), v.blocking[0])
@@ -91,8 +92,8 @@ extension RemoteDispatchTests {
     /// (レーンが丸ごと落ちたときに「なぜ取れなかったか」が残る)
     func testProbeFailureKeepsFailClosedAndCarriesTheReason() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc",
-            remoteRevision: .failed(detail: "ssh command failed (status 128): git -C /x rev-parse HEAD"),
+            local: Self.localTool("abc"), remoteTool: nil,
+            remoteToolFailure: "ssh command failed (status 128): git -C /x rev-parse HEAD",
             localToolchain: "Xcode 27.0", remoteToolchain: .value("Xcode 27.0"))
         XCTAssertEqual(v.blocking.count, 2, "\(v.blocking)")
         XCTAssertTrue(v.blocking[0].contains("could not determine the remote value"), v.blocking[0])
@@ -105,7 +106,7 @@ extension RemoteDispatchTests {
     /// 分岐するので、照会の失敗がそこへ食い込むと「push していない」等の誤誘導になる
     func testProbeFailureDoesNotCollideWithTheAdvicePrefix() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: .failed(detail: "timed out"),
+            local: Self.localTool("abc"), remoteTool: nil, remoteToolFailure: "timed out",
             localToolchain: "Xcode 27.0", remoteToolchain: .failed(detail: "timed out"))
         XCTAssertEqual(v.blocking.filter { $0.hasPrefix("git revision") }.count, 1, "\(v.blocking)")
         XCTAssertEqual(v.blocking.filter { $0.hasPrefix("toolchain") }.count, 1, "\(v.blocking)")
@@ -115,7 +116,7 @@ extension RemoteDispatchTests {
     /// 値が揃っていれば失敗行は出ない(照会が成功した回に余計な行を足さない)
     func testProbeValuesMatchingYieldNoReasons() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: .value("abc"),
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"), remoteToolFailure: nil,
             localToolchain: "Xcode 27.0", remoteToolchain: .value("Xcode 27.0"))
         XCTAssertEqual(v.blocking, [])
         XCTAssertEqual(v.advisory, [])
@@ -124,11 +125,70 @@ extension RemoteDispatchTests {
     /// 照会が成功して製品版が同じ・build だけ違うなら ProbeOutcome 経由でも advisory になる
     func testProbeSameProductVersionDifferentBuildIsAdvisory() {
         let v = RemoteCompat.verdict(
-            localRevision: "abc", remoteRevision: .value("abc"),
+            local: Self.localTool("abc"), remoteTool: Self.remoteTool("abc"), remoteToolFailure: nil,
             localToolchain: "Xcode 27.0 Build version 27A5228h / iphonesimulator 24A434",
             remoteToolchain: .value("Xcode 27.0 Build version 27A5231e / iphonesimulator 24A5423a"))
         XCTAssertEqual(v.blocking, [])
         XCTAssertEqual(v.advisory.count, 1, "\(v.advisory)")
+    }
+
+    // MARK: - 要約(digest)による照合
+
+    /// digest は `d-<head>` を既定にする(同じ head なら同じ要約)。中身だけ違うケースは digest を明示する
+    static func localTool(_ head: String, digest: String? = nil, clean: Bool = true) -> RemoteCompat.LocalTool {
+        RemoteCompat.LocalTool(head: head, digest: digest ?? "d-\(head)", isClean: clean)
+    }
+
+    static func remoteTool(_ head: String, digest: String? = nil, base: String? = nil,
+                           issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
+        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
+                                      snapshotIssuer: issuer)
+    }
+
+    private func revisionVerdict(local: RemoteCompat.LocalTool?, remote: AlignSnapshot.RemoteToolState?)
+        -> RemoteCompat.CompatVerdict {
+        RemoteCompat.verdict(local: local, remoteTool: remote, localToolchain: "Xcode 27.0",
+                             remoteToolchain: "Xcode 27.0")
+    }
+
+    /// 要約が一致すればコミットが違っても適合(未コミットの変更を送った回・同じ中身を後でコミットした回)
+    func testVerdictSameDigestDifferentCommitIsCompatible() {
+        let v = revisionVerdict(local: Self.localTool("aaa", digest: "same"),
+                                remote: Self.remoteTool("bbb", digest: "same", base: "aaa", issuer: "wave"))
+        XCTAssertEqual(v.blocking, [])
+    }
+
+    /// 要約が違えば HEAD が同じでも blocking(SHA が同じで中身が違う = 未コミットの変更が届いていない)。
+    /// 文言にどちらがスナップショットかが出る
+    func testVerdictDifferentDigestSameHeadIsBlockingAndNamesTheSnapshotSide() {
+        let v = revisionVerdict(local: Self.localTool("abcdef1234", digest: "1111111999", clean: false),
+                                remote: Self.remoteTool("abcdef1234", digest: "2222222999"))
+        XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
+        XCTAssertTrue(v.blocking[0].hasPrefix("git revision mismatch"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("local=abcdef1+uncommitted digest=1111111"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("remote=abcdef1 digest=2222222"), v.blocking[0])
+        let snapshot = revisionVerdict(local: Self.localTool("abcdef1234", digest: "1111111999"),
+                                       remote: Self.remoteTool("fedcba9876", digest: "2222222999",
+                                                               base: "abcdef1234", issuer: "wave"))
+        XCTAssertTrue(snapshot.blocking[0].contains("remote=fedcba9+snapshot"), snapshot.blocking[0])
+    }
+
+    /// ランナーの要約が読めない(HEAD は読めた)ときも fail-closed
+    func testVerdictRemoteDigestUnreadableIsBlocking() {
+        let remote = AlignSnapshot.RemoteToolState(head: "abc", digest: nil, base: "abc", snapshotIssuer: nil)
+        let v = revisionVerdict(local: Self.localTool("abc"), remote: remote)
+        XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
+        XCTAssertTrue(v.blocking[0].contains("could not determine the remote value"), v.blocking[0])
+    }
+
+    func testRelationAdviceWorkingTreeDiffersNamesAnotherIssuersSnapshot() {
+        let own = RemoteCompat.relationAdvice(.workingTreeDiffers, localIssuer: "wave", remoteSnapshotIssuer: "wave")
+        XCTAssertTrue(own.contains("remote align"), own)
+        XCTAssertFalse(own.contains("overwrites"), "自分のスナップショットの上書きは名指ししない: \(own)")
+        let none = RemoteCompat.relationAdvice(.workingTreeDiffers, localIssuer: "wave", remoteSnapshotIssuer: nil)
+        XCTAssertFalse(none.contains("overwrites"), none)
+        let other = RemoteCompat.relationAdvice(.workingTreeDiffers, localIssuer: "wave", remoteSnapshotIssuer: "alice")
+        XCTAssertTrue(other.contains("alice") && other.contains("overwrites"), other)
     }
 
     // MARK: - RemoteCompat.classifyRelation
@@ -167,24 +227,24 @@ extension RemoteDispatchTests {
 
     /// localBehind は自分を更新する経路(update.sh)だけを案内する ―― align を実行手順として出さない
     func testRelationAdviceLocalBehindPointsToUpdateNotAlign() {
-        let advice = RemoteCompat.relationAdvice(.localBehind)
+        let advice = RemoteCompat.relationAdvice(.localBehind, localIssuer: nil, remoteSnapshotIssuer: nil)
         XCTAssertTrue(advice.contains("update"), advice)
         XCTAssertTrue(advice.contains("Scripts/update.sh"), advice)
         XCTAssertFalse(advice.contains("fleetest remote align"), advice)
     }
 
     func testRelationAdviceRemoteBehindPointsToAlignWithCanary() {
-        let advice = RemoteCompat.relationAdvice(.remoteBehind)
+        let advice = RemoteCompat.relationAdvice(.remoteBehind, localIssuer: nil, remoteSnapshotIssuer: nil)
         XCTAssertTrue(advice.contains("fleetest remote align"), advice)
         XCTAssertTrue(advice.contains("canary"), advice)
     }
 
     func testRelationAdviceDivergedPointsToDedicatedMachine() {
-        XCTAssertTrue(RemoteCompat.relationAdvice(.diverged).contains("dedicated machine"))
+        XCTAssertTrue(RemoteCompat.relationAdvice(.diverged, localIssuer: nil, remoteSnapshotIssuer: nil).contains("dedicated machine"))
     }
 
     func testRelationAdviceUnknownPointsToGitFetch() {
-        XCTAssertTrue(RemoteCompat.relationAdvice(.unknown).contains("git fetch"))
+        XCTAssertTrue(RemoteCompat.relationAdvice(.unknown, localIssuer: nil, remoteSnapshotIssuer: nil).contains("git fetch"))
     }
 
 
@@ -367,7 +427,7 @@ extension RemoteDispatchTests {
             RemoteStatusProbe.command(layout: layout, simulatorRuntime: true),
             "echo $HOME; if launchctl print gui/$(id -u) >/dev/null 2>&1; then id -un;"
             + " else stat -f%Su /dev/console; fi; id -un; echo '---FT---'; "
-            + "git -C \(tool) rev-parse HEAD 2>/dev/null || echo -; echo '---FT---'; "
+            + AlignSnapshot.remoteProbeCommand(quotedToolRoot: tool) + "; echo '---FT---'; "
             + "xcodebuild -version; echo '---FT---'; "
             + "xcrun --sdk iphonesimulator --show-sdk-build-version; echo '---FT---'; "
             + "test -x \(binary) && echo yes || echo no; echo '---FT---'; "
@@ -509,7 +569,9 @@ extension RemoteDispatchTests {
 
     private func statusOutput(session: String, revision: String, xcodeVersion: String,
                               sdkBuild: String, binary: String, df: String?) -> String {
-        var blocks = [session, revision, xcodeVersion, sdkBuild, binary]
+        // 照会は4行(HEAD / 要約 / 基点 / 発行者)。"-" は読めない(4行とも `-`)
+        let probe = revision == "-" ? "-\n-\n-\n-" : "\(revision)\nd-\(revision)\n\(revision)\n-"
+        var blocks = [session, probe, xcodeVersion, sdkBuild, binary]
         if let df { blocks.append(df) }
         return blocks.joined(separator: "\n\(Self.statusSeparator)\n")
     }
@@ -533,6 +595,39 @@ extension RemoteDispatchTests {
             xcodeVersion: "Xcode 27.0\nBuild version 27A5228h", sdkBuild: "27A5228h",
             binary: "yes", df: "/dev/disk3s1s1  965538800 542000000 400000000   58%    /")
         XCTAssertNil(RemoteStatusProbe.parse(output).revision)
+        XCTAssertNil(RemoteStatusProbe.parse(output).tool)
+    }
+
+    /// 照会の4行(HEAD / 要約 / 基点 / 発行者)が読まれ、**後ろのブロックがずれない**
+    /// (toolchain・binary・df が同じ出力から正しく読める)。スナップショットなら基点と発行者が入る
+    func testStatusProbeParsesTheFourLineToolBlockWithoutShiftingLaterBlocks() {
+        let output = ["/Users/ci\nalice\nalice", "snap111\ndig222\nbase333\nwave",
+                      "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes",
+                      "/dev/disk3s1s1  965538800 542000000 400000000   58%    /"]
+            .joined(separator: "\n\(Self.statusSeparator)\n")
+        let status = RemoteStatusProbe.parse(output)
+        XCTAssertEqual(status.tool, AlignSnapshot.RemoteToolState(
+            head: "snap111", digest: "dig222", base: "base333", snapshotIssuer: "wave"))
+        XCTAssertEqual(status.toolchain, "Xcode 27.0 Build version 27A5228h / iphonesimulator 27A5228h")
+        XCTAssertTrue(status.binaryPresent)
+        XCTAssertEqual(status.freeKB, 400_000_000)
+    }
+
+    /// 読めない値は `-`: 要約だけ読めない・スナップショットでない(基点 = HEAD・発行者 nil)
+    func testStatusProbeToolBlockWithUnreadableDigest() {
+        let output = ["/Users/ci\nalice\nalice", "head111\n-\nhead111\n-",
+                      "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes", "x y z 100"]
+            .joined(separator: "\n\(Self.statusSeparator)\n")
+        let tool = RemoteStatusProbe.parse(output).tool
+        XCTAssertEqual(tool, AlignSnapshot.RemoteToolState(head: "head111", digest: nil, base: "head111", snapshotIssuer: nil))
+        XCTAssertEqual(tool?.isSnapshot, false)
+    }
+
+    /// 旧ランナー(HEAD の1行だけ)は読めない = nil(要約が無いので照合は止まる)
+    func testStatusProbeOldSingleLineToolBlockIsNil() {
+        let output = ["/Users/ci\nalice\nalice", "head111", "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes"]
+            .joined(separator: "\n\(Self.statusSeparator)\n")
+        XCTAssertNil(RemoteStatusProbe.parse(output).tool)
     }
 
     func testStatusProbeParseBinaryNoBecomesFalse() {

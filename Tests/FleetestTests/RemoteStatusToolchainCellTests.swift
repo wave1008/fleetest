@@ -14,12 +14,45 @@ import XCTest
 
 final class RemoteStatusToolchainCellTests: XCTestCase {
 
+    /// 要約は `d-<head>`(同じ head なら一致)
+    private static func tool(_ head: String, digest: String? = nil, base: String? = nil,
+                             issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
+        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
+                                      snapshotIssuer: issuer)
+    }
+
+    private static func local(_ head: String) -> RemoteCompat.LocalTool {
+        RemoteCompat.LocalTool(head: head, digest: "d-\(head)", isClean: true)
+    }
+
+    /// REV 欄: スナップショットは `<head7>+wip(<issuer>)`・通常は HEAD そのまま・読めなければ nil
+    func testRevisionCellMarksTheSnapshot() {
+        XCTAssertEqual(RemoteCommand.Status.revisionCell(Self.tool("abcdef1234567")), "abcdef1234567")
+        XCTAssertEqual(RemoteCommand.Status.revisionCell(
+            Self.tool("1234567890", base: "abcdef1234567", issuer: "wave")), "1234567+wip(wave)")
+        XCTAssertNil(RemoteCommand.Status.revisionCell(nil))
+    }
+
+    /// 適合の ✅/❌ は要約の一致で決まる: HEAD が同じでも要約が違えば不一致・HEAD が違っても要約が同じなら一致
+    func testRevisionCompatibilityFollowsTheDigest() {
+        func compat(local: RemoteCompat.LocalTool, remote: AlignSnapshot.RemoteToolState) -> Bool? {
+            let status = RemoteHostStatus(session: nil, tool: remote, toolchain: "Xcode 27.0",
+                                          binaryPresent: true, freeKB: nil)
+            let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil)
+            return HostReport(row: row, localTool: local, localToolchain: "Xcode 27.0").revisionCompatible
+        }
+        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", isClean: false),
+                              remote: Self.tool("abc", digest: "y")), false)
+        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", isClean: false),
+                              remote: Self.tool("def", digest: "x", base: "abc", issuer: "wave")), true)
+    }
+
     private func report(localToolchain: String?, remoteToolchain: String?,
                         revision: String = "abc") -> HostReport {
-        let status = RemoteHostStatus(session: nil, revision: revision, toolchain: remoteToolchain,
+        let status = RemoteHostStatus(session: nil, tool: Self.tool(revision), toolchain: remoteToolchain,
                                       binaryPresent: true, freeKB: nil)
         let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil)
-        return HostReport(row: row, localRevision: revision, localToolchain: localToolchain)
+        return HostReport(row: row, localTool: Self.local(revision), localToolchain: localToolchain)
     }
 
     func testMatchingToolchainIsGreen() {
@@ -64,11 +97,11 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     /// rev 側は blocking のまま(仕様どおり)。REV 欄の表記自体は 2 値のまま変えない
     /// (RemoteCommands.swift の `mark` を経由。ここでは verdict の配線だけ確かめる)
     func testRevisionMismatchStaysBlockingRegardlessOfToolchain() {
-        let status = RemoteHostStatus(session: nil, revision: "def",
+        let status = RemoteHostStatus(session: nil, tool: Self.tool("def"),
                                       toolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1",
                                       binaryPresent: true, freeKB: nil)
         let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil)
-        let r = HostReport(row: row, localRevision: "abc",
+        let r = HostReport(row: row, localTool: Self.local("abc"),
                            localToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1")
         XCTAssertEqual(r.revisionCompatible, false)
         XCTAssertFalse(r.compatible, "revision の blocking だけでも compatible は false")
@@ -78,7 +111,7 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     /// どちらへも倒さない)
     func testUnreachableHostHasNoVerdictOpinion() {
         let row = HostRow(sshTarget: "host", reachable: false, detail: "unreachable", status: nil, fmOK: nil)
-        let r = HostReport(row: row, localRevision: "abc", localToolchain: "Xcode 27.0")
+        let r = HostReport(row: row, localTool: Self.local("abc"), localToolchain: "Xcode 27.0")
         XCTAssertNil(r.toolchainCompatible)
         XCTAssertNil(r.revisionCompatible)
         XCTAssertFalse(r.compatible)
@@ -91,14 +124,14 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     /// 運任せの判定になる(候補一覧を出して拒否したのに表は緑、という食い違いを防ぐ)
     func testXcodeSelectionRefusalForcesToolchainRedEvenIfStringsMatch() {
         let status = RemoteHostStatus(
-            session: nil, revision: "abc",
+            session: nil, tool: Self.tool("abc"),
             toolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1",
             binaryPresent: true, freeKB: nil)
         let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil,
                           xcodeSelectionRefusalReason: "could not tell which installed Xcode to dispatch with"
                               + " (candidates: Xcode 27.0 (build 27A1) at /Applications/Xcode_27.app,"
                               + " Xcode 27.0 (build 27A2) at /Applications/Xcode_27_beta.app)")
-        let r = HostReport(row: row, localRevision: "abc",
+        let r = HostReport(row: row, localTool: Self.local("abc"),
                            localToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1")
         XCTAssertEqual(r.toolchainCompatible, false)
         XCTAssertFalse(r.compatible)
@@ -110,14 +143,27 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     /// nil(pin 済み・自動選択できた・候補ゼロで ambient)なら、従来どおり文字列比較だけで決まる
     func testNoXcodeSelectionRefusalLeavesToolchainVerdictUnaffected() {
         let status = RemoteHostStatus(
-            session: nil, revision: "abc",
+            session: nil, tool: Self.tool("abc"),
             toolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1",
             binaryPresent: true, freeKB: nil)
         let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil)
         XCTAssertNil(row.xcodeSelectionRefusalReason)
-        let r = HostReport(row: row, localRevision: "abc",
+        let r = HostReport(row: row, localTool: Self.local("abc"),
                            localToolchain: "Xcode 27.0 Build version 27A1 / iphonesimulator 27A1")
         XCTAssertEqual(r.toolchainCompatible, true)
         XCTAssertNil(r.xcodeSelectionRefusalReason)
+    }
+
+    /// `remote status --json` の各ホスト: 足した3欄(digest / baseRevision / snapshotIssuer)は読めなくても必ず出る
+    /// (null)。全部 nil の最小のホストで、必須キーの集合を等号で固定する
+    func testStatusHostJSONAlwaysCarriesTheDigestKeys() throws {
+        let host = StatusHostJSON(
+            host: "h", reachable: false, loggedIn: nil, consoleUser: nil, revision: nil, baseRevision: nil,
+            snapshotIssuer: nil, digest: nil, revisionCompatible: nil, toolchain: nil, toolchainCompatible: nil,
+            toolchainAdvisory: nil, runtime: nil, runtimeMatches: nil, fm: nil, fmState: nil,
+            binaryPresent: nil, freeKB: nil, lock: nil, xcodeSelectionError: nil, error: nil)
+        let data = try JSONEncoder().encode(host)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(Set(object.keys), ["host", "reachable", "baseRevision", "snapshotIssuer", "digest"])
     }
 }

@@ -296,15 +296,17 @@ final class RemoteHostRegistryTests: XCTestCase {
 
     // MARK: - RemoteCompat.verdict
 
-    /// 照合は rev と toolchain の2つだけ。機械の身元は ssh の宛先が保証するので、
+    /// 照合は中身の要約と toolchain の2つだけ。機械の身元は ssh の宛先が保証するので、
     /// 「リモートの登録名」は見ない
     func testVerdictChecksRevisionAndToolchainOnly() {
         XCTAssertEqual(
-            RemoteCompat.verdict(localRevision: "abc", remoteRevision: "abc",
+            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", isClean: true),
+                                 remoteTool: AlignSnapshot.RemoteToolState(head: "abc", digest: "d", base: "abc", snapshotIssuer: nil),
                                  localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0"),
             RemoteCompat.CompatVerdict())
         XCTAssertEqual(
-            RemoteCompat.verdict(localRevision: "abc", remoteRevision: "def",
+            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", isClean: true),
+                                 remoteTool: AlignSnapshot.RemoteToolState(head: "def", digest: "e", base: "def", snapshotIssuer: nil),
                                  localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0").blocking.count,
             1)
     }
