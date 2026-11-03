@@ -74,7 +74,7 @@ func prepareAlignment(hostSpec: RemoteHostSpec, repoRoot: URL, toolRev: String? 
     let commit: String
     let untracked: (count: Int, bytes: Int64)
     do {
-        local = try AlignSnapshot.localTree(repoRoot: repoRoot)
+        local = try AlignSnapshot.localTree(repoRoot: repoRoot, includeTestProjects: true)
         commit = try AlignSnapshot.commitToSend(repoRoot: repoRoot, local: local, issuer: issuer)
         untracked = try AlignSnapshot.untrackedSummary(repoRoot: repoRoot)
     } catch {
@@ -150,23 +150,6 @@ private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, 
         RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: prepared.commit, digest: prepared.digest,
                                              helperPath: helper, developerDir: prepared.developerDir)],
         stdoutToStderr: io.toStderr)
-}
-
-/// `fleetest-devicepoll` / `fleetest-mcp` の後回しのビルドを、**dispatch.lock を外した後**にランナーの裏ジョブとして起こす
-/// (`RemoteAlignPlan.deferredBuildCommand`)。失敗は警告1行(align の成否を変えない。次の align が「後回しが未成功」で撃ち直す)
-func startDeferredBuild(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared,
-                        io: AlignIO = .stdout) {
-    let status = (try? runInheritedSSH(setupSSHBase + ["-n", hostSpec.sshTarget,
-        RemoteAlignPlan.deferredBuildCommand(layout: layout, digest: prepared.digest,
-                                             developerDir: prepared.developerDir)],
-        stdoutToStderr: io.toStderr)) ?? -1
-    if status == 0 {
-        io.say("deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/")) started"
-            + " (log: \(RemoteAlignPlan.deferredLogPath(layout: layout)))")
-    } else {
-        io.say("warning: could not start the deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/"))"
-            + " on \(hostSpec.sshTarget) (ssh exited \(status)) — monitor streaming may be missing until the next align")
-    }
 }
 
 /// アラインのビルドに使う Xcode。**ディスパッチと同じ解決**(登録簿の pin > build 一致 > 製品版一致。
@@ -259,8 +242,8 @@ enum RemoteAlign {
     }
 
     /// 宛先のランナーを手元(`toolRev` があればその版)に揃える。同じなら何もしない(ロックも取らない)。
-    /// - `guarded`: `run --align` 用。**この機械が古い・分岐しているときにランナーを巻き戻さない**
-    ///   (`RemoteAlignPlan.runAlignDecision`・RR-18.3 規則1)。`remote align` は人が名指しした操作なので撃つ
+    /// - `guarded`: `run --align` 用。**この機械が古い・分岐している・照会が読めないときにランナーを巻き戻さない**
+    ///   (`RemoteAlignPlan.alignDecision`・RR-18.3 規則1)。`remote align` と `--tool-rev` 明示は人が名指しした操作なので撃つ
     /// - 失敗は `RemoteDispatchError.remoteSetupFailed`(呼び手がそのまま表示する)
     static func execute(resolved: ResolvedRemoteHost, repoRoot: URL, toolRev: String?, guarded: Bool,
                         io: AlignIO) throws -> Outcome {
@@ -283,16 +266,21 @@ enum RemoteAlign {
                                   issuer: issuer, home: home)
 
         let state = alignmentProbe(hostSpec: hostSpec, layout: layout, prepared: prepared)
-        if guarded,
-           case .refuse(let relation) = RemoteAlignPlan.runAlignDecision(
-               localDigest: prepared.digest, remote: state?.tool,
-               relation: { revisionRelation(repoRoot: repoRoot, localRevision: prepared.base,
-                                            remoteRevision: $0.base) }),
-           let remote = state?.tool {
+        // `--tool-rev` を明示したときは安全弁を掛けない(`RemoteAlignPlan.isGuarded`)。照会が読めないときは止める
+        switch RemoteAlignPlan.alignDecision(
+            guarded: RemoteAlignPlan.isGuarded(requested: guarded, toolRev: toolRev),
+            localDigest: prepared.digest, probe: state,
+            relation: { revisionRelation(repoRoot: repoRoot, localRevision: prepared.base, remoteRevision: $0.base) }) {
+        case .proceed:
+            break
+        case .refuseUnreadable:
+            throw RemoteDispatchError.remoteSetupFailed(
+                "--align did not touch \(hostSpec.sshTarget): " + RemoteAlignPlan.unreadableProbeAdvice)
+        case .refuse(let relation):
             throw RemoteDispatchError.remoteSetupFailed(
                 "--align did not touch \(hostSpec.sshTarget): "
                 + RemoteCompat.relationAdvice(relation, localIssuer: issuer,
-                                              remoteSnapshotIssuer: remote.snapshotIssuer))
+                                              remoteSnapshotIssuer: state?.tool?.snapshotIssuer))
         }
 
         // 同じなら何もしない(ロックも取らない・送らない・ビルドしない)
@@ -303,7 +291,7 @@ enum RemoteAlign {
         }
 
         // align は稼働中バイナリを差し替えるので、走っている dispatch と衝突しないことを
-        // 先に確かめる(RR-18.3 規則2)。**ロックを外すのは後回しのビルドを起こす前**
+        // 先に確かめる(RR-18.3 規則2)。全製品のビルドもこのロックの中
         if let failure = acquireRemoteDispatchLock(hostSpec: hostSpec, layout: layout) {
             throw RemoteDispatchError.remoteSetupFailed(failure)
         }
@@ -318,7 +306,6 @@ enum RemoteAlign {
         }
         releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout, io: io)
         lockHeld = false
-        startDeferredBuild(hostSpec: hostSpec, layout: layout, prepared: prepared, io: io)
         io.say("✅ aligned to \(prepared.commit.prefix(7)) and built; FM maintenance completed")
         return .aligned(commit: prepared.commit)
     }

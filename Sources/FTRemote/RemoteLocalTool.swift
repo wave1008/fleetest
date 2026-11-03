@@ -1,6 +1,7 @@
 // RemoteLocalTool.swift
 // ディスパッチの照合に使う「手元のツールの同一性」を求める**唯一の関数**。
 // `RemoteRunDispatcher.checkCompatibility` / `remote status` / `api remote-compat` が通る
+// 照合だけの経路なので TestProjects は `git add -A` しない(要約が除くため。`AlignSnapshot.localTree`)。
 // (別々に書くと、同じ `--tool-rev` で経路ごとに照合の手元の値が食い違う)。
 
 import Foundation
@@ -14,7 +15,7 @@ extension RemoteCompat {
             let revision = try AlignSnapshot.revisionTree(repoRoot: repoRoot, rev: toolRev)
             return LocalTool(head: revision.commit, digest: revision.digest, isClean: true)
         }
-        let tree = try AlignSnapshot.localTree(repoRoot: repoRoot)
+        let tree = try AlignSnapshot.localTree(repoRoot: repoRoot, includeTestProjects: false)
         return LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
     }
 }

@@ -144,6 +144,7 @@ for i in range(min(jobs, len(mutations))):
 # worktree は「空いたものを借りて返す」(index の丸め当てだと、変異数がプール数を
 # 超えたとき実行中の worktree に次の変異が重なる)
 free_worktrees = Queue()
+green_baselines = set()
 for wt in pool:
     free_worktrees.put(wt)
 
@@ -195,10 +196,14 @@ def run_in(wt, index, mutation):
     wt_manifest = os.path.join(wt, "Package.swift")
     if not os.path.exists(wt_manifest) or open(wt_manifest).read() != manifest:
         open(wt_manifest, "w").write(manifest)
-    base_log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.baseline.log")
-    code, body = run_tests(wt, base_log, mutation["filter"])
-    if code != 0:
-        return (label, "ERROR", "baseline red (the filter fails without the mutation) — see log", base_log)
+    # 無変異の確認は (worktree, filter) ごとに1回だけ(同じ回の中では worktree の中身は毎回同じ本線の写し)。
+    # 赤は覚えない(次の変異でも確かめ直す)
+    if (wt, mutation["filter"]) not in green_baselines:
+        base_log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.baseline.log")
+        code, body = run_tests(wt, base_log, mutation["filter"])
+        if code != 0:
+            return (label, "ERROR", "baseline red (the filter fails without the mutation) — see log", base_log)
+        green_baselines.add((wt, mutation["filter"]))
     path = os.path.join(wt, mutation["file"])
     try:
         src = open(path).read()
@@ -211,8 +216,12 @@ def run_in(wt, index, mutation):
     log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.log")
     code, body = run_tests(wt, log, mutation["filter"])
     failed = sorted(set(re.findall(r"\[\w+\.\w+ (test\w+)\]' failed", body)))
-    if code != 0 and not failed and "error:" in body:
+    # ビルドが通ったかは "Build complete!" で見る("error:" だけで見ると、検査が落ちた後にテストがクラッシュして
+    # failed の行が出なかった回 = 検出した変異を「コンパイルできない」と誤って数える)
+    if code != 0 and not failed and "Build complete!" not in body:
         return (label, "ERROR", "build failed (mutation does not compile) — see log", log)
+    if code != 0 and not failed:
+        return (label, "OK", "test process crashed after a failure — see log", log)
     return (label, "OK" if code != 0 else "SURVIVED",
             ", ".join(failed) if failed else "-", log)
 

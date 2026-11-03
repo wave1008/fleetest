@@ -370,7 +370,7 @@ struct RemoteRunDispatcher {
             try sshCapture(AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)))
         }
         let remoteTool: AlignSnapshot.RemoteToolState? = toolProbe.capturedValue.flatMap {
-            AlignSnapshot.parseRemoteProbe(Array($0.components(separatedBy: "\n").suffix(4)))
+            AlignSnapshot.parseRemoteProbe(Array($0.components(separatedBy: "\n").suffix(AlignSnapshot.probeLineCount)))
         }
         let localToolchain = ToolchainFingerprint.current()
 
@@ -392,7 +392,8 @@ struct RemoteRunDispatcher {
         var reasons = verdict.blocking
         // 向きの案内は不一致なら常に出す(push 済みかは見ない = align は作業ツリーを直送する)。
         // 基点が同じなら workingTreeDiffers(`revisionRelation` が先に判定する)
-        if reasons.contains(where: { $0.hasPrefix("git revision") }), let remoteTool {
+        if reasons.contains(where: { $0.hasPrefix("git revision") }), let remoteTool,
+           !RemoteCompat.isUnbuiltOnly(local: localTool, remote: remoteTool) {
             let relation = revisionRelation(
                 repoRoot: localRepoRoot, localRevision: localTool.head, remoteRevision: remoteTool.base)
             reasons.append(RemoteCompat.relationAdvice(

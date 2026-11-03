@@ -68,20 +68,20 @@ final class ApiRemoteCompatTests: XCTestCase {
         return Set(object.keys)
     }
 
-    /// トップは machines / localRevision / localDigest だけ。`localDirty` と `revisionPublished` は出さない。
+    /// トップは machines / localRevision / localDigest / localIssuer だけ。`localDirty` と `revisionPublished` は出さない。
     /// 値が null でもキーは出す(読み手がキー欠落と null を区別しない)
     func testTopLevelKeysAreFixed() throws {
-        let output = RemoteCompatOutput(machines: [], localRevision: nil, localDigest: nil)
-        XCTAssertEqual(try keys(output), ["machines", "localRevision", "localDigest"])
+        let output = RemoteCompatOutput(machines: [], localRevision: nil, localDigest: nil, localIssuer: nil)
+        XCTAssertEqual(try keys(output), ["machines", "localRevision", "localDigest", "localIssuer"])
     }
 
     func testMachineKeysAreFixedEvenWhenEverythingIsNull() throws {
         let machine = RemoteCompatMachineJSON(
             machine: "m", sshTarget: "h", reachable: false, revision: nil, baseRevision: nil, snapshotIssuer: nil,
-            digest: nil, revisionCompatible: nil, revisionRelation: nil, toolchain: nil, toolchainCompatible: nil,
+            digest: nil, built: nil, revisionCompatible: nil, revisionRelation: nil, toolchain: nil, toolchainCompatible: nil,
             toolchainAdvisory: nil, xcodeSelectionError: nil, error: nil)
         XCTAssertEqual(try keys(machine), [
-            "machine", "sshTarget", "reachable", "revision", "baseRevision", "snapshotIssuer", "digest",
+            "machine", "sshTarget", "reachable", "revision", "baseRevision", "snapshotIssuer", "digest", "built",
             "revisionCompatible", "revisionRelation", "toolchain", "toolchainCompatible", "toolchainAdvisory",
             "xcodeSelectionError", "error"])
     }

@@ -227,6 +227,9 @@ public enum RemoteCompat {
         let remoteDigest = remote?.digest
         switch (local, remoteDigest) {
         case let (local?, remoteDigest?) where local.digest == remoteDigest:
+            // 要約が同じでも、成功したビルドの記録が無いクローンは古いバイナリを持ちうる(build-command は checkout の後に
+            // ビルドする。失敗・中断すると要約だけ手元と一致する)。**接頭辞は "git revision" のまま**
+            if let remote, !remote.built { blocking.append(unbuiltReason(remote)) }
             return
         case let (local?, remoteDigest?):
             let localLabel = short(local.head) + (local.isClean ? "" : "+uncommitted")
@@ -238,6 +241,18 @@ public enum RemoteCompat {
             appendMissingValueReason(&blocking, label: "git revision",
                                      local: local?.digest, remote: remoteDigest)
         }
+    }
+
+    /// 未ビルドで止める理由。`RemoteToolState.built == false` かつ要約が手元と同じときの文言(向きの案内は付けない)
+    public static func unbuiltReason(_ remote: AlignSnapshot.RemoteToolState) -> String {
+        "git revision: the runner's clone at \(short(remote.head)) has not been built successfully"
+            + " (an align failed or was interrupted) — run `fleetest remote align <host>`"
+    }
+
+    /// 要約が手元と同じなのに未ビルドで止まるか(向きの案内が要らない。呼び手が `relationAdvice` を足すかの判定)
+    public static func isUnbuiltOnly(local: LocalTool?, remote: AlignSnapshot.RemoteToolState?) -> Bool {
+        guard let local, let remote else { return false }
+        return !remote.built && remote.digest == local.digest
     }
 
     private static func short(_ sha: String) -> String { String(sha.prefix(7)) }

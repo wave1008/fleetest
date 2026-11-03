@@ -154,16 +154,16 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
         XCTAssertNil(r.xcodeSelectionRefusalReason)
     }
 
-    /// `remote status --json` の各ホスト: 足した3欄(digest / baseRevision / snapshotIssuer)は読めなくても必ず出る
+    /// `remote status --json` の各ホスト: 足した4欄(digest / built / baseRevision / snapshotIssuer)は読めなくても必ず出る
     /// (null)。全部 nil の最小のホストで、必須キーの集合を等号で固定する
     func testStatusHostJSONAlwaysCarriesTheDigestKeys() throws {
         let host = StatusHostJSON(
             host: "h", reachable: false, loggedIn: nil, consoleUser: nil, revision: nil, baseRevision: nil,
-            snapshotIssuer: nil, digest: nil, revisionCompatible: nil, toolchain: nil, toolchainCompatible: nil,
+            snapshotIssuer: nil, digest: nil, built: nil, revisionCompatible: nil, toolchain: nil, toolchainCompatible: nil,
             toolchainAdvisory: nil, runtime: nil, runtimeMatches: nil, fm: nil, fmState: nil,
             binaryPresent: nil, freeKB: nil, lock: nil, xcodeSelectionError: nil, error: nil)
         let data = try JSONEncoder().encode(host)
         let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual(Set(object.keys), ["host", "reachable", "baseRevision", "snapshotIssuer", "digest"])
+        XCTAssertEqual(Set(object.keys), ["host", "reachable", "baseRevision", "snapshotIssuer", "digest", "built"])
     }
 }

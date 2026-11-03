@@ -131,6 +131,21 @@ test("snapshotIssuer が非 null の機械は snapshotMachines に発行者つ�
   assert.deepEqual(decision.snapshotMachines, [{ machine: "M1Max", issuer: "PC1" }]);
 });
 
+// 狙い: localIssuer の比較を外す変異で自分の分が載って落ちる / 常に除く変異で他人の分・localIssuer null の全載せが落ちる
+test("自分(localIssuer)のスナップショットは snapshotMachines に載らない。localIssuer が null なら全部載せる", () => {
+  const mine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "workingTreeDiffers", snapshotIssuer: "PC1" };
+  const other = { ...okMachine("M1Ultra"), revisionCompatible: false, revisionRelation: "workingTreeDiffers", snapshotIssuer: "PC2" };
+  const withLocal = decideRemoteCompat({ machines: [mine, other], localIssuer: "PC1" });
+  assert.deepEqual(withLocal.snapshotMachines, [{ machine: "M1Ultra", issuer: "PC2" }]);
+  const unknownLocal = decideRemoteCompat({ machines: [mine, other], localIssuer: null });
+  assert.deepEqual(unknownLocal.snapshotMachines, [
+    { machine: "M1Max", issuer: "PC1" },
+    { machine: "M1Ultra", issuer: "PC2" },
+  ]);
+  const absent = decideRemoteCompat({ machines: [mine, other] });
+  assert.equal(absent.snapshotMachines.length, 2);
+});
+
 test("revisionRelation=localBehind: ask かつ canUpdate=false・localBehindMachines に名前が入る(この機械が古い側は align で直せない)", () => {
   const machine = { ...okMachine("M1Max"), revisionCompatible: false, revisionRelation: "localBehind" };
   const decision = decideRemoteCompat({ machines: [machine] });

@@ -1,6 +1,6 @@
 // RemoteAlignPlan.swift
 // `remote align` / `remote setup` の align 段の純粋ロジック(直送の push・「同じなら何もしない」の判定・
-// ランナーでのビルドの記録と後回しのビルド)。I/O は Sources/fleetest/RemoteSetupCommand.swift。
+// ランナーでのビルドの記録・全製品のビルドと省略の条件)。I/O は Sources/fleetest/RemoteSetupCommand.swift。
 // 送るコミットと要約は `AlignSnapshot`(手元とランナーで同じ規則)。
 //
 // ランナーの記録(`<toolRoot>/.fleetest/align-built`)は4行: 要約 / developerDir(nil は `-`) /
@@ -14,9 +14,24 @@ public enum RemoteAlignPlan {
     /// 記録・不明を表す値(行数を固定するための印)
     static let unknown = "-"
 
-    /// 後回しにするビルドの製品。run の経路(ディスパッチ・run のフック)からは起動されず、モニターの配信と
-    /// MCP だけが使う。**省かず後ろへ回すだけ**(無いとモニターの映像が出ない・版が古いと MCP が断られる)
-    public static let deferredProducts = [StreamHelpers.devicepoll, "fleetest-mcp"]
+    /// `fleetest` 以外の製品ごとの依存閉包のソースのディレクトリ(リポジトリ直下からの相対)。`buildScript` が
+    /// 「前回の成功したビルドから閉包が無変更なら省く」に使う。**表に漏れがあると、変わった依存を見ずに古いバイナリを
+    /// 残す(黙って誤る)** ので、`Package.swift` の依存と等号で突き合わせるテスト(`RemoteAlignPlanTests` の
+    /// `testProductSourceClosureMatchesPackageManifest`)が砦。ターゲットを足す・依存を変えたらここも直す。
+    /// `fleetest` は含めない(run に要り、閉包が大きく省いても得が小さい。常にビルドする)
+    public static let productSourceClosure: [String: [String]] = [
+        StreamHelpers.simstream: ["Sources/fleetest-simstream"],
+        StreamHelpers.androidstream: ["Sources/fleetest-androidstream"],
+        StreamHelpers.devicepoll: ["Sources/fleetest-devicepoll", "Sources/FTCore", "Sources/FTBridgeClient",
+                                   "Sources/FTCoreSimShim"],
+        ServiceGatewayWire.relayProductName: ["Sources/fleetest-services", "Sources/FTCore"],
+        mcpProduct: ["Sources/fleetest-mcp", "Sources/FTCore", "Sources/FTBridgeClient", "Sources/FTFoundationModels",
+                     "Sources/FTAndroid", "Sources/FTServices", "Sources/FTCoreSimShim", "Sources/FTEmulatorGrpc"],
+    ]
+    public static let mcpProduct = "fleetest-mcp"
+    /// ビルドする順(`fleetest` が先。run に要る本体から)。**表の全製品が入っていること**はテストが固定する
+    public static let buildOrder = [StreamHelpers.simstream, StreamHelpers.androidstream, StreamHelpers.devicepoll,
+                             ServiceGatewayWire.relayProductName, mcpProduct]
 
     /// 記録に載せる `xcodebuild -version` の1行化(判定と記録で同じ式を使う)。**この式を呼ぶシェルは
     /// `DEVELOPER_DIR` を export 済みであること**(選んだ Xcode の版を読む)
@@ -24,9 +39,7 @@ public enum RemoteAlignPlan {
 
     // MARK: - ランナー上の置き場
 
-    public static func builtRecordPath(layout: RemoteLayout) -> String { layout.toolRoot + "/.fleetest/align-built" }
-    public static func deferredRecordPath(layout: RemoteLayout) -> String { layout.toolRoot + "/.fleetest/align-deferred" }
-    public static func deferredLogPath(layout: RemoteLayout) -> String { layout.toolRoot + "/.fleetest/align-deferred.log" }
+    public static func builtRecordPath(layout: RemoteLayout) -> String { layout.toolRoot + "/" + AlignSnapshot.builtRecordRelativePath }
 
     // MARK: - 直送の push
 
@@ -62,9 +75,31 @@ public enum RemoteAlignPlan {
         case proceed
         /// 揃えずに止める(この機械が古い・分岐している・向きが読めない。ランナーを巻き戻さない = RR-18.3 規則1)
         case refuse(RevisionRelation)
+        /// 照会そのものが読めない(ssh の失敗・行数不足)ので向きが分からない = 揃えずに止める
+        case refuseUnreadable
     }
 
-    /// `run --align` が宛先を揃えてよいか(純粋関数)。
+    /// 安全弁を掛けるか。**`--tool-rev` を明示したときは掛けない**(人が版を名指ししている = `remote align --tool-rev` と同じ扱い。
+    /// 「直す前の版」へ揃える機能なので、手元の基点とランナーの基点を比べて止めると成り立たない)
+    public static func isGuarded(requested: Bool, toolRev: String?) -> Bool { requested && toolRev == nil }
+
+    /// `run --align` が宛先を揃えてよいか(`guarded` も含めた判定。純粋関数)。
+    /// - `guarded` が false → 揃える
+    /// - **照会が読めない(`probe` が nil)→ 止める**(一時的な ssh の失敗で、古い手元がランナーを巻き戻さない = RR-18.3 規則1)
+    /// - 照会は読めたがクローンの HEAD が読めない(`probe.tool` が nil = クローンが無い)→ 揃える
+    /// その先は `runAlignDecision`
+    public static func alignDecision(guarded: Bool, localDigest: String, probe: ProbeState?,
+                                     relation: (AlignSnapshot.RemoteToolState) -> RevisionRelation) -> RunAlignDecision {
+        guard guarded else { return .proceed }
+        guard let probe else { return .refuseUnreadable }
+        return runAlignDecision(localDigest: localDigest, remote: probe.tool, relation: relation)
+    }
+
+    /// 照会が読めなかったときの止める理由(英語)
+    public static let unreadableProbeAdvice = "could not read the runner's state (the ssh query failed or returned too few lines),"
+        + " so it cannot tell whether this machine is behind — retry, or run `fleetest remote align <host>` to align explicitly"
+
+    /// 要約の比較と向きの判定(`guarded` を掛けた後の本体)。
     /// - ランナーのクローンの HEAD が読めない(`remote` が nil)→ 揃える
     /// - 要約が一致 → 揃える(同じなら `isAlreadyAligned` が何も送らない。ビルド記録が欠けていれば撃ち直す)
     /// - 要約が違う → 向きで決める: `remoteBehind` / `workingTreeDiffers` は揃える、
@@ -82,18 +117,19 @@ public enum RemoteAlignPlan {
 
     // MARK: - 照会(ssh 1往復)
 
-    /// ランナーの状態を1往復で読む。出力は11行(`parseProbe`): `AlignSnapshot.remoteProbeCommand` の4行 +
-    /// 記録の4行 + 後回しのビルドの記録 + 実行ファイルの有無(yes/no) + 今の `xcodebuild -version`。
-    /// 読めない値は `-`(行数は常に11)。`developerDir` はビルドと同じ値(別に解決しない)
+    /// 照会の出力の行数: `AlignSnapshot.remoteProbeCommand` の4行 + 記録の4行 + 実行ファイルの有無(yes/no) +
+    /// 今の `xcodebuild -version`
+    public static let probeLineCount = AlignSnapshot.probeLineCount + 6
+
+    /// ランナーの状態を1往復で読む。出力は `probeLineCount`(10)行(`parseProbe`)。
+    /// 読めない値は `-`(行数は常に10)。`developerDir` はビルドと同じ値(別に解決しない)
     public static func probeCommand(layout: RemoteLayout, developerDir: String?) -> String {
         let record = RemoteShell.quote(builtRecordPath(layout: layout))
-        let deferred = RemoteShell.quote(deferredRecordPath(layout: layout))
         let binary = RemoteShell.quote(layout.binary)
         let devDir = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         return devDir
             + AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)) + "; "
             + "for n in 1 2 3 4; do l=$(sed -n \"${n}p\" \(record) 2>/dev/null); printf '%s\\n' \"${l:--}\"; done; "
-            + "l=$(head -1 \(deferred) 2>/dev/null); printf '%s\\n' \"${l:--}\"; "
             + "if [ -x \(binary) ]; then echo yes; else echo no; fi; "
             + "l=$(\(xcodeVersionOneLine)); printf '%s\\n' \"${l:--}\""
     }
@@ -111,116 +147,87 @@ public enum RemoteAlignPlan {
         }
     }
 
-    public struct DeferredRecord: Equatable, Sendable {
-        public let digest: String
-        public let exitCode: Int32
-        public init(digest: String, exitCode: Int32) {
-            self.digest = digest
-            self.exitCode = exitCode
-        }
-    }
-
     public struct ProbeState: Equatable, Sendable {
         /// クローンが無い・git が読めないときは nil
         public let tool: AlignSnapshot.RemoteToolState?
         public let record: BuildRecord?
-        public let deferred: DeferredRecord?
         public let binaryExists: Bool
         /// 今の Xcode の版(読めなければ `-`)
         public let xcodeVersion: String
-        public init(tool: AlignSnapshot.RemoteToolState?, record: BuildRecord?, deferred: DeferredRecord?,
+        public init(tool: AlignSnapshot.RemoteToolState?, record: BuildRecord?,
                     binaryExists: Bool, xcodeVersion: String) {
             self.tool = tool
             self.record = record
-            self.deferred = deferred
             self.binaryExists = binaryExists
             self.xcodeVersion = xcodeVersion
         }
     }
 
-    /// `probeCommand` の出力を読む。行数が足りなければ nil(= 判定できない = 呼び手は「揃っていない」へ倒す)
+    /// `probeCommand` の出力を読む。**末尾の `probeLineCount` 行で読む**(ランナーのシェル初期化ファイルが先頭へ出す
+    /// 余計な行に位置をずらされない。`RemoteRunDispatcher.checkCompatibility` が末尾4行を採るのと同じ理由)。
+    /// 行数が足りなければ nil(= 判定できない = 呼び手は「揃っていない」へ倒す)
     public static func parseProbe(_ output: String) -> ProbeState? {
-        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+        var all = output.split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
-        guard lines.count >= 11 else { return nil }
+        while all.last?.isEmpty == true { all.removeLast() }
+        guard all.count >= probeLineCount else { return nil }
+        let lines = Array(all.suffix(probeLineCount))
         func value(_ index: Int) -> String? { lines[index].isEmpty || lines[index] == unknown ? nil : lines[index] }
         let record: BuildRecord? = {
             guard let digest = value(4), let xcode = value(6), let commit = value(7) else { return nil }
             return BuildRecord(digest: digest, developerDir: value(5), xcodeVersion: xcode, commit: commit)
         }()
-        let deferred: DeferredRecord? = {
-            guard let line = value(8) else { return nil }
-            let parts = line.split(separator: " ").map(String.init)
-            guard parts.count == 2, let code = Int32(parts[1]) else { return nil }
-            return DeferredRecord(digest: parts[0], exitCode: code)
-        }()
-        return ProbeState(tool: AlignSnapshot.parseRemoteProbe(Array(lines[0..<4])), record: record,
-                          deferred: deferred, binaryExists: lines[9] == "yes", xcodeVersion: value(10) ?? unknown)
+        return ProbeState(tool: AlignSnapshot.parseRemoteProbe(Array(lines[0..<AlignSnapshot.probeLineCount])),
+                          record: record, binaryExists: lines[8] == "yes", xcodeVersion: value(9) ?? unknown)
     }
 
     /// **同じなら何もしない**の判定。全部を満たすときだけ true(1つでも違えば送ってビルドする):
-    /// ランナーのクローンの要約が手元と同じ / 成功したビルドの記録が同じ要約・同じ developerDir・同じ Xcode の版 /
-    /// 後回しのビルドも同じ要約で成功 / 実行ファイルがある
+    /// ランナーのクローンの要約が手元と同じでビルド済み / 成功したビルドの記録が同じ要約・同じ developerDir・同じ Xcode の版 /
+    /// 実行ファイルがある
     public static func isAlreadyAligned(localDigest: String, developerDir: String?, state: ProbeState) -> Bool {
-        guard let tool = state.tool, tool.digest == localDigest,
+        guard let tool = state.tool, tool.digest == localDigest, tool.built,
               let record = state.record, record.digest == localDigest,
               record.developerDir == developerDir,
               record.xcodeVersion == state.xcodeVersion,
-              let deferred = state.deferred, deferred.digest == localDigest, deferred.exitCode == 0,
               state.binaryExists else { return false }
         return true
     }
 
     // MARK: - ランナーでのビルド(fm-align の `--build-command`。`/bin/sh -c` で走る)
 
-    /// 送ったコミットを checkout してビルドし、全部成功したら記録を書く。
-    /// - `fleetest` と `fleetest-services` は必ずビルドする(run に要る。run のフックが隣の services を PATH へ足す)
-    /// - `fleetest-simstream` / `fleetest-androidstream` はモニターの配信専用で、依存ターゲットがゼロ。
-    ///   **記録があり・developerDir と Xcode の版が記録と同じ・前回のコミットから `Sources/<製品>` と
-    ///   Package.swift / Package.resolved が無変更・実行ファイルがある** ときだけ省く(1つでも欠けたらビルド)。
-    ///   差分が引けない(前回のコミットがランナーに無い)ときも `git diff --quiet` は非0 = ビルドに倒れる
-    /// - `fleetest-devicepoll` / `fleetest-mcp` はここではビルドしない(`deferredBuildCommand`)
+    /// 送ったコミットを checkout してビルドし、全部成功したら記録を書く。**全製品をこの中(= dispatch.lock の下)で
+    /// ビルドする**(`swift build` も重い負荷で、ロックの外へ出すと直後の run と CPU を取り合い、SwiftPM が
+    /// `.build/debug` のリンクを作り直す瞬間に run の exec が ENOENT で落ちる)。
+    /// - `fleetest` は必ずビルドする(run に要る。閉包が大きく省いても得が小さい)
+    /// - それ以外(`productSourceClosure`)は **記録があり・developerDir と Xcode の版が記録と同じ・前回のコミットから
+    ///   閉包のディレクトリと Package.swift / Package.resolved が無変更・実行ファイルがある** ときだけ省く
+    ///   (1つでも欠けたらビルド)。差分が引けない(前回のコミットがランナーに無い)ときも `git diff --quiet` は
+    ///   非0 = ビルドに倒れる
     public static func buildScript(layout: RemoteLayout, revision: String, digest: String,
                                    developerDir: String?) -> String {
         let record = RemoteShell.quote(builtRecordPath(layout: layout))
         let skip = "[ -n \"$ft_prev_rev\" ] && [ \"$ft_prev_dev\" = \"$ft_dev\" ] && [ \"$ft_prev_xc\" = \"$ft_xc\" ] "
-            + "&& [ -x \"$ft_root/.build/debug/$1\" ] "
-            + "&& git diff --quiet \"$ft_prev_rev\" \"$ft_rev\" -- \"Sources/$1\" Package.swift Package.resolved"
-        let function = "ft_build() { if \(skip); then echo \"skipping $1 (unchanged since the last successful build)\"; "
-            + "else swift build --product \"$1\"; fi; }"
+            + "&& [ -x \"$ft_root/.build/debug/$ft_p\" ] "
+            + "&& git diff --quiet \"$ft_prev_rev\" \"$ft_rev\" -- \"$@\" Package.swift Package.resolved"
+        let function = "ft_build() { ft_p=$1; shift; if \(skip); then "
+            + "echo \"skipping $ft_p (unchanged since the last successful build)\"; else swift build --product \"$ft_p\"; fi; }"
+        // 閉包の表に無い製品は省かずビルドする(空のディレクトリ集合で「無変更」と読まない)
+        let builds = buildOrder.map { product -> String in
+            guard let closure = productSourceClosure[product], !closure.isEmpty else {
+                return "swift build --product \(RemoteShell.quote(product))"
+            }
+            return "ft_build \(RemoteShell.quote(product)) \(closure.map(RemoteShell.quote).joined(separator: " "))"
+        }
         return "ft_root=\(RemoteShell.quote(layout.toolRoot)); ft_rec=\(record); "
             + "ft_dev=\(RemoteShell.quote(developerDir ?? unknown)); ft_rev=\(RemoteShell.quote(revision)); "
             + "ft_xc=$(\(xcodeVersionOneLine)); ft_xc=\"${ft_xc:--}\"; "
             + "ft_prev_dev=$(sed -n 2p \"$ft_rec\" 2>/dev/null); ft_prev_xc=$(sed -n 3p \"$ft_rec\" 2>/dev/null); "
             + "ft_prev_rev=$(sed -n 4p \"$ft_rec\" 2>/dev/null); "
-            + "rm -f \"$ft_rec\" \(RemoteShell.quote(deferredRecordPath(layout: layout))) && "
+            + "rm -f \"$ft_rec\" && "
             + "cd \"$ft_root\" && git checkout -q --detach \"$ft_rev\" && \(function) && "
             + "swift build --product fleetest && "
-            + "ft_build \(StreamHelpers.simstream) && ft_build \(StreamHelpers.androidstream) && "
-            + "swift build --product \(ServiceGatewayWire.relayProductName) && "
+            + builds.joined(separator: " && ") + " && "
             + "mkdir -p \"$ft_root/.fleetest\" && "
             + "printf '%s\\n%s\\n%s\\n%s\\n' \(RemoteShell.quote(digest)) \"$ft_dev\" \"$ft_xc\" \"$ft_rev\" > \"$ft_rec\""
-    }
-
-    // MARK: - 後回しのビルド
-
-    /// `fleetest-devicepoll` と `fleetest-mcp` を、dispatch.lock を外した後にランナーの裏ジョブとして順にビルドする。
-    /// - 後ろへ回すだけで省かない(`deferredProducts`)
-    /// - run の経路から起動されない・`fleetest` の実行ファイルには触らない(リンクだけ)・作業パッケージの
-    ///   シナリオのビルドは別の `.build` なので SwiftPM のロックで競合しない
-    /// - 出力は `align-deferred.log`、終わったら `<要約> <終了コード>` を `align-deferred` へ書く
-    ///   (`isAlreadyAligned` が読む。失敗・実行中は記録が無い/0以外 = 次の align が撃ち直す)
-    /// - ssh がすぐ返る形: nohup + 出力と stdin のリダイレクト + `&`。**`&` は `{ …; }` で nohup だけを包む**
-    ///   (`a && b && nohup … &` と書くと列全体が裏の subshell になり、ssh の stdout を握ったまま返らない)。呼び手は `ssh -n` で撃つ
-    public static func deferredBuildCommand(layout: RemoteLayout, digest: String, developerDir: String?) -> String {
-        let devDirCmd = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
-        let record = RemoteShell.quote(deferredRecordPath(layout: layout))
-        let builds = deferredProducts.map { "swift build --product \($0)" }.joined(separator: " && ")
-        let job = "\(builds); ft_exit=$?; printf '%s %s\\n' \(RemoteShell.quote(digest)) \"$ft_exit\" > \(record)"
-        return "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; " + devDirCmd
-            + "mkdir -p \(RemoteShell.quote(layout.toolRoot + "/.fleetest")) && "
-            + "cd \(RemoteShell.quote(layout.toolRoot)) && rm -f \(record) && "
-            + "{ nohup sh -c \(RemoteShell.quote(job)) > \(RemoteShell.quote(deferredLogPath(layout: layout))) "
-            + "2>&1 < /dev/null & }"
     }
 }

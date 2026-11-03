@@ -51,7 +51,7 @@ struct ApiRemoteCompatCommand: AsyncParsableCommand {
             } catch {
                 machines[index] = RemoteCompatMachineJSON(
                     machine: name, sshTarget: name, reachable: false, revision: nil,
-                    baseRevision: nil, snapshotIssuer: nil, digest: nil, revisionCompatible: nil, revisionRelation: nil, toolchain: nil, toolchainCompatible: nil,
+                    baseRevision: nil, snapshotIssuer: nil, digest: nil, built: nil, revisionCompatible: nil, revisionRelation: nil, toolchain: nil, toolchainCompatible: nil,
                     toolchainAdvisory: nil, xcodeSelectionError: nil, error: error.localizedDescription)
             }
         }
@@ -71,6 +71,8 @@ struct ApiRemoteCompatCommand: AsyncParsableCommand {
             // 不一致で両側の基点が読めたときは常に向きを出す(基点が同じなら workingTreeDiffers)
             let relation: RevisionRelation? = {
                 guard revisionCompatible == false, let localTool, let remoteTool, let repoRoot else { return nil }
+                // 要約は同じで未ビルドだけで止まっているときは向きが無い(中身は同じ = align が直す)
+                if RemoteCompat.isUnbuiltOnly(local: localTool, remote: remoteTool) { return nil }
                 return revisionRelation(repoRoot: repoRoot, localRevision: localTool.head, remoteRevision: remoteTool.base)
             }()
             machines[index] = RemoteCompatMachineJSON(
@@ -79,6 +81,7 @@ struct ApiRemoteCompatCommand: AsyncParsableCommand {
                 baseRevision: remoteTool?.base,
                 snapshotIssuer: remoteTool?.snapshotIssuer,
                 digest: remoteTool?.digest,
+                built: remoteTool?.built,
                 revisionCompatible: revisionCompatible,
                 revisionRelation: relation?.rawValue,
                 toolchain: report.status?.toolchain,
@@ -89,7 +92,8 @@ struct ApiRemoteCompatCommand: AsyncParsableCommand {
         }
 
         let output = RemoteCompatOutput(
-            machines: machines.compactMap { $0 }, localRevision: localTool?.head, localDigest: localTool?.digest)
+            machines: machines.compactMap { $0 }, localRevision: localTool?.head, localDigest: localTool?.digest,
+            localIssuer: try? resolveLayoutIssuer())
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(output)
@@ -147,9 +151,13 @@ struct RemoteCompatMachineJSON: Encodable {
     let snapshotIssuer: String?
     /// ランナーのツールの中身の要約
     let digest: String?
+    /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。要約が同じでも
+    /// `revisionCompatible` は false になる)。ツールの照会が読めなければ null
+    let built: Bool?
     /// 要約の一致(false = ディスパッチが止まる)
     let revisionCompatible: Bool?
-    /// `RevisionRelation.rawValue`。revisionCompatible == false かつ両側の基点が読めたときは常に non-nil
+    /// `RevisionRelation.rawValue`。revisionCompatible == false かつ両側の基点が読めたときは non-nil
+    /// (要約が同じで未ビルドだけが理由のときは null)
     /// (RR-18.3 規則1。基点が同じなら "workingTreeDiffers")
     let revisionRelation: String?
     let toolchain: String?
@@ -163,7 +171,7 @@ struct RemoteCompatMachineJSON: Encodable {
     let error: String?
 
     private enum CodingKeys: String, CodingKey {
-        case machine, sshTarget, reachable, revision, baseRevision, snapshotIssuer, digest,
+        case machine, sshTarget, reachable, revision, baseRevision, snapshotIssuer, digest, built,
              revisionCompatible, revisionRelation,
              toolchain, toolchainCompatible, toolchainAdvisory, xcodeSelectionError, error
     }
@@ -177,6 +185,7 @@ struct RemoteCompatMachineJSON: Encodable {
         try container.encode(baseRevision, forKey: .baseRevision)
         try container.encode(snapshotIssuer, forKey: .snapshotIssuer)
         try container.encode(digest, forKey: .digest)
+        try container.encode(built, forKey: .built)
         try container.encode(revisionCompatible, forKey: .revisionCompatible)
         try container.encode(revisionRelation, forKey: .revisionRelation)
         try container.encode(toolchain, forKey: .toolchain)
@@ -193,9 +202,11 @@ struct RemoteCompatOutput: Encodable {
     let localRevision: String?
     /// 手元の作業ツリーの要約(読めなければ null)
     let localDigest: String?
+    /// 手元の発行者(`resolveLayoutIssuer()`。読めなければ null)。拡張が「自分のスナップショット」を注意文から除くのに使う
+    let localIssuer: String?
 
     private enum CodingKeys: String, CodingKey {
-        case machines, localRevision, localDigest
+        case machines, localRevision, localDigest, localIssuer
     }
 
     func encode(to encoder: Encoder) throws {
@@ -203,5 +214,6 @@ struct RemoteCompatOutput: Encodable {
         try container.encode(machines, forKey: .machines)
         try container.encode(localRevision, forKey: .localRevision)
         try container.encode(localDigest, forKey: .localDigest)
+        try container.encode(localIssuer, forKey: .localIssuer)
     }
 }

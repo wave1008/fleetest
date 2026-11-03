@@ -204,11 +204,11 @@ public enum RemoteSetupPlan {
     /// helperPath へ渡す。保守の親自身をビルドで差し替えず、FM の安全な退役から新版の身元確認まで枠を保持する。
     /// コミットは `RemoteAlignPlan.pushArguments` で先に届いている(**ランナーは fetch しない**)。
     ///
-    /// ビルドの中身(必ずビルドする製品・配信ヘルパーを省く条件・成功の記録)は `RemoteAlignPlan.buildScript`。
-    /// devicepoll と mcp は `RemoteAlignPlan.deferredBuildCommand` で後回しにするだけで**省かない**
-    /// (ヘルパーが無いとそのランナーのタイルは状態は届くのに映像が1枚も来ない。名前の定義元は `StreamHelpers`。
+    /// ビルドの中身(全製品・変わっていない製品を省く条件・成功の記録)は `RemoteAlignPlan.buildScript`
+    /// (配信ヘルパーが無いとそのランナーのタイルは状態は届くのに映像が1枚も来ない。名前の定義元は `StreamHelpers`。
     /// 古い mcp が残ると、ブリッジが新しいランナー機で版ガードが全ツールを断る)。
-    /// 中継 `fleetest-services` は必ずビルドする(無いとランナーの run-setup.sh / run-teardown.sh がサービスに触れない)
+    /// 中継 `fleetest-services` も必ずビルド対象(無いとランナーの run-setup.sh / run-teardown.sh がサービスに触れない)。
+    /// 全部 dispatch.lock の下で完了する(呼び手が取っている間にこのコマンドが走る)
     ///
     /// `developerDir` はディスパッチと同じ `XcodeSelection.resolve` で選んだ Xcode(nil = ambient)で、
     /// **「同じなら何もしない」の判定と同じ値**を渡す。**ビルドもその Xcode で行う**

@@ -34,20 +34,17 @@ final class StreamHelperNamingTests: XCTestCase {
     }
 
     /// align がランナー機でビルドする製品は fleetest・配信ヘルパー・中継 `fleetest-services`・`fleetest-mcp` の全部で、
-    /// どれも本体のビルド(`buildScript`)か後回しのビルド(`deferredBuildCommand`)の**ちょうど片方**に載る。
-    /// 中継が抜けると、ランナーで動く run-setup.sh から `fleetest-services: command not found` になる(M1Ultra の実測)
+    /// 全部 `buildScript`(dispatch.lock の下)に載る。
+    /// 中継が抜けると、ランナーで動く run-setup.sh から `fleetest-services: command not found` になる(M1Ultra の実測)。
+    /// 狙い: `buildOrder` から1製品を外す変異・`swift build --product fleetest` を外す変異で落ちる
     func testAlignBuildsEveryProductTheRunnerNeeds() {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
-        let main = RemoteAlignPlan.buildScript(layout: layout, revision: "abc123", digest: "d1", developerDir: nil)
-        let deferred = RemoteAlignPlan.deferredBuildCommand(layout: layout, digest: "d1", developerDir: nil)
-        func builds(_ script: String, _ product: String) -> Bool {
-            script.contains("swift build --product \(product) ") || script.hasSuffix("swift build --product \(product)")
-                || script.contains("swift build --product \(product);") || script.contains("ft_build \(product) ")
-        }
-        let products = ["fleetest"] + StreamHelpers.all + [ServiceGatewayWire.relayProductName, "fleetest-mcp"]
+        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "abc123", digest: "d1", developerDir: nil)
+        XCTAssertTrue(script.contains("swift build --product fleetest && "), "fleetest is always built")
+        let products = StreamHelpers.all + [ServiceGatewayWire.relayProductName, "fleetest-mcp"]
         for product in products {
-            XCTAssertNotEqual(builds(main, product), builds(deferred, product),
-                              "\(product) must be built by exactly one of the main and the deferred build")
+            XCTAssertTrue(script.contains("ft_build '\(product)' '"), "\(product) must be built (or skipped when unchanged) by buildScript")
         }
+        XCTAssertFalse(script.contains("nohup"), "no product is built in the background")
     }
 }

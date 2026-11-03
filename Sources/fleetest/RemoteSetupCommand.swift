@@ -245,7 +245,6 @@ extension RemoteCommand {
                 emit("align", .fail, error.localizedDescription)
                 try summarizeAndExit()
             }
-            var built = false
             if alignmentAlreadyDone(hostSpec: hostSpec, layout: layout, prepared: prepared) {
                 emit("align", .ok, "already aligned (same contents and toolchain; nothing sent or built)")
             } else {
@@ -260,12 +259,10 @@ extension RemoteCommand {
                     emit("align", .fail, "build or FM resident alignment failed (exit \(alignStatus); see output above)")
                     try summarizeAndExit()
                 }
-                built = true
                 emit("align", .ok, "aligned to \(prepared.commit.prefix(7)) and built; FM maintenance completed")
             }
             releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout)
             dispatchLockHeld = false
-            if built { startDeferredBuild(hostSpec: hostSpec, layout: layout, prepared: prepared) }
 
             // MARK: verify
 

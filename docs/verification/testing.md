@@ -379,7 +379,7 @@ fleetest run --runner M1Max --tool-rev HEAD --profile <P> --scenario <S> &    # 
 fleetest run --runner M1Ultra --align --profile <P> --scenario <S>            # 直した版(作業ツリー)
 ```
 
-`--align` は揃えてからディスパッチする(M1Max にも `--align --tool-rev HEAD` を付ければ1行ずつで済む)。**限界**: 機械もデバイスも違うので、**赤と緑がはっきり分かれる再現にだけ使う**。flake の率・性能は機械差が混ざるので、同じ機械で測る(上の stash 手順か反復10周)。
+`--align` は揃えてからディスパッチする(M1Max にも `--align --tool-rev HEAD` を付ければ1行ずつで済む。**`--tool-rev` を付けたときは向きの安全弁を掛けない** —— 手元の基点とランナーの基点を比べて止めない)。**限界**: 機械もデバイスも違うので、**赤と緑がはっきり分かれる再現にだけ使う**。flake の率・性能は機械差が混ざるので、同じ機械で測る(上の stash 手順か反復10周)。
 `--align` / `--tool-rev` は単一のリモートへのディスパッチだけ(手元・`--fleet`・`--target`・機械分担では断る)
 
 ## 単体テストが緑でも「実データで1回動かす」まで信用しない

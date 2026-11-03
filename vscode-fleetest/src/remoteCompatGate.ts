@@ -13,6 +13,9 @@ export interface RemoteCompatMachine {
   /** 非 null ならランナーが未コミットのスナップショットを持っている。値はそれを置いた発行者 */
   readonly snapshotIssuer?: string | null;
   /** 要約(ツールの中身。TestProjects/ は除く)の一致 */
+  /** 成功したビルドの記録がクローンの HEAD の要約と一致するか。false なら未ビルド・ビルドの失敗・中断
+   * (要約が同じでも revisionCompatible は false = align が直す)。照会が読めなければ null */
+  readonly built?: boolean | null;
   readonly revisionCompatible?: boolean | null;
   readonly revisionRelation?: string | null;
   readonly toolchain?: string | null;
@@ -32,6 +35,8 @@ export interface RemoteCompatReport {
   readonly machines: RemoteCompatMachine[];
   readonly localRevision?: string | null;
   readonly localDigest?: string | null;
+  /** 手元の発行者(CLI の `resolveLayoutIssuer()`。読めなければ null)。自分のスナップショットを注意文から除くのに使う */
+  readonly localIssuer?: string | null;
 }
 
 export interface RemoteCompatAdvisory {
@@ -126,7 +131,13 @@ export function decideRemoteCompat(report: RemoteCompatReport | null | undefined
     canUpdate,
     updatableMachines,
     snapshotMachines: incompatible
-      .filter((machine) => typeof machine.snapshotIssuer === "string" && machine.snapshotIssuer.length > 0)
+      // 自分のスナップショットは載せない(CLI の relationAdvice も発行者が違うときだけ名指しする)。localIssuer が読めなければ全部載せる
+      .filter(
+        (machine) =>
+          typeof machine.snapshotIssuer === "string"
+          && machine.snapshotIssuer.length > 0
+          && !(typeof report.localIssuer === "string" && report.localIssuer.length > 0 && machine.snapshotIssuer === report.localIssuer),
+      )
       .map((machine) => ({ machine: machine.machine, issuer: machine.snapshotIssuer as string })),
     localBehindMachines: incompatible.filter((machine) => machine.revisionRelation === "localBehind").map((machine) => machine.machine),
     divergedMachines: incompatible.filter((machine) => machine.revisionRelation === "diverged").map((machine) => machine.machine),

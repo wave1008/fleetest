@@ -236,6 +236,7 @@ struct RemoteCommand: AsyncParsableCommand {
                     baseRevision: r.status?.tool?.base,
                     snapshotIssuer: r.status?.tool?.snapshotIssuer,
                     digest: r.status?.tool?.digest,
+                    built: r.status?.tool?.built,
                     revisionCompatible: r.revisionCompatible,
                     toolchain: r.status?.toolchain,
                     toolchainCompatible: r.toolchainCompatible,
@@ -1214,6 +1215,9 @@ struct StatusHostJSON: Encodable {
     let snapshotIssuer: String?
     /// ランナーのツールの中身の要約(照合はこれで行う)。読めなければ null
     let digest: String?
+    /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。`digest` が手元と同じでも
+    /// `revisionCompatible` は false)。ツールの照会が読めなければ null
+    let built: Bool?
     /// 要約が手元と一致するか(blocking で止まるか)
     let revisionCompatible: Bool?
     let toolchain: String?
@@ -1241,12 +1245,12 @@ struct StatusHostJSON: Encodable {
     let error: String?
 
     private enum CodingKeys: String, CodingKey {
-        case host, reachable, loggedIn, consoleUser, revision, baseRevision, snapshotIssuer, digest,
+        case host, reachable, loggedIn, consoleUser, revision, baseRevision, snapshotIssuer, digest, built,
              revisionCompatible, toolchain, toolchainCompatible, toolchainAdvisory, runtime, runtimeMatches,
              fm, fmState, binaryPresent, freeKB, lock, xcodeSelectionError, error
     }
 
-    /// 従来の欄は nil で省く(synthesized と同じ)。**足した3欄(baseRevision / snapshotIssuer / digest)は
+    /// 従来の欄は nil で省く(synthesized と同じ)。**足した4欄(baseRevision / snapshotIssuer / digest / built)は
     /// 必須 = 読めなくても null で出す**(拡張・スクリプトがキー欠落と null を区別せずに読める)
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -1258,6 +1262,7 @@ struct StatusHostJSON: Encodable {
         try c.encode(baseRevision, forKey: .baseRevision)
         try c.encode(snapshotIssuer, forKey: .snapshotIssuer)
         try c.encode(digest, forKey: .digest)
+        try c.encode(built, forKey: .built)
         try c.encodeIfPresent(revisionCompatible, forKey: .revisionCompatible)
         try c.encodeIfPresent(toolchain, forKey: .toolchain)
         try c.encodeIfPresent(toolchainCompatible, forKey: .toolchainCompatible)

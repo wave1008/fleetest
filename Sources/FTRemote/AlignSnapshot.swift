@@ -41,15 +41,31 @@ public enum AlignSnapshot {
         "\(marker)\n\nissuer: \(issuer)\n"
     }
 
+    /// ランナーの状態の照会の行数(`remoteProbeCommand` の出力。呼び手は**末尾のこの行数**で読む = シェル初期化ファイルが
+    /// 先頭へ出す余計な行に位置をずらされない)
+    public static let probeLineCount = 4
+    /// ランナーの成功したビルドの記録(1行目 = ビルドしたツリーの要約)の `<toolRoot>` からの相対パス。
+    /// 書くのは `RemoteAlignPlan.buildScript`、読むのは `remoteProbeCommand` と `RemoteAlignPlan.probeCommand`
+    public static let builtRecordRelativePath = ".fleetest/align-built"
+    /// 要約の行の接頭辞: クローンの HEAD の要約が成功したビルドの記録と一致しない(= 未ビルド・ビルド失敗・中断)
+    public static let unbuiltPrefix = "unbuilt:"
+
     /// ランナーの状態の照会。`toolRoot` は呼び手が引用済みの式で渡す(RemoteStatusProbe は `$HOME` を
     /// 遅延展開させるため二重引用符で包む)。出力は4行: HEAD / 要約 / 基点 / スナップショットの issuer。
+    /// **2行目は、`<toolRoot>/.fleetest/align-built` の1行目が HEAD のツリーの要約と同じときだけ要約そのもの**で、
+    /// 違う・記録が無いときは `unbuilt:<要約>`(build-command は checkout の後にビルドするので、ビルドが失敗・中断した
+    /// クローンは要約が手元と一致したまま古いバイナリを残す。それを「一致」と言わない)。
     /// 読めない値は `-`(行数は常に4 = 呼び手が固定位置で読める)。**`-` は `printf` で出す** —— ランナーの
     /// ログインシェルは zsh で、zsh の `echo -` / `echo "-"` は空行になる(末尾の空行は呼び手の trim で消え、
     /// きれいなクローンが3行 = 読めない扱いになって全ディスパッチが止まった。陽性対照で実測)
     public static func remoteProbeCommand(quotedToolRoot r: String) -> String {
-        "if h=$(git -C \(r) rev-parse HEAD 2>/dev/null); then echo \"$h\"; "
-            + "git -C \(r) ls-tree HEAD | awk -F'\\t' '$2 != \"\(excludedTopLevel)\"' | git hash-object --stdin "
-            + "2>/dev/null || printf '%s\\n' -; "
+        let record = "\(r)/\(builtRecordRelativePath)"
+        return "if h=$(git -C \(r) rev-parse HEAD 2>/dev/null); then echo \"$h\"; "
+            + "d=$(git -C \(r) ls-tree HEAD 2>/dev/null | awk -F'\\t' '$2 != \"\(excludedTopLevel)\"' "
+            + "| git hash-object --stdin 2>/dev/null) || d=; "
+            + "if [ -z \"$d\" ]; then printf '%s\\n' -; "
+            + "elif [ \"$(sed -n 1p \(record) 2>/dev/null)\" = \"$d\" ]; then printf '%s\\n' \"$d\"; "
+            + "else printf '%s%s\\n' \(unbuiltPrefix) \"$d\"; fi; "
             + "if [ \"$(git -C \(r) log -1 --format=%s HEAD 2>/dev/null)\" = \(marker) ]; then "
             + "git -C \(r) rev-parse HEAD^1 2>/dev/null || printf '%s\\n' -; "
             + "i=$(git -C \(r) log -1 --format=%b HEAD 2>/dev/null | sed -n 's/^issuer: //p' | head -1); "
@@ -64,24 +80,36 @@ public enum AlignSnapshot {
         guard values.count >= 4 else { return nil }
         func value(_ index: Int) -> String? { values[index] == "-" || values[index].isEmpty ? nil : values[index] }
         guard let head = value(0) else { return nil }
-        return RemoteToolState(head: head, digest: value(1), base: value(2) ?? head, snapshotIssuer: value(3))
+        var digest = value(1)
+        var built = true
+        if let raw = digest, raw.hasPrefix(unbuiltPrefix) {
+            digest = String(raw.dropFirst(unbuiltPrefix.count))
+            built = false
+        }
+        return RemoteToolState(head: head, digest: digest, base: value(2) ?? head, snapshotIssuer: value(3),
+                               built: built)
     }
 
     public struct RemoteToolState: Equatable, Sendable {
         /// ランナーのクローンの HEAD(スナップショットならそのコミット)
         public let head: String
-        /// ツールの中身の要約(読めなければ nil = 照合は不一致として止める)
+        /// ツールの中身の要約(読めなければ nil = 照合は不一致として止める)。**照合には使わない値ではなく、クローンの HEAD の中身**
+        /// (`built` が false でもこの値は読める)
         public let digest: String?
         /// 向きの判定に使うコミット(スナップショットなら HEAD^1 = 作った人の HEAD、そうでなければ HEAD)
         public let base: String
         /// スナップショットを置いた発行者(スナップショットでなければ nil)
         public let snapshotIssuer: String?
+        /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。バイナリは古いかもしれない)。
+        /// 既定 true は単体テストの組み立て用で、本番の唯一の作り手は `parseRemoteProbe`
+        public let built: Bool
 
-        public init(head: String, digest: String?, base: String, snapshotIssuer: String?) {
+        public init(head: String, digest: String?, base: String, snapshotIssuer: String?, built: Bool = true) {
             self.head = head
             self.digest = digest
             self.base = base
             self.snapshotIssuer = snapshotIssuer
+            self.built = built
         }
     }
 
@@ -108,8 +136,11 @@ public enum AlignSnapshot {
 
     /// 作業ツリーのツリーと要約を求める。**本物のインデックスもブランチも触らない**(一時インデックスへ
     /// 本物をコピーしてから `add -A` する。コピーするのは stat の控えを使わせて速くするため)。
-    /// 書くのはオブジェクトだけ(参照の無いオブジェクトは git gc が後で消す)
-    public static func localTree(repoRoot: URL) throws -> LocalTree {
+    /// 書くのはオブジェクトだけ(参照の無いオブジェクトは git gc が後で消す)。
+    /// - `includeTestProjects`: **送る経路(align)だけ true**(`e2ex.sh --on` がランナーのクローンの TestProjects を使う)。
+    ///   照合だけの経路(`remote status` / `api remote-compat` / ディスパッチの照合)は false —— 要約は TestProjects を
+    ///   除くので、巨大になりうる TestProjects を毎回 `add -A` しない。**要約は両方で同じ**(`isClean` は要約で比べる)
+    public static func localTree(repoRoot: URL, includeTestProjects: Bool) throws -> LocalTree {
         let head = try git(repoRoot, ["rev-parse", "HEAD"])
         let headTree = try git(repoRoot, ["rev-parse", "HEAD^{tree}"])
         let indexPath = try git(repoRoot, ["rev-parse", "--path-format=absolute", "--git-path", "index"])
@@ -120,10 +151,13 @@ public enum AlignSnapshot {
             try FileManager.default.copyItem(at: URL(fileURLWithPath: indexPath), to: temporary)
         }
         let env = ["GIT_INDEX_FILE=\(temporary.path)"]
-        _ = try git(repoRoot, ["add", "-A"], env: env)
+        let addArguments = includeTestProjects ? ["add", "-A"] : ["add", "-A", "--", ".", ":(exclude)\(excludedTopLevel)"]
+        _ = try git(repoRoot, addArguments, env: env)
         let tree = try git(repoRoot, ["write-tree"], env: env)
-        return LocalTree(head: head, tree: tree, isClean: tree == headTree,
-                         digest: try digest(repoRoot: repoRoot, tree: tree))
+        let treeDigest = try digest(repoRoot: repoRoot, tree: tree)
+        // 除外した経路のツリーは TestProjects の変更を持たない(インデックス由来の分だけ残る)ので、ツリーの一致でなく要約で比べる
+        let isClean = includeTestProjects ? tree == headTree : treeDigest == (try digest(repoRoot: repoRoot, tree: headTree))
+        return LocalTree(head: head, tree: tree, isClean: isClean, digest: treeDigest)
     }
 
     /// `--tool-rev` の指すコミットとそのツリーの要約。**コミットそのものを送る**(スナップショットは作らない)。
