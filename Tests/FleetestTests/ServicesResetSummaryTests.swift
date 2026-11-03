@@ -1,4 +1,4 @@
-// OI-116: services reset --force の件数は所有者が自分で片付けた後に数える。止めた事実を添えるかを固定する。
+// services reset --force の件数は所有者が自分で片付けた後に数える。止めた事実を添えるかを固定する。
 
 import XCTest
 @testable import fleetest

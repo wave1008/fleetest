@@ -1,4 +1,4 @@
-// OI-116: 300 字の名前は正規表現を通り、`<name>_disabled` の作成で「file name is invalid」の生の OS 文言になっていた。
+// 300 字の名前は正規表現を通り、`<name>_disabled` の作成で「file name is invalid」の生の OS 文言になっていた。
 
 import XCTest
 @testable import FTCore
