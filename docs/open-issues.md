@@ -29,11 +29,11 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 18 | OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-100・OI-112・OI-129・OI-139・OI-140・OI-146・OI-147・OI-155・OI-156・OI-158・OI-159・OI-161 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 19 | OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-100・OI-112・OI-129・OI-139・OI-140・OI-146・OI-147・OI-155・OI-156・OI-158・OI-159・OI-161・OI-163 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 6 | OI-40・OI-58・OI-64・OI-77・OI-116・OI-129 |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 19 | OI-1・OI-2・OI-40・OI-41・OI-45・OI-48・OI-64・OI-76・OI-89・OI-92・OI-102・OI-108・OI-109・OI-112・OI-121・OI-128・OI-129・OI-156・OI-161 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 20 | OI-1・OI-2・OI-40・OI-41・OI-45・OI-48・OI-64・OI-76・OI-89・OI-92・OI-102・OI-108・OI-109・OI-112・OI-121・OI-128・OI-129・OI-156・OI-161・OI-163 |
 | 低率の赤 | 数十〜数百回に1回の赤で、効果の判定に多くの周回が要るもの | 15 | OI-5・OI-6・OI-7・OI-13・OI-14・OI-15・OI-16・OI-17・OI-89・OI-102・OI-111・OI-127・OI-130・OI-132・OI-134 |
-| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 39 | OI-1・OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-70・OI-72・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-115・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-135・OI-137・OI-138・OI-146・OI-161 |
+| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 40 | OI-1・OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-70・OI-72・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-115・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 10 | OI-4・OI-7・OI-8・OI-9・OI-10・OI-11・OI-12・OI-17・OI-89・OI-139 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 10 | OI-2・OI-22・OI-23・OI-24・OI-26・OI-27・OI-28・OI-38・OI-52・OI-109 |
 
@@ -187,6 +187,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可・木に材料なし
 
 11/3 の7周目の探索(vis F2・F3)。**Android は直った**(行・ボタンが同じ label の文字の子を1つだけ持つときはその子で確かめる = `OcclusionEligibility.sameLabelTextDescendant`。払いで切れた行の `textIs` が 12/12 赤)。**iOS の行(セル)は警告として入れた**(ユーザー決定 = 案②): 文字の子を持たない `clickable` / `cell` は行の枠で読み、見えていないと判定しても赤にせず注記 `row-label-not-read`(`OcclusionEligibility.isLabelledRowWithoutText`。E2E-iOS の窓の下端で切れた行 08 で 4/4 注記・全部見えている行には出ない)。残り: ①誤った警告の率と所要(セルごとにスクリーンショット1枚・インクが薄ければ FM)を run で測って赤へ上げるかを決める ②ボタン(`button "自己修復"` のタブバーの下)は対象外のまま(アイコンのボタンは描かれない説明文をラベルに持つ)
+
+### OI-163 探索の残り(8周目)
+- 状態: 再現済み
+- 確認: 4605aa35(2026-11-03)
+- 属性: 着手可・再現待ち・木に材料なし
+
+11/3 の8周目の探索(`_work/explore-20261103c/findings-*.md`)で直さなかったもの。**重いもの**: ①iOS の CMP で、キーボードの下に隠れた欄へ clearInput が叩き直した点がかなキーボードのキーで、焦点のある別の欄を書き換えてから 422 で落ち、壊したことを言わない(kbd F3・1/1)②CMP の iOS の横向きで `type("#field_single", …)` が 409 のまま赤(land F1・3/3。前の周から続く。撃ち直す前にキーボードを閉じない。MCP の ft_batch は閉じてから打てる)③Flutter の Android の横向きで、キーボードを閉じた後に覆われた欄の見えている部分を押す tap が 5 回中 1 回タブを押して遷移(land F2。閉じる途中の木はタブを実際より下に申告する = 古い木で部分を決めた疑い)・押せた回も何も起きない(OI-161 ⑧)④iOS の CMP の xcuitest モードと MCP で、タブの下に潜った行への tap がメディアのタブを押す(cover F4・既定の inapp-boost の DSL では出ない)。**その他**: ⑤CMP の iOS の横向きで MCP の `ft_tap` ref が、全画面で申告された容器のせいで縁のバーの外の描かれていない片を「見えている部分」として押す(land F5)⑥Android の RN でタブの下の行を送って外してから押す tap が飲まれて ok(cover F3・慣性の疑い)⑦iOS の inapp-boost で外側の容器に切り取られて見えない行への tap が送らず注記なしで ok(cover F1・in-app は要素を直接押すので echo は合う)⑧SwiftUI の横向きで高さ 0 に潰れた一覧の探索の払いが横のカルーセルを押す(land F3)⑨Flutter の Android の横向きで送れる容器が2つあると「nothing moved at all」で赤・scrollFrame の案内も無い(land F4)⑩Android で上端の一覧への `select` / `notExist` の `scroll: .up` が端を確かめる払いで引っ張って更新を2〜4回走らせる(scroll F1・4 SUT で 14/14)・下端から上の行を探しても1回走る(scroll F2・CMP / RN)⑪ブリッジ不達で振り直したシナリオが同じ不達のレーンへ戻る(run F2)⑫決定的に赤のシナリオだけで健全な端末が離脱する・run をまたぐ持ち越しに期限もシナリオの区別も無い(run F1)⑬Flutter の Android で続けて撃った2回目の pressEnter が届かずに ok(kbd F5)⑭CMP の Android で OTP の箱への `type("#otp_box_3")` が 500「target node not found」(kbd F2)⑮Android の pressEnter の失敗文が「in-app bridge … no XCUITest bridge」(kbd F6・`StepExecutor+DirectActions.swift`)⑯アプリが欄を空にした後の type に「the field already held」の事実と違う注記(kbd F4)⑰キーボードが出たまま `type("#field_bottom", scroll: .down)` が「nothing moved at all」(kbd F7)⑱Flutter の iOS の secure 欄の後の hideKeyboard が「still shown」(前の周の land F4・観測が要る)
 
 ## 要判断
 
