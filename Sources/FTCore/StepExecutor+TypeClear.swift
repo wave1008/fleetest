@@ -450,7 +450,8 @@ extension StepExecutor {
                                                   screen: snapshot.screen)
         guard occlusion.advisory(for: element) != nil else { return nil }
         // **いま焦点を持つ欄へ打つのに、キーボードの下かどうかは関係ない**: ドライバは焦点の欄にはタップせずに打つ
-        // (XCUITest = alreadyFocusedInput・in-app = 座標を使わない)。人も焦点の欄にはそのまま打てる。
+        // (XCUITest = alreadyFocusedInput・in-app = 直前の tap が焦点を立てた欄は叩き直さない = FocusLanding.skipsRetapBeforeText。
+        // それ以外の in-app は欄の座標を合成タップで叩いてから打つ)。人も焦点の欄にはそのまま打てる。
         // 複数行の欄はキーボードを閉じる副作用の無い手段が無く(hideKeyboard は改行を入れる)、ここで断ると打てる場面を失敗にする
         // clearInput も同じ(XCUITest ランナーの clear も `alreadyFocusedInput` で焦点の欄を叩かない。mxa F10)
         // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える(OI-91)

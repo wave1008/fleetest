@@ -84,24 +84,19 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertEqual(b.recordFailure(runPasses: 1), .keep)
     }
 
-    /// 復帰したレーンは台帳にこの run の失敗も含むので「前の run から」とは言わない
-    /// (負荷テスト: 復帰直後の離脱が同じ run の 3 件を「carried over from earlier runs」と書いた)
-    func testCarriedNoteNamesWhereTheFailuresCameFrom() {
-        XCTAssertEqual(RunOrchestrator.carriedNote(0, revived: false), "")
-        XCTAssertEqual(RunOrchestrator.carriedNote(0, revived: true), "")
-        XCTAssertEqual(RunOrchestrator.carriedNote(3, revived: false),
-                       " (including 3 carried over from earlier runs)")
-        XCTAssertEqual(RunOrchestrator.carriedNote(3, revived: true),
-                       " (including 3 carried over from before this lane was revived)")
+    /// 持ち越しは前の run からだけ(同じ run の復帰は 0 から数え直す = `testRevivedLaneStartsCountingFromZero`)
+    func testCarriedNoteNamesEarlierRuns() {
+        XCTAssertEqual(RunOrchestrator.carriedNote(0), "")
+        XCTAssertEqual(RunOrchestrator.carriedNote(3), " (including 3 carried over from earlier runs)")
     }
 
-    /// 復帰の有無は superviseWorker の復帰回数から渡す(渡し忘れると復帰後も「earlier runs」に戻る)
+    /// 復帰の有無は superviseWorker の復帰回数から渡す(渡し忘れると復帰後も前の数を持ち越す)
     func testSupervisorPassesTheRevivedFlag() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(code.contains("runWorker(current, queue: queue, revived: revives > 0)"))
-        XCTAssertEqual(code.components(separatedBy: "Self.carriedNote(breaker.carriedFailures, revived: revived)").count - 1, 2)
+        XCTAssertEqual(code.components(separatedBy: "Self.carriedNote(breaker.carriedFailures)").count - 1, 2)
     }
 
     /// 起こし直したレーンは持ち越しを捨てて 0 から数える(閾値ちょうどで始まり次の1本でまた離脱していた)

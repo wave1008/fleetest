@@ -1116,13 +1116,9 @@ public final class RunOrchestrator: Sendable {
         revived ? 0 : stored()
     }
 
-    /// `revived`: 同じ run の中で復帰したレーン。台帳はこの run の失敗も含むので「前の run」とは言えない
-    /// (言っていた頃、復帰直後の離脱が同じ run の 3 件を「earlier runs」と名指していた)
-    static func carriedNote(_ carried: Int, revived: Bool) -> String {
-        guard carried > 0 else { return "" }
-        return revived
-            ? " (including \(carried) carried over from before this lane was revived)"
-            : " (including \(carried) carried over from earlier runs)"
+    /// 持ち越しは前の run からだけ(同じ run で復帰したレーンは `initialCarriedFailures` が 0 から数え直す)
+    static func carriedNote(_ carried: Int) -> String {
+        carried > 0 ? " (including \(carried) carried over from earlier runs)" : ""
     }
 
     /// シナリオ記録(ScenarioRunRecord.worker)と join できる形。論理名が無い経路では nil
@@ -2198,12 +2194,12 @@ public final class RunOrchestrator: Sendable {
                 case .trip(let consecutive):
                     // 数えているのはこのレーンで赤になったシナリオの数(別のシナリオの赤も数える)。端末の故障とは言わない
                     unusableReason = "\(consecutive) consecutive scenario failures on this lane"
-                        + Self.carriedNote(breaker.carriedFailures, revived: revived)
+                        + Self.carriedNote(breaker.carriedFailures)
                     unusableCause = .consecutiveFailures
                 case .held(let consecutive, let announce):
                     if announce {
                         let message = "\(consecutive) consecutive scenario failures on this lane"
-                            + Self.carriedNote(breaker.carriedFailures, revived: revived)
+                            + Self.carriedNote(breaker.carriedFailures)
                             + " while no other lane"
                             + " has passed since the streak began — keeping the lane (a lane is retired"
                             + " for consecutive failures only when another lane passed meanwhile)"
