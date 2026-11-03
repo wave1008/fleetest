@@ -8,8 +8,23 @@ import XCTest
 private final class LateFooterDriver: AppDriver {
     private(set) var swipeCount = 0
     private let appearsAfterSwipes: Int
+    /// 非 nil なら送りの本数でなく、端(2 本目の送り)に着いてからの経過時間で出る(アプリの時計。読みとは無関係)
+    private let appearsAfterSeconds: TimeInterval?
+    private var endReachedAt: Date?
 
-    init(appearsAfterSwipes: Int) { self.appearsAfterSwipes = appearsAfterSwipes }
+    init(appearsAfterSwipes: Int, appearsAfterSeconds: TimeInterval? = nil) {
+        self.appearsAfterSwipes = appearsAfterSwipes
+        self.appearsAfterSeconds = appearsAfterSeconds
+    }
+
+    private func footerShown() -> Bool {
+        if let appearsAfterSeconds {
+            guard swipeCount >= 2 else { return false }
+            if endReachedAt == nil { endReachedAt = Date() }
+            return Date().timeIntervalSince(endReachedAt!) >= appearsAfterSeconds
+        }
+        return swipeCount >= appearsAfterSwipes
+    }
 
     func status() async throws -> StatusResponse {
         StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
@@ -31,7 +46,7 @@ private final class LateFooterDriver: AppDriver {
         var elements = [ElementInfo(ref: 1, type: "clickable", identifier: "anchor", label: "行", value: nil,
                                     placeholder: nil, enabled: true,
                                     frame: FTRect(x: 16, y: y, width: 370, height: 56), depth: 1)]
-        if swipeCount >= appearsAfterSwipes {
+        if footerShown() {
             elements.append(ElementInfo(ref: 2, type: "button", identifier: "btn_retry", label: "再試行", value: nil,
                                         placeholder: nil, enabled: true,
                                         frame: FTRect(x: 16, y: 700, width: 370, height: 56), depth: 1))
@@ -43,15 +58,15 @@ private final class LateFooterDriver: AppDriver {
 
 final class ScrollSearchEndWaitTests: XCTestCase {
 
-    private func step(waitSeconds: Double?) -> FlowStep {
-        var step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "btn_retry"), direction: "up", maxSwipes: 12)
+    private func step(waitSeconds: Double?, maxSwipes: Int = 12) -> FlowStep {
+        var step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "btn_retry"), direction: "up", maxSwipes: maxSwipes)
         step.timeout = waitSeconds
         return step
     }
 
     /// 端に着いた後に出る要素は、waitSeconds: の間なら見つかる
     func testLateElementAtTheEndIsFoundWithinTheWrittenBudget() async throws {
-        let driver = LateFooterDriver(appearsAfterSwipes: 8)
+        let driver = LateFooterDriver(appearsAfterSwipes: .max, appearsAfterSeconds: 1.5)
         var phase = StepExecutor.PhaseAccumulator()
         let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .runScrollSearch(step: step(waitSeconds: 10), phase: &phase)
@@ -66,5 +81,16 @@ final class ScrollSearchEndWaitTests: XCTestCase {
             .runScrollSearch(step: step(waitSeconds: nil), phase: &phase)
         XCTAssertFalse(result.found)
         XCTAssertTrue(result.stoppedUnmoving)
+    }
+
+    /// 端で待つ間の周回は払いの回数(maxSwipes)を使わない: 端に着いて 3 秒後に出る要素を、maxSwipes: 6 でも waitSeconds: 8 の間は待って見つける
+    /// (待つ周回が1本ずつ回数を食うと、0.5 秒間隔の待ちは 6 本で尽きて赤になる)
+    func testWaitingAtTheEndDoesNotSpendTheSwipeBudget() async throws {
+        let driver = LateFooterDriver(appearsAfterSwipes: .max, appearsAfterSeconds: 3)
+        var phase = StepExecutor.PhaseAccumulator()
+        let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .runScrollSearch(step: step(waitSeconds: 8, maxSwipes: 6), phase: &phase)
+        XCTAssertTrue(result.found, "待つ間に払いの回数を使い切った(swipes=\(driver.swipeCount))")
+        XCTAssertLessThanOrEqual(driver.swipeCount, 6)
     }
 }
