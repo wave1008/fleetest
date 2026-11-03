@@ -105,10 +105,20 @@ extension StepExecutorTests {
         return (outcome.status, delegate.visibleCalls, outcome.notes)
     }
 
+    /// OCR が予算(`RegionText.occlusionBudget`)内に読み終えた回の結果。並列のテストの負荷で予算を超えると読みが無く、
+    /// 行の確かめ自体が走らない(警告が出ない・出ないことの確かめも素通り)ので、その回は撃ち直し、3 回とも超えたらスキップする
+    private func rowOCROutcomeWithinBudget(_ png: Data) async throws -> (StepResult.Status, Int, [StepNote]) {
+        for _ in 0..<3 {
+            let outcome = await withModelReady { await rowOCROutcome(png) }
+            if !outcome.2.contains(.ocrBudgetExhausted) { return outcome }
+        }
+        throw XCTSkip("OCR exceeded its budget three times under load; the row check did not run")
+    }
+
     /// 別の文字が読めた行は警告(赤にしない)。FM は呼ばない
     func testRowReadAsOtherTextWarnsWithoutCallingFM() async throws {
         let png = try renderedRowPNG("Different Words")
-        let (status, calls, notes) = await withModelReady { await rowOCROutcome(png) }
+        let (status, calls, notes) = try await rowOCROutcomeWithinBudget(png)
         XCTAssertEqual(calls, 0, "行の警告の段では FM を呼ばない \(status) \(notes)")
         guard case .passed = status else { XCTFail("警告にとどめるはず: \(status)"); return }
         XCTAssertTrue(notes.contains(.rowLabelNotRead), "\(notes)")
@@ -117,7 +127,7 @@ extension StepExecutorTests {
     /// 1行も読めない行(文字を描かないセル)は警告しない。FM は呼ばない
     func testRowWithNoReadableTextHasNoWarningAndNoFM() async throws {
         let png = try renderedRowPNG(nil)
-        let (status, calls, notes) = await withModelReady { await rowOCROutcome(png) }
+        let (status, calls, notes) = try await rowOCROutcomeWithinBudget(png)
         XCTAssertEqual(calls, 0)
         guard case .passed = status else { XCTFail("\(status)"); return }
         XCTAssertFalse(notes.contains(.rowLabelNotRead), "\(notes)")
@@ -126,7 +136,7 @@ extension StepExecutorTests {
     /// 全部見えている行は注記なし
     func testRowFullyReadHasNoWarning() async throws {
         let png = try renderedRowPNG("Row One")
-        let (_, calls, notes) = await withModelReady { await rowOCROutcome(png) }
+        let (_, calls, notes) = try await rowOCROutcomeWithinBudget(png)
         XCTAssertEqual(calls, 0)
         XCTAssertFalse(notes.contains(.rowLabelNotRead), "\(notes)")
     }
