@@ -8,7 +8,7 @@ extension StepExecutor {
     /// typeDriver で type を試みる。ref はブリッジごとに別名前空間なので typeDriver 側 snapshot で
     /// 取り直す。解決できなければ false(呼び出し側で通常経路[inapp]へフォールバック/再スロー)。
     /// 戻り値の note は撃つ前に送ったときの注記(liftCoveredTarget)
-    /// `keyboardWitness` は `clearViaTypeDriver` と同じ(主ドライバの申告したキーボードの枠で、撃つ前に突き合わせる)
+    /// `keyboardWitness` は `clearViaTypeDriver` と同じ(`TapTargetGeometry.focusTapCentreUnderKeyboard`。覆われていれば回さずに false)
     func typeViaTypeDriver(_ td: AppDriver, step: FlowStep, keyboardWitness: FTRect?,
                                    phase: inout PhaseAccumulator) async throws -> (typed: Bool, note: String?) {
         let clock = ContinuousClock()
@@ -19,7 +19,8 @@ extension StepExecutor {
         // **XCUITest へ回した打鍵も、キーボードの下・見切れた欄なら撃つ前に送る**(主経路と同じ liftCoveredTarget)。
         // XCUITest は欄を座標でタップしてから打つので、キーボードに当たると焦点が前の欄に残って打鍵が流れ込む
         // (実測: inapp-boost モードで改行を含む type が XCUITest へ回り、キーボードの下の複数行の欄の代わりにパスワードの欄へ入った)。
-        // 判断は XCUITest の木で行う(in-app の木はキーボードを申告しない)。送った後は XCUITest の木で引き当て直す
+        // 送るかの判断は XCUITest の木で行い、送った後は XCUITest の木で引き当て直す(XCUITest の枠が画面の外で来る間は
+        // 送らないので、下の in-app の枠との突き合わせが受ける)
         var note: String?
         if let lifted = try await liftCoveredTarget(resolved.element, in: snapshot, step: step,
                                                     verb: "typing", snapshotSource: .driver(td), phase: &phase) {
@@ -28,9 +29,9 @@ extension StepExecutor {
             guard let again = LocatorResolver.resolveDetailed(step: step, in: snapshot) else { return (false, note) }
             resolved = again
         }
-        if let refusal = TapTargetGeometry.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
-                                                                 screen: snapshot.screen) {
-            throw DriverError.staleRef(detail: refusal)
+        // 中心が(in-app の申告した)キーボードの下なら XCUITest へ回さない = 呼び手は in-app で撃つ
+        if TapTargetGeometry.focusTapCentreUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness, screen: snapshot.screen) {
+            return (false, note)
         }
         start = clock.now
         try await RefExpectationScope.firing(resolved.element) {
@@ -402,9 +403,8 @@ extension StepExecutor {
 
     /// typeDriver で clearInput を試みる。ref はブリッジごとに別名前空間なので typeDriver 側 snapshot で
     /// 取り直す(typeViaTypeDriver と同じ理由)。解決できなければ false(呼び出し側で再スロー)。
-    /// `keyboardWitness` = 主ドライバ(inapp-boost モードの in-app)が申告したキーボードの枠。XCUITest の枠は Enter で焦点が
-    /// 次の欄へ移る間に画面の外(y=891)で来るので、撮り直した欄の位置をこちらの枠と突き合わせる。中心が覆われていて焦点も
-    /// 無ければ撃たずに引き直す(焦点を当てるタップがキーを押し、焦点のある別の欄を書き換えた = OI-163 ①)
+    /// `keyboardWitness` = 主ドライバ(inapp-boost モードの in-app)が申告したキーボードの枠。撮り直した欄の中心がその下なら
+    /// XCUITest で撃たずに false(呼び手は in-app で消す。`TapTargetGeometry.focusTapCentreUnderKeyboard`)
     func clearViaTypeDriver(_ td: AppDriver, step: FlowStep, keyboardWitness: FTRect?,
                                     phase: inout PhaseAccumulator) async throws -> Bool {
         let clock = ContinuousClock()
@@ -412,9 +412,8 @@ extension StepExecutor {
         let snapshot = try await td.snapshot()
         phase.snapshotMs += Self.ms(clock.now - start)
         guard let resolved = LocatorResolver.resolveDetailed(step: step, in: snapshot) else { return false }
-        if let refusal = TapTargetGeometry.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
-                                                                 screen: snapshot.screen) {
-            throw DriverError.staleRef(detail: refusal)
+        if TapTargetGeometry.focusTapCentreUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness, screen: snapshot.screen) {
+            return false
         }
         start = clock.now
         try await td.clearInput(ref: resolved.element.ref)
@@ -657,7 +656,9 @@ extension StepExecutor {
             actingSnapshot = check.snapshot ?? actingSnapshot
             if let residual = check.residual {
                 guard let td = typeDriver,
-                      try await clearViaTypeDriver(td, step: step, keyboardWitness: actingSnapshot?.keyboardFrame ?? keyboardWitness,
+                      // 消去の後に撮り直していればその木の枠(「キーボードが無い」も新しい事実として使う)
+                      try await clearViaTypeDriver(td, step: step,
+                                                   keyboardWitness: actingSnapshot.map { $0.keyboardFrame } ?? keyboardWitness,
                                                    phase: &phase) else {
                     return .failed("clearInput reported success but the value remained: \"\(residual)\"")
                 }

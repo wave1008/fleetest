@@ -72,24 +72,25 @@ final class InAppRetapBeforeTextTests: XCTestCase {
             + "                Self.tapBeforeTyping(coordinate(app, point))").count - 1, 1, "clear")
     }
 
-    /// XCUITest で消す前に、撮り直した欄の位置を主ドライバ(in-app)のキーボードの枠と突き合わせる(XCTest の枠は焦点が移る間
-    /// 画面の外で来る)。焦点のある欄・画面の外の枠・覆われていない欄は撃ってよい
-    func testHostRefusesTypeDriverClearUnderTheWitnessKeyboard() {
+    /// inapp-boost モードで type / clear を XCUITest へ回す前に、撮り直した欄を主ドライバ(in-app)のキーボードの枠と突き合わせる
+    /// (XCTest の枠は焦点が移る間 画面の外で来る)。中心が覆われていれば回さない(in-app が帯を叩くか断る)。
+    /// 焦点のある欄・画面の外の枠・覆われていない欄は回してよい
+    func testHostKeepsTheFocusTapOffXCUITestUnderTheWitnessKeyboard() {
         let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
         let kb = FTRect(x: 0, y: 538, width: 402, height: 336)
         var field = ElementInfo(ref: 18, type: "textView", identifier: "field_first", label: "姓", value: "AB",
                                 placeholder: nil, enabled: true, frame: FTRect(x: 16, y: 608, width: 370, height: 64), depth: 3)
-        XCTAssertNotNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
-        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: nil, screen: screen))
-        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: FTRect(x: 0, y: 891, width: 402, height: 233),
-                                                        screen: screen), "画面の外の枠はキーボード無し")
+        XCTAssertTrue(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: kb, screen: screen))
+        XCTAssertFalse(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: nil, screen: screen))
+        XCTAssertFalse(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: FTRect(x: 0, y: 891, width: 402, height: 233),
+                                                                     screen: screen), "画面の外の枠はキーボード無し")
         field.focused = true
-        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen), "焦点の欄は叩かずに消す")
+        XCTAssertFalse(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: kb, screen: screen), "焦点の欄は叩かない")
         field.focused = nil
         field.frame = FTRect(x: 16, y: 450, width: 370, height: 64)
-        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen))
+        XCTAssertFalse(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: kb, screen: screen))
         field.frame = FTRect(x: 16, y: 484, width: 370, height: 112)
-        XCTAssertNil(TapTargetGeometry.focusTapUnderKeyboard(field, keyboardWitness: kb, screen: screen),
-                     "中心が縁にかかっても上側の帯が見えていればブリッジがそこを叩く(ブリッジと同じ規則)")
+        XCTAssertTrue(TapTargetGeometry.focusTapCentreUnderKeyboard(field, keyboardWitness: kb, screen: screen),
+                      "中心が縁にかかる欄も回さない(ランナーは自分の枠が画面の外だと中心を撃つ。帯は in-app が叩く)")
     }
 }

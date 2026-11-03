@@ -533,11 +533,17 @@ final class FTInAppBridge {
         let now = Self.receiverMark()
         let moved = recorded.before.map { before in now.map { before.id != $0.id || before.rect != $0.rect } ?? true }
             ?? (now != nil)
-        let live = (nodes.object(forKey: NSNumber(value: ref)) as? NSObject).map { node in
-            rescales[ObjectIdentifier(node)].map { InAppSnapshot.frame(node, rescale: $0) } ?? node.accessibilityFrame
-        }.flatMap { $0.width > 0 && $0.height > 0 ? $0 : nil }
+        let live = liveFrame(ref: ref).flatMap { $0.width > 0 && $0.height > 0 ? $0 : nil }
         return FocusLanding.priorTapLanded(receiverMovedSinceThatTap: moved, recordedTargetNow: recordedNow, current: current,
                                            receiverNow: now?.rect, liveCurrent: live)
+    }
+
+    /// main で呼ぶ。ref の要素の今の枠(snapshot と同じ補正 = Flutter の縮んだ AX 矩形は `InAppSnapshot.rescaleBelow`・
+    /// UIView は view の幾何。面積 0 もそのまま返す)。ノードが無ければ nil
+    private func liveFrame(ref: Int) -> CGRect? {
+        (nodes.object(forKey: NSNumber(value: ref)) as? NSObject).map { node in
+            InAppSnapshot.frame(node, rescale: rescales[ObjectIdentifier(node)])
+        }
     }
 
     private func handleTap(_ body: Data) throws -> InAppHTTPServer.Response {
@@ -957,10 +963,7 @@ final class FTInAppBridge {
             // 診断(全窓の view 走査)は断ると決まった1回だけ作る
             let poll: Poll = mainSync {
                 // snapshot と同じ補正を掛ける(Flutter の縮んだ AX 矩形。InAppSnapshot.rescaleBelow)
-                let axFrame = (self.nodes.object(forKey: NSNumber(value: ref)) as? NSObject).map { node in
-                    self.rescales[ObjectIdentifier(node)].map { InAppSnapshot.frame(node, rescale: $0) }
-                        ?? node.accessibilityFrame
-                }
+                let axFrame = self.liveFrame(ref: ref)
                 let live = axFrame.flatMap { $0.width > 0 && $0.height > 0 ? $0 : nil }
                 let target = live ?? self.frames[ref]
                 let centre = live.map { CGPoint(x: $0.midX, y: $0.midY) } ?? point

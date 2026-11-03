@@ -181,8 +181,8 @@ extension StepExecutor {
         }
         // 指で触る操作(allowsVisiblePart)は覆われていない見えている部分を押すか、薄ければ撃つ段(`coveredTouchPlan`)が断る。
         // 打鍵・消去は欄の ref に撃つので部分を選べない = 覆われたままなら断る
+        let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
         if !allowsVisiblePart, let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
-            let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
             return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
                 + " (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
                 + " which scrolling its container did not clear — a touch there would land on \(TapTargetGeometry.describe(over))"
@@ -196,6 +196,7 @@ extension StepExecutor {
             let clock = ContinuousClock()
             let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
             var settled = false
+            var lost: SnapshotResponse?
             repeat {
                 let start = clock.now
                 let next: SnapshotResponse
@@ -204,15 +205,17 @@ extension StepExecutor {
                 case .driver(let other): next = try await other.snapshot(bypassingCache: true)
                 }
                 phase.snapshotMs += Self.ms(clock.now - start)
-                guard let (moved, _) = LocatorResolver.resolve(step: step, in: next) else {
-                    let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
-                    return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target left"
-                        + " the screen while the window was growing back (nothing was \(done))", kind: .notFound)
-                }
+                // 伸びる途中の1枚で一瞬引けないことはあるので、予算の内は読み直す。予算を使い切っても引けなければ撃たない
+                guard let (moved, _) = LocatorResolver.resolve(step: step, in: next) else { lost = next; continue }
+                lost = nil
                 settled = TapTargetGeometry.coverGeometryUnchanged(element, in: snapshot, moved, in: next)
                 element = moved
                 snapshot = next
             } while !settled && clock.now < deadline
+            if lost != nil {
+                return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target was not on the"
+                    + " screen while the window grew back (nothing was \(done))", kind: .notFound)
+            }
             if !settled {
                 note = Self.joinNotes(note, "the target or what covers it was still moving when the step's wait ran out —"
                     + " the uncovered part was chosen from the last reading")

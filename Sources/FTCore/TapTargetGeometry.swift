@@ -1271,21 +1271,14 @@ public enum TapTargetGeometry {
             + " the element clear of it"
     }
 
-    /// XCUITest で type / clear を撃つ前の確かめ: 焦点の無い欄へ焦点を当てるタップに、主ドライバ(inapp-boost モードの in-app)が
-    /// 申告したキーボードの枠で見て、押せる点が残っているか。ブリッジと同じ `FocusLanding.focusTapPoint`(中心が覆われても見えている
-    /// 帯があれば撃ってよい)で決め、帯が無いときだけ断りの文言を返す(nil = 撃ってよい)。XCUITest の枠は Enter で焦点が次の欄へ
-    /// 移る間に画面の外(y=891)で来るので、撮り直した欄の位置をこちらの枠と突き合わせる(焦点のタップがキーを押し、焦点のある
-    /// 別の欄を書き換えた = OI-163 ①)。焦点のある欄はドライバが叩かないので見ない(`reachPastKeyboard` の同じ例外)
-    public static func focusTapUnderKeyboard(_ element: ElementInfo, keyboardWitness: FTRect?, screen: FTRect?) -> String? {
+    /// inapp-boost モードで type / clear を XCUITest へ回してよいか: 焦点の無い欄の中心が、主ドライバ(in-app)の申告した
+    /// キーボードの下なら回さない(true)。XCUITest の枠は Enter で焦点が次の欄へ移る間に画面の外(y=891)で来るので、ランナーは
+    /// 中心を撃ってキーを押し、焦点のある別の欄を書き換えた(OI-163 ①)。in-app は自分の確かな枠で見えている帯を叩くか、撃たずに断る
+    /// (`FocusLanding.focusTapPoint`)。焦点のある欄はドライバが叩かないので見ない(`reachPastKeyboard` の同じ例外)
+    public static func focusTapCentreUnderKeyboard(_ element: ElementInfo, keyboardWitness: FTRect?, screen: FTRect?) -> Bool {
         guard element.focused != true, let kb = keyboardWitness,
-              screen.map({ KeyboardWait.onScreen(kb, screen: $0) }) ?? true else { return nil }
-        let f = element.frame
-        let field = CGRect(x: f.x, y: f.y, width: f.width, height: f.height)
-        let keyboard = CGRect(x: kb.x, y: kb.y, width: kb.width, height: kb.height)
-        guard FocusLanding.focusTapPoint(centre: CGPoint(x: field.midX, y: field.midY), field: field, keyboard: keyboard) == nil
-        else { return nil }
-        return "the field (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height))) is entirely under the software keyboard"
-            + " in the fresh tree, so tapping it would press a key; nothing was sent"
+              screen.map({ KeyboardWait.onScreen(kb, screen: $0) }) ?? true else { return false }
+        return keyboardCoveredAdvisory(element, keyboardFrame: kb) != nil
     }
 
     /// 対象の枠と、その中心を覆う最前面の枠が、2つの木で同じか(キーボードを閉じた後の読み直しの終わり =

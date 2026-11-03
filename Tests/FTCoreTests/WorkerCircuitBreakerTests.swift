@@ -116,10 +116,13 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p2"), "別のデバイスでも落ちた")
         XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p1"))
         XCTAssertTrue(w.recordFailure(scenario: "B", worker: "android:p1"), "シナリオごと")
-        w.recordPass(scenario: "A")
+        w.recordPass(scenario: "A", worker: "android:p3")
         XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p2"), "通った後は1台目から")
         XCTAssertTrue(w.recordFailure(scenario: "A", worker: "ios:x"), "別の OS のデバイスの失敗は根拠にしない")
         XCTAssertFalse(w.recordFailure(scenario: "A", worker: "ios:y"))
+        w.recordPass(scenario: "A", worker: "ios:z")
+        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p4"), "iOS の緑は Android の記録を消さない")
+        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "ios:x"), "iOS の記録は消えた")
     }
 
     func testScenarioFailureWitnessesPersistPerScope() throws {

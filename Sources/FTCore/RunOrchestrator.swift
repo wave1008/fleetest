@@ -1110,7 +1110,7 @@ public final class RunOrchestrator: Sendable {
         // 書き込みも錠の中(錠の外で写しを書くと、後から書いたレーンの古い写しが新しい記録を上書きする)
         return failureWitnesses.withLock { w -> Bool in
             let counts: Bool
-            if passed { w.recordPass(scenario: scenario); counts = true }
+            if passed { w.recordPass(scenario: scenario, worker: key); counts = true }
             else { counts = w.recordFailure(scenario: scenario, worker: key) }
             if let dir = laneStreakStateDir { w.save(stateDir: dir, scope: project.name) }
             return counts

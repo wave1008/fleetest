@@ -7,7 +7,7 @@
 // (ロック画面のままの端末は、他の端末では通るシナリオで落ちる = 守る形は変わらない)。
 // 1 run で各シナリオを1回ずつ回すだけの初回は区別の材料が無いので、従来どおり数える。
 //
-// - 通ったら、そのシナリオの記録を消す(以後の失敗は再び1台目から)。対象外(notApplicable)では消さない(走らなかっただけ)。
+// - 通ったら、そのシナリオの同じ OS の記録を消す(以後の失敗は再び1台目から)。対象外(notApplicable)では消さない(走らなかっただけ)。
 // - 期限は置かない(LaneFailureStreakStore と同じ。通れば消える)。
 // - 壊れた・読めないファイルは空として扱う。書き込みは全置換で、run の中の書き手は RunOrchestrator の錠の中の1か所。
 //   同じプロジェクトの run を同時に回すと後に書いた方が残る(失うのは数えない根拠だけ = 従来どおり数える側に倒れる)。
@@ -35,8 +35,11 @@ public struct ScenarioFailureWitnesses: Codable, Equatable, Sendable {
         worker.split(separator: ":", maxSplits: 1).first ?? Substring(worker)
     }
 
-    public mutating func recordPass(scenario: String) {
-        failedOn[scenario] = nil
+    /// 通ったデバイスと同じ OS の記録だけ消す(片方の OS でだけ壊れたシナリオの記録を、もう片方の OS の緑で消さない)
+    public mutating func recordPass(scenario: String, worker: String) {
+        let platform = Self.platform(of: worker)
+        failedOn[scenario] = failedOn[scenario]?.filter { Self.platform(of: $0) != platform }
+        if failedOn[scenario]?.isEmpty == true { failedOn[scenario] = nil }
     }
 
     public static func fileURL(stateDir: URL, scope: String) -> URL {

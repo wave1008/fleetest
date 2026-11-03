@@ -1917,8 +1917,8 @@ final class BridgeRouter {
     /// 下なら見えている帯へ寄せ、欄が丸ごと下なら撃たずに断る。中心のまま撃つとキーを押し、焦点のある別の欄へ打鍵が入る
     /// (CMP: Enter で焦点が次の欄へ移った直後の clearInput が「か」を押して名の欄を書き換えた。ホストの木ではまだ覆われていなかった
     /// = 古い木なので staleRef。ホストは撮り直して容器を送ってから撃つ)。
-    /// XCTest の枠は焦点が移る間に画面の外で来ることがある(素通りする)ので、inapp-boost モードではホストが in-app の枠でも確かめる
-    /// (`StepExecutor.focusTapUnderKeyboard`)
+    /// XCTest の枠は焦点が移る間に画面の外で来ることがある(素通りする)ので、inapp-boost モードではホストが in-app の枠で見て
+    /// 中心が覆われていればこちらへ回さない(`TapTargetGeometry.focusTapCentreUnderKeyboard`)
     func focusTapPointOffKeyboard(ref: Int, centre: CGPoint, fresh: Captured?) throws -> CGPoint {
         guard let field = refFrames[ref] else { return centre }
         let keyboard = fresh?.keyboardFrame
