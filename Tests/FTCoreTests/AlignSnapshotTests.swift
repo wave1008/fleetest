@@ -32,7 +32,7 @@ final class AlignSnapshotTests: XCTestCase {
         try recordBuild(at: repo, digest: local.digest)
         let probed = try probe()
         XCTAssertEqual(probed, AlignSnapshot.RemoteToolState(head: local.head, digest: local.digest,
-                                                             base: local.head, snapshotIssuer: nil))
+                                                             base: local.head, snapshotIssuer: nil, built: true))
     }
 
     func testSnapshotCheckedOutOnTheRunnerReportsBaseIssuerAndTheSameDigest() throws {
@@ -55,7 +55,7 @@ final class AlignSnapshotTests: XCTestCase {
         try recordBuild(at: runner, digest: local.digest)
         let probed = try probe(at: runner)
         XCTAssertEqual(probed, AlignSnapshot.RemoteToolState(head: snapshot, digest: local.digest,
-                                                             base: local.head, snapshotIssuer: "alice"))
+                                                             base: local.head, snapshotIssuer: "alice", built: true))
     }
 
     func testOnlyTestProjectsChangesKeepTheDigest() throws {

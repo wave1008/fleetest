@@ -18,7 +18,7 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     private static func tool(_ head: String, digest: String? = nil, base: String? = nil,
                              issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
         AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
-                                      snapshotIssuer: issuer)
+                                      snapshotIssuer: issuer, built: true)
     }
 
     private static func local(_ head: String) -> RemoteCompat.LocalTool {

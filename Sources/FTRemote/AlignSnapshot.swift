@@ -100,11 +100,11 @@ public enum AlignSnapshot {
         public let base: String
         /// スナップショットを置いた発行者(スナップショットでなければ nil)
         public let snapshotIssuer: String?
-        /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。バイナリは古いかもしれない)。
-        /// 既定 true は単体テストの組み立て用で、本番の唯一の作り手は `parseRemoteProbe`
+        /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = バイナリが今の中身と合っている保証が無い)。
+        /// **既定値を置かない**(true を既定にすると、新しい作り手の渡し忘れが未ビルドを「ビルド済み」と読む = 安全側に倒れない)
         public let built: Bool
 
-        public init(head: String, digest: String?, base: String, snapshotIssuer: String?, built: Bool = true) {
+        public init(head: String, digest: String?, base: String, snapshotIssuer: String?, built: Bool) {
             self.head = head
             self.digest = digest
             self.base = base

@@ -40,22 +40,22 @@ final class RemoteAlignPlanTests: XCTestCase {
 
     private let digest = "d1d1d1"
 
-    private func probeOutput(head: String = "h1", toolDigest: String = "d1d1d1", record: [String] = ["d1d1d1", "-", "Xcode 27.2 Build version 1", "c1"],
+    private func probeOutput(head: String = "h1", toolDigest: String = "d1d1d1", record: [String] = ["d1d1d1", "-", "Xcode 27.2 Build version 1", "h1"],
                              binary: String = "yes", xcode: String = "Xcode 27.2 Build version 1") -> String {
         ([head, toolDigest, "h0", "-"] + record + [binary, xcode]).joined(separator: "\n") + "\n"
     }
 
     private func aligned(_ output: String, digest: String = "d1d1d1", developerDir: String? = nil) -> Bool {
         guard let state = RemoteAlignPlan.parseProbe(output) else { return false }
-        return RemoteAlignPlan.isAlreadyAligned(localDigest: digest, developerDir: developerDir, state: state)
+        return RemoteAlignPlan.isAlreadyAligned(commit: "h1", localDigest: digest, developerDir: developerDir, state: state)
     }
 
     func testParseProbeReadsEveryLine() throws {
         let state = try XCTUnwrap(RemoteAlignPlan.parseProbe(probeOutput(
-            record: ["d1d1d1", "/Applications/X.app/Contents/Developer", "Xcode 27.2", "c1"])))
+            record: ["d1d1d1", "/Applications/X.app/Contents/Developer", "Xcode 27.2", "h1"])))
         XCTAssertEqual(state.tool?.digest, "d1d1d1")
         XCTAssertEqual(state.record, RemoteAlignPlan.BuildRecord(
-            digest: "d1d1d1", developerDir: "/Applications/X.app/Contents/Developer", xcodeVersion: "Xcode 27.2", commit: "c1"))
+            digest: "d1d1d1", developerDir: "/Applications/X.app/Contents/Developer", xcodeVersion: "Xcode 27.2", commit: "h1"))
         XCTAssertTrue(state.binaryExists)
     }
 
@@ -69,7 +69,7 @@ final class RemoteAlignPlanTests: XCTestCase {
 
     func testAlreadyAlignedWhenEverythingMatches() {
         XCTAssertTrue(aligned(probeOutput()))
-        XCTAssertTrue(aligned(probeOutput(record: ["d1d1d1", "/X/Developer", "Xcode 27.2 Build version 1", "c1"]),
+        XCTAssertTrue(aligned(probeOutput(record: ["d1d1d1", "/X/Developer", "Xcode 27.2 Build version 1", "h1"]),
                               developerDir: "/X/Developer"))
     }
 
@@ -79,15 +79,21 @@ final class RemoteAlignPlanTests: XCTestCase {
         XCTAssertFalse(aligned(probeOutput(record: ["-", "-", "-", "-"])))
     }
     func testNotAlignedWhenTheRecordDigestDiffers() {
-        XCTAssertFalse(aligned(probeOutput(record: ["other", "-", "Xcode 27.2 Build version 1", "c1"])))
+        XCTAssertFalse(aligned(probeOutput(record: ["other", "-", "Xcode 27.2 Build version 1", "h1"])))
     }
     func testNotAlignedWhenTheDeveloperDirDiffers() {
         XCTAssertFalse(aligned(probeOutput(), developerDir: "/X/Developer"))
-        XCTAssertFalse(aligned(probeOutput(record: ["d1d1d1", "/Y/Developer", "Xcode 27.2 Build version 1", "c1"]),
+        XCTAssertFalse(aligned(probeOutput(record: ["d1d1d1", "/Y/Developer", "Xcode 27.2 Build version 1", "h1"]),
                                developerDir: "/X/Developer"))
     }
     func testNotAlignedWhenTheXcodeVersionDiffers() {
         XCTAssertFalse(aligned(probeOutput(xcode: "Xcode 27.3 Build version 2")))
+    }
+    /// 狙い: 要約だけで比べる形へ戻す変異で落ちる(要約は TestProjects を除くので、シナリオだけの変更は要約が同じ =
+    /// HEAD とビルドの記録のコミットで見分ける。見分けないと `e2ex.sh --on` が古いシナリオを回す)
+    func testNotAlignedWhenOnlyTheCommitDiffers() {
+        XCTAssertFalse(aligned(probeOutput(head: "h2")))
+        XCTAssertFalse(aligned(probeOutput(record: ["d1d1d1", "-", "Xcode 27.2 Build version 1", "h0"])))
     }
     func testNotAlignedWhenTheBinaryIsMissing() { XCTAssertFalse(aligned(probeOutput(binary: "no"))) }
     func testNotAlignedWhenTheLocalDigestDiffers() { XCTAssertFalse(aligned(probeOutput(), digest: "newer")) }

@@ -21,7 +21,7 @@ final class RemoteCompatUnbuiltTests: XCTestCase {
         let reason = try XCTUnwrap(blocked.blocking.first)
         XCTAssertTrue(reason.hasPrefix("git revision"), "HostReport.revisionCompatible picks blockers by this prefix")
         XCTAssertTrue(reason.contains("bbbbbbb"), reason)
-        XCTAssertTrue(reason.contains("has not been built successfully"), reason)
+        XCTAssertTrue(reason.contains("has no record of a successful align build"), reason)
         XCTAssertTrue(reason.contains("fleetest remote align"), reason)
     }
 

@@ -172,6 +172,20 @@ def manifest_without_scenarios():
 manifest = manifest_without_scenarios()
 safe = lambda s: re.sub(r"[^A-Za-z0-9._-]", "_", s)
 
+def source_state():
+    """本線の作業ツリーの状態の指紋(HEAD・追跡ファイルの差分・未追跡のファイルとその更新時刻)。worktree へ運ぶ物と同じ範囲"""
+    import hashlib
+    h = hashlib.sha1()
+    for args in (["git", "rev-parse", "HEAD"], ["git", "diff", "HEAD", "--binary"]):
+        h.update(subprocess.run(args, cwd=repo, capture_output=True).stdout)
+    untracked = sh(["git", "-C", repo, "ls-files", "-z", "-o", "--exclude-standard"]).stdout
+    for rel in sorted(p for p in untracked.split("\0") if p):
+        try:
+            h.update(f"{rel}:{os.stat(os.path.join(repo, rel)).st_mtime_ns}".encode())
+        except OSError:
+            h.update(rel.encode())
+    return h.hexdigest()
+
 def run_tests(wt, log, filt):
     with open(log, "w") as out:
         r = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
@@ -196,14 +210,15 @@ def run_in(wt, index, mutation):
     wt_manifest = os.path.join(wt, "Package.swift")
     if not os.path.exists(wt_manifest) or open(wt_manifest).read() != manifest:
         open(wt_manifest, "w").write(manifest)
-    # 無変異の確認は (worktree, filter) ごとに1回だけ(同じ回の中では worktree の中身は毎回同じ本線の写し)。
-    # 赤は覚えない(次の変異でも確かめ直す)
-    if (wt, mutation["filter"]) not in green_baselines:
+    # 無変異の確認は (worktree, filter, 本線の状態) ごとに1回だけ。**本線の状態を鍵に含める** —— 回している間に
+    # 本線を直すと worktree の中身が変わり、古い緑の確認のまま「検出した」と数える。赤は覚えない
+    baseline_key = (wt, mutation["filter"], source_state())
+    if baseline_key not in green_baselines:
         base_log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.baseline.log")
         code, body = run_tests(wt, base_log, mutation["filter"])
         if code != 0:
             return (label, "ERROR", "baseline red (the filter fails without the mutation) — see log", base_log)
-        green_baselines.add((wt, mutation["filter"]))
+        green_baselines.add(baseline_key)
     path = os.path.join(wt, mutation["file"])
     try:
         src = open(path).read()

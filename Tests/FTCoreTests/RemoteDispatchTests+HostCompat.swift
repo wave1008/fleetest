@@ -142,7 +142,7 @@ extension RemoteDispatchTests {
     static func remoteTool(_ head: String, digest: String? = nil, base: String? = nil,
                            issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
         AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
-                                      snapshotIssuer: issuer)
+                                      snapshotIssuer: issuer, built: true)
     }
 
     private func revisionVerdict(local: RemoteCompat.LocalTool?, remote: AlignSnapshot.RemoteToolState?)
@@ -175,7 +175,7 @@ extension RemoteDispatchTests {
 
     /// ランナーの要約が読めない(HEAD は読めた)ときも fail-closed
     func testVerdictRemoteDigestUnreadableIsBlocking() {
-        let remote = AlignSnapshot.RemoteToolState(head: "abc", digest: nil, base: "abc", snapshotIssuer: nil)
+        let remote = AlignSnapshot.RemoteToolState(head: "abc", digest: nil, base: "abc", snapshotIssuer: nil, built: true)
         let v = revisionVerdict(local: Self.localTool("abc"), remote: remote)
         XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
         XCTAssertTrue(v.blocking[0].contains("could not determine the remote value"), v.blocking[0])
@@ -607,7 +607,7 @@ extension RemoteDispatchTests {
             .joined(separator: "\n\(Self.statusSeparator)\n")
         let status = RemoteStatusProbe.parse(output)
         XCTAssertEqual(status.tool, AlignSnapshot.RemoteToolState(
-            head: "snap111", digest: "dig222", base: "base333", snapshotIssuer: "wave"))
+            head: "snap111", digest: "dig222", base: "base333", snapshotIssuer: "wave", built: true))
         XCTAssertEqual(status.toolchain, "Xcode 27.0 Build version 27A5228h / iphonesimulator 27A5228h")
         XCTAssertTrue(status.binaryPresent)
         XCTAssertEqual(status.freeKB, 400_000_000)
@@ -619,7 +619,7 @@ extension RemoteDispatchTests {
                       "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes", "x y z 100"]
             .joined(separator: "\n\(Self.statusSeparator)\n")
         let tool = RemoteStatusProbe.parse(output).tool
-        XCTAssertEqual(tool, AlignSnapshot.RemoteToolState(head: "head111", digest: nil, base: "head111", snapshotIssuer: nil))
+        XCTAssertEqual(tool, AlignSnapshot.RemoteToolState(head: "head111", digest: nil, base: "head111", snapshotIssuer: nil, built: true))
         XCTAssertEqual(tool?.isSnapshot, false)
     }
 

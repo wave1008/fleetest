@@ -245,8 +245,8 @@ public enum RemoteCompat {
 
     /// 未ビルドで止める理由。`RemoteToolState.built == false` かつ要約が手元と同じときの文言(向きの案内は付けない)
     public static func unbuiltReason(_ remote: AlignSnapshot.RemoteToolState) -> String {
-        "git revision: the runner's clone at \(short(remote.head)) has not been built successfully"
-            + " (an align failed or was interrupted) — run `fleetest remote align <host>`"
+        "git revision: the runner's clone at \(short(remote.head)) has no record of a successful align build"
+            + " for its current contents, so its binaries may not match them — run `fleetest remote align <host>`"
     }
 
     /// 要約が手元と同じなのに未ビルドで止まるか(向きの案内が要らない。呼び手が `relationAdvice` を足すかの判定)

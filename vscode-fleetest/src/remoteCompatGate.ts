@@ -12,10 +12,10 @@ export interface RemoteCompatMachine {
   readonly revision?: string | null;
   /** 非 null ならランナーが未コミットのスナップショットを持っている。値はそれを置いた発行者 */
   readonly snapshotIssuer?: string | null;
-  /** 要約(ツールの中身。TestProjects/ は除く)の一致 */
-  /** 成功したビルドの記録がクローンの HEAD の要約と一致するか。false なら未ビルド・ビルドの失敗・中断
+  /** 成功したビルドの記録がクローンの HEAD の要約と一致するか。false ならバイナリが今の中身と合っている保証が無い
    * (要約が同じでも revisionCompatible は false = align が直す)。照会が読めなければ null */
   readonly built?: boolean | null;
+  /** 要約(ツールの中身。TestProjects/ は除く)の一致 */
   readonly revisionCompatible?: boolean | null;
   readonly revisionRelation?: string | null;
   readonly toolchain?: string | null;

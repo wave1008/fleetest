@@ -99,7 +99,7 @@ func alignmentProbe(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: Al
 /// **読めなかったら false**(揃っていない側へ倒す = 余分にビルドするだけで、古いまま緑にはならない)
 func alignmentAlreadyDone(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) -> Bool {
     guard let state = alignmentProbe(hostSpec: hostSpec, layout: layout, prepared: prepared) else { return false }
-    return RemoteAlignPlan.isAlreadyAligned(localDigest: prepared.digest, developerDir: prepared.developerDir,
+    return RemoteAlignPlan.isAlreadyAligned(commit: prepared.commit, localDigest: prepared.digest, developerDir: prepared.developerDir,
                                             state: state)
 }
 
@@ -284,7 +284,7 @@ enum RemoteAlign {
         }
 
         // 同じなら何もしない(ロックも取らない・送らない・ビルドしない)
-        if let state, RemoteAlignPlan.isAlreadyAligned(localDigest: prepared.digest,
+        if let state, RemoteAlignPlan.isAlreadyAligned(commit: prepared.commit, localDigest: prepared.digest,
                                                        developerDir: prepared.developerDir, state: state) {
             io.say("✅ already aligned to \(prepared.commit.prefix(7)) (same contents and toolchain; nothing sent or built)")
             return .alreadyAligned(commit: prepared.commit)

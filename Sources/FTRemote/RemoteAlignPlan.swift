@@ -184,9 +184,13 @@ public enum RemoteAlignPlan {
     /// **同じなら何もしない**の判定。全部を満たすときだけ true(1つでも違えば送ってビルドする):
     /// ランナーのクローンの要約が手元と同じでビルド済み / 成功したビルドの記録が同じ要約・同じ developerDir・同じ Xcode の版 /
     /// 実行ファイルがある
-    public static func isAlreadyAligned(localDigest: String, developerDir: String?, state: ProbeState) -> Bool {
-        guard let tool = state.tool, tool.digest == localDigest, tool.built,
-              let record = state.record, record.digest == localDigest,
+    /// **送るコミットそのものと比べる**(要約は TestProjects を除くので、要約だけだとシナリオだけの変更が
+    /// 「同じ」になり、`e2ex.sh --on` がランナーのクローンの古いシナリオを回す。スナップショットの SHA は
+    /// 同じ中身・同じ HEAD・同じ発行者から同じ値になる = `AlignSnapshot.commitToSend`)
+    public static func isAlreadyAligned(commit: String, localDigest: String, developerDir: String?,
+                                        state: ProbeState) -> Bool {
+        guard let tool = state.tool, tool.head == commit, tool.digest == localDigest, tool.built,
+              let record = state.record, record.commit == commit, record.digest == localDigest,
               record.developerDir == developerDir,
               record.xcodeVersion == state.xcodeVersion,
               state.binaryExists else { return false }

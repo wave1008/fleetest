@@ -6,7 +6,7 @@ import FTRemote
 
 final class RunAlignDecisionTests: XCTestCase {
     private func remote(digest: String?) -> AlignSnapshot.RemoteToolState {
-        AlignSnapshot.RemoteToolState(head: "h", digest: digest, base: "b", snapshotIssuer: nil)
+        AlignSnapshot.RemoteToolState(head: "h", digest: digest, base: "b", snapshotIssuer: nil, built: true)
     }
 
     private func decide(remote: AlignSnapshot.RemoteToolState?, relation: RevisionRelation,
