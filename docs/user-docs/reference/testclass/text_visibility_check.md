@@ -112,8 +112,8 @@ left. FM judges those. Where FM is unavailable, they pass unverified.
   dot, which does not count as an ellipsis.
 - A translucent overlay counts as visible as long as the text under it can be read.
 - On iOS, when a list row (cell) has no text child element, the label is checked in the row's own frame, by OCR alone (FM is not used). If some text is read but
-  the expected text is missing or only its beginning is read, the step does not fail; only the note `row-label-not-read` is left in the result JSON (a clipped row, or a row under
-  the tab bar, still passes). A row where no text is read at all (an icon, an image, or a plain colour box drawn without text) gets no note either. With the OCR check turned off (`ocrTextVisibilityCheck: false`) this check does not run. Buttons are not checked this way (an icon button's label is a description that is not drawn).
+  the expected text is missing or only its beginning is read, the step fails and the note `row-label-not-read` is left in the result JSON (a clipped row, a row under
+  the tab bar, or a list squashed flat in landscape so the rows are not drawn). A row where no text is read at all (an icon, an image, or a plain colour box drawn without text) does not fail. With the OCR check turned off (`ocrTextVisibilityCheck: false`) this check does not run. Buttons are not checked this way (an icon button's label is a description that is not drawn).
 - In iOS's default mode (inapp-boost), the check normally uses the picture the app draws itself (it is faster). That picture
   shows neither the keyboard nor system alerts (permission requests and the like), so the whole screen is captured
   (through XCUITest) only when the element tree reports the keyboard, or when a system alert was in front the first time

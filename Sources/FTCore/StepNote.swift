@@ -630,7 +630,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .unchangedTapBeforeFailure:
             return "a tap before this failure did not change the app's tree at all"
         case .rowLabelNotRead:
-            return "the row's label text could not be read inside its frame (the row has no text child in the tree, so this is a warning only)"
+            return "the row's label text could not be read inside its frame (the row has no text child in the tree, so it was read by OCR)"
         case .typedTextNotDrawn:
             return "OCR did not find the typed text drawn in the field although the tree reports it as the value"
                 + " (the field may have discarded the input)"

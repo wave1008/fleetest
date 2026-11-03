@@ -124,16 +124,17 @@ extension StepExecutorTests {
         }
     }
 
-    /// 別の文字が読めた行は警告(赤にしない)。FM は呼ばない
-    func testRowReadAsOtherTextWarnsWithoutCallingFM() async throws {
+    /// 別の文字が読めた行は赤(注記つき・失敗文言に読めた文字)。FM は呼ばない
+    func testRowReadAsOtherTextFailsWithoutCallingFM() async throws {
         let png = try renderedRowPNG("Different Words")
         let (status, calls, notes) = try await rowOCROutcomeWithinBudget(png)
-        XCTAssertEqual(calls, 0, "行の警告の段では FM を呼ばない \(status) \(notes)")
-        guard case .passed = status else { XCTFail("警告にとどめるはず: \(status)"); return }
+        XCTAssertEqual(calls, 0, "行の確かめでは FM を呼ばない \(status) \(notes)")
+        guard case .failed(let message) = status else { XCTFail("赤のはず: \(status)"); return }
+        XCTAssertTrue(message.contains("Different Words") && message.contains("judged by OCR"), message)
         XCTAssertTrue(notes.contains(.rowLabelNotRead), "\(notes)")
     }
 
-    /// 1行も読めない行(文字を描かないセル)は警告しない。FM は呼ばない
+    /// 1行も読めない行(文字を描かないセル)は赤にしない。FM は呼ばない
     func testRowWithNoReadableTextHasNoWarningAndNoFM() async throws {
         let png = try renderedRowPNG(nil)
         let (status, calls, notes) = try await rowOCROutcomeWithinBudget(png)

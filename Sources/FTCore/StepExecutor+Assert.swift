@@ -124,26 +124,23 @@ extension StepExecutor {
                            + " (\(Int(c.x)), \(Int(c.y))) is outside the screen, so it is not visible"
                            + " (scroll it into view before this step)")
         }
-        // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませる**が、見えていないと判定しても赤にせず警告にする**
-        // (`OcclusionEligibility.isLabelledRowWithoutText`。新しい検知は警告から)。Tier-0 の画面外は上で赤にしたまま
-        // 行の警告は OCR の段だけで決める(FM は呼ばない)ので、OCR の段が無効な構成では行の確かめ自体を走らせない
-        let rowWarningOnly = !isAndroid && occlusionOCRMode != .off
+        // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませて見えていなければ赤(`OcclusionEligibility.isLabelledRowWithoutText`)。
+        // 判定は OCR の段だけ(FM は呼ばない)なので、OCR の段が無効な構成では行の確かめ自体を走らせない。
+        // 警告で入れ、11/3 の回帰の全数で誤った警告 0 件(真陽性 2 件 = 潰れた一覧の行・木の順で掴んだ見えない行)を確かめて赤へ上げた
+        let rowCheckByOCR = !isAndroid && occlusionOCRMode != .off
             && OcclusionEligibility.isLabelledRowWithoutText(element, expectedText: expectedText, in: elements)
         let status = try await occlusionFlipOnScreen(
             element: element, expectedText: expectedText, elements: elements, screen: screen,
             keyboardShown: keyboardShown, looseMatch: looseMatch, expectedIsUserText: expectedIsUserText,
-            rowWarningOnly: rowWarningOnly, phase: &phase)
-        if rowWarningOnly, case .failed? = status {
-            noteCodesThisStep.insert(.rowLabelNotRead)
-            return nil
-        }
+            rowCheckByOCR: rowCheckByOCR, phase: &phase)
+        if rowCheckByOCR, case .failed? = status { noteCodesThisStep.insert(.rowLabelNotRead) }
         return status
     }
 
-    /// `occlusionFlip` の Tier-0 より後ろ(足切り・インク・OCR・FM)。rowWarningOnly は呼び手が失敗を警告へ替える行
+    /// `occlusionFlip` の Tier-0 より後ろ(足切り・インク・OCR・FM)。rowCheckByOCR は OCR の読みだけで決める行
     private func occlusionFlipOnScreen(element: ElementInfo, expectedText: String, elements: [ElementInfo],
                                        screen: FTRect, keyboardShown: Bool, looseMatch: Bool,
-                                       expectedIsUserText: Bool, rowWarningOnly: Bool,
+                                       expectedIsUserText: Bool, rowCheckByOCR: Bool,
                                        phase: inout PhaseAccumulator) async throws -> StepResult.Status? {
         let clock = ContinuousClock()
         // 文字の型でない要素(行・ボタン)は、同じ label の文字の子を1つだけ持つならその子で確かめる
@@ -166,8 +163,8 @@ extension StepExecutor {
         }
         // 足切り: label が verbatim 描画されない要素(アイコン/画像/絵文字/結合セマンティクス)は
         // FM で約50%誤反転する(実機確認)ため対象外=素通り(pass)。textEquals の期待値は結合規則を外す。
-        // 行(rowWarningOnly)は型で落とさず、ラベルの規則(結合・記号のみ)だけを当てる
-        guard OcclusionEligibility.eligible(type: rowWarningOnly ? "staticText" : element.type, label: expectedText,
+        // 行(rowCheckByOCR)は型で落とさず、ラベルの規則(結合・記号のみ)だけを当てる
+        guard OcclusionEligibility.eligible(type: rowCheckByOCR ? "staticText" : element.type, label: expectedText,
                                             isUserText: expectedIsUserText,
                                             value: element.value, placeholder: element.placeholder,
                                             web: element.web).ok
@@ -326,11 +323,13 @@ extension StepExecutor {
         }
         // OCR の読みだけの判定。**FM の段が使えるときは赤でも FM に回す**(ユーザー決定。最終判定は下の突き合わせ)。
         // 読んでいない(nil)は judge が判定不能を返す
-        // 行の警告は**ここで OCR の読みだけで決める**(FM は呼ばない)。読めた文字があるのに期待文字列が無い・先頭だけのときだけ警告。
-        // 1行も読めない行はラベルが文字として描かれていない(アイコン・画像・色の箱のセル)ので警告しない
-        if rowWarningOnly {
-            return OCROnlyVisibility.rowLabelNotRead(lines: ocrReading?.lines, expected: expectedText)
-                ? .failed("row label not read") : nil
+        // 行は**ここで OCR の読みだけで決める**(FM は呼ばない)。読めた文字があるのに期待文字列が無い・先頭だけのときだけ赤。
+        // 1行も読めない行はラベルが文字として描かれていない(アイコン・画像・色の箱のセル)ので赤にしない
+        if rowCheckByOCR {
+            guard OCROnlyVisibility.rowLabelNotRead(lines: ocrReading?.lines, expected: expectedText) else { return nil }
+            let read = (ocrReading?.lines ?? []).map { "\"\($0)\"" }.joined(separator: ", ")
+            return .failed("text visibility check failed (on screen): present in the tree but the row's label \"\(expectedText)\""
+                + " is not drawn in its frame — the text read there is \(read) (judged by OCR)")
         }
         let ocrOnly = ocrOnlyOutcome(ocrReading: ocrReading, expectedText: expectedText, sd: sd,
                                      screenshot: screenshot, element: element, screen: screen)

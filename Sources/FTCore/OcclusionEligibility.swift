@@ -41,8 +41,8 @@ public enum OcclusionEligibility {
     private static let rowTypes: Set<String> = ["clickable", "cell"]
 
     /// 期待文字列と同じ label を持ち、**文字の型の子孫を1つも持たない**行(セル)か。iOS の in-app の木は行の文字を
-    /// 子に出さないので `sameLabelTextDescendant` が届かない。この行は枠で可視性を読ませるが、**見えていないと判定しても
-    /// 赤にせず警告(`StepNote.rowLabelNotRead`)**にする(呼び手 `occlusionFlip`)。DSL の `occlusionFlip` が唯一の呼び手
+    /// 子に出さないので `sameLabelTextDescendant` が届かない。この行は枠で可視性を OCR の段だけで読ませ、見えていなければ赤
+    /// (注記 `StepNote.rowLabelNotRead`)。DSL の `occlusionFlip` が唯一の呼び手
     public static func isLabelledRowWithoutText(_ element: ElementInfo, expectedText: String,
                                                 in elements: [ElementInfo]) -> Bool {
         guard rowTypes.contains(element.type), element.label == expectedText, !expectedText.isEmpty else { return false }

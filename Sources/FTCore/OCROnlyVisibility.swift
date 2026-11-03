@@ -41,7 +41,7 @@ public enum OCROnlyVisibility {
         }
     }
 
-    /// 文字の子を持たない行(iOS のセル)の警告 `row-label-not-read` を出すか。FM は使わない。
+    /// 文字の子を持たない行(iOS のセル)を見えていないと判定するか(赤 + 注記 `row-label-not-read`)。FM は使わない。
     /// 警告するのは**読めた文字があるのに期待文字列が丸ごとは読めない**(別の文字・先頭だけ・省略)ときだけ。
     /// nil(読んでいない)と空(1行も読めない = ラベルが文字として描かれていない行)は警告しない
     public static func rowLabelNotRead(lines: [String]?, expected: String) -> Bool {
