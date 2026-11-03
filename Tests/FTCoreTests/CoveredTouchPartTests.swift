@@ -136,6 +136,18 @@ final class CoveredTouchPartTests: XCTestCase {
         XCTAssertEqual(rect.height, 80)
     }
 
+    /// クリックを付けた Android の TextView の行(木では staticText)が下のバーに潜った形: 覆いが入力欄でなければ見えている部分を押す
+    /// (型だけで外すとバーのボタンを押した)
+    func testTextTypedRowUnderABarStillUsesTheVisiblePart() {
+        let row = el(1, "staticText", id: "row_text", FTRect(x: 100, y: 2000, width: 800, height: 200))
+        let bar = el(2, "button", id: "bottom_b", FTRect(x: 0, y: 2080, width: 1080, height: 320))
+        guard case .visiblePart(let rect, _)? = TapTargetGeometry.coveredTouch(
+            for: row, in: [row, bar], screen: screen, inferring: true, scale: 3) else {
+            return XCTFail("文字の型の行でも覆いがボタンなら見えている部分を押す")
+        }
+        XCTAssertEqual(rect.height, 80)
+    }
+
     func testUncoveredTargetIsNil() {
         let target = el(1, "button", id: "btn", FTRect(x: 100, y: 1000, width: 800, height: 100))
         let tab = el(2, "button", id: "tab_home", FTRect(x: 0, y: 2200, width: 1080, height: 200))

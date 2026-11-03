@@ -34,4 +34,25 @@ final class InAppRetapBeforeTextTests: XCTestCase {
             if let gate, let tap { XCTAssertLessThan(gate.lowerBound, tap.lowerBound, "\(name) の FTSynthTap は判定の後ろ") }
         }
     }
+
+    /// 焦点を動かしうる要求(pressEnter 等)を挟んだら記録を捨てる(探索: tap(姓) → pressEnter → clearInput(姓) が叩き直さずに
+    /// 名を消して ok)。読むだけ・記録を作る tap・記録を使う type / clear は残す
+    func testPriorTapRecordIsKeptOnlyAcrossReadsAndTheTextRequests() {
+        for (method, path) in [("GET", "/snapshot"), ("GET", "/status"), ("POST", "/tap"), ("POST", "/type"), ("POST", "/clear")] {
+            XCTAssertTrue(FocusLanding.keepsPriorTapRecord(method: method, path: path), path)
+        }
+        for path in ["/pressEnter", "/hidekeyboard", "/swipe", "/drag", "/press", "/doubletap", "/rotate", "/tapprobe", "/pinch"] {
+            XCTAssertFalse(FocusLanding.keepsPriorTapRecord(method: "POST", path: path), path)
+        }
+    }
+
+    /// 配線: 要求の入口で判定し、ref の無い type / clear も記録を捨てる
+    func testRouterAndRefLessTextRequestsDropTheRecord() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let bridge = try String(contentsOf: root.appendingPathComponent("InAppBridge/Sources/InAppBridge.swift"),
+                                encoding: .utf8)
+        XCTAssertTrue(bridge.contains("if !FocusLanding.keepsPriorTapRecord(method: req.method, path: req.path) { lastRefTap = nil }"))
+        XCTAssertEqual(bridge.components(separatedBy: "if req.ref == nil { lastRefTap = nil }").count - 1, 2)
+    }
 }

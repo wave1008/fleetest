@@ -127,6 +127,7 @@ final class FTInAppBridge {
         requestGeneration &+= 1
         lastSettleCapped = false
         skipSettle = req.skipSettle
+        if !FocusLanding.keepsPriorTapRecord(method: req.method, path: req.path) { lastRefTap = nil }
         do {
             switch (req.method, req.path) {
             case ("GET", "/status"): return handleStatus()
@@ -1036,6 +1037,7 @@ final class FTInAppBridge {
         // 追記になる(inapp F5)ので、同じ状況だけ挿入の直前に空にして本物と揃える
         var replacesSecureText = false
         var tappedField = false
+        if req.ref == nil { lastRefTap = nil }
         if let ref = req.ref {
             try requireExpectedRef(ref, expect: req.expect)
             var point = CGPoint.zero
@@ -1105,6 +1107,7 @@ final class FTInAppBridge {
 
     private func handleClear(_ body: Data) throws -> InAppHTTPServer.Response {
         let req = try decode(ClearRequest.self, body)
+        if req.ref == nil { lastRefTap = nil }
         if let ref = req.ref {
             try requireExpectedRef(ref, expect: req.expect)
             var point = CGPoint.zero

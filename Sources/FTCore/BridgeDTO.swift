@@ -450,6 +450,14 @@ extension FocusLanding {
         priorTapLanded && receiverPresent
     }
 
+    /// 直前の ref の tap の記録(`priorTapLanded` の材料)を、この要求の前に残すか。残すのは読むだけの要求(GET)・記録を作る `/tap`・
+    /// 記録を使う `/type` `/clear`(ref の無い打鍵・消去は呼び手が捨てる)だけ。それ以外(pressEnter・hideKeyboard・払い 等)は焦点を
+    /// 動かしうるので捨てる = 次の type / clear は欄を叩き直す(残すと、pressEnter で焦点が次の欄へ移った後の clearInput が
+    /// 叩き直さずに次の欄を消して ok を返した)
+    public static func keepsPriorTapRecord(method: String, path: String) -> Bool {
+        method == "GET" || path == "/tap" || path == "/type" || path == "/clear"
+    }
+
     /// **直前の ref の tap が、いま叩き直している欄へ焦点を立てていたか**(`landed` を通さずに焦点の着地とする)。
     /// 叩き直しは焦点のある欄を叩くので受け口が動かない。Flutter の値入りの欄は木で `other`(入力欄と申告されない)・
     /// 木の枠は欄の実際の箱より小さく下にずれ(実測 E2EX-Flutter: 木 (16,271 370x10)・受け口は箱の左上 (16,249))、

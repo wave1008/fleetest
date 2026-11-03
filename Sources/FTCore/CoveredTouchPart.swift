@@ -23,8 +23,10 @@ extension TapTargetGeometry {
         //   断る・対象を包む祖先が対象を丸ごと引く・平たい木で無関係のボタンを祖先と読む(タブの中の文字が最前面の形は従来の扱い)
         guard BridgeSnapshotThinning.operableTypes.contains(over.type) else { return nil }
         let targetLineage = TapTargetGeometry.lineage(of: element, in: elements)
-        // ①対象が押せる型でない: 手前の押せる要素こそが受け手のことがある(OTP の箱の上に重ねた透明な入力欄)
-        guard BridgeSnapshotThinning.operableTypes.contains(element.type) else { return nil }
+        // ①対象が押せる型でなく、覆いが入力欄: 手前の入力欄こそが受け手(OTP の箱の上に重ねた透明な入力欄)。型だけで外すと、
+        //   クリックを付けた Android の TextView の行(木では staticText)を外して下のバーのボタンを押した
+        if !BridgeSnapshotThinning.operableTypes.contains(element.type),
+           SnapshotRenderer.textInputTypes.contains(over.type) { return nil }
         // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・
         //   「一番下へ」)を行が覆っていると読み違える(iOS は z を出さず、Flutter の Android は描画順を申告しない = z が木の順)
         let targetAncestors = Set(ancestors(of: element, in: elements).map(\.ref))
