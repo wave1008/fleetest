@@ -254,6 +254,13 @@ def run_tests(wt, log, filt, products):
                 out.flush()
                 code = subprocess.run(["swift", "test", "--skip-build", "--parallel", "--filter", filt],
                                       cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True).returncode
+                # `--skip-build` はパッケージの全テストのバンドルがある前提で走る。新しい worktree では他のバンドルが無く
+                # 「xctest doesn't exist」で落ちる(変異の前から赤 = 判定できない)ので、その回だけ全体ビルドの swift test へ戻す
+                if code != 0 and re.search(r"\.xctest\b.*(doesn't exist|does not exist)", open(log, errors="replace").read()):
+                    out.write(f"==> swift test --filter {filt} (a test bundle was missing — building them all)\n")
+                    out.flush()
+                    code = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
+                                          cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True).returncode
     body = open(log, errors="replace").read()
     if build_failed is None:
         build_failed = code != 0 and "Build complete!" not in body
