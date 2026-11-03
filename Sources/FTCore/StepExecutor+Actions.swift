@@ -873,6 +873,21 @@ extension StepExecutor {
                 // 足さない**(上ですでに1回付けている。ここで足すと同文が2回付く)
                 adviseTarget(TapTargetGeometry.occlusionAdvisory(
                     for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
+                // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない。OI-157)
+                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                case .none: break
+                case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
+                case .part(let rect, let note):
+                    let bandY = await bottomBandTapY(for: rect, screen: snapshot.screen)
+                    let viaXCUITest = try await gestureWithFallback(phase: &phase) {
+                        try await $0.press(x: rect.centerX, y: bandY ?? rect.centerY, duration: hold)
+                    }
+                    return StepOutcome(status: .passed, healedStep: healedStep,
+                                       healedByFingerprint: healedByFingerprint,
+                                       driverFallback: Self.joinNotes(driverFallback, note,
+                                                                      bandY != nil ? Self.bottomBandTapNote : nil,
+                                                                      viaXCUITest ? "fell back to XCUITest" : nil))
+                }
                 if typeDriverGestures.contains("press") || pressFallbackLatched, let td = typeDriver,
                    try await pressViaTypeDriver(td, step: step, phase: &phase) {
                     return StepOutcome(status: .passed, healedStep: healedStep,
@@ -940,7 +955,7 @@ extension StepExecutor {
             }
             if keyboardClosedThisStep {
                 switch try await settleCoverAfterKeyboardClose(
-                    element, in: snapshot, step: step, verb: "touching", relift: relitAfterClose,
+                    element, in: snapshot, step: step, verb: "touching", relift: relitAfterClose, allowsVisiblePart: true,
                     snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 case .refused(let message, let kind):
                     return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
@@ -979,7 +994,20 @@ extension StepExecutor {
             // **見えている部分が床に届かず、中心が容器の外に落ちる要素は撃たない**(撃つ先が無い)。
             // ref で撃つと frame の中心 = 容器の外の余白を叩き、何も押さないまま ok になる。
             // 床は既存の `minimumVisibleTapExtent`(新しい定数は置かない)を木の単位へ換算したもの
-            if keyboardVisiblePartTap == nil, let thin = TapTargetGeometry.thinVisibleSliver(
+            // **操作可能な帯(タブ列・バー)に中心を覆われたままの対象**(送っても外れなかった・キーボードを閉じた後に覆われた)は、
+            // 覆われていない見えている部分を押す。床に届かなければ撃たない(中心を撃つとタブへ遷移していた。OI-157)
+            var coverVisiblePartTap: FTRect?
+            if keyboardVisiblePartTap == nil {
+                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                case .none: break
+                case .part(let rect, let note):
+                    coverVisiblePartTap = rect
+                    driverFallback = Self.joinNotes(driverFallback, note)
+                case .refuse(let message):
+                    return StepOutcome(status: failedWithoutKind(message))
+                }
+            }
+            if keyboardVisiblePartTap == nil, coverVisiblePartTap == nil, let thin = TapTargetGeometry.thinVisibleSliver(
                 for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
                 scale: driver.pointScale) {
                 return StepOutcome(status: failedWithoutKind(Self.thinVisibleSliverMessage(step, thin: thin)))
@@ -991,6 +1019,10 @@ extension StepExecutor {
             if let kbVisible = keyboardVisiblePartTap {
                 // キーボードを閉じられず、上端だけが見えている。中心はキーボードの下なので見えている部分を撃つ
                 try await actingDriver.tap(x: kbVisible.centerX, y: kbVisible.centerY)
+            } else if let coverPart = coverVisiblePartTap {
+                let bandY = await bottomBandTapY(for: coverPart, screen: snapshot.screen)
+                try await actingDriver.tap(x: coverPart.centerX, y: bandY ?? coverPart.centerY)
+                if bandY != nil { driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote) }
             } else if let visible = Self.visibleTapRect(for: element, in: snapshot.elements,
                                                 inferring: step.containerInference ?? true,
                                                 scale: driver.pointScale) {
@@ -1208,7 +1240,7 @@ extension StepExecutor {
             }
             if keyboardClosedThisStep {
                 switch try await settleCoverAfterKeyboardClose(
-                    element, in: snapshot, step: step, verb: "typing", relift: relitAfterClose,
+                    element, in: snapshot, step: step, verb: "typing", relift: relitAfterClose, allowsVisiblePart: false,
                     snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 case .refused(let message, let kind):
                     return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
@@ -1362,7 +1394,7 @@ extension StepExecutor {
             }
             if keyboardClosedThisStep {
                 switch try await settleCoverAfterKeyboardClose(
-                    element, in: snapshot, step: step, verb: "clearing", relift: relitAfterClose,
+                    element, in: snapshot, step: step, verb: "clearing", relift: relitAfterClose, allowsVisiblePart: false,
                     snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
                 case .refused(let message, let kind):
                     return StepOutcome(status: kind.map { failed($0, message) } ?? .failed(message))
@@ -1413,11 +1445,24 @@ extension StepExecutor {
             let pinchTapNote = isAndroid && ["pinchOut", "pinchIn"].contains(action)
                 && PinchGesture.mayRegisterAsTapOnAndroid(element)
                 ? PinchGesture.androidTapRiskNote(element) : nil
-            let outcome = try await performGesture(action, step: step, target: element.frame,
+            // doubleTap は指で触る操作: 操作可能な帯に中心を覆われたままなら見えている部分を叩く(薄ければ撃たない。OI-157)。
+            // pinch / swipeBy / gesture は対象の枠そのものが入力なので対象外
+            var gestureTarget = element.frame
+            var coverPartNote: String?
+            if action == "doubleTap" {
+                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                case .none: break
+                case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
+                case .part(let rect, let note):
+                    gestureTarget = rect
+                    coverPartNote = note
+                }
+            }
+            let outcome = try await performGesture(action, step: step, target: gestureTarget,
                                                    identifier: element.identifier,
                                                    viewport: snapshot.screen, phase: &phase)
             guard case .passed = outcome.status else { return outcome }
-            driverFallback = Self.joinNotes(driverFallback, gestureAdvisory, pinchTapNote,
+            driverFallback = Self.joinNotes(driverFallback, gestureAdvisory, pinchTapNote, coverPartNote,
                                             outcome.driverFallback)
         case "swipeElementToElement":
             guard let endLocator = step.endLocator else {
@@ -1456,18 +1501,27 @@ extension StepExecutor {
                 KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
                     .advisory(for: endElement, operation: "drag end"))
             let swipeDuration = step.duration ?? tunables.defaultSwipeDuration
+            // 始点は指を下ろす点: 操作可能な帯に中心を覆われたままなら見えている部分から(薄ければ撃たない。OI-157)
+            var startFrame = element.frame
+            switch coveredTouchPlan(element, in: snapshot, step: step) {
+            case .none: break
+            case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
+            case .part(let rect, let note):
+                startFrame = rect
+                driverFallback = Self.joinNotes(driverFallback, note)
+            }
             let startY: Double
             if let band = await driver.backGestureEdgeWidths(), band.bottom > 0 {
                 let cleared = ScrollGeometry.clearingBottomGestureBand(
-                    y: element.frame.centerY, viewport: snapshot.screen, bottom: band.bottom)
+                    y: startFrame.centerY, viewport: snapshot.screen, bottom: band.bottom)
                 startY = cleared.y
                 if cleared.moved { driverFallback = Self.joinNotes(driverFallback, Self.bottomBandNote) }
             } else {
-                startY = element.frame.centerY
+                startY = startFrame.centerY
             }
             do {
                 start = clock.now
-                try await actingDriver.drag(fromX: element.frame.centerX, fromY: startY,
+                try await actingDriver.drag(fromX: startFrame.centerX, fromY: startY,
                                             toX: endElement.frame.centerX, toY: endElement.frame.centerY,
                                             pressSeconds: FlowStep.defaultDragPressSeconds, durationSeconds: swipeDuration)
                 phase.actionMs += Self.ms(clock.now - start)

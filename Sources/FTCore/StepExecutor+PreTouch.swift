@@ -102,7 +102,7 @@ extension StepExecutor {
         }
         if keyboardClosed, liftsTarget {
             switch try await settleCoverAfterKeyboardClose(element, in: snapshot, step: step, verb: "touching",
-                                                           relift: liftsTarget, snapshotSource: snapshotSource, phase: &phase) {
+                                                           relift: liftsTarget, allowsVisiblePart: true, snapshotSource: snapshotSource, phase: &phase) {
             case .refused(let message, let kind): return .refused(message, kind: kind)
             case .settled(let settledElement, let settledSnapshot, let note):
                 element = settledElement
@@ -112,6 +112,32 @@ extension StepExecutor {
         }
         return .proceed(element: element, snapshot: snapshot,
                         note: notes.compactMap { $0 }.isEmpty ? nil : notes.compactMap { $0 }.joined(separator: " / "))
+    }
+
+    /// **指で触る操作が、中心を操作可能な帯に覆われた対象をどう撃つか**(判定は `TapTargetGeometry.coveredTouch` = FTCore に1か所)。
+    /// 撃つ段の直前に、送り(`liftCoveredTarget`)・キーボードを閉じる段を終えた木で呼ぶ。
+    /// 覆われていなければ `.none`(従来どおり)。見えている部分が床以上なら `.part`(その中心を押す・注記つき)、
+    /// 届かなければ `.refuse`(撃たない = 覆いを押して遷移するのを防ぐ。文言は事実だけ)
+    enum CoveredTouchPlan {
+        case none
+        case part(FTRect, note: String)
+        case refuse(String)
+    }
+
+    func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> CoveredTouchPlan {
+        switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
+                                              inferring: step.containerInference ?? true, scale: driver.pointScale) {
+        case nil: return .none
+        case .visiblePart(let rect, let over)?:
+            return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"
+                + " (the target's centre is under it, which scrolling its container did not clear)")
+        case .tooThin(let visible, let floor, let over)?:
+            func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
+            return .refuse("did not touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)),"
+                + " which scrolling its container did not clear, and only \(n(visible)) of the target is left uncovered"
+                + " (the minimum is \(n(floor)), in the snapshot's units), so a touch would land on \(TapTargetGeometry.describe(over))"
+                + " (nothing was touched)")
+        }
     }
 
     enum KeyboardCloseSettle {
@@ -126,7 +152,7 @@ extension StepExecutor {
     /// 送って外せたときだけ撃つ。`relift` = 呼び手がこの直前に送りを済ませていない(閉じた後の木へは未適用)。
     /// 断るときは何も撃たない(送りのドラッグは撃っている)。
     func settleCoverAfterKeyboardClose(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, verb: String,
-                                       relift: Bool, snapshotSource: CoverLiftSnapshotSource,
+                                       relift: Bool, allowsVisiblePart: Bool, snapshotSource: CoverLiftSnapshotSource,
                                        phase: inout PhaseAccumulator) async throws -> KeyboardCloseSettle {
         var element = element
         var snapshot = snapshot
@@ -142,7 +168,9 @@ extension StepExecutor {
             snapshot = lifted.snapshot
             note = lifted.note
         }
-        if let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
+        // 指で触る操作(allowsVisiblePart)は覆われていない見えている部分を押すか、薄ければ撃つ段(`coveredTouchPlan`)が断る。
+        // 打鍵・消去は欄の ref に撃つので部分を選べない = 覆われたままなら断る
+        if !allowsVisiblePart, let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
             let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
             return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
                 + " (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
