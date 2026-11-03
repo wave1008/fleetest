@@ -126,7 +126,8 @@ extension StepExecutor {
         }
         // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませる**が、見えていないと判定しても赤にせず警告にする**
         // (`OcclusionEligibility.isLabelledRowWithoutText`。新しい検知は警告から)。Tier-0 の画面外は上で赤にしたまま
-        let rowWarningOnly = !isAndroid
+        // 行の警告は OCR の段だけで決める(FM は呼ばない)ので、OCR の段が無効な構成では行の確かめ自体を走らせない
+        let rowWarningOnly = !isAndroid && occlusionOCRMode != .off
             && OcclusionEligibility.isLabelledRowWithoutText(element, expectedText: expectedText, in: elements)
         let status = try await occlusionFlipOnScreen(
             element: element, expectedText: expectedText, elements: elements, screen: screen,
@@ -325,6 +326,12 @@ extension StepExecutor {
         }
         // OCR の読みだけの判定。**FM の段が使えるときは赤でも FM に回す**(ユーザー決定。最終判定は下の突き合わせ)。
         // 読んでいない(nil)は judge が判定不能を返す
+        // 行の警告は**ここで OCR の読みだけで決める**(FM は呼ばない)。読めた文字があるのに期待文字列が無い・先頭だけのときだけ警告。
+        // 1行も読めない行はラベルが文字として描かれていない(アイコン・画像・色の箱のセル)ので警告しない
+        if rowWarningOnly {
+            return OCROnlyVisibility.rowLabelNotRead(lines: ocrReading?.lines, expected: expectedText)
+                ? .failed("row label not read") : nil
+        }
         let ocrOnly = ocrOnlyOutcome(ocrReading: ocrReading, expectedText: expectedText, sd: sd,
                                      screenshot: screenshot, element: element, screen: screen)
         // FM の段を使わない(fmTextVisibilityCheck off・delegate 無し)/ 使えない(macOS 26・陽性対照の注入)なら
