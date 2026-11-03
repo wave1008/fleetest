@@ -30,14 +30,14 @@ struct DiagnosticsScreen: View {
                 Thread.sleep(forTimeInterval: 3)
             }
             TaggedButton(tag: Tags.btnCrash, label: "クラッシュさせる") { confirmOpen = true }
-            // **撃つ直前に権限アラートが出る**形(_disabled/93 の陽性対照)。対象を 4 秒止め、その間の 1.5 秒後に写真を要求する
+            // **撃つ直前に権限アラートが出る**形(_disabled/93 の陽性対照)。対象を 6 秒止め、その間の 3 秒後に写真を要求する
             // = ツールのタップは「有効になるのを待つ」間にアラートに覆われ、ステップ開始の確認をすり抜けて撃つ直前に遮られる。
             // 秒数は「開始の確認(約 0.1 秒)より後・有効になる前」にアラートを出すための並び(要求からアラートまでは実測 0.5 秒前後)
             TaggedText(tag: Tags.txtLateTarget, text: lateTargetResult)
             TaggedButton(tag: Tags.btnPhotosThenUnlock, label: "写真を要求して対象を止める") {
                 lateTargetEnabled = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { requestPhotos() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { lateTargetEnabled = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { requestPhotos() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) { lateTargetEnabled = true }
             }
             TaggedButton(tag: Tags.btnLateTarget, label: "遅れて押せる対象", enabled: lateTargetEnabled) {
                 lateTargetResult = "late=tapped"
