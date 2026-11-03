@@ -24,7 +24,8 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: snapshot.elements)?.ref, 11)
     }
 
-    /// 推測の段(④ placeholder・⑤ 焦点)は、横の位置・幅が違う欄を同じ欄とは読まない(OI-77)
+    /// 推測の段(④ placeholder)は、横の位置・幅が違う欄を同じ欄とは読まない。焦点のある同じ型の欄では引かない(縦に並んだフォームは
+    /// 列がそろうので区別にならず、焦点が次の欄へ移った画面で別の欄に打つ。OI-77)
     func testGuessingStepsOnlyAcceptAMoveAlongTheKeyboardsAxis() {
         let before = field(3, y: 400, placeholder: "入力")
         var sideways = field(11, y: 250, placeholder: "入力")
@@ -36,6 +37,6 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedElsewhere]), "幅の違う焦点の欄")
         var focusedAbove = field(13, y: 250, placeholder: nil)
         focusedAbove.focused = true
-        XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: [focusedAbove])?.ref, 13, "縦に動いただけなら引く")
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedAbove]), "焦点のある同じ列の欄でも引かない")
     }
 }
