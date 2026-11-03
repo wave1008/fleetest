@@ -1903,11 +1903,28 @@ final class BridgeRouter {
     /// A: 撃つ直前に木を1回撮り直し、控えた要素がまだ同じ枠に居なければ撃たずに断る。**ライブクエリは撃たない**
     /// (`app.snapshot()` 1回 = 30〜120ms)。撮り直した木で ref の表を置き換えない(番号がずれる)
     /// **撮り直しが失敗したら断らずに通す**(確かめられないことを理由に、従来は打てていた操作を失敗させない)
-    func requireRefStillOnScreen(_ app: XCUIApplication, ref: Int) throws {
-        guard let stored = refElements[ref], let fresh = try? captureOnce(app) else { return }
+    /// 撮り直した木を返す(type / clear が焦点のタップの前にキーボードの枠を見るのに使う。撮り直しを2回払わない)
+    @discardableResult
+    func requireRefStillOnScreen(_ app: XCUIApplication, ref: Int) throws -> Captured? {
+        guard let stored = refElements[ref], let fresh = try? captureOnce(app) else { return nil }
         if !StaleRefGuard.isStillPresent(stored, in: fresh.elements) {
             throw refuseStaleRef(ref, "it is no longer on the screen at the same place")
         }
+        return fresh
+    }
+
+    /// type / clear が焦点を当てるタップの点(`FocusLanding.focusTapPoint` = in-app と同じ規則)。中心が撮り直した木のキーボードの
+    /// 下なら見えている帯へ寄せ、欄が丸ごと下なら撃たずに断る。中心のまま撃つとキーを押し、焦点のある別の欄へ打鍵が入る
+    /// (CMP: Enter で焦点が次の欄へ移った直後の clearInput が「か」を押して名の欄を書き換えた。ホストの木ではまだ覆われていなかった
+    /// = 古い木なので staleRef。ホストは撮り直して容器を送ってから撃つ)。
+    /// XCTest の枠は焦点が移る間に画面の外で来ることがある(素通りする)ので、inapp-boost モードではホストが in-app の枠でも確かめる
+    /// (`StepExecutor.focusTapUnderKeyboard`)
+    func focusTapPointOffKeyboard(ref: Int, centre: CGPoint, fresh: Captured?) throws -> CGPoint {
+        guard let field = refFrames[ref] else { return centre }
+        let keyboard = fresh?.keyboardFrame
+        if let point = FocusLanding.focusTapPoint(centre: centre, field: field, keyboard: keyboard) { return point }
+        throw refuseStaleRef(ref, "it is now entirely under the software keyboard (field \(NSCoder.string(for: field)),"
+            + " keyboard \(keyboard.map { NSCoder.string(for: $0) } ?? "-")), so the tap would press a key")
     }
 
     /// 測定用(`TapRequest.probeStaleRef`): 木を1回撮り直し、控えた要素がもう同じ枠に居なければ `.movedBeforeFire`。

@@ -62,16 +62,17 @@ extension BridgeRouter {
         let req = try decode(TypeRequest.self, body)
         let app = try requireForegroundAppForInput()
         // 打つ前のタップは ref の枠を撃つ。画面が切り替わった後に古い枠を撃つと、そこに居る別の物を押す
+        var fresh: Captured?
         if let ref = req.ref {
             try requireExpectedRef(ref, expect: req.expect)
-            try requireRefStillOnScreen(app, ref: ref)
+            fresh = try requireRefStillOnScreen(app, ref: ref)
         }
         let focusBefore = focusBeforeTappingNonInput(app, ref: req.ref)
         var tapped: CGPoint?
         if let ref = req.ref, alreadyFocusedInput(app, ref) == nil {
             // キーボードの出現は直後の typeText の前の待ち(上限つき)が待つ(keyboards クエリは
             // キーボードが別プロセス扱いのため常にタイムアウトし逆効果だった。2026-07-12実測)
-            let point = try resolvePoint(ref: ref, x: nil, y: nil)
+            let point = try focusTapPointOffKeyboard(ref: ref, centre: try resolvePoint(ref: ref, x: nil, y: nil), fresh: fresh)
             Self.tapBeforeTyping(coordinate(app, point))
             tapped = point
             moveCursorToEndAfterRefocus(app, ref: ref)
@@ -436,11 +437,11 @@ extension BridgeRouter {
         var fieldTappedAt: Date?
         if let ref = req.ref {
             try requireExpectedRef(ref, expect: req.expect)
-            try requireRefStillOnScreen(app, ref: ref)
+            let fresh = try requireRefStillOnScreen(app, ref: ref)
             if let live = alreadyFocusedInput(app, ref) {
                 focused = live
             } else {
-                let point = try resolvePoint(ref: ref, x: nil, y: nil)
+                let point = try focusTapPointOffKeyboard(ref: ref, centre: try resolvePoint(ref: ref, x: nil, y: nil), fresh: fresh)
                 let focusBefore = Self.focusMark(app)
                 Self.tapBeforeTyping(coordinate(app, point))
                 fieldTappedAt = Date()

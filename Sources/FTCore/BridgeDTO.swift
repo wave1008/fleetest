@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 249
+    public static let bridgeProtocolVersion = 257
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -469,11 +469,31 @@ extension FocusLanding {
     /// (同じ id の要素の今の枠。中身の入力欄は包みの枠に収まる)。
     /// **受け口を tap の直後に採って「それ以降動かない」とは見ない**: Flutter の焦点は tap から遅れて移る(直後に採ると
     /// まだ前の欄で、実測 6 回中 2 回が外れた)
+    /// ③受け口が面積を持つ(CMP・UIKit)なら、**いまの受け口が叩き直す欄の中心を含む**。in-app から見えない経路
+    /// (XCUITest で打った Enter)で焦点が次の欄へ移っても記録は残るので、①②だけだと移った先の欄を消した(OI-163 ①)。
+    /// 面積の無い受け口(Flutter の 1x1)は位置で欄を指さないので見ない。含まなければ叩き直す(`focusTapPoint` が点を決める)
     public static func priorTapLanded(receiverMovedSinceThatTap: Bool, recordedTargetNow: CGRect?,
-                                      current: CGRect?) -> Bool {
+                                      current: CGRect?, receiverNow: CGRect?) -> Bool {
         guard receiverMovedSinceThatTap, let target = recordedTargetNow, let current else { return false }
         let t = sameElementFrameTolerance
-        return target.insetBy(dx: -t, dy: -t).contains(current)
+        guard target.insetBy(dx: -t, dy: -t).contains(current) else { return false }
+        guard let receiverNow, receiverNow.width > 1, receiverNow.height > 1 else { return true }
+        return receiverNow.insetBy(dx: -t, dy: -t).contains(CGPoint(x: current.midX, y: current.midY))
+    }
+
+    /// 焦点を当てる合成タップの点が見えている帯として要る最小の厚み(pt)。`TapTargetGeometry.minimumVisibleTapExtent` と同じ値
+    /// (in-app はこのファイルだけをコンパイルするので写す。等号は `FocusTapPointTests` が固定)
+    public static let minimumVisibleBand: CGFloat = 8
+
+    /// type / clear が欄へ焦点を当てる合成タップの点。中心がキーボードの下なら、欄のうちキーボードより上に見えている帯
+    /// (厚み `minimumVisibleBand` 以上)の中央へ寄せる。帯が無ければ nil = 撃たない(呼び手は staleRef で断り、ホストが容器を送る)。
+    /// 中心のまま撃つとキーを押し、焦点のある別の欄へ打鍵が入る(CMP: Enter で焦点が次の欄へ移った後の clearInput が「か」を押した。
+    /// 合成タップでもキーに当たった)。複数行の欄は上側が見えたまま中心が縁にかかる(帯を叩けば焦点は正しく立つ)
+    public static func focusTapPoint(centre: CGPoint, field: CGRect, keyboard: CGRect?) -> CGPoint? {
+        guard let keyboard, keyboard.contains(centre) else { return centre }
+        let band = min(field.maxY, keyboard.minY) - field.minY
+        guard band >= minimumVisibleBand else { return nil }
+        return CGPoint(x: centre.x, y: field.minY + band / 2)
     }
 }
 

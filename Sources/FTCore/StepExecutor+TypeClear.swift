@@ -397,17 +397,34 @@ extension StepExecutor {
 
     /// typeDriver で clearInput を試みる。ref はブリッジごとに別名前空間なので typeDriver 側 snapshot で
     /// 取り直す(typeViaTypeDriver と同じ理由)。解決できなければ false(呼び出し側で再スロー)。
-    func clearViaTypeDriver(_ td: AppDriver, step: FlowStep,
+    /// `keyboardWitness` = 主ドライバ(inapp-boost モードの in-app)が申告したキーボードの枠。XCUITest の枠は Enter で焦点が
+    /// 次の欄へ移る間に画面の外(y=891)で来るので、撮り直した欄の位置をこちらの枠と突き合わせる。中心が覆われていて焦点も
+    /// 無ければ撃たずに引き直す(焦点を当てるタップがキーを押し、焦点のある別の欄を書き換えた = OI-163 ①)
+    func clearViaTypeDriver(_ td: AppDriver, step: FlowStep, keyboardWitness: FTRect?,
                                     phase: inout PhaseAccumulator) async throws -> Bool {
         let clock = ContinuousClock()
         var start = clock.now
         let snapshot = try await td.snapshot()
         phase.snapshotMs += Self.ms(clock.now - start)
         guard let resolved = LocatorResolver.resolveDetailed(step: step, in: snapshot) else { return false }
+        if let refusal = Self.focusTapUnderKeyboard(resolved.element, keyboardWitness: keyboardWitness,
+                                                    screen: snapshot.screen) {
+            throw DriverError.staleRef(detail: refusal)
+        }
         start = clock.now
         try await td.clearInput(ref: resolved.element.ref)
         phase.actionMs += Self.ms(clock.now - start)
         return true
+    }
+
+    /// 焦点の無い欄の中心が(主ドライバの申告した)キーボードの下か。撃つ前の断りの文言(nil = 撃ってよい)。
+    /// 焦点のある欄はドライバが叩かずに消すので見ない(`reachPastKeyboard` の同じ例外)
+    static func focusTapUnderKeyboard(_ element: ElementInfo, keyboardWitness: FTRect?, screen: FTRect?) -> String? {
+        guard element.focused != true, let kb = keyboardWitness,
+              screen.map({ KeyboardWait.onScreen(kb, screen: $0) }) ?? true,
+              TapTargetGeometry.keyboardCoveredAdvisory(element, keyboardFrame: kb, operation: "clear") != nil else { return nil }
+        return "the field's centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is under the software keyboard"
+            + " in the fresh tree, so tapping it would press a key; nothing was sent"
     }
 
     enum ClearOutcome {
@@ -627,7 +644,7 @@ extension StepExecutor {
     /// **clearInput ケースと type の replace 前処理の両方がここを通る**(どのパスなら検証されるかに
     /// 例外を作らない、という既存の規律を replace 経路にも効かせるため)
     func performClearInput(element: ElementInfo, step: FlowStep, actingDriver: AppDriver,
-                                   in elements: [ElementInfo],
+                                   in elements: [ElementInfo], keyboardWitness: FTRect?,
                                    phase: inout PhaseAccumulator) async throws -> ClearOutcome {
         let clock = ContinuousClock()
         let (before, refreshed) = try await valueBeforeClear(element: element, step: step,
@@ -645,7 +662,7 @@ extension StepExecutor {
             actingSnapshot = check.snapshot ?? actingSnapshot
             if let residual = check.residual {
                 guard let td = typeDriver,
-                      try await clearViaTypeDriver(td, step: step, phase: &phase) else {
+                      try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase) else {
                     return .failed("clearInput reported success but the value remained: \"\(residual)\"")
                 }
                 if let residual2 = try await residualClearValue(td, step: step,
@@ -677,7 +694,7 @@ extension StepExecutor {
             if TypeReadback.isPositivelyNonTextInput(element, selfRendered: uiFramework?.isSelfRendered) {
                 return .failed(Self.nonTextInputFallbackRefusal(element, in: elements, action: "clearInput"))
             }
-            guard try await clearViaTypeDriver(td, step: step, phase: &phase) else {
+            guard try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase) else {
                 if DriverError.isTextInputFallback(error) {
                     return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: true))
                 }

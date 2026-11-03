@@ -1138,7 +1138,7 @@ extension StepExecutor {
             if step.replace == true {
                 switch try await performClearInput(element: element, step: step,
                                                    actingDriver: actingDriver, in: snapshot.elements,
-                                                   phase: &phase) {
+                                                   keyboardWitness: snapshot.keyboardFrame, phase: &phase) {
                 case .cleared(let fallback, let actingSnapshot):
                     replaceFallbackNote = fallback
                     // **消去の後は撮り直した木で引き直してから撃つ**(ClearOutcome の doc)。最後の撮影が別のドライバなら
@@ -1416,13 +1416,13 @@ extension StepExecutor {
             }
             lastFieldTouchTarget = element
             if let td = typeDriver, preferTypeDriver,
-               try await clearViaTypeDriver(td, step: step, phase: &phase) {
+               try await clearViaTypeDriver(td, step: step, keyboardWitness: snapshot.keyboardFrame, phase: &phase) {
                 return StepOutcome(status: .passed, healedStep: healedStep,
                                    healedByFingerprint: healedByFingerprint, driverFallback: driverFallback)
             }
             switch try await performClearInput(element: element, step: step,
                                                actingDriver: actingDriver, in: snapshot.elements,
-                                               phase: &phase) {
+                                               keyboardWitness: snapshot.keyboardFrame, phase: &phase) {
             case .cleared(let fallback, _):
                 driverFallback = Self.joinNotes(driverFallback, fallback)
             case .failed(let message):

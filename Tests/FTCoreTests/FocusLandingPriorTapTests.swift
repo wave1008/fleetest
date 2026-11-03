@@ -32,28 +32,58 @@ final class FocusLandingPriorTapTests: XCTestCase {
 
     func testPriorTapThatMovedTheReceiverLandsOnItsOwnTarget() {
         XCTAssertTrue(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true,
-                                                  recordedTargetNow: wrapperNow, current: innerField))
+                                                  recordedTargetNow: wrapperNow, current: innerField, receiverNow: nil))
     }
 
     /// 容器を叩いて焦点が動かなかった(その tap の前から受け口が動いていない)形は通さない
     func testReceiverThatDidNotMoveDidNotLand() {
         XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: false,
-                                                   recordedTargetNow: wrapperNow, current: innerField))
+                                                   recordedTargetNow: wrapperNow, current: innerField, receiverNow: nil))
     }
 
     /// 直前の tap の対象の外の要素(別の欄・外側の容器)は、その焦点のものではない
     func testElementOutsideThePriorTargetDidNotLand() {
         let otherField = CGRect(x: 16, y: 355, width: 370, height: 56)
         XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true,
-                                                   recordedTargetNow: wrapperNow, current: otherField))
+                                                   recordedTargetNow: wrapperNow, current: otherField, receiverNow: nil))
         let container = CGRect(x: 0, y: 114, width: 402, height: 678)
         XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true,
-                                                   recordedTargetNow: wrapperNow, current: container))
+                                                   recordedTargetNow: wrapperNow, current: container, receiverNow: nil))
+    }
+
+    /// 面積のある受け口(CMP)は、いまの受け口が叩き直す欄の上にあるときだけ着地とみなす。Enter(XCUITest 経由で in-app から
+    /// 見えない)で焦点が次の欄へ移った後の clear が、移った先の欄を消した(OI-163 ①)。1x1 の受け口(Flutter)は見ない
+    func testReceiverWithAreaMustStillBeOnTheField() {
+        let first = CGRect(x: 16, y: 608, width: 370, height: 64)
+        let second = CGRect(x: 16, y: 684, width: 370, height: 64)
+        XCTAssertTrue(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: first,
+                                                  current: first, receiverNow: first))
+        XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: first,
+                                                   current: first, receiverNow: second), "焦点は次の欄へ移っている")
+        XCTAssertTrue(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: wrapperNow,
+                                                  current: innerField, receiverNow: receiver), "1x1 の受け口は位置で欄を指さない")
+    }
+
+    /// 焦点のタップの点: 覆われていなければ中心・中心が覆われて上側が見えていれば見えている帯の中央・丸ごと覆われていれば撃たない
+    func testFocusTapPointAvoidsTheKeyboard() {
+        let kb = CGRect(x: 0, y: 538, width: 402, height: 336)
+        let multiline = CGRect(x: 16, y: 484, width: 370, height: 112)
+        XCTAssertEqual(FocusLanding.focusTapPoint(centre: CGPoint(x: 201, y: 540), field: multiline, keyboard: kb),
+                       CGPoint(x: 201, y: 511), "上側の見えている帯 484〜538 の中央")
+        let first = CGRect(x: 16, y: 608, width: 370, height: 64)
+        XCTAssertNil(FocusLanding.focusTapPoint(centre: CGPoint(x: 201, y: 640), field: first, keyboard: kb), "丸ごと下")
+        let sliver = CGRect(x: 16, y: 532, width: 370, height: 64)
+        XCTAssertNil(FocusLanding.focusTapPoint(centre: CGPoint(x: 201, y: 564), field: sliver, keyboard: kb), "帯が床未満")
+        XCTAssertEqual(FocusLanding.focusTapPoint(centre: CGPoint(x: 201, y: 300), field: first, keyboard: kb),
+                       CGPoint(x: 201, y: 300))
+        XCTAssertEqual(FocusLanding.focusTapPoint(centre: CGPoint(x: 201, y: 640), field: first, keyboard: nil),
+                       CGPoint(x: 201, y: 640))
+        XCTAssertEqual(Double(FocusLanding.minimumVisibleBand), TapTargetGeometry.minimumVisibleTapExtent)
     }
 
     func testMissingFramesDidNotLand() {
-        XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: nil, current: innerField))
-        XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: wrapperNow, current: nil))
+        XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: nil, current: innerField, receiverNow: nil))
+        XCTAssertFalse(FocusLanding.priorTapLanded(receiverMovedSinceThatTap: true, recordedTargetNow: wrapperNow, current: nil, receiverNow: nil))
     }
 
     /// in-app が型を使って決める(使わない版では判定が働かない)

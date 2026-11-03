@@ -533,7 +533,8 @@ final class FTInAppBridge {
         let now = Self.receiverMark()
         let moved = recorded.before.map { before in now.map { before.id != $0.id || before.rect != $0.rect } ?? true }
             ?? (now != nil)
-        return FocusLanding.priorTapLanded(receiverMovedSinceThatTap: moved, recordedTargetNow: recordedNow, current: current)
+        return FocusLanding.priorTapLanded(receiverMovedSinceThatTap: moved, recordedTargetNow: recordedNow, current: current,
+                                           receiverNow: now?.rect)
     }
 
     private func handleTap(_ body: Data) throws -> InAppHTTPServer.Response {
@@ -1049,6 +1050,7 @@ final class FTInAppBridge {
                 landedByPriorTap = self.priorTapLanded(ref: ref)
                 // 直前の tap が焦点を立てた欄は叩き直さない(CMP は焦点のある欄の2度目のタップで編集メニューを出し、残る)
                 if !FocusLanding.skipsRetapBeforeText(priorTapLanded: landedByPriorTap, receiverPresent: before != nil) {
+                    point = try self.focusTapPointOffKeyboard(ref: ref, centre: point)
                     FTSynthTap(window, point)
                 }
             }
@@ -1118,6 +1120,7 @@ final class FTInAppBridge {
                 before = Self.receiverMark()
                 landedByPriorTap = self.priorTapLanded(ref: ref)
                 if !FocusLanding.skipsRetapBeforeText(priorTapLanded: landedByPriorTap, receiverPresent: before != nil) {
+                    point = try self.focusTapPointOffKeyboard(ref: ref, centre: point)
                     FTSynthTap(window, point)
                 }
             }
@@ -1945,6 +1948,19 @@ final class FTInAppBridge {
         guard abs(live.width - snapshot.width) <= 1, abs(live.height - snapshot.height) <= 1,
               live.width > 0, live.height > 0 else { return point }
         return CGPoint(x: point.x + (live.minX - snapshot.minX), y: point.y + (live.minY - snapshot.minY))
+    }
+
+    /// main で呼ぶ。type / clear の焦点のタップの点(`FocusLanding.focusTapPoint`)。欄が丸ごとキーボードの下なら**何も撃たずに**断る
+    /// (ホストの木では覆われていなかった = 古い木なので staleRefReason。ホストは撮り直して容器を送る)。
+    /// 欄の枠は撃つ直前の位置(`pointFollowingMove` と同じく、控えの枠を中心の移動分だけずらす)
+    private func focusTapPointOffKeyboard(ref: Int, centre: CGPoint) throws -> CGPoint {
+        guard let stored = frames[ref] else { return centre }
+        let field = stored.offsetBy(dx: centre.x - stored.midX, dy: centre.y - stored.midY)
+        let keyboard = Self.keyboardFrameIfVisible()
+        if let point = FocusLanding.focusTapPoint(centre: centre, field: field, keyboard: keyboard) { return point }
+        throw InAppError(422, "reference [\(ref)] is now entirely under the software keyboard (field \(Self.describe(field)),"
+            + " keyboard \(keyboard.map(Self.describe) ?? "-")); nothing was sent — take a new snapshot and bring the field"
+            + " out from under the keyboard first", reason: BridgeAPI.staleRefReason)
     }
 
     /// ホストが添えた期待(identifier・型)が直近の `/snapshot` の控えと矛盾するなら、**何も撃たずに**断る
