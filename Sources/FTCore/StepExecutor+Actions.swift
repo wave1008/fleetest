@@ -873,7 +873,7 @@ extension StepExecutor {
                 // 足さない**(上ですでに1回付けている。ここで足すと同文が2回付く)
                 adviseTarget(TapTargetGeometry.occlusionAdvisory(
                     for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
-                // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない。OI-157)
+                // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない)
                 switch coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
@@ -995,7 +995,7 @@ extension StepExecutor {
             // ref で撃つと frame の中心 = 容器の外の余白を叩き、何も押さないまま ok になる。
             // 床は既存の `minimumVisibleTapExtent`(新しい定数は置かない)を木の単位へ換算したもの
             // **操作可能な帯(タブ列・バー)に中心を覆われたままの対象**(送っても外れなかった・キーボードを閉じた後に覆われた)は、
-            // 覆われていない見えている部分を押す。床に届かなければ撃たない(中心を撃つとタブへ遷移していた。OI-157)
+            // 覆われていない見えている部分を押す。床に届かなければ撃たない(中心を撃つとタブへ遷移していた)
             var coverVisiblePartTap: FTRect?
             // 中心が容器の外に落ちる要素は、下の「容器の中の見えている部分」(visibleTapRect)が先(撃つ点はそちらが決める)
             if keyboardVisiblePartTap == nil,
@@ -1447,7 +1447,7 @@ extension StepExecutor {
             let pinchTapNote = isAndroid && ["pinchOut", "pinchIn"].contains(action)
                 && PinchGesture.mayRegisterAsTapOnAndroid(element)
                 ? PinchGesture.androidTapRiskNote(element) : nil
-            // doubleTap は指で触る操作: 操作可能な帯に中心を覆われたままなら見えている部分を叩く(薄ければ撃たない。OI-157)。
+            // doubleTap は指で触る操作: 操作可能な帯に中心を覆われたままなら見えている部分を叩く(薄ければ撃たない)。
             // pinch / swipeBy / gesture は対象の枠そのものが入力なので対象外
             var gestureTarget = element.frame
             var coverPartNote: String?
@@ -1503,7 +1503,7 @@ extension StepExecutor {
                 KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
                     .advisory(for: endElement, operation: "drag end"))
             let swipeDuration = step.duration ?? tunables.defaultSwipeDuration
-            // 始点は指を下ろす点: 操作可能な帯に中心を覆われたままなら見えている部分から(薄ければ撃たない。OI-157)
+            // 始点は指を下ろす点: 操作可能な帯に中心を覆われたままなら見えている部分から(薄ければ撃たない)
             var startFrame = element.frame
             switch coveredTouchPlan(element, in: snapshot, step: step) {
             case .none: break

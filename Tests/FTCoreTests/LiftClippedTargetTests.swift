@@ -117,7 +117,7 @@ final class LiftClippedTargetTests: XCTestCase {
     /// **送って撮り直しても外れなければ、撃つ前の木の ref では撃たない**。ブリッジは撮り直しで ref を振り直す
     /// (in-app は最後の /snapshot の表しか持たない)ので、撃つ前の木の ref は表に無ければ 404、
     /// 有れば別の要素を指す(E2EY-iOS の OTP の箱で 404 が 3/3 再現)。外れなかった対象は覆われていない部分を押すか、
-    /// 床に届かなければ撃たない(OI-157)
+    /// 床に届かなければ撃たない
     func testShootsTheRefFromTheRetakenTreeWhenStillCovered() async throws {
         let driver = DragCountedDriver(screen: screen, statesByDragCount: [
             scene(rowFrame: clippedByTop, rowRef: 10),
@@ -151,7 +151,7 @@ final class LiftClippedTargetTests: XCTestCase {
     }
 
     /// 送っても本当に何も動かない(y も height も不変)なら 1 回で諦める。中心は覆われたままなので覆いの名前を言う
-    /// (覆われていない部分が床に届かなければ撃たずに失敗 = OI-157)
+    /// (覆われていない部分が床に届かなければ撃たずに失敗)
     func testGivesUpWhenNothingMoves() async throws {
         let driver = DragCountedDriver(screen: screen,
                                        statesByDragCount: [scene(rowFrame: clippedByTop)])

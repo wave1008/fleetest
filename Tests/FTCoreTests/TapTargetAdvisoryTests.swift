@@ -1236,7 +1236,7 @@ final class TapAdvisoryWiringTests: XCTestCase {
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target")))
         let note = outcome.driverFallback ?? ""
         XCTAssertTrue(note.contains("#overlay"), "overlayCovering の注記が出ていない: \(note)")
-        // 中心を覆われた対象は覆われていない部分を押す(OI-157)。押した事実と覆いの名前を言う
+        // 中心を覆われた対象は覆われていない部分を押す。押した事実と覆いの名前を言う
         XCTAssertTrue(note.contains("not covered by #overlay"), note)
     }
 
@@ -1255,7 +1255,7 @@ final class TapAdvisoryWiringTests: XCTestCase {
         let driver = FixedSnapshotDriver(overlayCoveringSnapshot())
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target"), duration: 0.5))
-        // 中心を覆われた対象の長押しは、覆われていない部分を座標で押す(OI-157。ref では撃たない)
+        // 中心を覆われた対象の長押しは、覆われていない部分を座標で押す(ref では撃たない)
         XCTAssertEqual(driver.presses, 0, "覆われた中心へ ref で長押しした")
         XCTAssertEqual(driver.coordinatePresses, 1, "覆われていない部分を座標で長押ししていない: \(outcome.status)")
         let note = outcome.driverFallback ?? ""
