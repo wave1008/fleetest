@@ -88,7 +88,7 @@ docs/user-docs/reference/testclass/testcode_structure_ja.md と docs/user-docs/r
 
 | コマンド | 説明 |
 |---|---|
-| `tap(sel, holdSeconds: 0, maxGestureSeconds:containerInference:linkText:settle:waitSeconds:scroll:maxSwipes:)` | タップ。**`linkText:` を渡すと、解決した要素の中でその文字列が描かれている位置を押す**(文中リンク。CMP・Android View の `ClickableSpan`・SwiftUI の `AttributedString` リンクは木にノードが出ない)。位置は ①木(要素の子孫で label/value が一致するもの。Flutter・RN・UITextView のリンク)②OCR(`RegionText.locateLink`。要素の画素を `RecognizeTextRequest` で読み、候補の文字列内の `linkText` の範囲を `boundingBox(for:)` で矩形にして中心を押す。拡大段は `upscaleLadder`)の順で、**見つからなければ失敗**(OCR が読めた行を添える。要素の中心へ落とさない)。押すのは座標タップの既存経路で、決め方は注記 `link text "…" located by tree|ocr`。`ft_batch` の `tap` も `linkText:` を受ける(セレクタ形だけ。座標形と併記は拒否)。`holdSeconds` を 0 より大きくすると長押し(既定 0 = 通常タップ)。**秒数の上限は既定 10 秒・`maxGestureSeconds:` でこの1コマンドだけ最大 60 秒まで上書きできる**(ユーザー決定 2026-09-24。方針の判定はホスト側 = StepExecutor / MCP・ライブ操作の入口。ランナーと Android の注入層は 60 秒を絶対上限として最後に断る — 桁外れの秒数を素通しすると、シミュレータの testmanagerd が合成列を作り続けて肥大化するため)。**対象がまだ無効なら操作可能になるまで待ってから撃つ**(下記)。**同じセレクタに複数一致し、先頭が手前の要素に覆われていれば覆われていない一致を撃つ(注記付き。判定は `OcclusionGeometry.uncoveredAlternative`)・全部の一致が覆われていれば撃たずに失敗(`coveringWhenEveryMatchIsCovered`。一致が1件なら従来どおり警告して撃つ)**。**起動したアプリのプロセスが居ないのに木の持ち主が別のアプリなら撃たずに失敗(`AppProcessGone`。検証・`scrollTo`・MCP の `ft_batch` / `ft_scroll_to` も同じ)**。**下端のタブバー等に潜っているだけなら、撃つ前に容器を1回送って外す**(下記「縁の帯に潜った対象」)。`containerInference:` は下記「容器の推測に依存する補正」参照。**Android のジェスチャーナビで要素の中心が画面下端のジェスチャ帯の中なら、要素の帯より上に出ている部分の中心を押す**(帯の中の押下はホーム・アプリ切替に取られる。長押し・`doubleTap` も同じ。注記 `touched the part of the element above the Android bottom gesture band`。要素全体が帯の中なら中心のまま) |
+| `tap(sel, holdSeconds: 0, maxGestureSeconds:containerInference:linkText:settle:waitSeconds:scroll:maxSwipes:)` | タップ。**`linkText:` を渡すと、解決した要素の中でその文字列が描かれている位置を押す**(文中リンク。CMP・Android View の `ClickableSpan`・SwiftUI の `AttributedString` リンクは木にノードが出ない)。位置は ①木(要素の子孫で label/value が一致するもの。Flutter・RN・UITextView のリンク)②OCR(`RegionText.locateLink`。要素の画素を `RecognizeTextRequest` で読み、候補の文字列内の `linkText` の範囲を `boundingBox(for:)` で矩形にして中心を押す。拡大段は `upscaleLadder`)の順で、**見つからなければ失敗**(OCR が読めた行を添える。要素の中心へ落とさない)。押すのは座標タップの既存経路で、決め方は注記 `link text "…" located by tree|ocr`。`ft_batch` の `tap` も `linkText:` を受ける(セレクタ形だけ。座標形と併記は拒否)。`holdSeconds` を 0 より大きくすると長押し(既定 0 = 通常タップ)。**秒数の上限は既定 10 秒・`maxGestureSeconds:` でこの1コマンドだけ最大 60 秒まで上書きできる**(ユーザー決定 2026-09-24。方針の判定はホスト側 = StepExecutor / MCP・ライブ操作の入口。ランナーと Android の注入層は 60 秒を絶対上限として最後に断る — 桁外れの秒数を素通しすると、シミュレータの testmanagerd が合成列を作り続けて肥大化するため)。**対象がまだ無効なら操作可能になるまで待ってから撃つ**(下記)。**同じセレクタに複数一致し、先頭が手前の要素に覆われていれば覆われていない一致を撃つ(注記付き。判定は `OcclusionGeometry.uncoveredAlternative`)・全部の一致が覆われていれば撃たずに失敗(`coveringWhenEveryMatchIsCovered`。一致が1件なら下記「縁の帯に潜った対象」の扱い = 覆われていない見えている部分を押す・薄ければ撃たない)**。**起動したアプリのプロセスが居ないのに木の持ち主が別のアプリなら撃たずに失敗(`AppProcessGone`。検証・`scrollTo`・MCP の `ft_batch` / `ft_scroll_to` も同じ)**。**下端のタブバー等に潜っているだけなら、撃つ前に容器を1回送って外す**(下記「縁の帯に潜った対象」)。`containerInference:` は下記「容器の推測に依存する補正」参照。**Android のジェスチャーナビで要素の中心が画面下端のジェスチャ帯の中なら、要素の帯より上に出ている部分の中心を押す**(帯の中の押下はホーム・アプリ切替に取られる。長押し・`doubleTap` も同じ。注記 `touched the part of the element above the Android bottom gesture band`。要素全体が帯の中なら中心のまま) |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:settle:waitSeconds:scroll:maxSwipes:) { }` | **押している間だけ**出る部品(ツールチップ等)の確認用。`tap(holdSeconds:)` は1ステップの中で押して離すので、離した後にしか検証が走らずこの種の部品を確認できない。**指を離すのはブリッジ**(`holdSeconds` 秒後に自分の時計で。応答はそれを待たない)なので、ブロックの中身は指が下がっている間に走る。ブロックが `holdSeconds` より長く掛かったら、それ以降は指が上がった状態でブロックの残りが進む(失敗にはしない・注記 `hold-ended-before-block`)。**入れ子にはできない**(前の hold が離れる前に次の hold を送ると失敗する)。**指を置く前に OCR の暖機を済ませる**(ブロックの最初の可視性検証が暖機を待つと、その間に指が離れる)。対象が解決できなければブロックは実行しない。**iOS の in-app ブリッジはこの押下を持たない**ので、inapp-boost モードではこの1操作だけ XCUITest ブリッジで行う(`tap` の長押しと同じフォールバック) |
 | `select(sel, requireVisible:waitSeconds:scroll:maxSwipes:)` | 要素を**掴むだけ**(デバイス操作なし)。`exist` と違い**検証ではない**ので、レポートに検証ステップとして残らない。値の読み出し(`.text`/`.value`/`.id`)や検証コマンドへのチェーンの起点に使う。**掴めなければ失敗させず空要素を返す** — 「見つからない」も「見つかったが見えない(覆われ・見切れ)」も同じ形で返るので、呼び出し側は `.isEmpty` で分岐する(`exist` はどちらも失敗へ反転するので意味が違う)。**在ることを保証したいなら `exist`**。`requireVisible: false` で可視性照合自体を外す |
 | `lastElement` | **直前に掴んだ要素**(引数なし)。要素を1つに定めて解決したコマンド(`select` / `exist` / `tap` / `type` / `waitForDisplay` / テキスト・値の検証など)が通るたびに差し替わる。差し替えないのは**要素を1つに定めない** `notExist` / `countIs` と、**セレクタを取らない** `swipe` / `launchApp` 等。**値は掴んだ時点の凍結値**で、掴んだ後にスクロールやタップを挟むと古い値を読む(下記「掴んだ要素の値を読む」)。**scene を跨ぐと空**・**掴めなかったコマンドは空で上書き**・**一度も掴んでいなければ空+警告**。**セレクタで1要素を掴む操作(`tap` / `type(sel, …)` / `clearInput(sel)` / `doubleTap(sel)` / `swipeBy(sel, …)` / `pinchOut(sel)` / `pinchIn(sel)` / `gesture(sel)` / `swipeElementToElement` / `scrollTo`)は掴んだ要素を返す**ので、`tap("#btn_ok").textIs("OK")` と直接チェーンできる(`exist` / `select` と同じ。暗黙の `lastElement` に頼らず対象がソースに見える) |
@@ -448,7 +448,7 @@ withScrollDown {
 
 `tap` は**撃つ前に容器を1回だけ送って外そうとします**。外せたらそのまま対象を撃ち、
 ステップの注記に `scrolled the container to bring the target out from under <要素>` が残ります。
-**外せないと分かる形では送りません**(従来どおり警告を付けて撃ちます):
+**外せないと分かる形では送りません**(下の「外せなかったとき」へ進みます):
 
 - 覆いが操作可能でない(暗幕・装飾)
 - 覆いが容器の半分以上を占める(全画面のモーダル)
@@ -458,8 +458,14 @@ withScrollDown {
 送ります)。キーボードが容器の半分より高い背の低い画面でも送って外します(`type` / `clearInput` も同じ。外せなければ
 上の表の「ソフトキーボードの下の対象」の手順で閉じます)。
 
-**拒否はしません** —— 覆われた要素をわざと叩いて「反応しないこと」を確かめる書き方を
-壊さないためです。払うのは注記が出る画面だけで、ドラッグ1回と木1枚です。
+**外せなかったとき**(送らない形・送っても中心が覆われたまま)は、**中心を撃ちません** —— 撃つと手前の要素
+(タブ等)に当たって別の画面へ遷移するためです。対象の枠(画面と容器で切った範囲)から手前に描かれた覆いを全部除いた残り(対象を丸ごと包む相手は除かない)のうち、
+幅・高さとも床(`minimumVisibleTapExtent` = 8pt / Android は 8dp を px へ換算)以上で最大の部分の中心を押し、注記
+`touched the part of the target not covered by <要素>` を残します。残りが床に届かなければ**何も押さずに失敗**にします
+(文言 `did not touch … only N of the target is left uncovered (the minimum is M …)`)。長押し・`doubleTap`・`holdStart`・
+ドラッグの始点も同じ判定(`TapTargetGeometry.coveredTouch`)。中心が容器の外に落ちる要素は、先に「容器の中の見えている部分」
+を押す既存の扱いが決めます。**MCP の `ft_tap`(ref)は今は警告して中心を撃ちます**(揃えるのは別の変更)。
+払うのは注記が出る画面だけで、ドラッグ1回と木1枚です。
 
 ### 画面を覆うモーダル(別ウィンドウ)の扱い
 

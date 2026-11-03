@@ -130,11 +130,11 @@ extension StepExecutor {
         case nil: return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"
-                + " (the target's centre is under it, which scrolling its container did not clear)")
+                + " or anything else in front (the target's centre is under it)")
         case .tooThin(let visible, let floor, let over)?:
             func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
             return .refuse("did not touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)),"
-                + " which scrolling its container did not clear, and only \(n(visible)) of the target is left uncovered"
+                + " and only \(n(visible)) of the target is left uncovered by what is in front of it"
                 + " (the minimum is \(n(floor)), in the snapshot's units), so a touch would land on \(TapTargetGeometry.describe(over))"
                 + " (nothing was touched)")
         }

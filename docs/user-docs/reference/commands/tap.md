@@ -29,6 +29,10 @@ tap(x: 120, y: 640)                    // only when no selector is available
 - **When several elements match the selector**: if the first one is covered by another element in front and an uncovered
   match exists, that one is tapped (with a note). If every match is covered and there is nowhere to press, nothing is tapped
   and the step fails.
+- **When the target's centre is under a tab bar, fixed footer or other element in front**: the list is scrolled once to clear
+  it. If that does not clear it, the centre is not pressed (it would hit the tab in front and open another screen); the uncovered,
+  visible part of the target is pressed instead (with a note). If that visible part is too thin (under 8pt; 8dp on Android), nothing is tapped
+  and the step fails. Long press and `doubleTap` behave the same.
 - **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
   to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
   another app is never operated by mistake).

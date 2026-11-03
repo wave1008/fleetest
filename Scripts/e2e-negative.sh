@@ -129,15 +129,16 @@ clear_photos_alert() {  # $1 = デバイス名, $2 = bundle
   "$FLEETEST" run --project "$CLEANUP_PROJECT" --profile "$CLEANUP_PROFILE" --runner local --device "$1" \
     --scenario "$CLEANUP_CLASS" < /dev/null > /dev/null 2>&1 \
     || echo "⚠️ 写真の権限アラートを閉じられなかった($1。次の対照に持ち越しうる)" >&2
-  udid="$(python3 - "$ROOT/TestProjects/$CLEANUP_PROJECT/profiles/runs/$CLEANUP_PROFILE.json" "$1" <<'PY'
+  # プロファイルは udid を持たない(名前だけ)ので、手元の Simulator の一覧から名前で引く
+  udid="$(xcrun simctl list devices -j | python3 -c '
 import json, sys
-for d in json.load(open(sys.argv[1]))["devices"]:
-    if d["name"] == sys.argv[2] and d.get("machine", "local") == "local" and d.get("udid"):
-        print(d["udid"]); break
-PY
-)"
+for ds in json.load(sys.stdin)["devices"].values():
+    for d in ds:
+        if d["name"] == sys.argv[1] and d.get("isAvailable", True):
+            print(d["udid"]); sys.exit(0)
+' "$1")"
   if [ -z "$udid" ]; then
-    echo "⚠️ $1 の udid が $CLEANUP_PROFILE に無いので、写真の権限を未決定へ戻せない" >&2
+    echo "⚠️ $1 という名前の Simulator が手元に無いので、写真の権限を未決定へ戻せない" >&2
     return 0
   fi
   xcrun simctl privacy "$udid" reset photos "$2" \

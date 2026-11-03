@@ -1,4 +1,4 @@
-// 操作可能な帯(タブ列・上下のバー)に中心を覆われた対象の「覆われていない見えている部分」の判定(OI-157)。
+// 操作可能な帯(タブ列・上下のバー)に中心を覆われた対象の「覆われていない見えている部分」の判定。
 // 指で触る操作(tap・長押し・doubleTap・holdStart・ドラッグの始点)の DSL 全経路が共有する。
 // MCP の ft_tap(ref)は今は警告して中心を撃つ(`occlusionAdvisory` の overlayCovering)ので、この判定を呼ぶ変更は別途。
 extension TapTargetGeometry {
@@ -10,7 +10,7 @@ extension TapTargetGeometry {
     }
 
     /// 対象の中心を `overlayCoveringForUncover` が名指す覆いが覆っているときの判断(覆っていなければ nil)。
-    /// 残りは上・下・左・右の4片のうち、画面と容器(あれば)で切った後に幅・高さとも床以上のもの。
+    /// 残りは対象の枠を画面と容器(あれば)で切り、手前の覆いを全部引いた片のうち、幅・高さとも床以上で最大のもの。
     /// 床は `minimumVisibleTapExtent` × scale(新しい定数は置かない)。scale・inferring に既定値を置かない = 渡し忘れをコンパイルで止める
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double) -> CoveredTouch? {
@@ -21,21 +21,40 @@ extension TapTargetGeometry {
             area = ScrollGeometry.intersection(a, container)
         }
         guard let t = area else { return .tooThin(visible: 0, floor: floor, over: over) }
-        let o = ScrollGeometry.intersection(t, over.frame)
-            ?? FTRect(x: t.x, y: t.y, width: 0, height: 0)
-        let tr = t.x + t.width, tb = t.y + t.height
-        let or = o.x + o.width, ob = o.y + o.height
-        let pieces = [
-            FTRect(x: t.x, y: t.y, width: t.width, height: o.y - t.y),
-            FTRect(x: t.x, y: ob, width: t.width, height: tb - ob),
-            FTRect(x: t.x, y: o.y, width: o.x - t.x, height: o.height),
-            FTRect(x: or, y: o.y, width: tr - or, height: o.height),
-        ].filter { $0.width > 0 && $0.height > 0 }
+        // 中心を覆う1つだけでなく、手前に描かれて対象に掛かる要素を全部引く。1つだけ引くと、残りの片が隣のタブの下に
+        // 落ちて隣のタブを押した(実測・Flutter の横向き: 欄の左の片が #tab_home の下 = ホームへ遷移)。
+        // 対象を丸ごと包む相手はラッパーなので引かない(引くと何でも「薄い」になる)。スクロール容器・容器の外の残像も覆わない
+        let lineage = TapTargetGeometry.lineage(of: element, in: elements)
+        let covers = [over] + elements.filter { other in
+            other.ref != over.ref && other.ref != element.ref && !lineage.contains(other.ref)
+                && other.scrollable != true
+                && PaintOrder.drawnAbove(other, element)
+                && !TapTargetGeometry.contains(other.frame, element.frame)
+                && ScrollGeometry.intersection(other.frame, t) != nil
+                && !ContainerGeometry.isOutsideContainer(other, in: elements, screen: screen)
+        }
+        var pieces = [t]
+        for cover in covers {
+            pieces = pieces.flatMap { subtract(cover.frame, from: $0) }
+        }
         let best = pieces.map { (rect: $0, thickness: min($0.width, $0.height)) }
         if let pick = best.filter({ $0.thickness >= floor })
             .max(by: { $0.rect.width * $0.rect.height < $1.rect.width * $1.rect.height }) {
             return .visiblePart(pick.rect, over: over)
         }
         return .tooThin(visible: best.map(\.thickness).max() ?? 0, floor: floor, over: over)
+    }
+
+    /// `rect` から `hole` を引いた残り(上・下・左・右の最大4片。重ならなければ `rect` そのもの)
+    static func subtract(_ hole: FTRect, from rect: FTRect) -> [FTRect] {
+        guard let o = ScrollGeometry.intersection(rect, hole), o.width > 0, o.height > 0 else { return [rect] }
+        let rr = rect.x + rect.width, rb = rect.y + rect.height
+        let or = o.x + o.width, ob = o.y + o.height
+        return [
+            FTRect(x: rect.x, y: rect.y, width: rect.width, height: o.y - rect.y),
+            FTRect(x: rect.x, y: ob, width: rect.width, height: rb - ob),
+            FTRect(x: rect.x, y: o.y, width: o.x - rect.x, height: o.height),
+            FTRect(x: or, y: o.y, width: rr - or, height: o.height),
+        ].filter { $0.width > 0 && $0.height > 0 }
     }
 }

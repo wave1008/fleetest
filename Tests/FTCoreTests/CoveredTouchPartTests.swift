@@ -1,4 +1,4 @@
-// OI-157: 操作可能な帯(タブ列)に中心を覆われた対象の「覆われていない見えている部分」の判定の固定。
+// 操作可能な帯(タブ列)に中心を覆われた対象の「覆われていない見えている部分」の判定の固定。
 import XCTest
 @testable import FTCore
 
@@ -46,6 +46,40 @@ final class CoveredTouchPartTests: XCTestCase {
             for: target, in: elements, screen: screen, inferring: true, scale: 1) else {
             return XCTFail("scale 1 なら床 8 を超える")
         }
+    }
+
+    /// 実測の木(Flutter の横向き・2856x1280): 欄の中心を覆う #tab_controls だけを引くと、左右の片(各 95,424)が上の帯(83,328)
+    /// より広く、左の片 = #tab_home の下を押してホームへ遷移した。手前のタブを全部引けば、残るのは上の帯だけ
+    func testSiblingTabsAreSubtractedToo() {
+        let wide = FTRect(x: 0, y: 0, width: 2856, height: 1280)
+        let field = el(1, "textField", id: "field_password", FTRect(x: 204, y: 1032, width: 2604, height: 144))
+        let home = el(2, "button", id: "tab_home", FTRect(x: 156, y: 1064, width: 900, height: 144))
+        let controls = el(3, "button", id: "tab_controls", FTRect(x: 1056, y: 1064, width: 900, height: 144))
+        let about = el(4, "button", id: "tab_about", FTRect(x: 1956, y: 1064, width: 900, height: 144))
+        guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
+            for: field, in: [field, home, controls, about], screen: wide, inferring: true, scale: 3) else {
+            return XCTFail("上の帯 32px は床 24 以上")
+        }
+        XCTAssertEqual(over.identifier, "tab_controls")
+        XCTAssertEqual(rect, FTRect(x: 204, y: 1032, width: 2604, height: 32))
+        for tab in [home, controls, about] {
+            XCTAssertFalse(tab.frame.y <= rect.centerY && rect.centerY <= tab.frame.y + tab.frame.height,
+                           "押す点が \(tab.identifier ?? "") の下")
+        }
+    }
+
+    /// 対象を丸ごと包む手前の相手(ラッパー。ref が対象とタブの間 = 対象より手前・タブより奥)は引かない
+    /// (引くと残りが無くなり、押せる対象を断る)
+    func testEnclosingWrapperIsNotSubtracted() {
+        let target = el(1, "button", id: "btn_input_submit", FTRect(x: 100, y: 2000, width: 800, height: 200))
+        let wrapper = el(2, "other", id: "wrapper", FTRect(x: 0, y: 1900, width: 1080, height: 500))
+        let tab = el(3, "button", id: "tab_home", FTRect(x: 0, y: 2080, width: 1080, height: 320))
+        guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
+            for: target, in: [target, wrapper, tab], screen: screen, inferring: true, scale: 3) else {
+            return XCTFail("包む相手は覆いではない")
+        }
+        XCTAssertEqual(over.identifier, "tab_home")
+        XCTAssertEqual(rect.height, 80)
     }
 
     func testUncoveredTargetIsNil() {
