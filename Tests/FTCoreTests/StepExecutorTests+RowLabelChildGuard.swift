@@ -90,7 +90,8 @@ extension StepExecutorTests {
         return try await body()
     }
 
-    private func rowOCROutcome(_ png: Data, ocrMode: RegionTextGateMode = .on) async -> (StepResult.Status, Int, [StepNote]) {
+    private func rowOCROutcome(_ png: Data, ocrMode: RegionTextGateMode = .on,
+                               screenshots: ((Int) -> Void)? = nil) async -> (StepResult.Status, Int, [StepNote]) {
         var tree = rowOCRTree()
         tree[1].type = "clickable"
         let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [tree], screenshots: [png])
@@ -100,6 +101,7 @@ extension StepExecutorTests {
         executor.noteAppLaunched()
         let outcome = await executor.execute(FlowStep(assert: "textEquals", locator: FlowLocator(id: "row_01"),
                                                       expected: "Row One", timeout: 0, occlusionGuard: true))
+        screenshots?(primary.screenshotCallCount)
         return (outcome.status, delegate.visibleCalls, outcome.notes)
     }
 
@@ -129,11 +131,13 @@ extension StepExecutorTests {
         XCTAssertFalse(notes.contains(.rowLabelNotRead), "\(notes)")
     }
 
-    /// OCR の段が無効な構成では行の確かめ自体を走らせない(FM があっても呼ばない)
+    /// OCR の段が無効な構成では行の確かめ自体を走らせない(FM があっても呼ばない・絵も撮らない = 素通りの所要)
     func testRowCheckDoesNotRunWhenOCRIsOff() async throws {
         let png = try renderedRowPNG("Different Words")
-        let (status, calls, notes) = await withModelReady { await rowOCROutcome(png, ocrMode: .off) }
+        var shots = -1
+        let (status, calls, notes) = await withModelReady { await rowOCROutcome(png, ocrMode: .off, screenshots: { shots = $0 }) }
         XCTAssertEqual(calls, 0)
+        XCTAssertEqual(shots, 0, "行の確かめのために絵を撮った")
         guard case .passed = status else { XCTFail("\(status)"); return }
         XCTAssertFalse(notes.contains(.rowLabelNotRead))
     }

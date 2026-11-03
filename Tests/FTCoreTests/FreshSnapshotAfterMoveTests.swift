@@ -1,4 +1,4 @@
-// 直前のステップが画面を動かしたら、次のロケータ操作の解決の 1 枚はキャッシュを迂回して撮る
+// 直前のステップが画面を動かしうる操作(払い・tap 等)なら、次のロケータ操作の解決の 1 枚はキャッシュを迂回して撮る
 // (StepExecutor.nextResolveBypassesCache)。Android の a11y キャッシュはスクロール後に古い座標を
 // 返すことがあり、整定(新鮮な木)で止まったと確かめても、続く tap が素取得の古い座標を叩いていた。
 
@@ -29,20 +29,24 @@ final class FreshSnapshotAfterMoveTests: XCTestCase {
 
         guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertEqual(driver.bypassedSnapshotCount, afterScroll + 1, "tap の解決の 1 枚だけ迂回して撮るはず")
-        XCTAssertFalse(executor.nextResolveBypassesCache, "消費したら印は下りるはず")
+        XCTAssertTrue(executor.nextResolveBypassesCache, "印は解決で消費し、成功した tap 自身が次の解決のために立て直す")
     }
 
-    /// 直前が動かないステップ(tap → tap)なら迂回しない(通る側の固定費を増やさない)
-    func testTapWithoutAPrecedingMoveDoesNotBypass() async throws {
+    /// tap → tap: 最初の tap の解決は素取得、2 つ目の tap の解決の 1 枚は迂回(tap も画面を変える操作 = `StepAction.mayChangeScreen`)。
+    /// 素取得のままだと tap の前の古い木で「押せる」と読み、押せない骨組みの行を ok で撃った(CMP の Android・9/9)。
+    /// 費用は Android で操作の直後のロケータ操作 1 回あたり迂回の読み 1 回
+    func testTapAfterTapBypassesTheCacheOnce() async throws {
         let log = CallLog()
         let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[button()]])
         driver.bypassSupported = true
         let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
 
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "cb_agree")))
+        let afterFirst = driver.bypassedSnapshotCount
+        XCTAssertEqual(afterFirst, 0, "最初の tap の解決は素取得")
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "cb_agree")))
 
-        XCTAssertEqual(driver.bypassedSnapshotCount, 0, "動かしていないなら素取得のまま")
+        XCTAssertEqual(driver.bypassedSnapshotCount, 1, "2 つ目の tap の解決の 1 枚だけ迂回")
     }
 
     /// 迂回を持たないドライバ(iOS in-app / XCUITest)では印が立っても素取得(bypassesCache の真理値表)
