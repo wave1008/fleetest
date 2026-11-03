@@ -111,14 +111,19 @@ final class RemoteAlignPlanTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let empty = RemoteLayout(base: root.appendingPathComponent("runner").path, issuer: "alice", home: root.path)
-        let result = try Shell.runData(["/bin/sh", "-c", RemoteAlignPlan.probeCommand(layout: empty, developerDir: nil)])
-        let text = String(data: result.data, encoding: .utf8) ?? ""
-        XCTAssertEqual(text.split(separator: "\n", omittingEmptySubsequences: false).dropLast().count, 11, text)
-        let state = try XCTUnwrap(RemoteAlignPlan.parseProbe(text))
-        XCTAssertNil(state.tool)
-        XCTAssertNil(state.record)
-        XCTAssertNil(state.deferred)
-        XCTAssertFalse(state.binaryExists)
+        // ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh で同じ11行・空行なしを要る
+        for shell in ["/bin/sh", "/bin/zsh"] {
+            let result = try Shell.runData([shell, "-c", RemoteAlignPlan.probeCommand(layout: empty, developerDir: nil)])
+            let text = String(data: result.data, encoding: .utf8) ?? ""
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).dropLast()
+            XCTAssertEqual(lines.count, 11, "\(shell): \(text)")
+            XCTAssertFalse(lines.contains(where: \.isEmpty), "\(shell) printed an empty line: \(text)")
+            let state = try XCTUnwrap(RemoteAlignPlan.parseProbe(text))
+            XCTAssertNil(state.tool)
+            XCTAssertNil(state.record)
+            XCTAssertNil(state.deferred)
+            XCTAssertFalse(state.binaryExists)
+        }
     }
 
     // MARK: - ビルドのスクリプト(文字列)

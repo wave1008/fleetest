@@ -62,10 +62,10 @@ public enum RemoteAlignPlan {
         let devDir = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         return devDir
             + AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)) + "; "
-            + "for n in 1 2 3 4; do l=$(sed -n \"${n}p\" \(record) 2>/dev/null); echo \"${l:--}\"; done; "
-            + "l=$(head -1 \(deferred) 2>/dev/null); echo \"${l:--}\"; "
+            + "for n in 1 2 3 4; do l=$(sed -n \"${n}p\" \(record) 2>/dev/null); printf '%s\\n' \"${l:--}\"; done; "
+            + "l=$(head -1 \(deferred) 2>/dev/null); printf '%s\\n' \"${l:--}\"; "
             + "if [ -x \(binary) ]; then echo yes; else echo no; fi; "
-            + "l=$(\(xcodeVersionOneLine)); echo \"${l:--}\""
+            + "l=$(\(xcodeVersionOneLine)); printf '%s\\n' \"${l:--}\""
     }
 
     public struct BuildRecord: Equatable, Sendable {

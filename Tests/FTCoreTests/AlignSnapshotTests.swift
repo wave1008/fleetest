@@ -68,22 +68,36 @@ final class AlignSnapshotTests: XCTestCase {
 
     func testProbeOfMissingCloneReadsAsNil() throws {
         let missing = repo.appendingPathComponent("no-such-clone").path
-        let result = try Shell.runData(["/bin/sh", "-c",
-            AlignSnapshot.remoteProbeCommand(quotedToolRoot: "\"\(missing)\"")])
-        let lines = String(decoding: result.data, as: UTF8.self).split(separator: "\n").map(String.init)
-        XCTAssertEqual(lines, ["-", "-", "-", "-"])
-        XCTAssertNil(AlignSnapshot.parseRemoteProbe(lines))
+        for shell in Self.shells {
+            let result = try Shell.runData([shell, "-c",
+                AlignSnapshot.remoteProbeCommand(quotedToolRoot: "\"\(missing)\"")])
+            let lines = String(decoding: result.data, as: UTF8.self)
+                .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
+            XCTAssertEqual(lines, ["-", "-", "-", "-"], shell)
+            XCTAssertNil(AlignSnapshot.parseRemoteProbe(lines))
+        }
     }
 
     // MARK: - helpers
 
+    /// ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh の両方で同じ4行を要る
+    private static let shells = ["/bin/sh", "/bin/zsh"]
+
     private func probe(at clone: URL? = nil) throws -> AlignSnapshot.RemoteToolState? {
-        let result = try Shell.runData(["/bin/sh", "-c",
-            AlignSnapshot.remoteProbeCommand(quotedToolRoot: "\"\((clone ?? repo).path)\"")])
-        XCTAssertEqual(result.status, 0)
-        let lines = String(decoding: result.data, as: UTF8.self).split(separator: "\n").map(String.init)
-        XCTAssertEqual(lines.count, 4, "the probe must always print 4 lines: \(lines)")
-        return AlignSnapshot.parseRemoteProbe(lines)
+        var parsed: [AlignSnapshot.RemoteToolState?] = []
+        for shell in Self.shells {
+            let result = try Shell.runData([shell, "-c",
+                AlignSnapshot.remoteProbeCommand(quotedToolRoot: "\"\((clone ?? repo).path)\"")])
+            XCTAssertEqual(result.status, 0)
+            // 空の要素を落とさない(空行が出たらここで数が合わず落ちる)
+            let lines = String(decoding: result.data, as: UTF8.self)
+                .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
+            XCTAssertEqual(lines.count, 4, "\(shell): the probe must always print 4 lines: \(lines)")
+            XCTAssertFalse(lines.contains(where: \.isEmpty), "\(shell) printed an empty line: \(lines)")
+            parsed.append(AlignSnapshot.parseRemoteProbe(lines))
+        }
+        XCTAssertEqual(parsed.first, parsed.last)
+        return parsed.first ?? nil
     }
 
     private func write(_ relative: String, _ content: String) throws {

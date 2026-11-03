@@ -43,17 +43,19 @@ public enum AlignSnapshot {
 
     /// ランナーの状態の照会。`toolRoot` は呼び手が引用済みの式で渡す(RemoteStatusProbe は `$HOME` を
     /// 遅延展開させるため二重引用符で包む)。出力は4行: HEAD / 要約 / 基点 / スナップショットの issuer。
-    /// 読めない値は `-`(行数は常に4 = 呼び手が固定位置で読める)
+    /// 読めない値は `-`(行数は常に4 = 呼び手が固定位置で読める)。**`-` は `printf` で出す** —— ランナーの
+    /// ログインシェルは zsh で、zsh の `echo -` / `echo "-"` は空行になる(末尾の空行は呼び手の trim で消え、
+    /// きれいなクローンが3行 = 読めない扱いになって全ディスパッチが止まった。陽性対照で実測)
     public static func remoteProbeCommand(quotedToolRoot r: String) -> String {
         "if h=$(git -C \(r) rev-parse HEAD 2>/dev/null); then echo \"$h\"; "
             + "git -C \(r) ls-tree HEAD | awk -F'\\t' '$2 != \"\(excludedTopLevel)\"' | git hash-object --stdin "
-            + "2>/dev/null || echo -; "
+            + "2>/dev/null || printf '%s\\n' -; "
             + "if [ \"$(git -C \(r) log -1 --format=%s HEAD 2>/dev/null)\" = \(marker) ]; then "
-            + "git -C \(r) rev-parse HEAD^1 2>/dev/null || echo -; "
+            + "git -C \(r) rev-parse HEAD^1 2>/dev/null || printf '%s\\n' -; "
             + "i=$(git -C \(r) log -1 --format=%b HEAD 2>/dev/null | sed -n 's/^issuer: //p' | head -1); "
-            + "echo \"${i:--}\"; "
-            + "else echo \"$h\"; echo -; fi; "
-            + "else echo -; echo -; echo -; echo -; fi"
+            + "printf '%s\\n' \"${i:--}\"; "
+            + "else echo \"$h\"; printf '%s\\n' -; fi; "
+            + "else printf '%s\\n' - - - -; fi"
     }
 
     /// `remoteProbeCommand` の4行を読む。HEAD が `-` なら nil(クローンが無い・git が読めない)
