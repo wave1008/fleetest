@@ -1072,6 +1072,8 @@ private final class FixedSnapshotDriver: AppDriver {
     func tap(ref: Int) async throws { taps += 1 }
     func tap(x: Double, y: Double) async throws { taps += 1 }
     func press(ref: Int, duration: Double) async throws { presses += 1 }
+    private(set) var coordinatePresses = 0
+    func press(x: Double, y: Double, duration: Double) async throws { coordinatePresses += 1 }
     func swipe(_ direction: FTSwipeDirection) async throws {}
     func swipe(_ direction: FTSwipeDirection, intent: FTSwipeIntent, path: FTSwipePath?) async throws {}
     func doubleTap(x: Double, y: Double) async throws { doubleTaps += 1 }
@@ -1234,7 +1236,8 @@ final class TapAdvisoryWiringTests: XCTestCase {
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target")))
         let note = outcome.driverFallback ?? ""
         XCTAssertTrue(note.contains("#overlay"), "overlayCovering の注記が出ていない: \(note)")
-        XCTAssertTrue(note.contains("instead"), note)
+        // 中心を覆われた対象は覆われていない部分を押す(OI-157)。押した事実と覆いの名前を言う
+        XCTAssertTrue(note.contains("not covered by #overlay"), note)
     }
 
     /// 素の tap で scrolledOut が注記に出る
@@ -1252,9 +1255,11 @@ final class TapAdvisoryWiringTests: XCTestCase {
         let driver = FixedSnapshotDriver(overlayCoveringSnapshot())
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target"), duration: 0.5))
-        XCTAssertEqual(driver.presses, 1, "長押しは press(ref:) 経路を通るはず")
+        // 中心を覆われた対象の長押しは、覆われていない部分を座標で押す(OI-157。ref では撃たない)
+        XCTAssertEqual(driver.presses, 0, "覆われた中心へ ref で長押しした")
+        XCTAssertEqual(driver.coordinatePresses, 1, "覆われていない部分を座標で長押ししていない: \(outcome.status)")
         let note = outcome.driverFallback ?? ""
-        XCTAssertTrue(note.contains("#overlay"), "長押しで overlayCovering の注記が出ていない: \(note)")
+        XCTAssertTrue(note.contains("#overlay"), "長押しで overlayCovering の注記が出ていない: \(note) / \(outcome.status)")
     }
 
     /// doubleTap(advisory() 経由)でも scrolledOut が出る

@@ -997,7 +997,10 @@ extension StepExecutor {
             // **操作可能な帯(タブ列・バー)に中心を覆われたままの対象**(送っても外れなかった・キーボードを閉じた後に覆われた)は、
             // 覆われていない見えている部分を押す。床に届かなければ撃たない(中心を撃つとタブへ遷移していた。OI-157)
             var coverVisiblePartTap: FTRect?
-            if keyboardVisiblePartTap == nil {
+            // 中心が容器の外に落ちる要素は、下の「容器の中の見えている部分」(visibleTapRect)が先(撃つ点はそちらが決める)
+            if keyboardVisiblePartTap == nil,
+               Self.visibleTapRect(for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
+                                   scale: driver.pointScale) == nil {
                 switch coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .part(let rect, let note):

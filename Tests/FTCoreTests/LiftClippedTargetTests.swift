@@ -114,9 +114,10 @@ final class LiftClippedTargetTests: XCTestCase {
                              "見出しの下端(499)より下を撃つはず")
     }
 
-    /// **送って撮り直したら、外れなくても撮り直した木の ref で撃つ**。ブリッジは撮り直しで ref を振り直す
+    /// **送って撮り直しても外れなければ、撃つ前の木の ref では撃たない**。ブリッジは撮り直しで ref を振り直す
     /// (in-app は最後の /snapshot の表しか持たない)ので、撃つ前の木の ref は表に無ければ 404、
-    /// 有れば別の要素を指す(E2EY-iOS の OTP の箱で 404 が 3/3 再現)
+    /// 有れば別の要素を指す(E2EY-iOS の OTP の箱で 404 が 3/3 再現)。外れなかった対象は覆われていない部分を押すか、
+    /// 床に届かなければ撃たない(OI-157)
     func testShootsTheRefFromTheRetakenTreeWhenStillCovered() async throws {
         let driver = DragCountedDriver(screen: screen, statesByDragCount: [
             scene(rowFrame: clippedByTop, rowRef: 10),
@@ -126,9 +127,12 @@ final class LiftClippedTargetTests: XCTestCase {
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
-        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertEqual(driver.dragCallCount, 1)
-        XCTAssertEqual(driver.tapRefs, [20], "撃つ前の木の ref(10)で撃ってはいけない")
+        XCTAssertFalse(driver.tapRefs.contains(10), "撃つ前の木の ref(10)で撃ってはいけない: \(driver.tapRefs)")
+        if case .failed(let message) = outcome.status {
+            XCTAssertTrue(message.contains("nothing was touched"), message)
+            XCTAssertEqual(driver.tapRefs, [], "断ったのに撃った")
+        }
     }
 
     /// 送った後の木で対象を引き当てられなければ、撃つ前の ref で撃たずに失敗する
@@ -146,7 +150,8 @@ final class LiftClippedTargetTests: XCTestCase {
         XCTAssertEqual(driver.tapRefs, [], "見失ったら撃たない")
     }
 
-    /// 送っても本当に何も動かない(y も height も不変)なら 1 回で諦め、無警告のまま撃たない
+    /// 送っても本当に何も動かない(y も height も不変)なら 1 回で諦める。中心は覆われたままなので覆いの名前を言う
+    /// (覆われていない部分が床に届かなければ撃たずに失敗 = OI-157)
     func testGivesUpWhenNothingMoves() async throws {
         let driver = DragCountedDriver(screen: screen,
                                        statesByDragCount: [scene(rowFrame: clippedByTop)])
@@ -154,9 +159,12 @@ final class LiftClippedTargetTests: XCTestCase {
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
-        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertEqual(driver.dragCallCount, 1, "動かないなら1回で諦めるはず(撃ち続けない)")
-        XCTAssertTrue(outcome.driverFallback?.contains("centre is covered by") == true,
-                     outcome.driverFallback ?? "(注記なし)")
+        let said: String
+        switch outcome.status {
+        case .failed(let message): said = message
+        default: said = outcome.driverFallback ?? ""
+        }
+        XCTAssertTrue(said.contains("covered by") || said.contains("not covered by"), said)
     }
 }
