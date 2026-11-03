@@ -186,11 +186,78 @@ def source_state():
             h.update(rel.encode())
     return h.hexdigest()
 
-def run_tests(wt, log, filt):
+# ---- 変異が通るテストのターゲットだけをビルドする ----
+# `swift test --filter` は --filter に関係なくパッケージのほぼ全部(他のテストのターゲット・ヘルパー・FTBridgeClient 等)を
+# ビルドする。`swift build --product <テストのターゲット>` → `swift test --skip-build` なら持ち主のターゲットとその依存だけで済む
+# (FTCore を1行変えた直後の追いつき + 実行が 56.7 → 26.3 秒・定常の増分 22 → 17 秒。PT-3.41)。
+# 守ること: フィルタのクラス名が素の識別子でない・Tests/ に見つからないときは全体ビルドに戻す / 変異を当てたファイルが
+# 実行ファイルのターゲットにあれば、その製品もビルドする(テストが起こす実行ファイルが古いままになると、変異が誤って
+# 「生き残った」と出る)/ ビルドの失敗はビルドの終了コードで見る(複数回呼ぶので "Build complete!" の有無では決まらない)
+def _test_class_owners():
+    owners = {}
+    for path in glob.glob(os.path.join(repo, "Tests", "*", "**", "*.swift"), recursive=True):
+        target = os.path.relpath(path, os.path.join(repo, "Tests")).split(os.sep)[0]
+        for cls in re.findall(r"\bclass\s+([A-Za-z_]\w*)\s*:", open(path, errors="replace").read()):
+            owners.setdefault(cls, set()).add(target)
+    return owners
+
+def _executable_targets():
+    src = SCENARIO_BLOCK.sub("", open(os.path.join(repo, "Package.swift")).read())
+    return set(re.findall(r'\.executableTarget\(\s*name:\s*"([^"]+)"', src))
+
+test_class_owners = _test_class_owners()
+executable_targets = _executable_targets()
+
+def build_products_for(mutation):
+    """ビルドする製品の一覧。決められなければ None(= 全体ビルドの `swift test`)"""
+    targets = set()
+    for token in mutation["filter"].split("|"):
+        name = token.strip().split("/")[0]
+        target, _, cls = name.rpartition(".")
+        if not re.fullmatch(r"[A-Za-z_]\w*", cls) or (target and not re.fullmatch(r"[A-Za-z_]\w*", target)):
+            return None
+        owners = {target} if target else test_class_owners.get(cls, set())
+        if not owners or any(not os.path.isdir(os.path.join(repo, "Tests", t)) for t in owners):
+            return None
+        targets |= owners
+    parts = os.path.normpath(mutation["file"]).split(os.sep)
+    if len(parts) > 2 and parts[0] == "Sources" and parts[1] in executable_targets:
+        targets.add(parts[1])
+    return sorted(targets)
+
+def executed_count(body):
+    """走ったテストの件数。`--parallel` は緑のとき "Executed N tests" を出さず `[i/N] Testing …` だけを出すので両方を見る"""
+    counts = [int(n) for n in re.findall(r"Executed (\d+) tests?", body)]
+    counts += [int(n) for n in re.findall(r"^\[\d+/(\d+)\] Testing ", body, re.MULTILINE)]
+    return max(counts or [0])
+
+def run_tests(wt, log, filt, products):
+    """(終了コード, 出力, ビルドが失敗したか)"""
     with open(log, "w") as out:
-        r = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
-                           cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True)
-    return r.returncode, open(log, errors="replace").read()
+        if products is None:
+            r = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
+                               cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True)
+            code, build_failed = r.returncode, None
+        else:
+            build_failed = False
+            for product in products:
+                out.write(f"==> swift build --product {product}\n")
+                out.flush()
+                b = subprocess.run(["swift", "build", "--product", product],
+                                   cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True)
+                if b.returncode != 0:
+                    build_failed = True
+                    code = b.returncode
+                    break
+            if not build_failed:
+                out.write(f"==> swift test --skip-build --filter {filt}\n")
+                out.flush()
+                code = subprocess.run(["swift", "test", "--skip-build", "--parallel", "--filter", filt],
+                                      cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True).returncode
+    body = open(log, errors="replace").read()
+    if build_failed is None:
+        build_failed = code != 0 and "Build complete!" not in body
+    return code, body, build_failed
 
 def run_in(wt, index, mutation):
     label = mutation.get("label", f"mutation {index + 1}")
@@ -212,12 +279,15 @@ def run_in(wt, index, mutation):
         open(wt_manifest, "w").write(manifest)
     # 無変異の確認は (worktree, filter, 本線の状態) ごとに1回だけ。**本線の状態を鍵に含める** —— 回している間に
     # 本線を直すと worktree の中身が変わり、古い緑の確認のまま「検出した」と数える。赤は覚えない
+    products = build_products_for(mutation)
     baseline_key = (wt, mutation["filter"], source_state())
     if baseline_key not in green_baselines:
         base_log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.baseline.log")
-        code, body = run_tests(wt, base_log, mutation["filter"])
+        code, body, _ = run_tests(wt, base_log, mutation["filter"], products)
         if code != 0:
             return (label, "ERROR", "baseline red (the filter fails without the mutation) — see log", base_log)
+        if executed_count(body) == 0:
+            return (label, "ERROR", "no test matched the filter — see log", base_log)
         green_baselines.add(baseline_key)
     path = os.path.join(wt, mutation["file"])
     try:
@@ -229,12 +299,14 @@ def run_in(wt, index, mutation):
                 f"anchor found {src.count(mutation['old'])} times (must be exactly 1)", None)
     open(path, "w").write(src.replace(mutation["old"], mutation["new"], 1))
     log = os.path.join(log_dir, f"{index + 1}-{safe(label)}.log")
-    code, body = run_tests(wt, log, mutation["filter"])
+    code, body, build_failed = run_tests(wt, log, mutation["filter"], products)
     failed = sorted(set(re.findall(r"\[\w+\.\w+ (test\w+)\]' failed", body)))
-    # ビルドが通ったかは "Build complete!" で見る("error:" だけで見ると、検査が落ちた後にテストがクラッシュして
+    # ビルドの失敗は run_tests が見分ける("error:" だけで見ると、検査が落ちた後にテストがクラッシュして
     # failed の行が出なかった回 = 検出した変異を「コンパイルできない」と誤って数える)
-    if code != 0 and not failed and "Build complete!" not in body:
+    if build_failed:
         return (label, "ERROR", "build failed (mutation does not compile) — see log", log)
+    if code == 0 and executed_count(body) == 0:
+        return (label, "ERROR", "no test matched the filter — see log", log)
     if code != 0 and not failed:
         return (label, "OK", "test process crashed after a failure — see log", log)
     return (label, "OK" if code != 0 else "SURVIVED",
