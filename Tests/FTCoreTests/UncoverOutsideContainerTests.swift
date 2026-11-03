@@ -81,4 +81,42 @@ final class UncoverOutsideContainerTests: XCTestCase {
         let row = try XCTUnwrap(snapshot.elements.first { $0.identifier == "row_h_00" })
         XCTAssertFalse(ContainerGeometry.isFloatingOverDeclaredScroller(row, in: snapshot.elements))
     }
+
+    // MARK: 縮んだヘッダの下に潜ったフォロー(OI-147。E2EY-RN の折りたたみヘッダとタブ・iOS で撮った枠)
+
+    private func collapsedHeaderTree(barBottom: Double = 116) -> [ElementInfo] {
+        var list = el(7, "other", FTRect(x: 0, y: 187, width: 402, height: 687), scrollable: true); list.depth = 3
+        var follow = el(33, "button", id: "btn_follow", label: "フォロー", FTRect(x: 157, y: 83, width: 88, height: 44)); follow.depth = 3
+        var bar = el(34, "navigationBar", id: "折りたたみヘッダとタブ", FTRect(x: 0, y: 62, width: 402, height: barBottom - 62)); bar.depth = 3
+        return [list, follow, bar]
+    }
+
+    func testTargetUnderABarThatDoesNotTouchTheContainerIsReported() {
+        let els = collapsedHeaderTree()
+        let over = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(els[1], in: els, screen: screen, inferring: true)
+        XCTAssertEqual(over?.identifier, "折りたたみヘッダとタブ")
+        XCTAssertNil(TapTargetGeometry.uncoverOutsideScrollJump(target: els[1], coveredBy: els[2], container: els[0].frame),
+                     "既存の1回の送りでは出せない形")
+    }
+
+    /// 容器の縁に接する覆いは既存の送り(liftCoveredTarget)の領分 = ここでは拾わない
+    func testBarTouchingTheContainerEdgeIsLeftToTheOrdinaryLift() {
+        let els = collapsedHeaderTree(barBottom: 187)
+        XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(els[1], in: els, screen: screen, inferring: true))
+    }
+
+    func testUncoveredTargetIsNotReported() {
+        var els = collapsedHeaderTree()
+        els[1].frame = FTRect(x: 157, y: 130, width: 88, height: 44)
+        XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(els[1], in: els, screen: screen, inferring: true))
+    }
+
+    /// 探索の「見つかった」ゲートがこの判定を通っていること(外すと覆いの下のまま撃って緑になる)
+    func testScrollSearchFoundGateConsultsTheCoverCheck() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("if !buriedUnderBar,"), "見つかったゲートが覆いの判定を通る")
+        XCTAssertTrue(source.contains("coveredOutsideContainerBeyondOneLift"))
+    }
 }

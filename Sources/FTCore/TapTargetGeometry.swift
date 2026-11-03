@@ -855,6 +855,23 @@ public enum TapTargetGeometry {
         return nil
     }
 
+    /// **容器の外の対象が、容器の縁に接しない名前つきの覆いに中心を覆われている**形(`uncoverOutsideScrollJump` が nil を返す側)の覆い。
+    /// 実測 E2EY-RN の折りたたみヘッダ(iOS): フォロー 83..127 がナビゲーションバー 62..116 の下・容器は 187.. で
+    /// 間に縮んだヘッダの中身があり、容器を60pt戻してもヘッダは戻らない(一覧が先頭に着くまで動かない)ので、
+    /// 1回の送りでは外せない。**利用者が `scroll:` を書いたときの探索が「見つかった」と言わないための判定**で、送る量は決めない
+    public static func coveredOutsideContainerBeyondOneLift(_ element: ElementInfo, in elements: [ElementInfo],
+                                                            screen: FTRect, inferring: Bool) -> ElementInfo? {
+        guard ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) == nil,
+              let container = primaryScrollContainer(in: elements, screen: screen)?.frame,
+              let over = overlayCoveringForUncover(element, in: elements, screen: screen),
+              !(over.label ?? "").isEmpty || !(over.identifier ?? "").isEmpty else { return nil }
+        let centreY = element.frame.centerY
+        guard centreY < container.y || centreY > container.y + container.height,
+              uncoverOutsideScrollJump(target: element, coveredBy: over, container: container) == nil
+        else { return nil }
+        return over
+    }
+
     /// 画面の主たる縦のスクロール容器 = `scrollable` を申告する要素のうち画面の
     /// `primaryContainerMinimumAreaRatio` 以上を占める最大のもの(対象を含む容器が無い形の送り先)
     public static func primaryScrollContainer(in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {

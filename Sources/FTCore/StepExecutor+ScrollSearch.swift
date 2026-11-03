@@ -1023,7 +1023,15 @@ extension StepExecutor {
                 // `testTapAfterSearchNotesWhenTheGhostPersists` の経路ごと消える)。
                 // 見切れ(中心は画面内)も同じ理由で found のまま —— タップは通る。
                 // 判定は MCP の ⚠️offscreen と共有(TapTargetGeometry.offscreenScrollGateAdvisory)
-                if TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
+                // **触る操作は、容器の外で縁に接しない覆い(ナビゲーションバー)の下に潜った対象を「見つかった」にしない**
+                // (利用者が向きを書いている。そのまま撃つと覆いに当たり、何も起きないまま ok になる。
+                // 送って外れなければ弾切れの失敗で断る = 撃たない。coveredOutsideContainerBeyondOneLift の doc)
+                let buriedUnderBar = Self.interactsByTouch(step.action ?? "")
+                    && TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
+                        element, in: snapshot.elements, screen: snapshot.screen,
+                        inferring: step.containerInference ?? true) != nil
+                if !buriedUnderBar,
+                   TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。
                     // スワイプしていない周回(attempt == 0)は静止しているので追加コストを払わない
                     if attempt > 0 {
