@@ -1299,6 +1299,30 @@ extension StepExecutorTests {
         }
     }
 
+    /// キーボードを閉じた直後の木は窓が伸びる途中で、タブ列を実際より下に申告する。その木で覆われていない部分を決めると
+    /// タブを押す(Flutter の Android 横向き = OI-163 ③)。対象と覆いの枠が続けて同じになるまで読み直してから押す
+    func testVisiblePartAfterClosingTheKeyboardWaitsForTheWindowToSettle() async throws {
+        let log = CallLog()
+        let field = { (y: Double) in ElementInfo(ref: 1, type: "textField", identifier: "field_password", label: nil, value: nil,
+                                                  placeholder: nil, enabled: true, frame: FTRect(x: 20, y: y, width: 360, height: 60), depth: 1) }
+        let tab = { (y: Double) in ElementInfo(ref: 2, type: "button", identifier: "tab_controls", label: "コントロール", value: nil,
+                                                placeholder: nil, enabled: true, frame: FTRect(x: 0, y: y, width: 400, height: 60), depth: 1) }
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field(600)]])
+        primary.keyboardFrame = FTRect(x: 0, y: 500, width: 400, height: 300)
+        primary.afterHideKeyboard = {
+            primary.keyboardFrame = nil
+            let read = primary.snapshotCallCount
+            // 閉じた確認の読み → 伸びる途中(タブが 630。見えている帯 600〜630 の中央 615)→ 伸びきった(タブが 610)が続く
+            primary.snapshotElements = Array(repeating: [field(600)], count: read)
+                + [[field(600), tab(630)], [field(600), tab(630)], [field(600), tab(610)]]
+        }
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "field_password")))
+        guard case .passed = outcome.status else { return XCTFail("\(outcome.status) \(log.entries)") }
+        let point = try XCTUnwrap(primary.coordinateTaps.last, log.entries.description)
+        XCTAssertLessThan(point.y, 610, "伸びきった木のタブ(610〜)を押した: \(point)")
+    }
+
     /// replace の消去でキーボードが欄を木から押し出す形: 閉じた確認の木(`.closed` が持つ)をそのまま使い、
     /// 同じドライバのまま読み直さない(閉じてから打つまでの間の snapshot は 1 回 = 閉じた確認の読みだけ)
     func testReplaceAfterClearReusesTheClosedKeyboardTreeWithoutAnotherRead() async throws {

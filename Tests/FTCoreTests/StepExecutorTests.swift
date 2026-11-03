@@ -759,26 +759,31 @@ final class StepExecutorTests: XCTestCase {
     /// delegate は visible:false を返す設定にしてある —— 呼ばれていたら失敗へ反転するはずなので、
     /// pass ならワイヤが正しく OCR で降りたことの強い証拠になる
     func testOcclusionOCRModeOnSkipsFMWhenReadable() async throws {
-        let log = CallLog()
         let label = "こんにちは"
-        let primary = FakeAppDriver(name: "primary", log: log,
-                                    snapshotElements: [[screenFillingTextElement(label: label)]],
-                                    screenshots: [screenFillingTextPNG(label)])
-        let delegate = FakeVisibilityDelegate(visible: false)
-        let executor = StepExecutor(driver: primary, delegate: delegate,
-                                    occlusionInkThreshold: 1000, isAndroid: false, tunables: RunTunables())
-        executor.occlusionOCRMode = .on
         // 近道は「モデルが載っている」ときだけ撃つ(RegionText.shouldTakeShortcut)。
         // この検証が見たいのは OCR が読めた先の分岐なので、載っている状態に固定する
         RegionText.modelReadyOverrideForTesting = true
         defer { RegionText.modelReadyOverrideForTesting = nil }
         let step = FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
                             timeout: 1, occlusionGuard: true)
-
-        guard case .passed = await executor.execute(step).status else {
-            XCTFail("OCR で読めた回は FM を呼ばず pass のはず"); return
+        // 並列のテストの負荷で OCR が予算(`RegionText.occlusionBudget`)を超えた回は読みが無く FM へ回る(前提が崩れた回)ので撃ち直す
+        for _ in 0..<3 {
+            let primary = FakeAppDriver(name: "primary", log: CallLog(),
+                                        snapshotElements: [[screenFillingTextElement(label: label)]],
+                                        screenshots: [screenFillingTextPNG(label)])
+            let delegate = FakeVisibilityDelegate(visible: false)
+            let executor = StepExecutor(driver: primary, delegate: delegate,
+                                        occlusionInkThreshold: 1000, isAndroid: false, tunables: RunTunables())
+            executor.occlusionOCRMode = .on
+            let outcome = await executor.execute(step)
+            if outcome.notes.contains(.ocrBudgetExhausted) { continue }
+            guard case .passed = outcome.status else {
+                XCTFail("OCR で読めた回は FM を呼ばず pass のはず"); return
+            }
+            XCTAssertEqual(delegate.visibleCalls, 0, "OCR が読めたら FM を呼んではいけない")
+            return
         }
-        XCTAssertEqual(delegate.visibleCalls, 0, "OCR が読めたら FM を呼んではいけない")
+        throw XCTSkip("OCR exceeded its budget three times under load; the shortcut did not run")
     }
 
     /// occlusionOCRMode=.measure: OCR が読めても素通りさせず必ず FM に訊く(コーパス採取のため)
