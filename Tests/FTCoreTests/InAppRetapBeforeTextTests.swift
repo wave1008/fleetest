@@ -1,4 +1,4 @@
-// OI-162: iOS の in-app で tap した欄へ type / clearInput すると欄をもう一度叩き、CMP は焦点のある欄の
+// iOS の in-app で tap した欄へ type / clearInput すると欄をもう一度叩き、CMP は焦点のある欄の
 // 2度目のタップで編集メニュー(Select All)を出して残す。直前の tap が焦点を立てた欄は叩き直さない。
 // in-app の dylib は swift test でリンクされないので、配線はソースを走査して守る。
 

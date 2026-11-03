@@ -445,7 +445,7 @@ extension FocusLanding {
 
     /// ref 付きの type / clear が、打つ前の欄への合成タップを省くか。直前の tap がこの欄へ焦点を立てていて
     /// (`priorTapLanded`)いま受け口がある(`receiverPresent`)ときだけ省く。受け口が無い(キーボードが閉じた等)なら
-    /// 叩いて焦点を取り直す。CMP は焦点のある欄の2度目のタップで編集メニュー(Select All)を出して残す(OI-162)
+    /// 叩いて焦点を取り直す。CMP は焦点のある欄の2度目のタップで編集メニュー(Select All)を出して残す
     public static func skipsRetapBeforeText(priorTapLanded: Bool, receiverPresent: Bool) -> Bool {
         priorTapLanded && receiverPresent
     }

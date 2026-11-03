@@ -108,7 +108,7 @@ final class KeyboardInputPathsTests: XCTestCase {
         XCTAssertFalse(PreFireGuard.tapOnlyDismissesKeyboard(row, in: hidden, framework: .reactNative))
     }
 
-    /// OI-158: 行が画面を埋めて叩ける空きが無い RN の反転チャットでは、キーボードを閉じられないまま撃つ。黙って ok にせず、閉じられなかった事実を注記に残す
+    /// 行が画面を埋めて叩ける空きが無い RN の反転チャットでは、キーボードを閉じられないまま撃つ。黙って ok にせず、閉じられなかった事実を注記に残す
     func testTapInRNScrollViewThatCannotCloseKeyboardNotesIt() async throws {
         let log = CallLog()
         let list = el(1, "scrollView", "list_chat", FTRect(x: 0, y: 0, width: 400, height: 560), depth: 0, scrollable: true)

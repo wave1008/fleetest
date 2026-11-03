@@ -446,8 +446,9 @@ extension MCPServer {
             case .none: bandPoint = await bottomBandPoint(frame: element.frame, driver: doubleTapDriver, args: args)
             case .refuse(let message): throw MCPError(message)
             case .part(let rect, let note):
-                bandPoint = await bottomBandPoint(frame: rect, driver: doubleTapDriver, args: args) ?? (rect.centerX, rect.centerY)
-                coverNote = note
+                let touch = await coveredPartTouch(rect, note: note, driver: doubleTapDriver, args: args)
+                bandPoint = touch.point
+                coverNote = touch.note
             }
             doubleTapPoint = bandPoint ?? (element.frame.centerX, element.frame.centerY)
             doubleTapWhat = "[\(ref)]"
@@ -770,8 +771,9 @@ extension MCPServer {
                 case .none: bandPoint = await bottomBandPoint(frame: element.frame, driver: pressDriver, args: args)
                 case .refuse(let message): throw MCPError(message)
                 case .part(let rect, let note):
-                    bandPoint = await bottomBandPoint(frame: rect, driver: pressDriver, args: args) ?? (rect.centerX, rect.centerY)
-                    pressCoverNote = note
+                    let touch = await coveredPartTouch(rect, note: note, driver: pressDriver, args: args)
+                    bandPoint = touch.point
+                    pressCoverNote = touch.note
                 }
             }
             if let bandPoint {

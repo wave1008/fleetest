@@ -84,7 +84,7 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertEqual(b.recordFailure(runPasses: 1), .keep)
     }
 
-    /// 持ち越しは前の run からだけ(同じ run の復帰は 0 から数え直す = `testRevivedLaneStartsCountingFromZero`)
+    /// 持ち越しは前の run からだけ(同じ run の復帰は 0 から数え直す = `testRunWorkerClearsLedgerOnRevive`)
     func testCarriedNoteNamesEarlierRuns() {
         XCTAssertEqual(RunOrchestrator.carriedNote(0), "")
         XCTAssertEqual(RunOrchestrator.carriedNote(3), " (including 3 carried over from earlier runs)")
@@ -99,21 +99,11 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertEqual(code.components(separatedBy: "Self.carriedNote(breaker.carriedFailures)").count - 1, 2)
     }
 
-    /// 起こし直したレーンは持ち越しを捨てて 0 から数える(閾値ちょうどで始まり次の1本でまた離脱していた)
-    func testRevivedLaneStartsCountingFromZero() {
-        XCTAssertEqual(RunOrchestrator.initialCarriedFailures(revived: true, stored: { 3 }), 0)
-        XCTAssertEqual(RunOrchestrator.initialCarriedFailures(revived: false, stored: { 3 }), 3)
-        var b = WorkerCircuitBreaker(threshold: 3,
-            carriedFailures: RunOrchestrator.initialCarriedFailures(revived: true, stored: { 3 }))
-        XCTAssertEqual(b.recordFailure(runPasses: 5), .keep)
-    }
-
-    /// 起こし直しの時点で台帳も消す(復帰直後に中断した次の run が古い数を読まない)・配線の固定
+    /// 起こし直したレーンは台帳を消してから読む = 0 から数え直す(持ち越すと閾値ちょうどで始まり次の1本でまた離脱していた)・配線の固定
     func testRunWorkerClearsLedgerOnRevive() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(code.contains("if revived, let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear("))
-        XCTAssertTrue(code.contains("Self.initialCarriedFailures(revived: revived"))
     }
 }

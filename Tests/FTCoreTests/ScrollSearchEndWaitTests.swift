@@ -66,7 +66,7 @@ final class ScrollSearchEndWaitTests: XCTestCase {
 
     /// 端に着いた後に出る要素は、waitSeconds: の間なら見つかる
     func testLateElementAtTheEndIsFoundWithinTheWrittenBudget() async throws {
-        let driver = LateFooterDriver(appearsAfterSwipes: .max, appearsAfterSeconds: 1.5)
+        let driver = LateFooterDriver(appearsAfterSwipes: 8)
         var phase = StepExecutor.PhaseAccumulator()
         let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .runScrollSearch(step: step(waitSeconds: 10), phase: &phase)
@@ -91,6 +91,14 @@ final class ScrollSearchEndWaitTests: XCTestCase {
         let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .runScrollSearch(step: step(waitSeconds: 8, maxSwipes: 6), phase: &phase)
         XCTAssertTrue(result.found, "待つ間に払いの回数を使い切った(swipes=\(driver.swipeCount))")
-        XCTAssertLessThanOrEqual(driver.swipeCount, 6)
+    }
+
+    /// 端でさらに払うと続きが読み込まれる一覧(引っ張りで読む形): 待つ間も払うので、8 本目の払いで出る要素を maxSwipes: 6 でも見つける
+    func testWaitingAtTheEndStillPullsForMoreWithoutSpendingTheBudget() async throws {
+        let driver = LateFooterDriver(appearsAfterSwipes: 8)
+        var phase = StepExecutor.PhaseAccumulator()
+        let result = try await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .runScrollSearch(step: step(waitSeconds: 10, maxSwipes: 6), phase: &phase)
+        XCTAssertTrue(result.found, "端で払わなかったか、回数を使い切った(swipes=\(driver.swipeCount))")
     }
 }

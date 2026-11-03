@@ -136,6 +136,25 @@ final class CoveredTouchPartTests: XCTestCase {
         XCTAssertEqual(rect.height, 80)
     }
 
+    /// 最前面がタブの中の文字(押せない型)でも、押されるのはそのタブ = 押せる祖先を覆いとして扱う(中心を撃つ従来の扱いに戻さない)
+    func testTextInsideATabCountsAsTheTab() {
+        let target = ElementInfo(ref: 1, type: "button", identifier: "btn_submit", label: "送信", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 100, y: 2000, width: 800, height: 200), depth: 1)
+        let tab = ElementInfo(ref: 2, type: "clickable", identifier: "tab_home", label: nil, value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 0, y: 2080, width: 1080, height: 320), depth: 1)
+        let label = ElementInfo(ref: 3, type: "staticText", identifier: nil, label: "ホーム", value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 2080, width: 1080, height: 320), depth: 2)
+        let tree = [target, tab, label]
+        XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(target, in: tree, screen: screen)?.ref, 3,
+                       "前提: 最前面はタブの中の文字")
+        guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
+            for: target, in: tree, screen: screen, inferring: true, scale: 3) else {
+            return XCTFail("タブの中の文字の下でも見えている部分を押す")
+        }
+        XCTAssertEqual(over.identifier, "tab_home")
+        XCTAssertEqual(rect.height, 80)
+    }
+
     func testUncoveredTargetIsNil() {
         let target = el(1, "button", id: "btn", FTRect(x: 100, y: 1000, width: 800, height: 100))
         let tab = el(2, "button", id: "tab_home", FTRect(x: 0, y: 2200, width: 1080, height: 200))

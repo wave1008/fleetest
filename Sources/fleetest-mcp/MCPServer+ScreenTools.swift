@@ -131,6 +131,16 @@ extension MCPServer {
         }
     }
 
+    /// 覆われていない部分(`coveredRefTouch` の `.part`)を撃つ点と注記。部分の中心が Android の下端のジェスチャ帯の中なら
+    /// 帯より上へ寄せ、その事実も注記に足す(ft_tap・ft_double_tap・ft_long_press が共有。ft_drag の始点は帯を見ない)
+    func coveredPartTouch(_ rect: FTRect, note: String, driver: AppDriver,
+                          args: [String: Any]) async -> (point: (x: Double, y: Double), note: String) {
+        if let band = await bottomBandPoint(frame: rect, driver: driver, args: args) {
+            return (band, note + Self.bottomBandTouchNote)
+        }
+        return ((rect.centerX, rect.centerY), note)
+    }
+
     static let bottomBandTouchNote = " Its centre is inside the Android bottom gesture band (a touch there can go to"
         + " home / app switch), so the part of the element above the band was touched instead."
 
@@ -162,8 +172,9 @@ extension MCPServer {
                 case .none: break
                 case .refuse(let message): throw MCPError(message)
                 case .part(let rect, let note):
-                    visiblePoint = await bottomBandPoint(frame: rect, driver: d, args: args) ?? (rect.centerX, rect.centerY)
-                    coverNote = note
+                    let touch = await coveredPartTouch(rect, note: note, driver: d, args: args)
+                    visiblePoint = touch.point
+                    coverNote = touch.note
                 }
             }
             let bandPoint = visiblePoint == nil

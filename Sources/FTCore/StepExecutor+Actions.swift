@@ -723,7 +723,8 @@ extension StepExecutor {
 
         // **キーボードで枠が細い帯に潰れた対象は、閉じてから引き直して撃つ**(実機 CMP: 高さ 2 に潰れた送信・クリアを撃つと焦点の欄へ当たり
         // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられなければ従来どおり撃つ
-        let onlyDismissesKeyboard = PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
+        let onlyDismissesKeyboard = action == "tap" && !switchedToFallbackDriver
+            && PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
         var keyboardCloseOutcome: KeyboardClose?
         if action == "tap", !switchedToFallbackDriver,
            PreFireGuard.keyboardCover(
@@ -732,7 +733,7 @@ extension StepExecutor {
                                                    screen: snapshot.screen)) != nil || onlyDismissesKeyboard {
             keyboardCloseOutcome = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
         }
-        // 閉じられないまま撃つ形を黙って ok にしない(OI-158。PreTouch 側と同じ注記)
+        // 閉じられないまま撃つ形を黙って ok にしない(PreTouch 側と同じ注記)
         if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
             driverFallback = Self.joinNotes(driverFallback, Self.keyboardStayedUpNote(why))
         }

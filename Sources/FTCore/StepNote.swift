@@ -441,7 +441,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     case typedTextNotDrawn = "typed-text-not-drawn"
 
     /// 文字の子を持たない行(iOS のセル)のラベルの文字が、枠の中に読めなかった(テキストの可視性検証が見えていないと判定した)。
-    /// **判定は変えない(警告。赤にしない)**。ボタンは対象外。OI-156
+    /// **判定は変えない(警告。赤にしない)**。ボタンは対象外
     case rowLabelNotRead = "row-label-not-read"
 
     /// 人間向けの文言(FTRuntime がステップ説明へ括弧書きで付ける)

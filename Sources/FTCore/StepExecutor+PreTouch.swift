@@ -78,7 +78,7 @@ extension StepExecutor {
            PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil || onlyDismissesKeyboard {
             keyboardCloseOutcome = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
         }
-        // 閉じられなかった(叩ける空きが無い・閉じなかった)まま撃つ形を黙って ok にしない(OI-158: 反転チャットは行が画面を埋めて空きが無く、
+        // 閉じられなかった(叩ける空きが無い・閉じなかった)まま撃つ形を黙って ok にしない(反転チャットは行が画面を埋めて空きが無く、
         // RN の iOS は最初のタップが閉じるだけで行へ届かなかった)。撃つ判断は変えず、事実を注記に残す
         if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
             notes.append(Self.keyboardStayedUpNote(why))

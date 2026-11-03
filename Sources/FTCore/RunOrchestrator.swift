@@ -1108,15 +1108,7 @@ public final class RunOrchestrator: Sendable {
             + " — the reason for each is in the lines above)"
     }
 
-    /// 起動時に抱える連続失敗数。**同じ run で起こし直したレーンは 0**: 離脱は「他のレーンが通る間にこのレーンが
-    /// 閾値回落ちた」証拠で、起こし直し(ブリッジの作り直し)後の状態には当たらない。持ち越すと閾値のまま始まり、
-    /// 1本の赤(同じシナリオの決定的な赤でも)で再離脱して復帰回数を焼く。直っていなければ閾値回の赤で再び外れる
-    /// (run をまたぐ持ち越しは従来どおり台帳 = LaneFailureStreakStore)
-    static func initialCarriedFailures(revived: Bool, stored: () -> Int) -> Int {
-        revived ? 0 : stored()
-    }
-
-    /// 持ち越しは前の run からだけ(同じ run で復帰したレーンは `initialCarriedFailures` が 0 から数え直す)
+    /// 持ち越しは前の run からだけ(同じ run で復帰したレーンは `runWorker` が台帳を消して 0 から数え直す)
     static func carriedNote(_ carried: Int) -> String {
         carried > 0 ? " (including \(carried) carried over from earlier runs)" : ""
     }
@@ -1880,13 +1872,14 @@ public final class RunOrchestrator: Sendable {
         var failed = 0
         // 連続失敗は前の run から引き継ぐ(LaneFailureStreakStore)。鍵が無い(論理名なし)・注入が無いときは 0 から
         let streakKey = Self.workerID(worker)
-        // 起こし直したレーンは数え直す(ブリッジを作り直した別の状態。持ち越すと閾値ちょうどで始まり、次の1本の赤でまた離脱する)
+        // **起こし直したレーンは台帳を消して 0 から数え直す**: 離脱は「他のレーンが通る間にこのレーンが閾値回落ちた」証拠で、
+        // ブリッジを作り直した後の状態には当たらない。持ち越すと閾値ちょうどで始まり、決定的な赤1本でまた離脱して復帰回数を焼く
+        // (直っていなければ閾値回の赤で再び外れる。run をまたぐ持ち越しは台帳のまま)
         if revived, let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
         var breaker = WorkerCircuitBreaker(
             threshold: WORKER_FAILURE_CIRCUIT_THRESHOLD,
-            carriedFailures: Self.initialCarriedFailures(revived: revived, stored: {
-                laneStreakKey(streakKey).map {
-                    LaneFailureStreakStore.load(stateDir: $0.dir, key: $0.key, scope: project.name) } ?? 0 }))
+            carriedFailures: laneStreakKey(streakKey).map {
+                LaneFailureStreakStore.load(stateDir: $0.dir, key: $0.key, scope: project.name) } ?? 0)
         // 実行前のブリッジ疎通確認(プレフライト)は不採用(ユーザー決定)。
         // 「取ってから判定」版は一過性の AX スパイクで9台一斉離脱、「取る前に2sで即断」版も
         // 負荷時の誤判定で品質が安定しなかった。ウェッジは失敗後の事後チェック

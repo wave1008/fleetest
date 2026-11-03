@@ -798,7 +798,7 @@ extension StepExecutor {
         let searchSignature: (SnapshotResponse) -> String = { snapshot in
             Self.contentSignature(Self.elementsInside(Self.searchContentRegion(searchStep, in: snapshot), snapshot.elements))
         }
-        // while で回すのは、書かれた waitSeconds: の待ちの周回(下の budgetWait)に払いの回数(maxSwipes)を使わせないため
+        // while で回すのは、書かれた waitSeconds: の待ちの周回に払いの回数(maxSwipes)を使わせないため
         var attempt = -1
         while attempt < maxSwipes {
             attempt += 1
@@ -1125,12 +1125,9 @@ extension StepExecutor {
                         try await Task.sleep(for: Self.unmovedBudgetPollInterval)
                         phase.waitMs += Self.ms(clock.now - waitStart)
                         unmovedRounds = Self.unmovedRoundsToStopSearch - 1
-                        // **待ちの周回は払わず・払いの回数も使わない**: 待つ間に払うと、端で待つ 0.5 秒ごとに1本ずつ
-                        // maxSwipes を食い、waitSeconds: 5 は既定 8 本で尽きた(e2ey F4 / OI-159)。
-                        // 木はこの周回の頭で撮ったもの = 次の周回の比較の基準(変われば上の else が動いたと読む)
-                        previousSnapshot = snapshot
+                        // **待ちの周回は払いの回数(maxSwipes)に数えない**(数えると 0.5 秒ごとに1本ずつ食い、書かれた待ちより先に尽きる)。
+                        // 払いは撃つ: 末尾で引っ張って続きを読み込む一覧は、端でもう1本払わないと伸びない。待ちの上限は上の予算の時間
                         attempt -= 1
-                        continue
                     }
                     if unmovedRounds >= Self.unmovedRoundsToStopSearch {
                         // **打ち切る前に整定まで待って確かめる**(Flutter/Android で
