@@ -1045,7 +1045,10 @@ final class FTInAppBridge {
                 point = try self.pointFollowingMove(ref: ref)
                 before = Self.receiverMark()
                 landedByPriorTap = self.priorTapLanded(ref: ref)
-                FTSynthTap(window, point)
+                // 直前の tap が焦点を立てた欄は叩き直さない(CMP は焦点のある欄の2度目のタップで編集メニューを出し、残る)
+                if !FocusLanding.skipsRetapBeforeText(priorTapLanded: landedByPriorTap, receiverPresent: before != nil) {
+                    FTSynthTap(window, point)
+                }
             }
             try requireFocusMoved(ref: ref, tapped: point, before: before, landedByPriorTap: landedByPriorTap,
                                   action: "type")
@@ -1111,7 +1114,9 @@ final class FTInAppBridge {
                 point = try self.pointFollowingMove(ref: ref)
                 before = Self.receiverMark()
                 landedByPriorTap = self.priorTapLanded(ref: ref)
-                FTSynthTap(window, point)
+                if !FocusLanding.skipsRetapBeforeText(priorTapLanded: landedByPriorTap, receiverPresent: before != nil) {
+                    FTSynthTap(window, point)
+                }
             }
             try requireFocusMoved(ref: ref, tapped: point, before: before, landedByPriorTap: landedByPriorTap,
                                   action: "clear")

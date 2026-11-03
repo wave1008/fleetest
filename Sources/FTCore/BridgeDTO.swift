@@ -443,6 +443,13 @@ extension FocusLanding {
     /// 同じ要素と見なす枠の差(pt)。in-app の取り直しが id 無しの要素を同定する許容(frame ±2pt)と同じ
     static let sameElementFrameTolerance: CGFloat = 2
 
+    /// ref 付きの type / clear が、打つ前の欄への合成タップを省くか。直前の tap がこの欄へ焦点を立てていて
+    /// (`priorTapLanded`)いま受け口がある(`receiverPresent`)ときだけ省く。受け口が無い(キーボードが閉じた等)なら
+    /// 叩いて焦点を取り直す。CMP は焦点のある欄の2度目のタップで編集メニュー(Select All)を出して残す(OI-162)
+    public static func skipsRetapBeforeText(priorTapLanded: Bool, receiverPresent: Bool) -> Bool {
+        priorTapLanded && receiverPresent
+    }
+
     /// **直前の ref の tap が、いま叩き直している欄へ焦点を立てていたか**(`landed` を通さずに焦点の着地とする)。
     /// 叩き直しは焦点のある欄を叩くので受け口が動かない。Flutter の値入りの欄は木で `other`(入力欄と申告されない)・
     /// 木の枠は欄の実際の箱より小さく下にずれ(実測 E2EX-Flutter: 木 (16,271 370x10)・受け口は箱の左上 (16,249))、
