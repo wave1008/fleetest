@@ -144,6 +144,8 @@ final class RepollCacheBypassTests: XCTestCase {
         XCTAssertTrue(isPassed(tap.status), "\(tap.status)")
         XCTAssertEqual(driver.reads.dropFirst(2).first, true, "tap の解決がキャッシュの古い木を読んだ: \(driver.reads)")
 
+        // tap の直後の解決は操作が立てた迂回で消費される(TapThenTapStaleTreeTests)。select が消費してから tap を撃つ
+        _ = await executor.execute(FlowStep(action: "select", locator: FlowLocator(id: "btn_async_reset")))
         let readsBefore = driver.reads.count
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_async_reset")))
         XCTAssertEqual(driver.reads.dropFirst(readsBefore).first, false, "消費した読みで印を立て直している: \(driver.reads)")

@@ -48,6 +48,10 @@ extension StepExecutor {
                     swipeInertiaPending = true
                     swipeInertiaDirection = nil
                 }
+                // **操作の直後の解決は、操作より前の古い木を掴みうる**(Android の素取得はキャッシュを返す。Compose は
+                // 非同期に骨組みへ差し替わった変化を a11y のキャッシュへ出さず、tap の直後の tap が押せない行を
+                // 押せると読んで ok で撃った = 誤った成功。E2EY-CMP 読み込みの状態)。次のロケータ操作の解決の1枚を迂回にする
+                if StepAction(rawValue: action)?.mayChangeScreen == true { nextResolveBypassesCache = true }
                 return outcome
             } catch {
                 let blockedByAlert = Self.isUndeliveredBySystemAlert(error)

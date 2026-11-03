@@ -47,6 +47,20 @@ public enum StepAction: String, CaseIterable {
         }
     }
 
+    /// 成功の後に画面が変わりうる操作(= 次のロケータ操作の解決は、キャッシュを迂回した新しい木で読む)。
+    /// `executeActionRetryingUndelivered` が `nextResolveBypassesCache` を立てる唯一の分類。
+    /// 掴む・待つ・画像の判定は画面に触れない。default の無い switch = case を足すと分類が要る
+    public var mayChangeScreen: Bool {
+        switch self {
+        case .findImage, .findImages, .existImage, .waitForSettle, .select:
+            return false
+        case .swipe, .scroll, .scrollToEdge, .flick, .scrollTo, .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo,
+             .pressEnter, .hideKeyboard, .holdEnd, .tap, .type, .clearInput, .doubleTap, .holdStart,
+             .swipeElementToElement, .swipeBy, .pinchOut, .pinchIn, .gesture:
+            return true
+        }
+    }
+
     /// 注記の語(「the tap will land on the keyboard」の tap の所)
     public var touchNoun: String {
         switch self {
