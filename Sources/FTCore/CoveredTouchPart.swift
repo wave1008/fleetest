@@ -1,6 +1,7 @@
 // 操作可能な帯(タブ列・上下のバー)に中心を覆われた対象の「覆われていない見えている部分」の判定。
 // 指で触る操作(tap・長押し・doubleTap・holdStart・ドラッグの始点)の DSL 全経路が共有する。
-// MCP の ft_tap(ref)は今は警告して中心を撃つ(`occlusionAdvisory` の overlayCovering)ので、この判定を呼ぶ変更は別途。
+// MCP の ref 経路(ft_tap・ft_long_press・ft_double_tap・ft_drag の fromRef = `MCPServer.coveredRefTouch`)も同じ判定を呼ぶ(文言だけ呼び手ごと)。
+// ft_batch の行は StepExecutor を通るので DSL と同じ。ライブ操作は座標だけで ref を撃たない。
 extension TapTargetGeometry {
     public enum CoveredTouch {
         /// 見えている部分(対象の枠から覆いの枠を引いた残りのうち、床以上で最大のもの)。この中心を押す

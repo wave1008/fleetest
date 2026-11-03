@@ -103,6 +103,34 @@ extension MCPServer {
             + " nothing was scrolled and the ref is unchanged. Warnings above about the frame's centre do not describe this point."
     }
 
+    /// 手前の覆いに中心を覆われた ref の指の操作(tap・長押し・doubleTap・drag の始点)の扱い。
+    /// 判定は `TapTargetGeometry.coveredTouch`(DSL の `coveredTouchPlan` と同じ。文言だけ呼び手ごと)。nil = 従来どおり警告して中心を撃つ
+    enum CoveredRefTouch {
+        case none
+        case part(FTRect, note: String)
+        case refuse(String)
+    }
+
+    static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
+                                ref: Int, operation: String) -> CoveredRefTouch {
+        guard let snapshot else { return .none }
+        switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
+                                              inferring: ContainerGeometry.containerInferenceEnabled, scale: scale) {
+        case nil: return .none
+        case .visiblePart(let rect, let over)?:
+            return .part(rect, note: " Its centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is covered by"
+                + " \(RefGuard.describe(over)), so the part of the element not covered by it or anything else in front of it"
+                + " was touched at (\(Int(rect.centerX.rounded())), \(Int(rect.centerY.rounded()))) instead — the ref is unchanged."
+                + " Warnings above about the frame's centre do not describe this point.")
+        case .tooThin(let visible, let floor, let over)?:
+            func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
+            return .refuse("refusing \(operation) [\(ref)]: \(RefGuard.describe(element))'s centre is covered by"
+                + " \(RefGuard.describe(over)), and only \(n(visible)) of the element is left uncovered by what is in front of it"
+                + " (the minimum is \(n(floor)), in ft_snapshot units), so a touch would land on \(RefGuard.describe(over))."
+                + " Nothing was sent. Dismiss or scroll away what covers it, then take a fresh ft_snapshot")
+        }
+    }
+
     static let bottomBandTouchNote = " Its centre is inside the Android bottom gesture band (a touch there can go to"
         + " home / app switch), so the part of the element above the band was touched instead."
 
@@ -125,6 +153,19 @@ extension MCPServer {
                 visiblePoint = await bottomBandPoint(frame: visible, driver: d, args: args)
                     ?? (visible.centerX, visible.centerY)
             }
+            // 手前の覆いに中心を覆われた対象は、覆われていない見えている部分を押す(薄ければ撃たない)。DSL の tap と同じ判定
+            var coverNote = ""
+            if visiblePoint == nil,
+               let tree = lastSnapshots[Self.sessionKey(args)],
+               let element = tree.elements.first(where: { $0.ref == target.ref }) {
+                switch Self.coveredRefTouch(element, in: tree, scale: d.pointScale, ref: ref, operation: "tap") {
+                case .none: break
+                case .refuse(let message): throw MCPError(message)
+                case .part(let rect, let note):
+                    visiblePoint = await bottomBandPoint(frame: rect, driver: d, args: args) ?? (rect.centerX, rect.centerY)
+                    coverNote = note
+                }
+            }
             let bandPoint = visiblePoint == nil
                 ? await bottomBandPoint(sessionRef: target.ref, driver: d, args: args) : nil
             if let visiblePoint {
@@ -144,7 +185,7 @@ extension MCPServer {
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
             return text("tap [\(ref)] done.\(target.note)" + (bandPoint != nil ? Self.bottomBandTouchNote : "")
-                + (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "")
+                + (coverNote.isEmpty ? (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") : coverNote)
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ
