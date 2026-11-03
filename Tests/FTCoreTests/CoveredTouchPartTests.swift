@@ -82,6 +82,34 @@ final class CoveredTouchPartTests: XCTestCase {
         XCTAssertEqual(rect.height, 80)
     }
 
+    /// 回帰の実測(E2EX-iOS の FAB 画面): FAB が木で一覧より前に並ぶので、一覧の行が手前と読まれる。覆いが対象の祖先でない
+    /// スクロール容器の中身なら塗り順は推測でしかないので、断らずに従来の扱い(nil)へ戻す
+    func testScrollContentOverAFloatingButtonIsLeftToTheOldPath() {
+        let phone = FTRect(x: 0, y: 0, width: 402, height: 874)
+        let fab = ElementInfo(ref: 3, type: "button", identifier: "fab_add", label: "追加", value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 332, y: 719, width: 50, height: 48), depth: 1)
+        let list = ElementInfo(ref: 4, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: phone, depth: 1, scrollable: true)
+        let row = ElementInfo(ref: 28, type: "staticText", identifier: "row_f_11", label: "行 F11", value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 16, y: 726, width: 370, height: 52), depth: 2)
+        let elements = [fab, list, row]
+        XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(fab, in: elements, screen: phone)?.ref, 28,
+                       "前提: 既存の判定は行を覆いと読む")
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: fab, in: elements, screen: phone, inferring: true, scale: 1))
+    }
+
+    /// 回帰の実測(E2EY-iOS の OTP): 押せる型でない箱の上に透明な入力欄が重なる。押す相手は手前の欄なので、従来の扱い(nil)へ戻す
+    func testNonOperableTargetUnderAnInputIsLeftToTheOldPath() {
+        let phone = FTRect(x: 0, y: 0, width: 402, height: 874)
+        let box = ElementInfo(ref: 7, type: "other", identifier: "otp_box_3", label: "OTP 3", value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 152, y: 198, width: 45, height: 53), depth: 2)
+        let field = ElementInfo(ref: 11, type: "textField", identifier: "field_otp", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 16, y: 214, width: 370, height: 22), depth: 2)
+        XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(box, in: [box, field], screen: phone)?.ref, 11,
+                       "前提: 既存の判定は欄を覆いと読む")
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: box, in: [box, field], screen: phone, inferring: true, scale: 1))
+    }
+
     func testUncoveredTargetIsNil() {
         let target = el(1, "button", id: "btn", FTRect(x: 100, y: 1000, width: 800, height: 100))
         let tab = el(2, "button", id: "tab_home", FTRect(x: 0, y: 2200, width: 1080, height: 200))

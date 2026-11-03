@@ -464,7 +464,7 @@ withScrollDown {
 `touched the part of the target not covered by <要素>` を残します。残りが床に届かなければ**何も押さずに失敗**にします
 (文言 `did not touch … only N of the target is left uncovered (the minimum is M …)`)。長押し・`doubleTap`・`holdStart`・
 ドラッグの始点も同じ判定(`TapTargetGeometry.coveredTouch`)。中心が容器の外に落ちる要素は、先に「容器の中の見えている部分」
-を押す既存の扱いが決めます。**MCP の `ft_tap`(ref)は今は警告して中心を撃ちます**(揃えるのは別の変更)。
+を押す既存の扱いが決めます。**次の2形は従来どおり警告して中心を撃ちます**: 対象が押せる型でない(OTP の箱の上の透明な入力欄のように、手前の要素が受け手のことがある)/ 覆いが対象の祖先でないスクロール容器の中身(一覧の上に浮いたボタンを、木の順から行が手前と読み違える。iOS と Flutter は塗り順を申告しない)。**MCP の `ft_tap`(ref)は今は警告して中心を撃ちます**(揃えるのは別の変更)。
 払うのは注記が出る画面だけで、ドラッグ1回と木1枚です。
 
 ### 画面を覆うモーダル(別ウィンドウ)の扱い

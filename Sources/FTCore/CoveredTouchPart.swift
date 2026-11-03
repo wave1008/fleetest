@@ -15,6 +15,15 @@ extension TapTargetGeometry {
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double) -> CoveredTouch? {
         guard let over = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
+        // 次の2形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
+        // ①対象が押せる型でない: 手前の押せる要素こそが受け手のことがある(OTP の箱の上に重ねた透明な入力欄)
+        guard BridgeSnapshotThinning.operableTypes.contains(element.type) else { return nil }
+        // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・
+        //   「一番下へ」)を行が覆っていると読み違える(iOS は z を出さず、Flutter の Android は描画順を申告しない = z が木の順)
+        let targetAncestors = Set(ancestors(of: element, in: elements).map(\.ref))
+        if ancestors(of: over, in: elements).contains(where: { $0.scrollable == true && !targetAncestors.contains($0.ref) }) {
+            return nil
+        }
         let floor = minimumVisibleTapExtent * scale
         var area = ScrollGeometry.intersection(element.frame, screen)
         if let a = area, let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) {
