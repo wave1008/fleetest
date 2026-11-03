@@ -107,4 +107,40 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertTrue(code.contains("if revived, let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear("))
         XCTAssertTrue(code.contains("carriedFailures: revived ? 0 : laneStreakKey(streakKey)"), "消去が失敗しても読まない")
     }
+
+    /// 別のデバイスでも落ちたシナリオは数えない・同じデバイスだけ/記録の無いシナリオは数える・通ったら消える
+    func testScenarioFailingOnAnotherDeviceDoesNotCount() {
+        var w = ScenarioFailureWitnesses()
+        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p1"), "記録の無いシナリオは数える")
+        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p1"), "同じデバイスだけで落ちるなら数える")
+        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p2"), "別のデバイスでも落ちた")
+        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p1"))
+        XCTAssertTrue(w.recordFailure(scenario: "B", worker: "android:p1"), "シナリオごと")
+        w.recordPass(scenario: "A")
+        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p2"), "通った後は1台目から")
+    }
+
+    func testScenarioFailureWitnessesPersistPerScope() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sfw-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var w = ScenarioFailureWitnesses()
+        _ = w.recordFailure(scenario: "A", worker: "ios:x")
+        w.save(stateDir: dir, scope: "P 1")
+        var loaded = ScenarioFailureWitnesses.load(stateDir: dir, scope: "P 1")
+        XCTAssertFalse(loaded.recordFailure(scenario: "A", worker: "ios:y"), "run をまたいで覚えている")
+        XCTAssertEqual(ScenarioFailureWitnesses.load(stateDir: dir, scope: "other"), ScenarioFailureWitnesses())
+        ScenarioFailureWitnesses().save(stateDir: dir, scope: "P 1")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: ScenarioFailureWitnesses.fileURL(stateDir: dir, scope: "P 1").path), "空は消す")
+    }
+
+    /// 配線: 失敗はブレーカの前に記録して数えるかを決め、通過は記録を消す(run の経路は単体では通らない)
+    func testRunWorkerConsultsFailureWitnesses() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
+        let code = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(code.contains("await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: false) {\n"
+                                    + "                let verdict = breaker.recordFailure("))
+        XCTAssertTrue(code.contains("_ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true)"))
+    }
 }

@@ -1069,6 +1069,9 @@ public final class RunOrchestrator: Sendable {
     private let registerChildProcess: (@Sendable (Process) -> @Sendable () -> Void)?
     /// 連続失敗の台帳(LaneFailureStreakStore)の置き場 = リポジトリの `.fleetest/`。nil = 引き継がない
     private let laneStreakStateDir: URL?
+    /// シナリオごとの「最後に通ってから落ちたデバイス」(ScenarioFailureWitnesses)。別のデバイスでも落ちたシナリオの赤は
+    /// ブレーカに数えない。置き場は laneStreakStateDir(nil なら run の中だけ)
+    private let failureWitnesses: LockedValue<ScenarioFailureWitnesses>
     /// 人のライブ操作の台帳の置き場(`ScenarioRecording.humanOperationsStateDir` へ運ぶ)。nil = 引かない
     private let humanOperationsStateDir: URL?
 
@@ -1098,6 +1101,18 @@ public final class RunOrchestrator: Sendable {
         guard let s = laneStreakKey(key), await !stoppedByUser() else { return }
         LaneFailureStreakStore.save(stateDir: s.dir, key: s.key, scope: project.name,
                                     consecutiveFailures: breaker.consecutiveFailures)
+    }
+
+    /// 通過・失敗を ScenarioFailureWitnesses に写し、失敗はブレーカに数えるかを返す。鍵(論理名)が無いレーンは常に数える。
+    /// 中断で終わった失敗は記録しない(persistStreak と同じ)
+    private func witnessOutcome(scenario: String, worker key: String?, passed: Bool) async -> Bool {
+        guard let key, await !stoppedByUser() else { return true }
+        let (counts, snapshot) = failureWitnesses.withLock { w -> (Bool, ScenarioFailureWitnesses) in
+            if passed { w.recordPass(scenario: scenario); return (true, w) }
+            return (w.recordFailure(scenario: scenario, worker: key), w)
+        }
+        if let dir = laneStreakStateDir { snapshot.save(stateDir: dir, scope: project.name) }
+        return counts
     }
 
     /// 遅延参加の OS の供給が全滅したときの中止理由(**唯一の定義**。--debug の逐次経路も同じ文で止める)
@@ -1153,6 +1168,8 @@ public final class RunOrchestrator: Sendable {
                 laneStreakStateDir: URL? = nil,
                 humanOperationsStateDir: URL? = nil) {
         self.laneStreakStateDir = laneStreakStateDir
+        self.failureWitnesses = LockedValue(laneStreakStateDir.map {
+            ScenarioFailureWitnesses.load(stateDir: $0, scope: project.name) } ?? ScenarioFailureWitnesses())
         self.humanOperationsStateDir = humanOperationsStateDir
         (self.events, self.continuation) = AsyncStream.makeStream(of: RunEvent.self)
         self.workers = workers
@@ -2051,6 +2068,7 @@ public final class RunOrchestrator: Sendable {
                 if outcome == .notApplicable { await runSkipped.increment() }
                 breaker.recordPass()
                 if let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
+                _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true)
                 await runPasses.increment()
                 await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: true)
                 // **レーンが空いている今だけ測り直す**(次の 1 件をまだ取っていない)。
@@ -2179,7 +2197,9 @@ public final class RunOrchestrator: Sendable {
             // サーキットブレーカ: 凍結/消失に当てはまらなくても連続失敗が閾値に達し、その間に別の
             // レーンが通っていれば不調ワーカーとして離脱。誰も通っていなければ残す(全レーンが同時に
             // 落ちている = デバイスではなく run の問題。離脱させると revive を使い切って残りが未実行で赤になる)
-            if unusableReason == nil {
+            // 最後に通ってから別のデバイスでも落ちたシナリオ(どこでも落ちる赤)は、このレーンの不調の証拠に数えない
+            if unusableReason == nil,
+               await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: false) {
                 let verdict = breaker.recordFailure(runPasses: await runPasses.snapshot())
                 await persistStreak(breaker, key: streakKey)
                 switch verdict {
