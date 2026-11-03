@@ -99,8 +99,9 @@ public enum InputFocusRescue {
 
     /// 対象がいま焦点を持つ欄か。**対象自身が focused、または焦点のある要素が対象の枠の中(同じ枠を含む)に収まる**(外側の容器が
     /// 焦点を持つ形は数えない = 全画面の容器で免除しない)。Flutter・Compose は焦点が欄の内側/外側のノードに立ち、対象に focused が
-    /// 付かないことがある。焦点のある欄への type / clearInput はドライバが叩かずに打つので、キーボードの下でも断らない。
-    /// MCP(`MCPServer.typesWithoutTouching`)と DSL(`StepExecutor.reachPastKeyboard`)が共有する(OI-85)
+    /// 付かないことがある。呼び手は MCP(`MCPServer.typesWithoutTouching`)。**DSL の `reachPastKeyboard` には使わない** ——
+    /// XCUITest ランナーが叩くのを省くのは ref 自身が焦点を持つとき(`alreadyFocusedInput`)だけで、内側の要素が焦点を持つ欄は
+    /// 中心を叩く = キーボードの下ならキーを押す(ランナーの焦点の判定を揃えてから広げる)
     public static func holdsFocus(_ target: ElementInfo, in tree: [ElementInfo]) -> Bool {
         if target.focused == true { return true }
         let slack = Double(FocusLanding.sameElementFrameTolerance)

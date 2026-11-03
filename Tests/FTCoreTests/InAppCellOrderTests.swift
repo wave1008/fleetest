@@ -38,5 +38,13 @@ final class InAppCellOrderTests: XCTestCase {
         XCTAssertTrue(source.contains("if let view = node as? UIView { return cellsInDisplayOrder(view) }"))
         XCTAssertTrue(source.contains("screenFrames: subviews.map { $0.convert($0.bounds, to: nil) }"))
         XCTAssertTrue(source.contains("BridgeAPI.cellDisplayOrder("))
+        XCTAssertTrue(source.contains("!$0.isHidden && $0.alpha >= 0.01"), "隠れた再利用待ちのセルはセルに数えない")
+    }
+
+    func testOverlapToleranceIsPinned() {
+        XCTAssertEqual(BridgeAPI.cellOverlapTolerance, 0.5)
+        let touching = [CGRect(x: 0, y: 0, width: 400, height: 56.3), CGRect(x: 0, y: 56, width: 400, height: 56)]
+        XCTAssertEqual(BridgeAPI.cellDisplayOrder(screenFrames: touching.reversed(), isCell: [true, true]), [1, 0],
+                       "端の 1 物理画素の共有は重なりに数えない")
     }
 }

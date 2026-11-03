@@ -37,6 +37,12 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedElsewhere]), "幅の違う焦点の欄")
         var focusedAbove = field(13, y: 250, placeholder: nil)
         focusedAbove.focused = true
-        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedAbove]), "焦点のある同じ列の欄でも引かない")
+        let other = field(14, y: 330, placeholder: nil)
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [focusedAbove, other]), "焦点のある同じ列の欄でも引かない")
+        var only = field(15, y: 250, placeholder: nil)
+        only.placeholder = nil
+        let noHint = field(16, y: 400, placeholder: nil)
+        XCTAssertEqual(ClearedFieldRelocation.relocate(noHint, in: [only])?.ref, 15,
+                       "id も placeholder も無い欄は、その型の欄が木に1つだけで同じ列なら引く(アラートの入力欄)")
     }
 }

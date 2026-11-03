@@ -634,7 +634,7 @@ extension StepExecutor {
         let result = try await runScrollSearch(step: step, phase: &phase)
         let note = recordedScrollSearchNote(result, scrollFrameNote: pendingScrollFrameNote)
         guard result.found else {
-            return StepOutcome(status: failed(.notFound, Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)))
+            return StepOutcome(status: failed(.notFound, scrollSearchFailureMessage(step, result)))
         }
         resolvedElementThisStep = result.element
         if let fallback = result.fallback {

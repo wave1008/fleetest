@@ -16,7 +16,7 @@ public enum ClearedFieldRelocation {
     /// 同じ順で引く: ①空でない identifier(`byIdentifier`)②`locate`(DSL はロケータの解決結果。型が同じときだけ採る ——
     /// ラベル・値で指したロケータは、欄を空にすると現れるヒントの文字に当たりうる。MCP は ref 指定なので nil)
     /// ③型と枠が同じ要素が1つ ④型と空でない placeholder / ラベルが同じ要素が1つ(id の無い欄がキーボードで動いた形 = アラートの入力欄。
-    /// 横の位置と幅が同じものだけ = 縦の移動に限る)。**「焦点のある同じ型の要素」では引かない** —— 縦に並んだフォームは欄の x と幅が
+    /// 横の位置と幅が同じものだけ = 縦の移動に限る)⑤その型の欄が木に1つだけで同じ列。**「焦点のある同じ型の要素」では引かない** —— 縦に並んだフォームは欄の x と幅が
     /// そろうので「同じ列」は区別にならず、消去で焦点が次の欄へ移った画面で別の欄に打つ(OI-77。引けなければ呼び手は撃たずに失敗)
     public static func relocate(_ element: ElementInfo, in elements: [ElementInfo],
                                 locate: (() -> ElementInfo?)? = nil) -> ElementInfo? {
@@ -26,7 +26,11 @@ public enum ClearedFieldRelocation {
         if let same = only(elements.filter { $0.type == element.type && $0.frame == element.frame }) { return same }
         // ④は推測の段なので、キーボードが動かす向き(縦)だけの移動に限る = 横の位置と幅が消した欄と同じものだけ
         func sameColumn(_ other: ElementInfo) -> Bool { other.frame.x == element.frame.x && other.frame.width == element.frame.width }
-        guard let hint = [element.placeholder, element.label].compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
-        return only(elements.filter { $0.type == element.type && sameColumn($0) && ($0.placeholder == hint || $0.label == hint) })
+        if let hint = [element.placeholder, element.label].compactMap({ $0 }).first(where: { !$0.isEmpty }),
+           let same = only(elements.filter { $0.type == element.type && sameColumn($0) && ($0.placeholder == hint || $0.label == hint) }) {
+            return same
+        }
+        // ⑤その型の欄が木に1つだけで同じ列(id も placeholder も無いアラートの入力欄がキーボードで動いた形)。焦点では引かない
+        return only(elements.filter { $0.type == element.type }).flatMap { sameColumn($0) ? $0 : nil }
     }
 }

@@ -113,10 +113,10 @@ final class UncoverOutsideContainerTests: XCTestCase {
 
     /// 探索の「見つかった」ゲートがこの判定を通っていること(外すと覆いの下のまま撃って緑になる)
     func testScrollSearchFoundGateConsultsTheCoverCheck() throws {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("if !buriedUnderBar,"), "見つかったゲートが覆いの判定を通る")
-        XCTAssertTrue(source.contains("coveredOutsideContainerBeyondOneLift"))
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let search = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift"), encoding: .utf8)
+        let settle = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Settle.swift"), encoding: .utf8)
+        XCTAssertTrue(search.contains("let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)"), "本編")
+        XCTAssertTrue(settle.contains("!buriedUnderBarForTouch(element, step: step, in: snapshot)"), "逆走査も同じ判定を通る")
     }
 }

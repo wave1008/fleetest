@@ -196,7 +196,7 @@ extension StepExecutor {
                 // 実測: 同名 `#recycler_view` が4つある画面で先頭の横チップ行を
                 // 掴んだまま「element not found」としか言わず、曖昧だったことが伝わらなかった
                 let why = pendingScrollFrameNote.map { " (\($0))" } ?? ""
-                return StepOutcome(status: failed(.notFound, Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes) + why))
+                return StepOutcome(status: failed(.notFound, scrollSearchFailureMessage(step, result) + why))
             }
             searchSwiped = true
         }

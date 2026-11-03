@@ -1245,9 +1245,9 @@ extension StepExecutorTests {
         }
     }
 
-    /// 焦点のある要素が対象の枠の中に収まる欄(Flutter・Compose は焦点が欄の内側のノードに立つ)は、焦点のある欄として閉じずに打つ。
-    /// MCP の免除と同じ判定(`InputFocusRescue.holdsFocus`。OI-85)
-    func testTypeIntoAFieldWhoseInnerNodeHoldsFocusDoesNotCloseTheKeyboard() async throws {
+    /// 内側の要素だけが焦点を持つ欄は、DSL では焦点のある欄として扱わない(XCUITest ランナーは ref 自身が焦点を持つときしか
+    /// 叩くのを省かず、中心を叩いてキーを押しうる)= キーボードの下なら閉じてから打つ(`InputFocusRescue.holdsFocus` の doc)
+    func testTypeIntoAFieldWhoseInnerNodeHoldsFocusStillClosesTheKeyboard() async throws {
         let log = CallLog()
         var inner = ElementInfo(ref: 2, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
                                 enabled: true, frame: FTRect(x: 24, y: 630, width: 350, height: 40), depth: 2)
@@ -1255,10 +1255,10 @@ extension StepExecutorTests {
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[Self.phoneUnderKeyboard, inner]])
         primary.keyboardFrame = FTRect(x: 0, y: 538, width: 402, height: 336)
         primary.tapProbeAnswer = TapProbeResponse(background: true, receiver: "UIView", reason: nil)
+        primary.afterCoordinateTap = { primary.keyboardFrame = nil }
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(), uiFramework: .compose)
-        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "090"))
-        XCTAssertTrue(primary.coordinateTaps.isEmpty, "焦点のある欄なのにキーボードを閉じに行った: \(primary.coordinateTaps)")
-        XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.type(") }, "\(log.entries) \(outcome.status)")
+        _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "090"))
+        XCTAssertEqual(primary.coordinateTaps.count, 1, "キーボードの上の空きを叩いて閉じるはず: \(log.entries)")
     }
 
     /// 副作用の無い手段で閉じなければ撃たずに失敗(Enter は欄の確定操作なので勝手に撃たない = ユーザー決定)

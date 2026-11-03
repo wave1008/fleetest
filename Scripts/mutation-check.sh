@@ -261,9 +261,12 @@ def run_tests(wt, log, filt, products):
                     out.flush()
                     code = subprocess.run(["swift", "test", "--parallel", "--filter", filt],
                                           cwd=wt, stdout=out, stderr=subprocess.STDOUT, text=True).returncode
+                    build_failed = None  # 全体ビルドの失敗は下で出力から判定する(テストの失敗と数えない)
     body = open(log, errors="replace").read()
     if build_failed is None:
-        build_failed = code != 0 and "Build complete!" not in body
+        # 戻りの全体ビルドの節だけで判定する(前の `--skip-build` の節にも "Build complete!" が出うる)
+        tail = body.split("(a test bundle was missing — building them all)")[-1]
+        build_failed = code != 0 and "Build complete!" not in tail
     return code, body, build_failed
 
 def run_in(wt, index, mutation):

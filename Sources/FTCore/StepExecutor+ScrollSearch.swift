@@ -741,6 +741,23 @@ extension StepExecutor {
     /// StepExecutor+Assert.swift の executeAssertExists(`exist(scroll:)`)からも呼ぶため internal。
     /// `recoverOnMiss` = 見つからずに端まで来たとき、**逆向きの細刻みで1往復だけ拾い直す**か。
     /// `notExist(scroll:)` の前奏だけは false(見つからないのが期待値なので、往復は丸損)
+    /// 触る操作の対象が、容器の外で1回の送りでは外せない覆い(ナビゲーションバー)の下に潜っているか
+    /// (`TapTargetGeometry.coveredOutsideContainerBeyondOneLift`)。探索の本編と逆走査が「見つかった」と言わない
+    func buriedUnderBarForTouch(_ element: ElementInfo, step: FlowStep, in snapshot: SnapshotResponse) -> Bool {
+        Self.interactsByTouch(step.action ?? "")
+            && TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
+                element, in: snapshot.elements, screen: snapshot.screen,
+                inferring: step.containerInference ?? true) != nil
+    }
+
+    /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)
+    func scrollSearchFailureMessage(_ step: FlowStep, _ result: ScrollSearchResult) -> String {
+        let base = Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)
+        guard let cover = scrollSearchBuriedCover else { return base }
+        return base + " (the target was in the tree but under \(cover), which scrolling in this direction did not clear —"
+            + " nothing was touched; scroll the other way or point at an element that is not covered)"
+    }
+
     func runScrollSearch(step: FlowStep, recoverOnMiss: Bool = true,
                          phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
         let clock = ContinuousClock()
@@ -800,10 +817,13 @@ extension StepExecutor {
         }
         // while で回すのは、書かれた waitSeconds: の待ちの周回に払いの回数(maxSwipes)を使わせないため
         var attempt = -1
-        // 直前の払いが木を動かしたか。動かさなかった払いは回数に数えない(ScrollSearchBudget)
+        // 直前の払いが木を動かしたか。動かさなかった払いは回数に数えない(ScrollSearchBudget)。
+        // 周回ごとに「数える」へ戻す = 比べていない周回(初回・引き直しの外れ・寄せの後)の払いは数える
         var previousSwipeMoved = true
+        scrollSearchBuriedCover = nil
         while attempt < maxSwipes {
             attempt += 1
+            previousSwipeMoved = true
             // **1周目だけは静止を待ってから撮る**。直前の操作がプログラム的な
             // アニメーションスクロール(「先頭へ」等)だと、ブリッジの整定はすり抜けることがあり
             // (アニメが始まる前に「変化なし」と判定される)、動く前のツリーで解決すると
@@ -1026,10 +1046,12 @@ extension StepExecutor {
                 // **触る操作は、容器の外で縁に接しない覆い(ナビゲーションバー)の下に潜った対象を「見つかった」にしない**
                 // (利用者が向きを書いている。そのまま撃つと覆いに当たり、何も起きないまま ok になる。
                 // 送って外れなければ弾切れの失敗で断る = 撃たない。coveredOutsideContainerBeyondOneLift の doc)
-                let buriedUnderBar = Self.interactsByTouch(step.action ?? "")
-                    && TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
+                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)
+                if buriedUnderBar {
+                    scrollSearchBuriedCover = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
                         element, in: snapshot.elements, screen: snapshot.screen,
-                        inferring: step.containerInference ?? true) != nil
+                        inferring: step.containerInference ?? true).map(TapTargetGeometry.describe)
+                }
                 if !buriedUnderBar,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。

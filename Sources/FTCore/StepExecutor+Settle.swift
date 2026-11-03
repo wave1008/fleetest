@@ -142,9 +142,11 @@ extension StepExecutor {
                 // 容器より大きい/ゼロサイズの要素を意図的に false にするので、縦が oversized なだけで
                 // 横に完全に画面外の要素を「拾い直した」と返していた(探索本体は 81db3385 で塞いだが、
                 // この逆走査には無かった = 通り過ぎた要素への exist(scroll:) が遅い成功に化ける経路)
+                // 覆いの下に潜った対象も本編と同じく拾い直したと言わない(`buriedUnderBarForTouch`)
                 if !Self.isClippedByViewport(element, screen: container),
                    TapTargetGeometry.offscreenScrollGateCentre(for: element,
-                                                              screen: snapshot.screen) == nil {
+                                                              screen: snapshot.screen) == nil,
+                   !buriedUnderBarForTouch(element, step: step, in: snapshot) {
                     _ = try await settleAfterFind(step: step, element: element,
                                                   snapshot: snapshot, afterInertialMove: true, phase: &phase)
                     // **連続2回一致まで待つ**(settleAfterScroll より強い)。逆走査のドラッグは
