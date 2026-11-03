@@ -50,6 +50,36 @@ public enum RemoteAlignPlan {
         return "sending \(what) (untracked files included: \(untrackedCount), \(megabytes) MB)"
     }
 
+    /// `--tool-rev` で送るときの1行(コミットそのものを送る。作業ツリーは含まない)
+    public static func sendLine(toolRev: String, commit: String) -> String {
+        "sending \(toolRev) \(commit.prefix(7)) as is (the working tree is not included)"
+    }
+
+    // MARK: - `run --align` の判定
+
+    public enum RunAlignDecision: Equatable, Sendable {
+        /// 揃えてよい(実際に送るかは `isAlreadyAligned` が決める)
+        case proceed
+        /// 揃えずに止める(この機械が古い・分岐している・向きが読めない。ランナーを巻き戻さない = RR-18.3 規則1)
+        case refuse(RevisionRelation)
+    }
+
+    /// `run --align` が宛先を揃えてよいか(純粋関数)。
+    /// - ランナーのクローンの HEAD が読めない(`remote` が nil)→ 揃える
+    /// - 要約が一致 → 揃える(同じなら `isAlreadyAligned` が何も送らない。ビルド記録が欠けていれば撃ち直す)
+    /// - 要約が違う → 向きで決める: `remoteBehind` / `workingTreeDiffers` は揃える、
+    ///   `localBehind` / `diverged` / `unknown` は止める
+    /// `relation` は要約が違うときだけ呼ぶ(git を撃つので遅延)
+    public static func runAlignDecision(localDigest: String, remote: AlignSnapshot.RemoteToolState?,
+                                        relation: (AlignSnapshot.RemoteToolState) -> RevisionRelation) -> RunAlignDecision {
+        guard let remote else { return .proceed }
+        if remote.digest == localDigest { return .proceed }
+        switch relation(remote) {
+        case .remoteBehind, .workingTreeDiffers: return .proceed
+        case let other: return .refuse(other)
+        }
+    }
+
     // MARK: - 照会(ssh 1往復)
 
     /// ランナーの状態を1往復で読む。出力は11行(`parseProbe`): `AlignSnapshot.remoteProbeCommand` の4行 +
@@ -164,7 +194,7 @@ public enum RemoteAlignPlan {
             + "ft_prev_dev=$(sed -n 2p \"$ft_rec\" 2>/dev/null); ft_prev_xc=$(sed -n 3p \"$ft_rec\" 2>/dev/null); "
             + "ft_prev_rev=$(sed -n 4p \"$ft_rec\" 2>/dev/null); "
             + "rm -f \"$ft_rec\" \(RemoteShell.quote(deferredRecordPath(layout: layout))) && "
-            + "cd \"$ft_root\" && git checkout --detach \"$ft_rev\" && \(function) && "
+            + "cd \"$ft_root\" && git checkout -q --detach \"$ft_rev\" && \(function) && "
             + "swift build --product fleetest && "
             + "ft_build \(StreamHelpers.simstream) && ft_build \(StreamHelpers.androidstream) && "
             + "swift build --product \(ServiceGatewayWire.relayProductName) && "

@@ -9,8 +9,6 @@ import FTCore
 import FTRemote
 import Foundation
 
-private let setupSSHBase = ["ssh"] + SSHOptions.batchConnectArgs + SSHOptions.keepAliveArgs
-private let setupSCPBase = ["scp"] + SSHOptions.batchConnectArgs + SSHOptions.keepAliveArgs
 
 /// 進行の1行出力。**print は使わない** —— stdout が端末でないとき libc の行バッファが効かず、
 /// 分単位かかる install/align の進行が最後まで出ない(ログへリダイレクトすると「止まったのか
@@ -25,22 +23,6 @@ private func sayStderr(_ message: String) {
     ConsoleOut.err(message)
 }
 
-/// ssh/scp をそのまま実行して stdout/stderr を継承する(RemoteRunDispatcher.runInherited と
-/// 同じ規律だが private のため複製する)。preflight/install/align は数分かかり得るため、
-/// 出力をバッファせずその場で流す(受け手側スクリプトの逐次表示をそのまま見せる)
-private func runInheritedSSH(_ argv: [String]) throws -> Int32 {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = argv
-    process.standardOutput = FileHandle.standardOutput
-    process.standardError = FileHandle.standardError
-    let waitForExit = ProcessExitWait.prepareBlocking(process)
-    try process.run()
-    let relay = InterruptRelay.forwarding(to: process)
-    defer { relay.stop() }
-    waitForExit()
-    return process.terminationStatus
-}
 
 /// 作業フォルダの Package.swift のツール依存を今のクローンへ向け直す(`RemoteSetupPlan.repointedToolDependency`)。
 /// 読みは stdout だけ(ssh の警告を中身に混ぜて書き戻さない)。直すものが無ければ skip
@@ -68,188 +50,6 @@ private func repointWorkManifest(hostSpec: RemoteHostSpec,
     return (.ok, "repointed the tool dependency in Package.swift from \(repointed.previousPath) to \(layout.toolRoot)")
 }
 
-/// 送る中身(手元で決める)。**`developerDir` は判定とビルドで同じ値を使う**(`alignmentDeveloperDir` の解決は1回だけ)
-private struct AlignPrepared {
-    let repoRoot: URL
-    let commit: String
-    let digest: String
-    let developerDir: String?
-}
-
-/// 手元の作業ツリーを送るコミットにする(`AlignSnapshot`。未コミットの変更・未追跡のファイルも含む。
-/// 本物のインデックスもブランチも触らない)。**ネットワークより先に解く**(ローカルの失敗を ssh の後に出さない)
-private func prepareAlignment(hostSpec: RemoteHostSpec, repoRoot: URL) throws -> AlignPrepared {
-    let issuer = try resolveLayoutIssuer()
-    let local: AlignSnapshot.LocalTree
-    let commit: String
-    let untracked: (count: Int, bytes: Int64)
-    do {
-        local = try AlignSnapshot.localTree(repoRoot: repoRoot)
-        commit = try AlignSnapshot.commitToSend(repoRoot: repoRoot, local: local, issuer: issuer)
-        untracked = try AlignSnapshot.untrackedSummary(repoRoot: repoRoot)
-    } catch {
-        throw RemoteDispatchError.remoteSetupFailed("could not snapshot the local working tree: \(error.localizedDescription)")
-    }
-    try RemoteSetupPlan.validateRevision(commit)
-    say(RemoteAlignPlan.sendLine(commit: commit, isSnapshot: !local.isClean,
-                                 untrackedCount: untracked.count, untrackedBytes: untracked.bytes))
-    return AlignPrepared(repoRoot: repoRoot, commit: commit, digest: local.digest,
-                         developerDir: alignmentDeveloperDir(hostSpec: hostSpec))
-}
-
-/// ランナーが手元と同じ中身・同じ Xcode でビルド済みか(ssh 1往復。`RemoteAlignPlan.isAlreadyAligned`)。
-/// **読めなかったら false**(揃っていない側へ倒す = 余分にビルドするだけで、古いまま緑にはならない)。
-/// ssh の警告を行に混ぜない(stdout だけ読む)
-private func alignmentAlreadyDone(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) -> Bool {
-    guard let result = try? Shell.runData(setupSSHBase + ["-n", hostSpec.sshTarget,
-            RemoteAlignPlan.probeCommand(layout: layout, developerDir: prepared.developerDir)]),
-          result.status == 0, let text = String(data: result.data, encoding: .utf8),
-          let state = RemoteAlignPlan.parseProbe(text) else { return false }
-    return RemoteAlignPlan.isAlreadyAligned(localDigest: prepared.digest, developerDir: prepared.developerDir,
-                                            state: state)
-}
-
-/// 送って(`git push` の直送。origin も GitHub も通らない)ビルドする。戻り値はビルド(fm-align)の終了コード
-private func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout,
-                                   prepared: AlignPrepared) throws -> Int32 {
-    let push = try runInheritedSSH(RemoteAlignPlan.pushArguments(
-        repoRoot: prepared.repoRoot.path, sshTarget: hostSpec.sshTarget, toolRoot: layout.toolRoot,
-        commit: prepared.commit))
-    guard push == 0 else {
-        throw RemoteDispatchError.remoteSetupFailed(
-            "could not send \(prepared.commit.prefix(7)) to \(hostSpec.sshTarget):\(layout.toolRoot) (git push exited \(push);"
-            + " is the runner set up? run `fleetest remote setup`)")
-    }
-    return try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
-}
-
-private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) throws -> Int32 {
-    guard let executable = ExecutablePath.current else {
-        throw RemoteDispatchError.remoteSetupFailed("could not resolve the local alignment executable")
-    }
-    let temporary = try Shell.run(setupSSHBase + [hostSpec.sshTarget,
-        "mktemp -d /tmp/fleetest-remote-align.XXXXXXXX"])
-    guard temporary.status == 0 else {
-        throw RemoteDispatchError.remoteSetupFailed(
-            "could not create a temporary alignment directory (exit \(temporary.status))\n\(temporary.tail)")
-    }
-    let directory = temporary.output.trimmingCharacters(in: .whitespacesAndNewlines)
-    let prefix = "/tmp/fleetest-remote-align."
-    let suffix = directory.dropFirst(prefix.count)
-    guard directory.hasPrefix(prefix), suffix.count == 8,
-          suffix.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }) else {
-        throw RemoteDispatchError.remoteSetupFailed("the remote alignment directory could not be verified")
-    }
-    let helper = directory + "/fleetest"
-    // 転送失敗ではリモート側の EXIT trap へ到達しないため、こちらでも回収する。
-    defer {
-        _ = try? Shell.run(setupSSHBase + [hostSpec.sshTarget,
-            "rm -f -- \(RemoteShell.quote(helper)); rmdir -- \(RemoteShell.quote(directory)) 2>/dev/null || true"])
-    }
-    let transfer = try runInheritedSSH(setupSCPBase + [executable.path, "\(hostSpec.sshTarget):\(helper)"])
-    guard transfer == 0 else {
-        throw RemoteDispatchError.remoteSetupFailed("could not copy the alignment executable (scp exited \(transfer))")
-    }
-    return try runInheritedSSH(setupSSHBase + [hostSpec.sshTarget,
-        RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: prepared.commit, digest: prepared.digest,
-                                             helperPath: helper, developerDir: prepared.developerDir)])
-}
-
-/// `fleetest-devicepoll` / `fleetest-mcp` の後回しのビルドを、**dispatch.lock を外した後**にランナーの裏ジョブとして起こす
-/// (`RemoteAlignPlan.deferredBuildCommand`)。失敗は警告1行(align の成否を変えない。次の align が「後回しが未成功」で撃ち直す)
-private func startDeferredBuild(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared) {
-    let status = (try? runInheritedSSH(setupSSHBase + ["-n", hostSpec.sshTarget,
-        RemoteAlignPlan.deferredBuildCommand(layout: layout, digest: prepared.digest,
-                                             developerDir: prepared.developerDir)])) ?? -1
-    if status == 0 {
-        say("deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/")) started"
-            + " (log: \(RemoteAlignPlan.deferredLogPath(layout: layout)))")
-    } else {
-        say("warning: could not start the deferred build of \(RemoteAlignPlan.deferredProducts.joined(separator: "/"))"
-            + " on \(hostSpec.sshTarget) (ssh exited \(status)) — monitor streaming may be missing until the next align")
-    }
-}
-
-/// アラインのビルドに使う Xcode。**ディスパッチと同じ解決**(登録簿の pin > build 一致 > 製品版一致。
-/// `RemoteRunDispatcher.resolveXcodeSelection` と同じ入力)を通す —— 別に決めると、照合した Xcode と
-/// ビルドした Xcode が食い違う。列挙できない・一致しない(refused)ときは ambient(従来どおり)で、refused は1行言う
-private func alignmentDeveloperDir(hostSpec: RemoteHostSpec) -> String? {
-    let pin = LocalConfig.load().remoteHosts?.first { $0.host == hostSpec.sshTarget }?.developerDir
-    guard let listing = try? Shell.run(setupSSHBase + [hostSpec.sshTarget, XcodeSelection.listCommand]),
-          listing.status == 0 else {
-        return XcodeSelection.resolve(localFingerprint: nil, installed: [], pin: pin).developerDir
-    }
-    let outcome = XcodeSelection.resolve(localFingerprint: ToolchainFingerprint.current(),
-                                         installed: XcodeSelection.parse(listing.output), pin: pin)
-    if case .refused(let reason) = outcome {
-        ConsoleOut.err("⚠️ \(hostSpec.sshTarget): building with the runner's default Xcode — \(reason)")
-    }
-    return outcome.developerDir
-}
-
-/// `echo $HOME; <RemoteProbe.consoleUserCommand>; id -un` の到達確認(RemoteRunDispatcher.resolveLayout
-/// と同じ規律だが private のため複製する)。session が nil でも home が取れていれば
-/// ログイン判定だけスキップして続行する(古い macOS 等の想定外出力への fallback)。
-/// `Setup` と `Align` が共有する
-private func remoteReach(hostSpec: RemoteHostSpec)
-    -> (session: RemoteSessionInfo?, home: String?, error: String?) {
-    guard let result = try? Shell.run(
-        setupSSHBase + [hostSpec.sshTarget, "echo $HOME; \(RemoteProbe.consoleUserCommand); id -un"]) else {
-        return (nil, nil, "ssh failed to run")
-    }
-    guard result.status == 0 else {
-        return (nil, nil, "cannot reach \(hostSpec.sshTarget) over ssh (status \(result.status))"
-            + " — check the host name and keys; BatchMode disables password prompts\n\(result.tail)")
-    }
-    if let session = RemoteProbe.parseSessionInfo(result.output) {
-        return (session, session.home, nil)
-    }
-    let firstLine = (result.output.split(separator: "\n", maxSplits: 1,
-                                          omittingEmptySubsequences: false).first ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !firstLine.isEmpty else {
-        return (nil, nil, "could not determine $HOME on \(hostSpec.sshTarget)")
-    }
-    return (nil, firstLine, nil)
-}
-
-// MARK: - dispatch.lock (RR-18.3 規則2)
-//
-// align/install はリモートの `<base>/tool/.build` バイナリを再ビルドで差し替えるため、
-// 稼働中の dispatch へ重ねるとその dispatch を SIGKILL する(「E2E 中に swift build を
-// 打たない」と同型)。align/setup に `--force-lock` は無いので
-// RemoteRunDispatcher.acquireDispatchLock と違い強制取得の分岐を持たない。
-
-/// 取得。成功なら nil、失敗ならそのまま表示できるメッセージ文字列を返す
-/// (RemoteRunDispatcher.acquireDispatchLock と同じ status 判定: 255 = ssh 到達不能、
-/// それ以外の非0 = ロック保持中 → readCommand で保持者を読んで alignHeldMessage を組み立てる)
-private func acquireRemoteDispatchLock(hostSpec: RemoteHostSpec, layout: RemoteLayout) -> String? {
-    let info = RemoteDispatchLockInfo.now(
-        issuerHost: ProcessInfo.processInfo.hostName, pid: ProcessInfo.processInfo.processIdentifier,
-        issuer: LocalConfig.resolveIssuerId())
-    guard let result = try? Shell.run(setupSSHBase + [hostSpec.sshTarget,
-        RemoteDispatchLock.acquireCommand(home: layout.home, info: info)]) else {
-        return "ssh failed to run"
-    }
-    guard result.status == 0 else {
-        guard result.status != 255 else {
-            return "cannot reach \(hostSpec.sshTarget) over ssh (status 255)\n\(result.tail)"
-        }
-        let existing = try? Shell.run(setupSSHBase + [hostSpec.sshTarget, RemoteDispatchLock.readCommand(home: layout.home)])
-        let existingInfo = existing.flatMap { RemoteDispatchLock.decode($0.output.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        return RemoteDispatchLock.alignHeldMessage(existingInfo)
-    }
-    return nil
-}
-
-/// 解放。失敗しても警告1行(run の成否を変えない。RemoteRunDispatcher.releaseDispatchLock と同じ規律)
-private func releaseRemoteDispatchLock(hostSpec: RemoteHostSpec, layout: RemoteLayout) {
-    let result = try? Shell.run(setupSSHBase + [hostSpec.sshTarget, RemoteDispatchLock.releaseCommand(home: layout.home)])
-    if result?.status != 0 {
-        say("warning: failed to release the dispatch lock on \(hostSpec.sshTarget)"
-            + " — clear it manually if the next align/setup is refused")
-    }
-}
 
 extension RemoteCommand {
 
@@ -581,7 +381,7 @@ extension RemoteCommand {
     struct Align: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "align",
-            abstract: "Send the local working tree to a runner and build it"
+            abstract: "Send the local working tree (or --tool-rev) to a runner and build it"
                 + " (the align step of `remote setup` alone; RR-14)")
 
         @Argument(help: "Remote runner to align: a registered machine (fleetest remote machines) or a raw user@host/host")
@@ -591,63 +391,22 @@ extension RemoteCommand {
                 help: "Runner-only base directory on the remote host (default: the machine registry's entry, or ~/fleetest-runner)")
         var remoteDir: String?
 
+        @Option(name: .customLong("tool-rev"),
+                help: ArgumentHelp("Send this commit (any commit-ish of the local clone, e.g. HEAD) as is instead of the working "
+                    + "tree. Use it to run the version before a fix on one runner while another runner holds the working tree "
+                    + "(pair with `fleetest run --tool-rev <same>`)"))
+        var toolRev: String?
+
         func run() async throws {
             let resolved = try RemoteHostResolver.resolve(rawHost: runner, remoteDirOverride: remoteDir)
-            let hostSpec = resolved.hostSpec
             resolved.announce()
 
             guard let repoRoot = try? RepoRoot.find() else {
                 throw RemoteDispatchError.remoteSetupFailed(
                     "cannot resolve the local tool root (run this inside the fleetest-mobile repo)")
             }
-            let prepared = try prepareAlignment(hostSpec: hostSpec, repoRoot: repoRoot)
-
-            say("==> reach: checking \(hostSpec.sshTarget)...")
-            let (session, home, reachError) = remoteReach(hostSpec: hostSpec)
-            guard let home else {
-                say(reachError ?? "unreachable")
-                throw ExitCode(1)
-            }
-            if let session, !session.isLoggedIn {
-                say("\(hostSpec.sshTarget) is sitting at the login window (console user: "
-                    + "\(session.consoleUser), expected: \(session.sshUser)) — unlock and log in on the "
-                    + "runner, then retry (RR-5)")
-                throw ExitCode(1)
-            }
-            let layout: RemoteLayout
-            do {
-                layout = RemoteLayout(base: RemoteLayout.resolveBase(resolved.remoteDirRaw, home: home),
-                                      issuer: try resolveLayoutIssuer(), home: home)
-            } catch {
-                say(error.localizedDescription)
-                throw ExitCode(1)
-            }
-
-            // 同じなら何もしない(ロックも取らない・送らない・ビルドしない)
-            if alignmentAlreadyDone(hostSpec: hostSpec, layout: layout, prepared: prepared) {
-                say("✅ already aligned to \(prepared.commit.prefix(7)) (same contents and toolchain; nothing sent or built)")
-                return
-            }
-
-            // align は稼働中バイナリを差し替えるので、走っている dispatch と衝突しないことを
-            // 先に確かめる(RR-18.3 規則2)。**ロックを外すのは後回しのビルドを起こす前**
-            if let failure = acquireRemoteDispatchLock(hostSpec: hostSpec, layout: layout) {
-                say(failure)
-                throw ExitCode(1)
-            }
-            var lockHeld = true
-            defer { if lockHeld { releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout) } }
-
-            say("==> align: sending the working tree, building the remote clone, and safely retiring FM...")
-            let alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
-            guard alignStatus == 0 else {
-                say("build or FM resident alignment failed (exit \(alignStatus); see output above)")
-                throw ExitCode(1)
-            }
-            releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout)
-            lockHeld = false
-            startDeferredBuild(hostSpec: hostSpec, layout: layout, prepared: prepared)
-            say("✅ aligned to \(prepared.commit.prefix(7)) and built; FM maintenance completed")
+            _ = try RemoteAlign.execute(resolved: resolved, repoRoot: repoRoot, toolRev: toolRev,
+                                        guarded: false, io: .stdout)
         }
     }
 

@@ -10,6 +10,8 @@
 
 import ArgumentParser
 import FTCore
+import FTRemote
+import Foundation
 
 struct RunCommonOptions: ParsableArguments {
     @Option(help: "Test project name (defaults to the only one in TestProjects/, or the default project)")
@@ -84,6 +86,22 @@ struct RunCommonOptions: ParsableArguments {
             + "Cannot be combined with --runner/--device-machine (those already restrict the run "
             + "to one machine)"))
     var allMachines = false
+
+    /// **単一のリモートへのディスパッチでだけ**効く(`validateToolSync` / `rejectToolSyncOutsideSingleRemote`)。
+    /// 子プロセス(マシン別サブ実行・リモートの子)へは**渡さない**(`ToolSyncForwardingTests`)
+    @Flag(name: .customLong("align"),
+          help: ArgumentHelp("Before dispatching to a remote runner, bring the runner's tool clone to this machine's "
+            + "working tree (or --tool-rev) and build it, the same as `fleetest remote align`. Does nothing when it already "
+            + "matches; stops without touching the runner when this machine is behind or has diverged. Only for a dispatch "
+            + "to one remote runner (--runner <machine>)"))
+    var align = false
+
+    @Option(name: .customLong("tool-rev"),
+            help: ArgumentHelp("Compare the runner's tool version with this commit (any commit-ish of the local clone, "
+                + "e.g. HEAD) instead of the working tree. Pair it with `fleetest remote align <runner> --tool-rev <same>` "
+                + "(or --align) to run the version before a fix on one runner while another runner runs the working tree. "
+                + "Scenarios (TestProjects/) are still sent from the working tree. Only for a dispatch to one remote runner"))
+    var toolRev: String?
 
     /// 同じ実行から分かれた run を束ねる鍵(FTCore.RunMetaRecord.runGroup)。**発行は
     /// マシン別サブ実行の親だけ**で、子は受け取った値をそのまま run.json に書く(自分で作らない)。
@@ -231,6 +249,40 @@ extension RunCommonOptions {
             allMachines: allMachines, runner: runner, deviceMachine: deviceMachine) {
             throw ValidationError(message)
         }
+    }
+
+    /// `--align` / `--tool-rev` は**単一のリモートへのディスパッチでだけ**有効。手元の run・複数機械の run
+    /// (機械分担・`--fleet`・`--target`)では揃える相手も照合する相手も1つに決まらないので、撃つ前に断る。
+    /// 引数だけで決まる分(プロファイル無し・`--fleet`・明示 `--runner local`)は validate() で、
+    /// 実行プロファイルを読まないと分からない分(機械分担・全台が手元)は run() の分岐で
+    /// `rejectToolSyncOutsideSingleRemote` を呼ぶ。**文言は1つ**(両コマンドで同じ)
+    var toolSyncFlagsGiven: String? {
+        let given = [align ? "--align" : nil, toolRev != nil ? "--tool-rev" : nil].compactMap { $0 }
+        return given.isEmpty ? nil : given.joined(separator: " / ")
+    }
+
+    func rejectToolSyncOutsideSingleRemote() throws {
+        guard let given = toolSyncFlagsGiven else { return }
+        throw ValidationError("\(given) applies only to a dispatch to one remote runner"
+            + " (--runner <machine>, or a run profile whose devices are all on one remote machine);"
+            + " it cannot be used with a local run, --fleet, --target, or a run spread over several machines")
+    }
+
+    func validateToolSync(runner: String?, hasFleet: Bool) throws {
+        guard toolSyncFlagsGiven != nil else { return }
+        if let toolRev, toolRev.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw ValidationError("--tool-rev must name a commit (e.g. HEAD)")
+        }
+        if profile == nil || hasFleet || MachineDispatch.isExplicitLocal(runner) {
+            try rejectToolSyncOutsideSingleRemote()
+        }
+    }
+
+    /// `--tool-rev` が手元のクローンで解けるかを、ロックを取る・ssh を撃つより前に確かめる
+    func rejectUnresolvableToolRev(repoRoot: URL) throws {
+        guard let toolRev else { return }
+        do { _ = try AlignSnapshot.revisionTree(repoRoot: repoRoot, rev: toolRev) }
+        catch { throw ValidationError(error.localizedDescription) }
     }
 
     /// `--device` / `--device-machine` の指定を、エラー文言に出す形へ整える

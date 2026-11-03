@@ -131,7 +131,7 @@ final class RemoteAlignPlanTests: XCTestCase {
     func testBuildScriptAlwaysBuildsFleetestAndServicesAndDefersTheRest() throws {
         let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil)
         XCTAssertFalse(script.contains("git fetch"))
-        XCTAssertTrue(script.contains("git checkout --detach \"$ft_rev\""))
+        XCTAssertTrue(script.contains("git checkout -q --detach \"$ft_rev\""))
         XCTAssertTrue(script.contains("ft_rev='9655a21'"))
         XCTAssertTrue(script.contains(" && swift build --product fleetest && "), script)
         XCTAssertTrue(script.contains(" && swift build --product fleetest-services && "), script)

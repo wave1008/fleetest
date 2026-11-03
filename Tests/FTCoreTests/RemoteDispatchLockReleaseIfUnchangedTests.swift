@@ -87,7 +87,7 @@ final class RemoteDispatchLockReleaseIfUnchangedTests: XCTestCase {
             "RemoteDispatchLock.swift": 1,   // releaseIfRunEndedCommand(このディスパッチ自身のロック)
             "LocalDispatchLock.swift": 1,    // makeHolder(取った run の defer)
             "RemoteRunDispatcher.swift": 1,  // releaseDispatchLock(取ったディスパッチの defer)
-            "RemoteSetupCommand.swift": 1,   // setup/align が取ったロック
+            "RemoteAlign.swift": 1,          // setup/align/run --align が取ったロック
         ]
         var found: [String: Int] = [:]
         let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))

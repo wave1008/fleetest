@@ -75,6 +75,9 @@ struct RemoteRunDispatcher {
     /// (FleetSplit の機械別見積りの供給源。RR-13)。nil のまま渡された
     /// 構築箇所(facts を書く必要のない経路)では facts の保存をスキップする
     var hostLabel: String? = nil
+    /// `--tool-rev`: 照合の手元の値(要約・向きの基点)を作業ツリーでなくこのコミットから求める
+    /// (`RemoteCompat.localTool` の1箇所)。シナリオ(TestProjects/)の転送は変わらず作業ツリーから
+    var toolRev: String? = nil
 
     /// **中断済みならまだ何も走っていない前提で無条件にロックを外して抜ける**。
     /// `dispatch()`/`dispatchApi()` の両方から2回ずつ呼ぶ ―― ロック取得の直後と、
@@ -355,8 +358,7 @@ struct RemoteRunDispatcher {
         // (手元の git が壊れているのに緑で走らせない)
         let localTool: RemoteCompat.LocalTool
         do {
-            let tree = try AlignSnapshot.localTree(repoRoot: localRepoRoot)
-            localTool = RemoteCompat.LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
+            localTool = try RemoteCompat.localTool(repoRoot: localRepoRoot, toolRev: toolRev)
         } catch {
             throw RemoteDispatchError.incompatible(
                 ["git revision: could not compute the local tool digest: \(describe(error))"])

@@ -52,7 +52,7 @@ final class SSHOptionsTests: XCTestCase {
 
     func testRemoteSetupCommandBasesFoldInKeepAlive() throws {
         let source = try String(
-            contentsOf: repoRoot().appendingPathComponent("Sources/fleetest/RemoteSetupCommand.swift"),
+            contentsOf: repoRoot().appendingPathComponent("Sources/fleetest/RemoteAlign.swift"),
             encoding: .utf8)
         for base in ["setupSSHBase", "setupSCPBase"] {
             guard let range = source.range(of: "\(base) = ") else {

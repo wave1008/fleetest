@@ -396,6 +396,7 @@ struct RunScenarios: AsyncParsableCommand {
                 ("--serial", common.serial != nil), ("--app-id", common.appID != nil),
                 ("--device", !common.devices.isEmpty), ("--device-machine", common.deviceMachine != nil),
                 ("--all-machines", common.allMachines), ("--work-queue", common.workQueue),
+                ("--align", common.align), ("--tool-rev", common.toolRev != nil),
             ]) { throw ValidationError(message) }
         }
         try asSingleTarget(first).validateSingleTarget()
@@ -436,6 +437,7 @@ struct RunScenarios: AsyncParsableCommand {
         try common.validateTargeting(ports: ports)
         try common.validatePerformance(performanceMode: performanceMode, hasFleet: fleet != nil, acceptsFleet: true)
         try common.validateRunnerAndMachines(runner: runner, hasFleet: fleet != nil)
+        try common.validateToolSync(runner: runner, hasFleet: fleet != nil)
         try common.validateWorkQueue(broadcast: broadcast, hasFleet: fleet != nil)
         if fleet != nil {
             if runner != nil { throw ValidationError("--fleet cannot be combined with --runner") }
@@ -567,6 +569,7 @@ struct RunScenarios: AsyncParsableCommand {
                explicitHost: runner, deviceFilter: common.devices,
                disabledMachines: MachineEnablement.disabledMachines(config: LocalConfig.load()),
                overrides: profileOverrides) {
+            try common.rejectToolSyncOutsideSingleRemote()
             let exitCode = try await DeviceMachineRunner.run(
                 project: try ScenarioHost.project(named: common.project), profileName: profile,
                 groups: groups, scenarios: scenarios, folders: folders,
@@ -589,6 +592,8 @@ struct RunScenarios: AsyncParsableCommand {
             try await dispatchToFleet(fleet)
             return
         }
+        // ここから先は手元の run(dry-run を含む)= 揃える・照合する宛先が無い
+        try common.rejectToolSyncOutsideSingleRemote()
         PhaseLog.mark("start")
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // validateProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない。
@@ -1178,9 +1183,16 @@ struct RunScenarios: AsyncParsableCommand {
         resolved.announce()
         let testProject = try ScenarioHost.project(named: common.project)
         let localRoot = try RepoRoot.find()
+        try common.rejectUnresolvableToolRev(repoRoot: localRoot)
+        // `--align`: 宛先を手元(`--tool-rev` があればその版)へ揃えてから、今のディスパッチの経路へ進む
+        // (照合が揃えた結果を確かめる)。`api run` と同じ呼び出し・出力先だけ違う
+        if common.align {
+            _ = try RemoteAlign.execute(resolved: resolved, repoRoot: localRoot, toolRev: common.toolRev,
+                                        guarded: true, io: .stdout)
+        }
         let dispatcher = RemoteRunDispatcher(
             host: resolved.hostSpec, remoteDirRaw: resolved.remoteDirRaw, localRepoRoot: localRoot,
-            forceLock: forceLock, waitLock: waitLock, hostLabel: dispatch.rawTarget)
+            forceLock: forceLock, waitLock: waitLock, hostLabel: dispatch.rawTarget, toolRev: common.toolRev)
         var scopedDevices = common.devices
         var scopedDeviceHost = common.deviceMachine
         if common.deviceMachine == nil {

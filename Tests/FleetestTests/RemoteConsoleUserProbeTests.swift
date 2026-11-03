@@ -38,7 +38,7 @@ final class RemoteConsoleUserProbeTests: XCTestCase {
     func testAllThreeProbeSitesReferenceTheSharedCommand() throws {
         for relative in ["Sources/FTRemote/RemoteDispatch.swift",
                          "Sources/fleetest/RemoteRunDispatcher.swift",
-                         "Sources/fleetest/RemoteSetupCommand.swift"] {
+                         "Sources/fleetest/RemoteAlign.swift"] {
             let text = try String(contentsOf: repoRoot.appendingPathComponent(relative),
                                   encoding: .utf8)
             XCTAssertTrue(text.contains("RemoteProbe.consoleUserCommand"),

@@ -126,6 +126,30 @@ public enum AlignSnapshot {
                          digest: try digest(repoRoot: repoRoot, tree: tree))
     }
 
+    /// `--tool-rev` の指すコミットとそのツリーの要約。**コミットそのものを送る**(スナップショットは作らない)。
+    /// `rev` は `<rev>^{commit}` として解く(ブランチ・タグ・SHA・`HEAD~2` 等)。解けなければ throw
+    public struct RevisionTree: Equatable, Sendable {
+        public let commit: String
+        public let tree: String
+        public let digest: String
+    }
+
+    public static func revisionTree(repoRoot: URL, rev: String) throws -> RevisionTree {
+        let trimmed = rev.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `-` で始まる値は git のオプションとして読まれる(`--end-of-options` に頼らず入口で断る)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("-") else {
+            throw SnapshotError.git("--tool-rev needs a commit-ish (got \"\(rev)\")")
+        }
+        let commit: String
+        do {
+            commit = try git(repoRoot, ["rev-parse", "--verify", "\(trimmed)^{commit}"])
+        } catch {
+            throw SnapshotError.git("--tool-rev \(trimmed) does not name a commit in this clone")
+        }
+        let tree = try git(repoRoot, ["rev-parse", "\(commit)^{tree}"])
+        return RevisionTree(commit: commit, tree: tree, digest: try digest(repoRoot: repoRoot, tree: tree))
+    }
+
     /// ツリーの要約(ランナーの `remoteProbeCommand` と同じ規則)
     public static func digest(repoRoot: URL, tree: String) throws -> String {
         let listing = try git(repoRoot, ["ls-tree", tree])

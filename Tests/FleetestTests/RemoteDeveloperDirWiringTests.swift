@@ -36,7 +36,7 @@ final class RemoteDeveloperDirWiringTests: XCTestCase {
     func testAlignBuildsThroughTheSameSelection() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/fleetest/RemoteSetupCommand.swift")
+            .appendingPathComponent("Sources/fleetest/RemoteAlign.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(code.contains("developerDir: alignmentDeveloperDir(hostSpec: hostSpec)"),
                       "runRemoteAlignment が選んだ Xcode をアラインのコマンドへ渡していない")

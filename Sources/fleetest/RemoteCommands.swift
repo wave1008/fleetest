@@ -1281,8 +1281,8 @@ struct StatusJSON: Encodable {
 /// 手元のツールの同一性(HEAD・作業ツリーの要約・きれいか)。`remote status` / `api remote-compat` が共有する。
 /// git が失敗したら nil(= 照合は fail-closed の「手元の値が取れない」になる)
 func localToolIdentity() -> RemoteCompat.LocalTool? {
-    guard let root = try? RepoRoot.find(), let tree = try? AlignSnapshot.localTree(repoRoot: root) else { return nil }
-    return RemoteCompat.LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
+    guard let root = try? RepoRoot.find() else { return nil }
+    return try? RemoteCompat.localTool(repoRoot: root, toolRev: nil)
 }
 
 /// 不一致の解消の向き(RR-18.3 規則1)。**基点同士で比べる**(手元の基点 = 手元の HEAD、ランナーの基点 =

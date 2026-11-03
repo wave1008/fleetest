@@ -60,6 +60,24 @@ final class RunRejectionParityTests: XCTestCase {
         .init(label: "all-machines with device",
               arguments: ["--profile", "p", "--all-machines", "--device", "d"], rejected: false),
 
+        // --align / --tool-rev(単一のリモートへのディスパッチでだけ。RunCommonOptions.validateToolSync)。
+        // 機械分担・全台が手元の分は実行プロファイルを読む run() 側の分岐(RunToolSyncScopeTests)
+        .init(label: "align without profile", arguments: ["--align"], rejected: true),
+        .init(label: "tool-rev without profile", arguments: ["--tool-rev", "HEAD"], rejected: true),
+        .init(label: "align with runner local",
+              arguments: ["--profile", "p", "--runner", "local", "--align"], rejected: true),
+        .init(label: "tool-rev with runner local",
+              arguments: ["--profile", "p", "--runner", "local", "--tool-rev", "HEAD"], rejected: true),
+        .init(label: "tool-rev blank",
+              arguments: ["--profile", "p", "--runner", "m1", "--tool-rev", " "], rejected: true),
+        .init(label: "align with remote runner",
+              arguments: ["--profile", "p", "--runner", "m1", "--align"], rejected: false),
+        .init(label: "tool-rev with remote runner",
+              arguments: ["--profile", "p", "--runner", "m1", "--tool-rev", "HEAD"], rejected: false),
+        .init(label: "align and tool-rev with remote runner",
+              arguments: ["--profile", "p", "--runner", "m1", "--align", "--tool-rev", "HEAD"], rejected: false),
+        .init(label: "align with profile only", arguments: ["--profile", "p", "--align"], rejected: false),
+
         // --set(実行プロファイルの上書き)
         .init(label: "set profile-only key without profile",
               arguments: ["--set", "iosMode=xcuitest"], rejected: true),

@@ -166,6 +166,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 検査を片方だけに置かない)
 
         try common.validateRunnerAndMachines(runner: runner, hasFleet: false)
+        try common.validateToolSync(runner: runner, hasFleet: false)
         try common.validateWorkQueue(broadcast: false, hasFleet: false)
         // `--set` の検査(型・専用フラグとの衝突・--profile 無し時の profile-only キーと record)は run と共有。
         // この経路(runDirect)は RunOrchestrator を経由せず各シナリオを直接の接続で流すため録画セッションが無い
@@ -274,6 +275,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                deviceFilter: common.devices,
                disabledMachines: MachineEnablement.disabledMachines(config: LocalConfig.load()),
                overrides: profileOverrides) {
+            try common.rejectToolSyncOutsideSingleRemote()
             if debug {
                 throw ValidationError(
                     "--debug is not supported with a profile that spans multiple machines"
@@ -292,6 +294,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
         // **dry-run は送らない**(RemoteDispatchGate の宣言・`fleetest run` と同じ扱い = 注記して
         // ローカルで検証する)。2実装で同じ打鍵の可否を揃える
+        if dryRun { try common.rejectToolSyncOutsideSingleRemote() }
         if dryRun, runner != nil {
             ConsoleOut.err("ℹ️ --dry-run touches no device, so --runner is not used"
                   + " (the scenarios are validated locally, from the same source the remote would run)")
@@ -305,6 +308,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             try await dispatchToRemoteHost(dispatch, project: testProject)
             return
         }
+        // ここから先は手元の run = 揃える・照合する宛先が無い
+        try common.rejectToolSyncOutsideSingleRemote()
 
         if !dryRun {
             try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios, requireSingle: debug)
@@ -824,9 +829,15 @@ struct ApiRunCommand: AsyncParsableCommand {
         // アナウンスは stderr へ出す
         resolved.announce(toStderr: true)
         let localRoot = try RepoRoot.find()
+        try common.rejectUnresolvableToolRev(repoRoot: localRoot)
+        // `--align`: `fleetest run` と同じ。stdout は NDJSON 専用なので進行は stderr
+        if common.align {
+            _ = try RemoteAlign.execute(resolved: resolved, repoRoot: localRoot, toolRev: common.toolRev,
+                                        guarded: true, io: .stderr)
+        }
         var dispatcher = RemoteRunDispatcher(
             host: resolved.hostSpec, remoteDirRaw: resolved.remoteDirRaw, localRepoRoot: localRoot,
-            mode: .apiRun, hostLabel: dispatch.rawTarget)
+            mode: .apiRun, hostLabel: dispatch.rawTarget, toolRev: common.toolRev)
         dispatcher.waitLock = waitLock
         var scopedDevices = common.devices
         var scopedDeviceHost = common.deviceMachine
