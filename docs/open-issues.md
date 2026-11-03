@@ -56,6 +56,7 @@
 - 属性: 着手可
 
 横向きの探索の失敗文に「ロック画面」の帰属が出た(`StepExecutor+ScrollSearch.swift` の `frontAppIfSessionAppLeft` が見る木の種別)。同じ項目にあった横向きの3つの症状(CMP の行の端への tap が何も押さずに ok・Flutter の端の誤判定・E2EY-CMP の横向きの `scrollToTop` が上端へ戻らない)は、11/2 にデバイスで解消を確かめた(CMP 3/3・Flutter 4/4 が押せた・`scrollToTop` 2/2 が `msg_00` へ戻った。見えている部分が床に届かない要素を撃たない直しと、Android の払いをタッチの遊びの分だけ延ばす直しの後)
+- 11/4: 横向きで失敗する探索を M1Max の Emulator で 36 回(と、存在しない行の探索を 4 台)回してロック画面の文言は 0 回。木の持ち主はアプリで種別は nil・前面はアプリ(`inFront`)。Android でロック画面と言うのは木の持ち主が `com.android.systemui` のときだけで、横向きで systemui が持ち主の木が出る契機は再現できていない
 
 ### OI-77 10-30 のコードレビュー(3回目)で直さずに残したもの
 - 状態: 経路確定
@@ -139,6 +140,7 @@
 - 属性: 着手可・再現待ち
 
 E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)へ配ると、ホームの `tap("#nav_gesture")` の寄せが「not fully inside」(収まりきらない)になった2台だけで、遷移したジェスチャ画面の最初の `tap("#btn_tap_counter")` が飲まれた(`tap=1` / `tap=2`。どちらも in-app の合成タッチで「the screen looked the same when it settled」の注記付き = 誤った成功ではなく後の確かめで赤)。寄せが収まった6台では 0 件。寄せの払いの慣性・跳ね返りが残ったまま遷移し、最初のタッチが RN の応答者の切り替えに使われた疑い(未確認)。次に見るもの: 寄せの後に整定を待っているか・飲まれた回の木の動き
+- 11/4: 手元の 8 台・横向きで 2 周とも 4/8 で `tap("#btn_tap_counter")` が飲まれた(`tap=1` / `tap=2`。注記は「飲まれたかも」を名指し = 黙りではない)。同じ run で手順 53 の上への払いが検出されない赤も 4/8(台帳に無い形・HEAD の対照は無し)
 
 ### OI-147 React Native の iOS で、縮んだヘッダ・隠れたバーの下に潜った対象への tap が容器を送らずに撃ち、何も起きないまま ok
 - 状態: 再現済み
@@ -171,6 +173,7 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可・再現待ち・木に材料なし
 
 11/3 の7周目の探索(`_work/explore-20261103b/findings-*.md`)と、直しのデバイスでの確かめ。①横向きの低い一覧で1回の送りが行の高さを下回り既定の maxSwipes で届かない(ascroll F1)②Android の横向きの無限スクロールで特定の行を飛び越して「端に着いた」と断定(ascroll F5。15・45・57 で 5/5)③E2EY-RN の A11 横向きの `tap("#post_39", scroll: .down)` が2回払っただけで「nothing moved at all」の赤(3/6)④iOS の半開のシートの中を `tap(scroll:)` で探すと背面の一覧を送る(e2ey F2・iOS 12/12。`scrollFrame:` を付ければ通る)⑤ft_batch の途中で設定アプリが前面へ来た後の tap が警告なしの ok(batch F3。結論に「変化を見ていない触る手」を名指す形は入れた・根本未確定)⑥同じスイッチを続けて tap すると2回目に「may have been swallowed」(batch F8。Android の読みの古さの疑い)⑦Android で払いで切れた行への `select("行 01")` が空要素を返すまで 2.7〜22.3 秒(12 回。見えている行は 0.3〜0.5 秒)。調べた1件は所要 7.1 秒のうち guardMs 6.3 秒 = FM の推論2回(空の転写の訊き直しを含む。枠待ちは 1ms)で、select 固有の待ちではない(exist / textIs も同じ評価で同じ時間)。22 秒の回は6台へ同時に配った負荷の疑い(未確認。見るなら結果 JSON の `fm.byKind.occlusion.maxMs` と `gateWaitMaxMs`)⑧Flutter の横向きで Column からはみ出した欄の、木の上では覆われていない帯(タブの上の 32px)を押しても何にも当たらない(座標で直接撃って 4/4 無反応。親の箱の外の子へ Flutter のヒットテストが届かない推定。木に親の箱が無い)= 覆われた対象の見えている部分を押す tap は注記付きの ok のまま何も起きない⑨Android で欄を tap した後のキーボードの出現待ち(`armKeyboardAppearanceWaitAfterFieldTap`)が、type を撃っていないのに注記 `keyboard-not-shown-after-type` を出す(名前と事実の食い違い)⑩E2EY-iOS の `select("#txt_loading_state")` が「not visible: returned an empty element」なのに、続く `textIs("state=loaded")` が緑(1 回)⑪覆いの最前面がタブの中の文字(押せない型)のときは、見えている部分を押す扱いに入らず従来どおり警告して中心を撃つ(押せる祖先へ持ち上げる案は、祖先の復元が preorder+depth で行・包む祖先・無関係のボタンを拾うので外した)
+- 11/4: ②を直した: 下端で見切れて現れた行が、寄せの1本で行き過ぎて上端で見切れた形になり、見切れ回収の向きが「中心が容器の中なら探索の向きのまま」だったのでさらに遠ざかって飛び越していた。中心が中でも片方の縁で見切れていれば、その縁の側へ戻す(`TapTargetGeometry.clippedEdgeRecoveryDirection`)。M1Max の Emulator 4 台・横向きで行 15・45・57 が修正前 12/12 赤 → 修正後 12/12 緑・縦向き 28/28 緑。同じ横向きで貼り付く見出し・グリッド・伸縮するヘッダは 12/12 赤(「still moving … raise maxSwipes」= ①の型。HEAD の対照は無し)
 
 ### OI-156 iOS のテキストの可視性検証が、ボタンは縁で切れていてもタブバーの下でも読まずに緑にする
 - 状態: 再現済み

@@ -872,6 +872,17 @@ public enum TapTargetGeometry {
         return over
     }
 
+    /// 探索軸の片方の縁だけで見切れているときの戻す向き(指の向き)。両縁・見切れなしは nil
+    public static func clippedEdgeRecoveryDirection(for frame: FTRect, container: FTRect, vertical: Bool) -> FTSwipeDirection? {
+        let t = clipTolerance
+        let start = vertical ? frame.y < container.y - t : frame.x < container.x - t
+        let end = vertical ? frame.y + frame.height > container.y + container.height + t
+                           : frame.x + frame.width > container.x + container.width + t
+        if start == end { return nil }
+        if vertical { return start ? .down : .up }
+        return start ? .right : .left
+    }
+
     /// 画面の主たる縦のスクロール容器 = `scrollable` を申告する要素のうち画面の
     /// `primaryContainerMinimumAreaRatio` 以上を占める最大のもの(対象を含む容器が無い形の送り先)
     public static func primaryScrollContainer(in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {

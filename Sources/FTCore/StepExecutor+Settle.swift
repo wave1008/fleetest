@@ -332,8 +332,12 @@ extension StepExecutor {
             if frame.centerX < container.x { return .right }
             if frame.centerX > container.x + container.width { return .left }
         }
-        return finger
+        // 中心は中でも縁で見切れている: 見切れた縁の側へ戻す(OI-161 ②。探索方向のままだと、探索の進む側の縁で
+        // 見切れた行は寄せの1本で行き過ぎて反対の縁で見切れ、探索方向の払いでさらに遠ざかって飛び越した)
+        return TapTargetGeometry.clippedEdgeRecoveryDirection(for: frame, container: container,
+                                                              vertical: finger == .up || finger == .down) ?? finger
     }
+
 
     /// 判定の本体は `TapTargetGeometry.isClippedByViewport`(MCP と共有)
     static func isClippedByViewport(_ element: ElementInfo, screen: FTRect) -> Bool {

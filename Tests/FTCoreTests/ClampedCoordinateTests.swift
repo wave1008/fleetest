@@ -186,6 +186,24 @@ final class ClampedCoordinateTests: XCTestCase {
         }
     }
 
+    /// OI-161 ②: 中心は容器の中でも縁で見切れているなら、見切れた縁の側へ戻す。
+    /// 探索方向のままだと、上の縁で見切れた行(寄せが行き過ぎた形)は払いでさらに遠ざかって飛び越す
+    /// (Android 横向きの E2EX-CMP 無限スクロール: 行 15・45・57 を通り過ぎて「端に着いた」)
+    func testRecoveryReturnsTowardTheClippedEdgeWhileTheCentreIsInside() {
+        let container = FTRect(x: 156, y: 612, width: 2700, height: 596)
+        let clippedTop = element(9, "button", id: "row_i_45", x: 156, y: 588, w: 2700, h: 168, depth: 12)
+        let clippedBottom = element(9, "button", id: "row_i_45", x: 156, y: 1100, w: 2700, h: 168, depth: 12)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedTop, container: container, searching: .up), .down)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedBottom, container: container, searching: .up), .up)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedTop, container: container, searching: .down), .down)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedBottom, container: container, searching: .down), .up)
+        let hContainer = FTRect(x: 100, y: 100, width: 600, height: 200)
+        let clippedLeft = element(9, "button", id: "c", x: 70, y: 120, w: 200, h: 100, depth: 12)
+        let clippedRight = element(9, "button", id: "c", x: 560, y: 120, w: 200, h: 100, depth: 12)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedLeft, container: hContainer, searching: .left), .right)
+        XCTAssertEqual(StepExecutor.recoveryDirection(for: clippedRight, container: hContainer, searching: .left), .left)
+    }
+
     /// 横方向も同じ規則(左へ行き過ぎたら指を右へ)
     func testRecoveryReversesHorizontally() {
         let container = FTRect(x: 16, y: 692, width: 370, height: 60)
