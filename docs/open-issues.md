@@ -29,11 +29,11 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 17 | OI-64・OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-112・OI-129・OI-139・OI-146・OI-147・OI-155・OI-156・OI-158・OI-161・OI-163 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 18 | OI-64・OI-75・OI-77・OI-83・OI-85・OI-87・OI-89・OI-112・OI-129・OI-139・OI-146・OI-147・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 20 | OI-1・OI-2・OI-40・OI-41・OI-45・OI-48・OI-64・OI-76・OI-89・OI-92・OI-102・OI-108・OI-109・OI-112・OI-121・OI-128・OI-129・OI-156・OI-161・OI-163 |
 | 低率の赤 | 数十〜数百回に1回の赤で、効果の判定に多くの周回が要るもの | 17 | OI-5・OI-6・OI-7・OI-13・OI-14・OI-15・OI-16・OI-17・OI-89・OI-102・OI-111・OI-127・OI-130・OI-132・OI-134・OI-164・OI-165 |
-| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 41 | OI-1・OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-70・OI-72・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-115・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-165 |
+| 再現待ち | 再現していない、または再現の条件や材料が揃っていないもの | 42 | OI-1・OI-3・OI-5・OI-6・OI-7・OI-8・OI-9・OI-12・OI-13・OI-14・OI-15・OI-16・OI-39・OI-49・OI-50・OI-59・OI-70・OI-72・OI-84・OI-86・OI-88・OI-89・OI-91・OI-92・OI-97・OI-103・OI-111・OI-115・OI-119・OI-124・OI-125・OI-127・OI-130・OI-134・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-165・OI-167 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 10 | OI-4・OI-7・OI-8・OI-9・OI-10・OI-11・OI-12・OI-17・OI-89・OI-139 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 14 | OI-2・OI-22・OI-23・OI-24・OI-26・OI-27・OI-28・OI-38・OI-40・OI-52・OI-58・OI-100・OI-109・OI-140 |
 
@@ -72,7 +72,7 @@
 - 11/2: replace の引き直しの読み直しは、撃つ側が同じドライバのときだけ省いた。ft_batch の終わりの前面の照会を Android で省く件は、木の bundle(アクセシビリティの根)と前面(dumpsys)の一致をソースで示せないので入れていない(デバイスで測ってから)
 - 11/4: 判断: ①replace の引き直しの⑤(焦点のある同じ型の要素)はやめて staleRef で断る(縦に並んだフォームは欄の x と幅がそろうので「同じ列」は区別にならない。ホスト側だけ・先に直す)②Android の ref なしの入力の前に欄を押すのは Flutter のアプリのときだけ(`AppUIFrameworkQuery` でホストから渡す・不明は今のまま押す。ブリッジの版上げを伴うので OI-64 とまとめる)③`ft_hide_keyboard` の 1.5 秒・`ft_batch` の終わりの前面の照会は据え置き ④launch の失敗文は直す
 - 11/3: replace の引き直しの推測の段を縦の移動だけに限った・Android の launch で systemui が居座ったときの失敗文に撃った手を書いた(Android ブリッジ 124)。残り: ref なし入力の前の「欄を押す」の条件・ft_hide_keyboard の 1.5 秒・ft_batch の終わりの前面の照会(どれもデバイスで測ってから)
-- 11/4: ①を入れた(replace の引き直しは焦点のある同じ型の欄では引かない = `ClearedFieldRelocation.relocate`。引けなければ撃たずに失敗)。残り: ②(ブリッジの版上げを伴う・OI-64 とまとめる)
+- 11/4: ①を入れた(replace の引き直しは焦点のある同じ型の欄では引かない = `ClearedFieldRelocation.relocate`。代わりに「その型の欄が木に1つだけで同じ列」なら引く = id も placeholder も無いアラートの入力欄。引けなければ撃たずに失敗)。残り: ②(ブリッジの版上げを伴う・OI-64 とまとめる)
 
 ### OI-83 固まったアプリで XCUITest ランナーごと落ち、bridge up まで戻らない・起動し直しのポートが run の in-app ブリッジと衝突
 - 状態: 再現済み
@@ -93,7 +93,7 @@
 
 - Flutter の横向きで焦点のある欄への ft_type(ref)を断る(d F2)・ft_tap(x,y)が ANR kill を挟んで18秒後に done(d F5)・長い type の途中の消灯の文言(d F9)
 - 11/3: MCP のキーボードの断りで、焦点のある要素が対象の枠の中に収まる形も焦点ありとした・Android に XCUITest の説明を出さない(F2)。DSL の `reachPastKeyboard` は同じ免除を持たない(MCP と DSL の食い違い = 共有する判定にまとめる余地)。F5・F9 は残り
-- 11/4: 焦点のある欄の判定(焦点のある要素が対象の枠に収まる形を含む)を MCP と DSL で共有した(`InputFocusRescue.holdsFocus`)。残り: F5・F9
+- 11/4: 焦点のある欄の判定を FTCore に移した(`InputFocusRescue.holdsFocus`)が、DSL には使わない: XCUITest ランナーが叩くのを省くのは ref 自身が焦点を持つとき(`alreadyFocusedInput`)だけで、内側の要素が焦点を持つ欄は中心を叩く = キーボードの下ならキーを押す(レビューの指摘)。MCP も同じ食い違いを持つ(MCP は免除して撃ち、ランナーは中心を叩く。ランナーの焦点のタップの点の守りが、キーボードの枠が画面にある回は撃たずに断る)。残り: ランナーの焦点の判定を「焦点のある要素が ref の枠に収まる」に揃えてから DSL へ広げる(ブリッジの版上げ)・F5・F9
 
 ### OI-87 前面の確認が打ち切りの時点の1回だけなので、奪われて戻った形を見逃す
 - 状態: 経路確定
@@ -188,6 +188,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可・再現待ち・木に材料なし
 
 11/3 の8周目の探索(`_work/explore-20261103c/findings-*.md`)で直さなかったもの。**重いもの**: ①iOS の CMP で、キーボードの下に隠れた欄へ clearInput が叩き直した点がかなキーボードのキーで、焦点のある別の欄を書き換えてから 422 で落ち、壊したことを言わない(kbd F3・1/1。11/3: 再現 8 台中 7 台。Enter で焦点が次の欄へ移る間は Compose が欄を動かし、XCUITest のキーボードの枠は画面の外で来る。①ホストが XCUITest で消す前に撮り直した欄を in-app のキーボードの枠と突き合わせる ②ランナーと in-app は焦点のタップの点がキーの上なら見えている帯へ寄せ、帯が無ければ撃たずに staleRef ③in-app の「直前の tap が焦点を立てた」は受け口が欄の上にあるときだけ、にして 16 回中 0 回。残り: 撃たずに断り続けて時間切れの赤が xcuitest 経路で 8 回中 1〜2 回あった(壊さない)③Flutter の Android の横向きで、キーボードを閉じた後に覆われた欄の見えている部分を押す tap が 5 回中 1 回タブを押して遷移した(land F2。11/3: 閉じた後は対象と覆いの枠が続けて同じになるまで読み直してから部分を決めるようにして 18 回中 0 回。押せた回も何も起きない形は OI-161 ⑧ のまま・長押しの部分押しは事後の確かめを通らないまま)④iOS の CMP の xcuitest モードと MCP で、タブの下に潜った行への tap がメディアのタブを押す(cover F4・既定の inapp-boost の DSL では出ない。11/4: 「木の順で奥に読まれる操作できる要素が中心を含み、ヒットテストが当たらないと断言したら覆いとして送る/外れなければ撃たない」を2回試して取り消した = E2EY-CMP の xcuitest で 8 回中 8 回赤のまま。送った後の木では行がタブから外れて見えるのに撃つとタブに当たり(慣性が止まるまで読み直しても同じ)、CMP の iOS の XCUITest の木の行の位置が描かれた位置とずれている疑い = OI-64 と同じ根。3 回は上の固定領域の裏でタップが飲まれる別の形(次の確かめで赤))。**その他**: ⑤CMP の iOS の横向きで MCP の `ft_tap` ref が、全画面で申告された容器のせいで縁のバーの外の描かれていない片を「見えている部分」として押す(land F5)⑥Android の RN でタブの下の行を送って外してから押す tap が飲まれて ok(cover F3・慣性の疑い)⑦iOS の inapp-boost で外側の容器に切り取られて見えない行への tap が送らず注記なしで ok(cover F1・in-app は要素を直接押すので echo は合う)⑧SwiftUI の横向きで高さ 0 に潰れた一覧の探索の払いが横のカルーセルを押す(land F3)⑨Flutter の Android の横向きで送れる容器が2つあると「nothing moved at all」で赤・scrollFrame の案内も無い(land F4)⑩Android で上端の一覧への `select` / `notExist` の `scroll: .up` が端を確かめる払いで引っ張って更新を2〜4回走らせる(scroll F1・4 SUT で 14/14)・下端から上の行を探しても1回走る(scroll F2・CMP / RN)⑪ブリッジ不達で振り直したシナリオが同じ不達のレーンへ戻る(run F2)⑫決定的に赤のシナリオだけで健全な端末が離脱する(run F1。11/3: 最後に通ってから別のデバイスでも落ちたシナリオの赤は数えないようにした = `ScenarioFailureWitnesses`。各シナリオを1回ずつ回す初回の run で赤が多いと離脱する形は残る = 区別の材料が無い)⑬Flutter の Android で続けて撃った2回目の pressEnter が届かずに ok(kbd F5)⑭CMP の Android で OTP の箱への `type("#otp_box_3")` が 500「target node not found」(kbd F2)⑮Android の pressEnter の失敗文が「in-app bridge … no XCUITest bridge」(kbd F6・`StepExecutor+DirectActions.swift`)⑯アプリが欄を空にした後の type に「the field already held」の事実と違う注記(kbd F4)⑰キーボードが出たまま `type("#field_bottom", scroll: .down)` が「nothing moved at all」(kbd F7)⑱Flutter の iOS の secure 欄の後の hideKeyboard が「still shown」(前の周の land F4・観測が要る)⑲MCP の ref で覆われた対象の見えている部分を押した応答に、中心についての古い警告(「may have hit #btn_bottom_b」・「under the sticky header」)が先頭に残る(後ろの文が「Warnings above about the frame's centre do not describe this point」と打ち消すので矛盾はしないが紛らわしい)
+
+### OI-167 探索の残り(9周目)
+- 状態: 再現済み
+- 確認: 22012640(2026-11-04)
+- 属性: 着手可・再現待ち
+
+11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。①**iOS の in-app の木で `[n]` 無しの `.clickable` が最上段の上の行を撃つ**(ilocal F4。E2EX-iOS の無限スクロール 8 回中ほぼ全部・E2E-iOS 2 回中 1 回)。一覧の見える範囲の外のセルを後ろへ回しても直らず、木の行の位置(`row_i_18` 125..177・一覧 160..)と絵(最上段は 19〜21)が食い違う = 木の位置が古い疑い。並べ替えの前から出ていたかは未確認(HEAD の対照なし)②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3。`scroll:` の有無・逆向き・hold でも = OI-147 の直しが届かない形。対象は容器の中)④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑥読み込み中に始めた向き付きの探索が既定の待ちで 0.6 秒で「動かない」と断定して赤・文言が `waitSeconds:` に触れない(iultra F1・F2)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑩CMP の iOS の隠れるバーへの `hold(scroll: .up)` が別の行へ撃つ(iultra F4・2/7)
 
 ## 要判断
 
@@ -404,6 +411,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 2026-11-02(E2EY-CMP の文中リンク・iOS・Android の高負荷の形は未測定): 0/12
 - 11/3: 渡した絵が全部一色(白紙)のときも、読み手の死と同じ待ちの枠の中で撮り直して読み直すようにした(失敗文と注記に「waited Ns for a non-blank screenshot」)。高負荷での率は未測定
 - 2026-11-03 の回帰(957149b2・M4Max の E2EY-CMP の iOS)で別の形が1件: 文字は読めたが `https://` を `https ://` と空白入りで読み、「@alice 9tihttps ://example.com/a=vvd」の中に `https://example.com/a` が見つからず赤(S0020)。手元の4台で回し直して 4/4 緑
+- 11/4: 回帰(22012640)の E2EY-CMP の iOS(M4Max)で、文中リンクの OCR が「@alice 9tihttps ://example.com/a=vvd」と読み `https://example.com/a` を見つけられず赤(1 件)
 
 ### OI-127 手元の Emulator の白紙が回帰の終盤に集中した
 - 状態: 再現済み
@@ -411,6 +419,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 属性: 低率の赤・再現待ち
 
 配信なしのフル回帰(73a31d8b)で、23:06 前後に手元の Emulator 4台が白紙になり `E2EX-RN/android` の1本が赤。`E2EY-Android` も1本が再実行。同じ対象を単独で3周(144 本)回すと白紙0件で再現しない。終了時の手元は `videoEncoder=dead`。原因は未測定。
+- 11/4: 配信を止めずに回したフル回帰(22012640)で、手元の Emulator の白紙(テキストの可視性検証が「スクリーンショットのアプリの領域が一色」)が E2E-RN・E2EX-RN の Android で計 9 件。同じシナリオを手元の 8 台へ配ると配信ありで 5/8 赤・**配信を止めると 8/8 緑**(E2EX-RN のチップ)= 手元の配信と Emulator のスクリーンショットの干渉。同じ日の朝の配信ありの回帰は 24/24 緑 = いつも起きるわけではない
 
 ### OI-130 回帰で一度だけ赤になった形
 - 状態: 再現済み
