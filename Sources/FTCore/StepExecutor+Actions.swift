@@ -1225,8 +1225,7 @@ extension StepExecutor {
             var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
-                // replace の消去は欄を叩いて焦点を立て済み(欄は引き直した後のもの)
-                priorTap: step.replace == true ? element : tapTargetBeforeThisStep,
+                priorTap: tapTargetBeforeThisStep,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))

@@ -73,6 +73,24 @@ final class KeyboardInputPathsTests: XCTestCase {
         XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた: \(primary.coordinateTaps)")
     }
 
+    /// replace の type は、最初からキーボードの下にある欄でも閉じずに打つ(消去が欄を叩いて焦点を立てるので、その欄を焦点のある欄とみなす)。
+    /// 直前のステップの tap は無い = 直前の tap の免除には頼れない形
+    func testReplaceTypeIntoAFieldAlreadyUnderTheKeyboardDoesNotCloseIt() async throws {
+        let log = CallLog()
+        let covered = el(1, "textField", "field_single", FTRect(x: 78, y: 260, width: 718, height: 48), value: "old")
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[covered]])
+        primary.keyboardFrame = FTRect(x: 0, y: 218, width: 874, height: 184)
+        primary.tapProbeAnswer = TapProbeResponse(background: true, receiver: "UIView", reason: nil)
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                    uiFramework: .flutter)
+        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_single"),
+                                                      text: "abc", replace: true))
+        if case .failed(let message) = outcome.status {
+            XCTAssertFalse(message.contains("under the soft keyboard"), message)
+        }
+        XCTAssertTrue(primary.coordinateTaps.isEmpty, "閉じるために叩いた: \(primary.coordinateTaps)")
+    }
+
     /// e2ey F5: RN の ScrollView の中の行は、キーボードが出ている間の最初のタップが閉じるだけなので撃つ前に閉じる
     func testTapOnlyDismissesKeyboardJudgement() {
         let list = el(1, "scrollView", "list_chat", FTRect(x: 0, y: 0, width: 400, height: 500), depth: 0, scrollable: true)

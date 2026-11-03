@@ -135,6 +135,26 @@ final class OcclusionSuspicionTests: XCTestCase {
         XCTAssertFalse(OcclusionSuspicion.isScrollLeftover(element: elements[1], in: elements, screen: screen))
     }
 
+    /// 中心を何も覆っていない(タブバーが無い)容器の外の行も、容器の外の残り(MCP の scroll-leftover と同じ2つ目の判定)
+    func testRowOutsideTheScrollerWithNothingOnItsCentreIsStillScrollLeftover() {
+        let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+        func el(_ ref: Int, _ type: String, _ depth: Int, _ f: FTRect, scroll: Bool = false) -> ElementInfo {
+            var e = ElementInfo(ref: ref, type: type, identifier: nil, label: "e\(ref)", value: nil,
+                                placeholder: nil, enabled: true, frame: f, depth: depth)
+            if scroll { e.scrollable = true }
+            return e
+        }
+        let elements = [
+            el(1, "scrollView", 0, FTRect(x: 0, y: 114, width: 402, height: 663), scroll: true),
+            el(2, "button", 1, FTRect(x: 16, y: 200, width: 370, height: 50)),
+            el(3, "button", 1, FTRect(x: 16, y: 300, width: 370, height: 50)),
+            el(4, "button", 1, FTRect(x: 16, y: 788, width: 370, height: 62)),
+        ]
+        XCTAssertFalse(OcclusionGeometry.isUntappableGhost(elements[3], in: elements, screen: screen),
+                       "前提: 中心を覆う物が無い(1つ目の判定では拾えない形)")
+        XCTAssertTrue(OcclusionSuspicion.isScrollLeftover(element: elements[3], in: elements, screen: screen))
+    }
+
     // MARK: - covering(誰が覆っているか)
 
     /// 失敗メッセージ用。**どの要素が覆っているか**まで返す(geometric は真偽だけ)
