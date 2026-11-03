@@ -167,7 +167,35 @@ extension StepExecutorTests {
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: [], expected: "Row One"))
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Row One"], expected: "Row One"))
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Other"], expected: "Row One"))
-        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Row"], expected: "Row One Two Three"), "先頭だけ")
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Row"], expected: "Row One Two Three"), "先頭の半分以下")
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Row One Tw…"], expected: "Row One Two Three"),
+                       "省略記号で切った文字はテキストの要素と同じく緑")
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Row One Two Thr"], expected: "Row One Two Three"),
+                       "半分より多く見えている")
+    }
+
+    /// 待ちの途中で一度だけ読めなかった行が後で読めて緑になったら、注記を残さない(事実と違う注記になる)
+    func testRowNoteIsDroppedWhenALaterPollReadsTheLabel() async throws {
+        let first = try renderedRowPNG("Different Words")
+        let later = try renderedRowPNG("Row One")
+        for _ in 0..<3 {
+            await Self.awaitAbandonedOCRReads()
+            var tree = rowOCRTree()
+            tree[1].type = "clickable"
+            let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [tree], screenshots: [first, later])
+            let executor = StepExecutor(driver: primary, delegate: FakeVisibilityDelegate(visible: false),
+                                        occlusionOCRMode: .on, isAndroid: false, tunables: RunTunables())
+            executor.noteAppLaunched()
+            let outcome = await withModelReady {
+                await executor.execute(FlowStep(assert: "textEquals", locator: FlowLocator(id: "row_01"),
+                                                expected: "Row One", timeout: 3, occlusionGuard: true))
+            }
+            if outcome.notes.contains(.ocrBudgetExhausted) || outcome.notes.contains(.ocrShortcutBusy) { continue }
+            guard case .passed = outcome.status else { return XCTFail("後の読みで緑のはず: \(outcome.status)") }
+            XCTAssertFalse(outcome.notes.contains(.rowLabelNotRead), "\(outcome.notes)")
+            return
+        }
+        throw XCTSkip("OCR exceeded its budget three times under load; the row check did not run")
     }
 
     /// Android は従来どおり(文字の子の無い行へ広げない)

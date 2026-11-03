@@ -42,12 +42,12 @@ public enum OCROnlyVisibility {
     }
 
     /// 文字の子を持たない行(iOS のセル)を見えていないと判定するか(赤 + 注記 `row-label-not-read`)。FM は使わない。
-    /// 警告するのは**読めた文字があるのに期待文字列が丸ごとは読めない**(別の文字・先頭だけ・省略)ときだけ。
-    /// nil(読んでいない)と空(1行も読めない = ラベルが文字として描かれていない行)は警告しない
+    /// 赤にするのは**読めた文字があるのに `TranscriptMatch` が見えていないと言う**(別の文字・先頭の半分以下)ときだけ =
+    /// 省略記号で切った文字・半分より多く見えている文字はテキストの要素と同じく緑。
+    /// nil(読んでいない)と空(1行も読めない = ラベルが文字として描かれていない行)は赤にしない
     public static func rowLabelNotRead(lines: [String]?, expected: String) -> Bool {
         guard let lines, !lines.isEmpty else { return false }
-        let verdict = TranscriptMatch.judge(transcript: lines.joined(separator: " "), expected: expected)
-        return !(verdict.visible && verdict.state == .fullyVisible)
+        return !TranscriptMatch.judge(transcript: lines.joined(separator: " "), expected: expected).visible
     }
 
     /// `lines` が nil(読んでいない)なら判定不能。空でなければ `TranscriptMatch.judge` へそのまま回す。

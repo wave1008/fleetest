@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 261
+    public static let bridgeProtocolVersion = 262
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -185,6 +185,28 @@ public enum BridgeAPI {
     public static func visibleModalChildStart(isModal: [Bool], isVisible: [Bool]) -> Int? {
         precondition(isModal.count == isVisible.count)
         return isModal.indices.last { isModal[$0] && isVisible[$0] }
+    }
+
+    /// 一覧(UITableView / UICollectionView)の子の並べ替え: セル(`isCell`)同士だけを**画面上の位置**(`screenFrames`。上から・同じ高さなら
+    /// 左から)の順に並べ、セルが占めていた位置へ戻した添字の列。nil = そのまま(セルが2つ未満・セル同士が1組でも重なる)。
+    /// 再利用されたセルは subviews の順が表示の順にならず、`[n]` を書かないセレクタが見えていない行を掴んだ(in-app の木だけ。
+    /// XCUITest・Android の木は表示の順)。**画面上の位置で並べる**のは、上下を反転した一覧(チャット)ではセルの枠と画面上の位置が逆だから。
+    /// **重なりがあれば並べ替えない** —— 木の順は手前・奥の判定(`PaintOrder`)の代用で、UICollectionView の重なるセル(重ねたカード)は
+    /// zIndex の順に並んでいる。セル以外(見出し)の位置も同じ理由で変えない。呼び手は in-app の `InAppSnapshot.cellsInDisplayOrder`
+    public static func cellDisplayOrder(screenFrames: [CGRect], isCell: [Bool]) -> [Int]? {
+        precondition(screenFrames.count == isCell.count)
+        let slots = isCell.indices.filter { isCell[$0] }
+        guard slots.count > 1 else { return nil }
+        for (n, a) in slots.enumerated() {
+            for b in slots[(n + 1)...] where screenFrames[a].intersection(screenFrames[b]).width > 0.5
+                && screenFrames[a].intersection(screenFrames[b]).height > 0.5 { return nil }
+        }
+        let ordered = slots.sorted {
+            (screenFrames[$0].minY, screenFrames[$0].minX) < (screenFrames[$1].minY, screenFrames[$1].minX)
+        }
+        var order = Array(isCell.indices)
+        for (slot, cell) in zip(slots, ordered) { order[slot] = cell }
+        return order
     }
 
     /// 下端のホームインジケータの帯(pt)。Face ID iPhone の下端セーフエリアは 34pt。ここを叩くと

@@ -1,19 +1,42 @@
-// iOS の in-app の木は UITableView / UICollectionView のセルを表示の位置の順に並べる(XCUITest・Android の木と同じ並び)。
-// 再利用されたセルの subviews の順のままだと、`[n]` を書かないセレクタが一覧の見える範囲の外の行を掴んだ。
+// iOS の in-app の木は UITableView / UICollectionView のセルを画面上の位置の順に並べる(規則は `BridgeAPI.cellDisplayOrder`)。
 // in-app の dylib は swift test でリンクされないので、配線はソースを走査して守る。
 
+import CoreGraphics
 import XCTest
+@testable import FTCore
 
 final class InAppCellOrderTests: XCTestCase {
-    func testSubviewChildrenGoThroughTheCellOrdering() throws {
+    private func row(_ y: CGFloat) -> CGRect { CGRect(x: 16, y: y, width: 370, height: 56) }
+
+    /// 再利用で subviews の順が崩れたセルを上から並べる(実測: 先頭が一覧の見える範囲の外の row_08)
+    func testCellsAreOrderedTopToBottom() {
+        let order = BridgeAPI.cellDisplayOrder(screenFrames: [row(662), row(270), row(326)], isCell: [true, true, true])
+        XCTAssertEqual(order, [1, 2, 0])
+    }
+
+    /// セル以外(見出し・スクロールの指示)の位置は変えない
+    func testNonCellSlotsStayInPlace() {
+        let header = CGRect(x: 0, y: 200, width: 402, height: 30)
+        let order = BridgeAPI.cellDisplayOrder(screenFrames: [row(662), header, row(270)], isCell: [true, false, true])
+        XCTAssertEqual(order, [2, 1, 0])
+    }
+
+    /// 重なるセル(重ねたカード = zIndex の順)は並べ替えない(木の順は手前・奥の判定の代用)
+    func testOverlappingCellsAreLeftAlone() {
+        let cards = [CGRect(x: 20, y: 300, width: 300, height: 200), CGRect(x: 40, y: 250, width: 300, height: 200)]
+        XCTAssertNil(BridgeAPI.cellDisplayOrder(screenFrames: cards, isCell: [true, true]))
+        XCTAssertNil(BridgeAPI.cellDisplayOrder(screenFrames: [row(300)], isCell: [true]), "セルが1つなら何もしない")
+        XCTAssertNil(BridgeAPI.cellDisplayOrder(screenFrames: [row(300), row(356)], isCell: [false, true]))
+    }
+
+    /// 並べる位置は画面上の位置(反転した一覧ではセルの枠と逆になる。呼び手は画面座標を渡す)
+    func testInAppPassesScreenFramesAndUsesTheSharedRule() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("InAppBridge/Sources/InAppSnapshot.swift"),
                                 encoding: .utf8)
-        XCTAssertTrue(source.contains("if let view = node as? UIView { return cellsInDisplayOrder(view) }"),
-                      "subviews を辿る子はセルを表示の順に並べてから返す")
-        XCTAssertFalse(source.contains("if let view = node as? UIView { return view.subviews }"))
-        // セル以外の位置は変えない(手前・奥の判定の代用 = PaintOrder を崩さない)
-        XCTAssertTrue(source.contains("for (slot, cell) in zip(slots, ordered) { out[slot] = cell }"))
+        XCTAssertTrue(source.contains("if let view = node as? UIView { return cellsInDisplayOrder(view) }"))
+        XCTAssertTrue(source.contains("screenFrames: subviews.map { $0.convert($0.bounds, to: nil) }"))
+        XCTAssertTrue(source.contains("BridgeAPI.cellDisplayOrder("))
     }
 }

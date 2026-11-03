@@ -126,14 +126,16 @@ extension StepExecutor {
         }
         // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませて見えていなければ赤(`OcclusionEligibility.isLabelledRowWithoutText`)。
         // 判定は OCR の段だけ(FM は呼ばない)なので、OCR の段が無効な構成では行の確かめ自体を走らせない。
-        // 警告で入れ、11/3 の回帰の全数で誤った警告 0 件(真陽性 2 件 = 潰れた一覧の行・木の順で掴んだ見えない行)を確かめて赤へ上げた
+        // 注記は最後の判定に合わせる(待ちの途中で一度だけ読めなかった回が、後で読めて緑になったら外す)
         let rowCheckByOCR = !isAndroid && occlusionOCRMode != .off
             && OcclusionEligibility.isLabelledRowWithoutText(element, expectedText: expectedText, in: elements)
         let status = try await occlusionFlipOnScreen(
             element: element, expectedText: expectedText, elements: elements, screen: screen,
             keyboardShown: keyboardShown, looseMatch: looseMatch, expectedIsUserText: expectedIsUserText,
             rowCheckByOCR: rowCheckByOCR, phase: &phase)
-        if rowCheckByOCR, case .failed? = status { noteCodesThisStep.insert(.rowLabelNotRead) }
+        if rowCheckByOCR {
+            if case .failed? = status { noteCodesThisStep.insert(.rowLabelNotRead) } else { noteCodesThisStep.remove(.rowLabelNotRead) }
+        }
         return status
     }
 
