@@ -72,7 +72,7 @@ final class CoveredTouchPartTests: XCTestCase {
     /// (引くと残りが無くなり、押せる対象を断る)
     func testEnclosingWrapperIsNotSubtracted() {
         let target = el(1, "button", id: "btn_input_submit", FTRect(x: 100, y: 2000, width: 800, height: 200))
-        let wrapper = el(2, "other", id: "wrapper", FTRect(x: 0, y: 1900, width: 1080, height: 500))
+        let wrapper = el(2, "clickable", id: "wrapper", FTRect(x: 0, y: 1900, width: 1080, height: 500))
         let tab = el(3, "button", id: "tab_home", FTRect(x: 0, y: 2080, width: 1080, height: 320))
         guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
             for: target, in: [target, wrapper, tab], screen: screen, inferring: true, scale: 3) else {
@@ -83,14 +83,14 @@ final class CoveredTouchPartTests: XCTestCase {
     }
 
     /// 回帰の実測(E2EX-iOS の FAB 画面): FAB が木で一覧より前に並ぶので、一覧の行が手前と読まれる。覆いが対象の祖先でない
-    /// スクロール容器の中身なら塗り順は推測でしかないので、断らずに従来の扱い(nil)へ戻す
+    /// スクロール容器の中身なら塗り順は推測でしかないので、断らずに従来の扱い(nil)へ戻す(行は押せる型 = ⓪では外れない形)
     func testScrollContentOverAFloatingButtonIsLeftToTheOldPath() {
         let phone = FTRect(x: 0, y: 0, width: 402, height: 874)
         let fab = ElementInfo(ref: 3, type: "button", identifier: "fab_add", label: "追加", value: nil, placeholder: nil,
                               enabled: true, frame: FTRect(x: 332, y: 719, width: 50, height: 48), depth: 1)
         let list = ElementInfo(ref: 4, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
                                enabled: true, frame: phone, depth: 1, scrollable: true)
-        let row = ElementInfo(ref: 28, type: "staticText", identifier: "row_f_11", label: "行 F11", value: nil, placeholder: nil,
+        let row = ElementInfo(ref: 28, type: "cell", identifier: "row_f_11", label: "行 F11", value: nil, placeholder: nil,
                               enabled: true, frame: FTRect(x: 16, y: 726, width: 370, height: 52), depth: 2)
         let elements = [fab, list, row]
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(fab, in: elements, screen: phone)?.ref, 28,
@@ -108,6 +108,32 @@ final class CoveredTouchPartTests: XCTestCase {
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(box, in: [box, field], screen: phone)?.ref, 11,
                        "前提: 既存の判定は欄を覆いと読む")
         XCTAssertNil(TapTargetGeometry.coveredTouch(for: box, in: [box, field], screen: phone, inferring: true, scale: 1))
+    }
+
+    /// 押せない覆い(見出しの容器が中の文字を覆うと読む = 塗り順の推測違い)は従来の扱い(nil)。中心を撃っても別の部品は押さない
+    func testNonOperableCoverIsLeftToTheOldPath() {
+        // MCPRefGuardTests.testPartialCoverageContainerBelowThresholdOccludes と同じ木
+        let title = ElementInfo(ref: 1, type: "button", identifier: "transit_station_title_name", label: "東京駅", value: nil,
+                                placeholder: nil, enabled: true, frame: FTRect(x: 285, y: 0, width: 510, height: 85), depth: 1)
+        let header = ElementInfo(ref: 2, type: "other", identifier: "header_container", label: nil, value: nil,
+                                 placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 0, width: 1080, height: 290), depth: 1)
+        let back = ElementInfo(ref: 3, type: "button", identifier: "btn_back", label: "戻る", value: nil,
+                               placeholder: nil, enabled: true, frame: FTRect(x: 20, y: 20, width: 60, height: 60), depth: 2)
+        let tree = [title, header, back]
+        XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(title, in: tree, screen: screen)?.ref, 2,
+                       "前提: 既存の判定は容器を覆いと読む")
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: title, in: tree, screen: screen, inferring: true, scale: 3))
+    }
+
+    /// 押せない手前の要素(対象の上端に重なる装飾の文字)は引かない: 引くと見えている帯が床を割って押せる対象を断る
+    func testNonOperableOverlayIsNotSubtracted() {
+        let (target, base) = tree(targetHeight: 200, tabTop: 2080)    // 上の 80px が見える
+        let badge = el(3, "staticText", id: "badge", FTRect(x: 100, y: 1990, width: 800, height: 70))   // 上端の 60px に重なる
+        guard case .visiblePart(let rect, _)? = TapTargetGeometry.coveredTouch(
+            for: target, in: base + [badge], screen: screen, inferring: true, scale: 3) else {
+            return XCTFail("押せない装飾は覆いに数えない")
+        }
+        XCTAssertEqual(rect.height, 80)
     }
 
     func testUncoveredTargetIsNil() {

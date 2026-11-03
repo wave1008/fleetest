@@ -11,12 +11,15 @@ extension TapTargetGeometry {
     }
 
     /// 対象の中心を `overlayCoveringForUncover` が名指す覆いが覆っているときの判断(覆っていなければ nil)。
-    /// 残りは対象の枠を画面と容器(あれば)で切り、手前の覆いを全部引いた片のうち、幅・高さとも床以上で最大のもの。
+    /// 残りは対象の枠を画面と容器(あれば)で切り、手前の押せる覆いを全部引いた片のうち、幅・高さとも床以上で最大のもの。
     /// 床は `minimumVisibleTapExtent` × scale(新しい定数は置かない)。scale・inferring に既定値を置かない = 渡し忘れをコンパイルで止める
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double) -> CoveredTouch? {
         guard let over = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
-        // 次の2形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
+        // 次の3形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
+        // ⓪覆いが押せる型でない: 防ぐ害は「別の押せる部品(タブ)に当たる」こと。背景・装飾・行の文字なら中心を撃っても別の部品は
+        //   押さず、塗り順の推測違い(見出しの容器が中の文字を覆うと読む)で断ると誤った赤になる
+        guard BridgeSnapshotThinning.operableTypes.contains(over.type) else { return nil }
         // ①対象が押せる型でない: 手前の押せる要素こそが受け手のことがある(OTP の箱の上に重ねた透明な入力欄)
         guard BridgeSnapshotThinning.operableTypes.contains(element.type) else { return nil }
         // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・
@@ -33,10 +36,12 @@ extension TapTargetGeometry {
         guard let t = area else { return .tooThin(visible: 0, floor: floor, over: over) }
         // 中心を覆う1つだけでなく、手前に描かれて対象に掛かる要素を全部引く。1つだけ引くと、残りの片が隣のタブの下に
         // 落ちて隣のタブを押した(実測・Flutter の横向き: 欄の左の片が #tab_home の下 = ホームへ遷移)。
-        // 対象を丸ごと包む相手はラッパーなので引かない(引くと何でも「薄い」になる)。スクロール容器・容器の外の残像も覆わない
+        // 対象を丸ごと包む相手はラッパーなので引かない(引くと何でも「薄い」になる)。スクロール容器・容器の外の残像も覆わない。
+        // 引くのは押せる型だけ(⓪と同じ理由 = 押せない覆いの上を押しても別の部品には当たらない)
         let lineage = TapTargetGeometry.lineage(of: element, in: elements)
         let covers = [over] + elements.filter { other in
             other.ref != over.ref && other.ref != element.ref && !lineage.contains(other.ref)
+                && BridgeSnapshotThinning.operableTypes.contains(other.type)
                 && other.scrollable != true
                 && PaintOrder.drawnAbove(other, element)
                 && !TapTargetGeometry.contains(other.frame, element.frame)
