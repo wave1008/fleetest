@@ -108,6 +108,20 @@ final class KeyboardInputPathsTests: XCTestCase {
         XCTAssertFalse(PreFireGuard.tapOnlyDismissesKeyboard(row, in: hidden, framework: .reactNative))
     }
 
+    /// OI-158: 行が画面を埋めて叩ける空きが無い RN の反転チャットでは、キーボードを閉じられないまま撃つ。黙って ok にせず、閉じられなかった事実を注記に残す
+    func testTapInRNScrollViewThatCannotCloseKeyboardNotesIt() async throws {
+        let log = CallLog()
+        let list = el(1, "scrollView", "list_chat", FTRect(x: 0, y: 0, width: 400, height: 560), depth: 0, scrollable: true)
+        let rows = (0..<7).map { el(2 + $0, "button", "msg_\($0)", FTRect(x: 0, y: Double($0) * 80, width: 400, height: 80), depth: 1) }
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[list] + rows])
+        primary.keyboardFrame = FTRect(x: 0, y: 560, width: 400, height: 240)
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                    uiFramework: .reactNative)
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "msg_3")))
+        XCTAssertTrue(outcome.driverFallback?.contains("could not be closed before the tap") == true,
+                      "\(outcome.status) \(String(describing: outcome.driverFallback))")
+    }
+
     /// F6: ブリッジの 409 の文言(ref を渡せ)を DSL の利用者へ出さない。断られた事実だけ言う
     func testClearInput409MessageDoesNotAdviseARef() async throws {
         let log = CallLog()

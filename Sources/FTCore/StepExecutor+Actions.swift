@@ -723,13 +723,20 @@ extension StepExecutor {
 
         // **キーボードで枠が細い帯に潰れた対象は、閉じてから引き直して撃つ**(実機 CMP: 高さ 2 に潰れた送信・クリアを撃つと焦点の欄へ当たり
         // 「ok」のまま押されなかった)。閉じるのは副作用の無い手段だけ(`closeKeyboardWithoutSideEffects`)。閉じられなければ従来どおり撃つ
+        let onlyDismissesKeyboard = PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
+        var keyboardCloseOutcome: KeyboardClose?
         if action == "tap", !switchedToFallbackDriver,
            PreFireGuard.keyboardCover(
                of: element, in: snapshot,
                keyboard: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
-                                                   screen: snapshot.screen)) != nil
-               || PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework),
-           case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+                                                   screen: snapshot.screen)) != nil || onlyDismissesKeyboard {
+            keyboardCloseOutcome = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
+        }
+        // 閉じられないまま撃つ形を黙って ok にしない(OI-158。PreTouch 側と同じ注記)
+        if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
+            driverFallback = Self.joinNotes(driverFallback, Self.keyboardStayedUpNote(why))
+        }
+        if case .closed(let closedNote, _)? = keyboardCloseOutcome {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
@@ -1972,6 +1979,13 @@ extension StepExecutor {
     static func nudgeLostMessage(_ step: FlowStep) -> String {
         "the target straddled its container's edge, so a slow drag was sent to bring it inside before touching it,"
             + " but the target could not be found on the screen afterwards: \(step.locatorSummary) (nothing was touched)"
+    }
+
+    /// キーボードが出たまま・閉じられずに、ScrollView の中の対象へ撃った(`PreFireGuard.tapOnlyDismissesKeyboard`)ときの注記。
+    /// 事実だけ: 閉じようとして閉じられなかった・React Native の既定ではその最初のタップが閉じるだけになりうる。押されたかは言わない
+    static func keyboardStayedUpNote(_ why: String) -> String {
+        "the keyboard was up and could not be closed before the tap (\(why)); inside a React Native scroll view the first tap"
+            + " may only dismiss the keyboard, so the target may not have been pressed — check the result, or close the keyboard first"
     }
 
     static func keyboardClosedLostMessage(_ step: FlowStep, closedNote: String) -> String {

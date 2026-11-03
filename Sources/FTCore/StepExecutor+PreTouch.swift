@@ -72,10 +72,18 @@ extension StepExecutor {
         }
         let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                  screen: snapshot.screen)
+        let onlyDismissesKeyboard = PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework)
+        var keyboardCloseOutcome: KeyboardClose?
         if case .primary = snapshotSource,
-           PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil
-               || PreFireGuard.tapOnlyDismissesKeyboard(element, in: snapshot, framework: uiFramework),
-           case .closed(let closedNote, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+           PreFireGuard.keyboardCover(of: element, in: snapshot, keyboard: keyboard) != nil || onlyDismissesKeyboard {
+            keyboardCloseOutcome = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
+        }
+        // 閉じられなかった(叩ける空きが無い・閉じなかった)まま撃つ形を黙って ok にしない(OI-158: 反転チャットは行が画面を埋めて空きが無く、
+        // RN の iOS は最初のタップが閉じるだけで行へ届かなかった)。撃つ判断は変えず、事実を注記に残す
+        if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
+            notes.append(Self.keyboardStayedUpNote(why))
+        }
+        if case .closed(let closedNote, _)? = keyboardCloseOutcome {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
