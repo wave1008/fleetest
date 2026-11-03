@@ -36,6 +36,22 @@ public enum OcclusionEligibility {
         return child
     }
 
+    /// 行(セル)の型。iOS の in-app の木は UITableView のセルを `clickable`、XCUITest 経由は `cell` で出す
+    /// (実測 `clickable "行 08"`)。`button`・アイコンのボタンは描かれない a11y ラベルを持つので含めない
+    private static let rowTypes: Set<String> = ["clickable", "cell"]
+
+    /// 期待文字列と同じ label を持ち、**文字の型の子孫を1つも持たない**行(セル)か。iOS の in-app の木は行の文字を
+    /// 子に出さないので `sameLabelTextDescendant` が届かない。この行は枠で可視性を読ませるが、**見えていないと判定しても
+    /// 赤にせず警告(`StepNote.rowLabelNotRead`)**にする(呼び手 `occlusionFlip`)。DSL の `occlusionFlip` が唯一の呼び手
+    public static func isLabelledRowWithoutText(_ element: ElementInfo, expectedText: String,
+                                                in elements: [ElementInfo]) -> Bool {
+        guard rowTypes.contains(element.type), element.label == expectedText, !expectedText.isEmpty else { return false }
+        // 同じ label の非文字の子(画像)は、ラベルが画像の説明文である印なので行として読まない
+        return !LocatorResolver.descendants(of: element, in: elements).contains {
+            isTextType($0.type) || $0.label == expectedText
+        }
+    }
+
     /// FM occlusion 照合の対象にしてよいか。ok=false の要素はガードを素通りする(pass のまま)。
     /// isUserText: label が textEquals/valueEquals の**ユーザー期待値**(リテラル)か。true のときは
     /// 結合セマンティクスの `, ` 規則を当てない(ユーザーが句読点入りテキストを意図的に検証し得るため。

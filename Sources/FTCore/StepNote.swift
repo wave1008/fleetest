@@ -440,6 +440,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// OCR の段がオンのときだけ・数字系の名前の欄だけ。**判定は変えない(警告)**。原因は推測しない
     case typedTextNotDrawn = "typed-text-not-drawn"
 
+    /// 文字の子を持たない行(iOS のセル)のラベルの文字が、枠の中に読めなかった(テキストの可視性検証が見えていないと判定した)。
+    /// **判定は変えない(警告。赤にしない)**。ボタンは対象外。OI-156
+    case rowLabelNotRead = "row-label-not-read"
+
     /// 人間向けの文言(FTRuntime がステップ説明へ括弧書きで付ける)
     public var text: String {
         switch self {
@@ -625,6 +629,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "nothing was written under this key on this device in this run (the memo is per device)"
         case .unchangedTapBeforeFailure:
             return "a tap before this failure did not change the app's tree at all"
+        case .rowLabelNotRead:
+            return "the row's label text could not be read inside its frame (the row has no text child in the tree, so this is a warning only)"
         case .typedTextNotDrawn:
             return "OCR did not find the typed text drawn in the field although the tree reports it as the value"
                 + " (the field may have discarded the input)"

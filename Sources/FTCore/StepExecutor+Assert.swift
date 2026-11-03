@@ -125,6 +125,27 @@ extension StepExecutor {
                            + " (\(Int(c.x)), \(Int(c.y))) is outside the screen, so it is not visible"
                            + " (scroll it into view before this step)")
         }
+        // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませる**が、見えていないと判定しても赤にせず警告にする**
+        // (`OcclusionEligibility.isLabelledRowWithoutText`。新しい検知は警告から)。Tier-0 の画面外は上で赤にしたまま
+        let rowWarningOnly = !isAndroid
+            && OcclusionEligibility.isLabelledRowWithoutText(element, expectedText: expectedText, in: elements)
+        let status = try await occlusionFlipOnScreen(
+            element: element, expectedText: expectedText, elements: elements, screen: screen,
+            keyboardShown: keyboardShown, looseMatch: looseMatch, expectedIsUserText: expectedIsUserText,
+            rowWarningOnly: rowWarningOnly, phase: &phase)
+        if rowWarningOnly, case .failed? = status {
+            noteCodesThisStep.insert(.rowLabelNotRead)
+            return nil
+        }
+        return status
+    }
+
+    /// `occlusionFlip` の Tier-0 より後ろ(足切り・インク・OCR・FM)。rowWarningOnly は呼び手が失敗を警告へ替える行
+    private func occlusionFlipOnScreen(element: ElementInfo, expectedText: String, elements: [ElementInfo],
+                                       screen: FTRect, keyboardShown: Bool, looseMatch: Bool,
+                                       expectedIsUserText: Bool, rowWarningOnly: Bool,
+                                       phase: inout PhaseAccumulator) async throws -> StepResult.Status? {
+        let clock = ContinuousClock()
         // 文字の型でない要素(行・ボタン)は、同じ label の文字の子を1つだけ持つならその子で確かめる
         // (親は縁で切れて文字が消えていても枠の位置にインクがある。以降の全段 = 縁・容器の外の判定・インク・OCR・FM が子を見る)。
         // 子が無い・複数なら従来どおり足切りで素通り(`OcclusionEligibility.sameLabelTextDescendant`)
@@ -145,7 +166,8 @@ extension StepExecutor {
         }
         // 足切り: label が verbatim 描画されない要素(アイコン/画像/絵文字/結合セマンティクス)は
         // FM で約50%誤反転する(実機確認)ため対象外=素通り(pass)。textEquals の期待値は結合規則を外す。
-        guard OcclusionEligibility.eligible(type: element.type, label: expectedText,
+        // 行(rowWarningOnly)は型で落とさず、ラベルの規則(結合・記号のみ)だけを当てる
+        guard OcclusionEligibility.eligible(type: rowWarningOnly ? "staticText" : element.type, label: expectedText,
                                             isUserText: expectedIsUserText,
                                             value: element.value, placeholder: element.placeholder,
                                             web: element.web).ok
