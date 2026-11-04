@@ -12,8 +12,28 @@ final class KeyboardInputPathsTests: XCTestCase {
         return e
     }
 
-    /// F2: 閉じた後の木で中心が下のタブ列に潜っていたら、タブを押さずに断る(注記だけで撃たない)
+    /// F2: 閉じた後の木で中心が下のタブ列に潜っていたら、タブを押さずに断る(注記だけで撃たない)。
+    /// 塗り順のある木(`PaintOrder.isReal` = フレームワークが分かる Android)
     func testTapAfterClosingKeyboardRefusesWhenTabBarCoversTheTarget() async throws {
+        let log = CallLog()
+        let target = el(1, "button", "btn_submit", FTRect(x: 20, y: 700, width: 300, height: 60))
+        let tab = el(2, "button", "tab_home", FTRect(x: 0, y: 680, width: 400, height: 120))
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[target]])
+        primary.keyboardFrame = FTRect(x: 0, y: 450, width: 400, height: 350)
+        primary.afterHideKeyboard = {
+            primary.keyboardFrame = nil
+            primary.snapshotElements = [[target, tab]]
+        }
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_submit")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status) \(log.entries)") }
+        XCTAssertTrue(message.contains("covered by"), message)
+        XCTAssertTrue(message.contains("nothing was touched"), message)
+        XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.tap(") }, log.entries.description)
+    }
+
+    /// 塗り順の無い木(フレームワーク不明の Android)では、閉じた後の木に載る覆いを再判定せず断らない
+    func testTapAfterClosingKeyboardDoesNotRefuseWhenPaintOrderIsUnknown() async throws {
         let log = CallLog()
         let target = el(1, "button", "btn_submit", FTRect(x: 20, y: 700, width: 300, height: 60))
         let tab = el(2, "button", "tab_home", FTRect(x: 0, y: 680, width: 400, height: 120))
@@ -25,10 +45,10 @@ final class KeyboardInputPathsTests: XCTestCase {
         }
         let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_submit")))
-        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status) \(log.entries)") }
-        XCTAssertTrue(message.contains("covered by"), message)
-        XCTAssertTrue(message.contains("nothing was touched"), message)
-        XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.tap(") }, log.entries.description)
+        if case .failed(let message) = outcome.status {
+            XCTAssertFalse(message.contains("which scrolling its container did not clear"), message)
+        }
+        XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.tap(") }, "断った: \(outcome.status) \(log.entries)")
     }
 
     /// F5: 直前の type が叩いた欄は、焦点の印を木に出さない構成でも clearInput がキーボードの下で閉じずに消す

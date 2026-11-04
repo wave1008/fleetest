@@ -144,13 +144,19 @@ extension StepExecutor {
     /// 容器の外で、1回の送りでは外せない覆いの下に潜った対象への断り文(撃たない)。nil = その形ではない。
     /// **触る操作の全経路が撃つ点を決める前に通す**(tap は「中心が容器の外なら見えている部分を押す」分岐が先にあり、
     /// そこを通る形 = 横向きの隠れたバー・CMP の縮み切ったヘッダでこの断りを素通りしていた。10周目の探索 iultra F2・F6)
+    /// この木の z が本物の塗り順か(`PaintOrder.isReal` の転送。手前の推測で撃ち方を変えてよいか)
+    func paintOrderIsReal(_ elements: [ElementInfo]) -> Bool {
+        PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: uiFramework)
+    }
+
     func buriedOutsideContainerRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> String? {
         // 判定は探索の「見つかった」・最初に掴む一致と同じ `TapTargetGeometry.touchBlock`(1か所)。撃つ前に断る形:
         // 一覧の外で1回の送りでは外せない覆い(ナビゲーションバー・折りたたみヘッダ)の下・入れ子の外側の一覧に切り取られた対象。
         // 見えている部分を押しても覆いや画面の上端に当たり、何も起きないまま ok になった(9〜11周目の探索)
         guard let block = TapTargetGeometry.touchBlock(
             element, in: snapshot.elements, screen: snapshot.screen, safeAreaTop: snapshot.safeAreaTop,
-            scale: driver.pointScale, inferring: step.containerInference ?? true, searchFinger: nil) else { return nil }
+            scale: driver.pointScale, inferring: step.containerInference ?? true, searchFinger: nil,
+            paintOrderIsReal: paintOrderIsReal(snapshot.elements)) else { return nil }
         let head = "did not touch \(step.locatorSummary): its centre is under \(block.cover), and touching it there would"
             + " land on something else (nothing was touched). "
         // `scroll:` を書いた手がここへ来た = 探索が送っても出せなかった(探索は同じ判定で見つかったにしない)。足せとは言わない
@@ -170,9 +176,13 @@ extension StepExecutor {
 
     func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) async -> CoveredTouchPlan {
         if let message = buriedOutsideContainerRefusal(element, in: snapshot, step: step) { return .refuse(message) }
-        switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
-                                              inferring: step.containerInference ?? true, scale: driver.pointScale,
-                                              zIsPaintOrder: !isAndroid) {
+        // 見えている部分を押す/薄ければ断るは手前の判定に頼るので、塗り順のある木だけ(`PaintOrder.isReal`)
+        let covered = paintOrderIsReal(snapshot.elements)
+            ? TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
+                                             inferring: step.containerInference ?? true, scale: driver.pointScale,
+                                             zIsPaintOrder: true)
+            : nil
+        switch covered {
         case nil:
             // 塗り順の無い木(iOS)で別の層の押せる要素が中心に重なるときだけプラットフォームに聞く。断るのは false の答えだけ
             // (true・引き当て不能・答えられないは従来どおり = true は誤ることがある。門の doc 参照)。
@@ -239,7 +249,10 @@ extension StepExecutor {
         // 指で触る操作(allowsVisiblePart)は覆われていない見えている部分を押すか、薄ければ撃つ段(`coveredTouchPlan`)が断る。
         // 打鍵・消去は欄の ref に撃つので部分を選べない = 覆われたままなら断る
         let done = verb == "typing" ? "typed" : verb == "clearing" ? "cleared" : "touched"
-        if !allowsVisiblePart, let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
+        // 木に載る覆いの再判定は手前の判定に頼るので、塗り順のある木だけ(`PaintOrder.isReal`)
+        let paintOrderKnown = paintOrderIsReal(snapshot.elements)
+        if !allowsVisiblePart, paintOrderKnown,
+           let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
             return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
                 + " (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
                 + " which scrolling its container did not clear — a touch there would land on \(TapTargetGeometry.describe(over))"
@@ -249,7 +262,8 @@ extension StepExecutor {
         // 実際より下に申告する = その木で決めた部分がタブを押して遷移した。Flutter の Android 横向き 5 回中 1 回)。
         // 対象と覆いの枠が続けて2回同じになったら決める。少なくとも1回は読み直し、上限はステップの待ちの予算(新しい数字を置かない)。
         // 読み直しはブリッジの ref の表を作り直すので、引けなくなったら前の木の要素では撃たない
-        if allowsVisiblePart, TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) != nil {
+        if allowsVisiblePart, paintOrderKnown,
+           TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) != nil {
             let clock = ContinuousClock()
             let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
             var settled = false

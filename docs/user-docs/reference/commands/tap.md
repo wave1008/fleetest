@@ -26,6 +26,8 @@ tap(x: 120, y: 640)                    // only when no selector is available
 
 ## Notes
 
+- The next three apply **only when the tool can tell from the screen which element is drawn in front** — iOS apps built
+  with UIKit or React Native (inapp-boost mode), and Android apps built with Views or React Native.
 - **When several elements match the selector**: if the first one is covered by another element in front and an uncovered
   match exists, that one is tapped (with a note). If every match is covered and there is nowhere to press, nothing is tapped
   and the step fails.
@@ -36,6 +38,13 @@ tap(x: 120, y: 640)                    // only when no selector is available
 - **When a target outside the list (such as a button on a top bar that hid on scroll) is under a navigation bar or similar**:
   one scroll of the list does not bring it out, so without `scroll:` nothing is tapped, the step fails and the message suggests
   a direction (`scroll: .up` etc.). With `scroll:`, the list is scrolled until the target comes out from under it, then it is tapped.
+- **On screens where the drawing order is not known** (apps built with SwiftUI, Compose Multiplatform or Flutter, iOS in
+  xcuitest mode, and operations from MCP), the tool does not guess which element is in front and presses the target's centre.
+  Overlaps change with each device's screen size, so they cannot be avoided when you write the scenario. If a later step that
+  checks the result fails and something was overlapping the target of the operation just before it, the failure message names
+  that element and tells you how to fix the scenario: make sure the target is not covered at that step (close what covers it,
+  or scroll the target clear of it first). Fixing it is up to you — look at the failing device's screen to decide.
+  On iOS, the tool fails the step without pressing only when the platform answers that the target cannot be hit there.
 - **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
   to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
   another app is never operated by mistake).

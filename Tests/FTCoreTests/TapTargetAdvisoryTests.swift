@@ -1173,14 +1173,17 @@ final class TapAdvisoryWiringTests: XCTestCase {
 
     // MARK: - 新チェーン(occlusionAdvisory)の配線: tap / 長押し / doubleTap
 
-    private func overlayCoveringSnapshot() -> SnapshotResponse {
+    /// `paintOrdered` = 全要素に z を振る(塗り順のある木。`PaintOrder.isReal`)。覆いが手前
+    private func overlayCoveringSnapshot(paintOrdered: Bool = false) -> SnapshotResponse {
         let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
         let target = ElementInfo(ref: 1, type: "clickable", identifier: "target", label: nil,
                                  value: nil, placeholder: nil, enabled: true,
-                                 frame: FTRect(x: 16, y: 788, width: 370, height: 62), depth: 2)
+                                 frame: FTRect(x: 16, y: 788, width: 370, height: 62), depth: 2,
+                                 z: paintOrdered ? 0 : nil)
         let overlay = ElementInfo(ref: 2, type: "clickable", identifier: "overlay", label: nil,
                                   value: nil, placeholder: nil, enabled: true,
-                                  frame: FTRect(x: 134, y: 778, width: 134, height: 62), depth: 2)
+                                  frame: FTRect(x: 134, y: 778, width: 134, height: 62), depth: 2,
+                                  z: paintOrdered ? 1 : nil)
         return SnapshotResponse(sessionBundleID: nil, screen: screen,
                                 elements: [target, overlay], truncatedCount: 0)
     }
@@ -1229,9 +1232,9 @@ final class TapAdvisoryWiringTests: XCTestCase {
                                 truncatedCount: 0)
     }
 
-    /// 素の tap で overlayCovering が注記に出る
+    /// 素の tap で overlayCovering が注記に出る(塗り順のある木 = `PaintOrder.isReal`)
     func testTapCarriesOverlayCoveringAdvisory() async throws {
-        let driver = FixedSnapshotDriver(overlayCoveringSnapshot())
+        let driver = FixedSnapshotDriver(overlayCoveringSnapshot(paintOrdered: true))
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target")))
         let note = outcome.driverFallback ?? ""
@@ -1250,9 +1253,25 @@ final class TapAdvisoryWiringTests: XCTestCase {
         XCTAssertTrue(note.contains("leftover from scrolling"), note)
     }
 
-    /// 長押し(hold>0 = press(ref:) 経路)でも新チェーンが出る
+    /// 塗り順の無い木(z 無しの iOS)では、注記は出るが見えている部分へ寄せず中心を撃つ(tap・長押しとも)
+    func testWithoutPaintOrderTheOverlayIsNotedButTheCentreIsShot() async throws {
+        let tapDriver = FixedSnapshotDriver(overlayCoveringSnapshot())
+        let tap = await StepExecutor(driver: tapDriver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target")))
+        let note = tap.driverFallback ?? ""
+        XCTAssertTrue(note.contains("#overlay"), "注記は出す: \(note) / \(tap.status)")
+        XCTAssertFalse(note.contains("not covered by #overlay"), "見えている部分へ寄せた: \(note)")
+
+        let pressDriver = FixedSnapshotDriver(overlayCoveringSnapshot())
+        _ = await StepExecutor(driver: pressDriver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target"), duration: 0.5))
+        XCTAssertEqual(pressDriver.presses, 1, "中心を ref で長押しする")
+        XCTAssertEqual(pressDriver.coordinatePresses, 0, "座標で長押しした")
+    }
+
+    /// 長押し(hold>0 = press(ref:) 経路)でも新チェーンが出る(塗り順のある木 = `PaintOrder.isReal`)
     func testLongPressCarriesOverlayCoveringAdvisory() async throws {
-        let driver = FixedSnapshotDriver(overlayCoveringSnapshot())
+        let driver = FixedSnapshotDriver(overlayCoveringSnapshot(paintOrdered: true))
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "target"), duration: 0.5))
         // 中心を覆われた対象の長押しは、覆われていない部分を座標で押す(ref では撃たない)

@@ -1317,6 +1317,7 @@ extension StepExecutorTests {
 
     /// キーボードを閉じた直後の木は窓が伸びる途中で、タブ列を実際より下に申告する。その木で覆われていない部分を決めると
     /// タブを押す(Flutter の Android 横向き = OI-163 ③)。対象と覆いの枠が続けて同じになるまで読み直してから押す
+    /// (塗り順のある木 = `PaintOrder.isReal` のフレームワークが分かる Android)
     func testVisiblePartAfterClosingTheKeyboardWaitsForTheWindowToSettle() async throws {
         let log = CallLog()
         let field = { (y: Double) in ElementInfo(ref: 1, type: "textField", identifier: "field_password", label: nil, value: nil,
@@ -1332,11 +1333,31 @@ extension StepExecutorTests {
             primary.snapshotElements = Array(repeating: [field(600)], count: read)
                 + [[field(600), tab(630)], [field(600), tab(630)], [field(600), tab(610)]]
         }
-        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "field_password")))
         guard case .passed = outcome.status else { return XCTFail("\(outcome.status) \(log.entries)") }
         let point = try XCTUnwrap(primary.coordinateTaps.last, log.entries.description)
         XCTAssertLessThan(point.y, 610, "伸びきった木のタブ(610〜)を押した: \(point)")
+    }
+
+    /// 塗り順の無い木(フレームワーク不明の Android)では、閉じた後の木に載る覆いを待って再判定せず中心を撃つ
+    func testWithoutPaintOrderTheTreeAfterClosingTheKeyboardIsNotSettledOn() async throws {
+        let log = CallLog()
+        let field = ElementInfo(ref: 1, type: "textField", identifier: "field_password", label: nil, value: nil,
+                                placeholder: nil, enabled: true, frame: FTRect(x: 20, y: 600, width: 360, height: 60), depth: 1)
+        let tab = ElementInfo(ref: 2, type: "button", identifier: "tab_controls", label: "コントロール", value: nil,
+                              placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 630, width: 400, height: 60), depth: 1)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field]])
+        primary.keyboardFrame = FTRect(x: 0, y: 500, width: 400, height: 300)
+        primary.afterHideKeyboard = {
+            primary.keyboardFrame = nil
+            let read = primary.snapshotCallCount
+            primary.snapshotElements = Array(repeating: [field], count: read) + [[field, tab]]
+        }
+        let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "field_password")))
+        XCTAssertTrue(primary.coordinateTaps.isEmpty && log.entries.contains("primary.tap(ref:1)"),
+                      "見えている部分へ寄せた: \(primary.coordinateTaps) \(log.entries)")
     }
 
     /// replace の消去でキーボードが欄を木から押し出す形: 閉じた確認の木(`.closed` が持つ)をそのまま使い、

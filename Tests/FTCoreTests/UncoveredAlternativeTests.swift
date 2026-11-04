@@ -54,10 +54,10 @@ final class UncoveredAlternativeTests: XCTestCase {
         XCTAssertNil(OcclusionGeometry.uncoveredAlternative(to: candidates[0], among: candidates, in: tree, screen: screen))
     }
 
-    /// 全部覆われている(どの行も開いていない)なら撃たずに失敗にする(配線)
+    /// 全部覆われている(どの行も開いていない)なら撃たずに失敗にする(配線。塗り順のある木 = `PaintOrder.isReal`)
     func testTapRefusesWhenEveryMatchIsCovered() async throws {
         let driver = FixedTreeDriver(elements: swipeList(openRows: []), screen: screen)
-        let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
             .execute(FlowStep(action: "tap", locator: FlowLocator(label: "アーカイブ")))
         XCTAssertTrue(driver.tappedRefs.isEmpty, "覆われたボタンを撃った: \(driver.tappedRefs)")
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
@@ -72,14 +72,31 @@ final class UncoveredAlternativeTests: XCTestCase {
             chosen: candidates[0], among: candidates, in: tree, screen: screen))
     }
 
-    /// DSL の tap が覆われていない候補を撃つ(配線)
+    /// DSL の tap が覆われていない候補を撃つ(配線。塗り順のある木 = `PaintOrder.isReal`)
     func testTapTouchesTheExposedMatch() async throws {
         let driver = FixedTreeDriver(elements: swipeList(openRows: [4]), screen: screen)
-        let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
             .execute(FlowStep(action: "tap", locator: FlowLocator(label: "アーカイブ")))
         XCTAssertEqual(driver.tappedRefs, [14], "覆われた行1の裏のボタン(11)を撃った: \(driver.tappedRefs)")
         XCTAssertTrue(outcome.driverFallback?.contains("uncovered match #btn_sw_archive_4") ?? false,
                       outcome.driverFallback ?? "-")
+    }
+
+    /// 塗り順の無い木(フレームワーク不明の Android)では同じ形でも替えない・断らない: 先頭の候補をそのまま撃つ
+    func testTapKeepsTheFirstMatchWhenPaintOrderIsUnknown() async throws {
+        let exposed = FixedTreeDriver(elements: swipeList(openRows: [4]), screen: screen)
+        let exposedOutcome = await StepExecutor(driver: exposed, isAndroid: true, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "アーカイブ")))
+        XCTAssertEqual(exposed.tappedRefs, [11], "別の候補へ替えた: \(exposed.tappedRefs)")
+        XCTAssertFalse(exposedOutcome.driverFallback?.contains("uncovered match") ?? false, exposedOutcome.driverFallback ?? "-")
+
+        let covered = FixedTreeDriver(elements: swipeList(openRows: []), screen: screen)
+        let coveredOutcome = await StepExecutor(driver: covered, isAndroid: true, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "アーカイブ")))
+        if case .failed(let message) = coveredOutcome.status {
+            XCTAssertFalse(message.contains("every one is covered"), message)
+        }
+        XCTAssertFalse(covered.tappedRefs.isEmpty, "全部覆われていても断らずに撃つ")
     }
 }
 

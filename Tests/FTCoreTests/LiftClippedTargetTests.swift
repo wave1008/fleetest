@@ -59,6 +59,7 @@ final class DragCountedDriver: AppDriver {
     }
 }
 
+/// 塗り順のある木(`PaintOrder.isReal`)として Android のフレームワークを `.androidView` で渡す。
 final class LiftClippedTargetTests: XCTestCase {
 
     private let screen = FTRect(x: 0, y: 0, width: 1080, height: 2424)
@@ -100,7 +101,7 @@ final class LiftClippedTargetTests: XCTestCase {
             scene(rowFrame: heightGrownStillCovered),
             scene(rowFrame: liftedClear),
         ])
-        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
@@ -123,7 +124,7 @@ final class LiftClippedTargetTests: XCTestCase {
             scene(rowFrame: clippedByTop, rowRef: 10),
             scene(rowFrame: clippedByTop, rowRef: 20),
         ])
-        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
@@ -141,7 +142,7 @@ final class LiftClippedTargetTests: XCTestCase {
         let driver = DragCountedDriver(screen: screen, statesByDragCount: [
             scene(rowFrame: clippedByTop), gone,
         ])
-        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
@@ -155,7 +156,7 @@ final class LiftClippedTargetTests: XCTestCase {
     func testGivesUpWhenNothingMoves() async throws {
         let driver = DragCountedDriver(screen: screen,
                                        statesByDragCount: [scene(rowFrame: clippedByTop)])
-        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
 
@@ -166,5 +167,16 @@ final class LiftClippedTargetTests: XCTestCase {
         default: said = outcome.driverFallback ?? ""
         }
         XCTAssertTrue(said.contains("covered by") || said.contains("not covered by"), said)
+    }
+
+    /// 塗り順の無い木(フレームワーク不明の Android)では覆いを外す送りをしない: 同じ形でも一覧を送らず中心を撃つ
+    func testDoesNotLiftWhenPaintOrderIsUnknown() async throws {
+        let driver = DragCountedDriver(screen: screen, statesByDragCount: [scene(rowFrame: clippedByTop)])
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
+
+        XCTAssertEqual(driver.dragCallCount, 0, "手前の推測で一覧を送った")
+        XCTAssertEqual(driver.tapRefs, [10], "中心を撃つ")
     }
 }

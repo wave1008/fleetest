@@ -304,7 +304,8 @@ extension StepExecutor {
             return ContainerGeometry.isOutsideContainer(candidate, in: snapshot.elements, screen: snapshot.screen)
                 || TapTargetGeometry.touchBlock(candidate, in: snapshot.elements, screen: snapshot.screen,
                                                 safeAreaTop: snapshot.safeAreaTop, scale: driver.pointScale,
-                                                inferring: true, searchFinger: nil) != nil
+                                                inferring: true, searchFinger: nil,
+                                                paintOrderIsReal: paintOrderIsReal(snapshot.elements)) != nil
         }
         if let first = resolved?.0, untouchable(first), let locator = step.locator, resolved?.1 == nil, locator.index == nil,
            locator.relative?.isEmpty ?? true,
@@ -722,13 +723,15 @@ extension StepExecutor {
             // 先頭の候補が手前の要素に覆われ、覆われていない候補が別にあれば、そちらを撃つ(判定は `OcclusionGeometry` の1か所)。
             // **救済の送りの後は替えない**: 撃つ相手は送りの元にした要素で決まっている(替えると一覧を戻した後の別の行を押した。
             // 10周目の探索の回し直し・E2E-RN の `tap("行 *")` で 24 回中 3 回 row_04)。覆われていれば下の coveredTouchPlan が扱う
-            if Self.interactsByTouch(action), count > 1, rescuedFrom == nil,
+            // 替える・断るは手前の判定に頼るので、塗り順のある木だけ(`PaintOrder.isReal`)
+            let paintOrderKnown = paintOrderIsReal(snapshot.elements)
+            if Self.interactsByTouch(action), count > 1, rescuedFrom == nil, paintOrderKnown,
                let uncovered = OcclusionGeometry.uncoveredAlternative(
                    to: element, among: candidates, in: snapshot.elements, screen: snapshot.screen) {
                 element = uncovered
                 resolvedElementThisStep = element
                 driverFallback = Self.joinNotes(driverFallback, Self.uncoveredAlternativeNote(element))
-            } else if Self.interactsByTouch(action), count > 1,
+            } else if Self.interactsByTouch(action), count > 1, paintOrderKnown,
                       let over = OcclusionGeometry.coveringWhenEveryMatchIsCovered(
                           chosen: element, among: candidates, in: snapshot.elements, screen: snapshot.screen) {
                 // どの一致も覆われていて押せる候補が無い: 撃たない(撃つと覆っている物を押す)。種別は付けない(言える仕分けが無い)
@@ -1909,7 +1912,9 @@ extension StepExecutor {
                 coverRect = keyboardFrame
                 coverIsKeyboard = jump != nil
             }
-            if jump == nil,
+            // 木に載る覆い・貼り付く見出しを外す送りは手前の判定に頼るので、塗り順のある木だけ(キーボード・下端の見切れは申告と枠で決まる)
+            let paintOrderKnown = paintOrderIsReal(currentSnapshot.elements)
+            if jump == nil, paintOrderKnown,
                let over = TapTargetGeometry.overlayCoveringForUncover(
                    current, in: currentSnapshot.elements, screen: currentSnapshot.screen) {
                 jump = outsideContainer == nil
@@ -1921,7 +1926,7 @@ extension StepExecutor {
                 coverRect = over.frame
             }
             // **容器の縁に貼り付いた見出しの下に潜った対象**(木の並びでは見出しが奥 = 上の判定は拾えない。pinnedBandCovering の doc)
-            if jump == nil, ownContainer != nil,
+            if jump == nil, paintOrderKnown, ownContainer != nil,
                let band = TapTargetGeometry.pinnedBandCovering(current, in: currentSnapshot.elements,
                                                                container: container) {
                 jump = TapTargetGeometry.uncoverScrollJump(target: current, coveredBy: band, container: container)
@@ -1965,10 +1970,11 @@ extension StepExecutor {
             let stillCovered = (afterBand.flatMap {
                     TapTargetGeometry.keyboardCoveredAdvisory(moved, keyboardFrame: $0)
                 } != nil)
-                || TapTargetGeometry.overlayCoveringForUncover(
-                       moved, in: after.elements, screen: after.screen) != nil
+                || (paintOrderIsReal(after.elements) && TapTargetGeometry.overlayCoveringForUncover(
+                       moved, in: after.elements, screen: after.screen) != nil)
                 || (!isAndroid && TapTargetGeometry.bottomEdgeClipLift(moved, in: after.elements) != nil)
-                || TapTargetGeometry.pinnedBandCovering(moved, in: after.elements, container: container) != nil
+                || (paintOrderIsReal(after.elements)
+                    && TapTargetGeometry.pinnedBandCovering(moved, in: after.elements, container: container) != nil)
             if !stillCovered {
                 return .lifted(element: moved, snapshot: after,
                                note: "scrolled the container to bring the target out from under"

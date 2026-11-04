@@ -101,9 +101,9 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
     private let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
 
     private func element(_ ref: Int, _ type: String, _ id: String, _ label: String, _ frame: FTRect, depth: Int,
-                         scrollable: Bool? = nil) -> ElementInfo {
+                         scrollable: Bool? = nil, z: Int? = nil) -> ElementInfo {
         ElementInfo(ref: ref, type: type, identifier: id, label: label, value: nil, placeholder: nil,
-                    enabled: true, frame: frame, depth: depth, scrollable: scrollable)
+                    enabled: true, frame: frame, depth: depth, scrollable: scrollable, z: z)
     }
 
     private func sheetTree() -> [ElementInfo] {
@@ -151,17 +151,33 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
         XCTAssertTrue(driver.queries.isEmpty, "門が閉じているのに照会した")
     }
 
-    /// **見えている部分を押す判定が先**: 中心だけ別の層の帯(タブ)に覆われ、上に見えている部分が残る行は、照会が false でも
-    /// 見えている部分を押す(照会しない)。照会を先に置くと中心で聞いて false になり、押せる行を断る誤った赤になる
+    /// 中心だけ別の層の帯(タブ)に覆われ、上に見えている部分が残る行
+    private func rowUnderTabTree(z: Bool) -> [ElementInfo] {
+        [element(1, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true, z: z ? 0 : nil),
+         element(2, "button", "row_main_07", "本文 07", FTRect(x: 0, y: 760, width: 402, height: 100), depth: 2, z: z ? 1 : nil),
+         element(3, "button", "tab_home", "ホーム", FTRect(x: 0, y: 790, width: 402, height: 84), depth: 1, z: z ? 2 : nil)]
+    }
+
+    /// 塗り順のある木(全要素に z。`PaintOrder.isReal`): 見えている部分を押し、別の層の照会は門が閉じて撃たない
+    /// (照会が false を返しても断らない = 押せる行を断る誤った赤にしない)
     func testVisiblePartWinsOverTheQuery() async {
-        let tree = [element(1, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true),
-                    element(2, "button", "row_main_07", "本文 07", FTRect(x: 0, y: 760, width: 402, height: 100), depth: 2),
-                    element(3, "button", "tab_home", "ホーム", FTRect(x: 0, y: 790, width: 402, height: 84), depth: 1)]
-        XCTAssertNotNil(TapTargetGeometry.otherLayerCoverSuspect(tree[1], in: tree, screen: screen), "前提: 門は開く形")
+        let tree = rowUnderTabTree(z: true)
+        XCTAssertNil(TapTargetGeometry.otherLayerCoverSuspect(tree[1], in: tree, screen: screen), "前提: 塗り順のある木は門が閉じる")
         let (driver, outcome) = await run(tree, answer: .hittable(false))
         XCTAssertTrue(driver.queries.isEmpty, "見えている部分を押せる形で照会した: \(driver.queries)")
         XCTAssertEqual(driver.taps.count, 1, "見えている部分を撃つこと: \(driver.taps) \(outcome.status)")
         XCTAssertTrue(driver.taps.first?.hasPrefix("xy:") == true, "\(driver.taps)")
+    }
+
+    /// 塗り順の無い木(z 無し)では見えている部分を選ばず、門が開いて照会し、false なら撃たずに断る
+    func testWithoutPaintOrderTheQueryDecidesAndFalseRefuses() async {
+        let tree = rowUnderTabTree(z: false)
+        XCTAssertNotNil(TapTargetGeometry.otherLayerCoverSuspect(tree[1], in: tree, screen: screen), "前提: 門は開く形")
+        let (driver, outcome) = await run(tree, answer: .hittable(false))
+        XCTAssertEqual(driver.queries.count, 1)
+        XCTAssertTrue(driver.taps.isEmpty, "撃った: \(driver.taps)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("cannot be hit"), message)
     }
 
     /// シートが木の前に並ぶ形(SwiftUI のように覆いが対象より前の ref)= 木の順の注記(may have hit)は出ない形。結果の文字を1つ持つ

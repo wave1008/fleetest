@@ -439,7 +439,6 @@ extension MCPServer {
         var doubleTapResolvedRef: Int?
         if let ref = try Self.intArgument(args, "ref") {
             let (element, labelNote) = try await verifiedElement(ref, driver: doubleTapDriver, args: args)
-            var coverNote = ""
             var bandPoint: (x: Double, y: Double)?
             switch Self.coveredRefTouch(element, in: lastSnapshots[Self.sessionKey(args)], scale: doubleTapDriver.pointScale,
                                         ref: ref, operation: "double tap") {
@@ -450,17 +449,13 @@ extension MCPServer {
                 }
                 bandPoint = await bottomBandPoint(frame: element.frame, driver: doubleTapDriver, args: args)
             case .refuse(let message): throw MCPError(message)
-            case .part(let rect, let note):
-                let touch = await coveredPartTouch(rect, note: note, driver: doubleTapDriver, args: args)
-                bandPoint = touch.point
-                coverNote = touch.note
             }
             doubleTapPoint = bandPoint ?? (element.frame.centerX, element.frame.centerY)
             doubleTapWhat = "[\(ref)]"
             doubleTapResolvedRef = element.ref
             doubleTapNote = try await refGestureGuard(element, driver: doubleTapDriver, isAndroid: doubleTapDriver is AndroidDriver,
                                                        operation: "double tap", args: args)
-                + labelNote + coverNote + (bandPoint != nil && coverNote.isEmpty ? Self.bottomBandTouchNote : "")
+                + labelNote + (bandPoint != nil ? Self.bottomBandTouchNote : "")
             doubleTapSelector = reproductionNote(resolvedRef: element.ref, args: args)
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
             if let offscreen = Self.offscreenCoordinateError(
@@ -499,7 +494,6 @@ extension MCPServer {
             // **撮り直した木の frame を使う**(verifiedElement)。覚えていた frame から
             // 座標を作ると、この修正が防ごうとしている「古い座標を撃つ」に自分で落ちる
             let (element, labelNote) = try await verifiedElement(ref, driver: dragDriver, args: args)
-            var dragCoverNote = ""
             switch Self.coveredRefTouch(element, in: lastSnapshots[Self.sessionKey(args)], scale: dragDriver.pointScale,
                                         ref: ref, operation: "drag") {
             case .none:
@@ -509,11 +503,8 @@ extension MCPServer {
                 }
                 fromPoint = (element.frame.centerX, element.frame.centerY)
             case .refuse(let message): throw MCPError(message)
-            case .part(let rect, let note):
-                fromPoint = (rect.centerX, rect.centerY)
-                dragCoverNote = note
             }
-            dragSelector = reproductionNote(resolvedRef: element.ref, args: args) + labelNote + dragCoverNote
+            dragSelector = reproductionNote(resolvedRef: element.ref, args: args) + labelNote
                 + (try await refGestureGuard(element, driver: dragDriver, isAndroid: dragDriver is AndroidDriver,
                                                 operation: "drag", args: args))
         } else if let x = try Self.doubleArgument(args, "fromX"), let y = try Self.doubleArgument(args, "fromY") {
@@ -773,7 +764,6 @@ extension MCPServer {
         if let ref = try Self.intArgument(args, "ref") {
             let pressTarget = try await verifiedRef(ref, driver: pressDriver, args: args, operation: "long press")
             // pressTarget.ref はセッション ref。ブリッジへ渡す直前にだけ native へ戻す。帯の中なら ft_tap と同じく座標で
-            var pressCoverNote = ""
             var bandPoint: (x: Double, y: Double)?
             if let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == pressTarget.ref }) {
@@ -783,10 +773,6 @@ extension MCPServer {
                                                                      driver: pressDriver, args: args) { throw MCPError(message) }
                     bandPoint = await bottomBandPoint(frame: element.frame, driver: pressDriver, args: args)
                 case .refuse(let message): throw MCPError(message)
-                case .part(let rect, let note):
-                    let touch = await coveredPartTouch(rect, note: note, driver: pressDriver, args: args)
-                    bandPoint = touch.point
-                    pressCoverNote = touch.note
                 }
             }
             if let bandPoint {
@@ -800,8 +786,8 @@ extension MCPServer {
                               maxGestureSeconds: pressCap)
             // 長押しも ft_gesture と同じく、操作の後に前面を確かめる(画面の端での長押しがシェード・ホームに取られうる)
             let pressLeftAppNote = await leftAppAfterGestureNote(pressDriver, args: args, alreadyWarned: false)
-            return text("press [\(ref)] done.\(pressTarget.note)" + pressCoverNote
-                + (bandPoint != nil && pressCoverNote.isEmpty ? Self.bottomBandTouchNote : "")
+            return text("press [\(ref)] done.\(pressTarget.note)"
+                + (bandPoint != nil ? Self.bottomBandTouchNote : "")
                 + pressLeftAppNote
                 + reproductionNote(resolvedRef: pressTarget.ref, args: args)
                 + changedHintOnce(args)

@@ -16,6 +16,17 @@ import Foundation
 
 public enum PaintOrder {
 
+    /// **木の z が本物の塗り順か**(手前の判定で撃ち方を変えてよいか)の唯一の判定。iOS = 全要素が z を持つ(in-app が UIKit・RN の
+    /// ときだけ送る。全か無か)。Android = z は必ず来るが、自前描画(Flutter・Compose)は木の順と同じ = 塗り順ではないので、
+    /// 自前描画でないと分かっているときだけ。フレームワークが分からなければ false(推測しない側)。
+    /// **false の木では、手前の推測で撃ち方を変えない**(断る・替える・撃つ点をずらす・送る)—— 実際に重なっていたかは撃った後の結果で
+    /// 分かり、赤になれば失敗の文言が直前の手の重なりの疑いと直し方を言う(`StepExecutor.coveredTouchHint`)。注記は出してよい
+    public static func isReal(in elements: [ElementInfo], isAndroid: Bool, framework: AppUIFramework?) -> Bool {
+        guard !elements.isEmpty else { return false }
+        if isAndroid { return framework.map { !$0.isSelfRendered } ?? false }
+        return elements.allSatisfy { $0.z != nil }
+    }
+
     /// `candidate` が `element` より手前に描かれているか。
     ///
     /// **両方が `z` を持つときだけ z を信じる** —— 片方だけ nil の木(打ち切りや別ブリッジの混在)で

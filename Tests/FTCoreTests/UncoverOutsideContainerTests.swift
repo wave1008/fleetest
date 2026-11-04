@@ -5,6 +5,11 @@ import XCTest
 
 final class UncoverOutsideContainerTests: XCTestCase {
 
+    /// 木の順に増える通し番号を z に振る = 後ろの要素が手前(塗り順のある木。`PaintOrder.isReal`)
+    private func painted(_ elements: [ElementInfo]) -> [ElementInfo] {
+        elements.enumerated().map { index, element in var e = element; e.z = index; return e }
+    }
+
     private let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
     private let list = FTRect(x: 0, y: 174, width: 402, height: 700)
 
@@ -122,9 +127,10 @@ final class UncoverOutsideContainerTests: XCTestCase {
 
     /// `scroll:` を書いていない tap も、この形の対象には撃たずに断り、送る向きを `scroll:` で案内する(RN の iOS の A10:
     /// 覆いの下と注記しながら撃って、縮んだヘッダの中身に当たり何も起きないまま ok だった)
+    /// (塗り順のある木 = 全要素に z を振る。`PaintOrder.isReal`)
     func testTapWithoutScrollRefusesATargetBuriedUnderTheBar() async {
         let log = CallLog()
-        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [collapsedHeaderTree()])
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [painted(collapsedHeaderTree())])
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_follow")))
         guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
@@ -133,10 +139,36 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertTrue(primary.coordinateTaps.isEmpty)
     }
 
-    /// `scroll:` を持たない操作(doubleTap)には、書けない `Add scroll:` を案内せず先に送る手を案内する
-    func testDoubleTapRefusalSuggestsScrollingFirstInsteadOfAnArgument() async {
+    /// 塗り順の無い木(z 無しの iOS)では同じ形でも断らず、中心を撃つ(touchBlock の「1回の送りで外せない覆い」を見ない)
+    func testTapUnderTheBarIsNotRefusedWhenPaintOrderIsUnknown() async {
         let log = CallLog()
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [collapsedHeaderTree()])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_follow")))
+        if case .failed(let message) = outcome.status {
+            XCTAssertFalse(message.contains("nothing was touched"), message)
+        }
+        XCTAssertTrue(log.entries.contains { $0.contains(".tap(") } || !primary.coordinateTaps.isEmpty,
+                      "撃つはず: \(outcome.status) \(log.entries)")
+    }
+
+    /// 塗り順の無い木では、探索の「見つかった」がシートの下の行を弾かず、縁のバーも見ない
+    func testSearchTouchBlockIsSilentWhenPaintOrderIsUnknown() {
+        var list = el(1, "other", id: "list_main", FTRect(x: 0, y: 100, width: 402, height: 774), scrollable: true); list.depth = 1
+        var row = el(2, "button", id: "row_main_30", FTRect(x: 0, y: 560, width: 402, height: 48)); row.depth = 2
+        var sheet = el(3, "other", id: "sheet", FTRect(x: 0, y: 540, width: 402, height: 334)); sheet.depth = 1
+        var queue = el(4, "button", id: "queue_row_00", FTRect(x: 0, y: 550, width: 402, height: 60)); queue.depth = 2
+        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [list, row, sheet, queue], truncatedCount: 0)
+        let executor = StepExecutor(driver: FakeAppDriver(name: "primary", log: CallLog()), isAndroid: false, tunables: RunTunables())
+        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: FTScrollDirection.down.swipe.rawValue),
+                                               in: snapshot))
+    }
+
+    /// `scroll:` を持たない操作(doubleTap)には、書けない `Add scroll:` を案内せず先に送る手を案内する
+    /// (塗り順のある木 = 全要素に z を振る。`PaintOrder.isReal`)
+    func testDoubleTapRefusalSuggestsScrollingFirstInsteadOfAnArgument() async {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [painted(collapsedHeaderTree())])
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
         let outcome = await executor.execute(FlowStep(action: "doubleTap", locator: FlowLocator(id: "btn_follow")))
         guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
@@ -186,9 +218,10 @@ final class UncoverOutsideContainerTests: XCTestCase {
     }
 
     /// 横向きの tap も撃たずに断る(縦向きと同じ)。横長の一覧が主たる容器に入らず、断りを素通りして何も押さずに ok だった
+    /// (塗り順のある木 = 全要素に z を振る。`PaintOrder.isReal`)
     func testLandscapeTapUnderTheBarIsRefused() async {
         let log = CallLog()
-        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [landscapeHiddenBarTree()])
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [painted(landscapeHiddenBarTree())])
         primary.screenOrientation = .landscape
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_top_action")))
@@ -269,12 +302,13 @@ final class UncoverOutsideContainerTests: XCTestCase {
     /// 探索の「見つかった」は、撃つ前の断り(見えている部分が床に届かない)と同じ判定でシートの下の行を見つかったにしない。
     /// 向きは DSL と同じ写像(`scroll:` → 指の向き)で作る(手で "down" と書くと指の向きと scroll: を取り違える)
     /// (`scroll:` を書ける tap・hold だけ。select は対象外)。探索が止まって撃つ前に断っていた(12周目 iultra F4)
+    /// (塗り順のある木 = 全要素に z を振る。`PaintOrder.isReal`)
     func testSearchDoesNotAcceptARowUnderASheetTooThinToTouch() {
         var list = el(1, "other", id: "list_main", FTRect(x: 0, y: 100, width: 402, height: 774), scrollable: true); list.depth = 1
         var row = el(2, "button", id: "row_main_30", FTRect(x: 0, y: 560, width: 402, height: 48)); row.depth = 2
         var sheet = el(3, "other", id: "sheet", FTRect(x: 0, y: 540, width: 402, height: 334)); sheet.depth = 1
         var queue = el(4, "button", id: "queue_row_00", FTRect(x: 0, y: 550, width: 402, height: 60)); queue.depth = 2
-        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [list, row, sheet, queue], truncatedCount: 0)
+        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: painted([list, row, sheet, queue]), truncatedCount: 0)
         let executor = StepExecutor(driver: FakeAppDriver(name: "primary", log: CallLog()), isAndroid: false, tunables: RunTunables())
         XCTAssertEqual(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: FTScrollDirection.down.swipe.rawValue),
                                                  in: snapshot), "#queue_row_00")

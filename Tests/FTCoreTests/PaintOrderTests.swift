@@ -17,6 +17,23 @@ final class PaintOrderTests: XCTestCase {
 
     /// **z があるときは z を信じる**。ツリー順とは逆になる形が production に実在する
     /// (Google マップは地図の chrome をシートより後に出すが、描画はシートが手前)
+    /// `isReal`(手前の推測で撃ち方を変えてよいか)の唯一の判定。iOS = 全要素が z を持つときだけ(全か無か)/ Android = z は必ず来るが
+    /// 自前描画(Flutter・Compose)は木の順と同じ = 塗り順ではない。分からなければ false(推測しない側)
+    func testIsRealOnlyForPaintOrderedTrees() {
+        let withZ = [element(1, "a", 0, 0, 10, 10, z: 1), element(2, "b", 0, 0, 10, 10, z: 2)]
+        let partlyZ = [element(1, "a", 0, 0, 10, 10, z: 1), element(2, "b", 0, 0, 10, 10, z: nil)]
+        let noZ = [element(1, "a", 0, 0, 10, 10, z: nil), element(2, "b", 0, 0, 10, 10, z: nil)]
+        XCTAssertTrue(PaintOrder.isReal(in: withZ, isAndroid: false, framework: nil))
+        XCTAssertFalse(PaintOrder.isReal(in: partlyZ, isAndroid: false, framework: nil))
+        XCTAssertFalse(PaintOrder.isReal(in: noZ, isAndroid: false, framework: .swiftUI))
+        XCTAssertFalse(PaintOrder.isReal(in: [], isAndroid: false, framework: nil))
+        XCTAssertTrue(PaintOrder.isReal(in: withZ, isAndroid: true, framework: .androidView))
+        XCTAssertTrue(PaintOrder.isReal(in: withZ, isAndroid: true, framework: .reactNative))
+        XCTAssertFalse(PaintOrder.isReal(in: withZ, isAndroid: true, framework: .flutter))
+        XCTAssertFalse(PaintOrder.isReal(in: withZ, isAndroid: true, framework: .compose))
+        XCTAssertFalse(PaintOrder.isReal(in: withZ, isAndroid: true, framework: nil))
+    }
+
     func testPaintOrderBeatsTreeOrderWhenReported() {
         let sheet = element(17, "sheet", 0, 408, 1080, 1796, z: 76)
         let chrome = element(88, "chrome", 881, 1075, 199, 186, z: 17)

@@ -906,10 +906,13 @@ public enum TapTargetGeometry {
     /// 探索の「見つかった」(触れない間は見つかったにしない)・最初に掴む一致(`[n]` なしなら触れる一致へ替える)・撃つ前の断り。
     /// 別々に判定すると、探索が見つかったと言った対象を撃つ前に断る・断りに従って `scroll:` を書いても同じ断りになる、が起きた
     /// (11周目の探索 iultra F7・F8)。`searchFinger` は探索の指の向き(縁のバーの判定はそれで決まる。探索でないときは nil)
+    /// `paintOrderIsReal` = `PaintOrder.isReal`。false の木では手前の推測に頼る2つ(1回の送りで外せない覆い・縁のバー)を見ない
+    /// (既定値を置かない = 呼び手に決めさせる)
     public static func touchBlock(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                   safeAreaTop: SafeAreaTop, scale: Double, inferring: Bool,
-                                  searchFinger: FTSwipeDirection?) -> (cover: String, scroll: String)? {
-        if let over = coveredOutsideContainerBeyondOneLift(element, in: elements, screen: screen, inferring: inferring),
+                                  searchFinger: FTSwipeDirection?, paintOrderIsReal: Bool) -> (cover: String, scroll: String)? {
+        if paintOrderIsReal,
+           let over = coveredOutsideContainerBeyondOneLift(element, in: elements, screen: screen, inferring: inferring),
            let container = primaryScrollContainer(in: elements, screen: screen)?.frame {
             return (describe(over), element.frame.centerY < container.y ? ".up" : ".down")
         }
@@ -919,7 +922,7 @@ public enum TapTargetGeometry {
             let scroll = cy < outer.y ? ".up" : cy > outer.y + outer.height ? ".down" : cx < outer.x ? ".left" : ".right"
             return ("the outer scrolling list \(name), which clips it", scroll)
         }
-        if let finger = searchFinger,
+        if paintOrderIsReal, let finger = searchFinger,
            let bar = edgeBarCoveringCentre(element, in: elements, screen: screen, safeAreaTop: safeAreaTop, finger: finger) {
             return (bar, finger == .down ? ".up" : ".down")
         }

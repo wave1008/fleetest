@@ -1,5 +1,6 @@
-// ref の指の操作(ft_tap・ft_long_press・ft_double_tap・ft_drag の fromRef)は、手前の操作可能な帯に中心を覆われた対象を
-// DSL と同じ判定 `TapTargetGeometry.coveredTouch` で扱う: 覆われていない見えている部分を押す / 薄ければ撃たずに断る。
+// ref の指の操作(ft_tap・ft_long_press・ft_double_tap・ft_drag の fromRef)は、手前の操作可能な帯に中心を覆われた対象でも
+// 中心(ref)をそのまま撃つ。MCP の木は常に塗り順なし扱い(`PaintOrder.isReal` が false)なので、手前の推測による
+// 「見えている部分を押す / 薄ければ断る」は持たない。外側の一覧に切り取られた形(幾何で決まる)の断りは従来どおり。
 
 import XCTest
 import FTCore
@@ -31,56 +32,48 @@ final class MCPCoveredTouchTests: XCTestCase {
             .compactMap { $0["text"] as? String }.joined(separator: "\n")
     }
 
-    func testTapPressesTheUncoveredPart() async throws {
-        let (server, fake) = make(tabTop: 740)   // 見えているのは 700..740 → 中心 (195, 720)
+    /// 見えている部分(700..740)が残る形でも、座標へずらさず ref で中心を撃つ
+    func testTapShootsTheRefEvenWhenAVisiblePartRemains() async throws {
+        let (server, fake) = make(tabTop: 740)
         let text = try await run(server, "ft_tap", ["ref": 1])
-        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("tap(x:195.0,y:720.0)") }, "\(fake.calls)")
-        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(ref:") }, "\(fake.calls)")
-        XCTAssertTrue(text.contains("is covered by") && text.contains("(195, 720)"), text)
+        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("tap(ref:") }, "\(fake.calls)")
+        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(x:") }, "\(fake.calls)")
+        XCTAssertFalse(text.contains("was touched at"), text)
     }
 
-    func testTapRefusesWhenTheUncoveredPartIsThin() async throws {
-        let (server, fake) = make(tabTop: 705)   // 残り 5 < 床 8
-        do {
-            _ = try await run(server, "ft_tap", ["ref": 1])
-            XCTFail("撃たずに断る")
-        } catch {
-            let message = "\(error)"
-            XCTAssertTrue(message.contains("only 5 of the element is left uncovered"), message)
-            XCTAssertTrue(message.contains("Nothing was sent"), message)
-        }
-        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
-    }
-
-    func testLongPressPressesTheUncoveredPart() async throws {
-        let (server, fake) = make(tabTop: 740)
-        _ = try await run(server, "ft_long_press", ["ref": 1])
-        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("press(x:195.0,y:720.0") }, "\(fake.calls)")
-        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("press(ref:") }, "\(fake.calls)")
-    }
-
-    func testLongPressRefusesWhenThin() async throws {
+    /// 見えている部分が床(8)に届かない形(残り 5)でも断らない
+    func testTapDoesNotRefuseWhenTheUncoveredPartIsThin() async throws {
         let (server, fake) = make(tabTop: 705)
-        do { _ = try await run(server, "ft_long_press", ["ref": 1]); XCTFail("断る") } catch {}
-        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("press(") }, "\(fake.calls)")
+        let text = try await run(server, "ft_tap", ["ref": 1])
+        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("tap(ref:") }, "\(fake.calls)")
+        XCTAssertFalse(text.contains("only 5 of the element is left uncovered"), text)
     }
 
-    func testDoubleTapUsesTheUncoveredPartAndRefusesWhenThin() async throws {
-        let (server, fake) = make(tabTop: 740)
-        _ = try await run(server, "ft_double_tap", ["ref": 1])
-        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("doubleTap(x:195.0,y:720.0)") }, "\(fake.calls)")
-        let (thinServer, thinFake) = make(tabTop: 705)
-        do { _ = try await run(thinServer, "ft_double_tap", ["ref": 1]); XCTFail("断る") } catch {}
-        XCTAssertFalse(thinFake.calls.contains { $0.hasPrefix("doubleTap(") }, "\(thinFake.calls)")
+    func testLongPressShootsTheRef() async throws {
+        for tabTop in [740.0, 705.0] {
+            let (server, fake) = make(tabTop: tabTop)
+            _ = try await run(server, "ft_long_press", ["ref": 1])
+            XCTAssertTrue(fake.calls.contains { $0.hasPrefix("press(ref:") }, "tabTop=\(tabTop): \(fake.calls)")
+            XCTAssertFalse(fake.calls.contains { $0.hasPrefix("press(x:") }, "tabTop=\(tabTop): \(fake.calls)")
+        }
     }
 
-    func testDragStartsFromTheUncoveredPartAndRefusesWhenThin() async throws {
-        let (server, fake) = make(tabTop: 740)
-        _ = try await run(server, "ft_drag", ["fromRef": 1, "dy": -100.0])
-        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("drag(195.0,720.0->") }, "\(fake.calls)")
-        let (thinServer, thinFake) = make(tabTop: 705)
-        do { _ = try await run(thinServer, "ft_drag", ["fromRef": 1, "dy": -100.0]); XCTFail("断る") } catch {}
-        XCTAssertFalse(thinFake.calls.contains { $0.hasPrefix("drag(") }, "\(thinFake.calls)")
+    /// ft_double_tap は座標だけで撃つ(ref の API が無い): 見えている部分でなく中心 (195, 750) を撃つ
+    func testDoubleTapShootsTheCentre() async throws {
+        for tabTop in [740.0, 705.0] {
+            let (server, fake) = make(tabTop: tabTop)
+            _ = try await run(server, "ft_double_tap", ["ref": 1])
+            XCTAssertTrue(fake.calls.contains { $0.hasPrefix("doubleTap(x:195.0,y:750.0)") }, "tabTop=\(tabTop): \(fake.calls)")
+        }
+    }
+
+    /// ft_drag の始点も見えている部分でなく中心 (195, 750)
+    func testDragStartsFromTheCentre() async throws {
+        for tabTop in [740.0, 705.0] {
+            let (server, fake) = make(tabTop: tabTop)
+            _ = try await run(server, "ft_drag", ["fromRef": 1, "dy": -100.0])
+            XCTAssertTrue(fake.calls.contains { $0.hasPrefix("drag(195.0,750.0->") }, "tabTop=\(tabTop): \(fake.calls)")
+        }
     }
 
     func testUncoveredTargetStillTapsByRef() async throws {
