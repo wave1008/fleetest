@@ -33,6 +33,9 @@ tap(x: 120, y: 640)                    // only when no selector is available
   it. If that does not clear it, the centre is not pressed (it would hit the tab in front and open another screen); the uncovered,
   visible part of the target is pressed instead (with a note). If that visible part is too thin (under 8pt; 8dp on Android), nothing is tapped
   and the step fails. Long press and `doubleTap` behave the same.
+- **When a target outside the list (such as a button on a top bar that hid on scroll) is under a navigation bar or similar**:
+  one scroll of the list does not bring it out, so without `scroll:` nothing is tapped, the step fails and the message suggests
+  a direction (`scroll: .up` etc.). With `scroll:`, the list is scrolled until the target comes out from under it, then it is tapped.
 - **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
   to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
   another app is never operated by mistake).

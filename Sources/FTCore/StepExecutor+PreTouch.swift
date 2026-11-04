@@ -136,6 +136,18 @@ extension StepExecutor {
     }
 
     func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> CoveredTouchPlan {
+        // **容器の外で、1回の送りでは外せない覆い(ナビゲーションバー・折りたたみヘッダ)の下に潜った対象は撃たない**
+        // (`scroll:` を書いた探索は見つかったと言わない = 同じ判定。書いていない手はここで断る)。見えている部分を押しても
+        // 縮んだヘッダの中身に当たり、何も起きないまま ok になった(RN の iOS の A10・9周目の探索 iultra F3)。
+        // 人も覆われたボタンは先に一覧を戻してから押すので、向きを書けば探索が送って出す
+        if let over = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
+            element, in: snapshot.elements, screen: snapshot.screen, inferring: step.containerInference ?? true),
+           let container = TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen)?.frame {
+            let toward = element.frame.centerY < container.y ? ".up" : ".down"
+            return .refuse("did not touch \(step.locatorSummary): it is outside the scrolling list and its centre is under"
+                + " \(TapTargetGeometry.describe(over)), which a single scroll of the list does not clear (nothing was touched)."
+                + " Add scroll: \(toward) so the list is scrolled until the target comes out from under it")
+        }
         switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
                                               inferring: step.containerInference ?? true, scale: driver.pointScale) {
         case nil: return .none

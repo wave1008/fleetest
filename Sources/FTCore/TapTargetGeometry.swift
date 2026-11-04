@@ -861,8 +861,11 @@ public enum TapTargetGeometry {
     /// 1回の送りでは外せない。**利用者が `scroll:` を書いたときの探索が「見つかった」と言わないための判定**で、送る量は決めない
     public static func coveredOutsideContainerBeyondOneLift(_ element: ElementInfo, in elements: [ElementInfo],
                                                             screen: FTRect, inferring: Bool) -> ElementInfo? {
-        guard ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) == nil,
-              let container = primaryScrollContainer(in: elements, screen: screen)?.frame,
+        guard let container = primaryScrollContainer(in: elements, screen: screen)?.frame,
+              // 一覧と交わらない容器(隠れる上部バー自身 = 実測 RN iOS の #bar_top_hiding 84..140・一覧 168..)は
+              // スクロールで切る容器ではない = 外の対象として扱う。一覧と交わる容器の中の対象は見切れの回収の領分
+              ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring)
+                .map({ ScrollGeometry.intersection($0, container) == nil }) ?? true,
               let over = overlayCoveringForUncover(element, in: elements, screen: screen),
               !(over.label ?? "").isEmpty || !(over.identifier ?? "").isEmpty else { return nil }
         let centreY = element.frame.centerY

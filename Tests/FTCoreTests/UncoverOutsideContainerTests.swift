@@ -82,7 +82,7 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertFalse(ContainerGeometry.isFloatingOverDeclaredScroller(row, in: snapshot.elements))
     }
 
-    // MARK: 縮んだヘッダの下に潜ったフォロー(OI-147。E2EY-RN の折りたたみヘッダとタブ・iOS で撮った枠)
+    // MARK: 縮んだヘッダの下に潜ったフォロー(E2EY-RN の折りたたみヘッダとタブ・iOS で撮った枠)
 
     private func collapsedHeaderTree(barBottom: Double = 116) -> [ElementInfo] {
         var list = el(7, "other", FTRect(x: 0, y: 187, width: 402, height: 687), scrollable: true); list.depth = 3
@@ -109,6 +109,46 @@ final class UncoverOutsideContainerTests: XCTestCase {
         var els = collapsedHeaderTree()
         els[1].frame = FTRect(x: 157, y: 130, width: 88, height: 44)
         XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(els[1], in: els, screen: screen, inferring: true))
+    }
+
+    /// `scroll:` を書いていない tap も、この形の対象には撃たずに断り、送る向きを `scroll:` で案内する(RN の iOS の A10:
+    /// 覆いの下と注記しながら撃って、縮んだヘッダの中身に当たり何も起きないまま ok だった)
+    func testTapWithoutScrollRefusesATargetBuriedUnderTheBar() async {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [collapsedHeaderTree()])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_follow")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
+        XCTAssertTrue(message.contains("Add scroll: .up") && message.contains("nothing was touched"), message)
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
+        XCTAssertTrue(primary.coordinateTaps.isEmpty)
+    }
+
+    /// 隠れるバー(RN の iOS・in-app で撮った枠): 対象はバー自身を容器と推定されるが、その容器は一覧と交わらない =
+    /// 外の対象。中心がナビゲーションバーの下で撃つと何も起きないまま ok だった(hide= が変わらない)
+    func testTargetInsideAHiddenBarOutsideTheListIsReported() {
+        var list = el(5, "other", FTRect(x: 0, y: 168, width: 402, height: 706), scrollable: true); list.depth = 2
+        var rowA = el(10, "button", id: "row_h_22", label: "行 H22", FTRect(x: 8, y: 170, width: 386, height: 48)); rowA.depth = 3
+        var rowB = el(11, "button", id: "row_h_23", label: "行 H23", FTRect(x: 8, y: 222, width: 386, height: 48)); rowB.depth = 3
+        var bar = el(24, "other", id: "bar_top_hiding", FTRect(x: 0, y: 84, width: 402, height: 56)); bar.depth = 2
+        var title = el(25, "staticText", label: "受信トレイ", FTRect(x: 12, y: 101, width: 84, height: 21)); title.depth = 3
+        var action = el(27, "button", id: "btn_top_action", label: "並べ替え", FTRect(x: 301, y: 90, width: 88, height: 44)); action.depth = 3
+        var nav = el(28, "navigationBar", id: "スクロールで隠れるバー", FTRect(x: 0, y: 62, width: 402, height: 54)); nav.depth = 2
+        let els = [list, rowA, rowB, bar, title, action, nav]
+        XCTAssertNotNil(ContainerGeometry.clippingContainer(of: action, in: els, inferring: true), "前提: バー自身が容器と推定される形")
+        XCTAssertEqual(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(action, in: els, screen: screen, inferring: true)?.identifier,
+                       "スクロールで隠れるバー")
+        // 一覧の中の行は対象にしない
+        XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(rowA, in: els, screen: screen, inferring: true))
+        // 一覧の上縁をまたぐ行(推定の容器 = 一覧と交わる)は、中心が一覧の外で名前つきの帯の下でも見切れの回収の領分。
+        // 完全に外の行は ghost として覆いの判定より前に外れるので、縁をまたぐ形で組む
+        var wrapper = el(6, "other", FTRect(x: 0, y: 168, width: 402, height: 706)); wrapper.depth = 2
+        var straddle = el(9, "button", id: "row_h_21", label: "行 H21", FTRect(x: 8, y: 130, width: 386, height: 60)); straddle.depth = 3
+        var band = el(29, "staticText", label: "見出し", FTRect(x: 0, y: 140, width: 402, height: 24)); band.depth = 2
+        let withStraddle = [list, wrapper, straddle, rowA, rowB, band]
+        XCTAssertNotNil(ContainerGeometry.clippingContainer(of: straddle, in: withStraddle, inferring: true), "前提: 容器が推定される")
+        XCTAssertNotNil(TapTargetGeometry.overlayCoveringForUncover(straddle, in: withStraddle, screen: screen), "前提: 帯が中心を覆う")
+        XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(straddle, in: withStraddle, screen: screen, inferring: true))
     }
 
     /// 探索の「見つかった」ゲートがこの判定を通っていること(外すと覆いの下のまま撃って緑になる)
