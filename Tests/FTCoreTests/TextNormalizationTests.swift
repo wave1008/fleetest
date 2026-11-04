@@ -278,7 +278,10 @@ final class NormalizationCoversEveryComparisonTests: XCTestCase {
 final class AbsentValueEqualsEmptyTests: XCTestCase {
     func testAbsentValueEqualsEmptyExpectation() {
         XCTAssertEqual(LocatorResolver.matchedText(nil, expected: "", assert: "valueEquals"), "")
-        XCTAssertEqual(LocatorResolver.matchedText(nil, expected: "", assert: "textEquals"), "")
+        // text 系は値の無い要素を "" と読まない(iOS の入力欄はラベルが無い = 中身の入った欄に textIs("") が通った。13周目 ilocal F19)
+        XCTAssertNil(LocatorResolver.matchedText(nil, expected: "", assert: "textEquals"))
+        XCTAssertNil(LocatorResolver.matchedText(nil, expected: "", assert: "idEquals"))
+        XCTAssertTrue(LocatorResolver.negativeAssertSatisfied("textNotEquals", actual: nil, expected: ""))
         XCTAssertNil(LocatorResolver.matchedText(nil, expected: "abc", assert: "valueEquals"))
         XCTAssertTrue(LocatorResolver.negativeAssertSatisfied("valueIsEmpty", actual: nil, expected: nil))
     }

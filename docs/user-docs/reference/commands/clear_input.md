@@ -8,7 +8,7 @@ Empties an input field.
 
 | function | description |
 |---|---|
-| `clearInput(settle:)` | Empties the currently focused input field. When no element in the screen's element list reports focus, it cannot check that the field was emptied, so it passes with the note `clear-input-unverified` (check the value with `textIs`). |
+| `clearInput(settle:)` | Empties the currently focused input field. When no element in the screen's element list reports focus, it cannot check that the field was emptied, so it passes with the note `clear-input-unverified` (check the value with `valueIs`). |
 | `clearInput(sel, settle:waitSeconds:scroll:maxSwipes:)` | Empties the specified input field. |
 
 ## Example
@@ -31,7 +31,7 @@ type("#note", "new content", replace: true)
   target first, so clearing a button would press it (a submit or a purchase). It refuses whatever the UI framework (Compose and Flutter
   included), only when the element's type is a button, switch, link and so on. Pointing at an
   element that wraps exactly one input field is not refused (it runs as before).
-- **Whitespace cannot be verified.** Whitespace-only content is invisible to accessibility, so the tool cannot verify that it was cleared, and a lost trailing/middle space after `type` is not detected either — assert values where whitespace matters with `textIs`.
+- **Whitespace cannot be verified.** Whitespace-only content is invisible to accessibility, so the tool cannot verify that it was cleared, and a lost trailing/middle space after `type` is not detected either — assert values where whitespace matters with `valueIs`.
 
 - `type` appends rather than overwrites, so clear the field first when you need to replace its
   contents. If you only want to save a selector resolution, `type(sel, "some text", replace: true)`

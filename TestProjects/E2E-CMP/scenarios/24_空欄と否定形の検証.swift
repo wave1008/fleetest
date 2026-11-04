@@ -2,7 +2,7 @@
 // fleetest 機能: 入力欄の空(valueIsEmpty)・日付書式(valueMatchesDateFormat)・否定形(text*Not)・lastElement。
 // 入力欄の値は value* で見る —— 入力欄の text は値ではなく、空欄でプレースホルダを返す SUT
 // (CMP iOS・Flutter iOS・RN)と空を返す SUT に割れ、入力後は nil になる(2026-10-02 実測・5 SUT × 両 OS)。
-// 空欄の valueIsEmpty は全 SUT で通る(同日実測)。Android のブリッジが空欄に子のヒントを値として写していた
+// 空欄の valueIsEmpty は全 SUT で通る(同日実測)。valueIs("") も同じ欄で通る(値の無い欄を空として比べる。2026-11-04 の直し)。Android のブリッジが空欄に子のヒントを値として写していた
 // 不具合(v85 で修正)は value に出たので、ここが見張りになる。
 
 import FTDSL
@@ -20,6 +20,7 @@ class 空欄と否定形の検証 {
                     tap("#nav_input")
                 }.expectation {
                     select("#field_single").valueIsEmpty()
+                    select("#field_single").valueIs("")
                 }
             }
             scene(2, "打ってから入力クリアで消す") {
@@ -34,6 +35,7 @@ class 空欄と否定形の検証 {
                 }.expectation {
                     select("#txt_echo_single").textIs("single=")
                     select("#field_single").valueIsEmpty()
+                    select("#field_single").valueIs("")
                 }
             }
         }

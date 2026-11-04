@@ -287,8 +287,16 @@ public enum LocatorResolver {
         case "textMatchesNot", "valueMatchesNot":
             return text.range(of: want, options: .regularExpression) == nil
         default:   // textNotEquals / valueNotEquals
-            return text != want   // 値の無い要素は ""(matchedText と同じ。valueIs("") と valueIsNot("") が両方通らない)
+            guard comparableText(actual, assert: assert) != nil else { return expected != nil }
+            return text != want
         }
+    }
+
+    /// 検証で比べる文字列(肯定・否定の両方がここを通る = 読み方を1か所に置く)。**値の系だけ**値の無い要素を "" と読む
+    /// (未入力の欄の value は a11y で無い = `valueIs("")` と `valueIsEmpty()` が割れない)。**text 系と id は読まない**:
+    /// iOS の入力欄はラベルを持たないので、"" と読むと中身の入った欄に `textIs("")` が通る(13周目 ilocal F19)
+    static func comparableText(_ actual: String?, assert: String) -> String? {
+        actual ?? (assert.hasPrefix("value") ? "" : nil)
     }
 
     /// アサート種別ごとの一致判定。戻り値は「画面上で実際に一致した文字列」(occlusion-guard 用)、
@@ -302,9 +310,7 @@ public enum LocatorResolver {
     /// occlusion-guard は画面と照合するので、実際に描かれている文字列でなければ意味が無い
     public static func matchedText(_ actual: String?, expected: String, assert: String,
                                    normalization: TextNormalization = .text) -> String? {
-        // 値・ラベルの無い要素(未入力の欄の value は a11y で nil)は空文字として照合する =
-        // `valueIs("")` と `valueIsEmpty()` が同じ欄で割れない(negativeAssertSatisfied も nil を "" で読む)
-        let actual = actual ?? ""
+        guard let actual = comparableText(actual, assert: assert) else { return nil }
         // 日付書式だけは書式文字列であって「テキスト」ではないので正規化しない
         if assert == "textMatchesDateFormat" || assert == "valueMatchesDateFormat" {
             let formatter = DateFormatter()

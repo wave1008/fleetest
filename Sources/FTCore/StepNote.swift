@@ -146,7 +146,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// ロケータ無しの `clearInput()` / `type(…, replace: true)` で、**消す前の木に焦点のある欄が無かった**ので
     /// 消えたかを読み返せないまま緑にした。読み返しの材料が無いだけで失敗ではない(in-app は Compose の焦点を
     /// 申告しない・背の低い端末ではキーボードで欄自身が木から消える)。黙って緑にすると、消えていない欄を
-    /// 消えたと読ませる(実機 iPhone SE3 の CMP: パスワード欄が消えないまま緑)。値は `textIs` で別途確かめる
+    /// 消えたと読ませる(実機 iPhone SE3 の CMP: パスワード欄が消えないまま緑)。値は `valueIs` で別途確かめる
     case clearInputUnverified = "clear-input-unverified"
 
     /// 読み返しで**中央の文字が落ちていた**(`TypeReadback.Plan.retype`)ので、消してから全文を打ち直した
@@ -159,7 +159,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     case typeRetypeAbandoned = "type-retype-abandoned"
 
     /// 欄が返した前後の空白が**打った空白と違った**(半角空白が全角空白 U+3000 に化けた等。RN の iOS で実測)ので、
-    /// 検証できないまま受理した。**これが立つ欄は入った値が打った文字と違う** —— `textIs` で別途確かめる
+    /// 検証できないまま受理した。**これが立つ欄は入った値が打った文字と違う** —— `valueIs` で別途確かめる
     case typeWhitespaceAltered = "type-whitespace-altered"
 
     /// 撃つ前に欄にあった値が読み返しから消え、打った文字だけが残っていた(追記でなく置換)。選択範囲の置き換えとして
@@ -531,10 +531,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " as input the app transforms"
         case .typeWhitespaceAltered:
             return "the field holds different whitespace than the typed text (e.g. a space"
-                + " became a full-width space); accepted — check the value with textIs"
+                + " became a full-width space); accepted — check the value with valueIs"
         case .typeReplacedPriorValue:
             return "the field held a value before this step, and it now reads back as only the typed text"
-                + " (replaced, not appended); accepted — check the value with textIs"
+                + " (replaced, not appended); accepted — check the value with valueIs"
         case .swipeByRatioCapped:
             return "dxRatio/dyRatio beyond ±0.9 were capped to 0.9 (the ratio is relative to the target's"
                 + " size); to move farther than the target, use swipeElementToElement or swipePointToPoint"
@@ -551,7 +551,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " have been listening yet"
         case .clearInputUnverified:
             return "no field in the tree reported focus, so whether the field was emptied could not be"
-                + " read back — check the value with textIs"
+                + " read back — check the value with valueIs"
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"
