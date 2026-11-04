@@ -127,6 +127,9 @@ extension StepExecutor {
         // 横方向も同じ経路を通す —— RN の横 FlatList がフリングで #tag_15 を飛び越して右端に着き、
         // 救済されず 4/10 で失敗した実測が動機
 
+        // 覆いの判定(縁のバー・送れば離れる覆い)は**いま送っている指の向き**で読む(元の step の向きは逆)
+        var reverseStep = step
+        reverseStep.direction = back.rawValue
         var previous: String?
         reverseSweepDragsSent = 0
         for _ in 0..<Self.reverseSweepMaxSwipes {
@@ -147,7 +150,7 @@ extension StepExecutor {
                 if !Self.isClippedByViewport(element, screen: container),
                    TapTargetGeometry.offscreenScrollGateCentre(for: element,
                                                               screen: snapshot.screen) == nil,
-                   !buriedUnderBarForTouch(element, step: step, in: snapshot) {
+                   !buriedUnderBarForTouch(element, step: reverseStep, in: snapshot) {
                     _ = try await settleAfterFind(step: step, element: element,
                                                   snapshot: snapshot, afterInertialMove: true, phase: &phase)
                     // **連続2回一致まで待つ**(settleAfterScroll より強い)。逆走査のドラッグは

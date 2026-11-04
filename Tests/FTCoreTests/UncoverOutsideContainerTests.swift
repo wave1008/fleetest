@@ -349,6 +349,7 @@ final class UncoverOutsideContainerTests: XCTestCase {
         let search = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift"), encoding: .utf8)
         let settle = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Settle.swift"), encoding: .utf8)
         XCTAssertTrue(search.contains("let buriedCover = searchTouchBlock(element, step: step, in: snapshot)"), "本編")
-        XCTAssertTrue(settle.contains("!buriedUnderBarForTouch(element, step: step, in: snapshot)"), "逆走査も同じ判定を通る")
+        XCTAssertTrue(settle.contains("!buriedUnderBarForTouch(element, step: reverseStep, in: snapshot)")
+                      && settle.contains("reverseStep.direction = back.rawValue"), "逆走査も同じ判定を、いま送っている指の向きで通る")
     }
 }

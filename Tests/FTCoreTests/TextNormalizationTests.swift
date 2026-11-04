@@ -283,13 +283,15 @@ final class AbsentValueEqualsEmptyTests: XCTestCase {
         XCTAssertTrue(LocatorResolver.negativeAssertSatisfied("valueIsEmpty", actual: nil, expected: nil))
     }
 
-    /// 否定形・持ち越しの判定も同じ読み(valueIs("") と valueIsNot("") が同じ欄で両方通らない・端末と持ち越しで割れない)
+    /// 否定形も同じ読み(valueIs("") と valueIsNot("") が同じ欄で両方通らない)。持ち越しの経路は値の無い要素を端末へ回す
     func testNegativeAndHeldAssertReadAbsentAsEmpty() {
         XCTAssertFalse(LocatorResolver.negativeAssertSatisfied("valueNotEquals", actual: nil, expected: ""))
         XCTAssertTrue(LocatorResolver.negativeAssertSatisfied("valueNotEquals", actual: nil, expected: "x"))
         let noID = ElementInfo(ref: 1, type: "button", identifier: nil, label: nil, value: nil, placeholder: nil,
                                enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
-        XCTAssertEqual(HeldElementAssert.satisfied(assert: "idEquals", expected: "", element: noID), true)
+        // 持ち越しの経路は値の無い要素を自分で決めない(端末の経路が囲んだ欄の値まで読む)
+        XCTAssertNil(HeldElementAssert.satisfied(assert: "valueEquals", expected: "", element: noID))
+        XCTAssertNil(HeldElementAssert.satisfied(assert: "valueIsEmpty", expected: nil, element: noID))
     }
 
     func testFailureTextDoesNotQuoteNil() {

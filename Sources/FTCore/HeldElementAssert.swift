@@ -20,21 +20,21 @@ public enum HeldElementAssert {
         switch assert {
         case "idEquals":
             guard let expected else { return nil }
-            // 端末の経路(executeAssertTextComparison)と同じ照合 = id の無い要素は ""
-            return LocatorResolver.matchedText(element.identifier, expected: expected, assert: assert) != nil
+            return element.identifier == expected
         case "valueEquals", "textEquals", "textContains", "textMatches",
              "textStartsWith", "textEndsWith", "textMatchesDateFormat",
              "valueContains", "valueMatches", "valueStartsWith", "valueEndsWith",
              "valueMatchesDateFormat":
-            guard let expected else { return nil }
-            return LocatorResolver.matchedText(actualText(assert, element),
-                                            expected: expected, assert: assert) != nil
+            // 値の無い要素はここで決めない(端末の経路は囲んだ入力欄の値も読む = `TypeReadback.assertedValue`。
+            // nil を "" と読んで決めると、値を持つ欄を包んだ要素で valueIs("") が通る)
+            guard let expected, let actual = actualText(assert, element) else { return nil }
+            return LocatorResolver.matchedText(actual, expected: expected, assert: assert) != nil
         case "textNotEquals", "textIsEmpty", "textIsNotEmpty",
              "textStartsWithNot", "textContainsNot", "textEndsWithNot", "textMatchesNot",
              "valueNotEquals", "valueIsEmpty", "valueIsNotEmpty",
              "valueStartsWithNot", "valueContainsNot", "valueEndsWithNot", "valueMatchesNot":
-            return LocatorResolver.negativeAssertSatisfied(assert, actual: actualText(assert, element),
-                                                        expected: expected)
+            guard let actual = actualText(assert, element) else { return nil }   // 理由は肯定形と同じ
+            return LocatorResolver.negativeAssertSatisfied(assert, actual: actual, expected: expected)
         case "enabled":
             return element.enabled
         case "disabled":

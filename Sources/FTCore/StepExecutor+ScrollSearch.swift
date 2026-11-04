@@ -768,12 +768,12 @@ extension StepExecutor {
         // 覆いと対象の中心どうしを比べない: シートのキューの行の中心は対象の中心のわずかに上にもある
         let screen = snapshot.screen
         let leavesCover: Bool
-        switch step.direction {   // **指の向き**(`scroll: .down` は "up" = 指も中身も上へ動く。`FTScrollDirection.swipe`)
-        case "up": leavesCover = over.frame.centerY >= screen.centerY
-        case "down": leavesCover = over.frame.centerY <= screen.centerY
-        case "left": leavesCover = over.frame.centerX >= screen.centerX
-        case "right": leavesCover = over.frame.centerX <= screen.centerX
-        default: leavesCover = false
+        switch FTSwipeDirection(rawValue: step.direction ?? "") {   // **指の向き**(`scroll: .down` は .up。`FTScrollDirection.swipe`)
+        case .up?: leavesCover = over.frame.centerY >= screen.centerY
+        case .down?: leavesCover = over.frame.centerY <= screen.centerY
+        case .left?: leavesCover = over.frame.centerX >= screen.centerX
+        case .right?: leavesCover = over.frame.centerX <= screen.centerX
+        case nil: leavesCover = false
         }
         return leavesCover ? TapTargetGeometry.describe(over) : nil
     }
