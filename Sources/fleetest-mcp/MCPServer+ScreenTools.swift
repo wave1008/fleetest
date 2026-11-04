@@ -115,7 +115,9 @@ extension MCPServer {
                                 ref: Int, operation: String) -> CoveredRefTouch {
         guard let snapshot else { return .none }
         switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
-                                              inferring: ContainerGeometry.containerInferenceEnabled, scale: scale) {
+                                              inferring: ContainerGeometry.containerInferenceEnabled, scale: scale,
+                                              // MCP の iOS は XCUITest の木(z 無し)・Android の z は本物とは限らない
+                                              zIsPaintOrder: false) {
         case nil: return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: " Its centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is covered by"

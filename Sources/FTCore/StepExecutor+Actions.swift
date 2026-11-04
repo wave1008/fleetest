@@ -281,6 +281,17 @@ extension StepExecutor {
             else { return false }
             return ContainerGeometry.isOutsideContainer(element, in: snapshot.elements, screen: snapshot.screen)
         }
+        // **`[n]` を書いていないセレクタの先頭の一致が容器の外の残りで、容器の中に別の一致があるなら、容器の中の最初の一致を掴む**
+        // (人が見て押すのはそちら。UIKit は初めから外の行を木に出さないので同じ結果になる)。外の残りを掴むと救済の送りで一覧を
+        // 戻し、行き過ぎて見失う・別の行を押す(10周目の探索 ilocal F1・F5: RN / SwiftUI の `tap("行 *")`)。序数・相対の指定は
+        // 利用者が1つを選んでいるので替えない
+        if grabbedGhost(resolved), let locator = step.locator, resolved?.1 == nil, locator.index == nil,
+           locator.relative?.isEmpty ?? true,
+           let inside = LocatorResolver.candidates(locator, elements: snapshot.elements)?.first(where: { candidate in
+               !ContainerGeometry.isOutsideContainer(candidate, in: snapshot.elements, screen: snapshot.screen)
+           }) {
+            resolved = (inside, nil)
+        }
         var ghostRetries = 0
         var ghostSwipes = 0
         // 救済の動きが慣性を残したか(下の空打ちの根拠。runScrollSearch の leftInertia と同じ規則)
@@ -629,6 +640,14 @@ extension StepExecutor {
                 note(.healUnwritable, into: &notes)
             }
             driverFallback = Self.joinNotes(driverFallback, notes.joined(separator: " / "))
+        } else if let lost = rescuedFrom {
+            // 救済の送りで一覧を戻した後に、送りの元にした要素を見失った(行き過ぎて画面の外へ)。待っても戻らないので
+            // waitSeconds: を案内しない(10周目の探索 ilocal F5)
+            return StepOutcome(status: failed(.notFound,
+                "did not touch \(step.locatorSummary): it resolved to \(TapTargetGeometry.describe(lost.element)), which was reported"
+                + " outside its scroll container, so the list was scrolled to bring it back — but after scrolling it is no longer"
+                + " on the screen (nothing was touched). Scroll it into view first (for example with scroll:) or point at an"
+                + " element that is inside the list"))
         } else {
             let retry = try await resolveAfterClosingKeyboard(action, step: step, in: snapshot, phase: &phase)
             if case .reached(let reachedElement, let usedFallback, let reachedSnapshot, let reachedNote) = retry {
@@ -680,8 +699,10 @@ extension StepExecutor {
             let collapses = inChain.filter { TapTargetGeometry.interactiveTypes.contains($0.type) }.count <= 1
             let count = collapses ? candidates.count - inChain.count + 1 : candidates.count
             if count > 1 { ambiguousMatchCountThisStep = count }
-            // 先頭の候補が手前の要素に覆われ、覆われていない候補が別にあれば、そちらを撃つ(判定は `OcclusionGeometry` の1か所)
-            if Self.interactsByTouch(action), count > 1,
+            // 先頭の候補が手前の要素に覆われ、覆われていない候補が別にあれば、そちらを撃つ(判定は `OcclusionGeometry` の1か所)。
+            // **救済の送りの後は替えない**: 撃つ相手は送りの元にした要素で決まっている(替えると一覧を戻した後の別の行を押した。
+            // 10周目の探索の回し直し・E2E-RN の `tap("行 *")` で 24 回中 3 回 row_04)。覆われていれば下の coveredTouchPlan が扱う
+            if Self.interactsByTouch(action), count > 1, rescuedFrom == nil,
                let uncovered = OcclusionGeometry.uncoveredAlternative(
                    to: element, among: candidates, in: snapshot.elements, screen: snapshot.screen) {
                 element = uncovered

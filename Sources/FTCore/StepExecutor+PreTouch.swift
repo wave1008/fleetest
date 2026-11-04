@@ -168,7 +168,8 @@ extension StepExecutor {
     func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> CoveredTouchPlan {
         if let message = buriedOutsideContainerRefusal(element, in: snapshot, step: step) { return .refuse(message) }
         switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
-                                              inferring: step.containerInference ?? true, scale: driver.pointScale) {
+                                              inferring: step.containerInference ?? true, scale: driver.pointScale,
+                                              zIsPaintOrder: !isAndroid) {
         case nil: return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"

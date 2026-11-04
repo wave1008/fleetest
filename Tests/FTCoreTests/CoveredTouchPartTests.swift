@@ -20,7 +20,7 @@ final class CoveredTouchPartTests: XCTestCase {
     func testVisiblePartAboveTheTabBarIsPressedWhenItReachesTheFloor() {
         let (target, elements) = tree(targetHeight: 200, tabTop: 2080)   // 上の 80px が見える(中心 2100 は覆われる)
         guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
-            for: target, in: elements, screen: screen, inferring: true, scale: 3) else {
+            for: target, in: elements, screen: screen, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("見えている部分があれば押す")
         }
         XCTAssertEqual(over.identifier, "tab_home")
@@ -32,7 +32,7 @@ final class CoveredTouchPartTests: XCTestCase {
     func testThinRemainderBelowTheFloorIsRefused() {
         let (target, elements) = tree(targetHeight: 200, tabTop: 2010)   // 残り 10px < 8*3
         guard case .tooThin(let visible, let floor, let over)? = TapTargetGeometry.coveredTouch(
-            for: target, in: elements, screen: screen, inferring: true, scale: 3) else {
+            for: target, in: elements, screen: screen, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("床に届かなければ撃たない")
         }
         XCTAssertEqual(visible, 10)
@@ -43,7 +43,7 @@ final class CoveredTouchPartTests: XCTestCase {
     func testFloorScalesWithTheTreeUnit() {
         let (target, elements) = tree(targetHeight: 200, tabTop: 2010)   // 残り 10: scale 1 なら床 8 以上
         guard case .visiblePart? = TapTargetGeometry.coveredTouch(
-            for: target, in: elements, screen: screen, inferring: true, scale: 1) else {
+            for: target, in: elements, screen: screen, inferring: true, scale: 1, zIsPaintOrder: false) else {
             return XCTFail("scale 1 なら床 8 を超える")
         }
     }
@@ -57,7 +57,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let controls = el(3, "button", id: "tab_controls", FTRect(x: 1056, y: 1064, width: 900, height: 144))
         let about = el(4, "button", id: "tab_about", FTRect(x: 1956, y: 1064, width: 900, height: 144))
         guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
-            for: field, in: [field, home, controls, about], screen: wide, inferring: true, scale: 3) else {
+            for: field, in: [field, home, controls, about], screen: wide, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("上の帯 32px は床 24 以上")
         }
         XCTAssertEqual(over.identifier, "tab_controls")
@@ -75,7 +75,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let wrapper = el(2, "clickable", id: "wrapper", FTRect(x: 0, y: 1900, width: 1080, height: 500))
         let tab = el(3, "button", id: "tab_home", FTRect(x: 0, y: 2080, width: 1080, height: 320))
         guard case .visiblePart(let rect, let over)? = TapTargetGeometry.coveredTouch(
-            for: target, in: [target, wrapper, tab], screen: screen, inferring: true, scale: 3) else {
+            for: target, in: [target, wrapper, tab], screen: screen, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("包む相手は覆いではない")
         }
         XCTAssertEqual(over.identifier, "tab_home")
@@ -95,7 +95,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let elements = [fab, list, row]
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(fab, in: elements, screen: phone)?.ref, 28,
                        "前提: 既存の判定は行を覆いと読む")
-        XCTAssertNil(TapTargetGeometry.coveredTouch(for: fab, in: elements, screen: phone, inferring: true, scale: 1))
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: fab, in: elements, screen: phone, inferring: true, scale: 1, zIsPaintOrder: false))
     }
 
     /// 同じ形でも両方に本物の z があれば(RN・UIKit の in-app)、塗り順は推測ではないので例外にしない = 断る・見えている部分を押す。
@@ -111,9 +111,12 @@ final class CoveredTouchPartTests: XCTestCase {
         target.z = 10; list.z = 20; queueRow.z = 21
         let elements = [target, list, queueRow]
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(target, in: elements, screen: phone)?.ref, 5, "前提")
-        guard case .tooThin? = TapTargetGeometry.coveredTouch(for: target, in: elements, screen: phone, inferring: true, scale: 1) else {
+        guard case .tooThin? = TapTargetGeometry.coveredTouch(for: target, in: elements, screen: phone, inferring: true, scale: 1, zIsPaintOrder: true) else {
             return XCTFail("塗り順が真値なら撃たない側へ")
         }
+        // Android の z は本物とは限らない(Flutter の FAB を行が覆うと読んで断った = E2EY-Flutter の Android で回帰)
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: target, in: elements, screen: phone, inferring: true, scale: 1,
+                                                    zIsPaintOrder: false))
     }
 
     /// 回帰の実測(E2EY-iOS の OTP): 押せる型でない箱の上に透明な入力欄が重なる。押す相手は手前の欄なので、従来の扱い(nil)へ戻す
@@ -125,7 +128,7 @@ final class CoveredTouchPartTests: XCTestCase {
                                 enabled: true, frame: FTRect(x: 16, y: 214, width: 370, height: 22), depth: 2)
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(box, in: [box, field], screen: phone)?.ref, 11,
                        "前提: 既存の判定は欄を覆いと読む")
-        XCTAssertNil(TapTargetGeometry.coveredTouch(for: box, in: [box, field], screen: phone, inferring: true, scale: 1))
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: box, in: [box, field], screen: phone, inferring: true, scale: 1, zIsPaintOrder: false))
     }
 
     /// 押せない覆い(見出しの容器が中の文字を覆うと読む = 塗り順の推測違い)は従来の扱い(nil)。中心を撃っても別の部品は押さない
@@ -140,7 +143,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let tree = [title, header, back]
         XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(title, in: tree, screen: screen)?.ref, 2,
                        "前提: 既存の判定は容器を覆いと読む")
-        XCTAssertNil(TapTargetGeometry.coveredTouch(for: title, in: tree, screen: screen, inferring: true, scale: 3))
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: title, in: tree, screen: screen, inferring: true, scale: 3, zIsPaintOrder: false))
     }
 
     /// 押せない手前の要素(対象の上端に重なる装飾の文字)は引かない: 引くと見えている帯が床を割って押せる対象を断る
@@ -148,7 +151,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let (target, base) = tree(targetHeight: 200, tabTop: 2080)    // 上の 80px が見える
         let badge = el(3, "staticText", id: "badge", FTRect(x: 100, y: 1990, width: 800, height: 70))   // 上端の 60px に重なる
         guard case .visiblePart(let rect, _)? = TapTargetGeometry.coveredTouch(
-            for: target, in: base + [badge], screen: screen, inferring: true, scale: 3) else {
+            for: target, in: base + [badge], screen: screen, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("押せない装飾は覆いに数えない")
         }
         XCTAssertEqual(rect.height, 80)
@@ -160,7 +163,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let row = el(1, "staticText", id: "row_text", FTRect(x: 100, y: 2000, width: 800, height: 200))
         let bar = el(2, "button", id: "bottom_b", FTRect(x: 0, y: 2080, width: 1080, height: 320))
         guard case .visiblePart(let rect, _)? = TapTargetGeometry.coveredTouch(
-            for: row, in: [row, bar], screen: screen, inferring: true, scale: 3) else {
+            for: row, in: [row, bar], screen: screen, inferring: true, scale: 3, zIsPaintOrder: false) else {
             return XCTFail("文字の型の行でも覆いがボタンなら見えている部分を押す")
         }
         XCTAssertEqual(rect.height, 80)
@@ -170,7 +173,7 @@ final class CoveredTouchPartTests: XCTestCase {
         let target = el(1, "button", id: "btn", FTRect(x: 100, y: 1000, width: 800, height: 100))
         let tab = el(2, "button", id: "tab_home", FTRect(x: 0, y: 2200, width: 1080, height: 200))
         XCTAssertNil(TapTargetGeometry.coveredTouch(for: target, in: [target, tab], screen: screen,
-                                                    inferring: true, scale: 3))
+                                                    inferring: true, scale: 3, zIsPaintOrder: false))
     }
 }
 

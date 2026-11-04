@@ -13,8 +13,10 @@ extension TapTargetGeometry {
     /// 対象の中心を `overlayCoveringForUncover` が名指す覆いが覆っているときの判断(覆っていなければ nil)。
     /// 残りは対象の枠を画面と容器(あれば)で切り、手前の押せる覆いを全部引いた片のうち、幅・高さとも床以上で最大のもの。
     /// 床は `minimumVisibleTapExtent` × scale(新しい定数は置かない)。scale・inferring に既定値を置かない = 渡し忘れをコンパイルで止める
+    /// `zIsPaintOrder`: 木の z が本物の塗り順か(iOS の in-app = UIKit・RN のときだけ送る = true。Android は z を必ず送るが、
+    /// Flutter・Compose のように1枚の描画面で描くアプリでは木の順と同じで塗り順ではない = false)。既定値を置かない
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
-                                    inferring: Bool, scale: Double) -> CoveredTouch? {
+                                    inferring: Bool, scale: Double, zIsPaintOrder: Bool) -> CoveredTouch? {
         guard let over = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
         // 次の3形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
         // ⓪覆い(中心の最前面)が押せる型でない: 防ぐ害は「別の押せる部品(タブ)に当たる」こと。背景・装飾・行の文字なら中心を
@@ -29,10 +31,10 @@ extension TapTargetGeometry {
            SnapshotRenderer.textInputTypes.contains(over.type) { return nil }
         // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・
         //   「一番下へ」)を行が覆っていると読み違える(Flutter の Android は描画順を申告しない = z が木の順)。
-        //   **両方に z があれば塗り順は真値なのでこの例外を使わない**(RN の iOS の in-app: 半分のシートのキューの行が裏の本文の行を
-        //   覆うのに中心を撃ち、キューの行を押して ok だった。OcclusionGeometry の「z があれば幾何の推測を使わない」と同じ規律)
+        //   **z が本物の塗り順で両方にあればこの例外を使わない**(RN の iOS の in-app: 半分のシートのキューの行が裏の本文の行を
+        //   覆うのに中心を撃ち、キューの行を押して ok だった)。Android の z は本物とは限らない(Flutter の FAB を行が覆うと読んで断った)
         let targetAncestors = Set(ancestors(of: element, in: elements).map(\.ref))
-        if over.z == nil || element.z == nil,
+        if !(zIsPaintOrder && over.z != nil && element.z != nil),
            ancestors(of: over, in: elements).contains(where: { $0.scrollable == true && !targetAncestors.contains($0.ref) }) {
             return nil
         }

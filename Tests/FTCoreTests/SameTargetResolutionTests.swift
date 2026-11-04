@@ -51,6 +51,25 @@ final class SameTargetResolutionTests: XCTestCase {
                        LocatorResolver.resolve(step: step, in: after)?.0.ref)
     }
 
+    /// `[n]` を書いていないセレクタの先頭の一致が容器の外の残りなら、容器の中の最初の一致を掴む(救済の送りに入らない)。
+    /// 序数を書いたセレクタは替えない(利用者が1つを選んでいる)
+    func testWildcardPrefersTheFirstMatchInsideTheContainerOverALeftover() async {
+        func row(_ ref: Int, _ n: Int, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: "row_\(n)", label: "行 \(n)", value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 16, y: y, width: 370, height: 48), depth: 2)
+        }
+        var list = ElementInfo(ref: 1, type: "other", identifier: "list_rows", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 168, width: 400, height: 600), depth: 1)
+        list.scrollable = true
+        let tree = [list, row(2, 12, y: 100), row(3, 13, y: 172), row(4, 14, y: 224)]
+        let log = CallLog()
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [tree])
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(label: "行 ", labelMatch: .startsWith)))
+        XCTAssertTrue(log.entries.contains("primary.tap(ref:3)"), "容器の中の最初の一致を押す: \(log.entries)")
+        XCTAssertFalse(log.entries.contains { $0.contains("swipe") || $0.contains("drag") }, "救済の送りに入らない: \(log.entries)")
+    }
+
     /// 自分の動きの後の引き直しは共有の関数を通る(セレクタで直に引き直すと、序数・ワイルドカードが動いた一覧の別の行を返す)
     func testOwnMoveSitesUseTheSharedResolution() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
