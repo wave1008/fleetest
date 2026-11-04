@@ -178,12 +178,23 @@ extension StepExecutor {
             // (true・引き当て不能・答えられないは従来どおり = true は誤ることがある。門の doc 参照)。
             // **見えている部分を押す判定(上の .visiblePart)より後に聞く**: 中心だけ帯に覆われた対象は中心で聞くと false になり、
             // 見えている部分を押せば通る形を断ってしまう
-            if !isAndroid,
-               let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen),
-               await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
-                return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
-                    + " \(TapTargetGeometry.describe(cover)) is drawn over it, so a touch would land there (nothing was touched)")
+            // **撃つ前の重なりの疑いは、ここでは言わない**(緑の run では黙る)。直前の操作の記録に控え、後続のステップが赤に
+            // なったときだけ失敗の文言で名指す(`lastTapHint`)。重なりは画面の大きさで変わり書く時点では避けられないので、
+            // 実際に効かなかった回(= 赤)にだけ、直す先(シナリオ)を案内する。判定は足さない(既存の疑いを写すだけ)
+            var suspect: ElementInfo?
+            if case .overlayCovering(let over)? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements,
+                                                                                 screen: snapshot.screen) {
+                suspect = over
             }
+            if !isAndroid,
+               let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen) {
+                if await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
+                    return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
+                        + " \(TapTargetGeometry.describe(cover)) is drawn over it, so a touch would land there (nothing was touched)")
+                }
+                suspect = suspect ?? cover
+            }
+            if let suspect { noteCoverSuspect(TapTargetGeometry.describe(suspect), for: element) }
             return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"

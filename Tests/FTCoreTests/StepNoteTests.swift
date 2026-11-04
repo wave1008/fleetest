@@ -18,6 +18,7 @@ final class StepNoteTests: XCTestCase {
         XCTAssertEqual(StepNote.systemAlertProbeFailed.rawValue, "system-alert-probe-failed")
         XCTAssertEqual(StepNote.landscapeWithoutRotate.rawValue, "landscape-without-rotate")
         XCTAssertEqual(StepNote.typeRetyped.rawValue, "type-retyped")
+        XCTAssertEqual(StepNote.coveredTouchBeforeFailure.rawValue, "covered-touch-before-failure")
         XCTAssertEqual(StepNote.typeRetypeAbandoned.rawValue, "type-retype-abandoned")
         XCTAssertEqual(StepNote.clearInputUnverified.rawValue, "clear-input-unverified")
         XCTAssertEqual(StepNote.refLessInputOnOtherApp.rawValue, "ref-less-input-on-other-app")

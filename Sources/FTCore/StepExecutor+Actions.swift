@@ -1130,6 +1130,7 @@ extension StepExecutor {
                             noteCodesThisStep.insert(.inAppTapOutsideHitArea)
                             driverFallback = Self.joinNotes(driverFallback, StepNote.inAppTapOutsideHitArea.text
                                 + " (\(receiver) at \(centre))")
+                            noteCoverSuspect("another view (\(receiver))", for: element)
                         case .activationPoint(let x, let y):
                             noteCodesThisStep.insert(.inAppActivationPointOffCentre)
                             driverFallback = Self.joinNotes(driverFallback, StepNote.inAppActivationPointOffCentre.text

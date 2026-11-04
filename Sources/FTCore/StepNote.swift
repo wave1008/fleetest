@@ -444,9 +444,16 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// **判定は変えない(警告。赤にしない)**。ボタンは対象外
     case rowLabelNotRead = "row-label-not-read"
 
+    /// 失敗したステップの直前の触る操作が、対象の中心に覆いが重なった疑いのまま撃たれていた(木の順の覆い・別の層の覆いを照会で
+    /// 確かめられなかった・in-app の当たり判定のずれ)と名指した(`StepExecutor.tapDiagnosisHint`)。**立つのは失敗したステップだけ**
+    /// (緑の run では黙る)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者(文言が直し方を言う)。判定は変えない
+    case coveredTouchBeforeFailure = "covered-touch-before-failure"
+
     /// 人間向けの文言(FTRuntime がステップ説明へ括弧書きで付ける)
     public var text: String {
         switch self {
+        case .coveredTouchBeforeFailure:
+            return "a touch before this failure was fired while something overlapped its target's centre on this device"
         case .ocrBudgetExhausted: return "the OCR shortcut ran out of budget (asked FM instead)"
         case .ocrShortcutNotReady: return "the OCR shortcut was skipped: the OCR model was not ready yet (asked FM instead)"
         case .ocrShortcutBusy: return "the OCR shortcut was skipped: an earlier OCR read was still running past its budget (asked FM instead)"

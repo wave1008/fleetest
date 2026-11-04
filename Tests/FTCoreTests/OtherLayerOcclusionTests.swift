@@ -164,6 +164,58 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
         XCTAssertTrue(driver.taps.first?.hasPrefix("xy:") == true, "\(driver.taps)")
     }
 
+    /// シートが木の前に並ぶ形(SwiftUI のように覆いが対象より前の ref)= 木の順の注記(may have hit)は出ない形。結果の文字を1つ持つ
+    private func coverFirstTree() -> [ElementInfo] {
+        [element(1, "other", "list_queue", "list_queue", FTRect(x: 0, y: 300, width: 402, height: 574), depth: 1, scrollable: true),
+         element(2, "button", "queue_row_03", "キュー 03", FTRect(x: 0, y: 380, width: 402, height: 60), depth: 2),
+         element(3, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true),
+         element(4, "button", "row_main_07", "本文 07", FTRect(x: 0, y: 400, width: 402, height: 60), depth: 2),
+         element(5, "staticText", "txt_result", "player=none", FTRect(x: 16, y: 100, width: 200, height: 24), depth: 1)]
+    }
+
+    /// tap の後に結果を確かめて赤にする(実際に効かなかった = 失敗で分かる)
+    private func tapThenFailingCheck(_ tree: [ElementInfo], answer: HitTestAnswer) async -> (tap: StepOutcome, check: StepOutcome) {
+        let driver = FakeQueryDriver(elements: tree, screen: screen, answer: answer)
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+        let tap = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(label: "本文 07")))
+        let check = await executor.execute(FlowStep(assert: "textEquals", locator: FlowLocator(id: "txt_result"),
+                                                    expected: "player=main:row_main_07", timeout: 0, occlusionGuard: false))
+        return (tap, check)
+    }
+
+    /// **緑の手では黙り、後続が赤になったときだけ**、直前の tap が重なりの疑いのまま撃たれたことを名指して直し方を言う
+    /// (true・答えなし・引き当て不能のどれでも = 照会で断れなかった形)
+    func testFailureAfterAnUnconfirmedOtherLayerCoverNamesItAndSaysHowToFix() async {
+        for answer in [HitTestAnswer.hittable(true), .unavailable, .unresolvable] {
+            let (tap, check) = await tapThenFailingCheck(coverFirstTree(), answer: answer)
+            guard case .passed = tap.status else { return XCTFail("\(answer): tap は撃つ \(tap.status)") }
+            XCTAssertFalse((tap.driverFallback ?? "").contains("fix the scenario"), "\(answer): 緑の手で言った \(tap.driverFallback ?? "")")
+            guard case .failed(let message) = check.status else { return XCTFail("\(answer): \(check.status)") }
+            XCTAssertTrue(message.contains("queue_row_03") && message.contains("fix the scenario"), "\(answer): \(message)")
+            XCTAssertTrue(check.notes.contains(.coveredTouchBeforeFailure), "\(answer): \(check.notes)")
+        }
+    }
+
+    /// 木の順の覆い(may have hit)の形も同じく、赤になったときに直し方を言う
+    func testFailureAfterATreeOrderCoverAlsoSaysHowToFix() async {
+        var tree = sheetTree()
+        tree.append(element(5, "staticText", "txt_result", "player=none", FTRect(x: 16, y: 100, width: 200, height: 24), depth: 1))
+        let (_, check) = await tapThenFailingCheck(tree, answer: .hittable(true))
+        guard case .failed(let message) = check.status else { return XCTFail("\(check.status)") }
+        XCTAssertTrue(message.contains("fix the scenario"), message)
+    }
+
+    /// 重なりの疑いが無い tap の後の赤には言わない
+    func testFailureWithoutOverlapSaysNothingAboutCovering() async {
+        let tree = [element(1, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true),
+                    element(2, "button", "row_main_07", "本文 07", FTRect(x: 0, y: 400, width: 402, height: 60), depth: 2),
+                    element(5, "staticText", "txt_result", "player=none", FTRect(x: 16, y: 100, width: 200, height: 24), depth: 1)]
+        let (_, check) = await tapThenFailingCheck(tree, answer: .unavailable)
+        guard case .failed(let message) = check.status else { return XCTFail("\(check.status)") }
+        XCTAssertFalse(message.contains("fix the scenario"), message)
+        XCTAssertFalse(check.notes.contains(.coveredTouchBeforeFailure), "\(check.notes)")
+    }
+
     func testAndroidNeverAsks() async {
         let (driver, _) = await run(sheetTree(), answer: .hittable(false), android: true)
         XCTAssertTrue(driver.queries.isEmpty, "Android で照会した")

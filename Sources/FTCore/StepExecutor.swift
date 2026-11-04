@@ -1305,6 +1305,9 @@ public final class StepExecutor {
         /// 探し直し、**あの後どれだけ動いたか**を出すのに使う。
         /// これが「座標が古くなった」と「本当に無反応だった」を分ける唯一の材料
         let target: ElementInfo
+        /// 撃つ前に対象の中心へ覆いが重なっている疑いがあったときの覆いの名指し(`coveredTouchPlan` が控える)。
+        /// 後続のステップが赤になったときだけ失敗の文言に出す(緑では黙る)
+        var coverSuspect: String?
     }
 
     /// 直前の操作(tap / 長押し)の記録。**読むのは失敗文言の組み立てだけ**。
@@ -1524,6 +1527,13 @@ public final class StepExecutor {
             target: element)
     }
 
+    /// 撃つ前の重なりの疑いを、この手の操作の記録(`lastInteraction`)に控える。記録が別の要素のもの(この手が記録を
+    /// 作らない操作)なら控えない = 別の手の失敗に紐づけない
+    func noteCoverSuspect(_ cover: String, for element: ElementInfo) {
+        guard lastInteraction?.target.ref == element.ref else { return }
+        lastInteraction?.coverSuspect = cover
+    }
+
     /// 直前の tap が解決に使った木(撃つ前)。tap 以外の操作の後は nil。ft_batch が手ごとに「画面が変わったか」を
     /// 次の手の木・最後の木と比べる材料(判定は `sameContent` = 飲まれたタップの診断と同じ署名)
     public var lastTapTreeBefore: [ElementInfo]? { lastInteraction?.before }
@@ -1568,7 +1578,17 @@ public final class StepExecutor {
         if last.unchanged || !unchangedEarlierTaps.isEmpty {
             noteCodesThisStep.insert(.unchangedTapBeforeFailure)
         }
-        return last.text + earlierTapsHint()
+        return last.text + coveredTouchHint() + earlierTapsHint()
+    }
+
+    /// 直前の触る操作が覆いの重なった疑いのまま撃たれていたら、それを名指して直し方を言う(失敗のときだけ呼ばれる)。
+    /// **原因と断定しない**(「それが原因なら」)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者
+    func coveredTouchHint() -> String {
+        guard let last = lastInteraction, let cover = last.coverSuspect else { return "" }
+        noteCodesThisStep.insert(.coveredTouchBeforeFailure)
+        return " (when the preceding \(last.description) was fired, \(cover) overlapped the target's centre on this device,"
+            + " so the touch may have landed on \(cover) instead — if that is why this step failed, fix the scenario so the"
+            + " target is not covered at that step: close or collapse \(cover) first, or scroll the target clear of it)"
     }
 
     /// 次のタップの時点で画面が変わっていなかった、それより前のタップ(`unchangedEarlierTaps`)。
