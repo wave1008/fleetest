@@ -14,7 +14,7 @@
 | `#login_btn` | accessibility id(完全一致)。**identifier で1件も引けなければ placeholder を引く**(入力欄は読み取り経路によって id/placeholder が入れ替わるため。[WebView 内の要素](./webview_ja.md)参照) |
 | `#login*` / `#*login*` / `#*btn` | id の前方一致 / 部分一致 / 後方一致(完全形は `idStartsWith=` `idContains=` `idEndsWith=`) |
 | `ログイン` | ラベル(**完全一致のみ**。完全形は `text=ログイン`) |
-| `*ログイン*` / `ログイン*` / `*ログイン` | 部分一致 / 前方一致 / 後方一致(完全形は `textContains=` `textStartsWith=` `textEndsWith=`) |
+| `*ログイン*` / `ログイン*` / `*ログイン` | 部分一致 / 前方一致 / 後方一致(完全形は `textContains=` `textStartsWith=` `textEndsWith=`)。`*` の側に書いた空白は書いたとおりに比べる(`投稿 *` は「投稿 」で始まるラベルだけに当たり、「投稿」には当たらない) |
 | `textMatches=^行 [0-9]+$` / `idMatches=^row_[0-9]+$` | 正規表現(**部分一致**。全体一致は `^…$` を書く) |
 | `.button` / `.button[2]` | 型+順番(**1 オリジン**。`.button[2]` = 2番目の Button。1番目は `.button` または `.button[1]`) |
 | `.switch#id` / `.switch&&ラベル` | 型と id/label の併用(値検証などで型を絞りたいときに使う) |

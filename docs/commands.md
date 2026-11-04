@@ -167,6 +167,10 @@ gesture { for dot in dots { … } }     // ブロック内はループ・分岐�
 型とラベル、どちらも無い行のセルは中の最初の識別できる要素)を引き直します。序数(`.clickable[1]`)・ワイルドカード(`項目 *`)・
 型だけのセレクタをセレクタのまま引き直すと、動いた一覧では上から入った別の行が先頭になり、その行を押して ok になっていたためです。
 同じ要素が動いた後の木に無ければ、何も押さずに失敗にします(判定は `SameTargetResolution`)。
+そもそも、`[n]` を書いていないセレクタの先頭の一致が一覧の容器の外に残った行(送り出された残り)で、容器の中に別の一致が
+あるときは、初めから容器の中の最初の一致を掴みます(人が見て押すのはそちら。UIKit は外の行を木に出さないので、どのフレームワークでも
+同じ結果になる)。序数・相対の指定は利用者が1つを選んでいるので替えません。救済の送りの後は「覆われていない別の一致」へも替えず、
+送りで見失ったときは `waitSeconds:` ではなく「送ったら見失った」と言います。
 
 ### iOS in-app の「本物のタッチは別の物に当たる」注記(`inapp-tap-outside-hit-area`)
 
@@ -632,7 +636,9 @@ select("#btn_ok"); textIs("OK")                 // 暗黙(直前に掴んだ要�
   `(normalized comparison: matches / strict comparison: does not match)` なら、
   差は見えない文字だけなので `strict: true` を外すか期待値を直せばよい。
   **セレクタの照合は規則が違う**(あちらは「見つける」ためのものなので、両端をトリムし、
-  空白の種類を問わず吸収し、連続空白を1つに畳む)
+  空白の種類を問わず吸収し、連続空白を1つに畳む。**ただしワイルドカードの側の空白は書いたとおりに残す** ——
+  `"投稿 *"` は「投稿 」で始まるラベルだけに当たり、タブ「投稿」には当たらない。前方一致は末尾・後方一致は先頭・
+  部分一致は両端の空白を残し、完全一致とワイルドカードの無い側の端は従来どおり切る)
 - 要素は在る前提で、**タイムアウトまで値の変化を待つ**(値の変化待ちに使える)
 - 否定系と Empty 系は**可視性を見ない**(「見えていないこと」は画面照合できないため)
 - **これらに `scroll:` は無い**。静止した画面を詳細に検証するためのもので、条件が揃うまで自動で
@@ -872,7 +878,7 @@ inconclusive はシナリオを中断しない。レポート・ログには ❓
 | `home()` | ホーム画面へ |
 | `back(settle:)` | 前の画面へ戻る(Android = 戻るキー / iOS = **ナビゲーションバーの戻るボタン、無ければ左端エッジスワイプ**)。**Android はキーボードが開いていると1回目がキーボードを閉じるのに消費される**(OS 仕様)。**iOS で確実に戻れるのはシステムのナビゲーションバーを持つ画面だけ** —— UIKit/SwiftUI は戻るボタン(`BackButton`)を押すので決定的。持たない画面(Compose/Flutter の独自ナビ)はエッジスワイプに落ち、**interactive pop に対応していなければ戻れない**(そのときはアプリ内の戻るボタンを `tap` する)。エッジスワイプは成立しないと同じタッチが下の要素へ渡るので、**戻れない画面で撃たない** |
 | `appSwitcher()` | アプリスイッチャーを開く。**ホームボタンの iPhone(SE 等。画面の寸法がホームボタン機の4種のどれかで判定・`BridgeAPI.isHomeButtonPhoneScreen`)では撃たず、そのシナリオを「対象外(skipped)」で記録する**(失敗ではない)。スイッチャーはハードのダブルプレスで XCUITest から送れない(ブリッジは設計上 422)。理由は `appSwitcher is not available on a home-button iPhone (the switcher is a hardware double-press XCUITest cannot send)`。この step 以降は skipped・結果 JSON は `skipKind: notApplicable` + `skipReason`(`passed: true`)・JUnit は `<skipped>`・レポートの Result は skipped。Android は対象外(従来どおり) |
-| `rotateTo(.portrait / .landscape, settle:)` | 画面を回す。向きは **`.portrait` / `.landscape` の2つだけ**。**契約は「アプリの UI がその向きになること」**で、デバイスがどう傾いているかではない —— テストが観測できる frame と画面サイズは iOS / Android とも、Compose / SwiftUI / View-XML / Flutter / React Native のどれでもアプリ座標系で返るので、跨いで同じ意味を持つのはここまで(左右の区別は観測できないので語彙に置かない)。回した後は**向きが実際に変わるまで待ってから返る**(要求直後は古い向きが読める)。**回転を使ったシナリオは終了時に元の向きへ自動で戻る**(Android は自動回転の設定も戻す)。**アプリが横向きを許可していないと回らない**(iOS は Info.plist の `UISupportedInterfaceOrientations`、Android は `screenOrientation`)。Android は前面の宣言(縦専用・ランチャーの nosensor 等)がその向きを禁じていれば待たずに失敗し、理由に宣言を名指す。宣言が回れるときは画面が追いつくまで待つ(上限 20 秒。負荷下の emulator は 5 秒を超えて回り切ることがある)。iOS はその接続が使っているブリッジで回し(**iPad の inapp-boost モードは XCUITest ブリッジで端末を回す** —— iPad ではアプリから自分の画面を回せず、in-app ブリッジは 501 で断る)、Android はホスト側の adb(`user_rotation`)で回すので実機でも効く。**Android は自動回転を切る**(切らないと角度が保持されない。実測)。MCP の `ft_rotate` も、`.portrait` へ戻したときだけ同じ復元を行う(横向きのまま探索を終えると自動回転は OFF のまま残る。接続が切れて作り直された場合は控えが失われ戻せない) |
+| `rotateTo(.portrait / .landscape, settle:)` | 画面を回す。向きは **`.portrait` / `.landscape` の2つだけ**。**契約は「アプリの UI がその向きになること」**で、デバイスがどう傾いているかではない —— テストが観測できる frame と画面サイズは iOS / Android とも、Compose / SwiftUI / View-XML / Flutter / React Native のどれでもアプリ座標系で返るので、跨いで同じ意味を持つのはここまで(左右の区別は観測できないので語彙に置かない)。回した後は**向きが実際に変わるまで待ってから返る**(要求直後は古い向きが読める)。**回転を使ったシナリオは終了時に元の向きへ自動で戻る**(Android は自動回転の設定も戻す)。**アプリが横向きを許可していないと回らない**(iOS は Info.plist の `UISupportedInterfaceOrientations`、Android は `screenOrientation`)。Android は前面の宣言(縦専用・ランチャーの nosensor 等)がその向きを禁じていれば待たずに失敗し、理由に宣言を名指す。宣言が回れるときは画面が追いつくまで待つ(上限 20 秒。負荷下の emulator は 5 秒を超えて回り切ることがある)。iOS の inapp-boost モードは **XCUITest ブリッジで端末を回す**(in-app ブリッジのシーンの回転は、React Native の画面の push で縦へ戻る・申告だけ一致して回らない回があった。iPad はアプリから自分の画面を回せない)、xcuitest モードもその接続のブリッジで回す。**回した後は木の画面の寸法で向きを確かめ**、合わなければ1回だけ撃ち直し、それでも違えば失敗にする(向きの変更は冪等なので撃ち直してよい)、Android はホスト側の adb(`user_rotation`)で回すので実機でも効く。**Android は自動回転を切る**(切らないと角度が保持されない。実測)。MCP の `ft_rotate` も、`.portrait` へ戻したときだけ同じ復元を行う(横向きのまま探索を終えると自動回転は OFF のまま残る。接続が切れて作り直された場合は控えが失われ戻せない) |
 | `fold(waitSeconds:)` | 折りたたみ端末を**外側の画面**へ畳み、デバイスが切り替わったと報告するまで待つ(上限 `waitSeconds`・省略時は実行の既定タイムアウト `tunables.defaultTimeout`)。切り替わらなければ失敗する。**対応**: iOS = iPhone Duo の **Simulator**(Xcode 27.2 以降。XCUITest ブリッジ経由。`iosMode` は `inapp-boost` でも `xcuitest` でも使える)/ Android = ヒンジセンサー付き AVD の **Emulator**(Pixel 9 Pro Fold 等)。**iOS の実機は開閉を送れず状態も読めないので対象外(skipped)**(理由は `fold / unfold / hinge cannot drive a physical iPhone (fold it by hand); they run on the iPhone Duo simulator`)。**Android の折りたたみの実機は非対応**(手で畳む)で、その旨の文言で失敗する(折りたためない Android の実機は下の対象外の扱い)。**折りたためないデバイスでは撃たず、そのシナリオを「対象外(skipped)」で記録する**(失敗ではない。`appSwitcher()` と同じ扱い・`skipKind: notApplicable`)。理由は `fold / unfold / hinge need a foldable device (the iPhone Duo simulator or a foldable Android Emulator)`。**折りたたみ状態はシナリオ終了時に自動で元へ戻る**(`rotateTo` の向きと同じ)。iOS の仕組み: Simulator を畳む公開 API は無く、Xcode の DeviceHub と同じ非公開のヒンジイベントを送る。将来の Xcode が受け付けなくなる可能性があるが、切り替わりを確かめるので**黙って通ることはなく、fold / unfold が失敗として表に出る**。MCP は `ft_fold` Android の折りたたみ機は閉じるとアプリの上にロック画面(上にスワイプで続行)が出るので、`fold` はそれを外してから次へ進む(シナリオ前の画面ロック解除と同じ `AndroidPhysicalDevice.wakeIfAsleep`) |
 | `unfold(waitSeconds:)` | 折りたたみ端末を**内側の(大きい)画面**へ開き、切り替わるまで待つ。対応・対象外の扱い・自動復元・失敗の規則は `fold` と同じ |
 | `hinge(_ degrees)` | ヒンジ角を 0(閉じる)〜180(全開)で設定する。半開きのブック姿勢は約 130。**どちらの画面が出るかは確かめない**(`fold` / `unfold` は確かめる)。iPhone Duo の Simulator は切り替わりが**直前の状態に依存**する(実測: 開く方向は 120° と 150° の間・閉じる方向は 20° と 10° の間で切り替わる)。折りたたみ Android の Emulator は姿勢が角度の範囲で決まる(Pixel 9 Pro Fold の AVD: 0〜30 が閉じ・30〜150 が半開き・150〜180 が開き)。対応・対象外の扱い・自動復元は `fold` と同じ。MCP は `ft_fold`(状態 "fold"/"unfold" か角度) |

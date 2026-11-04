@@ -14,7 +14,7 @@ Combination strength (tightest first): `&&` > `>>` > `||`.
 | `#login_btn` | accessibility id (exact match). **If no element matches by identifier, placeholder is tried instead** (input fields swap id/placeholder depending on the read path — see [WebView elements](./webview.md)) |
 | `#login*` / `#*login*` / `#*btn` | id starts-with / contains / ends-with (full form: `idStartsWith=` `idContains=` `idEndsWith=`) |
 | `Log In` | label (**exact match only**; full form `text=Log In`) |
-| `*Log*` / `Log*` / `*In` | label contains / starts-with / ends-with (full form `textContains=` `textStartsWith=` `textEndsWith=`) |
+| `*Log*` / `Log*` / `*In` | label contains / starts-with / ends-with (full form `textContains=` `textStartsWith=` `textEndsWith=`). A space written on the `*` side is compared as written (`Posts *` matches only labels that start with "Posts ", not "Posts") |
 | `textMatches=^Row [0-9]+$` / `idMatches=^row_[0-9]+$` | regular expression (**substring match** — write `^…$` for a full match) |
 | `.button` / `.button[2]` | type + ordinal (**1-origin**: `.button[2]` is the 2nd Button; the 1st can be written `.button` or `.button[1]`) |
 | `.switch#id` / `.switch&&Label` | type combined with id/label (useful to narrow a value assertion by type) |

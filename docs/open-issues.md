@@ -28,9 +28,9 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 13 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 14 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 6 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 7 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-168 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 8 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-164・OI-165 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 1 | OI-139 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 2 | OI-58・OI-140 |
@@ -119,6 +119,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可
 
 11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑥読み込み中に始めた向き付きの探索が既定の待ちで 0.6 秒で「動かない」と断定して赤・文言が `waitSeconds:` に触れない(iultra F1・F2)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑩CMP の iOS の隠れるバーへの `hold(scroll: .up)` が何も押さずに ✅(iultra F4・2/7。11/4 に手元で 2/10)。直前の `tap("#row_h_33", scroll: .down)` でバーが隠れた回だけ起きる。隠れた間の in-app の木は容器 `#bar_top_hiding` を落とすのに、中の「受信トレイ」と `#btn_top_action` を固定領域の下の (285,140) に残す(出ている間は容器が (0,192) に居る)。固定領域の不透明な背景は木に無いので、木だけでは覆いを言えない(木に材料なし)。tap は in-app が描かれていないノードを直接動かすので効き、hold は本物のタッチなので固定領域に当たる⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る ⑫供給で in-app の dylib のビルドが失敗した run の機械ごとの行が `✅ local exit=0 ran=0` と出る(全体の終了コードは 1・「どのデバイスにも渡らなかった」の警告は出る)
+
+### OI-168 探索の残り(10周目)
+- 状態: 再現済み
+- 確認: a5e87ce1(2026-11-04)
+- 属性: 着手可・木に材料なし
+
+11/4 の10周目の探索(`_work/explore-20261104b/findings-*.md`)で直さなかったもの(直したものは 2dcc58ab・a5e87ce1。回し直しで 8 項目とも直ったことを確かめた)。①RN の入れ子スクロールで、外側の一覧に切り取られて見えないカードへの tap が何も押さずに ok(ilocal F2・DSL 7/7・MCP 5/5。MCP ではステータスバーを叩いた扱いで一覧が先頭へ飛ぶ。容器の外の判定が最も内側の棚だけを見る)②描かれていない部品が木に残る形への scroll の無い触る操作が ✅: CMP の iOS の縮み切ったヘッダの `#btn_follow`・隠れたバーの `#btn_top_action`(iultra F2・in-app が直接動かすので押せてしまう = 人には押せない)と、MCP の ft_batch・ft_tap・DSL の xcuitest モード(ilocal F4・XCUITest の木で覆いが手前と読めず断らない。xcuitest は `scroll: .up` を書いても何も押さない)= OI-167 ⑩ と同じく覆いが木に無い ③同じ序数のセレクタ(`.button[5]`)が in-app の木と XCUITest の木で別の要素になる(ilocal F6。in-app はナビゲーションバーを末尾に置く = ft_batch で通した列がシナリオで別の行を押す)④一覧の上へはみ出して切り取られた行を「the target is covered by」と名指しする(iultra F3・CMP 7/8・RN 7/7)⑤スクロールで木から消えた部品(隠れたバー)の not found の案内が `waitSeconds:` だけで `scroll:` に触れない(iultra F5・Flutter・SwiftUI・RN)⑥E2EY-CMP の Android の横向きの選択モードの一覧で、寄せの注記付きの `tap("項目 1*")` が ✅ なのに行が開かず選択モードに入る(amax F4・5 run 中 4)⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6・既定の経路ではない)
 
 ## 要判断
 
