@@ -259,6 +259,7 @@ extension MCPServer {
             throw MCPError("text is required (or pass pressEnter: true to fire Enter only)")
         }
         let typeDriver = try await driver(args)
+        wireAndroidUIFramework(typeDriver, args: args)
         var targetRef = try Self.intArgument(args, "ref")
         var note = Self.tabCharacterNote(content) ?? ""
         // **type は追記**(docs/commands.md)。既に入っている欄へ撃つと連結された文字列になり、
@@ -574,6 +575,7 @@ extension MCPServer {
     func ftClearInput(_ args: [String: Any]) async throws -> [[String: Any]] {
         // ref 省略 = フォーカス中の欄(DSL の clearInput() と同じ)
         let clearDriver = try await driver(args)
+        wireAndroidUIFramework(clearDriver, args: args)
         var clearRef = try Self.intArgument(args, "ref")
         var clearNote = ""
         var clearTarget: ElementInfo?

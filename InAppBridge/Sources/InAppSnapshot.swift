@@ -62,7 +62,8 @@ enum InAppSnapshot {
     /// **並びは奥から手前**(ホストの遮蔽判定が「後に出るものが上」を前提にしている)
     /// `extraRoots`: 窓の外から足す根(キーボード側の窓に載る `inputAccessoryView`。窓ごと載せるとキーが
     /// 写り込むので部分木だけ)。最前面として扱う = 覆いの判定は掛けない
-    static func capture(windows: [UIWindow], extraRoots: [UIView] = [],
+    /// `paintOrder`: 塗り順 z を送るか(`AppUIFramework.viewHierarchyIsPaintOrder`。偽なら全要素 nil)
+    static func capture(windows: [UIWindow], extraRoots: [UIView] = [], paintOrder: Bool = false,
                         max limit: Int = BridgeAPI.maxSnapshotElements) -> Result {
         let screen = windows.first?.bounds ?? .zero
         // 同じオブジェクトが2経路から届くことがある(Compose iOS の interop は WKWebView を
@@ -78,6 +79,22 @@ enum InAppSnapshot {
         for root in extraRoots {
             collect(root, depth: 0, screen: screen, front: [],
                     clip: nil, flutter: nil, visited: &visited, gathered: &gathered)
+        }
+
+        // 塗り順 z: 全要素の番号が決まるときだけ付ける(全か無か。BridgeAPI.paintNumber / allOrNothingPaintOrder)。
+        // 並べ替え(cellsInDisplayOrder)や間引きの前の gathered 全体で決める
+        if paintOrder {
+            let paint = paintOrderTable(ordered, extraRoots: extraRoots)
+            let elementViews = Set(gathered.compactMap { ($0.node as? UIView).map(ObjectIdentifier.init) })
+            let paintZ = BridgeAPI.allOrNothingPaintOrder(gathered.map { entry in
+                let container = (entry.node as? UIAccessibilityElement)?.accessibilityContainer as? UIView
+                return BridgeAPI.paintNumber(
+                    own: (entry.node as? UIView).flatMap { paint[ObjectIdentifier($0)] },
+                    isView: entry.node is UIView,
+                    container: container.flatMap { paint[ObjectIdentifier($0)] },
+                    containerIsElement: container.map { elementViews.contains(ObjectIdentifier($0)) } ?? false)
+            })
+            for index in gathered.indices { gathered[index].info.z = paintZ[index] }
         }
 
         let keptIndices: [Int]
@@ -117,6 +134,24 @@ enum InAppSnapshot {
             elements: elements, frames: frames, nodes: nodes, clips: clips,
             truncated: gathered.count - keptIndices.count,
             truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, rescales: rescales)
+    }
+
+    /// UIView → 塗り順の通し番号。窓を渡された順(奥 → 手前)に、各窓のビュー階層を前順(親 → 子)で辿り、
+    /// 兄弟は `layer.zPosition` で安定ソートしてから降りる(`BridgeAPI.paintSiblingOrder`)。`extraRoots` は最後(最前面)。
+    /// 隠れたビューにも番号を振る(要素にならないので影響しない)。1スナップショットにつき1回の走査
+    private static func paintOrderTable(_ windows: [UIWindow], extraRoots: [UIView]) -> [ObjectIdentifier: Int] {
+        var table: [ObjectIdentifier: Int] = [:]
+        func walk(_ view: UIView) {
+            guard table[ObjectIdentifier(view)] == nil else { return }
+            table[ObjectIdentifier(view)] = table.count
+            let subviews = view.subviews
+            for index in BridgeAPI.paintSiblingOrder(zPositions: subviews.map { Double($0.layer.zPosition) }) {
+                walk(subviews[index])
+            }
+        }
+        for window in windows { walk(window) }
+        for root in extraRoots { walk(root) }
+        return table
     }
 
     /// 手前の窓に覆われているか。**手前の窓が無ければ即 false**(通常画面のコストはゼロ)

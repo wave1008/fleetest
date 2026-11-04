@@ -29,6 +29,10 @@ public final class AndroidDriver: AppDriver {
     private var domBridgeRefs: [Int: Int] = [:]
     private var screen: FTRect = FTRect(x: 0, y: 0, width: 0, height: 0)
     private var currentPackage: String?
+    /// 対象アプリの UI フレームワーク(呼び手が AppUIFrameworkQuery で決めて渡す。nil = 不明)。
+    /// ブリッジは接続拒否のたびに作り直されレジストリで共有されるので、`withBridge` が操作の直前に毎回載せ直す
+    /// (ref なしの type / clear の `focusTapWhenImeHidden` の元。BridgeClient.setAppUIFramework)
+    public var appUIFramework: AppUIFramework?
 
     /// captureKeyboardStateOnNextSnapshot() が立てるフラグ。dumpsys window windows は固定費が
     /// 大きいため毎 snapshot では叩かず、StepExecutor が keyboardShown/keyboardNotShown アサートの

@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 265
+    public static let bridgeProtocolVersion = 266
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -218,6 +218,29 @@ public enum BridgeAPI {
         var order = Array(isCell.indices)
         for (slot, cell) in zip(slots, ordered) { order[slot] = cell }
         return order
+    }
+
+    /// 塗り順(`ElementInfo.z`)を振るとき、兄弟ビューを描く順に並べた添字列。`layer.zPosition` の昇順(負が先 = 奥)で、
+    /// 同値は元の順(subviews の順 = 後ろほど手前)を保つ。RN の zIndex は zPosition になる。
+    /// 標準の sort は安定を約束しないので添字を第2キーに持つ。呼び手は in-app の `InAppSnapshot.paintOrderTable`
+    public static func paintSiblingOrder(zPositions: [Double]) -> [Int] {
+        zPositions.indices.sorted { (zPositions[$0], $0) < (zPositions[$1], $1) }
+    }
+
+    /// 塗り順の**全か無か**: 要素ごとの通し番号(`nil` = 番号を決められない要素)を受け、
+    /// 1つでも nil があれば全要素 nil を返す。ホストの判定(`PaintOrder` / `OcclusionGeometry` 等)は
+    /// 「木に z がある = 木全体の塗り順が真値」と読むので、真値のある要素とない要素を混ぜて送らない
+    public static func allOrNothingPaintOrder(_ numbers: [Int?]) -> [Int?] {
+        numbers.allSatisfy { $0 != nil } ? numbers : Array(repeating: nil, count: numbers.count)
+    }
+
+    /// 要素1つの塗り順の番号。UIView ならその番号(`own`)。UIView でない a11y 要素は、`accessibilityContainer` の
+    /// UIView が**それ自体も木の要素**のときだけその番号を継ぐ(RN の Text の文字の断片 = 段落のビューと一緒に描かれる。
+    /// 実測 E2EY-RN: 文字の要素はほぼ全部この形で、継がないと全か無かで木全体が nil になった)。
+    /// 容器が要素でない(SwiftUI のホストのビュー等)なら nil = 全か無かで木全体が nil
+    public static func paintNumber(own: Int?, isView: Bool, container: Int?, containerIsElement: Bool) -> Int? {
+        if isView { return own }
+        return containerIsElement ? container : nil
     }
 
     /// 下端のホームインジケータの帯(pt)。Face ID iPhone の下端セーフエリアは 34pt。ここを叩くと
@@ -983,7 +1006,9 @@ public struct ElementInfo: Codable, Sendable {
     /// iOS in-app=`isFirstResponder` / Android=`AccessibilityNodeInfo.isFocused`
     public var focused: Bool?
     /// **塗り順**(0 起点の通し番号。大きいほど手前)。nil = ブリッジが申告しない
-    /// (iOS の XCUITest / in-app には描画順を読む API が無い)。
+    /// (iOS の XCUITest には描画順を読む API が無い。in-app は木の全要素が UIView のとき=UIKit と RN だけ
+    /// ビュー階層の前順 + zPosition で送り、1つでも UIView でない要素(SwiftUI / Compose / Flutter / WebView の DOM)が
+    /// 混じれば全要素 nil = 全か無か。`BridgeAPI.allOrNothingPaintOrder`)。
     ///
     /// **preorder は描画順ではない**ので、遮蔽の判定にツリー順を代理で使うと裏返る ——
     /// Google マップは地図の FAB をシートより後に出すが、描画はシートが手前で、
@@ -1316,10 +1341,15 @@ public struct TypeRequest: Codable {
     public var text: String
     /// `TapRequest.expect` と同じ
     public var expect: RefExpectation?
-    public init(ref: Int? = nil, text: String, expect: RefExpectation? = nil) {
+    /// **Android のブリッジだけが読む**(ref なしの打鍵で「IME が出ていなければ焦点の欄を押す」のを撃つか。
+    /// Flutter の入力接続が切れる対策)。nil = ホストがアプリの UI フレームワークを知らない = 今まで通り押す /
+    /// true = Flutter / false = Flutter でないと分かっている = 押さない。ref ありの要求には載せない
+    public var focusTapWhenImeHidden: Bool?
+    public init(ref: Int? = nil, text: String, expect: RefExpectation? = nil, focusTapWhenImeHidden: Bool? = nil) {
         self.ref = ref
         self.text = text
         self.expect = expect
+        self.focusTapWhenImeHidden = focusTapWhenImeHidden
     }
 }
 
@@ -1332,9 +1362,12 @@ public struct ClearRequest: Codable {
     public var ref: Int?
     /// `TapRequest.expect` と同じ
     public var expect: RefExpectation?
-    public init(ref: Int? = nil, expect: RefExpectation? = nil) {
+    /// `TypeRequest.focusTapWhenImeHidden` と同じ
+    public var focusTapWhenImeHidden: Bool?
+    public init(ref: Int? = nil, expect: RefExpectation? = nil, focusTapWhenImeHidden: Bool? = nil) {
         self.ref = ref
         self.expect = expect
+        self.focusTapWhenImeHidden = focusTapWhenImeHidden
     }
 }
 

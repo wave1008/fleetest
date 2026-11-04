@@ -8,8 +8,9 @@
 // 裏の広告を押し、**Chrome が起動**した。
 //
 // **本物の順序はブリッジが送る**(`ElementInfo.z`。Android は `getDrawingOrder` を根から積んで
-// 通し番号にする)。持たないブリッジ(iOS の XCUITest / in-app には描画順を読む API が無い)では
-// ツリー順へ落ちる。
+// 通し番号にする)。iOS の in-app は木の全要素が UIView のとき(UIKit・RN)だけ、ビュー階層の前順 +
+// `layer.zPosition` の通し番号を送る(全か無か。SwiftUI・Compose・Flutter・WebView の DOM が混じれば全 nil)。
+// 持たないブリッジ(XCUITest には描画順を読む API が無い)ではツリー順へ落ちる。
 
 import Foundation
 

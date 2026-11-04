@@ -2081,6 +2081,18 @@ extension MCPServer {
                                                 identifiers: snapshot.elements.map(\.identifier))
     }
 
+    /// Android の ft_type / ft_clear_input の直前に、起こしたアプリの UI フレームワークを `AndroidDriver` へ渡す
+    /// (DSL の ScenarioRunnerMain と同じ AppUIFrameworkQuery の静的な答え。ブリッジは ref なしの打鍵で焦点の欄を押すのを
+    /// Flutter のときだけにする)。起こした記憶が無い・静的に決まらなければ nil = 今まで通り押す。iOS は何もしない
+    func wireAndroidUIFramework(_ driver: AppDriver, args: [String: Any]) {
+        guard let android = driver as? AndroidDriver else { return }
+        let key = Self.sessionKey(args)
+        guard let bundleID = launchedBundleIDs[key] else { android.appUIFramework = nil; return }
+        android.appUIFramework = AppUIFrameworkQuery.staticAnswer(for: .init(
+            platform: "android", bundleID: bundleID, appPath: installedPackagePaths[key],
+            udid: nil, physical: false)).framework
+    }
+
     /// MCP の executor に「起こしたアプリのプロセスが居ないのに別アプリの木で解決しない」門を付ける(Android のみ。判定は
     /// FTCore の `AppProcessGone` で DSL と共有 = StepExecutor が撃つ前に断る)。起こした記憶が無ければ何もしない。
     /// 持ち主が違うときだけ adb を払う

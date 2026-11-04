@@ -113,6 +113,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | SwiftUI・Compose(iOS) | Slider の value が `"50%"` などパーセント表記 | 値は echo の文字列で確かめる |
 | SwiftUI(UITableView) | 画面外の行ラベルが、id 無しで全行分木に残る | ラベルの部分一致で不在検証しない |
 | React Native(iOS in-app) | Modal の中身と背景の木が同居して見える(XCUITest は Modal だけ) | ダイアログ内は背景と衝突しない `#id` で指す |
+| UIKit・React Native(iOS in-app)と Android / SwiftUI・CMP・Flutter(iOS)と XCUITest | 塗り順(`z`)を申告するのは前者だけ(in-app はビュー階層の前順 + `layer.zPosition`。木の全要素の番号が決まるときだけ = 全か無か。RN の Text の文字の断片は段落のビューの番号を継ぐ)。後者は木の順で手前を推定する | 固定のバーの裏へ回った要素への tap は、前者では覆いとして名指しされて見えている部分を押す・薄ければ撃たない。後者は木の順の推定なので外れうる(OI-64 の残り) |
 | UIKit / SwiftUI(iOS in-app) | スクロール容器を `other`(+ スクロールの印)で出す(XCUITest は `scrollView` / `table` / `collectionView`)。ピッカーのドラムを `pickerWheel` で出さない(調整の trait で `slider` になる) | 容器・ドラムは型セレクタでなく `#id` かラベルで指す |
 | Flutter | ダイアログは Navigator のオーバーレイ = 普通の木なので、見出しにも `#id` が付く(SwiftUI は付かない) | 見出しは SUT ごとに id / ラベルを選ぶ |
 | CMP(iOS)・Flutter(iOS)・RN(iOS / Android) | 入力欄の `text` が値ではなく**プレースホルダ**を返す(空欄で `"単一行"`。RN は入力後も)。他は空欄で空・入力後は nil。**`value` は全 SUT で値を返し、空欄は空**(2026-10-02 実測・5 SUT × 両 OS × 両モード) | 入力欄の値は `value*` で見る(空欄は `valueIsEmpty`)。入力欄に `text*` を当てない。witness は全 SUT の `24_空欄と否定形の検証.swift` |
@@ -458,6 +459,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| iOS v266・Android v125 | in-app ブリッジが UIKit と RN の塗り順 `z` を送る(FD-1.4)/ Android の ref なしの type / clear の前に焦点の欄を押すのを Flutter のアプリだけにする(ホストが要求の `focusTapWhenImeHidden` で渡す。不明は従来どおり押す) |
 | — | Flutter の iOS の in-app で、直前の tap が叩いた欄をキーボードの下でも焦点のある欄として打つ(FD-2.4) |
 | `519f468e` | Android の枠を指定した払いの終点をタッチの遊び(8dp × 密度)だけ延ばす(FD-2.3) |
 | — | 縁をまたいだ行の寄せのドラッグを、押せる要素の上から始めない(FD-2.1。RN の iOS で寄せが行の押下になっていた) |

@@ -1652,7 +1652,10 @@ extension MCPServer {
         -> (isAndroid: Bool, uiFrameworkHint: AppUIFramework?) {
         let key = Self.sessionKey(args)
         let isAndroid = bridges[key] == "android" || driver is AndroidDriver
-        guard !isAndroid else { return (true, nil) }
+        guard !isAndroid else {
+            wireAndroidUIFramework(driver, args: args)  // ft_batch の type / clearInput 用
+            return (true, nil)
+        }
         let status = try? await driver.status()
         guard let bundleID = status?.sessionBundleID else { return (false, nil) }
         if let cached = uiFrameworkHint(key, bundleID: bundleID) { return (false, cached) }

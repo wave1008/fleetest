@@ -48,6 +48,11 @@ public enum AppUIFramework: String, Codable, Sendable, CaseIterable {
     /// 直した SUT の 252/564 要素で発火した。自前描画は点が常に中心で情報が無い。新しい語彙は false(黙る側)
     /// (MN-77)
     public var activationPointMarksHitArea: Bool { self == .swiftUI || self == .uikit }
+
+    /// in-app ブリッジがビュー階層の前順 + `layer.zPosition` を塗り順(`ElementInfo.z`)として送ってよいか。
+    /// **UIKit と RN だけ**: 要素がそれぞれ自分の UIView を持つ。SwiftUI・自前描画は要素が1枚のホストのビューの
+    /// 中の a11y ノードで、全要素が同じ番号になる(塗り順の材料にならない)。新しい語彙は false(送らない側)
+    public var viewHierarchyIsPaintOrder: Bool { self == .uikit || self == .reactNative }
 }
 
 /// in-app の contentOffset 経路が、指の払いの終わりを知らせる delegate 通知(WillBeginDragging /

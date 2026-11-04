@@ -377,6 +377,13 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         return ok();
     }
 
+    /** ref なしの打鍵・消去で焦点の欄を押すか。ホストが false(Flutter でないと分かっている)と言ったときだけ撃たない
+     *  (物理キーボードで IME が出ない端末では押すとカーソル移動・貼り付けの吹き出しになる)。欄が無い・true は押す */
+    private static boolean shouldTapFocusedWhenImeHidden(JSONObject body) {
+        return !(body.has("focusTapWhenImeHidden") && !body.isNull("focusTapWhenImeHidden")
+                && !body.optBoolean("focusTapWhenImeHidden", true));
+    }
+
     private BridgeHttpServer.Response handleType(JSONObject body) {
         if (!body.has("text")) {
             throw new BridgeException(400, "text is required");
@@ -390,7 +397,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             // resource-id を渡す: キーボードの開閉で座標がズレても同じ要素を追跡し直すため
             InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS);
         } else {
-            InputInjector.tapFocusedEditableIfImeHidden(ua());
+            if (shouldTapFocusedWhenImeHidden(body)) InputInjector.tapFocusedEditableIfImeHidden(ua());
             InputInjector.setTextAppending(ua(), text);
         }
         settle();
@@ -417,7 +424,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             tapUnlessAlreadyFocused(center, refIds.get(ref));
             InputInjector.clearTextAt(ua(), center[0], center[1], refIds.get(ref), TEXT_INPUT_CONFIRM_BUDGET_MS);
         } else {
-            InputInjector.tapFocusedEditableIfImeHidden(ua());
+            if (shouldTapFocusedWhenImeHidden(body)) InputInjector.tapFocusedEditableIfImeHidden(ua());
             InputInjector.clearFocused(ua(), TEXT_INPUT_CONFIRM_BUDGET_MS);
         }
         settle();

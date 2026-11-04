@@ -16,6 +16,9 @@ public final class BridgeClient: AppDriver, Sendable {
         var browserDOMCenters: [Int: (x: Double, y: Double)] = [:]
         /// このクライアントが最後に受けた /snapshot の ref → 期待(identifier・型)。ref を撃つ要求に添える
         var refExpectations: [Int: RefExpectation] = [:]
+        /// 対象アプリの UI フレームワーク(ホストが `setAppUIFramework` で渡す)。ref なしの type / clear の
+        /// `focusTapWhenImeHidden` を決める。nil = 不明
+        var appUIFramework: AppUIFramework?
         var atEdgeOnLastSwipe: Bool?
         var lastTapHitAreaMiss: TapHitAreaMiss?
         var originalOrientation: FTOrientation?
@@ -933,6 +936,16 @@ public final class BridgeClient: AppDriver, Sendable {
         get { mutable.withLock { $0.browserDOMCenters } }
         set { mutable.withLock { $0.browserDOMCenters = newValue } }
     }
+    /// 対象アプリの UI フレームワークを渡す(Android のブリッジが読む `focusTapWhenImeHidden` の元)。nil = 不明
+    public func setAppUIFramework(_ framework: AppUIFramework?) {
+        mutable.withLock { $0.appUIFramework = framework }
+    }
+    /// ref なしの type / clear に載せる値。**Flutter の入力接続が切れる対策だけが使う欄なので `== .flutter`**
+    /// (自前描画一般ではない)。不明は nil = ブリッジは今まで通り押す
+    static func focusTapWhenImeHidden(for framework: AppUIFramework?, ref: Int?) -> Bool? {
+        guard ref == nil else { return nil }
+        return framework.map { $0 == .flutter }
+    }
     private var refExpectations: [Int: RefExpectation] {
         get { mutable.withLock { $0.refExpectations } }
         set { mutable.withLock { $0.refExpectations = newValue } }
@@ -1024,7 +1037,8 @@ public final class BridgeClient: AppDriver, Sendable {
             ref = nil
         }
         if let ref { try refuseIfStepExpectationContradicts(ref) }
-        let res: OKResponse = try await post("/type", body: TypeRequest(ref: ref, text: text, expect: ref.flatMap { refExpectations[$0] }),
+        let res: OKResponse = try await post("/type", body: TypeRequest(ref: ref, text: text, expect: ref.flatMap { refExpectations[$0] },
+                                                                focusTapWhenImeHidden: Self.focusTapWhenImeHidden(for: mutable.withLock { $0.appUIFramework }, ref: ref)),
                                              timeout: interactionTimeout)
         // ランナーの打ち直し(TypeReadback.Plan.retype)の申告。tap と同じく driverFallback へ運ぶ
         lastActionNote = res.note
@@ -1041,7 +1055,8 @@ public final class BridgeClient: AppDriver, Sendable {
             ref = nil
         }
         if let ref { try refuseIfStepExpectationContradicts(ref) }
-        let _: OKResponse = try await post("/clear", body: ClearRequest(ref: ref, expect: ref.flatMap { refExpectations[$0] }),
+        let _: OKResponse = try await post("/clear", body: ClearRequest(ref: ref, expect: ref.flatMap { refExpectations[$0] },
+                                                                  focusTapWhenImeHidden: Self.focusTapWhenImeHidden(for: mutable.withLock { $0.appUIFramework }, ref: ref)),
                                            timeout: interactionTimeout)
     }
 

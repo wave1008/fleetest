@@ -47,6 +47,8 @@ final class FTInAppBridge {
     // 1 回だけ計算して錠の内側に置く(計算中の読みは錠で待つ)
     private let uiFrameworkLock = NSLock()
     private var uiFrameworkValue: String?
+    /// 塗り順 z を送るか(/snapshot と描画の追いつきの指紋で同じ値を使う)
+    private var sendsPaintOrder: Bool { AppUIFramework(rawValue: uiFramework)?.viewHierarchyIsPaintOrder == true }
     private var uiFramework: String {
         uiFrameworkLock.lock()
         defer { uiFrameworkLock.unlock() }
@@ -230,6 +232,8 @@ final class FTInAppBridge {
         // 1箇所 = ホスト・3ブリッジで同じ規則)。DOM マージ側の上限にも同じ値を使う
         let limit = BridgeAPI.resolvedSnapshotElementLimit(
             req.queryValue("max").flatMap { Int($0) })
+        // 目印の初回の判定(数十 ms)をメインで払わないよう、mainSync の外で読む
+        let paintOrder = sendsPaintOrder
         let base: InAppSnapshot.Result = try mainSync {
             guard let window = self.keyWindow() else {
                 throw InAppError(409, "no key window")
@@ -239,7 +243,8 @@ final class FTInAppBridge {
             // 起動直後は FlutterViewController が未生成のことがあるため boot 時でなく snapshot ごとに呼ぶ
             FTEnsureFlutterSemantics()
             return InAppSnapshot.capture(windows: Self.visibleWindows(keyWindow: window),
-                                         extraRoots: Self.inputAccessoryRoots(keyWindow: window), max: limit)
+                                         extraRoots: Self.inputAccessoryRoots(keyWindow: window),
+                                         paintOrder: paintOrder, max: limit)
         }
         // **キーボードはキーウィンドウの外**(UITextEffectsWindow)に載るため、AX ツリー走査
         // (InAppSnapshot の sawKeyboard)では見つからない。表示中かと実矩形を同一時点で読むため
@@ -480,6 +485,8 @@ final class FTInAppBridge {
         var frames: [Int: CGRect] = [:]
         var nodes: [Int: NSObject] = [:]
         var clips: [Int: CGRect] = [:]
+        // DOM 由来の要素は z を持たない = 木に UIView でない要素が混じるので全要素 nil(塗り順は全か無か)
+        let hasDOMElements = kept.contains { if case .dom = $0 { return true } else { return false } }
         let containerDepths = Dictionary(containers.map { ($0.ref, $0.depth) }, uniquingKeysWith: { first, _ in first })
         for slot in kept {
             var copy: ElementInfo
@@ -502,6 +509,7 @@ final class FTInAppBridge {
                 copy.depth = (containerDepths[container] ?? 0) + 1
             }
             copy.ref = elements.count + 1
+            if hasDOMElements { copy.z = nil }
             elements.append(copy)
             if let frame { frames[copy.ref] = frame }
             if let node { nodes[copy.ref] = node }
@@ -1836,6 +1844,7 @@ final class FTInAppBridge {
     /// 変わるまで待つ(上限 `InAppRenderCatchUp.capSeconds`)。**メインを握ったまま待たない** ——
     /// 描画はメインで進むので、握ると追いつかない。判定の理由は `InAppRenderCatchUp`
     private func awaitRenderCatchUp() {
+        let paintOrder = sendsPaintOrder
         let pending: (before: InAppRenderCatchUp.Before, window: UIWindow)? = mainSync {
             guard let before = self.renderBefore, let key = self.keyWindow() else { return nil }
             var now = self.treePrint
@@ -1846,6 +1855,7 @@ final class FTInAppBridge {
                 FTEnsureFlutterSemantics()
                 let fresh = InAppSnapshot.capture(windows: Self.visibleWindows(keyWindow: key),
                                                   extraRoots: Self.inputAccessoryRoots(keyWindow: key),
+                                                  paintOrder: paintOrder,
                                                   max: BridgeAPI.resolvedSnapshotElementLimit(nil))
                 now = InAppRenderCatchUp.treePrint(fresh.elements)
             }

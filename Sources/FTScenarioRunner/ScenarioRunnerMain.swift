@@ -496,10 +496,13 @@ struct RunScenario: AsyncParsableCommand {
                 if let serial {
                     await AndroidPhysicalDevice.wakeIfAsleep(serial: serial, log: { ConsoleOut.err($0) })
                 }
-                driver = try AndroidDriver(serial: serial)
+                let androidDriver = try AndroidDriver(serial: serial)
+                driver = androidDriver
                 // Android のブリッジは申告しないので静的な材料(.apk の目印・台帳)だけ。
                 // .apk は台帳がパス・更新時刻・サイズで控えるので、読むのは初回だけ
                 uiFrameworkHint = AppUIFrameworkQuery.staticAnswer(for: uiFrameworkSubject).framework
+                // ref なしの type / clear が焦点の欄を押すのは Flutter だけ(ブリッジへは要求の欄で渡る)
+                androidDriver.appUIFramework = uiFrameworkHint
             default:
                 throw ValidationError("platform must be ios or android: \(runPlatform)")
             }
