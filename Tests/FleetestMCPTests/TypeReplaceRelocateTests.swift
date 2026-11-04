@@ -26,10 +26,11 @@ final class TypeReplaceRelocateTests: XCTestCase {
         XCTAssertEqual(MCPServer.relocateAfterClear(before, in: [field(9, id: nil, y: 310)])?.ref, 9)
     }
 
-    func testFallsBackToTheSingleFocusedFieldOfTheSameType() {
+    /// 焦点のある同じ型の欄では引かない(縦に並んだフォームで焦点が次の欄へ移った画面で別の欄に打った = OI-77 ①)
+    func testDoesNotFallBackToTheFocusedFieldOfTheSameType() {
         let before = field(5, id: nil, y: 310)
         let after = [field(9, id: nil, y: 450, focused: true), field(10, id: nil, y: 100)]
-        XCTAssertEqual(MCPServer.relocateAfterClear(before, in: after)?.ref, 9)
+        XCTAssertNil(MCPServer.relocateAfterClear(before, in: after))
     }
 
     func testRefusesWhenAmbiguousOrMissing() {

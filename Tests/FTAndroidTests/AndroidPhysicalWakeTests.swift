@@ -83,7 +83,7 @@ final class AndroidPhysicalWakeTests: XCTestCase {
     func testEveryScenarioChecksThePhysicalScreenBeforeDriving() throws {
         let code = try source("Sources/FTScenarioRunner/ScenarioRunnerMain.swift")
         guard let branch = code.range(of: "case \"android\":"),
-              let driver = code.range(of: "driver = try AndroidDriver(serial: serial)",
+              let driver = code.range(of: "try AndroidDriver(serial: serial)",
                                       range: branch.upperBound..<code.endIndex) else {
             return XCTFail("Android の分岐が見つからない = 走査を見直す")
         }

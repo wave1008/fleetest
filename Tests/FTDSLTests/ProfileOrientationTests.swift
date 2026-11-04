@@ -18,8 +18,11 @@ final class ProfileOrientationTests: XCTestCase {
         func isAppForeground(bundleID: String) async throws -> Bool { false }
         func launch(bundleID: String) async throws { launches += 1 }
         func snapshot() async throws -> SnapshotResponse {
-            SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
-                             elements: [], truncatedCount: 0)
+            // rotateTo は木の画面の向きで回ったことを確かめるので、最後に回した向きの画面を返す
+            let landscape = rotations.last == .landscape
+            return SnapshotResponse(sessionBundleID: nil,
+                                    screen: FTRect(x: 0, y: 0, width: landscape ? 800 : 400, height: landscape ? 400 : 800),
+                                    elements: [], truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}
         func tap(x: Double, y: Double) async throws {}
