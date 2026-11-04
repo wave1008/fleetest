@@ -1053,7 +1053,7 @@ extension MCPServer {
                                 tree: [ElementInfo], isAndroid: Bool) -> String? {
         guard let advisory = keyboardOcclusion.advisory(for: target) else { return nil }
         if typesWithoutTouching(target, in: tree) { return nil }
-        // 断る理由はプラットフォームごとの事実だけを言う(Android に XCUITest の説明を出さない = OI-85)
+        // 断る理由はプラットフォームごとの事実だけを言う(Android に XCUITest の説明を出さない)
         let consequence = isAndroid
             ? "A touch there would land on the keyboard, not on the element."
             : "On XCUITest the finger would press a key and type into the focused field; the in-app bridge rejects it (422)."
@@ -1071,7 +1071,7 @@ extension MCPServer {
     }
 
     /// **ref の経路も座標の経路と同じく、中心が画面の上の外なら撃たずに断る**(`offscreenCoordinateError` の上の外と同じ判定
-    /// `TapTargetGeometry.isPointAboveScreen`)。撃つとステータスバーが押され、一覧が先頭へ戻って別の画面になる(OI-84)。
+    /// `TapTargetGeometry.isPointAboveScreen`)。撃つとステータスバーが押され、一覧が先頭へ戻って別の画面になる。
     /// 下・横の外は従来どおり警告して撃つ(探索が動かせる)。ref を引く全経路(`verifiedRef` と `refGestureGuard`)が呼ぶ
     static func aboveScreenRefusal(_ found: ElementInfo, screen: FTRect, label: String) -> String? {
         guard TapTargetGeometry.centreIsAboveScreen(found, screen: screen) else { return nil }

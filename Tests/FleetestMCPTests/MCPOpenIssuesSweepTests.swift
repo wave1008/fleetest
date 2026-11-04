@@ -82,7 +82,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
         XCTAssertTrue(text.contains("boom"), text)
     }
 
-    // MARK: - OI-115 ft_scroll_to の見出しと注記
+    // MARK: - ft_scroll_to の見出しと注記
 
     func testScrollToHeadlineDoesNotClaimReachWhenUnderTheKeyboard() {
         let under = MCPServer.scrollToHeadline("#f", swipes: 2, hiddenUnderChrome: false, underKeyboard: true)
@@ -166,7 +166,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
                       "直接ポート経路の記録が版ガードの前に戻った")
     }
 
-    // MARK: - OI-84 ref の経路が画面の上の外を撃たない
+    // MARK: - ref の経路が画面の上の外を撃たない
 
     func testAboveScreenJudgementIsSharedAndDirectional() {
         let screen = FTRect(x: 0, y: 0, width: 400, height: 800)

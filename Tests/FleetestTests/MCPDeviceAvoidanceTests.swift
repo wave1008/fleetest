@@ -134,7 +134,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
     }
 
-    /// 描画の印(白紙)が立っているデバイスは、ほかで足りるなら選ばない(OI-89 run F9)。警告は出ない / 足りないときは使う
+    /// 描画の印(白紙)が立っているデバイスは、ほかで足りるなら選ばない(run F9)。警告は出ない / 足りないときは使う
     func testRunAvoidsADeviceWithAPublishedScreenState() {
         DeviceScreenStateStore.publish(stateDir: stateDir, key: "UA", state: .blank)
         let three = profile([phone("A", udid: "UA"), phone("B", udid: "UB"), phone("C", udid: "UC")])

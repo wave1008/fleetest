@@ -21,7 +21,6 @@ final class CLIResidueFixesTests: XCTestCase {
         XCTAssertNil(ServicesCommand.composeEditedAfterStartWarning(composeModified: nil, lease: lease))
     }
 
-    // OI-112 前半
     func testDisabledDeviceIsNamedWithEnabledFalse() {
         let disabled = [RunDeviceMachine(machine: "local", name: "iPhone A", platform: "ios")]
         let note = disabledDevicesNote(missing: ["iPhone A"], targetMachine: "local", disabled: disabled, profile: "p")

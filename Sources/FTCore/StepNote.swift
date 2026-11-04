@@ -436,7 +436,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 以降の探索はその容器の中で続けた。**立つのは払い直しが効いた回だけ**。率が上がったら既定の払いの始点が一覧に当たらない画面が多い
     case scrollRedirectedToContainer = "scroll-redirected-to-container"
 
-    /// Flutter の置き換え入力の後、OCR で画面の欄を読んだが打った文字列が描かれていなかった(木の value は打った文字列のまま = 欄が捨てた入力の疑い。OI-40)。
+    /// Flutter の置き換え入力の後、OCR で画面の欄を読んだが打った文字列が描かれていなかった(木の value は打った文字列のまま = 欄が捨てた入力の疑い)。
     /// OCR の段がオンのときだけ・数字系の名前の欄だけ。**判定は変えない(警告)**。原因は推測しない
     case typedTextNotDrawn = "typed-text-not-drawn"
 

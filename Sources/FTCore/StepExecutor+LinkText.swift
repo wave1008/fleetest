@@ -27,11 +27,11 @@ extension StepExecutor {
                 return failure
             }
             // **読み手がその瞬間に失敗していたなら、戻るのを待って読み直す**(読みは操作ではないので撃ち直しても二重にならない。
-            // 文字は画面にあるので人なら押せる)。高負荷・FM が死ぬ前の ANE で数分のうちに読めたり読めなかったりした(OI-17)。
+            // 文字は画面にあるので人なら押せる)。高負荷・FM が死ぬ前の ANE で数分のうちに読めたり読めなかったりした。
             // 上限はステップの外枠の中にもう1周(確かめ + 撮影 + OCR)が収まる間 = `SlowSnapshotBudget` と同じ見積もり。
             // 外枠の無い呼び手(MCP)は待たない
             // **渡した絵が全部一色だったときも同じく待つ**(撮った絵が白い = 描画か撮影が追いついていない。撮り直しの 1 秒で
-            // 足りなかった高負荷の Emulator で、OCR が 1 文字も読めずに落ちた = OI-17)。読み手の故障の確かめは絵が描かれていた回だけ
+            // 足りなかった高負荷の Emulator で、OCR が 1 文字も読めずに落ちた)。読み手の故障の確かめは絵が描かれていた回だけ
             let allShotsBlank = blankShots >= LinkTextLocator.ocrShotAttempts
             let readerFailed = ocrAttempts > 0 && blankShots < LinkTextLocator.ocrShotAttempts
                 ? !(await RegionText.readerIsAlive()) : false

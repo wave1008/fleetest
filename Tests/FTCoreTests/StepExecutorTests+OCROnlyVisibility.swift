@@ -170,7 +170,7 @@ extension StepExecutorTests {
         XCTAssertEqual(delegate.visibleCalls, 2, "同じ絵に訊き直しを重ねた(最初の1回 + 訊き直し1回のはず)")
     }
 
-    /// OI-13: OCR の段がオンでも、確かめの OCR が読めなかった(Vision が空を返した)回は突き合わせる相手が居ないので、
+    /// OCR の段がオンでも、確かめの OCR が読めなかった(Vision が空を返した)回は突き合わせる相手が居ないので、
     /// オフの構成と同じく FM へ1回だけ訊き直し、読めたら緑
     func testOCROnReasksFMOnceWhenTheConfirmationReadNothing() async throws {
         RegionText.modelReadyOverrideForTesting = false

@@ -1387,7 +1387,7 @@ extension StepExecutorTests {
     }
 
     /// 焦点の印を木に出さない構成(Flutter の in-app)でも、直前の tap がその欄を叩いていて他に焦点が無ければ、キーボードの下でも
-    /// 閉じずに打つ(OI-91)。直前が tap でなければ従来どおり閉じようとする
+    /// 閉じずに打つ。直前が tap でなければ従来どおり閉じようとする
     func testTypeRightAfterTappingTheFieldUnderTheKeyboardTypesWithoutClosingIt() async throws {
         let field = Self.phoneUnderKeyboard
         let keyboard = FTRect(x: 0, y: 538, width: 402, height: 336)

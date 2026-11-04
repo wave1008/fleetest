@@ -1,5 +1,5 @@
 // TypedEchoOCRCheck.swift
-// Flutter の数字系の欄が捨てた入力を、木の value が打った文字列のまま映す形(OI-40)を、OCR で確かめる対象の判定(純粋)
+// Flutter の数字系の欄が捨てた入力を、木の value が打った文字列のまま映す形を、OCR で確かめる対象の判定(純粋)
 
 import Foundation
 

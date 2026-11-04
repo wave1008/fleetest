@@ -1054,7 +1054,7 @@ public final class AndroidDriver: AppDriver {
     /// (解決とフォーカスをツール側が引き受ける)。ref 付きで落ちた場合は別の話なので触らない
     /// `front` = 落ちた直後の前面パッケージ(不明は nil)。`com.android.systemui` なら、欄が無いのではなく覆いが
     /// 入力フォーカスを持っている(シェードを開いたままの ft_type が「ref でタップせよ」と言い、ref のタップは覆いで断られる袋小路だった)
-    /// `keyboardShown` = 落ちた直後にソフトキーボードが出ている(OI-76: 横向きの CMP は欄を叩くとキーボードが欄を押し出して
+    /// `keyboardShown` = 落ちた直後にソフトキーボードが出ている(横向きの CMP は欄を叩くとキーボードが欄を押し出して
     /// 木から消し、ブリッジが焦点の欄を掴めない。容器の話ではない)
     static func typeNoFocusAdvice(after error: DriverError, hadRef: Bool, front: String? = nil,
                                   lastTreePackage: String? = nil, keyboardShown: Bool = false) -> DriverError? {

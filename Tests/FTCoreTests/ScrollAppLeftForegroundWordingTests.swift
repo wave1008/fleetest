@@ -17,7 +17,7 @@ final class ScrollAppLeftForegroundWordingTests: XCTestCase {
         XCTAssertFalse(m.contains("reached its end"), m)
     }
 
-    /// OI-87: 探索の前にアプリが落ちて始点の木がランチャーなら、起こしたアプリを基準にする。起こしていなければ木のまま
+    /// 探索の前にアプリが落ちて始点の木がランチャーなら、起こしたアプリを基準にする。起こしていなければ木のまま
     func testSearchBaselineIsTheLaunchedAppWhenTheTreeStartedElsewhere() {
         XCTAssertEqual(StepExecutor.searchBaselineBundleID(treeSession: "com.android.launcher", launched: "com.example"), "com.example")
         XCTAssertEqual(StepExecutor.searchBaselineBundleID(treeSession: "com.example", launched: "com.example"), "com.example")

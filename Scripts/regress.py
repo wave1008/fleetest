@@ -259,7 +259,7 @@ def main():
                 print(f"→ {suite} の {mode} 経路を検証済みとして記録しました({os.path.relpath(marker, ROOT)})")
     print("✅ 回帰 全て成功" if all_green else "❌ 回帰に失敗があります")
     if not all_green and streaming:
-        print("   ⚠️ この回帰はモニターの配信を張ったまま回しました。Android の赤は配信の負荷の可能性があります(開始時の警告・OI-4)")
+        print("   ⚠️ この回帰はモニターの配信を張ったまま回しました。Android の赤は配信の負荷の可能性があります(開始時の警告)")
 
     stale = subprocess.run(["python3", os.path.join(ROOT, "Scripts", "verification_watch.py"), "stale"],
                            capture_output=True, text=True).stdout.strip()

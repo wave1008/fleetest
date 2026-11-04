@@ -40,7 +40,7 @@ final class KeyboardRefusalFocusedFieldTests: XCTestCase {
         XCTAssertNotNil(focusedTap)
     }
 
-    /// OI-85: Flutter の横向きでは focused が欄の内側のノードに立ち、ref の指す要素には付かない。内側/同じ枠の焦点のある要素があれば断らない
+    /// Flutter の横向きでは focused が欄の内側のノードに立ち、ref の指す要素には付かない。内側/同じ枠の焦点のある要素があれば断らない
     func testFocusOnAnInnerNodeOfTheTargetCountsAsFocused() async {
         let (field, occlusion) = underKeyboard(focused: false)
         var inner = ElementInfo(ref: 2, type: "textField", identifier: nil, label: nil, value: nil, placeholder: nil,

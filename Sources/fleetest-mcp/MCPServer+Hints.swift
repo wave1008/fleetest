@@ -253,7 +253,7 @@ extension MCPServer {
     /// `hiddenUnderChrome` = プラットフォームが「その位置では hittable でない」と答えた(`hiddenUnderChromeWarning`)。
     /// 木に居るだけで描かれていないものを「画面にある」「スクロールした」と言わない
     /// `underKeyboard` = 着いた要素の中心がソフトキーボードの下(`keyboardCoverageNote` が「beneath it」と言うのと同じ判定)。
-    /// 成功の見出しと注記が食い違うと「届いた」と読まれる(OI-115)。ここでは到達を言わず、キーボードの下だと言う
+    /// 成功の見出しと注記が食い違うと「届いた」と読まれる。ここでは到達を言わず、キーボードの下だと言う
     static func scrollToHeadline(_ selectorText: String, swipes: Int?, hiddenUnderChrome: Bool, underKeyboard: Bool) -> String {
         if underKeyboard {
             return "\"\(selectorText)\" is in the tree but under the soft keyboard — scrolling did not bring it clear of"

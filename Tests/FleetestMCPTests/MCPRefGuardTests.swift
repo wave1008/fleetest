@@ -672,7 +672,7 @@ final class MCPRefGuardTests: XCTestCase {
     /// 実測(2026-08-08・Compose iOS のカレンダー): スクロールでヘッダ裏へ抜けた
     /// `#slot_07` (0,-46 402x56) への ft_tap が無警告の "done" を返し、画面は無変化だった。
     /// ウィンドウ外のタッチは hitTest に乗らず黙って落ちる
-    /// OI-84: 上の外は撃たずに断る(座標の経路と同じ。ステータスバーを押して一覧が先頭へ戻る)。下の外は従来どおり警告して撃つ
+    /// 上の外は撃たずに断る(座標の経路と同じ。ステータスバーを押して一覧が先頭へ戻る)。下の外は従来どおり警告して撃つ
     func testTapRefusesAboveTheScreenAndWarnsBelowIt() async throws {
         driver.snapshotResponse = screen([
             element(ref: 1, id: "slot_07", label: nil, x: 0, y: -46, w: 390, h: 56, depth: 2),

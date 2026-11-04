@@ -465,7 +465,7 @@ extension StepExecutor {
         // それ以外の in-app は欄の座標を合成タップで叩いてから打つ)。人も焦点の欄にはそのまま打てる。
         // 複数行の欄はキーボードを閉じる副作用の無い手段が無く(hideKeyboard は改行を入れる)、ここで断ると打てる場面を失敗にする
         // clearInput も同じ(XCUITest ランナーの clear も `alreadyFocusedInput` で焦点の欄を叩かない。mxa F10)
-        // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える(OI-91)
+        // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える
         if action == "type" || action == "clearInput", KeyboardWait.isShown(snapshot),
            element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements) {
             return nil

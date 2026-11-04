@@ -1,4 +1,4 @@
-// OI-89 最終項: DSL の swipePointToPoint が画面外の座標を断る。画面端ちょうどは壊さない(閉区間)。
+// DSL の swipePointToPoint が画面外の座標を断る。画面端ちょうどは壊さない(閉区間)。
 
 import XCTest
 @testable import FTCore

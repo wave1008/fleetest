@@ -3,7 +3,7 @@
 # 呼び手: Scripts/regress.py・e2e.sh・e2ex.sh・e2ey.sh。終了コードは常に 0(判定できなくても回帰は止めない)。
 # 数えるのはプロセス表だけ: この機械の配信ヘルパー(fleetest-androidstream / fleetest-simstream)と、
 # 拡張がリモートのデバイスへ張る `fleetest remote exec <マシン> -- api device-stream`。
-# 配信を張ったままの Android Emulator は描画が数秒遅れ、テキストの可視性検証の notRendered や hold の時間切れの赤が出る(OI-4)
+# 配信を張ったままの Android Emulator は描画が数秒遅れ、テキストの可視性検証の notRendered や hold の時間切れの赤が出る
 import collections
 import re
 import subprocess
@@ -38,7 +38,7 @@ def main():
         return 0
     parts = "・".join(f"{name} {n} 台" for name, n in sorted(counts.items()))
     print(f"⚠️ モニターの配信が張られています({parts})。止めずに回します。")
-    print("   配信の負荷で Android Emulator の描画が数秒遅れ、テキストの可視性検証(notRendered)や hold の時間切れの赤が出ることがあります(OI-4)。")
+    print("   配信の負荷で Android Emulator の描画が数秒遅れ、テキストの可視性検証(notRendered)や hold の時間切れの赤が出ることがあります。")
     print("   止めるなら、モニターの「ライブ更新」をオフにするか、fleetest monitor pause --for <分> を打ってから回してください。")
     return 0
 

@@ -436,7 +436,7 @@ extension StepExecutor {
                 ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation)
             }
             // **OCR で確かめられなかった回は FM に1回だけ訊き直す**: OCR の段がオフ、またはオンでも確かめの読みが読めなかった
-            // (Vision が空を返した = 突き合わせる相手が居ない。OI-13)
+            // (Vision が空を返した = 突き合わせる相手が居ない)
             if occlusionOCRMode == .off || (occlusionOCRMode == .on && ocrReading == nil),
                reaskedEmptyTranscripts.insert(ReaskKey(imageHash: memoImageHash, key: memoKey)).inserted {
                 // 訊き直す理由: 空振りがそのまま赤になる。

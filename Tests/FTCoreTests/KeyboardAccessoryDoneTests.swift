@@ -1,4 +1,4 @@
-// iOS の WebView の欄でキーボードを出すと、ページに空きの点が無く hideKeyboard が閉じる手段を失って Enter まで送っていた(OI-70)。
+// iOS の WebView の欄でキーボードを出すと、ページに空きの点が無く hideKeyboard が閉じる手段を失って Enter まで送っていた。
 // 木に載っている OS の入力補助バー(型 toolbar・識別子 Toolbar)の Done を、空きが無いときに押す。アプリ独自のバーは押さない。
 
 import XCTest

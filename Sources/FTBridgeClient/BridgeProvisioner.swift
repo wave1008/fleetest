@@ -2158,7 +2158,7 @@ public struct BridgeProvisioner: Sendable {
         // ignoringPidFileFor の対象は常に同一デバイスの旧ブリッジ(planBridge が sameDevice で
         // 絞ってから渡す)なのでバイパスは要らない —— 別デバイスと読めることはない
         // 待受の無い瞬間(アプリの起こし直しの間)は lsof に映らないので、別のデバイスの in-app が記録された
-        // ポートは台帳でも弾く(preferred・2nd パスでも。MCP の起動し直しが run の in-app ポートを採った = OI-83)
+        // ポートは台帳でも弾く(preferred・2nd パスでも。MCP の起動し直しが run の in-app ポートを採った)
         func isFreeOfOtherDevice(_ port: UInt16) -> Bool {
             !portHeldByAnotherDevice(port, ownerUDID)
                 && !InAppBridgeState.isRecordedForAnotherDevice(

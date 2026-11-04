@@ -1,6 +1,6 @@
 {
   "id": "oi115-scrollto-under-keyboard",
-  "finding": "キーボード表示中の ft_scroll_to が「scrolled to」と成功で返し、同じ応答の注記は同じ要素がキーボードの下と言う(OI-115)",
+  "finding": "キーボード表示中の ft_scroll_to が「scrolled to」と成功で返し、同じ応答の注記は同じ要素がキーボードの下と言う",
   "platform": "android",
   "redNote": "デバイスでも変異でもまだ確かめていない。直しを外した fleetest-mcp で形を撃ち、応答が赤になることを確かめる",
   "setup": [

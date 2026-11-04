@@ -228,7 +228,7 @@ final class AssignPortTests: XCTestCase {
     }
 
     func testSecondPassNeverTakesPortRecordedForAnotherDevicesInApp() throws {
-        // OI-83: 別のデバイスの in-app が記録されたポート(待受が無い瞬間は lsof に映らない)を 2nd パスで採ると、
+        // 別のデバイスの in-app が記録されたポート(待受が無い瞬間は lsof に映らない)を 2nd パスで採ると、
         // 起動前の回収(reclaimInApp)がそのデバイスのアプリを terminate する
         for port: UInt16 in 8123...8125 { try writeInAppFile(port: port, udid: "OTHER-UDID") }
         let provisioner = provisioner(portRange: 8123...8125)

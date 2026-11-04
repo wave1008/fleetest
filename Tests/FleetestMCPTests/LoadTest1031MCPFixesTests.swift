@@ -29,7 +29,7 @@ final class LoadTest1031MCPFixesTests: XCTestCase {
             tree(["quick_settings_container", "keyguard_message_area_container"])))
     }
 
-    /// ロック中の ft_screenshot が一色の絵を注記なしで返していた(OI-85): ロック画面の木 + 一色のときだけ言う
+    /// ロック中の ft_screenshot が一色の絵を注記なしで返していた: ロック画面の木 + 一色のときだけ言う
     func testLockedBlankScreenshotIsNotedOnlyWhenBlankOnTheLockScreen() {
         let locked = tree(["quick_settings_container", "keyguard_pin_view", "key1"])
         let note = MCPServer.lockedBlankScreenshotNote(snapshot: locked, isBlank: true)
