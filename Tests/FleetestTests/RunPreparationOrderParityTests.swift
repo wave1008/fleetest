@@ -83,7 +83,7 @@ final class RunPreparationOrderParityTests: XCTestCase {
         XCTAssertEqual(lines[junit - 1], "if !(error is RunInterruptedBeforeStartError) {")
     }
 
-    /// OI-100: `prepareSupply` の順序を api run に揃える —— 環境変数は run-setup.sh より前・run-setup.sh の後に中断を見てから
+    /// `prepareSupply` の順序を api run に揃える —— 環境変数は run-setup.sh より前・run-setup.sh の後に中断を見てから
     /// 死活確認、供給のタスクの前にも中断を見る。(意図した差: 出力先 = ConsoleOut と logSupply・wipeStatus は api run だけ・
     /// 見出し行の位置・FM の確認の位置)
     func testPrepareSupplyKeepsTheOrderOfApiRun() throws {

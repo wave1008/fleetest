@@ -1,4 +1,4 @@
-// OI-100: run(prepareSupply)と api run が共有する供給の先頭の2行と lease 保持者。違い(出力先・順序)は呼び手に残す
+// run(prepareSupply)と api run が共有する供給の先頭の2行と lease 保持者。違い(出力先・順序)は呼び手に残す
 
 import XCTest
 @testable import fleetest

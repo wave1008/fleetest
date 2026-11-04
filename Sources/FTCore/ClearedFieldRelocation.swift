@@ -17,7 +17,7 @@ public enum ClearedFieldRelocation {
     /// ラベル・値で指したロケータは、欄を空にすると現れるヒントの文字に当たりうる。MCP は ref 指定なので nil)
     /// ③型と枠が同じ要素が1つ ④型と空でない placeholder / ラベルが同じ要素が1つ(id の無い欄がキーボードで動いた形 = アラートの入力欄。
     /// 横の位置と幅が同じものだけ = 縦の移動に限る)⑤その型の欄が木に1つだけで同じ列。**「焦点のある同じ型の要素」では引かない** —— 縦に並んだフォームは欄の x と幅が
-    /// そろうので「同じ列」は区別にならず、消去で焦点が次の欄へ移った画面で別の欄に打つ(OI-77。引けなければ呼び手は撃たずに失敗)
+    /// そろうので「同じ列」は区別にならず、消去で焦点が次の欄へ移った画面で別の欄に打つ(引けなければ呼び手は撃たずに失敗)
     public static func relocate(_ element: ElementInfo, in elements: [ElementInfo],
                                 locate: (() -> ElementInfo?)? = nil) -> ElementInfo? {
         func only(_ matches: [ElementInfo]) -> ElementInfo? { matches.count == 1 ? matches[0] : nil }
