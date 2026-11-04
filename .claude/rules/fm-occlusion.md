@@ -23,6 +23,8 @@ paths:
   - "Sources/FTCore/ScenarioHost.swift"
   - "Sources/FTCore/StepExecutor+Assert.swift"
   - "Sources/FTCore/TapTargetGeometry.swift"
+  - "Sources/FTCore/PaintOrder.swift"
+  - "Sources/FTCore/CoveredTouchPart.swift"
   - "Sources/FTCore/TranscriptMatch.swift"
   - "Sources/FTCore/VisibilityVerdictMemo.swift"
   - "Sources/FTFoundationModels/**"
@@ -185,6 +187,17 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (確度が最も高い)。**この2つの引数に既定値を置かない** —— 新しい呼び出し元の呼び忘れを
   コンパイルで止めるため(`OverlayWindowOcclusionWiringTests` が配線を、変異チェックが
   検知の生死を落とす)。**この検知は「出れば正しい」であって「出なければ覆いが無い」ではない**
+- **手前かどうか(塗り順)を木から推測しない**。塗り順が木にあるのは iOS の in-app の UIKit・RN の `z` だけ
+  (全か無か = `BridgeAPI.allOrNothingPaintOrder`)。**SwiftUI・CMP・Flutter の iOS と Android には無い**
+  (Android の `z` は Flutter で木の順と同じ = 塗り順ではない。FD-1.4・OI-170)。無い木で「覆われている/触れない」と
+  言ってよいのは**幾何で決まる形だけ** —— スクロール容器の窓の外(中身は窓の外に描かれない)・キーボードと別ウィンドウの
+  申告(上の項)・画面の外。**型・深さ・祖先関係・木の順・閾値(「画面の大部分を占める」等)で手前を補う直しは入れない**
+  (11/3〜11/4 に入れるたびに別の縁で誤った赤を出して戻した: 4ca5914c4→957149b26・a5e87ce19・ed9454015・c8f39fa44→384ee41c7)。
+  その種の所見は **OI-170 に実例を足して据え置く**(open-issues の属性「木に材料なし」)。直すなら**材料を先にデバイスから取る**
+  (ブリッジが `z` を送る・撃つ点の当たり判定・`isHittable` の照会)か、**撃った後の画面の変化で確かめる**。
+  **コードを読んだ推測の直しは、直しを外した版がデバイスで赤になることを確かめてから入れる**(`Scripts/replay-cases/` の関門)。
+  幾何で決まる形の判定でも、**その幾何の材料(容器・バー)が木に載っていることを先にデバイスの木で確かめる**
+  (隠れている間の in-app の木は容器ごと落とすことがある = OI-170)
 - **occlusion-guard の反転は、1 回目のガード評価が締切を跨いだ回だけ 1 度延長して撮り直す**
   (`guard-retaken`。FM 待ちはアプリの応答ではないので待ち予算から引かない。同じ絵は
   `VisibilityVerdictMemo` が同じ verdict を返すので、テストでは撮り直しごとに違う絵を渡す)
