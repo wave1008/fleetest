@@ -329,7 +329,7 @@ FM を呼ぶ構成だったかは `fmTextVisibilityCheck || screenLooksLike` で
 | label | String | 表示用の識別子(`degradedWorkers` の1行と同一) |
 | scenarioID | String? | `requeued` / `retryLimit` / `circuitHeld` の対象 |
 | reason | String | 英語・人間可読 |
-| cause | String? | **`degraded`/`requeued`/`retryLimit`/`circuitHeld` だけ持つ**理由の分類(生成箇所が型から決める。`reason` の文字列を後から解析しない)。値は `frozen`(画面の凍結)/ `deviceGone`(デバイスが消えた。offline/not found)/ `bridgeUnreachable`(ブリッジに届かない)/ `bridgeTakenOver`(ブリッジが別のデバイスのものになった)/ `rendering`(描画の状態 = 白紙・文字消えを報告したレーンの切り離し。OI-88)/ `consecutiveFailures`(連続失敗)(**前の run から引き継いだ連続失敗を含むことがある**。`reason` に「including N carried over from earlier runs」と出る。台帳は `<repo>/.fleetest/lane-streak-<platform:デバイス論理名>.json`。通ると消え(離脱では消さない)、中断で終わった失敗は持ち越さない)/ `accessibilityFault`(一時的なアクセシビリティ異常)/ `noResponse`(接続できない・status に応答しない)。**写像できない reason は省略**(2026-09-27 より前の記録には無い) |
+| cause | String? | **`degraded`/`requeued`/`retryLimit`/`circuitHeld` だけ持つ**理由の分類(生成箇所が型から決める。`reason` の文字列を後から解析しない)。値は `frozen`(画面の凍結)/ `deviceGone`(デバイスが消えた。offline/not found)/ `bridgeUnreachable`(ブリッジに届かない)/ `bridgeTakenOver`(ブリッジが別のデバイスのものになった)/ `rendering`(描画の状態 = 白紙・文字消えを報告したレーンの切り離し)/ `consecutiveFailures`(連続失敗)(**前の run から引き継いだ連続失敗を含むことがある**。`reason` に「including N carried over from earlier runs」と出る。台帳は `<repo>/.fleetest/lane-streak-<platform:デバイス論理名>.json`。通ると消え(離脱では消さない)、中断で終わった失敗は持ち越さない)/ `accessibilityFault`(一時的なアクセシビリティ異常)/ `noResponse`(接続できない・status に応答しない)。**写像できない reason は省略**(2026-09-27 より前の記録には無い) |
 | recovery | String? | **`recovered` と描画の状態を直した `preRunRepaired` だけ持つ**回復の種類。値は `runnerRestart`(XCUITest ランナーを同じポートで起動し直した)/ `displayServerRestart`(全面が黒い Simulator の backboardd を起こし直して戻した)/ `workerRevive`(離脱したワーカーの論理デバイスを復帰させた)/ `displaySleepWake`(止まった表示を sleep/wake で戻した。Android Emulator だけ。2026-10-18 より)/ `deviceRestart`(止まった表示のデバイスを再起動した = Emulator はゲストの再起動か停止→起動・Simulator は shutdown→boot。2026-10-18 より)。`rendering` の `recovered`/`requeued` は、白紙・文字消えを報告したレーンを離脱させて回復を1回撃った記録(下記「描画の状態の手当て」)。`displayServerRestart` と後の 2 つは**シナリオの境目の表示の確認**(`DisplayFreezeWatch`。同じ絵が 60 秒以上返り、home を押しても変わらなかった)が撃ったもので、同じ事象の `requeued`/`degraded`(cause `frozen`・reason「a frozen display (…)」)と対で出る(下記の注記参照) |
 
 **`degradedWorkers` と `workerAnomalies` は同じ事象**(前者が人向けの1行、後者が機械可読)。
@@ -793,7 +793,7 @@ machineHealth の行しか要らないので、**プロジェクトごとの行*
   失敗調査の一次情報は `failedSteps` / `errorLogs`(このページの欄)にする
 
 
-### 描画の状態の手当て(OI-88)
+### 描画の状態の手当て
 
 シナリオの間に `screen-blank` / `screen-textless` の注記が出たレーンの扱い。**事実だけ**を残し、環境かアプリかの分類は記録しない。
 

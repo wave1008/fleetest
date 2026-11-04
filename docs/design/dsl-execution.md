@@ -356,7 +356,7 @@ iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起
   上限 `DeviceScreenStateStore.stalenessSeconds` = 30 分)。ステップの注記は `screen-blank` / `screen-textless`。
   赤にしない構成でも検査点のステップの説明に事実の文を載せる(`renderCollapseWarning`。ステップの状態は passed のまま)。
   緑で終わった回を親が捨てたら `scenarioFinished` の `passed: false` + `resultDiscardedReason`(表示は `🗑 result discarded` で、数えるのは `passed`)。レポートの `Result` は子の記録のまま、親が注記を足す(`ScenarioReportNotice`)
-- **見つけたあとの手当て(OI-88)**: 切り離し(`RenderingLaneBook` が判定。同じプラットフォームに他のレーンが居るときだけ・同じシナリオが別のレーンで同じ状態を
+- **見つけたあとの手当て**: 切り離し(`RenderingLaneBook` が判定。同じプラットフォームに他のレーンが居るときだけ・同じシナリオが別のレーンで同じ状態を
   報告済みならアプリ側の事実として残す)→ 離脱後・revive の前に回復を1回(`ScreenRenderingRecovery`。撃つ操作は凍結の回復 `DisplayFreezeWatch.productionRepair` と同じ)→
   直後に OS 側の絵で測る。**1台1回 = マシンの1回の起動につき1回**(`ScreenRecoveryLedger`。鮮度は時間の定数でなくマシンの起動時刻。マシンの再起動が数え直しの契機で、
   案内もそれを勧める)。戻らない・再発したら撃たず `UnrecoveredDeviceStore` に公表し、モニターの `devices[].rebootAdvised` と run の最後のログで

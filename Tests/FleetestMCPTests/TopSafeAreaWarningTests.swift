@@ -1,4 +1,4 @@
-// 画面上端の安全領域の帯(OI-1)の MCP 側の文言。判定は TopSafeAreaAdvisoryTests。
+// 画面上端の安全領域の帯の MCP 側の文言。判定は TopSafeAreaAdvisoryTests。
 
 import XCTest
 import FTCore

@@ -1,4 +1,4 @@
-// 画面上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)に中心が入る対象への警告(OI-1)と、
+// 画面上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)に中心が入る対象への警告と、
 // その申告 `SnapshotResponse.safeAreaTop` のワイヤ形式。帯の高さは木に載らないので定数を持たず、申告だけで決める。
 
 import XCTest
@@ -15,7 +15,7 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
     }
 
     func testCentreInsideTheMeasuredBandIsCalledOut() {
-        // 申告 62(帯 0..62)・要素 (16,-2 85x18) の中心 y=7 → 帯の中(OI-1 の「◀ 前のアプリ」の形)
+        // 申告 62(帯 0..62)・要素 (16,-2 85x18) の中心 y=7 → 帯の中(「◀ 前のアプリ」の形)
         let note = TapTargetGeometry.topSafeAreaAdvisory(
             for: element(y: -2, h: 18), safeAreaTop: .measured(62), screen: screen)
         XCTAssertNotNil(note)

@@ -1,4 +1,4 @@
-// 描画の状態(白紙・文字消え。`DeviceScreenState`)を見つけたあとの手当ての判定と台帳(OI-88)。
+// 描画の状態(白紙・文字消え。`DeviceScreenState`)を見つけたあとの手当ての判定と台帳。
 // 判定は全部純粋関数・台帳は `.fleetest/` の小さなファイル(DeviceScreenStateStore の姉妹型・同じキー体系)。
 // 撃つ操作(修復)の実体は FTAndroid.ScreenRenderingRecoverer。配線は ProfileRunOrchestrator → RunOrchestrator.recoverRendering。
 

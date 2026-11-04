@@ -1,7 +1,7 @@
 import XCTest
 @testable import FTCore
 
-/// 描画の状態(白紙・文字消え)の手当て(OI-88): 切り離しの判定・1台1回の台帳・回復の手順・案内の公表
+/// 描画の状態(白紙・文字消え)の手当て: 切り離しの判定・1台1回の台帳・回復の手順・案内の公表
 final class ScreenRenderingRecoveryTests: XCTestCase {
 
     private func tempDir() throws -> URL {

@@ -975,7 +975,7 @@ public final class RunOrchestrator: Sendable {
     /// シナリオの境目で「表示が止まっていないか」を確かめる(FTAndroid.DisplayFreezeWatch。判定は DisplayFreezeDetector)。
     /// 確定したレーンは .frozen と同じ扱い(直前の結果を捨てて振り直し・離脱・revive)。isDeviceFrozen と同じ理由で注入
     private let checkLaneDisplay: LaneDisplayCheck?
-    /// 描画の状態(白紙・文字消え)で離脱したレーンのデバイスへ、revive の前に回復を1回撃つ(OI-88。実体は
+    /// 描画の状態(白紙・文字消え)で離脱したレーンのデバイスへ、revive の前に回復を1回撃つ(実体は
     /// FTAndroid.ScreenRenderingRecoverer。1台1回の台帳と効いたかの測定はあちらの責務)。nil = 撃たない(離脱と振り直しは行う)
     private let recoverRendering: RenderingRecovery?
     /// run の最後のログに出す「再起動では戻らなかった台」の名前(マシンごとの公表 `UnrecoveredDeviceStore`。run の前の分も含む)
@@ -2002,7 +2002,7 @@ public final class RunOrchestrator: Sendable {
                    }) {
                 displayFreeze = (detail, recovery)
             }
-            // **描画の状態(白紙・文字消え)を報告したレーンの切り離し**(OI-88)。凍結が確定した回は凍結が先(同じレーンを二重に離脱させない)。
+            // **描画の状態(白紙・文字消え)を報告したレーンの切り離し**。凍結が確定した回は凍結が先(同じレーンを二重に離脱させない)。
             // 緑で終わった回も、画素で確かめられていない検証を含むので凍結と同じく結果を捨てる(invalidatesPassedRecord)
             // **緑と素の赤だけ**(一過性の故障・ブリッジ不達は下の仕分けと事後プローブが先)・中断中は撃たない・ブリッジが答えないデバイスは消失の経路へ回す
             var renderingDetach: DeviceScreenState?

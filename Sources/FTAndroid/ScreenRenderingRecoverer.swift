@@ -1,4 +1,4 @@
-// 描画の状態(白紙・文字消え)を見つけたデバイスの回復の本番の実体(OI-88)。手順と台帳は FTCore.ScreenRenderingRecovery。
+// 描画の状態(白紙・文字消え)を見つけたデバイスの回復の本番の実体。手順と台帳は FTCore.ScreenRenderingRecovery。
 // - 撃つ操作は凍結の回復と同じ関数(`DisplayFreezeWatch.productionRepair` = iOS は backboardd(全面一様のときだけ)→ shutdown/boot、
 //   Android は sleep/wake → ゲストの再起動 → 停止と起動)。段を足さない
 // - 実機は見ない(再起動しない・切り離しもしない)
