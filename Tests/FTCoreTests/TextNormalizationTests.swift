@@ -273,3 +273,18 @@ final class NormalizationCoversEveryComparisonTests: XCTestCase {
                                               assert: "idEquals", normalization: .text))
     }
 }
+
+/// 未入力の欄は value が nil で来る。`valueIs("")` は `valueIsEmpty()` と同じ欄で割れない
+final class AbsentValueEqualsEmptyTests: XCTestCase {
+    func testAbsentValueEqualsEmptyExpectation() {
+        XCTAssertEqual(LocatorResolver.matchedText(nil, expected: "", assert: "valueEquals"), "")
+        XCTAssertEqual(LocatorResolver.matchedText(nil, expected: "", assert: "textEquals"), "")
+        XCTAssertNil(LocatorResolver.matchedText(nil, expected: "abc", assert: "valueEquals"))
+        XCTAssertTrue(LocatorResolver.negativeAssertSatisfied("valueIsEmpty", actual: nil, expected: nil))
+    }
+
+    func testFailureTextDoesNotQuoteNil() {
+        XCTAssertEqual(StepExecutor.quotedActual(nil), "(no value)")
+        XCTAssertEqual(StepExecutor.quotedActual("nil"), "\"nil\"")
+    }
+}

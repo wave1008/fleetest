@@ -518,6 +518,12 @@ static BOOL ftFlutterPerformInputAction(UIView *v) {
 BOOL FTPressEnterOnComposeFirstResponder(void) {
     for (UIView *v in ftTextReceivers()) {
         if (!v.isFirstResponder) continue;
+        // **UITextField 分岐より先に判定する**: Flutter の secure 欄(FlutterSecureTextInputView)は UITextField の
+        // サブクラスで delegate が nil。下の UIKit 分岐へ入ると何も発火しないまま YES を返す(届かないのに 200)。
+        // クラス名の prefix 一致では secure 欄を取りこぼすので ftIsFlutterTextInput(名前に TextInput を含む)で見る
+        if (ftIsFlutterTextInput(v)) {
+            return ftFlutterPerformInputAction(v);
+        }
         if ([v isKindOfClass:[UITextField class]]) {
             // UITextField への insertText:@"\n" は改行が文字として入るだけで return を発火しない。
             // xcuitest への 409 フォールバックも使えない(フォーカスを立てたのは in-app の合成タッチで、
@@ -538,10 +544,6 @@ BOOL FTPressEnterOnComposeFirstResponder(void) {
                 [field resignFirstResponder];
             }
             return YES;
-        }
-        // secure 欄はサブクラス(別名)なので prefix 一致では取りこぼす(ftIsFlutterTextInput 参照)
-        if (ftIsFlutterTextInput(v)) {
-            return ftFlutterPerformInputAction(v);
         }
         if ([v conformsToProtocol:@protocol(UIKeyInput)]) {
             [(id<UIKeyInput>)v insertText:@"\n"];

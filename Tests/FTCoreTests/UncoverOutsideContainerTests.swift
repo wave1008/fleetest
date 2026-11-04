@@ -266,6 +266,24 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertTrue(log.entries.contains("primary.tap(ref:13)"), "見えている一致を押す: \(log.entries)")
     }
 
+    /// 探索の「見つかった」は、撃つ前の断り(見えている部分が床に届かない)と同じ判定でシートの下の行を見つかったにしない
+    /// (`scroll:` を書ける tap・hold だけ。select は対象外)。探索が止まって撃つ前に断っていた(12周目 iultra F4)
+    func testSearchDoesNotAcceptARowUnderASheetTooThinToTouch() {
+        var list = el(1, "other", id: "list_main", FTRect(x: 0, y: 100, width: 402, height: 774), scrollable: true); list.depth = 1
+        var row = el(2, "button", id: "row_main_30", FTRect(x: 0, y: 560, width: 402, height: 48)); row.depth = 2
+        var sheet = el(3, "other", id: "sheet", FTRect(x: 0, y: 540, width: 402, height: 334)); sheet.depth = 1
+        var queue = el(4, "button", id: "queue_row_00", FTRect(x: 0, y: 550, width: 402, height: 60)); queue.depth = 2
+        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [list, row, sheet, queue], truncatedCount: 0)
+        let executor = StepExecutor(driver: FakeAppDriver(name: "primary", log: CallLog()), isAndroid: false, tunables: RunTunables())
+        XCTAssertEqual(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: "down"),
+                                                 in: snapshot), "#queue_row_00")
+        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "select", locator: FlowLocator(id: "row_main_30"), direction: "down"),
+                                               in: snapshot))
+        // 逆向き(`scroll: .up` = 中身が下へ動き、下の覆いから離れない)は見つかったにして撃つ前の送りに任せる
+        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: "up"),
+                                               in: snapshot))
+    }
+
     /// 外側の一覧の中に収まった棚のカードは対象外(従来どおり押す)
     func testCardInsideTheOuterListIsNotRefused() {
         let els = nestedTree(shelfY: 200)
@@ -285,6 +303,14 @@ final class UncoverOutsideContainerTests: XCTestCase {
         var tabB = el(11, "other", id: "tab_b", FTRect(x: 139, y: 157, width: 123, height: 48)); tabB.depth = 3
         let tabTree = [small, tabs, tabA, tabB]
         XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(tabB, in: tabTree, screen: screen, scale: 1))
+    }
+
+    /// push の遷移の途中の木: 前の画面の一覧(画面の左へはみ出して滑っている)を外側と読まない(12周目 ilocal F16)
+    func testListSlidingOutInATransitionIsNotTheOuterList() {
+        var leaving = el(20, "other", FTRect(x: -121, y: 0, width: 402, height: 874), scrollable: true); leaving.depth = 1
+        var tabRow = el(21, "other", FTRect(x: 0, y: 390, width: 402, height: 30), scrollable: true); tabRow.depth = 2
+        var likes = el(22, "button", id: "tab_likes", FTRect(x: 311, y: 395, width: 48, height: 20)); likes.depth = 3
+        XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(likes, in: [leaving, tabRow, likes], screen: screen, scale: 1))
     }
 
     /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。向きを書いた回・一覧の無い画面では足さない

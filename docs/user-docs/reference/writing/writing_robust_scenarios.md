@@ -81,6 +81,14 @@ A value read from an element (`exist("#total").text`, `.value`, `.id`) is a snap
 moment you read it — it is not re-fetched later. If the screen is still updating, confirm it has
 settled (with `textIs` or similar) before reading, or you'll capture a value mid-update.
 
+## Check the result after tapping something that may be covered
+
+In SwiftUI, Compose Multiplatform and Flutter apps on iOS, the element list carries no information about
+which element is drawn in front. A `tap` on something a person could not press — a row behind a sheet,
+a button on a toolbar that has scrolled away — can therefore succeed. On screens with sheets or bars that
+hide on scroll, follow the tap with an assertion on the screen it should lead to or the change it should
+make (a successful `tap` alone does not prove the intended element was pressed).
+
 ## Never retry an irreversible action
 
 If an interruption appears while an operation's effect is still landing, the tool does not

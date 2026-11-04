@@ -28,12 +28,12 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 14 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 15 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 7 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-168 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 8 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-168・OI-170 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 8 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-164・OI-165 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 1 | OI-139 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 2 | OI-58・OI-140 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 3 | OI-58・OI-140・OI-170 |
 
 ## 着手可
 
@@ -126,6 +126,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可・木に材料なし
 
 11/4 の10周目の探索(`_work/explore-20261104b/findings-*.md`)で直さなかったもの(直したものは 2dcc58ab・a5e87ce1。回し直しで 8 項目とも直ったことを確かめた)。①RN の入れ子スクロールで、外側の一覧に切り取られて見えないカードへの tap が何も押さずに ok(ilocal F2・DSL 7/7・MCP 5/5。MCP ではステータスバーを叩いた扱いで一覧が先頭へ飛ぶ。容器の外の判定が最も内側の棚だけを見る)②描かれていない部品が木に残る形への scroll の無い触る操作が ✅: CMP の iOS の縮み切ったヘッダの `#btn_follow`・隠れたバーの `#btn_top_action`(iultra F2・in-app が直接動かすので押せてしまう = 人には押せない)と、MCP の ft_batch・ft_tap・DSL の xcuitest モード(ilocal F4・XCUITest の木で覆いが手前と読めず断らない。xcuitest は `scroll: .up` を書いても何も押さない)= OI-167 ⑩ と同じく覆いが木に無い ③同じ序数のセレクタ(`.button[5]`)が in-app の木と XCUITest の木で別の要素になる(ilocal F6。in-app はナビゲーションバーを末尾に置く = ft_batch で通した列がシナリオで別の行を押す)④一覧の上へはみ出して切り取られた行を「the target is covered by」と名指しする(iultra F3・CMP 7/8・RN 7/7)⑤スクロールで木から消えた部品(隠れたバー)の not found の案内が `waitSeconds:` だけで `scroll:` に触れない(iultra F5・Flutter・SwiftUI・RN)⑥E2EY-CMP の Android の横向きの選択モードの一覧で、寄せの注記付きの `tap("項目 1*")` が ✅ なのに行が開かず選択モードに入る(amax F4・5 run 中 4)⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6・既定の経路ではない)
+
+### OI-169 探索の残り(11・12周目)
+- 状態: 再現済み
+- 確認: b41c86f0(2026-11-04)
+- 属性: 着手可
+
+11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。①inapp-boost でシナリオの途中にアプリのプロセスが死ぬと「ブリッジに届かない」として振り直し、2回目が緑なら run は `All passed`・exit 0(ilocal F17・外からの `simctl terminate` で 2/2。ツールは「process not running — it may have crashed」と観測している)②一覧の上に浮いた FAB の tap に「centre is covered by #row_f_NN」の注記(ilocal F15・SwiftUI 5/5・CMP 5/5。実際には FAB を押せている)③RN の縦で、バーが隠れた後の `tap("#fab_hiding", scroll: .up)` が not found・案内が `maxSwipes`(iultra F3・5/5。手で1回 `scrollUp()` すれば押せる)④CMP で探索が行き過ぎ、整定の待ちが打ち切られた後に `waitSeconds:` を案内して赤(iultra F5・13回中3回)⑤doubleTap の not found に `scroll:` の案内が無い(iultra F7。doubleTap は `scroll:` を持たないので先に送る手を案内する形)⑥`select(..., scroll: .up)` の探索の失敗の理由が捨てられ、後続の `textIs` は理由の無い not found(im4 F5・4/4。同じ状態の `exist` は理由を言う)⑦E2EY-Flutter の Android の A11(NestedScrollView + TabBarView)で、一覧の上端の近くの行への tap が ✅ なのに押されていない(amax F1・投稿 19/28・メディア 2/4・いいね 3/4。`scrollUp(repeat: 3)` → `wait(1.5)` → scroll 無しの tap でも 3/4 = 慣性では説明できない。外側のヘッダが伸びた後の内側の一覧の a11y の枠と描画のずれを疑う。撃った座標と描画の突き合わせが未了)⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)・`scrollToTop` が上端に着かずに ✅(4/4)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)⑨M4Max の OCR が E2E-iOS のキーボードの覆い画面の "up" を "dn" と読み、OCR だけの判定で誤った赤(im4 F3・13/13。OI-139 と同じ機械)
 
 ## 要判断
 
@@ -231,6 +238,13 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 E2EY-iOS の「文中のリンクを押せること」S0020 が M4Max で 6/6 赤(`OCR read: "dalice dh t1https :|/example.com/a"`)。他のマシンは macOS 27.2(26B123)で、M4Max だけ 26.7.2(25G332)。同じシナリオは M1Ultra で 10/12 緑(赤の2本は別の形)。手は2つ: M4Max の macOS を他とそろえる(回帰に参加するマシンの前提として docs/verification/operations.md へ足す)か、リンクの文字列の照合で `@` の読み誤りを許すか(別のリンクを押す危険があるので、許すなら同じ行の他の候補と区別できるときだけ)
 
 ## 据え置き
+
+### OI-170 塗り順の無い iOS の木で、覆われた・描かれていない要素を in-app が押す
+- 状態: 再現済み
+- 確認: b41c86f0(2026-11-04)
+- 属性: 据え置き・木に材料なし
+
+SwiftUI・CMP・Flutter の iOS の in-app の木は塗り順 `z` を持たない(FD-1.4)。シートの裏の行・隠れたバーのボタン・縮んだヘッダの中身を、in-app が直接動かして ok になる(12周目 ilocal F18: CMP 11/11・Flutter 4/4 / iultra F1・F2・F6・F8: 全開・半分のシートの裏の行への tap・doubleTap・hold が SwiftUI・Flutter・CMP で ok かキューの行に当たる / OI-167 ⑩・OI-168 ②と同じ根)。RN と UIKit は `z` で断る。9〜11周目に木の順の推測を足すたびに別の縁で誤った赤が出たので、推測は足さない(ユーザー決定 2026-11-04)。既知の制約として FD-2.1 と user-docs「覆われた要素を押した後は結果を確かめる」に書いた。探索ではこの形を新しい所見に数えない。見直すのは、自前描画・SwiftUI で塗り順か当たり判定をブリッジが申告できるようになったとき
 
 ### OI-140 存在しない `--scenario` 名でも、先に全台のブリッジの供給が走ってから「scenario not found」になる
 - 状態: 再現済み

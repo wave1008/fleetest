@@ -1346,7 +1346,7 @@ extension StepExecutor {
                                             lastSnapshot: lastSnapshot)
         }
         return found
-            ? .failed("\(subject) \(relation): expected \"\(expected)\", actual \"\(lastActual ?? "nil")\""
+            ? .failed("\(subject) \(relation): expected \"\(expected)\", actual \(Self.quotedActual(lastActual))"
                       // **どちらの規則なら一致したか**を必ず添える(ユーザー指示)。
                       // 「見えない差で落ちたのか、本当に違う文字列なのか」で次の一手が変わる
                       + LocatorResolver.normalizationVerdict(actual: lastActual, expected: expected,
@@ -1360,6 +1360,11 @@ extension StepExecutor {
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
                       + Self.webViewPathHint(lastSnapshot))
+    }
+
+    /// 失敗文の実値。値の無い要素を `"nil"` と書くと欄に「nil」と入っているように読める
+    static func quotedActual(_ actual: String?) -> String {
+        actual.map { "\"\($0)\"" } ?? "(no value)"
     }
 
     /// このステップで使う正規化。**既定は `.text`**(見た目が同じなら同じ)。
@@ -1618,7 +1623,7 @@ extension StepExecutor {
             + tapDiagnosisHint(lastSeenElements)
         switch assert {
         case "textIsEmpty", "valueIsEmpty":
-            return .failed("\(subject) is not empty: actual \"\(lastActual ?? "nil")\"" + hint)
+            return .failed("\(subject) is not empty: actual \(Self.quotedActual(lastActual))" + hint)
         case "textIsNotEmpty", "valueIsNotEmpty":
             return .failed("\(subject) is empty: \(step.locatorSummary)" + hint)
         default:
@@ -1626,7 +1631,7 @@ extension StepExecutor {
             // 期待値のどの関係で引っかかったのか読めない)
             let expected = step.expected ?? ""
             let relation = Self.negativeAssertViolationRelation(assert, expected: expected)
-            return .failed("\(subject) \(relation): actual \"\(lastActual ?? "nil")\"" + hint)
+            return .failed("\(subject) \(relation): actual \(Self.quotedActual(lastActual))" + hint)
         }
     }
 

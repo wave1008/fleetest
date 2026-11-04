@@ -750,9 +750,32 @@ extension StepExecutor {
     /// `TapTargetGeometry.touchBlock`(1か所)。**どの操作でも効かせる**(select / exist も、見えていない対象を見つかったにしない =
     /// 探索が止まって select が切り取られた欄の値を読み ✅・撃つ前の断りと食い違う、が起きた。11周目の探索 im4 F2・iultra F7)
     func searchTouchBlock(_ element: ElementInfo, step: FlowStep, in snapshot: SnapshotResponse) -> String? {
-        TapTargetGeometry.touchBlock(element, in: snapshot.elements, screen: snapshot.screen, safeAreaTop: snapshot.safeAreaTop,
-                                     scale: driver.pointScale, inferring: step.containerInference ?? true,
-                                     searchFinger: FTSwipeDirection(rawValue: step.direction ?? ""))?.cover
+        if let block = TapTargetGeometry.touchBlock(element, in: snapshot.elements, screen: snapshot.screen,
+                                                    safeAreaTop: snapshot.safeAreaTop, scale: driver.pointScale,
+                                                    inferring: step.containerInference ?? true,
+                                                    searchFinger: FTSwipeDirection(rawValue: step.direction ?? "")) {
+            return block.cover
+        }
+        // 撃つ前の断り(`coveredTouchPlan` の `.tooThin`)と同じ判定。探索がシートの下で見つかったにして撃つ前に断っていた
+        // (RN の半分のシートの背面の行: 送ればシートの上へ出せる = 12周目 iultra F4)。`scroll:` を書ける触る操作だけ。
+        // **探索の向きに送れば覆いから離れる形だけ**: 逆側の覆い(`scroll: .up` で下のタブ列の下)は見つかったにして、撃つ前の
+        // 送り(`liftCoveredTarget`)に任せる(ここで断ると逆へ送り続けて対象を画面の外へ出す)
+        guard Self.coveredTouchAcceptsScroll(step.action),
+              case .tooThin(_, _, let over)? = TapTargetGeometry.coveredTouch(
+                for: element, in: snapshot.elements, screen: snapshot.screen, inferring: step.containerInference ?? true,
+                scale: driver.pointScale, zIsPaintOrder: !isAndroid) else { return nil }
+        // 覆いが画面のどちら側に付いているかで決める(下半分のシート・タブ列は中身を上へ送る `scroll: .down` で離れる)。
+        // 覆いと対象の中心どうしを比べない: シートのキューの行の中心は対象の中心のわずかに上にもある
+        let screen = snapshot.screen
+        let leavesCover: Bool
+        switch step.direction {   // scroll: .down = 中身が上へ動く
+        case "down": leavesCover = over.frame.centerY >= screen.centerY
+        case "up": leavesCover = over.frame.centerY <= screen.centerY
+        case "right": leavesCover = over.frame.centerX >= screen.centerX
+        case "left": leavesCover = over.frame.centerX <= screen.centerX
+        default: leavesCover = false
+        }
+        return leavesCover ? TapTargetGeometry.describe(over) : nil
     }
 
     /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)

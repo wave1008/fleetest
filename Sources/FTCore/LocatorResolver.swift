@@ -302,7 +302,9 @@ public enum LocatorResolver {
     /// occlusion-guard は画面と照合するので、実際に描かれている文字列でなければ意味が無い
     public static func matchedText(_ actual: String?, expected: String, assert: String,
                                    normalization: TextNormalization = .text) -> String? {
-        guard let actual else { return nil }
+        // 値・ラベルの無い要素(未入力の欄の value は a11y で nil)は空文字として照合する =
+        // `valueIs("")` と `valueIsEmpty()` が同じ欄で割れない(negativeAssertSatisfied も nil を "" で読む)
+        let actual = actual ?? ""
         // 日付書式だけは書式文字列であって「テキスト」ではないので正規化しない
         if assert == "textMatchesDateFormat" || assert == "valueMatchesDateFormat" {
             let formatter = DateFormatter()

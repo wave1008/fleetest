@@ -889,6 +889,9 @@ public enum TapTargetGeometry {
               let outer = scrollers.dropFirst().first(where: {
                   $0.frame.width * $0.frame.height >= screen.width * screen.height * primaryContainerMinimumAreaRatio
               })?.frame,
+              // 外側の一覧の枠は送っても動かない = 画面からはみ出た枠は遷移の途中で滑っている前の画面の一覧
+              // (SwiftUI の push の途中の木: 前の画面の一覧 x=-121 を外側と読み、丸ごと見えているタブを断った = 12周目 ilocal F16)
+              TapTargetGeometry.contains(screen, outer),
               // 棚が外側と交わる(一部見えている = 外側の中身)か、棚ごと外側の外へ送り出された残り(`isOutsideContainer`)のときだけ。
               // 外側と隣り合うだけの別の容器(シートのキュー)を外側の中身と読むと、押せる行を断った(E2EY-CMP の Android の回帰)
               ScrollGeometry.intersection(shelf.frame, outer) != nil
