@@ -34,7 +34,10 @@ final class InputAfterTapRescueTests: XCTestCase {
         func tap(ref: Int) async throws {}
         func tap(x: Double, y: Double) async throws {}
         func type(ref: Int?, text: String) async throws { typedRefs.append(ref) }
+        /// true = ref での消去を断る(in-app の秘密欄の形)
+        var refusesRefClear = false
         func clearInput(ref: Int?) async throws {
+            if ref != nil, refusesRefClear { throw DriverError.badResponse(status: 409, body: "cannot clear by ref") }
             clearedRefs.append(ref)
             if let ref, let index = elements.firstIndex(where: { $0.ref == ref }) { elements[index].value = nil }
         }
@@ -129,6 +132,25 @@ final class InputAfterTapRescueTests: XCTestCase {
         _ = await executor.execute(FlowStep(action: "clearInput"))
 
         XCTAssertEqual(driver.clearedRefs, [9])
+    }
+
+    /// 焦点を木に出さない構成で ref の消去を断られたら、従来どおり焦点の欄を消す(断ると叩いた秘密欄も消せずに赤だった。
+    /// E2E-Flutter の iOS の回帰)。焦点が確かに別の欄にあるときは断る(別の欄を消さない)
+    func testRefusedRefClearFallsBackToTheFocusedFieldOnlyWhenFocusIsUnknown() async throws {
+        let unknown = Driver(elements: [container(ref: 8, id: "wrapped"), field(ref: 9, id: "inner", y: 417, value: "WW")])
+        unknown.refusesRefClear = true
+        let executor = StepExecutor(driver: unknown, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "wrapped"), timeout: 1))
+        let outcome = await executor.execute(FlowStep(action: "clearInput"))
+        XCTAssertEqual(unknown.clearedRefs, [nil], "焦点の欄を消す: \(outcome.status)")
+
+        let elsewhere = makeDriver()
+        elsewhere.refusesRefClear = true
+        let executor2 = StepExecutor(driver: elsewhere, isAndroid: false, tunables: RunTunables())
+        _ = await executor2.execute(FlowStep(action: "tap", locator: FlowLocator(id: "wrapped"), timeout: 1))
+        let refused = await executor2.execute(FlowStep(action: "clearInput"))
+        guard case .failed = refused.status else { return XCTFail("焦点が別の欄にあるなら断る: \(refused.status)") }
+        XCTAssertEqual(elsewhere.clearedRefs, [], "別の欄を消さない")
     }
 
     /// 叩いた欄自身が焦点を持っているなら従来どおり焦点の欄を消す(速い経路を壊さない)

@@ -590,8 +590,10 @@ extension StepExecutor {
         // **`tap(容器の欄)` → ref 無しの clearInput**: ref 無しの type と同じ判定(`InputFocusRescue`)で、叩いた容器の中の唯一の入力欄を
         // 名指しして消す。素の clearInput(ref: nil) は焦点の欄 = 前の欄を空にして緑になった
         if let tapped = tapTargetBeforeThisStep, InputFocusRescue.focusIsElsewhere(from: tapped, in: beforeSnapshot.elements) {
-            if let field = InputFocusRescue.fieldToType(after: tapped, in: beforeSnapshot.elements, before: tapTreeForRescue) {
-                return try await clearRescuedField(field, tapped: tapped, phase: &phase)
+            if let field = InputFocusRescue.fieldToType(after: tapped, in: beforeSnapshot.elements, before: tapTreeForRescue),
+               let outcome = try await clearRescuedField(field, tapped: tapped, focusKnownElsewhere: focusedBefore != nil,
+                                                         phase: &phase) {
+                return outcome
             }
         }
 
@@ -640,13 +642,18 @@ extension StepExecutor {
     /// ref 無しの clearInput の救済: 焦点が叩いた要素の外にあるとき、叩いた容器の中の唯一の入力欄を ref で消す(type の `retypeTargetIfUnfocused` と同じ入れ先)。
     /// ref は `beforeSnapshot` の木のもの(この関数の直前に撮った木 = まだ有効)。XCUITest への打ち直しは ref の体系が別なので行わず、断る
     /// (撃ち直すと焦点の欄を消しうる)。ブリッジが 409 で断った = 撃つ前に断られたので届いていない
-    private func clearRescuedField(_ field: ElementInfo, tapped: ElementInfo, phase: inout PhaseAccumulator) async throws -> ClearOutcome {
+    /// nil = ref で消せず、焦点がどこにあるかも分からない = 従来どおり焦点の欄を消す(呼び手が続ける)。
+    /// 焦点を木に出さない構成(Flutter の iOS の in-app)では「焦点の欄が見当たらない」も救済に入るが、in-app は秘密欄の ref の消去を
+    /// 断る。そこで断ると焦点のある叩いた欄も消せずに赤だった(E2E-Flutter の iOS の回帰)。焦点が確かに別の欄にあるときだけ断る
+    private func clearRescuedField(_ field: ElementInfo, tapped: ElementInfo, focusKnownElsewhere: Bool,
+                                   phase: inout PhaseAccumulator) async throws -> ClearOutcome? {
         let clock = ContinuousClock()
         let start = clock.now
         do {
             try await driver.clearInput(ref: field.ref)
         } catch {
             guard DriverError.isClearInputFallback(error) else { throw error }
+            guard focusKnownElsewhere else { return nil }
             return .failed("cannot clear the field that was tapped (\(TapTargetGeometry.describe(field)); the bridge refused to"
                 + " clear it by ref) — giving up rather than clearing the field that still has focus")
         }
