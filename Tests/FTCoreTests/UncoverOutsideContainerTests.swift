@@ -266,7 +266,8 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertTrue(log.entries.contains("primary.tap(ref:13)"), "見えている一致を押す: \(log.entries)")
     }
 
-    /// 探索の「見つかった」は、撃つ前の断り(見えている部分が床に届かない)と同じ判定でシートの下の行を見つかったにしない
+    /// 探索の「見つかった」は、撃つ前の断り(見えている部分が床に届かない)と同じ判定でシートの下の行を見つかったにしない。
+    /// 向きは DSL と同じ写像(`scroll:` → 指の向き)で作る(手で "down" と書くと指の向きと scroll: を取り違える)
     /// (`scroll:` を書ける tap・hold だけ。select は対象外)。探索が止まって撃つ前に断っていた(12周目 iultra F4)
     func testSearchDoesNotAcceptARowUnderASheetTooThinToTouch() {
         var list = el(1, "other", id: "list_main", FTRect(x: 0, y: 100, width: 402, height: 774), scrollable: true); list.depth = 1
@@ -275,12 +276,12 @@ final class UncoverOutsideContainerTests: XCTestCase {
         var queue = el(4, "button", id: "queue_row_00", FTRect(x: 0, y: 550, width: 402, height: 60)); queue.depth = 2
         let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [list, row, sheet, queue], truncatedCount: 0)
         let executor = StepExecutor(driver: FakeAppDriver(name: "primary", log: CallLog()), isAndroid: false, tunables: RunTunables())
-        XCTAssertEqual(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: "down"),
+        XCTAssertEqual(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: FTScrollDirection.down.swipe.rawValue),
                                                  in: snapshot), "#queue_row_00")
-        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "select", locator: FlowLocator(id: "row_main_30"), direction: "down"),
+        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "select", locator: FlowLocator(id: "row_main_30"), direction: FTScrollDirection.down.swipe.rawValue),
                                                in: snapshot))
         // 逆向き(`scroll: .up` = 中身が下へ動き、下の覆いから離れない)は見つかったにして撃つ前の送りに任せる
-        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: "up"),
+        XCTAssertNil(executor.searchTouchBlock(row, step: FlowStep(action: "tap", locator: FlowLocator(id: "row_main_30"), direction: FTScrollDirection.up.swipe.rawValue),
                                                in: snapshot))
     }
 
@@ -347,7 +348,7 @@ final class UncoverOutsideContainerTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let search = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+ScrollSearch.swift"), encoding: .utf8)
         let settle = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Settle.swift"), encoding: .utf8)
-        XCTAssertTrue(search.contains("let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)"), "本編")
+        XCTAssertTrue(search.contains("let buriedCover = searchTouchBlock(element, step: step, in: snapshot)"), "本編")
         XCTAssertTrue(settle.contains("!buriedUnderBarForTouch(element, step: step, in: snapshot)"), "逆走査も同じ判定を通る")
     }
 }

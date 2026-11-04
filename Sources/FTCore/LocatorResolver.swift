@@ -287,7 +287,7 @@ public enum LocatorResolver {
         case "textMatchesNot", "valueMatchesNot":
             return text.range(of: want, options: .regularExpression) == nil
         default:   // textNotEquals / valueNotEquals
-            return actual == nil ? expected != nil : text != want
+            return text != want   // 値の無い要素は ""(matchedText と同じ。valueIs("") と valueIsNot("") が両方通らない)
         }
     }
 

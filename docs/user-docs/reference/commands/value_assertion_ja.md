@@ -40,7 +40,7 @@ select("#email").valueContains("@example.com")
 
 ## 注意点
 
-- 入力欄の内容は `value*` で見てください。空欄は `valueIsEmpty` で判定できます(全 UI フレームワークで空欄の value は空)。
+- 入力欄の内容は `value*` で見てください。空欄は `valueIsEmpty` で判定できます(全 UI フレームワークで空欄の value は空)。`valueIs("")` でも同じ結果になります。
   入力欄の `text` は Compose Multiplatform(iOS)・Flutter(iOS)・React Native で placeholder の文字列を返すので、入力欄に
   `textIsEmpty` / `textIs` を当てないでください。
 - 否定系と空判定は可視性を見ません。また、これらのコマンドに `scroll:` はありません

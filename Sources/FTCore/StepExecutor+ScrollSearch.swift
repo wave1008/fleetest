@@ -768,11 +768,11 @@ extension StepExecutor {
         // 覆いと対象の中心どうしを比べない: シートのキューの行の中心は対象の中心のわずかに上にもある
         let screen = snapshot.screen
         let leavesCover: Bool
-        switch step.direction {   // scroll: .down = 中身が上へ動く
-        case "down": leavesCover = over.frame.centerY >= screen.centerY
-        case "up": leavesCover = over.frame.centerY <= screen.centerY
-        case "right": leavesCover = over.frame.centerX >= screen.centerX
-        case "left": leavesCover = over.frame.centerX <= screen.centerX
+        switch step.direction {   // **指の向き**(`scroll: .down` は "up" = 指も中身も上へ動く。`FTScrollDirection.swipe`)
+        case "up": leavesCover = over.frame.centerY >= screen.centerY
+        case "down": leavesCover = over.frame.centerY <= screen.centerY
+        case "left": leavesCover = over.frame.centerX >= screen.centerX
+        case "right": leavesCover = over.frame.centerX <= screen.centerX
         default: leavesCover = false
         }
         return leavesCover ? TapTargetGeometry.describe(over) : nil
@@ -1075,8 +1075,9 @@ extension StepExecutor {
                 // (利用者が向きを書いている。そのまま撃つと覆いに当たり、何も起きないまま ok になる。
                 // 送って外れなければ弾切れの失敗で断る = 撃たない。coveredOutsideContainerBeyondOneLift の doc)
                 // 覆い・外側の一覧・送れば外れる側の縁のバーの下に中心がある対象は見つかったにしない(`searchTouchBlock`)
-                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)
-                if buriedUnderBar { scrollSearchBuriedCover = searchTouchBlock(element, step: step, in: snapshot) }
+                let buriedCover = searchTouchBlock(element, step: step, in: snapshot)
+                let buriedUnderBar = buriedCover != nil
+                if let buriedCover { scrollSearchBuriedCover = buriedCover }
                 if !buriedUnderBar,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。

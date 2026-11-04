@@ -42,7 +42,7 @@ select("#email").valueContains("@example.com")
 ## Notes
 
 - Read a text field's contents with the `value*` assertions; an empty field is `valueIsEmpty` (the value of an empty field is empty in
-  every UI framework). A text field's `text` returns the placeholder string in Compose Multiplatform (iOS), Flutter (iOS) and React Native,
+  every UI framework). `valueIs("")` gives the same result. A text field's `text` returns the placeholder string in Compose Multiplatform (iOS), Flutter (iOS) and React Native,
   so do not assert `textIsEmpty` / `textIs` on a text field.
 - Negative forms and the empty checks do not consider visibility, and none of these commands take
   `scroll:` — same rules as text assertions.

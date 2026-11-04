@@ -708,7 +708,7 @@ extension StepExecutor {
     func vanishedAfterSeenFailure(_ step: FlowStep, subject: String, lastActual: String?,
                                   lastSnapshot: SnapshotResponse?) -> StepResult.Status {
         failed(.notFound, "element not found on the last read: \(step.locatorSummary)"
-            + " (it was in the tree earlier in the wait, with \(subject) \"\(lastActual ?? "nil")\","
+            + " (it was in the tree earlier in the wait, with \(subject) \(Self.quotedActual(lastActual)),"
             + " and then left it)"
             + Self.truncationHint(lastSnapshot)
             + Self.keyboardResizedHint(lastSnapshot)

@@ -20,7 +20,8 @@ public enum HeldElementAssert {
         switch assert {
         case "idEquals":
             guard let expected else { return nil }
-            return element.identifier == expected
+            // 端末の経路(executeAssertTextComparison)と同じ照合 = id の無い要素は ""
+            return LocatorResolver.matchedText(element.identifier, expected: expected, assert: assert) != nil
         case "valueEquals", "textEquals", "textContains", "textMatches",
              "textStartsWith", "textEndsWith", "textMatchesDateFormat",
              "valueContains", "valueMatches", "valueStartsWith", "valueEndsWith",
