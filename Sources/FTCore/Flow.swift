@@ -321,8 +321,25 @@ public enum FlowMatchMode: String, Codable, Equatable, Sendable {
     public func matches(_ actual: String?, _ expected: String,
                         normalization: TextNormalization = .selector) -> Bool {
         guard let actual else { return false }
-        let normalizedActual = normalization.apply(actual)
-        let normalizedExpected = self == .matches ? expected : normalization.apply(expected)
+        var normalizedActual = normalization.apply(actual)
+        var normalizedExpected = self == .matches ? expected : normalization.apply(expected)
+        // ワイルドカード側の境界の空白は利用者が書いた接頭辞/接尾辞の一部(`"投稿 *"` は `"投稿"` に一致させない)。
+        // トリムするのは完全一致の寛容さと、ワイルドカードの無い側の端だけ
+        if normalization == .selector, self != .exact, self != .matches, !normalizedExpected.isEmpty {
+            let scalars = expected.unicodeScalars
+            if self != .startsWith, let first = scalars.first, normalization.foldsToSpace(first) {
+                normalizedExpected = " " + normalizedExpected
+            }
+            if self != .endsWith, let last = scalars.last, normalization.foldsToSpace(last) {
+                normalizedExpected += " "
+            }
+            // 実際の値の端の空白も同じ規則で戻す(戻さないと `*  埼京線*` が先頭に NBSP を持つラベル「  埼京線」に当たらない)
+            let actualScalars = actual.unicodeScalars
+            if !normalizedActual.isEmpty {
+                if let first = actualScalars.first, normalization.foldsToSpace(first) { normalizedActual = " " + normalizedActual }
+                if let last = actualScalars.last, normalization.foldsToSpace(last) { normalizedActual += " " }
+            }
+        }
         switch self {
         case .exact: return normalizedActual == normalizedExpected
         case .startsWith: return normalizedActual.hasPrefix(normalizedExpected)

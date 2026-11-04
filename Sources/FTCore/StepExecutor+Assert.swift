@@ -1243,7 +1243,7 @@ extension StepExecutor {
                 // id は画面に描かれないので occlusion-guard は掛からない(DSL 側が
                 // occlusionGuard: false を立てる)
                 let actual = assert == "idEquals" ? element.identifier
-                    : (assert.hasPrefix("value") ? element.value : element.label)
+                    : (assert.hasPrefix("value") ? TypeReadback.assertedValue(of: element, in: snapshot.elements) : element.label)
                 lastActual = actual
                 lastElement = element
                 lastElements = snapshot.elements
@@ -1568,7 +1568,7 @@ extension StepExecutor {
             missingOnLastRead = resolvedNow == nil
             if let (element, fallback) = resolvedNow {
                 found = true
-                let actual = assert.hasPrefix("value") ? element.value : element.label
+                let actual = assert.hasPrefix("value") ? TypeReadback.assertedValue(of: element, in: snapshot.elements) : element.label
                 lastActual = actual
                 lastElement = element
                 lastElements = snapshot.elements

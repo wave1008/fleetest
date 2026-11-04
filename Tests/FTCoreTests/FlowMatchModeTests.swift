@@ -15,6 +15,21 @@ final class FlowMatchModeTests: XCTestCase {
         XCTAssertTrue(FlowMatchMode.exact.matches("中央線", zwLabel))
     }
 
+    /// ワイルドカード側の境界の空白は接頭辞/接尾辞の一部(`"投稿 *"` がタブ「投稿」に一致して押してしまった)。
+    /// 完全一致の両端トリムは変えない
+    func testWildcardSideBoundaryWhitespaceIsKept() {
+        XCTAssertFalse(FlowMatchMode.startsWith.matches("投稿", "投稿 "))
+        XCTAssertTrue(FlowMatchMode.startsWith.matches("投稿 00", "投稿 "))
+        XCTAssertTrue(FlowMatchMode.startsWith.matches("投稿\u{00A0}00", "投稿 "))
+        XCTAssertFalse(FlowMatchMode.endsWith.matches("投稿", " 投稿"))
+        XCTAssertTrue(FlowMatchMode.endsWith.matches("新規 投稿", " 投稿"))
+        XCTAssertFalse(FlowMatchMode.contains.matches("AB", " A "))
+        XCTAssertTrue(FlowMatchMode.contains.matches("x A y", " A "))
+        // 非ワイルドカード側の端と完全一致は従来どおりトリム
+        XCTAssertTrue(FlowMatchMode.startsWith.matches("投稿 00", "  投稿 "))
+        XCTAssertTrue(FlowMatchMode.exact.matches("投稿", " 投稿 "))
+    }
+
     func testContainsMatchIgnoresZeroWidthCharacters() {
         XCTAssertTrue(FlowMatchMode.contains.matches(zwLabel, "央線"))
     }

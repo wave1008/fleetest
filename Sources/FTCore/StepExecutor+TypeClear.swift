@@ -587,6 +587,14 @@ extension StepExecutor {
         phase.snapshotMs += Self.ms(clock.now - snapStart)
         let focusedBefore = beforeSnapshot.elements.first { $0.focused == true }
 
+        // **`tap(容器の欄)` → ref 無しの clearInput**: ref 無しの type と同じ判定(`InputFocusRescue`)で、叩いた容器の中の唯一の入力欄を
+        // 名指しして消す。素の clearInput(ref: nil) は焦点の欄 = 前の欄を空にして緑になった
+        if let tapped = lastTapTarget, InputFocusRescue.focusIsElsewhere(from: tapped, in: beforeSnapshot.elements) {
+            if let field = InputFocusRescue.fieldToType(after: tapped, in: beforeSnapshot.elements, before: tapTreeForRescue) {
+                return try await clearRescuedField(field, tapped: tapped, phase: &phase)
+            }
+        }
+
         let start = clock.now
         do {
             try await driver.clearInput(ref: nil)
@@ -627,6 +635,27 @@ extension StepExecutor {
             return .cleared(driverFallback: "fell back to XCUITest", actingDriverSnapshot: nil)
         }
         return .cleared(driverFallback: nil, actingDriverSnapshot: nil)
+    }
+
+    /// ref 無しの clearInput の救済: 焦点が叩いた要素の外にあるとき、叩いた容器の中の唯一の入力欄を ref で消す(type の `retypeTargetIfUnfocused` と同じ入れ先)。
+    /// ref は `beforeSnapshot` の木のもの(この関数の直前に撮った木 = まだ有効)。XCUITest への打ち直しは ref の体系が別なので行わず、断る
+    /// (撃ち直すと焦点の欄を消しうる)。ブリッジが 409 で断った = 撃つ前に断られたので届いていない
+    private func clearRescuedField(_ field: ElementInfo, tapped: ElementInfo, phase: inout PhaseAccumulator) async throws -> ClearOutcome {
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            try await driver.clearInput(ref: field.ref)
+        } catch {
+            guard DriverError.isClearInputFallback(error) else { throw error }
+            return .failed("cannot clear the field that was tapped (\(TapTargetGeometry.describe(field)); the bridge refused to"
+                + " clear it by ref) — giving up rather than clearing the field that still has focus")
+        }
+        phase.actionMs += Self.ms(clock.now - start)
+        if let residual = try await residualClearValue(driver, focusedBefore: field, phase: &phase) {
+            return .failed("clearInput reported success but the value remained: \"\(residual)\"")
+        }
+        let described = "cleared \(TapTargetGeometry.describe(field)) (the tree showed no focused field inside \(TapTargetGeometry.describe(tapped)) after the tap)"
+        return .cleared(driverFallback: described, actingDriverSnapshot: nil)
     }
 
     /// 焦点のある欄が木に無く読み返せなかったことを注記に立て、括弧書きの文言へ足す(`StepNote.clearInputUnverified`)

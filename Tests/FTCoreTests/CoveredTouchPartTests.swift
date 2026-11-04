@@ -98,6 +98,24 @@ final class CoveredTouchPartTests: XCTestCase {
         XCTAssertNil(TapTargetGeometry.coveredTouch(for: fab, in: elements, screen: phone, inferring: true, scale: 1))
     }
 
+    /// 同じ形でも両方に本物の z があれば(RN・UIKit の in-app)、塗り順は推測ではないので例外にしない = 断る・見えている部分を押す。
+    /// 実測(E2EY-RN の半分のシート): キューの行が裏の本文の行を覆うのに中心を撃ち、キューの行を押して ok だった
+    func testScrollContentWithRealPaintOrderIsNotLeftToTheOldPath() {
+        let phone = FTRect(x: 0, y: 0, width: 402, height: 874)
+        var target = ElementInfo(ref: 3, type: "button", identifier: "row_main_10", label: "本文 10", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 0, y: 700, width: 402, height: 48), depth: 1)
+        var list = ElementInfo(ref: 4, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 568, width: 402, height: 306), depth: 1, scrollable: true)
+        var queueRow = ElementInfo(ref: 5, type: "button", identifier: "queue_row_02", label: "キュー 02", value: nil, placeholder: nil,
+                                   enabled: true, frame: FTRect(x: 0, y: 690, width: 402, height: 70), depth: 2)
+        target.z = 10; list.z = 20; queueRow.z = 21
+        let elements = [target, list, queueRow]
+        XCTAssertEqual(TapTargetGeometry.overlayCoveringForUncover(target, in: elements, screen: phone)?.ref, 5, "前提")
+        guard case .tooThin? = TapTargetGeometry.coveredTouch(for: target, in: elements, screen: phone, inferring: true, scale: 1) else {
+            return XCTFail("塗り順が真値なら撃たない側へ")
+        }
+    }
+
     /// 回帰の実測(E2EY-iOS の OTP): 押せる型でない箱の上に透明な入力欄が重なる。押す相手は手前の欄なので、従来の扱い(nil)へ戻す
     func testNonOperableTargetUnderAnInputIsLeftToTheOldPath() {
         let phone = FTRect(x: 0, y: 0, width: 402, height: 874)

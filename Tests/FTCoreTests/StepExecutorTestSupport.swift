@@ -48,6 +48,11 @@ final class FakeAppDriver: AppDriver {
     var pressError: Error?
     /// 非 nil なら rotate がこのエラーを throw する(iPad の in-app 501 → XCUITest の検証用)
     var rotateError: Error?
+    /// rotate が受け取った向きのうち、先頭からこの回数ぶんは画面に反映しない(回ったと答えて木は旧向きのまま = 実害の形)
+    var rotatesIgnored = 0
+    private(set) var rotateCallCount = 0
+    /// 画面(snapshot.screen)の向き。rotate が反映したときだけ変わる
+    var screenOrientation: FTOrientation = .portrait
     /// SnapshotResponse.keyboardFrame(全 snapshot() 呼び出しに一律で乗せる。
     /// キーボード遮蔽の配線テスト専用。既定 nil = 従来どおりキーボード非表示扱い)。
     /// **keyboardFrames(呼び出し回数ぶんの列)が設定されていればそちらを優先する**
@@ -137,7 +142,9 @@ final class FakeAppDriver: AppDriver {
         }
         let owner: String? = sessionBundleIDs.flatMap { $0.isEmpty ? nil : $0[min(snapshotCallCount - 1, $0.count - 1)] } ?? nil
         return SnapshotResponse(sessionBundleID: owner,
-                                screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                screen: screenOrientation == .portrait
+                                    ? FTRect(x: 0, y: 0, width: 400, height: 800)
+                                    : FTRect(x: 0, y: 0, width: 800, height: 400),
                                 elements: elements, truncatedCount: 0, keyboardShown: keyboardShown,
                                 keyboardFrame: effectiveKeyboardFrame,
                                 overlayWindowFrames: overlayWindowFrames)
@@ -256,6 +263,8 @@ final class FakeAppDriver: AppDriver {
             throw rotateError
         }
         log.entries.append("\(name).rotate(\(orientation.rawValue))")
+        rotateCallCount += 1
+        if rotateCallCount > rotatesIgnored { screenOrientation = orientation }
         return orientation
     }
 

@@ -57,7 +57,7 @@ final class SameTargetResolutionTests: XCTestCase {
         func source(_ name: String) throws -> String {
             try String(contentsOf: root.appendingPathComponent("Sources/FTCore/\(name)"), encoding: .utf8)
         }
-        let counts: [(String, Int)] = [("StepExecutor+Actions.swift", 7), ("StepExecutor+PreTouch.swift", 2),
+        let counts: [(String, Int)] = [("StepExecutor+Actions.swift", 8), ("StepExecutor+PreTouch.swift", 2),
                                        ("StepExecutor+TypeClear.swift", 1), ("StepExecutor+Settle.swift", 3)]
         for (file, expected) in counts {
             XCTAssertEqual(try source(file).components(separatedBy: "SameTargetResolution.resolve(").count - 1, expected, file)

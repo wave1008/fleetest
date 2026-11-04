@@ -51,7 +51,9 @@ final class CommandDispatchTests: XCTestCase {
             snapshotCount += 1
             return SnapshotResponse(
                 sessionBundleID: nil,
-                screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                screen: rotatedTo.last == .landscape
+                    ? FTRect(x: 0, y: 0, width: 800, height: 400)
+                    : FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "cleanup", label: "片付け",
                                        value: "1200", placeholder: nil, enabled: true,
                                        frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0,

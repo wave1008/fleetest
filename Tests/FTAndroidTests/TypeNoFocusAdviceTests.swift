@@ -38,6 +38,20 @@ final class TypeNoFocusAdviceTests: XCTestCase {
         XCTAssertFalse(body.contains("TextInputEditText"), body)
     }
 
+    /// 最後の tap の後に type が通っていれば、容器の話ではなく「焦点を持っていた欄が木から消えた」話をする
+    /// (Flutter で焦点の欄を一覧の外へ送った後の ref 無し type)
+    func testTypedFieldLeavingTheTreeIsNotBlamedOnAContainer() throws {
+        guard case .badResponse(_, let body)? = AndroidDriver.typeNoFocusAdvice(
+            after: .badResponse(status: 500, body: noFocus), hadRef: false, fieldTypedSinceLastTap: true) else {
+            return XCTFail("書き換えていない")
+        }
+        XCTAssertTrue(body.contains(noFocus), body)
+        XCTAssertTrue(body.contains("left the accessibility tree"), body)
+        XCTAssertTrue(body.contains("type(<selector>"), body)
+        XCTAssertFalse(body.contains("TextInputEditText"), body)
+        XCTAssertFalse(body.contains("nothing was tapped into focus"), body)
+    }
+
     /// 覆い・別アプリが前面なら、キーボードより前面の話が先
     func testFrontAdviceWinsOverTheKeyboardAdvice() throws {
         guard case .badResponse(_, let body)? = AndroidDriver.typeNoFocusAdvice(

@@ -18,4 +18,26 @@ extension TypeReadback {
         let inputs = elements.filter { isTextInput($0) && $0.frame == target.frame }
         return inputs.count == 1 ? inputs.first : nil
     }
+
+    /// 入力欄でない対象(id を載せた包み)の中の入力欄。同じ枠の欄(`sameFrameInput`)→ 子孫のちょうど1つ
+    /// (`TapTargetGeometry.nonInputTypeTargetNote` と同じ「ちょうど1つ」)。type が包みから欄へ解決する規律と
+    /// valueIs 等の値の読みで共有する
+    public static func enclosedInput(of target: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
+        guard !isTextInput(target) else { return nil }
+        if let field = sameFrameInput(of: target, in: elements) { return field }
+        guard let index = elements.firstIndex(where: { $0.ref == target.ref }) else { return nil }
+        var inner: [ElementInfo] = []
+        var cursor = elements.index(after: index)
+        while cursor < elements.endIndex, elements[cursor].depth > target.depth {
+            if isTextInput(elements[cursor]) { inner.append(elements[cursor]) }
+            cursor = elements.index(after: cursor)
+        }
+        return inner.count == 1 ? inner.first : nil
+    }
+
+    /// value* の検証が読む値。要素自身が値を持たず、包みの中に唯一の入力欄があるときだけその欄の値
+    public static func assertedValue(of element: ElementInfo, in elements: [ElementInfo]) -> String? {
+        if element.value != nil { return element.value }
+        return enclosedInput(of: element, in: elements)?.value
+    }
 }

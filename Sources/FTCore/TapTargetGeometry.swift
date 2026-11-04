@@ -875,6 +875,33 @@ public enum TapTargetGeometry {
         return over
     }
 
+    /// 向きを書いた探索が、**送れば外れる側の縁のバー**の下に中心がある対象を「見つかった」にしないための判定。覆いの名指し
+    /// (失敗文用)を返す。nil = その形ではない。指が下向き(上を見に行く探索 = `scroll: .up`)なら上端(ステータスバーの帯・
+    /// ナビゲーションバー)、指が上向きなら下端(タブバー・ツールバー)を見る。送り続ければ中身と一緒に対象がバーの下から出る。
+    /// 実測(E2EX-iOS の SwiftUI の入力画面・10周目の探索 im4 F1・F2): 一覧が全画面(0,0)で対象は「一覧の中・画面の中」と読まれ、
+    /// 探索がバーの下で止まって select は空要素・tap は帯を叩いて焦点が移らなかった。バー自身の子孫(タイトル・戻る)は対象外
+    public static func edgeBarCoveringCentre(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                                             safeAreaTop: SafeAreaTop, finger: FTSwipeDirection) -> String? {
+        let cx = element.frame.centerX, cy = element.frame.centerY
+        let lineage = self.lineage(of: element, in: elements)
+        func bar(_ types: Set<String>) -> ElementInfo? {
+            elements.first { bar in
+                types.contains(bar.type) && !lineage.contains(bar.ref) && PaintOrder.drawnAbove(bar, element)
+                    && bar.frame.x <= cx && cx <= bar.frame.x + bar.frame.width
+                    && bar.frame.y <= cy && cy <= bar.frame.y + bar.frame.height
+            }
+        }
+        switch finger {
+        case .down:
+            if topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen) != nil { return "the top safe-area band" }
+            return bar(["navigationBar"]).map(describe)
+        case .up:
+            return bar(["tabBar", "toolbar"]).map(describe)
+        default:
+            return nil
+        }
+    }
+
     /// 探索軸の片方の縁だけで見切れているときの戻す向き(指の向き)。両縁・見切れなしは nil
     public static func clippedEdgeRecoveryDirection(for frame: FTRect, container: FTRect, vertical: Bool) -> FTSwipeDirection? {
         let t = clipTolerance
@@ -891,8 +918,10 @@ public enum TapTargetGeometry {
     public static func primaryScrollContainer(in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {
         let screenArea = screen.width * screen.height
         guard screenArea > 0 else { return nil }
+        // 縦の容器か: 高さが「幅と画面の高さの小さいほう」の半分以上。幅だけで比べると、横向きの縦の一覧(874x272)が
+        // 横長で外れ、隠れたバーの断りが横向きで効かなかった(10周目の探索 iultra F6)。細い横の帯(402x48)は従来どおり外れる
         return elements.filter {
-            $0.scrollable == true && $0.frame.height >= $0.frame.width * 0.5
+            $0.scrollable == true && $0.frame.height >= min($0.frame.width, screen.height) * 0.5
                 && $0.frame.width * $0.frame.height >= screenArea * primaryContainerMinimumAreaRatio
         }.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
     }

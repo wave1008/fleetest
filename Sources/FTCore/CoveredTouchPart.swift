@@ -28,9 +28,12 @@ extension TapTargetGeometry {
         if !BridgeSnapshotThinning.operableTypes.contains(element.type),
            SnapshotRenderer.textInputTypes.contains(over.type) { return nil }
         // ②覆いが、対象の祖先でないスクロール容器の中身: 塗り順は木の順の推測でしかなく、一覧の上に浮いたボタン(FAB・
-        //   「一番下へ」)を行が覆っていると読み違える(iOS は z を出さず、Flutter の Android は描画順を申告しない = z が木の順)
+        //   「一番下へ」)を行が覆っていると読み違える(Flutter の Android は描画順を申告しない = z が木の順)。
+        //   **両方に z があれば塗り順は真値なのでこの例外を使わない**(RN の iOS の in-app: 半分のシートのキューの行が裏の本文の行を
+        //   覆うのに中心を撃ち、キューの行を押して ok だった。OcclusionGeometry の「z があれば幾何の推測を使わない」と同じ規律)
         let targetAncestors = Set(ancestors(of: element, in: elements).map(\.ref))
-        if ancestors(of: over, in: elements).contains(where: { $0.scrollable == true && !targetAncestors.contains($0.ref) }) {
+        if over.z == nil || element.z == nil,
+           ancestors(of: over, in: elements).contains(where: { $0.scrollable == true && !targetAncestors.contains($0.ref) }) {
             return nil
         }
         let floor = minimumVisibleTapExtent * scale

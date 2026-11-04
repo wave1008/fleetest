@@ -1074,39 +1074,69 @@ extension StepExecutorTests {
 }
 
 extension StepExecutorTests {
-    /// rotateTo: in-app の 501(iPad はアプリから回せない)なら typeDriver で回し、driverFallback を記録する
-    func testRotateTo501FallsBackToTypeDriver() async throws {
+    /// rotateTo: typeDriver(inapp-boost の XCUITest)があるときは in-app を撃たず typeDriver で回す。
+    /// in-app のシーン要求は RN で木が縦のまま ✅ を返した(直しを外して driver.rotate へ戻すと赤)
+    func testRotateToUsesTypeDriverWhenPresent() async throws {
         let log = CallLog()
         let primary = FakeAppDriver(name: "primary", log: log)
-        primary.rotateError = DriverError.badResponse(status: 501, body: "rotate does not work via the in-app bridge on iPad")
         let typeDriver = FakeAppDriver(name: "typedriver", log: log)
+        // 実機では XCUITest で回すと in-app の木の screen も追随する(偽のドライバは互いに知らないので先に横にしておく)
+        primary.screenOrientation = .landscape
         let executor = StepExecutor(driver: primary, typeDriver: typeDriver, isAndroid: false, tunables: RunTunables())
 
         let outcome = await executor.execute(FlowStep(action: "rotateTo", direction: "landscape"))
 
-        guard case .passed = outcome.status else {
-            XCTFail("501 からの切替で passed を期待したが \(outcome.status) だった")
-            return
-        }
-        XCTAssertEqual(outcome.driverFallback, "fell back to XCUITest")
-        XCTAssertEqual(Array(log.entries.filter { $0.contains("rotate") }),
-                       ["primary.rotate(throws)", "typedriver.rotate(landscape)"])
+        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(log.entries.filter { $0.contains("rotate") }, ["typedriver.rotate(landscape)"])
     }
 
-    /// rotateTo: 422(回したが向きが変わらない)は typeDriver へ回さず失敗のまま
+    /// rotateTo: typeDriver の 422(回したが整定しない)は失敗のまま(撃ち直さず・in-app へも回さない)
     func testRotateTo422DoesNotFallBack() async throws {
         let log = CallLog()
         let primary = FakeAppDriver(name: "primary", log: log)
-        primary.rotateError = DriverError.badResponse(status: 422, body: "orientation did not settle to landscape")
         let typeDriver = FakeAppDriver(name: "typedriver", log: log)
+        typeDriver.rotateError = DriverError.badResponse(status: 422, body: "orientation did not settle to landscape")
         let executor = StepExecutor(driver: primary, typeDriver: typeDriver, isAndroid: false, tunables: RunTunables())
 
         let outcome = await executor.execute(FlowStep(action: "rotateTo", direction: "landscape"))
 
-        guard case .failed = outcome.status else {
-            XCTFail("422 は失敗のままを期待したが \(outcome.status) だった")
-            return
-        }
-        XCTAssertEqual(log.entries.filter { $0.contains("rotate") }, ["primary.rotate(throws)"])
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(log.entries.filter { $0.contains("rotate") }, ["typedriver.rotate(throws)"])
+    }
+
+    /// rotateTo: ドライバが回ったと答えても木の screen が旧向きなら、1回だけ撃ち直す。2回目で回れば通る
+    func testRotateToReissuesOnceWhenTreeStaysInOldOrientation() async throws {
+        let log = CallLog()
+        let driver = FakeAppDriver(name: "primary", log: log)
+        driver.rotatesIgnored = 1
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+
+        let outcome = await executor.execute(FlowStep(action: "rotateTo", direction: "landscape"))
+
+        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(driver.rotateCallCount, 2)
+        XCTAssertEqual(driver.screenOrientation, .landscape)
+    }
+
+    /// rotateTo: 撃ち直しても木が旧向きなら失敗にする(撃つのは計2回まで)。✅ で縦のまま走らせない
+    func testRotateToFailsWhenTreeNeverMatchesAfterOneReissue() async throws {
+        let log = CallLog()
+        let driver = FakeAppDriver(name: "primary", log: log)
+        driver.rotatesIgnored = 99
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+
+        let outcome = await executor.execute(FlowStep(action: "rotateTo", direction: "landscape"))
+
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("did not become landscape"), message)
+        XCTAssertEqual(driver.rotateCallCount, 2)
+    }
+
+    func testScreenMatchesOrientation() {
+        XCTAssertTrue(StepExecutor.screenMatches(.landscape, screen: FTRect(x: 0, y: 0, width: 874, height: 402)))
+        XCTAssertFalse(StepExecutor.screenMatches(.landscape, screen: FTRect(x: 0, y: 0, width: 402, height: 874)))
+        XCTAssertTrue(StepExecutor.screenMatches(.portrait, screen: FTRect(x: 0, y: 0, width: 402, height: 874)))
+        XCTAssertFalse(StepExecutor.screenMatches(.portrait, screen: FTRect(x: 0, y: 0, width: 874, height: 402)))
+        XCTAssertTrue(StepExecutor.screenMatches(.landscape, screen: FTRect(x: 0, y: 0, width: 500, height: 500)))
     }
 }

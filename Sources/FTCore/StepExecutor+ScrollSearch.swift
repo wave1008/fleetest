@@ -1046,11 +1046,17 @@ extension StepExecutor {
                 // **触る操作は、容器の外で縁に接しない覆い(ナビゲーションバー)の下に潜った対象を「見つかった」にしない**
                 // (利用者が向きを書いている。そのまま撃つと覆いに当たり、何も起きないまま ok になる。
                 // 送って外れなければ弾切れの失敗で断る = 撃たない。coveredOutsideContainerBeyondOneLift の doc)
-                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)
+                // **送れば外れる側の縁のバー(ナビゲーションバー・ステータスバーの帯・タブバー)の下に中心がある対象も、どの操作でも
+                // 見つかったにしない**(送り続ければ出る。止まると select は空要素・tap は帯を叩く。edgeBarCoveringCentre の doc)
+                let edgeBar = FTSwipeDirection(rawValue: step.direction ?? "").flatMap {
+                    TapTargetGeometry.edgeBarCoveringCentre(element, in: snapshot.elements, screen: snapshot.screen,
+                                                            safeAreaTop: snapshot.safeAreaTop, finger: $0)
+                }
+                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot) || edgeBar != nil
                 if buriedUnderBar {
                     scrollSearchBuriedCover = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
                         element, in: snapshot.elements, screen: snapshot.screen,
-                        inferring: step.containerInference ?? true).map(TapTargetGeometry.describe)
+                        inferring: step.containerInference ?? true).map(TapTargetGeometry.describe) ?? edgeBar
                 }
                 if !buriedUnderBar,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {

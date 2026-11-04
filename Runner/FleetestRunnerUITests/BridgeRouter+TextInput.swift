@@ -104,7 +104,10 @@ extension BridgeRouter {
         // ref 無しで未フォーカスのどちらも踏む)。in-app は同じ状況で 409 を返せるので、
         // ここは 422 で先に失敗させて揃える(409 は requireApp() 専用という不変条件)
         let focusAfter = try Self.requireKeyboardFocus(app)
-        try Self.requireFocusMoved(from: focusBefore, to: focusAfter, tapped: tapped, action: "type")
+        // 伏せ字の欄は控えを持つが「入力欄でない ref」の断りは当たらない(下の待ち付きの門が受け持つ)
+        let maskedRef = req.ref.flatMap { refElements[$0] }.map { TypeReadback.isMaskedInput($0) } ?? false
+        if !maskedRef { try Self.requireFocusMoved(from: focusBefore, to: focusAfter, tapped: tapped, action: "type") }
+        try awaitFocusMovedForMaskedType(app, ref: req.ref, before: focusBefore, after: focusAfter, tapped: tapped)
         // **焦点中の要素を読み返しに乗せる(改行の有無に関わらない)**。「改行が無ければ後続の読みで収束する」は誤り ——
         // 打鍵は遅れて届くだけでなく**失われる**: RN の検索欄で `tap` → `type("banana")` を 240 回撃つと 23 回欠けたまま
         // 200 を返し、返ってから 1.5 秒たっても欠けたままだった(2026-10-22・M1Ultra)。XCUITest はホストも読み返さない
@@ -383,8 +386,33 @@ extension BridgeRouter {
     /// キーボードが出たとき SwiftUI は中身をずらすので、叩いた時点の座標では正しい欄を取り違える。
     /// 入力欄の ref はここを通さない(叩けば焦点が動くので、主経路にライブクエリを足さない)
     private func focusBeforeTappingNonInput(_ app: XCUIApplication, ref: Int?) -> FocusMark? {
-        guard let ref, let target = refElements[ref], !TypeReadback.isTextInput(target) else { return nil }
+        // 入力欄の ref も**伏せ字の欄だけ**は控える: 読み返しに乗らない(`typeAndReadBack` の secure 欄)ので、焦点が別の欄に残ったまま
+        // 打っても別の欄の変化を誰も見ない。控えは追記の type の `awaitFocusMovedForMaskedType` が使う(払うのは伏せ字の欄だけ)
+        guard let ref, let target = refElements[ref],
+              !TypeReadback.isTextInput(target) || TypeReadback.isMaskedInput(target) else { return nil }
         return Self.focusMark(app)
+    }
+
+    /// **伏せ字の欄への追記の type は、タップで焦点が ref の欄へ移ったことを確かめてから打つ**(replace / clear の `awaitClearFocusTarget` と同じ門)。
+    /// 焦点のためのタップが届かず(帯・バーの下の欄)焦点が別の欄に残ると、読み返せない伏せ字の欄では別の欄へ打って 200 になった。
+    /// 焦点が遅れて移る欄(Flutter)のため `FocusWait` の上限まで待つ。撃つ前の断りなので届いていない(撃ち直してよい)。
+    /// タップ前の焦点がすでに ref の欄なら動かないのが正しい(`focusIsRefField`)
+    private func awaitFocusMovedForMaskedType(_ app: XCUIApplication, ref: Int?, before: FocusMark?,
+                                              after: FocusMark, tapped: CGPoint?) throws {
+        guard let ref, let before, let tapped, let target = refElements[ref], TypeReadback.isMaskedInput(target),
+              !focusIsRefField(before, ref: ref) else { return }
+        var current = after
+        let deadline = Date().addingTimeInterval(FocusWait.waitSeconds)
+        while current == before, !current.frame.contains(tapped) {
+            guard Date() < deadline else {
+                throw BridgeError(422, "tapping the ref did not move keyboard focus to it within"
+                    + " \(FocusWait.waitSeconds)s — focus is still on another field, so typing now"
+                    + " would put the text into that field instead")
+            }
+            Thread.sleep(forTimeInterval: FocusWait.pollSeconds)
+            guard let mark = Self.focusMark(app) else { return }
+            current = mark
+        }
     }
 
     private static func requireFocusMoved(from before: FocusMark?, to after: FocusMark,

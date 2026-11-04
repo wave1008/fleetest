@@ -37,10 +37,13 @@ extension StepExecutor {
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
     }
 
-    // Device-level, no locator. Falls back to typeDriver only on "this bridge cannot" (501/404:
-    // the in-app bridge on iPad, where the app cannot rotate its own scene). A 422 (did not
-    // settle) is not retried there. The driver throws (never returns a mismatched orientation)
-    // if it didn't settle, so no post-hoc mismatch check needed.
+    // Device-level, no locator.
+    // **inapp-boost モード(typeDriver あり)は XCUITest の XCUIDevice.orientation で回す**。in-app ブリッジの回転は
+    // シーンへの requestGeometryUpdate で、/rotate は scene.interfaceOrientation の一致しか見ないため、
+    // React Native(react-native-screens)では 200 を返しても木の screen が縦のまま(6台中3台)・次の画面への
+    // push で縦へ戻る(E2EX-RN 6/6)ことがあった。XCUITest 側の回転は端末の向きそのものを変えるので画面遷移でも戻らない
+    // (xcuitest モードでは戻らない実測)。iPad の in-app 501 もここで不要になる。
+    // **回した後は木の screen で向きを確かめる**(`verifyOrientation`)。ドライバの「一致した」は自己申告なので信用しない。
     // 戻すのはシナリオ終端の FTRuntime.restoreOrientationIfNeeded(typeDriver 側も戻す)
     func executeDirectRotateTo(step: FlowStep, phase: inout PhaseAccumulator) async throws -> StepOutcome {
         guard let raw = step.direction, let orientation = FTOrientation(rawValue: raw) else {
@@ -48,22 +51,51 @@ extension StepExecutor {
         }
         let clock = ContinuousClock()
         let start = clock.now
-        var viaXCUITest = false
-        do {
-            _ = try await driver.rotate(to: orientation)
-        } catch {
-            guard DriverError.isBridgeIncapable(error), let td = typeDriver else { throw error }
-            _ = try await td.rotate(to: orientation)
-            viaXCUITest = true
+        let rotator: AppDriver = typeDriver ?? driver
+        _ = try await rotator.rotate(to: orientation)
+        var matched = await verifyOrientation(orientation)
+        if !matched {
+            // 撃ち直してよい: 向きの変更は冪等(同じ向きへの要求を重ねても二重に効かない = 送信・購入のような
+            // 取り返しのつかない副作用が無い)。届いたか分からない操作の自動リトライ禁止の対象ではない
+            _ = try await rotator.rotate(to: orientation)
+            matched = await verifyOrientation(orientation)
         }
         phase.actionMs += Self.ms(clock.now - start)
+        guard matched else {
+            return StepOutcome(status: failed(
+                .assertion,
+                "rotateTo \(orientation.rawValue): the driver reported the orientation but the screen did not become"
+                + " \(orientation.rawValue) (the tree's screen stayed the other way round) after a second request,"
+                + " so the following steps would have run in the wrong orientation"))
+        }
         // **向きが変わっただけでは終わりではない**: ドライバは「向きが要求と一致したか」までしか
         // 見ておらず、その時点でレイアウトはまだ動いている。直後のタップは動く前の座標を撃つ
         // (実測: 回転直後の `#tab_home` が (-6,45) 動いた後の位置に当たらず、
         // 別の要素を押していた)。スクロール後の静止をホスト側が担うのと同じ規律で、
         // 木が2回続けて同じ署名になるまで待つ
         if !skippingSettle(step) { _ = try? await settledSignature(phase: &phase) }
-        return StepOutcome(status: .passed, driverFallback: viaXCUITest ? "fell back to XCUITest" : nil)
+        return StepOutcome(status: .passed)
+    }
+
+    /// 木の screen が要求の向きになるまで待つ。上限と刻みは `RotationSettle`(ブリッジの待ちと同じ予算を使い、新しい数字を置かない)。
+    /// 撮れない・screen が正方形/空のときは判定できないので一致扱い(読めないことを失敗にしない)
+    func verifyOrientation(_ orientation: FTOrientation) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(RotationSettle.deadlineSeconds)
+        while true {
+            if let snapshot = try? await freshSnapshot(.afterOwnMove) {
+                if Self.screenMatches(orientation, screen: snapshot.screen) { return true }
+            } else {
+                return true
+            }
+            if clock.now >= deadline { return false }
+            try? await Task.sleep(for: .seconds(RotationSettle.pollIntervalSeconds))
+        }
+    }
+
+    static func screenMatches(_ orientation: FTOrientation, screen: FTRect) -> Bool {
+        guard screen.width > 0, screen.height > 0, screen.width != screen.height else { return true }
+        return (screen.width > screen.height) == (orientation == .landscape)
     }
 
     // スクロールだけ行う(Shirates の scrollDown 等)。maxSwipes を繰り返し回数として使う

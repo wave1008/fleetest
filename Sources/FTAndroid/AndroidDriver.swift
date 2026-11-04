@@ -46,6 +46,9 @@ public final class AndroidDriver: AppDriver {
     /// 直近の木の前面パッケージ(`sessionBundleID ?? currentPackage`。帳簿が nil の MCP でも撃てるように)
     private var lastTreeForegroundPackage: String?
     private var warnedMultipleWebViews = false
+    /// 最後の tap の後に、この driver 経由で type が通ったか(tap で偽・type 成功で真)。ref 無しの type が「フォーカス不在」で落ちたとき、
+    /// 「叩いた容器の話」でなく「焦点を持っていた欄が木から消えた話」と言い分ける材料(`typeNoFocusAdvice`)
+    private var typedSinceLastTap = false
 
     /// raiseElementLimitOnNextSnapshot() が立てる1回限りの要素上限(nil = 既定)
     private var pendingElementLimit: Int?
@@ -875,6 +878,7 @@ public final class AndroidDriver: AppDriver {
     }
 
     public func tap(x: Double, y: Double) async throws {
+        typedSinceLastTap = false
         try await withBridge { try await $0.tap(x: x, y: y) }
     }
 
@@ -1002,6 +1006,7 @@ public final class AndroidDriver: AppDriver {
         do {
             guard hasTrailingNewline else {
                 try await withoutStepExpectation { try await withBridge { try await $0.type(ref: target, text: text) } }
+                typedSinceLastTap = true
                 return
             }
             // 本文が空でも ref があれば SET_TEXT を通し、対象ノードへのフォーカス確立を維持する
@@ -1013,7 +1018,8 @@ public final class AndroidDriver: AppDriver {
             let front = noInputFocusFront(after: error)
             let lastTree = currentPackage ?? lastTreeForegroundPackage
             throw Self.typeNoFocusAdvice(after: error, hadRef: ref != nil, front: front, lastTreePackage: lastTree,
-                                         keyboardShown: ref == nil && noInputFocusKeyboardShown(after: error))
+                                         keyboardShown: ref == nil && noInputFocusKeyboardShown(after: error),
+                                         fieldTypedSinceLastTap: typedSinceLastTap)
                 ?? Self.noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTree) ?? error
         }
         do {
@@ -1057,7 +1063,8 @@ public final class AndroidDriver: AppDriver {
     /// `keyboardShown` = 落ちた直後にソフトキーボードが出ている(横向きの CMP は欄を叩くとキーボードが欄を押し出して
     /// 木から消し、ブリッジが焦点の欄を掴めない。容器の話ではない)
     static func typeNoFocusAdvice(after error: DriverError, hadRef: Bool, front: String? = nil,
-                                  lastTreePackage: String? = nil, keyboardShown: Bool = false) -> DriverError? {
+                                  lastTreePackage: String? = nil, keyboardShown: Bool = false,
+                                  fieldTypedSinceLastTap: Bool = false) -> DriverError? {
         guard !hadRef, case .badResponse(let status, let body) = error,
               body.contains(noInputFocusMarker) else { return nil }
         if let advice = noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTreePackage) { return advice }
@@ -1066,6 +1073,14 @@ public final class AndroidDriver: AppDriver {
                 + " — the soft keyboard is showing, so the field you tapped may be pushed out of the accessibility tree"
                 + " (typical in landscape or in a short window), which hides the focused field from the bridge."
                 + " Close the keyboard (hideKeyboard) and type again, or type by selector: type(<selector>, \"…\")")
+        }
+        // 最後の tap の後に type が通っている = 叩いた容器の話ではなく、焦点を持っていた欄が画面の外へ送られて木から消えた
+        // (Flutter は画面外の欄を木から外し、焦点も消える)
+        if fieldTypedSinceLastTap {
+            return DriverError.badResponse(status: status, body: body
+                + " — the field that had input focus was typed into earlier and has since left the accessibility tree (scrolled out of"
+                + " the list or pushed off the screen), so no field has focus now. Write type(<selector>, \"…\") to focus and type"
+                + " into a field by selector (scroll to it first if it is off the screen)")
         }
         return DriverError.badResponse(status: status, body: body
             + " — nothing was tapped into focus. On Android an input is often a container"

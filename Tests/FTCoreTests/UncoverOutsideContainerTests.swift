@@ -23,6 +23,15 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertNil(TapTargetGeometry.primaryScrollContainer(in: [lane], screen: screen))
     }
 
+    /// 横向きの縦の一覧(実測 RN の iOS の隠れるバー: 一覧 874x272・画面 874x402)も主たる容器。細い横の帯は外れたまま
+    func testPrimaryContainerIncludesAWideVerticalListInLandscape() {
+        let landscape = FTRect(x: 0, y: 0, width: 874, height: 402)
+        let list = el(5, "other", FTRect(x: 0, y: 130, width: 874, height: 272), scrollable: true)
+        let lane = el(6, "other", FTRect(x: 0, y: 130, width: 874, height: 48), scrollable: true)
+        XCTAssertEqual(TapTargetGeometry.primaryScrollContainer(in: [list, lane], screen: landscape)?.ref, 5)
+        XCTAssertNil(TapTargetGeometry.primaryScrollContainer(in: [lane], screen: landscape))
+    }
+
     func testNamedCoverAboveContainerPullsContentDown() {
         let target = el(1, "button", id: "btn_top_action", label: "並べ替え",
                         FTRect(x: 333, y: 100, width: 56, height: 20))
@@ -124,6 +133,17 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertTrue(primary.coordinateTaps.isEmpty)
     }
 
+    /// `scroll:` を持たない操作(doubleTap)には、書けない `Add scroll:` を案内せず先に送る手を案内する
+    func testDoubleTapRefusalSuggestsScrollingFirstInsteadOfAnArgument() async {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [collapsedHeaderTree()])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "doubleTap", locator: FlowLocator(id: "btn_follow")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
+        XCTAssertFalse(message.contains("Add scroll:"), message)
+        XCTAssertTrue(message.contains("scrollUp()") && message.contains("nothing was touched"), message)
+    }
+
     /// 隠れるバー(RN の iOS・in-app で撮った枠): 対象はバー自身を容器と推定されるが、その容器は一覧と交わらない =
     /// 外の対象。中心がナビゲーションバーの下で撃つと何も起きないまま ok だった(hide= が変わらない)
     func testTargetInsideAHiddenBarOutsideTheListIsReported() {
@@ -149,6 +169,51 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertNotNil(ContainerGeometry.clippingContainer(of: straddle, in: withStraddle, inferring: true), "前提: 容器が推定される")
         XCTAssertNotNil(TapTargetGeometry.overlayCoveringForUncover(straddle, in: withStraddle, screen: screen), "前提: 帯が中心を覆う")
         XCTAssertNil(TapTargetGeometry.coveredOutsideContainerBeyondOneLift(straddle, in: withStraddle, screen: screen, inferring: true))
+    }
+
+    // MARK: 横向きの隠れるバー(E2EY-RN の iOS・横向きで撮った枠。10周目の探索 iultra F6)
+
+    /// 偽のドライバの横向きの画面(800x400)に合わせて幅だけ詰めた
+    private func landscapeHiddenBarTree() -> [ElementInfo] {
+        var list = el(5, "other", FTRect(x: 0, y: 130, width: 800, height: 272), scrollable: true); list.depth = 2
+        var row = el(8, "button", id: "row_h_34", label: "行 H34", FTRect(x: 8, y: 105, width: 784, height: 48)); row.depth = 3
+        var row2 = el(9, "button", id: "row_h_35", label: "行 H35", FTRect(x: 8, y: 157, width: 784, height: 48)); row2.depth = 3
+        var bar = el(14, "other", id: "bar_top_hiding", FTRect(x: 0, y: 46, width: 800, height: 56)); bar.depth = 2
+        var title = el(15, "staticText", label: "受信トレイ", FTRect(x: 12, y: 63, width: 84, height: 21)); title.depth = 3
+        var action = el(17, "button", id: "btn_top_action", label: "並べ替え", FTRect(x: 700, y: 52, width: 88, height: 44)); action.depth = 3
+        var nav = el(18, "navigationBar", id: "スクロールで隠れるバー", FTRect(x: 0, y: 24, width: 800, height: 54)); nav.depth = 2
+        return [list, row, row2, bar, title, action, nav]
+    }
+
+    /// 横向きの tap も撃たずに断る(縦向きと同じ)。横長の一覧が主たる容器に入らず、断りを素通りして何も押さずに ok だった
+    func testLandscapeTapUnderTheBarIsRefused() async {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [landscapeHiddenBarTree()])
+        primary.screenOrientation = .landscape
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_top_action")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status) / \(outcome.driverFallback ?? "") / \(log.entries)") }
+        XCTAssertTrue(message.contains("Add scroll: .up"), message)
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
+    }
+
+    // MARK: 送れば外れる側の縁のバーの下(10周目の探索 im4 F1・F2)
+
+    func testEdgeBarCoveringCentreLooksAtTheBarTheSearchMovesAwayFrom() {
+        var nav = el(1, "navigationBar", id: "nav", FTRect(x: 0, y: 0, width: 402, height: 116)); nav.depth = 1
+        var back = el(2, "button", id: "BackButton", FTRect(x: 16, y: 62, width: 44, height: 44)); back.depth = 2
+        var field = el(3, "textField", id: "field_password", FTRect(x: 16, y: 80, width: 370, height: 33)); field.depth = 1
+        nav.ref = 4; field.ref = 3   // 塗り順: バーが後 = 手前
+        let els = [field, nav, back]
+        XCTAssertNotNil(TapTargetGeometry.edgeBarCoveringCentre(field, in: els, screen: screen, safeAreaTop: .unknown, finger: .down),
+                        "上を見に行く探索(指が下)はナビゲーションバーの下を見つかったにしない")
+        XCTAssertNil(TapTargetGeometry.edgeBarCoveringCentre(field, in: els, screen: screen, safeAreaTop: .unknown, finger: .up),
+                     "下を見に行く探索では上のバーは外れない側")
+        XCTAssertNil(TapTargetGeometry.edgeBarCoveringCentre(back, in: els, screen: screen, safeAreaTop: .unknown, finger: .down),
+                     "バー自身の子孫は対象外")
+        var inBand = el(5, "textField", id: "field_band", FTRect(x: 16, y: 6, width: 370, height: 33)); inBand.depth = 1
+        XCTAssertEqual(TapTargetGeometry.edgeBarCoveringCentre(inBand, in: [inBand], screen: screen, safeAreaTop: .measured(62),
+                                                               finger: .down), "the top safe-area band")
     }
 
     /// 探索の「見つかった」ゲートがこの判定を通っていること(外すと覆いの下のまま撃って緑になる)

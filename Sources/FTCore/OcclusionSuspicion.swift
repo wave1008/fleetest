@@ -75,7 +75,11 @@ public enum OcclusionSuspicion {
         // 重なりが複数あるとき中間層(暗幕など)を名指しして、実際に見えている最前面を素通しする。
         // 塗り順が採れるなら最前面は計算できるので、そちらを答えにする
         var frontmost: ElementInfo?
+        // 自分の祖先・子孫と、id を載せた包みと同じ枠の唯一の入力欄(Flutter の非マージ Semantics)は覆いではない
+        let own = TapTargetGeometry.lineage(of: element, in: elements)
+        let enclosedInput = TypeReadback.isTextInput(element) ? nil : TypeReadback.sameFrameInput(of: element, in: elements)
         for other in elements where other.ref != element.ref {
+            if own.contains(other.ref) || other.ref == enclosedInput?.ref { continue }
             guard PaintOrder.drawnAbove(other, element) else { continue }
             guard intersectionArea(t, other.frame) / area >= overlapFraction else { continue }
             // Compose-iOS の frame クランプで画面外行が画面端の同一座標へ潰れて生じる ghost スタックは

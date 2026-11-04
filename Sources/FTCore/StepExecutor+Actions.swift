@@ -80,7 +80,9 @@ extension StepExecutor {
         // 直前が tap、または直前の type / clearInput がこの欄を叩いて焦点を立てた形(Flutter の iOS 横向き: 欄は焦点を取るとキーボードの下へ潜る)
         tapTargetBeforeThisStep = lastTapTarget ?? lastFieldTouchTarget
         if !grabsOnly { lastFieldTouchTarget = nil }
-        if !grabsOnly, action != "type" || step.locator != nil {
+        // **hideKeyboard は「直前に叩いた欄」を変えない**(キーボードを閉じても次の ref 無し type の入れ先は同じ。捨てると救済・断りが
+        // 効かず、前に焦点のあった別の欄へ打って緑になった)。焦点を動かす操作(tap・pressEnter・back 等)だけが捨てる
+        if !grabsOnly, action != "hideKeyboard", (action != "type" && action != "clearInput") || step.locator != nil {
             lastTapTarget = nil
             tapTreeForRescue = nil
         }
@@ -338,6 +340,14 @@ extension StepExecutor {
             ghostSwipes += 1
             _ = try await settledSignature(phase: &phase)
         }
+        // 救済の送りを撃った後は、送りの元にした要素と同じ要素を引き直す(セレクタのまま引き直すと、序数・ワイルドカードは
+        // 送りで入れ替わった木の先頭 = 別の行を返す。SameTargetResolution)。まだ一度も送っていない間はセレクタで引く
+        var rescuedFrom: (element: ElementInfo, elements: [ElementInfo])?
+        func reresolve(in snapshot: SnapshotResponse) -> (ElementInfo, FlowLocator?)? {
+            guard let rescuedFrom else { return LocatorResolver.resolve(step: step, in: snapshot) }
+            return SameTargetResolution.resolve(step: step, original: rescuedFrom.element,
+                                                originalElements: rescuedFrom.elements, in: snapshot)
+        }
         if resolved == nil || grabbedGhost(resolved) {
             if let timeout = step.timeout {
                 // timeout == 0: リトライなし(初回スナップショットのみ。ifCanSelect/select の空振り短縮用)
@@ -359,6 +369,7 @@ extension StepExecutor {
                            grabbedGhost(resolved),
                            let element = resolved?.0 {
                             try await sendGhostRescue(element, phase: &phase)
+                            rescuedFrom = (element, snapshot.elements)
                         }
                         attempt += 1
                         start = clock.now
@@ -371,7 +382,7 @@ extension StepExecutor {
                         // 後の「安全に目的地に到達するために」が、次の手の経路カードを探す間に出て、閉じないまま時間切れ
                         try await dismissInterruption(in: &snapshot, phase: &phase)
                         let previous = resolved
-                        resolved = LocatorResolver.resolve(step: step, in: snapshot)
+                        resolved = reresolve(in: snapshot)
                         if previous != nil { ghostRetries += 1 }
                         if stillUnmovedGhost() { ghostDidNotMove = true }
                     }
@@ -392,13 +403,14 @@ extension StepExecutor {
                     // 「内側に居るとき」しか使われない)
                     if attempt > 0, !grabsOnly, grabbedGhost(resolved), let element = resolved?.0 {
                         try await sendGhostRescue(element, phase: &phase)
+                        rescuedFrom = (element, snapshot.elements)
                     }
                     start = clock.now
                     snapshot = try await freshSnapshot(.repoll(afterSearchSwiped: searchSwiped))
                     phase.snapshotMs += Self.ms(clock.now - start)
                     try await dismissInterruption(in: &snapshot, phase: &phase)  // 上の timeout 付きの再試行と同じ
                     let previous = resolved
-                    resolved = LocatorResolver.resolve(step: step, in: snapshot)
+                    resolved = reresolve(in: snapshot)
                     if previous != nil { ghostRetries += 1 }
                     if resolved != nil, !grabbedGhost(resolved) { break }
                     if stillUnmovedGhost() { ghostDidNotMove = true; break }
@@ -1013,6 +1025,11 @@ extension StepExecutor {
             // **操作可能な帯(タブ列・バー)に中心を覆われたままの対象**(送っても外れなかった・キーボードを閉じた後に覆われた)は、
             // 覆われていない見えている部分を押す。床に届かなければ撃たない(中心を撃つとタブへ遷移していた)
             var coverVisiblePartTap: FTRect?
+            // 容器の外で1回の送りでは外せない覆いの下に潜った対象は、撃つ点を決める前に断る(下の見えている部分の分岐を通る形でも)
+            if keyboardVisiblePartTap == nil,
+               let message = buriedOutsideContainerRefusal(element, in: snapshot, step: step) {
+                return StepOutcome(status: failedWithoutKind(message))
+            }
             // 中心が容器の外に落ちる要素は、下の「容器の中の見えている部分」(visibleTapRect)が先(撃つ点はそちらが決める)
             if keyboardVisiblePartTap == nil,
                Self.visibleTapRect(for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
