@@ -50,6 +50,26 @@ public enum HitTestAnswer: Sendable, Equatable {
     }
 }
 
+/// `AppDriver.hitTest(query:)` の問い。ref の名前空間が違うブリッジ(inapp-boost モードの in-app の木)でも
+/// 聞けるよう、要素の素性(identifier・label・type)と枠で引き当てる
+public struct HitTestQuery: Sendable, Equatable {
+    public let identifier: String?
+    public let label: String?
+    public let type: String
+    public let frame: FTRect
+
+    public init(identifier: String?, label: String?, type: String, frame: FTRect) {
+        self.identifier = identifier
+        self.label = label
+        self.type = type
+        self.frame = frame
+    }
+
+    public init(_ element: ElementInfo) {
+        self.init(identifier: element.identifier, label: element.label, type: element.type, frame: element.frame)
+    }
+}
+
 public protocol AppDriver {
     func status() async throws -> StatusResponse
     /// パッケージファイル(iOS: .app バンドル / Android: .apk / .apks)からアプリをインストールする。
@@ -97,6 +117,9 @@ public protocol AppDriver {
     /// **全要素に付けてはいけない**(実測 121 要素で 5.1 秒 = snapshot の 50 倍)。
     /// 呼び手が疑ったときだけ1件聞く。**プロトコル要件として宣言すること**(理由は上と同じ)
     func hitTest(ref: Int) async throws -> HitTestAnswer
+    /// `hitTest(ref:)` の素性+枠版。ref を持たない呼び手(DSL は inapp-boost モードで in-app の番号しか持たない)用。
+    /// 答えられない・失敗は全部 `.unavailable`(throw しない)。**プロトコル要件として宣言すること**(理由は上と同じ)
+    func hitTest(query: HitTestQuery) async -> HitTestAnswer
     func tap(ref: Int) async throws
     func tap(x: Double, y: Double) async throws
     func type(ref: Int?, text: String) async throws
@@ -613,6 +636,7 @@ public extension AppDriver {
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }
+    func hitTest(query: HitTestQuery) async -> HitTestAnswer { .unavailable }
     var lastLaunchTiming: LaunchTiming? { nil }
 
     /// 既定は用途を落として通常 swipe に委譲する(ラッパードライバはこれで素通しになる)。

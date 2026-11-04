@@ -1,0 +1,85 @@
+{
+  "id": "oi170-cmp-sheet-ios",
+  "finding": "OI-170: 塗り順の無い iOS の木(CMP)で、半分のシートの裏の本文の行(#row_main_07)への tap が、シートのキューの行を押して ok になる。isHittable が false なら撃たずに断る",
+  "platform": "ios",
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey"
+      }
+    ]
+  ],
+  "resetSeconds": 1.5,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "DSL 形(ft_batch): シートを半分にして裏の行を tap",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#nav_player'; tap '#txt_mini_title'; wait 1; tap '#row_main_07' waitSeconds: 3"
+          }
+        ]
+      ],
+      "settleSeconds": 1,
+      "allowErrors": true,
+      "expect": [
+        "player=none"
+      ],
+      "reject": [
+        "player=queue:"
+      ]
+    },
+    {
+      "name": "MCP 形: シートを半分にして裏の行を ref で ft_tap",
+      "steps": [
+        [
+          "ft_tap",
+          {
+            "selector": "#nav_player"
+          }
+        ],
+        [
+          "ft_tap",
+          {
+            "selector": "#txt_mini_title"
+          }
+        ],
+        [
+          "$wait",
+          {
+            "seconds": 1.5
+          }
+        ],
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:row_main_07"
+          }
+        ]
+      ],
+      "settleSeconds": 1,
+      "allowErrors": true,
+      "expect": [
+        "player=none"
+      ],
+      "reject": [
+        "player=queue:"
+      ]
+    }
+  ]
+}

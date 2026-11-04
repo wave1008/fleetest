@@ -97,6 +97,10 @@ private final class RecordingDriver: AppDriver, @unchecked Sendable {
     func back() async throws { try record("back") }
     func screenshot() async throws -> Data { Data() }
     func terminate() async throws {}
+    func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        log.entries.append("\(name).hitTest(query)")
+        return .hittable(false)
+    }
 }
 
 /// **attach は必ず XCUITest 側へ**。向け直す先の「セッション」を持つのは XCUITest だけで、
@@ -158,6 +162,36 @@ final class HybridAttachRoutingTests: XCTestCase {
         log.entries.removeAll()
         _ = try await driver.snapshot()
         XCTAssertEqual(log.entries, ["foreign.snapshot"], "\(log.entries)")
+    }
+}
+
+/// **素性と枠で聞く照会は XCUITest 側へ**(in-app は /hittable を持たない = 回さないと既定の `.unavailable` で検知が死ぬ)。
+/// 別アプリへ委譲中はその木の持ち主へ
+final class HybridHitTestQueryRoutingTests: XCTestCase {
+    private let query = HitTestQuery(identifier: "row", label: nil, type: "button",
+                                     frame: FTRect(x: 0, y: 0, width: 10, height: 10))
+
+    func testQueryGoesToXCUITestNotInApp() async {
+        let log = RecordingDriver.Log()
+        let driver = HybridFallbackDriver(primary: RecordingDriver(name: "inapp", log: log),
+                                          fallback: RecordingDriver(name: "xcui", log: log),
+                                          primaryBundleID: "com.example.app",
+                                          foreignApp: RecordingDriver(name: "foreign", log: log))
+        let answer = await driver.hitTest(query: query)
+        XCTAssertEqual(answer, .hittable(false))
+        XCTAssertEqual(log.entries, ["xcui.hitTest(query)"])
+    }
+
+    func testQueryGoesToTheForeignSessionWhileDelegating() async throws {
+        let log = RecordingDriver.Log()
+        let driver = HybridFallbackDriver(primary: RecordingDriver(name: "inapp", log: log),
+                                          fallback: RecordingDriver(name: "xcui", log: log),
+                                          primaryBundleID: "com.example.app",
+                                          foreignApp: RecordingDriver(name: "foreign", log: log))
+        try await driver.launch(bundleID: "com.apple.Maps")
+        log.entries.removeAll()
+        _ = await driver.hitTest(query: query)
+        XCTAssertEqual(log.entries, ["foreign.hitTest(query)"])
     }
 }
 

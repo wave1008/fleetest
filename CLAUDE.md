@@ -133,6 +133,9 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `VERSION_CODE`。`BridgeContractTests` が落ちたらそこで上げる)・XCUITest を触ったら `--ios-xcuitest`
   (bridge-provision.md)
 - 実行時設定を足す → `ScenarioExecutionSettings` の1箇所(executor.md)
+- inapp-boost モードで XCUITest ブリッジへ回す問い合わせを足す → `AppAttachDriver` でランナーのセッションを確かめてから撃つ・
+  「答えられない」に畳む経路は畳んだ事実を注記に残す・**inapp-boost のデバイス実行で1回通して効いたことを文言で確かめる**
+  (偽ドライバの単体テストは通らない。bridge-provision.md)
 - DSL コマンドを足す・改名する → 索引 `CommandIndex`(`CommandIndexSyncTests`)・docs/commands.md と
   user-docs の両方(`CommandDocsCoverageTests`)・docs/shirates-parity.md・`ft_batch` のキー・引数名は `waitSeconds:` 等の規律(dsl-commands.md)
 - 受け手のフロー(install.sh・スキル)を変える → SKILL.md のステップ番号と 1:1(`installStepSync.test.mjs`)・

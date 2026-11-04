@@ -138,6 +138,11 @@ public final class FastLaunchDriver: AppDriver {
         try await base.hitTest(ref: ref)
     }
 
+    /// **転送必須**(同上)
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        await base.hitTest(query: query)
+    }
+
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         try await base.snapshot(bypassingCache: bypassingCache)
     }

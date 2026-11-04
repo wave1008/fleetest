@@ -73,6 +73,12 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (`InAppLauncher` の dylib 再ビルド判定と、XCUITest ランナーの作り直し判定 `BridgeLauncher.newestRunnerSourceTimestamp`
   も同じ一覧を使う。片方だけ変えない。ランナーが取り込む共有 FTCore ファイルは `Runner/FleetestRunner.xcodeproj/project.xcproj` と
   この一覧の等号を `BridgeLauncherRebuildTests` が固定する)
+- **inapp-boost モードの XCUITest ブリッジにはアプリのセッションが無いのが普通**(アプリは in-app 側で起こす)。そこへ回す
+  問い合わせ・操作は `AppAttachDriver` の中でセッションを自分のアプリへ揃えてから撃つ(操作は `ensureAttached`、画面を動かせない
+  照会は attachOnly = `hitTest(query:)`)。揃えずに撃つと「no session」になり、`.unavailable` / nil に畳む経路では**黙って
+  一度も効かない**(2026-11-05: 別の層の覆いの照会が E2EY の全アプリで一度も答えず、単体テストは偽ドライバで緑のままだった)。
+  固定は `AppAttachDriverAttachTests`(本物の HTTP スタブで「張ってから聞く」の順)。**畳む経路を足すなら、畳んだ事実を注記に残す**
+  (緑の run から効いていないことが見えるように)。**完了の判定は inapp-boost のデバイス実行で、その経路の文言が出たことを読んでから**
 - **「応答しない」を busy と死で分けるのは所要時間**(`BridgeDiscovery.probeStatus` の4値)。
   健全 = HTTP 応答が返る(**ステータスコードで判定しない** —— 実機はトークン不一致の 401 を返す)/
   **固まった転送**(ブリッジが消えて iproxy だけ残る)= connect は通るのに応答無しで即切れる /

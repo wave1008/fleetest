@@ -68,6 +68,18 @@ public final class AppAttachDriver: AppDriver {
         try await client.hitTest(ref: ref)
     }
 
+    /// **転送必須**(同上)。ランナーのセッションが自分のアプリを指していなければ、先に attach(attachOnly = 起動も
+    /// 前面化もしない)してから聞く —— inapp-boost モードはアプリを in-app 側で起こすのでランナーにセッションが無く、
+    /// そのまま聞くと「no session」で全部「答えられない」に落ちていた(デバイスで実測。偽ドライバの単体テストでは通らない)。
+    /// activate(`ensureAttached`)は使わない = 照会のために画面を動かさない
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        let session = (try? await client.status(timeout: BridgeLauncher.quickProbeTimeoutSeconds))?.sessionBundleID
+        if session != bundleID {
+            guard (try? await client.attach(bundleID: bundleID)) != nil else { return .unavailable }
+        }
+        return await client.hitTest(query: query)
+    }
+
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         try await client.activate(bundleID: bundleID)
         attached = true

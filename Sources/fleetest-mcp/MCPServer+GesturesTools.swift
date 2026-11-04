@@ -443,7 +443,12 @@ extension MCPServer {
             var bandPoint: (x: Double, y: Double)?
             switch Self.coveredRefTouch(element, in: lastSnapshots[Self.sessionKey(args)], scale: doubleTapDriver.pointScale,
                                         ref: ref, operation: "double tap") {
-            case .none: bandPoint = await bottomBandPoint(frame: element.frame, driver: doubleTapDriver, args: args)
+            case .none:
+                if let message = await otherLayerRefTouchRefusal(element, in: lastSnapshots[Self.sessionKey(args)], ref: ref,
+                                                                 operation: "double tap", driver: doubleTapDriver, args: args) {
+                    throw MCPError(message)
+                }
+                bandPoint = await bottomBandPoint(frame: element.frame, driver: doubleTapDriver, args: args)
             case .refuse(let message): throw MCPError(message)
             case .part(let rect, let note):
                 let touch = await coveredPartTouch(rect, note: note, driver: doubleTapDriver, args: args)
@@ -497,7 +502,12 @@ extension MCPServer {
             var dragCoverNote = ""
             switch Self.coveredRefTouch(element, in: lastSnapshots[Self.sessionKey(args)], scale: dragDriver.pointScale,
                                         ref: ref, operation: "drag") {
-            case .none: fromPoint = (element.frame.centerX, element.frame.centerY)
+            case .none:
+                if let message = await otherLayerRefTouchRefusal(element, in: lastSnapshots[Self.sessionKey(args)], ref: ref,
+                                                                 operation: "drag", driver: dragDriver, args: args) {
+                    throw MCPError(message)
+                }
+                fromPoint = (element.frame.centerX, element.frame.centerY)
             case .refuse(let message): throw MCPError(message)
             case .part(let rect, let note):
                 fromPoint = (rect.centerX, rect.centerY)
@@ -768,7 +778,10 @@ extension MCPServer {
             if let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == pressTarget.ref }) {
                 switch Self.coveredRefTouch(element, in: tree, scale: pressDriver.pointScale, ref: ref, operation: "long press") {
-                case .none: bandPoint = await bottomBandPoint(frame: element.frame, driver: pressDriver, args: args)
+                case .none:
+                    if let message = await otherLayerRefTouchRefusal(element, in: tree, ref: ref, operation: "long press",
+                                                                     driver: pressDriver, args: args) { throw MCPError(message) }
+                    bandPoint = await bottomBandPoint(frame: element.frame, driver: pressDriver, args: args)
                 case .refuse(let message): throw MCPError(message)
                 case .part(let rect, let note):
                     let touch = await coveredPartTouch(rect, note: note, driver: pressDriver, args: args)

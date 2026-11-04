@@ -486,6 +486,13 @@ tap・長押し・`doubleTap`・ドラッグの始点は撃たずに失敗し、
 single scroll of the list does not clear (nothing was touched)`。撃つと覆いの中身に当たり、何も起きないまま緑になっていた。
 判定は `TapTargetGeometry.coveredOutsideContainerBeyondOneLift`)。
 
+**塗り順の無い iOS の木(SwiftUI・Compose・Flutter)で、別の層に覆われた要素**(半分のシートの裏の行・隠れたバーのボタン)は、木からは手前が分かりません。
+そこで**撃つ点に、対象とは別のスクロール容器の押せる要素が重なっているときだけ**(`TapTargetGeometry.otherLayerCoverSuspect`)、XCUITest の
+`isHittable` を1回聞き(inapp-boost モードでも XCUITest ブリッジへ `GET /hittable` を identifier・label・枠で送る)、**`false` と答えたときだけ撃たずに失敗**にします
+(文言 `did not touch …: the platform reports it cannot be hit at its position — … is drawn over it (nothing was touched)`。tap・長押し・`doubleTap`・ドラッグの始点・MCP の ref 経路)。
+`true`・引き当て不能・答えが無い(Android・旧ブリッジ)ときは従来どおりです。**覆われていない見えている部分を押す判定が先**で、
+照会はそれが何も言わなかったときだけ撃ちます(中心だけ帯に覆われた対象は、中心で聞くと `false` になるので先に聞くと押せる行を断る)。**`true` は誤ることがある**(SwiftUI の半分のシートの裏の行・CMP の縮んだヘッダの裏のボタン)ので「押せる」の根拠にしません。
+
 ### 画面を覆うモーダル(別ウィンドウ)の扱い
 
 アプリ内メッセージの SDK は、**アプリ本体とは別の `UIWindow`** にカードやバナーを載せることが

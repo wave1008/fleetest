@@ -262,6 +262,14 @@ public final class HybridFallbackDriver: AppDriver {
         try await active.hitTest(ref: ref)
     }
 
+    /// **primary(in-app)へは回さない**: in-app ブリッジは /hittable を持たない(木の ref も in-app の番号で
+    /// XCUITest には通じない)ので、素性と枠で聞く本口は XCUITest 側にだけある。
+    /// 別アプリへ委譲中はその木の持ち主(foreignApp)、それ以外は対象アプリに attach した fallback
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        if delegatedApp, let foreignApp { return await foreignApp.hitTest(query: query) }
+        return await fallback.hitTest(query: query)
+    }
+
     /// **home()/openAppSwitcher() の直後(delegatedApp ではない背面化)だけ特別扱い**する。
     /// それ以外(通常時・foreignApp への明示委譲中)は通常どおり `active` を読む
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {

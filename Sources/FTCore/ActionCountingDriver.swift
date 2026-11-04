@@ -114,6 +114,7 @@ public final class ActionCountingDriver: AppDriver {
         try await base.snapshot(bypassingCache: bypassingCache)
     }
     public func hitTest(ref: Int) async throws -> HitTestAnswer { try await base.hitTest(ref: ref) }
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer { await base.hitTest(query: query) }
     public func clearAppData(bundleID: String) async throws { try await base.clearAppData(bundleID: bundleID) }
     public func addMedia(path: String) async throws { try await base.addMedia(path: path) }
     public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {

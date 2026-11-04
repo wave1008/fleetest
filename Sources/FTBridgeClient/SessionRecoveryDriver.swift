@@ -181,6 +181,11 @@ public final class SessionRecoveryDriver: AppDriver {
         try await withRecovery { try await self.base.hitTest(ref: ref) }
     }
 
+    /// **転送必須**(同上)。照会の失敗は `.unavailable` で返るので回復(withRecovery)は掛けない
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        await base.hitTest(query: query)
+    }
+
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         normalizedWrapperScroll(try await withAccessibilityRetry {
             try await self.withRecovery { try await self.base.snapshot(bypassingCache: bypassingCache) }

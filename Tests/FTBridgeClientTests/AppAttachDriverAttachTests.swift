@@ -123,6 +123,41 @@ final class AppAttachDriverAttachTests: XCTestCase {
                        "swipe の前に attach すること: \(stub.paths)")
     }
 
+    /// **素性と枠の照会(`hitTest(query:)`)も、ランナーのセッションが自分のアプリを指していなければ先に張る**。
+    /// inapp-boost モードはアプリを in-app 側で起こすのでランナーにセッションが無く、張らずに聞くと「no session」が
+    /// 「答えられない」に畳まれ、照会で断る判定が黙って一度も効かなかった(デバイスで実測。偽ドライバのテストは緑のままだった)。
+    /// 張るのは attachOnly(起動も前面化もしない)= activate を撃たない
+    func testHitTestQueryAttachesWhenTheRunnerHasNoSessionForTheApp() async throws {
+        // /status は ready 等が無く解けない = セッション不明 → 張る。/hittable は false を返す
+        let stub = try RecordingStubServer(body: #"{"ok":true,"hittable":false}"#)
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                     bundleID: "com.example.target", physicalUDID: nil)
+
+        let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
+                                                              frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
+
+        XCTAssertEqual(answer, .hittable(false))
+        let methods = stub.paths.map { $0.components(separatedBy: "?")[0] }
+        XCTAssertEqual(methods, ["GET /status", "POST /session", "GET /hittable"], "照会の前に張ること: \(stub.paths)")
+        XCTAssertTrue(stub.body(for: "POST /session")?.contains("\"attachOnly\":true") == true,
+                      "activate でなく attachOnly で張ること: \(stub.body(for: "POST /session") ?? "-")")
+    }
+
+    /// セッションが既に自分のアプリなら張らない(張ると直前の snapshot の ref の表が消える)
+    func testHitTestQueryDoesNotReattachWhenTheSessionIsAlreadyTheApp() async throws {
+        let stub = try RecordingStubServer(body: #"{"ready":true,"device":"d","osVersion":"27.2","sessionBundleID":"com.example.target","ok":true,"hittable":true}"#)
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                     bundleID: "com.example.target", physicalUDID: nil)
+
+        let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
+                                                              frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
+
+        XCTAssertEqual(answer, .hittable(true))
+        XCTAssertFalse(stub.paths.contains("POST /session"), "張り直さないこと: \(stub.paths)")
+    }
+
     /// attach は 1 インスタンスにつき 1 回だけ(activate は refFrames をクリアするので、
     /// 毎回打つと直前 snapshot の ref が無効になる)
     func testAttachHappensOnlyOncePerInstance() async throws {

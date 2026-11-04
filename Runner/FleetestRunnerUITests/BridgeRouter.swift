@@ -649,11 +649,27 @@ final class BridgeRouter {
     private func handleHittable(_ request: BridgeHTTPServer.Request) throws
         -> BridgeHTTPServer.Response {
         let app = try requireForegroundApp()
-        guard let ref = request.queryValue("ref").flatMap({ Int($0) }) else {
-            throw BridgeError(400, "ref is required")
-        }
-        guard let frame = refFrames[ref], let identity = refIdentity[ref] else {
-            throw BridgeError(404, "unknown reference number [\(ref)] — run GET /snapshot first")
+        // ref あり = 直前の snapshot の表から素性と枠を引く。ref なし = 呼び手(inapp-boost モードの DSL。木の番号が
+        // in-app のものでここでは通じない)が素性と枠を直に送る(identifier・label は百分率符号化)
+        let ref: Int
+        let frame: CGRect
+        let identity: (identifier: String?, label: String?, type: String)
+        if let given = request.queryValue("ref").flatMap({ Int($0) }) {
+            guard let known = refFrames[given], let knownIdentity = refIdentity[given] else {
+                throw BridgeError(404, "unknown reference number [\(given)] — run GET /snapshot first")
+            }
+            ref = given
+            frame = known
+            identity = knownIdentity
+        } else {
+            func number(_ key: String) -> Double? { request.queryValue(key).flatMap { Double($0) } }
+            guard let x = number("x"), let y = number("y"), let w = number("w"), let h = number("h") else {
+                throw BridgeError(400, "ref, or x/y/w/h, is required")
+            }
+            ref = -1
+            frame = CGRect(x: x, y: y, width: w, height: h)
+            identity = (request.queryValue("identifier")?.removingPercentEncoding,
+                        request.queryValue("label")?.removingPercentEncoding, "")
         }
         struct Out: Encodable {
             let ref: Int

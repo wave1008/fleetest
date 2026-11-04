@@ -89,6 +89,11 @@ a button on a toolbar that has scrolled away — can therefore succeed. On scree
 hide on scroll, follow the tap with an assertion on the screen it should lead to or the change it should
 make (a successful `tap` alone does not prove the intended element was pressed).
 
+When another layer's pressable element overlaps the point to be pressed, the tool asks iOS whether the
+element can be hit there, and fails without pressing if the answer is "no". A "yes" answer can be wrong,
+however (for example a row behind a half-height sheet in SwiftUI), so this check does not replace
+verifying the result after the tap.
+
 ## Never retry an irreversible action
 
 If an interruption appears while an operation's effect is still landing, the tool does not

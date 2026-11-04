@@ -168,12 +168,23 @@ extension StepExecutor {
             + " — this command has no scroll: argument"
     }
 
-    func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> CoveredTouchPlan {
+    func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) async -> CoveredTouchPlan {
         if let message = buriedOutsideContainerRefusal(element, in: snapshot, step: step) { return .refuse(message) }
         switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
                                               inferring: step.containerInference ?? true, scale: driver.pointScale,
                                               zIsPaintOrder: !isAndroid) {
-        case nil: return .none
+        case nil:
+            // 塗り順の無い木(iOS)で別の層の押せる要素が中心に重なるときだけプラットフォームに聞く。断るのは false の答えだけ
+            // (true・引き当て不能・答えられないは従来どおり = true は誤ることがある。門の doc 参照)。
+            // **見えている部分を押す判定(上の .visiblePart)より後に聞く**: 中心だけ帯に覆われた対象は中心で聞くと false になり、
+            // 見えている部分を押せば通る形を断ってしまう
+            if !isAndroid,
+               let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen),
+               await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
+                return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
+                    + " \(TapTargetGeometry.describe(cover)) is drawn over it, so a touch would land there (nothing was touched)")
+            }
+            return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"
                 + " or anything else in front (the target's centre is under it)")

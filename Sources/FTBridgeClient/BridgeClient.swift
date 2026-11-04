@@ -820,6 +820,34 @@ public final class BridgeClient: AppDriver, Sendable {
         }
     }
 
+    /// `GET /hittable` の符号化済みクエリ(ランナーの `handleHittable` が `removingPercentEncoding` で1回戻す)。
+    /// 非予約文字だけを残す = 結果は ASCII と `%XX` だけで、`percentEncodedQuery` に渡して壊れない
+    static func hitTestQueryString(_ query: HitTestQuery) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        func encoded(_ value: String) -> String? { value.addingPercentEncoding(withAllowedCharacters: allowed) }
+        var parts: [String] = []
+        if let identifier = query.identifier.flatMap(encoded) { parts.append("identifier=\(identifier)") }
+        if let label = query.label.flatMap(encoded) { parts.append("label=\(label)") }
+        parts.append("x=\(query.frame.x)")
+        parts.append("y=\(query.frame.y)")
+        parts.append("w=\(query.frame.width)")
+        parts.append("h=\(query.frame.height)")
+        return parts.joined(separator: "&")
+    }
+
+    /// `AppDriver.hitTest(query:)`。GET /hittable に素性と枠を送る(ref を持たない呼び手用)。
+    /// 失敗(in-app・旧ブリッジの 404・通信断)は全部 `.unavailable`
+    public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
+        struct Answer: Decodable { let hittable: Bool? }
+        do {
+            let answer: Answer = try await get("/hittable", query: Self.hitTestQueryString(query),
+                                               queryIsPercentEncoded: true, timeout: sessionTimeout)
+            return HitTestAnswer.fromBridge(hittable: answer.hittable)
+        } catch {
+            return .unavailable
+        }
+    }
+
     /// 次の1回だけ効く要素上限(AppDriver.raiseElementLimitOnNextSnapshot)。
     /// **消費は snapshot(query:) の1箇所**(取りこぼすと以後の木が全部膨らむ)
     private var pendingElementLimit: Int? {
@@ -1402,10 +1430,11 @@ public final class BridgeClient: AppDriver, Sendable {
 
     // MARK: - HTTP helpers
 
-    func get<R: Decodable>(_ path: String, query: String? = nil,
+    func get<R: Decodable>(_ path: String, query: String? = nil, queryIsPercentEncoded: Bool = false,
                            timeout: TimeInterval? = nil) async throws -> R {
         let (data, response) = try await request(path: path, method: "GET", body: nil,
-                                                 query: query, timeout: timeout)
+                                                 query: query, queryIsPercentEncoded: queryIsPercentEncoded,
+                                                 timeout: timeout)
         try Self.check(response: response, data: data)
         return try JSONDecoder().decode(R.self, from: data)
     }
@@ -1422,12 +1451,14 @@ public final class BridgeClient: AppDriver, Sendable {
     /// **クエリは path に混ぜない**: appendingPathComponent は "?" を %3F へ逃がすので、
     /// "/snapshot?refresh=1" を渡すとブリッジ側で "GET /snapshot%3Frefresh=1" になり 404 になる
     /// (実際に踏んだ。フェイクドライバの単体テストでは配線が通らず気付けなかった)
-    static func url(base: URL, path: String, query: String?) -> URL {
+    /// `percentEncoded` = 呼び手が値を符号化済み(`%XX` を含む)。`query` の setter は `%` をもう一度符号化する
+    /// (`%E8` → `%25E8`)ので、符号化済みの値を素の setter へ渡すと受け手が1回戻しても元に戻らない
+    static func url(base: URL, path: String, query: String?, percentEncoded: Bool = false) -> URL {
         let withPath = base.appendingPathComponent(path)
         guard let query, !query.isEmpty,
               var components = URLComponents(url: withPath, resolvingAgainstBaseURL: false)
         else { return withPath }
-        components.query = query
+        if percentEncoded { components.percentEncodedQuery = query } else { components.query = query }
         return components.url ?? withPath
     }
 
@@ -1481,9 +1512,9 @@ public final class BridgeClient: AppDriver, Sendable {
             + " the bridge with `fleetest bridge down --port <N>` if it does not recover)"
     }
 
-    func request(path: String, method: String, body: Data?, query: String? = nil,
+    func request(path: String, method: String, body: Data?, query: String? = nil, queryIsPercentEncoded: Bool = false,
                  timeout: TimeInterval? = nil) async throws -> (Data, URLResponse) {
-        var req = URLRequest(url: Self.url(base: baseURL, path: path, query: query))
+        var req = URLRequest(url: Self.url(base: baseURL, path: path, query: query, percentEncoded: queryIsPercentEncoded))
         req.httpMethod = method
         req.httpBody = body
         if let timeout { req.timeoutInterval = timeout }

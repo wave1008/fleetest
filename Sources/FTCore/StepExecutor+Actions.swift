@@ -942,7 +942,7 @@ extension StepExecutor {
                 adviseTarget(TapTargetGeometry.occlusionAdvisory(
                     for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
                 // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない)
-                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
                 case .part(let rect, let note):
@@ -1075,7 +1075,7 @@ extension StepExecutor {
             if keyboardVisiblePartTap == nil,
                Self.visibleTapRect(for: element, in: snapshot.elements, inferring: step.containerInference ?? true,
                                    scale: driver.pointScale) == nil {
-                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .part(let rect, let note):
                     coverVisiblePartTap = rect
@@ -1528,7 +1528,7 @@ extension StepExecutor {
             var gestureTarget = element.frame
             var coverPartNote: String?
             if action == "doubleTap" {
-                switch coveredTouchPlan(element, in: snapshot, step: step) {
+                switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
                 case .part(let rect, let note):
@@ -1581,7 +1581,7 @@ extension StepExecutor {
             let swipeDuration = step.duration ?? tunables.defaultSwipeDuration
             // 始点は指を下ろす点: 操作可能な帯に中心を覆われたままなら見えている部分から(薄ければ撃たない)
             var startFrame = element.frame
-            switch coveredTouchPlan(element, in: snapshot, step: step) {
+            switch await coveredTouchPlan(element, in: snapshot, step: step) {
             case .none: break
             case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
             case .part(let rect, let note):

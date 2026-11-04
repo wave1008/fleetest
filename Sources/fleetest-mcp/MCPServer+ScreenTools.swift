@@ -142,6 +142,21 @@ extension MCPServer {
         }
     }
 
+    /// 別の層の押せる要素が中心に重なる対象(`TapTargetGeometry.otherLayerCoverSuspect` = DSL の `coveredTouchPlan` と同じ門)を、
+    /// プラットフォームが「その位置では hittable でない」と答えたときだけ断る文(それ以外・Android は nil = 従来どおり)。
+    /// true は誤ることがあるので使わない。MCP の iOS は XCUITest の木なので ref で聞ける(`nativeRef` = ブリッジの番号)。
+    /// 文言は DSL とは別に持つ(判定だけ共有)
+    func otherLayerRefTouchRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse?, ref: Int, operation: String,
+                                   driver: AppDriver, args: [String: Any]) async -> String? {
+        guard let snapshot, Self.platformName(args) != "android",
+              let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen),
+              (try? await driver.hitTest(ref: nativeRef(element.ref, args: args))) == .hittable(false)
+        else { return nil }
+        return "refusing \(operation) [\(ref)]: the platform reports \(RefGuard.describe(element)) cannot be hit at its position —"
+            + " \(RefGuard.describe(cover)) is drawn over it, so a touch would land there. Nothing was sent."
+            + " Dismiss or scroll away what covers it, then take a fresh ft_snapshot"
+    }
+
     /// 覆われていない部分(`coveredRefTouch` の `.part`)を撃つ点と注記。部分の中心が Android の下端のジェスチャ帯の中なら
     /// 帯より上へ寄せ、その事実も注記に足す(ft_tap・ft_double_tap・ft_long_press が共有。ft_drag の始点は帯を見ない)
     func coveredPartTouch(_ rect: FTRect, note: String, driver: AppDriver,
@@ -185,7 +200,9 @@ extension MCPServer {
                let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == target.ref }) {
                 switch Self.coveredRefTouch(element, in: tree, scale: d.pointScale, ref: ref, operation: "tap") {
-                case .none: break
+                case .none:
+                    if let message = await otherLayerRefTouchRefusal(element, in: tree, ref: ref, operation: "tap",
+                                                                     driver: d, args: args) { throw MCPError(message) }
                 case .refuse(let message): throw MCPError(message)
                 case .part(let rect, let note):
                     let touch = await coveredPartTouch(rect, note: note, driver: d, args: args)

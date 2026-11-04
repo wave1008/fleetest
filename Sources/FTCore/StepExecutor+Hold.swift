@@ -62,7 +62,7 @@ extension StepExecutor {
         // 中心が容器の外に落ちる要素だけ、見えている部分の中心を撃つ(tap の座標タップ分岐と同じ規律)
         // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分に指を置く(薄ければ置かない)
         var coverPartRect: FTRect?
-        switch coveredTouchPlan(element, in: snapshot, step: step) {
+        switch await coveredTouchPlan(element, in: snapshot, step: step) {
         case .none: break
         case .refuse(let message): return (element, snapshot, driverFallback, message)
         case .part(let part, let note):
