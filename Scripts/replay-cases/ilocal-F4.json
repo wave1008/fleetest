@@ -1,0 +1,32 @@
+{
+  "id": "ilocal-F4",
+  "finding": "iOS: 寄せ(容器の縁をまたいだ要素を中へ寄せる)の後にセレクタで引き直し、序数・ワイルドカードが上から入った別の行を返して、その行を押して ok",
+  "platform": "ios",
+  "redNote": "この形が出るのは in-app の木(DSL の inapp-boost モード)で、MCP の iOS は XCUITest なので下の形は経路の確認だけ。赤は DSL で確かめた: 直しの前は E2EX-iOS の無限スクロールで scrollTo('#row_i_25') → tap('.clickable[1]') が 19 ではなく 18 を、#row_i_40 の後は 39 ではなく 38 を押した(2/2)。直した後は手元 8 台の --broadcast で 16/16 が決めた行を押した",
+  "setup": [
+    ["ft_launch", {"bundleId": "com.ftester.e2ex.ios"}]
+  ],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2ex.ios"}]
+  ],
+  "resetSeconds": 1,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "scrollTo の後の .clickable[1]",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_infinite' scroll: .down\nscrollTo '#row_i_25' maxSwipes: 30\ntap '.clickable[1]'"}]
+      ],
+      "settleSeconds": 1,
+      "reject": ["infinite=row_i_18", "infinite=row_i_17"]
+    },
+    {
+      "name": "scrollTo の後のラベルのワイルドカード",
+      "steps": [
+        ["ft_batch", {"steps": "tap '#nav_infinite' scroll: .down\nscrollTo '#row_i_25' maxSwipes: 30\ntap '項目 *'"}]
+      ],
+      "settleSeconds": 1,
+      "reject": ["infinite=row_i_18", "infinite=row_i_17"]
+    }
+  ]
+}

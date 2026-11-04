@@ -1,0 +1,464 @@
+{
+  "elements" : [
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 20.333333333333343,
+        "width" : 83,
+        "x" : 16,
+        "y" : 132
+      },
+      "identifier" : "txt_infinite_count",
+      "label" : "loaded=40",
+      "ref" : 1,
+      "type" : "staticText"
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 651.3333333333331,
+        "width" : 402,
+        "x" : 0,
+        "y" : 160.33333333333337
+      },
+      "identifier" : "list_infinite",
+      "ref" : 2,
+      "scrollable" : true,
+      "type" : "other"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333334,
+        "width" : 370,
+        "x" : 16,
+        "y" : 124.99999999999994
+      },
+      "ref" : 3,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333334,
+        "width" : 370,
+        "x" : 16,
+        "y" : 124.99999999999994
+      },
+      "identifier" : "row_i_18",
+      "label" : "項目 18",
+      "ref" : 4,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333334,
+        "width" : 370,
+        "x" : 16,
+        "y" : 177.3333333333332
+      },
+      "ref" : 5,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333334,
+        "width" : 370,
+        "x" : 16,
+        "y" : 177.3333333333332
+      },
+      "identifier" : "row_i_19",
+      "label" : "項目 19",
+      "ref" : 6,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 229.66666666666669
+      },
+      "ref" : 7,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 229.66666666666669
+      },
+      "identifier" : "row_i_20",
+      "label" : "項目 20",
+      "ref" : 8,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 281.99999999999994
+      },
+      "ref" : 9,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 281.99999999999994
+      },
+      "identifier" : "row_i_21",
+      "label" : "項目 21",
+      "ref" : 10,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 334.3333333333332
+      },
+      "ref" : 11,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 334.3333333333332
+      },
+      "identifier" : "row_i_22",
+      "label" : "項目 22",
+      "ref" : 12,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 386.6666666666667
+      },
+      "ref" : 13,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 386.6666666666667
+      },
+      "identifier" : "row_i_23",
+      "label" : "項目 23",
+      "ref" : 14,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 438.99999999999994
+      },
+      "ref" : 15,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 438.99999999999994
+      },
+      "identifier" : "row_i_24",
+      "label" : "項目 24",
+      "ref" : 16,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 491.3333333333332
+      },
+      "ref" : 17,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.333333333333314,
+        "width" : 370,
+        "x" : 16,
+        "y" : 491.3333333333332
+      },
+      "identifier" : "row_i_25",
+      "label" : "項目 25",
+      "ref" : 18,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 543.6666666666667
+      },
+      "ref" : 19,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 543.6666666666667
+      },
+      "identifier" : "row_i_26",
+      "label" : "項目 26",
+      "ref" : 20,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 596
+      },
+      "ref" : 21,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 596
+      },
+      "identifier" : "row_i_27",
+      "label" : "項目 27",
+      "ref" : 22,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 648.3333333333333
+      },
+      "ref" : 23,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 648.3333333333333
+      },
+      "identifier" : "row_i_28",
+      "label" : "項目 28",
+      "ref" : 24,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 700.6666666666667
+      },
+      "ref" : 25,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 700.6666666666667
+      },
+      "identifier" : "row_i_29",
+      "label" : "項目 29",
+      "ref" : 26,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 753
+      },
+      "ref" : 27,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 753
+      },
+      "identifier" : "row_i_30",
+      "label" : "項目 30",
+      "ref" : 28,
+      "type" : "button"
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 805.3333333333333
+      },
+      "ref" : 29,
+      "type" : "clickable"
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 52.33333333333337,
+        "width" : 370,
+        "x" : 16,
+        "y" : 805.3333333333333
+      },
+      "identifier" : "row_i_31",
+      "label" : "項目 31",
+      "ref" : 30,
+      "type" : "button"
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 20.33333333333337,
+        "width" : 126.33333333333331,
+        "x" : 16,
+        "y" : 819.6666666666665
+      },
+      "identifier" : "txt_infinite_result",
+      "label" : "infinite=row_i_18",
+      "ref" : 31,
+      "type" : "staticText"
+    },
+    {
+      "depth" : 5,
+      "enabled" : true,
+      "frame" : {
+        "height" : 54,
+        "width" : 402,
+        "x" : 0,
+        "y" : 62
+      },
+      "identifier" : "無限スクロール",
+      "ref" : 32,
+      "type" : "navigationBar"
+    },
+    {
+      "depth" : 6,
+      "enabled" : true,
+      "frame" : {
+        "height" : 44,
+        "width" : 44,
+        "x" : 16,
+        "y" : 62
+      },
+      "identifier" : "BackButton",
+      "label" : "E2EX ホーム",
+      "ref" : 33,
+      "type" : "button"
+    },
+    {
+      "depth" : 7,
+      "enabled" : true,
+      "frame" : {
+        "height" : 20.33333333333333,
+        "width" : 111.33333333333331,
+        "x" : 145.33333333333331,
+        "y" : 73.83333333333333
+      },
+      "identifier" : "txt_screen_title",
+      "label" : "無限スクロール",
+      "ref" : 34,
+      "type" : "staticText"
+    }
+  ],
+  "keyboardShown" : false,
+  "safeAreaTop" : {
+    "measured" : true,
+    "top" : 62
+  },
+  "screen" : {
+    "height" : 874,
+    "width" : 402,
+    "x" : 0,
+    "y" : 0
+  },
+  "sessionBundleID" : "com.ftester.e2ex.ios",
+  "truncatedCount" : 0
+}

@@ -91,7 +91,8 @@ extension StepExecutor {
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
             // 引けなければ撃たない(閉じる前の要素は前の木の ref と枠 = 撃つと別の物に当たる。寄せの後と同じ)
-            guard let (reached, _) = LocatorResolver.resolve(step: step, in: after) else {
+            guard let (reached, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                                  originalElements: snapshot.elements, in: after) else {
                 return .refused(Self.keyboardClosedLostMessage(step, closedNote: closedNote)
                     + (await leftForegroundSuffix(snapshot.sessionBundleID)), kind: .notFound)
             }
@@ -218,7 +219,9 @@ extension StepExecutor {
                 }
                 phase.snapshotMs += Self.ms(clock.now - start)
                 // 伸びる途中の1枚で一瞬引けないことはあるので、予算の内は読み直す。予算を使い切っても引けなければ撃たない
-                guard let (moved, _) = LocatorResolver.resolve(step: step, in: next) else { lost = next; continue }
+                guard let (moved, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                                    originalElements: snapshot.elements, in: next)
+                else { lost = next; continue }
                 lost = nil
                 settled = TapTargetGeometry.coverGeometryUnchanged(element, in: snapshot, moved, in: next)
                 element = moved

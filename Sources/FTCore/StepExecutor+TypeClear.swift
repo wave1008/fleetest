@@ -495,7 +495,8 @@ extension StepExecutor {
         case .driver(let other): after = try await other.snapshot(bypassingCache: true)
         }
         phase.snapshotMs += Self.ms(clock.now - start)
-        guard let (found, _) = LocatorResolver.resolve(step: step, in: after) else {
+        guard let (found, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                            originalElements: snapshot.elements, in: after) else {
             return .refused("\(note), but the target is not on the screen afterwards: \(step.locatorSummary) (\(nothing))")
         }
         let still = KeyboardOcclusion.resolve(reported: after.keyboardFrame, in: after.elements, screen: after.screen)

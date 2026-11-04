@@ -22,7 +22,7 @@ extension StepExecutor {
     /// 戻り値: `rested` = **静止を確認できたか**(false = 周回上限で打ち切った = まだ動いているかもしれない。
     /// 呼び手は注記にする。黙ると「動いている画面の座標をタップ」が誤った成功として通る)/ `lastFrame` = 最後に見た対象の枠 /
     /// `movingPolls` = 対象が動いていた周回の数(1 = 最初の1周で動いてすぐ止まった段差・2 以上 = 動き続けた)
-    func settleAfterScroll(step: FlowStep, found: ElementInfo,
+    func settleAfterScroll(step: FlowStep, found: ElementInfo, foundIn foundElements: [ElementInfo],
                                    phase: inout PhaseAccumulator) async throws
         -> (rested: Bool, lastFrame: FTRect, movingPolls: Int) {
         let clock = ContinuousClock()
@@ -45,8 +45,9 @@ extension StepExecutor {
             lastSnapshotMs = Self.ms(clock.now - start)
             phase.snapshotMs += lastSnapshotMs
             // 解決できなくなった = このスナップショットでは判定材料が無い。静止は名乗らない
-            guard let (element, _) = LocatorResolver.resolve(step: step, in: snapshot,
-                                                  strictForAssert: true) else { return (false, previous, motion.count) }
+            guard let (element, _) = SameTargetResolution.resolve(step: step, original: found, originalElements: foundElements,
+                                                                  in: snapshot, strictForAssert: true)
+            else { return (false, previous, motion.count) }
             if element.frame == previous { return (true, previous, motion.count) }
             let moved = max(abs(element.frame.x - previous.x), abs(element.frame.y - previous.y))
             if restsWithinThreshold(moved) { return (true, element.frame, motion.count) }
@@ -225,7 +226,8 @@ extension StepExecutor {
         var snapshot = snapshot
         if driver.treeLagsBehindMotion, shouldEmptyDrag(for: element) {
             let fresh = try await freshSnapshot(.afterOwnMove)
-            if let (moved, _) = LocatorResolver.resolve(step: step, in: fresh, strictForAssert: true) {
+            if let (moved, _) = SameTargetResolution.resolve(step: step, original: element, originalElements: snapshot.elements,
+                                                              in: fresh, strictForAssert: true) {
                 element = moved
                 snapshot = fresh
             }
@@ -245,7 +247,7 @@ extension StepExecutor {
         }
         // 空打ちは次のタッチのための操作なので残し、その後の静止待ちだけ飛ばす
         if skippingSettle(step) { return false }
-        let settled = try await settleAfterScroll(step: step, found: element, phase: &phase)
+        let settled = try await settleAfterScroll(step: step, found: element, foundIn: snapshot.elements, phase: &phase)
         // **空打ちの後も探索の向きへ流れ続けた回だけ、止まった位置へもう1回空打ちしてから返す**。空打ちのタッチが容器に
         // 吸われて慣性が止まらず、一覧が末尾を越えて引っ張られたまま止まると、次のタッチで引っ張りが解けて戻り、そのタッチは
         // クリックにならない(E2EX-CMP の無限スクロール・XCUITest: 250〜290pt 流れて 346..414 に止まり、撃った瞬間に +247pt 戻った)。
@@ -260,7 +262,8 @@ extension StepExecutor {
                                              finger: FTSwipeDirection(rawValue: step.direction ?? "") ?? .up)
         else { return !settled.rested }
         let fresh = try await freshSnapshot(.afterOwnMove)
-        guard let (stopped, _) = LocatorResolver.resolve(step: step, in: fresh, strictForAssert: true) else {
+        guard let (stopped, _) = SameTargetResolution.resolve(step: step, original: element, originalElements: snapshot.elements,
+                                                              in: fresh, strictForAssert: true) else {
             return !settled.rested
         }
         let againX = stopped.frame.x + stopped.frame.width / 2
@@ -270,7 +273,7 @@ extension StepExecutor {
               let againEnd = Self.emptyDragEnd(of: stopped, x: againX, y: againY, searching: step.direction,
                                                screen: fresh.screen) else { return !settled.rested }
         await emptyDrag(x: againX, y: againY, toX: againEnd.x, toY: againEnd.y)
-        return try await !settleAfterScroll(step: step, found: stopped, phase: &phase).rested
+        return try await !settleAfterScroll(step: step, found: stopped, foundIn: fresh.elements, phase: &phase).rested
     }
 
     /// 空打ちの後の対象の移動が、空打ち自身では起こせない「探索の向きへの流れ続け」か。境目は**空打ちの探索軸上の移動距離**

@@ -439,7 +439,8 @@ extension StepExecutor {
                 start = clock.now
                 let fresh = try await freshSnapshot(.afterOwnMove)
                 phase.snapshotMs += Self.ms(clock.now - start)
-                if let (moved, _) = LocatorResolver.resolve(step: step, in: fresh) {
+                if let (moved, _) = SameTargetResolution.resolve(step: step, original: target,
+                                                                  originalElements: snapshot.elements, in: fresh) {
                     target = moved
                     snapshot = fresh
                 }
@@ -452,9 +453,11 @@ extension StepExecutor {
                                            screen: snapshot.screen) {
                 await emptyDrag(x: x, y: y, toX: end.x, toY: end.y)
                 let settled = try await settledSignature(phase: &phase)
+                let beforeDrag = snapshot
                 snapshot = settled.snapshot
                 // 取り直せないなら撃たずに失敗(下の空打ち後の分岐と同じ理由: 古い ref のまま撃つと別の要素を押して ok になる)
-                guard let refreshed = LocatorResolver.resolve(step: step, in: snapshot) else {
+                guard let refreshed = SameTargetResolution.resolve(step: step, original: target,
+                                                                   originalElements: beforeDrag.elements, in: snapshot) else {
                     return StepOutcome(status: failed(.notFound,
                         "the element was found, but the drag that absorbs the previous swipe's momentum"
                         + " changed the screen and it is gone from the tree (the drag may have fired a"
@@ -475,6 +478,7 @@ extension StepExecutor {
                                            screen: snapshot.screen) {
                 await emptyDrag(x: x, y: y, toX: end.x, toY: end.y)
                 let settled = try await settledSignature(phase: &phase)
+                let beforeDrag = snapshot
                 snapshot = settled.snapshot
                 // 空打ちで木が入れ替わるので ref を取り直す(古い ref は別要素を指す)。
                 // **取り直せないなら撃たずに失敗させる**: 空打ちが画面を変えた(下の行・ボタンが
@@ -482,7 +486,8 @@ extension StepExecutor {
                 // (物理 iPhone 13: 空打ちで診断画面へ遷移 → 古い ref が #tab_home を押して
                 // ホームへ戻り ok)。救済(キャッシュ・指紋・FM)にも回さない —— 変わった画面で
                 // 別の要素へ「修復」するのも同じ誤った緑。撃ち直しもしない(吸われた操作と同じ規律)
-                guard let refreshed = LocatorResolver.resolve(step: step, in: snapshot) else {
+                guard let refreshed = SameTargetResolution.resolve(step: step, original: target,
+                                                                   originalElements: beforeDrag.elements, in: snapshot) else {
                     return StepOutcome(status: failed(.notFound,
                         "the element was found, but the relief drag after \(ghostSwipes) extra swipe(s)"
                         + " changed the screen and it is gone from the tree (the drag may have fired a"
@@ -697,7 +702,8 @@ extension StepExecutor {
             // **寄せの後に引けなければ撃たない**: 寄せの払いが押下になって画面が変わることがある(RN の iOS の横向き: 行の上で始めた
             // XCUITest のドラッグがその行を押して遷移した)。寄せる前の ref は前の木の番号で、撃つと今の木の別の要素
             // (タブバーのホーム)を押して ok になった
-            guard let (moved, _) = LocatorResolver.resolve(step: step, in: refreshed) else {
+            guard let (moved, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                                originalElements: snapshot.elements, in: refreshed) else {
                 return StepOutcome(status: failed(.notFound, Self.nudgeLostMessage(step)
                     + (await leftForegroundSuffix(snapshot.sessionBundleID))))
             }
@@ -742,7 +748,8 @@ extension StepExecutor {
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
             // 引けなければ撃たない(閉じる前の要素は前の木の ref と枠 = 撃つと別の物に当たる。寄せの後と同じ)
-            guard let (reached, _) = LocatorResolver.resolve(step: step, in: after) else {
+            guard let (reached, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                                  originalElements: snapshot.elements, in: after) else {
                 return StepOutcome(status: failed(.notFound, Self.keyboardClosedLostMessage(step, closedNote: closedNote)
                     + (await leftForegroundSuffix(snapshot.sessionBundleID))))
             }
@@ -989,7 +996,8 @@ extension StepExecutor {
                 // 引けなければ待つ前の要素のまま撃つ
                 if !switchedToFallbackDriver {
                     let refreshed = try await freshSnapshot(.afterOwnMove)
-                    if let (moved, _) = LocatorResolver.resolve(step: step, in: refreshed) {
+                    if let (moved, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                                      originalElements: snapshot.elements, in: refreshed) {
                         snapshot = refreshed
                         element = moved
                         resolvedElementThisStep = element
@@ -1887,7 +1895,8 @@ extension StepExecutor {
             }
             phase.snapshotMs += Self.ms(clock.now - start)
             retook = true
-            guard let (moved, _) = LocatorResolver.resolve(step: step, in: after) else {
+            guard let (moved, _) = SameTargetResolution.resolve(step: step, original: current,
+                                                                originalElements: currentSnapshot.elements, in: after) else {
                 return .lost(snapshot: after)
             }
             let afterBand = KeyboardOcclusion.resolve(reported: after.keyboardFrame,
