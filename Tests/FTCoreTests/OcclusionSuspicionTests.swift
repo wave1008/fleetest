@@ -188,4 +188,25 @@ final class OcclusionSuspicionTests: XCTestCase {
         XCTAssertEqual(
             OcclusionSuspicion.covering(element: target, in: elements, screen: screen)?.ref, 5)
     }
+
+    /// 一覧の容器の上へはみ出して切り取られた行は、固定領域の echo を覆わない(描かれていない部分で重なっているだけ)。
+    /// 実測(E2EY-CMP・RN の隠れるバー): echo (16,134) の失敗文に「covered by #row_h_42 (0,118)」= 一覧は y=192 から
+    func testRowClippedByItsListDoesNotCoverAFixedEcho() {
+        let echo = ElementInfo(ref: 1, type: "staticText", identifier: "txt_hide_result", label: "hide=row_h_33", value: nil,
+                               placeholder: nil, enabled: true, frame: FTRect(x: 16, y: 134, width: 122, height: 24), depth: 1)
+        var list = ElementInfo(ref: 2, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 192, width: 400, height: 600), depth: 1)
+        list.scrollable = true
+        func row(_ ref: Int, _ id: String, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: y, width: 400, height: 56), depth: 2)
+        }
+        let elements = [echo, list, row(3, "row_h_42", y: 118), row(4, "row_h_43", y: 174), row(5, "row_h_44", y: 230)]
+        XCTAssertNil(OcclusionSuspicion.covering(element: echo, in: elements, screen: screen))
+        // 対照: 容器の中で重なる本物の覆いは名指しする
+        var sheet = ElementInfo(ref: 6, type: "button", identifier: "sheet", label: "シート", value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 120, width: 400, height: 60), depth: 1)
+        sheet.z = nil
+        XCTAssertEqual(OcclusionSuspicion.covering(element: echo, in: elements + [sheet], screen: screen)?.identifier, "sheet")
+    }
 }

@@ -85,6 +85,12 @@ public enum OcclusionSuspicion {
             // Compose-iOS の frame クランプで画面外行が画面端の同一座標へ潰れて生じる ghost スタックは
             // occluder とみなさない(見えている端要素へ余分な FM を誘発する。docs compose-ios-ax-frame-clamp)。
             if isClampGhost(other.frame, in: elements, screen: screen) { continue }
+            // 相手が一覧の容器で切り取られているなら、見えている部分(容器で切った枠)で重なりを測る。容器の上へはみ出して
+            // 切り取られた行を覆いと名指ししていた(固定領域の echo の失敗文に「covered by #row_h_42」。10周目の探索 iultra F3)
+            if let clip = ContainerGeometry.clippingContainer(of: other, in: elements) {
+                guard let drawn = ScrollGeometry.intersection(other.frame, clip),
+                      intersectionArea(t, drawn) / area >= overlapFraction else { continue }
+            }
             if let best = frontmost, !PaintOrder.drawnAbove(other, best) { continue }
             frontmost = other
         }

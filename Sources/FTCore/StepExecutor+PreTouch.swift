@@ -162,6 +162,20 @@ extension StepExecutor {
                 + " \(TapTargetGeometry.describe(over)), which a single scroll of the list does not clear (nothing was touched). "
                 + remedy
         }
+        // 入れ子のスクロールで、外側の一覧に切り取られて見えない対象(内側の棚とは交わるので上の判定も見えている部分の判定も見ない)
+        if step.containerInference ?? true,
+           let outer = TapTargetGeometry.clippedByOuterScroller(element, in: snapshot.elements, scale: driver.pointScale) {
+            let up = element.frame.centerY < outer.frame.y
+            let vertical = element.frame.centerY < outer.frame.y || element.frame.centerY > outer.frame.y + outer.frame.height
+            let toward = vertical ? (up ? ".up" : ".down") : (element.frame.centerX < outer.frame.x ? ".left" : ".right")
+            let remedy = Self.coveredTouchAcceptsScroll(step.action)
+                ? "Add scroll: \(toward) so the outer list is scrolled until the target is inside it"
+                : "Scroll the outer list first (for example \(toward == ".up" ? "scrollUp()" : toward == ".down" ? "scrollDown()" : toward == ".left" ? "scrollLeft()" : "scrollRight()") before this step)"
+                    + " until the target is inside it — this command has no scroll: argument"
+            return "did not touch \(step.locatorSummary): it is inside a nested list, but the outer scrolling list"
+                + " \(TapTargetGeometry.describe(outer)) clips it — its centre is outside that list and too little of it is"
+                + " visible there to touch (nothing was touched). " + remedy
+        }
         return nil
     }
 

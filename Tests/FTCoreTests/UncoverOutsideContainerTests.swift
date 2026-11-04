@@ -197,6 +197,54 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
     }
 
+    // MARK: 入れ子のスクロール(E2EY-RN の入れ子スクロール・10周目の探索 ilocal F2)
+
+    private func nestedTree(shelfY: Double) -> [ElementInfo] {
+        var outer = el(1, "other", id: "list_nested", FTRect(x: 0, y: 157, width: 400, height: 600), scrollable: true); outer.depth = 1
+        var shelf = el(2, "other", id: "shelf_2", FTRect(x: 0, y: shelfY, width: 400, height: 130), scrollable: true); shelf.depth = 2
+        var a = el(3, "button", id: "card_2_00", label: "カード 2-00", FTRect(x: 16, y: shelfY + 5, width: 140, height: 120)); a.depth = 3
+        var b = el(4, "button", id: "card_2_01", label: "カード 2-01", FTRect(x: 164, y: shelfY + 5, width: 140, height: 120)); b.depth = 3
+        var row = el(5, "button", id: "row_n_00", label: "行", FTRect(x: 0, y: 400, width: 400, height: 48)); row.depth = 2
+        return [outer, shelf, a, b, row]
+    }
+
+    /// 外側の一覧の上へはみ出した棚の中のカードは、撃たずに断って外側を送る向きを案内する
+    func testCardClippedByTheOuterListIsRefused() async {
+        let els = nestedTree(shelfY: -55)
+        XCTAssertEqual(TapTargetGeometry.clippedByOuterScroller(els[2], in: els, scale: 1)?.identifier, "list_nested")
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [els])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "card_2_00")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
+        XCTAssertTrue(message.contains("outer scrolling list") && message.contains("Add scroll: .up"), message)
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
+    }
+
+    /// 外側の一覧の中に収まった棚のカードは対象外(従来どおり押す)
+    func testCardInsideTheOuterListIsNotRefused() {
+        let els = nestedTree(shelfY: 200)
+        XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(els[2], in: els, scale: 1))
+        XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(els[4], in: els, scale: 1), "棚の外の行(容器が1段)も対象外")
+        // 棚(最も内側の容器)の縁でほぼ切れていても、外側の一覧の中なら対象外(棚の見切れは従来の判定の領分)
+        var shelf = el(2, "other", id: "shelf_2", FTRect(x: 0, y: 200, width: 300, height: 130), scrollable: true); shelf.depth = 2
+        var edgeCard = el(3, "button", id: "card_2_02", FTRect(x: 296, y: 205, width: 140, height: 120)); edgeCard.depth = 3
+        var mate = el(4, "button", id: "card_2_01", FTRect(x: 150, y: 205, width: 140, height: 120)); mate.depth = 3
+        var mate2 = el(6, "button", id: "card_2_00", FTRect(x: 4, y: 205, width: 140, height: 120)); mate2.depth = 3
+        let edge = [els[0], shelf, mate2, mate, edgeCard]
+        XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(edgeCard, in: edge, scale: 1))
+    }
+
+    /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。向きを書いた回・一覧の無い画面では足さない
+    func testNotFoundTapSuggestsScrollWhenAListCanBeScrolled() {
+        let withList = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true)], truncatedCount: 0)
+        let bare = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [], truncatedCount: 0)
+        XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: withList).contains("scroll: .up"))
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap", direction: "down"), in: withList), "")
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: bare), "")
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "doubleTap"), in: withList), "", "scroll: を持たない操作には書かない")
+    }
+
     // MARK: 送れば外れる側の縁のバーの下(10周目の探索 im4 F1・F2)
 
     func testEdgeBarCoveringCentreLooksAtTheBarTheSearchMovesAwayFrom() {

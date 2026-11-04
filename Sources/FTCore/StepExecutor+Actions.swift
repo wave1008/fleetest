@@ -30,6 +30,16 @@ extension StepExecutor {
             + " (for example waitSeconds: 5)"
     }
 
+    /// 見つからないときの `scroll:` の案内。向きを書いていない tap / hold で、画面に送れる一覧があるときだけ足す
+    /// (スクロールで木から消えた部品 = 隠れるバーに `waitSeconds:` だけを案内すると、従っても直らない。10周目の探索 iultra F5)。
+    /// `defaultWaitHint` とは別に持つ(MCP があちらの文言をそのまま取り除くので混ぜない)
+    static func scrollOffHint(_ step: FlowStep, in snapshot: SnapshotResponse) -> String {
+        guard step.direction == nil, coveredTouchAcceptsScroll(step.action),
+              TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) != nil else { return "" }
+        return ". If it is off the screen or was hidden by scrolling (for example a bar that hides while the list scrolls),"
+            + " add scroll: to this step (for example scroll: .up) so the list is scrolled until it appears"
+    }
+
     func executeAction(_ action: String, step: FlowStep,
                                fingerprint: LocatorFingerprint? = nil,
                                phase: inout PhaseAccumulator) async throws -> StepOutcome {
@@ -680,6 +690,7 @@ extension StepExecutor {
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
                         + Self.defaultWaitHint(step)
+                        + Self.scrollOffHint(step, in: hintSnapshot)
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)

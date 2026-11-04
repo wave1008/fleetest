@@ -875,6 +875,24 @@ public enum TapTargetGeometry {
         return over
     }
 
+    /// **入れ子のスクロールで、外側の一覧に切り取られて見えない対象**の、切り取っている外側の容器。nil = その形ではない。
+    /// 内側の容器(横の棚)とは交わるので `isOutsideContainer` も見えている部分の判定も外側を見ない。中心が外側の容器の外で、
+    /// 外側の容器の中に見えている部分が床(`minimumVisibleTapExtent` × scale)に届かないときだけ返す(撃つと切り取られた所 =
+    /// 画面の上端・ステータスバーを叩いて何も押さない。RN の入れ子のスクロール・10周目の探索 ilocal F2)
+    public static func clippedByOuterScroller(_ element: ElementInfo, in elements: [ElementInfo], scale: Double) -> ElementInfo? {
+        let floor = minimumVisibleTapExtent * scale
+        let cx = element.frame.centerX, cy = element.frame.centerY
+        let scrollers = ancestors(of: element, in: elements).filter { $0.scrollable == true }
+        // 最も内側の申告容器(棚)は従来の判定が見る。2段目より外だけを見る
+        for outer in scrollers.dropFirst() {
+            let f = outer.frame
+            guard !(f.x <= cx && cx <= f.x + f.width && f.y <= cy && cy <= f.y + f.height) else { continue }
+            let visible = ScrollGeometry.intersection(element.frame, f)
+            if visible.map({ min($0.width, $0.height) < floor }) ?? true { return outer }
+        }
+        return nil
+    }
+
     /// 向きを書いた探索が、**送れば外れる側の縁のバー**の下に中心がある対象を「見つかった」にしないための判定。覆いの名指し
     /// (失敗文用)を返す。nil = その形ではない。指が下向き(上を見に行く探索 = `scroll: .up`)なら上端(ステータスバーの帯・
     /// ナビゲーションバー)、指が上向きなら下端(タブバー・ツールバー)を見る。送り続ければ中身と一緒に対象がバーの下から出る。
