@@ -589,7 +589,7 @@ extension StepExecutor {
 
         // **`tap(容器の欄)` → ref 無しの clearInput**: ref 無しの type と同じ判定(`InputFocusRescue`)で、叩いた容器の中の唯一の入力欄を
         // 名指しして消す。素の clearInput(ref: nil) は焦点の欄 = 前の欄を空にして緑になった
-        if let tapped = lastTapTarget, InputFocusRescue.focusIsElsewhere(from: tapped, in: beforeSnapshot.elements) {
+        if let tapped = tapTargetBeforeThisStep, InputFocusRescue.focusIsElsewhere(from: tapped, in: beforeSnapshot.elements) {
             if let field = InputFocusRescue.fieldToType(after: tapped, in: beforeSnapshot.elements, before: tapTreeForRescue) {
                 return try await clearRescuedField(field, tapped: tapped, phase: &phase)
             }

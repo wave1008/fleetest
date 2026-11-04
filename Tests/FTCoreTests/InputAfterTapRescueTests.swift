@@ -80,6 +80,19 @@ final class InputAfterTapRescueTests: XCTestCase {
         XCTAssertTrue(outcome.notes.contains(.typeFocusRecovered))
     }
 
+    /// type(セレクタ)で始めた並びも、hideKeyboard を挟んで同じ欄へ打つ(tap で始めた並びだけ通っていた)
+    func testHideKeyboardAfterTypeWithSelectorKeepsTheTypedField() async throws {
+        let driver = makeDriver()
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "inner"), text: "a", timeout: 1))
+        _ = await executor.execute(FlowStep(action: "hideKeyboard"))
+
+        let outcome = await executor.execute(FlowStep(action: "type", text: "b"))
+
+        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(driver.typedRefs.last, 9, "焦点の残った別の欄(nil)ではなく、打った欄へ: \(driver.typedRefs)")
+    }
+
     /// 対照: 焦点を動かす操作(swipe)は従来どおり記憶を捨てる
     func testSwipeStillForgetsTheTap() async throws {
         let driver = makeDriver()

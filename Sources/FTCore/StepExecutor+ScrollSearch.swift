@@ -741,13 +741,18 @@ extension StepExecutor {
     /// StepExecutor+Assert.swift の executeAssertExists(`exist(scroll:)`)からも呼ぶため internal。
     /// `recoverOnMiss` = 見つからずに端まで来たとき、**逆向きの細刻みで1往復だけ拾い直す**か。
     /// `notExist(scroll:)` の前奏だけは false(見つからないのが期待値なので、往復は丸損)
-    /// 触る操作の対象が、容器の外で1回の送りでは外せない覆い(ナビゲーションバー)の下に潜っているか
-    /// (`TapTargetGeometry.coveredOutsideContainerBeyondOneLift`)。探索の本編と逆走査が「見つかった」と言わない
+    /// 探索の本編と逆走査が「見つかった」と言わない対象か(理由は `searchTouchBlock`)
     func buriedUnderBarForTouch(_ element: ElementInfo, step: FlowStep, in snapshot: SnapshotResponse) -> Bool {
-        Self.interactsByTouch(step.action ?? "")
-            && TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
-                element, in: snapshot.elements, screen: snapshot.screen,
-                inferring: step.containerInference ?? true) != nil
+        searchTouchBlock(element, step: step, in: snapshot) != nil
+    }
+
+    /// 探索が「見つかった」と言わない理由(覆い・外側の一覧の名指し)。判定は撃つ前の断り・最初に掴む一致と同じ
+    /// `TapTargetGeometry.touchBlock`(1か所)。**どの操作でも効かせる**(select / exist も、見えていない対象を見つかったにしない =
+    /// 探索が止まって select が切り取られた欄の値を読み ✅・撃つ前の断りと食い違う、が起きた。11周目の探索 im4 F2・iultra F7)
+    func searchTouchBlock(_ element: ElementInfo, step: FlowStep, in snapshot: SnapshotResponse) -> String? {
+        TapTargetGeometry.touchBlock(element, in: snapshot.elements, screen: snapshot.screen, safeAreaTop: snapshot.safeAreaTop,
+                                     scale: driver.pointScale, inferring: step.containerInference ?? true,
+                                     searchFinger: FTSwipeDirection(rawValue: step.direction ?? ""))?.cover
     }
 
     /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)
@@ -1046,18 +1051,9 @@ extension StepExecutor {
                 // **触る操作は、容器の外で縁に接しない覆い(ナビゲーションバー)の下に潜った対象を「見つかった」にしない**
                 // (利用者が向きを書いている。そのまま撃つと覆いに当たり、何も起きないまま ok になる。
                 // 送って外れなければ弾切れの失敗で断る = 撃たない。coveredOutsideContainerBeyondOneLift の doc)
-                // **送れば外れる側の縁のバー(ナビゲーションバー・ステータスバーの帯・タブバー)の下に中心がある対象も、どの操作でも
-                // 見つかったにしない**(送り続ければ出る。止まると select は空要素・tap は帯を叩く。edgeBarCoveringCentre の doc)
-                let edgeBar = FTSwipeDirection(rawValue: step.direction ?? "").flatMap {
-                    TapTargetGeometry.edgeBarCoveringCentre(element, in: snapshot.elements, screen: snapshot.screen,
-                                                            safeAreaTop: snapshot.safeAreaTop, finger: $0)
-                }
-                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot) || edgeBar != nil
-                if buriedUnderBar {
-                    scrollSearchBuriedCover = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
-                        element, in: snapshot.elements, screen: snapshot.screen,
-                        inferring: step.containerInference ?? true).map(TapTargetGeometry.describe) ?? edgeBar
-                }
+                // 覆い・外側の一覧・送れば外れる側の縁のバーの下に中心がある対象は見つかったにしない(`searchTouchBlock`)
+                let buriedUnderBar = buriedUnderBarForTouch(element, step: step, in: snapshot)
+                if buriedUnderBar { scrollSearchBuriedCover = searchTouchBlock(element, step: step, in: snapshot) }
                 if !buriedUnderBar,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。

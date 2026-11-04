@@ -882,19 +882,45 @@ public enum TapTargetGeometry {
     public static func clippedByOuterScroller(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                               scale: Double) -> FTRect? {
         let floor = minimumVisibleTapExtent * scale
-        // **最も内側の申告容器(棚)そのものが、外側の容器の完全に外へ送り出された残り**のときだけ(`isOutsideContainer` =
-        // 兄弟の並びで容器を確かめる)。祖先を深さだけで辿って外側と読むと、間引かれた中間の要素のせいで無関係な一覧が
-        // 外側に見え、シートのキューの行・タブを誤って断った(E2EY-CMP の Android・E2EX-RN の iOS の回帰)
-        guard let shelf = ancestors(of: element, in: elements).first(where: { $0.scrollable == true }),
-              ContainerGeometry.isOutsideContainer(shelf, in: elements, screen: screen),
-              let outer = ContainerGeometry.clippingContainer(of: shelf, in: elements),
-              // 外側は画面の大部分を占める一覧(主たる容器と同じ面積の比)。深さの復元で直前の小さな容器が棚の親に見える形
-              // (E2EX-RN のタブ列の上の小さな横の容器)を外す
-              outer.width * outer.height >= screen.width * screen.height * primaryContainerMinimumAreaRatio else { return nil }
+        let scrollers = ancestors(of: element, in: elements).filter { $0.scrollable == true }
+        // 最も内側の申告容器(棚)と、その外側で画面の大部分を占める一覧(主たる容器と同じ面積の比)。深さの復元で直前の小さな
+        // 容器が棚の親に見える形(E2EX-RN のタブ列の上の小さな横の容器)は面積で外れる
+        guard let shelf = scrollers.first,
+              let outer = scrollers.dropFirst().first(where: {
+                  $0.frame.width * $0.frame.height >= screen.width * screen.height * primaryContainerMinimumAreaRatio
+              })?.frame,
+              // 棚が外側と交わる(一部見えている = 外側の中身)か、棚ごと外側の外へ送り出された残り(`isOutsideContainer`)のときだけ。
+              // 外側と隣り合うだけの別の容器(シートのキュー)を外側の中身と読むと、押せる行を断った(E2EY-CMP の Android の回帰)
+              ScrollGeometry.intersection(shelf.frame, outer) != nil
+                || ContainerGeometry.isOutsideContainer(shelf, in: elements, screen: screen) else { return nil }
         let cx = element.frame.centerX, cy = element.frame.centerY
         guard !(outer.x <= cx && cx <= outer.x + outer.width && outer.y <= cy && cy <= outer.y + outer.height) else { return nil }
         let visible = ScrollGeometry.intersection(element.frame, outer)
         return visible.map({ min($0.width, $0.height) < floor }) ?? true ? outer : nil
+    }
+
+    /// **触れない理由と、送れば出せる向き**(`scroll:` に書く向き。".up" 等)。nil = 触れる。DSL の3か所が同じ判定を使う:
+    /// 探索の「見つかった」(触れない間は見つかったにしない)・最初に掴む一致(`[n]` なしなら触れる一致へ替える)・撃つ前の断り。
+    /// 別々に判定すると、探索が見つかったと言った対象を撃つ前に断る・断りに従って `scroll:` を書いても同じ断りになる、が起きた
+    /// (11周目の探索 iultra F7・F8)。`searchFinger` は探索の指の向き(縁のバーの判定はそれで決まる。探索でないときは nil)
+    public static func touchBlock(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                                  safeAreaTop: SafeAreaTop, scale: Double, inferring: Bool,
+                                  searchFinger: FTSwipeDirection?) -> (cover: String, scroll: String)? {
+        if let over = coveredOutsideContainerBeyondOneLift(element, in: elements, screen: screen, inferring: inferring),
+           let container = primaryScrollContainer(in: elements, screen: screen)?.frame {
+            return (describe(over), element.frame.centerY < container.y ? ".up" : ".down")
+        }
+        if inferring, let outer = clippedByOuterScroller(element, in: elements, screen: screen, scale: scale) {
+            let name = elements.first { $0.scrollable == true && $0.frame == outer }.map(describe) ?? "the list around it"
+            let cy = element.frame.centerY, cx = element.frame.centerX
+            let scroll = cy < outer.y ? ".up" : cy > outer.y + outer.height ? ".down" : cx < outer.x ? ".left" : ".right"
+            return ("the outer scrolling list \(name), which clips it", scroll)
+        }
+        if let finger = searchFinger,
+           let bar = edgeBarCoveringCentre(element, in: elements, screen: screen, safeAreaTop: safeAreaTop, finger: finger) {
+            return (bar, finger == .down ? ".up" : ".down")
+        }
+        return nil
     }
 
     /// 向きを書いた探索が、**送れば外れる側の縁のバー**の下に中心がある対象を「見つかった」にしないための判定。覆いの名指し

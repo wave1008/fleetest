@@ -222,6 +222,50 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
     }
 
+    /// 長押し・swipeElementToElement の始点も同じ判定で撃たずに断る(断りが tap にしか届かず、XCUITest へ落ちて ok だった。11周目 ilocal F13)
+    func testHoldAndSwipeStartOnACardClippedByTheOuterListAreRefused() async {
+        for step in [FlowStep(action: "holdStart", locator: FlowLocator(id: "card_2_00")),
+                     FlowStep(action: "swipeElementToElement", locator: FlowLocator(id: "card_2_00"),
+                              endLocator: FlowLocator(id: "row_n_00"))] {
+            let log = CallLog()
+            let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [nestedTree(shelfY: -55)])
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+            let outcome = await executor.execute(step)
+            guard case .failed(let message) = outcome.status else { return XCTFail("\(step.action ?? ""): 断るはず \(outcome.status)") }
+            XCTAssertTrue(message.contains("outer scrolling list") && message.contains("nothing was touched"), message)
+            XCTAssertFalse(log.entries.contains { $0.contains(".hold(") || $0.contains(".drag(") || $0.contains(".press(") },
+                           "\(step.action ?? ""): 撃った \(log.entries)")
+        }
+    }
+
+    /// `scroll:` を書いた探索は、外側の一覧に切り取られた対象を「見つかった」にしない(撃つ前の断りと同じ判定)。送っても出なければ
+    /// 探索の失敗として覆いを名指しし、撃たない(案内どおり scroll: を書いても同じ断りで失敗していた。11周目の探索 iultra F8)
+    func testSearchDoesNotAcceptACardClippedByTheOuterList() async {
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [nestedTree(shelfY: -55)])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "card_2_00"),
+                                                      direction: "down", maxSwipes: 2))
+        guard case .failed(let message) = outcome.status else { return XCTFail("断るはず: \(outcome.status)") }
+        XCTAssertTrue(message.contains("the target was in the tree but under") && message.contains("outer scrolling list"), message)
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") || $0.contains(".press(") }, "撃った: \(log.entries)")
+    }
+
+    /// `[n]` の無いワイルドカードの先頭の一致が外側の一覧に切り取られていて、一覧の中に見えている一致があればそちらを押す
+    /// (見えているカードがあるのに断っていた。11周目の探索 ilocal F5)
+    func testWildcardPrefersAVisibleMatchOverOneClippedByTheOuterList() async {
+        var els = nestedTree(shelfY: -55)
+        var shelf3 = el(12, "other", id: "shelf_3", FTRect(x: 0, y: 200, width: 400, height: 130), scrollable: true); shelf3.depth = 2
+        var visible = el(13, "button", id: "card_3_00", label: "カード 3-00", FTRect(x: 16, y: 205, width: 140, height: 120)); visible.depth = 3
+        var mate = el(14, "button", id: "card_3_01", label: "カード 3-01", FTRect(x: 164, y: 205, width: 140, height: 120)); mate.depth = 3
+        els += [shelf3, visible, mate]
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [els])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(label: "カード ", labelMatch: .startsWith)))
+        XCTAssertTrue(log.entries.contains("primary.tap(ref:13)"), "見えている一致を押す: \(log.entries)")
+    }
+
     /// 外側の一覧の中に収まった棚のカードは対象外(従来どおり押す)
     func testCardInsideTheOuterListIsNotRefused() {
         let els = nestedTree(shelfY: 200)

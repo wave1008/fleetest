@@ -145,39 +145,27 @@ extension StepExecutor {
     /// **触る操作の全経路が撃つ点を決める前に通す**(tap は「中心が容器の外なら見えている部分を押す」分岐が先にあり、
     /// そこを通る形 = 横向きの隠れたバー・CMP の縮み切ったヘッダでこの断りを素通りしていた。10周目の探索 iultra F2・F6)
     func buriedOutsideContainerRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> String? {
-        // **容器の外で、1回の送りでは外せない覆い(ナビゲーションバー・折りたたみヘッダ)の下に潜った対象は撃たない**
-        // (`scroll:` を書いた探索は見つかったと言わない = 同じ判定。書いていない手はここで断る)。見えている部分を押しても
-        // 縮んだヘッダの中身に当たり、何も起きないまま ok になった(RN の iOS の A10・9周目の探索 iultra F3)。
-        // 人も覆われたボタンは先に一覧を戻してから押すので、向きを書けば探索が送って出す
-        if let over = TapTargetGeometry.coveredOutsideContainerBeyondOneLift(
-            element, in: snapshot.elements, screen: snapshot.screen, inferring: step.containerInference ?? true),
-           let container = TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen)?.frame {
-            let up = element.frame.centerY < container.y
-            // `scroll:` を受けるのは tap と hold だけ(doubleTap・ドラッグ・swipeElementToElement 等は引数が無い = 先に送る手を案内する)
-            let remedy = Self.coveredTouchAcceptsScroll(step.action)
-                ? "Add scroll: \(up ? ".up" : ".down") so the list is scrolled until the target comes out from under it"
-                : "Scroll the list \(up ? "up" : "down") first (for example \(up ? "scrollUp()" : "scrollDown()") before this step)"
-                    + " until the target comes out from under it — this command has no scroll: argument"
-            return "did not touch \(step.locatorSummary): it is outside the scrolling list and its centre is under"
-                + " \(TapTargetGeometry.describe(over)), which a single scroll of the list does not clear (nothing was touched). "
-                + remedy
+        // 判定は探索の「見つかった」・最初に掴む一致と同じ `TapTargetGeometry.touchBlock`(1か所)。撃つ前に断る形:
+        // 一覧の外で1回の送りでは外せない覆い(ナビゲーションバー・折りたたみヘッダ)の下・入れ子の外側の一覧に切り取られた対象。
+        // 見えている部分を押しても覆いや画面の上端に当たり、何も起きないまま ok になった(9〜11周目の探索)
+        guard let block = TapTargetGeometry.touchBlock(
+            element, in: snapshot.elements, screen: snapshot.screen, safeAreaTop: snapshot.safeAreaTop,
+            scale: driver.pointScale, inferring: step.containerInference ?? true, searchFinger: nil) else { return nil }
+        let head = "did not touch \(step.locatorSummary): its centre is under \(block.cover), and touching it there would"
+            + " land on something else (nothing was touched). "
+        // `scroll:` を書いた手がここへ来た = 探索が送っても出せなかった(探索は同じ判定で見つかったにしない)。足せとは言わない
+        if step.direction != nil {
+            return head + "Scrolling in the written direction did not bring it out; scroll the other way, or point at an"
+                + " element that is not hidden"
         }
-        // 入れ子のスクロールで、外側の一覧に切り取られて見えない対象(内側の棚とは交わるので上の判定も見えている部分の判定も見ない)
-        if step.containerInference ?? true,
-           let outer = TapTargetGeometry.clippedByOuterScroller(element, in: snapshot.elements, screen: snapshot.screen,
-                                                                scale: driver.pointScale) {
-            let up = element.frame.centerY < outer.y
-            let vertical = element.frame.centerY < outer.y || element.frame.centerY > outer.y + outer.height
-            let toward = vertical ? (up ? ".up" : ".down") : (element.frame.centerX < outer.x ? ".left" : ".right")
-            let remedy = Self.coveredTouchAcceptsScroll(step.action)
-                ? "Add scroll: \(toward) so the outer list is scrolled until the target is inside it"
-                : "Scroll the outer list first (for example \(toward == ".up" ? "scrollUp()" : toward == ".down" ? "scrollDown()" : toward == ".left" ? "scrollLeft()" : "scrollRight()") before this step)"
-                    + " until the target is inside it — this command has no scroll: argument"
-            return "did not touch \(step.locatorSummary): it is inside a nested list, but the outer scrolling list"
-                + " \(snapshot.elements.first { $0.scrollable == true && $0.frame == outer }.map(TapTargetGeometry.describe) ?? "around it") clips it — its centre is outside that list and too little of it is"
-                + " visible there to touch (nothing was touched). " + remedy
+        // `scroll:` を受けるのは tap と hold だけ(doubleTap・ドラッグ・swipeElementToElement 等は引数が無い = 先に送る手を案内する)
+        if Self.coveredTouchAcceptsScroll(step.action) {
+            return head + "Add scroll: \(block.scroll) so the list is scrolled until the target comes out"
         }
-        return nil
+        let call = [".up": "scrollUp()", ".down": "scrollDown()", ".left": "scrollLeft()", ".right": "scrollRight()"][block.scroll]
+            ?? "scrollUp()"
+        return head + "Scroll the list first (for example \(call) before this step) until the target comes out"
+            + " — this command has no scroll: argument"
     }
 
     func coveredTouchPlan(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> CoveredTouchPlan {

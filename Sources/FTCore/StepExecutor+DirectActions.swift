@@ -716,7 +716,8 @@ extension StepExecutor {
         // **払うのは tap の直後だけ**(木を1枚読む)。自動フォーカスに任せる書き方や、
         // pressEnter で欄を移った直後の type は読み足さない。
         // 改行入りは typeDriver(XCUITest)へ回す経路があり ref の体系が別なので触らない
-        if let tapped = lastTapTarget, !text.contains("\n"),
+        // 直前に叩いた欄は tap だけでなく、hideKeyboard を挟んだ直前の type / clearInput の欄も含む(`tapTargetBeforeThisStep`)
+        if let tapped = tapTargetBeforeThisStep, !text.contains("\n"),
            let recovered = try await retypeTargetIfUnfocused(after: tapped, phase: &phase) {
             // retypeTargetIfUnfocused が撮った撮り直し後の snapshot の keyboardFrame
             // (= 打つ前の状態。retypeRescueKeyboardFrame の doc)

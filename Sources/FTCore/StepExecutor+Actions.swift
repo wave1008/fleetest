@@ -89,7 +89,9 @@ extension StepExecutor {
         // **ロケータを持つ type も捨てる**(欄を名指しした後のロケータなし type は、その欄の続き = MCP の recordInteraction と同じ)
         // 直前が tap、または直前の type / clearInput がこの欄を叩いて焦点を立てた形(Flutter の iOS 横向き: 欄は焦点を取るとキーボードの下へ潜る)
         tapTargetBeforeThisStep = lastTapTarget ?? lastFieldTouchTarget
-        if !grabsOnly { lastFieldTouchTarget = nil }
+        // hideKeyboard は下の lastTapTarget と同じく、直前の type / clearInput が叩いた欄も捨てない(type(セレクタ) → hideKeyboard →
+        // ロケータなしの type が 409 で赤だった。tap から始めた並びだけ通っていた = 11周目の探索 im4 F1)
+        if !grabsOnly, action != "hideKeyboard" { lastFieldTouchTarget = nil }
         // **hideKeyboard は「直前に叩いた欄」を変えない**(キーボードを閉じても次の ref 無し type の入れ先は同じ。捨てると救済・断りが
         // 効かず、前に焦点のあった別の欄へ打って緑になった)。焦点を動かす操作(tap・pressEnter・back 等)だけが捨てる
         if !grabsOnly, action != "hideKeyboard", (action != "type" && action != "clearInput") || step.locator != nil {
@@ -295,11 +297,18 @@ extension StepExecutor {
         // (人が見て押すのはそちら。UIKit は初めから外の行を木に出さないので同じ結果になる)。外の残りを掴むと救済の送りで一覧を
         // 戻し、行き過ぎて見失う・別の行を押す(10周目の探索 ilocal F1・F5: RN / SwiftUI の `tap("行 *")`)。序数・相対の指定は
         // 利用者が1つを選んでいるので替えない
-        if grabbedGhost(resolved), let locator = step.locator, resolved?.1 == nil, locator.index == nil,
+        // **触れない形(覆いの下・外側の一覧に切り取られた。`TapTargetGeometry.touchBlock` = 探索・撃つ前の断りと同じ判定)の先頭の
+        // 一致も同じく替える**(ヘッダの裏で人に見えない行を押して緑・見えているカードがあるのに断った。11周目の探索 ilocal F5・F9)
+        func untouchable(_ candidate: ElementInfo) -> Bool {
+            guard step.containerInference ?? true else { return false }
+            return ContainerGeometry.isOutsideContainer(candidate, in: snapshot.elements, screen: snapshot.screen)
+                || TapTargetGeometry.touchBlock(candidate, in: snapshot.elements, screen: snapshot.screen,
+                                                safeAreaTop: snapshot.safeAreaTop, scale: driver.pointScale,
+                                                inferring: true, searchFinger: nil) != nil
+        }
+        if let first = resolved?.0, untouchable(first), let locator = step.locator, resolved?.1 == nil, locator.index == nil,
            locator.relative?.isEmpty ?? true,
-           let inside = LocatorResolver.candidates(locator, elements: snapshot.elements)?.first(where: { candidate in
-               !ContainerGeometry.isOutsideContainer(candidate, in: snapshot.elements, screen: snapshot.screen)
-           }) {
+           let inside = LocatorResolver.candidates(locator, elements: snapshot.elements)?.first(where: { !untouchable($0) }) {
             resolved = (inside, nil)
         }
         var ghostRetries = 0

@@ -22,7 +22,7 @@ final class FireRoutesTableTests: XCTestCase {
         var isCoord: Bool { [.tapCoord, .longPressCoord, .doubleTapCoord, .dragCoord, .pinchCoord].contains(self) }
     }
 
-    enum Check: String, CaseIterable { case refIdentity, keyboard, onScreen, frontApp, covering, bottomBand }
+    enum Check: String, CaseIterable { case refIdentity, keyboard, onScreen, frontApp, covering, bottomBand, reach }
 
     enum Cell {
         case behavior([String])
@@ -48,6 +48,8 @@ final class FireRoutesTableTests: XCTestCase {
         case .onScreen: return op.isCoord
         case .frontApp: return true
         case .bottomBand: return [.tapRef, .longPressRef, .doubleTapRef].contains(op)
+        // 触れるか(覆いの下・外側の一覧に切り取られた = `TapTargetGeometry.touchBlock`)。要素を指で触る ref 形だけ
+        case .reach: return [.tapRef, .longPressRef, .doubleTapRef, .dragRef].contains(op)
         }
     }
 
@@ -64,11 +66,13 @@ final class FireRoutesTableTests: XCTestCase {
 
     static let table: [Entrance: [Op: [Check: Cell]]] = [
         .dsl: [
-            .tapRef: [.refIdentity: .behavior(["RefExpectationScopeWiringTests.testTapCarriesTheResolvedElement"]),
+            .tapRef: [.reach: .behavior(["UncoverOutsideContainerTests.testTapWithoutScrollRefusesATargetBuriedUnderTheBar", "UncoverOutsideContainerTests.testLandscapeTapUnderTheBarIsRefused", "UncoverOutsideContainerTests.testCardClippedByTheOuterListIsRefused"]),
+                          .refIdentity: .behavior(["RefExpectationScopeWiringTests.testTapCarriesTheResolvedElement"]),
                       .keyboard: .behavior(["StepExecutorTests.testTapTypeAndClearInputUnderTheKeyboardCloseItFirst"]),
                       .covering: .exempt(dslCoveringCost), .frontApp: .exempt(dslLocatorInApp),
                       .bottomBand: .behavior(["BottomGestureBandTests.testTapOnAnElementWhoseCentreIsInTheBandTouchesItsPartAboveTheBand"])],
-            .longPressRef: [.refIdentity: .behavior(["RefExpectationScopeWiringTests.testLongPressCarriesTheResolvedElement"]),
+            .longPressRef: [.reach: .behavior(["UncoverOutsideContainerTests.testHoldAndSwipeStartOnACardClippedByTheOuterListAreRefused"]),
+                                .refIdentity: .behavior(["RefExpectationScopeWiringTests.testLongPressCarriesTheResolvedElement"]),
                             .keyboard: .scan(["PreFireGuardTests.testEntranceIsCalledOnceBeforeTheActionSwitch"]),
                             .covering: .exempt(dslCoveringCost), .frontApp: .exempt(dslLocatorInApp),
                             .bottomBand: .behavior(["BottomGestureBandTests.testLongPressAndDoubleTapInTheBandTouchAboveIt"])],
@@ -78,10 +82,12 @@ final class FireRoutesTableTests: XCTestCase {
             .clearRef: [.refIdentity: .behavior(["RefExpectationScopeWiringTests.testClearCarriesTheResolvedElement"]),
                         .keyboard: .behavior(["StepExecutorTests.testTapTypeAndClearInputUnderTheKeyboardCloseItFirst"]),
                         .covering: .exempt(dslCoveringCost), .frontApp: .exempt(dslLocatorInApp)],
-            .dragRef: [.refIdentity: .exempt(dslLocatorAtFire),
+            .dragRef: [.reach: .behavior(["UncoverOutsideContainerTests.testHoldAndSwipeStartOnACardClippedByTheOuterListAreRefused"]),
+                           .refIdentity: .exempt(dslLocatorAtFire),
                        .keyboard: .scan(["PreFireGuardTests.testEntranceIsCalledOnceBeforeTheActionSwitch"]),
                        .covering: .exempt(dslCoveringCost), .frontApp: .exempt(dslLocatorInApp)],
-            .doubleTapRef: [.refIdentity: .exempt(dslLocatorAtFire),
+            .doubleTapRef: [.reach: .behavior(["UncoverOutsideContainerTests.testDoubleTapRefusalSuggestsScrollingFirstInsteadOfAnArgument"]),
+                                .refIdentity: .exempt(dslLocatorAtFire),
                             .keyboard: .behavior(["KeyboardClosedTargetLostTests.testDoubleTapAlsoFailsWithoutTouching"]),
                             .covering: .exempt(dslCoveringCost), .frontApp: .exempt(dslLocatorInApp),
                             .bottomBand: .behavior(["BottomGestureBandTests.testLongPressAndDoubleTapInTheBandTouchAboveIt"])],
@@ -102,13 +108,15 @@ final class FireRoutesTableTests: XCTestCase {
             .pressEnter: [.frontApp: .behavior(["RefLessInputFrontAppNoteTests.testClearAndEnterAreNotedToo"])],
         ],
         .mcp: [
-            .tapRef: [.refIdentity: .behavior(["RefAppProvenanceTests.testTapRefusesARefTakenBeforeTheAppChanged",
+            .tapRef: [.reach: .behavior(["MCPCoveredTouchTests.testRefTouchesOnACardClippedByTheOuterListAreRefused"]),
+                          .refIdentity: .behavior(["RefAppProvenanceTests.testTapRefusesARefTakenBeforeTheAppChanged",
                                                "MCPRefGuardTests.testTapRetargetsToTheFreshRefWhenTheElementMoved"]),
                       .keyboard: .behavior(["MCPRefGuardTests.testTapIsRefusedWhenTheCentreIsUnderTheKeyboard"]),
                       .covering: .behavior(["MCPRefGuardTests.testTapNamesTheNotificationCentreWhenThatIsWhatCovers"]),
                       .frontApp: .scan(["MCPSharedGuardParityTests.testPreFireGuardTableHasNoEmptyCell"]),
                       .bottomBand: .scan(["MCPSharedGuardParityTests.testEveryRefTouchHandlerClearsTheBottomGestureBand"])],
-            .longPressRef: [.refIdentity: .scan(["TapRefGuardTests.testEveryRefPathGoesThroughTheSingleRetargetEntry"]),
+            .longPressRef: [.reach: .behavior(["MCPCoveredTouchTests.testRefTouchesOnACardClippedByTheOuterListAreRefused"]),
+                                .refIdentity: .scan(["TapRefGuardTests.testEveryRefPathGoesThroughTheSingleRetargetEntry"]),
                             .keyboard: .behavior(["MCPRefGuardTests.testTapIsRefusedWhenTheCentreIsUnderTheKeyboard"]),
                             .covering: .pending("verifiedRef を通るが振る舞いのテストが無い"),
                             .frontApp: .scan(["MCPSharedGuardParityTests.testPreFireGuardTableHasNoEmptyCell"]),
@@ -121,11 +129,13 @@ final class FireRoutesTableTests: XCTestCase {
                         .keyboard: .pure(["KeyboardRefusalFocusedFieldTests.testFocusedFieldIsNotRefusedForTypeAndClearInput"]),
                         .covering: .pending("verifiedRef を通るが振る舞いのテストが無い"),
                         .frontApp: .scan(["MCPSharedGuardParityTests.testPreFireGuardTableHasNoEmptyCell"])],
-            .dragRef: [.refIdentity: .scan(["TapRefGuardTests.testEveryRefPathGoesThroughTheSingleRetargetEntry"]),
+            .dragRef: [.reach: .pending("ft_drag の fromRef は coveredRefTouch を通るが touchBlock の振る舞いのテストが無い"),
+                           .refIdentity: .scan(["TapRefGuardTests.testEveryRefPathGoesThroughTheSingleRetargetEntry"]),
                        .keyboard: .behavior(["MCPOutsideAppTreeSweepTests.testDragFromARefUnderTheKeyboardIsRefused"]),
                        .covering: .behavior(["MCPRefGuardTests.testRefGesturesNameTheSurfaceThatCoversTheApp"]),
                        .frontApp: .scan(["MCPSharedGuardParityTests.testEveryHandlerThatResolvesAnElementPassesTheRefGestureGuard"])],
-            .doubleTapRef: [.refIdentity: .behavior(["MCPRefGuardTests.testDoubleTapWarnsWhenTheRetargetedElementHasADifferentLabel"]),
+            .doubleTapRef: [.reach: .behavior(["MCPCoveredTouchTests.testRefTouchesOnACardClippedByTheOuterListAreRefused"]),
+                                .refIdentity: .behavior(["MCPRefGuardTests.testDoubleTapWarnsWhenTheRetargetedElementHasADifferentLabel"]),
                             .keyboard: .behavior(["MCPRefGuardTests.testTapIsRefusedWhenTheCentreIsUnderTheKeyboard"]),
                             .covering: .behavior(["MCPRefGuardTests.testRefGesturesNameTheSurfaceThatCoversTheApp"]),
                             .frontApp: .scan(["MCPSharedGuardParityTests.testEveryHandlerThatResolvesAnElementPassesTheRefGestureGuard"]),
@@ -183,7 +193,7 @@ final class FireRoutesTableTests: XCTestCase {
     ]
 
     /// 未対応(確かめるテストが無いマス)の数。**直したら下げる・増やすなら理由を書いて上げる**
-    static let pendingCount = 9
+    static let pendingCount = 10
 
     // MARK: - テスト
 
