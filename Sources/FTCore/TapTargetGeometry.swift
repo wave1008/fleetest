@@ -879,18 +879,22 @@ public enum TapTargetGeometry {
     /// 内側の容器(横の棚)とは交わるので `isOutsideContainer` も見えている部分の判定も外側を見ない。中心が外側の容器の外で、
     /// 外側の容器の中に見えている部分が床(`minimumVisibleTapExtent` × scale)に届かないときだけ返す(撃つと切り取られた所 =
     /// 画面の上端・ステータスバーを叩いて何も押さない。RN の入れ子のスクロール・10周目の探索 ilocal F2)
-    public static func clippedByOuterScroller(_ element: ElementInfo, in elements: [ElementInfo], scale: Double) -> ElementInfo? {
+    public static func clippedByOuterScroller(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                                              scale: Double) -> FTRect? {
         let floor = minimumVisibleTapExtent * scale
+        // **最も内側の申告容器(棚)そのものが、外側の容器の完全に外へ送り出された残り**のときだけ(`isOutsideContainer` =
+        // 兄弟の並びで容器を確かめる)。祖先を深さだけで辿って外側と読むと、間引かれた中間の要素のせいで無関係な一覧が
+        // 外側に見え、シートのキューの行・タブを誤って断った(E2EY-CMP の Android・E2EX-RN の iOS の回帰)
+        guard let shelf = ancestors(of: element, in: elements).first(where: { $0.scrollable == true }),
+              ContainerGeometry.isOutsideContainer(shelf, in: elements, screen: screen),
+              let outer = ContainerGeometry.clippingContainer(of: shelf, in: elements),
+              // 外側は画面の大部分を占める一覧(主たる容器と同じ面積の比)。深さの復元で直前の小さな容器が棚の親に見える形
+              // (E2EX-RN のタブ列の上の小さな横の容器)を外す
+              outer.width * outer.height >= screen.width * screen.height * primaryContainerMinimumAreaRatio else { return nil }
         let cx = element.frame.centerX, cy = element.frame.centerY
-        let scrollers = ancestors(of: element, in: elements).filter { $0.scrollable == true }
-        // 最も内側の申告容器(棚)は従来の判定が見る。2段目より外だけを見る
-        for outer in scrollers.dropFirst() {
-            let f = outer.frame
-            guard !(f.x <= cx && cx <= f.x + f.width && f.y <= cy && cy <= f.y + f.height) else { continue }
-            let visible = ScrollGeometry.intersection(element.frame, f)
-            if visible.map({ min($0.width, $0.height) < floor }) ?? true { return outer }
-        }
-        return nil
+        guard !(outer.x <= cx && cx <= outer.x + outer.width && outer.y <= cy && cy <= outer.y + outer.height) else { return nil }
+        let visible = ScrollGeometry.intersection(element.frame, outer)
+        return visible.map({ min($0.width, $0.height) < floor }) ?? true ? outer : nil
     }
 
     /// 向きを書いた探索が、**送れば外れる側の縁のバー**の下に中心がある対象を「見つかった」にしないための判定。覆いの名指し
