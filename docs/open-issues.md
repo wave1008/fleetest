@@ -28,7 +28,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 15 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169 |
+| 着手可 | 原因か経路が分かっていて、次の手が決まっているもの | 16 | OI-75・OI-124・OI-125・OI-129・OI-138・OI-139・OI-146・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 7 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 8 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-164・OI-165 |
@@ -133,6 +133,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 属性: 着手可
 
 11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。①inapp-boost でシナリオの途中にアプリのプロセスが死ぬと「ブリッジに届かない」として振り直し、2回目が緑なら run は `All passed`・exit 0(ilocal F17・外からの `simctl terminate` で 2/2。ツールは「process not running — it may have crashed」と観測している)②一覧の上に浮いた FAB の tap に「centre is covered by #row_f_NN」の注記(ilocal F15・SwiftUI 5/5・CMP 5/5。実際には FAB を押せている)③RN の縦で、バーが隠れた後の `tap("#fab_hiding", scroll: .up)` が not found・案内が `maxSwipes`(iultra F3・5/5。手で1回 `scrollUp()` すれば押せる)④CMP で探索が行き過ぎ、整定の待ちが打ち切られた後に `waitSeconds:` を案内して赤(iultra F5・13回中3回)⑤doubleTap の not found に `scroll:` の案内が無い(iultra F7。doubleTap は `scroll:` を持たないので先に送る手を案内する形)⑥`select(..., scroll: .up)` の探索の失敗の理由が捨てられ、後続の `textIs` は理由の無い not found(im4 F5・4/4。同じ状態の `exist` は理由を言う)⑦E2EY-Flutter の Android の A11(NestedScrollView + TabBarView)で、一覧の上端の近くの行への tap が ✅ なのに押されていない(amax F1・投稿 19/28・メディア 2/4・いいね 3/4。`scrollUp(repeat: 3)` → `wait(1.5)` → scroll 無しの tap でも 3/4 = 慣性では説明できない。外側のヘッダが伸びた後の内側の一覧の a11y の枠と描画のずれを疑う。撃った座標と描画の突き合わせが未了)⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)・`scrollToTop` が上端に着かずに ✅(4/4)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
+
+### OI-171 探索の残り(13周目)
+- 状態: 再現済み
+- 確認: 6344e74e(2026-11-05)
+- 属性: 着手可
+
+11/5 の13周目の探索(20分・`_work/explore-20261105a/findings-*.md`)で観測し、直さなかったもの。①E2EY-Android の A9 でシートを全開にした裏の `本文 10` への `tap(scroll: .down)` が ✅(注記「may have hit #list_queue」だけ)で、実際はキューの行を押した(amax F1・5/5。探索の送りもしない = 最初の木で撃つ前の注記に落ちる。Android の z は塗り順として使っていない)②同じ A9 でシートを半分にしたまま背面の `本文 20` / `本文 39` を `tap(scroll: .down)` で探すと、背面の一覧が動かないまま「the scroll area reached its end」で赤・対処文は対象の居ない `#list_queue` を勧める(amax F2・10/10。`scrollFrame: "#list_main"` でも 4/4 赤 = 払いの始点がシートの上に落ちる疑い)③M4Max(macOS 26.7.2)の OCR で `tap(linkText: "@alice")` が同じ行の URL の位置を撃って ✅(im4 F1・4回中1回。OI-139 の機械)。割り出した枠を読み直して確かめる直しを試したが、手元の E2EY-iOS で 24 回中1回、OCR が `a¿` と読んでリンクを見つけられない赤が出た(直しのせいかは未確定)ので入れていない(差分は `_work/explore-20261105a/linktext-verify.patch`)④CMP の A10 の `scrollTo("#row_h_30")` が整定の打ち切り(poll limit)のまま ok を返し、対象が固定領域の裏へ流れる(ilocal F6・4/4)。整定が打ち切られた回だけ撮り直して確かめる直しを入れたが、手元の 8 台 × 3 周では打ち切りの回が出ず、直した経路は未確認
 
 ## 要判断
 

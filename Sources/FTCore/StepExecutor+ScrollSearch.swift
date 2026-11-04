@@ -1087,14 +1087,29 @@ extension StepExecutor {
                                                                  snapshot: snapshot, afterInertialMove: leftInertia,
                                                                  phase: &phase)
                     }
+                    // **整定の待ちが上限で切れた回は、撮り直した木でまだ見えていて触れるときだけ見つかったにする**。
+                    // 画面は見つけた後も流れていて、見つけた時点の木で ok にすると対象が固定領域の裏へ流れたまま返った
+                    // (CMP の隠れるバーの画面の scrollTo・11〜13周目 ilocal F6)。見えなければ探索を続ける(行き過ぎは逆走査が拾う)。
+                    // 整定した回には読みを足さない
+                    var confirmed: ElementInfo? = element
+                    if settleCapped {
+                        let after = try await freshSnapshot(.afterOwnMove)
+                        confirmed = LocatorResolver.resolve(step: step, in: after, strictForAssert: true).map(\.0).flatMap { again in
+                            TapTargetGeometry.offscreenScrollGateAdvisory(for: again, screen: after.screen) == nil
+                                && searchTouchBlock(again, step: step, in: after) == nil ? again : nil
+                        }
+                        if confirmed != nil { snapshot = after }
+                    }
                     // **成功時も swipes を載せる**: 失敗文にしか使わなかった頃は既定の 0 で
                     // 害が無かったが、MCP の ft_scroll_to が所要時間の内訳へ出すようになり、
                     // 「何本振って辿り着いたか」が常に 0 と報告されるようになった
-                    return ScrollSearchResult(found: true, fallback: fallback, viaXCUITest: viaXCUITest,
-                                              hintJumps: hintJumps, settleCapped: settleCapped,
-                                              swipes: swipes,
-                                              maxTruncatedDuringSearch: truncatedDuringSearch,
-                                              element: element)
+                    if let confirmed {
+                        return ScrollSearchResult(found: true, fallback: fallback, viaXCUITest: viaXCUITest,
+                                                  hintJumps: hintJumps, settleCapped: settleCapped,
+                                                  swipes: swipes,
+                                                  maxTruncatedDuringSearch: truncatedDuringSearch,
+                                                  element: confirmed)
+                    }
                 }
             }
             // **横の探索で枠がほとんど窓の外なら、先に外側の縦の容器を送って枠を窓へ入れる**
