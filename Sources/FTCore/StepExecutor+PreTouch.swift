@@ -151,12 +151,13 @@ extension StepExecutor {
 
     /// 覆いの下の対象を出す直し方(撃つ前の断り・失敗後の案内 `coveredTouchHint` で共有)。名指す覆いは中心を覆う最前面の要素
     /// (シートの中の行のことがある)なので、閉じる・畳む相手は「それを持つシート・パネル」と言う。`step` が分かれば `scroll:` の
-    /// 書き方を出し分ける(書いた手 = 探索が送っても出せなかったので足せと言わない・`scroll:` を受けないコマンドは先に送る手)
+    /// 書き方を出し分ける(書いた手 = 探索が送っても出せなかったので足せと言わない・`scroll:` を受けないコマンドは先に送る手)。
+    /// nil = scroll: を勧めない(失敗後の案内・探索が覆いを見ない経路 = iOS の当たり判定の断り)
     static func uncoverRemedy(cover: String, step: FlowStep?) -> String {
         let close = "If \(cover) is part of a sheet or panel, close or collapse it first"
-        guard let step else { return close + "; otherwise scroll the target clear of it" }
+        guard let step else { return close + "; otherwise scroll the list before this step until the target is clear of it" }
         if step.direction != nil {
-            return close + "; scrolling in the written direction did not bring the target out, so scroll the other way"
+            return close + "; scrolling in the step's scroll: direction did not bring the target out, so scroll the other way"
         }
         if coveredTouchAcceptsScroll(step.action) { return close + "; otherwise add scroll: so the target is scrolled clear of it" }
         return close + "; otherwise scroll the list before this step (scrollUp() / scrollDown()) until the target is clear of it"
@@ -216,7 +217,8 @@ extension StepExecutor {
                     let name = TapTargetGeometry.describe(cover)
                     return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
                         + " \(name) is drawn over it, so a touch would land there (nothing was touched). "
-                        + Self.uncoverRemedy(cover: name, step: step))
+                        // scroll: は勧めない: 塗り順の無い木の探索は当たり判定を見ないので、足しても同じ断りになる
+                        + Self.uncoverRemedy(cover: name, step: nil))
                 }
                 suspect = suspect ?? cover
             }

@@ -44,7 +44,8 @@ tap(x: 120, y: 640)                    // only when no selector is available
   checks the result fails and something was overlapping the target of the operation just before it, the failure message names
   that element and tells you how to fix the scenario: make sure the target is not covered at that step (close what covers it,
   or scroll the target clear of it first). Fixing it is up to you — look at the failing device's screen to decide.
-  On iOS, the tool fails the step without pressing only when the platform answers that the target cannot be hit there.
+  On iOS, the tool fails the step without pressing only when the platform answers that the target cannot be hit there; the
+  message then tells you to close the sheet or panel in front, or to scroll the list before this step until the target is clear.
 - **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
   to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
   another app is never operated by mistake).
