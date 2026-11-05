@@ -8,7 +8,7 @@
 
 | 関数 | 説明 |
 |---|---|
-| `clearInput(settle:)` | フォーカス中の入力欄を空にします。焦点のある欄が画面の要素一覧に無いときは、消えたかを確かめられないので、成功のまま注記 `clear-input-unverified` を付けます(値は `valueIs` で確かめてください)。打っても値が変わらない欄(入力ではなく説明文を値に出す検索欄など)は、消した後も同じ値なら消え残りとは数えず、注記 `clear-input-value-ignores-input` を付けて成功にします。 |
+| `clearInput(settle:)` | フォーカス中の入力欄を空にします。焦点のある欄が画面の要素一覧に無いときは、消えたかを確かめられないので、成功のまま注記 `clear-input-unverified` を付けます(値は `valueIs` で確かめてください)。 |
 | `clearInput(sel, settle:waitSeconds:scroll:maxSwipes:)` | 要素を指定して入力欄を空にします。 |
 
 ## 例

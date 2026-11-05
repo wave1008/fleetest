@@ -726,14 +726,16 @@ extension StepExecutor {
             do {
                 try await driver.type(ref: recovered.ref, text: text)
             } catch where DriverError.isTextInputFallback(error) {
-                // in-app は欄を叩いた後、焦点が別の欄にあると見て打たずに 409 で断る。ブリッジの文言は「ref を渡せ」(MCP の語彙)で
-                // DSL では従えないので載せない。叩きは届いているので撃ち直さない。実例: Flutter の SearchAnchor は叩くと検索欄を
-                // 新しい層に開き、閉じる前の木に残った古いバーの欄を救済が選んだ(14周目 im4 F3)
-                return StepOutcome(status: .failed(
+                phase.actionMs += Self.ms(clock.now - start)
+                // in-app の 409 は「打たずに断った」(焦点が別の欄・受け口が無い・挿入の失敗・キーウィンドウが無い)。
+                // どれかは文言に入れない(検知の入力から決まらない)。ブリッジの文言は「ref を渡せ」(MCP の語彙)で DSL では従えないので
+                // 載せない。叩きは届いていることがあるので撃ち直さない。実例: Flutter の SearchAnchor は叩くと検索欄を新しい層に開き、
+                // 閉じる前の木に残った古いバーの欄を救済が選んだ(14周目 im4 F3)
+                return StepOutcome(status: failed(.driverError,
                     "did not type: the preceding tap left no field the tree reported as focused, so the text was aimed at"
-                        + " \(TapTargetGeometry.describe(recovered)) — the bridge touched it, found keyboard focus on another"
-                        + " field and typed nothing. If the tap opened a new input (a search field that opens over the screen),"
-                        + " point at that field with a selector: type(\"<selector of the opened field>\", …)"))
+                        + " \(TapTargetGeometry.describe(recovered)), but the bridge refused to type into it (HTTP 409) and nothing"
+                        + " was typed. If the tap opened a new input (a search field that opens over the screen), point at that"
+                        + " field with a selector: type(\"<selector of the opened field>\", …)"))
             }
             phase.actionMs += Self.ms(clock.now - start)
             // 文言は動的(入れた先を名指しする)のでコードだけ立てる

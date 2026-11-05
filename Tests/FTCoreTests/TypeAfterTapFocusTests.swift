@@ -141,6 +141,8 @@ final class TypeAfterTapFocusTests: XCTestCase {
         XCTAssertTrue(message.contains("type(\"<selector of the opened field>\""), message)
         XCTAssertTrue(message.contains("#textInputEditText"), message)
         XCTAssertFalse(message.contains("pass the ref"), message)
+        XCTAssertFalse(message.contains("another field"), "409 の原因は決まらないので名指さない: \(message)")
+        XCTAssertEqual(outcome.failureKind, .driverError)
         XCTAssertFalse(message.contains("hello"), "打った文字列を失敗文に出さない: \(message)")
         XCTAssertEqual(driver.typedRefs, [], "断られた後に撃ち直さない")
     }
