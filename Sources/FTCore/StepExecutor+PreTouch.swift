@@ -214,7 +214,7 @@ extension StepExecutor {
             return .refuse("did not touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)),"
                 + " and only \(n(visible)) of the target is left uncovered by what is in front of it"
                 + " (the minimum is \(n(floor)), in the snapshot's units), so a touch would land on \(TapTargetGeometry.describe(over))"
-                + " (nothing was touched)")
+                + " (nothing was touched). Close or collapse \(TapTargetGeometry.describe(over)) first, or scroll the target clear of it")
         }
     }
 
