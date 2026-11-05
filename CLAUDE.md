@@ -165,11 +165,16 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 
 ### Swift
 
-- **`swift test --parallel` だけでよい**(実測 127s → 34s)。**前に `swift build --build-tests` を
-  打たない** —— `swift test` が同じビルドをやり直すので**無変更でも 12.3 秒を二重に払う**。
-  **5 SUT のシナリオも `swift test` で型チェックされる**ので、DSL の改名・シグネチャ変更の
+- **単体テストの全体は `FT_FULL_TEST=1 Scripts/unit-tests.py`**(テストクラスごとに1プロセス・前回の所要時間で
+  重いクラスだけ1件ずつ・長い順に投入。`swift test --parallel` は1件ごとに xctest を起動し、その起動だけで全体の大半を
+  払っていた = 実測 313s → 約 110s(既定の並列度 = コア数 - 2 = 22 並列)。2026-11-06)。**絞った実行は `swift test --filter <Class>`**(前に
+  `swift build --build-tests` を打たない —— `swift test` が同じビルドをやり直すので**無変更でも 12.3 秒を二重に払う**)。
+  **5 SUT のシナリオもこのビルドで型チェックされる**ので、DSL の改名・シグネチャ変更の
   追随漏れもこれで捕まる。別途ビルドが要るのは変異テストの直後に製品バイナリを作り直すときだけ
   (`swift build --product <名>`)
+- **クラス単位で回すので、同じプロセスの中で前のテストの状態が残る**(`swift test --parallel` では1件1プロセスで
+  見えなかった)。プロセス内の控え・static を使うテストは、テストごとに捨てる(例: `CheckStateClassifierTests` の
+  `invokeTest`)。完了の行が出ないテストもランナーが赤に数える
 - **テストの範囲は PreToolUse フック `Scripts/test-scope-guard.py` が撃つ前に検査する**(`.claude/settings.json` に登録。
   このファイルは git 管理外なので**クローンごとに登録する**。
   `--filter` 無しの `swift test`・部分一致の語・素の `npm test`・`swift build --build-tests`・新しいテストの数を超える変異を断る。
@@ -254,7 +259,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 
 | 変更の性質 | 範囲 |
 |---|---|
-| 改名・シグネチャ変更・型に閉じたリファクタ | **`swift test --parallel` だけ**。追随漏れは必ずコンパイルエラーになる |
+| 改名・シグネチャ変更・型に閉じたリファクタ | **単体テストだけ**(`swift test --filter`。全体を頼まれたら `Scripts/unit-tests.py`)。追随漏れは必ずコンパイルエラーになる |
 | ホスト側ロジック(`StepExecutor` の分岐・セレクタ解決) | `swift test` + **該当シナリオ1〜2本** |
 | ブリッジの挙動(注入・スナップショット・型写像) | 該当 SUT の**1プロファイル**で通るシナリオ。フレームワーク差が絡むなら全 SUT の同じ画面のシナリオ |
 | 入力・キー・IME 系 | 上記 + **xcuitest モード**(`--profile ios-xcuitest`。既定は inapp-boost モードなので、もう片方のモード) |

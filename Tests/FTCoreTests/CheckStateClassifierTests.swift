@@ -11,9 +11,16 @@ import XCTest
 final class CheckStateClassifierTests: XCTestCase {
 
     /// Vision / Core ML は複数プロセスが同時に撃つと答えを誤る(SharedResource.visionML の doc)。
-    /// `swift test --parallel` でもこのクラスのテストは1本ずつ走らせる
+    /// 並列でもこのクラスのテストは1本ずつ走らせる。
+    /// プロセス内のモデルの控えは digest だけがキーで置き場を見ないので、テストごとに捨てる
+    /// (前のテストの控えが返ると、新しい一時ディレクトリに model.mlmodel / selfcheck.json が書かれない)
     override func invokeTest() {
-        do { try SharedResource.visionML.locked { super.invokeTest() } } catch { XCTFail("\(error)") }
+        do {
+            try SharedResource.visionML.locked {
+                VisionClassifier.forgetLoadedModelsForTesting()
+                super.invokeTest()
+            }
+        } catch { XCTFail("\(error)") }
     }
 
     // MARK: - 合成画像
