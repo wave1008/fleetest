@@ -149,6 +149,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 消えたと読ませる(実機 iPhone SE3 の CMP: パスワード欄が消えないまま緑)。値は `valueIs` で別途確かめる
     case clearInputUnverified = "clear-input-unverified"
 
+    /// 素の scrollUp / scrollDown 等の送りの後、画面の中身が送る前と1つも変わらなかった(端に着いていたか、払いの始点が一覧の外)。
+    /// **率を見たい注記**(新しい検知はまず警告から): 端での送りを書いたシナリオでも立つ
+    case scrollMovedNothing = "scroll-moved-nothing"
+
     /// 読み返しで**中央の文字が落ちていた**(`TypeReadback.Plan.retype`)ので、消してから全文を打ち直した
     /// (in-app 経路。XCUITest ランナーの打ち直しは OKResponse.note → driverFallback に出る)。
     /// **率を見たい注記**: 緑の run で増えるなら誤検知(本当は加工された入力を打ち直している)を疑う
@@ -556,6 +560,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .launchURLBeforeInteractiveUI:
             return "the URL was delivered before any tappable element appeared, so the app may not"
                 + " have been listening yet"
+        case .scrollMovedNothing:
+            return "nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction,"
+                + " or the swipe started outside it (without scrollFrame: the swipe starts at a fixed share of the screen);"
+                + " to swipe inside a specific list, pass scrollFrame:"
         case .clearInputUnverified:
             return "no field in the tree reported focus, so whether the field was emptied could not be"
                 + " read back — check the value with valueIs"

@@ -144,6 +144,13 @@ extension StepExecutor {
         if viaXCUITest { notes.append("fell back to XCUITest") }
         if unsettled { note(.settleCapped, into: &notes) }
         if let note = pendingScrollFrameNote { notes.append(note) }
+        // 送る前と最後の送りの後の静止した木(読みは足さない)の中身が同じ = 1本も効いていない。黙って ✅ にしない
+        // (横向きの Android: 枠なしの上への払いの始点が画面の高さの 30% = 一覧の上の帯に落ち、一覧が動かなかった)。
+        // 原因は名指さない(端に着いていても同じに見える)。settle: false の最後は撮っていないので比べない
+        if !(sentSwipes == times && skippingSettle(step)), let latest,
+           Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
+            note(.scrollMovedNothing, into: &notes)
+        }
         return StepOutcome(status: .passed,
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
     }
