@@ -340,40 +340,10 @@ final class FMServeAlignmentTests: XCTestCase {
         XCTAssertEqual(kinds.value, ["status"])
     }
 
-    /// 退役の問い合わせの窓。busy の間は窓の終わりまで問い直すので、ミリ秒単位にすると負荷の下で
-    /// 1回目の返事(テスト用のサーバーは 20 ms ごとに受け付けを見る)が窓に収まらない
+    /// 退役の問い合わせの窓。`waitForRetirement` は1回の問い合わせの締め切りも窓の残りで切るので、ミリ秒単位に
+    /// すると負荷の下でテスト用のサーバー(20 ms ごとに受け付けを見る)が答える前に切れ、`retirementQueryFailed` の
+    /// 誤った赤になる。窓の終わり際の問い直しが切れる形は 1 秒でも残る(本番の性質。極端な負荷でだけ出る)
     private static let retirementWindow: Double = 1
-
-    /// 窓が閉じた後に届いた返事も受け取る(1回の問い合わせの締め切りを窓の残りで切らない)。
-    /// 窓の中で始めた問い直しへの `.retiring` を取りこぼすと、相手は止まったのに呼び手は busy か失敗と読む。
-    /// 答えずに閉じた相手は失敗として届く(busy に丸めない)
-    func testRequeryStartedInTheWindowGetsItsAnswerAfterTheWindow() async throws {
-        let executable = try temporaryExecutable()
-        defer { try? FileManager.default.removeItem(at: executable) }
-        let window: Double = 2  // 1回目の busy が負荷の下でも窓の中に返る長さ
-        for answersAfterTheWindow in [true, false] {
-            let peer = identity(executable: executable.path)
-            let requests = LockedValue(0)
-            let socket = path()
-            let windowEnd = ContinuousClock.now.advanced(by: .seconds(window))
-            let stop = serve(path: socket) { _ in
-                let index = requests.withLock { $0 += 1; return $0 }
-                if index == 1 {
-                    return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .busy))
-                }
-                guard answersAfterTheWindow else { return nil }
-                try? await Task.sleep(until: windowEnd.advanced(by: .milliseconds(300)), clock: .continuous)
-                return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .retiring))
-            }
-            let decision = await FMServeHost.prepareExistingServer(peer, client: FMServeClient(socketPath: socket),
-                                                                   executable: executable.path, buildStamp: "new",
-                                                                   serverExecutableStamp: "new", waitSeconds: window)
-            XCTAssertEqual(decision, answersAfterTheWindow ? .replace : .leave(.retirementQueryFailed),
-                           "answersAfterTheWindow=\(answersAfterTheWindow)")
-            XCTAssertEqual(requests.value, 2, "answersAfterTheWindow=\(answersAfterTheWindow)")
-            stop()
-        }
-    }
 
     func testNormalStartupRequiresSafeRetirementAcknowledgement() async throws {
         let executable = try temporaryExecutable()

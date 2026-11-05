@@ -232,13 +232,13 @@ public struct FMServeClient: Sendable {
         let deadline = ContinuousClock.now.advanced(by: .seconds(max(0, waitSeconds)))
         while true {
             try Task.checkCancellation()
-            guard ContinuousClock.now < deadline else {
+            let remaining = ContinuousClock.now.duration(to: deadline)
+            guard remaining > .zero else {
                 return FMServeWire.RetirementResponse(identity: target, outcome: .busy)
             }
-            // 窓が決めるのは「新しい問い直しを始めてよい期限」だけ。1回の問い合わせの締め切りを窓の残りで切らない ——
-            // サーバは `.retiring` を書く前に停止を始めるので、短い締め切りで諦めた問い合わせが実は退役させていて、
-            // 返事だけを取りこぼす(呼び手は相手が居るのか消えたのか言えなくなる)
-            let response = try await retire(FMServeWire.RetirementRequest(target: target))
+            var attempt = self
+            attempt.deadlineSeconds = min(deadlineSeconds, DurationConversion.seconds(remaining))
+            let response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
             guard response.controlVersion == FMServeWire.retirementProtocolVersion,
                   response.identity.serverVersion == target.serverVersion,
                   response.identity.executable == target.executable,

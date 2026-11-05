@@ -96,10 +96,11 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         // 6 秒 = 予算 2 + SIGTERM を無視されたときの猶予 Shell.killGraceSeconds 2 + 余裕 2(打ち切らなければ sleep の 8 秒)
         let hello = try XCTUnwrap(result.firstArrival("hello"), result.timeline)
         XCTAssertLessThan(result.returned - hello, .seconds(6), result.timeline)
-        // 届いた時刻はイベントの配送が遅れると縮むので、打ち切りの側が自分の時計で測った無出力の長さも見る
+        // 届いた時刻はイベントの配送が遅れると縮むので、打ち切りの側が自分の時計で測った無出力の長さも見る。
+        // 打ち切りを決めた時点の値 = 止める猶予を含まない。4 秒 = 予算 2 + 負荷の下で打ち切りの側が起きる遅れの余裕 2
         let silent = try XCTUnwrap(line.flatMap { $0.firstMatch(of: /no output for ([0-9.]+)s/) }.flatMap { Double($0.1) },
                                    "\(line ?? "")")
-        XCTAssertLessThan(silent, 6, "\(line ?? "")")
+        XCTAssertLessThan(silent, 4, "\(line ?? "")")
     }
 
     /// 遅いだけで出力を続ける子は、予算(2 秒)より長く走っても止めない
