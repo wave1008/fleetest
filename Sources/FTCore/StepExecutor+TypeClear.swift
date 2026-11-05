@@ -142,6 +142,7 @@ extension StepExecutor {
                     }
                     if TypeReadback.screenChangedOutsideField(element, before: consumptionBaseline, after: after) {
                         noteCodesThisStep.insert(.typeConsumedByApp)
+                        rememberValueIgnoringInput(element, value: actual)
                         return nil
                     }
                 }
@@ -157,6 +158,7 @@ extension StepExecutor {
                     screenCheckFact = seen.fact
                     if seen.visible == true {
                         noteCodesThisStep.insert(.typeReadbackUnchanged)
+                        rememberValueIgnoringInput(element, value: actual)
                         return nil
                     }
                     // **確かめられないなら追送しない**: 届いていればアプリへ同じ文字列が二度入る
@@ -851,7 +853,30 @@ extension StepExecutor {
             residual = Self.residualClearValue(step: step, before: before, in: snapshot)
             if residual == nil { return (nil, last) }
         }
+        if let residual, let last, let (found, _) = LocatorResolver.resolve(step: step, in: last),
+           valueIgnoresInput(residual, field: found) {
+            return (nil, last)
+        }
         return (residual, last)
+    }
+
+    /// 欄の鍵(`valueIgnoringInputByField`)。id の無い欄は nil = 覚えない・免除しない(枠は打鍵とキーボードで動くので鍵にならない)
+    static func inputFieldKey(_ field: ElementInfo) -> String? {
+        guard let id = field.identifier, !id.isEmpty else { return nil }
+        return id + "\u{1F}" + field.type
+    }
+
+    /// 打った後も value が動かなかった欄の、そのときの value を覚える(`valueIgnoringInputByField` の doc)
+    func rememberValueIgnoringInput(_ field: ElementInfo, value: String) {
+        guard let key = Self.inputFieldKey(field), !value.isEmpty else { return }
+        valueIgnoringInputByField[key] = value
+    }
+
+    /// 消した後の残りが、この欄へ打った後も動かなかった値と同じか。真なら注記を立てる(呼び手は残りと数えない)
+    func valueIgnoresInput(_ residual: String, field: ElementInfo) -> Bool {
+        guard let key = Self.inputFieldKey(field), valueIgnoringInputByField[key] == residual else { return false }
+        noteCodesThisStep.insert(.clearInputValueIgnoresInput)
+        return true
     }
 
     /// clearInput(ref なし)の事後検証: クリア前に覚えた要素を撮り直した snapshot で突き合わせる。
@@ -874,6 +899,7 @@ extension StepExecutor {
             residual = Self.residualClearValue(of: focusedBefore, in: snapshot)
             if residual == nil { return nil }
         }
+        if let residual, valueIgnoresInput(residual, field: focusedBefore) { return nil }
         return residual
     }
 

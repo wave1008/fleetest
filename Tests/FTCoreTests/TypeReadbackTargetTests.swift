@@ -279,6 +279,35 @@ final class TypeReadbackTargetTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.typeReadbackUnchanged), "\(outcome.notes)")
     }
 
+    // ---- 値が入力を映さない欄のクリアの読み返し(14周目 im4 F1。M3 SearchBar の iOS は空でも打った後でも同じ説明文) ----
+
+    private func typeThenClear(values: [String], text: String, onScreen: Bool?) async -> (StepOutcome, StepOutcome) {
+        StepExecutor.typedTextOnScreenOverrideForTesting = onScreen.map { visible in { _ in (visible, nil) } }
+        defer { StepExecutor.typedTextOnScreenOverrideForTesting = nil }
+        let executor = StepExecutor(driver: ReadbackSequenceDriver(values: values), isAndroid: false, tunables: RunTunables())
+        let typed = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field"), text: text))
+        let cleared = await executor.execute(FlowStep(action: "clearInput", locator: FlowLocator(id: "field")))
+        return (typed, cleared)
+    }
+
+    /// **witness**: 打っても value が動かなかった欄で、消した後の value が同じ説明文でも「残り」と数えない(注記で通す)
+    func testClearDoesNotCountTheValueThatIgnoredTypingAsLeftover() async {
+        let hint = "検索候補は次のとおりです"
+        let (typed, cleared) = await typeThenClear(values: [hint, hint, hint, hint], text: "bx", onScreen: true)
+        XCTAssertTrue(typed.notes.contains(.typeReadbackUnchanged), "\(typed.notes)")
+        XCTAssertTrue(StepExecutor.isSuccess(cleared.status), "\(cleared.status)")
+        XCTAssertTrue(cleared.notes.contains(.clearInputValueIgnoresInput), "\(cleared.notes)")
+    }
+
+    /// 反例: 打つと value が動く普通の欄で消えずに残ったら、従来どおり赤(免除しない)
+    func testClearStillFailsWhenAFieldThatReflectsTypingKeepsItsText() async {
+        let (typed, cleared) = await typeThenClear(values: ["", "bx", "bx", "bx"], text: "bx", onScreen: nil)
+        XCTAssertTrue(StepExecutor.isSuccess(typed.status), "\(typed.status)")
+        guard case .failed(let message) = cleared.status else { return XCTFail("\(cleared.status)") }
+        XCTAssertTrue(message.contains("value remained"), message)
+        XCTAssertFalse(cleared.notes.contains(.clearInputValueIgnoresInput), "\(cleared.notes)")
+    }
+
     /// **ランナーと共有する純粋関数**(正規化なし)の順序: ヒント欄では本文だけへ採り直し、
     /// 両方が .retype なら expected、どちらでもなければ expected
     func testSharedReadbackTargetOrdering() {

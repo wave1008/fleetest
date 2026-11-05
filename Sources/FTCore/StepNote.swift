@@ -149,6 +149,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 消えたと読ませる(実機 iPhone SE3 の CMP: パスワード欄が消えないまま緑)。値は `valueIs` で別途確かめる
     case clearInputUnverified = "clear-input-unverified"
 
+    /// 消した後の value が、この欄へ打った後も動かなかった値(`valueIgnoringInputByField`)と同じだったので、残りと数えずに受理した。
+    /// value が入力を映さない欄(M3 SearchBar の iOS)で、消えたかは読み返せていない —— 値は画面か後段で確かめる
+    case clearInputValueIgnoresInput = "clear-input-value-ignores-input"
+
     /// 読み返しで**中央の文字が落ちていた**(`TypeReadback.Plan.retype`)ので、消してから全文を打ち直した
     /// (in-app 経路。XCUITest ランナーの打ち直しは OKResponse.note → driverFallback に出る)。
     /// **率を見たい注記**: 緑の run で増えるなら誤検知(本当は加工された入力を打ち直している)を疑う
@@ -559,6 +563,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .clearInputUnverified:
             return "no field in the tree reported focus, so whether the field was emptied could not be"
                 + " read back — check the value with valueIs"
+        case .clearInputValueIgnoresInput:
+            return "the field's value after clearing is the same value it kept while text was typed into it"
+                + " (the value does not reflect the input), so it was not counted as text left behind;"
+                + " whether the field was emptied could not be read back"
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"

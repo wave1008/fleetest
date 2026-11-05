@@ -24,6 +24,8 @@ final class TypeAfterTapFocusTests: XCTestCase {
         /// true の間だけ type() が要素の value を書き換える(「反映される」を表現する)。
         /// false のまま(既定)なら value は変わらない = 読み返しが永久に一致しない形を作れる
         var reflectsTypedText = false
+        /// true の間、ref 付きの type を in-app ブリッジの「焦点が別の欄」の 409 で断る(叩いた後・打つ前の断り)
+        var refusesRefTypeWith409 = false
         init(elements: [ElementInfo]) { self.elements = elements }
 
         func status() async throws -> StatusResponse {
@@ -42,6 +44,9 @@ final class TypeAfterTapFocusTests: XCTestCase {
         func tap(ref: Int) async throws {}
         func tap(x: Double, y: Double) async throws {}
         func type(ref: Int?, text: String) async throws {
+            if ref != nil, refusesRefTypeWith409 {
+                throw DriverError.badResponse(status: 409, body: "keyboard focus is not on the tapped element — pass the ref of the input element itself.")
+            }
             typedRefs.append(ref)
             guard reflectsTypedText, let ref,
                   let index = elements.firstIndex(where: { $0.ref == ref }) else { return }
@@ -120,6 +125,24 @@ final class TypeAfterTapFocusTests: XCTestCase {
         }
         XCTAssertTrue(outcome.notes.contains(.typeFocusRecovered),
                       "読み返しを通しても救済の注記は残ること")
+    }
+
+    /// 救済で選んだ欄への type をブリッジが「焦点が別の欄」で断ったら、DSL で従える書き方を言って失敗する
+    /// (ブリッジの「ref を渡せ」を載せない・撃ち直さない。14周目 im4 F3 = Flutter の SearchAnchor)
+    func testRescueRefusedByTheBridgeSaysWhatTheScenarioCanDo() async throws {
+        let driver = RecordingDriver(elements: [container(ref: 8, id: "txtMailAddress"), field(ref: 9)])
+        driver.refusesRefTypeWith409 = true
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "txtMailAddress"), timeout: 1))
+
+        let outcome = await executor.execute(FlowStep(action: "type", text: "hello"))
+
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("type(\"<selector of the opened field>\""), message)
+        XCTAssertTrue(message.contains("#textInputEditText"), message)
+        XCTAssertFalse(message.contains("pass the ref"), message)
+        XCTAssertFalse(message.contains("hello"), "打った文字列を失敗文に出さない: \(message)")
+        XCTAssertEqual(driver.typedRefs, [], "断られた後に撃ち直さない")
     }
 
     /// 焦点があるときは**従来どおり**フォーカス中要素へ送る(木を読み足さない)

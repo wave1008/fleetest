@@ -1358,6 +1358,11 @@ public final class StepExecutor {
     var lastFieldTouchTarget: ElementInfo?
     /// `lastTapTarget` を叩く直前の木(`InputFocusRescue.fieldToType` の `before`)。`lastTapTarget` と同じ寿命
     var tapTreeForRescue: [ElementInfo]?
+    /// 打った後も value が打つ前の値から動かずに受理した欄(`type-readback-unchanged` / `type-consumed-by-app`)の、そのときの value。
+    /// 鍵は `StepExecutor.inputFieldKey`(id のある欄だけ)。クリアの読み返しがこの値を「残り」と数えないため —— M3 SearchBar の iOS は
+    /// 空でも打った後でも value が同じ説明文で、前後の一致を残りと読んで消えた欄を赤にした(14周目 im4 F1)。
+    /// 普通の欄は打つと value が動くのでここに載らず、消えなかったクリアは従来どおり赤
+    var valueIgnoringInputByField: [String: String] = [:]
 
     /// `type` の直前(実際に打つ直前)に撮ってあった木の `keyboardFrame`。
     /// **`pendingTypeKeyboardCheck` が立っている間だけ意味を持つ**(消費側が「打つ前」として読む)
