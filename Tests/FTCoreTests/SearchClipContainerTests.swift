@@ -1,5 +1,5 @@
-// 探索の見切れの枠(`StepExecutor.searchClipContainer`): 容器推定が scroll を申告していない・対象と重ならない祖先を選び、
-// 対象の中心が scroll を申告した別の容器の中にあるときだけ、申告した容器を使う
+// 探索の見切れの枠(`StepExecutor.searchClipContainer`): 推定した枠と対象が重ならず、対象が申告したスクロール容器の上に浮く物
+// (`ContainerGeometry.isFloatingOverDeclaredScroller`)のときだけ、申告した容器を使う
 
 import XCTest
 @testable import FTCore
@@ -57,5 +57,17 @@ final class SearchClipContainerTests: XCTestCase {
         let elements = [page, list, row1, row2, ghost]
         XCTAssertEqual(StepExecutor.searchClipContainer(of: ghost, in: elements, inferring: true),
                        ContainerGeometry.clippingContainer(of: ghost, in: elements, inferring: true))
+    }
+
+    /// 仲間の居ない要素でも、推定した枠と重なる(縁で見切れた本物の中身)なら推定のまま = 見切れの戻しを残す
+    func testUniqueElementOverlappingTheInferredFrameKeepsTheInference() {
+        let page = el(1, "other", id: nil, FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true)
+        let list = el(2, "other", id: "list_rows", FTRect(x: 0, y: 230, width: 402, height: 462), depth: 2)
+        let row1 = el(3, "cell", id: "row_28", FTRect(x: 16, y: 300, width: 370, height: 56), depth: 3)
+        let row2 = el(4, "cell", id: "row_29", FTRect(x: 16, y: 360, width: 370, height: 56), depth: 3)
+        let more = el(5, "button", id: "btn_more", FTRect(x: 100, y: 670, width: 200, height: 56), depth: 3)
+        let elements = [page, list, row1, row2, more]
+        XCTAssertEqual(StepExecutor.searchClipContainer(of: more, in: elements, inferring: true),
+                       ContainerGeometry.clippingContainer(of: more, in: elements, inferring: true))
     }
 }

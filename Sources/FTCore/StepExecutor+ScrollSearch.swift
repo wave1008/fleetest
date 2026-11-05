@@ -804,10 +804,16 @@ extension StepExecutor {
     /// (`ContainerGeometry.isFloatingOverDeclaredScroller` = タップの経路の ghost の判定と同じ1か所。仲間の行が並ぶ本物の容器の外の行は
     /// 浮く物にしない)なら、中心を含む最小の申告容器を枠にする。RN の木では一覧の上に浮く FAB が上の隠れるバーの子に並び、バーの枠で
     /// 「見切れ」と読んで逆へ送り戻し、バーごと FAB が隠れるのを繰り返した(E2EY-RN の iOS・既定の8本で not found、送り1本なら押せた)
+    /// **タップの経路(`isOutsideContainer`)と同じ順**: 推定した枠と対象が重ならないときだけ浮く物かを見る(重なる・見切れた本物の中身・
+    /// 推定が無い(nil = 画面全体)は従来どおり)。枠に使う容器は浮く物の判定が比べた容器と同じ(申告の祖先、無ければ中心を含む最小の申告容器)
     static func searchClipContainer(of element: ElementInfo, in elements: [ElementInfo], inferring: Bool) -> FTRect? {
-        let inferred = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring)
-        guard inferring, ContainerGeometry.isFloatingOverDeclaredScroller(element, in: elements),
-              let holder = ContainerGeometry.smallestDeclaredScroller(containingCentreOf: element, in: elements) else { return inferred }
+        guard let inferred = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring),
+              ScrollGeometry.intersection(inferred, element.frame) == nil,
+              ContainerGeometry.isFloatingOverDeclaredScroller(element, in: elements),
+              let index = elements.firstIndex(where: { $0.ref == element.ref }),
+              let holder = ContainerGeometry.nearestScrollableAncestor(of: element, at: index, in: elements)
+                ?? ContainerGeometry.smallestDeclaredScroller(containingCentreOf: element, in: elements)
+        else { return ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) }
         return holder.frame
     }
 
@@ -980,7 +986,7 @@ extension StepExecutor {
             let traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
             // 待ちの読み直し(同じ回が続く)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)
             let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
-            if scrollSearchTrace.last != entry { scrollSearchTrace.append(entry) }
+            if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) { scrollSearchTrace.append(entry) }
             if let (element, fallback) = traced {
                 // **見つけただけでは足りない**: 画面の縁で見切れている要素は、フレームワークに
                 // よっては frame がクランプされて**タップが外れる**(Compose iOS の既知の上流制約)。
