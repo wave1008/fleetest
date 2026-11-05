@@ -147,23 +147,17 @@ extension StepExecutor {
         // 送る前と最後の送りの後の静止した木(読みは足さない)の中身が同じ = 1本も効いていない。黙って ✅ にしない
         // (横向きの Android: 枠なしの上への払いの始点が画面の高さの 30% = 一覧の上の帯に落ち、一覧が動かなかった)。
         // 原因は名指さない(端に着いていても同じに見える)。settle: false の最後は撮っていないので比べない
-        // 比べるのは見えている項目の顔ぶれ(型・id・ラベル)。位置は比べない: 払いが一覧の端に掛かって数 px だけずれた形
-        // (観測: 行が 3px 動いて ✅)を「動いた」と数えないため。1画面ぶんの送りが効けば顔ぶれは必ず入れ替わる
+        // **完全一致で比べる**(何も変わっていない = 確かに動いていない = 誤検知 0)。顔ぶれ・位置の閾値で緩めない: 長い本文1つ・
+        // ラベルの無いタイル・値だけ変わるピッカーは、送れても顔ぶれが変わらない
         if !skippingSettle(step), let latest,
-           Self.sameVisibleItems(settledBefore.snapshot.elements, latest.elements) {
+           Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
             noteCodesThisStep.insert(.scrollMovedNothing)
             // scrollFrame: を書いた送りに「scrollFrame: を渡せ」と言わない
             notes.append(step.scrollFrame == nil && step.scrollFrameRect == nil ? StepNote.scrollMovedNothing.text
-                : "nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction")
+                : StepNote.scrollMovedNothingInWrittenFrameText)
         }
         return StepOutcome(status: .passed,
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
-    }
-
-    /// 見えている項目の顔ぶれ(型・id・ラベル)が同じか(`scroll-moved-nothing` の判定)。位置・値は比べない
-    static func sameVisibleItems(_ a: [ElementInfo], _ b: [ElementInfo]) -> Bool {
-        func key(_ e: ElementInfo) -> String { "\(e.type)\u{1F}\(e.identifier ?? "")\u{1F}\(e.label ?? "")" }
-        return a.map(key).sorted() == b.map(key).sorted()
     }
 
     // 端まで送る(Shirates の scrollToBottom 等)。**画面が変化しなくなったら端**とみなす。

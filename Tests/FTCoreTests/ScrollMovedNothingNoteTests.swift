@@ -28,15 +28,15 @@ final class ScrollMovedNothingNoteTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.scrollMovedNothing), "\(outcome.notes)")
     }
 
-    /// 払いが一覧の端に掛かって数 px だけずれた(顔ぶれは同じ)= 動いていない側に数える
-    func testNoteWhenRowsOnlyShiftedByAFewPixels() async {
-        let before = [row(1, "row_05", y: 521), row(2, "row_06", y: 689)]
-        let after = [row(1, "row_05", y: 518), row(2, "row_06", y: 686)]
+    /// 完全一致で比べる: 位置だけでもずれたら(送れたのに顔ぶれが同じ長い本文・タイル等と区別できないので)立てない
+    func testNoNoteWhenOnlyPositionsChanged() async {
+        let before = [row(1, "body", y: 200)]
+        let after = [row(1, "body", y: -300)]
         let driver = FakeAppDriver(name: "d", log: CallLog(),
                                    snapshotElements: [before, before, before, after, after, after, after, after])
         let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
             .execute(FlowStep(action: "scroll", direction: "down"))
-        XCTAssertTrue(outcome.notes.contains(.scrollMovedNothing), "\(outcome.notes)")
+        XCTAssertFalse(outcome.notes.contains(.scrollMovedNothing), "\(outcome.notes)")
     }
 
     /// settle: false の最後の送りの後は撮らないので比べない(立てない)

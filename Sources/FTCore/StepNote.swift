@@ -657,3 +657,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         }
     }
 }
+
+extension StepNote {
+    /// `scrollMovedNothing` の、`scrollFrame:` を書いた送りの文(「scrollFrame: を渡せ」と言わない)
+    public static let scrollMovedNothingInWrittenFrameText =
+        "nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction"
+}
