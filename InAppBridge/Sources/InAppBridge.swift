@@ -130,6 +130,19 @@ final class FTInAppBridge {
         lastSettleCapped = false
         skipSettle = req.skipSettle
         if !FocusLanding.keepsPriorTapRecord(method: req.method, path: req.path) { lastRefTap = nil }
+        // **アプリが背面(background)の間は、木の読み取りと操作を断る**: in-app ブリッジはアプリのプロセスの中に住むので、
+        // home や別のアプリへ移った後も一時停止されるまで数秒は背面のアプリを読めて押せる = 人にはできない操作が緑になった
+        // (16周目 ilocal F1: home() の後の tap / textIs が背面のアプリに届いて緑)。**断るのは background だけ** ——
+        // OS のアラートの間は active / inactive が端末で割れる(SystemUIGate の doc)が、背面へ回ったアプリは background。
+        // 状態の照会・スクリーンショット・起動の受け付けは断らない。423 にするのは 409 がホストで XCUITest への回り道の合図だから
+        // (reason は付けない = 「届いていないので撃ち直してよい」の意味を持たせない)
+        if Self.refusedWhileInBackground.contains(req.path),
+           mainSync({ UIApplication.shared.applicationState == .background }) {
+            let app = Bundle.main.bundleIdentifier ?? "the app"
+            return .error("\(app) is in the background (the home screen or another app is in front), so the in-app bridge"
+                + " did not read or touch it — a person could not do this either. Bring the app back (launchApp()) before this step",
+                status: 423)
+        }
         do {
             switch (req.method, req.path) {
             case ("GET", "/status"): return handleStatus()
@@ -168,6 +181,12 @@ final class FTInAppBridge {
             return .error("\(error)", status: 500)
         }
     }
+
+    /// アプリが背面の間に断る要求(`handle` の doc)
+    static let refusedWhileInBackground: Set<String> = [
+        "/snapshot", "/tap", "/type", "/clear", "/pressEnter", "/hidekeyboard", "/swipe", "/doubletap", "/pinch",
+        "/drag", "/press",
+    ]
 
     // MARK: - Handlers
 
