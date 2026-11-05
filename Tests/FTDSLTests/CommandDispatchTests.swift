@@ -335,6 +335,38 @@ final class CommandDispatchTests: XCTestCase {
                        "\(messages)")
     }
 
+    /// **綴りを確かめろの提案は、通った否定にだけ付ける**(前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で
+    /// 読まなかった)に付けると事実と逆になった(OI-175 ②・22周目 iultra F1)
+    func testNeverResolvedSuggestionOnlyForPassedNegatives() {
+        func suggestions(_ body: @escaping () -> Void) -> [String] {
+            let core = makeCore(driver: RecordingDriver())
+            FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+            defer { FTRuntime.tearDown() }
+            scenario { scene(1, "s") { action { body() } } }
+            core.warnAboutNeverResolvedIDs()
+            return core.finalRecord.fixSuggestions.map(\.message)
+        }
+        let passed = suggestions { notExist("#no_such_id", waitSeconds: 0.1) }
+        XCTAssertTrue(passed.contains { $0.contains("`#no_such_id` never resolved") }, "\(passed)")
+        let failed = suggestions { notExist("#cleanup", waitSeconds: 0.1) }
+        XCTAssertFalse(failed.contains { $0.contains("never resolved") }, "赤の否定に綴りの提案を付けた: \(failed)")
+    }
+
+    /// `launchApp(url:)` は配送の後に「前面を離れたかもしれない」の印を立て直す(hook は本体より前に印を落とすので)。
+    /// 立てないと別のアプリを開いた後の読みが停止した in-app へ約 45 秒待った(22周目 im4 F1・iultra F2)。ソース走査
+    func testLaunchAppWithURLRaisesTheLeftAppMarkAfterDelivery() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/CommandsAppControl.swift"), encoding: .utf8)
+        guard let start = source.range(of: "public func launchApp(_ appID: String? = nil, url: String? = nil,"),
+              let end = source.range(of: "applyProfileOrientation(core, file: file, line: line)", range: start.upperBound..<source.endIndex)
+        else { return XCTFail("走査の範囲が見つからない") }
+        let body = String(source[start.upperBound..<end.lowerBound])
+        guard let deliver = body.range(of: "try await driver.openURL(url, bundleID: bundle)"),
+              let mark = body.range(of: "core.executor.noteAppMayHaveLeft(true)")
+        else { return XCTFail("配送か印の立て直しが無い") }
+        XCTAssertLessThan(deliver.lowerBound, mark.lowerBound, "印を配送より前に立てている")
+    }
+
     /// 画像分類器が自分の見本を取り違えていたら、シナリオ終了時に弱い提案で知らせる(落とさない)
     func testClassifierSelfCheckMismatchesAreWarned() {
         let core = makeCore(driver: RecordingDriver())

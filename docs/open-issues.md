@@ -30,7 +30,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 14 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 9 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 10 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 10 | OI-75・OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165 |
@@ -119,7 +119,7 @@
 - 確認: コミット未記録(2026-11-05)
 - 属性: 着手可・要測定
 
-11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。①Android で探索(`select` / `exist` / `notExist(scroll: .up)`)の途中に HOME でアプリを背面へ回すと(プロセスは生きている)、探索が止まらずランチャーの上で 7〜12 回払い、クイック設定を引き下ろす。失敗文はシェードを名指し、同じ報告の警告はランチャーを名指して食い違う(amax F1・View・RN・Flutter で 22/22)。原因は観測済み(途中の確かめはプロセスの照会だけで、生きていれば続ける = StepExecutor+ScrollSearch.swift の途中の確かめ)。直すなら「持ち主が対象から替わった回は、割り込みの処理の後もまだ替わっていれば止める」の形(登録した割り込みの処理を先に通す)②`notExist("#id")` が「element still exists」で赤なのに、同じ報告に「#id never resolved during this scenario … misspelled か確かめろ」と事実と逆の注記(im4 F2・8/8)= 要測定(注記を組み立てる経路の読みが未了)③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
+11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。①Android で探索(`select` / `exist` / `notExist(scroll: .up)`)の途中に HOME でアプリを背面へ回すと(プロセスは生きている)、探索が止まらずランチャーの上で 7〜12 回払い、クイック設定を引き下ろす。失敗文はシェードを名指し、同じ報告の警告はランチャーを名指して食い違う(amax F1・View・RN・Flutter で 22/22)。原因は観測済み(途中の確かめはプロセスの照会だけで、生きていれば続ける = StepExecutor+ScrollSearch.swift の途中の確かめ)。直すなら「持ち主が対象から替わった回は、割り込みの処理の後もまだ替わっていれば止める」の形(登録した割り込みの処理を先に通す)③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
 
 ## 要測定
 ### OI-176 探索の残り(17周目)
@@ -150,6 +150,13 @@
 - 属性: 要測定
 
 11/6 の21周目の探索(20分・`_work/explore-20261106e/findings-*.md`。この周から iPhone Duo の担当 duo を足した)で観測し、直さなかったもの。①大文字を含む自分のスキーム(`FTE2EFLUTTER://`)の `openURL` で iOS が「“Ft E2e Flutter”で開きますか?」の同意のアラートを出し、URL は届かないのに `openURL` は ✅(iultra F1・Flutter 12/12・SwiftUI 6/6。後続は赤になる。SwiftUI では後続の赤がアラートを名指さない)= 要測定(アラートの表題が表示名と大小で違い、XCUITest 側の同意の確かめの照合(`OpenURLConsent.confirmButtonRef`)が外れた筋書きは推測)②起動直後の最初の別アプリ向けの `openURL` が 11.7〜15.1 秒(iultra F2・24/24。simctl openurl を直接撃つと 1.6〜4.6 秒)= 要測定(内訳。同意の確かめの張り戻しの 500 に 5 秒)③Android で値の入った入力欄への `textIs` の失敗文が「actual (no value)」と書き、キーボードの窓が操作を吸った疑いまで付ける(値は入っていて `valueIs` は緑。amax F1・3 種の欄で 4/4)= 要測定 ④iPhone 13 実機の inapp-boost の供給で、動いていた in-app ブリッジ(8128)を使わず 8127 で起こし直し、自分が張った 8127 の iproxy を「port in use by another process」と名指して供給が止まる(phys F2・1/1)= 要測定 ⑤iPhone Duo で `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(duo F1・1/1 = 未再現)= 要測定
+
+### OI-180 探索の残り(22周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定
+
+11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 要測定 ③権限アラートの表示中の `home()` の 422(と残ったアラートを消す行)がボタンを2回ずつ並べる(ilocal F1・im4 F2 の回し直し。ランナーの InterruptionGuard がアラートのボタンを重複を除かずに並べる筋書き = XCUITest が2つずつ返しているかは木で未確認。直すならランナーの版を上げる)= 要測定 ④`tap(…, linkText:)` で英字の語が見つからないとき、和文の要素では赤の文言の「OCR read」が化けた読みを出す(amax F1・12/12。リンク語の文字種で OCR の認識言語が決まる筋書きは推測)⑤`--wait-lock` を付けて待ち切った run の失敗文が「pass --wait-lock <seconds>」と付けたフラグを勧める(phys F1・1/1)⑥iPhone Duo の XCUITest ブリッジの起動が「BUILD INTERRUPTED」で終わった後も run が「xcodebuild is still making progress (cold start)」と約 4 分待つ(duo F1・1/1。xcodebuild はもう居ない。2台を simctl shutdown して起こし直した後は緑)= 要測定
 
 
 ### OI-124 terminateApp 前後

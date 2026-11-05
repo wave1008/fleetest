@@ -1153,7 +1153,9 @@ public final class FTDriveCore {
             if succeeded, !isNegative {
                 resolvedIDs.insert(id)
                 negativeOnlyIDs[id] = nil
-            } else if isNegative, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
+            } else if isNegative, succeeded, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
+                // **通った否定だけ**を積む(提案の前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で読まなかった)に
+                // 「綴りを確かめろ」と言うと事実と逆になった(16周目 im4 F2 = OI-175 ②・22周目 iultra F1)
                 negativeOnlyIDs[id] = description
             }
         }
