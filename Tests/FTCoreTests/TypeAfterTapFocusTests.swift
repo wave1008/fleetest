@@ -132,7 +132,7 @@ final class TypeAfterTapFocusTests: XCTestCase {
     func testRescueRefusedByTheBridgeSaysWhatTheScenarioCanDo() async throws {
         let driver = RecordingDriver(elements: [container(ref: 8, id: "txtMailAddress"), field(ref: 9)])
         driver.refusesRefTypeWith409 = true
-        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+        let executor = StepExecutor(driver: driver, typeDriver: RecordingDriver(elements: []), isAndroid: false, tunables: RunTunables())
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "txtMailAddress"), timeout: 1))
 
         let outcome = await executor.execute(FlowStep(action: "type", text: "hello"))
@@ -145,6 +145,19 @@ final class TypeAfterTapFocusTests: XCTestCase {
         XCTAssertEqual(outcome.failureKind, .driverError)
         XCTAssertFalse(message.contains("hello"), "打った文字列を失敗文に出さない: \(message)")
         XCTAssertEqual(driver.typedRefs, [], "断られた後に撃ち直さない")
+    }
+
+    /// xcuitest モード(typeDriver が無い)の 409 はセッション消失なので、書き換えずにそのまま失敗へ流す
+    func testRescueRefusalOutsideInAppBoostKeepsTheBridgeMessage() async throws {
+        let driver = RecordingDriver(elements: [container(ref: 8, id: "txtMailAddress"), field(ref: 9)])
+        driver.refusesRefTypeWith409 = true
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "txtMailAddress"), timeout: 1))
+
+        let outcome = await executor.execute(FlowStep(action: "type", text: "hello"))
+
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertFalse(message.contains("<selector of the opened field>"), message)
     }
 
     /// 焦点があるときは**従来どおり**フォーカス中要素へ送る(木を読み足さない)
