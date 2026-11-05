@@ -314,6 +314,15 @@ extension StepExecutor {
         }
         var ghostRetries = 0
         var ghostSwipes = 0
+        // 救済の送りごとの事実(送る前の対象と容器の枠・送り方・送った後に引き直した枠)。救済を通ったステップの注記と
+        // 見失ったときの失敗文の末尾にだけ出す = 救済を通らない緑の run の文言は変わらない(行き過ぎの原因を測る口。OI-173 ②)
+        var ghostTrace: [String] = []
+        func traceRect(_ r: FTRect) -> String { "(\(Int(r.x)),\(Int(r.y)) \(Int(r.width))x\(Int(r.height)))" }
+        func traceAfterRescue() {
+            guard rescuedFrom != nil, let last = ghostTrace.last, !last.contains(" -> ") else { return }
+            ghostTrace[ghostTrace.count - 1] = last + " -> " + (resolved.map { traceRect($0.0.frame)
+                + (grabbedGhost($0) ? " still outside" : "") } ?? "not in the tree")
+        }
         // 救済の動きが慣性を残したか(下の空打ちの根拠。runScrollSearch の leftInertia と同じ規則)
         var ghostLeftInertia = false
         // 送っても対象が動かなかった(送る前と同じ矩形のまま容器の外)= スクロールの中身ではない。以後は送らない
@@ -346,11 +355,15 @@ extension StepExecutor {
             // **距離を測ってその分だけ動かす**(recoveryJump 参照)。全画面スワイプだと
             // 100pt のずれに対して1ページ動いてしまい、**行き過ぎて往復する**。
             // 容器が分かるときだけ使える手なので、駄目なら全画面スワイプへ落ちる
+            // **慣性を出さないドラッグで戻す**(`slowDrag`)。速いドラッグ(`hintDrag` = 0.3 秒)は CMP の iOS で指定の約2倍流れ
+            // (441pt を戻す1本で中身が 810〜865pt 動いた・手元8台×2周で 16/16)、行が画面の上の外まで行き過ぎて見失った(8/16 赤)
             if let container,
                let jump = Self.recoveryJump(for: element, container: container),
-               await hintDrag(jump: jump, container: container,
-                              viewport: snapshot.screen, phase: &phase) {
+               await slowDrag(jump: jump, container: container, phase: &phase) {
+                ghostTrace.append("\(traceRect(element.frame)) in \(traceRect(container)): slow-dragged \(Int(jump.rounded()))")
                 ghostSwipes += 1
+                // 送りの直後は容器が次の1タッチを吸う(実測で空打ちを足して 8/48 → 0/48。`testRecoverySwipeIsFollowedByTheEmptyDrag`)。
+                // 遅いドラッグでも吸わないかは測っていないので、空打ちの根拠を残す
                 ghostLeftInertia = true
                 _ = try await settledSignature(phase: &phase)
                 return
@@ -368,6 +381,7 @@ extension StepExecutor {
                 path: scrollPath(step: recovery, intent: .search, in: snapshot),
                 phase: &phase)
             if !swipeLeavesNoInertia(swipedViaXCUITest: swipedViaXCUITest) { ghostLeftInertia = true }
+            ghostTrace.append("\(traceRect(element.frame)) in \(container.map(traceRect) ?? "no container"): swiped \(recovery.direction ?? "?")")
             ghostSwipes += 1
             _ = try await settledSignature(phase: &phase)
         }
@@ -414,6 +428,7 @@ extension StepExecutor {
                         try await dismissInterruption(in: &snapshot, phase: &phase)
                         let previous = resolved
                         resolved = reresolve(in: snapshot)
+                        traceAfterRescue()
                         if previous != nil { ghostRetries += 1 }
                         if stillUnmovedGhost() { ghostDidNotMove = true }
                     }
@@ -442,6 +457,7 @@ extension StepExecutor {
                     try await dismissInterruption(in: &snapshot, phase: &phase)  // 上の timeout 付きの再試行と同じ
                     let previous = resolved
                     resolved = reresolve(in: snapshot)
+                    traceAfterRescue()
                     if previous != nil { ghostRetries += 1 }
                     if resolved != nil, !grabbedGhost(resolved) { break }
                     if stillUnmovedGhost() { ghostDidNotMove = true; break }
@@ -550,10 +566,12 @@ extension StepExecutor {
                 + " (\(ghostRetries) re-resolve(s), \(ghostSwipes) extra swipe(s))"
                 + (ghostDidNotMove ? " and did not move when the container was swiped, so no more swipes were sent" : "")
                 + (grabsOnly ? "" : "; the interaction may be swallowed")
+                + (ghostTrace.isEmpty ? "" : " [rescue: " + ghostTrace.joined(separator: "; ") + "]")
         } else if ghostRetries > 0 {
             ghostNote = "re-resolved \(ghostRetries) time(s)"
                 + (ghostSwipes > 0 ? " with \(ghostSwipes) extra swipe(s)" : "")
                 + " — the element was first reported outside its scroll container"
+                + (ghostTrace.isEmpty ? "" : " [rescue: " + ghostTrace.joined(separator: "; ") + "]")
         }
 
         // **解決できないのは上限で間引かれたからかもしれない**。否定アサーションと
@@ -667,7 +685,8 @@ extension StepExecutor {
                 "did not touch \(step.locatorSummary): it resolved to \(TapTargetGeometry.describe(lost.element)), which was reported"
                 + " outside its scroll container, so the list was scrolled to bring it back — but after scrolling it is no longer"
                 + " on the screen (nothing was touched). Scroll it into view first (for example with scroll:) or point at an"
-                + " element that is inside the list"))
+                + " element that is inside the list"
+                + (ghostTrace.isEmpty ? "" : " [rescue: " + ghostTrace.joined(separator: "; ") + "]")))
         } else {
             let retry = try await resolveAfterClosingKeyboard(action, step: step, in: snapshot, phase: &phase)
             if case .reached(let reachedElement, let usedFallback, let reachedSnapshot, let reachedNote) = retry {

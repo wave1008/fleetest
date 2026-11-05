@@ -30,6 +30,21 @@ final class TapGhostRescueWithWaitTests: XCTestCase {
         XCTAssertEqual(driver.tappedWhileGhost, false)
     }
 
+    /// 容器の外の要素を戻す送りは慣性を出さない速さのドラッグで撃ち、送りごとの事実を注記に残す
+    /// (速いドラッグは CMP の iOS で指定の約2倍流れ、行が画面の外まで行き過ぎて見失った = 実機の 8/16 赤)
+    func testRescueDragIsSlowAndItsFactsAreNoted() async {
+        let driver = GhostUntilScrolledDriver()
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_30"), occlusionGuard: false))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        guard let drag = driver.drags.first else { return XCTFail("戻す送りがドラッグで撃たれなかった") }
+        let ceiling = max(StepExecutor.reverseSweepDragSpeed, drag.distance / 3.0) + 0.01
+        XCTAssertLessThanOrEqual(drag.distance / drag.seconds, ceiling, "速いドラッグで戻した(慣性で行き過ぎる)")
+        let note = outcome.driverFallback ?? ""
+        XCTAssertTrue(note.contains("[rescue: (0,783 390x60) in "), note)
+        XCTAssertTrue(note.contains("-> (0,400 390x60)"), note)
+    }
+
     /// 送っても戻らない ghost に、待ち付きの分岐が既定の分岐より多く送らない(既定は attempt 1..N-1 で送る = N-1 回。
     /// 1回多いと行き過ぎて対象を容器の外へ押し戻す)
     func testWaitPathSendsNoMoreRescuesThanTheDefaultPath() async {
@@ -155,6 +170,8 @@ private final class SpinnerGhostSettlesLateDriver: AppDriver {
 /// 送り(swipe / drag)の前は row_30 が容器の外(y=783)、送った後は容器の中(y=400)に報告するドライバ
 private final class GhostUntilScrolledDriver: AppDriver {
     private(set) var scrolls = 0
+    /// 撃ったドラッグ(縦の距離・所要)
+    private(set) var drags: [(distance: Double, seconds: Double)] = []
     private(set) var tapCount = 0
     private(set) var tappedWhileGhost: Bool?
     /// true = 送っても容器の外のまま(救済が効かない ghost)
@@ -186,7 +203,10 @@ private final class GhostUntilScrolledDriver: AppDriver {
     func swipe(_ direction: FTSwipeDirection) async throws { scrolls += 1 }
     func swipe(_ direction: FTSwipeDirection, intent: FTSwipeIntent, path: FTSwipePath?) async throws { scrolls += 1 }
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
-              pressSeconds: Double, durationSeconds: Double) async throws { scrolls += 1 }
+              pressSeconds: Double, durationSeconds: Double) async throws {
+        scrolls += 1
+        drags.append((abs(toY - fromY), durationSeconds))
+    }
     func tap(ref: Int) async throws { tapCount += 1; tappedWhileGhost = scrolls == 0 }
     func tap(x: Double, y: Double) async throws { tapCount += 1; tappedWhileGhost = scrolls == 0 }
     func status() async throws -> StatusResponse {
