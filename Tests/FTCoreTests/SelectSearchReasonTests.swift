@@ -17,4 +17,15 @@ final class SelectSearchReasonTests: XCTestCase {
         XCTAssertTrue(reason.hasPrefix("select returned an empty element: element not found after"), reason)
         XCTAssertTrue(reason.contains("nothing moved at all"), "探索の理由そのものを添える: \(reason)")
     }
+
+    /// 書いた scrollFrame が引けずに探索が始まらなかったのは「見つからない」ではない = 空要素で分岐させず失敗にする
+    func testMissingScrollFrameFailsInsteadOfSkipping() async {
+        let row = ElementInfo(ref: 2, type: "cell", identifier: "row_01", label: "行 01", value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 0, y: 110, width: 400, height: 60), depth: 2)
+        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: [[row]])
+        var step = FlowStep(action: "select", locator: FlowLocator(id: "row_99"), direction: "down", maxSwipes: 2)
+        step.scrollFrame = FlowLocator(id: "typo_list")
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(step)
+        guard case .failed = outcome.status else { return XCTFail("空要素で分岐させた: \(outcome.status)") }
+    }
 }

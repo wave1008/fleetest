@@ -208,12 +208,14 @@ extension StepExecutor {
                 // select はスクロール探索で見つからなくても空要素を返す契約(下の解決経路と同じ)
                 // 探索の理由(端に着いた・動かなかった等)は捨てない: 後続の検証の赤は「見つからない」としか言えないので、
                 // 書き手が次の手(maxSwipes・逆向き・scrollFrame)を選べるのはこの行だけ
-                // アプリが落ちた・前面を離れたのは「見つからない」ではない = select でも失敗(探索しない経路の appGoneFailure と同じ)
-                if action == "select", let gone = result.appGone { return StepOutcome(status: failedWithoutKind(gone)) }
+                // アプリが落ちた・前面を離れた・書いた scrollFrame が引けなかったのは「見つからない」ではない = select でも失敗
+                // (探索しない経路の appGoneFailure と同じ。空要素で分岐して緑にしない)
+                if action == "select", result.appGone != nil || result.appLeftForeground != nil || result.scrollFrameMissing {
+                    return StepOutcome(status: failedWithoutKind(scrollSearchFailureMessage(step, result)))
+                }
+                // scrollFrame の注記は scrollSearchNote が driverFallback で運ぶので、ここには足さない
                 if action == "select" {
-                    let why = pendingScrollFrameNote.map { " (\($0))" } ?? ""
-                    return StepOutcome(status: .skipped("select returned an empty element: "
-                        + scrollSearchFailureMessage(step, result) + why))
+                    return StepOutcome(status: .skipped("select returned an empty element: " + scrollSearchFailureMessage(step, result)))
                 }
                 // **scrollFrame の申告は失敗文へ畳んで返す**: 探索が空振りした理由がそこにある
                 // のに、`StepOutcome(status:)` だけの return は driverFallback を運ばないので

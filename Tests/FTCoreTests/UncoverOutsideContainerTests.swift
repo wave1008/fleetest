@@ -358,6 +358,7 @@ final class UncoverOutsideContainerTests: XCTestCase {
         let doubleTap = StepExecutor.scrollOffHint(FlowStep(action: "doubleTap"), in: withList)
         XCTAssertTrue(doubleTap.contains("this command has no scroll: argument"), "scroll: を持たない触る操作には先に送る手を言う: \(doubleTap)")
         XCTAssertFalse(doubleTap.contains("add scroll:"), doubleTap)
+        XCTAssertTrue(doubleTap.contains("scrollUp() or scrollDown()"), "要る向きは木から決まらないので両方を挙げる: \(doubleTap)")
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "select"), in: withList), "", "触らない操作には書かない")
     }
 
