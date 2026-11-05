@@ -46,4 +46,16 @@ final class SearchClipContainerTests: XCTestCase {
         XCTAssertEqual(StepExecutor.searchClipContainer(of: row1, in: elements, inferring: true),
                        ContainerGeometry.clippingContainer(of: row1, in: elements, inferring: true))
     }
+
+    /// 本物の容器の外の行(同じ型・x・幅の仲間が並ぶ)は、中心が外側の申告容器の中にあっても浮く物にしない = 推定のまま
+    func testGhostRowWithPeersInsideAnOuterDeclaredScrollerKeepsTheInference() {
+        let page = el(1, "other", id: nil, FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true)
+        let list = el(2, "other", id: "list_rows", FTRect(x: 0, y: 230, width: 402, height: 462), depth: 2)
+        let row1 = el(3, "cell", id: "row_28", FTRect(x: 16, y: 300, width: 370, height: 56), depth: 3)
+        let row2 = el(4, "cell", id: "row_29", FTRect(x: 16, y: 360, width: 370, height: 56), depth: 3)
+        let ghost = el(5, "cell", id: "row_30", FTRect(x: 16, y: 783, width: 370, height: 56), depth: 3)
+        let elements = [page, list, row1, row2, ghost]
+        XCTAssertEqual(StepExecutor.searchClipContainer(of: ghost, in: elements, inferring: true),
+                       ContainerGeometry.clippingContainer(of: ghost, in: elements, inferring: true))
+    }
 }

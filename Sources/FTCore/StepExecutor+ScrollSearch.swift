@@ -780,7 +780,7 @@ extension StepExecutor {
     }
 
     /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)。
-    /// 末尾に回ごとの事実(`scrollSearchTrace`)を添える(探索が見つけられなかった理由を測る口。多いときは最後の回だけ)
+    /// 末尾に回ごとの事実(`scrollSearchTrace`)を添える(探索が見つけられなかった理由を測る口。多いときは後ろの `searchTraceLimit` 回だけ)
     func scrollSearchFailureMessage(_ step: FlowStep, _ result: ScrollSearchResult) -> String {
         var base = Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)
         if let cover = scrollSearchBuriedCover {
@@ -791,7 +791,7 @@ extension StepExecutor {
         return base + " [search: " + scrollSearchTrace.suffix(Self.searchTraceLimit).joined(separator: "; ") + "]"
     }
 
-    /// 失敗文に添える回の数の上限(既定の maxSwipes 8 + 逆走査の分が収まる。長い探索で文が膨らまないように)
+    /// 失敗文に添える回の数の上限(既定の maxSwipes 8 の回と0回目が収まる倍。逆走査の回は記録しない。長い探索で文が膨らまないように)
     static let searchTraceLimit = 16
 
     /// 直近の回の事実に書き足す
@@ -800,23 +800,15 @@ extension StepExecutor {
         scrollSearchTrace[scrollSearchTrace.count - 1] = last + text
     }
 
-    /// 探索の見切れの枠。容器推定(`ContainerGeometry.clippingContainer`)が、**scroll を申告していない・対象と重ならない**祖先を選び、
-    /// しかも対象の中心が **scroll を申告した別の容器の中**にあるときは、その申告した容器を使う。RN の木では一覧の上に浮く FAB が
-    /// 上の隠れるバーの子に並び、バーの枠で「見切れ」と読んで逆へ送り戻し、バーごと FAB が隠れるのを繰り返した
-    /// (E2EY-RN の iOS・`tap("#fab_hiding", scroll: .up)` が既定の8本で not found、送り1本なら押せた)。
-    /// 容器推定の本体は変えない(見切れ・ghost・タップの補正に広く効く)。**推定した枠が申告していれば従来どおり**
-    /// (in-app の CMP の容器の外の行 = `other scroll`)・**申告した容器が無い木も従来どおり**(xcuitest の CMP は申告できない)
+    /// 探索の見切れの枠。容器推定(`ContainerGeometry.clippingContainer`)が選んだ枠を使うが、対象が**申告したスクロール容器の上に浮く物**
+    /// (`ContainerGeometry.isFloatingOverDeclaredScroller` = タップの経路の ghost の判定と同じ1か所。仲間の行が並ぶ本物の容器の外の行は
+    /// 浮く物にしない)なら、中心を含む最小の申告容器を枠にする。RN の木では一覧の上に浮く FAB が上の隠れるバーの子に並び、バーの枠で
+    /// 「見切れ」と読んで逆へ送り戻し、バーごと FAB が隠れるのを繰り返した(E2EY-RN の iOS・既定の8本で not found、送り1本なら押せた)
     static func searchClipContainer(of element: ElementInfo, in elements: [ElementInfo], inferring: Bool) -> FTRect? {
-        guard let inferred = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) else { return nil }
-        let declared = { (frame: FTRect) in elements.contains { $0.scrollable == true && $0.frame == frame } }
-        guard !declared(inferred), ScrollGeometry.intersection(inferred, element.frame) == nil else { return inferred }
-        let centre = (x: element.frame.centerX, y: element.frame.centerY)
-        let holder = elements.first { other in
-            other.scrollable == true && other.ref != element.ref
-                && centre.x >= other.frame.x && centre.x <= other.frame.x + other.frame.width
-                && centre.y >= other.frame.y && centre.y <= other.frame.y + other.frame.height
-        }
-        return holder?.frame ?? inferred
+        let inferred = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring)
+        guard inferring, ContainerGeometry.isFloatingOverDeclaredScroller(element, in: elements),
+              let holder = ContainerGeometry.smallestDeclaredScroller(containingCentreOf: element, in: elements) else { return inferred }
+        return holder.frame
     }
 
     static func traceRectText(_ r: FTRect) -> String {
@@ -986,7 +978,9 @@ extension StepExecutor {
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
             let traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
-            scrollSearchTrace.append("round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree"))
+            // 待ちの読み直し(同じ回が続く)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)
+            let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
+            if scrollSearchTrace.last != entry { scrollSearchTrace.append(entry) }
             if let (element, fallback) = traced {
                 // **見つけただけでは足りない**: 画面の縁で見切れている要素は、フレームワークに
                 // よっては frame がクランプされて**タップが外れる**(Compose iOS の既知の上流制約)。
@@ -1020,7 +1014,7 @@ extension StepExecutor {
                 if attempt < maxSwipes,
                    clipRecoveryUnmoved < Self.unmovedRoundsToStopSearch,
                    Self.isClippedByViewport(element, screen: viewport) {
-                    noteSearchTrace(" clipped by \(Self.traceRectText(viewport)), sent back")
+                    noteSearchTrace(" clipped by \(Self.traceRectText(viewport))")
                     // **寄せる前にも fail-fast を通す**(未検出側と同じ判定)。ここを飛ばすと
                     // 解決できない明示 scrollFrame のまま viewport が画面全体へ落ち、寄せの1本が
                     // 文書化した「1本も振らない」を素通りして全画面スワイプになる
