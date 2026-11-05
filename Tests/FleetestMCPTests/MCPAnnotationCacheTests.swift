@@ -150,22 +150,32 @@ final class MCPAnnotationCacheTests: XCTestCase {
     }
 
     /// 共有 SelectorNaming 経由の graded が、要素1件ずつ独立に採番したときと同じ結果を返すこと
+    /// フィクスチャごとに独立なので並列に照合する(全コーパスを1スレッドで回すと約 55 秒 = 単体テスト全体の最長の1本)。
+    /// 食い違いは集めてから表明する(XCTAssert を並列のスレッドから撃たない)
     func testCachedGradedResultsMatchUncachedAcrossAllFixtures() throws {
-        var compared = 0
-        for name in try fixtureNames() {
-            let snapshot = try fixture(name)
+        let snapshots = try fixtureNames().map { ($0, try fixture($0)) }
+        let compared = LockedValue(0)
+        let mismatches = LockedValue<[String]>([])
+        DispatchQueue.concurrentPerform(iterations: snapshots.count) { index in
+            let (name, snapshot) = snapshots[index]
             let cache = MCPServer.SnapshotAnnotationCache()
             let naming = cache.selectorNaming(snapshot)
             let freshNaming = MCPServer.SelectorNaming(snapshot)
+            var local: [String] = []
             for element in snapshot.elements {
                 let cached = naming.graded(for: element, in: snapshot)
                 let fresh = freshNaming.graded(for: element, in: snapshot)
-                XCTAssertEqual(cached?.selector, fresh?.selector, "\(name) [\(element.ref)]")
-                XCTAssertEqual(cached?.durability, fresh?.durability, "\(name) [\(element.ref)]")
-                compared += 1
+                if cached?.selector != fresh?.selector || cached?.durability != fresh?.durability {
+                    local.append("\(name) [\(element.ref)]: cached \(String(describing: cached?.selector))/"
+                                 + "\(String(describing: cached?.durability)) vs fresh \(String(describing: fresh?.selector))/"
+                                 + "\(String(describing: fresh?.durability))")
+                }
             }
+            compared.withLock { $0 += snapshot.elements.count }
+            mismatches.withLock { $0 += local }
         }
-        XCTAssertGreaterThan(compared, 100, "1件も比較していない — このテストは何も検証していない")
+        XCTAssertEqual(mismatches.value, [])
+        XCTAssertGreaterThan(compared.value, 100, "1件も比較していない — このテストは何も検証していない")
     }
 
     // MARK: - 同じ要素の graded は1回(ambiguousLabelsNote と duplicateIDsNote の共有)

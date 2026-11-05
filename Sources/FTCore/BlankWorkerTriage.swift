@@ -48,6 +48,10 @@ public enum BlankWorkerTriage {
     public static let samples = 5
     public static let intervalMs = 2_500
 
+    /// 窓の間隔を待つ既定(実時間)。上位の入口はすべてこれを `sleep:` で受けて `persistentBlank` まで通す
+    /// (通さない入口があると、テストが窓の 10 秒を実時間で払う)
+    public static let realSleep: @Sendable (Int) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0) * 1_000_000) }
+
     /// **どのワーカーを弾くかの判定だけ**を切り出した純粋ロジック(デバイス不要 = 単体テストで固める)。
     /// `blankByLabel` は「そのワーカーが恒常 blank か」。元の順序を保ったまま除外する
     public static func exclude(_ workers: [RunWorker],
@@ -74,7 +78,7 @@ public enum BlankWorkerTriage {
     public static func isPersistentlyBlank(
         screenshot: () async -> Data?,
         samples: Int = samples,
-        sleep: (Int) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0) * 1_000_000) }
+        sleep: (Int) async -> Void = realSleep
     ) async -> Bool {
         await persistentBlank(screenshot: screenshot, samples: samples, sleep: sleep) == .uniform
     }
@@ -84,7 +88,7 @@ public enum BlankWorkerTriage {
     public static func persistentBlank(
         screenshot: () async -> Data?,
         samples: Int = samples,
-        sleep: (Int) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0) * 1_000_000) }
+        sleep: (Int) async -> Void = realSleep
     ) async -> PersistentBlank {
         var observed: [FrameBlankness] = []
         for index in 0..<max(1, samples) {
@@ -132,12 +136,13 @@ public enum BlankWorkerTriage {
         nudge: (() async -> Data?)? = nil,
         physical: Bool = false,
         awake: (() async -> Bool?)? = nil,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        sleep: (Int) async -> Void = realSleep
     ) async -> FrozenVerdict {
         if FrozenInjection.isInjected(key: key, environment: environment) {
             return FrozenVerdict([.injected])
         }
-        let persistent = await persistentBlank(screenshot: screenshot)
+        let persistent = await persistentBlank(screenshot: screenshot, sleep: sleep)
         guard persistent == .uniform else {
             // 下端を除く黒は警告だけ = nudge も awake も撃たない(確定させない根拠に能動プローブは要らない)
             return FrozenVerdict.observe(
@@ -158,9 +163,10 @@ public enum BlankWorkerTriage {
     public static func frozenVerdicts(
         _ workers: [RunWorker],
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        nudge: (@Sendable (RunWorker) async -> Data?)? = nil
+        nudge: (@Sendable (RunWorker) async -> Data?)? = nil,
+        sleep: @escaping @Sendable (Int) async -> Void = realSleep
     ) async -> [String: FrozenVerdict] {
-        await verdicts(of: workers.filter(isCandidate), environment: environment, nudge: nudge)
+        await verdicts(of: workers.filter(isCandidate), environment: environment, nudge: nudge, sleep: sleep)
     }
 
     /// **既に絞り込まれた**ワーカーの判定(候補の規則を持たない)。実機の観測は
@@ -169,7 +175,8 @@ public enum BlankWorkerTriage {
         of candidates: [RunWorker],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         nudge: (@Sendable (RunWorker) async -> Data?)? = nil,
-        awake: (@Sendable (RunWorker) async -> Bool?)? = nil
+        awake: (@Sendable (RunWorker) async -> Bool?)? = nil,
+        sleep: @escaping @Sendable (Int) async -> Void = realSleep
     ) async -> [String: FrozenVerdict] {
         guard !candidates.isEmpty else { return [:] }
         return await withTaskGroup(of: (String, FrozenVerdict).self,
@@ -182,7 +189,8 @@ public enum BlankWorkerTriage {
                         nudge: nudge.map { probe in { await probe(worker) } },
                         physical: worker.connection.physical,
                         awake: awake.map { probe in { await probe(worker) } },
-                        environment: environment)
+                        environment: environment,
+                        sleep: sleep)
                     return (worker.label, verdict)
                 }
             }
@@ -238,11 +246,12 @@ public enum BlankWorkerTriage {
         awake: (@Sendable (RunWorker) async -> Bool?)? = nil,
         repair: (@Sendable (RunWorker) async -> Void)? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        sleep: @escaping @Sendable (Int) async -> Void = realSleep,
         log: @escaping @Sendable (String) -> Void
     ) async {
         let physical = workers.filter(\.connection.physical)
         guard !physical.isEmpty else { return }
-        var verdicts = await verdicts(of: physical, environment: environment, awake: awake)
+        var verdicts = await verdicts(of: physical, environment: environment, awake: awake, sleep: sleep)
 
         if let repair {
             let stuck = verdicts
@@ -259,7 +268,8 @@ public enum BlankWorkerTriage {
                     screenshot: { try? await worker.driver.screenshot() },
                     physical: true,
                     awake: awake.map { probe in { await probe(worker) } },
-                    environment: environment)
+                    environment: environment,
+                    sleep: sleep)
                 if after.evidence.isEmpty {
                     log("✅ \(label): the screen came back after the sleep/wake cycle")
                     verdicts.removeValue(forKey: label)
@@ -319,10 +329,11 @@ public enum BlankWorkerTriage {
         stateDir: URL? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         nudge: (@Sendable (RunWorker) async -> Data?)? = nil,
+        sleep: @escaping @Sendable (Int) async -> Void = realSleep,
         log: @escaping @Sendable (String) -> Void
     ) async -> Result {
         var current = workers
-        var verdicts = await frozenVerdicts(current, environment: environment, nudge: nudge)
+        var verdicts = await frozenVerdicts(current, environment: environment, nudge: nudge, sleep: sleep)
         // **判定した時点で公表する**(回復は数分かかりうるので、終わってから配るとモニターは
         // その間ずっと「異常なし」を出す = 見えるようにした意味が無い)
         syncStore(verdicts, of: current, stateDir: stateDir)
@@ -345,7 +356,7 @@ public enum BlankWorkerTriage {
                     + " (attempt \(attempt)/\(recoveryAttempts))")
                 guard let rebuilt = await recover(blankLabels, current) else { break }
                 current = rebuilt
-                verdicts = await frozenVerdicts(current, environment: environment, nudge: nudge)
+                verdicts = await frozenVerdicts(current, environment: environment, nudge: nudge, sleep: sleep)
                 syncStore(verdicts, of: current, stateDir: stateDir)
                 blankLabels = verdicts
                     .filter { $0.value.isFrozen && !$0.value.isInjectedOnly }.keys.sorted()

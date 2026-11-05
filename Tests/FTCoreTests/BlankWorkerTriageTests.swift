@@ -6,6 +6,9 @@
 // **デバイスが要る部分(スクショの取得)は引数で受け、判定はここで固める**。
 
 import XCTest
+
+/// 判定の窓(`BlankWorkerTriage.samples` × `intervalMs` ≈ 10 秒)を実時間で待たない
+private let noTriageSleep: @Sendable (Int) async -> Void = { _ in }
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
@@ -96,7 +99,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     func testAwakePhysicalDeviceGetsItsOwnEvidence() async {
         let verdict = await BlankWorkerTriage.observedVerdict(
             key: "serial-1", screenshot: { Self.blankPNG },
-            physical: true, awake: { true }, environment: [:])
+            physical: true, awake: { true }, environment: [:], sleep: noTriageSleep)
         XCTAssertEqual(verdict.evidence, [.awakeButBlankPhysical])
         XCTAssertFalse(verdict.isFrozen, "材料は揃っていてもまだ確定させない(警告から入れる規律)")
     }
@@ -106,7 +109,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         for probe in [{ nil as Bool? }, { false as Bool? }] {
             let verdict = await BlankWorkerTriage.observedVerdict(
                 key: "serial-1", screenshot: { Self.blankPNG },
-                physical: true, awake: probe, environment: [:])
+                physical: true, awake: probe, environment: [:], sleep: noTriageSleep)
             XCTAssertEqual(verdict.evidence, [.darkScreenPhysical])
         }
     }
@@ -122,7 +125,7 @@ final class BlankWorkerTriageTests: XCTestCase {
             [awakeWorker, darkWorker],
             awake: { $0.label == "pixel-awake" ? true : nil },
             repair: { await repaired.add($0.label) },
-            environment: [:], log: { _ in })
+            environment: [:], sleep: noTriageSleep, log: { _ in })
         let labels = await repaired.labels
         XCTAssertEqual(labels, ["pixel-awake"], "消灯かもしれない台には撃たない")
     }
@@ -136,7 +139,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         await BlankWorkerTriage.observePhysicalScreens(
             [device], awake: { _ in true },
             repair: { _ in box.data = Self.contentPNG },
-            environment: [:], log: { log.add($0) })
+            environment: [:], sleep: noTriageSleep, log: { log.add($0) })
         XCTAssertTrue(log.lines.contains { $0.contains("came back") }, "戻ったことを言う")
         XCTAssertFalse(log.lines.contains { $0.contains("still renders nothing") },
                        "戻ったのに警告を残さない")
@@ -150,7 +153,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         let log = Collector()
         await BlankWorkerTriage.observePhysicalScreens(
             [device], awake: { _ in true }, repair: { _ in },
-            environment: [:], log: { log.add($0) })
+            environment: [:], sleep: noTriageSleep, log: { log.add($0) })
         XCTAssertTrue(log.lines.contains { $0.contains("still renders nothing") })
         XCTAssertTrue(log.lines.contains { $0.contains("does not reboot a physical device") })
     }
@@ -162,14 +165,14 @@ final class BlankWorkerTriageTests: XCTestCase {
             key: "00008130-DEAD",
             screenshot: { Self.blankPNG },
             physical: true,
-            environment: [:])
+            environment: [:], sleep: noTriageSleep)
         XCTAssertEqual(verdict.evidence, [.darkScreenPhysical])
         XCTAssertTrue(verdict.isSuspected, "警告としては出る")
         XCTAssertFalse(verdict.isFrozen, "確定させない = 除外も回復も撃たれない")
 
         // 同じ観測でも仮想デバイスなら確定する(対照)
         let virtual = await BlankWorkerTriage.observedVerdict(
-            key: "SIM-UDID", screenshot: { Self.blankPNG }, environment: [:])
+            key: "SIM-UDID", screenshot: { Self.blankPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertTrue(virtual.isFrozen)
     }
 
@@ -182,7 +185,7 @@ final class BlankWorkerTriageTests: XCTestCase {
             screenshot: { Self.blankPNG },
             nudge: { nudged = true; return Self.contentPNG },
             physical: true,
-            environment: [:])
+            environment: [:], sleep: noTriageSleep)
         XCTAssertFalse(nudged, "実機では能動プローブを撃たない")
         XCTAssertEqual(verdict.evidence, [.darkScreenPhysical])
     }
@@ -192,12 +195,12 @@ final class BlankWorkerTriageTests: XCTestCase {
     /// 「そもそも blank と判定していない」テストと区別が付かない
     func testDarkPhysicalDeviceIsNotExcluded() async {
         let virtual = await BlankWorkerTriage.excludeBlankScreenWorkers(
-            [worker("sim", shot: Self.blankPNG)], environment: [:], log: { _ in })
+            [worker("sim", shot: Self.blankPNG)], environment: [:], sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(virtual.excluded, ["sim"], "同じ絵でも仮想デバイスは確定して外れる")
 
         let workers = [worker("iphone", physical: true, shot: Self.blankPNG)]
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
-            workers, environment: [:], log: { _ in })
+            workers, environment: [:], sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(result.excluded, [], "実機は外さない")
         XCTAssertEqual(result.workers.map(\.label), ["iphone"])
     }
@@ -311,7 +314,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         var nudged = false
         let verdict = await BlankWorkerTriage.observedVerdict(
             key: "SIM-UDID", screenshot: { Self.blackWithNavHandlePNG },
-            nudge: { nudged = true; return Self.contentPNG }, environment: [:])
+            nudge: { nudged = true; return Self.contentPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertEqual(verdict.evidence, [.blackApartFromBottomStrip])
         XCTAssertFalse(verdict.isFrozen, "回復・除外は撃たない")
         XCTAssertTrue(verdict.isSuspected)
@@ -322,7 +325,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     func testBlackApartDeviceIsWarnedButKept() async {
         let log = Collector()
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
-            [worker("sim-7", shot: Self.blackWithNavHandlePNG)], environment: [:], log: { log.add($0) })
+            [worker("sim-7", shot: Self.blackWithNavHandlePNG)], environment: [:], sleep: noTriageSleep, log: { log.add($0) })
         XCTAssertEqual(result.excluded, [])
         XCTAssertEqual(result.workers.map(\.label), ["sim-7"])
         XCTAssertEqual(log.lines, [BlankWorkerTriage.blackApartFromBottomStripWarning(label: "sim-7")])
@@ -386,7 +389,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     func testNudgeThatRestoresPaintingMeansHealthy() async {
         let verdict = await BlankWorkerTriage.observedVerdict(
             key: "udid-a", screenshot: { Self.blankPNG },
-            nudge: { Self.contentPNG }, environment: [:])
+            nudge: { Self.contentPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertFalse(verdict.isFrozen, "入力で描画が戻る機を再起動してはいけない")
     }
 
@@ -394,7 +397,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     func testNudgeThatChangesNothingMeansFrozen() async {
         let verdict = await BlankWorkerTriage.observedVerdict(
             key: "udid-a", screenshot: { Self.blankPNG },
-            nudge: { Self.blankPNG }, environment: [:])
+            nudge: { Self.blankPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertTrue(verdict.isFrozen)
         XCTAssertEqual(verdict.evidence, [.uniformBlank])
     }
@@ -402,7 +405,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     /// プローブが撮れなかった(nil)ときは保護側に倒す
     func testNudgeFailureFallsBackToFrozen() async {
         let verdict = await BlankWorkerTriage.observedVerdict(
-            key: "udid-a", screenshot: { Self.blankPNG }, nudge: { nil }, environment: [:])
+            key: "udid-a", screenshot: { Self.blankPNG }, nudge: { nil }, environment: [:], sleep: noTriageSleep)
         XCTAssertTrue(verdict.isFrozen)
     }
 
@@ -411,7 +414,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         var nudged = false
         let verdict = await BlankWorkerTriage.observedVerdict(
             key: "udid-a", screenshot: { Self.contentPNG },
-            nudge: { nudged = true; return Self.contentPNG }, environment: [:])
+            nudge: { nudged = true; return Self.contentPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertFalse(verdict.isFrozen)
         XCTAssertFalse(nudged, "一様でない機に撃つと毎 run 全機の前面が変わる")
     }
@@ -419,7 +422,7 @@ final class BlankWorkerTriageTests: XCTestCase {
     /// プローブを渡さない呼び出しは従来どおり
     func testWithoutNudgeUniformIsStillFrozen() async {
         let verdict = await BlankWorkerTriage.observedVerdict(
-            key: "udid-a", screenshot: { Self.blankPNG }, environment: [:])
+            key: "udid-a", screenshot: { Self.blankPNG }, environment: [:], sleep: noTriageSleep)
         XCTAssertTrue(verdict.isFrozen)
     }
 }
@@ -477,7 +480,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
                 // 回復 = ブリッジを張り直した健全なワーカー一覧を返す
                 return [Self.worker("a", frozen: false), Self.worker("b", frozen: false)]
             },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(recoverCalls.value, 1)
         XCTAssertTrue(result.excluded.isEmpty, "回復したのに外している: \(result.excluded)")
         XCTAssertEqual(result.workers.count, 2)
@@ -495,7 +498,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
                 recoverCalls.mutate { $0 += 1 }
                 return [Self.worker("dead", frozen: true), Self.worker("ok", frozen: false)]
             },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         // **定数と突き合わせない**: 定数ごと 1 に書き換える変異を素通しする(2026-08-09 に実際に素通しした)。
         // 「1回で諦めない」ことが守りたい性質なので、回数そのもので縛る
         XCTAssertGreaterThanOrEqual(recoverCalls.value, 2, "1回で諦めている")
@@ -513,7 +516,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
             [Self.worker("dead", frozen: true)],
             recover: { _, _ in recoverCalls.mutate { $0 += 1 }; return nil },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(recoverCalls.value, 1)
         XCTAssertEqual(result.excluded, ["dead"])
     }
@@ -524,7 +527,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
             [Self.worker("a", frozen: false)],
             recover: { _, _ in recoverCalls.mutate { $0 += 1 }; return nil },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(recoverCalls.value, 0)
         XCTAssertTrue(result.excluded.isEmpty)
     }
@@ -545,7 +548,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
                 // 1回目の回復でポートが変わる(= label が変わる)。2回目もまだ凍結のまま
                 return [Self.worker("dead(ios:82\(next)0)", frozen: true)]
             },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(seen.value.first, ["dead(ios:8100)"], "1回目は元の一覧")
         XCTAssertEqual(seen.value.dropFirst().first, ["dead(ios:8210)"],
                        "2回目は**張り直し後**の一覧でなければ label を引けない")
@@ -567,7 +570,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
                 // 回復でポートが変わる(= label が変わる)が udid(実体)は同じ
                 [w("dead(ios:8210)", port: 8210, frozen: false)]
             },
-            log: { _ in })
+            sleep: noTriageSleep, log: { _ in })
         XCTAssertTrue(result.excluded.isEmpty)
         XCTAssertEqual(result.repaired, ["dead(ios:8210)"],
                        "回復後の label(実際に run で使う方)で報告すること")
@@ -583,7 +586,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
     /// 回復を渡さない呼び出しは**従来どおり弾くだけ**(既存の呼び出し元を壊さない)
     func testWithoutRecoveryItStillJustExcludes() async {
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
-            [Self.worker("dead", frozen: true)], log: { _ in })
+            [Self.worker("dead", frozen: true)], sleep: noTriageSleep, log: { _ in })
         XCTAssertEqual(result.excluded, ["dead"])
     }
 }
