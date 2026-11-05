@@ -21,6 +21,7 @@ final class StepNoteTests: XCTestCase {
         XCTAssertEqual(StepNote.coveredTouchBeforeFailure.rawValue, "covered-touch-before-failure")
         XCTAssertEqual(StepNote.typeRetypeAbandoned.rawValue, "type-retype-abandoned")
         XCTAssertEqual(StepNote.clearInputUnverified.rawValue, "clear-input-unverified")
+        XCTAssertEqual(StepNote.scrollMovedNothing.rawValue, "scroll-moved-nothing")
         XCTAssertEqual(StepNote.refLessInputOnOtherApp.rawValue, "ref-less-input-on-other-app")
         XCTAssertEqual(StepNote.typeReadbackUnchanged.rawValue, "type-readback-unchanged")
         XCTAssertEqual(StepNote.swipeByRatioCapped.rawValue, "swipe-by-ratio-capped")
