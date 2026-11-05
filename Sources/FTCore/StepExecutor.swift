@@ -1354,6 +1354,8 @@ public final class StepExecutor {
     var tapTargetBeforeThisStep: ElementInfo?
     /// 直近のスクロール探索で、覆いの下に潜ったまま見つかった対象の覆いの名指し(失敗文に足す。探索の入口で捨てる)
     var scrollSearchBuriedCover: String?
+    /// 直近のスクロール探索の回ごとの事実(対象が木に居たか・枠・見つかったにしなかった理由)。探索の失敗文の末尾に出す(測る口)。探索の入口で捨てる
+    var scrollSearchTrace: [String] = []
     /// 直前の type / clearInput が叩いた欄(`InputFocusRescue.tapFocusedIt` の priorTap に使う)。次の手の入口で捨て、type / clearInput が撃つ直前に立て直す
     var lastFieldTouchTarget: ElementInfo?
     /// `lastTapTarget` を叩く直前の木(`InputFocusRescue.fieldToType` の `before`)。`lastTapTarget` と同じ寿命

@@ -779,12 +779,49 @@ extension StepExecutor {
         return leavesCover ? TapTargetGeometry.describe(over) : nil
     }
 
-    /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)
+    /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)。
+    /// 末尾に回ごとの事実(`scrollSearchTrace`)を添える(探索が見つけられなかった理由を測る口。多いときは最後の回だけ)
     func scrollSearchFailureMessage(_ step: FlowStep, _ result: ScrollSearchResult) -> String {
-        let base = Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)
-        guard let cover = scrollSearchBuriedCover else { return base }
-        return base + " (the target was in the tree but under \(cover), which scrolling in this direction did not clear —"
-            + " nothing was touched; scroll the other way or point at an element that is not covered)"
+        var base = Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)
+        if let cover = scrollSearchBuriedCover {
+            base += " (the target was in the tree but under \(cover), which scrolling in this direction did not clear —"
+                + " nothing was touched; scroll the other way or point at an element that is not covered)"
+        }
+        guard !scrollSearchTrace.isEmpty else { return base }
+        return base + " [search: " + scrollSearchTrace.suffix(Self.searchTraceLimit).joined(separator: "; ") + "]"
+    }
+
+    /// 失敗文に添える回の数の上限(既定の maxSwipes 8 + 逆走査の分が収まる。長い探索で文が膨らまないように)
+    static let searchTraceLimit = 16
+
+    /// 直近の回の事実に書き足す
+    func noteSearchTrace(_ text: String) {
+        guard let last = scrollSearchTrace.last else { return }
+        scrollSearchTrace[scrollSearchTrace.count - 1] = last + text
+    }
+
+    /// 探索の見切れの枠。容器推定(`ContainerGeometry.clippingContainer`)が、**scroll を申告していない・対象と重ならない**祖先を選び、
+    /// しかも対象の中心が **scroll を申告した別の容器の中**にあるときは、その申告した容器を使う。RN の木では一覧の上に浮く FAB が
+    /// 上の隠れるバーの子に並び、バーの枠で「見切れ」と読んで逆へ送り戻し、バーごと FAB が隠れるのを繰り返した
+    /// (E2EY-RN の iOS・`tap("#fab_hiding", scroll: .up)` が既定の8本で not found、送り1本なら押せた)。
+    /// 容器推定の本体は変えない(見切れ・ghost・タップの補正に広く効く)。**推定した枠が申告していれば従来どおり**
+    /// (in-app の CMP の容器の外の行 = `other scroll`)・**申告した容器が無い木も従来どおり**(xcuitest の CMP は申告できない)
+    static func searchClipContainer(of element: ElementInfo, in elements: [ElementInfo], inferring: Bool) -> FTRect? {
+        guard let inferred = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferring) else { return nil }
+        let declared = { (frame: FTRect) in elements.contains { $0.scrollable == true && $0.frame == frame } }
+        guard !declared(inferred), ScrollGeometry.intersection(inferred, element.frame) == nil else { return inferred }
+        let centre = (x: element.frame.centerX, y: element.frame.centerY)
+        let holder = elements.first { other in
+            other.scrollable == true && other.ref != element.ref
+                && centre.x >= other.frame.x && centre.x <= other.frame.x + other.frame.width
+                && centre.y >= other.frame.y && centre.y <= other.frame.y + other.frame.height
+        }
+        return holder?.frame ?? inferred
+    }
+
+    static func traceRectText(_ r: FTRect) -> String {
+        func n(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "?" }
+        return "(\(n(r.x)),\(n(r.y)) \(n(r.width))x\(n(r.height)))"
     }
 
     func runScrollSearch(step: FlowStep, recoverOnMiss: Bool = true,
@@ -850,6 +887,7 @@ extension StepExecutor {
         // 周回ごとに「数える」へ戻す = 比べていない周回(初回・引き直しの外れ・寄せの後)の払いは数える
         var previousSwipeMoved = true
         scrollSearchBuriedCover = nil
+        scrollSearchTrace = []
         while attempt < maxSwipes {
             attempt += 1
             previousSwipeMoved = true
@@ -947,7 +985,9 @@ extension StepExecutor {
                 }
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
-            if let (element, fallback) = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true) {
+            let traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            scrollSearchTrace.append("round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree"))
+            if let (element, fallback) = traced {
                 // **見つけただけでは足りない**: 画面の縁で見切れている要素は、フレームワークに
                 // よっては frame がクランプされて**タップが外れる**(Compose iOS の既知の上流制約)。
                 // まだ送れるなら、完全に見えるまでもう1回スワイプする。
@@ -961,8 +1001,8 @@ extension StepExecutor {
                 // label=nil・y=783 = 容器 230..692 の外で見つかり、タップが飲まれた)
                 let containerViewport = (scrollContainer(step: step, in: snapshot,
                                                 vertical: direction == .up || direction == .down)
-                                ?? ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
-                                                          inferring: step.containerInference ?? true))
+                                ?? Self.searchClipContainer(of: element, in: snapshot.elements,
+                                                            inferring: step.containerInference ?? true))
                     .flatMap { ScrollGeometry.intersection($0, snapshot.screen) } ?? snapshot.screen
                 // **キーボードの下は見えていない**: 差し引かないと、打った後にキーボードの下へ残った echo を
                 // 「見つけた」で止まり、可視性検証が描かれていないと赤にした(E2EX-iOS 入力画面 S0040・XCUITest)
@@ -980,6 +1020,7 @@ extension StepExecutor {
                 if attempt < maxSwipes,
                    clipRecoveryUnmoved < Self.unmovedRoundsToStopSearch,
                    Self.isClippedByViewport(element, screen: viewport) {
+                    noteSearchTrace(" clipped by \(Self.traceRectText(viewport)), sent back")
                     // **寄せる前にも fail-fast を通す**(未検出側と同じ判定)。ここを飛ばすと
                     // 解決できない明示 scrollFrame のまま viewport が画面全体へ落ち、寄せの1本が
                     // 文書化した「1本も振らない」を素通りして全画面スワイプになる
@@ -1078,7 +1119,7 @@ extension StepExecutor {
                 // 覆い・外側の一覧・送れば外れる側の縁のバーの下に中心がある対象は見つかったにしない(`searchTouchBlock`)
                 let buriedCover = searchTouchBlock(element, step: step, in: snapshot)
                 let buriedUnderBar = buriedCover != nil
-                if let buriedCover { scrollSearchBuriedCover = buriedCover }
+                if let buriedCover { scrollSearchBuriedCover = buriedCover; noteSearchTrace(" under \(buriedCover)") }
                 if !buriedUnderBar,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。
@@ -1099,7 +1140,7 @@ extension StepExecutor {
                             TapTargetGeometry.offscreenScrollGateAdvisory(for: again, screen: after.screen) == nil
                                 && searchTouchBlock(again, step: step, in: after) == nil ? again : nil
                         }
-                        if confirmed != nil { snapshot = after }
+                        if confirmed != nil { snapshot = after } else { noteSearchTrace(" the settle wait was cut off and the re-read did not show it touchable") }
                     }
                     // **成功時も swipes を載せる**: 失敗文にしか使わなかった頃は既定の 0 で
                     // 害が無かったが、MCP の ft_scroll_to が所要時間の内訳へ出すようになり、
