@@ -1439,6 +1439,14 @@ public final class FTDriveCore {
         if let command, ["home", "appSwitcher", "tapAppIcon", "terminateApp", "removeApp"].contains(command) {
             executor.launchedBundleID = nil
         }
+        // スイッチャーが前面の間はアプリへのステップを断る(StepExecutor.appSwitcherRefusal)。前面を替えるコマンドで落とす
+        if let command {
+            if command == "appSwitcher" { executor.noteAppSwitcher(opened: true) }
+            if ["home", "appSwitcher", "tapAppIcon", "openURL"].contains(command) { executor.noteAppMayHaveLeft(true) }
+            if ["launchApp", "restartApp", "clearAppData", "installApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
+            if ["home", "tapAppIcon", "terminateApp", "removeApp", "launchApp", "restartApp", "clearAppData", "installApp"]
+                .contains(command) { executor.noteAppSwitcher(opened: false) }
+        }
         // 上の一覧のうち、アプリを前面へ出すものだけ(起動の前の絵を控える対象)
         let launches = command == "launchApp" || command == "restartApp"
         if launches { appLaunchedInThisProcess = true }
@@ -1671,7 +1679,9 @@ public final class FTDriveCore {
             case .success(let snapshot):
                 unread = nil
                 return snapshot
-            case .failure(let error):
+            case .failure(let raw):
+                // 背面で止まったアプリへの不達は、その事実を付けてから仕分ける(StepExecutor.attributingBackgroundedApp)
+                let error = FTSync.run({ await executor.attributingBackgroundedApp(raw) }) ?? raw
                 unread = SnapshotReadFailure(reason: error.localizedDescription,
                                              kind: StepExecutor.failureKind(thrown: error))
                 return nil

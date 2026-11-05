@@ -337,7 +337,22 @@ public final class StepExecutor {
     /// 直近に launchApp / restartApp で起こしたアプリ(DSL が `noteAppLaunched(bundleID:)` で運ぶ)。scrollToBottom/Top が
     /// **始める前に前面を離れていた**形(始点の木がランチャー)を拾う基準: Android の木のセッションは前面と一緒に替わるので、
     /// 始点の木からは対象のアプリが分からない。nil = 起こしていない・home / アプリ切替 / 終了の後(意図して別の面に居るかもしれない)
-    public var launchedBundleID: String?
+    public var launchedBundleID: String? {
+        didSet { if let launchedBundleID { lastLaunchedAppBundleID = launchedBundleID } }
+    }
+    /// 直近に launch 系で起こしたアプリ。**home / アプリ切替では消さない**(`launchedBundleID` と違う)——
+    /// 背面に回ったアプリへの不達の帰属(`attributingBackgroundedApp`)は、まさに home の後に要る
+    var lastLaunchedAppBundleID: String?
+    /// `appSwitcher()` を撃ってから、スイッチャーが閉じたと確かめるまで true(DSL が `noteAppSwitcher(opened:)` で運ぶ)。
+    /// 立っている間だけステップの前にスイッチャーの覆いを照会する(`appSwitcherRefusal`)
+    var appSwitcherMayCover = false
+
+    /// DSL の appSwitcher() の後に true、前面を替えるコマンド(launch 系・tapAppIcon・home・終了)の後に false
+    public func noteAppSwitcher(opened: Bool) { appSwitcherMayCover = opened }
+    /// アプリが前面を離れたかもしれない(home / appSwitcher / tapAppIcon / openURL の後)。立っている間だけ、ステップの前に
+    /// XCUITest へ前面かを聞く(`backgroundedAppRefusal`)。前面と答えたら落とす。launch 系で落とす
+    var appMayHaveLeft = false
+    public func noteAppMayHaveLeft(_ value: Bool) { appMayHaveLeft = value }
 
     /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない = 断らない)。`AppProcessGone` が木の持ち主が違うときだけ呼ぶ。
     /// 注入元: DSL = ScenarioRunnerMain(FTRuntime 経由)/ MCP = ft_batch・ft_scroll_to の executor
@@ -853,6 +868,12 @@ public final class StepExecutor {
         if let violation = step.secondsArgumentViolation {
             return StepOutcome(status: .failed(violation))
         }
+        if let refusal = await appSwitcherRefusal(step: step) {
+            return StepOutcome(status: .failed(refusal), failureKind: .systemUICovered)
+        }
+        if let refusal = await backgroundedAppRefusal(step: step) {
+            return StepOutcome(status: .failed(refusal), failureKind: .appInBackground)
+        }
         // executeAction が投げた後でも、注入していれば集めた事実を失敗の StepOutcome に載せる
         var thrownResponse: ResponseMeasurementRecord?
         var thrownOpensReadyObservation = false
@@ -964,7 +985,8 @@ public final class StepExecutor {
                                    evidenceImage: Self.isSuccess(status) ? nil : classifierScreenshotThisStep)
             }
             return StepOutcome(status: .skipped("step has neither an action nor an assertion"))
-        } catch {
+        } catch let thrown {
+            let error = await attributingBackgroundedApp(thrown)
             noteHoldAlreadyReleased(onFailureOf: step, status: .failed(""))
             return StepOutcome(status: .failed("execution error: \(error.localizedDescription)"),
                                timing: StepTiming(durationMs: Self.ms(clock.now - start),
@@ -1089,6 +1111,65 @@ public final class StepExecutor {
         if case .failed = status { return failureKindThisStep }
         return nil
     }
+
+    /// **in-app ブリッジに届かなかったのが、アプリが背面にあるせいだと確かめられたら、その事実を付ける**(`AppFate.inBackground`)。
+    /// iOS は背面のアプリを約 2 秒で一時停止し、アプリの中の in-app ブリッジは答えなくなる(11/6 に -01 で実測: home の 0.5 秒後は
+    /// background で答え、2 秒後からは無応答)。付けないと「ブリッジに届かない・bridge up しろ」になり、run は不達として再キューした。
+    /// 確かめるのは XCUITest ブリッジの前面の照会(画面を動かさない読み)で、**前面に無いと答えたときだけ**付ける ——
+    /// 答えない・前面にいる(本当に固まった in-app ブリッジ)ときは元のエラーのまま
+    public func attributingBackgroundedApp(_ error: Error) async -> Error {
+        guard case .bridgeUnreachable(let context, let detail)? = error as? DriverError,
+              context.bridge == .iosInApp, context.appFate == nil,
+              let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID,
+              case .value(false) = await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID)
+        else { return error }
+        let front = await ForegroundState.frontProbe(fallback).value
+        return DriverError.bridgeUnreachable(context: context.with(appFate: .inBackground(front: front)), detail: detail)
+    }
+
+    /// **アプリスイッチャーが前面の間は、アプリを読む・触るステップを撃たずに断る**。スイッチャーを開いてもアプリは inactive のまま
+    /// (11/6 に -01 で実測: applicationState = inactive・in-app の tap は 200)なので in-app ブリッジは断れず、カードの中のアプリに
+    /// 打鍵・タップ・読みが届いて緑になった(17周目 ilocal F1・4 SUT で 18/18)。inactive は OS のアラートの間も同じなので、
+    /// 見分けは XCUITest の覆いの照会(`SBSwitcherWindow` の目印)で取る。照会するのは `appSwitcher()` の後だけ
+    /// (`appSwitcherMayCover`)。覆いが無いと答えたら印を落とす・答えない(照会の失敗)ときは断らない(推測で赤にしない)。
+    /// 撃たないのは端末側の操作(向き・折りたたみ)と待つだけのステップ
+    func appSwitcherRefusal(step: FlowStep) async -> String? {
+        guard appSwitcherMayCover, let fallback = fallbackDriver else { return nil }
+        if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
+        switch await ForegroundState.coveringProbe(fallback) {
+        case .value(.appSwitcher?):
+            return "the app switcher is in front (opened by appSwitcher()), so this step did not read or touch the app"
+                + " — a person could not either. Bring the app back first (tapAppIcon() or launchApp())"
+        case .value(_):
+            appSwitcherMayCover = false
+            return nil
+        case .notAnswerable, .failed:
+            return nil
+        }
+    }
+
+    /// **前面を離れたかもしれない後だけ、撃つ前に前面かを聞き、前面に無ければ撃たずに断る**。背面のアプリは約 2 秒で一時停止され、
+    /// in-app ブリッジへの最初の読みが待ちの上限(45 秒)まで返らない —— `attributingBackgroundedApp` は帰属を正すが、待ちは払った
+    /// (17周目の陽性対照: home → wait(4) → tap が 49 秒)。照会は XCUITest の画面を動かさない読み(約 0.1 秒)。
+    /// 前面と答えたら印を落とす(以後は聞かない)。答えない・失敗は断らない(推測で赤にしない = 従来の経路へ)
+    func backgroundedAppRefusal(step: FlowStep) async -> String? {
+        guard appMayHaveLeft, let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID else { return nil }
+        if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
+        switch await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) {
+        case .value(true):
+            appMayHaveLeft = false
+            return nil
+        case .value(false):
+            let front = await ForegroundState.frontProbe(fallback).value.map { " (in front: \($0))" } ?? ""
+            return "The app under test is not in the foreground\(front), so this step did not read or touch it"
+                + " — a person could not either. Bring the app back first (tapAppIcon() or launchApp())"
+        case .notAnswerable, .failed:
+            return nil
+        }
+    }
+
+    /// アプリスイッチャーの間も撃つステップ(アプリを読まず触らない)
+    static let runsWithoutTheApp: Set<String> = ["waitForSettle", "holdEnd", "rotateTo", "fold", "unfold", "hinge"]
 
     /// 投げられたエラーの素性。**エラーの型が名乗るものだけを見る**
     /// (`StepFailureKindProviding`。localizedDescription の文言一致で仕分けると、

@@ -631,6 +631,10 @@ public enum ScenarioOutcome: Sendable, Equatable {
     /// 2回目が緑ならクラッシュするアプリが常に緑になる。
     /// 事後プローブのうちデバイス消失・凍結は `.failed` と同じに通す(ブリッジ生存プローブだけ飛ばす)
     case appCrashed
+    /// 失敗ステップの `failureKind` が `appInBackground`(アプリが背面にあり、iOS に一時停止された in-app ブリッジが答えなかった。
+    /// XCUITest の照会で確かめた事実)。**振り直さず赤のまま残し、ブリッジの生存プローブは飛ばす**(appCrashed と同じ扱い)——
+    /// 止まったアプリの中のブリッジは答えないので、プローブは「不達」と言ってレーンを離脱させ、同じ失敗を振り直していた
+    case appInBackground
 }
 
 /// 「テストではなくデバイスが壊れていた」と機械的に言い切れる失敗のしるし。
@@ -690,6 +694,7 @@ public enum ScenarioRunner {
         var frozen = false
         var environmentFault = false
         var driverUnreachableFailure = false
+        var appInBackgroundFailure = false
         let passed = await ScenarioHost.run(
             project: project, scenarioID: item.info.id, connection: worker.connection,
             deviceSession: deviceSession,
@@ -722,6 +727,10 @@ public enum ScenarioRunner {
                 if event.status == "failed",
                    event.failureKind == StepFailureKind.driverUnreachable.rawValue {
                     driverUnreachableFailure = true
+                }
+                if event.status == "failed",
+                   event.failureKind == StepFailureKind.appInBackground.rawValue {
+                    appInBackgroundFailure = true
                 }
                 onEvent(.step(worker: worker.label, flowURL: item.url,
                               result: stepResult(from: event)))
@@ -772,7 +781,8 @@ public enum ScenarioRunner {
                                    environmentFault: environmentFault,
                                    driverUnreachable: driverUnreachableFailure,
                                    notApplicable: notApplicableReason != nil,
-                                   appCrashed: appCrash != nil)
+                                   appCrashed: appCrash != nil,
+                                   appInBackground: appInBackgroundFailure)
         onEvent(.flowFinished(worker: worker.label, flowURL: item.url, passed: frozen ? false : passed,
                               reportURL: reportURL, fm: fmUsage, appCrash: appCrash,
                               notApplicableReason: outcome == .notApplicable ? notApplicableReason : nil))
@@ -790,10 +800,11 @@ public enum ScenarioRunner {
     /// 上書きしない(途中のステップがそれらでも、最終的に通ったならテストとしては合格)
     static func outcome(passed: Bool, frozen: Bool, environmentFault: Bool,
                         driverUnreachable: Bool, notApplicable: Bool,
-                        appCrashed: Bool = false) -> ScenarioOutcome {
+                        appCrashed: Bool = false, appInBackground: Bool = false) -> ScenarioOutcome {
         if frozen { return .frozen }
         if passed { return notApplicable ? .notApplicable : .passed }
         if appCrashed { return .appCrashed }
+        if appInBackground { return .appInBackground }
         if environmentFault { return .environmentFault }
         return driverUnreachable ? .driverUnreachable : .failed
     }
@@ -817,7 +828,7 @@ public enum ScenarioRunner {
             return true
         case .driverUnreachable:
             return true
-        case .passed, .notApplicable, .failed, .frozen, .appCrashed:
+        case .passed, .notApplicable, .failed, .frozen, .appCrashed, .appInBackground:
             return false
         }
     }
@@ -2127,7 +2138,8 @@ public final class RunOrchestrator: Sendable {
             var unusableReason: String? = outcome == .frozen ? "a frozen screen" : nil
             // unusableReason と**同時に**決める(型から。文言の後解析はしない)
             var unusableCause: WorkerAnomalyCause? = outcome == .frozen ? .frozen : nil
-            if unusableReason == nil, outcome == .failed || outcome == .driverUnreachable || outcome == .appCrashed,
+            if unusableReason == nil, outcome == .failed || outcome == .driverUnreachable || outcome == .appCrashed
+                || outcome == .appInBackground,
                worker.platform == "android",
                let serial = worker.connection.serial {
                 if await deviceUnreachable(serial) {

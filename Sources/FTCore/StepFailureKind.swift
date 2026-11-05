@@ -35,6 +35,10 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
     /// (`DriverErrorContext.appFate == .stoppedBySession` から `DriverError` の case + 同伴データで決める)
     case appStoppedBySession = "app-stopped-by-session"
 
+    /// **アプリが背面にあり(XCUITest の照会で確かめた)、iOS に一時停止された in-app ブリッジが答えなかった**。
+    /// ブリッジの不達ではないので、run は再キューもブリッジの生存プローブもしない(`AppFate.inBackground`)
+    case appInBackground = "app-in-background"
+
     /// ドライバは応答したがエラーを返した(HTTP のエラー応答)。到達はしている
     case driverError = "driver-error"
 

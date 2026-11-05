@@ -366,7 +366,11 @@ extension DriverError: StepFailureKindProviding {
         // deliveryUnknown = ブリッジ以外の理由で届いたか不明: ブリッジは健全かもしれないので driverUnreachable にせず、
         // run のシナリオ再キュー・ブレーカの対象にしない(再キューは二重実行になりうる)
         case .bridgeUnreachable(let context, _), .bridgeConnectionRefused(let context, _):
-            return context.appFate == .stoppedBySession ? .appStoppedBySession : .driverUnreachable
+            switch context.appFate {
+            case .stoppedBySession?: return .appStoppedBySession
+            case .inBackground?: return .appInBackground
+            case .crashed?, nil: return .driverUnreachable
+            }
         case .bridgeIdentityMismatch, .notDelivered: return .driverUnreachable
         case .badResponse, .staleRef, .deliveryUnknown: return .driverError
         case .systemAlertBlocked: return .systemUICovered
@@ -408,6 +412,10 @@ public enum AppFate: Sendable, Equatable {
     case crashed
     /// このセッションが `terminate` を撃ち、その後 launch していない
     case stoppedBySession
+    /// **in-app ブリッジに届かず、XCUITest がアプリは前面に無いと答えた**(home・別アプリへ出た後。iOS は背面のアプリを
+    /// 約 2 秒で一時停止するので、アプリの中の in-app ブリッジは答えなくなる = ブリッジの故障ではない)。
+    /// front = その時の前面(答えたときだけ)。付けるのは `StepExecutor.attributingBackgroundedApp` の1箇所
+    case inBackground(front: String?)
 }
 
 /// `DriverError.errorDescription` の文言組み立て(純粋関数。`DriverErrorMessageTests` が
@@ -451,6 +459,11 @@ public enum DriverErrorMessage {
         case .stoppedBySession:
             return "The app under test is not running: this session stopped it (terminateApp / terminate) and has not"
                 + " launched it since. Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
+        case .inBackground(let front):
+            let where_ = front.map { " (in front: \($0))" } ?? ""
+            return "The app under test is in the background\(where_), so iOS suspended it and the in-app bridge inside it"
+                + " does not answer — the bridge itself is fine. A person could not do this step either: bring the app back"
+                + " first (DSL: tapAppIcon() or launchApp())." + (detail.isEmpty ? "" : " \(detail)")
         }
     }
 
