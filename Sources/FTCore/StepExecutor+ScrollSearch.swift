@@ -146,7 +146,8 @@ extension StepExecutor {
         /// 見つけた要素(found のときだけ)。scrollTo が「掴んだ要素」として返す
         /// (無いと DSL の `scrollTo` が lastElement を空で上書きしていた)
         var element: ElementInfo? = nil
-        /// 起こしたアプリのプロセスが居ないのに始点の木が別アプリのものだった(`AppProcessGone`)。探索せずに断った断り文
+        /// 起こしたアプリのプロセスが居ないのに木が別アプリのものだった(`AppProcessGone`)の断り文。始点の木なら探索せずに断った
+        /// (`message`)、途中の回なら送りを止めた(`messageAfterSearch` = 送った数を言う)
         var appGone: String? = nil
     }
 
@@ -242,11 +243,7 @@ extension StepExecutor {
     static func scrollNotFoundMessage(_ step: FlowStep,
                                       _ result: ScrollSearchResult? = nil,
                                       defaultMaxSwipes: Int) -> String {
-        // AppProcessGone の文は「何も送っていない」と言う。探索の途中で落ちた回はそれまでに送っているので、その事実を添える
-        if let gone = result?.appGone {
-            guard let sent = result?.swipes, sent > 0 else { return gone }
-            return gone + " (the search had already sent \(sent) swipe(s) before the app was found gone; the last ones may have landed on the screen that replaced it)"
-        }
+        if let gone = result?.appGone { return gone }
         // **fail-fast は別の文**: 実際にはスワイプを1本も送っていないので、通常の
         // 「N 回振って見つからなかった」は嘘になる
         if result?.scrollFrameMissing == true {
@@ -874,6 +871,8 @@ extension StepExecutor {
         var searchBundleID: String?
         // 2周目以降の木で、持ち主が基準から変わっていた最初の周回(ScrollSearchResult.ownerChangedDuringSearch)
         var ownerChanged: (bundleID: String, round: Int)?
+        // 途中のアプリの消失を照会した直近の木の持ち主(替わったときだけ照会する)
+        var lastCheckedOwner: String?
         // 動いたかの比較(端・弾切れの判定)。**容器の中だけ**を比べる(領域は searchContentRegion: 名指し → 申告された容器 → 形から採った容器) ——
         // 容器の外の動き続ける表示(時計・カウンタ)を「動いた」と数えると端を検知できず、動かなかった探索で撃たない
         // はずの逆走査まで走って一覧が先頭へ戻された。領域が採れない画面だけ木全体
@@ -910,6 +909,7 @@ extension StepExecutor {
                 // hideKeyboard の後も同じ(閉じかけのキーボードの木で判断すると、要らない送りや早すぎる停止になる)
                 snapshot = try await consumePendingHideKeyboardWait(snapshot, phase: &phase)
                 searchBundleID = Self.searchBaselineBundleID(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
+                lastCheckedOwner = snapshot.sessionBundleID
                 // 始点の木が、プロセスの居ないアプリに代わって前面へ出た別アプリのものなら、その画面を払わず断る(AppProcessGone)
                 if let gone = await appGoneFailure(owner: snapshot.sessionBundleID) {
                     return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
@@ -926,19 +926,26 @@ extension StepExecutor {
                 // 検証系の期限切れ直前の1回とは別で、ここは**毎周払う**必要がある
                 snapshot = try await freshSnapshot(.afterOwnMove)
                 phase.snapshotMs += Self.ms(clock.now - start)
+                // **探索の途中でアプリが落ちたら、そこで止める**(0回目だけの確かめでは、落ちた後もランチャーの上で払い続けて
+                // 上向きの払いでシェードを引き下ろし、失敗文はシェードを名指した = 15周目 amax F1)。**割り込みを閉じる前に**見る
+                // (落ちた後の別アプリの画面のボタンを、登録した割り込みの処理が押さないように = 0回目と同じ順)。
+                // 聞くのは木の持ち主が前の回から替わったときだけ(別のアプリで正当に探す間、毎回プロセスを照会しない)。
+                // 生きていれば(システムの画面が一時的に前に出ただけ)従来どおり続ける
+                if let base = searchBundleID, !base.isEmpty, let owner = snapshot.sessionBundleID, !owner.isEmpty,
+                   owner != base, owner != lastCheckedOwner {
+                    lastCheckedOwner = owner
+                    if await appGoneFailure(owner: owner) != nil {
+                        return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                                  hintJumps: hintJumps, swipes: swipes,
+                                                  appGone: AppProcessGone.messageAfterSearch(
+                                                    launched: launchedBundleID ?? base, owner: owner, sentSwipes: swipes))
+                    }
+                }
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base {
                 ownerChanged = (owner, attempt)
-            }
-            // **探索の途中でアプリが落ちたら、そこで止める**(0回目だけの確かめでは、落ちた後もランチャーの上で払い続け、上向きの
-            // 払いでシェードを引き下ろして、失敗文はシェードを名指した = 15周目 amax F1)。聞くのは木の持ち主が対象から変わった回だけ
-            // (プロセスの照会の費用を普通の回に払わない)。生きていれば(システムの画面が一時的に前に出ただけ)従来どおり続ける
-            if attempt > 0, let base = searchBundleID, !base.isEmpty, let owner = snapshot.sessionBundleID,
-               !owner.isEmpty, owner != base, let gone = await appGoneFailure(owner: owner) {
-                return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
-                                          hintJumps: hintJumps, swipes: swipes, appGone: gone)
             }
             // **同じ顔ぶれの要素が枠だけ違うなら、整定してから比べる**(払いの直後の1枚は端のバウンスの途中かもしれない。
             // 全部が収まる一覧を「まだ動いていた」と読んで maxSwipes まで回り、逆走査まで撃っていた。ScrollSearchBounce)。

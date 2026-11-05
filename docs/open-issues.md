@@ -192,7 +192,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 確認: コミット未記録(2026-11-05)
 - 属性: 木に材料なし
 
-11/5 の15周目の探索(20分・`_work/explore-20261105c/findings-*.md`)で観測し、直さなかったもの。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)
+11/5 の15周目の探索(20分・`_work/explore-20261105c/findings-*.md`)で観測し、直さなかったもの。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。②iOS では探索の途中でアプリが落ちても木の持ち主(セッションの bundle ID)が前面に追随しない・SpringBoard は消失の判定から外れるので、途中の確かめ(探索の途中でアプリが落ちたら止める・11/5)が効かず送り続ける形が残る(15周目 amax F1 の直しのレビューで指摘。iOS では未観測 = 測る材料が要る)
 
 ## 低頻度
 

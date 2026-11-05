@@ -45,12 +45,27 @@ final class ScrollSearchAppGoneMidwayTests: XCTestCase {
         let (outcome, driver) = await run(processRunning: false)
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertTrue(message.contains("is not running"), message)
-        XCTAssertTrue(message.contains("already sent 1 swipe(s)"), message)
+        XCTAssertTrue(message.contains("the search stopped after 1 swipe(s)"), message)
+        XCTAssertFalse(message.contains("nothing was sent"), message)
         XCTAssertEqual(driver.swipes, 1, "落ちた後も払い続けた")
     }
 
     func testKeepsSearchingWhileTheAppIsAlive() async {
         let (_, driver) = await run(processRunning: true)
         XCTAssertGreaterThan(driver.swipes, 1, "生きているのに止めた")
+    }
+
+    /// notExist(scroll:) は、探索が落ちたアプリで止まったら、その場で止まった事実を言って失敗する
+    func testNotExistDoesNotPassWhenTheAppDied() async {
+        let driver = OwnerChangesAfterSwipeDriver()
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        executor.launchedBundleID = "com.app"
+        executor.appProcessRunning = { _ in false }
+        let outcome = await executor.execute({ var step = FlowStep(assert: "notExists", locator: FlowLocator(id: "row_nope"), timeout: 0, occlusionGuard: false)
+            step.direction = "up"; step.maxSwipes = 6; return step }())
+        guard case .failed(let message) = outcome.status else { return XCTFail("落ちたアプリで無いと言った: \(outcome.status)") }
+        // 後段の砦(通った検証を別アプリの木なら落とす)だけだと、探索が止まった事実を言わない
+        XCTAssertTrue(message.contains("the search stopped after 1 swipe(s)"), message)
+        XCTAssertNil(outcome.failureKind)
     }
 }

@@ -989,6 +989,10 @@ extension StepExecutor {
         if step.direction != nil, step.locator != nil {
             let result = try await runScrollSearch(step: step, phase: &phase)
             scrollSearchNote = recordedScrollSearchNote(result)
+            // アプリが落ちた・前面を離れたのは「見つからない」ではない(notFound を付けない = 言えない)
+            if !result.found, Self.searchStoppedWithoutLooking(result) {
+                return failedWithoutKind(scrollSearchFailureMessage(step, result))
+            }
             guard result.found else { return failed(.notFound, scrollSearchFailureMessage(step, result)) }
         }
         var deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
@@ -1401,6 +1405,10 @@ extension StepExecutor {
             let result = try await runScrollSearch(step: step, recoverOnMiss: false, phase: &phase)
             scrollSearchNote = recordedScrollSearchNote(result)
             guard !result.found else { return .failed(Self.scrollFoundMessage(step)) }
+            // アプリが落ちた・前面を離れて止まった探索は「無い」を確かめていない(別アプリの木で無いと言うと誤った緑)
+            if Self.searchStoppedWithoutLooking(result) {
+                return failedWithoutKind(scrollSearchFailureMessage(step, result))
+            }
             // **`!result.found` を成功材料にしない**: scrollFrame が解決できず1本も振らずに
             // 打ち切った場合も found=false になるが、それは「無いことを確認した」ではなく
             // 探索していない。exist 側(executeAssertExists)と同じく

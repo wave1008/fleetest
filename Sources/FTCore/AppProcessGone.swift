@@ -28,4 +28,12 @@ public enum AppProcessGone {
             + " — nothing was sent. The selector can match another app's screen, so the result would not be about \(launched)."
             + " Relaunch \(launched) before the next step"
     }
+
+    /// 探索の途中で落ちた回の断り文(それまでに送りを撃っている = `message` の「何も送っていない」は言わない)。
+    /// 送りがどこに当たったかは測っていないので言わない
+    public static func messageAfterSearch(launched: String, owner: String, sentSwipes: Int) -> String {
+        "the app process (\(launched)) is not running, and the screen read during the search now belongs to \(owner)"
+            + " — the search stopped after \(sentSwipes) swipe(s). The selector can match another app's screen, so the result"
+            + " would not be about \(launched). Relaunch \(launched) before the next step"
+    }
 }

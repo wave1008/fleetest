@@ -678,6 +678,9 @@ extension StepExecutor {
         let result = try await runScrollSearch(step: step, phase: &phase)
         let note = recordedScrollSearchNote(result, scrollFrameNote: pendingScrollFrameNote)
         guard result.found else {
+            if Self.searchStoppedWithoutLooking(result) {
+                return StepOutcome(status: failedWithoutKind(scrollSearchFailureMessage(step, result)))
+            }
             return StepOutcome(status: failed(.notFound, scrollSearchFailureMessage(step, result)))
         }
         resolvedElementThisStep = result.element
