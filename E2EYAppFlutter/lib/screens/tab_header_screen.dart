@@ -35,7 +35,14 @@ class _TabHeaderScreenState extends State<TabHeaderScreen>
     final collapseExtent =
         _headerHeight + _tabBarHeight - kToolbarHeight - _tabBarHeight;
     final v = _outer.offset >= collapseExtent - 0.5 ? 'collapsed' : 'expanded';
-    if (v != _header) setState(() => _header = v);
+    // 次のフレームで書く: NestedScrollView は外側の位置を直すレイアウトの途中で ScrollEndNotification を出すことがあり、
+    // そこで直に setState するとこの画面の要素が描き直されないまま残り、以後の setState(行・タブの echo)が全部無視された
+    // (ヘッダを縮めてから上へ戻した後。タップは届いているのに echo が変わらない)
+    if (v != _header) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && v != _header) setState(() => _header = v);
+      });
+    }
     return false;
   }
 
