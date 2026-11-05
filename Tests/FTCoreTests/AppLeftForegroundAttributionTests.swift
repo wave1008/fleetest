@@ -298,6 +298,23 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertTrue(body.contains("appInBackground ? nil : try? await driver.snapshot()"), "背面でも木を読む")
     }
 
+    /// **Android は主ドライバに前面を聞く**(副ドライバが無い)。外すと `home()` の後の否定の検証がランチャーの木の上で黙って
+    /// 通った(23周目 amax F1)。断るのは前面に無いと答えたときだけ・前面と答えたら撃つ
+    func testAndroidAsksItsPrimaryDriverWhetherTheAppIsInFront() async {
+        let android = CountingForeground()
+        let executor = StepExecutor(driver: android, fallbackDriver: nil, isAndroid: true, tunables: RunTunables())
+        executor.noteAppLaunched(bundleID: "com.example.app")
+        executor.noteAppMayHaveLeft(true)
+        let refused = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertEqual(refused.failureKind, .appInBackground, "\(refused.status)")
+        XCTAssertGreaterThan(android.asks, 0, "主ドライバに前面を聞いていない")
+        let iosWithoutFallback = StepExecutor(driver: CountingForeground(), fallbackDriver: nil, isAndroid: false, tunables: RunTunables())
+        iosWithoutFallback.noteAppLaunched(bundleID: "com.example.app")
+        iosWithoutFallback.noteAppMayHaveLeft(true)
+        let iosOutcome = await iosWithoutFallback.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertNotEqual(iosOutcome.failureKind, .appInBackground, "iOS の in-app に自分が背面かを聞いた")
+    }
+
     /// 前面と答えたら印を落とし、以後は聞かない
     func testStopsAskingOnceTheAppIsBack() async {
         let (executor, _, xcuitest) = make()

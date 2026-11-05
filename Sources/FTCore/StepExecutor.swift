@@ -1155,7 +1155,7 @@ public final class StepExecutor {
     /// (17周目の陽性対照: home → wait(4) → tap が 49 秒)。照会は XCUITest の画面を動かさない読み(約 0.1 秒)。
     /// 前面と答えたら印を落とす(以後は聞かない)。答えない・失敗は断らない(推測で赤にしない)が印は残す
     func backgroundedAppRefusal(step: FlowStep) async -> String? {
-        guard appMayHaveLeft, let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID else { return nil }
+        guard appMayHaveLeft, let fallback = foregroundProber, let bundleID = lastLaunchedAppBundleID else { return nil }
         if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
         // 前面へ戻る途中(openURL の直後等)を断らない: ステップの待ちの上限まで聞き直す(0.5 秒おき)
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
@@ -1190,6 +1190,12 @@ public final class StepExecutor {
         if case .value(false) = await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) { return true }
         return false
     }
+
+    /// 撃つ前の門で前面を聞く相手。iOS は XCUITest(inapp-boost の副ドライバ。in-app は自分が背面かを答えられない)、
+    /// Android は主ドライバ(前面のアプリを読んで答える・読めなければ投げる)。**Android を外すと**、`home()` の後の否定の検証
+    /// (notExist・countIs 0・不成立の ifCanSelect)がランチャーの木の上で黙って通り、tap は従えない対処文で落ちた
+    /// (23周目 amax F1・phys F1: 各 4/4・2/2)
+    var foregroundProber: AppDriver? { fallbackDriver ?? (isAndroid ? driver : nil) }
 
     /// **アプリが前面を離れた後(スイッチャー・背面)の断りの入口**。ステップ(`execute`)と DSL の条件判定(`ifCanSelect` の
     /// `canSelect`)が共有する = 読みが in-app ブリッジを通る経路はどちらも通す

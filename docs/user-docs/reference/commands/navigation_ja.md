@@ -35,7 +35,7 @@ hinge(130)              // 半開きのブック姿勢
 
 ## 注意点
 
-- **iOS の inapp-boost モード(既定)では、`home()`・`appSwitcher()`・`tapAppIcon()`・`openURL()` の後は、アプリを前面へ戻してから操作します。**
+- **iOS の inapp-boost モード(既定)と Android では、`home()`・`appSwitcher()`・`tapAppIcon()`・`openURL()`・`launchApp(url:)` の後は、アプリを前面へ戻してから操作します。**
   テスト対象のアプリが前面に無い間(ホーム画面・別のアプリ・アプリスイッチャーが出ている間)は、アプリを読む・触る step は
   いつもの待ち時間のあいだアプリが戻るのを待ち、戻らなければ見えないアプリへ操作せずに失敗します。`failureKind` は `app-in-background`、アプリスイッチャーが開いている間は
   `system-ui-covered` です。`tapAppIcon()` か `launchApp()` で戻してください。
