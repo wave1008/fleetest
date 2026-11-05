@@ -124,6 +124,7 @@ public final class ActionCountingDriver: AppDriver {
     public func raiseElementLimitOnNextSnapshot(_ max: Int?) { base.raiseElementLimitOnNextSnapshot(max) }
     public var reachedEdgeOnLastSwipe: Bool? { base.reachedEdgeOnLastSwipe }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { base.lastTapHitAreaMiss }
+    public var lastTapDelivery: TapDelivery? { base.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await base.tapProbe(x: x, y: y) }
     public func waitForSettle(_ request: WaitForSettleRequest, timeoutSeconds: Double) async throws -> WaitForSettleResponse {
         try await base.waitForSettle(request, timeoutSeconds: timeoutSeconds)

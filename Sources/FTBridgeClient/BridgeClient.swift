@@ -21,6 +21,7 @@ public final class BridgeClient: AppDriver, Sendable {
         var appUIFramework: AppUIFramework?
         var atEdgeOnLastSwipe: Bool?
         var lastTapHitAreaMiss: TapHitAreaMiss?
+        var lastTapDelivery: TapDelivery?
         var originalOrientation: FTOrientation?
         /// 撮り方(`screenshot`)。最初の1回に /status の multiDisplay で決めて使い回す(画面の枚数は機種で決まる)
         var screenCapture: ScreenCapture?
@@ -1023,6 +1024,7 @@ public final class BridgeClient: AppDriver, Sendable {
     public func tap(ref: Int) async throws {
         lastActionNote = nil
         lastTapHitAreaMiss = nil
+        lastTapDelivery = nil
         if let center = browserDOMCenters[ref] {
             try await tap(x: center.x, y: center.y)
             return
@@ -1034,6 +1036,7 @@ public final class BridgeClient: AppDriver, Sendable {
                                              timeout: interactionTimeout)
         lastActionNote = res.note
         lastTapHitAreaMiss = res.hitAreaMiss
+        lastTapDelivery = res.tapDelivery
     }
 
     /// **測定用の保守者のスイッチ**(`=1` のときだけ)。ref の `/tap` に `probeStaleRef` を付け、XCUITest ランナーが撃つ直前に
@@ -1049,6 +1052,12 @@ public final class BridgeClient: AppDriver, Sendable {
     public private(set) var lastTapHitAreaMiss: TapHitAreaMiss? {
         get { mutable.withLock { $0.lastTapHitAreaMiss } }
         set { mutable.withLock { $0.lastTapHitAreaMiss = newValue } }
+    }
+
+    /// tap(ref:) が受け取った OKResponse.tapDelivery(AppDriver.lastTapDelivery)。tap(ref:) の冒頭でクリア
+    public private(set) var lastTapDelivery: TapDelivery? {
+        get { mutable.withLock { $0.lastTapDelivery } }
+        set { mutable.withLock { $0.lastTapDelivery = newValue } }
     }
 
     public func tap(x: Double, y: Double) async throws {

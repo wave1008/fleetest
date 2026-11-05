@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 269
+    public static let bridgeProtocolVersion = 271
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1805,12 +1805,23 @@ public struct OKResponse: Codable {
     /// in-app の ref タップ(`/tap` の ref 指定)が立てる(v159〜)。XCUITest ランナーは `TapRequest.probeStaleRef` の
     /// 測定のときだけ `.movedBeforeFire` を立てる(v211〜)。`TapHitAreaMiss` の doc
     public var hitAreaMiss: TapHitAreaMiss?
-    public init(ok: Bool = true, note: String? = nil, atEdge: Bool? = nil, hitAreaMiss: TapHitAreaMiss? = nil) {
+    /// in-app の ref タップ(`/tap` の ref 指定)がどう押したか(`TapDelivery`)。他の経路・他のブリッジは nil
+    public var tapDelivery: TapDelivery?
+    public init(ok: Bool = true, note: String? = nil, atEdge: Bool? = nil, hitAreaMiss: TapHitAreaMiss? = nil,
+                tapDelivery: TapDelivery? = nil) {
         self.ok = ok
         self.note = note
         self.atEdge = atEdge
         self.hitAreaMiss = hitAreaMiss
+        self.tapDelivery = tapDelivery
     }
+}
+
+/// in-app の ref タップの撃ち方。**`activate` は座標を撃たない**(要素の accessibilityActivate が受けた)ので、ホストが木の幾何から
+/// 言う「中心の覆いに当たったかも」は起こりえない。`syntheticTouch` は中心(取り直した枠の中心)へ合成タッチを撃った
+public enum TapDelivery: String, Codable, Sendable {
+    case activate
+    case syntheticTouch
 }
 
 /// **3つ目の種類 `.movedBeforeFire` は別系統**(XCUITest ランナーの測定用。種類の doc)。以下は in-app の2つ:

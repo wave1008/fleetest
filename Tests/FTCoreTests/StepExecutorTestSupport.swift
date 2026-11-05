@@ -230,6 +230,9 @@ final class FakeAppDriver: AppDriver {
 
     /// 座標タップの記録(log には載せない = 既存のテストのログの完全一致を崩さない)
     var coordinateTaps: [(x: Double, y: Double)] = []
+    /// `tap(ref:)` の後に答える撃ち方(`AppDriver.lastTapDelivery`)。nil = 言えない
+    var tapDeliveryAnswer: TapDelivery?
+    var lastTapDelivery: TapDelivery? { tapDeliveryAnswer }
     /// tapProbe の答え(nil = 答えられない = 既定のドライバと同じ)
     var tapProbeAnswer: TapProbeResponse?
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { tapProbeAnswer }

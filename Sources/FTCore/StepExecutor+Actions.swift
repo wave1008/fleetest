@@ -1149,10 +1149,21 @@ extension StepExecutor {
                 // 寄せずに frame の中心を撃つ = 座標に依るチェーンが言える経路。
                 // **keyboard/disabled はここでは足さない**(上ですでに1回付けている。
                 // ここで足すと同文が2回付く)
-                adviseTarget(TapTargetGeometry.occlusionAdvisory(
-                    for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
+                // 中心の覆いの注記は撃った後に決める: in-app が activate で押したら座標を撃っていない = 覆いに当たりえない
+                // (UIKit の縁の帯・SwiftUI の貼り付くタブで、押せているのに「may have hit」が付いた)。失敗後の案内の疑いも捨てる
+                let centreAdvisory = TapTargetGeometry.occlusionAdvisory(
+                    for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid)
+                var centreCoverOnly = false
+                if case .overlayCovering? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements, screen: snapshot.screen) {
+                    centreCoverOnly = true
+                }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
+                    if centreCoverOnly, actingDriver.lastTapDelivery == .activate {
+                        lastInteraction?.coverSuspect = nil
+                    } else {
+                        adviseTarget(centreAdvisory)
+                    }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {
                         let centre = "(\(Int(miss.x.rounded())), \(Int(miss.y.rounded())))"
@@ -1175,6 +1186,7 @@ extension StepExecutor {
                     // in-app が「activate 不発・合成タッチは効かない」(SwiftUI)で 501 を返したら、
                     // 今の木の枠の中心を XCUITest の座標タップで押す(ref は別名前空間なので渡さない)。
                     // 撃ち直しではない: 501 は in-app が何も撃たずに返した場合だけ
+                    adviseTarget(centreAdvisory)
                     guard DriverError.isBridgeIncapable(error),
                           let td = typeDriver else { throw error }
                     // 長押しと同じく XCUITest の木で引き直して ref で押す(木を撮る段でランナーのセッションが

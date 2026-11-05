@@ -145,6 +145,7 @@ public final class SessionRecoveryDriver: AppDriver {
     public var lastActionNote: String? { base.lastActionNote ?? accessibilityOutageNote }
     public var reachedEdgeOnLastSwipe: Bool? { base.reachedEdgeOnLastSwipe }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { base.lastTapHitAreaMiss }
+    public var lastTapDelivery: TapDelivery? { base.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await base.tapProbe(x: x, y: y) }
     public var lastLaunchTiming: LaunchTiming? { base.lastLaunchTiming }
 

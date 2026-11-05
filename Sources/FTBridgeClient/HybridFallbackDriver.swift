@@ -415,5 +415,6 @@ public final class HybridFallbackDriver: AppDriver {
     public var lastLaunchTiming: LaunchTiming? { primary.lastLaunchTiming }
     /// tap(ref:) と同じ `active` を読む(foreignApp 委譲中の XCUITest は常に nil)
     public var lastTapHitAreaMiss: TapHitAreaMiss? { active.lastTapHitAreaMiss }
+    public var lastTapDelivery: TapDelivery? { active.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await active.tapProbe(x: x, y: y) }
 }

@@ -200,5 +200,6 @@ public final class SystemUIDriver: AppDriver {
     public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await client.systemUICovering() }
     public var lastActionNote: String? { client.lastActionNote }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { client.lastTapHitAreaMiss }
+    public var lastTapDelivery: TapDelivery? { client.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await client.tapProbe(x: x, y: y) }
 }

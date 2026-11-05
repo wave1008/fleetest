@@ -185,6 +185,9 @@ public protocol AppDriver {
     /// 「次の tap(ref:) でクリアする」規約(lastActionNote と同じ)。**包むドライバは素通しすること**、
     /// **プロトコル要件として宣言すること**(reachedEdgeOnLastSwipe と同じ理由)
     var lastTapHitAreaMiss: TapHitAreaMiss? { get }
+    /// 直前の `tap(ref:)` を in-app がどう押したか(`TapDelivery`。`activate` なら座標を撃っていない)。既定 nil = 言えない(in-app 以外)。
+    /// 「次の tap(ref:) でクリアする」規約と、**包むドライバは素通しすること**・**プロトコル要件として宣言すること**は lastTapHitAreaMiss と同じ
+    var lastTapDelivery: TapDelivery? { get }
     /// その点が木に載らないもの(キーボード・ステータスバー・別のウィンドウ)の上でないか(in-app ブリッジの POST /tapprobe。
     /// iOS の hideKeyboard が叩く前に聞く)。nil = 答えられない(XCUITest・Android・通信の失敗)。**包むドライバは素通しすること**、
     /// **プロトコル要件として宣言すること**(lastTapHitAreaMiss と同じ理由)
@@ -633,6 +636,7 @@ public extension AppDriver {
     /// 素通しすること**(捨てると端送りが毎回ホストの署名判定まで回る)
     var reachedEdgeOnLastSwipe: Bool? { nil }
     var lastTapHitAreaMiss: TapHitAreaMiss? { nil }
+    var lastTapDelivery: TapDelivery? { nil }
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }

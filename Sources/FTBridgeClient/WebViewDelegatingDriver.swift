@@ -449,6 +449,7 @@ public final class WebViewDelegatingDriver: AppDriver {
     public var reachedEdgeOnLastSwipe: Bool? { screenDriver.reachedEdgeOnLastSwipe }
     /// DOM 経路の tap は screenDriver を通らない = そちらの値は前回の tap のまま残っているので返さない
     public var lastTapHitAreaMiss: TapHitAreaMiss? { lastTapWentToScreen ? screenDriver.lastTapHitAreaMiss : nil }
+    public var lastTapDelivery: TapDelivery? { lastTapWentToScreen ? screenDriver.lastTapDelivery : nil }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await screenDriver.tapProbe(x: x, y: y) }
     /// **転送必須**: 素性と枠の照会は XCUITest(`delegated`)だけが答える。ref を使わないのでモードに関わらず同じ宛先
     /// (inapp-boost のシナリオ実行はこの型を最外に組む = 既定実装に落ちると照会が一度も届かない。`HitTestQueryForwardingTests`)

@@ -116,13 +116,13 @@ final class FTInAppBridge {
     /// 応答を作る。整定が打ち切られていたら note に足す(ホストは driverFallback として記録する)。
     /// 打ち切りは失敗ではないので status は 200 のまま
     private func ok(_ note: String? = nil, atEdge: Bool? = nil,
-                    hitAreaMiss: TapHitAreaMiss? = nil) -> InAppHTTPServer.Response {
+                    hitAreaMiss: TapHitAreaMiss? = nil, tapDelivery: TapDelivery? = nil) -> InAppHTTPServer.Response {
         guard lastSettleCapped else {
-            return .json(OKResponse(note: note, atEdge: atEdge, hitAreaMiss: hitAreaMiss))
+            return .json(OKResponse(note: note, atEdge: atEdge, hitAreaMiss: hitAreaMiss, tapDelivery: tapDelivery))
         }
         let capped = "settle capped (screen kept animating)"
         return .json(OKResponse(note: note.map { "\($0) / \(capped)" } ?? capped, atEdge: atEdge,
-                                hitAreaMiss: hitAreaMiss))
+                                hitAreaMiss: hitAreaMiss, tapDelivery: tapDelivery))
     }
 
     private func handle(_ req: InAppHTTPServer.Request) -> InAppHTTPServer.Response {
@@ -563,9 +563,9 @@ final class FTInAppBridge {
                 (self.nodes.object(forKey: NSNumber(value: ref)) as? NSObject).flatMap { FTAccessibilityIdentifier($0) }
             }
             let before = mainSync { Self.receiverMark() }
-            let (note, hitAreaMiss) = try tapByRef(ref, req: req)
+            let (note, hitAreaMiss, delivery) = try tapByRef(ref, req: req)
             lastRefTap = (targetID, before)
-            return ok(note, hitAreaMiss: hitAreaMiss)
+            return ok(note, hitAreaMiss: hitAreaMiss, tapDelivery: delivery)
         }
         let clippedNote = NoteBox()
         try performWithSettle(operation: "the tap") { window in
@@ -645,10 +645,13 @@ final class FTInAppBridge {
     /// 再試行は activate が false のときだけ発生するので、通常経路のコストはゼロ。
     /// **撃ち直すのは自前描画のアプリだけ**(`AppUIFramework.retriesUnfiredActivate`)。
     /// それ以外は整定を待って取り直しを座標のためだけに 1 回行い、合成タッチへ落とす。
-    private func tapByRef(_ ref: Int, req: TapRequest) throws -> (note: String?, hitAreaMiss: TapHitAreaMiss?) {
+    private func tapByRef(_ ref: Int, req: TapRequest) throws
+        -> (note: String?, hitAreaMiss: TapHitAreaMiss?, delivery: TapDelivery?) {
         let sem = DispatchSemaphore(value: 0)
         var thrown: Error?
         var note: String?
+        // どう押したか(OKResponse.tapDelivery)。activate が受けた回と合成タッチを撃った回だけ立つ
+        var delivery: TapDelivery?
         // 撃った回だけ立てる(activate も合成タッチも。合成タッチは対象の窓へ直接送るので手前の窓を素通りする)
         var hitAreaMiss: TapHitAreaMiss?
         // 合成タッチの点での判定に使う(保持ノードが無い回は nil = 判定しない)
@@ -680,6 +683,7 @@ final class FTInAppBridge {
             // (inapp-boost モードの XCUITest ブリッジへの回し先は springboard 参照でアプリ要素には効かない)。
             note = "activate did not fire -> synthetic touch (if the element does not respond,"
                 + " consider adding a testTag or iosMode: \"xcuitest\")"
+            delivery = .syntheticTouch
             let before: Int
             do {
                 let p = try freshTapPoint ?? self.resolvePoint(ref: ref, x: req.x, y: req.y)
@@ -738,6 +742,7 @@ final class FTInAppBridge {
                     ?? (activationPointMarksHitArea ? Self.activationPointMiss(node: fresh.node) : nil)
                 if fresh.node.accessibilityActivate() {
                     hitAreaMiss = miss
+                    delivery = .activate
                     note = "activate did not fire -> re-fetched the element and retried"
                     finish(window)
                     return
@@ -776,6 +781,7 @@ final class FTInAppBridge {
             }
             if node.accessibilityActivate() {
                 hitAreaMiss = miss
+                delivery = .activate
                 finish(window)
                 return
             }
@@ -816,7 +822,7 @@ final class FTInAppBridge {
                 + " once the main thread frees up, so retry only after checking the screen")
         }
         if let thrown { throw thrown }
-        return (note, hitAreaMiss)
+        return (note, hitAreaMiss, delivery)
     }
 
     /// 不発だった保持ノードの代わりを、取り直したツリーから探す(id 一致 → 無 id なら frame+label 一致)。
