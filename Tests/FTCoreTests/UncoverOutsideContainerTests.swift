@@ -348,14 +348,17 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(likes, in: [leaving, tabRow, likes], screen: screen, scale: 1))
     }
 
-    /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。向きを書いた回・一覧の無い画面では足さない
+    /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。scroll: を持たない触る操作には先に送る手。向きを書いた回・一覧の無い画面・触らない操作では足さない
     func testNotFoundTapSuggestsScrollWhenAListCanBeScrolled() {
         let withList = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true)], truncatedCount: 0)
         let bare = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [], truncatedCount: 0)
         XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: withList).contains("scroll: .up"))
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap", direction: "down"), in: withList), "")
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: bare), "")
-        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "doubleTap"), in: withList), "", "scroll: を持たない操作には書かない")
+        let doubleTap = StepExecutor.scrollOffHint(FlowStep(action: "doubleTap"), in: withList)
+        XCTAssertTrue(doubleTap.contains("this command has no scroll: argument"), "scroll: を持たない触る操作には先に送る手を言う: \(doubleTap)")
+        XCTAssertFalse(doubleTap.contains("add scroll:"), doubleTap)
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "select"), in: withList), "", "触らない操作には書かない")
     }
 
     // MARK: 送れば外れる側の縁のバーの下(10周目の探索 im4 F1・F2)
