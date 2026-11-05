@@ -41,6 +41,8 @@ hinge(130)              // half-open book posture
   acting on an app nobody can see:
   `failureKind` is `app-in-background`, or `system-ui-covered` while the app switcher is open.
   Return with `tapAppIcon()` or `launchApp()`.
+  `home()` itself finishes only once the app has left the foreground (it presses home again if the app is still
+  in front, and fails if it is still in front after three presses).
 - **`back(settle:)` reliability depends on the screen.** On iOS, a screen with a system navigation bar
   back button is deterministic; a screen with a framework's own navigation (e.g. a
   custom-drawn nav bar) falls back to an edge swipe, which only works if the screen supports

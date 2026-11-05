@@ -313,22 +313,37 @@ public final class AppAttachDriver: AppDriver {
     /// home / appSwitcher は XCUITest ブリッジ側が**セッション不要**で処理する
     /// (XCUIDevice / springboard 座標。Runner の BridgeRouter.handleHome / handleAppSwitcher)。
     /// activate を挟まない = 対象アプリを前面に戻してしまわない。
-    /// **返す前に対象アプリが前面から外れたのを確かめる**: inapp-boost ではランナーのセッションが SpringBoard のままなので
-    /// ランナーの /home は外れたかを確かめずに返る(BridgeRouter.handleHome の `verifiable`)。返った直後の約 0.2〜0.45 秒は
-    /// /appstate が前面と答え in-app は inactive のまま読み・操作を受け、撃つ前の門(StepExecutor.backgroundedAppRefusal)も
-    /// 前面と聞いて印を落とした(18周目 im4 F2/F3: home 直後の exist・tap が ✅・ボタンが押された。11/6 に -05 で時系列を実測)。
-    /// 答えない・上限まで前面のままなら黙って返す(推測で失敗にしない。門が聞き直す)
+    /// **返す前に対象アプリが前面から外れたのを確かめ、外れなければ押し直す**(ランナーがセッションのアプリで確かめられる経路
+    /// = BridgeRouter.handleHome の `verifiable` と同じ形)。inapp-boost ではランナーのセッションが SpringBoard のままなので
+    /// ランナーの /home は確かめずに返る。①返った直後の約 0.2〜0.45 秒は /appstate が前面と答え in-app は inactive のまま
+    /// 読み・操作を受けた(18周目 im4 F2/F3)②Simulator でスイッチャーから押すとアプリへ戻り、前面のまま ✅ を返して後続の
+    /// tap が押された(19周目 im4 F2: 2 秒・20 回聞き直して前面のまま。2 回目の home でホームへ出る)。
+    /// 答えない・失敗するときは黙って返す(推測で失敗にしない。撃つ前の門 StepExecutor.backgroundedAppRefusal が聞き直す)
     public func home() async throws {
-        try await client.home()
-        let deadline = Date().addingTimeInterval(Self.homeLeaveSeconds)
-        while Date() < deadline {
-            guard (try? await client.isAppForeground(bundleID: bundleID)) == true else { return }
-            try? await Task.sleep(for: .milliseconds(100))
+        for attempt in 1...Self.homeAttempts {
+            try await client.home()
+            guard await staysInForeground() else { return }
+            if attempt == Self.homeAttempts {
+                throw DriverError.badResponse(status: 422, body: "the home gesture was sent \(attempt) times but \(bundleID)"
+                    + " is still in the foreground. Retry, or bring the home screen up by hand")
+            }
         }
     }
-    /// ランナーの `homeSettleSeconds`(BridgeRouter.swift)と同じ値・根拠(物理 iPhone で押して 1 秒以内に外れる実測の倍)。
-    /// 手元の Simulator の実測は返ってから約 0.45 秒
+    /// 上限まで前面と答え続けたら true。答えない・外れたと答えたら false
+    private func staysInForeground() async -> Bool {
+        let deadline = Date().addingTimeInterval(homeLeaveWindow)
+        while Date() < deadline {
+            guard (try? await client.isAppForeground(bundleID: bundleID)) == true else { return false }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return true
+    }
+    /// ランナーの `homeAttempts` / `homeSettleSeconds`(BridgeRouter.swift)と同じ値・根拠(物理 iPhone で押して 1 秒以内に外れる
+    /// 実測の倍)。手元の Simulator の実測は返ってから約 0.45 秒
+    static let homeAttempts = 3
     static let homeLeaveSeconds = 2.0
+    /// テストだけが縮める(既定は `homeLeaveSeconds`。AppAttachDriverAttachTests が既定をリテラルで固定する)
+    var homeLeaveWindow = AppAttachDriver.homeLeaveSeconds
     public func setHingeAngle(degrees: Double) async throws { try await client.setHingeAngle(degrees: degrees) }
     public func foldObservation() async -> FoldObservation? { await client.foldObservation() }
     public func continueAfterFold() async { await client.continueAfterFold() }

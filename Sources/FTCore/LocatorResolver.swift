@@ -487,6 +487,17 @@ public enum LocatorResolver {
             + " (an inline link), write tap(\"\(selector)\", linkText: \"\(label)\")"
     }
 
+    /// `tap("*語*")` のように語の部分一致で**もっと長い文字の要素**を引いた tap への注記(撃つ点は要素の中心 = 文の中心で、
+    /// その語の上ではない)。段落の中の文中リンクを `*利用規約*` で書いた tap が中心の別のリンクを押して ✅ になった
+    /// (19周目 im4 F1・iultra F1/F2: SwiftUI・CMP・E2EY で 15/15)。選び方は変えない(`*…*` は「含む要素」の意味)ので注記だけ。
+    /// linkText を渡した tap・完全一致・正規表現には言わない
+    public static func partialTextTapAdvisory(for locator: FlowLocator?, element: ElementInfo, linkText: String?) -> String? {
+        guard linkText == nil, let locator, let label = locator.label, !label.isEmpty,
+              let mode = locator.labelMatch, mode != .exact, mode != .matches else { return nil }
+        let note = inlineWordsNote(label: label, in: element)
+        return note.isEmpty ? nil : "matched only part of a longer text" + note
+    }
+
     /// `型 "ラベル"` / `型 #id`(複数なら件数と先頭)。名指しであってセレクタではない(エスケープしない)
     private static func partialMatchTarget(_ element: ElementInfo, count: Int,
                                            name: String, quoted: Bool) -> String {

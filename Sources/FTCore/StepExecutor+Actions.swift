@@ -970,6 +970,8 @@ extension StepExecutor {
             if (step.duration ?? FlowStep.defaultTapHoldSeconds) > 0 {
                 adviseTarget(tapKeyboardOcclusion.advisory(for: element))
             }
+            // 語の部分一致で長い文を引いた(撃つのは文の中心)。座標に依らないのでここで言える
+            adviseTarget(LocatorResolver.partialTextTapAdvisory(for: step.locator, element: element, linkText: step.linkText))
             // **木に出ないオーバーレイ・ウィンドウ**も同じ理由でここでしか言えない
             // (覆っている実体が elements に1要素も載らない。OverlayWindowOcclusion の doc)。
             // keyboard と同じく座標に依らないので、この時点で載せてよい

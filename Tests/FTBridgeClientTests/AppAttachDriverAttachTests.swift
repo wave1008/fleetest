@@ -250,4 +250,30 @@ final class AppAttachDriverAttachTests: XCTestCase {
         XCTAssertLessThan(elapsed, AppAttachDriver.homeLeaveSeconds, "外れた後も上限まで待った")
         XCTAssertEqual(stub.paths.last, "POST /appstate", "外れたと聞いた後に別の要求を撃った: \(stub.paths)")
     }
+
+    /// **押しても前面のままなら押し直し、3回とも前面なら赤にする**(Simulator でスイッチャーから押すとアプリへ戻り、
+    /// 前面のまま ✅ を返して後続の tap が押されていた = 19周目 im4 F2)。ランナーの確かめられる経路と同じ回数・文言
+    func testHomeThatLeavesTheAppInFrontIsRetriedThenFails() async throws {
+        let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                      bundleID: "com.example.target", physicalUDID: nil)
+        driver.homeLeaveWindow = 0.2
+        do {
+            try await driver.home()
+            XCTFail("前面のままなのに ✅ を返した: \(stub.paths)")
+        } catch DriverError.badResponse(let status, let body) {
+            XCTAssertEqual(status, 422)
+            XCTAssertTrue(body.contains("still in the foreground"), body)
+        }
+        XCTAssertEqual(stub.paths.filter { $0 == "POST /home" }.count, AppAttachDriver.homeAttempts, "\(stub.paths)")
+    }
+
+    /// 既定値の固定(テストが窓を縮めるので、既定を変える変更が素通りしないように)
+    func testHomeDefaultsArePinned() {
+        XCTAssertEqual(AppAttachDriver.homeAttempts, 3)
+        XCTAssertEqual(AppAttachDriver.homeLeaveSeconds, 2.0)
+        let driver = AppAttachDriver(port: 1, host: BridgeEndpoint.loopbackHost, bundleID: "x", physicalUDID: nil)
+        XCTAssertEqual(driver.homeLeaveWindow, 2.0)
+    }
 }

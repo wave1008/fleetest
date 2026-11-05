@@ -1181,6 +1181,16 @@ public final class StepExecutor {
         }
     }
 
+    /// 撃つ前の門が「前面を離れたかもしれない」印を残したまま(背面と断った後を含む)、今も前面に無いと答えたら true。
+    /// **失敗の証跡で停止中のアプリへ木を読みに行かない**ための問い(in-app の /snapshot は約 2 秒で停止した背面のアプリから
+    /// 上限 45 秒まで返らず、背面と断った赤のたびにシナリオの終わりが約 45 秒延びた = 19周目 phys F1・手元で 45.05 秒を記録)。
+    /// 答えない・前面と答えたら false(証跡は従来どおり撮る)
+    public func appStillInBackground() async -> Bool {
+        guard appMayHaveLeft, let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID else { return false }
+        if case .value(false) = await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) { return true }
+        return false
+    }
+
     /// **アプリが前面を離れた後(スイッチャー・背面)の断りの入口**。ステップ(`execute`)と DSL の条件判定(`ifCanSelect` の
     /// `canSelect`)が共有する = 読みが in-app ブリッジを通る経路はどちらも通す
     public func appLeftRefusal(step: FlowStep) async -> (message: String, kind: StepFailureKind)? {

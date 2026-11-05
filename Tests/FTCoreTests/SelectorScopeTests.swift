@@ -388,6 +388,29 @@ final class SelectorScopeTests: XCTestCase {
         XCTAssertFalse(rowHint.contains("linkText"), rowHint)
     }
 
+    /// **`tap("*語*")` で長い文を引いた tap には「文の中心を押す・linkText:」と注記する**(19周目 im4 F1・iultra F1/F2:
+    /// 段落の中の文中リンクを `*利用規約*` で書き、中心の別のリンクを押して ✅)。linkText 付き・完全一致・同じ語の要素・ボタンには言わない
+    func testPartialTextTapAdvisoryOnlyForAPartOfALongerText() {
+        let paragraph = node(1, "staticText", depth: 1, id: "txt_terms", label: "続行すると利用規約とプライバシーポリシーに同意します")
+        let contains = FlowLocator(label: "利用規約", labelMatch: .contains)
+        let note = LocatorResolver.partialTextTapAdvisory(for: contains, element: paragraph, linkText: nil) ?? ""
+        XCTAssertTrue(note.hasPrefix("matched only part of a longer text"), note)
+        XCTAssertTrue(note.hasSuffix("write tap(\"#txt_terms\", linkText: \"利用規約\")"), note)
+        XCTAssertNil(LocatorResolver.partialTextTapAdvisory(for: contains, element: paragraph, linkText: "利用規約"))
+        XCTAssertNil(LocatorResolver.partialTextTapAdvisory(for: FlowLocator(label: "利用規約"), element: paragraph, linkText: nil))
+        XCTAssertNil(LocatorResolver.partialTextTapAdvisory(
+            for: contains, element: node(2, "staticText", depth: 1, label: "利用規約"), linkText: nil))
+        XCTAssertNil(LocatorResolver.partialTextTapAdvisory(
+            for: contains, element: node(3, "button", depth: 1, label: "利用規約を読む"), linkText: nil))
+    }
+
+    /// 配線: tap の撃つ前の注記の連なりに載っている(ソース走査。偽ドライバでは座標の分岐を通し切れない)
+    func testPartialTextTapAdvisoryIsWiredIntoTheTapPath() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+Actions.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("adviseTarget(LocatorResolver.partialTextTapAdvisory(for: step.locator, element: element, linkText: step.linkText))"))
+    }
+
     /// 完全一致で外したが部分一致なら在るときは、書き換え方を失敗メッセージに出す
     func testPartialMatchHintSuggestsWildcard() {
         let elements = [node(1, "staticText", depth: 1, label: "通知を許可")]

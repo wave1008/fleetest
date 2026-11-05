@@ -269,6 +269,35 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertEqual(inApp.reads, 0, "断る前に in-app を読んだ")
     }
 
+    /// **背面と断った後の失敗の証跡は、停止中のアプリの木を読まない**ための問い(19周目 phys F1: 読むと 45 秒返らない)。
+    /// 印が残っていて前面に無いと答えたときだけ true。印が無い・前面・答えないなら false(証跡は撮る)
+    func testAppStillInBackgroundOnlyWhenMarkedAndAnsweredNotInFront() async {
+        let (executor, _, xcuitest) = make()
+        let unmarked = await executor.appStillInBackground()
+        XCTAssertFalse(unmarked, "印が無いのに背面と言った")
+        executor.noteAppMayHaveLeft(true)
+        let marked = await executor.appStillInBackground()
+        XCTAssertTrue(marked)
+        xcuitest.appInFront = nil
+        let unanswered = await executor.appStillInBackground()
+        XCTAssertFalse(unanswered, "答えないのに背面と言った")
+        xcuitest.appInFront = true
+        let front = await executor.appStillInBackground()
+        XCTAssertFalse(front)
+    }
+
+    /// 失敗の証跡は背面のとき木を読まない(配線のソース走査。FTRuntime.handleFailure は本物のデバイス無しでは通せない)
+    func testFailureEvidenceSkipsTheTreeWhileTheAppIsInBackground() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/FTRuntime.swift"), encoding: .utf8)
+        guard let start = source.range(of: "func handleFailure(stepDescription:"),
+              let end = source.range(of: "if let (screenshot, evidenceBlank, elementsText) = context", range: start.upperBound..<source.endIndex)
+        else { return XCTFail("走査の範囲が見つからない") }
+        let body = String(source[start.upperBound..<end.lowerBound])
+        XCTAssertTrue(body.contains("executor.appStillInBackground()"), "背面かを聞いていない")
+        XCTAssertTrue(body.contains("appInBackground ? nil : try? await driver.snapshot()"), "背面でも木を読む")
+    }
+
     /// 前面と答えたら印を落とし、以後は聞かない
     func testStopsAskingOnceTheAppIsBack() async {
         let (executor, _, xcuitest) = make()

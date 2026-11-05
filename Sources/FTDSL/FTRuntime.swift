@@ -1953,8 +1953,11 @@ public final class FTDriveCore {
             if let wholeScreen, let shot = try? await wholeScreen.screenshot() { return shot }
             return try? await driver.screenshot()
         }
+        // 背面で停止したアプリの木は読まない(StepExecutor.appStillInBackground。読むと 45 秒返らない)。絵は XCUITest が撮る
+        let executor = self.executor
+        let appInBackground = FTSync.run { await executor.appStillInBackground() } ?? false
         let context = FTSync.run { () async -> (Data?, Bool, String?) in
-            let snapshot = try? await driver.snapshot()
+            let snapshot = appInBackground ? nil : try? await driver.snapshot()
             // **アラートが前面にある失敗では、背面のアプリの要素一覧を載せない**(MCP と同じ規律 = `AlertTreeScope`):
             // 押せなかった画面の一覧を読むと「対象はあったのに撃てなかった」と原因を取り違える。システムアラートは
             // 一覧ごと伏せ(原因は失敗文言とスクショが言う)、アプリ内のアラートはその部分木だけを残す

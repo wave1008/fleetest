@@ -1,4 +1,4 @@
-// **陽性対照(S0010〜S0040 は赤が正解・S0050 は緑)**。緑の run ではまず通らない経路を強制的に通す台なので、
+// **陽性対照(S0010〜S0040・S0060 は赤が正解・S0050 は緑)**。緑の run ではまず通らない経路を強制的に通す台なので、
 // 通常実行に載せる `scenarios/` 直下には置かない。iOS の inapp-boost モードだけで意味がある(xcuitest モードはランナーが自分で断る)。
 //
 // 守っているもの: アプリが前面を離れた後(`home()` / `appSwitcher()`)の読み・操作を、人には触れない画面へ届けずに断る。
@@ -8,6 +8,8 @@
 // - `appSwitcher()` の後: アプリは inactive のままなので in-app は断れず、カードの中のボタンが押されて緑だった(17周目 ilocal F1)。
 //   撃つ前に XCUITest の覆いの照会でスイッチャーを確かめる。赤は `system-ui-covered`
 // - 誤って断らない側: スイッチャーから `tapAppIcon()` で戻った後の操作は緑(S0050)
+// - スイッチャーから `home()`: Simulator ではアプリへ戻り、前面のまま ✅ を返して後続の tap が押されていた(19周目 im4 F2)。
+//   `AppAttachDriver.home` が押し直してホームへ出す。赤は `app-in-background`(S0060)
 //
 // **緑なら断りが効いていない**(押されたか読めた = 誤った成功)。赤でも failureKind が違えば別の経路で落ちている。
 //
@@ -96,6 +98,24 @@ class アプリが前面を離れた後 {
                 }.action {
                     appSwitcher()
                     tapAppIcon()
+                    tap("#btn_session_inc")
+                }.expectation {
+                    select("#txt_session_count").textIs("session=1")
+                }
+            }
+        }
+    }
+
+    @Test("スイッチャーから home した後に押すと、背面と言って赤")
+    func S0060() {
+        scenario {
+            scene(1, "スイッチャーから home して押す") {
+                condition {
+                    launchApp()
+                    tap("#nav_lifecycle", scroll: .down)
+                }.action {
+                    appSwitcher()
+                    home()
                     tap("#btn_session_inc")
                 }.expectation {
                     select("#txt_session_count").textIs("session=1")
