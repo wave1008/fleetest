@@ -37,13 +37,13 @@ private func formatDegrees(_ degrees: Double) -> String {
     degrees == degrees.rounded() ? String(Int(degrees)) : String(degrees)
 }
 
-private struct FoldCommandFailure: LocalizedError {
+struct FoldCommandFailure: LocalizedError {
     let errorDescription: String?
     init(_ message: String) { errorDescription = message }
 }
 
-/// FoldControl の失敗 → DSL の文言(MCP は自前の文言を持つ)
-private func foldFailureMessage(_ failure: FoldControl.Failure) -> String {
+/// FoldControl の失敗 → DSL の文言(MCP は自前の文言を持つ)。シナリオの終わりの戻し(FTRuntime.restoreFoldIfNeeded)も通す
+func foldFailureMessage(_ failure: FoldControl.Failure) -> String {
     switch failure {
     case .outOfRange(let degrees):
         return "hinge degrees must be between 0 (folded) and 180 (unfolded), got \(formatDegrees(degrees))"

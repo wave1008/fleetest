@@ -9,12 +9,13 @@ final class InAppOpenURLLeaveTests: XCTestCase {
 
     func testOnlyURLsOfAnotherAppWait() {
         let own: Set<String> = ["fte2eios"]
-        XCTAssertTrue(InAppDriver.opensAnotherApp(url: "App-prefs:", ownSchemes: own))
-        XCTAssertTrue(InAppDriver.opensAnotherApp(url: "https://example.com/", ownSchemes: own))
-        XCTAssertFalse(InAppDriver.opensAnotherApp(url: "fte2eios://screen/lifecycle", ownSchemes: own))
-        XCTAssertFalse(InAppDriver.opensAnotherApp(url: "FTE2EIOS://screen/lifecycle", ownSchemes: own), "スキームの大小を区別した")
-        XCTAssertFalse(InAppDriver.opensAnotherApp(url: "https://example.com/", ownSchemes: nil), "スキームが分からないのに待つ")
-        XCTAssertFalse(InAppDriver.opensAnotherApp(url: "not a url", ownSchemes: own))
+        XCTAssertTrue(InAppDriver.mayOpenAnotherApp(url: "App-prefs:", ownSchemes: own))
+        XCTAssertTrue(InAppDriver.mayOpenAnotherApp(url: "https://example.com/", ownSchemes: own))
+        XCTAssertFalse(InAppDriver.mayOpenAnotherApp(url: "fte2eios://screen/lifecycle", ownSchemes: own))
+        XCTAssertFalse(InAppDriver.mayOpenAnotherApp(url: "FTE2EIOS://screen/lifecycle", ownSchemes: own), "スキームの大小を区別した")
+        // 実機はスキームが読めない = 待つ(待たずに返すと直後の tap が前面のアプリへ届いた。21周目 phys F1)
+        XCTAssertTrue(InAppDriver.mayOpenAnotherApp(url: "https://example.com/", ownSchemes: nil), "スキームが分からないのに待たない")
+        XCTAssertFalse(InAppDriver.mayOpenAnotherApp(url: "not a url", ownSchemes: own))
     }
 
     /// 配線: 配送の後に、別のアプリを開くときだけ外れるのを待つ(simctl を撃つので openURL 全体は通せない = ソース走査)
@@ -25,7 +26,8 @@ final class InAppOpenURLLeaveTests: XCTestCase {
               let end = source.range(of: "private func awaitLeavingForeground()", range: start.upperBound..<source.endIndex)
         else { return XCTFail("走査の範囲が見つからない") }
         let body = String(source[start.upperBound..<end.lowerBound])
-        XCTAssertTrue(body.contains("Self.opensAnotherApp(url: url, ownSchemes: BridgeClient.appURLSchemes(bundleID: target, target: simTarget))"))
+        XCTAssertTrue(body.contains("Self.mayOpenAnotherApp(url: url, ownSchemes: ownSchemes)"))
+        XCTAssertFalse(body.contains("if let simTarget"), "実機(simTarget が nil)で待ちを飛ばしている")
         XCTAssertTrue(body.contains("await awaitLeavingForeground()"))
     }
 

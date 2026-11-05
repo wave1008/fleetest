@@ -1236,9 +1236,14 @@ public final class FTDriveCore {
         if case .state(let state) = await observeFold() { current = state } else { current = nil }
         guard let target = FoldControl.restoreTarget(original: original, current: current) else { return }
         let driver = systemDriver
-        _ = try await FoldControl.apply(target, waitSeconds: tunables.defaultTimeout,
-                                        send: { try await driver.setHingeAngle(degrees: $0) },
-                                        observe: { await self.observeFold() }, sent: { _ in })
+        do {
+            _ = try await FoldControl.apply(target, waitSeconds: tunables.defaultTimeout,
+                                            send: { try await driver.setHingeAngle(degrees: $0) },
+                                            observe: { await self.observeFold() }, sent: { _ in })
+        } catch let failure as FoldControl.Failure {
+            // 素のまま投げると「FoldControl.Failure error 1」としか出ず理由が消える(21周目 duo F2)。fold() と同じ文言へ写す
+            throw FoldCommandFailure(foldFailureMessage(failure))
+        }
         await driver.continueAfterFold()
     }
 

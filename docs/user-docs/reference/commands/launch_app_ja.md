@@ -9,7 +9,7 @@
 | 関数 | 説明 |
 |---|---|
 | `launchApp(appID?, url:)` | 起動中なら終了してから、あらためて起動します(エントリー画面から始まります)。`url:` を渡すと起動直後にその URL を配送します(配送の詳細は下の `openURL` 参照)。配送は最初の画面が描かれてから(タップできる要素が現れるまで既定の待ち時間だけ待ちます。React Native などは画面が出る前に届いた URL を捨てるためです。現れないまま配送したときは注記 `launch-url-before-interactive-ui` が付き、ステップは失敗しません)。`appID` 省略時は既定アプリになります(後述)。 |
-| `openURL(url)` | 起動済みのアプリへ URL(ディープリンク)を配送します(**アプリを再起動しません** = warm 配送)。今の画面の上に遷移が積まれます。カスタムスキーム前提です。Universal Links / App Links(`https://`)は AASA/assetlinks.json の取得状態に左右され、Simulator では Safari に流れることがあります。 |
+| `openURL(url)` | 起動済みのアプリへ URL(ディープリンク)を配送します(**アプリを再起動しません** = warm 配送)。今の画面の上に遷移が積まれます。カスタムスキーム前提です。Universal Links / App Links(`https://`)は AASA/assetlinks.json の取得状態に左右され、Simulator では Safari に流れることがあります。iOS の inapp-boost モードでは、別のアプリを開く URL のときはアプリが前面から外れるまで(最大 2 秒)待ってから次のステップへ進みます(実機では自分のアプリの URL でも待ちます)。 |
 | `restartApp(appID?)` | 終了してから起動し直します(プロセス内状態のリセットに)。`appID` 省略時の解決は `launchApp()` と同じです。 |
 | `terminateApp()` | アプリを終了します。 |
 

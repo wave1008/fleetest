@@ -123,7 +123,8 @@ public final class InAppDriver: AppDriver {
         }
         // 同意の確かめは XCUITest 接続だけが行う(BridgeClient.deliverURL のコメント。WebViewDelegatingDriver.openURL が回す)
         let simTarget = try await withCrashContext { try await client.deliverURL(url) }
-        if let simTarget, Self.opensAnotherApp(url: url, ownSchemes: BridgeClient.appURLSchemes(bundleID: target, target: simTarget)) {
+        let ownSchemes = simTarget.flatMap { BridgeClient.appURLSchemes(bundleID: target, target: $0) }
+        if Self.mayOpenAnotherApp(url: url, ownSchemes: ownSchemes) {
             await awaitLeavingForeground()
         }
     }
@@ -144,10 +145,13 @@ public final class InAppDriver: AppDriver {
     /// 1回の聞き取りの上限(秒)。前面の in-app は数 ms で答える(実測 1〜17ms)。停止したアプリは答えないので、ここで切れた = 外れた
     static let leaveProbeTimeout: TimeInterval = 0.5
 
-    /// URL のスキームが対象アプリのものでなければ true(別のアプリが開く)。自分のスキーム・スキームが読めない URL・アプリの
-    /// スキームが分からない(nil)ときは false = 待たない(自アプリのディープリンクで毎回上限を払わない)
-    static func opensAnotherApp(url: String, ownSchemes: Set<String>?) -> Bool {
-        guard let ownSchemes, let scheme = URL(string: url)?.scheme?.lowercased() else { return false }
+    /// 別のアプリが開きうる URL なら true = 外れるのを待つ。自分のスキームなら false(自アプリのディープリンクで毎回上限を払わない)。
+    /// **アプリのスキームが分からない(nil)ときは待つ**: 実機は Info.plist を読む口が無く(deliverURL が simctl の宛先を返さない)、
+    /// 待たずに返すと `openURL("https://…")` の直後の tap が 0.3 秒で前面のアプリへ届いて ✅ だった(21周目 phys F1・iPhone 13 で 3/3)。
+    /// 代わりに実機の自アプリのディープリンクは上限(2 秒)まで待つ。スキームが読めない URL は false(配送自体が失敗する)
+    static func mayOpenAnotherApp(url: String, ownSchemes: Set<String>?) -> Bool {
+        guard let scheme = URL(string: url)?.scheme?.lowercased() else { return false }
+        guard let ownSchemes else { return true }
         return !ownSchemes.contains(scheme)
     }
 
