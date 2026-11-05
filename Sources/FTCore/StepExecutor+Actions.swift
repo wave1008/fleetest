@@ -30,10 +30,10 @@ extension StepExecutor {
             + " (for example waitSeconds: 5)"
     }
 
-    /// 見つからないときの `scroll:` の案内。向きを書いていない tap / hold で、画面に送れる一覧があるときだけ足す
+    /// 見つからないときの `scroll:` の案内。向きを書いていない触る操作で、画面に送れる一覧があるときだけ足す(tap / hold は scroll: を、
+    /// scroll: を持たない操作(doubleTap 等)は先に送る手を案内する)
     /// (スクロールで木から消えた部品 = 隠れるバーに `waitSeconds:` だけを案内すると、従っても直らない。10周目の探索 iultra F5)。
     /// `defaultWaitHint` とは別に持つ(MCP があちらの文言をそのまま取り除くので混ぜない)
-    /// `scroll:` を受けない触る操作(doubleTap 等)には、先に送る手を言う(従える形)
     static func scrollOffHint(_ step: FlowStep, in snapshot: SnapshotResponse) -> String {
         guard step.direction == nil,
               TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) != nil else { return "" }
@@ -42,7 +42,7 @@ extension StepExecutor {
             return why + " add scroll: to this step (for example scroll: .up) so the list is scrolled until it appears"
         }
         guard let action = step.action, interactsByTouch(action) else { return "" }
-        return why + " scroll the list before this step (for example scrollUp()) until it appears — this command has no scroll: argument"
+        return why + " scroll the list before this step (scrollUp() or scrollDown()) until it appears — this command has no scroll: argument"
     }
 
     func executeAction(_ action: String, step: FlowStep,
@@ -208,9 +208,12 @@ extension StepExecutor {
                 // select はスクロール探索で見つからなくても空要素を返す契約(下の解決経路と同じ)
                 // 探索の理由(端に着いた・動かなかった等)は捨てない: 後続の検証の赤は「見つからない」としか言えないので、
                 // 書き手が次の手(maxSwipes・逆向き・scrollFrame)を選べるのはこの行だけ
+                // アプリが落ちた・前面を離れたのは「見つからない」ではない = select でも失敗(探索しない経路の appGoneFailure と同じ)
+                if action == "select", let gone = result.appGone { return StepOutcome(status: failedWithoutKind(gone)) }
                 if action == "select" {
-                    return StepOutcome(status: .skipped(Self.selectNotFoundReason
-                        + " — the scroll search did not find it: " + scrollSearchFailureMessage(step, result)))
+                    let why = pendingScrollFrameNote.map { " (\($0))" } ?? ""
+                    return StepOutcome(status: .skipped("select returned an empty element: "
+                        + scrollSearchFailureMessage(step, result) + why))
                 }
                 // **scrollFrame の申告は失敗文へ畳んで返す**: 探索が空振りした理由がそこにある
                 // のに、`StepOutcome(status:)` だけの return は driverFallback を運ばないので

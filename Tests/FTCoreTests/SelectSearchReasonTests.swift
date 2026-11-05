@@ -14,7 +14,7 @@ final class SelectSearchReasonTests: XCTestCase {
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "select", locator: FlowLocator(id: "row_99"), direction: "up", maxSwipes: 2))
         guard case .skipped(let reason) = outcome.status else { return XCTFail("\(outcome.status)") }
-        XCTAssertTrue(reason.hasPrefix(StepExecutor.selectNotFoundReason), reason)
-        XCTAssertTrue(reason.contains("the scroll search did not find it: "), reason)
+        XCTAssertTrue(reason.hasPrefix("select returned an empty element: element not found after"), reason)
+        XCTAssertTrue(reason.contains("nothing moved at all"), "探索の理由そのものを添える: \(reason)")
     }
 }
