@@ -138,7 +138,7 @@ final class FTInAppBridge {
         // 状態は通知で控えた値を読む(main へ寄らない = main が塞がっているときの各ハンドラの 504 の予算を壊さない)。
         // 423 にするのは 409 がホストで XCUITest への回り道の合図だから(reason は付けない = 「届いていないので撃ち直してよい」の
         // 意味を持たせない)。対処の文は呼び手が持つ(ここでは事実だけ言う)
-        if !Self.allowedWhileInBackground.contains(req.path), Self.appIsInBackground {
+        if Self.refusedWhileInBackground.contains(req.path), Self.appIsInBackground {
             let app = Bundle.main.bundleIdentifier ?? "the app"
             return .error("\(app) is in the background (the home screen or another app is in front), so the in-app bridge"
                 + " did not read or touch it (a person could not either)", status: 423)
@@ -182,15 +182,18 @@ final class FTInAppBridge {
         }
     }
 
-    /// アプリが背面の間も受ける要求(`handle` の doc)。**許可の表にしてある** = 足したルートは既定で断られる側に入る。
-    /// /screenshot を断らないのは呼び手が多い(失敗の証跡・描画崩壊・配信)ため(背面での判定の絵は OI-175 ⑤)。
-    /// /rotate は端末の向きで、人も背面のまま回せる
-    static let allowedWhileInBackground: Set<String> = [
-        "/status", "/screenshot", "/session", "/terminate", "/appstate", "/rotate",
+    /// アプリが背面の間に断る要求(`handle` の doc)。**断る表にしてある** = 表に無いルート(知らないルートを含む)は
+    /// 通常どおり処理する(知らないルートの 404 はホストの XCUITest への回り道の合図 = `DriverError.isBridgeIncapable`)。
+    /// 断らないもの: /status・/session・/terminate・/appstate(状態と起動)、/screenshot(呼び手が多い。背面の画像判定は
+    /// OI-175 ⑤)、/rotate(端末の向き)、/tapprobe(呼び手が誤りを nil =「答えられない」に畳むので、断ると理由が消える)
+    static let refusedWhileInBackground: Set<String> = [
+        "/snapshot", "/tap", "/type", "/clear", "/pressEnter", "/hidekeyboard", "/swipe", "/doubletap", "/pinch",
+        "/drag", "/press",
     ]
 
-    /// 背面に回ったか。didEnterBackground で立て willEnterForeground で落とす(通知は構成子から張る = アプリの UI より先。
-    /// 起動直後は前面へ向かう途中なので false から始める)
+    /// 背面に回ったか。didEnterBackground で立て willEnterForeground で落とす(通知は構成子から張る = アプリの UI より先)。
+    /// false から始める: ブリッジを注入した起動は前面へ向かう。**起動直後の applicationState で初期化しない** —— シーン型の
+    /// アプリは最初のシーンが繋がるまで background を返し、前面の起動を断る側へ倒れうる(背面のままの起動は fleetest が撃たない)
     private static let backgroundLock = NSLock()
     private static var backgroundFlag = false
     static var appIsInBackground: Bool {

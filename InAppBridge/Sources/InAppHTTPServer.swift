@@ -236,7 +236,10 @@ final class InAppHTTPServer {
         case 400: return "Bad Request"
         case 404: return "Not Found"
         case 409: return "Conflict"
+        case 422: return "Unprocessable Content"
+        case 423: return "Locked"
         case 501: return "Not Implemented"
+        case 504: return "Gateway Timeout"
         default: return "Internal Server Error"
         }
     }
