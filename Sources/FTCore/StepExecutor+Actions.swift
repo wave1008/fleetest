@@ -315,9 +315,13 @@ extension StepExecutor {
         var ghostRetries = 0
         var ghostSwipes = 0
         // 救済の送りごとの事実(送る前の対象と容器の枠・送り方・送った後に引き直した枠)。救済を通ったステップの注記と
-        // 見失ったときの失敗文の末尾にだけ出す = 救済を通らない緑の run の文言は変わらない(行き過ぎの原因を測る口。OI-173 ②)
+        // 見失ったときの失敗文の末尾にだけ出す = 救済を通らない緑の run の文言は変わらない(行き過ぎの原因を測る口)
         var ghostTrace: [String] = []
-        func traceRect(_ r: FTRect) -> String { "(\(Int(r.x)),\(Int(r.y)) \(Int(r.width))x\(Int(r.height)))" }
+        func traceRect(_ r: FTRect) -> String {
+            // 非有限の枠で Int() が落ちないように(枠はブリッジの申告のまま)
+            func n(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "?" }
+            return "(\(n(r.x)),\(n(r.y)) \(n(r.width))x\(n(r.height)))"
+        }
         func traceAfterRescue() {
             guard rescuedFrom != nil, let last = ghostTrace.last, !last.contains(" -> ") else { return }
             ghostTrace[ghostTrace.count - 1] = last + " -> " + (resolved.map { traceRect($0.0.frame)
@@ -357,10 +361,14 @@ extension StepExecutor {
             // 容器が分かるときだけ使える手なので、駄目なら全画面スワイプへ落ちる
             // **慣性を出さないドラッグで戻す**(`slowDrag`)。速いドラッグ(`hintDrag` = 0.3 秒)は CMP の iOS で指定の約2倍流れ
             // (441pt を戻す1本で中身が 810〜865pt 動いた・手元8台×2周で 16/16)、行が画面の上の外まで行き過ぎて見失った(8/16 赤)
+            // 掴む枠は画面とキーボードの外で切る(slowDrag は渡した枠を始点・終点の両方に使う)。始点は押せる行の上に置かない
+            // (遅いドラッグは行の上で始めると押下になり遷移する = 縁の見切れの寄せと同じ)
             if let container,
                let jump = Self.recoveryJump(for: element, container: container),
-               await slowDrag(jump: jump, container: container, phase: &phase) {
-                ghostTrace.append("\(traceRect(element.frame)) in \(traceRect(container)): slow-dragged \(Int(jump.rounded()))")
+               case let dragArea = ScrollGeometry.viewport(ScrollGeometry.intersection(container, snapshot.screen) ?? container,
+                                                           excludingKeyboard: snapshot.keyboardFrame),
+               await slowDrag(jump: jump, container: dragArea, avoidingPressablesIn: snapshot.elements, phase: &phase) {
+                ghostTrace.append("\(traceRect(element.frame)) in \(traceRect(container)): slow-dragged (jump \(traceRect(FTRect(x: 0, y: jump, width: 0, height: 0)).split(separator: ",")[1].split(separator: " ")[0]))")
                 ghostSwipes += 1
                 // 送りの直後は容器が次の1タッチを吸う(実測で空打ちを足して 8/48 → 0/48。`testRecoverySwipeIsFollowedByTheEmptyDrag`)。
                 // 遅いドラッグでも吸わないかは測っていないので、空打ちの根拠を残す
