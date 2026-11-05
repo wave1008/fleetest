@@ -629,12 +629,14 @@ public final class BridgeClient: AppDriver, Sendable {
             try? await tap(ref: ref)   // 押せなくても致命的ではない(同意されないだけ)
             break
         }
-        // 対象アプリへ戻す(このステップが springboard へ張り替えたセッションを元に戻す)。**戻せなければ黙らない** ——
-        // セッションが SpringBoard に向いたまま残り、以後の木・ref の前提がずれる。
+        // セッションを対象アプリへ戻す(このステップが springboard へ張り替えたセッションを元に戻す)。**前面化しない**(`attach`):
+        // `activate` は開いた先のアプリ(Safari・別のアプリ)を背面へ回して対象アプリを前面へ引き戻し、openURL が ✅ のまま
+        // 開いた先が消えていた(16周目 im4・iultra F1。端末とアプリの組ごとに初回だけ = この確かめが1回だけ走るから)。
+        // 開いた先が前面なら attach は失敗する = 下の注記で「戻せなかった」と言う(黙らない)。
         // 上の同意ボタンの tap が残した note(ランナーの打ち方の注記)は openURL の注記ではないので、ここで捨てる
         lastActionNote = nil
         do {
-            try await activate(bundleID: bundleID)
+            try await attach(bundleID: bundleID)
         } catch {
             lastActionNote = "the session could not be pointed back at \(bundleID) after checking for the"
                 + " open-URL confirmation (\(error.localizedDescription)) — it may still be on SpringBoard"

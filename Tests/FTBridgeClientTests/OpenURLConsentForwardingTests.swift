@@ -68,4 +68,18 @@ final class OpenURLConsentForwardingTests: XCTestCase {
                        "openURL を転送しているのに同意ステップを転送していないラッパーがあります。"
                            + "既定は no-op なので、書き忘れても黙って空振りします")
     }
+
+    /// 同意の確かめの後のセッションの向け直しは前面化しない(attach)。activate は開いた先のアプリ(Safari 等)を背面へ回して
+    /// 対象アプリを前面へ引き戻し、openURL が ✅ のまま開いた先が消えていた(16周目 im4・iultra F1)
+    func testConsentCheckPointsTheSessionBackWithoutBringingTheAppToFront() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTBridgeClient/BridgeClient.swift"), encoding: .utf8)
+        guard let start = source.range(of: "func acknowledgeOpenURLConsent(bundleID: String, target: String)"),
+              let end = source.range(of: "public func acknowledgeOpenURLConsentIfPresent", range: start.upperBound..<source.endIndex)
+        else { return XCTFail("走査の範囲が見つからない") }
+        let body = String(source[start.upperBound..<end.lowerBound])
+        XCTAssertTrue(body.contains("try await attach(bundleID: bundleID)"), "向け直しが attach でない")
+        XCTAssertFalse(body.contains("activate(bundleID"), "向け直しに activate を使っている(開いた先を背面へ回す)")
+    }
 }
