@@ -317,10 +317,10 @@ extension StepExecutor {
         // 救済の送りごとの事実(送る前の対象と容器の枠・送り方・送った後に引き直した枠)。救済を通ったステップの注記と
         // 見失ったときの失敗文の末尾にだけ出す = 救済を通らない緑の run の文言は変わらない(行き過ぎの原因を測る口)
         var ghostTrace: [String] = []
+        // 非有限の値で Int() が落ちないように(枠はブリッジの申告のまま)
+        func traceNumber(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "?" }
         func traceRect(_ r: FTRect) -> String {
-            // 非有限の枠で Int() が落ちないように(枠はブリッジの申告のまま)
-            func n(_ v: Double) -> String { v.isFinite ? String(Int(v.rounded())) : "?" }
-            return "(\(n(r.x)),\(n(r.y)) \(n(r.width))x\(n(r.height)))"
+            "(\(traceNumber(r.x)),\(traceNumber(r.y)) \(traceNumber(r.width))x\(traceNumber(r.height)))"
         }
         func traceAfterRescue() {
             guard rescuedFrom != nil, let last = ghostTrace.last, !last.contains(" -> ") else { return }
@@ -365,10 +365,10 @@ extension StepExecutor {
             // (遅いドラッグは行の上で始めると押下になり遷移する = 縁の見切れの寄せと同じ)
             if let container,
                let jump = Self.recoveryJump(for: element, container: container),
-               case let dragArea = ScrollGeometry.viewport(ScrollGeometry.intersection(container, snapshot.screen) ?? container,
-                                                           excludingKeyboard: snapshot.keyboardFrame),
+               let dragArea = Self.visibleDragArea(container, in: snapshot),
                await slowDrag(jump: jump, container: dragArea, avoidingPressablesIn: snapshot.elements, phase: &phase) {
-                ghostTrace.append("\(traceRect(element.frame)) in \(traceRect(container)): slow-dragged (jump \(traceRect(FTRect(x: 0, y: jump, width: 0, height: 0)).split(separator: ",")[1].split(separator: " ")[0]))")
+                ghostTrace.append("\(traceRect(element.frame)) in \(traceRect(container)): slow-dragged (jump \(traceNumber(jump)))"
+                    + " within \(traceRect(dragArea))")
                 ghostSwipes += 1
                 // 送りの直後は容器が次の1タッチを吸う(実測で空打ちを足して 8/48 → 0/48。`testRecoverySwipeIsFollowedByTheEmptyDrag`)。
                 // 遅いドラッグでも吸わないかは測っていないので、空打ちの根拠を残す
@@ -779,7 +779,8 @@ extension StepExecutor {
         // ref を引くので、fallback の木から解決した要素に primary の名前空間を混ぜる
         if !switchedToFallbackDriver, Self.interactsByTouch(action), step.containerInference ?? true,
            let (container, jump) = TapTargetGeometry.straddlingContainerEdge(element, in: snapshot.elements),
-           await slowDrag(jump: jump, container: container, avoidingPressablesIn: snapshot.elements, phase: &phase) {
+           let dragArea = Self.visibleDragArea(container, in: snapshot),
+           await slowDrag(jump: jump, container: dragArea, avoidingPressablesIn: snapshot.elements, phase: &phase) {
             _ = try await settledSignature(phase: &phase)
             let refreshed = try await freshSnapshot(.afterOwnMove)
             // **寄せの後に引けなければ撃たない**: 寄せの払いが押下になって画面が変わることがある(RN の iOS の横向き: 行の上で始めた
@@ -2107,6 +2108,15 @@ extension StepExecutor {
 
     static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
         inputFocusMissMessage(step, verb: "type into", tried: tried)
+    }
+
+    /// `slowDrag` に渡す枠: 容器のうち画面に出ていてキーボードに覆われていない部分(slowDrag は渡した枠を始点・終点の両方に使う)。
+    /// キーボードは実効矩形(`KeyboardOcclusion.resolve` = 画面の外に申告された隠れたキーボードを捨てる)を画面から除き、容器と交わらせる
+    /// (探索のループと同じ順。`ScrollGeometry.viewport` は画面を受け取る前提)。交わらなければ nil = 撃たない
+    static func visibleDragArea(_ container: FTRect, in snapshot: SnapshotResponse) -> FTRect? {
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                 screen: snapshot.screen).frame
+        return ScrollGeometry.intersection(container, ScrollGeometry.viewport(snapshot.screen, excludingKeyboard: keyboard))
     }
 
     static func coverLiftLostMessage(_ step: FlowStep, verb: String, after: SnapshotResponse? = nil) -> String {
