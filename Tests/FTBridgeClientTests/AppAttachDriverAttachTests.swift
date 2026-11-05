@@ -225,4 +225,29 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let kept = try await sessions(afterSecondSwipeWithSession: "com.example.target")
         XCTAssertEqual(kept, 1, "自分のアプリを指しているのに付き直した")
     }
+
+    /// **home() は対象アプリが前面から外れるまで返らない**。inapp-boost ではランナーの /home が外れたかを確かめずに返り、
+    /// 直後の約 0.45 秒は /appstate が前面と答えたまま in-app が読み・操作を受けた(18周目 im4 F2/F3)。
+    /// 前面と答える間は聞き直し、外れたと答えた時点で返る
+    func testHomeWaitsUntilTheAppLeavesTheForeground() async throws {
+        let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                      bundleID: "com.example.target", physicalUDID: nil)
+        let flip = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            stub.setBody(#"{"ok":true,"foreground":false}"#)
+        }
+        let started = Date()
+        try await driver.home()
+        let elapsed = Date().timeIntervalSince(started)
+        _ = await flip.value
+
+        XCTAssertEqual(stub.paths.first, "POST /home", "\(stub.paths)")
+        XCTAssertGreaterThanOrEqual(stub.paths.filter { $0 == "POST /appstate" }.count, 2,
+                                    "前面と答える間に聞き直していない: \(stub.paths)")
+        XCTAssertGreaterThanOrEqual(elapsed, 0.35, "外れる前に返った")
+        XCTAssertLessThan(elapsed, AppAttachDriver.homeLeaveSeconds, "外れた後も上限まで待った")
+        XCTAssertEqual(stub.paths.last, "POST /appstate", "外れたと聞いた後に別の要求を撃った: \(stub.paths)")
+    }
 }

@@ -29,8 +29,8 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 13 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 14 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 7 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176・OI-177 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 10 | OI-75・OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165 |
@@ -119,7 +119,7 @@
 - 確認: コミット未記録(2026-11-05)
 - 属性: 着手可・要測定
 
-11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。①Android で探索(`select` / `exist` / `notExist(scroll: .up)`)の途中に HOME でアプリを背面へ回すと(プロセスは生きている)、探索が止まらずランチャーの上で 7〜12 回払い、クイック設定を引き下ろす。失敗文はシェードを名指し、同じ報告の警告はランチャーを名指して食い違う(amax F1・View・RN・Flutter で 22/22)。原因は観測済み(途中の確かめはプロセスの照会だけで、生きていれば続ける = StepExecutor+ScrollSearch.swift の途中の確かめ)。直すなら「持ち主が対象から替わった回は、割り込みの処理の後もまだ替わっていれば止める」の形(登録した割り込みの処理を先に通す)②`notExist("#id")` が「element still exists」で赤なのに、同じ報告に「#id never resolved during this scenario … misspelled か確かめろ」と事実と逆の注記(im4 F2・8/8)= 要測定(注記を組み立てる経路の読みが未了)③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ④iOS の in-app で home の直後(アプリが background になる前の inactive の間・約 0.3 秒)の tap は届く(11/5 にブリッジ v272 で background の間の読み取りと操作を断るようにした後も残る隙間。直後の検証は断られて赤になる。inactive は OS のアラートの間に端末で割れるので断らない)⑤同じ隙間の別経路(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
+11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。①Android で探索(`select` / `exist` / `notExist(scroll: .up)`)の途中に HOME でアプリを背面へ回すと(プロセスは生きている)、探索が止まらずランチャーの上で 7〜12 回払い、クイック設定を引き下ろす。失敗文はシェードを名指し、同じ報告の警告はランチャーを名指して食い違う(amax F1・View・RN・Flutter で 22/22)。原因は観測済み(途中の確かめはプロセスの照会だけで、生きていれば続ける = StepExecutor+ScrollSearch.swift の途中の確かめ)。直すなら「持ち主が対象から替わった回は、割り込みの処理の後もまだ替わっていれば止める」の形(登録した割り込みの処理を先に通す)②`notExist("#id")` が「element still exists」で赤なのに、同じ報告に「#id never resolved during this scenario … misspelled か確かめろ」と事実と逆の注記(im4 F2・8/8)= 要測定(注記を組み立てる経路の読みが未了)③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
 
 ## 要測定
 ### OI-176 探索の残り(17周目)
@@ -129,6 +129,13 @@
 
 11/6 の17周目の探索(20分・`_work/explore-20261106a/findings-*.md`)で観測し、直さなかったもの。①Android で `home()` の直後の `tap("#id")` の失敗文が「waitSeconds: を足せ・scroll: を足せ」と言い、アプリが背面にあることを言わない(同じ報告の警告はランチャーを名指す。amax F1・8/8)= 要測定(失敗文の組み立てが前面の照会を使う経路を読んでいない)②MCP の `ft_scroll_to` の末尾の「note: 2 scroll areas on screen」が、前面の別アプリ(設定)ではなく直前に読んだ SUT の容器を名指す(phys F1・Pixel 4a / 3a で 3/3)= 要測定 ③アプリが背面のまま MCP の `ft_scroll_to` を撃つと、ホーム画面へ送りを撃ってクイック設定を開いたまま残す(phys F2・Pixel 4a で 1/2。OI-175 ①・③と同じ「始点の持ち主の扱い」の延長の疑い)= 要測定
 
+
+### OI-177 探索の残り(18周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定・着手可
+
+11/6 の18周目の探索(20分・`_work/explore-20261106b/findings-*.md`)で観測し、直さなかったもの。①inapp-boost で `openURL("https://…")`(Safari が前面)→ `tapAppIcon()` が、正しいアイコンを押したのにアプリが 15 秒で前面へ来ず赤になり「process not running — it may have crashed」の注記が付く(ilocal F2・5/16。その時刻の .ips は無い)= 要測定(アプリが落ちたのか・タップが届かなかったのかを分ける事実が無い)②Android の実機 Pixel 3a で `home()` → `tapAppIcon()` が、ドロワーの中の名指したアイコンの枠の外(別アイコンの上)を押して赤(phys F1・2/3。Pixel 4a は 3/3 緑。logcat に起動の記録なし)= 要測定(ドロワーの開きかけの枠で撃った筋書きは推測)③inapp-boost で `openURL` が別アプリを前面に出した回、同意の確かめの後の XCUITest の張り戻し(`attach`)は 5 秒で 500 になる(FT_BRIDGE_TRACE で 8/8)のに、「戻せなかった」の注記が結果 JSON に出ない = 着手可(`WebViewDelegatingDriver.lastActionNote` は primary の注記しか読まず、delegated の同意の確かめの注記を落とす。拾うなら同意の確かめが走った回だけに限る = 走らなかった回は delegated の前の操作の注記が残っている)
 
 
 ### OI-124 terminateApp 前後

@@ -459,6 +459,7 @@ public enum LocatorResolver {
             if let first = hits.first {
                 return "present as a partial match: writing \"*\(label)*\" would find "
                     + partialMatchTarget(first, count: hits.count, name: first.label ?? "", quoted: true)
+                    + inlineWordsNote(label: label, in: first)
             }
         }
         // id も同じ形で拾う。**記法は `#*foo*`**(docs/design/ の idContains)であって
@@ -473,6 +474,17 @@ public enum LocatorResolver {
             }
         }
         return nil
+    }
+
+    /// 部分一致の相手が**もっと長い文**なら、それを押すと文の中心に当たる(探した語の上ではない)ことと、語の上を押す書き方
+    /// (`linkText:`)を言う。言わないと `*利用規約*` に従った tap が段落の中心 = 別のリンクを押して ✅ になった
+    /// (18周目 amax F1: E2EY-Android の文中リンクで 4/4)。文中リンクが載るのは文字の要素(`staticText`)だけ ——
+    /// ボタン・行の部分一致(Apple マップの「西武立川駅、立川市」= 別の駅)に linkText を勧めると誤った助言になるので空
+    static func inlineWordsNote(label: String, in element: ElementInfo) -> String {
+        guard element.type == "staticText", let whole = element.label, whole != label else { return "" }
+        let selector = element.identifier.flatMap { $0.isEmpty ? nil : "#\($0)" } ?? "*\(label)*"
+        return "; a tap on it lands on the middle of that whole text, not on these words — to tap the words inside it"
+            + " (an inline link), write tap(\"\(selector)\", linkText: \"\(label)\")"
     }
 
     /// `型 "ラベル"` / `型 #id`(複数なら件数と先頭)。名指しであってセレクタではない(エスケープしない)

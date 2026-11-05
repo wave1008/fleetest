@@ -1,5 +1,5 @@
 // AppDriver.acknowledgeOpenURLConsentIfPresent の既定実装は no-op(ほとんどのドライバは正しく
-// それでよい)。実装を持つべきなのは springboard を見られる接続の2箇所だけ:
+// それでよい。InAppDriver は明示の no-op)。実装を持つべきなのは springboard を見られる接続の2箇所だけ:
 //   - BridgeClient(XCUITest 接続)自身
 //   - AppAttachDriver(WebViewDelegatingDriver.openURL が inapp-boost モードでここへ明示的に回す)
 // AppAttachDriver は client: BridgeClient を private に包んで他の操作を1つずつ転送しており、
@@ -67,6 +67,18 @@ final class OpenURLConsentForwardingTests: XCTestCase {
         XCTAssertEqual(missing, [],
                        "openURL を転送しているのに同意ステップを転送していないラッパーがあります。"
                            + "既定は no-op なので、書き忘れても黙って空振りします")
+    }
+
+    /// **in-app 接続は同意を確かめない**: 開いた先が前面になると対象アプリが一時停止し、in-app への `/session` が 409 ではなく
+    /// 上限(45 秒)まで返らなかった(18周目 iultra F1: 最初の openURL が約 57 秒)。配送は `deliverURL`、同意の口は no-op
+    func testInAppDriverNeverAsksItsConnectionForConsent() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTBridgeClient/InAppDriver.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("client.deliverURL(url)"), "InAppDriver.openURL が配送だけの口を使っていない")
+        XCTAssertFalse(source.contains("client.openURL("), "InAppDriver が同意の確かめ付きの openURL を in-app 接続へ撃っている")
+        XCTAssertFalse(source.contains("client.acknowledgeOpenURLConsentIfPresent("),
+                       "InAppDriver が同意の確かめを in-app 接続へ撃っている")
     }
 
     /// 同意の確かめの後のセッションの向け直しは前面化しない(attach)。activate は開いた先のアプリ(Safari 等)を背面へ回して

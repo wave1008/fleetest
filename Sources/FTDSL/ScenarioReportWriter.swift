@@ -16,11 +16,7 @@ public enum ScenarioReportWriter {
                              notApplicableReason: String? = nil) throws -> URL {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        let stamp = formatter.string(from: Date())
-        // 並列実行時の衝突回避: ミリ秒+シナリオIDスラッグをファイル名に含める
-        let baseName = "scenario-\(stamp)-\(slug(record.id))"
+        let baseName = try reserveBaseName(scenarioSlug: slug(record.id), at: Date(), in: dir)
 
         // `account()` の値を Markdown と証跡 JSON(失敗時の要素一覧)から伏せる。画素(スクリーンショット)は伏せられない
         let secrets = SecretRedactor.shared
@@ -154,6 +150,25 @@ public enum ScenarioReportWriter {
         }
         return url
     }
+
+    /// `scenario-<yyyyMMdd>-<HHmmss>-<SSS>-<slug>`(形は拡張の `scenarioReports.ts` と `RetentionSweeper.reportDay` との契約)。
+    /// **`.md` を O_EXCL で作って名前を取る**: `--broadcast` は別プロセスの複数台が同じシナリオを同じミリ秒に終え、
+    /// 後から書いた台が先の台の md・png・failure.json を黙って上書きしていた(18周目 ilocal・im4 F1: 24 件中 3〜4 件)。
+    /// 取られていたらミリ秒を1つ進める(形を変えないため。辞書順 = 時刻順も保つ)。中身は呼び手が後から atomically で書き換える
+    static func reserveBaseName(scenarioSlug: String, at date: Date, in dir: URL) throws -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
+        for offset in 0..<maxReserveAttempts {
+            let stamp = formatter.string(from: date.addingTimeInterval(Double(offset) / 1000))
+            let baseName = "scenario-\(stamp)-\(scenarioSlug)"
+            let fd = open(dir.appendingPathComponent("\(baseName).md").path, O_CREAT | O_EXCL | O_WRONLY, 0o644)
+            if fd >= 0 { close(fd); return baseName }
+            guard errno == EEXIST else { throw CocoaError(.fileWriteUnknown) }
+        }
+        throw CocoaError(.fileWriteFileExists)
+    }
+    /// 同じミリ秒に同じシナリオを終える台数の上限より十分大きい数(1台 1 ms ずつ進めるので、尽きるのは同時に 1000 台を超えたときだけ)
+    static let maxReserveAttempts = 1000
 
     /// 届いたことしか確かめていない操作の数(事実の1行。合否は変えない)。数え方は「`action` ブロックのうち、直後が `expectation`
     /// ブロックでないものの、成功したステップ」(区分で数える。ステップの中身は読まない = 検証を呼ぶ操作の判別は description に頼らない)。

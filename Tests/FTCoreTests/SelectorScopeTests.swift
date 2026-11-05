@@ -375,11 +375,26 @@ final class SelectorScopeTests: XCTestCase {
         XCTAssertFalse(relative(FlowLocator(type: "clickable"), .right).isWeakForAssert)
     }
 
+    /// **部分一致の相手が長い文の中の語なら、文の中心を押すことと `linkText:` の書き方を言う**(`*利用規約*` に従った tap が
+    /// 段落の中心 = 別のリンクを押して ✅ になった。18周目 amax F1)。id があれば id で名指す。ボタン・行には言わない
+    func testPartialMatchInsideALongerTextPointsAtLinkText() {
+        let paragraph = [node(1, "staticText", depth: 1, id: "txt_terms",
+                              label: "続行すると利用規約とプライバシーポリシーに同意したものとみなされます。")]
+        let hint = LocatorResolver.partialMatchHint(for: FlowLocator(label: "利用規約"), in: paragraph) ?? ""
+        XCTAssertTrue(hint.hasSuffix("write tap(\"#txt_terms\", linkText: \"利用規約\")"), hint)
+        XCTAssertTrue(hint.contains("lands on the middle of that whole text"), hint)
+        let row = [node(1, "button", depth: 1, label: "利用規約を読む")]
+        let rowHint = LocatorResolver.partialMatchHint(for: FlowLocator(label: "利用規約"), in: row) ?? ""
+        XCTAssertFalse(rowHint.contains("linkText"), rowHint)
+    }
+
     /// 完全一致で外したが部分一致なら在るときは、書き換え方を失敗メッセージに出す
     func testPartialMatchHintSuggestsWildcard() {
         let elements = [node(1, "staticText", depth: 1, label: "通知を許可")]
         let hint = LocatorResolver.partialMatchHint(for: FlowLocator(label: "許可"), in: elements)
-        XCTAssertEqual(hint, "present as a partial match: writing \"*許可*\" would find staticText \"通知を許可\"")
+        XCTAssertEqual(hint, "present as a partial match: writing \"*許可*\" would find staticText \"通知を許可\""
+            + "; a tap on it lands on the middle of that whole text, not on these words — to tap the words inside it"
+            + " (an inline link), write tap(\"*許可*\", linkText: \"許可\")")
         XCTAssertNil(LocatorResolver.partialMatchHint(for: FlowLocator(label: "通知を許可"),
                                                    in: elements))
         XCTAssertNil(LocatorResolver.partialMatchHint(for: FlowLocator(label: "許可",

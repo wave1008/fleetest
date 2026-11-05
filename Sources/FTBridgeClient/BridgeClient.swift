@@ -542,7 +542,16 @@ public final class BridgeClient: AppDriver, Sendable {
     /// iOS シミュレータでも初回確認アラートの自動了承(下記)の対象アプリ特定に使う
     /// (実機の devicectl 経路・bundleID なしの呼び出しでは同意ステップを行わない)
     public func openURL(_ url: String, bundleID: String?) async throws {
-        lastActionNote = nil   // 下の同意ステップが戻せなかったときだけ立てる(前の操作の note を残さない)
+        guard let target = try await deliverURL(url), let bundleID else { return }
+        await acknowledgeOpenURLConsent(bundleID: bundleID, target: target)
+    }
+
+    /// 配送だけ(同意の確かめをしない)。返すのは simctl の宛先(実機は nil)。**in-app 接続はこちらを使う**(InAppDriver.openURL):
+    /// in-app ブリッジは SpringBoard を見られないうえ、開いた先が前面になると対象アプリが一時停止して同意の確かめの
+    /// `/session` が 409 ではなく上限(45 秒)まで返らない(18周目 iultra F1・手元で 8 台中 6 台が 45 秒)
+    @discardableResult
+    public func deliverURL(_ url: String) async throws -> String? {
+        lastActionNote = nil   // 同意ステップが戻せなかったときだけ立てる(前の操作の note を残さない)
         if case .physical(let udid) = try await installTarget() {
             let result = try Shell.run(
                 ["xcrun", "devicectl", "device", "process", "openURL", "--device", udid, Self.encodingNonASCII(url)])
@@ -550,7 +559,7 @@ public final class BridgeClient: AppDriver, Sendable {
                 throw DriverError.badResponse(status: Int(result.status),
                     body: "devicectl device process openURL failed: \(result.tail)")
             }
-            return
+            return nil
         }
         let target = try await simctlTarget("openURL")
         let result = try Shell.run(["xcrun", "simctl", "openurl", target, url])
@@ -558,9 +567,7 @@ public final class BridgeClient: AppDriver, Sendable {
             throw DriverError.badResponse(status: Int(result.status),
                 body: "simctl openurl failed: \(result.tail)")
         }
-        if let bundleID {
-            await acknowledgeOpenURLConsent(bundleID: bundleID, target: target)
-        }
+        return target
     }
 
     /// 非 ASCII の文字だけをパーセントエンコードする。devicectl は非 ASCII を含む文字列を丸ごとエンコードし直し、

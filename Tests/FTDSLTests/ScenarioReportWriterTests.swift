@@ -33,6 +33,36 @@ final class ScenarioReportWriterTests: XCTestCase {
         XCTAssertTrue(text.contains("1 passed step(s) in `action` blocks"), text)
     }
 
+    // MARK: - ファイル名の取り合い
+
+    /// **同じミリ秒に同じシナリオを書く2本目は別の名前を取る**(--broadcast の別プロセスが同じ名前へ上書きし、片方の台の
+    /// レポート・画像・failure.json が消えていた。18周目 ilocal・im4 F1)。形(拡張の正規表現との契約)は保つ
+    func testSecondReportAtTheSameMillisecondGetsItsOwnName() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let at = Date(timeIntervalSince1970: 1_800_000_000.123)
+        let first = try ScenarioReportWriter.reserveBaseName(scenarioSlug: "C_S0010", at: at, in: dir)
+        let second = try ScenarioReportWriter.reserveBaseName(scenarioSlug: "C_S0010", at: at, in: dir)
+        XCTAssertNotEqual(first, second)
+        for name in [first, second] {
+            XCTAssertNotNil(name.range(of: #"^scenario-\d{8}-\d{6}-\d{3}-C_S0010$"#, options: .regularExpression), name)
+        }
+        XCTAssertLessThan(first, second, "辞書順 = 時刻順が崩れた")
+    }
+
+    /// write を2回通しても両方の md が残る(本物の入口)
+    func testTwoWritesOfTheSameScenarioBothSurvive() throws {
+        var record = ScenarioRecordData(id: "S.t", title: "", app: "a", platform: "ios")
+        record.scenes = [SceneRecordData(number: 1, title: "a")]
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var urls: Set<URL> = []
+        for _ in 0..<5 { urls.insert(try ScenarioReportWriter.write(record: record, to: dir)) }
+        XCTAssertEqual(urls.count, 5)
+        let mds = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".md") }
+        XCTAssertEqual(mds.count, 5, "\(mds)")
+    }
+
     // MARK: - deviceLine (フォーマット単体)
 
     func testDeviceLineBothPresent() {

@@ -71,6 +71,19 @@
       }
     },
     {
+      "project": "E2E-iOS", "file": "92_アプリが前面を離れた後.swift", "profile": "ios-inapp-boost", "os": "ios",
+      "class": "アプリが前面を離れた後",
+      "guards": "inapp-boost で home() の直後(ランナーの /home は外れたかを確かめずに返る)と appSwitcher() の後(アプリは inactive のまま)の読み・操作を届けずに断る。スイッチャーから tapAppIcon で戻った後は断らない",
+      "watches": ["Sources/FTBridgeClient/AppAttachDriver.swift", "Sources/FTCore/ForegroundState.swift", "InAppBridge/Sources/InAppBridge.swift"],
+      "scenarios": {
+        "S0010": { "expect": "red", "command": "exist", "failureKind": "app-in-background", "detailContains": ["not in the foreground"] },
+        "S0020": { "expect": "red", "command": "tap", "failureKind": "app-in-background", "detailContains": ["not in the foreground"] },
+        "S0030": { "expect": "red", "command": "tap", "failureKind": "system-ui-covered", "detailContains": ["the app switcher is in front"] },
+        "S0040": { "expect": "red", "command": "ifCanSelect", "failureKind": "system-ui-covered", "detailContains": ["the app switcher is in front"] },
+        "S0050": { "expect": "green" }
+      }
+    },
+    {
       "project": "E2E-iOS", "file": "93_届けずに断られたタップの撃ち直し.swift", "profile": "ios-xcuitest", "os": "ios",
       "class": "届けずに断られたタップの撃ち直し",
       "resetPhotos": "com.ftester.e2e.ios",
