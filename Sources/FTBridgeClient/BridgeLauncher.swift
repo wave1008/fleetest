@@ -1168,8 +1168,11 @@ public struct BridgeLauncher: Sendable {
             }
             if !announcedExtension, Date().timeIntervalSince(launchedAt) >= timeout {
                 announcedExtension = true
-                log("⏳ still starting after \(Int(timeout))s — xcodebuild is still making progress"
-                    + " (cold start), so waiting while its log keeps growing")
+                // 事実(最後に進んだのが何秒前か)だけを言う。「伸び続けている」と断定すると、起動直後の数行の後で止まったログ
+                // にも出た(24周目 duo F3: 844 バイトで止まったまま 4 分待った。待ちは最後の進みから `timeout` 秒まで)
+                let quiet = Int(Date().timeIntervalSince(lastProgressAt ?? launchedAt))
+                log("⏳ still starting after \(Int(timeout))s — the last sign of progress (the log growing or the runner app"
+                    + " coming up) was \(quiet)s ago; waiting until \(Int(timeout))s pass with no progress")
             }
             if let detected = try physicalDiagnosis(), detected != blocker {
                 blocker = detected

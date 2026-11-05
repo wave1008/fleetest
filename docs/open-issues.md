@@ -30,7 +30,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 14 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 11 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 12 | OI-75・OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-182 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 10 | OI-75・OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165 |
@@ -156,7 +156,7 @@
 - 確認: コミット未記録(2026-11-06)
 - 属性: 要測定
 
-11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 要測定 ③権限アラートの表示中の `home()` の 422(と残ったアラートを消す行)がボタンを2回ずつ並べる(ilocal F1・im4 F2 の回し直し。ランナーの InterruptionGuard がアラートのボタンを重複を除かずに並べる筋書き = XCUITest が2つずつ返しているかは木で未確認。直すならランナーの版を上げる)= 要測定 ④`tap(…, linkText:)` で英字の語が見つからないとき、和文の要素では赤の文言の「OCR read」が化けた読みを出す(amax F1・12/12。リンク語の文字種で OCR の認識言語が決まる筋書きは推測)⑤`--wait-lock` を付けて待ち切った run の失敗文が「pass --wait-lock <seconds>」と付けたフラグを勧める(phys F1・1/1)⑥iPhone Duo の XCUITest ブリッジの起動が「BUILD INTERRUPTED」で終わった後も run が「xcodebuild is still making progress (cold start)」と約 4 分待つ(duo F1・1/1。xcodebuild はもう居ない。2台を simctl shutdown して起こし直した後は緑)= 要測定
+11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 要測定 ③権限アラートの表示中の `home()` の 422(と残ったアラートを消す行)がボタンを2回ずつ並べる(ilocal F1・im4 F2 の回し直し。ランナーの InterruptionGuard がアラートのボタンを重複を除かずに並べる筋書き = XCUITest が2つずつ返しているかは木で未確認。直すならランナーの版を上げる)= 要測定 ④`tap(…, linkText:)` で英字の語が見つからないとき、和文の要素では赤の文言の「OCR read」が化けた読みを出す(amax F1・12/12。リンク語の文字種で OCR の認識言語が決まる筋書きは推測)⑤`--wait-lock` を付けて待ち切った run の失敗文が「pass --wait-lock <seconds>」と付けたフラグを勧める(phys F1・1/1)
 
 ### OI-181 探索の残り(23周目)
 - 状態: 再現済み
@@ -164,6 +164,13 @@
 - 属性: 要測定
 
 11/6 の23周目の探索(20分・`_work/explore-20261106g/findings-*.md`)で観測し、直さなかったもの。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)= 要測定 ②畳んだ Duo で背面と断ったときの対処文が `tapAppIcon()` を勧めるが、畳んだ状態の `tapAppIcon()` は毎回撃たずに赤(duo F1・3/3。対処文は端末の開閉を見ない固定の文)= 要測定 ③シナリオの終わりの開閉の戻しが「did not become folded within 5s … this Xcode may not accept it」と警告するが、約 10 秒後には畳まれていた(duo F2・1/2。戻しは届いていて帰属が逆)= 要測定 ④Android の `terminateApp()` の後の `tap(scroll: .down)` がランチャーの一覧を 17 秒送ってランチャーの部品で包めと勧める(amax F2・4/4。`home()` の後は23周目の直し = Android も撃つ前に前面を聞く、で断る。`terminateApp()` の後は印が立たないので残る)= 要測定 ⑤RN で `launchApp()` の直後の `notExist("#txt_home_marker")` が 4/4 緑(直前の run で `launchApp(url:)` によりセレクタ画面に居た後。ブリッジを作り直すと 4/4 赤。緑の回の木が無い = 材料不足)
+
+### OI-182 探索の残り(24周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定
+
+11/6 の24周目の探索(20分・`_work/explore-20261106h/findings-*.md`)で観測し、直さなかったもの。①Android で `launchApp("com.android.settings")` のように別のアプリを起こした後の `notExist`・`countIs 0` が緑(amax F3・4/4。起こしたアプリが前面にあるので門は効かない = 起こしたアプリを対象と読む設計の帰結。対象は実行プロファイルのアプリだとするかは要判断)②Android で通知のシェードを下ろしてアプリを覆った後の `notExist` が緑(amax F4・4/4。前面のアプリは対象のまま = 前面の照会では見分けられない)= 要測定 ③iOS の `terminateApp(); tapAppIcon()` が ✅ なのに、次のステップが「this session stopped it」で 0 秒で赤・失敗時の絵は真っ白(iultra F1・12/12。アプリが起動したかは未確認)= 要測定 ④iPhone Duo の XCUITest ブリッジが2台とも 2.0 秒(閾値ちょうど)と測られて劣化と判定され、起こし直しが上がらず run が全滅(duo F1・1/1。SpringBoard の起こし直しの失敗は `SimulatorSpringBoard.swift` の `try?` で「simctl did not run」に畳まれる)・供給中の `simctl get_app_container` が 3 分以上返らず run が黙って止まる(duo F2・1/1。時間切れの無い呼び出しが3箇所)= 要測定 ⑤iPhone 13 実機の inapp-boost の供給で、自分の iproxy を「port in use by another process」と名指して止まる(OI-179 ④ の再発・この周 6 回中 3 回。アプリを替えなくても起きる)= 要測定
 
 
 ### OI-124 terminateApp 前後

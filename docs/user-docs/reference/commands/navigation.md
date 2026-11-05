@@ -35,7 +35,7 @@ hinge(130)              // half-open book posture
 
 ## Notes
 
-- **On iOS in inapp-boost mode (the default) and on Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` or `launchApp(url:)`, bring the app back before acting on it.**
+- **On iOS in inapp-boost mode (the default) and on Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()`, `launchApp(url:)` or `back()`, bring the app back before acting on it.** On Android, only `notExist`, `countIs(0)` and conditions (`ifCanSelect` and the like) are refused while the app is not in front (you can still read and tap the home screen's icons).
   While the app under test is not in front (the home screen, another app, or the app switcher is showing),
   a step that reads or touches the app waits up to its usual wait for the app to come back, then fails instead of
   acting on an app nobody can see:

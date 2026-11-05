@@ -1157,6 +1157,10 @@ public final class StepExecutor {
     func backgroundedAppRefusal(step: FlowStep) async -> String? {
         guard appMayHaveLeft, let fallback = foregroundProber, let bundleID = lastLaunchedAppBundleID else { return nil }
         if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
+        // **Android は否定の検証と条件の判定だけを断る**: Android の木は前面の画面そのもの(iOS の in-app のように背面のアプリの木を
+        // 読まない)なので、肯定の読み・操作は前面の画面に対して事実どおりに効く(ランチャーのアイコンを押す・読むのは人にもできる。
+        // 全部を断ると「a person could not either」が事実と逆だった = 24周目 amax F1)。誤った成功になるのは「無い」で通る側だけ
+        if fallbackDriver == nil, !Self.passesOnAbsence(step) { return nil }
         // 前面へ戻る途中(openURL の直後等)を断らない: ステップの待ちの上限まで聞き直す(0.5 秒おき)
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         while true {
@@ -1203,6 +1207,14 @@ public final class StepExecutor {
         if let message = await appSwitcherRefusal(step: step) { return (message, .systemUICovered) }
         if let message = await backgroundedAppRefusal(step: step) { return (message, .appInBackground) }
         return nil
+    }
+
+    /// 対象が「無い」ことで通る(または分岐が決まる)ステップ: notExist・countIs 0・条件の判定(`canSelect` の門の
+    /// ステップ = 動作も検証も持たない)。前面に別の画面があると黙って通る側
+    static func passesOnAbsence(_ step: FlowStep) -> Bool {
+        if step.assert == "notExists" { return true }
+        if step.assert == "count", step.expectedCount == 0 { return true }
+        return step.action == nil && step.assert == nil
     }
 
     /// アプリスイッチャーの間も撃つステップ(アプリを読まず触らない)

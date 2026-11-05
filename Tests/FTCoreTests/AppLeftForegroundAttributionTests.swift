@@ -305,14 +305,31 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         let executor = StepExecutor(driver: android, fallbackDriver: nil, isAndroid: true, tunables: RunTunables())
         executor.noteAppLaunched(bundleID: "com.example.app")
         executor.noteAppMayHaveLeft(true)
-        let refused = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        let refused = await executor.execute(FlowStep(assert: "notExists", locator: FlowLocator(id: "btn"), timeout: 0.1))
         XCTAssertEqual(refused.failureKind, .appInBackground, "\(refused.status)")
         XCTAssertGreaterThan(android.asks, 0, "主ドライバに前面を聞いていない")
+        // 肯定の操作は断らない(Android の木は前面の画面そのもの。ランチャーを押すのは人にもできる = 24周目 amax F1)
+        let asksBefore = android.asks
+        let tap = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertNotEqual(tap.failureKind, .appInBackground, "Android の tap を背面と断った: \(tap.status)")
+        XCTAssertEqual(android.asks, asksBefore, "肯定の操作の前に前面を聞いた")
         let iosWithoutFallback = StepExecutor(driver: CountingForeground(), fallbackDriver: nil, isAndroid: false, tunables: RunTunables())
         iosWithoutFallback.noteAppLaunched(bundleID: "com.example.app")
         iosWithoutFallback.noteAppMayHaveLeft(true)
-        let iosOutcome = await iosWithoutFallback.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        let iosOutcome = await iosWithoutFallback.execute(FlowStep(assert: "notExists", locator: FlowLocator(id: "btn"), timeout: 0.1))
         XCTAssertNotEqual(iosOutcome.failureKind, .appInBackground, "iOS の in-app に自分が背面かを聞いた")
+    }
+
+    /// 「無い」で通る側の判定(Android の門の対象): notExist・countIs 0・条件の判定の門のステップ。countIs 1 や tap は対象外
+    func testPassesOnAbsenceCoversOnlyNegativesAndConditionals() {
+        XCTAssertTrue(StepExecutor.passesOnAbsence(FlowStep(assert: "notExists", locator: FlowLocator(id: "a"))))
+        var zero = FlowStep(assert: "count", locator: FlowLocator(id: "a")); zero.expectedCount = 0
+        XCTAssertTrue(StepExecutor.passesOnAbsence(zero))
+        var one = FlowStep(assert: "count", locator: FlowLocator(id: "a")); one.expectedCount = 1
+        XCTAssertFalse(StepExecutor.passesOnAbsence(one))
+        XCTAssertTrue(StepExecutor.passesOnAbsence(FlowStep(locator: FlowLocator(id: "a"))), "canSelect の門のステップ")
+        XCTAssertFalse(StepExecutor.passesOnAbsence(FlowStep(action: "tap", locator: FlowLocator(id: "a"))))
+        XCTAssertFalse(StepExecutor.passesOnAbsence(FlowStep(assert: "exists", locator: FlowLocator(id: "a"))))
     }
 
     /// 前面と答えたら印を落とし、以後は聞かない
