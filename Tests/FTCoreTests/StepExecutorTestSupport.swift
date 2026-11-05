@@ -233,6 +233,9 @@ final class FakeAppDriver: AppDriver {
     /// `tap(ref:)` の後に答える撃ち方(`AppDriver.lastTapDelivery`)。nil = 言えない
     var tapDeliveryAnswer: TapDelivery?
     var lastTapDelivery: TapDelivery? { tapDeliveryAnswer }
+    /// `tap(ref:)` の後に答える当たり判定の申告(`AppDriver.lastTapHitAreaMiss`)。nil = 言えない
+    var hitAreaMissAnswer: TapHitAreaMiss?
+    var lastTapHitAreaMiss: TapHitAreaMiss? { hitAreaMissAnswer }
     /// tapProbe の答え(nil = 答えられない = 既定のドライバと同じ)
     var tapProbeAnswer: TapProbeResponse?
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { tapProbeAnswer }
