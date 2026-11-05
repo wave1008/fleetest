@@ -35,9 +35,10 @@ hinge(130)              // half-open book posture
 
 ## Notes
 
-- **On iOS, after `home()`, `appSwitcher()`, `tapAppIcon()` or `openURL()`, bring the app back before acting on it.**
+- **On iOS in inapp-boost mode (the default), after `home()`, `appSwitcher()`, `tapAppIcon()` or `openURL()`, bring the app back before acting on it.**
   While the app under test is not in front (the home screen, another app, or the app switcher is showing),
-  a step that reads or touches the app fails right away instead of acting on an app nobody can see:
+  a step that reads or touches the app waits up to its usual wait for the app to come back, then fails instead of
+  acting on an app nobody can see:
   `failureKind` is `app-in-background`, or `system-ui-covered` while the app switcher is open.
   Return with `tapAppIcon()` or `launchApp()`.
 - **`back(settle:)` reliability depends on the screen.** On iOS, a screen with a system navigation bar

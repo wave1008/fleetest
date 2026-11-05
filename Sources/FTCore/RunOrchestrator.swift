@@ -632,7 +632,8 @@ public enum ScenarioOutcome: Sendable, Equatable {
     /// 事後プローブのうちデバイス消失・凍結は `.failed` と同じに通す(ブリッジ生存プローブだけ飛ばす)
     case appCrashed
     /// 失敗ステップの `failureKind` が `appInBackground`(アプリが背面にあり、iOS に一時停止された in-app ブリッジが答えなかった。
-    /// XCUITest の照会で確かめた事実)。**振り直さず赤のまま残し、ブリッジの生存プローブは飛ばす**(appCrashed と同じ扱い)——
+    /// XCUITest の照会で確かめた事実)。**振り直さず赤のまま残し、ブリッジの生存プローブは飛ばす**(appCrashed と同じ扱い)。
+    /// 同じシナリオにブリッジ不達(`driverUnreachable`)もあればそちらになる(`outcome` の優先順位)——
     /// 止まったアプリの中のブリッジは答えないので、プローブは「不達」と言ってレーンを離脱させ、同じ失敗を振り直していた
     case appInBackground
 }
@@ -796,7 +797,7 @@ public enum ScenarioRunner {
     }
 
     /// 実行結果の確定(純粋関数)。**優先順位に意味がある**: 画面凍結 > 合否 > アプリのクラッシュ >
-    /// 環境の一過性エラー > ドライバ不達。凍結はワーカーごと使えないので先に判定し、合否は環境エラー/ドライバ不達で
+    /// 環境の一過性エラー > ドライバ不達 > アプリが背面。凍結はワーカーごと使えないので先に判定し、合否は環境エラー/ドライバ不達で
     /// 上書きしない(途中のステップがそれらでも、最終的に通ったならテストとしては合格)
     static func outcome(passed: Bool, frozen: Bool, environmentFault: Bool,
                         driverUnreachable: Bool, notApplicable: Bool,

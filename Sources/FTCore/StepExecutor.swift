@@ -352,6 +352,9 @@ public final class StepExecutor {
     /// アプリが前面を離れたかもしれない(home / appSwitcher / tapAppIcon / openURL の後)。立っている間だけ、ステップの前に
     /// XCUITest へ前面かを聞く(`backgroundedAppRefusal`)。前面と答えたら落とす。launch 系で落とす
     var appMayHaveLeft = false
+    /// 起こしたアプリのプロセスが生きているか(iOS Simulator だけ注入 = launchctl。nil = 答えられない)。`backgroundedAppRefusal` が
+    /// 前面に無いアプリを「背面」と言う前に、落ちたアプリと分けるのに使う。**`appProcessRunning`(Android の木の持ち主の判定)とは別**
+    public var appAliveProbe: (@Sendable (String) async -> Bool?)?
     public func noteAppMayHaveLeft(_ value: Bool) { appMayHaveLeft = value }
 
     /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない = 断らない)。`AppProcessGone` が木の持ち主が違うときだけ呼ぶ。
@@ -1128,7 +1131,7 @@ public final class StepExecutor {
     /// (11/6 に -01 で実測: applicationState = inactive・in-app の tap は 200)なので in-app ブリッジは断れず、カードの中のアプリに
     /// 打鍵・タップ・読みが届いて緑になった(17周目 ilocal F1・4 SUT で 18/18)。inactive は OS のアラートの間も同じなので、
     /// 見分けは XCUITest の覆いの照会(`SBSwitcherWindow` の目印)で取る。照会するのは `appSwitcher()` の後だけ
-    /// (`appSwitcherMayCover`)。覆いが無いと答えたら印を落とす・答えない(照会の失敗)ときは断らずに印を落とす(推測で赤にしない)。
+    /// (`appSwitcherMayCover`)。覆いが無いと答えたら印を落とす・答えない(照会の失敗)ときは断らない(推測で赤にしない)が印は残す。
     /// 撃たないのは端末側の操作(向き・折りたたみ)と待つだけのステップ
     func appSwitcherRefusal(step: FlowStep) async -> String? {
         guard appSwitcherMayCover, let fallback = fallbackDriver else { return nil }
@@ -1138,9 +1141,11 @@ public final class StepExecutor {
             return "the app switcher is in front (opened by appSwitcher()), so this step was not run: steps read and"
                 + " touch the app under test, which a person cannot use from the switcher. Bring the app back first"
                 + " (tapAppIcon() or launchApp())"
-        case .value(_), .notAnswerable, .failed:
-            // 照会が答えないときも印を落とす(以後は聞かない = 固まったランナーで毎ステップ待ちを払わない)
+        case .value(_):
             appSwitcherMayCover = false
+            return nil
+        case .notAnswerable, .failed:
+            // 断らないが印は残す(次のステップで聞き直す)。1回の照会の失敗で門を外すと、スイッチャーの間の操作が緑に戻る
             return nil
         }
     }
@@ -1148,21 +1153,31 @@ public final class StepExecutor {
     /// **前面を離れたかもしれない後だけ、撃つ前に前面かを聞き、前面に無ければ撃たずに断る**。背面のアプリは約 2 秒で一時停止され、
     /// in-app ブリッジへの最初の読みが待ちの上限(45 秒)まで返らない —— `attributingBackgroundedApp` は帰属を正すが、待ちは払った
     /// (17周目の陽性対照: home → wait(4) → tap が 49 秒)。照会は XCUITest の画面を動かさない読み(約 0.1 秒)。
-    /// 前面と答えたら印を落とす(以後は聞かない)。答えない・失敗は断らずに印を落とす(推測で赤にしない = 従来の経路へ)
+    /// 前面と答えたら印を落とす(以後は聞かない)。答えない・失敗は断らない(推測で赤にしない)が印は残す
     func backgroundedAppRefusal(step: FlowStep) async -> String? {
         guard appMayHaveLeft, let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID else { return nil }
         if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
-        switch await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) {
-        case .value(true):
-            appMayHaveLeft = false
-            return nil
-        case .value(false):
-            return "The app under test is not in the foreground, so this step did not read or touch it"
-                + " — a person could not either. Bring the app back first (tapAppIcon() or launchApp())"
-        case .notAnswerable, .failed:
-            // 以後は聞かない(固まったランナーで毎ステップ待ちを払わない)。従来の経路(読みの不達 → 帰属)へ
-            appMayHaveLeft = false
-            return nil
+        // 前面へ戻る途中(openURL の直後等)を断らない: ステップの待ちの上限まで聞き直す(0.5 秒おき)
+        let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
+        while true {
+            switch await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) {
+            case .value(true):
+                appMayHaveLeft = false
+                return nil
+            case .value(false):
+                if Date() < deadline {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    continue
+                }
+                // 落ちたアプリも前面には居ない。生死を答えられて「居ない」なら背面とは言わず、従来の経路(読みの不達 →
+                // クラッシュの記録)へ渡す。答えられない(実機)ときは事実(前面に無い)だけを言って断る
+                if let alive = appAliveProbe, await alive(bundleID) == false { return nil }
+                return "The app under test is not in the foreground, so this step did not read or touch it"
+                    + " — a person could not either. Bring the app back first (tapAppIcon() or launchApp())"
+            case .notAnswerable, .failed:
+                // 断らないが印は残す(次のステップで聞き直す)。外すと次からは読みの上限(45 秒)まで待つ従来の経路になる
+                return nil
+            }
         }
     }
 

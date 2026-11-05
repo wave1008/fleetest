@@ -711,6 +711,10 @@ struct RunScenario: AsyncParsableCommand {
             // 起動していないシナリオ(起動前に落ちた・SpringBoard が相手)では、居ないのは当然なので訊かない
             // (生死の確認 最大 5 秒 + .ips の待ち 4 秒を払って「落ちたかも」と誤って言うことになる)
             core.appProcessEvidenceRequiresLaunch = true
+            // 前面に無いアプリを「背面」と言う前に、落ちたアプリと分ける(StepExecutor.backgroundedAppRefusal)
+            core.appAliveProbe = { bundleID in
+                await Task.detached { SimulatorAppProcess.isRunning(udid: udid, bundleID: bundleID) }.value
+            }
         }
 
         var debugControl: ScenarioDebugControl?

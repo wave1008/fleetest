@@ -158,6 +158,17 @@ final class AppLeftForegroundAttributionTests: XCTestCase {
     }
 
     /// スイッチャーが閉じたと答えたら印を落とし、以後は照会しない
+    /// 覆いの照会が失敗しても印は残す(次のステップでスイッチャーを見たら断る)
+    func testSwitcherMarkSurvivesAFailedProbe() async {
+        let (executor, _, xcuitest) = make()
+        executor.noteAppSwitcher(opened: true)
+        xcuitest.covering = .failed("busy")
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        xcuitest.covering = .value(SystemUICoveringResponse(covering: true, marker: "SBSwitcherWindow:Main"))
+        let next = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertEqual(next.failureKind, .systemUICovered)
+    }
+
     func testStepsRunOnceTheSwitcherIsGone() async {
         let (executor, inApp, xcuitest) = make()
         executor.noteAppSwitcher(opened: true)
@@ -268,15 +279,36 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertEqual(xcuitest.asks, 1)
     }
 
-    /// 照会が失敗したら断らず、以後は聞かない(固まったランナーで毎ステップ待ちを払わない)
-    func testAFailedProbeIsAskedOnlyOnce() async {
+    /// 照会が失敗したら断らないが、印は残して次のステップで聞き直す(1回の失敗で門を外さない)
+    func testAFailedProbeIsAskedAgainNextStep() async {
         let (executor, _, xcuitest) = make()
         executor.noteAppMayHaveLeft(true)
         xcuitest.appInFront = nil
         let first = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
-        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
         XCTAssertTrue(StepExecutor.isSuccess(first.status), "\(first.status)")
-        XCTAssertEqual(xcuitest.asks, 1)
+        xcuitest.appInFront = false
+        let second = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertEqual(second.failureKind, .appInBackground)
+    }
+
+    /// 前面へ戻る途中は断らない: 待ちの間に前面と答えれば撃つ
+    func testWaitsForTheAppToComeBackWithinTheStepWait() async {
+        let (executor, _, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        let late = UncheckedTransfer(xcuitest)
+        Task { try? await Task.sleep(for: .milliseconds(700)); late.value.appInFront = true }
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 3))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+    }
+
+    /// 落ちたアプリ(Simulator の生死の照会が「居ない」)は背面と言わずに従来の経路へ渡す
+    func testCrashedAppIsNotRefusedAsBackgrounded() async {
+        let (executor, inApp, _) = make()
+        executor.noteAppMayHaveLeft(true)
+        executor.appAliveProbe = { _ in false }
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertNotEqual(outcome.failureKind, .appInBackground)
+        XCTAssertGreaterThan(inApp.reads, 0, "従来の経路(in-app の読み)へ渡していない")
     }
 
     /// 離れた印が無ければ聞かない(通常のステップに照会を足さない)

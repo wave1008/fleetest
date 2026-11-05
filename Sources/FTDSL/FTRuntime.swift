@@ -493,6 +493,10 @@ public final class FTDriveCore {
     public var appProcessRunning: (@Sendable (String) async -> Bool?)? {
         didSet { executor.appProcessRunning = appProcessRunning }
     }
+    /// 起こしたアプリのプロセスが生きているか(iOS Simulator だけ注入)。executor の `appAliveProbe` へ同期する
+    public var appAliveProbe: (@Sendable (String) async -> Bool?)? {
+        didSet { executor.appAliveProbe = appAliveProbe }
+    }
     /// このプロセスで launchApp / restartApp を撃ったか(DSL スレッドからのみ触る。clearAppData / installApp は起動しないので数えない)
     private var appLaunchedInThisProcess = false
     /// stop コマンドで中断した場合 true。expectation 未到達なので成功扱いにしない
@@ -1444,7 +1448,8 @@ public final class FTDriveCore {
             if command == "appSwitcher" { executor.noteAppSwitcher(opened: true) }
             if ["home", "appSwitcher", "tapAppIcon", "openURL"].contains(command) { executor.noteAppMayHaveLeft(true) }
             // 前面へ出すコマンドだけで落とす(clearAppData / installApp は前面へ出さない)
-            if ["launchApp", "restartApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
+            // 止めた・消した後は「自分で止めたアプリ」の扱い(appStoppedBySession)へ渡す
+            if ["launchApp", "restartApp", "terminateApp", "removeApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
             if ["home", "tapAppIcon", "terminateApp", "removeApp", "launchApp", "restartApp", "clearAppData", "installApp"]
                 .contains(command) { executor.noteAppSwitcher(opened: false) }
         }
@@ -1670,7 +1675,10 @@ public final class FTDriveCore {
         let driver = self.driver
         let executor = self.executor
         // スイッチャー・背面の間は読まずに断る(読むと inactive のアプリの木で分岐を決める = StepExecutor.appLeftRefusal)
-        if let refusal = FTSync.run({ await executor.appLeftRefusal(step: step) }) ?? nil {
+        // 待ちは waitSeconds(前面へ戻る途中を断らない)
+        var gateStep = step
+        gateStep.timeout = waitSeconds
+        if let refusal = FTSync.run({ await executor.appLeftRefusal(step: gateStep) }) ?? nil {
             return CanSelectOutcome(found: false, dismissed: nil,
                                     unread: SnapshotReadFailure(reason: refusal.message, kind: refusal.kind))
         }
