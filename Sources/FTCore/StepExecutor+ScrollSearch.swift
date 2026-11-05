@@ -242,7 +242,11 @@ extension StepExecutor {
     static func scrollNotFoundMessage(_ step: FlowStep,
                                       _ result: ScrollSearchResult? = nil,
                                       defaultMaxSwipes: Int) -> String {
-        if let gone = result?.appGone { return gone }
+        // AppProcessGone の文は「何も送っていない」と言う。探索の途中で落ちた回はそれまでに送っているので、その事実を添える
+        if let gone = result?.appGone {
+            guard let sent = result?.swipes, sent > 0 else { return gone }
+            return gone + " (the search had already sent \(sent) swipe(s) before the app was found gone; the last ones may have landed on the screen that replaced it)"
+        }
         // **fail-fast は別の文**: 実際にはスワイプを1本も送っていないので、通常の
         // 「N 回振って見つからなかった」は嘘になる
         if result?.scrollFrameMissing == true {
@@ -927,6 +931,14 @@ extension StepExecutor {
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base {
                 ownerChanged = (owner, attempt)
+            }
+            // **探索の途中でアプリが落ちたら、そこで止める**(0回目だけの確かめでは、落ちた後もランチャーの上で払い続け、上向きの
+            // 払いでシェードを引き下ろして、失敗文はシェードを名指した = 15周目 amax F1)。聞くのは木の持ち主が対象から変わった回だけ
+            // (プロセスの照会の費用を普通の回に払わない)。生きていれば(システムの画面が一時的に前に出ただけ)従来どおり続ける
+            if attempt > 0, let base = searchBundleID, !base.isEmpty, let owner = snapshot.sessionBundleID,
+               !owner.isEmpty, owner != base, let gone = await appGoneFailure(owner: owner) {
+                return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                          hintJumps: hintJumps, swipes: swipes, appGone: gone)
             }
             // **同じ顔ぶれの要素が枠だけ違うなら、整定してから比べる**(払いの直後の1枚は端のバウンスの途中かもしれない。
             // 全部が収まる一覧を「まだ動いていた」と読んで maxSwipes まで回り、逆走査まで撃っていた。ScrollSearchBounce)。
