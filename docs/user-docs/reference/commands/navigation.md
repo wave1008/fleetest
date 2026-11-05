@@ -35,6 +35,11 @@ hinge(130)              // half-open book posture
 
 ## Notes
 
+- **On iOS, after `home()`, `appSwitcher()`, `tapAppIcon()` or `openURL()`, bring the app back before acting on it.**
+  While the app under test is not in front (the home screen, another app, or the app switcher is showing),
+  a step that reads or touches the app fails right away instead of acting on an app nobody can see:
+  `failureKind` is `app-in-background`, or `system-ui-covered` while the app switcher is open.
+  Return with `tapAppIcon()` or `launchApp()`.
 - **`back(settle:)` reliability depends on the screen.** On iOS, a screen with a system navigation bar
   back button is deterministic; a screen with a framework's own navigation (e.g. a
   custom-drawn nav bar) falls back to an edge swipe, which only works if the screen supports

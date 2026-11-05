@@ -804,9 +804,10 @@ public enum ScenarioRunner {
         if frozen { return .frozen }
         if passed { return notApplicable ? .notApplicable : .passed }
         if appCrashed { return .appCrashed }
-        if appInBackground { return .appInBackground }
         if environmentFault { return .environmentFault }
-        return driverUnreachable ? .driverUnreachable : .failed
+        // ブリッジ不達が同じシナリオにあれば、そちら(生存プローブ・振り直し)を優先する(後始末の段の背面の断りで隠さない)
+        if driverUnreachable { return .driverUnreachable }
+        return appInBackground ? .appInBackground : .failed
     }
 
     /// **失敗を結果ごと捨てて振り直し、ワーカーは離脱させない**か(純粋関数)。

@@ -51,7 +51,9 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
 
     /// **OS のシステム UI(SpringBoard のアラート)がアプリを覆っていた**。XCUITest ランナーの
     /// `GET /systemalert` の申告であって推測ではない。
-    /// **`iosAlertHandler` の登録が残っている間だけ**出る(判定の費用を登録した人だけが払う)
+    /// **`iosAlertHandler` の登録が残っている間だけ**出る(判定の費用を登録した人だけが払う)。
+    /// もう1つの出どころは `appSwitcher()` の後にスイッチャーが前面のままのステップ(`StepExecutor.appSwitcherRefusal`。
+    /// XCUITest の覆いの照会で `SBSwitcherWindow` を見たときだけ)
     case systemUICovered = "system-ui-covered"
 }
 

@@ -1443,7 +1443,8 @@ public final class FTDriveCore {
         if let command {
             if command == "appSwitcher" { executor.noteAppSwitcher(opened: true) }
             if ["home", "appSwitcher", "tapAppIcon", "openURL"].contains(command) { executor.noteAppMayHaveLeft(true) }
-            if ["launchApp", "restartApp", "clearAppData", "installApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
+            // 前面へ出すコマンドだけで落とす(clearAppData / installApp は前面へ出さない)
+            if ["launchApp", "restartApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
             if ["home", "tapAppIcon", "terminateApp", "removeApp", "launchApp", "restartApp", "clearAppData", "installApp"]
                 .contains(command) { executor.noteAppSwitcher(opened: false) }
         }
@@ -1668,6 +1669,11 @@ public final class FTDriveCore {
                             fallbacks: selector.fallbacks.isEmpty ? nil : selector.fallbacks)
         let driver = self.driver
         let executor = self.executor
+        // スイッチャー・背面の間は読まずに断る(読むと inactive のアプリの木で分岐を決める = StepExecutor.appLeftRefusal)
+        if let refusal = FTSync.run({ await executor.appLeftRefusal(step: step) }) ?? nil {
+            return CanSelectOutcome(found: false, dismissed: nil,
+                                    unread: SnapshotReadFailure(reason: refusal.message, kind: refusal.kind))
+        }
         // 判定1回 = 1ステップとして数え直す(直前のステップの回数を引き継がない)
         executor.beginInterruptionScope()
         var dismissed: (key: String, count: Int)?

@@ -167,8 +167,8 @@ jq -r 'select(.workerAnomalies == null) | .runID' results/runs/2026-08/*/run.jso
 | `driver-error` | ドライバは応答したがエラーを返した(HTTP エラー応答) |
 | `timeout` | ステップが制限時間内に返らなかった |
 | `app-not-installed` | 対象アプリがデバイスに入っていなかった(起動前の検査で確定) |
-| `app-in-background` | iOS の inapp-boost モードで、アプリが背面にあり(XCUITest の前面の照会で確かめた)、iOS に一時停止された in-app ブリッジが答えなかった(home・別アプリへ出た後に戻さず操作した)。run はブリッジ不達として再キューせず、ブリッジの生存プローブもしない |
-| `system-ui-covered` | **OS のシステム UI(権限アラート等)がアプリを覆っていた**。XCUITest ランナーの `GET /systemalert` の申告で、**`iosAlertHandler` の登録が残っている間だけ**出る |
+| `app-in-background` | iOS の inapp-boost モードで、アプリが前面に無かった(XCUITest の前面の照会で確かめた)。`home()`・`appSwitcher()`・`tapAppIcon()`・`openURL()` の後は撃つ前に聞いて断る。それ以外は、in-app ブリッジが答えず、アプリのプロセスは生きていて前面に無いと確かめた回(iOS に一時停止された)。run はブリッジ不達として再キューせず、ブリッジの生存プローブもしない |
+| `system-ui-covered` | **OS のシステム UI(権限アラート等)がアプリを覆っていた**。XCUITest ランナーの `GET /systemalert` の申告で、**`iosAlertHandler` の登録が残っている間だけ**出る。もう1つの出どころは、`appSwitcher()` の後でアプリスイッチャーが前面のままのステップ(XCUITest の覆いの照会で `SBSwitcherWindow` を見たときだけ。撃たずに断る) |
 | (欄が無い) | **言えない** —— 推測で埋めない |
 
 **描画崩壊の検査**(iOS Simulator のみ)の失敗は、`description` が `screen rendering check (before launchApp | at the end of the scenario …)` の

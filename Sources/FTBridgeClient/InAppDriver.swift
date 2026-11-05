@@ -343,7 +343,7 @@ public final class InAppDriver: AppDriver {
     /// 約 2 秒後。TestProjects/E2E-iOS の 91_クラッシュ検知 で確認)。切断直後に1回だけ探すと
     /// ファイルがまだ無く「見つかりませんでした」になるため、短くポーリングして待つ。
     /// この経路は既に失敗が確定しているので、待ち時間が正常系を遅らせることはない。
-    /// 戻り値の `AppFate` は測れたときだけ(.ips の発見・自分の terminate)。他は nil で従来の文言
+    /// 戻り値の `AppFate` は測れたときだけ(.ips の発見・自分の terminate・生きているのに答えない)。他は nil で従来の文言
     private func crashAnnotated(_ detail: String) async -> (String, AppFate?) {
         // 自分で止めたアプリへの接続断は、クラッシュ報告を探さず事実(自分で止めた)を言う
         if stoppedBySession { return (detail, .stoppedBySession) }
@@ -365,7 +365,7 @@ public final class InAppDriver: AppDriver {
         switch await appIsStillRunning(bundleID: bundleID) {
         case true:
             return (detail + " / no recent crash report found, and the app process is still running"
-                + " — it is not answering (a hang, or it is suspended because another app is in front)", nil)
+                + " — it is not answering (a hang, or it is suspended because another app is in front)", .aliveButNotAnswering)
         case false, nil:
             if let simulatorUDID,
                let rewritten = SimulatorAppProcess.rewrittenReportCrash(bundleID: bundleID, udid: simulatorUDID, within: 10) {

@@ -8,9 +8,12 @@ import XCTest
 /// in-app ブリッジの役。読みも操作も「届かない」で投げる(一時停止されたアプリの中のブリッジ)か、成功する
 private final class SuspendableInAppDriver: AppDriver {
     var suspended = false
+    /// true = プロセスが居ない(報告より先に落ちた形)。InAppDriver は生きていると確かめられないので appFate を付けない
+    var crashed = false
     private(set) var taps = 0
     private func unreachable() -> DriverError {
-        .bridgeUnreachable(context: DriverErrorContext(bridge: .iosInApp, physicalDevice: false), detail: "timed out")
+        .bridgeUnreachable(context: DriverErrorContext(bridge: .iosInApp, physicalDevice: false,
+                                                       appFate: crashed ? nil : .aliveButNotAnswering), detail: "timed out")
     }
     func status() async throws -> StatusResponse {
         StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
@@ -91,7 +94,7 @@ final class AppLeftForegroundAttributionTests: XCTestCase {
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertEqual(outcome.failureKind, .appInBackground)
-        XCTAssertTrue(message.contains("is in the background (in front: com.apple.mobilesafari)"), message)
+        XCTAssertTrue(message.contains("is in the background, so iOS suspended it"), message)
         XCTAssertFalse(message.contains("bridge up"), message)
     }
 
@@ -102,6 +105,23 @@ final class AppLeftForegroundAttributionTests: XCTestCase {
         xcuitest.appInFront = true
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
         XCTAssertEqual(outcome.failureKind, .driverUnreachable)
+    }
+
+    /// プロセスが生きていると確かめられていない(落ちた・実機)なら、前面に無くても背面とは言わない
+    func testAppNotKnownToBeAliveIsNotCalledBackgrounded() async {
+        let (executor, inApp, xcuitest) = make()
+        inApp.suspended = true
+        inApp.crashed = true
+        xcuitest.appInFront = false
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertEqual(outcome.failureKind, .driverUnreachable)
+    }
+
+    /// 同じシナリオにブリッジ不達があれば、run はそちら(生存プローブ・振り直し)を優先する
+    func testDriverUnreachableOutranksBackground() {
+        XCTAssertEqual(ScenarioRunner.outcome(passed: false, frozen: false, environmentFault: false,
+                                              driverUnreachable: true, notApplicable: false, appInBackground: true),
+                       .driverUnreachable)
     }
 
     /// XCUITest が答えない(照会の失敗)ときは推測しない = ブリッジ不達のまま
@@ -234,7 +254,7 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertEqual(outcome.failureKind, .appInBackground)
-        XCTAssertTrue(message.contains("not in the foreground (in front: com.apple.springboard)"), message)
+        XCTAssertTrue(message.contains("not in the foreground, so this step did not read or touch it"), message)
         XCTAssertEqual(inApp.reads, 0, "断る前に in-app を読んだ")
     }
 
@@ -245,6 +265,17 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         xcuitest.appInFront = true
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertEqual(xcuitest.asks, 1)
+    }
+
+    /// 照会が失敗したら断らず、以後は聞かない(固まったランナーで毎ステップ待ちを払わない)
+    func testAFailedProbeIsAskedOnlyOnce() async {
+        let (executor, _, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        xcuitest.appInFront = nil
+        let first = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertTrue(StepExecutor.isSuccess(first.status), "\(first.status)")
         XCTAssertEqual(xcuitest.asks, 1)
     }
 

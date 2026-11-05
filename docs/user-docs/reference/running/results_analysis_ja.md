@@ -106,8 +106,8 @@ results/runs/<YYYY-MM>/<runID>/
 `failureKind` の値: `selector-syntax`(デバイスに触れる前の検証で落とした)、`not-found`
 (スクロール探索を含めてロケータが解決できなかった)、`assertion`(値・状態が期待と違った)、
 `driver-unreachable`(ブリッジへ到達できなかった)、`driver-error`(ブリッジがエラー応答を返した)、
-`timeout`、`app-not-installed`、`app-stopped-by-session`(`terminateApp` で自分が止めたアプリへ、起動し直さずに操作した)、`app-in-background`(iOS で `home()` や別のアプリへ出た後、アプリを前面へ戻さずに操作した)、`system-ui-covered`(`iosAlertHandler` 登録中に OS のシステム UI
-(権限アラート等)がアプリを覆っていた)。`failureKind` が無いのは**ツールが判断できなかった**
+`timeout`、`app-not-installed`、`app-stopped-by-session`(`terminateApp` で自分が止めたアプリへ、起動し直さずに操作した)、`app-in-background`(iOS で `home()` や別のアプリへ出た後、アプリを前面へ戻さずに操作した)、`system-ui-covered`(OS のシステム UI がアプリを覆っていた。`iosAlertHandler` 登録中の権限アラート等、
+または `appSwitcher()` で開いたアプリスイッチャー)。`failureKind` が無いのは**ツールが判断できなかった**
 ことを意味し、推測で埋めることはしません。
 
 ```bash
