@@ -29,13 +29,24 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
 
     private final class EventSink: @unchecked Sendable {
         private let lock = NSLock()
-        private var _events: [ScenarioEvent] = []
-        func append(_ event: ScenarioEvent) { lock.lock(); _events.append(event); lock.unlock() }
-        var events: [ScenarioEvent] { lock.lock(); defer { lock.unlock() }; return _events }
+        private var _events: [(at: ContinuousClock.Instant, event: ScenarioEvent)] = []
+        func append(_ event: ScenarioEvent) { lock.lock(); _events.append((ContinuousClock.now, event)); lock.unlock() }
+        var events: [ScenarioEvent] { lock.lock(); defer { lock.unlock() }; return _events.map(\.event) }
+        var timed: [(at: ContinuousClock.Instant, event: ScenarioEvent)] { lock.lock(); defer { lock.unlock() }; return _events }
+    }
+
+    /// 経過の内訳(開始からの秒)。時間の表明が落ちたとき、どの区間で延びたかを文言から読めるようにする
+    private static func timeline(start: ContinuousClock.Instant, sink: EventSink,
+                                 marks: [(String, ContinuousClock.Instant)]) -> String {
+        func offset(_ t: ContinuousClock.Instant) -> String { String(format: "%.2fs", DurationConversion.seconds(t - start)) }
+        let events = sink.timed.map { "\(offset($0.at)) \($0.event.kind): \(($0.event.message ?? "").prefix(80))" }
+        return (events + marks.map { "\(offset($0.1)) \($0.0)" }).joined(separator: " | ")
     }
 
     private func runOnce(name: String, script: String, scenarioTimeout: Int) async throws
-        -> (passed: Bool, record: ScenarioRunRecord?, logs: [String]) {
+        -> (passed: Bool, record: ScenarioRunRecord?, logs: [String], timeline: String,
+            returned: ContinuousClock.Instant, firstArrival: (String) -> ContinuousClock.Instant?) {
+        let start = ContinuousClock.now
         let project = TestProject(name: name, rootURL: root.appendingPathComponent("TestProjects/\(name)"))
         let path = root.appendingPathComponent(".build/debug").appendingPathComponent(project.productName)
         try FileManager.default.createDirectory(
@@ -59,14 +70,17 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
                                                 scenarioTimeout: scenarioTimeout),
             reportDir: root.appendingPathComponent("reports").path,
             recording: ScenarioRecording(recorder: recorder)) { sink.append($0) }
+        let returned = ContinuousClock.now
         recorder.finish(total: 1, passed: passed ? 1 : 0, failed: passed ? 0 : 1,
                         performanceMode: false, fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
         return (passed, RunResultsStore.records(runDir: recorder.runDir).first,
-                sink.events.compactMap(\.message))
+                sink.events.compactMap(\.message),
+                Self.timeline(start: start, sink: sink, marks: [("ScenarioHost.run returned", returned),
+                                                                ("recorder finished", ContinuousClock.now)]),
+                returned, { message in sink.timed.first { $0.event.message == message }?.at })
     }
 
     func testSilentChildIsKilledWhenOutputStops() async throws {
-        let started = ContinuousClock.now
         let result = try await runOnce(name: "IdleSilent", script: """
             echo '{"kind":"log","message":"hello"}'
             sleep 8
@@ -77,8 +91,11 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         let line = result.logs.first { $0.contains("was killed") }
         XCTAssertTrue(line?.hasPrefix("⏱ The scenario produced no output for ") == true, "\(result.logs)")
         XCTAssertTrue(line?.contains("(allowed 2.0s = 2 × commandTimeout + open waits 0.0s)") == true, "\(line ?? "")")
-        // 予算 2 秒 + 猶予で止まる(8 秒の sleep を待ち切っていない)
-        XCTAssertLessThan(ContinuousClock.now - started, .seconds(7))
+        // 予算 2 秒 + 猶予で止まる(8 秒の sleep を待ち切っていない)。**子の最初の出力から測る** —— 開始から測ると
+        // RunRecorder.begin の ToolchainFingerprint(xcodebuild -version。負荷の下で十数秒)まで数えて誤った赤になる。
+        // 6 秒 = 予算 2 + SIGTERM を無視されたときの猶予 Shell.killGraceSeconds 2 + 余裕 2(打ち切らなければ sleep の 8 秒)
+        let hello = try XCTUnwrap(result.firstArrival("hello"), result.timeline)
+        XCTAssertLessThan(result.returned - hello, .seconds(6), result.timeline)
     }
 
     /// 遅いだけで出力を続ける子は、予算(2 秒)より長く走っても止めない

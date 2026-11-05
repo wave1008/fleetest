@@ -230,20 +230,31 @@ public struct FMServeClient: Sendable {
 
     func waitForRetirement(target: FMServeWire.Identity, waitSeconds: Double) async throws -> FMServeWire.RetirementResponse {
         let deadline = ContinuousClock.now.advanced(by: .seconds(max(0, waitSeconds)))
+        // 一度でも busy と答えた相手の問い直しが失敗しても、結論は busy のまま。問い直しの締め切りは窓の残りで切るので、
+        // 窓の終わり際の1回は負荷で切れやすい。投げると呼び手は「問い合わせの失敗」と読み、status を聞き直して
+        // 生きている busy の相手を置き換える経路へ進む。取り消しは投げ直す
+        var lastBusy: FMServeWire.RetirementResponse?
         while true {
             try Task.checkCancellation()
             let remaining = ContinuousClock.now.duration(to: deadline)
             guard remaining > .zero else {
-                return FMServeWire.RetirementResponse(identity: target, outcome: .busy)
+                return lastBusy ?? FMServeWire.RetirementResponse(identity: target, outcome: .busy)
             }
             var attempt = self
             attempt.deadlineSeconds = min(deadlineSeconds, DurationConversion.seconds(remaining))
-            let response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
+            let response: FMServeWire.RetirementResponse
+            do {
+                response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
+            } catch {
+                guard let lastBusy, !(error is CancellationError), !Task.isCancelled else { throw error }
+                return lastBusy
+            }
             guard response.controlVersion == FMServeWire.retirementProtocolVersion,
                   response.identity.serverVersion == target.serverVersion,
                   response.identity.executable == target.executable,
                   response.identity.buildStamp == target.buildStamp,
                   response.outcome == .busy else { return response }
+            lastBusy = response
             let left = ContinuousClock.now.duration(to: deadline)
             guard left > .zero else { return response }
             // 暖機終了後の1秒の隙間を照会する。照会はFM推論を起こさず、毎秒10回を上限とする。

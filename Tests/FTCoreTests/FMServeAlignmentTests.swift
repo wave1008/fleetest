@@ -340,6 +340,38 @@ final class FMServeAlignmentTests: XCTestCase {
         XCTAssertEqual(kinds.value, ["status"])
     }
 
+    /// 退役の問い合わせの窓。**1回の問い合わせの締め切りもこの窓で切られる**(`waitForRetirement` が残り時間を
+    /// deadline にする)ので、ミリ秒単位にすると負荷の下でテスト用のサーバー(20 ms ごとに受け付けを見る)が
+    /// 答える前に切れて `retirementQueryFailed` の誤った赤になる(24 並列の全体テストで実際に出た)
+    private static let retirementWindow: Double = 1
+
+    /// busy と答えた相手の問い直しが窓の終わりで切れても busy のまま(失敗に化けると status を聞き直し、置き換えへ進む)。
+    /// 一度も答えないまま切れたら従来どおり失敗
+    func testTimedOutRequeryAfterBusyStaysBusy() async throws {
+        let executable = try temporaryExecutable()
+        defer { try? FileManager.default.removeItem(at: executable) }
+        for answersBusyFirst in [true, false] {
+            let peer = identity(executable: executable.path)
+            let requests = LockedValue(0)
+            let socket = path()
+            let stop = serve(path: socket) { _ in
+                let index = requests.withLock { $0 += 1; return $0 }
+                if answersBusyFirst && index == 1 {
+                    return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .busy))
+                }
+                try? await Task.sleep(for: .seconds(2))  // 窓(0.5 秒)より長く黙る
+                return nil
+            }
+            let decision = await FMServeHost.prepareExistingServer(peer, client: FMServeClient(socketPath: socket),
+                                                                   executable: executable.path, buildStamp: "new",
+                                                                   serverExecutableStamp: "new", waitSeconds: 0.5)
+            XCTAssertEqual(decision, answersBusyFirst ? .leave(.busy) : .leave(.retirementQueryFailed),
+                           "answersBusyFirst=\(answersBusyFirst)")
+            XCTAssertGreaterThanOrEqual(requests.value, answersBusyFirst ? 2 : 1)
+            stop()
+        }
+    }
+
     func testNormalStartupRequiresSafeRetirementAcknowledgement() async throws {
         let executable = try temporaryExecutable()
         defer { try? FileManager.default.removeItem(at: executable) }
@@ -363,18 +395,24 @@ final class FMServeAlignmentTests: XCTestCase {
             let decision = await FMServeHost.prepareExistingServer(peer, client: FMServeClient(socketPath: socket),
                                                                    executable: executable.path, buildStamp: "new",
                                                                    serverExecutableStamp: "new",
-                                                                   waitSeconds: outcomes.count > 1 ? 1 : 0.05)
+                                                                   waitSeconds: Self.retirementWindow)
             XCTAssertEqual(decision, expectedDecision)
-            XCTAssertEqual(requests.value, Array(repeating: "retire", count: outcomes.count))
             if expectedDecision == .leave(.busy) {
+                // busy の間は窓の終わりまで問い合わせ直すので回数は負荷で変わる。守るのは「retire だけを聞く」こと
+                XCTAssertFalse(requests.value.isEmpty)
+                XCTAssertEqual(Set(requests.value), ["retire"])
+                let before = requests.value.count
                 var lines: [String] = []
                 let result = await FMServeHost.ensureRunning(client: FMServeClient(socketPath: socket), executable: executable,
-                                                             stamp: "new", initialStatus: peer, waitSeconds: 0.05,
+                                                             stamp: "new", initialStatus: peer, waitSeconds: Self.retirementWindow,
                                                              spawn: { _, _ in XCTFail("busy server replaced"); return false },
                                                              log: { lines.append($0) })
                 XCTAssertNil(result)
-                XCTAssertEqual(lines, ["⚠️ The FM process stayed busy for 0 s; it was left running; FM checks are skipped here"])
-                XCTAssertEqual(requests.value, ["retire", "retire"], "busy was reclassified as a failed query and status was retried")
+                XCTAssertEqual(lines, ["⚠️ The FM process stayed busy for 1 s; it was left running; FM checks are skipped here"])
+                XCTAssertGreaterThan(requests.value.count, before)
+                XCTAssertEqual(Set(requests.value), ["retire"], "busy was reclassified as a failed query and status was retried")
+            } else {
+                XCTAssertEqual(requests.value, Array(repeating: "retire", count: outcomes.count))
             }
             stop()
         }
