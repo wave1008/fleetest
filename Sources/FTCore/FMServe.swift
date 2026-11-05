@@ -230,31 +230,20 @@ public struct FMServeClient: Sendable {
 
     func waitForRetirement(target: FMServeWire.Identity, waitSeconds: Double) async throws -> FMServeWire.RetirementResponse {
         let deadline = ContinuousClock.now.advanced(by: .seconds(max(0, waitSeconds)))
-        // 一度でも busy と答えた相手の問い直しが失敗しても、結論は busy のまま。問い直しの締め切りは窓の残りで切るので、
-        // 窓の終わり際の1回は負荷で切れやすい。投げると呼び手は「問い合わせの失敗」と読み、status を聞き直して
-        // 生きている busy の相手を置き換える経路へ進む。取り消しは投げ直す
-        var lastBusy: FMServeWire.RetirementResponse?
         while true {
             try Task.checkCancellation()
-            let remaining = ContinuousClock.now.duration(to: deadline)
-            guard remaining > .zero else {
-                return lastBusy ?? FMServeWire.RetirementResponse(identity: target, outcome: .busy)
+            guard ContinuousClock.now < deadline else {
+                return FMServeWire.RetirementResponse(identity: target, outcome: .busy)
             }
-            var attempt = self
-            attempt.deadlineSeconds = min(deadlineSeconds, DurationConversion.seconds(remaining))
-            let response: FMServeWire.RetirementResponse
-            do {
-                response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
-            } catch {
-                guard let lastBusy, !(error is CancellationError), !Task.isCancelled else { throw error }
-                return lastBusy
-            }
+            // 窓が決めるのは「新しい問い直しを始めてよい期限」だけ。1回の問い合わせの締め切りを窓の残りで切らない ——
+            // サーバは `.retiring` を書く前に停止を始めるので、短い締め切りで諦めた問い合わせが実は退役させていて、
+            // 返事だけを取りこぼす(呼び手は相手が居るのか消えたのか言えなくなる)
+            let response = try await retire(FMServeWire.RetirementRequest(target: target))
             guard response.controlVersion == FMServeWire.retirementProtocolVersion,
                   response.identity.serverVersion == target.serverVersion,
                   response.identity.executable == target.executable,
                   response.identity.buildStamp == target.buildStamp,
                   response.outcome == .busy else { return response }
-            lastBusy = response
             let left = ContinuousClock.now.duration(to: deadline)
             guard left > .zero else { return response }
             // 暖機終了後の1秒の隙間を照会する。照会はFM推論を起こさず、毎秒10回を上限とする。

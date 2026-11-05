@@ -340,34 +340,37 @@ final class FMServeAlignmentTests: XCTestCase {
         XCTAssertEqual(kinds.value, ["status"])
     }
 
-    /// 退役の問い合わせの窓。**1回の問い合わせの締め切りもこの窓で切られる**(`waitForRetirement` が残り時間を
-    /// deadline にする)ので、ミリ秒単位にすると負荷の下でテスト用のサーバー(20 ms ごとに受け付けを見る)が
-    /// 答える前に切れて `retirementQueryFailed` の誤った赤になる(24 並列の全体テストで実際に出た)
+    /// 退役の問い合わせの窓。busy の間は窓の終わりまで問い直すので、ミリ秒単位にすると負荷の下で
+    /// 1回目の返事(テスト用のサーバーは 20 ms ごとに受け付けを見る)が窓に収まらない
     private static let retirementWindow: Double = 1
 
-    /// busy と答えた相手の問い直しが窓の終わりで切れても busy のまま(失敗に化けると status を聞き直し、置き換えへ進む)。
-    /// 一度も答えないまま切れたら従来どおり失敗
-    func testTimedOutRequeryAfterBusyStaysBusy() async throws {
+    /// 窓が閉じた後に届いた返事も受け取る(1回の問い合わせの締め切りを窓の残りで切らない)。
+    /// 窓の中で始めた問い直しへの `.retiring` を取りこぼすと、相手は止まったのに呼び手は busy か失敗と読む。
+    /// 答えずに閉じた相手は失敗として届く(busy に丸めない)
+    func testRequeryStartedInTheWindowGetsItsAnswerAfterTheWindow() async throws {
         let executable = try temporaryExecutable()
         defer { try? FileManager.default.removeItem(at: executable) }
-        for answersBusyFirst in [true, false] {
+        let window: Double = 2  // 1回目の busy が負荷の下でも窓の中に返る長さ
+        for answersAfterTheWindow in [true, false] {
             let peer = identity(executable: executable.path)
             let requests = LockedValue(0)
             let socket = path()
+            let windowEnd = ContinuousClock.now.advanced(by: .seconds(window))
             let stop = serve(path: socket) { _ in
                 let index = requests.withLock { $0 += 1; return $0 }
-                if answersBusyFirst && index == 1 {
+                if index == 1 {
                     return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .busy))
                 }
-                try? await Task.sleep(for: .seconds(2))  // 窓(0.5 秒)より長く黙る
-                return nil
+                guard answersAfterTheWindow else { return nil }
+                try? await Task.sleep(until: windowEnd.advanced(by: .milliseconds(300)), clock: .continuous)
+                return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .retiring))
             }
             let decision = await FMServeHost.prepareExistingServer(peer, client: FMServeClient(socketPath: socket),
                                                                    executable: executable.path, buildStamp: "new",
-                                                                   serverExecutableStamp: "new", waitSeconds: 0.5)
-            XCTAssertEqual(decision, answersBusyFirst ? .leave(.busy) : .leave(.retirementQueryFailed),
-                           "answersBusyFirst=\(answersBusyFirst)")
-            XCTAssertGreaterThanOrEqual(requests.value, answersBusyFirst ? 2 : 1)
+                                                                   serverExecutableStamp: "new", waitSeconds: window)
+            XCTAssertEqual(decision, answersAfterTheWindow ? .replace : .leave(.retirementQueryFailed),
+                           "answersAfterTheWindow=\(answersAfterTheWindow)")
+            XCTAssertEqual(requests.value, 2, "answersAfterTheWindow=\(answersAfterTheWindow)")
             stop()
         }
     }
