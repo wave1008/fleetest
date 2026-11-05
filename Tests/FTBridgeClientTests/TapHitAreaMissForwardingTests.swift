@@ -24,4 +24,23 @@ final class TapHitAreaMissForwardingTests: XCTestCase {
         XCTAssertGreaterThan(checked, 5, "走査対象が見つからない = パスかシグネチャの書式が変わった")
         XCTAssertTrue(missing.isEmpty, "lastActionNote を運ぶ型は lastTapHitAreaMiss も素通しすること: \(missing)")
     }
+    /// `lastTapDelivery` も同じ(素通しを忘れると activate で押した回にも中心の覆いの注記が戻る)
+    func testEveryDriverCarryingTheHitAreaMissAlsoCarriesTheTapDelivery() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        var missing: [String] = []
+        var checked = 0
+        for dir in ["Sources/FTBridgeClient", "Sources/FTAndroid", "Sources/FTCore"] {
+            let base = root.appendingPathComponent(dir)
+            let files = (try? FileManager.default.contentsOfDirectory(at: base, includingPropertiesForKeys: nil)) ?? []
+            for file in files where file.pathExtension == "swift" {
+                guard let source = try? String(contentsOf: file, encoding: .utf8),
+                      source.contains("var lastTapHitAreaMiss: TapHitAreaMiss?") else { continue }
+                checked += 1
+                if !source.contains("var lastTapDelivery: TapDelivery?") { missing.append(file.lastPathComponent) }
+            }
+        }
+        XCTAssertGreaterThan(checked, 5, "走査対象が見つからない = パスかシグネチャの書式が変わった")
+        XCTAssertTrue(missing.isEmpty, "lastTapHitAreaMiss を運ぶ型は lastTapDelivery も素通しすること: \(missing)")
+    }
 }

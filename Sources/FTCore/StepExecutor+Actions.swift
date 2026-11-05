@@ -1159,11 +1159,8 @@ extension StepExecutor {
                 }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
-                    if centreCoverOnly, actingDriver.lastTapDelivery == .activate {
-                        lastInteraction?.coverSuspect = nil
-                    } else {
-                        adviseTarget(centreAdvisory)
-                    }
+                    let pressedByActivate = actingDriver.lastTapDelivery == .activate
+                    if !(centreCoverOnly && pressedByActivate) { adviseTarget(centreAdvisory) }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {
                         let centre = "(\(Int(miss.x.rounded())), \(Int(miss.y.rounded())))"
@@ -1182,6 +1179,9 @@ extension StepExecutor {
                             driverFallback = Self.joinNotes(driverFallback, StepNote.staleRefAtTap.text + " (at \(centre))")
                         }
                     }
+                    // activate で押した = 座標を撃っていない。撃つ前の判定(別の層の覆い・中心の覆い)や当たり判定の申告から立った
+                    // 「触れたのは覆いかも」の疑いは、失敗後の案内に使わない(どこで立ったかに関わらず最後に捨てる)
+                    if pressedByActivate { lastInteraction?.coverSuspect = nil }
                 } catch {
                     // in-app が「activate 不発・合成タッチは効かない」(SwiftUI)で 501 を返したら、
                     // 今の木の枠の中心を XCUITest の座標タップで押す(ref は別名前空間なので渡さない)。
