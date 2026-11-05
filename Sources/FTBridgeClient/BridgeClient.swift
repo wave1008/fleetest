@@ -670,6 +670,21 @@ public final class BridgeClient: AppDriver, Sendable {
         return (info["CFBundleDisplayName"] as? String) ?? (info["CFBundleName"] as? String)
     }
 
+    /// インストール済みのアプリが受ける URL スキーム(小文字)。`simctl listapps` の `Path` の Info.plist の `CFBundleURLTypes` から読む
+    /// (listapps 自体はスキームを載せない)。読めなければ nil(呼び手は「分からない」として扱う)
+    static func appURLSchemes(bundleID: String, target: String) -> Set<String>? {
+        guard let result = try? Shell.run(["xcrun", "simctl", "listapps", target]), result.status == 0,
+              let data = result.output.data(using: .utf8),
+              let raw = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let apps = raw as? [String: [String: Any]],
+              let path = apps[bundleID]?["Path"] as? String,
+              let plistData = FileManager.default.contents(atPath: path + "/Info.plist"),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)
+                as? [String: Any] else { return nil }
+        let types = plist["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        return Set(types.flatMap { ($0["CFBundleURLSchemes"] as? [String]) ?? [] }.map { $0.lowercased() })
+    }
+
     /// フォアグラウンドのアプリが bundleID と一致するか(POST /appstate。両ブリッジ HTTP 互換)
     public func isAppForeground(bundleID: String) async throws -> Bool {
         let res: AppStateResponse = try await post("/appstate", body: AppStateRequest(bundleID: bundleID),

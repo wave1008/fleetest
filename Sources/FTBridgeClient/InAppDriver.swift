@@ -122,7 +122,33 @@ public final class InAppDriver: AppDriver {
             // 無応答・その他はそのまま配送を試みる
         }
         // 同意の確かめは XCUITest 接続だけが行う(BridgeClient.deliverURL のコメント。WebViewDelegatingDriver.openURL が回す)
-        try await withCrashContext { try await client.deliverURL(url) }
+        let simTarget = try await withCrashContext { try await client.deliverURL(url) }
+        if let simTarget, Self.opensAnotherApp(url: url, ownSchemes: BridgeClient.appURLSchemes(bundleID: target, target: simTarget)) {
+            await awaitLeavingForeground()
+        }
+    }
+
+    /// **別のアプリを開く URL では、対象アプリが前面から外れるのを待ってから返す**。simctl openurl は開いた先が前に出る前に返り、
+    /// 撃つ前の門(StepExecutor.backgroundedAppRefusal)は「まだ前面」と聞いて印を落とし、次の tap が設定の下の対象アプリへ
+    /// 届いて緑・押されていた(19〜20周目 ilocal F1: `openURL("App-prefs:")` → tap が 0.17 秒で ✅・次の select が 423 = tap の
+    /// 時点ではまだ前面だった)。外れた = background か無応答(停止)。inactive は外れていない(in-app は inactive でも撃てる)。
+    /// 上限まで外れなければ黙って返す(開いた先の同意のアラートの間は inactive のまま = 同意の確かめが後で押す)
+    private func awaitLeavingForeground() async {
+        let deadline = Date().addingTimeInterval(AppAttachDriver.homeLeaveSeconds)
+        while Date() < deadline {
+            guard let state = try? await client.status(timeout: Self.leaveProbeTimeout).applicationState,
+                  state != "background" else { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+    /// 1回の聞き取りの上限(秒)。前面の in-app は数 ms で答える(実測 1〜17ms)。停止したアプリは答えないので、ここで切れた = 外れた
+    static let leaveProbeTimeout: TimeInterval = 0.5
+
+    /// URL のスキームが対象アプリのものでなければ true(別のアプリが開く)。自分のスキーム・スキームが読めない URL・アプリの
+    /// スキームが分からない(nil)ときは false = 待たない(自アプリのディープリンクで毎回上限を払わない)
+    static func opensAnotherApp(url: String, ownSchemes: Set<String>?) -> Bool {
+        guard let ownSchemes, let scheme = URL(string: url)?.scheme?.lowercased() else { return false }
+        return !ownSchemes.contains(scheme)
     }
 
     /// 写真ライブラリへの追加は simctl の役割でブリッジを経ない(BridgeClient が対象の Simulator を引く)

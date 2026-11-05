@@ -1,4 +1,4 @@
-// **陽性対照(S0010〜S0040・S0060 は赤が正解・S0050 は緑)**。緑の run ではまず通らない経路を強制的に通す台なので、
+// **陽性対照(S0010〜S0040・S0060・S0070 は赤が正解・S0050 は緑)**。緑の run ではまず通らない経路を強制的に通す台なので、
 // 通常実行に載せる `scenarios/` 直下には置かない。iOS の inapp-boost モードだけで意味がある(xcuitest モードはランナーが自分で断る)。
 //
 // 守っているもの: アプリが前面を離れた後(`home()` / `appSwitcher()`)の読み・操作を、人には触れない画面へ届けずに断る。
@@ -10,6 +10,8 @@
 // - 誤って断らない側: スイッチャーから `tapAppIcon()` で戻った後の操作は緑(S0050)
 // - スイッチャーから `home()`: Simulator ではアプリへ戻り、前面のまま ✅ を返して後続の tap が押されていた(19周目 im4 F2)。
 //   `AppAttachDriver.home` が押し直してホームへ出す。赤は `app-in-background`(S0060)
+// - `openURL` で別のアプリ(設定)を開いた直後: simctl openurl は設定が前に出る前に返り、次の tap がまだ前面の対象アプリへ届いて
+//   緑・押されていた(19〜20周目 ilocal F1・16 回中 3 回)。in-app の openURL が外れるのを待つ。赤は `app-in-background`(S0070)
 //
 // **緑なら断りが効いていない**(押されたか読めた = 誤った成功)。赤でも failureKind が違えば別の経路で落ちている。
 //
@@ -116,6 +118,23 @@ class アプリが前面を離れた後 {
                 }.action {
                     appSwitcher()
                     home()
+                    tap("#btn_session_inc")
+                }.expectation {
+                    select("#txt_session_count").textIs("session=1")
+                }
+            }
+        }
+    }
+
+    @Test("openURL で設定を開いた直後に押すと、背面と言って赤")
+    func S0070() {
+        scenario {
+            scene(1, "設定を開いて押す") {
+                condition {
+                    launchApp()
+                    tap("#nav_lifecycle", scroll: .down)
+                }.action {
+                    openURL("App-prefs:")
                     tap("#btn_session_inc")
                 }.expectation {
                     select("#txt_session_count").textIs("session=1")
