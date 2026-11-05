@@ -83,6 +83,7 @@ final class FTInAppBridge {
         // CMP 1.12 ではキーボードが無くても可視、UIInputSetHostView のクラス名走査は iOS 27 で不発を実測)。
         // 構成子から張るのでアプリの UI より先 = 通知が無ければキーボードは出ていない(keyboardIsVisible)
         DispatchQueue.main.async { Self.observeKeyboardFrame() }
+        Self.observeBackground()
         // 画面が進んでいるかの計器(/status の displayIdleSeconds)。
         // **ホストは凍結判定に使わない** —— 理由は DisplayHeartbeat の説明を参照
         DisplayHeartbeat.shared.start()
@@ -134,14 +135,13 @@ final class FTInAppBridge {
         // home や別のアプリへ移った後も一時停止されるまで数秒は背面のアプリを読めて押せる = 人にはできない操作が緑になった
         // (16周目 ilocal F1: home() の後の tap / textIs が背面のアプリに届いて緑)。**断るのは background だけ** ——
         // OS のアラートの間は active / inactive が端末で割れる(SystemUIGate の doc)が、背面へ回ったアプリは background。
-        // 状態の照会・スクリーンショット・起動の受け付けは断らない。423 にするのは 409 がホストで XCUITest への回り道の合図だから
-        // (reason は付けない = 「届いていないので撃ち直してよい」の意味を持たせない)
-        if Self.refusedWhileInBackground.contains(req.path),
-           mainSync({ UIApplication.shared.applicationState == .background }) {
+        // 状態は通知で控えた値を読む(main へ寄らない = main が塞がっているときの各ハンドラの 504 の予算を壊さない)。
+        // 423 にするのは 409 がホストで XCUITest への回り道の合図だから(reason は付けない = 「届いていないので撃ち直してよい」の
+        // 意味を持たせない)。対処の文は呼び手が持つ(ここでは事実だけ言う)
+        if !Self.allowedWhileInBackground.contains(req.path), Self.appIsInBackground {
             let app = Bundle.main.bundleIdentifier ?? "the app"
             return .error("\(app) is in the background (the home screen or another app is in front), so the in-app bridge"
-                + " did not read or touch it — a person could not do this either. Bring the app back (launchApp()) before this step",
-                status: 423)
+                + " did not read or touch it (a person could not either)", status: 423)
         }
         do {
             switch (req.method, req.path) {
@@ -182,11 +182,30 @@ final class FTInAppBridge {
         }
     }
 
-    /// アプリが背面の間に断る要求(`handle` の doc)
-    static let refusedWhileInBackground: Set<String> = [
-        "/snapshot", "/tap", "/type", "/clear", "/pressEnter", "/hidekeyboard", "/swipe", "/doubletap", "/pinch",
-        "/drag", "/press",
+    /// アプリが背面の間も受ける要求(`handle` の doc)。**許可の表にしてある** = 足したルートは既定で断られる側に入る。
+    /// /screenshot を断らないのは呼び手が多い(失敗の証跡・描画崩壊・配信)ため(背面での判定の絵は OI-175 ⑤)。
+    /// /rotate は端末の向きで、人も背面のまま回せる
+    static let allowedWhileInBackground: Set<String> = [
+        "/status", "/screenshot", "/session", "/terminate", "/appstate", "/rotate",
     ]
+
+    /// 背面に回ったか。didEnterBackground で立て willEnterForeground で落とす(通知は構成子から張る = アプリの UI より先。
+    /// 起動直後は前面へ向かう途中なので false から始める)
+    private static let backgroundLock = NSLock()
+    private static var backgroundFlag = false
+    static var appIsInBackground: Bool {
+        backgroundLock.lock(); defer { backgroundLock.unlock() }
+        return backgroundFlag
+    }
+    private static func observeBackground() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { _ in
+            backgroundLock.lock(); backgroundFlag = true; backgroundLock.unlock()
+        }
+        center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { _ in
+            backgroundLock.lock(); backgroundFlag = false; backgroundLock.unlock()
+        }
+    }
 
     // MARK: - Handlers
 
