@@ -34,6 +34,11 @@ extension StepExecutor {
     /// scroll: を持たない操作(doubleTap 等)は先に送る手を案内する)
     /// (スクロールで木から消えた部品 = 隠れるバーに `waitSeconds:` だけを案内すると、従っても直らない。10周目の探索 iultra F5)。
     /// `defaultWaitHint` とは別に持つ(MCP があちらの文言をそのまま取り除くので混ぜない)
+    /// 探索がアプリの消失・前面を離れたことで止まった = 対象の有無を確かめていない(「見つからない」の記録・select の空要素にしない)
+    static func searchStoppedWithoutLooking(_ result: ScrollSearchResult) -> Bool {
+        result.appGone != nil || result.appLeftForeground != nil
+    }
+
     static func scrollOffHint(_ step: FlowStep, in snapshot: SnapshotResponse) -> String {
         guard step.direction == nil,
               TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) != nil else { return "" }
@@ -210,7 +215,7 @@ extension StepExecutor {
                 // 書き手が次の手(maxSwipes・逆向き・scrollFrame)を選べるのはこの行だけ
                 // アプリが落ちた・前面を離れた・書いた scrollFrame が引けなかったのは「見つからない」ではない = select でも失敗
                 // (探索しない経路の appGoneFailure と同じ。空要素で分岐して緑にしない)
-                if action == "select", result.appGone != nil || result.appLeftForeground != nil || result.scrollFrameMissing {
+                if action == "select", Self.searchStoppedWithoutLooking(result) || result.scrollFrameMissing {
                     return StepOutcome(status: failedWithoutKind(scrollSearchFailureMessage(step, result)))
                 }
                 // scrollFrame の注記は scrollSearchNote が driverFallback で運ぶので、ここには足さない
@@ -223,6 +228,10 @@ extension StepExecutor {
                 // 実測: 同名 `#recycler_view` が4つある画面で先頭の横チップ行を
                 // 掴んだまま「element not found」としか言わず、曖昧だったことが伝わらなかった
                 let why = pendingScrollFrameNote.map { " (\($0))" } ?? ""
+                // アプリが落ちた・前面を離れたのは「見つからない」ではない(失敗の記録に notFound を付けない = 言えない)
+                if Self.searchStoppedWithoutLooking(result) {
+                    return StepOutcome(status: failedWithoutKind(scrollSearchFailureMessage(step, result) + why))
+                }
                 return StepOutcome(status: failed(.notFound, scrollSearchFailureMessage(step, result) + why))
             }
             searchSwiped = true

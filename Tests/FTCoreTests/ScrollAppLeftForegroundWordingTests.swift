@@ -44,4 +44,15 @@ final class ScrollAppLeftForegroundWordingTests: XCTestCase {
         XCTAssertTrue(m.contains("disappeared from the tree"), m)
         XCTAssertTrue(m.contains("com.android.systemui was in front"), m)
     }
+
+    /// アプリの消失・前面を離れて止まった探索は対象の有無を確かめていない(失敗の記録に notFound を付けない・select を空要素にしない)
+    func testStopsWithoutLookingAreNotAbsence() {
+        var r = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0, swipes: 3)
+        XCTAssertFalse(StepExecutor.searchStoppedWithoutLooking(r))
+        r.appLeftForeground = "com.apple.Preferences"
+        XCTAssertTrue(StepExecutor.searchStoppedWithoutLooking(r))
+        r.appLeftForeground = nil
+        r.appGone = "the app process is gone"
+        XCTAssertTrue(StepExecutor.searchStoppedWithoutLooking(r))
+    }
 }
