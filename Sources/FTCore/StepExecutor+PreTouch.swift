@@ -149,6 +149,20 @@ extension StepExecutor {
         PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: uiFramework)
     }
 
+    /// 覆いの下の対象を出す直し方(撃つ前の断り・失敗後の案内 `coveredTouchHint` で共有)。名指す覆いは中心を覆う最前面の要素
+    /// (シートの中の行のことがある)なので、閉じる・畳む相手は「それを持つシート・パネル」と言う。`step` が分かれば `scroll:` の
+    /// 書き方を出し分ける(書いた手 = 探索が送っても出せなかったので足せと言わない・`scroll:` を受けないコマンドは先に送る手)
+    static func uncoverRemedy(cover: String, step: FlowStep?) -> String {
+        let close = "If \(cover) is part of a sheet or panel, close or collapse it first"
+        guard let step else { return close + "; otherwise scroll the target clear of it" }
+        if step.direction != nil {
+            return close + "; scrolling in the written direction did not bring the target out, so scroll the other way"
+        }
+        if coveredTouchAcceptsScroll(step.action) { return close + "; otherwise add scroll: so the target is scrolled clear of it" }
+        return close + "; otherwise scroll the list before this step (scrollUp() / scrollDown()) until the target is clear of it"
+            + " — this command has no scroll: argument"
+    }
+
     func buriedOutsideContainerRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep) -> String? {
         // 判定は探索の「見つかった」・最初に掴む一致と同じ `TapTargetGeometry.touchBlock`(1か所)。撃つ前に断る形:
         // 一覧の外で1回の送りでは外せない覆い(ナビゲーションバー・折りたたみヘッダ)の下・入れ子の外側の一覧に切り取られた対象。
@@ -199,8 +213,10 @@ extension StepExecutor {
             if !isAndroid,
                let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen) {
                 if await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
+                    let name = TapTargetGeometry.describe(cover)
                     return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
-                        + " \(TapTargetGeometry.describe(cover)) is drawn over it, so a touch would land there (nothing was touched)")
+                        + " \(name) is drawn over it, so a touch would land there (nothing was touched). "
+                        + Self.uncoverRemedy(cover: name, step: step))
                 }
                 suspect = suspect ?? cover
             }
@@ -211,10 +227,11 @@ extension StepExecutor {
                 + " or anything else in front (the target's centre is under it)")
         case .tooThin(let visible, let floor, let over)?:
             func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
-            return .refuse("did not touch \(step.locatorSummary): its centre is covered by \(TapTargetGeometry.describe(over)),"
+            let name = TapTargetGeometry.describe(over)
+            return .refuse("did not touch \(step.locatorSummary): its centre is covered by \(name),"
                 + " and only \(n(visible)) of the target is left uncovered by what is in front of it"
-                + " (the minimum is \(n(floor)), in the snapshot's units), so a touch would land on \(TapTargetGeometry.describe(over))"
-                + " (nothing was touched). Close or collapse \(TapTargetGeometry.describe(over)) first, or scroll the target clear of it")
+                + " (the minimum is \(n(floor)), in the snapshot's units), so a touch would land on \(name)"
+                + " (nothing was touched). " + Self.uncoverRemedy(cover: name, step: step))
         }
     }
 

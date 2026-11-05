@@ -1588,7 +1588,7 @@ public final class StepExecutor {
         noteCodesThisStep.insert(.coveredTouchBeforeFailure)
         return " (when the preceding \(last.description) was fired, \(cover) overlapped the target's centre on this device,"
             + " so the touch may have landed on \(cover) instead — if that is why this step failed, fix the scenario so the"
-            + " target is not covered at that step: close or collapse \(cover) first, or scroll the target clear of it)"
+            + " target is not covered at that step. \(Self.uncoverRemedy(cover: cover, step: nil)))"
     }
 
     /// 次のタップの時点で画面が変わっていなかった、それより前のタップ(`unchangedEarlierTaps`)。
