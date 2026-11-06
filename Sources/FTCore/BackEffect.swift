@@ -34,6 +34,18 @@ public enum BackEffect {
             && KeyboardWait.isShown(before) == KeyboardWait.isShown(after)
     }
 
+    /// **戻るボタンの無い画面で(= 左端のスワイプに落ちて)、前後で同じ画面に留まったか**。木が変わっても(スワイプが中身に届いた)
+    /// 識別子の組が同じなら同じ画面。識別子が少ない画面(3 未満)は言えないので false(黙る)。戻るボタンがあれば押すので対象外
+    public static func stayedOnSameScreen(before: SnapshotResponse, after: SnapshotResponse) -> Bool {
+        guard !before.elements.contains(where: { $0.identifier == "BackButton" && $0.type == "button" }) else { return false }
+        let ids: (SnapshotResponse) -> Set<String> = { Set($0.elements.compactMap { $0.identifier }.filter { !$0.isEmpty }) }
+        let beforeIDs = ids(before)
+        guard beforeIDs.count >= minimumIdentifiers else { return false }
+        return beforeIDs == ids(after)
+    }
+    /// 同じ画面と言うのに要る識別子の数(1〜2 個では、別の画面でも同じ組になりうる)
+    static let minimumIdentifiers = 3
+
     /// 注記を出すべきか。observations が空(=1度も撮り直せなかった)なら「変わっていない」と
     /// 断言する材料が無いので false(黙る)。1件でも back が効いた観測があれば false。
     /// 1件以上あり**すべてで何も変わっていない**なら true

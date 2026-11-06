@@ -108,6 +108,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (MCP の ft_navigate と共有)。before/after とも back() 1回につき1枚ずつ素直に読む
     /// (使い回しキャッシュを持たない理由は BackEffect.swift 参照)
     case backIneffective = "back-ineffective"
+    /// iOS の back() が戻るボタンの無い画面で左端のスワイプに落ち、**前後で同じ画面(識別子の組が同じ)に留まった**。木は変わって
+    /// いる(= back-ineffective にならない)ので、スワイプが画面の中身(スワイプを受ける領域・地図)に届いた形を黙って ✅ にしていた
+    /// (28周目 iultra F1: ジェスチャ画面で `swipe=right` を残して 30/30・im4 の Flutter 9/9)。合否は変えず事実を言う(`BackEffect.stayedOnSameScreen`)
+    case backStayedOnScreen = "back-stayed-on-screen"
 
     /// 自己修復(指紋照合)が代わりの要素を見つけたのに、**この画面でそれを一意に指せる書き方が無い**
     /// (`SelectorNaming.graded` が nil)。操作はその要素で続けるが、修正提案は作らない ——
@@ -530,6 +534,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the tree did not appear to cover the whole screen when this was judged, so an"
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
+        case .backStayedOnScreen:
+            return "back had no navigation back button to tap, so it swiped from the left edge; the screen still shows the same"
+                + " elements, so it did not go back — the swipe may have reached the screen's own content. Tap the app's own back"
+                + " control instead"
         case .interruptionDismissed: return "dismissed a declared interruption during this step"
         case .waitedForEnabled:
             return "the target was still disabled, so the tap waited for it to become enabled"

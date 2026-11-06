@@ -77,4 +77,31 @@ final class BackEffectTests: XCTestCase {
         XCTAssertTrue(BackEffect.shouldWarn(before: snap(treeA),
                                             afterObservations: [snap(treeA, keyboard: FTRect(x: 0, y: 2400, width: 1080, height: 799))]))
     }
+
+    // MARK: - stayedOnSameScreen: 左端のスワイプが中身に届いて同じ画面に留まった(28周目 iultra F1)
+
+    private func idEl(_ id: String, _ label: String, type: String = "staticText") -> ElementInfo {
+        ElementInfo(ref: 1, type: type, identifier: id, label: label, value: nil, placeholder: nil, enabled: true,
+                    frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)
+    }
+
+    func testSwipeThatReachedTheContentIsTheSameScreen() {
+        let before = snap([idEl("txt_title", "ジェスチャ"), idEl("pad_swipe", ""), idEl("txt_swipe", "swipe=none")])
+        let after = snap([idEl("txt_title", "ジェスチャ"), idEl("pad_swipe", ""), idEl("txt_swipe", "swipe=right")])
+        XCTAssertFalse(BackEffect.shouldWarn(before: before, afterObservations: [after]), "木は変わっている")
+        XCTAssertTrue(BackEffect.stayedOnSameScreen(before: before, after: after))
+    }
+
+    func testGoingBackIsNotTheSameScreen() {
+        let before = snap([idEl("txt_title", "ジェスチャ"), idEl("pad_swipe", ""), idEl("txt_swipe", "swipe=none")])
+        let home = snap([idEl("txt_home_marker", "ホーム"), idEl("nav_gesture", "ジェスチャ"), idEl("nav_input", "入力")])
+        XCTAssertFalse(BackEffect.stayedOnSameScreen(before: before, after: home))
+    }
+
+    func testANavigationBackButtonOrTooFewIdentifiersStaySilent() {
+        let withButton = snap([idEl("BackButton", "戻る", type: "button"), idEl("a", "a"), idEl("b", "b")])
+        XCTAssertFalse(BackEffect.stayedOnSameScreen(before: withButton, after: withButton), "戻るボタンは押すので対象外")
+        let sparse = snap([idEl("a", "a"), idEl("b", "b")])
+        XCTAssertFalse(BackEffect.stayedOnSameScreen(before: sparse, after: sparse), "識別子が少ない画面では言えない")
+    }
 }

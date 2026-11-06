@@ -343,6 +343,8 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         guard let before, let after = try? await observer.snapshot() else { return }
         if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
             observedNote = .backIneffective
+        } else if core.platform != "android", BackEffect.stayedOnSameScreen(before: before, after: after) {
+            observedNote = .backStayedOnScreen
         }
     }
 }
