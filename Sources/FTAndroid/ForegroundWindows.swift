@@ -40,6 +40,16 @@ public enum AndroidForegroundWindows {
         }
     }
 
+    /// **対象アプリ自身のダイアログの窓**(同じ package の可視の窓で `ty=APPLICATION`)。窓の名前がアプリの Activity と同じなので
+    /// `overlaying` は自分の package の窓として除く —— ダイアログの裏の要素への操作の失敗が覆いを名指さなかった。
+    /// Activity 本体は `ty=BASE_APPLICATION`。型が読めない窓は数えない(判定できないときは黙る)
+    public static func ownDialogs(package: String, dumpsys: String) -> [String] {
+        windowBlocks(dumpsys).compactMap { block in
+            guard block.visible, block.type == "APPLICATION", block.name.hasPrefix("\(package)/") else { return nil }
+            return "\(block.name) (the app's own dialog window)"
+        }
+    }
+
     /// `dumpsys window windows` にソフトキーボード(IME)の window が**表示中**で存在するか。
     /// AndroidDriver.snapshot() の keyboardShown 判定用(オンデバイスのブリッジは別プロセスの
     /// window を a11y ツリーから見れないため、ホスト側でここを叩いて補う)。
@@ -79,24 +89,44 @@ public enum AndroidForegroundWindows {
 
     /// `Window #N Window{... 名前}:` ブロックを (名前, isVisible) の並び(z 順)に分解する。
     /// overlaying / keyboardVisible の共通パーサ(可視性判定はここ1箇所)
-    private static func windowBlocks(_ dumpsys: String) -> [(name: String, visible: Bool)] {
+    private static func windowBlocks(_ dumpsys: String) -> [(name: String, visible: Bool, type: String?)] {
         var names: [String] = []
         var visibility: [Bool] = []
+        var types: [String?] = []
         var current: String?
         for line in dumpsys.split(separator: "\n", omittingEmptySubsequences: false) {
             let text = line.trimmingCharacters(in: .whitespaces)
             if text.hasPrefix("Window #"), let name = windowName(text) {
-                // 直前のブロックが isVisible を持たなかった場合に列がずれないよう埋める
+                // 直前のブロックが isVisible / ty= を持たなかった場合に列がずれないよう埋める
                 if current != nil, names.count > visibility.count { visibility.append(false) }
+                if current != nil, names.count > types.count { types.append(nil) }
                 names.append(name)
                 current = name
             } else if current != nil, text.hasPrefix("isVisible="),
                       names.count > visibility.count {
                 visibility.append(text == "isVisible=true")
+            } else if current != nil, names.count > types.count, text.hasPrefix("mAttrs="),
+                      let type = layoutType(text) {
+                types.append(type)
             }
         }
         if names.count > visibility.count { visibility.append(false) }
-        return zip(names, visibility).map { (name: $0, visible: $1) }
+        if names.count > types.count { types.append(nil) }
+        return (0..<names.count).map { (name: names[$0], visible: visibility[$0], type: types[$0]) }
+    }
+
+    /// `mAttrs={… ty=APPLICATION …}` の窓の型(`APPLICATION` = ダイアログ・`BASE_APPLICATION` = Activity 本体)。
+    /// `priority=` のような語尾の `ty=` を拾わないよう、直前が英字の `ty=` は数えない
+    static func layoutType(_ attrsLine: String) -> String? {
+        var searchStart = attrsLine.startIndex
+        while let found = attrsLine.range(of: "ty=", range: searchStart..<attrsLine.endIndex) {
+            searchStart = found.upperBound
+            if found.lowerBound > attrsLine.startIndex,
+               attrsLine[attrsLine.index(before: found.lowerBound)].isLetter { continue }
+            let value = attrsLine[found.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+            if !value.isEmpty { return String(value) }
+        }
+        return nil
     }
 
     /// `Window #7 Window{b9b01a8 u0 InputMethod}:` → `InputMethod`
@@ -151,7 +181,7 @@ public enum AndroidForegroundWindows {
         if let front = frontAppWhileHidden(package: package, dumpsys: dumpsys) {
             return ["\(front) (the app's own window is not visible)"]
         }
-        return overlaying(package: package, dumpsys: dumpsys)
+        return ownDialogs(package: package, dumpsys: dumpsys) + overlaying(package: package, dumpsys: dumpsys)
     }
 
     /// 実機/エミュレータへ問い合わせる。adb が無い・失敗した場合は空(失敗診断の付加情報なので非致命)

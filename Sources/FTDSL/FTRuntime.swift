@@ -582,6 +582,10 @@ public final class FTDriveCore {
         executor.renderCollapseCheckEnabled = StepExecutor.checksRenderCollapse(
             platform: platform, physical: physical, framework: uiFramework)
         executor.appUnderTestBundleID = app
+        // iOS Simulator の開閉はドライバでは読めない(どの包みも nil を返す)ので、`observeFold` と同じ devicectl の読みを渡す
+        if platform == "ios", !physical, let udid = deviceIdentifier {
+            executor.foldObserver = { FoldControl.observeIOSSimulator(udid: udid) }
+        }
         if !dryRun, StepExecutor.publishesScreenState(platform: platform, physical: physical),
            let stateDir = screenStateDirectory, let key = deviceIdentifier {
             executor.screenStatePublisher = { state in

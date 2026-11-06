@@ -358,6 +358,12 @@ public final class StepExecutor {
     /// 起こしたアプリのプロセスが生きているか(iOS Simulator だけ注入 = launchctl。nil = 答えられない)。`backgroundedAppRefusal` が
     /// 前面に無いアプリを「背面」と言う前に、落ちたアプリと分けるのに使う。**`appProcessRunning`(Android の木の持ち主の判定)とは別**
     public var appAliveProbe: (@Sendable (String) async -> Bool?)?
+    /// 開閉の読み(iOS Simulator だけ DSL が注入 = devicectl。iOS のドライバはどの包みも開閉を読めない)。nil ならドライバに聞く(Android)
+    public var foldObserver: (@Sendable () async -> FoldObservation?)?
+    func observeFold() async -> FoldObservation? {
+        if let foldObserver { return await foldObserver() }
+        return await (fallbackDriver ?? driver).foldObservation()
+    }
     public func noteAppMayHaveLeft(_ value: Bool) { appMayHaveLeft = value }
     /// 実行プロファイルのアプリ(DSL が init で入れる)。撃つ前の門は「これか、最後に起こしたアプリのどちらかが前面」で通す
     /// (`launchApp("com.android.settings")` → `back()` で対象アプリへ戻った後の否定を、設定が前面に無いと断っていた = 25周目
@@ -1131,7 +1137,12 @@ public final class StepExecutor {
               let fallback = fallbackDriver, let bundleID = lastLaunchedAppBundleID,
               case .value(false) = await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID)
         else { return error }
-        return DriverError.bridgeUnreachable(context: context.with(appFate: .inBackground), detail: detail)
+        var foldedNote = ""
+        if case .state(.folded)? = await observeFold() {
+            foldedNote = "The device is folded, so tapAppIcon() does not run; use launchApp()."
+        }
+        return DriverError.bridgeUnreachable(context: context.with(appFate: .inBackground),
+                                             detail: [detail, foldedNote].filter { !$0.isEmpty }.joined(separator: " "))
     }
 
     /// **アプリスイッチャーが前面の間は、アプリを読む・触るステップを撃たずに断る**。スイッチャーを開いてもアプリは inactive のまま
@@ -1155,6 +1166,19 @@ public final class StepExecutor {
             // 断らないが印は残す(次のステップで聞き直す)。1回の照会の失敗で門を外すと、スイッチャーの間の操作が緑に戻る
             return nil
         }
+    }
+
+    /// 前面へ戻す手の案内。畳んだ折りたたみ機ではホーム画面のアイコンが押せず `tapAppIcon()` は毎回撃たずに赤になる(Duo の外側の画面)ので、
+    /// 開閉を読めて畳んでいるときだけ `launchApp()` を勧める。読めない・開いている・折りたたみ機でないときは従来の文
+    static func bringBackAdvice(fold: FoldObservation?) -> String {
+        if case .state(.folded)? = fold {
+            return "launchApp(); tapAppIcon() does not run while the device is folded, so unfold() first to use it"
+        }
+        return "tapAppIcon() or launchApp()"
+    }
+
+    func bringBackAdvice() async -> String {
+        Self.bringBackAdvice(fold: await observeFold())
     }
 
     /// **前面を離れたかもしれない後だけ、撃つ前に前面かを聞き、前面に無ければ撃たずに断る**。背面のアプリは約 2 秒で一時停止され、
@@ -1185,7 +1209,7 @@ public final class StepExecutor {
                 // クラッシュの記録)へ渡す。答えられない(実機)ときは事実(前面に無い)だけを言って断る
                 if let alive = appAliveProbe, await alive(bundleID) == false { return nil }
                 return "The app under test is not in the foreground, so this step did not read or touch it"
-                    + " — a person could not either. Bring the app back first (tapAppIcon() or launchApp())"
+                    + " — a person could not either. Bring the app back first (\(await bringBackAdvice()))"
             case .notAnswerable, .failed:
                 // 断らないが印は残す(次のステップで聞き直す)。外すと次からは読みの上限(45 秒)まで待つ従来の経路になる
                 return nil
@@ -1799,9 +1823,11 @@ public final class StepExecutor {
         let dx = now.frame.x - last.target.frame.x
         let dy = now.frame.y - last.target.frame.y
         guard (dx * dx + dy * dy).squareRoot() >= Self.movedTargetThreshold else { return ("", false) }
+        // 「動く前の座標を撃った」とは言わない: tap は ref で撃たれ、ブリッジが撃つ時点の枠の中心へ解決する。動いたのは tap の結果
+        // (焦点 → キーボードで押し上げ等)のことが多く、失敗したステップが tap と無関係でも同じ文が付いていた
         return (" (the target has moved (\(Int(dx)),\(Int(dy))) since the preceding"
-            + " \(last.description) — the tap used the coordinates from before that move,"
-            + " so it may have landed on whatever was there at the time)", false)
+            + " \(last.description) — the layout shifted after that tap (for example the keyboard opened and pushed the content up)."
+            + " This is only a fact about the screen: the tap itself may have been fine)", false)
     }
 
     /// 「動いた」と言い切る下限(pt)。整定のわずかな揺れやサブピクセルで注記を出さないための床。

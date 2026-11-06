@@ -343,7 +343,11 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
         executor.noteAppMayHaveLeft(true)
         guard let before, let after = try? await observer.snapshot() else { return }
-        if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
+        if core.platform == "android",
+           BackEffect.leftTheApp(afterOwner: after.sessionBundleID,
+                                 expected: [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }) {
+            observedNote = .backLeftApp
+        } else if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
             observedNote = .backIneffective
         } else if core.platform != "android", BackEffect.stayedOnSameScreen(before: before, after: after) {
             observedNote = .backStayedOnScreen

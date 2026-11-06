@@ -436,4 +436,16 @@ final class ScrollSearchStopTests: XCTestCase {
         XCTAssertNil(StepExecutor.directionMatchedScrollFrameCandidate(
             in: snapshot([unnamed]), vertical: false))
     }
+
+    /// 木が動かなくなって止めた探索は、読み込み中なら `waitSeconds:` で待てることを言う(両方向: 書かれていれば言わない・止めていなければ言わない)
+    func testStoppedSearchMentionsWaitSecondsOnlyWhenNoneWasWritten() {
+        var step = scrollTo("missing", maxSwipes: 8)
+        let stopped = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0,
+                                                      swipes: 3, stoppedUnmoving: true, contentEverMoved: false)
+        XCTAssertTrue(StepExecutor.scrollNotFoundMessage(step, stopped, defaultMaxSwipes: 8).contains("add waitSeconds:"))
+        let exhausted = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0, swipes: 8)
+        XCTAssertFalse(StepExecutor.scrollNotFoundMessage(step, exhausted, defaultMaxSwipes: 8).contains("waitSeconds"))
+        step.timeout = 5
+        XCTAssertFalse(StepExecutor.scrollNotFoundMessage(step, stopped, defaultMaxSwipes: 8).contains("add waitSeconds:"))
+    }
 }

@@ -312,7 +312,11 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         let asksBefore = android.asks
         let tap = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
         XCTAssertNotEqual(tap.failureKind, .appInBackground, "Android の tap を背面と断った: \(tap.status)")
-        XCTAssertEqual(android.asks, asksBefore, "肯定の操作の前に前面を聞いた")
+        // 聞くのは見つからなかった後の失敗文の1回だけ(`leftForegroundHint`。待てとは言わず戻し方を言う)
+        XCTAssertEqual(android.asks, asksBefore + 1, "肯定の操作の前に前面を聞いた")
+        guard case .failed(let message) = tap.status else { return XCTFail("\(tap.status)") }
+        XCTAssertTrue(message.contains("Bring the app back first"), message)
+        XCTAssertFalse(message.contains("waitSeconds:"), message)
         let iosWithoutFallback = StepExecutor(driver: CountingForeground(), fallbackDriver: nil, isAndroid: false, tunables: RunTunables())
         iosWithoutFallback.noteAppLaunched(bundleID: "com.example.app")
         iosWithoutFallback.noteAppMayHaveLeft(true)

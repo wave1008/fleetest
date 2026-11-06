@@ -291,6 +291,7 @@ final class SwallowedInteractionTests: XCTestCase {
         }
         XCTAssertTrue(message.contains("has moved"), "動いたことを出すこと: \(message)")
         XCTAssertTrue(message.contains("(0,-100)"), "移動量を出すこと: \(message)")
+        XCTAssertFalse(message.contains("coordinates from before"), "ref で撃った tap の座標が古いとは言わない: \(message)")
         XCTAssertFalse(message.contains("did not change the screen"),
                        "動いている = 無変化ではない(2つは排他)")
     }

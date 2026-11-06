@@ -359,7 +359,14 @@ extension StepExecutor {
             : ""
         let ownerNote = result?.ownerChangedDuringSearch.map { " (\(ownerChangeFact($0)))" } ?? ""
         return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote)\(ownerNote): \(step.locatorSummary)"
-            + sheetHint + keyboardHint + scrollFrameHint
+            + sheetHint + keyboardHint + scrollFrameHint + loadingWaitHint(step, result)
+    }
+
+    /// 木が動かなくなって止めた探索に、`waitSeconds:` が使える(読み込み中の骨組み・末尾の読み込みは待てば伸びる)ことを添える。
+    /// 書かれていない探索だけ(書かれた予算は使い切った後なので、足せと言わない)。止めた理由が前面を離れた・別の軸のときは言わない
+    static func loadingWaitHint(_ step: FlowStep, _ result: ScrollSearchResult?) -> String {
+        guard result?.stoppedUnmoving == true, step.timeout == nil, result?.appLeftForeground == nil else { return "" }
+        return " If the screen was still loading (a skeleton or a trailing spinner), add waitSeconds: so the search waits for more content before stopping."
     }
 
     /// 明示した scrollFrame(rect か解決できる locator)の枠。名指しが無い・解決できないは nil(= 木全体を比べる)。
@@ -946,6 +953,19 @@ extension StepExecutor {
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base {
                 ownerChanged = (owner, attempt)
+            }
+            // **割り込みの処理の後も木の持ち主が基準のアプリでなく、前面が探索の対象のアプリでないと確かめられたら、そこで止める**
+            // (途中で外から HOME を押された探索が、ランチャーの上で 7〜12 回払ってシェードを引き下ろした)。止めるのは前面の照会が
+            // 「対象のアプリが居ない」と答えたときだけ(答えない・前面にいる・一時的なシステムの画面は従来どおり続ける)
+            if attempt > 0, let base = searchBundleID, !base.isEmpty,
+               let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base,
+               let front = await frontAppIfSessionAppLeft(base, tree: snapshot) {
+                var left = ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                              hintJumps: hintJumps, swipes: swipes,
+                                              maxTruncatedDuringSearch: truncatedDuringSearch)
+                // 持ち主の替わり(`ownerChangeFact` =「戻ってきたかもしれない」)は載せない: 前面に無いと確かめた後なので食い違う
+                left.appLeftForeground = front
+                return left
             }
             // **同じ顔ぶれの要素が枠だけ違うなら、整定してから比べる**(払いの直後の1枚は端のバウンスの途中かもしれない。
             // 全部が収まる一覧を「まだ動いていた」と読んで maxSwipes まで回り、逆走査まで撃っていた。ScrollSearchBounce)。

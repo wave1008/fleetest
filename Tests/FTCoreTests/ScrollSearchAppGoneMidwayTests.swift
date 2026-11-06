@@ -6,6 +6,7 @@ import XCTest
 
 private final class OwnerChangesAfterSwipeDriver: AppDriver, @unchecked Sendable {
     private(set) var swipes = 0
+    var appInForeground = true
     func snapshot() async throws -> SnapshotResponse {
         let owner = swipes == 0 ? "com.app" : "com.google.android.apps.nexuslauncher"
         let list = ElementInfo(ref: 1, type: "other", identifier: "list", label: nil, value: nil, placeholder: nil, enabled: true,
@@ -22,7 +23,7 @@ private final class OwnerChangesAfterSwipeDriver: AppDriver, @unchecked Sendable
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
     func launch(bundleID: String) async throws {}
-    func isAppForeground(bundleID: String) async throws -> Bool { true }
+    func isAppForeground(bundleID: String) async throws -> Bool { appInForeground }
     func tap(ref: Int) async throws {}
     func tap(x: Double, y: Double) async throws {}
     func type(ref: Int?, text: String) async throws {}
@@ -48,6 +49,20 @@ final class ScrollSearchAppGoneMidwayTests: XCTestCase {
         XCTAssertTrue(message.contains("the search stopped after 1 swipe(s)"), message)
         XCTAssertFalse(message.contains("nothing was sent"), message)
         XCTAssertEqual(driver.swipes, 1, "落ちた後も払い続けた")
+    }
+
+    /// プロセスは生きているが前面を離れた(途中で HOME)= 前面の照会が「居ない」と答えたら、ランチャーの上で払い続けず止める
+    func testStopsWhenTheAliveAppLeftTheForegroundDuringTheSearch() async {
+        let driver = OwnerChangesAfterSwipeDriver()
+        driver.appInForeground = false
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        executor.launchedBundleID = "com.app"
+        executor.appProcessRunning = { _ in true }
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_nope"), direction: "up", maxSwipes: 6))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("foreground"), message)
+        XCTAssertFalse(message.contains("come back"), "前面に無いと確かめた後に「戻ってきたかもしれない」と言った: \(message)")
+        XCTAssertEqual(driver.swipes, 1, "前面を離れた後も払い続けた")
     }
 
     func testKeepsSearchingWhileTheAppIsAlive() async {

@@ -40,4 +40,18 @@ final class DefaultWaitHintTests: XCTestCase {
         XCTAssertTrue(text.contains("cannot resolve the locator"), text)
         XCTAssertFalse(text.contains("waitSeconds"), text)
     }
+
+    /// Android で前面を離れた後(home() の後の tap)は、従えない `waitSeconds:` / `scroll:` でなく、前面に無いことを言う
+    func testLeftForegroundHintOnlyWhenAndroidAndAppIsNotInFront() {
+        let hint = StepExecutor.leftForegroundHint(isAndroid: true, mayHaveLeft: true, foreground: .value(false), processGone: false)
+        XCTAssertTrue(hint?.contains("not in the foreground") == true, hint ?? "nil")
+        XCTAssertTrue(hint?.contains("launchApp()") == true, hint ?? "nil")
+        XCTAssertFalse(hint?.contains("add waitSeconds") == true)
+        // 前面にいる・答えない・印が無い・iOS・プロセスが居ない(落ちた)は従来の文
+        XCTAssertNil(StepExecutor.leftForegroundHint(isAndroid: true, mayHaveLeft: true, foreground: .value(true), processGone: false))
+        XCTAssertNil(StepExecutor.leftForegroundHint(isAndroid: true, mayHaveLeft: true, foreground: .notAnswerable, processGone: false))
+        XCTAssertNil(StepExecutor.leftForegroundHint(isAndroid: true, mayHaveLeft: false, foreground: .value(false), processGone: false))
+        XCTAssertNil(StepExecutor.leftForegroundHint(isAndroid: false, mayHaveLeft: true, foreground: .value(false), processGone: false))
+        XCTAssertNil(StepExecutor.leftForegroundHint(isAndroid: true, mayHaveLeft: true, foreground: .value(false), processGone: true))
+    }
 }

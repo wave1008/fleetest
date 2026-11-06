@@ -188,4 +188,44 @@ final class ForegroundWindowsTests: XCTestCase {
         XCTAssertEqual(AndroidForegroundWindows.overlayNotes(package: package, alsoAccepted: "com.example.other", dumpsys: text),
                        ["NotificationShade"])
     }
+
+    /// 窓の型(`ty=`)付きの最小のブロック。`priority=` のような語尾の `ty=` が先に並ぶ実出力の形も混ぜる
+    private func dumpTyped(_ windows: [(String, Bool, String?)]) -> String {
+        windows.enumerated().map { index, entry in
+            let attrs = entry.2.map { "mAttrs={(0,0)(fillxfill) priority=0 ty=\($0) fmt=TRANSLUCENT}" } ?? "mAttrs={(0,0)(fillxfill)}"
+            return """
+              Window #\(index) Window{abc\(index) u0 \(entry.0)}:
+                \(attrs)
+                isVisible=\(entry.1)
+            """
+        }.joined(separator: "\n")
+    }
+
+    /// 実害の形: アプリ自身のダイアログの窓は Activity と同じ名前(`ty=APPLICATION`)で、`overlaying` は名指せない
+    func testOwnDialogWindowIsNamedAndTheActivityBodyIsNot() {
+        let main = "\(package)/\(package).MainActivity"
+        let withDialog = dumpTyped([("StatusBar", true, "STATUS_BAR"), (main, true, "APPLICATION"), (main, true, "BASE_APPLICATION")])
+        XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: withDialog), [])
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: withDialog),
+                       ["\(main) (the app's own dialog window)"])
+        XCTAssertEqual(AndroidForegroundWindows.overlayNotes(package: package, alsoAccepted: nil, dumpsys: withDialog),
+                       ["\(main) (the app's own dialog window)"])
+        let withoutDialog = dumpTyped([("StatusBar", true, "STATUS_BAR"), (main, true, "BASE_APPLICATION")])
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: withoutDialog), [])
+    }
+
+    /// 閉じかけで残った不可視のダイアログ・型の読めない窓・他アプリの APPLICATION の窓は数えない
+    func testOwnDialogIgnoresInvisibleUntypedAndForeignWindows() {
+        let main = "\(package)/\(package).MainActivity"
+        let other = "com.example.other/com.example.other.Main"
+        let text = dumpTyped([(main, false, "APPLICATION"), (main, true, nil), (other, true, "APPLICATION"),
+                              (main, true, "BASE_APPLICATION")])
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: text), [])
+    }
+
+    func testLayoutTypeSkipsSuffixMatches() {
+        XCTAssertEqual(AndroidForegroundWindows.layoutType("mAttrs={priority=0 ty=APPLICATION fmt=OPAQUE}"), "APPLICATION")
+        XCTAssertEqual(AndroidForegroundWindows.layoutType("mAttrs={ty=BASE_APPLICATION}"), "BASE_APPLICATION")
+        XCTAssertNil(AndroidForegroundWindows.layoutType("mAttrs={priority=0}"))
+    }
 }

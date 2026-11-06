@@ -30,6 +30,25 @@ extension StepExecutor {
             + " (for example waitSeconds: 5)"
     }
 
+    /// **Android で前面を離れたかもしれない後(`home()`・`back()`・別アプリ向けの `openURL` 等)に見つからなかった失敗文**。
+    /// Android の肯定の操作は撃つ前の門を通らない(人もランチャーを押せる)ので撃って見つからず、`waitSeconds:` / `scroll:` という
+    /// 従えない対処を勧めていた。前面を聞いて、対象アプリが前面に無いと答えたときだけ、その事実と戻し方を言う。
+    /// 前面と答えた・答えなかった・プロセスが居ない(落ちた = 別の経路が扱う)ときは nil(従来の文)
+    static func leftForegroundHint(isAndroid: Bool, mayHaveLeft: Bool, foreground: Probe<Bool>, processGone: Bool) -> String? {
+        guard isAndroid, mayHaveLeft, !processGone, case .value(false) = foreground else { return nil }
+        return ". The app under test is not in the foreground (a person could not tap it either), so waiting or scrolling will not"
+            + " find it. Bring the app back first (tapAppIcon() or launchApp())"
+    }
+
+    func leftForegroundHint() async -> String? {
+        guard isAndroid, appMayHaveLeft, let prober = foregroundProber, let bundleID = lastLaunchedAppBundleID else { return nil }
+        let candidates = [bundleID] + [appUnderTestBundleID].compactMap { $0 }.filter { $0 != bundleID }
+        let foreground = await Self.anyInForeground(prober, bundleIDs: candidates)
+        var gone = false
+        if let alive = appAliveProbe, case .value(false) = foreground { gone = await alive(bundleID) == false }
+        return Self.leftForegroundHint(isAndroid: isAndroid, mayHaveLeft: appMayHaveLeft, foreground: foreground, processGone: gone)
+    }
+
     /// 見つからないときの `scroll:` の案内。向きを書いていない触る操作で、画面に送れる一覧があるときだけ足す(tap / hold は scroll: を、
     /// scroll: を持たない操作(doubleTap 等)は先に送る手を案内する)
     /// (スクロールで木から消えた部品 = 隠れるバーに `waitSeconds:` だけを案内すると、従っても直らない。10周目の探索 iultra F5)。
@@ -745,11 +764,11 @@ extension StepExecutor {
                     keyboardClause = Self.keyboardResizedHint(snapshot)
                 }
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
+                let leftHint = await leftForegroundHint()
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
-                        + Self.defaultWaitHint(step)
-                        + Self.scrollOffHint(step, in: hintSnapshot)
+                        + (leftHint ?? Self.defaultWaitHint(step) + Self.scrollOffHint(step, in: hintSnapshot))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)

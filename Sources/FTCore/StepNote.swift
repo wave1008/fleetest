@@ -113,6 +113,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// いる(= back-ineffective にならない)ので、スワイプが画面の中身(スワイプを受ける領域・地図)に届いた形を黙って ✅ にしていた
     /// (28周目 iultra F1: ジェスチャ画面で `swipe=right` を残して 30/30・im4 の Flutter 9/9)。合否は変えず事実を言う(`BackEffect.stayedOnSameScreen`)
     case backStayedOnScreen = "back-stayed-on-screen"
+    /// Android の back() の後、木の持ち主(前面のパッケージ)が対象アプリでなくなった = アプリの最初の画面で押してランチャー等へ抜けた。
+    /// 木は変わる(= back-ineffective にならない)ので黙って ✅ になり、続く読みが別の窓の木で赤になっていた(`BackEffect.leftTheApp`)
+    case backLeftApp = "back-left-app"
     /// inapp-boost モードの tapAppIcon で対象アプリのプロセスが居なかったので、見つけたアイコンを押さず dylib を注入して起動した。
     /// **アイコン(SpringBoard)や XCUITest の activate から起きたアプリには in-app ブリッジが載らない**(注入は InAppLauncher の
     /// 起動だけ)ので、押すと後続が全部届かず「this session stopped it」の赤になっていた(24周目 iultra F1・12/12)
@@ -542,6 +545,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .appIconLaunchedWithBridge:
             return "the app was not running, so after finding its icon this launched the app with the in-app bridge"
                 + " instead of tapping the icon — an app started from its icon has no in-app bridge in inapp-boost mode"
+        case .backLeftApp:
+            return "after back the foreground is no longer the app under test (it was probably on its first screen, so back left the app)"
+                + " — steps from here run against whatever is in front; bring the app back with launchApp() or tapAppIcon() if the scenario continues"
         case .backStayedOnScreen:
             // 言い切らない: 識別子の組が同じでも、同じ種類の画面を積んだ遷移(詳細 → 詳細)では戻っている。「戻っていない・自前の
             // 戻るを押せ」と言うと、従った書き手が二重に戻った(29周目 iultra F1: E2EX-CMP の詳細 id=3 → id=2 で 6/6)

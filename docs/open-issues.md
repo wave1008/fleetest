@@ -30,9 +30,9 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 23 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-179・OI-180・OI-181・OI-182・OI-184・OI-185・OI-186・OI-187 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 22 | OI-125・OI-129・OI-139・OI-155・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-179・OI-180・OI-181・OI-182・OI-184・OI-186・OI-187 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 13 | OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185・OI-186 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-182 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 3 | OI-155・OI-168・OI-182 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 9 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 5 | OI-139・OI-179・OI-184・OI-185・OI-186 |
@@ -52,13 +52,14 @@
 ### OI-155 ft_batch の途中で別アプリが前面へ来た後の tap を ok と言い、前面を離れたことを言わずアプリの古い木を返す
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-03)
-- 属性: 着手可
+- 属性: 着手可・要判断
 - 運用: 要注意 — MCP の ft_batch だけでシナリオの実行には響かない。別アプリが前面へ来うる列は ft_batch で通さず、1手ずつ画面を確かめる
 - 優先度: 低 — MCP の ft_batch だけ
 
 11/3 の6周目の探索(`_work/explore-20261103a/findings-*.md`)。冷えた状態から起動した設定アプリが手の開始から 3.8〜4.2 秒後に前面へ来た回で 7/7(MCP。2.2 秒後なら 422 で止まる 9/10 = batch F2)。各行の警告は「画面が変わらなかった」だけで、結論は「All 5 step(s) ran」
 - 11/3: iOS の飲まれた tap の警告に「別アプリが既に前面へ来ていた可能性」を足した(文言のみ)。前面の移動そのものの検出は、/appstate が別アプリの起動後 1〜2 秒は前面と答え続けるため入れていない
 
+- 11/6: 要判断 —— `MCPServer+Batch.swift` は手の最後に `appLeftFront` で前面を離れたかを見て、飲まれた tap の警告(「another app had already come to the front」)も持つ。残るのは別アプリの起動後 1〜2 秒は `/appstate` が元のアプリを前面と答え続ける検出の限界だけで、待ちを足す・読みを足す・注記で足りるとする、のどれにするかの選択が要る
 ### OI-158 React Native の iOS で、キーボードが出たまま見えている行を tap するとキーボードが閉じるだけで押されず ok
 - 状態: 再現済み
 - 確認: 2ecbb646(2026-11-03)
@@ -101,20 +102,21 @@
 - 状態: 再現済み
 - 確認: 22012640(2026-11-04)
 - 属性: 着手可
-- 運用: ②③要注意 — 撃って ✅(後続で赤) ④⑤赤になる(黙りではない)・回避の手は未確認 ⑥回避可 — `waitSeconds:` を付ける ⑦⑧⑫合否に響かない(文言・表示だけ。⑫の終了コードは 1) ⑨回避の手は未確認 ⑪再実行で吸収 — フル E2EX の流れでだけ出る(単独では 4/4 緑)
+- 運用: ②③要注意 — 撃って ✅(後続で赤) ④⑤赤になる(黙りではない)・回避の手は未確認 ⑦⑧⑫合否に響かない(文言・表示だけ。⑫の終了コードは 1) ⑨回避の手は未確認 ⑪再実行で吸収 — フル E2EX の流れでだけ出る(単独では 4/4 緑)
 - 優先度: 中 — ②③撃って ✅・後続で赤
 
-11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑥読み込み中に始めた向き付きの探索が既定の待ちで 0.6 秒で「動かない」と断定して赤・文言が `waitSeconds:` に触れない(iultra F1・F2)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る ⑫供給で in-app の dylib のビルドが失敗した run の機械ごとの行が `✅ local exit=0 ran=0` と出る(全体の終了コードは 1・「どのデバイスにも渡らなかった」の警告は出る)
+11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る ⑫供給で in-app の dylib のビルドが失敗した run の機械ごとの行が `✅ local exit=0 ran=0` と出る(全体の終了コードは 1・「どのデバイスにも渡らなかった」の警告は出る)
 
 ### OI-168 探索の残り(10周目)
 - 状態: 再現済み
 - 確認: a5e87ce1(2026-11-04)
-- 属性: 着手可
+- 属性: 着手可・要判断
 - 運用: ③回避可 — 序数のセレクタ(`.button[5]`)はモードで別の要素になるので、id かラベルで書く ⑥要注意 — ✅ なのに行が開かない・後続で赤 ⑦回避可 — 既定の経路ではない(`settle: false` を使わなければ出ない)
 - 優先度: 中 — ③ft_batch で通した序数のセレクタがシナリオで別の要素を押す
 
 11/4 の10周目の探索(`_work/explore-20261104b/findings-*.md`)で直さなかったもの(直したものは 2dcc58ab・a5e87ce1・9c0e47eb)。③同じ序数のセレクタ(`.button[5]`)が in-app の木と XCUITest の木で別の要素になる(ilocal F6。in-app はナビゲーションバーを末尾に置く = ft_batch で通した列がシナリオで別の行を押す)⑥E2EY-CMP の Android の横向きの選択モードの一覧で、寄せの注記付きの `tap("項目 1*")` が ✅ なのに行が開かず選択モードに入る(amax F4・5 run 中 4)⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6・既定の経路ではない)
 
+- 11/6: ③は要判断 —— 序数のセレクタに注記を出す・MCP とシナリオのモードを揃える・in-app の木の並びを XCUITest に揃える(ブリッジ・FTCore)の、どれにするかの選択が要る
 ### OI-169 探索の残り(11・12周目)
 - 状態: 再現済み
 - 確認: b41c86f0(2026-11-04)
@@ -139,10 +141,10 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-05)
 - 属性: 着手可・要測定
-- 運用: ①回避可 — 探索の途中に外から HOME を押したときだけ出る。テスト中は端末を触らない ③合否に響かない(MCP の文言) ⑤要注意(未再現・沈黙の形) — inapp-boost モードで `home()` の後に画像の判定を書かない
+- 運用: ③合否に響かない(MCP の文言) ⑤要注意(未再現・沈黙の形) — inapp-boost モードで `home()` の後に画像の判定を書かない
 - 優先度: 中 — ⑤背面の絵と照合しうる(未再現・沈黙の形)
 
-11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。①Android で探索(`select` / `exist` / `notExist(scroll: .up)`)の途中に HOME でアプリを背面へ回すと(プロセスは生きている)、探索が止まらずランチャーの上で 7〜12 回払い、クイック設定を引き下ろす。失敗文はシェードを名指し、同じ報告の警告はランチャーを名指して食い違う(amax F1・View・RN・Flutter で 22/22)。原因は観測済み(途中の確かめはプロセスの照会だけで、生きていれば続ける = StepExecutor+ScrollSearch.swift の途中の確かめ)。直すなら「持ち主が対象から替わった回は、割り込みの処理の後もまだ替わっていれば止める」の形(登録した割り込みの処理を先に通す)③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
+11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
 
 ### OI-177 探索の残り(18周目)
 - 状態: 再現済み
@@ -160,7 +162,7 @@
 - 運用: ④回避可 — アプリのダイアログを閉じてから `home()` を撃つ(iPhone 13 実機だけ) ⑤⑥合否に響かない(赤にはなる・文言が覆いを名指さない)。ダイアログ・アラートを閉じてから操作する
 - 優先度: 低 — 回避可か文言だけ
 
-11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 着手可。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。次の手: 割り込みが対象アプリ自身のアラートなら「アプリ内のダイアログが開いている」と名指す/ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測)・ボタンは重複を除く。ランナーの版を上げる ⑤(20周目)Android でアプリ自身のダイアログ・iOS の UIKit の別ウィンドウのモーダルが開いている間に裏の要素を tap すると「cannot resolve … add waitSeconds:」とだけ言い、覆いを名指さない(amax F1・im4 F1。従っても直らない)= 着手可(Android の形)。原因(report-mand): ダイアログの窓はアプリの Activity と同じ名前(dumpsys で `ty=APPLICATION` と `BASE_APPLICATION` が違うだけ)で、覆いの判定 `ForegroundWindows.swift:22-35` の `overlaying` は自分の package の窓を除く(31 行)ので名指せない。失敗文は `defaultWaitHint`(`StepExecutor+Actions.swift:25-31`)で覆いを見ない。次の手: `ty=APPLICATION`(`BASE_APPLICATION` より手前の同じ package の窓)を「アプリ自身のダイアログ」として拾い、解決の失敗文で名指して閉じる操作を促す。または MCP の「画面の 45% に要素が無い」判定を DSL の失敗文にも共有する(OI-185 ④ も同じ) ⑥(20周目)権限アラートが `home()` の後に出てホーム画面のアイコンを覆うと、次の `tapAppIcon` が「App icon not found」でアラートを名指さない(ilocal F1・4/8)= 要測定
+11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 着手可。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。次の手: 割り込みが対象アプリ自身のアラートなら「アプリ内のダイアログが開いている」と名指す/ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測)・ボタンは重複を除く。ランナーの版を上げる ⑤(20周目)iOS の UIKit の別ウィンドウのモーダルが開いている間に裏の要素を tap すると「cannot resolve … add waitSeconds:」とだけ言い、覆いを名指さない(amax F1・im4 F1。従っても直らない)= 要測定(Android の形は 11/6 に直した = 失敗の ⚠️ がアプリ自身のダイアログの窓を名指す。iOS の形の原因は測っていない) ⑥(20周目)権限アラートが `home()` の後に出てホーム画面のアイコンを覆うと、次の `tapAppIcon` が「App icon not found」でアラートを名指さない(ilocal F1・4/8)= 要測定
 
 ### OI-179 探索の残り(21周目)
 - 状態: 再現済み
@@ -184,10 +186,10 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 着手可・要測定
-- 運用: ①回避可 — 文言の案内どおり、自分でスクロールして外してから押す(SE3 だけ) ②合否に響かない(Duo の文言) ④回避可 — `terminateApp()` の後は `launchApp()` してから操作する
+- 運用: ①回避可 — 文言の案内どおり、自分でスクロールして外してから押す(SE3 だけ) ④回避可 — `terminateApp()` の後は `launchApp()` してから操作する
 - 優先度: 低 — 案内どおりの回避か文言だけ
 
-11/6 の23周目の探索(20分・`_work/explore-20261106g/findings-*.md`)で観測し、直さなかったもの。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)= 要測定(送らずに断ったこと・断りの出どころは観測済み。iPhone 13 で緑になる理由は材料不足)②畳んだ Duo で背面と断ったときの対処文が `tapAppIcon()` を勧めるが、畳んだ状態の `tapAppIcon()` は毎回撃たずに赤(duo F1・3/3)= 着手可。原因(report-mduo): 対処文は開閉(FoldState)を見ない固定の文(`StepExecutor.swift:1187-1188`・:1150、`AppDriver.swift:469-471`)。次の手: 畳んだ状態なら `launchApp()` だけを勧める(または `unfold` を先に) ④Android の `terminateApp()` の後の `tap(scroll: .down)` がランチャーの一覧を 17 秒送ってランチャーの部品で包めと勧める(amax F2・4/4)= 着手可。原因(report-mand): `terminateApp` は `appMayHaveLeft` を落とす(`FTRuntime.swift:1461`)ので撃つ前の照会が無く(Android の tap は `StepExecutor.swift:1170` でも照会しない)、`launchedBundleID = nil`(:1451-1452)で探索の基準(`StepExecutor+ScrollSearch.swift:911` の `searchBaselineBundleID`)がランチャーになる。「止めた」事実 `appStoppedByScenario` は失敗の後(`FTRuntime.swift:2014-2017`)にしか使われない。探索中の `appGoneFailure(owner:)` がランチャーの木で発火しなかった理由は未確認。次の手: `appStoppedByScenario` が立っている間のアプリを読む・触るステップは撃つ前に「`terminateApp()` で止めたまま」と断る(探索に入らない)
+11/6 の23周目の探索(20分・`_work/explore-20261106g/findings-*.md`)で観測し、直さなかったもの。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)= 要測定(送らずに断ったこと・断りの出どころは観測済み。iPhone 13 で緑になる理由は材料不足) ④Android の `terminateApp()` の後の `tap(scroll: .down)` がランチャーの一覧を 17 秒送ってランチャーの部品で包めと勧める(amax F2・4/4)= 着手可。原因(report-mand): `terminateApp` は `appMayHaveLeft` を落とす(`FTRuntime.swift:1461`)ので撃つ前の照会が無く(Android の tap は `StepExecutor.swift:1170` でも照会しない)、`launchedBundleID = nil`(:1451-1452)で探索の基準(`StepExecutor+ScrollSearch.swift:911` の `searchBaselineBundleID`)がランチャーになる。「止めた」事実 `appStoppedByScenario` は失敗の後(`FTRuntime.swift:2014-2017`)にしか使われない。探索中の `appGoneFailure(owner:)` がランチャーの木で発火しなかった理由は未確認。次の手: `appStoppedByScenario` が立っている間のアプリを読む・触るステップは撃つ前に「`terminateApp()` で止めたまま」と断る(探索に入らない)
 
 ### OI-182 探索の残り(24周目)
 - 状態: 再現済み
@@ -205,16 +207,7 @@
 - 運用: ②合否に響かない(注記の文言) ④再実行で吸収(Duo だけ・環境側)
 - 優先度: 低 — 文言と Duo だけ
 
-11/6 の26周目の探索(20分・`_work/explore-20261106j/findings-*.md`)で観測し、直さなかったもの。②キーボードで内容が押し上がった後の無関係な赤に「直前の tap は動く前の座標を使った・別の物に当たったかもしれない」と付く(ilocal F1・4/4+1/1)= 着手可。原因(report-mios): tap は座標ではなく ref で撃たれている(`POST /tap {"expect":…,"ref":8}`)ので「動く前の座標を使った」は事実と違い、動いたのは tap の結果(焦点 → キーボードで押し上げ)。`StepExecutor.lastTapHint`(`StepExecutor.swift:1784-1806`)は直前の触る操作の対象を失敗時の木で引き直し、tap 前の枠から `movedTargetThreshold = 8`pt 以上動いていれば無条件に付ける。動いたのが tap の前か後か・ref で撃ったか・キーボードが出たか・失敗したステップが tap の対象と無関係かを見ない(`tapDiagnosisHint` は失敗経路から一律に呼ばれる = :1731)。次の手: tap の後の木でキーボードが出ている(`KeyboardWait.isShown`)か ref で撃った tap では「動く前の座標」の文を付けない。失敗したステップの対象が直前の tap の対象と違うときも付けない ④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
-
-### OI-185 探索の残り(27周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定・環境側
-- 運用: ①要注意 — Flutter の iOS で `back()` が戻らずに ✅(後続で赤)。`back()` の後に戻った画面を確かめる ②回避可 — `--scenario` で名指して回す ③再実行で吸収(Duo だけ・環境側) ④合否に響かない(赤にはなる・ダイアログを名指さない)
-- 優先度: 中 — ①Flutter の iOS で back() が戻らずに ✅(後続で赤)
-
-11/6 の27周目の探索(20分・`_work/explore-20261106k/findings-*.md`。手元の実行の鍵の取り合いと、別のセッションの未コミットの変更でリモートへのディスパッチが止まり、探索の量が少なかった周)で観測し、直さなかったもの。①E2EY-Flutter(iOS inapp-boost)の入れ子スクロール・スワイプ・選択モードの画面で `back()` が戻らないのに ✅(注記なし・または「no effect」付き。im4 F1・各 3/3。後続は赤。26周目のエッジスワイプの高さの直しとの関係は未確認 = HEAD の対照が要る)= 要測定 ②手元で消した一時シナリオがディスパッチ先の作業領域に残り、run のシナリオ一覧に出る(im4 F2)= 要測定(「削除を運ばない」はコードでは否定される側の事実が出た = 材料不足。report-mduo)③開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(duo F1・2/2。同じ時間帯に SpringBoard が EXC_BREAKPOINT で落ちていた = 環境側。OI-184 ④)・XCUITest ブリッジを inapp の番号で呼ぶ(duo F2。ポートの割り当てのコードまで読めず材料不足 = 要測定)④Android でアプリ自身のダイアログの裏の要素への tap / exist の赤が「add waitSeconds:」とだけ言いダイアログを名指さない(amax F1・4 SUT で 32/32。OI-178 ⑤ の Android の形)= 着手可。原因と次の手は OI-178 ⑤(ダイアログの窓がアプリの Activity と同名で、覆いの判定が自分の package の窓を除く = `ForegroundWindows.swift:31`)
+11/6 の26周目の探索(20分・`_work/explore-20261106j/findings-*.md`)で観測し、直さなかったもの。②キーボードで内容が押し上がった後の無関係な赤に「直前の tap は動く前の座標を使った・別の物に当たったかもしれない」と付く(ilocal F1・4/4+1/1)= 着手可。原因(report-mios): tap は座標ではなく ref で撃たれている(`POST /tap {"expect":…,"ref":8}`)ので「動く前の座標を使った」は事実と違い、動いたのは tap の結果(焦点 → キーボードで押し上げ)。`StepExecutor.lastTapHint`(`StepExecutor.swift:1784-1806`)は直前の触る操作の対象を失敗時の木で引き直し、tap 前の枠から `movedTargetThreshold = 8`pt 以上動いていれば無条件に付ける。動いたのが tap の前か後か・ref で撃ったか・キーボードが出たか・失敗したステップが tap の対象と無関係かを見ない(`tapDiagnosisHint` は失敗経路から一律に呼ばれる = :1731)。11/6: 「動く前の座標を使った」の断定は外し、「tap の後にレイアウトが動いた・tap 自体は問題なかったかもしれない」の事実だけにした。残り: 失敗したステップの対象が直前の tap の対象と違うときに付けない絞り込み(`tapDiagnosisHint` の呼び手 `StepExecutor+Assert.swift` が要素しか渡さない) ④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
 
 ### OI-186 探索の残り(28周目)
 - 状態: 再現済み
@@ -223,18 +216,27 @@
 - 運用: ①要注意 — 戻るボタンの無い iOS の画面の `back()` は注記 `back-stayed-on-screen` が付くだけで緑。自前の戻るがあれば `tap` で押す ②④合否に響かない ③合否に響かない(続くステップは赤になる)
 - 優先度: 中 — ①戻るボタンの無い iOS の画面の back() が緑のまま(注記で知らせる)
 
-11/6 の28周目の探索(20分・`_work/explore-20261106l/findings-*.md`)で観測し、直さなかったもの。①iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があっても、ナビゲーションバーの `BackButton` でなければ左端のスワイプに落ちる(iultra F1。28周目の直しで、同じ画面に留まったら `back-stayed-on-screen` と注記するようにした = 合否は緑のまま。自前の戻るを押すかは要判断)②E2E-iOS の WebView 画面で `back()` が戻らないのに注記なし・4.2 秒(iultra F2・7/7)= 着手可。原因(report-mios): `back()` の before が `WebViewDelegatingDriver.snapshot`(`WebViewDelegatingDriver.swift:116-176`)の委譲の木(tap の直後は DOM が読めず XCUITest へ委譲し、250ms おきに最大 5 秒撮り直す = 約 2.35 秒)、after が in-app の DOM 経路の木で、別の経路の木を比べるため `BackEffect.shouldWarn` も `stayedOnSameScreen`(`BackEffect.swift:39-46`)も false になり注記が出ない(`CommandsAppControl.swift:343-348`)。次の手: before / after を同じ経路の木(in-app の生の木)で比べる。before の委譲の待ちは観測のためだけに払っているので揃えれば消える ③Android の根の画面の `back()` でアプリが閉じてランチャーへ出るのに注記なしの ✅、続く赤は「Another window is in front」とだけ言い直前の back のせいと言わない(phys F1・4/4)= 着手可。原因(report-mand): `back()` は撃った後に `noteAppMayHaveLeft(true)` を立てる(`CommandsAppControl.swift:338-345`)が注記は `BackEffect.shouldWarn`(木が変わらない形)だけで、木の持ち主の替わりを注記しない。続く `exist` は肯定なので Android では門を通らず(`StepExecutor.swift:1170`)、⚠️ は `FTRuntime.swift:2041-2043` の固定文。次の手: `back()` の後の木の持ち主(`sessionBundleID`)が対象アプリから替わったら `back` に「アプリを抜けてランチャーへ出た」と注記し、失敗の ⚠️ は直前が `back()` なら `back` を名指す(`terminateApp` を名指す前例は `FTRuntime.swift:2016`)④MCP の `ft_launch` が Duo で「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る(duo F2・1/1)・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(duo F3・1/1)= 環境側(Duo の SpringBoard の落ち。OI-184 ④。個々の赤との時刻の対応は未確認)
+11/6 の28周目の探索(20分・`_work/explore-20261106l/findings-*.md`)で観測し、直さなかったもの。①iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があっても、ナビゲーションバーの `BackButton` でなければ左端のスワイプに落ちる(iultra F1。28周目の直しで、同じ画面に留まったら `back-stayed-on-screen` と注記するようにした = 合否は緑のまま。自前の戻るを押すかは要判断)②E2E-iOS の WebView 画面で `back()` が戻らないのに注記なし・4.2 秒(iultra F2・7/7)= 着手可(11/6: 前の木が委譲の木・後の木が in-app の DOM の木のときは「前の識別子が後に全部残る」で比べて `back-stayed-on-screen` を出すようにした。残り: before の委譲の待ち約 2.35 秒)。原因(report-mios): `back()` の before が `WebViewDelegatingDriver.snapshot`(`WebViewDelegatingDriver.swift:116-176`)の委譲の木(tap の直後は DOM が読めず XCUITest へ委譲し、250ms おきに最大 5 秒撮り直す = 約 2.35 秒)、after が in-app の DOM 経路の木で、別の経路の木を比べるため `BackEffect.shouldWarn` も `stayedOnSameScreen`(`BackEffect.swift:39-46`)も false になり注記が出ない(`CommandsAppControl.swift:343-348`)。次の手: before / after を同じ経路の木(in-app の生の木)で比べる。before の委譲の待ちは観測のためだけに払っているので揃えれば消える ③Android の根の画面の `back()` でアプリが閉じてランチャーへ出るのに注記なしの ✅、続く赤は「Another window is in front」とだけ言い直前の back のせいと言わない(phys F1・4/4)= 着手可(11/6: `back()` に注記 `back-left-app` を出すようにした。残り: 続く失敗の ⚠️ で back を名指す = 直前のコマンドを持つ状態が FTRuntime に無い)。原因(report-mand): `back()` は撃った後に `noteAppMayHaveLeft(true)` を立てる(`CommandsAppControl.swift:338-345`)が注記は `BackEffect.shouldWarn`(木が変わらない形)だけで、木の持ち主の替わりを注記しない。続く `exist` は肯定なので Android では門を通らず(`StepExecutor.swift:1170`)、⚠️ は `FTRuntime.swift:2041-2043` の固定文。次の手: `back()` の後の木の持ち主(`sessionBundleID`)が対象アプリから替わったら `back` に「アプリを抜けてランチャーへ出た」と注記し、失敗の ⚠️ は直前が `back()` なら `back` を名指す(`terminateApp` を名指す前例は `FTRuntime.swift:2016`)④MCP の `ft_launch` が Duo で「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る(duo F2・1/1)・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(duo F3・1/1)= 環境側(Duo の SpringBoard の落ち。OI-184 ④。個々の赤との時刻の対応は未確認)
 
 ### OI-187 探索の残り(29周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 着手可
-- 運用: ②合否に響かない(次のステップで赤) ③合否に響かない(赤にはなる・対処文が従えない)
+- 運用: ②合否に響かない(次のステップで赤)
 - 優先度: 低 — 文言と注記だけ
 
-11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。②iOS の WebView 画面の `back()` が戻らないのに注記なしの ✅・4.2〜4.6 秒(iultra・SwiftUI と RN で各 6/6)= 着手可。原因と次の手は OI-186 ②(before が委譲の木・after が in-app の木で、約 4 秒のうち委譲の待ちが約 2.35 秒)。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)③Android の `home()` の後の `tap(アプリの要素)` の失敗文が「add waitSeconds: / add scroll:」と従えない対処を勧める(amax F1・4/4)= 着手可。原因(report-mand): `backgroundedAppRefusal` が `StepExecutor.swift:1164-1170` で `fallbackDriver == nil, !passesOnAbsence(step)` のとき照会せずに抜ける(Android の肯定の操作は門を通らない。`home()` の後の印 `appMayHaveLeft` は `FTRuntime.swift:1458` で立つ)ので、撃って見つからず `defaultWaitHint` + `scrollOffHint`(`StepExecutor+Actions.swift:25-48`)の汎用文に落ちる。ランチャーの名前は失敗の後の `foregroundOverlays`(`FTRuntime.swift:2038-2043`)だけが知っている。次の手: 門は撃たせたまま(人もランチャーを押せる)、解決に失敗した後に `appMayHaveLeft` が立っていれば前面を聞き、前面に無ければ汎用文の代わりに「対象アプリが前面に無い・`tapAppIcon()` / `launchApp()`」と言う
+11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。②iOS の WebView 画面の `back()` が戻らないのに注記なしの ✅・4.2〜4.6 秒(iultra・SwiftUI と RN で各 6/6)= 着手可。原因と次の手・11/6 の注記の直しは OI-186 ②(before が委譲の木・after が in-app の木で、約 4 秒のうち委譲の待ちが約 2.35 秒)。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)
 
 ## 要測定
+### OI-185 探索の残り(27周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定・環境側
+- 運用: ①要注意 — Flutter の iOS で `back()` が戻らずに ✅(後続で赤)。`back()` の後に戻った画面を確かめる ②回避可 — `--scenario` で名指して回す ③再実行で吸収(Duo だけ・環境側)
+- 優先度: 中 — ①Flutter の iOS で back() が戻らずに ✅(後続で赤)
+
+11/6 の27周目の探索(20分・`_work/explore-20261106k/findings-*.md`。手元の実行の鍵の取り合いと、別のセッションの未コミットの変更でリモートへのディスパッチが止まり、探索の量が少なかった周)で観測し、直さなかったもの。①E2EY-Flutter(iOS inapp-boost)の入れ子スクロール・スワイプ・選択モードの画面で `back()` が戻らないのに ✅(注記なし・または「no effect」付き。im4 F1・各 3/3。後続は赤。26周目のエッジスワイプの高さの直しとの関係は未確認 = HEAD の対照が要る)= 要測定 ②手元で消した一時シナリオがディスパッチ先の作業領域に残り、run のシナリオ一覧に出る(im4 F2)= 要測定(「削除を運ばない」はコードでは否定される側の事実が出た = 材料不足。report-mduo)③開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(duo F1・2/2。同じ時間帯に SpringBoard が EXC_BREAKPOINT で落ちていた = 環境側。OI-184 ④)・XCUITest ブリッジを inapp の番号で呼ぶ(duo F2。ポートの割り当てのコードまで読めず材料不足 = 要測定)
+
 ### OI-176 探索の残り(17周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
@@ -242,7 +244,7 @@
 - 運用: 合否に響かない — MCP の `ft_scroll_to` だけ。アプリを前面にしてから撃つ
 - 優先度: 低 — MCP の ft_scroll_to だけ
 
-11/6 の17周目の探索(20分・`_work/explore-20261106a/findings-*.md`)で観測し、直さなかったもの。③アプリが背面のまま MCP の `ft_scroll_to` を撃つと、ホーム画面へ送りを撃ってクイック設定を開いたまま残す(phys F2・Pixel 4a で 1/2。OI-175 ①・③と同じ「始点の持ち主の扱い」の延長の疑い)= 要測定(撃つ前に止める門が MCP の探索に無いことは観測済み: MCP は `appMayHaveLeft` を立てず、`wireAppGoneGuard` はプロセスが居ないときだけ断り、探索の基準は起動したアプリに置き換わる。シェードを開いたのが送りか逆向きのドラッグかは材料不足 = `FT_BRIDGE_TRACE` か adb の getevent で時系列。report-mcode)
+11/6 の17周目の探索(20分・`_work/explore-20261106a/findings-*.md`)で観測し、直さなかったもの。③アプリが背面のまま MCP の `ft_scroll_to` を撃つと、ホーム画面へ送りを撃ってクイック設定を開いたまま残す(phys F2・Pixel 4a で 1/2。OI-175 ③と同じ「始点の持ち主の扱い」の延長の疑い。DSL の探索の途中で前面を離れた形は 11/6 に止めるようにした)= 要測定(撃つ前に止める門が MCP の探索に無いことは観測済み: MCP は `appMayHaveLeft` を立てず、`wireAppGoneGuard` はプロセスが居ないときだけ断り、探索の基準は起動したアプリに置き換わる。シェードを開いたのが送りか逆向きのドラッグかは材料不足 = `FT_BRIDGE_TRACE` か adb の getevent で時系列。report-mcode)
 
 ### OI-183 探索の残り(25周目)
 - 状態: 再現済み

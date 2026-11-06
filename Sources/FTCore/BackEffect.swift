@@ -41,8 +41,22 @@ public enum BackEffect {
         let ids: (SnapshotResponse) -> Set<String> = { Set($0.elements.compactMap { $0.identifier }.filter { !$0.isEmpty }) }
         let beforeIDs = ids(before)
         guard beforeIDs.count >= minimumIdentifiers else { return false }
+        // **経路の違う木は集合の等しさで比べない**: before が画面ごとの委譲(XCUITest)の木で after が in-app の DOM の木だと、
+        // 後者は WebView の中身の識別子を足して持つ(同じ画面でも等しくならず、注記が出なかった)。この向きだけ「before ⊆ after」で比べる
+        if before.webViewPath == WebViewPath.delegated, after.webViewPath != WebViewPath.delegated {
+            return beforeIDs.isSubset(of: ids(after))
+        }
         return beforeIDs == ids(after)
     }
+    /// **back の後の木の持ち主が、対象アプリ(`expected`)でなくなったか**(Android の最初の画面での back = ランチャー等へ抜ける)。
+    /// 持ち主が読めなければ false(黙る)。権限・インストーラ等のシステムのダイアログ(`ForegroundState.systemDialogPackages`)は
+    /// アプリを抜けたのではなく手前に出ただけなので数えない
+    public static func leftTheApp(afterOwner: String?, expected: [String]) -> Bool {
+        guard let owner = afterOwner, !owner.isEmpty, !expected.contains(owner),
+              !ForegroundState.systemDialogPackages.contains(owner) else { return false }
+        return true
+    }
+
     /// 同じ画面と言うのに要る識別子の数(1〜2 個では、別の画面でも同じ組になりうる)
     static let minimumIdentifiers = 3
 
