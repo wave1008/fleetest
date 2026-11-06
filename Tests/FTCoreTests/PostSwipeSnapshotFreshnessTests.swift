@@ -18,7 +18,7 @@ final class PostSwipeSnapshotFreshnessTests: XCTestCase {
 
     /// 本文に素の `driver.snapshot()` を置いてはいけない関数(すべて「スワイプ後に読む」経路)
     private static let mustBypass = [
-        "func runScrollSearch(",
+        "private func searchBody(",
         "func settledSignature(",
         "func settleAfterScroll(",
     ]

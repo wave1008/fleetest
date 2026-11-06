@@ -1175,6 +1175,7 @@ extension StepExecutor {
         let leftHint = await leftForegroundHint() ?? ""
         return failed(.notFound, "element not found: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
                        + leftHint
+                       + (Self.coverReportHint(lastSnapshot) ?? "")
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
@@ -1385,6 +1386,7 @@ extension StepExecutor {
                       + Self.webViewPathHint(lastSnapshot))
             : failed(.notFound, "element not found: \(step.locatorSummary)"
                       + leftHint
+                      + (Self.coverReportHint(lastSnapshot) ?? "")
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
@@ -1668,6 +1670,7 @@ extension StepExecutor {
         }
         guard found else {
             return failed(.notFound, "element not found: \(step.locatorSummary)"
+                           + (Self.coverReportHint(lastSnapshot) ?? "")
                            + Self.truncationHint(lastSnapshot)
                            + Self.keyboardResizedHint(lastSnapshot)
                            + tapDiagnosisHint(lastSeenElements))
@@ -1767,7 +1770,8 @@ extension StepExecutor {
         }
         return found
             ? .failed("the element is \(wantEnabled ? "disabled" : "enabled"): \(step.locatorSummary)")
-            : failed(.notFound, "element not found: \(step.locatorSummary)" + Self.truncationHint(lastSnapshot)
+            : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
+                      + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot))
     }
 
@@ -1939,7 +1943,8 @@ extension StepExecutor {
             ? .failed(Self.checkStateFailure(lastState, locator: step.locatorSummary,
                                              classification: lastClassification, classifierError: classifierError)
                       + tapDiagnosisHint(lastSnapshot?.elements))
-            : failed(.notFound, "element not found: \(step.locatorSummary)" + Self.truncationHint(lastSnapshot)
+            : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
+                      + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot))
     }
 
@@ -1990,7 +1995,8 @@ extension StepExecutor {
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
         guard found else {
-            return failed(.notFound, "element not found: \(step.locatorSummary)" + Self.truncationHint(lastSnapshot))
+            return failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
+                          + Self.truncationHint(lastSnapshot))
         }
         guard let lastClassification else {
             if let classifierFailureThisStep {

@@ -536,10 +536,11 @@ public func tapAppIcon(_ appIconName: String? = nil,
 
         // アイコンを撃つ唯一の口。**inapp-boost モードで対象アプリのプロセスが居なければ、押さずに dylib を注入して起動する**
         // (アイコンから起きたアプリには in-app ブリッジが載らず、後続が全部届かない = 24周目 iultra F1。押してから注入付きで
-        // 起こし直すと起動が2回走り、アプリの起動時の副作用も2回になる)。生死を答えられない(実機)・背面で生きているときは押す
+        // 起こし直すと起動が2回走り、アプリの起動時の副作用も2回になる)。背面で生きているときは押す。生死を答えられない(実機)ときは、
+        // このシナリオが止めたまま起こしうる操作が無いときだけ注入付きで起動する(`appKnownGoneAfterScenarioStopped`)
         func fire(_ icon: ElementInfo) async throws {
             if platform == "ios", appIconName == core.appDisplayName, core.executor.primaryCaptureOmitsSystemUI,
-               let alive = core.appAliveProbe, await alive(core.appBundleID) == false {
+               await core.appKnownGoneAfterScenarioStopped() {
                 try await core.driver.launch(bundleID: core.appBundleID)
                 core.executor.noteAppLaunched(bundleID: core.appBundleID)
                 iconNote = .appIconLaunchedWithBridge
@@ -1299,11 +1300,22 @@ public func procedure(_ title: String,
 func notRunningAppBackRefusal(core: FTDriveCore) async -> AppNotRunningRefusal? {
     guard core.platform == "ios", core.appUnderTestLife == .stoppedByScenario,
           core.executor.lastLaunchedAppBundleID == core.appBundleID,
-          let alive = core.appAliveProbe, await alive(core.appBundleID) == false else { return nil }
+          await core.appKnownGoneAfterScenarioStopped() else { return nil }
     return AppNotRunningRefusal(
         message: "back: the app under test (\(core.appBundleID)) is not running — this scenario stopped it — so nothing was"
-            + " sent. back() would start it, and a person cannot go back into an app that is not running."
-            + " Launch it first (launchApp())")
+            + " sent. back() would start it, and a person cannot go back into an app that is not running. "
+            + StoppedAppAdvice.startAgain(afterStopping: core.executor.appUnderTestStoppedCommand))
+}
+
+extension FTDriveCore {
+    /// このシナリオが止めた対象アプリが、今も居ないと言えるか(iOS)。照会が答えればその答え(居る = 起きている → false)。
+    /// **照会が無い・答えられない**(実機)ときは、inapp-boost モードで「止めた後に起こしうる操作を撃っていない」(`appStoppedByScenario`)
+    /// ことを根拠にする = back / tapAppIcon が止めたアプリをブリッジ無しで起こさない(phys F1/F2・31周目)。xcuitest はランナーが別の
+    /// プロセスで断るので対象外
+    func appKnownGoneAfterScenarioStopped() async -> Bool {
+        if let alive = appAliveProbe, let answer = await alive(appBundleID) { return answer == false }
+        return executor.primaryCaptureOmitsSystemUI && appStoppedByScenario
+    }
 }
 
 struct AppNotRunningRefusal: LocalizedError, StepFailureKindProviding {

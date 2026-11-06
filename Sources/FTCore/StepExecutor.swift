@@ -1266,6 +1266,8 @@ public final class StepExecutor {
     /// このシナリオが対象アプリを止めた(`terminateApp`・`removeApp`・`clearAppData`)まま、起動の手がまだ無い。DSL が
     /// `FTRuntime.appUnderTestLife` から同期する(起動の手でだけ戻る)
     public var appUnderTestStopped = false
+    /// 止めたコマンド名(`appUnderTestStopped` と同時に立ち、起動の手で nil)。再び動かす手順の案内が `removeApp` だけ違う(`StoppedAppAdvice`)
+    public var appUnderTestStoppedCommand: String?
 
     /// **Android で、このシナリオが止めたままのアプリの要素を読む・触るステップを、探さずに断る**(OI-181 ④: `terminateApp()` の後の
     /// `tap(scroll: .down)` がランチャーの一覧を 17 秒送り、ランチャーの部品で包めと従えない案内をした = 4/4)。iOS は撃つ前に
@@ -1280,7 +1282,8 @@ public final class StepExecutor {
               let tree = try? await driver.snapshot(),
               LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
         return "The app under test (\(bundleID)) is not running — this scenario stopped it — so this step did not look for"
-            + " its element (scrolling or waiting would only move whatever is in front). Launch it first (launchApp())"
+            + " its element (scrolling or waiting would only move whatever is in front). "
+            + StoppedAppAdvice.startAgain(afterStopping: appUnderTestStoppedCommand)
     }
 
     /// 対象が「無い」ことで通る(または分岐が決まる)ステップ: notExist・countIs 0・条件の判定(`canSelect` の門の

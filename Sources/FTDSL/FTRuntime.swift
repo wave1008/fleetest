@@ -1501,9 +1501,11 @@ public final class FTDriveCore {
             if Self.stoppingCommands.contains(command) {
                 withState { _appUnderTestLife = .stoppedByScenario }
                 executor.appUnderTestStopped = true
+                executor.appUnderTestStoppedCommand = command
             } else if ["launchApp", "restartApp"].contains(command), launchedBundleID == appBundleID {
                 withState { _appUnderTestLife = .launched }
                 executor.appUnderTestStopped = false
+                executor.appUnderTestStoppedCommand = nil
             }
         }
         let timing = launchTiming?()
@@ -1678,10 +1680,18 @@ public final class FTDriveCore {
         appLaunchedInThisProcess = true
         withState { _appUnderTestLife = .launched }
         executor.appUnderTestStopped = false
+        executor.appUnderTestStoppedCommand = nil
     }
 
-    /// 止めた状態を保つコマンド(アプリへ触らない読みと待ち)
-    private static let keepsStoppedAppState: Set<String> = stoppingCommands.union(["ifCanSelect", "repeatWhileCanSelect", "wait"])
+    /// 「このシナリオが止めた」の印(`_appStoppedByScenario`)を消す**唯一の集合**: 止めたアプリを起こしうる操作だけ。
+    /// これ以外(back・scroll*・hideKeyboard・home・読み・待ち …)は印を残す —— 消す側を列挙するのは、アプリを起こさない操作が
+    /// 増えるたびに印が消えて「クラッシュしたかも」が付くのを防ぐため(逆に「保つ側」を列挙すると新しいコマンドが印を消す)。
+    /// tap / doubleTap はランチャー・ホームのアイコンを押して起こしうる。iOS の back は撃てればアプリを起こす
+    private static let wakingCommands: Set<String> =
+        ["launchApp", "restartApp", "tapAppIcon", "openURL", "tap", "doubleTap"]
+    func wakesStoppedApp(command: String) -> Bool {
+        Self.wakingCommands.contains(command) || (command == "back" && platform == "ios")
+    }
     /// 対象アプリを止める3コマンド。`_appUnderTestLife` と `_appStoppedByScenario` の両方がこの1つの集合で「このシナリオが止めた」を数える
     /// (片方だけが terminateApp しか数えず、clearAppData / removeApp の後の失敗に「クラッシュしたかも」が並んでいた)
     static let stoppingCommands: Set<String> = ["terminateApp", "removeApp", "clearAppData"]
@@ -1894,7 +1904,7 @@ public final class FTDriveCore {
         if case .failed = status {} else if let command {
             if Self.stoppingCommands.contains(command) {
                 if case .passed = status { _appStoppedByScenario = true; _appStoppedCommand = command }
-            } else if !Self.keepsStoppedAppState.contains(command) {
+            } else if wakesStoppedApp(command: command) {
                 _appStoppedByScenario = false
             }
         }

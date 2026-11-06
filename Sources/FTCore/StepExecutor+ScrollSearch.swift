@@ -126,6 +126,8 @@ extension StepExecutor {
         /// ソフトキーボードの上でスワイプすると始点がキー面に乗って「1度も動かなかった」に
         /// 見えるため(ScrollGeometry.viewport 参照)、その主因を名指しする
         var keyboardFrame: FTRect? = nil
+        /// 探索が最後に読んだ木の覆いの申告の名指し(`coverReportHint`)。失敗文が待ち・逆向きの案内の代わりに言う
+        var coverHint: String? = nil
         /// `scrollFrame` 未指定で全画面探索したときだけ埋める —— 探索方向に合う
         /// (縦横比から推定)、書けるセレクタを持つスクロール容器が木にあったら、その名前。
         /// found の成否に関わらず埋まりうる(失敗文が「scrollFrame: を検討しろ」と
@@ -310,7 +312,9 @@ extension StepExecutor {
                         + " so search along its own axis with \(oppositeArgument): \(vertical ? ".left / .right" : ".up / .down")"
                     : "the opposite direction was not searched — if the element"
                         + " is on that side, search with \(oppositeArgument): .\(direction.rawValue)"
-                stopped = " (nothing moved at all during the search — either the swipes did not reach a"
+                stopped = result?.coverHint != nil
+                    ? " (nothing moved at all during the search)"
+                    : " (nothing moved at all during the search — either the swipes did not reach a"
                     + " scrolling area or it was already at its end in this direction; the tool cannot tell which,"
                     + " and raising maxSwipes will not help; \(tail))"
             }
@@ -384,7 +388,14 @@ extension StepExecutor {
         let ownerNote = result?.ownerChangedDuringSearch.map { " (\(ownerChangeFact($0)))" } ?? ""
         let startedNote = result?.startedOnOtherApp.map { " (\(startedOnOtherAppFact($0)))" } ?? ""
         return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote)\(ownerNote)\(startedNote): \(step.locatorSummary)"
-            + sheetHint + keyboardHint + scrollFrameHint + loadingWaitHint(step, result)
+            + sheetHint + keyboardHint + scrollFrameHint
+            + (result?.coverHint ?? loadingWaitHint(step, result))
+    }
+
+    /// 木の覆いの申告の名指し(モーダル → 手前の窓の順。`cannot resolve the locator` と同じ順)。申告が無い木・木が無いは nil
+    static func coverReportHint(_ snapshot: SnapshotResponse?) -> String? {
+        guard let snapshot else { return nil }
+        return modalScopeHint(snapshot) ?? frontWindowCoverHint(snapshot)
     }
 
     /// 木が動かなくなって止めた探索に、`waitSeconds:` が使える(読み込み中の骨組み・末尾の読み込みは待てば伸びる)ことを添える。
@@ -883,8 +894,19 @@ extension StepExecutor {
         return "(\(n(r.x)),\(n(r.y)) \(n(r.width))x\(n(r.height)))"
     }
 
+    /// 探索の本体(`searchBody`)の結果に、最後に読んだ木の覆いの申告を載せる(戻り口が多いので1箇所で包む)
     func runScrollSearch(step: FlowStep, recoverOnMiss: Bool = true,
                          phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
+        let cover = CoverHintBox()
+        var result = try await searchBody(step: step, recoverOnMiss: recoverOnMiss, cover: cover, phase: &phase)
+        result.coverHint = cover.hint
+        return result
+    }
+
+    final class CoverHintBox { var hint: String? }
+
+    private func searchBody(step: FlowStep, recoverOnMiss: Bool, cover: CoverHintBox,
+                            phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
         let clock = ContinuousClock()
         let searchStart = clock.now
         // 動いた後に端へ着いた最初の時刻(書かれた waitSeconds: の起点。endWaitStart)
@@ -1009,6 +1031,7 @@ extension StepExecutor {
                 }
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
+            cover.hint = Self.coverReportHint(snapshot)
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)

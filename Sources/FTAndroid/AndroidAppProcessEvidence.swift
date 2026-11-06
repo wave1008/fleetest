@@ -71,6 +71,25 @@ public enum AndroidAppProcessEvidenceQuery {
                                          crashKind: block?.kind)
     }
 
+    /// `adb shell pm path <pkg>` で「入っていない」と確かめられたか(判定は `packageAbsence`)
+    public static func confirmedNotInstalled(package: String, serial: String?) -> Bool {
+        guard AndroidPackageName.isShellSafe(package), let adb = try? AndroidDriver.findADB() else { return false }
+        var args = [adb]
+        if let serial { args += ["-s", serial] }
+        args += ["shell", "pm", "path", package]
+        guard let result = try? Shell.run(args, timeout: 5) else { return false }
+        return packageAbsence(status: result.status, output: result.output) == true
+    }
+
+    /// `pm path` の結果から「入っていないか」。true = 入っていない(非 0 終了で出力が空 = pm の通常の「無い」)、
+    /// false = 入っている(`package:` の行がある)、nil = 判定できない(adb 自体の失敗・知らない出力)
+    static func packageAbsence(status: Int32, output: String) -> Bool? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikeADBFailure(trimmed) { return nil }
+        if status == 0 { return trimmed.split(separator: "\n").contains { $0.hasPrefix("package:") } ? false : nil }
+        return trimmed.isEmpty ? true : nil
+    }
+
     /// 起点が分からないときの窓(秒)。ft_logs の既定と同じ5分(無制限には戻さない)
     public static let defaultAttributionWindowSeconds = 300
 

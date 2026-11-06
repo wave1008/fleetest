@@ -681,6 +681,9 @@ struct RunScenario: AsyncParsableCommand {
             core.appProcessEvidence = { _ in
                 guard let raw = AndroidAppProcessEvidenceQuery.query(package: package, serial: serial),
                       !raw.running else { return [] }
+                // 入っていないアプリは落ちたのではない(前のシナリオの removeApp() 等)= クラッシュの証拠にしない。
+                // 生死の照会(appProcessRunning)は「居ない」のまま = 止めたアプリの断りの判定はこれを読む
+                if AndroidAppProcessEvidenceQuery.confirmedNotInstalled(package: package, serial: serial) { return [] }
                 let evidence = AndroidAppProcessEvidenceQuery.scoped(
                     raw, package: package, serial: serial, since: scenarioStartedAt)
                 // crash バッファにこのシナリオ中のクラッシュが見つかった = 構造化した事実として記録

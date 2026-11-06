@@ -135,7 +135,7 @@ final class StoppedAppRelaunchTests: XCTestCase {
     }
 
     /// processGone を記録してよいのは「このシナリオが対象アプリを起こし、その後止めていない」ときだけ。
-    /// 止めた後に別のステップが通っても(`appStoppedByScenario` は解ける)記録しない
+    /// 止めた後にアプリを起こさないステップ(home 等)が通っても、止めた印は残る(起こしうる操作だけが解く)
     func testProcessGoneMayBeRecordedOnlyWhileTheLaunchedAppWasNotStopped() {
         func flagAtFailure(_ body: @escaping () -> Void) -> Bool? {
             let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
@@ -148,7 +148,62 @@ final class StoppedAppRelaunchTests: XCTestCase {
             return seen.withLock { $0 }
         }
         XCTAssertEqual(flagAtFailure { launchApp() }, true)
-        XCTAssertEqual(flagAtFailure { launchApp(); terminateApp(); home() }, false)
+        // home() はアプリを起こさないので「止めた」の印が残る = 証拠を読みに行かない(居ないのは当然)
+        XCTAssertNil(flagAtFailure { launchApp(); terminateApp(); home() })
         XCTAssertEqual(flagAtFailure { launchApp("com.apple.Preferences") }, false, "対象アプリを起こしていない")
+    }
+    /// 実機(生死の照会が無い)でも、止めたまま起こしうる操作が無ければ back は撃たない(31周目 phys F1)
+    func testBackAfterTerminateIsRefusedWhenTheAppCannotBeProbed() {
+        let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
+        let core = makeCore(primary: primary, xcui: xcui, springBoard: springBoard, alive: false, probe: probe)
+        core.appAliveProbe = nil
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+
+        scenario { scene(1, "s") { action { launchApp(); terminateApp(); back() } } }
+
+        XCTAssertEqual(xcui.backCount + primary.backCount, 0, "照会の無い実機で止めたアプリへ back を撃った")
+    }
+
+    /// 照会が無くても、止めた後に起こしうる操作(launchApp)を撃っていれば back は撃つ
+    func testBackAfterRelaunchFiresWhenTheAppCannotBeProbed() {
+        let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
+        let core = makeCore(primary: primary, xcui: xcui, springBoard: springBoard, alive: false, probe: probe)
+        core.appAliveProbe = nil
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+
+        scenario { scene(1, "s") { action { launchApp(); terminateApp(); launchApp(); back() } } }
+
+        XCTAssertEqual(xcui.backCount + primary.backCount, 1)
+    }
+
+    /// 実機(照会なし)で止めたままの tapAppIcon は、アイコンを押さず注入付きで起動する(31周目 phys F2)
+    func testTapAppIconLaunchesWithTheBridgeWhenStoppedAndTheAppCannotBeProbed() {
+        let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
+        springBoard.elements = homeScreen()
+        let core = makeCore(primary: primary, xcui: xcui, springBoard: springBoard, alive: false, probe: probe)
+        core.appAliveProbe = nil
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+
+        scenario { scene(1, "s") { action { launchApp(); terminateApp(); tapAppIcon() } } }
+
+        XCTAssertEqual(primary.launched, [Self.bundle, Self.bundle])
+        XCTAssertEqual(springBoard.tappedRefs, [])
+    }
+
+    /// 止めていなければ、照会が無くてもアイコンを押す
+    func testTapAppIconTapsWhenNotStoppedAndTheAppCannotBeProbed() {
+        let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
+        springBoard.elements = homeScreen()
+        let core = makeCore(primary: primary, xcui: xcui, springBoard: springBoard, alive: true, probe: probe)
+        core.appAliveProbe = nil
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+
+        scenario { scene(1, "s") { action { launchApp(); home(); tapAppIcon() } } }
+
+        XCTAssertEqual(springBoard.tappedRefs, [7])
     }
 }

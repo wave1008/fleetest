@@ -431,6 +431,15 @@ public enum AppFate: Sendable, Equatable {
 /// —— 負荷テストで、Android の一時的な adb 断に iOS inapp-boost モード向けの案内
 /// (「シミュレータ専用」)が付き、iOS xcuitest ランナーを外から殺した接続拒否で
 /// 「アプリが落ちた」が第一容疑にされていた(xcuitest はアプリと別プロセスなので的外れ)
+/// 止めたアプリを再び動かす手順の案内(1箇所)。`removeApp` で消したアプリは `launchApp()` も「not installed」で落ちるので入れ直しから
+public enum StoppedAppAdvice {
+    public static func startAgain(afterStopping command: String?) -> String {
+        command == "removeApp"
+            ? "It was uninstalled: install it again first (installApp()), then launch it (launchApp())"
+            : "Launch it first (launchApp())"
+    }
+}
+
 public enum DriverErrorMessage {
     /// 要求を送った後に切れた・時限切れの手は端末で実行されていることがある(撃ち直すと二重に打つ・押す)。
     /// **操作の呼び手(CLI の操作・ライブ操作)が `DriverError.deliveryUnknownAdvice` 経由で付ける**。
@@ -465,7 +474,9 @@ public enum DriverErrorMessage {
                 + " will not help; launch the app again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
                 + (detail.isEmpty ? "" : " \(detail)")
         case .stoppedBySession:
-            return "The app under test is not running: this session stopped it (terminateApp / terminate) and has not"
+            // 止めたコマンド(terminateApp / clearAppData / removeApp / MCP・CLI の terminate)はドライバ層では分からない。名指さない
+            // (DSL の失敗には FTRuntime が「stopped it with <command>()」の行を足す)
+            return "The app under test is not running: this session stopped it and has not"
                 + " launched it since. Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
         case .aliveButNotAnswering:
             return nil

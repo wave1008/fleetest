@@ -437,7 +437,14 @@ extension StepExecutor {
     /// 内側に入力欄がちょうど1つある容器(`nonInputTypeTargetNote` が non-nil)は従来どおり撃つ
     func nonTextInputPreflightRefusal(_ element: ElementInfo, in elements: [ElementInfo],
                                       action: String) -> String? {
-        guard TapTargetGeometry.typeTargetVerdict(element, in: elements) == .notATextField(positively: true) else {
+        let verdict = TapTargetGeometry.typeTargetVerdict(element, in: elements)
+        // Android の staticText = 押せない TextView / 葉のテキスト(押せる要素は "clickable" に写る = OTP の箱は断らない)。
+        // 押して焦点の接続を探しても入力欄ではなく、4 秒待って「target node not found」と事実と違う理由で落ちていた
+        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false) {
+            return "the target is a staticText, not a text field — refusing before anything is typed"
+                + " (it is display-only text that cannot take input). Point the selector at the input field itself."
+        }
+        guard verdict == .notATextField(positively: true) else {
             return nil
         }
         return "the target is a \(element.type), not a text field — refusing before anything is"
