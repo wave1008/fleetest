@@ -96,6 +96,7 @@
 
 11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る ⑫供給で in-app の dylib のビルドが失敗した run の機械ごとの行が `✅ local exit=0 ran=0` と出る(全体の終了コードは 1・「どのデバイスにも渡らなかった」の警告は出る)
 
+- 11/6(977378ee の回帰・M1Ultra): フル E2EX でまた E2EX-RN の iOS が 48/48 赤(起動直後の最初の tap で SIGABRT・`RCTExceptionsManager reportFatal`・同日のクラッシュレポート 27 件)。落ちた3クラスを同じ機械で単独に回し直すと 4/4 緑 = フル E2EX の流れでだけ出る形のまま(3/3)
 ### OI-168 探索の残り(10周目)
 - 状態: 再現済み
 - 確認: a5e87ce1(2026-11-04)
