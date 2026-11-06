@@ -117,6 +117,14 @@ export function issueAttributes(text) {
     .map((m) => ({ id: m[1], values: m[2].match(/^- 属性: (.+)$/)?.[1].split("・") ?? [] }));
 }
 
+test("open-issues の項目は属性の次に運用と優先度の行を持つ", () => {
+  const text = readFileSync(path.join(DOCS, "open-issues.md"), "utf8");
+  const missing = [...text.matchAll(/^### (OI-\d+)[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n([^\n]*)\n([^\n]*)/gm)]
+    .filter((m) => !/^- 運用: \S/.test(m[2]) || !/^- 優先度: [高中低] — \S/.test(m[3])).map((m) => m[1]);
+  assert.ok(text.match(/^### OI-\d+/gm).length > 0, "項目が読めない");
+  assert.deepEqual(missing, [], "運用・優先度の行が無い(docs/README.md「台帳の項目」)");
+});
+
 test("open-issues の項目は表にある属性を持ち、一覧の件数と項目・置かれた節が属性と一致する", () => {
   const text = readFileSync(path.join(DOCS, "open-issues.md"), "utf8");
   const rows = [...text.matchAll(/^\| ([^|]+?) \| [^|]+ \| (\d+) \| ([^|]+) \|$/gm)];
