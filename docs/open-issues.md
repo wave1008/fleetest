@@ -240,6 +240,8 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 要測定
+- 運用: ①要注意 — 戻るボタンの無い iOS の画面の `back()` は注記 `back-stayed-on-screen` が付くだけで緑。自前の戻るがあれば `tap` で押す ②④合否に響かない ③合否に響かない(続くステップは赤になる)
+- 優先度: 中 — ①戻るボタンの無い iOS の画面の back() が緑のまま(注記で知らせる)
 
 11/6 の28周目の探索(20分・`_work/explore-20261106l/findings-*.md`)で観測し、直さなかったもの。①iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があっても、ナビゲーションバーの `BackButton` でなければ左端のスワイプに落ちる(iultra F1。28周目の直しで、同じ画面に留まったら `back-stayed-on-screen` と注記するようにした = 合否は緑のまま。自前の戻るを押すかは要判断)②E2E-iOS の WebView 画面で `back()` が戻らないのに注記なし・4.2 秒(iultra F2・7/7)= 要測定 ③Android の根の画面の `back()` でアプリが閉じてランチャーへ出るのに注記なしの ✅、続く赤は「Another window is in front」とだけ言い直前の back のせいと言わない(phys F1・4/4)= 要測定 ④MCP の `ft_launch` が Duo で「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る(duo F2・1/1)・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(duo F3・1/1)= 要測定
 
