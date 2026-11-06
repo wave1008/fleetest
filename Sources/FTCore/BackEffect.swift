@@ -53,6 +53,15 @@ public enum BackEffect {
         return true
     }
 
+    /// **back を撃つ前から、木の持ち主が対象アプリでなかったか**(`terminateApp()` / `clearAppData()` / `home()` の後はランチャー等が前面)。
+    /// そうなら back がアプリを抜けたのではなく、back の注記(back-left-app・木が同一・同じ画面)はどれも事実と合わない。
+    /// 持ち主が読めない・システムのダイアログは false(従来どおり注記の判定へ進む)
+    public static func startedOutsideTheApp(beforeOwner: String?, expected: [String]) -> Bool {
+        guard let owner = beforeOwner, !owner.isEmpty, !expected.contains(owner),
+              !ForegroundState.systemDialogPackages.contains(owner) else { return false }
+        return true
+    }
+
     /// 同じ画面と言うのに要る識別子の数(1〜2 個では、別の画面でも同じ組になりうる)
     static let minimumIdentifiers = 3
 

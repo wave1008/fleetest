@@ -392,10 +392,11 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         if (body.has("ref")) {
             int ref = body.optInt("ref");
             double[] center = centerOf(ref, body);
+            android.view.accessibility.AccessibilityNodeInfo focusBeforePress = InputInjector.focusedEditableNow(ua());
             tapUnlessAlreadyFocused(center, refIds.get(ref));
             // 確認と注入を統合した経路(InputInjector.setTextAppendingAt のコメント参照)。
             // resource-id を渡す: キーボードの開閉で座標がズレても同じ要素を追跡し直すため
-            String note = InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS);
+            String note = InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS, focusBeforePress);
             if (note != null) {   // 焦点の接続へ回した(OKResponse.note。ホストが lastActionNote で拾う)
                 settle();
                 return BridgeHttpServer.Response.json(200, "{\"ok\":true,\"note\":" + JSONObject.quote(note) + "}");

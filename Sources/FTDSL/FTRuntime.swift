@@ -86,6 +86,9 @@ public struct SceneRecordData: Sendable {
     /// 空 = 言うことなし。中身は appProcessEvidence のクロージャが決める(FTDSL は FTAndroid に
     /// 依存しないため、行の組み立ては FTScenarioRunner 側)
     public var failureAppProcess: [String] = []
+    /// 失敗時の絵について言える事実(`FailureScreenshotFacts`)。失敗したステップの NDJSON は絵を撮る前に出ているので、ステップの
+    /// `notes` ではなくここに載せる(レポートの絵の直前に1行出す)
+    public var failureScreenshotNote: StepNote?
 
     public var passed: Bool {
         steps.allSatisfy {
@@ -1495,7 +1498,7 @@ public final class FTDriveCore {
             failureKind = .timeout
         }
         if case .passed = status, let command {
-            if ["terminateApp", "removeApp", "clearAppData"].contains(command) {
+            if Self.stoppingCommands.contains(command) {
                 withState { _appUnderTestLife = .stoppedByScenario }
                 executor.appUnderTestStopped = true
             } else if ["launchApp", "restartApp"].contains(command), launchedBundleID == appBundleID {
@@ -1644,6 +1647,8 @@ public final class FTDriveCore {
     /// 失敗でないステップが入ると解ける(別の操作がアプリを起こしうる)。**失敗したステップでは解かない** ——
     /// 失敗の直後に呼ばれる `handleFailure` が「止めたのはこのシナリオ」と言えるように
     private var _appStoppedByScenario = false
+    /// `_appStoppedByScenario` を立てたコマンド名(失敗の文が「何で止めたか」を言う)
+    private var _appStoppedCommand: String?
     /// 直近に記録した2つのステップが「注記 back-left-app の back()」だったか(stateLock で守る)。失敗の ⚠️ が「直前の back() がアプリを抜けた」と
     /// 名指す材料。`recordStep` は失敗したステップ自身も記録してから `handleFailure` を呼ぶので、読むのは1つ前(`...Previous`)
     private var _lastStepWasBackLeftApp = false
@@ -1651,6 +1656,10 @@ public final class FTDriveCore {
     var precedingStepWasBackLeftApp: Bool {
         stateLock.lock(); defer { stateLock.unlock() }
         return _stepBeforeLastWasBackLeftApp
+    }
+    var appStoppedCommand: String? {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return _appStoppedByScenario ? _appStoppedCommand : nil
     }
     var appStoppedByScenario: Bool {
         stateLock.lock(); defer { stateLock.unlock() }
@@ -1672,7 +1681,10 @@ public final class FTDriveCore {
     }
 
     /// 止めた状態を保つコマンド(アプリへ触らない読みと待ち)
-    private static let keepsStoppedAppState: Set<String> = ["terminateApp", "ifCanSelect", "repeatWhileCanSelect", "wait"]
+    private static let keepsStoppedAppState: Set<String> = stoppingCommands.union(["ifCanSelect", "repeatWhileCanSelect", "wait"])
+    /// 対象アプリを止める3コマンド。`_appUnderTestLife` と `_appStoppedByScenario` の両方がこの1つの集合で「このシナリオが止めた」を数える
+    /// (片方だけが terminateApp しか数えず、clearAppData / removeApp の後の失敗に「クラッシュしたかも」が並んでいた)
+    static let stoppingCommands: Set<String> = ["terminateApp", "removeApp", "clearAppData"]
     /// 子が「このシナリオはこの環境では成り立たない」と宣言した理由(scenarioFinished.notApplicableReason へ運ぶ)。
     /// 失敗ではない: 宣言以降の手順は skipped になり、シナリオの合否は宣言までの手順だけで決まる
     public var notApplicableReason: String? {
@@ -1880,8 +1892,8 @@ public final class FTDriveCore {
         _stepBeforeLastWasBackLeftApp = _lastStepWasBackLeftApp
         _lastStepWasBackLeftApp = command == "back" && notes.contains(.backLeftApp)
         if case .failed = status {} else if let command {
-            if command == "terminateApp" {
-                if case .passed = status { _appStoppedByScenario = true }
+            if Self.stoppingCommands.contains(command) {
+                if case .passed = status { _appStoppedByScenario = true; _appStoppedCommand = command }
             } else if !Self.keepsStoppedAppState.contains(command) {
                 _appStoppedByScenario = false
             }
@@ -2006,7 +2018,7 @@ public final class FTDriveCore {
         // 背面で停止したアプリの木は読まない(StepExecutor.appStillInBackground。読むと 45 秒返らない)。絵は XCUITest が撮る
         let executor = self.executor
         let appInBackground = FTSync.run { await executor.appStillInBackground() } ?? false
-        let context = FTSync.run { () async -> (Data?, Bool, String?) in
+        let context = FTSync.run { () async -> (Data?, Bool, String?, Bool) in
             let snapshot = appInBackground ? nil : try? await driver.snapshot()
             // **アラートが前面にある失敗では、背面のアプリの要素一覧を載せない**(MCP と同じ規律 = `AlertTreeScope`):
             // 押せなかった画面の一覧を読むと「対象はあったのに撃てなかった」と原因を取り違える。システムアラートは
@@ -2031,16 +2043,19 @@ public final class FTDriveCore {
                     }
                 }
             }
-            return (screenshot, evidenceBlank, elementsText)
+            return (screenshot, evidenceBlank, elementsText,
+                    snapshot.map(FailureScreenshotFacts.omitsSecureKeyboard) ?? false)
         }
-        if let (screenshot, evidenceBlank, elementsText) = context {
+        if let (screenshot, evidenceBlank, elementsText, secureKeyboard) = context {
             withState {
                 guard let index = currentSceneIndex else { return }
                 record.scenes[index].failureScreenshot = FailureEvidenceImage.displayOriented(screenshot)
                 record.scenes[index].evidenceBlank = evidenceBlank
                 record.scenes[index].failureUnderSystemAlert = systemAlertPresent
                 record.scenes[index].failureElements = elementsText
+                record.scenes[index].failureScreenshotNote = secureKeyboard ? .screenshotOmitsSecureKeyboard : nil
             }
+            if secureKeyboard { emit(.log("⚠️ " + StepNote.screenshotOmitsSecureKeyboard.text)) }
             // 判定は FrozenFrameJudgement(純関数)。システムアラートに覆われている間の白は
             // 凍結の証拠にしない
             if FrozenFrameJudgement.shouldMarkFrozen(evidenceBlank: evidenceBlank,
@@ -2054,7 +2069,7 @@ public final class FTDriveCore {
         // (ここで問うと .ips の待ちを払ううえ、前の回の報告をこのシナリオのクラッシュとして記録しうる)
         let stoppedByScenario = appStoppedByScenario
         if stoppedByScenario {
-            emit(.log("The app process is not running: this scenario stopped it with terminateApp()"
+            emit(.log("The app process is not running: this scenario stopped it with \(appStoppedCommand ?? "terminateApp")()"
                       + " and no later step started it again"))
         }
         let processEvidence = stoppedByScenario || (appProcessEvidenceRequiresLaunch && !appLaunchedInThisProcess)
@@ -2094,3 +2109,14 @@ public final class FTDriveCore {
     }
 }
 
+
+/// 失敗時の絵が写さないと言える事実の判定(MCP・DSL で共有する置き場。実行機の static にしない)
+enum FailureScreenshotFacts {
+    /// 失敗時の木でキーボードが出ていて、焦点の要素が secureTextField か。OS は secure 入力の間、キーボードとパスワードの中身を
+    /// 画面の撮影から除く(木は `keyboardShown` と値を答える。OI-167 ⑦の測定: 焦点が secure かどうかと 18/18 で一致)。
+    /// 焦点を申告しない木・キーボードが出ていない木は false(黙る)
+    static func omitsSecureKeyboard(_ snapshot: SnapshotResponse) -> Bool {
+        guard KeyboardWait.isShown(snapshot) else { return false }
+        return snapshot.elements.contains { $0.focused == true && $0.type == "secureTextField" }
+    }
+}

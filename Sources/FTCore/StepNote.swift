@@ -116,6 +116,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// Android の back() の後、木の持ち主(前面のパッケージ)が対象アプリでなくなった = アプリの最初の画面で押してランチャー等へ抜けた。
     /// 木は変わる(= back-ineffective にならない)ので黙って ✅ になり、続く読みが別の窓の木で赤になっていた(`BackEffect.leftTheApp`)
     case backLeftApp = "back-left-app"
+    /// 失敗時の絵(スクリーンショット)に、キーボードとパスワードの中身が写っていない。失敗時の木でキーボードが出ていて焦点が secureTextField のとき、
+    /// OS は secure 入力の間それらを撮影から除く(木は出ていると答える)。事実だけ・判定は変えない。**ステップの `notes` ではなく
+    /// 失敗の記録(レポートの絵の直前・ログ)に載る** —— 絵は失敗したステップの記録の後に撮るため(`FailureScreenshotFacts`)
+    case screenshotOmitsSecureKeyboard = "screenshot-omits-secure-keyboard"
     /// iOS の openURL の初回の同意の確かめ(`BridgeClient.acknowledgeOpenURLConsent`)が SpringBoard へ張り替えたセッションを、対象アプリへ
     /// 張り戻せなかった(開いた先が別のアプリで前面だと `attach` は失敗する)。以降の XCUITest 経由の操作が SpringBoard に向いたままの疑い。
     /// 合否は変えない。**確かめが走った回だけ**立つ(`openURLSessionNotRestoredPrefix` で始まる lastActionNote を DSL の openURL が写す)
@@ -579,6 +583,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .backLeftApp:
             return "after back the foreground is no longer the app under test (it was probably on its first screen, so back left the app)"
                 + " — steps from here run against whatever is in front; bring the app back with launchApp() or tapAppIcon() if the scenario continues"
+        case .screenshotOmitsSecureKeyboard:
+            return "the failure screenshot does not show the soft keyboard or the password text: the focused field is a secure"
+                + " input, and the OS leaves both out of screenshots while it has focus (the element tree still reports the keyboard as shown)"
         case .backStayedOnScreen:
             // 言い切らない: 識別子の組が同じでも、同じ種類の画面を積んだ遷移(詳細 → 詳細)では戻っている。「戻っていない・自前の
             // 戻るを押せ」と言うと、従った書き手が二重に戻った(29周目 iultra F1: E2EX-CMP の詳細 id=3 → id=2 で 6/6)

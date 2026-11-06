@@ -347,9 +347,15 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
         executor.noteAppMayHaveLeft(true)
         guard let before, let after = try? await observer.observationSnapshot() else { return }
+        let expectedOwners = [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }
+        // 撃つ前から対象アプリが前面に居なかった(止めた・ホームの後)なら、back の注記は付けない(アプリを抜けたのは back ではない)
+        if core.platform == "android",
+           BackEffect.startedOutsideTheApp(beforeOwner: before.sessionBundleID, expected: expectedOwners) {
+            return
+        }
         if core.platform == "android",
            BackEffect.leftTheApp(afterOwner: after.sessionBundleID,
-                                 expected: [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }) {
+                                 expected: expectedOwners) {
             observedNote = .backLeftApp
         } else if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
             observedNote = .backIneffective

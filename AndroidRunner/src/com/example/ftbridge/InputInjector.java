@@ -136,7 +136,7 @@ final class InputInjector {
      * 期限内に確認できなければ 500(他フィールドへは決して書かない)。
      */
     static String setTextAppendingAt(UiAutomation ua, double x, double y, String shortId,
-                                   String text, long timeoutMs) {
+                                   String text, long timeoutMs, AccessibilityNodeInfo focusBeforePress) {
         long start = SystemClock.uptimeMillis();
         long deadline = start + timeoutMs;
         long focusGraceUntil = start + timeoutMs / 2;
@@ -170,7 +170,7 @@ final class InputInjector {
                 } else if (accepted > 0) {
                     lastState = "the field could not be found again after ACTION_SET_TEXT was accepted";
                 } else if (shortId != null && root != null && SystemClock.uptimeMillis() >= focusGraceUntil
-                        && hasNodeWithId(root, shortId) && focusedEditable(root) != null
+                        && hasNodeWithId(root, shortId) && focusMovedSincePress(focusedEditable(root), focusBeforePress)
                         && Boolean.TRUE.equals(servedInputConnection(ua))) {
                     // 押せるだけで editable でない要素(Compose の OTP の箱)を押すと、IME は木に出ない欄へつながる。
                     // 人が押してから打つのと同じに、焦点の接続へ打つ(ref なしの type と同じ経路)。**焦点が移る猶予(focusGraceUntil)を
@@ -724,6 +724,22 @@ final class InputInjector {
             }
             SystemClock.sleep(RETRY_POLL_MS);
         }
+    }
+
+    /** 押す前の焦点の欄(無ければ null)。try/catch で null に倒す(取れないときは「前は無かった」= 従来の回す側) */
+    static AccessibilityNodeInfo focusedEditableNow(UiAutomation ua) {
+        try {
+            AccessibilityNodeInfo root = ua.getRootInActiveWindow();
+            return root == null ? null : focusedEditable(root);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 焦点の欄が今あり、かつ押す前の焦点の欄と別物(前が無い含む)。同じ欄のままなら押した要素は入力欄ではない
+     *  (静的テキストを押しても焦点は動かない)ので、その欄へ打たず失敗させる。equals はノードの source id・window・接続の一致 */
+    private static boolean focusMovedSincePress(AccessibilityNodeInfo now, AccessibilityNodeInfo before) {
+        return now != null && (before == null || !now.equals(before));
     }
 
     /**

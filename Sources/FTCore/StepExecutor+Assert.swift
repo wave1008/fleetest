@@ -1171,7 +1171,10 @@ extension StepExecutor {
             if let fallback = stale.fallback { return .passedViaFallback(fallback) }
             return .passed
         }
+        // 前面を離れたかもしれない印があり前面の照会が「前面に無い」と答えたときだけ、その事実と戻し方を添える(操作側と同じ `leftForegroundHint`)
+        let leftHint = await leftForegroundHint() ?? ""
         return failed(.notFound, "element not found: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
+                       + leftHint
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
@@ -1368,6 +1371,7 @@ extension StepExecutor {
             return vanishedAfterSeenFailure(step, subject: subject, lastActual: lastActual,
                                             lastSnapshot: lastSnapshot)
         }
+        let leftHint = found ? "" : (await leftForegroundHint() ?? "")
         return found
             ? .failed("\(subject) \(relation): expected \"\(expected)\", actual \(Self.quotedActual(lastActual))"
                       // **どちらの規則なら一致したか**を必ず添える(ユーザー指示)。
@@ -1380,6 +1384,7 @@ extension StepExecutor {
                       + tapDiagnosisHint(lastSnapshot?.elements)
                       + Self.webViewPathHint(lastSnapshot))
             : failed(.notFound, "element not found: \(step.locatorSummary)"
+                      + leftHint
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)

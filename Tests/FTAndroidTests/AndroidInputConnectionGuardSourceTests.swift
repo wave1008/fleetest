@@ -45,7 +45,7 @@ final class AndroidInputConnectionGuardSourceTests: XCTestCase {
             return XCTFail("焦点の猶予を待ってから回す条件が見つからない(前の欄へ打つ事故の砦)")
         }
         let tail = String(typeAt[fb.lowerBound...].prefix(700))
-        XCTAssertTrue(tail.contains("focusedEditable(root) != null"))
+        XCTAssertTrue(tail.contains("focusMovedSincePress(focusedEditable(root), focusBeforePress)"))
         XCTAssertTrue(tail.contains("Boolean.TRUE.equals(servedInputConnection(ua))"))
         XCTAssertTrue(tail.contains("setTextAppending(ua, text);") && tail.contains("return FOCUSED_CONNECTION_NOTE;"))
     }

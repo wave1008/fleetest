@@ -100,8 +100,13 @@ public enum SimulatorAppProcess {
     /// `recordsProcessGone`: .ips も上書きの痕も無い死を `processGone` として記録するか(呼び手が inapp-boost モードで、このシナリオが
     /// 対象アプリを起こし、その後止めていないときだけ true。`FTDriveCore.appProcessEvidence` の doc)
     public static func failureEvidence(bundleID: String, udid: String, scenarioStartedAt: Date,
-                                       recordsProcessGone: Bool) -> [String] {
-        guard isRunning(udid: udid, bundleID: bundleID) == false else { return [] }
+                                       recordsProcessGone: Bool,
+                                       isRunning running: (String, String) -> Bool? = { isRunning(udid: $0, bundleID: $1) },
+                                       notInstalled: (String, String) -> Bool = { confirmedNotInstalled(udid: $0, bundleID: $1) }) -> [String] {
+        guard running(udid, bundleID) == false else { return [] }
+        // **入っていないアプリは落ちたのではない**(前のシナリオの removeApp() で消えた等。起動の失敗文が「入っていない」と言う)。
+        // 入っていないと確かめられたときだけ証拠にしない(確かめられなければ従来どおり)
+        if notInstalled(udid, bundleID) { return [] }
         if let recorded = LastAppCrash.shared.snapshot() {
             return ["process not running"] + (recorded.path.map { [crashReportLine(path: $0, reason: recorded.summary)] }
                 ?? recorded.summary.map { [$0] } ?? [])
@@ -118,6 +123,11 @@ public enum SimulatorAppProcess {
         }
         LastAppCrash.shared.record(AppCrashRecord(evidence: .crashReport, path: hit.path, summary: hit.reason))
         return ["process not running", crashReportLine(path: hit.path, reason: hit.reason)]
+    }
+
+    /// 入っていないと確かめられたか(既定は simctl / CoreSim の照会。テストは引数で差し替える)
+    public static func confirmedNotInstalled(udid: String, bundleID: String) -> Bool {
+        InstalledAppCheck.simulatorInstallVerdict(udid: udid, bundleID: bundleID) == .notInstalled
     }
 
     static let processGoneSummary = "the app process was not running when the step failed, and no crash report was found"

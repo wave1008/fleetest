@@ -338,7 +338,7 @@ public struct InAppLauncher: Sendable {
         if let result = CoreSimAppControl.launch(
             udid: udid, bundleID: bundleID, environment: environment, terminateRunningProcess: true) {
             guard result.success else {
-                throw InAppLauncherError.launchFailed(result.error ?? "unknown")
+                throw Self.launchFailure(tail: result.error ?? "unknown", bundleID: bundleID, udid: udid)
             }
             return
         }
@@ -350,8 +350,18 @@ public struct InAppLauncher: Sendable {
             "xcrun", "simctl", "launch", "--terminate-running-process", udid, bundleID,
         ])
         guard result.status == 0 else {
-            throw InAppLauncherError.launchFailed(result.tail)
+            throw Self.launchFailure(tail: result.tail, bundleID: bundleID, udid: udid)
         }
+    }
+
+    /// Simulator の起動失敗の分類。**失敗の経路でだけ**インストールの有無を照会する(終了コードで判定。確かめられなければ従来の文)
+    static func launchFailure(tail: String, bundleID: String, udid: String) -> InAppLauncherError {
+        launchFailure(tail: tail, verdict: InstalledAppCheck.simulatorInstallVerdict(udid: udid, bundleID: bundleID))
+    }
+
+    /// 純粋関数: 入っていないと確かめられたときだけ `appNotInstalled`(`.unknown` は従来の `launchFailed`)
+    static func launchFailure(tail: String, verdict: InstalledAppCheck.InstallVerdict) -> InAppLauncherError {
+        verdict == .notInstalled ? .appNotInstalled(tail) : .launchFailed(tail)
     }
 
     public func terminate(bundleID: String) {
@@ -434,7 +444,7 @@ extension InAppLauncherError: StepFailureKindProviding {
     public var stepFailureKind: StepFailureKind? {
         switch self {
         case .notReady: return .driverUnreachable
-        case .dylibMissing, .repoRootInvalid, .buildFailed, .buildInterrupted, .bootFailed, .launchFailed: return nil
+        case .dylibMissing, .repoRootInvalid, .buildFailed, .buildInterrupted, .bootFailed, .launchFailed, .appNotInstalled: return nil
         }
     }
 }
@@ -447,6 +457,8 @@ public enum InAppLauncherError: Error, LocalizedError {
     case buildInterrupted
     case bootFailed(String)
     case launchFailed(String)
+    /// 起動に失敗し、アプリがこのデバイスに入っていないと確かめられた(`InstalledAppCheck` の判定が `.notInstalled`)
+    case appNotInstalled(String)
     case notReady(String)
 
     public var errorDescription: String? {
@@ -468,6 +480,10 @@ public enum InAppLauncherError: Error, LocalizedError {
             return "the injected app launch failed"
                 + " (the install was verified during provisioning, so look for device trouble "
                 + "or an app crash):\n\(tail)"
+        case .appNotInstalled(let tail):
+            return "the injected app launch failed because the app is not installed on this device"
+                + " (it may have been removed after provisioning, e.g. by removeApp() — including in a previous scenario)."
+                + " Install it with installApp(), or install it again before launching after removeApp():\n\(tail)"
         case .notReady(let detail):
             return "the in-app bridge did not respond in time: \(detail)"
         }

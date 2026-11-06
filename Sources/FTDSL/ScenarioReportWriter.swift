@@ -114,6 +114,7 @@ public enum ScenarioReportWriter {
                 // 縮小表示+クリックでフルサイズ(markdown プレビューはインライン HTML を描画する。
                 // ![...]() 直埋めだと端末縦解像度のまま表示され確認しづらい)
                 md += "\n### Screenshot at failure (click for full size)\n\n"
+                if let note = scene.failureScreenshotNote { md += "> ⚠️ \(note.text)\n\n" }
                 // 「凍結」と書くかは凍結の判定(markDeviceFrozen)と同じ FrozenFrameJudgement で決める
                 if FrozenFrameJudgement.shouldMarkFrozen(evidenceBlank: scene.evidenceBlank,
                                                          systemAlertPresent: scene.failureUnderSystemAlert) {

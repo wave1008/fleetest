@@ -291,7 +291,7 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/FTRuntime.swift"), encoding: .utf8)
         guard let start = source.range(of: "func handleFailure(stepDescription:"),
-              let end = source.range(of: "if let (screenshot, evidenceBlank, elementsText) = context", range: start.upperBound..<source.endIndex)
+              let end = source.range(of: "if let (screenshot, evidenceBlank, elementsText, secureKeyboard) = context", range: start.upperBound..<source.endIndex)
         else { return XCTFail("走査の範囲が見つからない") }
         let body = String(source[start.upperBound..<end.lowerBound])
         XCTAssertTrue(body.contains("executor.appStillInBackground()"), "背面かを聞いていない")
