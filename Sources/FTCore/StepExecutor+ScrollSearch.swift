@@ -1304,17 +1304,11 @@ extension StepExecutor {
                     turned.screenResized = true
                     return turned
                 }
-                // **払う前の木が「その向きへは動けない」と申告していれば、払わずに端と確定する**(Android の AX 申告。
-                // 上端の PullToRefresh の一覧へ払うと、見つからない1本が更新を走らせた = OI-163 ⑩。scrollToEdge と同じ判定)。
-                // 申告の無い木(iOS)は false = 従来どおり木の署名で端を確かめる。
-                // **まだ1本も払っていない周だけ**: 払った後の申告は、末尾で続きを読み込む一覧(Flutter の無限スクロール)が
-                // 読み込むまで「もう送れない」と言い、猶予の後の読みでも追いつかずに 20→40 件で打ち切った(E2EX-Flutter の
-                // Android・1/1)。払った後は従来どおり木の署名(2回の不変と猶予)で端を確かめる
-                let declaredAtEdge = swipes == 0 && Self.declaredAtEdge(step: searchStep, in: snapshot, finger: direction)
-                if declaredAtEdge
-                    || previousSnapshot.map({ searchSignature($0) == searchSignature(snapshot) }) ?? false {
-                    unmovedRounds = declaredAtEdge ? max(unmovedRounds + 1, Self.unmovedRoundsToStopSearch)
-                                                   : unmovedRounds + 1
+                // **探索は払う前の申告(scrollActions)で端と確定しない**: 上端の PullToRefresh の一覧と RN の反転チャット
+                // (最新の行が下・過去は上)はどちらも ["forward","down"] を申告し、申告だけでは見分けられない(反転チャットで
+                // 過去の行を1本も払わずに「何も動かない」と赤にした = E2EY-RN の Android 2/2)。端は木の署名(2回の不変と猶予)で確かめる
+                if previousSnapshot.map({ searchSignature($0) == searchSignature(snapshot) }) ?? false {
+                    unmovedRounds += 1
                     previousSwipeMoved = false
                     // **最後に動いてから `edgeClaimGraceAfterMove` 経つまでは打ち切らず、残りを待って
                     // もう1本送る**(scrollToEdge と同じ猶予)。末尾に着いてから続きを読み込む一覧は、
@@ -1326,12 +1320,6 @@ extension StepExecutor {
                         try await Task.sleep(for: Self.edgeClaimGraceAfterMove - (clock.now - lastMoveAt))
                         phase.waitMs += Self.ms(clock.now - waitStart)
                         unmovedRounds = Self.unmovedRoundsToStopSearch - 1
-                        // 申告で端と分かっている回は払わない(待った後の読みで申告が変わったかだけを見る)
-                        if declaredAtEdge {
-                            previousSnapshot = snapshot
-                            attempt -= 1
-                            continue
-                        }
                     }
                     // **利用者が `waitSeconds:` を書いたのに何も動かないままなら、その予算の間は端と確定しない**
                     // (読み込み中の骨組みの一覧は数秒後に伸びる。1.5 秒で「何も動かない」と断ると予算を使い切らずに赤になった)。
@@ -1444,7 +1432,7 @@ extension StepExecutor {
                         // 既定の始点が一覧の外に落ちる)。ブリッジ既定の始点は変えない = この失敗経路でだけ撃つ。
                         // 動かなかったと観測した後の別の始点での払いで、探索の一部(届いたか分からない操作の撃ち直しではない)。
                         // 容器が複数なら当てずに払わない(失敗文が scrollFrame を勧める)。動いたときだけ探索を続ける
-                        if !declaredAtEdge, !containerRedirectTried, !contentEverMoved, step.scrollFrame == nil, step.scrollFrameRect == nil,
+                        if !containerRedirectTried, !contentEverMoved, step.scrollFrame == nil, step.scrollFrameRect == nil,
                            !KeyboardWait.isShown(confirmed.snapshot),
                            let only = ContainerGeometry.uniqueScrollContainer(in: confirmed.snapshot, vertical: vertical) {
                             containerRedirectTried = true

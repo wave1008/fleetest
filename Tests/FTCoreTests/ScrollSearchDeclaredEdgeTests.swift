@@ -1,6 +1,7 @@
-// 探索(scrollTo / select の scroll:)の払いの前に、容器が「その向きへは動けない」と申告していれば払わずに端と確定する
-// (OI-163 ⑩: 上端の PullToRefresh の一覧への scroll: .up が更新を走らせた)。判定は scrollToEdge と共有
-// (StepExecutor.declaredAtEdge)。申告の無い木(iOS)は従来どおり払って確かめる。
+// 探索(scrollTo / select の scroll:)は払う前の申告(scrollActions)で端と確定しない: 上端の PullToRefresh の一覧と
+// RN の反転チャット(最新の行が下・過去は上)はどちらも ["forward","down"] を申告し、申告だけでは見分けられない
+// (反転チャットで過去の行を1本も払わずに赤にした = E2EY-RN の Android)。端の申告の判定(StepExecutor.declaredAtEdge)は
+// scrollToEdge だけが使う。
 
 import XCTest
 @testable import FTCore
@@ -86,11 +87,11 @@ final class ScrollSearchDeclaredEdgeTests: XCTestCase {
         FlowStep(action: "scrollTo", locator: FlowLocator(id: "missing"), direction: "down", maxSwipes: 8)
     }
 
-    func testSearchSendsNoSwipeWhenContainerDeclaresNoMoveInThatDirection() async throws {
+    /// 反転チャットの申告(上へ送れないと言うが、見た目の上に過去の行がある)でも探索は払う
+    func testSearchStillSwipesWhenTheDeclarationSaysNoMoveThatWay() async throws {
         let driver = DeclaredEdgeDriver(scrollActions: ["forward", "down"])
-        let result = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables()).execute(step())
-        XCTAssertEqual(driver.swipes, 0, "上端と申告された容器へ探索の払いを送った(更新が走る)")
-        guard case .failed = result.status else { return XCTFail("\(result.status)") }
+        _ = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables()).execute(step())
+        XCTAssertGreaterThan(driver.swipes, 0, "申告だけで端と確定して払わなかった(反転チャットで過去の行へ届かない)")
     }
 
     func testSearchStillSwipesWhenContainerCanMoveThatWay() async throws {

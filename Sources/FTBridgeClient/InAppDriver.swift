@@ -15,6 +15,10 @@ public final class InAppDriver: AppDriver {
     private var lastLaunchTimingValue: LaunchTiming?
     /// このセッションが terminate を撃ってから launch していない間 true(接続断の帰属 = `AppFate.stoppedBySession`)
     private var stoppedBySession = false
+    /// 生死の照会の差し替え口(テスト用。nil なら simctl)
+    var appRunningProbe: (@Sendable (String) async -> Bool?)?
+    /// テスト用: terminate を撃った後の状態にする
+    func markStoppedForTest(bundleID: String) { lastBundleID = bundleID; stoppedBySession = true }
 
     /// **simulatorUDID を渡し切る**: install/uninstall/clearAppData は simctl 経路で、宛先を
     /// 知らないと `/status` に聞きに行く。in-app ブリッジは対象アプリのプロセス内に住むので、
@@ -375,7 +379,16 @@ public final class InAppDriver: AppDriver {
     /// 戻り値の `AppFate` は測れたときだけ(.ips の発見・自分の terminate・生きているのに答えない)。他は nil で従来の文言
     private func crashAnnotated(_ detail: String) async -> (String, AppFate?) {
         // 自分で止めたアプリへの接続断は、クラッシュ報告を探さず事実(自分で止めた)を言う
-        if stoppedBySession { return (detail, .stoppedBySession) }
+        // 止めた後にプロセスが居るなら、別の経路(アイコン・activate)で注入無しに起こし直された = 「止めたまま」ではない。
+        // 印を落とし、事実(動いている・in-app ブリッジは居ない)を言う。照会は失敗の経路だけ・止めた後だけ
+        if stoppedBySession {
+            guard let bundleID = lastBundleID, await appIsStillRunning(bundleID: bundleID) == true else {
+                return (detail, .stoppedBySession)
+            }
+            stoppedBySession = false
+            return (detail + " / the app is running again but was started without the in-app bridge (not by launchApp(),"
+                + " e.g. from its home-screen icon or an activate) — launchApp() restarts it with the bridge", nil)
+        }
         // .ips もプロセスの生死もこの Mac の Simulator でしか引けない。実機で探すと何も確かめないまま「OS に殺されたかも」と言う
         guard !context.physicalDevice, let bundleID = lastBundleID else { return (detail, nil) }
         for attempt in 0..<8 {
@@ -412,6 +425,7 @@ public final class InAppDriver: AppDriver {
     /// 「殺された可能性」の文言を使う(判定できない=生きていない、にはしない)
     /// **協調スレッドプールで待たない**(Shell.run は同期で最大 timeout 秒ブロックする)
     private func appIsStillRunning(bundleID: String) async -> Bool? {
+        if let appRunningProbe { return await appRunningProbe(bundleID) }
         guard let udid = simulatorUDID else { return nil }
         return await Task.detached { SimulatorAppProcess.isRunning(udid: udid, bundleID: bundleID) }.value
     }
