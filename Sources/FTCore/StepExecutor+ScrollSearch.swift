@@ -1297,8 +1297,11 @@ extension StepExecutor {
                 }
                 // **払う前の木が「その向きへは動けない」と申告していれば、払わずに端と確定する**(Android の AX 申告。
                 // 上端の PullToRefresh の一覧へ払うと、見つからない1本が更新を走らせた = OI-163 ⑩。scrollToEdge と同じ判定)。
-                // 申告の無い木(iOS)は false = 従来どおり木の署名で端を確かめる
-                let declaredAtEdge = Self.declaredAtEdge(step: searchStep, in: snapshot, finger: direction)
+                // 申告の無い木(iOS)は false = 従来どおり木の署名で端を確かめる。
+                // **まだ1本も払っていない周だけ**: 払った後の申告は、末尾で続きを読み込む一覧(Flutter の無限スクロール)が
+                // 読み込むまで「もう送れない」と言い、猶予の後の読みでも追いつかずに 20→40 件で打ち切った(E2EX-Flutter の
+                // Android・1/1)。払った後は従来どおり木の署名(2回の不変と猶予)で端を確かめる
+                let declaredAtEdge = swipes == 0 && Self.declaredAtEdge(step: searchStep, in: snapshot, finger: direction)
                 if declaredAtEdge
                     || previousSnapshot.map({ searchSignature($0) == searchSignature(snapshot) }) ?? false {
                     unmovedRounds = declaredAtEdge ? max(unmovedRounds + 1, Self.unmovedRoundsToStopSearch)
