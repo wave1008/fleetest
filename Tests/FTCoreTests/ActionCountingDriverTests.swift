@@ -136,7 +136,7 @@ final class ActionCountingDriverTests: XCTestCase {
         _ = try await driver.install(packagePath: "/x")
         try await driver.clearAppData(bundleID: "a")
         try await driver.restoreOrientationIfNeeded()
-        await driver.acknowledgeOpenURLConsentIfPresent(bundleID: "a")
+        await driver.acknowledgeOpenURLConsentIfPresent(bundleID: "a", url: "app://x")
         driver.captureKeyboardStateOnNextSnapshot()
         driver.raiseElementLimitOnNextSnapshot(10)
         XCTAssertEqual(counter.take(), 0)

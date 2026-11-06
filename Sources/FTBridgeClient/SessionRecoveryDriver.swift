@@ -130,8 +130,8 @@ public final class SessionRecoveryDriver: AppDriver {
         try await base.openURL(url, bundleID: bundleID)
     }
     public func addMedia(path: String) async throws { try await base.addMedia(path: path) }
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
-        await base.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
+        await base.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
     }
     // /appstate はセッション不要の読み取りなので withRecovery を挟まず素通し(install と同じ扱い)
     public func isAppForeground(bundleID: String) async throws -> Bool {

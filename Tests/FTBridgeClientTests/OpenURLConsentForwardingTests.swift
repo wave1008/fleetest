@@ -19,11 +19,11 @@ final class OpenURLConsentForwardingTests: XCTestCase {
         let path = root.appendingPathComponent("Sources/FTBridgeClient/AppAttachDriver.swift")
         let source = try String(contentsOf: path, encoding: .utf8)
 
-        XCTAssertTrue(source.contains("func acknowledgeOpenURLConsentIfPresent(bundleID: String) async"),
+        XCTAssertTrue(source.contains("func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async"),
                       "AppAttachDriver が acknowledgeOpenURLConsentIfPresent を宣言していません"
                           + "(既定の no-op に落ちると inapp-boost モードの openURL 同意が springboard を見られる"
                           + "側でも常に空振りする)")
-        XCTAssertTrue(source.contains("client.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)"),
+        XCTAssertTrue(source.contains("client.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)"),
                       "AppAttachDriver.acknowledgeOpenURLConsentIfPresent が client へ転送していません")
     }
 
@@ -37,7 +37,7 @@ final class OpenURLConsentForwardingTests: XCTestCase {
         let path = root.appendingPathComponent("Sources/FTBridgeClient/WebViewDelegatingDriver.swift")
         let source = try String(contentsOf: path, encoding: .utf8)
 
-        XCTAssertTrue(source.contains("delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)"),
+        XCTAssertTrue(source.contains("delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)"),
                       "WebViewDelegatingDriver.openURL が delegated 側で同意ステップを試していません")
     }
 
@@ -60,7 +60,7 @@ final class OpenURLConsentForwardingTests: XCTestCase {
             guard name != "BridgeClient" else { continue }
             let source = try String(contentsOf: file, encoding: .utf8)
             guard source.contains("func openURL(_ url: String, bundleID: String?) async throws") else { continue }
-            if !source.contains("func acknowledgeOpenURLConsentIfPresent(bundleID: String) async") {
+            if !source.contains("func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async") {
                 missing.append(name)
             }
         }
@@ -87,7 +87,7 @@ final class OpenURLConsentForwardingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Sources/FTBridgeClient/BridgeClient.swift"), encoding: .utf8)
-        guard let start = source.range(of: "func acknowledgeOpenURLConsent(bundleID: String, target: String)"),
+        guard let start = source.range(of: "func acknowledgeOpenURLConsent(bundleID: String, target: String, url: String)"),
               let end = source.range(of: "public func acknowledgeOpenURLConsentIfPresent", range: start.upperBound..<source.endIndex)
         else { return XCTFail("走査の範囲が見つからない") }
         let body = String(source[start.upperBound..<end.lowerBound])

@@ -117,8 +117,8 @@ public final class ActionCountingDriver: AppDriver {
     public func hitTest(query: HitTestQuery) async -> HitTestAnswer { await base.hitTest(query: query) }
     public func clearAppData(bundleID: String) async throws { try await base.clearAppData(bundleID: bundleID) }
     public func addMedia(path: String) async throws { try await base.addMedia(path: path) }
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
-        await base.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
+        await base.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
     }
     public func captureKeyboardStateOnNextSnapshot() { base.captureKeyboardStateOnNextSnapshot() }
     public func raiseElementLimitOnNextSnapshot(_ max: Int?) { base.raiseElementLimitOnNextSnapshot(max) }

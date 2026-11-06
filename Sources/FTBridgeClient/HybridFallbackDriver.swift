@@ -388,9 +388,9 @@ public final class HybridFallbackDriver: AppDriver {
     /// **in-app(primary)は springboard を見られない**(自分の bundle 以外の /session を 409 で拒否)。
     /// 確認アラートの了承は XCUITest 側にしかできないので、両方へ順に投げる(BridgeClient 側が
     /// (デバイス, bundleID)ごとに1回だけ実際の操作を行うので二重に押すことはない)
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
-        await primary.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
-        await fallback.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
+        await primary.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
+        await fallback.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
     }
     public func isAppForeground(bundleID: String) async throws -> Bool {
         try await active.isAppForeground(bundleID: bundleID)

@@ -544,7 +544,7 @@ public final class BridgeClient: AppDriver, Sendable {
     /// (実機の devicectl 経路・bundleID なしの呼び出しでは同意ステップを行わない)
     public func openURL(_ url: String, bundleID: String?) async throws {
         guard let target = try await deliverURL(url), let bundleID else { return }
-        await acknowledgeOpenURLConsent(bundleID: bundleID, target: target)
+        await acknowledgeOpenURLConsent(bundleID: bundleID, target: target, url: url)
     }
 
     /// 配送だけ(同意の確かめをしない)。返すのは simctl の宛先(実機は nil)。**in-app 接続はこちらを使う**(InAppDriver.openURL):
@@ -610,10 +610,13 @@ public final class BridgeClient: AppDriver, Sendable {
     private var consentAlertPollAttempts: Int { 4 }
     private var consentAlertPollIntervalNanos: UInt64 { 400_000_000 }
 
-    func acknowledgeOpenURLConsent(bundleID: String, target: String) async {
+    func acknowledgeOpenURLConsent(bundleID: String, target: String, url: String) async {
         let key = "\(target)#\(bundleID)"
         guard !OpenURLConsentAttemptCache.shared.hasAttempted(key) else { return }
-        guard let displayName = Self.appDisplayName(bundleID: bundleID, target: target) else { return }
+        let listing = Self.appListing(bundleID: bundleID, target: target)
+        // 別のアプリ向けの URL では試さない・試したことにもしない(後の自分のスキームの openURL で試す)
+        guard OpenURLConsent.mayAppear(url: url, ownSchemes: listing?.schemes),
+              let displayName = listing?.displayName else { return }
         do {
             // springboard 参照(SystemUIDriver と同じ非破壊な /session 切り替え)。
             // in-app 接続は自分の bundle 以外の /session を 409 で拒否するため、
@@ -653,37 +656,45 @@ public final class BridgeClient: AppDriver, Sendable {
 
     /// AppDriver 要件。外部(WebViewDelegatingDriver/AppAttachDriver)から呼ばれたときは
     /// target をまだ持たないため、まず /status から解決する
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
         guard physicalUDID == nil, let target = try? await simctlTarget("openURL") else { return }
-        await acknowledgeOpenURLConsent(bundleID: bundleID, target: target)
+        await acknowledgeOpenURLConsent(bundleID: bundleID, target: target, url: url)
     }
 
-    /// bundleID → 表示名(CFBundleDisplayName、無ければ CFBundleName)。アラート同定に使う
-    /// (ラベル文字列は端末ロケールで変わるため使えない)。取れなければ nil(呼び出し側は同意
-    /// ステップごと諦める)。`SimulatorAppCatalog`(一覧)と同じ simctl listapps 経由で、
-    /// ここは1件の表示名だけを引く
-    static func appDisplayName(bundleID: String, target: String) -> String? {
+    /// インストール済みのアプリの表示名(CFBundleDisplayName、無ければ CFBundleName。同意のアラートの同定に使う = ラベル文字列は
+    /// 端末ロケールで変わる)と、受ける URL スキーム(小文字。`Path` の Info.plist の `CFBundleURLTypes`。listapps 自体はスキームを
+    /// 載せない)。**(宛先, アプリ) ごとにプロセスで1回だけ `simctl listapps` を撃って控える**(約 2.7 秒/回。openURL の初回が
+    /// 表示名とスキームで2回撃っていた = OI-179 ②)。控えるのは読めた回だけ。表示名・スキームは入れ直しでも同じアプリなら変わらない
+    struct AppListing: Sendable {
+        let displayName: String?
+        let schemes: Set<String>?
+    }
+    static let appListingCache = LockedValue<[String: AppListing]>([:])
+
+    static func appListing(bundleID: String, target: String) -> AppListing? {
+        let key = "\(target)#\(bundleID)"
+        if let cached = appListingCache.withLock({ $0[key] }) { return cached }
         guard let result = try? Shell.run(["xcrun", "simctl", "listapps", target]), result.status == 0,
               let data = result.output.data(using: .utf8),
               let raw = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let apps = raw as? [String: [String: Any]],
               let info = apps[bundleID] else { return nil }
-        return (info["CFBundleDisplayName"] as? String) ?? (info["CFBundleName"] as? String)
+        let displayName = (info["CFBundleDisplayName"] as? String) ?? (info["CFBundleName"] as? String)
+        var schemes: Set<String>?
+        if let path = info["Path"] as? String,
+           let plistData = FileManager.default.contents(atPath: path + "/Info.plist"),
+           let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any] {
+            let types = plist["CFBundleURLTypes"] as? [[String: Any]] ?? []
+            schemes = Set(types.flatMap { ($0["CFBundleURLSchemes"] as? [String]) ?? [] }.map { $0.lowercased() })
+        }
+        let listing = AppListing(displayName: displayName, schemes: schemes)
+        appListingCache.withLock { $0[key] = listing }
+        return listing
     }
 
-    /// インストール済みのアプリが受ける URL スキーム(小文字)。`simctl listapps` の `Path` の Info.plist の `CFBundleURLTypes` から読む
-    /// (listapps 自体はスキームを載せない)。読めなければ nil(呼び手は「分からない」として扱う)
+    /// インストール済みのアプリが受ける URL スキーム(小文字)。読めなければ nil(呼び手は「分からない」として扱う)
     static func appURLSchemes(bundleID: String, target: String) -> Set<String>? {
-        guard let result = try? Shell.run(["xcrun", "simctl", "listapps", target]), result.status == 0,
-              let data = result.output.data(using: .utf8),
-              let raw = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
-              let apps = raw as? [String: [String: Any]],
-              let path = apps[bundleID]?["Path"] as? String,
-              let plistData = FileManager.default.contents(atPath: path + "/Info.plist"),
-              let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)
-                as? [String: Any] else { return nil }
-        let types = plist["CFBundleURLTypes"] as? [[String: Any]] ?? []
-        return Set(types.flatMap { ($0["CFBundleURLSchemes"] as? [String]) ?? [] }.map { $0.lowercased() })
+        appListing(bundleID: bundleID, target: target)?.schemes
     }
 
     /// フォアグラウンドのアプリが bundleID と一致するか(POST /appstate。両ブリッジ HTTP 互換)

@@ -147,7 +147,7 @@ public protocol AppDriver {
     /// springboard を見られない接続(in-app ブリッジ等)では何もしない。
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由。存在型越しの呼び出しは
     /// 要件でなければ静的ディスパッチで既定実装に落ち、実装したドライバが無視される)
-    func acknowledgeOpenURLConsentIfPresent(bundleID: String) async
+    func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async
     /// 次の snapshot() 呼び出しでだけキーボード表示状態(SnapshotResponse.keyboardShown)を採る。
     /// StepExecutor が keyboardShown/keyboardNotShown アサートの直前に呼ぶ。既定は no-op
     /// (iOS はツリー走査中に常に判定できるため不要)。Android は dumpsys 呼び出しが固定費なので、
@@ -743,7 +743,7 @@ public extension AppDriver {
 
     /// 既定は no-op: 実装を持つのは springboard の /session を張れる接続(BridgeClient=XCUITest
     /// 接続)だけ。他のドライバは黙って通す(取りこぼしより誤爆を避ける側に倒す)
-    func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {}
+    func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {}
 
     func captureKeyboardStateOnNextSnapshot() {}
 

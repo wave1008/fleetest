@@ -384,16 +384,16 @@ public final class WebViewDelegatingDriver: AppDriver {
         resetDelegation()
         try await primary.openURL(url, bundleID: bundleID)
         if let bundleID {
-            await delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+            await delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
         }
     }
     /// simctl 経由のホスト操作でセッション不要。画面は変えないので委譲状態は触らない
     public func addMedia(path: String) async throws { try await primary.addMedia(path: path) }
     /// primary(in-app)は何もしない(InAppDriver の no-op)ので delegated(XCUITest attach)側が試す。
     /// 実際の操作は BridgeClient 側が (デバイス, bundleID) ごとに1回だけ行う
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
-        await primary.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
-        await delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
+        await primary.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
+        await delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
     }
     public func status() async throws -> StatusResponse { try await primary.status() }
     // WebView 委譲モードと無関係な状態照会なので primary 固定(status() と同じ扱い)

@@ -30,7 +30,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 20 | OI-125・OI-129・OI-139・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-179・OI-180・OI-181・OI-184・OI-186・OI-187 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 19 | OI-125・OI-129・OI-139・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-180・OI-181・OI-184・OI-186・OI-187 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 13 | OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185・OI-186 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
@@ -153,15 +153,6 @@
 
 11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 着手可。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。11/6(v275): 遮ったのが対象アプリ自身のアラート(セッションのアプリにアラートがあり SpringBoard には無い)なら「an alert of the app under test is open」と名指すようにし、ボタンの重複も除いた(`BridgeAPI.uniqueAlertButtonLabels`)。名指しの文言は iPhone 13 実機でしか出ない(Simulator の home はハードのボタンで、アプリのアラートを開いたままでも前面を離れた)ので、つないだときに確かめる。残り: ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測) ⑤(20周目)iOS の UIKit の別ウィンドウのモーダルが開いている間に裏の要素を tap すると「cannot resolve … add waitSeconds:」とだけ言い、覆いを名指さない(amax F1・im4 F1。従っても直らない)= 要測定(Android の形は 11/6 に直した = 失敗の ⚠️ がアプリ自身のダイアログの窓を名指す。iOS の形の原因は測っていない) ⑥(20周目)権限アラートが `home()` の後に出てホーム画面のアイコンを覆うと、次の `tapAppIcon` が「App icon not found」でアラートを名指さない(ilocal F1・4/8)= 要測定
 
-### OI-179 探索の残り(21周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定・環境側
-- 運用: ①Flutter の形は未測定 ②合否に響かない(時間の損) ⑤未再現(Duo だけ・環境側)
-- 優先度: 低 — 時間の損と未再現
-
-11/6 の21周目の探索(20分・`_work/explore-20261106e/findings-*.md`。この周から iPhone Duo の担当 duo を足した)で観測し、直さなかったもの。①大文字を含む自分のスキーム(`FTE2EFLUTTER://`)の `openURL` で iOS が「“Ft E2e Flutter”で開きますか?」の同意のアラートを出し、URL は届かないのに `openURL` は ✅(iultra F1・Flutter 12/12・SwiftUI 6/6)。SwiftUI の形は SUT 側の作りでツールの不具合ではない(E2E-iOS の受け手 `E2EAppIOS/Sources/App/FTE2EIOSApp.swift:80-81` がスキームを大小を区別して比べ、URL は届いているのに遷移を捨てる。同意のアラートは出ない)。Flutter の形(同意のアラート)は未測定 = 材料不足(表題の “Ft E2e Flutter” と表示名 `Ft E2e Flutter` は一致するので、大小違いの筋書きは成り立たない可能性が高い。照合が外れた理由は未測定)②起動直後の最初の別アプリ向けの `openURL` が 11.7〜15.1 秒(iultra F2・24/24。simctl openurl を直接撃つと 1.6〜4.6 秒)= 着手可。内訳(report-mios。1 回の実測 12.86 秒。HTTP の無い区間の中身は simctl の呼び出しとコードからの推測): simctl openurl と listapps 約 2.7 秒 + 離脱の聞き取り 0.5 秒 + 表示名の listapps 約 2.65 秒 + 同意のアラートの出現待ち約 1.85 秒(`consentAlertPollAttempts = 4`)+ 張り戻し(`attachOnly`)の 500 に 5.0 秒。2 回目は同意の確かめが (端末, アプリ) ごとに 1 回なので 5.3 秒。次の手: 同意の確かめを「開いた先が自分のアプリ(自分のスキーム)のときだけ」に絞る(別アプリ向けでは表題に自分の表示名が出ず照合が当たらない = 毎回の初回で空振り)・listapps は 1 回にまとめて控える ⑤iPhone Duo で `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(duo F1・1/1 = 未再現)= 環境側(Duo の SpringBoard / testmanagerd の落ち。OI-184 ④)
-
 ### OI-180 探索の残り(22周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
@@ -208,6 +199,16 @@
 11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。②iOS の WebView 画面の `back()` が戻らないのに注記なしの ✅・4.2〜4.6 秒(iultra・SwiftUI と RN で各 6/6)= 着手可。原因と次の手・11/6 の注記の直しは OI-186 ②(before が委譲の木・after が in-app の木で、約 4 秒のうち委譲の待ちが約 2.35 秒)。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)
 
 ## 要測定
+### OI-179 探索の残り(21周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定・環境側
+- 運用: ①Flutter の形は未測定 ⑤未再現(Duo だけ・環境側)
+- 優先度: 低 — 未測定と未再現
+
+11/6 の21周目の探索(20分・`_work/explore-20261106e/findings-*.md`。この周から iPhone Duo の担当 duo を足した)で観測し、直さなかったもの。①大文字を含む自分のスキーム(`FTE2EFLUTTER://`)の `openURL` で iOS が「“Ft E2e Flutter”で開きますか?」の同意のアラートを出し、URL は届かないのに `openURL` は ✅(iultra F1・Flutter 12/12・SwiftUI 6/6)。SwiftUI の形は SUT 側の作りでツールの不具合ではない(E2E-iOS の受け手 `E2EAppIOS/Sources/App/FTE2EIOSApp.swift:80-81` がスキームを大小を区別して比べ、URL は届いているのに遷移を捨てる。同意のアラートは出ない)。Flutter の形(同意のアラート)は未測定 = 材料不足(表題の “Ft E2e Flutter” と表示名 `Ft E2e Flutter` は一致するので、大小違いの筋書きは成り立たない可能性が高い。照合が外れた理由は未測定) ⑤iPhone Duo で `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(duo F1・1/1 = 未再現)= 環境側(Duo の SpringBoard / testmanagerd の落ち。OI-184 ④)
+- 11/6: ②(別アプリ向けの最初の openURL が 11.7〜15.1 秒)を直した = 同意の確かめは自分のスキームの URL だけ・listapps は (宛先, アプリ) ごとに1回。手元の3台で 2.1〜5.2 秒
+
 ### OI-185 探索の残り(27周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)

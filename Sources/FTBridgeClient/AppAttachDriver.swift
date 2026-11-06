@@ -364,8 +364,8 @@ public final class AppAttachDriver: AppDriver {
     public func addMedia(path: String) async throws { try await client.addMedia(path: path) }
     /// **素通しが必須**: 既定実装(no-op)に落ちると、inapp-boost モードで WebViewDelegatingDriver がこの
     /// インスタンス(XCUITest 接続=springboard を見られる側)へ回した同意ステップが握りつぶされる
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {
-        await client.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID)
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {
+        await client.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
     }
 
     // ライフサイクル・install/uninstall はアプリ本体(primary=in-app)が担う。attach 用では no-op。

@@ -163,7 +163,7 @@ public final class InAppDriver: AppDriver {
     /// **この接続では試さない**(明示の no-op)。in-app ブリッジは自分の bundle 以外の /session を張れず SpringBoard を見られない。
     /// しかも開いた先が前面になると対象アプリが一時停止し、確かめの `/session` が 409 ではなく上限(45 秒)まで返らない
     /// (18周目 iultra F1: 最初の openURL が約 57 秒。手元で 8 台中 6 台)。確かめは XCUITest 接続(AppAttachDriver)が行う
-    public func acknowledgeOpenURLConsentIfPresent(bundleID: String) async {}
+    public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {}
 
     public func snapshot() async throws -> SnapshotResponse {
         try await normalizedSnapshot { try await self.client.snapshot() }
