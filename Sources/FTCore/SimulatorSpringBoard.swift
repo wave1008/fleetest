@@ -13,11 +13,25 @@ public enum SimulatorSpringBoard {
         ["xcrun", "simctl", "spawn", udid, "launchctl", "kickstart", "-k", "system/com.apple.SpringBoard"]
     }
 
+    /// `restart` の時間切れ(秒)。根拠: 起こし直しは約 8s(実測)で、遅い機械でもその数倍に収まる。
+    /// 尽きたら simctl を子ごと止めて失敗とし、detail に時間切れと言う
+    static let restartTimeoutSeconds: Double = 30
+
     /// 起こし直す。**終了コードで成否を返す**(Shell.run は非ゼロで投げない)。detail は失敗の末尾
     public static func restart(udid: String) -> (ok: Bool, detail: String) {
-        guard let result = try? Shell.run(command(udid: udid), timeout: 30) else {
-            return (false, "simctl did not run")
+        do {
+            let result = try Shell.run(command(udid: udid), timeout: restartTimeoutSeconds)
+            return (result.status == 0, result.tail)
+        } catch {
+            return (false, failureDetail(error))
         }
-        return (result.status == 0, result.tail)
+    }
+
+    /// 撃てなかった理由。時間切れ(子を止めた)と、撃てなかった(起動の失敗など)を分けて言う
+    public static func failureDetail(_ error: Error) -> String {
+        if case ShellError.timedOut(_, let seconds) = error {
+            return "simctl did not finish within \(Int(seconds))s (killed)"
+        }
+        return "simctl did not run: \(error.localizedDescription)"
     }
 }

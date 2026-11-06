@@ -964,7 +964,8 @@ final class AssertKindsTests: XCTestCase {
     /// 逆方向: **本当に不在**なら従来どおり通る(確認が誤検出を生まないこと)。
     /// 取り直しは1回だけ = 通る側の固定費を増やさない
     func testNotExistStillPassesWhenGenuinelyAbsent() async {
-        let driver = StaleCacheDriver(stale: [], fresh: [])
+        // 空の木は「無い」の根拠にしない(StepExecutor.treeIsEmptyForAbsence)ので、無関係な要素を1つ置く
+        let driver = StaleCacheDriver(stale: [node(9, id: "unrelated")], fresh: [node(9, id: "unrelated")])
         let step = FlowStep(assert: "notExists", locator: FlowLocator(id: "dialog"),
                             timeout: 0, occlusionGuard: false)
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(step)
@@ -996,7 +997,7 @@ final class AssertKindsTests: XCTestCase {
 
     /// 非対応ドライバ(iOS 系)では否定形でも取り直さない = 固定費を増やさない
     func testNegativePassIsNotConfirmedOnUnsupportedDrivers() async {
-        let driver = StaleCacheDriver(stale: [], fresh: [node(1, id: "dialog")],
+        let driver = StaleCacheDriver(stale: [node(9, id: "unrelated")], fresh: [node(1, id: "dialog")],
                                       supportsBypass: false)
         let step = FlowStep(assert: "notExists", locator: FlowLocator(id: "dialog"),
                             timeout: 0, occlusionGuard: false)

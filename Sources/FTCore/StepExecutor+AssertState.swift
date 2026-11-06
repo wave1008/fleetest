@@ -164,7 +164,8 @@ extension StepExecutor {
             actual = breakdown.reduce(0) { $0 + $1.elements.count }
             nestingHint = LocatorResolver.nestingHint(breakdown.flatMap(\.elements),
                                            in: snapshot.elements)
-            if actual == expectedCount {
+            // 要素 0 個の木で数えた 0 件は根拠にしない(`treeIsEmptyForAbsence`)。待って読み直す
+            if actual == expectedCount, !Self.treeIsEmptyForAbsence(snapshot) {
                 // **一致した周でだけ評価する**(notExists と同じ理由。不一致はそのまま赤くなるので
                 // 「不在の証拠にならない」と言う相手が居ない)
                 noteUnderreportedTree(snapshot)
@@ -189,6 +190,9 @@ extension StepExecutor {
             let waitStart = clock.now
             try await Task.sleep(for: backoff.nextDelay())
             phase.waitMs += Self.ms(clock.now - waitStart)
+        }
+        if let last = lastSnapshot, actual == expectedCount, Self.treeIsEmptyForAbsence(last) {
+            return failedWithoutKind(Self.emptyTreeAbsenceMessage("the count", step: step))
         }
         // 節が複数あるときは**どの節が何件拾ったか**まで出す。和集合の総数だけだと
         // 「どれが想定より多く拾ったのか」が分からず、セレクタを直すのに snapshot を

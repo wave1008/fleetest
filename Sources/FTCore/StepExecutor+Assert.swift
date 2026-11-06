@@ -826,6 +826,19 @@ extension StepExecutor {
         }
     }
 
+    /// **要素が 0 個の木は「無い」の根拠にしない**(起動直後の木は要素 0 個で来ることがある。RN の `launchApp()` の 3ms 後の
+    /// 1枚で `notExist` が緑になった)。画面が本当に空かどうかは木からは分からない = 待って読み直し、上限まで空なら通さない。
+    /// 打ち切り(`truncatedCount`)・部分的な木(`TreeCoverage`)とは別の事実
+    static func treeIsEmptyForAbsence(_ snapshot: SnapshotResponse) -> Bool {
+        snapshot.elements.isEmpty
+    }
+
+    /// 上限まで木が空だったときの失敗文言(事実だけ。アプリが空の画面なのか木が組み上がっていないのかは言わない)
+    static func emptyTreeAbsenceMessage(_ what: String, step: FlowStep) -> String {
+        "cannot decide \(what): \(step.locatorSummary) — the screen tree had 0 elements at every read until the timeout,"
+            + " so an absent element cannot be told apart from a tree that was not built yet."
+    }
+
     /// 「不在(件数)を結論できない」ことの失敗文言。**「見つからない」と言わない**のが要点 ——
     /// 送られていないだけの要素を「無い」と報告するのがこの欠陥そのもので、同じ言葉で返すと
     /// 読み手は塞いだ穴と区別が付かない。`evidence` は何がどれだけ落ちたか(呼び手が組み立てる)
@@ -1355,6 +1368,7 @@ extension StepExecutor {
                       // 「見えない差で落ちたのか、本当に違う文字列なのか」で次の一手が変わる
                       + LocatorResolver.normalizationVerdict(actual: lastActual, expected: expected,
                                                   assert: assert)
+                      + Self.fieldValueHint(assert: assert, element: lastElement)
                       + Self.coveringHint(element: lastElement, elements: lastElements,
                                           screen: lastScreen)
                       + tapDiagnosisHint(lastSnapshot?.elements)
@@ -1364,6 +1378,17 @@ extension StepExecutor {
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
                       + Self.webViewPathHint(lastSnapshot))
+    }
+
+    /// text 系の検証が、ラベルを持たず値だけを持つ入力欄に当たったときの事実(Android の入力欄は
+    /// `textField value="…"` で label が無く、text 系は label を・value 系は value を読む = 実値は「(no value)」になる)。
+    /// 合否は変えない。secure 欄は値が伏せ字なので言わない。該当しなければ空
+    static func fieldValueHint(assert: String, element: ElementInfo?) -> String {
+        guard assert != "idEquals", !assert.hasPrefix("value"),
+              let element, TypeReadback.isTextInput(element), !TypeReadback.isMaskedInput(element),
+              element.label?.isEmpty ?? true,
+              let value = element.value, !value.isEmpty else { return "" }
+        return " (this field has no label; its value is \"\(value)\" — to check what the field holds, use valueIs/valueContains instead of the text assertions)"
     }
 
     /// 失敗文の実値。値の無い要素を `"nil"` と書くと欄に「nil」と入っているように読める
@@ -1461,6 +1486,21 @@ extension StepExecutor {
                 resolved = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
             }
             lastElements = snapshot.elements
+            if resolved == nil, Self.treeIsEmptyForAbsence(snapshot) {
+                if Date() >= deadline {
+                    if SlowSnapshotBudget.mayRetake(stepElapsedMs: Self.ms(clock.now - stepStart),
+                                                    lastSnapshotMs: lastSnapshotMs,
+                                                    commandTimeoutMs: commandTimeoutMs),
+                       freshRetry.arm(ifSupported: driver.supportsCacheBypass) {
+                        continue
+                    }
+                    return failedWithoutKind(Self.emptyTreeAbsenceMessage("absence", step: step))
+                }
+                let waitStart = clock.now
+                try await Task.sleep(for: backoff.nextDelay())
+                phase.waitMs += Self.ms(clock.now - waitStart)
+                continue
+            }
             if resolved == nil {
                 // **不在を見た周でだけ評価する**(実測)。毎周だと 400 要素の
                 // ブラウザ画面で 11.9ms/回(debug)を全ポーリングぶん払う —— 見えている

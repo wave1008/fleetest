@@ -26,7 +26,8 @@ final class SystemUIGateAssertOnAlertTests: XCTestCase {
 
     /// 登録がある(= 門が動く)状態で、アラートのボタンだけを持つ fallback を組む
     private func makeExecutor(log: CallLog) -> StepExecutor {
-        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[]])
+        // アプリの木は空にしない(空の木は「無い」の根拠にならず、読み直しの間に門が閉じに動く = 実機では起きない形)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[labeled(ref: 1, label: "本文")]])
         let fallback = FakeAppDriver(name: "fallback", log: log,
                                      snapshotElements: [[alertTitled("権限"),
                                                          labeled(ref: 9, label: "許可")]])

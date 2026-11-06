@@ -78,4 +78,37 @@ final class BridgeProvisionerFailureLogTests: XCTestCase {
             "if let error = earlyFailures[index] { return (name: devices[index].name, result: .failure(error)) }")),
             "早い段の失敗が集約(collected)へ合流していない —— 理由のログも全滅の throw も欠ける")
     }
+
+    func testCancellationIsDescribedAsAFactNotItsInternalForm() {
+        let text = BridgeProvisioner.failureDescription(CancellationError())
+        XCTAssertFalse(text.contains("CancellationError"), text)
+        XCTAssertTrue(text.contains("cancelled"), text)
+        XCTAssertEqual(BridgeProvisioner.failureDescription(BridgeProvisionerError.noFreePort(scanned: 8100...8110)),
+                       BridgeProvisionerError.noFreePort(scanned: 8100...8110).localizedDescription)
+    }
+
+    func testInstallReasonDoesNotClaimAChangeOnAPhysicalDevice() {
+        XCTAssertEqual(BridgeProvisioner.installReason(physical: false), "the contents changed")
+        let physical = BridgeProvisioner.installReason(physical: true)
+        XCTAssertFalse(physical.contains("changed"), physical)
+        XCTAssertTrue(physical.contains("cannot be compared"), physical)
+    }
+
+    /// 実機は simctl で確かめない(Invalid device で常に false になり毎回入れ直していた)・コンテナ照会は時間切れ付き
+    func testPhysicalDevicesAreNotCheckedWithSimctlAndContainerQueriesHaveTimeouts() throws {
+        let text = try source()
+        let start = try XCTUnwrap(text.range(of: "private func checkInstalledAppCurrency("))
+        let body = String(text[start.upperBound...].prefix(900))
+        XCTAssertTrue(body.contains("!$0.sim.physical"), "実機を simctl の照会に載せている")
+        for file in ["BridgeProvisioner", "BridgeClient", "InstalledAppCheck"] {
+            let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().appendingPathComponent("Sources/FTBridgeClient/\(file).swift")
+            let code = try String(contentsOf: url, encoding: .utf8)
+            for (index, line) in code.components(separatedBy: "\n").enumerated() where line.contains("\"get_app_container\"") {
+                let window = code.components(separatedBy: "\n")[index...min(index + 2, code.components(separatedBy: "\n").count - 1)]
+                    .joined(separator: " ")
+                XCTAssertTrue(window.contains("timeout:"), "\(file):\(index + 1) の get_app_container に時間切れが無い")
+            }
+        }
+    }
 }

@@ -31,7 +31,7 @@ final class LiveRunnerHealthTests: XCTestCase {
         let auto = RunnerAccessibilityHealth.liveDegradedNote(port: 8170, probe: .answered(17.31),
                                                               injected: false, autoStarts: true)
         XCTAssertEqual(auto,
-            "the xcuitest bridge on port 8170 answered a one-element accessibility query in 17.3s;"
+            "the xcuitest bridge on port 8170 answered a one-element accessibility query in 17.31s;"
             + " normal is under 0.3s, and every operation here pays that wait on each accessibility"
             + " query. Restart the bridge first:"
             + " `fleetest bridge down --port 8170` (live control starts it again on the next action);"

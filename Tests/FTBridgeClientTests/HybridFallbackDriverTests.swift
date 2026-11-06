@@ -396,7 +396,8 @@ final class HybridFallbackDriverTests: XCTestCase {
         try await driver.home()
         _ = try? await driver.snapshot()
 
-        XCTAssertEqual(stub.paths, ["POST /home", "GET /snapshot"],
+        // POST /appstate は home() がアプリが前面から外れたのを確かめる問い合わせ(AppAttachDriver.home)。activate ではない
+        XCTAssertEqual(stub.paths, ["POST /home", "POST /appstate", "GET /snapshot"],
                        "home() 後の snapshot は activate(POST /session)を打たないこと: \(stub.paths)")
     }
 

@@ -78,7 +78,17 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
         let text = RunnerAccessibilityHealth.measuredPhrase(.noAnswer(waited: 20.2))
         XCTAssertEqual(text, "did not answer a one-element accessibility query within 20s")
         XCTAssertEqual(RunnerAccessibilityHealth.measuredPhrase(.answered(3.7)),
-                       "answered a one-element accessibility query in 3.7s")
+                       "answered a one-element accessibility query in 3.70s")
+    }
+
+    func testDisplayedSecondsAgreeWithTheDegradedThreshold() {
+        // 閾値ちょうどは劣化で、表示も 2.00s(「2.0s」と書いて 1.99s と見分けが付かない形にしない)
+        XCTAssertTrue(RunnerAccessibilityHealth.isDegraded(.answered(2)))
+        XCTAssertEqual(RunnerAccessibilityHealth.measuredPhrase(.answered(2)),
+                       "answered a one-element accessibility query in 2.00s")
+        XCTAssertFalse(RunnerAccessibilityHealth.isDegraded(.answered(1.99)))
+        XCTAssertEqual(RunnerAccessibilityHealth.measuredPhrase(.answered(1.99)),
+                       "answered a one-element accessibility query in 1.99s")
     }
 
     func testInjectedPortsParse() {
@@ -90,7 +100,7 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
 
     func testRestartMessageNamesTheMeasurementOrTheInjection() {
         let measured = RunnerAccessibilityHealth.restartMessage(name: "d", port: 8123, probe: .answered(3.7), injected: false)
-        XCTAssertTrue(measured.contains("3.7s"), measured)
+        XCTAssertTrue(measured.contains("3.70s"), measured)
         XCTAssertTrue(measured.contains("restarting it"), measured)
         let injected = RunnerAccessibilityHealth.restartMessage(name: "d", port: 8123, probe: nil, injected: true)
         XCTAssertTrue(injected.contains("FT_FAKE_SLOW_RUNNER_PORTS"), injected)
@@ -129,7 +139,7 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
         let measured = RunnerAccessibilityHealth.leftRunningMessage(
             name: "iPhone 17 Pro-01", port: 8124, maxStepSnapshotMs: 2835, probe: .answered(0.12))
         XCTAssertEqual(measured, "→ iPhone 17 Pro-01: a step spent 2835ms taking snapshots; the xcuitest"
-            + " bridge on port 8124 answered a one-element accessibility query in 0.1s — left running")
+            + " bridge on port 8124 answered a one-element accessibility query in 0.12s — left running")
         let unmeasured = RunnerAccessibilityHealth.leftRunningMessage(
             name: "iPhone 17 Pro-01", port: 8124, maxStepSnapshotMs: 2835, probe: .unknown)
         XCTAssertEqual(unmeasured, "→ iPhone 17 Pro-01: a step spent 2835ms taking snapshots; the xcuitest"
@@ -154,7 +164,7 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
             RunnerAccessibilityHealth.restartDidNotHelpMessage(
                 name: "iPhone 17 Pro-01", port: 8124, after: .answered(2.7)),
             "⚠️ iPhone 17 Pro-01: after restarting SpringBoard (on a simulator) and the xcuitest bridge on"
-                + " port 8124, it still took 2.7s for a one-element accessibility query (normal is under 0.3s)"
+                + " port 8124, it still took 2.70s for a one-element accessibility query (normal is under 0.3s)"
                 + " — it is not restarted again in this run; rebooting the simulator is the next thing to try")
     }
 
@@ -284,16 +294,17 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
 
     // MARK: - 新しい 1 行(印を run をまたいで持ち越す各メッセージ)
 
-    func testRestartingSimulatorMessageNamesTheEarlierRun() {
+    func testRestartingSimulatorMessageDoesNotClaimWhichRun() {
         let text = RunnerAccessibilityHealth.restartingSimulatorMessage(name: "d", port: 8123)
-        XCTAssertTrue(text.contains("an earlier run"), text)
+        XCTAssertFalse(text.contains("earlier run"), text)
+        XCTAssertTrue(text.contains("recorded earlier"), text)
         XCTAssertTrue(text.contains("rebooting the simulator"), text)
     }
 
     func testSimulatorRestartDidNotHelpMessageStatesTheMeasurementOnly() {
         let measured = RunnerAccessibilityHealth.simulatorRestartDidNotHelpMessage(
             name: "d", port: 8123, after: .answered(3.1))
-        XCTAssertTrue(measured.contains("3.1s"), measured)
+        XCTAssertTrue(measured.contains("3.10s"), measured)
         XCTAssertTrue(measured.contains("not erased now"), measured)
         let unmeasured = RunnerAccessibilityHealth.simulatorRestartDidNotHelpMessage(
             name: "d", port: 8123, after: nil)

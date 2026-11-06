@@ -114,8 +114,10 @@ extension StepExecutor {
             classifierScreenshotThisStep = png
             if BlankFrameDetector.isUnjudgeable(pngData: png) { blanks += 1 }
             let frame = element.frame, screen = snapshot.screen
+            let elementTexts = [element.label, element.value].compactMap { $0 }
             let outcome = await TaskBudget.run(LinkTextLocator.ocrBudget) {
-                await RegionText.locateLink(linkText: linkText, pngData: png, frame: frame, screen: screen)
+                await RegionText.locateLink(linkText: linkText, pngData: png, frame: frame, screen: screen,
+                                              elementTexts: elementTexts)
             }
             guard case .value(let located) = outcome else {
                 return StepOutcome(status: failed(.timeout,

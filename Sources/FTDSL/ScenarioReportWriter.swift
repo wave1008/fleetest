@@ -161,7 +161,7 @@ public enum ScenarioReportWriter {
         for offset in 0..<maxReserveAttempts {
             let stamp = formatter.string(from: date.addingTimeInterval(Double(offset) / 1000))
             let baseName = "scenario-\(stamp)-\(scenarioSlug)"
-            let fd = open(dir.appendingPathComponent("\(baseName).md").path, O_CREAT | O_EXCL | O_WRONLY, 0o644)
+            let fd = open(dir.appendingPathComponent("\(baseName).md").path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o644)
             if fd >= 0 { close(fd); return baseName }
             guard errno == EEXIST else { throw CocoaError(.fileWriteUnknown) }
         }

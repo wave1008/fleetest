@@ -163,6 +163,13 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertEqual(MCPServer.scrollFrameHintTree(args, before: current, after: gone).elements.first?.ref, 5)
     }
 
+    /// scrollFrame を渡さない呼び出しは探索後の木で注記を作る(前の木は別のツールの呼び出しの木のことがある)
+    func testScrollFrameHintWithoutScrollFrameUsesTheTreeAfterTheSearch() {
+        let stale = tree([el(1, "scrollView", nil, id: "OldScreenList")])
+        let current = tree([el(5, "scrollView", nil, id: "CurrentList")])
+        XCTAssertEqual(MCPServer.scrollFrameHintTree([:], before: stale, after: current).elements.first?.ref, 5)
+    }
+
     /// **同じ画面のスクロール領域の注記は繰り返さない**。画面が変わって文が変われば言う
     func testTheScrollAreaNoteIsNotRepeatedForTheSameScreen() async throws {
         func scroller(_ ref: Int, _ id: String, y: Double) -> ElementInfo {

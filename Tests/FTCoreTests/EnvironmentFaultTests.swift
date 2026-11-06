@@ -137,6 +137,17 @@ final class EnvironmentFaultTests: XCTestCase {
         }
     }
 
+    /// 判定済みの赤(.failed)は、ブリッジ/デバイスの喪失でワーカーを外すときも捨てて再キューしない。
+    /// 判定が出ていない .driverUnreachable と、連続失敗・凍結の離脱は従来どおり
+    func testFailedResultIsKeptWhenLaneRetiresForLostBridge() {
+        for cause in [WorkerAnomalyCause.bridgeUnreachable, .bridgeTakenOver, .deviceGone] {
+            XCTAssertTrue(ScenarioRunner.keepsFailedResultOnRetire(outcome: .failed, cause: cause), "\(cause)")
+            XCTAssertFalse(ScenarioRunner.keepsFailedResultOnRetire(outcome: .driverUnreachable, cause: cause), "\(cause)")
+        }
+        XCTAssertFalse(ScenarioRunner.keepsFailedResultOnRetire(outcome: .failed, cause: .consecutiveFailures))
+        XCTAssertFalse(ScenarioRunner.keepsFailedResultOnRetire(outcome: .failed, cause: nil))
+    }
+
     /// environmentFault は既存どおり振り直し対象(この規律を壊していないことの固定)
     func testEnvironmentFaultRequeuesWithoutRetiring() {
         XCTAssertTrue(ScenarioRunner.requeuesWithoutRetiring(outcome: .environmentFault))

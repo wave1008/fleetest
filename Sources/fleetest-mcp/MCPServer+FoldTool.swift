@@ -44,8 +44,7 @@ extension MCPServer {
             case .unknown(let detail): last = "the fold state could not be read: \(detail)"
             }
             return "the device did not become \(expected.rawValue) within \(format(waited))s after the hinge"
-                + " event (\(last)). On iOS the hinge event is an undocumented simulator interface, so this"
-                + " Xcode may not accept it"
+                + " event (last observed: \(last))"
         }
     }
 

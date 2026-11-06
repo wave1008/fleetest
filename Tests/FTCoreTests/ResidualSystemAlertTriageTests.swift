@@ -58,4 +58,14 @@ final class ResidualSystemAlertTriageTests: XCTestCase {
         let tree = [element("alert", "処理中", depth: 1)]
         XCTAssertEqual(ResidualSystemAlertTriage.describe(elements: tree), "処理中")
     }
+
+    /// 開始前の警告は判定した事実(木に alert が残っていた)だけを言い、持ち主・terminate/uninstall での残り方を断定しない
+    func testStartWarningStatesOnlyWhatWasObserved() {
+        let text = ResidualSystemAlertTriage.startWarning(label: "iPhone 13", described: "\"Allow\" [buttons: OK]")
+        XCTAssertTrue(text.contains("iPhone 13"), text)
+        XCTAssertTrue(text.contains("was still in the runner session's tree"), text)
+        XCTAssertTrue(text.contains("was not determined"), text)
+        XCTAssertFalse(text.contains("will swallow every step"), text)
+        XCTAssertFalse(text.contains("survives"), text)
+    }
 }

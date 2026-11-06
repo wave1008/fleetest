@@ -59,8 +59,7 @@ func foldFailureMessage(_ failure: FoldControl.Failure) -> String {
         case .unknown(let detail): last = "the fold state could not be read: \(detail)"
         }
         return "the device did not become \(expected.rawValue) within \(formatDegrees(waited))s after the hinge"
-            + " event (\(last)). The hinge event is an undocumented simulator interface, so this Xcode may"
-            + " not accept it"
+            + " event (last observed: \(last))"
     }
 }
 

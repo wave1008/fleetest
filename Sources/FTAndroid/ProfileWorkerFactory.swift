@@ -253,9 +253,7 @@ public enum ProfileWorkerFactory {
                     guard let snapshot = try? await client.snapshot(),
                           let described = ResidualSystemAlertTriage.describe(
                             elements: snapshot.elements) else { return nil }
-                    return "⚠️ \(label): an alert is already on screen before the run starts —"
-                        + " \(described). It is drawn by another process, so it survives"
-                        + " terminate/uninstall and will swallow every step until it is dismissed"
+                    return ResidualSystemAlertTriage.startWarning(label: label, described: described)
                 }
             }
             for await line in group { if let line { log(line) } }

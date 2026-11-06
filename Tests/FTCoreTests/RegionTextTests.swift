@@ -190,6 +190,16 @@ final class RegionTextTests: XCTestCase {
         XCTAssertEqual(RegionText.languages(for: "WebView 見出し"), ["ja-JP", "en-US"])
     }
 
+    /// リンクの OCR は探す語に加えて読む対象の要素の文字でも言語を決める
+    /// (語が ASCII でも要素が和文なら日本語を足す。英語だけの認識器は和文を化けた読みにする)
+    func testLanguagesForLinkTextIncludeTheElementTexts() {
+        XCTAssertEqual(RegionText.languages(forAny: ["Terms"]), ["en-US"])
+        XCTAssertEqual(RegionText.languages(forAny: ["Terms", "Terms of Service"]), ["en-US"])
+        XCTAssertEqual(RegionText.languages(forAny: ["Terms", "利用規約に同意します"]), ["ja-JP", "en-US"])
+        XCTAssertEqual(RegionText.languages(forAny: ["規約"]), ["ja-JP", "en-US"])
+        XCTAssertEqual(RegionText.languages(forAny: []), ["en-US"])
+    }
+
     /// 拡大の段はリテラルで固定する(実測: ×1 で 71% → ×2 まで 88% → ×3 まで 97%・×4 は 74% に落ちる。
     /// OG-5.17)
     func testUpscaleLadderIsPinned() {

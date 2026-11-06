@@ -859,7 +859,8 @@ extension MCPServer {
     static func scrollFrameHintTree(_ args: [String: Any], before: SnapshotResponse?,
                                     after: SnapshotResponse) -> SnapshotResponse {
         guard let before else { return after }
-        guard let frame = args["scrollFrame"] as? String else { return before }
+        // scrollFrame を渡さない呼び出しは探索後の木(前の木は別のツールの呼び出しの木のことがある)
+        guard let frame = args["scrollFrame"] as? String else { return after }
         // 構文が誤りなら前の木(探索は門 validateScrollFrameArg で既に断っている)
         guard let locator = (try? Self.parseSelectorArgument(frame, argument: "scrollFrame"))?.primary else { return before }
         let inAfter = !(LocatorResolver.candidates(locator, elements: after.elements) ?? []).isEmpty

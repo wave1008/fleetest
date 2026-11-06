@@ -31,4 +31,13 @@ public enum ResidualSystemAlertTriage {
         }
         return nil
     }
+
+    /// 開始前の警告の文。**言うのは判定した事実だけ**: ランナーのセッションの木に `type == "alert"` が残っていた。
+    /// 持ち主(SpringBoard かアプリ自身か)は判定していない —— 前の run のアプリ自身のアラートは `launchApp()` で消える
+    public static func startWarning(label: String, described: String) -> String {
+        "⚠️ \(label): an alert was still in the runner session's tree before the run starts — \(described)."
+            + " Which process drew it was not determined"
+            + " (an alert left by the previous run's app is gone after launchApp(); one drawn by another process"
+            + " can stay until it is dismissed)"
+    }
 }

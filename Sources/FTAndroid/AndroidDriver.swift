@@ -466,14 +466,25 @@ public final class AndroidDriver: AppDriver {
     /// ホスト側で dumpsys を引く(ブリッジはアプリ内 a11y ツリーしか見えず、他プロセスの
     /// window は見えない。AndroidForegroundWindows と同じ制約)
     public func isAppForeground(bundleID: String) async throws -> Bool {
-        try Self.isForeground(bundleID: bundleID, front: readForegroundAppID())
+        let result = try adbAnswering(["shell", "dumpsys", "window", "windows"])
+        guard result.status == 0 else {
+            throw DriverError.badResponse(status: Int(result.status),
+                body: "dumpsys window windows failed: \(result.tail)")
+        }
+        let front = AndroidForegroundWindows.topmostAppPackage(dumpsys: result.output)
+        // 焦点の dumpsys は対象アプリが最前面と読めた回だけ撃つ(正常系に adb を足さない)
+        let shadeHolds = front == bundleID && shadeHoldsInputFocus(windows: result.output)
+        return try Self.isForeground(bundleID: bundleID, front: front, shadeHoldsInputFocus: shadeHolds)
     }
 
     /// **前面を読めないときは「前面でない」と答えず投げる**(`ForegroundUnreadable`)。false に畳むと、呼び手は
     /// 「読めない」を「別のアプリが前面」と断定する。遷移の途中でも読めない
-    static func isForeground(bundleID: String, front: String?) throws -> Bool {
+    /// **入力の焦点をシェード(NotificationShade)が持つ間は前面と答えない**: `topmostAppPackage` は「`/` を含む最初の可視の窓」なので
+    /// シェードを下ろしていても下の対象アプリを返す。焦点の持ち主の判定は `inputFocusHeldByShade` の範囲に留める
+    /// (キーボード・トースト・権限のダイアログでは false にならない)
+    static func isForeground(bundleID: String, front: String?, shadeHoldsInputFocus: Bool = false) throws -> Bool {
         guard let front else { throw ForegroundUnreadable() }
-        return front == bundleID
+        return front == bundleID && !shadeHoldsInputFocus
     }
 
     /// キーガードが出ているか。dumpsys が失敗したら `.failed`・行が無ければ `.notAnswerable`

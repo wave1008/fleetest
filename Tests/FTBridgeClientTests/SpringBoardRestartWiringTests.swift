@@ -17,6 +17,14 @@ final class SpringBoardRestartWiringTests: XCTestCase {
                        ["xcrun", "simctl", "spawn", "ABC", "launchctl", "kickstart", "-k", "system/com.apple.SpringBoard"])
     }
 
+    func testTimeoutAndLaunchFailureAreToldApart() {
+        let timeout = SimulatorSpringBoard.failureDetail(ShellError.timedOut(args: ["xcrun"], seconds: 30))
+        XCTAssertTrue(timeout.contains("did not finish within 30s"), timeout)
+        let other = SimulatorSpringBoard.failureDetail(ShellError.argumentContainsNUL(index: 1))
+        XCTAssertTrue(other.hasPrefix("simctl did not run"), other)
+        XCTAssertFalse(other.contains("within"), other)
+    }
+
     func testRestartRunnerRestartsSpringBoardFirstOnASimulator() throws {
         let code = try source("Sources/FTBridgeClient/BridgeProvisioner.swift")
         let start = try XCTUnwrap(code.range(of: "private func restartRunner("))

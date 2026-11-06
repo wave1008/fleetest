@@ -14,8 +14,10 @@ extension RegionText {
 
     /// `frame`(画面座標)を切り出して OCR で読み、`linkText` が描かれている位置を返す。
     /// 拡大段(`upscaleLadder`)は `resolve` と同じ規則: 読めるまで上げ、**1行も読めなければ止める**。
+    /// `elementTexts` = 読む対象の要素のラベル・値(言語を決める材料。探す語が ASCII でも要素が和文なら日本語を足す)。
     /// nil = 画像不正 / crop が作れない / OCR が失敗
     public static func locateLink(linkText: String, pngData: Data, frame: FTRect, screen: FTRect,
+                                  elementTexts: [String] = [],
                                   cropPadding: CGFloat = 0) async -> LinkLocation? {
         guard let source = CGImageSourceCreateWithData(pngData as CFData, nil),
               let full = CGImageSourceCreateImageAtIndex(source, 0, nil),
@@ -23,7 +25,7 @@ extension RegionText {
                                             imageWidth: full.width, imageHeight: full.height,
                                             cropPadding: cropPadding),
               let cropped = full.cropping(to: rect) else { return nil }
-        let languages = languages(for: linkText)
+        let languages = languages(forAny: [linkText] + elementTexts)
         var lastLines: [String] = []
         var attempts = 0
         for step in upscaleLadder {

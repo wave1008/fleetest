@@ -49,7 +49,17 @@ final class ForegroundWindowsTests: XCTestCase {
             ("\(package)/\(package).MainActivity", true),
         ])
         XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: text),
-                       [ime, "InputMethod"])
+                       [ime])
+    }
+
+    /// キーボード自身の窓だけが手前にあるときは何も言わない(前後で他の窓が居れば、その窓だけを報告する)
+    func testSoftKeyboardWindowIsNotCountedAsAnOverlay() {
+        let onlyKeyboard = dump([("StatusBar", true), ("InputMethod", true),
+                                 ("\(package)/\(package).MainActivity", true)])
+        XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: onlyKeyboard), [])
+        let withShade = dump([("NotificationShade", true), ("InputMethod", true),
+                              ("\(package)/\(package).MainActivity", true)])
+        XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: withShade), ["NotificationShade"])
     }
 
     func testIgnoresWindowsBehindTheAppAndOtherAppsThatAreHidden() {
@@ -154,5 +164,28 @@ final class ForegroundWindowsTests: XCTestCase {
                 "Window #8 Window{f2f739c u0 com.ftester.e2e/com.ftester.e2e.MainActivity}:"),
             "com.ftester.e2e/com.ftester.e2e.MainActivity")
         XCTAssertNil(AndroidForegroundWindows.windowName("Window #9 なにか別の行"))
+    }
+
+    /// 最後に起こしたアプリが前面なら、実行プロファイルのアプリが背面でも覆いと言わない(撃つ前の門と同じ基準)
+    func testLastLaunchedAppInFrontIsNotAnOverlay() {
+        let other = "com.example.other"
+        let text = dump([
+            ("StatusBar", true),
+            ("\(other)/\(other).Main", true),
+            ("\(package)/\(package).MainActivity", false),
+        ])
+        XCTAssertEqual(AndroidForegroundWindows.overlayNotes(package: package, alsoAccepted: other, dumpsys: text), [])
+        XCTAssertEqual(AndroidForegroundWindows.overlayNotes(package: package, alsoAccepted: nil, dumpsys: text),
+                       ["\(other)/\(other).Main (the app's own window is not visible)"])
+    }
+
+    /// 最後に起こしたアプリが前面でなければ、従来どおり手前の別 window を言う
+    func testForeignWindowIsStillReportedWhenLastLaunchedAppIsNotInFront() {
+        let text = dump([
+            ("Taskbar", true), ("NotificationShade", true),
+            ("\(package)/\(package).MainActivity", true),
+        ])
+        XCTAssertEqual(AndroidForegroundWindows.overlayNotes(package: package, alsoAccepted: "com.example.other", dumpsys: text),
+                       ["NotificationShade"])
     }
 }

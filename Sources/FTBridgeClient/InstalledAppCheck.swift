@@ -6,6 +6,10 @@ import Foundation
 import FTCore
 
 public enum InstalledAppCheck {
+    /// `simctl get_app_container` の時間切れ(秒)。根拠: 正常は約 0.7s(実測)で、他の同じ照会(`simulatorInstallVerdict`)の
+    /// 15s に揃える。尽きたら simctl を止め、呼び手は「確かめられなかった」として扱う(要インストール・未インストール断定はしない)
+    public static let containerQueryTimeoutSeconds: Double = 15
+
     /// インストール済みアプリがインストールファイル(.app)と同一内容か。simctl install はバンドルを
     /// バイト同一でコピーする(実測)ため、ディレクトリの深比較で「更新の有無」を判定できる。
     /// 深比較は約40MBのバンドルで0.8〜0.9s/ラン掛かるため、検証済みのソース指紋
@@ -14,7 +18,8 @@ public enum InstalledAppCheck {
     /// 未インストール・比較不能は false(=要インストール)。
     public static func simulatorAppIsCurrent(udid: String, bundleID: String, appPath: String) -> Bool {
         guard let container = try? Shell.run(
-            ["xcrun", "simctl", "get_app_container", udid, bundleID]),
+            ["xcrun", "simctl", "get_app_container", udid, bundleID],
+            timeout: containerQueryTimeoutSeconds),
             container.status == 0 else { return false }
         let installedPath = container.output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !installedPath.isEmpty else { return false }
@@ -48,7 +53,7 @@ public enum InstalledAppCheck {
         for device in booted {
             guard let result = try? Shell.run(
                 ["xcrun", "simctl", "get_app_container", device.udid, bundleID],
-                timeout: 15) else {
+                timeout: containerQueryTimeoutSeconds) else {
                 return .unknown("simctl get_app_container failed for \(device.udid)")
             }
             installedFlags.append(result.status == 0)
@@ -64,7 +69,7 @@ public enum InstalledAppCheck {
             return installed ? .installed : .notInstalled
         }
         guard let result = try? Shell.run(
-            ["xcrun", "simctl", "get_app_container", udid, bundleID], timeout: 15) else {
+            ["xcrun", "simctl", "get_app_container", udid, bundleID], timeout: containerQueryTimeoutSeconds) else {
             return .unknown("simctl get_app_container failed for \(udid)")
         }
         return result.status == 0 ? .installed : .notInstalled

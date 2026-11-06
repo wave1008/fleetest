@@ -708,7 +708,7 @@ public struct BridgeProvisioner: Sendable {
         // 「全機が同じ理由で死んだのか、別々の理由なのか」を後から言えなかった
         for outcome in collected {
             if case .failure(let error) = outcome.result {
-                safeLog(Self.deviceFailureLine(name: outcome.name, description: error.localizedDescription))
+                safeLog(Self.deviceFailureLine(name: outcome.name, description: Self.failureDescription(error)))
             }
         }
         let resolved = try Self.resolveOutcomes(collected)
@@ -719,6 +719,13 @@ public struct BridgeProvisioner: Sendable {
                 + " — continuing with \(resolved.devices.count) device(s)")
         }
         return resolved.devices
+    }
+
+    /// 失敗の説明。取り消し(CancellationError)の localizedDescription は内部表現(「Swift.CancellationError error 1」)なので事実の文にする
+    static func failureDescription(_ error: Error) -> String {
+        error is CancellationError
+            ? "provisioning was cancelled before it finished (the run was interrupted or stopped)"
+            : error.localizedDescription
     }
 
     /// 1台の失敗の 1 行。**文がデバイス名で始まるなら前に名前を足さない** —— `BridgeProvisionerError` の多くは名前で始まる
@@ -849,8 +856,10 @@ public struct BridgeProvisioner: Sendable {
         targets: [(name: String, spec: DeviceSpec, sim: SimDeviceInfo)],
         bundleID: String?, preinstallAppPath: String?) async -> [String: Bool] {
         guard let bundleID, let preinstallAppPath else { return [:] }
+        // 実機は入れ済みのアプリの中身をホストから読む口が無い(simctl は物理端末を知らず Invalid device)ので比べない
+        // = 載せない(planBridge が false = 入れ直しに倒す。理由は `installReason(physical:)` が事実で言う)
         let udids = Set(targets.filter {
-            ($0.spec.mode ?? IOSMode.xcuitest) == IOSMode.inappBoost
+            ($0.spec.mode ?? IOSMode.xcuitest) == IOSMode.inappBoost && !$0.sim.physical
         }.map { $0.sim.udid })
         guard !udids.isEmpty else { return [:] }
         return await withTaskGroup(of: (String, Bool).self,
@@ -1796,7 +1805,10 @@ public struct BridgeProvisioner: Sendable {
                     // **原因を名指しする**: 同じポートを別プロセスが掴んでいたなら、それが答え。
                     // 「応答が無い」だけでは残骸が原因だと分からず、人がノートに書き残して初めて
                     // 次の人が気付ける状態だった(受け手報告)
-                    if let holder = PortHolder.describe(port: port) {
+                    // **元の失敗(到達待ちがどう失敗したか)は残す**。実機では先に自分で張った iproxy が必ず見つかるので、
+                    // 持ち主の名指しは、この run のデバイスのトンネルでないときだけ付ける
+                    if let holder = PortHolder.describe(port: port),
+                       !PortHolder.isOwnTunnel(listener: holder, port: port, udid: sim.udid) {
                         throw BridgeProvisionerError.notReady(
                             port: port, underlying: LauncherError.portInUse(port: port, holder: holder))
                     }
@@ -1975,6 +1987,12 @@ public struct BridgeProvisioner: Sendable {
         }
     }
 
+    /// autoInstall で入れ直す理由の事実の句。実機は入れ済みの中身を比べる口が無いので「変わった」と言わない
+    static func installReason(physical: Bool) -> String {
+        physical ? "the installed app's contents cannot be compared on a physical device, so it is reinstalled"
+                 : "the contents changed"
+    }
+
     /// inapp の注入起動(simctl launch)はアプリのインストールが前提。autoInstall
     /// (preinstallAppPath)有りなら needsInstall(=installedAppIsCurrent の否定)のときだけ
     /// インストールする。無しなら存在確認のみ行い、未インストールは appNotInstalled を投げる
@@ -1984,7 +2002,7 @@ public struct BridgeProvisioner: Sendable {
                                     log: @escaping @Sendable (String) -> Void) throws {
         if let preinstallAppPath {
             guard needsInstall else { return }
-            log("→ \(deviceName): installing \(bundleID) (autoInstall: the contents changed)...")
+            log("→ \(deviceName): installing \(bundleID) (autoInstall: \(Self.installReason(physical: sim.physical)))...")
             // 実機は devicectl(simctl は物理端末を知らず "Invalid device" で落ちる)。実機のインストールは遅い(timeout 600)
             let install = sim.physical
                 ? try Shell.run(["xcrun", "devicectl", "device", "install", "app", "--device", sim.udid, preinstallAppPath], timeout: 600)
@@ -2005,7 +2023,8 @@ public struct BridgeProvisioner: Sendable {
             }
             return
         }
-        let check = try Shell.run(["xcrun", "simctl", "get_app_container", sim.udid, bundleID])
+        let check = try Shell.run(["xcrun", "simctl", "get_app_container", sim.udid, bundleID],
+                                  timeout: InstalledAppCheck.containerQueryTimeoutSeconds)
         guard check.status == 0 else {
             throw BridgeProvisionerError.appNotInstalled(
                 device: deviceName, bundleID: bundleID, udid: sim.udid)

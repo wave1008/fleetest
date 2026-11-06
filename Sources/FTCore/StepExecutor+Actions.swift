@@ -1596,6 +1596,9 @@ extension StepExecutor {
             var gestureTarget = element.frame
             var coverPartNote: String?
             if action == "doubleTap" {
+                // tap と同じく撃った要素の記録を残す(覆いの疑いの控え `noteCoverSuspect` は記録が無いと捨てられ、
+                // 後続の赤が覆いを名指せなかった)。入口は doubleTap の記録を消す = ここで作り直す
+                recordInteraction(step: step, element: element, in: snapshot)
                 switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))

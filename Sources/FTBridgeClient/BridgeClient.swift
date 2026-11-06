@@ -434,7 +434,8 @@ public final class BridgeClient: AppDriver, Sendable {
         try Self.stopOnSimulator(bundleID: bundleID, target: target,
                                  purpose: "before clearing its data (clearing under a running app lets it write its state back)")
         let container = try Shell.run(
-            ["xcrun", "simctl", "get_app_container", target, bundleID, "data"])
+            ["xcrun", "simctl", "get_app_container", target, bundleID, "data"],
+            timeout: InstalledAppCheck.containerQueryTimeoutSeconds)
         guard container.status == 0 else {
             throw DriverError.badResponse(status: Int(container.status),
                 body: "simctl get_app_container failed (is \(bundleID) installed?): \(container.tail)")

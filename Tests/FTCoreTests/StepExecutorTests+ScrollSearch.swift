@@ -13,7 +13,9 @@ extension StepExecutorTests {
     /// 不在なので pass すること
     func testNotExistWithScrollPassesWhenNeverFoundDuringSearch() async throws {
         let log = CallLog()
-        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[], [], []])
+        // 空の木は「無い」の根拠にしない(treeIsEmptyForAbsence)ので、探す行と無関係な行を置く
+        let other = framed(ref: 1, id: "row_01", x: 16, y: 100, width: 370, height: 56)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[other], [other], [other]])
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables())
         let step = FlowStep(assert: "notExists", locator: FlowLocator(id: "row_99"),
                             direction: "up", timeout: 0, maxSwipes: 2)

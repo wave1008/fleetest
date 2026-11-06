@@ -811,6 +811,21 @@ public enum ScenarioRunner {
         return appInBackground ? .appInBackground : .failed
     }
 
+    /// ワーカーを外すとき、シナリオ自身の判定で確定した赤(`.failed`)を捨てて再キューしない。
+    /// 捨てると、行き先のワーカーが居ない(他レーンが完了済み・蘇生失敗)ときに元の失敗が
+    /// run.json から消え「no usable workers」の未実行に置き換わる。ブリッジ/デバイスの喪失が
+    /// 赤の原因か後かは見分けられないので、赤は事実としてそのまま残す。
+    /// `.driverUnreachable` 等(判定が出ていない)と、連続失敗・凍結の離脱は従来どおり再キューする
+    static func keepsFailedResultOnRetire(outcome: ScenarioOutcome, cause: WorkerAnomalyCause?) -> Bool {
+        guard outcome == .failed else { return false }
+        switch cause {
+        case .bridgeUnreachable, .bridgeTakenOver, .deviceGone:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// **失敗を結果ごと捨てて振り直し、ワーカーは離脱させない**か(純粋関数)。
     /// **driverUnreachable の呼び出しは事後プローブ(消失・凍結)の後** —— デバイスが生きていると
     /// 分かってから訊く(デバイスが消えた形も同じ failureKind で来るため。呼び出し側のコメント参照)。
@@ -1818,9 +1833,16 @@ public final class RunOrchestrator: Sendable {
     private func retireUnusable(_ item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue,
                                 reason: String, cause: WorkerAnomalyCause?, failed: Int,
                                 progressLaneKey: String, leaseKey: String?,
-                                invalidatesPassedRecord: Bool = false) async -> WorkerExit {
+                                invalidatesPassedRecord: Bool = false,
+                                keepsFailedResult: Bool = false) async -> WorkerExit {
         var failed = failed
-        let requeued = await discardAndRequeue(item, worker: worker, queue: queue, reason: reason, cause: cause)
+        let requeued = keepsFailedResult
+            ? false
+            : await discardAndRequeue(item, worker: worker, queue: queue, reason: reason, cause: cause)
+        if keepsFailedResult {
+            continuation.yield(.workerLog(worker: worker.label,
+                message: "\(item.info.id): the failed result stands (not requeued); the lane is dropped because of \(reason)"))
+        }
         if requeued {
             await progressState?.laneIdled(laneKey: progressLaneKey)
         } else {
@@ -2242,7 +2264,9 @@ public final class RunOrchestrator: Sendable {
             }
             if let reason = unusableReason {
                 return await retireUnusable(item, worker: worker, queue: queue, reason: reason, cause: unusableCause,
-                                            failed: failed, progressLaneKey: progressLaneKey, leaseKey: leaseKey)
+                                            failed: failed, progressLaneKey: progressLaneKey, leaseKey: leaseKey,
+                                            keepsFailedResult: ScenarioRunner.keepsFailedResultOnRetire(
+                                                outcome: outcome, cause: unusableCause))
             }
             await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
             failed += 1

@@ -160,6 +160,18 @@ public enum PortHolder {
             && command.split(separator: " ").dropFirst().first.flatMap({ UInt16($0) }) == port
     }
 
+    /// `describe` の結果が**このデバイスのために張った USB トンネル(iproxy)**か(純粋関数)。
+    /// 実機の到達待ちの失敗で、自分で張ったトンネルを「別のプロセス」と名指さないための門。
+    /// iproxy の第1引数がこのポートで、`-u <UDID>` が供給中のデバイスと一致するときだけ true
+    /// (別デバイスのトンネル・UDID が読めない形は false = 名指しを残す側。台帳 `iproxy-<port>.pid` は
+    /// クローンごとなので使わず、プロセスの実体で見る)
+    static func isOwnTunnel(listener: String, port: UInt16, udid: String) -> Bool {
+        let command = listener.drop(while: { $0 != ":" }).dropFirst().trimmingCharacters(in: .whitespaces)
+        guard commandIsIproxyForPort(command, port: port) else { return false }
+        return RunnerDestination.udidTokens(inCommand: command)
+            .contains { $0.caseInsensitiveCompare(udid) == .orderedSame }
+    }
+
     enum IproxyOwnership: Equatable { case owned, foreign }
 
     /// iproxy 分岐の所有判定(純粋関数。lsof/kill を伴う stopIfOwnedBridge から切り出してテストする)。

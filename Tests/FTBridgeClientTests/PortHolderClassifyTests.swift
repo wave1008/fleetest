@@ -10,6 +10,29 @@ import XCTest
 
 final class PortHolderClassifyTests: XCTestCase {
 
+    // MARK: - isOwnTunnel(実機の到達待ちの失敗で自分のトンネルを別のプロセスと名指さない)
+
+    func testOwnTunnelIsRecognisedByPortAndUDID() {
+        XCTAssertTrue(PortHolder.isOwnTunnel(
+            listener: "pid 4242: /opt/homebrew/bin/iproxy 8138 8138 -u 00008030-001C1234ABCD802E",
+            port: 8138, udid: "00008030-001C1234ABCD802E"))
+    }
+
+    func testTunnelOfAnotherDeviceOrPortIsNotOwn() {
+        XCTAssertFalse(PortHolder.isOwnTunnel(
+            listener: "pid 4242: /opt/homebrew/bin/iproxy 8138 8138 -u 00008030-001C1234ABCD802E",
+            port: 8138, udid: "00008110-000A1234ABCD401E"))
+        XCTAssertFalse(PortHolder.isOwnTunnel(
+            listener: "pid 4242: /opt/homebrew/bin/iproxy 8139 8139 -u 00008030-001C1234ABCD802E",
+            port: 8138, udid: "00008030-001C1234ABCD802E"))
+    }
+
+    func testNonTunnelHolderIsNeverOwn() {
+        XCTAssertFalse(PortHolder.isOwnTunnel(
+            listener: "pid 7: /usr/bin/xcodebuild test-without-building -destination id=00008030-001C1234ABCD802E 8138",
+            port: 8138, udid: "00008030-001C1234ABCD802E"))
+    }
+
     // MARK: - commandIsIproxyForPort
 
     func testCommandMatchesIproxyForExactPort() {

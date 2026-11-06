@@ -669,8 +669,8 @@ struct RunScenario: AsyncParsableCommand {
         var simulatorCrashWatch: (bundle: String, udid: String, since: Date)?
         if runPlatform == "android", let serial {
             let package = appBundleID
-            core.foregroundOverlays = {
-                AndroidForegroundWindows.query(package: package, serial: serial)
+            core.foregroundOverlays = { lastLaunched in
+                AndroidForegroundWindows.query(package: package, alsoAccepted: lastLaunched, serial: serial)
             }
             // 失敗時に「アプリの process がまだ在るか」も添える(pidof が空 = クラッシュの疑い。
             // 実機 Pixel 4a で実測: #btn_crash_confirm を落としても通常文言は

@@ -16,6 +16,11 @@ public enum AndroidForegroundWindows {
         "EdgeBackGestureHandler", "ShellDropTarget", "ImageWallpaper",
     ]
 
+    /// ソフトキーボード自身の窓(名前が `InputMethod`)。「前にある別の窓」には数えない —— キーボードの表示は
+    /// 木のキーボード枠(`keyboardFrame`)が別の判定で言う。数えると入力欄の値を確かめる失敗に毎回
+    /// 「別の窓が手前」が添う。IME が出す案内などの別名の窓(`…StylusOnboardingActivity`)は従来どおり報告する
+    static let softKeyboardWindowName = "InputMethod"
+
     /// `dumpsys window windows` の出力から、**対象アプリの window より手前**にある
     /// 可視の別 window 名を z 順(手前が先)で返す。アプリの window が見つからなければ空
     /// (判定できないときは黙る = 誤った断定をしない)
@@ -30,6 +35,7 @@ public enum AndroidForegroundWindows {
             let name = blocks[index].name
             guard !name.hasPrefix("\(package)/") else { return nil }
             guard !chromePrefixes.contains(where: { name.hasPrefix($0) }) else { return nil }
+            guard name != softKeyboardWindowName else { return nil }
             return name
         }
     }
@@ -137,14 +143,22 @@ public enum AndroidForegroundWindows {
         return blocks.first(where: { $0.visible && $0.name.contains("/") && !$0.name.hasPrefix("\(package)/") })?.name
     }
 
+    /// 失敗の記録に添える「手前の別 window」の判定(純粋関数)。**最後に起こしたアプリ(`alsoAccepted`)が前面なら覆いと言わない**
+    /// —— 撃つ前の門(`StepExecutor.backgroundedAppRefusal`)は実行プロファイルのアプリか最後に起こしたアプリのどちらかが前面なら通すので、
+    /// 注記も同じ基準で比べる(食い違うと門が通した操作の失敗に「別の window が手前」と添える)
+    public static func overlayNotes(package: String, alsoAccepted: String?, dumpsys: String) -> [String] {
+        if let other = alsoAccepted, other != package, topmostAppPackage(dumpsys: dumpsys) == other { return [] }
+        if let front = frontAppWhileHidden(package: package, dumpsys: dumpsys) {
+            return ["\(front) (the app's own window is not visible)"]
+        }
+        return overlaying(package: package, dumpsys: dumpsys)
+    }
+
     /// 実機/エミュレータへ問い合わせる。adb が無い・失敗した場合は空(失敗診断の付加情報なので非致命)
-    public static func query(package: String, serial: String) -> [String] {
+    public static func query(package: String, alsoAccepted: String? = nil, serial: String) -> [String] {
         guard let adb = try? AndroidDriver.findADB(),
               let output = try? Shell.run([adb, "-s", serial, "shell", "dumpsys", "window", "windows"],
                                           timeout: 10).outputIfSucceeded else { return [] }
-        if let front = frontAppWhileHidden(package: package, dumpsys: output) {
-            return ["\(front) (the app's own window is not visible)"]
-        }
-        return overlaying(package: package, dumpsys: output)
+        return overlayNotes(package: package, alsoAccepted: alsoAccepted, dumpsys: output)
     }
 }

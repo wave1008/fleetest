@@ -112,4 +112,11 @@ final class GestureDeliveryTests: XCTestCase {
         XCTAssertEqual(try AndroidDriver.isForeground(bundleID: "a", front: "a"), true)
         XCTAssertEqual(try AndroidDriver.isForeground(bundleID: "a", front: "b"), false)
     }
+
+    /// 入力の焦点をシェードが持つ間は、窓の並びで最前面でも前面と答えない
+    func testAppIsNotForegroundWhileTheShadeHoldsInputFocus() {
+        XCTAssertEqual(try AndroidDriver.isForeground(bundleID: "a", front: "a", shadeHoldsInputFocus: true), false)
+        XCTAssertEqual(try AndroidDriver.isForeground(bundleID: "a", front: "a", shadeHoldsInputFocus: false), true)
+        XCTAssertThrowsError(try AndroidDriver.isForeground(bundleID: "a", front: nil, shadeHoldsInputFocus: true))
+    }
 }

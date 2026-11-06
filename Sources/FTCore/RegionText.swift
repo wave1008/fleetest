@@ -723,6 +723,12 @@ public enum RegionText {
         expected.allSatisfy { $0.isASCII } ? ["en-US"] : defaultLanguages
     }
 
+    /// 読む対象の文字(探す語と要素のラベル・値)のどれかが非 ASCII なら日本語も足す。
+    /// 探す語が ASCII でも、和文の要素を英語の認識器だけで読むと化けた読みになる
+    public static func languages(forAny texts: [String]) -> [String] {
+        texts.contains { !$0.allSatisfy { $0.isASCII } } ? defaultLanguages : ["en-US"]
+    }
+
     /// 版(revision)は指定しない —— **OS が既定に選んだものを使う**。固定すると新しい OS で
     /// 改善された認識器を使えなくなる。版が動いたときの検出は実 crop の固定コーパス
     /// (`Tests/Fixtures/OcclusionCrops/`・段ごとの読み取りを等号で固定)が担う。

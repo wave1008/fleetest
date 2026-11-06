@@ -63,6 +63,7 @@ public enum RunnerAccessibilityHealth {
     /// `GET /systemalert`(SpringBoard の alerts.firstMatch.exists = 1 問)の所要がこれ以上なら劣化。
     /// **根拠**: 正常 0.03〜0.27 秒 / 劣化 3.7〜4.1 秒(XCTest の remote element タイムアウト)。
     /// 2 秒はその間で、機械が遅いだけの正常値(0.3 秒の数倍)には当たらない
+    /// 表示は判定と食い違わない桁(%.2f)で出す: 閾値ちょうどの 2.00s が「2.0s」でなく、1.99s と区別できる
     public static let slowProbeSeconds: TimeInterval = 2
 
     /// 1 問の結果。**答えなかった(`.noAnswer`)は測れなかった(`.unknown`)と別**: 要求を出して時限まで待っても
@@ -115,7 +116,7 @@ public enum RunnerAccessibilityHealth {
     public static func measuredPhrase(_ outcome: ProbeOutcome?) -> String {
         switch outcome {
         case .answered(let seconds):
-            return "answered a one-element accessibility query in \(String(format: "%.1f", seconds))s"
+            return "answered a one-element accessibility query in \(String(format: "%.2f", seconds))s"
         case .noAnswer(let waited):
             return "did not answer a one-element accessibility query within \(Int(waited.rounded()))s"
         case .unknown, nil:
@@ -144,7 +145,7 @@ public enum RunnerAccessibilityHealth {
         let prefix = "⚠️ \(name): after restarting SpringBoard (on a simulator) and the xcuitest bridge on port \(port), it"
         switch after {
         case .answered(let seconds):
-            return prefix + " still took \(String(format: "%.1f", seconds))s for a one-element accessibility query"
+            return prefix + " still took \(String(format: "%.2f", seconds))s for a one-element accessibility query"
                 + " (normal is under 0.3s)" + tail
         case .noAnswer(let waited):
             return prefix + " still did not answer a one-element accessibility query within \(Int(waited.rounded()))s"
@@ -306,18 +307,18 @@ public enum RunnerAccessibilityHealth {
             + " and doing so would take its bridge down. Wait for that session to finish, or drive another device"
     }
 
-    /// シミュレータごと再起動する前の 1 行。「前の run で」と言えるのは、この印が
-    /// `RunnerSlownessStore` でプロセスを跨いで残るため(`RunnerRestartFutility` はプロセス内だけ)
+    /// シミュレータごと再起動する前の 1 行。印は `RunnerSlownessStore` でプロセスを跨いで残り、run を見分けない
+    /// (同じ run の中の起こし直しの失敗も同じ印になる)ので、「どの run か」は言わず、印が示す事実だけを言う
     public static func restartingSimulatorMessage(name: String, port: UInt16) -> String {
         "⚠️ \(name): the xcuitest bridge on port \(port) was still slow after a runner restart"
-            + " in an earlier run — rebooting the simulator before reusing it"
+            + " that was recorded earlier — rebooting the simulator before reusing it"
     }
 
     /// 測り直した結果を「…の 1 問に〜」の形にする(`measuredPhrase` と違い、文中の主語はブリッジ)
     private static func stillPhrase(_ after: ProbeOutcome?) -> String {
         switch after {
         case .answered(let seconds):
-            return "still took \(String(format: "%.1f", seconds))s for a one-element accessibility query"
+            return "still took \(String(format: "%.2f", seconds))s for a one-element accessibility query"
                 + " (normal is under 0.3s)"
         case .noAnswer(let waited):
             return "still did not answer a one-element accessibility query within \(Int(waited.rounded()))s"
