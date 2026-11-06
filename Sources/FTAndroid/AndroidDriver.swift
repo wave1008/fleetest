@@ -49,6 +49,16 @@ public final class AndroidDriver: AppDriver {
     /// 最後の tap の後に、この driver 経由で type が通ったか(tap で偽・type 成功で真)。ref 無しの type が「フォーカス不在」で落ちたとき、
     /// 「叩いた容器の話」でなく「焦点を持っていた欄が木から消えた話」と言い分ける材料(`typeNoFocusAdvice`)
     private var typedSinceLastTap = false
+    /// ブリッジが type の応答に載せた注記(OKResponse.note。押した要素が入力欄でなく焦点の接続へ打った = OI-163 ⑭)。
+    /// **読んだら消える**: 読み手(StepExecutor・MCP)は操作の直後に1回読むだけで、残すと後の別の操作に古い注記が付く
+    private var pendingTypeNote: String?
+    public var lastActionNote: String? {
+        defer { pendingTypeNote = nil }
+        return pendingTypeNote
+    }
+    /// Android の操作は当たり判定の外れ・届け方を申告しない(既定と同じ nil。注記を運ぶ型は両方を宣言する = TapHitAreaMissForwardingTests)
+    public var lastTapHitAreaMiss: TapHitAreaMiss? { nil }
+    public var lastTapDelivery: TapDelivery? { nil }
 
     /// raiseElementLimitOnNextSnapshot() が立てる1回限りの要素上限(nil = 既定)
     private var pendingElementLimit: Int?
@@ -1011,17 +1021,24 @@ public final class AndroidDriver: AppDriver {
         // 分離して本文の SET_TEXT 後に Enter キーイベントを送る(pressEnter と同じ経路。文中の
         // 改行はそのまま文字として本文に残す)
         restoreStateIfNeeded()
+        pendingTypeNote = nil
         try refuseIfStepExpectationContradicts(ref)
         let target = bridgeRef(ref)
         let (main, hasTrailingNewline) = Self.splitTrailingNewline(text)
         do {
             guard hasTrailingNewline else {
-                try await withoutStepExpectation { try await withBridge { try await $0.type(ref: target, text: text) } }
+                pendingTypeNote = try await withoutStepExpectation { try await withBridge {
+                    try await $0.type(ref: target, text: text)
+                    return $0.lastActionNote
+                    } }
                 typedSinceLastTap = true
                 return
             }
             // 本文が空でも ref があれば SET_TEXT を通し、対象ノードへのフォーカス確立を維持する
-            try await withoutStepExpectation { try await withBridge { try await $0.type(ref: target, text: main) } }
+            pendingTypeNote = try await withoutStepExpectation { try await withBridge {
+                try await $0.type(ref: target, text: main)
+                return $0.lastActionNote
+                } }
         } catch let error as DriverError {
             // 前面が systemui(通知シェード・クイック設定・ロック画面・アシスタント)ならそれが入力フォーカスを持っている。
             // 照会は「フォーカス不在」で落ちた回だけ(正常系には掛からない)

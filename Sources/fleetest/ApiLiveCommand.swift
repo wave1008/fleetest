@@ -256,9 +256,11 @@ struct ApiLiveServe: AsyncParsableCommand {
             // 答える時点で乗り換える(起動 → 断りの繰り返しを終わらせる。答えない間 = 起動途中は今のまま待つ)
             if let current = starter, driverOptions.resolvedPlatform == "ios", let udid,
                let elsewhere = await current.runnerElsewherePort, elsewhere != port,
+               !(await current.isElsewhereSilent()),
                let repoRoot = try? RepoRoot.find(),
                let moved = await moveToRunnerElsewhere(
-                   port: elsewhere, udid: udid, physical: physical, repoRoot: repoRoot) {
+                   port: elsewhere, udid: udid, physical: physical, repoRoot: repoRoot,
+                   starter: current) {
                 logStderr("this device's runner answers on port \(elsewhere) — switching from port \(port)")
                 (driver, port, primaryBridge) = moved
                 starter = makeAutoStarter(port: port)
@@ -516,8 +518,15 @@ struct ApiLiveServe: AsyncParsableCommand {
     /// 同じ台の別ポートのランナーが `udid` のブリッジとして答えるときだけ、そのポートのドライバを返す
     /// (答えない・別デバイス・組めない = nil。nil のときは今の宛先のまま)
     private func moveToRunnerElsewhere(
-        port: UInt16, udid: String, physical: Bool, repoRoot: URL
+        port: UInt16, udid: String, physical: Bool, repoRoot: URL, starter: LiveBridgeAutoStarter
     ) async -> (AppDriver, UInt16, String?)? {
+        // **答えるかを1本の /status で先に確かめる**(resolve は無応答を指定ポートの素通しで返すので、答えないランナーに
+        // resolve の 3 秒と portIdentity の 3 秒を2本とも払っていた)。答えなければここで抜け、控えて続くコマンドで省く
+        guard (try? await BridgeClient(endpoint: BridgeEndpoint.load(port: port, repoRoot: repoRoot),
+                                       timeoutSeconds: 3).status(timeout: 3)) != nil else {
+            await starter.noteElsewhereSilent()
+            return nil
+        }
         let resolution = await XCUIBridgeResolver.resolve(
             preferred: port, repoRoot: repoRoot, autoStart: false,
             logger: { message in ConsoleOut.err("[live serve] " + message) })

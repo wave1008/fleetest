@@ -51,6 +51,9 @@ final class OperationNoteFixesTests: XCTestCase {
             .execute(FlowStep(action: "pressEnter"))
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertFalse(message.contains("in-app") || message.contains("XCUITest"), message)
+        // 断りの理由(焦点が無い・入力の接続が閉じた = OI-163 ⑬)と次の手を言う
+        XCTAssertTrue(message.contains("input connection is closed") && message.contains("tap the field before pressing Enter"),
+                      message)
     }
 
     // MARK: - 3

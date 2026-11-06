@@ -555,6 +555,16 @@ BOOL FTPressEnterOnComposeFirstResponder(void) {
     return NO;
 }
 
+BOOL FTResignReactNativeTextInput(void) {
+    // クラス名の完全一致で React Native(Fabric / Paper とも)の入力欄に限る。Compose / Flutter / UIKit の欄は対象外
+    // (Compose は resign では閉じない。UIKit の欄は xcuitest 側の背景タップで閉じる = 呼び手の既存手順)
+    UIResponder *fr = ftCurrentFirstResponder();
+    NSString *name = fr ? NSStringFromClass(fr.class) : nil;
+    if (![name isEqualToString:@"RCTUITextField"] && ![name isEqualToString:@"RCTUITextView"]) return NO;
+    [fr resignFirstResponder];
+    return YES;
+}
+
 // ウィンドウ木から insertText: に応答するビューを収集(Compose 等は first responder と
 // 実際の入力受け口が別オブジェクトのため)
 static void ftCollectTextReceivers(UIView *root, NSMutableArray<UIView *> *out) {

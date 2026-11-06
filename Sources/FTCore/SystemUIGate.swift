@@ -64,6 +64,21 @@ public enum SystemUIGate {
         }
     }
 
+    /// 前面のシステムアラートの名指し(「a system alert (…)」)。**出ていない・答えが無いなら nil**。
+    /// MCP の `systemAlertNote` と DSL の tapAppIcon が共有する判定(文言の続きは呼び手が持つ)
+    public static func frontAlertPhrase(_ probe: SystemAlertProbeResponse?) -> String? {
+        guard isCovered(probe) else { return nil }
+        return describeUnregistered(probe).map { "a system alert (\($0))" } ?? "a system alert"
+    }
+
+    /// tapAppIcon が「アイコンが見つからない」と言う代わりに言う文。アラートが出ている間、SpringBoard の木には
+    /// アラートの中の要素しか載らずアイコンが1つも無い(実測 iOS 27.2・権限アラート)
+    public static func appIconBlockedMessage(iconName: String, alertPhrase: String) -> String {
+        "App icon not found.(\(iconName)) — \(alertPhrase) is in front of the home screen, so the icons are not in the"
+            + " element list and the search was not run. Close the alert first (answer it in the scenario, or register"
+            + " iosAlertHandler(alert: \"*…*\", button: \"…\") before the step that triggers it)"
+    }
+
     /// 未登録のアラートが「前のシナリオ/run の残り」かもしれないという判断材料。
     /// **断定はしない** —— true でも確実な証拠ではなく、false は「今のアプリ由来」の証明でもない
     /// (単に言う根拠が無いだけ)。判断材料は1つだけ: アラートの題名に**今のアプリの表示名**が

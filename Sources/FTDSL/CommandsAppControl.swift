@@ -471,6 +471,16 @@ public func tapAppIcon(_ appIconName: String? = nil,
         }
         let waitSeconds = core.tunables.screenWaitTimeout
 
+        // アイコンが木に無いとき、SpringBoard の前面にシステムアラートが出ていればそれを名指して失敗する
+        // (アラートの間、木にはアラートの中の要素しか載らず「アイコンが無い」と読んで払い続けていた = OI-178 ⑥)。
+        // 判定は MCP の systemAlertNote と共有(SystemUIGate.frontAlertPhrase)。答えられない(Android・旧ブリッジ)ときは何もしない。
+        // 失敗の経路でだけ呼ぶ = 通常のタップに往復を足さない
+        func failIfSystemAlertInFront() async throws {
+            guard platform == "ios",
+                  let phrase = SystemUIGate.frontAlertPhrase(await driver.systemAlert().value) else { return }
+            throw FTCommandError.message(SystemUIGate.appIconBlockedMessage(iconName: appIconName, alertPhrase: phrase))
+        }
+
         // 枠が連続2枚で同じになるまで読み直す。待ちの上限は screenWaitTimeout(尽きたら最後の枠で撃つ —
         // 撃った後の前面確認が受ける)。消えたら nil(呼び手は探索を続ける)
         func settledIcon(from first: ElementInfo) async throws -> (icon: ElementInfo?, snapshot: SnapshotResponse?) {
@@ -667,6 +677,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
             // 一覧に名前の無い行があったときだけ(AppIconLocator.appLibraryListHasUnnamedRow の doc)、カテゴリの
             // フォルダを上から順に開いて探す。見えているカテゴリだけ・開いたフォルダの中も見えている分だけ(どちらも送らない)
             if sawUnnamedRow, try await tapInAppLibraryFolders(list) { return }
+            try await failIfSystemAlertInFront()
             throw FTCommandError.message("App icon not found.(\(appIconName)) — not on the home screen pages "
                 + "nor in the App Library list"
                 + (sawUnnamedRow ? " (the list had rows without a name; the visible category folders "
@@ -689,6 +700,8 @@ public func tapAppIcon(_ appIconName: String? = nil,
             let (tapped, snapshot) = try await tapSettled(icon)
             if tapped { return }
             if let snapshot { last = snapshot }
+        } else {
+            try await failIfSystemAlertInFront()
         }
 
         // 画面の矩形はドロワー/ページ送りの間ずっと同じ(内容だけが変わる)ので1回だけ取る
@@ -736,6 +749,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                     try await tapInAppLibraryList(list)
                     return
                 }
+                try await failIfSystemAlertInFront()
                 throw FTCommandError.message("App icon not found.(\(appIconName))")
             }
         }

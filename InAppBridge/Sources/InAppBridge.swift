@@ -328,7 +328,8 @@ final class FTInAppBridge {
             },
             truncatedTiers: merged.truncatedTiers.isEmpty ? nil : merged.truncatedTiers,
             bulkExemptCount: merged.bulkExempt > 0 ? merged.bulkExempt : nil,
-            safeAreaTop: safeAreaTop))
+            safeAreaTop: safeAreaTop,
+            coveredByFrontWindow: base.frontWindowCover))
     }
 
     /// keyboardWillChangeFrame の最新値(画面座標)。nil = 非表示または不明。
@@ -1235,11 +1236,21 @@ final class FTInAppBridge {
         return ok()
     }
 
-    /// **iOS ではキーボードを閉じられない**(docs/design/ に不採用の記録)。resignFirstResponder は
-    /// 直接送っても nil ターゲットの sendAction でも閉じず(Compose の受け口が自前でフォーカスを
-    /// 保持する)、xcuitest の Esc も不発。**嘘の成功を返さない**ため 501 を返す
+    /// React Native(Fabric)の入力欄だけ resignFirstResponder でキーボードを閉じる(実測 4/4 で閉じた。Enter を送らないので
+    /// submit は走らない)。**Compose の受け口は resign では閉じない**(自前でフォーカスを保持する)・それ以外の欄は
+    /// ここで閉じる手が無いので、**嘘の成功を返さない**ため 501(ホストは背景タップ → Enter の既存手順へ進む)。
+    /// 閉じたかは通知由来のキーボードの状態で確かめ、出たままなら 500(成功と言わない)
     private func handleHideKeyboard() throws -> InAppHTTPServer.Response {
-        .error("hideKeyboard is Android-only (iOS cannot close the soft keyboard — use pressEnter)", status: 501)
+        var resigned = false
+        try performWithSettle { _ in resigned = FTResignReactNativeTextInput() }
+        guard resigned else {
+            return .error("hideKeyboard is Android-only except for a focused React Native text input"
+                + " (iOS cannot close the soft keyboard of other fields from the in-app bridge — use pressEnter)", status: 501)
+        }
+        guard !mainSync({ Self.keyboardIsVisible() }) else {
+            throw InAppError(500, "resigned the focused React Native text input but the keyboard is still shown")
+        }
+        return ok()
     }
 
     private func handleSwipe(_ body: Data) throws -> InAppHTTPServer.Response {

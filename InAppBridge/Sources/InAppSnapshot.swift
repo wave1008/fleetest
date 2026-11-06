@@ -27,6 +27,27 @@ enum InAppSnapshot {
         /// WebView の DOM マージで ref が振り直されても辿れる。後から AX ノードの「今の」枠を読む所
         /// (InAppBridge.requireFocusMoved)が同じ補正を掛けるために使う
         var rescales: [ObjectIdentifier: AXFrameRescale] = [:]
+        /// 手前の窓に覆われて木から落とした要素の申告(SnapshotResponse.coveredByFrontWindow)。落とした物が無ければ nil
+        var frontWindowCover: FrontWindowCover?
+    }
+
+    /// 手前の窓に覆われて落とした要素の集計(collect が書く。1スナップショットにつき1つ・メインスレッドだけ)
+    private final class CoverTally {
+        var dropped = 0
+        var windows: [ObjectIdentifier: UIWindow] = [:]
+        var order: [ObjectIdentifier] = []
+        func record(_ window: UIWindow) {
+            dropped += 1
+            let id = ObjectIdentifier(window)
+            if windows[id] == nil { windows[id] = window; order.append(id) }
+        }
+        var result: FrontWindowCover? {
+            guard dropped > 0 else { return nil }
+            return FrontWindowCover(droppedCount: dropped, frames: order.compactMap { windows[$0] }.map {
+                let f = $0.convert($0.bounds, to: nil)
+                return FTRect(x: f.origin.x, y: f.origin.y, width: f.width, height: f.height)
+            })
+        }
     }
 
     /// 1パス目(collect)で拾った要素。ref はまだ未採番(0)
@@ -71,14 +92,15 @@ enum InAppSnapshot {
         // 重複すると同じラベルが並んでセレクタが曖昧になり、DOM も2回読むことになる
         var visited = Set<ObjectIdentifier>()
         var gathered: [Gathered] = []
+        let tally = CoverTally()
         let ordered = FTInAppBridge.backToFront(windows)   // 奥 → 手前
         for (index, window) in ordered.enumerated() {
             collect(window, depth: 0, screen: screen, front: Array(ordered[(index + 1)...]),
-                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered)
+                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered, tally: tally)
         }
         for root in extraRoots {
             collect(root, depth: 0, screen: screen, front: [],
-                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered)
+                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered, tally: tally)
         }
 
         // 塗り順 z: 全要素の番号が決まるときだけ付ける(全か無か。BridgeAPI.paintNumber / allOrNothingPaintOrder)。
@@ -133,7 +155,8 @@ enum InAppSnapshot {
                            width: screen.width, height: screen.height),
             elements: elements, frames: frames, nodes: nodes, clips: clips,
             truncated: gathered.count - keptIndices.count,
-            truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, rescales: rescales)
+            truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, rescales: rescales,
+            frontWindowCover: tally.result)
     }
 
     /// UIView → 塗り順の通し番号。窓を渡された順(奥 → 手前)に、各窓のビュー階層を前順(親 → 子)で辿り、
@@ -154,16 +177,16 @@ enum InAppSnapshot {
         return table
     }
 
-    /// 手前の窓に覆われているか。**手前の窓が無ければ即 false**(通常画面のコストはゼロ)
-    private static func isCovered(_ frame: CGRect, by front: [UIWindow]) -> Bool {
-        guard !front.isEmpty else { return false }
+    /// 手前の窓に覆われていれば、その窓。**手前の窓が無ければ即 nil**(通常画面のコストはゼロ)
+    private static func coveringWindow(_ frame: CGRect, by front: [UIWindow]) -> UIWindow? {
+        guard !front.isEmpty else { return nil }
         let center = CGPoint(x: frame.midX, y: frame.midY)
         for window in front {
             let local = window.convert(center, from: nil)
             guard window.bounds.contains(local) else { continue }
-            if window.hitTest(local, with: nil) != nil { return true }
+            if window.hitTest(local, with: nil) != nil { return window }
         }
-        return false
+        return nil
     }
 
     /// `clip` = 祖先のスクロール容器の枠の積(容器が無ければ nil)。容器の外に出た行は frame 上は
@@ -172,7 +195,7 @@ enum InAppSnapshot {
     /// `flutter` = Flutter の縮んだ AX 矩形の補正の状態(`rescaleBelow` 参照)。nil = 申告どおり
     private static func collect(_ node: NSObject, depth: Int, screen: CGRect, front: [UIWindow],
                                 clip: CGRect?, flutter inherited: FlutterFrames?,
-                                visited: inout Set<ObjectIdentifier>, gathered: inout [Gathered]) {
+                                visited: inout Set<ObjectIdentifier>, gathered: inout [Gathered], tally: CoverTally) {
         guard visited.insert(ObjectIdentifier(node)).inserted else { return }
         // 非表示サブツリーは丸ごと除外
         if let view = node as? UIView, view.isHidden || view.alpha < 0.01
@@ -188,12 +211,15 @@ enum InAppSnapshot {
 
         let nodeFrame = frame(node, rescale: rescale)
         var included = false
-        if let info = shouldInclude(node, type: type, frame: nodeFrame, screen: screen),
-           !isCovered(info.frame, by: front) {
-            included = true
-            gathered.append(Gathered(
-                info: makeInfo(node, type: type, ref: 0, depth: depth, frame: info.frame),
-                frame: info.frame, node: node, clip: clip, rescale: rescale))
+        if let info = shouldInclude(node, type: type, frame: nodeFrame, screen: screen) {
+            if let covering = coveringWindow(info.frame, by: front) {
+                tally.record(covering)
+            } else {
+                included = true
+                gathered.append(Gathered(
+                    info: makeInfo(node, type: type, ref: 0, depth: depth, frame: info.frame),
+                    frame: info.frame, node: node, clip: clip, rescale: rescale))
+            }
         }
 
         // WKWebView の内部(WKScrollView/WKContentView)は AX を別プロセスが持つため走査しても
@@ -211,7 +237,7 @@ enum InAppSnapshot {
             ? (clip ?? .infinite).intersection(nodeFrame) : clip
         for child in children {
             collect(child, depth: depth + 1, screen: screen, front: front, clip: childClip,
-                    flutter: flutter, visited: &visited, gathered: &gathered)
+                    flutter: flutter, visited: &visited, gathered: &gathered, tally: tally)
         }
     }
 

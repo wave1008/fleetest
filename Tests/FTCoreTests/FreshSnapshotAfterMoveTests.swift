@@ -23,12 +23,16 @@ final class FreshSnapshotAfterMoveTests: XCTestCase {
         let afterScroll = driver.bypassedSnapshotCount
         XCTAssertGreaterThan(afterScroll, 0, "整定は迂回付きで撮るはず(前提)")
         _ = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "cb_agree"), timeout: 0))
-        XCTAssertEqual(driver.bypassedSnapshotCount, afterScroll, "exist は座標を使わないので迂回しない・印も消費しない")
+        // 操作の直後の最初の検証の読みは迂回する(古いキャッシュで「飲まれた」と読まない = AssertionReadAfterOwnMoveTests)。
+        // 解決の印(nextResolveBypassesCache)は消費しない
+        let afterExist = driver.bypassedSnapshotCount
+        XCTAssertEqual(afterExist, afterScroll + 1, "操作の直後の最初の検証の読みだけ迂回する")
+        XCTAssertTrue(executor.nextResolveBypassesCache, "exist は解決の印を消費しない")
 
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "cb_agree")))
 
         guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
-        XCTAssertEqual(driver.bypassedSnapshotCount, afterScroll + 1, "tap の解決の 1 枚だけ迂回して撮るはず")
+        XCTAssertEqual(driver.bypassedSnapshotCount, afterExist + 1, "tap の解決の 1 枚だけ迂回して撮るはず")
         XCTAssertTrue(executor.nextResolveBypassesCache, "印は解決で消費し、成功した tap 自身が次の解決のために立て直す")
     }
 

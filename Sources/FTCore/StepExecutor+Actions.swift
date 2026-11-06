@@ -768,8 +768,9 @@ extension StepExecutor {
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
-                        + (leftHint ?? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
-                            + Self.scrollOffHint(step, in: hintSnapshot))
+                        + (leftHint ?? Self.frontWindowCoverHint(hintSnapshot)
+                            ?? (Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
+                                + Self.scrollOffHint(step, in: hintSnapshot)))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)
@@ -1970,6 +1971,8 @@ extension StepExecutor {
                            phase: inout PhaseAccumulator) async throws -> CoverLift? {
         var current = element
         var currentSnapshot = snapshot
+        // 焦点を立てるタップを撃つ操作か(verb は呼び手の言い回し: typing / clearing / touching)
+        let takesFocus = verb == "typing" || verb == "clearing"
         var coverName: String?
         var retook = false
         let clock = ContinuousClock()
@@ -2034,6 +2037,16 @@ extension StepExecutor {
                 coverRect = FTRect(x: container.x, y: current.frame.y, width: container.width,
                                    height: max(0, container.y + container.height - current.frame.y))
             }
+            // **焦点を立てる操作(type / clearInput)の前に、欄の中心が容器の上端の外なら、容器を逆向きに送って中へ戻す**
+            // (直前の送りで上へ押し出された欄。中心を叩くと容器の外に当たり焦点が前の欄に残る = OI-167 ④⑤。
+            // topEdgeCentreLift の doc)。キーボードの下から出す送りと同じ手順(slowDrag・撮り直し・収まったか)を通す
+            if jump == nil, takesFocus, ownContainer != nil,
+               let lift = TapTargetGeometry.topEdgeCentreLift(current, container: container) {
+                jump = lift
+                coverName = coverName ?? "the top edge of its scroll container"
+                coverRect = FTRect(x: container.x, y: container.y, width: container.width,
+                                   height: max(0, current.frame.y + current.frame.height - container.y))
+            }
             // **指を当てるのは覆いを避けた領域**(理由は uncoverDragArea)
             guard let jump, let coverRect,
                   let dragArea = coverIsKeyboard
@@ -2065,6 +2078,7 @@ extension StepExecutor {
                 || (paintOrderIsReal(after.elements) && TapTargetGeometry.overlayCoveringForUncover(
                        moved, in: after.elements, screen: after.screen) != nil)
                 || (!isAndroid && TapTargetGeometry.bottomEdgeClipLift(moved, in: after.elements) != nil)
+                || (takesFocus && ownContainer != nil && TapTargetGeometry.topEdgeCentreLift(moved, container: container) != nil)
                 || (paintOrderIsReal(after.elements)
                     && TapTargetGeometry.pinnedBandCovering(moved, in: after.elements, container: container) != nil)
             if !stillCovered {

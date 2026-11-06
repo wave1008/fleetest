@@ -65,8 +65,14 @@ extension StepExecutor {
     /// アサーションの待ちループの1周の読み。**直呼びしない**(読み直しの迂回で nextResolveBypassesCache を
     /// 立てる所がここだけ)
     func assertionSnapshot(_ retry: inout AssertFreshRetry) async throws -> SnapshotResponse {
-        let bypass = retry.takeArmed()
-        if retry.lastTakeWasRepollBypass { markRepollBypassed() }
+        // **画面を動かす操作の直後の最初の読みは迂回する**(Android の素取得は tap の直後に前の値を返しうる: 8 回中 6 回
+        // 「前の値」を読んだ = OI-161 ⑥。その木は「画面が変わらなかった = 飲まれたかも」の根拠にも使われる)。
+        // 印はここで消費する。`nextResolveBypassesCache` は立てたまま(迂回した読みはキャッシュを更新しないので、
+        // 次のロケータ操作の解決の1枚も迂回する = markRepollBypassed)
+        let afterOwnMove = assertionReadAfterOwnMove && driver.supportsCacheBypass
+        assertionReadAfterOwnMove = false
+        let bypass = retry.takeArmed() || afterOwnMove
+        if retry.lastTakeWasRepollBypass || afterOwnMove { markRepollBypassed() }
         let snapshot = try await driver.snapshot(bypassingCache: bypass)
         lastTreeOwnerThisStep = snapshot.sessionBundleID
         return snapshot

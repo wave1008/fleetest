@@ -1116,6 +1116,19 @@ public enum TapTargetGeometry {
         return max(rowHeight - element.frame.height + edgeLiftMargin, minimumEdgeLiftJump)
     }
 
+    /// **欄の中心が、欄を切り取る容器の上端より上にあるとき、中へ戻す送り量(負 = 内容を下へ・指を下へ)**。
+    /// 焦点を立てるタップ(type / clearInput)は欄の中心を叩く。直前の欄をキーボードの下から出す送りが次の欄を容器の上へ押し出すと、
+    /// 見えているのは下の一部だけで、中心は容器の外(固定の帯・縁)に落ち、焦点が前の欄に残った(E2EX-RN 入力の種類: 欄が
+    /// (16,234 370x56)・容器が (16,266 370x388) = 中心 262 は上端 266 の外。OI-167 ④⑤)。
+    /// 判定は幾何の事実(容器の枠と欄の枠)だけ: 中心が上端より上・欄の一部はまだ容器の中。塗り順は見ない。
+    /// 容器の外へ出きった欄(一部も無い)は「通り過ぎた」で、ここでは送らない。量は `straddleJump` と同じ(下限つき)
+    public static func topEdgeCentreLift(_ element: ElementInfo, container: FTRect) -> Double? {
+        guard element.frame.centerY < container.y,
+              element.frame.y + element.frame.height > container.y,
+              let jump = straddleJump(for: element, container: container), jump < 0 else { return nil }
+        return jump
+    }
+
     /// **容器の縁にまたがった(一部が容器の外へ出ている)タップ対象**と、その容器・寄せ量。
     /// DSL(`StepExecutor` の寄せ)と MCP(`ft_tap` の警告)が共有する唯一の判定。
     /// 容器と全く交差しないもの(`outsideDeclaredScroller` / ghost の側)は含めない

@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 275
+    public static let bridgeProtocolVersion = 276
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -964,6 +964,14 @@ public struct StatusResponse: Codable, Sendable {
     }
 }
 
+/// POST /home(XCUITest ランナー)。`bundleID` = 対象アプリ。inapp-boost の DSL ではランナーのセッションが無い(`app` が nil)ので、
+/// ホームジェスチャを遮ったアラートが対象アプリ自身のものかを、この bundle ID の XCUIApplication で読む(OI-178 ④)。
+/// 呼び手が対象を持たない(SystemUIDriver)ときは nil = 従来の判定(セッションのアプリだけ)
+public struct HomeRequest: Codable, Sendable {
+    public var bundleID: String?
+    public init(bundleID: String? = nil) { self.bundleID = bundleID }
+}
+
 public struct LaunchRequest: Codable {
     public var bundleID: String
     /// true なら XCUIApplication.activate()(起動中は状態保持で前面化、未起動なら起動)。
@@ -1183,6 +1191,12 @@ public struct SnapshotResponse: Codable, Sendable {
     /// 何を数えるかの境界は `SnapshotBuilder.hiddenWindowRects` が唯一の定義元
     /// (ステータス/ナビゲーションバーは常設なので数えない、等)
     public var overlayWindowFrames: [FTRect]?
+    /// **手前の窓に覆われて木から落とした要素**の申告(OI-178 ⑤)。**in-app だけが申告する**。in-app は可視な窓を奥から手前へ
+    /// 歩き、手前の窓の `hitTest` が中心を受ける要素を木から落とす(`InAppSnapshot.capture`)ので、ホストから見ると
+    /// 「対象が木に無い」と区別できなかった。落とした物が無ければ nil。**`overlayWindowFrames` とは別の欄**(意味が逆):
+    /// あちらは「木に載る要素へのタップが吸われる帯」で in-app は申告しない(要素の activate は手前の窓に吸われない)。
+    /// こちらは**タップ判定には使わない**。失敗の文で「手前の窓が覆っている」と名指すためだけの材料
+    public var coveredByFrontWindow: FrontWindowCover?
     /// **何を捨てたか**の内訳(`BridgeSnapshotThinning.tierKey` の値 → 件数)。
     /// `truncatedCount` は「何件落ちたか」しか言わないので、ホストは
     /// 「選べる物が消えたのか、飾りが消えただけなのか」を区別できなかった ——
@@ -1223,8 +1237,10 @@ public struct SnapshotResponse: Codable, Sendable {
                 keyboardFrame: FTRect? = nil, overlayWindowFrames: [FTRect]? = nil,
                 truncatedTiers: [String: Int]? = nil,
                 bulkExemptCount: Int? = nil,
-                safeAreaTop: SafeAreaTop = .unknown) {
+                safeAreaTop: SafeAreaTop = .unknown,
+                coveredByFrontWindow: FrontWindowCover? = nil) {
         self.safeAreaTop = safeAreaTop
+        self.coveredByFrontWindow = coveredByFrontWindow
         self.sessionBundleID = sessionBundleID
         self.screen = screen
         self.elements = elements
@@ -1237,6 +1253,17 @@ public struct SnapshotResponse: Codable, Sendable {
         self.overlayWindowFrames = overlayWindowFrames
         self.truncatedTiers = truncatedTiers
         self.bulkExemptCount = bulkExemptCount
+    }
+}
+
+/// `SnapshotResponse.coveredByFrontWindow` の中身。`droppedCount` = 手前の窓に覆われて落とした要素の数(0 より大きい)、
+/// `frames` = 実際に要素を覆った手前の窓の枠(画面座標・奥から手前の順)
+public struct FrontWindowCover: Codable, Sendable, Equatable {
+    public let droppedCount: Int
+    public let frames: [FTRect]
+    public init(droppedCount: Int, frames: [FTRect]) {
+        self.droppedCount = droppedCount
+        self.frames = frames
     }
 }
 

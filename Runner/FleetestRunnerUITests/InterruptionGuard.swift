@@ -40,6 +40,9 @@ final class InterruptionGuard {
     /// 要求の頭で呼ぶ(前の要求の控えを持ち越さない)
     func reset() { blocked = nil }
 
+    /// 控えがあるか(消さない)。`/home` が押し直す前に見る
+    var hasBlocked: Bool { blocked != nil }
+
     /// この要求の間にアラートが操作を遮っていたら控えを返して消す
     func take() -> Blocked? {
         defer { blocked = nil }

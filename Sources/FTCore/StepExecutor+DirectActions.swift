@@ -300,11 +300,7 @@ extension StepExecutor {
             // 容器を一意に決められない・申告が無い(iOS・旧ブリッジ)ときは nil のままなので
             // 今までどおり撃って確かめる
             let scrollingElement = Self.scrollContainerElement(step: step, in: settled.snapshot, vertical: vertical)
-            if let scrollingElement,
-               ScrollActionAvailability.atEdge(
-                   container: scrollingElement,
-                   enclosing: Self.enclosingScrollables(of: scrollingElement, step: step, in: settled.snapshot),
-                   forSwipe: direction) {
+            if Self.declaredAtEdge(step: step, in: settled.snapshot, finger: direction) {
                 reachedEdge = true
                 break
             }
@@ -852,7 +848,11 @@ extension StepExecutor {
         } catch {
             guard DriverError.isTextInputFallback(error) else { throw error }
             guard let td = typeDriver else {
-                return StepOutcome(status: .failed(Self.focusedFieldRefusal("press Enter in", isAndroid: isAndroid)))
+                // Android の 409 は「焦点の欄が無い・欄の入力の接続が閉じている」(Flutter は Enter の後に接続を閉じる = OI-163 ⑬)
+                return StepOutcome(status: .failed(Self.focusedFieldRefusal("press Enter in", isAndroid: isAndroid)
+                    + (isAndroid ? " — no field has input focus, or the focused field's input connection is closed (Flutter"
+                        + " closes it after an Enter), so nothing would receive it; tap the field before pressing Enter again"
+                        : "")))
             }
             try await td.pressEnter()
             phase.actionMs += Self.ms(clock.now - start)
@@ -976,8 +976,30 @@ extension StepExecutor {
         return .closed(note: "closed the keyboard (back key)", after: after)
     }
 
+    /// iOS の RN: in-app ブリッジの /hidekeyboard が焦点の RN の入力欄(RCTUITextField / RCTUITextView)を resign して閉じる
+    /// (Enter を送らない = 送信が走らない。一覧が画面を埋めると上の空きを叩いても閉じない)。
+    /// **RN に限る**: 他の構成ではブリッジが 501 を返すだけで、inapp-boost は XCUITest へも回送して往復を2本払う。
+    /// 閉じなければ nil(呼び手は空きを叩く手順へ進む)。断られた(501・旧ブリッジ)のも nil
+    func closeReactNativeKeyboardByResign(phase: inout PhaseAccumulator) async throws -> KeyboardClose? {
+        let clock = ContinuousClock()
+        var start = clock.now
+        let before = try await freshSnapshot(.afterOwnMove)
+        phase.snapshotMs += Self.ms(clock.now - start)
+        guard KeyboardWait.isShown(before) else { return .notShown }
+        start = clock.now
+        do { try await driver.hideKeyboard() } catch { phase.actionMs += Self.ms(clock.now - start); return nil }
+        phase.actionMs += Self.ms(clock.now - start)
+        let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
+        guard !KeyboardWait.isShown(after) else { return nil }
+        return .closed(note: "closed the keyboard by resigning the focused React Native text input (no Enter sent)",
+                       after: after)
+    }
+
     /// iOS: キーボードの上の空きを叩いて閉じる(手順は `executeIOSHideKeyboard` の doc。Enter へは進まない)
     func closeKeyboardByTappingOutside(step: FlowStep, phase: inout PhaseAccumulator) async throws -> KeyboardClose {
+        if uiFramework == .reactNative, let closed = try await closeReactNativeKeyboardByResign(phase: &phase) {
+            return closed
+        }
         let clock = ContinuousClock()
         let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
         var lastReason = ""

@@ -44,7 +44,16 @@ actor LiveBridgeAutoStarter {
     /// 断りは launchBridge の中(非同期)で分かるので、呼び手(serve のコマンドループ)が毎コマンド読んで、
     /// そのポートが自分のデバイスの答えるブリッジなら乗り換える(乗り換えない限り、元のポートへ撃って
     /// 起動 → 断りを繰り返す)。成功・本物の失敗で消す
-    private(set) var runnerElsewherePort: UInt16?
+    private(set) var runnerElsewherePort: UInt16? {
+        didSet { if runnerElsewherePort != oldValue { elsewhereSilentAt = nil } }
+    }
+    /// 別ポートのランナーが答えなかった時刻。この時刻から `elsewhereSilenceWindowSeconds` の間は、その probe・乗り換えの試行を
+    /// 続くコマンドで繰り返さない(固まったランナーへの /status は1本ごとに 2〜3 秒かかり、毎コマンド払っていた)。
+    /// 窓が尽きれば撃ち直す = 戻ったランナーは最長この秒数で使える。答えた・誰も listen していない・成功・失敗で消す
+    private var elsewhereSilentAt: Date?
+    /// 根拠: 固まったランナーの /status 1本が 2〜3 秒(OI-125 の観測)で、省かないと毎コマンド約 5 秒。窓が長いほど戻ったランナーへの
+    /// 乗り換えが遅れる。command watchdog(30 秒)より十分短く、人の操作の間隔(数秒)の数回ぶんとして 10 秒。尽きたら撃ち直す
+    static let elsewhereSilenceWindowSeconds: TimeInterval = 10
 
     init(repoRoot: URL, udid: String, port: UInt16, physical: Bool, wired: Bool) {
         self.repoRoot = repoRoot
@@ -62,7 +71,13 @@ actor LiveBridgeAutoStarter {
         // **別ポートのランナーを理由に断った後は、そのランナーが居る間は撃ち直さない**(撃ち直すと毎コマンド idle → starting へ
         // 入れ直して理由が error に載らず、断りの待ちで約7秒止まる)。居なくなった(誰も listen していない)ときだけ起動へ戻る
         if case .idle = state, let elsewhere = runnerElsewherePort {
+            if isElsewhereSilent() {
+                logStderr("not probing port \(elsewhere) again yet — it did not answer within the last"
+                    + " \(Int(Self.elsewhereSilenceWindowSeconds)) seconds")
+                return suffix()
+            }
             let probe = await BridgeDiscovery.probeStatus(port: elsewhere, repoRoot: repoRoot)
+            noteElsewhereProbe(probe)
             if Self.elsewhereSkipHolds(probe: probe) { return suffix() }
             runnerElsewherePort = nil
             skippedDetail = nil
@@ -100,6 +115,27 @@ actor LiveBridgeAutoStarter {
     /// 誰も listen していなければランナーは居ないので、断りを捨てて自動起動へ戻る
     static func elsewhereSkipHolds(probe: BridgeDiscovery.StatusProbe) -> Bool {
         probe != .notBound
+    }
+
+    /// 別ポートのランナーが答えなかった直後(窓の中)か。呼び手(乗り換えの試行)が省く判断に使う
+    func isElsewhereSilent(now: Date = Date()) -> Bool {
+        guard let at = elsewhereSilentAt else { return false }
+        return now.timeIntervalSince(at) < Self.elsewhereSilenceWindowSeconds
+    }
+
+    /// 別ポートのランナーが答えなかった(乗り換えの試行の /status が無応答)事実を控える
+    func noteElsewhereSilent(now: Date = Date()) {
+        elsewhereSilentAt = now
+    }
+
+    /// probe の結果を控えに反映する: 答えなかった(timedOut/transportFailed)なら控え、答えた・誰も listen していないなら消す
+    func noteElsewhereProbe(_ probe: BridgeDiscovery.StatusProbe, now: Date = Date()) {
+        switch probe {
+        case .timedOut: elsewhereSilentAt = now
+        case .transportFailed: elsewhereSilentAt = now
+        case .answered: elsewhereSilentAt = nil
+        case .notBound: elsewhereSilentAt = nil
+        }
     }
 
     /// 状態サフィックスのみ返す(起動はトリガーしない)

@@ -53,6 +53,11 @@ id _Nullable FTCurrentTextReceiver(void);
 /// xcuitest の typeText("\n") へ回す判断をする)。
 BOOL FTPressEnterOnComposeFirstResponder(void);
 
+/// hideKeyboard 用: first responder が React Native の入力欄(RCTUITextField / RCTUITextView)なら resignFirstResponder で
+/// 閉じて YES(Enter を送らないので submit は走らない。RN の onBlur / onEndEditing は人が背景を叩いたときと同じに発火する)。
+/// それ以外の first responder・フォーカス無しは何もせず NO
+BOOL FTResignReactNativeTextInput(void);
+
 /// 現在の first responder(sendAction 捕捉 → ビュー木探索)。in-app の木が `inputAccessoryView` を拾うのに使う
 id _Nullable FTCurrentFirstResponderObject(void);
 

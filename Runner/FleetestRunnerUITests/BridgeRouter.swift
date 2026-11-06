@@ -161,7 +161,7 @@ final class BridgeRouter {
             case ("POST", "/responseObservationStop"): response = handleResponseObservationStop()
             case ("GET", "/screenshot"): response = handleScreenshot(request)
             case ("POST", "/appswitcher"): response = try handleAppSwitcher()
-            case ("POST", "/home"): response = try handleHome()
+            case ("POST", "/home"): response = try handleHome(request.body)
             case ("POST", "/hinge"): response = try handleHinge(request.body)
             case ("POST", "/terminate"): response = try handleTerminate()
             case ("POST", "/appstate"): response = try handleAppState(request.body)
@@ -199,8 +199,10 @@ final class BridgeRouter {
 
     /// 遮ったのが対象アプリ自身のアラートか。**両方が肯定的に読めたときだけ** true(セッションのアプリにアラートがあり、
     /// SpringBoard には無い)。どちらかが読めない・SpringBoard にもあるなら false = 従来のシステムアラートの文言(推測で名指さない)
+    /// セッションが無い inapp-boost の DSL では `app` が nil なので、`/home` の要求が運ぶ対象の bundle ID の
+    /// XCUIApplication(`homeTargetApp`)で読む(OI-178 ④)
     private func blockedByOwnAppAlert() -> Bool {
-        guard let app, app.alerts.firstMatch.exists else { return false }
+        guard let probe = app ?? homeTargetApp, probe.alerts.firstMatch.exists else { return false }
         return SystemAlertProbe.front() == nil
     }
 
@@ -1670,7 +1672,12 @@ final class BridgeRouter {
     /// 無いので1回だけ送る
     private static let homeAttempts = 3
     private static let homeSettleSeconds = 2.0
-    private func handleHome() throws -> BridgeHTTPServer.Response {
+    /// 今の `/home` 要求の対象アプリ(`HomeRequest.bundleID`)。要求の間だけ持つ(main スレッドでしか触らない)
+    private var homeTargetApp: XCUIApplication?
+    private func handleHome(_ body: Data) throws -> BridgeHTTPServer.Response {
+        let target = try decode(HomeRequest.self, body)
+        homeTargetApp = target.bundleID.map { XCUIApplication(bundleIdentifier: $0) }
+        defer { homeTargetApp = nil }
         let sb = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         #if !targetEnvironment(simulator)
         // **スイッチャーが開いていると下端フリックはホームへ戻らず、`app.state` も前面のまま**(iPhone 13 実機で
@@ -1699,6 +1706,9 @@ final class BridgeRouter {
         let verifiable = app.map { $0.state == .runningForeground && sessionBundleID != "com.apple.springboard" } ?? false
         for attempt in 1...Self.homeAttempts {
             sendHome(sb, attempt: attempt)
+            // XCTest が割り込み(アラート)で諦めた控えが残っていれば押し直さない(1回の送信で約 6.6 秒かかり、押し直しは
+            // 3 回 × 約 9 秒 = 27 秒になった。押し直してもアラートは消えない)。控えは要求の終わりで 422 になる
+            if InterruptionGuard.shared.hasBlocked { break }
             guard verifiable, let app else { break }
             let deadline = Date().addingTimeInterval(Self.homeSettleSeconds)
             var left = false

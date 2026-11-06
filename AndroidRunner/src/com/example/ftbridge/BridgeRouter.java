@@ -395,7 +395,11 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             tapUnlessAlreadyFocused(center, refIds.get(ref));
             // 確認と注入を統合した経路(InputInjector.setTextAppendingAt のコメント参照)。
             // resource-id を渡す: キーボードの開閉で座標がズレても同じ要素を追跡し直すため
-            InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS);
+            String note = InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS);
+            if (note != null) {   // 焦点の接続へ回した(OKResponse.note。ホストが lastActionNote で拾う)
+                settle();
+                return BridgeHttpServer.Response.json(200, "{\"ok\":true,\"note\":" + JSONObject.quote(note) + "}");
+            }
         } else {
             if (shouldTapFocusedWhenImeHidden(body)) InputInjector.tapFocusedEditableIfImeHidden(ua());
             InputInjector.setTextAppending(ua(), text);

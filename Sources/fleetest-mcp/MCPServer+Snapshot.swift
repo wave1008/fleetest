@@ -1185,8 +1185,7 @@ extension MCPServer {
     }
 
     private static func describeFrontSystemAlert(_ probe: SystemAlertProbeResponse?) -> String? {
-        guard SystemUIGate.isCovered(probe) else { return nil }
-        return SystemUIGate.describeUnregistered(probe).map { "a system alert (\($0))" } ?? "a system alert"
+        SystemUIGate.frontAlertPhrase(probe)
     }
 
     /// **SpringBoard の面がアプリを覆っている**ことを SpringBoard に聞く(iOS xcuitest だけ)。

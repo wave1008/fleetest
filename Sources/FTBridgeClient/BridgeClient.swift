@@ -826,8 +826,10 @@ public final class BridgeClient: AppDriver, Sendable {
                                            timeout: sessionTimeout)
     }
 
-    public func home() async throws {
-        let _: OKResponse = try await post("/home", body: OKResponse(),
+    /// `bundleID` = 対象アプリ(ランナーにセッションが無い inapp-boost で、遮ったアラートがアプリ自身のものかを名指すため。
+    /// `HomeRequest`)。対象を持たない呼び手(SystemUIDriver)だけ nil
+    public func home(bundleID: String? = nil) async throws {
+        let _: OKResponse = try await post("/home", body: HomeRequest(bundleID: bundleID),
                                            timeout: sessionTimeout)
     }
 

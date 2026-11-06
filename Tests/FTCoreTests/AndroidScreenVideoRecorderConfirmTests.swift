@@ -101,8 +101,10 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
                                                   startConfirmLimit: 1.5)
         let started = await recorder.start()
         XCTAssertTrue(started, "1 本目は撮り始めを確かめられるはず")
-        // 1 本目は 1 秒で終わり、撮り直した 2 本目は stat が 0 のまま(撮り始めない)
-        try await Task.sleep(nanoseconds: 1_300_000_000)
+        // 1 本目は 1 秒で終わり、撮り直した 2 本目は stat が 0 のまま(撮り始めない)。
+        // 待ちは切り替えを確実に越える 2 秒(1.3 秒は 22 並列の負荷で切り替えの前に確かめて落ちた。確かめの上限 1.5 秒を
+        // 過ぎていても「撮れていない」は変わらない)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
         let recording = await recorder.ensureRecording()
         XCTAssertFalse(recording, "撮り始めを確かめられない録画を「撮れている」と言わないはず")
         _ = await recorder.stop()

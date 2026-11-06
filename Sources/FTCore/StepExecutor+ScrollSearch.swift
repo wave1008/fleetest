@@ -388,6 +388,18 @@ extension StepExecutor {
         return " If the screen was still loading (a skeleton or a trailing spinner), add waitSeconds: so the search waits for more content before stopping."
     }
 
+    /// in-app ブリッジが「手前の窓(別ウィンドウのモーダル等)に覆われた要素を木から落とした」と申告した木で解決できなかったときの案内
+    /// (`SnapshotResponse.coveredByFrontWindow`)。待っても窓は閉じないので `waitSeconds:` は案内しない(OI-178 ⑤)。
+    /// 申告が無い木(XCUITest・Android・旧ブリッジ)は nil = 従来の案内
+    static func frontWindowCoverHint(_ snapshot: SnapshotResponse) -> String? {
+        guard let cover = snapshot.coveredByFrontWindow, cover.droppedCount > 0 else { return nil }
+        let frames = cover.frames.prefix(2).map { "(\(Int($0.x)),\(Int($0.y)) \(Int($0.width))x\(Int($0.height)))" }
+            .joined(separator: ", ")
+        return " — a window in front of the app at \(frames) covers \(cover.droppedCount) element(s), which are left out"
+            + " of the tree; the target may be behind it. Close that window (dismiss the dialog or sheet) before acting on"
+            + " what is behind it — waiting will not bring the target back"
+    }
+
     /// 探索(`scroll:`)を撃った手順の「見つからない」に添える待ちの案内(`cannot resolve the locator` の文。呼び手は StepExecutor+Actions)。
     /// 探索が対象に着いた後に整定の待ちが上限で切れ(`settleCapped`)、撮り直した木で触れなかったなら、`waitSeconds:` を案内せず
     /// その事実を言う —— `waitSeconds:` は対象を探す待ちで、従っても流れ去った対象は戻らない(12周目 iultra F5)。それ以外は従来の `defaultWaitHint`
@@ -1283,10 +1295,14 @@ extension StepExecutor {
                     turned.screenResized = true
                     return turned
                 }
-                if let earlier = previousSnapshot,
-                   searchSignature(earlier)
-                       == searchSignature(snapshot) {
-                    unmovedRounds += 1
+                // **払う前の木が「その向きへは動けない」と申告していれば、払わずに端と確定する**(Android の AX 申告。
+                // 上端の PullToRefresh の一覧へ払うと、見つからない1本が更新を走らせた = OI-163 ⑩。scrollToEdge と同じ判定)。
+                // 申告の無い木(iOS)は false = 従来どおり木の署名で端を確かめる
+                let declaredAtEdge = Self.declaredAtEdge(step: searchStep, in: snapshot, finger: direction)
+                if declaredAtEdge
+                    || previousSnapshot.map({ searchSignature($0) == searchSignature(snapshot) }) ?? false {
+                    unmovedRounds = declaredAtEdge ? max(unmovedRounds + 1, Self.unmovedRoundsToStopSearch)
+                                                   : unmovedRounds + 1
                     previousSwipeMoved = false
                     // **最後に動いてから `edgeClaimGraceAfterMove` 経つまでは打ち切らず、残りを待って
                     // もう1本送る**(scrollToEdge と同じ猶予)。末尾に着いてから続きを読み込む一覧は、
@@ -1298,6 +1314,12 @@ extension StepExecutor {
                         try await Task.sleep(for: Self.edgeClaimGraceAfterMove - (clock.now - lastMoveAt))
                         phase.waitMs += Self.ms(clock.now - waitStart)
                         unmovedRounds = Self.unmovedRoundsToStopSearch - 1
+                        // 申告で端と分かっている回は払わない(待った後の読みで申告が変わったかだけを見る)
+                        if declaredAtEdge {
+                            previousSnapshot = snapshot
+                            attempt -= 1
+                            continue
+                        }
                     }
                     // **利用者が `waitSeconds:` を書いたのに何も動かないままなら、その予算の間は端と確定しない**
                     // (読み込み中の骨組みの一覧は数秒後に伸びる。1.5 秒で「何も動かない」と断ると予算を使い切らずに赤になった)。
@@ -1389,7 +1411,7 @@ extension StepExecutor {
                         // 既定の始点が一覧の外に落ちる)。ブリッジ既定の始点は変えない = この失敗経路でだけ撃つ。
                         // 動かなかったと観測した後の別の始点での払いで、探索の一部(届いたか分からない操作の撃ち直しではない)。
                         // 容器が複数なら当てずに払わない(失敗文が scrollFrame を勧める)。動いたときだけ探索を続ける
-                        if !containerRedirectTried, !contentEverMoved, step.scrollFrame == nil, step.scrollFrameRect == nil,
+                        if !declaredAtEdge, !containerRedirectTried, !contentEverMoved, step.scrollFrame == nil, step.scrollFrameRect == nil,
                            !KeyboardWait.isShown(confirmed.snapshot),
                            let only = ContainerGeometry.uniqueScrollContainer(in: confirmed.snapshot, vertical: vertical) {
                             containerRedirectTried = true

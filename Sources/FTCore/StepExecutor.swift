@@ -1561,6 +1561,10 @@ public final class StepExecutor {
     /// E2E-CMP 09 S0010 の `#btn_async_reset` が実機 Android で 8/9)。**消費する読み自身では立て直さない**
     /// (立て直すと以後の操作が全部迂回する)。exist / textIs は座標を使わないので消費しない
     var nextResolveBypassesCache = false
+    /// 画面を動かす操作(`StepAction.mayChangeScreen`)が成功した後、**次のアサーションの最初の1読み**を迂回にする印
+    /// (`assertionSnapshot` が消費する)。`nextResolveBypassesCache` と別なのは、あちらはアサーションが消費しない(座標を使わない)ため、
+    /// 流用すると操作の後の全アサーションが毎回迂回してしまうから
+    var assertionReadAfterOwnMove = false
 
     /// 待つ間の読み直しで実際に迂回したら呼ぶ(nextResolveBypassesCache の ②)
     func markRepollBypassed() {

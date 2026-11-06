@@ -358,6 +358,17 @@ extension StepExecutor {
         return !declaresAxis(actions, vertical: vertical) && declaresAxis(actions, vertical: !vertical)
     }
 
+    /// 払う前の木の申告から、`finger` へ送る払いが**既に効果が無い**と言えるか(scrollToEdge と探索の共通の判定)。
+    /// 容器を一意に決められない・申告が無い(iOS・旧ブリッジ)ときは false = 従来どおり撃って確かめる
+    static func declaredAtEdge(step: FlowStep, in snapshot: SnapshotResponse, finger: FTSwipeDirection) -> Bool {
+        let vertical = finger == .up || finger == .down
+        guard let element = scrollContainerElement(step: step, in: snapshot, vertical: vertical) else { return false }
+        return ScrollActionAvailability.atEdge(
+            container: element,
+            enclosing: enclosingScrollables(of: element, step: step, in: snapshot),
+            forSwipe: finger)
+    }
+
     /// `container` を包む scrollable(端の判定で「外側がまだ送れるか」を見る相手)。
     /// **scrollFrame を明示した送りは外へ出ない**(指定した容器の中だけを動かす契約)ので空を返す
     static func enclosingScrollables(of container: ElementInfo, step: FlowStep,

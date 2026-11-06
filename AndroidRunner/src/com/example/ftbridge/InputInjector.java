@@ -135,7 +135,7 @@ final class InputInjector {
      *   ノードは内部で NPE を投げる。ACTION_FOCUS 事件と同じ機構)
      * 期限内に確認できなければ 500(他フィールドへは決して書かない)。
      */
-    static void setTextAppendingAt(UiAutomation ua, double x, double y, String shortId,
+    static String setTextAppendingAt(UiAutomation ua, double x, double y, String shortId,
                                    String text, long timeoutMs) {
         long start = SystemClock.uptimeMillis();
         long deadline = start + timeoutMs;
@@ -169,6 +169,14 @@ final class InputInjector {
                     if (!fresh) lastState = STALE_READ;
                 } else if (accepted > 0) {
                     lastState = "the field could not be found again after ACTION_SET_TEXT was accepted";
+                } else if (shortId != null && root != null && SystemClock.uptimeMillis() >= focusGraceUntil
+                        && hasNodeWithId(root, shortId) && focusedEditable(root) != null
+                        && Boolean.TRUE.equals(servedInputConnection(ua))) {
+                    // 押せるだけで editable でない要素(Compose の OTP の箱)を押すと、IME は木に出ない欄へつながる。
+                    // 人が押してから打つのと同じに、焦点の接続へ打つ(ref なしの type と同じ経路)。**焦点が移る猶予(focusGraceUntil)を
+                    // 待ってから** —— 押した直後は前の欄が焦点のままで、そこへ打つと別の欄を汚す
+                    setTextAppending(ua, text);
+                    return FOCUSED_CONNECTION_NOTE;
                 }
                 if (fresh) {
                     CharSequence existing = target.isShowingHintText() ? "" : target.getText();
@@ -176,7 +184,7 @@ final class InputInjector {
                     lastRead = current;
                     if (combined != null && applied(current, combined, masked, before)) {
                         logReformatted(current, combined, masked);
-                        return;
+                        return null;
                     }
                     boolean focused = target.isFocused();
                     // フォーカス済みでも受理→未反映が続くことがある(高負荷で観測)。原因は
@@ -260,6 +268,35 @@ final class InputInjector {
         target.getBoundsInScreen(fresh);
         tap(ua, fresh.exactCenterX(), fresh.exactCenterY());
     }
+
+    /** IME が今つないでいる入力接続の有無(`dumpsys input_method` の mServedInputConnection)。TRUE = つながっている /
+     *  FALSE = `null` と明示されている / null = 読めない(呼び手は「読めない」で断らない)。
+     *  最初の1行を読んだら流れを閉じる(dump の大半は IME 自身の dump。editorEnterIsNewLine と同じ理由) */
+    static Boolean servedInputConnection(UiAutomation ua) {
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(
+                new android.os.ParcelFileDescriptor.AutoCloseInputStream(ua.executeShellCommand("dumpsys input_method")),
+                java.nio.charset.StandardCharsets.UTF_8))) {
+            String line;
+            int lines = 0;
+            while ((line = reader.readLine()) != null && ++lines <= EDITOR_INFO_SCAN_MAX_LINES) {
+                int at = line.indexOf(SERVED_INPUT_CONNECTION_KEY);
+                if (at < 0) continue;
+                String value = line.substring(at + SERVED_INPUT_CONNECTION_KEY.length()).trim();
+                return value.isEmpty() ? null : !value.equals("null");
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
+    }
+
+    private static final String SERVED_INPUT_CONNECTION_KEY = "mServedInputConnection=";
+
+    /** 木に id の一致する(editable でない)ノードがあるか。OTP の箱のように押せるだけの要素の確認 */
+    /** setTextAppendingAt が焦点の接続へ回したときの応答の注記(OKResponse.note。ホストは lastActionNote で拾う) */
+    static final String FOCUSED_CONNECTION_NOTE =
+            "the target is not an input field; the text was typed into the field that took input focus after the tap"
+            + " (an input connection that is not in the accessibility tree)";
 
     private static boolean imeWindowVisible(UiAutomation ua) {
         for (AccessibilityWindowInfo w : ua.getWindows()) {
@@ -793,6 +830,13 @@ final class InputInjector {
             throw new BridgeRouter.BridgeException(409,
                     "no-input-focus: nothing has input focus (tap the field by ref first)");
         }
+        // 入力接続が閉じている欄へは撃たない。Flutter は IME アクションで接続を閉じても a11y の焦点を残し、ACTION_IME_ENTER を
+        // 接続の有無を見ずに true で受けて捨てる(2回目の pressEnter が ok のまま届かない = OI-163 ⑬)。読めない(null)ときは撃つ。
+        // 接頭辞 no-input-focus はホストがキーイベントへ落とさない目印(AndroidDriver.noInputFocusMarker)
+        if (Boolean.FALSE.equals(servedInputConnection(ua))) {
+            throw new BridgeRouter.BridgeException(409,
+                    "no-input-focus: the focused field has no live input connection (tap the field by ref first)");
+        }
         // **Enter が改行になる欄では撃たない**(ホストの keyevent 66 = 改行へ回す)。ACTION_IME_ENTER は複数行の RN / Compose で
         // 改行にもアクションにもならないのに true を返す(実機 Pixel 3a: 値が変わらず ime=0。keyevent 66 は改行が入った)。
         // **Compose を一律に keyevent へ回さない**: keyevent 66 は単一行の ImeAction.Next を起こさない(E2EX-CMP 入力の種類 S0020)
@@ -1167,5 +1211,20 @@ final class InputInjector {
         } finally {
             e.recycle();
         }
+    }
+
+    // id 一致の走査(collectEditableById)より後ろに置く: InputInjectorEditableIdUniquenessTests は getViewIdResourceName を読む最初の
+    // 本体をその走査と見なす
+    private static boolean hasNodeWithId(AccessibilityNodeInfo node, String shortId) {
+        if (node == null) return false;
+        String id = node.getViewIdResourceName();
+        if (id != null) {
+            int idx = id.indexOf("id/");
+            if (shortId.equals(idx >= 0 ? id.substring(idx + 3) : id)) return true;
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            if (hasNodeWithId(node.getChild(i), shortId)) return true;
+        }
+        return false;
     }
 }

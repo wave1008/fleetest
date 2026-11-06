@@ -321,7 +321,7 @@ public final class AppAttachDriver: AppDriver {
     /// 答えない・失敗するときは黙って返す(推測で失敗にしない。撃つ前の門 StepExecutor.backgroundedAppRefusal が聞き直す)
     public func home() async throws {
         for attempt in 1...Self.homeAttempts {
-            try await client.home()
+            try await client.home(bundleID: bundleID)
             guard await staysInForeground() else { return }
             if attempt == Self.homeAttempts {
                 throw DriverError.badResponse(status: 422, body: "the home gesture was sent \(attempt) times but \(bundleID)"
