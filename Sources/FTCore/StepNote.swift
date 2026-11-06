@@ -108,7 +108,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (MCP の ft_navigate と共有)。before/after とも back() 1回につき1枚ずつ素直に読む
     /// (使い回しキャッシュを持たない理由は BackEffect.swift 参照)
     case backIneffective = "back-ineffective"
-    /// iOS の back() が戻るボタンの無い画面で左端のスワイプに落ち、**前後で同じ画面(識別子の組が同じ)に留まった**。木は変わって
+    /// iOS の back() が戻るボタンの無い画面で左端のスワイプに落ち、**前後で識別子の組が同じ**(同じ画面に留まった疑い。同じ種類の
+    /// 画面を積んだ遷移でも同じになるので言い切らない)。木は変わって
     /// いる(= back-ineffective にならない)ので、スワイプが画面の中身(スワイプを受ける領域・地図)に届いた形を黙って ✅ にしていた
     /// (28周目 iultra F1: ジェスチャ画面で `swipe=right` を残して 30/30・im4 の Flutter 9/9)。合否は変えず事実を言う(`BackEffect.stayedOnSameScreen`)
     case backStayedOnScreen = "back-stayed-on-screen"
@@ -535,9 +536,11 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
         case .backStayedOnScreen:
-            return "back had no navigation back button to tap, so it swiped from the left edge; the screen still shows the same"
-                + " elements, so it did not go back — the swipe may have reached the screen's own content. Tap the app's own back"
-                + " control instead"
+            // 言い切らない: 識別子の組が同じでも、同じ種類の画面を積んだ遷移(詳細 → 詳細)では戻っている。「戻っていない・自前の
+            // 戻るを押せ」と言うと、従った書き手が二重に戻った(29周目 iultra F1: E2EX-CMP の詳細 id=3 → id=2 で 6/6)
+            return "back had no navigation back button to tap, so it swiped from the left edge, and the screen afterwards has the"
+                + " same element ids as before — if it did not go back, the swipe may have reached the screen's own content."
+                + " Check which screen it landed on"
         case .interruptionDismissed: return "dismissed a declared interruption during this step"
         case .waitedForEnabled:
             return "the target was still disabled, so the tap waited for it to become enabled"
