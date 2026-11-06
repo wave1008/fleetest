@@ -326,11 +326,20 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
     let executor = core.executor
     var observedNote: StepNote?
     core.performCustom(description: "back", command: "back", file: file, line: line, note: { observedNote }) {
+        // **アプリが前面に無ければ撃たない**(StepExecutor.appLeftRefusal。iOS の inapp-boost の back は XCUITest のセッションを
+        // アプリへ向ける activate を挟むので、ホーム画面・スイッチャー・別のアプリの上で撃つと背面のアプリを前面へ引き戻して ✅ だった
+        // = 25周目 im4 F2・iultra F1。人はホーム画面の「戻る」でアプリへ戻れない)。Android の門は否定と条件だけなので back は撃つ
+        if let refusal = await executor.appLeftRefusal(step: FlowStep(action: "back")) {
+            throw AppLeftRefusalError(message: refusal.message, kind: refusal.kind)
+        }
         // 直前の type のキーボードが出きるのを先に待つ(StepExecutor.awaitKeyboardBeforeBack)
         try await executor.awaitKeyboardBeforeBack()
         let before = try? await observer.snapshot()
         // performCustom は FlowStep を通らないので、ドライバへ届く TaskLocal はここで入れる(`settle:` は tap を参照)
         try await SettleOverride.$skip.withValue(!settle) { try await driver.back() }
+        // back はアプリを抜けうる(Android の最初の画面 = ランチャーへ出る。24周目 amax F2)。**門の後に立てる**: hook で先に立てると
+        // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
+        executor.noteAppMayHaveLeft(true)
         guard let before, let after = try? await observer.snapshot() else { return }
         if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
             observedNote = .backIneffective
@@ -1231,3 +1240,10 @@ public func procedure(_ title: String,
     }
 }
 
+/// 撃つ前の門(StepExecutor.appLeftRefusal)の断りを、失敗の種別付きで投げる(performCustom の失敗の種別はエラーの型から採る)
+struct AppLeftRefusalError: LocalizedError, StepFailureKindProviding {
+    let message: String
+    let kind: StepFailureKind
+    var errorDescription: String? { message }
+    var stepFailureKind: StepFailureKind? { kind }
+}

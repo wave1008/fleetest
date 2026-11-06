@@ -320,6 +320,57 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertNotEqual(iosOutcome.failureKind, .appInBackground, "iOS の in-app に自分が背面かを聞いた")
     }
 
+    /// **門は「テスト対象のアプリか最後に起こしたアプリのどちらかが前面」で通す**(`launchApp("com.android.settings")` →
+    /// `back()` で対象へ戻った後の否定を、設定が前面に無いと断っていた = 25周目 amax F2)
+    func testGatePassesWhenTheAppUnderTestIsInFrontAfterLaunchingAnotherApp() async {
+        final class FrontIs: AppDriver {
+            let front: String
+            init(_ front: String) { self.front = front }
+            func status() async throws -> StatusResponse { StatusResponse(ready: true, device: "f", osVersion: "-", sessionBundleID: nil) }
+            func install(packagePath: String) async throws -> String? { nil }
+            func uninstall(bundleID: String) async throws {}
+            func launch(bundleID: String) async throws {}
+            func isAppForeground(bundleID: String) async throws -> Bool { bundleID == front }
+            func terminate() async throws {}
+            func screenshot() async throws -> Data { Data() }
+            func type(ref: Int?, text: String) async throws {}
+            func tap(ref: Int) async throws {}
+            func tap(x: Double, y: Double) async throws {}
+            func press(ref: Int, duration: Double) async throws {}
+            func swipe(_ direction: FTSwipeDirection) async throws {}
+            func drag(fromX: Double, fromY: Double, toX: Double, toY: Double, pressSeconds: Double, durationSeconds: Double) async throws {}
+            func snapshot() async throws -> SnapshotResponse {
+                SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800), elements: [], truncatedCount: 0)
+            }
+        }
+        let executor = StepExecutor(driver: FrontIs("com.example.app"), fallbackDriver: nil, isAndroid: true, tunables: RunTunables())
+        executor.appUnderTestBundleID = "com.example.app"
+        executor.noteAppLaunched(bundleID: "com.android.settings")
+        executor.noteAppMayHaveLeft(true)
+        let outcome = await executor.execute(FlowStep(assert: "notExists", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertNotEqual(outcome.failureKind, .appInBackground, "対象のアプリが前面なのに断った: \(outcome.status)")
+        let elsewhere = StepExecutor(driver: FrontIs("com.android.launcher"), fallbackDriver: nil, isAndroid: true, tunables: RunTunables())
+        elsewhere.appUnderTestBundleID = "com.example.app"
+        elsewhere.noteAppLaunched(bundleID: "com.android.settings")
+        elsewhere.noteAppMayHaveLeft(true)
+        let refused = await elsewhere.execute(FlowStep(assert: "notExists", locator: FlowLocator(id: "btn"), timeout: 0.1))
+        XCTAssertEqual(refused.failureKind, .appInBackground, "どちらも前面に無いのに通した")
+    }
+
+    /// `back()` は撃つ前に門を通り、撃った後に印を立てる(iOS の inapp-boost の back が背面のアプリを前面へ引き戻して ✅ だった
+    /// = 25周目 im4 F2・iultra F1)。ソース走査(performCustom の本体はデバイス無しでは通せない)
+    func testBackIsGatedBeforeAndMarksAfter() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/CommandsAppControl.swift"), encoding: .utf8)
+        guard let start = source.range(of: "public func back(settle: Bool = true"),
+              let gate = source.range(of: "executor.appLeftRefusal(step: FlowStep(action: \"back\"))", range: start.upperBound..<source.endIndex),
+              let fire = source.range(of: "try await driver.back()", range: start.upperBound..<source.endIndex),
+              let mark = source.range(of: "executor.noteAppMayHaveLeft(true)", range: start.upperBound..<source.endIndex)
+        else { return XCTFail("門・撃つ・印のどれかが無い") }
+        XCTAssertLessThan(gate.lowerBound, fire.lowerBound, "門が撃った後")
+        XCTAssertLessThan(fire.lowerBound, mark.lowerBound, "印を撃つ前に立てた(門が先に落とす)")
+    }
+
     /// 「無い」で通る側の判定(Android の門の対象): notExist・countIs 0・条件の判定の門のステップ。countIs 1 や tap は対象外
     func testPassesOnAbsenceCoversOnlyNegativesAndConditionals() {
         XCTAssertTrue(StepExecutor.passesOnAbsence(FlowStep(assert: "notExists", locator: FlowLocator(id: "a"))))
@@ -328,6 +379,8 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         var one = FlowStep(assert: "count", locator: FlowLocator(id: "a")); one.expectedCount = 1
         XCTAssertFalse(StepExecutor.passesOnAbsence(one))
         XCTAssertTrue(StepExecutor.passesOnAbsence(FlowStep(locator: FlowLocator(id: "a"))), "canSelect の門のステップ")
+        XCTAssertTrue(StepExecutor.passesOnAbsence(FlowStep(action: "select", locator: FlowLocator(id: "a"))),
+                      "select は .isEmpty で「無い」側に使われる(25周目 amax F1)")
         XCTAssertFalse(StepExecutor.passesOnAbsence(FlowStep(action: "tap", locator: FlowLocator(id: "a"))))
         XCTAssertFalse(StepExecutor.passesOnAbsence(FlowStep(assert: "exists", locator: FlowLocator(id: "a"))))
     }

@@ -578,6 +578,7 @@ public final class FTDriveCore {
                                      commandTimeoutSeconds: tunables.commandTimeout)
         executor.renderCollapseCheckEnabled = StepExecutor.checksRenderCollapse(
             platform: platform, physical: physical, framework: uiFramework)
+        executor.appUnderTestBundleID = app
         if !dryRun, StepExecutor.publishesScreenState(platform: platform, physical: physical),
            let stateDir = screenStateDirectory, let key = deviceIdentifier {
             executor.screenStatePublisher = { state in
@@ -1453,8 +1454,8 @@ public final class FTDriveCore {
         // スイッチャーが前面の間はアプリへのステップを断る(StepExecutor.appSwitcherRefusal)。前面を替えるコマンドで落とす
         if let command {
             if command == "appSwitcher" { executor.noteAppSwitcher(opened: true) }
-            // back() はアプリを抜けうる(Android の最初の画面での back = ランチャー。24周目 amax F2)。抜けていなければ次の照会が前面と答えて落ちる
-            if ["home", "appSwitcher", "tapAppIcon", "openURL", "back"].contains(command) { executor.noteAppMayHaveLeft(true) }
+            // back() の印は本体が撃った後に立てる(CommandsAppControl.back。ここで立てると本体の門が先に落とす)
+            if ["home", "appSwitcher", "tapAppIcon", "openURL"].contains(command) { executor.noteAppMayHaveLeft(true) }
             // 前面へ出すコマンドだけで落とす(clearAppData / installApp は前面へ出さない)
             // 止めた・消した後は「自分で止めたアプリ」の扱い(appStoppedBySession)へ渡す
             if ["launchApp", "restartApp", "terminateApp", "removeApp"].contains(command) { executor.noteAppMayHaveLeft(false) }

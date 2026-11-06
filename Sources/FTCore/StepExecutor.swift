@@ -356,6 +356,10 @@ public final class StepExecutor {
     /// 前面に無いアプリを「背面」と言う前に、落ちたアプリと分けるのに使う。**`appProcessRunning`(Android の木の持ち主の判定)とは別**
     public var appAliveProbe: (@Sendable (String) async -> Bool?)?
     public func noteAppMayHaveLeft(_ value: Bool) { appMayHaveLeft = value }
+    /// 実行プロファイルのアプリ(DSL が init で入れる)。撃つ前の門は「これか、最後に起こしたアプリのどちらかが前面」で通す
+    /// (`launchApp("com.android.settings")` → `back()` で対象アプリへ戻った後の否定を、設定が前面に無いと断っていた = 25周目
+    /// amax F2。最後に起こしたアプリだけに替えると、別のアプリを意図して操作するシナリオを断る)
+    public var appUnderTestBundleID: String?
 
     /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない = 断らない)。`AppProcessGone` が木の持ち主が違うときだけ呼ぶ。
     /// 注入元: DSL = ScenarioRunnerMain(FTRuntime 経由)/ MCP = ft_batch・ft_scroll_to の executor
@@ -1163,8 +1167,9 @@ public final class StepExecutor {
         if fallbackDriver == nil, !Self.passesOnAbsence(step) { return nil }
         // 前面へ戻る途中(openURL の直後等)を断らない: ステップの待ちの上限まで聞き直す(0.5 秒おき)
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
+        let candidates = [bundleID] + [appUnderTestBundleID].compactMap { $0 }.filter { $0 != bundleID }
         while true {
-            switch await ForegroundState.inForegroundProbe(fallback, bundleID: bundleID) {
+            switch await Self.anyInForeground(fallback, bundleIDs: candidates) {
             case .value(true):
                 appMayHaveLeft = false
                 return nil
@@ -1201,6 +1206,20 @@ public final class StepExecutor {
     /// (23周目 amax F1・phys F1: 各 4/4・2/2)
     var foregroundProber: AppDriver? { fallbackDriver ?? (isAndroid ? driver : nil) }
 
+    /// 候補のどれかが前面なら `.value(true)`。全部が「前面に無い」と答えたら `.value(false)`。答えない候補があれば
+    /// (前面と答えた候補が無い限り)その答えを返す = 断らずに印を残す
+    static func anyInForeground(_ driver: AppDriver, bundleIDs: [String]) async -> Probe<Bool> {
+        var unanswered: Probe<Bool>?
+        for bundleID in bundleIDs {
+            switch await ForegroundState.inForegroundProbe(driver, bundleID: bundleID) {
+            case .value(true): return .value(true)
+            case .value(false): continue
+            case let other: unanswered = unanswered ?? other
+            }
+        }
+        return unanswered ?? .value(false)
+    }
+
     /// **アプリが前面を離れた後(スイッチャー・背面)の断りの入口**。ステップ(`execute`)と DSL の条件判定(`ifCanSelect` の
     /// `canSelect`)が共有する = 読みが in-app ブリッジを通る経路はどちらも通す
     public func appLeftRefusal(step: FlowStep) async -> (message: String, kind: StepFailureKind)? {
@@ -1210,9 +1229,10 @@ public final class StepExecutor {
     }
 
     /// 対象が「無い」ことで通る(または分岐が決まる)ステップ: notExist・countIs 0・条件の判定(`canSelect` の門の
-    /// ステップ = 動作も検証も持たない)。前面に別の画面があると黙って通る側
+    /// ステップ = 動作も検証も持たない)・`select`(掴めなければ空の要素を返し、`.isEmpty` / `doUntilTrue` の条件に使われる =
+    /// 25周目 amax F1: `home()` の後の `select(…).isEmpty.thisIsTrue()` が緑)。前面に別の画面があると黙って通る側
     static func passesOnAbsence(_ step: FlowStep) -> Bool {
-        if step.assert == "notExists" { return true }
+        if step.assert == "notExists" || step.action == "select" { return true }
         if step.assert == "count", step.expectedCount == 0 { return true }
         return step.action == nil && step.assert == nil
     }
