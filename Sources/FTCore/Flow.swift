@@ -472,6 +472,13 @@ public struct FlowLocator: Codable, Equatable, Sendable {
         self.not = not
     }
 
+    /// **容器のスコープを持たない序数(`.button[5]`)か**。iOS の in-app の木と XCUITest の木は要素の並びが違う(in-app は
+    /// ナビゲーションバーを末尾に置く)ので、モードで別の要素を指しうる(OI-168 ③: ft_batch で通した列がシナリオで別の行を押した)。
+    /// スコープ(`#list >> .button[5]`)の中で数える序数は容器の子の順なので数えない。DSL の注記と MCP の警告が共有する判定
+    public var hasUnscopedOrdinal: Bool {
+        index != nil && (scope?.isEmpty ?? true)
+    }
+
     /// 属性フィルタが1つも無いか(= 候補を絞れない節)
     public var hasNoFilter: Bool {
         id == nil && label == nil && value == nil && placeholder == nil

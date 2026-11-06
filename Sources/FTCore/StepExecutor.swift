@@ -880,6 +880,8 @@ public final class StepExecutor {
         elementLimitCeilingLatchedThisStep = false
         systemAlertAdvisoryThisStep = nil
         systemAlertProbeFailure = nil
+        // iOS の序数は木の並びに依存し、モード(in-app / XCUITest)で別の要素を指しうる(`FlowLocator.hasUnscopedOrdinal`)
+        if !isAndroid, step.locator?.hasUnscopedOrdinal == true { noteCodesThisStep.insert(.ordinalWithoutScope) }
         // デバイスに触る前に断る(アクションも検証も通る入口。秒数の型へ変える所が下流に散っている)
         if let violation = step.secondsArgumentViolation {
             return StepOutcome(status: .failed(violation))
@@ -946,7 +948,7 @@ public final class StepExecutor {
                                                       actionMs: phase.actionMs, waitMs: phase.waitMs,
                                                       guardMs: phase.guardMs, ocrMs: phase.ocrMs),
                                    driverFallback: noteWithInterrupt(
-                                       Self.joinNotes(outcome.driverFallback, systemAlertAdvisoryThisStep),
+                                       Self.joinNotes(outcome.driverFallback, systemAlertAdvisoryThisStep, readerNotesText()),
                                        failed: !Self.isSuccess(status)),
                                    notes: collectedNotes(),
                                    // アクションは**解決した時点**で立てる(操作の成否より前)ため、
@@ -974,6 +976,11 @@ public final class StepExecutor {
                 if Self.isSuccess(status), let gone = await appGoneFailure(owner: lastTreeOwnerThisStep) {
                     status = failedWithoutKind(gone)
                 }
+                if Self.isSuccess(status),
+                   Self.absenceReadAnotherApp(isAndroid: isAndroid, step: step, owner: lastTreeOwnerThisStep,
+                                              appUnderTest: appUnderTestBundleID) {
+                    noteCodesThisStep.insert(.absenceCheckedOnAnotherApp)
+                }
                 status = await annotatedWithSystemAlert(status, phase: &phase)
                 status = await noteLandscapeWithoutRotate(onFailure: status)
                 noteHoldAlreadyReleased(onFailureOf: step, status: status)
@@ -987,7 +994,7 @@ public final class StepExecutor {
                                                       snapshotMs: phase.snapshotMs,
                                                       actionMs: phase.actionMs, waitMs: phase.waitMs,
                                                       guardMs: phase.guardMs, ocrMs: phase.ocrMs),
-                                   driverFallback: noteWithInterrupt(nil,
+                                   driverFallback: noteWithInterrupt(readerNotesText(),
                                                                      failed: !Self.isSuccess(status)),
                                    notes: collectedNotes(),
                                    guardEntered: guardEnteredThisStep,
@@ -1264,6 +1271,15 @@ public final class StepExecutor {
         return step.action == nil && step.assert == nil
     }
 
+    /// **Android の「無い」で通った検証が、実行プロファイルのアプリでない前面の木を読んだか**(OI-182 ①)。門は「対象か最後に起こした
+    /// アプリのどちらかが前面」で通す(別のアプリを意図して検証するシナリオがある = 25周目 amax F2)ので、合否は変えず事実だけを言う。
+    /// 持ち主が読めない・実行プロファイルのアプリが無いときは黙る
+    static func absenceReadAnotherApp(isAndroid: Bool, step: FlowStep, owner: String?, appUnderTest: String?) -> Bool {
+        guard isAndroid, step.assert != nil, passesOnAbsence(step),
+              let owner, !owner.isEmpty, let appUnderTest, !appUnderTest.isEmpty else { return false }
+        return owner != appUnderTest
+    }
+
     /// アプリスイッチャーの間も撃つステップ(アプリを読まず触らない)
     static let runsWithoutTheApp: Set<String> = ["waitForSettle", "holdEnd", "rotateTo", "fold", "unfold", "hinge"]
 
@@ -1272,6 +1288,13 @@ public final class StepExecutor {
     /// 文言を直した瞬間に静かに分類が消える)。名乗らない型は nil = 推測しない
     public static func failureKind(thrown error: Error) -> StepFailureKind? {
         (error as? StepFailureKindProviding)?.stepFailureKind
+    }
+
+    /// コードだけでなく文言もステップの説明(括弧書き)に出す注記。書き手が読んで書き方を変えるためのもので、結果 JSON のコードだけでは
+    /// レポート・コンソールに出ない(`note(_:into:)` を通らない経路で立てる注記)
+    static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp]
+    private func readerNotesText() -> String? {
+        Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map(\.text).joined(separator: " / "))
     }
 
     private func collectedNotes() -> [StepNote] {

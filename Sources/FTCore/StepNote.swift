@@ -116,6 +116,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// Android の back() の後、木の持ち主(前面のパッケージ)が対象アプリでなくなった = アプリの最初の画面で押してランチャー等へ抜けた。
     /// 木は変わる(= back-ineffective にならない)ので黙って ✅ になり、続く読みが別の窓の木で赤になっていた(`BackEffect.leftTheApp`)
     case backLeftApp = "back-left-app"
+    /// Android の「無い」で通った検証(notExist・countIs 0)が読んだ木の持ち主が、実行プロファイルのアプリでなかった
+    /// (別のアプリを `launchApp` した後)。合否は変えない = 別のアプリを意図して検証するシナリオがある(`StepExecutor.absenceReadAnotherApp`)
+    case absenceCheckedOnAnotherApp = "absence-checked-on-another-app"
+    /// iOS で容器のスコープを持たない序数(`.button[5]`)で解決した。in-app の木と XCUITest の木は並びが違い、モード(と MCP)で
+    /// 別の要素を指しうる(`FlowLocator.hasUnscopedOrdinal`)
+    case ordinalWithoutScope = "ordinal-without-scope"
     /// inapp-boost モードの tapAppIcon で対象アプリのプロセスが居なかったので、見つけたアイコンを押さず dylib を注入して起動した。
     /// **アイコン(SpringBoard)や XCUITest の activate から起きたアプリには in-app ブリッジが載らない**(注入は InAppLauncher の
     /// 起動だけ)ので、押すと後続が全部届かず「this session stopped it」の赤になっていた(24周目 iultra F1・12/12)
@@ -545,6 +551,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .appIconLaunchedWithBridge:
             return "the app was not running, so after finding its icon this launched the app with the in-app bridge"
                 + " instead of tapping the icon — an app started from its icon has no in-app bridge in inapp-boost mode"
+        case .absenceCheckedOnAnotherApp:
+            return "this absence check read a screen whose foreground app is not the app under test (another app launched by the scenario"
+                + " is in front) — it says nothing about the app under test; bring that app back first if it was the one meant"
+        case .ordinalWithoutScope:
+            return "this selector picks by position ([n]) without a container scope — on iOS the in-app tree (inapp-boost mode) and the"
+                + " XCUITest tree (xcuitest mode, MCP) order elements differently, so the same [n] can be another element there;"
+                + " prefer #id or a label, or count inside a container (#list >> .button[n])"
         case .backLeftApp:
             return "after back the foreground is no longer the app under test (it was probably on its first screen, so back left the app)"
                 + " — steps from here run against whatever is in front; bring the app back with launchApp() or tapAppIcon() if the scenario continues"
