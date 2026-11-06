@@ -150,6 +150,21 @@ test("FM チップ: 生存・停止・不明を文字と記号で出し、停止
   assert.ok(m3.every((c) => c.classList.contains("mh-fm-unknown") && c.textContent.includes("?")));
 });
 
+test("FM チップ: OS が画像入力を持たない機械は、Image の不明の理由をツールチップで言う", (t) => {
+  const { window, document, send } = createWebview();
+  t.after(() => window.close());
+  send({ type: "hostMetricsMachines", machines: ["old", "new"] });
+  send(sample("old", { fmTextState: "alive", fmVisionSupported: false }));
+  send(sample("new", { fmTextState: "alive", fmVisionSupported: true }));
+  send(sample(""));
+  loadData(send, payload([]));
+  const byLabel = Object.fromEntries(rowsOf(document).map((tr) => [labelOf(tr), tr]));
+  const old = byLabel.old.children[1];
+  assert.match(tipOf(old), /Image: macOS 27 未満ではFMによる画像認識はサポートされません/);
+  assert.equal(old.querySelectorAll(".mh-chip")[1].textContent, "? Image", "印は不明のまま");
+  assert.doesNotMatch(tipOf(byLabel.new.children[1]), /macOS 27/);
+});
+
 test("AVE チップ: 生存・停止・不明を記号で出し、停止は理由と確認時刻をツールチップに載せる", (t) => {
   const { window, document, send } = createWebview();
   t.after(() => window.close());

@@ -169,6 +169,10 @@ export const webviewDashboardStrings = {
   "wvDashboard.machineHealth.fmAlive": { ja: "alive", en: "alive" },
   "wvDashboard.machineHealth.fmDead": { ja: "dead", en: "dead" },
   "wvDashboard.machineHealth.fmUnknown": { ja: "unknown", en: "unknown" },
+  "wvDashboard.machineHealth.fmImageUnsupported": {
+    ja: "Image: macOS 27 未満ではFMによる画像認識はサポートされません",
+    en: "Image: image recognition by FM is not supported on macOS earlier than 27",
+  },
   "wvDashboard.machineHealth.fmCheckedAt": { ja: "確認: {time}", en: "Checked: {time}" },
   "wvDashboard.machineHealth.aveDead": {
     ja: "ハードウェアビデオエンコーダーが動いていません。録画の切り出しはソフトウェアで続けます(遅くなります)。この Mac の再起動で戻った実績があります",

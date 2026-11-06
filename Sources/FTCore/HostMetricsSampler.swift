@@ -348,6 +348,10 @@ public struct HostMetricsSample: Encodable {
     /// 対向: vscode-fleetest/src/monitorProcessManager.ts の HostMetricsRawEvent
     public let fmTextState: String?
     public let fmVisionState: String?
+    /// この機械の OS が FM の画像入力(vision 経路)を持つか(FMVisionSupport.isSupported = macOS 27+)。
+    /// false の機械ではプローブが vision を撃たず台帳にも書かない(非対応は死ではない)ので fmVisionState は
+    /// 常に null —— 「不明」と「非対応」を拡張が見分けるための欄。対向: monitorProcessManager.ts の HostMetricsRawEvent
+    public let fmVisionSupported: Bool
     /// 死んでいる経路の理由(`text: …` / `vision: …`)。**1秒ごとに流れる行なので切り詰める**
     /// (deadReasonLimit)。全文は結果 JSON の fm.firstError と `fleetest doctor --fm-only`
     public let fmDeadReason: String?
@@ -370,6 +374,7 @@ public struct HostMetricsSample: Encodable {
                 visionCalls: Int?, visionFailures: Int?, visionTotalMs: Int?,
                 ocrCompiling: Int,
                 fmLiveness: FMLiveness.Reading = FMLiveness.Reading(text: nil, vision: nil),
+                fmVisionSupported: Bool = FMVisionSupport.isSupported,
                 videoEncoder: VideoEncoderLiveness.Verdict? = nil) {
         self.ts = ts
         self.cpu = cpu
@@ -387,6 +392,7 @@ public struct HostMetricsSample: Encodable {
         self.ocrCompiling = ocrCompiling
         self.fmTextState = fmLiveness.text?.state.rawValue
         self.fmVisionState = fmLiveness.vision?.state.rawValue
+        self.fmVisionSupported = fmVisionSupported
         self.fmDeadReason = fmLiveness.deadSummary(limit: Self.deadReasonLimit)
         self.fmCheckedAt = [fmLiveness.text?.checkedAt, fmLiveness.vision?.checkedAt]
             .compactMap { $0 }.max()
@@ -398,7 +404,7 @@ public struct HostMetricsSample: Encodable {
     private enum CodingKeys: String, CodingKey {
         case kind, ts, cpu, cpuCores, gpu, gpuCores, memUsedBytes, memTotalBytes, fmCalls, fmFailures, fmTotalMs
         case visionCalls, visionFailures, visionTotalMs, ocrCompiling
-        case fmTextState, fmVisionState, fmDeadReason, fmCheckedAt
+        case fmTextState, fmVisionState, fmVisionSupported, fmDeadReason, fmCheckedAt
         case videoEncoderState, videoEncoderError, videoEncoderCheckedAt
     }
 
@@ -421,6 +427,7 @@ public struct HostMetricsSample: Encodable {
         try container.encode(ocrCompiling, forKey: .ocrCompiling)
         try container.encode(fmTextState, forKey: .fmTextState)
         try container.encode(fmVisionState, forKey: .fmVisionState)
+        try container.encode(fmVisionSupported, forKey: .fmVisionSupported)
         try container.encode(fmDeadReason, forKey: .fmDeadReason)
         try container.encode(fmCheckedAt, forKey: .fmCheckedAt)
         try container.encode(videoEncoderState, forKey: .videoEncoderState)

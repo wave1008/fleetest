@@ -101,6 +101,8 @@ type HostMetricsRawEvent = {
    *  text と vision は独立に死ぬ(Sources/FTCore/FMLiveness.swift)。混ぜないこと。 */
   readonly fmTextState: string | null;
   readonly fmVisionState: string | null;
+  /** その機械の OS が FM の画像入力を持つか(macOS 27+)。false なら fmVisionState は常に null(非対応は死ではない)。 */
+  readonly fmVisionSupported: boolean;
   readonly fmDeadReason: string | null;
   readonly fmCheckedAt: number | null;
   /** ハードウェアビデオエンコーダーの死活("alive" / "dead" / null=不明)・理由(200 文字以内)・観測時刻(epoch 秒)。
@@ -141,6 +143,7 @@ function isHostMetricsEvent(value: unknown): value is HostMetricsRawEvent {
     numberOrNull(record.fmTotalMs) &&
     stringOrNull(record.fmTextState) &&
     stringOrNull(record.fmVisionState) &&
+    typeof record.fmVisionSupported === "boolean" &&
     stringOrNull(record.fmDeadReason) &&
     numberOrNull(record.fmCheckedAt) &&
     stringOrNull(record.videoEncoderState) &&
@@ -176,6 +179,8 @@ export type HostMetricsToWebviewMessage =
        *  肝で、これが無いと「誰も使っていない」と「死んでいる」が同じ絵になる。 */
       readonly fmTextState: string | null;
       readonly fmVisionState: string | null;
+      /** false = その機械の OS が FM の画像入力を持たない(macOS 27 未満)。webview がツールチップで言う。 */
+      readonly fmVisionSupported: boolean;
       /** 死んでいる経路の理由(`text: …` / `vision: …`。CLI 側で 200 文字に切ってある)。 */
       readonly fmDeadReason: string | null;
       readonly fmCheckedAt: number | null;
@@ -976,6 +981,7 @@ export class MonitorProcessManager {
           fmTotalMs: value.fmTotalMs,
           fmTextState: value.fmTextState,
           fmVisionState: value.fmVisionState,
+          fmVisionSupported: value.fmVisionSupported,
           fmDeadReason: value.fmDeadReason,
           fmCheckedAt: value.fmCheckedAt,
           videoEncoderState: value.videoEncoderState,

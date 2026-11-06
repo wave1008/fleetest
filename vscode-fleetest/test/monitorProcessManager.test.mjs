@@ -329,7 +329,7 @@ test("リモート機のサンプルには machine が付く(手元のサンプ�
 
   const sample = (cpu) => Buffer.from(JSON.stringify({
     kind: "hostMetrics", ts: 1, cpu, cpuCores: 8, gpu: 0.1, gpuCores: 10, memUsedBytes: 2, memTotalBytes: 4,
-    fmCalls: null, fmFailures: null, fmTotalMs: null, fmTextState: null, fmVisionState: null, fmDeadReason: null, fmCheckedAt: null, videoEncoderState: null, videoEncoderError: null, videoEncoderCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
+    fmCalls: null, fmFailures: null, fmTotalMs: null, fmTextState: null, fmVisionState: null, fmVisionSupported: true, fmDeadReason: null, fmCheckedAt: null, videoEncoderState: null, videoEncoderError: null, videoEncoderCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
   }) + "\n");
   procs[1].stdout.emit("data", sample(0.5)); // 手元の host-metrics
   procs[2].stdout.emit("data", sample(0.9)); // mac2 の host-metrics
@@ -357,7 +357,7 @@ test("hostMetrics は全欄を要求し(欠けた行は捨てる)、値と null(
   }) + "\n");
   const full = Buffer.from(JSON.stringify({
     kind: "hostMetrics", ts: 2, cpu: 0.6, cpuCores: 8, gpu: 0.2, gpuCores: 10, memUsedBytes: 3, memTotalBytes: 4,
-    fmCalls: 2, fmFailures: 1, fmTotalMs: 500, fmTextState: null, fmVisionState: null, fmDeadReason: null, fmCheckedAt: null, videoEncoderState: null, videoEncoderError: null, videoEncoderCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
+    fmCalls: 2, fmFailures: 1, fmTotalMs: 500, fmTextState: null, fmVisionState: null, fmVisionSupported: true, fmDeadReason: null, fmCheckedAt: null, videoEncoderState: null, videoEncoderError: null, videoEncoderCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
   }) + "\n");
   procs[1].stdout.emit("data", missingFields);
   procs[1].stdout.emit("data", full);
@@ -368,6 +368,7 @@ test("hostMetrics は全欄を要求し(欠けた行は捨てる)、値と null(
   assert.equal(samples[0].visionCalls, null);
   assert.equal(samples[0].cpuCores, 8, "コア数を webview へ素通しする");
   assert.equal(samples[0].gpuCores, 10);
+  assert.equal(samples[0].fmVisionSupported, true, "画像入力の対応を webview へ素通しする");
 });
 
 test("hostMetrics はエンコーダー死活の欄が欠けた行を捨て、値を webview へ素通しする", () => {
@@ -382,7 +383,7 @@ test("hostMetrics はエンコーダー死活の欄が欠けた行を捨て、�
   manager.startAll();
   const base = {
     kind: "hostMetrics", ts: 1, cpu: 0.5, cpuCores: 8, gpu: 0.1, gpuCores: 10, memUsedBytes: 2, memTotalBytes: 4,
-    fmCalls: null, fmFailures: null, fmTotalMs: null, fmTextState: null, fmVisionState: null, fmDeadReason: null,
+    fmCalls: null, fmFailures: null, fmTotalMs: null, fmTextState: null, fmVisionState: null, fmVisionSupported: true, fmDeadReason: null,
     fmCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
   };
   procs[1].stdout.emit("data", Buffer.from(JSON.stringify(base) + "\n"));

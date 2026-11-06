@@ -172,6 +172,8 @@ function fmCell(live) {
   if (!live || live.stale) {
     tips.push(t('wvDashboard.machineHealth.fmNoObservation'));
   } else {
+    // 非対応の機械は vision を観測しない(Image は常に「?」)ので、不明の理由をここで言う
+    if (live.liveness.visionSupported === false) tips.push(t('wvDashboard.machineHealth.fmImageUnsupported'));
     if (live.liveness.reason) tips.push(live.liveness.reason);
     const checked = checkedAtLine(live.liveness.checkedAt);
     if (checked) tips.push(checked);

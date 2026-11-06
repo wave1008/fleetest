@@ -116,7 +116,8 @@ function hmMakeRow(rowEl, machine) {
     // FM の死活(FMLiveness の最新の観測)。**窓を持たない** —— これはレートではなく
     // 「今この機械で FM を呼べるか」という水準で、直近の1サンプルがそのまま答え。
     // 'alive' / 'dead' / null=不明。呼び出しが0件でも埋まるのが回数系列との違い。
-    liveness: { text: null, vision: null, reason: null, checkedAt: null },
+    // visionSupported: false = OS が画像入力を持たない(vision は常に null)・null = 欠測
+    liveness: { text: null, vision: null, visionSupported: null, reason: null, checkedAt: null },
     encoder: { state: null, error: null, checkedAt: null },
     // pending: 受信済みでまだ描いていないサンプル(1 tick の間に複数届いたら最後の1つだけ残る)。
     // latest: 直近に描いたサンプル(pending が無い tick はこれを使い回す)。missed はその回数。
@@ -794,6 +795,7 @@ function hmRenderRow(row, sample) {
   row.liveness = {
     text: sample && typeof sample.fmTextState === 'string' ? sample.fmTextState : null,
     vision: sample && typeof sample.fmVisionState === 'string' ? sample.fmVisionState : null,
+    visionSupported: sample && typeof sample.fmVisionSupported === 'boolean' ? sample.fmVisionSupported : null,
     reason: sample && typeof sample.fmDeadReason === 'string' ? sample.fmDeadReason : null,
     checkedAt: sample && typeof sample.fmCheckedAt === 'number' ? sample.fmCheckedAt : null,
   };

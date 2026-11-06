@@ -517,6 +517,16 @@ final class FMLivenessTests: XCTestCase {
                                     + FMLiveness.Reading.deadSummaryNote + "\""), json)
         XCTAssertTrue(json.contains("\"fmCheckedAt\":1700000000"), json)
 
+        // macOS 27 未満の機械は vision を観測しない(null)ので、非対応を別の欄で言う
+        let unsupported = try XCTUnwrap(HostMetricsSample(
+            ts: 1, cpu: nil, gpu: nil, memUsedBytes: nil, memTotalBytes: nil,
+            fmCalls: 0, fmFailures: 0, fmTotalMs: 0,
+            visionCalls: 0, visionFailures: 0, visionTotalMs: 0, ocrCompiling: 0,
+            fmVisionSupported: false).encodedLine())
+        XCTAssertTrue(unsupported.contains("\"fmVisionSupported\":false"), unsupported)
+        XCTAssertTrue(json.contains("\"fmVisionSupported\":\(FMVisionSupport.isSupported)"),
+                      "既定はこの機械の OS の判定。\(json)")
+
         let quiet = HostMetricsSample(
             ts: 1, cpu: nil, gpu: nil, memUsedBytes: nil, memTotalBytes: nil,
             fmCalls: 0, fmFailures: 0, fmTotalMs: 0,
