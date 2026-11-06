@@ -183,7 +183,7 @@ final class SessionRecoveryDriverTests: XCTestCase {
         XCTAssertEqual(fake.activateCalls, [], "止めようとしたアプリを起こし直してはいけない")
     }
 
-    /// OI-124: 止めたアプリをもう一度止める terminate はランナーが 409 を返しても no-op の成功。launch し直した後や、
+    /// 止めたアプリをもう一度止める terminate はランナーが 409 を返しても no-op の成功。launch し直した後や、
     /// 一度も止めていないセッションの 409 は従来どおり呼び手へ返す
     func testSecondTerminateAfterStopIsNoOpButOtherConflictsStillThrow() async throws {
         let fake = FakeAppDriver()

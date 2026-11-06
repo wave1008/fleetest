@@ -36,6 +36,7 @@ expectation {
   accessibility tree. An element that is merely covered by another modal but still in the tree
   counts as still present, and the check fails once the wait runs out (unlike `exist` / `select`,
   which by default also confirm that the element is visible).
+- **On Android, an absence check that read another app's screen gets the note `absence-checked-on-another-app`.** If the app in front when `notExist` / `countIs(…, 0)` passes is not the app under test (another app launched by the scenario is in front), the check says nothing about the app under test. The result does not change, because some scenarios mean to check another app; bring the app under test back first if it was the one meant.
 - The "actually visible" check compares the text drawn on screen with the expected text. When
   **only the beginning is drawn** (the same holds for text and value assertions):
   - an ellipsis (`…`) is drawn at the end → green, as truncation the app intended; the step gets

@@ -32,10 +32,40 @@ except (ValueError, KeyError):
   esac
 }
 
+# RN の SUT の codegen 生成物 `ios/build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm` の登録表が
+# 空(または無い)= 真。空だと react-native-screens 等の Fabric 部品が登録されず、アプリが起動直後に JS の致命的エラーで
+# 毎回落ちる。mtime は変わらないので壊れたビルドが使われ続ける(2026-10-31 に M1Max の E2EY-RN で踏んだ)。$1 = アプリのディレクトリ
+rn_provider_is_empty() {
+  local f="$1/ios/build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm"
+  [ -f "$f" ] || return 0
+  ! grep -Eq '^[[:space:]]*@"' "$f"
+}
+
+# $1 = アプリのディレクトリ。RN の SUT で登録表が空ならメッセージを出して失敗を返す(RN の iOS ビルドの終わりで呼ぶ)
+rn_assert_provider_registered() {
+  if rn_provider_is_empty "$1"; then
+    echo "❌ ios/build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm の登録表が空(または無い)です。" >&2
+    echo "   Fabric 部品(react-native-screens 等)が登録されず、アプリは起動直後に JS の致命的エラーで落ちます。" >&2
+    echo "   ios/build と ios/Pods を消して pod install(codegen)からやり直してください。" >&2
+    return 1
+  fi
+}
+
+# RN の SUT の iOS 成果物(.app)か。$1 = 成果物
+sut_is_rn_ios() {
+  local app="${1%%/dist/*}"
+  case "$1" in *.app) ;; *) return 1 ;; esac
+  [ -f "$app/package.json" ] && [ -d "$app/ios" ] && grep -q '"react-native"' "$app/package.json" 2>/dev/null
+}
+
 needs_rebuild() {
   local artifact="$1"; shift
   [ "$FORCE_REBUILD" = 1 ] && return 0
   [ -e "$artifact" ] || return 0
+  if sut_is_rn_ios "$artifact" && rn_provider_is_empty "${artifact%%/dist/*}"; then
+    echo "→ $(basename "$artifact") は codegen の登録表(RCTThirdPartyComponentsProvider.mm)が空なので作り直します" >&2
+    return 0
+  fi
   local want had
   want="$(sut_sdk_stamp "$artifact")"
   had="$(cat "$artifact.sdk" 2>/dev/null || true)"

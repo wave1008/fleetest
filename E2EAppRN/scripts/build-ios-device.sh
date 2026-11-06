@@ -10,6 +10,7 @@ cd "$(dirname "$0")/.."
 
 # 依存を lock に揃えてからビルドする(Scripts/rn-deps.sh)
 . ../Scripts/rn-deps.sh
+. ../Scripts/sut-rebuild.sh
 rn_sync_node_modules
 rn_sync_pods
 
@@ -32,6 +33,9 @@ xcodebuild -workspace ios/FTE2ERN.xcworkspace -scheme FTE2ERN -configuration Rel
   -allowProvisioningUpdates \
   CODE_SIGN_STYLE=Automatic "DEVELOPMENT_TEAM=$TEAM" \
   ARCHS=arm64 build
+
+# 登録表が空のビルドは起動直後に落ちる(Scripts/sut-rebuild.sh)。成果物を置く前に止める
+rn_assert_provider_registered "$PWD"
 
 OUT_DIR="dist/ios-device"
 mkdir -p "$OUT_DIR"

@@ -23,11 +23,13 @@ keyboardIsNotShown()
 
 ## Notes
 
-- **"Hidden" can only be confirmed in iOS inapp-boost mode and on Android.** iOS xcuitest
-  mode can only say "keyboard seen" or "unknown" — it never confirms absence. In that mode,
-  `keyboardIsNotShown` fails: with "keyboard is still shown" if it is visible, or "cannot
-  determine the keyboard state" if not — unknown is never read as hidden, to avoid a false
-  success.
+- **How "shown" and "hidden" are decided.** The keyboard frame the bridge reports decides: a frame outside the bottom
+  of the screen (a hidden or minimized keyboard) counts as hidden, a frame on the screen counts as shown. When the
+  bridge reports no frame, its shown/hidden flag is used instead. With neither, the state is unknown, and unknown
+  is never read as hidden, to avoid a false success: `keyboardIsNotShown` fails with "cannot determine the keyboard
+  state". While the keyboard is visible it fails with "keyboard is still shown". In iOS xcuitest mode the bridge may
+  not give an answer that confirms the keyboard is hidden, so `keyboardIsNotShown` can fail there with
+  "cannot determine the keyboard state"; use inapp-boost mode (or Android) when the scenario must confirm it.
 
 ### Link
 - [index](../../index.md)

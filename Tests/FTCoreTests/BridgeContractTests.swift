@@ -131,7 +131,7 @@ final class BridgeContractTests: XCTestCase {
         .inApp: [
             "InAppBridge/Sources/Bridging.h": "08799e6d190f958eed7c6bb4406f1cbbfea1bed1d252ce4572636273c65a5aad",
             "InAppBridge/Sources/DisplayHeartbeat.swift": "845b796af6d9a176780a96c852f9a2ccace5923d672ca947404adf2ba156b0de",
-            "InAppBridge/Sources/InAppBridge.swift": "4da9acbc4a665b705f652a8e051c6ed21d31e62aec68f9bfafea0fe3bd77d0da",
+            "InAppBridge/Sources/InAppBridge.swift": "e31f40a392a87365287366afd86776f991eba9044179a06acebe2f0c712d6dc6",
             "InAppBridge/Sources/InAppHTTPServer.swift": "d48cbe3699bc3fcf1de6558e033ea8812816207efc3aaf3f9210d4aee58e174c",
             "InAppBridge/Sources/InAppInput.h": "7cc1d91f345ce6e66ad6c58d1f5a8242c558d48759a769c6d24532bc06cd2a6f",
             "InAppBridge/Sources/InAppInput.m": "39e79ed03ffbf1c9c5980a747f2670ce4c3395df106e6162a80e005a05454d8d",

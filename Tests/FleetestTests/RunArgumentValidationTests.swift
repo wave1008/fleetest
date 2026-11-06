@@ -33,8 +33,10 @@ final class RunArgumentValidationTests: XCTestCase {
         assertBoth(["--report-dir", ""], contains: "--report-dir must not be empty")
         assertBoth(["--report-dir", "  "], contains: "--report-dir must not be empty")
         assertBoth(["--set", "reportDir="], contains: "must not be empty")
-        assertBoth(["--report-dir", "/tmp/x"], contains: nil)
-        assertBoth(["--set", "reportDir=/tmp/x"], contains: nil)
+        // 書ける場所は毎回まだ無い一意のパス(共有の固定パス /tmp/x は、別の作業がファイルを置くと「a file already exists」で落ちた)
+        let fresh = FileManager.default.temporaryDirectory.appendingPathComponent("ft-report-\(UUID().uuidString)").path
+        assertBoth(["--report-dir", fresh], contains: nil)
+        assertBoth(["--set", "reportDir=\(fresh)"], contains: nil)
     }
 
     func testRemoteDirNeedsProfile() {

@@ -22,11 +22,13 @@ keyboardIsNotShown()
 
 ## 注意点
 
-- **「非表示」を確定できるのは iOS の inapp-boost モードと Android だけです。** iOS の xcuitest モードは
-  「キーボードを見た」か「不明」しか言えず、非表示を確定できません。このモードでは
-  `keyboardIsNotShown` は必ず失敗します — 見えていれば「keyboard is still shown」、
-  見ていなければ「cannot determine the keyboard state」というメッセージになります
-  (不明を非表示と読んで嘘の成功にしない設計です)。
+- **「表示」「非表示」の決め方。** ブリッジが申告するキーボードの枠で決めます。枠が画面の下端の外にある
+  (隠れた・最小化したキーボード)なら非表示、枠が画面の中にあれば表示と読みます。枠の申告が無いときは、
+  ブリッジの表示/非表示のフラグを使います。どちらも無ければ不明で、不明を非表示と読んで嘘の成功にはしません:
+  `keyboardIsNotShown` は「cannot determine the keyboard state」で失敗し、キーボードが見えている間は
+  「keyboard is still shown」で失敗します。iOS の xcuitest モードでは、ブリッジが非表示を確定できる答えを返さない
+  ことがあり、その場合 `keyboardIsNotShown` は「cannot determine the keyboard state」で失敗します。
+  キーボードが閉じたことを確かめたいシナリオは、inapp-boost モード(または Android)で書いてください。
 
 ### Link
 - [index](../../index_ja.md)

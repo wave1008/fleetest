@@ -43,9 +43,12 @@ field.type("alice")                // same as type("#login_id", "alice")
   reader whether a newline or a submit was intended.
   On iOS in the `xcuitest` mode (where the XCUITest bridge types), text with a newline in the middle is typed in one go
   and is not read back; the step's note says so. To have each line checked, split it: `type("a")`, `pressEnter()`, `type("b")`.
-- **On Android, the next action waits for the soft keyboard.** `type` returns before the keyboard is shown, so the
+- **The next action waits for the soft keyboard, on Android and also on iOS.** `type` can return before the keyboard is shown, so the
   next action waits up to 1.5 seconds for it to appear before resolving its target (otherwise the layout can move
-  after the target was resolved). If it does not appear, the action proceeds as usual.
+  after the target was resolved). On Android this is every `type` that started with no keyboard showing; on iOS it is only while the keyboard is reported below the
+  screen's bottom edge (it is still rising), or when no keyboard has been reported and none has been seen to fail to appear on
+  that device. If it does not appear, the action proceeds as usual and the step gets the note `keyboard-not-shown-after-type`
+  (after a `tap` on an Android field, `keyboard-not-shown-after-tap`). The wait is skipped when the typed text ends with a newline.
 - **`tap(inputField)` → `type("some text")` is supported.** On Android, input fields are often a
   container (Material's `TextInputLayout`) wrapping the actual field (`TextInputEditText`), and
   the `#id` frequently resolves to the container. Tapping the container does not always move
@@ -61,6 +64,8 @@ field.type("alice")                // same as type("#login_id", "alice")
   more candidate fields), and is recorded as the note `type-focus-recovered`. If it cannot
   recover (the field is ambiguous), write the selector form instead —
   `type(sel, "some text")` resolves, focuses, and reads the value back in one step.
+
+- **On Android, `type("some text")` without a selector checks where the text went.** After typing, if no element in the screen reports input focus, the step still passes but gets the note `type-focus-not-reported`: where the text went could not be confirmed (a full-screen keyboard in landscape, a field inside a WebView, or a hidden input may not show focus in the tree; otherwise the text may have gone nowhere). Check the screen, or write the selector form `type(sel, "some text")`.
 
 - **On Android, typing without a selector while another app is in front is noted.** If the app in
   front is not the one started with `launchApp` / `restartApp`, the step still sends the text but

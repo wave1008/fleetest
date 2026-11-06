@@ -50,7 +50,10 @@ terminateApp()
   app is already open.
 - On an iOS Simulator, the first `openURL` delivery for an app can trigger a one-time system
   confirmation alert ("Open in \"App Name\"?"); both iOS modes dismiss it
-  automatically. After that, consent for that device+app combination persists.
+  automatically. After that, consent for that device+app combination persists. If, after checking for
+  that alert, the session could not be pointed back at the app under test (it may still be pointed at the home screen,
+  so the next steps through XCUITest may not reach the app), the step still passes and gets the note
+  `open-url-session-not-restored`. The note appears only on a delivery where that check ran.
 - `openURL` against an app that is not running lets the OS launch it, but that is not what the
   command is for. To verify opening from a URL when the app is not running, use `launchApp(url:)`.
 

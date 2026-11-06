@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 
 # 依存を lock に揃えてからビルドする(Scripts/rn-deps.sh)
 . ../Scripts/rn-deps.sh
+. ../Scripts/sut-rebuild.sh
 rn_sync_node_modules
 rn_sync_pods
 
@@ -41,6 +42,9 @@ fi
 xcodebuild -workspace ios/FTE2EYRN.xcworkspace -scheme FTE2EYRN -configuration Release \
   -sdk iphonesimulator -derivedDataPath build/ios-derived \
   CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build
+
+# 登録表が空のビルドは起動直後に落ちる(Scripts/sut-rebuild.sh)。成果物を置く前に止める
+rn_assert_provider_registered "$PWD"
 
 OUT_DIR="dist/ios-simulator"
 mkdir -p "$OUT_DIR"

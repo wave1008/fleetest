@@ -36,6 +36,8 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
 - **一覧の外にある対象(スクロールで隠れた上部バーのボタン等)が、ナビゲーションバーなどの下に潜っているとき**: 一覧を1回送っても
   出てこない形なので、`scroll:` が無ければ何も押さずにステップを失敗にし、送る向き(`scroll: .up` 等)を案内します。
   `scroll:` を書くと、対象が覆いの下から出るまで一覧を送ってから押します。
+  失敗文は `did not touch <セレクタ>: its centre is under <覆っている物>, and touching it there would land on something else (nothing was touched). Add scroll: .up so the list is scrolled until the target comes out`(向きは状況に合うもの)の形です。
+- **対象が見つからず、手前の窓やモーダルが対象を木から外しているとき**: iOS の inapp-boost モードだけ、アプリが「別の窓が手前にある」「モーダルビュー(`accessibilityViewIsModal`)が開いていて外側の要素が木から外れている」と申告します。このとき失敗文がその窓やモーダルを名指します(窓: `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window … — waiting will not bring the target back` / モーダル: `a modal view (accessibilityViewIsModal) at (x,y WxH) is open, and N element group(s) outside it are left out of the tree; the target is probably behind it …`)。**これに `waitSeconds:` を伸ばして対処しないでください**。窓やモーダルを閉じるまで対象は戻ってきません。前のステップでダイアログやシートを閉じるか、`irregularHandler` で宣言してください。xcuitest モードと Android にはこの申告が無く、従来どおりの「見つからない」の文言になります。
 - **重なりの順を知れない画面**(SwiftUI・Compose Multiplatform・Flutter のアプリ、iOS の xcuitest モード、MCP の操作)では、
   ツールは手前かどうかを推測せず、対象の中心を押します。重なりは端末の画面の大きさで変わるので、シナリオを書く時点では
   避けられません。押した後に結果を確かめるステップが失敗し、その直前の操作の対象に別の要素が重なっていた疑いがあれば、

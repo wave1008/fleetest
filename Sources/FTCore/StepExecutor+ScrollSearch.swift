@@ -149,7 +149,7 @@ extension StepExecutor {
         /// 見つけた要素(found のときだけ)。scrollTo が「掴んだ要素」として返す
         /// (無いと DSL の `scrollTo` が lastElement を空で上書きしていた)
         var element: ElementInfo? = nil
-        /// 起こしたアプリのプロセスが居ないのに木が別アプリのものだった(`AppProcessGone`)の断り文。始点の木なら探索せずに断った
+        /// 起こしたアプリのプロセスが居ないのに木が別アプリのものだった(`AppProcessGone`)の断り文、または始点の木が別アプリのもので送らず断った文(`startedOnOtherAppRefusal`)。始点の木なら探索せずに断った
         /// (`message`)、途中の回なら送りを止めた(`messageAfterSearch` = 送った数を言う)
         var appGone: String? = nil
     }
@@ -243,6 +243,12 @@ extension StepExecutor {
     static func startedOnOtherAppFact(_ started: (owner: String, launched: String)) -> String {
         "the search started with the screen owned by \(started.owner), not the app launched (\(started.launched))"
             + "; no reverse sweep was sent"
+    }
+
+    /// 始点の木が別のアプリのもので、送りを撃たずに断った探索の文(DSL の失敗文と MCP の応答が共有する。`appGone` に載る)
+    static func startedOnOtherAppRefusal(_ started: (owner: String, launched: String)) -> String {
+        "the screen before the search belongs to \(started.owner), not the app launched (\(started.launched)), which is not in the foreground"
+            + " — no scroll was sent (a swipe there can pull down a shade or move another app's screen). Bring \(started.launched) back with launch, then search again"
     }
 
     /// 探索の始点の木の持ち主が、起こしたアプリでなく別のアプリのとき、その持ち主。起こしていない(`launched` が nil)・
@@ -1245,6 +1251,15 @@ extension StepExecutor {
                                                   element: confirmed)
                     }
                 }
+            }
+            // **始点の木が起こしたアプリでなく別のアプリのものなら、1本も払わずに断る**(見えている対象は上で返した後)。
+            // 背面のまま撃つと、ランチャーの上の最初の送りが通知のシェードを開いて残した。
+            // 断り文は appGone に載せる = 「対象の有無を確かめていない」扱い(searchStoppedWithoutLooking)に乗る
+            if attempt == 0, attempt < maxSwipes, let owner = startedOnOther, let launched = launchedBundleID {
+                return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                          hintJumps: hintJumps, swipes: swipes,
+                                          startedOnOtherApp: (owner, launched),
+                                          appGone: Self.startedOnOtherAppRefusal((owner, launched)))
             }
             // **横の探索で枠がほとんど窓の外なら、先に外側の縦の容器を送って枠を窓へ入れる**
             // (見えている帯が低いと横の払いが画面の縁に乗る。`ScrollGeometry.bringIntoView`)。

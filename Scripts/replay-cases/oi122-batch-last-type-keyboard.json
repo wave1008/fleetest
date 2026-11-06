@@ -1,6 +1,6 @@
 {
   "id": "oi122-batch-last-type-keyboard",
-  "finding": "最後の手が type の ft_batch が返す木にキーボードが無く、続く座標の手もキーボードの上で無注記(OI-122)",
+  "finding": "最後の手が type の ft_batch が返す木にキーボードが無く、続く座標の手もキーボードの上で無注記",
   "platform": "android",
   "redNote": "デバイスでも変異でもまだ確かめていない。直しを外した fleetest-mcp で形を撃ち、応答が赤になることを確かめる",
   "setup": [

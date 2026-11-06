@@ -20,8 +20,9 @@ direction (the "band" is the set of candidates whose center falls within the anc
 "closest thing available," since that would silently grab a different element once the
 layout changes.
 
-Leaving off the type suffix (`Notification:right`) defaults to `.widget` (any element with a
-confirmed interactive role — this avoids matching layout containers).
+Leaving off the type suffix (`Notification:right`) defaults to `.widget` (one of five types:
+`button`, `staticText`, `textField`, `secureTextField` or `switch` — it includes plain text, so it is not limited to
+operable elements; the point is that it avoids matching layout containers).
 
 ## Ordinal
 

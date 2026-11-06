@@ -358,7 +358,7 @@ extension StepExecutor {
         return !declaresAxis(actions, vertical: vertical) && declaresAxis(actions, vertical: !vertical)
     }
 
-    /// 払う前の木の申告から、`finger` へ送る払いが**既に効果が無い**と言えるか(scrollToEdge と探索の共通の判定)。
+    /// 払う前の木の申告から、`finger` へ送る払いが**既に効果が無い**と言えるか(scrollToEdge だけの判定。探索では使わない = 上端の一覧と RN の反転チャットが同じ申告で見分けられない)。
     /// 容器を一意に決められない・申告が無い(iOS・旧ブリッジ)ときは false = 従来どおり撃って確かめる
     static func declaredAtEdge(step: FlowStep, in snapshot: SnapshotResponse, finger: FTSwipeDirection) -> Bool {
         let vertical = finger == .up || finger == .down

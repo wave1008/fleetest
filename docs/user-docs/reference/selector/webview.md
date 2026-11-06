@@ -57,7 +57,7 @@ WebView versions).
 
 On Android, a device screenshot can occasionally drop the WebView layer entirely (the
 accessibility tree still has every element at its real coordinates — only the captured
-image is blank in that area). This is intermittent and self-corrects on relaunch, so
+image is blank in that area). This is intermittent and may clear after the app is relaunched, so
 **write reachability checks as tree assertions (`exist` / `notExist`), not as a screenshot
 check** — a screenshot-based check can fail for reasons that have nothing to
 do with your scenario. Seeing the WebView content in a screenshot also requires the WebView

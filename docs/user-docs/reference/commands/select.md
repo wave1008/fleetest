@@ -34,6 +34,7 @@ Reading a value out of a grabbed element (`.text`, `.value`, `.id`) is covered i
 
 - `select` never fails a scenario by itself — a missing element becomes an empty element, not a
   thrown error. Only the commands you chain onto it (`.textIs(...)`, etc.) can fail the step.
+- **On Android, `select` is refused while the app under test is not in front** (the home screen, another app or the app switcher is showing): the step waits up to its usual wait for the app to come back and then fails instead of returning an empty element, as `notExist` and `countIs(0)` do (otherwise the empty element would be read as "the element is absent"). Bring the app back first with `launchApp()` or `tapAppIcon()` (see [navigation](./navigation.md)).
 - `lastElement` is empty at the start of each `scene`, is overwritten with an empty element when
   a command fails to grab, and is empty (with a warning) if nothing has been grabbed yet.
 - When `waitSeconds:` is omitted, `select` keeps looking for the element up to the run profile's default wait (`defaultTimeout`, 5 s by

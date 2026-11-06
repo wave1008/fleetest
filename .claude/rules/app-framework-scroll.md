@@ -63,6 +63,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   RN の FlatList で途中止まりした)。**ドライバの `atEdge: false`(= 確かに動かした)は事実を知っている経路だけが返す**
   (in-app の contentOffset・Android の CDP)。**AX の scroll の受理は含めない** —— Compose は端でも受理し、含めた版は
   端送りが毎回 maxSwipes まで回った(緑のまま)→ MN-36
+- **送る前の申告で端と確定する(`StepExecutor.declaredAtEdge`)のは scrollToEdge だけ。探索には使わない**(RN の反転チャットが上端の一覧と同じ `["forward","down"]` を申告し、過去の行を1本も払わず赤になった = 0c4d59381。申告では上端と反転を見分けられない)。端と申告した容器の**直接の子**に同じ列でその向きへ送れる一覧があれば端と言わない(`nestedScrollableMoves`。枠の中の全要素で見ると FAB で列が崩れる)
 - **端を申告しない iOS の構成の上端(scrollToTop)の確かめは、送りが本物の指(XCUITest で撃った送り)だったときだけ短いドラッグ(`FTCore.EdgeProbe`。30pt・1 秒)**
   (inapp-boost モードの in-app の送り = Compose / Flutter のアクセシビリティの scroll は端で撃っても引っ張りにならず、本物のドラッグに替えると逆に更新が走った): 全力の送りの後、中身の先頭が
   動かない枠の縁へ揃った・基準(指の移動量か1本前の送り)より動かなかったら切り替える。確かめの全力の送りは上端で引っ張って更新に

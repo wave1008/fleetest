@@ -8,7 +8,7 @@
 
 | 関数 | 説明 |
 |---|---|
-| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、端に着いて中身が動かなくなっても、その秒数の間は端と決めずに待ちます(一覧がまだ出ていない・骨組みのまま・末尾に「再試行」などが遅れて出る形)。秒数は、1度も動いていなければ探し始めから、途中まで動いた後なら端に着いたときから数えます。待つ間は送らずに画面を読み直すだけなので、`maxSwipes:` の本数は使いません(中身が変われば探索を続けます)。省略時は2周動かなければ打ち切ります。端まで送っても見つからなかったときは、送りが行を飛び越した分を拾うために少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、反対側を探さずに失敗します。 |
+| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、端に着いて中身が動かなくなっても、その秒数の間は端と決めずに待ちます(一覧がまだ出ていない・骨組みのまま・末尾に「再試行」などが遅れて出る形)。秒数は、1度も動いていなければ探し始めから、途中まで動いた後なら端に着いたときから数えます。待つ間は送らずに画面を読み直すだけなので、`maxSwipes:` の本数は使いません(中身が変われば探索を続けます)。省略時は2周動かなければ打ち切ります。その向きに中身が動いたあとで、端まで送って(または `maxSwipes:` を使い切って)も見つからなかったときだけ、送りが行を飛び越した分を拾うために、ゆっくりした小さなドラッグ(最大 8 本)で少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、戻らず、反対側を探さずに失敗します。探索を始めた画面が起動したアプリでなく別のアプリのものだったときも戻りません。キーボードが送る領域の下を覆ったまま何も動かなかったときは、副作用のない手段(`tap` と同じ。Enter は送りません)でキーボードを閉じて、探索を1回だけやり直します。 |
 | `scrollDown(repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | 1画面ぶんスクロールします(`repeat:` 回繰り返します)。画面が1つも動かなかったときは、成功のまま注記 `scroll-moved-nothing` を付けます(既に端に着いているか、払いの始点が一覧の外です。特定の一覧の中で払うなら `scrollFrame:` を渡してください。`scrollFrame:` を渡した送りでは、端に着いている可能性だけを言います)。 |
 | `scrollToBottom(settle:, maxSwipes: 50)` / `scrollToTop` / `scrollToRightEdge` / `scrollToLeftEdge` | 端まで送ります(画面が変化しなくなるまで)。`maxSwipes` は暴走を止める上限で、上限で打ち切るとステップに注記が付きます。 |
 | `withScrollDown { … }` / `withScrollUp` / `withScrollRight` / `withScrollLeft` | ブロック内の `tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` を**すべてスクロール探索**にします(明示の `scroll:` があればそちらが優先)。**`notExist` は意味が変わります** —— 探索中に見つかった時点で失敗になります。 |
@@ -26,7 +26,8 @@
 `scroll:` を付けた探索(`tap` / `exist` / `select` など)で `maxSwipes:` を省くと、
 その方向へのスワイプは最大 8 回です。リストの端に着いて中身が動かなくなったとき
 (2回続けて画面が変わらなかったとき)は、上限の手前で打ち切ります。諦める前に、
-逆向きへ細かい刻みでもう一度だけ探します。それでも見つからなければそのコマンドの通常の扱いに
+その向きに中身が動いていたときだけ、逆向きへ細かい刻みでもう一度探します(1度も動かなかったときは
+反対側を探しません)。それでも見つからなければそのコマンドの通常の扱いに
 なります(`exist` / `tap` は失敗、`select` は空の要素)。端に着いて打ち切ったときは、
 `maxSwipes` を上げても変わらないので、失敗文がそう伝えます。
 
@@ -55,8 +56,9 @@ scrollTo("#row_40", scrollFrame: "#list_rows")
 - `withScrollDown(scrollFrame: "#list") { }` に渡すと、ブロック内のすべての探索がその領域を
   引き継ぎます。
 - **領域は解決できたが中の何も動かない場合**、スワイプ自体は送られますがステップに注記が
-  付きます(`the specified scrollFrame is not scrollable`。マージンで動かせる幅が潰れた場合は
-  `resolved but leaves nothing to move`)。
+  付きます(`the specified scrollFrame is not scrollable (the swipe lands there but nothing moves)`)。
+  マージンで領域の中に動かせる幅が残らない場合は、スワイプを画面全体で払い、注記
+  `the specified scrollFrame resolved but leaves nothing to move, so the whole screen was swiped` が付きます。
 - **半分開いたボトムシート**(指定した容器が画面下端に接し、上端が画面の上 1/4 より下)の中で、下へ送る
   探索が1度も動かずに止まったら、その容器の中で1回だけ速く払ってシートを広げてから探し直します
   (注記 `the sheet was expanded by a drag inside the scrollFrame first`)。
@@ -94,7 +96,7 @@ iOS の既定のモード(inapp-boost)の Compose Multiplatform / Flutter では
 `tap`/`scrollTo` などの座標解決は、見切れ判定・掴み直し・救済ドラッグ・見えている部分を撃つ
 座標補正・壊れた座標の候補除外といった「容器の推測」に依存する補正を行います。既定で有効
 ですが、想定外の画面構成(独自のスクロールコンテナ実装など)で補正が裏目に出るときだけ切れます。
-3段階のどこで切るかを選べます:
+4つの単位のどこで切るかを選べます:
 
 | 単位 | 方法 |
 |---|---|

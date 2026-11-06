@@ -185,7 +185,7 @@ final class FTInAppBridge {
     /// アプリが背面の間に断る要求(`handle` の doc)。**断る表にしてある** = 表に無いルート(知らないルートを含む)は
     /// 通常どおり処理する(知らないルートの 404 はホストの XCUITest への回り道の合図 = `DriverError.isBridgeIncapable`)。
     /// 断らないもの: /status・/session・/terminate・/appstate(状態と起動)、/screenshot(呼び手が多い。背面の画像判定は
-    /// OI-175 ⑤)、/rotate(端末の向き)、/tapprobe(呼び手が誤りを nil =「答えられない」に畳むので、断ると理由が消える)
+    /// ホストが前面かを聞いて画面全体の絵で撮る = StepExecutor+JudgmentCapture の appInForeground)、/rotate(端末の向き)、/tapprobe(呼び手が誤りを nil =「答えられない」に畳むので、断ると理由が消える)
     static let refusedWhileInBackground: Set<String> = [
         "/snapshot", "/tap", "/type", "/clear", "/pressEnter", "/hidekeyboard", "/swipe", "/doubletap", "/pinch",
         "/drag", "/press",

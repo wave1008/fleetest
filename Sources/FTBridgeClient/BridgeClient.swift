@@ -600,7 +600,7 @@ public final class BridgeClient: AppDriver, Sendable {
     ///
     /// 実測(iOS 27 シミュレータ): 同意は端末+アプリの組で永続する ——
     /// 一度「開く」を押すと以後の openURL は無警告で配送される。そのため
-    /// **(target, bundleID) ごとにプロセス内で1回だけ**試みる(OpenURLConsentAttemptCache)。
+    /// **(target, bundleID, スキームの綴り)ごとにプロセス内で1回だけ**試みる(OpenURLConsentAttemptCache)。
     /// 判定は springboard へ実際に attach できてから初めて「試行済み」にする ——
     /// **先に記録すると in-app 接続の 409 が「試したことにされ」、inapp-boost モードで本来なら XCUITest 側
     /// (springboard を見られる)がまだ試していないのに機会を失う**(このメソッドは in-app/xcuitest
@@ -610,11 +610,18 @@ public final class BridgeClient: AppDriver, Sendable {
     private var consentAlertPollAttempts: Int { 4 }
     private var consentAlertPollIntervalNanos: UInt64 { 400_000_000 }
 
+    /// 試行済みの単位 = 端末+アプリ+**URL スキームの綴りそのまま(大小を区別)**。iOS は綴りごとに同意を聞く
+    /// (`foo://` を許可しても `FOO://` は未同意。実測 OI-179 ①)ので、小文字化すると先の綴りが1回を使い切り、
+    /// 後の綴りの同意が確かめられずに URL が届かないまま ✅ になる。スキームが読めない URL は空の綴り
+    static func consentAttemptKey(target: String, bundleID: String, url: String) -> String {
+        "\(target)#\(bundleID)#\(URL(string: url)?.scheme ?? "")"
+    }
+
     func acknowledgeOpenURLConsent(bundleID: String, target: String, url: String) async {
         // 入口で消す: 呼んだ側(WebViewDelegatingDriver.openURL)は「戻せなかった注記が立っているか」だけで確かめが走った回を知る
         // (走らなかった回に前の操作の注記を写さない)。立てるのは末尾の張り戻しの失敗だけ
         lastActionNote = nil
-        let key = "\(target)#\(bundleID)"
+        let key = Self.consentAttemptKey(target: target, bundleID: bundleID, url: url)
         guard !OpenURLConsentAttemptCache.shared.hasAttempted(key) else { return }
         let listing = Self.appListing(bundleID: bundleID, target: target)
         // 別のアプリ向けの URL では試さない・試したことにもしない(後の自分のスキームの openURL で試す)

@@ -9,7 +9,7 @@ to an edge.
 
 | function | description |
 |---|---|
-| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | Scrolls until the element is found (found = success; does not tap it). It searches only in the `direction:` given. If you write `waitSeconds:`, it does not declare the end for that many seconds even after the content stops moving at the end (the list is not shown yet, still a skeleton, or a "Retry" or similar appears late at the bottom). The seconds count from the start of the search if nothing has moved, or from when it reached the end if the content moved first. While waiting it only re-reads the screen without scrolling, so it does not use up `maxSwipes:` (if the content changes, the search continues). If it reaches the end without finding the element, it steps back in small drags to pick up a row the scrolling skipped over. If the list was already at its end and nothing moved at all, it fails without searching the other side. |
+| `scrollTo(sel, direction: .down, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | Scrolls until the element is found (found = success; does not tap it). It searches only in the `direction:` given. If you write `waitSeconds:`, it does not declare the end for that many seconds even after the content stops moving at the end (the list is not shown yet, still a skeleton, or a "Retry" or similar appears late at the bottom). The seconds count from the start of the search if nothing has moved, or from when it reached the end if the content moved first. While waiting it only re-reads the screen without scrolling, so it does not use up `maxSwipes:` (if the content changes, the search continues). Without `waitSeconds:`, it declares the end after two rounds with no movement. Only if the content moved in that direction first, and the search then reaches the end (or uses up `maxSwipes:`) without finding the element, it steps back in small, slow drags (up to 8) to pick up a row the scrolling skipped over. If the list was already at its end and nothing moved at all, it does not step back and fails without searching the other side; it does not step back either when the screen the search started on belongs to another app than the one launched. If nothing moved while the soft keyboard covered the bottom of the scrolled area, it closes the keyboard by a means with no side effect (the same as for `tap`; Enter is never pressed) and starts the search over once. |
 | `scrollDown(repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | Scrolls one screenful (`repeat:` times to repeat). If nothing on the screen moved, it still passes with the note `scroll-moved-nothing` (the list may already be at its end, or the swipe started outside it — pass `scrollFrame:` to swipe inside a specific list; when you already passed `scrollFrame:`, the note only says the list may be at its end). |
 | `scrollToBottom(settle:, maxSwipes: 50)` / `scrollToTop` / `scrollToRightEdge` / `scrollToLeftEdge` | Scrolls to the edge — until the screen stops changing. `maxSwipes` is a runaway guard; hitting it leaves a note on the step. |
 | `withScrollDown { … }` / `withScrollUp` / `withScrollRight` / `withScrollLeft` | Makes every `tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` inside the block search by scrolling (an explicit `scroll:` on a command still wins). **`notExist` changes meaning** inside the block — it fails as soon as the element turns up while scrolling. |
@@ -26,8 +26,9 @@ the direction of the enclosing block (outside a block: the current screen only).
 
 When `maxSwipes:` is omitted on a command with `scroll:` (`tap` / `exist` / `select`, etc.), it
 swipes at most 8 times in that direction. It stops earlier once the list has reached its edge and
-the content no longer moves (two swipes in a row leave the screen unchanged). Before giving up, it
-searches once more in the opposite direction in smaller steps. If the element is still not found,
+the content no longer moves (two swipes in a row leave the screen unchanged). Before giving up, if the
+content had moved in that direction, it steps back the other way in smaller steps; if nothing moved at
+all, it does not search the other side. If the element is still not found,
 the command's usual handling applies (`exist` / `tap` fail, `select` returns an empty element); when
 the search stopped at the edge, the failure message says so, because raising `maxSwipes` will not
 help.
@@ -57,8 +58,9 @@ scrollTo("#row_40", scrollFrame: "#list_rows")
 - `withScrollDown(scrollFrame: "#list") { }` passes the region down to every search inside the
   block.
 - **If the region resolves but nothing in it actually moves**, the swipe is still sent but a note
-  is left on the step (`the specified scrollFrame is not scrollable`, or
-  `resolved but leaves nothing to move` if the margins leave no room).
+  is left on the step (`the specified scrollFrame is not scrollable (the swipe lands there but nothing moves)`).
+  If the margins leave no room to move inside the region, the swipe goes over the whole screen instead, with the
+  note `the specified scrollFrame resolved but leaves nothing to move, so the whole screen was swiped`.
 - **In a half-open bottom sheet** (the given container touches the bottom edge of the screen and its top is
   below the top quarter of the screen), if a downward search never moved at all, it drags once, quickly, inside
   that container to expand the sheet and then searches again (note
@@ -100,7 +102,7 @@ On iOS in the default `inapp-boost` mode, Compose Multiplatform and Flutter scro
 clipping detection, re-grabbing a stale element, a rescue drag, coordinate correction for a
 partially visible element, and discarding a broken coordinate candidate. These are on by default;
 turn them off only when they misfire on an unusual screen layout (a custom scroll container
-implementation, for example). Three scopes to choose from:
+implementation, for example). Four scopes to choose from:
 
 | scope | how |
 |---|---|
