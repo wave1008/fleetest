@@ -1259,7 +1259,28 @@ public final class StepExecutor {
     public func appLeftRefusal(step: FlowStep) async -> (message: String, kind: StepFailureKind)? {
         if let message = await appSwitcherRefusal(step: step) { return (message, .systemUICovered) }
         if let message = await backgroundedAppRefusal(step: step) { return (message, .appInBackground) }
+        if let message = await stoppedAppRefusal(step: step) { return (message, .appStoppedBySession) }
         return nil
+    }
+
+    /// このシナリオが対象アプリを止めた(`terminateApp`・`removeApp`・`clearAppData`)まま、起動の手がまだ無い。DSL が
+    /// `FTRuntime.appUnderTestLife` から同期する(起動の手でだけ戻る)
+    public var appUnderTestStopped = false
+
+    /// **Android で、このシナリオが止めたままのアプリの要素を読む・触るステップを、探さずに断る**(OI-181 ④: `terminateApp()` の後の
+    /// `tap(scroll: .down)` がランチャーの一覧を 17 秒送り、ランチャーの部品で包めと従えない案内をした = 4/4)。iOS は撃つ前に
+    /// 断る門が別にある(`notRunningAppBackRefusal`・`appStoppedBySession`)。
+    /// 断るのは全部がそろったときだけ: 止めたまま・プロセスが居ないと答えた・対象が今の木に無い。**今の木にある対象は撃つ**
+    /// (ランチャーのアイコンをラベルで押す等は人にもできる)・否定の検証は断らない(止めたアプリの要素が無いのは事実)
+    func stoppedAppRefusal(step: FlowStep) async -> String? {
+        guard isAndroid, appUnderTestStopped, let bundleID = appUnderTestBundleID, step.locator != nil,
+              !Self.passesOnAbsence(step) else { return nil }
+        if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
+        guard let running = appProcessRunning, await running(bundleID) == false,
+              let tree = try? await driver.snapshot(),
+              LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
+        return "The app under test (\(bundleID)) is not running — this scenario stopped it — so this step did not look for"
+            + " its element (scrolling or waiting would only move whatever is in front). Launch it first (launchApp())"
     }
 
     /// 対象が「無い」ことで通る(または分岐が決まる)ステップ: notExist・countIs 0・条件の判定(`canSelect` の門の

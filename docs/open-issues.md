@@ -30,7 +30,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 19 | OI-125・OI-129・OI-139・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-180・OI-181・OI-184・OI-186・OI-187 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 18 | OI-125・OI-129・OI-139・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-180・OI-184・OI-186・OI-187 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 13 | OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185・OI-186 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
@@ -162,15 +162,6 @@
 
 11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 着手可。原因(report-mios): 文言は `StepExecutor+Actions.swift:739-742`(`KeyboardRetry.notClosed`)で、入口 `resolveAfterClosingKeyboard`(`StepExecutor+TypeClear.swift:516-523`)の条件が「指の操作 + キーボードが出ている(iOS は窓が縮んだ)」だけ。対象が木から消えた別の理由(`accessibilityViewIsModal` で木がダイアログの中身だけに縮んだ = 失敗時の木は `txt_discard_title`・`btn_discard`・`btn_keep` + ナビゲーションバーだけ)を見ない。次の手: 木の要素が少なく全部が 1 つの容器の中にあり、対象の契約上の位置がキーボードの上なら、キーボードの帰属を付けずダイアログを名指す。閉じる tap は木の要素(幕)の枠の外の点に限る
 
-### OI-181 探索の残り(23周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定
-- 運用: ①回避可 — 文言の案内どおり、自分でスクロールして外してから押す(SE3 だけ) ④回避可 — `terminateApp()` の後は `launchApp()` してから操作する
-- 優先度: 低 — 案内どおりの回避か文言だけ
-
-11/6 の23周目の探索(20分・`_work/explore-20261106g/findings-*.md`)で観測し、直さなかったもの。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)= 要測定(送らずに断ったこと・断りの出どころは観測済み。iPhone 13 で緑になる理由は材料不足) ④Android の `terminateApp()` の後の `tap(scroll: .down)` がランチャーの一覧を 17 秒送ってランチャーの部品で包めと勧める(amax F2・4/4)= 着手可。原因(report-mand): `terminateApp` は `appMayHaveLeft` を落とす(`FTRuntime.swift:1461`)ので撃つ前の照会が無く(Android の tap は `StepExecutor.swift:1170` でも照会しない)、`launchedBundleID = nil`(:1451-1452)で探索の基準(`StepExecutor+ScrollSearch.swift:911` の `searchBaselineBundleID`)がランチャーになる。「止めた」事実 `appStoppedByScenario` は失敗の後(`FTRuntime.swift:2014-2017`)にしか使われない。探索中の `appGoneFailure(owner:)` がランチャーの木で発火しなかった理由は未確認。次の手: `appStoppedByScenario` が立っている間のアプリを読む・触るステップは撃つ前に「`terminateApp()` で止めたまま」と断る(探索に入らない)
-
 ### OI-184 探索の残り(26周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
@@ -199,6 +190,16 @@
 11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。②iOS の WebView 画面の `back()` が戻らないのに注記なしの ✅・4.2〜4.6 秒(iultra・SwiftUI と RN で各 6/6)= 着手可。原因と次の手・11/6 の注記の直しは OI-186 ②(before が委譲の木・after が in-app の木で、約 4 秒のうち委譲の待ちが約 2.35 秒)。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)
 
 ## 要測定
+### OI-181 探索の残り(23周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定
+- 運用: ①回避可 — 文言の案内どおり、自分でスクロールして外してから押す(SE3 だけ)
+- 優先度: 低 — 案内どおりの回避
+
+11/6 の23周目の探索(20分・`_work/explore-20261106g/findings-*.md`)で観測し、直さなかったもの。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)= 要測定(送らずに断ったこと・断りの出どころは観測済み。iPhone 13 で緑になる理由は材料不足)
+- 11/6: ④(Android の `terminateApp()` の後の `tap(scroll:)` がランチャーを 17 秒送る)を直した = 止めたまま・プロセスが居ない・対象が今の木に無いなら探さずに断る(`StepExecutor.stoppedAppRefusal`。手元で 0.14 秒)
+
 ### OI-179 探索の残り(21周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)

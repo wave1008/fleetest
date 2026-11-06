@@ -1497,8 +1497,10 @@ public final class FTDriveCore {
         if case .passed = status, let command {
             if ["terminateApp", "removeApp", "clearAppData"].contains(command) {
                 withState { _appUnderTestLife = .stoppedByScenario }
+                executor.appUnderTestStopped = true
             } else if ["launchApp", "restartApp"].contains(command), launchedBundleID == appBundleID {
                 withState { _appUnderTestLife = .launched }
+                executor.appUnderTestStopped = false
             }
         }
         let timing = launchTiming?()
@@ -1658,6 +1660,7 @@ public final class FTDriveCore {
     func noteAppUnderTestStarted() {
         appLaunchedInThisProcess = true
         withState { _appUnderTestLife = .launched }
+        executor.appUnderTestStopped = false
     }
 
     /// 止めた状態を保つコマンド(アプリへ触らない読みと待ち)
