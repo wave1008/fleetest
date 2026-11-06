@@ -73,8 +73,9 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         return (dir, adb.path)
     }
 
+    /// 上限は届かないときに打ち切るためだけ(普段は数百 ms で抜ける)。22 並列の全体テストの負荷では 5 秒で届かない回があった
     private func waitForFile(_ url: URL) async throws {
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while !FileManager.default.fileExists(atPath: url.path), Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
@@ -158,8 +159,10 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
     /// 遅くても大きさが伸び続ける pull は、期限の秒数を超えても止めないはず(大きいセグメント・遅い USB)
     func testSlowButProgressingPullIsKept() async throws {
         let (dir, adb) = try fakeADB(mode: "pullslow")
+        // 止まりの判定は 1 秒(偽の pull は 0.1 秒ごとに書く = 10 倍の余裕・全体 1.6 秒は判定を超える)。0.5 秒では全体テストの負荷で
+        // 書き込みの間(外部の sleep の起動)が判定を超え、伸びている pull を止めた(大きさ 8)
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
-                                                  fullResolution: true, adbAnswerLimit: 0.5)
+                                                  fullResolution: true, adbAnswerLimit: 1)
         addTeardownBlock { _ = await recorder.stop() }
         let started = await recorder.start()
         XCTAssertTrue(started)
@@ -172,7 +175,7 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
     func testConfirmationWaitEndsWhenItsSegmentDies() async throws {
         let (dir, adb) = try fakeADB(mode: "generation")
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
-                                                  fullResolution: true, startConfirmLimit: 5)
+                                                  fullResolution: true, startConfirmLimit: 10)
         addTeardownBlock { _ = await recorder.stop() }
         let started = await recorder.start()
         XCTAssertTrue(started)
@@ -184,7 +187,8 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         let raw = try String(contentsOf: dir.appendingPathComponent("pid-3"), encoding: .utf8)
         let pid = try XCTUnwrap(Int32(raw.trimmingCharacters(in: .whitespacesAndNewlines)))
         XCTAssertEqual(kill(pid, SIGTERM), 0)
-        let result: Bool? = await DeadlineRace.first(seconds: 2, onTimeout: nil) { await checking.value }
+        // 第4世代の確認は撮り始めない(stat 0)ので上限(10 秒)まで待つ。4 秒で戻れば「待たずに失敗した」と言える(2 秒では負荷で届かない回があった)
+        let result: Bool? = await DeadlineRace.first(seconds: 4, onTimeout: nil) { await checking.value }
         _ = await recorder.stop()
         _ = await checking.value
         XCTAssertEqual(result, false, "確認中の第3世代が死んだら、第4世代の確認を待たずに失敗する")

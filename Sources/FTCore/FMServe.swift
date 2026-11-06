@@ -230,6 +230,7 @@ public struct FMServeClient: Sendable {
 
     func waitForRetirement(target: FMServeWire.Identity, waitSeconds: Double) async throws -> FMServeWire.RetirementResponse {
         let deadline = ContinuousClock.now.advanced(by: .seconds(max(0, waitSeconds)))
+        var lastBusy: FMServeWire.RetirementResponse?
         while true {
             try Task.checkCancellation()
             let remaining = ContinuousClock.now.duration(to: deadline)
@@ -238,12 +239,22 @@ public struct FMServeClient: Sendable {
             }
             var attempt = self
             attempt.deadlineSeconds = min(deadlineSeconds, DurationConversion.seconds(remaining))
-            let response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
+            let response: FMServeWire.RetirementResponse
+            do {
+                response = try await attempt.retire(FMServeWire.RetirementRequest(target: target))
+            } catch where !(error is CancellationError) {
+                // **busy と聞いた後の問い直しが、窓の残りへ縮めた締め切りで窓の終わりに切れたら、直前の busy を答えにする**
+                // (相手の失敗ではなく自分の窓の時間切れ。投げると呼び手が「問い合わせの失敗」と読み、status を聞き直していた =
+                // 全体テストの負荷で FMServeAlignmentTests が赤)。窓で縮めていない問い直しの失敗・最初の問い合わせの失敗は従来どおり投げる
+                if let lastBusy, attempt.deadlineSeconds < deadlineSeconds, ContinuousClock.now >= deadline { return lastBusy }
+                throw error
+            }
             guard response.controlVersion == FMServeWire.retirementProtocolVersion,
                   response.identity.serverVersion == target.serverVersion,
                   response.identity.executable == target.executable,
                   response.identity.buildStamp == target.buildStamp,
                   response.outcome == .busy else { return response }
+            lastBusy = response
             let left = ContinuousClock.now.duration(to: deadline)
             guard left > .zero else { return response }
             // 暖機終了後の1秒の隙間を照会する。照会はFM推論を起こさず、毎秒10回を上限とする。

@@ -136,14 +136,17 @@ final class FMServeAlignmentTests: XCTestCase {
         }
         defer { stop() }
         do {
-            _ = try await FMServeAlignment.align(socketPath: socket, executable: executable, stamp: "new", waitSeconds: 0.05,
+            // 窓は retirementWindow(0.05 秒では最初の問い合わせの締め切りも 50 ms に縮み、全体テストの負荷で要求を書き切れずに投げた)
+            _ = try await FMServeAlignment.align(socketPath: socket, executable: executable, stamp: "new",
+                                                 waitSeconds: Self.retirementWindow,
                                                  holdMaintenance: { 0 },
                                                  spawn: { _, _ in XCTFail("busy server replaced"); return false })
             XCTFail("busy server accepted")
         } catch let error as FMServeAlignment.Failure {
             XCTAssertTrue(error.description.contains("still busy"))
         }
-        XCTAssertEqual(attempts.value, 1)
+        // busy の間は窓の終わりまで問い直すので回数は負荷で変わる
+        XCTAssertGreaterThanOrEqual(attempts.value, 1)
         XCTAssertTrue(FramedUnixSocket.isServed(path: socket))
     }
 
@@ -338,6 +341,23 @@ final class FMServeAlignmentTests: XCTestCase {
         do { _ = try await operation.value; XCTFail("cancellation was ignored") }
         catch is CancellationError {}
         XCTAssertEqual(kinds.value, ["status"])
+    }
+
+    /// **busy と聞いた後の問い直しが窓の終わりで切れたら、問い合わせの失敗でなく busy を返す**(負荷に頼らず必ずこの経路を通す陽性対照:
+    /// 2回目の問い合わせは窓を越えて黙る)。投げると呼び手が retirementQueryFailed に読み替え、status を聞き直していた
+    func testRequeryCutByTheWindowAfterBusyStaysBusy() async throws {
+        let peer = identity()
+        let requests = LockedValue(0)
+        let socket = path()
+        let stop = serve(path: socket) { _ in
+            let n = requests.withLock { $0 += 1; return $0 }
+            if n > 1 { try? await Task.sleep(for: .milliseconds(2_500)) }
+            return try! JSONEncoder().encode(FMServeWire.RetirementResponse(identity: peer, outcome: .busy))
+        }
+        defer { stop() }
+        let response = try await FMServeClient(socketPath: socket).waitForRetirement(target: peer, waitSeconds: Self.retirementWindow)
+        XCTAssertEqual(response.outcome, .busy)
+        XCTAssertGreaterThanOrEqual(requests.value, 2, "問い直しまで届いていない(陽性対照が経路を通っていない)")
     }
 
     /// 退役の問い合わせの窓。`waitForRetirement` は1回の問い合わせの締め切りも窓の残りで切るので、ミリ秒単位に
