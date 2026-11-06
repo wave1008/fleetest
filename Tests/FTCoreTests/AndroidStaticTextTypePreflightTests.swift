@@ -29,8 +29,9 @@ final class AndroidStaticTextTypePreflightTests: XCTestCase {
         XCTAssertNil(executor(isAndroid: true).nonTextInputPreflightRefusal(e, in: [e], action: "type"))
     }
 
-    func testIOSStaticTextTypeIsNotRefusedHere() {
+    /// iOS も同じ(入力欄は staticText で来ない。Round32IOSAndArgumentTests が両方向を固定)
+    func testIOSStaticTextTypeIsRefusedToo() {
         let e = el("staticText")
-        XCTAssertNil(executor(isAndroid: false).nonTextInputPreflightRefusal(e, in: [e], action: "type"))
+        XCTAssertNotNil(executor(isAndroid: false).nonTextInputPreflightRefusal(e, in: [e], action: "type"))
     }
 }

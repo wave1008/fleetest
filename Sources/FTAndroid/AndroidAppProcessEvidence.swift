@@ -71,23 +71,28 @@ public enum AndroidAppProcessEvidenceQuery {
                                          crashKind: block?.kind)
     }
 
-    /// `adb shell pm path <pkg>` で「入っていない」と確かめられたか(判定は `packageAbsence`)
+    /// `adb shell pm list packages <pkg>` で「入っていない」と確かめられたか(判定は `packageAbsence`)。
+    /// **`pm path` を使わない**: シナリオのサンドボックスの中の adb は親が `AdbPolicy` の許す形だけ代行し、`pm path <pkg>` は表に無く
+    /// 断られる(断られると常に false = 消えたアプリの起動失敗にクラッシュの疑いが付いた)。`pm list packages <pkg>` は表にある形
     public static func confirmedNotInstalled(package: String, serial: String?) -> Bool {
         guard AndroidPackageName.isShellSafe(package), let adb = try? AndroidDriver.findADB() else { return false }
         var args = [adb]
         if let serial { args += ["-s", serial] }
-        args += ["shell", "pm", "path", package]
+        args += ["shell", "pm", "list", "packages", package]
         guard let result = try? Shell.run(args, timeout: 5) else { return false }
-        return packageAbsence(status: result.status, output: result.output) == true
+        return packageAbsence(status: result.status, output: result.output, package: package) == true
     }
 
-    /// `pm path` の結果から「入っていないか」。true = 入っていない(非 0 終了で出力が空 = pm の通常の「無い」)、
-    /// false = 入っている(`package:` の行がある)、nil = 判定できない(adb 自体の失敗・知らない出力)
-    static func packageAbsence(status: Int32, output: String) -> Bool? {
+    /// `pm list packages <pkg>` の結果から「入っていないか」。`<pkg>` は前方一致で他のパッケージも返るので、
+    /// 行 `package:<pkg>` が**ちょうど**あるかで見る。true = 入っていない(終了コード 0/1 で、`package:` の行だけ・どれも
+    /// 一致しない = 空も含む)、false = 入っている、nil = 判定できない(adb 自体の失敗・知らない出力・知らない終了コード)
+    static func packageAbsence(status: Int32, output: String, package: String) -> Bool? {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         if looksLikeADBFailure(trimmed) { return nil }
-        if status == 0 { return trimmed.split(separator: "\n").contains { $0.hasPrefix("package:") } ? false : nil }
-        return trimmed.isEmpty ? true : nil
+        guard status == 0 || status == 1 else { return nil }
+        let lines = trimmed.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        if lines.contains("package:\(package)") { return status == 0 ? false : nil }
+        return lines.allSatisfy { $0.hasPrefix("package:") } ? true : nil
     }
 
     /// 起点が分からないときの窓(秒)。ft_logs の既定と同じ5分(無制限には戻さない)

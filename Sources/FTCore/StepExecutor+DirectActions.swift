@@ -838,6 +838,18 @@ extension StepExecutor {
             : "the in-app bridge refused to \(operation) the focused field (HTTP 409), and no XCUITest bridge is available to retry"
     }
 
+    /// 409 の後の対処。**このシナリオが対象アプリを止めたままなら、欄をタップしろとは言わない**(アプリが居ないので従えない)
+    static func pressEnterRefusalAdvice(isAndroid: Bool, stopped: Bool, stoppedCommand: String?) -> String {
+        if stopped {
+            return " — the app under test was stopped by this scenario (\(stoppedCommand ?? "terminateApp")()), so no field has input focus."
+                + " \(StoppedAppAdvice.startAgain(afterStopping: stoppedCommand)) before pressing Enter"
+        }
+        return isAndroid
+            ? " — no field has input focus, or the focused field's input connection is closed (Flutter"
+                + " closes it after an Enter), so nothing would receive it; tap the field before pressing Enter again"
+            : ""
+    }
+
     func executeDirectPressEnter(phase: inout PhaseAccumulator) async throws -> StepOutcome {
         await noteRefLessInputOnOtherApp()
         let clock = ContinuousClock()
@@ -850,9 +862,8 @@ extension StepExecutor {
             guard let td = typeDriver else {
                 // Android の 409 は「焦点の欄が無い・欄の入力の接続が閉じている」(Flutter は Enter の後に接続を閉じる = OI-163 ⑬)
                 return StepOutcome(status: .failed(Self.focusedFieldRefusal("press Enter in", isAndroid: isAndroid)
-                    + (isAndroid ? " — no field has input focus, or the focused field's input connection is closed (Flutter"
-                        + " closes it after an Enter), so nothing would receive it; tap the field before pressing Enter again"
-                        : "")))
+                    + Self.pressEnterRefusalAdvice(isAndroid: isAndroid, stopped: appUnderTestStopped,
+                                                   stoppedCommand: appUnderTestStoppedCommand)))
             }
             try await td.pressEnter()
             phase.actionMs += Self.ms(clock.now - start)

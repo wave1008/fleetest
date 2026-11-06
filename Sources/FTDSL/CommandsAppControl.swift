@@ -237,6 +237,14 @@ public func removeApp(_ appID: String? = nil,
     }
 }
 
+/// tapAppIcon の「アイコンが無い」失敗に添える事実: 探している名前が対象アプリで、このシナリオが removeApp() で消したまま
+/// (起動の手が無い)のとき、無いのは消したからで、入れ直す手順を言う。他のアプリのアイコン・removeApp 以外で止めたときは空
+func appIconRemovedByScenarioNote(iconName: String, appDisplayName: String?, stoppedCommand: String?) -> String {
+    guard stoppedCommand == "removeApp", iconName == appDisplayName else { return "" }
+    return ". This scenario removed the app with removeApp(), so its icon is gone. "
+        + StoppedAppAdvice.startAgain(afterStopping: stoppedCommand)
+}
+
 /// appIs のポーリング(PollBackoff の再利用はコピペ禁止の契約。
 /// Sources/FTCore/PollBackoff.swift 参照)。waitSeconds==0 でも初回照会は必ず1回行う
 func pollForegroundMatch(waitSeconds: Double, isForeground: () async throws -> Bool) async throws -> Bool {
@@ -688,7 +696,9 @@ public func tapAppIcon(_ appIconName: String? = nil,
             throw FTCommandError.message("App icon not found.(\(appIconName)) — not on the home screen pages "
                 + "nor in the App Library list"
                 + (sawUnnamedRow ? " (the list had rows without a name; the visible category folders "
-                    + "were opened too)" : ""))
+                    + "were opened too)" : "")
+                + appIconRemovedByScenarioNote(iconName: appIconName, appDisplayName: core.appDisplayName,
+                                               stoppedCommand: core.executor.appUnderTestStoppedCommand))
         }
 
         try await driver.home()
@@ -757,7 +767,9 @@ public func tapAppIcon(_ appIconName: String? = nil,
                     return
                 }
                 try await failIfSystemAlertInFront()
-                throw FTCommandError.message("App icon not found.(\(appIconName))")
+                throw FTCommandError.message("App icon not found.(\(appIconName))"
+                    + appIconRemovedByScenarioNote(iconName: appIconName, appDisplayName: core.appDisplayName,
+                                                   stoppedCommand: core.executor.appUnderTestStoppedCommand))
             }
         }
     }

@@ -284,7 +284,10 @@ public struct InAppLauncher: Sendable {
             "--domain-type", "appDataContainer", "--domain-identifier", bundleID,
             "--json-output", "-", "-q",
         ], timeout: 120)
-        guard result.status == 0 else { throw InAppLauncherError.launchFailed("devicectl copy to failed:\n\(result.tail)") }
+        guard result.status == 0 else {
+            let message = "devicectl copy to failed:\n\(result.tail)"
+            throw Self.copyFailure(message, output: result.output)
+        }
         guard let data = result.output.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let r = json["result"] as? [String: Any],
@@ -352,6 +355,11 @@ public struct InAppLauncher: Sendable {
         guard result.status == 0 else {
             throw Self.launchFailure(tail: result.tail, bundleID: bundleID, udid: udid)
         }
+    }
+
+    /// 実機の `copy to` の失敗の分類。devicectl のエラーのドメインがコンテナ不在なら入っていないと名指す(取れなければ従来の文)
+    static func copyFailure(_ message: String, output: String) -> InAppLauncherError {
+        DevicectlErrorDomains.indicatesNotInstalled(output) ? .appNotInstalled(message) : .launchFailed(message)
     }
 
     /// Simulator の起動失敗の分類。**失敗の経路でだけ**インストールの有無を照会する(終了コードで判定。確かめられなければ従来の文)

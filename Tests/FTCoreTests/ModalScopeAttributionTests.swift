@@ -22,7 +22,7 @@ final class ModalScopeAttributionTests: XCTestCase {
             droppedCount: 3, frames: [FTRect(x: 20, y: 300, width: 362, height: 200)]))))
         XCTAssertTrue(hint.contains("(20,300 362x200)"))
         XCTAssertTrue(hint.contains("3 element group(s)"))
-        XCTAssertTrue(hint.contains("Close the modal"))
+        XCTAssertTrue(hint.contains("close the modal"))
         XCTAssertTrue(hint.contains("waiting will not bring"))
         XCTAssertFalse(hint.lowercased().contains("hidekeyboard"))
     }

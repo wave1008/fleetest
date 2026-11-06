@@ -438,9 +438,11 @@ extension StepExecutor {
     func nonTextInputPreflightRefusal(_ element: ElementInfo, in elements: [ElementInfo],
                                       action: String) -> String? {
         let verdict = TapTargetGeometry.typeTargetVerdict(element, in: elements)
-        // Android の staticText = 押せない TextView / 葉のテキスト(押せる要素は "clickable" に写る = OTP の箱は断らない)。
+        // staticText = 押せない TextView / 葉のテキスト(Android。押せる要素は "clickable" に写る = OTP の箱は断らない)・iOS の押せない Text /
+        // UILabel。**iOS でも入力欄は staticText で来ない**(in-app = UITextField/UITextView のクラスとテキスト入力 trait を staticText の trait より先に
+        // 見る = InAppSnapshot.elementType・XCUITest = elementType が textField / textView)ので、断ってよい。
         // 押して焦点の接続を探しても入力欄ではなく、4 秒待って「target node not found」と事実と違う理由で落ちていた
-        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false) {
+        if action == "type", element.type == "staticText", verdict == .notATextField(positively: false) {
             return "the target is a staticText, not a text field — refusing before anything is typed"
                 + " (it is display-only text that cannot take input). Point the selector at the input field itself."
         }
@@ -560,9 +562,9 @@ extension StepExecutor {
         guard let scope = snapshot.modalScope, scope.droppedCount > 0 else { return nil }
         let frames = scope.frames.prefix(2).map { "(\(Int($0.x)),\(Int($0.y)) \(Int($0.width))x\(Int($0.height)))" }
             .joined(separator: ", ")
-        return " — a modal view (accessibilityViewIsModal) at \(frames) is open, and \(scope.droppedCount) element group(s) outside it are"
-            + " left out of the tree; the target is probably behind it, not under the keyboard. Close the modal (dismiss the dialog)"
-            + " before acting on what is behind it — waiting will not bring the target back"
+        return " — a modal view (accessibilityViewIsModal) at \(frames) is open and left \(scope.droppedCount) element group(s) out of"
+            + " the tree; if the target is behind it, close the modal (dismiss the dialog) first — waiting will not bring back"
+            + " what is behind it"
     }
 
     /// `resolveAfterClosingKeyboard` の結果。呼び手(`StepExecutor+Actions`)が失敗文を決める

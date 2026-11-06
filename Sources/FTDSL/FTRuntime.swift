@@ -485,7 +485,10 @@ public final class FTDriveCore {
     /// 失敗時に「アプリより手前にある別プロセスの window」を問い合わせる(Android のみ設定される)。
     /// adb を叩くので FTAndroid を見られる FTScenarioRunner が注入する(FTDSL は FTAndroid に依存しない)
     /// 引数は最後に起こしたアプリの bundleID(撃つ前の門と同じ基準で比べるため。無ければ nil)
-    public var foregroundOverlays: (@Sendable (_ lastLaunchedApp: String?) -> [String])?
+    public var foregroundOverlays: (@Sendable (_ lastLaunchedApp: String?) -> [String])? {
+        // 見つからない失敗の本文がアプリ自身のダイアログを名指すのに、実行機も同じ窓の行を読む(StepExecutor.ownDialogHint)
+        didSet { executor.foregroundWindowLines = foregroundOverlays }
+    }
     /// 失敗時に「アプリの process が生きているか」を問い合わせる(Android と iOS Simulator で設定される。
     /// foregroundOverlays と同じ注入元・同じ理由)。戻り値は表示行(空 = 言うことなし)
     /// 引数 = 居なかったときに .ips の無い死(`AppCrashEvidence.processGone`)を記録してよいか(`appUnderTestLife == .launched` =

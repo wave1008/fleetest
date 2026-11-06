@@ -18,6 +18,7 @@ public final class InAppDriver: AppDriver {
     /// 生死の照会の差し替え口(テスト用。nil なら simctl)
     var appRunningProbe: (@Sendable (String) async -> Bool?)?
     /// テスト用: terminate を撃った後の状態にする
+    func setLastBundleIDForTest(_ id: String) { lastBundleID = id }
     func markStoppedForTest(bundleID: String) { lastBundleID = bundleID; stoppedBySession = true }
 
     /// **simulatorUDID を渡し切る**: install/uninstall/clearAppData は simctl 経路で、宛先を
@@ -79,6 +80,12 @@ public final class InAppDriver: AppDriver {
     }
     public func uninstall(bundleID: String) async throws {
         try await withCrashContext { try await client.uninstall(bundleID: bundleID) }
+        // 操作中のアプリを消すとプロセスごと消える = terminate と同じく「このセッションが止めた」(続く接続断をクラッシュと言わない)。
+        // 別のアプリを消したときは操作中のアプリに影響しないので立てない
+        noteUninstalled(bundleID: bundleID)
+    }
+    func noteUninstalled(bundleID: String) {
+        if bundleID == lastBundleID { stoppedBySession = true }
     }
     /// in-app ブリッジは自分自身の active/bundleID しか知らないので、判定はブリッジ側の
     /// /appstate ハンドラに一本化してある(InAppBridge.handleAppState)。ここは HTTP 委譲のみ

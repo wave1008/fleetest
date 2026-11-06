@@ -530,7 +530,7 @@ tap・長押し・`doubleTap`・ドラッグの始点は撃たずに失敗し、
 - 手前の窓が背面を木から落としたとき(`SnapshotResponse.coveredByFrontWindow`):
   `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window (dismiss the dialog or sheet) before acting on what is behind it — waiting will not bring the target back`
 - `accessibilityViewIsModal` のモーダルが外側を木から外したとき(`SnapshotResponse.modalScope`):
-  `a modal view (accessibilityViewIsModal) at (x,y WxH) is open, and N element group(s) outside it are left out of the tree; the target is probably behind it, not under the keyboard. Close the modal (dismiss the dialog) …`(キーボードのせいとは言わず、キーボードを閉じる tap も撃ちません)
+  `a modal view (accessibilityViewIsModal) at (x,y WxH) is open and left N element group(s) out of the tree; if the target is behind it, close the modal (dismiss the dialog) first …`(キーボードのせいとは言わず、キーボードを閉じる tap も撃ちません)
 
 この申告ができるのは **in-app ブリッジ(inapp-boost モード)だけ**です。xcuitest モード・Android・古いブリッジの木には申告が無く、従来の「見つからない」の案内のままです。
 

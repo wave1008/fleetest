@@ -574,8 +574,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the app was not running, so after finding its icon this launched the app with the in-app bridge"
                 + " instead of tapping the icon — an app started from its icon has no in-app bridge in inapp-boost mode"
         case .absenceCheckedOnAnotherApp:
-            return "this absence check read a screen whose foreground app is not the app under test (another app launched by the scenario"
-                + " is in front) — it says nothing about the app under test; bring that app back first if it was the one meant"
+            return "this absence check read a screen whose foreground app is not the app under test — it says nothing about the"
+                + " app under test; bring that app back first if it was the one meant"
         case .ordinalWithoutScope:
             return "this selector picks by position ([n]) without a container scope — on iOS the in-app tree (inapp-boost mode) and the"
                 + " XCUITest tree (xcuitest mode, MCP) order elements differently, so the same [n] can be another element there;"

@@ -40,6 +40,24 @@ extension StepExecutor {
             + " find it. Bring the app back first (tapAppIcon() or launchApp())"
     }
 
+    /// `AndroidForegroundWindows.ownDialogs` が窓の名前に付ける語尾(片方だけ変えない)
+    static let ownDialogWindowMarker = "(the app's own dialog window)"
+
+    /// **対象アプリ自身のダイアログが手前にあるとき、見つからない失敗で待ちを勧めず、そのダイアログを名指す**(ダイアログの窓は
+    /// 木に載らず、裏の要素が解決できない = 待っても出ない。8/8: `waitSeconds:` を勧めていた)。申告が無い・引けないときは nil(従来の文)。
+    /// 「裏にある」とは言い切らない(木は窓を跨いで読まれるので、対象がダイアログの中にある場合もある)
+    static func ownDialogHint(windows: [String]) -> String? {
+        let own = windows.filter { $0.hasSuffix(ownDialogWindowMarker) }
+        guard !own.isEmpty else { return nil }
+        return " — the app's own dialog window is in front of the screen (\(own.joined(separator: ", "))); if the target is behind it,"
+            + " close the dialog first — waiting will not bring back what is behind it"
+    }
+
+    func ownDialogHint() -> String? {
+        guard isAndroid, let lines = foregroundWindowLines else { return nil }
+        return Self.ownDialogHint(windows: lines(lastLaunchedAppBundleID))
+    }
+
     func leftForegroundHint() async -> String? {
         guard isAndroid, appMayHaveLeft, let prober = foregroundProber, let bundleID = lastLaunchedAppBundleID else { return nil }
         let candidates = [bundleID] + [appUnderTestBundleID].compactMap { $0 }.filter { $0 != bundleID }
@@ -765,7 +783,7 @@ extension StepExecutor {
                 }
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
                 // モーダルの申告は leftHint と同じ位置で先に採る(window の覆いの案内より具体的)
-                let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot)
+                let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot) ?? ownDialogHint()
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")

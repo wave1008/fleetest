@@ -373,6 +373,10 @@ public final class StepExecutor {
     /// 起こしたアプリのプロセスが居るか(Android のみ注入。nil = 聞けない = 断らない)。`AppProcessGone` が木の持ち主が違うときだけ呼ぶ。
     /// 注入元: DSL = ScenarioRunnerMain(FTRuntime 経由)/ MCP = ft_batch・ft_scroll_to の executor
     public var appProcessRunning: (@Sendable (String) async -> Bool?)?
+    /// 失敗時に「アプリより手前の窓」の表示行を引く(Android のみ注入。`FTDSL.FTRuntime.foregroundOverlays` と同じ注入元・同じ引数 =
+    /// 最後に起こしたアプリ)。**対象アプリ自身のダイアログの窓は `ownDialogWindowMarker` で終わる行**(`AndroidForegroundWindows.ownDialogs`。
+    /// 文言の一致は `OwnDialogWindowMarkerPinTests` が固定)。nil = 引けない(従来の文)
+    public var foregroundWindowLines: (@Sendable (_ lastLaunchedApp: String?) -> [String])?
     /// このステップが解決に読んだ木の持ち主(`freshSnapshot` / `assertionSnapshot` が最後に読んだもの)。execute の入口で戻す
     var lastTreeOwnerThisStep: String?
 
@@ -870,6 +874,7 @@ public final class StepExecutor {
         slowDragsThisStep = nil
         gestureDeliveredThisStep = false
         noteCodesThisStep = []
+        absenceReadWhileStoppedThisStep = nil
         firstFrameBlankObserved = false
         failureKindThisStep = nil
         failureKindWithheldThisStep = false
@@ -884,6 +889,9 @@ public final class StepExecutor {
         if !isAndroid, step.locator?.hasUnscopedOrdinal == true { noteCodesThisStep.insert(.ordinalWithoutScope) }
         // デバイスに触る前に断る(アクションも検証も通る入口。秒数の型へ変える所が下流に散っている)
         if let violation = step.secondsArgumentViolation {
+            return StepOutcome(status: .failed(violation))
+        }
+        if let violation = step.linkTextArgumentViolation {
             return StepOutcome(status: .failed(violation))
         }
         if let refusal = await appLeftRefusal(step: step) {
@@ -980,6 +988,10 @@ public final class StepExecutor {
                    Self.absenceReadAnotherApp(isAndroid: isAndroid, step: step, owner: lastTreeOwnerThisStep,
                                               appUnderTest: appUnderTestBundleID) {
                     noteCodesThisStep.insert(.absenceCheckedOnAnotherApp)
+                    // 対象アプリをこのシナリオが止めたまま = 前面の別アプリは「シナリオが起こした」ものではない(事実を言い直す)
+                    if appUnderTestStopped, let owner = lastTreeOwnerThisStep {
+                        absenceReadWhileStoppedThisStep = (owner, appUnderTestStoppedCommand)
+                    }
                 }
                 status = await annotatedWithSystemAlert(status, phase: &phase)
                 status = await noteLandscapeWithoutRotate(onFailure: status)
@@ -1198,7 +1210,7 @@ public final class StepExecutor {
         // **Android は否定の検証と条件の判定だけを断る**: Android の木は前面の画面そのもの(iOS の in-app のように背面のアプリの木を
         // 読まない)なので、肯定の読み・操作は前面の画面に対して事実どおりに効く(ランチャーのアイコンを押す・読むのは人にもできる。
         // 全部を断ると「a person could not either」が事実と逆だった = 24周目 amax F1)。誤った成功になるのは「無い」で通る側だけ
-        if fallbackDriver == nil, !Self.passesOnAbsence(step) { return nil }
+        if fallbackDriver == nil, !Self.passesOnAbsence(step), !(await scrollSendWouldHitOtherApp(step)) { return nil }
         // 前面へ戻る途中(openURL の直後等)を断らない: ステップの待ちの上限まで聞き直す(0.5 秒おき)
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let candidates = [bundleID] + [appUnderTestBundleID].compactMap { $0 }.filter { $0 != bundleID }
@@ -1275,15 +1287,31 @@ public final class StepExecutor {
     /// 断るのは全部がそろったときだけ: 止めたまま・プロセスが居ないと答えた・対象が今の木に無い。**今の木にある対象は撃つ**
     /// (ランチャーのアイコンをラベルで押す等は人にもできる)・否定の検証は断らない(止めたアプリの要素が無いのは事実)
     func stoppedAppRefusal(step: FlowStep) async -> String? {
-        guard isAndroid, appUnderTestStopped, let bundleID = appUnderTestBundleID, step.locator != nil,
-              !Self.passesOnAbsence(step) else { return nil }
+        guard isAndroid, appUnderTestStopped, let bundleID = appUnderTestBundleID,
+              step.locator != nil || Self.sendsScrolls(step), !Self.passesOnAbsence(step) else { return nil }
         if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
         guard let running = appProcessRunning, await running(bundleID) == false,
               let tree = try? await driver.snapshot(),
-              LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
-        return "The app under test (\(bundleID)) is not running — this scenario stopped it — so this step did not look for"
-            + " its element (scrolling or waiting would only move whatever is in front). "
+              step.locator == nil || LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
+        let what = step.locator == nil
+            ? "this step sent nothing (a scroll would only move whatever is in front)"
+            : "this step did not look for its element (scrolling or waiting would only move whatever is in front)"
+        return "The app under test (\(bundleID)) is not running — this scenario stopped it — so \(what). "
             + StoppedAppAdvice.startAgain(afterStopping: appUnderTestStoppedCommand)
+    }
+
+    /// 送り(`scrollDown()` 等 = scroll・`scrollToBottom()` 等 = scrollToEdge・`scrollTo`)。前面がアプリでないときに撃つと別のアプリの面を動かす
+    static func sendsScrolls(_ step: FlowStep) -> Bool {
+        ["scroll", "scrollToEdge", "scrollTo"].contains(step.action ?? "")
+    }
+
+    /// Android で、この送りが対象アプリでない面を動かすか。対象を持たない送り(scroll・scrollToEdge)は常に。`scrollTo` は
+    /// 今の木に対象が無く送りが要るときだけ(あれば送らずに着く)。木が読めないときは false(推測で断らない)
+    func scrollSendWouldHitOtherApp(_ step: FlowStep) async -> Bool {
+        guard isAndroid, Self.sendsScrolls(step) else { return false }
+        if step.action != "scrollTo" || step.locator == nil { return true }
+        guard let tree = try? await driver.snapshot() else { return false }
+        return LocatorResolver.resolve(step: step, in: tree) == nil
     }
 
     /// 対象が「無い」ことで通る(または分岐が決まる)ステップ: notExist・countIs 0・条件の判定(`canSelect` の門の
@@ -1318,7 +1346,21 @@ public final class StepExecutor {
     /// レポート・コンソールに出ない(`note(_:into:)` を通らない経路で立てる注記)
     static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp]
     private func readerNotesText() -> String? {
-        Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map(\.text).joined(separator: " / "))
+        Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map { note in
+            if note == .absenceCheckedOnAnotherApp, let stopped = absenceReadWhileStoppedThisStep, let app = appUnderTestBundleID {
+                return Self.absenceReadWhileStoppedText(appUnderTest: app, owner: stopped.owner, command: stopped.command)
+            }
+            return note.text
+        }.joined(separator: " / "))
+    }
+
+    /// このステップの「無い」の検証が、止めたままの対象アプリでなく別のアプリの木を読んだ(`absenceCheckedOnAnotherApp` の事実を
+    /// 持ち主付きで言い直す。コードは同じ)。合否は変えない = 止めたアプリの要素が無いのは事実(OI-182)
+    var absenceReadWhileStoppedThisStep: (owner: String, command: String?)?
+    static func absenceReadWhileStoppedText(appUnderTest: String, owner: String, command: String?) -> String {
+        "the app under test (\(appUnderTest)) was stopped by this scenario (\(command ?? "terminateApp")()) and has not been started"
+            + " since, so this absence check read the screen of \(owner) — it says nothing about the app under test."
+            + " \(StoppedAppAdvice.startAgain(afterStopping: command)) if it was the one meant"
     }
 
     private func collectedNotes() -> [StepNote] {
