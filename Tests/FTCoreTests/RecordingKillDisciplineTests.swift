@@ -146,7 +146,9 @@ final class RecordingKillDisciplineTests: XCTestCase {
         }
         let path = started.path
         let stopped = await IOSSimulatorVideoRecorder.interruptRecorder(
-            process, started: { FileManager.default.fileExists(atPath: path) }, grace: 3)
+            // 猶予は止まらないときに打ち切るためだけ。偽の録画の無視の間(外部の sleep 12 回)は 22 並列の全体テストの負荷で
+            // 3 秒を超え、撮り始める前に締め切りが来た回があった
+            process, started: { FileManager.default.fileExists(atPath: path) }, grace: 15)
         XCTAssertTrue(stopped, "撮り始める前に無視された SIGINT を送り直し、撮り始めた後に止めるはず")
     }
 }

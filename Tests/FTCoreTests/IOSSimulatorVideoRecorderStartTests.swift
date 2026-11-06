@@ -222,7 +222,9 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
                                                  startConfirmLimit: 0.3, stopGraceLimit: 0.3, clock: clock.now,
                                                  watcherExecutable: try fleetestBinary())
         let starting = Task { await recorder.start() }
-        try await expectEventually(10, "part1 の偽 client が準備を終えるはず") { self.exists(dir.appendingPathComponent("ready-src.mov")) }
+        // 上限は届かないときに打ち切るためだけ。part1 の前に古い録画の掃除と試し撮りがあり、22 並列の全体テストの負荷では
+        // それだけで 10 秒を超えた回があった(同じ回の testSmokeRecordingWaitsForTheRecorderToStart が通って 10.6 秒)
+        try await expectEventually(30, "part1 の偽 client が準備を終えるはず") { self.exists(dir.appendingPathComponent("ready-src.mov")) }
         clock.release()
         let started = await DeadlineRace.first(seconds: 20, onTimeout: Bool?.none) { await starting.value }
         XCTAssertEqual(started, true, "part1 は期限切れで見張りへ渡り、part2 が撮り始めるはず")
