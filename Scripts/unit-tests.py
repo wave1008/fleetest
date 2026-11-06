@@ -11,12 +11,15 @@
 #     テスト側で状態を捨てて直す(例: CheckStateClassifierTests の invokeTest)
 #   - 一覧(swiftpm-xctest-helper)にあって終わった行が出ないテストは失敗に数える(プロセスが途中で落ちた等を黙って緑にしない)
 #   - Swift Testing(`import Testing`)は xctest では回らないので、Tests に現れたら断る
+#   - 毎回の所要・合否は .fleetest/unit-test-history.ndjson に1行ずつ追記する(ビルドの失敗も1行)
 # 使い方: FT_FULL_TEST=1 Scripts/unit-tests.py [--jobs N] [--skip-build]
 import argparse, concurrent.futures as cf, glob, json, os, re, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DURATIONS = os.path.join(ROOT, ".fleetest", "unit-test-durations.json")
 LOG_DIR = os.path.join(ROOT, ".fleetest", "unit-tests")
+# 毎回の所要を1行ずつ追記する(LOG_DIR は毎回消すので外に置く)。欄は append_history の dict
+HISTORY = os.path.join(ROOT, ".fleetest", "unit-test-history.ndjson")
 CASE_END = re.compile(r"^Test Case '-\[(\w+)\.(\w+) (\w+)\]' (passed|failed|skipped) \(([0-9.]+) seconds\)", re.M)
 
 
@@ -47,6 +50,19 @@ def list_bundle(helper, bundle, out_dir):
                 walk(c)
     walk(json.load(open(out)))
     return found
+
+
+def append_history(record):
+    record = {"startedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **record}
+    head = run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
+    dirty = run(["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True)
+    if head.returncode == 0:
+        record["head"] = head.stdout.strip()
+    if dirty.returncode == 0:
+        record["dirty"] = bool(dirty.stdout.strip())
+    os.makedirs(os.path.dirname(HISTORY), exist_ok=True)
+    with open(HISTORY, "a") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def build_jobs(classes, bundles_of, durations, workers):
@@ -95,8 +111,11 @@ def main():
             os.path.relpath(p, ROOT) for p in swift_testing[:5]))
 
     t0 = time.time()
+    started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     if not args.skip_build:
         if run(["swift", "build", "--build-tests"]).returncode != 0:
+            append_history({"startedAt": started, "jobs": args.jobs, "result": "build-failed",
+                            "buildSeconds": round(time.time() - t0, 1)})
             sys.exit("build failed")
     t_build = time.time() - t0
 
@@ -182,6 +201,13 @@ def main():
           f" {len(crashed)} processes exited non-zero without a failed test;"
           f" build {t_build:.1f}s, tests {time.time() - t1:.1f}s, total {time.time() - t0:.1f}s")
     ok = not failed and not missing and not crashed and len(executed) == expected_total
+    append_history({"startedAt": started, "jobs": args.jobs, "skipBuild": args.skip_build,
+                    "result": "passed" if ok else "failed",
+                    "buildSeconds": None if args.skip_build else round(t_build, 1),
+                    "testSeconds": round(time.time() - t1, 1), "totalSeconds": round(time.time() - t0, 1),
+                    "tests": expected_total, "executed": len(executed), "processes": len(jobs),
+                    "failed": len(failed), "didNotFinish": len(missing), "crashedProcesses": len(crashed),
+                    "slowest": [[s, round(w, 1)] for w, s in slow[:5]]})
     sys.exit(0 if ok else 1)
 
 
