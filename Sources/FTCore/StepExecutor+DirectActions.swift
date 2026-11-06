@@ -786,6 +786,7 @@ extension StepExecutor {
             if !step.skipsSettle {
                 keyboardFrameBeforeType = keyboardBefore
                 pendingTypeKeyboardCheck = true
+                keyboardWaitFollowsFieldTap = false
                 pendingTypeEndedWithNewline = text.hasSuffix("\n")
             }
             return StepOutcome(status: .passed,
@@ -818,6 +819,14 @@ extension StepExecutor {
         // **改行(IME アクション)で焦点は次の欄へ移りうる** —— 叩いた欄を覚えたままだと、続くロケータなしの type が
         // 「焦点が木に無い」(次の欄がキーボードの下)を救済の対象と読んで、叩いた欄(移る前の欄)へ打つ
         if text.contains("\n") { lastTapTarget = nil }
+        else if isAndroid, !text.isEmpty {
+            // 改行を含む打鍵は IME アクションで焦点が移りうるので見ない。1枚読むのは Android の改行なしの打鍵だけ
+            let readStart = clock.now
+            if let after = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) {
+                phase.snapshotMs += Self.ms(clock.now - readStart)
+                if TypeFocusConfirmation.verdict(after) != .reported { noteCodesThisStep.insert(.typeFocusNotReported) }
+            }
+        }
         return StepOutcome(status: .passed, driverFallback: Self.joinNotes(replaceFallbackNote, focusNote))
     }
 
@@ -825,6 +834,14 @@ extension StepExecutor {
     // と同じ理由でロケータ解決を挟まない。409(inapp が Compose 以外の入力欄/フォーカス無しで
     // 出す。InAppBridge.handlePressEnter 参照)は type のロケータ版と同じ形で
     // typeDriver(xcuitest)へフォールバックする(判定は DriverError.isTextInputFallback)
+    /// フォーカス中の欄への操作を 409 で断られ、引き受け直す相手も無いときの失敗文。構成の事実だけを言う
+    /// (Android に in-app / XCUITest ブリッジは無い)。clearInput の同じ経路も共有する
+    static func focusedFieldRefusal(_ operation: String, isAndroid: Bool) -> String {
+        isAndroid
+            ? "the Android bridge refused to \(operation) the focused field (HTTP 409)"
+            : "the in-app bridge refused to \(operation) the focused field (HTTP 409), and no XCUITest bridge is available to retry"
+    }
+
     func executeDirectPressEnter(phase: inout PhaseAccumulator) async throws -> StepOutcome {
         await noteRefLessInputOnOtherApp()
         let clock = ContinuousClock()
@@ -835,7 +852,7 @@ extension StepExecutor {
         } catch {
             guard DriverError.isTextInputFallback(error) else { throw error }
             guard let td = typeDriver else {
-                return StepOutcome(status: .failed("the in-app bridge refused to press Enter in the focused field (HTTP 409), and no XCUITest bridge is available to retry"))
+                return StepOutcome(status: .failed(Self.focusedFieldRefusal("press Enter in", isAndroid: isAndroid)))
             }
             try await td.pressEnter()
             phase.actionMs += Self.ms(clock.now - start)

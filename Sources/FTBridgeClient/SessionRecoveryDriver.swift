@@ -187,6 +187,10 @@ public final class SessionRecoveryDriver: AppDriver {
         await base.hitTest(query: query)
     }
 
+    public func observationSnapshot() async throws -> SnapshotResponse {
+        try await withRecovery { try await self.base.observationSnapshot() }
+    }
+
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         normalizedWrapperScroll(try await withAccessibilityRetry {
             try await self.withRecovery { try await self.base.snapshot(bypassingCache: bypassingCache) }

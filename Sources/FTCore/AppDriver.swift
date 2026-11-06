@@ -106,6 +106,10 @@ public protocol AppDriver {
     /// キャッシュを捨てて撮り直す。**プロトコル要件として宣言すること**(extension だけに置くと
     /// 存在型越しの呼び出しが静的ディスパッチで既定実装に落ち、実装したドライバが無視される)
     func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse
+    /// **操作の前後を比べる観測用の読み**(DSL の back() が前後で効果を判定する)。画面ごとに経路を切り替える・読めるまで待つドライバ
+    /// (`WebViewDelegatingDriver`: tap の直後の WebView 画面は XCUITest へ委譲して最大 5 秒撮り直す)でも、前後とも**同じ経路の生の木**を
+    /// 待たずに返す。ref は操作に使えない(読み取り専用)。既定は `snapshot()`。**プロトコル要件として宣言し、ラッパーは転送すること**
+    func observationSnapshot() async throws -> SnapshotResponse
     /// **その ref を撃つと本当にそれに当たるか**をプラットフォームに聞く(iOS の XCUITest だけが
     /// 答えられる。`XCUIElement.isHittable` はヒットテストそのもの)。
     /// nil = 「答えられない」(未対応のドライバ・引き当て不能)で、呼び手は何も言わない。
@@ -673,6 +677,10 @@ public extension AppDriver {
     /// iOS 系は鮮度問題を持たないので既定の素通しでよい。
     /// **ラッパードライバを足すときは転送すること**(素通しのままだと最内の Android へ届かない)
     func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
+        try await snapshot()
+    }
+
+    func observationSnapshot() async throws -> SnapshotResponse {
         try await snapshot()
     }
 

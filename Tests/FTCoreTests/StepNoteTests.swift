@@ -36,6 +36,8 @@ final class StepNoteTests: XCTestCase {
         XCTAssertEqual(StepNote.ocrCompileCapped.rawValue, "ocr-compile-capped")
         XCTAssertEqual(StepNote.settledAfterKeyboard.rawValue, "settled-after-keyboard")
         XCTAssertEqual(StepNote.keyboardNotShownAfterType.rawValue, "keyboard-not-shown-after-type")
+        XCTAssertEqual(StepNote.keyboardNotShownAfterTap.rawValue, "keyboard-not-shown-after-tap")
+        XCTAssertEqual(StepNote.typeFocusNotReported.rawValue, "type-focus-not-reported")
         XCTAssertEqual(StepNote.keyboardAppearedLate.rawValue, "keyboard-appeared-late")
         XCTAssertEqual(StepNote.actedOutsideContainer.rawValue, "acted-outside-container")
         XCTAssertEqual(StepNote.unchangedTapBeforeFailure.rawValue, "unchanged-tap-before-failure")

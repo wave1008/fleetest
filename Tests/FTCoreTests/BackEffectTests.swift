@@ -105,24 +105,6 @@ final class BackEffectTests: XCTestCase {
         XCTAssertFalse(BackEffect.stayedOnSameScreen(before: sparse, after: sparse), "識別子が少ない画面では言えない")
     }
 
-    /// WebView 画面: before は委譲(XCUITest)の木・after は in-app の DOM の木(識別子が増える)でも同じ画面と言う
-    func testDelegatedBeforeAndDomAfterCompareBySubset() {
-        var before = snap([idEl("btn_back", "戻る"), idEl("txt_screen_title", "WebView"), idEl("wv_container", "")])
-        before.webViewPath = WebViewPath.delegated
-        var after = snap([idEl("btn_back", "戻る"), idEl("txt_screen_title", "WebView"), idEl("wv_container", ""),
-                          idEl("wv_title", "見出し"), idEl("wv_text", "本文")])
-        after.webViewPath = WebViewPath.dom
-        XCTAssertTrue(BackEffect.stayedOnSameScreen(before: before, after: after))
-        // 経路が同じなら従来どおり集合の等しさ(増えていれば別の画面)
-        before.webViewPath = nil
-        after.webViewPath = nil
-        XCTAssertFalse(BackEffect.stayedOnSameScreen(before: before, after: after))
-        // 経路が違っても、before の識別子が after に残っていなければ戻っている
-        before.webViewPath = WebViewPath.delegated
-        let home = snap([idEl("txt_home_marker", "ホーム"), idEl("nav_gesture", "a"), idEl("nav_input", "b"), idEl("wv_container", "")])
-        XCTAssertFalse(BackEffect.stayedOnSameScreen(before: before, after: home))
-    }
-
     /// Android の最初の画面での back: 木の持ち主が対象アプリからランチャーへ替わった
     func testLeftTheAppWhenTheTreeOwnerIsNoLongerTheApp() {
         let app = "com.ftester.e2e.android"

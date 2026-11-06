@@ -1163,7 +1163,7 @@ public final class FTDriveCore {
                 negativeOnlyIDs[id] = nil
             } else if isNegative, succeeded, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
                 // **通った否定だけ**を積む(提案の前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で読まなかった)に
-                // 「綴りを確かめろ」と言うと事実と逆になった(16周目 im4 F2 = OI-175 ②・22周目 iultra F1)
+                // 「綴りを確かめろ」と言うと事実と逆になった(16周目 im4 F2・22周目 iultra F1)
                 negativeOnlyIDs[id] = description
             }
         }
@@ -1644,6 +1644,14 @@ public final class FTDriveCore {
     /// 失敗でないステップが入ると解ける(別の操作がアプリを起こしうる)。**失敗したステップでは解かない** ——
     /// 失敗の直後に呼ばれる `handleFailure` が「止めたのはこのシナリオ」と言えるように
     private var _appStoppedByScenario = false
+    /// 直近に記録した2つのステップが「注記 back-left-app の back()」だったか(stateLock で守る)。失敗の ⚠️ が「直前の back() がアプリを抜けた」と
+    /// 名指す材料。`recordStep` は失敗したステップ自身も記録してから `handleFailure` を呼ぶので、読むのは1つ前(`...Previous`)
+    private var _lastStepWasBackLeftApp = false
+    private var _stepBeforeLastWasBackLeftApp = false
+    var precedingStepWasBackLeftApp: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return _stepBeforeLastWasBackLeftApp
+    }
     var appStoppedByScenario: Bool {
         stateLock.lock(); defer { stateLock.unlock() }
         return _appStoppedByScenario
@@ -1869,6 +1877,8 @@ public final class FTDriveCore {
         stateLock.lock()
         defer { stateLock.unlock() }
         stepCounter += 1
+        _stepBeforeLastWasBackLeftApp = _lastStepWasBackLeftApp
+        _lastStepWasBackLeftApp = command == "back" && notes.contains(.backLeftApp)
         if case .failed = status {} else if let command {
             if command == "terminateApp" {
                 if case .passed = status { _appStoppedByScenario = true }
@@ -2070,8 +2080,11 @@ public final class FTDriveCore {
             return true
         }
         if recorded {
+            // 直前のステップが、アプリを抜けた back()(注記 back-left-app)なら、その事実を添える
+            let afterBack = precedingStepWasBackLeftApp
+                ? " — the preceding back() left the app (a back on its first screen exits to the launcher)" : ""
             emit(.log("⚠️ Another window is in front of the app: \(overlays.joined(separator: ", "))"
-                      + " (interactions may have been swallowed by it)"))
+                      + " (interactions may have been swallowed by it)\(afterBack)"))
         }
     }
 

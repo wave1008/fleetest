@@ -633,7 +633,7 @@ extension MCPServer {
     /// キーボードが出ている(= 入力接続がある)か木が空のとき(横向きの全画面 IME・WebView の中の欄・木に載らない隠れた入力欄)は、
     /// 入っていても焦点が木に出ない —— 警告すると読み手が打ち直して二重に入力する。確かめられなかった事実だけを言う
     static func noFocusNote(_ snapshot: SnapshotResponse) -> String {
-        if KeyboardWait.isShown(snapshot) || snapshot.elements.isEmpty || snapshot.elements.contains(where: { $0.type == "webView" }) {
+        if TypeFocusConfirmation.verdict(snapshot) != .nowhere {
             return " (no element reports input focus in the tree (keyboard up, tree empty or a WebView on screen), so where the text went could not"
                 + " be confirmed — the field may be hidden from the tree: full-screen keyboard, WebView, hidden input; check the screen)"
         }

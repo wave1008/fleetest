@@ -143,6 +143,9 @@ extension StepExecutor {
         /// 打ち切りの時点では戻っていても「途中で奪われて戻った」形が端と読まれるのを避けるため、事実として失敗文と注記に添える(判定は変えない。
         /// 既に撮った木を見るだけで照会は足さない)
         var ownerChangedDuringSearch: (bundleID: String, round: Int)? = nil
+        /// 探索の**始点の木**が、起こしたアプリでなく別のアプリのもの(`startedOnOtherApp`)だったときの、その持ち主と起こしたアプリ。
+        /// 途中で替わったのではなく始めからだった、という事実を失敗文に添える(判定は変えない)。始点がこれなら逆走査は撃たない
+        var startedOnOtherApp: (owner: String, launched: String)? = nil
         /// 見つけた要素(found のときだけ)。scrollTo が「掴んだ要素」として返す
         /// (無いと DSL の `scrollTo` が lastElement を空で上書きしていた)
         var element: ElementInfo? = nil
@@ -225,6 +228,7 @@ extension StepExecutor {
                 + " (\(how) to step within the container instead)")
         }
         if !result.found, let changed = result.ownerChangedDuringSearch { parts.append(ownerChangeFact(changed)) }
+        if !result.found, let started = result.startedOnOtherApp { parts.append(startedOnOtherAppFact(started)) }
         if let scrollFrameNote { parts.append(scrollFrameNote) }
         return parts.isEmpty ? nil : parts.joined(separator: " / ")
     }
@@ -233,6 +237,20 @@ extension StepExecutor {
     static func ownerChangeFact(_ changed: (bundleID: String, round: Int)) -> String {
         "during the search the screen's owner changed to \(changed.bundleID) (round \(changed.round)); the app may have lost the foreground"
             + " and come back, so a stop in an unchanged screen is not proof of the end of the list"
+    }
+
+    /// `ScrollSearchResult.startedOnOtherApp` を失敗文・注記へ添える事実の文
+    static func startedOnOtherAppFact(_ started: (owner: String, launched: String)) -> String {
+        "the search started with the screen owned by \(started.owner), not the app launched (\(started.launched))"
+            + "; no reverse sweep was sent"
+    }
+
+    /// 探索の始点の木の持ち主が、起こしたアプリでなく別のアプリのとき、その持ち主。起こしていない(`launched` が nil)・
+    /// システムのダイアログ(割り込みとして閉じられる)・同じアプリは nil
+    static func startOwnerOtherThanLaunched(treeSession: String?, launched: String?) -> String? {
+        guard let launched, !launched.isEmpty, let treeSession, !treeSession.isEmpty, treeSession != launched,
+              !ForegroundState.systemDialogPackages.contains(treeSession) else { return nil }
+        return treeSession
     }
 
     /// `select` が掴めなかったときの skip 理由。**失敗ではない**(DSL は空要素を返す)ので、
@@ -358,7 +376,8 @@ extension StepExecutor {
               + " \(step.action == "scrollTo" ? "direction" : "scroll"): \(vertical ? ".left / .right" : ".up / .down"))"
             : ""
         let ownerNote = result?.ownerChangedDuringSearch.map { " (\(ownerChangeFact($0)))" } ?? ""
-        return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote)\(ownerNote): \(step.locatorSummary)"
+        let startedNote = result?.startedOnOtherApp.map { " (\(startedOnOtherAppFact($0)))" } ?? ""
+        return "element not found after \(swipes) scroll(s)\(stopped)\(otherAxisNote)\(sweepNote)\(ownerNote)\(startedNote): \(step.locatorSummary)"
             + sheetHint + keyboardHint + scrollFrameHint + loadingWaitHint(step, result)
     }
 
@@ -367,6 +386,15 @@ extension StepExecutor {
     static func loadingWaitHint(_ step: FlowStep, _ result: ScrollSearchResult?) -> String {
         guard result?.stoppedUnmoving == true, step.timeout == nil, result?.appLeftForeground == nil else { return "" }
         return " If the screen was still loading (a skeleton or a trailing spinner), add waitSeconds: so the search waits for more content before stopping."
+    }
+
+    /// 探索(`scroll:`)を撃った手順の「見つからない」に添える待ちの案内(`cannot resolve the locator` の文。呼び手は StepExecutor+Actions)。
+    /// 探索が対象に着いた後に整定の待ちが上限で切れ(`settleCapped`)、撮り直した木で触れなかったなら、`waitSeconds:` を案内せず
+    /// その事実を言う —— `waitSeconds:` は対象を探す待ちで、従っても流れ去った対象は戻らない(12周目 iultra F5)。それ以外は従来の `defaultWaitHint`
+    static func waitHintAfterSearch(_ step: FlowStep, settleCutOff: Bool) -> String {
+        guard step.direction != nil, settleCutOff else { return defaultWaitHint(step) }
+        return ". The scroll search had reached the element, but the screen was still moving when the settle wait ran out"
+            + " and the element was not touchable when the screen was read again; waitSeconds: does not apply"
     }
 
     /// 明示した scrollFrame(rect か解決できる locator)の枠。名指しが無い・解決できないは nil(= 木全体を比べる)。
@@ -878,6 +906,9 @@ extension StepExecutor {
         var searchBundleID: String?
         // 2周目以降の木で、持ち主が基準から変わっていた最初の周回(ScrollSearchResult.ownerChangedDuringSearch)
         var ownerChanged: (bundleID: String, round: Int)?
+        // 始点の木が起こしたアプリでなく別のアプリのものだったときの持ち主(startOwnerOtherThanLaunched)。基準(searchBundleID)は
+        // 起こしたアプリのまま(前面を離れた検知のため)だが、この持ち主のままなのは「途中で替わった」ではない
+        var startedOnOther: String?
         // 途中のアプリの消失を照会した直近の木の持ち主(替わったときだけ照会する)
         var lastCheckedOwner: String?
         // 動いたかの比較(端・弾切れの判定)。**容器の中だけ**を比べる(領域は searchContentRegion: 名指し → 申告された容器 → 形から採った容器) ——
@@ -917,6 +948,7 @@ extension StepExecutor {
                 snapshot = try await consumePendingHideKeyboardWait(snapshot, phase: &phase)
                 searchBundleID = Self.searchBaselineBundleID(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
                 lastCheckedOwner = snapshot.sessionBundleID
+                startedOnOther = Self.startOwnerOtherThanLaunched(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
                 // 始点の木が、プロセスの居ないアプリに代わって前面へ出た別アプリのものなら、その画面を払わず断る(AppProcessGone)
                 if let gone = await appGoneFailure(owner: snapshot.sessionBundleID) {
                     return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
@@ -951,7 +983,7 @@ extension StepExecutor {
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
-               let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base {
+               let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)
             }
             // **割り込みの処理の後も木の持ち主が基準のアプリでなく、前面が探索の対象のアプリでないと確かめられたら、そこで止める**
@@ -1402,6 +1434,7 @@ extension StepExecutor {
                         result.scrollFrameOtherAxis = Self.scrollFrameRunsOtherAxis(
                             step: step, in: confirmed.snapshot, vertical: vertical)
                         result.ownerChangedDuringSearch = ownerChanged
+                        result.startedOnOtherApp = startedOnOther.flatMap { owner in launchedBundleID.map { (owner, $0) } }
                         // 未指定の全画面探索が的外れな案内(シート展開・端到達)を出す前に、
                         // 探索方向に合う宣言済みの容器を名指しできないか確かめる
                         if step.scrollFrame == nil {
@@ -1412,7 +1445,8 @@ extension StepExecutor {
                         // **順方向で1度も動かなかったら逆走査しない**: 逆走査は飛び越しの救済で、動いていなければ
                         // 何も通り過ぎていない。撃つと指定と逆の向きを探す別の機能になり、`scrollTo(direction: .up)` が
                         // 先頭から下の要素を見つけて成功する(「上にある」の確認にならない)
-                        guard contentEverMoved, !frameOtherAxis, recoverOnMiss, step.containerInference ?? true,
+                        // 始点が起こしたアプリでない探索は撃たない(別のアプリの画面を逆向きの遅いドラッグで動かす)
+                        guard startedOnOther == nil, contentEverMoved, !frameOtherAxis, recoverOnMiss, step.containerInference ?? true,
                               // 半開きシートで呼び手が展開・再試行するなら、逆走査はそちらの
                               // 再試行(全画面高)に譲る(defersPartialSheetRecovery の宣言参照)
                               !(defersPartialSheetRecovery && containerIsPartialHeight),
@@ -1493,7 +1527,7 @@ extension StepExecutor {
         let movedByEvidence = contentEverMoved
             && (scrolledContainer != nil || previousSnapshot.flatMap { Self.searchContentRegion(searchStep, in: $0) } != nil)
         // 順方向で1度も動かなかったら撃たない(端で打ち切った側の guard と同じ理由)
-        if movedByEvidence, !frameOtherAxis, recoverOnMiss, step.containerInference ?? true,
+        if startedOnOther == nil, movedByEvidence, !frameOtherAxis, recoverOnMiss, step.containerInference ?? true,
            let latest = previousSnapshot,
            let container = (scrolledContainer ?? Self.overflowingContainer(in: latest))
                .flatMap({ ScrollGeometry.intersection($0, latest.screen) }) {
@@ -1519,6 +1553,7 @@ extension StepExecutor {
         exhausted.reverseSweepDrags = reverseSweepDrags
         exhausted.scrollFrameOtherAxis = frameOtherAxis
         exhausted.ownerChangedDuringSearch = ownerChanged
+        exhausted.startedOnOtherApp = startedOnOther.flatMap { owner in launchedBundleID.map { (owner, $0) } }
         // 最後の払いで動いたときだけ(途中で動いて末尾で止まった探索に「端に着いていない」と言わない)
         exhausted.exhaustedWhileMoving = movedByEvidence && lastSwipeMoved
         if step.scrollFrame == nil, let latest = previousSnapshot {

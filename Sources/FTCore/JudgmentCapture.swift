@@ -7,6 +7,8 @@
 //   - キーボード: 判定に使う木が申告している(`KeyboardWait.isShown`。往復なし)
 //   - システムアラート: CAE フェーズごとに1回 SpringBoard に聞いた答え(`GET /systemalert` 約 73ms)。
 //     `UIApplication.applicationState` は端末で割れて使えない(SystemUIGate の doc)
+//   - 背面: 前面を離れたかもしれない印(appMayHaveLeft)が立っていて、前面の照会が前面に無いと答えたとき
+//     (撃つ前の門 appLeftRefusal が先に断るので、届くのは門が通した場合 = 照会が答えない・最後に起こしたアプリが無い)
 // 通知バナー等、キーボードでもアラートでもない覆いは見逃す(利用者向け docs の制限)。
 
 import Foundation
@@ -26,10 +28,12 @@ public enum JudgmentCapture {
     /// - hasWholeScreen: 画面全体を撮れるドライバ(fallbackDriver)がある
     /// - alwaysWholeScreen: 判定が1回で数秒かかり、往復の差が効かないもの(screenLooksLike / screenIs の FM)
     /// - alertCovering: このフェーズの照会の答え。nil = まだ聞いていない
+    /// - appInForeground: 前面を離れたかもしれない印が立っているときの前面の照会の答え(nil = 聞いていない・答えられない)。
+    ///   false = 背面。in-app の絵は背面でもアプリ自身の window を描くので、背面の絵と照合しないよう画面全体へ寄せる
     public static func source(primaryOmitsSystemUI: Bool, hasWholeScreen: Bool, alwaysWholeScreen: Bool,
-                              keyboardShown: Bool, alertCovering: Bool?) -> Source {
+                              keyboardShown: Bool, alertCovering: Bool?, appInForeground: Bool? = nil) -> Source {
         guard primaryOmitsSystemUI, hasWholeScreen else { return .primary }
-        if alwaysWholeScreen || keyboardShown { return .wholeScreen }
+        if alwaysWholeScreen || keyboardShown || appInForeground == false { return .wholeScreen }
         switch alertCovering {
         case nil: return .probeSystemAlert
         case true?: return .wholeScreen

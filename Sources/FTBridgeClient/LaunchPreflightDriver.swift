@@ -123,6 +123,7 @@ public final class LaunchPreflightDriver: AppDriver {
         await base.hitTest(query: query)
     }
 
+    public func observationSnapshot() async throws -> SnapshotResponse { try await base.observationSnapshot() }
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         try await base.snapshot(bypassingCache: bypassingCache)
     }

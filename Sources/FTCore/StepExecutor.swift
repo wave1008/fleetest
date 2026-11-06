@@ -1604,6 +1604,10 @@ public final class StepExecutor {
     /// WebView の `type` → 116〜134pt の押し上げの最中に次の `tap` が解決し、
     /// 押し上げ前の座標を撃って別要素に当たった(E2E-iOS S0010・11 本中 5 本)
     var pendingTypeKeyboardCheck = false
+    /// `pendingTypeKeyboardCheck` を立てたのが type でなく欄への tap(`armKeyboardAppearanceWaitAfterFieldTap`)のとき true。
+    /// 待ち切った回の注記を `keyboardNotShownAfterTap` にする(type を撃っていないのに after-type と言わない)。
+    /// 立てる経路は type 側(`pendingTypeKeyboardCheck = true` の各所)が false へ戻す・消化(`consumePendingTypeKeyboardCheck`)で読んで戻す
+    var keyboardWaitFollowsFieldTap = false
     /// launch 系の直後に立ち、**次のロケータ操作の解決の前に1回だけ** `settledSignature` で木の静止を待つ
     /// (StepExecutor+Actions.swift の消費側)。起動直後の画面は最初の1枚の後で配置が動くことがある
     /// (実測 E2E-RN の Android・データ消去後の起動: 最初の1枚は上端の余白が無く、約 0.2 秒後に全体が
@@ -1642,6 +1646,7 @@ public final class StepExecutor {
         keyboardFrameBeforeType = keyboardBefore
         pendingTypeEndedWithNewline = typedNewline
         pendingTypeKeyboardCheck = true
+        keyboardWaitFollowsFieldTap = false
     }
 
     /// 打つ前に出ていたキーボードが、打った後の最初の木で画面外に居るか(純粋関数)。
@@ -1849,6 +1854,8 @@ public final class StepExecutor {
             + " the app and never appears in its tree"
     }
 
+    /// **失敗したステップの対象が直前の tap の対象と違っても黙らない**: tap の結果を別の要素(選択の表示等)で確かめて落ちる場面が、
+    /// この注記がいちばん役に立つ所(SwallowedInteractionTests.testFailureReportsHowFarTheTargetMovedAfterTheTap)。文言は事実だけ(OI-184 ②)
     private func lastTapHint(_ elements: [ElementInfo]?) -> (text: String, unchanged: Bool) {
         guard let last = lastInteraction, let elements, !elements.isEmpty else { return ("", false) }
         if Self.contentSignature(elements) == Self.contentSignature(last.before) {

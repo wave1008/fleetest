@@ -336,7 +336,7 @@ final class CommandDispatchTests: XCTestCase {
     }
 
     /// **綴りを確かめろの提案は、通った否定にだけ付ける**(前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で
-    /// 読まなかった)に付けると事実と逆になった(OI-175 ②・22周目 iultra F1)
+    /// 読まなかった)に付けると事実と逆になった(16周目 im4 F2・22周目 iultra F1)
     func testNeverResolvedSuggestionOnlyForPassedNegatives() {
         func suggestions(_ body: @escaping () -> Void) -> [String] {
             let core = makeCore(driver: RecordingDriver())

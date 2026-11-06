@@ -116,6 +116,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// Android の back() の後、木の持ち主(前面のパッケージ)が対象アプリでなくなった = アプリの最初の画面で押してランチャー等へ抜けた。
     /// 木は変わる(= back-ineffective にならない)ので黙って ✅ になり、続く読みが別の窓の木で赤になっていた(`BackEffect.leftTheApp`)
     case backLeftApp = "back-left-app"
+    /// iOS の openURL の初回の同意の確かめ(`BridgeClient.acknowledgeOpenURLConsent`)が SpringBoard へ張り替えたセッションを、対象アプリへ
+    /// 張り戻せなかった(開いた先が別のアプリで前面だと `attach` は失敗する)。以降の XCUITest 経由の操作が SpringBoard に向いたままの疑い。
+    /// 合否は変えない。**確かめが走った回だけ**立つ(`openURLSessionNotRestoredPrefix` で始まる lastActionNote を DSL の openURL が写す)
+    case openURLSessionNotRestored = "open-url-session-not-restored"
     /// Android の「無い」で通った検証(notExist・countIs 0)が読んだ木の持ち主が、実行プロファイルのアプリでなかった
     /// (別のアプリを `launchApp` した後)。合否は変えない = 別のアプリを意図して検証するシナリオがある(`StepExecutor.absenceReadAnotherApp`)
     case absenceCheckedOnAnotherApp = "absence-checked-on-another-app"
@@ -160,6 +164,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (焦点の欄が別のアプリのもの = その欄へ入った可能性)。**断る前の観測**: 率を見て、正しいシナリオ(openURL の先・
     /// リンクで開いたブラウザ)での発火が無いと分かってから断る形へ上げる
     case refLessInputOnOtherApp = "ref-less-input-on-other-app"
+    /// Android のロケータなしの `type("…")` の後、木に入力の焦点を申告する要素が無かった(判定は `TypeFocusConfirmation`・MCP と共有)。
+    /// 横向きの全画面 IME・WebView の中の欄などは入っていても焦点が木に出ないので、**打った先を確かめられなかった**という事実だけを言う。
+    /// 合否は変えない(警告)。**率が上がったら、焦点を申告しない欄・画面を通っている**
+    case typeFocusNotReported = "type-focus-not-reported"
 
     /// ロケータ無しの `clearInput()` / `type(…, replace: true)` で、**消す前の木に焦点のある欄が無かった**ので
     /// 消えたかを読み返せないまま緑にした。読み返しの材料が無いだけで失敗ではない(in-app は Compose の焦点を
@@ -388,6 +396,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// Android の `type` の後、ソフトキーボードが木に出るまで `KeyboardWait.appearSeconds` 待ったが出なかった
     /// (待ちをやめて従来どおり解決した)。**率が上がったら上限が足りないか、キーボードを出さない欄**
     case keyboardNotShownAfterType = "keyboard-not-shown-after-type"
+    /// Android で入力欄を叩く tap の後、ソフトキーボードが木に出るまで `KeyboardWait.appearSeconds` 待ったが出なかった
+    /// (type は撃っていない。待ちをやめて従来どおり解決した)。`keyboardNotShownAfterType` の rawValue は結果 JSON の契約なので
+    /// 変えず、tap の後の待ちには別の case で言う。**率が上がったら上限が足りないか、キーボードを出さない欄**
+    case keyboardNotShownAfterTap = "keyboard-not-shown-after-tap"
     /// 上の待ちを待ち切った後のロケータ操作の解決の木で、キーボードが出ていた(= 上限不足の事例)。
     /// 控えは次の type かキーボードの観測で消える。**立つなら `KeyboardWait.appearSeconds` を疑う**
     case keyboardAppearedLate = "keyboard-appeared-late"
@@ -471,9 +483,15 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (緑の run では黙る)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者(文言が直し方を言う)。判定は変えない
     case coveredTouchBeforeFailure = "covered-touch-before-failure"
 
+    /// `.openURLSessionNotRestored` を示す `AppDriver.lastActionNote` の先頭。BridgeClient が組み、DSL の openURL が判別する(1箇所で共有)
+    public static let openURLSessionNotRestoredPrefix = "the session could not be pointed back at "
+
     /// 人間向けの文言(FTRuntime がステップ説明へ括弧書きで付ける)
     public var text: String {
         switch self {
+        case .openURLSessionNotRestored:
+            return "after checking for the open-URL confirmation, the session could not be pointed back at the app under test —"
+                + " it may still be on SpringBoard, so the next steps through XCUITest may not reach the app"
         case .coveredTouchBeforeFailure:
             return "a touch before this failure was fired while something overlapped its target's centre on this device"
         case .ocrBudgetExhausted: return "the OCR shortcut ran out of budget (asked FM instead)"
@@ -607,6 +625,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"
+        case .typeFocusNotReported:
+            return "after this type (no selector), no element in the tree reported input focus, so where the text went could not be"
+                + " confirmed — if the keyboard is up, the tree is empty or a WebView is on screen, the field may be hidden from the"
+                + " tree (full-screen keyboard, WebView, hidden input); otherwise the text may have gone nowhere. Check the screen"
         case .refLessInputOnOtherApp:
             return "another app, the notification shade or the lock screen was in front, not the launched app, when this was sent without a selector,"
                 + " so it may have gone to that app's focused field — pass the field's selector"
@@ -654,7 +676,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the preceding type shifted the on-screen layout (keyboard), so this waited for"
                 + " it to settle before resolving the target"
         case .keyboardNotShownAfterType:
-            return "the soft keyboard did not appear within the wait after the preceding type (or the tap into a text field), so this"
+            return "the soft keyboard did not appear within the wait after the preceding type, so this"
+                + " resolved the target without it"
+        case .keyboardNotShownAfterTap:
+            return "the soft keyboard did not appear within the wait after the preceding tap into a text field, so this"
                 + " resolved the target without it"
         case .keyboardAppearedLate:
             return "the soft keyboard appeared only after the wait following the preceding type had"

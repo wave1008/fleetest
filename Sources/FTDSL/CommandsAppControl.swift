@@ -86,7 +86,11 @@ func applyProfileOrientation(_ core: FTDriveCore, file: StaticString, line: UInt
 public func openURL(_ url: String, file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "openURL")
     let driver = core.driver
-    core.performCustom(description: "openURL \"\(url)\"", command: "openURL", file: file, line: line) {
+    core.performCustom(description: "openURL \"\(url)\"", command: "openURL", file: file, line: line,
+                       note: {
+                           driver.lastActionNote?.hasPrefix(StepNote.openURLSessionNotRestoredPrefix) == true
+                               ? .openURLSessionNotRestored : nil
+                       }) {
         try await driver.openURL(url, bundleID: core.appBundleID)
     }
 }
@@ -336,13 +340,13 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         }
         // 直前の type のキーボードが出きるのを先に待つ(StepExecutor.awaitKeyboardBeforeBack)
         try await executor.awaitKeyboardBeforeBack()
-        let before = try? await observer.snapshot()
+        let before = try? await observer.observationSnapshot()
         // performCustom は FlowStep を通らないので、ドライバへ届く TaskLocal はここで入れる(`settle:` は tap を参照)
         try await SettleOverride.$skip.withValue(!settle) { try await driver.back() }
         // back はアプリを抜けうる(Android の最初の画面 = ランチャーへ出る。24周目 amax F2)。**門の後に立てる**: hook で先に立てると
         // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
         executor.noteAppMayHaveLeft(true)
-        guard let before, let after = try? await observer.snapshot() else { return }
+        guard let before, let after = try? await observer.observationSnapshot() else { return }
         if core.platform == "android",
            BackEffect.leftTheApp(afterOwner: after.sessionBundleID,
                                  expected: [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }) {

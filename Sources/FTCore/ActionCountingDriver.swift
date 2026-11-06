@@ -110,6 +110,7 @@ public final class ActionCountingDriver: AppDriver {
     public func activate(bundleID: String) async throws { try await base.activate(bundleID: bundleID) }
     public func attach(bundleID: String) async throws { try await base.attach(bundleID: bundleID) }
     public func snapshot() async throws -> SnapshotResponse { try await base.snapshot() }
+    public func observationSnapshot() async throws -> SnapshotResponse { try await base.observationSnapshot() }
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
         try await base.snapshot(bypassingCache: bypassingCache)
     }

@@ -96,11 +96,36 @@ extension MCPServer {
         return (frame.centerX, y)
     }
 
-    /// 見えている部分の点を撃ったときの注記。先に出る警告(frame の中心を前提にした遮蔽・縁またぎ)は撃った点の話ではない
+    /// 見えている部分の点を撃ったときの注記。**応答では警告(`target.note`)より前に置く**(打ち消す相手より先に読ませる。
+    /// 後ろに置くと「may have hit …」が先頭に残り、読み手が中心を撃ったと誤読した = OI-163 ⑲)。frame の中心を前提にした遮蔽・縁またぎの警告は撃った点の話ではない
     static func visiblePartTapNote(x: Double, y: Double) -> String {
         " The element's reported frame has its centre outside its scroll container (a row cut in half at the edge),"
             + " so the visible part was tapped at (\(Int(x.rounded())), \(Int(y.rounded()))) instead of the centre —"
-            + " nothing was scrolled and the ref is unchanged. Warnings above about the frame's centre do not describe this point."
+            + " nothing was scrolled and the ref is unchanged. Warnings below about the frame's centre do not describe this point."
+    }
+
+    /// 起動したアプリの UI フレームワーク(判定に成功した回しか埋まらない。起動したアプリと別のアプリの判定は不明として扱う)
+    func knownUIFramework(args: [String: Any]) -> AppUIFramework? {
+        let key = Self.sessionKey(args)
+        guard let hint = uiFrameworkHints[key] else { return nil }
+        return launchedBundleIDs[key].map { $0 == hint.bundleID } ?? true ? hint.framework : nil
+    }
+
+    /// 押した対象が `PreFireGuard.tapOnlyDismissesKeyboard`(DSL の `keyboardStayedUpNote` と同じ判定)に当たるときの注記。
+    /// 文言は MCP 用: DSL は「閉じようとして閉じられなかった」と言うが、ft_ のタップは閉じる試みをしない。押されたかは言わない。空 = 当たらない
+    static func keyboardMayOnlyDismissNote(ref: Int, element: ElementInfo, in tree: SnapshotResponse,
+                                           framework: AppUIFramework?) -> String {
+        guard PreFireGuard.tapOnlyDismissesKeyboard(element, in: tree, framework: framework) else { return "" }
+        return " The keyboard was up when [\(ref)] was tapped, and inside a React Native scroll view the first tap may only dismiss the keyboard,"
+            + " so the target may not have been pressed — check the result (snapshotAfter or ft_snapshot), or close the keyboard with ft_hide_keyboard first."
+    }
+
+    /// ft_tap の ref 経路の応答の頭。見えている部分を撃ったなら、その注記を中心についての警告(`targetNote`)より前に置く
+    static func tapRefLead(ref: Int, targetNote: String, visiblePoint: (x: Double, y: Double)?,
+                           bandTouched: Bool, visibleBandNote: String) -> String {
+        "tap [\(ref)] done."
+            + (visiblePoint.map { visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") + targetNote
+            + (bandTouched ? bottomBandTouchNote : "") + visibleBandNote
     }
 
     /// 手前の覆いに中心を覆われた ref の指の操作(tap・長押し・doubleTap・drag の始点)の扱い。
@@ -183,6 +208,12 @@ extension MCPServer {
             }
             let bandPoint = visiblePoint == nil
                 ? await bottomBandPoint(sessionRef: target.ref, driver: d, args: args) : nil
+            // キーボードが出たまま ScrollView の中を押すと React Native の既定では閉じるだけになりうる(判定は DSL と共有。MCP は閉じてから撃たない)
+            let keyboardNote = lastSnapshots[Self.sessionKey(args)].flatMap { tree in
+                tree.elements.first(where: { $0.ref == target.ref }).map {
+                    Self.keyboardMayOnlyDismissNote(ref: ref, element: $0, in: tree, framework: knownUIFramework(args: args))
+                }
+            } ?? ""
             if let visiblePoint {
                 try await d.tap(x: visiblePoint.x, y: visiblePoint.y)
             } else if let bandPoint {
@@ -199,8 +230,8 @@ extension MCPServer {
             lastTapTargets[Self.sessionKey(args)] = treeBeforeTap?.first { $0.ref == target.ref }
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
-            return text("tap [\(ref)] done.\(target.note)" + (bandPoint != nil ? Self.bottomBandTouchNote : "")
-                + (visiblePoint.map { Self.visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") + visibleBandNote
+            return text(Self.tapRefLead(ref: ref, targetNote: target.note + keyboardNote, visiblePoint: visiblePoint,
+                                        bandTouched: bandPoint != nil, visibleBandNote: visibleBandNote)
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ

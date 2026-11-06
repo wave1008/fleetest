@@ -568,17 +568,60 @@ actor ScenarioQueue {
     init(_ items: [ScenarioRunItem]) { self.items = items; self.pull = nil }
     init(pulled: PullState) { self.items = []; self.pull = pulled }
 
+    /// このキューを消化するレーン(`RunWorker.logicalName`)。参加でふやし、`laneEnded` で減らす。
+    /// ブリッジ不達の振り直しが「落としたレーン以外」に空きがあるかを知るためだけに持つ
+    private var liveLanes: Set<String> = []
+    /// ブリッジ不達で振り直した item → それを落としたレーン。別のレーンが生きている間は、そのレーンへ戻さない
+    private var avoidedLane: [URL: String] = [:]
+    /// 避けられた item しか残っていないレーンが、別のレーンが取るのを待つ間の見直しの間隔。
+    /// 他のレーンの空きを知らせるイベントが無いので見直すしかない(秒単位の待ちなので 0.2 秒で足りる・尽きる上限は無い =
+    /// 別のレーンが全部終われば `laneEnded` で待ちが解ける)
+    static let avoidedItemRecheckInterval: Duration = .milliseconds(200)
+
+    func laneJoined(_ lane: String?) { if let lane, !lane.isEmpty { liveLanes.insert(lane) } }
+    func laneEnded(_ lane: String?) { if let lane { liveLanes.remove(lane) } }
+
+    private func takeAllowed(lane: String) -> ScenarioRunItem? {
+        guard let i = items.firstIndex(where: { lane.isEmpty || avoidedLane[$0.id] != lane }) else { return nil }
+        let item = items.remove(at: i)
+        avoidedLane[item.id] = nil
+        return item
+    }
+
     /// 再キューされたもの(pulled では常に先)→ 配り手。`lane` = `RunWorker.logicalName`(配り手が
-    /// どのデバイスが空いたかを知るための名前)。shared / broadcast では lane は使わない
-    func next(lane: String? = nil) async -> ScenarioRunItem? {
-        if !items.isEmpty { return items.removeFirst() }
-        guard let pull else { return nil }
-        while !pullExhausted {
-            guard let id = await pull.source.next(platform: pull.platform, lane: lane ?? "") else {
-                pullExhausted = true
+    /// どのデバイスが空いたかを知るための名前)。shared / broadcast では配り手に使わない。
+    /// **ブリッジ不達で振り直された item は、落としたレーン以外が生きている間そのレーンへ渡さない**
+    /// (pulled で配り手に残りがあれば先にそちらを渡し、無ければ他のレーンが取るまで待つ。他のレーンが無ければ従来どおり渡す)。
+    /// `shouldStop` が真なら待たずに nil(残りは手元に残る)
+    func next(lane: String? = nil, shouldStop: (@Sendable () async -> Bool)? = nil) async -> ScenarioRunItem? {
+        let lane = lane ?? ""
+        while true {
+            if let item = takeAllowed(lane: lane) { return item }
+            if pull != nil, !pullExhausted {
+                if let item = await pullNext(lane: lane) { return item }
                 // 返事を待つ間に別のレーンが離脱して再キューした分を拾う(拾わずに終わると、回せる健全なレーンが居たのに
                 // ドレインで未実行の失敗になる)
-                return items.isEmpty ? nil : items.removeFirst()
+                continue
+            }
+            if items.isEmpty { return nil }
+            // 残りは自分が落とした item だけ
+            guard liveLanes.contains(where: { $0 != lane }) else {
+                let item = items.removeFirst()
+                avoidedLane[item.id] = nil
+                return item
+            }
+            if await shouldStop?() == true { return nil }
+            try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
+        }
+    }
+
+    /// 配り手から1本。配り手が尽きたら nil
+    private func pullNext(lane: String) async -> ScenarioRunItem? {
+        guard let pull else { return nil }
+        while !pullExhausted {
+            guard let id = await pull.source.next(platform: pull.platform, lane: lane) else {
+                pullExhausted = true
+                return nil
             }
             let item = pull.catalog.withLock { catalog -> ScenarioRunItem? in
                 guard var list = catalog[id], !list.isEmpty else { return nil }
@@ -603,10 +646,12 @@ actor ScenarioQueue {
 
     /// 凍結による再実行。上限(MAX_FREEZE_RETRIES)まで item を末尾へ戻し、
     /// 何回目の再実行かを返す。上限超過なら nil(=もう再実行しない)。
-    func requeue(_ item: ScenarioRunItem) -> Int? {
+    /// `avoiding` = 落としたレーン(ブリッジ不達の振り直しだけ渡す。`next` が別のレーンを優先する)
+    func requeue(_ item: ScenarioRunItem, avoiding lane: String? = nil) -> Int? {
         let n = (attempts[item.id] ?? 0) + 1
         attempts[item.id] = n
         guard n <= MAX_FREEZE_RETRIES else { return nil }
+        if let lane, !lane.isEmpty { avoidedLane[item.id] = lane }
         items.append(item)
         return n
     }
@@ -1525,7 +1570,12 @@ public final class RunOrchestrator: Sendable {
                     continuation.yield(.workerLog(worker: worker.label, message: message))
                 })
                 await testingSlots.open()
-                group.addTask { await self.superviseWorker(worker, queue: queue) }
+                await queue.laneJoined(worker.logicalName)
+                group.addTask {
+                    let failed = await self.superviseWorker(worker, queue: queue)
+                    await queue.laneEnded(worker.logicalName)
+                    return failed
+                }
             }
             // 参加待ちの枠(下の admit ループ・遅延参加を抜けたら閉じる)
             await testingSlots.open()
@@ -1674,10 +1724,12 @@ public final class RunOrchestrator: Sendable {
     private func discardAndRequeue(_ item: ScenarioRunItem, worker: RunWorker,
                                    queue: ScenarioQueue, reason: String,
                                    discardRecord: Bool = true,
+                                   avoidingThisLane: Bool = false,
                                    cause: WorkerAnomalyCause?) async -> Bool {
         if let attempt = await Self.requeueDiscardingRecord(
             item, queue: queue, recorder: recorder,
-            worker: ScenarioRunner.recordingWorker(worker), discardRecord: discardRecord) {
+            worker: ScenarioRunner.recordingWorker(worker), discardRecord: discardRecord,
+            avoiding: avoidingThisLane ? worker.logicalName : nil) {
             await retries.add("\(item.info.id): \(reason) (requeued from \(worker.label), \(attempt)/\(MAX_FREEZE_RETRIES))")
             await anomalies.add(WorkerAnomalyRecord(
                 kind: "requeued", worker: Self.workerID(worker), label: worker.label,
@@ -1707,8 +1759,8 @@ public final class RunOrchestrator: Sendable {
     /// broadcast では同じ ID を別のデバイスが同時に書いているので名指しで消す
     static func requeueDiscardingRecord(_ item: ScenarioRunItem, queue: ScenarioQueue,
                                         recorder: RunRecorder?, worker: String?,
-                                        discardRecord: Bool) async -> Int? {
-        guard let attempt = await queue.requeue(item) else { return nil }
+                                        discardRecord: Bool, avoiding lane: String? = nil) async -> Int? {
+        guard let attempt = await queue.requeue(item, avoiding: lane) else { return nil }
         if discardRecord {
             recorder?.discardLast(scenarioID: item.info.id, worker: worker)
         }
@@ -1942,7 +1994,8 @@ public final class RunOrchestrator: Sendable {
         // 中断要求後は新しいシナリオを配らない(既にキューから抜けた1件は最後まで走らせる ——
         // ここで打ち切ると in-flight の子プロセスと記録の整合が崩れる。子を止めるのは
         // registerChildProcess 経由の SIGTERM で、呼び出し側の責務)
-        while await !interruptRequested.isRequested(), let item = await queue.next(lane: worker.logicalName) {
+        while await !interruptRequested.isRequested(), let item = await queue.next(lane: worker.logicalName, shouldStop: { [interruptRequested] in
+            await interruptRequested.isRequested() }) {
             // 録画の区間・進捗の開始より前に置く(消すのに掛かった時間をシナリオに数えない)。
             // 何をしたかは**そのシナリオのログ**に残す(結果のイベントログに載る = 権限を拒否で閉じた等が残る)
             let residualAlertNotice = await clearResidualSystemAlert?(worker)
@@ -2222,6 +2275,7 @@ public final class RunOrchestrator: Sendable {
                 case .requeue:
                     let requeued = await discardAndRequeue(item, worker: worker, queue: queue,
                                                            reason: "an unreachable bridge",
+                                                           avoidingThisLane: true,
                                                            cause: .bridgeUnreachable)
                     if requeued {
                         await progressState?.laneIdled(laneKey: progressLaneKey)

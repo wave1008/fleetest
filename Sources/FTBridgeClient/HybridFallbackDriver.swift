@@ -279,6 +279,12 @@ public final class HybridFallbackDriver: AppDriver {
         return try await active.snapshot(bypassingCache: bypassingCache)
     }
 
+    /// 背面化の直後は通常の読みと同じ分岐(再前面化しない読み)へ、それ以外は `active` の観測用の読みへ
+    public func observationSnapshot() async throws -> SnapshotResponse {
+        if appBackgrounded, !delegatedApp { return try await snapshot(bypassingCache: false) }
+        return try await active.observationSnapshot()
+    }
+
     /// **再前面化せずに読む**: `fallback`(AppAttachDriver)の `snapshot(bypassingCache:)` は
     /// 呼ぶたび `client.activate(bundleID:)` するため、素通しすると「読むだけで背面化していた
     /// アプリを前面へ戻す」事故になる(MCPServer+Driver.swift の `sentToBackgroundNote` が

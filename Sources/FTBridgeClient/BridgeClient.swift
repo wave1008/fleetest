@@ -611,6 +611,9 @@ public final class BridgeClient: AppDriver, Sendable {
     private var consentAlertPollIntervalNanos: UInt64 { 400_000_000 }
 
     func acknowledgeOpenURLConsent(bundleID: String, target: String, url: String) async {
+        // 入口で消す: 呼んだ側(WebViewDelegatingDriver.openURL)は「戻せなかった注記が立っているか」だけで確かめが走った回を知る
+        // (走らなかった回に前の操作の注記を写さない)。立てるのは末尾の張り戻しの失敗だけ
+        lastActionNote = nil
         let key = "\(target)#\(bundleID)"
         guard !OpenURLConsentAttemptCache.shared.hasAttempted(key) else { return }
         let listing = Self.appListing(bundleID: bundleID, target: target)
@@ -649,7 +652,7 @@ public final class BridgeClient: AppDriver, Sendable {
         do {
             try await attach(bundleID: bundleID)
         } catch {
-            lastActionNote = "the session could not be pointed back at \(bundleID) after checking for the"
+            lastActionNote = "\(StepNote.openURLSessionNotRestoredPrefix)\(bundleID) after checking for the"
                 + " open-URL confirmation (\(error.localizedDescription)) — it may still be on SpringBoard"
         }
     }

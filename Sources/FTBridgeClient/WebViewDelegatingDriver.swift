@@ -177,6 +177,12 @@ public final class WebViewDelegatingDriver: AppDriver {
         return snapshot
     }
 
+    /// **委譲の待ちを払わず、モード・DOM の控え・注記も変えない**: primary(in-app)の生の木をそのまま返す。back() の前後を同じ経路の木で
+    /// 比べるため(前が委譲の木・後が DOM の木では識別子の組が揃わず、効かなかった back を黙って ✅ にしていた。前の委譲の待ち約 2.35 秒も観測のためだけ)
+    public func observationSnapshot() async throws -> SnapshotResponse {
+        try await primary.snapshot(bypassingCache: false)
+    }
+
     static let webViewType = "webView"
 
     /// webView の矩形の中に、webView 以外の要素が1つでも入っているか。
@@ -385,6 +391,11 @@ public final class WebViewDelegatingDriver: AppDriver {
         try await primary.openURL(url, bundleID: bundleID)
         if let bundleID {
             await delegated.acknowledgeOpenURLConsentIfPresent(bundleID: bundleID, url: url)
+            // 確かめが走って張り戻せなかった回だけ注記を写す(BridgeClient.acknowledgeOpenURLConsent が入口で消す = 走らなかった回は nil)
+            if let delegatedNote = delegated.lastActionNote,
+               delegatedNote.hasPrefix(StepNote.openURLSessionNotRestoredPrefix) {
+                note = delegatedNote
+            }
         }
     }
     /// simctl 経由のホスト操作でセッション不要。画面は変えないので委譲状態は触らない

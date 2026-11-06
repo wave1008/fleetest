@@ -19,9 +19,17 @@ extension StepExecutor {
     /// 画面全体の絵で撮るか。フェーズでまだ聞いていなければ、ここで1回だけ SpringBoard に聞く
     func judgmentUsesWholeScreen(keyboardShown: Bool, alwaysWholeScreen: Bool,
                                  phase: inout PhaseAccumulator) async -> Bool {
+        var appInForeground: Bool?
+        if primaryCaptureOmitsSystemUI, appMayHaveLeft, let fb = fallbackDriver {
+            let candidates = [lastLaunchedAppBundleID, appUnderTestBundleID].compactMap { $0 }
+            if !candidates.isEmpty, case .value(let front) = await Self.anyInForeground(fb, bundleIDs: candidates) {
+                appInForeground = front
+            }
+        }
         var source = JudgmentCapture.source(
             primaryOmitsSystemUI: primaryCaptureOmitsSystemUI, hasWholeScreen: fallbackDriver != nil,
-            alwaysWholeScreen: alwaysWholeScreen, keyboardShown: keyboardShown, alertCovering: judgmentAlertCovering)
+            alwaysWholeScreen: alwaysWholeScreen, keyboardShown: keyboardShown, alertCovering: judgmentAlertCovering,
+            appInForeground: appInForeground)
         if source == .probeSystemAlert, let fb = fallbackDriver {
             let probe = await probeSystemAlert(fb, phase: &phase)
             // 照会が落ちたら「無い」とは言えないが、毎回聞き直すと判定のたびに往復を払う。

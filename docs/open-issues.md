@@ -30,128 +30,25 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 18 | OI-125・OI-129・OI-139・OI-156・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-175・OI-177・OI-178・OI-180・OI-184・OI-186・OI-187 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 13 | OI-124・OI-138・OI-146・OI-175・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185・OI-186 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 2 | OI-180・OI-187 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 20 | OI-124・OI-125・OI-129・OI-138・OI-146・OI-158・OI-161・OI-163・OI-167・OI-168・OI-169・OI-171・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 9 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-171・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 9 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 5 | OI-139・OI-179・OI-184・OI-185・OI-186 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 6 | OI-58・OI-140・OI-155・OI-170・OI-172・OI-182 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 7 | OI-58・OI-140・OI-155・OI-170・OI-172・OI-182・OI-186 |
 
 ## 着手可
 
-### OI-125 live と CLI の残り
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-02)
-- 属性: 着手可
-- 運用: 回避可 — 固まったランナーは `bridge down --port <N>` で使う端末だけ起こし直す。live の約 8.8 秒の止まりは待てば進む。deep sleep の後の実機 SE3 の全面黒は手で再起動する
-- 優先度: 低 — 起こし直しで回避できる・実機 SE3 の黒は手で直す
-
-別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
-
-### OI-158 React Native の iOS で、キーボードが出たまま見えている行を tap するとキーボードが閉じるだけで押されず ok
-- 状態: 再現済み
-- 確認: 2ecbb646(2026-11-03)
-- 属性: 着手可
-- 運用: 要注意 — 押されずに ok(注記は出る・後続で赤)。キーボードが出たまま行を押す前に `hideKeyboard()` を書き、押した後に結果を確かめる
-- 優先度: 中 — 既定のモードで押されずに ok。後続で赤・`hideKeyboard()` で避けられる
-
-11/3 の7周目の探索(e2ey F5)。E2EY-RN の反転チャットで `type` → `tap("送信")` の後の `tap("メッセージ 57")` が、iOS(inapp-boost)で押されずに ok(4/4)。Android は撃つ前に戻るキーで閉じて直った。iOS は閉じる手段が「キーボードの上の空きを叩く」だけで、行が画面を埋めて叩いても閉じない(実測 `tapping (326, 512) above the keyboard did not close it`)。**今は閉じられなかった事実を注記に残すだけ**(`keyboardStayedUpNote`。撃つ判断は変えない = `keyboardShouldPersistTaps` を変えたアプリでは押せるので断らない)。残り: iOS で副作用なく閉じる手段(欄の resign 等。ブリッジの変更)・MCP の ft_tap 等はこの判定を呼んでいない(`PreFireGuard` の doc は MCP も呼ぶと書くが未実装)
-- 11/4: MCP の `ft_tap` はキーボードが閉じるだけで押されなかった形の注記(`keyboardStayedUpNote`)を出さない(画面が変わらなかったことは別の警告で言う = 黙りではない)
-
-### OI-161 探索・横向きの残り(7周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-03)
-- 属性: 着手可・木に材料なし
-- 運用: ①回避可 — `maxSwipes:` を上げる ③④回避可 — `scrollFrame:` を付ける(④は通ると確認済み・③は未確認) ⑤要注意 — ft_batch だけ ⑥⑩再実行で吸収 ⑦合否に響かない(遅いだけ) ⑧要注意 — 何も起きずに ok・後続で赤 ⑨⑪合否に響かない(注記・警告だけ)
-- 優先度: 中 — ⑧何も起きずに ok・他は回避可か文言
-
-11/3 の7周目の探索(`_work/explore-20261103b/findings-*.md`)と、直しのデバイスでの確かめ。①横向きの低い一覧で1回の送りが行の高さを下回り既定の maxSwipes で届かない(ascroll F1)③E2EY-RN の A11 横向きの `tap("#post_39", scroll: .down)` が2回払っただけで「nothing moved at all」の赤(3/6)④iOS の半開のシートの中を `tap(scroll:)` で探すと背面の一覧を送る(e2ey F2・iOS 12/12。`scrollFrame:` を付ければ通る)⑤ft_batch の途中で設定アプリが前面へ来た後の tap が警告なしの ok(batch F3。結論に「変化を見ていない触る手」を名指す形は入れた・根本未確定)⑥同じスイッチを続けて tap すると2回目に「may have been swallowed」(batch F8。Android の読みの古さの疑い)⑦Android で払いで切れた行への `select("行 01")` が空要素を返すまで 2.7〜22.3 秒(12 回。見えている行は 0.3〜0.5 秒)。調べた1件は所要 7.1 秒のうち guardMs 6.3 秒 = FM の推論2回(空の転写の訊き直しを含む。枠待ちは 1ms)で、select 固有の待ちではない(exist / textIs も同じ評価で同じ時間)。22 秒の回は6台へ同時に配った負荷の疑い(未確認。見るなら結果 JSON の `fm.byKind.occlusion.maxMs` と `gateWaitMaxMs`)⑧Flutter の横向きで Column からはみ出した欄の、木の上では覆われていない帯(タブの上の 32px)を押しても何にも当たらない(座標で直接撃って 4/4 無反応。親の箱の外の子へ Flutter のヒットテストが届かない推定。木に親の箱が無い)= 覆われた対象の見えている部分を押す tap は注記付きの ok のまま何も起きない⑨Android で欄を tap した後のキーボードの出現待ち(`armKeyboardAppearanceWaitAfterFieldTap`)が、type を撃っていないのに注記 `keyboard-not-shown-after-type` を出す(名前と事実の食い違い)⑩E2EY-iOS の `select("#txt_loading_state")` が「not visible: returned an empty element」なのに、続く `textIs("state=loaded")` が緑(1 回)⑪覆いの最前面がタブの中の文字(押せない型)のときは、見えている部分を押す扱いに入らず従来どおり警告して中心を撃つ(押せる祖先へ持ち上げる案は、祖先の復元が preorder+depth で行・包む祖先・無関係のボタンを拾うので外した)
-- 11/4: ①の型の追加の観測: M1Max の Emulator 4 台・横向きで、貼り付く見出し・グリッド・伸縮するヘッダの探索が 12/12 赤(「still moving … raise maxSwipes」。HEAD の対照は無し)
-
-### OI-156 iOS のテキストの可視性検証が、ボタンは縁で切れていてもタブバーの下でも読まずに緑にする
-- 状態: 再現済み
-- 確認: 0a67f89b(2026-11-04)
-- 属性: 着手可・木に材料なし
-- 運用: 回避不可(見逃し) — iOS のボタンがタブバーの下・縁で切れていても、テキストの可視性検証は緑にする。押した後の結果を確かめれば、押せないことは赤にできる
-- 優先度: 中 — ボタンの見えにくさの見逃し(回避不可)。押した後の確かめで補える
-
-11/3 の7周目の探索(vis F2・F3)。**Android は直った**(行・ボタンが同じ label の文字の子を1つだけ持つときはその子で確かめる = `OcclusionEligibility.sameLabelTextDescendant`)。**iOS の行(セル)は 11/4 に赤へ上げた**(文字の子を持たない `clickable` / `cell` を行の枠で OCR だけで読む = `OcclusionEligibility.isLabelledRowWithoutText`。11/3 の回帰の全数で警告 2 件・2 件とも真陽性 = 横向きで潰れた一覧の行・木の順で掴んだ見えない行。後者は in-app の木のセルの並びを直し、前者は E2E-iOS のシナリオを直した)。残り: ボタン(`button "自己修復"` のタブバーの下)は対象外のまま(アイコンのボタンは描かれない説明文をラベルに持つ)
-
-### OI-163 探索の残り(8周目)
-- 状態: 再現済み
-- 確認: 4605aa35(2026-11-03)
-- 属性: 着手可・木に材料なし
-- 運用: ①要注意 — iOS の CMP でキーボードの下の欄への `clearInput` が別の欄を書き換える。先に `hideKeyboard()` で閉じる ④xcuitest モードと MCP だけ(既定のモードでは出ない) ⑥⑦⑬要注意 — 押されずに ok・後続で赤 ⑨⑰回避可 — `scrollFrame:` を付ける・キーボードを閉じてから探す(未確認) ⑩要注意 — 上端の一覧への `scroll: .up` が更新を走らせる。上端なら `scroll:` を付けない ⑪⑫再実行で吸収(run の制御) ⑭回避の手は未確認 ③⑤⑧⑮⑯⑱⑲合否に響かない(文言・MCP の表示)か、観測が要る
-- 優先度: 中 — ①キーボードの下の欄の clearInput が別の欄を書き換える(閉じてから書けば避けられる)・⑩上端の探索が更新を走らせる
-
-11/3 の8周目の探索(`_work/explore-20261103c/findings-*.md`)で直さなかったもの。**重いもの**: ①iOS の CMP で、キーボードの下に隠れた欄へ clearInput が叩き直した点がかなキーボードのキーで、焦点のある別の欄を書き換えてから 422 で落ち、壊したことを言わない(kbd F3・1/1。11/3: 再現 8 台中 7 台。Enter で焦点が次の欄へ移る間は Compose が欄を動かし、XCUITest のキーボードの枠は画面の外で来る。①ホストが XCUITest で消す前に撮り直した欄を in-app のキーボードの枠と突き合わせる ②ランナーと in-app は焦点のタップの点がキーの上なら見えている帯へ寄せ、帯が無ければ撃たずに staleRef ③in-app の「直前の tap が焦点を立てた」は受け口が欄の上にあるときだけ、にして 16 回中 0 回。残り: 撃たずに断り続けて時間切れの赤が xcuitest 経路で 8 回中 1〜2 回あった(壊さない)③Flutter の Android の横向きで、キーボードを閉じた後に覆われた欄の見えている部分を押す tap が 5 回中 1 回タブを押して遷移した(land F2。11/3: 閉じた後は対象と覆いの枠が続けて同じになるまで読み直してから部分を決めるようにして 18 回中 0 回。押せた回も何も起きない形は OI-161 ⑧ のまま・長押しの部分押しは事後の確かめを通らないまま)④iOS の CMP の xcuitest モードと MCP で、タブの下に潜った行への tap がメディアのタブを押す(cover F4・既定の inapp-boost の DSL では出ない。11/4: 「木の順で奥に読まれる操作できる要素が中心を含み、ヒットテストが当たらないと断言したら覆いとして送る/外れなければ撃たない」を2回試して取り消した = E2EY-CMP の xcuitest で 8 回中 8 回赤のまま。送った後の木では行がタブから外れて見えるのに撃つとタブに当たり(慣性が止まるまで読み直しても同じ)、CMP の iOS の XCUITest の木の行の位置が描かれた位置とずれている疑い(手前を木だけで読めない形)。3 回は上の固定領域の裏でタップが飲まれる別の形(次の確かめで赤))。**その他**: ⑤CMP の iOS の横向きで MCP の `ft_tap` ref が、全画面で申告された容器のせいで縁のバーの外の描かれていない片を「見えている部分」として押す(land F5)⑥Android の RN でタブの下の行を送って外してから押す tap が飲まれて ok(cover F3・慣性の疑い)⑦iOS の inapp-boost で外側の容器に切り取られて見えない行への tap が送らず注記なしで ok(cover F1・in-app は要素を直接押すので echo は合う)⑧SwiftUI の横向きで高さ 0 に潰れた一覧の探索の払いが横のカルーセルを押す(land F3)⑨Flutter の Android の横向きで送れる容器が2つあると「nothing moved at all」で赤・scrollFrame の案内も無い(land F4)⑩Android で上端の一覧への `select` / `notExist` の `scroll: .up` が端を確かめる払いで引っ張って更新を2〜4回走らせる(scroll F1・4 SUT で 14/14)・下端から上の行を探しても1回走る(scroll F2・CMP / RN)⑪ブリッジ不達で振り直したシナリオが同じ不達のレーンへ戻る(run F2)⑫決定的に赤のシナリオだけで健全な端末が離脱する(run F1。11/3: 最後に通ってから別のデバイスでも落ちたシナリオの赤は数えないようにした = `ScenarioFailureWitnesses`。各シナリオを1回ずつ回す初回の run で赤が多いと離脱する形は残る = 区別の材料が無い)⑬Flutter の Android で続けて撃った2回目の pressEnter が届かずに ok(kbd F5)⑭CMP の Android で OTP の箱への `type("#otp_box_3")` が 500「target node not found」(kbd F2)⑮Android の pressEnter の失敗文が「in-app bridge … no XCUITest bridge」(kbd F6・`StepExecutor+DirectActions.swift`)⑯アプリが欄を空にした後の type に「the field already held」の事実と違う注記(kbd F4)⑰キーボードが出たまま `type("#field_bottom", scroll: .down)` が「nothing moved at all」(kbd F7)⑱Flutter の iOS の secure 欄の後の hideKeyboard が「still shown」(前の周の land F4・観測が要る)⑲MCP の ref で覆われた対象の見えている部分を押した応答に、中心についての古い警告(「may have hit #btn_bottom_b」・「under the sticky header」)が先頭に残る(後ろの文が「Warnings above about the frame's centre do not describe this point」と打ち消すので矛盾はしないが紛らわしい)
-
-### OI-167 探索の残り(9周目)
-- 状態: 再現済み
-- 確認: 22012640(2026-11-04)
-- 属性: 着手可
-- 運用: ②③要注意 — 撃って ✅(後続で赤) ④⑤赤になる(黙りではない)・回避の手は未確認 ⑦⑧⑫合否に響かない(文言・表示だけ。⑫の終了コードは 1) ⑨回避の手は未確認 ⑪再実行で吸収 — フル E2EX の流れでだけ出る(単独では 4/4 緑)
-- 優先度: 中 — ②③撃って ✅・後続で赤
-
-11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る ⑫供給で in-app の dylib のビルドが失敗した run の機械ごとの行が `✅ local exit=0 ran=0` と出る(全体の終了コードは 1・「どのデバイスにも渡らなかった」の警告は出る)
-
-- 11/6(977378ee の回帰・M1Ultra): フル E2EX でまた E2EX-RN の iOS が 48/48 赤(起動直後の最初の tap で SIGABRT・`RCTExceptionsManager reportFatal`・同日のクラッシュレポート 27 件)。落ちた3クラスを同じ機械で単独に回し直すと 4/4 緑 = フル E2EX の流れでだけ出る形のまま(3/3)
-### OI-168 探索の残り(10周目)
-- 状態: 再現済み
-- 確認: a5e87ce1(2026-11-04)
-- 属性: 着手可
-- 運用: ⑥要注意 — ✅ なのに行が開かない・後続で赤 ⑦回避可 — 既定の経路ではない(`settle: false` を使わなければ出ない)
-- 優先度: 中 — ⑥✅ なのに行が開かない(後続で赤)
-
-11/4 の10周目の探索(`_work/explore-20261104b/findings-*.md`)で直さなかったもの(直したものは 2dcc58ab・a5e87ce1・9c0e47eb)。⑥E2EY-CMP の Android の横向きの選択モードの一覧で、寄せの注記付きの `tap("項目 1*")` が ✅ なのに行が開かず選択モードに入る(amax F4・5 run 中 4)⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6・既定の経路ではない)
-
-### OI-169 探索の残り(11・12周目)
-- 状態: 再現済み
-- 確認: b41c86f0(2026-11-04)
-- 属性: 着手可
-- 運用: ④⑨再実行で吸収 ⑧回避可 — 枠なしの `scrollUp()` が動かないときは `scrollFrame:` を付ける(`scroll-moved-nothing` の注記が出る)。`scrollToTop` が上端に着かない形の回避は未確認
-- 優先度: 低 — ④⑨は再実行で吸収・⑧は `scrollFrame:` で回避
-
-11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。④CMP で探索が行き過ぎ、整定の待ちが打ち切られた後に `waitSeconds:` を案内して赤(iultra F5・13回中3回)⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)(11/5: 原因を観測 = 枠なしの払いの始点はブリッジが画面の高さの比率で決め、上への払い(`scrollUp()`)は 30% = 横向きで y≈384px の一覧の上の帯に落ちて一覧が動かない。`scrollDown()` は 70% で一覧の中。枠なしの払いを容器へ寄せる案は2度取り消している(StepExecutor+ScrollFrame.swift の「3度目は無い」)ので始点は変えず、何も動かなかった送りに注記 `scroll-moved-nothing` を立てて ✅ で黙らないようにした)・`scrollToTop` が上端に着かずに ✅(4/4)(11/5 に手元で測った: `scrollDown(repeat: 2)` → `scrollToTop()` が 0.99 秒で ✅・先頭は「行 H02」。戻る途中でバーが出て一覧の上端が y=486 → 654 へ下がり、端送りの指を置く点(枠なしは画面の中央 = 横向きで y=640)が一覧の外に落ちる。次に測るもの: ブリッジの `/scrollAction` がその点で何を引いて `atEdge` を返したか(推測: 一覧の外の容器を引いて「もう端」)。直す場所はブリッジの容器の選び方か枠なしの送りの座標 = 後者は2度取り消している)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)(11/5: scrollFrame の候補の案内は名指せる id を持つ容器があるときだけ付く。A1 の容器は id を持たないので出ない = 案内を足しても従える形にならない。SUT の契約に id を足すかの判断が要る)⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
-- 11/5(14周目の回し直し): ④は 1/1 緑(1回なので消さない)
-
-### OI-171 探索の残り(13周目)
-- 状態: 再現済み
-- 確認: 6344e74e(2026-11-05)
-- 属性: 着手可
-- 運用: ①要注意 — OI-170 と同じ形。後続の赤が覆いを名指す ②回避の手は未確認 — シートを半分にしたまま背面の一覧を探す手は `scrollFrame:` でも赤。シートを閉じてから探す形は確かめていない ③回避可 — OI-139 の機械(M4Max の macOS をそろえる)
-- 優先度: 中 — ①覆いの裏を押して ✅(後続で赤)・②回避の手が未確認
-
-11/5 の13周目の探索(20分・`_work/explore-20261105a/findings-*.md`)で観測し、直さなかったもの。①E2EY-Android の A9 でシートを全開にした裏の `本文 10` への `tap(scroll: .down)` が ✅(注記「may have hit #list_queue」だけ)で、実際はキューの行を押した(amax F1・5/5。探索の送りもしない = 最初の木で撃つ前の注記に落ちる。Android の z は塗り順として使っていない。塗り順の無い木の形なので OI-170 と同じく推測で直さない = `.claude/rules/fm-occlusion.md`)②同じ A9 でシートを半分にしたまま背面の `本文 20` / `本文 39` を `tap(scroll: .down)` で探すと、背面の一覧が動かないまま「the scroll area reached its end」で赤・対処文は対象の居ない `#list_queue` を勧める(amax F2・10/10。`scrollFrame: "#list_main"` でも 4/4 赤 = 払いの始点がシートの上に落ちる疑い)③M4Max(macOS 26.7.2)の OCR で `tap(linkText: "@alice")` が同じ行の URL の位置を撃って ✅(im4 F1・4回中1回。OI-139 の機械)。割り出した枠を読み直して確かめる直しを試したが、手元の E2EY-iOS で 24 回中1回、OCR が `a¿` と読んでリンクを見つけられない赤が出た(直しのせいかは未確定)ので入れていない(差分は `_work/explore-20261105a/linktext-verify.patch`)
-- 11/5(14周目の回し直し): ①は直っていない(4/4)。後続の `textIs` の赤が「#list_queue overlapped the target's centre … close or collapse #list_queue first」と覆いを名指すようになった。②は直っていない(4/4・文言も同じ)。E2EY-RN の Android でも②と同じ形が出る(8/8。背面の容器の枠の中心がシートの上端とほぼ同じ高さ。前向きの送りで背面が動いたかは失敗時の木で言えない = 原因は材料不足)
-
-### OI-175 探索の残り(16周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-05)
-- 属性: 着手可・要測定
-- 運用: ③合否に響かない(MCP の文言) ⑤要注意(未再現・沈黙の形) — inapp-boost モードで `home()` の後に画像の判定を書かない
-- 優先度: 中 — ⑤背面の絵と照合しうる(未再現・沈黙の形)
-
-11/5 の16周目の探索(20分・`_work/explore-20261105d/findings-*.md`。この周から実機の担当 phys を足した)で観測し、直さなかったもの。③始点から別アプリ(設定)が前面のとき、MCP の `ft_scroll_to` の失敗文が「探索の途中で持ち主が替わった (round 1)」と言う(phys F1・Pixel 3a・4/4。`searchBaselineBundleID` が始点の別アプリの持ち主を起こしたアプリへすり替えるため = 観測済み)・その別アプリの画面へ逆走査の遅いドラッグを撃つ ⑤背面の画像判定(未再現・失敗のしかたは沈黙): in-app の `/screenshot` は背面でもアプリ自身の window を描くので、inapp-boost モードで `home()` の後の画像判定(findImage / checkIsON / screenLooksLike・OCR の可視性検証)は背面のアプリの絵と照合しうる(JudgmentCapture が XCUITest へ切り替えるのはキーボードとアラートのときだけ)。v273 では `/screenshot` を断らない(呼び手が失敗の証跡・描画崩壊・配信・打鍵の読み返しと多く、断ったときの影響を先に列挙する)。直すなら判定の撮影の口(`judgmentCapture`)で背面を知って XCUITest の絵へ寄せる形
-
-### OI-177 探索の残り(18周目)
+### OI-187 探索の残り(29周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定
-- 運用: ①再実行で吸収 — `openURL` で Safari を出した後の `tapAppIcon()` だけ・5/16 ③合否に響かない(注記が出ないだけ)
-- 優先度: 低 — ①は再実行で吸収・③は注記だけ
+- 属性: 着手可
+- 運用: 合否に響かない(次のステップで赤)
+- 優先度: 低 — 文言と注記だけ
 
-11/6 の18周目の探索(20分・`_work/explore-20261106b/findings-*.md`)で観測し、直さなかったもの。①inapp-boost で `openURL("https://…")`(Safari が前面)→ `tapAppIcon()` が、正しいアイコンを押したのにアプリが 15 秒で前面へ来ず赤になり「process not running — it may have crashed」の注記が付く(ilocal F2・5/16。その時刻の .ips は無い)= 要測定(アプリが落ちたのか・タップが届かなかったのかを分ける事実が無い。注記が言えるのは「赤の時点でプロセスが居なかった」だけ = `SimulatorAppProcess.failureEvidence`。先に測る口: `tapAppIcon` の押す直前にも生死を1回聞いて notes に残す。report-mcode)③inapp-boost で `openURL` が別アプリを前面に出した回、同意の確かめの後の XCUITest の張り戻し(`attach`)は 5 秒で 500 になる(FT_BRIDGE_TRACE で 8/8)のに、「戻せなかった」の注記が結果 JSON に出ない = 着手可。原因(report-mcode): DSL の `openURL` が注記を読まない(`CommandsAppControl.swift:86-92` が `performCustom` に `note:` を渡さず、`FTRuntime.swift:1409-` の `performCustom` は `driver.lastActionNote` を読まない)うえ、`WebViewDelegatingDriver.lastActionNote`(:446)は primary の注記しか返さず delegated(`AppAttachDriver`)の注記(`BridgeClient.swift:644-650`)に届かない。次の手: 同意の確かめが走った回だけ delegated の注記を `WebViewDelegatingDriver.openURL` で写し(走らなかった回は前の操作の注記が残っているので写さない = 走ったかを知る口が要る)、`openURL` の `performCustom` に `note:` を渡す(両方やらないと出ない)
-
-### OI-178 探索の残り(19周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定
-- 運用: ④回避可 — アプリのダイアログを閉じてから `home()` を撃つ(iPhone 13 実機だけ) ⑤⑥合否に響かない(赤にはなる・文言が覆いを名指さない)。ダイアログ・アラートを閉じてから操作する
-- 優先度: 低 — 回避可か文言だけ
-
-11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 着手可。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。11/6(v275): 遮ったのが対象アプリ自身のアラート(セッションのアプリにアラートがあり SpringBoard には無い)なら「an alert of the app under test is open」と名指すようにし、ボタンの重複も除いた(`BridgeAPI.uniqueAlertButtonLabels`)。名指しの文言は iPhone 13 実機でしか出ない(Simulator の home はハードのボタンで、アプリのアラートを開いたままでも前面を離れた)ので、つないだときに確かめる。残り: ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測) ⑤(20周目)iOS の UIKit の別ウィンドウのモーダルが開いている間に裏の要素を tap すると「cannot resolve … add waitSeconds:」とだけ言い、覆いを名指さない(amax F1・im4 F1。従っても直らない)= 要測定(Android の形は 11/6 に直した = 失敗の ⚠️ がアプリ自身のダイアログの窓を名指す。iOS の形の原因は測っていない) ⑥(20周目)権限アラートが `home()` の後に出てホーム画面のアイコンを覆うと、次の `tapAppIcon` が「App icon not found」でアラートを名指さない(ilocal F1・4/8)= 要測定
+11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)
+- 11/6: ②(WebView の `back()`)は OI-186 ②と同じ直しで直した。残りは `terminateApp()` の後の `back()`(別のセッションが扱い中)
 
 ### OI-180 探索の残り(22周目)
 - 状態: 再現済み
@@ -162,34 +59,110 @@
 
 11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 着手可。原因(report-mios): 文言は `StepExecutor+Actions.swift:739-742`(`KeyboardRetry.notClosed`)で、入口 `resolveAfterClosingKeyboard`(`StepExecutor+TypeClear.swift:516-523`)の条件が「指の操作 + キーボードが出ている(iOS は窓が縮んだ)」だけ。対象が木から消えた別の理由(`accessibilityViewIsModal` で木がダイアログの中身だけに縮んだ = 失敗時の木は `txt_discard_title`・`btn_discard`・`btn_keep` + ナビゲーションバーだけ)を見ない。次の手: 木の要素が少なく全部が 1 つの容器の中にあり、対象の契約上の位置がキーボードの上なら、キーボードの帰属を付けずダイアログを名指す。閉じる tap は木の要素(幕)の枠の外の点に限る
 
-### OI-184 探索の残り(26周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・環境側
-- 運用: ②合否に響かない(注記の文言) ④再実行で吸収(Duo だけ・環境側)
-- 優先度: 低 — 文言と Duo だけ
-
-11/6 の26周目の探索(20分・`_work/explore-20261106j/findings-*.md`)で観測し、直さなかったもの。②キーボードで内容が押し上がった後の無関係な赤に「直前の tap は動く前の座標を使った・別の物に当たったかもしれない」と付く(ilocal F1・4/4+1/1)= 着手可。原因(report-mios): tap は座標ではなく ref で撃たれている(`POST /tap {"expect":…,"ref":8}`)ので「動く前の座標を使った」は事実と違い、動いたのは tap の結果(焦点 → キーボードで押し上げ)。`StepExecutor.lastTapHint`(`StepExecutor.swift:1784-1806`)は直前の触る操作の対象を失敗時の木で引き直し、tap 前の枠から `movedTargetThreshold = 8`pt 以上動いていれば無条件に付ける。動いたのが tap の前か後か・ref で撃ったか・キーボードが出たか・失敗したステップが tap の対象と無関係かを見ない(`tapDiagnosisHint` は失敗経路から一律に呼ばれる = :1731)。11/6: 「動く前の座標を使った」の断定は外し、「tap の後にレイアウトが動いた・tap 自体は問題なかったかもしれない」の事実だけにした。残り: 失敗したステップの対象が直前の tap の対象と違うときに付けない絞り込み(`tapDiagnosisHint` の呼び手 `StepExecutor+Assert.swift` が要素しか渡さない) ④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
-
-### OI-186 探索の残り(28周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可・要測定・環境側
-- 運用: ①要注意 — 戻るボタンの無い iOS の画面の `back()` は注記 `back-stayed-on-screen` が付くだけで緑。自前の戻るがあれば `tap` で押す ②④合否に響かない ③合否に響かない(続くステップは赤になる)
-- 優先度: 中 — ①戻るボタンの無い iOS の画面の back() が緑のまま(注記で知らせる)
-
-11/6 の28周目の探索(20分・`_work/explore-20261106l/findings-*.md`)で観測し、直さなかったもの。①iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があっても、ナビゲーションバーの `BackButton` でなければ左端のスワイプに落ちる(iultra F1。28周目の直しで、同じ画面に留まったら `back-stayed-on-screen` と注記するようにした = 合否は緑のまま。自前の戻るを押すかは要判断)②E2E-iOS の WebView 画面で `back()` が戻らないのに注記なし・4.2 秒(iultra F2・7/7)= 着手可(11/6: 前の木が委譲の木・後の木が in-app の DOM の木のときは「前の識別子が後に全部残る」で比べて `back-stayed-on-screen` を出すようにした。残り: before の委譲の待ち約 2.35 秒)。原因(report-mios): `back()` の before が `WebViewDelegatingDriver.snapshot`(`WebViewDelegatingDriver.swift:116-176`)の委譲の木(tap の直後は DOM が読めず XCUITest へ委譲し、250ms おきに最大 5 秒撮り直す = 約 2.35 秒)、after が in-app の DOM 経路の木で、別の経路の木を比べるため `BackEffect.shouldWarn` も `stayedOnSameScreen`(`BackEffect.swift:39-46`)も false になり注記が出ない(`CommandsAppControl.swift:343-348`)。次の手: before / after を同じ経路の木(in-app の生の木)で比べる。before の委譲の待ちは観測のためだけに払っているので揃えれば消える ③Android の根の画面の `back()` でアプリが閉じてランチャーへ出るのに注記なしの ✅、続く赤は「Another window is in front」とだけ言い直前の back のせいと言わない(phys F1・4/4)= 着手可(11/6: `back()` に注記 `back-left-app` を出すようにした。残り: 続く失敗の ⚠️ で back を名指す = 直前のコマンドを持つ状態が FTRuntime に無い)。原因(report-mand): `back()` は撃った後に `noteAppMayHaveLeft(true)` を立てる(`CommandsAppControl.swift:338-345`)が注記は `BackEffect.shouldWarn`(木が変わらない形)だけで、木の持ち主の替わりを注記しない。続く `exist` は肯定なので Android では門を通らず(`StepExecutor.swift:1170`)、⚠️ は `FTRuntime.swift:2041-2043` の固定文。次の手: `back()` の後の木の持ち主(`sessionBundleID`)が対象アプリから替わったら `back` に「アプリを抜けてランチャーへ出た」と注記し、失敗の ⚠️ は直前が `back()` なら `back` を名指す(`terminateApp` を名指す前例は `FTRuntime.swift:2016`)④MCP の `ft_launch` が Duo で「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る(duo F2・1/1)・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(duo F3・1/1)= 環境側(Duo の SpringBoard の落ち。OI-184 ④。個々の赤との時刻の対応は未確認)
-
-### OI-187 探索の残り(29周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 着手可
-- 運用: ②合否に響かない(次のステップで赤)
-- 優先度: 低 — 文言と注記だけ
-
-11/6 の29周目の探索(20分・`_work/explore-20261106m/findings-*.md`)で観測し、直さなかったもの。②iOS の WebView 画面の `back()` が戻らないのに注記なしの ✅・4.2〜4.6 秒(iultra・SwiftUI と RN で各 6/6)= 着手可。原因と次の手・11/6 の注記の直しは OI-186 ②(before が委譲の木・after が in-app の木で、約 4 秒のうち委譲の待ちが約 2.35 秒)。`terminateApp()` の後の `back()` が注記なしの ✅ で次のステップで止まる(iultra・6/6)(原因は観測済み: 注入無しで起動した。report-mios。別のセッションが oi183-relaunch で扱い中)
-
 ## 要測定
+### OI-178 探索の残り(19周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定
+- 運用: ④回避可 — アプリのダイアログを閉じてから `home()` を撃つ(iPhone 13 実機だけ) ⑤⑥合否に響かない(赤にはなる・文言が覆いを名指さない)。ダイアログ・アラートを閉じてから操作する
+- 優先度: 低 — 回避可か文言だけ
+
+11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 要測定(ホームジェスチャを割り込み判定を通さずに撃つ形は未実測)。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。11/6(v275): 遮ったのが対象アプリ自身のアラート(セッションのアプリにアラートがあり SpringBoard には無い)なら「an alert of the app under test is open」と名指すようにし、ボタンの重複も除いた(`BridgeAPI.uniqueAlertButtonLabels`)。名指しの文言は iPhone 13 実機でしか出ない(Simulator の home はハードのボタンで、アプリのアラートを開いたままでも前面を離れた)ので、つないだときに確かめる。残り: ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測) ⑤(20周目)iOS の UIKit の別ウィンドウのモーダルが開いている間に裏の要素を tap すると「cannot resolve … add waitSeconds:」とだけ言い、覆いを名指さない(amax F1・im4 F1。従っても直らない)= 要測定(Android の形は 11/6 に直した = 失敗の ⚠️ がアプリ自身のダイアログの窓を名指す。iOS の形の原因は測っていない) ⑥(20周目)権限アラートが `home()` の後に出てホーム画面のアイコンを覆うと、次の `tapAppIcon` が「App icon not found」でアラートを名指さない(ilocal F1・4/8)= 要測定
+
+### OI-177 探索の残り(18周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 要測定
+- 運用: ①再実行で吸収 — `openURL` で Safari を出した後の `tapAppIcon()` だけ・5/16
+- 優先度: 低 — ①は再実行で吸収
+
+11/6 の18周目の探索(20分・`_work/explore-20261106b/findings-*.md`)で観測し、直さなかったもの。①inapp-boost で `openURL("https://…")`(Safari が前面)→ `tapAppIcon()` が、正しいアイコンを押したのにアプリが 15 秒で前面へ来ず赤になり「process not running — it may have crashed」の注記が付く(ilocal F2・5/16。その時刻の .ips は無い)= 要測定(アプリが落ちたのか・タップが届かなかったのかを分ける事実が無い。注記が言えるのは「赤の時点でプロセスが居なかった」だけ = `SimulatorAppProcess.failureEvidence`。先に測る口: `tapAppIcon` の押す直前にも生死を1回聞いて notes に残す。report-mcode)
+- 11/6: ③を直した(同意の確かめの後に張り戻せなかった回は `openurl-session-not-restored`。確かめが走らなかった回は前の注記を写さない)
+
+### OI-171 探索の残り(13周目)
+- 状態: 再現済み
+- 確認: 6344e74e(2026-11-05)
+- 属性: 要測定・木に材料なし
+- 運用: ①要注意 — OI-170 と同じ形。後続の赤が覆いを名指す ②回避の手は未確認 — シートを半分にしたまま背面の一覧を探す手は `scrollFrame:` でも赤。シートを閉じてから探す形は確かめていない ③回避可 — OI-139 の機械(M4Max の macOS をそろえる)
+- 優先度: 中 — ①覆いの裏を押して ✅(後続で赤)・②回避の手が未確認
+
+11/5 の13周目の探索(20分・`_work/explore-20261105a/findings-*.md`)で観測し、直さなかったもの。①E2EY-Android の A9 でシートを全開にした裏の `本文 10` への `tap(scroll: .down)` が ✅(注記「may have hit #list_queue」だけ)で、実際はキューの行を押した(amax F1・5/5。探索の送りもしない = 最初の木で撃つ前の注記に落ちる。Android の z は塗り順として使っていない。塗り順の無い木の形なので OI-170 と同じく推測で直さない = `.claude/rules/fm-occlusion.md`)②同じ A9 でシートを半分にしたまま背面の `本文 20` / `本文 39` を `tap(scroll: .down)` で探すと、背面の一覧が動かないまま「the scroll area reached its end」で赤・対処文は対象の居ない `#list_queue` を勧める(amax F2・10/10。`scrollFrame: "#list_main"` でも 4/4 赤 = 払いの始点がシートの上に落ちる疑い)③M4Max(macOS 26.7.2)の OCR で `tap(linkText: "@alice")` が同じ行の URL の位置を撃って ✅(im4 F1・4回中1回。OI-139 の機械)。割り出した枠を読み直して確かめる直しを試したが、手元の E2EY-iOS で 24 回中1回、OCR が `a¿` と読んでリンクを見つけられない赤が出た(直しのせいかは未確定)ので入れていない(差分は `_work/explore-20261105a/linktext-verify.patch`)
+- 11/5(14周目の回し直し): ①は直っていない(4/4)。後続の `textIs` の赤が「#list_queue overlapped the target's centre … close or collapse #list_queue first」と覆いを名指すようになった。②は直っていない(4/4・文言も同じ)。E2EY-RN の Android でも②と同じ形が出る(8/8。背面の容器の枠の中心がシートの上端とほぼ同じ高さ。前向きの送りで背面が動いたかは失敗時の木で言えない = 原因は材料不足)
+- 11/6: ①は塗り順の無い木の形(OI-170 と同じく推測で直さない)・②は原因が材料不足・③は OI-139 の機械 = 着手可の小項目は無い
+
+### OI-169 探索の残り(11・12周目)
+- 状態: 再現済み
+- 確認: b41c86f0(2026-11-04)
+- 属性: 要測定
+- 運用: ⑨再実行で吸収 ⑧回避可 — 枠なしの `scrollUp()` が動かないときは `scrollFrame:` を付ける(`scroll-moved-nothing` の注記が出る)。`scrollToTop` が上端に着かない形の回避は未確認
+- 優先度: 低 — ⑨は再実行で吸収・⑧は `scrollFrame:` で回避
+
+11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)(11/5: 原因を観測 = 枠なしの払いの始点はブリッジが画面の高さの比率で決め、上への払い(`scrollUp()`)は 30% = 横向きで y≈384px の一覧の上の帯に落ちて一覧が動かない。`scrollDown()` は 70% で一覧の中。枠なしの払いを容器へ寄せる案は2度取り消している(StepExecutor+ScrollFrame.swift の「3度目は無い」)ので始点は変えず、何も動かなかった送りに注記 `scroll-moved-nothing` を立てて ✅ で黙らないようにした)・`scrollToTop` が上端に着かずに ✅(4/4)(11/5 に手元で測った: `scrollDown(repeat: 2)` → `scrollToTop()` が 0.99 秒で ✅・先頭は「行 H02」。戻る途中でバーが出て一覧の上端が y=486 → 654 へ下がり、端送りの指を置く点(枠なしは画面の中央 = 横向きで y=640)が一覧の外に落ちる。次に測るもの: ブリッジの `/scrollAction` がその点で何を引いて `atEdge` を返したか(推測: 一覧の外の容器を引いて「もう端」)。直す場所はブリッジの容器の選び方か枠なしの送りの座標 = 後者は2度取り消している)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)(11/5: scrollFrame の候補の案内は名指せる id を持つ容器があるときだけ付く。A1 の容器は id を持たないので出ない = 案内を足しても従える形にならない。SUT の契約に id を足すかの判断が要る)⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
+- 11/6: ④を直した(整定の待ちが打ち切られた探索の赤は `waitSeconds:` を案内しない = `waitHintAfterSearch`)。⑧の `scrollToTop` と⑨は要測定
+
+### OI-168 探索の残り(10周目)
+- 状態: 再現済み
+- 確認: a5e87ce1(2026-11-04)
+- 属性: 要測定
+- 運用: ⑥要注意 — ✅ なのに行が開かない・後続で赤 ⑦回避可 — 既定の経路ではない(`settle: false` を使わなければ出ない)
+- 優先度: 中 — ⑥✅ なのに行が開かない(後続で赤)
+
+11/4 の10周目の探索(`_work/explore-20261104b/findings-*.md`)で直さなかったもの(直したものは 2dcc58ab・a5e87ce1・9c0e47eb)。⑥E2EY-CMP の Android の横向きの選択モードの一覧で、寄せの注記付きの `tap("項目 1*")` が ✅ なのに行が開かず選択モードに入る(amax F4・5 run 中 4)⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6・既定の経路ではない)
+- 11/6: ⑥⑦とも原因は未観測 = 要測定
+
+### OI-167 探索の残り(9周目)
+- 状態: 再現済み
+- 確認: 22012640(2026-11-04)
+- 属性: 要測定
+- 運用: ②③要注意 — 撃って ✅(後続で赤) ④⑤赤になる(黙りではない)・回避の手は未確認 ⑦⑧合否に響かない(文言・表示だけ) ⑨回避の手は未確認 ⑪再実行で吸収 — フル E2EX の流れでだけ出る(単独では 4/4 緑)
+- 優先度: 中 — ②③撃って ✅・後続で赤
+
+11/4 の9周目の探索(`_work/explore-20261104a/findings-*.md`)で直さなかったもの(副作用だった replace の順序とセルの並びの一部は 9df8df9e で直した)。②上端で 8〜12pt だけ見える行を「見えている部分」として撃つ(ilocal F1)③RN の iOS で、隠れたバーの下のボタンへの tap が覆いの下と書きながら撃って ✅(iultra F3)。`scroll:` の無い tap は直した(対象は隠れるバー自身を容器と推定されて判定の門で外れていた。一覧と交わらない容器は外の対象として扱い、撃たずに `scroll: .up` を案内する。案内どおりに書くと押せる)。逆向きの `scroll:` と hold は未確認④xcuitest の E2EX-CMP / inapp-boost の E2EX-RN で、別の欄の直後の `type(#field_number)` の焦点が動かず前の欄に打つ(im4 F2・F4。4/4・1/1。読み返しが赤にするので黙りではない)⑤E2EX-RN で Enter で焦点が移った直後の replace の type が 422「focus did not move」(im4 F6・両モード 2/2・撃たずに断る)⑦横向きの入力画面のキーボードの下の欄への type の断り文の座標が実画面と合わない(ilocal F2)⑧覆われていない行に「the target is covered by」の注記(ilocal F3)⑨CMP の Android の横向きの伸縮するヘッダで、上への払いが2回目以降動かない(素の `scrollUp()` でも = 払いの始点の問題の疑い。amax F1・6/6)⑪11/4 のフル E2EX(M1Ultra)で E2EX-RN の iOS が全シナリオ赤: アプリが起動直後の tap で JS の致命的エラー(`RCTExceptionsManager reportFatal` の SIGABRT・クラッシュレポート 25 件)。同じアプリのまま直後に回し直すと 47/48 緑(残り1本はツールチップの既知の形)で再現せず。同じ日の2回目のフル E2EX でも全滅(2/2)。JS のエラーは毎回 `Failed to call into JavaScript module method RCTEventEmitter.receiveEvent(). Module has not been registered as callable`(最初の1回は供給の途中)。単独の実行では 4/4 緑(ディスパッチ2回・E2EX-CMP の直後・アプリを消してから・M1Ultra のクローンで直接)= フル E2EX の流れの中でだけ出る
+
+- 11/6(977378ee の回帰・M1Ultra): フル E2EX でまた E2EX-RN の iOS が 48/48 赤(起動直後の最初の tap で SIGABRT・`RCTExceptionsManager reportFatal`・同日のクラッシュレポート 27 件)。落ちた3クラスを同じ機械で単独に回し直すと 4/4 緑 = フル E2EX の流れでだけ出る形のまま(3/3)
+- 11/6: ⑫を直した(どのシナリオもデバイスへ渡らず未着手が残った機械の行は ❌ と「no scenario reached a device」)。残りは原因が推測か材料不足 = 要測定
+
+### OI-163 探索の残り(8周目)
+- 状態: 再現済み
+- 確認: 4605aa35(2026-11-03)
+- 属性: 要測定・木に材料なし
+- 運用: ①要注意 — iOS の CMP でキーボードの下の欄への `clearInput` が別の欄を書き換える。先に `hideKeyboard()` で閉じる ④xcuitest モードと MCP だけ(既定のモードでは出ない) ⑥⑦⑬要注意 — 押されずに ok・後続で赤 ⑨⑰回避可 — `scrollFrame:` を付ける・キーボードを閉じてから探す(未確認) ⑩要注意 — 上端の一覧への `scroll: .up` が更新を走らせる。上端なら `scroll:` を付けない ⑫再実行で吸収(run の制御) ⑭回避の手は未確認 ③⑤⑧⑯⑱合否に響かない(文言・MCP の表示)か、観測が要る
+- 優先度: 中 — ①キーボードの下の欄の clearInput が別の欄を書き換える(閉じてから書けば避けられる)・⑩上端の探索が更新を走らせる
+
+11/3 の8周目の探索(`_work/explore-20261103c/findings-*.md`)で直さなかったもの。**重いもの**: ①iOS の CMP で、キーボードの下に隠れた欄へ clearInput が叩き直した点がかなキーボードのキーで、焦点のある別の欄を書き換えてから 422 で落ち、壊したことを言わない(kbd F3・1/1。11/3: 再現 8 台中 7 台。Enter で焦点が次の欄へ移る間は Compose が欄を動かし、XCUITest のキーボードの枠は画面の外で来る。①ホストが XCUITest で消す前に撮り直した欄を in-app のキーボードの枠と突き合わせる ②ランナーと in-app は焦点のタップの点がキーの上なら見えている帯へ寄せ、帯が無ければ撃たずに staleRef ③in-app の「直前の tap が焦点を立てた」は受け口が欄の上にあるときだけ、にして 16 回中 0 回。残り: 撃たずに断り続けて時間切れの赤が xcuitest 経路で 8 回中 1〜2 回あった(壊さない)③Flutter の Android の横向きで、キーボードを閉じた後に覆われた欄の見えている部分を押す tap が 5 回中 1 回タブを押して遷移した(land F2。11/3: 閉じた後は対象と覆いの枠が続けて同じになるまで読み直してから部分を決めるようにして 18 回中 0 回。押せた回も何も起きない形は OI-161 ⑧ のまま・長押しの部分押しは事後の確かめを通らないまま)④iOS の CMP の xcuitest モードと MCP で、タブの下に潜った行への tap がメディアのタブを押す(cover F4・既定の inapp-boost の DSL では出ない。11/4: 「木の順で奥に読まれる操作できる要素が中心を含み、ヒットテストが当たらないと断言したら覆いとして送る/外れなければ撃たない」を2回試して取り消した = E2EY-CMP の xcuitest で 8 回中 8 回赤のまま。送った後の木では行がタブから外れて見えるのに撃つとタブに当たり(慣性が止まるまで読み直しても同じ)、CMP の iOS の XCUITest の木の行の位置が描かれた位置とずれている疑い(手前を木だけで読めない形)。3 回は上の固定領域の裏でタップが飲まれる別の形(次の確かめで赤))。**その他**: ⑤CMP の iOS の横向きで MCP の `ft_tap` ref が、全画面で申告された容器のせいで縁のバーの外の描かれていない片を「見えている部分」として押す(land F5)⑥Android の RN でタブの下の行を送って外してから押す tap が飲まれて ok(cover F3・慣性の疑い)⑦iOS の inapp-boost で外側の容器に切り取られて見えない行への tap が送らず注記なしで ok(cover F1・in-app は要素を直接押すので echo は合う)⑧SwiftUI の横向きで高さ 0 に潰れた一覧の探索の払いが横のカルーセルを押す(land F3)⑨Flutter の Android の横向きで送れる容器が2つあると「nothing moved at all」で赤・scrollFrame の案内も無い(land F4)⑩Android で上端の一覧への `select` / `notExist` の `scroll: .up` が端を確かめる払いで引っ張って更新を2〜4回走らせる(scroll F1・4 SUT で 14/14)・下端から上の行を探しても1回走る(scroll F2・CMP / RN)⑫決定的に赤のシナリオだけで健全な端末が離脱する(run F1。11/3: 最後に通ってから別のデバイスでも落ちたシナリオの赤は数えないようにした = `ScenarioFailureWitnesses`。各シナリオを1回ずつ回す初回の run で赤が多いと離脱する形は残る = 区別の材料が無い)⑬Flutter の Android で続けて撃った2回目の pressEnter が届かずに ok(kbd F5)⑭CMP の Android で OTP の箱への `type("#otp_box_3")` が 500「target node not found」(kbd F2)⑯アプリが欄を空にした後の type に「the field already held」の事実と違う注記(kbd F4)⑰キーボードが出たまま `type("#field_bottom", scroll: .down)` が「nothing moved at all」(kbd F7)⑱Flutter の iOS の secure 欄の後の hideKeyboard が「still shown」(前の周の land F4・観測が要る)
+- 11/6: ⑪(ブリッジ不達で振り直した item は、他のレーンが生きている間は落としたレーンへ渡さない = `ScenarioQueue.requeue(_:avoiding:)`)・⑮(Android の pressEnter の失敗文から XCUITest を外した)・⑲(見えている部分を押した応答は、その説明を中心の警告より先に置く)を直した。残りは原因が推測か材料不足 = 要測定
+
+### OI-161 探索・横向きの残り(7周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-03)
+- 属性: 要測定・木に材料なし
+- 運用: ①回避可 — `maxSwipes:` を上げる ③④回避可 — `scrollFrame:` を付ける(④は通ると確認済み・③は未確認) ⑤要注意 — ft_batch だけ ⑥⑩再実行で吸収 ⑧要注意 — 何も起きずに ok・後続で赤 ⑪合否に響かない(警告だけ)
+- 優先度: 中 — ⑧何も起きずに ok・他は回避可か文言
+
+11/3 の7周目の探索(`_work/explore-20261103b/findings-*.md`)と、直しのデバイスでの確かめ。①横向きの低い一覧で1回の送りが行の高さを下回り既定の maxSwipes で届かない(ascroll F1)③E2EY-RN の A11 横向きの `tap("#post_39", scroll: .down)` が2回払っただけで「nothing moved at all」の赤(3/6)④iOS の半開のシートの中を `tap(scroll:)` で探すと背面の一覧を送る(e2ey F2・iOS 12/12。`scrollFrame:` を付ければ通る)⑤ft_batch の途中で設定アプリが前面へ来た後の tap が警告なしの ok(batch F3。結論に「変化を見ていない触る手」を名指す形は入れた・根本未確定)⑥同じスイッチを続けて tap すると2回目に「may have been swallowed」(batch F8。Android の読みの古さの疑い)⑧Flutter の横向きで Column からはみ出した欄の、木の上では覆われていない帯(タブの上の 32px)を押しても何にも当たらない(座標で直接撃って 4/4 無反応。親の箱の外の子へ Flutter のヒットテストが届かない推定。木に親の箱が無い)= 覆われた対象の見えている部分を押す tap は注記付きの ok のまま何も起きない⑩E2EY-iOS の `select("#txt_loading_state")` が「not visible: returned an empty element」なのに、続く `textIs("state=loaded")` が緑(1 回)⑪覆いの最前面がタブの中の文字(押せない型)のときは、見えている部分を押す扱いに入らず従来どおり警告して中心を撃つ(押せる祖先へ持ち上げる案は、祖先の復元が preorder+depth で行・包む祖先・無関係のボタンを拾うので外した)
+- 11/4: ①の型の追加の観測: M1Max の Emulator 4 台・横向きで、貼り付く見出し・グリッド・伸縮するヘッダの探索が 12/12 赤(「still moving … raise maxSwipes」。HEAD の対照は無し)
+- 11/6: ⑨を直した(欄の tap の後の待ちが尽きた注記は `keyboard-not-shown-after-tap`)。⑦は据え置き(FM の推論2回の時間で select 固有の不具合ではない。22 秒の回の負荷の帰属は測っていない)。残りの①③④⑤⑥⑧⑩は原因が推測か材料不足 = 要測定
+
+### OI-158 React Native の iOS で、キーボードが出たまま見えている行を tap するとキーボードが閉じるだけで押されず ok
+- 状態: 再現済み
+- 確認: 2ecbb646(2026-11-03)
+- 属性: 要測定
+- 運用: 要注意 — 押されずに ok(注記は出る・後続で赤)。キーボードが出たまま行を押す前に `hideKeyboard()` を書き、押した後に結果を確かめる
+- 優先度: 中 — 既定のモードで押されずに ok。後続で赤・`hideKeyboard()` で避けられる
+
+11/3 の7周目の探索(e2ey F5)。E2EY-RN の反転チャットで `type` → `tap("送信")` の後の `tap("メッセージ 57")` が、iOS(inapp-boost)で押されずに ok(4/4)。Android は撃つ前に戻るキーで閉じて直った。iOS は閉じる手段が「キーボードの上の空きを叩く」だけで、行が画面を埋めて叩いても閉じない(実測 `tapping (326, 512) above the keyboard did not close it`)。**今は閉じられなかった事実を注記に残すだけ**(`keyboardStayedUpNote`。撃つ判断は変えない = `keyboardShouldPersistTaps` を変えたアプリでは押せるので断らない)。残り: iOS で副作用なく閉じる手段(欄の resign 等。ブリッジの変更)= 要測定(in-app の設計の注記は「resign では RN のキーボードが閉じない」と書くが、測った記録が無い。`InAppBridge.swift` のキーボードを閉じる経路の doc)
+- 11/6: MCP の `ft_tap` も、撃つ前にキーボードが出ていて閉じるだけで終わりうる点なら注記する(`PreFireGuard.tapOnlyDismissesKeyboard` を共有・`keyboardMayOnlyDismissNote`)
+
+### OI-125 live と CLI の残り
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-02)
+- 属性: 要測定
+- 運用: 回避可 — 固まったランナーは `bridge down --port <N>` で使う端末だけ起こし直す。live の約 8.8 秒の止まりは待てば進む。deep sleep の後の実機 SE3 の全面黒は手で再起動する
+- 優先度: 低 — 起こし直しで回避できる・実機 SE3 の黒は手で直す
+
+別ポートのランナーが固まっている間、live が1コマンド約 8.8 秒止まる。deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
+- 11/6: 原因は未観測(固まったランナーへの問い合わせが live のどこで待つか・deep sleep の後の `bridge up` が何で落ちるか)= 要測定
+
 ### OI-181 探索の残り(23周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
@@ -226,7 +199,7 @@
 - 運用: 合否に響かない — MCP の `ft_scroll_to` だけ。アプリを前面にしてから撃つ
 - 優先度: 低 — MCP の ft_scroll_to だけ
 
-11/6 の17周目の探索(20分・`_work/explore-20261106a/findings-*.md`)で観測し、直さなかったもの。③アプリが背面のまま MCP の `ft_scroll_to` を撃つと、ホーム画面へ送りを撃ってクイック設定を開いたまま残す(phys F2・Pixel 4a で 1/2。OI-175 ③と同じ「始点の持ち主の扱い」の延長の疑い。DSL の探索の途中で前面を離れた形は 11/6 に止めるようにした)= 要測定(撃つ前に止める門が MCP の探索に無いことは観測済み: MCP は `appMayHaveLeft` を立てず、`wireAppGoneGuard` はプロセスが居ないときだけ断り、探索の基準は起動したアプリに置き換わる。シェードを開いたのが送りか逆向きのドラッグかは材料不足 = `FT_BRIDGE_TRACE` か adb の getevent で時系列。report-mcode)
+11/6 の17周目の探索(20分・`_work/explore-20261106a/findings-*.md`)で観測し、直さなかったもの。③アプリが背面のまま MCP の `ft_scroll_to` を撃つと、ホーム画面へ送りを撃ってクイック設定を開いたまま残す(phys F2・Pixel 4a で 1/2。始点が別のアプリの探索の扱い(11/6 に直した `ScrollSearchResult.startedOnOtherApp`)の延長の疑い。DSL の探索の途中で前面を離れた形は 11/6 に止めるようにした)= 要測定(撃つ前に止める門が MCP の探索に無いことは観測済み: MCP は `appMayHaveLeft` を立てず、`wireAppGoneGuard` はプロセスが居ないときだけ断り、探索の基準は起動したアプリに置き換わる。シェードを開いたのが送りか逆向きのドラッグかは材料不足 = `FT_BRIDGE_TRACE` か adb の getevent で時系列。report-mcode)
 
 ### OI-183 探索の残り(25周目)
 - 状態: 再現済み
@@ -276,6 +249,16 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 
 ## 木に材料なし
 
+### OI-156 iOS のテキストの可視性検証が、ボタンは縁で切れていてもタブバーの下でも読まずに緑にする
+- 状態: 再現済み
+- 確認: 0a67f89b(2026-11-04)
+- 属性: 木に材料なし
+- 運用: 回避不可(見逃し) — iOS のボタンがタブバーの下・縁で切れていても、テキストの可視性検証は緑にする。押した後の結果を確かめれば、押せないことは赤にできる
+- 優先度: 中 — ボタンの見えにくさの見逃し(回避不可)。押した後の確かめで補える
+
+11/3 の7周目の探索(vis F2・F3)。**Android は直った**(行・ボタンが同じ label の文字の子を1つだけ持つときはその子で確かめる = `OcclusionEligibility.sameLabelTextDescendant`)。**iOS の行(セル)は 11/4 に赤へ上げた**(文字の子を持たない `clickable` / `cell` を行の枠で OCR だけで読む = `OcclusionEligibility.isLabelledRowWithoutText`。11/3 の回帰の全数で警告 2 件・2 件とも真陽性 = 横向きで潰れた一覧の行・木の順で掴んだ見えない行。後者は in-app の木のセルの並びを直し、前者は E2E-iOS のシナリオを直した)。残り: ボタン(`button "自己修復"` のタブバーの下)は対象外のまま(アイコンのボタンは描かれない説明文をラベルに持つ)
+- 11/6: 残りのボタンは、描かれない説明文をラベルに持つアイコンのボタンと文字のボタンを木で見分ける材料が無い = 木に材料なし
+
 ### OI-121 ref なしの secure 欄の追記の誤った緑
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-02)
@@ -298,13 +281,13 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 ### OI-129 5周目の探索で残した所見
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-02)
-- 属性: 木に材料なし・着手可
-- 運用: 要注意 — はみ出した行・隠れたバーのボタンへの tap は注記だけで撃つので、押した後に結果を確かめれば赤にできる。`scroll-leftover` の誤検知は警告だけで合否に響かない。横向きの全画面 IME の打鍵と SwiftUI のスライダへの `swipeBy` は回避の手を確かめていない
+- 属性: 木に材料なし・要測定
+- 運用: 要注意 — はみ出した行・隠れたバーのボタンへの tap は注記だけで撃つので、押した後に結果を確かめれば赤にできる。`scroll-leftover` の誤検知は警告だけで合否に響かない。SwiftUI のスライダへの `swipeBy` は回避の手を確かめていない
 - 優先度: 中 — 注記だけで撃つ形・回避の手が未確認の形を含む
 
-`explore-20261102a/findings-*.md`。木だけでは手前を読めない形: はみ出した行の tap が別の部品に当たる(se3 F4・撃つ。注記のみ)、隠れたバーのボタンは警告が出るが撃つ(sim F10)、枠なしの払いが一覧の外に落ちる(pixel F7・F8。キーボードなしはブリッジ既定に任せる決定)。`scroll-leftover` の誤検知(emu F5 の横向きの固定ヘッダ・sim F6 の遷移中の木)。横向きの全画面 IME の打鍵は MCP の警告だけで DSL は未対応(emu F1)。SwiftUI のスライダへの `swipeBy` が動かない(se3 F5)。
+`explore-20261102a/findings-*.md`。木だけでは手前を読めない形: はみ出した行の tap が別の部品に当たる(se3 F4・撃つ。注記のみ)、隠れたバーのボタンは警告が出るが撃つ(sim F10)、枠なしの払いが一覧の外に落ちる(pixel F7・F8。キーボードなしはブリッジ既定に任せる決定)。`scroll-leftover` の誤検知(emu F5 の横向きの固定ヘッダ・sim F6 の遷移中の木)。SwiftUI のスライダへの `swipeBy` が動かない(se3 F5)。
 - 11/4: 判断: 横向きの全画面 IME の打鍵は DSL にも MCP と同じ判定で警告を出す(着手可)。`scroll-leftover` の誤検知も着手可。手前を木だけで読めない形(はみ出した行・隠れたバー)はブリッジの `z` 待ち(in-app の UIKit・RN は 11/4 に入れた)
-
+- 11/6: 横向きの全画面 IME の打鍵は DSL にも MCP と同じ判定で注記するようにした。`scroll-leftover` の誤検知は原因の観測が要る(emu F5 は木の生の depth・sim F6 は遷移中の木の時系列)= 要測定
 ### OI-173 探索の残り(14周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-05)
@@ -406,16 +389,37 @@ E2EX-Flutter・xcuitest モード。`type("#field_number", "12", replace: true)`
 
 ## 環境側
 
+### OI-186 探索の残り(28周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 環境側・据え置き
+- 運用: ①要注意 — 戻るボタンの無い iOS の画面の `back()` は注記 `back-stayed-on-screen` が付くだけで緑。自前の戻るがあれば `tap` で押す ④合否に響かない
+- 優先度: 中 — ①戻るボタンの無い iOS の画面の back() が緑のまま(注記で知らせる)
+
+11/6 の28周目の探索(20分・`_work/explore-20261106l/findings-*.md`)で観測し、直さなかったもの。①iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があっても、ナビゲーションバーの `BackButton` でなければ左端のスワイプに落ちる(iultra F1。28周目の直しで、同じ画面に留まったら `back-stayed-on-screen` と注記するようにした = 合否は緑のまま。自前の戻るを押すかは要判断)④MCP の `ft_launch` が Duo で「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る(duo F2・1/1)・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(duo F3・1/1)= 環境側(Duo の SpringBoard の落ち。OI-184 ④。個々の赤との時刻の対応は未確認)
+- 11/6: ②(WebView の `back()` の前後を同じ経路の木 = `AppDriver.observationSnapshot` で比べる。委譲の待ちも消えた)・③(続く失敗の ⚠️ が直前の `back()` がアプリを抜けたことを名指す)を直した。①は据え置き(自前の「戻る」を押すと、どれが戻るかを書き手でなくツールが決めることになる。注記で知らせる)。④は環境側(OI-184 ④)
+
+### OI-184 探索の残り(26周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-06)
+- 属性: 環境側
+- 運用: ④再実行で吸収(Duo だけ・環境側)
+- 優先度: 低 — Duo だけ
+
+11/6 の26周目の探索(20分・`_work/explore-20261106j/findings-*.md`)で観測し、直さなかったもの。④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
+- 11/6: ②は絞り込まないと決めて閉じた(失敗したステップの対象が直前の tap の対象と違うときこそ「tap の後にレイアウトが動いた」が役に立つ = `SwallowedInteractionTests` の形。断定を外した文言のまま残す。理由は `StepExecutor.lastTapHint` の doc)
+
 ### OI-139 M4Max(macOS 26.7.2)の Vision の OCR が `@alice` を `dalice` と読み、文中のリンクの OCR の位置決めが失敗する
 - 状態: 再現済み
 - 確認: 16447ca9(2026-11-02)
-- 属性: 環境側・着手可
+- 属性: 環境側
 - 運用: 回避可 — M4Max の macOS を他のマシンとそろえる。M1Ultra の位置ずれ(2/6)は再実行で吸収
 - 優先度: 中 — M4Max で 6/6 赤・M1Ultra でも 2/6。macOS をそろえれば大半は消える
 
 E2EY-iOS の「文中のリンクを押せること」S0020 が M4Max で 6/6 赤(`OCR read: "dalice dh t1https :|/example.com/a"`)。他のマシンは macOS 27.2(26B123)で、M4Max だけ 26.7.2(25G332)。同じシナリオは M1Ultra で 10/12 緑(赤の2本は別の形)。手は2つ: M4Max の macOS を他とそろえる(回帰に参加するマシンの前提として docs/verification/operations.md へ足す)か、リンクの文字列の照合で `@` の読み誤りを許すか(別のリンクを押す危険があるので、許すなら同じ行の他の候補と区別できるときだけ)
 - 11/4: 12周目の探索(im4 F3)で同じ機械の OCR が E2E-iOS のキーボードの覆い画面の "up" を "dn" と読み、OCR だけの判定で「not visually visible」の誤った赤(13/13。画面には "up" がはっきり描かれている)
 - 11/6: M1Ultra の赤の形を観測(6台へ同時に1回ずつ = 2/6 赤): OCR が `@alice` の位置を URL の上(x=168・242。手元の正しい位置は x=37)と答え、押した点が URL に当たって `link=url` / `link=none`。手元(M2Ultra)は同時に緑
+- 11/6: macOS をそろえることを回帰に参加するマシンの前提として docs/verification/operations.md に書いた(読み誤りを許す照合は入れない = 別のリンクを押す危険)。残りは M4Max の macOS の更新(ユーザーの作業)
 
 ## 据え置き
 

@@ -605,7 +605,7 @@ extension StepExecutor {
             guard let td = typeDriver else {
                 // ブリッジの文言は ref を渡す前提の案内を含むので載せない(DSL に ref は無い)
                 if DriverError.isTextInputFallback(error) {
-                    return .failed("the in-app bridge refused to clear the focused field (HTTP 409), and no XCUITest bridge is available to retry")
+                    return .failed(Self.focusedFieldRefusal("clear", isAndroid: isAndroid))
                 }
                 throw error
             }

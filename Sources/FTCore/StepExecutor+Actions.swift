@@ -768,7 +768,8 @@ extension StepExecutor {
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
-                        + (leftHint ?? Self.defaultWaitHint(step) + Self.scrollOffHint(step, in: hintSnapshot))
+                        + (leftHint ?? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
+                            + Self.scrollOffHint(step, in: hintSnapshot))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)
@@ -1434,6 +1435,7 @@ extension StepExecutor {
                     if !step.skipsSettle {
                         keyboardFrameBeforeType = keyboardBefore
                         pendingTypeKeyboardCheck = true
+                        keyboardWaitFollowsFieldTap = false
                         pendingTypeEndedWithNewline = text.hasSuffix("\n")
                     }
                     if let failure = await typedInputFailure(td, prior: typedPrior, text: text, phase: &phase) {
@@ -1525,6 +1527,7 @@ extension StepExecutor {
             if !step.skipsSettle {
                 keyboardFrameBeforeType = keyboardBefore
                 pendingTypeKeyboardCheck = true
+                keyboardWaitFollowsFieldTap = false
                 pendingTypeEndedWithNewline = text.hasSuffix("\n")
             }
         case "clearInput":
@@ -1841,6 +1844,7 @@ extension StepExecutor {
         keyboardFrameBeforeType = snapshot.keyboardFrame
         pendingTypeEndedWithNewline = false
         pendingTypeKeyboardCheck = true
+        keyboardWaitFollowsFieldTap = true
     }
 
     /// `pendingTypeKeyboardCheck` を消化する: 直前の type の前後でキーボードが動いた(出た・出る途中・出し直しで隠れた)なら、
@@ -1853,6 +1857,8 @@ extension StepExecutor {
         let clock = ContinuousClock()
         var snapshot = snapshot
         pendingTypeKeyboardCheck = false
+        let followsFieldTap = keyboardWaitFollowsFieldTap
+        keyboardWaitFollowsFieldTap = false
         keyboardWaitExhausted = false
         // 出し直しの途中で隠れているなら、戻るまで待ってから整定を見る(keyboardHiddenAfterType の doc)。
         // 上限は焦点待ちの共有値(戻らなければ正当に閉じたと見てそのまま進む)
@@ -1892,7 +1898,7 @@ extension StepExecutor {
                 phase.snapshotMs += Self.ms(clock.now - start)
             }
             if !Self.keyboardOnScreen(snapshot.keyboardFrame, screen: snapshot.screen) {
-                noteCodesThisStep.insert(.keyboardNotShownAfterType)
+                noteCodesThisStep.insert(followsFieldTap ? .keyboardNotShownAfterTap : .keyboardNotShownAfterType)
                 keyboardWaitExhausted = true
             }
             keyboardKnownAbsent = KeyboardWait.knownAbsent(

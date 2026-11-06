@@ -41,11 +41,7 @@ public enum BackEffect {
         let ids: (SnapshotResponse) -> Set<String> = { Set($0.elements.compactMap { $0.identifier }.filter { !$0.isEmpty }) }
         let beforeIDs = ids(before)
         guard beforeIDs.count >= minimumIdentifiers else { return false }
-        // **経路の違う木は集合の等しさで比べない**: before が画面ごとの委譲(XCUITest)の木で after が in-app の DOM の木だと、
-        // 後者は WebView の中身の識別子を足して持つ(同じ画面でも等しくならず、注記が出なかった)。この向きだけ「before ⊆ after」で比べる
-        if before.webViewPath == WebViewPath.delegated, after.webViewPath != WebViewPath.delegated {
-            return beforeIDs.isSubset(of: ids(after))
-        }
+        // 前後は同じ経路の木で比べる前提(DSL の back() は `AppDriver.observationSnapshot()` で両方読む)
         return beforeIDs == ids(after)
     }
     /// **back の後の木の持ち主が、対象アプリ(`expected`)でなくなったか**(Android の最初の画面での back = ランチャー等へ抜ける)。

@@ -323,7 +323,8 @@ enum DeviceMachineRunner {
             }
         }
 
-        printSummary(profileName: profileName, outcomes: outcomes, ran: ranCounts)
+        printSummary(profileName: profileName, outcomes: outcomes, ran: ranCounts,
+                     workLeftUnhanded: !(dispatcher?.unhandedIDs.isEmpty ?? true))
         healCollection.finish(project: project) { FleetRunner.log($0) }
         // **broadcast はここを呼ばない** —— 同じ ID を台数ぶん走らせるので、1台でも記録が
         // あれば「走った」であり「欠落」の意味が変わる(呼び手で分岐。実装を分けない)
@@ -775,17 +776,28 @@ enum DeviceMachineRunner {
         return String(format: "est. %.0fs", perDevice)
     }
 
-    private static func printSummary(profileName: String, outcomes: [FleetEntryOutcome], ran: [String: Int]? = nil) {
+    private static func printSummary(profileName: String, outcomes: [FleetEntryOutcome], ran: [String: Int]? = nil,
+                                     workLeftUnhanded: Bool = false) {
         FleetRunner.log("")
         FleetRunner.log("=== profile \"\(profileName)\" across machines ===")
         // 静的割り当ての偏り(ストラグラー)を再配分機構を作る前に実測で貯める
         let maxDuration = outcomes.map(\.duration).max() ?? 0
         for outcome in outcomes {
-            let mark = outcome.exitCode == 0 ? "✅" : "❌"
-            let count = ran.map { "  ran=\($0[outcome.host] ?? 0)" } ?? ""
-            FleetRunner.log(String(format: "%@ %-20@ exit=%d  %.1fs idle=%.1fs", mark,
-                                   outcome.host as NSString, outcome.exitCode, outcome.duration,
-                                   maxDuration - outcome.duration) + count)
+            FleetRunner.log(summaryLine(outcome: outcome, ran: ran?[outcome.host], maxDuration: maxDuration,
+                                        workLeftUnhanded: workLeftUnhanded))
         }
+    }
+
+    /// 機械ごとの1行。**1本も回らなかった機械は exit=0 でも ✅ にしない** —— 供給の失敗(in-app の dylib のビルド失敗等)で
+    /// 子が正常終了のまま何も回さない形があった。ただし他の機械が全部消化した結果 0 本だった機械(= 渡せなかった分が残っていない)は
+    /// 健全なので ✅ のまま。`ran` = nil は静的割り当て(本数を数えない)
+    static func summaryLine(outcome: FleetEntryOutcome, ran: Int?, maxDuration: Double, workLeftUnhanded: Bool) -> String {
+        let nothingReached = ran == 0 && workLeftUnhanded
+        let mark = outcome.exitCode == 0 && !nothingReached ? "✅" : "❌"
+        let count = ran.map { "  ran=\($0)" } ?? ""
+        let note = nothingReached ? " (no scenario reached a device)" : ""
+        return String(format: "%@ %-20@ exit=%d  %.1fs idle=%.1fs", mark,
+                      outcome.host as NSString, outcome.exitCode, outcome.duration,
+                      maxDuration - outcome.duration) + count + note
     }
 }

@@ -86,7 +86,7 @@ final class WorkerStaggerWiringTests: XCTestCase {
         let code = try source.split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        let sites = code.components(separatedBy: "group.addTask { await self.superviseWorker").count - 1
+        let sites = code.components(separatedBy: "await self.superviseWorker(").count - 1
         XCTAssertEqual(sites, 1,
                        "ワーカーを積む口が \(sites) 箇所ある —"
                        + " admit を迂回する経路が生えていないか確かめること")
