@@ -329,7 +329,8 @@ final class FTInAppBridge {
             truncatedTiers: merged.truncatedTiers.isEmpty ? nil : merged.truncatedTiers,
             bulkExemptCount: merged.bulkExempt > 0 ? merged.bulkExempt : nil,
             safeAreaTop: safeAreaTop,
-            coveredByFrontWindow: base.frontWindowCover))
+            coveredByFrontWindow: base.frontWindowCover,
+            modalScope: base.modalScope))
     }
 
     /// keyboardWillChangeFrame の最新値(画面座標)。nil = 非表示または不明。

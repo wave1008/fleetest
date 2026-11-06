@@ -257,7 +257,7 @@ final class ChromePinnedOutsideTests: XCTestCase {
     /// 実際の木: 申告された一覧 (0,785 1080x1576)・d9 の中に欄(d10)とラベル(d11)。上部バーの入れ物が間引かれ、
     /// 戻るボタン(d10・y=164 h=126)と題名(d11・y=185 h=82)が一覧の部分木の後ろに来る。題名は背が低く縦に
     /// 中央寄せなので、単独では「上端に固定」の条件(隙間が高さの2倍以内)に収まらない
-    private func inputsScreenTree(titleY: Double = 185) -> [ElementInfo] {
+    private func inputsScreenTree(titleY: Double = 185, titleDepth: Int = 11) -> [ElementInfo] {
         var tree = [el(1, "staticText", 9, 42, 331, 175, 63, id: "txt_number_echo"),
                     el(7, "scrollView", 9, 0, 785, 1080, 1576, scrollable: true)]
         for (i, y) in [825.0, 1025, 1225, 1425].enumerated() {
@@ -266,7 +266,7 @@ final class ChromePinnedOutsideTests: XCTestCase {
         }
         tree.append(el(22, "clickable", 10, 12, 164, 126, 126, id: "btn_back"))
         tree.append(el(23, "staticText", 11, 53, 195, 43, 63, label: "戻る"))
-        tree.append(el(24, "staticText", 11, 148, titleY, 285, 82, id: "txt_screen_title"))
+        tree.append(el(24, "staticText", titleDepth, 148, titleY, 285, 82, id: "txt_screen_title"))
         return tree
     }
 
@@ -281,7 +281,7 @@ final class ChromePinnedOutsideTests: XCTestCase {
     /// バーの一員と縦の範囲が重ならない上帯の要素は、従来どおり ghost のまま(並ぶ相手が居ない)
     func testShortTopElementBelowTheBarStaysAGhost() {
         let screen = FTRect(x: 0, y: 0, width: 1080, height: 2424)
-        let tree = inputsScreenTree(titleY: 560)
+        let tree = inputsScreenTree(titleY: 560, titleDepth: 10)
         let title = tree.first { $0.identifier == "txt_screen_title" }!
         XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(title, in: tree, screen: screen),
                         "バーと並ばない要素まで chrome と読んだ")

@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 277
+    public static let bridgeProtocolVersion = 278
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1197,6 +1197,10 @@ public struct SnapshotResponse: Codable, Sendable {
     /// あちらは「木に載る要素へのタップが吸われる帯」で in-app は申告しない(要素の activate は手前の窓に吸われない)。
     /// こちらは**タップ判定には使わない**。失敗の文で「手前の窓が覆っている」と名指すためだけの材料
     public var coveredByFrontWindow: FrontWindowCover?
+    /// **`accessibilityViewIsModal` の view があって、その外(奥の兄弟)を木から外した**申告。**in-app だけが申告する**
+    /// (`InAppSnapshot.modalChildOnly`。XCUITest は OS が外した木をそのまま返すので外した事実を知らない)。
+    /// 失敗の文で「対象はモーダルの外にあるので木に無い」と名指すためだけの材料(タップ判定には使わない)。外した物が無ければ nil
+    public var modalScope: ModalScopeCover?
     /// **何を捨てたか**の内訳(`BridgeSnapshotThinning.tierKey` の値 → 件数)。
     /// `truncatedCount` は「何件落ちたか」しか言わないので、ホストは
     /// 「選べる物が消えたのか、飾りが消えただけなのか」を区別できなかった ——
@@ -1238,8 +1242,10 @@ public struct SnapshotResponse: Codable, Sendable {
                 truncatedTiers: [String: Int]? = nil,
                 bulkExemptCount: Int? = nil,
                 safeAreaTop: SafeAreaTop = .unknown,
-                coveredByFrontWindow: FrontWindowCover? = nil) {
+                coveredByFrontWindow: FrontWindowCover? = nil,
+                modalScope: ModalScopeCover? = nil) {
         self.safeAreaTop = safeAreaTop
+        self.modalScope = modalScope
         self.coveredByFrontWindow = coveredByFrontWindow
         self.sessionBundleID = sessionBundleID
         self.screen = screen
@@ -1259,6 +1265,17 @@ public struct SnapshotResponse: Codable, Sendable {
 /// `SnapshotResponse.coveredByFrontWindow` の中身。`droppedCount` = 手前の窓に覆われて落とした要素の数(0 より大きい)、
 /// `frames` = 実際に要素を覆った手前の窓の枠(画面座標・奥から手前の順)
 public struct FrontWindowCover: Codable, Sendable, Equatable {
+    public let droppedCount: Int
+    public let frames: [FTRect]
+    public init(droppedCount: Int, frames: [FTRect]) {
+        self.droppedCount = droppedCount
+        self.frames = frames
+    }
+}
+
+/// `SnapshotResponse.modalScope` の中身。`droppedCount` = モーダルの view の外にあるとして木から外した、見えている兄弟の部分木の数
+/// (0 より大きい。要素数ではなく兄弟の数 = 外した先を降りて数えない)、`frames` = モーダルの view の枠(画面座標)
+public struct ModalScopeCover: Codable, Sendable, Equatable {
     public let droppedCount: Int
     public let frames: [FTRect]
     public init(droppedCount: Int, frames: [FTRect]) {

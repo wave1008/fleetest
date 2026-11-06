@@ -363,10 +363,47 @@ extension StepExecutor {
     static func declaredAtEdge(step: FlowStep, in snapshot: SnapshotResponse, finger: FTSwipeDirection) -> Bool {
         let vertical = finger == .up || finger == .down
         guard let element = scrollContainerElement(step: step, in: snapshot, vertical: vertical) else { return false }
-        return ScrollActionAvailability.atEdge(
+        guard ScrollActionAvailability.atEdge(
             container: element,
             enclosing: enclosingScrollables(of: element, step: step, in: snapshot),
-            forSwipe: finger)
+            forSwipe: finger) else { return false }
+        return !nestedScrollableMoves(inside: element, in: snapshot, finger: finger, vertical: vertical)
+    }
+
+    /// 端と申告した容器の**内側**に、同じ列(縦の送りなら容器の中央の x を含む)で同じ軸の、その向きへ送れると申告する
+    /// scrollable があるか。あれば端ではない: 外側の ScrollView が [forward] だけでも、バーが戻った後の内側の一覧は
+    /// backward を持ち、ブリッジの /scrollAction はその一覧を送る(OI-169 ⑧。同期相手: AndroidRunner の
+    /// BridgeRouter.nestedSenderInColumn)。軸は向きの名前(up/down・left/right)か子の並び(`ContainerGeometry.childrenFlow`)で
+    /// 決まるものだけ数え、決まらない内側は数えない(分からないものを「送れる」の根拠にしない)
+    /// preorder で `container` の直後から、一段深い要素だけ(深さが戻ったら終わり)
+    static func directChildren(of container: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
+        guard let start = elements.firstIndex(where: { $0.ref == container.ref }) else { return [] }
+        var out: [ElementInfo] = []
+        for e in elements[(start + 1)...] {
+            if e.depth <= container.depth { break }
+            if e.depth == container.depth + 1 { out.append(e) }
+        }
+        return out
+    }
+
+    static func nestedScrollableMoves(inside container: ElementInfo, in snapshot: SnapshotResponse,
+                                      finger: FTSwipeDirection, vertical: Bool) -> Bool {
+        guard let start = snapshot.elements.firstIndex(where: { $0.ref == container.ref }) else { return false }
+        let column = vertical ? container.frame.x + container.frame.width / 2 : container.frame.y + container.frame.height / 2
+        for candidate in snapshot.elements[(start + 1)...] {
+            guard candidate.depth > container.depth else { break }
+            guard candidate.scrollable == true, let actions = candidate.scrollActions,
+                  !ScrollActionAvailability.atEdge(scrollActions: actions, forSwipe: finger) else { continue }
+            let lo = vertical ? candidate.frame.x : candidate.frame.y
+            let hi = lo + (vertical ? candidate.frame.width : candidate.frame.height)
+            guard column >= lo, column < hi else { continue }
+            let named = actions.contains { vertical ? ($0 == "up" || $0 == "down") : ($0 == "left" || $0 == "right") }
+            // 並びは**直接の子**(preorder で一段深い要素)だけで見る。枠の中の全要素で見ると、一覧の上に浮かぶ FAB や
+            // 下のバーまで数えて列が揃わず nil になった(E2EY-Android の横向き・FAB が x=2640)
+            let flow = ContainerGeometry.childrenFlow(of: candidate, in: Self.directChildren(of: candidate, in: snapshot.elements))
+            if named || flow == (vertical ? .alongY : .alongX) { return true }
+        }
+        return false
     }
 
     /// `container` を包む scrollable(端の判定で「外側がまだ送れるか」を見る相手)。

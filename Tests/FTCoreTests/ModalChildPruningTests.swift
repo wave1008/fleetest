@@ -38,7 +38,7 @@ final class ModalChildPruningTests: XCTestCase {
     /// 木の走査が子の選別を通る(通さない版では背面のボタンが木に残り exist / tap が XCUITest と逆になる)
     func testSnapshotCollectGoesThroughTheModalFilter() throws {
         let snapshot = try source("InAppBridge/Sources/InAppSnapshot.swift")
-        XCTAssertTrue(snapshot.contains("let children = modalChildOnly(axChildren(node))"))
+        XCTAssertTrue(snapshot.contains("let children = modalChildOnly(axChildren(node), tally: tally)"))
         XCTAssertTrue(snapshot.contains("BridgeAPI.visibleModalChildStart"))
     }
 }

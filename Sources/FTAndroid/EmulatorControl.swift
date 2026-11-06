@@ -62,10 +62,11 @@ public enum EmulatorControl {
 
     /// 2点間ドラッグ(座標は screencap と同じ物理ピクセル)
     public static func drag(serial: String, fromX: Int32, fromY: Int32,
-                            toX: Int32, toY: Int32, durationMs: Int) async throws -> GestureDelivery {
+                            toX: Int32, toY: Int32, durationMs: Int,
+                            leadIn: EmulatorGrpcSession.DragLeadIn? = nil) async throws -> GestureDelivery {
         try await performGesture(serial: serial) {
             try await EmulatorGrpcSession.drag(endpoint: $0, fromX: fromX, fromY: fromY,
-                                               toX: toX, toY: toY, durationMs: durationMs)
+                                               toX: toX, toY: toY, durationMs: durationMs, leadIn: leadIn)
         }
     }
 

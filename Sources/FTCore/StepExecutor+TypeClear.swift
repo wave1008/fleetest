@@ -515,7 +515,10 @@ extension StepExecutor {
     /// 対象を引く指の操作(`PreFireGuard.keyboardSensitiveActions`)。nil = 対象外・閉じても見つからない
     func resolveAfterClosingKeyboard(_ action: String, step: FlowStep, in snapshot: SnapshotResponse,
                                      phase: inout PhaseAccumulator) async throws -> KeyboardRetry {
-        guard PreFireGuard.keyboardSensitiveActions.contains(action),
+        // in-app が「モーダルの view の外を木から外した」と申告した木は、対象が無い理由がモーダルと分かっている。
+        // キーボードへ帰属せず、閉じる tap も撃たない(幕の上を叩く。OI-180 ②)。失敗文は `modalScopeHint`
+        guard !Self.hasModalScope(snapshot),
+              PreFireGuard.keyboardSensitiveActions.contains(action),
               KeyboardWait.isShown(snapshot) || (!isAndroid
                 && KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                              screen: snapshot.screen).windowResizedAboveKeyboard) else {
@@ -538,6 +541,21 @@ extension StepExecutor {
         }
         return .reached(element: found, usedFallback: usedFallback, snapshot: after,
                         note: note + " — the target was not on the screen while the keyboard was up")
+    }
+
+    static func hasModalScope(_ snapshot: SnapshotResponse) -> Bool {
+        (snapshot.modalScope?.droppedCount ?? 0) > 0
+    }
+
+    /// in-app が `accessibilityViewIsModal` の view の外を木から外したと申告した木で解決できなかったときの案内
+    /// (`SnapshotResponse.modalScope`)。待っても閉じないので `waitSeconds:` は案内しない。申告が無い木は nil = 従来の案内
+    static func modalScopeHint(_ snapshot: SnapshotResponse) -> String? {
+        guard let scope = snapshot.modalScope, scope.droppedCount > 0 else { return nil }
+        let frames = scope.frames.prefix(2).map { "(\(Int($0.x)),\(Int($0.y)) \(Int($0.width))x\(Int($0.height)))" }
+            .joined(separator: ", ")
+        return " — a modal view (accessibilityViewIsModal) at \(frames) is open, and \(scope.droppedCount) element group(s) outside it are"
+            + " left out of the tree; the target is probably behind it, not under the keyboard. Close the modal (dismiss the dialog)"
+            + " before acting on what is behind it — waiting will not bring the target back"
     }
 
     /// `resolveAfterClosingKeyboard` の結果。呼び手(`StepExecutor+Actions`)が失敗文を決める

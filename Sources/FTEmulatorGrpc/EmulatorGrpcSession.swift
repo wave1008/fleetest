@@ -81,12 +81,57 @@ public enum EmulatorGrpcSession {
     // proto は Android 固有動作を明記しているが guest には届かず、RPC だけ成功する
     // (実測。FTAndroid.AndroidDriver.home() と DS-16.3)
 
+    /// 短くて遅いドラッグの最初の区間(`leadInPlan`)。`px` を `ms` で進めてから、残りを残りの時間で進める(総距離・総時間・終点は変えない)
+    public struct DragLeadIn: Equatable, Sendable {
+        public let px: Double
+        public let ms: Int
+        public init(px: Double, ms: Int) { self.px = px; self.ms = ms }
+    }
+
+    /// Android の touch slop は 8dp(`ViewConfiguration.TOUCH_SLOP`。Compose の `viewConfiguration.touchSlop` も同じ)。
+    /// 指がこれを越えるまで、View/Compose はドラッグではなくタップ/長押しの候補として扱う
+    public static let touchSlopDp: Double = 8
+    /// 長押しの既定のしきい値(`ViewConfiguration.DEFAULT_LONG_PRESS_TIMEOUT` = 400ms。Compose の `longPressTimeoutMillis` も同じ)。
+    /// gRPC のドラッグは down から動き出すまで止まらず押下時間を持たないので、slop を越える前にこれを過ぎると長押しになる
+    public static let longPressTimeoutMs: Int = 400
+    /// slop を越えるのがこの時間より後になる遅さのドラッグだけ最初の区間を速める = しきい値の半分。越える時刻が揺れても
+    /// しきい値に届かない余裕(`input` の 16ms 刻み・gRPC の往復の揺れ)。普通の寄せ(120px/s)は 3x の端末でも slop(24px)を 200ms で越える = 触らない
+    static let leadInTriggerMs = longPressTimeoutMs / 2
+    /// 最初の区間の長さ = slop の 1.5 倍(斜めの丸め・1px 刻みの補間で slop ちょうどに留まらない余裕)
+    static let leadInSlopFactor: Double = 1.5
+    /// 最初の区間の時間 = しきい値の 3/8(150ms)。slop を越える時刻がこれ以下になり、しきい値(400ms)より十分前
+    static let leadInMs = longPressTimeoutMs * 3 / 8
+
+    /// 短くて遅いドラッグが slop を越えるのが長押しのしきい値に近いとき、最初の区間を速める計画。nil = 触らない
+    /// (十分速い・距離が slop を越えない(越えない動きは tap/長押しとして扱われてよい)・時間が最初の区間より短い)。
+    /// 最初の区間の距離は `min(slop × 1.5, 総距離 × 0.8)`: 総距離が短いとき終点の手前で slop を越え、残りを動かす余地を残す。
+    /// `densityPxPerDp` = dp あたりの px(`wm density` ÷ 160)
+    public static func leadInPlan(distancePx: Double, durationMs: Int, densityPxPerDp: Double) -> DragLeadIn? {
+        guard densityPxPerDp > 0, distancePx > 0, durationMs > leadInMs else { return nil }
+        let slop = touchSlopDp * densityPxPerDp
+        let crossingMs = Double(durationMs) * slop / distancePx   // 一定の速さで slop を越える時刻
+        guard crossingMs > Double(leadInTriggerMs) else { return nil }
+        let leadPx = min(slop * leadInSlopFactor, distancePx * 0.8)
+        guard leadPx > slop * 1.1 else { return nil }
+        return DragLeadIn(px: leadPx, ms: leadInMs)
+    }
+
+    /// ドラッグの `t`(0...総時間 ms)での進み具合(0...1)。`leadIn` が無ければ一定の速さ
+    public static func dragProgress(atMs t: Double, durationMs: Int, distancePx: Double, leadIn: DragLeadIn?) -> Double {
+        let total = Double(durationMs)
+        guard total > 0 else { return 1 }
+        guard let leadIn, distancePx > 0, leadIn.px < distancePx, Double(leadIn.ms) < total else { return min(max(t / total, 0), 1) }
+        let leadFraction = leadIn.px / distancePx
+        if t <= Double(leadIn.ms) { return leadFraction * max(t, 0) / Double(leadIn.ms) }
+        return min(leadFraction + (1 - leadFraction) * (t - Double(leadIn.ms)) / (total - Double(leadIn.ms)), 1)
+    }
+
     /// 2点間ドラッグ(`input swipe` の代替)。down → ~16ms 刻みの補間 move → up を
     /// 1接続内で送る(pressure 0 の up を必ず送らないと identifier が残留する。proto 契約)。
     /// 座標は screencap と同じ物理ピクセル
     public static func drag(endpoint: EmulatorEndpoint,
                             fromX: Int32, fromY: Int32, toX: Int32, toY: Int32,
-                            durationMs: Int) async throws {
+                            durationMs: Int, leadIn: DragLeadIn? = nil) async throws {
         try await withController(endpoint: endpoint,
                                  timeout: .milliseconds(durationMs + 10_000)) { client, metadata, options in
             func touch(_ x: Int32, _ y: Int32, pressure: Int32) async throws {
@@ -98,8 +143,10 @@ public enum EmulatorGrpcSession {
             do {
                 let steps = max(2, durationMs / 16)
                 try await touch(fromX, fromY, pressure: 1)
+                let distance = (Double(toX - fromX) * Double(toX - fromX) + Double(toY - fromY) * Double(toY - fromY)).squareRoot()
                 for i in 1...steps {
-                    let progress = Double(i) / Double(steps)
+                    let progress = dragProgress(atMs: Double(durationMs) * Double(i) / Double(steps),
+                                                durationMs: durationMs, distancePx: distance, leadIn: leadIn)
                     last = (Int32((Double(fromX) + Double(toX - fromX) * progress).rounded()),
                             Int32((Double(fromY) + Double(toY - fromY) * progress).rounded()))
                     try await touch(last.x, last.y, pressure: 1)

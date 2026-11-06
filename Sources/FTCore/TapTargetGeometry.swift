@@ -187,16 +187,42 @@ public enum TapTargetGeometry {
     public static func outsideDeclaredScroller(_ element: ElementInfo,
                                                in elements: [ElementInfo],
                                                screen: FTRect) -> ElementInfo? {
-        guard element.frame.width > 0, element.frame.height > 0,
-              let scroller = ancestors(of: element, in: elements)
-                  .first(where: { $0.scrollable == true }),
-              ScrollGeometry.intersection(element.frame, scroller.frame) == nil,
+        guard element.frame.width > 0, element.frame.height > 0 else { return nil }
+        let chain = ancestors(of: element, in: elements)
+        guard let scrollerIndex = chain.firstIndex(where: { $0.scrollable == true }) else { return nil }
+        let scroller = chain[scrollerIndex]
+        guard ScrollGeometry.intersection(element.frame, scroller.frame) == nil,
+              chainIsTrustworthy(chain[..<scrollerIndex], for: element),
+              !isDisplacedHorizontally(scroller.frame, screen: screen),
               hasSiblingsInside(at: element.depth, inside: scroller, in: elements),
               !ContainerGeometry.isChromePinnedOutside(element, container: scroller.frame,
                                                   containerIsViewport: true,
                                                   in: elements, screen: screen)
         else { return nil }
         return scroller
+    }
+
+    /// 要素と容器のあいだの復元した祖先(中間ノード)が、どれも要素の枠と交わるか。
+    /// 実測(Emulator の E2EX/E2EY ホーム・OI-129): 題名 d11 が容器(d9)の最後の子 nav_links(d10・y=1188)の
+    /// 直後に出るが、本物の親(間のノード)は間引かれて木に無く、nav_links は題名(y=204)と交わらない。
+    /// 入れ子の行は親の枠の中に描かれる(親子が離れて描かれる形は容器の外へ出た本物の行でも親子ごと動く)ので、
+    /// **交わらない中間の祖先がいる = 復元した鎖は間引きで繋がっただけの嘘**。容器自身は対象外
+    /// (容器の外に出た行は容器と交わらないのが本題)。枠が空の中間ノードは材料にしない
+    static func chainIsTrustworthy(_ intermediates: ArraySlice<ElementInfo>, for element: ElementInfo) -> Bool {
+        intermediates.allSatisfy { node in
+            node.frame.width <= 0 || node.frame.height <= 0
+                || ScrollGeometry.intersection(element.frame, node.frame) != nil
+        }
+    }
+
+    /// 容器の枠が画面の左右にはみ出しているか(許容 1)。実測(iOS Simulator の遷移中の木・OI-129):
+    /// 旧画面の collectionView が (-121,0 402x874) にずれたまま、後ろに並ぶ新画面の要素(それより浅い
+    /// 要素を挟まない)が全部その子孫に復元され、容器と交わらない要素に印が付いた(落ち着いた木では消える)。
+    /// 画面からずれた viewport は遷移・ページ送りの途中で、中身の「外」を言う根拠にならない。縦は見ない
+    /// (下端が画面外へ伸びるシートは正常にある)
+    static func isDisplacedHorizontally(_ frame: FTRect, screen: FTRect) -> Bool {
+        screen.width > 0
+            && (frame.x < screen.x - 1 || frame.x + frame.width > screen.x + screen.width + 1)
     }
 
     /// **祖先を depth から復元するのは、ブリッジが中間ノードを間引くと嘘になる**

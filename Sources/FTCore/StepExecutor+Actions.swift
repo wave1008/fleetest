@@ -761,10 +761,11 @@ extension StepExecutor {
                         + " \(tried). Elements that sat below the keyboard may be gone from the tree, not just covered)"
                 default:
                     hintSnapshot = snapshot
-                    keyboardClause = Self.keyboardResizedHint(snapshot)
+                    keyboardClause = Self.hasModalScope(snapshot) ? "" : Self.keyboardResizedHint(snapshot)
                 }
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
-                let leftHint = await leftForegroundHint()
+                // モーダルの申告は leftHint と同じ位置で先に採る(window の覆いの案内より具体的)
+                let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot)
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")

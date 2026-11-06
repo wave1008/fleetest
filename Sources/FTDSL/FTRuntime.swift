@@ -2036,7 +2036,7 @@ public final class FTDriveCore {
         if let (screenshot, evidenceBlank, elementsText) = context {
             withState {
                 guard let index = currentSceneIndex else { return }
-                record.scenes[index].failureScreenshot = screenshot
+                record.scenes[index].failureScreenshot = FailureEvidenceImage.displayOriented(screenshot)
                 record.scenes[index].evidenceBlank = evidenceBlank
                 record.scenes[index].failureUnderSystemAlert = systemAlertPresent
                 record.scenes[index].failureElements = elementsText

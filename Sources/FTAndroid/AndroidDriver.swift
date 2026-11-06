@@ -10,6 +10,7 @@ import CryptoKit
 import Foundation
 import FTBridgeClient
 import FTCore
+import FTEmulatorGrpc
 
 public final class AndroidDriver: AppDriver {
 
@@ -1584,7 +1585,12 @@ public final class AndroidDriver: AppDriver {
            let to = await nativeTouchPoint(x: toXi, y: toYi),
            try await Self.gestureFinished(
             EmulatorControl.drag(serial: serial, fromX: from.x, fromY: from.y,
-                                 toX: to.x, toY: to.y, durationMs: durationMs),
+                                 toX: to.x, toY: to.y, durationMs: durationMs,
+                                 // 短くて遅いドラッグ(寄せ)が長押しとして受け取られないよう最初の区間だけ速める(OI-168 ⑥。
+                                 // adb input swipe の退避経路は撃ち方を変えられないので対象外)
+                                 leadIn: EmulatorGrpcSession.leadInPlan(
+                                    distancePx: Self.dragDistance(fromXi, fromYi, toXi, toYi),
+                                    durationMs: durationMs, densityPxPerDp: pointScale)),
             verb: "drag", context: androidContext()) {
             return
         }
@@ -1597,6 +1603,11 @@ public final class AndroidDriver: AppDriver {
             throw DriverError.badResponse(status: Int(result.status),
                 body: "drag failed: \(result.tail)")
         }
+    }
+
+    static func dragDistance(_ fromX: Int32, _ fromY: Int32, _ toX: Int32, _ toY: Int32) -> Double {
+        let dx = Double(toX) - Double(fromX), dy = Double(toY) - Double(fromY)
+        return (dx * dx + dy * dy).squareRoot()
     }
 
     /// 表示の座標 → gRPC タッチの座標(`AndroidTouchRotation`)。回転は撃つ直前の `dumpsys window displays` から引く

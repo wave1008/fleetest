@@ -515,6 +515,25 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             }
         }
         if (action == null) {
+            // 点が端の容器の中でも、その中に同じ軸・同じ向きへ送れると申告している容器が入っていて、点の列を通っていれば
+            // そちらを送る(観測: 横向きの E2EY-Android で1本目にバーが戻り、一覧(backward あり)の上端が点(y=640)の
+            // 下へ下がると、点を含む最小の容器が外側の ScrollView([forward] のみ)になり atEdge:true で上端に着かずに ✅)。
+            // 枠なしの送りの点はホストが決める(変えない)ので、ここで容器を選び直す。送った容器は note で応答に載せる
+            AccessibilityNodeInfo inner = nestedSenderInColumn(target, x, y, finger, vertical, 0);
+            if (inner != null) {
+                AccessibilityNodeInfo.AccessibilityAction innerAction = scrollActionFor(inner, finger, vertical);
+                boolean innerPerformed = innerAction != null && inner.performAction(innerAction.getId());
+                if (innerPerformed) {
+                    if (!skipSettle) awaitScrollSettled(inner);
+                    settle();
+                }
+                o.put("performed", innerPerformed);
+                Rect ib = new Rect();
+                inner.getBoundsInScreen(ib);
+                o.put("note", "the container at the point cannot scroll " + finger
+                        + "; scrolled the nested container " + ib.toShortString() + " in the same column instead");
+                return BridgeHttpServer.Response.json(200, o.toString());
+            }
             o.put("performed", false);
             o.put("atEdge", true);
             return BridgeHttpServer.Response.json(200, o.toString());
@@ -594,6 +613,44 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             long area = (long) b.width() * b.height();
             if (area <= bestArea) {
                 best = found;
+                bestArea = area;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 端の容器 outer の**中**にある scrollable のうち、軸が一致し、送る向きの操作を申告し、点の交差軸の座標(縦なら x)を
+     * 通るもの。点に近い(主軸方向の距離が小さい)順、同じなら小さい順。無ければ null。
+     * 包む側ではなく入れ子の内側だけを見る: 外側が端でも内側が送れる形(外側 [forward] のみ・内側 backward あり)の観測に限る
+     */
+    private static AccessibilityNodeInfo nestedSenderInColumn(AccessibilityNodeInfo outer, int x, int y,
+                                                              String finger, boolean vertical, int depth) {
+        if (outer == null || depth > SCROLL_ACTION_MAX_DEPTH) return null;
+        AccessibilityNodeInfo best = null;
+        long bestDist = Long.MAX_VALUE, bestArea = Long.MAX_VALUE;
+        Rect b = new Rect();
+        for (int i = 0; i < outer.getChildCount(); i++) {
+            AccessibilityNodeInfo child = outer.getChild(i);
+            if (child == null) continue;
+            AccessibilityNodeInfo cand = null;
+            if (child.isScrollable() && child.refresh() && child.isVisibleToUser()
+                    && scrollAxis(child) == (vertical ? 1 : 2) && scrollActionFor(child, finger, vertical) != null) {
+                child.getBoundsInScreen(b);
+                int cross = vertical ? x : y;
+                int crossLo = vertical ? b.left : b.top, crossHi = vertical ? b.right : b.bottom;
+                if (cross >= crossLo && cross < crossHi) cand = child;
+            }
+            if (cand == null) cand = nestedSenderInColumn(child, x, y, finger, vertical, depth + 1);
+            if (cand == null) continue;
+            cand.getBoundsInScreen(b);
+            int main = vertical ? y : x;
+            int mainLo = vertical ? b.top : b.left, mainHi = vertical ? b.bottom : b.right;
+            long dist = main < mainLo ? mainLo - main : (main >= mainHi ? main - mainHi + 1 : 0);
+            long area = (long) b.width() * b.height();
+            if (dist < bestDist || (dist == bestDist && area < bestArea)) {
+                best = cand;
+                bestDist = dist;
                 bestArea = area;
             }
         }

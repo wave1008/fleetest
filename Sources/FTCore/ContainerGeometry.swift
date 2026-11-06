@@ -18,10 +18,35 @@ public enum ContainerGeometry {
                 let set = Set(actions)
                 if set.isDisjoint(with: axis), !set.isDisjoint(with: other) { continue }
             }
+            // 向きを申告しない容器(Flutter の汎用 forward だけ・iOS)は中の子の並びで軸を決める。並びから決まらない容器は
+            // 数える(推測で外さない)。横に並ぶ容器を縦の探索で数えると、縦の一覧と合わせて2つになり払い直しも案内も出なかった
+            if !StepExecutor.declaresAxis(element.scrollActions, vertical: true),
+               !StepExecutor.declaresAxis(element.scrollActions, vertical: false),
+               let flow = childrenFlow(of: element, in: snapshot.elements),
+               vertical ? flow == .alongX : flow == .alongY { continue }
             if found.contains(where: { sameFrame($0.frame, element.frame) }) { continue }
             found.append(element)
         }
         return found.count == 1 ? found[0] : nil
+    }
+
+    enum ChildrenFlow { case alongX, alongY }
+
+    /// 容器の中の子が横に並ぶ(`alongX` = 横へ動く容器)か縦に積まれる(`alongY`)か。起点の座標が 2 点以内に揃うのを「同じ段・同じ列」と数える。
+    /// 子が 3 つ未満・どちらにも揃わないときは nil(並びと言えない = 呼び手は推測で埋めない)。縦横比は使わない(横向きの低い縦の一覧が横に見える)
+    static func childrenFlow(of container: ElementInfo, in elements: [ElementInfo]) -> ChildrenFlow? {
+        let f = container.frame
+        let children = elements.filter {
+            $0.ref != container.ref && $0.frame.width > 0 && $0.frame.height > 0
+                && $0.frame.x >= f.x - 1 && $0.frame.y >= f.y - 1
+                && $0.frame.x + $0.frame.width <= f.x + f.width + 1 && $0.frame.y + $0.frame.height <= f.y + f.height + 1
+        }
+        guard children.count >= 3 else { return nil }
+        func spread(_ values: [Double]) -> Double { (values.max() ?? 0) - (values.min() ?? 0) }
+        let xs = spread(children.map(\.frame.x)), ys = spread(children.map(\.frame.y))
+        if ys <= 2, xs > 2 { return .alongX }
+        if xs <= 2, ys > 2 { return .alongY }
+        return nil
     }
 
     /// **容器をツリーから推測して行う補正**の殺しスイッチ。`FT_CONTAINER_INFERENCE=off` で

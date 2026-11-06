@@ -29,6 +29,8 @@ enum InAppSnapshot {
         var rescales: [ObjectIdentifier: AXFrameRescale] = [:]
         /// 手前の窓に覆われて木から落とした要素の申告(SnapshotResponse.coveredByFrontWindow)。落とした物が無ければ nil
         var frontWindowCover: FrontWindowCover?
+        /// `accessibilityViewIsModal` の view の外として木から外した兄弟の申告(SnapshotResponse.modalScope)。外した物が無ければ nil
+        var modalScope: ModalScopeCover?
     }
 
     /// 手前の窓に覆われて落とした要素の集計(collect が書く。1スナップショットにつき1つ・メインスレッドだけ)
@@ -36,6 +38,16 @@ enum InAppSnapshot {
         var dropped = 0
         var windows: [ObjectIdentifier: UIWindow] = [:]
         var order: [ObjectIdentifier] = []
+        var modalDropped = 0
+        var modalFrames: [FTRect] = []
+        func recordModal(dropped: Int, frame: CGRect) {
+            modalDropped += dropped
+            let rect = FTRect(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: frame.height)
+            if !modalFrames.contains(rect) { modalFrames.append(rect) }
+        }
+        var modalResult: ModalScopeCover? {
+            modalDropped > 0 ? ModalScopeCover(droppedCount: modalDropped, frames: modalFrames) : nil
+        }
         func record(_ window: UIWindow) {
             dropped += 1
             let id = ObjectIdentifier(window)
@@ -156,7 +168,7 @@ enum InAppSnapshot {
             elements: elements, frames: frames, nodes: nodes, clips: clips,
             truncated: gathered.count - keptIndices.count,
             truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, rescales: rescales,
-            frontWindowCover: tally.result)
+            frontWindowCover: tally.result, modalScope: tally.modalResult)
     }
 
     /// UIView → 塗り順の通し番号。窓を渡された順(奥 → 手前)に、各窓のビュー階層を前順(親 → 子)で辿り、
@@ -232,7 +244,7 @@ enum InAppSnapshot {
         // isAccessibilityElement で、その中の id つきの View(pointerEvents="none" の欄)が丸ごと消えていた
         // (XCUITest の木には出る = 型セレクタも id もブリッジで食い違う)
         if let view = node as? UIView, view.isAccessibilityElement, included { return }
-        let children = modalChildOnly(axChildren(node))
+        let children = modalChildOnly(axChildren(node), tally: tally)
         let childClip = isScrollableContainer(node) == true
             ? (clip ?? .infinite).intersection(nodeFrame) : clip
         for child in children {
@@ -243,12 +255,21 @@ enum InAppSnapshot {
 
     /// 兄弟に可視の `accessibilityViewIsModal` な view があれば、その view と手前の兄弟だけを残す(XCUITest / VoiceOver と同じ。
     /// 規則と実測は `BridgeAPI.visibleModalChildStart`)
-    private static func modalChildOnly(_ children: [NSObject]) -> [NSObject] {
+    /// 外した見えている兄弟の数と旗付きの view の枠は `tally` へ申告する(`SnapshotResponse.modalScope`。ホストが失敗の文で名指す)
+    private static func modalChildOnly(_ children: [NSObject], tally: CoverTally) -> [NSObject] {
         let views = children.map { $0 as? UIView }
         let modal = BridgeAPI.visibleModalChildStart(
             isModal: views.map { $0?.accessibilityViewIsModal ?? false },
             isVisible: views.map { $0.map { !$0.isHidden && $0.alpha >= 0.01 } ?? false })
-        return modal.map { Array(children[$0...]) } ?? children
+        guard let start = modal else { return children }
+        let dropped = children[..<start].filter { node in
+            guard let view = node as? UIView else { return true }
+            return !(view.isHidden || view.alpha < 0.01 || view.accessibilityElementsHidden)
+        }.count
+        if dropped > 0, let modalView = views[start] {
+            tally.recordModal(dropped: dropped, frame: modalView.convert(modalView.bounds, to: nil))
+        }
+        return Array(children[start...])
     }
 
     private static func axChildren(_ node: NSObject) -> [NSObject] {

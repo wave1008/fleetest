@@ -749,15 +749,32 @@ extension StepExecutor {
     /// 勧めても意味が無い(逆も同じ)。名指しできない(id もラベルも無い)候補は除く
     static func directionMatchedScrollFrameCandidate(in snapshot: SnapshotResponse,
                                                      vertical: Bool) -> String? {
-        ScrollFrameCandidates.candidates(in: snapshot).first { candidate in
+        let candidates = ScrollFrameCandidates.candidates(in: snapshot)
+        let matched = candidates.first { candidate in
             guard candidate.selector != nil else { return false }
             // **申告した軸が縦横比に勝つ**: 横向きの低い縦の一覧(2282x411)は縦横比では横の容器に見え、勧められずに終わっていた
             let actions = snapshot.elements.first { $0.ref == candidate.ref }?.scrollActions
             if declaresAxis(actions, vertical: vertical) { return true }
             if declaresOnlyOtherAxis(actions, vertical: vertical) { return false }
+            // 向きを申告しない容器は中の子の並びが縦横比に勝つ(横向きの低い縦の一覧が横長に見える)
+            if let element = snapshot.elements.first(where: { $0.ref == candidate.ref }),
+               let flow = ContainerGeometry.childrenFlow(of: element, in: snapshot.elements) {
+                return vertical ? flow == .alongY : flow == .alongX
+            }
             return vertical ? candidate.visible.height >= candidate.visible.width
                             : candidate.visible.width > candidate.visible.height
         }?.selector
+        if matched != nil { return matched }
+        // 縦横比でも並びでも決まらない容器しか残らないとき(横向きの低い縦の一覧が1つだけ)は、探索の軸で動かせる唯一の容器を勧める
+        guard let only = ContainerGeometry.uniqueScrollContainer(in: snapshot, vertical: vertical) else { return nil }
+        let onlyKey = ScrollGeometry.intersection(only.frame, snapshot.screen).map(ScrollFrameCandidates.frameKey)
+        return candidates.first { $0.ref == only.ref || ScrollFrameCandidates.frameKey($0.visible) == onlyKey }?.selector
+    }
+
+    /// キーボードが容器の下部を覆っているか(上端が容器の中にあり、横も重なる)。キーボードが容器の上に出る・離れている画面は false
+    static func keyboardCoversContainerBottom(_ keyboard: FTRect, container: FTRect) -> Bool {
+        keyboard.y > container.y && keyboard.y < container.y + container.height - 1
+            && keyboard.x < container.x + container.width && keyboard.x + keyboard.width > container.x
     }
 
     /// 明示 scrollFrame の容器が、探索の軸(`vertical`)と**違う軸にしか動かない**か。申告した向きがあればそれが全て、
@@ -769,18 +786,8 @@ extension StepExecutor {
         if let actions = container.scrollActions, declaresAxis(actions, vertical: true) || declaresAxis(actions, vertical: false) {
             return declaresOnlyOtherAxis(actions, vertical: vertical)
         }
-        let f = container.frame
-        let children = snapshot.elements.filter {
-            $0.ref != container.ref && $0.frame.width > 0 && $0.frame.height > 0
-                && $0.frame.x >= f.x - 1 && $0.frame.y >= f.y - 1
-                && $0.frame.x + $0.frame.width <= f.x + f.width + 1 && $0.frame.y + $0.frame.height <= f.y + f.height + 1
-        }
-        // 3 つ未満では並びと言えない。起点の座標が 2 点以内に揃うのを「同じ段・同じ列」と数える
-        guard children.count >= 3 else { return false }
-        func spread(_ values: [Double]) -> Double { (values.max() ?? 0) - (values.min() ?? 0) }
-        let xs = spread(children.map(\.frame.x)), ys = spread(children.map(\.frame.y))
-        let alongX = ys <= 2 && xs > 2, alongY = xs <= 2 && ys > 2
-        return vertical ? alongX : alongY
+        guard let flow = ContainerGeometry.childrenFlow(of: container, in: snapshot.elements) else { return false }
+        return vertical ? flow == .alongX : flow == .alongY
     }
 
     /// **スクロール探索の本体**。`scrollTo` コマンドと、`tap(scroll:)` / `exist(scroll:)` の
@@ -929,6 +936,8 @@ extension StepExecutor {
         // 枠なしの払いが動かず、唯一の scrollable の中で払い直して動いたら、以降の探索はその容器を枠にして続ける
         var searchStep = step
         var containerRedirectTried = false
+        // キーボードが容器の下部を覆ったまま動かなかった探索で、閉じてやり直すのは1回だけ
+        var keyboardRetryTried = false
         let searchSignature: (SnapshotResponse) -> String = { snapshot in
             Self.contentSignature(Self.elementsInside(Self.searchContentRegion(searchStep, in: snapshot), snapshot.elements))
         }
@@ -1407,6 +1416,27 @@ extension StepExecutor {
                                 }
                                 unmovedRounds = 0
                                 previousSnapshot = expanded
+                                continue
+                            }
+                        }
+                        // **キーボードが容器の下部を覆ったまま1度も動かなかったら、副作用の無い手段で閉じて探索を1回だけやり直す**。
+                        // キーボードが出ても容器の枠が縮まない構成(RN の Android)では、キーボードの下の欄は送りで出せない。人はキーボードを
+                        // 閉じてから探す(tap / type と同じ `closeKeyboardWithoutSideEffects`。Enter は撃たない)。閉じられなければ従来の失敗文
+                        if !keyboardRetryTried, !contentEverMoved, startedOnOther == nil, KeyboardWait.isShown(confirmed.snapshot),
+                           let keyboard = KeyboardOcclusion.resolve(reported: confirmed.snapshot.keyboardFrame,
+                                                                    in: confirmed.snapshot.elements, screen: confirmed.snapshot.screen).frame,
+                           Self.keyboardCoversContainerBottom(
+                               keyboard, container: scrollContainer(step: step, in: confirmed.snapshot, vertical: vertical)
+                                   ?? ContainerGeometry.uniqueScrollContainer(in: confirmed.snapshot, vertical: vertical)?.frame
+                                   ?? confirmed.snapshot.screen) {
+                            keyboardRetryTried = true
+                            if case .closed(let closedNote, let after) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+                                if pendingScrollFrameNote == nil {
+                                    pendingScrollFrameNote = "nothing moved while the soft keyboard covered the scroll area, so the search \(closedNote)"
+                                        + " and started over"
+                                }
+                                previousSnapshot = after
+                                unmovedRounds = 0
                                 continue
                             }
                         }
