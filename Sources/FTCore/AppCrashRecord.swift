@@ -20,6 +20,11 @@ public enum AppCrashEvidence: String, Codable, Sendable {
     case fatalException
     /// Android: crash バッファのネイティブのクラッシュ(`Fatal signal` + debuggerd の `>>> <pkg> <<<`)を見つけた
     case nativeSignal
+    /// iOS Simulator: 失敗の時点でアプリのプロセスが居なかった(このシナリオが止めたのではない)が、.ips は見つからなかった。
+    /// 外から止められたのか OS が報告を書かずに終えたのかは区別できないので、居なかった事実だけを言う。**これも振り直さない** ——
+    /// in-app ブリッジはアプリの中に居るので、ブリッジ不達として振り直すと2回目の緑で消えた(12周目 ilocal F17・外からの
+    /// `simctl terminate` で 2/2 が `All passed`・exit 0)
+    case processGone
 }
 
 public struct AppCrashRecord: Codable, Sendable, Equatable {

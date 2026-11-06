@@ -119,10 +119,10 @@
 - 状態: 再現済み
 - 確認: b41c86f0(2026-11-04)
 - 属性: 着手可
-- 運用: ①要注意 — 途中でアプリが落ちても、振り直しが緑なら run は緑。結果の注記で落ちを見る ④⑨再実行で吸収 ⑧回避可 — 枠なしの `scrollUp()` が動かないときは `scrollFrame:` を付ける(`scroll-moved-nothing` の注記が出る)。`scrollToTop` が上端に着かない形の回避は未確認
-- 優先度: 高 — ①アプリが途中で落ちても振り直しが緑なら run が `All passed`・exit 0 = 落ちたことが合否に出ない
+- 運用: ④⑨再実行で吸収 ⑧回避可 — 枠なしの `scrollUp()` が動かないときは `scrollFrame:` を付ける(`scroll-moved-nothing` の注記が出る)。`scrollToTop` が上端に着かない形の回避は未確認
+- 優先度: 低 — ④⑨は再実行で吸収・⑧は `scrollFrame:` で回避
 
-11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。①inapp-boost でシナリオの途中にアプリのプロセスが死ぬと「ブリッジに届かない」として振り直し、2回目が緑なら run は `All passed`・exit 0(ilocal F17・外からの `simctl terminate` で 2/2。ツールは「process not running — it may have crashed」と観測している)④CMP で探索が行き過ぎ、整定の待ちが打ち切られた後に `waitSeconds:` を案内して赤(iultra F5・13回中3回)⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)(11/5: 原因を観測 = 枠なしの払いの始点はブリッジが画面の高さの比率で決め、上への払い(`scrollUp()`)は 30% = 横向きで y≈384px の一覧の上の帯に落ちて一覧が動かない。`scrollDown()` は 70% で一覧の中。枠なしの払いを容器へ寄せる案は2度取り消している(StepExecutor+ScrollFrame.swift の「3度目は無い」)ので始点は変えず、何も動かなかった送りに注記 `scroll-moved-nothing` を立てて ✅ で黙らないようにした)・`scrollToTop` が上端に着かずに ✅(4/4)(11/5 に手元で測った: `scrollDown(repeat: 2)` → `scrollToTop()` が 0.99 秒で ✅・先頭は「行 H02」。戻る途中でバーが出て一覧の上端が y=486 → 654 へ下がり、端送りの指を置く点(枠なしは画面の中央 = 横向きで y=640)が一覧の外に落ちる。次に測るもの: ブリッジの `/scrollAction` がその点で何を引いて `atEdge` を返したか(推測: 一覧の外の容器を引いて「もう端」)。直す場所はブリッジの容器の選び方か枠なしの送りの座標 = 後者は2度取り消している)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)(11/5: scrollFrame の候補の案内は名指せる id を持つ容器があるときだけ付く。A1 の容器は id を持たないので出ない = 案内を足しても従える形にならない。SUT の契約に id を足すかの判断が要る)⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
+11/4 の12周目の探索(`_work/explore-20261104d/findings-*.md`)で観測し、直さなかったもの。11周目の所見(`_work/explore-20261104c/`)の回し直しで直っていなかった分は12周目の各ファイルの冒頭にある(OI-170 の形を除く)。④CMP で探索が行き過ぎ、整定の待ちが打ち切られた後に `waitSeconds:` を案内して赤(iultra F5・13回中3回)⑧E2EY-Android の横向き: 枠なしの `scrollUp` が動かずに ✅(A10・4/4)(11/5: 原因を観測 = 枠なしの払いの始点はブリッジが画面の高さの比率で決め、上への払い(`scrollUp()`)は 30% = 横向きで y≈384px の一覧の上の帯に落ちて一覧が動かない。`scrollDown()` は 70% で一覧の中。枠なしの払いを容器へ寄せる案は2度取り消している(StepExecutor+ScrollFrame.swift の「3度目は無い」)ので始点は変えず、何も動かなかった送りに注記 `scroll-moved-nothing` を立てて ✅ で黙らないようにした)・`scrollToTop` が上端に着かずに ✅(4/4)(11/5 に手元で測った: `scrollDown(repeat: 2)` → `scrollToTop()` が 0.99 秒で ✅・先頭は「行 H02」。戻る途中でバーが出て一覧の上端が y=486 → 654 へ下がり、端送りの指を置く点(枠なしは画面の中央 = 横向きで y=640)が一覧の外に落ちる。次に測るもの: ブリッジの `/scrollAction` がその点で何を引いて `atEdge` を返したか(推測: 一覧の外の容器を引いて「もう端」)。直す場所はブリッジの容器の選び方か枠なしの送りの座標 = 後者は2度取り消している)・`tap(scroll: .up)` の nothing moved の赤が逆向きの `scroll: .down` だけを案内し `scrollFrame` に触れない(A1・4/4)(11/5: scrollFrame の候補の案内は名指せる id を持つ容器があるときだけ付く。A1 の容器は id を持たないので出ない = 案内を足しても従える形にならない。SUT の契約に id を足すかの判断が要る)⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
 - 11/5(14周目の回し直し): ④は 1/1 緑(1回なので消さない)
 
 ### OI-171 探索の残り(13周目)
@@ -204,19 +204,19 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 要測定
-- 運用: ①②要注意 — Android で別アプリを `launchApp` した後・シェードを下ろした後の否定(`notExist`・`countIs 0`)が緑。否定を書く前に対象アプリへ戻す ③回避可 — `terminateApp()` の後は `launchApp()` で起こす ④⑤再実行で吸収(Duo と実機の供給)
+- 運用: ①②要注意 — Android で別アプリを `launchApp` した後・シェードを下ろした後の否定(`notExist`・`countIs 0`)が緑。否定を書く前に対象アプリへ戻す ④⑤再実行で吸収(Duo と実機の供給)
 - 優先度: 中 — ①②Android で別アプリ・シェードの後の否定が緑。対象アプリへ戻せば避けられる
 
-11/6 の24周目の探索(20分・`_work/explore-20261106h/findings-*.md`)で観測し、直さなかったもの。①Android で `launchApp("com.android.settings")` のように別のアプリを起こした後の `notExist`・`countIs 0` が緑(amax F3・4/4。起こしたアプリが前面にあるので門は効かない = 起こしたアプリを対象と読む設計の帰結。対象は実行プロファイルのアプリだとするかは要判断)②Android で通知のシェードを下ろしてアプリを覆った後の `notExist` が緑(amax F4・4/4。前面のアプリは対象のまま = 前面の照会では見分けられない)= 要測定 ③iOS の `terminateApp(); tapAppIcon()` が ✅ なのに、次のステップが「this session stopped it」で 0 秒で赤・失敗時の絵は真っ白(iultra F1・12/12。アプリが起動したかは未確認)= 要測定 ④iPhone Duo の XCUITest ブリッジが2台とも 2.0 秒(閾値ちょうど)と測られて劣化と判定され、起こし直しが上がらず run が全滅(duo F1・1/1。SpringBoard の起こし直しの失敗は `SimulatorSpringBoard.swift` の `try?` で「simctl did not run」に畳まれる)・供給中の `simctl get_app_container` が 3 分以上返らず run が黙って止まる(duo F2・1/1。時間切れの無い呼び出しが3箇所)= 要測定 ⑤iPhone 13 実機の inapp-boost の供給で、自分の iproxy を「port in use by another process」と名指して止まる(OI-179 ④ の再発・この周 6 回中 3 回。アプリを替えなくても起きる)= 要測定
+11/6 の24周目の探索(20分・`_work/explore-20261106h/findings-*.md`)で観測し、直さなかったもの。①Android で `launchApp("com.android.settings")` のように別のアプリを起こした後の `notExist`・`countIs 0` が緑(amax F3・4/4。起こしたアプリが前面にあるので門は効かない = 起こしたアプリを対象と読む設計の帰結。対象は実行プロファイルのアプリだとするかは要判断)②Android で通知のシェードを下ろしてアプリを覆った後の `notExist` が緑(amax F4・4/4。前面のアプリは対象のまま = 前面の照会では見分けられない)= 要測定 ④iPhone Duo の XCUITest ブリッジが2台とも 2.0 秒(閾値ちょうど)と測られて劣化と判定され、起こし直しが上がらず run が全滅(duo F1・1/1。SpringBoard の起こし直しの失敗は `SimulatorSpringBoard.swift` の `try?` で「simctl did not run」に畳まれる)・供給中の `simctl get_app_container` が 3 分以上返らず run が黙って止まる(duo F2・1/1。時間切れの無い呼び出しが3箇所)= 要測定 ⑤iPhone 13 実機の inapp-boost の供給で、自分の iproxy を「port in use by another process」と名指して止まる(OI-179 ④ の再発・この周 6 回中 3 回。アプリを替えなくても起きる)= 要測定
 
 ### OI-183 探索の残り(25周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 要測定
-- 運用: ①回避可 — `terminateApp()` の後は `launchApp()` で起こす(`back()` / `tapAppIcon()` で起こすと次のステップが誤った赤) ②再実行で吸収(Duo だけ) ③直った形(出ない)
-- 優先度: 高 — ①`terminateApp()` の後の `tapAppIcon()` / `back()` が毎回誤った赤(6/6)。アプリを起こし直す普通の書き方で踏む
+- 運用: ②再実行で吸収(Duo だけ) ③直った形(出ない)
+- 優先度: 低 — ②は Duo だけで再実行で吸収
 
-11/6 の25周目の探索(20分・`_work/explore-20261106i/findings-*.md`)で観測し、直さなかったもの。①iOS の `terminateApp()` の後の `back()` / `tapAppIcon()` が止めたアプリを起こし直して ✅ になり、次のステップが「this session stopped it … Launch it again」で赤(iultra F2・6/6、24周目 F1 の回し直し 6/6 = simctl の launchctl でアプリは新しい PID で動いていた = 止めた印が起こし直しで落ちない誤った失敗。back の起こし直しは `AppAttachDriver.ensureAttached` の activate)= 着手可に近いが、印を落とす口(どの起こし直しを「起動」と数えるか)の判断が要る ②iPhone Duo で、シナリオ自身の赤の後の開閉の戻しの直後に in-app ブリッジが落ち、判定済みの赤を「unreachable bridge」で捨てて再キューする(duo F2・-02 で 2/2)・`unfold()` の後の失敗に「回転はシナリオの外から来た」と事実と違う注記(duo F1・2/2。StepNote の固定の文)・MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(duo F3・-02 で 2/2)= 要測定 ③`appSwitcher()` → `back()` が「効かなかった」と注記するが、スイッチャーは閉じてアプリが前面(ilocal F1・4/4。25周目の直しで、スイッチャーの間の `back()` は撃つ前に断るようになった = この形は出ない)
+11/6 の25周目の探索(20分・`_work/explore-20261106i/findings-*.md`)で観測し、直さなかったもの。②iPhone Duo で、シナリオ自身の赤の後の開閉の戻しの直後に in-app ブリッジが落ち、判定済みの赤を「unreachable bridge」で捨てて再キューする(duo F2・-02 で 2/2)・`unfold()` の後の失敗に「回転はシナリオの外から来た」と事実と違う注記(duo F1・2/2。StepNote の固定の文)・MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(duo F3・-02 で 2/2)= 要測定 ③`appSwitcher()` → `back()` が「効かなかった」と注記するが、スイッチャーは閉じてアプリが前面(ilocal F1・4/4。25周目の直しで、スイッチャーの間の `back()` は撃つ前に断るようになった = この形は出ない)
 
 ### OI-184 探索の残り(26周目)
 - 状態: 再現済み

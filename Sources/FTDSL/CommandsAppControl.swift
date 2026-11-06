@@ -326,6 +326,8 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
     let executor = core.executor
     var observedNote: StepNote?
     core.performCustom(description: "back", command: "back", file: file, line: line, note: { observedNote }) {
+        // 動いていない対象アプリへの back は撃たない(notRunningAppBackRefusal)
+        if let refusal = await notRunningAppBackRefusal(core: core) { throw refusal }
         // **アプリが前面に無ければ撃たない**(StepExecutor.appLeftRefusal。iOS の inapp-boost の back は XCUITest のセッションを
         // アプリへ向ける activate を挟むので、ホーム画面・スイッチャー・別のアプリの上で撃つと背面のアプリを前面へ引き戻して ✅ だった
         // = 25周目 im4 F2・iultra F1。人はホーム画面の「戻る」でアプリへ戻れない)。Android の門は否定と条件だけなので back は撃つ
@@ -449,7 +451,8 @@ public func tapAppIcon(_ appIconName: String? = nil,
     let platform = core.platform
     let resolvedName = appIconName ?? core.appDisplayName
     let description = resolvedName.map { "tapAppIcon \"\($0)\"" } ?? "tapAppIcon"
-    core.performCustom(description: description, command: "tapAppIcon", file: file, line: line) {
+    var iconNote: StepNote?
+    core.performCustom(description: description, command: "tapAppIcon", file: file, line: line, note: { iconNote }) {
         // 親(プロファイルの appName)からも取れないときだけ明示エラー
         guard let appIconName = resolvedName else {
             throw FTCommandError.message(
@@ -506,6 +509,21 @@ public func tapAppIcon(_ appIconName: String? = nil,
             }
         }
 
+        // アイコンを撃つ唯一の口。**inapp-boost モードで対象アプリのプロセスが居なければ、押さずに dylib を注入して起動する**
+        // (アイコンから起きたアプリには in-app ブリッジが載らず、後続が全部届かない = 24周目 iultra F1。押してから注入付きで
+        // 起こし直すと起動が2回走り、アプリの起動時の副作用も2回になる)。生死を答えられない(実機)・背面で生きているときは押す
+        func fire(_ icon: ElementInfo) async throws {
+            if platform == "ios", appIconName == core.appDisplayName, core.executor.primaryCaptureOmitsSystemUI,
+               let alive = core.appAliveProbe, await alive(core.appBundleID) == false {
+                try await core.driver.launch(bundleID: core.appBundleID)
+                core.executor.noteAppLaunched(bundleID: core.appBundleID)
+                iconNote = .appIconLaunchedWithBridge
+            } else {
+                try await driver.tap(ref: icon.ref)
+            }
+            try await afterTap(icon)
+        }
+
         // 中心が画面の外にある枠は撃たない(AppIconLocator.isCentreOnScreen の doc)。木が直るまで読み直し
         // (上限 waitSeconds)、直らなければ失敗(消えたら nil = 呼び手は探索を続ける)
         func onScreenIcon(_ first: ElementInfo, in tree: SnapshotResponse) async throws
@@ -542,8 +560,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 guard let onScreen else { return (false, latest) }
                 icon = onScreen
             }
-            try await driver.tap(ref: icon.ref)
-            try await afterTap(icon)
+            try await fire(icon)
             return (true, snapshot)
         }
 
@@ -593,8 +610,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 if let icon = AppIconLocator.findIcon(appIconName, in: folder) {
                     let (settled, _) = try await settledIcon(from: icon)
                     if let settled {
-                        try await driver.tap(ref: settled.ref)
-                        try await afterTap(settled)
+                        try await fire(settled)
                         return true
                     }
                 }
@@ -620,8 +636,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 if let row = AppIconLocator.findIcon(appIconName, in: list) {
                     let (settled, latest) = try await settledIcon(from: row)
                     if let settled, let latest, AppIconLocator.isTappableInAppLibraryList(settled, in: latest) {
-                        try await driver.tap(ref: settled.ref)
-                        try await afterTap(settled)
+                        try await fire(settled)
                         return
                     }
                     if let latest { list = latest }
@@ -1240,6 +1255,29 @@ public func procedure(_ title: String,
         core.recordStep(description: description, status: .passed, file: "\(file)", line: Int(line),
                         durationMs: durationMs, command: "procedure")
     }
+}
+
+/// iOS の back() を、最後に起こしたのが対象アプリで、そのプロセスが居ないときは撃たずに断る。**back はアプリを起こしてしまう**
+/// (inapp-boost モードは XCUITest の activate でセッションを向けるので、止めたアプリを in-app ブリッジ無しで起こして ✅・後続は
+/// 「this session stopped it」の赤 = 25周目 iultra F2・6/6)。人は動いていないアプリへ「戻る」ことはできない。
+/// 生死を答えられない(実機)・別のアプリを最後に起こした(そのアプリの上の back)ときは断らない
+func notRunningAppBackRefusal(core: FTDriveCore) async -> AppNotRunningRefusal? {
+    guard core.platform == "ios", core.executor.lastLaunchedAppBundleID == core.appBundleID,
+          let alive = core.appAliveProbe, await alive(core.appBundleID) == false else { return nil }
+    let stopped = core.appStoppedByScenario
+    let why = stopped ? " — this scenario stopped it (terminateApp)" : ""
+    return AppNotRunningRefusal(
+        message: "back: the app under test (\(core.appBundleID)) is not running\(why), so nothing was sent. back() would"
+            + " start it, and a person cannot go back into an app that is not running. Launch it first (launchApp())",
+        kind: stopped ? .appStoppedBySession : nil)
+}
+
+/// 失敗の経路(`failureKind`)は言えるときだけ(止めたのがこのシナリオと分かるとき)。言えないときは欄ごと省く
+struct AppNotRunningRefusal: LocalizedError, StepFailureKindProviding {
+    let message: String
+    let kind: StepFailureKind?
+    var errorDescription: String? { message }
+    var stepFailureKind: StepFailureKind? { kind }
 }
 
 /// 撃つ前の門(StepExecutor.appLeftRefusal)の断りを、失敗の種別付きで投げる(performCustom の失敗の種別はエラーの型から採る)

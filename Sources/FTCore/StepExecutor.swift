@@ -345,7 +345,7 @@ public final class StepExecutor {
     }
     /// 直近に launch 系で起こしたアプリ。**home / アプリ切替では消さない**(`launchedBundleID` と違う)——
     /// 背面に回ったアプリへの不達の帰属(`attributingBackgroundedApp`)は、まさに home の後に要る
-    var lastLaunchedAppBundleID: String?
+    public internal(set) var lastLaunchedAppBundleID: String?
     /// `appSwitcher()` を撃ってから、スイッチャーが閉じたと確かめるまで true(DSL が `noteAppSwitcher(opened:)` で運ぶ)。
     /// 立っている間だけステップの前にスイッチャーの覆いを照会する(`appSwitcherRefusal`)
     var appSwitcherMayCover = false

@@ -110,11 +110,15 @@ public enum SimulatorAppProcess {
                 LastAppCrash.shared.record(rewritten)
                 return ["process not running", rewritten.summary ?? ""]
             }
+            LastAppCrash.shared.record(AppCrashRecord(evidence: .processGone, summary: processGoneSummary))
             return ["process not running"]
         }
         LastAppCrash.shared.record(AppCrashRecord(evidence: .crashReport, path: hit.path, summary: hit.reason))
         return ["process not running", crashReportLine(path: hit.path, reason: hit.reason)]
     }
+
+    static let processGoneSummary = "the app process was not running when the step failed, and no crash report was found"
+        + " (this scenario did not stop it)"
 
     /// 記録済み(in-app ドライバが切断の時点で見つけた)でも、ここで見つけても同じ形で言う
     static func crashReportLine(path: String, reason: String?) -> String {

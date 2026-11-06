@@ -113,6 +113,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// いる(= back-ineffective にならない)ので、スワイプが画面の中身(スワイプを受ける領域・地図)に届いた形を黙って ✅ にしていた
     /// (28周目 iultra F1: ジェスチャ画面で `swipe=right` を残して 30/30・im4 の Flutter 9/9)。合否は変えず事実を言う(`BackEffect.stayedOnSameScreen`)
     case backStayedOnScreen = "back-stayed-on-screen"
+    /// inapp-boost モードの tapAppIcon で対象アプリのプロセスが居なかったので、見つけたアイコンを押さず dylib を注入して起動した。
+    /// **アイコン(SpringBoard)や XCUITest の activate から起きたアプリには in-app ブリッジが載らない**(注入は InAppLauncher の
+    /// 起動だけ)ので、押すと後続が全部届かず「this session stopped it」の赤になっていた(24周目 iultra F1・12/12)
+    case appIconLaunchedWithBridge = "app-icon-launched-with-bridge"
 
     /// 自己修復(指紋照合)が代わりの要素を見つけたのに、**この画面でそれを一意に指せる書き方が無い**
     /// (`SelectorNaming.graded` が nil)。操作はその要素で続けるが、修正提案は作らない ——
@@ -535,6 +539,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the tree did not appear to cover the whole screen when this was judged, so an"
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
+        case .appIconLaunchedWithBridge:
+            return "the app was not running, so after finding its icon this launched the app with the in-app bridge"
+                + " instead of tapping the icon — an app started from its icon has no in-app bridge in inapp-boost mode"
         case .backStayedOnScreen:
             // 言い切らない: 識別子の組が同じでも、同じ種類の画面を積んだ遷移(詳細 → 詳細)では戻っている。「戻っていない・自前の
             // 戻るを押せ」と言うと、従った書き手が二重に戻った(29周目 iultra F1: E2EX-CMP の詳細 id=3 → id=2 で 6/6)
