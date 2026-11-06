@@ -58,7 +58,7 @@ final class InterruptionGuard {
 
     /// 422 の本文。**押していない・撃ち直していない**ことと、閉じる手段を言う。
     /// `ownAppAlert` = 遮ったのが対象アプリ自身のアラート(XCTest はアプリのアラートも割り込みに数える。iPhone 13 実機の
-    /// ホームジェスチャで「システムアラート」と誤って名指していた = OI-178 ④)。判定は呼び手(`BridgeRouter.blockedByOwnAppAlert`)
+    /// ホームジェスチャで「システムアラート」と誤って名指していた)。判定は呼び手(`BridgeRouter.blockedByOwnAppAlert`)
     static func message(_ blocked: Blocked, ownAppAlert: Bool = false) -> String {
         let buttons = blocked.buttons.isEmpty ? "" : ", buttons: " + blocked.buttons.joined(separator: " / ")
         if ownAppAlert {

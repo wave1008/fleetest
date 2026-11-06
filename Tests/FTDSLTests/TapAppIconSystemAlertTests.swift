@@ -1,5 +1,5 @@
 // tapAppIcon: SpringBoard の前面にシステムアラートがあり木にアイコンが1つも載らないとき、
-// 「アイコンが見つからない」と払い続けずにアラートを名指して失敗する(OI-178 ⑥)。判定は SystemUIGate.frontAlertPhrase
+// 「アイコンが見つからない」と払い続けずにアラートを名指して失敗する。判定は SystemUIGate.frontAlertPhrase
 // (MCP の systemAlertNote と共有)。
 
 import XCTest

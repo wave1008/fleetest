@@ -472,7 +472,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
         let waitSeconds = core.tunables.screenWaitTimeout
 
         // アイコンが木に無いとき、SpringBoard の前面にシステムアラートが出ていればそれを名指して失敗する
-        // (アラートの間、木にはアラートの中の要素しか載らず「アイコンが無い」と読んで払い続けていた = OI-178 ⑥)。
+        // (アラートの間、木にはアラートの中の要素しか載らず「アイコンが無い」と読んで払い続けていた)。
         // 判定は MCP の systemAlertNote と共有(SystemUIGate.frontAlertPhrase)。答えられない(Android・旧ブリッジ)ときは何もしない。
         // 失敗の経路でだけ呼ぶ = 通常のタップに往復を足さない
         func failIfSystemAlertInFront() async throws {

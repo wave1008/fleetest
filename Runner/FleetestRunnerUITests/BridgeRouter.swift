@@ -202,7 +202,7 @@ final class BridgeRouter {
     /// 遮ったのが対象アプリ自身のアラートか。**両方が肯定的に読めたときだけ** true(セッションのアプリにアラートがあり、
     /// SpringBoard には無い)。どちらかが読めない・SpringBoard にもあるなら false = 従来のシステムアラートの文言(推測で名指さない)
     /// セッションが無い inapp-boost の DSL では `app` が nil なので、`/home` の要求が運ぶ対象の bundle ID の
-    /// XCUIApplication(`homeTargetApp`)で読む(OI-178 ④)
+    /// XCUIApplication(`homeTargetApp`)で読む
     private func blockedByOwnAppAlert() -> Bool {
         guard let probe = app ?? homeTargetApp, probe.alerts.firstMatch.exists else { return false }
         return SystemAlertProbe.front() == nil

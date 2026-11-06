@@ -1,4 +1,4 @@
-// RN の resign で hideKeyboard・OI-178 ⑤(手前の窓に覆われて落とした要素の申告)・OI-178 ④(/home の対象 bundle ID と
+// RN の resign で hideKeyboard・手前の窓に覆われて落とした要素の申告・/home の対象 bundle ID と
 // 押し直しの打ち切り)。in-app の dylib とランナーは swift test でリンクされないので、配線はソースを走査して守る。
 
 import XCTest
@@ -39,7 +39,7 @@ final class IOSBridgeHideKeyboardCoverHomeTests: XCTestCase {
         XCTAssertTrue(fn.contains("InAppError(500"), "閉じなかったのに成功と言わない")
     }
 
-    // MARK: OI-178 ⑤
+    // MARK: 手前の窓の申告
 
     func testFrontWindowCoverIsReportedInSeparateFieldNotOverlayWindowFrames() throws {
         let snap = try source("InAppBridge/Sources/InAppSnapshot.swift")
@@ -60,7 +60,7 @@ final class IOSBridgeHideKeyboardCoverHomeTests: XCTestCase {
         XCTAssertNil(decoded.overlayWindowFrames)
     }
 
-    // MARK: OI-178 ④
+    // MARK: /home の対象
 
     func testHomeRequestCarriesBundleIDAndClientSendsIt() throws {
         let data = try JSONEncoder().encode(HomeRequest(bundleID: "com.example.app"))

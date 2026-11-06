@@ -31,7 +31,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 7 | OI-129・OI-163・OI-167・OI-168・OI-169・OI-180・OI-187 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 16 | OI-124・OI-125・OI-138・OI-146・OI-161・OI-163・OI-167・OI-169・OI-176・OI-177・OI-178・OI-179・OI-180・OI-181・OI-183・OI-185 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 15 | OI-124・OI-125・OI-138・OI-146・OI-161・OI-163・OI-167・OI-169・OI-176・OI-177・OI-179・OI-180・OI-181・OI-183・OI-185 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-171・OI-173・OI-174 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 10 | OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-164・OI-165・OI-177 |
@@ -118,16 +118,6 @@
 11/6 の22周目の探索(20分・`_work/explore-20261106f/findings-*.md`)で観測し、直さなかったもの。①E2EY-iOS(SwiftUI)の画面全体に半透明の幕を掛ける確認ダイアログの表示中、幕の下の `tap` / `type` が ✅ で下の要素に届く(im4 F2・6/6・3/3。後続の赤も覆いを名指さない。SwiftUI の in-app の木は塗り順が無いので OI-170 と同じ型 = 推測で直さない)②E2EY-RN の画面内ダイアログ(`accessibilityViewIsModal`)の下への tap の失敗文が「キーボードの下で木から消えた」と帰属し、キーボードを閉じる tap を幕の上に撃つ(im4 F3・3/3)= 着手可。原因(report-mios): 文言は `StepExecutor+Actions.swift:739-742`(`KeyboardRetry.notClosed`)で、入口 `resolveAfterClosingKeyboard`(`StepExecutor+TypeClear.swift:516-523`)の条件が「指の操作 + キーボードが出ている(iOS は窓が縮んだ)」だけ。対象が木から消えた別の理由(`accessibilityViewIsModal` で木がダイアログの中身だけに縮んだ = 失敗時の木は `txt_discard_title`・`btn_discard`・`btn_keep` + ナビゲーションバーだけ)を見ない。次の手: 木の要素が少なく全部が 1 つの容器の中にあり、対象の契約上の位置がキーボードの上なら、キーボードの帰属を付けずダイアログを名指す。閉じる tap は木の要素(幕)の枠の外の点に限る
 
 ## 要測定
-### OI-178 探索の残り(19周目)
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-06)
-- 属性: 要測定
-- 運用: ④回避可 — アプリのダイアログを閉じてから `home()` を撃つ(iPhone 13 実機だけ) 
-- 優先度: 低 — 回避可か文言だけ
-
-11/6 の19周目の探索(20分・`_work/explore-20261106c/findings-*.md`)で観測し、直さなかったもの。④(20周目)iPhone 13 実機の inapp-boost でアプリ自身の確認ダイアログを出したまま `home()` を撃つと、約 27 秒の後「a system alert is in front of the app」の 422 で赤(phys F1・2/2。SE3 では緑。文言のボタンの一覧が2回ずつ並ぶ・im4 F2)= 要測定(ホームジェスチャを割り込み判定を通さずに撃つ形は未実測)。原因(report-mphys): 拾ったのは `SystemAlertProbe` ではなく XCTest の割り込み判定。ホームボタンの無い機種の `home` は SpringBoard への `press(forDuration:thenDragTo:)`(`BridgeRouter.swift:1741-1745`)で、合成の前に XCTest が対象アプリ自身のアラートを「別の割り込み」と数え、`InterruptionGuard.swift:29-37` の監視が true を返して控えるのに残り続けるので `BridgeRouter.swift:176-194` が 422 を返す(1 回目の合成が通ってから 2 回目で当たる回は約 20 秒 + 再試行約 7 秒)。ボタンの重複は `alert.buttons` が 4 件返すため(`InterruptionGuard.swift:32`)。SE3 は `XCUIDevice.shared.press(.home)`(:1737-1738)で出ない(推測)。11/6(v275): 遮ったのが対象アプリ自身のアラート(セッションのアプリにアラートがあり SpringBoard には無い)なら「an alert of the app under test is open」と名指すようにし、ボタンの重複も除いた(`BridgeAPI.uniqueAlertButtonLabels`)。名指しの文言は iPhone 13 実機でしか出ない(Simulator の home はハードのボタンで、アプリのアラートを開いたままでも前面を離れた)ので、つないだときに確かめる。残り: ホームジェスチャを割り込み判定を経由しない形で撃つ(要実測) 
-- 11/6(第2回の測定・直し): ④観測(inapp-boost の DSL ではランナーのセッションの app が nil なのでアプリ自身のアラートの名指しが効かず、押し直し3回 × 約9秒)→ /home の要求に対象の bundle ID を載せて名指し、控えがあれば押し直さない(v277。iPhone 13 実機で「an alert of the app under test is open」を確認)。⑤(in-app が手前の窓に覆われて落とした要素の数と枠を申告し、解決できない失敗文で窓を名指す = `SnapshotResponse.coveredByFrontWindow`。手元で確認)・⑥(tapAppIcon はシステムアラートがあればアイコンを探さずにアラートを名指す)を直した
-
 ### OI-161 探索・横向きの残り(7周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-03)

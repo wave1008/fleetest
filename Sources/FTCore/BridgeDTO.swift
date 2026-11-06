@@ -965,7 +965,7 @@ public struct StatusResponse: Codable, Sendable {
 }
 
 /// POST /home(XCUITest ランナー)。`bundleID` = 対象アプリ。inapp-boost の DSL ではランナーのセッションが無い(`app` が nil)ので、
-/// ホームジェスチャを遮ったアラートが対象アプリ自身のものかを、この bundle ID の XCUIApplication で読む(OI-178 ④)。
+/// ホームジェスチャを遮ったアラートが対象アプリ自身のものかを、この bundle ID の XCUIApplication で読む。
 /// 呼び手が対象を持たない(SystemUIDriver)ときは nil = 従来の判定(セッションのアプリだけ)
 public struct HomeRequest: Codable, Sendable {
     public var bundleID: String?
@@ -1191,7 +1191,7 @@ public struct SnapshotResponse: Codable, Sendable {
     /// 何を数えるかの境界は `SnapshotBuilder.hiddenWindowRects` が唯一の定義元
     /// (ステータス/ナビゲーションバーは常設なので数えない、等)
     public var overlayWindowFrames: [FTRect]?
-    /// **手前の窓に覆われて木から落とした要素**の申告(OI-178 ⑤)。**in-app だけが申告する**。in-app は可視な窓を奥から手前へ
+    /// **手前の窓に覆われて木から落とした要素**の申告。**in-app だけが申告する**。in-app は可視な窓を奥から手前へ
     /// 歩き、手前の窓の `hitTest` が中心を受ける要素を木から落とす(`InAppSnapshot.capture`)ので、ホストから見ると
     /// 「対象が木に無い」と区別できなかった。落とした物が無ければ nil。**`overlayWindowFrames` とは別の欄**(意味が逆):
     /// あちらは「木に載る要素へのタップが吸われる帯」で in-app は申告しない(要素の activate は手前の窓に吸われない)。

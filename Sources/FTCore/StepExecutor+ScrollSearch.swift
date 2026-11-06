@@ -389,7 +389,7 @@ extension StepExecutor {
     }
 
     /// in-app ブリッジが「手前の窓(別ウィンドウのモーダル等)に覆われた要素を木から落とした」と申告した木で解決できなかったときの案内
-    /// (`SnapshotResponse.coveredByFrontWindow`)。待っても窓は閉じないので `waitSeconds:` は案内しない(OI-178 ⑤)。
+    /// (`SnapshotResponse.coveredByFrontWindow`)。待っても窓は閉じないので `waitSeconds:` は案内しない。
     /// 申告が無い木(XCUITest・Android・旧ブリッジ)は nil = 従来の案内
     static func frontWindowCoverHint(_ snapshot: SnapshotResponse) -> String? {
         guard let cover = snapshot.coveredByFrontWindow, cover.droppedCount > 0 else { return nil }
