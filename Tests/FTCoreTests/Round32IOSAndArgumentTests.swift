@@ -15,27 +15,11 @@ final class Round32IOSAndArgumentTests: XCTestCase {
                      isAndroid: isAndroid, tunables: RunTunables())
     }
 
-    func testIOSStaticTextTypeAndNonInputsAreDecidedBeforeTapping() {
+    /// iOS の staticText への type は撃つ前に断らない(RN の iOS の OTP の箱が staticText で来る = 33周目 im4 F1)。
+    /// 断るのは Android だけ(AndroidStaticTextTypePreflightTests)
+    func testIOSStaticTextTypeIsNotRefusedBeforeTapping() {
         let label = el("staticText")
-        let refusal = executor(isAndroid: false).nonTextInputPreflightRefusal(label, in: [label], action: "type")
-        XCTAssertTrue(refusal?.contains("staticText, not a text field — refusing before anything is typed") == true, refusal ?? "nil")
-        XCTAssertNil((refusal ?? "").range(of: #"\bref\b"#, options: .regularExpression), "DSL に無い ref を案内しない")
-        for type in ["textField", "secureTextField", "textView", "searchField", "other"] {
-            let e = el(type)
-            XCTAssertNil(executor(isAndroid: false).nonTextInputPreflightRefusal(e, in: [e], action: "type"), type)
-        }
-        // clearInput は staticText を断らない(従来どおり)
-        XCTAssertNil(executor(isAndroid: false).nonTextInputPreflightRefusal(label, in: [label], action: "clearInput"))
-    }
-
-    func testIOSStaticTextTypeStepFailsBeforeTheDriverTypes() async {
-        let log = CallLog()
-        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[el("staticText")]])
-        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
-            .execute(FlowStep(action: "type", locator: FlowLocator(id: "x"), text: "abc", timeout: 0.1))
-        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
-        XCTAssertTrue(message.contains("refusing before anything is typed"), message)
-        XCTAssertFalse(log.entries.contains { $0.contains("type") || $0.contains("tap") }, "\(log.entries)")
+        XCTAssertNil(executor(isAndroid: false).nonTextInputPreflightRefusal(label, in: [label], action: "type"))
     }
 
     func testModalHintStatesOnlyWhatIsKnown() throws {

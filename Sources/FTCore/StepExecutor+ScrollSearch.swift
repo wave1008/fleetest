@@ -255,6 +255,14 @@ extension StepExecutor {
 
     /// 探索の始点の木の持ち主が、起こしたアプリでなく別のアプリのとき、その持ち主。起こしていない(`launched` が nil)・
     /// システムのダイアログ(割り込みとして閉じられる)・同じアプリは nil
+    /// 探索の始点の持ち主と比べる基準。起こしたアプリがあればそれ、無くても対象アプリを止めた・前面を離れたかもしれない印が
+    /// 立っていれば対象アプリ(印が無ければ nil = 比べない = 従来どおり)
+    var startBaselineBundleID: String? {
+        if let launchedBundleID { return launchedBundleID }
+        guard appUnderTestStopped || appMayHaveLeft else { return nil }
+        return appUnderTestBundleID
+    }
+
     static func startOwnerOtherThanLaunched(treeSession: String?, launched: String?) -> String? {
         guard let launched, !launched.isEmpty, let treeSession, !treeSession.isEmpty, treeSession != launched,
               !ForegroundState.systemDialogPackages.contains(treeSession) else { return nil }
@@ -997,7 +1005,9 @@ extension StepExecutor {
                 snapshot = try await consumePendingHideKeyboardWait(snapshot, phase: &phase)
                 searchBundleID = Self.searchBaselineBundleID(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
                 lastCheckedOwner = snapshot.sessionBundleID
-                startedOnOther = Self.startOwnerOtherThanLaunched(treeSession: snapshot.sessionBundleID, launched: launchedBundleID)
+                // 起こしたアプリの記録が消えた後(terminateApp / removeApp / home の後)は対象アプリを基準に比べる
+                // (基準が無いと門が働かず、ランチャーを払って通知のシェードを開いた = 33周目 amax F1・F2)
+                startedOnOther = Self.startOwnerOtherThanLaunched(treeSession: snapshot.sessionBundleID, launched: startBaselineBundleID)
                 // 始点の木が、プロセスの居ないアプリに代わって前面へ出た別アプリのものなら、その画面を払わず断る(AppProcessGone)
                 if let gone = await appGoneFailure(owner: snapshot.sessionBundleID) {
                     return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
@@ -1278,7 +1288,7 @@ extension StepExecutor {
             // **始点の木が起こしたアプリでなく別のアプリのものなら、1本も払わずに断る**(見えている対象は上で返した後)。
             // 背面のまま撃つと、ランチャーの上の最初の送りが通知のシェードを開いて残した。
             // 断り文は appGone に載せる = 「対象の有無を確かめていない」扱い(searchStoppedWithoutLooking)に乗る
-            if attempt == 0, attempt < maxSwipes, let owner = startedOnOther, let launched = launchedBundleID {
+            if attempt == 0, attempt < maxSwipes, let owner = startedOnOther, let launched = startBaselineBundleID {
                 return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
                                           hintJumps: hintJumps, swipes: swipes,
                                           startedOnOtherApp: (owner, launched),

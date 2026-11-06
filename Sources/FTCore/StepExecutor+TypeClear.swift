@@ -442,7 +442,9 @@ extension StepExecutor {
         // UILabel。**iOS でも入力欄は staticText で来ない**(in-app = UITextField/UITextView のクラスとテキスト入力 trait を staticText の trait より先に
         // 見る = InAppSnapshot.elementType・XCUITest = elementType が textField / textView)ので、断ってよい。
         // 押して焦点の接続を探しても入力欄ではなく、4 秒待って「target node not found」と事実と違う理由で落ちていた
-        if action == "type", element.type == "staticText", verdict == .notATextField(positively: false) {
+        // **Android だけ**: RN の iOS の木では押せる OTP の箱も staticText で来て、箱を押してから打てば入る(iOS へ広げた版が
+        // RN の OTP を撃つ前に断った = 33周目 im4 F1)。Android は押せる要素を clickable の型で返すので見分けられる
+        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false) {
             return "the target is a staticText, not a text field — refusing before anything is typed"
                 + " (it is display-only text that cannot take input). Point the selector at the input field itself."
         }

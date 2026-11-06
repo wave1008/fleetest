@@ -60,6 +60,20 @@ final class ScrollRefusesOnOtherAppStartTests: XCTestCase {
         XCTAssertGreaterThan(driver.swipes, 0, "起こしていない探索を止めた")
     }
 
+    /// 起こしたアプリの記録が消えた後(terminateApp / home の後)でも、対象アプリを止めた・前面を離れたかもしれない印があれば
+    /// 対象アプリを基準に比べ、ランチャーの画面を払わない(33周目 amax F1・F2: シェードを開いた)
+    func testAfterStopOrLeavingTheLauncherIsNotSwiped() async {
+        for mark in ["stopped", "left"] {
+            let driver = ConstantOwnerDriver(owner: "com.google.android.apps.nexuslauncher")
+            let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+            executor.launchedBundleID = nil
+            executor.appUnderTestBundleID = "com.app"
+            if mark == "stopped" { executor.appUnderTestStopped = true } else { executor.noteAppMayHaveLeft(true) }
+            _ = await executor.execute(FlowStep(action: "scrollTo", locator: FlowLocator(id: "row_nope"), direction: "up", maxSwipes: 4))
+            XCTAssertEqual(driver.swipes, 0, "\(mark): ランチャーの画面を払った")
+        }
+    }
+
     func testRefusalSentenceIsShared() {
         let m = StepExecutor.startedOnOtherAppRefusal(("com.x", "com.app"))
         XCTAssertTrue(m.contains("com.x") && m.contains("com.app") && m.contains("no scroll was sent"), m)
