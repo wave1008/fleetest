@@ -286,8 +286,11 @@ public final class StepExecutor {
     /// このフェーズで SpringBoard に聞いた「アラートが前面にあるか」。nil = まだ聞いていない
     /// (`armUnregisteredSystemAlertProbe` が戻す)。画像判定の絵を XCUITest で撮るかを決める
     var judgmentAlertCovering: Bool?
-    /// このシナリオ(= この実行器)で rotateTo を撃ったか(`landscapeWithoutRotate` の判定)
+    /// このシナリオ(= この実行器)で向きを変える操作(rotateTo・開閉)を撃ったか(`landscapeWithoutRotate` の判定)
     var rotatedThisScenario = false
+    /// 開閉(fold / unfold / hinge)も向きを変える(開いた Duo の内側の画面は横長)。数えないと、シナリオ自身の `unfold()` の後の
+    /// 失敗に「回転はシナリオの外から来た」と事実と違う注記を付けた(25〜26周目 duo F1: 2/2・2/2)
+    public func noteDeviceReoriented() { rotatedThisScenario = true }
     /// false = 向きの出どころを「このシナリオ」で語らない(MCP の呼び出しにはシナリオが無い)。`noteLandscapeWithoutRotate` が見る
     public var notesLandscapeWithoutRotate = true
     /// 可視性検証の失敗文の事実(`undrawnScreenFact`)に渡すキーボードの枠。occlusionFlip の入口で判定に使う木から立てる

@@ -26,4 +26,14 @@ final class FoldRestoreMessageTests: XCTestCase {
         XCTAssertTrue(body.contains("catch let failure as FoldControl.Failure"), "戻しの失敗を素のまま投げている")
         XCTAssertTrue(body.contains("throw FoldCommandFailure(foldFailureMessage(failure))"))
     }
+
+    /// 開閉は撃つ前に「向きを変えた」と数える(数えないと `unfold()` の後の失敗に「回転はシナリオの外から来た」と付いた = 25〜26周目 duo F1)
+    func testFoldCommandsCountAsReorientationBeforeSending() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/CommandsFold.swift"), encoding: .utf8)
+        guard let mark = source.range(of: "core.executor.noteDeviceReoriented()"),
+              let send = source.range(of: "FoldControl.apply(target", range: mark.upperBound..<source.endIndex)
+        else { return XCTFail("開閉の本体が向きの印を撃つ前に立てていない") }
+        XCTAssertLessThan(mark.lowerBound, send.lowerBound)
+    }
 }

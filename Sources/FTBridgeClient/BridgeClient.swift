@@ -1147,8 +1147,10 @@ public final class BridgeClient: AppDriver, Sendable {
             return
         }
         let screen = tree.screen
-        try await drag(fromX: screen.x + 1, fromY: screen.y + screen.height * 0.5,
-                       toX: screen.x + screen.width * 0.65, toY: screen.y + screen.height * 0.5,
+        let fromX = screen.x + 1, toX = screen.x + screen.width * 0.65
+        // 道筋が押せる要素を横切らない高さ(BackEdgeDragLane。真ん中固定ではボタンが押された = 26周目 iultra F1/F2)
+        let y = BackEdgeDragLane.y(elements: tree.elements, screen: screen, fromX: fromX, toX: toX)
+        try await drag(fromX: fromX, fromY: y, toX: toX, toY: y,
                        pressSeconds: FlowStep.defaultDragPressSeconds, durationSeconds: 0.25)
     }
 
