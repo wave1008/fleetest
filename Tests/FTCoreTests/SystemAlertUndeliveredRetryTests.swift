@@ -106,7 +106,7 @@ final class SystemAlertUndeliveredRunnerWiringTests: XCTestCase {
         XCTAssertTrue(guardSource.contains(#"path == "/tap" ? BridgeAPI.systemAlertBlockedReason : nil"#))
         let router = try runnerSource("BridgeRouter.swift")
         // 監視(InterruptionGuard)が遮りを控えた 422 は3箇所。全部が要求の経路で理由を決める
-        let monitored = router.components(separatedBy: "InterruptionGuard.message(blocked), status: 422").count - 1
+        let monitored = router.components(separatedBy: "InterruptionGuard.message(blocked, ownAppAlert: blockedByOwnAppAlert()), status: 422").count - 1
         XCTAssertEqual(monitored, 3)
         XCTAssertEqual(router.components(separatedBy: "InterruptionGuard.notDeliveredReason(path: request.path)").count - 1, 4,
                        "監視の3箇所 + 撃つ前の門の断りの写し替え")

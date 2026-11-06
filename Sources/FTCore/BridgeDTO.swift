@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 274
+    public static let bridgeProtocolVersion = 275
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -58,6 +58,18 @@ public enum BridgeAPI {
     /// 同期相手: Runner/.../InterruptionGuard.swift・BridgeRouter.swift(`handle`)・CoordinatePinch.swift・
     /// `DriverError.systemAlertBlocked`(BridgeClient.check が写す)
     public static let systemAlertBlockedReason = "system-alert-blocked"
+
+    /// **アラートのボタンのラベルを、ラベルと枠の組で重複を除いて最初の出現の順に並べる**。XCUITest はアラートの各ボタンを
+    /// 2 つずつ返す(`alert.buttons` が 4 件・ログ `Element at index 0…3`)ので、そのまま並べると文言のボタンが2回ずつ出た(OI-180 ③)。
+    /// 枠も鍵に入れる = 同じラベルの別の位置のボタンは残す。同期相手: Runner/.../InterruptionGuard.swift(読みの1箇所)
+    public static func uniqueAlertButtonLabels(_ buttons: [(label: String, frame: FTRect)]) -> [String] {
+        var seen = Set<String>()
+        return buttons.compactMap { button in
+            guard !button.label.isEmpty else { return nil }
+            let f = button.frame
+            return seen.insert("\(button.label)|\(f.x),\(f.y),\(f.width),\(f.height)").inserted ? button.label : nil
+        }
+    }
 
     /// **ホームボタンの iPhone か**(画面の寸法だけで決まる純粋判定)。
     ///

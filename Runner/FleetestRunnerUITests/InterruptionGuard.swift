@@ -30,8 +30,7 @@ final class InterruptionGuard {
         testCase.addUIInterruptionMonitor(withDescription: "fleetest: leave system alerts untouched") { [weak self] alert in
             // XCTest は諦めるまで同じ要求の中で何十回も呼ぶ。ボタンの読みは最初の1回だけ
             if self?.blocked == nil {
-                let buttons = alert.buttons.allElementsBoundByIndex.map(\.label).filter { !$0.isEmpty }
-                self?.blocked = Blocked(title: alert.label, buttons: buttons)
+                self?.blocked = Blocked(title: alert.label, buttons: SystemAlertProbe.buttonLabels(of: alert))
                 NSLog("[fleetest] a system alert blocked an action; left it untouched: %@", alert.label)
             }
             return true
@@ -54,9 +53,16 @@ final class InterruptionGuard {
         path == "/tap" ? BridgeAPI.systemAlertBlockedReason : nil
     }
 
-    /// 422 の本文。**押していない・撃ち直していない**ことと、閉じる手段を言う
-    static func message(_ blocked: Blocked) -> String {
+    /// 422 の本文。**押していない・撃ち直していない**ことと、閉じる手段を言う。
+    /// `ownAppAlert` = 遮ったのが対象アプリ自身のアラート(XCTest はアプリのアラートも割り込みに数える。iPhone 13 実機の
+    /// ホームジェスチャで「システムアラート」と誤って名指していた = OI-178 ④)。判定は呼び手(`BridgeRouter.blockedByOwnAppAlert`)
+    static func message(_ blocked: Blocked, ownAppAlert: Bool = false) -> String {
         let buttons = blocked.buttons.isEmpty ? "" : ", buttons: " + blocked.buttons.joined(separator: " / ")
+        if ownAppAlert {
+            return "an alert of the app under test is open (title: \(blocked.title)\(buttons)) and XCTest treats it as an"
+                + " interruption, so this action was not delivered — the alert was left as it is (no button was pressed and"
+                + " the action was not retried). Close the app's alert first by tapping one of its buttons"
+        }
         return "a system alert is in front of the app (title: \(blocked.title)\(buttons)), so this action"
             + " was not delivered — the alert was left as it is (no button was pressed and the action"
             + " was not retried). Close it first by tapping one of its buttons; in a scenario,"
@@ -70,7 +76,14 @@ enum SystemAlertProbe {
     static func front() -> InterruptionGuard.Blocked? {
         let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
         guard alert.exists else { return nil }
-        let buttons = alert.buttons.allElementsBoundByIndex.map { $0.label }.filter { !$0.isEmpty }
-        return InterruptionGuard.Blocked(title: alert.label, buttons: buttons)
+        return InterruptionGuard.Blocked(title: alert.label, buttons: buttonLabels(of: alert))
+    }
+
+    /// アラートのボタンのラベル(読みはここ1箇所。重複の除き方は `BridgeAPI.uniqueAlertButtonLabels`)
+    static func buttonLabels(of alert: XCUIElement) -> [String] {
+        BridgeAPI.uniqueAlertButtonLabels(alert.buttons.allElementsBoundByIndex.map { button in
+            let f = button.frame
+            return (label: button.label, frame: FTRect(x: f.origin.x, y: f.origin.y, width: f.size.width, height: f.size.height))
+        })
     }
 }

@@ -174,14 +174,14 @@ final class BridgeRouter {
             // **アラートに遮られて XCTest が諦めた操作を 200 にしない**(issue は record で握りつぶされる)。
             // 422 = 「セッションはあるが今は無理」(409 は requireApp だけ = ホストが activate を撃つ)
             if let blocked = InterruptionGuard.shared.take() {
-                response = .error(InterruptionGuard.message(blocked), status: 422,
+                response = .error(InterruptionGuard.message(blocked, ownAppAlert: blockedByOwnAppAlert()), status: 422,
                                   reason: InterruptionGuard.notDeliveredReason(path: request.path))
             }
             return response
         } catch let error as BridgeError {
             // 遮られて諦めた結果の二次的な失敗(要素が見つからない等)より、遮った事実を先に言う
             if let blocked = InterruptionGuard.shared.take() {
-                return .error(InterruptionGuard.message(blocked), status: 422,
+                return .error(InterruptionGuard.message(blocked, ownAppAlert: blockedByOwnAppAlert()), status: 422,
                               reason: InterruptionGuard.notDeliveredReason(path: request.path))
             }
             // 撃つ前の門(CoordinatePinch)の断りも、確定と言えるのは `/tap` だけ(2本指・連続の合成は途中の1本目が届いている)
@@ -190,11 +190,18 @@ final class BridgeRouter {
             return .error(error.message, status: error.status, reason: reason)
         } catch {
             if let blocked = InterruptionGuard.shared.take() {
-                return .error(InterruptionGuard.message(blocked), status: 422,
+                return .error(InterruptionGuard.message(blocked, ownAppAlert: blockedByOwnAppAlert()), status: 422,
                               reason: InterruptionGuard.notDeliveredReason(path: request.path))
             }
             return .error(Self.describingLostConnection(error, appState: app?.state, bundleID: sessionBundleID), status: 500)
         }
+    }
+
+    /// 遮ったのが対象アプリ自身のアラートか。**両方が肯定的に読めたときだけ** true(セッションのアプリにアラートがあり、
+    /// SpringBoard には無い)。どちらかが読めない・SpringBoard にもあるなら false = 従来のシステムアラートの文言(推測で名指さない)
+    private func blockedByOwnAppAlert() -> Bool {
+        guard let app, app.alerts.firstMatch.exists else { return false }
+        return SystemAlertProbe.front() == nil
     }
 
     /// XCTest の「Lost connection to the application」(ui-testing.error の 10009)で落ちた操作の文言。
