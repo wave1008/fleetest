@@ -452,7 +452,8 @@ public func tapAppIcon(_ appIconName: String? = nil,
     let resolvedName = appIconName ?? core.appDisplayName
     let description = resolvedName.map { "tapAppIcon \"\($0)\"" } ?? "tapAppIcon"
     var iconNote: StepNote?
-    core.performCustom(description: description, command: "tapAppIcon", file: file, line: line, note: { iconNote }) {
+    let status = core.performCustom(description: description, command: "tapAppIcon", file: file, line: line,
+                                    note: { iconNote }) {
         // 親(プロファイルの appName)からも取れないときだけ明示エラー
         guard let appIconName = resolvedName else {
             throw FTCommandError.message(
@@ -731,6 +732,11 @@ public func tapAppIcon(_ appIconName: String? = nil,
             }
         }
     }
+    // 対象アプリのアイコンで起きた(押した・注入付きで起動した)= このシナリオが起こした。注入付きの起動は launchApp と同じく
+    // 実行プロファイルの向きを撃ち直す(inapp-boost の回転は起動し直すと残らない = applyProfileOrientation)
+    guard case .passed = status, resolvedName == core.appDisplayName else { return }
+    core.noteAppUnderTestStarted()
+    if iconNote == .appIconLaunchedWithBridge { applyProfileOrientation(core, file: file, line: line) }
 }
 
 /// 秒 → ナノ秒。**範囲外の Double で `UInt64(_:)` は trap する**(負値も無限大も
@@ -1261,23 +1267,21 @@ public func procedure(_ title: String,
 /// (inapp-boost モードは XCUITest の activate でセッションを向けるので、止めたアプリを in-app ブリッジ無しで起こして ✅・後続は
 /// 「this session stopped it」の赤 = 25周目 iultra F2・6/6)。人は動いていないアプリへ「戻る」ことはできない。
 /// 生死を答えられない(実機)・別のアプリを最後に起こした(そのアプリの上の back)ときは断らない
+/// **照会(simctl の launchctl。1回 0.1〜0.3 秒)はこのシナリオが止めた後だけ撃つ**(`appUnderTestLife`。back のたびに払わない)
 func notRunningAppBackRefusal(core: FTDriveCore) async -> AppNotRunningRefusal? {
-    guard core.platform == "ios", core.executor.lastLaunchedAppBundleID == core.appBundleID,
+    guard core.platform == "ios", core.appUnderTestLife == .stoppedByScenario,
+          core.executor.lastLaunchedAppBundleID == core.appBundleID,
           let alive = core.appAliveProbe, await alive(core.appBundleID) == false else { return nil }
-    let stopped = core.appStoppedByScenario
-    let why = stopped ? " — this scenario stopped it (terminateApp)" : ""
     return AppNotRunningRefusal(
-        message: "back: the app under test (\(core.appBundleID)) is not running\(why), so nothing was sent. back() would"
-            + " start it, and a person cannot go back into an app that is not running. Launch it first (launchApp())",
-        kind: stopped ? .appStoppedBySession : nil)
+        message: "back: the app under test (\(core.appBundleID)) is not running — this scenario stopped it — so nothing was"
+            + " sent. back() would start it, and a person cannot go back into an app that is not running."
+            + " Launch it first (launchApp())")
 }
 
-/// 失敗の経路(`failureKind`)は言えるときだけ(止めたのがこのシナリオと分かるとき)。言えないときは欄ごと省く
 struct AppNotRunningRefusal: LocalizedError, StepFailureKindProviding {
     let message: String
-    let kind: StepFailureKind?
     var errorDescription: String? { message }
-    var stepFailureKind: StepFailureKind? { kind }
+    var stepFailureKind: StepFailureKind? { .appStoppedBySession }
 }
 
 /// 撃つ前の門(StepExecutor.appLeftRefusal)の断りを、失敗の種別付きで投げる(performCustom の失敗の種別はエラーの型から採る)

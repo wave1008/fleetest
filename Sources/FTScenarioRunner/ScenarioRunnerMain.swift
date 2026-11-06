@@ -678,7 +678,7 @@ struct RunScenario: AsyncParsableCommand {
             // crash バッファは時間で絞らないと前の run・前のシナリオの同じアプリのクラッシュまで拾うので、
             // このシナリオの開始以降に絞る(1 プロセス = 1 シナリオなので、ここがシナリオの開始)
             let scenarioStartedAt = Date()
-            core.appProcessEvidence = {
+            core.appProcessEvidence = { _ in
                 guard let raw = AndroidAppProcessEvidenceQuery.query(package: package, serial: serial),
                       !raw.running else { return [] }
                 let evidence = AndroidAppProcessEvidenceQuery.scoped(
@@ -705,8 +705,12 @@ struct RunScenario: AsyncParsableCommand {
             let bundle = appBundleID
             let scenarioStartedAt = Date()
             simulatorCrashWatch = (bundle, udid, scenarioStartedAt)
-            core.appProcessEvidence = {
-                SimulatorAppProcess.failureEvidence(bundleID: bundle, udid: udid, scenarioStartedAt: scenarioStartedAt)
+            // .ips の無い死を記録するのは inapp-boost モードだけ(in-app ブリッジがアプリの中に居るので、アプリの死がブリッジ不達の
+            // 振り直しで消える = 12周目 ilocal F17。xcuitest モードはランナーが別プロセスで、その振り直しの経路を変えていない)
+            let recordsProcessGoneInMode = primaryCaptureOmitsSystemUI
+            core.appProcessEvidence = { mayRecordProcessGone in
+                SimulatorAppProcess.failureEvidence(bundleID: bundle, udid: udid, scenarioStartedAt: scenarioStartedAt,
+                                                    recordsProcessGone: recordsProcessGoneInMode && mayRecordProcessGone)
             }
             // 起動していないシナリオ(起動前に落ちた・SpringBoard が相手)では、居ないのは当然なので訊かない
             // (生死の確認 最大 5 秒 + .ips の待ち 4 秒を払って「落ちたかも」と誤って言うことになる)

@@ -354,7 +354,7 @@ Android の凍結事後判定(`AndroidHealthProbe.observeBlankAndRepair`)が試�
 
 | フィールド | 型 | 意味 |
 |---|---|---|
-| evidence | String | `crashReport`(iOS Simulator。`SimulatorCrashReport` が直近の `.ips` を見つけた。inapp-boost モードはブリッジの切断の時点、xcuitest モードは失敗時にアプリのプロセスが居ないとき = `SimulatorAppProcess.failureEvidence`。実機は .ips が Mac に無いので記録しない)/ `fatalException`(Android。crash バッファの FATAL EXCEPTION を見つけた)/ `nativeSignal`(Android。crash バッファのネイティブのクラッシュ = `Fatal signal` と debuggerd の `>>> <package> <<<` を見つけた。Flutter・NDK)/ `processGone`(iOS Simulator。失敗の時点でアプリのプロセスが居なかった = このシナリオが止めたのではない。`.ips` は見つからなかった。外から止められたのか OS が報告を書かずに終えたのかは区別しない)。**どの値でもそのシナリオは振り直さず赤のまま残す**(in-app ブリッジはアプリの中に居るので、ブリッジ不達として振り直すと2回目の緑で消える)。Android は**シナリオの開始以降**のクラッシュだけを載せる(前の run・前のシナリオの同じアプリのクラッシュを帰属させない) |
+| evidence | String | `crashReport`(iOS Simulator。`SimulatorCrashReport` が直近の `.ips` を見つけた。inapp-boost モードはブリッジの切断の時点、xcuitest モードは失敗時にアプリのプロセスが居ないとき = `SimulatorAppProcess.failureEvidence`。実機は .ips が Mac に無いので記録しない)/ `fatalException`(Android。crash バッファの FATAL EXCEPTION を見つけた)/ `nativeSignal`(Android。crash バッファのネイティブのクラッシュ = `Fatal signal` と debuggerd の `>>> <package> <<<` を見つけた。Flutter・NDK)/ `processGone`(iOS Simulator の inapp-boost モード。このシナリオが対象アプリを起こし、その後止めていない(`terminateApp`・`removeApp`・`clearAppData` を通していない)のに、失敗の時点でプロセスが居なかった。`.ips` は見つからなかった。外から止められたのか OS が報告を書かずに終えたのかは区別しない)。**どの値でもそのシナリオは振り直さず赤のまま残す**(in-app ブリッジはアプリの中に居るので、ブリッジ不達として振り直すと2回目の緑で消える)。Android は**シナリオの開始以降**のクラッシュだけを載せる(前の run・前のシナリオの同じアプリのクラッシュを帰属させない) |
 | path | String? | iOS のみ。見つかった `.ips` のパス |
 | summary | String? | iOS = クラッシュ理由の1行 / Android = FATAL EXCEPTION ブロックの先頭行か `Fatal signal …` の行 |
 

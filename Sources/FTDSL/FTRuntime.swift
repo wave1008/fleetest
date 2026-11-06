@@ -484,7 +484,9 @@ public final class FTDriveCore {
     public var foregroundOverlays: (@Sendable () -> [String])?
     /// 失敗時に「アプリの process が生きているか」を問い合わせる(Android と iOS Simulator で設定される。
     /// foregroundOverlays と同じ注入元・同じ理由)。戻り値は表示行(空 = 言うことなし)
-    public var appProcessEvidence: (@Sendable () -> [String])?
+    /// 引数 = 居なかったときに .ips の無い死(`AppCrashEvidence.processGone`)を記録してよいか(`appUnderTestLife == .launched` =
+    /// このシナリオが対象アプリを起こし、その後止めていない。止めた・起こしていないアプリを「止めていないのに居ない」と言わない)
+    public var appProcessEvidence: (@Sendable (_ mayRecordProcessGone: Bool) -> [String])?
     /// true = このプロセスでアプリを起動したときだけ `appProcessEvidence` を問い合わせる(afterAll の専用の子 =
     /// アプリを起動せずに走るので、メモの検証の失敗に「プロセスが無い・クラッシュしたかも」を添えると誤った帰属になる)
     public var appProcessEvidenceRequiresLaunch = false
@@ -1487,6 +1489,13 @@ public final class FTDriveCore {
             status = .failed("the operation timed out (\(Int(FTSync.commandTimeout))s)")
             failureKind = .timeout
         }
+        if case .passed = status, let command {
+            if ["terminateApp", "removeApp", "clearAppData"].contains(command) {
+                withState { _appUnderTestLife = .stoppedByScenario }
+            } else if ["launchApp", "restartApp"].contains(command), launchedBundleID == appBundleID {
+                withState { _appUnderTestLife = .launched }
+            }
+        }
         let timing = launchTiming?()
         // note は perform() の driverFallback と同じ見せ方(括弧書き)。StepNote.notes へも積むのは
         // perform() の heldValue と同じ理由(run 横断で率を見たい注記は notes: 経由にする)
@@ -1632,6 +1641,20 @@ public final class FTDriveCore {
         stateLock.lock(); defer { stateLock.unlock() }
         return _appStoppedByScenario
     }
+    /// 対象アプリ(実行プロファイルのアプリ)をこのシナリオで起こしたか・止めたか(stateLock で守る)。`appStoppedByScenario` と違い、
+    /// **起動の手でだけ `.launched` へ戻る**(間に別のステップが通っても `.stoppedByScenario` のまま)。読み手は2つ ——
+    /// back() の「動いていないアプリへ戻らない」照会を止めた後だけに限る・失敗の時点にプロセスが居なかった事実を
+    /// `appCrash`(processGone)に記録するのを「起こして、その後このシナリオが止めていない」ときだけに限る(止めた・起こしていない
+    /// アプリを「このシナリオは止めていない」と言わない)。openURL の注入付きの起こし直し等、DSL が知らない起動では戻らない = 記録しない側に倒れる
+    public enum AppUnderTestLife: Sendable { case notLaunched, launched, stoppedByScenario }
+    private var _appUnderTestLife = AppUnderTestLife.notLaunched
+    public var appUnderTestLife: AppUnderTestLife { withState { _appUnderTestLife } }
+    /// 起動の手(launchApp / restartApp / tapAppIcon)が対象アプリを起こした。DSL スレッドから呼ぶ
+    func noteAppUnderTestStarted() {
+        appLaunchedInThisProcess = true
+        withState { _appUnderTestLife = .launched }
+    }
+
     /// 止めた状態を保つコマンド(アプリへ触らない読みと待ち)
     private static let keepsStoppedAppState: Set<String> = ["terminateApp", "ifCanSelect", "repeatWhileCanSelect", "wait"]
     /// 子が「このシナリオはこの環境では成り立たない」と宣言した理由(scenarioFinished.notApplicableReason へ運ぶ)。
@@ -2017,7 +2040,7 @@ public final class FTDriveCore {
                       + " and no later step started it again"))
         }
         let processEvidence = stoppedByScenario || (appProcessEvidenceRequiresLaunch && !appLaunchedInThisProcess)
-            ? [] : appProcessEvidence?() ?? []
+            ? [] : appProcessEvidence?(appUnderTestLife == .launched) ?? []
         if !processEvidence.isEmpty {
             let recordedProcess = withState { () -> Bool in
                 guard let index = currentSceneIndex else { return false }

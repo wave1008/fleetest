@@ -57,7 +57,7 @@ hinge(130)              // 半開きのブック姿勢
   ドロワーやページはタップを飲むため)。アイコンが自分のアプリのものなら、その後アプリが前面に
   来るまで待ち、来なければ(撃ち直さずに)失敗します。
 - **`tapAppIcon` は、ホーム画面の木が表示中の画面と一致しないときは撃ちません。** iPhone Duo の Simulator と Xcode 27.2 RC の組み合わせで、内側の画面の配置が木に混ざる事象を確認しています。内蔵画面が2枚の Simulator では木の画面の大きさを表示中の画面と照合し、違えば `the home screen tree reports a … screen but the shown display is …` で失敗します。アイコンの中心が画面の外に載っているときは画面の待ち時間まで読み直し、直らなければ `the home screen reports the icon outside the screen …` で失敗します(当たらない所を撃ちません)。
-- **`terminateApp()` で止めた後(アプリが動いていないとき)の iOS の扱い**: `back()` は撃たずに失敗します(`back()` はアプリを起こしてしまいますが、人は動いていないアプリへ「戻る」ことはできません)。`launchApp()` か `tapAppIcon()` で起こしてください。inapp-boost モードの `tapAppIcon()` は、アイコンを見つけた後、押す代わりにアプリを起動し、ステップに注記(`the app was not running, so after finding its icon this launched the app …`)が付きます(アイコンから起きたアプリには inapp-boost モードの操作の口が載らず、後の手順が全部届かないため)。アプリが背面で動いているだけなら、これまでどおりアイコンを押します。
+- **`terminateApp()` で止めた後(アプリが動いていないとき)の iOS Simulator の扱い**(実機ではアプリが動いているかをツールが確かめられないので、これまでどおりです。止めた後は `launchApp()` で起こしてください): `back()` は撃たずに失敗します(`back()` はアプリを起こしてしまいますが、人は動いていないアプリへ「戻る」ことはできません)。`launchApp()` か `tapAppIcon()` で起こしてください。inapp-boost モードの `tapAppIcon()` は、アイコンを見つけた後、押す代わりにアプリを起動し、ステップに注記(`the app was not running, so after finding its icon this launched the app …`)が付きます(アイコンから起きたアプリには inapp-boost モードの操作の口が載らず、後の手順が全部届かないため)。アプリが背面で動いているだけなら、これまでどおりアイコンを押します。
 - **`rotateTo` が契約するのはアプリの UI の向き**であって、実機の傾きではありません —
   シナリオが読む frame はアプリ座標系で、iOS / Android のどの UI フレームワークでも同じ意味で
   振る舞います。値は `.portrait` / `.landscape` の2つだけです(左右の区別はありません)。

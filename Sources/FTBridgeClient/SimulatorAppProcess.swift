@@ -97,7 +97,10 @@ public enum SimulatorAppProcess {
     /// 失敗時のプロセス証拠(`FTRuntime.appProcessEvidence` の iOS Simulator 版)。生きている・判定できないなら空。
     /// 居なければ "process not running" と、このシナリオの開始以降の .ips があればその事実を返し、
     /// クラッシュとして記録する(`LastAppCrash`。in-app ドライバが切断の時点で記録済みなら重ねない)
-    public static func failureEvidence(bundleID: String, udid: String, scenarioStartedAt: Date) -> [String] {
+    /// `recordsProcessGone`: .ips も上書きの痕も無い死を `processGone` として記録するか(呼び手が inapp-boost モードで、このシナリオが
+    /// 対象アプリを起こし、その後止めていないときだけ true。`FTDriveCore.appProcessEvidence` の doc)
+    public static func failureEvidence(bundleID: String, udid: String, scenarioStartedAt: Date,
+                                       recordsProcessGone: Bool) -> [String] {
         guard isRunning(udid: udid, bundleID: bundleID) == false else { return [] }
         if let recorded = LastAppCrash.shared.snapshot() {
             return ["process not running"] + (recorded.path.map { [crashReportLine(path: $0, reason: recorded.summary)] }
@@ -110,7 +113,7 @@ public enum SimulatorAppProcess {
                 LastAppCrash.shared.record(rewritten)
                 return ["process not running", rewritten.summary ?? ""]
             }
-            LastAppCrash.shared.record(AppCrashRecord(evidence: .processGone, summary: processGoneSummary))
+            if recordsProcessGone { LastAppCrash.shared.record(AppCrashRecord(evidence: .processGone, summary: processGoneSummary)) }
             return ["process not running"]
         }
         LastAppCrash.shared.record(AppCrashRecord(evidence: .crashReport, path: hit.path, summary: hit.reason))
