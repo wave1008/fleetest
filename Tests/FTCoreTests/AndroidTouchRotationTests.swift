@@ -1,5 +1,5 @@
 // Emulator の gRPC タッチは自然な向きの座標で受ける。表示の座標からの変換(AndroidTouchRotation)の実測値を固定する
-// (OI-75。実測 2026-11-02: Pixel 9 emulator 1080x2424 で、回転 1・2・3 とも逆変換した点が表示の狙った行に当たった)。
+// (実測 2026-11-02: Pixel 9 emulator 1080x2424 で、回転 1・2・3 とも逆変換した点が表示の狙った行に当たった)。
 
 import XCTest
 @testable import FTCore

@@ -138,7 +138,7 @@ final class VisibleTapRectScaleTests: XCTestCase {
                      "15pt は床 8pt を超える = 撃てる側は対象外")
         XCTAssertNil(TapTargetGeometry.thinVisibleSliver(for: elements[1], in: elements, inferring: true, scale: 3),
                      "完全に中の行は対象外")
-        // OI-75 の形: 容器の下端(500)に 2 だけ入った高さ 48 の行
+        // 横向きの探索で出た形: 容器の下端(500)に 2 だけ入った高さ 48 の行
         var edge = element(4, id: "edge", frame: FTRect(x: 0, y: 498, width: 300, height: 48))
         edge.depth = 2
         let sliver = TapTargetGeometry.thinVisibleSliver(for: edge, in: elements + [edge], inferring: true, scale: 1)
