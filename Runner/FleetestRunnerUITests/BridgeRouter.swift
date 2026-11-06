@@ -115,6 +115,8 @@ final class BridgeRouter {
 
     func handle(_ request: BridgeHTTPServer.Request) -> BridgeHTTPServer.Response {
         InterruptionGuard.shared.reset()
+        // `/home` の対象は要求ごとに消す(handleHome の defer で消すと、出た後にこの関数が組む 422 の名指しが読めない)
+        homeTargetApp = nil
         skipSettle = request.skipSettle
         focusedRefForThisRequest = nil
         if request.method == "POST" {
@@ -1672,12 +1674,12 @@ final class BridgeRouter {
     /// 無いので1回だけ送る
     private static let homeAttempts = 3
     private static let homeSettleSeconds = 2.0
-    /// 今の `/home` 要求の対象アプリ(`HomeRequest.bundleID`)。要求の間だけ持つ(main スレッドでしか触らない)
+    /// 今の `/home` 要求の対象アプリ(`HomeRequest.bundleID`)。要求の応答を組み終えるまで持つ(main スレッドでしか触らない)
     private var homeTargetApp: XCUIApplication?
     private func handleHome(_ body: Data) throws -> BridgeHTTPServer.Response {
         let target = try decode(HomeRequest.self, body)
+        // 消すのは次の要求の入口(handle)。422 の文はこの関数を出た後に handle が組む
         homeTargetApp = target.bundleID.map { XCUIApplication(bundleIdentifier: $0) }
-        defer { homeTargetApp = nil }
         let sb = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         #if !targetEnvironment(simulator)
         // **スイッチャーが開いていると下端フリックはホームへ戻らず、`app.state` も前面のまま**(iPhone 13 実機で

@@ -83,5 +83,9 @@ final class IOSBridgeHideKeyboardCoverHomeTests: XCTestCase {
         let verifiable = try XCTUnwrap(home.range(of: "guard verifiable, let app else { break }"))
         XCTAssertLessThan(send.lowerBound, stop.lowerBound)
         XCTAssertLessThan(stop.lowerBound, verifiable.lowerBound, "押し直しの前に打ち切る")
+        // 422 の名指しは handleHome を出た後に handle が組む = handleHome の中で対象を消すと読めない(iPhone 13 で「system alert」のまま)
+        XCTAssertFalse(home.contains("defer { homeTargetApp = nil }"), "handleHome を出る時に対象を消している")
+        let entry = try body(of: "func handle(_ request: BridgeHTTPServer.Request) -> BridgeHTTPServer.Response {", in: r, length: 400)
+        XCTAssertTrue(entry.contains("homeTargetApp = nil"), "要求の入口で対象を消していない")
     }
 }
