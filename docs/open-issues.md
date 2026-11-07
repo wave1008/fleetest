@@ -32,7 +32,7 @@
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 8 | OI-173・OI-191・OI-192・OI-193・OI-194・OI-195・OI-196・OI-197 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-196 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 11 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-171・OI-173・OI-174・OI-180 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 18 | OI-125・OI-127・OI-130・OI-132・OI-134・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-165・OI-167・OI-169・OI-173・OI-177・OI-190 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 7 | OI-125・OI-139・OI-179・OI-183・OI-184・OI-185・OI-186 |
@@ -53,6 +53,16 @@
 
 11/7 の39周目の探索(20分・`_work/explore-20261107j/findings-*.md`)で観測し、直さなかったもの。①RN の iOS の画面内の確認ダイアログ(in-app の木は `accessibilityViewIsModal` で裏の兄弟を外す)の裏の要素への `notExist` が ✅(iultra F2・12/12)、SwiftUI は同じシナリオが ❌(6/6)= フレームワークで割れる。Android のアプリ自身のダイアログの裏も ✅ で、注記は WebView 用の `tree-underreported`・修正案は「id の綴りを確かめよ」(amax F1・8/8・alocal F2 1/1)。同じ状態の `exist` / `select` / `tap` は窓・モーダルを名指して赤。ダイアログの裏の要素を「無い」と読むかは要判断に近い(人には暗転の下に見えるが押せない) ②SwiftUI で `back()` の直後の木に前の画面の `#BackButton` が残り `exist` / `tap` が ✅(im4 F1・6/6)。11/7 に手元の8台で測った = 直後 8/8・0.5 秒後 6/8・1 秒後 0/8 で残る = 戻る遷移のフェードの間(画面にも描かれている)。遷移の完了は待たない方針なので据え置き ③`tap("#nav_links")` → `back()` → 検証の赤の文言が「the preceding tap id=nav_links did not change the screen」と言う(im4 F2・6/6。直前の操作は back で、tap は画面を移していた) ④ルート画面・RN のダイアログの前の `back()` の注記が「アプリ自身の戻るを押すか back() をもう一度」と勧める(im4 F3・iultra F1。従えない) ⑤MCP の起こし直しの失敗の「It is tried again automatically after 60s」が事実と違う(裏では撃ち直さず次の呼び出しで撃つ = duo F1。`MCPServer+BridgeRecovery.swift:299`) ⑥xcuitest モードの実機で別ウィンドウのモーダルの裏のボタンへの `tap` が「the tap will land on that overlay」と警告して撃ち ✅(phys F1・2/2。`OverlayWindowOcclusion` は警告のみの設計。inapp-boost は撃つ前に断る)
 - 11/7: ①は要判断(否定の検証の意味)。②は測定で遷移の間と確かめた。③④⑤は文言。⑥は xcuitest モードの設計(警告のみ)
+
+### OI-196 探索の残り(38周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-07)
+- 属性: 要測定
+- 運用: ②〜④合否に響かない
+- 優先度: 低 — 文言と後始末(既定の経路の誤った成功ではない)
+
+②38周目の探索(`_work/explore-20261107i/findings-*.md`): iOS の inapp-boost で `openURL("https://example.com")` の直後の `exist` が1回だけ 221ms で ✅(iultra F1・1/42。残りは撃つ前に断る。材料不足) ③Safari が前面のまま `tapAppIcon("FTE2EYIOS")` が 42〜44 秒の後に 422「the session's app is not in the foreground」で赤(iultra F2・6/6。アイコン名は推測で書いた値) ④Duo で run が起動を諦めた後に XCUITest ランナーのアプリが xcodebuild も台帳も無いまま約 5 分残る(duo F1・1/1)
+- 11/7: ②④は原因を測ってから直す(MN-108)。①(MCP の Android でシートの裏の行への `ft_batch` / `ft_tap` が手前の行を押して ok)は MCP も Android の UI フレームワークを DSL と同じ材料で引くようにして直した(再生ケース r36-amax-F1・r37-amax-F2)
 
 ### OI-195 探索の残り(37周目)
 - 状態: 再現済み
@@ -106,15 +116,7 @@
 
 ## 要判断
 
-### OI-196 探索の残り(38周目)と MCP の Android の覆い
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-07)
-- 属性: 要判断・要測定
-- 運用: ①要注意 — MCP の Android でシートの裏の行を `ft_batch` / `ft_tap` で押すと、手前の行を押して ok になる。押した後の画面を確かめる ②〜④合否に響かない
-- 優先度: 中 — ①MCP の誤った成功(既定の経路ではない)
-
-①11/7 に再生ケースを作ろうとして観測: MCP の `ft_batch` の `tap '#row_main_05'`(Android の View・全開のシート)が、注記「covered by #queue_row_14」付きの ok でキューの行を押す(手元の Emulator で 3/3・ref の `ft_tap` も 3/3)。DSL では 36周目の直し(v129 の clickable)で撃つ前に断るが、MCP は Android のアプリの UI フレームワークを持たず `PaintOrder.isReal` が false = 覆いの判定(`coveredTouch`)が走らない(6fd0771f4 の「MCP は常に塗り順なし扱い」の帰結)。要判断: MCP にも Android の UI フレームワーク(`AppUIFrameworkQuery` = `AndroidPackageInspector`)を引かせて DSL と同じ判定にするか ②38周目の探索(`_work/explore-20261107i/findings-*.md`): iOS の inapp-boost で `openURL("https://example.com")` の直後の `exist` が1回だけ 221ms で ✅(iultra F1・1/42。残りは撃つ前に断る。材料不足) ③Safari が前面のまま `tapAppIcon("FTE2EYIOS")` が 42〜44 秒の後に 422「the session's app is not in the foreground」で赤(iultra F2・6/6。アイコン名は推測で書いた値) ④Duo で run が起動を諦めた後に XCUITest ランナーのアプリが xcodebuild も台帳も無いまま約 5 分残る(duo F1・1/1)
-- 11/7: ②④は原因を測ってから直す(MN-108)
+(いまこの属性を持つ項目は無い)
 
 ## 木に材料なし
 

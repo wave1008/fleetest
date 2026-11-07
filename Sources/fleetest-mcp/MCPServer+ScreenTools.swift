@@ -133,24 +133,55 @@ extension MCPServer {
     enum CoveredRefTouch {
         case none
         case refuse(String)
+        /// 中心が手前の覆いの下なので、覆われていない見えている部分の点を撃つ(DSL の `coveredTouchPlan` の `.part`)
+        case part(x: Double, y: Double, note: String)
+    }
+
+    /// この木の z を塗り順として読んでよいか(DSL と同じ `PaintOrder.isReal`)。iOS の MCP は XCUITest の木 = z 無しで常に false。
+    /// Android は木のアプリ(前面・無ければ起動したアプリ)の UI フレームワークを DSL と同じ静的な材料で引き、自前描画でないと
+    /// 分かったときだけ true(分からなければ推測しない側)
+    func refTreePaintOrderIsReal(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any]) -> Bool {
+        guard let tree else { return false }
+        let key = Self.sessionKey(args)
+        let isAndroid = bridges[key] == "android" || driver is AndroidDriver
+        let framework = isAndroid
+            ? (tree.sessionBundleID ?? launchedBundleIDs[key]).flatMap { androidUIFrameworkLookup($0, installedPackagePaths[key]) }
+            : nil
+        return PaintOrder.isReal(in: tree.elements, isAndroid: isAndroid, framework: framework)
     }
 
     static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
-                                ref: Int, operation: String) -> CoveredRefTouch {
+                                ref: Int, operation: String, paintOrderIsReal: Bool) -> CoveredRefTouch {
         guard let snapshot else { return .none }
         // 触れない形(覆いの下・外側の一覧に切り取られた)は DSL の撃つ前の断りと同じ判定(`TapTargetGeometry.touchBlock`)で断る。
         // MCP の ref は撃つと覆いや画面の上端に当たり、何も押さずに done だった(11周目の探索 ilocal F4)
-        // **MCP の木は塗り順を持たない扱い**(`PaintOrder.isReal`: iOS は常に XCUITest の木 = z 無し・Android はフレームワークを
-        // 持たない = 推測しない側)。手前の推測で断る・見えている部分へずらすは撃ち方を変えないので呼ばない
+        // 手前の推測で断る・見えている部分へずらすのは塗り順が本物の木だけ(`refTreePaintOrderIsReal` = DSL と同じ門)
         if let block = TapTargetGeometry.touchBlock(element, in: snapshot.elements, screen: snapshot.screen,
                                                     safeAreaTop: snapshot.safeAreaTop, scale: scale,
                                                     inferring: ContainerGeometry.containerInferenceEnabled, searchFinger: nil,
-                                                    paintOrderIsReal: false) {
+                                                    paintOrderIsReal: paintOrderIsReal) {
             return .refuse("[\(ref)] was not touched: its centre is under \(block.cover), so a \(operation) there would land on"
                 + " something else. Scroll the list \(block.scroll.dropFirst()) first (ft_swipe, or ft_scroll_to with direction) until it"
                 + " comes out, then take a new snapshot")
         }
-        return .none
+        guard paintOrderIsReal else { return .none }
+        switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
+                                              inferring: ContainerGeometry.containerInferenceEnabled, scale: scale,
+                                              zIsPaintOrder: true) {
+        case nil:
+            return .none
+        case .visiblePart(let rect, let over)?:
+            return .part(x: rect.centerX, y: rect.centerY,
+                         note: " Its centre is covered by \(TapTargetGeometry.describe(over)), so the part not covered by anything in"
+                            + " front was used at (\(Int(rect.centerX.rounded())), \(Int(rect.centerY.rounded()))) — the ref is unchanged.")
+        case .tooThin(let visible, let floor, let over)?:
+            func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
+            let name = TapTargetGeometry.describe(over)
+            return .refuse("[\(ref)] was not touched: its centre is covered by \(name), and only \(n(visible)) of it is left uncovered"
+                + " (the minimum is \(n(floor)), in ft_snapshot units), so a \(operation) would land on \(name). If \(name) is part of"
+                + " a sheet or panel, close or collapse it first; otherwise scroll the list until the target is clear of it, then take"
+                + " a new snapshot")
+        }
     }
 
     /// 別の層の押せる要素が中心に重なる対象(`TapTargetGeometry.otherLayerCoverSuspect` = DSL の `coveredTouchPlan` と同じ門)を、
@@ -196,17 +227,20 @@ extension MCPServer {
                 }
             }
             // 手前の覆いに中心を覆われた対象は、覆われていない見えている部分を押す(薄ければ撃たない)。DSL の tap と同じ判定
+            var coverPart: (x: Double, y: Double, note: String)?
             if visiblePoint == nil,
                let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == target.ref }) {
-                switch Self.coveredRefTouch(element, in: tree, scale: d.pointScale, ref: ref, operation: "tap") {
+                switch Self.coveredRefTouch(element, in: tree, scale: d.pointScale, ref: ref, operation: "tap",
+                                            paintOrderIsReal: refTreePaintOrderIsReal(tree, driver: d, args: args)) {
                 case .none:
                     if let message = await otherLayerRefTouchRefusal(element, in: tree, ref: ref, operation: "tap",
                                                                      driver: d, args: args) { throw MCPError(message) }
                 case .refuse(let message): throw MCPError(message)
+                case .part(let x, let y, let note): coverPart = (x, y, note)
                 }
             }
-            let bandPoint = visiblePoint == nil
+            let bandPoint = visiblePoint == nil && coverPart == nil
                 ? await bottomBandPoint(sessionRef: target.ref, driver: d, args: args) : nil
             // キーボードが出たまま ScrollView の中を押すと React Native の既定では閉じるだけになりうる(判定は DSL と共有。MCP は閉じてから撃たない)
             let keyboardNote = lastSnapshots[Self.sessionKey(args)].flatMap { tree in
@@ -216,6 +250,8 @@ extension MCPServer {
             } ?? ""
             if let visiblePoint {
                 try await d.tap(x: visiblePoint.x, y: visiblePoint.y)
+            } else if let coverPart {
+                try await d.tap(x: coverPart.x, y: coverPart.y)
             } else if let bandPoint {
                 try await d.tap(x: bandPoint.x, y: bandPoint.y)
             } else {
@@ -230,8 +266,8 @@ extension MCPServer {
             lastTapTargets[Self.sessionKey(args)] = treeBeforeTap?.first { $0.ref == target.ref }
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
-            return text(Self.tapRefLead(ref: ref, targetNote: target.note + keyboardNote, visiblePoint: visiblePoint,
-                                        bandTouched: bandPoint != nil, visibleBandNote: visibleBandNote)
+            return text(Self.tapRefLead(ref: ref, targetNote: (coverPart?.note ?? "") + target.note + keyboardNote,
+                                        visiblePoint: visiblePoint, bandTouched: bandPoint != nil, visibleBandNote: visibleBandNote)
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ

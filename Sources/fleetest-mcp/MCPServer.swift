@@ -51,6 +51,12 @@ final class MCPServer {
     func uiFrameworkHint(_ key: String, bundleID: String) -> AppUIFramework? {
         uiFrameworkHints[key].flatMap { $0.bundleID == bundleID ? $0.framework : nil }
     }
+    /// Android のアプリの UI フレームワーク(パッケージ名・ft_install したパッケージのパス → 答え)。DSL(ScenarioRunnerMain)と同じ
+    /// 静的な答え(Android のブリッジは申告しない)。差し替え口はテスト用
+    var androidUIFrameworkLookup: (String, String?) -> AppUIFramework? = { bundleID, appPath in
+        AppUIFrameworkQuery.staticAnswer(for: .init(platform: "android", bundleID: bundleID, appPath: appPath,
+                                                    udid: nil, physical: false)).framework
+    }
     var udids: SessionMap<String?> { SessionMap(server: self, path: \.udid) }
     var launchedBundleIDs: SessionMap<String> { SessionMap(server: self, path: \.launchedBundleID) }
     var launchTimestamps: SessionMap<Date> { SessionMap(server: self, path: \.launchTimestamp) }

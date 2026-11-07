@@ -1654,7 +1654,11 @@ extension MCPServer {
         let isAndroid = bridges[key] == "android" || driver is AndroidDriver
         guard !isAndroid else {
             wireAndroidUIFramework(driver, args: args)  // ft_batch の type / clearInput 用
-            return (true, nil)
+            // DSL と同じく executor にも渡す(nil だと `PaintOrder.isReal` が false = 覆いの判定が走らず、シートの裏の行への tap が
+            // 手前の行を押して ok だった = OI-196)。起動したアプリ、無ければ前面のアプリについて引く
+            let bundleID: String?
+            if let launched = launchedBundleIDs[key] { bundleID = launched } else { bundleID = (try? await driver.status())?.sessionBundleID }
+            return (true, bundleID.flatMap { androidUIFrameworkLookup($0, installedPackagePaths[key]) })
         }
         let status = try? await driver.status()
         guard let bundleID = status?.sessionBundleID else { return (false, nil) }

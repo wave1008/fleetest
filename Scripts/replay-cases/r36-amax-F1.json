@@ -1,0 +1,78 @@
+{
+  "id": "r36-amax-F1",
+  "finding": "Android の View で全開のシートの裏の行への tap が、手前のキューの行(setOnClickListener を付けた TextView = 木では staticText)を押して注記付きの ✅(36周目 amax F1 12/12・alocal F1。DSL の直し 2b0e528ed = ブリッジの clickable の申告 v129・MCP の直し = OI-196 で MCP も Android の UI フレームワークを引く)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.android"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_player' scroll: .down; tap '#txt_mini_title'; scrollTo '#queue_row_21' scrollFrame: '#list_queue' direction: .down; tap '#queue_row_21'"
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "ft_batch の tap(DSL と同じ実行機)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#row_main_05'"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "reject": [
+        "player=queue:queue_row_1"
+      ]
+    },
+    {
+      "name": "MCP の ref の tap",
+      "steps": [
+        [
+          "ft_snapshot",
+          {}
+        ],
+        [
+          "ft_tap",
+          {
+            "ref": "$ref:row_main_05"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "reject": [
+        "player=queue:queue_row_1"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

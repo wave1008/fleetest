@@ -2088,9 +2088,7 @@ extension MCPServer {
         guard let android = driver as? AndroidDriver else { return }
         let key = Self.sessionKey(args)
         guard let bundleID = launchedBundleIDs[key] else { android.appUIFramework = nil; return }
-        android.appUIFramework = AppUIFrameworkQuery.staticAnswer(for: .init(
-            platform: "android", bundleID: bundleID, appPath: installedPackagePaths[key],
-            udid: nil, physical: false)).framework
+        android.appUIFramework = androidUIFrameworkLookup(bundleID, installedPackagePaths[key])
     }
 
     /// MCP の executor に「起こしたアプリのプロセスが居ないのに別アプリの木で解決しない」門を付ける(Android のみ。判定は

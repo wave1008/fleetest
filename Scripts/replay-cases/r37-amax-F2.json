@@ -1,0 +1,64 @@
+{
+  "id": "r37-amax-F2",
+  "finding": "Android の View で全開のシートの scrollToTop の直後に先頭のキューの行への tap が、キューの容器の上端に揃った裏の本文の行(押せる TextView)を貼り付く見出しと読んで容器を送り、何も押さずに ✅(37周目 amax F2 8/8。DSL の直し c91623c3d・MCP は OI-196 の直しで同じ判定に乗る)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.android"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_player' scroll: .down; tap '#txt_mini_title'; scrollTo '#queue_row_21' scrollFrame: '#list_queue' direction: .down; tap '#queue_row_21'"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "scrollToTop"
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "ft_batch の tap(DSL と同じ実行機)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#queue_row_00'"
+          }
+        ]
+      ],
+      "expect": [
+        "player=queue:queue_row_00"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}
