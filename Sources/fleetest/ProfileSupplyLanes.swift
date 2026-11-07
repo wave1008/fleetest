@@ -122,7 +122,7 @@ enum ProfileSupplyLanes {
             ) {
                 let built = try await ProfileWorkerFactory.buildIOSWorkers(
                     resolved: resolved, repoRoot: repoRoot, supplyStage: supplyStage,
-                    mayEraseSimulatorForRecovery: true, log: log)
+                    mayEraseSimulatorForRecovery: true, isStopped: isStopped, log: log)
                 PhaseLog.mark("ios-workers-built")
                 return built
             }
@@ -180,7 +180,12 @@ enum ProfileSupplyLanes {
             log("🚀 \(ws.count) iOS worker(s) joined")
             return ws
         } catch {
-            log("❌ Failed to build iOS workers: \(error.localizedDescription)")
+            // 止まった run の打ち切り(起動の待ちを切った・起動を撃たなかった)は供給の失敗と言わない
+            if isStopped() {
+                log("⏹ stopping — skipping the rest of the device supply")
+            } else {
+                log("❌ Failed to build iOS workers: \(error.localizedDescription)")
+            }
             return []
         }
     }

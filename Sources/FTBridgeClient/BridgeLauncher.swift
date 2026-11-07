@@ -1065,7 +1065,8 @@ public struct BridgeLauncher: Sendable {
     public func waitUntilReady(timeout: TimeInterval = BridgeLauncher.startupTimeoutSeconds,
                                endpoint: BridgeEndpoint? = nil,
                                log: @escaping (String) -> Void = { _ in },
-                               approvalPending: @escaping (Bool) -> Void = { _ in }) async throws -> StatusResponse {
+                               approvalPending: @escaping (Bool) -> Void = { _ in },
+                               isStopped: @escaping @Sendable () -> Bool = { false }) async throws -> StatusResponse {
         let client = BridgeClient(endpoint: endpoint ?? BridgeEndpoint(port: port))
         // 締切は固定でなく進み具合で延びる(BridgeStartupWait)。伸びる根拠はログのサイズ
         let launchedAt = Date()
@@ -1098,6 +1099,8 @@ public struct BridgeLauncher: Sendable {
                                                   suiteStartedAt: suiteStartedAt, budget: timeout) {
             // キャンセルで抜ける(IOSDeviceTransport.waitForAnnouncedAddress と同じ理由)
             try Task.checkCancellation()
+            // 呼び手の run が止まったら待たない(37周目 duo F1: シナリオのビルドが落ちた後も 180 秒待ち、dispatch.lock を約5分持った)
+            if isStopped() { throw LauncherError.abandoned }
             do {
                 let status = try await client.status()
                 // **答えたのが別の台のランナーなら成功にしない**(実測: 同じポートに別のシミュレータのランナーが
@@ -1366,9 +1369,13 @@ public enum LauncherError: Error, LocalizedError {
     case codeSigningIncomplete(problems: [XcodeSigningProblem], logPath: String?)
     /// この端末(実機・Simulator)には別ポートのランナーが既に居る(起動途中・忙しいを含む)。2本目は立てない
     case deviceRunnerElsewhere(device: String, port: UInt16, pid: Int32, physical: Bool)
+    /// 起動を待つ間に呼び手の run が止まった(供給の放棄・中断)。待ちを打ち切った = 起動の失敗ではない
+    case abandoned
 
     public var errorDescription: String? {
         switch self {
+        case .abandoned:
+            return "stopped waiting for the bridge to start: the run no longer needs this device"
         case .commandFailed(let cmd, let tail):
             return "\(cmd) failed:\n\(tail)"
         case .buildInterrupted(let cmd):

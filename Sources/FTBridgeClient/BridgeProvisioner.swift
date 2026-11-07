@@ -423,6 +423,9 @@ public struct BridgeProvisioner: Sendable {
     /// 経路(run の供給・ワーカー復帰)だけ** —— 初期化で消えたアプリを戻す手が無い呼び手(MCP・デバイス起動・
     /// ライブ操作)から撃つと、アプリの無いデバイスができる。実際に初期化するかは `preinstallAppPath` の有無も見る
     let mayEraseSimulatorForRecovery: Bool
+    /// 呼び手の run が止まったか(供給の放棄・中断)。立ったら新しい起動・起こし直しを撃たず、起動の待ちも打ち切る。
+    /// run の供給だけが渡す(`ProfileSupplyLanes.ios`)。他の呼び手(bridge up・MCP の回復・ライブ操作)は止まる run を持たない
+    let isStopped: @Sendable () -> Bool
     /// この供給の中で初期化したシミュレータの udid。同じ端末の in-app ブリッジ(inapp-boost モード)は計画の時点で「アプリは最新」と読んでいるので、
     /// 初期化の後はインストールし直す
     private let erasedSimulators = LockedValue<Set<String>>([])
@@ -436,15 +439,26 @@ public struct BridgeProvisioner: Sendable {
                 userAction: (@Sendable (String, DeviceUserAction?) -> Void)? = nil,
                 supplyStage: SupplyStageReporter? = nil,
                 mayEraseSimulatorForRecovery: Bool = false,
+                isStopped: @escaping @Sendable () -> Bool = { false },
                 portHeldByAnotherDevice: @escaping @Sendable (UInt16, String) -> Bool = {
                     PortHolder.isHeldByAnotherDevice(port: $0, udid: $1)
                 }) {
         self.mayEraseSimulatorForRecovery = mayEraseSimulatorForRecovery
+        self.isStopped = isStopped
         self.repoRoot = repoRoot
         self.portRange = portRange
         self.userAction = userAction
         self.supplyStage = supplyStage
         self.portHeldByAnotherDevice = portHeldByAnotherDevice
+    }
+
+    /// 止まった run のために撃たない計画か(起動・引き取り = ランナーを起こす・待つ。再利用・断りは撃たないので通す)
+    static func startIsAbandoned(_ plan: BridgePlan, stopped: Bool) -> Bool {
+        guard stopped else { return false }
+        switch plan {
+        case .launch, .adopt: return true
+        case .reuse, .reuseForeign, .blockedByForeign: return false
+        }
     }
 
     /// 1 デバイス・1 ブリッジ分の供給プラン。planBridge(副作用なし・await なし)が確定し、
@@ -708,7 +722,9 @@ public struct BridgeProvisioner: Sendable {
         // 「全機が同じ理由で死んだのか、別々の理由なのか」を後から言えなかった
         for outcome in collected {
             if case .failure(let error) = outcome.result {
-                safeLog(Self.deviceFailureLine(name: outcome.name, description: Self.failureDescription(error)))
+                safeLog(Self.isAbandoned(error)
+                    ? Self.abandonedLine(name: outcome.name)
+                    : Self.deviceFailureLine(name: outcome.name, description: Self.failureDescription(error)))
             }
         }
         let resolved = try Self.resolveOutcomes(collected)
@@ -726,6 +742,18 @@ public struct BridgeProvisioner: Sendable {
         error is CancellationError
             ? "provisioning was cancelled before it finished (the run was interrupted or stopped)"
             : error.localizedDescription
+    }
+
+    /// 止まった run のために起動を撃たなかった・待ちを打ち切った(`startIsAbandoned` / `LauncherError.abandoned`)。起動の失敗ではない
+    static func isAbandoned(_ error: Error) -> Bool {
+        if case LauncherError.abandoned = error { return true }
+        if case BridgeProvisionerError.notReady(_, let underlying) = error, case LauncherError.abandoned = underlying { return true }
+        return false
+    }
+
+    /// 打ち切った1台の 1 行(「❌ … did not become ready in time」と言うと起動の失敗に読める)
+    static func abandonedLine(name: String) -> String {
+        "⏹ \(name): bridge not started — the run stopped before this device was needed"
     }
 
     /// 1台の失敗の 1 行。**文がデバイス名で始まるなら前に名前を足さない** —— `BridgeProvisionerError` の多くは名前で始まる
@@ -1445,6 +1473,10 @@ public struct BridgeProvisioner: Sendable {
                                log: @escaping @Sendable (String) -> Void,
                                keepPeerPort: UInt16? = nil,
                                escalating: Bool = false) async throws -> UInt16 {
+        // 止まった run のためにランナーを起動・引き取り・起こし直さない(再利用は撃たないので通す)
+        if Self.startIsAbandoned(plan, stopped: isStopped()) {
+            throw BridgeProvisionerError.notReady(port: plan.port, underlying: LauncherError.abandoned)
+        }
         // **起動する枝にも印の段階を見せる**(.reuse の入口だけで見ると、ブリッジが死んで .launch になった印つきデバイスは
         // 一生の間はしごを登れない)。回復の途中の起動(escalating)は再帰になるので通さない
         if bridge == "xcuitest", !escalating, case .launch(let launchPort, _, _, _) = plan,
@@ -1649,7 +1681,10 @@ public struct BridgeProvisioner: Sendable {
                 status = try await launcher.waitUntilReady(
                     timeout: readyBudget,
                     endpoint: BridgeEndpoint.load(port: port, repoRoot: repoRoot),
-                    log: { log("\(name): \($0)") })
+                    log: { log("\(name): \($0)") }, isStopped: isStopped)
+            } catch LauncherError.abandoned {
+                // 引き取ったのは別の起動のランナー(止めない)。起こし直しもしない
+                throw BridgeProvisionerError.notReady(port: port, underlying: LauncherError.abandoned)
             } catch {
                 // 親を失ったゾンビ(再起動・kill で announce しないまま残ったランナー)。
                 // 放置すると同じデバイスで何度でも待たされるので、止めてから同じポートで立て直す
@@ -1877,7 +1912,8 @@ public struct BridgeProvisioner: Sendable {
                 do {
                     try await launcher.waitUntilReady(endpoint: endpoint,
                                                       log: { log("\(name): \($0)") },
-                                                      approvalPending: { userAction?(name, $0 ? .approveAutomation : nil) })
+                                                      approvalPending: { userAction?(name, $0 ? .approveAutomation : nil) },
+                                                      isStopped: isStopped)
                 } catch let error as LauncherError {
                     guard case .portInUse = error else {
                         try? launcher.stop()
@@ -1908,7 +1944,8 @@ public struct BridgeProvisioner: Sendable {
                                 approvalPending: { userAction?(name, $0 ? .approveAutomation : nil) })
                             try await launcher.waitUntilReady(endpoint: retried,
                                                               log: { log("\(name): \($0)") },
-                                                              approvalPending: { userAction?(name, $0 ? .approveAutomation : nil) })
+                                                              approvalPending: { userAction?(name, $0 ? .approveAutomation : nil) },
+                                                              isStopped: isStopped)
                         } catch let retryError as LauncherError {
                             try? launcher.stop()
                             guard case .portInUse = retryError else {
@@ -1943,7 +1980,7 @@ public struct BridgeProvisioner: Sendable {
                         try await Task.detached(priority: .userInitiated) {
                             try launcher.startDetached()
                         }.value
-                        try await launcher.waitUntilReady()
+                        try await launcher.waitUntilReady(isStopped: isStopped)
                     } catch {
                         try? launcher.stop()
                         throw BridgeProvisionerError.notReady(port: port, underlying: error)
