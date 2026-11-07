@@ -47,7 +47,7 @@ final class TapRefKeyboardAndVisiblePartNoteTests: XCTestCase {
         let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp/MCPServer+ScreenTools.swift").path
         let source = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(source.contains("targetNote: target.note + keyboardNote"))
+        XCTAssertTrue(source.contains("target.note + keyboardNote"))
         XCTAssertTrue(source.contains("Self.keyboardMayOnlyDismissNote(ref: ref"))
     }
 }

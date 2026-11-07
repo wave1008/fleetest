@@ -47,10 +47,11 @@ final class ScreenRenderingRecoveryWiringTests: XCTestCase {
         XCTAssertTrue(String(text[revive.upperBound...].prefix(120)).contains("await !stoppedByUser()"))
     }
 
-    /// 供給の2レーン(と呼び手 5 箇所)は中断を渡す。渡し忘れは run の前の回復が中断後も続く
+    /// 供給の2レーン(と呼び手 5 箇所)は中断を渡す。渡し忘れは run の前の回復が中断後も続く。
+    /// 3本 = 2レーンの描画の回復 + iOS のブリッジの供給(`buildIOSWorkers`。止まった run の起動の待ちを打ち切る = OI-195 ⑤)
     func testSupplyLanesReceiveTheInterruption() throws {
         let lanes = try Self.code("Sources/fleetest/ProfileSupplyLanes.swift")
-        XCTAssertEqual(lanes.components(separatedBy: "isStopped: isStopped").count - 1, 2)
+        XCTAssertEqual(lanes.components(separatedBy: "isStopped: isStopped").count - 1, 3)
         let api = try Self.code("Sources/fleetest/ApiRunCommand.swift")
         let supply = try Self.code("Sources/fleetest/ProfileRunner+Supply.swift")
         // 並行の供給は放棄の印も見る(`SupplyAbandon.shouldStop`)
