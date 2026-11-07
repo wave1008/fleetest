@@ -44,3 +44,21 @@ final class AndroidClickableCoverTests: XCTestCase {
         XCTAssertNil(absent.clickable)
     }
 }
+
+/// 貼り付く見出しの判定(`pinnedBandCovering`)も、押せると申告した行を見出しにしない(37周目 amax F2: 全開のシートで scrollToTop の直後の
+/// #queue_row_00 への tap が、キューの容器の上端に揃った裏の本文の行 #row_main_02 を見出しと読んで送り、何も押さずに ✅・8/8)
+final class AndroidClickablePinnedBandTests: XCTestCase {
+    func testAClickableRowAlignedToTheContainerEdgeIsNotAPinnedHeader() {
+        let container = FTRect(x: 0, y: 822, width: 1280, height: 1962)
+        let list = ElementInfo(ref: 1, type: "collectionView", identifier: "list_queue", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: container, depth: 1, scrollable: true, z: 38)
+        let target = ElementInfo(ref: 2, type: "staticText", identifier: "queue_row_00", label: "キュー 00", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 0, y: 822, width: 1280, height: 168), depth: 2, z: 39, clickable: true)
+        var behind = ElementInfo(ref: 3, type: "staticText", identifier: "row_main_02", label: "本文 02", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 0, y: 822, width: 1280, height: 168), depth: 1, z: 19, clickable: true)
+        XCTAssertNil(TapTargetGeometry.pinnedBandCovering(target, in: [list, target, behind], container: container))
+        behind.clickable = nil
+        XCTAssertNotNil(TapTargetGeometry.pinnedBandCovering(target, in: [list, target, behind], container: container),
+                        "申告の無い文字の帯は従来どおり見出しとして扱う(この対照が崩れたらテストの前提が違う)")
+    }
+}

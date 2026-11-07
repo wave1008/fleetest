@@ -796,8 +796,10 @@ public enum TapTargetGeometry {
         let related = Set(ancestors(of: element, in: elements).filter { frameContains($0.frame, element.frame) }.map(\.ref))
             .union(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
         func covers(_ f: FTRect) -> Bool { cx >= f.x && cx <= f.x + f.width && cy >= f.y && cy <= f.y + f.height }
+        // 操作できる要素は型か Android の `clickable` の申告で見る(押せる TextView の行は staticText に写る。キューの容器の上端に揃った
+        // 裏の本文の行を見出しと読んで送り、何も押さずに ✅ だった = 37周目 amax F2・8/8)
         for band in elements where band.ref != element.ref && !related.contains(band.ref)
-            && !BridgeSnapshotThinning.operableTypes.contains(band.type)
+            && !isOperableCover(band)
             // 容器そのもの(スクロール容器・枠が容器と一致する要素)は見出しでない。縁をまたぐ行は祖先に数えられず、容器が上端に揃う帯に見えていた
             && band.scrollable != true
             && !(frameContains(band.frame, container) && frameContains(container, band.frame)) {
