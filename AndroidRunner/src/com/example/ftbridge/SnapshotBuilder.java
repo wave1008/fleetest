@@ -866,6 +866,9 @@ final class SnapshotBuilder {
         // (ドロップダウン等)の中身で、OverlayWindowOcclusion はこの要素自身を「覆われている」とは
         // 判定しない(BridgeDTO.ElementInfo.inOverlayWindow 参照)
         if (node.inOverlayWindow) info.put("inOverlayWindow", true);
+        // clickable も同じ省略規約。型だけでは押せるかが言えない形(setOnClickListener を付けた TextView は StaticText に写る)を
+        // ホストの覆いの判定が押せる覆いとして扱う(BridgeDTO.ElementInfo.clickable 参照)
+        if (node.clickable) info.put("clickable", true);
         // scrollActions は scrollable な容器だけ(端で撃つ空振りの回避に使う。BridgeDTO.ElementInfo 参照)
         if (node.scrollActions != null) {
             JSONArray actions = new JSONArray();

@@ -1082,12 +1082,20 @@ public struct ElementInfo: Codable, Sendable {
     /// Android は AndroidBridge.expectedBridgeVersionCode を上げる)
     public var inOverlayWindow: Bool?
 
+    /// **押せるノードか**(`AccessibilityNodeInfo.isClickable`。true のときだけ送る = scrollable と同じ省略規約)。**Android だけが埋める** ——
+    /// 型は className から決まるので、`setOnClickListener` を付けた TextView(一覧の行)は `staticText` に写り、型だけでは押せると言えない。
+    /// 覆いの判定(`TapTargetGeometry.isOperableCover`)が押せる覆いとして扱う(36周目 amax F1: シートの裏の行への tap が手前のキューの行を
+    /// 押して ✅)。iOS は送らない(型が役割を語る)ので、nil を「押せない」と読まない。追加 optional フィールドのみなので
+    /// bridgeProtocolVersion は据え置き(inOverlayWindow と同じ方針。Android は AndroidBridge.expectedBridgeVersionCode を上げる)
+    public var clickable: Bool?
+
     public init(ref: Int, type: String, identifier: String?, label: String?, value: String?,
                 placeholder: String?, enabled: Bool, frame: FTRect, depth: Int,
                 checked: Bool? = nil, web: Bool? = nil, focused: Bool? = nil,
                 scrollable: Bool? = nil, z: Int? = nil, range: String? = nil,
                 axClass: String? = nil, scrollActions: [String]? = nil,
-                inOverlayWindow: Bool? = nil) {
+                inOverlayWindow: Bool? = nil, clickable: Bool? = nil) {
+        self.clickable = clickable
         self.range = range
         self.axClass = axClass
         self.scrollable = scrollable
@@ -1128,6 +1136,7 @@ public struct ElementInfo: Codable, Sendable {
         axClass = try container.decodeIfPresent(String.self, forKey: .axClass)
         scrollActions = try container.decodeIfPresent([String].self, forKey: .scrollActions)
         inOverlayWindow = try container.decodeIfPresent(Bool.self, forKey: .inOverlayWindow)
+        clickable = try container.decodeIfPresent(Bool.self, forKey: .clickable)
     }
 
     /// 先頭 1 文字だけ小文字化する(`StaticText` → `staticText`)。冪等なので二重適用しても安全

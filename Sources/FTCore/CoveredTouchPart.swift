@@ -3,6 +3,12 @@
 // MCP の ref 経路(ft_tap・ft_long_press・ft_double_tap・ft_drag の fromRef = `MCPServer.coveredRefTouch`)も同じ判定を呼ぶ(文言だけ呼び手ごと)。
 // ft_batch の行は StepExecutor を通るので DSL と同じ。ライブ操作は座標だけで ref を撃たない。
 extension TapTargetGeometry {
+    /// 押せる覆いか: 型が押せる型か、ブリッジが押せると申告した(Android の `clickable`。setOnClickListener を付けた TextView の行は
+    /// `staticText` に写るので型だけでは言えない = 36周目 amax F1: シートの裏の行への tap が手前のキューの行を押して ✅)
+    public static func isOperableCover(_ element: ElementInfo) -> Bool {
+        BridgeSnapshotThinning.operableTypes.contains(element.type) || element.clickable == true
+    }
+
     public enum CoveredTouch {
         /// 見えている部分(対象の枠から覆いの枠を引いた残りのうち、床以上で最大のもの)。この中心を押す
         case visiblePart(FTRect, over: ElementInfo)
@@ -23,7 +29,7 @@ extension TapTargetGeometry {
         //   撃っても別の部品は押さず、塗り順の推測違い(見出しの容器が中の文字を覆うと読む)で断ると誤った赤になる。
         //   **最前面を押せる祖先へ持ち上げない**: 祖先は preorder+depth の復元で、行の中の文字が行(cell)へ上がって浮いたボタンを
         //   断る・対象を包む祖先が対象を丸ごと引く・平たい木で無関係のボタンを祖先と読む(タブの中の文字が最前面の形は従来の扱い)
-        guard BridgeSnapshotThinning.operableTypes.contains(over.type) else { return nil }
+        guard isOperableCover(over) else { return nil }
         let targetLineage = TapTargetGeometry.lineage(of: element, in: elements)
         // ①対象が押せる型でなく、覆いが入力欄: 手前の入力欄こそが受け手(OTP の箱の上に重ねた透明な入力欄)。型だけで外すと、
         //   クリックを付けた Android の TextView の行(木では staticText)を外して下のバーのボタンを押した
@@ -50,7 +56,7 @@ extension TapTargetGeometry {
         // 引くのは押せる型だけ(⓪と同じ理由 = 押せない覆いの上を押しても別の部品には当たらない)
         let covers = [over] + elements.filter { other in
             other.ref != over.ref && other.ref != element.ref && !targetLineage.contains(other.ref)
-                && BridgeSnapshotThinning.operableTypes.contains(other.type)
+                && isOperableCover(other)
                 && other.scrollable != true
                 && PaintOrder.drawnAbove(other, element)
                 && !TapTargetGeometry.contains(other.frame, element.frame)
