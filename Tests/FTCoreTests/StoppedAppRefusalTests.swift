@@ -7,7 +7,7 @@ final class StoppedAppRefusalTests: XCTestCase {
     private func executor(isAndroid: Bool = true, running: Bool? = false) -> StepExecutor {
         let executor = StepExecutor(driver: LauncherDriver(), isAndroid: isAndroid, tunables: RunTunables())
         executor.appUnderTestBundleID = "com.example.app"
-        executor.appUnderTestStopped = true
+        executor.appUnderTestLife.noteStopped(by: "terminateApp")
         executor.appProcessRunning = { _ in running }
         return executor
     }
@@ -35,7 +35,7 @@ final class StoppedAppRefusalTests: XCTestCase {
         let ios = await executor(isAndroid: false).execute(tap)
         XCTAssertNotEqual(ios.failureKind, .appStoppedBySession, "iOS は別の門")
         let notStopped = executor()
-        notStopped.appUnderTestStopped = false
+        notStopped.appUnderTestLife.noteLaunched()
         let launched = await notStopped.execute(tap)
         XCTAssertNotEqual(launched.failureKind, .appStoppedBySession, "起動の手の後に断った")
     }

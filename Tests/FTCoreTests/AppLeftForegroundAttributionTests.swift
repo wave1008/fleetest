@@ -269,6 +269,15 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertEqual(inApp.reads, 0, "断る前に in-app を読んだ")
     }
 
+    /// **iOS の rotateTo も背面なら撃たない**: 回転は XCUITest のセッションを対象アプリへ付け直し(activate)、home() の後の背面の
+    /// アプリを黙って前面へ戻して ✅ だった(34周目 ilocal F1)
+    func testRotateIsRefusedWhileTheAppIsInBackground() async {
+        let (executor, _, _) = make()
+        executor.noteAppMayHaveLeft(true)
+        let outcome = await executor.execute(FlowStep(action: "rotateTo", direction: "landscape", timeout: 0.1))
+        XCTAssertEqual(outcome.failureKind, .appInBackground, "\(outcome.status)")
+    }
+
     /// **背面と断った後の失敗の証跡は、停止中のアプリの木を読まない**ための問い(19周目 phys F1: 読むと 45 秒返らない)。
     /// 印が残っていて前面に無いと答えたときだけ true。印が無い・前面・答えないなら false(証跡は撮る)
     func testAppStillInBackgroundOnlyWhenMarkedAndAnsweredNotInFront() async {

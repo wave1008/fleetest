@@ -68,7 +68,7 @@ final class ScrollRefusesOnOtherAppStartTests: XCTestCase {
             let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
             executor.launchedBundleID = nil
             executor.appUnderTestBundleID = "com.app"
-            if mark == "stopped" { executor.appUnderTestStopped = true } else { executor.noteAppMayHaveLeft(true) }
+            if mark == "stopped" { executor.appUnderTestLife.noteStopped(by: "terminateApp") } else { executor.noteAppMayHaveLeft(true) }
             _ = await executor.execute(FlowStep(action: "scrollTo", locator: FlowLocator(id: "row_nope"), direction: "up", maxSwipes: 4))
             XCTAssertEqual(driver.swipes, 0, "\(mark): ランチャーの画面を払った")
         }

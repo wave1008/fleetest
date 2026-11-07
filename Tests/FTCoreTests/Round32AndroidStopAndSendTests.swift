@@ -12,8 +12,7 @@ final class Round32AndroidStopAndSendTests: XCTestCase {
                           driver: StopTestDriver = StopTestDriver()) -> StepExecutor {
         let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
         executor.appUnderTestBundleID = app
-        executor.appUnderTestStopped = stopped
-        executor.appUnderTestStoppedCommand = stopped ? command : nil
+        if stopped { executor.appUnderTestLife.noteStopped(by: command ?? "terminateApp") }
         executor.appProcessRunning = { _ in running }
         return executor
     }
@@ -74,7 +73,7 @@ final class Round32AndroidStopAndSendTests: XCTestCase {
         XCTAssertNotEqual(notStopped.failureKind, .appStoppedBySession, "起動の手の後に断った")
         let ios = StepExecutor(driver: StopTestDriver(), isAndroid: false, tunables: RunTunables())
         ios.appUnderTestBundleID = app
-        ios.appUnderTestStopped = true
+        ios.appUnderTestLife.noteStopped(by: "terminateApp")
         ios.appProcessRunning = { _ in false }
         let iosOutcome = await ios.execute(scroll)
         XCTAssertNotEqual(iosOutcome.failureKind, .appStoppedBySession, "iOS は別の門")

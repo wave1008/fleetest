@@ -1275,11 +1275,12 @@ public final class StepExecutor {
         return nil
     }
 
-    /// このシナリオが対象アプリを止めた(`terminateApp`・`removeApp`・`clearAppData`)まま、起動の手がまだ無い。DSL が
-    /// `FTRuntime.appUnderTestLife` から同期する(起動の手でだけ戻る)
-    public var appUnderTestStopped = false
-    /// 止めたコマンド名(`appUnderTestStopped` と同時に立ち、起動の手で nil)。再び動かす手順の案内が `removeApp` だけ違う(`StoppedAppAdvice`)
-    public var appUnderTestStoppedCommand: String?
+    /// 対象アプリをこのシナリオで起こしたか・止めたか(唯一の持ち主。DSL の FTDriveCore が書く = `AppUnderTestLife.swift`)
+    public let appUnderTestLife = AppUnderTestLifeRecord()
+    /// このシナリオが対象アプリを止めた(`terminateApp`・`removeApp`・`clearAppData`)まま、起動の手がまだ無い
+    var appUnderTestStopped: Bool { appUnderTestLife.isStopped }
+    /// 止めたコマンド名(止めたままのときだけ)。再び動かす手順の案内が `removeApp` だけ違う(`StoppedAppAdvice`)
+    public var appUnderTestStoppedCommand: String? { appUnderTestLife.stoppedCommand }
 
     /// **Android で、このシナリオが止めたままのアプリの要素を読む・触るステップを、探さずに断る**(OI-181 ④: `terminateApp()` の後の
     /// `tap(scroll: .down)` がランチャーの一覧を 17 秒送り、ランチャーの部品で包めと従えない案内をした = 4/4)。iOS は撃つ前に
@@ -1332,8 +1333,10 @@ public final class StepExecutor {
         return owner != appUnderTest
     }
 
-    /// アプリスイッチャーの間も撃つステップ(アプリを読まず触らない)
-    static let runsWithoutTheApp: Set<String> = ["waitForSettle", "holdEnd", "rotateTo", "fold", "unfold", "hinge"]
+    /// アプリスイッチャーの間も撃つステップ(アプリを読まず触らない)。**rotateTo を入れない**: iOS の回転は XCUITest のセッションを
+    /// 対象アプリへ付け直す(`AppAttachDriver.rotate` → `ensureAttached` の activate)ので、home() の後に撃つと背面のアプリを黙って
+    /// 前面へ戻して ✅ だった(34周目 ilocal F1 2/2・後続の tap / exist も緑)
+    static let runsWithoutTheApp: Set<String> = ["waitForSettle", "holdEnd", "fold", "unfold", "hinge"]
 
     /// 投げられたエラーの素性。**エラーの型が名乗るものだけを見る**
     /// (`StepFailureKindProviding`。localizedDescription の文言一致で仕分けると、

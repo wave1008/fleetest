@@ -1502,13 +1502,9 @@ public final class FTDriveCore {
         }
         if case .passed = status, let command {
             if Self.stoppingCommands.contains(command) {
-                withState { _appUnderTestLife = .stoppedByScenario }
-                executor.appUnderTestStopped = true
-                executor.appUnderTestStoppedCommand = command
+                executor.appUnderTestLife.noteStopped(by: command)
             } else if ["launchApp", "restartApp"].contains(command), launchedBundleID == appBundleID {
-                withState { _appUnderTestLife = .launched }
-                executor.appUnderTestStopped = false
-                executor.appUnderTestStoppedCommand = nil
+                executor.appUnderTestLife.noteLaunched()
             }
         }
         let timing = launchTiming?()
@@ -1670,24 +1666,14 @@ public final class FTDriveCore {
         stateLock.lock(); defer { stateLock.unlock() }
         return _appStoppedByScenario
     }
-    /// 対象アプリ(実行プロファイルのアプリ)をこのシナリオで起こしたか・止めたか(stateLock で守る)。`appStoppedByScenario` と違い、
-    /// **起動の手でだけ `.launched` へ戻る**(間に別のステップが通っても `.stoppedByScenario` のまま)。読み手は2つ ——
-    /// back() の「動いていないアプリへ戻らない」照会を止めた後だけに限る・失敗の時点にプロセスが居なかった事実を
-    /// `appCrash`(processGone)に記録するのを「起こして、その後このシナリオが止めていない」ときだけに限る(止めた・起こしていない
-    /// アプリを「このシナリオは止めていない」と言わない)。openURL の注入付きの起こし直し等、DSL が知らない起動では戻らない = 記録しない側に倒れる
-    public enum AppUnderTestLife: Sendable { case notLaunched, launched, stoppedByScenario }
-    private var _appUnderTestLife = AppUnderTestLife.notLaunched
-    public var appUnderTestLife: AppUnderTestLife { withState { _appUnderTestLife } }
+    /// 対象アプリをこのシナリオで起こしたか・止めたか。持ち主は executor(`FTCore.AppUnderTestLifeRecord` = 唯一の持ち主)
+    public var appUnderTestLife: AppUnderTestLife { executor.appUnderTestLife.life }
     /// 止めた後に照会が「居る」と答えた(DSL の知らない起動 = openURL の注入付きの起こし直し等)。起動済みへ戻す
-    func noteAppUnderTestFoundRunning() {
-        withState { if _appUnderTestLife == .stoppedByScenario { _appUnderTestLife = .launched } }
-    }
+    func noteAppUnderTestFoundRunning() { executor.appUnderTestLife.noteFoundRunning() }
     /// 起動の手(launchApp / restartApp / tapAppIcon)が対象アプリを起こした。DSL スレッドから呼ぶ
     func noteAppUnderTestStarted() {
         appLaunchedInThisProcess = true
-        withState { _appUnderTestLife = .launched }
-        executor.appUnderTestStopped = false
-        executor.appUnderTestStoppedCommand = nil
+        executor.appUnderTestLife.noteLaunched()
     }
 
     /// 「このシナリオが止めた」の印(`_appStoppedByScenario`)を消す**唯一の集合**: 止めたアプリを起こしうる操作だけ。
@@ -1699,7 +1685,7 @@ public final class FTDriveCore {
     func wakesStoppedApp(command: String) -> Bool {
         Self.wakingCommands.contains(command) || (command == "back" && platform == "ios")
     }
-    /// 対象アプリを止める3コマンド。`_appUnderTestLife` と `_appStoppedByScenario` の両方がこの1つの集合で「このシナリオが止めた」を数える
+    /// 対象アプリを止める3コマンド。`AppUnderTestLifeRecord` と `_appStoppedByScenario` の両方がこの1つの集合で「このシナリオが止めた」を数える
     /// (片方だけが terminateApp しか数えず、clearAppData / removeApp の後の失敗に「クラッシュしたかも」が並んでいた)
     static let stoppingCommands: Set<String> = ["terminateApp", "removeApp", "clearAppData"]
     /// 子が「このシナリオはこの環境では成り立たない」と宣言した理由(scenarioFinished.notApplicableReason へ運ぶ)。

@@ -666,7 +666,7 @@ public final class AndroidDriver: AppDriver {
         guard AndroidForegroundWindows.inputFocusHeldByShade(dumpsys: displaysDumpsys) else { return nil }
         return "the launch intent for \(bundleID) was sent, but the app did not come to the front: the notification shade,"
             + " quick settings or the lock screen holds the input focus (a PIN lock cannot be dismissed by the tool)."
-            + " Close the shade (ft_navigate back) or unlock the device, then bring the app back."
+            + " Close the shade (DSL: back() / MCP: ft_navigate back) or unlock the device, then bring the app back."
     }
 
     /// タスク一覧(最近使ったアプリ)を開く。**gRPC の名前付きキーは使わない**(理由は home())。
@@ -989,7 +989,7 @@ public final class AndroidDriver: AppDriver {
             covered = shadeHoldsInputFocus(windows: again.output)
         }
         throw DriverError.badResponse(status: 422, body: "the keyboard is still showing after \(Self.hideKeyboardMaxBacks) BACK presses:"
-            + " the notification shade or quick settings is in front and took them. Close it first (ft_navigate back),"
+            + " the notification shade or quick settings is in front and took them. Close it first (DSL: back() / MCP: ft_navigate back),"
             + " then hide the keyboard")
     }
 
@@ -1123,7 +1123,7 @@ public final class AndroidDriver: AppDriver {
     static func coveredFieldError() -> DriverError {
         .badResponse(status: 422, body: "nothing was cleared: com.android.systemui (the notification shade, quick settings or the lock"
             + " screen) is in front and holds the input focus, so the app's field is not the one that would be cleared."
-            + " Close it first (ft_navigate back, or unlock the device), then retry.")
+            + " Close it first (DSL: back() / MCP: ft_navigate back, or unlock the device), then retry.")
     }
 
     /// 欄ではなく前面が原因のフォーカス不在(type / clearInput 共通)。前面からは言えないとき nil
@@ -1133,13 +1133,13 @@ public final class AndroidDriver: AppDriver {
             return DriverError.badResponse(status: status, body: body
                 + " — com.android.systemui (the notification shade, quick settings, the lock screen or an assistant) is"
                 + " in front and holds the input focus, so the field is not the problem. Close it first"
-                + " (ft_navigate back, or unlock the device), then retry.")
+                + " (DSL: back() / MCP: ft_navigate back, or unlock the device), then retry.")
         }
         // 直近の木のアプリが前面から消えている(落ちた・離れた)と、欄の話ではない
         if let front, let lastTreePackage, front != lastTreePackage {
             return DriverError.badResponse(status: status, body: body
                 + " — \(front) is in front, not \(lastTreePackage) (the app of the last tree): that app may have crashed or"
-                + " been left, so there is no field to type into. ft_snapshot shows what is on screen; ft_launch the app to come back.")
+                + " been left, so there is no field to type into. Bring the app back first (DSL: tapAppIcon() or launchApp() / MCP: ft_launch).")
         }
         return nil
     }

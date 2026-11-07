@@ -13,6 +13,9 @@ final class TypeFailureFrontAdviceTests: XCTestCase {
         guard case .badResponse(_, let gone)? = AndroidDriver.noFocusFrontAdvice(
             after: error, front: "com.launcher", lastTreePackage: "com.app") else { return XCTFail() }
         XCTAssertTrue(gone.contains("com.launcher is in front, not com.app"), gone)
+        // DSL の失敗にも出る文なので、MCP の道具名だけで対処を言わない(34周目 alocal F1・amax F2)
+        XCTAssertTrue(gone.contains("DSL: tapAppIcon() or launchApp()"), gone)
+        XCTAssertTrue(shade.contains("DSL: back()"), shade)
         XCTAssertNil(AndroidDriver.noFocusFrontAdvice(after: error, front: "com.app", lastTreePackage: "com.app"))
     }
 

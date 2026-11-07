@@ -444,7 +444,10 @@ extension StepExecutor {
         // 押して焦点の接続を探しても入力欄ではなく、4 秒待って「target node not found」と事実と違う理由で落ちていた
         // **Android だけ**: RN の iOS の木では押せる OTP の箱も staticText で来て、箱を押してから打てば入る(iOS へ広げた版が
         // RN の OTP を撃つ前に断った = 33周目 im4 F1)。Android は押せる要素を clickable の型で返すので見分けられる
-        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false) {
+        // **中心を入力欄がちょうど1つ含むなら断らない**: 押せば下の欄に焦点が移り、ブリッジは押した点の入力欄へ打つ(InputInjector の
+        // findEditable)。View・RN の OTP の箱は隠れた欄 #field_otp の枠の中の staticText で来る(34周目 alocal F2・tap → type は otp=123456)
+        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false),
+           Self.textInputUnderCentre(of: element, in: elements) == nil {
             return "the target is a staticText, not a text field — refusing before anything is typed"
                 + " (it is display-only text that cannot take input). Point the selector at the input field itself."
         }
@@ -454,6 +457,16 @@ extension StepExecutor {
         return "the target is a \(element.type), not a text field — refusing before anything is"
             + " \(action == "type" ? "typed" : "cleared") (\(action) taps its target first, so the"
             + " \(element.type) would fire — a submit or a purchase). Point the selector at the input field itself."
+    }
+
+    /// 対象の中心を枠に含む入力欄(ちょうど1つのときだけ。2つ以上はどれに焦点が移るか言えない)
+    static func textInputUnderCentre(of element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
+        let x = element.frame.x + element.frame.width / 2, y = element.frame.y + element.frame.height / 2
+        let fields = elements.filter {
+            $0.ref != element.ref && TypeReadback.isTextInput($0)
+                && x >= $0.frame.x && x <= $0.frame.x + $0.frame.width && y >= $0.frame.y && y <= $0.frame.y + $0.frame.height
+        }
+        return fields.count == 1 ? fields.first : nil
     }
 
     /// **キーボードの下の対象へ届かせる**(tap・type・clearInput)。ユーザー決定「人が操作できないときだけ失敗にし、
