@@ -223,6 +223,32 @@ final class FindImageTests: XCTestCase {
         XCTAssertTrue(outcome.driverFallback?.hasPrefix("found (distance ") == true, outcome.driverFallback ?? "")
     }
 
+    /// 見つけたときは次点の距離を記述に残す(OI-130: 距離 0.000 で木の先頭の行を返した赤を、全候補が同じ特徴量になる縮退か
+    /// その行だけかで分けるための事実)。健全な照合では次点は採った距離より遠く、同じ距離の候補は無い
+    func testFoundNoteSaysTheNextDistanceFromTheSameScan() async throws {
+        let root = try makeProject()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outcome = await run("findImage", threshold: FindImage.defaultThreshold, projectRoot: root)
+        let note = try XCTUnwrap(outcome.driverFallback)
+        let found = try XCTUnwrap(outcome.imageMatches?.first?.distance)
+        let next = try XCTUnwrap(note.range(of: ", next ").map { Double(note[$0.upperBound...].prefix { $0 != ")" }) } ?? nil,
+                                 "次点の距離が記述に無い: \(note)")
+        XCTAssertGreaterThan(next, found, note)
+        XCTAssertFalse(note.contains("at that distance"), note)
+    }
+
+    /// 同じ距離の候補が複数あれば数を言う(縮退なら全候補が採った距離に並ぶ)
+    func testFoundNoteCountsCandidatesTiedAtTheFoundDistance() {
+        let match = FindImage.Match(element: element(1, id: "nav_selector", 0, 0, 10, 10),
+                                    visibleFrame: FTRect(x: 0, y: 0, width: 10, height: 10), distance: 0,
+                                    template: URL(fileURLWithPath: "/t.png"))
+        var scan = StepExecutor.ImageScan(found: [match], nearest: match, classified: false, compared: 11)
+        scan.tiedAtBest = 11
+        scan.nextDistance = 0
+        XCTAssertEqual(StepExecutor.findImageNote(scan, single: true, threshold: 0.03),
+                       "found (distance 0.000, 11 candidates at that distance, next 0.000)")
+    }
+
     func testFindImageNotFoundIsAnEmptyResultWithTheNearestDistance() async throws {
         let root = try makeProject()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -116,6 +116,11 @@ extension StepExecutor {
         var compared = 0
         /// 最後のスクリーンショットが画像として読めなかった(「似た形の要素が無い」と言い分けるため)
         var screenshotUnreadable = false
+        /// findImage で採った見本の照合で、採った距離と同じ距離だった候補の数(採った候補を含む)と次点の距離。
+        /// 記述に残す事実(OI-130: 文字だけ違う行が距離 0.000 で木の先頭の行に当たった = 全候補が同じ特徴量になる縮退か、
+        /// その行だけかを分ける材料。判定には使わない)
+        var tiedAtBest = 0
+        var nextDistance: Double?
     }
 
     /// 1枚の画面で照合する。findImage はテンプレートを順に試し、最初に見つかった1件で止める
@@ -200,16 +205,21 @@ extension StepExecutor {
         defer { phase.actionMs += Self.ms(clock.now - matchStart) }
         var nearest = carried
         var compared = 0
-        func named(_ matches: [FindImage.Match], classified: Bool) -> ImageScan {
+        func named(_ matches: [FindImage.Match], classified: Bool, among ranked: [FindImage.Match] = []) -> ImageScan {
             guard !matches.isEmpty else {
                 return ImageScan(found: [], nearest: nearest, classified: false, compared: compared)
             }
             let naming = SelectorNaming(snapshot)
-            return ImageScan(found: matches.map { match in
+            var scan = ImageScan(found: matches.map { match in
                 var match = match
                 match.selector = naming.selector(for: match.element, in: snapshot)
                 return match
             }, nearest: nearest, classified: classified, compared: compared)
+            if let best = ranked.first {
+                scan.tiedAtBest = ranked.filter { $0.distance == best.distance }.count
+                scan.nextDistance = ranked.dropFirst().first?.distance
+            }
+            return scan
         }
         var perTemplate: [[FindImage.Match]] = []
         let prints = FindImage.CandidatePrints(source: printSource)
@@ -226,7 +236,7 @@ extension StepExecutor {
             guard let primary = matches.first else { continue }
             let limit = threshold ?? FindImage.defaultThreshold
             if primary.distance <= limit {
-                return named([primary], classified: false)
+                return named([primary], classified: false, among: matches)
             }
             if let classifier = await loadedVisionClassifier(DefaultClassifier.name),
                let crop = VisionClassifier.crop(image: screenshot, frame: primary.visibleFrame, screen: snapshot.screen),
@@ -275,9 +285,12 @@ extension StepExecutor {
         let limit = threshold.map { " threshold \(format($0))" } ?? ""
         if single {
             if let match = scan.found.first {
-                return scan.classified
-                    ? "found by \(DefaultClassifier.name) (distance \(format(match.distance)) >\(limit))"
-                    : "found (distance \(format(match.distance)))"
+                if scan.classified {
+                    return "found by \(DefaultClassifier.name) (distance \(format(match.distance)) >\(limit))"
+                }
+                let tied = scan.tiedAtBest > 1 ? ", \(scan.tiedAtBest) candidates at that distance" : ""
+                let next = scan.nextDistance.map { ", next \(format($0))" } ?? ""
+                return "found (distance \(format(match.distance))\(tied)\(next))"
             }
             if scan.nearest == nil, scan.screenshotUnreadable { return "not found (the screenshot could not be read)" }
             guard let nearest = scan.nearest else { return "not found (no element of a similar aspect ratio)" }
