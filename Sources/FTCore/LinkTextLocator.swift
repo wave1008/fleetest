@@ -18,6 +18,22 @@ public enum LinkTextLocator {
     /// 尽きたら理由を言って失敗する(固まった読みは止めずに放す = `TaskBudget`)
     public static let ocrBudget: Duration = .seconds(10)
 
+    /// **OCR の読み(全部の行をつないだもの)が要素のテキストと同じか**(NFKC・空白を除いて比べる)。iOS の in-app の木は行き先の枠を返すのに、
+    /// 押し込みの遷移の途中の絵では枠の中に前の画面の文字と途中で切れた文が写る(34周目 iultra F1: 押し違い 12 件はどれも前の画面の
+    /// 「スクロール」「チャット」が混ざるか行が切れていた・落ち着いた絵の 170 件は E2EY-iOS・E2EY-CMP の iOS とも全部一致)。
+    /// 要素のテキストが無ければ材料が無いので true(撮り直さない)
+    public static func readMatchesElement(lines: [String], elementTexts: [String]) -> Bool {
+        let texts = elementTexts.map(normalizedForMatch).filter { !$0.isEmpty }
+        guard !texts.isEmpty else { return true }
+        return texts.contains(normalizedForMatch(lines.joined()))
+    }
+
+    static func normalizedForMatch(_ text: String) -> String {
+        text.precomposedStringWithCompatibilityMapping.unicodeScalars
+            .filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
+            .map(String.init).joined()
+    }
+
     public struct Point: Equatable, Sendable {
         public let x: Double
         public let y: Double

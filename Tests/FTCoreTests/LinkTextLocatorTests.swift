@@ -153,4 +153,15 @@ final class LinkTextLocatorTests: XCTestCase {
         let other = FlowStep(action: "irregularHandler", locator: FlowLocator(label: "お知らせ"), text: "OK||閉じる")
         XCTAssertEqual(ScenarioCodeGen.command(for: other), "irregularHandler(\"お知らせ\", dismiss: \"OK||閉じる\")")
     }
+
+    /// 読みと要素のテキストの突き合わせは全角・半角(NFKC)と空白・改行の違いを吸う。前の画面の文字が混ざる・途中で切れた読みは一致しない
+    func testReadMatchesElementNormalizesWidthAndSpaces() {
+        XCTAssertTrue(LinkTextLocator.readMatchesElement(lines: ["お知らせ：詳細はこちら"], elementTexts: ["お知らせ: 詳細はこちら"]))
+        XCTAssertTrue(LinkTextLocator.readMatchesElement(lines: ["続行すると利用規約と", "されます。"], elementTexts: ["続行すると利用規約とされます。"]))
+        XCTAssertFalse(LinkTextLocator.readMatchesElement(lines: ["スクロール", "続行すると利用規約と", "されます。"],
+                                                          elementTexts: ["続行すると利用規約とされます。"]))
+        XCTAssertFalse(LinkTextLocator.readMatchesElement(lines: ["@alice さんが https://exampl"],
+                                                          elementTexts: ["@alice さんが https://example.com/a を共有しました"]))
+        XCTAssertTrue(LinkTextLocator.readMatchesElement(lines: ["anything"], elementTexts: []), "材料が無ければ撮り直さない")
+    }
 }

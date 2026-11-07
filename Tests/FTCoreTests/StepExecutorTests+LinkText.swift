@@ -39,11 +39,11 @@ final class StepExecutorLinkTextTests: XCTestCase {
                     frame: FTRect(x: 0, y: 360, width: 400, height: 60), depth: 1)
     }
 
-    private func run(screenshots: [Data], linkText: String,
+    private func run(screenshots: [Data], linkText: String, isAndroid: Bool = true,
                      commandTimeoutSeconds: TimeInterval? = nil) async -> (StepOutcome, FakeAppDriver) {
         let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[paragraph()]],
                                    screenshots: screenshots)
-        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: true, tunables: RunTunables(),
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: isAndroid, tunables: RunTunables(),
                                     commandTimeoutSeconds: commandTimeoutSeconds)
         var step = FlowStep(action: "tap", locator: FlowLocator(id: "terms"))
         step.linkText = linkText
@@ -154,5 +154,26 @@ final class StepExecutorLinkTextTests: XCTestCase {
         XCTAssertEqual(LinkTextLocator.ocrShotAttempts, 3)
         XCTAssertEqual(LinkTextLocator.ocrReshotInterval, .milliseconds(500))
         XCTAssertEqual(LinkTextLocator.ocrBudget, .seconds(10))
+    }
+
+    /// **iOS は読みが要素のテキストと一致しない絵を撮り直す**(in-app の木は行き先の枠・絵は押し込みの遷移の途中 = 34周目 iultra F1 で
+    /// 押し違いの ✅ と「見つからない」の赤)。一致した2枚目で決め、撮り直したことを注記に言う
+    func testIOSRetakesWhileTheReadDoesNotMatchTheElement() async throws {
+        let (outcome, driver) = await run(screenshots: [try shot("Scroll Terms of Service"), try shot("Please accept the Terms of Service")],
+                                          linkText: "Terms of Service", isAndroid: false)
+        guard case .passed = outcome.status else { XCTFail("実際は \(outcome.status)"); return }
+        XCTAssertEqual(driver.screenshotCallCount, 2, "読みが要素と違う1枚目で決めた")
+        XCTAssertTrue((outcome.driverFallback ?? "").contains("retook the screenshot 1 time(s)"), outcome.driverFallback ?? "nil")
+    }
+
+    /// 最後の1枚は一致しなくても使う(OCR の誤読で毎回一致しない要素を赤にしない)・Android は撮り直さない(木が今の画面そのもの)
+    func testMismatchUsesTheLastShotAndAndroidDoesNotRetake() async throws {
+        let mismatched = try shot("Scroll Terms of Service")
+        let (ios, iosDriver) = await run(screenshots: [mismatched], linkText: "Terms of Service", isAndroid: false)
+        guard case .passed = ios.status else { XCTFail("実際は \(ios.status)"); return }
+        XCTAssertEqual(iosDriver.screenshotCallCount, LinkTextLocator.ocrShotAttempts)
+        let (android, androidDriver) = await run(screenshots: [mismatched], linkText: "Terms of Service")
+        guard case .passed = android.status else { XCTFail("実際は \(android.status)"); return }
+        XCTAssertEqual(androidDriver.screenshotCallCount, 1)
     }
 }

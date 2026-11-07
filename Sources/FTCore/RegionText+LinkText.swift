@@ -41,17 +41,20 @@ extension RegionText {
             }
             VisionUsageLedger.record(ok: true, ms: Date().timeIntervalSince(start) * 1000)
             var lines: [String] = []
+            // 全部の行を読んでから返す(呼び手が読みを要素のテキストと突き合わせる = LinkTextLocator.readMatchesElement)
+            var found: (x: Double, y: Double)?
             for observation in observations {
                 guard let candidate = observation.topCandidates(1).first else { continue }
                 lines.append(candidate.string)
-                guard let range = LinkTextLocator.range(of: linkText, in: candidate.string),
+                guard found == nil, let range = LinkTextLocator.range(of: linkText, in: candidate.string),
                       let box = candidate.boundingBox(for: range),
                       let point = LinkTextLocator.screenPoint(
                         normalizedBox: box.boundingBox.cgRect, crop: rect,
                         imageWidth: full.width, imageHeight: full.height, screen: screen)
                 else { continue }
-                return LinkLocation(point: point, lines: lines, attempts: attempts)
+                found = point
             }
+            if let found { return LinkLocation(point: found, lines: lines, attempts: attempts) }
             lastLines = lines
             if lines.isEmpty { break }
         }

@@ -16,6 +16,8 @@ extension StepExecutor {
         // 読み手が戻るのを待った時間(待った回だけ文言に添える)
         var readerWait: Duration?
         var waitedForBlankShots = false
+        // 読みが要素のテキストと一致せず撮り直した枚数(iOS。撮り直した回だけ注記に添える)
+        var unsettledShots = 0
         if point == nil {
             // コンパイルを待つ(待った分は DeadlineExclusion が締め切りから差し引く。テキストの可視性検証の OCR と同じ使い方)
             _ = await RegionText.awaitModelCompile(mode: .on)
@@ -23,7 +25,7 @@ extension StepExecutor {
             let stepStart = clock.now
             var roundStart = clock.now
             if let failure = try await ocrRound(linkText, element: element, snapshot: snapshot, phase: &phase,
-                                                point: &point, lines: &ocrLines, attempts: &ocrAttempts, blanks: &blankShots) {
+                                                point: &point, lines: &ocrLines, attempts: &ocrAttempts, blanks: &blankShots, unsettled: &unsettledShots) {
                 return failure
             }
             // **読み手がその瞬間に失敗していたなら、戻るのを待って読み直す**(読みは操作ではないので撃ち直しても二重にならない。
@@ -48,7 +50,7 @@ extension StepExecutor {
                     blankShots = 0
                     if let failure = try await ocrRound(linkText, element: element, snapshot: snapshot, phase: &phase,
                                                         point: &point, lines: &ocrLines, attempts: &ocrAttempts,
-                                                        blanks: &blankShots) {
+                                                        blanks: &blankShots, unsettled: &unsettledShots) {
                         return failure
                     }
                     roundMs = Self.ms(clock.now - roundStart)
@@ -65,6 +67,8 @@ extension StepExecutor {
             "waited \(FTSeconds.format((Double(Self.ms($0)) / 100).rounded() / 10))s for "
                 + (waitedForBlankShots ? "a non-blank screenshot" : "the OCR reader to recover")
         }
+        let unsettledFact: String? = unsettledShots == 0 ? nil
+            : "retook the screenshot \(unsettledShots) time(s): the OCR read did not match the element's text yet (the screen was still moving)"
         guard let point else {
             let read = (ocrLines.isEmpty ? "OCR read no text in the element"
                 : "OCR read: " + ocrLines.map { "\"\($0)\"" }.joined(separator: ", "))
@@ -89,21 +93,21 @@ extension StepExecutor {
                                driverFallback: Self.joinNotes(notes,
                                    "link text \"\(linkText)\" located by ocr"
                                        + " at (\(Int(point.x.rounded())), \(Int(point.y.rounded())))",
-                                   "sent via XCUITest (a point inside one node)", waitedFact))
+                                   "sent via XCUITest (a point inside one node)", waitedFact, unsettledFact))
         }
         let tapped = try await executeDirectCoordinateTap(step: step, x: point.x, y: point.y, phase: &phase)
         return StepOutcome(status: tapped.status,
                            driverFallback: Self.joinNotes(notes,
                                "link text \"\(linkText)\" located by \(point.source.rawValue)"
                                    + " at (\(Int(point.x.rounded())), \(Int(point.y.rounded())))",
-                               tapped.driverFallback, waitedFact))
+                               tapped.driverFallback, waitedFact, unsettledFact))
     }
 
     /// OCR の1周: 最大 `ocrShotAttempts` 回撮って読む。位置が決まるか、文字が読めたら(= その絵にリンクの語が無い)止める。
     /// 戻り値は OCR が固まったときの失敗(それ以外は nil)
     private func ocrRound(_ linkText: String, element: ElementInfo, snapshot: SnapshotResponse,
                           phase: inout PhaseAccumulator, point: inout LinkTextLocator.Point?, lines: inout [String],
-                          attempts: inout Int, blanks: inout Int) async throws -> StepOutcome? {
+                          attempts: inout Int, blanks: inout Int, unsettled: inout Int) async throws -> StepOutcome? {
         let clock = ContinuousClock()
         for attempt in 1...LinkTextLocator.ocrShotAttempts {
             if attempt > 1 { try? await Task.sleep(for: LinkTextLocator.ocrReshotInterval) }
@@ -125,6 +129,15 @@ extension StepExecutor {
                         + " OCR did not finish within \(LinkTextLocator.ocrBudget) (the text recognizer is stuck)"))
             }
             attempts += located?.attempts ?? 0
+            // **iOS は読みが要素のテキストと一致しない絵を撮り直す**(押し込みの遷移の途中 = 木は行き先の枠・絵は動いている途中。
+            // 押し違いの ✅ と「見つからない」の赤の両方の元 = LinkTextLocator.readMatchesElement)。Android の木は今の画面そのもので
+            // この食い違いが無い。最後の1枚は一致しなくても従来どおり使う(OCR の誤読で毎回一致しない要素を赤にしない)
+            if !isAndroid, attempt < LinkTextLocator.ocrShotAttempts, let located, !located.lines.isEmpty,
+               !LinkTextLocator.readMatchesElement(lines: located.lines, elementTexts: elementTexts) {
+                lines = located.lines
+                unsettled += 1
+                continue
+            }
             if let located {
                 lines = located.lines
                 if let p = located.point { point = .init(x: p.x, y: p.y, source: .ocr); return nil }
