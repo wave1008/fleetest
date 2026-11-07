@@ -130,6 +130,11 @@ extension StepExecutor {
                            + " (\(Int(c.x)), \(Int(c.y))) is outside the screen, so it is not visible"
                            + " (scroll it into view before this step)")
         }
+        // 塗り順が本物の木で、tap なら撃つ前に断る覆いの下にある要素(合否は変えない = StepNote.coveredByFrontElement)
+        if paintOrderIsReal(elements), case .tooThin? = TapTargetGeometry.coveredTouch(
+            for: element, in: elements, screen: screen, inferring: true, scale: driver.pointScale, zIsPaintOrder: true) {
+            noteCodesThisStep.insert(.coveredByFrontElement)
+        }
         // 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませて見えていなければ赤(`OcclusionEligibility.isLabelledRowWithoutText`)。
         // 判定は OCR の段だけ(FM は呼ばない)なので、OCR の段が無効な構成では行の確かめ自体を走らせない。
         // 注記は最後の判定に合わせる(待ちの途中で一度だけ読めなかった回が、後で読めて緑になったら外す)

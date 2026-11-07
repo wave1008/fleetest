@@ -833,9 +833,14 @@ public final class BridgeClient: AppDriver, Sendable {
                                            timeout: sessionTimeout)
     }
 
+    /// プロトコルの要件 `home()` の実装(**既定引数付きの `home(bundleID:)` だけでは要件の実装にならず**、存在型越しの呼び出し
+    /// (LaunchPreflightDriver・SessionRecoveryDriver の `base.home()`)が AppDriver の既定実装 = 501 に落ちていた。xcuitest モードの
+    /// DSL の `home()` と MCP の `ft_navigate home` が常に赤 = 35周目 phys F1。`AppDriverRequirementShadowTests` が走査で落とす)
+    public func home() async throws { try await home(bundleID: nil) }
+
     /// `bundleID` = 対象アプリ(ランナーにセッションが無い inapp-boost で、遮ったアラートがアプリ自身のものかを名指すため。
-    /// `HomeRequest`)。対象を持たない呼び手(SystemUIDriver)だけ nil
-    public func home(bundleID: String? = nil) async throws {
+    /// `HomeRequest`)。対象を持たない呼び手は `home()`
+    public func home(bundleID: String?) async throws {
         let _: OKResponse = try await post("/home", body: HomeRequest(bundleID: bundleID),
                                            timeout: sessionTimeout)
     }

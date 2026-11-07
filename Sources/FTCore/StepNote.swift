@@ -134,6 +134,11 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// **アイコン(SpringBoard)や XCUITest の activate から起きたアプリには in-app ブリッジが載らない**(注入は InAppLauncher の
     /// 起動だけ)ので、押すと後続が全部届かず「this session stopped it」の赤になっていた(24周目 iultra F1・12/12)
     case appIconLaunchedWithBridge = "app-icon-launched-with-bridge"
+    /// 検証が通った要素が、塗り順が本物の木(iOS の in-app の UIKit・RN・Android の View・RN = `PaintOrder.isReal`)で手前の押せる要素に覆われ、
+    /// 撃つ前の断り(`TapTargetGeometry.coveredTouch` の `.tooThin`)と同じ判定が成り立つ = 同じ要素への tap なら断る。合否は変えない
+    /// (**新しい検知なので警告から**。既存のシナリオの全数で誤検知が0と確かめてから赤へ上げる)。35周目 im4 F2: RN の払う前の行の裏の
+    /// スワイプのボタン・半開シートの裏の行への exist / textIs が 13/13 で ✅、同じ要素への tap は「露出 0」で断っていた
+    case coveredByFrontElement = "covered-by-front-element"
 
     /// 自己修復(指紋照合)が代わりの要素を見つけたのに、**この画面でそれを一意に指せる書き方が無い**
     /// (`SelectorNaming.graded` が nil)。操作はその要素で続けるが、修正提案は作らない ——
@@ -570,6 +575,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the tree did not appear to cover the whole screen when this was judged, so an"
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
+        case .coveredByFrontElement:
+            return "the element is in the tree but an element drawn in front of it covers it (a tap on it would be refused),"
+                + " so it may not be visible to a person"
         case .appIconLaunchedWithBridge:
             return "the app was not running, so after finding its icon this launched the app with the in-app bridge"
                 + " instead of tapping the icon — an app started from its icon has no in-app bridge in inapp-boost mode"
