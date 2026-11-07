@@ -23,7 +23,17 @@ extension TapTargetGeometry {
     /// Flutter・Compose のように1枚の描画面で描くアプリでは木の順と同じで塗り順ではない = false)。既定値を置かない
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double, zIsPaintOrder: Bool) -> CoveredTouch? {
-        guard let over = overlayCoveringForUncover(element, in: elements, screen: screen) else { return nil }
+        var nearest = overlayCoveringForUncover(element, in: elements, screen: screen)
+        // 最前面の決め方(`OcclusionGeometry.occluder`)は枠がぴったり同じ相手を覆いと言わない(ラッパー・入れ替わりの誤報を避ける規則で、
+        // 警告と MCP に広く効くので変えない)。塗り順が本物の木では、同じ枠で手前に描かれた押せる別の要素は撃てば当たる覆い
+        // (OI-195 ①: 全開になったシートのキューの行が裏の本文の行と同じ枠に並び、最前面が容器 #list_queue = 押せないとされて中心を撃ち、
+        // キューの行を押して ✅・12/12)。入力欄は外す(同じ枠の手前の受け手がタッチを欄へ渡す作り = Compose の包んだ欄)
+        if zIsPaintOrder, nearest.map({ !isOperableCover($0) }) ?? true,
+           !SnapshotRenderer.textInputTypes.contains(element.type),
+           let same = sameFrameOperableCover(of: element, in: elements, screen: screen) {
+            nearest = same
+        }
+        guard let over = nearest else { return nil }
         // 次の3形は nil = 呼び手の従来の扱い(警告して中心を撃つ)。断ると押せる対象を押さなくなる(回帰で実際に赤):
         // ⓪覆い(中心の最前面)が押せる型でない: 防ぐ害は「別の押せる部品(タブ)に当たる」こと。背景・装飾・行の文字なら中心を
         //   撃っても別の部品は押さず、塗り順の推測違い(見出しの容器が中の文字を覆うと読む)で断ると誤った赤になる。
@@ -73,6 +83,20 @@ extension TapTargetGeometry {
             return .visiblePart(pick.rect, over: over)
         }
         return .tooThin(visible: best.map(\.thickness).max() ?? 0, floor: floor, over: over)
+    }
+
+    /// 対象と同じ枠で手前に描かれた押せる別の要素(祖先・子孫・スクロール容器・容器の外の残像は除く。複数なら最前面)。
+    /// 呼ぶのは塗り順が本物の木だけ(`coveredTouch` の `zIsPaintOrder`)
+    static func sameFrameOperableCover(of element: ElementInfo, in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {
+        guard element.z != nil else { return nil }
+        let lineage = TapTargetGeometry.lineage(of: element, in: elements)
+        return elements.filter { other in
+            other.ref != element.ref && !lineage.contains(other.ref) && other.z != nil
+                && ContainerGeometry.sameFrame(other.frame, element.frame)
+                && isOperableCover(other) && other.scrollable != true
+                && PaintOrder.drawnAbove(other, element)
+                && !ContainerGeometry.isOutsideContainer(other, in: elements, screen: screen)
+        }.max { PaintOrder.drawnAbove($1, $0) }
     }
 
     /// `rect` から `hole` を引いた残り(上・下・左・右の最大4片。重ならなければ `rect` そのもの)

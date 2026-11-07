@@ -68,12 +68,12 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 要測定
-- 運用: ①要注意 — Android の View でシートの裏の行へ `scroll:` 付きの `tap` を撃つと、手前のキューの行を押して ✅ になる(半分のシートでは毎回)。押した後の画面を検証で確かめる。後続の `textIs` の赤は覆いを名指す ②〜⑤合否に響かない
-- 優先度: 中 — ①既定の経路の誤った成功(後続の検証で赤にできる)
+- 運用: ②〜⑤合否に響かない
+- 優先度: 低 — 文言・MCP の表示・供給の時間の損
 
-11/7 の37周目の探索(20分・`_work/explore-20261107h/findings-*.md`)で観測し、直さなかったもの。①Android の View で半分のシートの裏の行へ `tap("#row_main_10", scroll: .down)` を撃つと、注記が覆いを容器 `#list_queue` と名指して撃ち、キューの行 queue_row_08 を押して ✅(alocal F1・2/2)。`scroll:` を付けない同じ tap は `#queue_row_01` を名指して撃つ前に断り、RN の `scroll:` 付きも断る。探索の後の判定で覆いが行でなく容器になった理由は材料不足(探索の最後の木と撃った時点の画面の食い違いか) ②テキストの可視性検証(FM・OCR)を切った run では、tap なら撃つ前に断る覆いの下の要素への検証に注記 `covered-by-front-element` が付かない(amax F1・4/4。注記は可視性検証の入口の後に置いた = 検証を切ると幾何の段ごと止まる設計に合わせた) ③iOS の inapp-boost で `home()` の後の読み・操作が待ちの上限まで前面に戻るのを待ってから「did not read or touch it」で赤(im4 F1・17/17。`terminateApp()` の後は 0.47 秒で断る。openURL の直後の戻る途中を断らないための待ち = `StepExecutor.backgroundedAppRefusal`) ④MCP で RN の iOS の半分のシートの上端の下の行への `ft_tap` が警告なしで done・行は押されない(ilocal F2・6/6。同じ画面の DSL は覆いの slider を名指して見えている部分を押す。MCP の全木には slider が出ていなかった。理由は材料不足) ⑤シナリオのビルドが落ちて run が止まった後も iOS の供給が止まらず、ブリッジを起こし続けて 180 秒待ち、その間この Mac の dispatch.lock を約 5 分持つ(duo F1・1/1。`ProfileSupplyLanes.ios` は止まれの印を `buildIOSWorkers` に渡さず、印を見るのは供給が全部終わった後 = Sources/fleetest/ProfileSupplyLanes.swift の `isStopped()` の位置)
-- 11/8: ①を測り直した(手元の8台と M1Max の4台へ同時に1回ずつ)。半分のシートは 12/12 で ✅ のままキューの行 `queue_row_08` を押す(注記は覆いを容器 `#list_queue` と名指す)。全開のシート(13周目 amax F1 の元の形)は 11/12 で撃つ前に断り(覆いを `#queue_row_21` と名指す = 11/7 の `clickable` の直し 2b0e528ed)、M1Max の1台だけ半分と同じ形で ✅(キューの行 `queue_row_26`)。探索の後の判定で覆いが行でなく容器になる理由は材料不足のまま
-- 11/7: ①④は原因を測ってから直す(MN-108)。②は設計どおり。③は待ちの意味(戻る途中を断らない)と遅さの兼ね合いで据え置き。⑤は観測した原因のとおり供給の待ちに止まれの印を通せば直る(プロセスの生存管理の領域)
+11/7 の37周目の探索(20分・`_work/explore-20261107h/findings-*.md`)で観測し、直さなかったもの。②テキストの可視性検証(FM・OCR)を切った run では、tap なら撃つ前に断る覆いの下の要素への検証に注記 `covered-by-front-element` が付かない(amax F1・4/4。注記は可視性検証の入口の後に置いた = 検証を切ると幾何の段ごと止まる設計に合わせた) ③iOS の inapp-boost で `home()` の後の読み・操作が待ちの上限まで前面に戻るのを待ってから「did not read or touch it」で赤(im4 F1・17/17。`terminateApp()` の後は 0.47 秒で断る。openURL の直後の戻る途中を断らないための待ち = `StepExecutor.backgroundedAppRefusal`) ④MCP で RN の iOS の半分のシートの上端の下の行への `ft_tap` が警告なしで done・行は押されない(ilocal F2・6/6。同じ画面の DSL は覆いの slider を名指して見えている部分を押す。MCP の全木には slider が出ていなかった。理由は材料不足) ⑤シナリオのビルドが落ちて run が止まった後も iOS の供給が止まらず、ブリッジを起こし続けて 180 秒待ち、その間この Mac の dispatch.lock を約 5 分持つ(duo F1・1/1。`ProfileSupplyLanes.ios` は止まれの印を `buildIOSWorkers` に渡さず、印を見るのは供給が全部終わった後 = Sources/fleetest/ProfileSupplyLanes.swift の `isStopped()` の位置)
+- 11/8: ①(Android の View で半分のシートの裏の行への `tap(scroll: .down)` がキューの行を押して ✅)を直した = 探索の送りで全開になったシートのキューの行が対象と枠がぴったり同じで手前に並び、最前面の判定が同じ枠の相手を外して容器を名指していた。`coveredTouch` が塗り順のある木で同じ枠の押せる覆いを拾う(再生ケース r-oi195-half-sheet)
+- 11/7: ④は原因を測ってから直す(MN-108)。②は設計どおり。③は待ちの意味(戻る途中を断らない)と遅さの兼ね合いで据え置き。⑤は観測した原因のとおり供給の待ちに止まれの印を通せば直る(プロセスの生存管理の領域)
 
 ### OI-194 探索の残り(36周目)
 - 状態: 再現済み

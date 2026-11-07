@@ -62,3 +62,57 @@ final class AndroidClickablePinnedBandTests: XCTestCase {
                         "申告の無い文字の帯は従来どおり見出しとして扱う(この対照が崩れたらテストの前提が違う)")
     }
 }
+
+/// 同じ枠で手前に描かれた押せる別の要素も覆いとして扱う(OI-195 ①: 全開になったシートのキューの行 #queue_row_08 が裏の本文の行
+/// #row_main_10 と同じ枠 (0,2166 1280x168) に並び、最前面の判定が同じ枠の相手を外して容器 #list_queue を名指し、中心を撃って
+/// キューの行を押して ✅・12/12)。木は 11/8 に E2EY-Android で取った撃つ直前の木から関係する要素だけを写した
+final class AndroidSameFrameCoverTests: XCTestCase {
+    private let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+
+    private func tree(targetType: String = "staticText") -> (ElementInfo, [ElementInfo]) {
+        let sheet = ElementInfo(ref: 6, type: "other", identifier: "player_sheet", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 486, width: 1280, height: 2298), depth: 12, z: 31)
+        let queue = ElementInfo(ref: 12, type: "collectionView", identifier: "list_queue", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 822, width: 1280, height: 1962), depth: 13,
+                                scrollable: true, z: 38)
+        let queueRow = ElementInfo(ref: 21, type: "staticText", identifier: "queue_row_08", label: "キュー 08", value: nil,
+                                   placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 2166, width: 1280, height: 168),
+                                   depth: 14, z: 47, clickable: true)
+        let main = ElementInfo(ref: 25, type: "collectionView", identifier: "list_main", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 486, width: 1280, height: 2298), depth: 12,
+                               scrollable: true, z: 16)
+        let target = ElementInfo(ref: 36, type: targetType, identifier: "row_main_10", label: "本文 10", value: nil,
+                                 placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 2166, width: 1280, height: 168),
+                                 depth: 13, z: 27, clickable: true)
+        return (target, [sheet, queue, queueRow, main, target])
+    }
+
+    func testASameFramePressableRowInFrontIsTheCover() {
+        let (target, elements) = tree()
+        let verdict = TapTargetGeometry.coveredTouch(for: target, in: elements, screen: screen, inferring: true, scale: 3,
+                                                     zIsPaintOrder: true)
+        guard case .tooThin(_, _, let over)? = verdict else { return XCTFail("同じ枠の手前の行を覆いと見ていない: \(String(describing: verdict))") }
+        XCTAssertEqual(over.identifier, "queue_row_08")
+    }
+
+    /// 覆いが別の一覧の中に無い形で確かめる(一覧の中なら塗り順が無いときは後段の例外②でも外れ、門の有無が分からない)
+    func testWithoutPaintOrderTheSameFrameRowIsNotGuessed() {
+        let (target, full) = tree()
+        let elements = full.filter { $0.identifier != "list_queue" }.map { e -> ElementInfo in
+            var e = e
+            if e.identifier == "queue_row_08" { e.depth = 13 }
+            return e
+        }
+        XCTAssertNotNil(TapTargetGeometry.coveredTouch(for: target, in: elements, screen: screen, inferring: true, scale: 3,
+                                                       zIsPaintOrder: true), "この形の前提(塗り順があれば覆い)が崩れている")
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: target, in: elements, screen: screen, inferring: true, scale: 3,
+                                                    zIsPaintOrder: false))
+    }
+
+    /// 入力欄は外す(同じ枠の手前の受け手がタッチを欄へ渡す作り。コーパスの E2E-Android の #field_wrapped)
+    func testATextInputUnderASameFramePressableIsStillShot() {
+        let (target, elements) = tree(targetType: "textField")
+        XCTAssertNil(TapTargetGeometry.coveredTouch(for: target, in: elements, screen: screen, inferring: true, scale: 3,
+                                                    zIsPaintOrder: true))
+    }
+}

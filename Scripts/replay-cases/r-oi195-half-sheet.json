@@ -1,0 +1,59 @@
+{
+  "id": "r-oi195-half-sheet",
+  "finding": "Android の View で半分のシートの裏の行への tap(scroll: .down) が、探索の送りでシートを全開にした後、同じ枠に並んだキューの行(押せる申告付き・手前)を覆いと見ず(最前面の判定が同じ枠の相手を外す)容器 #list_queue を名指して中心を撃ち、キューの行を押して ✅(OI-195 ①・12/12。直し = coveredTouch が塗り順のある木で同じ枠の押せる覆いを拾う)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.android"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_player' scroll: .down; tap '#txt_mini_title'"
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "ft_batch の tap(DSL と同じ実行機)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#row_main_10' scroll: .down"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "reject": [
+        "player=queue:"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}
