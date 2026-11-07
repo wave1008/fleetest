@@ -309,6 +309,7 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 
 73a31d8b と 0316a138 のフル回帰で、E2EY-CMP の「大半まで払うと削除まで走る」が1回赤。単独の 144 本で再現しない。Emulator の白紙は OI-127。回帰の負荷でだけ出るかは未測定。
 - 11/7: 7125741e の E2EY の回帰(M1Max)で E2EY-RN の Android の「行を払ってボタンや返信を出せること.S0030」が1回赤(`swipeBy "#sw_row_3" (-0.9, 0.0)` が ✅ のあと結果の欄が出ない。同じステップに「戻るの帯(SystemUI の dumpsys)を読めなかった」の注記)。単独の `--broadcast` 3周で 12/12 緑
+- 11/7: 043600661 の最後の回帰で E2E-Flutter の Android の「画像で要素を探す」が赤(S0030 は絵が一色のまま 15.5 秒)。手元の8台で回し直すと 2/24・4/24 が赤(S0040 の `existImage("[Diagnostics Nav]", threshold: 0.03, scroll: .down).idIs("nav_diagnostics")` が `nav_selector` を返す 4 件・`existImage("[Checkbox]")` が距離 0.369 で見つからない 1 件・一色 1 件)。結果 JSON の Android の S0040 は 10/24〜11/6 で約 110 本中 3 本・11/7 は 14 本中 5 本が赤 = 率が上がった兆し。今日の変更で `clickable` を読むのは覆い・見出しの判定だけで、Flutter の Android は塗り順が本物でなく走らない(画像の一致と要素への写し方は触っていない)。v129 の前の版での対照は、台に入った v129 のブリッジに古いホストが繋がれず取れなかった = 帰属は未確定
 
 ### OI-132 Flutter の iOS で別の欄へ打った後、キーボードの裏へ送られた欄が木から消えて `type` が赤
 - 状態: 再現済み
