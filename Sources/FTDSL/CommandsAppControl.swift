@@ -1328,6 +1328,15 @@ extension FTDriveCore {
         if let alive = appAliveProbe, let answer = await alive(appBundleID) { return answer == false }
         return executor.primaryCaptureOmitsSystemUI && appStoppedByScenario
     }
+
+    /// inapp-boost モードの XCUITest 側のドライバ(`AppAttachDriver`)が activate の前に聞く断り文(nil = 撃ってよい)。
+    /// back() と同じ判定(このシナリオが止めた後・今も居ない)。照会は止めた後だけ撃つ
+    public func revivalRefusal() async -> String? {
+        guard platform == "ios", appUnderTestLife == .stoppedByScenario, await appKnownGoneAfterScenarioStopped() else { return nil }
+        return "The app under test (\(appBundleID)) is not running — this scenario stopped it — so this step was not sent:"
+            + " it would start the app without the in-app bridge, and every later step would fail. "
+            + StoppedAppAdvice.startAgain(afterStopping: executor.appUnderTestStoppedCommand)
+    }
 }
 
 struct AppNotRunningRefusal: LocalizedError, StepFailureKindProviding {

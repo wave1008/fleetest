@@ -25,25 +25,22 @@ public final class AppAttachDriver: AppDriver {
     /// host: 主ドライバと同じ宛先(SystemUIDriver.init と同じ理由で既定を置かない)。
     /// physicalUDID: 実機なら渡すこと(SystemUIDriver.init と同じ理由で既定を置かない ——
     /// usb トンネルは host だけでは実機と判別できず token を取り逃す)
-    /// appRunning: activate の前にアプリが動いているかを聞く口(`activateRunningApp`。Simulator は launchctl)。nil = 聞かない
-    /// (実機・ライブ操作 = これまでどおり activate する)。答えの nil = 答えられない = activate する
-    public init(port: UInt16, host: String, bundleID: String, physicalUDID: String?,
-                appRunning: (@Sendable (String) -> Bool?)?) {
+    public init(port: UInt16, host: String, bundleID: String, physicalUDID: String?) {
         self.client = BridgeClient(port: port, host: host, physicalUDID: physicalUDID)
         self.bundleID = bundleID
-        self.appRunning = appRunning
     }
-    private let appRunning: (@Sendable (String) -> Bool?)?
 
-    /// **動いていない対象アプリを activate で起こさない**。XCUITest の activate は止まったアプリを起動するが、そのアプリには
+    /// activate の前に聞く「起こしてはいけないか」(断り文。nil = 撃ってよい)。**判定と文言は呼び手が持つ**(シナリオ実行 =
+    /// FTDriveCore の `revivalRefusal()`。back / tapAppIcon と同じ「このシナリオが止めた後」の判定の1箇所)。設定されていない
+    /// (ライブ操作・MCP)ならこれまでどおり activate する
+    public let revivalRefusal = LockedValue<(@Sendable () async -> String?)?>(nil)
+
+    /// **このシナリオが止めた対象アプリを activate で起こさない**。XCUITest の activate は止まったアプリを起動するが、そのアプリには
     /// in-app ブリッジが載らない(注入は InAppLauncher の起動だけ)ので、操作は ✅ のまま後続が全部届かず、run はそれを
-    /// ブリッジ不達として振り直した(`terminateApp()` → `rotateTo()` が M1Ultra 6/6。プロセスは居るのに答えない)。
-    /// 生死を答えられない(実機・照会の失敗)ときはこれまでどおり activate する
+    /// ブリッジ不達として振り直した(`terminateApp()` → `rotateTo()` が M1Ultra 6/6。プロセスは居るのに答えない)
     private func activateRunningApp() async throws {
-        if let appRunning {
-            let bundle = bundleID
-            let running = await Task.detached { appRunning(bundle) }.value
-            if running == false { throw AppNotRunningForAttach(bundleID: bundle) }
+        if let gate = revivalRefusal.withLock({ $0 }), let message = await gate() {
+            throw AppNotRunningForAttach(message: message)
         }
         try await client.activate(bundleID: bundleID)
     }
@@ -411,12 +408,9 @@ public final class AppAttachDriver: AppDriver {
     }
 }
 
-/// 動いていない対象アプリへの操作を、起こさずに断った(`AppAttachDriver.activateRunningApp`)。失敗の経路は言える
-/// (止めたのがこのシナリオかは分からない = 起きていない事実だけ)ので種別は付けない
-public struct AppNotRunningForAttach: LocalizedError {
-    public let bundleID: String
-    public var errorDescription: String? {
-        "The app under test (\(bundleID)) is not running, so this step was not sent: it would start the app without"
-            + " the in-app bridge, and every later step would fail. Start it first (DSL: launchApp / MCP: ft_launch)"
-    }
+/// このシナリオが止めた対象アプリへの操作を、起こさずに断った(`AppAttachDriver.activateRunningApp`。文言は呼び手の断り文)
+public struct AppNotRunningForAttach: LocalizedError, StepFailureKindProviding {
+    public let message: String
+    public var errorDescription: String? { message }
+    public var stepFailureKind: StepFailureKind? { .appStoppedBySession }
 }

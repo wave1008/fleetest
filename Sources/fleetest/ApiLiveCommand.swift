@@ -582,9 +582,7 @@ struct ApiLiveServe: AsyncParsableCommand {
         // attach は**同じインスタンス**を委譲とフォールバックの両方に使う(MCP と同じ理由:
         // activate/attached 状態を1本にしないと余計な activate が挟まる)
         let attach = AppAttachDriver(port: resolution.endpoint.port, host: resolution.endpoint.host,
-                                     bundleID: inApp.bundleID, physicalUDID: physical ? udid : nil,
-                                     // ライブ操作は人が画面を見て触る経路 = これまでどおり activate する(生死を聞かない)
-                                     appRunning: nil)
+                                     bundleID: inApp.bundleID, physicalUDID: physical ? udid : nil)
         ConsoleOut.err("[live serve] own app \(inApp.bundleID) is driven in-app (DOM);"
                        + " other apps and home/appSwitcher go through XCUITest (port \(resolution.endpoint.port))")
         // **合成は HybridDriverComposition の1箇所**(MCP の ft_* と同じ形。二つ目の実装を書かない)

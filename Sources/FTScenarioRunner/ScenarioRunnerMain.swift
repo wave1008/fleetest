@@ -357,6 +357,8 @@ struct RunScenario: AsyncParsableCommand {
         // typeDriver は常に渡す(409 安全網)。preferTypeDriver は probe の uiFramework 検出時のみ
         // (probe 不達なら false のまま=安全網頼み)。
         var typeDriver: AppDriver?
+        // inapp-boost の XCUITest 側のドライバ。core を作った後で「止めたアプリを起こさない」断りの口を渡す(AppAttachDriver.revivalRefusal)
+        var revivalGatedAttach: AppAttachDriver?
         var preferTypeDriver = false
         // Compose は合成タッチで時間・移動を伴うジェスチャ(swipe/press)を駆動できない
         // (tap/type は通る。実験で確定済み)。probe の uiFramework=="compose" 検出時のみ true
@@ -429,9 +431,8 @@ struct RunScenario: AsyncParsableCommand {
                         primaryCaptureOmitsSystemUI = true
                         let attach = AppAttachDriver(port: xcuiPort, host: xcuiHost,
                                                      bundleID: appBundleID,
-                                                     physicalUDID: physical ? udid : nil,
-                                                     appRunning: physical ? nil : udid.map { u in
-                                                         { SimulatorAppProcess.isRunning(udid: u, bundleID: $0) } })
+                                                     physicalUDID: physical ? udid : nil)
+                        revivalGatedAttach = attach
                         typeDriver = attach
                         // WebView 画面だけドライバごと XCUITest へ委譲する(in-app は WKWebView の
                         // 中身を原理的に採れない)。attach は typeDriver と**同じインスタンス**を
@@ -630,6 +631,11 @@ struct RunScenario: AsyncParsableCommand {
                                screenStateDirectory: (try? RepoRoot.find())?.appendingPathComponent(".fleetest"),
                                uiFramework: uiFrameworkHint,
                                emit: emit)
+        if let revivalGatedAttach {
+            // core は非 Sendable。断りの口はドライバの呼び出し(FTSync の上)から読むだけで、判定は stateLock と注入済みの照会を通す
+            let gate = UncheckedTransfer(core)
+            revivalGatedAttach.revivalRefusal.withLock { $0 = { await gate.value.revivalRefusal() } }
+        }
         // **defer で構造的に保証する**(手続きの末尾で1回呼ぶ手書きの並びに頼らない): この後
         // `core` が生きている間のどの経路で `run()` を抜けても(シナリオ失敗の
         // `throw ExitCode(1)`・将来 core 生成後に足される try 呼び出し等)必ず1回実行される。

@@ -115,24 +115,31 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: { _ in false })
+                                     bundleID: "com.example.target", physicalUDID: nil)
+        driver.revivalRefusal.withLock { $0 = { "stopped" } }
 
-        do {
-            try await driver.swipe(.up)
-            XCTFail("動いていないアプリへの操作は断るはず")
-        } catch is AppNotRunningForAttach {}
+        for operation in [{ try await driver.swipe(.up) },
+                          { _ = try await driver.rotate(to: .landscape) }] as [() async throws -> Void] {
+            do {
+                try await operation()
+                XCTFail("止めたアプリへの操作は断るはず")
+            } catch let error as AppNotRunningForAttach {
+                XCTAssertEqual(error.stepFailureKind, .appStoppedBySession)
+            }
+        }
         XCTAssertEqual(stub.paths, [], "activate(/session)も操作も撃たない: \(stub.paths)")
     }
 
-    /// 動いている・答えられない(nil)ときはこれまでどおり activate してから撃つ
-    func testActivatesWhenTheAppIsRunningOrUnknown() async throws {
-        for answer in [true, nil] as [Bool?] {
+    /// 断り文が無い(nil)・口が無い(ライブ操作)ときはこれまでどおり activate してから撃つ
+    func testActivatesWhenTheGateLetsItThroughOrIsAbsent() async throws {
+        for gate in [{ nil }, nil] as [(@Sendable () async -> String?)?] {
             let stub = try RecordingStubServer()
             defer { stub.stop() }
             let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                         bundleID: "com.example.target", physicalUDID: nil, appRunning: { _ in answer })
+                                         bundleID: "com.example.target", physicalUDID: nil)
+            driver.revivalRefusal.withLock { $0 = gate }
             try await driver.swipe(.up)
-            XCTAssertEqual(stub.paths, ["POST /session", "POST /swipe"], "answer=\(String(describing: answer))")
+            XCTAssertEqual(stub.paths, ["POST /session", "POST /swipe"])
         }
     }
 
@@ -142,7 +149,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
 
         try await driver.swipe(.up)
 
@@ -159,7 +166,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"hittable":false}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                     bundleID: "com.example.target", physicalUDID: nil)
 
         let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
                                                               frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
@@ -176,7 +183,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ready":true,"device":"d","osVersion":"27.2","sessionBundleID":"com.example.target","ok":true,"hittable":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                     bundleID: "com.example.target", physicalUDID: nil)
 
         let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
                                                               frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
@@ -191,7 +198,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
 
         try await driver.swipe(.up)
         try await driver.swipe(.down)
@@ -207,7 +214,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
 
         _ = try? await driver.snapshot()
         try await driver.swipe(.up)
@@ -224,7 +231,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
 
         _ = try? await driver.snapshotWithoutReactivating(bypassingCache: false)
 
@@ -240,7 +247,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
             let stub = try RecordingStubServer()
             defer { stub.stop() }
             let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                          bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                          bundleID: "com.example.target", physicalUDID: nil)
             try await driver.swipe(.up)
             // OKResponse と StatusResponse の両方として読める本文(/status だけが sessionBundleID を使う)
             stub.setBody(#"{"ok":true,"ready":true,"device":"d","osVersion":"o","sessionBundleID":"\#(session)"}"#)
@@ -260,7 +267,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
         let flip = Task {
             try? await Task.sleep(for: .milliseconds(400))
             stub.setBody(#"{"ok":true,"foreground":false}"#)
@@ -284,7 +291,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil)
         driver.homeLeaveWindow = 0.2
         do {
             try await driver.home()
@@ -300,7 +307,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
     func testHomeDefaultsArePinned() {
         XCTAssertEqual(AppAttachDriver.homeAttempts, 3)
         XCTAssertEqual(AppAttachDriver.homeLeaveSeconds, 2.0)
-        let driver = AppAttachDriver(port: 1, host: BridgeEndpoint.loopbackHost, bundleID: "x", physicalUDID: nil, appRunning: nil)
+        let driver = AppAttachDriver(port: 1, host: BridgeEndpoint.loopbackHost, bundleID: "x", physicalUDID: nil)
         XCTAssertEqual(driver.homeLeaveWindow, 2.0)
     }
 }

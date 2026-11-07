@@ -134,6 +134,21 @@ final class StoppedAppRelaunchTests: XCTestCase {
         XCTAssertEqual(springBoard.tappedRefs, [7])
     }
 
+    /// XCUITest 側のドライバの断りの口(`revivalRefusal`)は、このシナリオが止めた後で今も居ないときだけ文を返し、止める前は照会しない
+    func testRevivalRefusalOnlyAfterTheScenarioStoppedTheApp() {
+        let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())
+        let core = makeCore(primary: primary, xcui: xcui, springBoard: springBoard, alive: false, probe: probe)
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        scenario { scene(1, "s") { action { launchApp() } } }
+        let before = FTSync.run({ await core.revivalRefusal() }) ?? nil
+        XCTAssertNil(before)
+        XCTAssertEqual(probe.calls, 0)
+        scenario { scene(1, "s") { action { terminateApp() } } }
+        let after = FTSync.run({ await core.revivalRefusal() }) ?? nil
+        XCTAssertNotNil(after)
+    }
+
     /// processGone を記録してよいのは「このシナリオが対象アプリを起こし、その後止めていない」ときだけ。
     /// 止めた後にアプリを起こさないステップ(home 等)が通っても、止めた印は残る(起こしうる操作だけが解く)
     func testProcessGoneMayBeRecordedOnlyWhileTheLaunchedAppWasNotStopped() {
