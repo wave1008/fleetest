@@ -1309,11 +1309,11 @@ public func procedure(_ title: String,
 /// 「this session stopped it」の赤 = 25周目 iultra F2・6/6)。人は動いていないアプリへ「戻る」ことはできない。
 /// 生死を答えられない(実機)・別のアプリを最後に起こした(そのアプリの上の back)ときは断らない
 /// **照会(simctl の launchctl。1回 0.1〜0.3 秒)はこのシナリオが止めた後だけ撃つ**(`appUnderTestLife`。back のたびに払わない)
-func notRunningAppBackRefusal(core: FTDriveCore) async -> AppNotRunningRefusal? {
+func notRunningAppBackRefusal(core: FTDriveCore) async -> StoppedAppRefusal? {
     guard core.platform == "ios", core.appUnderTestLife == .stoppedByScenario,
           core.executor.lastLaunchedAppBundleID == core.appBundleID,
           await core.appKnownGoneAfterScenarioStopped() else { return nil }
-    return AppNotRunningRefusal(
+    return StoppedAppRefusal(
         message: "back: the app under test (\(core.appBundleID)) is not running — this scenario stopped it — so nothing was"
             + " sent. back() would start it, and a person cannot go back into an app that is not running. "
             + StoppedAppAdvice.startAgain(afterStopping: core.executor.appUnderTestStoppedCommand))
@@ -1330,19 +1330,22 @@ extension FTDriveCore {
     }
 
     /// inapp-boost モードの XCUITest 側のドライバ(`AppAttachDriver`)が activate の前に聞く断り文(nil = 撃ってよい)。
-    /// back() と同じ判定(このシナリオが止めた後・今も居ない)。照会は止めた後だけ撃つ
+    /// 判定は back() と同じ「このシナリオが止めた後・今も居ない」(`appKnownGoneAfterScenarioStopped`)。**back() と違い、最後に
+    /// 別のアプリを起こした後も断る**(back は別のアプリの上の戻るとして正当だが、activate は必ず対象アプリを起こす)。
+    /// 照会は止めた後だけ撃ち、居ると答えたら起動済みへ戻す(DSL の知らない起動 = openURL の注入付きの起こし直し等の後に
+    /// activate のたびに照会を払い続けない)
     public func revivalRefusal() async -> String? {
-        guard platform == "ios", appUnderTestLife == .stoppedByScenario, await appKnownGoneAfterScenarioStopped() else { return nil }
+        guard platform == "ios", appUnderTestLife == .stoppedByScenario else { return nil }
+        // 照会は1回だけ(答えたらその答え。答えられないときだけ appKnownGoneAfterScenarioStopped の根拠 = 照会は再び撃たない)
+        if let alive = appAliveProbe, let running = await alive(appBundleID) {
+            if running { noteAppUnderTestFoundRunning(); return nil }
+        } else if await !appKnownGoneAfterScenarioStopped() {
+            return nil
+        }
         return "The app under test (\(appBundleID)) is not running — this scenario stopped it — so this step was not sent:"
             + " it would start the app without the in-app bridge, and every later step would fail. "
             + StoppedAppAdvice.startAgain(afterStopping: executor.appUnderTestStoppedCommand)
     }
-}
-
-struct AppNotRunningRefusal: LocalizedError, StepFailureKindProviding {
-    let message: String
-    var errorDescription: String? { message }
-    var stepFailureKind: StepFailureKind? { .appStoppedBySession }
 }
 
 /// 撃つ前の門(StepExecutor.appLeftRefusal)の断りを、失敗の種別付きで投げる(performCustom の失敗の種別はエラーの型から採る)

@@ -40,7 +40,7 @@ public final class AppAttachDriver: AppDriver {
     /// ブリッジ不達として振り直した(`terminateApp()` → `rotateTo()` が M1Ultra 6/6。プロセスは居るのに答えない)
     private func activateRunningApp() async throws {
         if let gate = revivalRefusal.withLock({ $0 }), let message = await gate() {
-            throw AppNotRunningForAttach(message: message)
+            throw StoppedAppRefusal(message: message)
         }
         try await client.activate(bundleID: bundleID)
     }
@@ -406,11 +406,4 @@ public final class AppAttachDriver: AppDriver {
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await client.backGestureEdgeWidths()
     }
-}
-
-/// このシナリオが止めた対象アプリへの操作を、起こさずに断った(`AppAttachDriver.activateRunningApp`。文言は呼び手の断り文)
-public struct AppNotRunningForAttach: LocalizedError, StepFailureKindProviding {
-    public let message: String
-    public var errorDescription: String? { message }
-    public var stepFailureKind: StepFailureKind? { .appStoppedBySession }
 }

@@ -1678,6 +1678,10 @@ public final class FTDriveCore {
     public enum AppUnderTestLife: Sendable { case notLaunched, launched, stoppedByScenario }
     private var _appUnderTestLife = AppUnderTestLife.notLaunched
     public var appUnderTestLife: AppUnderTestLife { withState { _appUnderTestLife } }
+    /// 止めた後に照会が「居る」と答えた(DSL の知らない起動 = openURL の注入付きの起こし直し等)。起動済みへ戻す
+    func noteAppUnderTestFoundRunning() {
+        withState { if _appUnderTestLife == .stoppedByScenario { _appUnderTestLife = .launched } }
+    }
     /// 起動の手(launchApp / restartApp / tapAppIcon)が対象アプリを起こした。DSL スレッドから呼ぶ
     func noteAppUnderTestStarted() {
         appLaunchedInThisProcess = true

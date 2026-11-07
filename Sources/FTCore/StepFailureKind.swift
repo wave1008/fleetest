@@ -63,3 +63,12 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
 public protocol StepFailureKindProviding {
     var stepFailureKind: StepFailureKind? { get }
 }
+
+/// このシナリオが止めた対象アプリへの手を、起こさずに断った(DSL の back() と、inapp-boost の XCUITest 側のドライバ
+/// `AppAttachDriver` の activate の両方がこれを投げる。断り文は呼び手 = `FTDriveCore.revivalRefusal()` 等が作る)
+public struct StoppedAppRefusal: LocalizedError, StepFailureKindProviding {
+    public let message: String
+    public init(message: String) { self.message = message }
+    public var errorDescription: String? { message }
+    public var stepFailureKind: StepFailureKind? { .appStoppedBySession }
+}

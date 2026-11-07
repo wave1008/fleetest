@@ -632,9 +632,11 @@ struct RunScenario: AsyncParsableCommand {
                                uiFramework: uiFrameworkHint,
                                emit: emit)
         if let revivalGatedAttach {
-            // core は非 Sendable。断りの口はドライバの呼び出し(FTSync の上)から読むだけで、判定は stateLock と注入済みの照会を通す
-            let gate = UncheckedTransfer(core)
-            revivalGatedAttach.revivalRefusal.withLock { $0 = { await gate.value.revivalRefusal() } }
+            // core は非 Sendable で、ドライバの鎖(core → driver → attach)を持つので弱く掴む(強く掴むと輪になる)。
+            // 断りの口はドライバの呼び出し(FTSync の上)から読むだけで、判定は stateLock と注入済みの照会を通す
+            final class WeakCore: @unchecked Sendable { weak var core: FTDriveCore?; init(_ c: FTDriveCore) { core = c } }
+            let gate = WeakCore(core)
+            revivalGatedAttach.revivalRefusal.withLock { $0 = { await gate.core?.revivalRefusal() } }
         }
         // **defer で構造的に保証する**(手続きの末尾で1回呼ぶ手書きの並びに頼らない): この後
         // `core` が生きている間のどの経路で `run()` を抜けても(シナリオ失敗の

@@ -123,7 +123,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
             do {
                 try await operation()
                 XCTFail("止めたアプリへの操作は断るはず")
-            } catch let error as AppNotRunningForAttach {
+            } catch let error as StoppedAppRefusal {
                 XCTAssertEqual(error.stepFailureKind, .appStoppedBySession)
             }
         }

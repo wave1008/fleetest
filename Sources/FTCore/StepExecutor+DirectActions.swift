@@ -1104,9 +1104,16 @@ extension StepExecutor {
         // inapp-boost モードの主ドライバの木に OS のバーは載らない(別の窓)ので、XCUITest の木で探して XCUITest で押す
         var done = accessoryDone ?? KeyboardAccessoryDone.target(in: before.elements, keyboard: keyboard)
         var doneDriver = driver
-        if done == nil, let td = typeDriver, let tree = try? await td.snapshot() {
-            done = KeyboardAccessoryDone.target(in: tree.elements, keyboard: tree.keyboardFrame ?? keyboard)
-            doneDriver = td
+        if done == nil, let td = typeDriver {
+            // 読めない木は探さない(try?)。ただし**止めたアプリを起こさずに断った**(StoppedAppRefusal)は握りつぶさずに返す
+            // (握ると「叩いても閉じなかった」の関係ない文で落ち、app-stopped-by-session の種別も失う)
+            do {
+                let tree = try await td.snapshot()
+                done = KeyboardAccessoryDone.target(in: tree.elements, keyboard: tree.keyboardFrame ?? keyboard)
+                doneDriver = td
+            } catch let refusal as StoppedAppRefusal {
+                throw refusal
+            } catch {}
         }
         if let done {
             let x = done.frame.centerX, y = done.frame.centerY
