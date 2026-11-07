@@ -109,13 +109,40 @@ final class RecordingStubServer: @unchecked Sendable {
 
 final class AppAttachDriverAttachTests: XCTestCase {
 
+    /// **動いていない対象アプリを activate で起こさない**(起こしたアプリには in-app ブリッジが載らず、操作は ✅ のまま後続が全部届かない =
+    /// `terminateApp()` → `rotateTo()` で観測)。断るときは /session を撃たず、操作も撃たない
+    func testDoesNotActivateAnAppThatIsNotRunning() async throws {
+        let stub = try RecordingStubServer()
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: { _ in false })
+
+        do {
+            try await driver.swipe(.up)
+            XCTFail("動いていないアプリへの操作は断るはず")
+        } catch is AppNotRunningForAttach {}
+        XCTAssertEqual(stub.paths, [], "activate(/session)も操作も撃たない: \(stub.paths)")
+    }
+
+    /// 動いている・答えられない(nil)ときはこれまでどおり activate してから撃つ
+    func testActivatesWhenTheAppIsRunningOrUnknown() async throws {
+        for answer in [true, nil] as [Bool?] {
+            let stub = try RecordingStubServer()
+            defer { stub.stop() }
+            let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                         bundleID: "com.example.target", physicalUDID: nil, appRunning: { _ in answer })
+            try await driver.swipe(.up)
+            XCTAssertEqual(stub.paths, ["POST /session", "POST /swipe"], "answer=\(String(describing: answer))")
+        }
+    }
+
     /// 最初の swipe の前に /session(activate)を打つこと。snapshot を経ないシナリオ
     /// (scrollTo が最初の操作)で、使い回しセッションが別アプリを指したまま撃たれるのを防ぐ
     func testFirstSwipeAttachesSessionFirst() async throws {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         try await driver.swipe(.up)
 
@@ -132,7 +159,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"hittable":false}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                     bundleID: "com.example.target", physicalUDID: nil)
+                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
                                                               frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
@@ -149,7 +176,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ready":true,"device":"d","osVersion":"27.2","sessionBundleID":"com.example.target","ok":true,"hittable":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                     bundleID: "com.example.target", physicalUDID: nil)
+                                     bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         let answer = await driver.hitTest(query: HitTestQuery(identifier: "row", label: nil, type: "button",
                                                               frame: FTRect(x: 0, y: 0, width: 10, height: 10)))
@@ -164,7 +191,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         try await driver.swipe(.up)
         try await driver.swipe(.down)
@@ -180,7 +207,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         _ = try? await driver.snapshot()
         try await driver.swipe(.up)
@@ -197,7 +224,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
 
         _ = try? await driver.snapshotWithoutReactivating(bypassingCache: false)
 
@@ -213,7 +240,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
             let stub = try RecordingStubServer()
             defer { stub.stop() }
             let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                          bundleID: "com.example.target", physicalUDID: nil)
+                                          bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
             try await driver.swipe(.up)
             // OKResponse と StatusResponse の両方として読める本文(/status だけが sessionBundleID を使う)
             stub.setBody(#"{"ok":true,"ready":true,"device":"d","osVersion":"o","sessionBundleID":"\#(session)"}"#)
@@ -233,7 +260,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
         let flip = Task {
             try? await Task.sleep(for: .milliseconds(400))
             stub.setBody(#"{"ok":true,"foreground":false}"#)
@@ -257,7 +284,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
         let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
         defer { stub.stop() }
         let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil)
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
         driver.homeLeaveWindow = 0.2
         do {
             try await driver.home()
@@ -273,7 +300,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
     func testHomeDefaultsArePinned() {
         XCTAssertEqual(AppAttachDriver.homeAttempts, 3)
         XCTAssertEqual(AppAttachDriver.homeLeaveSeconds, 2.0)
-        let driver = AppAttachDriver(port: 1, host: BridgeEndpoint.loopbackHost, bundleID: "x", physicalUDID: nil)
+        let driver = AppAttachDriver(port: 1, host: BridgeEndpoint.loopbackHost, bundleID: "x", physicalUDID: nil, appRunning: nil)
         XCTAssertEqual(driver.homeLeaveWindow, 2.0)
     }
 }

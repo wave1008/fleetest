@@ -389,7 +389,7 @@ final class HybridFallbackDriverTests: XCTestCase {
         let stub = try RecordingStubServer()
         defer { stub.stop() }
         let realAttach = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
-                                         bundleID: "com.example.target", physicalUDID: nil)
+                                         bundleID: "com.example.target", physicalUDID: nil, appRunning: nil)
         primary.errors["home"] = Self.notCapable
         driver = HybridFallbackDriver(primary: primary, fallback: realAttach)
 

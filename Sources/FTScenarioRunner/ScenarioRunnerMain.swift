@@ -429,7 +429,9 @@ struct RunScenario: AsyncParsableCommand {
                         primaryCaptureOmitsSystemUI = true
                         let attach = AppAttachDriver(port: xcuiPort, host: xcuiHost,
                                                      bundleID: appBundleID,
-                                                     physicalUDID: physical ? udid : nil)
+                                                     physicalUDID: physical ? udid : nil,
+                                                     appRunning: physical ? nil : udid.map { u in
+                                                         { SimulatorAppProcess.isRunning(udid: u, bundleID: $0) } })
                         typeDriver = attach
                         // WebView 画面だけドライバごと XCUITest へ委譲する(in-app は WKWebView の
                         // 中身を原理的に採れない)。attach は typeDriver と**同じインスタンス**を

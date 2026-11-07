@@ -25,9 +25,27 @@ public final class AppAttachDriver: AppDriver {
     /// host: 主ドライバと同じ宛先(SystemUIDriver.init と同じ理由で既定を置かない)。
     /// physicalUDID: 実機なら渡すこと(SystemUIDriver.init と同じ理由で既定を置かない ——
     /// usb トンネルは host だけでは実機と判別できず token を取り逃す)
-    public init(port: UInt16, host: String, bundleID: String, physicalUDID: String?) {
+    /// appRunning: activate の前にアプリが動いているかを聞く口(`activateRunningApp`。Simulator は launchctl)。nil = 聞かない
+    /// (実機・ライブ操作 = これまでどおり activate する)。答えの nil = 答えられない = activate する
+    public init(port: UInt16, host: String, bundleID: String, physicalUDID: String?,
+                appRunning: (@Sendable (String) -> Bool?)?) {
         self.client = BridgeClient(port: port, host: host, physicalUDID: physicalUDID)
         self.bundleID = bundleID
+        self.appRunning = appRunning
+    }
+    private let appRunning: (@Sendable (String) -> Bool?)?
+
+    /// **動いていない対象アプリを activate で起こさない**。XCUITest の activate は止まったアプリを起動するが、そのアプリには
+    /// in-app ブリッジが載らない(注入は InAppLauncher の起動だけ)ので、操作は ✅ のまま後続が全部届かず、run はそれを
+    /// ブリッジ不達として振り直した(`terminateApp()` → `rotateTo()` が M1Ultra 6/6。プロセスは居るのに答えない)。
+    /// 生死を答えられない(実機・照会の失敗)ときはこれまでどおり activate する
+    private func activateRunningApp() async throws {
+        if let appRunning {
+            let bundle = bundleID
+            let running = await Task.detached { appRunning(bundle) }.value
+            if running == false { throw AppNotRunningForAttach(bundleID: bundle) }
+        }
+        try await client.activate(bundleID: bundleID)
     }
 
     /// ref を使わない操作の前に呼ぶ。ref を使う操作からは呼ばない(直前 snapshot で
@@ -43,7 +61,7 @@ public final class AppAttachDriver: AppDriver {
                     timeout: BridgeLauncher.quickProbeTimeoutSeconds))?.sessionBundleID,
                   session != bundleID else { return }
         }
-        try await client.activate(bundleID: bundleID)
+        try await activateRunningApp()
         attached = true
     }
 
@@ -81,7 +99,7 @@ public final class AppAttachDriver: AppDriver {
     }
 
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
-        try await client.activate(bundleID: bundleID)
+        try await activateRunningApp()
         attached = true
         var response = try await client.snapshot(bypassingCache: bypassingCache)
         response.elements = SnapshotDedupe.wrapperScrollMerge(response.elements)
@@ -120,7 +138,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.type(ref: nil, text: text)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.type(ref: nil, text: text)
         }
     }
@@ -132,7 +150,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.pressEnter()
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.pressEnter()
         }
     }
@@ -151,7 +169,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.hideKeyboard()
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.hideKeyboard()
         }
     }
@@ -165,7 +183,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.clearInput(ref: nil)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.clearInput(ref: nil)
         }
     }
@@ -178,7 +196,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.back()
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.back()
         }
     }
@@ -204,7 +222,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.swipe(direction, intent: intent, path: path)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.swipe(direction, intent: intent, path: path)
         }
     }
@@ -218,7 +236,7 @@ public final class AppAttachDriver: AppDriver {
                                   pressSeconds: pressSeconds, durationSeconds: durationSeconds)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.drag(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
                                   pressSeconds: pressSeconds, durationSeconds: durationSeconds)
         }
@@ -234,7 +252,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.press(x: x, y: y, duration: duration)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.press(x: x, y: y, duration: duration)
         }
     }
@@ -248,7 +266,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.hold(x: x, y: y, duration: duration)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.hold(x: x, y: y, duration: duration)
         }
     }
@@ -261,7 +279,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.doubleTap(x: x, y: y)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.doubleTap(x: x, y: y)
         }
     }
@@ -274,7 +292,7 @@ public final class AppAttachDriver: AppDriver {
                                    durationSeconds: durationSeconds)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.pinch(frame: frame, identifier: identifier, scale: scale,
                                    durationSeconds: durationSeconds)
         }
@@ -287,7 +305,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.gesture(request)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             try await client.gesture(request)
         }
     }
@@ -299,7 +317,7 @@ public final class AppAttachDriver: AppDriver {
             return try await client.rotate(to: orientation)
         } catch {
             guard Self.isRecoverableSession(error) else { throw error }
-            try await client.activate(bundleID: bundleID)
+            try await activateRunningApp()
             return try await client.rotate(to: orientation)
         }
     }
@@ -390,5 +408,15 @@ public final class AppAttachDriver: AppDriver {
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await client.tapProbe(x: x, y: y) }
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await client.backGestureEdgeWidths()
+    }
+}
+
+/// 動いていない対象アプリへの操作を、起こさずに断った(`AppAttachDriver.activateRunningApp`)。失敗の経路は言える
+/// (止めたのがこのシナリオかは分からない = 起きていない事実だけ)ので種別は付けない
+public struct AppNotRunningForAttach: LocalizedError {
+    public let bundleID: String
+    public var errorDescription: String? {
+        "The app under test (\(bundleID)) is not running, so this step was not sent: it would start the app without"
+            + " the in-app bridge, and every later step would fail. Start it first (DSL: launchApp / MCP: ft_launch)"
     }
 }

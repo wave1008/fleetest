@@ -129,7 +129,7 @@ final class WaitForSettleWireTests: XCTestCase {
         let driver = HybridFallbackDriver(
             primary: client(primaryStub),
             fallback: AppAttachDriver(port: fallbackStub.port, host: BridgeEndpoint.loopbackHost,
-                                      bundleID: "com.example.target", physicalUDID: nil))
+                                      bundleID: "com.example.target", physicalUDID: nil, appRunning: nil))
 
         let response = try await driver.waitForSettle(Self.request, timeoutSeconds: 10)
 
@@ -148,7 +148,7 @@ final class WaitForSettleWireTests: XCTestCase {
         let driver = WebViewDelegatingDriver(
             primary: client(primaryStub),
             delegated: AppAttachDriver(port: delegatedStub.port, host: BridgeEndpoint.loopbackHost,
-                                       bundleID: "com.example.target", physicalUDID: nil))
+                                       bundleID: "com.example.target", physicalUDID: nil, appRunning: nil))
 
         let response = try await driver.waitForSettle(Self.request, timeoutSeconds: 10)
 
@@ -163,7 +163,7 @@ final class WaitForSettleWireTests: XCTestCase {
         let wrappers: [(String, (RecordingStubServer) -> AppDriver)] = [
             ("SystemUIDriver", { SystemUIDriver(port: $0.port, host: BridgeEndpoint.loopbackHost, physicalUDID: nil) }),
             ("AppAttachDriver", { AppAttachDriver(port: $0.port, host: BridgeEndpoint.loopbackHost,
-                                                  bundleID: "com.example.target", physicalUDID: nil) }),
+                                                  bundleID: "com.example.target", physicalUDID: nil, appRunning: nil) }),
             ("SessionRecoveryDriver", { SessionRecoveryDriver(base: self.client($0)) }),
             ("LaunchPreflightDriver", { LaunchPreflightDriver(base: self.client($0), udid: "no-such-udid") }),
             ("FastLaunchDriver", { FastLaunchDriver(base: self.client($0), udid: "no-such-udid") }),
