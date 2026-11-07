@@ -541,7 +541,7 @@ tap・長押し・`doubleTap`・ドラッグの始点は撃たずに失敗し、
 
 | コマンド | 説明 |
 |---|---|
-| `exist(sel, requireVisible:waitSeconds:scroll:maxSwipes:)` | 存在検証。テキストの可視性検証を有効にした run(実行プロファイル `fmTextVisibilityCheck`(FM の段)か `ocrTextVisibilityCheck`(OCR の段)が true)では**実際に見えていること**も確認する(幾何 → OCR / FM の視覚照合。§共通の引数 `requireVisible`)。戻り値にチェーン可(後述) |
+| `exist(sel, requireVisible:waitSeconds:scroll:maxSwipes:)` | 存在検証。テキストの可視性検証を有効にした run(実行プロファイル `fmTextVisibilityCheck`(FM の段)か `ocrTextVisibilityCheck`(OCR の段)が true)では**実際に見えていること**も確認する(幾何 → OCR / FM の視覚照合。§共通の引数 `requireVisible`)。塗り順が本物の木(iOS の in-app の UIKit・RN、Android の View・RN)で、同じ要素への `tap` なら撃つ前に断る覆いの下にある(手前の押せる要素に覆われて露出が床に届かない)ときは、合否を変えずに注記 `covered-by-front-element` を残す(新しい検知なので警告から)。戻り値にチェーン可(後述) |
 | `waitForDisplay(sel, waitSeconds: 15)` | 要素が表示されるまで待つ(**スクロールしない**)。戻り値は `FTElement`(`exist` と同様チェーン可)。見つからなければ失敗しシナリオ中断。**判定は `exist` と同じ可視性込み**(コマンド名 displayed の意味に沿わせている)で、**`exist` の `requireVisible: false` に当たる逃げ道は無い** — 覆われ検出を外したいなら `exist(sel, requireVisible: false, waitSeconds: 15)` を使う |
 | `waitForClose(sel, waitSeconds: 15)` | 要素が消えるまで待つ(**スクロールしない**)。`sel` は省略不可(`lastElement` はあるが、待ち対象がソース上で読めなくなるため引数は必須のまま) |
 | `waitForSettle(sel?, quietSeconds:, throwsException: true, waitSeconds: 15)` | **画面(`sel` を渡せばその要素の枠)の画素が `quietSeconds` のあいだ1つも変わらなくなる**まで待ち、続けてアクセシビリティの木が追いつくまで待ってから返る。戻り値は `Bool`(`@discardableResult`。`if` の条件に使える)。`findImage` / `imageIs` / OCR を使うテキストの可視性検証・画素単位の操作・レポート用のスクリーンショットの**直前**に、スクロールやフリックの慣性が完全に止まるのを待つために使う。**明示したときだけ待つ** —— 通常の操作はこの待ちをしない。範囲は常に各辺 10% を除いて比べる。引数・失敗文言・モード・ブリッジごとの経路は下記「`waitForSettle`」 |
