@@ -462,6 +462,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| Android v129 | ブリッジが押せるノードに `clickable` を載せる(setOnClickListener を付けた TextView は `staticText` に写る)。塗り順のある Android の View・RN で、この申告のある覆いの下への触る操作は覆いが押せる型でなくても撃つ前に断る(シートの裏の行への tap が手前のキューの行を押して ✅ だった)。iOS は送らない(型が役割を語る) |
 | iOS v278 | in-app ブリッジが `accessibilityViewIsModal` で木から外した兄弟の数と旗付きの view の枠を `SnapshotResponse.modalScope` で申告する。解決できない失敗文はキーボードでなくモーダルを名指し、閉じる tap を撃たない(FD-2.1) |
 | iOS v277 | `/home` の対象アプリを要求の入口で消す(`handleHome` の `defer` で消していたため、出た後に組む 422 の名指しが読めずアプリ自身のアラートを「system alert」と言っていた) |
 | iOS v276・Android v126 | iOS: in-app ブリッジの `/hidekeyboard` が RN の焦点の欄(`RCTUITextField` / `RCTUITextView`)を resign で閉じる(FD-2.5)/ 手前の窓に覆われて落とした要素の数と枠を `SnapshotResponse.coveredByFrontWindow` で申告し、失敗文がその窓を名指す(FD-1.3)。Android: 入力接続の閉じた欄への `pressEnter` を `no-input-focus` で断る・押せるだけの要素への ref 付き `type` を焦点の接続へ打つ(FD-2.4) |
