@@ -91,8 +91,9 @@ FLEETEST_REF=feat/my-branch bash ../fleetest-mobile/Scripts/install.sh --work-di
 **公開済みのタグを別のコミットへ付け直さない**(履歴の書き換えを含む)。0.14.1 以前の install.sh はタグ取得に
 `--force` を持たず、付け直されたタグで fetch が would clobber で拒否され、それを「オフライン」と扱って古い版に
 留まる(2026-11-09 に受け手から報告。0.15.0 で `--force` を入れたが、更新は**手元の古い** install.sh が走るので
-古い受け手には届かない)。それらの受け手の復旧は手作業だけ:
-`git -C <クローン> fetch --tags --force origin` の後に `Scripts/update.sh --work-dir <作業フォルダ>`。
+古い受け手には届かない)。2026-11-09 に付け直した 0.1.0〜0.14.1 を上流から消した(上流に無いタグは食い違わないので、
+古い install.sh の `fetch --tags` も通り最新へ移れる)。上流に残るのは 0.15.0 以降。**手元に残る旧タグを `git push --tags` で
+戻さない**(release.sh は1本ずつ push する)。
 
 ## リポジトリの引っ越し(owner / repo 名を変える)
 
