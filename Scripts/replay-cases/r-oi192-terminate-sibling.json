@@ -1,0 +1,103 @@
+{
+  "id": "r-oi192-terminate-sibling",
+  "finding": "MCP で ft_terminate で起こしたアプリ(e2ey.rn)を止めた後、前面に出た同じ契約の別のアプリ(e2ey.android)の反転チャットへ ft_batch の type / tap が注記なしで撃って ok(34周目 alocal F3 2/2・同じ状態の ft_scroll_to は別のアプリを 46 秒払う。OI-192 ①。原因 = ft_terminate が起動の記憶を消すので AppProcessGone の門が付かない。ft_clear_app_data は記憶を残して止めた印を立てる)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [],
+  "reset": [
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.rn"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.android"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.android"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_chat'; select '#field_chat' waitSeconds: 5"
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_chat'; select '#field_chat' waitSeconds: 5"
+      }
+    ],
+    [
+      "ft_terminate",
+      {}
+    ],
+    [
+      "$wait",
+      {
+        "seconds": 1.0
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "ft_batch の type / tap(所見の手順)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "type '#field_chat' 'q'; tap '#btn_send'"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "reject": [
+        "count=61"
+      ]
+    },
+    {
+      "name": "ft_scroll_to(同じ状態の探索)",
+      "steps": [
+        [
+          "ft_scroll_to",
+          {
+            "selector": "#msg_10",
+            "direction": "up"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyExpect": [
+        "is not running"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

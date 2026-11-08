@@ -101,11 +101,12 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 要測定
-- 運用: ①要注意 — MCP で `ft_terminate` の後は、続く操作の前に `ft_launch` で起こし直す(同じ id を持つ別のアプリが前面に出ていると、そこへ撃って ok になる) ②〜④合否に響かない
-- 優先度: 中 — ①MCP の誤った成功(既定の経路ではない)
+- 運用: ②〜④合否に響かない
+- 優先度: 低 — 文言だけで合否は正しい
 
-11/7 の34周目の探索(20分・`_work/explore-20261107e/findings-*.md`)で観測し、直さなかったもの。①MCP で `ft_terminate` で起こしたアプリを止めた後の `ft_batch` の `type "#field_chat"` / `tap "#btn_send"` が、前面に出た同じ契約の別のアプリ(com.ftester.e2ey.android)へ注記なしで撃って ok(alocal F3・2/2。dumpsys の mCurrentFocus と木で別のアプリに2通入ったことを確認)。同じ状態の `ft_scroll_to` も別のアプリを 46 秒払い、前面が起こしたアプリでないことを言わない(1/1)。docs/commands.md の tap の節は「起動したアプリのプロセスが居ないのに木の持ち主が別のアプリなら撃たずに失敗(AppProcessGone。MCP の ft_batch / ft_scroll_to も同じ)」と書く。`ft_terminate` で止めた形が門から外れる理由は未確認 ②Android で `terminateApp()` / `clearAppData()` の後のセレクタ無しの `type` が撃つ前に断らず、2 秒待って TextInputLayout の案内で赤(amax F1・4/4。止めたアプリには従えない) ③Android で `terminateApp()` の後の `rotateTo` が撃ってから 422 で「前面のアプリが回転を拒む」と言い、止めたことを言わない(amax F4・4/4) ④端に着いて何も動かなかった探索(反転チャットの最下端から下へ・RN と SwiftUI)の見つからない失敗が「withScrollDown(scrollFrame: "#list_chat") { } で包め」と勧めるが、従っても同じく赤(im4 F1・RN 3/3・SwiftUI 2/2。`StepExecutor+ScrollSearch.swift` の scrollFrameHint は全画面の払いが候補の容器の中から撃たれたかを見ていない = 出し分けるには払いの始点と候補の容器の枠が要る)
-- 11/7: ①は門の条件を MCP の `ft_terminate` の経路で測ってから直す(MN-108)。②〜④は文言だけで合否は正しい
+11/7 の34周目の探索(20分・`_work/explore-20261107e/findings-*.md`)で観測し、直さなかったもの。②Android で `terminateApp()` / `clearAppData()` の後のセレクタ無しの `type` が撃つ前に断らず、2 秒待って TextInputLayout の案内で赤(amax F1・4/4。止めたアプリには従えない) ③Android で `terminateApp()` の後の `rotateTo` が撃ってから 422 で「前面のアプリが回転を拒む」と言い、止めたことを言わない(amax F4・4/4) ④端に着いて何も動かなかった探索(反転チャットの最下端から下へ・RN と SwiftUI)の見つからない失敗が「withScrollDown(scrollFrame: "#list_chat") { } で包め」と勧めるが、従っても同じく赤(im4 F1・RN 3/3・SwiftUI 2/2。`StepExecutor+ScrollSearch.swift` の scrollFrameHint は全画面の払いが候補の容器の中から撃たれたかを見ていない = 出し分けるには払いの始点と候補の容器の枠が要る)
+- 11/7: ②〜④は文言だけで合否は正しい
+- 11/8: ①(MCP で `ft_terminate` の後の `ft_batch` / `ft_scroll_to` が、前面に出た同じ #id の別のアプリへ撃って ok)を直した。原因 = Android の `ft_terminate` が起動の記憶を消すので `wireAppGoneGuard` が門を付けなかった(`ft_clear_app_data` は記憶を残して止めた印を立てる = 断る)。止めた後も記憶を残して止めた印を立てる(再生ケース r-oi192-terminate-sibling・直す前 2/2 で赤)
 
 ### OI-191 探索の残り(33周目)
 - 状態: 再現済み

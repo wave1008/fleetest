@@ -628,6 +628,12 @@ extension MCPServer {
                                           summary: "clearAppData \(bundleID)"), args: args)
     }
 
+    /// ft_terminate の後も起動の記憶を残すか(残すときは止めた印 `toolStoppedBundleIDs` を立てる)。Android(名指しで止める)で
+    /// セッションのアプリを止めたときだけ true。残さないと AppProcessGone の門が付かない(再生ケース r-oi192-terminate-sibling)。iOS は従来どおり消す
+    static func terminateKeepsLaunchRecord(stopsByName: Bool, launched: String?, terminated: String) -> Bool {
+        stopsByName && launched == terminated
+    }
+
     func ftTerminate(_ args: [String: Any]) async throws -> [[String: Any]] {
         // **対象が分からなければ黙って何もしないのではなく、名指しで断る**:
         // ドライバの terminate() は Android では currentPackage が無いと何も撃たずに
@@ -722,8 +728,15 @@ extension MCPServer {
             let stop = stopAppOnSimulator
             try await BlockingWork.offPool(name: "fleetest-mcp-terminate") { try stop(terminateBundleID, simulatorUDID) }
         }
-        // 意図して落としたので、以後の別アプリの木は「すり替わり」ではない
-        if stopsSessionApp {
+        // **Android でセッションのアプリを止めたときは起動の記憶を残し、止めた印を立てる**(ft_clear_app_data と同じ形)。
+        // 消すと ft_batch / ft_scroll_to の AppProcessGone の門(`wireAppGoneGuard`)が付かず、前面に出た同じ #id の別のアプリへ
+        // 撃って ok になる。木の注記は switchedAppNote の toolStopped が言う
+        if Self.terminateKeepsLaunchRecord(stopsByName: stopsByName, launched: launchedBundleIDs[terminateKey],
+                                           terminated: terminateBundleID) {
+            toolStoppedBundleIDs[terminateKey] = "ft_terminate"
+            systemAlertProbePending.remove(terminateKey)
+        } else if stopsSessionApp {
+            // iOS: 意図して落としたので、以後の別アプリの木は「すり替わり」ではない
             launchedBundleIDs[terminateKey] = nil
             launchTimestamps[terminateKey] = nil
             toolStoppedBundleIDs[terminateKey] = nil
@@ -735,7 +748,7 @@ extension MCPServer {
         recordAction(InteractionLog.Entry(step: FlowStep(action: "terminate"), unresolved: nil,
                                           summary: "terminate \(terminateBundleID)"), args: args)
         // **Android は止めた後、前面に残った別のアプリへ session が移る**(兄弟アプリが見た目も #id も同じことがある)。
-        // launchedBundleIDs を落とした以上 switchedAppNote は黙るので、ここで前面を言う。
+        // 止めたこの応答の時点で前面を言う(次の木では switchedAppNote の toolStopped が言う)。
         // 言うのは**このセッションで操作したアプリ**が前面に来たときだけ(ランチャーが前面なのは止めた後の普通の姿)
         var terminateFrontNote = ""
         if terminateDriver is AndroidDriver, !terminateUnverified,
