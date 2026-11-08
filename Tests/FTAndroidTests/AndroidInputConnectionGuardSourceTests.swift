@@ -47,7 +47,9 @@ final class AndroidInputConnectionGuardSourceTests: XCTestCase {
         let tail = String(typeAt[fb.lowerBound...].prefix(700))
         XCTAssertTrue(tail.contains("focusMovedSincePress(focusedEditable(root), focusBeforePress)"))
         XCTAssertTrue(tail.contains("Boolean.TRUE.equals(servedInputConnection(ua))"))
-        XCTAssertTrue(tail.contains("setTextAppending(ua, text);") && tail.contains("return FOCUSED_CONNECTION_NOTE;"))
+        // 焦点の接続へ打つ(切られた末尾の注記があれば焦点の接続の注記に続ける)
+        XCTAssertTrue(tail.contains("String truncated = setTextAppending(ua, text);")
+                      && tail.contains("return truncated == null ? FOCUSED_CONNECTION_NOTE : FOCUSED_CONNECTION_NOTE + \"; \" + truncated;"), tail)
     }
 
     func testRouterCarriesTheFallbackNoteInOKResponse() throws {

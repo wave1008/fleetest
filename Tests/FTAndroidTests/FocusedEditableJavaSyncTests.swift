@@ -44,7 +44,7 @@ final class FocusedEditableJavaSyncTests: XCTestCase {
     func testEveryFocusedFieldPathUsesFocusedEditable() throws {
         let source = try injectorSource
         for function in ["clearFocused", "setTextAppending(", "pressImeEnter"] {
-            guard let start = source.range(of: "static void \(function)") else {
+            guard let start = source.range(of: "static void \(function)") ?? source.range(of: "static String \(function)") else {
                 return XCTFail("\(function) が見つからない")
             }
             let body = source[start.upperBound...].prefix(2500)
