@@ -67,7 +67,7 @@ Apple Intelligence(On-device model)の行の ❌ は、使わない機能(screen
 ### AIへの指示文
 
 ```text
-https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone して、このフォルダで bash ../sut-ec-mobile/fleetest/prepare.sh を実行して。
+https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone して(既にあれば git pull で最新にして)、このフォルダで bash ../sut-ec-mobile/fleetest/prepare.sh を実行して。
 ```
 
 期待する結果:
@@ -84,6 +84,8 @@ https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone �
 git clone https://github.com/wave1008/sut-ec-mobile.git ../sut-ec-mobile
 bash ../sut-ec-mobile/fleetest/prepare.sh
 ```
+
+`../sut-ec-mobile` が既にあるときは、clone の代わりに `git -C ../sut-ec-mobile pull` で最新にします。
 
 テストプロジェクトの名前を変えるときは、`bash ../sut-ec-mobile/fleetest/prepare.sh <名前>` のように渡します。
 

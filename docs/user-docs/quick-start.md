@@ -67,7 +67,7 @@ and declare its server to fleetest. The server is built with Kotlin (Ktor) and P
 ### Prompt for the AI
 
 ```text
-Clone https://github.com/wave1008/sut-ec-mobile next to this folder, then run bash ../sut-ec-mobile/fleetest/prepare.sh in this folder.
+Clone https://github.com/wave1008/sut-ec-mobile next to this folder (if it is already there, update it with git pull), then run bash ../sut-ec-mobile/fleetest/prepare.sh in this folder.
 ```
 
 Expected result:
@@ -84,6 +84,8 @@ Run these in your work folder:
 git clone https://github.com/wave1008/sut-ec-mobile.git ../sut-ec-mobile
 bash ../sut-ec-mobile/fleetest/prepare.sh
 ```
+
+If `../sut-ec-mobile` already exists, update it with `git -C ../sut-ec-mobile pull` instead of cloning.
 
 To use a different test project name, pass it like `bash ../sut-ec-mobile/fleetest/prepare.sh <name>`.
 
