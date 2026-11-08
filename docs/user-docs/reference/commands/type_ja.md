@@ -78,6 +78,9 @@ field.type("alice")                // type("#login_id", "alice") と同じ
   (注記 `type-retyped`)。打ち直しは1回までです —— 打ち直しても同じ形で欠けるなら、それは
   打鍵の落ちではなくアプリ側の加工(英字を捨てる数字欄など)なので、検証を諦めてそのまま
   受け入れます(注記 `type-retype-abandoned`。値は `valueIs` で別途確かめてください)。
+- **Android で、打った文字列の末尾が欄に残らなかったときは、ステップの説明にそう書きます**(例: 6 桁が上限の欄へ
+  7 文字を打つと「the field did not keep the last 1 character(s) written」)。合否は変えないので、
+  全部入ったことを確かめたいときは `textIs` / `valueIs` で値を確かめてください。
 - **値が1文字も動かないときは、先に画面を見ます。** 欄の値が入力を映さない欄(Material3 の
   SearchBar は iOS で値に説明文を出す)があるためです。打った文字が欄に描かれていれば(OCR)、
   打ち直さずに受け入れます(注記 `type-readback-unchanged`)。描かれていなければ入力が届かなかった

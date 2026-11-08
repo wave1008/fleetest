@@ -175,8 +175,8 @@ final class InputInjector {
                     // 押せるだけで editable でない要素(Compose の OTP の箱)を押すと、IME は木に出ない欄へつながる。
                     // 人が押してから打つのと同じに、焦点の接続へ打つ(ref なしの type と同じ経路)。**焦点が移る猶予(focusGraceUntil)を
                     // 待ってから** —— 押した直後は前の欄が焦点のままで、そこへ打つと別の欄を汚す
-                    setTextAppending(ua, text);
-                    return FOCUSED_CONNECTION_NOTE;
+                    String truncated = setTextAppending(ua, text);
+                    return truncated == null ? FOCUSED_CONNECTION_NOTE : FOCUSED_CONNECTION_NOTE + "; " + truncated;
                 }
                 if (fresh) {
                     CharSequence existing = target.isShowingHintText() ? "" : target.getText();
@@ -184,7 +184,7 @@ final class InputInjector {
                     lastRead = current;
                     if (combined != null && applied(current, combined, masked, before)) {
                         logReformatted(current, combined, masked);
-                        return null;
+                        return truncationNote(current, combined, masked);
                     }
                     boolean focused = target.isFocused();
                     // フォーカス済みでも受理→未反映が続くことがある(高負荷で観測)。原因は
@@ -344,6 +344,18 @@ final class InputInjector {
         if (combined.equals(current)) return true;
         if (masked) return current.length() == combined.length();
         return !current.isEmpty() && !current.equals(before);
+    }
+
+    /**
+     * 書いた文字列の末尾が欄に残らなかった(読み返しが書いた文字列の先頭部分で短い)ときの注記。整形(区切り・大文字化)は
+     * 先頭部分にならないので黙る。原因(maxLength・入力の絞り込み)は言わない = 測っていない。合否は変えない(新しい検知は警告から)。
+     * 応答の note はホストの `AndroidDriver.lastActionNote` → ステップの説明へ運ばれる
+     */
+    static String truncationNote(String current, String combined, boolean masked) {
+        if (masked || current.length() >= combined.length() || !combined.startsWith(current)) return null;
+        int dropped = combined.length() - current.length();
+        return "the field did not keep the last " + dropped + " character(s) written: read back \"" + current
+                + "\" after writing \"" + combined + "\"";
     }
 
     /** 「変わったが完全一致ではない」で通したことを logcat に残す(/type の応答は {"ok":true} のみ) */
@@ -666,7 +678,7 @@ final class InputInjector {
      * combined の1回構築・マスク長さ判定・try/catch は setTextAppendingAt と同じ規律
      * (そちらのコメント参照。読みから作り直すとマスク文字列の書き込み・二重追記になる)。
      */
-    static void setTextAppending(UiAutomation ua, String text) {
+    static String setTextAppending(UiAutomation ua, String text) {
         long deadline = SystemClock.uptimeMillis() + SET_TEXT_APPENDING_DEADLINE_MS;
         String lastState = "no-input-focus: nothing has input focus (tap the field by ref first)";
         String combined = null;
@@ -693,7 +705,7 @@ final class InputInjector {
                     lastRead = current;
                     if (combined != null && applied(current, combined, masked, before)) {
                         logReformatted(current, combined, masked);
-                        return;
+                        return truncationNote(current, combined, masked);
                     }
                     if (combined == null) {
                         masked = focus.isPassword();

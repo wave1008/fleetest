@@ -403,7 +403,11 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             }
         } else {
             if (shouldTapFocusedWhenImeHidden(body)) InputInjector.tapFocusedEditableIfImeHidden(ua());
-            InputInjector.setTextAppending(ua(), text);
+            String note = InputInjector.setTextAppending(ua(), text);
+            if (note != null) {   // 書いた文字列の末尾が欄に残らなかった(InputInjector.truncationNote)
+                settle();
+                return BridgeHttpServer.Response.json(200, "{\"ok\":true,\"note\":" + JSONObject.quote(note) + "}");
+            }
         }
         settle();
         return ok();

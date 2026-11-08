@@ -1,0 +1,28 @@
+{
+  "id": "r-oi193-otp-truncation",
+  "finding": "Android View の OTP 欄(6 桁が上限)へ 7 文字を type すると 7 文字目が落ちたまま注記なしで ok(35周目 alocal F1・MCP 3/3・DSL 1/1。原因 = 注入器の読み返しが「書く前から値が変わった」を反映と読んで通し、切られた事実は logcat にしか残さない。直し = 書いた文字列の末尾が残らなかったら応答の note で言う = Android ブリッジ v130)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [],
+  "reset": [
+    ["$adb", {"args": ["shell", "am", "force-stop", "com.ftester.e2ey.android"], "seconds": 0.3}],
+    ["ft_launch", {"bundleId": "com.ftester.e2ey.android"}],
+    ["ft_batch", {"steps": "tap '#nav_pin'"}]
+  ],
+  "forms": [
+    {
+      "name": "ft_batch の type(所見の手順)",
+      "steps": [["ft_batch", {"steps": "type '#field_otp' '1234567'"}]],
+      "replyOnly": true,
+      "replyExpect": ["did not keep the last 1 character"]
+    },
+    {
+      "name": "上限に収まる type には付かない(誤検知の対照)",
+      "steps": [["ft_batch", {"steps": "type '#field_otp' '12'"}]],
+      "replyOnly": true,
+      "replyReject": ["did not keep"]
+    }
+  ],
+  "redConfirmed": true,
+  "redNote": "直す前の版(ブリッジ v129)で同じ手順が「ok (437ms)」・注記なし(11/8 手元 emulator-5568。logcat には reformatted の行だけ)"
+}
