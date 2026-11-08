@@ -239,7 +239,8 @@ head_release_tag() {
 }
 
 # 最新リリースへ detached で置き fleetest.channel=release を立てる。呼ぶ前に settle_local_changes を済ませる。
-# 結果: RELEASE_RESULT=moved|unchanged / RELEASE_TAG。戻り: 0=済 1=上流に届かない(オフライン) 2=リリースタグが無い 3=移動失敗。
+# 結果: RELEASE_RESULT=moved|unchanged / RELEASE_TAG。戻り: 0=済 1=上流に届かない(ls-remote の失敗だけ = オフライン)
+# 2=リリースタグが無い 3=移動失敗(ls-remote が通った後のタグ取得の失敗を含む)。
 # **ローカルの方が新しいタグにいるときは下げない**(unchanged)
 move_to_release() {
   local lsout latest here
@@ -258,8 +259,10 @@ move_to_release() {
   fi
   # 全タグを取る(最新1本だけだと、間のリリースの注釈が update.sh の What's new から抜ける)。
   # **--force を外さない**: 上流でタグを付け直すと(履歴の書き換え)既存のタグが would clobber で拒否され、
-  # exit 1 =「オフライン」に化けて受け手が古い版に黙って留まる。リリースタグは上流が正
-  GIT_TERMINAL_PROMPT=0 git -C "$TOOL_ROOT" fetch -q --force --tags origin >>"$RAW_SINK" 2>&1 || return 1
+  # exit 1 =「オフライン」に化けて受け手が古い版に黙って留まる。リリースタグは上流が正。
+  # **失敗は 3(移動失敗 = die)で返す** —— 直前の ls-remote が通っているので上流には届いている。
+  # 1 にすると warn 1行で古い版のままビルドを続け、拡張の「更新あり → 更新する → 変わらない」が繰り返す
+  GIT_TERMINAL_PROMPT=0 git -C "$TOOL_ROOT" fetch -q --force --tags origin >>"$RAW_SINK" 2>&1 || return 3
   git -C "$TOOL_ROOT" checkout -q --detach "refs/tags/$latest" >>"$RAW_SINK" 2>&1 || return 3
   git -C "$TOOL_ROOT" config fleetest.channel release || return 3
   RELEASE_RESULT=moved

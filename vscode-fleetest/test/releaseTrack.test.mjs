@@ -206,7 +206,44 @@ test("install.sh --align-release-only: 未導入の外部構成(main 上)→ mov
   assert.ok(!/Re-read/.test(again.stdout));
 });
 
-test("install.sh --track-branch: リモートランナー向け。リリース追従をせずブランチのまま(channel も立てない)", (t) => {
+test("install.sh --align-release-only: 上流でタグを付け直しても最新リリースへ移る(would clobber で止まらない)", (t) => {
+  const f = fixture();
+  t.after(() => cleanup(f));
+  git(f.receiver, "fetch", "-q", "origin", "tag", "0.9.0");
+  // 上流が 0.9.0 を別のコミットへ付け直す(受け手の手元の 0.9.0 と食い違う)
+  git(f.seed, "tag", "-f", "-a", "0.9.0", "-m", "fleetest 0.9.0\n\nretagged", f.cMain);
+  git(f.seed, "push", "-q", "--force", "origin", "refs/tags/0.9.0");
+  const r = align(f);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.kv.release_align, "moved", r.stdout + r.stderr);
+  assert.equal(git(f.receiver, "rev-parse", "HEAD"), f.c10);
+});
+
+test("install.sh --align-release-only: 上流に届いた後のタグ取得の失敗は「オフライン」にせず移動失敗で止める", (t) => {
+  const f = fixture();
+  t.after(() => cleanup(f));
+  // ls-remote は通り、fetch だけがタグの ref を更新できずに失敗する状態を作る
+  mkdirSync(path.join(f.receiver, ".git/refs/tags"), { recursive: true });
+  writeFileSync(path.join(f.receiver, ".git/refs/tags/0.10.0.lock"), "");
+  const r = align(f);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /Could not move .* to the latest release/);
+  assert.ok(!/upstream unreachable/.test(r.stdout), "オフライン扱いになっている");
+});
+
+test("update.sh: 更新の後もまだ update-available なら失敗で止める(project sync より前・再 exec の後)", () => {
+  const src = readFileSync(UPDATE_SH, "utf8");
+  const reexec = src.indexOf("exec bash \"$0\"");
+  const check = src.indexOf("The update did not take effect");
+  const sync = src.indexOf("==> fleetest project sync");
+  assert.ok(check > 0, "更新が効いたかの確かめがありません");
+  assert.ok(reexec < check && check < sync, "確かめの位置が再 exec の後・project sync の前にありません");
+  const block = src.slice(src.lastIndexOf("if", check), sync);
+  assert.match(block, /channel=release"\*"verdict=update-available/);
+  assert.match(block, /exit 1/);
+});
+
+test("install.sh --track-branch:リモートランナー向け。リリース追従をせずブランチのまま(channel も立てない)", (t) => {
   const f = fixture();
   t.after(() => cleanup(f));
   const r = align(f, "--track-branch");

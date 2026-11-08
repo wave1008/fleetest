@@ -205,6 +205,24 @@ if [ "${FT_UPDATE_REEXEC:-0}" != "1" ] && [ -f "$0" ] \
   exec bash "$0" "${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}"
 fi
 
+# ---- 2.6 更新が効いたかを確かめる(release 追従だけ) ----------------------------------
+# install.sh が warn だけで古い版のまま最後まで進む経路があると、拡張は「更新あり → 更新する →
+# 変わらない」を無限に繰り返す(タグの付け直しで fetch が拒否されたとき実際に起きた)。
+# 終わった時点で update-check.sh がまだ update-available なら**失敗として止める**(ls-remote 1回 ≒ 1秒)。
+# --no-pull は意図して動かさないので見ない。branch / pinned は版の比較が無いので対象外
+if [ "$ALLOW_PULL" = "1" ] && [ -f "$TOOL_ROOT/Scripts/update-check.sh" ]; then
+  after_out="$(bash "$TOOL_ROOT/Scripts/update-check.sh" --tool-root "$TOOL_ROOT" 2>/dev/null || true)"
+  case "$after_out" in
+    *"channel=release"*"verdict=update-available"*)
+      after_local="$(printf '%s\n' "$after_out" | sed -n 's/^local_version=//p')"
+      after_latest="$(printf '%s\n' "$after_out" | sed -n 's/^latest_version=//p')"
+      echo "❌ The update did not take effect: the clone is still at ${after_local:-$(git -C "$TOOL_ROOT" rev-parse --short HEAD 2>/dev/null)} but the latest release is ${after_latest:-unknown}." >&2
+      echo "   See the ⚠️ / [warn] lines above and the log in $WORK_DIR/.fleetest/install-*.log." >&2
+      echo "   If upstream release tags were re-pointed, run: git -C $TOOL_ROOT fetch --tags --force origin  — then re-run this update." >&2
+      exit 1 ;;
+  esac
+fi
+
 # ---- 3. 受け手側の反映(project sync) ------------------------------------------
 # **構成で分けない** —— 外部パッケージ構成でローカルパス依存が pull だけで反映されるのは
 # **依存の解決**だけで、**受け手の Package.swift に書かれたシナリオのパス**には効かない
