@@ -1404,10 +1404,12 @@ final class BridgeRouter {
                 + " while waiting for the rotation to \(req.orientation.rawValue), so it could not be confirmed."
                 + " Bring it back first (DSL: launchApp / MCP: ft_launch \(sessionBundleID ?? "<bundleId>") / CLI: fleetest launch \(sessionBundleID ?? "<bundleId>"))")
         }
+        // 理由は言い切らない: 宣言の無いアプリも、手前に描かれた物(アプリスイッチャー等)に覆われたアプリも同じ形になる(37周目 ilocal F1)
         throw BridgeError(422, "orientation did not settle to \(req.orientation.rawValue) within "
             + "\(RotationSettle.deadlineSeconds)s (the app stayed "
-            + "\(appOrientation()?.rawValue ?? "unknown") — an app that does not declare that "
-            + "orientation in UISupportedInterfaceOrientations cannot rotate)")
+            + "\(appOrientation()?.rawValue ?? "unknown"): either the app does not declare that orientation in"
+            + " UISupportedInterfaceOrientations, or something drawn over it (such as the app switcher) kept it from"
+            + " rotating. The device orientation was set to \(req.orientation.rawValue) and stays so until it is rotated back)")
     }
 
     private func handlePress(_ body: Data) throws -> BridgeHTTPServer.Response {
