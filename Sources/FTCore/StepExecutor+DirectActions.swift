@@ -761,6 +761,7 @@ extension StepExecutor {
                             ?? (step.replace == true ? " (before this, replace: true cleared the focused field)" : ""))))
             }
             phase.actionMs += Self.ms(clock.now - start)
+            let bridgeNote = driver.lastActionNote
             // 文言は動的(入れた先を名指しする)のでコードだけ立てる
             // —— 外側の execute が collectedNotes() で拾う(StepOutcome.notes の doc)
             noteCodesThisStep.insert(.typeFocusRecovered)
@@ -797,7 +798,7 @@ extension StepExecutor {
             return StepOutcome(status: .passed,
                                driverFallback: Self.joinNotes(replaceFallbackNote,
                                    "typed into \(TapTargetGeometry.describe(recovered))"
-                                       + " (the tree showed no focused field after the preceding tap)"))
+                                       + " (the tree showed no focused field after the preceding tap)", bridgeNote))
         }
         // ロケータ有り type(下記 case "type")と同じ規則: "\n" を含むときだけ
         // typeDriver(XCUITest)へ回し、iOS の Return キー既定挙動に揃える(理由は同 case のコメント参照)。
@@ -812,10 +813,15 @@ extension StepExecutor {
         // 事後の照合の「打つ前」: 前の数が要る形(iOS の非 ASCII)だけ打つ直前に木を1枚読む(`TypedInputCheck.Prior(focusedIn:)`)
         let typedPrior = await focusedPriorForTyping(driver, text: text, phase: &phase)
         let start = clock.now
+        // ブリッジが type の応答に載せた注記(末尾が欄に残らなかった等)は打った直後にこのステップで読む。読まないと、Android の
+        // ドライバは読むまで持ち越すので次の操作(tap)の説明に付き、次が検証なら消える(40周目 phys F1・F2)
+        let bridgeNote: String?
         if text.contains("\n"), let td = typeDriver {
             try await td.type(ref: nil, text: text)
+            bridgeNote = td.lastActionNote
         } else {
             try await driver.type(ref: nil, text: text)
+            bridgeNote = driver.lastActionNote
         }
         phase.actionMs += Self.ms(clock.now - start)
         if let failure = await typedInputFailure(driver, prior: typedPrior, text: text, phase: &phase) {
@@ -832,7 +838,7 @@ extension StepExecutor {
                 if TypeFocusConfirmation.verdict(after) != .reported { noteCodesThisStep.insert(.typeFocusNotReported) }
             }
         }
-        return StepOutcome(status: .passed, driverFallback: Self.joinNotes(replaceFallbackNote, focusNote))
+        return StepOutcome(status: .passed, driverFallback: Self.joinNotes(replaceFallbackNote, focusNote, bridgeNote))
     }
 
     // pressEnter もロケータを持たない(フォーカス中の入力欄への Enter 押下)ので、type(ref: nil)

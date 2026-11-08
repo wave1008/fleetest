@@ -1297,7 +1297,9 @@ public final class StepExecutor {
               step.locator == nil || LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
         let what = step.locator == nil
             ? (Self.typesIntoFocus(step)
-                ? "this step typed nothing (without a selector the text would go into whatever has input focus in front)"
+                ? (step.action == "clearInput"
+                    ? "this step cleared nothing (without a selector it would clear whatever field has input focus in front)"
+                    : "this step typed nothing (without a selector the text would go into whatever has input focus in front)")
                 : "this step sent nothing (a scroll would only move whatever is in front)")
             : "this step did not look for its element (scrolling or waiting would only move whatever is in front)"
         return "The app under test (\(bundleID)) is not running — this scenario stopped it — so \(what). "
@@ -1355,7 +1357,10 @@ public final class StepExecutor {
 
     /// コードだけでなく文言もステップの説明(括弧書き)に出す注記。書き手が読んで書き方を変えるためのもので、結果 JSON のコードだけでは
     /// レポート・コンソールに出ない(`note(_:into:)` を通らない経路で立てる注記)
-    static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp]
+    /// **書き手への警告として足した注記(合否を変えない)はここに載せる** —— 載せ忘れると結果 JSON のコードにしか出ず、レポートでは
+    /// 注記の無い ✅ に見える(40周目 iultra F1・im4 F1: absence-behind-modal / covered-by-front-element)
+    static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp, .absenceBehindModal,
+                                                .coveredByFrontElement, .typeFocusNotReported]
     private func readerNotesText() -> String? {
         Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map { note in
             if note == .absenceCheckedOnAnotherApp, let stopped = absenceReadWhileStoppedThisStep, let app = appUnderTestBundleID {

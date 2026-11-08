@@ -23,6 +23,8 @@ final class CoveredByFrontElementNoteTests: XCTestCase {
         let outcome = await exist([row, button])
         guard case .passed = outcome.status else { return XCTFail("合否を変えた: \(outcome.status)") }
         XCTAssertTrue(outcome.notes.contains(.coveredByFrontElement), "\(outcome.notes)")
+        XCTAssertTrue(outcome.driverFallback?.contains("an element drawn in front of it covers it") == true,
+                      "文言がステップの説明に出ない: \(outcome.driverFallback ?? "nil")")
     }
 
     func testNoNoteWhenNothingCoversOrPaintOrderIsUnknown() async {

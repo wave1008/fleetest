@@ -54,6 +54,15 @@ final class StoppedAppRefusalTests: XCTestCase {
         XCTAssertEqual(driver.typed, 0, "止めたアプリの代わりに前面へ打った")
     }
 
+    /// セレクタ無しの clearInput は「打たなかった」でなく「消さなかった」と言う(40周目 alocal F4・amax F2)
+    func testSelectorlessClearInputSaysItClearedNothing() async {
+        let outcome = await executor().execute(FlowStep(action: "clearInput", timeout: 0.1))
+        XCTAssertEqual(outcome.failureKind, .appStoppedBySession, "\(outcome.status)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("cleared nothing"), message)
+        XCTAssertFalse(message.contains("typed nothing"), message)
+    }
+
     /// 前面のアプリが回転を拒んだ 422 に、止めたアプリが前面に居ないことを添える(OI-192 ③)。止めていなければ添えない
     func testRotationRefusalSaysTheAppWasStopped() async {
         let stopped = StepExecutor(driver: RotationRefusingDriver(), isAndroid: true, tunables: RunTunables())

@@ -838,11 +838,13 @@ extension StepExecutor {
     }
 
     /// **手前のダイアログが裏を木から隠しているときの「無い」**(合否は変えない = 木に無ければ緑・39周目の決定)。
-    /// 根拠はブリッジの申告だけ: iOS の in-app がモーダルの外を木から外した(`SnapshotResponse.modalScope`)・Android のアプリ自身の
-    /// ダイアログの窓が手前(`ownDialogHint`)。そのときは WebView 向けの `treeUnderreported` を外す(理由が別で、案内が事実と違った)。
+    /// 根拠はブリッジの申告だけ: iOS の in-app がモーダルの外を木から外した(`SnapshotResponse.modalScope`)・手前の別の窓に覆われた
+    /// 要素を外した(`coveredByFrontWindow`。40周目 im4 F2)・Android のアプリ自身のダイアログの窓が手前(`ownDialogHint`)。
+    /// そのときは WebView 向けの `treeUnderreported` を外す(理由が別で、案内が事実と違った)。
     /// **通る直前に1回だけ呼ぶ**(Android は窓の一覧を adb で引く = 周ごとに払わない)
     func noteAbsenceBehindModal(_ snapshot: SnapshotResponse) {
-        guard Self.hasModalScope(snapshot) || ownDialogHint() != nil else { return }
+        guard Self.hasModalScope(snapshot) || (snapshot.coveredByFrontWindow?.droppedCount ?? 0) > 0
+                || ownDialogHint() != nil else { return }
         noteCodesThisStep.insert(.absenceBehindModal)
         noteCodesThisStep.remove(.treeUnderreported)
     }
