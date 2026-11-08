@@ -51,6 +51,9 @@ Press "Reload window". **The replaced extension does not take effect until the r
 
 If the update fails, you see "The fleetest update failed (exit code N)". Look for the `[fail]` line in the `fleetest`
 OUTPUT panel. The log is also kept at `<work folder>/.fleetest/install-*.log`.
+If the update ran to the end but fleetest is still at the old version, it is also reported as a failure, and the `fleetest`
+OUTPUT panel shows a line starting with `❌ The update did not take effect`. Run the command shown below that line,
+then press "Update" again.
 
 ## 4. After updating
 

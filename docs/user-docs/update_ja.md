@@ -49,6 +49,8 @@ fleetest の更新が完了しました。反映するにはウィンドウを�
 
 更新に失敗したときは、「fleetest の更新に失敗しました(終了コード N)」と出ます。OUTPUT パネルの `fleetest` にある
 `[fail]` の行を見てください。ログは `<作業フォルダ>/.fleetest/install-*.log` にも残ります。
+最後まで進んだのに fleetest が古い版のままだったときも失敗として知らせ、OUTPUT パネルの `fleetest` に
+`❌ The update did not take effect` で始まる行が出ます。その下に表示されたコマンドを実行してから、もう一度「更新する」を押します。
 
 ## 4. 更新したあとにすること
 

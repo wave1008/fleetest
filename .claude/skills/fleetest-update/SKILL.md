@@ -86,6 +86,10 @@ vsce)は画面に出ず `<WORK_DIR>/.fleetest/install-*.log` にだけ入り、*
 (人が全文を見たいと言った場合だけ `--verbose` で再実行するか、そのパスを案内する)。
 
 - **exit 1** → 中断。出力の `[fail]` 行(と `→ SKILL.md step N`)の原因を解決して再実行する。
+  **`❌ The update did not take effect` が出たら**、更新は最後まで走ったのにクローンが古い版のまま
+  (まだ新しいリリースがある)。**「更新できた」と報告せず**、その行の下に出たコマンド
+  (上流でリリースタグが付け直されたときの `git -C <TOOL_ROOT> fetch --tags --force origin`)を人に示して
+  承認を得てから打ち、update.sh を再実行する。直らなければ出力と `install-*.log` の `⚠️`・`[warn]` 行を人に渡す。
 - **exit 2** → 任意ステップのみ未完(`[warn]`)。CLI は使える。warn の内容だけ手当てする。
 - **作業フォルダの `.claude/skills/` へコピーしたスキルは install.sh（ステップ7.8）が正典から
   更新する**（印 `.claude/skills/.fleetest-copied` にある名前だけ。`fleetest-setup` は受け手専用なので
@@ -107,7 +111,11 @@ git 管理下にあると衝突しやすい。その場合は TestProjects/ を 
 **取り込みが失敗したら「届いていない」を必ず伝える**(0.7 の更新スクリプトは自動で処理する。
 ここは手動で進めたときの判断)。原因で扱いが変わる:
 
-- **上流に届かない(オフライン)** … 手元のクローンのまま作業は続けてよい。警告だけ
+- **上流に届かない(オフライン)** … `git ls-remote --tags origin` 自体が失敗するときだけ。手元のクローンのまま
+  作業は続けてよい。警告だけ
+- **上流には届くのにタグの取得が失敗する** … オフラインではない(`ls-remote` は通る)。update.sh は移動失敗(exit 1)で止まる。
+  `would clobber existing tag` なら上流でタグが付け直されているので `git -C <TOOL_ROOT> fetch --tags --force origin` で取り直す
+  (リリースタグは上流が正)
 - **遅れ かつ 進みの両方がある(分岐)** … `git rev-list --count HEAD..origin/<branch>` と
   `origin/<branch>..HEAD` を見て判定する。**分岐したクローンは二度と fast-forward せず、
   以後すべての更新が届かない**。外部構成(TOOL_ROOT ≠ WORK_DIR)なら受け手の資産は
