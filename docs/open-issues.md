@@ -40,10 +40,10 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 着手可
-- 運用: ②〜④合否に響かない
+- 運用: ④合否に響かない
 - 優先度: 低 — 文言だけで合否は正しい
 
-出典: `_work/explore-20261107e/findings-*.md`(34周目・11/7)。②Android で `terminateApp()` / `clearAppData()` の後のセレクタ無しの `type` が撃つ前に断らず、2 秒待って TextInputLayout の案内で赤(amax F1・4/4。止めたアプリには従えない) ③Android で `terminateApp()` の後の `rotateTo` が撃ってから 422 で「前面のアプリが回転を拒む」と言い、止めたことを言わない(amax F4・4/4) ④端に着いて何も動かなかった探索(反転チャットの最下端から下へ・RN と SwiftUI)の見つからない失敗が「withScrollDown(scrollFrame: "#list_chat") { } で包め」と勧めるが、従っても同じく赤(im4 F1・RN 3/3・SwiftUI 2/2。`StepExecutor+ScrollSearch.swift` の scrollFrameHint は全画面の払いが候補の容器の中から撃たれたかを見ていない = 出し分けるには払いの始点と候補の容器の枠が要る)
+出典: `_work/explore-20261107e/findings-*.md`(34周目・11/7)。④端に着いて何も動かなかった探索(反転チャットの最下端から下へ・RN と SwiftUI)の見つからない失敗が「withScrollDown(scrollFrame: "#list_chat") { } で包め」と勧めるが、従っても同じく赤(im4 F1・RN 3/3・SwiftUI 2/2。`StepExecutor+ScrollSearch.swift` の scrollFrameHint は全画面の払いが候補の容器の中から撃たれたかを見ていない = 出し分けるには払いの始点と候補の容器の枠が要る)
 
 ## 要測定
 

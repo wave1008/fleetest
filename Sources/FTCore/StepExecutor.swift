@@ -1289,16 +1289,24 @@ public final class StepExecutor {
     /// (ランチャーのアイコンをラベルで押す等は人にもできる)・否定の検証は断らない(止めたアプリの要素が無いのは事実)
     func stoppedAppRefusal(step: FlowStep) async -> String? {
         guard isAndroid, appUnderTestStopped, let bundleID = appUnderTestBundleID,
-              step.locator != nil || Self.sendsScrolls(step), !Self.passesOnAbsence(step) else { return nil }
+              step.locator != nil || Self.sendsScrolls(step) || Self.typesIntoFocus(step),
+              !Self.passesOnAbsence(step) else { return nil }
         if let action = step.action, Self.runsWithoutTheApp.contains(action) { return nil }
         guard let running = appProcessRunning, await running(bundleID) == false,
               let tree = try? await driver.snapshot(),
               step.locator == nil || LocatorResolver.resolve(step: step, in: tree) == nil else { return nil }
         let what = step.locator == nil
-            ? "this step sent nothing (a scroll would only move whatever is in front)"
+            ? (Self.typesIntoFocus(step)
+                ? "this step typed nothing (without a selector the text would go into whatever has input focus in front)"
+                : "this step sent nothing (a scroll would only move whatever is in front)")
             : "this step did not look for its element (scrolling or waiting would only move whatever is in front)"
         return "The app under test (\(bundleID)) is not running — this scenario stopped it — so \(what). "
             + StoppedAppAdvice.startAgain(afterStopping: appUnderTestStoppedCommand)
+    }
+
+    /// セレクタ無しの打鍵・消去(焦点のある欄へ効く = 止めたアプリの後は前面の別の物に効く)
+    static func typesIntoFocus(_ step: FlowStep) -> Bool {
+        step.locator == nil && ["type", "clearInput"].contains(step.action ?? "")
     }
 
     /// 送り(`scrollDown()` 等 = scroll・`scrollToBottom()` 等 = scrollToEdge・`scrollTo`)。前面がアプリでないときに撃つと別のアプリの面を動かす

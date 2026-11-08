@@ -52,7 +52,16 @@ extension StepExecutor {
         let clock = ContinuousClock()
         let start = clock.now
         let rotator: AppDriver = typeDriver ?? driver
-        _ = try await rotator.rotate(to: orientation)
+        do {
+            _ = try await rotator.rotate(to: orientation)
+        } catch DriverError.badResponse(status: 422, body: let body) where isAndroid && appUnderTestStopped {
+            // 前面のアプリが回転を拒んだ。前面に居るのは止めたアプリではない(ランチャー等)ことを添える
+            // (止めたまま回すこと自体は正しい = 断らない。失敗したときだけ言う)
+            return StepOutcome(status: failed(.appStoppedBySession, body + ". The app under test ("
+                + (appUnderTestBundleID ?? "the app") + ") is not running — this scenario stopped it — so the app in front"
+                + " is another one. " + StoppedAppAdvice.startAgain(afterStopping: appUnderTestStoppedCommand)
+                + " before rotating if the rotation is meant for it"))
+        }
         var matched = await verifyOrientation(orientation)
         if !matched {
             // 撃ち直してよい: 向きの変更は冪等(同じ向きへの要求を重ねても二重に効かない = 送信・購入のような
