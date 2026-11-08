@@ -127,7 +127,8 @@ test("open-issues の項目は属性の次に運用と優先度の行を持つ",
 
 test("open-issues の項目は表にある属性を持ち、一覧の件数と項目・置かれた節が属性と一致する", () => {
   const text = readFileSync(path.join(DOCS, "open-issues.md"), "utf8");
-  const rows = [...text.matchAll(/^\| ([^|]+?) \| [^|]+ \| (\d+) \| ([^|]+) \|$/gm)];
+  // 項目の欄は空でもよい(その属性を持つ項目が無い行)
+  const rows = [...text.matchAll(/^\| ([^|]+?) \| [^|]+ \| (\d+) \| ([^|]*?) *\|$/gm)];
   const allowed = new Set(rows.map((row) => row[1]));
   assert.ok(allowed.size >= 5, `属性の表が読めない: ${[...allowed]}`);
   const issues = issueAttributes(text);
@@ -137,7 +138,7 @@ test("open-issues の項目は表にある属性を持ち、一覧の件数と�
     const ids = issues.filter((i) => i.values.includes(attribute)).map((i) => i.id)
       .sort((p, q) => Number(p.slice(3)) - Number(q.slice(3)));
     assert.equal(ids.length, Number(count), attribute);
-    assert.deepEqual(listed.split("・"), ids, attribute);
+    assert.deepEqual(listed.trim() === "" ? [] : listed.trim().split("・"), ids, attribute);
     const section = text.split(new RegExp(`^## ${attribute}$`, "m"))[1]?.split(/^## /m)[0] ?? "";
     const placed = issueAttributes(section).filter((i) => i.values[0] !== attribute).map((i) => i.id);
     assert.deepEqual(placed, [], `${attribute} の節に先頭の属性が違う項目がある`);

@@ -959,6 +959,24 @@ extension StepExecutor {
                 keyboardShown: KeyboardWait.isShown(snapshot),
                 looseMatch: false, perStepGuard: step.occlusionGuard,
                 expectedIsUserText: step.locator?.label != nil, phase: &phase) != nil {
+                // **「見えない」と出た回だけ、木と絵を1回撮り直してから決める**(遷移の途中の1枚で決めていた = 速く返った tap の
+                // 直後の select が固定領域のラベルを空にした・手元 4/16)。待ちの秒数は置かない(FM の応答を待つ間に遷移は終わっている)。
+                // 撮り直しは1回だけ = 本当に見えない要素の select を締切まで待たせない
+                // 絵の控えも捨てる(ステップの中で使い回すので、捨てないと同じ1枚で同じ判定を繰り返す)
+                invalidateScreenshotCache()
+                if let retaken = try? await freshSnapshot(.afterOwnMove),
+                   let (again, _) = LocatorResolver.resolve(step: step, in: retaken),
+                   try await occlusionFlip(
+                       element: again, expectedText: again.label ?? step.locator?.label ?? "",
+                       elements: retaken.elements, screen: retaken.screen,
+                       keyboardShown: KeyboardWait.isShown(retaken),
+                       looseMatch: false, perStepGuard: step.occlusionGuard,
+                       expectedIsUserText: step.locator?.label != nil, phase: &phase) == nil {
+                    element = again
+                    snapshot = retaken
+                    resolvedElementThisStep = again
+                    break
+                }
                 // **見えないときは失敗させず空要素を返す**(呼び出し側が `.text == nil` で分岐できる)。
                 // exist(検証)と違い select は「掴む」操作なので、見えない事実は値で表す
                 resolvedElementThisStep = nil

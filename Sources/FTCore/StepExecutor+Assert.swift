@@ -837,6 +837,16 @@ extension StepExecutor {
         }
     }
 
+    /// **手前のダイアログが裏を木から隠しているときの「無い」**(合否は変えない = 木に無ければ緑・39周目の決定)。
+    /// 根拠はブリッジの申告だけ: iOS の in-app がモーダルの外を木から外した(`SnapshotResponse.modalScope`)・Android のアプリ自身の
+    /// ダイアログの窓が手前(`ownDialogHint`)。そのときは WebView 向けの `treeUnderreported` を外す(理由が別で、案内が事実と違った)。
+    /// **通る直前に1回だけ呼ぶ**(Android は窓の一覧を adb で引く = 周ごとに払わない)
+    func noteAbsenceBehindModal(_ snapshot: SnapshotResponse) {
+        guard Self.hasModalScope(snapshot) || ownDialogHint() != nil else { return }
+        noteCodesThisStep.insert(.absenceBehindModal)
+        noteCodesThisStep.remove(.treeUnderreported)
+    }
+
     /// **要素が 0 個の木は「無い」の根拠にしない**(起動直後の木は要素 0 個で来ることがある。RN の `launchApp()` の 3ms 後の
     /// 1枚で `notExist` が緑になった)。画面が本当に空かどうかは木からは分からない = 待って読み直し、上限まで空なら通さない。
     /// 打ち切り(`truncatedCount`)・部分的な木(`TreeCoverage`)とは別の事実
@@ -1566,6 +1576,7 @@ extension StepExecutor {
                         continue
                     }
                 }
+                noteAbsenceBehindModal(snapshot)
                 return .passed
             }
             if Date() >= deadline {

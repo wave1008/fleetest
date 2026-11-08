@@ -139,6 +139,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (**新しい検知なので警告から**。既存のシナリオの全数で誤検知が0と確かめてから赤へ上げる)。35周目 im4 F2: RN の払う前の行の裏の
     /// スワイプのボタン・半開シートの裏の行への exist / textIs が 13/13 で ✅、同じ要素への tap は「露出 0」で断っていた
     case coveredByFrontElement = "covered-by-front-element"
+    /// 否定の検証(notExist・count 0)が、手前のダイアログが裏を木から隠している木で通った(iOS の in-app の `modalScope`・Android の
+    /// アプリ自身のダイアログの窓)。合否は変えない(木に無ければ緑)。裏の要素を確かめるならダイアログを閉じてから(39周目 iultra F2・amax F1)
+    case absenceBehindModal = "absence-behind-modal"
 
     /// 自己修復(指紋照合)が代わりの要素を見つけたのに、**この画面でそれを一意に指せる書き方が無い**
     /// (`SelectorNaming.graded` が nil)。操作はその要素で続けるが、修正提案は作らない ——
@@ -575,6 +578,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the tree did not appear to cover the whole screen when this was judged, so an"
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
+        case .absenceBehindModal:
+            return "a dialog in front of the screen keeps what is behind it out of the tree, so this absence may only mean the"
+                + " element is behind the dialog; close the dialog first to check what is behind it"
         case .coveredByFrontElement:
             return "the element is in the tree but an element drawn in front of it covers it (a tap on it would be refused),"
                 + " so it may not be visible to a person"

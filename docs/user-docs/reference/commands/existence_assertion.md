@@ -36,6 +36,7 @@ expectation {
   accessibility tree. An element that is merely covered by another modal but still in the tree
   counts as still present, and the check fails once the wait runs out (unlike `exist` / `select`,
   which by default also confirm that the element is visible).
+- **An absence check that passes while a dialog in front hides what is behind it gets the note `absence-behind-modal`.** An in-screen modal on iOS and the app's own dialog on Android can take the elements behind them out of the accessibility tree, and then `notExist` / `countIs(…, 0)` pass even when the element is behind the dialog (in some frameworks the elements behind stay in the tree and count as still present, as above). The result does not change, so close the dialog first when you want to check what is behind it.
 - **On Android, an absence check that read another app's screen gets the note `absence-checked-on-another-app`.** If the app in front when `notExist` / `countIs(…, 0)` passes is not the app under test (another app launched by the scenario, or the launcher after the scenario stopped the app under test), the check says nothing about the app under test. The result does not change, because some scenarios mean to check another app; bring the app under test back first if it was the one meant.
 - The "actually visible" check compares the text drawn on screen with the expected text. When
   **only the beginning is drawn** (the same holds for text and value assertions):

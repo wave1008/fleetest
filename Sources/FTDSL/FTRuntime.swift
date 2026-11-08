@@ -964,7 +964,7 @@ public final class FTDriveCore {
             recordStep(description: description + "(\(StepNote.heldValue.text))", status: .passed,
                        file: filePath, line: Int(line), durationMs: 0,
                        notes: [.heldValue], command: command)
-            trackIDResolution(step: step, status: .passed, description: description)
+            trackIDResolution(step: step, status: .passed, description: description, behindModal: false)
             noteAssertionUnlessSkipped(.passed)
             // 掴んだ値で済ませた検証は画素を見ていない(描画崩壊の確かめの義務に数える)
             executor.noteTreeReadCheck(assert, step: step, status: .passed, afterExecution: false)
@@ -1101,7 +1101,8 @@ public final class FTDriveCore {
             }
         }
 
-        trackIDResolution(step: step, status: status, description: description)
+        trackIDResolution(step: step, status: status, description: description,
+                          behindModal: outcome?.notes.contains(.absenceBehindModal) == true)
         trackCheckedObservation(step: step, status: status, outcome: outcome,
                                 selectorText: selectorText, description: description)
 
@@ -1150,7 +1151,7 @@ public final class FTDriveCore {
 
     /// `#id` が「解決できた」のか「否定側でしか使われていない」のかを覚える。
     /// notExist / countIs 0 は要素が**無い**ことで成功するので、解決の証拠にはならない
-    private func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String) {
+    private func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String, behindModal: Bool) {
         // スコープ付き(`#容器 >> #id`)の否定は「容器の外にあること」の検証であり、
         // id が実在しても解決しない。typo 検出の対象から外す(誤検知になるため)
         let locators = ([step.locator] + (step.fallbacks ?? [])).compactMap { $0 }
@@ -1167,7 +1168,8 @@ public final class FTDriveCore {
             if succeeded, !isNegative {
                 resolvedIDs.insert(id)
                 negativeOnlyIDs[id] = nil
-            } else if isNegative, succeeded, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
+            } else if isNegative, succeeded, !behindModal, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
+                // 手前のダイアログが裏を隠した木で通った否定(注記 absence-behind-modal)は、綴りではなくダイアログが理由 = 積まない
                 // **通った否定だけ**を積む(提案の前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で読まなかった)に
                 // 「綴りを確かめろ」と言うと事実と逆になった(16周目 im4 F2・22周目 iultra F1)
                 negativeOnlyIDs[id] = description
@@ -1461,7 +1463,7 @@ public final class FTDriveCore {
             executor.noteAppLaunched(bundleID: launchedBundleID)
         }
         // 画面を移すコマンドの後は、その前の tap の記録を失敗の注記に使わない(back() で tap の前の画面へ戻ると木が
-        // tap の前と同じになり「直前の tap は画面を変えなかった」と事実と逆を言った = OI-197 ③)。wait / procedure は消さない
+        // tap の前と同じになり「直前の tap は画面を変えなかった」と事実と逆を言った)。wait / procedure は消さない
         if let command, Self.screenMovingCommands.contains(command) { executor.forgetLastInteraction() }
         // home / アプリの切り替え・終了の後は、意図して別の面に居るかもしれない(scrollToEdge の「始める前に前面を離れていた」の基準を捨てる)
         if let command, ["home", "appSwitcher", "tapAppIcon", "terminateApp", "removeApp"].contains(command) {
