@@ -127,10 +127,11 @@ public final class InAppDriver: AppDriver {
         // simctl openurl 自体が前面化して配送するので、こちらから起こす必要はない
         do {
             _ = try await client.status(timeout: 3)
-        } catch DriverError.bridgeConnectionRefused {
-            try await launch(bundleID: target)
         } catch {
-            // 無応答・その他はそのまま配送を試みる
+            if Self.relaunchesBeforeURL(probeError: error, stoppedBySession: stoppedBySession) {
+                try await launch(bundleID: target)
+            }
+            // それ以外(無応答等)はそのまま配送を試みる
         }
         // 同意の確かめは XCUITest 接続だけが行う(BridgeClient.deliverURL のコメント。WebViewDelegatingDriver.openURL が回す)
         let simTarget = try await withCrashContext { try await client.deliverURL(url) }
@@ -138,6 +139,16 @@ public final class InAppDriver: AppDriver {
         if Self.mayOpenAnotherApp(url: url, ownSchemes: ownSchemes) {
             await awaitLeavingForeground()
         }
+    }
+
+    /// openURL の前の生死の照会が落ちたとき、注入付きで起こし直すか。接続拒否 = プロセスが居ない。**このセッションが止めた
+    /// アプリは、照会がどう落ちても居ない** —— 実機は iproxy 越しなので、止めたアプリへの照会は接続拒否でなく bridgeUnreachable
+    /// (トンネルは開いているが端末の側が受けない)で落ちる(SE3 で測定)。起こし直さないと URL が注入無しでアプリを起こし、後続が
+    /// 全部「this session stopped it」で撃たれない(33周目 phys・iPhone 13 4/4)。止めていない背面のアプリの無応答は起こし直さない
+    /// (サスペンドで答えないだけのことがあり、起こし直すと状態を捨てる)
+    static func relaunchesBeforeURL(probeError: Error, stoppedBySession: Bool) -> Bool {
+        if case DriverError.bridgeConnectionRefused = probeError { return true }
+        return stoppedBySession
     }
 
     /// **別のアプリを開く URL では、対象アプリが前面から外れるのを待ってから返す**。simctl openurl は開いた先が前に出る前に返り、

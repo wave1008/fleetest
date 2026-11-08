@@ -3,6 +3,7 @@
 // 自分のスキームのディープリンクでは待たない(毎回上限を払わない)
 
 import XCTest
+import FTCore
 @testable import FTBridgeClient
 
 final class InAppOpenURLLeaveTests: XCTestCase {
@@ -29,6 +30,24 @@ final class InAppOpenURLLeaveTests: XCTestCase {
         XCTAssertTrue(body.contains("Self.mayOpenAnotherApp(url: url, ownSchemes: ownSchemes)"))
         XCTAssertFalse(body.contains("if let simTarget"), "実機(simTarget が nil)で待ちを飛ばしている")
         XCTAssertTrue(body.contains("await awaitLeavingForeground()"))
+    }
+
+    /// 止めた後の照会が接続拒否以外(実機の iproxy の bridgeUnreachable)で落ちても、止めたアプリなら注入付きで起こす(33周目 phys)
+    func testStoppedAppIsRelaunchedWhateverTheProbeFailure() {
+        let ctx = DriverErrorContext(bridge: .iosXCUITest, physicalDevice: true, appFate: nil)
+        let lost = DriverError.bridgeUnreachable(context: ctx, detail: "The network connection was lost.")
+        let refused = DriverError.bridgeConnectionRefused(context: ctx, detail: "x")
+        XCTAssertTrue(InAppDriver.relaunchesBeforeURL(probeError: lost, stoppedBySession: true))
+        XCTAssertTrue(InAppDriver.relaunchesBeforeURL(probeError: refused, stoppedBySession: false))
+        XCTAssertFalse(InAppDriver.relaunchesBeforeURL(probeError: lost, stoppedBySession: false),
+                       "止めていない背面のアプリ(サスペンドで答えない)を起こし直した")
+    }
+
+    /// 配線: 照会の失敗で起こし直すかを上の関数で決める
+    func testOpenURLConsultsTheRelaunchDecision() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTBridgeClient/InAppDriver.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("if Self.relaunchesBeforeURL(probeError: error, stoppedBySession: stoppedBySession) {"))
     }
 
     func testLeaveProbeTimeoutIsPinned() {
