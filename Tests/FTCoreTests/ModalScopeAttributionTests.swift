@@ -1,4 +1,4 @@
-// OI-180 ②: in-app が「accessibilityViewIsModal の外を木から外した」と申告した木では、対象が無い理由をキーボードに帰属せず、
+// in-app が「accessibilityViewIsModal の外を木から外した」と申告した木では、対象が無い理由をキーボードに帰属せず、
 // キーボードを閉じる tap も撃たない。
 
 import XCTest

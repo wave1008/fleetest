@@ -611,7 +611,7 @@ public final class BridgeClient: AppDriver, Sendable {
     private var consentAlertPollIntervalNanos: UInt64 { 400_000_000 }
 
     /// 試行済みの単位 = 端末+アプリ+**URL スキームの綴りそのまま(大小を区別)**。iOS は綴りごとに同意を聞く
-    /// (`foo://` を許可しても `FOO://` は未同意。実測 OI-179 ①)ので、小文字化すると先の綴りが1回を使い切り、
+    /// (`foo://` を許可しても `FOO://` は未同意。実測)ので、小文字化すると先の綴りが1回を使い切り、
     /// 後の綴りの同意が確かめられずに URL が届かないまま ✅ になる。スキームが読めない URL は空の綴り
     static func consentAttemptKey(target: String, bundleID: String, url: String) -> String {
         "\(target)#\(bundleID)#\(URL(string: url)?.scheme ?? "")"
@@ -674,7 +674,7 @@ public final class BridgeClient: AppDriver, Sendable {
     /// インストール済みのアプリの表示名(CFBundleDisplayName、無ければ CFBundleName。同意のアラートの同定に使う = ラベル文字列は
     /// 端末ロケールで変わる)と、受ける URL スキーム(小文字。`Path` の Info.plist の `CFBundleURLTypes`。listapps 自体はスキームを
     /// 載せない)。**(宛先, アプリ) ごとにプロセスで1回だけ `simctl listapps` を撃って控える**(約 2.7 秒/回。openURL の初回が
-    /// 表示名とスキームで2回撃っていた = OI-179 ②)。控えるのは読めた回だけ。表示名・スキームは入れ直しでも同じアプリなら変わらない
+    /// 表示名とスキームで2回撃っていた)。控えるのは読めた回だけ。表示名・スキームは入れ直しでも同じアプリなら変わらない
     struct AppListing: Sendable {
         let displayName: String?
         let schemes: Set<String>?

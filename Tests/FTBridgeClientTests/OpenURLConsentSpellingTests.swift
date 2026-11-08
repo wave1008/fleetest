@@ -3,7 +3,7 @@ import XCTest
 @testable import FTCore
 
 /// 同意の確かめの1回の単位は URL スキームの綴り(大小を区別)。小文字の openURL が1回を使い切っても、
-/// 大小違いの綴りでは確かめが走る(OI-179 ①)。同じ綴りの2回目は走らない
+/// 大小違いの綴りでは確かめが走る。同じ綴りの2回目は走らない
 final class OpenURLConsentSpellingTests: XCTestCase {
     private func seed(_ target: String) {
         BridgeClient.appListingCache.withLock {

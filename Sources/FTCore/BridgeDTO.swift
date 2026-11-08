@@ -60,7 +60,7 @@ public enum BridgeAPI {
     public static let systemAlertBlockedReason = "system-alert-blocked"
 
     /// **アラートのボタンのラベルを、ラベルと枠の組で重複を除いて最初の出現の順に並べる**。XCUITest はアラートの各ボタンを
-    /// 2 つずつ返す(`alert.buttons` が 4 件・ログ `Element at index 0…3`)ので、そのまま並べると文言のボタンが2回ずつ出た(OI-180 ③)。
+    /// 2 つずつ返す(`alert.buttons` が 4 件・ログ `Element at index 0…3`)ので、そのまま並べると文言のボタンが2回ずつ出た。
     /// 枠も鍵に入れる = 同じラベルの別の位置のボタンは残す。同期相手: Runner/.../InterruptionGuard.swift(読みの1箇所)
     public static func uniqueAlertButtonLabels(_ buttons: [(label: String, frame: FTRect)]) -> [String] {
         var seen = Set<String>()

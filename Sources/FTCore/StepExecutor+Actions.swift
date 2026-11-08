@@ -2057,7 +2057,7 @@ extension StepExecutor {
                                    height: max(0, container.y + container.height - current.frame.y))
             }
             // **焦点を立てる操作(type / clearInput)の前に、欄の中心が容器の上端の外なら、容器を逆向きに送って中へ戻す**
-            // (直前の送りで上へ押し出された欄。中心を叩くと容器の外に当たり焦点が前の欄に残る = OI-167 ④⑤。
+            // (直前の送りで上へ押し出された欄。中心を叩くと容器の外に当たり焦点が前の欄に残る。
             // topEdgeCentreLift の doc)。キーボードの下から出す送りと同じ手順(slowDrag・撮り直し・収まったか)を通す
             if jump == nil, takesFocus, ownContainer != nil,
                let lift = TapTargetGeometry.topEdgeCentreLift(current, container: container) {

@@ -18,7 +18,7 @@ import Foundation
 public enum OpenURLConsent {
     /// **このアプリの同意のアラート(「“<表示名>”で開きますか?」)が出うる URL か**。出るのは開いた先がこのアプリ = 自分のスキームの
     /// URL だけ(表題は開く先の表示名)。別のアプリ向け(https・`App-prefs:`・他のアプリのスキーム)では探しても当たらず、
-    /// 出現待ちと SpringBoard からの張り戻し(開いた先が前面なので 500 まで約 5 秒)を毎回の初回で払っていた(OI-179 ②: 最初の
+    /// 出現待ちと SpringBoard からの張り戻し(開いた先が前面なので 500 まで約 5 秒)を毎回の初回で払っていた(最初の
     /// 別アプリ向けの openURL が 11.7〜15.1 秒)。スキームが分からない(nil)ときは true = 従来どおり試す
     public static func mayAppear(url: String, ownSchemes: Set<String>?) -> Bool {
         guard let scheme = URL(string: url)?.scheme?.lowercased() else { return false }

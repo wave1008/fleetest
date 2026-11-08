@@ -3,7 +3,7 @@ import XCTest
 import FTCore
 import FTTestSupport
 
-/// `terminateApp()` で止めた対象アプリの扱い(OI-183・OI-169)。iOS の inapp-boost モードでは、アイコンや XCUITest の activate から
+/// `terminateApp()` で止めた対象アプリの扱い。iOS の inapp-boost モードでは、アイコンや XCUITest の activate から
 /// 起きたアプリに in-app ブリッジが載らない。back() は止めた後に生死を聞いて断り、tapAppIcon() は押さずに注入付きで起動する。
 /// 失敗の時点にアプリが居なかった事実(processGone)は、このシナリオが起こしてその後止めていないときだけ記録してよい
 final class StoppedAppRelaunchTests: XCTestCase {

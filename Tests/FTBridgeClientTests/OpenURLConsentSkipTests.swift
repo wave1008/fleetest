@@ -2,7 +2,7 @@ import XCTest
 @testable import FTBridgeClient
 @testable import FTCore
 
-/// 別のアプリ向けの URL では同意の確かめ(SpringBoard への張り替え・出現待ち・張り戻し)を撃たない(OI-179 ②)。
+/// 別のアプリ向けの URL では同意の確かめ(SpringBoard への張り替え・出現待ち・張り戻し)を撃たない。
 /// 自分のスキームでは従来どおり張り替える
 final class OpenURLConsentSkipTests: XCTestCase {
     private func seed(_ target: String) {

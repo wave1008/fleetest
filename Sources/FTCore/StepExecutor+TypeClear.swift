@@ -540,7 +540,7 @@ extension StepExecutor {
     func resolveAfterClosingKeyboard(_ action: String, step: FlowStep, in snapshot: SnapshotResponse,
                                      phase: inout PhaseAccumulator) async throws -> KeyboardRetry {
         // in-app が「モーダルの view の外を木から外した」と申告した木は、対象が無い理由がモーダルと分かっている。
-        // キーボードへ帰属せず、閉じる tap も撃たない(幕の上を叩く。OI-180 ②)。失敗文は `modalScopeHint`
+        // キーボードへ帰属せず、閉じる tap も撃たない(幕の上を叩く)。失敗文は `modalScopeHint`
         guard !Self.hasModalScope(snapshot),
               PreFireGuard.keyboardSensitiveActions.contains(action),
               KeyboardWait.isShown(snapshot) || (!isAndroid

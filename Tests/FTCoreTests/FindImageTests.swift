@@ -223,7 +223,7 @@ final class FindImageTests: XCTestCase {
         XCTAssertTrue(outcome.driverFallback?.hasPrefix("found (distance ") == true, outcome.driverFallback ?? "")
     }
 
-    /// 見つけたときは次点の距離を記述に残す(OI-130: 距離 0.000 で木の先頭の行を返した赤を、全候補が同じ特徴量になる縮退か
+    /// 見つけたときは次点の距離を記述に残す(距離 0.000 で木の先頭の行を返した赤を、全候補が同じ特徴量になる縮退か
     /// その行だけかで分けるための事実)。健全な照合では次点は採った距離より遠く、同じ距離の候補は無い
     func testFoundNoteSaysTheNextDistanceFromTheSameScan() async throws {
         let root = try makeProject()

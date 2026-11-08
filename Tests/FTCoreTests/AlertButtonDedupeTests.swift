@@ -1,7 +1,7 @@
 import XCTest
 @testable import FTCore
 
-/// XCUITest がアラートの各ボタンを 2 つずつ返す形の重複除き(OI-180 ③)。ランナーの読み(`SystemAlertProbe.buttonLabels`)が使う
+/// XCUITest がアラートの各ボタンを 2 つずつ返す形の重複除き。ランナーの読み(`SystemAlertProbe.buttonLabels`)が使う
 final class AlertButtonDedupeTests: XCTestCase {
     private func rect(_ x: Double) -> FTRect { FTRect(x: x, y: 500, width: 120, height: 44) }
 

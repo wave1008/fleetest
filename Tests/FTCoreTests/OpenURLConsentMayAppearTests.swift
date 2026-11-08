@@ -1,7 +1,7 @@
 import XCTest
 @testable import FTCore
 
-/// 同意のアラートは開いた先がこのアプリ(自分のスキーム)のときだけ出る(OI-179 ②: 別アプリ向けで毎回約 9 秒の空振り)
+/// 同意のアラートは開いた先がこのアプリ(自分のスキーム)のときだけ出る(別アプリ向けで毎回約 9 秒の空振り)
 final class OpenURLConsentMayAppearTests: XCTestCase {
     func testOnlyOwnSchemesCanRaiseThisAppsConsent() {
         let own: Set<String> = ["fte2eflutter"]
