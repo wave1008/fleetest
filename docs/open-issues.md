@@ -32,7 +32,7 @@
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-139・OI-184・OI-198 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 17 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 18 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201 |
 
 ## 着手可
 
@@ -350,6 +350,17 @@ E2EY-iOS の「文中のリンクを押せること」S0020 が M4Max で 6/6 �
 - 据え置きの理由: ②遷移の完了は待たない方針 ⑥xcuitest モードは警告だけの設計
 - 11/8: ①(ダイアログの裏の要素への `notExist`)は合否を変えず(木に無ければ緑)、手前のダイアログが裏を木から隠しているときに注記 `absence-behind-modal` を付けた(Android は WebView 向けの注記と綴りの修正案を外した)
 
+### OI-201 探索の残り(41周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 据え置き
+- 運用: ①要注意 — iOS で桁上限のある欄へ上限を超えて打つ `type` は、末尾が欄に残らなくても注記の無い緑。打った値は `valueIs` / 画面の表示で確かめる
+- 優先度: 低 — どれも合否に響かない注記か、MCP だけの形
+
+出典: `_work/explore-20261109/findings-*.md`(41周目・11/9)。①iOS(inapp-boost)の桁上限の欄(OTP の 6 桁)へ上限を超える `type` が注記の無い ✅(im4 F1 15/15・SwiftUI・RN・Flutter。iultra F2 6/6。セレクタ無し・付き・replace とも。Android は注入器の読み返しで「did not keep the last N character(s)」を言う) ②MCP の Android で `ft_launch` の直後(間に `ft_snapshot` 無し)の `ft_navigate back` がアプリを出てランチャーが前面になったのに「the tree is identical … back appears to have had no effect」と言う(alocal F1 9/10。間に `ft_snapshot` を挟むと 0/3) ③Android の改行を含むセレクタ無しの `type` は、桁上限で末尾が切れても「did not keep …」が出ない(phys F2 5/5。読み返しが書いた文字列の先頭部分にならないので注入器が黙る = 整形と区別できない) ④replace の `type` で「whether the field was emptied could not be read back」と読み返した値が同じ行に並ぶ(phys F1 の追記 1/1。消去の段は焦点の欄を読めず、打鍵の段は注入器が読み返した)
+- 据え置きの理由: ①iOS のブリッジは書いた文字列と欄の値を突き合わせて切れを言う経路を持たない。この画面は 6 桁で自動送信して欄が空に戻るので、読み返しで切れを見分けられるかも材料不足 ②原因は推測(比べる「back の前の木」が launch 前の控えのまま)③注入器の判定を広げると整形(区切り・大文字化)を切れと誤認しうる ④消去の段と打鍵の段の別々の事実で、どちらも誤りではない
+- 11/9(41周目の直し): 空の期待値の `textContains` / `valueContains` は「含む」(`textContainsNot("")` が緑だった)・空のセレクタは実行前に断る(`notExist("")` が緑だった)・Android の文中の改行が文字として書かれることを注記・注入器が読み返せた `type` に「行き先を確かめられない」を並べない・焦点無しの断りの文から「by ref」と「叩いた前提」を外す・`hideKeyboard()` の後の救済の注記から「preceding tap」を外す
+
 ### OI-200 探索の残り(40周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-08)
@@ -357,9 +368,10 @@ E2EY-iOS の「文中のリンクを押せること」S0020 が M4Max で 6/6 �
 - 運用: ①要注意 — Flutter・CMP の iOS のダイアログの間の `notExist` は、裏が木から消えても注記の無い緑。裏の要素を確かめるなら先に閉じる
 - 優先度: 低 — どれも合否に響かない文言か、MCP・xcuitest モードだけの形
 
-出典: `_work/explore-20261108/findings-*.md`(40周目・11/8)。①Flutter と CMP の iOS(inapp-boost)でダイアログの間に裏の要素への `notExist` が `absence-behind-modal` 無しで ✅、同じ裏への `tap` の赤は `waitSeconds:` を案内してダイアログを名指さない(im4 F3・ilocal F1・各 3/3。木はダイアログの要素と全面の "Dismiss" だけで、`modalScope` も `coveredByFrontWindow` も来ない) ②WebView の無い画面(E2EY の編集画面・RN の編集画面)の `notExist` / `countIs(0)` に `tree-underreported` が付く(amax F1 12/12・iultra F2 12/12。既存シナリオ 58 の S0040 にも 76 件) ③Android のアプリ自身の確認ダイアログの間の `notExist` に `absence-behind-modal` が付かない(alocal 3/3・0.10s で通る。同じ画面の `exist` の赤はダイアログを名指す・amax の別の画面では付く) ④Android の横向きで全画面の IME がアプリを覆った後の検証の見つからない失敗がキーボードを言わない(amax F4・4/4) ⑤MCP の Android で、押せる `#mini_player` が中心を覆う半分のシートの裏の行への `ft_tap` が警告付きの done(alocal F3・4/4。警告がシートを「sticky header」と呼ぶ) ⑥MCP の ref 無しの `ft_type` が同じ応答で「read back」と「could not be read back」を並べる(alocal F2・3/3) ⑦`ft_fold` の unfold の直後から Duo の SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」と返し `ft_snapshot` が 123.5 秒塞がった(duo F1・1/1。DSL の unfold では出ない)
-- 据え置きの理由: ①ブリッジがダイアログを申告しない(材料が木に無い = OI-170 と同じ) ②③④原因は材料不足 ⑤⑥MCP だけの文言・判定 ⑦環境側(OI-184 と同じ SpringBoard の落ち)の起点の候補で1回だけ
+出典: `_work/explore-20261108/findings-*.md`(40周目・11/8)。①Flutter と CMP の iOS(inapp-boost)でダイアログの間に裏の要素への `notExist` が `absence-behind-modal` 無しで ✅、同じ裏への `tap` の赤は `waitSeconds:` を案内してダイアログを名指さない(im4 F3・ilocal F1・各 3/3。木はダイアログの要素と全面の "Dismiss" だけで、`modalScope` も `coveredByFrontWindow` も来ない) ②WebView の無い画面(E2EY の編集画面・RN の編集画面)の `notExist` / `countIs(0)` に `tree-underreported` が付く(amax F1 12/12・iultra F2 12/12。既存シナリオ 58 の S0040 にも 76 件) ④Android の横向きで全画面の IME がアプリを覆った後の検証の見つからない失敗がキーボードを言わない(amax F4・4/4) ⑤MCP の Android で、押せる `#mini_player` が中心を覆う半分のシートの裏の行への `ft_tap` が警告付きの done(alocal F3・4/4。警告がシートを「sticky header」と呼ぶ) ⑥MCP の ref 無しの `ft_type` が同じ応答で「read back」と「could not be read back」を並べる(alocal F2・3/3) ⑦`ft_fold` の unfold の直後から Duo の SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」と返し `ft_snapshot` が 123.5 秒塞がった(duo F1・1/1。DSL の unfold では出ない)
+- 据え置きの理由: ①ブリッジがダイアログを申告しない(材料が木に無い = OI-170 と同じ) ②④原因は材料不足 ⑤⑥MCP だけの文言・判定 ⑦環境側(OI-184 と同じ SpringBoard の落ち)の起点の候補。41周目に MCP の unfold で -02 でも再現(duo F1・計 3/3。DSL の unfold・fold・hinge では 0/1。`ft_fold` は「Unfolded.」と返し、続く `ft_status` / `ft_snapshot` は SpringBoard を名指さない)
 - 11/8(40周目の直し 32c77a96b): `absence-behind-modal` / `covered-by-front-element` / `type-focus-not-reported` の文をレポートの行に出し、セレクタ無しの `type` の注記をその行で読み、手前の別 UIWindow も不在の注記の根拠にした
+- 11/9: ③(Android の自前の確認ダイアログの間の `notExist` に注記が無い)は取り下げた —— 40周目の結果 JSON には3回とも `absence-behind-modal` が立っており、レポートに文言が出なかった(上の直しで解消)だけ。HEAD の同じ手順で注記がその行に出ることを emulator-5554 で確かめた
 
 ### OI-168 探索の残り(10周目)
 - 状態: 再現済み
