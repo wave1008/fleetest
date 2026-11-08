@@ -79,8 +79,12 @@ public enum BackEffect {
     public static let summary = "the tree is identical to the one before back — back appears to"
         + " have had no effect on this screen (apps drawing their own back button often ignore"
         + " the system back)"
-    public static let mcpAdvice = "tap the app's own back control, or send back again"
-    public static let dslAdvice = "tap the app's own back control, or call back() again"
+    /// **繰り返しを勧めない・戻るボタンがあると決めつけない**: ルートの画面や戻るの無いダイアログの前では、どちらにも従えない
+    /// (39周目 im4 F3・iultra F1)。キーボードだけ閉じた back は `hadNoEffect` が「効いた」と数えるので、もう一度で進む形は無い
+    public static let mcpAdvice = "if this screen has its own back or close control, tap it instead (on the app's first screen,"
+        + " or in front of a dialog that ignores back, there may be nothing for back to go back to)"
+    public static let dslAdvice = "if this screen has its own back or close control, tap() it instead of back() (on the app's"
+        + " first screen, or in front of a dialog that ignores back, there may be nothing for back() to go back to)"
 
     public static func note(advice: String) -> String { "\(summary); \(advice)" }
 }

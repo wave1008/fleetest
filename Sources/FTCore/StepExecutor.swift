@@ -1590,6 +1590,14 @@ public final class StepExecutor {
     /// 直前の操作(tap / 長押し)の記録。**読むのは失敗文言の組み立てだけ**。
     /// StepExecutor+Assert.swift の各失敗経路から読むため internal
     var lastInteraction: LastInteraction?
+
+    /// 画面を移す DSL コマンド(back・home・launchApp 等。executor の execute を通らない)の前に呼ぶ。直前の tap の前の木は
+    /// 移った後の木と比べても tap の話にならない(back で tap の前の画面へ戻ると「tap は画面を変えなかった」と誤って言う)。
+    /// **確定済みの `unchangedEarlierTaps` は残す**(次の木と比べて既に画面が変わらなかったと分かった事実)
+    public func forgetLastInteraction() {
+        lastInteraction = nil
+        tapAwaitingNextTree = nil
+    }
     /// **tap が続いたとき、前のタップの記録を次のタップの解決まで持ち越す**入れ物(`executeAction` の入口で
     /// 移し、`recordInteraction` で次のタップの解決に使った木と比べて確定させる)。
     /// 直前 1 件だけだと、`tap(効かなかった) → tap(画面を変えないのが正常)→ 検証` で後者を名指しし、

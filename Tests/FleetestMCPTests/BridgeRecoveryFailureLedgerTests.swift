@@ -32,7 +32,9 @@ final class BridgeRecoveryFailureLedgerTests: XCTestCase {
         BridgeRecoveryFailureLedger.record(key: key, detail: "port 8123 is in use", now: t0)
         let during = BridgeRecoveryFailureLedger.note(key: key, now: t0.addingTimeInterval(5))
         XCTAssertTrue(during.contains("port 8123 is in use"), during)
-        XCTAssertTrue(during.contains("again automatically"), during)
+        // 裏では撃ち直さない(次の呼び出しが撃つ)ので「自動で撃ち直す」と言わない(39周目 duo F1)
+        XCTAssertTrue(during.contains("the first call after that tries the restart again"), during)
+        XCTAssertFalse(during.contains("tried again automatically"), during)
         XCTAssertEqual(BridgeRecoveryFailureLedger.note(key: key, now: t0.addingTimeInterval(500)), "")
         XCTAssertEqual(BridgeRecoveryFailureLedger.note(key: "ledger-test-unknown"), "")
     }

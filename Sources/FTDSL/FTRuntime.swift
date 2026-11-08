@@ -1460,6 +1460,9 @@ public final class FTDriveCore {
         if let command, ["launchApp", "restartApp", "clearAppData", "installApp"].contains(command) {
             executor.noteAppLaunched(bundleID: launchedBundleID)
         }
+        // 画面を移すコマンドの後は、その前の tap の記録を失敗の注記に使わない(back() で tap の前の画面へ戻ると木が
+        // tap の前と同じになり「直前の tap は画面を変えなかった」と事実と逆を言った = OI-197 ③)。wait / procedure は消さない
+        if let command, Self.screenMovingCommands.contains(command) { executor.forgetLastInteraction() }
         // home / アプリの切り替え・終了の後は、意図して別の面に居るかもしれない(scrollToEdge の「始める前に前面を離れていた」の基準を捨てる)
         if let command, ["home", "appSwitcher", "tapAppIcon", "terminateApp", "removeApp"].contains(command) {
             executor.launchedBundleID = nil
@@ -1688,6 +1691,9 @@ public final class FTDriveCore {
     /// 対象アプリを止める3コマンド。`AppUnderTestLifeRecord` と `_appStoppedByScenario` の両方がこの1つの集合で「このシナリオが止めた」を数える
     /// (片方だけが terminateApp しか数えず、clearAppData / removeApp の後の失敗に「クラッシュしたかも」が並んでいた)
     static let stoppingCommands: Set<String> = ["terminateApp", "removeApp", "clearAppData"]
+    /// 撃つと画面が移る(直前の tap の記録を捨てる)コマンド。`StepExecutor.forgetLastInteraction` を呼ぶ
+    static let screenMovingCommands: Set<String> = ["back", "home", "appSwitcher", "tapAppIcon", "openURL", "launchApp",
+                                                     "restartApp", "terminateApp", "removeApp", "clearAppData", "installApp"]
     /// 子が「このシナリオはこの環境では成り立たない」と宣言した理由(scenarioFinished.notApplicableReason へ運ぶ)。
     /// 失敗ではない: 宣言以降の手順は skipped になり、シナリオの合否は宣言までの手順だけで決まる
     public var notApplicableReason: String? {

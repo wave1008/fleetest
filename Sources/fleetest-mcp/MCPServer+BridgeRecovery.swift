@@ -296,6 +296,7 @@ enum BridgeRecoveryFailureLedger {
         guard let entry = entry(key: key), now.timeIntervalSince(entry.at) < retryCooldownSeconds else { return "" }
         let ago = max(0, Int(now.timeIntervalSince(entry.at).rounded()))
         return " An automatic restart of its XCUITest bridge was tried \(ago)s ago and failed: \(entry.detail)."
-            + " It is tried again automatically after \(Int(retryCooldownSeconds))s."
+            + " Calls made within \(Int(retryCooldownSeconds))s of that attempt do not try again; the first call after that"
+            + " tries the restart again (nothing retries it in the background)."
     }
 }

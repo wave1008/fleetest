@@ -62,8 +62,10 @@ final class BackEffectTests: XCTestCase {
         XCTAssertTrue(mcpText.hasPrefix(BackEffect.summary))
         XCTAssertTrue(dslText.hasPrefix(BackEffect.summary))
         XCTAssertNotEqual(mcpText, dslText)
-        XCTAssertTrue(mcpText.contains("send back again"))
-        XCTAssertTrue(dslText.contains("call back() again"))
+        XCTAssertTrue(mcpText.contains("tap it instead"))
+        XCTAssertTrue(dslText.contains("tap() it instead of back()"))
+        // 従えない案内(繰り返し)を言わない(39周目 im4 F3)
+        XCTAssertFalse(mcpText.contains("again") || dslText.contains("again"), mcpText + dslText)
     }
 
     /// **キーボードを閉じただけの back は「効いた」**(キーボードはアプリの木の外。Android の back は最初にキーボードだけを閉じる)。
