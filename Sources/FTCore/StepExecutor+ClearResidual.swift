@@ -48,7 +48,7 @@ extension StepExecutor {
             let answer = override(left)
             guard let drawn = answer.drawn else { return undetermined(answer.fact ?? "OCR was unavailable", left, snap) }
             return ClearResidualAnswer(residual: left, notDrawn: !drawn, why: nil, snapshot: snap,
-                                       drawnLines: drawn ? [answer.fact ?? ""] : [])
+                                       drawnLines: drawn ? answer.fact.map { [$0] } ?? [] : [])
         }
         guard OCRSupport.isSupported else { return undetermined(OCRSupport.requirement, left, snap) }
         guard let png = try? await treeDriver.screenshot(), !png.isEmpty else {
@@ -58,21 +58,22 @@ extension StepExecutor {
             return undetermined("the screenshot was black apart from the system bars", left, snap)
         }
         _ = await RegionText.awaitModelCompile(mode: .on)
-        // 待ったコンパイルの時間は予算に含めない。言語は既定の ja+en(value は中身ではないので value から決めない)
-        let result = await RegionText.resolveWithinBudget(
-            expected: left, pngData: png, frame: field.frame, screen: snap.screen,
-            languages: RegionText.defaultLanguages, budget: .milliseconds(Int(Self.clearReadbackBudgetSeconds * 1000)))
-        let reading: RegionText.Reading
-        switch result {
-        case .read(_, let read): reading = read
-        case .unreadable: return undetermined("the field's area could not be read (OCR returned no reading)", left, snap)
-        case .budgetExhausted: return undetermined("reading the field's area ran out of time", left, snap)
+        // 待ったコンパイルの時間は予算に含めない
+        let frame = field.frame, screen = snap.screen
+        let outcome = await TaskBudget.run(.milliseconds(Int(Self.clearReadbackBudgetSeconds * 1000))) {
+            await Self.readFieldLines(png: png, frame: frame, screen: screen)
         }
-        if reading.lines.isEmpty, !(await RegionText.readerIsAlive()) {
+        let readLines: [String]
+        switch outcome {
+        case .exhausted: return undetermined("reading the field's area ran out of time", left, snap)
+        case .value(nil): return undetermined("the field's area could not be read (OCR returned no reading)", left, snap)
+        case .value(let lines?): readLines = lines
+        }
+        let treeTexts = ClearResidualDrawn.treeTexts(field: field, in: snap.elements)
+        if readLines.isEmpty, !(await RegionText.readerIsAlive()) {
             return undetermined(Self.ocrDeadFact, left, snap)
         }
-        let lines = ClearResidualDrawn.remainingLines(
-            ocrLines: reading.lines, treeTexts: ClearResidualDrawn.treeTexts(field: field, in: snap.elements))
+        let lines = ClearResidualDrawn.remainingLines(ocrLines: readLines, treeTexts: treeTexts)
         return ClearResidualAnswer(residual: left, notDrawn: lines.isEmpty, why: nil, snapshot: snap, drawnLines: lines)
     }
 
@@ -84,6 +85,22 @@ extension StepExecutor {
         let answer = await checkClearResidual(treeDriver, residual: residual, locate: locate)
         if answer.notDrawn { return clearedAsResidualNotDrawn(answer, fallback: fallback, handsOverSnapshot: handsOverSnapshot) }
         return .failed("clearInput reported success but the value remained: \"\(residual)\"" + Self.screenFact(answer))
+    }
+
+    /// 欄の枠を拡大の段ごとに全部読み、読めた行を全段ぶん集める(nil = 1段も読めなかった = 画像不正・OCR の失敗)。
+    /// `RegionText.resolve` を使わない —— あれは期待文字列が読めた段で止まり、0行の段で前の段の行を捨てて返す
+    /// (ここで見るのは「何か1行でも描かれているか」なので、どの段の行も捨てられない)。
+    /// 余白は 0: 枠の外の文字(取消ボタン・一覧の行)を拾うと、空の欄を赤にする。言語は既定の ja+en(value は中身ではない)
+    static func readFieldLines(png: Data, frame: FTRect, screen: FTRect) async -> [String]? {
+        var lines: [String] = []
+        var readAny = false
+        for step in RegionText.upscaleLadder {
+            guard let reading = await RegionText.read(pngData: png, frame: frame, screen: screen, cropPadding: 0,
+                                                      languages: RegionText.defaultLanguages, upscale: step) else { continue }
+            readAny = true
+            lines += reading.lines
+        }
+        return readAny ? lines : nil
     }
 
     /// 赤の失敗文に添える、画面で確かめた事実(確かめていなければ理由)

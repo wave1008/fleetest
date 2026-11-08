@@ -7,21 +7,8 @@ import Foundation
 /// 描かれていても value の文字は描かれず、それを「空」の証拠にすると誤った緑になる。見るのは「木が言う飾りの文字の他に、
 /// 欄の中に1行でも読めたか」で、読めたら(何であれ)消え残り = 赤のまま
 public enum ClearResidualDrawn {
-    public enum Verdict: Equatable, Sendable {
-        /// 飾りの文字の他に何か描かれている = 消え残りの疑い(赤のまま)
-        case drawn
-        /// 飾りの文字の他に何も読めない = 絵の上では空
-        case notDrawn
-    }
-
-    /// - Parameters:
-    ///   - ocrLines: 欄の領域から OCR が読んだ行
-    ///   - treeTexts: 木が「欄の中に描かれている飾り」と言う文字(`treeTexts(field:in:)`)。一致する行は中身ではない
-    /// 1行も読めない細い・短い消え残りは見逃す(OCR の限界。読み手の故障は呼び手が `readerIsAlive` で分ける)
-    public static func judge(ocrLines: [String], treeTexts: [String]) -> Verdict {
-        remainingLines(ocrLines: ocrLines, treeTexts: treeTexts).isEmpty ? .notDrawn : .drawn
-    }
-
+    /// 1行も読めない細い・短い消え残りは見逃す(OCR の限界。読み手の故障は呼び手が `readerIsAlive` で分ける)。
+    /// 空 = 絵の上では空(緑の材料)・1行でも残れば消え残りの疑い(赤のまま)
     /// 飾りの文字を除いて残った行(赤の失敗文に事実として添える)
     public static func remainingLines(ocrLines: [String], treeTexts: [String]) -> [String] {
         let known = Set(treeTexts.map(squeeze).filter { !$0.isEmpty })
@@ -32,7 +19,9 @@ public enum ClearResidualDrawn {
     }
 
     /// placeholder・欄の枠の中にある staticText のラベル。**欄自身のラベルは入れない** —— 入力を
-    /// ラベルへ畳む構成("bx, Search")では、消し損ねた入力そのものを飾りとして除いてしまう
+    /// ラベルへ畳む構成("bx, Search")では、消し損ねた入力そのものを飾りとして除いてしまう。
+    /// 枠の中の staticText は M3 SearchBar の iOS のプレースホルダ("検索")の出どころ。入力を枠の中の staticText として
+    /// 出す構成なら消し残りも飾りに数える(見逃し。今の SUT に例は無い)
     public static func treeTexts(field: ElementInfo, in elements: [ElementInfo]) -> [String] {
         var texts: [String] = []
         if let placeholder = field.placeholder { texts.append(placeholder) }

@@ -8,26 +8,26 @@ final class ClearResidualDrawnTests: XCTestCase {
     // MARK: - 判定
 
     func testPlaceholderLineIsNotTheResidual() {
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["検索"], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertTrue(ClearResidualDrawn.remainingLines(ocrLines: ["検索"], treeTexts: ["検索"]).isEmpty)
     }
 
     func testNothingDrawnIsNotDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: [], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertTrue(ClearResidualDrawn.remainingLines(ocrLines: [], treeTexts: ["検索"]).isEmpty)
     }
 
     /// value(案内文)は描かれず、消し損ねた入力 "bx" が描かれている = 消え残り(value の文字との照合では見逃す形)
     func testLeftoverInputOtherThanTheValueIsDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["検索", "bx"], treeTexts: ["検索"]), .drawn)
+        XCTAssertFalse(ClearResidualDrawn.remainingLines(ocrLines: ["検索", "bx"], treeTexts: ["検索"]).isEmpty)
     }
 
     /// 書式付きの表示・同形異字の誤読・キーボードの文字など、何であれ飾り以外の行は赤のまま
     func testAnyLineOtherThanDecorationIsDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["090-1234-5678"], treeTexts: []), .drawn)
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["аp"], treeTexts: ["Search"]), .drawn)
+        XCTAssertFalse(ClearResidualDrawn.remainingLines(ocrLines: ["090-1234-5678"], treeTexts: []).isEmpty)
+        XCTAssertFalse(ClearResidualDrawn.remainingLines(ocrLines: ["аp"], treeTexts: ["Search"]).isEmpty)
     }
 
     func testWhitespaceIsIgnoredWhenMatchingTreeTexts() {
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: [" 検 索 "], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertTrue(ClearResidualDrawn.remainingLines(ocrLines: [" 検 索 "], treeTexts: ["検索"]).isEmpty)
         XCTAssertEqual(ClearResidualDrawn.remainingLines(ocrLines: [" 検 索 ", " ", "bx"], treeTexts: ["検索"]), ["bx"])
     }
 
@@ -42,7 +42,12 @@ final class ClearResidualDrawnTests: XCTestCase {
                                 enabled: true, frame: FTRect(x: 10, y: 100, width: 50, height: 20), depth: 1)
         let texts = ClearResidualDrawn.treeTexts(field: field, in: [field, inner, outer])
         XCTAssertEqual(Set(texts), ["ph", "inner"])
-        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["bx"], treeTexts: texts), .drawn)
+        XCTAssertFalse(ClearResidualDrawn.remainingLines(ocrLines: ["bx"], treeTexts: texts).isEmpty)
+    }
+
+    /// 既定値はリテラルで固定する(ランナーの clearBudgetSeconds と揃える値。他のテストは差し替え口で予算を通らない)
+    func testClearReadbackBudgetIsPinned() {
+        XCTAssertEqual(StepExecutor.clearReadbackBudgetSeconds, 8)
     }
 
     func testUnreadableReasons() {
