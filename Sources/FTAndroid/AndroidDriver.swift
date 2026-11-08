@@ -1032,6 +1032,7 @@ public final class AndroidDriver: AppDriver {
                     try await $0.type(ref: target, text: text)
                     return $0.lastActionNote
                     } }
+                noteInnerNewline(main)
                 typedSinceLastTap = true
                 return
             }
@@ -1040,6 +1041,7 @@ public final class AndroidDriver: AppDriver {
                 try await $0.type(ref: target, text: main)
                 return $0.lastActionNote
                 } }
+            noteInnerNewline(main)
         } catch let error as DriverError {
             // 前面が systemui(通知シェード・クイック設定・ロック画面・アシスタント)ならそれが入力フォーカスを持っている。
             // 照会は「フォーカス不在」で落ちた回だけ(正常系には掛からない)
@@ -1094,8 +1096,10 @@ public final class AndroidDriver: AppDriver {
     static func typeNoFocusAdvice(after error: DriverError, hadRef: Bool, front: String? = nil,
                                   lastTreePackage: String? = nil, keyboardShown: Bool = false,
                                   fieldTypedSinceLastTap: Bool = false) -> DriverError? {
-        guard !hadRef, case .badResponse(let status, let body) = error,
-              body.contains(noInputFocusMarker) else { return nil }
+        guard !hadRef, case .badResponse(let status, let rawBody) = error,
+              rawBody.contains(noInputFocusMarker) else { return nil }
+        // 注入器の「by ref」は MCP の言い方で、DSL に ref は無い。下で呼び手どちらにも従える対処を足すので落とす(41周目 alocal F2)
+        let body = rawBody.replacingOccurrences(of: bridgeRefAdvice, with: "")
         if let advice = noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTreePackage) { return advice }
         if keyboardShown {
             return DriverError.badResponse(status: status, body: body
@@ -1111,10 +1115,11 @@ public final class AndroidDriver: AppDriver {
                 + " the list or pushed off the screen), so no field has focus now. Write type(<selector>, \"…\") to focus and type"
                 + " into a field by selector (scroll to it first if it is off the screen)")
         }
+        // 前に tap があったかは分からない(何も叩いていない画面でも来る = 41周目 amax F1)ので、どちらの場合にも合う形で言う
         return DriverError.badResponse(status: status, body: body
-            + " — nothing was tapped into focus. On Android an input is often a container"
-            + " (TextInputLayout) wrapping the editable field (TextInputEditText), and the id"
-            + " usually sits on the container, so tapping it does not move input focus."
+            + " — no field has input focus: either no field was tapped, or the tap landed on something that does not take"
+            + " input focus (on Android an input is often a container (TextInputLayout) wrapping the editable field"
+            + " (TextInputEditText), and the id usually sits on the container)."
             + " Write type(<selector>, \"…\") instead: it resolves the editable field and"
             + " focuses it (e.g. type(\".textField[1]\", \"…\"))")
     }
@@ -1144,6 +1149,18 @@ public final class AndroidDriver: AppDriver {
         return nil
     }
 
+    /// 文中の改行は文字として書く(Enter にしない)事実。単一行の欄には人が作れない「改行入りの値」が残り、欄のアクションも発火しない
+    /// (41周目 amax F2: actionSearch の欄へ "ab\ncd" が ✅・ime=0)。iOS は Return として届くので Android だけ言う
+    static let innerNewlineNote = "the newline inside the text was written into the field as a character, not pressed as Enter"
+        + " (on Android only a trailing newline is sent as Enter): a single-line field keeps it as a character and its action"
+        + " (search, done) does not fire — to press Enter between the parts, type them separately with pressEnter in between"
+
+    /// 打てた後にだけ足す(失敗した type の注記は次の操作へ持ち越される = 読むまで残る)
+    private func noteInnerNewline(_ body: String) {
+        guard body.contains("\n") else { return }
+        pendingTypeNote = [pendingTypeNote, Self.innerNewlineNote].compactMap { $0 }.joined(separator: " / ")
+    }
+
     /// 末尾の改行1つだけを分離する(text 全体が "\n" のときは分離しない=本文なしの pressEnter 相当に
     /// 潰さない)。戻り値: (本文, 末尾に改行があったか)
     static func splitTrailingNewline(_ text: String) -> (String, Bool) {
@@ -1160,6 +1177,8 @@ public final class AndroidDriver: AppDriver {
     /// ブリッジが「入力フォーカスが無い」と言うときの目印(InputInjector と同期。
     /// **文言ではなくこの接頭辞で判定する** —— 文言は英語化で変わる)
     static let noInputFocusMarker = "no-input-focus"
+    /// 注入器の no-input-focus の文に付く MCP 向けの対処(InputInjector.java の lastState と同期。変わると落とせず残るだけ)
+    static let bridgeRefAdvice = " (tap the field by ref first)"
 
     /// ブリッジの pressEnter が失敗したあとの分岐(純関数 = 単体テストで固定する)。
     /// nil = キーイベントへフォールバックしてよい / 非 nil = このエラーで止める。

@@ -38,7 +38,8 @@ field.type("alice")                // same as type("#login_id", "alice")
 - **Line breaks (`\n`) follow the OS default.** On iOS this arrives as a Return key press: it
   inserts a newline in a multi-line field, or fires the field's commit action (search, done, …)
   in a single-line field — which one happens depends on the field, not on `type`. On Android, a
-  trailing newline is likewise sent as Enter. If the intent is to commit (search/submit), use
+  trailing newline is likewise sent as Enter, but a newline in the middle of the text is written into the field as a character
+  (a single-line field keeps it and its action does not fire; the step's note says so). If the intent is to commit (search/submit), use
   [`pressEnter()`](./press_enter_hide_keyboard.md) instead — `type("watch\n")` does not tell the
   reader whether a newline or a submit was intended.
   On iOS in the `xcuitest` mode (where the XCUITest bridge types), text with a newline in the middle is typed in one go

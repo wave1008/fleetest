@@ -18,20 +18,33 @@ final class RefLessTypeBridgeNoteTests: XCTestCase {
         XCTAssertFalse(tapped.driverFallback?.contains("did not keep") == true,
                        "type の注記が次の tap に持ち越された: \(tapped.driverFallback ?? "nil")")
     }
+
+    /// 注入器が欄を読み返せた(注記がある)なら、木に焦点が無くても「どこにも行っていないかも」を並べない(41周目 phys F1)。
+    /// 注記が無ければ従来どおり type-focus-not-reported を付ける
+    func testReadBackNoteSuppressesTheNowhereWarning() async {
+        let withNote = StepExecutor(driver: NoteOnTypeDriver(note: note, focused: false), isAndroid: true, tunables: RunTunables())
+        let typed = await withNote.execute(FlowStep(action: "type", text: "7654321", timeout: 0.1))
+        XCTAssertTrue(StepExecutor.isSuccess(typed.status), "\(typed.status)")
+        XCTAssertFalse(typed.notes.contains(.typeFocusNotReported), "読み返した注記と矛盾する: \(typed.notes)")
+        let withoutNote = StepExecutor(driver: NoteOnTypeDriver(note: nil, focused: false), isAndroid: true, tunables: RunTunables())
+        let plain = await withoutNote.execute(FlowStep(action: "type", text: "7654321", timeout: 0.1))
+        XCTAssertTrue(plain.notes.contains(.typeFocusNotReported), "\(plain.notes)")
+    }
 }
 
 /// type の応答に注記を載せ、読んだら消える(AndroidDriver.lastActionNote と同じ規約)
 private final class NoteOnTypeDriver: AppDriver {
-    let note: String
+    let note: String?
+    let focused: Bool
     private var pending: String?
-    init(note: String) { self.note = note }
+    init(note: String?, focused: Bool = true) { self.note = note; self.focused = focused }
     var lastActionNote: String? {
         defer { pending = nil }
         return pending
     }
     func snapshot() async throws -> SnapshotResponse {
         let field = ElementInfo(ref: 1, type: "textField", identifier: "field_otp", label: nil, value: "765432", placeholder: nil,
-                                enabled: true, frame: FTRect(x: 10, y: 100, width: 300, height: 60), depth: 1, focused: true)
+                                enabled: true, frame: FTRect(x: 10, y: 100, width: 300, height: 60), depth: 1, focused: focused)
         let key = ElementInfo(ref: 2, type: "button", identifier: "key_1", label: "1", value: nil, placeholder: nil, enabled: true,
                               frame: FTRect(x: 10, y: 400, width: 100, height: 60), depth: 1)
         return SnapshotResponse(sessionBundleID: "com.example.app", screen: FTRect(x: 0, y: 0, width: 400, height: 800),

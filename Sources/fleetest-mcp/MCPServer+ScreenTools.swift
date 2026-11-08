@@ -500,6 +500,7 @@ extension MCPServer {
             } else {
                 typedPrior = TypedInputCheck.Prior(focusedIn: nil)
             }
+            var bridgeReadTheFieldBack = false
             do {
                 do {
                     try await typeDriver.type(ref: resolvedTypeRef, text: content)
@@ -514,7 +515,11 @@ extension MCPServer {
                     try await typeDriver.type(ref: again.ref, text: content)
                 }
                 // XCUITest ランナーが打ち直した事実(OKResponse.note)を返答に載せる
-                note += Self.driverFallbackNote(typeDriver)
+                let bridgeTypeNote = Self.driverFallbackNote(typeDriver)
+                note += bridgeTypeNote
+                // Android の改行を含まない type の注記は注入器の読み返し(`InputInjector.truncationNote`)だけ = 焦点の欄を掴めている
+                // (改行を含むと `AndroidDriver.innerNewlineNote` も来る)
+                bridgeReadTheFieldBack = !bridgeTypeNote.isEmpty && Self.platformName(args) == "android" && !content.contains("\n")
                 // 出現待ちは次の ref 操作の撮り直しで払う(verifiedRef。DSL の pendingTypeKeyboardCheck と同じ = 読みを足さない)
                 pendingTypeKeyboardChecks[Self.sessionKey(args)] = PendingTypeKeyboardCheck(
                     before: keyboardBeforeType, typedNewline: content.hasSuffix("\n"))
@@ -562,8 +567,11 @@ extension MCPServer {
                 let rawAfterType = try? await typeDriver.snapshot(
                     bypassingCache: typeDriver.supportsCacheBypass)
                 verificationCache = .some(rawAfterType)
-                note += await Self.typedIntoNote(driver: typeDriver, expected: content,
-                                                 snapshot: rawAfterType)
+                // 注入器が欄を読み返せたなら、木に焦点が無くても「どこにも行っていないかも」とは言わない(41周目 phys F1。DSL と同じ)
+                if !(bridgeReadTheFieldBack && rawAfterType.map { $0.elements.contains { $0.focused == true } } == false) {
+                    note += await Self.typedIntoNote(driver: typeDriver, expected: content,
+                                                     snapshot: rawAfterType)
+                }
             }
             // **secure 欄の文字数・改行入りの宛先の照合**(判定は DSL と共有 = `TypedInputVerdict`)。ref あり / なしとも。
             // 打った文字は既に届いているので、失敗にしても撃ち直しは勧めない

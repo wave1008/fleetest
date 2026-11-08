@@ -798,7 +798,7 @@ extension StepExecutor {
             return StepOutcome(status: .passed,
                                driverFallback: Self.joinNotes(replaceFallbackNote,
                                    "typed into \(TapTargetGeometry.describe(recovered))"
-                                       + " (the tree showed no focused field after the preceding tap)", bridgeNote))
+                                       + " (the tree showed no focused field, so it went to the field touched last)", bridgeNote))
         }
         // ロケータ有り type(下記 case "type")と同じ規則: "\n" を含むときだけ
         // typeDriver(XCUITest)へ回し、iOS の Return キー既定挙動に揃える(理由は同 case のコメント参照)。
@@ -835,7 +835,11 @@ extension StepExecutor {
             let readStart = clock.now
             if let after = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass) {
                 phase.snapshotMs += Self.ms(clock.now - readStart)
-                if TypeFocusConfirmation.verdict(after) != .reported { noteCodesThisStep.insert(.typeFocusNotReported) }
+                // Android の改行を含まない ref 無しの type の注記は注入器の読み返し(`InputInjector.truncationNote`)だけ = 焦点の欄を掴めている。
+                // 並べると「読み返した」と「どこにも行っていないかも」が同じ行で矛盾する(41周目 phys F1)
+                if bridgeNote == nil, TypeFocusConfirmation.verdict(after) != .reported {
+                    noteCodesThisStep.insert(.typeFocusNotReported)
+                }
             }
         }
         return StepOutcome(status: .passed, driverFallback: Self.joinNotes(replaceFallbackNote, focusNote, bridgeNote))

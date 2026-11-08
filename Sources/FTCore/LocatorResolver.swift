@@ -324,7 +324,9 @@ public enum LocatorResolver {
             ? expected : normalization.apply(expected)
         switch assert {
         case "textContains", "valueContains":
-            return a.contains(e) ? expected : nil
+            // 空の期待値は「含む」(hasPrefix/hasSuffix と同じ向き)。Swift の contains("") は false を返し、
+            // textContainsNot("") が黙って緑になっていた(41周目 iultra F1)
+            return e.isEmpty || a.contains(e) ? expected : nil
         case "textStartsWith", "valueStartsWith":
             return a.hasPrefix(e) ? expected : nil
         case "textEndsWith", "valueEndsWith":

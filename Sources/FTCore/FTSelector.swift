@@ -929,6 +929,8 @@ public struct FTSelector {
     /// 無い」= notExist/countIs(x,0) では**必ず成功**になってしまう。実行前にここで落とす。
     /// 呼ぶのは run 開始時の一括検査と `api run --dry-run`(デバイス不要)。
     public static func validationError(_ text: String) -> String? {
+        // 空のセレクタは text="" に解かれ、notExist("") が黙って緑になる(41周目 iultra F3。`#` 単独を断るのと同じ理由)
+        if text.trimmingCharacters(in: .whitespaces).isEmpty { return "the selector is empty" }
         for clause in splitTopLevel(text, separator: "||") {
             let trimmed = clause.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
