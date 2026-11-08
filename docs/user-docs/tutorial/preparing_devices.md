@@ -10,14 +10,14 @@ Add to the devices you set up in the Quick Start.
 
 ```text
 Add one more Simulator to the run profile ios-run in project1.
-If there aren't enough, you can create one with the same model and OS.
+If no unused Simulator is available, create one with the same model and OS.
 Then show me the profile's updated device list.
 ```
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
-In the **Profiles** tab of the Device Monitor, press the run profile's "Add device" button.
+In the **Profiles** tab of the Device Monitor, press the run profile's "Add devices" button.
 
 From the CLI, run the following. `--count` makes the run profile hold N devices of that OS in total (the existing ones included).
 

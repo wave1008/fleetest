@@ -6,7 +6,7 @@ You have an AI assistant create the tests. The result is a Swift file (scenario)
 
 ## 1. Create a happy-path test
 
-This suits your first test. It creates one test for the normal flow only (add error cases and the like later with "Add to an existing test").
+This suits your first test. It creates one test for the normal flow only (add error cases and the like later with ["Add a test to an existing test file"](#2-add-a-test-to-an-existing-test-file)).
 
 ### Prompt for the AI
 
@@ -14,6 +14,7 @@ This suits your first test. It creates one test for the normal flow only (add er
 In project1, create AddToCart.swift as a test.
 As a happy-path test, search for "watch" on the search screen, open the product, add it to the cart, and check that the product is in the cart.
 Run it on iOS (ios-run) to confirm.
+Put the step that switches the app to English mode in this class's setUpDevice too.
 ```
 
 The AI assistant compiles it, verifies it without a device (dry-run), runs it on a device, and reports the result.
@@ -21,7 +22,7 @@ The AI assistant compiles it, verifies it without a device (dry-run), runs it on
 Expected result:
 
 - `scenarios/AddToCart.swift` is created.
-- The test runs, and its history is added to the Test Sessions tab.
+- The test runs and its result is reported.
 
 ## 2. Add a test to an existing test file
 
@@ -36,8 +37,8 @@ Run it on iOS (ios-run) to confirm.
 
 Expected result:
 
-- A test scenario is added to the same file.
-- The test runs, and its history is added to the Test Sessions tab.
+- A second test is added to `AddToCart.swift`.
+- The test runs and its result is reported.
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>

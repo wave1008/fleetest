@@ -2,15 +2,15 @@
 
 [in Japanese(日本語)](watching_in_vscode_ja.md)
 
-Watch the AI assistant create and run tests in the VSCode extension (the extension comes with the [Quick start](../quick-start.md)).
+Watch the AI assistant create and run tests in the VSCode extension (you installed the extension in the [Quick Start](../quick-start.md)).
 
 ## 1. Open the Device Monitor
 
-Run "fleetest: Show Device Monitor" from the Command Palette, or click **fleetest mobile** in the status bar at the bottom left of VSCode.
+Click **fleetest mobile** in the status bar at the bottom left of VSCode.
 
 Expected result:
 
-- Three panes, top to bottom: the **Line View** (the row of device tiles), the **Grid View** (the enlarged screen of the selected device) and the **Run Log View** (the run log of the selected device).
+- Three panes, top to bottom: the **Line View** (heading "Device list"; the row of device tiles), the **Grid View** (heading "Selected devices"; the enlarged screen of the selected device) and the **Run Log View** (heading "Run Log"; the run log of the selected device).
 
 <img src="../images/tutorial/en/vscode_device_monitor.png" width="720" alt="Device Monitor">
 
@@ -69,13 +69,13 @@ For iOS runs of project1, keep recordings only for failed scenarios.
 
 Expected result:
 
-- `recordFailuresOnly` of the run profile ios-run becomes true (check it in the "Profiles" tab).
+- "Don't keep recordings of tests that passed" is checked for the run profile ios-run (check it in the "Profiles" tab; the setting key is `recordFailuresOnly`).
 
 <img src="../images/tutorial/en/vscode_test_sessions.png" width="720" alt="Test Sessions">
 
 ## 6. See the Results Dashboard
 
-Run "fleetest: Open Results Dashboard" from the Command Palette.
+Open the **Dashboard** tab of the monitor.
 
 Expected result:
 
@@ -96,7 +96,7 @@ Learn more:
 
 <br>
 
-Next: [Checking the sandbox and opening the holes you need](../security/sandbox.md)
+Next: [Preparing the app under test](../own_app/preparing_app.md)
 
 ### Link
 - [index](../index.md)

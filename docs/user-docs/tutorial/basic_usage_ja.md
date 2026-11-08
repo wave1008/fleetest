@@ -7,7 +7,7 @@ fleetest は、Claude Code などの AIアシスタントへ**自然言語で指
 ## チュートリアルの前提
 
 - テストプロジェクト `project1`・実行プロファイル `ios-run`・iOS で進めます(クイックスタートで作ったもの)
-- Android で進めるときは、指示文の `ios-run` を `android-run`、「iOS」「iPhone」を「Android」に読み替えてください
+- Android で進めるときは、指示文の `ios-run` を `android-run`、「iOS」「iPhone」を「Android」、「Simulator」を「Emulator」に読み替えてください
 
 ## できること
 

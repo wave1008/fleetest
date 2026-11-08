@@ -7,19 +7,19 @@ What fleetest records is only the facts: at which stage, which operation, and ho
 
 ## 1. Make one fail on purpose
 
-To practice investigating, temporarily change an expected value in the add-to-cart test so that it fails.
+To practice investigating, temporarily change an expected value in `AddToCart.swift` so that it fails.
 
 ### Prompt for the AI
 
 ```text
 In the first test of AddToCart.swift in project1, temporarily change just one expected value, the one that checks the product name in the cart,
 to the nonexistent product name "Phantom Product A".
-Then run it on iOS (ios-run) and report only pass or fail. Don't fix it.
+Then run all the scenarios of project1 on iOS (ios-run) and report only pass or fail. Don't fix it.
 ```
 
 Expected result:
 
-- The first test of the add-to-cart test fails.
+- The first test in `AddToCart.swift` fails.
 - The other tests pass.
 
 ## 2. Have the results summarized
@@ -35,33 +35,35 @@ Summarize the latest run of project1. If anything failed, list the failed scenar
 
 - Each scenario has a Markdown report under `TestProjects/project1/reports/`.
 - In VSCode, the Test Explorer shows pass/fail directly, and you can open the report from there.
-  The command "fleetest: Open Results Dashboard" also shows the run history and success rate.
+  The **Dashboard** tab of the monitor (click **fleetest mobile** in the status bar at the bottom left of VSCode) also shows the run history and success rate.
 
 </details>
 <br>
 
 Expected result:
 
-- The first test of the add-to-cart test is listed.
+- The first test in `AddToCart.swift` is listed.
 - The step where you changed the expected value is listed.
 
-## 3. Have the cause investigated (don't fix it)
+## 3. Have the cause investigated
 
 ### Prompt for the AI
 
 ```text
 Use the reports to find out why scenarios failed in the latest run of project1, and report back.
-Tell apart whether it is an app bug or a problem with how the test is written.
+For each failure, determine whether it is an app bug or a problem with how the test is written.
 Don't fix the scenarios yet.
 ```
 
-- Always add "don't fix them". If you ask for investigation and a fix at once, a test that failed because of an app bug may get made to pass by adjusting the expected value to match the app.
+- Always include "Don't fix the scenarios yet." in the prompt. If you ask for investigation and a fix at once, a test that failed because of an app bug may get made to pass by adjusting the expected value to match the app.
 - Read the report first, then you decide whether to fix it.
 
 Expected result:
 
 - The report contains the failed step, the failure message, and the element list and screenshot at the moment of failure (below is from the sample app).
 - This time it reports that the expected product name was not in the cart.
+
+(The image below is an example from a different scenario; use it to see how the report is laid out.)
 
 <img src="../images/tutorial/en/report_failure.png" width="600" alt="Excerpt of a failed report: the failed step and its message, the element list at the moment of failure (collapsed), and the screenshot">
 

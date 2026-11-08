@@ -34,7 +34,8 @@ In VSCode, select a scenario in the Test Explorer and click "Run" (choose the ru
 
 Expected result:
 
-- `ios-run` defines several devices. The scenarios are distributed to them automatically and run in parallel.
+- `ios-run` defines several devices. The scenarios are distributed to them automatically and run in parallel (the image below is an example with six scenarios and three devices).
+- All three tests (one that opens the product details and two that add to the cart) succeed.
 
 <img src="../images/tutorial/en/parallel_run.png" width="640" alt="Example: fleetest distributes six scenarios across three devices automatically">
 

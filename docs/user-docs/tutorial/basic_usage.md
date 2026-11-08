@@ -7,7 +7,7 @@ fleetest is used by **asking an AI assistant such as Claude Code in natural lang
 ## Prerequisites for the tutorial
 
 - The tutorial uses the test project `project1`, the run profile `ios-run`, and iOS (what you created in the Quick Start).
-- If you follow along on Android, read `ios-run` as `android-run` and iOS / iPhone as Android in every instruction.
+- If you follow along on Android, read `ios-run` as `android-run` and iOS / iPhone as Android and Simulator as Emulator in every instruction.
 
 ## What you can do
 

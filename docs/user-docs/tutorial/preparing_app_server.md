@@ -2,7 +2,7 @@
 
 [in Japanese(日本語)](preparing_app_server_ja.md)
 
-The SUT Store server (a server plus PostgreSQL) was already declared to fleetest in the Quick Start. Declared servers
+The SUT Store server (an API server and PostgreSQL) was already declared to fleetest in the Quick Start. Declared servers
 start automatically on every `fleetest run` and stop when it ends. The details are in
 [Services the app depends on](../reference/writing/services.md).
 
@@ -16,7 +16,7 @@ Tell me about the servers project1 uses.
 
 Expected result:
 
-- Information about the server and the db is shown.
+- Information about the services `server` and `db` is shown.
 
 ## 2. Start it and check
 
@@ -44,7 +44,7 @@ curl http://127.0.0.1:8090/health     # at the published port that was printed
 
 Expected result:
 
-- The steps run as instructed and the result is reported.
+- It is reported that `/health` returned `{"status":"ok"}` (the published port is 8090) and that the servers were stopped with `fleetest services down`.
 
 Related:
 

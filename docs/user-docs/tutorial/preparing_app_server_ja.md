@@ -2,7 +2,7 @@
 
 [in English](preparing_app_server.md)
 
-SUT Store のサーバー(サーバー + PostgreSQL)は、クイックスタートで fleetest に宣言済みです。宣言したサーバーは、
+SUT Store のサーバー(API サーバーと PostgreSQL)は、クイックスタートで fleetest に宣言済みです。宣言したサーバーは、
 `fleetest run` のたびに自動で起動し、終わると止まります。仕様の細部は[アプリが依存するサービス](../reference/writing/services_ja.md)です。
 
 ## 1. 宣言を見る
@@ -15,7 +15,7 @@ project1 で使用するサーバーの情報を教えて。
 
 期待する結果:
 
-- server, dbに関する情報が表示されます。
+- サービス `server` と `db` の情報が表示されます。
 
 ## 2. 起動して確かめる
 
@@ -43,7 +43,7 @@ curl http://127.0.0.1:8090/health     # 印字された公開ポートへ
 
 期待する結果:
 
-- 指示通りに実行されて結果が報告されます。
+- `/health` が `{"status":"ok"}` を返したこと(公開ポートは 8090)と、`fleetest services down` で止まったことが報告されます。
 
 関連:
 

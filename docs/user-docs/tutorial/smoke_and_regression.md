@@ -67,7 +67,7 @@ With the ios-run profile of project1, run all scenarios.
 
 Expected result:
 
-- Three scenarios run (one in the open-product-details test and two in the add-to-cart test).
+- Three scenarios run (one in the open-product-details test and two in `AddToCart.swift`).
 
 <br>
 
