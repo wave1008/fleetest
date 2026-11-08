@@ -32,9 +32,9 @@ type("#note", "new content", replace: true)
   included), only when the element's type is a button, switch, link and so on. Pointing at an
   element that wraps exactly one input field is not refused (it runs as before).
 - **Fields whose value does not mirror the input** (the iOS Material 3 SearchBar reports a fixed hint text as its value) look
-  like "the value remained" after clearing. When the value is unchanged, the tool reads the field on screen (OCR); if the
-  remaining text is not drawn there, the step passes with the note `clear-residual-not-drawn`. If it is drawn, the field is
-  masked, the keyboard covers it or OCR is unavailable, the step fails as before.
+  like "the value remained" after clearing. When the value is unchanged, the tool reads the field on screen (OCR); if
+  nothing but the field's placeholder is drawn there, the step passes with the note `clear-residual-not-drawn`. If any other
+  text is drawn, the field is masked, the keyboard covers it or OCR is unavailable, the step fails as before.
 - **Whitespace cannot be verified.** Whitespace-only content is invisible to accessibility, so the tool cannot verify that it was cleared, and a lost trailing/middle space after `type` is not detected either — assert values where whitespace matters with `valueIs`.
 
 - `type` appends rather than overwrites, so clear the field first when you need to replace its

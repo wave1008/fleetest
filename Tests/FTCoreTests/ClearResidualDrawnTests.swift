@@ -8,49 +8,41 @@ final class ClearResidualDrawnTests: XCTestCase {
     // MARK: - 判定
 
     func testPlaceholderLineIsNotTheResidual() {
-        // プレースホルダ "検索" は残りの先頭と一致する。木が言う文字として除かないと drawn になる
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: ["検索"], treeTexts: ["検索, 検索", "検索"]),
-                       .notDrawn)
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["検索"], treeTexts: ["検索"]), .notDrawn)
     }
 
     func testNothingDrawnIsNotDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: [], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: [], treeTexts: ["検索"]), .notDrawn)
     }
 
-    func testUnrelatedLineIsNotDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: ["候補A"], treeTexts: []), .notDrawn)
+    /// value(案内文)は描かれず、消し損ねた入力 "bx" が描かれている = 消え残り(value の文字との照合では見逃す形)
+    func testLeftoverInputOtherThanTheValueIsDrawn() {
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["検索", "bx"], treeTexts: ["検索"]), .drawn)
     }
 
-    func testWholeResidualReadIsDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: ["検索候補は次のとおりです"], treeTexts: ["検索"]),
-                       .drawn)
-    }
-
-    /// 残りの値の前に別の文字(虫眼鏡のアイコンの誤読など)が同じ行に読まれても描かれている
-    func testResidualInsideALongerLineIsDrawn() {
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: ["Q 検索候補は次のとおりです"], treeTexts: ["検索"]), .drawn)
-    }
-
-    func testPartlyDrawnLongValueIsDrawn() {
-        // 欄の幅で切れて先頭だけ描かれている本物の消え残り
-        let long = "the quick brown fox jumps over the lazy dog"
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: long, ocrLines: ["the quick brown"], treeTexts: []), .drawn)
+    /// 書式付きの表示・同形異字の誤読・キーボードの文字など、何であれ飾り以外の行は赤のまま
+    func testAnyLineOtherThanDecorationIsDrawn() {
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["090-1234-5678"], treeTexts: []), .drawn)
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["аp"], treeTexts: ["Search"]), .drawn)
     }
 
     func testWhitespaceIsIgnoredWhenMatchingTreeTexts() {
-        XCTAssertEqual(ClearResidualDrawn.judge(residual: residual, ocrLines: [" 検 索 "], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: [" 検 索 "], treeTexts: ["検索"]), .notDrawn)
+        XCTAssertEqual(ClearResidualDrawn.remainingLines(ocrLines: [" 検 索 ", " ", "bx"], treeTexts: ["検索"]), ["bx"])
     }
 
-    func testTreeTextsCollectLabelPartsPlaceholderAndInnerStaticText() {
-        let field = ElementInfo(ref: 1, type: "textView", identifier: "field_search", label: "検索, 検索候補",
+    /// 欄自身のラベルは飾りに入れない(入力をラベルへ畳む構成 "bx, Search" で消し損ねた入力を除いてしまう)
+    func testTreeTextsArePlaceholderAndInnerStaticTextButNotTheFieldLabel() {
+        let field = ElementInfo(ref: 1, type: "textView", identifier: "field_search", label: "bx, Search",
                                 value: residual, placeholder: "ph", enabled: true,
                                 frame: FTRect(x: 0, y: 0, width: 300, height: 40), depth: 0)
         let inner = ElementInfo(ref: 2, type: "staticText", identifier: nil, label: "inner", value: nil, placeholder: nil,
                                 enabled: true, frame: FTRect(x: 10, y: 10, width: 50, height: 20), depth: 1)
         let outer = ElementInfo(ref: 3, type: "staticText", identifier: nil, label: "outer", value: nil, placeholder: nil,
-                                enabled: true, frame: FTRect(x: 10, y: 200, width: 50, height: 20), depth: 1)
+                                enabled: true, frame: FTRect(x: 10, y: 100, width: 50, height: 20), depth: 1)
         let texts = ClearResidualDrawn.treeTexts(field: field, in: [field, inner, outer])
-        XCTAssertEqual(Set(texts), ["検索, 検索候補", "検索", "検索候補", "ph", "inner"])
+        XCTAssertEqual(Set(texts), ["ph", "inner"])
+        XCTAssertEqual(ClearResidualDrawn.judge(ocrLines: ["bx"], treeTexts: texts), .drawn)
     }
 
     func testUnreadableReasons() {
@@ -79,7 +71,8 @@ final class ClearResidualDrawnTests: XCTestCase {
     }
 
     private func run(_ step: FlowStep, drawn: Bool?, driver: (FakeAppDriver) -> Void = { _ in }) async -> StepOutcome {
-        StepExecutor.clearResidualDrawnOverrideForTesting = { _ in (drawn, drawn == nil ? "OCR was unavailable" : nil) }
+        // drawn のときの fact = 飾りの他に読めた行
+        StepExecutor.clearResidualDrawnOverrideForTesting = { _ in (drawn, drawn == nil ? "OCR was unavailable" : (drawn! ? "bx" : nil)) }
         defer { StepExecutor.clearResidualDrawnOverrideForTesting = nil }
         let primary = FakeAppDriver(name: "primary", log: CallLog(),
                                     snapshotElements: [[searchField(value: residual, focused: true)]])
@@ -98,7 +91,8 @@ final class ClearResidualDrawnTests: XCTestCase {
     func testSelectorClearStaysRedWhenResidualIsDrawn() async {
         let outcome = await run(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")), drawn: true)
         guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return }
-        XCTAssertEqual(message, "clearInput reported success but the value remained: \"\(residual)\"")
+        XCTAssertEqual(message, "clearInput reported success but the value remained: \"\(residual)\""
+            + " (the field on screen still shows text (OCR): \"bx\")")
         XCTAssertFalse(outcome.notes.contains(.clearResidualNotDrawn))
     }
 
@@ -137,5 +131,17 @@ final class ClearResidualDrawnTests: XCTestCase {
         }
         guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return }
         XCTAssertTrue(message.contains("could not empty the field"), message)
+        XCTAssertTrue(message.contains("the field on screen still shows text (OCR): \"bx\""), message)
+    }
+
+    /// 判断できなかった 422 も、確かめられなかった理由を本文に足して同じ 422 のまま返す
+    func testRunnerEmptyRefusalCarriesTheReasonWhenUndetermined() async {
+        let outcome = await run(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")), drawn: nil) {
+            $0.clearInputError = DriverError.badResponse(
+                status: 422, body: StepExecutor.runnerEmptyRefusalPrefix + " (12 character(s) still there after 4 round(s))")
+        }
+        guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return }
+        XCTAssertTrue(message.contains("could not empty the field"), message)
+        XCTAssertTrue(message.contains("not checked against the screen: OCR was unavailable"), message)
     }
 }

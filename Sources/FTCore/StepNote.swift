@@ -653,8 +653,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "no field in the tree reported focus, so whether the field was emptied could not be"
                 + " read back — check the value with valueIs"
         case .clearResidualNotDrawn:
-            return "the field's value still reads as before the clear, but that text is not drawn in the field on screen (OCR),"
-                + " so it was treated as cleared"
+            return "the field's value still reads as before the clear, but OCR read nothing in the field on screen except"
+                + " its placeholder, so it was treated as cleared"
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"

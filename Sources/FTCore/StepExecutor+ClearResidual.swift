@@ -13,6 +13,10 @@ extension StepExecutor {
     /// `BridgeError(422, "could not empty the field …")` と同期(Runner の文言を変えたらここも)
     static let runnerEmptyRefusalPrefix = "could not empty the field"
 
+    /// OCR の読みの上限(秒)。XCUITest ランナーの消去の読み返しの締め切り(BridgeRouter+TextInput.swift の
+    /// `clearBudgetSeconds` = 8)と揃える = 同じ「消えたかの読み返し」。尽きたら判断不能 = 赤のまま(失敗文に理由)
+    static let clearReadbackBudgetSeconds: TimeInterval = 8
+
     struct ClearResidualAnswer {
         /// 欄に残っていると読んだ値(nil = 読めなかった・空)
         var residual: String?
@@ -21,6 +25,8 @@ extension StepExecutor {
         var why: String?
         /// 確かめで最後に撮った木(撮れなかったら nil)
         var snapshot: SnapshotResponse?
+        /// drawn のとき、飾りの文字の他に読めた行(赤の失敗文に添える事実)
+        var drawnLines: [String] = []
     }
 
     /// `residual` が nil なら欄の現在の value を残りとして使う(ブリッジの 422 の経路)
@@ -41,7 +47,8 @@ extension StepExecutor {
         if let override = Self.clearResidualDrawnOverrideForTesting {
             let answer = override(left)
             guard let drawn = answer.drawn else { return undetermined(answer.fact ?? "OCR was unavailable", left, snap) }
-            return ClearResidualAnswer(residual: left, notDrawn: !drawn, why: nil, snapshot: snap)
+            return ClearResidualAnswer(residual: left, notDrawn: !drawn, why: nil, snapshot: snap,
+                                       drawnLines: drawn ? [answer.fact ?? ""] : [])
         }
         guard OCRSupport.isSupported else { return undetermined(OCRSupport.requirement, left, snap) }
         guard let png = try? await treeDriver.screenshot(), !png.isEmpty else {
@@ -51,10 +58,10 @@ extension StepExecutor {
             return undetermined("the screenshot was black apart from the system bars", left, snap)
         }
         _ = await RegionText.awaitModelCompile(mode: .on)
-        // 予算は type の読み返しの締め切りと同じ長さ(新しい定数を置かない)。待ったコンパイルの時間は含めない
-        let budget = Duration.milliseconds(Int(Self.typeVerifyBudgetSeconds * 1000))
+        // 待ったコンパイルの時間は予算に含めない。言語は既定の ja+en(value は中身ではないので value から決めない)
         let result = await RegionText.resolveWithinBudget(
-            expected: left, pngData: png, frame: field.frame, screen: snap.screen, budget: budget)
+            expected: left, pngData: png, frame: field.frame, screen: snap.screen,
+            languages: RegionText.defaultLanguages, budget: .milliseconds(Int(Self.clearReadbackBudgetSeconds * 1000)))
         let reading: RegionText.Reading
         switch result {
         case .read(_, let read): reading = read
@@ -64,10 +71,9 @@ extension StepExecutor {
         if reading.lines.isEmpty, !(await RegionText.readerIsAlive()) {
             return undetermined(Self.ocrDeadFact, left, snap)
         }
-        let verdict = ClearResidualDrawn.judge(
-            residual: left, ocrLines: reading.lines,
-            treeTexts: ClearResidualDrawn.treeTexts(field: field, in: snap.elements))
-        return ClearResidualAnswer(residual: left, notDrawn: verdict == .notDrawn, why: nil, snapshot: snap)
+        let lines = ClearResidualDrawn.remainingLines(
+            ocrLines: reading.lines, treeTexts: ClearResidualDrawn.treeTexts(field: field, in: snap.elements))
+        return ClearResidualAnswer(residual: left, notDrawn: lines.isEmpty, why: nil, snapshot: snap, drawnLines: lines)
     }
 
     /// 消え残りと読んだ値を OCR で確かめた結果の ClearOutcome。描かれていなければ緑(注記つき)・それ以外は今まで通り赤。
@@ -77,19 +83,30 @@ extension StepExecutor {
                               handsOverSnapshot: Bool) async -> ClearOutcome {
         let answer = await checkClearResidual(treeDriver, residual: residual, locate: locate)
         if answer.notDrawn { return clearedAsResidualNotDrawn(answer, fallback: fallback, handsOverSnapshot: handsOverSnapshot) }
-        return .failed("clearInput reported success but the value remained: \"\(residual)\""
-            + (answer.why.map { " (not checked against the screen: \($0))" } ?? ""))
+        return .failed("clearInput reported success but the value remained: \"\(residual)\"" + Self.screenFact(answer))
     }
 
-    /// XCUITest ブリッジの 422「could not empty the field」を、欄の value が入力を映さないだけのとき緑にする。
-    /// nil = 元のエラーを投げ直す(422 でない・欄が空と読めた・描かれている・判断不能)
+    /// 赤の失敗文に添える、画面で確かめた事実(確かめていなければ理由)
+    static func screenFact(_ answer: ClearResidualAnswer) -> String {
+        if let why = answer.why { return " (not checked against the screen: \(why))" }
+        guard !answer.drawnLines.isEmpty else { return "" }
+        return " (the field on screen still shows text (OCR): "
+            + answer.drawnLines.map { "\"\($0)\"" }.joined(separator: ", ") + ")"
+    }
+
+    /// XCUITest ブリッジの 422「could not empty the field」を、絵の上で欄が空のとき緑にする。
+    /// `cleared` が nil なら呼び手は `error` を使い続ける(422 でなければ元のまま。確かめた 422 は同じ case のまま本文に事実を足す)
     func recoveredEmptyRefusal(_ error: Error, _ treeDriver: AppDriver,
                                locate: (SnapshotResponse) -> ElementInfo?, fallback: String?,
-                               handsOverSnapshot: Bool) async -> ClearOutcome? {
-        guard case DriverError.badResponse(422, let body) = error, body.hasPrefix(Self.runnerEmptyRefusalPrefix) else { return nil }
+                               handsOverSnapshot: Bool) async -> (cleared: ClearOutcome?, error: Error) {
+        guard case DriverError.badResponse(422, let body) = error, body.hasPrefix(Self.runnerEmptyRefusalPrefix) else {
+            return (nil, error)
+        }
         let answer = await checkClearResidual(treeDriver, residual: nil, locate: locate)
-        guard answer.residual != nil, answer.notDrawn else { return nil }
-        return clearedAsResidualNotDrawn(answer, fallback: fallback, handsOverSnapshot: handsOverSnapshot)
+        if answer.residual != nil, answer.notDrawn {
+            return (clearedAsResidualNotDrawn(answer, fallback: fallback, handsOverSnapshot: handsOverSnapshot), error)
+        }
+        return (nil, DriverError.badResponse(status: 422, body: body + Self.screenFact(answer)))
     }
 
     private func clearedAsResidualNotDrawn(_ answer: ClearResidualAnswer, fallback: String?,

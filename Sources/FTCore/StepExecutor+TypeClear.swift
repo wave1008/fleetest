@@ -365,7 +365,7 @@ extension StepExecutor {
     /// 読み返しの打ち切り時間・停滞許容周回数・安定待ち。BridgeRouter.handleType の
     /// typeBudgetSeconds/typeMaxStagnantRounds/typeStableSeconds と値を揃える(Runner は
     /// SPM ターゲットではなく TypeReadback 以外を共有 import できないため定数は独立管理)
-    static let typeVerifyBudgetSeconds: TimeInterval = 8
+    private static let typeVerifyBudgetSeconds: TimeInterval = 8
     private static let typeVerifyMaxStagnantRounds = 4
     private static let typeVerifyStableSeconds: TimeInterval = 1.5
     /// ポーリング間隔。BridgeRouter の typePollSeconds(0.05s)より粗い(取得がスナップショット
@@ -665,8 +665,10 @@ extension StepExecutor {
         do {
             try await driver.clearInput(ref: nil)
         } catch {
-            if let recovered = await recoveredEmptyRefusal(error, driver, locate: focusedMatch, fallback: nil,
-                                                           handsOverSnapshot: false) { return recovered }
+            let refusal = await recoveredEmptyRefusal(error, driver, locate: focusedMatch, fallback: nil,
+                                                      handsOverSnapshot: false)
+            if let recovered = refusal.cleared { return recovered }
+            let error = refusal.error
             guard DriverError.isClearInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 // ブリッジの文言は ref を渡す前提の案内を含むので載せない(DSL に ref は無い)
@@ -678,9 +680,10 @@ extension StepExecutor {
             do {
                 try await td.clearInput(ref: nil)
             } catch {
-                if let recovered = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
-                                                               handsOverSnapshot: false) { return recovered }
-                throw error
+                let refusal = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                          handsOverSnapshot: false)
+                if let recovered = refusal.cleared { return recovered }
+                throw refusal.error
             }
             phase.actionMs += Self.ms(clock.now - start)
             // 焦点のある欄が木に無ければ読み返す材料が無い。黙って緑にせず注記で言う
@@ -705,9 +708,10 @@ extension StepExecutor {
             do {
                 try await td.clearInput(ref: nil)
             } catch {
-                if let recovered = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
-                                                               handsOverSnapshot: false) { return recovered }
-                throw error
+                let refusal = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                          handsOverSnapshot: false)
+                if let recovered = refusal.cleared { return recovered }
+                throw refusal.error
             }
             phase.actionMs += Self.ms(clock.now - retryStart)
             if let residual2 = try await residualClearValue(td, focusedBefore: focusedBefore,
@@ -806,9 +810,11 @@ extension StepExecutor {
             return .cleared(driverFallback: nil, actingDriverSnapshot: actingSnapshot)
         } catch {
             // 422 を撃ったのは XCUITest ブリッジ(typeDriver があればそちら。無ければ主ドライバ自身がそれ)
-            if let recovered = await recoveredEmptyRefusal(error, typeDriver ?? actingDriver, locate: stepLocate,
-                                                           fallback: typeDriver == nil ? nil : "fell back to XCUITest",
-                                                           handsOverSnapshot: typeDriver == nil) { return recovered }
+            let refusal = await recoveredEmptyRefusal(error, typeDriver ?? actingDriver, locate: stepLocate,
+                                                      fallback: typeDriver == nil ? nil : "fell back to XCUITest",
+                                                      handsOverSnapshot: typeDriver == nil)
+            if let recovered = refusal.cleared { return recovered }
+            let error = refusal.error
             guard DriverError.isClearInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 if DriverError.isTextInputFallback(error) {
@@ -975,13 +981,7 @@ extension StepExecutor {
     /// 突き合わせる。**identifier 優先、無ければ frame 一致**(ref はスナップショット毎に振り直され
     /// フォールバック後は driver も変わるため使えない)。見つからなければ検証不能なので nil
     private static func residualClearValue(of before: ElementInfo, in snapshot: SnapshotResponse) -> String? {
-        let match: ElementInfo?
-        if let identifier = before.identifier {
-            match = snapshot.elements.first { $0.identifier == identifier }
-        } else {
-            match = snapshot.elements.first { $0.frame == before.frame }
-        }
-        guard let match else { return nil }
+        guard let match = matchFocused(before, in: snapshot) else { return nil }
         return Self.residualClearValue(before: before.value, after: match.value,
                                        placeholder: match.placeholder)
     }
