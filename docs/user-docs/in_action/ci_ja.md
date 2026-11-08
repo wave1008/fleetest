@@ -177,7 +177,7 @@ Apple Intelligence は、ランナーの実体が物理 Mac(ベアメタル)の�
 
 ベアメタルで有効にするときの条件です。
 
-- Apple silicon で macOS 27 以上(`screenLooksLike` とテキストの可視性検証は画像を FM に渡すので、macOS 26 では使えません)。
+- Apple silicon で macOS 27 以上(`screenLooksLike` とテキストの可視性検証は画像を FM に渡すので、macOS 26 では使えません。オンデバイス OCR も macOS 27 以上です)。
 - 有効化は GUI で1回行います(システム設定 → Siri で Siri をオン(Siri が Apple Intelligence を使います)。画面の無いマシンは画面共有経由。
   モデルのダウンロードが走ります)。EC2 Mac は素の AMI から作り直すと設定が消えるので、有効化したあとにカスタム AMI を作るか、
   プロビジョニングに有効化を含めてください。

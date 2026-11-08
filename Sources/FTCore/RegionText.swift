@@ -33,6 +33,8 @@ public enum RegionText {
     /// `FT_OCCLUSION_OCR`: "0"/"off" → 殺しスイッチ(OCR を呼ばず FM だけ呼ぶ)/
     /// "measure" → 訊くが必ず FM にも回しコーパスを書く(採取用)/ 未設定・その他 → on(既定)
     public static func mode(environment: [String: String]) -> RegionTextGateMode {
+        // macOS 26 では OCR を使わない(OCRSupport)。off にすると近道・コンパイル・待ちが止まる
+        guard OCRSupport.isSupported(environment: environment) else { return .off }
         switch environment["FT_OCCLUSION_OCR"] {
         case "0", "off": return .off
         case "measure": return .measure
@@ -44,7 +46,7 @@ public enum RegionText {
     /// 40〜130ms)。ガードが撃たれる前に背景で載せておく。モデルの読み込みはプロセスに1回だけ
     /// 走る(modelCompileOnce)。off のときは撃たない(ゲートを切った run に Vision を読ませない)。
     public static func compileModelIfNeeded(mode: RegionTextGateMode) {
-        guard mode != .off else { return }
+        guard mode != .off, OCRSupport.isSupported else { return }
         modelCompileRequests.withLock { $0 += 1 }
         _ = modelCompileOnce
     }
@@ -231,6 +233,7 @@ public enum RegionText {
     public static func awaitReadableVision(cap: Duration = readableVisionWaitCap,
                                            interval: Duration = readableVisionProbeInterval) async -> Bool {
         if isModelReady { return true }
+        guard OCRSupport.isSupported else { return false }
         if readableVisionWaitExhausted.withLock({ $0 }) {
             requestReprobeIfDue()
             return false
@@ -343,6 +346,8 @@ public enum RegionText {
     public static func awaitModelCompile(mode: RegionTextGateMode,
                                     cap: Duration = modelCompileWaitCap) async -> ModelCompileWaitOutcome {
         if isModelReady { return .alreadyReady }
+        // 非対応(macOS 26)では待つものが無い。読み手は永久に ready にならないので待たせない
+        guard OCRSupport.isSupported else { return .finishedUnready(waited: .zero) }
         // コンパイルが終わったのに読めない(Vision が空を返す)状態では、ガードのたびに差し引きの窓を開けない
         // (待つものが無いのに子→親の deadlineExclusion を毎ステップ 2 行ずつ流すことになる)
         // ただし**探り直しは頼む**(待たない)。開始時の探りは予算(modelCompileRetryBudget)内に読めなかっただけで、
@@ -392,6 +397,7 @@ public enum RegionText {
     }
 
     public static func commitCompileCache() async -> [ModelCompileResult] {
+        guard OCRSupport.isSupported else { return [] }
         let compileMark = OCRModelCompileLedger.begin()
         defer { OCRModelCompileLedger.end(compileMark) }
         guard let image = renderedProbe() else { return [] }
@@ -763,6 +769,8 @@ public enum RegionText {
 
     /// `recognize` と `RegionText.locateLink` が共有する唯一の Vision 呼び出し(設定の二重実装を作らない)
     static func recognizeObservations(_ image: CGImage, languages: [String]) async throws -> [RecognizedTextObservation] {
+        // 保険の門。[] を返すと readerIsAlive が「OCR が死んだ」と誤った理由を言うので、専用のエラーで投げる
+        guard OCRSupport.isSupported else { throw OCRUnsupportedError() }
         // 陽性対照の注入口(OCRDeadInjection)。読み手の故障は意図的に起こせないので、観測だけを差し替える
         if OCRDeadInjection.isActive(environment: ProcessInfo.processInfo.environment) { return [] }
         var request = RecognizeTextRequest()

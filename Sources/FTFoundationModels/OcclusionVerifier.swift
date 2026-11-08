@@ -118,7 +118,7 @@ public struct OcclusionVerifier {
         // 届くのは OCR のモデルがコンパイル済みでない・予算切れの回だけ。
         // **ocrTextVisibilityCheck(off)を見ない**(ユーザー決定: 精度優先。off はコンパイルしないのでこの回だけ
         // 初回コンパイルを払いうる = nearMissOCRBudget の 60 秒)。トグルに従わせると字形の取り違えが誤った赤になる
-        if !verdict.visible,
+        if !verdict.visible, OCRSupport.isSupported,
            TranscriptMatch.isNearMiss(transcript: first, expected: expectedText)
             || TranscriptMatch.isNearMiss(transcript: observed, expected: expectedText),
            case .read(readable: true, let reading) = await RegionText.resolveWithinBudget(

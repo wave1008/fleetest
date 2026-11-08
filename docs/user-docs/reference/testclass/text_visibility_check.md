@@ -26,7 +26,7 @@ and the check runs while either is on. With both on (the default):
    the OCR reading (or, if nothing is legible, the amount of ink in the region) are matched against the
    expected text. **The step passes if either reads the expected text** and fails only when both find it not
    visible (reading the text is direct evidence it is drawn, while failing to read it also happens on a misread).
-3. When FM is unavailable (macOS 26, or FM failing), the same rules are applied to the **OCR reading alone**.
+3. When FM is unavailable (FM failing, or macOS 26), the same rules are applied to the **OCR reading alone**. On-device OCR is macOS 27+ only, so on macOS 26 neither stage can read text: the check can only fail on geometry or a blank region (no ink); otherwise it passes without confirming the text is drawn, and the step carries the note `visual-text-check-unsupported`.
 
 With FM turned off (`fmTextVisibilityCheck: false`) the OCR reading alone decides; with OCR turned off
 (`ocrTextVisibilityCheck: false`) FM alone decides.

@@ -26,7 +26,7 @@ Administrator rights are needed only to accept the Xcode license and to install 
 
 ### Optional: Foundation Models (FM)
 
-FM works on macOS 26+ (System Settings → Apple Intelligence & Siri). **Only the features that pass an image (`screenLooksLike` and the FM stage of the text visibility check) need macOS 27+** (System Settings → Siri).
+FM works on macOS 26+ (System Settings → Apple Intelligence & Siri). **Only the features that pass an image (`screenLooksLike` and the FM stage of the text visibility check) need macOS 27+** (System Settings → Siri). **On-device OCR (Vision text recognition) is also macOS 27+ only**: on macOS 26, `tap(linkText:)` fails with that requirement, the screen readback of typed text is skipped, and the OCR stage of the text visibility check is off. Everything else works.
 
 Features that use FM are experimental (their behavior may change with OS updates).
 

@@ -761,7 +761,7 @@ OCR が判定不能で FM が見えないと言った回だけ)。根拠:
 | off | on | OCR だけ(`OCROnlyVisibility`。赤の文言は `judged by OCR`) |
 | off | off | guard 無し(Tier-0 の幾何も止まる) |
 
-- FM の段が on でも使えない(macOS 26・実呼び出しの失敗・注入)ときは OCR だけ(文言は `... because FM gave no verdict`)
+- FM の段が on でも使えない(実呼び出しの失敗・注入)ときは OCR だけ(文言は `... because FM gave no verdict`)。macOS 26 は OCR も使わない(`OCRSupport`。2026-11-09)ので文字を読まずに通し、注記 `visual-text-check-unsupported`
 - 配線: FTRuntime が `occlusionGuardEnabled = fmTextVisibilityCheck || ocrTextVisibilityCheck` と
   `fmVisibilityCheckEnabled = fmTextVisibilityCheck` を渡す。`--no-fm` で delegate が nil でも OCR の段は走る
 - テスト: `OCROnlyVisibilityTests`(merge の全組み合わせ)・`OCROnlyVisibilityWiringTests`(FM より前に OCR の赤で

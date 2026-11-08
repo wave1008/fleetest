@@ -31,7 +31,7 @@
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-139・OI-184・OI-198 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 2 | OI-184・OI-198 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 18 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201 |
 
 ## 着手可
@@ -116,10 +116,10 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-05)
 - 属性: 木に材料なし・低頻度・据え置き
-- 運用: ①要注意 — ✅ でも何も押していない。後続の検証で赤になる(覆いは名指さない) ③再実行で吸収 — M1Ultra の負荷の下でだけ出ている ④回避不可 — M3 SearchBar の欄は `clearInput` も `type(…, replace: true)` も赤になり、欄を消す手順が書けない
-- 優先度: 高 — ④M3 SearchBar の欄を消す手が書けない(回避不可・4/4。判定の材料が無く据え置き)
+- 運用: ①要注意 — ✅ でも何も押していない。後続の検証で赤になる(覆いは名指さない) ③再実行で吸収 — M1Ultra の負荷の下でだけ出ている
+- 優先度: 中 — ①✅ でも何も押していない(後続で赤になるが覆いを名指さない)
 
-出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度 ④iOS の CMP の M3 SearchBar で、空になった欄を「消えていない」と断って赤: ロケータなしの `type("ap", replace: true)` / `clearInput()` は「clearInput reported success but the value remained: "検索候補は次のとおりです"」(im4 F1・4/4)、セレクタ付きの `clearInput("#field_search")` はXCUITest ブリッジの「12 character(s) still there after 4 round(s)」の 422(im4 F2・4/4)。**原因は観測済み**: 欄の value は入力を映さない固定の説明文(12 文字。叩く前は value 無し・叩いた後の空の欄でも打った後でも同じ値)で、消した前後の一致を消え残りと読んでいる。**判定の材料不足で据え置き**: value だけでは本当に消えなかった欄と見分けられない。試して取り消した直し: 「直前の type で value が動かなかった欄の値は消え残りと数えない」= この欄への type は `type-consumed-by-app` で受理され、欄の枠を OCR しても0行で、消費と見分ける材料が無い(消費の欄でも免除すると、残った前の値を緑にする)
+出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度
 
 ### OI-174 探索の残り(15周目)
 - 状態: 再現済み
@@ -283,20 +283,6 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 出典: `_work/explore-20261106j/findings-*.md`(26周目・11/6)。④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
-
-### OI-139 M4Max(macOS 26.7.2)の Vision の OCR が `@alice` を `dalice` と読み、文中のリンクの OCR の位置決めが失敗する
-- 状態: 再現済み
-- 確認: dea279d5(2026-11-02)
-- 属性: 環境側
-- 運用: 回避可 — M4Max の macOS を他のマシンとそろえる
-- 優先度: 中 — M4Max で 6/6 赤。macOS をそろえれば消える見込み
-
-E2EY-iOS の「文中のリンクを押せること」S0020 が M4Max で 6/6 赤(`OCR read: "dalice dh t1https :|/example.com/a"`)。他のマシンは macOS 27.2(26B123)で、M4Max だけ 26.7.2(25G332)。読み誤りを許す照合は入れない(別のリンクを押す危険)。macOS をそろえることは回帰に参加するマシンの前提として docs/verification/operations.md に書いた。残りは M4Max の macOS の更新(ユーザーの作業)
-- 11/4: 12周目の探索(im4 F3)で同じ機械の OCR が E2E-iOS のキーボードの覆い画面の "up" を "dn" と読み、OCR だけの判定で「not visually visible」の誤った赤(13/13。画面には "up" がはっきり描かれている)
-- 11/6: M1Ultra でも 2/6 赤(OCR が `@alice` の位置を URL の上と答え、押した点が URL に当たる)。383ebddfb(読みが要素のテキストと一致しない絵を撮り直す)の後は M1Ultra の S0020 が 90/90 緑。同じ形だったかは再測定していない
-- 13周目: M4Max の OCR で `tap(linkText: "@alice")` が同じ行の URL の位置を撃って ✅(im4 F1・4回中1回)。試して入れなかった直し: 割り出した枠を読み直して確かめる(手元の E2EY-iOS で 24 回中1回、OCR が `a¿` と読んで見つけられない赤。差分は `_work/explore-20261105a/linktext-verify.patch`)
-- M4Max の "dalice" は撮り直しても一致しないので最後の1枚を使う = 383ebddfb の後も M4Max の形は残る
-- 11/9: M4Max はまだ 26.7.2(25G332)
 
 ## 据え置き
 

@@ -83,7 +83,7 @@ field.type("alice")                // type("#login_id", "alice") と同じ
   7 文字を打つと「the field did not keep the last 1 character(s) written」)。合否は変えないので、
   全部入ったことを確かめたいときは `textIs` / `valueIs` で値を確かめてください。
 - **値が1文字も動かないときは、先に画面を見ます。** 欄の値が入力を映さない欄(Material3 の
-  SearchBar は iOS で値に説明文を出す)があるためです。打った文字が欄に描かれていれば(OCR)、
+  SearchBar は iOS で値に説明文を出す)があるためです。打った文字が欄に描かれていれば(OCR。macOS 27+ だけ。macOS 26 では画面を読まず、追送もしません)、
   打ち直さずに受け入れます(注記 `type-readback-unchanged`)。描かれていなければ入力が届かなかった
   ものとして追送します。**追送は1回まで**で、追送しても値が動かなければ失敗にします(撃ち直しを
   重ねると入力が重複しうるため)。

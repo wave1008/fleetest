@@ -242,6 +242,8 @@ extension StepExecutor {
             return (answer.visible, 0, answer.fact)
         }
         guard !text.isEmpty else { return (false, 0, nil) }
+        // 非対応(macOS 26)は「分からない」(nil)= 追送しない。読めなかった(false)に倒すと届いた入力を二重に打つ
+        guard OCRSupport.isSupported else { return (nil, 0, OCRSupport.requirement) }
         guard let snapshot = try? await driver.snapshot(),
               let png = try? await driver.screenshot() else {
             return (false, 0, "the screen could not be captured")
@@ -363,7 +365,7 @@ extension StepExecutor {
     /// 読み返しの打ち切り時間・停滞許容周回数・安定待ち。BridgeRouter.handleType の
     /// typeBudgetSeconds/typeMaxStagnantRounds/typeStableSeconds と値を揃える(Runner は
     /// SPM ターゲットではなく TypeReadback 以外を共有 import できないため定数は独立管理)
-    private static let typeVerifyBudgetSeconds: TimeInterval = 8
+    static let typeVerifyBudgetSeconds: TimeInterval = 8
     private static let typeVerifyMaxStagnantRounds = 4
     private static let typeVerifyStableSeconds: TimeInterval = 1.5
     /// ポーリング間隔。BridgeRouter の typePollSeconds(0.05s)より粗い(取得がスナップショット
@@ -647,6 +649,7 @@ extension StepExecutor {
         let beforeSnapshot = try await driver.snapshot(bypassingCache: driver.supportsCacheBypass)
         phase.snapshotMs += Self.ms(clock.now - snapStart)
         let focusedBefore = beforeSnapshot.elements.first { $0.focused == true }
+        let focusedMatch: (SnapshotResponse) -> ElementInfo? = { snap in focusedBefore.flatMap { Self.matchFocused($0, in: snap) } }
 
         // **`tap(容器の欄)` → ref 無しの clearInput**: ref 無しの type と同じ判定(`InputFocusRescue`)で、叩いた容器の中の唯一の入力欄を
         // 名指しして消す。素の clearInput(ref: nil) は焦点の欄 = 前の欄を空にして緑になった
@@ -662,6 +665,8 @@ extension StepExecutor {
         do {
             try await driver.clearInput(ref: nil)
         } catch {
+            if let recovered = await recoveredEmptyRefusal(error, driver, locate: focusedMatch, fallback: nil,
+                                                           handsOverSnapshot: false) { return recovered }
             guard DriverError.isClearInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 // ブリッジの文言は ref を渡す前提の案内を含むので載せない(DSL に ref は無い)
@@ -670,13 +675,20 @@ extension StepExecutor {
                 }
                 throw error
             }
-            try await td.clearInput(ref: nil)
+            do {
+                try await td.clearInput(ref: nil)
+            } catch {
+                if let recovered = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                               handsOverSnapshot: false) { return recovered }
+                throw error
+            }
             phase.actionMs += Self.ms(clock.now - start)
             // 焦点のある欄が木に無ければ読み返す材料が無い。黙って緑にせず注記で言う
             guard let focusedBefore else { return .cleared(driverFallback: unverifiedClearNote("fell back to XCUITest"), actingDriverSnapshot: nil) }
             if let residual = try await residualClearValue(td, focusedBefore: focusedBefore,
                                                            phase: &phase) {
-                return .failed("clearInput reported success but the value remained: \"\(residual)\"")
+                return await residualClearOutcome(td, residual: residual, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                  handsOverSnapshot: false)
             }
             return .cleared(driverFallback: "fell back to XCUITest", actingDriverSnapshot: nil)
         }
@@ -686,14 +698,22 @@ extension StepExecutor {
         if let residual = try await residualClearValue(driver, focusedBefore: focusedBefore,
                                                        phase: &phase) {
             guard let td = typeDriver else {
-                return .failed("clearInput reported success but the value remained: \"\(residual)\"")
+                return await residualClearOutcome(driver, residual: residual, locate: focusedMatch, fallback: nil,
+                                                  handsOverSnapshot: false)
             }
             let retryStart = clock.now
-            try await td.clearInput(ref: nil)
+            do {
+                try await td.clearInput(ref: nil)
+            } catch {
+                if let recovered = await recoveredEmptyRefusal(error, td, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                               handsOverSnapshot: false) { return recovered }
+                throw error
+            }
             phase.actionMs += Self.ms(clock.now - retryStart)
             if let residual2 = try await residualClearValue(td, focusedBefore: focusedBefore,
                                                             phase: &phase) {
-                return .failed("clearInput reported success but the value remained: \"\(residual2)\"")
+                return await residualClearOutcome(td, residual: residual2, locate: focusedMatch, fallback: "fell back to XCUITest",
+                                                  handsOverSnapshot: false)
             }
             return .cleared(driverFallback: "fell back to XCUITest", actingDriverSnapshot: nil)
         }
@@ -719,10 +739,11 @@ extension StepExecutor {
                 + " clear it by ref) — giving up rather than clearing the field that still has focus")
         }
         phase.actionMs += Self.ms(clock.now - start)
-        if let residual = try await residualClearValue(driver, focusedBefore: field, phase: &phase) {
-            return .failed("clearInput reported success but the value remained: \"\(residual)\"")
-        }
         let described = "cleared \(TapTargetGeometry.describe(field)) (the tree showed no focused field inside \(TapTargetGeometry.describe(tapped)) after the tap)"
+        if let residual = try await residualClearValue(driver, focusedBefore: field, phase: &phase) {
+            return await residualClearOutcome(driver, residual: residual, locate: { Self.matchFocused(field, in: $0) },
+                                              fallback: described, handsOverSnapshot: false)
+        }
         return .cleared(driverFallback: described, actingDriverSnapshot: nil)
     }
 
@@ -743,6 +764,7 @@ extension StepExecutor {
                                                              driver: actingDriver, phase: &phase)
         // 撮り直したなら、その木の番号で撃つ(撮る前の番号はブリッジの新しい表で別の要素を指しうる)
         var actingSnapshot = refreshed?.snapshot
+        let stepLocate: (SnapshotResponse) -> ElementInfo? = { LocatorResolver.resolve(step: step, in: $0)?.0 }
         do {
             let start = clock.now
             let target = refreshed?.element ?? element
@@ -762,12 +784,14 @@ extension StepExecutor {
                       try await clearViaTypeDriver(td, step: step,
                                                    keyboardWitness: actingSnapshot.map { $0.keyboardFrame } ?? keyboardWitness,
                                                    phase: &phase) else {
-                    return .failed("clearInput reported success but the value remained: \"\(residual)\"")
+                    return await residualClearOutcome(actingDriver, residual: residual, locate: stepLocate, fallback: nil,
+                                                      handsOverSnapshot: true)
                 }
                 if let residual2 = try await residualClearValue(td, step: step,
                                                                before: before,
                                                                phase: &phase).residual {
-                    return .failed("clearInput reported success but the value remained: \"\(residual2)\"")
+                    return await residualClearOutcome(td, residual: residual2, locate: stepLocate, fallback: "fell back to XCUITest",
+                                                      handsOverSnapshot: false)
                 }
                 // 最後に撮ったのは typeDriver(同じブリッジなら actingDriver の表も作り直されている)
                 return .cleared(driverFallback: "fell back to XCUITest", actingDriverSnapshot: nil)
@@ -781,6 +805,10 @@ extension StepExecutor {
             }
             return .cleared(driverFallback: nil, actingDriverSnapshot: actingSnapshot)
         } catch {
+            // 422 を撃ったのは XCUITest ブリッジ(typeDriver があればそちら。無ければ主ドライバ自身がそれ)
+            if let recovered = await recoveredEmptyRefusal(error, typeDriver ?? actingDriver, locate: stepLocate,
+                                                           fallback: typeDriver == nil ? nil : "fell back to XCUITest",
+                                                           handsOverSnapshot: typeDriver == nil) { return recovered }
             guard DriverError.isClearInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 if DriverError.isTextInputFallback(error) {
@@ -803,7 +831,8 @@ extension StepExecutor {
             // 規則が無いと将来の変更で無検証の穴が復活する)
             if let residual = try await residualClearValue(td, step: step,
                                                           before: before, phase: &phase).residual {
-                return .failed("clearInput reported success but the value remained: \"\(residual)\"")
+                return await residualClearOutcome(td, residual: residual, locate: stepLocate, fallback: "fell back to XCUITest",
+                                                  handsOverSnapshot: false)
             }
             return .cleared(driverFallback: "fell back to XCUITest", actingDriverSnapshot: nil)
         }

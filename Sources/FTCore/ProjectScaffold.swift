@@ -73,7 +73,7 @@ public enum ProjectScaffold {
             name: "\(packageName)",
             platforms: [
                 // fleetest 本体の Package.swift と一致させる(本体より低いと解決に失敗する)。
-                // Foundation Models の視覚検証だけは macOS 27+ で有効になる
+                // Foundation Models の視覚検証と OCR(Vision の文字認識)だけは macOS 27+ で有効になる
                 .macOS("26.0"),
             ],
             dependencies: [
@@ -393,8 +393,9 @@ public enum ProjectScaffold {
         - Apple Intelligence: `fleetest doctor --fm-only`(exit 0 で可。**exit 1 でも中断せず続行** —
           FM は視覚検証・シナリオ生成にだけ必要な任意機能。使いたくなったら System 設定で
           有効化して本コマンドが ✅ になればそのまま使える。完了報告に要有効化の旨を残す)
-          なお **macOS 26 では FM の視覚検証(occlusion-guard / screenLooksLike)だけが使えない**
-          (画像入力は macOS 27+)。他の機能は制限なく動く
+          なお **macOS 26 では FM の視覚検証(occlusion-guard / screenLooksLike)と OCR を使う機能
+          (`tap(linkText:)`・type の画面での読み返し・テキストの可視性検証の OCR 段)だけが使えない**
+          (画像入力と OCR は macOS 27+)。他の機能は制限なく動く
 
         **デバイスは聞かない**(ステップ2の `--auto-device` が選ぶ。使うデバイスを人間が自発的に指定したときだけ
         その名前を使う)。bundle ID が分からなければ 🧑 に冒頭の1回だけ聞く(他リポジトリを勝手に探索して埋めない)。

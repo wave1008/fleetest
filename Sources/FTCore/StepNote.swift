@@ -187,6 +187,11 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 消えたと読ませる(実機 iPhone SE3 の CMP: パスワード欄が消えないまま緑)。値は `valueIs` で別途確かめる
     case clearInputUnverified = "clear-input-unverified"
 
+    /// clearInput の事後検証は「消す前と後で value が同じ = 消え残り」と読んだが、欄の絵を OCR すると残りの文字は描かれていなかった
+    /// (value が入力を映さない欄 = M3 SearchBar の iOS は固定の案内文を出す)ので、消えたものとして通した。
+    /// **率を見たい注記**: 増えるなら、本当に消えていない欄を OCR の読み落としで通している疑い
+    case clearResidualNotDrawn = "clear-residual-not-drawn"
+
     /// 素の scrollUp / scrollDown 等の送りの後、画面の中身が送る前と1つも変わらなかった(端に着いていたか、払いの始点が一覧の外)。
     /// **率を見たい注記**(新しい検知はまず警告から): 端での送りを書いたシナリオでも立つ
     case scrollMovedNothing = "scroll-moved-nothing"
@@ -246,6 +251,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// run 横断で率を見ると**環境側の FM 不調**が拾える(受け手報告: availability は
     /// available なのに実呼び出しが ModelManagerError(1001) で落ち、可視判定が黙って通っていた)
     case visibilityGuardSkipped = "visibility-guard-skipped"
+
+    /// 可視性照合が通ったが、**描かれた文字を読む段が無かった**(OCR は macOS 27+ だけ・FM の段も使えない構成。macOS 26 など)。
+    /// 通った根拠は木にいること・幾何・領域のインク量だけで、文字が読めたことは確かめていない
+    case visualTextCheckUnsupported = "visual-text-check-unsupported"
 
     /// occlusion-guard が緑と判定したが、読めた文字は期待文字列の先頭部分だけ(`TranscriptMatch.State.partiallyHidden`)。
     /// **率を見たい注記**: 増えているならレイアウトが要素を部分的に隠す構成(長いラベルが
@@ -643,6 +652,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .clearInputUnverified:
             return "no field in the tree reported focus, so whether the field was emptied could not be"
                 + " read back — check the value with valueIs"
+        case .clearResidualNotDrawn:
+            return "the field's value still reads as before the clear, but that text is not drawn in the field on screen (OCR),"
+                + " so it was treated as cleared"
         case .typeFocusRecovered:
             return "the preceding tap did not put a field in focus, so the text went to the"
                 + " field it resolved to"
@@ -673,6 +685,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " permission grants are reset too, so the next launch can show system alerts"
         case .slowSnapshot:
             return "a single snapshot took longer than this step's wait budget"
+        case .visualTextCheckUnsupported:
+            return "no stage of the text visibility check could read the drawn text (\(OCRSupport.requirement), and the FM stage is off or unavailable),"
+                + " so this passed without confirming the text is drawn (only geometry and a blank region fail)"
         case .visibilityGuardSkipped:
             return "the FM visibility check gave no verdict, so this passed on tree presence and"
                 + " on-screen geometry alone"

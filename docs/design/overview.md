@@ -66,7 +66,7 @@ Tier-0 幾何 = 収まる軸の中心が画面外なら不可視(`TapTargetGeome
 版(revision)は固定せず OS の既定に従い、**版・認識レベル・言語補正・言語規則が動いたことの検出は
 実 crop の固定コーパス**(`Tests/Fixtures/OcclusionCrops/`)が担う。既定 on・殺しスイッチは
 `FT_OCCLUSION_OCR=0`・`measure` でコーパス採取(実測は OG-5.17)。
-**①の例外は FM が判定を返さないときだけ**(macOS 26・実呼び出しの失敗):
+**①の例外は FM が判定を返さないときだけ**(実呼び出しの失敗。macOS 26 は OCR も使わない = `OCRSupport`・注記 `visual-text-check-unsupported`):
 近道が読んだ行を `TranscriptMatch.judge` に通し、行が無ければインク量で分ける(`FTCore.OCROnlyVisibility`)。
 不可視なら FM の反転と同じく赤(コーパス・E2E の誤った赤 0 を確認済み。
 実測は OG-5.19)。
@@ -246,7 +246,7 @@ protocol AppDriver {
 
 ```
 fleetest-mobile/
-├── Package.swift                  # CLI とライブラリ (macOS 26+。視覚系のみ 27+)。マーカー区間にプロジェクト毎の
+├── Package.swift                  # CLI とライブラリ (macOS 26+。視覚系と OCR は 27+)。マーカー区間にプロジェクト毎の
 │                                  # executableTarget を自動生成(DS-11。fleetest project create/sync)
 ├── Sources/
 │   ├── fleetest/                   # CLI エントリポイント(+ ProjectCommands / ProfileRunner / Api*Command)

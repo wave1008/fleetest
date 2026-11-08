@@ -8,7 +8,11 @@ extension StepExecutor {
 
     func executeTapLinkText(_ linkText: String, element: ElementInfo, snapshot: SnapshotResponse,
                             step: FlowStep, notes: String?, phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        // 木に無くて OCR が要るのに OCR が使えない環境(macOS 26)は、撮る前に断る(「読めなかった」と言わない)
         var point = LinkTextLocator.treePoint(linkText: linkText, element: element, in: snapshot.elements)
+        if point == nil, !OCRSupport.isSupported {
+            return StepOutcome(status: failed(.notFound, Self.linkTextOCRUnsupportedMessage(linkText: linkText, element: element)))
+        }
         var ocrLines: [String] = []
         var ocrAttempts = 0
         // OCR へ渡した絵のうちアプリの領域が一色だった枚数(失敗文に事実として添える。読めないのが絵のせいか読みのせいかを分ける)
@@ -101,6 +105,12 @@ extension StepExecutor {
                                "link text \"\(linkText)\" located by \(point.source.rawValue)"
                                    + " at (\(Int(point.x.rounded())), \(Int(point.y.rounded())))",
                                tapped.driverFallback, waitedFact, unsettledFact))
+    }
+
+    static func linkTextOCRUnsupportedMessage(linkText: String, element: ElementInfo) -> String {
+        "cannot find the link text \"\(linkText)\" inside \(TapTargetGeometry.describe(element)):"
+            + " no descendant in the tree has that label, and reading the element's pixels is unavailable"
+            + " (\(OCRSupport.requirement))"
     }
 
     /// OCR の1周: 最大 `ocrShotAttempts` 回撮って読む。位置が決まるか、文字が読めたら(= その絵にリンクの語が無い)止める。

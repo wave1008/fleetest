@@ -40,5 +40,7 @@ final class ClearFocusRefusalWordingTests: XCTestCase {
         let source = try String(contentsOf: root.appendingPathComponent("Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift"),
                                 encoding: .utf8)
         XCTAssertTrue(source.contains("\"" + StepExecutor.runnerFocusRefusalPrefix + " within\""), "ランナーの 422 の文言が変わった")
+        // 消え残りの 422(StepExecutor+ClearResidual の recoveredEmptyRefusal が先頭で見分ける)
+        XCTAssertTrue(source.contains("BridgeError(422, \"" + StepExecutor.runnerEmptyRefusalPrefix + "\""), "ランナーの消え残りの 422 の文言が変わった")
     }
 }

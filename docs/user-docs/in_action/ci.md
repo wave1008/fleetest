@@ -180,7 +180,7 @@ inside a macOS VM (Tart, Anka and the like), so plan on it being unavailable the
 
 To enable it on bare metal:
 
-- Apple silicon with macOS 27 or later (`screenLooksLike` and text visibility check pass images to FM, so they are not available on macOS 26).
+- Apple silicon with macOS 27 or later (`screenLooksLike` and text visibility check pass images to FM, so they are not available on macOS 26; on-device OCR is macOS 27+ too).
 - Enable it once in the GUI (turn Siri on in System Settings → Siri (Siri uses Apple Intelligence); on a machine without a display, through Screen Sharing.
   A model download runs). An EC2 Mac loses the setting when recreated from a plain AMI, so bake a custom AMI after enabling it,
   or include the enabling in your provisioning.

@@ -17,7 +17,7 @@ CI に向きます。すべてを手元で動かせるので、クラウドを�
 
 ## 必要環境
 
-- Apple silicon の Mac、macOS 26+
+- Apple silicon の Mac、macOS 26+(FM の画像入力とオンデバイス OCR は macOS 27+)
 - Xcode 27.2+
 - Homebrew
 - VSCode

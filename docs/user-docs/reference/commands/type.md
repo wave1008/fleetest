@@ -86,7 +86,7 @@ field.type("alice")                // same as type("#login_id", "alice")
   `textIs` / `valueIs` when every character must be there.
 - **If the value does not move at all, the screen is checked first**, because some fields do
   not reflect the input in their value (a Material3 SearchBar on iOS reports a description).
-  If the typed text is drawn in the field (OCR), it is accepted without retyping (note
+  If the typed text is drawn in the field (OCR, macOS 27+ only; on macOS 26 the screen is not read and the input is not re-sent), it is accepted without retyping (note
   `type-readback-unchanged`). If not, the input is treated as lost and re-sent. **The re-send
   happens at most once**; if the value still does not move, the step fails (repeating the
   re-send could duplicate the input).

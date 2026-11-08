@@ -18,7 +18,7 @@ that cannot use cloud services.
 
 ## Requirements
 
-- A Mac with Apple silicon, macOS 26+
+- A Mac with Apple silicon, macOS 26+ (FM image input and on-device OCR need macOS 27+)
 - Xcode 27.2+
 - Homebrew
 - VSCode

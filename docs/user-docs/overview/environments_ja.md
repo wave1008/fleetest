@@ -26,7 +26,7 @@
 
 ### オプション：Foundation Models (FM)
 
-FM は macOS 26+ で使えます(システム設定 → Apple Intelligence と Siri)。**画像を渡す機能(`screenLooksLike`・テキストの可視性検証の FM 段)だけは macOS 27+** です(システム設定 → Siri)。
+FM は macOS 26+ で使えます(システム設定 → Apple Intelligence と Siri)。**画像を渡す機能(`screenLooksLike`・テキストの可視性検証の FM 段)だけは macOS 27+** です(システム設定 → Siri)。**オンデバイス OCR(Vision の文字認識)も macOS 27+ だけ**です。macOS 26 では `tap(linkText:)` がその要件を示して失敗し、type の画面での読み返しは行われず、テキストの可視性検証の OCR 段は無効になります。それ以外は動きます。
 
 FM を使う機能は experimental です(OS の更新で挙動が変わることがあります)。
 

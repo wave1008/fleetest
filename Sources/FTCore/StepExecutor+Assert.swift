@@ -358,9 +358,12 @@ extension StepExecutor {
                               screenshot: screenshot, element: element, screen: screen,
                               fmVisible: nil, fmState: nil, fmObserved: nil)
             }
-            return applyOCROnlyVisibility(ocrOnly, ocrReading: ocrReading, screenshot: screenshot, elements: elements,
-                                          element: element, screen: screen, countsAsSkipped: false,
-                                          fmGaveNoVerdict: fmConfigured)
+            let status = applyOCROnlyVisibility(ocrOnly, ocrReading: ocrReading, screenshot: screenshot, elements: elements,
+                                                element: element, screen: screen, countsAsSkipped: false,
+                                                fmGaveNoVerdict: fmConfigured)
+            // 文字を読む段が両方とも無い(OCR 非対応 + FM 無し)のに通った = 描かれた文字は確かめていない。黙って緑にしない
+            if status == nil, !OCRSupport.isSupported { noteCodesThisStep.insert(.visualTextCheckUnsupported) }
+            return status
         }
         // 同じスクショ(バイト同一)・同じ frame・同じ期待文字列なら FM に訊き直さない
         // (VisibilityVerdictMemo。答えは同じで、払うのは FM の数秒だけ)

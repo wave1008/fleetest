@@ -63,7 +63,9 @@ final class FTRuntimeFailureKindTests: XCTestCase {
         guard let failed = stepEvents.first(where: { $0.status == "failed" }) else {
             return XCTFail("clearInput が失敗として記録されていない: \(stepEvents)")
         }
-        XCTAssertEqual(failed.detail, "clearInput reported success but the value remained: \"leftover\"")
+        // 消え残りを OCR で確かめられなかった理由が括弧で続く(偽ドライバは撮れない = StepExecutor+ClearResidual)
+        XCTAssertEqual(failed.detail, "clearInput reported success but the value remained: \"leftover\""
+            + " (not checked against the screen: the screen could not be captured)")
         XCTAssertNil(failed.failureKind,
                      "StepExecutor が素性を名乗らなかった失敗を .timeout に丸めてはいけない")
     }

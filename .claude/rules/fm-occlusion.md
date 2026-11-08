@@ -168,9 +168,11 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `OCROnlyVisibility.merge` で**見えていると読めた側を採る**(赤は両方が見えないと言った回だけ。割れた回は
   注記 `ocr-read-what-fm-missed` / `fm-read-what-ocr-missed` で率を見る。`measure` では突き合わせない)。
   **FM の段より前に OCR の赤で返す分岐を置かない**(`OCROnlyVisibilityWiringTests`)。FM の段が無い
-  (fmTextVisibilityCheck off・delegate 無し)/ 使えない(macOS 26・実呼び出しの失敗・`FT_FAKE_FM_NO_VERDICT=1`)ときは
+  (fmTextVisibilityCheck off・delegate 無し)/ 使えない(実呼び出しの失敗・`FT_FAKE_FM_NO_VERDICT=1`)ときは
   OCR の判定だけで決める —— 近道が既に読んだ行を `TranscriptMatch.judge` に通し、行が無ければインク量(`occlusionInkThreshold`)で
   「描かれていない / 判定不能」を分ける(`FTCore.OCROnlyVisibility`。**追加の OCR は撃たない**)。
+  **OCR は macOS 27+ だけ**(`FTCore.OCRSupport`。26 では `RegionText.mode` が off・`recognizeObservations` が `OCRUnsupportedError` を投げる。
+  非対応を OCR の故障(`readerIsAlive`)と混ぜない。26 は FM の画像入力も無いので可視性検証は文字を読まずに通し、注記 `visual-text-check-unsupported`)。
   **不可視なら FM の反転と同じく赤**(警告から始め、コーパスの誤った赤 0 と配信を止めた E2E の赤 0 を確かめて
   上げた。**近道が撃たれていない = 読みが nil なら判定しない** —— [] と混ぜるとインク量だけで赤にする)。
   実測は OG-5.19・OG-5.22

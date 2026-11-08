@@ -3,6 +3,7 @@
 // キーボードの検索で確定)。
 // 入力欄の value は入力ではなく説明文(iOS)。以前は type の読み返しが追送を繰り返して入力が重複した
 // (2026-09-28 に修正。値が動かないときは画面を OCR で見る)。その回帰テストを兼ねる
+// 消去も同じ欄の value で消え残りと読んで赤だった(OI-173 ④。消え残りの文字が欄に描かれていなければ通す)。S0030・S0040
 
 import FTDSL
 
@@ -47,6 +48,43 @@ class 検索バーで検索できること {
                     pressEnter()
                 }.expectation {
                     select("#txt_search_result").textIs("search=banana")
+                }
+            }
+        }
+    }
+
+    @Test("ロケータなしの置き換えで打ち直す")
+    func S0030() {
+        scenario {
+            scene(1, "打ってから置き換える") {
+                condition {
+                    launchApp()
+                    tap("#nav_search", scroll: .down)
+                }.action {
+                    tap("#field_search")
+                    type("bx")
+                    type("ap", replace: true)
+                }.expectation {
+                    exist("#suggestion_apricot")
+                    notExist("#suggestion_banana")
+                }
+            }
+        }
+    }
+
+    @Test("セレクタ付きの clearInput で空にする")
+    func S0040() {
+        scenario {
+            scene(1, "打ってから消す") {
+                condition {
+                    launchApp()
+                    tap("#nav_search", scroll: .down)
+                }.action {
+                    type("#field_search", "bx")
+                    clearInput("#field_search")
+                }.expectation {
+                    exist("#suggestion_banana")
+                    exist("#suggestion_apricot")
                 }
             }
         }

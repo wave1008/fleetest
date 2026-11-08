@@ -176,7 +176,11 @@ struct Doctor: AsyncParsableCommand {
         if !vision.available, !visionUnsupported { problems += 1 }
         // **OCR も実呼び出しで確かめる**(FM と独立に死ぬ。死んでいると OCR を使う判定が誤った理由で落ちる)。
         // 判定は RegionText.readerIsAlive の1箇所(ft_doctor と共有)。`--fm-only` には含めない(FM の門)
-        if await RegionText.readerIsAlive() {
+        if !OCRSupport.isSupported {
+            // macOS が対応していないだけ(故障ではない)。FM vision の非対応と同じく警告どまりで problems に数えない
+            ConsoleOut.out("⚠️ \(OCRSupport.requirement)")
+            ConsoleOut.out("   Link-text taps, the screen readback of typed text and the OCR stage of the text visibility check are unavailable.")
+        } else if await RegionText.readerIsAlive() {
             ConsoleOut.out("✅ On-device OCR (Vision text recognition): read the built-in test image")
         } else {
             problems += 1

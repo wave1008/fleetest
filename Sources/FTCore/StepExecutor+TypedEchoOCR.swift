@@ -9,6 +9,8 @@ extension StepExecutor {
     /// **切り出しの枠は打った後に読み直した木から取る** —— 打鍵で欄が動く(キーボードの押し上げ・Flutter のスクロール)ので、
     /// 打つ前の枠では別の所を読んで誤検知する。見つからなければ確認をしない(黙る)
     func noteIfTypedTextNotDrawn(driver: AppDriver, text: String, phase: inout PhaseAccumulator) async {
+        // 非対応(macOS 26)は確かめない(警告の注記なので黙る。読めなかったことを「描かれていない」にしない)
+        guard OCRSupport.isSupported else { return }
         let clock = ContinuousClock()
         let start = clock.now
         guard let after = try? await driver.snapshot(bypassingCache: true),
