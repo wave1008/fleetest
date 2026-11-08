@@ -115,6 +115,9 @@ final class FailureFactsTests: XCTestCase {
                       DriverError.bridgeConnectionRefused(context: stopped, detail: "x")] {
             XCTAssertEqual(StepExecutor.failureKind(thrown: error), .appStoppedBySession)
         }
+        // removeApp の後もこの文になる = 入れ直しの手順も言う(launchApp だけでは従えない。33周目 im4)
+        let stoppedText = DriverError.bridgeConnectionRefused(context: stopped, detail: "x").localizedDescription
+        XCTAssertTrue(stoppedText.contains("installApp"), stoppedText)
         XCTAssertEqual(StepExecutor.failureKind(thrown: DriverError.bridgeConnectionRefused(context: crashed, detail: "x")),
                        .driverUnreachable)
         let kind = StepFailureKind.appStoppedBySession

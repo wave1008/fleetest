@@ -1141,8 +1141,11 @@ final class TapAdvisoryWiringTests: XCTestCase {
         ]
         let wrap = elements[1]
         XCTAssertNotNil(TapTargetGeometry.disabledAdvisory(for: wrap))
-        XCTAssertNotNil(TapTargetGeometry.missedContentAdvisory(
-            for: wrap, in: elements, screen: FTRect(x: 0, y: 0, width: 1080, height: 2424)))
+        let missed = TapTargetGeometry.missedContentAdvisory(
+            for: wrap, in: elements, screen: FTRect(x: 0, y: 0, width: 1080, height: 2424))
+        XCTAssertNotNil(missed)
+        // 届いた先は観測していないので言い切らない(RN の accessible={false} の Pressable は other でも押せる = 35周目 im4 F1)
+        XCTAssertTrue(missed?.contains("may have gone") == true && missed?.contains("if nothing happened") == true, missed ?? "")
         // 有効な要素なら disabled 側だけが黙る
         let on = ElementInfo(ref: 4, type: "button", identifier: "b", label: nil, value: nil,
                              placeholder: nil, enabled: true,

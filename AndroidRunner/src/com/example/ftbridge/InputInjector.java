@@ -242,7 +242,7 @@ final class InputInjector {
                         "cannot type into the field that was tapped (" + lastState + ", "
                         + timeoutMs + "ms waited; "
                         + failureFacts(ua, lastRead, masked, lastRefreshOK, accepted)
-                        + "; giving up rather than typing into the wrong field)"
+                        + "; giving up rather than typing into the wrong field)" + movedFocusFact(ua, shortId)
                         + deliveryUnknownNote(accepted));
             }
             SystemClock.sleep(RETRY_POLL_MS);
@@ -1254,5 +1254,26 @@ final class InputInjector {
             if (hasNodeWithId(node.getChild(i), shortId)) return true;
         }
         return false;
+    }
+
+    /**
+     * 諦めた時点で入力の焦点が**対象と別の id の編集可能な欄**にあれば、その事実を名指す(押すと展開して別の欄へ焦点を渡す
+     * 検索バー = E2EX-Android。「入力の接続が未確立かも」とだけ言っていた)。読めない・同じ欄・id が無いときは黙る(推測しない)
+     */
+    private static String movedFocusFact(UiAutomation ua, String shortId) {
+        if (shortId == null) return "";
+        try {
+            AccessibilityNodeInfo root = ua.getRootInActiveWindow();
+            AccessibilityNodeInfo now = root == null ? null : focusedEditable(root);
+            String id = now == null ? null : now.getViewIdResourceName();
+            if (id == null) return "";
+            int idx = id.indexOf("id/");
+            String shortNow = idx >= 0 ? id.substring(idx + 3) : id;
+            if (shortNow.isEmpty() || shortNow.equals(shortId)) return "";
+            return ". Input focus is now on another field (#" + shortNow + "), not on the tapped element: type into that field"
+                    + " (with its selector, or without a selector right after the tap)";
+        } catch (RuntimeException e) {
+            return "";
+        }
     }
 }

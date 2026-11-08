@@ -416,10 +416,29 @@ extension StepExecutor {
             return false
         }
         start = clock.now
-        try await td.clearInput(ref: resolved.element.ref)
+        do {
+            try await td.clearInput(ref: resolved.element.ref)
+        } catch {
+            throw Self.clearFocusRefusalInDSLTerms(error, step: step, element: resolved.element)
+        }
         phase.actionMs += Self.ms(clock.now - start)
         return true
     }
+
+    /// XCUITest ランナーの消去の 422「tapping the ref did not move keyboard focus …」を DSL の言葉に直す(DSL の利用者は ref を
+    /// 渡していない)。静的テキストなら入力欄でないことを添える(iOS は RN の OTP の箱も staticText で来るので撃つ前には断らない)。
+    /// 文言の先頭は Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift の BridgeError(422, …) と同期
+    static func clearFocusRefusalInDSLTerms(_ error: Error, step: FlowStep, element: ElementInfo) -> Error {
+        guard case DriverError.badResponse(422, let body) = error,
+              body.hasPrefix(Self.runnerFocusRefusalPrefix) else { return error }
+        let rest = body.dropFirst(Self.runnerFocusRefusalPrefix.count)
+        let staticNote = element.type == "staticText"
+            ? ". The target is a staticText (display-only text), which usually cannot take input: point the selector at the input field itself"
+            : ""
+        return DriverError.badResponse(status: 422, body: "tapping \(step.locatorSummary) did not move keyboard focus to it" + rest + staticNote)
+    }
+    static let runnerFocusRefusalPrefix = "tapping the ref did not move keyboard focus to it"
+
 
     enum ClearOutcome {
         /// `actingDriverSnapshot` = 消去の中で**最後に撮った木が actingDriver のものだったとき**のその木(nil = 撮っていない・
@@ -727,7 +746,11 @@ extension StepExecutor {
         do {
             let start = clock.now
             let target = refreshed?.element ?? element
-            try await RefExpectationScope.firing(target) { try await actingDriver.clearInput(ref: target.ref) }
+            do {
+                try await RefExpectationScope.firing(target) { try await actingDriver.clearInput(ref: target.ref) }
+            } catch {
+                throw Self.clearFocusRefusalInDSLTerms(error, step: step, element: target)
+            }
             phase.actionMs += Self.ms(clock.now - start)
             // 事後検証: ブリッジが 200 を返しても実際に消えていない(嘘の成功)場合の保険。
             // 同じ driver で snapshot を撮り直し、同じ locator を再解決して value を見る

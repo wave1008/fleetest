@@ -76,6 +76,21 @@ final class StoppedAppMarkDSLTests: XCTestCase {
         events.withLock { $0.filter { $0.kind == "step" && $0.status == "failed" }.compactMap(\.detail) }
     }
 
+    /// 止めた後に断ったステップの失敗に、前面の窓を「吸った」と言わない(何も送っていない。33周目 phys F1・36周目 phys)
+    func testWindowsInFrontAfterTheScenarioStoppedTheAppAreNotSaidToSwallow() {
+        let events = LockedValue<[ScenarioEvent]>([])
+        let core = androidCore(FakeDriver(), events: events)
+        core.foregroundOverlays = { _ in ["com.android.systemui/NotificationShade"] }
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        launchApp()
+        terminateApp()
+        tap("#nav_missing")
+        let all = logs(events).joined(separator: "\n")
+        XCTAssertTrue(all.contains("Another window is in front of the app"), all)
+        XCTAssertFalse(all.contains("swallowed"), all)
+    }
+
     // MARK: 1. 印の寿命
 
     /// Android の back / swipe(アプリを起こさない)を挟んでも印は残り、続く赤は「止めた」と言って「クラッシュしたかも」と言わない

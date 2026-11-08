@@ -37,4 +37,36 @@ final class CoveredByFrontElementNoteTests: XCTestCase {
         let unknown = await exist([coveringRow, bare])
         XCTAssertFalse(unknown.notes.contains(.coveredByFrontElement), "塗り順の無い木で手前を推測した")
     }
+
+    /// 在り続けた覆われた要素への notExist の赤は覆いを名指す(36周目 im4 F2: 「element still exists」だけだった)。塗り順の無い木では言わない
+    func testNotExistFailureNamesTheFrontElementOnlyWithPaintOrder() async {
+        let row = element(1, "clickable", "sw_row_3", "行 3", FTRect(x: 0, y: 300, width: 400, height: 60), z: 2, depth: 1)
+        let button = element(2, "button", "btn_archive", "アーカイブ", FTRect(x: 300, y: 300, width: 100, height: 60), z: 1, depth: 1)
+        let real = await notExist([row, button])
+        XCTAssertTrue(real.contains("#sw_row_3 covers it"), real)
+        var coveringRow = row; coveringRow.z = nil; coveringRow.ref = 3
+        var bare = button; bare.z = nil
+        let unknown = await notExist([coveringRow, bare])
+        XCTAssertTrue(unknown.contains("element still exists"), unknown)
+        XCTAssertFalse(unknown.contains("covers it"), "塗り順の無い木で手前を推測した: \(unknown)")
+    }
+
+    private func notExist(_ elements: [ElementInfo]) async -> String {
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [elements])
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: false, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(assert: "notExists", locator: FlowLocator(id: "btn_archive"), timeout: 0))
+        guard case .failed(let message) = outcome.status else { return "not failed: \(outcome.status)" }
+        return message
+    }
+
+    /// Android のアプリ自身のダイアログの窓が手前のとき、見つからない exist の赤はダイアログを名指す(36周目 amax F2。tap の赤と同じ)
+    func testExistFailureNamesTheAppsOwnDialogWindow() async {
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[
+            element(1, "button", "btn_open", "開く", FTRect(x: 0, y: 100, width: 200, height: 60), z: nil, depth: 1)]])
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: true, tunables: RunTunables())
+        executor.foregroundWindowLines = { _ in ["com.example.app/Dialog " + StepExecutor.ownDialogWindowMarker] }
+        let outcome = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "row_behind"), timeout: 0))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("the app's own dialog window is in front"), message)
+    }
 }

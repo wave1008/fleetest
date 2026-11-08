@@ -168,7 +168,16 @@ extension MCPServer {
         // ブリッジ側 POST /rotate の整定ポーリングと同じ締め切り
         // (`FTCore.RotationSettle.deadlineSeconds`)まで、同じ間隔で回す。**cap
         // (`rotationSettleMaxRereads`)が無いと、一度も整定しないドライバでループが止まらない**
-        var rotated = try await freshSnapshot(rotateDriver, args: args)
+        // **回した後に木が読めなくても、回したことは言う**(ft_terminate の後はセッションが無く、読みが 409 になる。失敗と返すと
+        // 端末は回ったまま次の ft_launch が横で起動する = 37周目 ilocal F2)。読めない理由はそのまま添える
+        var rotated: SnapshotResponse
+        do {
+            rotated = try await freshSnapshot(rotateDriver, args: args)
+        } catch {
+            return text("Rotated the device to \(settled.rawValue), but the screen could not be read afterwards: "
+                + error.localizedDescription + " — the device stays \(settled.rawValue), so the next app you launch starts"
+                + " \(settled.rawValue) (ft_rotate portrait to undo it)")
+        }
         var settledFrames = false
         let rotationSettlePollInterval = max(RotationSettle.pollIntervalSeconds, settleWaitSeconds)
         let rotationSettleMaxRereads = Int(rotationSettleDeadlineSeconds / rotationSettlePollInterval)

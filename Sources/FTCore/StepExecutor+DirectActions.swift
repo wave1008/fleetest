@@ -870,9 +870,11 @@ extension StepExecutor {
             guard DriverError.isTextInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 // Android の 409 は「焦点の欄が無い・欄の入力の接続が閉じている」(Flutter は Enter の後に接続を閉じる = OI-163 ⑬)
+                // home() / back() でアプリを出た後なら「欄をタップし直せ」でなく前面に無いことを言う
+                let left = appUnderTestStopped ? nil : await leftForegroundHint()
                 return StepOutcome(status: .failed(Self.focusedFieldRefusal("press Enter in", isAndroid: isAndroid)
-                    + Self.pressEnterRefusalAdvice(isAndroid: isAndroid, stopped: appUnderTestStopped,
-                                                   stoppedCommand: appUnderTestStoppedCommand)))
+                    + (left ?? Self.pressEnterRefusalAdvice(isAndroid: isAndroid, stopped: appUnderTestStopped,
+                                                            stoppedCommand: appUnderTestStoppedCommand))))
             }
             try await td.pressEnter()
             phase.actionMs += Self.ms(clock.now - start)

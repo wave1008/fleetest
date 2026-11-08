@@ -1177,7 +1177,8 @@ extension StepExecutor {
             return .passed
         }
         // 前面を離れたかもしれない印があり前面の照会が「前面に無い」と答えたときだけ、その事実と戻し方を添える(操作側と同じ `leftForegroundHint`)
-        let leftHint = await leftForegroundHint() ?? ""
+        // アプリ自身のダイアログの窓が手前なら名指す(操作側と同じ `ownDialogHint`。窓は木に載らず、裏の要素は待っても出ない)
+        let leftHint = await leftForegroundHint() ?? ownDialogHint() ?? ""
         return failed(.notFound, "element not found: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
                        + leftHint
                        + (Self.coverReportHint(lastSnapshot) ?? "")
@@ -1480,6 +1481,8 @@ extension StepExecutor {
         var passConfirmed = false
         var backoff = PollBackoff()
         var lastElements: [ElementInfo] = []   // 失敗文言の tapDiagnosisHint 用
+        var lastResolved: ElementInfo?         // 失敗文言の覆いの名指し用(最後の読みで在った要素)
+        var lastScreen = FTRect(x: 0, y: 0, width: 0, height: 0)
         // 一度でも上限に当たったら、この検証の残りは**最初から天井で撮る**(needsCeiling)
         var needsCeiling = false
         while true {
@@ -1504,6 +1507,8 @@ extension StepExecutor {
                 resolved = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
             }
             lastElements = snapshot.elements
+            lastResolved = resolved?.0
+            lastScreen = snapshot.screen
             if resolved == nil, Self.treeIsEmptyForAbsence(snapshot) {
                 if Date() >= deadline {
                     if SlowSnapshotBudget.mayRetake(stepElapsedMs: Self.ms(clock.now - stepStart),
@@ -1578,7 +1583,20 @@ extension StepExecutor {
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
         return .failed("element still exists: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
+                       + coveredStillExistsHint(lastResolved, in: lastElements, screen: lastScreen)
                        + tapDiagnosisHint(lastElements))
+    }
+
+    /// 在り続けた要素が、塗り順の本物の木で手前の要素に覆われているなら名指す(`exist` に注記 `covered-by-front-element` が付くのと
+    /// 同じ判定。人には見えないが木には在る = notExist は「木に無い」を確かめる)。塗り順の無い木では言わない(推測しない)
+    func coveredStillExistsHint(_ element: ElementInfo?, in elements: [ElementInfo], screen: FTRect) -> String {
+        guard let element, paintOrderIsReal(elements),
+              case .tooThin(_, _, let cover)? = TapTargetGeometry.coveredTouch(
+                for: element, in: elements, screen: screen, inferring: true, scale: driver.pointScale, zIsPaintOrder: true)
+        else { return "" }
+        let label = cover.identifier.map { "#\($0)" } ?? cover.label.map { "\"\($0)\"" } ?? cover.type
+        return " (it is still in the tree although \(label) covers it, so a person cannot see it; notExist checks the tree,"
+            + " not what is drawn)"
     }
 
     private func executeAssertNegativeTextComparison(

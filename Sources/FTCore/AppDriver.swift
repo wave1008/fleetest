@@ -476,8 +476,10 @@ public enum DriverErrorMessage {
         case .stoppedBySession:
             // 止めたコマンド(terminateApp / clearAppData / removeApp / MCP・CLI の terminate)はドライバ層では分からない。名指さない
             // (DSL の失敗には FTRuntime が「stopped it with <command>()」の行を足す)
+            // removeApp の後もここへ来る(1行目で launchApp だけを勧めると、入っていないアプリには従えない = 33周目 im4)
             return "The app under test is not running: this session stopped it and has not"
-                + " launched it since. Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>)."
+                + " launched it since. Launch it again (DSL: launchApp / MCP: ft_launch / CLI: fleetest launch <bundle-id>);"
+                + " if it was uninstalled (removeApp), install it first (installApp)."
         case .aliveButNotAnswering:
             return nil
         case .inBackground:

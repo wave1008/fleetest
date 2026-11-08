@@ -335,9 +335,9 @@ enum RefGuard {
                 + " so this may have hit \(describe(over)) instead — verify with ft_screenshot,"
                 + " or scroll the element clear of the overlay first)"
         case .missedContent(let inner):
-            return " (warning: \(describe(found)) is not interactive and its center is not over any"
-                + " of its own content, so this \(operation) went to whatever is behind it."
-                + " Target the content instead, e.g. \(describe(inner)))"
+            return " (warning: \(describe(found)) does not report itself as interactive and its center is not over any"
+                + " of its own content, so this \(operation) may have gone to whatever is behind it."
+                + " If nothing happened, target the content instead, e.g. \(describe(inner)))"
         case .nestedAction(let nested):
             // **子孫が中心を横取りしている**。`overlayCovering` は子孫を除外するので届かない
             // (Apple マップの検索候補で実害。TapTargetGeometry の解説を参照)

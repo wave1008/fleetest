@@ -63,29 +63,29 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 要測定
-- 運用: ①②合否に響かない ④再実行で吸収(後続の検証が赤にする)
-- 優先度: 低 — 文言と、後続が赤にする届かない操作
+- 運用: ④再実行で吸収(後続の検証が赤にする)
+- 優先度: 低 — 後続が赤にする届かない操作
 
-出典: `_work/explore-20261107g/findings-*.md`(36周目・11/7)。①Android のアプリ自身のダイアログの裏の要素への `exist` の赤が「element not found … (timeout 5s)」だけで、同じ画面の `tap` の赤のようにダイアログを名指さず 5 秒待つ(amax F2・4/4) ②RN の iOS で払う前の行の裏に隠れたスワイプのボタンへの `notExist` が「element still exists」で赤、覆いを名指さない(im4 F1・1/1。同じ要素の `exist` は ✅ に `covered-by-front-element`) ④RN の iOS の数字キーへの `doubleTap` が ✅(fell back to XCUITest)なのにアプリに届くのが 1 回だけのことがある(im4 F2・4/7。SwiftUI・Flutter は 3/3 で 2 回届く。原因は材料不足)
+出典: `_work/explore-20261107g/findings-*.md`(36周目・11/7)。④RN の iOS の数字キーへの `doubleTap` が ✅(fell back to XCUITest)なのにアプリに届くのが 1 回だけのことがある(im4 F2・4/7。SwiftUI・Flutter は 3/3 で 2 回届く。原因は材料不足)
 
 ### OI-193 探索の残り(35周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 要測定・据え置き
-- 運用: ①要注意 — RN・UIKit の in-app・Android の View で、覆われた要素への `exist` / テキストの検証は緑のまま注記 `covered-by-front-element` が付く。見えていることを確かめたいなら同じ要素を `tap` してみる(覆われていれば撃つ前に断る) ②合否に響かない(待ちの時間の損) ③④ MCP だけ・合否に響かない ⑥合否に響かない(文言)
+- 運用: ①要注意 — RN・UIKit の in-app・Android の View で、覆われた要素への `exist` / テキストの検証は緑のまま注記 `covered-by-front-element` が付く。見えていることを確かめたいなら同じ要素を `tap` してみる(覆われていれば撃つ前に断る) ②合否に響かない(待ちの時間の損) ④ MCP だけ・合否に響かない
 - 優先度: 中 — ①覆われた要素への `exist` / テキストの検証が注記付きの緑(全数を見て警告のまま据え置き)
 
-出典: `_work/explore-20261107f/findings-*.md`(35周目・11/7)。①RN の iOS で払う前の行の裏のスワイプのボタン・半開シートの裏の行への `exist` / `textIs` が ✅(im4 F2・13/13)、同じ要素への `tap` は「露出 0」で撃つ前に断る。11/7 に注記 `covered-by-front-element`(合否は変えない)を入れた(f12f698fb。M1Ultra の6台で狙った形 6/6・既存のスワイプのクラスの検証に 0 件)。赤へ上げるのは E2E・E2EX・E2EY の全数で注記が付いた検証を1件ずつ見て、見えている要素に付いた例が0と確かめてから ②iOS(E2EY-iOS)の遷移の直後の `select("#txt_loading_state")` が上部の固定領域のラベルを 5〜13 秒「not visible」とし、待った後に ✅(iultra F1・9/24。直前の tap が 0.36〜0.48 秒で返った回だけ・間に `wait(1.0)` を挟むと 6/6 で 0.2 秒以内。原因は材料不足。11/3 の7周目にも同じ要素で「not visible」なのに続く `textIs` が緑の形が1回 = その後 0/20) ③MCP の `ft_terminate` の後の `ft_rotate` が 409「no session」で失敗を返すのにデバイスの向きを変え、次の `ft_launch` でアプリが横向きで起動する(ilocal F2・5/5) ④MCP の `appSwitcher` の後の `ft_rotate` の失敗文が「アプリがその向きを宣言していない」と言い注記はスイッチャーを名指す・失敗と言った向きが残る(ilocal F1・3/3) ⑥RN の iOS で押せる Pressable(`accessible={false}`)への `tap("#mini_player")` が効いている(シートが半開になる)のに、注記が「タッチは裏へ抜けた」と言い再生ボタンを狙えと勧める(im4 F1・4/4)
+出典: `_work/explore-20261107f/findings-*.md`(35周目・11/7)。①RN の iOS で払う前の行の裏のスワイプのボタン・半開シートの裏の行への `exist` / `textIs` が ✅(im4 F2・13/13)、同じ要素への `tap` は「露出 0」で撃つ前に断る。11/7 に注記 `covered-by-front-element`(合否は変えない)を入れた(f12f698fb。M1Ultra の6台で狙った形 6/6・既存のスワイプのクラスの検証に 0 件)。赤へ上げるのは E2E・E2EX・E2EY の全数で注記が付いた検証を1件ずつ見て、見えている要素に付いた例が0と確かめてから ②iOS(E2EY-iOS)の遷移の直後の `select("#txt_loading_state")` が上部の固定領域のラベルを 5〜13 秒「not visible」とし、待った後に ✅(iultra F1・9/24。直前の tap が 0.36〜0.48 秒で返った回だけ・間に `wait(1.0)` を挟むと 6/6 で 0.2 秒以内。原因は材料不足。11/3 の7周目にも同じ要素で「not visible」なのに続く `textIs` が緑の形が1回 = その後 0/20) ④MCP の `appSwitcher` の後の `ft_rotate` の失敗文が「アプリがその向きを宣言していない」と言い注記はスイッチャーを名指す・失敗と言った向きが残る(ilocal F1・3/3)
 - 11/8: ①の全数(39cf36280 の回帰・1,099 本): 注記は7か所(E2EX-RN の iOS のメニュー・ダイアログ・長押しメニューで、項目を押して閉じた直後の結果欄の `select`)だけで、7か所とも閉じかけのメニューがまだ木の上で手前に残る間の読み。同じ手順を手元の8台と M1Max の4台へ同時に回すと、直後に読むと 12/12 で注記が付き、1秒待つと 0/12(合否はすべて緑)= 遷移の途中の覆い。このまま赤へ上げると正しいシナリオを赤にする(12/12)。赤にするなら覆いが外れるまで待つ形が要るが、遷移の完了は待たない方針と衝突するので、警告のまま据え置く
 
 ### OI-191 探索の残り(33周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 要測定
-- 運用: ①回避可 — iOS 実機で `terminateApp()` の後は `openURL` でなく `launchApp()` で起こしてから送る ②〜⑥合否に響かない
+- 運用: ①回避可 — iOS 実機で `terminateApp()` の後は `openURL` でなく `launchApp()` で起こしてから送る
 - 優先度: 中 — ①iOS 実機(inapp-boost)で止めた後の `openURL` が ✅ でも続く操作が「not running」で赤(誤った赤)
 
-出典: `_work/explore-20261107d/findings-*.md`(33周目・11/7)。①iOS 実機(iPhone 13・inapp-boost)で `launchApp(); terminateApp(); openURL("<自アプリのスキーム>")` の後の `exist` / `tap` が「The app under test is not running: this session stopped it」で撃たれない(exist 4/4・tap 2/2。失敗時の絵はアプリが前面で URL を受けている。Android と、止めていない対照は緑)。文言の出どころは `InAppDriver.crashAnnotated` の `stoppedBySession`(印が残っている)。推測: 実機は iproxy 越しで、`openURL` の生死の照会が接続拒否以外の形で落ちるので注入起動(`launch`)を通らず、URL が注入なしでアプリを起こす。続く接続断で `appIsStillRunning` が実機では答えず、印が落ちない。照会がどの例外で落ちたかは測っていない ②Android で `home()` / `back()` でアプリを出た後の `pressEnter()` の赤が「欄に焦点が無い・欄をタップし直せ」とだけ言い、前面に無いことを言わない(alocal F1) ③Android View の SearchBar で `type("#field_search")` が展開後の別の欄へ焦点が移ったのに、入力の接続が未確立かもと言う(alocal F2。焦点の移動先は dumpsys で観測・文言の推しが事実と違う) ④iOS の静的テキストへの `clearInput(#id)` が対象を押してからブリッジの 422「tapping the ref …」で赤(im4 F2・3 フレームワークで 4/4。DSL の利用者は ref を渡していない) ⑤iOS で `removeApp()` の後の `tap` の失敗文の1行目が `launchApp` を勧める(2行目は removeApp を名指す。im4) ⑥Android で止めたアプリへの `scrollDown` を撃つ前に断ったステップにも「操作が手前の窓に吸われたかもしれない」の注記が付く(phys F1。36周目にもダイアログの裏への断りで同じ注記 = phys 2/2)
+出典: `_work/explore-20261107d/findings-*.md`(33周目・11/7)。①iOS 実機(iPhone 13・inapp-boost)で `launchApp(); terminateApp(); openURL("<自アプリのスキーム>")` の後の `exist` / `tap` が「The app under test is not running: this session stopped it」で撃たれない(exist 4/4・tap 2/2。失敗時の絵はアプリが前面で URL を受けている。Android と、止めていない対照は緑)。文言の出どころは `InAppDriver.crashAnnotated` の `stoppedBySession`(印が残っている)。推測: 実機は iproxy 越しで、`openURL` の生死の照会が接続拒否以外の形で落ちるので注入起動(`launch`)を通らず、URL が注入なしでアプリを起こす。続く接続断で `appIsStillRunning` が実機では答えず、印が落ちない。照会がどの例外で落ちたかは測っていない
 
 ## 要判断
 

@@ -1372,8 +1372,10 @@ public enum TapTargetGeometry {
         // (ラベルはエスケープを通していない)。「代わりにこれを狙え」という助言だが、
         // 対象は読み手が見て選ぶための短い名前で、DSL に書ける保証まで負わせていない
         let name = inner.identifier.map { "#\($0)" } ?? inner.label.map { "\"\($0)\"" } ?? inner.type
-        return "the target is not interactive and its centre is not over any of its own content,"
-            + " so the touch went to whatever is behind it (aim at \(name) instead)"
+        // **届いたとは言い切らない**: 型が other でも押せる要素がある(RN の accessible={false} の Pressable は木に押せる印を出さず、
+        // 撃てば onPress に届く = 35周目 im4 F1 4/4)。押した後の画面の変化はここでは見ていない
+        return "the target does not report itself as interactive and its centre is not over any of its own content,"
+            + " so the touch may have gone to whatever is behind it — if nothing happened, aim at \(name) instead"
     }
 
     /// キーボード chrome とみなす identifier。**申告 keyboardFrame と交差するものだけ**を

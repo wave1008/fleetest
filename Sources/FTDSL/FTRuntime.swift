@@ -2107,8 +2107,10 @@ public final class FTDriveCore {
             // 直前のステップが、アプリを抜けた back()(注記 back-left-app)なら、その事実を添える
             let afterBack = precedingStepWasBackLeftApp
                 ? " — the preceding back() left the app (a back on its first screen exits to the launcher)" : ""
+            // このシナリオが止めたアプリなら、前面の窓は止めた後に出ているだけ(断ったステップは何も送っていない)= 「吸われた」と言わない
+            let swallowed = stoppedByScenario ? "" : " (interactions may have been swallowed by it)"
             emit(.log("⚠️ Another window is in front of the app: \(overlays.joined(separator: ", "))"
-                      + " (interactions may have been swallowed by it)\(afterBack)"))
+                      + swallowed + afterBack))
         }
     }
 
