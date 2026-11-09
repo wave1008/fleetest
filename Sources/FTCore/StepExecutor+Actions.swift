@@ -40,6 +40,11 @@ extension StepExecutor {
             + " find it. Bring the app back first (tapAppIcon() or launchApp())"
     }
 
+    /// select の撮り直しで、撮り直した要素が最初に掴んだ要素と同じ状態か(押せるか・ラベル・値・チェック)。違えば画面が先へ進んだ
+    static func sameStateForRetake(_ first: ElementInfo, _ again: ElementInfo) -> Bool {
+        first.enabled == again.enabled && first.label == again.label && first.value == again.value && first.checked == again.checked
+    }
+
     /// `AndroidForegroundWindows.ownDialogs` が窓の名前に付ける語尾(片方だけ変えない)
     static let ownDialogWindowMarker = "(the app's own dialog window)"
 
@@ -966,6 +971,10 @@ extension StepExecutor {
                 invalidateScreenshotCache()
                 if let retaken = try? await freshSnapshot(.afterOwnMove),
                    let (again, _) = LocatorResolver.resolve(step: step, in: retaken),
+                   // 撮り直しは「同じ状態の見え方」を確かめ直すだけ。状態(押せるか・ラベル・値・チェック)が変わっていたら画面が先へ
+                   // 進んだ = 後の状態を掴まない(骨組みの間に掴んだ行を、読み込みの終わった押せる行にすり替えて enabledIsFalse が赤だった =
+                   // E2EY-Android の 53 S0020・98b9e8314 の退行)
+                   Self.sameStateForRetake(element, again),
                    try await occlusionFlip(
                        element: again, expectedText: again.label ?? step.locator?.label ?? "",
                        elements: retaken.elements, screen: retaken.screen,

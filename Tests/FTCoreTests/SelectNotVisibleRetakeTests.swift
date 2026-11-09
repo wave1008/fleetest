@@ -33,4 +33,23 @@ final class SelectNotVisibleRetakeTests: XCTestCase {
         XCTAssertEqual(outcome.driverFallback, "not visible: returned an empty element")
         XCTAssertEqual(delegate.calls, 2, "撮り直しは1回だけ(本当に見えない要素の select を締切まで待たせない)")
     }
+
+    /// 撮り直した要素の状態が変わっていたら(骨組み → 読み込み済み)、後の状態を掴まない = 最初の時点の「見えない」で返す
+    /// (E2EY-Android の 53 S0020: 骨組みの押せない行を、押せる行にすり替えて enabledIsFalse が赤だった)
+    func testRetakeDoesNotGrabALaterState() async {
+        let skeleton = ElementInfo(ref: 1, type: "staticText", identifier: "row_l_03", label: "Row 3", value: nil, placeholder: nil,
+                                   enabled: false, frame: FTRect(x: 16, y: 300, width: 300, height: 48), depth: 0)
+        var loaded = skeleton
+        loaded.enabled = true
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[skeleton], [loaded]],
+                                   screenshots: [Data([0x01]), Data([0x02])])
+        let delegate = SequenceVisibilityDelegate([false, true])
+        let executor = StepExecutor(driver: driver, delegate: delegate, occlusionOCRMode: .off,
+                                    isAndroid: false, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "select", locator: FlowLocator(id: "row_l_03"),
+                                                      timeout: 1, occlusionGuard: true))
+        XCTAssertEqual(outcome.driverFallback, "not visible: returned an empty element", "撮り直しで後の状態(押せる行)を掴んだ")
+        XCTAssertNotEqual(outcome.resolvedElement?.enabled, true)
+        XCTAssertEqual(delegate.calls, 1, "状態の変わった撮り直しの絵を確かめに行った")
+    }
 }
