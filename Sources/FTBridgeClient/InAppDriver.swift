@@ -249,8 +249,14 @@ public final class InAppDriver: AppDriver {
     /// **client.tapsWithSystemTouch を転送しない**(in-app は合成タッチを窓へ直接送る = システムの経路を通らない)
     public var tapsWithSystemTouch: Bool { false }
     public func tap(ref: Int) async throws { try await withCrashContext { try await client.tap(ref: ref) } }
+    /// **撃つ前に木を1回読む**: in-app ブリッジの座標の tap は、その点を含む最小の要素を**直近の /snapshot の表**から選んで
+    /// activate する(SwiftUI は合成タッチを受けない)。画面が遷移した後に読まずに撃つと前の画面の表から選び、当たらず合成タッチへ
+    /// 落ちて ✅ のまま何も押さない(E2EY-iOS の隠れるバーの FAB で 2/2・読んでから撃てば押せた)
     public func tap(x: Double, y: Double) async throws {
-        try await withCrashContext { try await client.tap(x: x, y: y) }
+        try await withCrashContext {
+            _ = try await client.snapshot()
+            try await client.tap(x: x, y: y)
+        }
     }
     public func type(ref: Int?, text: String) async throws {
         try await withCrashContext { try await client.type(ref: ref, text: text) }
