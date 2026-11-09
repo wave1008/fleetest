@@ -137,6 +137,27 @@ final class BackEffectTests: XCTestCase {
         XCTAssertTrue(BackEffect.keyboardClosedNote.contains("did not go back"))
     }
 
+    /// View の画面: キーボードが閉じると窓が広がって枠が変わり、隠れていた行も現れる = それでも同じ画面(43周目 amax が木で観測)
+    func testClosedKeyboardOnlyIgnoresTheLayoutChangeOfAResizedWindow() {
+        let field = ElementInfo(ref: 1, type: "textField", identifier: "field_title", label: "タイトル", value: "abc", placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 200, width: 1080, height: 120), depth: 1)
+        let container = ElementInfo(ref: 2, type: "other", identifier: "content", label: nil, value: nil, placeholder: nil,
+                                    enabled: true, frame: FTRect(x: 0, y: 0, width: 1280, height: 1332), depth: 0)
+        var grown = container
+        grown.frame = FTRect(x: 0, y: 0, width: 1280, height: 2268)
+        let revealed = ElementInfo(ref: 3, type: "button", identifier: "btn_open_panel", label: "パネル", value: nil, placeholder: nil,
+                                   enabled: true, frame: FTRect(x: 0, y: 1800, width: 400, height: 120), depth: 1)
+        let open = snapKeyboard([container, field], shown: true, frame: FTRect(x: 0, y: 1500, width: 1080, height: 840))
+        XCTAssertTrue(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard([grown, field, revealed], shown: false)),
+                      "窓が広がった同じ画面を別の画面と読んだ")
+        // id だけのレイアウト容器は閉じた後の木から落ちる(E2EY-Android の #nav_host_fragment)
+        XCTAssertTrue(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard([field, revealed], shown: false)),
+                      "id だけの容器が落ちた同じ画面を別の画面と読んだ")
+        let previous = ElementInfo(ref: 1, type: "button", identifier: "btn_open_editor", label: "編集画面を開く", value: nil,
+                                   placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 200, width: 600, height: 120), depth: 1)
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard([previous], shown: false)), "前の画面へ戻った")
+    }
+
     func testClosedKeyboardOnlyIsFalseWhenTheScreenChangedOrKeyboardStateIsUnknown() {
         let open = snapKeyboard(treeA, shown: true, frame: FTRect(x: 0, y: 1500, width: 1080, height: 840))
         XCTAssertFalse(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard(treeB, shown: false)), "画面が変わった")

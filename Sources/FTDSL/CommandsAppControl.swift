@@ -354,6 +354,9 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         // back はアプリを抜けうる(Android の最初の画面 = ランチャーへ出る。24周目 amax F2)。**門の後に立てる**: hook で先に立てると
         // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
         executor.noteAppMayHaveLeft(true)
+        // Android は木にキーボードの枠が無いと「閉じた」とは言えない(照会しないと不明 = nil)。前に出ていた回だけ、後の木で照会を頼む
+        // (dumpsys の固定費はこの形の1回だけ。頼まないと closedKeyboardOnly が常に黙った = 42・44周目)
+        if core.platform == "android", let before, KeyboardWait.isShown(before) { observer.captureKeyboardStateOnNextSnapshot() }
         guard let before, let after = try? await observer.observationSnapshot() else { return }
         let expectedOwners = [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }
         // 撃つ前から対象アプリが前面に居なかった(止めた・ホームの後)なら、back の注記は付けない(アプリを抜けたのは back ではない)

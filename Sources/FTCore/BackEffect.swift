@@ -37,9 +37,23 @@ public enum BackEffect {
     /// **back がソフトキーボードを閉じただけで、画面は戻らなかったか**(Android の back は最初にキーボードだけを閉じる)。
     /// 前にキーボードが出ていて(`KeyboardWait.isShown`)、後に閉じたと読め(`shownState == false`。nil = 分からないは言わない)、
     /// 木が同一のとき。`hadNoEffect` はキーボードの出入りを「効いた」と数えるので、この場合は `shouldWarn` が黙る
+    /// **同じ画面かは枠を見ずに要素(型・id・ラベル)が全部残っているかで決める** —— View の画面はキーボードが閉じると窓が広がり、
+    /// 枠が変わり隠れていた行も木に現れる(容器 1280x1332 → 1280x2268 = 43周目 amax が木で観測)。別の画面へ戻れば前の画面の要素は消える
     public static func closedKeyboardOnly(before: SnapshotResponse, after: SnapshotResponse) -> Bool {
         KeyboardWait.isShown(before) && KeyboardWait.shownState(after) == false
-            && treesAreIdentical(before: before.elements, after: after.elements)
+            && sameScreenIgnoringLayout(before: before.elements, after: after.elements)
+    }
+
+    /// 前の木の要素(型・id・ラベル)が後の木に全部残っているか。前が空なら言えない(false)
+    /// **比べるのは中身のある要素だけ**(`SnapshotRenderer.isSubstantive` = interactiveOnly と同じ述語)—— id だけの
+    /// レイアウト容器はキーボードが閉じると木から落ちる(E2EY-Android の編集画面: `#nav_host_fragment` ×2 が閉じた後の木に無く、
+    /// 撮り直しても戻らない = MCP で観測 11/9)
+    static func sameScreenIgnoringLayout(before: [ElementInfo], after: [ElementInfo]) -> Bool {
+        let key: (ElementInfo) -> String = { "\($0.type)|\($0.identifier ?? "")|\($0.label ?? "")" }
+        let substantive: (ElementInfo) -> Bool = { SnapshotRenderer.isSubstantive($0, flagging: [:]) }
+        let beforeKeys = Set(before.filter(substantive).map(key))
+        guard !beforeKeys.isEmpty else { return false }
+        return beforeKeys.isSubset(of: Set(after.map(key)))
     }
 
     /// `closedKeyboardOnly` の注記の文(DSL 向け。もう一度戻すなら back() をもう一度)

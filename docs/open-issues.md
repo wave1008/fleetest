@@ -27,7 +27,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-202・OI-204・OI-205 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-202・OI-205 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 11 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
@@ -57,15 +57,6 @@
 
 出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)③Android View の読み取り専用のドロップダウンの欄への `type("x")` が注記の無い ✅ で表示が "x" に変わる(amax F2 4/4・木では clickable)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1。45周目にも再現 = 通算 2/2: 8本の run でも「Using 1 of 2 device(s)」で -01 だけに絞り、-01 の XCUITest ブリッジ port 8139 が 180s で時間切れ・同じ時点で -02 は ready。8本あるのに1台へ絞った理由は出力に無い = `_work/explore-20261109f/findings-duo.md` の回し直し)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
 - 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
-
-### OI-204 Android の back() がキーボードを閉じただけの回の注記の欠け・MCP の back と ft_type(replace:) の断りの文言
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-09)
-- 属性: 要測定・据え置き
-- 運用: ①要注意 — Android の `back()` がキーボードを閉じただけの回に注記が付かないことがある。back の後は画面の見出しを検証する
-- 優先度: 低 — どれも合否に響かない注記か、MCP だけの形
-
-出典: `_work/explore-20261109c/findings-*.md`(43周目・11/9)。**要測定**: ①Android の `back()` がキーボードを閉じただけで画面が戻らない回に `back-closed-keyboard` が付かない(amax F1 8/8・alocal 2/2・phys F1 2/2)。View の画面はキーボードで窓が縮み、前後の木で容器の枠が 1280x1332 → 1280x2268 に変わって「前後の木が同一」の条件が成り立たない(amax が木で観測)。CMP は窓が縮まないのに付かない(alocal・phys)= 原因は材料不足。**据え置き**: ②MCP の Android の `ft_navigate back` はキーボードを閉じただけでも「back sent.」とだけ返す(alocal F1 4/4。`BackEffect` を呼ぶのは DSL だけ)③MCP の `ft_type(replace:)` の「消え残り」の 422 は、fmAndVision が無ければ確かめた事実の無い断りのまま(ilocal F1。`ft_clear_input` と同じ扱い = 既定で OCR を使わない決定)
 
 ### OI-202 iOS の CMP 検索バーへプレースホルダと同じ文字の type の赤・RN の iOS のキーボードの下の欄への2度目の type の赤・Duo の形ほか
 - 状態: 再現済み
@@ -413,6 +404,15 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 出典: `_work/explore-20261107j/findings-*.md`(39周目・11/7)。②SwiftUI で `back()` の直後の木に前の画面の `#BackButton` が残り `exist` / `tap` が ✅(im4 F1・6/6)。手元の8台で直後 8/8・0.5 秒後 6/8・1 秒後 0/8 = 戻る遷移のフェードの間(画面にも描かれている) ⑥xcuitest モードの実機で別ウィンドウのモーダルの裏のボタンへの `tap` が「the tap will land on that overlay」と警告して撃ち ✅(phys F1・2/2。`OverlayWindowOcclusion` は警告のみの設計。inapp-boost は撃つ前に断る)
 - 据え置きの理由: ②遷移の完了は待たない方針 ⑥xcuitest モードは警告だけの設計
+
+### OI-204 MCP の back と ft_type(replace:) の断りの文言
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 据え置き
+- 運用: 合否に響かない(MCP だけの文言)
+- 優先度: 低 — MCP だけの形
+
+出典: `_work/explore-20261109c/findings-*.md`(43周目・11/9)。**据え置き**: ②MCP の Android の `ft_navigate back` はキーボードを閉じただけでも「back sent.」とだけ返す(alocal F1 4/4。`BackEffect` を呼ぶのは DSL だけ)③MCP の `ft_type(replace:)` の「消え残り」の 422 は、fmAndVision が無ければ確かめた事実の無い断りのまま(ilocal F1。`ft_clear_input` と同じ扱い = 既定で OCR を使わない決定)
 
 ### OI-201 桁上限の欄への type で末尾が切れても注記の無い緑(iOS・Android の改行入り)・replace の読み返しの文言
 - 状態: 再現済み
