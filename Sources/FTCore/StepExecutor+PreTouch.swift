@@ -237,6 +237,28 @@ extension StepExecutor {
         }
     }
 
+    /// **打つ・消す欄の中心が覆われているとき、撃たずに断る文**(nil = 撃ってよい)。欄の ref に撃つ操作は覆いの下の部分を
+    /// 選べないので、tap の `coveredTouchPlan` が `.part` と言う形も断る。判定は `coveredTouchPlan` を共有する(tap と同じ結論)。
+    /// 焦点がすでにその欄にあるときは触らず撃つので飛ばす(`reachPastKeyboard` と同じ条件)
+    func coveredFieldRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, verb: String) async -> String? {
+        if KeyboardWait.isShown(snapshot),
+           element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: tapTargetBeforeThisStep, in: snapshot.elements) {
+            return nil
+        }
+        switch await coveredTouchPlan(element, in: snapshot, step: step) {
+        case .none: return nil
+        case .refuse(let message): return message
+        case .part:
+            guard case .visiblePart(_, let over)? = TapTargetGeometry.coveredTouch(
+                for: element, in: snapshot.elements, screen: snapshot.screen, inferring: step.containerInference ?? true,
+                scale: driver.pointScale, zIsPaintOrder: true) else { return nil }
+            let name = TapTargetGeometry.describe(over)
+            return "did not \(verb) \(step.locatorSummary): its centre is covered by \(name), and the field is operated through"
+                + " its centre, so the touch would land on \(name) (nothing was \(verb == "clear" ? "cleared" : "typed")). "
+                + Self.uncoverRemedy(cover: name, step: step)
+        }
+    }
+
     enum KeyboardCloseSettle {
         case settled(element: ElementInfo, snapshot: SnapshotResponse, note: String?)
         case refused(String, kind: StepFailureKind?)

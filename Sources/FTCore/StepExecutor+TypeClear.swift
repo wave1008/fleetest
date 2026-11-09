@@ -467,10 +467,13 @@ extension StepExecutor {
         // RN の OTP を撃つ前に断った = 33周目 im4 F1)。Android は押せる要素を clickable の型で返すので見分けられる
         // **中心を入力欄がちょうど1つ含むなら断らない**: 押せば下の欄に焦点が移り、ブリッジは押した点の入力欄へ打つ(InputInjector の
         // findEditable)。View・RN の OTP の箱は隠れた欄 #field_otp の枠の中の staticText で来る(34周目 alocal F2・tap → type は otp=123456)
-        if action == "type", isAndroid, element.type == "staticText", verdict == .notATextField(positively: false),
-           Self.textInputUnderCentre(of: element, in: elements) == nil {
-            return "the target is a staticText, not a text field — refusing before anything is typed"
-                + " (it is display-only text that cannot take input). Point the selector at the input field itself."
+        if action == "type" || action == "clearInput", isAndroid, element.type == "staticText",
+           verdict == .notATextField(positively: false), Self.textInputUnderCentre(of: element, in: elements) == nil {
+            return action == "type"
+                ? "the target is a staticText, not a text field — refusing before anything is typed"
+                    + " (it is display-only text that cannot take input). Point the selector at the input field itself."
+                : "the target is a staticText, not a text field — refusing before anything is cleared"
+                    + " (it is display-only text with no input to clear). Point the selector at the input field itself."
         }
         guard verdict == .notATextField(positively: true) else {
             return nil
@@ -768,6 +771,11 @@ extension StepExecutor {
                                                              driver: actingDriver, phase: &phase)
         // 撮り直したなら、その木の番号で撃つ(撮る前の番号はブリッジの新しい表で別の要素を指しうる)
         var actingSnapshot = refreshed?.snapshot
+        // 撃つ前の覆いの断り(tap と同じ `coveredTouchPlan`)。撮り直した木がある(キャッシュ迂回を持つ = Android)ときだけ判定できる
+        if let refreshed,
+           let refusal = await coveredFieldRefusal(refreshed.element, in: refreshed.snapshot, step: step, verb: "clear") {
+            return .failed(refusal)
+        }
         let stepLocate: (SnapshotResponse) -> ElementInfo? = { LocatorResolver.resolve(step: step, in: $0)?.0 }
         do {
             let start = clock.now
