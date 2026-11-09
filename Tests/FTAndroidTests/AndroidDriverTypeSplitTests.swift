@@ -59,4 +59,23 @@ final class AndroidDriverTypeSplitTests: XCTestCase {
         XCTAssertTrue(code.contains("guard let center = refCenters[ref]"),
                       "tap がホスト側の座標表から離れている")
     }
+
+    func testInnerNewlineAdviceOnlyWhenTheBridgeSaidSingleLine() {
+        let fact = AndroidDriver.innerNewlineNote(bridgeNote: nil)
+        XCTAssertTrue(fact.contains("written into the field as a character"))
+        XCTAssertFalse(fact.contains("pressEnter"), "欄の種類が分からないときは対処を言わない")
+        XCTAssertFalse(AndroidDriver.innerNewlineNote(bridgeNote: "some other note").contains("pressEnter"))
+        let single = AndroidDriver.innerNewlineNote(bridgeNote: "x; " + AndroidDriver.singleLineFieldMarker)
+        XCTAssertTrue(single.contains("pressEnter"), "単一行と申告されたときは対処を言う")
+    }
+
+    func testSingleLineMarkerMatchesTheBridge() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let java = try String(contentsOf: root.appendingPathComponent(
+            "AndroidRunner/src/com/example/ftbridge/InputInjector.java"), encoding: .utf8)
+        XCTAssertTrue(java.contains("SINGLE_LINE_FIELD_NOTE = \"\(AndroidDriver.singleLineFieldMarker)\""),
+                      "ホストの singleLineFieldMarker とブリッジの SINGLE_LINE_FIELD_NOTE は同じ文")
+        XCTAssertFalse(java.contains("ft_snapshot"), "ブリッジの文に MCP の道具名を入れない(DSL の失敗文にそのまま出る)")
+    }
 }

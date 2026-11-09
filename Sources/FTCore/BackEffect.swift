@@ -34,6 +34,18 @@ public enum BackEffect {
             && KeyboardWait.isShown(before) == KeyboardWait.isShown(after)
     }
 
+    /// **back がソフトキーボードを閉じただけで、画面は戻らなかったか**(Android の back は最初にキーボードだけを閉じる)。
+    /// 前にキーボードが出ていて(`KeyboardWait.isShown`)、後に閉じたと読め(`shownState == false`。nil = 分からないは言わない)、
+    /// 木が同一のとき。`hadNoEffect` はキーボードの出入りを「効いた」と数えるので、この場合は `shouldWarn` が黙る
+    public static func closedKeyboardOnly(before: SnapshotResponse, after: SnapshotResponse) -> Bool {
+        KeyboardWait.isShown(before) && KeyboardWait.shownState(after) == false
+            && treesAreIdentical(before: before.elements, after: after.elements)
+    }
+
+    /// `closedKeyboardOnly` の注記の文(DSL 向け。もう一度戻すなら back() をもう一度)
+    public static let keyboardClosedNote = "back closed the soft keyboard; the screen did not go back"
+        + " (to go back as well, call back() again)"
+
     /// **戻るボタンの無い画面で(= 左端のスワイプに落ちて)、前後で同じ画面に留まったか**。木が変わっても(スワイプが中身に届いた)
     /// 識別子の組が同じなら同じ画面。識別子が少ない画面(3 未満)は言えないので false(黙る)。戻るボタンがあれば押すので対象外
     public static func stayedOnSameScreen(before: SnapshotResponse, after: SnapshotResponse) -> Bool {

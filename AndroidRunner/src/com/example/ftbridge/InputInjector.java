@@ -383,7 +383,7 @@ final class InputInjector {
     private static String deliveryUnknownNote(int accepted) {
         return accepted > 0
                 ? "; whether the text reached the field is unknown (ACTION_SET_TEXT was accepted, so it may already be in"
-                  + " the field): check the screen with ft_snapshot before typing again, a retry can enter it twice"
+                  + " the field): read the screen again before typing again; a retry can enter it twice"
                 : "";
     }
 
@@ -883,6 +883,22 @@ final class InputInjector {
         return keys != null && keys.contains("androidx.compose.ui.semantics.id");
     }
 
+    /** 応答の note に足す、焦点の欄が単一行だという事実の文(ホストの AndroidDriver.singleLineFieldMarker と同期。
+     *  ホストはこの文があるときだけ単一行の欄向けの対処を言う) */
+    static final String SINGLE_LINE_FIELD_NOTE = "the field that took the text is single-line";
+
+    /** 打った欄が単一行と確かめられるとき SINGLE_LINE_FIELD_NOTE、分からないとき null。View は a11y の isMultiLine、
+     *  Compose は isMultiLine を申告しないので IME の EditorInfo の複数行フラグで見る(読めなければ null = 言わない) */
+    static String singleLineFieldNote(UiAutomation ua) {
+        AccessibilityNodeInfo focus = focusedEditableNow(ua);
+        if (focus == null || focus.isMultiLine()) return null;
+        if (isComposeNode(focus)) {
+            int[] editor = editorInfo(ua, focus);
+            if (editor == null || (editor[0] & TYPE_TEXT_FLAG_MULTI_LINE) != 0) return null;
+        }
+        return SINGLE_LINE_FIELD_NOTE;
+    }
+
     /** EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE / IME_FLAG_NO_ENTER_ACTION / IME_MASK_ACTION / IME_ACTION_NONE */
     private static final int TYPE_TEXT_FLAG_MULTI_LINE = 0x20000;
     private static final int IME_FLAG_NO_ENTER_ACTION = 0x40000000;
@@ -916,6 +932,17 @@ final class InputInjector {
      * 読み返しを待つ type の直後にはまず起きない(再現していない)
      */
     private static Boolean editorEnterIsNewLine(UiAutomation ua, AccessibilityNodeInfo focus) {
+        int[] editor = editorInfo(ua, focus);
+        if (editor == null) return null;
+        int inputType = editor[0];
+        int imeOptions = editor[1];
+        if ((inputType & TYPE_TEXT_FLAG_MULTI_LINE) == 0) return false;
+        int action = imeOptions & IME_MASK_ACTION;
+        return (imeOptions & IME_FLAG_NO_ENTER_ACTION) != 0 || action == 0 || action == IME_ACTION_NONE;
+    }
+
+    /** IME が今つないでいる欄の {inputType, imeOptions}(null = 読めない・形が違う・別のアプリ) */
+    private static int[] editorInfo(UiAutomation ua, AccessibilityNodeInfo focus) {
         CharSequence pkg = focus.getPackageName();
         if (pkg == null) return null;
         StringBuilder block = null;
@@ -941,11 +968,7 @@ final class InputInjector {
         java.util.regex.Matcher owner = EDITOR_PACKAGE.matcher(block);
         if (!type.find() || !options.find() || !owner.find() || !owner.group(1).equals(pkg.toString())) return null;
         try {
-            int inputType = (int) Long.parseLong(type.group(1), 16);
-            int imeOptions = (int) Long.parseLong(options.group(1), 16);
-            if ((inputType & TYPE_TEXT_FLAG_MULTI_LINE) == 0) return false;
-            int action = imeOptions & IME_MASK_ACTION;
-            return (imeOptions & IME_FLAG_NO_ENTER_ACTION) != 0 || action == 0 || action == IME_ACTION_NONE;
+            return new int[] {(int) Long.parseLong(type.group(1), 16), (int) Long.parseLong(options.group(1), 16)};
         } catch (NumberFormatException e) {
             return null;
         }

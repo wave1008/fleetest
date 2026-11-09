@@ -39,7 +39,7 @@ field.type("alice")                // same as type("#login_id", "alice")
   inserts a newline in a multi-line field, or fires the field's commit action (search, done, …)
   in a single-line field — which one happens depends on the field, not on `type`. On Android, a
   trailing newline is likewise sent as Enter, but a newline in the middle of the text is written into the field as a character
-  (a single-line field keeps it and its action does not fire; the step's note says so). If the intent is to commit (search/submit), use
+  (a single-line field keeps it and its action does not fire). The step's note says that the newline was written as a character, and suggests splitting the text with `pressEnter()` only when the field is known to be single-line. If the intent is to commit (search/submit), use
   [`pressEnter()`](./press_enter_hide_keyboard.md) instead — `type("watch\n")` does not tell the
   reader whether a newline or a submit was intended.
   On iOS in the `xcuitest` mode (where the XCUITest bridge types), text with a newline in the middle is typed in one go

@@ -397,6 +397,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             // 確認と注入を統合した経路(InputInjector.setTextAppendingAt のコメント参照)。
             // resource-id を渡す: キーボードの開閉で座標がズレても同じ要素を追跡し直すため
             String note = InputInjector.setTextAppendingAt(ua(), center[0], center[1], refIds.get(ref), text, TEXT_INPUT_CONFIRM_BUDGET_MS, focusBeforePress);
+            note = withSingleLineNote(note, text);
             if (note != null) {   // 焦点の接続へ回した(OKResponse.note。ホストが lastActionNote で拾う)
                 settle();
                 return BridgeHttpServer.Response.json(200, "{\"ok\":true,\"note\":" + JSONObject.quote(note) + "}");
@@ -404,6 +405,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         } else {
             if (shouldTapFocusedWhenImeHidden(body)) InputInjector.tapFocusedEditableIfImeHidden(ua());
             String note = InputInjector.setTextAppending(ua(), text);
+            note = withSingleLineNote(note, text);
             if (note != null) {   // 書いた文字列の末尾が欄に残らなかった(InputInjector.truncationNote)
                 settle();
                 return BridgeHttpServer.Response.json(200, "{\"ok\":true,\"note\":" + JSONObject.quote(note) + "}");
@@ -411,6 +413,15 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         }
         settle();
         return ok();
+    }
+
+    /** 文中に改行のある type だけ、打った欄が単一行ならその事実を note に足す(ホストが改行の注記の対処を出し分ける)。
+     *  改行が無い type は欄を調べない(dumpsys を撃たない) */
+    private String withSingleLineNote(String note, String text) {
+        if (text.indexOf('\n') < 0) return note;
+        String single = InputInjector.singleLineFieldNote(ua());
+        if (single == null) return note;
+        return note == null ? single : note + "; " + single;
     }
 
     /**

@@ -116,6 +116,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// Android の back() の後、木の持ち主(前面のパッケージ)が対象アプリでなくなった = アプリの最初の画面で押してランチャー等へ抜けた。
     /// 木は変わる(= back-ineffective にならない)ので黙って ✅ になり、続く読みが別の窓の木で赤になっていた(`BackEffect.leftTheApp`)
     case backLeftApp = "back-left-app"
+    /// Android の back() の前にソフトキーボードが出ていて、後に閉じ、木は同じ = back はキーボードを閉じただけで画面は戻っていない
+    /// (`BackEffect.closedKeyboardOnly`)。合否は変えない
+    case backClosedKeyboard = "back-closed-keyboard"
     /// 失敗時の絵(スクリーンショット)に、キーボードとパスワードの中身が写っていない。失敗時の木でキーボードが出ていて焦点が secureTextField のとき、
     /// OS は secure 入力の間それらを撮影から除く(木は出ていると答える)。事実だけ・判定は変えない。**ステップの `notes` ではなく
     /// 失敗の記録(レポートの絵の直前・ログ)に載る** —— 絵は失敗したステップの記録の後に撮るため(`FailureScreenshotFacts`)
@@ -603,6 +606,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "this selector picks by position ([n]) without a container scope — on iOS the in-app tree (inapp-boost mode) and the"
                 + " XCUITest tree (xcuitest mode, MCP) order elements differently, so the same [n] can be another element there;"
                 + " prefer #id or a label, or count inside a container (#list >> .button[n])"
+        case .backClosedKeyboard: return BackEffect.keyboardClosedNote
         case .backLeftApp:
             return "after back the foreground is no longer the app under test (it was probably on its first screen, so back left the app)"
                 + " — steps that read or touch the app do not reach it until it is in front again; bring it back with launchApp() or tapAppIcon() if the scenario continues"

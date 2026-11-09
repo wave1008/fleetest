@@ -365,6 +365,8 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
            BackEffect.leftTheApp(afterOwner: after.sessionBundleID,
                                  expected: expectedOwners) {
             observedNote = .backLeftApp
+        } else if core.platform == "android", BackEffect.closedKeyboardOnly(before: before, after: after) {
+            observedNote = .backClosedKeyboard
         } else if BackEffect.shouldWarn(before: before, afterObservations: [after]) {
             observedNote = .backIneffective
         } else if core.platform != "android", BackEffect.stayedOnSameScreen(before: before, after: after) {

@@ -119,4 +119,43 @@ final class BackEffectTests: XCTestCase {
         XCTAssertFalse(BackEffect.leftTheApp(afterOwner: "", expected: [app]))
         XCTAssertFalse(BackEffect.leftTheApp(afterOwner: "com.google.android.permissioncontroller", expected: [app]))
     }
+
+    // MARK: - closedKeyboardOnly
+
+    private func snapKeyboard(_ elements: [ElementInfo], shown: Bool?, frame: FTRect? = nil) -> SnapshotResponse {
+        SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 1080, height: 2340),
+                         elements: elements, truncatedCount: 0, keyboardShown: shown, keyboardFrame: frame)
+    }
+
+    func testClosedKeyboardOnlyWhenKeyboardWentAwayAndTreeIsSame() {
+        let open = snapKeyboard(treeA, shown: true, frame: FTRect(x: 0, y: 1500, width: 1080, height: 840))
+        let closed = snapKeyboard(treeA, shown: false)
+        XCTAssertTrue(BackEffect.closedKeyboardOnly(before: open, after: closed))
+        // back の効き判定はキーボードの出入りを「効いた」と数える = 既存の ineffective 注記は黙ったまま
+        XCTAssertFalse(BackEffect.shouldWarn(before: open, afterObservations: [closed]))
+        XCTAssertTrue(BackEffect.keyboardClosedNote.contains("closed the soft keyboard"))
+        XCTAssertTrue(BackEffect.keyboardClosedNote.contains("did not go back"))
+    }
+
+    func testClosedKeyboardOnlyIsFalseWhenTheScreenChangedOrKeyboardStateIsUnknown() {
+        let open = snapKeyboard(treeA, shown: true, frame: FTRect(x: 0, y: 1500, width: 1080, height: 840))
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard(treeB, shown: false)), "画面が変わった")
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard(treeA, shown: nil)), "後が分からない")
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: snapKeyboard(treeA, shown: false), after: snapKeyboard(treeA, shown: false)),
+                       "前に出ていない")
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: open, after: open), "閉じていない")
+        // 画面の外の矩形は隠れたキーボード(出ていない)
+        let hidden = snapKeyboard(treeA, shown: true, frame: FTRect(x: 0, y: 2400, width: 1080, height: 840))
+        XCTAssertFalse(BackEffect.closedKeyboardOnly(before: hidden, after: snapKeyboard(treeA, shown: false)))
+    }
+
+    /// DSL の back() が Android でだけ closedKeyboardOnly を注記へつなぐ(ソース走査 = 配線の固定)
+    func testDSLBackWiresClosedKeyboardNoteForAndroid() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTDSL/CommandsAppControl.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("core.platform == \"android\", BackEffect.closedKeyboardOnly(before: before, after: after)"))
+        XCTAssertTrue(source.contains("observedNote = .backClosedKeyboard"))
+        XCTAssertEqual(StepNote.backClosedKeyboard.rawValue, "back-closed-keyboard")
+    }
 }

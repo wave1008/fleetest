@@ -1155,16 +1155,26 @@ public final class AndroidDriver: AppDriver {
         return nil
     }
 
-    /// 文中の改行は文字として書く(Enter にしない)事実。単一行の欄には人が作れない「改行入りの値」が残り、欄のアクションも発火しない
-    /// (41周目 amax F2: actionSearch の欄へ "ab\ncd" が ✅・ime=0)。iOS は Return として届くので Android だけ言う
-    static let innerNewlineNote = "the newline inside the text was written into the field as a character, not pressed as Enter"
-        + " (on Android only a trailing newline is sent as Enter): a single-line field keeps it as a character and its action"
+    /// 文中の改行は文字として書く(Enter にしない)事実。iOS は Return として届くので Android だけ言う。
+    /// 単一行の欄向けの対処(欄のアクションは発火しない・pressEnter で分ける)は**欄が単一行と分かるときだけ**足す
+    /// (`singleLineFieldMarker` = ブリッジが /type の note に足した事実。複数行の欄では文字として入るのが正しい結果)
+    static let innerNewlineFact = "the newline inside the text was written into the field as a character, not pressed as Enter"
+        + " (on Android only a trailing newline is sent as Enter)"
+    static let innerNewlineSingleLineAdvice = ": a single-line field keeps it as a character and its action"
         + " (search, done) does not fire — to press Enter between the parts, type them separately with pressEnter in between"
+    /// InputInjector.SINGLE_LINE_FIELD_NOTE と同期(変わると単一行の対処が出なくなるだけ)
+    static let singleLineFieldMarker = "the field that took the text is single-line"
+
+    /// 改行の注記の文(純関数)。`bridgeNote` = その type で受け取ったブリッジの note
+    static func innerNewlineNote(bridgeNote: String?) -> String {
+        guard let bridgeNote, bridgeNote.contains(singleLineFieldMarker) else { return innerNewlineFact }
+        return innerNewlineFact + innerNewlineSingleLineAdvice
+    }
 
     /// 打てた後にだけ足す(失敗した type の注記は次の操作へ持ち越される = 読むまで残る)
     private func noteInnerNewline(_ body: String) {
         guard body.contains("\n") else { return }
-        pendingTypeNote = [pendingTypeNote, Self.innerNewlineNote].compactMap { $0 }.joined(separator: " / ")
+        pendingTypeNote = [pendingTypeNote, Self.innerNewlineNote(bridgeNote: pendingTypeNote)].compactMap { $0 }.joined(separator: " / ")
     }
 
     /// 末尾の改行1つだけを分離する(text 全体が "\n" のときは分離しない=本文なしの pressEnter 相当に
