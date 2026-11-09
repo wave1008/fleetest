@@ -48,18 +48,17 @@
 
 ## 要測定
 
-### OI-205 探索の残り(44周目)
+### OI-205 Android の Flutter の候補への tap が選ばずに緑・iOS の 512 文字を超える type の赤・読み取り専用のドロップダウンへの type ほか
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 要測定・据え置き・木に材料なし
 - 運用: ①要注意 — Android の Flutter で、キーボードを閉じた直後のオートコンプリートの候補への `tap` は、候補を選ばずに緑になることがある。選んだ値を検証する ②要注意 — iOS で 512 文字を超える `type` は、全文が入っていても赤になる。打ち直さず値を確かめる
 - 優先度: 中 — ①は既定の経路の誤った成功(材料不足)
 
-出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)③Android View の読み取り専用のドロップダウンの欄への `type("x")` が注記の無い ✅ で表示が "x" に変わる(amax F2 4/4・木では clickable)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
+出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)③Android View の読み取り専用のドロップダウンの欄への `type("x")` が注記の無い ✅ で表示が "x" に変わる(amax F2 4/4・木では clickable)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1。45周目にも再現 = 通算 2/2: 8本の run でも「Using 1 of 2 device(s)」で -01 だけに絞り、-01 の XCUITest ブリッジ port 8139 が 180s で時間切れ・同じ時点で -02 は ready。8本あるのに1台へ絞った理由は出力に無い = `_work/explore-20261109f/findings-duo.md` の回し直し)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
 - 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
-- 11/9(44周目の直し): 改行だけの値・ラベル・節(`#\n`・`text=\n`・`#a>>\n`・`Sel.text("\n")`)も空として実行前に断る・MCP の `waitFor:` の構文を操作を撃つ前に入口で断る(`* *`・`=`・`#a>>=` が撃ってから上限まで待った)
 
-### OI-204 探索の残り(43周目)
+### OI-204 Android の back() がキーボードを閉じただけの回の注記の欠け・MCP の back と ft_type(replace:) の断りの文言
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 要測定・据え置き
@@ -67,18 +66,15 @@
 - 優先度: 低 — どれも合否に響かない注記か、MCP だけの形
 
 出典: `_work/explore-20261109c/findings-*.md`(43周目・11/9)。**要測定**: ①Android の `back()` がキーボードを閉じただけで画面が戻らない回に `back-closed-keyboard` が付かない(amax F1 8/8・alocal 2/2・phys F1 2/2)。View の画面はキーボードで窓が縮み、前後の木で容器の枠が 1280x1332 → 1280x2268 に変わって「前後の木が同一」の条件が成り立たない(amax が木で観測)。CMP は窓が縮まないのに付かない(alocal・phys)= 原因は材料不足。**据え置き**: ②MCP の Android の `ft_navigate back` はキーボードを閉じただけでも「back sent.」とだけ返す(alocal F1 4/4。`BackEffect` を呼ぶのは DSL だけ)③MCP の `ft_type(replace:)` の「消え残り」の 422 は、fmAndVision が無ければ確かめた事実の無い断りのまま(ilocal F1。`ft_clear_input` と同じ扱い = 既定で OCR を使わない決定)
-- 11/9(44周目は途中で中止): b0107bf13 が「空は含む」をセレクタの一致(`FlowMatchMode.contains`)にも当て、空白だけの部分一致 `* *` が全要素に一致して先頭を撃つ退行を入れた(4人が再現)。セレクタの一致は「空は何にも一致しない」に戻し、`* *`・スコープの後ろの空のラベル(`#a>>=`)・型付きの空の値(`Sel.text("")` 等)を実行前に断る
-- 11/9(43周目の直し): 値の検証 `thisContainsNot("")` を赤に・`=` の後が空のラベル(`notExist("=")`)を実行前に断る・Android で欄の中心が候補のポップアップ等の別ウィンドウの下なら `type(sel, …)` / `clearInput` を撃たずに断る・iOS の XCUITest ブリッジの「nothing has keyboard focus … If you passed a ref」を DSL の言葉に直す(type も)・MCP の `ft_type(replace:)` の消え残りの 422 を `ft_clear_input` と同じ確かめに通す
 
-### OI-202 探索の残り(42周目)
+### OI-202 iOS の CMP 検索バーへプレースホルダと同じ文字の type の赤・RN の iOS のキーボードの下の欄への2度目の type の赤・Duo の形ほか
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 要測定・据え置き
 - 運用: ①②誤った赤(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
 - 優先度: 中 — ①②は既定の経路の誤った赤
 
-出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦clearInput の焦点無しの断りがランナーの「If you passed a ref …」のまま(ilocal F3。分ける構造化の理由がブリッジの 422 に無い = 足すならランナーの版上げ)・hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)・terminateApp の後の select の失敗文が同じ行を2回出す(phys F6)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
-- 11/9(42周目の直し): `textContainsNot("")` / `valueContainsNot("")` を赤に・改行だけ・空の選択肢(`||`)・型名の無い位置指定(`.[1]`)のセレクタを実行前に断る・Android で覆われた欄への clearInput / type(replace:) を撃つ前に断る(iOS は撮り直した木が渡らない経路なので未対応)・Android の staticText への clearInput を撃つ前に断る・Android の失敗文から in-app / XCUITest ブリッジの語を外す・MCP の ft_clear_input にも消え残りの絵の確かめ(fmAndVision: true のとき)・確かめなかった理由(向きの不一致・木の値が空)を失敗文に・XCUITest へ撃ち直した clearInput の 422 も確かめを通す・Android の back() がキーボードを閉じただけのとき注記 `back-closed-keyboard`・文中の改行の対処は単一行の欄だけ・Android 17 の Emulator で前面化の monkey がシステムキーの検査で何も送らなかった(`--pct-syskeys 0`)ほか文言5件
+出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
 
 
 ## 要判断
@@ -87,7 +83,7 @@
 
 ## 木に材料なし
 
-### OI-163 探索の残り(8周目)
+### OI-163 キーボードの下の欄への clearInput の時間切れ・タブの下の行への tap・上端の一覧の scroll: が引っ張って更新を走らせるほか
 - 状態: 再現済み
 - 確認: 4605aa35(2026-11-03)
 - 属性: 木に材料なし・低頻度
@@ -99,7 +95,7 @@
 - 11/7: ④の XCUITest の木のタブの枠の高さの揺れ(24/42/48)は送った位置で決まる(同じ静止画面は同じ高さ)。タブの下端は最初の行の上端と一致し、描かれたタブは 48pt = 木に材料なし
 - 11/7: ⑩上端の一覧(4 SUT)は子の行の preorder が y 昇順。RN の反転チャットは y 降順で申告が上下鏡映、CMP の reverseLayout も y 降順だが申告は正しい = 木の材料で鏡映と正しいを分けられない。試して取り消した直し: 申告だけで端と確定する(E2EY-RN の Android で過去の行を1本も払わずに赤 2/2)
 
-### OI-161 探索・横向きの残り(7周目)
+### OI-161 横向きの低い一覧で maxSwipes が足りない・Flutter のはみ出した欄の帯を押しても当たらない・覆いが押せない型のときの警告
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-03)
 - 属性: 木に材料なし・低頻度・据え置き
@@ -151,7 +147,7 @@
 E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下に隠れる `post_02` の ref の ft_tap が無警告の done でタブに当たる(4/4)。`tab_posts` には逆向きの覆いの警告が出る(2/2。実際は当たっている)。
 - 2026-11-02: 自動シナリオで 0/9・ref の形は状態を作れず未測定
 
-### OI-173 探索の残り(14周目)
+### OI-173 半分のシートの見出しの帯の下の行への tap が何も押さず ✅・SwiftUI の FAB を容器の外と読む(M1Ultra の負荷の下だけ)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-05)
 - 属性: 木に材料なし・低頻度・据え置き
@@ -160,7 +156,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 
 出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度
 
-### OI-174 探索の残り(15周目)
+### OI-174 入れ子の横の棚の画面外の項目の失敗文が縦の scroll: だけを案内する
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-05)
 - 属性: 木に材料なし
@@ -171,7 +167,7 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 
 ## 低頻度
 
-### OI-196 探索の残り(38周目)
+### OI-196 iOS の openURL の直後の exist が1回だけ ✅・Duo で起動を諦めた後に XCUITest ランナーのアプリが残る
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 低頻度
@@ -241,7 +237,7 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 - 11/4: 手元の 8 台・横向きで 2 周とも 4/8
 - 11/7: 再現せず 0/6(寄せが毎回収まった)
 
-### OI-177 探索の残り(18周目)
+### OI-177 openURL で Safari を出した後の tapAppIcon() でアプリが前面へ来ない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 低頻度
@@ -313,7 +309,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 ## 環境側
 
-### OI-184 探索の残り(26周目)
+### OI-184 iPhone Duo の開閉の後に SpringBoard が落ちる(FBSDisplayMode の assert)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 環境側
@@ -326,18 +322,17 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 ## 据え置き
 
-### OI-206 探索の残り(45周目)
+### OI-206 Android の E2EX-CMP のホームで固定の題を容器の外と読む・数値比較の this* が全角・桁区切りを読まない・Flutter の起動直後の type の read back の赤
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 据え置き
 - 運用: ②要注意 — 数値比較の `this*`(`thisIsGreaterThan` 等)は全角数字・桁区切り・前後の空白の付いた値を数値に読まず赤になる。比べる前に数値へ直す
 - 優先度: 低 — 誤った赤(沈黙しない)・遅さ・文言
 
-出典: `_work/explore-20261109f/findings-*.md`(45周目・11/9)。①Android の E2EX-CMP のホームで、一覧の上に固定の題 `#txt_screen_title` を「容器の外の残り」と読み、`select` が毎回約 5.7 秒の再解決・`tap` は払いを撃って一覧の位置を戻す(alocal F3 DSL 6/6・MCP 5/5。他の SUT のホームでは起きない)②数値比較の `this*` は正規化前の値を `Double()` で読み、"5"+ZWSP・" 5"・全角の "１０"・"1,200" を赤にする・失敗文が数値に読めなかったことを言わない(amax F2 4/4)③Flutter で起動直後の最初の `type('#field_auto >> .textField')` が、欄に入っているのに「read back ""」の 500 で赤(phys F1 9回中7回。同じ画面で clearInput → type は 4/4 ok)④Duo の run が XCUITest ブリッジの起動に失敗した -01 だけを選んで「no iOS device joined the run」で止まる(duo 2/2 = OI-205 ④の再現)
-- 据え置きの理由: ①原因は材料不足(固定の題をなぜ容器の外と読むか)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足 ④OI-205 ④と同じ
-- 11/9(45周目の直し): 含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ)なら比べる前に失敗する(ユーザー決定)・正規表現のパターンからも見えない文字を除外(ユーザー決定)・単独の異体字セレクタ・CGJ 等の既定で無視される文字も見えない文字として除外・セレクタの検査は見えない文字を外してから(`#` + ZWJ が id の形と見なされなかった)
+出典: `_work/explore-20261109f/findings-*.md`(45周目・11/9)。①Android の E2EX-CMP のホームで、一覧の上に固定の題 `#txt_screen_title` を「容器の外の残り」と読み、`select` が毎回約 5.7 秒の再解決・`tap` は払いを撃って一覧の位置を戻す(alocal F3 DSL 6/6・MCP 5/5。他の SUT のホームでは起きない)②数値比較の `this*` は正規化前の値を `Double()` で読み、"5"+ZWSP・" 5"・全角の "１０"・"1,200" を赤にする・失敗文が数値に読めなかったことを言わない(amax F2 4/4)③Flutter で起動直後の最初の `type('#field_auto >> .textField')` が、欄に入っているのに「read back ""」の 500 で赤(phys F1 9回中7回。同じ画面で clearInput → type は 4/4 ok)④→ OI-205 ④
+- 据え置きの理由: ①原因は材料不足(固定の題をなぜ容器の外と読むか)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足
 
-### OI-192 探索の残り(34周目)
+### OI-192 端に着いて動かなかった探索の失敗文が、従っても赤になる scrollFrame を勧める
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
@@ -347,7 +342,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 出典: `_work/explore-20261107e/findings-*.md`(34周目・11/7)。④端に着いて何も動かなかった探索(反転チャットの最下端から下へ・RN と SwiftUI)の見つからない失敗が「withScrollDown(scrollFrame: "#list_chat") { } で包め」と勧めるが、従っても同じく赤(im4 F1・RN 3/3・SwiftUI 2/2。`StepExecutor+ScrollSearch.swift` の scrollFrameHint は全画面の払いが候補の容器の中から撃たれたかを見ていない = 出し分けるには払いの始点と候補の容器の枠が要る)
 - 据え置きの理由(11/8): 全画面の払いの始点はブリッジが決めてホストは知らない。端に着いて何も動かなかった回は、払いが容器の中に落ちても外に落ちても同じく動かないので、木の材料では案内を出し分けられない(案内のためにブリッジの応答を変えるのは見合わない)
 
-### OI-194 探索の残り(36周目)
+### OI-194 RN の iOS の数字キーへの doubleTap が1回しか届かない
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
@@ -357,7 +352,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 出典: `_work/explore-20261107g/findings-*.md`(36周目・11/7)。④RN の iOS の数字キーへの `doubleTap` が ✅(fell back to XCUITest)なのにアプリに届くのが 1 回だけのことがある(im4 F2・4/7。SwiftUI・Flutter は 3/3 で 2 回届く。単発の tap は 6/6 で届く)
 - 据え置きの理由(11/8): XCUITest の doubleTap(2回のタッチの間隔が短い)を RN の Pressable が2回目の押下と扱わないのか、タッチが1回しか届いていないのかは、SUT を変えずに分ける材料が無い
 
-### OI-195 探索の残り(37周目)
+### OI-195 iOS の home() の後の読み・操作が待ちの上限まで待ってから赤
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
@@ -367,7 +362,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 出典: `_work/explore-20261107h/findings-*.md`(37周目・11/7)。③iOS の inapp-boost で `home()` の後の読み・操作が待ちの上限まで前面に戻るのを待ってから「did not read or touch it」で赤(im4 F1・17/17。`terminateApp()` の後は 0.47 秒で断る。openURL の直後の戻る途中を断らないための待ち = `StepExecutor.backgroundedAppRefusal`)
 - 据え置きの理由: ③の待ちは openURL の直後の戻る途中を断らないための待ち(遅さとの兼ね合い)
 
-### OI-193 探索の残り(35周目)
+### OI-193 覆われた要素への exist・テキストの検証が注記付きの緑
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
@@ -377,7 +372,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 出典: `_work/explore-20261107f/findings-*.md`(35周目・11/7)。①RN の iOS で払う前の行の裏のスワイプのボタン・半開シートの裏の行への `exist` / `textIs` が ✅(im4 F2・13/13)、同じ要素への `tap` は「露出 0」で撃つ前に断る。11/7 に注記 `covered-by-front-element`(合否は変えない)を入れた(f12f698fb。M1Ultra の6台で狙った形 6/6・既存のスワイプのクラスの検証に 0 件)。赤へ上げるのは E2E・E2EX・E2EY の全数で注記が付いた検証を1件ずつ見て、見えている要素に付いた例が0と確かめてから
 - 11/8: ①の全数(39cf36280 の回帰・1,099 本): 注記は7か所(E2EX-RN の iOS のメニュー・ダイアログ・長押しメニューで、項目を押して閉じた直後の結果欄の `select`)だけで、7か所とも閉じかけのメニューがまだ木の上で手前に残る間の読み。同じ手順を手元の8台と M1Max の4台へ同時に回すと、直後に読むと 12/12 で注記が付き、1秒待つと 0/12(合否はすべて緑)= 遷移の途中の覆い。このまま赤へ上げると正しいシナリオを赤にする(12/12)。赤にするなら覆いが外れるまで待つ形が要るが、遷移の完了は待たない方針と衝突するので、警告のまま据え置く
 
-### OI-197 探索の残り(39周目)
+### OI-197 SwiftUI の back() の直後の木に前の画面の BackButton が残る・xcuitest の実機でモーダルの裏への tap が警告付きの ✅
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
@@ -386,20 +381,18 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 出典: `_work/explore-20261107j/findings-*.md`(39周目・11/7)。②SwiftUI で `back()` の直後の木に前の画面の `#BackButton` が残り `exist` / `tap` が ✅(im4 F1・6/6)。手元の8台で直後 8/8・0.5 秒後 6/8・1 秒後 0/8 = 戻る遷移のフェードの間(画面にも描かれている) ⑥xcuitest モードの実機で別ウィンドウのモーダルの裏のボタンへの `tap` が「the tap will land on that overlay」と警告して撃ち ✅(phys F1・2/2。`OverlayWindowOcclusion` は警告のみの設計。inapp-boost は撃つ前に断る)
 - 据え置きの理由: ②遷移の完了は待たない方針 ⑥xcuitest モードは警告だけの設計
-- 11/8: ①(ダイアログの裏の要素への `notExist`)は合否を変えず(木に無ければ緑)、手前のダイアログが裏を木から隠しているときに注記 `absence-behind-modal` を付けた(Android は WebView 向けの注記と綴りの修正案を外した)
 
-### OI-201 探索の残り(41周目)
+### OI-201 桁上限の欄への type で末尾が切れても注記の無い緑(iOS・Android の改行入り)・replace の読み返しの文言
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 据え置き
-- 運用: ①③要注意 — iOS で桁上限のある欄へ上限を超えて打つ `type`(Android は改行を含むセレクタ無しの `type`)は、末尾が欄に残らなくても注記の無い緑。打った値は `valueIs` / 画面の表示で確かめる ②④合否に響かない
-- 優先度: 中 — ①③桁上限で末尾が切れた `type` が注記の無い緑(`valueIs` で確かめれば赤にできるが知識が要る)。②④は MCP だけか文言
+- 運用: ①③要注意 — iOS で桁上限のある欄へ上限を超えて打つ `type`(Android は改行を含むセレクタ無しの `type`)は、末尾が欄に残らなくても注記の無い緑。打った値は `valueIs` / 画面の表示で確かめる ④合否に響かない
+- 優先度: 中 — ①③桁上限で末尾が切れた `type` が注記の無い緑(`valueIs` で確かめれば赤にできるが知識が要る)。④は文言
 
-出典: `_work/explore-20261109/findings-*.md`(41周目・11/9)。①iOS(inapp-boost)の桁上限の欄(OTP の 6 桁)へ上限を超える `type` が注記の無い ✅(im4 F1 15/15・SwiftUI・RN・Flutter。iultra F2 6/6。セレクタ無し・付き・replace とも。Android は注入器の読み返しで「did not keep the last N character(s)」を言う) ②MCP の Android で `ft_launch` の直後(間に `ft_snapshot` 無し)の `ft_navigate back` がアプリを出てランチャーが前面になったのに「the tree is identical … back appears to have had no effect」と言う(alocal F1 9/10。間に `ft_snapshot` を挟むと 0/3) ③Android の改行を含むセレクタ無しの `type` は、桁上限で末尾が切れても「did not keep …」が出ない(phys F2 5/5。読み返しが書いた文字列の先頭部分にならないので注入器が黙る = 整形と区別できない) ④replace の `type` で「whether the field was emptied could not be read back」と読み返した値が同じ行に並ぶ(phys F1 の追記 1/1。消去の段は焦点の欄を読めず、打鍵の段は注入器が読み返した)
-- 据え置きの理由: ①iOS のブリッジは書いた文字列と欄の値を突き合わせて切れを言う経路を持たない。この画面は 6 桁で自動送信して欄が空に戻るので、読み返しで切れを見分けられるかも材料不足 ②原因は推測(比べる「back の前の木」が launch 前の控えのまま)③注入器の判定を広げると整形(区切り・大文字化)を切れと誤認しうる ④消去の段と打鍵の段の別々の事実で、どちらも誤りではない
-- 11/9(41周目の直し): 空の期待値の `textContains` / `valueContains` は「含む」(`textContainsNot("")` が緑だった)・空のセレクタは実行前に断る(`notExist("")` が緑だった)・Android の文中の改行が文字として書かれることを注記・注入器が読み返せた `type` に「行き先を確かめられない」を並べない・焦点無しの断りの文から「by ref」と「叩いた前提」を外す・`hideKeyboard()` の後の救済の注記から「preceding tap」を外す
+出典: `_work/explore-20261109/findings-*.md`(41周目・11/9)。①iOS(inapp-boost)の桁上限の欄(OTP の 6 桁)へ上限を超える `type` が注記の無い ✅(im4 F1 15/15・SwiftUI・RN・Flutter。iultra F2 6/6。セレクタ無し・付き・replace とも。Android は注入器の読み返しで「did not keep the last N character(s)」を言う) ③Android の改行を含むセレクタ無しの `type` は、桁上限で末尾が切れても「did not keep …」が出ない(phys F2 5/5。読み返しが書いた文字列の先頭部分にならないので注入器が黙る = 整形と区別できない) ④replace の `type` で「whether the field was emptied could not be read back」と読み返した値が同じ行に並ぶ(phys F1 の追記 1/1。消去の段は焦点の欄を読めず、打鍵の段は注入器が読み返した)
+- 据え置きの理由: ①iOS のブリッジは書いた文字列と欄の値を突き合わせて切れを言う経路を持たない。この画面は 6 桁で自動送信して欄が空に戻るので、読み返しで切れを見分けられるかも材料不足 ③注入器の判定を広げると整形(区切り・大文字化)を切れと誤認しうる ④消去の段と打鍵の段の別々の事実で、どちらも誤りではない
 
-### OI-200 探索の残り(40周目)
+### OI-200 Flutter・CMP の iOS のダイアログの注記の欠け・tree-underreported・MCP の文言ほか
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-08)
 - 属性: 据え置き・木に材料なし
@@ -409,10 +402,8 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 出典: `_work/explore-20261108/findings-*.md`(40周目・11/8)。①Flutter と CMP の iOS(inapp-boost)でダイアログの間に裏の要素への `notExist` が `absence-behind-modal` 無しで ✅、同じ裏への `tap` の赤は `waitSeconds:` を案内してダイアログを名指さない(im4 F3・ilocal F1・各 3/3。木はダイアログの要素と全面の "Dismiss" だけで、`modalScope` も `coveredByFrontWindow` も来ない) ②WebView の無い画面(E2EY の編集画面・RN の編集画面)の `notExist` / `countIs(0)` に `tree-underreported` が付く(amax F1 12/12・iultra F2 12/12。既存シナリオ 58 の S0040 にも 76 件) ④Android の横向きで全画面の IME がアプリを覆った後の検証の見つからない失敗がキーボードを言わない(amax F4・4/4) ⑤MCP の Android で、押せる `#mini_player` が中心を覆う半分のシートの裏の行への `ft_tap` が警告付きの done(alocal F3・4/4。警告がシートを「sticky header」と呼ぶ) ⑥MCP の ref 無しの `ft_type` が同じ応答で「read back」と「could not be read back」を並べる(alocal F2・3/3)
 - 据え置きの理由: ①ブリッジがダイアログを申告しない(材料が木に無い = OI-170 と同じ) ②④原因は材料不足 ⑤⑥MCP だけの文言・判定
 - ⑦(MCP の `ft_fold` の unfold の後の Duo の SpringBoard の落ち)は OI-184 へ
-- 11/8(40周目の直し 32c77a96b): `absence-behind-modal` / `covered-by-front-element` / `type-focus-not-reported` の文をレポートの行に出し、セレクタ無しの `type` の注記をその行で読み、手前の別 UIWindow も不在の注記の根拠にした
-- 11/9: ③(Android の自前の確認ダイアログの間の `notExist` に注記が無い)は取り下げた —— 40周目の結果 JSON には3回とも `absence-behind-modal` が立っており、レポートに文言が出なかった(上の直しで解消)だけ。HEAD の同じ手順で注記がその行に出ることを emulator-5554 で確かめた
 
-### OI-168 探索の残り(10周目)
+### OI-168 settle: false の flick の直後のワイルドカードの tap が寄せの後に見失う
 - 状態: 再現済み
 - 確認: a5e87ce1(2026-11-04)
 - 属性: 据え置き
@@ -421,7 +412,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 
 出典: `_work/explore-20261104b/findings-*.md`(10周目・11/4)。⑦`settle: false` の flick の直後のワイルドカードの tap が、寄せの後に見失って赤(im4 F6)。原因(11/7): flick が返った 7ms 後の慣性の残る木で対象を決め、寄せの後に対象が縁の外へ出た(`settle: false` の既定でない経路なので据え置き)
 
-### OI-181 探索の残り(23周目)
+### OI-181 iPhone SE3 でタブバーの下に潜った要素を、容器を送らずに断る
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 据え置き
@@ -450,7 +441,7 @@ iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があ�
 出典: `_work/explore-20261103a/findings-*.md`(6周目・11/3)。冷えた状態から起動した設定アプリが手の開始から 3.8〜4.2 秒後に前面へ来た回で 7/7(MCP。2.2 秒後なら 422 で止まる 9/10 = batch F2)。各行の警告は「画面が変わらなかった」だけで、結論は「All 5 step(s) ran」。別アプリの起動後 1〜2 秒は `/appstate` が元のアプリを前面と答え続ける(検出の限界)
 - 据え置きの理由(ユーザー決定 11/6): 待ちを足すと根拠の無い秒数を置くことになり、どの読みなら追いつくかも測っていない。飲まれた tap の警告(「another app had already come to the front」)で足りるとする
 
-### OI-182 探索の残り(24周目)
+### OI-182 Android で別のアプリを launchApp した後の否定の検証が緑(注記付き)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-06)
 - 属性: 据え置き
