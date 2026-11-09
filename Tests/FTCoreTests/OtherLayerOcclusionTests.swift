@@ -94,6 +94,32 @@ final class OtherLayerOcclusionTests: XCTestCase {
         tree.removeAll { $0.ref == 1 }
         XCTAssertEqual(suspect(tree)?.identifier, "queue_row_03")
     }
+
+    func testCandidatesAreEveryOtherLayerOverlapInTreeOrder() {
+        var tree = sheetTree()
+        tree.append(element(6, "button", "queue_row_04", FTRect(x: 0, y: 410, width: 402, height: 60), depth: 2))
+        let target = tree.first { $0.ref == 2 }!
+        let all = TapTargetGeometry.otherLayerCoverCandidates(target, in: tree, screen: screen).map(\.ref)
+        XCTAssertEqual(all, [4, 6])
+        XCTAssertEqual(suspect(tree)?.ref, 4, "suspect は候補の先頭")
+        XCTAssertTrue(TapTargetGeometry.otherLayerCoverCandidates(target, in: sheetTree(sameList: true), screen: screen).isEmpty)
+    }
+
+    /// 撃ってよいのは「全部引けて・対象に届き・覆いのどれにも届かない」ときだけ(両方向)
+    func testTouchClearsCoversOnlyWhenTheTouchReachesTheTargetAndNoCover() {
+        func lands(_ refs: [Int], unresolved: [Int] = []) -> TouchLandsResponse {
+            TouchLandsResponse(receiver: "HostingView", lands: refs, unresolved: unresolved)
+        }
+        XCTAssertTrue(TapTargetGeometry.touchClearsCovers(lands([2]), target: 2, covers: [4, 6]))
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([2, 6]), target: 2, covers: [4, 6]), "覆いの1つに届く")
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([4]), target: 2, covers: [4]), "対象に届かない")
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([]), target: 2, covers: [4]), "何にも届かない(別の窓など)")
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([2], unresolved: [4]), target: 2, covers: [4]), "引けない覆い")
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(nil, target: 2, covers: [4]), "答えられない(xcuitest モード)")
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([2]), target: 2, covers: []), "覆いの候補が無い")
+        // 自前描画(全要素が同じ view)= 覆いにも届く
+        XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([2, 4]), target: 2, covers: [4]))
+    }
 }
 
 /// DSL の tap: 門が開く木で `hitTest(query:)` が false のときだけ撃たずに断る
@@ -149,6 +175,35 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
     func testClosedGateNeverAsks() async {
         let (driver, _) = await run(closedGateTree(), answer: .hittable(false))
         XCTAssertTrue(driver.queries.isEmpty, "門が閉じているのに照会した")
+    }
+
+    /// false でも、in-app の当たり判定が「対象だけに届く」と答えたら撃ち、注記を残す(送って戻した SwiftUI の FAB の形)
+    func testFalseButTouchReachingOnlyTheTargetFiresWithANote() async {
+        let driver = FakeQueryDriver(elements: sheetTree(), screen: screen, answer: .hittable(false),
+                                     lands: TouchLandsResponse(receiver: "HostingView", lands: [2], unresolved: []))
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "本文 07")))
+        XCTAssertEqual(driver.landsAsked, [[2, 4]], "対象と覆いの候補を聞くこと")
+        XCTAssertEqual(driver.taps.count, 1, "撃たなかった: \(outcome.status)")
+        XCTAssertTrue(outcome.notes.contains(.touchReachesTargetDespiteHitTest), "\(outcome.notes)")
+    }
+
+    /// false で、当たり判定が覆いにも届くと答えたら断る(自前描画・本当に覆われている形)
+    func testFalseAndTouchReachingACoverRefuses() async {
+        let driver = FakeQueryDriver(elements: sheetTree(), screen: screen, answer: .hittable(false),
+                                     lands: TouchLandsResponse(receiver: "FlutterView", lands: [2, 4], unresolved: []))
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "本文 07")))
+        XCTAssertTrue(driver.taps.isEmpty, "撃った: \(driver.taps)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("cannot be hit"), message)
+        XCTAssertFalse(outcome.notes.contains(.touchReachesTargetDespiteHitTest))
+    }
+
+    /// true のときは当たり判定を聞かない(費用を足さない)
+    func testTrueDoesNotAskWhereTheTouchLands() async {
+        let (driver, _) = await run(sheetTree(), answer: .hittable(true))
+        XCTAssertTrue(driver.landsAsked.isEmpty, "\(driver.landsAsked)")
     }
 
     /// 中心だけ別の層の帯(タブ)に覆われ、上に見えている部分が残る行
@@ -242,18 +297,26 @@ private final class FakeQueryDriver: AppDriver, @unchecked Sendable {
     let elements: [ElementInfo]
     let screen: FTRect
     let answer: HitTestAnswer
+    let lands: TouchLandsResponse?
     private(set) var taps: [String] = []
     private(set) var queries: [HitTestQuery] = []
+    private(set) var landsAsked: [[Int]] = []
 
-    init(elements: [ElementInfo], screen: FTRect, answer: HitTestAnswer) {
+    init(elements: [ElementInfo], screen: FTRect, answer: HitTestAnswer, lands: TouchLandsResponse? = nil) {
         self.elements = elements
         self.screen = screen
         self.answer = answer
+        self.lands = lands
     }
 
     func hitTest(query: HitTestQuery) async -> HitTestAnswer {
         queries.append(query)
         return answer
+    }
+
+    func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        landsAsked.append(refs)
+        return lands
     }
 
     func status() async throws -> StatusResponse {

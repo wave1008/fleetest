@@ -196,6 +196,10 @@ public protocol AppDriver {
     /// iOS の hideKeyboard が叩く前に聞く)。nil = 答えられない(XCUITest・Android・通信の失敗)。**包むドライバは素通しすること**、
     /// **プロトコル要件として宣言すること**(lastTapHitAreaMiss と同じ理由)
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse?
+    /// 点 (x, y) への本物のタッチが、各 ref の要素の view(かその子孫)に届くか(in-app ブリッジの POST /touchlands)。
+    /// ref は直近の木の番号。答えられない(in-app でない・旧ブリッジ・通信断)は nil。**プロトコル要件として宣言すること**
+    /// (存在型越しの呼び出しが既定実装の nil に落ちる = AppDriverDefaultDispatchTests)
+    func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse?
     /// 2点間ドラッグ(座標は snapshot の screen と同じ座標系)。pressSeconds=押下静止時間、
     /// durationSeconds=移動時間(実機ジェスチャの速度・長押しに反映される)。
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
@@ -673,6 +677,7 @@ public extension AppDriver {
     var lastTapHitAreaMiss: TapHitAreaMiss? { nil }
     var lastTapDelivery: TapDelivery? { nil }
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
+    func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }
     func hitTest(query: HitTestQuery) async -> HitTestAnswer { .unavailable }

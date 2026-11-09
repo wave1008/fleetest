@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 279
+    public static let bridgeProtocolVersion = 280
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -2051,6 +2051,30 @@ public struct TapProbeResponse: Codable, Sendable, Equatable {
         self.background = background
         self.receiver = receiver
         self.reason = reason
+    }
+}
+
+/// POST /touchlands(in-app ブリッジだけ): 点 (x, y) で実際にタッチを受ける view(UIKit の当たり判定)が、各 ref の要素の
+/// view(最寄りの UIView)か、その子孫か。XCUITest の `isHittable` の false を、対象と覆いの候補ごとに確かめる材料
+/// (`StepExecutor.coveredTouchPlan`)。ref は直近の /snapshot の番号
+public struct TouchLandsRequest: Codable, Sendable {
+    public let x: Double
+    public let y: Double
+    public let refs: [Int]
+    public init(x: Double, y: Double, refs: [Int]) { self.x = x; self.y = y; self.refs = refs }
+}
+
+public struct TouchLandsResponse: Codable, Sendable, Equatable {
+    /// 実際にタッチを受ける view のクラス名(何も受けなければ nil)
+    public let receiver: String?
+    /// タッチがその要素の view(かその子孫)に届く ref
+    public let lands: [Int]
+    /// view を引けなかった ref(表に無い・UIView へ辿れない)。1つでもあれば呼び手は「分からない」と読む
+    public let unresolved: [Int]
+    public init(receiver: String?, lands: [Int], unresolved: [Int]) {
+        self.receiver = receiver
+        self.lands = lands
+        self.unresolved = unresolved
     }
 }
 

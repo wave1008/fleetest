@@ -423,4 +423,7 @@ public final class HybridFallbackDriver: AppDriver {
     public var lastTapHitAreaMiss: TapHitAreaMiss? { active.lastTapHitAreaMiss }
     public var lastTapDelivery: TapDelivery? { active.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await active.tapProbe(x: x, y: y) }
+    public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        await active.touchLands(x: x, y: y, refs: refs)
+    }
 }

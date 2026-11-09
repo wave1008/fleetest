@@ -259,6 +259,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 通った根拠は木にいること・幾何・領域のインク量だけで、文字が読めたことは確かめていない
     case visualTextCheckUnsupported = "visual-text-check-unsupported"
 
+    /// XCUITest の `isHittable` は「その位置では当たらない」と答えたが、in-app の当たり判定で本物のタッチが対象に届き、
+    /// 覆いの候補のどれにも届かないと確かめたので撃った(`TapTargetGeometry.touchClearsCovers`)
+    case touchReachesTargetDespiteHitTest = "touch-reaches-target-despite-hit-test"
+
     /// occlusion-guard が緑と判定したが、読めた文字は期待文字列の先頭部分だけ(`TranscriptMatch.State.partiallyHidden`)。
     /// **率を見たい注記**: 増えているならレイアウトが要素を部分的に隠す構成(長いラベルが
     /// 隣の要素に隠れる等)を疑う
@@ -689,6 +693,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " permission grants are reset too, so the next launch can show system alerts"
         case .slowSnapshot:
             return "a single snapshot took longer than this step's wait budget"
+        case .touchReachesTargetDespiteHitTest:
+            return "XCUITest reported the target cannot be hit at its position, but the in-app hit test showed a touch there"
+                + " reaches the target and none of the elements suspected to cover it, so it was touched"
         case .visualTextCheckUnsupported:
             return "no stage of the text visibility check could read the drawn text (\(OCRSupport.requirement), and the FM stage is off or unavailable),"
                 + " so this passed without confirming the text is drawn (only geometry and a blank region fail)"

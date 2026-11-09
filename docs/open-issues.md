@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-202・OI-205・OI-211 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-202・OI-205 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 18 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199・OI-214 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-184・OI-198・OI-214 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 26 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 27 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211 |
 
 ## 着手可
 
@@ -47,19 +47,6 @@
 
 
 ## 要測定
-
-### OI-211 E2EY-iOS の隠れるバーで、送って戻した後の見えている FAB への tap が「行が手前」と断られる
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-10)
-- 属性: 要測定・木に材料なし
-- 運用: ①誤った赤(沈黙しない)— SwiftUI の iOS(inapp-boost)で、スクロールで隠れて戻った FAB への tap。失敗文が手前の行を名指す
-- 優先度: 中 — 既定の経路の誤った赤
-
-出典: `_work/explore-20261109l/findings-im4.md`(50周目・11/9)。①E2EY-iOS「スクロールで隠れるバー」(`#nav_hide_bars`)で `scrollDown()` → `scrollUp()` の後の `tap("#fab_hiding")` が「#row_h_11 is drawn over it … nothing was touched」で赤(im4 F1・M4Max の3台 × 2構成で 6/6・別の run で 1/1・`wait(2)` を挟んでも同じ。送らない tap は緑)。失敗時の絵では FAB は行の上に描かれ `bars=shown`。断りは `StepExecutor+PreTouch.swift` の撃つ前の照会(`driver.hitTest` が `.hittable(false)` を返した回だけ断る)
-- 11/10(この Mac で再現・両モード): **原因は XCUITest の `isHittable` の答えの誤り**。送って戻した後、`tap("#fab_hiding")` は inapp-boost・xcuitest とも同じ断りで赤(XCUITest の `isHittable` = false)だが、**同じ点への座標の tap は両モードとも FAB に届く**(`hide=fab`。xcuitest は XCUITest の本物のタッチ)。送らなければ `isHittable` は答えず(別の層の疑いが立たない)セレクタの tap は通る
-- 直し方が決まらない理由: この断り(31b5d4f03)の真陽性は Flutter の半分のシートの裏の行(false が正しい = 触るとシートに当たる)。どちらも「別の層の押せる要素が中心に重なり、`isHittable` が false」で、木の材料では見分けられない(「対象が一覧の外・覆いが一覧の行」で分けると、シートの行の下にある一覧の外のボタンを撃つ = 誤った緑へ倒れる。MN-108)
-- 11/10(材料の候補): inapp-boost の in-app ブリッジの `/tapprobe`(UIKit の当たり判定 = 本物のタッチが届く view)は、送って戻した状態で FAB の中心 (358,744) = `HostingView`・行 H11 の FAB から離れた点 (100,767) と FAB の真上の行 H10 (358,700) = PlatformGroupContainer(SwiftUI の内部の view・行の容器)を返した = **この形ではタッチが行の view に届かないことを言える**。ただし規則にはまだできない: SwiftUI の AX 要素は view と1対1でなく、覆いの行がどの view に属するかを引く手が要る(既存の到達判定 `isReachable` は祖先・子孫を見るので、根の `HostingView` はどの要素にも届くと読む)
-- 次の一手: 断りの真陽性(Flutter・CMP・SwiftUI のシートの裏の行、隠れたバーの形)で、同じ点の `/tapprobe` の答えと覆いの要素の最寄りの view を測り、「当たる view が覆いの view(かその子孫)でない」で両方向を分けられるかを確かめる(xcuitest モードには in-app ブリッジが無いので、分けられても inapp-boost だけの救済)。分けられなければ据え置き(誤った赤は失敗文が名指すので沈黙しない)
 
 ### OI-205 Android の Flutter の候補への tap が選ばずに緑・iOS の 512 文字を超える type の赤ほか
 - 状態: 再現済み
@@ -336,6 +323,16 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-211 xcuitest モードで、SwiftUI の隠れるバーを送って戻した後の FAB への tap が「行が手前」と断られる
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-10)
+- 属性: 据え置き・木に材料なし
+- 運用: 回避可 — xcuitest モードだけ。既定の inapp-boost モードでは押せる。xcuitest モードで要るなら送らずに押す順に書く
+- 優先度: 低 — 誤った赤(失敗文が手前の要素を名指すので沈黙しない)・既定でない経路
+
+出典: `_work/explore-20261109l/findings-im4.md`(50周目)と 11/10 の測定。E2EY-iOS「スクロールで隠れるバー」で `scrollDown()` → `scrollUp()` の後、XCUITest の `isHittable` は FAB に false を返すが、同じ点への座標の tap は両モードとも FAB に届く(XCUITest の本物のタッチでも届く)= `isHittable` の答えの誤り。**inapp-boost モードは直した**: in-app の当たり判定 `/touchlands` が「対象に届き、覆いの候補のどれにも届かない」と言えたら撃つ(`TapTargetGeometry.touchClearsCovers`・注記 `touch-reaches-target-despite-hit-test`。測定: FAB の中心は FAB の view だけに届き、行の view〈PlatformGroupContainer〉には届かない。Flutter の半分のシートの裏の行は覆いにも届くので断るまま)。**xcuitest モードには in-app ブリッジが無く、この材料が取れない**ので断るまま
+- 戻す条件: XCUITest の側で本物のタッチの当たり先を答える手が見つかったら(公開 API には無い)
 
 ### OI-210 iPhone Duo の折りたたんだ状態で、キーボードに押し上げられて上端で半分切れたテキストの検証が OCR の読み誤りで赤
 - 状態: 再現済み

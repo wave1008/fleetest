@@ -202,4 +202,7 @@ public final class SystemUIDriver: AppDriver {
     public var lastTapHitAreaMiss: TapHitAreaMiss? { client.lastTapHitAreaMiss }
     public var lastTapDelivery: TapDelivery? { client.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await client.tapProbe(x: x, y: y) }
+    public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        await client.touchLands(x: x, y: y, refs: refs)
+    }
 }

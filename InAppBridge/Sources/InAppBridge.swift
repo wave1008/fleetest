@@ -40,7 +40,7 @@ final class FTInAppBridge {
     private var rescales: [ObjectIdentifier: AXFrameRescale] = [:]
     /// 直近 snapshot で入力欄だった ref(`TypeReadback.isTextInput`)。frames と同じ時点で差し替える
     private var textInputRefs: Set<Int> = []
-    private let nodes = NSMapTable<NSNumber, AnyObject>(keyOptions: .strongMemory, valueOptions: .weakMemory)
+    let nodes = NSMapTable<NSNumber, AnyObject>(keyOptions: .strongMemory, valueOptions: .weakMemory)
     // 自分のバンドルをホストと同じ規則(UIFrameworkMarkers = 共有ソース)で読む。値は AppUIFramework の rawValue。
     // 目印の無い大きな UIKit アプリは実行ファイルの全走査に数十 ms かかるので、start() で裏から先に解き
     // 最初の /status(起動直後のホストの待ち)に乗せない。裏の計算と accept ループの読みが同時に来るので、
@@ -153,6 +153,7 @@ final class FTInAppBridge {
             case ("POST", "/pressEnter"): return try handlePressEnter()
             case ("POST", "/hidekeyboard"): return try handleHideKeyboard()
             case ("POST", "/tapprobe"): return try handleTapProbe(req.body)
+            case ("POST", "/touchlands"): return try handleTouchLands(req.body)
             case ("POST", "/swipe"): return try handleSwipe(req.body)
             case ("POST", "/doubletap"): return try handleDoubleTap(req.body)
             case ("POST", "/pinch"): return try handlePinch(req.body)
@@ -978,7 +979,7 @@ final class FTInAppBridge {
 
     /// node から辿れる最も近い UIView。AX 専用ノード(SwiftUI 等)は accessibilityContainer を
     /// 辿る(`window(of:)` と同じ探索順・上限)
-    private static func nearestView(of node: NSObject) -> UIView? {
+    static func nearestView(of node: NSObject) -> UIView? {
         let containerSelector = NSSelectorFromString("accessibilityContainer")
         var current: NSObject? = node
         var hops = 0

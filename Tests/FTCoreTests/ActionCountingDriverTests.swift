@@ -125,6 +125,7 @@ final class ActionCountingDriverTests: XCTestCase {
         _ = try await driver.snapshot(bypassingCache: true)
         _ = try await driver.hitTest(ref: 1)
         _ = await driver.tapProbe(x: 0, y: 0)
+        _ = await driver.touchLands(x: 0, y: 0, refs: [1])
         _ = try await driver.screenshot()
         _ = try await driver.isAppForeground(bundleID: "a")
         _ = await driver.foregroundAppID()

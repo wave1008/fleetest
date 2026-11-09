@@ -211,14 +211,23 @@ extension StepExecutor {
                                                                                  screen: snapshot.screen) {
                 suspect = over
             }
-            if !isAndroid,
-               let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen) {
+            let covers = isAndroid ? [] : TapTargetGeometry.otherLayerCoverCandidates(element, in: snapshot.elements,
+                                                                                     screen: snapshot.screen)
+            if let cover = covers.first {
+                // XCUITest の false は誤ることがある(SwiftUI で送って戻した FAB = 本物のタッチは FAB に届く)。in-app の当たり判定で
+                // 「対象に届き、覆いの候補のどれにも届かない」と言えたときだけ撃つ(言えない・xcuitest モード・自前描画は断るまま)。
+                // ref は `snapshot`(直前に撮った木)の番号 = 間に木を撮らないこと
                 if await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
-                    let name = TapTargetGeometry.describe(cover)
-                    return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
-                        + " \(name) is drawn over it, so a touch would land there (nothing was touched). "
-                        // scroll: は勧めない: 塗り順の無い木の探索は当たり判定を見ないので、足しても同じ断りになる
-                        + Self.uncoverRemedy(cover: name, step: nil))
+                    let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
+                                                        refs: [element.ref] + covers.map(\.ref))
+                    guard TapTargetGeometry.touchClearsCovers(lands, target: element.ref, covers: covers.map(\.ref)) else {
+                        let name = TapTargetGeometry.describe(cover)
+                        return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
+                            + " \(name) is drawn over it, so a touch would land there (nothing was touched). "
+                            // scroll: は勧めない: 塗り順の無い木の探索は当たり判定を見ないので、足しても同じ断りになる
+                            + Self.uncoverRemedy(cover: name, step: nil))
+                    }
+                    noteCodesThisStep.insert(.touchReachesTargetDespiteHitTest)
                 }
                 suspect = suspect ?? cover
             }

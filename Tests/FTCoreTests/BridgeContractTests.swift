@@ -44,9 +44,11 @@ final class BridgeContractTests: XCTestCase {
     //                 既定の 501 で XCUITest へ回す(指ごとの時刻つき経路を1回で再生する)
     //   /hold      … XCUITest ランナーと Android だけ。in-app は持たず、inapp-boost モードは XCUITest へ回す
     //                 (指を置いたら応答を返す = 置いている間に木を読める)
+    //   /touchlands … in-app だけ(本物のタッチの当たり判定。XCUITest の isHittable の false を確かめる材料。
+    //                 ランナーは 404 = 呼び手は「答えられない」と読んで断るまま)
     static let inAppRoutes: Set<String> = [
         "GET /screenshot", "GET /snapshot", "GET /status",
-        "POST /appstate", "POST /clear", "POST /doubletap", "POST /drag", "POST /hidekeyboard", "POST /tapprobe", "POST /pinch",
+        "POST /appstate", "POST /clear", "POST /doubletap", "POST /drag", "POST /hidekeyboard", "POST /tapprobe", "POST /touchlands", "POST /pinch",
         "POST /press", "POST /pressEnter", "POST /rotate", "POST /session", "POST /swipe",
         "POST /tap", "POST /terminate", "POST /type",
     ]
@@ -131,18 +133,19 @@ final class BridgeContractTests: XCTestCase {
         .inApp: [
             "InAppBridge/Sources/Bridging.h": "08799e6d190f958eed7c6bb4406f1cbbfea1bed1d252ce4572636273c65a5aad",
             "InAppBridge/Sources/DisplayHeartbeat.swift": "845b796af6d9a176780a96c852f9a2ccace5923d672ca947404adf2ba156b0de",
-            "InAppBridge/Sources/InAppBridge.swift": "e31f40a392a87365287366afd86776f991eba9044179a06acebe2f0c712d6dc6",
+            "InAppBridge/Sources/InAppBridge.swift": "50c81ffdda561e5c3c3064be9cedc78936f68541fd915aaed77ed9af7d2cfdcd",
             "InAppBridge/Sources/InAppHTTPServer.swift": "d48cbe3699bc3fcf1de6558e033ea8812816207efc3aaf3f9210d4aee58e174c",
             "InAppBridge/Sources/InAppInput.h": "7cc1d91f345ce6e66ad6c58d1f5a8242c558d48759a769c6d24532bc06cd2a6f",
             "InAppBridge/Sources/InAppInput.m": "39e79ed03ffbf1c9c5980a747f2670ce4c3395df106e6162a80e005a05454d8d",
             "InAppBridge/Sources/InAppSettle.swift": "85d64ffd99da7d3eeb465aaaeddd1b481bdaa21de166001641184895b310d4a4",
             "InAppBridge/Sources/InAppSnapshot.swift": "57b9c1ba6baacb78e5af7303105724c68ce935e4d2e6ab52f312ff4780185e62",
             "InAppBridge/Sources/InAppTapProbe.swift": "f612eb38316c5440aeca26df02b56b077f15bcc54702268bd0a8b54a0658e06b",
+            "InAppBridge/Sources/InAppTouchLands.swift": "e8068aee697732e4e35fa0de01ffd85f1a42f909cc0ad2cdbcc49b454eab1a9e",
             "InAppBridge/Sources/InAppWebViewDOM.swift": "d2b3341a539263ac428f67e93deabf1eccd40236a7aaddc3af6372d815b3a17f",
             "InAppBridge/Sources/boot.m": "b23fc93fbc99ce2579c9fd8ae75a6f9bbfd0ec6122bec60eb6cd00775dd635ef",
-            "InAppBridge/build.sh": "3cf8cb7316059b4f5d4e2a33d915c6b4cd5318dad7a68718f18a010b630c8713",
+            "InAppBridge/build.sh": "f609079a78b0321206b676972a78bdbb292788001645d31fd2d13905cbefa999",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "ffd6fae365af24dd5ce8d2aa1daf39a6992aca76778f59e5980e9b9c1d003ffd",
+            "Sources/FTCore/BridgeDTO.swift": "0a2007e7437ad01bdfbf9c28528ecfc27345efb21349cba81c8ed4350fe077fa",
             "Sources/FTCore/TypeReadback.swift": "e926246b8dfa529a64e175410396358e41aec2afa049954379bd4df7b0e09980",
             "Sources/FTCore/UIFrameworkMarkers.swift": "6e40a5724138a0cc5b0b6f915e0cce19e5bb3468854cefe97893c7a152a742b6",
             "Sources/FTCore/WebViewDOMSnapshot.swift": "aa4dea12295f5da76b1f0b97cd59a2c00e4ad2aa8ee838ccbf5d4abc2eba22ca",
@@ -164,7 +167,7 @@ final class BridgeContractTests: XCTestCase {
             "Runner/FleetestRunnerUITests/ResponseMeasurement.swift": "6254e04c6f0a85d4504e45657f847f6d1a761fe2f635819b482457c34dd095b1",
             "Runner/FleetestRunnerUITests/VirtualHID.swift": "8ee358d73f27c9aabefbd6f98e41091dfde837ee8f15e5066997df1d97df802e",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "ffd6fae365af24dd5ce8d2aa1daf39a6992aca76778f59e5980e9b9c1d003ffd",
+            "Sources/FTCore/BridgeDTO.swift": "0a2007e7437ad01bdfbf9c28528ecfc27345efb21349cba81c8ed4350fe077fa",
             "Sources/FTCore/ResponseMeasurementWire.swift": "19f9ba212d1ce05ad3431dd350895329f0fc62a8bdbf6210c362583d22175dcd",
             "Sources/FTCore/SnapshotDedupe.swift": "f987a913f2010e8cd81e381c595c15242f58225c71a11a9be206590baccf8c9b",
             "Sources/FTCore/TypeReadback.swift": "e926246b8dfa529a64e175410396358e41aec2afa049954379bd4df7b0e09980",

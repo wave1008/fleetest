@@ -857,6 +857,11 @@ public final class BridgeClient: AppDriver, Sendable {
         try? await post("/tapprobe", body: TapProbeRequest(x: x, y: y), timeout: interactionTimeout)
     }
 
+    /// POST /touchlands(in-app ブリッジだけが答える。XCUITest ランナーは経路を持たず 404)。失敗は全部 nil = 答えられない
+    public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        try? await post("/touchlands", body: TouchLandsRequest(x: x, y: y, refs: refs), timeout: interactionTimeout)
+    }
+
     public func hitTest(ref: Int) async throws -> HitTestAnswer {
         // DOM の要素はランナーが引けない = 聞くと「引き当て不能」が返り、木が画面を代表していない
         // という別の検知の根拠に化ける。答えられない、と返す

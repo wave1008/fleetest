@@ -127,6 +127,9 @@ public final class ActionCountingDriver: AppDriver {
     public var lastTapHitAreaMiss: TapHitAreaMiss? { base.lastTapHitAreaMiss }
     public var lastTapDelivery: TapDelivery? { base.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await base.tapProbe(x: x, y: y) }
+    public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        await base.touchLands(x: x, y: y, refs: refs)
+    }
     public func waitForSettle(_ request: WaitForSettleRequest, timeoutSeconds: Double) async throws -> WaitForSettleResponse {
         try await base.waitForSettle(request, timeoutSeconds: timeoutSeconds)
     }

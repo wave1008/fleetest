@@ -366,6 +366,9 @@ public final class InAppDriver: AppDriver {
     public var lastTapHitAreaMiss: TapHitAreaMiss? { client.lastTapHitAreaMiss }
     public var lastTapDelivery: TapDelivery? { client.lastTapDelivery }
     public func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { await client.tapProbe(x: x, y: y) }
+    public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
+        await client.touchLands(x: x, y: y, refs: refs)
+    }
     public var lastLaunchTiming: LaunchTiming? { lastLaunchTimingValue }
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await client.backGestureEdgeWidths()
