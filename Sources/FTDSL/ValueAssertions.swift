@@ -32,6 +32,9 @@ extension Optional where Wrapped == Any {
         if !passed { core.handleFailure(stepDescription: description, reason: "\(description) did not hold") }
     }
 
+    /// 比べる前の値(画面の文字・期待値と同じ規則 = 見えない書式文字・制御文字を除外。`thisIs` の既定と同じ `TextNormalization.text`)
+    fileprivate var normalizedValue: String { TextNormalization.text.apply(stringValue ?? "") }
+
     fileprivate var stringValue: String? {
         guard let self else { return nil }
         if let text = self as? String { return text }
@@ -79,12 +82,12 @@ public extension Optional where Wrapped == Any {
     }
 
     func thisIsEmpty(file: StaticString = #filePath, line: UInt = #line) {
-        record("thisIsEmpty", "\"\(stringValue ?? "nil")\"", (stringValue ?? "").isEmpty,
+        record("thisIsEmpty", "\"\(stringValue ?? "nil")\"", TextNormalization.text.apply(stringValue ?? "").isEmpty,
                file: file, line: line)
     }
 
     func thisIsNotEmpty(file: StaticString = #filePath, line: UInt = #line) {
-        record("thisIsNotEmpty", "\"\(stringValue ?? "nil")\"", !(stringValue ?? "").isEmpty,
+        record("thisIsNotEmpty", "\"\(stringValue ?? "nil")\"", !TextNormalization.text.apply(stringValue ?? "").isEmpty,
                file: file, line: line)
     }
 
@@ -92,43 +95,43 @@ public extension Optional where Wrapped == Any {
     func thisIsBlank(file: StaticString = #filePath, line: UInt = #line) {
         let text = stringValue ?? ""
         record("thisIsBlank", "\"\(text)\"",
-               text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+               TextNormalization.isBlank(text), file: file, line: line)
     }
 
     func thisIsNotBlank(file: StaticString = #filePath, line: UInt = #line) {
         let text = stringValue ?? ""
         record("thisIsNotBlank", "\"\(text)\"",
-               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+               !TextNormalization.isBlank(text), file: file, line: line)
     }
 
     func thisContains(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisContains", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
-               TextContainment.contains(stringValue ?? "", expected), file: file, line: line)
+               TextContainment.contains(normalizedValue, TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisContainsNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisContainsNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
-               !TextContainment.contains(stringValue ?? "", expected), file: file, line: line)
+               !TextContainment.contains(normalizedValue, TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisStartsWith(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisStartsWith", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
-               (stringValue ?? "").hasPrefix(expected), file: file, line: line)
+               normalizedValue.hasPrefix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisStartsWithNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisStartsWithNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
-               !(stringValue ?? "").hasPrefix(expected), file: file, line: line)
+               !normalizedValue.hasPrefix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisEndsWith(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisEndsWith", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
-               (stringValue ?? "").hasSuffix(expected), file: file, line: line)
+               normalizedValue.hasSuffix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisEndsWithNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisEndsWithNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
-               !(stringValue ?? "").hasSuffix(expected), file: file, line: line)
+               !normalizedValue.hasSuffix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     // `String.range(of:options:.regularExpression)` は不正なパターンで throw せず nil を返すだけ
@@ -139,14 +142,14 @@ public extension Optional where Wrapped == Any {
     func thisMatches(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatches", "\"\(stringValue ?? "nil")\" ~ \"\(pattern)\"",
-               isValid && (stringValue ?? "").range(of: pattern, options: .regularExpression) != nil,
+               isValid && normalizedValue.range(of: pattern, options: .regularExpression) != nil,
                file: file, line: line)
     }
 
     func thisMatchesNot(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatchesNot", "\"\(stringValue ?? "nil")\" !~ \"\(pattern)\"",
-               isValid && (stringValue ?? "").range(of: pattern, options: .regularExpression) == nil,
+               isValid && normalizedValue.range(of: pattern, options: .regularExpression) == nil,
                file: file, line: line)
     }
 

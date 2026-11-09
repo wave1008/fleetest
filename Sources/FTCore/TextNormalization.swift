@@ -61,6 +61,17 @@ public enum TextNormalization: String, Sendable, CaseIterable {
     /// 繋ぐ相手が要らない(❤ と ❤️ は別の見た目)
     private static let danglingJoiners: Set<Unicode.Scalar> = ["\u{200C}", "\u{200D}"]
 
+    /// **「空」の唯一の定義**(セレクタ・画面の文字・期待値で共有)。2段: ①ユーザーに見えない文字を除外する(`text` の規則 =
+    /// 単独で立つ書式文字 `Cf` と制御文字 `Cc`。絵文字の ZWJ・異体字セレクタのように見た目の文字と1文字を作るものは残す)
+    /// ②残りが空白だけかを正規表現で見る。41〜44周目に空・`=`・空白・改行と経路を変えて4度、空の値の誤った緑が出た
+    public static func isBlank<S: StringProtocol>(_ value: S) -> Bool {
+        TextNormalization.text.apply(String(value)).range(of: blankPattern, options: .regularExpression) != nil
+    }
+
+    /// 空白と数える文字の全部(正規表現 1 本に置く = 種類を足すのはここだけ): Unicode の空白(`\p{White_Space}` = 半角・全角・
+    /// 改行・タブ等)と区切り(`\p{Z}`)。`\A`〜`\z` で全体を縛る(`$` は末尾の改行の前でも一致する)
+    static let blankPattern = #"\A[\p{White_Space}\p{Z}]*\z"#
+
     public func apply(_ s: String) -> String {
         guard self != .strict else { return s }
         var out = ""

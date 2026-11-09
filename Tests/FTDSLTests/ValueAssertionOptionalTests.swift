@@ -66,6 +66,19 @@ final class ValueAssertionOptionalTests: XCTestCase {
         XCTAssertTrue(isFailed(containsNot[0]), "空の期待値の否定形が緑: \(containsNot[0].status)")
     }
 
+    /// 値の検証も画面の文字・期待値と同じ規則で比べる = 見えない文字(ZWSP・BOM)は除外し、見える空白は残す
+    func testValueAssertionsIgnoreInvisibleCharacters() {
+        let value = "ab\u{200B}c"
+        XCTAssertFalse(isFailed(run { value.thisContains("bc") }[0]), "見えない文字を挟んだ値が bc を含まない")
+        XCTAssertFalse(isFailed(run { value.thisStartsWith("abc") }[0]))
+        XCTAssertFalse(isFailed(run { value.thisEndsWith("bc") }[0]))
+        XCTAssertTrue(isFailed(run { value.thisContainsNot("bc") }[0]), "否定形も同じ規則")
+        let invisibleOnly = "\u{200B}\u{FEFF}"
+        XCTAssertFalse(isFailed(run { invisibleOnly.thisIsEmpty() }[0]), "見えない文字だけの値は空")
+        XCTAssertFalse(isFailed(run { " \u{3000}\n\u{200B}".thisIsBlank() }[0]), "見える空白と見えない文字だけは blank")
+        XCTAssertTrue(isFailed(run { "a b".thisContains("ab") }[0]), "見える空白は残す")
+    }
+
     func testNilOptionalStringIsNotANonEmptyString() {
         let none: String? = nil
         let steps = run { none.thisIsNotEmpty() }

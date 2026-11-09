@@ -38,7 +38,8 @@ final class EmptyArgumentAssertTests: XCTestCase {
 
     /// 改行だけの値・ラベル・節も空(44周目 im4 F2: `#\n`・`text=\n`・`#a>>\n` が緑)
     func testNewlineOnlyValuesAreEmpty() {
-        for bad in ["#\n", "text=\n", "value=\r\n", "#a>>\n", "#nope||#\n", "=\n"] {
+        for bad in ["#\n", "text=\n", "value=\r\n", "#a>>\n", "#nope||#\n", "=\n", "*\u{200B}*", "#\u{3000}", "text=\u{00A0}",
+                    "=\u{FEFF}", "(a|\u{200B})"] {
             XCTAssertNotNil(FTSelector.validationError(bad), bad.debugDescription)
         }
     }
