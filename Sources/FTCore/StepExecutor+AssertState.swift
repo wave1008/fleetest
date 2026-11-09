@@ -214,7 +214,7 @@ extension StepExecutor {
         guard screenLooksLikeEnabled else {
             return .skipped("screenLooksLike is disabled (run profile setting)")
         }
-        guard let expected = step.expected, !expected.isEmpty else {
+        guard let expected = step.expected, !TextNormalization.isBlank(expected) else {
             return .skipped("expected was not specified")
         }
         guard let delegate else {

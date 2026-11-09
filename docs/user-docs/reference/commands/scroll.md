@@ -45,6 +45,8 @@ withScrollDown {
 
 ## The scrollable region: `scrollFrame:`
 
+A `scrollFrame:` that is empty, has a syntax error, or has alternatives (`||` or `(a|b)`) fails before anything is scrolled (the region is one container).
+
 `scrollFrame:` (also `startMarginRatio:` / `endMarginRatio:`) is an argument on `scroll*` /
 `scrollToBottom` etc. / `scrollTo`, and `withScroll*` takes `scrollFrame:` alone. It names, with a
 selector, the region that should actually be scrolled — needed when a screen has more than one

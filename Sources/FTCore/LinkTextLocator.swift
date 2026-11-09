@@ -29,7 +29,7 @@ public enum LinkTextLocator {
     }
 
     static func normalizedForMatch(_ text: String) -> String {
-        text.precomposedStringWithCompatibilityMapping.unicodeScalars
+        TextNormalization.text.apply(text).precomposedStringWithCompatibilityMapping.unicodeScalars
             .filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
             .map(String.init).joined()
     }
@@ -57,8 +57,10 @@ public enum LinkTextLocator {
     /// `text` の中で `linkText` が最初に現れる範囲。OCR の候補文字列の添字を返すので、**正規化した文字列では
     /// なく原文で探す**(`boundingBox(for:)` は候補の添字を要る)。大小・全半角の違いは吸う
     public static func range(of linkText: String, in text: String) -> Range<String.Index>? {
-        guard !linkText.isEmpty else { return nil }
-        return text.range(of: linkText, options: [.caseInsensitive, .widthInsensitive])
+        // 探す語は木の経路と同じ正規化(見えない文字を外す)。原文(text)側は添字が要るので触らない
+        let needle = TextNormalization.text.apply(linkText)
+        guard !TextNormalization.isBlank(needle) else { return nil }
+        return text.range(of: needle, options: [.caseInsensitive, .widthInsensitive])
     }
 
     /// クロップ内の正規化矩形(Vision の座標系 = 原点は左下・0...1)の中心を画面座標へ写す純粋関数。

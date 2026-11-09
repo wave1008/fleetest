@@ -207,7 +207,8 @@ public struct SelectorNaming {
         // 広告リンク)を素で勧めると Swift の1行文字列リテラルに書けない。畳んだ文字列は
         // `.selector` 照合(空白を種類問わず畳んで比較)で元のラベルに一致し続けるので安全
         let label = SnapshotRenderer.displayText(element.label ?? "")
-        let writableLabel = !label.isEmpty && label.count <= SnapshotRenderer.labelDisplayLimit
+        // 空白だけ・見えない文字だけのラベルは書けない(セレクタの空は検査が断り、一致もしない = TextNormalization.isBlank)
+        let writableLabel = !TextNormalization.isBlank(label) && label.count <= SnapshotRenderer.labelDisplayLimit
         // **素の形を先に置く**(順序を入れ替えない): `asWritten` は逃がしを外した形を返すので、
         // 逃がし形を先に採ると「勧めた文字列」と「下書きに書かれる文字列」が食い違う
         // (実測: ラベル `" ·"` で `= ·` を先に置いたら、注記は `" ·"`・コードは `"·"` になった)。
@@ -255,7 +256,7 @@ public struct SelectorNaming {
         // 素だけだと、行そのものと中の staticText が同じ文言を持つ形(実測:
         // ios-place_guides_scrolled の `#PlaceCollectionCell`)で必ず2件に当たり、
         // **長ラベルの行がひとつも救えない**
-        if !writableLabel, !label.isEmpty {
+        if !writableLabel, !TextNormalization.isBlank(label) {
             let fragment = SnapshotRenderer.partialMatchFragment(
                 String(label.prefix(SnapshotRenderer.labelDisplayLimit)))
             if !fragment.isEmpty {

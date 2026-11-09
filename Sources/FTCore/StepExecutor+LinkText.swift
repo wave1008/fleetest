@@ -163,7 +163,7 @@ extension FlowStep {
     /// `tap(要素, linkText: "")` は押す先の語が無い引数の誤り(OCR を払ってから「見つからない」と言わず、撃つ前に断る)。
     /// 呼ぶのは `StepExecutor.executeStep` の入口(`secondsArgumentViolation` の隣)
     var linkTextArgumentViolation: String? {
-        guard let linkText, linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard let linkText, TextNormalization.isBlank(linkText) else { return nil }
         return "linkText must not be empty (got \"\(linkText)\") — pass the text to press inside \(locatorSummary),"
             + " or leave linkText: out to tap the element itself"
     }

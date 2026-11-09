@@ -953,10 +953,23 @@ extension StepExecutor {
         "valueContains", "valueStartsWith", "valueEndsWith", "valueContainsNot", "valueStartsWithNot", "valueEndsWithNot",
     ]
 
+    /// 正規表現の検証(と否定形)の空のパターン。空の正規表現は何にでも一致する(肯定形は常に緑・否定形は常に赤。セレクタ側の
+    /// `textMatches=` が空なのを断るのと揃える)
+    static let regexAsserts: Set<String> = [
+        "thisMatches", "thisMatchesNot", "textMatches", "textMatchesNot", "valueMatches", "valueMatchesNot",
+    ]
+
     public static func emptyExpectationRefusal(_ assert: String, expected: String?) -> String? {
-        guard containmentAsserts.contains(assert), let expected, TextNormalization.isBlank(expected) else { return nil }
-        return "\(assert): the expected value is empty (blank, or only invisible characters such as a zero-width space)"
-            + " — it would hold for any text. Write the text you expect"
+        guard let expected, TextNormalization.isBlank(expected) else { return nil }
+        if containmentAsserts.contains(assert) {
+            return "\(assert): the expected value is empty (blank, or only invisible characters such as a zero-width space)"
+                + " — it would hold for any text. Write the text you expect"
+        }
+        if regexAsserts.contains(assert) {
+            return "\(assert): the regular expression is empty (blank, or only invisible characters such as a zero-width space)"
+                + " — an empty pattern matches any text. Write the pattern you expect"
+        }
+        return nil
     }
 
     func executeAssert(_ assert: String, step: FlowStep,
@@ -1447,7 +1460,7 @@ extension StepExecutor {
 
     /// このステップで使う正規化。**既定は `.text`**(見た目が同じなら同じ)。
     /// `strict: true` を明示したときだけ一切正規化しない
-    static func textNormalization(for step: FlowStep) -> TextNormalization {
+    public static func textNormalization(for step: FlowStep) -> TextNormalization {
         step.strictText == true ? .strict : .text
     }
 

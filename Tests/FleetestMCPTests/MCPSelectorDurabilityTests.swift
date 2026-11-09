@@ -256,7 +256,9 @@ final class MCPSelectorDurabilityTests: XCTestCase {
         // 2026-10-11: ios-maps_transit_boarding_cards(Apple マップの乗換案内のカード)を足して 712 → 754(+42)。
         // 除外実験で増分はこの1枚に閉じている。103 要素のカードが同じ構造で繰り返され id が重複する
         // (`#DetailButton` ×9・`#PrimaryLabel` ×7・`#Label` ×7 …)ので一意に指せず、索引形に落ちるのは格付けとして正しい
-        XCTAssertLessThanOrEqual(indexed, 754, "索引セレクタが増えている(実測 754)")
+        // 2026-11-09: 754 → 755(+1)。空白だけのラベル(ios-maps_suggest_guides の `#RichTextLabel` " "・コーパスで1件)を書けないラベルに
+        // 数えた(空のセレクタは検査が断り一致もしない)。以前の stable は書いても当たらない " " の勧めだった
+        XCTAssertLessThanOrEqual(indexed, 755, "索引セレクタが増えている(実測 755)")
         // **割合は千分率で見る**(2026-08-12 のレビュー指摘)。百分率の整数除算だと
         // 「4%以下」が実際には 4.99% まで通り、宣言した上限より1ポイント緩い砦になる
         // (実測 4.75% が「4」に切り捨てられて素通りしていた)

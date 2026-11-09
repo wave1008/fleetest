@@ -73,7 +73,7 @@ public struct FTSelector {
         // 検査と同じく見えない文字を外してから解く(`withoutInvisible`)。表示と指紋の鍵には書いたままの文字列を残す
         let text = withoutInvisible(raw)
         let clauses = splitTopLevel(text, separator: "||")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         // 1節が `(a|b)` を含むと複数のロケータへ展開される(`||` と同じ和集合になる)
         let locators = clauses.flatMap(parseClauses)
@@ -135,11 +135,11 @@ public struct FTSelector {
     /// 1節を 1 つ以上のロケータへ。**複数になるのは `(a|b)` を含むときだけ**で、
     /// 展開結果は `||` の節と同じ扱い(候補集合の和)になる
     static func parseClauses(_ clause: String) -> [FlowLocator] {
-        let trimmed = clause.trimmingCharacters(in: .whitespaces)
+        let trimmed = clause.trimmingCharacters(in: .whitespacesAndNewlines)
         // `=` エスケープは最優先(生ラベルに `>>` や `:right` を含められる唯一の手段)
         if trimmed.hasPrefix("=") { return [FlowLocator(label: String(trimmed.dropFirst()))] }
         let segments = splitTopLevel(trimmed, separator: ">>")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard segments.count > 1, let last = segments.last else { return parseSegments(trimmed) }
         // スコープの各段も `(a|b)` で展開され得るので、全段 × 対象の直積を作る
@@ -160,7 +160,7 @@ public struct FTSelector {
     /// `>>` で割った 1 区間。相対ステップ(`:rightSwitch` 等)を末尾から剥がし、
     /// 残りを `&&` 区切りのフィルタ列としてパースする(`(a|b)` があれば複数返る)
     static func parseSegments(_ segment: String) -> [FlowLocator] {
-        let trimmed = segment.trimmingCharacters(in: .whitespaces)
+        let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("=") { return [FlowLocator(label: String(trimmed.dropFirst()))] }
         let split = splitRelativeChain(trimmed)
         return parseFilterVariants(split.base).map { locator in
@@ -186,7 +186,7 @@ public struct FTSelector {
                 return (segment, [], [])
             }
             base = String(segment[segment.index(after: segment.startIndex)..<close])
-                .trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             start = segment.index(after: close)
             guard !base.isEmpty, start < segment.endIndex, segment[start] == ":" else {
                 return (segment, [], [])
@@ -195,7 +195,7 @@ public struct FTSelector {
             guard let found = firstRelativeMarker(in: segment) else { return (segment, [], []) }
             start = found
             base = String(segment[segment.startIndex..<start])
-                .trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             // 基準が空の `:rightSwitch` は式として無意味 → 解釈せず生ラベル扱い
             guard !base.isEmpty else { return (segment, [], []) }
         }
@@ -274,7 +274,7 @@ public struct FTSelector {
         if next < segment.endIndex, segment[next] == "(" {
             guard let close = matchingParen(segment, open: next) else { return nil }
             let arg = String(segment[segment.index(after: next)..<close])
-                .trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !arg.isEmpty else { return nil }
             argument = arg
             if let number = Int(arg) {
@@ -284,7 +284,7 @@ public struct FTSelector {
                 // 引数は節1本と同じ文法(`>>` スコープも書ける)。parseSegment だと
                 // `#x >> .button` が丸ごと id になって黙って解決不能になる
                 let parsed = splitTopLevel(arg, separator: "||")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
                     .flatMap(parseClauses)
                 guard !parsed.isEmpty else { return nil }
@@ -325,7 +325,7 @@ public struct FTSelector {
     static func parseFilters(_ text: String) -> FlowLocator {
         var locator = FlowLocator()
         for token in splitTopLevel(text, separator: "&&")
-            .map({ $0.trimmingCharacters(in: .whitespaces) })
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
             .filter({ !$0.isEmpty }) {
             merge(parseFilter(token), into: &locator)
         }
@@ -338,7 +338,7 @@ public struct FTSelector {
     /// 「等価」と書いている形そのもの)。`||` が和集合になったのでこの等価が成立する
     static func parseFilterVariants(_ text: String) -> [FlowLocator] {
         let tokens = splitTopLevel(text, separator: "&&")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard !tokens.isEmpty else { return [FlowLocator()] }
         return cartesian(tokens.map(expandGroups)).map { combination in
@@ -907,7 +907,8 @@ public struct FTSelector {
     /// これらを文字どおり入力したいときは2引数形 `type(欄のセレクタ, "#foo")` で書ける
     /// (単一引数形だけが曖昧なので、逃げ道は既存 API で足りる)
     public static func selectorLikeInputError(_ text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        // 見えない文字を外してから判定する(`"\u{200B}#email"` が検知を外れていた)
+        let trimmed = withoutInvisible(text).trimmingCharacters(in: .whitespacesAndNewlines)
         let hint = "`type(\"\(trimmed)\")` types that text into the focused element"
             + " — the single-argument form takes text, not a selector."
             + " Use `type(<selector>, \"<text>\")` to target a field,"
@@ -1012,7 +1013,8 @@ public struct FTSelector {
         var text = stripped
         var masked: [(mark: String, value: String)] = []
         for (offset, span) in regexValueSpans(stripped).enumerated().reversed() {
-            let value = String(stripped[span])
+            // 解析はトークンの末尾の空白を区切りの一部として削る(`.whitespacesAndNewlines`)。検査も同じ値を見る
+            let value = trailingTrimmed(String(stripped[span]))
             if isBlank(value) { return "the regular expression after `=` is empty: \"\(raw)\"" }
             if let error = RegexValidation.error(for: value) { return error }
             // 見分けのつく印で伏せ、失敗文では書いたままの値へ戻す(`x` で伏せると書いていないセレクタを引用した = 48周目)
@@ -1023,6 +1025,13 @@ public struct FTSelector {
         guard var error = structuralError(text) else { return nil }
         for (mark, value) in masked { error = error.replacingOccurrences(of: mark, with: value) }
         return error
+    }
+
+    /// 末尾の空白・改行だけを削る(解析の `trimmingCharacters(in: .whitespacesAndNewlines)` が正規表現のトークンの末尾に対してする削りと同じ)
+    private static func trailingTrimmed(_ value: String) -> String {
+        var result = Substring(value)
+        while let last = result.last, last.isWhitespace { result = result.dropLast() }
+        return String(result)
     }
 
     /// 正規表現のフィルタの値を伏せた後の構造の検査(`validationError` の後半)
@@ -1055,7 +1064,7 @@ public struct FTSelector {
     /// `||` で割った 1 節(`>>` のスコープ連鎖を含む)。相対セレクタの引数も同じ文法なので
     /// **検証もここを共有する**(引数の中の綴り誤り・スコープを見逃さないため)
     private static func clauseError(_ clause: String) -> String? {
-        let trimmed = clause.trimmingCharacters(in: .whitespaces)
+        let trimmed = clause.trimmingCharacters(in: .whitespacesAndNewlines)
         // 改行だけの節も空(`#a>>\n` が改行のラベルに解かれて notExist が緑だった)
         if isBlank(trimmed) { return "there is an empty clause (check around `>>` and `||`)" }
         // `=` エスケープは全体が生ラベル = 構文解釈しない
@@ -1131,7 +1140,7 @@ public struct FTSelector {
     /// 相対ステップを含まない `&&` 列の検証
     private static func filterListError(_ text: String, isScoped: Bool, isTarget: Bool) -> String? {
         let tokens = splitTopLevel(text, separator: "&&")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         if tokens.contains(where: { $0.isEmpty }) {
             return "missing a condition before or after `&&`: \"\(text)\""
         }
@@ -1399,5 +1408,20 @@ public struct FTSelector {
             index = segment.index(after: colon)
         }
         return nil
+    }
+}
+
+// MARK: - scrollFrame / 宣言のセレクタの共通の門
+
+extension FTSelector {
+    /// `scrollFrame:` の式を解く**唯一の入口**(DSL と MCP が共有)。構文の誤りは `validationError` と同じ判定で断り、
+    /// `||` / `(a|b)` の代替は断る(スクロール領域は1つの容器 = 代替を `.primary` で黙って捨てない)
+    public static func scrollFrameLocator(_ raw: String) -> (locator: FlowLocator?, error: String?) {
+        if let error = validationError(raw) { return (nil, error) }
+        let parsed = parse(raw)
+        guard parsed.fallbacks.isEmpty else {
+            return (nil, "scrollFrame takes one container, but \"\(raw)\" has alternatives (`||` or `(a|b)`) — write a single selector")
+        }
+        return (parsed.primary, nil)
     }
 }

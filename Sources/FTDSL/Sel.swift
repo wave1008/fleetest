@@ -108,26 +108,34 @@ public struct Sel: Sendable, Equatable {
     // MARK: - フィルタ(現在の対象へ AND)
 
     public func id(_ id: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.emptyValueReason("id", id) { return invalidated(reason) }
+        if let reason = Self.valueReason("id", id, match) { return invalidated(reason) }
         return updatingTarget { $0.id = id; $0.idMatch = Self.stored(match) }
     }
 
     public func text(_ text: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.emptyValueReason("text", text) { return invalidated(reason) }
+        if let reason = Self.valueReason("text", text, match) { return invalidated(reason) }
         return updatingTarget { $0.label = text; $0.labelMatch = Self.stored(match) }
     }
 
     public func value(_ value: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.emptyValueReason("value", value) { return invalidated(reason) }
+        if let reason = Self.valueReason("value", value, match) { return invalidated(reason) }
         return updatingTarget { $0.value = value; $0.valueMatch = Self.stored(match) }
     }
 
     public func placeholder(_ placeholder: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.emptyValueReason("placeholder", placeholder) { return invalidated(reason) }
+        if let reason = Self.valueReason("placeholder", placeholder, match) { return invalidated(reason) }
         return updatingTarget { $0.placeholder = placeholder; $0.placeholderMatch = Self.stored(match) }
     }
 
     /// 空(空白だけを含む)の値は文字列版の `#`・`=`・`value=` と同じく実行前に断る(44周目: `Sel.text("")` の notExist が緑)
+    /// 空に加えて、`.matches` のパターンが不正な正規表現なら断る(通すと `TextNormalization.regexMatch` が nil = 何にも一致せず、
+    /// `notExist(Sel…)` / `countIs(Sel…, 0)` が永久に緑。文字列版は `FTSelector.validationError` が断る)
+    private static func valueReason(_ attribute: String, _ value: String, _ match: FlowMatchMode) -> String? {
+        if let reason = emptyValueReason(attribute, value) { return reason }
+        guard match == .matches, let regexError = RegexValidation.error(for: value) else { return nil }
+        return "Sel.\(attribute)(...): \(regexError)"
+    }
+
     private static func emptyValueReason(_ attribute: String, _ value: String) -> String? {
         FTSelector.isBlank(value) ? "Sel.\(attribute)(\"\(value)\") is empty — it would match nothing or anything" : nil
     }
@@ -150,7 +158,10 @@ public struct Sel: Sendable, Equatable {
     /// 引数が `or` を含むなら**全節を除外する**(`not` の各要素は「どれかに当たれば除く」)
     public func not(_ other: Sel) -> Sel {
         let exclusions = [other.primary] + other.fallbacks
-        return updatingTarget { $0.not = ($0.not ?? []) + exclusions }
+        var result = updatingTarget { $0.not = ($0.not ?? []) + exclusions }
+        // 除外側の誤りを捨てない(捨てると除外条件が黙って消え、除くはずの要素を掴む)
+        if result.invalidReason == nil { result.invalidReason = other.invalidReason }
+        return result
     }
 
     /// 候補内の順番(**1 オリジン**。記法の `[n]` と同じ)。相対ステップの後なら近い順の ordinal。

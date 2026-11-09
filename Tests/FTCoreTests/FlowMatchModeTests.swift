@@ -157,7 +157,8 @@ final class RenderedLabelRoundTripTests: XCTestCase {
         for (name, snapshot) in corpus {
             let file = name + ".json"
             for element in snapshot.elements {
-                guard let label = element.label, !label.isEmpty else { continue }
+                // 空白だけのラベルはセレクタに書けない(検査が断る)ので往復の対象外
+                guard let label = element.label, !TextNormalization.isBlank(label) else { continue }
                 let printed = FlowMatchMode.normalizeInvisibleCharacters(label)
                 guard printed.count <= SnapshotRenderer.labelDisplayLimit else { continue }
                 XCTAssertTrue(FlowMatchMode.exact.matches(label, printed),

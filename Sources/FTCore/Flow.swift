@@ -324,6 +324,8 @@ public enum FlowMatchMode: String, Codable, Equatable, Sendable {
         var normalizedActual = normalization.apply(actual)
         if self == .matches { return TextNormalization.regexMatch(actual, pattern: expected, under: normalization) != nil }
         var normalizedExpected = normalization.apply(expected)
+        // セレクタの一致は空の期待値を全モードで何にも一致させない(`.contains` と同じ)。`.text` は対象外 —— `textIs("")` は空のテキストに一致して正しい
+        if normalization == .selector, normalizedExpected.isEmpty { return false }
         // ワイルドカード側の境界の空白は利用者が書いた接頭辞/接尾辞の一部(`"投稿 *"` は `"投稿"` に一致させない)。
         // トリムするのは完全一致の寛容さと、ワイルドカードの無い側の端だけ
         if normalization == .selector, self != .exact, self != .matches, !normalizedExpected.isEmpty {

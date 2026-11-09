@@ -213,7 +213,8 @@ extension MCPServer {
                 throw MCPError("irregularHandler requires the selector of the interruption to watch for")
             }
             let detect = try MCPServer.parseSelectorArgument(detectText, argument: "detect")
-            let dismissText = (raw["dismiss"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? detectText
+            // dismiss の省略 = 検出したものをそのまま閉じる。明示の `''` は省略と読まず断る(DSL の `dismiss: ""` と同じ)
+            let dismissText = (raw["dismiss"] as? String) ?? detectText
             let dismiss = try MCPServer.parseSelectorArgument(dismissText, argument: "dismiss")
             let step = FlowStep(action: "irregularHandler", locator: detect.primary,
                                 fallbacks: batchFallbacks(detect), text: dismiss.text)
@@ -338,7 +339,8 @@ extension MCPServer {
     }
 
     private static func optionalBatchSelector(_ raw: [String: Any]) throws -> FTSelector? {
-        guard let text = raw["selector"] as? String, !text.isEmpty else { return nil }
+        // 省略は引数を書かないこと。明示の `''`(空・空白・見えない文字だけ)は「省略」と読まず `parseSelectorArgument` が断る
+        guard let text = raw["selector"] as? String else { return nil }
         return try Self.parseSelectorArgument(text, argument: "selector")
     }
 
@@ -347,8 +349,10 @@ extension MCPServer {
     }
 
     private static func batchScrollFrame(_ raw: [String: Any]) throws -> FlowLocator? {
-        guard let text = raw["scrollFrame"] as? String, !text.isEmpty else { return nil }
-        return try Self.parseSelectorArgument(text, argument: "scrollFrame").primary
+        guard let text = raw["scrollFrame"] as? String else { return nil }   // 明示の空は断る(optionalBatchSelector と同じ)
+        let resolved = FTSelector.scrollFrameLocator(text)
+        if let error = resolved.error { throw MCPError("scrollFrame: \(error)") }
+        return resolved.locator
     }
 
     private static func batchPinchStep(_ action: String, defaultScale: Double, raw: [String: Any])

@@ -28,7 +28,7 @@ extension MCPServer {
             throw MCPError("alertButton: no system alert is in front of the app — nothing was tapped")
         }
         let title = alert.title.map { "\"\($0)\"" } ?? "(untitled)"
-        guard alert.buttons.contains(label) else {
+        guard alert.buttons.contains(where: { Self.alertButtonMatches($0, label) }) else {
             throw MCPError("alertButton: the system alert \(title) has no button \"\(label)\" — its"
                 + " buttons are \(alert.buttons.map { "\"\($0)\"" }.joined(separator: " / ")). Nothing was tapped")
         }
@@ -42,7 +42,7 @@ extension MCPServer {
         do { board = try await d.snapshot() } catch { await reattachOnFailure(); throw error }
         // **アラートの中の button だけ**を見る(ホーム画面にも同じ文字のアイコンがありうる)
         let inAlert = Self.systemAlertButtons(in: board)
-        guard let button = inAlert.first(where: { $0.label == label }) else {
+        guard let button = inAlert.first(where: { Self.alertButtonMatches($0.label, label) }) else {
             await reattachOnFailure()
             throw MCPError("alertButton: the alert \(title) listed \"\(label)\" but SpringBoard's tree has"
                 + " no such button inside an alert (it may have just closed) — nothing was tapped")
@@ -87,5 +87,12 @@ extension MCPServer {
             }
         }
         return result
+    }
+}
+
+extension MCPServer {
+    /// `iosAlertHandler(button:)` の完全一致の分岐と同じ照合(`FlowMatchMode.exact` + 画面の文字の正規化)
+    static func alertButtonMatches(_ buttonLabel: String?, _ wanted: String) -> Bool {
+        FlowMatchMode.exact.matches(buttonLabel, wanted, normalization: .text)
     }
 }

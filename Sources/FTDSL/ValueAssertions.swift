@@ -162,6 +162,7 @@ public extension Optional where Wrapped == Any {
     // (肯定形も否定形も、値がたまたま一致/不一致に見えることを理由に通してはいけない)
 
     func thisMatches(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisMatches", pattern, file: file, line: line) { return }
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatches", "\"\(stringValue ?? "nil")\" ~ \"\(pattern)\"",
                isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) != nil,
@@ -169,6 +170,7 @@ public extension Optional where Wrapped == Any {
     }
 
     func thisMatchesNot(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisMatchesNot", pattern, file: file, line: line) { return }
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatchesNot", "\"\(stringValue ?? "nil")\" !~ \"\(pattern)\"",
                isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) == nil,

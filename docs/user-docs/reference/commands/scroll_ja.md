@@ -43,6 +43,8 @@ withScrollDown {
 
 ## スクロールさせたい領域: `scrollFrame:`
 
+`scrollFrame:` が空・構文の誤り・代替(`||` や `(a|b)`)を含むときは、スクロールする前に失敗します(領域は1つの容器です)。
+
 `scrollFrame:`(および `startMarginRatio:` / `endMarginRatio:`)は `scroll*` / `scrollToBottom`
 等 / `scrollTo` の引数で、`withScroll*` は `scrollFrame:` のみ取ります。実際にスクロールさせたい
 領域をセレクタ式で指定するもので、画面に複数のスクロール可能領域がある(固定ヘッダ+

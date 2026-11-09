@@ -142,7 +142,7 @@ public enum ArgumentBounds {
     /// 違反なら文言、OK(空でない、または断る対象の鍵ではない)なら nil
     public static func emptyViolation(_ key: String, _ value: String) -> String? {
         guard mustNotBeEmpty.contains(key) else { return nil }
-        guard value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard TextNormalization.isBlank(value) else { return nil }   // 空の定義は1か所(見えない文字だけも空)
         return "\(key) must not be empty"
     }
 

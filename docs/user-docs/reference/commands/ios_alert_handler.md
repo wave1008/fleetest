@@ -21,6 +21,7 @@ iosAlertHandler(alert: "*wants to track*||*トラッキング*",
 
 ## Notes
 
+- **An empty alternative, or one with nothing but `*` and invisible characters (for example `"\u{200B}*"`), fails at the declaration** — it would match any alert.
 ### Why this exists
 
 Permission prompts, "Open in …?", and similar system alerts are drawn by SpringBoard, a

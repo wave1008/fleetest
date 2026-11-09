@@ -15,12 +15,17 @@ public enum HeldElementAssert {
     /// - `checked` / `notChecked`: 「checked を実際に観測したか」の追跡が実機経路にあり、
     ///   飛ばすと `checkIsOFF` の誤用警告(状態を持たない要素を指している)が出なくなる
     /// - `screenMatches` / `keyboardShown` / `keyboardNotShown`: 要素の値ではなく画面全体を見る
+    ///
+    /// **空の期待値の断り(`StepExecutor.emptyExpectationRefusal`)は executor にしか無い**ので、断る入力はここで nil を返して
+    /// executor へ落とす(緑を先に返さない)。`normalization` は executor の `textNormalization(for:)` と同じ値を呼び手が渡す(`strict:`)
     public static func satisfied(assert: String, expected: String?,
-                                 element: ElementInfo) -> Bool? {
+                                 element: ElementInfo,
+                                 normalization: TextNormalization = .text) -> Bool? {
+        if StepExecutor.emptyExpectationRefusal(assert, expected: expected) != nil { return nil }
         switch assert {
         case "idEquals":
-            guard let expected else { return nil }
-            return element.identifier == expected
+            guard let expected, let identifier = element.identifier else { return nil }
+            return normalization.apply(identifier) == normalization.apply(expected)
         case "valueEquals", "textEquals", "textContains", "textMatches",
              "textStartsWith", "textEndsWith", "textMatchesDateFormat",
              "valueContains", "valueMatches", "valueStartsWith", "valueEndsWith",
@@ -28,13 +33,15 @@ public enum HeldElementAssert {
             // 値の無い要素はここで決めない(端末の経路は囲んだ入力欄の値も読む = `TypeReadback.assertedValue`。
             // nil を "" と読んで決めると、値を持つ欄を包んだ要素で valueIs("") が通る)
             guard let expected, let actual = actualText(assert, element) else { return nil }
-            return LocatorResolver.matchedText(actual, expected: expected, assert: assert) != nil
+            return LocatorResolver.matchedText(actual, expected: expected, assert: assert,
+                                              normalization: normalization) != nil
         case "textNotEquals", "textIsEmpty", "textIsNotEmpty",
              "textStartsWithNot", "textContainsNot", "textEndsWithNot", "textMatchesNot",
              "valueNotEquals", "valueIsEmpty", "valueIsNotEmpty",
              "valueStartsWithNot", "valueContainsNot", "valueEndsWithNot", "valueMatchesNot":
             guard let actual = actualText(assert, element) else { return nil }   // 理由は肯定形と同じ
-            return LocatorResolver.negativeAssertSatisfied(assert, actual: actual, expected: expected)
+            return LocatorResolver.negativeAssertSatisfied(assert, actual: actual, expected: expected,
+                                                           normalization: normalization)
         case "enabled":
             return element.enabled
         case "disabled":

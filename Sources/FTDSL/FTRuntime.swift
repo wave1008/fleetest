@@ -406,8 +406,15 @@ public final class FTDriveCore {
         return scrollFrameStack.last ?? nil
     }
 
+    /// 文脈の `scrollFrame` が誤り(構文・代替)なら、積まずに失敗ステップを記録してブロックを実行しない(宣言の時点で落とす)
     func runWithScrollContext(_ context: ScrollContext, scrollFrame: String? = nil,
+                              file: StaticString = #filePath, line: UInt = #line,
                               _ body: () -> Void) {
+        if let scrollFrame, let error = FTSelector.scrollFrameLocator(scrollFrame).error {
+            perform(step: FlowStep(action: "scroll"), description: "withScroll(scrollFrame: \"\(scrollFrame)\")",
+                    command: "withScroll", commandError: error, file: file, line: line)
+            return
+        }
         scrollContextStack.append(context)
         scrollFrameStack.append(scrollFrame)
         body()
@@ -959,8 +966,8 @@ public final class FTDriveCore {
         // 注記を description に足すのは、レポートで「取り直していない判定」を見分けられるようにするため
         let visibilityWouldBeChecked = executor.visibilityGuardActive(perStepGuard: step.occlusionGuard)
         if let heldElement, let assert = step.assert, !visibilityWouldBeChecked,
-           HeldElementAssert.satisfied(assert: assert, expected: step.expected,
-                                       element: heldElement) == true {
+           HeldElementAssert.satisfied(assert: assert, expected: step.expected, element: heldElement,
+                                       normalization: StepExecutor.textNormalization(for: step)) == true {
             recordStep(description: description + "(\(StepNote.heldValue.text))", status: .passed,
                        file: filePath, line: Int(line), durationMs: 0,
                        notes: [.heldValue], command: command)

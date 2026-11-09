@@ -80,21 +80,45 @@ public func expectation(_ body: () -> Void) -> CAEChain { CAEChain().expectation
 /// こちらからは決められないので、宣言ごとに変えられる。**0 以下は 1 に丸める** ——
 /// 「閉じない宣言」は宣言しないのと同じなので、書き間違いを黙って通さない
 public func irregularHandler(_ detect: String, dismiss: String? = nil,
-                             maxDismissals: Int = StepExecutor.maxInterruptDismissalsPerStep) {
+                             maxDismissals: Int = StepExecutor.maxInterruptDismissalsPerStep,
+                             file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "irregularHandler")
     let detectSelector = FTSelector.parse(detect)
     let dismissSelector = dismiss.map { FTSelector.parse($0) } ?? detectSelector
+    // 宣言の時点で落とす(空・構文の誤りの宣言は黙って発火しない、または空ラベルの要素を割り込みと見て閉じる操作を撃つ)
+    let declarationError = FTSelector.validationError(detect).map { "irregularHandler detect: \($0)" }
+        ?? dismiss.flatMap { FTSelector.validationError($0) }.map { "irregularHandler dismiss: \($0)" }
+    if let declarationError {
+        rejectDeclaration(core, command: "irregularHandler", description: "irregularHandler \"\(detect)\"",
+                          error: declarationError, file: file, line: line)
+        return
+    }
     // **セレクタ丸ごと渡す**(`||` / `(a|b)` の代替も)。primary だけだと日本語版の文言が閉じない
     core.addInterruptHandler(detect: detectSelector, dismiss: dismissSelector,
                              maxDismissals: maxDismissals)
 }
 
 public func irregularHandler(_ detect: Sel, dismiss: Sel? = nil,
-                             maxDismissals: Int = StepExecutor.maxInterruptDismissalsPerStep) {
+                             maxDismissals: Int = StepExecutor.maxInterruptDismissalsPerStep,
+                             file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "irregularHandler")
+    let declarationError = detect.ftSelector.preflightError.map { "irregularHandler detect: \($0)" }
+        ?? dismiss?.ftSelector.preflightError.map { "irregularHandler dismiss: \($0)" }
+    if let declarationError {
+        rejectDeclaration(core, command: "irregularHandler", description: "irregularHandler \"\(detect.ftSelector.text)\"",
+                          error: declarationError, file: file, line: line)
+        return
+    }
     core.addInterruptHandler(detect: detect.ftSelector,
                              dismiss: (dismiss ?? detect).ftSelector,
                              maxDismissals: maxDismissals)
+}
+
+/// 宣言(`irregularHandler` / `iosAlertHandler`)の誤りを、宣言の時点で失敗ステップとして落とす(登録はしない)
+func rejectDeclaration(_ core: FTDriveCore, command: String, description: String, error: String,
+                       file: StaticString, line: UInt) {
+    core.perform(step: FlowStep(action: command), description: description, command: command,
+                 commandError: error, file: file, line: line)
 }
 
 /// **出たら押してほしい OS のシステムアラート**(権限ダイアログ・ATT 等)を1枚ぶん予告する。
@@ -120,8 +144,15 @@ public func irregularHandler(_ detect: Sel, dismiss: Sel? = nil,
 /// 意図しない権限のまま run が緑で進む)。押したことは必ず run ログに残る。
 /// 登録があるのにアラートを覆ったまま押せなければ、そのステップは
 /// `system-ui-covered` で失敗し、**実際に画面に在るボタン名**をメッセージに出す
-public func iosAlertHandler(alert: String, button: String) {
+public func iosAlertHandler(alert: String, button: String,
+                            file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "iosAlertHandler")
+    if let error = SystemAlertDismissal.patternError(alert, argument: "alert")
+        ?? SystemAlertDismissal.patternError(button, argument: "button") {
+        rejectDeclaration(core, command: "iosAlertHandler", description: "iosAlertHandler alert: \"\(alert)\" button: \"\(button)\"",
+                          error: error, file: file, line: line)
+        return
+    }
     core.addSystemAlertRule(SystemAlertRule(alert: alert, button: button))
 }
 
@@ -143,12 +174,12 @@ extension FTSelector {
 /// (FTDriveCore.perform の高速経路)
 @discardableResult
 func perform(_ command: String, _ selector: FTSelector, step: FlowStep,
-                     description: String, held: ElementInfo? = nil,
+                     description: String, held: ElementInfo? = nil, commandError: String? = nil,
                      file: StaticString, line: UInt) -> PerformResult {
     let core = FTRuntime.requireCore(command: command)
     let result = core.perform(step: step, description: description, command: command,
                               selectorText: selector.text,
-                              selectorError: selector.preflightError, heldElement: held,
+                              selectorError: selector.preflightError, commandError: commandError, heldElement: held,
                               file: file, line: line)
     if definesSingleElement(step) {
         core.lastResolvedElement = FTElement(selector: selector, matched: result.element)
@@ -249,9 +280,16 @@ public func tap(_ selector: Sel, holdSeconds: Double = FlowStep.defaultTapHoldSe
 /// その行はソース行を持たないためジャンプも修正提案の照合もできず、説明の要る状態になる。
 /// `withScrollDown(scrollFrame:) { }` が積んだスクロール領域を FlowStep 用に解決する。
 /// **探索するときだけ意味を持つ**(scroll 未指定 = 現在画面だけを見るので領域は無関係)
+/// 文脈の式は `runWithScrollContext` が積む前に検査済み(誤りなら積まない)なので、ここでは誤りを見ない
 func contextScrollFrame(_ core: FTDriveCore, scrolling: Bool) -> FlowLocator? {
     guard scrolling, let expression = core.effectiveScrollFrame(nil) else { return nil }
-    return FTSelector.parse(expression).primary
+    return FTSelector.scrollFrameLocator(expression).locator
+}
+
+/// 明示の `scrollFrame:`(なければ文脈の式)を解く。誤りは `commandError` として step の失敗理由にする
+func resolvedScrollFrame(_ core: FTDriveCore, _ explicit: String?) -> (locator: FlowLocator?, error: String?) {
+    guard let expression = core.effectiveScrollFrame(explicit) else { return (nil, nil) }
+    return FTSelector.scrollFrameLocator(expression)
 }
 
 /// 探索の実体は StepExecutor.runScrollSearch(scrollTo コマンドと共有)
@@ -367,8 +405,15 @@ public func type(_ text: String, replace: Bool = false, settle: Bool = true,
         .perform(step: step,
                  description: "type \"\(StepDescription.escapingControlCharacters(text))\"\(suffix)",
                  command: "type",
-                 commandError: FTSelector.selectorLikeInputError(text),
+                 commandError: FTSelector.selectorLikeInputError(text) ?? emptyTypeRefusal(text, replace: replace),
                  file: file, line: line)
+}
+
+/// 空文字の入力は replace: true のときだけ通す(欄を空にする形)。replace 無しは何も起きないので断る(`ft_batch` の `type` と同じ)。
+/// 空白だけの文字列は入力として正しい(空白を打つ)ので断らない
+func emptyTypeRefusal(_ text: String, replace: Bool) -> String? {
+    guard text.isEmpty, !replace else { return nil }
+    return "type: nothing to type (the text is empty) — to empty a field use clearInput(), or pass replace: true with an empty string"
 }
 
 /// フォーカス中の入力欄で Enter を押す(IME の改行/送信アクション相当。Shirates pressEnter 対応。
@@ -422,6 +467,7 @@ func typeImpl(_ selector: FTSelector, _ text: String, replace: Bool, settle: Boo
     // 表示だけエスケープする(打鍵内容の `step.text` は生のまま)
     let result = perform("type", selector, step: step,
                          description: "type \"\(selector.text)\" \"\(StepDescription.escapingControlCharacters(text))\"\(suffix)",
+                         commandError: emptyTypeRefusal(text, replace: replace),
                          file: file, line: line)
     return FTElement(selector: selector, matched: result.element)
 }
@@ -788,6 +834,7 @@ private func swipeElementToElementImpl(_ from: FTSelector, _ to: FTSelector,
                         settle: stepSettle(settle))
     let result = perform("swipeElementToElement", from, step: step,
                          description: "swipeElementToElement \"\(from.text)\" → \"\(to.text)\"",
+                         commandError: to.preflightError.map { "invalid selector syntax in the end selector: \($0)" },
                          file: file, line: line)
     return FTElement(selector: from, matched: result.element)
 }
@@ -987,16 +1034,17 @@ private func flickImpl(_ kind: FlickKind, scrollFrame: String?, startMarginRatio
                        file: StaticString, line: UInt) {
     let name = flickCommandNames[kind] ?? "flick"
     let core = FTRuntime.requireCore(command: name)
+    let frame = resolvedScrollFrame(core, scrollFrame)
     let step = FlowStep(action: "flick", direction: kind.rawValue,
                         maxSwipes: max(1, times),
                         duration: durationSeconds,
                         maxGestureSeconds: maxGestureSeconds,
                         settle: stepSettle(settle),
-                        scrollFrame: core.effectiveScrollFrame(scrollFrame).map(FTSelector.parse)?.primary,
+                        scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio,
                         intervalSeconds: intervalSeconds)
     core.perform(step: step, description: name + (times > 1 ? " ×\(times)" : ""),
-                command: name, file: file, line: line)
+                command: name, commandError: frame.error, file: file, line: line)
 }
 
 // MARK: - スクロール(Shirates 準拠のコマンド名)
@@ -1048,15 +1096,16 @@ private func scrollImpl(_ direction: FTScrollDirection, scrollFrame: String?,
                         settle: Bool, times: Int,
                         file: StaticString, line: UInt) {
     let core = FTRuntime.requireCore(command: "scroll\(direction.rawValue.capitalized)")
+    let frame = resolvedScrollFrame(core, scrollFrame)
     let step = FlowStep(action: "scroll", direction: direction.swipe.rawValue,
                         maxSwipes: max(1, times),
                         settle: stepSettle(settle),
-                        scrollFrame: core.effectiveScrollFrame(scrollFrame).map(FTSelector.parse)?.primary,
+                        scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio)
     core.perform(step: step,
                  description: "scroll\(direction.rawValue.capitalized)"
                      + (times > 1 ? " ×\(times)" : ""),
-                 command: "scroll\(direction.rawValue.capitalized)", file: file, line: line)
+                 command: "scroll\(direction.rawValue.capitalized)", commandError: frame.error, file: file, line: line)
 }
 
 /// スクロール領域の端まで送る(**画面が変化しなくなるまで**。maxSwipes は暴走を止める上限で、
@@ -1105,35 +1154,40 @@ private func scrollToEdgeImpl(_ direction: FTScrollDirection, scrollFrame: Strin
         .right: "scrollToRightEdge", .left: "scrollToLeftEdge",
     ]
     let core = FTRuntime.requireCore(command: names[direction] ?? "scrollToEdge")
+    let frame = resolvedScrollFrame(core, scrollFrame)
     let step = FlowStep(action: "scrollToEdge", direction: direction.swipe.rawValue,
                         maxSwipes: maxSwipes,
                         settle: stepSettle(settle),
-                        scrollFrame: core.effectiveScrollFrame(scrollFrame).map(FTSelector.parse)?.primary,
+                        scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio)
     core.perform(step: step, description: names[direction] ?? "scrollToEdge",
-                 command: names[direction] ?? "scrollToEdge", file: file, line: line)
+                 command: names[direction] ?? "scrollToEdge", commandError: frame.error, file: file, line: line)
 }
 
 /// ブロック内の `tap` / `exist` を**スクロールしながら**解決する(明示の `scroll:` があればそちらが優先)。
 /// Shirates の withScrollDown { } 相当
-public func withScrollDown(scrollFrame: String? = nil, _ body: () -> Void) {
+public func withScrollDown(scrollFrame: String? = nil, file: StaticString = #filePath, line: UInt = #line,
+                        _ body: () -> Void) {
     FTRuntime.requireCore(command: "withScrollDown")
-        .runWithScrollContext(.direction(.down), scrollFrame: scrollFrame, body)
+        .runWithScrollContext(.direction(.down), scrollFrame: scrollFrame, file: file, line: line, body)
 }
 
-public func withScrollUp(scrollFrame: String? = nil, _ body: () -> Void) {
+public func withScrollUp(scrollFrame: String? = nil, file: StaticString = #filePath, line: UInt = #line,
+                        _ body: () -> Void) {
     FTRuntime.requireCore(command: "withScrollUp")
-        .runWithScrollContext(.direction(.up), scrollFrame: scrollFrame, body)
+        .runWithScrollContext(.direction(.up), scrollFrame: scrollFrame, file: file, line: line, body)
 }
 
-public func withScrollRight(scrollFrame: String? = nil, _ body: () -> Void) {
+public func withScrollRight(scrollFrame: String? = nil, file: StaticString = #filePath, line: UInt = #line,
+                        _ body: () -> Void) {
     FTRuntime.requireCore(command: "withScrollRight")
-        .runWithScrollContext(.direction(.right), scrollFrame: scrollFrame, body)
+        .runWithScrollContext(.direction(.right), scrollFrame: scrollFrame, file: file, line: line, body)
 }
 
-public func withScrollLeft(scrollFrame: String? = nil, _ body: () -> Void) {
+public func withScrollLeft(scrollFrame: String? = nil, file: StaticString = #filePath, line: UInt = #line,
+                        _ body: () -> Void) {
     FTRuntime.requireCore(command: "withScrollLeft")
-        .runWithScrollContext(.direction(.left), scrollFrame: scrollFrame, body)
+        .runWithScrollContext(.direction(.left), scrollFrame: scrollFrame, file: file, line: line, body)
 }
 
 /// 外側の withScroll* を打ち消して、ブロック内は現在画面だけで解決する
@@ -1188,16 +1242,16 @@ private func scrollToImpl(_ selector: FTSelector, direction: FTScrollDirection,
                           settle: Bool, waitSeconds: Double?,
                           file: StaticString, line: UInt) -> FTElement {
     let core = FTRuntime.requireCore(command: "scrollTo")
-    let frame = core.effectiveScrollFrame(scrollFrame)
+    let frame = resolvedScrollFrame(core, scrollFrame)
     let step = FlowStep(action: "scrollTo", locator: selector.primary,
                         fallbacks: selector.stepFallbacks,
                         direction: direction.swipe.rawValue, timeout: waitSeconds, maxSwipes: maxSwipes ?? core.tunables.defaultMaxSwipes,
                         settle: stepSettle(settle),
                         containerInference: core.effectiveContainerInference(containerInference),
-                        scrollFrame: frame.map(FTSelector.parse)?.primary,
+                        scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio)
     let result = perform("scrollTo", selector, step: step, description: "scrollTo \"\(selector.text)\"",
-                         file: file, line: line)
+                         commandError: frame.error, file: file, line: line)
     return FTElement(selector: selector, matched: result.element)
 }
 

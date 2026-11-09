@@ -1532,7 +1532,7 @@ extension MCPServer {
         // 構文検査も型検査と同じ入口(ドライバ取得より前)で —— resolveScrollFrameArg 側の
         // 検査だけだと ft_swipe/ft_scroll_to の driver(args) を先に払ってしまう
         if let text = args["scrollFrame"] as? String {
-            _ = try Self.parseSelectorArgument(text, argument: "scrollFrame")
+            if let error = FTSelector.scrollFrameLocator(text).error { throw MCPError("scrollFrame: \(error)") }
         }
     }
 
@@ -1594,7 +1594,9 @@ extension MCPServer {
             }
         }
         if let text = args["scrollFrame"] as? String {
-            return ScrollFrameArg(locator: try Self.parseSelectorArgument(text, argument: "scrollFrame").primary)
+            let resolved = FTSelector.scrollFrameLocator(text)
+            if let error = resolved.error { throw MCPError("scrollFrame: \(error)") }
+            return ScrollFrameArg(locator: resolved.locator)
         }
         return ScrollFrameArg()
     }

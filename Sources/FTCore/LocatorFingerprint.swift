@@ -35,7 +35,7 @@ public struct LocatorFingerprint: Codable, Equatable, Sendable {
     /// 画面に残った別のラベル無しボタンが「ちょうど1件」になれば叩いて緑にしてしまう。記録も照合もしない
     public var isIdentifying: Bool {
         func hasText(_ s: String?) -> Bool {
-            !(s ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !TextNormalization.isBlank(s ?? "")   // 見えない文字だけのラベルは名指していない
         }
         return hasText(label) || hasText(placeholder)
     }
@@ -44,9 +44,17 @@ public struct LocatorFingerprint: Codable, Equatable, Sendable {
     /// (0件・複数件は nil = 不採用。`isIdentifying` でない指紋も nil —— 古い版が書いた控えを含む)
     public func resolve(in elements: [ElementInfo]) -> ElementInfo? {
         guard isIdentifying else { return nil }
+        // 比較は画面の文字の規則(`.text`)。実データのゼロ幅の出入りで照合が外れない
+        func same(_ a: String?, _ b: String?) -> Bool {
+            switch (a, b) {
+            case (nil, nil): return true
+            case let (x?, y?): return TextNormalization.text.apply(x) == TextNormalization.text.apply(y)
+            default: return false
+            }
+        }
         let matches = elements.filter {
-            $0.type == type && $0.label == label
-                && (placeholder == nil || $0.placeholder == placeholder)
+            $0.type == type && same($0.label, label)
+                && (placeholder == nil || same($0.placeholder, placeholder))
         }
         return matches.count == 1 ? matches[0] : nil
     }

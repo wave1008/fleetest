@@ -227,7 +227,8 @@ public enum TranscriptMatch {
     /// NFKC 互換合成 → 引用符の半角化 → 空白(半角・全角・改行・タブ)除去 → 末尾の省略記号
     /// (`ellipsisTailLength`)除去 → 小文字化。
     public static func normalize(_ s: String) -> String {
-        var t = foldQuotes(s.precomposedStringWithCompatibilityMapping)
+        // 見えない文字(ZWSP・BOM・WJ 等)は NFKC でも空白除去でも残るので先に外す(除外の規則は `TextNormalization` の1か所)
+        var t = foldQuotes(TextNormalization.text.apply(s).precomposedStringWithCompatibilityMapping)
             .components(separatedBy: .whitespacesAndNewlines)
             .joined()
         t.removeLast(ellipsisTailLength(t))

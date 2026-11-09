@@ -235,7 +235,7 @@ final class NoteCoverageTests: XCTestCase {
         // 増えたのは ios-place_guides_scrolled の `#PlaceCollectionCell` ×3 の**中身**で、
         // 40字超のラベルしか無い行に `*断片*` が書けるようになったぶん(以前は索引形 `~`)。
         // 索引形が stable な式に替わった = 増えたバイトはそのまま再現性の改善
-        "duplicateIDsNote": Coverage(fixtures: ["and-dialer_keypad", "and-home", "and-overflow", "and-place_expanded", "and-results", "and-settings_root", "ios-browser_startpage", "ios-home", "ios-maps_route_options", "ios-maps_station", "ios-maps_suggest_guides", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-news_feed", "ios-photos_grid", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-settings_root", "sutec-home"], bytes: 21769),
+        "duplicateIDsNote": Coverage(fixtures: ["and-dialer_keypad", "and-home", "and-overflow", "and-place_expanded", "and-results", "and-settings_root", "ios-browser_startpage", "ios-home", "ios-maps_route_options", "ios-maps_station", "ios-maps_suggest_guides", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-news_feed", "ios-photos_grid", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-settings_root", "sutec-home"], bytes: 21824),   // 11/9 +55: ios-maps_suggest_guides の空白だけのラベル(コーパスで1件)を書けないラベルに数え、勧めが索引形になった
         // bytes 1169→1366→1170(2026-08-14・「chrome の部分木は覆われた側に数えない」修正):
         // fixtures 集合は不変(発火する画面は変わらない = 全画面「nothing tappable」か列挙のどちらか
         // では出続ける)。ios-maps_suggest_guides/ios-messages_keyboard は列挙(2件)から
