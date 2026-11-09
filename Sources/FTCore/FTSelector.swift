@@ -69,16 +69,18 @@ public struct FTSelector {
         structured ? structuredError : FTSelector.validationError(text)
     }
 
-    public static func parse(_ text: String) -> FTSelector {
+    public static func parse(_ raw: String) -> FTSelector {
+        // 検査と同じく見えない文字を外してから解く(`withoutInvisible`)。表示と指紋の鍵には書いたままの文字列を残す
+        let text = withoutInvisible(raw)
         let clauses = splitTopLevel(text, separator: "||")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         // 1節が `(a|b)` を含むと複数のロケータへ展開される(`||` と同じ和集合になる)
         let locators = clauses.flatMap(parseClauses)
         guard let first = locators.first else {
-            return FTSelector(text: text, primary: FlowLocator(label: text), fallbacks: [])
+            return FTSelector(text: raw, primary: FlowLocator(label: text), fallbacks: [])
         }
-        return FTSelector(text: text, primary: first, fallbacks: Array(locators.dropFirst()))
+        return FTSelector(text: raw, primary: first, fallbacks: Array(locators.dropFirst()))
     }
 
     /// 生ラベル(# や . で始まるテキスト)をそのまま text として使う場合
@@ -927,17 +929,27 @@ public struct FTSelector {
 
     // MARK: - 構文検証
 
-    /// セレクタ式の構文エラー(無ければ nil)。**パースと違い失敗する**のがこの関数の存在理由:
-    /// パースは解釈できない節を text に落とすため、`:rigth(x)` のような綴り誤りが「そんなラベルは
-    /// 無い」= notExist/countIs(x,0) では**必ず成功**になってしまう。実行前にここで落とす。
-    /// 呼ぶのは run 開始時の一括検査と `api run --dry-run`(デバイス不要)。
-    /// 検査の前に見えない文字を除外する: 一致の判定と同じ規則(`TextNormalization.text`)に加え、ASCII の記号・英数字に付いた
-    /// 見えない文字(異体字セレクタ・CGJ 等)も外す —— `*` `=` `#` に付くと1文字にまとまって上の規則では残り、`*\u{FE0F}*` が
-    /// 空の部分一致と見なされなかった(45周目 im4 F2)。絵文字などに付いたもの(❤️)は見た目を変えるので残す
-    static func withoutInvisible(_ raw: String) -> String {
+    /// **セレクタの見えない文字の事前の除外**(検査 `validationError` と解析 `parse` の両方が通す = 検査と一致が同じ文字列を見る)。
+    /// 一致の判定と同じ規則(`TextNormalization.text`)に加え、ASCII の記号・英数字に付いた見えない文字(結合子・異体字セレクタ・CGJ 等)も外す
+    /// —— `#` `*` `=` `.` に付くと1文字にまとまって上の規則では残り、`#\u{200D}nav` がラベルとして解かれた(45・46周目)。
+    /// **正規表現のフィルタの値(`textMatches=…` から次の `&&` / `||` / `>>` まで)は書いたまま残す** —— パターンを書き換えると
+    /// 意味が変わる(`TextNormalization.regexMatch` の doc)。絵文字などに付いたもの(❤️)は見た目を変えるので残す
+    public static func withoutInvisible(_ raw: String) -> String {
+        var out = ""
+        var cursor = raw.startIndex
+        for span in regexValueSpans(raw) {
+            out += stripInvisible(raw[cursor..<span.lowerBound])
+            out += raw[span]
+            cursor = span.upperBound
+        }
+        out += stripInvisible(raw[cursor...])
+        return out
+    }
+
+    private static func stripInvisible(_ part: Substring) -> String {
         var out = String.UnicodeScalarView()
         var previous: Unicode.Scalar?
-        for scalar in TextNormalization.text.apply(raw).unicodeScalars {
+        for scalar in TextNormalization.text.apply(String(part)).unicodeScalars {
             if let previous, previous.isASCII, TextNormalization.isInvisibleScalar(scalar) { continue }
             out.append(scalar)
             previous = scalar
@@ -945,6 +957,28 @@ public struct FTSelector {
         return String(out)
     }
 
+    /// 正規表現のフィルタの値の範囲(`名前=` の直後から次の `&&` / `||` / `>>` の手前まで)
+    private static func regexValueSpans(_ text: String) -> [Range<String.Index>] {
+        guard let name = try? NSRegularExpression(pattern: #"([A-Za-z]+)="#) else { return [] }
+        var spans: [Range<String.Index>] = []
+        var searchFrom = text.startIndex
+        while searchFrom < text.endIndex,
+              let match = name.firstMatch(in: text, range: NSRange(searchFrom..., in: text)),
+              let whole = Range(match.range, in: text), let nameRange = Range(match.range(at: 1), in: text) {
+            guard isRegexFilterName(String(text[nameRange])) else { searchFrom = whole.upperBound; continue }
+            let valueStart = whole.upperBound
+            let end = ["&&", "||", ">>"].compactMap { text.range(of: $0, range: valueStart..<text.endIndex)?.lowerBound }.min()
+                ?? text.endIndex
+            spans.append(valueStart..<end)
+            searchFrom = end
+        }
+        return spans
+    }
+
+    /// セレクタ式の構文エラー(無ければ nil)。**パースと違い失敗する**のがこの関数の存在理由:
+    /// パースは解釈できない節を text に落とすため、`:rigth(x)` のような綴り誤りが「そんなラベルは
+    /// 無い」= notExist/countIs(x,0) では**必ず成功**になってしまう。実行前にここで落とす。
+    /// 呼ぶのは run 開始時の一括検査と `api run --dry-run`(デバイス不要)。
     public static func validationError(_ raw: String) -> String? {
         // 見えない文字は事前に除外してから検査する(一致の判定と同じ規則。`#\u{200D}` は `#` と1文字にまとまり id の形と見なされず、
         // ラベルとして解かれて notExist が緑だった = 45周目 im4 F1)

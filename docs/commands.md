@@ -813,7 +813,7 @@ let 合計 = httpRequest("https://api.example.com/total").text   // API から�
 
 文字列の比較は画面の文字の検証(`textIs` 等)と同じ規則(`TextNormalization.text`)で、比べる前に見えない文字(ZWSP・BOM 等の
 単独で立つ書式文字・制御文字・既定で無視される文字 = 異体字セレクタ・CGJ 等)を値と期待値の両方から除外し、見える空白(半角・全角・改行)は残す。
-正規表現(`thisMatches` / `textMatches`)のパターンからも見えない文字だけを除外する(空白の畳みは掛けない)。
+正規表現(`thisMatches` / `textMatches` / セレクタの `textMatches=`)は**パターンを書き換えず**、値の「素のまま」と「見えない文字を除外した後」の両方に当て、どちらかで一致すれば一致(否定形はどちらにも一致しないとき成立。`TextNormalization.regexMatch`。`strict:` は素のままだけ)。パターンから文字を消すと空になる・量指定子が前の文字へ移る・`[]` に化ける(46周目)。セレクタの検査と解析は見えない文字を外した後の文字列で行う(正規表現のフィルタの値は書いたまま = `FTSelector.withoutInvisible`)。
 **含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ)なら比べる前に失敗する**(`StepExecutor.emptyExpectationRefusal`。
 要素の検証 `text*` / `value*` も同じ。ユーザー決定 11/9 = 何にでも緑になる検証を書かせない)。
 「空白のみ」は見えない文字を除外した残りが空白だけか(`TextNormalization.isBlank`。セレクタの空の判定と共有)。

@@ -45,6 +45,11 @@ exist("#total")
 
 ## Notes
 
+- **Four rules for comparing text.**
+  1. Text is compared as it looks on the screen (characters you cannot see are ignored).
+  2. Half-width spaces, full-width spaces and line breaks are told apart (a selector that finds an element does not tell them apart).
+  3. An empty expected value cannot be used with contains / starts-with / ends-with (it fails as an error).
+  4. A regular expression is used exactly as written, and matches the text as it looks even when the screen text contains invisible characters.
 - **An empty expected value fails before comparing** in `textContains` / `textStartsWith` / `textEndsWith` and their `Not` forms (and the `value…` / `this…` ones):
   an empty string, only spaces, or only invisible characters (such as a zero-width space) would hold for any text. Characters you cannot see are removed from both the screen text and the expected value before comparing.
 - **Comparison is "same if it looks the same."** Invisible characters (zero-width, bidi control,

@@ -164,14 +164,14 @@ public extension Optional where Wrapped == Any {
     func thisMatches(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatches", "\"\(stringValue ?? "nil")\" ~ \"\(pattern)\"",
-               isValid && normalizedValue.range(of: TextNormalization.text.apply(pattern), options: .regularExpression) != nil,
+               isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) != nil,
                file: file, line: line)
     }
 
     func thisMatchesNot(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatchesNot", "\"\(stringValue ?? "nil")\" !~ \"\(pattern)\"",
-               isValid && normalizedValue.range(of: TextNormalization.text.apply(pattern), options: .regularExpression) == nil,
+               isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) == nil,
                file: file, line: line)
     }
 

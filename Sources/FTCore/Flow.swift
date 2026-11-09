@@ -322,7 +322,8 @@ public enum FlowMatchMode: String, Codable, Equatable, Sendable {
                         normalization: TextNormalization = .selector) -> Bool {
         guard let actual else { return false }
         var normalizedActual = normalization.apply(actual)
-        var normalizedExpected = self == .matches ? TextNormalization.pattern(expected, under: normalization) : normalization.apply(expected)
+        if self == .matches { return TextNormalization.regexMatch(actual, pattern: expected, under: normalization) != nil }
+        var normalizedExpected = normalization.apply(expected)
         // ワイルドカード側の境界の空白は利用者が書いた接頭辞/接尾辞の一部(`"投稿 *"` は `"投稿"` に一致させない)。
         // トリムするのは完全一致の寛容さと、ワイルドカードの無い側の端だけ
         if normalization == .selector, self != .exact, self != .matches, !normalizedExpected.isEmpty {
@@ -347,7 +348,7 @@ public enum FlowMatchMode: String, Codable, Equatable, Sendable {
         // 「含む」で比べると全要素に一致して先頭を撃った = b0107bf13 の退行・44周目)
         case .contains: return !normalizedExpected.isEmpty && normalizedActual.contains(normalizedExpected)
         case .endsWith: return normalizedActual.hasSuffix(normalizedExpected)
-        case .matches: return normalizedActual.range(of: normalizedExpected, options: .regularExpression) != nil
+        case .matches: return false   // 上で `TextNormalization.regexMatch` が返す
         }
     }
 

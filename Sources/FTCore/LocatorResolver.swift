@@ -273,7 +273,7 @@ public enum LocatorResolver {
                                         normalization: TextNormalization = .text) -> Bool {
         let text = normalization.apply(actual ?? "")
         let isRegex = assert == "textMatchesNot" || assert == "valueMatchesNot"
-        let want = isRegex ? TextNormalization.pattern(expected ?? "", under: normalization) : normalization.apply(expected ?? "")
+        let want = isRegex ? (expected ?? "") : normalization.apply(expected ?? "")
         switch assert {
         case "textIsEmpty", "valueIsEmpty": return text.isEmpty
         case "textIsNotEmpty", "valueIsNotEmpty": return !text.isEmpty
@@ -284,7 +284,7 @@ public enum LocatorResolver {
         case "textEndsWithNot", "valueEndsWithNot":
             return !text.hasSuffix(want)
         case "textMatchesNot", "valueMatchesNot":
-            return text.range(of: want, options: .regularExpression) == nil
+            return TextNormalization.regexMatch(actual ?? "", pattern: want, under: normalization) == nil
         default:   // textNotEquals / valueNotEquals
             guard comparableText(actual, assert: assert) != nil else { return expected != nil }
             return text != want
@@ -318,9 +318,8 @@ public enum LocatorResolver {
             return formatter.date(from: actual) != nil ? actual : nil
         }
         let a = normalization.apply(actual)
-        // 正規表現のパターンからは見えない文字だけを除外する(値と同じ規則。空白の畳み・トリムは掛けない = `TextNormalization.pattern`)
-        let e = (assert == "textMatches" || assert == "valueMatches")
-            ? TextNormalization.pattern(expected, under: normalization) : normalization.apply(expected)
+        // 正規表現のパターンは書き換えない(照合は `TextNormalization.regexMatch` = 素の値と正規化した値の両方に当てる)
+        let e = normalization.apply(expected)
         switch assert {
         case "textContains", "valueContains":
             return TextContainment.contains(a, e) ? expected : nil
@@ -329,8 +328,7 @@ public enum LocatorResolver {
         case "textEndsWith", "valueEndsWith":
             return a.hasSuffix(e) ? expected : nil
         case "textMatches", "valueMatches":
-            guard let range = a.range(of: e, options: .regularExpression) else { return nil }
-            return String(a[range])
+            return TextNormalization.regexMatch(actual, pattern: expected, under: normalization)
         default:
             return a == e ? expected : nil
         }

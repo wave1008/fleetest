@@ -110,4 +110,30 @@ final class EmptyArgumentAssertTests: XCTestCase {
                                                        expected: "b", timeout: 0, occlusionGuard: false))
         XCTAssertTrue(StepExecutor.isSuccess(compared.status), "\(compared.status)")
     }
+
+    /// 正規表現はパターンを書き換えず、素の値と正規化した値の両方に当てる(46周目: 書き換えで空・量指定子の移動・`[]` が出た)
+    func testRegexKeepsThePatternAndTriesBothValues() {
+        XCTAssertNil(TextNormalization.regexMatch("abc", pattern: "\u{200B}", under: .text), "見えない文字だけのパターンが何にでも一致した")
+        XCTAssertNil(TextNormalization.regexMatch("aaac", pattern: "^a\u{200B}*c$", under: .text), "量指定子が前の文字へ移った")
+        XCTAssertNotNil(TextNormalization.regexMatch("a\u{200B}b", pattern: "^ab$", under: .text), "見えない文字を除いた値に当たらない")
+        XCTAssertNotNil(TextNormalization.regexMatch("a\u{200B}b", pattern: "^a\u{200B}b$", under: .text), "素の値に当たらない")
+        XCTAssertNotNil(TextNormalization.regexMatch("a\u{00A0}b", pattern: "\\u00A0", under: .text), "エスケープで名指した文字が素の値に当たらない")
+        XCTAssertNil(TextNormalization.regexMatch("a\u{200B}b", pattern: "^ab$", under: .strict), "strict は素の値だけ")
+    }
+
+    /// セレクタは検査と解析が同じ「見えない文字を外した」文字列を見る。正規表現のフィルタの値は書いたまま
+    func testSelectorParseStripsInvisibleButKeepsRegexValues() {
+        XCTAssertEqual(FTSelector.parse("#\u{200D}nav_pager").primary.id, "nav_pager", "結合子でラベルに化けた")
+        XCTAssertEqual(FTSelector.parse(".button\u{200B}").primary.type, "button")
+        XCTAssertNil(FTSelector.validationError("textMatches=^E2E[\u{200B}]*"), "正当な正規表現を除外の後の形で断った")
+        XCTAssertNotNil(FTSelector.validationError("textMatches=\u{200B}"), "見えない文字だけのパターンを通した")
+        XCTAssertEqual(FTSelector.parse("#a&&textMatches=x[\u{200B}]").primary.label, "x[\u{200B}]", "正規表現の値を書き換えた")
+    }
+
+    /// 絵文字でない文字の後ろの異体字セレクタ・CGJ は見えないので除外し、絵文字の後ろの異体字セレクタは残す
+    func testVariationSelectorKeptOnlyAfterEmoji() {
+        XCTAssertEqual(TextNormalization.text.apply("ム\u{FE0F}"), "ム")
+        XCTAssertEqual(TextNormalization.text.apply("a\u{034F}b"), "ab")
+        XCTAssertEqual(TextNormalization.text.apply("❤\u{FE0F}"), "❤\u{FE0F}")
+    }
 }

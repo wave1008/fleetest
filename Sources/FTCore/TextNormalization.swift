@@ -72,10 +72,16 @@ public enum TextNormalization: String, Sendable, CaseIterable {
         return category == .format || category == .control || scalar.properties.isDefaultIgnorableCodePoint
     }
 
-    /// 正規表現のパターンの正規化: 見えない文字だけを除外する(画面の文字と期待値の両方に掛ける規則。ユーザー決定 11/9)。
-    /// 空白の畳み・トリムは掛けない(パターンの意味が変わる)。`strict` は何もしない
-    public static func pattern(_ pattern: String, under normalization: TextNormalization) -> String {
-        normalization == .strict ? pattern : TextNormalization.text.apply(pattern)
+    /// **正規表現の照合の唯一の定義**: パターンは書き換えず、値の「素のまま」と「この規則で正規化した後」の両方に当て、
+    /// 先に一致した方の一致部分を返す(nil = どちらにも一致しない)。`strict` は素のままだけ。
+    /// パターンから見えない文字を消すと、空のパターンになる・量指定子が前の文字へ移る・`[]` に化ける(46周目に5人が再現)ので
+    /// 書き換えない(ユーザー決定 11/9)。否定形は「どちらにも一致しない」で成立
+    public static func regexMatch(_ actual: String, pattern: String, under normalization: TextNormalization) -> String? {
+        if let range = actual.range(of: pattern, options: .regularExpression) { return String(actual[range]) }
+        guard normalization != .strict else { return nil }
+        let normalized = normalization.apply(actual)
+        guard let range = normalized.range(of: pattern, options: .regularExpression) else { return nil }
+        return String(normalized[range])
     }
 
     public static func isBlank<S: StringProtocol>(_ value: S) -> Bool {
@@ -110,6 +116,13 @@ public enum TextNormalization: String, Sendable, CaseIterable {
             var scalars = Array(cluster.unicodeScalars)
             while let last = scalars.last, Self.danglingJoiners.contains(last) {
                 scalars.removeLast()
+            }
+            // 見た目を変えない結合: CGJ は常に・異体字セレクタは絵文字でない文字の後ろだけ落とす(`ム\u{FE0F}` は「ム」と同じ見た目。
+            // ❤ と ❤️ は見た目が違うので絵文字の後ろは残す。46周目 duo F2・phys F3)
+            if let base = scalars.first {
+                scalars = [base] + scalars.dropFirst().filter { scalar in
+                    !(scalar == "\u{034F}" || (scalar.properties.isVariationSelector && !base.properties.isEmoji))
+                }
             }
             out.unicodeScalars.append(contentsOf: scalars)
         }
