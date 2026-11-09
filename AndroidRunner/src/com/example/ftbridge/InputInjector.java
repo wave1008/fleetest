@@ -184,7 +184,7 @@ final class InputInjector {
                     lastRead = current;
                     if (combined != null && applied(current, combined, masked, before)) {
                         logReformatted(current, combined, masked);
-                        return truncationNote(current, combined, masked);
+                        return joinNotes(truncationNote(current, combined, masked), noKeyboardInputNote(ua, target));
                     }
                     boolean focused = target.isFocused();
                     // フォーカス済みでも受理→未反映が続くことがある(高負荷で観測)。原因は
@@ -351,6 +351,36 @@ final class InputInjector {
      * 先頭部分にならないので黙る。原因(maxLength・入力の絞り込み)は言わない = 測っていない。合否は変えない(新しい検知は警告から)。
      * 応答の note はホストの `AndroidDriver.lastActionNote` → ステップの説明へ運ばれる
      */
+    /** 書けたが**人はキーボードで打てない欄**(inputType なし = 読み取り専用のドロップダウン等)だったときの注記。
+     *  ACTION_SET_TEXT は inputType を見ずに書く(E2EX-Android の `#field_fruit` = inputType="none" へ "x" が入った)。
+     *  判定は**inputType が TYPE_NULL・EditText を名乗らない・IME が入力接続を持たないと明示**の3つが揃うときだけ(Compose は
+     *  inputType を申告せず接続はある = 65 回・Flutter は名乗るが直後は接続が無いと読める = 2 回。11/9 に Android の 12 SUT で計測)。
+     *  dumpsys は前の2つが揃った回だけ */
+    static String noKeyboardInputNote(UiAutomation ua, AccessibilityNodeInfo node) {
+        int inputType = node.getInputType();
+        if (inputType != android.text.InputType.TYPE_NULL) return null;
+        // **欄だと名乗るノードには言わない**: Flutter の欄は EditText を名乗り、書いた直後は接続が無いと読める
+        // (E2EY-Flutter の OTP で servedInputConnection=false = 人は打てる)。読み取り専用のドロップダウンは
+        // EditText を名乗らない(アプリの申告。SnapshotBuilder.mappedType で Clickable になる)
+        CharSequence cls = node.getClassName();
+        String name = cls == null ? "" : cls.toString();
+        if (name.endsWith("EditText") || name.endsWith("AutoCompleteTextView")) return null;
+        Boolean served = servedInputConnection(ua);
+        android.util.Log.i(BridgeInstrumentation.TAG, "type: inputType=none class=" + name + " servedInputConnection=" + served);
+        return Boolean.FALSE.equals(served) ? NO_KEYBOARD_INPUT_NOTE : null;
+    }
+
+    /** OKResponse.note → ホストの lastActionNote → ステップの driverFallback に載る(合否は変えない = 新しい検知は警告から) */
+    static final String NO_KEYBOARD_INPUT_NOTE =
+            "the field took the text, but it does not accept keyboard input (no input type and no input connection,"
+            + " e.g. a read-only dropdown) — a person could not type here; choose the value the way the screen offers it";
+
+    private static String joinNotes(String a, String b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return a + "; " + b;
+    }
+
     static String truncationNote(String current, String combined, boolean masked) {
         if (masked || current.length() >= combined.length() || !combined.startsWith(current)) return null;
         int dropped = combined.length() - current.length();
@@ -705,7 +735,7 @@ final class InputInjector {
                     lastRead = current;
                     if (combined != null && applied(current, combined, masked, before)) {
                         logReformatted(current, combined, masked);
-                        return truncationNote(current, combined, masked);
+                        return joinNotes(truncationNote(current, combined, masked), noKeyboardInputNote(ua, focus));
                     }
                     if (combined == null) {
                         masked = focus.isPassword();

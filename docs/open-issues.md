@@ -48,14 +48,14 @@
 
 ## 要測定
 
-### OI-205 Android の Flutter の候補への tap が選ばずに緑・iOS の 512 文字を超える type の赤・読み取り専用のドロップダウンへの type ほか
+### OI-205 Android の Flutter の候補への tap が選ばずに緑・iOS の 512 文字を超える type の赤ほか
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 要測定・据え置き・木に材料なし
 - 運用: ①要注意 — Android の Flutter で、キーボードを閉じた直後のオートコンプリートの候補への `tap` は、候補を選ばずに緑になることがある。選んだ値を検証する ②要注意 — iOS で 512 文字を超える `type` は、全文が入っていても赤になる。打ち直さず値を確かめる
 - 優先度: 中 — ①は既定の経路の誤った成功(材料不足)
 
-出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)③Android View の読み取り専用のドロップダウンの欄への `type("x")` が注記の無い ✅ で表示が "x" に変わる(amax F2 4/4・木では clickable)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1。45周目にも再現 = 通算 2/2: 8本の run でも「Using 1 of 2 device(s)」で -01 だけに絞り、-01 の XCUITest ブリッジ port 8139 が 180s で時間切れ・同じ時点で -02 は ready。8本あるのに1台へ絞った理由は出力に無い = `_work/explore-20261109f/findings-duo.md` の回し直し)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
+出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1。45周目にも再現 = 通算 2/2: 8本の run でも「Using 1 of 2 device(s)」で -01 だけに絞り、-01 の XCUITest ブリッジ port 8139 が 180s で時間切れ・同じ時点で -02 は ready。8本あるのに1台へ絞った理由は出力に無い = `_work/explore-20261109f/findings-duo.md` の回し直し)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
 - 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
 
 ### OI-202 iOS の CMP 検索バーへプレースホルダと同じ文字の type の赤・RN の iOS のキーボードの下の欄への2度目の type の赤・Duo の形ほか
