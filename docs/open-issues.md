@@ -29,10 +29,10 @@
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-202・OI-204・OI-205 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 11 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 2 | OI-184・OI-198 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 21 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 22 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206 |
 
 ## 着手可
 
@@ -51,11 +51,12 @@
 ### OI-205 探索の残り(44周目)
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
-- 属性: 要測定・据え置き
+- 属性: 要測定・据え置き・木に材料なし
 - 運用: ①要注意 — Android の Flutter で、キーボードを閉じた直後のオートコンプリートの候補への `tap` は、候補を選ばずに緑になることがある。選んだ値を検証する ②要注意 — iOS で 512 文字を超える `type` は、全文が入っていても赤になる。打ち直さず値を確かめる
 - 優先度: 中 — ①は既定の経路の誤った成功(材料不足)
 
 出典: `_work/explore-20261109e/findings-*.md`(44周目のやり直し・11/9)。**要測定**: ①Android の Flutter で、キーボードを閉じた後の候補 `#auto_opt_japan` への `tap` が注記の無い ok で、候補は選ばれず上の欄に落ちる(alocal F1 MCP 4/4・DSL 1/1。木の候補の枠が描画より約 240px 上にずれていた = スクリーンショットで観測。Flutter 側かブリッジの写像かは材料不足)②iOS(inapp-boost)で 512 文字を超える `type` が、全文入っているのに「left 512 character(s) against the expected N」の 422 で赤(ilocal F2 4/4。木の value が 512 文字で切れる。3000 文字は 24 秒で「Cannot reach the driver」)③Android View の読み取り専用のドロップダウンの欄への `type("x")` が注記の無い ✅ で表示が "x" に変わる(amax F2 4/4・木では clickable)④1本だけの run が、XCUITest ブリッジの起動が2回時間切れになった Duo の -01 を選んで「no iOS device joined the run」で止まった(duo F2 1/1)。**据え置き**: ⑤CMP のドロップダウンを開いたまま欄へ `type` すると「add waitSeconds」を勧め、メニューの窓が前面なことを言わない(amax F1 4/4)⑥覆いの窓の下の欄で断る文の「go back」は、CMP の候補の窓を閉じない(alocal F2 1/1。「tap a neutral spot」は効く)⑦`textStartsWith=検索 `(末尾の空白)は「検索バー」に一致し、同じ意味の `検索 *` は一致しない(ilocal F1・im4)⑧MCP の待ちの最中に親を止めると fleetest-mcp が孤児で残る(alocal F3 1/1)⑨Sel を渡したステップの説明行が `notExist ""` と空の引用になる(iultra の気付き)
+- 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
 - 11/9(44周目の直し): 改行だけの値・ラベル・節(`#\n`・`text=\n`・`#a>>\n`・`Sel.text("\n")`)も空として実行前に断る・MCP の `waitFor:` の構文を操作を撃つ前に入口で断る(`* *`・`=`・`#a>>=` が撃ってから上限まで待った)
 
 ### OI-204 探索の残り(43周目)
@@ -324,6 +325,17 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-206 探索の残り(45周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 据え置き
+- 運用: ②要注意 — 数値比較の `this*`(`thisIsGreaterThan` 等)は全角数字・桁区切り・前後の空白の付いた値を数値に読まず赤になる。比べる前に数値へ直す
+- 優先度: 低 — 誤った赤(沈黙しない)・遅さ・文言
+
+出典: `_work/explore-20261109f/findings-*.md`(45周目・11/9)。①Android の E2EX-CMP のホームで、一覧の上に固定の題 `#txt_screen_title` を「容器の外の残り」と読み、`select` が毎回約 5.7 秒の再解決・`tap` は払いを撃って一覧の位置を戻す(alocal F3 DSL 6/6・MCP 5/5。他の SUT のホームでは起きない)②数値比較の `this*` は正規化前の値を `Double()` で読み、"5"+ZWSP・" 5"・全角の "１０"・"1,200" を赤にする・失敗文が数値に読めなかったことを言わない(amax F2 4/4)③Flutter で起動直後の最初の `type('#field_auto >> .textField')` が、欄に入っているのに「read back ""」の 500 で赤(phys F1 9回中7回。同じ画面で clearInput → type は 4/4 ok)④Duo の run が XCUITest ブリッジの起動に失敗した -01 だけを選んで「no iOS device joined the run」で止まる(duo 2/2 = OI-205 ④の再現)
+- 据え置きの理由: ①原因は材料不足(固定の題をなぜ容器の外と読むか)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足 ④OI-205 ④と同じ
+- 11/9(45周目の直し): 含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ)なら比べる前に失敗する(ユーザー決定)・正規表現のパターンからも見えない文字を除外(ユーザー決定)・単独の異体字セレクタ・CGJ 等の既定で無視される文字も見えない文字として除外・セレクタの検査は見えない文字を外してから(`#` + ZWJ が id の形と見なされなかった)
 
 ### OI-192 探索の残り(34周目)
 - 状態: 再現済み
