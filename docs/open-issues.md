@@ -26,21 +26,38 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-202 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 2 | OI-184・OI-198 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 18 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 19 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202 |
 
 ## 着手可
 
-(いまこの属性を持つ項目は無い)
+### OI-203 デバイスに届けずに断った失敗をレーンの連続失敗に数える
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 着手可
+- 運用: ⑫再実行で吸収(run の制御) — 一時シナリオの引数の誤り・画面外の座標が続くと、健全なワーカーが脱落しブリッジが起動し直される(結果は捨てて再実行される)
+- 優先度: 中 — 合否は変わらないが、run の時間と「レーンの不調」という事実と違う帰属
+
+出典: `_work/explore-20261109b/findings-duo.md` F2(42周目)。数えから外すのは「同じシナリオが別のデバイスでも落ちた」ときだけで、失敗の種類を見ない(`RunOrchestrator` の連続失敗の数え)。11/9 に `selectorSyntax`(実行前の構文検証)だけの失敗は数えないようにした(`WorkerCircuitBreaker.countsAsLaneFailure`)。**残り**: ①撃つ前の引数の検査(`secondsArgumentViolation` / `linkTextArgumentViolation`)は `failureKind` が nil = `StepFailureKind` に「撃つ前の引数の断り」の case を足して渡す ②ブリッジの 422(座標が画面の外・hinge の範囲外)は `ErrorResponse.reason` を持たず `driverError` に丸まる = 撃つ前に決まる断りに reason(`staleRefReason` と同形)を足し `DriverError` の case と `stepFailureKind` を分ける(ブリッジの版上げ・`--ios-xcuitest`)③`staleRef` も `driverError` から分ける ④前の run からの持ち越し(`LaneFailureStreakStore`)は種類を持たない
+
 
 ## 要測定
 
-(いまこの属性を持つ項目は無い)
+### OI-202 探索の残り(42周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 要測定・据え置き
+- 運用: ①②誤った赤(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
+- 優先度: 中 — ①②は既定の経路の誤った赤
+
+出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦clearInput の焦点無しの断りがランナーの「If you passed a ref …」のまま(ilocal F3。分ける構造化の理由がブリッジの 422 に無い = 足すならランナーの版上げ)・hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)・terminateApp の後の select の失敗文が同じ行を2回出す(phys F6)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
+- 11/9(42周目の直し): `textContainsNot("")` / `valueContainsNot("")` を赤に・改行だけ・空の選択肢(`||`)・型名の無い位置指定(`.[1]`)のセレクタを実行前に断る・Android で覆われた欄への clearInput / type(replace:) を撃つ前に断る(iOS は撮り直した木が渡らない経路なので未対応)・Android の staticText への clearInput を撃つ前に断る・Android の失敗文から in-app / XCUITest ブリッジの語を外す・MCP の ft_clear_input にも消え残りの絵の確かめ(fmAndVision: true のとき)・確かめなかった理由(向きの不一致・木の値が空)を失敗文に・XCUITest へ撃ち直した clearInput の 422 も確かめを通す・Android の back() がキーボードを閉じただけのとき注記 `back-closed-keyboard`・文中の改行の対処は単一行の欄だけ・Android 17 の Emulator で前面化の monkey がシステムキーの検査で何も送らなかった(`--pct-syskeys 0`)ほか文言5件
+
 
 ## 要判断
 
