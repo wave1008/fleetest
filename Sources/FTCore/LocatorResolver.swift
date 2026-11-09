@@ -281,8 +281,7 @@ public enum LocatorResolver {
         case "textStartsWithNot", "valueStartsWithNot":
             return !text.hasPrefix(want)
         case "textContainsNot", "valueContainsNot":
-            // 空の期待値は「含む」(matchedText と同じ向き)。Swift の contains("") は false
-            return !(want.isEmpty || text.contains(want))
+            return !TextContainment.contains(text, want)
         case "textEndsWithNot", "valueEndsWithNot":
             return !text.hasSuffix(want)
         case "textMatchesNot", "valueMatchesNot":
@@ -325,9 +324,7 @@ public enum LocatorResolver {
             ? expected : normalization.apply(expected)
         switch assert {
         case "textContains", "valueContains":
-            // 空の期待値は「含む」(hasPrefix/hasSuffix と同じ向き)。Swift の contains("") は false を返し、
-            // textContainsNot("") が黙って緑になっていた(41周目 iultra F1)
-            return e.isEmpty || a.contains(e) ? expected : nil
+            return TextContainment.contains(a, e) ? expected : nil
         case "textStartsWith", "valueStartsWith":
             return a.hasPrefix(e) ? expected : nil
         case "textEndsWith", "valueEndsWith":
