@@ -818,7 +818,7 @@ extension StepExecutor {
             guard DriverError.isClearInputFallback(error) else { throw error }
             guard let td = typeDriver else {
                 if DriverError.isTextInputFallback(error) {
-                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: false))
+                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: false, isAndroid: isAndroid))
                 }
                 throw error
             }
@@ -829,7 +829,7 @@ extension StepExecutor {
             }
             guard try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase) else {
                 if DriverError.isTextInputFallback(error) {
-                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: true))
+                    return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: true, isAndroid: isAndroid))
                 }
                 throw error
             }

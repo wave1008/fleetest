@@ -397,8 +397,10 @@ extension StepExecutor {
         var notes: [String] = []
         if !reachedEdge { notes.append("stopped at the limit of \(limit) (may not have reached the edge yet)") }
         if reachedEdge, sentSwipes > 0, !contentEverMoved {
+            let aimed = step.scrollFrame != nil || step.scrollFrameRect != nil
             notes.append("the visible content did not move during \(sentSwipes) swipe(s) — the list was either already at"
-                + " that edge, or the swipes did not reach a scrolling list (pass scrollFrame: to aim at the list)")
+                + " that edge, or the swipes did not reach a scrolling list"
+                + (aimed ? "" : " (pass scrollFrame: to aim at the list)"))
         }
         if let note = pendingScrollFrameNote { notes.append(note) }
         if viaXCUITest { notes.append("fell back to XCUITest") }
@@ -753,10 +755,7 @@ extension StepExecutor {
                 // 閉じる前の木に残った古いバーの欄を救済が選ぶ(焦点を申告しない木では見分けられない)
                 phase.actionMs += Self.ms(clock.now - start)
                 return StepOutcome(status: failed(.driverError,
-                    "did not type: the preceding tap left no field the tree reported as focused, so the text was aimed at"
-                        + " \(TapTargetGeometry.describe(recovered)), but the in-app bridge refused to type into it (HTTP 409) and"
-                        + " nothing was typed. If the tap opened a new input (a search field that opens over the screen), point at"
-                        + " that field with a selector: type(\"<selector of the opened field>\", …)"
+                    Self.rescuedTypeRefusalMessage(aimedAt: TapTargetGeometry.describe(recovered))
                         + (replaceFallbackNote.map { " (before this, replace: true cleared the focused field: \($0))" }
                             ?? (step.replace == true ? " (before this, replace: true cleared the focused field)" : ""))))
             }
@@ -843,6 +842,15 @@ extension StepExecutor {
             }
         }
         return StepOutcome(status: .passed, driverFallback: Self.joinNotes(replaceFallbackNote, focusNote, bridgeNote))
+    }
+
+    /// 焦点救済で選んだ欄への type を in-app ブリッジが 409 で断ったときの失敗文。
+    /// **直前の操作を tap と決めない**(救済の入力は hideKeyboard を挟んだ直前の type / clearInput の欄でもある。成功の注記と同じ言い方)
+    static func rescuedTypeRefusalMessage(aimedAt target: String) -> String {
+        "did not type: the tree reported no focused field, so the text was aimed at the field touched last,"
+            + " \(target), but the in-app bridge refused to type into it (HTTP 409) and nothing was typed."
+            + " If the last operation opened a new input (a search field that opens over the screen), point at"
+            + " that field with a selector: type(\"<selector of the opened field>\", …)"
     }
 
     // pressEnter もロケータを持たない(フォーカス中の入力欄への Enter 押下)ので、type(ref: nil)

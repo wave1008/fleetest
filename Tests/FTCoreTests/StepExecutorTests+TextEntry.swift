@@ -524,6 +524,8 @@ extension StepExecutorTests {
                        "撃つ前の番号で打つと別の欄へ入る: \(log.entries)")
         XCTAssertTrue(outcome.driverFallback?.contains("cleared the field's prior content before typing") == true,
                       "前の値は消去の前に控える(引き直した要素は空): \(outcome.driverFallback ?? "nil")")
+        XCTAssertFalse(outcome.driverFallback?.contains("not read back") == true,
+                       "消去は事後検証・打鍵は読み返される経路で「読み返していない」と言わない: \(outcome.driverFallback ?? "nil")")
     }
 
     /// **ラベルで指したロケータは、消去の後に現れるヒントの文字に当たりうる**(欄を空にするとヒントが別の staticText として

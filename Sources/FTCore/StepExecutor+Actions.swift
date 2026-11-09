@@ -1331,8 +1331,9 @@ extension StepExecutor {
             // 撃つ前に解決済みの `element.value` だけを見る。secureTextField は値を伏せる
             // (マスク欄の実値をログへ出さない)。**replace は clear 済みなので空として扱う**
             let existingValue = step.replace == true ? "" : priorValue
+            // 読み返しの有無は言わない: 消去は事後検証(performClearInput)・打鍵は各経路の読み返しが、読めなかったときに自分で注記する
             let existingValueNote: String? = step.replace == true
-                ? (priorValue.isEmpty ? nil : "cleared the field's prior content before typing (the result was not read back)")
+                ? (priorValue.isEmpty ? nil : "cleared the field's prior content before typing")
                 : (priorValue.isEmpty ? nil
                     : element.type == "secureTextField"
                         ? "the field already holds a value; a masked field may append or replace it,"
@@ -1542,7 +1543,7 @@ extension StepExecutor {
                 // **ブリッジの文言は ref を渡す前提で「ref を渡せ」と言う**が、ロケータで指す DSL には渡す口が無い。
                 // ブリッジの文言は載せず、起きた事実だけを言う(判定は status の 409 = `isTextInputFallback`)
                 guard let td = typeDriver else {
-                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: false)))
+                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: false, isAndroid: isAndroid)))
                 }
                 // **対象が確実に入力欄でないなら撃ち直さない**(TypeReadback.isPositivelyNonTextInput の
                 // doc)。in-app の /type は撃つ前に合成タップを撃っており、ここで XCUITest が
@@ -1553,7 +1554,7 @@ extension StepExecutor {
                 }
                 let routed = try await typeViaTypeDriver(td, step: step, keyboardWitness: snapshot.keyboardFrame, phase: &phase)
                 guard routed.typed else {
-                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: true)))
+                    return StepOutcome(status: failed(.driverError, Self.typeFocusMissMessage(step, tried: true, isAndroid: isAndroid)))
                 }
                 // セレクタは正しくドライバが変わっただけ = .passedViaFallback(ロケータ用)は立てない
                 // (typeDriver = xcuitest が自前で読み返し済みなので、ここでも読み返さない)
@@ -2215,14 +2216,16 @@ extension StepExecutor {
 
     /// in-app ブリッジが type / clearInput / pressEnter を 409 で断ったときの DSL 向けの失敗文。ブリッジの文言は ref を渡す前提の案内を含むので載せない。
     /// 言うのは事実だけ: 断られた・XCUITest での撃ち直しを試みたか。**断った理由を推測で言わない**(焦点が欄に立っていても 409 は返る)
-    static func inputFocusMissMessage(_ step: FlowStep, verb: String, tried: Bool) -> String {
-        "the in-app bridge refused to \(verb) \(step.locatorSummary) (HTTP 409)"
+    /// Android に in-app / XCUITest ブリッジは無いので、その語は iOS だけ(`focusedFieldRefusal` と同じ分け方)
+    static func inputFocusMissMessage(_ step: FlowStep, verb: String, tried: Bool, isAndroid: Bool) -> String {
+        if isAndroid { return "the Android bridge refused to \(verb) \(step.locatorSummary) (HTTP 409)" }
+        return "the in-app bridge refused to \(verb) \(step.locatorSummary) (HTTP 409)"
             + (tried ? ", and the XCUITest bridge could not find the field in its own tree either"
                      : ", and no XCUITest bridge is available to retry")
     }
 
-    static func typeFocusMissMessage(_ step: FlowStep, tried: Bool) -> String {
-        inputFocusMissMessage(step, verb: "type into", tried: tried)
+    static func typeFocusMissMessage(_ step: FlowStep, tried: Bool, isAndroid: Bool) -> String {
+        inputFocusMissMessage(step, verb: "type into", tried: tried, isAndroid: isAndroid)
     }
 
     /// `slowDrag` に渡す枠: 容器のうち画面に出ていてキーボードに覆われていない部分(slowDrag は渡した枠を始点・終点の両方に使う)。

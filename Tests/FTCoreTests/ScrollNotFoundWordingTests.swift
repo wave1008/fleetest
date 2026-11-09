@@ -44,7 +44,7 @@ final class ScrollNotFoundWordingTests: XCTestCase {
 
     /// `scrollFrame:` を取るのは scrollTo だけ。tap / exist には withScroll*(scrollFrame:) を勧める
     func testScrollFrameAdviceMatchesWhatTheCommandAccepts() {
-        let r = stopped(moved: true, candidate: "#list")
+        let r = stopped(moved: false, candidate: "#list")
         let forScrollTo = StepExecutor.scrollNotFoundMessage(step("scrollTo"), r, defaultMaxSwipes: 8)
         XCTAssertTrue(forScrollTo.contains("consider passing scrollFrame:"), forScrollTo)
         XCTAssertTrue(forScrollTo.contains("(scrollFrame: \"#list\")"), forScrollTo)
@@ -56,8 +56,18 @@ final class ScrollNotFoundWordingTests: XCTestCase {
 
     /// 案内のブロックはそのまま貼る行なので、セレクタは Swift の文字列リテラルとしてエスケープする
     func testWithScrollAdviceEscapesTheSelectorAsASwiftLiteral() {
-        let r = stopped(moved: true, candidate: #"Say \"hi\" \ there"#)
+        let r = stopped(moved: false, candidate: #"Say \"hi\" \ there"#)
         let forTap = StepExecutor.scrollNotFoundMessage(step("tap"), r, defaultMaxSwipes: 8)
         XCTAssertTrue(forTap.contains(#"withScrollDown(scrollFrame: "Say \\\"hi\\\" \\ there") { }"#), forTap)
+    }
+
+    /// 探索が動いた末に端へ着いたなら、その容器を名指す withScroll* / scrollFrame: の案内は出さない(包んでも同じ端)
+    func testNoScrollFrameAdviceWhenTheSearchSweptTheContainerToItsEnd() {
+        let r = stopped(moved: true, candidate: "#list")
+        for action in ["scrollTo", "tap"] {
+            let m = StepExecutor.scrollNotFoundMessage(step(action), r, defaultMaxSwipes: 8)
+            XCTAssertFalse(m.contains("scrollFrame:"), m)
+            XCTAssertFalse(m.contains("withScroll"), m)
+        }
     }
 }

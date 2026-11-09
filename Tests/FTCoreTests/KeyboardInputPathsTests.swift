@@ -157,8 +157,23 @@ final class KeyboardInputPathsTests: XCTestCase {
 
     /// F1: 409 の理由を推測で言わない(焦点が立っていても 409 は返る)
     func testTypeFocusMissMessageStatesOnlyTheFact() {
-        let message = StepExecutor.typeFocusMissMessage(FlowStep(action: "type", locator: FlowLocator(id: "f")), tried: true)
+        let message = StepExecutor.typeFocusMissMessage(FlowStep(action: "type", locator: FlowLocator(id: "f")), tried: true, isAndroid: false)
         XCTAssertFalse(message.contains("could not give"), message)
         XCTAssertTrue(message.contains("HTTP 409"), message)
+    }
+
+    func testRescuedTypeRefusalDoesNotCallTheLastOperationATap() {
+        let m = StepExecutor.rescuedTypeRefusalMessage(aimedAt: "textField \"q\"")
+        XCTAssertFalse(m.contains("preceding tap") || m.contains("If the tap"), m)
+        XCTAssertTrue(m.contains("HTTP 409") && m.contains("textField"), m)
+    }
+
+    func testInputFocusMissMessageDoesNotNameIOSBridgesOnAndroid() {
+        let step = FlowStep(action: "clearInput", locator: FlowLocator(id: "f"))
+        let android = StepExecutor.inputFocusMissMessage(step, verb: "clear", tried: false, isAndroid: true)
+        XCTAssertFalse(android.contains("in-app") || android.contains("XCUITest"), android)
+        XCTAssertTrue(android.contains("Android bridge") && android.contains("HTTP 409"), android)
+        let ios = StepExecutor.inputFocusMissMessage(step, verb: "clear", tried: false, isAndroid: false)
+        XCTAssertTrue(ios.contains("no XCUITest bridge"), ios)
     }
 }

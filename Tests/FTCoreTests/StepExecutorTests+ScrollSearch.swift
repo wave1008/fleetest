@@ -673,6 +673,22 @@ extension StepExecutorTests {
         XCTAssertEqual(outcome.notes, [.settleCapped])
     }
 
+    /// 動かなかった端送りの注記は、scrollFrame: を渡したステップに「pass scrollFrame:」と言わない(渡していないステップには言う)
+    func testScrollToEdgeNothingMovedNoteDoesNotAskForScrollFrameWhenGiven() async throws {
+        func note(_ rect: FTRect?) async -> String {
+            let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [movingRow(y: 100)])
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables())
+            let outcome = await executor.execute(
+                FlowStep(action: "scrollToEdge", direction: "up", maxSwipes: 3, scrollFrameRect: rect))
+            return outcome.driverFallback ?? ""
+        }
+        let plain = await note(nil)
+        XCTAssertTrue(plain.contains("pass scrollFrame:"), "前提: 渡していなければ案内する: \(plain)")
+        let aimed = await note(FTRect(x: 0, y: 0, width: 400, height: 800))
+        XCTAssertTrue(aimed.contains("did not move"), aimed)
+        XCTAssertFalse(aimed.contains("pass scrollFrame:"), aimed)
+    }
+
     /// フリングの尾(1 周に `SettleMotion.restThresholdPt` 以内しか動かない)は止まったとみなし、
     /// 打ち切りにしない(Compose iOS の XCUITest で実測: 1 秒以上 1pt/周で這い、掴んだ座標は行の中に収まる)
     func testCreepingFlingTailCountsAsSettled() async throws {

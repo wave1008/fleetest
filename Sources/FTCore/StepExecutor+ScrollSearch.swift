@@ -363,7 +363,10 @@ extension StepExecutor {
         case .left: "withScrollRight"
         case .right: "withScrollLeft"
         }
-        let scrollFrameHint = result?.directionMatchedScrollFrameCandidate.map {
+        // **動いた末に止まった(端まで送った)なら勧めない**: 全画面スワイプが送っていたのは多くがその容器自身で、
+        // 包んでも同じ端に着く。動かなかった(届いていないのか既に端なのか区別できない)ときだけ勧める
+        let sweptToItsEnd = result?.stoppedUnmoving == true && result?.contentEverMoved == true
+        let scrollFrameHint = (sweptToItsEnd ? nil : result?.directionMatchedScrollFrameCandidate).map {
             takesScrollFrame
                 ? " A scroll area matching this direction is declared on screen (scrollFrame: \(ScenarioCodeGen.literal($0)))"
                     + " — consider passing scrollFrame: to search inside it instead of the whole screen."
