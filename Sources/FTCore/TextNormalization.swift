@@ -77,11 +77,28 @@ public enum TextNormalization: String, Sendable, CaseIterable {
     /// パターンから見えない文字を消すと、空のパターンになる・量指定子が前の文字へ移る・`[]` に化ける(46周目に5人が再現)ので
     /// 書き換えない(ユーザー決定 11/9)。否定形は「どちらにも一致しない」で成立
     public static func regexMatch(_ actual: String, pattern: String, under normalization: TextNormalization) -> String? {
-        if let range = actual.range(of: pattern, options: .regularExpression) { return String(actual[range]) }
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        if let found = firstMatch(regex, in: actual) { return found }
         guard normalization != .strict else { return nil }
-        let normalized = normalization.apply(actual)
-        guard let range = normalized.range(of: pattern, options: .regularExpression) else { return nil }
-        return String(normalized[range])
+        return firstMatch(regex, in: normalization.apply(actual))
+    }
+
+    /// UTF-16 の単位で照合する(`String.range(of:options:.regularExpression)` は一致の範囲が1文字(書記素)の途中に落ちると
+    /// 一致を返さず、`\x{FE0F}` のように1文字の中の符号を名指すパターンが実在しても見つからなかった = 47周目 amax F3)
+    private static func firstMatch(_ regex: NSRegularExpression, in text: String) -> String? {
+        let utf16 = text as NSString
+        guard let match = regex.firstMatch(in: text, range: NSRange(location: 0, length: utf16.length)) else { return nil }
+        return utf16.substring(with: match.range)
+    }
+
+    /// 絵文字か文字かの表示の切り替え(VS15 / VS16)
+    static func isPresentationSelector(_ scalar: Unicode.Scalar) -> Bool { scalar == "\u{FE0E}" || scalar == "\u{FE0F}" }
+
+    /// **表示の切り替えを残すか**(見た目を変えるときだけ): ASCII でない絵文字の後ろ(❤ と ❤️)と、キーキャップ(`1` + FE0F + U+20E3)。
+    /// ASCII の `#` `*` `0-9` は Unicode では絵文字の土台だが、キーキャップでなければ見た目は変わらない(`7︎` は「7」)。
+    /// セレクタの事前の除外(`FTSelector.withoutInvisible`)も同じ関数で決める = 片側だけ変えると一致しない(47周目 duo・phys)
+    static func keepsPresentationSelector(base: Unicode.Scalar, cluster: [Unicode.Scalar]) -> Bool {
+        cluster.contains("\u{20E3}") || (!base.isASCII && base.properties.isEmoji)
     }
 
     public static func isBlank<S: StringProtocol>(_ value: S) -> Bool {
@@ -117,11 +134,13 @@ public enum TextNormalization: String, Sendable, CaseIterable {
             while let last = scalars.last, Self.danglingJoiners.contains(last) {
                 scalars.removeLast()
             }
-            // 見た目を変えない結合: CGJ は常に・異体字セレクタは絵文字でない文字の後ろだけ落とす(`ム\u{FE0F}` は「ム」と同じ見た目。
-            // ❤ と ❤️ は見た目が違うので絵文字の後ろは残す。46周目 duo F2・phys F3)
+            // 見た目を変えない結合を落とす: CGJ は常に・表示の切り替え(FE0E / FE0F)は `keepsPresentationSelector` が偽のとき。
+            // IVS など字形を変える異体字セレクタ(葛󠄀)は残す(47周目 alocal F1)
             if let base = scalars.first {
+                let keepsPresentation = Self.keepsPresentationSelector(base: base, cluster: scalars)
                 scalars = [base] + scalars.dropFirst().filter { scalar in
-                    !(scalar == "\u{034F}" || (scalar.properties.isVariationSelector && !base.properties.isEmoji))
+                    !(scalar == "\u{034F}" || (Self.isPresentationSelector(scalar) && !keepsPresentation)
+                      || (base.isASCII && scalar.properties.isVariationSelector && !Self.isPresentationSelector(scalar)))
                 }
             }
             out.unicodeScalars.append(contentsOf: scalars)

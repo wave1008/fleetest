@@ -135,5 +135,34 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertEqual(TextNormalization.text.apply("ム\u{FE0F}"), "ム")
         XCTAssertEqual(TextNormalization.text.apply("a\u{034F}b"), "ab")
         XCTAssertEqual(TextNormalization.text.apply("❤\u{FE0F}"), "❤\u{FE0F}")
+        // 字形を変える IVS は残す・ASCII の数字の後ろの表示の切り替えはキーキャップのときだけ残す(47周目 alocal・duo・phys)
+        XCTAssertEqual(TextNormalization.text.apply("葛\u{E0100}"), "葛\u{E0100}")
+        XCTAssertEqual(TextNormalization.text.apply("7\u{FE0E}"), "7")
+        XCTAssertEqual(TextNormalization.text.apply("1\u{FE0F}\u{20E3}"), "1\u{FE0F}\u{20E3}")
+    }
+
+    /// セレクタ側と比べる側が同じ規則で異体字セレクタを扱う = 木に出たとおりに書いたセレクタが一致する(47周目 duo F1・phys F1)
+    func testSelectorAndComparisonAgreeOnPresentationSelectors() {
+        for label in ["1\u{FE0F}\u{20E3}", "#\u{FE0F}\u{20E3}", "7\u{FE0E}", "single=*\u{FE0F}\u{20E3}", "葛\u{E0100}城"] {
+            let written = FTSelector.parse("value=" + label).primary.value ?? "<nil>"
+            XCTAssertTrue(FlowMatchMode.exact.matches(label, written),
+                          "木の値 \(label.unicodeScalars.map { String($0.value, radix: 16) }) に書いたとおりのセレクタが一致しない")
+        }
+        XCTAssertNotNil(FTSelector.validationError("*\u{FE0F}*"), "記号に付いた表示の切り替えだけの部分一致は空")
+    }
+
+    /// 正規表現は UTF-16 の単位で照合する(1文字の中の符号を名指すパターンが実在しても見つからなかった = 47周目 amax F3)
+    func testRegexMatchesInsideAGraphemeCluster() {
+        XCTAssertNotNil(TextNormalization.regexMatch("a\u{FE0F}", pattern: "\\x{FE0F}", under: .strict))
+        XCTAssertNotNil(TextNormalization.regexMatch("e\u{0301}", pattern: "\\x{0301}", under: .strict))
+    }
+
+    /// 正規表現のフィルタの値の中の括弧・`|` はセレクタの構文として数えない(47周目 iultra F1・F2)
+    func testRegexFilterValueParenthesesAreNotSelectorSyntax() {
+        for good in ["textMatches=^single=(x|)$", "textMatches=a\\(b", "textMatches=(?:z|)", "#a&&textMatches=x\\|y"] {
+            XCTAssertNil(FTSelector.validationError(good), good)
+        }
+        XCTAssertNotNil(FTSelector.validationError("textMatches=("), "不正な正規表現は断る")
+        XCTAssertNotNil(FTSelector.validationError("(a|)"), "正規表現の外の空の選択肢は断る")
     }
 }

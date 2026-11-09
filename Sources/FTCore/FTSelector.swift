@@ -948,11 +948,14 @@ public struct FTSelector {
 
     private static func stripInvisible(_ part: Substring) -> String {
         var out = String.UnicodeScalarView()
-        var previous: Unicode.Scalar?
-        for scalar in TextNormalization.text.apply(String(part)).unicodeScalars {
-            if let previous, previous.isASCII, TextNormalization.isInvisibleScalar(scalar) { continue }
+        let scalars = Array(TextNormalization.text.apply(String(part)).unicodeScalars)
+        for (index, scalar) in scalars.enumerated() {
+            if index > 0, scalars[index - 1].isASCII, TextNormalization.isInvisibleScalar(scalar) {
+                // キーキャップ(`1` + FE0F + U+20E3)の切り替えは残す(比べる側の `keepsPresentationSelector` と同じ規則)
+                let keycap = TextNormalization.isPresentationSelector(scalar) && index + 1 < scalars.count && scalars[index + 1] == "\u{20E3}"
+                if !keycap { continue }
+            }
             out.append(scalar)
-            previous = scalar
         }
         return String(out)
     }
@@ -982,9 +985,18 @@ public struct FTSelector {
     public static func validationError(_ raw: String) -> String? {
         // 見えない文字は事前に除外してから検査する(一致の判定と同じ規則。`#\u{200D}` は `#` と1文字にまとまり id の形と見なされず、
         // ラベルとして解かれて notExist が緑だった = 45周目 im4 F1)
-        let text = withoutInvisible(raw)
+        let stripped = withoutInvisible(raw)
         // 空のセレクタは text="" に解かれ、notExist("") が黙って緑になる(41周目 iultra F3。`#` 単独を断るのと同じ理由)
-        if isBlank(text) { return "the selector is empty" }
+        if isBlank(stripped) { return "the selector is empty" }
+        // 正規表現のフィルタの値は先に検査し(空・不正)、構造の検査(括弧の数・`(a|b)`)からは伏せる —— 値の中の `(x|)`・`\(` を
+        // セレクタの構文として数えて正当な正規表現を断っていた(47周目 iultra F1・F2)
+        var text = stripped
+        for span in regexValueSpans(stripped).reversed() {
+            let value = String(stripped[span])
+            if isBlank(value) { return "the regular expression after `=` is empty: \"\(raw)\"" }
+            if let error = RegexValidation.error(for: value) { return error }
+            text.replaceSubrange(span, with: "x")
+        }
         let alternatives = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("=")
             ? [text] : splitTopLevel(text, separator: "||")
         for (offset, clause) in alternatives.enumerated() {
