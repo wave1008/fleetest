@@ -812,8 +812,11 @@ let 合計 = httpRequest("https://api.example.com/total").text   // API から�
 | `thisIsGreaterThan(OrEqual)` / `thisIsLessThan(OrEqual)` | 数値比較(数値に解釈できなければ失敗) |
 
 文字列の比較は画面の文字の検証(`textIs` 等)と同じ規則(`TextNormalization.text`)で、比べる前に見えない文字(ZWSP・BOM 等の
-単独で立つ書式文字・制御文字)を値と期待値の両方から除外し、見える空白(半角・全角・改行)は残す。空の期待値は「含む」
-(`TextContainment`)。「空白のみ」は見えない文字を除外した残りが空白だけか(`TextNormalization.isBlank`。セレクタの空の判定と共有)。
+単独で立つ書式文字・制御文字・既定で無視される文字 = 異体字セレクタ・CGJ 等)を値と期待値の両方から除外し、見える空白(半角・全角・改行)は残す。
+正規表現(`thisMatches` / `textMatches`)のパターンからも見えない文字だけを除外する(空白の畳みは掛けない)。
+**含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ)なら比べる前に失敗する**(`StepExecutor.emptyExpectationRefusal`。
+要素の検証 `text*` / `value*` も同じ。ユーザー決定 11/9 = 何にでも緑になる検証を書かせない)。
+「空白のみ」は見えない文字を除外した残りが空白だけか(`TextNormalization.isBlank`。セレクタの空の判定と共有)。
 
 ## 検証していないシナリオの検知
 

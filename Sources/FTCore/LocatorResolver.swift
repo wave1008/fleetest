@@ -272,9 +272,8 @@ public enum LocatorResolver {
                                         expected: String?,
                                         normalization: TextNormalization = .text) -> Bool {
         let text = normalization.apply(actual ?? "")
-        // 正規表現のパターンは書き換えない(肯定系と同じ規約)
         let isRegex = assert == "textMatchesNot" || assert == "valueMatchesNot"
-        let want = isRegex ? (expected ?? "") : normalization.apply(expected ?? "")
+        let want = isRegex ? TextNormalization.pattern(expected ?? "", under: normalization) : normalization.apply(expected ?? "")
         switch assert {
         case "textIsEmpty", "valueIsEmpty": return text.isEmpty
         case "textIsNotEmpty", "valueIsNotEmpty": return !text.isEmpty
@@ -319,9 +318,9 @@ public enum LocatorResolver {
             return formatter.date(from: actual) != nil ? actual : nil
         }
         let a = normalization.apply(actual)
-        // 正規表現のパターンは書き換えない(FlowMatchMode.matches と同じ規約)
+        // 正規表現のパターンからは見えない文字だけを除外する(値と同じ規則。空白の畳み・トリムは掛けない = `TextNormalization.pattern`)
         let e = (assert == "textMatches" || assert == "valueMatches")
-            ? expected : normalization.apply(expected)
+            ? TextNormalization.pattern(expected, under: normalization) : normalization.apply(expected)
         switch assert {
         case "textContains", "valueContains":
             return TextContainment.contains(a, e) ? expected : nil

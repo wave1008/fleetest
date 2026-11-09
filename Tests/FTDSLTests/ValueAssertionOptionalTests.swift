@@ -58,18 +58,30 @@ final class ValueAssertionOptionalTests: XCTestCase {
     }
 
     /// 空の期待値は「含む」(`textContains("")` と同じ向き)= thisContainsNot("") は赤(43周目 im4 F1)
-    func testEmptyExpectationIsContainedInValueAssertions() {
+    /// 空(空文字・空白だけ・見えない文字だけ)の期待値は比べる前に断る = 肯定形も否定形も赤(ユーザー決定 11/9。45周目: 何にでも緑だった)
+    func testEmptyExpectationIsRefusedInValueAssertions() {
         let value = "abc"
-        let contains = run { value.thisContains("") }
-        XCTAssertFalse(isFailed(contains[0]), "\(contains[0].status)")
-        let containsNot = run { value.thisContainsNot("") }
-        XCTAssertTrue(isFailed(containsNot[0]), "空の期待値の否定形が緑: \(containsNot[0].status)")
+        for expected in ["", " ", "\u{200B}", "\u{FEFF}\u{FE0F}"] {
+            for step in [run { value.thisContains(expected) }, run { value.thisContainsNot(expected) },
+                         run { value.thisStartsWith(expected) }, run { value.thisEndsWithNot(expected) }] {
+                guard case .failed(let reason) = step[0].status else { return XCTFail("空の期待値が通った: \(expected.debugDescription)") }
+                XCTAssertTrue(reason.contains("the expected value is empty"), reason)
+            }
+        }
+    }
+
+    /// 正規表現のパターンからも見えない文字を除外する(値と同じ規則。45周目 duo・amax・alocal)
+    func testPatternInvisibleCharactersAreExcludedLikeTheValue() {
+        let value = "a\u{200B}b"
+        XCTAssertFalse(isFailed(run { value.thisMatches("^a\u{200B}b$") }[0]))
+        XCTAssertTrue(isFailed(run { value.thisMatchesNot("^a\u{200B}b$") }[0]))
     }
 
     /// 値の検証も画面の文字・期待値と同じ規則で比べる = 見えない文字(ZWSP・BOM)は除外し、見える空白は残す
     func testValueAssertionsIgnoreInvisibleCharacters() {
         let value = "ab\u{200B}c"
         XCTAssertFalse(isFailed(run { value.thisContains("bc") }[0]), "見えない文字を挟んだ値が bc を含まない")
+        XCTAssertFalse(isFailed(run { "❤\u{FE0F}x".thisStartsWith("❤\u{FE0F}") }[0]), "見た目の文字に付いた異体字セレクタは残す")
         XCTAssertFalse(isFailed(run { value.thisStartsWith("abc") }[0]))
         XCTAssertFalse(isFailed(run { value.thisEndsWith("bc") }[0]))
         XCTAssertTrue(isFailed(run { value.thisContainsNot("bc") }[0]), "否定形も同じ規則")

@@ -67,4 +67,47 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertTrue(FTSelector.validationError(".[1]")?.contains("type name is missing") ?? false)
         XCTAssertNil(FTSelector.validationError(".button[1]"))
     }
+
+    /// 見えない文字は検査の前に除外する: `#` + ZWJ・単独の異体字セレクタ・CGJ だけの値も空(45周目 im4 F1・F2)
+    func testInvisibleOnlySelectorsAreRefused() {
+        for bad in ["#\u{200D}", "text=\u{200D}", "#a>>=\u{200D}", ".textField#\u{200D}", "*\u{FE0F}*", "value=\u{FE0F}",
+                    "textContains=\u{034F}"] {
+            XCTAssertNotNil(FTSelector.validationError(bad), bad.unicodeScalars.map { String($0.value, radix: 16) }.joined(separator: " "))
+        }
+        XCTAssertNil(FTSelector.validationError("#nav_input"))
+        XCTAssertNil(FTSelector.validationError("❤\u{FE0F}"), "見た目の文字に付いた異体字セレクタは残す")
+    }
+
+    /// 要素の検証の空の期待値は比べる前に断る(ユーザー決定 11/9)。含む・前方・後方一致とその否定形だけ
+    func testEmptyExpectationRefusal() {
+        for assert in ["textContains", "textStartsWithNot", "valueEndsWith", "valueContainsNot", "thisContains"] {
+            for expected in ["", " ", "\u{200B}", "\n", "\u{FE0F}"] {
+                XCTAssertNotNil(StepExecutor.emptyExpectationRefusal(assert, expected: expected), "\(assert) \(expected.debugDescription)")
+            }
+            XCTAssertNil(StepExecutor.emptyExpectationRefusal(assert, expected: "a"))
+        }
+        XCTAssertNil(StepExecutor.emptyExpectationRefusal("textIs", expected: ""), "一致の検証は空の期待値を書ける")
+        XCTAssertNil(StepExecutor.emptyExpectationRefusal("textContains", expected: nil))
+    }
+
+    /// 正規表現のパターンからも見えない文字を除外する(画面の文字と同じ規則)
+    func testRegexPatternExcludesInvisibleCharacters() {
+        XCTAssertNotNil(LocatorResolver.matchedText("a\u{200B}b", expected: "^a\u{200B}b$", assert: "textMatches"))
+        XCTAssertFalse(LocatorResolver.negativeAssertSatisfied("textMatchesNot", actual: "a\u{200B}b", expected: "^a\u{200B}b$"))
+    }
+
+    /// 実行機の入口でも断る(要素を探す前・比べる前)。陽性対照: 中身のある期待値は比べに行く
+    func testExecutorRefusesEmptyContainmentExpectation() async {
+        let element = ElementInfo(ref: 1, type: "staticText", identifier: "txt_result", label: "abc", value: nil, placeholder: nil,
+                                  enabled: true, frame: FTRect(x: 0, y: 100, width: 200, height: 40), depth: 1)
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[element]])
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: false, tunables: RunTunables())
+        let refused = await executor.execute(FlowStep(assert: "textContains", locator: FlowLocator(id: "txt_result"),
+                                                      expected: "\u{200B}", timeout: 0, occlusionGuard: false))
+        guard case .failed(let message) = refused.status else { return XCTFail("空の期待値が通った: \(refused.status)") }
+        XCTAssertTrue(message.contains("the expected value is empty"), message)
+        let compared = await executor.execute(FlowStep(assert: "textContains", locator: FlowLocator(id: "txt_result"),
+                                                       expected: "b", timeout: 0, occlusionGuard: false))
+        XCTAssertTrue(StepExecutor.isSuccess(compared.status), "\(compared.status)")
+    }
 }

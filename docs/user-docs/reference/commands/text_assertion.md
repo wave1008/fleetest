@@ -45,6 +45,8 @@ exist("#total")
 
 ## Notes
 
+- **An empty expected value fails before comparing** in `textContains` / `textStartsWith` / `textEndsWith` and their `Not` forms (and the `value…` / `this…` ones):
+  an empty string, only spaces, or only invisible characters (such as a zero-width space) would hold for any text. Characters you cannot see are removed from both the screen text and the expected value before comparing.
 - **Comparison is "same if it looks the same."** Invisible characters (zero-width, bidi control,
   soft hyphen, etc.) are ignored, but visually different strings are treated as different —
   a half-width and a full-width space (U+3000) are different, and leading/trailing/repeated

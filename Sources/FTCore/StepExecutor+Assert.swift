@@ -945,9 +945,24 @@ extension StepExecutor {
     /// なので成功・失敗どちらの後でも門を通す。**登録が残っていて覆われているときだけ**
     /// 往復を払う(約 73ms)—— 登録の無い実行・覆われていない普通の合否は素通り。
     /// **`iosAlertHandler` の登録が残っているときだけ**(操作側と同じ。waitOutSystemUI の doc)
+    /// 含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ = `TextNormalization.isBlank`)なら比べる前に断る
+    /// (ユーザー決定 11/9)。空は何にでも「含まれる」ので、肯定形は何に対しても緑・否定形は何に対しても赤になった(45周目 ilocal・iultra F1・F3)
+    static let containmentAsserts: Set<String> = [
+        "thisContains", "thisStartsWith", "thisEndsWith", "thisContainsNot", "thisStartsWithNot", "thisEndsWithNot",
+        "textContains", "textStartsWith", "textEndsWith", "textContainsNot", "textStartsWithNot", "textEndsWithNot",
+        "valueContains", "valueStartsWith", "valueEndsWith", "valueContainsNot", "valueStartsWithNot", "valueEndsWithNot",
+    ]
+
+    public static func emptyExpectationRefusal(_ assert: String, expected: String?) -> String? {
+        guard containmentAsserts.contains(assert), let expected, TextNormalization.isBlank(expected) else { return nil }
+        return "\(assert): the expected value is empty (blank, or only invisible characters such as a zero-width space)"
+            + " — it would hold for any text. Write the text you expect"
+    }
+
     func executeAssert(_ assert: String, step: FlowStep,
                        phase: inout PhaseAccumulator) async throws -> StepResult.Status {
         resolvedViaSystemUIThisStep = false
+        if let refusal = Self.emptyExpectationRefusal(assert, expected: step.expected) { return .failed(refusal) }
         let status = try await dispatchAssert(assert, step: step, phase: &phase)
         // シナリオ自身がアラートを検証しているなら奪わない(操作側の①と同じ規律)
         guard !resolvedViaSystemUIThisStep,

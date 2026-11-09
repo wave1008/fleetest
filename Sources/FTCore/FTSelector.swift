@@ -931,7 +931,24 @@ public struct FTSelector {
     /// パースは解釈できない節を text に落とすため、`:rigth(x)` のような綴り誤りが「そんなラベルは
     /// 無い」= notExist/countIs(x,0) では**必ず成功**になってしまう。実行前にここで落とす。
     /// 呼ぶのは run 開始時の一括検査と `api run --dry-run`(デバイス不要)。
-    public static func validationError(_ text: String) -> String? {
+    /// 検査の前に見えない文字を除外する: 一致の判定と同じ規則(`TextNormalization.text`)に加え、ASCII の記号・英数字に付いた
+    /// 見えない文字(異体字セレクタ・CGJ 等)も外す —— `*` `=` `#` に付くと1文字にまとまって上の規則では残り、`*\u{FE0F}*` が
+    /// 空の部分一致と見なされなかった(45周目 im4 F2)。絵文字などに付いたもの(❤️)は見た目を変えるので残す
+    static func withoutInvisible(_ raw: String) -> String {
+        var out = String.UnicodeScalarView()
+        var previous: Unicode.Scalar?
+        for scalar in TextNormalization.text.apply(raw).unicodeScalars {
+            if let previous, previous.isASCII, TextNormalization.isInvisibleScalar(scalar) { continue }
+            out.append(scalar)
+            previous = scalar
+        }
+        return String(out)
+    }
+
+    public static func validationError(_ raw: String) -> String? {
+        // 見えない文字は事前に除外してから検査する(一致の判定と同じ規則。`#\u{200D}` は `#` と1文字にまとまり id の形と見なされず、
+        // ラベルとして解かれて notExist が緑だった = 45周目 im4 F1)
+        let text = withoutInvisible(raw)
         // 空のセレクタは text="" に解かれ、notExist("") が黙って緑になる(41周目 iultra F3。`#` 単独を断るのと同じ理由)
         if isBlank(text) { return "the selector is empty" }
         let alternatives = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("=")

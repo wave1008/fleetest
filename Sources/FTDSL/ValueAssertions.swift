@@ -33,6 +33,22 @@ extension Optional where Wrapped == Any {
     }
 
     /// 比べる前の値(画面の文字・期待値と同じ規則 = 見えない書式文字・制御文字を除外。`thisIs` の既定と同じ `TextNormalization.text`)
+    /// 含む・前方・後方一致の期待値が空(`TextNormalization.isBlank`)なら比べずに失敗にする(要素の検証の
+    /// `StepExecutor.emptyExpectationRefusal` と同じ規則 = ユーザー決定 11/9)。戻り値 true = 断った
+    fileprivate func rejectEmptyExpectation(_ verb: String, _ expected: String, file: StaticString, line: UInt) -> Bool {
+        guard let reason = StepExecutor.emptyExpectationRefusal(verb, expected: expected) else { return false }
+        let core = FTRuntime.requireCore(command: verb)
+        let description = "\(verb) \"\(stringValue ?? "nil")\" ~ \"\(expected)\""
+        core.noteAssertion()
+        if core.scenarioAborted {
+            core.recordStep(description: description, status: .skipped(core.skipReason), file: "\(file)", line: Int(line), command: verb)
+            return true
+        }
+        core.recordStep(description: description, status: .failed(reason), file: "\(file)", line: Int(line), command: verb)
+        core.handleFailure(stepDescription: description, reason: reason)
+        return true
+    }
+
     fileprivate var normalizedValue: String { TextNormalization.text.apply(stringValue ?? "") }
 
     fileprivate var stringValue: String? {
@@ -105,31 +121,37 @@ public extension Optional where Wrapped == Any {
     }
 
     func thisContains(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisContains", expected, file: file, line: line) { return }
         record("thisContains", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
                TextContainment.contains(normalizedValue, TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisContainsNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisContainsNot", expected, file: file, line: line) { return }
         record("thisContainsNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
                !TextContainment.contains(normalizedValue, TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisStartsWith(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisStartsWith", expected, file: file, line: line) { return }
         record("thisStartsWith", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
                normalizedValue.hasPrefix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisStartsWithNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisStartsWithNot", expected, file: file, line: line) { return }
         record("thisStartsWithNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
                !normalizedValue.hasPrefix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisEndsWith(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisEndsWith", expected, file: file, line: line) { return }
         record("thisEndsWith", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
                normalizedValue.hasSuffix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
 
     func thisEndsWithNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        if rejectEmptyExpectation("thisEndsWithNot", expected, file: file, line: line) { return }
         record("thisEndsWithNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
                !normalizedValue.hasSuffix(TextNormalization.text.apply(expected)), file: file, line: line)
     }
@@ -142,14 +164,14 @@ public extension Optional where Wrapped == Any {
     func thisMatches(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatches", "\"\(stringValue ?? "nil")\" ~ \"\(pattern)\"",
-               isValid && normalizedValue.range(of: pattern, options: .regularExpression) != nil,
+               isValid && normalizedValue.range(of: TextNormalization.text.apply(pattern), options: .regularExpression) != nil,
                file: file, line: line)
     }
 
     func thisMatchesNot(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         let isValid = RegexValidation.error(for: pattern) == nil
         record("thisMatchesNot", "\"\(stringValue ?? "nil")\" !~ \"\(pattern)\"",
-               isValid && normalizedValue.range(of: pattern, options: .regularExpression) == nil,
+               isValid && normalizedValue.range(of: TextNormalization.text.apply(pattern), options: .regularExpression) == nil,
                file: file, line: line)
     }
 

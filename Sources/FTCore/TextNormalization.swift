@@ -64,6 +64,20 @@ public enum TextNormalization: String, Sendable, CaseIterable {
     /// **「空」の唯一の定義**(セレクタ・画面の文字・期待値で共有)。2段: ①ユーザーに見えない文字を除外する(`text` の規則 =
     /// 単独で立つ書式文字 `Cf` と制御文字 `Cc`。絵文字の ZWJ・異体字セレクタのように見た目の文字と1文字を作るものは残す)
     /// ②残りが空白だけかを正規表現で見る。41〜44周目に空・`=`・空白・改行と経路を変えて4度、空の値の誤った緑が出た
+    /// 単独で立つと見えない文字: 書式文字(`Cf`)・制御文字(`Cc`)と、Unicode の「既定で無視される」文字(異体字セレクタ U+FE0F・
+    /// CGJ U+034F 等 = 分類は `Mn` だが見た目を持たない。45周目 im4 F2)。空白(White_Space)は見えるので除く
+    static func isInvisibleScalar(_ scalar: Unicode.Scalar) -> Bool {
+        guard !scalar.properties.isWhitespace else { return false }
+        let category = scalar.properties.generalCategory
+        return category == .format || category == .control || scalar.properties.isDefaultIgnorableCodePoint
+    }
+
+    /// 正規表現のパターンの正規化: 見えない文字だけを除外する(画面の文字と期待値の両方に掛ける規則。ユーザー決定 11/9)。
+    /// 空白の畳み・トリムは掛けない(パターンの意味が変わる)。`strict` は何もしない
+    public static func pattern(_ pattern: String, under normalization: TextNormalization) -> String {
+        normalization == .strict ? pattern : TextNormalization.text.apply(pattern)
+    }
+
     public static func isBlank<S: StringProtocol>(_ value: S) -> Bool {
         TextNormalization.text.apply(String(value)).range(of: blankPattern, options: .regularExpression) != nil
     }
@@ -89,11 +103,7 @@ public enum TextNormalization: String, Sendable, CaseIterable {
             // **クラスタ丸ごと不可視なら落とす**(単独で立つ書式/制御文字)。
             // 可視の文字と同じクラスタに居る制御文字はここを通らないので残る。
             // 空白(White_Space)は上で扱い済み・寄せない modes では**残す**(見た目に効くため)
-            if cluster.unicodeScalars.allSatisfy({
-                let category = $0.properties.generalCategory
-                return (category == .format || category == .control)
-                    && !$0.properties.isWhitespace
-            }) {
+            if cluster.unicodeScalars.allSatisfy(Self.isInvisibleScalar) {
                 continue
             }
             // 末尾に余った結合子だけを落とす(上のコメントの理由)
