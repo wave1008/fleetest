@@ -281,7 +281,8 @@ public enum LocatorResolver {
         case "textStartsWithNot", "valueStartsWithNot":
             return !text.hasPrefix(want)
         case "textContainsNot", "valueContainsNot":
-            return !text.contains(want)
+            // 空の期待値は「含む」(matchedText と同じ向き)。Swift の contains("") は false
+            return !(want.isEmpty || text.contains(want))
         case "textEndsWithNot", "valueEndsWithNot":
             return !text.hasSuffix(want)
         case "textMatchesNot", "valueMatchesNot":

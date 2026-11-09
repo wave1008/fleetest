@@ -930,10 +930,16 @@ public struct FTSelector {
     /// 呼ぶのは run 開始時の一括検査と `api run --dry-run`(デバイス不要)。
     public static func validationError(_ text: String) -> String? {
         // 空のセレクタは text="" に解かれ、notExist("") が黙って緑になる(41周目 iultra F3。`#` 単独を断るのと同じ理由)
-        if text.trimmingCharacters(in: .whitespaces).isEmpty { return "the selector is empty" }
-        for clause in splitTopLevel(text, separator: "||") {
-            let trimmed = clause.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty { continue }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "the selector is empty" }
+        let alternatives = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("=")
+            ? [text] : splitTopLevel(text, separator: "||")
+        for (offset, clause) in alternatives.enumerated() {
+            let trimmed = clause.trimmingCharacters(in: .whitespacesAndNewlines)
+            // 空の選択肢は黙って捨てられ、書き損じ(`#a||`)が通る。`=` で始まる全体の生ラベルは割らない
+            if trimmed.isEmpty {
+                return "alternative \(offset + 1) of \(alternatives.count) is empty around `||`: \"\(text)\"."
+                    + " Remove the stray `||` (escape a literal label with a leading =)"
+            }
             // `=` エスケープは全体が生ラベル(clauseError と同じ免除)。ここで先に弾かないと、
             // 括弧チェックを全体テキストにまとめて掛けていたときと同じく、エスケープした
             // リテラルの中の "(" ")" を構文エラーと誤認する(例: `=smile :)`)
@@ -1090,6 +1096,10 @@ public struct FTSelector {
             return "the partial match is empty: \"\(token)\" (write it like `*word*`)"
         }
         if let error = groupError(token) { return error }
+        // 型名の無い位置指定は何にも一致しない(`.[1]`。型を書き忘れた形)
+        if token.hasPrefix(".["), token.hasSuffix("]") {
+            return "the type name is missing before the ordinal: \"\(token)\" (write it like `.button[1]`, or `[1]` for an ordinal alone)"
+        }
         if token.hasPrefix("["), token.hasSuffix("]") {
             return ordinalError(token, inner: String(token.dropFirst().dropLast()))
         }

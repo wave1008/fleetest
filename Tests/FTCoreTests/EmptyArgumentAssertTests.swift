@@ -18,4 +18,28 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertNil(FTSelector.validationError("OK"))
         XCTAssertNil(FTSelector.validationError("#btn_ok"))
     }
+
+    func testEmptyExpectationNegatedFormIsRed() {
+        for assert in ["textContainsNot", "valueContainsNot"] {
+            XCTAssertFalse(LocatorResolver.negativeAssertSatisfied(assert, actual: "abc", expected: ""), assert)
+            XCTAssertFalse(LocatorResolver.negativeAssertSatisfied(assert, actual: "", expected: ""), assert)
+            XCTAssertTrue(LocatorResolver.negativeAssertSatisfied(assert, actual: "abc", expected: "x"), assert)
+        }
+    }
+
+    func testNewlineOnlySelectorAndEmptyAlternativesAreRefused() {
+        for text in ["\n", "\r\n", "||", " || ", "#nav_input||", "||#a"] {
+            XCTAssertNotNil(FTSelector.validationError(text), text)
+        }
+        // 改行・空白だけは「選択肢が空」ではなく「セレクタが空」と言う
+        XCTAssertEqual(FTSelector.validationError(" \t\n "), "the selector is empty")
+        XCTAssertTrue(FTSelector.validationError("#a||")?.contains("alternative 2 of 2") ?? false)
+        XCTAssertNil(FTSelector.validationError("#a||OK"))
+        XCTAssertNil(FTSelector.validationError("=||"))
+    }
+
+    func testOrdinalWithoutTypeIsRefused() {
+        XCTAssertTrue(FTSelector.validationError(".[1]")?.contains("type name is missing") ?? false)
+        XCTAssertNil(FTSelector.validationError(".button[1]"))
+    }
 }
