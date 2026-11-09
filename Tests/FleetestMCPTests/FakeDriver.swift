@@ -361,8 +361,12 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         return true
     }
 
+    /// clearInput が投げるエラー(呼び出しは calls に積んでから投げる)。ランナーの 422 の扱いを見るテスト用
+    var clearInputError: Error?
+
     func clearInput(ref: Int?) async throws {
         try record("clearInput(ref:\(ref.map(String.init) ?? "nil"))", "clearInput")
+        if let clearInputError { throw clearInputError }
     }
 
     func screenshot() async throws -> Data {

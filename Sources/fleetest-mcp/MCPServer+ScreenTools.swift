@@ -645,6 +645,37 @@ extension MCPServer {
         ClearedFieldRelocation.relocate(element, in: elements)
     }
 
+    enum EmptyRefusalResolution {
+        case notEmptyRefusal
+        case refused(Error)
+        case cleared(note: String)
+    }
+
+    static func isEmptyRefusal(_ error: Error) -> Bool {
+        guard case DriverError.badResponse(422, let body) = error else { return false }
+        return body.hasPrefix(StepExecutor.runnerEmptyRefusalPrefix)
+    }
+
+    /// XCUITest ランナーの 422「could not empty the field」の扱い。`answer` nil = 画面で確かめていない(OCR は fmAndVision: true のときだけ)。
+    /// 描かれていなければ通す(DSL と同じ判定)・それ以外は同じ 422 のまま本文に確かめた事実か確かめなかった理由を足す
+    static func emptyRefusalResolution(_ error: Error, answer: StepExecutor.ClearResidualAnswer?) -> EmptyRefusalResolution {
+        guard case DriverError.badResponse(422, let body) = error, body.hasPrefix(StepExecutor.runnerEmptyRefusalPrefix) else {
+            return .notEmptyRefusal
+        }
+        guard let answer else {
+            return .refused(DriverError.badResponse(status: 422, body: body + emptyRefusalNotCheckedFact))
+        }
+        if answer.residual != nil, answer.notDrawn {
+            return .cleared(note: " (the runner refused with 422 \"\(body)\", but the field's area on the screen shows no text"
+                + " apart from its placeholder (OCR), so it was treated as cleared)")
+        }
+        return .refused(DriverError.badResponse(status: 422, body: body + StepExecutor.screenFact(answer)))
+    }
+
+    static let emptyRefusalNotCheckedFact = " (not checked against the screen: OCR is off in MCP unless fmAndVision is true."
+        + " Some fields — a Material3 SearchBar on iOS — keep a fixed hint in their value, so this refusal can come from an"
+        + " empty field: look at ft_screenshot or the next ft_snapshot)"
+
     func ftClearInput(_ args: [String: Any]) async throws -> [[String: Any]] {
         // ref 省略 = フォーカス中の欄(DSL の clearInput() と同じ)
         let clearDriver = try await driver(args)
@@ -676,14 +707,31 @@ extension MCPServer {
             }
         }
         // clearRef はセッション ref。ブリッジへ渡す直前にだけ native へ戻す
+        var clearedByScreenCheck = false
         do {
             try await clearDriver.clearInput(ref: clearRef.map { nativeRef($0, args: args) })
         } catch {
             // ref 指定の失敗はランナーが既にタップを撃った後(焦点待ちの 422 等)——
             // 記録せずに投げると、次の ft_type/ft_snapshot が「このセッションの誰も
             // 変えていないのに木が変わった」と外部要因のせいにする(M5b実測)
-            if clearRef != nil { recordInteraction(action: "clearInput", resolvedRef: clearRef, args: args) }
-            throw error
+            // 「消え残り」の 422 は DSL と同じ確かめ(欄の絵の OCR。中核は StepExecutor.readClearResidual)を通す。
+            // MCP は既定で OCR を使わないので、使わなかった事実を文に添える
+            var answer: StepExecutor.ClearResidualAnswer?
+            if Self.isEmptyRefusal(error), args["fmAndVision"] as? Bool == true {
+                let before = clearTarget
+                answer = await StepExecutor.readClearResidual(clearDriver, residual: nil) { snap in
+                    before.flatMap { StepExecutor.matchFocused($0, in: snap) } ?? snap.elements.first { $0.focused == true }
+                }
+            }
+            let resolution = Self.emptyRefusalResolution(error, answer: answer)
+            if case .cleared(let note) = resolution {
+                clearNote += note // 成功の経路が下で記録する
+                clearedByScreenCheck = true
+            } else {
+                if clearRef != nil { recordInteraction(action: "clearInput", resolvedRef: clearRef, args: args) }
+                if case .refused(let enriched) = resolution { throw enriched }
+                throw error
+            }
         }
         recordInteraction(action: "clearInput", resolvedRef: clearRef, args: args)
         // **無条件の「cleared」を断言しない**(ft_type replace / 追記と同じ型の掃討)——
@@ -709,7 +757,8 @@ extension MCPServer {
            let other = TypedInputVerdict.otherInputCleared(target: clearTarget, before: treeBeforeClear, after: verification.elements) {
             otherClearedNote = " — warning: " + TypedInputVerdict.clearedOtherInputMessage(other)
         }
-        let clearedVerdict = Self.replaceVerificationNote(
+        // 絵で空と確かめた欄は value が空を映さない欄(固定の案内文)= value の読み返しは「残っている」と誤って言う
+        let clearedVerdict = clearedByScreenCheck ? "" : Self.replaceVerificationNote(
             target: clearTarget, expected: "", fresh: verification, requestedAs: "clear")
         return text("clearInput sent\(clearNote)\(clearedVerdict)\(otherClearedNote)"
             + (clearRef.map { reproductionNote(resolvedRef: $0, args: args) } ?? "")

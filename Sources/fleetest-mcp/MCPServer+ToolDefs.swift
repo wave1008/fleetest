@@ -402,6 +402,7 @@ extension MCPServer {
         ], required: ["bundleId"]),
         tool("ft_clear_input", "Empty an input field (ft_type appends, so clear first to replace)", [
             "ref": ["type": "integer", "description": "Field ref (default: the focused one)"],
+            "fmAndVision": fmAndVisionProperty,
         ], extra: afterActionProperties()),
         tool("ft_draft_scenario", "Turn the ft_* operations you performed into a Swift scenario draft "
             + "(text only — save it under TestProjects/<project>/scenarios/ yourself). Steps use the "

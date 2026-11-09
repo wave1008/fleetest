@@ -791,6 +791,7 @@ extension StepExecutor {
             let check = try await residualClearValue(actingDriver, step: step, before: before, phase: &phase)
             actingSnapshot = check.snapshot ?? actingSnapshot
             if let residual = check.residual {
+                // ここで投げた 422「could not empty the field」は外の catch が確かめる(ここでも確かめると OCR と失敗文の事実が二重になる)
                 guard let td = typeDriver,
                       // 消去の後に撮り直していればその木の枠(「キーボードが無い」も新しい事実として使う)
                       try await clearViaTypeDriver(td, step: step,
@@ -835,7 +836,17 @@ extension StepExecutor {
             if TypeReadback.isPositivelyNonTextInput(element, selfRendered: uiFramework?.isSelfRendered) {
                 return .failed(Self.nonTextInputFallbackRefusal(element, in: elements, action: "clearInput"))
             }
-            guard try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase) else {
+            // XCUITest の撃ち直しの「could not empty the field」も消え残りの確かめを通す(ref 無し版の performClearInputFocused と同じ)
+            let viaTypeDriver: Bool
+            do {
+                viaTypeDriver = try await clearViaTypeDriver(td, step: step, keyboardWitness: keyboardWitness, phase: &phase)
+            } catch {
+                let refusal = await recoveredEmptyRefusal(error, td, locate: stepLocate, fallback: "fell back to XCUITest",
+                                                          handsOverSnapshot: false)
+                if let recovered = refusal.cleared { return recovered }
+                throw refusal.error
+            }
+            guard viaTypeDriver else {
                 if DriverError.isTextInputFallback(error) {
                     return .failed(Self.inputFocusMissMessage(step, verb: "clear", tried: true, isAndroid: isAndroid))
                 }

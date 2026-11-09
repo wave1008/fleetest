@@ -149,4 +149,45 @@ final class ClearResidualDrawnTests: XCTestCase {
         XCTAssertTrue(message.contains("could not empty the field"), message)
         XCTAssertTrue(message.contains("not checked against the screen: OCR was unavailable"), message)
     }
+
+    /// 絵が縦長・木が横長(開いた Duo)= 切り出しが断られる。理由を言う。向きが合えば nil
+    func testOrientationReasonNamesTheMismatch() {
+        let landscape = FTRect(x: 0, y: 0, width: 951, height: 669)
+        let reason = ClearResidualDrawn.orientationReason(imageWidth: 2006, imageHeight: 2852, screen: landscape)
+        XCTAssertNotNil(reason)
+        XCTAssertTrue(reason?.contains("2006x2852") == true, reason ?? "")
+        XCTAssertNil(ClearResidualDrawn.orientationReason(imageWidth: 2852, imageHeight: 2006, screen: landscape))
+    }
+
+    /// 消え残り → XCUITest へ回した消去が 422 のとき、確かめは外の catch(1回)と撃ち直しの後(1回)だけ。
+    /// 内側でも確かめると同じ欄の OCR を3回払う(1回あたり最大 8 秒)
+    func testResidualPathEmptyRefusalChecksTheScreenOncePerClear() async {
+        let checks = LockedValue(0)
+        StepExecutor.clearResidualDrawnOverrideForTesting = { _ in checks.withLock { $0 += 1 }; return (true, "bx") }
+        defer { StepExecutor.clearResidualDrawnOverrideForTesting = nil }
+        let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[searchField(value: residual, focused: true)]])
+        let typeDriver = FakeAppDriver(name: "typedriver", log: CallLog(), snapshotElements: [[searchField(value: residual, focused: true)]])
+        typeDriver.clearInputError = DriverError.badResponse(
+            status: 422, body: StepExecutor.runnerEmptyRefusalPrefix + " (12 character(s) still there after 4 round(s))")
+        let executor = StepExecutor(driver: primary, typeDriver: typeDriver, isAndroid: false, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("could not empty the field"), message)
+        XCTAssertEqual(message.components(separatedBy: "still shows text (OCR)").count - 1, 1, message)
+        XCTAssertEqual(checks.withLock { $0 }, 2)
+    }
+
+    /// 422 のあと木で欄が空に読めるとき(OCR の材料が無い)も、赤の文に確かめなかった理由を付ける
+    func testRunnerEmptyRefusalWithEmptyTreeValueSaysWhyNotChecked() async {
+        StepExecutor.clearResidualDrawnOverrideForTesting = { _ in (true, "bx") }
+        defer { StepExecutor.clearResidualDrawnOverrideForTesting = nil }
+        let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[searchField(value: "", focused: true)]])
+        primary.clearInputError = DriverError.badResponse(
+            status: 422, body: StepExecutor.runnerEmptyRefusalPrefix + " (12 character(s) still there after 4 round(s))")
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables())
+        let outcome = await executor.execute(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("could not empty the field"), message)
+        XCTAssertTrue(message.contains("not checked against the screen: the field's value reads as empty"), message)
+    }
 }

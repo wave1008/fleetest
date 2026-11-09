@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 /// clearInput の事後検証が「消え残り」と読んだ欄が、絵の上で本当に空かの判定(純粋関数)。
 /// value が入力を映さない欄(M3 SearchBar の iOS は固定の案内文を value に出す)では、空になった欄の value も
@@ -46,6 +47,23 @@ public enum ClearResidualDrawn {
             return "the keyboard overlaps the field"
         }
         return nil
+    }
+
+    /// 絵と木の向きが合わず欄の切り出しを `OcclusionCrop` が断る形の理由(nil = 切り出せる)。断られると OCR は読みを返さない。
+    /// 判定は `OcclusionCrop.orientationMatches` と同じ(別に持たない)
+    public static func orientationReason(imageWidth: Int, imageHeight: Int, screen: FTRect) -> String? {
+        guard imageWidth > 0, imageHeight > 0,
+              !OcclusionCrop.orientationMatches(imageWidth: imageWidth, imageHeight: imageHeight, screen: screen) else { return nil }
+        return "the screenshot (\(imageWidth)x\(imageHeight) px) and the screen tree (\(Int(screen.width))x\(Int(screen.height))) are in"
+            + " different orientations, so the field's area could not be cut out of the screenshot"
+    }
+
+    /// PNG の画素数(読めなければ nil)。`RegionText.read` が切り出しに使う寸法と同じ(向きの変換をかけない生の画素)
+    public static func pixelSize(png: Data) -> (width: Int, height: Int)? {
+        guard let source = CGImageSourceCreateWithData(png as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int else { return nil }
+        return (w, h)
     }
 
     private static func squeeze(_ s: String) -> String { s.filter { !$0.isWhitespace } }

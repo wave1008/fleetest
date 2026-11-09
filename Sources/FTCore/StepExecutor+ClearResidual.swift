@@ -11,27 +11,41 @@ extension StepExecutor {
 
     /// XCUITest ランナーの消去の 422 の先頭。Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift の
     /// `BridgeError(422, "could not empty the field …")` と同期(Runner の文言を変えたらここも)
-    static let runnerEmptyRefusalPrefix = "could not empty the field"
+    public static let runnerEmptyRefusalPrefix = "could not empty the field"
 
     /// OCR の読みの上限(秒)。XCUITest ランナーの消去の読み返しの締め切り(BridgeRouter+TextInput.swift の
     /// `clearBudgetSeconds` = 8)と揃える = 同じ「消えたかの読み返し」。尽きたら判断不能 = 赤のまま(失敗文に理由)
     static let clearReadbackBudgetSeconds: TimeInterval = 8
 
-    struct ClearResidualAnswer {
+    public struct ClearResidualAnswer {
         /// 欄に残っていると読んだ値(nil = 読めなかった・空)
-        var residual: String?
-        var notDrawn: Bool
-        /// 判断できなかった理由(事実だけ。notDrawn・drawn のときは nil)
-        var why: String?
+        public var residual: String?
+        public var notDrawn: Bool
+        /// 判断できなかった理由(事実だけ。notDrawn・drawn のときは nil。residual が nil のときも理由を持つ)
+        public var why: String?
         /// 確かめで最後に撮った木(撮れなかったら nil)
-        var snapshot: SnapshotResponse?
+        public var snapshot: SnapshotResponse?
         /// drawn のとき、飾りの文字の他に読めた行(赤の失敗文に添える事実)
-        var drawnLines: [String] = []
+        public var drawnLines: [String] = []
+
+        public init(residual: String?, notDrawn: Bool, why: String?, snapshot: SnapshotResponse?, drawnLines: [String] = []) {
+            self.residual = residual
+            self.notDrawn = notDrawn
+            self.why = why
+            self.snapshot = snapshot
+            self.drawnLines = drawnLines
+        }
     }
 
     /// `residual` が nil なら欄の現在の value を残りとして使う(ブリッジの 422 の経路)
     func checkClearResidual(_ treeDriver: AppDriver, residual: String?,
                             locate: (SnapshotResponse) -> ElementInfo?) async -> ClearResidualAnswer {
+        await Self.readClearResidual(treeDriver, residual: residual, locate: locate)
+    }
+
+    /// 判定の中核(DSL の `checkClearResidual` と MCP の ft_clear_input が共有。文言は呼び手ごと)
+    public static func readClearResidual(_ treeDriver: AppDriver, residual: String?,
+                                         locate: (SnapshotResponse) -> ElementInfo?) async -> ClearResidualAnswer {
         func undetermined(_ why: String, _ residual: String? = nil, _ snap: SnapshotResponse? = nil) -> ClearResidualAnswer {
             ClearResidualAnswer(residual: residual, notDrawn: false, why: why, snapshot: snap)
         }
@@ -39,7 +53,9 @@ extension StepExecutor {
         guard let field = locate(snap) else { return undetermined("the field was not found on the screen afterwards", residual, snap) }
         let left = residual ?? field.value
         guard let left, !left.isEmpty, left != field.placeholder else {
-            return ClearResidualAnswer(residual: nil, notDrawn: false, why: nil, snapshot: snap)
+            // 422 を撃ったランナーの読みと食い違う(木では空・placeholder と同じ)。事実として言う(黙ると赤の文に確かめた形跡が無い)
+            return undetermined("the field's value reads as empty (or as its placeholder) in the tree taken afterwards,"
+                                + " so there was no value to compare with the screen", nil, snap)
         }
         if let reason = ClearResidualDrawn.unreadableReason(field: field, screen: snap.screen, keyboard: snap.keyboardFrame) {
             return undetermined(reason, left, snap)
@@ -56,6 +72,10 @@ extension StepExecutor {
         }
         if BlankFrameDetector.isBlackApartFromSystemBars(pngData: png) {
             return undetermined("the screenshot was black apart from the system bars", left, snap)
+        }
+        if let size = ClearResidualDrawn.pixelSize(png: png),
+           let reason = ClearResidualDrawn.orientationReason(imageWidth: size.width, imageHeight: size.height, screen: snap.screen) {
+            return undetermined(reason, left, snap)
         }
         _ = await RegionText.awaitModelCompile(mode: .on)
         // 待ったコンパイルの時間は予算に含めない
@@ -104,7 +124,7 @@ extension StepExecutor {
     }
 
     /// 赤の失敗文に添える、画面で確かめた事実(確かめていなければ理由)
-    static func screenFact(_ answer: ClearResidualAnswer) -> String {
+    public static func screenFact(_ answer: ClearResidualAnswer) -> String {
         if let why = answer.why { return " (not checked against the screen: \(why))" }
         guard !answer.drawnLines.isEmpty else { return "" }
         return " (the field on screen still shows text (OCR): "
@@ -134,7 +154,7 @@ extension StepExecutor {
     }
 
     /// ロケータ無しの消去で覚えた欄を、確かめの木で identifier 優先・無ければ frame 一致で引き直す
-    static func matchFocused(_ before: ElementInfo, in snapshot: SnapshotResponse) -> ElementInfo? {
+    public static func matchFocused(_ before: ElementInfo, in snapshot: SnapshotResponse) -> ElementInfo? {
         if let identifier = before.identifier { return snapshot.elements.first { $0.identifier == identifier } }
         return snapshot.elements.first { $0.frame == before.frame }
     }
