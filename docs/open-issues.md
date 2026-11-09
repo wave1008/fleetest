@@ -196,14 +196,15 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
 - 11/7: 材料不足(ブリッジの外に残る状態で、syslog が無い)。何で落ちるかは測っていない
 
-### OI-190 E2E-Flutter の Android で右へのスワイプが「下」と読まれた(1回)
+### OI-190 E2E-Flutter の Android で左右・上への払いが「下」と読まれる(低率)
 - 状態: 再現済み
 - 確認: 4a6a1b594(2026-11-07)
 - 属性: 低頻度
-- 運用: 再実行で吸収 — 手元の6台へ回し直すと 6/6 緑
-- 優先度: 低 — 1回だけ
+- 運用: 再実行で吸収 — 回し直すと大半は緑(11/9 は 12 回中 10 回)
+- 優先度: 低 — 低率の赤(沈黙しない)
 
-11/7 のフル E2E(手元)で E2E-Flutter の Android の「ジェスチャが正しく検出されること」S0010 が `swipe right` の後の `textIs("#txt_swipe_dir", "swipe=right")` で赤(actual `swipe=down`・emulator-5554 の1回)。同じシナリオを手元の6台へ回し直すと 6/6 緑。原因は未観測
+11/7 のフル E2E(手元)で E2E-Flutter の Android の「ジェスチャが正しく検出されること」S0010 が `swipe right` の後の `textIs("#txt_swipe_dir", "swipe=right")` で赤(actual `swipe=down`・emulator-5554 の1回)。同じシナリオを手元の6台へ回し直すと 6/6 緑。原因は未観測。
+11/9 のフル E2E(手元・配信あり・load1 約 37)でも同じシナリオの `swipe left` の後が `swipe=down` で赤(1/47)。手元の6台へ2回回し直すと 4/6 → 6/6 緑(赤は -06 の `swipe left`・-04 の `swipe up`。どちらも `swipe=down`)= 19 回中 3 回。払いの経路は 11/7 以降の直しで触っていない
 
 ### OI-169 Android の行への `swipeBy` が ✅ のあと結果が出ない(低率)
 - 状態: 再現済み
