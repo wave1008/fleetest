@@ -58,7 +58,8 @@
 出典: `_work/explore-20261109l/findings-im4.md`(50周目・11/9)。①E2EY-iOS「スクロールで隠れるバー」(`#nav_hide_bars`)で `scrollDown()` → `scrollUp()` の後の `tap("#fab_hiding")` が「#row_h_11 is drawn over it … nothing was touched」で赤(im4 F1・M4Max の3台 × 2構成で 6/6・別の run で 1/1・`wait(2)` を挟んでも同じ。送らない tap は緑)。失敗時の絵では FAB は行の上に描かれ `bars=shown`。断りは `StepExecutor+PreTouch.swift` の撃つ前の照会(`driver.hitTest` が `.hittable(false)` を返した回だけ断る)
 - 11/10(この Mac で再現・両モード): **原因は XCUITest の `isHittable` の答えの誤り**。送って戻した後、`tap("#fab_hiding")` は inapp-boost・xcuitest とも同じ断りで赤(XCUITest の `isHittable` = false)だが、**同じ点への座標の tap は両モードとも FAB に届く**(`hide=fab`。xcuitest は XCUITest の本物のタッチ)。送らなければ `isHittable` は答えず(別の層の疑いが立たない)セレクタの tap は通る
 - 直し方が決まらない理由: この断り(31b5d4f03)の真陽性は Flutter の半分のシートの裏の行(false が正しい = 触るとシートに当たる)。どちらも「別の層の押せる要素が中心に重なり、`isHittable` が false」で、木の材料では見分けられない(「対象が一覧の外・覆いが一覧の行」で分けると、シートの行の下にある一覧の外のボタンを撃つ = 誤った緑へ倒れる。MN-108)
-- 次の一手: 2つを分ける材料を既存の SUT で探す(例: ランナーがその点で AX の当たり判定が返した要素を答える・SwiftUI の FAB の層だけ申告が違うか)。見つからなければ据え置き(誤った赤は失敗文が名指すので沈黙しない)
+- 11/10(材料の候補): inapp-boost の in-app ブリッジの `/tapprobe`(UIKit の当たり判定 = 本物のタッチが届く view)は、送って戻した状態で FAB の中心 (358,744) = `HostingView`・行 H11 の FAB から離れた点 (100,767) と FAB の真上の行 H10 (358,700) = `PlatformGroupContainer`(行の容器)を返した = **この形ではタッチが行の view に届かないことを言える**。ただし規則にはまだできない: SwiftUI の AX 要素は view と1対1でなく、覆いの行がどの view に属するかを引く手が要る(既存の到達判定 `isReachable` は祖先・子孫を見るので、根の `HostingView` はどの要素にも届くと読む)
+- 次の一手: 断りの真陽性(Flutter・CMP・SwiftUI のシートの裏の行、隠れたバーの形)で、同じ点の `/tapprobe` の答えと覆いの要素の最寄りの view を測り、「当たる view が覆いの view(かその子孫)でない」で両方向を分けられるかを確かめる(xcuitest モードには in-app ブリッジが無いので、分けられても inapp-boost だけの救済)。分けられなければ据え置き(誤った赤は失敗文が名指すので沈黙しない)
 
 ### OI-205 Android の Flutter の候補への tap が選ばずに緑・iOS の 512 文字を超える type の赤ほか
 - 状態: 再現済み
