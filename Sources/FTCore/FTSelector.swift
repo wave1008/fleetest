@@ -648,8 +648,16 @@ public struct FTSelector {
         var current = ""
         var depth = 0
         var index = text.startIndex
+        // 正規表現のフィルタの値の中は括弧も区切りも見ない(値の中の `[(]`・`\\(` を括弧と数えて後ろの `&&` を値に取り込み、
+        // 否定形が緑だった = 48周目 im4 F1)
+        let opaque = regexValueSpans(text)
         while index < text.endIndex {
             let char = text[index]
+            if opaque.contains(where: { $0.contains(index) }) {
+                current.append(char)
+                index = text.index(after: index)
+                continue
+            }
             if char == "(" {
                 depth += 1
             } else if char == ")" {
@@ -961,8 +969,15 @@ public struct FTSelector {
     }
 
     /// 正規表現のフィルタの値の範囲(`名前=` の直後から次の `&&` / `||` / `>>` の手前まで)
-    private static func regexValueSpans(_ text: String) -> [Range<String.Index>] {
-        guard let name = try? NSRegularExpression(pattern: #"([A-Za-z]+)="#) else { return [] }
+    /// 相対指定の始まり(`:名前(`)。直前が `?` のもの(正規表現の非捕獲の群 `(?:…`)は除く
+    private static let relativeMarker: NSRegularExpression = {
+        // 定数のパターン = 失敗しない
+        try! NSRegularExpression(pattern: #"(?<!\?):[A-Za-z]+\("#)
+    }()
+
+    static func regexValueSpans(_ text: String) -> [Range<String.Index>] {
+        // 否定の完全形 `textMatches!=` も値を持つ(48周目 phys F1・F2: `!=` の値だけ見えない文字を外し、括弧を構文として数えた)
+        guard let name = try? NSRegularExpression(pattern: #"([A-Za-z]+)!?="#) else { return [] }
         var spans: [Range<String.Index>] = []
         var searchFrom = text.startIndex
         while searchFrom < text.endIndex,
@@ -970,8 +985,12 @@ public struct FTSelector {
               let whole = Range(match.range, in: text), let nameRange = Range(match.range(at: 1), in: text) {
             guard isRegexFilterName(String(text[nameRange])) else { searchFrom = whole.upperBound; continue }
             let valueStart = whole.upperBound
-            let end = ["&&", "||", ">>"].compactMap { text.range(of: $0, range: valueStart..<text.endIndex)?.lowerBound }.min()
-                ?? text.endIndex
+            // 値の終わり: 次の `&&` / `||` / `>>` か、相対指定(`:right(` 等。解析が値を切る所 = 48周目 amax F2: 綴り誤りの
+            // `:rigth(` まで値に含めて検査をすり抜けた)。`(?:` の `:` は非捕獲の群なので相対指定と見ない
+            let separators = ["&&", "||", ">>"].compactMap { text.range(of: $0, range: valueStart..<text.endIndex)?.lowerBound }
+            let relative = relativeMarker.firstMatch(in: text, range: NSRange(valueStart..., in: text))
+                .flatMap { Range($0.range, in: text)?.lowerBound }
+            let end = (separators + [relative].compactMap { $0 }).min() ?? text.endIndex
             spans.append(valueStart..<end)
             searchFrom = end
         }
@@ -991,12 +1010,23 @@ public struct FTSelector {
         // 正規表現のフィルタの値は先に検査し(空・不正)、構造の検査(括弧の数・`(a|b)`)からは伏せる —— 値の中の `(x|)`・`\(` を
         // セレクタの構文として数えて正当な正規表現を断っていた(47周目 iultra F1・F2)
         var text = stripped
-        for span in regexValueSpans(stripped).reversed() {
+        var masked: [(mark: String, value: String)] = []
+        for (offset, span) in regexValueSpans(stripped).enumerated().reversed() {
             let value = String(stripped[span])
             if isBlank(value) { return "the regular expression after `=` is empty: \"\(raw)\"" }
             if let error = RegexValidation.error(for: value) { return error }
-            text.replaceSubrange(span, with: "x")
+            // 見分けのつく印で伏せ、失敗文では書いたままの値へ戻す(`x` で伏せると書いていないセレクタを引用した = 48周目)
+            let mark = String(Character(Unicode.Scalar(0xF0000 + offset)!))
+            masked.append((mark, value))
+            text.replaceSubrange(span, with: mark)
         }
+        guard var error = structuralError(text) else { return nil }
+        for (mark, value) in masked { error = error.replacingOccurrences(of: mark, with: value) }
+        return error
+    }
+
+    /// 正規表現のフィルタの値を伏せた後の構造の検査(`validationError` の後半)
+    private static func structuralError(_ text: String) -> String? {
         let alternatives = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("=")
             ? [text] : splitTopLevel(text, separator: "||")
         for (offset, clause) in alternatives.enumerated() {

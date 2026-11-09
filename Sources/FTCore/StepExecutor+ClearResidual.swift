@@ -40,7 +40,14 @@ extension StepExecutor {
     /// `residual` が nil なら欄の現在の value を残りとして使う(ブリッジの 422 の経路)
     func checkClearResidual(_ treeDriver: AppDriver, residual: String?,
                             locate: (SnapshotResponse) -> ElementInfo?) async -> ClearResidualAnswer {
-        await Self.readClearResidual(treeDriver, residual: residual, locate: locate)
+        // OCR を切った実行機(プロファイルの ocrTextVisibilityCheck: false・MCP の ft_batch は fmAndVision が無ければ切る)では画面を読まない
+        // (オフでも OCR を使うのは惜しい転写の読み直しだけのユーザー決定 = 別の確かめへ広げない。48周目 duo F4: ft_batch で OCR が走った)
+        guard occlusionOCRMode != .off else {
+            return ClearResidualAnswer(residual: residual, notDrawn: false,
+                                       why: "OCR is off for this run (ocrTextVisibilityCheck is false, or MCP without fmAndVision),"
+                                           + " so the field's area on the screen was not read", snapshot: nil)
+        }
+        return await Self.readClearResidual(treeDriver, residual: residual, locate: locate)
     }
 
     /// 判定の中核(DSL の `checkClearResidual` と MCP の ft_clear_input が共有。文言は呼び手ごと)

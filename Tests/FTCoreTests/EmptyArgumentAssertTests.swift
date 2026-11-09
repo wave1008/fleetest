@@ -165,4 +165,31 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertNotNil(FTSelector.validationError("textMatches=("), "不正な正規表現は断る")
         XCTAssertNotNil(FTSelector.validationError("(a|)"), "正規表現の外の空の選択肢は断る")
     }
+
+    /// 正規表現の値の範囲: `!=` の形も拾う・値の中の括弧で後ろの `&&` を取り込まない・相対指定で値を終える・失敗文は書いたままの値を引用する(48周目)
+    func testRegexValueSpansCoverNegationParenthesesRelativeAndQuoting() {
+        let parsed = FTSelector.parse("textMatches=^a[(]?b$&&#txt")
+        XCTAssertEqual(parsed.primary.id, "txt", "値の中の `[(]` で後ろの `&&` を値に取り込んだ")
+        XCTAssertEqual(parsed.primary.label, "^a[(]?b$")
+        XCTAssertNil(FTSelector.validationError("#a&&textMatches!=^single=(x|)$"), "否定の完全形の値の括弧を構文として数えた")
+        XCTAssertNotNil(FTSelector.validationError("textMatches=^E2E$:rigth(#a)"), "値の後ろの相対指定の綴り誤りが検査をすり抜けた")
+        let error = FTSelector.validationError("textMatches=^a$&&textMatches=^b$") ?? ""
+        XCTAssertTrue(error.contains("^a$") && error.contains("^b$"), "失敗文が書いた値を引用しない: \(error)")
+    }
+
+    /// 可視性検証の比較は絵文字を両側から外す(OCR・FM は絵文字を落とすか別の絵文字に読む = 48周目 alocal F1)
+    func testTranscriptJudgementIgnoresEmoji() {
+        XCTAssertTrue(TranscriptMatch.judge(transcript: "🙂 x", expected: "☺\u{FE0F}x").visible)
+        XCTAssertTrue(TranscriptMatch.judge(transcript: "x", expected: "😀x").visible)
+        XCTAssertFalse(TranscriptMatch.judge(transcript: "y", expected: "😀x").visible, "絵文字以外が違えば赤のまま")
+    }
+
+    /// OCR を切った実行機では消え残りを画面で確かめない(48周目 duo F4: MCP の ft_batch で OCR が走った)
+    func testClearResidualDoesNotReadTheScreenWithOCROff() async {
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[]])
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: true, tunables: RunTunables())
+        let answer = await executor.checkClearResidual(driver, residual: "abc") { _ in nil }
+        XCTAssertTrue(answer.why?.contains("OCR is off") == true, "\(String(describing: answer.why))")
+        XCTAssertFalse(answer.notDrawn)
+    }
 }

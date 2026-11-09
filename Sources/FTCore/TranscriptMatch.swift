@@ -66,8 +66,14 @@ public enum TranscriptMatch {
 
     /// 転写と期待文字列から可否を決める。`transcript` は FM が返した生の転写。
     public static func judge(transcript: String, expected: String) -> Verdict {
-        let o = normalize(transcript)
-        let e = normalize(expected)
+        // 絵文字は両側から外して比べる: OCR・FM は絵文字を落とすか別の絵文字に読む(☺️x を "x" / "🙂 x" と読み、描かれているのに
+        // 赤だった = 48周目 alocal F1)。期待値が絵文字だけなら外さない(外すと照合する文字が無い)
+        var o = normalize(transcript)
+        var e = normalize(expected)
+        if !withoutEmoji(e).isEmpty {
+            e = withoutEmoji(e)
+            o = withoutEmoji(o)
+        }
         guard !o.isEmpty else {
             return Verdict(visible: false, state: .notRendered,
                            reason: "no legible text is drawn in the element's area")
@@ -207,6 +213,15 @@ public enum TranscriptMatch {
 
     private static func foldQuotes(_ s: String) -> String {
         String(s.map { quoteFoldMap[$0] ?? $0 })
+    }
+
+    /// 絵文字の書記素を外す(ASCII でない絵文字の土台・絵文字の表示の切り替え FE0F・絵文字の表示が既定の文字を含むもの)
+    static func withoutEmoji(_ s: String) -> String {
+        String(s.filter { character in
+            !character.unicodeScalars.contains { scalar in
+                scalar == "\u{FE0F}" || scalar.properties.isEmojiPresentation || (!scalar.isASCII && scalar.properties.isEmoji)
+            }
+        })
     }
 
     /// NFKC 互換合成 → 引用符の半角化 → 空白(半角・全角・改行・タブ)除去 → 末尾の省略記号
