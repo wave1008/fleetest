@@ -189,6 +189,8 @@ final class SelTests: XCTestCase {
         XCTAssertNotNil(Sel.id(" ").ftSelector.preflightError)
         XCTAssertNotNil(Sel.value("").ftSelector.preflightError)
         XCTAssertNotNil(Sel.type(.button).text("").ftSelector.preflightError)
+        XCTAssertNotNil(Sel.text("\n").ftSelector.preflightError, "改行だけも空(44周目 im4 F1)")
+        XCTAssertNotNil(Sel.placeholder("\t\n").ftSelector.preflightError)
         XCTAssertNil(Sel.text("OK").ftSelector.preflightError)
     }
 

@@ -129,7 +129,7 @@ public struct Sel: Sendable, Equatable {
 
     /// 空(空白だけを含む)の値は文字列版の `#`・`=`・`value=` と同じく実行前に断る(44周目: `Sel.text("")` の notExist が緑)
     private static func emptyValueReason(_ attribute: String, _ value: String) -> String? {
-        value.trimmingCharacters(in: .whitespaces).isEmpty ? "Sel.\(attribute)(\"\(value)\") is empty — it would match nothing or anything" : nil
+        value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Sel.\(attribute)(\"\(value)\") is empty — it would match nothing or anything" : nil
     }
 
     /// exact は mode を持たせない(文字列版の parseNamedFilter と同じ正規化。

@@ -36,6 +36,13 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertNil(FTSelector.validationError("#field_single>>=OK"))
     }
 
+    /// 改行だけの値・ラベル・節も空(44周目 im4 F2: `#\n`・`text=\n`・`#a>>\n` が緑)
+    func testNewlineOnlyValuesAreEmpty() {
+        for bad in ["#\n", "text=\n", "value=\r\n", "#a>>\n", "#nope||#\n", "=\n"] {
+            XCTAssertNotNil(FTSelector.validationError(bad), bad.debugDescription)
+        }
+    }
+
     func testEmptyExpectationNegatedFormIsRed() {
         for assert in ["textContainsNot", "valueContainsNot"] {
             XCTAssertFalse(LocatorResolver.negativeAssertSatisfied(assert, actual: "abc", expected: ""), assert)

@@ -175,6 +175,19 @@ final class ArgumentBoundsTests: XCTestCase {
         }
     }
 
+    /// **waitFor の構文は操作を撃つ前に断る**(44周目 duo F1: ft_tap の `waitFor: "* *"` が撃ってから上限まで待った)。
+    /// 断りが waitFor を名指すこと = 入口の門で落ちた(ドライバに届いて別の理由で落ちたのではない)
+    func testInvalidWaitForIsRefusedBeforeTheAction() async {
+        for bad in ["* *", "=", "#a>>="] {
+            do {
+                _ = try await server.call(tool: "ft_tap", args: ["x": 10.0, "y": 10.0, "waitFor": bad, "snapshotAfter": true])
+                XCTFail("waitFor \(bad) が通った")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.hasPrefix("waitFor:"), "\(bad): \(error.localizedDescription)")
+            }
+        }
+    }
+
     func testUnboundedKeysNeverViolate() {
         for key in ["ref", "fromRef", "x", "y", "dx", "dy", "fromX", "fromY", "toX", "toY"] {
             XCTAssertNil(ArgumentBounds.violation(key, -999_999))

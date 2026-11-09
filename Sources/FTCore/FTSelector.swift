@@ -945,7 +945,7 @@ public struct FTSelector {
             // リテラルの中の "(" ")" を構文エラーと誤認する(例: `=smile :)`)
             if trimmed.hasPrefix("=") {
                 // `=` の後が空 = 空のラベルに解かれ、notExist("=") が黙って緑になる(43周目 im4 F2・iultra F1)
-                if trimmed.dropFirst().trimmingCharacters(in: .whitespaces).isEmpty {
+                if trimmed.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     return "the label after `=` is empty: \"\(clause)\""
                 }
                 continue
@@ -960,11 +960,12 @@ public struct FTSelector {
     /// **検証もここを共有する**(引数の中の綴り誤り・スコープを見逃さないため)
     private static func clauseError(_ clause: String) -> String? {
         let trimmed = clause.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty { return "there is an empty clause (check around `>>` and `||`)" }
+        // 改行だけの節も空(`#a>>\n` が改行のラベルに解かれて notExist が緑だった)
+        if trimmed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "there is an empty clause (check around `>>` and `||`)" }
         // `=` エスケープは全体が生ラベル = 構文解釈しない
         if trimmed.hasPrefix("=") { return nil }
         let segments = splitTopLevel(trimmed, separator: ">>")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         for (offset, segment) in segments.enumerated() {
             let isTarget = offset == segments.count - 1
             if let error = segmentError(segment, isScoped: segments.count > 1, isTarget: isTarget) {
@@ -990,7 +991,7 @@ public struct FTSelector {
         if segment.isEmpty { return "there is an empty clause (check around `>>` and `||`)" }
         if segment.hasPrefix("=") {
             // `=` の後が空 = 空のラベル(`#a>>=` の notExist が黙って緑 = 44周目)
-            return segment.dropFirst().trimmingCharacters(in: .whitespaces).isEmpty
+            return segment.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "the label after `=` is empty: \"\(segment)\"" : nil
         }
         // `:名前(` の形をした未知のマーカー(綴り誤り・他ツール記法の混入)
@@ -1132,7 +1133,7 @@ public struct FTSelector {
         if body.hasSuffix("]"), let bracket = body.firstIndex(of: "[") {
             body = body[body.startIndex..<bracket]
         }
-        return body.isEmpty ? "`#` needs an id after it: \"\(token)\"" : nil
+        return body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "`#` needs an id after it: \"\(token)\"" : nil
     }
 
     /// フィルタ内 OR(`(a|b)`)の中身が空でないか。空の選択肢を通すと「ラベルが空の要素」に
@@ -1197,7 +1198,7 @@ public struct FTSelector {
         guard isAsciiIdentifier(name) else { return nil }
         if isFilterName(name) {
             let value = String(token[token.index(after: eqIndex)...])
-            if value.isEmpty { return "the value of filter \"\(name)=\" is empty" }
+            if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "the value of filter \"\(name)=\" is empty" }
             if name == "checked" || name == "enabled", boolValue(value) == nil {
                 return "\(name) must be true or false: \"\(token)\""
             }
