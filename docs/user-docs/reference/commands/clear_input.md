@@ -27,6 +27,8 @@ type("#note", "new content", replace: true)
 
 ## Notes
 
+- **On Android, a field whose centre is under a popup window (such as autocomplete suggestions) is not touched.** The tap that focuses the field would
+  select the suggestion and change another field, so the step fails before anything is cleared. Close the popup first.
 - **Pointing it at a button or another non-input element fails before anything is cleared.** `clearInput` taps its
   target first, so clearing a button would press it (a submit or a purchase). It refuses whatever the UI framework (Compose and Flutter
   included), only when the element's type is a button, switch, link and so on. Pointing at an

@@ -103,12 +103,13 @@ public extension Optional where Wrapped == Any {
 
     func thisContains(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisContains", "\"\(stringValue ?? "nil")\" ~ \"\(expected)\"",
-               (stringValue ?? "").contains(expected), file: file, line: line)
+               expected.isEmpty || (stringValue ?? "").contains(expected), file: file, line: line)
     }
 
     func thisContainsNot(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         record("thisContainsNot", "\"\(stringValue ?? "nil")\" !~ \"\(expected)\"",
-               !(stringValue ?? "").contains(expected), file: file, line: line)
+               // 空の期待値は「含む」(`LocatorResolver.matchedText` と同じ向き。Swift の contains("") は false = 43周目 im4 F1)
+               !(expected.isEmpty || (stringValue ?? "").contains(expected)), file: file, line: line)
     }
 
     func thisStartsWith(_ expected: String, file: StaticString = #filePath, line: UInt = #line) {

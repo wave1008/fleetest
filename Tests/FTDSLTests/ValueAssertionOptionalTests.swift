@@ -57,6 +57,15 @@ final class ValueAssertionOptionalTests: XCTestCase {
         XCTAssertFalse(isFailed(strictNot[0]), "strict の否定形も同じ規則: \(strictNot[0].status)")
     }
 
+    /// 空の期待値は「含む」(`textContains("")` と同じ向き)= thisContainsNot("") は赤(43周目 im4 F1)
+    func testEmptyExpectationIsContainedInValueAssertions() {
+        let value = "abc"
+        let contains = run { value.thisContains("") }
+        XCTAssertFalse(isFailed(contains[0]), "\(contains[0].status)")
+        let containsNot = run { value.thisContainsNot("") }
+        XCTAssertTrue(isFailed(containsNot[0]), "空の期待値の否定形が緑: \(containsNot[0].status)")
+    }
+
     func testNilOptionalStringIsNotANonEmptyString() {
         let none: String? = nil
         let steps = run { none.thisIsNotEmpty() }

@@ -1321,6 +1321,13 @@ extension StepExecutor {
             if let refusal = nonTextInputPreflightRefusal(element, in: snapshot.elements, action: "type") {
                 return StepOutcome(status: .failed(refusal))
             }
+            // 欄の中心が別ウィンドウの下なら焦点のタップが覆いを押す(replace は消去の段 = coveredFieldRefusal が同じ判定で断る)。
+            // 焦点がすでにその欄にありキーボードが出ていれば触らずに打つので断らない
+            if isAndroid, step.replace != true,
+               !(KeyboardWait.isShown(snapshot) && element.focused == true),
+               let refusal = overlayWindowFieldRefusal(element, in: snapshot, step: step, verb: "type") {
+                return StepOutcome(status: .failed(refusal))
+            }
             // **replace は3経路(typeDriver優先/通常/409フォールバック)より前に1回だけクリアする**(下の送り・キーボードの段の後)。
             // 空にできていないのに書き足すと検証対象と違う値になるので、clear が失敗したら
             // type を撃たずこのステップを失敗させる

@@ -380,7 +380,24 @@ extension MCPServer {
         // ブリッジに stale-ref で断られる。DSL の `relocateAfterClear` と同じ規律)
         var relocatedNativeRef: Int?
         if wantsReplace {
-            try await typeDriver.clearInput(ref: targetRef.map { nativeRef($0, args: args) })
+            do {
+                try await typeDriver.clearInput(ref: targetRef.map { nativeRef($0, args: args) })
+            } catch {
+                // 「消え残り」の 422 は ft_clear_input と同じ確かめを通す(`emptyRefusalResolution`。43周目 ilocal F1: CMP の
+                // 検索バーで空にできていたのに断った)。OCR は fmAndVision: true のときだけ・使わなかった事実は文に添える
+                var answer: StepExecutor.ClearResidualAnswer?
+                if Self.isEmptyRefusal(error), args["fmAndVision"] as? Bool == true {
+                    let before = priorElement
+                    answer = await StepExecutor.readClearResidual(typeDriver, residual: nil) { snap in
+                        before.flatMap { StepExecutor.matchFocused($0, in: snap) } ?? snap.elements.first { $0.focused == true }
+                    }
+                }
+                switch Self.emptyRefusalResolution(error, answer: answer) {
+                case .cleared(let clearedNote): note += clearedNote
+                case .refused(let enriched): throw enriched
+                case .notEmptyRefusal: throw error
+                }
+            }
             if let priorElement, let content, !content.isEmpty {
                 // 生読み(adoptSnapshot を通さない = 世代・settle-lite の基準を壊さない)。返る ref は native
                 // **読みの失敗は「欄が見つからない」に化けさせない**: 消去は済んでいて、読めなかっただけ(接続断・503・422)。

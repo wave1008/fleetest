@@ -27,6 +27,19 @@ final class ClearFocusRefusalWordingTests: XCTestCase {
         XCTAssertFalse(fieldBody.contains("staticText"), fieldBody)
     }
 
+    /// ランナーの「nothing has keyboard focus … If you passed a ref」も DSL の言葉に直す(43周目 im4 F3)
+    func testNoFocusRefusalDropsTheRefAdvice() {
+        let body = "nothing has keyboard focus, so there is no field to clear. If you passed a ref, it is probably not the input"
+            + " element itself — tapping a container does not move focus. Tap the field (or pass the ref of the element whose type"
+            + " is a text field) and try again"
+        let error = StepExecutor.clearFocusRefusalInDSLTerms(DriverError.badResponse(status: 422, body: body),
+                                                            step: step, element: element("staticText"))
+        guard case DriverError.badResponse(422, let reworded) = error else { return XCTFail("\(error)") }
+        XCTAssertFalse(reworded.contains("ref"), reworded)
+        XCTAssertTrue(reworded.contains("nothing has keyboard focus, so there is no field to clear"), reworded)
+        XCTAssertTrue(reworded.contains("txt_echo_single") && reworded.contains("staticText"), reworded)
+    }
+
     func testOtherErrorsPassThrough() {
         let other = StepExecutor.clearFocusRefusalInDSLTerms(DriverError.badResponse(status: 422, body: "something else"),
                                                             step: step, element: element("staticText"))
@@ -40,6 +53,7 @@ final class ClearFocusRefusalWordingTests: XCTestCase {
         let source = try String(contentsOf: root.appendingPathComponent("Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift"),
                                 encoding: .utf8)
         XCTAssertTrue(source.contains("\"" + StepExecutor.runnerFocusRefusalPrefix + " within\""), "ランナーの 422 の文言が変わった")
+        XCTAssertTrue(source.contains("BridgeError(422, \"" + StepExecutor.runnerNoFocusPrefix), "ランナーの焦点無しの 422 の文言が変わった")
         // 消え残りの 422(StepExecutor+ClearResidual の recoveredEmptyRefusal が先頭で見分ける)
         XCTAssertTrue(source.contains("BridgeError(422, \"" + StepExecutor.runnerEmptyRefusalPrefix + "\""), "ランナーの消え残りの 422 の文言が変わった")
     }

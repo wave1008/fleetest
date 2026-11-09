@@ -27,6 +27,8 @@ field.type("alice")                // same as type("#login_id", "alice")
 
 ## Notes
 
+- **On Android, `type(sel, …)` into a field whose centre is under a popup window (such as autocomplete suggestions) fails before anything is typed.**
+  The tap that focuses the field would select the suggestion instead. Close the popup first.
 - **Pointing it at a button or another non-input element fails before anything is typed.** `type` taps its target
   first, so typing into a button would press it (a submit or a purchase). It refuses whatever the UI framework (Compose and Flutter
   included), only when the element's type is a button, switch, link and so on. Pointing at an

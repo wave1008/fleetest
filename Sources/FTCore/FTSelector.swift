@@ -943,7 +943,13 @@ public struct FTSelector {
             // `=` エスケープは全体が生ラベル(clauseError と同じ免除)。ここで先に弾かないと、
             // 括弧チェックを全体テキストにまとめて掛けていたときと同じく、エスケープした
             // リテラルの中の "(" ")" を構文エラーと誤認する(例: `=smile :)`)
-            if trimmed.hasPrefix("=") { continue }
+            if trimmed.hasPrefix("=") {
+                // `=` の後が空 = 空のラベルに解かれ、notExist("=") が黙って緑になる(43周目 im4 F2・iultra F1)
+                if trimmed.dropFirst().trimmingCharacters(in: .whitespaces).isEmpty {
+                    return "the label after `=` is empty: \"\(clause)\""
+                }
+                continue
+            }
             if let error = unbalancedParenError(clause) { return error }
             if let error = clauseError(clause) { return error }
         }

@@ -237,14 +237,25 @@ extension StepExecutor {
         }
     }
 
+    /// **欄の中心が木に出ない別ウィンドウ(候補のポップアップ等)の下なら、撃たずに断る文**(nil = 撃ってよい)。材料はブリッジの申告
+    /// (`overlayWindowFrames`)だけで、塗り順の無い木(CMP・Flutter の Android)でも言える。打つ・消すは欄の中心へ焦点のタップを撃つので、
+    /// 覆いの方を押して別の欄を書き換えた(43周目 alocal F2・F3: CMP の候補「Japan」を選び上の欄が書き換わって ✅)。
+    /// 焦点がすでにその欄にありキーボードが出ていれば触らずに撃つので断らない(呼び手が先に見る)
+    func overlayWindowFieldRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, verb: String) -> String? {
+        guard let advisory = OverlayWindowOcclusion.resolve(reported: snapshot.overlayWindowFrames).advisory(for: element) else { return nil }
+        return "did not \(verb) \(step.locatorSummary) (nothing was \(verb == "clear" ? "cleared" : "typed")): \(advisory)"
+    }
+
     /// **打つ・消す欄の中心が覆われているとき、撃たずに断る文**(nil = 撃ってよい)。欄の ref に撃つ操作は覆いの下の部分を
     /// 選べないので、tap の `coveredTouchPlan` が `.part` と言う形も断る。判定は `coveredTouchPlan` を共有する(tap と同じ結論)。
     /// 焦点がすでにその欄にあるときは触らず撃つので飛ばす(`reachPastKeyboard` と同じ条件)
     func coveredFieldRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, verb: String) async -> String? {
+        // (欄の中心が別ウィンドウの下なら、木の塗り順を見る前に断る = 下の overlayWindowFieldRefusal)
         if KeyboardWait.isShown(snapshot),
            element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: tapTargetBeforeThisStep, in: snapshot.elements) {
             return nil
         }
+        if let refusal = overlayWindowFieldRefusal(element, in: snapshot, step: step, verb: verb) { return refusal }
         switch await coveredTouchPlan(element, in: snapshot, step: step) {
         case .none: return nil
         case .refuse(let message): return message

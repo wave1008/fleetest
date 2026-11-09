@@ -34,8 +34,12 @@ extension StepExecutor {
             return (false, note)
         }
         start = clock.now
-        try await RefExpectationScope.firing(resolved.element) {
-            try await td.type(ref: resolved.element.ref, text: step.text ?? "")
+        do {
+            try await RefExpectationScope.firing(resolved.element) {
+                try await td.type(ref: resolved.element.ref, text: step.text ?? "")
+            }
+        } catch {
+            throw Self.clearFocusRefusalInDSLTerms(error, step: step, element: resolved.element)
         }
         phase.actionMs += Self.ms(clock.now - start)
         return (true, note)
@@ -431,15 +435,26 @@ extension StepExecutor {
     /// 渡していない)。静的テキストなら入力欄でないことを添える(iOS は RN の OTP の箱も staticText で来るので撃つ前には断らない)。
     /// 文言の先頭は Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift の BridgeError(422, …) と同期
     static func clearFocusRefusalInDSLTerms(_ error: Error, step: FlowStep, element: ElementInfo) -> Error {
-        guard case DriverError.badResponse(422, let body) = error,
-              body.hasPrefix(Self.runnerFocusRefusalPrefix) else { return error }
-        let rest = body.dropFirst(Self.runnerFocusRefusalPrefix.count)
+        guard case DriverError.badResponse(422, let body) = error else { return error }
         let staticNote = element.type == "staticText"
             ? ". The target is a staticText (display-only text), which usually cannot take input: point the selector at the input field itself"
             : ""
-        return DriverError.badResponse(status: 422, body: "tapping \(step.locatorSummary) did not move keyboard focus to it" + rest + staticNote)
+        if body.hasPrefix(Self.runnerFocusRefusalPrefix) {
+            let rest = body.dropFirst(Self.runnerFocusRefusalPrefix.count)
+            return DriverError.badResponse(status: 422, body: "tapping \(step.locatorSummary) did not move keyboard focus to it" + rest + staticNote)
+        }
+        // 「nothing has keyboard focus, so …. If you passed a ref, …」: 後半は ref を渡した呼び手向けで DSL では従えない(43周目 im4 F3)。
+        // 最初の文の事実だけ残し、何を叩いたかをロケータで言う
+        if body.hasPrefix(Self.runnerNoFocusPrefix) {
+            let fact = body.prefix(while: { $0 != "." })
+            return DriverError.badResponse(status: 422, body: "\(fact) after tapping \(step.locatorSummary)"
+                + (staticNote.isEmpty ? " — point the selector at the input field itself" : staticNote))
+        }
+        return error
     }
     static let runnerFocusRefusalPrefix = "tapping the ref did not move keyboard focus to it"
+    /// Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift の type / clear の 422 の先頭と同期
+    static let runnerNoFocusPrefix = "nothing has keyboard focus, so there is"
 
 
     enum ClearOutcome {

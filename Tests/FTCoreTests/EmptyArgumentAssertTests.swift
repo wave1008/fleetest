@@ -19,6 +19,14 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertNil(FTSelector.validationError("#btn_ok"))
     }
 
+    /// `=` の後が空のラベルも断る(43周目 im4 F2・iultra F1: notExist("=") が緑)。`=` で始まる中身のあるラベルは通す
+    func testEmptyEscapedLabelIsRefused() {
+        XCTAssertNotNil(FTSelector.validationError("="))
+        XCTAssertNotNil(FTSelector.validationError("= "))
+        XCTAssertNotNil(FTSelector.validationError("#nope||="))
+        XCTAssertNil(FTSelector.validationError("=smile :)"))
+    }
+
     func testEmptyExpectationNegatedFormIsRed() {
         for assert in ["textContainsNot", "valueContainsNot"] {
             XCTAssertFalse(LocatorResolver.negativeAssertSatisfied(assert, actual: "abc", expected: ""), assert)
