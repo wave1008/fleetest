@@ -86,18 +86,21 @@
     {
       "platform": "android",
       "machine": "M4Max",
+      "enabled": false,
       "name": "Pixel 10 Pro(Android 17)-01",
       "avd": "Pixel_10_Pro_Android_17_-01"
     },
     {
       "platform": "android",
       "machine": "M4Max",
+      "enabled": false,
       "name": "Pixel 10 Pro(Android 17)-02",
       "avd": "Pixel_10_Pro_Android_17_-02"
     },
     {
       "platform": "android",
       "machine": "M4Max",
+      "enabled": false,
       "name": "Pixel 10 Pro(Android 17)-03",
       "avd": "Pixel_10_Pro_Android_17_-03"
     },
