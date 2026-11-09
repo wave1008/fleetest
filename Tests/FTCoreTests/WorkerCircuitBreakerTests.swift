@@ -149,4 +149,17 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertTrue(code.contains("if outcome == .passed { _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true) }"),
                       "対象外(notApplicable)は記録を消さない")
     }
+
+    /// デバイスに触れずに落ちたと確定できる素性だけなら数えない・届いた/言えない失敗が1つでもあれば数える
+    func testCountsAsLaneFailureOnlyWhenNotProvablyUntouched() {
+        let syntax = StepFailureKind.selectorSyntax.rawValue
+        XCTAssertFalse(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [syntax]))
+        XCTAssertFalse(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [syntax, syntax]))
+        XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: []))
+        XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [nil]))
+        XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [syntax, nil]))
+        for kind in StepFailureKind.allCases where kind != .selectorSyntax {
+            XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [kind.rawValue]), kind.rawValue)
+        }
+    }
 }

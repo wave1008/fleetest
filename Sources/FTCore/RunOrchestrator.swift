@@ -2010,6 +2010,7 @@ public final class RunOrchestrator: Sendable {
                                                  at: Date())
             let slowestStep = SlowestStepSnapshot()
             let observedScreenStates = LockedValue<Set<DeviceScreenState>>([])
+            let failedStepKinds = LockedValue<[String?]>([])
             // **終了イベントは境目の表示の確認まで保留する**(確認が凍結を確定したら合否を失敗へ直して流す = Test Explorer などの
             // 読み手が「合格」を見たまま残らない。NDJSON は scenarioFinished を取り消す口を持たない)。確認を注入していなければ保留しない。
             // 保留の分だけ読み手の受け取り時刻が遅れるので、送った時刻は flowStartedAt / flowEndedAt で別に運ぶ(所要の集計が確認・回復の時間を含まない)
@@ -2048,6 +2049,9 @@ public final class RunOrchestrator: Sendable {
                     }
                     if case .step(_, _, let result) = event, let ms = result.timing?.snapshotMs {
                         slowestStep.note(ms)
+                    }
+                    if case .step(_, _, let result) = event, !result.synthetic, case .failed = result.status {
+                        failedStepKinds.withLock { $0.append(result.failureKind) }
                     }
                     if case .step(_, _, let result) = event {
                         let states = Set((result.notes ?? []).compactMap(RunDeviceState.init(note:)))
@@ -2290,7 +2294,9 @@ public final class RunOrchestrator: Sendable {
             // レーンが通っていれば不調ワーカーとして離脱。誰も通っていなければ残す(全レーンが同時に
             // 落ちている = デバイスではなく run の問題。離脱させると revive を使い切って残りが未実行で赤になる)
             // 最後に通ってから別のデバイスでも落ちたシナリオ(どこでも落ちる赤)は、このレーンの不調の証拠に数えない
+            // デバイスに触れずに落ちたと確定できる失敗だけのシナリオも数えない(WorkerCircuitBreaker.countsAsLaneFailure)
             if unusableReason == nil,
+               WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: failedStepKinds.withLock { $0 }),
                await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: false) {
                 let verdict = breaker.recordFailure(runPasses: await runPasses.snapshot())
                 await persistStreak(breaker, key: streakKey)
