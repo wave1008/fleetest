@@ -636,9 +636,11 @@ public final class AndroidDriver: AppDriver {
 
     /// 前面化の monkey の引数。**`--pct-syskeys 0` を外さない** —— monkey は起動前に「システムキーの割合 > 0 なのに
     /// 端末に物理キーが無い」を検査して何も送らずに終わる(exit 251・出力は `** SYS_KEYS has no physical keys but with
-    /// factor 2.0%.` だけ)。Android 17 の Pixel 10 Pro の Emulator で 12/12 そうなった(2026-11-09)。形は `AdbPolicy` と同期
-    static func activateMonkeyArguments(bundleID: String) -> [String] {
-        ["shell", "monkey", "--pct-syskeys", "0", "-p", bundleID, "-c", "android.intent.category.LAUNCHER", "1"]
+    /// factor 2.0%.` だけ)。Android 17 の Pixel 10 Pro の Emulator で 12/12 そうなった。形は `AdbPolicy` と同期。
+    /// パッケージ名を adb shell へ埋めるので、組み立てる前に検める(呼び手の検めに頼らない)
+    static func activateMonkeyArguments(bundleID: String) throws -> [String] {
+        try AndroidPackageName.require(bundleID)
+        return ["shell", "monkey", "--pct-syskeys", "0", "-p", bundleID, "-c", "android.intent.category.LAUNCHER", "1"]
     }
 
     /// ランチャー intent を送る(起動中ならタスクが前面に来るだけ)。
@@ -647,7 +649,7 @@ public final class AndroidDriver: AppDriver {
         try requireDeviceAnswers()
         let lockBefore = rotationSettingsBeforeLaunch()
         defer { restoreRotationSettings(lockBefore) }
-        let result = try adb(Self.activateMonkeyArguments(bundleID: bundleID))
+        let result = try adb(try Self.activateMonkeyArguments(bundleID: bundleID))
         guard result.status == 0 else {
             throw DriverError.badResponse(status: Int(result.status),
                 body: "failed to bring the app to the foreground: \(Self.monkeyFailureDetail(result.tail))")
