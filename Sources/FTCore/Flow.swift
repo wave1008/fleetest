@@ -343,7 +343,9 @@ public enum FlowMatchMode: String, Codable, Equatable, Sendable {
         switch self {
         case .exact: return normalizedActual == normalizedExpected
         case .startsWith: return normalizedActual.hasPrefix(normalizedExpected)
-        case .contains: return TextContainment.contains(normalizedActual, normalizedExpected)
+        // セレクタの一致: 空の期待値は何にも一致させない(検証の「含む」= TextContainment とは逆。空白だけの `* *` は正規化で空になり、
+        // 「含む」で比べると全要素に一致して先頭を撃った = b0107bf13 の退行・44周目)
+        case .contains: return !normalizedExpected.isEmpty && normalizedActual.contains(normalizedExpected)
         case .endsWith: return normalizedActual.hasSuffix(normalizedExpected)
         case .matches: return normalizedActual.range(of: normalizedExpected, options: .regularExpression) != nil
         }

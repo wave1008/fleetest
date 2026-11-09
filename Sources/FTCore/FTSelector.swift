@@ -988,7 +988,11 @@ public struct FTSelector {
 
     private static func segmentError(_ segment: String, isScoped: Bool, isTarget: Bool) -> String? {
         if segment.isEmpty { return "there is an empty clause (check around `>>` and `||`)" }
-        if segment.hasPrefix("=") { return nil }
+        if segment.hasPrefix("=") {
+            // `=` の後が空 = 空のラベル(`#a>>=` の notExist が黙って緑 = 44周目)
+            return segment.dropFirst().trimmingCharacters(in: .whitespaces).isEmpty
+                ? "the label after `=` is empty: \"\(segment)\"" : nil
+        }
         // `:名前(` の形をした未知のマーカー(綴り誤り・他ツール記法の混入)
         if let unknown = unknownMarker(in: segment) { return unknownMarkerError(unknown, segment) }
         // 括弧を伴わない綴り誤り(`:rihgt` `:rightFoo`)。方向名で始まるのに正しいコマンドでないものだけを
@@ -1098,7 +1102,8 @@ public struct FTSelector {
             }
             return tokenError(inner)
         }
-        if token.allSatisfy({ $0 == "*" }) {
+        // 空白だけの部分一致(`* *`)も空(比べる前に空白を詰める = 中身が空になる)
+        if token.contains("*"), token.allSatisfy({ $0 == "*" || $0.isWhitespace }) {
             return "the partial match is empty: \"\(token)\" (write it like `*word*`)"
         }
         if let error = groupError(token) { return error }

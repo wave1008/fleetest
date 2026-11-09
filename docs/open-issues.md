@@ -56,6 +56,7 @@
 - 優先度: 低 — どれも合否に響かない注記か、MCP だけの形
 
 出典: `_work/explore-20261109c/findings-*.md`(43周目・11/9)。**要測定**: ①Android の `back()` がキーボードを閉じただけで画面が戻らない回に `back-closed-keyboard` が付かない(amax F1 8/8・alocal 2/2・phys F1 2/2)。View の画面はキーボードで窓が縮み、前後の木で容器の枠が 1280x1332 → 1280x2268 に変わって「前後の木が同一」の条件が成り立たない(amax が木で観測)。CMP は窓が縮まないのに付かない(alocal・phys)= 原因は材料不足。**据え置き**: ②MCP の Android の `ft_navigate back` はキーボードを閉じただけでも「back sent.」とだけ返す(alocal F1 4/4。`BackEffect` を呼ぶのは DSL だけ)③MCP の `ft_type(replace:)` の「消え残り」の 422 は、fmAndVision が無ければ確かめた事実の無い断りのまま(ilocal F1。`ft_clear_input` と同じ扱い = 既定で OCR を使わない決定)
+- 11/9(44周目は途中で中止): b0107bf13 が「空は含む」をセレクタの一致(`FlowMatchMode.contains`)にも当て、空白だけの部分一致 `* *` が全要素に一致して先頭を撃つ退行を入れた(4人が再現)。セレクタの一致は「空は何にも一致しない」に戻し、`* *`・スコープの後ろの空のラベル(`#a>>=`)・型付きの空の値(`Sel.text("")` 等)を実行前に断る
 - 11/9(43周目の直し): 値の検証 `thisContainsNot("")` を赤に・`=` の後が空のラベル(`notExist("=")`)を実行前に断る・Android で欄の中心が候補のポップアップ等の別ウィンドウの下なら `type(sel, …)` / `clearInput` を撃たずに断る・iOS の XCUITest ブリッジの「nothing has keyboard focus … If you passed a ref」を DSL の言葉に直す(type も)・MCP の `ft_type(replace:)` の消え残りの 422 を `ft_clear_input` と同じ確かめに通す
 
 ### OI-202 探索の残り(42周目)

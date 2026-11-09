@@ -27,6 +27,15 @@ final class EmptyArgumentAssertTests: XCTestCase {
         XCTAssertNil(FTSelector.validationError("=smile :)"))
     }
 
+    /// 空白だけの部分一致・スコープの後ろの空のラベルも断る(44周目)
+    func testWhitespaceOnlyPartialAndScopedEmptyLabelAreRefused() {
+        XCTAssertNotNil(FTSelector.validationError("* *"))
+        XCTAssertNotNil(FTSelector.validationError("*  *"))
+        XCTAssertNotNil(FTSelector.validationError("#field_single>>="))
+        XCTAssertNil(FTSelector.validationError("*a b*"))
+        XCTAssertNil(FTSelector.validationError("#field_single>>=OK"))
+    }
+
     func testEmptyExpectationNegatedFormIsRed() {
         for assert in ["textContainsNot", "valueContainsNot"] {
             XCTAssertFalse(LocatorResolver.negativeAssertSatisfied(assert, actual: "abc", expected: ""), assert)

@@ -183,6 +183,15 @@ final class SelTests: XCTestCase {
         XCTAssertNil(Sel.text("a").nth(1).ftSelector.preflightError, "正当な序数は素通りすること")
     }
 
+    /// 空(空白だけ)の値は文字列版の `#`・`=` と同じく実行前に断る(44周目: `Sel.text("")` の notExist が緑)
+    func testEmptyValuesAreReportedBeforeRunning() {
+        XCTAssertNotNil(Sel.text("").ftSelector.preflightError)
+        XCTAssertNotNil(Sel.id(" ").ftSelector.preflightError)
+        XCTAssertNotNil(Sel.value("").ftSelector.preflightError)
+        XCTAssertNotNil(Sel.type(.button).text("").ftSelector.preflightError)
+        XCTAssertNil(Sel.text("OK").ftSelector.preflightError)
+    }
+
     /// 誤りは合成をまたいで運ばれる(途中で握り潰すと実行前に落とせない)
     func testInvalidOrdinalSurvivesComposition() {
         XCTAssertNotNil(Sel.id("list").find(Sel.text("a").nth(0)).ftSelector.preflightError)

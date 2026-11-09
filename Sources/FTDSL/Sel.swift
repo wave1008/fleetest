@@ -108,19 +108,28 @@ public struct Sel: Sendable, Equatable {
     // MARK: - フィルタ(現在の対象へ AND)
 
     public func id(_ id: String, _ match: FlowMatchMode = .exact) -> Sel {
-        updatingTarget { $0.id = id; $0.idMatch = Self.stored(match) }
+        if let reason = Self.emptyValueReason("id", id) { return invalidated(reason) }
+        return updatingTarget { $0.id = id; $0.idMatch = Self.stored(match) }
     }
 
     public func text(_ text: String, _ match: FlowMatchMode = .exact) -> Sel {
-        updatingTarget { $0.label = text; $0.labelMatch = Self.stored(match) }
+        if let reason = Self.emptyValueReason("text", text) { return invalidated(reason) }
+        return updatingTarget { $0.label = text; $0.labelMatch = Self.stored(match) }
     }
 
     public func value(_ value: String, _ match: FlowMatchMode = .exact) -> Sel {
-        updatingTarget { $0.value = value; $0.valueMatch = Self.stored(match) }
+        if let reason = Self.emptyValueReason("value", value) { return invalidated(reason) }
+        return updatingTarget { $0.value = value; $0.valueMatch = Self.stored(match) }
     }
 
     public func placeholder(_ placeholder: String, _ match: FlowMatchMode = .exact) -> Sel {
-        updatingTarget { $0.placeholder = placeholder; $0.placeholderMatch = Self.stored(match) }
+        if let reason = Self.emptyValueReason("placeholder", placeholder) { return invalidated(reason) }
+        return updatingTarget { $0.placeholder = placeholder; $0.placeholderMatch = Self.stored(match) }
+    }
+
+    /// 空(空白だけを含む)の値は文字列版の `#`・`=`・`value=` と同じく実行前に断る(44周目: `Sel.text("")` の notExist が緑)
+    private static func emptyValueReason(_ attribute: String, _ value: String) -> String? {
+        value.trimmingCharacters(in: .whitespaces).isEmpty ? "Sel.\(attribute)(\"\(value)\") is empty — it would match nothing or anything" : nil
     }
 
     /// exact は mode を持たせない(文字列版の parseNamedFilter と同じ正規化。

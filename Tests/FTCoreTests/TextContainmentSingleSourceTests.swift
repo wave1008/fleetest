@@ -12,11 +12,20 @@ final class TextContainmentSingleSourceTests: XCTestCase {
         XCTAssertFalse(TextContainment.contains("abc", "x"))
     }
 
+    /// セレクタの一致は逆: 空の期待値は何にも一致しない(44周目: 空白だけの `* *` が全要素に一致して先頭を撃った)
+    func testSelectorContainsMatchesNothingWhenEmpty() {
+        XCTAssertFalse(FlowMatchMode.contains.matches("single=", " "))
+        XCTAssertFalse(FlowMatchMode.contains.matches("single=", ""))
+        XCTAssertTrue(FlowMatchMode.contains.matches("single=", "gle"))
+    }
+
     /// 期待値の名前(expected / want / normalizedExpected)に素の `.contains(` を当てる行を落とす
     func testNoRawContainsOnExpectedValues() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        // 理由付きの例外: imageIs のラベル照合は空の期待値で常に緑になる側へ倒さない(空は一致させない)
-        let allowed: Set<String> = ["Sources/FTCore/TextContainment.swift", "Sources/FTCore/VisionClassifier.swift"]
+        // 理由付きの例外(どちらも「空は一致させない」側が正しい): imageIs のラベル照合は空の期待値で常に緑にしない /
+        // セレクタの一致(FlowMatchMode)は空で全要素に一致して先頭を撃つ(44周目: `* *`)
+        let allowed: Set<String> = ["Sources/FTCore/TextContainment.swift", "Sources/FTCore/VisionClassifier.swift",
+                                    "Sources/FTCore/Flow.swift"]
         let pattern = try NSRegularExpression(pattern: #"\.contains\((expected|want|normalizedExpected)\)"#)
         var hits: [String] = []
         var scanned = 0
