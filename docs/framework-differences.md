@@ -252,6 +252,8 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
   (Material の `ExposedDropdownMenu` = inputType none・a11y では `android.widget.Spinner` を名乗る)へも書けて ✅ になる(人は打てない)。
   **注記で残す**(Android v134・合否は変えない): inputType が none・EditText を名乗らない・IME が入力接続を持たない、の3つが揃うときだけ。
   Compose は inputType を申告しないが接続はあり、Flutter は EditText を名乗るが書いた直後は接続が無いと読める(どちらも人は打てる)
+  入力接続は `dumpsys input_method` の欄で読み、**欄の名前が OS で違う**(実測: Android 17 の Emulator は `mServedInputConnection=` / Android 12 の Pixel 3a は
+  `mServedInputConnectionWrapper=`。13〜16 は未確認。v134 は前者だけ探して Android 12 の Pixel 3a で「不明」= 注記が黙って出なかった → v135 で両方を読む)
 - **Android の入力**: Flutter は `findFocus` が半分の確率で入れ物(FlutterView)を返す → 木から編集可能な欄を探し直す(A)。
   Compose は焦点の無い欄への `ACTION_SET_TEXT` が true を返して反映しない → 焦点が立つまで撃たない(A)
 
@@ -467,6 +469,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 | 版・コミット | 内容 |
 |---|---|
 | Android v134 | 読み取り専用の欄(inputType none・EditText を名乗らない・入力接続なし)への `type` に注記を付ける(FD-2.4) |
+| Android v135 | 入力接続の有無を Android 12 の欄名(`mServedInputConnectionWrapper=`)でも読む(読み取り専用の欄の注記・閉じた接続への IME Enter の拒否が Android 12 でも効く。FD-2.4) |
 | Android v129 | ブリッジが押せるノードに `clickable` を載せる(setOnClickListener を付けた TextView は `staticText` に写る)。塗り順のある Android の View・RN で、この申告のある覆いの下への触る操作は覆いが押せる型でなくても撃つ前に断る(シートの裏の行への tap が手前のキューの行を押して ✅ だった)。iOS は送らない(型が役割を語る) |
 | iOS v278 | in-app ブリッジが `accessibilityViewIsModal` で木から外した兄弟の数と旗付きの view の枠を `SnapshotResponse.modalScope` で申告する。解決できない失敗文はキーボードでなくモーダルを名指し、閉じる tap を撃たない(FD-2.1) |
 | iOS v277 | `/home` の対象アプリを要求の入口で消す(`handleHome` の `defer` で消していたため、出た後に組む 422 の名指しが読めずアプリ自身のアラートを「system alert」と言っていた) |

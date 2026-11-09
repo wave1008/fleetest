@@ -279,10 +279,12 @@ final class InputInjector {
             String line;
             int lines = 0;
             while ((line = reader.readLine()) != null && ++lines <= EDITOR_INFO_SCAN_MAX_LINES) {
-                int at = line.indexOf(SERVED_INPUT_CONNECTION_KEY);
-                if (at < 0) continue;
-                String value = line.substring(at + SERVED_INPUT_CONNECTION_KEY.length()).trim();
-                return value.isEmpty() ? null : !value.equals("null");
+                for (String key : SERVED_INPUT_CONNECTION_KEYS) {
+                    int at = line.indexOf(key);
+                    if (at < 0) continue;
+                    String value = line.substring(at + key.length()).trim();
+                    return value.isEmpty() ? null : !value.equals("null");
+                }
             }
         } catch (Exception e) {
             return null;
@@ -290,7 +292,9 @@ final class InputInjector {
         return null;
     }
 
-    private static final String SERVED_INPUT_CONNECTION_KEY = "mServedInputConnection=";
+    // 欄の名前は OS で違う(実測: Android 17 の Emulator は mServedInputConnection= / Android 12 の Pixel 3a は
+    // mServedInputConnectionWrapper=)。前者だけ探すと 12 で null = 不明になり、読み取り専用の欄の注記が黙って出ない
+    private static final String[] SERVED_INPUT_CONNECTION_KEYS = {"mServedInputConnection=", "mServedInputConnectionWrapper="};
 
     /** 木に id の一致する(editable でない)ノードがあるか。OTP の箱のように押せるだけの要素の確認 */
     /** setTextAppendingAt が焦点の接続へ回したときの応答の注記(OKResponse.note。ホストは lastActionNote で拾う) */
