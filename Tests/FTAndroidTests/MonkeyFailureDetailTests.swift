@@ -3,6 +3,7 @@
 
 import XCTest
 @testable import FTAndroid
+@testable import FTCore
 
 final class MonkeyFailureDetailTests: XCTestCase {
 
@@ -66,5 +67,16 @@ final class AndroidBridgeHeldByAnotherSessionMessageTests: XCTestCase {
         let text = AndroidBridgeHeldByAnotherSession(serial: "14141JEC204922", runningVersion: 109).localizedDescription
         XCTAssertFalse(text.contains("not answering"), text)
         XCTAssertTrue(text.contains("is running another version (109; this build expects \(AndroidDriver.expectedBridgeVersionCode))"), text)
+    }
+
+    /// 前面化の monkey はシステムキーを 0% にする。既定(2%)のままだと物理キーの無い Emulator(Android 17 の Pixel 10 Pro)で
+    /// 何も送らずに exit 251 になる。サンドボックスの子からも同じ形で撃てる(`AdbPolicy` が通す)こと
+    func testActivateMonkeyDisablesSystemKeysAndIsAllowedFromTheSandbox() {
+        let args = AndroidDriver.activateMonkeyArguments(bundleID: "com.ftester.e2e")
+        XCTAssertEqual(args, ["shell", "monkey", "--pct-syskeys", "0", "-p", "com.ftester.e2e",
+                              "-c", "android.intent.category.LAUNCHER", "1"])
+        let context = SimctlPolicy.Context(udid: nil, deviceName: nil, toolRoots: [], childWritableRoots: [],
+                                           serial: "emulator-5554", adbPath: "/parent/platform-tools/adb", bundletool: [])
+        XCTAssertNil(AdbPolicy.check(["-s", "emulator-5554"] + args, context: context))
     }
 }

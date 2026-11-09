@@ -37,7 +37,7 @@ final class AdbPolicyTests: XCTestCase {
         let allowed: [[String]] = [
             lane("shell", "true"), lane("shell", "wm", "density"), lane("shell", "dumpsys", "window", "windows"),
             lane("shell", "pm", "clear", "com.ftester.e2e"), lane("shell", "am", "force-stop", "com.example.ftbridge"),
-            lane("shell", "monkey", "-p", "com.ftester.e2e", "-c", "android.intent.category.LAUNCHER", "1"),
+            lane("shell", "monkey", "--pct-syskeys", "0", "-p", "com.ftester.e2e", "-c", "android.intent.category.LAUNCHER", "1"),
             lane("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", "'fte2e://screen/detail?a=1&b=2'"),
             lane("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", "'https://x.example'", "com.ftester.e2e"),
             lane("shell", "input", "keyevent", "KEYCODE_HOME"), lane("shell", "input", "keyevent", "66"),

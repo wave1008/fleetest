@@ -209,8 +209,9 @@ public enum AdbPolicy {
         }
         if c.first == "logcat" { return logcatAllowed(c) }
         if c.count == 8, Array(c[0..<3]) == ["shell", "input", "swipe"] { return c[3...].allSatisfy(integer) }
-        if c.count == 7, Array(c[0..<3]) == ["shell", "monkey", "-p"] {
-            return pkg(c[3]) && Array(c[4...]) == ["-c", "android.intent.category.LAUNCHER", "1"]
+        // 前面化(`AndroidDriver.activateMonkeyArguments` と同期)
+        if c.count == 9, Array(c[0..<5]) == ["shell", "monkey", "--pct-syskeys", "0", "-p"] {
+            return pkg(c[5]) && Array(c[6...]) == ["-c", "android.intent.category.LAUNCHER", "1"]
         }
         // shell am start -W -a android.intent.action.VIEW -d '<url>' [<pkg>]
         if c.count == 8 || c.count == 9,
