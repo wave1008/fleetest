@@ -50,7 +50,12 @@ public enum BackEffect {
     /// 撮り直しても戻らない = MCP で観測 11/9)
     static func sameScreenIgnoringLayout(before: [ElementInfo], after: [ElementInfo]) -> Bool {
         let key: (ElementInfo) -> String = { "\($0.type)|\($0.identifier ?? "")|\($0.label ?? "")" }
-        let substantive: (ElementInfo) -> Bool = { SnapshotRenderer.isSubstantive($0, flagging: [:]) }
+        // 名乗る物(id かラベル)の無い要素も比べない: 窓が広がると中身が収まり、スクロール容器が木から落ちる
+        // (E2EX-Android の入力の種類: id もラベルも無い scrollView が閉じた後の木に無い = MCP で観測 11/9・49周目 amax F1)
+        let substantive: (ElementInfo) -> Bool = {
+            SnapshotRenderer.isSubstantive($0, flagging: [:])
+                && !(TextNormalization.isBlank($0.identifier ?? "") && TextNormalization.isBlank($0.label ?? ""))
+        }
         let beforeKeys = Set(before.filter(substantive).map(key))
         guard !beforeKeys.isEmpty else { return false }
         return beforeKeys.isSubset(of: Set(after.map(key)))

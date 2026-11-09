@@ -32,7 +32,7 @@
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 11 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 2 | OI-184・OI-198 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 25 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 26 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210 |
 
 ## 着手可
 
@@ -313,6 +313,16 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-210 iPhone Duo の折りたたんだ状態で、キーボードに押し上げられて上端で半分切れたテキストの検証が OCR の読み誤りで赤
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 据え置き
+- 運用: ①誤った赤(沈黙しない)— Duo の折りたたんだ状態だけ。上端で切れたテキストを検証するならキーボードを閉じてから
+- 優先度: 低 — Duo だけの誤った赤
+
+出典: `_work/explore-20261109k/findings-duo.md`(49周目・11/9)。①`ios-duo`(inapp-boost)で `fold()` の後に入力画面で `type(replace:)` すると、キーボードで画面が上へ押し上げられ、`#txt_echo_single`(枠 (16,-9 94x20) = 上端で半分切れている)への `textIs("single=fold2")` が「the text drawn there reads "single=1010a2"」で赤(duo F1 2/2。木の text と欄の値は期待どおり・開いた状態では 3/3 緑・同じシナリオの1周目は緑)
+- 据え置きの理由: 原因は材料不足(上端で切れた絵の OCR の誤読か、切り出しの位置かを分ける材料が無い)
 
 ### OI-209 this* だけのシナリオがステップ0件で赤(1回)・値の改行で表示が割れる・MCP の複数行の欄への type をキーボードの下と断る・ft_scroll_to の文言ほか
 - 状態: 再現済み

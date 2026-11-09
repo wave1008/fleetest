@@ -150,6 +150,13 @@ final class BackEffectTests: XCTestCase {
         let open = snapKeyboard([container, field], shown: true, frame: FTRect(x: 0, y: 1500, width: 1080, height: 840))
         XCTAssertTrue(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard([grown, field, revealed], shown: false)),
                       "窓が広がった同じ画面を別の画面と読んだ")
+        // 名乗る物の無いスクロール容器は、窓が広がって中身が収まると落ちる(E2EX-Android の入力の種類)
+        var scroller = ElementInfo(ref: 4, type: "scrollView", identifier: nil, label: nil, value: nil, placeholder: nil,
+                                   enabled: true, frame: FTRect(x: 0, y: 786, width: 1280, height: 1062), depth: 1)
+        scroller.scrollable = true
+        let openWithScroller = snapKeyboard([container, scroller, field], shown: true, frame: FTRect(x: 0, y: 1848, width: 1280, height: 1008))
+        XCTAssertTrue(BackEffect.closedKeyboardOnly(before: openWithScroller, after: snapKeyboard([grown, field, revealed], shown: false)),
+                      "スクロール容器が落ちた同じ画面を別の画面と読んだ")
         // id だけのレイアウト容器は閉じた後の木から落ちる(E2EY-Android の #nav_host_fragment)
         XCTAssertTrue(BackEffect.closedKeyboardOnly(before: open, after: snapKeyboard([field, revealed], shown: false)),
                       "id だけの容器が落ちた同じ画面を別の画面と読んだ")
