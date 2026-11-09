@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-202 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-202・OI-204 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 10 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 2 | OI-184・OI-198 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 19 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 20 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204 |
 
 ## 着手可
 
@@ -47,6 +47,16 @@
 
 
 ## 要測定
+
+### OI-204 探索の残り(43周目)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-09)
+- 属性: 要測定・据え置き
+- 運用: ①要注意 — Android の `back()` がキーボードを閉じただけの回に注記が付かないことがある。back の後は画面の見出しを検証する
+- 優先度: 低 — どれも合否に響かない注記か、MCP だけの形
+
+出典: `_work/explore-20261109c/findings-*.md`(43周目・11/9)。**要測定**: ①Android の `back()` がキーボードを閉じただけで画面が戻らない回に `back-closed-keyboard` が付かない(amax F1 8/8・alocal 2/2・phys F1 2/2)。View の画面はキーボードで窓が縮み、前後の木で容器の枠が 1280x1332 → 1280x2268 に変わって「前後の木が同一」の条件が成り立たない(amax が木で観測)。CMP は窓が縮まないのに付かない(alocal・phys)= 原因は材料不足。**据え置き**: ②MCP の Android の `ft_navigate back` はキーボードを閉じただけでも「back sent.」とだけ返す(alocal F1 4/4。`BackEffect` を呼ぶのは DSL だけ)③MCP の `ft_type(replace:)` の「消え残り」の 422 は、fmAndVision が無ければ確かめた事実の無い断りのまま(ilocal F1。`ft_clear_input` と同じ扱い = 既定で OCR を使わない決定)
+- 11/9(43周目の直し): 値の検証 `thisContainsNot("")` を赤に・`=` の後が空のラベル(`notExist("=")`)を実行前に断る・Android で欄の中心が候補のポップアップ等の別ウィンドウの下なら `type(sel, …)` / `clearInput` を撃たずに断る・iOS の XCUITest ブリッジの「nothing has keyboard focus … If you passed a ref」を DSL の言葉に直す(type も)・MCP の `ft_type(replace:)` の消え残りの 422 を `ft_clear_input` と同じ確かめに通す
 
 ### OI-202 探索の残り(42周目)
 - 状態: 再現済み
@@ -299,6 +309,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 優先度: 低 — Duo だけ
 
 出典: `_work/explore-20261106j/findings-*.md`(26周目・11/6)。④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
+- 43周目(11/9): DSL の `unfold()` の後に -01 の SpringBoard が1分に3回落ちた(duo F1 1/1・同じ FBSDisplayMode の EXC_BREAKPOINT。run はレーンを起こし直して緑・失敗文は「bridge up」を勧め SpringBoard を名指さない)。MCP の `ft_fold` の unfold の後は 40・41周目で計 3/3
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
