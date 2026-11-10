@@ -715,6 +715,16 @@ NAME_ARGS=()
 
 if [ "$DO_PROJECT" = "0" ]; then
   record "project" skip "--skip-project"
+elif project_exists && [ "$LAYOUT" != "clone" ] && [ ! -f "$WORK_DIR/Package.swift" ]; then
+  # プロジェクトのフォルダだけが先にある = パッケージは未作成(ランナー機ではモニターの fan-out が
+  # セットアップ前でも TestProjects/ を rsync で送る)。飛ばすと Package.swift が永久にできず、
+  # ディスパッチが「no runner workspace」で止まる。init は既存の名前を断るのでパッケージだけ作って登録する
+  echo "==> fleetest init --no-project($WORK_DIR) + project sync"
+  ( cd "$WORK_DIR" && "$FT" init --no-project --fleetest-path "$TOOL_ROOT" ) \
+    || die "project" "fleetest init failed" 4
+  ( cd "$WORK_DIR" && "$FT" project sync ) \
+    || die "project" "project sync failed" 4
+  record "project" ok "created the consumer package around the existing TestProjects/$PROJECT_NAME"
 elif project_exists; then
   record "project" skip "TestProjects/$PROJECT_NAME already exists"
 elif [ -z "$PROJECT_NAME" ] && { [ "$LAYOUT" = "clone" ] || [ -f "$WORK_DIR/Package.swift" ]; }; then
