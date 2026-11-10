@@ -576,11 +576,25 @@ extension MCPServer {
                 + " A name that is not in this index does not exist (it will not compile)")
         }
         let detailed = name != nil || category != nil
+        // 注意事項は名指しの1コマンドにだけ全行を添える(同じページの注意事項はそのページの全コマンドに付くので、一覧・カテゴリで
+        // 添えると同じ行が何度も並ぶ)。それ以外は件数と一覧の場所だけ。docs が読めなければ黙って添えない
+        let toolRoot = try? RepoRoot.find()
+        let caveats = toolRoot.flatMap { CommandCaveats.load(toolRoot: $0) }
+        let caveatIndex = toolRoot.map { $0.appendingPathComponent(CommandCaveats.indexPath).path }
+            ?? CommandCaveats.indexPath
         var lines = commands.map { command in
             guard detailed else { return command.signature }
             let unsupported = command.unsupportedOn.sorted().map(\.rawValue)
-            return "\(command.signature) — \(command.summary)"
+            var line = "\(command.signature) — \(command.summary)"
                 + (unsupported.isEmpty ? "" : " [cannot run on: \(unsupported.joined(separator: ", "))]")
+            let notes = caveats?.byCommand[command.name] ?? []
+            if name != nil, !notes.isEmpty {
+                line += "\nCaveats (\(notes.count); details in the linked Notes of the command page):\n"
+                    + notes.map { "  - \($0)" }.joined(separator: "\n")
+            } else if !notes.isEmpty {
+                line += " [\(notes.count) caveat(s): pass name: \"\(command.name)\"]"
+            }
+            return line
         }
         lines += projectCommands.map { entry in
             // receiver == "FTElement" は select(...).name(...) の形で呼べる —— シグネチャ自体には
@@ -599,6 +613,10 @@ extension MCPServer {
             header += ". \(projectCommands.count) from the project (marked [project: file:line]) —"
                 + " these are real, written by the project itself; ft_batch cannot run them"
                 + " (write them into the scenario instead)"
+        }
+        if caveats != nil {
+            header += ". Before writing a scenario, read the known caveats (\(caveatIndex)): one line per caveat,"
+                + " including operations that stay green while doing the wrong thing"
         }
         var body = ([header] + lines).joined(separator: "\n")
         if !projectWarnings.isEmpty {

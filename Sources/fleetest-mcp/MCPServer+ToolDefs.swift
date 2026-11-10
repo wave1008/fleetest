@@ -189,8 +189,10 @@ extension MCPServer {
         user when that is not enough. Learn fleetest from its documentation: ft_dsl_commands lists \
         every DSL command and the values you can read from a grabbed element, and the user docs in \
         the fleetest clone (the folder in FT_TOOL_ROOT) start at docs/user-docs/index.md, with the \
-        full DSL reference in docs/commands.md. If the docs do not answer the question, say so in \
-        your report.
+        full DSL reference in docs/commands.md. Before writing a scenario, always read \
+        docs/user-docs/reference/writing/known_caveats.md: one line per caveat of the commands and UI \
+        components, including operations that stay green while doing the wrong thing; follow the linked \
+        section when a line applies. If the docs do not answer the question, say so in your report.
         """
 
     /// 全ツール共通のデバイス選択プロパティ。tool() が無条件で足す
