@@ -153,6 +153,7 @@ final class StaleRefRetryTests: XCTestCase {
         let outcome = await run(driver, timeout: 0.5)
         XCTAssertFalse(StepExecutor.isSuccess(outcome.status))
         XCTAssertGreaterThan(driver.tapAttempts, 1)
+        XCTAssertEqual(outcome.failureKind, .staleRef, "届けずに断られた失敗を driver-error に丸めた(OI-203)")
     }
 
     /// 他の 422 は撃っていないことの保証が無いので撃ち直さない

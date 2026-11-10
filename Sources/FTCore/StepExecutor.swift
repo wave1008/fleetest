@@ -898,10 +898,10 @@ public final class StepExecutor {
         if !isAndroid, step.locator?.hasUnscopedOrdinal == true { noteCodesThisStep.insert(.ordinalWithoutScope) }
         // デバイスに触る前に断る(アクションも検証も通る入口。秒数の型へ変える所が下流に散っている)
         if let violation = step.secondsArgumentViolation {
-            return StepOutcome(status: .failed(violation))
+            return StepOutcome(status: .failed(violation), failureKind: .argumentRejected)
         }
         if let violation = step.linkTextArgumentViolation {
-            return StepOutcome(status: .failed(violation))
+            return StepOutcome(status: .failed(violation), failureKind: .argumentRejected)
         }
         if let refusal = await appLeftRefusal(step: step) {
             return StepOutcome(status: .failed(refusal.message), failureKind: refusal.kind)

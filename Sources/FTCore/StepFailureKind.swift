@@ -19,6 +19,10 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
     /// 実行前の構文検証で落とした。**デバイスには1度も触っていない** = 端末やアプリの状態と無関係
     case selectorSyntax = "selector-syntax"
 
+    /// 撃つ前の引数の検査(秒数・リンクの文字列)で断った。**デバイスには1度も触っていない**
+    /// (`FlowStep.secondsArgumentViolation` / `linkTextArgumentViolation`)
+    case argumentRejected = "argument-rejected"
+
     /// ロケータが解決できなかった(スクロール探索まで含めて、その要素が木に居ない)。
     /// 「画面が違う」と「セレクタが古い」を区別するものではない —— どちらもここに来る
     case notFound = "not-found"
@@ -41,6 +45,10 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
 
     /// ドライバは応答したがエラーを返した(HTTP のエラー応答)。到達はしている
     case driverError = "driver-error"
+
+    /// ブリッジが撃つ前に断った: 掴んだ要素が撃つ直前の木で動いた・消えた(`ErrorResponse.reason` = `stale-ref`)。
+    /// **届いていない**(撃ち直しの予算が尽きた回だけ失敗になる)。ブリッジは答えて木も読んでいるので、レーンの連続失敗には数える
+    case staleRef = "stale-ref"
 
     /// ステップの実行が制限時間内に返らなかった(FTSync.commandTimeout)。waitForSettle で画面・木が `waitSeconds` までに
     /// 静止しなかったときもこれ(待つこと自体が目的のコマンドの時間切れ)

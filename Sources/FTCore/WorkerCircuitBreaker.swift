@@ -32,13 +32,15 @@ public struct WorkerCircuitBreaker: Equatable, Sendable {
     }
 
     /// 失敗したシナリオをレーンの連続失敗に数えるか。**デバイスに1度も触れずに落ちたと構造化された事実で確定できる**
-    /// 失敗(`StepFailureKind.selectorSyntax` = 実行前の構文検証)だけのシナリオは数えない。
+    /// 失敗(`untouchedDeviceKinds` = 実行前の構文検証・撃つ前の引数の検査)だけのシナリオは数えない。
     /// 失敗ステップが無い(子の起動失敗など)・素性を言えない・他の素性が1つでもあれば数える(推測で外さない)。
     /// 文言の一致では決めない。ブリッジの 422 拒否は `reason` 無しだと `driverError` に丸まり届かなかったとは言えないので数える側
     public static func countsAsLaneFailure(failedStepKinds: [String?]) -> Bool {
         guard !failedStepKinds.isEmpty else { return true }
-        return failedStepKinds.contains { $0 != StepFailureKind.selectorSyntax.rawValue }
+        return failedStepKinds.contains { kind in !untouchedDeviceKinds.contains { $0.rawValue == kind } }
     }
+    /// デバイスに1度も触れずに落ちたと確定している素性(足すときは「撃つ前に断った」ことが構造で言えるものだけ)
+    static let untouchedDeviceKinds: [StepFailureKind] = [.selectorSyntax, .argumentRejected]
 
     public let threshold: Int
     public private(set) var consecutiveFailures = 0

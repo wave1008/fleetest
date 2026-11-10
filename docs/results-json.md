@@ -160,11 +160,13 @@ jq -r 'select(.workerAnomalies == null) | .runID' results/runs/2026-08/*/run.jso
 | 値 | 意味 |
 |---|---|
 | `selector-syntax` | 実行前の構文検証で落とした。**デバイスには1度も触っていない** |
+| `argument-rejected` | 撃つ前の引数の検査(秒数が負・無限・`linkText` が空など)で断った。**デバイスには1度も触っていない** |
 | `not-found` | ロケータが解決できなかった(スクロール探索を含めて木に居ない) |
 | `assertion` | 要素は掴めたが期待した値・状態と違った |
 | `driver-unreachable` | ブリッジへ到達できなかった(接続拒否・応答なし・アプリのプロセス死) |
 | `app-stopped-by-session` | このセッション自身が止めたアプリ(terminateApp 後に launch していない)へ操作して接続できなかった。run はブリッジ不達として再キューしない |
 | `driver-error` | ドライバは応答したがエラーを返した(HTTP エラー応答) |
+| `stale-ref` | ブリッジが撃つ前に断った(掴んだ要素が撃つ直前の木で動いた・消えた)。**届いていない**。撃ち直しの予算が尽きた回だけ失敗になる |
 | `timeout` | ステップが制限時間内に返らなかった |
 | `app-not-installed` | 対象アプリがデバイスに入っていなかった(起動前の検査で確定) |
 | `app-in-background` | iOS の inapp-boost モードで、アプリが前面に無かった(XCUITest の前面の照会で確かめた)。`home()`・`appSwitcher()`・`tapAppIcon()`・`openURL()` の後は撃つ前に聞いて断る。それ以外は、in-app ブリッジが答えず、アプリのプロセスは生きていて前面に無いと確かめた回(iOS に一時停止された)。run はブリッジ不達として再キューせず、ブリッジの生存プローブもしない |

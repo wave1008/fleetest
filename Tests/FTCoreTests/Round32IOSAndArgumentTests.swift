@@ -40,6 +40,7 @@ final class Round32IOSAndArgumentTests: XCTestCase {
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(step)
         guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertTrue(message.contains("linkText must not be empty"), message)
+        XCTAssertEqual(outcome.failureKind, .argumentRejected)
         XCTAssertTrue(log.entries.isEmpty, "断る前にデバイスへ触った: \(log.entries)")
         XCTAssertNotNil(FlowStep(action: "tap", locator: FlowLocator(id: "x"), linkText: "  ").linkTextArgumentViolation)
         XCTAssertNil(FlowStep(action: "tap", locator: FlowLocator(id: "x"), linkText: "こちら").linkTextArgumentViolation)

@@ -385,7 +385,8 @@ extension DriverError: StepFailureKindProviding {
             case .crashed?, .aliveButNotAnswering?, nil: return .driverUnreachable
             }
         case .bridgeIdentityMismatch, .notDelivered: return .driverUnreachable
-        case .badResponse, .staleRef, .deliveryUnknown: return .driverError
+        case .badResponse, .deliveryUnknown: return .driverError
+        case .staleRef: return .staleRef
         case .systemAlertBlocked: return .systemUICovered
         }
     }

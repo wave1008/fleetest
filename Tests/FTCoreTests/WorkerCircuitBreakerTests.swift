@@ -158,7 +158,10 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: []))
         XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [nil]))
         XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [syntax, nil]))
-        for kind in StepFailureKind.allCases where kind != .selectorSyntax {
+        let argument = StepFailureKind.argumentRejected.rawValue
+        XCTAssertFalse(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [argument, syntax]))
+        XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [argument, nil]))
+        for kind in StepFailureKind.allCases where kind != .selectorSyntax && kind != .argumentRejected {
             XCTAssertTrue(WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: [kind.rawValue]), kind.rawValue)
         }
     }
