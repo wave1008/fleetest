@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-203 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-202・OI-205 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211 |
@@ -35,17 +35,6 @@
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 27 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211 |
 
 ## 着手可
-
-### OI-203 デバイスに届けずに断った失敗をレーンの連続失敗に数える
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-10)
-- 属性: 着手可
-- 運用: ⑫再実行で吸収(run の制御) — 画面外の座標(ブリッジの 422)が続くと(引数の誤りは 11/10 に外した)、健全なワーカーが脱落しブリッジが起動し直される(結果は捨てて再実行される)
-- 優先度: 中 — 合否は変わらないが、run の時間と「レーンの不調」という事実と違う帰属
-
-出典: `_work/explore-20261109b/findings-duo.md` F2(42周目)。数えから外すのは「同じシナリオが別のデバイスでも落ちた」ときだけで、失敗の種類を見ない(`RunOrchestrator` の連続失敗の数え)。11/9 に `selectorSyntax`(実行前の構文検証)だけの失敗は数えないようにした(`WorkerCircuitBreaker.countsAsLaneFailure`)。**残り**: ①撃つ前の引数の検査(`secondsArgumentViolation` / `linkTextArgumentViolation`)は `failureKind` が nil = `StepFailureKind` に「撃つ前の引数の断り」の case を足して渡す ②ブリッジの 422(座標が画面の外・hinge の範囲外)は `ErrorResponse.reason` を持たず `driverError` に丸まる = 撃つ前に決まる断りに reason(`staleRefReason` と同形)を足し `DriverError` の case と `stepFailureKind` を分ける(ブリッジの版上げ・`--ios-xcuitest`)③`staleRef` も `driverError` から分ける ④前の run からの持ち越し(`LaneFailureStreakStore`)は種類を持たない
-- 11/10(①③④): ①撃つ前の引数の検査に `failureKind` = `argument-rejected` を足し、`selector-syntax` と同じく数えから外した(`WorkerCircuitBreaker.untouchedDeviceKinds`)。③`stale-ref` を `driver-error` から分けた(届いていないが木は読んでいるので数える側のまま)。④持ち越し(`LaneFailureStreakStore`)は数えると決めた失敗だけを書くので種類は要らない(直しなし)。陽性対照: 一時シナリオ(通る1本・`waitSeconds: -1` の8本・通る2本)を手元の2台へ配ると、HEAD は -01 を「3 consecutive scenario failures」で脱落させ、直した版は -02 が7本続けて落ちても脱落なし・`workerAnomalies` なし・8本とも `argument-rejected`。**残りは②**(ブリッジの 422 = 画面外の座標・hinge の範囲外に `ErrorResponse.reason` を足して `DriverError` の case を分ける。ブリッジの版上げ・`--ios-xcuitest` が要る)
-
 
 ## 要測定
 

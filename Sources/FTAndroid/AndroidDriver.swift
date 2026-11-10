@@ -1083,7 +1083,7 @@ public final class AndroidDriver: AppDriver {
             return .deliveryUnknown(context: context, detail: "\(note) The Enter key was not sent. \(detail)")
         case .deliveryUnknown(let context, let detail):
             return .deliveryUnknown(context: context, detail: "\(note) \(detail)")
-        case .bridgeConnectionRefused, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked:
+        case .bridgeConnectionRefused, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected:
             return error
         }
     }

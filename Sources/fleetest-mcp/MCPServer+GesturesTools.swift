@@ -323,7 +323,7 @@ extension MCPServer {
         switch error {
         case .badResponse(let status, _): return status == 503 || status == 409
         case .bridgeConnectionRefused, .notDelivered, .bridgeIdentityMismatch: return true
-        case .bridgeUnreachable, .deliveryUnknown, .staleRef, .systemAlertBlocked: return false
+        case .bridgeUnreachable, .deliveryUnknown, .staleRef, .systemAlertBlocked, .argumentRejected: return false
         }
     }
 

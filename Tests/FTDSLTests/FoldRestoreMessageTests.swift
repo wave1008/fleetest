@@ -9,10 +9,17 @@ final class FoldRestoreMessageTests: XCTestCase {
 
     /// fold() と同じ文言の組み立てが、理由(状態を読めなかった・切り替わらなかった)を言う
     func testFoldFailureMessageNamesTheReason() {
-        let unreadable = FoldCommandFailure(foldFailureMessage(.unreadable("devicectl reports 0 active built-in displays")))
+        let unreadable = FoldCommandFailure(.unreadable("devicectl reports 0 active built-in displays"))
         XCTAssertTrue(unreadable.localizedDescription.contains("could not read whether the device is folded"),
                       unreadable.localizedDescription)
         XCTAssertTrue(unreadable.localizedDescription.contains("0 active built-in displays"), unreadable.localizedDescription)
+    }
+
+    /// 角度の範囲外だけが「撃つ前の引数の断り」(レーンの連続失敗に数えない)。読めない・切り替わらないは数える側
+    func testOnlyOutOfRangeIsAnArgumentRejection() {
+        XCTAssertEqual(StepExecutor.failureKind(thrown: FoldCommandFailure(.outOfRange(200))), .argumentRejected)
+        XCTAssertNil(StepExecutor.failureKind(thrown: FoldCommandFailure(.unreadable("x"))))
+        XCTAssertNil(StepExecutor.failureKind(thrown: FoldCommandFailure(.notFoldable)))
     }
 
     /// 配線: 戻しの経路が FoldControl.Failure を fold() と同じ文言へ写す(本物の Duo 無しでは通せない = ソース走査)
@@ -24,7 +31,7 @@ final class FoldRestoreMessageTests: XCTestCase {
         else { return XCTFail("走査の範囲が見つからない") }
         let body = String(source[start.upperBound..<end.lowerBound])
         XCTAssertTrue(body.contains("catch let failure as FoldControl.Failure"), "戻しの失敗を素のまま投げている")
-        XCTAssertTrue(body.contains("throw FoldCommandFailure(foldFailureMessage(failure))"))
+        XCTAssertTrue(body.contains("throw FoldCommandFailure(failure)"))
     }
 
     /// 開閉は撃つ前に「向きを変えた」と数える(数えないと `unfold()` の後の失敗に「回転はシナリオの外から来た」と付いた = 25〜26周目 duo F1)

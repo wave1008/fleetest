@@ -342,7 +342,8 @@ extension DriverError {
     public var deliveryIsUnknown: Bool {
         switch self {
         case .bridgeUnreachable, .deliveryUnknown: return true
-        case .bridgeConnectionRefused, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .notDelivered:
+        case .bridgeConnectionRefused, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected,
+             .notDelivered:
             return false
         }
     }
@@ -364,7 +365,7 @@ extension DriverError {
                 context: context,
                 detail: "An earlier gesture of this step had already been delivered; this failure came from a later"
                     + " read of the screen, not from that gesture. \(localizedDescription)")
-        case .bridgeUnreachable, .deliveryUnknown, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked:
+        case .bridgeUnreachable, .deliveryUnknown, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected:
             return self
         }
     }
@@ -388,6 +389,7 @@ extension DriverError: StepFailureKindProviding {
         case .badResponse, .deliveryUnknown: return .driverError
         case .staleRef: return .staleRef
         case .systemAlertBlocked: return .systemUICovered
+        case .argumentRejected: return .argumentRejected
         }
     }
 }
@@ -568,6 +570,9 @@ public enum DriverError: Error, LocalizedError {
     /// (`ErrorResponse.reason == BridgeAPI.systemAlertBlockedReason`。今は XCUITest ランナーの `/tap` だけ)。
     /// 登録(iosAlertHandler)があれば閉じてから撃ち直してよい。detail はブリッジの文言(題名・ボタンを含む)
     case systemAlertBlocked(detail: String)
+    /// ブリッジが**要求の値だけで撃つ前に**断った(`ErrorResponse.reason == BridgeAPI.invalidArgumentReason`。今は in-app の
+    /// 画面の外の座標)。同じ要求は同じ断りになるので撃ち直さない。レーンの連続失敗に数えない。detail はブリッジの文言
+    case argumentRejected(detail: String)
     /// **何も送っていないと確定している**到達不能(送る前の門で断った: 端末が adb shell に答えない・`adb forward` が張れない等)。
     /// `bridgeConnectionRefused` と違い URLSession 由来ではなく、ブリッジ以外(adb 等)の理由。
     /// 撃ち直しの判定(`isDefiniteDeliveryFailure`)は URLError だけを見る別の層なので、この case は含めない
@@ -593,6 +598,8 @@ public enum DriverError: Error, LocalizedError {
             return "The driver refused to act on a stale reference; nothing was sent. Take a new snapshot and"
                 + " resolve the target again. \(detail)"
         case .systemAlertBlocked(let detail):
+            return "The driver returned an error (422): \(detail)"
+        case .argumentRejected(let detail):
             return "The driver returned an error (422): \(detail)"
         case .notDelivered(_, let detail):
             return "The action was not sent: the device could not be reached, and nothing was sent to it. \(detail)"

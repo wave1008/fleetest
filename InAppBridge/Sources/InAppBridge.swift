@@ -626,7 +626,8 @@ final class FTInAppBridge {
             guard (screen.minX...screen.maxX).contains(p.x),
                   (screen.minY...screen.maxY).contains(p.y) else {
                 throw InAppError(422, "the point (\(Int(p.x)), \(Int(p.y))) is outside the screen"
-                    + " (\(Int(screen.width))x\(Int(screen.height))) — nothing to tap there")
+                    + " (\(Int(screen.width))x\(Int(screen.height))) — nothing to tap there",
+                    reason: BridgeAPI.invalidArgumentReason)
             }
             // **キーボードの上も撃たない**。in-app はキーを押せない(キーボードは別プロセスが描く)うえ、
             // 下の topmostHitView はキーボードの窓を拾えず、下に隠れた要素を activate していた

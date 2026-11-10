@@ -835,7 +835,7 @@ private func rejectsOutOfRangeSeconds(_ core: FTDriveCore, _ values: KeyValuePai
         return false
     }
     core.recordStep(description: description, status: .failed(reason), file: "\(file)", line: Int(line),
-                    command: command)
+                    command: command, failureKind: .argumentRejected)
     core.handleFailure(stepDescription: description, reason: reason)
     return true
 }

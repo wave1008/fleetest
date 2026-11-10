@@ -1267,7 +1267,7 @@ public final class FTDriveCore {
                                             observe: { await self.observeFold() }, sent: { _ in })
         } catch let failure as FoldControl.Failure {
             // 素のまま投げると「FoldControl.Failure error 1」としか出ず理由が消える(21周目 duo F2)。fold() と同じ文言へ写す
-            throw FoldCommandFailure(foldFailureMessage(failure))
+            throw FoldCommandFailure(failure)
         }
         await driver.continueAfterFold()
     }

@@ -88,6 +88,8 @@ final class DSLSecondsViolationTests: XCTestCase {
         XCTAssertEqual(step?.status, "failed", "\(command) \(seconds)", file: file, line: line)
         XCTAssertTrue(step?.detail?.contains(violation) == true, "\(command) \(seconds): \(step?.detail ?? "nil")",
                       file: file, line: line)
+        XCTAssertEqual(step?.failureKind, StepFailureKind.argumentRejected.rawValue,
+                       "\(command) \(seconds): 撃つ前の引数の断り = レーンの連続失敗に数えない", file: file, line: line)
         XCTAssertFalse(ranBody, "\(command) \(seconds): 断ったら本体を実行しない", file: file, line: line)
     }
 

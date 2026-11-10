@@ -37,9 +37,21 @@ private func formatDegrees(_ degrees: Double) -> String {
     degrees == degrees.rounded() ? String(Int(degrees)) : String(degrees)
 }
 
-struct FoldCommandFailure: LocalizedError {
+struct FoldCommandFailure: LocalizedError, StepFailureKindProviding {
     let errorDescription: String?
-    init(_ message: String) { errorDescription = message }
+    /// 撃つ前の引数の検査(秒数・角度の範囲)で断ったときだけ `.argumentRejected`(レーンの連続失敗に数えない)
+    let stepFailureKind: StepFailureKind?
+    init(_ message: String, kind: StepFailureKind?) {
+        errorDescription = message
+        stepFailureKind = kind
+    }
+    init(_ failure: FoldControl.Failure) {
+        if case .outOfRange = failure {
+            self.init(foldFailureMessage(failure), kind: .argumentRejected)
+        } else {
+            self.init(foldFailureMessage(failure), kind: nil)
+        }
+    }
 }
 
 /// FoldControl の失敗 → DSL の文言(MCP は自前の文言を持つ)。シナリオの終わりの戻し(FTRuntime.restoreFoldIfNeeded)も通す
@@ -82,7 +94,9 @@ private func foldCommand(_ target: FoldTarget, command: String, description: Str
     let driver = core.systemDriver
     core.performCustom(description: description, command: command, file: file, line: line) {
         // FoldControl.apply は期限を Int のミリ秒へ畳む(非有限で trap)。MCP・ライブ操作は ArgumentBounds が先に断る
-        if let violation = FlowStep.secondsViolation("waitSeconds", wait) { throw FoldCommandFailure(violation) }
+        if let violation = FlowStep.secondsViolation("waitSeconds", wait) {
+            throw FoldCommandFailure(violation, kind: .argumentRejected)
+        }
         // 送る前に数える(途中で失敗しても向きは変わりうる。StepExecutor.noteDeviceReoriented)
         core.executor.noteDeviceReoriented()
         do {
@@ -91,7 +105,7 @@ private func foldCommand(_ target: FoldTarget, command: String, description: Str
                                             observe: { await core.observeFold() },
                                             sent: { core.rememberFoldOriginal($0) })
         } catch let failure as FoldControl.Failure {
-            throw FoldCommandFailure(foldFailureMessage(failure))
+            throw FoldCommandFailure(failure)
         }
         await driver.continueAfterFold()
         await core.executor.settleAfterDeviceChange()

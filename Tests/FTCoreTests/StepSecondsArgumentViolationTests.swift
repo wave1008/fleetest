@@ -44,7 +44,7 @@ final class StepSecondsArgumentViolationTests: XCTestCase {
             let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(step)
             XCTAssertTrue((message(outcome.status) ?? "").contains("must be a finite, non-negative"),
                           "\(step): \(outcome.status)")
-            XCTAssertEqual(outcome.failureKind, .argumentRejected, "\(step): レーンの連続失敗から外す素性(OI-203)")
+            XCTAssertEqual(outcome.failureKind, .argumentRejected, "\(step): レーンの連続失敗から外す素性")
             XCTAssertEqual(driver.log.entries, [], "\(step): 弾いたステップはドライバへ触れない")
             XCTAssertEqual(driver.snapshotCallCount, 0, "\(step)")
         }

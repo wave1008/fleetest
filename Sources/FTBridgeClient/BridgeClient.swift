@@ -1681,6 +1681,7 @@ public final class BridgeClient: AppDriver, Sendable {
                 // 断りの理由は構造化された欄で見る(本文の文言一致で分岐しない)
                 if err.reason == BridgeAPI.staleRefReason { throw DriverError.staleRef(detail: err.error) }
                 if err.reason == BridgeAPI.systemAlertBlockedReason { throw DriverError.systemAlertBlocked(detail: err.error) }
+                if err.reason == BridgeAPI.invalidArgumentReason { throw DriverError.argumentRejected(detail: err.error) }
                 message = err.error
             } else {
                 message = String(data: data, encoding: .utf8) ?? "<binary>"

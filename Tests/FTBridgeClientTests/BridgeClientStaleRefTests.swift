@@ -22,6 +22,19 @@ final class BridgeClientStaleRefTests: XCTestCase {
         }
     }
 
+    /// 要求の値だけで撃つ前に断った 422(in-app の画面の外の座標)は argument-rejected = レーンの連続失敗に数えない
+    func testInvalidArgumentReasonMapsToArgumentRejected() throws {
+        let body = try JSONEncoder().encode(ErrorResponse(error: "the point (800, 300) is outside the screen",
+                                                          reason: BridgeAPI.invalidArgumentReason))
+        XCTAssertThrowsError(try BridgeClient.check(response: response(422), data: body)) { error in
+            guard case DriverError.argumentRejected(let detail)? = error as? DriverError else {
+                return XCTFail("argumentRejected になっていない: \(error)")
+            }
+            XCTAssertTrue(detail.contains("outside the screen"), detail)
+            XCTAssertEqual(StepExecutor.failureKind(thrown: error), .argumentRejected)
+        }
+    }
+
     /// アプリへの ref の撃ち(/tap /type /clear /press)は控えた期待を添え、システム UI の /systemui/tap は添えない
     /// (システム UI の ref はアプリの ref と別の番号の振り方)
     func testAppRefRequestsCarryTheExpectationAndSystemUITapDoesNot() throws {

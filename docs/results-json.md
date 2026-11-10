@@ -160,7 +160,7 @@ jq -r 'select(.workerAnomalies == null) | .runID' results/runs/2026-08/*/run.jso
 | 値 | 意味 |
 |---|---|
 | `selector-syntax` | 実行前の構文検証で落とした。**デバイスには1度も触っていない** |
-| `argument-rejected` | 撃つ前の引数の検査(秒数が負・無限・`linkText` が空など)で断った。**デバイスには1度も触っていない** |
+| `argument-rejected` | 要求の値だけで撃つ前に断った: ホストの引数の検査(秒数が負・無限・`linkText` が空・hinge の角度が範囲外など)か、ブリッジの `reason: invalid-argument`(in-app の座標の tap が画面の外)。**何も撃っていない**。run はレーンの連続失敗に数えない |
 | `not-found` | ロケータが解決できなかった(スクロール探索を含めて木に居ない) |
 | `assertion` | 要素は掴めたが期待した値・状態と違った |
 | `driver-unreachable` | ブリッジへ到達できなかった(接続拒否・応答なし・アプリのプロセス死) |
