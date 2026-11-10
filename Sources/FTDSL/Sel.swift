@@ -69,15 +69,24 @@ public struct Sel: Sendable, Equatable {
     /// レポート表示と指紋の鍵になる。ここで summary を使うと型が `.button` ではなく
     /// `button`(=ラベル)に化け、レポートからコピーしたセレクタが別物になる
     var ftSelector: FTSelector {
-        FTSelector(text: FTSelector.serialize(primary: primary, fallbacks: fallbacks),
-                   primary: primary, fallbacks: fallbacks, structured: true,
-                   structuredError: invalidReason)
+        let serialized = FTSelector.serialize(primary: primary, fallbacks: fallbacks)
+        // 断った値は組み立てに入らないので、`Sel.text("")` だけの Sel は空に戻る。ステップの説明行が `notExist ""` になり
+        // どの Sel かが読めないので、断った呼び出しの形を見せる(実行前に断るので解決・指紋には使われない)
+        return FTSelector(text: serialized.isEmpty ? (invalidExpression ?? serialized) : serialized,
+                          primary: primary, fallbacks: fallbacks, structured: true,
+                          structuredError: invalidReason)
     }
 
+    /// 断った呼び出しの形(`Sel.text("")`)。説明行の表示だけに使う
+    var invalidExpression: String?
+
     /// 誤りを1件だけ記録した複製(先勝ち: 最初に壊れた地点を報告する)
-    private func invalidated(_ reason: String) -> Sel {
+    private func invalidated(_ reason: String, expression: String? = nil) -> Sel {
         var copy = self
-        if copy.invalidReason == nil { copy.invalidReason = reason }
+        if copy.invalidReason == nil {
+            copy.invalidReason = reason
+            copy.invalidExpression = expression
+        }
         return copy
     }
 
@@ -108,22 +117,22 @@ public struct Sel: Sendable, Equatable {
     // MARK: - フィルタ(現在の対象へ AND)
 
     public func id(_ id: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.valueReason("id", id, match) { return invalidated(reason) }
+        if let reason = Self.valueReason("id", id, match) { return invalidated(reason, expression: Self.callForm("id", id, match)) }
         return updatingTarget { $0.id = id; $0.idMatch = Self.stored(match) }
     }
 
     public func text(_ text: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.valueReason("text", text, match) { return invalidated(reason) }
+        if let reason = Self.valueReason("text", text, match) { return invalidated(reason, expression: Self.callForm("text", text, match)) }
         return updatingTarget { $0.label = text; $0.labelMatch = Self.stored(match) }
     }
 
     public func value(_ value: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.valueReason("value", value, match) { return invalidated(reason) }
+        if let reason = Self.valueReason("value", value, match) { return invalidated(reason, expression: Self.callForm("value", value, match)) }
         return updatingTarget { $0.value = value; $0.valueMatch = Self.stored(match) }
     }
 
     public func placeholder(_ placeholder: String, _ match: FlowMatchMode = .exact) -> Sel {
-        if let reason = Self.valueReason("placeholder", placeholder, match) { return invalidated(reason) }
+        if let reason = Self.valueReason("placeholder", placeholder, match) { return invalidated(reason, expression: Self.callForm("placeholder", placeholder, match)) }
         return updatingTarget { $0.placeholder = placeholder; $0.placeholderMatch = Self.stored(match) }
     }
 
@@ -134,6 +143,11 @@ public struct Sel: Sendable, Equatable {
         if let reason = emptyValueReason(attribute, value) { return reason }
         guard match == .matches, let regexError = RegexValidation.error(for: value) else { return nil }
         return "Sel.\(attribute)(...): \(regexError)"
+    }
+
+    /// 説明行に出す呼び出しの形(`Sel.text("")` / `Sel.text("  ", .contains)`)
+    private static func callForm(_ attribute: String, _ value: String, _ match: FlowMatchMode) -> String {
+        "Sel.\(attribute)(\"\(value)\"" + (match == .exact ? "" : ", .\(match.rawValue)") + ")"
     }
 
     private static func emptyValueReason(_ attribute: String, _ value: String) -> String? {

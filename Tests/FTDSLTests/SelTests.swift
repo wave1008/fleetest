@@ -194,6 +194,16 @@ final class SelTests: XCTestCase {
         XCTAssertNil(Sel.text("OK").ftSelector.preflightError)
     }
 
+    /// 断った Sel の説明行は空の引用にせず、呼び出しの形を見せる(`notExist ""` ではどの Sel か読めなかった)
+    func testRefusedSelShowsItsCallFormInTheStepDescription() {
+        XCTAssertEqual(Sel.text("").ftSelector.text, "Sel.text(\"\")")
+        XCTAssertEqual(Sel.text("  ", .contains).ftSelector.text, "Sel.text(\"  \", .contains)")
+        XCTAssertEqual(Sel.id("").ftSelector.text, "Sel.id(\"\")")
+        // 組み立てに残った部分があればその記法のまま(従来どおり)
+        XCTAssertEqual(Sel.type(.button).text("").ftSelector.text, ".button")
+        XCTAssertEqual(Sel.text("OK").ftSelector.text, "OK")
+    }
+
     /// 誤りは合成をまたいで運ばれる(途中で握り潰すと実行前に落とせない)
     func testInvalidOrdinalSurvivesComposition() {
         XCTAssertNotNil(Sel.id("list").find(Sel.text("a").nth(0)).ftSelector.preflightError)
