@@ -1496,6 +1496,42 @@ extension StepExecutorTests {
         XCTAssertFalse(log.entries.contains { $0.contains("hideKeyboard") }, "閉じようとした: \(log.entries)")
     }
 
+    /// **置き換えの消去が焦点を立てた欄が丸ごとキーボードの下に戻ったら、打鍵は焦点の欄へ(ref なし)**(in-app・OI-202 ②):
+    /// 閉じて見えた欄を消去が叩くとキーボードが再び上がり、in-app は打鍵の叩き直しを撃たずに断り続けた。叩き直さないドライバ・
+    /// 消去の後に欄が見えているときは従来どおり ref で打つ
+    func testReplaceTypesIntoTheFocusedFieldWhenTheClearRaisedTheKeyboardOverIt() async throws {
+        for (retaps, raisesOverField, expectRef) in [(true, true, "nil"), (false, true, "1"), (true, false, "1")] {
+            var covered = Self.phoneUnderKeyboard
+            covered.focused = true
+            var shown = covered
+            shown.frame = FTRect(x: 16, y: 300, width: 370, height: 65)
+            shown.focused = false
+            let keyboard = FTRect(x: 0, y: 538, width: 402, height: 336)
+            let log = CallLog()
+            let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[covered]])
+            primary.keyboardFrame = keyboard
+            primary.retapsFocusedFieldWithoutPriorTap = retaps
+            primary.afterHideKeyboard = { [unowned primary] in
+                primary.keyboardFrame = nil
+                primary.snapshotElements = [[shown]]
+            }
+            primary.onMutatingCall = { [unowned primary] in
+                guard log.entries.last?.hasPrefix("primary.clearInput(") == true else { return }
+                primary.keyboardFrame = keyboard
+                var refocused = raisesOverField ? covered : shown
+                refocused.focused = true
+                primary.snapshotElements = [[refocused]]
+            }
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.5),
+                                        uiFramework: .reactNative)
+            _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "q",
+                                                replace: true))
+            let typed = log.entries.filter { $0.hasPrefix("primary.type(") }
+            XCTAssertEqual(typed.first, "primary.type(ref:\(expectRef))",
+                           "retaps=\(retaps) raises=\(raisesOverField): \(log.entries)")
+        }
+    }
+
     /// キーボードの上に見えている欄へは従来どおり打つ(門は覆われた欄だけ)
     func testTypeIntoAFieldAboveTheKeyboardStillTypes() async throws {
         let log = CallLog()

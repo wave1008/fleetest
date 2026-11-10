@@ -1409,6 +1409,7 @@ extension StepExecutor {
                     driverFallback = Self.joinNotes(driverFallback, note)
                 }
             }
+            var typesIntoFocusAfterClear = false
             // **replace の消去は、容器を送る・キーボードの向こうへ届かせる段の後**(消去も欄へ焦点を当てるタップを伴う。先に撃つと
             // キーボードの下の欄で焦点のタップがキーの上になり、ブリッジが撃たずに断って赤になった = 9周目の探索 im4 F1)
             if step.replace == true {
@@ -1470,6 +1471,14 @@ extension StepExecutor {
                     }
                     element = refound
                     snapshot = relocatedSnapshot
+                    // **消去が焦点を立てた欄が丸ごとキーボードの下なら、打鍵は叩き直さずに焦点の欄へ入れる**(in-app だけ)。in-app は
+                    // 直前が tap のステップのときしか叩き直しを省かないので、消去の焦点立てで上がったキーボードの下の欄への打鍵を
+                    // 撃たずに断り続けた(RN の iOS・OI-202 ②)。焦点は消去が確かめたばかり = 入れ先は同じ欄
+                    let keyboardNow = KeyboardOcclusion.resolve(reported: relocatedSnapshot.keyboardFrame,
+                                                                in: relocatedSnapshot.elements, screen: relocatedSnapshot.screen).frame
+                    typesIntoFocusAfterClear = actingDriver.retapsFocusedFieldWithoutPriorTap && refound.focused == true
+                        && keyboardNow != nil
+                        && !inAppLeavesFocusedFieldReachable(refound, keyboard: keyboardNow, elements: relocatedSnapshot.elements)
                 case .failed(let message):
                     return StepOutcome(status: .failed(message))
                 }
@@ -1515,7 +1524,7 @@ extension StepExecutor {
             do {
                 start = clock.now
                 try await RefExpectationScope.firing(element) {
-                    try await actingDriver.type(ref: element.ref, text: step.text ?? "")
+                    try await actingDriver.type(ref: typesIntoFocusAfterClear ? nil : element.ref, text: step.text ?? "")
                 }
                 // ランナーの打ち直しの申告(TypeReadback.Plan.retype → OKResponse.note)。tap と同じく合流
                 driverFallback = Self.joinNotes(driverFallback, actingDriver.lastActionNote)
@@ -2503,3 +2512,4 @@ extension StepExecutor {
     }
 
 }
+
