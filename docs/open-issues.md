@@ -235,12 +235,13 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 
 ### OI-137 マシンの FM・Vision が止まっていた間に、Simulator の文字消えでレーンが外れた
 - 状態: 推測
-- 確認: 430d1097(2026-11-02)
+- 確認: a3135ab2f(2026-11-10)
 - 属性: 低頻度
 - 運用: 回避可 — 長く動かしたマシンは再起動してから回す
 - 優先度: 低 — 長く動かしたマシンだけ・再起動で回避
 
 起動から約 11 時間の M2Ultra で FM が dead・Vision の OCR が空(`Hello 123` の絵も読めない)だった間、E2E-CMP の xcuitest が「none of the N text element(s) … is drawn」で 4/24 赤・レーン離脱。この判定(`RenderCollapse`)は OCR ではなく切り出した領域の輝度のばらつきで見るので、絵に文字が無かったのは事実。マシンの劣化(GPU / ANE)で Simulator の描画が崩れたのか、偶然の重なりかは分けていない。再起動後に同じ形が出るかで見る
+- 11/10: 起動から約 17 時間の手元(配信あり・`fmText=alive fmVision=alive`)の全体の回帰(a3135ab2f・`_work/release-20261110d`)で、E2EY-Android の「文中のリンクだけを押せること」S0030 が「OCR read no text in the element; 3 OCR passes」で赤。OCR へ渡した絵(報告の `read_by_link_text_ocr.png`)には「こちら」がはっきり描かれている = 絵は正しく、OCR が空を返した。同じ日の 03 時の単体テスト(`LinkTextLocatorTests` の「OCR read: []」と `FindImageTests` の Vision の縮退)と同じ形。直後に同じ単体テストは 13/13 緑・同じシナリオを Android 18 台で回し直すと 30/30(リモート)・23/24(手元。残る1本は OI-127 の一色)= 機械の状態で出入りする。健全性の表示(`fmVision=alive`)はこの間も alive = 生死の監視では捉えられない
 
 ### OI-127 手元の Emulator の白紙が回帰の終盤に集中した
 - 状態: 再現済み
@@ -252,6 +253,7 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 配信なしのフル回帰(73a31d8b)で、23:06 前後に手元の Emulator 4台が白紙になり `E2EX-RN/android` の1本が赤。`E2EY-Android` も1本が再実行。同じ対象を単独で3周(144 本)回すと白紙0件で再現しない。終了時の手元は `videoEncoder=dead`。原因は未測定。
 - 11/4: 配信を止めずに回したフル回帰(22012640)で、手元の Emulator の白紙(テキストの可視性検証が「スクリーンショットのアプリの領域が一色」)が E2E-RN・E2EX-RN の Android で計 9 件。同じシナリオを手元の 8 台へ配ると配信ありで 5/8 赤・**配信を止めると 8/8 緑**(E2EX-RN のチップ)= 手元の配信と Emulator のスクリーンショットの干渉。同じ日の朝の配信ありの回帰は 24/24 緑 = いつも起きるわけではない
 - 11/7: 配信を張ったまま回した回帰(043600661 の後・`_work/regress-20261107f`)で、E2E-Flutter の Android の S0030 が「app area … is a single colour」で赤。d2dd8d1e4 と HEAD を手元の8台で交互に3周ずつ回すと一色は 3 と 3 = 版の差ではない
+- 11/10: 配信を張ったままの全体の回帰の後、E2EY-Android の「文中のリンクだけを押せること」を手元の8台へ配ると、-05 の S0020 が「the app area of 3 of the screenshots given to OCR was a single colour … waited 114.9s for a non-blank screenshot」で赤(1/24)。直後に `adb exec-out screencap` で撮ると正しく描かれている = 端末の画面ではなく撮影の経路が一色を返し続けた
 
 ### OI-198 Vision の異常で `existImage` が距離 0.000 の別の行を返す(機械の状態で出る)
 - 状態: 再現済み
