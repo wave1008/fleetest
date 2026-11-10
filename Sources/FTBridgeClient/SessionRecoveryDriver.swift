@@ -150,6 +150,7 @@ public final class SessionRecoveryDriver: AppDriver {
     public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
         await base.touchLands(x: x, y: y, refs: refs)
     }
+    public func inAppApplicationState() async -> String? { await base.inAppApplicationState() }
     public var lastLaunchTiming: LaunchTiming? { base.lastLaunchTiming }
 
     public func launch(bundleID: String) async throws {

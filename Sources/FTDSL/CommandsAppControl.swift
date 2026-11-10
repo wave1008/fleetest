@@ -66,6 +66,7 @@ public func launchApp(_ appID: String? = nil, url: String? = nil,
             // 配送の後に立て直す = 次のステップの前に前面かを聞き直す(StepExecutor.backgroundedAppRefusal)。立てないと停止した
             // in-app への読みが上限(約 45 秒)まで返らなかった(22周目 im4 F1・iultra F2: openURL の後は約 6 秒で断るのに約 50 秒)
             core.executor.noteAppMayHaveLeft(true)
+            core.executor.noteOpenedURL()
         }
     }
     applyProfileOrientation(core, file: file, line: line)

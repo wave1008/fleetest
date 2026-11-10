@@ -200,6 +200,11 @@ public protocol AppDriver {
     /// ref は直近の木の番号。答えられない(in-app でない・旧ブリッジ・通信断)は nil。**プロトコル要件として宣言すること**
     /// (存在型越しの呼び出しが既定実装の nil に落ちる = AppDriverDefaultDispatchTests)
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse?
+    /// in-app ブリッジのアプリの `UIApplication.applicationState`("active" / "inactive" / "background")を短い上限で聞く。
+    /// 答えられない(in-app でない・停止して答えない・通信断)は nil。**プロトコル要件として宣言すること**(touchLands と同じ理由)。
+    /// 使うのは openURL の後に別のアプリが前へ出る途中を待つ門だけ(`StepExecutor.backgroundedAppRefusal`)。
+    /// **覆いの有無の判定には使わない** —— 権限アラートでは端末により active のまま(SystemUIGate の doc)
+    func inAppApplicationState() async -> String?
     /// 2点間ドラッグ(座標は snapshot の screen と同じ座標系)。pressSeconds=押下静止時間、
     /// durationSeconds=移動時間(実機ジェスチャの速度・長押しに反映される)。
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
@@ -678,6 +683,7 @@ public extension AppDriver {
     var lastTapDelivery: TapDelivery? { nil }
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? { nil }
+    func inAppApplicationState() async -> String? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }
     func hitTest(query: HitTestQuery) async -> HitTestAnswer { .unavailable }

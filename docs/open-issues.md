@@ -162,12 +162,13 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-10)
 - 属性: 低頻度
-- 運用: ②④合否に響かない
-- 優先度: 低 — 低頻度(②は 1/42・1/4)。②は既定の inapp-boost の誤った成功(沈黙する)
+- 運用: ④合否に響かない(②は 11/10 に直した)
+- 優先度: 低 — ④は Duo だけ・1回の観測
 
 出典: `_work/explore-20261107i/findings-*.md`(38周目・11/7)。②iOS の inapp-boost で `openURL("https://example.com")` の直後の `exist` が1回だけ 221ms で ✅(iultra F1・1/42。残りは撃つ前に断る。材料不足) ④Duo で run が起動を諦めた後に XCUITest ランナーのアプリが xcodebuild も台帳も無いまま約 5 分残る(duo F1・1/1)
 - 11/8: ②④は1回ずつの観測で材料不足(②は撃つ前に断る経路を外れた1回の読みが残っていない・④は Duo だけ)。次に出たら、②は結果 JSON のその回の木の持ち主、④はランナーのアプリのプロセスと台帳を記録する
 - 11/10: ②と同じ形を陽性対照で観測(`_disabled/92_アプリが前面を離れた後` の S0070・手元の iPhone 18 Pro -01・inapp-boost)。`openURL("App-prefs:")` が 5.04 秒かかって ✅、直後の `tap("#btn_session_inc")` が 0.17 秒で ✅・`session=1` まで読めた = 押された(誤った成功)。`InAppDriver.awaitLeavingForeground` は対象アプリが background になるのを `AppAttachDriver.homeLeaveSeconds`(2 秒)まで待ち、外れなければ黙って返す = この回は設定が上限の間に前へ出なかった(URL の配送と前の照会で約 3 秒・待ちで 2 秒)。同じ対照を続けて3回回すと 3/3 赤(openURL は 1.56〜3.75 秒で、どれも外れてから断った)= 1/4。設定が前へ出るまでの所要の分布は未測定。上限を伸ばす直しは「根拠のない定数」になるので、先に負荷の高い回の所要を測る(結果 JSON の openURL の所要と、外れた時刻)
+- 11/10(直した・②): 原因を測定。in-app の /status を 20ms ごとに聞くと、設定アプリが止まっていると openurl の後に対象アプリは すぐ inactive になり、background へ移るまで静かな Simulator で 3.6〜4.2 秒・8台同時で 5.9〜6.7 秒(起動済みなら 0.41〜0.46 秒)。この間 XCUITest の前面の照会は「前面」と答え、撃つ前の門(`backgroundedAppRefusal`)が印を落として in-app の tap が届いていた。 **openURL の後だけ**、前面と答えても in-app が inactive / background と答える間はステップの待ちの上限まで聞き直す(`StepExecutor.noteOpenedURL`・`AppDriver.inAppApplicationState`。外れれば app-in-background で断る・上限まで inactive なら断る・active に戻れば撃つ)。 設定アプリを止めてから陽性対照 92 を4回 = 7/7 が4回とも期待どおり・自アプリのディープリンク(E2E の iOS 4 SUT)は緑。 11/7 の `openURL("https://example.com")` の形(Safari)も同じ門を通る。**残りは④だけ**
 
 ### OI-199 iOS の openURL で別のアプリを開く待ちが上限に届くと、続く tap が対象アプリへ届く
 - 状態: 再現済み

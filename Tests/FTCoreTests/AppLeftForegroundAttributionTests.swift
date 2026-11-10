@@ -225,6 +225,9 @@ final class BackgroundedAppPreFireTests: XCTestCase {
 
     private final class InApp: AppDriver {
         private(set) var reads = 0
+        var appState: String?
+        private(set) var stateAsks = 0
+        func inAppApplicationState() async -> String? { stateAsks += 1; return appState }
         func status() async throws -> StatusResponse {
             StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
         }
@@ -438,6 +441,76 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.1))
         XCTAssertNotEqual(outcome.failureKind, .appInBackground)
         XCTAssertGreaterThan(inApp.reads, 0, "従来の経路(in-app の読み)へ渡していない")
+    }
+
+    /// openURL の後、前面と答えても in-app が inactive の間は撃たず、背面へ移ったら背面と断る(OI-196: 設定が立ち上がる途中の
+    /// 対象アプリは inactive のまま前面と答え、in-app の tap が届いて押されていた)
+    func testWaitsWhileInactiveAfterOpenURLAndRefusesOnceItLeaves() async {
+        let (executor, inApp, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        executor.noteOpenedURL()
+        xcuitest.appInFront = true
+        inApp.appState = "inactive"
+        let late = UncheckedTransfer((xcuitest, inApp))
+        Task { try? await Task.sleep(for: .milliseconds(700)); late.value.0.appInFront = false; late.value.1.appState = nil }
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 3))
+        XCTAssertEqual(outcome.failureKind, .appInBackground, "\(outcome.status)")
+        XCTAssertEqual(inApp.reads, 0, "断る前に in-app を読んだ")
+    }
+
+    /// 上限まで inactive のままなら断る(開く途中の画面には人も触れない)
+    func testRefusesWhenStillInactiveAtTheStepWait() async {
+        let (executor, inApp, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        executor.noteOpenedURL()
+        xcuitest.appInFront = true
+        inApp.appState = "inactive"
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.6))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(outcome.failureKind, .appInBackground)
+        XCTAssertTrue(message.contains("still inactive after openURL"), message)
+        XCTAssertEqual(inApp.reads, 0)
+    }
+
+    /// active へ戻れば撃ち、印も落とす(自アプリのディープリンク・同意を断った後)
+    func testFiresOnceTheAppIsActiveAgainAfterOpenURL() async {
+        let (executor, inApp, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        executor.noteOpenedURL()
+        xcuitest.appInFront = true
+        inApp.appState = "inactive"
+        let late = UncheckedTransfer(inApp)
+        Task { try? await Task.sleep(for: .milliseconds(700)); late.value.appState = "active" }
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 3))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        let asks = inApp.stateAsks
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertEqual(inApp.stateAsks, asks, "印を落とさず次のステップでも聞いた")
+    }
+
+    /// in-app が先に background と答え、前面の照会が追いつかない間も撃たない(撃つと in-app が 423 で断り、門の失敗の種類にならない)
+    func testDoesNotFireWhileInAppAlreadyAnswersBackground() async {
+        let (executor, inApp, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        executor.noteOpenedURL()
+        xcuitest.appInFront = true
+        inApp.appState = "background"
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 0.6))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertEqual(outcome.failureKind, .appInBackground)
+        XCTAssertTrue(message.contains("not in the foreground"), message)
+        XCTAssertEqual(inApp.reads, 0)
+    }
+
+    /// openURL でない印(home 等)では in-app の状態を聞かない(スイッチャーの inactive は別の門が断る)
+    func testInactiveIsNotWaitedOnWithoutOpenURL() async {
+        let (executor, inApp, xcuitest) = make()
+        executor.noteAppMayHaveLeft(true)
+        xcuitest.appInFront = true
+        inApp.appState = "inactive"
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn"), timeout: 1))
+        XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+        XCTAssertEqual(inApp.stateAsks, 0)
     }
 
     /// 離れた印が無ければ聞かない(通常のステップに照会を足さない)

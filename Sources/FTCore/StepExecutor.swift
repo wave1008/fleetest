@@ -364,7 +364,16 @@ public final class StepExecutor {
         if let foldObserver { return await foldObserver() }
         return await (fallbackDriver ?? driver).foldObservation()
     }
-    public func noteAppMayHaveLeft(_ value: Bool) { appMayHaveLeft = value }
+    public func noteAppMayHaveLeft(_ value: Bool) {
+        appMayHaveLeft = value
+        if !value { openedURLMayStillBeLeaving = false }
+    }
+    /// openURL を配送した後に立てる(DSL の openURL)。立っている間、門は XCUITest が「前面」と答えても in-app が inactive なら
+    /// 背面へ移るのをステップの待ちの上限まで待つ: 別のアプリが立ち上がる途中の対象アプリは inactive のまま前面と答え、
+    /// in-app の tap がそのまま届いて押されていた(OI-196・陽性対照 92 の S0070)。測定: 設定アプリが止まっていると openurl の後
+    /// 静かな Simulator で 3.6〜4.2 秒・8台同時で 5.9〜6.7 秒 inactive のまま(InAppDriver の待ちの上限 2 秒を越える)
+    public func noteOpenedURL() { openedURLMayStillBeLeaving = true }
+    var openedURLMayStillBeLeaving = false
     /// 実行プロファイルのアプリ(DSL が init で入れる)。撃つ前の門は「これか、最後に起こしたアプリのどちらかが前面」で通す
     /// (`launchApp("com.android.settings")` → `back()` で対象アプリへ戻った後の否定を、設定が前面に無いと断っていた = 25周目
     /// amax F2。最後に起こしたアプリだけに替えると、別のアプリを意図して操作するシナリオを断る)
@@ -1217,7 +1226,25 @@ public final class StepExecutor {
         while true {
             switch await Self.anyInForeground(fallback, bundleIDs: candidates) {
             case .value(true):
+                // openURL の後に inactive = 開いた先が立ち上がる途中(前面の照会はまだ前面と答える)。background = in-app が先に
+                // 外れたと答え、前面の照会が追いついていない(撃つと in-app が 423 で断る = 門の失敗の種類にならない)。待ちの上限まで
+                // 聞き直し、前面の照会が外れたと答えれば上の .value(false) で断る。上限まで外れきらなければここで断る
+                // (人も開く途中の画面には触れない)。active に戻った・答えない(in-app でない)なら従来どおり撃つ
+                if openedURLMayStillBeLeaving, let state = await driver.inAppApplicationState(),
+                   state == "inactive" || state == "background" {
+                    if Date() < deadline {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        continue
+                    }
+                    if state == "background" {
+                        return "The app under test is not in the foreground, so this step did not read or touch it"
+                            + " — a person could not either. Bring the app back first (\(await bringBackAdvice()))"
+                    }
+                    return "The app under test is still inactive after openURL — another app is opening over it — so this step"
+                        + " did not read or touch it. Bring the app back first (\(await bringBackAdvice()))"
+                }
                 appMayHaveLeft = false
+                openedURLMayStillBeLeaving = false
                 return nil
             case .value(false):
                 if Date() < deadline {

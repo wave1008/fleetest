@@ -369,6 +369,9 @@ public final class InAppDriver: AppDriver {
     public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
         await client.touchLands(x: x, y: y, refs: refs)
     }
+    public func inAppApplicationState() async -> String? {
+        try? await client.status(timeout: Self.leaveProbeTimeout).applicationState
+    }
     public var lastLaunchTiming: LaunchTiming? { lastLaunchTimingValue }
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await client.backGestureEdgeWidths()

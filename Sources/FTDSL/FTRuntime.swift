@@ -1481,6 +1481,7 @@ public final class FTDriveCore {
             if command == "appSwitcher" { executor.noteAppSwitcher(opened: true) }
             // back() の印は本体が撃った後に立てる(CommandsAppControl.back。ここで立てると本体の門が先に落とす)
             if ["home", "appSwitcher", "tapAppIcon", "openURL"].contains(command) { executor.noteAppMayHaveLeft(true) }
+            if command == "openURL" { executor.noteOpenedURL() }
             // 前面へ出すコマンドだけで落とす(clearAppData / installApp は前面へ出さない)
             // 止めた・消した後は「自分で止めたアプリ」の扱い(appStoppedBySession)へ渡す
             if ["launchApp", "restartApp", "terminateApp", "removeApp"].contains(command) { executor.noteAppMayHaveLeft(false) }
