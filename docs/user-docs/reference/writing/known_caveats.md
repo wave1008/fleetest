@@ -221,6 +221,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Typed value is read back and repaired](../commands/type.md#notes) — missing or doubled characters are fixed, a mid-string drop clears and retypes once (`type-retyped`), and a field transforming input is accepted (`type-retype-abandoned`), so check with `valueIs`.
 - [Android: field may not keep the whole text](../commands/type.md#notes) — a limited field shows "did not keep the last N character(s)" yet the result stays green; check with `textIs` / `valueIs`.
 - [Value does not move at all](../commands/type.md#notes) — OCR (macOS 27+) accepts text drawn in the field (`type-readback-unchanged`); otherwise the input is re-sent once and then the step fails.
+- [iOS xcuitest: only the first 512 units of a field's value can be read](../commands/type.md#notes) — longer text is accepted when the readable part matches and the rest is not checked; check the whole text with `textIs` on the app's display.
 - [`settle: false` skips the settle wait](../commands/type.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
 ### Value assertions (valueIs, …)

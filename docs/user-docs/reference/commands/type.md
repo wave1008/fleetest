@@ -93,6 +93,11 @@ field.type("alice")                // same as type("#login_id", "alice")
   `type-readback-unchanged`). If not, the input is treated as lost and re-sent. **The re-send
   happens at most once**; if the value still does not move, the step fails (repeating the
   re-send could duplicate the input).
+- **In iOS `xcuitest` mode only the first 512 units (UTF-16: 512 letters or digits, 256 emoji) of a field's value can be read.**
+  The OS cuts the value there. For longer text the step accepts when the part it can read matches; the rest is not
+  checked and not re-sent (note "the accessibility tree cuts a field's value at 512 UTF-16 units"). For the same reason
+  `valueIs` on a long field compares against the cut value. To check the whole text, assert with `textIs` on another
+  element where the app shows the input.
 - **`settle: false`** skips this command's post-action wait for the screen to settle (the next step may see a moving screen). See [tap](./tap.md) for details.
 
 ### Link

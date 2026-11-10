@@ -158,6 +158,7 @@ extension BridgeRouter {
         var consumedByApp = false
         var whitespaceAltered = false
         var targetLeftTree = false
+        var valueCutAtLimit = false
         // 直前の追送を撃った時点の値。追送の後も同じ値なら、それ以上撃っても重複するだけ(ホストの verifyTypedText と同じ規律)
         var valueAtLastResend: String?
         // 打ち直しの delete は末尾から消す前提。複数行の欄はカーソルが先頭寄りに残ることがある(TypeReadback.plan の位置違い)ので、先に末尾へ送る
@@ -183,6 +184,11 @@ extension BridgeRouter {
             // (規則はホストと共有 = TypeReadback.readbackTarget。採り直さないと `.retype` が
             // ヒント文字列ごと打ち込む)
             // 撃つ前から欄にあった値の範囲の欠落は打鍵の落ちではない(選択範囲の置き換え。TypeReadback.plan)
+            // 木の value が XCTest の上限で切れた = 残りは読めない。追送すると二重に入るので、読めた先頭の一致で受理して注記する
+            if TypeReadback.valueCutAtXCTestLimit(expected: expected, actual: actual) {
+                valueCutAtLimit = true
+                break loop
+            }
             let priorCount = expected.count - main.count
             let readbackTarget = TypeReadback.readbackTarget(expected: expected, typedOnly: main, actual: actual,
                                                              protectedPrefixCount: priorCount)
@@ -252,6 +258,11 @@ extension BridgeRouter {
         }
         // 打ち直した事実は注記で返す(ホストは driverFallback へ載せる = 緑の run で何回起きたかを数える口)
         if targetLeftTree { return TypeReadback.targetLeftTreeNote }
+        if valueCutAtLimit {
+            return "the accessibility tree cuts a field's value at \(TypeReadback.xctestValueUTF16Limit) UTF-16 units;"
+                + " that much was read back and matched, the rest could not be read and was not re-sent"
+                + " — check the whole value with the app's own display if it matters"
+        }
         if consumedByApp {
             return "the field was back to its previous value after typing, but the screen outside it changed —"
                 + " taken as the app consuming the input (e.g. submitting a complete code); not re-sent"

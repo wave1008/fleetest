@@ -118,6 +118,19 @@ public enum TypeReadback {
             != actual.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// XCTest の木が返す `value` の上限(UTF-16 の単位数)。実測(iOS 27.2 の Simulator・xcuitest モード・UIKit の
+    /// UITextField): `k`×600 → value 512 文字・`🙂`×300 → 256 文字(= 512 単位)。同じ欄を in-app の木で読むと 600 文字で、
+    /// 同じ画面の label(echo)は切れない = value だけを XCTest が切る。fleetest のコードに 512 の上限は無い
+    public static let xctestValueUTF16Limit = 512
+
+    /// 読み返した値が XCTest の上限で切れた**だけ**か(上限ちょうどの長さで、目標の先頭と一致し、目標は上限より長い)。
+    /// 真なら残りは木から読めない —— 前方一致の欠けとして追送すると、届いていた残りがもう一度入る
+    /// (実測: `🙂`×300 で残りの 44 個が二重に入った)。上限の位置でサロゲートの対が割れた値は一致しないので今までどおり
+    public static func valueCutAtXCTestLimit(expected: String, actual: String) -> Bool {
+        actual.utf16.count == xctestValueUTF16Limit && expected.utf16.count > xctestValueUTF16Limit
+            && expected.hasPrefix(actual)
+    }
+
     /// 読み返しが目標にする値。**既定は `expected`(撃つ前の値 + 本文)**で、それが前方一致で説明できない
     /// ときだけ「撃った文字だけ」(`typedOnly`)を候補にする。ホスト(`StepExecutor.readbackTarget`)と
     /// XCUITest ランナー(`BridgeRouter.handleType`)が共有する = 同じ欄で判断が食い違わない。
