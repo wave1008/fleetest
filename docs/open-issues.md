@@ -331,7 +331,7 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 運用: 回避可 — xcuitest モードだけ。既定の inapp-boost モードでは押せる。xcuitest モードで要るなら送らずに押す順に書く
 - 優先度: 低 — 誤った赤(失敗文が手前の要素を名指すので沈黙しない)・既定でない経路
 
-出典: `_work/explore-20261109l/findings-im4.md`(50周目)と 11/10 の測定。E2EY-iOS「スクロールで隠れるバー」で `scrollDown()` → `scrollUp()` の後、XCUITest の `isHittable` は FAB に false を返すが、同じ点への座標の tap は両モードとも FAB に届く(XCUITest の本物のタッチでも届く)= `isHittable` の答えの誤り。**inapp-boost モードは直した**: in-app の当たり判定 `/touchlands` が「対象に届き、覆いの候補のどれにも届かない」と言えたら撃つ(`TapTargetGeometry.touchClearsCovers`・注記 `touch-reaches-target-despite-hit-test`。測定: FAB の中心は FAB の view だけに届き、行の view〈PlatformGroupContainer〉には届かない。Flutter の半分のシートの裏の行は覆いにも届くので断るまま)。**xcuitest モードには in-app ブリッジが無く、この材料が取れない**ので断るまま
+出典: `_work/explore-20261109l/findings-im4.md`(50周目)と 11/10 の測定。E2EY-iOS「スクロールで隠れるバー」で `scrollDown()` → `scrollUp()` の後、XCUITest の `isHittable` は FAB に false を返すが、同じ点への座標の tap は両モードとも FAB に届く(XCUITest の本物のタッチでも届く)= `isHittable` の答えの誤り。**inapp-boost モードは直した**: in-app の当たり判定 `/touchlands` が「対象に届き、覆いの候補のどれにも届かない」と言えたら撃つ(`TapTargetGeometry.touchClearsCovers`・注記 `touch-reaches-target-despite-hit-test`。測定: FAB の中心は FAB の view だけに届き、行の view〈PlatformGroupContainer〉には届かない。Flutter の半分のシートの裏の行は覆いにも届くので断るまま)。**xcuitest モードには in-app ブリッジが無く、この材料が取れない**ので断るまま。MCP の ref 経路(`otherLayerRefTouchRefusal`)も iOS は XCUITest の木の番号なので `/touchlands` に渡せず、モードに関わらず断るまま
 - 戻す条件: XCUITest の側で本物のタッチの当たり先を答える手が見つかったら(公開 API には無い)
 
 ### OI-210 iPhone Duo の折りたたんだ状態で、キーボードに押し上げられて上端で半分切れたテキストの検証が OCR の読み誤りで赤
