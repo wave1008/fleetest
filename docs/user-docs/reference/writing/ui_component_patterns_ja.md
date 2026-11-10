@@ -562,6 +562,16 @@ select("#txt_focus_echo").textIs("focus=second")
   **`Spinner`/`ExposedDropdownMenuBox` のようにフォーカスを持つポップアップの候補は表示
   される**。**ツールチップ・一部のオートコンプリート候補は依然として非表示**。
   回避策: 候補を直接検証できないときは、アプリ自身の echo で確定後の値を確かめる
+- **Android の Flutter のオートコンプリートは、候補の位置が画面の表示とずれます**。候補は木に載りますが、
+  その位置が実際に描かれた位置より上(数百 px)を指し、時間がたっても直りません。候補を `tap` すると
+  その位置にある別のもの(多くは入力欄)に当たり、**候補は選ばれないまま成功します**。
+  候補を押した後は、選んだ値を必ず確かめます(押した手が緑でも選べたとは限りません)。
+
+  ```swift
+  type("#field_auto", "Ja")
+  tap("#auto_opt_japan", waitSeconds: 5)
+  select("#txt_auto_echo").textIs("auto=Japan")   // 選べたことはここで確かめる
+  ```
 - **Android は一部の入力欄で `ACTION_SET_TEXT` を拒否します**(Material の `SearchView`・
   一部の Flutter の入力欄で確認)。回避策は無く、`type` は既定の打鍵で入力する(拒否されるのは
   a11y 経由の一括書き込みだけで、通常の `type` の打鍵は通る)

@@ -397,6 +397,7 @@ Android の4 SUT と RN iOS は、どの部品もオン/オフとも a11y が判
 |---|---|---|
 | モーダル(ドロワー・メニュー・シート) | 開いている間、背後の画面が木から消える(CMP 両 OS・SwiftUI) | B |
 | 選択式の欄 | 値の置き場が違う: CMP = `value`(iOS の .text はラベル・Android は nil)/ SwiftUI `Picker(.menu)` = **ラベル**(`果物, バナナ`)/ Flutter `DropdownMenu` = 内側の要素の value(iOS)・Android は木に無い / Android `MaterialAutoCompleteTextView` = 木に無い | B |
+| Flutter のオートコンプリート(Android) | 候補の a11y の枠が描画より上(実測 222〜718px。キーボードの開閉の前後とも)にずれ、時間で直らない。木の中心を撃つと欄などに当たり、候補を選ばずに tap が緑になる。木だけからは正しい位置が分からないので、ツールは吸収しない(撃つ前に画素で確かめる案は費用の判断で見送り = OI-205 ①) | B(選んだ値を echo で確かめる) |
 | CMP のオートコンプリート(iOS) | `ExposedDropdownMenu` の候補をソフトキーボードを避けずに欄の下へ出す。下のほうの欄では候補がキーボードの裏に入り、XCUITest の tap はキーボードに当たる(in-app は要素を起動するので通る)。送ると候補が閉じるので送って外せない | B(E2EX-CMP は欄を先頭に置く) |
 | SwiftUI `Stepper` | 増減ボタンが `#<id>-Increment` / `#<id>-Decrement` | B |
 | iOS のシステムの戻る | UIKit・SwiftUI・RN native-stack は `#BackButton`(ラベルは前の画面のタイトル) | A |

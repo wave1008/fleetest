@@ -582,6 +582,17 @@ select("#txt_focus_echo").textIs("focus=second")
   suggestions**. **Tooltip popups and some autocomplete suggestions still do not**.
   Workaround: when a suggestion cannot be verified directly, check the confirmed value through the
   app's own echo instead
+- **On Android, Flutter's autocomplete suggestions are reported at the wrong position**. The suggestions
+  are in the tree, but their position points above where they are actually drawn (by hundreds of px), and
+  it does not correct itself over time. A `tap` on a suggestion lands on whatever is at that position
+  (usually the text field), so **the step succeeds without selecting the suggestion**. After tapping a
+  suggestion, always verify the selected value (a green tap does not mean the suggestion was chosen).
+
+  ```swift
+  type("#field_auto", "Ja")
+  tap("#auto_opt_japan", waitSeconds: 5)
+  select("#txt_auto_echo").textIs("auto=Japan")   // this is where you confirm the selection
+  ```
 - **Android refuses `ACTION_SET_TEXT` on some fields** (observed on Material's `SearchView` and some
   Flutter fields). There is no workaround; `type` types normally via regular keystrokes anyway (only
   the bulk, a11y-driven write is refused, not ordinary `type` keystrokes)
