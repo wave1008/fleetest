@@ -362,6 +362,9 @@ export function gestureCapFor(totalSeconds: number): number | undefined | "tooLo
  * ApiLiveServeCommand.watchdogAllowanceSeconds の fold)と同値 —— 片方だけ変えない。 */
 const FOLD_ALLOWANCE_MS = 5_000;
 
+/** type の1文字あたりの猶予(ms)。Swift の `BridgeClient.typeSecondsPerCharacter` と同値 —— 片方だけ変えない。 */
+const TYPE_MS_PER_CHARACTER = 50;
+
 /** serve がこのコマンドで正当に占有する時間(ms)。応答待ちの上限にこのぶんを足す。
  * Swift 側は `ApiLiveServeCommand.watchdogAllowanceSeconds`(Sources/fleetest/ApiLiveCommand.swift)
  * が同じ表を持つ(片方だけ変えない)。 */
@@ -382,6 +385,10 @@ export function serveCommandAllowanceMs(command: LiveServeCommand): number {
       return Math.ceil(command.duration * 1000);
     case "fold":
       return FOLD_ALLOWANCE_MS;
+    case "type":
+      // 1文字ずつ打つ時間。Swift の BridgeClient.typeSecondsPerCharacter(0.05 秒)と同値 —— 片方だけ変えない。
+      // Swift は書記素の数で数える。こちらは UTF-16 の長さ(書記素の数以上 = 短くはならない)
+      return Math.ceil(command.text.length * TYPE_MS_PER_CHARACTER);
     default:
       return 0;
   }

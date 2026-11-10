@@ -35,7 +35,13 @@ final class ApiLiveCommandBudgetTests: XCTestCase {
     /// 内側の上限が watchdog 基準値(30秒)を超えない通常のコマンドは allowance 0
     func testNonGestureCommandsHaveNoAllowance() {
         XCTAssertEqual(command("tap", ["x": 1, "y": 1]).watchdogAllowanceSeconds, 0)
-        XCTAssertEqual(command("type", ["text": "a"]).watchdogAllowanceSeconds, 0)
+    }
+
+    /// type は打つ文字数ぶん(1文字 0.05 秒 = BridgeClient.typeSecondsPerCharacter)。/type の予算も同じだけ延びるので、
+    /// 猶予が無いと長い文を打っている最中に watchdog が serve ごと落とす
+    func testTypeAllowanceGrowsWithTheTextLength() {
+        XCTAssertEqual(command("type", ["text": ""]).watchdogAllowanceSeconds, 0)
+        XCTAssertEqual(command("type", ["text": String(repeating: "a", count: 600)]).watchdogAllowanceSeconds, 30, accuracy: 0.001)
     }
 
     /// press の allowance は指定した duration そのもの(縮めない)

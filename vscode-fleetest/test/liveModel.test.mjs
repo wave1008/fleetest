@@ -1173,6 +1173,11 @@ test("serveCommandAllowanceMs: press/drag/pinch は指定秒数そのもの(秒�
   assert.equal(serveCommandAllowanceMs({ cmd: "pinch", scale: 2, duration: 0.5 }), 500);
 });
 
+test("serveCommandAllowanceMs: type は文字数 × 50ms(Swift の BridgeClient.typeSecondsPerCharacter と同値)", () => {
+  assert.equal(serveCommandAllowanceMs({ cmd: "type", text: "a".repeat(3000) }), 150000);
+  assert.equal(serveCommandAllowanceMs({ cmd: "type", text: "" }), 0);
+});
+
 test("traceSummary: 点の数・時間・範囲・隣り合う点の最大の跳び(左上の角を経由した点列は最小 0 と大きな跳びで分かる)", async () => {
   const { traceSummary } = await import("../src/liveModel");
   const display = { width: 300, height: 600 };

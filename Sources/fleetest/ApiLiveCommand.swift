@@ -1381,6 +1381,9 @@ struct ApiLiveServeCommand {
                 + (duration ?? ApiLiveGestureDefaults.dragDurationSeconds)
         case "pinch":
             return duration ?? ApiLiveGestureDefaults.pinchDurationSeconds
+        case "type":
+            // 1文字ずつ打つ時間(`BridgeClient.typeSecondsPerCharacter`)。/type の予算もこのぶん延びる
+            return BridgeClient.typeAllowance(for: text ?? "")
         case "appSwitcher", "home", "refresh":
             return BridgeClient.Timeout.session
         case "fold":

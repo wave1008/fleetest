@@ -117,6 +117,22 @@ public final class BridgeClient: AppDriver, Sendable {
         interactionTimeout + max(duration, 0)
     }
 
+    /// `/type` で打つ1文字あたりに足す秒数。**根拠**: XCUITest の `typeText` は打ち終えるまで応答を返さず、
+    /// 1文字ずつ打つ(実測: iOS 27.2 の Simulator で `m`×300 = 5.96s・`k`×600 = 11.0s・`🙂`×300 = 8.32s = 約 18〜28ms/文字)。
+    /// 固定の 20s では 3000 文字(約 55s)が打っている最中にホストで時間切れになり「Cannot reach the driver」を返していた(OI-205)。
+    /// 実測の約 2 倍を取る(負荷・実機の遅さの分)。**尽きたとき**: 打っている最中に時間切れ = 従来の到達不能の失敗(何回届いたか分からない
+    /// = 撃ち直さない)。ライブ操作の見張りの猶予(`ApiLiveServeCommand.watchdogAllowanceSeconds` と拡張の `serveCommandAllowanceMs`)も同じ値
+    public static let typeSecondsPerCharacter: TimeInterval = 0.05
+
+    /// 打つ文字数ぶんの時間を足した `/type` の予算(床は `interactionTimeout`)
+    public static func typeAllowance(for text: String) -> TimeInterval {
+        Double(text.count) * typeSecondsPerCharacter
+    }
+
+    func timeout(forTypedText text: String) -> TimeInterval {
+        interactionTimeout + Self.typeAllowance(for: text)
+    }
+
     /// timeoutSeconds: 既定 120 秒(launch や snapshot は数秒かかることがある)。
     /// ポート範囲のスキャン(生存確認)には短い値を渡す。
     /// per-endpoint 既定(interaction/session)は URLRequest.timeoutInterval として config 側を
@@ -1134,7 +1150,7 @@ public final class BridgeClient: AppDriver, Sendable {
         if let ref { try refuseIfStepExpectationContradicts(ref) }
         let res: OKResponse = try await post("/type", body: TypeRequest(ref: ref, text: text, expect: ref.flatMap { refExpectations[$0] },
                                                                 focusTapWhenImeHidden: Self.focusTapWhenImeHidden(for: mutable.withLock { $0.appUIFramework }, ref: ref)),
-                                             timeout: interactionTimeout)
+                                             timeout: timeout(forTypedText: text))
         // ランナーの打ち直し(TypeReadback.Plan.retype)の申告。tap と同じく driverFallback へ運ぶ
         lastActionNote = res.note
     }

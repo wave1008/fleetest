@@ -116,6 +116,18 @@ final class BridgeClientTimeoutTests: XCTestCase {
                        "負の duration は床を割ってはいけない")
     }
 
+    /// **/type は打つ文字数ぶん予算を足す**(XCUITest は1文字ずつ打ち終えるまで応答しない。固定 20s で 3000 文字が
+    /// 打っている最中に時間切れになった = OI-205)。率はリテラルで固定する
+    func testTypeTimeoutGrowsWithTheTextLength() {
+        let client = BridgeClient(port: 1, timeoutSeconds: 120,
+                                  interactionTimeout: 20, sessionTimeout: 45)
+        XCTAssertEqual(BridgeClient.typeSecondsPerCharacter, 0.05)
+        XCTAssertEqual(client.timeout(forTypedText: ""), 20)
+        XCTAssertEqual(client.timeout(forTypedText: String(repeating: "a", count: 3000)), 170, accuracy: 0.001)
+        // 書記素で数える(絵文字1つ = 1文字)
+        XCTAssertEqual(client.timeout(forTypedText: String(repeating: "🙂", count: 100)), 25, accuracy: 0.001)
+    }
+
     func testSessionEndpointUsesSessionBudget() async throws {
         let listener = try UnresponsiveTCPListener()
         defer { listener.stop() }
