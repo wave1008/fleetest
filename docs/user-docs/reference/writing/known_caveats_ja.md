@@ -23,7 +23,7 @@
 ### clearInput
 - [Android で欄が候補一覧などの下にあると触らず失敗する](../commands/clear_input_ja.md#注意点) — 焦点を当てるタップが候補を選んで別の欄を書き換えるので、先に一覧を閉じます。
 - [入力欄でない要素(ボタン等)を指すと消す前に失敗する](../commands/clear_input_ja.md#注意点) — 事前タップで送信・購入ボタンを押す事故を防ぐための断りです。入力欄を指して書きます。
-- [値が入力を映さない欄は消した後も値が残って見える](../commands/clear_input_ja.md#注意点) — iOS の SearchBar 等では、OCR で何も描かれていなければ注記付きで通り、それ以外は失敗します。
+- [値が入力を映さない欄は消した後も値が残って見える](../commands/clear_input_ja.md#注意点) — iOS の Material 3 の SearchBar 等では、OCR で欄に何も描かれていなければ注記付きで通り、ほかの文字が描かれている・伏せ字・キーボードが重なる・OCR 不可のときは失敗します。
 - [空白は検証できない](../commands/clear_input_ja.md#注意点) — 空白が欠けても検出されないので、空白が意味を持つ値は `valueIs` で確かめます。
 - [type は追記なので書き換えはクリアが先](../commands/clear_input_ja.md#注意点) — `type(sel, "文字列", replace: true)` でクリアと入力を1コマンドにできます。
 - [Flutter の iOS ビルドは XCUITest ブリッジへ自動で切り替わる](../commands/clear_input_ja.md#注意点) — in-app ブリッジでは欄を消せないため、この1コマンドだけ1〜2秒余分にかかります。
@@ -44,7 +44,7 @@
 - [notExist は可視性を見ない](../commands/existence_assertion_ja.md#注意点) — 別のモーダルに覆われて木に残っている要素は「まだ在る」と扱われ、待ち時間後に失敗します。
 - [モーダルの裏で通った「無い」には absence-behind-modal の注記が付く](../commands/existence_assertion_ja.md#注意点) — 裏の要素が木から外れると、要素が在っても `notExist` が通ります。合否は変わらないので注記を確認します。
 - [Android で別アプリの画面を読んで通った「無い」には注記が付く](../commands/existence_assertion_ja.md#注意点) — 前面がテスト対象でないと、検証は対象について何も言っていません。合否は変わらないので注記を確認します。
-- [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 見えているかの確認は描かれた文字と突き合わせ、一部が隠れていても緑になることがあります。
+- [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 末尾が省略記号なら緑(`text-ellipsized`)、描かれたのが期待の半分より多いと緑(`text-partially-hidden`)、半分以下は失敗です。大部分を隠す画面は `requireVisible: false` を使います。
 
 ### 画像で探す(findImage, findImages, existImage)
 - [記録の距離を threshold の目安にする](../commands/find_image_ja.md#注意点) — 記録には距離と比べた候補の数が出ます。見つからないときは最も近かった距離が出ます。
@@ -95,7 +95,7 @@
 - [iOS の別ウィンドウのモーダルは木に載るが、全面を覆うと背面が木から消える](../commands/irregular_handler_ja.md#注意点) — 背面の `exist` やタップは失敗するので誤成功にはならず、モーダルを閉じてから操作します。
 
 ### キーボードの検証(keyboardIsShown, keyboardIsNotShown)
-- [表示 / 非表示はブリッジが申告する枠で決まる](../commands/keyboard_assertion_ja.md#注意点) — 枠が画面の下端の外なら非表示です。どちらも不明なときは嘘の成功にせず、`keyboardIsNotShown` は失敗します。
+- [表示 / 非表示はブリッジが申告する枠で決まる](../commands/keyboard_assertion_ja.md#注意点) — 枠が画面の外なら非表示で、どちらも不明なときは失敗します。iOS の xcuitest モードでは閉じたことを確定できないことがあるので、閉じた確認は inapp-boost モード(または Android)で書きます。
 
 ### launchApp, restartApp, terminateApp, openURL
 - [launchApp は起動済みでも常にプロセスを終了して起動し直す](../commands/launch_app_ja.md#注意点) — 前面化ではないので、どの呼び出しもエントリー画面から始まります。
@@ -109,7 +109,7 @@
 
 ### home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
 - [home() 等の後はアプリを前面へ戻してから操作する](../commands/navigation_ja.md#注意点) — iOS の inapp-boost と Android で、アプリが前面にない間は `select` や `notExist` などが断られます。
-- [back(settle:) の確実さは画面による](../commands/navigation_ja.md#注意点) — 自前描画のナビバーの画面は戻れないことがあります。そのときはアプリ内の戻るボタンを `tap()` します。
+- [back(settle:) の確実さは画面による](../commands/navigation_ja.md#注意点) — iOS の自前描画のナビバーの画面は戻れないことがあります(アプリ内の戻るボタンを `tap()`)。Android はキーボードが開いていると1回目の `back()` がそれを閉じるだけで消費されます。
 - [back() の前後で画面が変わらなくても失敗しない](../commands/navigation_ja.md#注意点) — 注記が付くだけです。アプリ自身の戻るボタンを `tap` するか、`back()` をもう一度呼びます。
 - [back() の注記(back-stayed-on-screen など)](../commands/navigation_ja.md#注意点) — 失敗にはならないので、注記が出たらどの画面に着いたかを自分で確かめます。
 - [tapAppIcon の探索順](../commands/navigation_ja.md#注意点) — 現在の画面、Android はドロワー、iOS はページ送りと App ライブラリの順に探します。
@@ -132,7 +132,7 @@
 ### pressEnter, hideKeyboard
 - [pressEnter が改行か確定アクションかはフィールドが決める](../commands/press_enter_hide_keyboard_ja.md#注意点) — コマンド側では選べません。`type` の末尾 `\n` も同じです。
 - [iOS の hideKeyboard はフレームワークで閉じ方が違う](../commands/press_enter_hide_keyboard_ja.md#注意点) — 背景タップで閉じるか Enter で閉じるかが違います。React Native の inapp-boost は Enter を送りません。閉じなければ失敗します。
-- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — 閉じられないとき、`tap` は見えている部分を押します。送信ボタンの位置に注意します。
+- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと `type` / `clearInput` は触らず失敗し、`tap` は見えている部分だけを押します。リターンキーが要るなら先に `pressEnter()` を呼びます。
 - [キーボードが出ているかの検証は別のコマンド](../commands/press_enter_hide_keyboard_ja.md#注意点) — `keyboardIsShown` / `keyboardIsNotShown` を使います。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/press_enter_hide_keyboard_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
@@ -187,7 +187,7 @@
 - [同じセレクタに複数一致するとき、覆われた先頭を避けて押す](../commands/tap_ja.md#注意点) — 覆われていない要素を押します(注記付き)。全部覆われているときは何も押さず失敗します。
 - [対象の中心がタブバーや固定フッタの下にあると、見えている部分を押す](../commands/tap_ja.md#注意点) — まず一覧を送って外し、外せなければ見えている部分を押します。薄すぎる(8pt/8dp 未満)と失敗します。
 - [スクロールで隠れた対象がナビバーの下にあると scroll: が要る](../commands/tap_ja.md#注意点) — `scroll:` が無いと何も押さず失敗し、向きを案内します。`scroll: .up` 等を書きます。
-- [対象が見つからず手前の窓やモーダルが木から外しているときは失敗文が名指す](../commands/tap_ja.md#注意点) — iOS の inapp-boost だけで、窓やモーダルの名指しを手がかりに、先に閉じます。
+- [対象が見つからず手前の窓やモーダルが木から外しているときは失敗文が名指す](../commands/tap_ja.md#注意点) — 失敗文が窓やモーダルを名指ししても、`waitSeconds:` を伸ばして待つのは無駄です(閉じるまで対象は戻りません)。前のステップで閉じるか `irregularHandler` で宣言します。
 - [重なりの順を知れない画面では推測せず対象の中心を押す](../commands/tap_ja.md#注意点) — SwiftUI・Compose Multiplatform・Flutter・xcuitest・MCP 操作が該当し、覆われていると別の物を押します。
 - [アプリが落ちて別のアプリが前面のときは失敗する](../commands/tap_ja.md#注意点) — 同じ `#id` を持つ別のアプリを誤って操作しないための断りです。
 - [tap は対象が enabled になるまで待ってから撃つ](../commands/tap_ja.md#注意点) — `waitSeconds:`(既定 5 秒)まで待ち、なお無効でもそのまま撃ちます。
@@ -224,7 +224,7 @@
 - [settle: false は操作後の落ち着き待ちを省く](../commands/type_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
 ### 値の検証(valueIs, valueContains, …)
-- [入力欄の内容は value* で見る](../commands/value_assertion_ja.md#注意点) — 一部のフレームワークで入力欄の `text` は placeholder を返すので、入力欄に `textIsEmpty` / `textIs` を当てないでください。空欄は `valueIsEmpty` で判定します。
+- [入力欄の内容は value* で見る](../commands/value_assertion_ja.md#注意点) — 一部のフレームワーク(Compose Multiplatform と Flutter の iOS・React Native)では入力欄の `text` が placeholder を返すので、`textIs` / `textIsEmpty` を当てません。空欄は `valueIsEmpty` で判定します。
 - [否定系と空判定は可視性を見ず、scroll: も無い](../commands/value_assertion_ja.md#注意点) — テキストの検証と同じ規則です。
 - [チェーンした検証は掴んだ時点の値でまず判定する](../commands/value_assertion_ja.md#注意点) — 満たしていなければデバイスをポーリングします。
 
@@ -260,7 +260,7 @@
 ### 引っ張って更新
 - [SwiftUI の .refreshable と RN の iOS RefreshControl は長く引かないと始まらない](ui_component_patterns_ja.md#引っ張って更新) — 実測約 470pt 必要です。短い `swipeElementToElement` では反応しないので、画面比率で大きく引く生ジェスチャを使います。
 - [iOS の xcuitest モードでは scrollToTop() で更新が1回余分に走ることがある](ui_component_patterns_ja.md#引っ張って更新) — `#id` の無い一覧などで起きます。更新回数の検証は `scrollToTop()` より前に済ませます。
-- [Flutter の iOS でも scrollToTop() で更新が走ることがある](ui_component_patterns_ja.md#引っ張って更新) — 調査中です。更新回数を検証するなら `scrollToTop()` の後に回数を読みません。
+- [Flutter の iOS でも scrollToTop() で更新が走ることがある](ui_component_patterns_ja.md#引っ張って更新) — 更新が走ることがあり、調査中です。更新回数を検証するシナリオでは、回数を読むのを `scrollToTop()` より前に済ませます。
 - [更新回数を検証するシナリオは scrollToTop() の後に回数を読まない](ui_component_patterns_ja.md#引っ張って更新) — 上の2件に共通の回避策で、回数の検証はそれより前に済ませます。
 - [Android は全フレームワークで起きない](ui_component_patterns_ja.md#引っ張って更新) — `scrollToTop()` / `scrollToBottom()` は a11y のスクロール操作で送るので、端を越えた引っ張りにならないためです。
 

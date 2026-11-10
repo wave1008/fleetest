@@ -22,7 +22,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### clearInput
 - [Android: field under a popup window](../commands/clear_input.md#notes) — the focusing tap would pick a suggestion and change another field, so the step fails first; close the popup beforehand.
-- [Non-input target fails before clearing](../commands/clear_input.md#notes) — `clearInput` taps first, so a button would be pressed; point it at input fields only.
+- [Non-input target fails before clearing](../commands/clear_input.md#notes) — `clearInput` taps first, so a button, switch or link would be pressed; it refuses them, but an element wrapping exactly one input is accepted.
 - [Fields whose value does not mirror input](../commands/clear_input.md#notes) — a value that seems to remain may pass via OCR with note `clear-residual-not-drawn`; otherwise it fails.
 - [Whitespace cannot be verified](../commands/clear_input.md#notes) — whitespace-only content is invisible to accessibility, so lost spaces go undetected; assert values with `valueIs` where whitespace matters.
 - [`type` appends](../commands/clear_input.md#notes) — clear first when replacing, or use `type(sel, "text", replace: true)` to do both in one command.
@@ -42,8 +42,8 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`exist` return value chains into checks](../commands/existence_assertion.md#notes) — chain text, value or id assertions onto it.
 - [`exist` / `notExist` / `countIs` always take a selector](../commands/existence_assertion.md#notes) — they resolve more than one element, so there is no implicit last-element form.
 - [`notExist` ignores visibility](../commands/existence_assertion.md#notes) — an element merely covered by a modal but still in the tree counts as present, and the check fails after the wait.
-- [Absence passes behind a dialog (`absence-behind-modal`)](../commands/existence_assertion.md#notes) — a dialog in front can remove elements from the tree so `notExist` passes wrongly; close the dialog before checking absence.
-- [Absence read on another app (`absence-checked-on-another-app`)](../commands/existence_assertion.md#notes) — on Android, `notExist` passing while another app is in front says nothing about your app; bring your app back first.
+- [Absence passes behind a dialog (`absence-behind-modal`)](../commands/existence_assertion.md#notes) — a dialog in front can remove elements from the tree, so `notExist` passes (with this note) though the element is behind it; close the dialog first.
+- [Absence read on another app (`absence-checked-on-another-app`)](../commands/existence_assertion.md#notes) — on Android, `notExist` passes with this note while another app is in front and says nothing about your app; bring your app back first.
 - [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis or more than half drawn passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
 
 ### findImage / existImage
@@ -57,7 +57,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [No sample image is a configuration error](../commands/find_image.md#notes) — the step fails when the label folder has no sample at all.
 - [Vision anomalies are retried](../commands/find_image.md#notes) — odd feature prints on a busy Mac make the tool wait and search again (`vision-anomaly-retried`); if it persists, rerun or restart the Mac.
 - [Single-colour screenshot is retaken](../commands/find_image.md#notes) — an all-black or all-white app area is treated as not captured (`blank-screenshot-retaken`) and fails if it stays so.
-- [inapp-boost captures like the text visibility check](../commands/find_image.md#notes) — a covered element is compared as the picture of whatever covers it.
+- [iOS inapp-boost captures like the text visibility check](../commands/find_image.md#notes) — on iOS in the default mode, a covered element is compared as the picture of whatever covers it.
 - [Chain assertions on a found element](../commands/find_image.md#notes) — this works when the element has a writable selector such as an id or unique label.
 - [Tap right after finding](../commands/find_image.md#notes) — moving the screen afterwards makes `tap()` hit the old coordinates.
 - [Candidates are accessibility element frames](../commands/find_image.md#notes) — parts that do not appear in accessibility cannot be found.
@@ -108,14 +108,14 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`openURL` while the app is not running](../commands/launch_app.md#notes) — the OS launches it, but that is not the command's purpose; use `launchApp(url:)`.
 
 ### Navigation (home, back, tapAppIcon, rotateTo, fold)
-- [Bring the app back after leaving it](../commands/navigation.md#notes) — after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until you return with `launchApp()` or `tapAppIcon()`.
+- [Bring the app back after leaving it](../commands/navigation.md#notes) — on iOS inapp-boost and Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until `launchApp()` or `tapAppIcon()`.
 - [`back(settle:)` depends on the screen](../commands/navigation.md#notes) — custom navigation may need an edge swipe, and Android's first `back` closes an open keyboard; tap the app's own back button where it cannot go back.
 - [Unchanged screen after `back()` only adds a note](../commands/navigation.md#notes) — the step does not fail when the app ignores system back; tap its own back button or call `back()` again.
-- [`back-stayed-on-screen` and similar notes](../commands/navigation.md#notes) — a `back()` that fell back to an edge swipe and landed on the same screen stays green with a note; check which screen you landed on.
+- [`back-stayed-on-screen` and similar notes](../commands/navigation.md#notes) — a `back()` that stayed on the same screen (iOS) or left the app for the launcher (Android `back-left-app`) stays green with a note; check where you landed.
 - [`tapAppIcon` search order](../commands/navigation.md#notes) — current screen, then the drawer or home pages, and the App Library on iOS; it fails with "App icon not found" if never found.
 - [iOS: a system alert hides the icons](../commands/navigation.md#notes) — `tapAppIcon` fails naming the alert; answer it in the scenario or register `iosAlertHandler`.
 - [Two-display Simulator tree mismatch](../commands/navigation.md#notes) — `tapAppIcon` never taps when the home-screen tree does not match the shown display, and fails with a message saying so.
-- [iOS `back()` after the app was stopped](../commands/navigation.md#notes) — after `terminateApp()`, `removeApp()` or `clearAppData()` it fails unsent; start the app with `launchApp()` first.
+- [iOS `back()` after the app was stopped](../commands/navigation.md#notes) — after `terminateApp()`, `removeApp()` or `clearAppData()` it fails unsent, and in inapp-boost `tapAppIcon()` launches instead of tapping; start the app with `launchApp()` first.
 - [`rotateTo` follows the app's UI orientation](../commands/navigation.md#notes) — only `.portrait` and `.landscape` exist, with identical frames across OS and frameworks.
 - [`rotateTo` waits for the change](../commands/navigation.md#notes) — it returns only once the orientation has actually changed.
 - [Orientation reverts automatically](../commands/navigation.md#notes) — a scenario that rotates is restored at the end, with Android's auto-rotate setting too.
@@ -131,8 +131,8 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### pressEnter / hideKeyboard
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.
-- [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — background tap or the following Enter closes it depending on framework, and the step fails if neither does; React Native inapp-boost sends no Enter.
-- [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if it cannot be closed, `tap` presses the visible part.
+- [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost sends no Enter.
+- [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched.
 - [Keyboard state is a separate assertion](../commands/press_enter_hide_keyboard.md#notes) — verify whether it is showing with the keyboard assertions.
 - [`settle: false` skips the settle wait](../commands/press_enter_hide_keyboard.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
@@ -258,7 +258,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Suggestion rows have no id](ui_component_patterns.md#selection-field-read-only-dropdown) — in Android View's `MaterialAutoCompleteTextView` and Flutter's `DropdownMenu`, target suggestions by label.
 
 ### Pull to refresh
-- [Long pull needed on SwiftUI and RN iOS](ui_component_patterns.md#pull-to-refresh) — a roughly 260pt swipe does not start the refresh; use a raw `gesture` dragging the full screen ratio.
+- [Long pull needed on SwiftUI and RN iOS](ui_component_patterns.md#pull-to-refresh) — about 470pt is needed; a roughly 260pt swipe does not start the refresh, so use a raw `gesture` dragging the full screen ratio.
 - [xcuitest: `scrollToTop()` can run an extra refresh](ui_component_patterns.md#pull-to-refresh) — in lists whose rows lack `#id` or short lists not flush with the frame, the edge-confirming swipe becomes a pull.
 - [Flutter iOS `scrollToTop()` can also refresh](ui_component_patterns.md#pull-to-refresh) — this is under investigation, so do not rely on a refresh count after it.
 - [Do not read the refresh count after `scrollToTop()`](ui_component_patterns.md#pull-to-refresh) — verify the count before it in scenarios that check the refresh count.
@@ -277,7 +277,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Android: non-focused popup content can be missing](ui_component_patterns.md#types-of-input-fields) — autocomplete suggestion lists and tooltips may not appear in the tree; check the confirmed value through the app's echo.
 - [Android Flutter autocomplete suggestions are at the wrong position](ui_component_patterns.md#types-of-input-fields) — `tap` on a suggestion hits the field and stays green without selecting it; always verify the selected value afterwards.
 - [Android refuses `ACTION_SET_TEXT` on some fields](ui_component_patterns.md#types-of-input-fields) — there is no workaround, but ordinary `type` keystrokes still work.
-- [RN iOS suggestion below the field may not be tappable](ui_component_patterns.md#types-of-input-fields) — the keyboard stays up after `pressEnter()` and hides the suggestion; this is under investigation.
+- [RN iOS suggestion below the field may not be tappable](ui_component_patterns.md#types-of-input-fields) — in inapp-boost the keyboard stays up after `pressEnter()` and hides the suggestion (under investigation); lay out the screen to avoid it or check the value via the app's echo.
 
 ### FAB (floating action button)
 - [Android View `BottomAppBar` folds items into "More options"](ui_component_patterns.md#fab-floating-action-button) — folded rows cannot carry an id; `tap("More options")` to open the overflow first.
