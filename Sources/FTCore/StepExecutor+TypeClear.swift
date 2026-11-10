@@ -179,6 +179,34 @@ extension StepExecutor {
                 // 読み返しで撮り直した後なので、その木の ref で撃つ(element.ref は別の要素を指しうる)
                 try await driver.type(ref: liveRef, text: missing)
                 phase.actionMs += Self.ms(clock.now - start)
+            case .deleteExcess where !checkedScreenForTypedText
+                    && (Self.valueUnchangedByTyping(actual, element: element, baseline: consumptionBaseline) || actual == previous):
+                // **値が打つ前から、または自分で撃った消去と打ち直しの後も1文字も動いていない**のに「余分がある」と読めた = 値は入力を
+                // 映さない固定の文(M3 SearchBar の iOS は焦点が立つと案内文「検索候補は次のとおりです」を出し、打った「検索」がその先頭と
+                // 一致して消去と打ち直しを繰り返し赤だった = OI-202 ①。打つ前の木では value が無く、打った後はずっと同じ文)。
+                // それ以上消さずに画面を見る(下の resend の画面の確かめと同じ)。欄の中にプレースホルダとして
+                // 同じ文字の staticText がまだあれば、描かれた文字が打った字か区別できない = 打ち直さずに言う
+                checkedScreenForTypedText = true
+                let start = clock.now
+                let now = try await driver.snapshot()
+                phase.snapshotMs += Self.ms(clock.now - start)
+                if let field = TypeReadback.match(of: element, in: now.elements),
+                   now.elements.contains(where: { $0.ref != field.ref && $0.type == "staticText"
+                       && field.frame.contains($0.frame) && $0.label == typedOnly }) {
+                    return "type reported success but the field's value does not show the input, and the field still"
+                        + " shows \"\(typedOnly)\" as its placeholder, so whether the text arrived could not be told apart —"
+                        + " not retyped, so the field does not receive the same text twice"
+                }
+                let seen = await typedTextIsOnScreen(driver, element: element, text: typedOnly, deadline: deadline)
+                deadline = deadline.addingTimeInterval(seen.compileWaitSeconds)
+                screenCheckFact = seen.fact
+                if seen.visible == true {
+                    noteCodesThisStep.insert(.typeReadbackUnchanged)
+                    return nil
+                }
+                return "type reported success but the field's value did not change (it does not reflect the input),"
+                    + " and the typed text was not found on the screen (\(seen.fact ?? "not read")) — not retyped,"
+                    + " so the field does not receive the same text twice"
             case .deleteExcess, .retype:
                 // in-app はバックスペースを送れないので、丸ごとクリアしてから全文を打ち直す
                 // (handleClear と同じ 422 系の判断。clearInput のケースの既存実装と同じ API 形)。
@@ -201,6 +229,13 @@ extension StepExecutor {
                     + " of readback (expected \(expected.count) character(s))"
             }
         }
+    }
+
+    /// 読み返した値が、打つ前の木の同じ欄の値と同じ(空でない)か。同じなら値は打鍵を映していない(打鍵で動く値なら動く)
+    static func valueUnchangedByTyping(_ actual: String, element: ElementInfo, baseline: [ElementInfo]) -> Bool {
+        guard !actual.isEmpty, !baseline.isEmpty,
+              let before = TypeReadback.value(of: element, in: baseline) else { return false }
+        return FlowMatchMode.normalizeInvisibleCharacters(before) == actual
     }
 
     /// type の事後の照合(secure 欄の文字数・改行入りの宛先)の**唯一の入口**。判定は `TypedInputCheck` / `TypedInputVerdict`
@@ -1036,3 +1071,4 @@ extension StepExecutor {
         return FocusLanding.focusTapPoint(centre: CGPoint(x: field.midX, y: field.midY), field: field, keyboard: kb) != nil
     }
 }
+

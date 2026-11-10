@@ -147,6 +147,28 @@ final class TypeReadbackTargetTests: XCTestCase {
         return (outcome, driver)
     }
 
+    /// **witness**: E2EX-CMP の iOS の M3 SearchBar(OI-202 ①)。焦点が立つと value が固定の案内文になり、打った「検索」がその先頭と
+    /// 一致して「余分がある」と読まれ、消去と打ち直しを繰り返して赤だった。自分の消去と打ち直しでも値が動かなければ、それ以上
+    /// 消さずに画面を見る: 描かれていれば受理(注記)・描かれていなければ打ち直さずに赤
+    func testFixedDescriptionStartingWithTheTypedTextIsCheckedOnScreenInsteadOfRetypedForever() async {
+        let description = "検索候補は次のとおりです"
+        for onScreen in [true, false] {
+            StepExecutor.typedTextOnScreenOverrideForTesting = { _ in (onScreen, onScreen ? nil : "not drawn") }
+            defer { StepExecutor.typedTextOnScreenOverrideForTesting = nil }
+            let driver = ReadbackSequenceDriver(values: ["", description, description, description, description, description])
+            let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(
+                FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "検索"))
+            XCTAssertLessThanOrEqual(driver.clears, 1, "onScreen=\(onScreen): 動かない値に消去を繰り返した")
+            if onScreen {
+                XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")
+                XCTAssertTrue(outcome.notes.contains(.typeReadbackUnchanged), "\(outcome.notes)")
+            } else {
+                guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); continue }
+                XCTAssertTrue(message.contains("not retyped"), message)
+            }
+        }
+    }
+
     /// 全部捨てられた入力を ok にしない
     func testOverlappingFieldThatDroppedEverythingFails() async {
         let (outcome, driver) = await type("abc", values: ["", "", "", ""], shape: .flutterOverlap(secureAfterTyping: false))

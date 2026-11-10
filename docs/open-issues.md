@@ -27,7 +27,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-202・OI-205 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-205 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 18 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-199・OI-214 |
@@ -49,18 +49,6 @@
 - 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
 - 11/10(①の時間の推移): 手元の Emulator(Pixel 10 Pro -01・Android 17)で `type("#field_auto", "Ja")` → `hideKeyboard()` の後 20 秒置き、`fleetest snapshot` を 0.5 秒ごとに撮って枠を記録。**候補の枠は時間で直らない**(閉じた後の 40 秒間 `#auto_opt_japan` = y 1677・h 168 のまま)。欄 `#field_auto`(y 1752〜1920)は描画と一致し、候補の描画(スクリーンショット)は約 1931px から = 木は約 254px 上・木の候補の中心(約 1761)は欄の中 = tap は欄に届いて候補を選ばない。閉じる前も木 1296・描画約 1709 = 約 413px 上で、ずれはキーボードを閉じた後だけの事象ではない。待っても木は正しくならないので、観測できる事象を待つ直しは成り立たない。**木の外の材料(画素)が要る**: 撃つ前にその枠の画素にラベルの文字があるかを OCR で確かめる案(テキストの可視性検証を tap の前にも掛ける = 費用と適用範囲はユーザーの判断)。Flutter 側の既知の不具合は検索で見つからなかった
 - 11/10(①の扱い・ユーザー決定): ツールでは吸収せず、制約として文書に書いた(ui_component_patterns の「現時点の制約」と FD-5.1 の表: 候補を押した後は選んだ値を echo で確かめる)。撃つ前の OCR の確かめは費用(全 tap)に見合わないので入れない
-
-### OI-202 iOS の CMP 検索バーへプレースホルダと同じ文字の type の赤・RN の iOS のキーボードの下の欄への2度目の type の赤・Duo の形ほか
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-10)
-- 属性: 要測定・据え置き
-- 運用: ①誤った赤(②は 11/10 に直した)(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
-- 優先度: 中 — ①②は既定の経路の誤った赤
-
-出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
-
-- 11/10(②の clearInput を直した): 計測(一時的な書き出し)で原因を観測。ホストの免除(`reachPastKeyboard` の「焦点の欄は閉じずに任せる」)は「直前の tap」に直前の type が触った欄(`lastFieldTouchTarget`)も数えて `tapFocusedIt` = true で免除していたが、in-app ブリッジは直前が tap のステップのときだけ叩き直しを省き(`FocusLanding.skipsRetapBeforeText`)、それ以外は欄の見えている帯を叩く = 欄が丸ごとキーボードの下だと撃たずに staleRef で断り続けた(RN は欄が一覧の最後で容器も下端 = 送って出せない)。ドライバの能力 `retapsFocusedFieldWithoutPriorTap`(in-app だけ true)を足し、in-app では「直前が tap のステップ」か「欄の帯がキーボードより上に見える」(`FocusLanding.focusTapPoint` を共有)ときだけ免除、それ以外は先に閉じる。デバイス: 打って 12 秒置いた欄への clearInput が「closed the keyboard by resigning …」で緑・echo bottom=。iOS の inapp-boost の入力のシナリオ(E2EX の入力の種類 × 4 SUT・E2E のテキスト入力 × 4 SUT)27 本は緑。**残りは `type(replace: true)`**: 1回目の解決の木はキーボードが上がる前(キーボード無し)で救済に入らず消去が断られ、撃ち直しでは閉じるところまで進む(計測で観測)が、その後も動いている途中の位置(y 662)で断られて赤。閉じた後の消去・打鍵の焦点立ての流れは未観測
-- 11/10(②の replace も直した): 計測で、消去の後の欄は焦点を持ったまま丸ごとキーボードの下(y 662・消去の焦点立てでキーボードが再び上がる)と観測。in-app の打鍵は直前が tap のステップでないので叩き直しを撃たずに断っていた。消去が焦点を立てた欄がブリッジに叩けない形(帯が見えない)のときだけ、打鍵を ref なし(焦点の欄)で撃つ。デバイス 2/2 緑(bottom=q)・入力のシナリオ 8 プロジェクト 27 本は緑。**②は閉じた**
 
 ## 要判断
 
@@ -320,6 +308,19 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-202 iOS の CMP 検索バーの value の説明文を中身と読む注記・Duo の形・MCP の文言ほか(①② は直した)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-10)
+- 属性: 据え置き
+- 運用: ③〜⑧合否に響かない(文言・MCP だけ・Duo だけ。①②は 11/10 に直した)(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
+- 優先度: 低 — 残りは文言・MCP・Duo の形
+
+出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
+
+- 11/10(②の clearInput を直した): 計測(一時的な書き出し)で原因を観測。ホストの免除(`reachPastKeyboard` の「焦点の欄は閉じずに任せる」)は「直前の tap」に直前の type が触った欄(`lastFieldTouchTarget`)も数えて `tapFocusedIt` = true で免除していたが、in-app ブリッジは直前が tap のステップのときだけ叩き直しを省き(`FocusLanding.skipsRetapBeforeText`)、それ以外は欄の見えている帯を叩く = 欄が丸ごとキーボードの下だと撃たずに staleRef で断り続けた(RN は欄が一覧の最後で容器も下端 = 送って出せない)。ドライバの能力 `retapsFocusedFieldWithoutPriorTap`(in-app だけ true)を足し、in-app では「直前が tap のステップ」か「欄の帯がキーボードより上に見える」(`FocusLanding.focusTapPoint` を共有)ときだけ免除、それ以外は先に閉じる。デバイス: 打って 12 秒置いた欄への clearInput が「closed the keyboard by resigning …」で緑・echo bottom=。iOS の inapp-boost の入力のシナリオ(E2EX の入力の種類 × 4 SUT・E2E のテキスト入力 × 4 SUT)27 本は緑。**残りは `type(replace: true)`**: 1回目の解決の木はキーボードが上がる前(キーボード無し)で救済に入らず消去が断られ、撃ち直しでは閉じるところまで進む(計測で観測)が、その後も動いている途中の位置(y 662)で断られて赤。閉じた後の消去・打鍵の焦点立ての流れは未観測
+- 11/10(②の replace も直した): 計測で、消去の後の欄は焦点を持ったまま丸ごとキーボードの下(y 662・消去の焦点立てでキーボードが再び上がる)と観測。in-app の打鍵は直前が tap のステップでないので叩き直しを撃たずに断っていた。消去が焦点を立てた欄がブリッジに叩けない形(帯が見えない)のときだけ、打鍵を ref なし(焦点の欄)で撃つ。デバイス 2/2 緑(bottom=q)・入力のシナリオ 8 プロジェクト 27 本は緑。**②は閉じた**
+- 11/10(①を直した): 計測で観測。打つ前の木の value は無く、焦点が立つと value が固定の案内文「検索候補は次のとおりです」になる = 打った「検索」がその先頭と一致して読み返しが「余分がある」(`.deleteExcess`)と読み、消去と打ち直しを繰り返して停滞で赤。自分の消去と打ち直しの後も(または打つ前から)値が1文字も動かなければ、それ以上消さずに画面を見る(描かれていれば注記 `type-readback-unchanged` で受理・欄の中に同じ文字のプレースホルダの staticText が残っていれば打った字と区別できないので打ち直さずに赤・描かれていなければ打ち直さずに赤)。デバイス 2/2 緑(欄に「検索」が1つ・候補なし)・入力のシナリオ 8 プロジェクト 27 本と検索バーのシナリオ 4 SUT 10 本は緑。**①②は閉じた。残りは据え置きの③〜⑨**
 
 ### OI-211 xcuitest モードで、SwiftUI の隠れるバーを送って戻した後の FAB への tap が「行が手前」と断られる
 - 状態: 再現済み
