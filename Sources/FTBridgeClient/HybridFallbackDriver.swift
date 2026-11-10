@@ -319,6 +319,7 @@ public final class HybridFallbackDriver: AppDriver {
     public var treeLagsBehindMotion: Bool { active.treeLagsBehindMotion }
     public var pointScale: Double { active.pointScale }
     public var verifiesTypedText: Bool { active.verifiesTypedText }
+    public var retapsFocusedFieldWithoutPriorTap: Bool { active.retapsFocusedFieldWithoutPriorTap }
     public var tapsWithSystemTouch: Bool { active.tapsWithSystemTouch }
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await active.backGestureEdgeWidths()

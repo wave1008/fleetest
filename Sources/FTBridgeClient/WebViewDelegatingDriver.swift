@@ -108,6 +108,9 @@ public final class WebViewDelegatingDriver: AppDriver {
     public var verifiesTypedText: Bool {
         mode == .delegated ? delegated.verifiesTypedText : primary.verifiesTypedText
     }
+    public var retapsFocusedFieldWithoutPriorTap: Bool {
+        mode == .delegated ? delegated.retapsFocusedFieldWithoutPriorTap : primary.retapsFocusedFieldWithoutPriorTap
+    }
 
     /// **モード判定は必ずこちらに置く** —— snapshot() を素通し側にすると片方だけ mode/domFrames を
     /// 更新せず、ref の名前空間の不変条件(冒頭注記)が崩れる。

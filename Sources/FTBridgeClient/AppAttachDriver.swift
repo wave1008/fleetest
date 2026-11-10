@@ -123,6 +123,7 @@ public final class AppAttachDriver: AppDriver {
     public var treeLagsBehindMotion: Bool { client.treeLagsBehindMotion }
     public var pointScale: Double { client.pointScale }
     public var verifiesTypedText: Bool { client.verifiesTypedText }
+    public var retapsFocusedFieldWithoutPriorTap: Bool { client.retapsFocusedFieldWithoutPriorTap }
     public var tapsWithSystemTouch: Bool { client.tapsWithSystemTouch }
 
     public func tap(ref: Int) async throws { try await client.tap(ref: ref) }

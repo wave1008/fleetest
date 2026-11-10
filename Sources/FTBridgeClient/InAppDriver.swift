@@ -246,6 +246,7 @@ public final class InAppDriver: AppDriver {
     /// 既定 true を持つが、ここでは同じ HTTP プロトコルで in-app ブリッジ(読み返し無し)を話している。
     /// 固定 false で StepExecutor 側の読み返しを常に働かせる
     public var verifiesTypedText: Bool { false }
+    public var retapsFocusedFieldWithoutPriorTap: Bool { true }
     /// **client.tapsWithSystemTouch を転送しない**(in-app は合成タッチを窓へ直接送る = システムの経路を通らない)
     public var tapsWithSystemTouch: Bool { false }
     public func tap(ref: Int) async throws { try await withCrashContext { try await client.tap(ref: ref) } }

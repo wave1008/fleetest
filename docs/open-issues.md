@@ -52,13 +52,14 @@
 
 ### OI-202 iOS の CMP 検索バーへプレースホルダと同じ文字の type の赤・RN の iOS のキーボードの下の欄への2度目の type の赤・Duo の形ほか
 - 状態: 再現済み
-- 確認: コミット未記録(2026-11-09)
+- 確認: コミット未記録(2026-11-10)
 - 属性: 要測定・据え置き
-- 運用: ①②誤った赤(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
+- 運用: ①②誤った赤(②は replace の形だけ残る)(赤なので沈黙しない)③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)
 - 優先度: 中 — ①②は既定の経路の誤った赤
 
 出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。**要測定**: ①iOS の CMP 検索バーでプレースホルダと同じ文字列(「検索」)を `type` / `type(replace:)` すると、打てているのに「value did not settle」の赤(ilocal F1 3/3・amax F5。読み返しが値を空と区別できない筋書きは推測)②RN の iOS(inapp-boost)で、キーボードの下に入った欄への2度目の `type` / `clearInput` / replace が in-app ブリッジの staleRef の 422(「entirely under the software keyboard」)のまま赤・ホストの救済(容器を送る)を通らない(ilocal F4 4/4・im4 F1 12/12。CMP・SwiftUI・Flutter は緑。なぜ RN だけ救済に入らないかは材料不足)。**据え置き**: ③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
 
+- 11/10(②の clearInput を直した): 計測(一時的な書き出し)で原因を観測。ホストの免除(`reachPastKeyboard` の「焦点の欄は閉じずに任せる」)は「直前の tap」に直前の type が触った欄(`lastFieldTouchTarget`)も数えて `tapFocusedIt` = true で免除していたが、in-app ブリッジは直前が tap のステップのときだけ叩き直しを省き(`FocusLanding.skipsRetapBeforeText`)、それ以外は欄の見えている帯を叩く = 欄が丸ごとキーボードの下だと撃たずに staleRef で断り続けた(RN は欄が一覧の最後で容器も下端 = 送って出せない)。ドライバの能力 `retapsFocusedFieldWithoutPriorTap`(in-app だけ true)を足し、in-app では「直前が tap のステップ」か「欄の帯がキーボードより上に見える」(`FocusLanding.focusTapPoint` を共有)ときだけ免除、それ以外は先に閉じる。デバイス: 打って 12 秒置いた欄への clearInput が「closed the keyboard by resigning …」で緑・echo bottom=。iOS の inapp-boost の入力のシナリオ(E2EX の入力の種類 × 4 SUT・E2E のテキスト入力 × 4 SUT)27 本は緑。**残りは `type(replace: true)`**: 1回目の解決の木はキーボードが上がる前(キーボード無し)で救済に入らず消去が断られ、撃ち直しでは閉じるところまで進む(計測で観測)が、その後も動いている途中の位置(y 662)で断られて赤。閉じた後の消去・打鍵の焦点立ての流れは未観測
 
 ## 要判断
 

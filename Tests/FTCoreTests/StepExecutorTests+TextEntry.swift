@@ -1457,6 +1457,45 @@ extension StepExecutorTests {
         XCTAssertFalse(log.entries.contains { $0.contains("hideKeyboard") }, "閉じようとした: \(log.entries)")
     }
 
+    /// **焦点の欄でも叩き直すドライバ(in-app)では、焦点の申告だけでは閉じずに任せない**(OI-202 ②): in-app は直前の ref の tap が
+    /// その欄に焦点を立てたときだけ叩き直しを省くので、type の内部で焦点を立てただけの下の欄へ clearInput / replace を撃つと、
+    /// 欄が丸ごとキーボードの下だとブリッジが断り続けた(RN の iOS は焦点を申告する)。先にキーボードを閉じにいく
+    func testClearInputOnTheFocusedFieldUnderTheKeyboardClosesItFirstWhenTheDriverRetaps() async throws {
+        for action in ["clearInput", "type"] {
+            var focusedField = Self.phoneUnderKeyboard
+            focusedField.focused = true
+            let log = CallLog()
+            let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[focusedField]])
+            primary.keyboardFrame = FTRect(x: 0, y: 538, width: 402, height: 336)
+            primary.retapsFocusedFieldWithoutPriorTap = true
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                        uiFramework: .reactNative)
+            let step = action == "type"
+                ? FlowStep(action: "type", locator: FlowLocator(id: "field_phone"), text: "x")
+                : FlowStep(action: "clearInput", locator: FlowLocator(id: "field_phone"))
+            _ = await executor.execute(step)
+            XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.\(action)(") && !$0.contains("hideKeyboard") }
+                && !log.entries.contains { $0.contains("hideKeyboard") } && primary.coordinateTaps.isEmpty,
+                "\(action): 閉じにいかずに焦点の欄へ撃った(ブリッジが断る形): \(log.entries)")
+        }
+    }
+
+    /// 逆向き: in-app でも、欄の帯がキーボードより上に見えていれば(ブリッジはそこを叩く = 断らない)閉じずに打つ
+    func testFocusedFieldWithAVisibleBandIsTypedWithoutClosingEvenWhenTheDriverRetaps() async throws {
+        var focusedField = Self.phoneUnderKeyboard
+        focusedField.frame = FTRect(x: 16, y: 515, width: 370, height: 65)   // 中心 547.5 はキーボードの中・上に 23pt の帯が見える
+        focusedField.focused = true
+        let log = CallLog()
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[focusedField]])
+        primary.keyboardFrame = FTRect(x: 0, y: 538, width: 402, height: 336)
+        primary.retapsFocusedFieldWithoutPriorTap = true
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                    uiFramework: .reactNative)
+        _ = await executor.execute(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_phone")))
+        XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.clearInput(") }, "帯が見えている焦点の欄を消していない: \(log.entries)")
+        XCTAssertFalse(log.entries.contains { $0.contains("hideKeyboard") }, "閉じようとした: \(log.entries)")
+    }
+
     /// キーボードの上に見えている欄へは従来どおり打つ(門は覆われた欄だけ)
     func testTypeIntoAFieldAboveTheKeyboardStillTypes() async throws {
         let log = CallLog()

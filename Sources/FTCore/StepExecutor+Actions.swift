@@ -141,6 +141,8 @@ extension StepExecutor {
         // **ロケータを持つ type も捨てる**(欄を名指しした後のロケータなし type は、その欄の続き = MCP の recordInteraction と同じ)
         // 直前が tap、または直前の type / clearInput がこの欄を叩いて焦点を立てた形(Flutter の iOS 横向き: 欄は焦点を取るとキーボードの下へ潜る)
         tapTargetBeforeThisStep = lastTapTarget ?? lastFieldTouchTarget
+        // tap のステップだけ(in-app ブリッジが叩き直しを省く根拠と同じ = inAppLeavesFocusedFieldReachable)
+        tapStepTargetBeforeThisStep = lastTapTarget
         // hideKeyboard は下の lastTapTarget と同じく、直前の type / clearInput が叩いた欄も捨てない(type(セレクタ) → hideKeyboard →
         // ロケータなしの type が 409 で赤だった。tap から始めた並びだけ通っていた = 11周目の探索 im4 F1)
         if !grabsOnly, action != "hideKeyboard" { lastFieldTouchTarget = nil }
@@ -1127,6 +1129,7 @@ extension StepExecutor {
             var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "tap", allowsVisiblePart: true, priorTap: nil,
+                retapsFocusedField: actingDriver.retapsFocusedFieldWithoutPriorTap,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1382,7 +1385,7 @@ extension StepExecutor {
             var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "type", allowsVisiblePart: false,
-                priorTap: tapTargetBeforeThisStep,
+                priorTap: tapTargetBeforeThisStep, retapsFocusedField: actingDriver.retapsFocusedFieldWithoutPriorTap,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))
@@ -1604,6 +1607,7 @@ extension StepExecutor {
             var relitAfterClose = false
             switch try await reachPastKeyboard(
                 element, in: snapshot, step: step, action: "clearInput", allowsVisiblePart: false, priorTap: tapTargetBeforeThisStep,
+                retapsFocusedField: actingDriver.retapsFocusedFieldWithoutPriorTap,
                 snapshotSource: switchedToFallbackDriver ? .driver(actingDriver) : .primary, phase: &phase) {
             case nil: break
             case .refused(let message)?: return StepOutcome(status: .failed(message))

@@ -1673,6 +1673,8 @@ public final class StepExecutor {
     /// このステップが始まる前の `lastTapTarget`(入口で `lastTapTarget` を捨てる前に控える)。ロケータ付きの type / clearInput が
     /// 「直前の tap が叩いた欄」を知るのに使う(`InputFocusRescue.tapFocusedIt`)
     var tapTargetBeforeThisStep: ElementInfo?
+    /// このステップが始まる前の、tap のステップが叩いた要素だけ(type / clearInput が触った欄は含めない)
+    var tapStepTargetBeforeThisStep: ElementInfo?
     /// 直近のスクロール探索で、覆いの下に潜ったまま見つかった対象の覆いの名指し(失敗文に足す。探索の入口で捨てる)
     var scrollSearchBuriedCover: String?
     /// 直近のスクロール探索の回ごとの事実(対象が木に居たか・枠・見つかったにしなかった理由)。探索の失敗文の末尾に出す(測る口)。探索の入口で捨てる

@@ -328,6 +328,12 @@ public protocol AppDriver {
     /// UIKit が捨てる(`PresentedOverlayTapWait`)。**プロトコル要件として宣言すること**(verifiesTypedText と同じ理由)。
     /// **ラッパードライバは実際に tap を撃つ側の値へ転送すること**(既定 false に落とすと待ちが黙って効かなくなる)
     var tapsWithSystemTouch: Bool { get }
+    /// type / clear の前に、**焦点を持つ欄でも叩き直すか**(直前の ref の tap がその欄に焦点を立てたときだけ省く =
+    /// `FocusLanding.skipsRetapBeforeText`)。in-app ブリッジだけ true。XCUITest ランナー(alreadyFocusedInput)・Android は
+    /// 焦点の欄を叩かない = false。`StepExecutor.reachPastKeyboard` が、キーボードの下の焦点の欄を閉じずに任せてよいかに使う
+    /// (true のドライバは叩き直す = 欄が丸ごとキーボードの下なら撃たずに断られる)。**プロトコル要件として宣言すること**・
+    /// **ラッパーは type / clear を撃つ側の値へ転送すること**(verifiesTypedText と同じ理由)
+    var retapsFocusedFieldWithoutPriorTap: Bool { get }
     /// ジェスチャナビゲーションが back として奪う画面物理端からの帯幅(px。左右)。
     /// 既定 nil = 除外なし(iOS・3ボタン navigation)。**プロトコル要件として宣言すること**
     /// (install(packagePath:) と同じ理由)。**ラッパードライバは base の値を透過すること**
@@ -726,6 +732,7 @@ public extension AppDriver {
 
     /// 既定は false(待たない側)。XCUITest ランナーのクライアントだけが true を宣言する
     var tapsWithSystemTouch: Bool { false }
+    var retapsFocusedFieldWithoutPriorTap: Bool { false }
 
     /// 既定は 1(木が pt = iOS 系)。px で木を返す Android だけが密度を申告する
     var pointScale: Double { 1 }

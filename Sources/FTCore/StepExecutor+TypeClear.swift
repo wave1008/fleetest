@@ -518,7 +518,7 @@ extension StepExecutor {
     /// 判定は MCP の門(`MCPServer.keyboardRefusal`)と同じ `KeyboardOcclusion`。nil = 覆われていない
     func reachPastKeyboard(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
                            allowsVisiblePart: Bool,
-                           priorTap: ElementInfo?, snapshotSource: CoverLiftSnapshotSource,
+                           priorTap: ElementInfo?, retapsFocusedField: Bool, snapshotSource: CoverLiftSnapshotSource,
                            phase: inout PhaseAccumulator) async throws -> KeyboardReach? {
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                   screen: snapshot.screen)
@@ -529,8 +529,13 @@ extension StepExecutor {
         // 複数行の欄はキーボードを閉じる副作用の無い手段が無く(hideKeyboard は改行を入れる)、ここで断ると打てる場面を失敗にする
         // clearInput も同じ(XCUITest ランナーの clear も `alreadyFocusedInput` で焦点の欄を叩かない。mxa F10)
         // 焦点の印を木に出さない構成(Flutter の in-app)は、直前の tap がこの欄を叩いていて他に焦点が無いことで代える
+        // **撃つドライバが焦点の欄でも叩き直す(in-app = `retapsFocusedField`)なら、叩き直しで断られない形だけ任せる**: in-app は直前の
+        // tap のステップがその欄に焦点を立てたときだけ叩き直しを省き(`FocusLanding.skipsRetapBeforeText`。type / clear の焦点立ては
+        // 数えない)、叩くなら欄のキーボードより上の帯を叩く(`FocusLanding.focusTapPoint`)= 帯が無ければ撃たずに断る。RN の iOS で
+        // type の後の丸ごとキーボードの下の欄への clearInput / replace が断られ続けて赤だった(OI-202 ②)
         if action == "type" || action == "clearInput", KeyboardWait.isShown(snapshot),
-           element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements) {
+           element.focused == true || InputFocusRescue.tapFocusedIt(element, priorTap: priorTap, in: snapshot.elements),
+           !retapsFocusedField || inAppLeavesFocusedFieldReachable(element, keyboard: occlusion.frame, elements: snapshot.elements) {
             return nil
         }
         let nothing = "nothing was " + (action == "type" ? "typed" : action == "clearInput" ? "cleared" : "tapped")
@@ -1018,5 +1023,16 @@ extension StepExecutor {
         guard let match = matchFocused(before, in: snapshot) else { return nil }
         return Self.residualClearValue(before: before.value, after: match.value,
                                        placeholder: match.placeholder)
+    }
+}
+
+extension StepExecutor {
+    /// in-app ブリッジが焦点のある欄への type / clear を撃てるか(断らないか): 直前の tap のステップがその欄に焦点を立てていた
+    /// (叩き直さない)か、欄の帯がキーボードより上に見えている(そこを叩く)。ブリッジの判定(`focusTapPointOffKeyboard`)と同じ材料
+    func inAppLeavesFocusedFieldReachable(_ element: ElementInfo, keyboard: FTRect?, elements: [ElementInfo]) -> Bool {
+        if InputFocusRescue.tapFocusedIt(element, priorTap: tapStepTargetBeforeThisStep, in: elements) { return true }
+        let field = CGRect(x: element.frame.x, y: element.frame.y, width: element.frame.width, height: element.frame.height)
+        let kb = keyboard.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        return FocusLanding.focusTapPoint(centre: CGPoint(x: field.midX, y: field.midY), field: field, keyboard: kb) != nil
     }
 }

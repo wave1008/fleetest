@@ -165,6 +165,8 @@ final class FakeAppDriver: AppDriver {
     /// **既定 true**(AppDriver の既定 false とは逆)。type 読み返しテスト以外の全既存テストは
     /// 読み返しの発動を意図していないので、明示的に false へ落とすテストだけが対象になる
     var verifiesTypedText = true
+    /// in-app ブリッジの真似(焦点の欄でも直前の tap が無ければ叩き直す)
+    var retapsFocusedFieldWithoutPriorTap = false
     /// tap が本物の指と同じ経路を通るドライバ(XCUITest)を装う(既定 false = AppDriver の既定と同じ)
     var systemTouch = false
     /// この時刻を過ぎた snapshot() はこの木を返す(待った後に読み直したかを、待つ前の読みと区別する検証用)
