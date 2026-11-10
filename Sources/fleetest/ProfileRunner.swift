@@ -261,7 +261,20 @@ enum ProfileRunner {
             let needed = ResolvedProfile.deviceKeepCount(available: list.count, scenarios: scenarios)
             return Self.shortageReason(needed: needed, scenarios: scenarios, free: free)
         }
-        let warnings = resolved.devices.compactMap { device -> String? in
+        // **本数が分からない(nil)ときに外した台は名指しする** —— 本数が分かれば「Using N of M for K scenario(s)」が理由だが、
+        // nil では絞らないはずの run が台を減らし、理由が出力に無かった(Duo の8本が MCP の操作中の -02 を外して -01 だけで走り、
+        // -01 の供給が落ちて止まった = OI-205 ④)
+        let kept = Set(resolved.devices)
+        let leftOut = !trim ? [] : full.devices.compactMap { device -> String? in
+            guard !kept.contains(device),
+                  (device.platform == "ios" ? iosScenarios : androidScenarios) == nil else { return nil }
+            let why = heldBy[device].map {
+                "an MCP session is driving it (pid \($0)\(ProcessLiveness.orphanedLauncherClause(sessionPID: $0)))"
+            } ?? "its screen was last seen blank or without text"
+            return "\(device.name) is left out of this run: \(why) — the scenario count is not known before the build,"
+                + " so the run uses only the other device(s)"
+        }
+        let warnings = leftOut + resolved.devices.compactMap { device -> String? in
             guard let pid = heldBy[device] else { return nil }
             let why = reason(for: device.platform,
                              scenarios: device.platform == "ios" ? iosScenarios : androidScenarios)

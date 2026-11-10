@@ -112,6 +112,24 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
     }
 
+    /// 本数が分からない(クラス名の指定)run が MCP の台を外したときは、外した台と理由を名指しする(OI-205 ④: 理由が出力に無かった)
+    func testUnknownCountRunNamesTheDeviceItLeftOut() {
+        MCPDeviceLease.write(stateDir: stateDir, key: "UB", pid: otherLivePID)
+        let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
+            profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
+            iosScenarios: nil, androidScenarios: nil, trim: true, leaseStateDir: stateDir)
+        XCTAssertEqual(resolved.devices.map(\.name), ["A"])
+        XCTAssertEqual(warnings.count, 1, "\(warnings)")
+        let warning = warnings.first ?? ""
+        XCTAssertTrue(warning.hasPrefix("B is left out of this run: an MCP session is driving it (pid \(otherLivePID)"), warning)
+        // --broadcast(trim: false)は外さない = 「外した」とは言わず、奪う警告だけ
+        let (all, broadcastWarnings) = ProfileRunner.limitingDevicesAvoidingMCP(
+            profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
+            iosScenarios: nil, androidScenarios: nil, trim: false, leaseStateDir: stateDir)
+        XCTAssertEqual(all.devices.count, 2)
+        XCTAssertFalse(broadcastWarnings.contains { $0.contains("left out") }, "\(broadcastWarnings)")
+    }
+
     /// 足りないときは使い、MCP の pid を名指しして警告する
     func testRunWarnsWhenItMustTakeTheMCPDevice() {
         MCPDeviceLease.write(stateDir: stateDir, key: "UA", pid: otherLivePID)
