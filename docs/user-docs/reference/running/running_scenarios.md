@@ -11,12 +11,12 @@ enabling self-healing with `--set`.
 
 ## Invoking the CLI
 
-In the rest of this documentation, `fleetest` is `../fleetest-mobile/.build/debug/fleetest` in the
-default layout, where fleetest-mobile is cloned next to your work folder. Inside the
-fleetest-mobile clone itself, `swift run fleetest` does the same.
+In the rest of this documentation, `fleetest` is `../fleetest/.build/debug/fleetest` in the
+default layout, where fleetest is cloned next to your work folder. Inside the
+fleetest clone itself, `swift run fleetest` does the same.
 
 ```bash
-../fleetest-mobile/.build/debug/fleetest run --profile ios-run
+../fleetest/.build/debug/fleetest run --profile ios-run
 ```
 
 ## Common options

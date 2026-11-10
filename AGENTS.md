@@ -1,4 +1,4 @@
-# fleetest mobile — AGENTS.md を読むエージェント(Codex など)向けの入口
+# fleetest — AGENTS.md を読むエージェント(Codex など)向けの入口
 
 **このリポジトリの規則の本体は `CLAUDE.md` にある**(Claude Code 向けの名前だが、規則はエージェントを
 問わない)。**作業の前に `CLAUDE.md` を全部読む**。このファイルには規則の本文を書かない —— 二重に持つと

@@ -13,10 +13,10 @@ final class RemoteAlignPlanTests: XCTestCase {
     // MARK: - push
 
     func testPushArgumentsGoDirectlyToTheToolRootWithoutOrigin() {
-        let argv = RemoteAlignPlan.pushArguments(repoRoot: "/work/fleetest-mobile", sshTarget: "ci@mac2",
+        let argv = RemoteAlignPlan.pushArguments(repoRoot: "/work/fleetest", sshTarget: "ci@mac2",
                                                  toolRoot: layout.toolRoot, commit: "abc1234")
-        XCTAssertEqual(Array(argv.dropFirst()), ["git", "-C", "/work/fleetest-mobile", "push", "--force", "--no-verify",
-                                                 "ci@mac2:/Users/ci/fleetest-runner/fleetest-mobile",
+        XCTAssertEqual(Array(argv.dropFirst()), ["git", "-C", "/work/fleetest", "push", "--force", "--no-verify",
+                                                 "ci@mac2:/Users/ci/fleetest-runner/fleetest",
                                                  "abc1234:refs/fleetest/align"])
         XCTAssertFalse(argv.contains("origin"))
     }

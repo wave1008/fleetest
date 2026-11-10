@@ -295,9 +295,9 @@ public enum RemoteCompat {
 }
 
 /// リモートホストに用意する専用ベースディレクトリの配置(docs/remote-runner/ 改訂版)。
-/// `tool/` = TOOL_ROOT(fleetest-mobile のクローン。ランナー専用) / `work/` = WORK_DIR
+/// `tool/` = TOOL_ROOT(fleetest のクローン。ランナー専用) / `work/` = WORK_DIR
 /// (受け手パッケージ。TestProjects・results・.build)。マシンが既に持つローカルインストール
-/// (受け手自身の `~/fleetest-mobile` 等)とは別物にすることで、rsync --delete による
+/// (受け手自身の `~/fleetest` 等)とは別物にすることで、rsync --delete による
 /// ユーザー資産の消失・SPM ビルドロック競合・results DB 混在を避ける
 public struct RemoteLayout: Equatable, Sendable {
     public let base: String
@@ -323,13 +323,13 @@ public struct RemoteLayout: Equatable, Sendable {
         self.home = Self.stripTrailingSlash(home)
     }
 
-    /// **ディレクトリ名は "fleetest-mobile" 固定**(短くしない)。SPM はパス依存の
+    /// **ディレクトリ名は "fleetest" 固定**(短くしない)。SPM はパス依存の
     /// パッケージ名をディレクトリ名から導出するため、受け手 Package.swift が宣言する
-    /// `package: "fleetest-mobile"` と一致しないと "unknown package" でマニフェストが
+    /// `package: "fleetest"` と一致しないと "unknown package" でマニフェストが
     /// 壊れる(localhost E2E で実測)。install.sh の既定
-    /// TOOL_ROOT(= WORK_DIR/../fleetest-mobile)とも揃う。**ツールクローンは
+    /// TOOL_ROOT(= WORK_DIR/../fleetest)とも揃う。**ツールクローンは
     /// ホスト共有のまま**(発行者ごとに分けない。RR-18.6/RR-18.4)
-    public var toolRoot: String { base + "/fleetest-mobile" }
+    public var toolRoot: String { base + "/fleetest" }
     /// 発行者ごとの WORK_DIR(RR-18.6)。rsync --delete・results・録画の混線を
     /// ネームスペースで構造的に消す
     public var workDir: String { base + "/users/" + issuer + "/work" }

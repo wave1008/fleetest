@@ -318,14 +318,14 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
     - `fleetest api create-device`(`--platform` / `--name` / `--model` / `--os` / `--project` / `--profile`)でも作れる。ただし `--profile` の追記は**撃ったマシン自身のプロファイル**へ入る(ランナー機で撃っても M2Ultra の正のプロファイルには入らない)ので、回帰の登録は上の手順で手元のプロファイルへ足す。`--no-register` で作るだけ
       (`--profile` を付けるとそのマシンのプロファイルへ項目を足す)
   - **確かめ方**(段 1 と同じ環境で撃つ): M2Ultra から
-    `ssh <host> "zsh -lc 'cd ~/fleetest-runner/fleetest-mobile && FT_FULL_TEST=1 Scripts/e2e.sh --build-only --local'"`(`e2ex.sh`・`e2ey.sh` も)。
+    `ssh <host> "zsh -lc 'cd ~/fleetest-runner/fleetest && FT_FULL_TEST=1 Scripts/e2e.sh --build-only --local'"`(`e2ex.sh`・`e2ey.sh` も)。
     または `Scripts/regress.py --dry-run` で撃つコマンドを確かめる。
     `--build-only` はデバイスとランタイムを確かめないので、`fleetest remote status` の RUNTIME 欄と、そのマシンのデバイスで1シナリオ回して
     合流するか(`fleetest run --project E2E-CMP --profile android --scenario <1本> --runner <マシン>`)も見る
 - **`e2e.sh` / `e2ex.sh` / `e2ey.sh` は引数に関係なく「スイート全体」として `Scripts/test-scope-guard.py` が断る**(全実施を頼まれたときだけ
   `FT_FULL_TEST=1`)。絞った確認は `fleetest run --project <P> --profile <prof> --scenario <クラス>` で通るシナリオを名指しする
 - **回帰の分担(ユーザー指示 2026-09-28。`Scripts/regress.py` を使わないときの形)**: E2E はこの Mac(M2Ultra)で `Scripts/e2e.sh --local`、
-  E2EX は `Scripts/e2ex.sh --on M1Ultra`(ssh でランナーのクローン `~/fleetest-runner/fleetest-mobile` に入り、
+  E2EX は `Scripts/e2ex.sh --on M1Ultra`(ssh でランナーのクローン `~/fleetest-runner/fleetest` に入り、
   **そこで SUT をビルドして**そこのデバイスで回す。残りの引数はそのまま渡す)を**同時に**起こす。向こうで動くのは
   align 済みのコミットなので commit → `Scripts/align.sh` → 実行の順。M1Ultra の道具(Flutter は
   ~/.local と ~/flutter、Homebrew の CocoaPods)は `~/.zprofile` の fleetest-tools ブロックの PATH にある

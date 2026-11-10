@@ -122,8 +122,8 @@ export const monitorStrings = {
 
   // ---- monitorPanel.ts ----
   "monitor.statusBar.label": {
-    ja: "$(device-mobile) fleetest mobile",
-    en: "$(device-mobile) fleetest mobile",
+    ja: "$(device-mobile) fleetest",
+    en: "$(device-mobile) fleetest",
   },
   "monitor.statusBar.tooltip": {
     ja: "fleetest: デバイスモニターを表示",

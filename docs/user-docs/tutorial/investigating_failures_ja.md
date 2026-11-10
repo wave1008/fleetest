@@ -34,7 +34,7 @@ project1 の直近の実行結果を要約し、失敗があれば、失敗し�
 
 - `TestProjects/project1/reports/` にシナリオごとの Markdown レポートがあります。
 - VSCode では Test Explorer が成否を直接表示し、そこからレポートを開けます。
-  VSCode 左下のステータスバーの **fleetest mobile** から開くモニターの「ダッシュボード」タブで、実行の履歴と成功率も見られます。
+  VSCode 左下のステータスバーの **fleetest** から開くモニターの「ダッシュボード」タブで、実行の履歴と成功率も見られます。
 
 </details>
 <br>
@@ -78,7 +78,7 @@ project1 の カートに追加する.swift の期待値を元の商品名に戻
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
 ```bash
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run --failed
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run --failed
 ```
 
 結果はプロファイルごとに記録されるので、前回と同じプロファイルで回します。

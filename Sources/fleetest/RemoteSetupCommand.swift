@@ -115,7 +115,7 @@ extension RemoteCommand {
             // ssh 往復とリモートの preflight を払った後に「install の失敗」として現れる
             guard let repoRoot = try? RepoRoot.find() else {
                 emit("local", .fail,
-                     "cannot resolve the local tool root (run this inside the fleetest-mobile repo)")
+                     "cannot resolve the local tool root (run this inside the fleetest repo)")
                 try summarizeAndExit()
             }
             let resolvedProject: TestProject
@@ -400,7 +400,7 @@ extension RemoteCommand {
 
             guard let repoRoot = try? RepoRoot.find() else {
                 throw RemoteDispatchError.remoteSetupFailed(
-                    "cannot resolve the local tool root (run this inside the fleetest-mobile repo)")
+                    "cannot resolve the local tool root (run this inside the fleetest repo)")
             }
             _ = try RemoteAlign.execute(resolved: resolved, repoRoot: repoRoot, toolRev: toolRev,
                                         guarded: false, io: .stdout)

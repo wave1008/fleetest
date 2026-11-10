@@ -20,7 +20,7 @@ Administrator rights are needed only to accept the Xcode license and to install 
 ### What is installed automatically
 
 - Node.js
-- VSCode extension (fleetest mobile)
+- VSCode extension (fleetest)
 - iOS Simulator runtime and Simulator
 - Android system image and Emulator
 

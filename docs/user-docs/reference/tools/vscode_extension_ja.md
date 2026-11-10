@@ -40,7 +40,7 @@ folder → class → `@Test` メソッドの3階層ツリーとして Testing �
 ## デバイスモニター
 
 コマンド **「fleetest: デバイスモニターを表示」** を実行するか、VSCode 左下のステータスバーの
-**fleetest mobile** をクリックすると、デバイスタイルの一覧を表示する
+**fleetest** をクリックすると、デバイスタイルの一覧を表示する
 Webview パネルが開きます(1ワークスペースにつき1枚)。各タイルにはデバイス名・プラットフォーム
 バッジ(iOS/Android)・状態バッジ・現在の画面が表示され、画面は既定でヘッドレス映像ストリーミング
 (`fleetest-simstream`/`fleetest-androidstream`)によりほぼリアルタイムに更新されます

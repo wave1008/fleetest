@@ -1,4 +1,4 @@
-# fleetest mobile
+# fleetest
 
 ## 読者の分岐(最初に判定する)
 

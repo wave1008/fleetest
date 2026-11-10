@@ -7,8 +7,8 @@ import XCTest
 
 final class DispatchSelfCopyTests: XCTestCase {
     func testOnlyBuildProductsAreCopied() {
-        XCTAssertTrue(DispatchSelfCopy.isUnderBuildDirectory("/r/fleetest-mobile/.build/out/Products/Debug/fleetest"))
-        XCTAssertTrue(DispatchSelfCopy.isUnderBuildDirectory("/r/fleetest-mobile/.build/debug/fleetest"))
+        XCTAssertTrue(DispatchSelfCopy.isUnderBuildDirectory("/r/fleetest/.build/out/Products/Debug/fleetest"))
+        XCTAssertTrue(DispatchSelfCopy.isUnderBuildDirectory("/r/fleetest/.build/debug/fleetest"))
         XCTAssertFalse(DispatchSelfCopy.isUnderBuildDirectory("/usr/local/bin/fleetest"))
         XCTAssertFalse(DispatchSelfCopy.isUnderBuildDirectory("/tmp/fleetest-dispatch-123/fleetest"))
     }

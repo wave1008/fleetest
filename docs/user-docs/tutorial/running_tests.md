@@ -17,11 +17,11 @@ Run project1 on iOS (ios-run) and report the results when it's done.
 
 ```bash
 # Everything
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run
 
 # Per class (file) or per single test
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run --scenario <ClassName>
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run --scenario <ClassName>.<methodName>
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run --scenario <ClassName>
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run --scenario <ClassName>.<methodName>
 ```
 
 `<ClassName>` is the scenario's class name (it is inside the Swift file under `scenarios/`).

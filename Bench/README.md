@@ -127,13 +127,13 @@ Bench/measurements.md)。使い道は**探索が「再生できるシナリオ�
 台本・同じフィクスチャで測れる(作業場所も worktree 側に別に作る)。
 
 ```
-git worktree add /tmp/before/fleetest-mobile <変更前のコミット>
-Scripts/mcp-bench.sh --task ios-authoring-fix-drift --repeat 3 --tool-root /tmp/before/fleetest-mobile --out <dir>
+git worktree add /tmp/before/fleetest <変更前のコミット>
+Scripts/mcp-bench.sh --task ios-authoring-fix-drift --repeat 3 --tool-root /tmp/before/fleetest --out <dir>
 ```
 
-**worktree のディレクトリ名は `fleetest-mobile` にする**。`fleetest init` の Package.swift は
-ツールを `package: "fleetest-mobile"` で参照し、SPM はパス依存をディレクトリ名で識別するので、
-別の名前だと `unknown package 'fleetest-mobile'` で init が落ちる(台本は起動時に名指しで止める)。
+**worktree のディレクトリ名は `fleetest` にする**。`fleetest init` の Package.swift は
+ツールを `package: "fleetest"` で参照し、SPM はパス依存をディレクトリ名で識別するので、
+別の名前だと `unknown package 'fleetest'` で init が落ちる(台本は起動時に名指しで止める)。
 
 **フィクスチャを足すときの規律**: ①アプリは正しくシナリオが古い形にする(アプリの不具合を
 直させない)②**コンパイルは通り、実行時にだけ落ちる**形にする(コンパイルエラーは失敗の証跡の

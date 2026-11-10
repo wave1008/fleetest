@@ -1,4 +1,4 @@
-// 拡張(fleetest mobile)の画面のどこで右クリックしても既定メニュー(Cut/Copy/Paste)を出さない DOM テスト。
+// 拡張(fleetest)の画面のどこで右クリックしても既定メニュー(Cut/Copy/Paste)を出さない DOM テスト。
 // モニターパネル(main.js の document の contextmenu = preventDefault)。文字を打つ入力欄だけは既定メニューを残す。
 // 実 HTML+実バンドルを jsdom で動かす方式は webviewAndroidBridgeNotRunning.test.mjs と同じ。
 

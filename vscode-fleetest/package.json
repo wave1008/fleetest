@@ -1,20 +1,20 @@
 {
   "name": "vscode-fleetest",
-  "displayName": "fleetest mobile",
+  "displayName": "fleetest",
   "description": "%fleetest.extension.description%",
-  "version": "0.1.600",
+  "version": "0.1.601",
   "private": true,
   "publisher": "wave1008",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wave1008/fleetest-mobile.git",
+    "url": "https://github.com/wave1008/fleetest.git",
     "directory": "vscode-fleetest"
   },
   "bugs": {
-    "url": "https://github.com/wave1008/fleetest-mobile/issues"
+    "url": "https://github.com/wave1008/fleetest/issues"
   },
-  "homepage": "https://github.com/wave1008/fleetest-mobile/tree/main/vscode-fleetest#readme",
+  "homepage": "https://github.com/wave1008/fleetest/tree/main/vscode-fleetest#readme",
   "engines": {
     "vscode": "^1.90.0"
   },

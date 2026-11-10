@@ -25,7 +25,7 @@ fleetest X.Y.Z is available (current: A.B.C). You can apply it from the Settings
 
 ## 2. Update from the Settings tab
 
-Press "Open Settings tab" in the notification (or click **fleetest mobile** in the status bar and open the Settings tab).
+Press "Open Settings tab" in the notification (or click **fleetest** in the status bar and open the Settings tab).
 The "Updates" section shows the current and the new version. Press "Update now".
 
 ```
@@ -80,12 +80,12 @@ In the work folder (the one that contains `TestProjects/`), run the update scrip
 "Update now" in the extension runs this same script.
 
 ```bash
-bash ../fleetest-mobile/Scripts/update.sh
+bash ../fleetest/Scripts/update.sh
 ```
 
 - If there is nothing to update, it prints "Up to date" and exits without doing anything. Add `--force` only to
   reinstall a broken setup.
-- If the clone is not `fleetest-mobile` next to the work folder, add `--tool-root <path to the clone>`; if the
+- If the clone is not `fleetest` next to the work folder, add `--tool-root <path to the clone>`; if the
   work folder is not the current directory, add `--work-dir <work folder>`.
 
 </details>

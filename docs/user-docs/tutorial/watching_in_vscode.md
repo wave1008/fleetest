@@ -6,7 +6,7 @@ Watch the AI assistant create and run tests in the VSCode extension (you install
 
 ## 1. Open the Device Monitor
 
-Click **fleetest mobile** in the status bar at the bottom left of VSCode.
+Click **fleetest** in the status bar at the bottom left of VSCode.
 
 Expected result:
 

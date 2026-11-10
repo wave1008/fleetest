@@ -20,7 +20,7 @@
 ### 自動でインストールされるもの
 
 - Node.js
-- VSCode 拡張(fleetest mobile)
+- VSCode 拡張(fleetest)
 - iOS Simulator のランタイムと Simulator
 - Android のシステムイメージと Emulator
 

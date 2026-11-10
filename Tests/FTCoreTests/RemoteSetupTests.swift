@@ -14,10 +14,10 @@ final class RemoteSetupTests: XCTestCase {
         XCTAssertEqual(
             RemoteSetupPlan.installArgs(
                 workDir: "/Users/ci/fleetest-runner/users/alice/work", projectName: "E2E",
-                toolRoot: "/Users/ci/fleetest-runner/fleetest-mobile"),
+                toolRoot: "/Users/ci/fleetest-runner/fleetest"),
             [
                 "--work-dir", "/Users/ci/fleetest-runner/users/alice/work",
-                "--tool-root", "/Users/ci/fleetest-runner/fleetest-mobile",
+                "--tool-root", "/Users/ci/fleetest-runner/fleetest",
                 "--name", "E2E",
                 "--skip-extension",
                 "--skip-mcp",
@@ -28,15 +28,15 @@ final class RemoteSetupTests: XCTestCase {
     }
 
     /// `--tool-root` を明示する — work が `<base>/users/<issuer>/work` へ2階層深くなり、
-    /// install.sh の既定 `<work-dir>/../fleetest-mobile` が RemoteLayout.toolRoot と
+    /// install.sh の既定 `<work-dir>/../fleetest` が RemoteLayout.toolRoot と
     /// もう一致しないため(RR-18.6)
     func testInstallArgsIncludesToolRoot() {
         let args = RemoteSetupPlan.installArgs(workDir: "/x/users/alice/work", projectName: "E2E",
-                                                toolRoot: "/x/fleetest-mobile")
+                                                toolRoot: "/x/fleetest")
         guard let index = args.firstIndex(of: "--tool-root") else {
             return XCTFail("--tool-root が無い: \(args)")
         }
-        XCTAssertEqual(args[index + 1], "/x/fleetest-mobile")
+        XCTAssertEqual(args[index + 1], "/x/fleetest")
     }
 
     // MARK: - RemoteSetupPlan.preflightArgs / preflightVerdict
@@ -77,7 +77,7 @@ final class RemoteSetupTests: XCTestCase {
 
     private static let repointLayout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
 
-    /// クローンの置き場が変わった作業フォルダ(実地 2026-10-26: foundation-tester → fleetest-mobile)。
+    /// クローンの置き場が変わった作業フォルダ(実地 2026-10-26: foundation-tester → fleetest)。
     /// base 直下を指す宣言と、旧ディレクトリ名のパッケージ名を向け直し、他のパス依存と他の名前は触らない
     func testRepointsStaleToolDependencyAndPackageNames() throws {
         let manifest = """
@@ -94,11 +94,11 @@ final class RemoteSetupTests: XCTestCase {
         XCTAssertEqual(result.previousPath, "/Users/ci/fleetest-runner/foundation-tester")
         XCTAssertEqual(result.content, """
             dependencies: [
-                .package(path: "/Users/ci/fleetest-runner/fleetest-mobile"),
+                .package(path: "/Users/ci/fleetest-runner/fleetest"),
                 .package(path: "/Users/ci/libs/foundation-tester"),
             ],
-            .product(name: "FTDSL", package: "fleetest-mobile"),
-            .product(name: "FTScenarioRunner", package: "fleetest-mobile"),
+            .product(name: "FTDSL", package: "fleetest"),
+            .product(name: "FTScenarioRunner", package: "fleetest"),
             .product(name: "Other", package: "other"),
             """)
     }
@@ -106,7 +106,7 @@ final class RemoteSetupTests: XCTestCase {
     /// 今のクローンを指している・base の外だけを指している(利用者のパス依存)なら直さない(= 毎回書き戻さない)
     func testRepointLeavesCurrentAndForeignDependenciesAlone() {
         for manifest in [
-            #".package(path: "/Users/ci/fleetest-runner/fleetest-mobile"), package: "fleetest-mobile""#,
+            #".package(path: "/Users/ci/fleetest-runner/fleetest"), package: "fleetest""#,
             #".package(path: "/Users/ci/fleetest-runner/users/alice/vendored")"#,
             #".package(path: "/Users/ci/elsewhere/foundation-tester")"#,
             "",
@@ -261,9 +261,9 @@ final class RemoteSetupTests: XCTestCase {
                 + "ft_align_helper='/tmp/fleetest-remote-align.12345678/fleetest'; "
                 + "ft_align_helper_dir='/tmp/fleetest-remote-align.12345678'; "
                 + #"trap 'rm -f -- "$ft_align_helper"; rmdir -- "$ft_align_helper_dir"' EXIT; "#
-                + #"chmod 700 "$ft_align_helper" && cd '/Users/ci/fleetest-runner/fleetest-mobile' && "#
+                + #"chmod 700 "$ft_align_helper" && cd '/Users/ci/fleetest-runner/fleetest' && "#
                 + #""$ft_align_helper" api fm-align "#
-                + "--target-executable '/Users/ci/fleetest-runner/fleetest-mobile/.build/debug/fleetest' "
+                + "--target-executable '/Users/ci/fleetest-runner/fleetest/.build/debug/fleetest' "
                 + "--build-command \(RemoteShell.quote(build))")
         XCTAssertFalse(command.contains("git fetch"))
         let syntax = try Shell.run(["/bin/sh", "-n", "-c", command])

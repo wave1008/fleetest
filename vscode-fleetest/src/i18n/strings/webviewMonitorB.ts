@@ -170,8 +170,8 @@ export const webviewMonitorBStrings = {
     en: "Out of scope for update checks: {reason}",
   },
   "wvMonitor2.update.unavailable": {
-    ja: "fleetest-mobile のクローンが見つからないため確認できません",
-    en: "Cannot check: no fleetest-mobile clone found",
+    ja: "fleetest のクローンが見つからないため確認できません",
+    en: "Cannot check: no fleetest clone found",
   },
   "wvMonitor2.update.unknown": { ja: "確認できませんでした: {reason}", en: "Could not check: {reason}" },
 

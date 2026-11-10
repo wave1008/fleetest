@@ -1,4 +1,4 @@
-# fleetest mobile ドキュメント
+# fleetest ドキュメント
 
 [in English](index.md)
 
@@ -7,7 +7,7 @@ E2E テストツールです。
 
 ## リポジトリ
 
-- [fleetest-mobile](https://github.com/wave1008/fleetest-mobile)
+- [fleetest](https://github.com/wave1008/fleetest)
 
 ## 概要
 

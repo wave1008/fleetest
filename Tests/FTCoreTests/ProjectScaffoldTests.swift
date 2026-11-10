@@ -19,11 +19,11 @@ final class ProjectScaffoldTests: XCTestCase {
 
     func testFreshGeneratesProjectAndBinaryPath() throws {
         XCTAssertTrue(try ProjectScaffold.writeVSCodeSettings(
-            packageRoot: packageRoot, fleetestPath: "../fleetest-mobile", projectName: "MyApp"))
+            packageRoot: packageRoot, fleetestPath: "../fleetest", projectName: "MyApp"))
         let settings = try readSettings()
         XCTAssertEqual(settings["fleetest.project"] as? String, "MyApp")
         XCTAssertEqual(settings["fleetest.binaryPath"] as? String,
-                       "../fleetest-mobile/.build/debug/fleetest")
+                       "../fleetest/.build/debug/fleetest")
     }
 
     func testNilFleetestPathOmitsBinaryPath() throws {
@@ -46,12 +46,12 @@ final class ProjectScaffoldTests: XCTestCase {
         try existing.write(to: settingsURL, atomically: true, encoding: .utf8)
 
         XCTAssertTrue(try ProjectScaffold.writeVSCodeSettings(
-            packageRoot: packageRoot, fleetestPath: "../fleetest-mobile", projectName: "NewProject"))
+            packageRoot: packageRoot, fleetestPath: "../fleetest", projectName: "NewProject"))
         let settings = try readSettings()
         XCTAssertEqual(settings["editor.fontSize"] as? Int, 14, "他キーは温存")
         XCTAssertEqual(settings["fleetest.project"] as? String, "NewProject", "自キーは上書き")
         XCTAssertEqual(settings["fleetest.binaryPath"] as? String,
-                       "../fleetest-mobile/.build/debug/fleetest")
+                       "../fleetest/.build/debug/fleetest")
     }
 
     func testInvalidJSONLeavesFileUntouched() throws {
@@ -66,7 +66,7 @@ final class ProjectScaffoldTests: XCTestCase {
         try invalid.write(to: settingsURL, atomically: true, encoding: .utf8)
 
         XCTAssertFalse(try ProjectScaffold.writeVSCodeSettings(
-            packageRoot: packageRoot, fleetestPath: "../fleetest-mobile", projectName: "MyApp"))
+            packageRoot: packageRoot, fleetestPath: "../fleetest", projectName: "MyApp"))
 
         XCTAssertEqual(try String(contentsOf: settingsURL, encoding: .utf8), invalid,
                        "パース不能なら触らない")
@@ -86,11 +86,11 @@ final class ProjectScaffoldTests: XCTestCase {
     func testDependencyPathIsRelativeOnlyForSiblingOrChildClones() {
         let work = URL(fileURLWithPath: "/Users/a/dev/work")
         XCTAssertEqual(ProjectScaffold.dependencyPath(
-            toolRoot: URL(fileURLWithPath: "/Users/a/dev/fleetest-mobile"), packageRoot: work), "../fleetest-mobile")
+            toolRoot: URL(fileURLWithPath: "/Users/a/dev/fleetest"), packageRoot: work), "../fleetest")
         XCTAssertEqual(ProjectScaffold.dependencyPath(
             toolRoot: URL(fileURLWithPath: "/Users/a/dev/work/vendor/ft"), packageRoot: work), "vendor/ft")
         XCTAssertEqual(ProjectScaffold.dependencyPath(
-            toolRoot: URL(fileURLWithPath: "/opt/fleetest-mobile"), packageRoot: work), "/opt/fleetest-mobile",
+            toolRoot: URL(fileURLWithPath: "/opt/fleetest"), packageRoot: work), "/opt/fleetest",
             "隣でも中でもない場所は絶対パスのまま(2人目の環境で解けない相対パスを作らない)")
         XCTAssertEqual(ProjectScaffold.dependencyPath(toolRoot: work, packageRoot: work), "/Users/a/dev/work",
                        "自分自身は相対にしない")
@@ -281,11 +281,11 @@ final class ProjectScaffoldTests: XCTestCase {
 
     func testVSCodeSettingsWithoutProjectOmitsProjectKeyButKeepsBinaryPath() throws {
         XCTAssertTrue(try ProjectScaffold.writeVSCodeSettings(
-            packageRoot: packageRoot, fleetestPath: "../fleetest-mobile", projectName: nil))
+            packageRoot: packageRoot, fleetestPath: "../fleetest", projectName: nil))
         let settings = try readSettings()
         XCTAssertNil(settings["fleetest.project"])
         XCTAssertEqual(settings["fleetest.binaryPath"] as? String,
-                       "../fleetest-mobile/.build/debug/fleetest")
+                       "../fleetest/.build/debug/fleetest")
     }
 
     func testRecipientSkillWithoutProjectPointsToProfilesAndBakesNoName() throws {

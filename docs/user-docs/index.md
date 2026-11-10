@@ -1,4 +1,4 @@
-# fleetest mobile Documentation
+# fleetest Documentation
 
 [in Japanese(日本語)](index_ja.md)
 
@@ -7,7 +7,7 @@ Claude Code in natural language.
 
 ## Repository
 
-- [fleetest-mobile](https://github.com/wave1008/fleetest-mobile)
+- [fleetest](https://github.com/wave1008/fleetest)
 
 ## Overview
 

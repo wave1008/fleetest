@@ -44,7 +44,7 @@ With the ios-run profile of project1, run only the scenarios in the smoke folder
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run --folder smoke
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run --folder smoke
 ```
 
 Give `--folder` the name of a subfolder directly under `scenarios/`. It can be repeated, and it can be combined with `--scenario` and `--failed`.

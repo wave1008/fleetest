@@ -20,7 +20,7 @@ import argparse, glob, json, os, shlex, subprocess, sys, threading, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLEETEST = os.path.join(ROOT, ".build", "debug", "fleetest")
-REMOTE_CLONE = "~/fleetest-runner/fleetest-mobile"
+REMOTE_CLONE = "~/fleetest-runner/fleetest"
 SSH_UNREACHABLE = 255
 
 # スイート → (スクリプト, プロジェクトの接頭辞, SUT → 回す OS)。**各スクリプトの SUT の表と同じ**(片方だけ変えない)

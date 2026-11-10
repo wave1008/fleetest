@@ -420,8 +420,8 @@ extension RemoteDispatchTests {
 
     func testStatusProbeCommand() {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
-        let tool = "\"/Users/ci/fleetest-runner/fleetest-mobile\""
-        let binary = "\"/Users/ci/fleetest-runner/fleetest-mobile/.build/debug/fleetest\""
+        let tool = "\"/Users/ci/fleetest-runner/fleetest\""
+        let binary = "\"/Users/ci/fleetest-runner/fleetest/.build/debug/fleetest\""
         let base = "\"/Users/ci/fleetest-runner\""
         XCTAssertEqual(
             RemoteStatusProbe.command(layout: layout, simulatorRuntime: true),
@@ -541,7 +541,7 @@ extension RemoteDispatchTests {
         let layout = RemoteLayout(base: RemoteLayout.resolveBase("~/fleetest-runner", home: "$HOME"),
                                   issuer: "alice", home: "$HOME")
         let command = RemoteStatusProbe.command(layout: layout, simulatorRuntime: true)
-        XCTAssertTrue(command.contains("\"$HOME/fleetest-runner/fleetest-mobile\""), command)
+        XCTAssertTrue(command.contains("\"$HOME/fleetest-runner/fleetest\""), command)
         // **遅延展開してよいのはこの読み取り専用の1往復だけ**(1 ssh に収める設計)。
         // 取得・解放は手元で確定した絶対パスを使う(RemoteLayout.home の注記)
         XCTAssertTrue(command.contains("if [ -d \"$HOME/.fleetest/dispatch.lock\" ]"), command)

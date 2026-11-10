@@ -65,16 +65,15 @@ const SLUG_RE = /(?:github\.com|raw\.githubusercontent\.com)\/([A-Za-z0-9_.-]+)\
 
 // 引っ越しで**取り残された古い座標**。移転したら旧 slug をここへ足す —— URL 形も裸の形も、
 // どこに残っていても落ちる。
-// 空でよいのは一度も移転していない間だけ。
-const LEGACY_SLUGS = [];
+const LEGACY_SLUGS = ["wave1008/fleetest-mobile"];
 
 /** 裸の `<owner>/<repo>` 形。URL 形と別に見る必要がある。 */
 function bareSlugRegex(repoName) {
   const escaped = repoName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // owner の直前がパス区切り・英数字なら**ファイルシステムのパス**(`~/github/fleetest-mobile`・
-  // `/tmp/x/fleetest-mobile`・`../fleetest-mobile`・`$BASE/fleetest-mobile`)であって
+  // owner の直前がパス区切り・英数字なら**ファイルシステムのパス**(`~/github/fleetest`・
+  // `/tmp/x/fleetest`・`../fleetest`・`$BASE/fleetest`)であって
   // 座標ではない。URL 形は SLUG_RE が見るので、ここで拾うのは行中に素で置かれた形だけ。
-  return new RegExp(`(?<![\\w./$-])([A-Za-z0-9][A-Za-z0-9_.-]*)\\/${escaped}(?![A-Za-z0-9_.-])`, "g");
+  return new RegExp(`(?<![\\w./$-])([A-Za-z0-9][A-Za-z0-9_.-]*)\\/${escaped}(?![A-Za-z0-9_./-])`, "g");
 }
 
 function trackedTextFiles() {
@@ -115,9 +114,12 @@ test("座標を持つ全ファイルが正典の slug を指している", () =>
       // URL 形でない裸の slug(`<owner>/<repo>`)
       for (const m of line.matchAll(bareRe)) {
         if (m[1] === canonOwner) continue;
+        // リポジトリ内に実在するパス(`Sources/fleetest` = CLI のターゲット)は座標ではない
+        if (existsSync(path.join(ROOT, m[1], canonRepo))) continue;
         offenders.add(`${at}  ${m[1]}/${canonRepo}`);
       }
-      for (const legacy of LEGACY_SLUGS) {
+      // 旧座標を列挙しているこのファイル自身は除く
+      for (const legacy of rel === "vscode-fleetest/test/repoSlug.test.mjs" ? [] : LEGACY_SLUGS) {
         if (line.includes(legacy)) offenders.add(`${at}  ${legacy} (旧座標)`);
       }
     });

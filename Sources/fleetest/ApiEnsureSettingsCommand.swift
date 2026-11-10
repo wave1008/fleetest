@@ -17,7 +17,7 @@ struct ApiEnsureSettingsCommand: AsyncParsableCommand {
     @Option(help: "Root of the consumer package (where TestProjects/ lives; defaults to the current directory)")
     var workDir: String?
 
-    @Option(help: "Location of the fleetest-mobile clone (used for the absolute paths of the allowed commands)")
+    @Option(help: "Location of the fleetest clone (used for the absolute paths of the allowed commands)")
     var toolRoot: String?
 
     /// 書く前に断る: 存在しない --work-dir はフォルダごと作って書いてしまい、空/相対の --tool-root は
@@ -30,7 +30,7 @@ struct ApiEnsureSettingsCommand: AsyncParsableCommand {
             }
         }
         if let toolRoot, !toolRoot.hasPrefix("/") {
-            throw ValidationError("--tool-root must be an absolute path (the fleetest-mobile clone), got: \"\(toolRoot)\"")
+            throw ValidationError("--tool-root must be an absolute path (the fleetest clone), got: \"\(toolRoot)\"")
         }
     }
 

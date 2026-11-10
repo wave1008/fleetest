@@ -22,7 +22,7 @@ project1 の実行プロファイル ios-run に、Simulator をあと1台追加
 CLI では次のとおりです。`--count` は、実行プロファイルの該当 OS のデバイスを全部で N 台にします(今ある分を含みます)。
 
 ```bash
-../fleetest-mobile/.build/debug/fleetest profile setup --project project1 --platform ios --app-id com.sutec.mobile.ios --auto-device --count 3
+../fleetest/.build/debug/fleetest profile setup --project project1 --platform ios --app-id com.sutec.mobile.ios --auto-device --count 3
 ```
 
 </details>

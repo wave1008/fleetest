@@ -54,7 +54,7 @@ struct RunCommonOptions: ParsableArguments {
     var appID: String?
 
     @Option(name: .customLong("remote-dir"),
-            help: "Runner-only base directory on the remote host (holds its own clone and workspace; default: the host registry's entry, or ~/fleetest-runner). Must NOT point at an existing local install of fleetest-mobile")
+            help: "Runner-only base directory on the remote host (holds its own clone and workspace; default: the host registry's entry, or ~/fleetest-runner). Must NOT point at an existing local install of fleetest")
     var remoteDir: String?
 
     @Option(name: .customLong("remote-timeout"),

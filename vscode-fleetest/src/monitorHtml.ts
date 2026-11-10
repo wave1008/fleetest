@@ -11,7 +11,7 @@ import * as vscode from "vscode";
 import { currentLocale, t } from "./i18n";
 
 /** デバイスモニターパネルのタイトル(VS Code タブ表示・HTML の <title> の両方で使う)。 */
-export const PANEL_TITLE = "fleetest mobile";
+export const PANEL_TITLE = "fleetest";
 
 function generateNonce(): string {
   return randomBytes(16).toString("hex");

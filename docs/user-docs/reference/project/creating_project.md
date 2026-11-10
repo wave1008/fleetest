@@ -27,13 +27,13 @@ normally does not need editing.
 
 ## Two package configurations
 
-There are two ways this project's Package.swift can reference fleetest-mobile:
+There are two ways this project's Package.swift can reference fleetest:
 
 - **External package configuration** (the default for `/fleetest-setup`): your work
-  folder has its own `Package.swift` that depends on the fleetest-mobile clone via SPM
+  folder has its own `Package.swift` that depends on the fleetest clone via SPM
   (`fleetest init`). Your `TestProjects/` assets live in your work folder, separate from the
   tool's clone, so tool updates never touch your scenarios or profiles.
-- **Clone configuration**: you work directly inside the fleetest-mobile clone, and
+- **Clone configuration**: you work directly inside the fleetest clone, and
   `TestProjects/` sits inside it. Used mainly for developing the tool itself.
 
 `fleetest init` scaffolds the external configuration (a `Package.swift` plus a first test
@@ -77,7 +77,7 @@ let fleetestScenarioDependencies: [String: [Target.Dependency]] = [
 let package = Package(
     ...
     dependencies: [
-        .package(path: "../fleetest-mobile"),
+        .package(path: "../fleetest"),
         .package(url: "https://github.com/<owner>/SwiftOTP", from: "<version>"),
     ],
     ...

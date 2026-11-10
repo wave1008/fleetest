@@ -35,7 +35,7 @@ Summarize the latest run of project1. If anything failed, list the failed scenar
 
 - Each scenario has a Markdown report under `TestProjects/project1/reports/`.
 - In VSCode, the Test Explorer shows pass/fail directly, and you can open the report from there.
-  The **Dashboard** tab of the monitor (click **fleetest mobile** in the status bar at the bottom left of VSCode) also shows the run history and success rate.
+  The **Dashboard** tab of the monitor (click **fleetest** in the status bar at the bottom left of VSCode) also shows the run history and success rate.
 
 </details>
 <br>
@@ -79,7 +79,7 @@ In AddToCart.swift in project1, restore the expected value to the original produ
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-../fleetest-mobile/.build/debug/fleetest run --project project1 --profile ios-run --failed
+../fleetest/.build/debug/fleetest run --project project1 --profile ios-run --failed
 ```
 
 Results are recorded per profile, so run it with the same profile as last time.

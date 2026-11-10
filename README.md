@@ -1,10 +1,10 @@
-# fleetest mobile
+# fleetest
 
 [日本語](README_ja.md)
 
-![fleetest mobile](docs/user-docs/images/fleetest-mobile_flyer_en.png)
+![fleetest](docs/user-docs/images/fleetest_flyer_en.png)
 
-**fleetest mobile** is an E2E testing tool for iOS and Android apps, designed to be used from an AI assistant
+**fleetest** (`wave1008/fleetest`) is an E2E testing tool for iOS and Android apps, designed to be used from an AI assistant
 such as Claude Code. It runs on macOS.
 
 - **fleet** — tests run in parallel on a fleet of Simulators, Emulators and physical devices, across your Mac and other Macs (runner machines)
@@ -33,8 +33,8 @@ Details: [Environment](docs/user-docs/overview/environments.md)
 Open a new folder for your tests in VSCode, start your AI assistant and tell it:
 
 ```text
-Clone https://github.com/wave1008/fleetest-mobile next to this folder and set it up by following
-../fleetest-mobile/.claude/skills/fleetest-setup/SKILL.md.
+Clone https://github.com/wave1008/fleetest next to this folder and set it up by following
+../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 ```
 
 The step-by-step guide, including running a sample app, is the [Quick start](docs/user-docs/quick-start.md).
