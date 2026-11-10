@@ -127,7 +127,8 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `isAliveAndNotStartedAfter`** = 記録より後に起動した pid(再利用)を死とみなす・開始時刻が読めなければ生きている側)②**子は親の死で自ら終わる**
   (`FTCore.ParentDeathWatch`。spawn 側が `FT_PARENT_PID` を渡した子だけが kqueue で親の EXIT を待ち、
   自分に SIGTERM を送るだけ(時限の `_exit` はしない = 後始末を打ち切らない)。**opt-in** = 端末のシェルから `fleetest run &` した親が閉じても run を
-  巻き込まない。`Process()` で `fleetest` / `fleetest-scenarios` を起こす経路を足したら
+  巻き込まない。**opt-in の例外は fleetest-mcp**(印が無くても起動した親を見張る = `armOnLaunchingParent`。応答の読み手は親だけで、
+  処理中は stdin を読まないので EOF では長い待ちの最中の親の死に気づけない)。`Process()` で `fleetest` / `fleetest-scenarios` を起こす経路を足したら
   `ParentDeathWatch.childEnvironment()` を渡す —— `ParentDeathWatchWiringTests` が集合を等号で固定。
   **例外は `compile-ocr` と背景の掃除(`RunCompletionSweep`)と FM の常駐プロセス(`api fm-serve`。`FMServeHost.serverEnvironment` が
   `FT_PARENT_PID` を消す)と録画の見張り(`api recorder-watch`。`IOSSimulatorVideoRecorder.watcherLaunch` が `FT_PARENT_PID` を消す)の4つ**:

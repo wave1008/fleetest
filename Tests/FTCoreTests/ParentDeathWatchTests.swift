@@ -88,4 +88,13 @@ final class ParentDeathWatchTests: XCTestCase {
         let written = try String(contentsOf: url, encoding: .utf8)
         XCTAssertEqual(written, text)
     }
+
+    /// MCP の stdio サーバは印が無くても起動した親を見張る(長い待ちの最中に親が死ぬと孤児で残った)。
+    /// launchd(1)・既に孤児は見張らない。印があれば印を優先する
+    func testLaunchingParentToWatchFallsBackToTheLaunchingParent() {
+        XCTAssertEqual(ParentDeathWatch.launchingParentToWatch(environment: [:], parentPID: 4321), 4321)
+        XCTAssertNil(ParentDeathWatch.launchingParentToWatch(environment: [:], parentPID: 1))
+        XCTAssertEqual(ParentDeathWatch.launchingParentToWatch(
+            environment: [ParentDeathWatch.environmentKey: "777"], parentPID: 4321), 777)
+    }
 }

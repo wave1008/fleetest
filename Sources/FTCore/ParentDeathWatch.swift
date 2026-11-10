@@ -33,10 +33,28 @@ public enum ParentDeathWatch {
     /// (`orphanSweep.ts`)が次回 activate で落とす
     public static func armIfRequested(environment: [String: String] = ProcessInfo.processInfo.environment) {
         guard let raw = environment[environmentKey], let parentPID = pid_t(raw) else { return }
+        armStoppingSelf(parentPID: parentPID)
+    }
+
+    /// **印が無くても起動した親を見張る**(opt-in の例外)。親が居なくなった後に生きる理由の無いプロセス用 =
+    /// MCP の stdio サーバ(応答の読み手は親だけ)。stdin の EOF だけでは足りない —— サーバは要求を1件ずつ処理し、
+    /// 処理中は stdin を読まないので、長い待ち(`waitSeconds` の上限は 1e15)の最中に親が死ぬと PPID 1 のまま残り続けた
+    public static func armOnLaunchingParent(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        guard let parentPID = launchingParentToWatch(environment: environment, parentPID: getppid()) else { return }
+        armStoppingSelf(parentPID: parentPID)
+    }
+
+    /// 見張る親。印があればそれ・無ければ起動した親。1 以下(launchd = 見張っても終わらない / 既に孤児)は nil
+    static func launchingParentToWatch(environment: [String: String], parentPID: pid_t) -> pid_t? {
+        if let raw = environment[environmentKey], let marked = pid_t(raw) { return marked }
+        return parentPID > 1 ? parentPID : nil
+    }
+
+    private static func armStoppingSelf(parentPID: pid_t) {
         arm(parentPID: parentPID) {
             // kqueue コールバック文脈から呼ばれうるので ConsoleOut のロックを取らせない
             // (シグナル安全性に近い制約。生の write のまま残す)
-            writeNotice("⚠️ parent process \(parentPID) exited — stopping (FT_PARENT_PID)\n",
+            writeNotice("⚠️ parent process \(parentPID) exited — stopping\n",
                         to: FileHandle.standardError.fileDescriptor)
             kill(getpid(), SIGTERM)
         }

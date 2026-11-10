@@ -57,4 +57,12 @@ final class ParentDeathWatchWiringTests: XCTestCase {
                           "\(path) が起動時に武装していない(FT_PARENT_PID を渡されても孤児化を防げない)")
         }
     }
+
+    /// MCP の stdio サーバは印が無くても起動した親を見張る(応答の読み手は親だけ。処理中は stdin を読まないので
+    /// EOF では長い待ちの最中の親の死に気づけない)
+    func testMCPServerArmsOnTheLaunchingParent() throws {
+        let text = try source("Sources/fleetest-mcp/MCPServer.swift")
+        XCTAssertTrue(text.contains("ParentDeathWatch.armOnLaunchingParent()"),
+                      "fleetest-mcp が起動時に親を見張っていない(親が死んでも長い待ちの間 PPID 1 で残る)")
+    }
 }
