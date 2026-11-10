@@ -20,6 +20,8 @@
   `index_ja.md`。1ページ = `<name>.md`(英)+ `<name>_ja.md`(日)で**片方だけ変えない**
   (`userDocsIntegrity.test.mjs` が対の欠落・切れたリンク・言語の混線・index 未掲載を検出)。
   DSL の挙動を変えたら docs/commands.md と併せて該当ページも直す
+  ・**`## 注意点` の項目や「現時点の制約」を足したら `reference/writing/known_caveats(_ja).md` にも1行足す**(シナリオを書く AI が
+  必ず読む一覧。`knownCaveatsIndex.test.mjs` が節ごとの件数の食い違いを落とす)
 - **README.md(英)/ README_ja.md(日)は入口だけ**(何か・必要環境・利用者と保守者の入口)。仕様を書かない ——
   仕様は user-docs と docs/ に置き、README からは指すだけ
 - **受け手の配布口は最新リリースタグ**・main は開発線で版固定の導線は案内しない。`FLEETEST_REF` は

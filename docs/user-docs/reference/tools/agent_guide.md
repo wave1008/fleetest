@@ -148,10 +148,16 @@ Both can be put on a class or on an individual `@Test`.
 In reports to the user, do not call a Simulator or Emulator a "physical device". That word means
 only a real iPhone / Android connected over USB (`kind: "physical"` in the run profile). When unsure, say "device".
 
+## Known caveats
+
+Before writing a scenario, always read [Known caveats](../writing/known_caveats.md). It lists the caveats of
+commands and UI components (including operations that go wrong silently), one line each. If a line applies to a
+command you use or a component on the screen, read the linked section and write it the way it says.
+
 ## Writing for specific UI components
 
 If the screen has stock Material3 components (pager, bottom sheet, dropdown menu, date picker,
-drawer, pull-to-refresh, snackbar, search bar, …), read the matching section of
+drawer, pull-to-refresh, snackbar, search bar, autocomplete, …), read the matching section of
 [UI component patterns and quirks](../writing/ui_component_patterns.md) before writing. It covers
 component-specific patterns — the screen behind a modal drops out of the tree, a field's content is
 in `.value`, horizontal containers need `scrollFrame:` — and workarounds for the tool's current
