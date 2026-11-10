@@ -280,7 +280,8 @@
       "machine": "M4Max",
       "name": "iPhone 18 Pro(iOS 27.2)-03",
       "model": "iPhone 18 Pro",
-      "osVersion": "iOS 27.2"
+      "osVersion": "iOS 27.2",
+      "enabled": false
     },
     {
       "platform": "android",

@@ -264,7 +264,8 @@
       "machine": "M4Max",
       "name": "iPhone 18 Pro(iOS 27.2)-03",
       "model": "iPhone 18 Pro",
-      "osVersion": "iOS 27.2"
+      "osVersion": "iOS 27.2",
+      "enabled": false
     },
     {
       "platform": "android",
@@ -276,13 +277,15 @@
       "platform": "android",
       "machine": "M4Max",
       "name": "Pixel 10 Pro(Android 17)-02",
-      "avd": "Pixel_10_Pro_Android_17_-02"
+      "avd": "Pixel_10_Pro_Android_17_-02",
+      "enabled": false
     },
     {
       "platform": "android",
       "machine": "M4Max",
       "name": "Pixel 10 Pro(Android 17)-03",
-      "avd": "Pixel_10_Pro_Android_17_-03"
+      "avd": "Pixel_10_Pro_Android_17_-03",
+      "enabled": false
     },
     {
       "platform": "android",

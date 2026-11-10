@@ -32,7 +32,12 @@ OCR だけの判定が誤った赤)。ツールは OCR の読み誤りを許す�
 **回帰に参加するマシンの前提: macOS を他のマシンとそろえる**。そろっていない機械の OCR 由来の赤は、ツールの退行と読まない。
 **そろえるまでの間は、OCR で文中のリンクを押す E2EY のプロファイル(E2EY-CMP の3つ・E2EY-iOS の2つ・E2EY-Android)で M4Max の
 デバイスを `"enabled": false` にしてある**(`--target` の割り振りはプロファイルの `devices[].machine` で決まり、対象ごとにマシンを外す口は無い。
-2026-11-10 の全体の回帰で E2EY-CMP の iOS が M4Max へ割り振られ 3/3 赤)。M4Max を 27 へ上げたら6ファイルの `enabled` を消す。
+2026-11-10 の全体の回帰で E2EY-CMP の iOS が M4Max へ割り振られ 3/3 赤)。M4Max を 27 へ上げたら6ファイルの M4Max の iOS -01・-02 と Android -01 の `enabled` を消す(下の台数の上限は残す)。
+
+**M4Max で回すのは iOS 2台(iPhone 18 Pro -01・-02)と Android 1台(Pixel 10 Pro -01)だけ**(ユーザー決定 2026-11-10)。
+TestProjects/ の全プロファイルで、M4Max の iOS -03 と Android -02・-03 は `"enabled": false`。M4Max の Emulator は回帰の中で
+起動の途中に固まって落ちる(QEMU の "hanging thread"・status 11)ことが 11/6 以降の回帰で繰り返し出ていた。デバイスを足すプロファイルを
+作るときも、M4Max の台数はこの範囲に収める。
 
 ## 1回の実行が見るのは iOS の2モードのうち片方だけ
 

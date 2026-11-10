@@ -10,12 +10,12 @@ final class SuiteProfileLaneParityTests: XCTestCase {
         Set((1...8).map { String(format: "local|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
         .union((1...4).map { String(format: "M1Max|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
         .union((1...6).map { String(format: "M1Ultra|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
-        .union((1...3).map { String(format: "M4Max|iPhone 18 Pro(iOS 27.2)-%02d", $0) })
+        .union((1...2).map { String(format: "M4Max|iPhone 18 Pro(iOS 27.2)-%02d", $0) })  // M4Max は iOS 2台・Android 1台(ユーザー決定 2026-11-10)
     private static let androidLanes: Set<String> =
         Set((1...6).map { String(format: "local|Pixel 10 Pro(Android 17)-%02d", $0) })
         .union((1...4).map { String(format: "M1Max|Pixel 10 Pro(Android 17)-%02d", $0) })
         .union((1...6).map { String(format: "M1Ultra|Pixel 10 Pro(Android 17)-%02d", $0) })
-        .union((1...3).map { String(format: "M4Max|Pixel 10 Pro(Android 17)-%02d", $0) })
+        .union(["M4Max|Pixel 10 Pro(Android 17)-01"])
         .union(["M1mini|Pixel 10 Pro(Android 17)-01"])
 
     /// project -> このプロジェクトが持つ suite プロファイル(存在しない組は書かない)
