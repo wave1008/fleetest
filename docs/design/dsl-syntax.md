@@ -845,7 +845,10 @@ select("#btn_ok"); textIs("OK")                 // 暗黙(トップレベルの�
   `fleetest vision check`(警告だけ・exit 0)。**分類器の判定で落ちたステップと、見つからずに落ちた `existImage` は、判定に使ったスクリーンショット全体を
   レポートのそのステップ行に添える**(`StepOutcome.evidenceImage`。ファイル名の印は `image-judged-by-classifier` /
   `judged-by-findImage` = 24 文字で切られるので後者は短くしてある。切り出しではなく全体 = 判定した画面が失敗時の
-  画面と同じかを見比べられる。通ったステップ・分類器を使わずに落ちたステップは持たない)。
+  画面と同じかを見比べられる。通ったステップ・分類器を使わずに落ちたステップは持たない)。**通った単数の
+  `findImage` / `existImage` の直後のステップが自分の絵を持たずに落ちたときは、照合した絵を添える**(印は
+  `preceding-image-match`。`existImage(…).idIs(…)` の `idIs` の赤 = 照合が別の要素を採った形の材料。持ち越すのは次の1ステップだけ。
+  記述の `cropped at x,y wxh` が採った候補の切り出しの枠)。
   **`tap(sel, linkText:)` が OCR で文字を見つけられずに落ちたときも、OCR へ渡した最後の絵を添える**(印は
   `read-by-link-text-ocr`。失敗時の絵は判定の後に撮るので、OCR が見た絵とは別物になりうる)
 - **状態フィルタ(`checked=` / `enabled=`)は型ではなく `#id` と併用する**(2026-07-26 実測)。

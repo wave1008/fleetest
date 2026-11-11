@@ -231,10 +231,40 @@ final class FindImageTests: XCTestCase {
         let outcome = await run("findImage", threshold: FindImage.defaultThreshold, projectRoot: root)
         let note = try XCTUnwrap(outcome.driverFallback)
         let found = try XCTUnwrap(outcome.imageMatches?.first?.distance)
-        let next = try XCTUnwrap(note.range(of: ", next ").map { Double(note[$0.upperBound...].prefix { $0 != ")" }) } ?? nil,
+        let next = try XCTUnwrap(note.range(of: ", next ").map { Double(note[$0.upperBound...].prefix { $0 != ")" && $0 != "," }) } ?? nil,
                                  "次点の距離が記述に無い: \(note)")
         XCTAssertGreaterThan(next, found, note)
         XCTAssertFalse(note.contains("at that distance"), note)
+    }
+
+    /// 照合が別の要素を採った赤は続く検証(`existImage(…).idIs(…)`)で出るので、照合した絵はその検証の失敗に添える。
+    /// 持ち越すのは次の1ステップだけ(2つ先の赤に古い絵を添えない)・通った検証には添えない
+    func testFailureRightAfterAnImageMatchCarriesTheMatchedScreenshot() async throws {
+        let root = try makeProject()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let executor = StepExecutor(driver: ScreenDriver(elements: screenElements), isAndroid: false, tunables: RunTunables())
+        executor.visionClassifierProjectRoot = root
+        let wrongID = FlowStep(assert: "idEquals", locator: FlowLocator(id: "circle"), expected: "nav_diagnostics", timeout: 0)
+        let rightID = FlowStep(assert: "idEquals", locator: FlowLocator(id: "circle"), expected: "circle", timeout: 0)
+        func find() async -> StepOutcome {
+            await executor.execute(FlowStep(action: "existImage", expected: "[Circle Icon]", timeout: 0,
+                                            imageThreshold: FindImage.defaultThreshold))
+        }
+
+        guard case .passed = await find().status else { return XCTFail("前提: 照合が通る") }
+        let failed = await executor.execute(wrongID)
+        guard case .failed = failed.status else { return XCTFail("前提: id の検証が落ちる \(failed.status)") }
+        XCTAssertEqual(failed.evidenceImage, FindImageTests.screenPNG(), "直前の照合の絵を添える")
+        XCTAssertTrue(failed.evidenceFromPrecedingImageMatch)
+
+        let twoStepsLater = await executor.execute(wrongID)
+        XCTAssertNil(twoStepsLater.evidenceImage, "持ち越すのは次の1ステップだけ")
+        XCTAssertFalse(twoStepsLater.evidenceFromPrecedingImageMatch)
+
+        _ = await find()
+        let passed = await executor.execute(rightID)
+        guard case .passed = passed.status else { return XCTFail("\(passed.status)") }
+        XCTAssertNil(passed.evidenceImage, "通ったステップは持たない")
     }
 
     /// 同じ距離の候補が複数あれば数を言う(縮退なら全候補が採った距離に並ぶ)
@@ -246,7 +276,7 @@ final class FindImageTests: XCTestCase {
         scan.tiedAtBest = 11
         scan.nextDistance = 0
         XCTAssertEqual(StepExecutor.findImageNote(scan, single: true, threshold: 0.03),
-                       "found (distance 0.000, 11 candidates at that distance, next 0.000)")
+                       "found (distance 0.000, 11 candidates at that distance, next 0.000, cropped at 0,0 10x10)")
     }
 
     func testFindImageNotFoundIsAnEmptyResultWithTheNearestDistance() async throws {

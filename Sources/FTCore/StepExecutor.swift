@@ -201,6 +201,9 @@ public struct StepOutcome: Sendable {
     /// 呼び手がレポートのステップ行に添える。切り出しではなく全体を持つ = 「判定した画面が
     /// 失敗時の画面と同じか」を後から見比べられる(切り出しは要素一覧の枠から再現できる)
     public let evidenceImage: Data?
+    /// true = `evidenceImage` はこのステップの判定の絵ではなく、直前の通った単数の findImage / existImage が照合した絵
+    /// (呼び手がファイル名の印を分ける)
+    public let evidenceFromPrecedingImageMatch: Bool
     /// findImage / findImages / existImage が見つけた要素(距離の小さい順)。それ以外のステップと失敗時は nil
     public let imageMatches: [FindImage.Match]?
     /// 操作の対象を解決したとき、セレクタが2件以上に一致した数(1件目を撃った。序数・相対の指定は数えない)。
@@ -223,6 +226,7 @@ public struct StepOutcome: Sendable {
                scrollSwipes: Int? = nil, slowDrags: Int? = nil, failureKind: StepFailureKind? = nil,
                thrownDriverError: DriverError? = nil,
                evidenceImage: Data? = nil,
+               evidenceFromPrecedingImageMatch: Bool = false,
                imageMatches: [FindImage.Match]? = nil,
                ambiguousMatchCount: Int? = nil,
                response: ResponseMeasurementRecord? = nil,
@@ -237,6 +241,7 @@ public struct StepOutcome: Sendable {
         self.failureKind = failureKind
         self.thrownDriverError = thrownDriverError
         self.evidenceImage = evidenceImage
+        self.evidenceFromPrecedingImageMatch = evidenceFromPrecedingImageMatch
         self.guardEntered = guardEntered
         self.observedChecked = observedChecked
         self.resolvedElement = resolvedElement
@@ -888,6 +893,8 @@ public final class StepExecutor {
         failureKindThisStep = nil
         failureKindWithheldThisStep = false
         classifierScreenshotThisStep = nil
+        precedingImageMatchScreenshot = imageMatchScreenshotForNextStep
+        imageMatchScreenshotForNextStep = nil
         classifierFailureThisStep = nil
         imageMatchesThisStep = nil
         ambiguousMatchCountThisStep = nil
@@ -976,7 +983,8 @@ public final class StepExecutor {
                                        ? notVisibleSelectionThisStep : nil,
                                    scrollSwipes: scrollSwipesThisStep, slowDrags: slowDragsThisStep,
                                    failureKind: failureKind(for: outcome.status),
-                                   evidenceImage: Self.isSuccess(status) ? nil : classifierScreenshotThisStep,
+                                   evidenceImage: failureEvidenceImage(status),
+                                   evidenceFromPrecedingImageMatch: evidenceIsPrecedingImageMatch(status),
                                    imageMatches: Self.isSuccess(outcome.status) ? imageMatchesThisStep : nil,
                                    ambiguousMatchCount: ambiguousMatchCountThisStep,
                                    response: response,
@@ -1023,7 +1031,8 @@ public final class StepExecutor {
                                    resolvedElement: resolvedElementThisStep,
                                    scrollSwipes: scrollSwipesThisStep, slowDrags: slowDragsThisStep,
                                    failureKind: failureKind(for: status),
-                                   evidenceImage: Self.isSuccess(status) ? nil : classifierScreenshotThisStep)
+                                   evidenceImage: failureEvidenceImage(status),
+                                   evidenceFromPrecedingImageMatch: evidenceIsPrecedingImageMatch(status))
             }
             return StepOutcome(status: .skipped("step has neither an action nor an assertion"))
         } catch let thrown {
@@ -1525,6 +1534,20 @@ public final class StepExecutor {
     var failureKindWithheldThisStep = false
     /// このステップで画像の判定(分類器・画像の照合)が最後に使ったスクリーンショット(`StepOutcome.evidenceImage` の元)
     var classifierScreenshotThisStep: Data?
+    /// 通った単数の findImage / existImage が照合した絵。**次の1ステップだけ**持ち越し(入口で preceding へ移す)、
+    /// そのステップが自分の証跡無しに落ちたら添える(`StepOutcome.evidenceFromPrecedingImageMatch`)。
+    /// 照合が別の行を採った赤は続く検証(`existImage(…).idIs(…)`)で出るので、照合の絵はそこで要る(OI-198)
+    var imageMatchScreenshotForNextStep: Data?
+    var precedingImageMatchScreenshot: Data?
+
+    /// 落ちたステップに添える絵: 自分の判定の絵 > 直前の照合の絵(`imageMatchScreenshotForNextStep`)。通ったステップは持たない
+    func failureEvidenceImage(_ status: StepResult.Status) -> Data? {
+        Self.isSuccess(status) ? nil : (classifierScreenshotThisStep ?? precedingImageMatchScreenshot)
+    }
+
+    func evidenceIsPrecedingImageMatch(_ status: StepResult.Status) -> Bool {
+        !Self.isSuccess(status) && classifierScreenshotThisStep == nil && precedingImageMatchScreenshot != nil
+    }
     /// このステップで分類器の答えを使わなかった理由(`VisionClassifier.ClassifyError`。直近の1件)
     var classifierFailureThisStep: String?
     /// findImage / findImages が見つけた要素(`StepOutcome.imageMatches` の元)

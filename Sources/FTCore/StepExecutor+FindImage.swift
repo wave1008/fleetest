@@ -103,6 +103,8 @@ extension StepExecutor {
         }
         imageMatchesThisStep = scan.found
         if single { resolvedElementThisStep = scan.found.first?.element }
+        // 採った要素を続く検証が確かめて落ちたとき用に、照合した絵を次の1ステップへ持ち越す(StepExecutor の doc)
+        if single, !scan.found.isEmpty { imageMatchScreenshotForNextStep = classifierScreenshotThisStep }
         return StepOutcome(status: .passed, driverFallback: notes.joined(separator: " / "))
     }
 
@@ -290,7 +292,10 @@ extension StepExecutor {
                 }
                 let tied = scan.tiedAtBest > 1 ? ", \(scan.tiedAtBest) candidates at that distance" : ""
                 let next = scan.nextDistance.map { ", next \(format($0))" } ?? ""
-                return "found (distance \(format(match.distance))\(tied)\(next))"
+                // 切り出した枠(見えている部分)。添えた照合の絵からこの候補の切り出しを再現する材料(OI-198)
+                let v = match.visibleFrame
+                let at = String(format: ", cropped at %.0f,%.0f %.0fx%.0f", v.x, v.y, v.width, v.height)
+                return "found (distance \(format(match.distance))\(tied)\(next)\(at))"
             }
             if scan.nearest == nil, scan.screenshotUnreadable { return "not found (the screenshot could not be read)" }
             guard let nearest = scan.nearest else { return "not found (no element of a similar aspect ratio)" }

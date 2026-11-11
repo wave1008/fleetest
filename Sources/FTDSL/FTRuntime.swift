@@ -1066,6 +1066,7 @@ public final class FTDriveCore {
                    // ラベルはファイル名に入って 24 文字で切られる(docs/design/ の該当節)
                    screenshotData: outcome?.evidenceImage,
                    screenshotLabel: outcome?.evidenceImage == nil ? nil
+                       : outcome?.evidenceFromPrecedingImageMatch == true ? "preceding-image-match"
                        : step.action == "existImage" ? "judged-by-findImage"
                        : step.linkText != nil ? "read-by-link-text-ocr" : "image-judged-by-classifier")
         captureStillFrameIfRecording(changedScreen: step.action != nil, status: status)
