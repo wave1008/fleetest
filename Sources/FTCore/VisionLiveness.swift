@@ -151,18 +151,68 @@ public enum VisionLiveness {
     /// host-metrics の確かめ(`--vision-probe`)。対象ごとに、台帳が `probeIntervalSeconds` より古いときだけ撃つ
     /// 対象は並行に確かめる(OCR の最初の1回はモデルのコンパイルで最大 2 分かかり、その間 特徴量の判定を待たせない)
     public static func refreshIfStale(now: Date = Date()) async {
+        let environment = ProcessInfo.processInfo.environment
         await withTaskGroup(of: Void.self) { group in
             for subject in Subject.allCases {
                 if let verdict = read(subject, at: fileURL), now.timeIntervalSince1970 - verdict.checkedAt < probeIntervalSeconds,
                    verdict.checkedAt <= now.timeIntervalSince1970 {
                     continue
                 }
+                // 失敗した回は台帳に書かない(下)ので、台帳だけを見ると毎 tick 撃ち直す。撃つ間隔はプロセスの中で保つ
+                let due = attempts.withLock { state -> Bool in
+                    if let last = state.lastAttemptAt[subject], now.timeIntervalSince1970 - last < probeIntervalSeconds,
+                       last <= now.timeIntervalSince1970 { return false }
+                    state.lastAttemptAt[subject] = now.timeIntervalSince1970
+                    if state.firstAttemptAt[subject] == nil { state.firstAttemptAt[subject] = now.timeIntervalSince1970 }
+                    return true
+                }
+                guard due else { continue }
                 group.addTask {
                     guard let observed = await VisionLivenessProbe.check(subject) else { return }
-                    record(subject, observed)
+                    let injected = VisionLivenessProbe.isInjectedDead(subject, environment: environment)
+                    let write = attempts.withLock { state -> Bool in
+                        var streak = state.failureStreak[subject] ?? 0
+                        defer { state.failureStreak[subject] = streak }
+                        let compiling = subject == .ocr
+                            && isWithinCompileGrace(firstAttemptAt: state.firstAttemptAt[subject], now: observed.checkedAt)
+                        return shouldRecord(observed, failureStreak: &streak, injected: injected, withinCompileGrace: compiling)
+                    }
+                    if write { record(subject, observed) }
                 }
             }
         }
+    }
+
+    static func isWithinCompileGrace(firstAttemptAt: Double?, now: Double) -> Bool {
+        guard let firstAttemptAt else { return false }
+        let cap = RegionText.modelCompileWaitCap.components
+        return now - firstAttemptAt < Double(cap.seconds) + Double(cap.attoseconds) / 1e18
+    }
+
+    /// 撃った時刻と連続の失敗(プロセスの中だけ。書き手は host-metrics の1プロセス)
+    private struct Attempts {
+        var firstAttemptAt: [Subject: Double] = [:]
+        var lastAttemptAt: [Subject: Double] = [:]
+        var failureStreak: [Subject: Int] = [:]
+    }
+    private static let attempts = Mutex(Attempts())
+
+    /// **単発の失敗で死と書かない**(FMLiveness の規律④と同じ。閾値は `FMBreaker.threshold` を共有して増やさない)。
+    /// 作り直した直後の健全な機械で、OCR の確かめが1回だけ読めずに死と書いた(次の確かめは生)。死と書くのは
+    /// 連続 threshold 回(= 間隔 60 秒で 2〜3 分続いた失敗)・生は1回で数え直す。注入は陽性対照なので数えずに書く
+    /// **OCR はプロセスで最初の確かめから `RegionText.modelCompileWaitCap` の間の失敗を数えない**: 認識器のキャッシュは
+    /// プロセス名と署名ごとで、作り直した直後の host-metrics は自分でコンパイルを払う。その窓の中の読みは空を返しうる
+    /// (実測: 作り直した直後に3回起こして、失敗は起動から 160 秒以内に 0・1・2 回。どれも窓の後は生)。窓の後も読めなければ
+    /// 連続 threshold 回で書くので、起動時から死んでいる機械も数分で死と出る
+    static func shouldRecord(_ observed: Verdict, failureStreak: inout Int, injected: Bool,
+                             withinCompileGrace: Bool = false) -> Bool {
+        guard observed.state == .dead, !injected else {
+            if observed.state == .alive { failureStreak = 0 }
+            return true
+        }
+        if withinCompileGrace { return false }
+        failureStreak += 1
+        return failureStreak >= FMBreaker.threshold
     }
 }
 
@@ -173,8 +223,7 @@ public enum VisionLiveness {
 public enum VisionLivenessProbe {
     public static let injectionKey = "FT_FAKE_VISION_DEAD"
 
-    /// 対象ごとの期限(秒)。超えたら死と書き、このプロセスでは以後その対象を撃たない(固着した呼び出しへ撃ち続けると
-    /// スレッドが積み上がる)。**OCR はプロセスで最初の1回が認識器のコンパイルを払う**(キャッシュはプロセス名と署名ごと =
+    /// 対象ごとの期限(秒)。超えたら死と書く。**OCR はプロセスで最初の1回が認識器のコンパイルを払う**(キャッシュはプロセス名と署名ごと =
     /// fleetest を作り直すたびにコールド)ので `RegionText.modelCompileWaitCap`(正当なコンパイルの実測最大 108 秒 + 1 割)を
     /// 共有する(15 秒にした版は、作り直した直後の健全な機械で最初の確かめを死と書いた)。コンパイルの排他
     /// (`compileModelIfNeeded`)は取らない = run の開始時の compile-ocr を待たせない。
@@ -184,32 +233,46 @@ public enum VisionLivenessProbe {
         return Double(cap.seconds) + Double(cap.attoseconds) / 1e18
     }()
 
-    private static let hung = Mutex<Set<VisionLiveness.Subject>>([])
+    /// 走っている確かめの開始時刻(epoch 秒)。確かめ自身が返ったときに外す(期限で見切った後も)。
+    /// **走っている間は撃ち重ねず、死を書き続ける** —— 固まった呼び出しへ撃ち続けるとスレッドが積み上がり、撃たずに nil を
+    /// 返すと台帳が古くなって「不明」に戻り、固まったままの OCR がモニターから消える(ANE のコンパイルが 352〜1080 秒
+    /// 固まった実測 = `RegionText.modelCompileWaitCap` の doc)。返れば次の周期から確かめ直す
+    private static let running = Mutex<[VisionLiveness.Subject: Double]>([:])
 
-    /// 観測(生 / 死)。nil = 撃たなかった(非対応・OCR モデルのコンパイル中・固着済み = 台帳は古くなって不明になる)
+    /// 観測(生 / 死)。nil = 撃たなかった(非対応・OCR モデルのコンパイル中 = 台帳は古くなって不明になる)
     public static func check(
         _ subject: VisionLiveness.Subject,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         ocrSupported: Bool = OCRSupport.isSupported,
         compileActiveCount: () -> Int = { OCRModelCompileLedger.activeCount() },
-        now: @Sendable () -> Date = { Date() }
+        now: @Sendable () -> Date = { Date() },
+        deadline: Double = deadlineSeconds,
+        probe: (@Sendable (VisionLiveness.Subject) async -> String?)? = nil
     ) async -> VisionLiveness.Verdict? {
         if isInjectedDead(subject, environment: environment) {
             return .init(state: .dead, checkedAt: now().timeIntervalSince1970, source: .probe,
                          error: "injected (\(injectionKey)=\(environment[injectionKey] ?? ""))")
         }
         if subject == .ocr, !ocrSupported { return nil }
+        let startedAt = now().timeIntervalSince1970
+        if let previous = running.withLock({ $0[subject] }) {
+            return .init(state: .dead, checkedAt: startedAt, source: .probe,
+                         error: "the previous Vision \(subject.rawValue) check has not returned for \(Int(startedAt - previous))s")
+        }
         // コンパイル中は Vision が重く、確かめが遅れて死と誤るので撃たない
         if compileActiveCount() > 0 { return nil }
-        guard !hung.withLock({ $0.contains(subject) }) else { return nil }
-        let result: String?? = await DeadlineRace.first(seconds: deadlineSeconds, onTimeout: String??.none) {
-            await Task.detached { await run(subject) }.value
+        running.withLock { $0[subject] = startedAt }
+        let result: String?? = await DeadlineRace.first(seconds: deadline, onTimeout: String??.none) {
+            await Task.detached {
+                let failure = await (probe ?? run)(subject)
+                running.withLock { _ = $0.removeValue(forKey: subject) }
+                return failure
+            }.value
         }
         let checkedAt = now().timeIntervalSince1970
         guard let failure = result else {
-            hung.withLock { _ = $0.insert(subject) }
             return .init(state: .dead, checkedAt: checkedAt, source: .probe,
-                         error: "Vision \(subject.rawValue) check did not finish within \(Int(deadlineSeconds))s")
+                         error: "Vision \(subject.rawValue) check did not finish within \(Int(deadline))s")
         }
         return .init(state: failure == nil ? .alive : .dead, checkedAt: checkedAt, source: .probe, error: failure)
     }

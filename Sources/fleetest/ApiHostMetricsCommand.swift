@@ -19,6 +19,8 @@
 // ②撃つのは誰も FM を使っていないときだけ(FMLivenessProbe.refresh の門①③)= 消費する対象が
 // そもそも無い。既定 OFF なのは、CLI から手で常駐させた host-metrics に FM を消費させないため
 // (拡張のモニターだけが渡す)。
+// Vision の死活(visionOCRState/visionFeaturePrintState)も同じ軸で、`--vision-probe` のときだけ内蔵の絵で自分で確かめる
+// (FTCore.VisionLiveness)。こちらも VisionUsageLedger に書かない = visionCalls の実測を汚さない。
 
 import ArgumentParser
 import Foundation

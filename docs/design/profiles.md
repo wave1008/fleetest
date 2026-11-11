@@ -460,7 +460,11 @@ RecordingIndex.swift・RecordingWallClock.swift)。録画自体の失敗は run 
 切り出しの失敗・固まり、台帳の死への変わり目・死からの回復。起動の識別子と起動からの経過つき = 監視して改善する方針・ユーザー決定)。
 注入は `FT_FAKE_VIDEO_ENCODER_DEAD=1`(ハードウェアに触らずに死を返す)。
 Apple Vision の死活も同じ形(`VisionLiveness` = `~/.fleetest/vision-liveness.json`。OCR と特徴量は別の判定。書き手は `api host-metrics --vision-probe` だけ・
-内蔵の絵で確かめ `VisionUsageLedger` には書かない・OCR モデルのコンパイル中と OCR 非対応の機械の OCR は撃たない。変わり目は `vision-history.ndjson`。
+内蔵の絵で確かめ `VisionUsageLedger` には書かない・OCR モデルのコンパイル中と OCR 非対応の機械の OCR は撃たない。
+期限は `RegionText.modelCompileWaitCap`(OCR はプロセスで最初の1回が認識器のコンパイル = 約 1 分を払う。15 秒の版は健全な機械で死と書いた)・
+期限を過ぎた確かめが返るまでは撃ち重ねず死を書き続ける(撃たずにいると台帳が古くなって不明に戻り、固まった OCR がモニターから消える)。
+**単発の失敗で死と書かない**(連続 `FMBreaker.threshold` 回 = 60 秒間隔で 2〜3 分続いた失敗で書く・生で数え直す。作り直した直後の健全な機械で OCR が1回だけ読めなかった)。
+OCR はそのプロセスで最初の確かめから `modelCompileWaitCap` の間の失敗を数えない(作り直した直後は host-metrics が自分で認識器のコンパイルを払い、その窓の読みは空を返しうる)。変わり目は `vision-history.ndjson`。
 モニターは「⚠︎OCR」「⚠︎FP」を出す(死のときだけ・警告のみで合否には使わない)。注入は `FT_FAKE_VISION_DEAD=ocr|featurePrint|all`)。
 診断手順は docs/verification/operations.md「録画(record:true)の検証」。
 

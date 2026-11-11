@@ -108,6 +108,63 @@ final class VisionLivenessTests: XCTestCase {
         XCTAssertNil(compilingFP)
     }
 
+    /// 単発の失敗で死と書かない: 連続 FMBreaker.threshold 回で初めて書き、生が1回入れば数え直す。注入はすぐ書く
+    func testDeadIsRecordedOnlyAfterConsecutiveFailures() {
+        let dead = VisionLiveness.Verdict(state: .dead, checkedAt: 1, source: .probe, error: "x")
+        let alive = VisionLiveness.Verdict(state: .alive, checkedAt: 1, source: .probe)
+        var streak = 0
+        let first = (1..<FMBreaker.threshold).map { _ in VisionLiveness.shouldRecord(dead, failureStreak: &streak, injected: false) }
+        XCTAssertEqual(first, Array(repeating: false, count: FMBreaker.threshold - 1))
+        XCTAssertTrue(VisionLiveness.shouldRecord(dead, failureStreak: &streak, injected: false))
+        XCTAssertTrue(VisionLiveness.shouldRecord(alive, failureStreak: &streak, injected: false))
+        XCTAssertEqual(streak, 0, "生で数え直す")
+        XCTAssertFalse(VisionLiveness.shouldRecord(dead, failureStreak: &streak, injected: false))
+        var fresh = 0
+        XCTAssertTrue(VisionLiveness.shouldRecord(dead, failureStreak: &fresh, injected: true), "注入は陽性対照なのですぐ書く")
+    }
+
+    /// OCR の初回のコンパイルの窓(最初の確かめから modelCompileWaitCap)の失敗は数えない。窓の後は数える
+    func testOCRFailuresInsideTheCompileWindowAreNotCounted() {
+        let dead = VisionLiveness.Verdict(state: .dead, checkedAt: 1, source: .probe, error: "x")
+        var streak = 0
+        for _ in 0..<5 {
+            XCTAssertFalse(VisionLiveness.shouldRecord(dead, failureStreak: &streak, injected: false, withinCompileGrace: true))
+        }
+        XCTAssertEqual(streak, 0, "窓の中の失敗は連続に数えない")
+        XCTAssertTrue(VisionLiveness.isWithinCompileGrace(firstAttemptAt: 1000, now: 1119))
+        XCTAssertFalse(VisionLiveness.isWithinCompileGrace(firstAttemptAt: 1000, now: 1120))
+        XCTAssertFalse(VisionLiveness.isWithinCompileGrace(firstAttemptAt: nil, now: 1000))
+    }
+
+    /// 期限を過ぎた確かめが返るまでは撃ち重ねず、死を書き続ける(撃たずに nil を返すと台帳が古くなって不明に戻り、
+    /// 固まったままの OCR がモニターから消える)。返れば次から確かめ直す
+    func testHungCheckKeepsReportingDeadUntilItReturns() async throws {
+        let gate = LockedValue(false)
+        let calls = LockedValue(0)
+        let slowProbe: @Sendable (VisionLiveness.Subject) async -> String? = { _ in
+            calls.withLock { $0 += 1 }
+            while !gate.withLock({ $0 }) { try? await Task.sleep(for: .milliseconds(10)) }
+            return nil
+        }
+        func check() async -> VisionLiveness.Verdict? {
+            await VisionLivenessProbe.check(.featurePrint, environment: [:], ocrSupported: true, compileActiveCount: { 0 },
+                                            deadline: 0.1, probe: slowProbe)
+        }
+        let timedOut = await check()
+        XCTAssertEqual(timedOut?.state, .dead)
+        XCTAssertTrue(timedOut?.error?.contains("did not finish") ?? false, timedOut?.error ?? "")
+        let stillRunning = await check()
+        XCTAssertEqual(stillRunning?.state, .dead, "返っていない間は不明にしない")
+        XCTAssertTrue(stillRunning?.error?.contains("has not returned") ?? false, stillRunning?.error ?? "")
+        XCTAssertEqual(calls.withLock { $0 }, 1, "走っている間は撃ち重ねない")
+        gate.withLock { $0 = true }
+        for _ in 0..<200 {
+            if let verdict = await check(), verdict.state == .alive { return XCTAssertEqual(calls.withLock { $0 }, 2) }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("確かめが返った後も確かめ直さない")
+    }
+
     /// OCR 非対応でも特徴量は撃つ(非対応は ocr だけの扱い)。実 Vision を1回通し、使用台帳へ書かないことも確かめる
     func testFeaturePrintProbeIsAliveAndDoesNotCountUsage() async {
         let before = FindImage.featurePrintCount

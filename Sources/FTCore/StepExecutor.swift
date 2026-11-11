@@ -1540,7 +1540,7 @@ public final class StepExecutor {
     var imageMatchScreenshotForNextStep: Data?
     var precedingImageMatchScreenshot: Data?
 
-    /// 落ちたステップに添える絵: 自分の判定の絵 > 直前の照合の絵(`imageMatchScreenshotForNextStep`)。通ったステップは持たない
+    /// 落ちたステップに添える絵: 自分の判定の絵 > 直前のステップの照合の絵(入口で移した `precedingImageMatchScreenshot`)。通ったステップは持たない
     func failureEvidenceImage(_ status: StepResult.Status) -> Data? {
         Self.isSuccess(status) ? nil : (classifierScreenshotThisStep ?? precedingImageMatchScreenshot)
     }
