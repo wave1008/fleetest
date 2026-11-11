@@ -14,7 +14,7 @@ const ROOT = resolve(import.meta.dirname, '../..')
 const source = readFileSync(join(ROOT, 'Scripts/e2ex.sh'), 'utf8')
 
 /** 判定と記録の2ブロックだけを取り出し、変数を差し替えて実行する */
-function runGate({ profile, failed, markers = {}, digest }) {
+function runGate({ profile, failed, markBlocked = failed, markers = {}, digest }) {
   const dir = mkdtempSync(join(tmpdir(), 'e2ex-gate-'))
   mkdirSync(join(dir, '.fleetest'), { recursive: true })
   for (const [name, body] of Object.entries(markers)) {
@@ -33,6 +33,7 @@ function runGate({ profile, failed, markers = {}, digest }) {
     'RUN_IOS=1',
     `IOS_PROFILE=${JSON.stringify(profile)}`,
     `FAILED=${failed}`,
+    `MARK_BLOCKED=${markBlocked}`,
     detect.replace(/^bridge_digest\(\).*$/m, `bridge_digest() { echo ${JSON.stringify(digest)}; }`),
     record,
   ].join('\n')
@@ -82,3 +83,7 @@ test('失敗があれば印を書かない', () => {
   assert.equal(readMarker('inapp-e2ex-verified'), null)
 })
 
+test('赤が印の条件から外す行だけ(Scripts/mark_exclusions.py)なら、失敗のまま印は書く', () => {
+  const { readMarker } = runGate({ profile: 'ios-xcuitest', failed: 1, markBlocked: 0, digest: 'abc' })
+  assert.equal(readMarker('xcuitest-e2ex-verified'), 'abc')
+})

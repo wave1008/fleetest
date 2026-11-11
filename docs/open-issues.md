@@ -28,11 +28,11 @@
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-216 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 13 | OI-121・OI-128・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-125・OI-127・OI-132・OI-135・OI-137・OI-138・OI-146・OI-161・OI-163・OI-164・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-184・OI-198・OI-214 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 27 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 28 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216 |
 
 ## 着手可
 
@@ -40,20 +40,7 @@
 
 ## 要判断
 
-### OI-216 xcuitest モードで、貼り付く見出しのリストの行への tap が何も起こさないまま ✅(E2EX の Flutter・RN・iOS)
-- 状態: 再現済み
-- 確認: 69f3cfe5b(2026-11-11)
-- 属性: 要判断・木に材料なし
-- 運用: 要注意 — tap は ✅ で、後続の結果の検証が赤になる
-- 優先度: 中 — 押した後に結果を確かめるシナリオなら赤にできる
-
-出典: `_work/xcui-20261111`・`_work/fix215`(11/11 の xcuitest の3スイート)。E2EX の「貼り付く見出しのリストを扱えること」S0010 で、`tap("#row_s_F3")`・`tap("#row_s_B1")` が ✅ のあと `textIs("#txt_sticky_result", …)` が赤(「the preceding tap … did not change the screen at all」。Flutter は `found by sweeping back after overshooting it` の注記付き)。inapp-boost モードは緑。
-- 手元の8台へ配った率: E2EX-Flutter は HEAD(69f3cfe5b)2/8・縁から少しはみ出した要素の寄せを遅いドラッグにした版 2/8、E2EX-RN は HEAD 3/8・その版 5/8 = その直しの退行ではない。E2EX-iOS は 11/11 の xcuitest の回帰で M4Max の1本が赤(回し直し 2/2 緑)
-- **原因(11/11 に観測)**: 赤の回は全部、撃った時点の行の中心が貼り付く見出しの帯の下にある(Flutter: `#row_s_F3` 170..187 / 170..215 / 175..231 の中心が、絵で y 約 170〜206 の見出し F の帯の下。木の見出しは文字の枠 `#hdr_F` 16,180 83x20 だけ。RN: `#row_s_B1` 161..205 の中心 183 が `#hdr_B` 156..189 の中)。中心を撃つと見出しに当たる。見出しの下から送り出す段(`TapTargetGeometry.pinnedBandCovering` → `liftCoveredTarget`)は 6fd0771f4(11/5・OI-170 の決定)から塗り順のある木だけ = xcuitest モードの木では飛ばされる。11/1 の印の後に入った門なので、出始めの時期と合う。探索が止まる位置で見出しに掛かるかが決まるので率が割れる
-- **決定の残り半分が届いていない**: OI-170 の決定は「中心を撃ち、後続が赤なら失敗の文言が覆いを名指して直し方を言う」(`coveredTouchHint`)。疑いを控える元(`coveredTouchPlan` の `advisoryKind` の `.overlayCovering` と `otherLayerCoverCandidates`)に貼り付く見出しの形が無いので、赤の文言は「画面が全く変わらなかった・飲まれたかシステムアラート」だけ
-- ①(11/11 済み): 控える元に `pinnedBandCovering` を足した(文言だけ・決定の範囲内。`OtherLayerHitTestWiringTests.testFailureAfterATapUnderAStickyHeaderNamesTheHeader`)
-- ②の材料は無い(11/11 に測定): XCUITest の `isHittable` は見出しの下の行にも true を返す(Flutter: `#row_s_A0` 179..235 の中心 207 が `#hdr_A` の帯 170..210 の下・RN: `#row_s_A0` 162..206 の中心 184 が `#hdr_A` 157..190 の中。どちらも中心を撃つと `sticky=none` のまま = 見出しに当たった。対照の `#row_s_A1` は押せた)。true は見出しの下を見分けられないので門にできない = 送り出しは戻さない(OI-170 の決定のまま)
-- 要判断: xcuitest の印の扱い。このシナリオは xcuitest モードで探索の止まる位置しだいで赤になる(手元8台で 2〜5/8)。失敗の文言は①で見出しを名指して直し方を言う
+(いまこの属性を持つ項目は無い)
 
 ## 木に材料なし
 
@@ -301,6 +288,21 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-216 xcuitest モードで、貼り付く見出しのリストの行への tap が何も起こさないまま ✅(E2EX の Flutter・RN・iOS)
+- 状態: 再現済み
+- 確認: 69f3cfe5b(2026-11-11)
+- 属性: 据え置き・木に材料なし
+- 運用: 要注意 — tap は ✅ で、後続の結果の検証が赤になる(文言が見出しを名指して直し方を言う)
+- 優先度: 中 — 押した後に結果を確かめるシナリオなら赤にできる
+
+出典: `_work/xcui-20261111`・`_work/fix215`(11/11 の xcuitest の3スイート)。E2EX の「貼り付く見出しのリストを扱えること」S0010 で、`tap("#row_s_F3")`・`tap("#row_s_B1")` が ✅ のあと `textIs("#txt_sticky_result", …)` が赤(「the preceding tap … did not change the screen at all」。Flutter は `found by sweeping back after overshooting it` の注記付き)。inapp-boost モードは緑。
+- 手元の8台へ配った率: E2EX-Flutter は HEAD(69f3cfe5b)2/8・縁から少しはみ出した要素の寄せを遅いドラッグにした版 2/8、E2EX-RN は HEAD 3/8・その版 5/8 = その直しの退行ではない。E2EX-iOS は 11/11 の xcuitest の回帰で M4Max の1本が赤(回し直し 2/2 緑)
+- **原因(11/11 に観測)**: 赤の回は全部、撃った時点の行の中心が貼り付く見出しの帯の下にある(Flutter: `#row_s_F3` 170..187 / 170..215 / 175..231 の中心が、絵で y 約 170〜206 の見出し F の帯の下。木の見出しは文字の枠 `#hdr_F` 16,180 83x20 だけ。RN: `#row_s_B1` 161..205 の中心 183 が `#hdr_B` 156..189 の中)。中心を撃つと見出しに当たる。見出しの下から送り出す段(`TapTargetGeometry.pinnedBandCovering` → `liftCoveredTarget`)は 6fd0771f4(11/5・OI-170 の決定)から塗り順のある木だけ = xcuitest モードの木では飛ばされる。11/1 の印の後に入った門なので、出始めの時期と合う。探索が止まる位置で見出しに掛かるかが決まるので率が割れる
+- **決定の残り半分が届いていない**: OI-170 の決定は「中心を撃ち、後続が赤なら失敗の文言が覆いを名指して直し方を言う」(`coveredTouchHint`)。疑いを控える元(`coveredTouchPlan` の `advisoryKind` の `.overlayCovering` と `otherLayerCoverCandidates`)に貼り付く見出しの形が無いので、赤の文言は「画面が全く変わらなかった・飲まれたかシステムアラート」だけ
+- ①(11/11 済み): 控える元に `pinnedBandCovering` を足した(文言だけ・決定の範囲内。`OtherLayerHitTestWiringTests.testFailureAfterATapUnderAStickyHeaderNamesTheHeader`)
+- ②の材料は無い(11/11 に測定): XCUITest の `isHittable` は見出しの下の行にも true を返す(Flutter: `#row_s_A0` 179..235 の中心 207 が `#hdr_A` の帯 170..210 の下・RN: `#row_s_A0` 162..206 の中心 184 が `#hdr_A` 157..190 の中。どちらも中心を撃つと `sticky=none` のまま = 見出しに当たった。対照の `#row_s_A1` は押せた)。true は見出しの下を見分けられないので門にできない = 送り出しは戻さない(OI-170 の決定のまま)
+- 印の扱い(11/11 ユーザー決定): このシナリオは xcuitest モードで探索の止まる位置しだいで赤になる(手元8台で 1〜5/8)ので、xcuitest の印の条件からだけ外す(`Scripts/mark_exclusions.py`。シナリオは回し続け、外した赤は名指す)。失敗の文言は①で見出しを名指して直し方を言う
 
 ### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・CMP のドロップダウンを開いたままの type の文言・セレクタの末尾の空白ほか
 - 状態: 再現済み

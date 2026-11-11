@@ -6,7 +6,7 @@
 #      リモートはアライン済みのランナーのクローンで起こす = **先に Scripts/align.sh(未コミットの変更も送る)**
 #   2. 回帰の対象の一覧(スイート × SUT × OS/モード)を --target に並べて fleetest run を1回
 #   3. スクリプトが run ごとにしていた後始末: in-app の証人(E2E-CMP)・画像分類器を使えなかったシナリオを赤にする・
-#      全部緑のときだけ検証済みの印・推奨(verification_watch.py stale)・--negative なら陽性対照
+#      全部緑のとき(赤が mark_exclusions.py の表の行だけのときも)検証済みの印・推奨(verification_watch.py stale)・--negative なら陽性対照
 # 使えるマシン = この Mac + `fleetest remote machines list --json` の enabled のもの。各プロファイルの devices[].machine が
 # 並べたマシンのデバイスだけが使われる(E2EX / E2EY のプロファイルにもリモートの項目がある。スクリプトは --runner local で回す)。
 #
@@ -20,6 +20,8 @@
 import argparse, glob, json, os, shlex, signal, subprocess, sys, threading, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "Scripts"))
+import mark_exclusions  # noqa: E402  印の条件から外す赤(e2ex.sh と共有)
 FLEETEST = os.path.join(ROOT, ".build", "debug", "fleetest")
 REMOTE_CLONE = "~/fleetest-runner/fleetest"
 SSH_UNREACHABLE = 255
@@ -319,7 +321,13 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started):
     print(f"全体の所要: {(time.time() - started) / 60:.1f} 分")
 
     all_green = run_ok and witness_ok and not degraded
-    if all_green and not suts:
+    # 赤が全部「印の条件から外す赤」(mark_exclusions.py)なら印だけは書く。終了コードは赤のまま・外した赤は名指す
+    excluded = None if run_ok else mark_exclusions.excluded_reds([(p, q) for _, p, q in targets], run_started)
+    if excluded:
+        print(f"⚠️ 印の条件から外した赤 {len(excluded)} 本(赤はこれだけ。シナリオは回し続ける):")
+        for project, profile, sid, reason in excluded:
+            print(f"   {project} / {profile}: {sid}({reason})")
+    if (all_green or (excluded and witness_ok and not degraded)) and not suts:
         # スクリプトが全体を回したときと同じ印。iOS の対象をそのモードで全部回したスイートだけ書く
         for suite in suites:
             for mode, profile in (("inapp", "ios-inapp-boost"), ("xcuitest", "ios-xcuitest")):

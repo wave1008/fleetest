@@ -126,19 +126,29 @@ fi
 . "$ROOT/Scripts/sut-rebuild.sh"
 
 FAILED=0
+# 印を止める赤があったか。赤が全部 Scripts/mark_exclusions.py の表の行なら FAILED だけ立てて印は止めない(regress.py と共有)
+MARK_BLOCKED=0
 # ${RESULTS} と括る: bash 3.2 は $RESULTS の直後の絵文字の先頭バイトを変数名に含めて unbound で落ちる
 RESULTS=""
 run_profile() {  # $1 = プロジェクト名, $2 = プロファイル名
   if [ "$BUILD_ONLY" = 1 ]; then return 0; fi
   echo ""
   echo "═══ $1 / $2 ═══"
+  local started excluded
+  started=$(date +%s)
   if "$FLEETEST" run --project "$1" --profile "$2" --runner local $RECORD_FLAG; then
     RESULTS="${RESULTS}✅ $1 / $2
 "
+  elif excluded=$(python3 "$ROOT/Scripts/mark_exclusions.py" "$1" "$2" "$started"); then
+    RESULTS="${RESULTS}❌ $1 / $2(赤は印の条件から外した分だけ:
+${excluded})
+"
+    FAILED=1
   else
     RESULTS="${RESULTS}❌ $1 / $2
 "
     FAILED=1
+    MARK_BLOCKED=1
   fi
 }
 
@@ -199,9 +209,10 @@ if [ "$FAILED" = 0 ]; then
 else
   echo "❌ E2EX に失敗があります(レポート: TestProjects/E2EX-*/reports/)"
 fi
-# **印を更新するのは全部成功したときだけ**(失敗したまま更新すると「検証済み」と言い張る装置になる)。
+# **印を更新するのは全部成功したときだけ**(失敗したまま更新すると「検証済み」と言い張る装置になる)。例外は赤が全部
+# Scripts/mark_exclusions.py の表の行のときだけ(上の RESULTS で名指し済み・終了コードは赤のまま)。
 # `[ … ] && { … }` の形にしない(偽のとき終了ステータス 1 を残す。Scripts/e2e.sh の末尾と同じ理由)
-if [ "$FAILED" = 0 ] && [ "$RUN_IOS" = 1 ]; then
+if [ "$MARK_BLOCKED" = 0 ] && [ "$RUN_IOS" = 1 ]; then
   MARKER="$(bridge_marker "$RUN_MODE")"
   mkdir -p "$(dirname "$MARKER")"
   bridge_digest "$RUN_MODE" > "$MARKER"
