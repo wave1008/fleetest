@@ -221,7 +221,8 @@ public enum DeviceBooter {
         guard !force, let pid = keys.lazy.compactMap(mcpHolderPID).first else { return nil }
         return "refusing to stop: \(deviceName) is being driven by an MCP session"
             + " (pid \(pid)\(ProcessLiveness.orphanedLauncherClause(sessionPID: pid)))."
-            + " Finish that session or point it at another device" + forceClause
+            + " Finish that session or point it at another device, or have it call the MCP tool"
+            + " ft_release_device to let go of this one" + forceClause
     }
 
     /// デバイスを止める操作の門(run-lease → MCP の印の順)。止める4経路(停止・一括停止・再起動・Wipe)に加え、
@@ -268,7 +269,8 @@ public enum DeviceBooter {
         guard !force, !holders.isEmpty else { return nil }
         let list = holders.map { "\($0.device) (pid \($0.pid))" }.joined(separator: ", ")
         return "an MCP session is driving \(list)."
-            + " Finish that session, or pass --force to stop it anyway."
+            + " Finish that session, have it call the MCP tool ft_release_device for that device,"
+            + " or pass --force to stop it anyway."
     }
 
     /// 全掃討(`devices down` のプロファイル無し)の門。掃討は `simctl shutdown all`・全エミュレータ・

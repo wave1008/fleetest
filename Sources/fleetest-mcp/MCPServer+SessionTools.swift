@@ -499,12 +499,28 @@ extension MCPServer {
     }
 
     /// テスト対象でないシステムのアプリは撃つ前に断る(nil = 撃ってよい)。**iOS の Apple のアプリ**(`com.apple.*`・SpringBoard)は
-    /// データを消せず入れ直しもできない。**Android のシステムのパッケージ**は連絡先・メッセージ等の利用者データを1回の承認で消せる
+    /// 実機ではデータを消せず入れ直しもできない(Simulator の `com.apple.*` は `appleSystemAppDecision` が消す側へ回す。SpringBoard はどこでも断る)。
+    /// **Android のシステムのパッケージ**は連絡先・メッセージ等の利用者データを1回の承認で消せる
     /// ので、このセッションが起動したもの(テスト対象)以外を断る。`com.apple.` は Android では普通のパッケージ名(Apple Music 等)
     static func appleSystemAppRefusal(_ bundleID: String) -> String? {
         guard bundleID == MCPServer.springboardBundleID || bundleID.hasPrefix("com.apple.") else { return nil }
         return "\(bundleID) is an Apple system app (the home screen, Safari, Settings …), not an app under test —"
-            + " its data cannot be wiped by this tool and it cannot be reinstalled. Nothing was sent."
+            + " its data cannot be wiped on a physical iPhone (no way to wipe it, and it cannot be reinstalled), and"
+            + " SpringBoard is never wiped. On an iOS Simulator other com.apple.* apps can be wiped. Nothing was sent."
+    }
+
+    enum AppleAppClearDecision: Equatable {
+        case notApple
+        case refuse(String)
+        case wipeOnSimulator
+    }
+
+    /// iOS の `com.apple.*` の ft_clear_app_data の振り分け。Simulator だけ消す(`AppleSimulatorWipe`)。
+    /// `isPhysical` が nil(宛先が Simulator だと確かめられない)は実機と同じく断る
+    static func appleSystemAppDecision(bundleID: String, isAndroid: Bool, isPhysical: Bool?) -> AppleAppClearDecision {
+        guard !isAndroid, let refusal = appleSystemAppRefusal(bundleID) else { return .notApple }
+        guard bundleID != MCPServer.springboardBundleID, isPhysical == false else { return .refuse(refusal) }
+        return .wipeOnSimulator
     }
 
     func clearAppDataSystemTargetRefusal(_ bundleID: String, driver: AppDriver, args: [String: Any]) async -> String? {
@@ -525,12 +541,24 @@ extension MCPServer {
         resetOnceNotes(forScope: noteScope)
         let bundleID = try Self.requiredStringArgument(args, "bundleId")
         if let refusal = Self.bridgeSelfRefusal(tool: "ft_clear_app_data", bundleID: bundleID) { throw MCPError(refusal) }
-        // Apple のアプリはドライバを作る前に断る(作るとブリッジの自動起動を払ってから断ることになる)。Android の宛先は下で判定する
+        // Apple のアプリは実機・SpringBoard ならドライバを作る前に断る(作るとブリッジの自動起動を払ってから断ることになる)。
+        // Simulator の com.apple.* は下で消す。宛先がまだ分からなければドライバを作ってから判定する。Android の宛先は下で判定する
         // プラットフォームは他の道具と同じ判定(明示・宛先・profile・FLEETEST_PLATFORM)で決める
-        if Self.platformName(args) != "android", let refusal = Self.appleSystemAppRefusal(bundleID) {
-            throw MCPError(refusal)
+        let clearIsAndroid = Self.platformName(args) == "android"
+        var appleDecision = Self.appleSystemAppDecision(bundleID: bundleID, isAndroid: clearIsAndroid, isPhysical: false)
+        if appleDecision == .wipeOnSimulator {
+            let preKey = Self.sessionKey(args)
+            if iosTargetUDID(key: preKey, args: args) != nil {
+                appleDecision = Self.appleSystemAppDecision(
+                    bundleID: bundleID, isAndroid: false,
+                    isPhysical: await isPhysicalIOSDevice(key: preKey, args: args))
+            }
         }
+        if case .refuse(let refusal) = appleDecision { throw MCPError(refusal) }
         let clearAppDataDriver = try await driver(args)
+        if appleDecision == .wipeOnSimulator {
+            return try await clearAppleAppOnSimulator(bundleID: bundleID, args: args)
+        }
         if let refusal = await clearAppDataSystemTargetRefusal(bundleID, driver: clearAppDataDriver, args: args) {
             throw MCPError(refusal)
         }
@@ -619,6 +647,27 @@ extension MCPServer {
         return text(springBoardNote + (clearedSessionApp
             ? "Cleared the data of \(bundleID). The app is stopped — ft_launch to continue"
             : "Cleared the data of \(bundleID). It is stopped; this session's app (\(launchedBundleIDs[clearAppDataKey] ?? "")) was not touched"))
+    }
+
+    /// Simulator の `com.apple.*`: データコンテナと App Group コンテナを空にする(MCP だけの経路。DSL は通らない)。
+    /// 宛先 udid が決まらない・実機と判明したら消さずに断る
+    private func clearAppleAppOnSimulator(bundleID: String, args: [String: Any]) async throws -> [[String: Any]] {
+        let key = Self.sessionKey(args)
+        let udid = iosTargetUDID(key: key, args: args)
+        let physical = udid == nil ? nil : await isPhysicalIOSDevice(key: key, args: args)
+        guard let udid, case .wipeOnSimulator = Self.appleSystemAppDecision(bundleID: bundleID, isAndroid: false, isPhysical: physical) else {
+            throw MCPError((Self.appleSystemAppRefusal(bundleID) ?? "")
+                + " (could not confirm that the target is an iOS Simulator — pass udid: <the Simulator's UDID>.)")
+        }
+        SlowCallWatchdog.mark("clearing the app's data")
+        let report = try await BlockingWork.offPool(name: "fleetest-mcp-clear-app-data") {
+            try AppleSimulatorWipe.wipe(bundleID: bundleID, udid: udid)
+        }
+        systemAlertProbePending.insert(key)
+        if launchedBundleIDs[key].map({ $0 == bundleID }) ?? true { toolStoppedBundleIDs[key] = "ft_clear_app_data" }
+        recordClearAppData(bundleID: bundleID, args: args)
+        return text(AppleSimulatorWipe.summary(bundleID: bundleID, report: report)
+            + "\nThe app is stopped — ft_launch to continue")
     }
 
     /// 下書きへ `clearAppData("<bundle ID>")` を残す(DSL に同じコマンドがある。実機の再インストールでも

@@ -33,7 +33,8 @@ extension MCPServer {
 
     /// udid を取るが、ブリッジを通らずに読むツール。畳み込みの走査で落ちると、死んだブリッジの後に
     /// 何も読めない。udid は自前で解決する(ftLogs = セッションの記憶と BridgeDeviceRecord)
-    static let toolsResolvingUDIDWithoutBridge: Set<String> = ["ft_logs"]
+    /// ft_release_device は死んだブリッジの後にこそ撃つ(止めた後に手放す)ので、走査で落とさない(udid は lease の鍵にそのまま使う)
+    static let toolsResolvingUDIDWithoutBridge: Set<String> = ["ft_logs", "ft_release_device"]
 
     /// udid → port の畳み込み(ブリッジ走査)を撃つツールか。**スキーマに `udid` を宣言したツールだけ**
     /// (`toolsResolvingUDIDWithoutBridge` を除く)

@@ -169,12 +169,14 @@ enum RefGuard {
     /// `AlertTreeScope.frontInAppAlert`。既定値を置かない = 呼び手に決めさせる)。アラートの間は木がその中身だけになるので
     /// 的は「消えた」ように見えるが、閉じれば戻る —— 「画面が変わった」と言うと読み手は撮り直しを1回払ってから気づく(計測)
     static func goneMessage(ref: Int, target: ElementInfo, truncatedCount: Int = 0,
-                            keyboardShown: Bool = false, inAppAlert: (alert: ElementInfo, buttons: [String])?) -> String {
+                            keyboardShown: Bool = false,
+                            inAppAlert: (alert: ElementInfo, buttons: [String], buttonRefs: [Int])?,
+                            currentCounterpart: String = "") -> String {
         let truncated = truncatedCount > 0
             ? " (or it was pushed out of the tree: \(truncatedCount) element(s) were omitted"
                 + " by the snapshot limit)"
             : ""
-        if let (alert, buttons) = inAppAlert {
+        if let (alert, buttons, buttonRefs) = inAppAlert {
             // 的がそのアラートの中身(入力欄など)なら「アラートのボタンを押せ」は誤誘導 —— 従うと的ごと閉じる。
             // 古い ref が再照合できなかっただけなので、撮り直して新しい ref を使わせる
             if TapTargetGeometry.contains(alert.frame, target.frame) {
@@ -182,7 +184,10 @@ enum RefGuard {
                     + " (the alert is still open) — take a fresh ft_snapshot and use the new ref."
                     + " Do not tap the alert's buttons unless you mean to close it."
             }
-            let named = buttons.isEmpty ? "" : " (buttons: " + buttons.map { "\"\($0)\"" }.joined(separator: " / ") + ")"
+            // ref つき(["[12] \"OK\""])。数が合わないときは ref を付けない(ずれた ref を渡さない)
+            let named = buttons.isEmpty ? "" : " (buttons: " + buttons.enumerated().map { index, label in
+                buttonRefs.count == buttons.count ? "[\(buttonRefs[index])] \"\(label)\"" : "\"\(label)\""
+            }.joined(separator: " / ") + ")"
             return "[\(ref)] \(describe(target)) is not reachable right now — \(describe(alert))\(named) is in front"
                 + " of the app. Handle it first (ft_tap one of its buttons), then take a fresh ft_snapshot."
         }
@@ -190,10 +195,29 @@ enum RefGuard {
             return "[\(ref)] \(describe(target)) is no longer in the tree — the on-screen keyboard"
                 + " is up and may be covering it (or the screen changed after that ft_snapshot)\(truncated)."
                 + " Dismiss the keyboard (ft_hide_keyboard) and take a fresh ft_snapshot,"
-                + " then use the new ref."
+                + " then use the new ref." + currentCounterpart
         }
         return "[\(ref)] \(describe(target)) is no longer in the tree — the screen changed after"
-            + " that ft_snapshot\(truncated). Take a fresh ft_snapshot and use the new ref."
+            + " that ft_snapshot\(truncated). Take a fresh ft_snapshot and use the new ref." + currentCounterpart
+    }
+
+    /// 断った的と**同じ素性**の要素が今の木にちょうど1つあれば、その ref と(分かれば)セレクタを1節で言う。
+    /// 素性は id、無ければラベル+型。0件・2件以上は黙る(当てずっぽうの候補を渡さない)。
+    /// **撃ち直しは勧めない**(届いていない確証のある断りでも、画面が違えば別の物に当たる。読み手が撮り直して選ぶ)。
+    /// `selector` は呼び手の SelectorNaming(graded)を渡す = 採番規則を2つ持たない
+    static func currentCounterpartClause(for target: ElementInfo, in fresh: [ElementInfo],
+                                         selector: (ElementInfo) -> String?) -> String {
+        let matches: [ElementInfo]
+        if let id = target.identifier, !id.isEmpty {
+            matches = fresh.filter { $0.identifier == id }
+        } else if let label = target.label, !label.isEmpty {
+            matches = fresh.filter { $0.label == label && $0.type == target.type }
+        } else {
+            return ""
+        }
+        guard matches.count == 1, let now = matches.first else { return "" }
+        return " Currently the only same-looking element is [\(now.ref)] \(describe(now))"
+            + (selector(now).map { " (selector: \($0))" } ?? "") + " — check it is the one you mean before using it."
     }
 
     /// **撃つ。ただし何に当たったかもしれないかを言う**(拒否から後退した経緯がある)。
@@ -540,7 +564,16 @@ enum RefGuard {
 
     /// 付け替えの結果を呼び手が使える形にする(断りは throw する文言・注記は撃った後の応答へ足す文)。**全呼び手が同じ口**
     static func retargetOutcome(ref: Int, target: ElementInfo, found: ElementInfo, in fresh: [ElementInfo],
-                                taken: [ElementInfo], ownActionSince: Bool) -> (refusal: String?, note: String) {
+                                taken: [ElementInfo], ownActionSince: Bool,
+                                selector: (ElementInfo) -> String?) -> (refusal: String?, note: String) {
+        let result = retargetOutcomeCore(ref: ref, target: target, found: found, in: fresh,
+                                         taken: taken, ownActionSince: ownActionSince)
+        guard let refusal = result.refusal else { return result }
+        return (refusal + currentCounterpartClause(for: target, in: fresh, selector: selector), result.note)
+    }
+
+    private static func retargetOutcomeCore(ref: Int, target: ElementInfo, found: ElementInfo, in fresh: [ElementInfo],
+                                            taken: [ElementInfo], ownActionSince: Bool) -> (refusal: String?, note: String) {
         let labelNote = labelChangeNote(old: target.label, new: found.label) ?? ""
         switch retargetVerdict(target: target, found: found, in: fresh, taken: taken, ownActionSince: ownActionSince) {
         case .proceed:

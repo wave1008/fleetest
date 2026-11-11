@@ -848,7 +848,7 @@ final class MCPToolCallTests: XCTestCase {
     ]
     /// ドライバを掴まないがホストの外部コマンド(simctl / adb)やファイル走査を伴うので
     /// ここでは呼ばない。名前の集合だけで宣言と dispatch の対応を担保する
-    private static let hostBackedTools: Set<String> = ["ft_list_devices", "ft_logs"]
+    private static let hostBackedTools: Set<String> = ["ft_list_devices", "ft_logs", "ft_release_device"]
 
     func testDriverBackedToolsAreAllDispatched() async {
         for name in Self.driverBackedTools {

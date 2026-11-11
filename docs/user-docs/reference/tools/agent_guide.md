@@ -11,7 +11,7 @@ read the runbook when you need the full rules.
 1. **Pick the device.** `ft_list_devices`, then pass the same `profile:` (a run profile name) — or
    `udid:` / `port:` / `serial:` — to every `ft_*` call, so exploring and running use one device.
 2. **Explore.** `ft_launch` the app, then `ft_snapshot`. Each row is
-   `[ref] Type "label" id=… (x,y WxH)`. Move with `ft_tap` / `ft_type` (by `ref`; to fire by selector, use `ft_batch`).
+   `[ref] Type "label" id=… (x,y WxH)`. Move with `ft_tap` / `ft_type` by `selector` (`#id` or a label — it survives redraws, alerts and scrolls that make refs stale, and the step becomes a scenario line as written); use `ref` or x/y only for parts with no label or id. Once you can name several steps by selector, `ft_batch` runs them in one call.
    For long lists use `ft_scroll_to` with a selector instead of repeating `ft_swipe`.
    Take a snapshot of every screen you pass — the dry-run checks `#id`s against them.
 3. **Draft.** `ft_draft_scenario` turns the operations since the last `ft_launch` into Swift and

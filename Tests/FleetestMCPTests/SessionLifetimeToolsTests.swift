@@ -50,13 +50,14 @@ final class SessionLifetimeToolsTests: XCTestCase {
         XCTAssertNil(plain)
     }
 
-    /// iOS の Apple のアプリはドライバを作る前に断る(作ると、ブリッジの居ない udid でランナーの自動起動を払ってから断っていた)
+    /// SpringBoard はドライバを作る前に断る(作ると、ブリッジの居ない udid でランナーの自動起動を払ってから断っていた)。
+    /// 他の com.apple.* は宛先が Simulator と分かれば消す(宛先未確定ならドライバを作ってから判定する)
     func testAppleAppIsRefusedBeforeTheDriverIsMade() async {
         let made = LockedValue(false)
         let server = MCPServer(write: { _ in }, makeDriver: { _ in made.withLock { $0 = true }; return FakeDriver() },
                                recordSnapshot: { _, _, _ in })
         do {
-            _ = try await server.call(tool: "ft_clear_app_data", args: ["bundleId": "com.apple.mobilesafari"])
+            _ = try await server.call(tool: "ft_clear_app_data", args: ["bundleId": MCPServer.springboardBundleID])
             XCTFail("断らなかった")
         } catch {
             XCTAssertTrue(error.localizedDescription.contains("Apple system app"), error.localizedDescription)

@@ -83,6 +83,11 @@ extension MCPServer {
         return props
     }
     nonisolated(unsafe) static let refProperty: [String: Any] = ["type": "integer", "description": "ft_snapshot ref"]
+    /// ref の代わりの指し方。**説明に `a||b` を残す**(`selectorQuoteStrippedKeys` との同期テストの印)
+    nonisolated(unsafe) static let selectorTargetProperty: [String: Any] = [
+        "type": "string",
+        "description": "Preferred over ref: resolved on a fresh tree like a scenario line (#id, label, .type, a||b)",
+    ]
     nonisolated(unsafe) static let pointXProperty: [String: Any] = ["type": "number", "description": "ft_snapshot coordinates"]
     nonisolated(unsafe) static let pointYProperty: [String: Any] = ["type": "number", "description": "ft_snapshot coordinates"]
     nonisolated(unsafe) static let bundleIdProperty: [String: Any] = [
@@ -172,6 +177,12 @@ extension MCPServer {
         the target. \
         Every tree-returning call (ft_snapshot, snapshotAfter, ft_scroll_to) inherits interactiveOnly/expandBulk from \
         the last call that passed them unless passed explicitly; the first response that inherits a value says so.
+
+        Prefer selectors over refs: ft_tap / ft_type / ft_long_press / ft_double_tap / ft_clear_input take \
+        `selector` (same syntax and resolution as a scenario line, matched on a fresh tree) and it survives \
+        redraws, alerts and scrolls that make refs stale; the passing step is a scenario line as written. \
+        Use ref (or x/y) only for parts with no label or id. If a selector matches several elements the one a \
+        scenario line would pick is acted on and the reply says so.
 
         Once you can name the next few steps by selector — typically right after reading a tree \
         — ft_batch runs them in one call and one approval, and a batch that passes converts 1:1 \
@@ -266,6 +277,13 @@ extension MCPServer {
             "sinceSeconds": ["type": "integer", "description": "How far back to look (default \(logsDefaultSinceSeconds))"],
             "all": ["type": "boolean", "description": "Android: read the main buffer too, not just crashes"],
         ], scope: .none),
+        tool("ft_release_device", "Let go of a device you are done driving, so `fleetest bridge down` and other "
+            + "stops stop treating this MCP session as holding it (without this they refuse until the session "
+            + "ends, or --force). Drops this session's hold mark and its memory of the device (snapshots, refs, "
+            + "launched app, default target — a later call naming no target is then refused rather than "
+            + "re-grabbing it). Does NOT stop the bridge, the app or the device, and does not need the bridge to "
+            + "be alive. Only this session's own hold is removed, never another session's. Any later device "
+            + "tool call on the device simply takes the hold again", [:]),
         tool("ft_install", "Install a package (iOS: .app / Android: .apk, or .apks via bundletool)", [
             "packagePath": ["type": "string", "description": "Absolute path"],
         ], required: ["packagePath"]),
@@ -287,24 +305,27 @@ extension MCPServer {
                 + "intent target). Default: the last ft_launch"],
         ], extra: afterActionProperties(), required: ["url"]),
         tool("ft_snapshot", "Get the current screen's element list. Line: [ref] Type \"label\" id=... (x,y WxH); "
-            + "lines marked scroll are containers usable as scrollFrame. Use refs for tap/type. "
+            + "lines marked scroll are containers usable as scrollFrame. Act by selector (#id / label) when the "
+            + "line has one — refs only for unlabeled parts. "
             + "waitFor polls for you", [
             "waitFor": ["type": "string", "description": "Wait until this selector is on screen (#id, label, .type, a||b)"],
             "waitSeconds": ["type": "number", "description": "Max wait for waitFor (default \(number(defaultWaitSeconds)))"],
             "maxElements": maxElementsProperty,
         ], extra: foldingProperties),
-        tool("ft_tap", "Tap an element (ref) or a point (x,y). A ref is re-checked against a fresh tree: "
+        tool("ft_tap", "Tap an element by selector (preferred: survives redraws, and the step becomes a scenario line), "
+            + "by ref (unlabeled parts), or a point (x,y). A ref is re-checked against a fresh tree: "
             + "moved → retargeted, gone → refused, scroll leftover → tapped with a warning. " + coordinateCaveat, [
-            "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
+            "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
             "alertButton": ["type": "string", "description": "iOS: press this button of the system "
                 + "alert (SpringBoard) in front of the app, then return to the app — the alert note names "
                 + "its buttons"],
         ], extra: afterActionProperties()),
-        tool("ft_type", "Type text; with ref it taps the field and waits for focus. APPENDS by default — "
+        tool("ft_type", "Type text; with selector (preferred) or ref it taps the field and waits for focus. APPENDS by default — "
             + "replace: true (or ft_clear_input) to replace. Typing never closes the keyboard; Enter "
             + "usually does on UIKit/SwiftUI but not on Compose/Flutter — do not retry pressEnter to close it", [
             "text": ["type": "string", "description": "Omit to fire Enter only"],
             "pressEnter": ["type": "boolean", "description": "Fire the Enter/IME action (search, submit)"],
+            "selector": selectorTargetProperty,
             "ref": ["type": "integer", "description": "Input field ref (default: the focused element)"],
             // **値段と、二重払いの避け方まで書く**: replace は素の type の
             // 約2倍かかる(実測 6.1s 対 2.3s)。内訳は clear の1往復と、**打った結果の読み返し**
@@ -354,7 +375,7 @@ extension MCPServer {
             + "irregularHandler '<interruption>' dismiss: '<button>' declares a dialog that may pop up: a later "
             + "step of this call closes it if it is showing before that step acts (not carried over to the next call). "
             + "Only the FIRST step may use ref: N (re-checked, then converted to its selector; refused "
-            + "when no unique selector exists — ft_tap it instead); later steps need selectors, since "
+            + "when no unique selector exists — ft_tap it instead, or write the selector yourself); later steps need selectors, since "
             + "an earlier step can make a ref stale", [
             "steps": ["type": "string",
                       "description": "Up to \(batchStepLimit) DSL lines separated by ';' or newlines, "
@@ -397,12 +418,15 @@ extension MCPServer {
             afterActionProperties()),
         tool("ft_clear_app_data", "Wipe the app's data and permissions; stops the app (ft_launch after). "
             + "Scenarios start from clearAppData(), so explore from this state. An iOS physical device "
-            + "reinstalls instead — pass packagePath or ft_install first", [
+            + "reinstalls instead — pass packagePath or ft_install first. Apple apps (com.apple.*): Simulator "
+            + "only — the data container and its app group containers are emptied (the reply lists what was "
+            + "and was not wiped); refused on a physical iPhone and for SpringBoard", [
             "bundleId": bundleIdProperty,
             "packagePath": ["type": "string", "description": "iOS physical device: .app/.ipa to "
                 + "reinstall (default: the last ft_install)"],
         ], required: ["bundleId"]),
         tool("ft_clear_input", "Empty an input field (ft_type appends, so clear first to replace)", [
+            "selector": selectorTargetProperty,
             "ref": ["type": "integer", "description": "Field ref (default: the focused one)"],
             "fmAndVision": fmAndVisionProperty,
         ], extra: afterActionProperties()),
@@ -433,10 +457,10 @@ extension MCPServer {
             "project": ["type": "string", "description": "Project whose helpers to list (default: "
                 + "the only or default project)"],
         ], scope: .none),
-        tool("ft_double_tap", "Double-tap an element (ref) or a point (x,y); two ft_tap calls miss the OS "
+        tool("ft_double_tap", "Double-tap an element (selector preferred, or ref) or a point (x,y); two ft_tap calls miss the OS "
             + "double-tap window. MCP drives iOS through XCUITest only, where Compose apps never receive the "
             + "double tap — a scenario in the default inapp-boost mode delivers it. " + coordinateCaveat, [
-            "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
+            "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
         ], extra: afterActionProperties()),
         tool("ft_drag", "Drag between points — for diagonal pans, and to expand a bottom sheet (drag its "
             + "grabber up). Start at fromRef (re-checked) or fromX/fromY; end at toX/toY or move by "
@@ -501,9 +525,9 @@ extension MCPServer {
         // **名前が「長押し」と言い切っていること**。ツールの説明が
         // 遅延ロードされるクライアントでは、呼ぶかどうかを**名前だけ**で決める瞬間があり、
         // 「press」だけだと「ハードウェアキーを押す」と読まれる
-        tool("ft_long_press", "Long-press (press and hold — NOT a hardware key) an element (ref) or a "
+        tool("ft_long_press", "Long-press (press and hold — NOT a hardware key) an element (selector preferred, or ref) or a "
             + "point (x,y — e.g. on a map, where the point has no element). " + coordinateCaveat, [
-            "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
+            "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
             "holdSeconds": ["type": "number", "description": "Hold time (default \(number(defaultLongPressHoldSeconds)), as the DSL's "
                 + "tap(holdSeconds:))"],
             "maxGestureSeconds": maxGestureSecondsProperty,

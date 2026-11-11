@@ -18,6 +18,54 @@ final class AndroidBridgeDowngradeGuardTests: XCTestCase {
         XCTAssertTrue(text.contains("update"), text)
     }
 
+    /// 最新リリースの利用者には「fleetest を更新」が効かないので、必ず効く「端末から消す」を先に置く
+    func testRemovingTheBridgeIsOfferedBeforeUpdatingFleetest() throws {
+        let text = try XCTUnwrap(AndroidDriver.downgradeRefusal(installed: 62, expected: 61, serial: "emulator-5554"))
+        let remove = try XCTUnwrap(text.range(of: "(1) removing the newer bridge"), text)
+        let update = try XCTUnwrap(text.range(of: "(2) if a newer fleetest release exists"), text)
+        XCTAssertLessThan(remove.lowerBound, update.lowerBound, text)
+        XCTAssertTrue(text.contains("reinstalled automatically"), text)
+    }
+
+    func testAddendumIsAppendedOnlyWhenGiven() throws {
+        let plain = try XCTUnwrap(AndroidDriver.downgradeRefusal(installed: 62, expected: 61))
+        let with = try XCTUnwrap(AndroidDriver.downgradeRefusal(installed: 62, expected: 61, addendum: "ADDENDUM-X"))
+        XCTAssertFalse(plain.contains("ADDENDUM-X"), plain)
+        XCTAssertTrue(with.hasSuffix("ADDENDUM-X"), with)
+    }
+
+    // MARK: - installDecision(adb 無しで判定を固定する)
+
+    func testDecisionNewerInstalledIsUsedAsIsOnlyWhenAccepted() {
+        XCTAssertEqual(AndroidDriver.installDecision(installed: 62, expected: 61, acceptsNewer: true), .useAsIs)
+        guard case .refuse(let text) = AndroidDriver.installDecision(installed: 62, expected: 61, acceptsNewer: false,
+                                                                      serial: "s", addendum: "ADD") else {
+            return XCTFail("許可が無いのに新しいブリッジを拒否しなかった")
+        }
+        XCTAssertTrue(text.contains("v62"), text)
+        XCTAssertTrue(text.hasSuffix("ADD"), text)
+    }
+
+    func testDecisionOlderOrMissingInstallsRegardlessOfPermission() {
+        for accepts in [false, true] {
+            XCTAssertEqual(AndroidDriver.installDecision(installed: 60, expected: 61, acceptsNewer: accepts), .install)
+            XCTAssertEqual(AndroidDriver.installDecision(installed: nil, expected: 61, acceptsNewer: accepts), .install)
+        }
+    }
+
+    func testDecisionEqualIsUsedAsIs() {
+        XCTAssertEqual(AndroidDriver.installDecision(installed: 61, expected: 61, acceptsNewer: false), .useAsIs)
+    }
+
+    /// 許可は呼び手の明示だけ: 既定の init は false(DSL・CLI は拒否のまま)
+    func testNewerBridgeIsNotAcceptedByDefault() {
+        XCTAssertFalse(AndroidDriver(serial: "s", adbPath: "/usr/bin/true").acceptsNewerInstalledBridge)
+        XCTAssertFalse(AndroidDriver(serial: "s", adbPath: "/usr/bin/true").isAcceptableRunningVersion(
+            AndroidDriver.expectedBridgeVersionCode + 1))
+        XCTAssertTrue(AndroidDriver(serial: "s", adbPath: "/usr/bin/true").isAcceptableRunningVersion(
+            AndroidDriver.expectedBridgeVersionCode))
+    }
+
     func testInstalledEqualToExpectedReturnsNil() {
         XCTAssertNil(AndroidDriver.downgradeRefusal(installed: 61, expected: 61))
     }

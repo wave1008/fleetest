@@ -32,9 +32,14 @@ public enum AlertTreeScope {
     /// アラートの中の押せる要素のラベル(注記に並べる)。**アラートの枠に収まるものだけ** —— 入力欄つきの
     /// アラートではキーボード(予測変換の候補)が部分木に入り、ボタンとして並んでしまう
     public static func buttonLabels(of alert: ElementInfo, in snapshot: SnapshotResponse) -> [String] {
+        buttonElements(of: alert, in: snapshot).compactMap { $0.label.map(SnapshotRenderer.displayText) }
+    }
+
+    /// `buttonLabels` と同じ集合の要素(ref つきで案内するため。ラベルとの対応が崩れないよう定義を1つにする)
+    public static func buttonElements(of alert: ElementInfo, in snapshot: SnapshotResponse) -> [ElementInfo] {
         subtree(of: alert, in: snapshot)
             .filter { BridgeSnapshotThinning.operableTypes.contains($0.type) }
             .filter { TapTargetGeometry.contains(alert.frame, $0.frame) }
-            .compactMap { $0.label.map(SnapshotRenderer.displayText) }.filter { !$0.isEmpty }
+            .filter { $0.label.map(SnapshotRenderer.displayText).map { !$0.isEmpty } ?? false }
     }
 }

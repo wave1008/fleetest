@@ -58,7 +58,7 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_launch` / `ft_terminate` | アプリの起動・終了 |
 | `ft_install` | パッケージファイルからアプリをインストール(iOS: `.app` / Android: `.apk` または分割バンドルの `.apks`) |
 | `ft_snapshot` | 画面要素一覧のスナップショット(圧縮された set-of-mark 形式)。`waitFor` でセレクタが出るまで待つ。対象アプリが前面に居なければ先頭で警告する。スクロール容器の外に取り残された要素(ghost)は `⚠️scroll-leftover` で名指しする(その座標には別のものが描かれていることがある)。スクロール容器の行には `scroll` が付く(`scrollFrame:` に指定できる領域)が、印が無い = スクロールしない、ではない(Compose / Flutter の in-app は自前描画で申告できない)。同じ id の大群(地図の POI など、非操作の葉が20件以上)は1行に畳まれる(`expandBulk: true` で展開。畳まれた要素も ref では撃てる)。上限で要素が落ちたときは先頭で件数を言う(落ちた要素は `waitFor` でも `ft_scroll_to` でも見つからず、スクロールでは戻らない。`maxElements` で上限を上げて撮り直す)。`interactiveOnly: true` でレイアウト専用の行を隠せる(ref・frame は変わらず、隠れた行も ref では撃てる)。同じラベルが複数に当たるときは、代わりに書けるセレクタを一致ごとに示す。撮った `#id` は `<プロジェクト>/.fleetest/selector-inventory.json` に貯まり、`ft_dry_run` の綴り誤りの照合に使われる |
-| `ft_tap` / `ft_type` / `ft_swipe` / `ft_long_press` | 画面操作 — タップ・入力(`pressEnter: true` で入力後 Enter/IME まで撃つ。`ft_type` の `replace: true` で置き換え(読み返し付き。`ft_clear_input` + `ft_type` の2手より安い))・スワイプ・長押し。ref は撃つ直前に撮り直して照合する(動いていれば今の位置へ撃ち直し、消えていれば撃たずに理由を返す。スクロール残像は警告つきで撃つ)。ref を撃つ操作は「その操作を再現するセレクタ」を返す(`tap [40] done (selector: #btn_add)`。ref はセッション限りの番号でシナリオには書けないため。安定したセレクタが無ければ「無い」と言う)。操作系のツールは `snapshotAfter: true` で操作後の要素一覧まで一緒に返す(`waitFor` を併せて渡せば、目的のセレクタが出るまで待つ。その場で書き換わる画面は `waitForChange: true`)。長押しの秒数は `holdSeconds` |
+| `ft_tap` / `ft_type` / `ft_swipe` / `ft_long_press` | 画面操作 — タップ・入力(`pressEnter: true` で入力後 Enter/IME まで撃つ。`ft_type` の `replace: true` で置き換え(読み返し付き。`ft_clear_input` + `ft_type` の2手より安い))・スワイプ・長押し。`selector`(`ft_tap` / `ft_type` / `ft_long_press` / `ft_double_tap` / `ft_clear_input`。シナリオの行と同じ構文・同じ解決を、撮り直した木で行う)を優先する。再描画で ref が古くなっても外れず、その手がそのままシナリオの行になる。`ref`・座標とは併用できず、一致が無ければ何も撃たずに断り、複数一致ならシナリオの行が選ぶ1つを撃つ(応答がそう言う)。ref は撃つ直前に撮り直して照合する(動いていれば今の位置へ撃ち直し、消えていれば撃たずに理由を返す。スクロール残像は警告つきで撃つ)。ref を撃つ操作は「その操作を再現するセレクタ」を返す(`tap [40] done (selector: #btn_add)`。ref はセッション限りの番号でシナリオには書けないため。安定したセレクタが無ければ「無い」と言う)。操作系のツールは `snapshotAfter: true` で操作後の要素一覧まで一緒に返す(`waitFor` を併せて渡せば、目的のセレクタが出るまで待つ。その場で書き換わる画面は `waitForChange: true`)。長押しの秒数は `holdSeconds` |
 | `ft_scroll_to` | セレクタが出るまでスクロールして、撮り直した要素一覧を返す。`scrollFrame:` には `scroll` 印の容器のセレクタのほか、**任意の要素の ref**(その frame を帯として使う。Compose のチップ列・カルーセル向け)も渡せる |
 | `ft_batch` | 複数の操作/スクロール手を1回の呼び出しにまとめ、1回の承認で実行する |
 | `ft_rotate` | デバイスを回転し、新しい向きの要素一覧を返す。回転前の ref は解決しなくなる。シナリオの `rotateTo()` と違い終了時に向きを戻さないので、次の作業へ渡す前に自分で戻す |
@@ -81,6 +81,7 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_list_projects` | テストプロジェクトと実行プロファイルの一覧 |
 | `ft_draft_scenario` | 探索した操作列を Swift シナリオの下書きにして返す(ファイルには書かない)。各手は MCP が推奨したセレクタで書かれ、解決できなかった手は TODO コメントとして残る。expectation は空の骨格で出る(アサーションは `ft_dry_run` が作者に埋めさせる)。応答は使った手を番号付きで並べるので、`drop: [n, …]` や `lastN: k` で回り道を落としてから採用する(範囲は直近の `ft_launch` 以降、`all: true` で全体)。`scenes: [9, 13]` で scene を切り、`className:` / `title:` で `@TestClass` 名と `@Test` の題を指定する |
 | `ft_list_devices` / `ft_list_apps` / `ft_logs` | デバイス・アプリ・ログの棚卸し。`ft_list_devices` の `profile:` はその実行プロファイルが参照するデバイスだけに絞る。別のマシンに居るデバイスは名前だけ挙げて一覧には出さない。`ft_list_apps` の既定は user アプリだけで、地図やブラウザのようなプリインストール(system)は出ない —— `filter:`(id と表示名の部分一致)を渡すと system も探し、`includeSystem: true` なら全部を `[system]` 付きで並べる。表示名が出るのは iOS だけ。ブリッジの無い iOS 機は「no bridge」と書かれ、MCP からは操作できない |
+| `ft_release_device` | 操作し終えたデバイスを手放す。MCP セッションが操作したデバイスは、セッションが終わるか `--force` を付けるまで `fleetest bridge down` などの停止が断られる。これはその保持の印と、セッションが持つそのデバイスの記憶(スナップショット・ref・起動したアプリ・既定の宛先)を捨てる —— 以後、宛先を付けない呼び出しは掴み直さず断られる。ブリッジ・アプリ・デバイスは止めず、ブリッジが無くなった後でも使える。外すのはこのセッション自身の印だけで、別のセッションが持っていれば応答でそう伝える。そのデバイスへの次のデバイス系ツールの呼び出しは、また印を取る。宛先は他のツールと同じ(`udid` / `serial` / `port` / `profile`) |
 
 ## 実機
 
@@ -147,6 +148,7 @@ MCP サーバーはエージェントのシェルのサンドボックスの**�
   |---|---|
   | 読むだけ(`readOnlyHint: true`) | `ft_status`・`ft_list_devices`・`ft_list_apps`・`ft_list_projects`・`ft_snapshot`・`ft_screenshot`・`ft_logs`・`ft_results`・`ft_run_status`・`ft_dsl_commands`・`ft_doctor`・`ft_draft_scenario` |
   | デバイスの画面やアプリの状態を変える | タップ・入力・スワイプなどの操作、`ft_launch`・`ft_terminate`・`ft_open_url`・`ft_batch`、`ft_capture_element`(プロジェクトへ見本を書く) |
+  | このセッション自身の保持と記憶だけを変える(`readOnlyHint: false`・`destructiveHint: false`) | `ft_release_device` |
   | 取り返しがつかない(`destructiveHint: true`) | `ft_clear_app_data`・`ft_install`・`ft_stop_run` |
   | プロジェクトのコードを実行する(`destructiveHint: true`・`openWorldHint: true`) | `ft_list_scenarios`・`ft_dry_run`・`ft_run_scenario`・`ft_start_run`・`ft_services` |
 - **他人から受け取ったシナリオは、中身を確かめてから実行してください。** サンドボックスはホストを守りますが、

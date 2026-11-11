@@ -95,13 +95,15 @@ extension MCPServer {
         let outcome = RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen)
         let retarget = try Self.retargetNote(
             outcome, ref: ref, target: target, fresh: fresh.elements, taken: takenFrom?.elements ?? [],
-            ownActionSince: (sessionActionCounts[key] ?? 0) > (generationActionCount(containing: ref, args: args) ?? 0))
+            ownActionSince: (sessionActionCounts[key] ?? 0) > (generationActionCount(containing: ref, args: args) ?? 0),
+            selector: Self.counterpartSelector(fresh))
         switch outcome {
         case .gone:
             throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                 truncatedCount: fresh.truncatedCount,
                                                 keyboardShown: KeyboardWait.isShown(fresh),
-                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
+                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh),
+                                                currentCounterpart: Self.counterpartClause(for: target, in: fresh)))
         case .ghost(let found):
             // ft_tap / ft_long_press(verifiedRef の .ghost)と同じ警告。撃つが、何に当たりうるかを言う
             return (found, gateNote + retarget
@@ -452,6 +454,8 @@ extension MCPServer {
     static func refusesUnknownArguments(_ tool: String) -> Bool {
         switch toolEffects[tool] {
         case .drivesDevice?, .destructive?: return true
+        // 宛先のつもりの欄が落ちると別のデバイスを手放す(何も送らずに断れる)
+        case .releasesSession?: return true
         default: return false
         }
     }
@@ -508,9 +512,12 @@ extension MCPServer {
     /// チェック軸がありうる = ft_drag の from 側と to 側)。**片方だけの指定(x のみ等)は対象外**
     /// (「ref or x/y is required」が別途断る)
     static let exclusiveArgumentGroups: [String: [[[String]]]] = [
-        "ft_tap": [[["ref"], ["x", "y"], ["alertButton"]]],
-        "ft_double_tap": [[["ref"], ["x", "y"]]],
-        "ft_long_press": [[["ref"], ["x", "y"]]],
+        "ft_tap": [[["ref"], ["selector"], ["x", "y"], ["alertButton"]]],
+        "ft_double_tap": [[["ref"], ["selector"], ["x", "y"]]],
+        "ft_long_press": [[["ref"], ["selector"], ["x", "y"]]],
+        // selector は撮り直した木で ref へ畳まれる(withSelectorTarget)。両方渡すと selector が黙って捨てられる
+        "ft_type": [[["ref"], ["selector"]]],
+        "ft_clear_input": [[["ref"], ["selector"]]],
         "ft_pinch": [[["ref"], ["x", "y"]]],
         // ref が勝ち selector は構文検査だけされて捨てられていた(ftCaptureElement の if let ref … else if selector)
         "ft_capture_element": [[["ref"], ["selector"]]],
@@ -679,7 +686,7 @@ extension MCPServer {
             if !rememberedNote.isEmpty {
                 content = [["type": "text", "text": rememberedNote]] + content
             }
-            if Self.toolAcceptsDeviceTarget(tool), let runNote = markDeviceInUse(args: resolved) {
+            if Self.holdsDeviceLease(tool), let runNote = markDeviceInUse(args: resolved) {
                 content = [["type": "text", "text": runNote]] + content
             }
             if let note = takeUIFrameworkUnknownNote(args: resolved) {
@@ -698,7 +705,7 @@ extension MCPServer {
                                     breakdown: SlowCallWatchdog.breakdown())
         }
         // モニターの実行中のランプ用に、呼び出しの進行中だけ印を立てる(lease とは別の印。MCPDeviceLease の `.active`)
-        if Self.toolAcceptsDeviceTarget(tool), let stateDir = deviceLeaseStateDir {
+        if Self.holdsDeviceLease(tool), let stateDir = deviceLeaseStateDir {
             if let deviceKey = leaseDeviceKey(args: resolved) {
                 MCPDeviceLease.beginCall(stateDir: stateDir, key: deviceKey, pid: ProcessInfo.processInfo.processIdentifier)
             }
@@ -721,7 +728,7 @@ extension MCPServer {
             throw MCPToolFailure(content: await decorated(bridgeStarted.prepended(to: failure.content)))
         } catch {
             // run がデバイスを使っている最中は失敗しやすい(アプリの起こし直し・ブリッジの起動し直し)ので、失敗にも言う
-            let runNote = Self.toolAcceptsDeviceTarget(tool) && !(error is MCPVersionGuardRefusal)
+            let runNote = Self.holdsDeviceLease(tool) && !(error is MCPVersionGuardRefusal)
                 ? markDeviceInUse(args: resolved) : nil
             // 案内は元のエラーの種類から決める(呼び手が文を足した MCPAnnotatedError でも消さない)
             let cause = (error as? MCPAnnotatedError)?.underlying ?? error
@@ -975,6 +982,9 @@ extension MCPServer {
         case "ft_logs":
             return try await ftLogs(args)
 
+        case "ft_release_device":
+            return try await ftReleaseDevice(args)
+
         case "ft_install":
             return try await ftInstall(args)
 
@@ -988,10 +998,10 @@ extension MCPServer {
             return try await ftSnapshot(args)
 
         case "ft_tap":
-            return try await ftTap(args)
+            return try await withSelectorTarget(args) { try await self.ftTap($0) }
 
         case "ft_type":
-            return try await ftType(args)
+            return try await withSelectorTarget(args) { try await self.ftType($0) }
 
         case "ft_swipe":
             return try await ftSwipe(args)
@@ -1018,7 +1028,7 @@ extension MCPServer {
             return try await ftClearAppData(args)
 
         case "ft_clear_input":
-            return try await ftClearInput(args)
+            return try await withSelectorTarget(args) { try await self.ftClearInput($0) }
 
         case "ft_draft_scenario":
             return text(try draftScenario(args))
@@ -1027,7 +1037,7 @@ extension MCPServer {
             return try dslCommands(args)
 
         case "ft_double_tap":
-            return try await ftDoubleTap(args)
+            return try await withSelectorTarget(args) { try await self.ftDoubleTap($0) }
 
         case "ft_drag":
             return try await ftDrag(args)
@@ -1039,7 +1049,7 @@ extension MCPServer {
             return try await ftGesture(args)
 
         case "ft_long_press":
-            return try await ftLongPress(args)
+            return try await withSelectorTarget(args) { try await self.ftLongPress($0) }
 
         case "ft_screenshot":
             return try await ftScreenshot(args)

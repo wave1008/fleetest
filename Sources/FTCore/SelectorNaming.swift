@@ -149,6 +149,55 @@ public struct SelectorNaming {
     }
     private let gradedCache = GradedCache()
 
+    /// `relativeAlternative` のメモ化(キーは ref。値 nil = 計算済みで無し)
+    private final class AlternativeCache { var storage: [Int: String?] = [:] }
+    private let alternativeCache = AlternativeCache()
+
+    /// 最良の形が索引形(`.indexed`)の要素にだけ、位置の並びに依存しない相対形
+    /// (`一意な近傍:方向[型]`)を返す。**`graded` の優先順は変えない**(ft_draft_scenario 等も使う)——
+    /// 曖昧ラベル・重複 id の注記だけが索引形の前に出す。実測: Google マップの検索候補
+    /// (同名の行が住所行だけで区別できる)で索引形しか出ず、読み手が「Enter で先頭」へ逃げて別の駅を選んだ。
+    /// 検証は `holds` と同じ(`picksOnlyOne`で当人が返る)・基準の数は `relativeAnchorLimit` で頭打ち。
+    /// 索引形でない要素は検証も払わず nil
+    public func relativeAlternative(for element: ElementInfo, in snapshot: SnapshotResponse) -> String? {
+        if let cached = alternativeCache.storage[element.ref] { return cached }
+        var found: String?
+        if graded(for: element, in: snapshot)?.durability == .indexed {
+            let row = Set(Self.ownRow(of: element, in: snapshot.elements).map(\.ref))
+            found = relativeCandidates(for: element, in: snapshot, anchorRefs: row)
+                .first { Self.picksOnlyOne(element, with: $0, in: snapshot) }
+        }
+        alternativeCache.storage[element.ref] = .some(found)
+        return found
+    }
+
+    /// 対象「自身の行」の要素(木の pre-order + depth で決める。閾値なし)。行 = 対象の祖先(自身を含む)のうち、
+    /// 同じラベル/同じ id を持つ**別の項目**(対象の祖先でも子孫でもない一致)を部分木に含まない、いちばん上のもの。
+    /// 遠くの部品(ツールバー等)を基準にした相対形は、並び順に頼る索引形と変わらないので基準をここに限る
+    static func ownRow(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
+        guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }
+        func sameIdentity(_ other: ElementInfo) -> Bool {
+            if let label = element.label, !label.isEmpty, other.label == label { return true }
+            if let id = element.identifier, !id.isEmpty, other.identifier == id { return true }
+            return false
+        }
+        var lineage: [ElementInfo] = [element]   // 自身から上へ
+        var depth = element.depth
+        for candidate in elements[..<index].reversed() where candidate.depth < depth {
+            lineage.append(candidate)
+            depth = candidate.depth
+        }
+        let lineageRefs = Set(lineage.map(\.ref))
+        let own = Set(LocatorResolver.descendants(of: element, in: elements).map(\.ref)).union(lineageRefs)
+        var row = element
+        for ancestor in lineage {
+            let subtree = LocatorResolver.descendants(of: ancestor, in: elements)
+            if subtree.contains(where: { sameIdentity($0) && !own.contains($0.ref) }) { break }
+            row = ancestor
+        }
+        return LocatorResolver.descendants(of: row, in: elements)
+    }
+
     /// テスト用: このインスタンスで graded が実際に計算された回数
     public var gradedComputeCount: Int { gradedCache.computeCount }
 
@@ -291,12 +340,17 @@ public struct SelectorNaming {
     /// `一意な近傍:方向[型]`。基準は**自分より先に一意に名指しできる**要素(`#id` か一意なラベル)で、
     /// 記法は `FTSelector` の相対セレクタ(`通知:rightSwitch`)。採否は呼び元の `holds` が
     /// parse → 解決で当人が返ることを確かめて決める。耐久性は `.relative`
+    /// - anchorRefs: 基準をこの集合に限る(`relativeAlternative` 用 = 対象自身の行。nil = 制限なし)。
+    ///   対象を包む要素は基準にしない(容器を基準にした形は中身が並び順のままで、索引形の代わりにならない)
     private func relativeCandidates(for element: ElementInfo,
-                                    in snapshot: SnapshotResponse) -> [String] {
+                                    in snapshot: SnapshotResponse,
+                                    anchorRefs: Set<Int>? = nil) -> [String] {
         guard element.frame.width > 0, element.frame.height > 0 else { return [] }
         var anchors: [(name: String, element: ElementInfo, distance: Double)] = []
         for other in snapshot.elements where other.ref != element.ref {
             guard other.frame.width > 0, other.frame.height > 0,
+                  anchorRefs.map({ $0.contains(other.ref)
+                      && !TapTargetGeometry.contains(other.frame, element.frame) }) ?? true,
                   let name = anchorName(for: other) else { continue }
             let dx = other.frame.centerX - element.frame.centerX
             let dy = other.frame.centerY - element.frame.centerY

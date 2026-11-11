@@ -49,7 +49,9 @@ extension MCPServer {
             } else {
                 let explain = firstTime("waitMissExplained")
                 waitNote = Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
-                                                 explain: explain, canWaitForChange: true)
+                                                 explain: explain, canWaitForChange: true,
+                                                 notationStop: waited.quietStopAfter != nil
+                                                     && Self.isNotationOnlyNearMiss(waitFor, in: snapshot))
                     + Self.appearedPromptNote(before: previousRead, now: snapshot)
                     + " — this is the screen as it is now\(Self.truncationHint(snapshot))"
                     + (waited.partialSeenAfter.map { seenAfter in
@@ -302,7 +304,7 @@ extension MCPServer {
                 + waitForWithoutSnapshotAfterNote(args)
                 + (await snapshotAfterBody(args, outsideTheAppTree: alertWasInFront)))
         }
-        throw MCPError("ref or x/y is required")
+        throw MCPError("selector, ref or x/y is required")
     }
 
     /// タブ文字は欄によって空白に置き換わる・次の欄へ焦点が移るので、Typed と言っても入力どおりとは限らない。

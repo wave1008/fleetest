@@ -54,6 +54,9 @@ extension MCPServer {
     /// シートの見出しごと出てきた場合(実測: `*立川*` は展開後のシート見出し `立川駅` にも当たる)、
     /// 容器の外だからと無視して再スワイプに入るのは、約束を満たしているのに壊しに行く動き。
     ///
+    /// 呼び手は、`scrollFrame` を渡されていて一致がその容器の外なら**成功にしない**(`matchIsOutsideScrollFrame`。
+    /// 再スワイプはしないまま「リストの中では見つからなかった」で終える)。この関数自体は容器で絞らない。
+    ///
     /// 画面内判定は `TapTargetGeometry.offscreenAdvisory`(nil = 画面の中)に委ねる ——
     /// **ここに2つ目の「見えているか」の定義を置かない**。ただし退化 frame(幅か高さ 0)だけは
     /// 手前で落とす: offscreenAdvisory は画面の内側にある 0x0 を「画面内」と答えるので
@@ -68,20 +71,31 @@ extension MCPServer {
     }
 
     /// 前面のアプリ内アラートとそのボタン(無ければ nil)。`RefGuard.goneMessage` へ渡す
-    static func frontInAppAlertWithButtons(_ snapshot: SnapshotResponse) -> (alert: ElementInfo, buttons: [String])? {
-        AlertTreeScope.frontInAppAlert(in: snapshot).map { ($0, AlertTreeScope.buttonLabels(of: $0, in: snapshot)) }
+    static func frontInAppAlertWithButtons(_ snapshot: SnapshotResponse)
+        -> (alert: ElementInfo, buttons: [String], buttonRefs: [Int])? {
+        AlertTreeScope.frontInAppAlert(in: snapshot).map {
+            let elements = AlertTreeScope.buttonElements(of: $0, in: snapshot)
+            return ($0, elements.compactMap { $0.label.map(SnapshotRenderer.displayText) }, elements.map(\.ref))
+        }
     }
 
     /// `visibleAfterExpansion` が容器で絞らずに採った一致が、`scrollFrame` の容器の**外**だったときの注記(中・容器が分からないときは空)。
     /// 黙ると「容器の中の行に届いた」と読まれる(計測: `*立川*` がシートの見出しに当たり、リストの行には届いていなかった)
     static func matchOutsideScrollFrameNote(_ hit: ElementInfo, step: FlowStep,
                                             in snapshot: SnapshotResponse) -> String {
+        guard matchIsOutsideScrollFrame(hit, step: step, in: snapshot) else { return "" }
+        return " The only match [\(hit.ref)] \(RefGuard.describe(hit)) is OUTSIDE the scrollFrame container, so no row"
+            + " inside the list was found — the list was NOT confirmed to contain it. Read the expanded list with"
+            + " ft_snapshot (swiping it again can collapse the sheet)."
+    }
+
+    /// `scrollFrame`(rect か ロケータ)が分かり、一致の frame がその外にあるか。容器が分からなければ false
+    static func matchIsOutsideScrollFrame(_ hit: ElementInfo, step: FlowStep,
+                                          in snapshot: SnapshotResponse) -> Bool {
         guard let container = step.scrollFrameRect
-                ?? step.scrollFrame.flatMap({ LocatorResolver.match($0, in: snapshot)?.frame }),
-              !container.contains(hit.frame) else { return "" }
-        return " The match [\(hit.ref)] \(RefGuard.describe(hit)) is OUTSIDE the scrollFrame container, so no row"
-            + " inside the list was reached — if you wanted a row of the list, read the expanded list with ft_snapshot"
-            + " (swiping it again can collapse the sheet)."
+                ?? step.scrollFrame.flatMap({ LocatorResolver.match($0, in: snapshot)?.frame })
+        else { return false }
+        return !container.contains(hit.frame)
     }
 
     /// **救済が効かないと分かった画面で、手で開く手順を名指しする**(監査)。
@@ -142,7 +156,14 @@ extension MCPServer {
     /// `explain`: 逃げ道の説明(waitForChange・waitSeconds)を付けるか。**デバイスごとに初回だけ**(呼び手が
     /// `firstTime("waitMissExplained")` を渡す。同じ長文が1計測で3回出ていた)
     static func waitMissHeadline(_ waitFor: String, seconds: Double, quietStopAfter: Double?,
-                                 explain: Bool = true, canWaitForChange: Bool) -> String {
+                                 explain: Bool = true, canWaitForChange: Bool, notationStop: Bool = false) -> String {
+        // `notationStop`: 呼び手が `quietStopAfter != nil && isNotationOnlyNearMiss(waitFor, in: 返った木)` を渡す(既定の false のままだと
+        // 表記違いの早期終了を「3秒動かなかった」と誤って言う)
+        if notationStop, let stopped = quietStopAfter {
+            return "waitFor \"\(waitFor)\" did not appear — the screen already shows this content in a different"
+                + " notation (see the note below), which waiting cannot change, so the wait stopped after"
+                + " \(secondsText(stopped)) instead of running to the \(secondsText(seconds)) cap"
+        }
         guard let stopped = quietStopAfter else {
             return "waitFor \"\(waitFor)\" did not appear within \(secondsText(seconds))"
                 + (explain ? waitTimeoutRemedy : "")
@@ -183,7 +204,7 @@ extension MCPServer {
         let outermost = drawn.filter { inner in !drawn.contains { encloses($0, inner) } }
         let more = outermost.filter { $0.ref != first.ref && !$0.frame.contains(first.frame) }.count
         let others = more > 0 ? " (+\(more) more)" : ""
-        let where_ = folded.map { " — inside the folded group #\($0) (pass expandBulk to list it)" } ?? ""
+        let where_ = folded.map { " — inside the folded group #\($0) (a folded map-style label: it may not be the content you waited for; expandBulk lists the group)" } ?? ""
         // **ラベルを必ず出す**(describe は #id を優先するが、畳まれる群は id を共有するので id では区別できない)
         let described = RefGuard.describe(first)
         var label = ""

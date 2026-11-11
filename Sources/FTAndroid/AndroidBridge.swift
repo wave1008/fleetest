@@ -273,7 +273,7 @@ extension AndroidDriver {
         // force-stop+再起動で更新する(APK 差し替えだけでは稼働中プロセスは旧版のまま)
         let probed = await probeBridge(hostPort: hostPort)
         if let (client, version, timing) = probed,
-           version == Self.expectedBridgeVersionCode, timing == timingRequested {
+           isAcceptableRunningVersion(version), timing == timingRequested {
             return client
         }
         // **他のセッション(run・MCP)が使っているデバイスのブリッジは作り直さない**(下の force-stop が
@@ -286,7 +286,7 @@ extension AndroidDriver {
            RunnerAccessibilityHealth.hasForeignLeaseUnlessOwnRun(key: serial, stateDir: stateDir) {
             let running = probed != nil ? true : Self.isBridgeRunning(serial: serial, timeout: Self.deviceAnswerTimeoutSeconds)
             if running != false {
-                if let (client, version, _) = probed, version == Self.expectedBridgeVersionCode {
+                if let (client, version, _) = probed, isAcceptableRunningVersion(version) {
                     return client
                 }
                 // probed が無く pidof も読めない(nil)= adb shell が期限内に答えなかった。別のセッションの話より先にそれを言う
@@ -643,20 +643,61 @@ extension AndroidDriver {
 
     /// installed が expected より新しいときだけ拒否理由を返す(等しい/古い/未インストールは
     /// nil = 通常の自動更新経路を塞がない)。Android は versionCode の引き下げインストールを
-    /// 拒否するため、adb install を試みる前に fail fast させる(RR-18.5)
-    static func downgradeRefusal(installed: Int?, expected: Int, serial: String? = nil) -> String? {
+    /// 拒否するため、adb install を試みる前に fail fast させる(RR-18.5)。
+    /// 対処は**必ず効くもの(端末から消す = APK は使い捨てで次の使用時に自動で入る)を先**に置く
+    /// (「fleetest を更新」は、すでに最新リリースの利用者には効かない)。`addendum` は呼び手固有の逃げ道
+    static func downgradeRefusal(installed: Int?, expected: Int, serial: String? = nil,
+                                 addendum: String? = nil) -> String? {
         guard let installed, installed > expected else { return nil }
         let uninstall = serial.map { "adb -s \($0) uninstall \(Self.bridgePackage)" }
             ?? "adb uninstall \(Self.bridgePackage)"
         return "the device has bridge v\(installed) installed, but this build expects v\(expected). "
             + "Android refuses to install a lower versionCode, so this cannot auto-update. "
             + "This means a newer fleetest has already used this device. Fix it by either "
-            + "(1) updating this machine's fleetest (`git pull` + rebuild, or Scripts/update.sh), or "
-            + "(2) removing the newer bridge from the device (`\(uninstall)`)."
+            + "(1) removing the newer bridge from the device (`\(uninstall)`; the bridge APK is disposable "
+            + "and is reinstalled automatically on next use), or "
+            + "(2) if a newer fleetest release exists, updating this machine's fleetest "
+            + "(`git pull` + rebuild, or Scripts/update.sh)."
+            + (addendum.map { " " + $0 } ?? "")
+    }
+
+    /// 入っているブリッジをどう扱うか(純粋関数)。等しい = そのまま / 新しい = 許可されていればそのまま・無ければ拒否 /
+    /// 古い・未インストール = 入れる
+    enum InstalledBridgeDecision: Equatable {
+        case useAsIs
+        case install
+        case refuse(String)
+    }
+
+    static func installDecision(installed: Int?, expected: Int, acceptsNewer: Bool,
+                                serial: String? = nil, addendum: String? = nil) -> InstalledBridgeDecision {
+        guard let installed else { return .install }
+        if installed == expected { return .useAsIs }
+        if installed < expected { return .install }
+        if acceptsNewer { return .useAsIs }
+        return .refuse(downgradeRefusal(installed: installed, expected: expected, serial: serial,
+                                        addendum: addendum) ?? "")
+    }
+
+    /// 稼働中ブリッジの版をそのまま使ってよいか(期待と同じ、または新しくて許可されている)
+    func isAcceptableRunningVersion(_ version: Int?) -> Bool {
+        guard let version else { return false }
+        return version == Self.expectedBridgeVersionCode
+            || (acceptsNewerInstalledBridge && version > Self.expectedBridgeVersionCode)
+    }
+
+    /// 入っているブリッジが期待より新しいときの版ズレ(許可して使うとき、呼び手が警告を出すため)。読めない・新しくないなら nil。
+    /// 端末が期限内に答えなければ nil(警告が出ないだけで、使えるかは startBridge が決める)
+    public func newerInstalledBridgeSkew() -> BridgeVersionSkew? {
+        guard let dump = try? adbProbe(["shell", "dumpsys", "package", Self.bridgePackage],
+                                       timeout: Self.deviceAnswerTimeoutSeconds),
+              case .installed(let code) = Self.installedVersionReading(dump),
+              code > Self.expectedBridgeVersionCode else { return nil }
+        return BridgeVersionSkew(running: code, expected: Self.expectedBridgeVersionCode)
     }
 
     func installBridgeIfNeeded() throws {
-        let installed = installedBridgeVersionCode()
+        var installed = installedBridgeVersionCode()
         // **版が合っていても code path の実在まで見る** —— `pm list packages -u` と
         // `dumpsys package` にはレコードが残るのに `pm path` が空、という中途半端な install が
         // あり、この形だと `am instrument` が黙って失敗して「cannot connect」がレーン復帰でも
@@ -666,13 +707,17 @@ extension AndroidDriver {
             logStderr("⚠️ the bridge package record is present but has no code path"
                       + " (pm path is empty) — removing the broken install and reinstalling")
             _ = try? adb(["uninstall", Self.bridgePackage])
-        } else if installed == Self.expectedBridgeVersionCode {
-            return
+            installed = nil   // 剥がした後の版で判断する(新しい版の壊れた記録を「そのまま使う」にしない)
         }
-        if let refusal = Self.downgradeRefusal(installed: installed,
-                                                expected: Self.expectedBridgeVersionCode,
-                                                serial: serial) {
+        switch Self.installDecision(installed: installed, expected: Self.expectedBridgeVersionCode,
+                                    acceptsNewer: acceptsNewerInstalledBridge, serial: serial,
+                                    addendum: newerBridgeRefusalAddendum) {
+        case .useAsIs:
+            return
+        case .refuse(let refusal):
             throw DriverError.badResponse(status: 0, body: refusal)
+        case .install:
+            break
         }
         let apk = try Self.locateBridgeAPK()
         var result = try adb(["install", "-r", apk.path])
@@ -686,7 +731,7 @@ extension AndroidDriver {
             if result.output.contains("INSTALL_FAILED_VERSION_DOWNGRADE"),
                let refusal = Self.downgradeRefusal(installed: installedBridgeVersionCode(),
                                                     expected: Self.expectedBridgeVersionCode,
-                                                    serial: serial) {
+                                                    serial: serial, addendum: newerBridgeRefusalAddendum) {
                 throw DriverError.badResponse(status: Int(result.status), body: refusal)
             }
             // probe と install の間に system_server が落ちたレース(まれ)。同じ印なら

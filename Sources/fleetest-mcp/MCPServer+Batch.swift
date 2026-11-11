@@ -978,7 +978,9 @@ extension MCPServer {
                 ? Self.waitForAppearedNote(waitFor, in: final,
                                            collapsingBulk: treeArgs["expandBulk"] as? Bool != true)
                 : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
-                                        explain: explainMiss, canWaitForChange: false)
+                                        explain: explainMiss, canWaitForChange: false,
+                                        notationStop: waited.quietStopAfter != nil
+                                            && Self.isNotationOnlyNearMiss(waitFor, in: final))
                     // alert は batchAlertAppearedNote が先に言う(重ねない)
                     + (Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap).isEmpty
                        ? Self.appearedPromptNote(before: beforeBatch, now: final) : "")
@@ -991,8 +993,8 @@ extension MCPServer {
                 + Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap)
                 + waitNote + waitFlatNote + inheritedNote + (await snapshotBody(final, driver: batchDriver, args: treeArgs, foldsSelectorTables: true)))
         }
-        let unchangedNote: String
-        let final: SnapshotResponse
+        var unchangedNote: String
+        var final: SnapshotResponse
         do {
             (unchangedNote, final) = try await Self.batchUnchangedNote(
                 beforeBatch: beforeBatch,
@@ -1006,6 +1008,9 @@ extension MCPServer {
                     try? await Task.sleep(nanoseconds: UInt64(max(0, self.settleWaitSeconds) * 1_000_000_000))
                     return await batchDriver.systemAlert().value ?? first
                 }) {
+                try await self.rereadAfterGrace(batchDriver, args: args)
+            }
+            (unchangedNote, final) = try await Self.batchFinalSettle(unchangedNote: unchangedNote, final: final) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }
         } catch { throw unreadableAfterBatch(error) }
@@ -1216,4 +1221,14 @@ extension MCPServer {
     /// シートを広げたときにグラバーを運ぶ先(画面高に対する比)。**上端そのものにはしない** ——
     /// ステータスバーへ届かせても得は無く、行き過ぎたドラッグはシートを閉じる実装がある
     static let expandedSheetTopRatio = 0.12
+
+    /// ft_batch の最後の読みの仕上げ。**無変化の撮り直し(unchangedNote)が無かった回だけ**、snapshotAfter と同じ
+    /// 「空の一覧・何も読めない木」の1回撮り直し(`rereadIfEmptyOrBlank`)を払う(遷移中の空の木をそのまま返していた)
+    static func batchFinalSettle(unchangedNote: String, final: SnapshotResponse,
+                                 reread: () async throws -> SnapshotResponse) async rethrows
+        -> (note: String, snapshot: SnapshotResponse) {
+        guard unchangedNote.isEmpty,
+              let settled = try await rereadIfEmptyOrBlank(final, reread: reread) else { return (unchangedNote, final) }
+        return settled
+    }
 }

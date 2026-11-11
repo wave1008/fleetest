@@ -761,7 +761,9 @@ extension MCPServer {
                     : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
                                             explain: explainMiss,
                                             // ft_launch は waitForChange を持たない = 持つツールでだけ案内する
-                                            canWaitForChange: Self.toolDeclares("waitForChange", tool: Self.currentTool))
+                                            canWaitForChange: Self.toolDeclares("waitForChange", tool: Self.currentTool),
+                                            notationStop: waited.quietStopAfter != nil
+                                                && Self.isNotationOnlyNearMiss(waitFor, in: snapshot))
                         + Self.appearedPromptNote(before: beforeAction, now: snapshot)
                         + " — this is the screen as it is now\(Self.truncationHint(snapshot))"
                         + (waited.partialSeenAfter.map { seenAfter in
@@ -805,35 +807,11 @@ extension MCPServer {
                         + " was re-read once after a short wait — the tree below is the re-read.\n"
                 }
                 snapshot = reread
-            } else if let empty = Self.emptyLoadingScroller(in: snapshot) {
-                SlowCallWatchdog.mark("re-reading: a list was still empty")
-                // **木は変わったのに中身がまだ来ていない**形(emptyLoadingScroller 参照)。
-                // 待ちも回数も settle-lite と同じ = 1回きりの短い猶予しか払わない
-                let reread = try await rereadAfterGrace(snapshotDriver, args: args)
-                let name = RefGuard.describe(empty)
-                if Self.emptyLoadingScroller(in: reread) == nil {
-                    settleNote = "note: \(name) was still empty right after the action, so the tree"
-                        + " was re-read once after a short wait — the tree below is the re-read.\n"
-                    snapshot = reread
-                } else {
-                    // **埋まらなかったら黙らない**: 正当に空(検索結果0件)のこともあるので、
-                    // 断定はせず「空のまま」だとだけ言う。読み手はここで waitFor を選べる
-                    settleNote = "note: \(name) is still empty after a short re-read wait — it may"
-                        + " be genuinely empty, or still loading; use ft_snapshot waitFor if you"
-                        + " expect content in it.\n"
-                    snapshot = reread
-                }
-            } else if Self.looksBlank(snapshot) {
-                SlowCallWatchdog.mark("re-reading: nothing readable yet")
-                // **何も読めない木**(全要素がレイアウト専用 = 遷移の途中)。黙って返すと読み手は空の木から次の一手を
-                // 探す(実測: Apple マップで全画面シートを閉じた直後の木が layout-only の1行だけ)。猶予は settle-lite と同じ1回
-                let reread = try await rereadAfterGrace(snapshotDriver, args: args)
-                settleNote = Self.looksBlank(reread)
-                    ? "note: the screen still had nothing readable after a short re-read wait — a transition may"
-                        + " still be running; use ft_snapshot waitFor: <something you expect on the next screen>.\n"
-                    : "note: the tree right after the action had nothing readable on it (a transition in"
-                        + " progress), so it was re-read once after a short wait — the tree below is the re-read.\n"
-                snapshot = reread
+            } else if let settled = try await Self.rereadIfEmptyOrBlank(snapshot, reread: {
+                try await self.rereadAfterGrace(snapshotDriver, args: args)
+            }) {
+                settleNote = settled.note
+                snapshot = settled.snapshot
             }
             recordSnapshot(snapshot, snapshotDriver is AndroidDriver ? "android" : "ios", args)
             // waitFor / waitForChange / 撮り直し(settleNote)の後の木は「待たずに読んだ」のではないので immediateReadNote を
@@ -880,6 +858,39 @@ extension MCPServer {
     /// 明細を畳む注記の鍵(`FT_MCP_NOTES_BRIEF` の指定に足す)
     static func briefKeys(foldsSelectorTables: Bool) -> Set<String> {
         foldsSelectorTables ? NoteCatalog.brief.union(["ambiguousLabelsNote", "duplicateIDsNote"]) : NoteCatalog.brief
+    }
+
+    /// 操作の後の木が「空の一覧」または「何も読めない」ときだけ1回撮り直す(snapshotAfter と ft_batch の最終読みが共有。
+    /// 「空」「何も読めない」の定義を2つ持たない)。どちらでもなければ nil。猶予は settle-lite と同じ1回きり
+    static func rereadIfEmptyOrBlank(_ snapshot: SnapshotResponse,
+                                     reread: () async throws -> SnapshotResponse) async rethrows
+        -> (note: String, snapshot: SnapshotResponse)? {
+        if let empty = emptyLoadingScroller(in: snapshot) {
+            SlowCallWatchdog.mark("re-reading: a list was still empty")
+            // **木は変わったのに中身がまだ来ていない**形(emptyLoadingScroller 参照)
+            let again = try await reread()
+            let name = RefGuard.describe(empty)
+            if emptyLoadingScroller(in: again) == nil {
+                return ("note: \(name) was still empty right after the action, so the tree"
+                    + " was re-read once after a short wait — the tree below is the re-read.\n", again)
+            }
+            // **埋まらなかったら黙らない**: 正当に空(検索結果0件)のこともあるので断定せず「空のまま」とだけ言う
+            return ("note: \(name) is still empty after a short re-read wait — it may"
+                + " be genuinely empty, or still loading; use ft_snapshot waitFor if you"
+                + " expect content in it.\n", again)
+        }
+        if looksBlank(snapshot) {
+            SlowCallWatchdog.mark("re-reading: nothing readable yet")
+            // **何も読めない木**(全要素がレイアウト専用 = 遷移の途中)。黙って返すと読み手は空の木から次の一手を探す
+            // (実測: Apple マップで全画面シートを閉じた直後の木が layout-only の1行だけ)
+            let again = try await reread()
+            return (looksBlank(again)
+                ? "note: the screen still had nothing readable after a short re-read wait — a transition may"
+                    + " still be running; use ft_snapshot waitFor: <something you expect on the next screen>.\n"
+                : "note: the tree right after the action had nothing readable on it (a transition in"
+                    + " progress), so it was re-read once after a short wait — the tree below is the re-read.\n", again)
+        }
+        return nil
     }
 
     /// 何も読めない木か(要素が無い、または全要素が interactiveOnly で隠れるレイアウト専用)。判定は描画側の
@@ -1405,13 +1416,15 @@ extension MCPServer {
         let outcome = RefGuard.relocate(target, in: fresh.elements, screen: fresh.screen)
         // **付け替えの判定は ghost も .found も1つの口**(`RefGuard.retargetOutcome`。verifiedElement・scrollFrame の ref と共通)
         let retarget = try Self.retargetNote(outcome, ref: ref, target: target, fresh: fresh.elements,
-                                             taken: lastRendered, ownActionSince: actedSinceTakenFrom)
+                                             taken: lastRendered, ownActionSince: actedSinceTakenFrom,
+                                             selector: Self.counterpartSelector(fresh))
         switch outcome {
         case .gone:
             throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                 truncatedCount: fresh.truncatedCount,
                                                 keyboardShown: KeyboardWait.isShown(fresh),
-                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
+                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh),
+                                                currentCounterpart: Self.counterpartClause(for: target, in: fresh)))
         case .ghost(let found):
             // **拒否せず警告して撃つ**(方針を後退させた。理由は RefGuard の宣言)。
             // **キーボード被覆だけは断る**(`keyboardRefusal` の doc)
@@ -1487,17 +1500,27 @@ extension MCPServer {
             .map { " (warning: \(RefGuard.describe(found)): \($0))" } ?? ""
     }
 
+    /// 断りに添える「今の木での同じ素性の相手」の節(`RefGuard.currentCounterpartClause`。セレクタは ft_tap の推奨と同じ graded)
+    static func counterpartClause(for target: ElementInfo, in fresh: SnapshotResponse) -> String {
+        RefGuard.currentCounterpartClause(for: target, in: fresh.elements, selector: counterpartSelector(fresh))
+    }
+
+    static func counterpartSelector(_ fresh: SnapshotResponse) -> (ElementInfo) -> String? {
+        { SelectorNaming(fresh).graded(for: $0, in: fresh)?.selector }
+    }
+
     /// ref の付け替えの断り(throw)と注記。`verifiedRef` / `verifiedElement` / scrollFrame の ref が通る**唯一の口**
     /// (`TapRefGuardTests` が3箇所の呼び出しを数える)。`.gone` は呼び手が断る
     static func retargetNote(_ outcome: RefGuard.Outcome, ref: Int, target: ElementInfo, fresh: [ElementInfo],
-                             taken: [ElementInfo], ownActionSince: Bool) throws -> String {
+                             taken: [ElementInfo], ownActionSince: Bool,
+                             selector: (ElementInfo) -> String?) throws -> String {
         let found: ElementInfo
         switch outcome {
         case .gone: return ""
         case .found(let element, _), .ghost(let element): found = element
         }
         let result = RefGuard.retargetOutcome(ref: ref, target: target, found: found, in: fresh,
-                                              taken: taken, ownActionSince: ownActionSince)
+                                              taken: taken, ownActionSince: ownActionSince, selector: selector)
         if let refusal = result.refusal { throw MCPError(refusal) }
         return result.note
     }
@@ -1563,13 +1586,15 @@ extension MCPServer {
             let retarget = try Self.retargetNote(
                 outcome, ref: ref, target: target, fresh: fresh.elements, taken: takenFrom?.elements ?? [],
                 ownActionSince: (sessionActionCounts[Self.sessionKey(args)] ?? 0)
-                    > (generationActionCount(containing: ref, args: args) ?? 0))
+                    > (generationActionCount(containing: ref, args: args) ?? 0),
+                selector: Self.counterpartSelector(fresh))
             switch outcome {
             case .gone:
                 throw MCPError(RefGuard.goneMessage(ref: ref, target: target,
                                                     truncatedCount: fresh.truncatedCount,
                                                 keyboardShown: KeyboardWait.isShown(fresh),
-                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh)))
+                                                inAppAlert: Self.frontInAppAlertWithButtons(fresh),
+                                                currentCounterpart: Self.counterpartClause(for: target, in: fresh)))
             case .ghost(let found), .found(let found, _):
                 // **rect にできない容器を黙って渡さない**: 幅か高さが0だと、これを起点にした
                 // ジェスチャは1px も動かせる場所を持たない
@@ -1803,6 +1828,7 @@ extension MCPServer {
         // ときだけ**動かす —— 当てずっぽうのドラッグは地図やリストを勝手に動かす
         var sheetNote = ""
         var rescueMs: Int?
+        var matchOutsideContainer = false
         // **同じ画面で2度は撃たない**(監査): 救済は実測 21.2 秒かかるのに、
         // 1回目が「3回目も同じ」と結論した画面で ft_scroll_to を撃ち直すと全額を再び払っていた。
         // 鍵は木の指紋(sheetRescueKey)—— 画面が変われば指紋も変わるので、記憶は自然に失効する
@@ -1868,15 +1894,26 @@ extension MCPServer {
                 // iOS 27 Simulator): 展開後に同じ探索を手で撃つと 0 スワイプ・512ms で成功するのに、
                 // 救済の再試行は 16.9〜20.7 秒かけて失敗していた
                 rescueMs = Int((timingClock.now - rescueStart) / .milliseconds(1))
-                outcome = StepOutcome(status: .passed, notes: outcome.notes,
-                                      resolvedElement: alreadyThere,
-                                      scrollSwipes: outcome.scrollSwipes, slowDrags: outcome.slowDrags)
-                sheetNote = Self.sheetRescueMarker
-                    + "— the list had stopped moving inside a partially open sheet, so"
-                    + " [\(grabber.ref)] \(RefGuard.describe(grabber)) was dragged up to expand it,"
-                    + " which revealed the target — the search was NOT retried."
-                    + Self.matchOutsideScrollFrameNote(alreadyThere, step: step, in: expanded)
-                    + Self.sheetExpansionLayoutNote(before: beforeExpansion, after: after) + "\n"
+                if Self.matchIsOutsideScrollFrame(alreadyThere, step: step, in: expanded) {
+                    // **容器の外の一致は「見つかった」と言わない**(再スワイプもしない = 畳むので)。
+                    // outcome は失敗のまま下の「届かなかった」の応答へ落とす。シートは既に広げたので手動展開の案内は付けない
+                    matchOutsideContainer = true
+                    sheetNote = Self.sheetRescueMarker
+                        + "— the list had stopped moving inside a partially open sheet, so"
+                        + " [\(grabber.ref)] \(RefGuard.describe(grabber)) was dragged up to expand it,"
+                        + " and the search was NOT retried (swiping again can collapse the sheet)."
+                        + Self.matchOutsideScrollFrameNote(alreadyThere, step: step, in: expanded)
+                        + Self.sheetExpansionLayoutNote(before: beforeExpansion, after: after) + "\n"
+                } else {
+                    outcome = StepOutcome(status: .passed, notes: outcome.notes,
+                                          resolvedElement: alreadyThere,
+                                          scrollSwipes: outcome.scrollSwipes, slowDrags: outcome.slowDrags)
+                    sheetNote = Self.sheetRescueMarker
+                        + "— the list had stopped moving inside a partially open sheet, so"
+                        + " [\(grabber.ref)] \(RefGuard.describe(grabber)) was dragged up to expand it,"
+                        + " which revealed the target — the search was NOT retried."
+                        + Self.sheetExpansionLayoutNote(before: beforeExpansion, after: after) + "\n"
+                }
             } else {
                 // **再試行は逆走査つき**(defers... を外した別 executor)。展開後も稀に部分高の
                 // ままのことがあり、そこで再び後回しにすると救済がどこにも無くなる
@@ -1993,7 +2030,7 @@ extension MCPServer {
             // 撃たなかった/撃てなかった回(グラバーは居るのに `.sheetCollapsed` が立たない、
             // 記憶で省いた等)は、FTCore 側の総称ヒント「drag its grabber upward」で終わっており、
             // 読み手は毎回 ref と目標 y を自分で組み立てていた。**sheetNote が既に出していたら足さない**
-            let manualExpand = sheetNote.contains("ft_drag fromRef:") ? ""
+            let manualExpand = sheetNote.contains("ft_drag fromRef:") || matchOutsideContainer ? ""
                 : ((outcome.notes.contains(.sheetCollapsed) || !sheetNote.isEmpty)
                    ? Self.sheetManualExpandHint(after) : "")
             // **探索中の打ち切りは最終木からは分からない**(ブラウザ監査):

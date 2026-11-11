@@ -58,6 +58,9 @@ extension MCPServer {
                 scope = prefix
             }
         }
+        // 位置に依存しない相対形が書ける要素があるなら畳まない(畳むと「ref で打て」で終わり、読み手が順序へ逃げる)
+        if matches.prefix(ambiguousMatchesShown).contains(where: {
+            naming.relativeAlternative(for: $0, in: snapshot) != nil }) { return nil }
         let shownRefs = matches.prefix(ambiguousMatchesShown).map { "[\($0.ref)]" }
             .joined(separator: " ")
         let cut = matches.count > ambiguousMatchesShown
@@ -179,7 +182,9 @@ extension MCPServer {
                 .map { element, graded -> String in
                     guard let graded else { return "[\(element.ref)] —" }
                     if graded.durability == .stable { anyStable = true }
-                    return "[\(element.ref)] \(graded.selector)\(graded.durability.mark)"
+                    // 索引形の代わりに、並びの順に依存しない相対形があればそれを出す(両方並べると注記が膨らむ = NoteCoverageTests の上限)
+                    let shown = naming.relativeAlternative(for: element, in: snapshot) ?? graded.selector
+                    return "[\(element.ref)] \(shown)\(graded.durability.mark)"
                 }.joined(separator: " / ")
             let cut = matches.count > ambiguousMatchesShown
                 ? " (+\(matches.count - ambiguousMatchesShown) more matches not shown)" : ""
@@ -253,9 +258,8 @@ extension MCPServer {
                             fullHeader: "note: these labels match multiple elements, so a plain label"
                                 + " selector cannot pick one uniquely. Write one of these instead"
                                 + " (\"—\" = this element has no stable selector; use a labelled"
-                                + " ancestor or a coordinate. \"~\" = index-based, so it breaks if"
-                                + " the number of same-type siblings changes — usable, but the"
-                                + " weakest of the three):",
+                                + " ancestor or a coordinate. \"~\" = depends on position (an index, or"
+                                + " a nearby element) — usable, but the weakest of the three):",
                             shortHeader: "note: ambiguous labels — write one of these instead"
                                 + " (legend in the first snapshot's note):",
                             briefHeader: "note: these labels match multiple elements, so a plain label"
@@ -299,9 +303,8 @@ extension MCPServer {
                             fullHeader: "note: these ids are shared by multiple elements, so a plain"
                                 + " #id selector cannot pick one uniquely. Write one of these instead"
                                 + " (\"—\" = this element has no stable selector; use a labelled"
-                                + " ancestor or a coordinate. \"~\" = index-based, so it breaks if"
-                                + " the number of same-type siblings changes — usable, but the"
-                                + " weakest of the three):",
+                                + " ancestor or a coordinate. \"~\" = depends on position (an index, or"
+                                + " a nearby element) — usable, but the weakest of the three):",
                             shortHeader: "note: duplicate ids — write one of these instead"
                                 + " (legend in the first snapshot's note):",
                             briefHeader: "note: these ids are shared by multiple elements, so a plain"

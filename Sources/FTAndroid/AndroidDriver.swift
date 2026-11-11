@@ -16,6 +16,11 @@ public final class AndroidDriver: AppDriver {
 
     public let adbPath: String
     public let serial: String?
+    /// true = デバイスに入っているブリッジが期待より新しくても、入れ替えず(降格インストールは Android が拒否する)そのまま使う。
+    /// 許可するのは呼び手(MCP の allowVersionSkew)だけ。既定 false = DSL・CLI は拒否のまま
+    public let acceptsNewerInstalledBridge: Bool
+    /// 拒否の文へ足す呼び手固有の逃げ道(MCP は allowVersionSkew を名指しする)。nil = 足さない
+    public let newerBridgeRefusalAddendum: String?
 
     // 直近スナップショットの ref → 中心座標(iOS ランナーと同じ方式)。iOS と違い CLI プロセス内に
     // 住むため、呼び出しをまたぐ手動駆動用に一時ファイルへも永続化する(run は単一プロセスで不要だが無害)
@@ -104,15 +109,20 @@ public final class AndroidDriver: AppDriver {
         if currentPackage == nil { currentPackage = state.package }
     }
 
-    public init(serial: String? = nil) throws {
+    public init(serial: String? = nil, acceptsNewerInstalledBridge: Bool = false,
+                newerBridgeRefusalAddendum: String? = nil) throws {
         self.adbPath = try Self.findADB()
         self.serial = serial
+        self.acceptsNewerInstalledBridge = acceptsNewerInstalledBridge
+        self.newerBridgeRefusalAddendum = newerBridgeRefusalAddendum
     }
 
     /// テスト用(偽の adb を差し込む)
     init(serial: String?, adbPath: String) {
         self.adbPath = adbPath
         self.serial = serial
+        self.acceptsNewerInstalledBridge = false
+        self.newerBridgeRefusalAddendum = nil
     }
 
     public static func findADB() throws -> String {

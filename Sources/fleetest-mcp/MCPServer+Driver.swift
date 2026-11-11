@@ -162,7 +162,7 @@ extension MCPServer {
             case .ios(let provisioned, _):
                 (created, probePort) = try await Self.iosDriver(provisioned: provisioned)
             case .android(let serial, _):
-                created = try AndroidDriver(serial: serial)
+                created = try await androidDriver(serial: serial, key: key, args: args)
             }
             drivers[key] = created
             bridges[key] = {
@@ -358,7 +358,7 @@ extension MCPServer {
             // iOS と同じ理由で記憶の「適用」は入口(foldInRememberedDevice)側だけに置く
             let explicitSerial = args["serial"] as? String
             let serial = try Self.resolveAndroidSerial(explicit: explicitSerial)
-            created = try AndroidDriver(serial: serial)
+            created = try await androidDriver(serial: serial, key: key, args: args)
             bridges[key] = "android"
             connections[key] = "serial \(serial)"
             connectedAndroidSerials[key] = serial
@@ -375,6 +375,34 @@ extension MCPServer {
         }
         drivers[key] = created
         return created
+    }
+
+    static let androidNewerBridgeAddendum = "In this MCP, pass allowVersionSkew: true to use the newer bridge as-is"
+        + " (no install or uninstall; every response then carries a version-skew warning)."
+
+    /// Android のドライバを作る。**デバイスのブリッジが新しくても使うのは `allowVersionSkew: true` のときだけ**
+    /// (Android は降格インストールを拒否する)。使うときは iOS の押し通しと同じ版ズレの記録と警告を付ける
+    /// (`versionSkew` / `skewOverrideWarning`)。許可の無い呼び出しは AndroidDriver が拒否の文を返す(逃げ道つき)
+    func androidDriver(serial: String, key: String, args: [String: Any]) async throws -> AndroidDriver {
+        let allowSkew = args["allowVersionSkew"] as? Bool == true
+        let driver = try AndroidDriver(serial: serial, acceptsNewerInstalledBridge: allowSkew,
+                                       newerBridgeRefusalAddendum: Self.androidNewerBridgeAddendum)
+        guard allowSkew, let skew = driver.newerInstalledBridgeSkew() else {
+            versionSkew[key] = nil
+            return driver
+        }
+        let text = Self.androidNewerBridgeSkew(skew)
+        versionSkew[key] = text
+        pendingWarnings[key, default: []].append(Self.skewOverrideWarning(text))
+        return driver
+    }
+
+    /// 入っている Android ブリッジが新しいまま使うときの版ズレの文(拒否の文ではない = 警告の本文)
+    static func androidNewerBridgeSkew(_ skew: BridgeVersionSkew) -> String {
+        "bridge protocol mismatch: the Android bridge on the device is NEWER than this build"
+            + " (v\(skew.running) > v\(skew.expected)). It answers with the behaviour and the notes of its own"
+            + " version, so selectors written from them may be wrong; update fleetest-mcp to a release that matches,"
+            + " or remove the bridge (`adb uninstall \(AndroidDriver.bridgePackage)`) to have this build's version installed."
     }
 
     /// 版ズレを既定で拒否する(G)。押し通しは `allowVersionSkew: true` で、その場合は
@@ -1806,6 +1834,16 @@ extension MCPServer {
     /// (`waitMissHeadline`)。これより長く何も変えずに読み込む画面は、届く前に切り上げる
     static let waitForQuietCutoffSeconds: Double = 3.0
 
+    /// 待った式の**唯一の近い外れが通貨の表記違い**(`*円*` を待ったのに画面は `¥715`)か。判定は `notationHint` と同じ
+    /// (`currencyNotationHint` だけが出ている = 他の部分一致・形違い・分割の助言は出ていない)。
+    /// **根拠**: 待った中身は別の表記で既に届いている。待っても表記は変わらないので、`waitForQuietCutoffSeconds` も上限も待たず
+    /// 外れで返す。**尽きたとき(= 本物の部分一致や別の助言があるとき)は false** で従来どおり待つ
+    static func isNotationOnlyNearMiss(_ selector: String, in snapshot: SnapshotResponse) -> Bool {
+        let label = (try? parseSelectorArgument(selector, argument: "waitFor"))?.primary.label ?? ""
+        let currency = currencyNotationHint(label, in: snapshot)
+        return !currency.isEmpty && notationHint(selector, in: snapshot) == currency
+    }
+
     /// 切り上げてよい待ちか。上限が切り上げの時間以下なら意味が無い(呼び手が短い上限を選んでいる)・部分一致が
     /// 見えた・読み込み中の印(中身の無い大きなスクロール領域 = `emptyLoadingScroller`)があるときは上限まで待つ
     static func quietCutoffApplies(cap: Double, partialSeen: Bool, latest: SnapshotResponse) -> Bool {
@@ -1850,6 +1888,8 @@ extension MCPServer {
             partialHint = hint
         }
         if matches(selector, in: first) { return (true, first, nil, "", false, nil) }
+        // 表記違いだけの外れは待たない(`isNotationOnlyNearMiss` の doc)。quietStopAfter は「早く止めた経過秒」として流用する
+        if isNotationOnlyNearMiss(selector, in: first) { return (false, first, nil, "", false, 0) }
         SlowCallWatchdog.mark("waiting for \(selector) (cap \(secondsText(seconds)))")
         notePartial(first, elapsed: 0)
         let start = Date()
@@ -1866,6 +1906,9 @@ extension MCPServer {
                 ? try await driver.snapshot(bypassingCache: true) : try await driver.snapshot()
             refetched = true
             if matches(selector, in: latest) { return (true, latest, nil, "", true, nil) }
+            if isNotationOnlyNearMiss(selector, in: latest) {
+                return (false, latest, nil, "", true, Date().timeIntervalSince(start))
+            }
             notePartial(latest, elapsed: Date().timeIntervalSince(start))
             if !looksUnchanged(previous, latest) { lastChange = Date() }
             // **上限の後の読みでは切り上げと言わない**(最後の読みが上限を跨ぐと「上限より前に止めた」と言いながら

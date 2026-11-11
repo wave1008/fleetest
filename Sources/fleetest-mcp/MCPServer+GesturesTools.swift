@@ -482,7 +482,7 @@ extension MCPServer {
                                      full: Self.doubleTapCoordinateNote,
                                      short: Self.doubleTapCoordinateNoteShort)
         } else {
-            throw MCPError("ref or x/y is required")
+            throw MCPError("selector, ref or x/y is required")
         }
         try await doubleTapDriver.doubleTap(x: doubleTapPoint.x, y: doubleTapPoint.y)
         recordInteraction(action: "doubleTap", resolvedRef: doubleTapResolvedRef, args: args,
@@ -841,7 +841,7 @@ extension MCPServer {
                 + changedHintOnce(args)
                 + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
         }
-        throw MCPError("ref or x/y is required")
+        throw MCPError("selector, ref or x/y is required")
     }
 
     /// **ref で始点を指すジェスチャ(ft_double_tap / ft_drag の fromRef / ft_pinch の ref)は ft_tap と同じ被覆にする**

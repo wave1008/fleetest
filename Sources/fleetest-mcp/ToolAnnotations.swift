@@ -16,6 +16,9 @@ extension MCPServer {
         case runsProjectCode
         /// プロジェクトの中へファイルを書く
         case writesProjectFiles
+        /// このサーバ自身の記憶とデバイスの印(`.fleetest/` の lease)だけを変える。端末・アプリ・ブリッジには触らない
+        /// (readOnly と言うと印のファイルを消すのを偽る・drivesDevice と言うと未知の引数の扱いと消灯確認の adb が付く)
+        case releasesSession
     }
 
     static let toolEffects: [String: ToolEffect] = [
@@ -38,6 +41,8 @@ extension MCPServer {
         "ft_services": .runsProjectCode,
 
         "ft_capture_element": .writesProjectFiles,
+
+        "ft_release_device": .releasesSession,
     ]
 
     static func annotations(for effect: ToolEffect) -> [String: Any] {
@@ -50,7 +55,7 @@ extension MCPServer {
             return ["readOnlyHint": false, "destructiveHint": true, "openWorldHint": false]
         case .runsProjectCode:
             return ["readOnlyHint": false, "destructiveHint": true, "openWorldHint": true]
-        case .writesProjectFiles:
+        case .writesProjectFiles, .releasesSession:
             return ["readOnlyHint": false, "destructiveHint": false, "openWorldHint": false]
         }
     }

@@ -132,8 +132,8 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
 2. `ft_status`(profile 指定)で接続を確認。未起動なら実行プロファイルのデバイスを起動しておく。
 3. `ft_launch`(bundleId=対象アプリ・profile 指定)で先頭画面へ。
 4. **画面ごとに `ft_snapshot`** を撮り、各行 `[ref] Type "label" id=... (x,y WxH)` から
-   **セレクタに使う id / ラベル / 型を控える**。`ft_tap` / `ft_type` / `ft_swipe`(ref 指定)で
-   フローを1手ずつ進め、遷移の各画面でまた snapshot する。これが CAE の action と expectation の素になる。
+   **セレクタに使う id / ラベル / 型を控える**。`ft_tap` / `ft_type` / `ft_long_press` は **`selector:`(`#id`・ラベル)で撃つのを基本**にし(再描画・アラートで ref が古くなっても外れず、通った手がそのままシナリオの行になる)、
+   ラベルも id も無い部品だけ ref / 座標を使って、フローを1手ずつ進め、遷移の各画面でまた snapshot する。これが CAE の action と expectation の素になる。
    **最初の `ft_snapshot` に `interactiveOnly: true` を渡す**(以後の木を返す呼び出しにも引き継がれる)。レイアウトだけの行
    (ラベルも値も無く、操作もスクロールもしない行)を省くので木が半分〜3分の1になり、ラベル・値を持つ行(検証に使う文字)は残る。
    **通った画面は撮っておく** —— `ft_snapshot` は撮った `#id` をプロジェクトの台帳に貯め、

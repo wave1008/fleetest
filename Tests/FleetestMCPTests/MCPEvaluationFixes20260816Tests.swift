@@ -116,7 +116,7 @@ final class MCPSheetRescueMarkerTests: XCTestCase {
         let source = try Self.snapshotSource()
         let assignments = source.components(separatedBy: "\n")
             .filter { $0.contains("sheetNote = ") && !$0.contains("var sheetNote") }
-        XCTAssertEqual(assignments.count, 4,
+        XCTAssertEqual(assignments.count, 5,   // 11/12 +1: 広げた後の一致が scrollFrame の外(見つかった扱いにしない)
                        "救済の形が増減した。増やしたならマーカー経由にしてこの数を更新する:"
                        + " \(assignments)")
         for line in assignments {

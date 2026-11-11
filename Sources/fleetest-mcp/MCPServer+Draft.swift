@@ -382,6 +382,15 @@ extension MCPServer {
             let graded = Self.SelectorNaming(snapshot).graded(for: element, in: snapshot)
             selector = graded?.selector
             durability = graded?.durability ?? .stable
+            // 呼び手が selector で指した手は、その selector を下書きに書く(1:1 でシナリオの行になることが使う理由)。
+            // 耐久性は書き方から見る(序数・相対は位置依存。それ以外は一意に当たった書き方として安定側)
+            if let given = args["selector"] as? String, Self.selectorTargetTools.contains(Self.currentTool) {
+                selector = given
+                // 入口(withSelectorTarget)で検査済みの文字列。共有の門を通す(SelectorParseSourceScanTests)
+                if let locator = try? Self.parseSelectorArgument(given, argument: "selector").primary {
+                    durability = locator.relative?.isEmpty == false ? .relative : locator.index != nil ? .indexed : .stable
+                }
+            }
             described = "\(action) ref \(resolvedRef) — \(RefGuard.describe(element))"
         } else if let coordinate {
             described = "\(action) at (\(coordinate.x), \(coordinate.y))"

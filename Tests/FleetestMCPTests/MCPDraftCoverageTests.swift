@@ -61,6 +61,7 @@ final class MCPDraftCoverageTests: XCTestCase {
         "ft_list_apps": "observation only",
         "ft_list_devices": "observation only",
         "ft_logs": "observation only",
+        "ft_release_device": "not a device operation (it only drops this session's hold and memory; the explored flow does not change)",
         "ft_install": "environment setup before the explored flow, not one of its steps",
         "ft_doctor": "not a device operation",
         "ft_draft_scenario": "not a device operation (it is the draft itself)",

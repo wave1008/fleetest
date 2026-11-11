@@ -257,6 +257,16 @@ public enum MCPDeviceLease {
             + " refs and snapshots taken before that may be stale. Take a fresh snapshot before acting on them."
     }
 
+    /// 1つの鍵について**自分(pid)の印だけ**を消す(ft_release_device)。印と進行中の印の両方・他人の (鍵, pid) は触らない。
+    /// 戻り値 = 印のファイルが実在して消えたか
+    @discardableResult
+    public static func release(stateDir: URL, key: String, pid: Int32) -> Bool {
+        try? FileManager.default.removeItem(at: activeURL(stateDir: stateDir, key: key, pid: pid))
+        let url = leaseURL(stateDir: stateDir, key: key, pid: pid)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        return (try? FileManager.default.removeItem(at: url)) != nil
+    }
+
     /// その pid が持つ印を全部消す(MCP / ライブ操作の終了時)。**ファイル名の pid で選ぶ**
     /// (中身を読まない)ので、他人の (鍵, pid) のファイルは対象にならない。進行中の印も消す
     public static func removeAll(stateDir: URL, pid: Int32) {

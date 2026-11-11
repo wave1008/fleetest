@@ -19,11 +19,12 @@ final class UnknownArgumentRefusalTests: XCTestCase {
 
     func testTypeWithAnUnknownTargetArgumentIsRefusedBeforeTouchingTheDevice() async {
         do {
-            _ = try await server.call(tool: "ft_type", args: ["selector": "#field_single", "text": "hi"])
+            // `selector` は正式な引数になった(MCPServer+SelectorTarget.swift)ので、未知の名前で確かめる
+            _ = try await server.call(tool: "ft_type", args: ["elementSelector": "#field_single", "text": "hi"])
             XCTFail("ft_type with an unknown argument must be refused")
         } catch {
             let message = "\(error)"
-            XCTAssertTrue(message.contains("selector"), message)
+            XCTAssertTrue(message.contains("elementSelector"), message)
             XCTAssertTrue(message.contains("nothing was sent"), message)
         }
         XCTAssertFalse(driver.calls.contains { $0.hasPrefix("type(") }, "the text must not reach the driver: \(driver.calls)")

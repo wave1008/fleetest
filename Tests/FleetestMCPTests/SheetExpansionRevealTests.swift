@@ -73,9 +73,8 @@ final class SheetExpansionRevealTests: XCTestCase {
         XCTAssertNil(MCPServer.visibleAfterExpansion(step: FlowStep(action: "scrollTo"), in: snap))
     }
 
-    /// **容器で絞らない**ことの明示(呼び手の doc と対): 展開で出てきたのが scrollFrame の
-    /// 外側(シート見出し)でも、`scrollTo` が約束する「画面に出ている」は満たしている。
-    /// 実際の失敗例がまさにこの形 —— 見出し `立川駅` はリスト容器の外に居る
+    /// `visibleAfterExpansion` 自体は容器で絞らない(外の一致は呼び手が `matchIsOutsideScrollFrame` で失敗に倒す)。
+    /// 実際の例 —— 見出し `立川駅` はリスト容器の外に居る
     func testMatchOutsideTheScrollContainerStillCounts() {
         let header = element(88, "TitleLabel", "立川駅", "staticText", 20, 92, 84, 36)
         let snap = snapshot([header,
@@ -84,5 +83,31 @@ final class SheetExpansionRevealTests: XCTestCase {
         var scrollStep = step("*立川*")
         scrollStep.scrollFrameRect = FTRect(x: 0, y: 144, width: 402, height: 730)
         XCTAssertEqual(MCPServer.visibleAfterExpansion(step: scrollStep, in: snap)?.ref, header.ref)
+    }
+
+    /// scrollFrame を渡されていて一致が容器の外 → 外と判定(呼び手はこれを成功にしない)。中・容器なしは false
+    func testOutsideMatchIsDetectedOnlyWhenAContainerIsKnown() {
+        let header = element(88, "TitleLabel", "立川駅", "staticText", 20, 92, 84, 36)
+        let row = element(91, "Row", "立川駅 5:48", "cell", 0, 200, 402, 44)
+        let snap = snapshot([header, row])
+        var withFrame = step("*立川*")
+        withFrame.scrollFrameRect = FTRect(x: 0, y: 144, width: 402, height: 730)
+        XCTAssertTrue(MCPServer.matchIsOutsideScrollFrame(header, step: withFrame, in: snap))
+        XCTAssertFalse(MCPServer.matchIsOutsideScrollFrame(row, step: withFrame, in: snap))
+        XCTAssertFalse(MCPServer.matchIsOutsideScrollFrame(header, step: step("*立川*"), in: snap),
+                       "scrollFrame を渡されていなければ従来どおり成功")
+    }
+
+    /// ft_scroll_to の救済の分岐が、外の一致を .passed にしない(判定を外す変異で落ちる)
+    func testRescueBranchDoesNotPassAnOutsideMatch() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp/MCPServer+Snapshot.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        let guardRange = try XCTUnwrap(text.range(of: "if Self.matchIsOutsideScrollFrame(alreadyThere"))
+        let rest = text[guardRange.upperBound...]
+        let elseRange = try XCTUnwrap(rest.range(of: "} else {"))
+        let outsideBranch = rest[..<elseRange.lowerBound]
+        XCTAssertFalse(outsideBranch.contains(".passed"), "outside match must stay a miss")
+        XCTAssertTrue(outsideBranch.contains("matchOutsideContainer = true"))
     }
 }

@@ -194,6 +194,7 @@ final class DeviceBooterSweepRefusalTests: XCTestCase {
         XCTAssertTrue(message.contains("iPhone 17 is being driven by an MCP session (pid 4242"), message)
         XCTAssertFalse(message.contains("fleetest run"), "run が使用中とは言わない: \(message)")
         XCTAssertTrue(message.contains("--force"), message)
+        XCTAssertTrue(message.contains("ft_release_device"), "手放し方を案内する: \(message)")
         XCTAssertNil(DeviceBooter.mcpStopRefusal(
             deviceName: "iPhone 17", keys: ["U1"], force: true, mcpHolderPID: { _ in 4242 }))
         XCTAssertNil(DeviceBooter.mcpStopRefusal(
@@ -229,6 +230,7 @@ final class DeviceBooterSweepRefusalTests: XCTestCase {
             force: false, leaseStateDir: dir, simulatorNames: { ["UDID-MCP": "iPhone 17"] }, physicalIOSDeviceNames: { [:] }, androidDeviceModels: { [:] }))
         XCTAssertTrue(mcpOnly.contains("an MCP session is driving iPhone 17 [UDID-MCP] (pid \(mcpHolder))"),
                       mcpOnly)
+        XCTAssertTrue(mcpOnly.contains("ft_release_device"), mcpOnly)
         XCTAssertNil(DeviceBooter.sweepRefusal(force: true, leaseStateDir: dir, simulatorNames: { [:] }, physicalIOSDeviceNames: { [:] }, androidDeviceModels: { [:] }))
 
         RunLease.write(stateDir: dir, key: "UDID-RUN", pid: getppid())

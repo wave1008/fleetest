@@ -117,7 +117,8 @@ final class BridgeRecoveryWiringTests: XCTestCase {
         let session = try String(contentsOf: root.appendingPathComponent("MCPServer+SessionTools.swift"), encoding: .utf8)
         for function in ["func ftLaunch(", "func ftClearAppData("] {
             let start = try XCTUnwrap(session.range(of: function))
-            let body = String(session[start.upperBound...].prefix(900))
+            // 窓は入口の断り(Apple のアプリ・SpringBoard の判定 = 測り直しより前に断る)を含めて 1800 文字
+            let body = String(session[start.upperBound...].prefix(1800))
             XCTAssertTrue(body.contains("await recheckXCUITestRunnerBeforeLaunch(args: args)"), "\(function) の入口で測っていない")
         }
         let dispatch = try String(contentsOf: root.appendingPathComponent("MCPServer+Dispatch.swift"), encoding: .utf8)
