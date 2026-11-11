@@ -857,9 +857,12 @@ public enum TapTargetGeometry {
     /// (`KeyboardOcclusion.frame`)。操作可能かの判定は呼び手の責務 —— キーボードは
     /// 常にタッチを飲むので、呼び手はその判定を持たない
     /// 容器の上端か下端に**揃って**(差 `pinnedBandEdgeTolerance` 以内)、容器の幅の大半(`pinnedBandMinimumWidthRatio`)を
-    /// 占める、**名前(ラベルか id)を持つ**帯か = 貼り付く見出し・固定の小見出し。名前の無い暗幕・縁から浮いたラベルは違う
+    /// 占める、**文字(ラベル)を持つ**帯か = 貼り付く見出し・固定の小見出し。文字の無い暗幕・縁から浮いたラベルは違う。
+    /// **id だけの要素は見出しにしない**: Google マップの地図の部品の容器 `#compass_container`(ラベル無しの other・幅いっぱい)が
+    /// 候補の一覧の上端に揃い、1行目を覆う見出しと読まれた。本物の貼り付く見出しは E2EX の全 SUT・両 OS のデバイスの木で
+    /// `staticText "セクション A"` 等の文字を持つ
     static func isPinnedTextBand(_ over: ElementInfo, in container: FTRect) -> Bool {
-        let named = !(over.label ?? "").isEmpty || !(over.identifier ?? "").isEmpty
+        let named = !(over.label ?? "").isEmpty
         guard named, container.width > 0,
               over.frame.width >= container.width * pinnedBandMinimumWidthRatio else { return false }
         let atTop = abs(over.frame.y - container.y) <= pinnedBandEdgeTolerance

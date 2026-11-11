@@ -113,4 +113,19 @@ final class PinnedBandCoveringTests: XCTestCase {
         ]
         XCTAssertNil(TapTargetGeometry.pinnedBandCovering(tree[3], in: tree, container: container))
     }
+
+    /// 幅いっぱいでも、文字の無い id だけの要素は貼り付く見出しではない。
+    /// 実測の木(Google マップの出発地の候補・Android Emulator): 一覧の上端に揃った地図の部品の容器 `#compass_container`
+    func testFullWidthIdOnlyContainerIsNotAHeader() {
+        let container = FTRect(x: 0, y: 342, width: 1280, height: 1506)
+        let tree = [
+            ElementInfo(ref: 403, type: "collectionView", identifier: "typed_suggest_container", label: nil, value: nil,
+                        placeholder: nil, enabled: true, frame: container, depth: 1, scrollable: true),
+            ElementInfo(ref: 404, type: "clickable", identifier: nil, label: "赤羽駅", value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: 342, width: 1280, height: 180), depth: 2),
+            ElementInfo(ref: 446, type: "other", identifier: "compass_container", label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: 342, width: 1280, height: 144), depth: 1),
+        ]
+        XCTAssertNil(TapTargetGeometry.pinnedBandCovering(tree[1], in: tree, container: container))
+    }
 }
