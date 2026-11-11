@@ -13,6 +13,7 @@
 # 使い方:
 #   FT_FULL_TEST=1 Scripts/regress.py                     # 3 スイート・既定モード(iOS は inapp-boost)+ Android
 #   FT_FULL_TEST=1 Scripts/regress.py --ios-xcuitest      # 上に加えて iOS の xcuitest モードの対象も足す
+#   FT_FULL_TEST=1 Scripts/regress.py --ios-xcuitest-only # iOS の xcuitest モードの対象だけ(印は xcuitest のものだけ書く)
 #   FT_FULL_TEST=1 Scripts/regress.py --suites e2ex,e2ey  # スイートを絞る(--suts flutter,rn で SUT も。絞った回は印を書かない)
 #   Scripts/regress.py --dry-run [--ios-xcuitest]         # 対象の一覧と撃つコマンドだけ出す。デバイスを使わない
 # 全体の実行なので Scripts/test-scope-guard.py が FT_FULL_TEST=1 を求める(--dry-run は除く)。
@@ -84,8 +85,9 @@ PROJECT_SUFFIX = {"cmp": "CMP", "ios-native": "iOS", "android-native": "Android"
 WITNESS = ("E2E-CMP", "絵の追いつきを待ってから撮る.S0010")
 
 
-def build_targets(suites, xcuitest, suts=None):
-    """(スイート, プロジェクト, プロファイル) の一覧。プロファイル名は各スクリプトが回すものと同じ"""
+def build_targets(suites, xcuitest, suts=None, xcuitest_only=False):
+    """(スイート, プロジェクト, プロファイル) の一覧。プロファイル名は各スクリプトが回すものと同じ。
+    xcuitest_only = iOS の xcuitest モードの対象だけ(inapp-boost と Android は入れない = その印は書かない)"""
     targets = []
     for suite in suites:
         _, prefix, table = SUITES[suite]
@@ -94,10 +96,11 @@ def build_targets(suites, xcuitest, suts=None):
                 continue
             project = f"{prefix}-{PROJECT_SUFFIX[sut]}"
             if "ios" in oses:
-                targets.append((suite, project, "ios-inapp-boost"))
-                if xcuitest:
+                if not xcuitest_only:
+                    targets.append((suite, project, "ios-inapp-boost"))
+                if xcuitest or xcuitest_only:
                     targets.append((suite, project, "ios-xcuitest"))
-            if "android" in oses:
+            if "android" in oses and not xcuitest_only:
                 targets.append((suite, project, "android"))
     return targets
 
@@ -224,6 +227,8 @@ def main():
     ap.add_argument("--suites", default="e2e,e2ex,e2ey")
     ap.add_argument("--suts", default="", help="SUT を絞る(cmp,ios-native,android-native,flutter,rn)。絞った回は検証済みの印を書かない")
     ap.add_argument("--ios-xcuitest", action="store_true", help="iOS の xcuitest モードの対象も足す")
+    ap.add_argument("--ios-xcuitest-only", action="store_true",
+                    help="iOS の xcuitest モードの対象だけを回す(inapp-boost と Android は回さず、その印も書かない)")
     ap.add_argument("--negative", action="store_true", help="最後に陽性対照(Scripts/e2e-negative.sh)をこの Mac で回す")
     ap.add_argument("--skip-build", action="store_true", help="最初の SUT の鮮度確認・ビルドの段を飛ばす")
     ap.add_argument("--record", action="store_true", help="録画する(既定は --set record=false)")
@@ -234,7 +239,7 @@ def main():
     if unknown:
         sys.exit(f"❌ 知らないスイート: {unknown}(e2e / e2ex / e2ey)")
     suts = [s for s in opts.suts.split(",") if s]
-    targets = build_targets(suites, opts.ios_xcuitest, suts)
+    targets = build_targets(suites, opts.ios_xcuitest, suts, opts.ios_xcuitest_only)
     if not targets:
         sys.exit("❌ 回す対象がありません(--suites / --suts を見直してください)")
     witness = "e2e" in suites and ("e2e", WITNESS[0], "ios-inapp-boost") in targets

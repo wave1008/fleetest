@@ -282,7 +282,8 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   最初に全マシンで SUT の鮮度確認とビルド(各スクリプトの `--build-only`)を並列に済ませ、run の後で in-app の証人・画像分類器を
   使えなかったシナリオの検査・検証済みの印(全部緑のときだけ)・推奨・陽性対照(`--negative`)を1回。ログは `.fleetest/regress/<時刻>/`
   (段 1 のビルド)。E2EX / E2EY のプロファイルにもリモートのデバイスがある(スクリプトは `--runner local` で回すので影響しない)。
-  `--ios-xcuitest` で xcuitest モードの対象も足す・`--suites` で絞るとそのスイートの印だけを書き、`--suts` で絞った回は印を書かない。`--skip-build` で段 1 を飛ばす・
+  `--ios-xcuitest` で xcuitest モードの対象も足す・`--ios-xcuitest-only` で iOS の xcuitest モードの対象だけを回す(xcuitest の印だけを書く。
+  `--ios-xcuitest` は inapp-boost の赤1本でも xcuitest の印を書かない)・`--suites` で絞るとそのスイートの印だけを書き、`--suts` で絞った回は印を書かない。`--skip-build` で段 1 を飛ばす・
   `--record` で録画する(既定は `--set record=false`)・`--dry-run` で対象と撃つコマンドだけ出す。SUT をそろえられないマシンがあれば回さない(設定タブでそのマシンを無効にすれば外れる)。
   **先に commit → `Scripts/align.sh`**(リモートはアライン済みのコミットで動く)
   開始と終了で全マシンの状態(起動経過時間・load・FM・Vision・AVE の台帳)を `.fleetest/regress/<時刻>/machine-state.ndjson` へ残す

@@ -47,6 +47,9 @@ test('対象は SUT ごとに回す OS・モードの数だけでき、xcuitest 
   const narrowed = py('[f"{p}:{q}" for _, p, q in m.build_targets(["e2e", "e2ex"], False, ["flutter"])]')
   assert.deepEqual(narrowed.sort(), ['E2E-Flutter:android', 'E2E-Flutter:ios-inapp-boost',
     'E2EX-Flutter:android', 'E2EX-Flutter:ios-inapp-boost'])
+  const xcuiOnly = py('[f"{p}:{q}" for _, p, q in m.build_targets(["e2ey"], False, None, True)]')
+  assert.deepEqual(xcuiOnly.sort(), ['E2EY-CMP:ios-xcuitest', 'E2EY-Flutter:ios-xcuitest',
+    'E2EY-RN:ios-xcuitest', 'E2EY-iOS:ios-xcuitest'], 'xcuitest だけ = inapp-boost と Android を入れない')
 })
 
 test('対象のプロファイルはそのプロジェクトに実在する', () => {
