@@ -1381,5 +1381,5 @@ Simulator は SpringBoard の起こし直し + そのデバイスのブリッジ
 未許可へ戻すので、ダイアログが再び出る(iOS の実機は入れ直しで代替。元にアプリプロファイルの `appPathPhysical` が要る)。
 
 **MCP(`ft_*`)で詰まったとき**は `ft_launch bundleId: com.apple.springboard` —— 非破壊で
-SpringBoard に attach するだけなので、`ft_snapshot` でダイアログを読んで ref で叩ける。
+SpringBoard に attach するだけなので、`ft_snapshot` でダイアログを読める。ダイアログのボタンは `ft_tap alertButton: "<ボタン名>"` で押してアプリへ戻れる(ボタン名はアラートの注記に出る)。
 終わったら `ft_launch <対象アプリ>` で戻る。座標で叩くと画面サイズや OS 版が変わった瞬間に壊れる。

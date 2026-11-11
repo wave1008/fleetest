@@ -40,11 +40,11 @@ cwd(あなたのパッケージ)とは別物です。
 |---|---|
 | `platform` | `ios`(既定)または `android` |
 | `project` | テストプロジェクト名 |
-| `profile` | 実行プロファイル名(`profiles/runs/<name>`)。同じデバイスで動く(iOS は常に XCUITest) |
+| `profile` | 実行プロファイル名(`profiles/runs/<name>`)。`ft_run_scenario` と同じデバイスを動かす(iOS は常に XCUITest) |
 | `udid` | iOS デバイスの UDID(Simulator・実機とも。`ft_list_devices` で取得) |
 | `serial` | Android デバイスのシリアル番号 |
-| `port` | iOS ブリッジのポート(既定: 起動中のブリッジ) |
-| `allowVersionSkew` | ブリッジのプロトコル版がツールと合わなくても操作する(既定 off = 拒否。押し通した応答には毎回警告が付く) |
+| `port` | iOS ブリッジのポート(通常は省略して `udid` を渡す。どちらも無く、まだデバイスを指していないセッションでは起動中のブリッジを使う) |
+| `allowVersionSkew` | ブリッジのプロトコル版がツールと合わなくても操作する(既定 off = 拒否)。通したい呼び出しのたびに渡す —— 付けない後続の呼び出しはブリッジと照合し直され、食い違いが残る限り拒否される。押し通した応答には毎回警告が付く。Android ではデバイスに入っている新しいほうのブリッジをそのまま使える(インストールも削除もしない) |
 
 一度いずれかの呼び出しでデバイスを明示(`udid` / `port` / `serial`、または `profile`)すると、以降これらを省略した呼び出しにも
 記憶が使われます。別のデバイスを一度でも明示すると(`profile` で別のデバイスを指した場合も)、以降は再び明示が必要になります。
@@ -57,8 +57,8 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_doctor` | FM(Foundation Models)・Vision・OCR の可用性。**`fmAndVision: true` を渡したときだけ確かめる**(MCP は既定でこれらを使わないので、渡さなければ触らない)。FM が使えないときは無効になる機能(`screenLooksLike`・テキストの可視性検証)を返す。自己修復は FM を使わないため影響を受けない |
 | `ft_launch` / `ft_terminate` | アプリの起動・終了 |
 | `ft_install` | パッケージファイルからアプリをインストール(iOS: `.app` / Android: `.apk` または分割バンドルの `.apks`) |
-| `ft_snapshot` | 画面要素一覧のスナップショット(圧縮された set-of-mark 形式)。`waitFor` でセレクタが出るまで待つ。対象アプリが前面に居なければ先頭で警告する。スクロール容器の外に取り残された要素(ghost)は `⚠️scroll-leftover` で名指しする(その座標には別のものが描かれていることがある)。スクロール容器の行には `scroll` が付く(`scrollFrame:` に指定できる領域)が、印が無い = スクロールしない、ではない(Compose / Flutter の in-app は自前描画で申告できない)。同じ id の大群(地図の POI など、非操作の葉が20件以上)は1行に畳まれる(`expandBulk: true` で展開。畳まれた要素も ref では撃てる)。上限で要素が落ちたときは先頭で件数を言う(落ちた要素は `waitFor` でも `ft_scroll_to` でも見つからず、スクロールでは戻らない。`maxElements` で上限を上げて撮り直す)。`interactiveOnly: true` でレイアウト専用の行を隠せる(ref・frame は変わらず、隠れた行も ref では撃てる)。同じラベルが複数に当たるときは、代わりに書けるセレクタを一致ごとに示す。撮った `#id` は `<プロジェクト>/.fleetest/selector-inventory.json` に貯まり、`ft_dry_run` の綴り誤りの照合に使われる |
-| `ft_tap` / `ft_type` / `ft_swipe` / `ft_long_press` | 画面操作 — タップ・入力(`pressEnter: true` で入力後 Enter/IME まで撃つ。`ft_type` の `replace: true` で置き換え(読み返し付き。`ft_clear_input` + `ft_type` の2手より安い))・スワイプ・長押し。`selector`(`ft_tap` / `ft_type` / `ft_long_press` / `ft_double_tap` / `ft_clear_input`。シナリオの行と同じ構文・同じ解決を、撮り直した木で行う)を優先する。再描画で ref が古くなっても外れず、その手がそのままシナリオの行になる。`ref`・座標とは併用できず、一致が無ければ何も撃たずに断り、複数一致ならシナリオの行が選ぶ1つを撃つ(応答がそう言う)。ref は撃つ直前に撮り直して照合する(動いていれば今の位置へ撃ち直し、消えていれば撃たずに理由を返す。スクロール残像は警告つきで撃つ)。ref を撃つ操作は「その操作を再現するセレクタ」を返す(`tap [40] done (selector: #btn_add)`。ref はセッション限りの番号でシナリオには書けないため。安定したセレクタが無ければ「無い」と言う)。操作系のツールは `snapshotAfter: true` で操作後の要素一覧まで一緒に返す(`waitFor` を併せて渡せば、目的のセレクタが出るまで待つ。その場で書き換わる画面は `waitForChange: true`)。長押しの秒数は `holdSeconds` |
+| `ft_snapshot` | 画面要素一覧のスナップショット(圧縮された set-of-mark 形式)。`waitFor` でセレクタが出るまで待つ。対象アプリが前面に居なければ先頭で警告する。スクロール容器の外に取り残された要素(ghost)は `⚠️scroll-leftover` で名指しする(その座標には別のものが描かれていることがある)。スクロール容器の行には `scroll` が付く(`scrollFrame:` に指定できる領域)が、印が無い = スクロールしない、ではない(Compose / Flutter の in-app は自前描画で申告できない)。同じ id の大群(地図の POI など、非操作の葉が20件以上)は1行に畳まれる(`expandBulk: true` で展開。畳まれた要素も selector でも ref でも撃てる)。上限で要素が落ちたときは先頭で件数を言う(落ちた要素は `waitFor` でも `ft_scroll_to` でも見つからず、スクロールでは戻らない。`maxElements` で上限を上げて撮り直す)。`interactiveOnly: true` でレイアウト専用の行を隠せる(ref・frame は変わらず、隠れた行も selector でも ref でも撃てる)。同じラベルや id が複数に当たるときは、代わりに書けるセレクタを一致ごとに示す(順番でしか名指せない項目には、同じ行の文字を起点にした相対形を示す)。撮った `#id` は `<プロジェクト>/.fleetest/selector-inventory.json` に貯まり、`ft_dry_run` の綴り誤りの照合に使われる |
+| `ft_tap` / `ft_type` / `ft_swipe` / `ft_long_press` | 画面操作 — タップ・入力(`pressEnter: true` で入力後 Enter/IME まで撃つ。`ft_type` の `replace: true` で置き換え(読み返し付き。`ft_clear_input` + `ft_type` の2手より安い))・スワイプ・長押し。`selector`(シナリオの行と同じ構文・同じ解決を、撮り直した木で行う)を優先する。取るのは `ft_tap` / `ft_type` / `ft_long_press` / `ft_double_tap` / `ft_clear_input` で、`ft_swipe` は取らない(容器は `scrollFrame`)。再描画で ref が古くなっても外れず、その手がそのままシナリオの行になる。`ref`・座標とは併用できず、一致が無ければ呼び出しは断られて何も撃たれず(アプリの手前にアラートがあればそれを名指しする)、複数一致ならシナリオの行が選ぶ1つを撃つ(応答がそう言う。iOS では XCUITest の木で数えるので、スコープ無しの `[n]` や複数一致の先頭は、既定の inapp-boost モードで回すシナリオでは別の要素になりうる)。ref は撃つ直前に撮り直して照合する(動いていれば今の位置へ撃ち直し、消えていれば撃たずに理由を返す。スクロール残像は警告つきで撃つ)。ref を撃つ操作は「その操作を再現するセレクタ」を返す(`tap [40] done (selector: #btn_add)`。ref はセッション限りの番号でシナリオには書けないため。安定したセレクタが無ければ「無い」と言う)。操作系のツールは `snapshotAfter: true` で操作後の要素一覧まで一緒に返す(`waitFor` を併せて渡せば、目的のセレクタが出るまで待つ。その場で書き換わる画面は `waitForChange: true`)。長押しの秒数は `holdSeconds` |
 | `ft_scroll_to` | セレクタが出るまでスクロールして、撮り直した要素一覧を返す。`scrollFrame:` には `scroll` 印の容器のセレクタのほか、**任意の要素の ref**(その frame を帯として使う。Compose のチップ列・カルーセル向け)も渡せる |
 | `ft_batch` | 複数の操作/スクロール手を1回の呼び出しにまとめ、1回の承認で実行する |
 | `ft_rotate` | デバイスを回転し、新しい向きの要素一覧を返す。回転前の ref は解決しなくなる。シナリオの `rotateTo()` と違い終了時に向きを戻さないので、次の作業へ渡す前に自分で戻す |
@@ -66,10 +66,10 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_navigate` | 戻る / ホーム / タスク切替 |
 | `ft_hide_keyboard` | ソフトキーボードを閉じる(Android は戻る操作。iOS はキーボードの上の空いた所をタップし、閉じなければ失敗にする。Return は送らない) |
 | `ft_open_url` | アプリを再起動せずディープリンクを配送する(`ft_launch` は逆に必ず再起動する)。配送は非同期なので、`snapshotAfter: true` は画面が変わるのを待ってから読む(目的地固有の物を待つなら `waitFor`、待たずに読むなら `waitForChange: false`) |
-| `ft_clear_input` | 入力欄を空にする(`ft_type` は追記なので、置き換えるならまず消す) |
-| `ft_clear_app_data` | アプリのデータと権限をリセットする(iOS 実機は `ft_install` のパスか `packagePath:` で uninstall + install に振り替える) |
+| `ft_clear_input` | 入力欄を空にする。欄は `selector` か `ref` で指せる(既定はフォーカス中のもの)(`ft_type` は追記なので、置き換えるならまず消す) |
+| `ft_clear_app_data` | アプリのデータと権限をリセットする(iOS 実機は `ft_install` のパスか `packagePath:` で uninstall + install に振り替える)。Apple のアプリ(`com.apple.*`)は iOS Simulator でだけ消せる(データコンテナとそのアプリグループのコンテナ。消せたものと消せなかったものは応答に並ぶ)。iPhone 実機・SpringBoard・Simulator と確かめられない宛先(`udid` を渡す)では断られる |
 | `ft_dsl_commands` | DSL コマンドの索引(名前と署名)。書く前に存在確認できる |
-| `ft_double_tap` / `ft_pinch` / `ft_drag` | ダブルタップ・ピンチ・任意方向のドラッグ。MCP の iOS は常に XCUITest なので、Compose の iOS アプリのダブルタップは MCP からは届きません(シナリオを inapp-boost モードで回せば成立します)。拡大が目的なら `ft_pinch` を使う([ジェスチャ](../commands/gestures_ja.md))。`ft_drag` は `fromRef`(要素の中心から)と `dx`/`dy`(移動量)でも書ける(半開きのボトムシートはグラバーを引き上げて広げる)。`ft_pinch` は `ref` でも `x`/`y` でも対象を指せる(地図は要素として木に無い。対象を省くと指が画面全体に開き、手前のシートが掴まれることがある) |
+| `ft_double_tap` / `ft_pinch` / `ft_drag` | ダブルタップ(`selector`・`ref`・x/y で指せる)・ピンチ・任意方向のドラッグ。MCP の iOS は常に XCUITest なので、Compose の iOS アプリのダブルタップは MCP からは届きません(シナリオを inapp-boost モードで回せば成立します)。拡大が目的なら `ft_pinch` を使う([ジェスチャ](../commands/gestures_ja.md))。`ft_drag` は `fromRef`(要素の中心から)と `dx`/`dy`(移動量)でも書ける(半開きのボトムシートはグラバーを引き上げて広げる)。`ft_pinch` は `ref` でも `x`/`y` でも対象を指せる(地図は要素として木に無い。対象を省くと指が画面全体に開き、手前のシートが掴まれることがある) |
 | `ft_gesture` | 指ごとの時刻つき経路を1本の連続タッチとして再生する(区切りで指を離さない)—— パターンロック・長押しからのドラッグ・独自の複数指ジェスチャ用。絶対座標のみ・ref/セレクタ形は無い |
 | `ft_screenshot` | 視覚確認用のスクリーンショット画像 |
 | `ft_capture_element` | 要素を画像分類器の見本として保存し、学習の点検結果を返す(`checkIsON` / `imageIs` の見本。[imageIs](../commands/image_assertion_ja.md)) |
@@ -79,21 +79,21 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_results` | 結果の履歴。`fleetest results <query>` と同じ文面(JSON は無い)。`query` は必須で `list` / `summary` / `flaky` / `trend`(`scenario` 必須) / `devices` / `slow` / `insights` / `log`(1 run のシナリオごとの実行ログ。`runId`・既定 `latest`)。任意: `since`(既定 `90d`・`log` では使わない)・`scenario`・`limit`(`list` / `slow`)・`minRuns`(`flaky`)。ファイルを読むだけなので、シェルのサンドボックスの中のエージェント(Codex の既定など)からも使える |
 | `ft_dry_run` | デバイス不要の検証(セレクタの構文誤りは失敗 = isError。アサーション無しの expectation・実在しない `#id` は ⚠️ 行の警告で、失敗にはしない)。platform 宣言の無いシナリオは `platform:`(既定 ios)で `ios { } / android { }` の分岐と `#id` 台帳を選ぶ |
 | `ft_list_projects` | テストプロジェクトと実行プロファイルの一覧 |
-| `ft_draft_scenario` | 探索した操作列を Swift シナリオの下書きにして返す(ファイルには書かない)。各手は MCP が推奨したセレクタで書かれ、解決できなかった手は TODO コメントとして残る。expectation は空の骨格で出る(アサーションは `ft_dry_run` が作者に埋めさせる)。応答は使った手を番号付きで並べるので、`drop: [n, …]` や `lastN: k` で回り道を落としてから採用する(範囲は直近の `ft_launch` 以降、`all: true` で全体)。`scenes: [9, 13]` で scene を切り、`className:` / `title:` で `@TestClass` 名と `@Test` の題を指定する |
+| `ft_draft_scenario` | 探索した操作列を Swift シナリオの下書きにして返す(ファイルには書かない)。`selector` で撃った手は渡したセレクタで、ref や x/y で撃った手は MCP が推奨したセレクタで書かれる。解決できなかった手は TODO コメントとして残る。expectation は空の骨格で出る(アサーションは `ft_dry_run` が作者に埋めさせる)。応答は使った手を番号付きで並べるので、`drop: [n, …]` や `lastN: k` で回り道を落としてから採用する(範囲は直近の `ft_launch` 以降、`all: true` で全体)。`scenes: [9, 13]` で scene を切り、`className:` / `title:` で `@TestClass` 名と `@Test` の題を指定する |
 | `ft_list_devices` / `ft_list_apps` / `ft_logs` | デバイス・アプリ・ログの棚卸し。`ft_list_devices` の `profile:` はその実行プロファイルが参照するデバイスだけに絞る。別のマシンに居るデバイスは名前だけ挙げて一覧には出さない。`ft_list_apps` の既定は user アプリだけで、地図やブラウザのようなプリインストール(system)は出ない —— `filter:`(id と表示名の部分一致)を渡すと system も探し、`includeSystem: true` なら全部を `[system]` 付きで並べる。表示名が出るのは iOS だけ。ブリッジの無い iOS 機は「no bridge」と書かれ、MCP からは操作できない |
-| `ft_release_device` | 操作し終えたデバイスを手放す。MCP セッションが操作したデバイスは、セッションが終わるか `--force` を付けるまで `fleetest bridge down` などの停止が断られる。これはその保持の印と、セッションが持つそのデバイスの記憶(スナップショット・ref・起動したアプリ・既定の宛先)を捨てる —— 以後、宛先を付けない呼び出しは掴み直さず断られる。ブリッジ・アプリ・デバイスは止めず、ブリッジが無くなった後でも使える。外すのはこのセッション自身の印だけで、別のセッションが持っていれば応答でそう伝える。そのデバイスへの次のデバイス系ツールの呼び出しは、また印を取る。宛先は他のツールと同じ(`udid` / `serial` / `port` / `profile`) |
+| `ft_release_device` | 操作し終えたデバイスを手放す。MCP セッションが操作したデバイスは、セッションが終わるか `--force` を付けるまで `fleetest bridge down` などはそのデバイスを止めずに断る。これはその保持の印と、セッションが持つそのデバイスの記憶(スナップショット・ref・起動したアプリ・既定の宛先)を捨てる —— 以後、宛先を付けない呼び出しは、このセッションがまだ覚えている別のデバイスへ向かい、残っていなければ断られる(宛先を一度も指していないセッションは今まで通り起動中のブリッジへ向かう)。ブリッジ・アプリ・デバイスは止めず、ブリッジが無くなった後でも使える。外すのはこのセッション自身の印だけで、別のセッションが持っていれば応答でそう伝える。そのデバイスへ届く次の呼び出しは、また印を取る。宛先は他のツールと同じ(`udid` / `serial` / `port` / `profile`) |
 
 ## 実機
 
 画面操作系のツールは iPhone / Android の実機でも同じように使えます。Simulator/Emulator
 専用の操作は自動で振り分けられます —— `ft_install` は iOS 実機では `simctl` の代わりに
 `devicectl` を使い、`ft_clear_app_data` は iOS 実機では uninstall + install(直前の `ft_install` の
-パス、または `packagePath:`)でデータを消します(Android は実機でも `pm clear` が効きます)。
+パス、または `packagePath:`)でデータを消します(Android は実機でも `pm clear` が効きます)。Apple のアプリ(`com.apple.*`)は iPhone 実機では消せません。
 iOS のシステムアラート(位置情報の許可など)は `ft_tap alertButton: "許可しない"` のように
 ボタン名を指定すると、1回の呼び出しで押してアプリへ戻ります(ボタン名はアラートの注記に出ます)。
 システムアラートが出ている間は、木を返す応答にアプリの要素一覧を載せません(どれも押せないため)。
 アプリ自身が出すアラートは、背面の画面を省いてアラートだけを返します。
-SpringBoard で閉じた後は `ft_launch bundleId: <app> resume: true` で、
+SpringBoard でシステムアラートを閉じた後は `ft_launch bundleId: <app> resume: true` で、
 終了せずにアプリへ戻れます。
 
 ## iOS のモード選択

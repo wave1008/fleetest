@@ -64,7 +64,7 @@ extension MCPServer {
         "type": "boolean", "description": "Unfold groups of 20+ same-id elements (folded by default)",
     ]
     nonisolated(unsafe) static let interactiveOnlyProperty: [String: Any] = [
-        "type": "boolean", "description": "Hide layout-only lines (refs unchanged; hidden ones stay tappable by ref)",
+        "type": "boolean", "description": "Hide layout-only lines (refs unchanged; hidden ones stay tappable by selector or ref)",
     ]
     /// 木を返すツールの畳み方2つ
     nonisolated(unsafe) static let foldingProperties: [String: Any] = [
@@ -135,9 +135,10 @@ extension MCPServer {
         udid (iOS simulator or physical device, as printed by ft_list_devices — resolved to the bridge running on \
         it; a device with no bridge cannot be driven and says so; if port is also given the two \
         must agree) / serial (Android device) / port (iOS bridge port — normally leave it out and \
-        pass udid: the server picks the device's XCUITest bridge) / allowVersionSkew (off by default: a stale bridge answers with its own \
-        version's behaviour and notes, so selectors written from them are silently wrong; every \
-        skewed response carries a warning). Once a call explicitly gives udid/port (iOS) or \
+        pass udid: the server picks the device's XCUITest bridge) / allowVersionSkew (off by default: a bridge of another \
+        version — older, or on Android a newer one left on the device — answers with its own version's behaviour and \
+        notes, so selectors written from them are silently wrong; pass it on every call that should go through — a \
+        call without it is re-checked and refused while the mismatch remains — and each such response carries a warning). Once a call explicitly gives udid/port (iOS) or \
         serial (Android), or a profile, this server process remembers it for its lifetime: a later call that \
         omits udid, port, AND serial entirely defaults to that same device. Giving udid/port or \
         serial again on a later call overrides the memory for that call and replaces it. \
@@ -181,8 +182,10 @@ extension MCPServer {
         Prefer selectors over refs: ft_tap / ft_type / ft_long_press / ft_double_tap / ft_clear_input take \
         `selector` (same syntax and resolution as a scenario line, matched on a fresh tree) and it survives \
         redraws, alerts and scrolls that make refs stale; the passing step is a scenario line as written. \
-        Use ref (or x/y) only for parts with no label or id. If a selector matches several elements the one a \
-        scenario line would pick is acted on and the reply says so.
+        Use ref (or x/y) only for parts with no label or id. If a selector matches several elements, the one a \
+        scenario line would pick is acted on and the reply says so (on iOS it is counted in the XCUITest tree, so an \
+        unscoped [n] or the first of several can differ in a scenario run in the default inapp-boost mode); if it \
+        matches none, nothing is sent and the call is refused, naming any alert in front of the app.
 
         Once you can name the next few steps by selector — typically right after reading a tree \
         — ft_batch runs them in one call and one approval, and a batch that passes converts 1:1 \
@@ -281,9 +284,10 @@ extension MCPServer {
             + "stops stop treating this MCP session as holding it (without this they refuse until the session "
             + "ends, or --force). Drops this session's hold mark and its memory of the device (snapshots, refs, "
             + "launched app, default target). Does NOT stop the bridge, the app or the device, and does not need the bridge to "
-            + "be alive. Only this session's own hold is removed, never another session's. Any later device "
-            + "tool call that reaches the device — including one naming no target when it is the only one "
-            + "running — takes the hold again", [:]),
+            + "be alive. Only this session's own hold is removed, never another session's. Afterwards a call naming no "
+            + "target goes to another device this session still remembers, or is refused if none is left (a session "
+            + "that never named a target falls back to the running bridge as usual). Any later call that reaches the "
+            + "device takes the hold again", [:]),
         tool("ft_install", "Install a package (iOS: .app / Android: .apk, or .apks via bundletool)", [
             "packagePath": ["type": "string", "description": "Absolute path"],
         ], required: ["packagePath"]),
@@ -379,7 +383,7 @@ extension MCPServer {
             + "an earlier step can make a ref stale", [
             "steps": ["type": "string",
                       "description": "Up to \(batchStepLimit) DSL lines separated by ';' or newlines, "
-                        + "e.g. \"tap ref: 12; type '#field' 'batch'\""],
+                        + "e.g. \"tap '#btn_next'; type '#field' 'batch'\""],
             "launch": ["type": "string",
                        "description": "bundle ID / package to (re)launch before the steps, as ft_launch does "
                         + "(saves a call). The first step then needs a selector, not a ref; give it "
@@ -420,7 +424,8 @@ extension MCPServer {
             + "Scenarios start from clearAppData(), so explore from this state. An iOS physical device "
             + "reinstalls instead — pass packagePath or ft_install first. Apple apps (com.apple.*): Simulator "
             + "only — the data container and its app group containers are emptied (the reply lists what was "
-            + "and was not wiped); refused on a physical iPhone and for SpringBoard", [
+            + "and was not wiped); refused on a physical iPhone, for SpringBoard, and when the target cannot be confirmed "
+            + "as a Simulator (pass udid)", [
             "bundleId": bundleIdProperty,
             "packagePath": ["type": "string", "description": "iOS physical device: .app/.ipa to "
                 + "reinstall (default: the last ft_install)"],
@@ -431,8 +436,8 @@ extension MCPServer {
             "fmAndVision": fmAndVisionProperty,
         ], extra: afterActionProperties()),
         tool("ft_draft_scenario", "Turn the ft_* operations you performed into a Swift scenario draft "
-            + "(text only — save it under TestProjects/<project>/scenarios/ yourself). Steps use the "
-            + "recommended selectors; ones without a stable selector become TODO comments. Expectation "
+            + "(text only — save it under TestProjects/<project>/scenarios/ yourself). Steps taken by "
+            + "selector use the selector you passed; steps taken by ref or x/y use the recommended one; ones without a stable selector become TODO comments. Expectation "
             + "blocks are left EMPTY on purpose (ft_dry_run flags them). The reply numbers the steps "
             + "— call again with drop:/lastN: to cut detours", [
             "all": ["type": "boolean", "description": "Use every recorded interaction, not only "
@@ -665,7 +670,7 @@ extension MCPServer {
                 + " be confirmed — the field may be hidden from the tree: full-screen keyboard, WebView, hidden input; check the screen)"
         }
         return " (warning: nothing has input focus now, so the text may have gone nowhere"
-            + " — tap the field by ref first)"
+            + " — pass the field to ft_type as selector (or ref), or tap it first)"
     }
 
     /// ref なしで入力したあと、**実際にどの欄へ入ったか**を名指しする。
@@ -848,7 +853,7 @@ extension MCPServer {
     /// 座標形は ref の安全網(遮蔽・残像・中身外し)を1つも通らない。**設計上そうなる**が、
     /// 説明に書いていないと読み手が ref 形と同じ信頼度だと思い込む(棚卸しで判明)
     static let coordinateCaveat = "Coordinates skip the ref safety checks (occlusion, scroll"
-        + " leftovers, off-content centres) — prefer a ref."
+        + " leftovers, off-content centres) — prefer a selector or ref."
 
     static func tool(_ name: String, _ description: String,
                      _ properties: [String: Any], extra: [String: Any] = [:],

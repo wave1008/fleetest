@@ -525,7 +525,10 @@ extension MCPServer {
     /// `isPhysical` が nil(宛先が Simulator だと確かめられない)は実機と同じく断る
     static func appleSystemAppDecision(bundleID: String, isAndroid: Bool, isPhysical: Bool?) -> AppleAppClearDecision {
         guard !isAndroid, let refusal = appleSystemAppRefusal(bundleID) else { return .notApple }
-        guard bundleID != MCPServer.springboardBundleID, isPhysical == false else { return .refuse(refusal) }
+        guard bundleID != MCPServer.springboardBundleID, isPhysical == false else {
+            return .refuse(refusal + (bundleID != MCPServer.springboardBundleID && isPhysical == nil
+                ? " (Could not confirm that the target is an iOS Simulator — pass udid: <the Simulator's UDID>.)" : ""))
+        }
         return .wipeOnSimulator
     }
 
