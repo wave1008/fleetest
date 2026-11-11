@@ -118,6 +118,9 @@ actor VideoRecordingCoordinator {
     /// この Mac でハードウェアエンコーダを使う配信(ライブ更新の iOS の h264)が動いているか。本番(RunOrchestrator)は
     /// LiveEncodeStreams.anyActive を渡す。init の既定は false(単体テストを機械の配信の有無から切り離す)
     private let liveStreamsActive: @Sendable () -> Bool
+    /// 切り出しの所要(速さの判定)を測る時計。init の既定は Date()。単体テストは仮想の時計を渡す
+    /// (本物の時計だと全体のテストの負荷で 0.5 秒 = 4 秒のクリップの 8 倍速を超え、速いはずの1本目が遅いと判定された)
+    private let clock: @Sendable () -> Date
     /// run につき1回だけ撃つ確かめ
     private var hardwareProbe: Task<Void, Never>?
     /// 生を台帳へ書いたか(成功のたびに書かない = run につき1回)
@@ -222,11 +225,13 @@ actor VideoRecordingCoordinator {
          hardwareDeadline: (@Sendable (Int) -> Double)? = nil,
          hardwareFirst: Bool = true,
          probeHardwareEncoder: (@Sendable () async -> VideoEncoderLiveness.Verdict?)? = nil,
-         liveStreamsActive: (@Sendable () -> Bool)? = nil) {
+         liveStreamsActive: (@Sendable () -> Bool)? = nil,
+         clock: (@Sendable () -> Date)? = nil) {
         self.config = config
         self.hardwareFirst = hardwareFirst
         self.probeHardwareEncoder = probeHardwareEncoder ?? { nil }
         self.liveStreamsActive = liveStreamsActive ?? { false }
+        self.clock = clock ?? { Date() }
         self.makeSession = makeSession
         self.extractClip = extractClip ?? {
             await VideoRecordingFinalizer.extractClip(
@@ -525,9 +530,9 @@ actor VideoRecordingCoordinator {
     /// 戻り値: 1回目がハードウェアで成功したときの速さ(クリップ長 ÷ 所要。実時間の何倍か)。それ以外は nil
     @discardableResult
     private func extractFinal(_ clip: PendingClip) async -> Double? {
-        let started = Date()
+        let started = clock()
         var (outcome, hardware) = await extract(clip, encoder: hardwareFirst ? .hardwareUnlessAbandoned : .software)
-        let elapsed = Date().timeIntervalSince(started)
+        let elapsed = clock().timeIntervalSince(started)
         if hardware { observeHardware(outcome, clip: clip) }
         let speed = hardware && outcome == .ok && elapsed > 0
             ? Double(clip.clipEndMs - clip.clipStartMs) / 1000 / elapsed : nil

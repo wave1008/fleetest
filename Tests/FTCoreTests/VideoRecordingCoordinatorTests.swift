@@ -731,9 +731,9 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         XCTAssertEqual(Array(flags.dropFirst()), [false, false], "1本目が 4 秒のクリップに 1 秒 = 4 倍速 < 基準 → 残りはソフトウェア")
     }
 
-    /// 1本目が速ければ残りもハードウェアのはず
+    /// 1本目が速ければ残りもハードウェアのはず(4 秒のクリップに 0.1 秒 = 40 倍速 ≥ 基準。0 秒は速さが測れない nil の経路になる)
     func testFastFirstHardwareClipWhileStreamingKeepsHardware() async throws {
-        let flags = try await hardwareFlagsWhileStreaming(streaming: true, firstClipSeconds: 0)
+        let flags = try await hardwareFlagsWhileStreaming(streaming: true, firstClipSeconds: 0.1)
         XCTAssertEqual(flags, [true, true, true])
     }
 
@@ -747,6 +747,8 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         let tmp = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
         let calls = LockedValue<[Bool]>([])
+        // 仮想の時計: 1本目の切り出しの間だけ firstClipSeconds 進む(本物の時計は全体のテストの負荷で速さの判定を変える)
+        let virtualSeconds = LockedValue<Double>(0)
         let coordinator = VideoRecordingCoordinator(
             config: VideoRecordingConfig(runDir: tmp),
             makeSession: fixedSessionFactory(tmp: tmp),
@@ -755,12 +757,11 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
                     list.append(hardware)
                     return list.count == 1
                 }
-                if first, firstClipSeconds > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(firstClipSeconds * 1_000_000_000))
-                }
+                if first { virtualSeconds.withLock { $0 += firstClipSeconds } }
                 return true
             },
-            liveStreamsActive: { streaming })
+            liveStreamsActive: { streaming },
+            clock: { Date(timeIntervalSince1970: virtualSeconds.withLock { $0 }) })
         let workers = (1...3).map { makeWorker($0) }
         for (n, worker) in workers.enumerated() {
             let started = await coordinator.start(worker)
