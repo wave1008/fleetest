@@ -1704,7 +1704,8 @@ public struct SwipeRequest: Codable {
     public var durationMs: Int?
     /// ACTION_UP の eventTime を MOVE と同じ合成時刻にするか。**Android の View/Compose では
     /// これが false(= 実時計)だとフリングが出ない**(実測: 276px → 1,156px)。
-    /// 既定 false(挙動は変えない)。Flutter は影響を受けない(独自の速度計算)
+    /// 既定 false(挙動は変えない)。Flutter は eventTime でなくアプリ側の壁時計で止まりを測る(最後の MOVE から
+    /// UP まで 40ms 超で速度 0)ので、gesture とフリングはブリッジが最後の MOVE の直後に離す(InputInjector.swipe)
     public var fling: Bool?
     /// スワイプ速度(points/sec)。**XCUITest ランナーだけが読む**(`XCUIGestureVelocity`)。
     /// nil = `swipeUp()` 等の既定速度。Android は距離とストローク時間で速度を決めるので読まない

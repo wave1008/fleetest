@@ -466,6 +466,8 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         double span = body.optDouble("distance", vertical ? 0.4 : 0.6);
         long strokeMs = body.optLong("durationMs", SWIPE_DEFAULT_STROKE_MS);
         boolean syntheticUp = body.optBoolean("fling", false);
+        // 向きの検出が目的の払い(gesture = scroll 無し)とフリングは最後の MOVE の直後に離す(InputInjector.swipe の doc)
+        boolean liftImmediately = syntheticUp || !body.optBoolean("scroll", false);
         double half = Math.min(Math.max(span, 0.05), 0.9) / 2;
         double[] from, to;
         // **スクロール領域を指定されたときはホストが計算した実座標を使う**(FTCore/ScrollGeometry)。
@@ -474,7 +476,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         JSONObject path = body.optJSONObject("path");
         if (path != null) {
             InputInjector.swipe(ua(), path.optDouble("fromX"), path.optDouble("fromY"),
-                    path.optDouble("toX"), path.optDouble("toY"), strokeMs, syntheticUp);
+                    path.optDouble("toX"), path.optDouble("toY"), strokeMs, syntheticUp, liftImmediately);
             settle();
             return ok();
         }
@@ -486,7 +488,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             default:
                 throw new BridgeException(400, "direction must be one of up/down/left/right");
         }
-        InputInjector.swipe(ua(), from[0], from[1], to[0], to[1], strokeMs, syntheticUp);
+        InputInjector.swipe(ua(), from[0], from[1], to[0], to[1], strokeMs, syntheticUp, liftImmediately);
         settle();
         return ok();
     }

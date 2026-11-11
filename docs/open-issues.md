@@ -161,14 +161,17 @@ deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま
 - 11/7: 材料不足(ブリッジの外に残る状態で、syslog が無い)。何で落ちるかは測っていない
 
 ### OI-190 E2E-Flutter の Android で左右・上への払いが「下」と読まれる(低率)
-- 状態: 再現済み
-- 確認: 4a6a1b594(2026-11-07)
+- 状態: 経路確定
+- 確認: コミット未記録(2026-11-11)
 - 属性: 低頻度
-- 運用: 再実行で吸収 — 回し直すと大半は緑(11/9 は 12 回中 10 回)
+- 運用: 再実行で吸収 — 回し直すと大半は緑(11/9 は 12 回中 10 回)。11/11 の直しの後はブリッジの払いで負荷の下 0.4%・残るのは座標の払い(`swipePointToPoint` 等)
 - 優先度: 低 — 低率の赤(沈黙しない)
 
 11/7 のフル E2E(手元)で E2E-Flutter の Android の「ジェスチャが正しく検出されること」S0010 が `swipe right` の後の `textIs("#txt_swipe_dir", "swipe=right")` で赤(actual `swipe=down`・emulator-5554 の1回)。同じシナリオを手元の6台へ回し直すと 6/6 緑。原因は未観測。
 11/9 のフル E2E(手元・配信あり・load1 約 37)でも同じシナリオの `swipe left` の後が `swipe=down` で赤(1/47)。手元の6台へ2回回し直すと 4/6 → 6/6 緑(赤は -06 の `swipe left`・-04 の `swipe up`。どちらも `swipe=down`)= 19 回中 3 回。払いの経路は 11/7 以降の直しで触っていない
+- 11/11(原因): Flutter の `VelocityTracker` は最後の MOVE を受けてから UP までを**アプリ側の壁時計**で測り、40ms を超えると速度 0 を返す(velocity_tracker.dart の `_assumePointerMoveStoppedMilliseconds`)。SUT の向きの判定は速度 0 で必ず `down`。陽性対照(手元の Emulator・`input motionevent` で UP だけ 200ms 遅らせる)で左・上の払いが `swipe=down`・遅らせない `input swipe` は `swipe=left`。Android ブリッジの払い(`InputInjector.swipe`)は最後の MOVE の後に 16ms 眠ってから UP を撃っていて、負荷の下で眠りが延びる
+- 11/11(直し・ブリッジ v136): gesture(DSL の `swipe`・flick の払い)とフリングは最後の MOVE の直後に離す(search の非フリングは View/Compose の飛び越し防止なので変えない)。ブリッジへ直接 `/swipe` を撃つ対照(手元の6台・`yes` ×20 の負荷・v135 と v136 を交互に3ブロック・各 540 回)で 11/540 → 2/540(すべて `down`・片側 Fisher p≈0.011)。残る 0.4% はブリッジが UP をすぐ撃った後の端末側の遅れで、ブリッジには削れる間が無い。負荷なしの4 SUT の Android の払い・スクロール・フリック(+画像で探す)を6台へ broadcast = 281/282 緑
+- **残り(同じ型・直していない)**: 座標の払い(`swipePointToPoint`・in-app でない Android の `dragWithFallback`)は gRPC のドラッグ(`EmulatorGrpcSession.drag`)で、こちらも最後の MOVE の後に `durationMs/steps` 眠ってから別の呼び出しで UP を送る。E2E-Flutter の S0010 の `swipePointToPoint` の後の `swipe=up` が 11/11 に 3/34 で `swipe=down`(負荷の下 2/16・負荷なし 1/6。HEAD は負荷の下 0/16 = 差とは言えない)。この経路は遅いドラッグの寄せ(ac5528ff9)・端送りと共有で、一律に間を詰めると遅いドラッグの離す速度が 0 でなくなる(Flutter が慣性を出しうる)。直すなら drag に用途を渡す口を足して、座標の払いだけ直後に離す
 
 ### OI-169 Android の行への `swipeBy` が ✅ のあと結果が出ない(低率)
 - 状態: 再現済み

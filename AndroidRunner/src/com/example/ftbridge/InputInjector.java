@@ -98,13 +98,19 @@ final class InputInjector {
      * オーバーヘッドぶん UP が遅れ、VelocityTracker が「最後は止まっていた」と読んで
      * フリングが出ない** —— 飛距離が指の移動距離を下回る(実測 969px 動かして 690px)。
      * ストロークを短くするほど悪化し、150ms では [120, 780, 105, 714, 120] と
-     * 「UP が間に合うか」のレースになる。**View/Compose だけの現象で Flutter は影響を受けない**。
+     * 「UP が間に合うか」のレースになる(View/Compose はイベントの eventTime で速度を測る)。
+     *
+     * **Flutter は eventTime ではなくアプリ側の壁時計で測る**(`VelocityTracker`: 最後の MOVE を受けてから
+     * UP までが 40ms を超えると速度 0)。最後の MOVE の後の sleep は負荷の下で延びて 40ms を超え、払いの向きを
+     * 速度で読むアプリはどの向きも「止まって離した」と読む(OI-190。UP を 200ms 遅らせた陽性対照で左・上の払いが
+     * swipe=down)。**liftImmediately = 最後の MOVE の直後に UP を撃つ**(人の指と同じ)。search の非フリングは
+     * View/Compose の飛び越し防止が後ろの sleep の遅れに依っているので立てない(呼び手 BridgeRouter.handleSwipe)。
      *
      * 既定を true にしていないのは、探索(scrollTo)の1回の移動量がビューポート高を超えると
      * 要素を飛び越すため。用途ごとの使い分けは FTCore/BridgeDTO の FTSwipeIntent を見ること
      */
     static void swipe(UiAutomation ua, double fromX, double fromY, double toX, double toY,
-                      long durationMs, boolean syntheticUpTime) {
+                      long durationMs, boolean syntheticUpTime, boolean liftImmediately) {
         long downTime = SystemClock.uptimeMillis();
         inject(ua, event(downTime, downTime, MotionEvent.ACTION_DOWN, fromX, fromY));
         int steps = Math.max(1, (int) (durationMs / 16));
@@ -112,7 +118,7 @@ final class InputInjector {
             double t = (double) i / steps;
             inject(ua, event(downTime, downTime + (long) (t * durationMs), MotionEvent.ACTION_MOVE,
                     fromX + (toX - fromX) * t, fromY + (toY - fromY) * t));
-            SystemClock.sleep(GESTURE_TICK_MS);
+            if (i < steps || !liftImmediately) SystemClock.sleep(GESTURE_TICK_MS);
         }
         long upTime = syntheticUpTime ? downTime + durationMs : SystemClock.uptimeMillis();
         inject(ua, event(downTime, upTime, MotionEvent.ACTION_UP, toX, toY));
