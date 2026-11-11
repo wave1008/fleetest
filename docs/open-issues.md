@@ -160,20 +160,18 @@ E2EY Flutter の折りたたみヘッダ: ヘッダを畳むとタブ帯の下�
 deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま(手で再起動が要る)。
 - 11/7: 材料不足(ブリッジの外に残る状態で、syslog が無い)。何で落ちるかは測っていない
 
-### OI-190 E2E-Flutter の Android で左右・上への払いが「下」と読まれる(低率)
+### OI-190 E2E-Flutter の Android で払いの向きが「下」と読まれる(低率)
 - 状態: 経路確定
 - 確認: 7161b1156(2026-11-11)
 - 属性: 低頻度
-- 運用: 再実行で吸収 — 回し直すと大半は緑(11/9 は 12 回中 10 回)。11/11 の直しの後はブリッジの払いで負荷の下 0.4%・残るのは座標の払い(`swipePointToPoint` 等)
+- 運用: 再実行で吸収 — ブリッジの払い(4方向の `swipe`)は 11/11 に直した(負荷の下 0.4%・全体の回帰で 0 件)。残るのは座標の払い(`swipePointToPoint` 等)で、全体の回帰で 47 本中 1 本
 - 優先度: 低 — 低率の赤(沈黙しない)
 
-11/7 のフル E2E(手元)で E2E-Flutter の Android の「ジェスチャが正しく検出されること」S0010 が `swipe right` の後の `textIs("#txt_swipe_dir", "swipe=right")` で赤(actual `swipe=down`・emulator-5554 の1回)。同じシナリオを手元の6台へ回し直すと 6/6 緑。原因は未観測。
-11/9 のフル E2E(手元・配信あり・load1 約 37)でも同じシナリオの `swipe left` の後が `swipe=down` で赤(1/47)。手元の6台へ2回回し直すと 4/6 → 6/6 緑(赤は -06 の `swipe left`・-04 の `swipe up`。どちらも `swipe=down`)= 19 回中 3 回。払いの経路は 11/7 以降の直しで触っていない
-- 11/11(原因): Flutter の `VelocityTracker` は最後の MOVE を受けてから UP までを**アプリ側の壁時計**で測り、40ms を超えると速度 0 を返す(velocity_tracker.dart の `_assumePointerMoveStoppedMilliseconds`)。SUT の向きの判定は速度 0 で必ず `down`。陽性対照(手元の Emulator・`input motionevent` で UP だけ 200ms 遅らせる)で左・上の払いが `swipe=down`・遅らせない `input swipe` は `swipe=left`。Android ブリッジの払い(`InputInjector.swipe`)は最後の MOVE の後に 16ms 眠ってから UP を撃っていて、負荷の下で眠りが延びる
-- 11/11(直し・ブリッジ v136): gesture(DSL の `swipe`・flick の払い)とフリングは最後の MOVE の直後に離す(search の非フリングは View/Compose の飛び越し防止なので変えない)。ブリッジへ直接 `/swipe` を撃つ対照(手元の6台・`yes` ×20 の負荷・v135 と v136 を交互に3ブロック・各 540 回)で 11/540 → 2/540(すべて `down`・片側 Fisher p≈0.011)。残る 0.4% はブリッジが UP をすぐ撃った後の端末側の遅れで、ブリッジには削れる間が無い。負荷なしの4 SUT の Android の払い・スクロール・フリック(+画像で探す)を6台へ broadcast = 281/282 緑
-- **残り(同じ型・直していない)**: 座標の払い(`swipePointToPoint`・in-app でない Android の `dragWithFallback`)は gRPC のドラッグ(`EmulatorGrpcSession.drag`)で、こちらも最後の MOVE の後に `durationMs/steps` 眠ってから別の呼び出しで UP を送る。E2E-Flutter の S0010 の `swipePointToPoint` の後の `swipe=up` が 11/11 に 3/34 で `swipe=down`(負荷の下 2/16・負荷なし 1/6。HEAD は負荷の下 0/16 = 差とは言えない)。この経路は遅いドラッグの寄せ(ac5528ff9)・端送りと共有で、一律に間を詰めると遅いドラッグの離す速度が 0 でなくなる(Flutter が慣性を出しうる)。直すなら drag に用途を渡す口を足して、座標の払いだけ直後に離す
-- 11/11(試して取り消した直し): gRPC のドラッグを一律に最後の MOVE の直後に離す版。座標の払いの誤読は負荷の下 1台で 14/180 → 6/180(片側 Fisher p≈0.053)に減ったが、E2E-Android(View)の `flickBottomToTop` が一覧を送らない赤が負荷なしで 3/24(HEAD は交互に回して 0/18)= 「平常時の間は 40ms 未満なので挙動は変わらない」の前提が外れた(View のフリックは最後の間に依っている。仕組みは未観測)。座標の払いだけに絞るなら、用途を渡す口を足してフリック・寄せ・探索の経路は変えないこと
-- 11/11(7161b1156 の全体の回帰・`_work/regress-20261111v`・配信は regress.py が止めた): 残りの形が E2E-Flutter の Android の S0010 の `swipePointToPoint` の後で1回(`swipe=down`・手元・1/47)。ブリッジの払い(4方向の `swipe`)の赤は0
+**観測**: E2E-Flutter の Android の「ジェスチャが正しく検出されること」S0010 で、払いの後の `textIs("#txt_swipe_dir", …)` が向きに関わらず actual `swipe=down` で赤。11/7・11/9 のフル E2E で4方向の `swipe` が 19 回中 3 回、11/11 は座標の払い `swipePointToPoint` が 34 回中 3 回(負荷の下 2/16・負荷なし 1/6)と全体の回帰で 1/47。
+- **原因(11/11)**: Flutter の `VelocityTracker` は最後の MOVE を受けてから UP までを**アプリ側の壁時計**で測り、40ms を超えると速度 0 を返す(velocity_tracker.dart の `_assumePointerMoveStoppedMilliseconds`)。SUT の向きの判定は速度 0 で必ず `down`。陽性対照(手元の Emulator・`input motionevent` で UP だけ 200ms 遅らせる)で左・上の払いが `swipe=down`・遅らせない `input swipe` は `swipe=left`。Android ブリッジの払い(`InputInjector.swipe`)は最後の MOVE の後に 16ms 眠ってから UP を撃っていて、負荷の下で眠りが延びる
+- **直し(11/11・2832db37a・ブリッジ v136)**: gesture(DSL の `swipe`・flick の払い・MCP の `ft_swipe`)とフリングは最後の MOVE の直後に離す(search の非フリングは View/Compose の飛び越し防止なので変えない)。ブリッジへ直接 `/swipe` を撃つ対照(手元の6台・`yes` ×20 の負荷・v135 と v136 を交互に3ブロック・各 540 回)で 11/540 → 2/540(すべて `down`・片側 Fisher p≈0.011)。残る 0.4% はブリッジが UP をすぐ撃った後の端末側の遅れで、ブリッジには削れる間が無い。負荷なしの4 SUT の Android の払い・スクロール・フリックは 281/282 緑
+- **残り(同じ型・直していない)**: 座標の払い(`swipePointToPoint`・`swipeBy` 等、in-app でない Android の `dragWithFallback`)は gRPC のドラッグ(`EmulatorGrpcSession.drag`)で、こちらも最後の MOVE の後に `durationMs/steps` 眠ってから別の呼び出しで UP を送る。この経路は遅いドラッグの寄せ(ac5528ff9)・端送り・フリックと共有。直すなら drag に用途を渡す口を足して(`drag` の実装は 44 ファイル)、座標の払いだけ直後に離す。率を回帰の数回分見てから決める
+- 試して取り消した直し(11/11): gRPC のドラッグを一律に最後の MOVE の直後に離す版。座標の払いの誤読は負荷の下 1台で 14/180 → 6/180(片側 Fisher p≈0.053)に減ったが、E2E-Android(View)の `flickBottomToTop` が一覧を送らない赤が負荷なしで 3/24(HEAD は交互に回して 0/18)= 「平常時の間は 40ms 未満なので挙動は変わらない」の前提が外れた(View のフリックは最後の間に依っている。仕組みは未観測)
 
 ### OI-169 Android の行への `swipeBy` が ✅ のあと結果が出ない(低率)
 - 状態: 再現済み
@@ -185,6 +183,7 @@ deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま
 出典: `_work/explore-20261104d/findings-*.md`(12周目・11/4)。⑨11/4 の回帰(5754bf5d)で E2EX-Android の「スワイプで行を削除できること」S0010 が M1Max で1回赤(`swipeBy("#swipe_row_3", -0.5, 0)` の後も `removed=none`)。手元の 8 台へ同時に回すと 8/8 緑
 - 11/7: 1/29 で再現。材料不足(swipeBy は adb の払いでブリッジの記録に残らず、赤の回の入力の時系列が無い)
 - 11/7: 同じ型の形: 7125741e の E2EY の回帰(M1Max)で E2EY-RN の Android の「行を払ってボタンや返信を出せること.S0030」が1回赤(`swipeBy "#sw_row_3" (-0.9, 0.0)` が ✅ のあと結果の欄が出ない。同じステップに「戻るの帯(SystemUI の dumpsys)を読めなかった」の注記)。単独の `--broadcast` 3周で 12/12 緑
+- 11/11(推測・未観測): `swipeBy` は Emulator では gRPC のドラッグで撃つ = OI-190 の残り(座標の払い)と同じ経路。行を払って消す・開く部品が離す瞬間の速度で決めるなら、負荷で最後の MOVE と UP の間が延びた回は「止まって離した」と読まれて戻る。次に赤が出たら、そのシナリオの部品が速度で決めるか(SUT のコード)と、同じ時刻のホストの負荷を見る
 
 ### OI-138 MCP の Android が、同じ serial で入れ替わった Emulator を前の接続のまま読む
 - 状態: 経路確定
@@ -236,6 +235,7 @@ E2E-RN の iOS(inapp-boost モード)を `orientation=landscape` で全台(8台)
 
 起動から約 11 時間の M2Ultra で FM が dead・Vision の OCR が空(`Hello 123` の絵も読めない)だった間、E2E-CMP の xcuitest が「none of the N text element(s) … is drawn」で 4/24 赤・レーン離脱。この判定(`RenderCollapse`)は OCR ではなく切り出した領域の輝度のばらつきで見るので、絵に文字が無かったのは事実。マシンの劣化(GPU / ANE)で Simulator の描画が崩れたのか、偶然の重なりかは分けていない。再起動後に同じ形が出るかで見る
 - 11/10: 起動から約 17 時間の手元(配信あり・`fmText=alive fmVision=alive`)の全体の回帰(a3135ab2f・`_work/release-20261110d`)で、E2EY-Android の「文中のリンクだけを押せること」S0030 が「OCR read no text in the element; 3 OCR passes」で赤。OCR へ渡した絵(報告の `read_by_link_text_ocr.png`)には「こちら」がはっきり描かれている = 絵は正しく、OCR が空を返した。同じ日の 03 時の単体テスト(`LinkTextLocatorTests` の「OCR read: []」と `FindImageTests` の Vision の縮退)と同じ形。直後に同じ単体テストは 13/13 緑・同じシナリオを Android 18 台で回し直すと 30/30(リモート)・23/24(手元。残る1本は OI-127 の一色)= 機械の状態で出入りする。健全性の表示(`fmVision=alive`)はこの間も alive = 生死の監視では捉えられない
+- 11/11: Vision の OCR と特徴量の死活の確かめを入れた(7161b1156・7efdc723f。`api host-metrics --vision-probe` が内蔵の絵で1分ごとに確かめ、死ならモニターに ⚠︎OCR / ⚠︎FP・変わり目を `~/.fleetest/vision-history.ndjson` に時刻付きで残す)。次に出たら、赤の時刻とその機械の履歴を突き合わせる
 
 ### OI-127 手元の Emulator の白紙が回帰の終盤に集中した
 - 状態: 再現済み
@@ -260,7 +260,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/7(対照): 11/6 の版 d2dd8d1e4(ブリッジ v126。古い版は新しいブリッジを自動で引き下げないので `adb uninstall com.example.ftbridge` してから)と HEAD を手元の8台で交互に3周ずつ = `nav_selector` は 3/24 と 9/24(p≈0.1 = 差と言えない)。画像の照合のコードは両版で同一 = 11/7 の変更への帰属は否定
 - 11/8: 照合の記述に同じ距離の候補の数と次点の距離を足した(cd6a3f792 = `found (distance …, N candidates at that distance, next …)`)。マシンの再起動の後は手元の8台で4周 96 本すべて緑で、S0040 は 24 本とも特徴量では閾値に届かず分類器で採った(`distance 0.066 > threshold 0.030`)= 健全なら正しい行でも 0.066 で、別の行が 0.000 になるのは候補の特徴量が壊れたときだけ。今の門(白紙との距離・見本の取り直し)は候補の計算の前にしか掛からない。次に赤が出たら記述の同じ距離の候補の数で、全候補が並ぶ縮退か(候補の側にも門を掛ける)を確かめてから直す。長く動かした機械の FM・Vision の停止は OI-137
 - 11/10: 配信を張ったままの全体の回帰(9d8f94471・`_work/regress-20261110b`)で再発。手元は再起動から 6.9 時間 = 「長く動かした機械」だけではない。記述は `found (distance 0.000, next 0.066) / 11 compared` = 同じ距離の候補は1つだけ(全候補が並ぶ縮退ではない)・次点 0.066 は健全なときの正しい行の距離 = 正しい行の計算は健全で、**別の1行だけが 0.000 になった**。直後に手元の6台で3周(72 本)回すと全部緑(正しい行を分類器が 0.066 で採る)。候補の側の門は、何が 0.000 を作るか(その行の切り出しの絵)を観測するまで掛けない
-- 11/11(材料の採り口): 通った単数の `findImage` / `existImage` の照合の絵を次の1ステップへ持ち越し、そのステップ(`idIs` 等)が自分の絵を持たずに落ちたらレポートに添える(印 `preceding-image-match`)。照合の記述に採った候補の切り出しの枠(`cropped at x,y wxh`)も出す。**次に赤が出たら、添えた絵のその枠を切り出して 0.000 を作った絵を見る**(白紙・一色・正しい行と同じ絵か)
+- 11/11(材料の採り口): 通った単数の `findImage` / `existImage` の照合の絵を次の1ステップへ持ち越し、そのステップ(`idIs` 等)が自分の絵を持たずに落ちたらレポートに添える(印 `preceding-image-match`)。照合の記述に採った候補の切り出しの枠(`cropped at x,y wxh`)も出す。**次に赤が出たら、添えた絵のその枠を切り出して 0.000 を作った絵を見る**(白紙・一色・正しい行と同じ絵か)。同じ時刻のその機械の Vision の死活の履歴(`vision-history.ndjson`・OI-137)も見る
 
 ### OI-132 Flutter の iOS で別の欄へ打った後、キーボードの裏へ送られた欄が木から消えて `type` が赤
 - 状態: 再現済み
@@ -333,7 +333,6 @@ E2EX-Flutter・xcuitest モード・`type "#field_number" "12"; type "#field_fir
 - 11/10(①の時間の推移): 手元の Emulator(Pixel 10 Pro -01・Android 17)で `type("#field_auto", "Ja")` → `hideKeyboard()` の後 20 秒置き、`fleetest snapshot` を 0.5 秒ごとに撮って枠を記録。**候補の枠は時間で直らない**(閉じた後の 40 秒間 `#auto_opt_japan` = y 1677・h 168 のまま)。欄 `#field_auto`(y 1752〜1920)は描画と一致し、候補の描画(スクリーンショット)は約 1931px から = 木は約 254px 上・木の候補の中心(約 1761)は欄の中 = tap は欄に届いて候補を選ばない。閉じる前も木 1296・描画約 1709 = 約 413px 上で、ずれはキーボードを閉じた後だけの事象ではない。待っても木は正しくならないので、観測できる事象を待つ直しは成り立たない。**木の外の材料(画素)が要る**: 撃つ前にその枠の画素にラベルの文字があるかを OCR で確かめる案(テキストの可視性検証を tap の前にも掛ける = 費用と適用範囲はユーザーの判断)。Flutter 側の既知の不具合は検索で見つからなかった
 - 11/10(①の扱い・ユーザー決定): ツールでは吸収せず、制約として文書に書いた(ui_component_patterns の「現時点の制約」と FD-5.1 の表: 候補を押した後は選んだ値を echo で確かめる)。撃つ前の OCR の確かめは費用(全 tap)に見合わないので入れない
 - 11/10(⑦ は据え置き): ⑦ は書き方で空白の扱いが割れる形(フィルタの値は項の端の空白を落とす = `#a && text=b` の書き方を許すため・ワイルドカードは項の中の空白を残す)で、どちらへ揃えてもセレクタの一致が変わる。11/9 のユーザー決定「セレクタの空白は今のまま」の範囲なので、決定が無い限り直さない
-
 
 ### OI-202 iOS の CMP 検索バーの value の説明文を中身と読む注記・Duo の形・MCP の文言・SE3 の in-app ブリッジが供給から落ちるほか
 - 状態: 再現済み
