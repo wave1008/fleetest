@@ -9,7 +9,8 @@ extension StepExecutor {
     /// `waitSeconds:` を省いた操作がロケータを探し直す回数。待ちは `PollBackoff` の最初のこの回数ぶん
     /// (`defaultLocatorRetrySeconds`)。変えるときは docs/commands.md の `waitSeconds:` 省略時の表と
     /// user-docs の tap / select_and_assert(約 0.7 秒と書いている)も直す
-    static let defaultLocatorRetryAttempts = 3
+    /// MCP の `selector`(`withSelectorTarget`)も同じ回数・同じ間隔で探し直す(シナリオの行と同じ探し方)
+    public static let defaultLocatorRetryAttempts = 3
     /// 寄せの前後で枠の高さが縮んだと数えない差(pt / Android は px)。木の丸め。これを超えて縮めば「切られた」
     static let nudgeHeightShrinkTolerance = 2.0
 

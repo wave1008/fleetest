@@ -115,6 +115,18 @@ final class SelectorTargetTests: XCTestCase {
         XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
     }
 
+    /// 遷移の直後で1回目の読みに無くても、シナリオの行と同じ回数だけ撮り直して探す(2回目に現れたら撃つ)
+    func testSelectorIsSearchedAgainLikeAScenarioLine() async throws {
+        let (server, fake) = make([])
+        var empty = fake.snapshotResponse
+        empty.elements = []
+        var arrived = fake.snapshotResponse
+        arrived.elements = [element(1, id: "transit", label: "交通機関", y: 0)]
+        fake.scriptedSnapshots = [empty, arrived]
+        _ = try await server.call(tool: "ft_tap", args: ["selector": "#transit"])
+        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("tap(") }, "2回目の読みで現れた要素を撃つ: \(fake.calls)")
+    }
+
     // MARK: - 下書き
 
     /// 下書きは推奨形でなく、渡された selector を書く

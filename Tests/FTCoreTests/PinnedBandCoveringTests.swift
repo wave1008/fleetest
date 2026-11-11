@@ -96,4 +96,21 @@ final class PinnedBandCoveringTests: XCTestCase {
         let counter = e(3, "staticText", "txt_tap_count", y: 384, x: 933, w: 115, h: 63)
         XCTAssertNil(TapTargetGeometry.pinnedBandCovering(target, in: [target, counter], container: container))
     }
+
+    /// ラベルの無い小さな要素(id だけ)は文字の幅を申告している見出しではない = 帯へ広げない。
+    /// 実測の木(Apple マップの経路の計画・iOS 27 Simulator): 地点の行のボタンの上の `#RoutePlanningWaypointCell`
+    func testUnlabeledSmallElementIsNotWidenedIntoAHeader() {
+        let container = FTRect(x: 8, y: 585, width: 386, height: 99)
+        let tree = [
+            ElementInfo(ref: 181, type: "collectionView", identifier: "RoutePlanningWaypointList", label: nil, value: nil,
+                        placeholder: nil, enabled: true, frame: container, depth: 1, scrollable: true),
+            ElementInfo(ref: 182, type: "clickable", identifier: nil, label: nil, value: nil, placeholder: nil, enabled: true,
+                        frame: FTRect(x: 23, y: 585, width: 355, height: 49), depth: 2),
+            ElementInfo(ref: 183, type: "other", identifier: "RoutePlanningWaypointCell", label: nil, value: nil,
+                        placeholder: nil, enabled: true, frame: FTRect(x: 34, y: 597, width: 80, height: 38), depth: 3),
+            ElementInfo(ref: 184, type: "button", identifier: "IconImage-WaypointNameText", label: "出発地を選択", value: nil,
+                        placeholder: nil, enabled: true, frame: FTRect(x: 23, y: 585, width: 355, height: 49), depth: 3),
+        ]
+        XCTAssertNil(TapTargetGeometry.pinnedBandCovering(tree[3], in: tree, container: container))
+    }
 }

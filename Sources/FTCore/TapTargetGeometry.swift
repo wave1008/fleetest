@@ -837,10 +837,13 @@ public enum TapTargetGeometry {
     /// **対象自身のラベルの文字は除く** —— XCUITest の木は行のラベルを行の子でなく兄弟として出すことがあり、上端の行が自分の
     /// ラベルを見出しと読むと、覆われていない行を送ってしまう
     static func inferredPinnedBand(_ text: ElementInfo, over target: ElementInfo, in container: FTRect) -> FTRect? {
-        let name = text.label ?? text.identifier ?? ""
+        // 推定するのは**文字(ラベル)を持つ**要素だけ。id だけの要素は文字の幅を申告している見出しではない
+        // (Apple マップの経路の地点の行の中の `#RoutePlanningWaypointCell` = ラベル無しの小さな other を帯へ広げ、
+        // 押せた「出発地を選択」に貼り付く見出しの警告を出した。Flutter の見出しはデバイスの木で `staticText "セクション F"`)
+        let name = text.label ?? ""
         let gap = text.frame.y - container.y
         // 幅のある文字は推定しない(縁に揃っているかは isPinnedTextBand の側で決まる)
-        guard !name.isEmpty, name != target.label, name != target.identifier,
+        guard !name.isEmpty, name != target.label,
               text.frame.width < container.width * pinnedBandMinimumWidthRatio,
               text.frame.height > 0, gap >= 0, gap <= text.frame.height,
               // 見出しの帯は容器の幅いっぱいで、対象の上に重なる = 文字は対象の横の範囲に居る。横に離れた文字(同じ行の右の

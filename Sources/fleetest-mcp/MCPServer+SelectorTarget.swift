@@ -34,13 +34,26 @@ extension MCPServer {
                             run: ([String: Any]) async throws -> [[String: Any]]) async throws -> [[String: Any]] {
         guard let selector = args["selector"] as? String else { return try await run(args) }
         let d = try await driver(args)
-        let snapshot = try await freshSnapshot(d, args: args)
+        var snapshot = try await freshSnapshot(d, args: args)
         let target: (element: ElementInfo, note: String)
-        do {
-            target = try Self.resolveSelectorTarget(selector, in: snapshot)
-        } catch let miss as MCPError {
-            // 一致なしは ref の経路(アラートの門)へ届かないので、前面のアラートはここで名指す(読み手は木だけ見て探し続ける)
-            throw MCPError(miss.message + (await Self.frontAlertClause(snapshot, driver: d)))
+        // 一致なしは何も撃っていないので、シナリオの行と同じ回数・間隔(`StepExecutor.defaultLocatorRetryAttempts` と
+        // `PollBackoff`。合計約 0.7 秒)だけ撮り直して探す(遷移の直後の1回で断ると、直後に現れる要素で外れた = Apple マップの実測)
+        var backoff = PollBackoff()
+        var attempt = 0
+        while true {
+            do {
+                target = try Self.resolveSelectorTarget(selector, in: snapshot)
+                break
+            } catch let miss as MCPError {
+                guard attempt < StepExecutor.defaultLocatorRetryAttempts,
+                      (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil else {
+                    // 一致なしは ref の経路(アラートの門)へ届かないので、前面のアラートはここで名指す(読み手は木だけ見て探し続ける)
+                    throw MCPError(miss.message + (await Self.frontAlertClause(snapshot, driver: d)))
+                }
+                attempt += 1
+                try await Task.sleep(for: backoff.nextDelay())
+                snapshot = try await freshSnapshot(d, args: args)
+            }
         }
         var resolved = args
         resolved["ref"] = target.element.ref
