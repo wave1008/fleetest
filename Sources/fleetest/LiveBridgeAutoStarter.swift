@@ -51,7 +51,7 @@ actor LiveBridgeAutoStarter {
     /// 続くコマンドで繰り返さない(固まったランナーへの /status は1本ごとに 2〜3 秒かかり、毎コマンド払っていた)。
     /// 窓が尽きれば撃ち直す = 戻ったランナーは最長この秒数で使える。答えた・誰も listen していない・成功・失敗で消す
     private var elsewhereSilentAt: Date?
-    /// 根拠: 固まったランナーの /status 1本が 2〜3 秒(OI-125 の観測)で、省かないと毎コマンド約 5 秒。窓が長いほど戻ったランナーへの
+    /// 根拠: 固まったランナーの /status 1本が 2〜3 秒(観測)で、省かないと毎コマンド約 5 秒。窓が長いほど戻ったランナーへの
     /// 乗り換えが遅れる。command watchdog(30 秒)より十分短く、人の操作の間隔(数秒)の数回ぶんとして 10 秒。尽きたら撃ち直す
     static let elsewhereSilenceWindowSeconds: TimeInterval = 10
 

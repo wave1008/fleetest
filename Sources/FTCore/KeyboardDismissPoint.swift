@@ -63,7 +63,7 @@ public enum KeyboardDismissPoint {
         }
         let allXs = samples(from: screen.x, length: screen.width, step: step)
         // 左右の端の1列(x = step/2 ≒ 8pt)は戻るジェスチャの帯(Flutter の Cupertino 遷移は端から 20pt = kBackGestureWidth)に入り、
-        // 叩いても背景の押下にならず閉じない回があった(OI-132。同じ点が選ばれ続けて 7/25 で閉じなかった)。端の1列を外した点を先に試し、
+        // 叩いても背景の押下にならず閉じない回があった(同じ点が選ばれ続けて 7/25 で閉じなかった)。端の1列を外した点を先に試し、
         // 空きが無ければ全幅へ戻る(1列 = step ≒ 画面幅/24 ≒ 16pt なので外した後の最端は 24pt 以上で帯の外)
         func scanPreferringInterior(_ xs: [Double]) -> [Choice] {
             let interior = xs.filter { $0 - screen.x >= step && screen.x + screen.width - $0 >= step }

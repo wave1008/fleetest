@@ -42,7 +42,7 @@ final class LiveRunnerElsewhereSwitchWiringTests: XCTestCase {
                       "別ポートのランナーを理由にした断りの間は、起動へ入れ直さず理由の文を返す")
     }
 
-    /// OI-125: 答えない別ポートのランナーに /status 2 本 + probe を毎コマンド払わない。窓の中は省き、窓が尽きれば撃ち直す
+    /// 答えない別ポートのランナーに /status 2 本 + probe を毎コマンド払わない。窓の中は省き、窓が尽きれば撃ち直す
     func testSilentElsewhereRunnerIsSkippedOnlyWithinTheWindow() async {
         let starter = LiveBridgeAutoStarter(
             repoRoot: URL(fileURLWithPath: "/tmp"), udid: "U", port: 8151, physical: false, wired: false)

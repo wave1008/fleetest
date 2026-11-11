@@ -38,7 +38,7 @@ final class KeyboardDismissPointTests: XCTestCase {
         }
     }
 
-    /// 左右の端の1列は戻るジェスチャの帯に入るので、空きが他にあれば候補にしない(OI-132)。端の列にしか空きが無いときは全幅へ戻る
+    /// 左右の端の1列は戻るジェスチャの帯に入るので、空きが他にあれば候補にしない。端の列にしか空きが無いときは全幅へ戻る
     func testPrefersPointsAwayFromTheScreenEdges() throws {
         let step = screen.width / Double(KeyboardDismissPoint.gridColumns)
         let found = candidates(form())

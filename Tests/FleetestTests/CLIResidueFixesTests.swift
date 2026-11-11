@@ -30,7 +30,6 @@ final class CLIResidueFixesTests: XCTestCase {
         XCTAssertNil(disabledDevicesNote(missing: ["iPhone A"], targetMachine: "M1", disabled: disabled, profile: "p"))
     }
 
-    // OI-125
     func testTypeWarnsOnTextAfterALineBreak() {
         XCTAssertNotNil(TypeCommand.lineBreakNote("ab\ncd"))
         XCTAssertNil(TypeCommand.lineBreakNote("abcd"))
