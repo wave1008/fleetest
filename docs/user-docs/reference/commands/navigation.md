@@ -35,10 +35,12 @@ hinge(130)              // half-open book posture
 
 ## Notes
 
-- **On iOS in inapp-boost mode (the default) and on Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()`, `launchApp(url:)` or `back()`, bring the app back before acting on it.** On Android, only `notExist`, `countIs(0)`, `select` and conditions (`ifCanSelect` and the like) are refused while the app is not in front (you can still read and tap the home screen's icons). On iOS, `back()` is also refused while the app is not in front.
-  While the app under test is not in front (the home screen, another app, or the app switcher is showing),
-  a step that reads or touches the app waits up to its usual wait for the app to come back, then fails instead of
-  acting on an app nobody can see:
+- **On iOS in inapp-boost mode (the default) and on Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()`, `launchApp(url:)` or `back()`, bring the app back before acting on it.** On iOS, while the app under test is not in front (the home screen, another app, or the app switcher is showing),
+  a step that reads or touches the app (including `back()`) waits up to its usual wait for the app to come back, then fails instead of
+  acting on an app nobody can see.
+  On Android the tree is the screen in front, so only steps that would pass on absence — `notExist`, `countIs(0)`, `select` and
+  conditions (`ifCanSelect` and the like) — and scroll sends that would reach another app are treated this way (other reads and
+  actions apply to the screen in front; you can still read and tap the home screen's icons). When a step is refused:
   `failureKind` is `app-in-background`, or `system-ui-covered` while the app switcher is open.
   Return with `tapAppIcon()` or `launchApp()`.
   `home()` itself finishes only once the app has left the foreground (it presses home again if the app is still
