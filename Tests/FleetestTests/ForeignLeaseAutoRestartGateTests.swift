@@ -82,7 +82,7 @@ final class ForeignLeaseAutoRestartGateTests: XCTestCase {
     /// run 自身のレーンと MCP の測り直しが共有する起動し直し(run は引き取ったデバイスでも起動し直す版)
     func testRecheckRunnerChecksBeforeRestarting() throws {
         try assertGate("RunnerAccessibilityHealth.hasForeignLeaseUnlessOwnRun(key: udid, stateDir: fleetestStateDir)",
-                       precedes: ["await provisionLock.acquire()", "try await restartRunner("],
+                       precedes: ["await provisionLock.acquire(", "try await restartRunner("],
                        inFunction: "recheckRunner", file: "Sources/FTBridgeClient/BridgeProvisioner.swift")
     }
 
