@@ -173,6 +173,7 @@ deep sleep の後の `bridge up` が失敗し、実機 SE3 が全面黒のまま
 - 11/11(直し・ブリッジ v136): gesture(DSL の `swipe`・flick の払い)とフリングは最後の MOVE の直後に離す(search の非フリングは View/Compose の飛び越し防止なので変えない)。ブリッジへ直接 `/swipe` を撃つ対照(手元の6台・`yes` ×20 の負荷・v135 と v136 を交互に3ブロック・各 540 回)で 11/540 → 2/540(すべて `down`・片側 Fisher p≈0.011)。残る 0.4% はブリッジが UP をすぐ撃った後の端末側の遅れで、ブリッジには削れる間が無い。負荷なしの4 SUT の Android の払い・スクロール・フリック(+画像で探す)を6台へ broadcast = 281/282 緑
 - **残り(同じ型・直していない)**: 座標の払い(`swipePointToPoint`・in-app でない Android の `dragWithFallback`)は gRPC のドラッグ(`EmulatorGrpcSession.drag`)で、こちらも最後の MOVE の後に `durationMs/steps` 眠ってから別の呼び出しで UP を送る。E2E-Flutter の S0010 の `swipePointToPoint` の後の `swipe=up` が 11/11 に 3/34 で `swipe=down`(負荷の下 2/16・負荷なし 1/6。HEAD は負荷の下 0/16 = 差とは言えない)。この経路は遅いドラッグの寄せ(ac5528ff9)・端送りと共有で、一律に間を詰めると遅いドラッグの離す速度が 0 でなくなる(Flutter が慣性を出しうる)。直すなら drag に用途を渡す口を足して、座標の払いだけ直後に離す
 - 11/11(試して取り消した直し): gRPC のドラッグを一律に最後の MOVE の直後に離す版。座標の払いの誤読は負荷の下 1台で 14/180 → 6/180(片側 Fisher p≈0.053)に減ったが、E2E-Android(View)の `flickBottomToTop` が一覧を送らない赤が負荷なしで 3/24(HEAD は交互に回して 0/18)= 「平常時の間は 40ms 未満なので挙動は変わらない」の前提が外れた(View のフリックは最後の間に依っている。仕組みは未観測)。座標の払いだけに絞るなら、用途を渡す口を足してフリック・寄せ・探索の経路は変えないこと
+- 11/11(7161b1156 の全体の回帰・`_work/regress-20261111v`・配信は regress.py が止めた): 残りの形が E2E-Flutter の Android の S0010 の `swipePointToPoint` の後で1回(`swipe=down`・手元・1/47)。ブリッジの払い(4方向の `swipe`)の赤は0
 
 ### OI-169 Android の行への `swipeBy` が ✅ のあと結果が出ない(低率)
 - 状態: 再現済み
