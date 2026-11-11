@@ -116,7 +116,7 @@ Expected result:
 - In the new report, execution log and result JSON, the password is `***`.
 - **Text captured in screenshots and recordings is not masked**, however. Open a screenshot or recording of a screen that shows the password field in plain text and the value is visible.
 - There is no way to erase text inside pixels, so do not use production credentials.
-- Strings a scenario prints with `print()` are not redacted; do not print secret values.
+- Strings a scenario prints with `print()` are redacted in the execution log too.
 - Values shorter than 4 characters are not redacted.
 
 ## 4. Check the contents before sending anything out

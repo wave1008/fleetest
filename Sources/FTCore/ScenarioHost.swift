@@ -965,8 +965,10 @@ public enum ScenarioHost {
         // あちらは ⚠️ を付けて onEvent/builder へ流すための整形済みコピーで、ここは生の到着記録)
         let stderrTask = Task.detached { () -> [String] in
             var lines: [String] = []
-            for await line in lineStream(stderr.fileHandleForReading,
-                                         onChunk: { idleTracker?.activity(at: idleClock.now) }) {
+            for await rawLine in lineStream(stderr.fileHandleForReading,
+                                            onChunk: { idleTracker?.activity(at: idleClock.now) }) {
+                // 子の stderr も親の登録簿で伏せる(stdout と同じ理由。知らせは stdout にしか来ない)
+                let line = SecretRedactor.shared.redact(rawLine)
                 lines.append(line)
                 if !line.isEmpty { eventLog?.appendStderr(line) }
             }
@@ -985,8 +987,12 @@ public enum ScenarioHost {
         var notApplicable = false
         // 出力の到着はパイプの受け口(onChunk)で数える —— 読み取りループで数えると、ループが installRequest を
         // 待っている間・親が止まっていた直後の未消化の行を「出力が無い」と見る
-        for await line in lineStream(stdout.fileHandleForReading,
+        for await rawLine in lineStream(stdout.fileHandleForReading,
                                      onChunk: { idleTracker?.activity(at: idleClock.now) }) {
+            // 子が伏せる値を知らせてきた行は、生の行の記録より前に横取りして登録簿へ入れ、どこにも書き出さない
+            // (`SecretRedactor.hostAnnouncementKind`)。以降の行は全部この登録簿で伏せてから記録・取り込みする
+            // (子の print() の行は子の登録簿を通らない)
+            guard let line = SecretRedactor.hostStdoutLine(rawLine) else { continue }
             if !line.isEmpty, eventLogEnabled {
                 await EventLogAppender.shared.append(line)
             }

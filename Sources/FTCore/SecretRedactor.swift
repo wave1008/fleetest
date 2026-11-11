@@ -39,6 +39,46 @@ public final class SecretRedactor: Sendable {
 
     public func register(_ values: [String]) { values.forEach(register) }
 
+    /// 子(シナリオのプロセス)から親(`ScenarioHost`)へ伏せる値を知らせるイベントの kind。値は `detail` に JSON の配列で入る。
+    /// **親は生の行を書き出す前に横取りして自分の登録簿へ入れ、どこにも書き出さない**(子の `print()` の行は子の登録簿を
+    /// 通らずに親へ届き、親の登録簿にはシナリオが読んだ値が無かったので平文で実行ログに残った)
+    public static let hostAnnouncementKind = "secretValues"
+
+    /// 子が値を登録し、同じ値を親へ知らせる。知らせの行は**伏せ字を通さないバイト列の口**で書く(文字列の口は
+    /// 登録済みの値を `***` にするので、親が値を受け取れない)。登録より前に書くので、値を print した行より必ず先に届く
+    public func registerAndAnnounceToHost(_ values: [String]) {
+        let announced = values.filter { $0.count >= Self.minimumLength }
+        if !announced.isEmpty, let line = Self.hostAnnouncementLine(announced) {
+            ConsoleOut.out(Data((line + "\n").utf8))
+        }
+        register(values)
+    }
+
+    /// 知らせの1行(テスト・横取りの側と共有)
+    public static func hostAnnouncementLine(_ values: [String]) -> String? {
+        guard let data = try? JSONEncoder().encode(values), let detail = String(data: data, encoding: .utf8) else { return nil }
+        var event = ScenarioEvent(kind: hostAnnouncementKind)
+        event.detail = detail
+        return event.encodedLine()
+    }
+
+    /// 親が子の stdout の生の1行を受けたときの処理。知らせなら登録して nil(どこにも書き出さない)、
+    /// それ以外は登録簿で伏せた行を返す(`ScenarioHost` の取り込みの先頭で、生の行の記録より前に通す)
+    public static func hostStdoutLine(_ rawLine: String, redactor: SecretRedactor = .shared) -> String? {
+        if let announced = ScenarioEvent.decode(line: rawLine).flatMap(announcedValues) {
+            redactor.register(announced)
+            return nil
+        }
+        return redactor.redact(rawLine)
+    }
+
+    /// 横取りの側: 知らせのイベントなら値を返す(それ以外は nil)
+    public static func announcedValues(_ event: ScenarioEvent) -> [String]? {
+        guard event.kind == hostAnnouncementKind, let detail = event.detail,
+              let values = try? JSONDecoder().decode([String].self, from: Data(detail.utf8)) else { return nil }
+        return values
+    }
+
     /// 登録済みの値を `***` へ。登録が無ければ入力をそのまま返す
     public func redact(_ text: String) -> String {
         let list = forms.withLock { $0 }

@@ -28,7 +28,7 @@ extension FTDriveCore {
             // account の値は属性全部を伏せ字の登録簿へ(同じデータセットの別の属性も秘密として扱う)。
             // マシン側で `redactAccountValues` を立てたときだけ
             if kind == .accounts, redactAccountValues, let parts = ScenarioDataset.split(longKey: longKey) {
-                SecretRedactor.shared.register(dataset.allValues(dataset: parts.dataset))
+                SecretRedactor.shared.registerAndAnnounceToHost(dataset.allValues(dataset: parts.dataset))
             }
             return value
         } catch {
