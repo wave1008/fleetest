@@ -61,6 +61,9 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   that use FM (`screenLooksLike` and the FM stage of text visibility check) may not run.
   When this Mac's hardware video encoder is not working, **⚠︎AVE** appears next to it
   (recording clips are still extracted with the software encoder, which is slower; hover it for the reason and when it was observed).
+  When this Mac's Vision is not working, **⚠︎OCR** (text recognition) and/or **⚠︎FP** (image feature prints) appear further right.
+  While they are shown, checks that rely on reading text (tapping link text, the OCR stage of text visibility check) and image matching (`findImage` and the like) cannot be trusted.
+  Hover them for the reason and when it was observed. So far, restarting the Mac has cleared this.
   Only for a run with the OCR text visibility check (`ocrTextVisibilityCheck`) turned on: while the OCR model is being compiled (for example on the first run after a rebuild; tens of seconds), the run waits
   for the compile to finish before starting its first scenario ("Compiling Vision…" appears in the running list).
   The labels carry each machine's capacity, such as `MEM 192` (GB) / `CPU 24` / `GPU 76` (`MEM -` until the
