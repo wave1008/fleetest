@@ -276,6 +276,28 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
         XCTAssertTrue(message.contains("fix the scenario"), message)
     }
 
+    /// 容器の上端に貼り付いた見出しの下の行(塗り順の無い木 = 送り出さずに中心を撃つ)も、赤になったときに見出しを名指す。
+    /// 形は 11/11 の xcuitest の赤の木: RN は見出しが全幅で木に出る・Flutter は見出しの文字の枠だけ(帯は推定)
+    func testFailureAfterATapUnderAStickyHeaderNamesTheHeader() async {
+        let rn = [element(1, "other", "scroll", "scroll", FTRect(x: 16, y: 157, width: 370, height: 700), depth: 1, scrollable: true),
+                  element(2, "staticText", "hdr_B", "セクション B", FTRect(x: 16, y: 156, width: 370, height: 33), depth: 2),
+                  element(3, "button", "row_s_B1", "本文 07", FTRect(x: 32, y: 161, width: 338, height: 44), depth: 2),
+                  element(4, "button", "row_s_B2", "行 B2", FTRect(x: 32, y: 209, width: 338, height: 44), depth: 2),
+                  element(5, "staticText", "txt_result", "player=none", FTRect(x: 16, y: 100, width: 200, height: 24), depth: 1)]
+        let flutter = [element(1, "staticText", "hdr_F", "セクション F", FTRect(x: 16, y: 180, width: 83, height: 20), depth: 1),
+                       element(2, "other", "scroll", "scroll", FTRect(x: 0, y: 170, width: 402, height: 704), depth: 1, scrollable: true),
+                       element(3, "button", "row_s_F3", "本文 07", FTRect(x: 0, y: 170, width: 402, height: 45), depth: 2),
+                       element(4, "button", "row_s_F4", "行 F4", FTRect(x: 0, y: 215, width: 402, height: 56), depth: 2),
+                       element(5, "staticText", "txt_result", "player=none", FTRect(x: 16, y: 100, width: 200, height: 24), depth: 1)]
+        for (name, tree, header) in [("RN", rn, "hdr_B"), ("Flutter", flutter, "hdr_F")] {
+            let (tap, check) = await tapThenFailingCheck(tree, answer: .unavailable)
+            guard case .passed = tap.status else { return XCTFail("\(name): tap は撃つ \(tap.status)") }
+            guard case .failed(let message) = check.status else { return XCTFail("\(name): \(check.status)") }
+            XCTAssertTrue(message.contains(header) && message.contains("fix the scenario"), "\(name): \(message)")
+            XCTAssertTrue(check.notes.contains(.coveredTouchBeforeFailure), "\(name): \(check.notes)")
+        }
+    }
+
     /// 重なりの疑いが無い tap の後の赤には言わない
     func testFailureWithoutOverlapSaysNothingAboutCovering() async {
         let tree = [element(1, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true),

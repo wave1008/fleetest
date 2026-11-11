@@ -232,6 +232,13 @@ extension StepExecutor {
                 }
                 suspect = suspect ?? cover
             }
+            // 容器の縁に貼り付いた見出しの下(木の並びでは見出しが奥 = 上の2つは拾わない)。塗り順の無い木では送り出しを撃たない
+            // (`liftCoveredTarget`)ので、赤になったときに名指す(E2EX の sticky・xcuitest = OI-216)
+            if suspect == nil,
+               let container = ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
+                                                                   inferring: step.containerInference ?? true) {
+                suspect = TapTargetGeometry.pinnedBandCovering(element, in: snapshot.elements, container: container)
+            }
             if let suspect { noteCoverSuspect(TapTargetGeometry.describe(suspect), for: element) }
             return .none
         case .visiblePart(let rect, let over)?:

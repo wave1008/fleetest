@@ -484,7 +484,7 @@ withScrollDown {
 木の塗り順が本物のときだけ働きます**(`PaintOrder.isReal`: iOS は木の全要素が `z` を持つ = in-app の UIKit・RN、Android は
 フレームワークが分かっていて自前描画でない = View・RN)。塗り順の無い木(SwiftUI・Compose・Flutter・iOS の xcuitest モード・MCP の iOS)では
 手前を推測せず中心を撃ち(注記は出る)、**後続のステップが赤になったときだけ**、直前の触る操作に覆いの疑い(木の順の覆い・別の層の覆いを
-照会で確かめられなかった・in-app の当たり判定のずれ)があればその覆いを名指して直し方を言います(`coveredTouchHint`・注記のコード
+照会で確かめられなかった・in-app の当たり判定のずれ・容器の縁に貼り付いた見出し = `pinnedBandCovering`)があればその覆いを名指して直し方を言います(`coveredTouchHint`・注記のコード
 `covered-touch-before-failure`)。重なりは画面の大きさで変わり書く時点では避けられないので、直すのは出たデバイスを見た利用者です。
 キーボード・別ウィンドウの覆い(ブリッジの申告)と、外側の一覧に切り取られた形(容器の窓の幾何)はこの条件の外です。
 
