@@ -2,7 +2,7 @@
 
 [in English](for_shirates_users.md)
 
-Fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。コマンド名・引数名・
+fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。コマンド名・引数名・
 既定値・挙動を**原則**踏襲しています。名前が違うもの(下表)と、ニックネームなど意図的に
 持たないものがあるので、乗り換え前にこのページを一度通読してください。
 

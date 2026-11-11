@@ -35,6 +35,7 @@ select("#toggle_notifications").checkIsON()
 - **Some elements never report a checked state** (for example a checkbox built from a SwiftUI `Button`).
   `checkIsON` on such an element fails with "reports no check state". Verify a text that reflects the
   state with `textIs`, or have the app expose it (in SwiftUI, `.accessibilityRepresentation { Toggle(...) }`).
+  `checkIsOFF`, on the other hand, passes on an element that reports no state (a warning appears at the end of the run). To really verify it is off, check a text that reflects the state with `textIs`, or add CheckStateClassifier samples.
 - **Implementations that report only "on"** (Compose checkboxes on iOS, for example): once the same
   scenario has seen the element on, a missing report is read as off. `checkIsOFF` on an element that was
   never seen on passes without knowing the state, and a warning is shown at the end of the run.

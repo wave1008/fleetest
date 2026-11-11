@@ -383,9 +383,11 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 - 入力欄を押して `type("…")`、候補を `#id` で押す
 
 ```swift
-tap("#field_search")
-type("...")   // または type(".textField", "...") で入力欄を型で指す
+tap("#field_search")           // バーを開く
+type(".textField", "...")      // 開いた入力欄を型で指して打つ(Flutter は必須)
 ```
+
+Android View のように開いた欄に id があるならそれを `type("#id", …)` で指す。セレクタ無しの `type("...")` は Flutter で断られる。
 
 | フレームワーク | 部品・差分 |
 |---|---|

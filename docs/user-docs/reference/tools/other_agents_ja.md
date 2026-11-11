@@ -4,7 +4,7 @@
 
 fleetest の中核は**エージェント固有ではありません**。Claude Code では
 [スキル](./claude_code_skills_ja.md)が `/fleetest-setup` などの名前で呼べますが、それ以外のエージェント
-(Codex・Cline・Cursor・Copilot など)でも、次の3つを用意すれば同じことができます。
+(Codex・Cline・Cursor・Copilot など)でも、次の3つを用意すれば同じ runbook を使えます(動作確認は Codex で行っています)。
 
 | 要るもの | 用意の仕方 | エージェント依存 |
 |---|---|---|

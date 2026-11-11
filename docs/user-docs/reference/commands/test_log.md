@@ -41,7 +41,7 @@ func S0010() {
   When a run is executed on another Mac (`--runner`), they are collected back together with the reports.
 - `directoryForTemp` is deleted with its contents at the end of the scenario. Write anything you want to keep to
   `directoryForLog`.
-- Scenario code runs in a dry run too, so both are available there (a dry run's output folder is thrown away).
+- Scenario code runs in a dry-run too, so both are available there (a dry-run's output folder is thrown away).
 - They are not available outside a scenario (for example in MCP's `ft_batch`).
 
 ### Link

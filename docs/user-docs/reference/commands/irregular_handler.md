@@ -24,7 +24,7 @@ func beforeEach() {
 - **Fires during both operation and assertion waits.** Because assertions poll each cycle
   against the current tree, a modal that opens while a scenario is waiting on `exist` /
   `textIs` gets closed too, not just when the scenario is mid-tap.
-- **Up to 10 closes per step** by default (`maxDismissals:` to change it) — enough for a modal
+- **Up to 10 closes per step** by default (`maxDismissals:` to change it; a value of 0 or less is treated as 1) — enough for a modal
   that reopens mid-step. If the same thing is still on screen after two closes, the tool gives
   up and records that it was not fully closed.
 - **Conditions close interruptions before answering.** `ifCanSelect` and

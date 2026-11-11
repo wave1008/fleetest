@@ -4,7 +4,7 @@
 
 Nothing at the core of fleetest is agent-specific. In Claude Code the
 [skills](./claude_code_skills.md) can be called by name such as `/fleetest-setup`, but any other agent
-(Codex, Cline, Cursor, Copilot, …) can do the same work once you provide these three things:
+(Codex, Cline, Cursor, Copilot, …) can use the same runbooks once you provide these three things (verified with Codex):
 
 | What you need | How to get it | Agent-specific? |
 |---|---|---|

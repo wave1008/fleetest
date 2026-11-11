@@ -2,15 +2,14 @@
 
 [in Japanese(日本語)](ci_ja.md)
 
-Scenarios execute deterministically with no LLM involved, so they fit CI: exit code and JUnit XML
-are both machine-readable. This page takes you step by step until a test project runs in CI.
+Scenarios execute deterministically without any cloud LLM, so they fit CI: exit code and JUnit XML
+are both machine-readable. A few checks use on-device Foundation Models on your Mac; you can turn them off in the run profile. This page takes you step by step until a test project runs in CI.
 It uses Jenkins as the example, but steps 1 to 3 are the same on other CI systems.
 
 ## 1. Prepare the CI machine
 
-- **Self-hosted Mac only** (a Jenkins agent, an AWS EC2 Mac instance, etc.). iOS Simulators and
-  Android Emulators require macOS, so GitHub-hosted runners (`macos-*`) are not supported — those
-  run inside a macOS VM, which cannot use Apple Intelligence, and this path is not verified there.
+- **Self-hosted Mac only** (a Jenkins agent, an AWS EC2 Mac instance, etc.). GitHub-hosted runners (`macos-*`)
+  are not supported: they are macOS VMs and this path is not verified (Apple Intelligence is also unavailable in a VM).
 - Preparing the CI machine is the same as step 0 of [Adding a Mac](../fleet/adding_mac.md) (except Remote Login and Screen Sharing).
   Two points are specific to CI:
   - **Start the Jenkins agent from a logged-in GUI session** (a headless `LaunchDaemon` or a bare `ssh` session makes Simulators unstable).
@@ -88,7 +87,7 @@ Expected result:
 first failing step's summary, every failing step with its source location, the Markdown report
 path, and the worker it ran on. A scenario is `<skipped>` only when *every* step in it is
 inconclusive (a `verify` with zero assertions) — mixed with normal steps, it is folded into a
-passing `<testcase>` instead (visible in the run log and the Markdown report's ❓ marker and fix
+passing `<testcase>` instead (visible in the execution log and the Markdown report's ❓ marker and fix
 suggestion).
 
 ### Prompt for the AI
@@ -96,7 +95,7 @@ suggestion).
 The job definition (a Jenkinsfile, …) can be written by the AI.
 
 ```text
-Create a Jenkinsfile in this repository. Stages: "install fleetest idempotently with install.sh", then "fleetest run --profile ios-run --quiet --junit reports/junit.xml". In post, collect the JUnit, and on failure archive reports/junit.xml and TestProjects/*/reports/ as artifacts.
+Create a Jenkinsfile in this repository. Stages: "install fleetest idempotently with install.sh (clone it to ../fleetest first if it is missing)", then "fleetest run --profile ios-run --quiet --junit reports/junit.xml". In post, collect the JUnit, and on failure archive reports/junit.xml and TestProjects/*/reports/ as artifacts.
 ```
 
 <details>
@@ -109,7 +108,8 @@ pipeline {
   agent { label 'mac' }   // an agent that runs as a logged-in GUI session user
   stages {
     stage('Install / update') {
-      steps { sh 'bash ../fleetest/Scripts/install.sh --work-dir "$PWD" --skip-extension --skip-mcp --no-doctor' }
+      steps { sh '[ -d ../fleetest ] || git clone https://github.com/wave1008/fleetest.git ../fleetest'
+              sh 'bash ../fleetest/Scripts/install.sh --work-dir "$PWD" --skip-extension --skip-mcp --no-doctor' }
     }
     stage('Run scenarios') {
       steps { sh '../fleetest/.build/debug/fleetest run --profile ios-run --quiet --junit reports/junit.xml' }

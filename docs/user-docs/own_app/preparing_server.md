@@ -12,7 +12,7 @@ This is not needed if you only connect to an existing server. How to read the de
 ```text
 Build the image myapp-server:local from the Dockerfile in <server folder> and declare it in
 TestProjects/myshop/workspace/scripts/compose.yaml of the fleetest test project myshop. If there is no Dockerfile, create one
-(split a build stage from a run stage, and include bash in the run stage for the healthcheck). Publish the port on 127.0.0.1:8080. Write a healthcheck.
+(split a build stage from a run stage, and include a command the healthcheck uses to read /health (curl or wget) in the run stage). Publish the port on 127.0.0.1:8080. Write a healthcheck.
 If you use Apple Container, first enlarge the builder VM with `container builder stop && container builder start --cpus 6 --memory 8g`.
 Make the app's server address switchable in the build settings: http://127.0.0.1:8080 for the iOS Simulator build and http://10.0.2.2:8080 for the Android Emulator build.
 Rebuild both and update the paths in the app profile.
@@ -22,7 +22,7 @@ Check the start-up with fleetest services up --project myshop --profile ios-run,
 Expected result:
 
 - `services up` prints the published ports, and `/health` returns ok.
-- After `services down`, `services status` is empty.
+- After `services down`, `services status` shows `leases: none` and lists no containers (named volumes and images remain; `services reset` removes them).
 
 ## 2. Point the app at the server
 
@@ -31,7 +31,7 @@ Physical devices differ by OS.
 
 - iOS physical device: build with this Mac's LAN address baked in (the machine setting `services.publishForPhysicalDevices` is also needed;
   a worked example is in steps 2-3 of [Measuring the app's responsiveness](../response/measuring_app_response.md)).
-- Android physical device: `adb reverse` is set up, so the same 127.0.0.1 build as for the Emulator reaches the server (the LAN address also works).
+- Android physical device: the machine setting `services.publishForPhysicalDevices` is required (a run with a physical device does not start without it). `adb reverse` is set up, so an Android build with 127.0.0.1 baked in (the same address as the iOS Simulator build) reaches the server; the Emulator build's 10.0.2.2 does not (the LAN address also works).
 
 ## 3. Things you write yourself
 

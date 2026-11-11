@@ -24,7 +24,7 @@
 | プロジェクト・作業フォルダ・fleetest 本体のクローンの `.fleetest/`、`~/.fleetest/` | fleetest の状態の記録。ただし、次の run やデバイスの用意で fleetest 本体が読んで実行・配布するもの(`hooks/`・ブリッジの台帳・`DerivedData*` など)は書けません |
 | `~/Library/Logs/fleetest`・`~/Library/Caches/fleetest` | ログ、Apple Intelligence の呼び出しの直列化 |
 | `~/Library/Caches/<シナリオ実行バイナリ名>`・`~/Library/HTTPStorages/<シナリオ実行バイナリ名>` | 画像照合のモデルのキャッシュ、`URLSession` の既定の保存先 |
-| シナリオが使っている Simulator のアプリのデータ | `clearAppData` がデータを消すため(他の Simulator のものは書けません) |
+| シナリオが使っている Simulator の全アプリのデータ(テスト対象以外のアプリも含む) | `clearAppData` がデータを消すため(他の Simulator のものは書けません) |
 
 **書けない場所の例**: シナリオのソースとプロジェクトの他のファイル、fleetest 本体のクローン(`.fleetest/` を除く)、ホームの他の場所、
 `/tmp`、`NSTemporaryDirectory()` や `FileManager.default.temporaryDirectory` が返す場所

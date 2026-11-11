@@ -2,16 +2,15 @@
 
 [in English](ci.md)
 
-シナリオは LLM なしの決定的実行なので CI に向いています(exit code と JUnit XML の両方で
-機械的に処理できます)。このページは、テストプロジェクトを CI で回せるようになるまでの手順です。
+シナリオはクラウドの LLM を使わない決定的実行なので CI に向いています(exit code と JUnit XML の両方で
+機械的に処理できます。一部の検証は Mac 上の Foundation Models を使い、実行プロファイルで切れます)。このページは、テストプロジェクトを CI で回せるようになるまでの手順です。
 Jenkins を例にしていますが、手順 1〜3 は他の CI でも同じです。
 
 ## 1. CI マシンを用意する
 
 - **サポートするのは self-hosted の Mac だけ**(Jenkins 常駐機・AWS EC2 Mac インスタンス等)。
-  iOS Simulator / Android Emulator には macOS が必須のため、GitHub ホストランナー
-  (`macos-*`)はサポート外です(実体が macOS VM のため Apple Intelligence が使えず、
-  この経路の動作検証もしていません)。
+  GitHub ホストランナー(`macos-*`)はサポート外です
+  (実体が macOS の VM で、この経路の動作検証をしていません。VM では Apple Intelligence も使えません)。
 - CI 機の準備は[Mac を追加する](../fleet/adding_mac_ja.md)のステップ0(リモートログインと画面共有以外)と同じです。
   CI 固有の点は次の2つです。
   - **Jenkins エージェントは、ログイン済みの GUI セッションから起こしてください**(ヘッドレスの `LaunchDaemon` や ssh 直のセッションでは Simulator が不安定になります)。
@@ -95,7 +94,7 @@ worker が入ります。**inconclusive**(`verify` のアサーション0個)は
 ジョブの定義(Jenkinsfile など)は AI に書かせられます。
 
 ```text
-このリポジトリに Jenkinsfile を作って。ステージは「install.sh で fleetest を冪等に導入」→「fleetest run --profile ios-run --quiet --junit reports/junit.xml」。post で junit を集計し、失敗時は reports/junit.xml と TestProjects/*/reports/ を成果物に残して。
+このリポジトリに Jenkinsfile を作って。ステージは「install.sh で fleetest を冪等に導入(../fleetest が無ければ先に clone)」→「fleetest run --profile ios-run --quiet --junit reports/junit.xml」。post で junit を集計し、失敗時は reports/junit.xml と TestProjects/*/reports/ を成果物に残して。
 ```
 
 <details>
@@ -108,7 +107,8 @@ pipeline {
   agent { label 'mac' }   // ログイン済み GUI セッションのユーザーで動くエージェント
   stages {
     stage('Install / update') {
-      steps { sh 'bash ../fleetest/Scripts/install.sh --work-dir "$PWD" --skip-extension --skip-mcp --no-doctor' }
+      steps { sh '[ -d ../fleetest ] || git clone https://github.com/wave1008/fleetest.git ../fleetest'
+              sh 'bash ../fleetest/Scripts/install.sh --work-dir "$PWD" --skip-extension --skip-mcp --no-doctor' }
     }
     stage('Run scenarios') {
       steps { sh '../fleetest/.build/debug/fleetest run --profile ios-run --quiet --junit reports/junit.xml' }

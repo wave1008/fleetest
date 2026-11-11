@@ -1,4 +1,4 @@
-# Remote Runners
+# Remote runs
 
 [in Japanese(日本語)](remote_runners_ja.md)
 
@@ -60,7 +60,7 @@ Run the scenario <scenario name> on M1Max with the run profile ios-run.
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-fleetest run --profile <run profile> --scenario <scenario ID>        # follows the machine of the profile's devices
+fleetest run --profile <run profile> --scenario <scenarioID>        # follows the machine of the profile's devices
 fleetest run --runner <name> --profile <run profile>            # send this one run to a specific machine
 fleetest run --project <project> --fleet <name>                 # run the same scenarios on every machine in the fleet
 fleetest run --project <project> --fleet <name> --split          # split the scenarios across the machines
@@ -121,7 +121,7 @@ runtime and the images (see the requirements table in [Adding a Mac](adding_mac.
 
 ## 4. Sharing one runner between several people
 
-When you send a run to a runner that someone else is using, it waits until the runner is free. The run log shows your
+When you send a run to a runner that someone else is using, it waits until the runner is free. The execution log shows your
 position in line.
 
 ### Prompt for the AI
@@ -134,12 +134,12 @@ Run the scenario <scenario name> on M1Max with the run profile ios-run. If M1Max
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-fleetest run --runner M1Max --profile <run profile> --scenario <scenario ID> --wait-lock 600
+fleetest run --runner M1Max --profile <run profile> --scenario <scenarioID> --wait-lock 600
 ```
 
-`--wait-lock <seconds>` is the longest it waits for the runner to become free. While you wait, the run log shows your
+`--wait-lock <seconds>` is the longest it waits for the runner to become free. While you wait, the execution log shows your
 position. For a run that spans several machines, the limit covers the whole wait (this Mac's lock, this Mac's devices
-and each runner together), and the run log also says when it is waiting for a device on this Mac to free up.
+and each runner together), and the execution log also says when it is waiting for a device on this Mac to free up.
 
 </details>
 <br>
@@ -153,7 +153,7 @@ using it and since when. Your own Mac works the same way for the runs you start 
   several runs ahead of you. Change it in the Device Monitor's **Settings** tab, under **Machines** →
   **Max wait on runner contention** (0 fails right away without waiting); the setting key is
   `fleetest.remoteWaitLock`. The **CLI** does not wait by default and fails instead, so add `--wait-lock <seconds>`.
-  While you are in line, the run log shows your position. The extension has no way to take over a busy runner.
+  While you are in line, the execution log shows your position. The extension has no way to take over a busy runner.
 - **See who is using it**: it appears in the LOCK column of
   `fleetest remote status --runner <machine>`. `-` means "could not be checked", not "free".
   The Device Monitor shows 🔒 on that machine's row in the toolbar.
@@ -167,7 +167,7 @@ using it and since when. Your own Mac works the same way for the runs you start 
   if a run is in progress (`--ignore-lock` overrides this, but kills that run). When you bulk-stop or delete devices in the extension, the
   confirmation shows whose run is in progress.
 - **Release a dead lock**: if a dispatch died and left its lock behind, reclaim it with
-  `fleetest remote unlock [--runner <machine>|local] [--force]`. Without `--force` it releases only your own
+  `fleetest remote unlock --runner <machine>|local [--force]`. Without `--force` it releases only your own
   lock; `--force` releases it whoever holds it (this breaks that run if it is still going).
 
 If you set your name in `issuerId` in `~/.config/fleetest/config.json`, that name appears in these

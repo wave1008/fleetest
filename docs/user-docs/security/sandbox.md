@@ -13,7 +13,7 @@ send them out. The OS refuses what is not allowed, whatever the scenario's code 
 | What it protects | What a scenario cannot do |
 |---|---|
 | This Mac's secrets | Read the usual places for credentials, such as `~/.ssh`, the keychain and browser profiles |
-| This Mac's files | Write anywhere but the report output folder, the temporary folder and fleetest's state records (`.fleetest/` and so on) |
+| This Mac's files | Write anywhere but the report output folder, the temporary folder, fleetest's state and cache folders and the app data of that scenario's Simulator (see [Sandbox defaults](../reference/running/sandbox_access.md) for the list) |
 | Outbound traffic | Talk to a destination that is not allowed |
 | Other programs | Start other apps, or drive Simulators and Android devices other than in fixed ways |
 | The launching environment | Read environment variables such as tokens put in the shell or `.mcp.json` |
@@ -115,7 +115,7 @@ Running it makes all three **fail** (that is the expected result). The report (`
   the sandbox proxy and that hosts not in `allowedDomains` are refused)
 
 When failures pile up on the same device, the run's check for a broken device kicks in and prints the warning
-`3 consecutive failures on this lane … keeping the lane` (only when some scenario passed on another device meanwhile does it
+`3 consecutive scenario failures on this lane … keeping the lane` (only when some scenario passed on another device meanwhile does it
 restart the worker and run the last one again; that adds some ten seconds and does not change the result). A test that only has a
 `procedure` also gets a "no assertions" warning; here that is intended.
 
@@ -216,7 +216,7 @@ How to write the scripts is in "Running scripts before and after a run" of [Addi
 
 ## 4. How to pass secrets
 
-Shell environment variables (tokens and so on) are not visible to scenarios. Put the secrets a scenario uses in the
+Shell environment variables (tokens and so on) are not visible to scenarios (only the variables fleetest uses, such as `PATH`, and names starting with `FT_` / `LC_` are passed, so do not give secrets such names). Put the secrets a scenario uses in the
 dataset file that exists only on this Mac
 (`~/.config/fleetest/dataset/<project name>/accounts.json`; the project name is the project's folder name) and read
 them with `account()`. **A person on this Mac creates the file by hand** (step 8).
@@ -433,11 +433,11 @@ the fixed doors in steps 3 and 4.
 You have written every setting so far in `~/.config/fleetest/config.json` on the Mac that runs the scenarios.
 **That file is the only place that can loosen the sandbox.** The project, run profiles and environment variables cannot,
 because the project is a place an AI assistant can rewrite, and a switch there would make the sandbox pointless.
-Scenarios themselves cannot rewrite this file either. When you run on another Mac (a remote runner), that Mac's
+Scenarios themselves cannot rewrite this file either. When you run on another Mac (a runner machine), that Mac's
 settings are used.
 
 With Claude Code, setup writes a deny rule `Edit(~/.config/fleetest/**)` into the work folder's `.claude/settings.json`,
-so the AI assistant cannot edit this folder. Try it.
+so the AI assistant cannot change this folder with its file-editing tools. It does not stop writes made through shell commands, so check that a command the assistant proposes does not touch this folder before you approve it. Try it.
 
 ### Prompt for the AI
 
@@ -445,8 +445,7 @@ so the AI assistant cannot edit this folder. Try it.
 Add example.org:443 to sandbox.allowedDomains in ~/.config/fleetest/config.json.
 ```
 
-The AI assistant is refused the edit and can only tell you what to write. A person on this Mac does the
-writing by hand.
+The assistant's edit is refused. If it then tries to write the file with a shell command, do not approve it; take the content and write it yourself.
 
 The rule is written when the fleetest clone is **outside** the work folder, such as next to it (the Quick start layout).
 It is not written when the work folder is inside the clone.
@@ -455,9 +454,9 @@ It is not written when the work folder is inside the clone.
 
 - There are things the sandbox **does not stop** (operations on the app under test, services on this Mac's localhost
   and so on). The points for judging are in [Notes and limitations](limitations.md).
-- It is always on. Whether you run with `fleetest run`, a dry-run, MCP, the VSCode extension or a remote runner, the
+- It is always on. Whether you run with `fleetest run`, a dry-run, MCP, the VSCode extension or a runner machine, the
   scenario runs inside the frame. The only exception is `sandbox.disabled: true` in the machine settings of the Mac that runs
-  it; then every scenario prints `⚠️ sandbox: disabled on this Mac` (on a remote runner that Mac's settings apply, so this
+  it; then every scenario prints `⚠️ sandbox: disabled on this Mac` (on a runner machine that Mac's settings apply, so this
   line is how you notice).
 - The scripts that run before and after a run (`run-setup.sh` / `run-teardown.sh`) run in a separate sandbox of their own. They
   can write only to `<workspace>/data/` and `hooks.writablePaths`, and connect only to compose.yaml's published ports and the

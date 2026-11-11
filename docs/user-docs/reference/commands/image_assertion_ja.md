@@ -48,6 +48,8 @@ fleetest vision capture --project <プロジェクト> --classifier DefaultClass
 fleetest vision check --project <プロジェクト>
 ```
 
+Android は `--port` の代わりに `--platform android --serial <シリアル>` を指定します。
+
 - `vision capture` は、ラベルが分類器に合わない(`[…]` で終わらないフォルダ名)、同じラベルが別のフォルダにある、といった誤りを
   保存前に断ります。
 - `vision check` は必要なら学習してから、**分類器が自分の見本を取り違えないか**を確かめます。取り違えた見本は

@@ -422,7 +422,7 @@ fleetest remote exec M1Max -- devices up --profile <実行プロファイル>
 
 - ずれているときは「リモートのfleetestのバージョンが本機と異なります」と出ます。
   「更新して実行」を押すと、ランナー機を手元と同じ版に揃えてから実行します。
-- 揃えられないとき(手元の fleetest に GitHub にまだ無いコミットがある(fleetest を自分で書き換えた等)、ランナー機に接続できない、Xcode の製品版が
+- 揃えられないとき(手元の fleetest がランナー機より古い・版が分岐している・どちらが古いか判定できない、ランナー機に接続できない、Xcode の製品版が
   違う、など)は「リモートのfleetestを更新できないため実行できません」と理由が出て、実行は止まります。
   **Xcode がベータのビルド番号だけ違うときは実行は止まりません**(警告だけ)。
 
@@ -463,11 +463,11 @@ fleetest remote exec M1Max -- devices up --profile <実行プロファイル>
 | `cannot reach … over ssh` | 鍵でログインできない、または宛先が違う | ステップ1をやり直します |
 | `must not contain ':'` | 宛先にポート番号を書いた(`host:2222`) | `~/.ssh/config` に別名を作り、その別名を宛先にします |
 | `remote setup` が終了コード `2` で終わる | ランナー機に人の手が要る項目が残っている | 出力に並んだ項目を直し、同じコマンドをもう一度実行します |
-| `Xcode 27.2 or later is required` | ランナー機の Xcode が 27.2 より古い | ランナー機の Xcode を App Store で更新してから、`fleetest remote setup` をもう一度実行します |
+| `Xcode 27.2 or later is required` | ランナー機の Xcode が 27.2 より古い | ランナー機に Xcode 27.2 以降を入れてから(ステップ0の5。他の版は消さなくてよい)、`fleetest remote setup` をもう一度実行します |
 | `is sitting at the login window` | ランナー機がログイン画面で止まっている | 画面共有などでログインします |
 | `git revision mismatch` | 手元とランナー機の版がずれている | `fleetest remote setup M1Max` をもう一度実行します |
 | `toolchain mismatch` | 手元の Mac の Xcode 製品版に一致する Xcode がランナー機に無い(macOS の版は関係ありません。ベータのビルド番号だけの違いではこのメッセージは出ません) | 一致する製品版の Xcode をランナー機の `/Applications` へ追加で入れます(既に入っている版を消す必要はありません) |
-| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナー機に、手元の Mac の製品版に一致する Xcode が複数ある | 使わせたい方を固定します: `fleetest remote machines add <マシン名> --host <宛先> --developer-dir <.app へのパス>` |
+| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナー機に、手元の Mac の製品版に一致する Xcode が複数ある | 使わせたい方を固定します: `fleetest remote machines add <マシン名> --host <宛先> --developer-dir <.app へのパス>`(作業ベースディレクトリを変えている場合は `--dir <パス>` も付けます) |
 | `could not tell which installed Xcode to dispatch with: none of the …` | ランナー機に手元と一致する Xcode が1つも無い(メッセージが見つかった Xcode を全部並べます) | その製品版の Xcode をランナー機へ追加で入れます(他の版は消さなくて構いません)。固定しても直りません |
 | `no runner workspace at …` | ランナー機にあなたの作業場所がまだ無い | `fleetest remote setup M1Max` を1回実行します |
 | `no running emulator for AVD …` | Android の Emulator が起動していない(run の開始前の自動起動でも起こせなかった) | ステップ6の `devices up` で起動を試し、出力を確かめます |

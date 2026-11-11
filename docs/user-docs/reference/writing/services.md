@@ -10,7 +10,7 @@ after `run-teardown.sh`. If the file is not there, nothing happens.
 It works with `fleetest run`, a run from the VSCode extension and the MCP tool `ft_start_run`. It does not start with
 `ft_run_scenario` (a single scenario) or `--dry-run`; to have the services up while you explore, use
 `fleetest services up` ([Starting and stopping by hand](#starting-and-stopping-by-hand)). For a run sent to a
-[remote runner](../../fleet/remote_runners.md), the services start **on the runner machine** (with that machine's
+[runner machine](../../fleet/remote_runners.md), the services start **on the runner machine** (with that machine's
 runtime and settings).
 
 ## Runtime
@@ -184,10 +184,12 @@ For exploring, Live Control and writing scenarios, a person can start the servic
 
 | Command | What it does |
 |---|---|
-| `fleetest services up [--project <p>] [--profile <pf>] [--physical] [--serial <adb serial>…]` | Starts the services, **waits until they are up**, prints the published ports and returns. The services keep running afterwards (a resident owner process holds them; the log is `.fleetest/services/<prefix>.log`). `--profile` can be omitted when the project has only one profile |
-| `fleetest services down` | Stops them |
-| `fleetest services status` | Shows the record, the lock and the resources on the runtime, with the size of each named volume and of the images fleetest built (the `build:` images of this workspace and the relay image). Nothing is deleted automatically; use `reset` when they have grown |
-| `fleetest services reset [--force]` | Deletes this workspace's containers, networks, **volumes** and record. `--force` is needed while an `up` holds them (it stops that `up` first). While a run holds them, even `--force` deletes nothing (wait for the run to finish) |
+| `fleetest services up [--project <p>] [--profile <pf>] [--physical] [--serial <adb serial>…]` | Starts the services, **waits until they are up**, prints the published ports and returns. The services keep running afterwards (a resident owner process holds them; the log is `.fleetest/services/<prefix>.log`) |
+| `fleetest services down [--project <p>] [--profile <pf>]` | Stops them |
+| `fleetest services status [--project <p>] [--profile <pf>]` | Shows the record, the lock and the resources on the runtime, with the size of each named volume and of the images fleetest built (the `build:` images of this workspace and the relay image). Nothing is deleted automatically; use `reset` when they have grown |
+| `fleetest services reset [--project <p>] [--profile <pf>] [--force]` | Deletes this workspace's containers, networks, **volumes** and record. `--force` is needed while an `up` holds them (it stops that `up` first). While a run holds them, even `--force` deletes nothing (wait for the run to finish) |
+
+`up`, `down`, `status` and `reset` can omit `--profile` when the project has only one profile (with several, they stop with `--profile is required`). Omitting `--project` picks `project1`.
 
 Services started with `up` show on their machine's row of the run board in the VSCode extension's monitor as "Servers up".
 

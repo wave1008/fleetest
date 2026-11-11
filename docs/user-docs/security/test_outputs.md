@@ -7,8 +7,8 @@ screen** (button labels, values you typed, body text that was shown). This page 
 where it is, masking secrets, checking the contents before you send anything out, and deleting what you no longer need.
 It assumes you have finished the [Quick start](../quick-start.md) up to step 7 (creating one scenario and running it).
 
-> The data **a test run** leaves does not leave your Mac and devices. FM (Apple's on-device model) also runs only on the Mac.
-> See "Privacy" in [Quality characteristics](../overview/quality.md) and [Network exposure and security](network_security.md). Something leaves only when you send a zip or the like yourself.
+> fleetest itself does not send the data a test run leaves outside your Mac and devices (except what a scenario sends to `sandbox.allowedDomains` and what moves between Macs in remote runs). When you have an AI assistant run tests or read results, the output you give it (including screen text) is sent to that assistant's model provider. FM runs only on the Mac.
+> See "Privacy" in [Quality characteristics](../overview/quality.md) and [Network exposure and security](network_security.md).
 
 ## 1. Run one scenario
 
@@ -116,6 +116,8 @@ Expected result:
 - In the new report, execution log and result JSON, the password is `***`.
 - **Text captured in screenshots and recordings is not masked**, however. Open a screenshot or recording of a screen that shows the password field in plain text and the value is visible.
 - There is no way to erase text inside pixels, so do not use production credentials.
+- Strings a scenario prints with `print()` are not redacted; do not print secret values.
+- Values shorter than 4 characters are not redacted.
 
 ## 4. Check the contents before sending anything out
 

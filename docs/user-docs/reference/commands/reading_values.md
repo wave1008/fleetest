@@ -53,10 +53,10 @@ scene(3, "The confirmation screen shows the same order number") {
   succeeds immediately and grabs a stale value. Settle the value first with `textIs` /
   `textStartsWith` / etc., as in the example above, then read it.
 - The value is `nil` when the element couldn't be grabbed, when the step was skipped after a
-  failure, or during a dry run — so that "read a value from an element that wasn't grabbed" can
+  failure, or during a dry-run — so that "read a value from an element that wasn't grabbed" can
   never silently succeed.
 - **Check whether the grab succeeded with `.isEmpty` / `.isNotEmpty`, not `.text == nil`** — a
-  grabbed element with no label (e.g. an icon-only button) also reads `.text` as empty, which
+  grabbed element with no label (e.g. an icon-only button) also reads `.text` as `nil`, which
   `.text == nil` would misreport as "not grabbed."
 
 ```swift
@@ -98,10 +98,13 @@ first evaluates against the value already grabbed. If that already satisfies the
 step is still recorded, but with no device round trip — the message shows
 `(from the grabbed value)`. Otherwise it polls the device up to `waitSeconds`.
 
+However, in runs where the text visibility check is on (`fmTextVisibilityCheck` or `ocrTextVisibilityCheck` is `true`, the default), positive forms that check visibility (`textIs`, `valueIs`, … unless `requireVisible: false`) always look at the device instead of the grabbed value. `checkIsON` / `checkIsOFF` / `imageIs` always look at the device too.
+
 ```swift
-exist("#total").textIs("1,200")   // 0 round trips if the grabbed value is already "1,200"
+let total = exist("#total")
+total.textIs("1,200")             // 0 round trips if the grabbed value is already "1,200" (when the visibility check is off, or for negative forms)
 tap("#reload_btn")
-lastElement.textIs("1,500")       // the grabbed value is stale → re-fetches until it becomes "1,500"
+total.textIs("1,500")             // the grabbed value is stale → re-fetches until it becomes "1,500"
 ```
 
 The longer you wait after grabbing before checking, the more likely a stale value happens to

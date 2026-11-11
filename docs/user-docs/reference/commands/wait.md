@@ -37,8 +37,8 @@ findImage("[Camera Icon]").tap()   // now the image is read from a still screen
   `waitForClose`. To wait for the screen to stop moving, use `waitForSettle` instead of a fixed
   `wait()`.
 - **`waitForDisplay` judges visibility the same way `exist` does** (the name matches its
-  meaning) — there is no `requireVisible: false` escape hatch on it. If you want to skip the
-  occlusion check while still waiting, use `exist(sel, requireVisible: false, waitSeconds: 15)`
+  meaning) — there is no `requireVisible: false` escape hatch on it. If you want to wait without the
+  visibility check (`requireVisible`), use `exist(sel, requireVisible: false, waitSeconds: 15)`
   instead.
 - `waitForDisplay` / `waitForClose` never scroll to find the element; if it might be off-screen,
   scroll first or use `scrollTo`.

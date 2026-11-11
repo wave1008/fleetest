@@ -10,11 +10,11 @@ Click **fleetest** in the status bar at the bottom left of VSCode.
 
 Expected result:
 
-- Three panes, top to bottom: the **Line View** (heading "Device list"; the row of device tiles), the **Grid View** (heading "Selected devices"; the enlarged screen of the selected device) and the **Run Log View** (heading "Run Log"; the run log of the selected device).
+- Three panes, top to bottom: the **Line View** (heading "Device list"; the row of device tiles), the **Grid View** (heading "Selected devices"; the enlarged screen of the selected device) and the **Run Log View** (heading "Run Log"; the execution log of the selected device).
 
 <img src="../images/tutorial/en/vscode_device_monitor.png" width="720" alt="Device Monitor">
 
-## 2. Select a tile to see the enlarged screen and the run log
+## 2. Select a tile to see the enlarged screen and the execution log
 
 Click a tile in the Line View to select the device. It is easiest to see when you try this while giving the AI assistant the following prompt.
 
@@ -27,7 +27,7 @@ In project1, run the add-to-cart test with the run profile ios-run.
 Expected result:
 
 - The selected device's screen appears in the Grid View.
-- The selected device's run log appears in the Run Log View.
+- The selected device's execution log appears in the Run Log View.
 - With nothing selected, both say "Select a device".
 
 ## 3. Touch it yourself (Live Control)
@@ -42,7 +42,7 @@ Expected result:
 
 ## 4. Run from the Test Explorer
 
-Open the Test Explorer (VSCode's Testing view), choose a run profile with `fleetest: Select Run Profile`, then select a test and press "Run" or "Run (dry-run)".
+Open the Test Explorer in VSCode, choose a run profile with `fleetest: Select Run Profile`, then select a test and press "Run" or "Run (dry-run)".
 When there is only one run profile, it is selected automatically even if you do not choose.
 
 Expected result:

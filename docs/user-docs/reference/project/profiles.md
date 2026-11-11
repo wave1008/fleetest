@@ -75,7 +75,7 @@ list and every run-time setting.
 
 - `machine` is `"local"` for a device on this Mac, or the name of a machine registered with
   `fleetest remote machines add`, which dispatches that device's run over SSH instead of running
-  it locally (see [Remote Runners](../../fleet/remote_runners.md)).
+  it locally (see [Remote runs](../../fleet/remote_runners.md)).
 - For an iOS Simulator, `name` is the Simulator's own name (Xcode's **Name**, i.e. the simctl
   name) and `osVersion` is Xcode's **OS Version** (e.g. `"iOS 27.0"`) — together they are how fleetest finds
   the Simulator when `udid` is absent. `model` (Xcode's **Model**) is display-only. See

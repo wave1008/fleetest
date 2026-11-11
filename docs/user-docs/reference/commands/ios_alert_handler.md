@@ -22,7 +22,8 @@ iosAlertHandler(alert: "*wants to track*||*トラッキング*",
 ## Notes
 
 - **An empty alternative, or one with nothing but `*` and invisible characters (for example `"\u{200B}*"`), fails at the declaration** — it would match any alert.
-### Why this exists
+
+## Why this exists
 
 Permission prompts, "Open in …?", and similar system alerts are drawn by SpringBoard, a
 separate process — they never appear in the app's own accessibility tree, so
@@ -36,7 +37,7 @@ separate process — they never appear in the app's own accessibility tree, so
 The only alert closed automatically without any declaration is `openURL`'s first-time
 confirmation.
 
-### Registering
+## Registering
 
 - **`alert:` is required.** The button label alone does not say which window it belongs to —
   without a title match, the tool could press a button on an unrelated alert (a different app's
@@ -44,7 +45,7 @@ confirmation.
 - Both fields use the same matching syntax as selectors: bare = exact match, `x*` = prefix,
   `*x` = suffix, `*x*` = contains. Alert titles embed the app's display name
   ("\"MyApp\" Would Like to Access…"), so `alert:` is written `*x*` in practice.
-  `#id` / `.type` are not accepted (they have no meaning against a SpringBoard title).
+  `#id` / `.type` cannot be used (they are matched as literal text, so they never match a title or button and nothing is pressed).
 - **One call announces one alert.** The registration is consumed once a matching alert is
   pressed; register again to handle a second alert. Register before the action that triggers
   the alert — `beforeEach()` works, registering it once per `@Test` (same lifetime as
@@ -67,12 +68,12 @@ confirmation.
   version. Only the labels you write are pressed — no partial matching unless you add `*`, so
   `button: "Allow"` never presses "Don't Allow" by accident. Register the reject-side label the
   same way to auto-decline instead.
-- **Pressing an alert is recorded in the run log**, including which button was pressed —
+- **Pressing an alert is recorded in the execution log**, including which button was pressed —
   permissions have lasting effect, so a silent auto-press would be a trap later. This also
   covers presses on alerts unrelated to the app under test (another app's queued permission
   request that surfaced in front).
 
-### While a system alert covers the app
+## While a system alert covers the app
 
 This only applies while an `iosAlertHandler` registration is still pending. When an alert is
 covering the app, operations and assertions against the app do not proceed — the tool waits for
@@ -103,7 +104,7 @@ the alert to clear (or be closed by a registered button), and fails with
 - A passing assertion is checked the same way: if it turned green while covered, the tool tries
   to clear the cover and re-checks on the clear screen before accepting it.
 
-### Consequences of leaving an alert on screen
+## Consequences of leaving an alert on screen
 
 - **A scenario that triggers an alert must close it within that same scenario.** SpringBoard
   draws it, so it survives `terminateApp()` and even `removeApp()` — it stays on screen for

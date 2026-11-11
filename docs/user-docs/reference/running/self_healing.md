@@ -98,7 +98,7 @@ To avoid write-back, turn self-healing off (`--set heal=false`, or `heal: false`
 ### VSCode extension
 
 When a non-dry-run run ends with fix suggestions, the extension shows a notification with the number of
-fixed selectors. The run log lists what was written back and what could not be. The "Show Changes"
+fixed selectors. The execution log lists what was written back and what could not be. The "Show Changes"
 button opens VSCode's Source Control view; review the git diff and commit.
 
 ### Link

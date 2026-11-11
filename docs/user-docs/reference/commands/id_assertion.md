@@ -10,6 +10,8 @@ Asserts the identifier of the last grabbed element.
 |---|---|
 | `select(selector).idIs(expected, strict:, waitSeconds:)` | Asserts the identifier of the element equals `expected`. The target is the element grabbed last; also available as the implicit `idIs(expected, strict:, waitSeconds:)`. |
 
+For the strings the implicit form cannot take as expected values, see [Text Assertion](./text_assertion.md).
+
 Comparison follows the same "same if it looks the same" rule as text assertions (see
 [Text Assertion](./text_assertion.md)); pass `strict: true` to disable normalization.
 

@@ -9,7 +9,7 @@ a ratio-based drag from an element.
 
 | function | description |
 |---|---|
-| `swipe(.up / .down / .left / .right, settle:)` | Swipes the whole screen in the direction of the **finger's movement**. This is the one exception to the "direction is content-based" rule that applies to `scroll*` — see [scroll](./scroll.md). |
+| `swipe(.up / .down / .left / .right, settle:)` | Swipes the whole screen in the direction of the **finger's movement**. This is an exception to the "direction is content-based" rule that applies to `scroll*` — see [scroll](./scroll.md). |
 | `swipePointToPoint(startX:startY:endX:endY:durationSeconds: 1.5, maxGestureSeconds:, settle:)` | Drags between two points. Coordinates use the same system as the `screen` frame in a snapshot — iOS = pt, Android = px. `durationSeconds` is capped at 10 seconds by default — pass `maxGestureSeconds:` to allow up to 60 for this one call. |
 | `swipeElementToElement(fromSel, toSel, durationSeconds: 1.5, maxGestureSeconds:, settle:, waitSeconds:)` | Drags from one element to another (sliders, reordering, drag within a bounded area). Only the start point is a self-healing target — the end point is not. Same cap as `swipePointToPoint`. Presses for a fixed 0.05 s before it starts moving, so it can't trigger a long-press-to-reorder — see [gestures](./gestures.md) for that. |
 | `swipeBy(sel?, dxRatio:dyRatio:durationSeconds: 1.5, maxGestureSeconds:, settle:, waitSeconds:)` | Moves the finger by a **ratio** of the target's size, starting from its center. Both a horizontal and a vertical ratio can be non-zero for a diagonal drag. The ratio's sign is the direction of the finger. The ratio is **relative to the target's width/height and capped at 0.9 per side** (the finger stays inside the target; larger values are capped to 0.9 with the note `swipe-by-ratio-capped`). To move farther than the target, use `swipeElementToElement` or `swipePointToPoint`. Omitting the selector targets the whole screen. Same cap as `swipePointToPoint`. |
@@ -30,7 +30,7 @@ swipeBy("#map", dxRatio: -0.3, dyRatio: -0.2, durationSeconds: 0.5)  // pan diag
 
 ## Notes
 
-- **`swipe` is the only command whose direction is the finger's movement**, not content
+- **Among the commands that take a direction value such as `.up`, only `swipe` treats it as the finger's movement** (the `flick*` names also describe finger movement), not content
   movement. Every `scroll*` command is content-based (`.down` = reveal content further down =
   the finger moves up).
 - **`swipe` does not check that anything moved.** The step does not fail when there is nothing to

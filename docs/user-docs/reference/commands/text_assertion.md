@@ -15,8 +15,10 @@ select("#msg"); lastElement.textIs("Done") // explicit lastElement
 select("#msg"); textIs("Done")             // implicit (the last grabbed element)
 ```
 
-Arguments are `(expected, requireVisible:, strict:, waitSeconds:)` for the positive forms and `(expected, strict:, waitSeconds:)` for the negative and empty forms (`textMatchesDateFormat` takes no `strict:` — see the table below). There is
+Arguments are `(expected, requireVisible:, strict:, waitSeconds:)` for the positive forms and `(expected, strict:, waitSeconds:)` for the negative forms, and `(strict:, waitSeconds:)` for the empty forms (`textMatchesDateFormat` takes no `strict:` — see the table below). There is
 no form that takes a selector — `textIs("#msg", "Done")` does not compile.
+
+In the implicit form (e.g. `textIs("…")` without lastElement), a string that is `#` followed only by letters/digits, or that contains `||` / `>>`, is treated as a mistyped selector and fails before running. To expect such a string, use the chained form (`select("#tag").textIs("#swift")`).
 
 ## Functions
 
@@ -31,7 +33,7 @@ no form that takes a selector — `textIs("#msg", "Done")` does not compile.
 | `textIsNotEmpty(strict:, waitSeconds:)` | `textIsEmpty(strict:, waitSeconds:)` | non-empty / empty |
 
 All of the above are chainable on the return value of `exist` / `select`, and each also has an
-implicit one-argument free-function form that acts on the last grabbed element.
+implicit form (a free function that takes no selector; the same arguments as the chained form) that acts on the last grabbed element.
 
 ## Example
 

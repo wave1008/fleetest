@@ -134,7 +134,7 @@ project's workspace. **Servers, databases and stubs are not started by a script*
   `FT_PROFILE`, `FT_REPORT_DIR` (readable, not writable), `FT_IOS_DEVICES` and `FT_ANDROID_DEVICES`
   (device names separated by spaces), and the names of the secrets that compose.yaml refers to. The variables are set
   even when they have no value. The Emulator's adb serial and the Simulator's UDID are not passed.
-- For a run sent to a [remote runner](../../fleet/remote_runners.md), the scripts run on the runner machine.
+- For a run sent to a [runner machine](../../fleet/remote_runners.md), the scripts run on the runner machine.
 - They run with `fleetest run` and the MCP tool `ft_start_run`, but not with `ft_run_scenario` (the MCP tool that runs
   a single scenario).
 - The scripts do not run with `--dry-run` (it does not touch devices).
@@ -142,7 +142,7 @@ project's workspace. **Servers, databases and stubs are not started by a script*
 ## Feeding results into your own systems
 
 - **CI**: pass the JUnit XML from `fleetest run --junit <path>` and the exit code to your CI ([Running on CI](../../in_action/ci.md)).
-- **Aggregation and notifications**: read the results JSON ([schema, Japanese](../../../results-json.md)) and feed it to
+- **Aggregation and notifications**: read the result JSON ([schema, Japanese](../../../results-json.md)) and feed it to
   your own dashboard or chat notifications. What `fleetest results` can aggregate is in
   [Analyzing results (fleetest results, dashboard)](../running/results_analysis.md).
 

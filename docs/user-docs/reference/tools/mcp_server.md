@@ -3,7 +3,7 @@
 [in Japanese(日本語)](mcp_server_ja.md)
 
 `fleetest-mcp` is a stdio [MCP](https://modelcontextprotocol.io) server that exposes device
-operations, scenario execution and scenario authoring as `ft_*` tools for coding agents.
+operations, scenario execution and scenario authoring as `ft_*` tools for AI assistants.
 It is the same functionality as the CLI and VSCode extension, called by an agent instead of a
 human.
 
@@ -33,7 +33,7 @@ server finds the Swift/Xcode toolchain even when the client starts it with a min
 `-l` (a login shell): any `echo` in `~/.bash_profile` lands on stdout and breaks the JSON-RPC handshake. `FT_TOOL_ROOT` points at the bridge assets, which is a
 different location from the working directory (your test package).
 
-## Common Arguments
+## Common arguments
 
 Every device tool accepts the same targeting arguments:
 
@@ -84,7 +84,7 @@ that omit all of these; naming a second device (including through `profile`) req
 | `ft_list_devices` / `ft_list_apps` / `ft_logs` | Device / app / log inventory. `ft_list_devices`'s `profile:` narrows the list to that run profile's devices; devices that live on another machine are named but not listed. `ft_list_apps` lists user apps only by default, so preinstalled (system) apps such as Maps or a browser do not appear; pass `filter:` (substring of id or display name) to search system apps too, or `includeSystem: true` to list all with `[system]` marks. Display names appear on iOS only. An iOS device with no bridge is marked "no bridge" and cannot be driven from MCP |
 | `ft_release_device` | Lets go of a device you are done driving. While an MCP session has driven a device, `fleetest bridge down` (and other stops) refuse to stop it until the session ends or you pass `--force`; this drops that hold and the session's memory of the device (snapshots, refs, launched app, default target — afterwards a call naming no target goes to another device this session still remembers, or is refused if none is left; a session that never named a target falls back to the running bridge as usual). It does not stop the bridge, the app or the device, and works even after the bridge is gone. Only this session's own hold is removed; if another session holds the device, the reply says so. Any later call that reaches the device takes the hold again. Takes the usual device target (`udid` / `serial` / `port` / `profile`) |
 
-## Physical Devices
+## Physical devices
 
 Screen-operation tools work the same way on a physical iPhone or Android device. Simulator/
 Emulator-only operations are routed automatically: `ft_install` uses `devicectl` instead of
@@ -97,7 +97,7 @@ list is left out of every tree response (nothing in it can be reached); an alert
 returned on its own, without the screen behind it. After dismissing a system alert on SpringBoard,
 `ft_launch bundleId: <app> resume: true` returns to the app without terminating it.
 
-## iOS Mode Selection
+## iOS mode selection
 
 **MCP always drives iOS through the XCUITest bridge.** You never need to choose a mode. Name the device with
 `udid` and leave `port` out — the server uses that device's XCUITest bridge.
@@ -108,7 +108,7 @@ returned on its own, without the screen behind it. After dismissing a system ale
   XCUITest bridge can be prepared, it reports an error instead of falling back to in-app.
 - Other apps (Maps, for example), SpringBoard and system alerts can be driven as they are.
 
-## Role Split
+## Role split
 
 The tools intentionally do not include an "explore" tool: exploration and judgment stay with the
 calling agent (it already has a snapshot and operation primitives to explore with), while
@@ -118,7 +118,7 @@ calling agent (it already has a snapshot and operation primitives to explore wit
 
 The MCP server runs **outside** the agent's shell sandbox. Tools that build and run
 (`ft_list_scenarios`, `ft_dry_run`, `ft_run_scenario`, `ft_start_run`) execute the project's scenarios (`.swift`)
-as arbitrary Swift code (a dry run executes them too), and `ft_services` starts the containers the project declares
+as arbitrary Swift code (a dry-run executes them too), and `ft_services` starts the containers the project declares
 in `scripts/compose.yaml`.
 
 - **Scenarios always run inside fleetest's sandbox (macOS Seatbelt)**, whether they are started from MCP, the CLI or

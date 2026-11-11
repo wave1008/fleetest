@@ -95,9 +95,9 @@
 
 - **アプリを作り変える必要はありません。**
   テスト用の部品を組み込んだり、テスト専用のビルドを作ったりする必要はありません。普段の開発で使っている
-  アプリをそのまま使えます。
+  アプリをそのまま使えます(React Native のアプリは Release 構成でビルドしたものを使います。[アプリを用意する](../own_app/preparing_app_ja.md)を参照)。
 - **無料です。** テストを実行するたびにお金がかかることもありません(AIアシスタントの利用料は別です)。
-- **必要なもの**: Apple silicon の Mac。iOS と Android の両方、主要な UI フレームワーク(SwiftUI / UIKit・View/XML・
+- **必要なもの**: Apple silicon の Mac。iOS と Android の両方、主要な UI フレームワーク(SwiftUI / UIKit・View/XML・Jetpack Compose・
   Compose Multiplatform・Flutter・React Native)で作られたアプリで動作を確認しています([環境](environments_ja.md))。
 
 ### Link

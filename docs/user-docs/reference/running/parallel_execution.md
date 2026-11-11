@@ -74,11 +74,11 @@ With the CPU pinned near 100%, image and text checks are more likely to go wrong
   When the Mac is not busy, nothing waits.
 - It works the same for physical and virtual devices, on iOS and Android — what it measures is the Mac.
 
-The time spent waiting is recorded in the results JSON (`pacingMs` per step, and `steps.paced` /
+The time spent waiting is recorded in the result JSON (`pacingMs` per step, and `steps.paced` /
 `steps.pacedMs` per scenario; see [results_analysis.md](./results_analysis.md)).
 
 To change the tiers or turn it off, write it in that machine's `~/.config/fleetest/config.json`
-(on a remote runner, the runner's own file is used).
+(on a runner machine, the runner's own file is used).
 
 ```json
 {
@@ -101,7 +101,7 @@ warning is printed once at the start of the run.
 once on **every** device of the run profile (e.g. a warm-up pass), rather than dividing them. It
 still needs `--profile`; `--device` narrows which devices are included (when devices with the same
 name exist on more than one machine, say which machine with `--runner` or `--all-machines`; see
-[Remote Runners](../../fleet/remote_runners.md). When the `--device` name narrows to just one runner machine, the run goes to that runner machine even without `--runner`). Results are told apart
+[Remote runs](../../fleet/remote_runners.md). When the `--device` name narrows to just one runner machine, the run goes to that runner machine even without `--runner`). Results are told apart
 by their `worker` field, since the same `scenarioID` appears once per device (see
 [results_analysis.md](./results_analysis.md)).
 
@@ -122,11 +122,11 @@ If you do start a second one:
   for it instead of failing; runs are served in the order they got in line.
 - **In the VSCode extension** it waits by default, for up to 1 hour. Change it in the Device
   Monitor's **Settings** tab, under **Machines** → **Max wait on runner contention** (0 fails right
-  away without waiting). While you are in line, the run log shows your position.
+  away without waiting). While you are in line, the execution log shows your position.
 
 A runner machine follows the same rule: a run dispatched to it takes that machine's one slot, so
 the runner is busy for everyone until it finishes — see
-[Remote Runners](../../fleet/remote_runners.md).
+[Remote runs](../../fleet/remote_runners.md).
 
 ## Other places parallel execution shows up
 

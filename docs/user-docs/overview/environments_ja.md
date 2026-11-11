@@ -13,6 +13,8 @@
 | Homebrew | Homebrew(<https://brew.sh/ja/>) |
 | VSCode | VSCode(<https://code.visualstudio.com/docs/setup/mac>) |
 | Android SDK | Android SDK(adb・Command-line Tools)(Android をテストする場合)(<https://developer.android.com/studio/install?hl=ja>)。Emulator を作るには Java が要ります(Android Studio 同梱の Java か JDK。どちらも無いと `--auto-device` が失敗します) |
+| テスト対象のデバイス | iOS 18 以降(Simulator・実機)、Android 8.0(API 26)以降(Emulator・実機) |
+| iOS 実機(使う場合) | Apple Developer Program のチーム(無料の Personal Team は約7日で署名が切れます)。詳しくは[実機を追加する](../fleet/adding_physical_devices_ja.md) |
 | AIアシスタント | MCP に対応したもの。動作確認済みは Claude Code・Codex。他(Cline・Cursor・Copilot 等)は [Claude Code 以外の AIアシスタント](../reference/tools/other_agents_ja.md) |
 
 管理者権限が要るのは Xcode のライセンス同意と Homebrew の導入だけです(AIアシスタントは代行しません)。
@@ -28,6 +30,8 @@
 
 FM は macOS 26+ で使えます(システム設定 → Apple Intelligence と Siri)。**画像を渡す機能(`screenLooksLike`・テキストの可視性検証の FM 段)だけは macOS 27+** です(システム設定 → Siri)。**オンデバイス OCR(Vision の文字認識)も macOS 27+ だけ**です。macOS 26 では `tap(linkText:)` がその要件を示して失敗し、type の画面での読み返しは行われず、テキストの可視性検証の OCR 段は無効になります。それ以外は動きます。
 
+FM が使えない Mac では、`screenLooksLike` は判定されずに通り(起動時に ⚠️ が1行出ます)、テキストの可視性検証は OCR だけで判定します。
+
 FM を使う機能は experimental です(OS の更新で挙動が変わることがあります)。
 
 ## サポートする UI フレームワーク
@@ -38,7 +42,7 @@ FM を使う機能は experimental です(OS の更新で挙動が変わるこ�
 | Compose Multiplatform | iOS, Android |
 | Flutter | iOS, Android |
 | React Native | iOS, Android |
-| View/XML | Android |
+| View/XML・Jetpack Compose | Android |
 
 <br>
 

@@ -26,6 +26,7 @@
 7. **実行する。** `ft_run_scenario`。失敗は isError で返り、失敗したステップ・**失敗した瞬間の要素一覧と
    スクリーンショット**・レポートのパスが載る。まず要素一覧を読む —— スクリーンショットからは `#id` を
    読めない。
+   iOS では `ft_run_scenario` は常に XCUITest ブリッジで走り、既定では FM・Vision を使わない(可視性検証なし)。本番と同じ条件の確認は `ft_start_run`。
 
 ## シナリオの例
 
@@ -113,7 +114,7 @@ class SignInExample {
 `ft_start_run` は利用者の設定で承認を求めることがある。断られたら、シェルの `fleetest run` などで回り道をせず、
 実行に承認が要ることを利用者に伝える(承認の設定は利用者が選んだ安全の線引き)。MCP サーバーの中で動くので、
 シェルのサンドボックスの中のエージェントからも使える。
-アプリが依存するサービス(compose.yaml)を探索やライブ操作のために起こすなら `ft_services`(`up` → 使う → `down`)。`ft_start_run` は自分で起こし直すので `up` のままでよい。
+アプリが依存するサービス(compose.yaml)を探索やライブ操作のために起こすなら `ft_services`(`action: up`)。`ft_start_run` が引き取って起こし直すので、終わっても `down` しなくてよい。
 
 | 指示されたこと | ツール(引数) |
 |---|---|
@@ -138,8 +139,8 @@ class SignInExample {
 
 ## 報告での呼び方
 
-利用者への報告では、Simulator・Emulator を「実機」と呼ばない。「実機」は USB でつないだ本物の iPhone / Android
-だけを指す(実行プロファイルの `kind: "physical"`)。どちらか分からないときは「デバイス」と書く。
+利用者への報告では、Simulator・Emulator を「実機」と呼ばない。「実機」は本物の iPhone / Android
+だけを指す(USB でも Wi-Fi でも。実行プロファイルの `kind: "physical"`)。どちらか分からないときは「デバイス」と書く。
 
 ## 注意事項の一覧
 

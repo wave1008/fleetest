@@ -161,7 +161,7 @@ fleetest run --runner M1Max --profile <実行プロファイル> --scenario <シ
   中止します(`--ignore-lock` で押し切れますが、その run を殺します)。拡張で一括停止やデバイスの削除をするときは、確認画面に誰の run が実行中かが
   表示されます。
 - **死んだロックを外す**: ディスパッチが異常終了してロックだけが残ったときは、
-  `fleetest remote unlock [--runner <マシン名>|local] [--force]` で回収します。外せるのは自分のロックだけで、
+  `fleetest remote unlock --runner <マシン名>|local [--force]` で回収します。外せるのは自分のロックだけで、
   `--force` を付けると持ち主を問わず外します(その run がまだ動いていれば壊れます)。
 
 `~/.config/fleetest/config.json` の `issuerId` に自分の名前を設定しておくと、これらの表示に

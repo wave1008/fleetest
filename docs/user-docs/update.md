@@ -58,7 +58,7 @@ then press "Update" again.
 ## 4. After updating
 
 - **Restart the AI assistant**: the new version's instructions (skills) are read after a restart.
-- **Bring runner machines to the same version**: if you use remote runners, update them to the same version as your Mac.
+- **Bring runner machines to the same version**: if you use runner machines, update them to the same version as your Mac.
   Tests do not start while the versions differ (the extension checks before a run and offers "Update and run").
   See "After you update fleetest" in [Adding a Mac](fleet/adding_mac.md).
 

@@ -22,7 +22,7 @@ You can grow your fleet by adding devices on your Mac and other Macs (runner mac
 To point at a runner machine, you use a name you give it on your Mac, not its host name or IP address.
 This name is called the **machine name**.
 
-- **Host**: the real network destination. Example: `<user@192.168.xxx.xxx>`
+- **Host**: the real network destination. Example: `user@192.168.xxx.xxx`
 - **Machine**: a name for that host, known only on this Mac. Example: `M1Max`. This is what
   profiles refer to.
 
@@ -65,7 +65,7 @@ The devices listed in a run profile's `devices` are where the run goes. Each dev
 
 To run the same scenarios on every machine, create a **fleet definition**, which lists which machine runs which run profile
 within the fleet (`TestProjects/<project>/profiles/fleets/<name>.json`) and run `fleetest run --fleet <name>` (`--split`
-splits the scenarios across the machines instead of running all of them everywhere; see "Run it" in [Remote Runners](remote_runners.md)).
+splits the scenarios across the machines instead of running all of them everywhere; see "Run it" in [Remote runs](remote_runners.md)).
 Running a fleet definition is available from the CLI only (not from the extension or MCP), and it is experimental. To run several projects or profiles in one run instead, see `--target` and a repeated `--profile` in [Running scenarios](../reference/running/running_scenarios.md).
 
 ## What happens automatically
@@ -86,7 +86,7 @@ accept incoming connections.
 
 ```
 Your Mac                                Runner machine
-fleetest run --runner mac2 …             ~/fleetest-runner/               ← dedicated base directory
+fleetest run --runner M1Max …             ~/fleetest-runner/               ← dedicated base directory
   ├ version check (fleetest, Xcode)  ssh ├── fleetest/          ← clone of fleetest itself (fixed name, shared)
   ├ send (scenarios/config) ───────────> └── users/<issuerId>/work/     ← your work area (per user)
   ├ display output                             ├── TestProjects/<project>/
@@ -102,7 +102,7 @@ fleetest elsewhere, it is never touched.
 |---|---|
 | Send a run to another Mac (from the CLI or the VSCode extension) | ✅ |
 | Progress display, cancellation, timeout | ✅ |
-| Bring reports, JUnit, recordings and run logs back to your Mac | ✅ |
+| Bring reports, JUnit, recordings and execution logs back to your Mac | ✅ |
 | Provision a runner from your Mac in one command (`remote setup`); remove it the same way (`remote teardown`) | ✅ |
 | Check or clean up several runners at once (`remote status` / `remote clean`) | ✅ |
 | Run a single `fleetest` command on a runner (`remote exec`) | ✅ |
@@ -119,7 +119,7 @@ Running a fleet (`run --fleet`) is available from the CLI only (not from the ext
 | What you want | What to add | How |
 |---|---|---|
 | Run more devices at once so the whole suite finishes sooner | A Mac | [Adding a Mac](adding_mac.md) |
-| Share one large Mac across a team | A Mac | Set it up in [Adding a Mac](adding_mac.md); how to use it is in "Sharing one runner between several people" in [Remote Runners](remote_runners.md) |
+| Share one large Mac across a team | A Mac | Set it up in [Adding a Mac](adding_mac.md); how to use it is in "Sharing one runner between several people" in [Remote runs](remote_runners.md) |
 | Check on real hardware | Physical devices | [Adding physical devices](adding_physical_devices.md) |
 | Connect physical devices to another Mac and run them there | A Mac and physical devices | Add the Mac first, then connect the devices to it |
 
@@ -129,7 +129,7 @@ one Mac starts to slow things down, it is time to add a Mac.
 ## Good to know
 
 - **A runner machine runs only one run at a time.** While someone is using it, other runs wait until it is free
-  ("Sharing one runner between several people" in [Remote Runners](remote_runners.md)).
+  ("Sharing one runner between several people" in [Remote runs](remote_runners.md)).
 - **Keep a user logged in on each runner machine.** A Mac sitting at the login window cannot run tests.
 - **You can take a machine out temporarily.** Clear "Machine enabled" under "Machines" in the Device Monitor's
   Settings tab, and no tests are sent to that machine.
@@ -138,7 +138,7 @@ one Mac starts to slow things down, it is time to add a Mac.
 
 - [Adding a Mac](adding_mac.md) — preparing a runner machine and adding it to the fleet
 - [Adding physical devices](adding_physical_devices.md) — adding a real iPhone or Android to the fleet
-- [Remote Runners](remote_runners.md) — running on a runner machine (`--runner`, `--fleet`, the VSCode extension, sharing), plus setups across a router, maintenance and safety
+- [Remote runs](remote_runners.md) — running on a runner machine (`--runner`, `--fleet`, the VSCode extension, sharing), plus setups across a router, maintenance and safety
 
 ### Link
 - [index](../index.md)

@@ -59,10 +59,10 @@ are removed.
 
 ## A wrong password shows an error
 
-### Steps
+### When
 1. Log in with a wrong password
 
-### Checks
+### Expected results
 - an error message is shown
 - the login button can be pressed
 ```

@@ -83,7 +83,7 @@ Details: [Memo (writeMemo, readMemo, clearMemo, memoTextAs)](../commands/memo.md
 
 ## Keeping secrets out of reports (redactAccountValues)
 
-By default, the value in `type(account("[account1].password"))` stays as is in step descriptions, run logs and
+By default, the value in `type(account("[account1].password"))` stays as is in step descriptions, execution logs and
 reports. Writing `"redactAccountValues": true` in this Mac's `~/.config/fleetest/config.json` replaces values from
 `account()` with `***`. Text captured in screenshots cannot be redacted.
 

@@ -28,7 +28,7 @@ git status --short
 
 期待する結果:
 
-- `fleetest init` とインストールが、次の5行を `.gitignore` に足します(作業フォルダが git のリポジトリのとき)。
+- `fleetest init` が、次の5行を `.gitignore` に足します(インストーラも、作業フォルダが git のリポジトリなら足します)。
 
 ```text
 .build/
@@ -44,7 +44,7 @@ TestProjects/*/workspace/apps/
 | `TestProjects/<プロジェクト>/scenarios/`(シナリオ) | `.fleetest/`(この Mac の状態) |
 | `TestProjects/<プロジェクト>/profiles/`(アプリ・実行プロファイル) | `TestProjects/*/reports/`(Markdown レポート。画面の文字が入る) |
 | `TestProjects/<プロジェクト>/dataset/`(共有してよいテストデータ) | `TestProjects/*/results/`(結果 JSON と録画。録画は画面の文字が写る) |
-| `TestProjects/<プロジェクト>/docs/`(あれば) | `TestProjects/*/workspace/apps/`(run のたびにアプリの束が複製される) |
+| `TestProjects/<プロジェクト>/vision/`(画像の見本。あれば)<br>`TestProjects/<プロジェクト>/workspace/data/`(`run-setup.sh` が使うシード。秘密を含まないもの)<br>`TestProjects/<プロジェクト>/docs/`(あれば) | `TestProjects/*/workspace/apps/`(run のたびにアプリの束が複製される) |
 | `TestProjects/<プロジェクト>/workspace/scripts/compose.yaml`(サーバーの宣言。[アプリが依存するサービス](../reference/writing/services_ja.md)) | `.mcp.json`(絶対パスを含むので Mac ごとに違う。`.gitignore` には自動では入らないので、`git add` しないか自分で足す) |
 | | `~/.config/fleetest/` の中身(作業フォルダの外にあり、そもそも git に入らない) |
 | | `.vscode/settings.json`・`.claude/settings.json`(クローンの絶対パスを含む。入れるなら2人目が自分のパスへ書き直す) |
@@ -71,7 +71,7 @@ Package.swift の .package(path:) が絶対パスなら ../fleetest に直して
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
 ```bash
-git add Package.swift .gitignore TestProjects/*/scenarios TestProjects/*/profiles TestProjects/*/workspace/scripts TestProjects/*/dataset
+git add Package.swift .gitignore TestProjects/*/scenarios TestProjects/*/profiles TestProjects/*/workspace/scripts TestProjects/*/dataset TestProjects/*/vision TestProjects/*/docs TestProjects/*/workspace/data   # 無いパスは git add がエラーにするので、ある分だけ足す
 git status --short           # reports/ と results/ が入っていないことを確かめる
 git commit -m "Add fleetest test project"
 git push
@@ -119,6 +119,8 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 ## 4. 2人目のデバイスを用意する
 
+プロジェクトが複数あるときは、どのコマンドにも `--project` を付けます(省くと `project1` が選ばれます)。
+
 実行プロファイルの `devices` は、デバイスを**名前**で指します。iOS Simulator は `name`(Simulator 自身の名前)と
 `osVersion` で探し、Android は `avd` で探します([プロファイル](../reference/project/profiles_ja.md)の「デバイス」)。
 `fleetest run` は、見つからないデバイスを**作りません**。2人目の Mac に同じ名前と OS の Simulator が無いと、
@@ -135,7 +137,7 @@ Android は、その AVD を起こそうとして 3 回失敗してから(数分
 ### AIへの指示文
 
 ```text
-共有されている ios-app アプリプロファイルを使う、自分用の実行プロファイル ios-run-mine を作って。
+テストプロジェクト <プロジェクト> の、共有されている ios-app アプリプロファイルを使う自分用の実行プロファイル ios-run-mine を作って。アプリ ID は ios-app に書いてあるものを使って。
 デバイスは、この Mac で使える最新 OS の Simulator を選んで。
 ```
 
@@ -143,7 +145,7 @@ Android は、その AVD を起こそうとして 3 回失敗してから(数分
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
 ```bash
-../fleetest/.build/debug/fleetest profile setup --platform ios --app-id <bundle ID> \
+../fleetest/.build/debug/fleetest profile setup --project <プロジェクト> --platform ios --app-id <ios-app.json の ios.app と同じ値> \
   --app-ref ios-app --run ios-run-mine --auto-device
 ../fleetest/.build/debug/fleetest profile list
 ```
@@ -160,14 +162,14 @@ Android は、その AVD を起こそうとして 3 回失敗してから(数分
 ### AIへの指示文
 
 ```text
-fleetest の ios-run-mine プロファイルで、すべてのシナリオを実行して。
+テストプロジェクト <プロジェクト> の fleetest の ios-run-mine プロファイルで、すべてのシナリオを実行して。
 ```
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
 ```bash
-../fleetest/.build/debug/fleetest run --profile ios-run-mine
+../fleetest/.build/debug/fleetest run --project <プロジェクト> --profile ios-run-mine
 ```
 
 </details>
@@ -193,7 +195,7 @@ fleetest の ios-run-mine プロファイルで、すべてのシナリオを実
 ### AIへの指示文
 
 ```text
-fleetest の ios-run プロファイルで、すべてのシナリオを M1Max で実行して。M1Max が使用中なら、最大 10 分まで順番を待って。
+テストプロジェクト <プロジェクト> の fleetest の ios-run プロファイルで、すべてのシナリオを M1Max で実行して。M1Max が使用中なら、最大 10 分まで順番を待って。
 ```
 
 <details>
@@ -202,7 +204,7 @@ fleetest の ios-run プロファイルで、すべてのシナリオを M1Max �
 2つのターミナルで、ほぼ同時に次を打ちます。
 
 ```bash
-../fleetest/.build/debug/fleetest run --profile ios-run --runner M1Max --wait-lock 600
+../fleetest/.build/debug/fleetest run --project <プロジェクト> --profile ios-run --runner M1Max --wait-lock 600
 ```
 
 </details>

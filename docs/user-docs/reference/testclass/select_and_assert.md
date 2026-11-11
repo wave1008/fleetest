@@ -15,7 +15,7 @@ between `tap`, `exist`, and `select`, and how the value/text assertion commands 
   further assertions.
 - **`select(sel)`** only grabs an element — no device interaction. Like `exist`, it checks by
   default that the element is actually visible, but when nothing matches or the element is not
-  visible (covered or clipped), it does **not** fail; it returns an empty element instead (pass
+  visible (covered or clipped), it does **not** fail (except on Android while the app is not in front, where it is refused); it returns an empty element instead (pass
   `requireVisible: false` to skip the visibility check), and `select` is **not** recorded as an assertion in the report (so it
   won't count toward "at least one assertion" checks). Use it when you want to read a value,
   or chain an assertion, without adding an extra checkpoint to the report.
@@ -44,7 +44,7 @@ exist("#total")
 ```
 
 Any command that operates on a single already-grabbed element can chain this way, and the
-same set works as an implicit (no-selector) call on the element `exist` just grabbed:
+same set works as an implicit form (a free function that takes no selector; the same arguments as the chained form) on the element `exist` just grabbed:
 
 ```swift
 exist("#total"); textStartsWith("Total")

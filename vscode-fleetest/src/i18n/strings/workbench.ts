@@ -131,7 +131,7 @@ export const workbenchStrings = {
   },
   "workbench.stepsView.noSelection": {
     ja: "対象のシナリオが選択されていません。エディタでシナリオ(@Test メソッド)内にカーソルを置くか、テストビューでシナリオを右クリックして「fleetest: ステップ一覧を表示」を実行してください。",
-    en: "No scenario is selected. Place the cursor inside a scenario (@Test method) in the editor, or right-click a scenario in the test view and run \"fleetest: Show Steps\".",
+    en: "No scenario is selected. Place the cursor inside a scenario (@Test method) in the editor, or right-click a scenario in the test view and run \"fleetest: Show Step List\".",
   },
   "workbench.stepsView.fetchCancelled": {
     ja: "ステップ一覧の取得がキャンセルされました。",

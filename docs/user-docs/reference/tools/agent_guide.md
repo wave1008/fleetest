@@ -2,7 +2,7 @@
 
 [in Japanese(日本語)](agent_guide_ja.md)
 
-This page is for **AI coding agents** that write fleetest scenarios through the `ft_*` MCP tools.
+This page is for **AI assistants (agents)** that write fleetest scenarios through the `ft_*` MCP tools.
 It is the short version of the runbook (`.claude/skills/fleetest-scenario/SKILL.md` in the clone);
 read the runbook when you need the full rules.
 
@@ -27,6 +27,7 @@ read the runbook when you need the full rules.
 7. **Run.** `ft_run_scenario`. A failure is isError and carries the failing step, **the element
    list and a screenshot at the moment of failure**, and the report path. Read the element list
    first — the screenshot cannot give you an `#id`.
+   On iOS `ft_run_scenario` always runs on the XCUITest bridge and, by default, without FM/Vision (no text visibility check); confirm under production conditions with `ft_start_run`.
 
 ## A scenario
 
@@ -120,7 +121,7 @@ background and returns at once; follow progress and the result with `ft_run_stat
 with `fleetest run` in the shell or similar; tell the user the run needs their approval (the approval setting is the
 safety line the user chose).
 It runs inside the MCP server, so it also works for agents whose shell is sandboxed.
-To have the services the app depends on (`compose.yaml`) up for exploring or Live Control, use `ft_services` (`up`, use them, then `down`). `ft_start_run` starts them again itself, so leaving them `up` is fine.
+To have the services the app depends on (`compose.yaml`) up for exploring or Live Control, use `ft_services` (`action: up`). `ft_start_run` takes them over and restarts them, so there is no need to `down` them afterwards.
 
 | Request | Tool (arguments) |
 |---|---|
@@ -146,7 +147,7 @@ Both can be put on a class or on an individual `@Test`.
 ## Naming devices in reports
 
 In reports to the user, do not call a Simulator or Emulator a "physical device". That word means
-only a real iPhone / Android connected over USB (`kind: "physical"` in the run profile). When unsure, say "device".
+only a real iPhone / Android handset (connected over USB or Wi-Fi; `kind: "physical"` in the run profile). When unsure, say "device".
 
 ## Known caveats
 
@@ -167,7 +168,7 @@ limitations.
 
 - [MCP server](mcp_server.md)
 - [AI assistants other than Claude Code](other_agents.md)
-- [Command reference](../../index.md) (the per-command pages under "Functions/Properties")
+- [Command reference](../../index.md) (the per-command pages under "Functions and properties")
 
 ### Link
 - [index](../../index.md)

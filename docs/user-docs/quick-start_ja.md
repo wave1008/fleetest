@@ -30,7 +30,7 @@ fleetest をインストールし、サンプルアプリを対象に、テス�
 
 2. 作成したフォルダを VSCode で開きます
 
-3. AIアシスタント(Claude Code 拡張など)を起動して次のように指示します（所要時間：約5分）
+3. AIアシスタント(Claude Code 拡張など)を起動して次のように指示します(所要時間: 約5分)
 
 ```text
 https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
@@ -49,14 +49,14 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 ```text
 ../fleetest/.build/debug/fleetest doctor を実行して結果を報告して。
-Apple Intelligence(On-device model)の行の ❌ は、使わない機能(screenLooksLike・テキストの可視性検証)が止まるだけなので無視してよい。
-それ以外に ❌ が無いことを確かめて。
+`On-device model` と `FM visual verification (image input)` の行の ❌ は、Apple Intelligence が無効なときに出るもので、screenLooksLike と FM によるシナリオの下書きが使えなくなるだけ(テキストの可視性検証は OCR だけで続く)なので無視してよい。
+終了コードが 1 でも、それ以外に ❌ が無ければよい。
 ```
 
 期待する結果:
 
-- Xcode・Simulator・(Android なら)adb が ✅ になります。
-- Apple Intelligence の行は ❌ でも先へ進めます。
+- Xcode・(Android なら)adb が ✅ になります。Simulator は、起動していなければ ⚠️(No booted simulators)で正常です。
+- `On-device model`・`FM visual verification` の行は ❌ でも先へ進めます。
 
 ## 4. サンプルアプリの準備
 
@@ -150,6 +150,7 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
 (足りなければ作成します。iOS のランタイムが未導入のときは数 GB をダウンロードするので数分〜数十分かかります。
 起動していないものは実行時に自動で起動します)。アプリプロファイルの名前は `ios-app`・`android-app`、実行プロファイルの名前は `ios-run`・`android-run` になります。
 `--count 2` は、その実行プロファイルの該当 OS のデバイスを全部で2台にします(同じ内容の既存デバイスは番号の小さい順に再利用し、足りない分を作ります。指示文の「デバイスは2台にして」と同じです)。あとから VSCode 拡張のデバイスモニターの「プロファイル」タブにある「デバイスを追加」でも足せます。
+Android のシステムイメージが未導入のときは、Android SDK のライセンスに同意する `--accept-licenses` を付けないとコマンドが断ります(ライセンスの内容は断ったときの表示で確かめてください)。
 
 </details>
 <br>
@@ -241,7 +242,7 @@ VSCode からは **Test Explorer** でシナリオを選び、**実行**をク�
 
 <img src="images/quick_start/ja/report.png" width="640" alt="シナリオのレポート">
 
-失敗したときは、サーバーのログが `TestProjects/<プロジェクト>/results/runs/<月>/<runID>/services/server.log` に残ります。
+失敗したときは、サーバーのログが `TestProjects/<プロジェクト>/results/runs/<年-月>/<runID>/services/server.log` に残ります。
 
 レポートを要約し、テスト結果を分析してみましょう。
 

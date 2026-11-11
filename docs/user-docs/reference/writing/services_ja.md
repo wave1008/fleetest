@@ -125,7 +125,7 @@ volumes:
   警告(その端末のアプリはサービスに届きません)で、状態が読めないとき(端末が見えない・応答しない等)は run を止めます。fleetest が張った転送は終了時に外しますが、外せなかった
   とき(adb が応答しない等)は端末に残ります。次の run は同じ宛先なら触らず、公開ポートを変えた場合は古い転送について何も
   言いません。`adb -s <serial> reverse --list` で確認し、`adb -s <serial> reverse --remove tcp:<port>` で外してください。
-- **iOS の実機**: LAN アドレスを焼き込んだビルドを使います([実機を足す](../../fleet/adding_physical_devices_ja.md))。
+- **iOS の実機**: LAN アドレスを焼き込んだビルドを使います([実機を追加する](../../fleet/adding_physical_devices_ja.md))。
 - **露出の注意**: ポートを LAN に公開している間は、同じ LAN の誰でもそのサービスに届きます。サービス側で認証を
   掛け、公開はその run の間(と `services up --physical` から `down` まで)だけにしてください。
 
@@ -174,10 +174,12 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 
 | コマンド | 内容 |
 |---|---|
-| `fleetest services up [--project <p>] [--profile <pf>] [--physical] [--serial <adb serial>…]` | 起動して**上がるまで待ち**、公開ポートを印字して返ります。サービスはその後も動き続けます(常駐の所有者プロセスが持ちます。ログは `.fleetest/services/<prefix>.log`)。プロジェクトにプロファイルが1つなら `--profile` は省略できます |
-| `fleetest services down` | 止めます |
-| `fleetest services status` | 控え・ロック・ランタイム上の資源を見ます。名前付きボリュームと、fleetest がビルドしたイメージ(このワークスペースの `build:` と中継のイメージ)は大きさつきで出ます。自動では消さないので、大きくなっていたら `reset` で消します |
-| `fleetest services reset [--force]` | このワークスペースのコンテナ・ネットワーク・**ボリューム**・控えを全部消します。`up` が握っている間は `--force` が要ります(先にその `up` を止めてから消します)。run が握っている間は `--force` でも消しません(run の終了を待ってください) |
+| `fleetest services up [--project <p>] [--profile <pf>] [--physical] [--serial <adb serial>…]` | 起動して**上がるまで待ち**、公開ポートを印字して返ります。サービスはその後も動き続けます(常駐の所有者プロセスが持ちます。ログは `.fleetest/services/<prefix>.log`) |
+| `fleetest services down [--project <p>] [--profile <pf>]` | 止めます |
+| `fleetest services status [--project <p>] [--profile <pf>]` | 控え・ロック・ランタイム上の資源を見ます。名前付きボリュームと、fleetest がビルドしたイメージ(このワークスペースの `build:` と中継のイメージ)は大きさつきで出ます。自動では消さないので、大きくなっていたら `reset` で消します |
+| `fleetest services reset [--project <p>] [--profile <pf>] [--force]` | このワークスペースのコンテナ・ネットワーク・**ボリューム**・控えを全部消します。`up` が握っている間は `--force` が要ります(先にその `up` を止めてから消します)。run が握っている間は `--force` でも消しません(run の終了を待ってください) |
+
+`up` / `down` / `status` / `reset` は、プロジェクトにプロファイルが1つなら `--profile` を省略できます(複数あると `--profile is required` で止まります)。`--project` を省くと `project1` が選ばれます。
 
 `up` で起こしたサービスは、VSCode 拡張のモニターの run ボードで、そのマシンの行に「サーバー稼働中」と出ます。
 

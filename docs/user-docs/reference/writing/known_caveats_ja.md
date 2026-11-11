@@ -78,7 +78,7 @@
 - [iOS の inapp-boost では installApp() の直後に launchApp() を呼ぶ](../commands/install_app_ja.md#注意点) — インストールでアプリの中のブリッジが終了し、再起動まで tap などが届きません。
 - [入れ直しても権限は戻らない](../commands/install_app_ja.md#注意点) — iOS Simulator は再インストールしても許可が残ります。権限から戻すなら `clearAppData()` を使います。
 - [clearAppData() は権限も未許可へ戻す](../commands/install_app_ja.md#注意点) — 権限ダイアログが再び出るので、初回起動の権限フローの検証に使えます。
-- [iOS 実機の clearAppData() はアプリを入れ直して消す](../commands/install_app_ja.md#注意点) — 時間がかかり、アプリプロファイルの `appPathPhysical` に実機用ビルドが要ります。
+- [iOS 実機の clearAppData() はアプリを入れ直して消す](../commands/install_app_ja.md#注意点) — 時間がかかり、アプリプロファイルの `appPathPhysical` と `--profile` が要り、有効な入れ元が無ければアンインストールせずに失敗します(注記 `reinstalled-to-clear-data`)。
 - [キーチェーン / Keystore の値は clearAppData() で消えない](../commands/install_app_ja.md#注意点) — オンボーディング判定をそこに置くアプリでは初回起動が再現しません。
 - [fleetest 自身のブリッジは removeApp / clearAppData の対象にできない](../commands/install_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。消すとデバイスを操作できなくなるためです。
 - [自分のテスト対象アプリを removeApp() で消すと以降が壊れる](../commands/install_app_ja.md#注意点) — そこでシナリオを終える意図があるときだけ呼びます。
@@ -102,7 +102,7 @@
 - [launchApp はアプリのデータを消さない](../commands/launch_app_ja.md#注意点) — 消えるのはプロセスと画面の状態だけです。データを消すのは `clearAppData()` です。
 - [iOS の inapp-boost で他のアプリを launchApp / restartApp すると失敗する](../commands/launch_app_ja.md#注意点) — in-app ブリッジは別のアプリを駆動できません。そのアプリの手順は別のシナリオに分けます。
 - [fleetest 自身のブリッジは launchApp / restartApp の対象にできない](../commands/launch_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。
-- [既定アプリは実行プロファイルの app → アプリプロファイル → platform の順で決まる](../commands/launch_app_ja.md#注意点) — `@TestClass` に `app:` は書けないので、同じシナリオを別プロファイルで回すとアプリが変わります。
+- [既定アプリは実行プロファイルの app → アプリプロファイル → platform の順で決まる](../commands/launch_app_ja.md#注意点) — `@TestClass` に `app:` は書けないので、同じシナリオを別プロファイルで回すとアプリが変わります。複数のアプリを扱うなら bundle ID を渡すか、アプリごとの実行プロファイルを使います。
 - [openURL はプロセスを再起動しない](../commands/launch_app_ja.md#注意点) — 起動済みのアプリへディープリンクを届ける用途です。`launchApp(url:)` は先に再起動します。
 - [初回の openURL で iOS Simulator の確認アラートが出ることがある](../commands/launch_app_ja.md#注意点) — 自動了承されます。向け直せなかった場合は注記 `open-url-session…` が付き、続く操作が届かないことがあります。
 - [未起動のアプリへの openURL は想定用途ではない](../commands/launch_app_ja.md#注意点) — 未起動から URL で開く検証には `launchApp(url:)` を使います。
@@ -122,11 +122,11 @@
 - [アプリがその向きを許可していないと回らない](../commands/navigation_ja.md#注意点) — Android は禁じていれば待たずに失敗し、理由にアプリの宣言を示します。
 - [回転の間、Android は自動回転を切る](../commands/navigation_ja.md#注意点) — 切らないと角度が保持されないためです。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/navigation_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
-- [fold / unfold / hinge は折りたたみ端末が必要](../commands/navigation_ja.md#注意点) — iPhone Duo の Simulator か折りたたみの Emulator です。iOS 実機はそのシナリオが対象外(skipped)になります。
+- [fold / unfold / hinge は折りたたみ端末が必要](../commands/navigation_ja.md#注意点) — iPhone Duo の Simulator か折りたたみの Emulator です。iOS 実機はそのシナリオが対象外(skipped)になります。折りたたみの Android 実機は非対応として失敗します。
 - [折りたためないデバイスでは失敗でなく以降を skipped にする](../commands/navigation_ja.md#注意点) — 緑でも実行されていないステップがあるので、レポートで確認します。
 - [折りたたみ状態は終了時に自動で元へ戻る](../commands/navigation_ja.md#注意点) — `rotateTo` の向きと同じ扱いです。
 - [Android の折りたたみ機は閉じるとロック画面が出る](../commands/navigation_ja.md#注意点) — `fold()` はスワイプで外して進みますが、PIN やパターンのロックは外せません。
-- [hinge はどちらの画面が出るかを確かめない](../commands/navigation_ja.md#注意点) — 切り替わる角度は機種で違います。特定の画面が要るなら `fold()` / `unfold()` を使います。
+- [hinge はどちらの画面が出るかを確かめない](../commands/navigation_ja.md#注意点) — 切り替わる角度は直前の状態に依存します。特定の画面が要るなら `fold()` / `unfold()` を使います。
 - [iOS の fold / unfold は非公開のヒンジイベントを送る](../commands/navigation_ja.md#注意点) — 将来の Xcode で受け付けなくなる可能性がありますが、切り替わりを確かめるので黙って通らず失敗します。
 
 ### pressEnter, hideKeyboard
@@ -162,7 +162,7 @@
 
 ### 状態の検証(enabledIsTrue, enabledIsFalse, checkIsON, checkIsOFF)
 - [チェック状態はアクセシビリティから読む](../commands/state_assertion_ja.md#注意点) — iOS は実装ごとに出し方が違い、fleetest が吸収します。
-- [状態を一切報告しない要素がある](../commands/state_assertion_ja.md#注意点) — SwiftUI の `Button` 自作チェックボックスなどで `checkIsON` は失敗します。`textIs` で確かめるか、アプリ側で状態を公開します。
+- [状態を一切報告しない要素がある](../commands/state_assertion_ja.md#注意点) — SwiftUI の `Button` 自作チェックボックスなどで `checkIsON` は失敗します。`textIs` で確かめるか、アプリ側で状態を公開します。`checkIsOFF` は状態を報告しない要素でも通ります(run 終了時に警告)。
 - [オンのときだけ報告する実装では、オンを見ていない要素の checkIsOFF が通る](../commands/state_assertion_ja.md#注意点) — 状態が分からないまま通り、run 終了時に警告が出ます。先に `checkIsON` で確かめます。
 - [「一部だけ選択」の要素は checkIsON でも checkIsOFF でも失敗する](../commands/state_assertion_ja.md#注意点) — indeterminate は別の状態として扱われます。
 - [select の後の enabledIsTrue / enabledIsFalse は選んだ時点の状態で判定する](../commands/state_assertion_ja.md#注意点) — 文字を描かない要素(骨組みの行など)も、選んだ時点の状態で判定します。
@@ -236,7 +236,7 @@
 ### wait, waitForDisplay, waitForClose, waitForSettle
 - [要素の出現待ちは既に暗黙](../commands/wait_ja.md#注意点) — `exist()` の前に `wait()` は不要です。足りなければ `waitSeconds:` を上げます。
 - [wait() は整定のための最後の手段](../commands/wait_ja.md#注意点) — `waitForDisplay` / `waitForClose` の代わりにはならず、画面が止まるのを待つなら `waitForSettle` を使います。
-- [waitForDisplay の判定は exist と同じ可視性込み](../commands/wait_ja.md#注意点) — 覆われ検出を外して待ちたいなら `exist(sel, requireVisible: false, waitSeconds: 15)` を使います。
+- [waitForDisplay の判定は exist と同じ可視性込み](../commands/wait_ja.md#注意点) — 可視性の判定を外して待ちたいなら `exist(sel, requireVisible: false, waitSeconds: 15)` を使います。
 - [waitForDisplay / waitForClose はスクロールして探さない](../commands/wait_ja.md#注意点) — 画面外にありうるなら、先にスクロールするか `scrollTo` を使います。
 
 ## セレクタ

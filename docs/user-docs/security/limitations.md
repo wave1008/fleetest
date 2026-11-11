@@ -17,7 +17,7 @@ The sandbox exists to protect this Mac. It does not stop the following.
 
 **On a Mac that runs untrusted scenarios, do not leave the following running.**
 
-- Endpoints that run code without authentication (browser or Node.js debug ports, Jupyter, Docker exposed over TCP,
+- Endpoints that run code without authentication (browser or Node.js debug ports, Jupyter, Docker exposed over TCP on a port other than the default,
   and so on): a scenario can run code outside the sandbox
 - Local proxies (traffic analysis tools, corporate proxy agents, SSH port forwarding, and so on): a scenario can
   bypass `allowedDomains` and reach any destination
@@ -37,12 +37,14 @@ What scenarios cannot do (writing to the temporary folder, reading environment v
   Emulator and reach every connected Android device. The adb keys (`~/.android`) also become readable. Speed is almost the same as with delegation.
 - **`sandbox.disabled` is for temporarily isolating a cause.** If a scenario works without the sandbox, it is doing
   something the sandbox refuses; rewrite it with the fixed doors in steps 3 and 4 of [Checking the sandbox and opening the holes you need](sandbox.md) and restore the setting.
-- **Runs from MCP go through approval.** In Claude Code, the installer writes settings that ask for confirmation only
-  for `ft_start_run` (the full run, including the scripts before and after it) and `ft_services` (starting the services). How to choose the approval scope is in
+- **From MCP, only full runs and service starts ask for approval.** In Claude Code, the installer writes settings that ask for confirmation only
+  for `ft_start_run` (the full run, including the scripts before and after it) and `ft_services` (starting the services). `ft_run_scenario` runs scenarios without asking (inside the sandbox). How to choose the approval scope is in
   [MCP server](../reference/tools/mcp_server.md).
 - **macOS updates can change the behavior.** The `sandbox-exec` fleetest uses is marked deprecated by Apple, and its
   syntax is not officially documented. If scenarios start failing with permission errors after a macOS update,
   update fleetest.
+- **CI is supported only on self-hosted Macs with a logged-in GUI session.** GitHub-hosted runners (`macos-*`) are not supported ([Running in CI](../in_action/ci.md)).
+- **A scenario that fails because of a device problem is re-run from the start (not necessarily on the same device; this cannot be turned off).** Point irreversible operations such as sending or purchasing at an environment where a second delivery is harmless (test payments, a staging server) ([Writing robust scenarios](../reference/writing/writing_robust_scenarios.md#write-every-scenario-to-survive-being-re-run-from-the-start)). Per-command and per-UI-component constraints are in the [list of caveats](../reference/writing/known_caveats.md).
 
 - **Using a physical iOS device on a runner machine puts a development signing key in a keychain without a password**
   ([Adding physical devices](../fleet/adding_physical_devices.md)). Anyone who can log in to that runner machine can sign with this key.

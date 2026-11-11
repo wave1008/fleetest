@@ -49,14 +49,14 @@ following ../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 
 ```text
 Run ../fleetest/.build/debug/fleetest doctor and report the result.
-A ❌ on the Apple Intelligence (On-device model) row only stops features you are not using (screenLooksLike and the text visibility check), so ignore it.
-Confirm that there is no other ❌.
+A ❌ on the `On-device model` and `FM visual verification (image input)` rows appears when Apple Intelligence is off and only disables screenLooksLike and FM-based scenario drafting (the text visibility check continues with OCR alone), so ignore it.
+Even if the exit code is 1, confirm there is no other ❌.
 ```
 
 Expected result:
 
-- Xcode, the Simulator, and (for Android) adb show ✅.
-- You can go on even if the Apple Intelligence row shows ❌.
+- Xcode and (for Android) adb show ✅. The Simulator row shows ⚠️ (No booted simulators) when none is running, which is fine.
+- You can go on even if the `On-device model` and `FM visual verification` rows show ❌.
 
 ## 4. Preparing the sample app
 
@@ -151,6 +151,7 @@ when missing; a missing iOS runtime is downloaded first: several GB, several min
 one that is not running is started automatically at run time). The app profiles are named `ios-app` and `android-app`, and the
 run profiles `ios-run` and `android-run`. `--count 2` makes the run profile hold two devices of that OS in total (existing devices with the same settings are reused in ascending number order and the missing ones are created; it is the same as "use two devices" in the instruction). You can also add devices later with "Add device" on the
 "Profiles" tab of the VSCode extension's Device Monitor.
+If the Android system image is not installed yet, the command refuses unless you add `--accept-licenses` to accept the Android SDK license (check the license shown in the refusal first).
 
 </details>
 <br>
@@ -241,7 +242,7 @@ Every run writes a Markdown report per scenario to `TestProjects/<project>/repor
 
 <img src="images/quick_start/en/report.png" width="640" alt="A scenario report">
 
-When a run fails, the server's log is kept at `TestProjects/<project>/results/runs/<month>/<runID>/services/server.log`.
+When a run fails, the server's log is kept at `TestProjects/<project>/results/runs/<year-month>/<runID>/services/server.log`.
 
 Let's summarize the reports and analyze the test results.
 

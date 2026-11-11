@@ -21,7 +21,7 @@ fleetest では、テストを実行するデバイス(仮想デバイス、実�
 
 ランナー機を指すときは、ホスト名や IP アドレスではなく、手元で付けた名前を使います。この名前を**マシン名**と呼びます。
 
-- **ホスト(host)**: ネットワーク上の実際の宛先です。例: `<user@192.168.xxx.xxx>`
+- **ホスト(host)**: ネットワーク上の実際の宛先です。例: `user@192.168.xxx.xxx`
 - **マシン(machine)**: そのホストに付ける、この Mac の中だけで通じる名前です。例: `M1Max`。
   プロファイルに書くのはこちらです。
 
@@ -77,7 +77,7 @@ fleetest では、テストを実行するデバイス(仮想デバイス、実�
 
 ```
 手元の Mac                               ランナー機
-fleetest run --runner mac2 …             ~/fleetest-runner/               ← 専用ベースディレクトリ
+fleetest run --runner M1Max …             ~/fleetest-runner/               ← 専用ベースディレクトリ
   ├ 版の確認(fleetest・Xcode)   ssh     ├── fleetest/          ← fleetest 本体のクローン(名前固定・共有)
   ├ 送信(シナリオ・設定) ──────────>  └── users/<issuerId>/work/      ← あなたの作業場所(利用者ごと)
   ├ 出力を受け取って表示                     ├── TestProjects/<プロジェクト>/

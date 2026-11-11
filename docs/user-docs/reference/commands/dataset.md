@@ -113,10 +113,10 @@ addMedia("img/avatar.png")
 ## Masking secrets
 
 **Values are not masked by default.** If you write `type(account("[account1].password"))`, the password stays in the
-step description, the run log and the report as it is.
+step description, the execution log and the report as it is.
 
 Write `redactAccountValues` in `~/.config/fleetest/config.json` on the Mac that runs the scenarios, and scenarios run on
-that Mac **replace values returned by `account()` with `***` in reports, run logs and result JSON** (`data()` is not
+that Mac **replace values returned by `account()` with `***` in reports, execution logs and result JSON** (`data()` is not
 masked). The setting of the Mac that runs the scenario is used (when you run on another Mac, write it on that Mac).
 
 ```json
@@ -129,7 +129,7 @@ When masking is on:
 
 - All attributes of the dataset you called are masked (`id` too).
 - **Values shorter than 4 characters are not masked** (a short value such as `ab` would turn unrelated text into `***`).
-- What is masked is the text the scenario writes out: step descriptions, failure reasons, the run log, and the
+- What is masked is the text the scenario writes out: step descriptions, failure reasons, the execution log, and the
   Markdown report with the failure-time element list. **Screenshots (text inside the pixels) cannot be masked.** If a
   screen shows the password in plain text, a failure-time screenshot shows it.
 - If you write an `account()` value with `writeMemo`, the memo value handed to other scenarios also becomes `***`

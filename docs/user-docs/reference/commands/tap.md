@@ -26,7 +26,7 @@ tap(x: 120, y: 640)                    // only when no selector is available
 
 ## Notes
 
-- The next three apply **only when the tool can tell from the screen which element is drawn in front** — iOS apps built
+- The next three (several matches, a covered centre, an off-list target under a cover) apply **only when the tool can tell from the screen which element is drawn in front** — iOS apps built
   with UIKit or React Native (inapp-boost mode), and Android apps built with Views or React Native.
 - **When several elements match the selector**: if the first one is covered by another element in front and an uncovered
   match exists, that one is tapped (with a note). If every match is covered and there is nowhere to press, nothing is tapped
@@ -53,12 +53,12 @@ tap(x: 120, y: 640)                    // only when no selector is available
 - **`tap` waits for the target to become enabled before tapping.** A screen can render an
   element before it is actually interactive (a form still loading, a button disabled until
   validation passes). `tap` retries resolution until the element is `enabled`, up to the
-  step's `waitSeconds:` (5 seconds by default). If it never becomes enabled, `tap` still taps
+  step's `waitSeconds:` (default: the run profile's `defaultTimeout`, 5 seconds unless changed). If it never becomes enabled, `tap` still taps
   it — a scenario that deliberately taps a disabled element to assert "nothing happens" keeps
   working. Waiting is skipped when the selector explicitly pins the state, e.g.
   `#btn&&enabled=false`, or when `waitSeconds: 0` is given.
 - **Waiting for the element to appear is short**: without `waitSeconds:`, resolution is retried for only about
-  0.7 seconds until the element is found (once found, `tap` waits up to 5 seconds for it to become enabled, as above).
+  0.7 seconds until the element is found (once found, `tap` waits up to the `defaultTimeout` (5 seconds unless changed) for it to become enabled, as above).
   For an element that appears late after a screen transition, pass `tap("#btn", waitSeconds: 5)` or wait first with
   `waitForDisplay("#btn")`. Other operations such as `type` behave the same.
 - **Tapping first, then typing**: `tap("#field")` followed by `type("some text")` also works. On Android,

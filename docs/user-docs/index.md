@@ -19,7 +19,7 @@ Claude Code in natural language.
 
 - [Basics of using fleetest](tutorial/basic_usage.md)
 - [Preparing devices](tutorial/preparing_devices.md)
-- [Checking the server](tutorial/preparing_app_server.md)
+- [Checking the app's server](tutorial/preparing_app_server.md)
 - [Creating tests](tutorial/creating_tests.md)
 - [Running tests](tutorial/running_tests.md)
 - [Reading results and investigating failures](tutorial/investigating_failures.md)
@@ -46,7 +46,7 @@ Claude Code in natural language.
 - [Fleet concepts](fleet/concepts.md)
 - [Adding a Mac](fleet/adding_mac.md)
 - [Adding physical devices](fleet/adding_physical_devices.md)
-- [Remote Runners](fleet/remote_runners.md)
+- [Remote runs](fleet/remote_runners.md)
 
 ## Response measurement
 
@@ -79,7 +79,7 @@ scenarios the AI assistant wrote, or to write some yourself.
 - [Run profile settings](reference/project/run_profile.md)
 - [Machine settings (config.json)](reference/project/machine_settings.md)
 
-### Creating TestClass
+### Creating test classes
 
 - [Creating a test class](reference/testclass/creating_testclass.md)
 - [Select and assert](reference/testclass/select_and_assert.md)
@@ -95,7 +95,7 @@ scenarios the AI assistant wrote, or to write some yourself.
 - [Typed selector (Sel)](reference/selector/typed_selector.md)
 - [Elements inside WebView](reference/selector/webview.md)
 
-### Function/Property
+### Functions and properties
 
 - Tap element
     - [tap, tapAppIcon](reference/commands/tap.md)
@@ -118,7 +118,7 @@ scenarios the AI assistant wrote, or to write some yourself.
     - [pressEnter, hideKeyboard](reference/commands/press_enter_hide_keyboard.md)
 - Asserting existence
     - [exist, notExist, countIs](reference/commands/existence_assertion.md)
-- Asserting attribute
+- Asserting attributes
     - [Text assertion (textIs, textContains, ...)](reference/commands/text_assertion.md)
     - [Value assertion (valueIs, valueContains, ...)](reference/commands/value_assertion.md)
     - [id assertion (idIs)](reference/commands/id_assertion.md)
@@ -144,13 +144,13 @@ scenarios the AI assistant wrote, or to write some yourself.
     - [ifCanSelect, ios, android](reference/commands/branch.md)
 - Repeating action
     - [repeatWhileCanSelect, doUntilTrue](reference/commands/repeat.md)
-- Syncing
+- Waiting
     - [wait, waitForDisplay, waitForClose, waitForSettle](reference/commands/wait.md)
 - Descriptor
     - [group, procedure, beforeEach, afterEach, beforeAll, afterAll, setUpDevice, tearDownDevice](reference/commands/descriptors.md)
 - Screenshot
     - [screenshot](reference/commands/screenshot.md)
-- Handling irregulars
+- Handling interruptions (unexpected dialogs and alerts)
     - [irregularHandler](reference/commands/irregular_handler.md)
     - [suppressHandler, useHandler, disableHandler, enableHandler](reference/commands/suppress_handler.md)
     - [iOS system alerts (iosAlertHandler)](reference/commands/ios_alert_handler.md)
@@ -188,4 +188,4 @@ scenarios the AI assistant wrote, or to write some yourself.
 ### Specifications
 
 - [DSL command reference (Japanese)](../commands.md)
-- [Results JSON schema (Japanese)](../results-json.md)
+- [Result JSON schema (Japanese)](../results-json.md)

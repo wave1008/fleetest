@@ -40,7 +40,7 @@ exception; it still runs.
 
 **Raw Swift code inside a block is not skipped** by this mechanism (only DSL commands are).
 If you have plain Swift logic you don't want to run after an earlier failure, wrap it in
-`procedure { }` (see [Descriptors](../commands/descriptors.md)) so it participates in the
+`procedure("description") { }` (see [Descriptors](../commands/descriptors.md)) so it participates in the
 same skip behavior.
 
 ## Per-step time limit
@@ -62,7 +62,7 @@ A scenario is also stopped **when its output stops**. If no step result or log l
 the per-step cap (240 seconds by default), it is treated as stuck and fails. A slow scenario whose steps keep
 progressing is not stopped. Commands where you write how long to wait (`waitSeconds` of `ifCanSelect` /
 `repeatWhileCanSelect`, `httpRequest`, `doUntilTrue`) are not stopped while they wait within that length. If code whose
-length is unknown, such as Swift inside `procedure { }`, stays silent for more than 240 seconds, emit output such as
+length is unknown, such as Swift inside `procedure("description") { }`, stays silent for more than 240 seconds, emit output such as
 `print()` along the way.
 
 ## Structuring and passing values

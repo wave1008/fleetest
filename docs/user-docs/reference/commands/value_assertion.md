@@ -14,8 +14,8 @@ select("#email"); lastElement.valueIs("test@example.com") // explicit lastElemen
 select("#email"); valueIs("test@example.com")             // implicit (the last grabbed element)
 ```
 
-Arguments are `(expected, requireVisible:, strict:, waitSeconds:)` for the positive forms and `(expected, strict:, waitSeconds:)` for the negative and empty forms (`valueMatchesDateFormat` takes no `strict:` — see the table below). There is
-no form that takes a selector.
+Arguments are `(expected, requireVisible:, strict:, waitSeconds:)` for the positive forms and `(expected, strict:, waitSeconds:)` for the negative forms, and `(strict:, waitSeconds:)` for the empty forms (`valueMatchesDateFormat` takes no `strict:` — see the table below). There is
+no form that takes a selector. For the strings the implicit form cannot take as expected values, see [Text Assertion](./text_assertion.md).
 
 ## Functions
 

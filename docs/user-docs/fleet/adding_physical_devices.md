@@ -222,7 +222,7 @@ Run the scenario <scenario name> with the run profile ios-physical.
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-fleetest run --profile <run profile> --scenario <scenario ID>
+fleetest run --profile <run profile> --scenario <scenarioID>
 ```
 
 </details>
@@ -265,7 +265,7 @@ A physical device connected to a runner machine works with the same steps. **Do 
    a different device.
    ```bash
    cd ~/fleetest-runner/users/<your issuerId>/work
-   ~/fleetest-runner/fleetest/.build/debug/fleetest run --profile <run profile> --scenario <scenario ID>
+   ~/fleetest-runner/fleetest/.build/debug/fleetest run --profile <run profile> --scenario <scenarioID>
    ```
    `issuerId` is the name you set in `~/.config/fleetest/config.json` on your Mac. If you have not set one, it is
    `<user name>@<host name>` of your Mac. You can also check with `ls ~/fleetest-runner/users/` on the runner machine.
@@ -325,7 +325,7 @@ A physical device connected to a runner machine works with the same steps. **Do 
 | `The executable contains an invalid signature` | A Simulator build is being installed. Put a device build in `appPathPhysical` |
 | `is not visible to adb` | Check the Android USB connection and the USB debugging approval. `adb devices` must show `device` |
 | `could not unlock the lock screen` | Set the Android screen lock to None |
-| `Connection to the driver was refused` (iPhone) | A drop midway, which happens more often over Wi-Fi (LAN). Install `brew install libimobiledevice` to use USB, and restart the bridge with `fleetest bridge down --port <port>` |
+| `Connection to the driver was refused` (iPhone) | A drop midway, which happens more often over Wi-Fi (LAN). Install `brew install libimobiledevice` to use USB, and stop the bridge with `fleetest bridge down --port <port>`, then run again (the run restarts it) |
 
 ### Link
 - [index](../index.md)

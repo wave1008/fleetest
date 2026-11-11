@@ -12,8 +12,8 @@ such as Claude Code. It runs on macOS.
 - **free** — open source, and runs entirely on your own Macs, so running tests costs nothing
 
 **AI writes the tests; code replays them deterministically.** The AI assistant drives your app through the
-fleetest MCP server and CLI and writes test code in a Swift DSL. That test code then runs without any LLM —
-fast, stable and suited to CI. Everything can run locally, which makes fleetest an option for organizations
+fleetest MCP server and CLI and writes test code in a Swift DSL. That test code then runs without any cloud LLM —
+fast, stable and suited to CI (a few checks use on-device Foundation Models on your Mac; you can turn them off in the run profile). Everything can run locally, which makes fleetest an option for organizations
 that cannot use cloud services.
 
 ## Requirements
@@ -44,7 +44,7 @@ The step-by-step guide, including running a sample app, is the [Quick start](doc
 | You want to | Start here |
 |---|---|
 | Use fleetest for your own app | [User documentation](docs/user-docs/index.md) ([日本語](docs/user-docs/index_ja.md)) |
-| Look up a DSL command | [Function/Property](docs/user-docs/index.md#functionproperty) ([full command specification](docs/commands.md), Japanese) |
+| Look up a DSL command | [Functions and properties](docs/user-docs/index.md#functions-and-properties) ([full command specification](docs/commands.md), Japanese) |
 | Change fleetest itself | [CLAUDE.md](CLAUDE.md) (rules), [docs/README.md](docs/README.md) (maintainer docs index), [docs/development.md](docs/development.md) (build and repository layout) — all in Japanese |
 
 ## Four interfaces

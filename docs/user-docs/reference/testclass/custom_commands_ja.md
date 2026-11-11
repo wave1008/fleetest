@@ -25,7 +25,7 @@ scene(1, "ログイン") {
 }
 ```
 
-値は `dataset/accounts.json` に置きます([テストデータ・アカウント](../commands/dataset_ja.md))。
+共有してよい値はプロジェクトの `dataset/accounts.json` に、パスワードはこの Mac の `~/.config/fleetest/dataset/<プロジェクト名>/accounts.json` に置きます([テストデータ・アカウント](../commands/dataset_ja.md))。
 
 ## コマンドの一覧に載せる(`@FTCommand`)
 

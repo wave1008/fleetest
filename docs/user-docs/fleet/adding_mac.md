@@ -3,7 +3,7 @@
 [in Japanese(日本語)](adding_mac_ja.md)
 
 These steps add another Mac (a runner machine) to your fleet so it can run your tests. For the big picture, see
-[Fleet concepts](concepts.md); for what remote runs can do and how they work in detail, see [Remote Runners](remote_runners.md).
+[Fleet concepts](concepts.md); for what remote runs can do and how they work in detail, see [Remote runs](remote_runners.md).
 
 Most steps can be done either in the terminal (CLI) or in the VSCode extension. However,
 **installing fleetest on the runner (Step 3) can only be done in the terminal**.
@@ -18,7 +18,7 @@ Most steps can be done either in the terminal (CLI) or in the VSCode extension. 
 | 5. Check the connection | Your Mac | ✅ | ✅ |
 | 6. Run your first test | Your Mac | ✅ | ✅ |
 
-In the examples below, the runner is `<user@192.168.xxx.xxx>` and its machine name is `M1Max`.
+In the examples below, the runner is `user@192.168.xxx.xxx` and its machine name is `M1Max`.
 
 You can hand the work on your Mac (Steps 1–6) to an AI assistant; give it the "Prompt for the AI" of each step. In
 Claude Code, the `/fleetest-remote-setup` skill asks for the values it needs (the runner's destination, the machine name
@@ -54,7 +54,7 @@ path when you register the machine (Step 2), with `--developer-dir <path to the 
 fleetest won't find it. If no matching Xcode can be found, or more than one equally matches, the
 run is stopped with a message that lists the candidates.
 
-If your Mac and the runner run different macOS versions (for example 26 and 27), text visibility
+If your Mac and the runner run different macOS versions (for example 26 and 27), the text visibility
 check (OCR and FM) uses the features bundled with each Mac's macOS, so its results can
 differ between Macs. If a check fails only on one Mac, suspect the macOS version difference.
 
@@ -136,8 +136,8 @@ Expected result:
 If you have no key yet, create one with `ssh-keygen -t ed25519`.
 
 ```bash
-ssh-copy-id <user@192.168.xxx.xxx>                       # enter the password once, the first time only
-ssh -o BatchMode=yes <user@192.168.xxx.xxx> 'echo ok'    # printing ok means you are ready
+ssh-copy-id user@192.168.xxx.xxx                       # enter the password once, the first time only
+ssh -o BatchMode=yes user@192.168.xxx.xxx 'echo ok'    # printing ok means you are ready
 ```
 
 </details>
@@ -148,7 +148,7 @@ Also accept the host key here, the first time you connect.
 
 For a runner behind a router, or one that uses a port other than 22, define an alias in
 `~/.ssh/config` and use that alias as the destination (see "Runners on another network (across a
-router)" in [Remote Runners](remote_runners.md)).
+router)" in [Remote runs](remote_runners.md)).
 
 ## Step 2: Register the machine (on your Mac)
 
@@ -173,7 +173,7 @@ Expected result:
 1. Run `fleetest: Show Device Monitor` from the Command Palette to open the Device Monitor.
 2. Open the "Settings" tab and press "Add remote host" under the "Machines" table. A new row is
    added to the table.
-3. Enter the SSH destination in "user@host" (for example `<user@192.168.xxx.xxx>`; an alias from
+3. Enter the SSH destination in "user@host" (for example `user@192.168.xxx.xxx`; an alias from
    `~/.ssh/config` also works).
 4. Enter the machine name in "Machine (optional alias)" (for example `M1Max`). If you leave it
    blank, the destination without `user@` (for example `192.168.xxx.xxx`) becomes the machine name.
@@ -204,7 +204,7 @@ Expected result:
 ### Register with the CLI
 
 ```bash
-fleetest remote machines add M1Max --host <user@192.168.xxx.xxx>
+fleetest remote machines add M1Max --host user@192.168.xxx.xxx
 fleetest remote machines        # check the registration
 ```
 
@@ -262,7 +262,7 @@ The command goes through these stages:
    stops.
 3. Prepares fleetest and your test project under `~/fleetest-runner/` on the runner.
 4. Brings the runner's fleetest to the same version as your Mac.
-5. Only when you add `--profile <run profile>` (and optionally `--scenario <scenario id>`), runs one
+5. Only when you add `--profile <run profile>` (and optionally `--scenario <scenarioID>`), runs one
    real test on the runner as a final check. Without it, this stage is reported as "not yet
    verified" (a warning). `--skip-verify` also skips it.
 
@@ -406,7 +406,7 @@ Expected result:
 ### Run with the CLI
 
 ```bash
-fleetest run --profile <run profile> --scenario <scenario id>
+fleetest run --profile <run profile> --scenario <scenarioID>
 ```
 
 If the run profile's devices carry `"machine": "M1Max"`, the run goes to the runner without
@@ -431,7 +431,7 @@ your Mac.
 
 - If it differs, you see "The remote runners' fleetest version differs from this machine's."
   Pressing "Update and run" brings the runner to your version and then runs.
-- If it cannot be brought in line (your fleetest has commits that are not on GitHub yet, for example because you modified fleetest yourself; the runner cannot be reached,
+- If it cannot be brought in line (this Mac's fleetest is older than the runner's, the revisions have diverged or which side is older cannot be determined; the runner cannot be reached;
   the Xcode product versions differ, and so on), you see "Cannot run: the remote runners' fleetest
   cannot be updated from here." with the reason, and the run does not start. **A difference in
   Xcode beta build number alone does not stop the run** — it is only a warning.
@@ -466,7 +466,7 @@ Bring fleetest on the runner M1Max to the same version as my Mac.
 - **Each person runs `fleetest remote setup M1Max` once**. This creates their own work area on
   the runner.
 - Only one person can run at a time. How to wait, what is shown and the settings are all in "Sharing one runner between
-  several people" in [Remote Runners](remote_runners.md).
+  several people" in [Remote runs](remote_runners.md).
 
 ## Troubleshooting
 
@@ -475,11 +475,11 @@ Bring fleetest on the runner M1Max to the same version as my Mac.
 | `cannot reach … over ssh` | Key login does not work, or the destination is wrong | Redo Step 1 |
 | `must not contain ':'` | You wrote a port number in the destination (`host:2222`) | Define an alias in `~/.ssh/config` and use it as the destination |
 | `remote setup` ends with exit code `2` | Some items on the runner still need a person | Fix the listed items and run the same command again |
-| `Xcode 27.2 or later is required` | The runner's Xcode is older than 27.2 | Update Xcode on the runner from the App Store, then run `fleetest remote setup` again |
+| `Xcode 27.2 or later is required` | The runner's Xcode is older than 27.2 | Install Xcode 27.2 or later on the runner (Step 0, item 5; you do not need to remove other versions), then run `fleetest remote setup` again |
 | `is sitting at the login window` | The runner is at the login window | Log in, for example over Screen Sharing |
 | `git revision mismatch` | Your Mac and the runner are on different versions | Run `fleetest remote setup M1Max` again |
 | `toolchain mismatch` | No Xcode on the runner matches your Xcode product version (the macOS version is not compared; a beta build number difference alone does not trigger this message) | Install the matching Xcode product version on the runner, under `/Applications` (you don't need to remove the one already there) |
-| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | More than one Xcode on the runner matches your product version | Pin the one to use: `fleetest remote machines add M1Max --host <user@host> --developer-dir <path to the .app>` |
+| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | More than one Xcode on the runner matches your product version | Pin the one to use: `fleetest remote machines add M1Max --host <user@host> --developer-dir <path to the .app>` (if you changed the base directory, also pass `--dir <path>`) |
 | `could not tell which installed Xcode to dispatch with: none of the …` | No Xcode on the runner matches your Mac (the message lists every Xcode it found) | Install that product version of Xcode on the runner (you can keep the others). Pinning does not help here |
 | `no runner workspace at …` | Your work area does not exist on the runner yet | Run `fleetest remote setup M1Max` once |
 | `no running emulator for AVD …` | The Android Emulator is not running (the run's automatic start before the run could not start it) | Try the `devices up` command from Step 6 and read its output |
@@ -492,4 +492,4 @@ For a message not listed here, report it as described in "Reporting a problem" i
 
 ### Link
 - [index](../index.md)
-- [Remote Runners](remote_runners.md)
+- [Remote runs](remote_runners.md)

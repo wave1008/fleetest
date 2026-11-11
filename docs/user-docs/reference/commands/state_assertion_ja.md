@@ -35,6 +35,7 @@ select("#toggle_notifications").checkIsON()
   その要素に `checkIsON` を書くと「状態を報告していない」という理由で失敗します。
   画面に状態を表す文字があれば `textIs` で確かめるか、アプリ側で状態を公開してください
   (SwiftUI なら `.accessibilityRepresentation { Toggle(...) }`)。
+  一方 `checkIsOFF` は、状態を報告しない要素でも通ります(run 終了時に警告が出ます)。オフであることを確かめたいなら、状態を表す文字を `textIs` で見るか、CheckStateClassifier の見本を置いてください。
 - **オンのときだけ報告する実装**(iOS の Compose のチェックボックス等)では、同じシナリオで
   一度オンを確かめた要素に限り、報告が無いことをオフと判定します。一度もオンを見ていない要素の
   `checkIsOFF` は状態が分からないまま通り、run 終了時に警告が出ます。

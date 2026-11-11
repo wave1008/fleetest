@@ -7,14 +7,14 @@ profile setup and scenario authoring — each one drives the same underlying scr
 commands a human would run by hand, with verification gates and human checkpoints where a
 decision or an approval genuinely needs a person.
 
-Using a different agent (Codex, Cline, …)? The same runbooks apply — see
+The same runbooks can be used from other agents (verified with Codex). See
 [AI assistants other than Claude Code](./other_agents.md) for how to register the MCP server and hand them over.
 
 ## Installing the skills
 
 The installer (`install.sh`) copies the skills into the work folder's `.claude/skills/`. You get
 them through the steps in [Quick start](../../quick-start.md) (ask your AI assistant), and
-every update refreshes the copies (restart Claude Code after the copies are refreshed). You call
+every update refreshes the copies (restart Claude Code after the copies are refreshed). `fleetest-setup` is not copied; before installation it is read from the clone. You call
 them by name alone, such as `/fleetest-scenario`.
 
 The latest release is the only distribution channel — there is no version-pinning route. Pick up fixes

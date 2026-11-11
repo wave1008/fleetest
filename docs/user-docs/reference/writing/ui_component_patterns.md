@@ -395,9 +395,11 @@ while the finger is down is already gone by then. `hold { }` runs its block whil
 - Press the input field, `type("…")`, and press a suggestion by `#id`
 
 ```swift
-tap("#field_search")
-type("...")   // or type(".textField", "...") to target the input by type
+tap("#field_search")           // open the bar
+type(".textField", "...")      // target the opened field by type (required on Flutter)
 ```
+
+If the opened field has an id (Android View), use `type("#id", …)`. A selector-less `type("...")` is refused on Flutter.
 
 | Framework | Component / difference |
 |---|---|

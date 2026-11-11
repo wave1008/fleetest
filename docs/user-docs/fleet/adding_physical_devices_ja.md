@@ -313,7 +313,7 @@ fleetest run --profile <実行プロファイル> --scenario <シナリオID>
 | `The executable contains an invalid signature` | Simulator 向けのビルドを入れようとしています。`appPathPhysical` に実機向けのビルドを書きます |
 | `is not visible to adb` | Android の USB の接続と、USB デバッグの許可を確かめます。`adb devices` で `device` になっている必要があります |
 | `could not unlock the lock screen` | Android の画面ロックを「なし」にします |
-| `Connection to the driver was refused`(iPhone) | Wi-Fi(LAN)経由のときに起きやすい、途中での切断です。`brew install libimobiledevice` を入れて USB 経由にし、`fleetest bridge down --port <ポート>` で起動し直します |
+| `Connection to the driver was refused`(iPhone) | Wi-Fi(LAN)経由のときに起きやすい、途中での切断です。`brew install libimobiledevice` を入れて USB 経由にし、`fleetest bridge down --port <ポート>` で止めてから、もう一度実行します(実行が起動し直します) |
 
 ### Link
 - [index](../index_ja.md)

@@ -63,11 +63,11 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
   上の「実画面から採取する」原則が**静かに崩れる**(採取した id は実在するのに、実行機には無い)。
   **`ft_status` / `ft_snapshot` / `ft_tap` / `ft_type` / `ft_swipe` / `ft_launch` すべてに、
   後で `ft_run_scenario` へ渡すのと同じ `profile` を渡すこと**。
-- **マップ・キャンバス系の画面は `ft_pinch` / `ft_double_tap` / `ft_drag` で実際に試してから書く**。
-  このとき**`profile` を必ず渡す**(渡すと実行と同じデバイス・同じモードで動く)。渡さないと
-  iOS のモードは接続先ポートのブリッジ任せになり、XCUITest を掴んだときだけ
-  **Compose のダブルタップと Flutter のピンチが実行時と食い違う**(理由と実測は docs/commands.md)。
-  上の「探索と実行は同じデバイスで」がここでは「同じモードで」まで含む。
+- **マップ・キャンバス系の画面は `ft_pinch` / `ft_double_tap` / `ft_drag` で実際に試してから書く**
+  (`profile` は上の原則どおり渡す = 同じデバイス)。**MCP の iOS は `profile` を渡しても常に XCUITest
+  ブリッジで動く**ので、Compose のダブルタップや Flutter のピンチのように、モードで結果が割れる操作は
+  MCP では本番(既定の inapp-boost モード)と違いうる(理由と実測は docs/commands.md)。そうした手が
+  効いたかどうかは、`ft_start_run`(プロファイルのモードで走る)で確かめる。
 - **人間チェックポイント(🧑)では停止**して、テストの意図・期待結果を確認する。何をテストしたいのかは
   エージェントが勝手に決めない。ただし確認は**推奨案を1つ出して短く承認を取る**形にする(多肢の重い
   設問で意思決定を丸投げしない。セレクタ・経路・後始末など既定で決められることは決めて進める)。
@@ -264,6 +264,9 @@ id の照合は**ステップ2で `ft_snapshot` を撮った画面ぶんだけ**
   レポートパスが返る。**直すときはまず要素一覧を読む**(画像からは `#id` を読めない)。
   そこに無いものが画面にあるなら、別ウィンドウ・システムアラートの覆いを疑う。
   ロケータの指紋照合による自己修復は既定で有効(`--profile` の run)。止めるときだけ `heal: false`(FM は使わない)。
+  `ft_run_scenario` は iOS では常に XCUITest ブリッジで走り、既定では FM と Vision を使わない(テキストの
+  可視性検証なし・`screenLooksLike` は飛ばす)。本番(`fleetest run` / `ft_start_run`)の既定は inapp-boost
+  モードで可視性検証もあるので、最終確認は `ft_start_run` で行う。
 - 利用者に全部の実行を頼まれたら `ft_start_run`(profile=実行プロファイル。`fleetest run --profile` と同じで
   結果の履歴・録画が残る)。裏で始まってすぐ返るので、`ft_run_status` で進み具合と結果を引く。
 

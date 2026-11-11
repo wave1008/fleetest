@@ -7,12 +7,12 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ## Commands
 
-### appIs
+### App assertion (appIs)
 - [Bundle ID or package name only](../commands/app_assertion.md#notes) — there is no nickname mechanism, so write the bundle ID / package name directly.
 - [Foreground name in failures differs by OS](../commands/app_assertion.md#notes) — Android failures include the actual foreground package; iOS cannot read it, so the message lacks it.
 - [Unreadable foreground app on Android](../commands/app_assertion.md#notes) — `appIs` keeps waiting and fails as "could not be read" at `waitSeconds`; it is not a mismatch.
 
-### ifCanSelect / ios / android
+### ifCanSelect, ios, android
 - [`ifCanSelect` decides immediately](../commands/branch.md#notes) — it checks once; pass `waitSeconds:` to poll before deciding "not found".
 - [Use `ifCanSelect` for maybe-present UI](../commands/branch.md#notes) — there is no other "may or may not appear" argument; express dialogs and banners that may not show with it.
 - [`ifCanSelect` never scrolls](../commands/branch.md#notes) — even inside `withScroll*` it matches only the current screen, so an off-screen element means the block does not run.
@@ -29,7 +29,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Flutter iOS falls back to XCUITest for this command](../commands/clear_input.md#notes) — the in-app bridge cannot clear it, adding roughly one to two seconds; no change in how you write it.
 - [`settle: false` skips the settle wait](../commands/clear_input.md#notes) — the next step may see a moving screen, so use it only when the next step does not depend on final positions.
 
-### Descriptors (scene, beforeAll, afterEach, procedure)
+### group, procedure, beforeEach, afterEach, beforeAll, afterAll, setUpDevice, tearDownDevice
 - [`procedure { }` for code to skip after a failure](../commands/descriptors.md#notes) — raw Swift directly in `action { }` / `expectation { }` still runs after an earlier failure; put it in `procedure { }`.
 - [`beforeAll()` instance properties are not shared](../commands/descriptors.md#notes) — it runs in the first scenario's process; pass values with `writeMemo` / `readMemo`, and if it fails the class's remaining scenarios fail unrun.
 - [`setUpDevice()` instance properties are not shared](../commands/descriptors.md#notes) — pass values with `writeMemo` / `readMemo`; a failure fails the class's remaining scenarios on that device and is never retried.
@@ -38,15 +38,15 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`@Deleted` / `@Draft` are excluded from bulk runs](../commands/descriptors.md#notes) — they can only be run by exact ID, so a scenario marked this way silently does not run in all/folder/class runs.
 - [Describe steps in the scene title](../commands/descriptors.md#notes) — write the steps in the scene's title string.
 
-### exist / notExist / countIs
+### exist, notExist, countIs
 - [`exist` return value chains into checks](../commands/existence_assertion.md#notes) — chain text, value or id assertions onto it.
 - [`exist` / `notExist` / `countIs` always take a selector](../commands/existence_assertion.md#notes) — they resolve more than one element, so there is no implicit last-element form.
 - [`notExist` ignores visibility](../commands/existence_assertion.md#notes) — an element merely covered by a modal but still in the tree counts as present, and the check fails after the wait.
 - [Absence passes behind a dialog (`absence-behind-modal`)](../commands/existence_assertion.md#notes) — a dialog in front can remove elements from the tree, so `notExist` passes (with this note) though the element is behind it; close the dialog first.
 - [Absence read on another app (`absence-checked-on-another-app`)](../commands/existence_assertion.md#notes) — on Android, `notExist` passes with this note while another app is in front and says nothing about your app; bring your app back first.
-- [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis or more than half drawn passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
+- [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis (`text-ellipsized`) or more than half drawn (`text-partially-hidden`) passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
 
-### findImage / existImage
+### Find by image (findImage, findImages, existImage)
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.
 - [Same-shape parts differing only in text](../commands/find_image.md#notes) — a different row can be grabbed under the default `threshold` (0.15); check distances and tighten it, for example 0.03.
 - [Capture samples per OS version and scale](../commands/find_image.md#notes) — the same row looks different across versions; put a sample for each version or state in the label folder.
@@ -67,14 +67,14 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Target region via `scrollFrame:`](../commands/flick.md#notes) — pass the region as a `scrollFrame:` selector, the same as `scroll`.
 - [`flick` has no notion of the edge](../commands/flick.md#notes) — chained flicks do not tell you whether you arrived; verify the destination yourself afterwards.
 
-### Gestures (gesture, hold, pinch)
+### Gestures for maps and canvases (doubleTap, pinchIn, pinchOut, gesture, hold)
 - [`settle: false` skips the settle wait](../commands/gestures.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
-### Image assertions (imageIs)
+### Image assertion (imageIs)
 - [No matching samples fails immediately](../commands/image_assertion.md#notes) — without samples whose label contains `label`, the check fails at once.
 - [Failure shows label and confidence](../commands/image_assertion.md#notes) — the message states what the image was classified as and how confident it was.
 
-### installApp / removeApp / clearAppData
+### installApp, removeApp, clearAppData
 - [Call `launchApp()` after `installApp()` on iOS inapp-boost](../commands/install_app.md#notes) — the install ends the in-app bridge, so `tap` and similar do not reach the app until the next `launchApp()`.
 - [Reinstalling keeps permissions](../commands/install_app.md#notes) — on an iOS Simulator, permission dialogs do not reappear after reinstall; use `clearAppData()` for first-run state.
 - [`clearAppData()` resets permissions](../commands/install_app.md#notes) — permission dialogs appear again, which is the command to use for onboarding and first-run permission flows.
@@ -94,20 +94,20 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [OS system dialogs are not touched](../commands/irregular_handler.md#notes) — permission prompts and "Open in …?" belong to `iosAlertHandler`, not this.
 - [iOS separate-window modals](../commands/irregular_handler.md#notes) — a fully covered screen drops out of the tree (so it never reads as a false pass), a partial cover leaves the rest, and taps reach the frontmost window.
 
-### Keyboard assertions
+### Keyboard assertion (keyboardIsShown, keyboardIsNotShown)
 - [Unknown keyboard state is never "hidden"](../commands/keyboard_assertion.md#notes) — `keyboardIsNotShown` can fail with "cannot determine the keyboard state" in iOS xcuitest mode; use inapp-boost or Android when you must confirm hiding.
 
-### launchApp / restartApp / openURL
+### launchApp, restartApp, terminateApp, openURL
 - [`launchApp` always terminates first](../commands/launch_app.md#notes) — it never just foregrounds the app, so every call starts at the entry screen.
 - [`launchApp` keeps app data](../commands/launch_app.md#notes) — saved content and login state remain; use `clearAppData()` to erase.
 - [iOS inapp-boost: other apps fail mid-scenario](../commands/launch_app.md#notes) — the in-app bridge cannot drive another app; put steps on other apps (such as Settings) in a separate scenario under a profile naming that app.
 - [fleetest's own bridge cannot be the target](../commands/launch_app.md#notes) — passing the bridge's ID to `launchApp` / `restartApp` fails without sending anything.
-- [Default app resolution](../commands/launch_app.md#notes) — an omitted `appID` resolves from the run profile, app profile, then platform app; with several apps, pass the bundle ID explicitly or use a per-app profile.
+- [Default app resolution](../commands/launch_app.md#notes) — an omitted `appID` resolves from the run profile, app profile, then platform app; `@TestClass` has no `app:`, so running the same scenario under another profile changes the app; with several apps, pass the bundle ID or use a per-app profile.
 - [`openURL` does not restart the process](../commands/launch_app.md#notes) — use it for deep links to an open app, and `launchApp(url:)` to restart then deliver.
 - [First `openURL` on a Simulator](../commands/launch_app.md#notes) — a one-time "Open in …?" alert is dismissed automatically; if the session could not be re-pointed at the app, the step passes with `open-url-session-not-restored`.
 - [`openURL` while the app is not running](../commands/launch_app.md#notes) — the OS launches it, but that is not the command's purpose; use `launchApp(url:)`.
 
-### Navigation (home, back, tapAppIcon, rotateTo, fold)
+### home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
 - [Bring the app back after leaving it](../commands/navigation.md#notes) — on iOS inapp-boost and Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until `launchApp()` or `tapAppIcon()`.
 - [`back(settle:)` depends on the screen](../commands/navigation.md#notes) — custom navigation may need an edge swipe, and Android's first `back` closes an open keyboard; tap the app's own back button where it cannot go back.
 - [Unchanged screen after `back()` only adds a note](../commands/navigation.md#notes) — the step does not fail when the app ignores system back; tap its own back button or call `back()` again.
@@ -129,21 +129,21 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`hinge` does not verify which screen shows](../commands/navigation.md#notes) — the switch angle depends on the previous state; use `fold()` / `unfold()` when you need a specific screen.
 - [iOS fold uses an undocumented hinge event](../commands/navigation.md#notes) — a future Xcode may stop accepting it, and `fold` / `unfold` would then fail loudly, never pass silently.
 
-### pressEnter / hideKeyboard
+### pressEnter, hideKeyboard
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.
 - [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost sends no Enter.
 - [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched.
 - [Keyboard state is a separate assertion](../commands/press_enter_hide_keyboard.md#notes) — verify whether it is showing with the keyboard assertions.
 - [`settle: false` skips the settle wait](../commands/press_enter_hide_keyboard.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
-### Repeat (doUntilTrue, repeatWhileCanSelect)
+### repeatWhileCanSelect, doUntilTrue
 - [`maxLoopCount:` is only a cap](../commands/repeat.md#notes) — it stops a runaway loop and is not an assertion that the loop ran a specific number of times.
 - [To wait for appear/disappear, do not loop](../commands/repeat.md#notes) — use `waitForDisplay` / `waitForClose` or `waitSeconds:` instead of `doUntilTrue`; they already poll and record one step.
 - [Each attempt is a group](../commands/repeat.md#notes) — attempts are recorded as `"<description> #n"`, and a failing command inside the block stops the scenario.
 - [`doUntilTrue` stops only on its own limits](../commands/repeat.md#notes) — `waitSeconds:` and `maxLoopCount:` apply; the 120-second single-command cap does not.
 - [A `throw` in the condition fails immediately](../commands/repeat.md#notes) — reserve throwing for a condition that can never become true, not for transient read errors.
 
-### screenLooksLike
+### Screen assertion (screenLooksLike)
 - [Experimental](../commands/screen_assertion.md#notes) — Japanese descriptions work but their accuracy has not been measured.
 - [Requires macOS 27+](../commands/screen_assertion.md#notes) — on macOS 26 the check is skipped automatically; check availability with `fleetest doctor`.
 - [Not a strict gate](../commands/screen_assertion.md#notes) — results depend on wording and how the screenshot is taken; use it for rough checks and write tree-based checks where failure is not acceptable.
@@ -154,20 +154,20 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Place it where you want the picture](../commands/screenshot.md#notes) — the screenshot is embedded right after the step that took it.
 - [Android WebView may be missing](../commands/screenshot.md#notes) — the capture can drop the WebView layer; it is filled in only when WebView debugging is on, so never assert a screen loaded from a screenshot; use `exist` / `notExist`.
 
-### select
+### select, lastElement
 - [`select` never fails by itself](../commands/select.md#notes) — a missing element becomes an empty element; only chained commands such as `.textIs(...)` can fail the step.
 - [Android: refused while the app is not in front](../commands/select.md#notes) — it waits and fails instead of returning an empty element; bring the app back with `launchApp()` or `tapAppIcon()` first.
 - [`lastElement` resets](../commands/select.md#notes) — it is empty at each `scene` start and after a failed grab, and empty with a warning if nothing was grabbed yet.
 - [`select` waits the default timeout](../commands/select.md#notes) — without `waitSeconds:` it looks up to `defaultTimeout` (5 s) before returning an empty element; use `waitSeconds: 0` to look once.
 
-### checkIsON / checkIsOFF / enabled state
+### State assertion (enabledIsTrue, enabledIsFalse, checkIsON, checkIsOFF)
 - [Checked state comes from accessibility](../commands/state_assertion.md#notes) — iOS implementations report it differently and fleetest reads all of them (selected trait, switch value, React Native checkbox).
-- [Some elements never report a checked state](../commands/state_assertion.md#notes) — `checkIsON` fails with "reports no check state"; verify a reflecting text with `textIs` or have the app expose it.
+- [Some elements never report a checked state](../commands/state_assertion.md#notes) — `checkIsON` fails with "reports no check state"; verify a reflecting text with `textIs` or have the app expose it. `checkIsOFF` passes on such an element (warning at the end of the run).
 - [Implementations that report only "on"](../commands/state_assertion.md#notes) — `checkIsOFF` on an element never seen on passes without knowing the state, with only a warning at the end of the run.
 - [Indeterminate state fails both](../commands/state_assertion.md#notes) — a partially checked element fails `checkIsON` and `checkIsOFF`.
 - [`enabledIsTrue` / `enabledIsFalse` judge the state at select time](../commands/state_assertion.md#notes) — an element drawing no text (a loading skeleton row) returns an empty element, yet the state at select time is used.
 
-### suppressHandler / disableHandler / useHandler
+### suppressHandler, useHandler, disableHandler, enableHandler
 - [Prefer the block form `suppressHandler { }`](../commands/suppress_handler.md#notes) — automatic closing is restored even when a step inside fails.
 - [`disableHandler()` / `enableHandler()` span sections](../commands/suppress_handler.md#notes) — they are the only pair that spans `condition` / `action` / `expectation`.
 - [`useHandler { }` is nested only](../commands/suppress_handler.md#notes) — it restores closing for the nested block, then the outer suppression resumes.
@@ -176,13 +176,13 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Forgetting `enableHandler()` leaves suppression on](../commands/suppress_handler.md#notes) — it stays on for the rest of the scenario, including `afterEach()` cleanup; use the block form.
 - [OS system dialogs are unaffected](../commands/suppress_handler.md#notes) — permission prompts belong to `iosAlertHandler`, and an alert the scenario resolves directly is never taken either way.
 
-### swipe
+### swipe, swipePointToPoint, swipeElementToElement, swipeBy
 - [`swipe` direction is the finger's movement](../commands/swipe.md#notes) — it is the only command not content-based; every `scroll*` command uses content direction, so `.down` moves the finger up.
 - [`swipe` does not check that anything moved](../commands/swipe.md#notes) — the step stays green when there is nothing to move; verify afterwards with `exist` or similar.
 - [Building blocks for maps and canvases](../commands/swipe.md#notes) — `swipeBy` and `swipeElementToElement` serve maps, image viewers and drawing canvases; see gestures.
 - [`settle: false` skips the settle wait](../commands/swipe.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
-### tap
+### tap, tapAppIcon
 - [Covered-element handling applies only where draw order is known](../commands/tap.md#notes) — the next three notes apply to UIKit/React Native on iOS inapp-boost and Views/React Native on Android.
 - [Several matches, first one covered](../commands/tap.md#notes) — an uncovered match is tapped with a note; if every match is covered, nothing is tapped and the step fails.
 - [Centre under a tab bar or footer](../commands/tap.md#notes) — the list scrolls once, then the visible part is pressed with a note; a part thinner than 8pt/8dp fails without tapping.
@@ -198,7 +198,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Coordinate taps are a last resort](../commands/tap.md#notes) — prefer a selector in scenarios you keep, because coordinates hit whatever is there after the layout moves.
 - [`settle: false` skips the settle wait](../commands/tap.md#notes) — the next step may see a moving screen; use it only when speed matters and the next step does not depend on final positions.
 
-### Text assertions (textIs, textContains, …)
+### Text assertion (textIs, textContains, ...)
 - [Four rules for comparing text](../commands/text_assertion.md#notes) — compared as it looks on screen, half-width/full-width spaces and line breaks differ, empty expected values cannot be used with contains-style checks, and regexes are used as written.
 - [Empty regular expression fails before comparing](../commands/text_assertion.md#notes) — empty, spaces-only or invisible-only patterns would match any text, so `textMatches` and its siblings reject them.
 - [Empty expected value fails before comparing](../commands/text_assertion.md#notes) — for contains/starts/ends-with checks an empty or invisible-only string would hold for any text; invisible characters are removed from both sides.
@@ -224,19 +224,19 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [iOS xcuitest: only the first 512 units of a field's value can be read](../commands/type.md#notes) — longer text is accepted when the readable part matches and the rest is not checked; check the whole text with `textIs` on the app's display.
 - [`settle: false` skips the settle wait](../commands/type.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
-### Value assertions (valueIs, …)
+### Value assertion (valueIs, valueContains, ...)
 - [Use `value*` for text fields](../commands/value_assertion.md#notes) — an empty field is `valueIsEmpty` everywhere, while `text` returns the placeholder in Compose iOS, Flutter iOS and React Native, so do not assert `textIsEmpty` on fields.
 - [Negative and empty forms ignore visibility](../commands/value_assertion.md#notes) — none of these commands take `scroll:`, the same rules as text assertions.
 - [Chained checks use the grabbed value first](../commands/value_assertion.md#notes) — the device is polled only if that value does not yet satisfy the assertion.
 
-### verify
+### Anything assertion (verify)
 - [A block with zero assertions is `inconclusive`](../commands/verify.md#notes) — it is neither passed nor failed and does not abort the scenario, so make sure the block really asserts something.
 - [A failing command still aborts](../commands/verify.md#notes) — if a command inside the block fails, the scenario aborts as usual.
 
-### wait / waitForDisplay / waitForClose
+### wait, waitForDisplay, waitForClose, waitForSettle
 - [Appearance is already implicit](../commands/wait.md#notes) — operations retry and assertions poll, so `wait()` before `exist()` is redundant; raise `waitSeconds:` instead.
 - [`wait()` is a last resort](../commands/wait.md#notes) — use it only for settling with no selector to poll; use `waitForSettle` rather than a fixed `wait()`.
-- [`waitForDisplay` judges visibility like `exist`](../commands/wait.md#notes) — it has no `requireVisible: false`; use `exist(sel, requireVisible: false, waitSeconds: 15)` to skip the occlusion check.
+- [`waitForDisplay` judges visibility like `exist`](../commands/wait.md#notes) — it has no `requireVisible: false`; use `exist(sel, requireVisible: false, waitSeconds: 15)` to skip the visibility check.
 - [`waitForDisplay` / `waitForClose` never scroll](../commands/wait.md#notes) — scroll first or use `scrollTo` if the element may be off-screen.
 
 ## Selectors

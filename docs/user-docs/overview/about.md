@@ -2,7 +2,7 @@
 
 [in Japanese(日本語)](about_ja.md)
 
-Fleetest is an E2E testing tool for mobile apps. It is designed to be used from an AI assistant
+fleetest is an E2E testing tool for mobile apps. It is designed to be used from an AI assistant
 such as Claude Code.
 
 ## Three things packed into the name
@@ -10,7 +10,7 @@ such as Claude Code.
 - **fleet**
   - Tests run in parallel on a **fleet** — a set of devices such as Simulators, Emulators and physical devices.
 - **fleetest**
-  - **fleetest** is the superlative of the English word **fleet** (fast). Fleetest is tuned to run fast both on a single device and in parallel.
+  - **fleetest** is the superlative of the English word **fleet** (fast). fleetest is tuned to run fast both on a single device and in parallel.
 - **free**
   - It is open source, so you can get it for free. It also runs entirely locally on your own Mac, with no charges when running tests. (Excluding the cost of your AI assistant.)
 
@@ -29,11 +29,11 @@ Results are stable, runs are fast, and there are no charges.
 
 ## Optimized with custom drivers
 
-Fleetest implements its own custom drivers for both iOS and Android and optimizes them. It does not depend on existing general-purpose drivers, which leaves it free to make its own improvements.
+fleetest implements its own custom drivers for both iOS and Android and optimizes them. Instead of depending on a general-purpose third-party automation server, it builds them on top of the OS facilities (XCUITest, Android accessibility).
 
 ## The `inapp-boost` mode for iOS
 
-The `inapp-boost` mode is one of Fleetest's distinctive mechanisms. It is the XCUITest bridge plus a fast in-app bridge: operations the in-app bridge can perform go through it, the rest go through the XCUITest bridge. It works on Simulators and on physical devices running a development-signed (debuggable) app.
+The `inapp-boost` mode is one of fleetest's distinctive mechanisms. It is the XCUITest bridge plus a fast in-app bridge: operations the in-app bridge can perform go through it, the rest go through the XCUITest bridge. It works on Simulators and on physical devices running a development-signed (debuggable) app.
 
 - **In-app bridge**
   - Injected into the process of the app under test when the app launches. With no cross-process round trip, it runs fast.
@@ -50,7 +50,7 @@ inapp-boost is the default mode. You can also choose xcuitest mode, which runs w
 
 ## No changes to your app
 
-- There is no library to link into your app and no test-only build to produce. The debug build of the app you already use works as is.
+- There is no library to link into your app and no test-only build to produce. The debug build of the app you already use works as is. For React Native apps, use a Release-configuration build (see [Preparing your app](../own_app/preparing_app.md)).
 
 ## Automatic settling after each action
 
@@ -58,7 +58,7 @@ inapp-boost is the default mode. You can also choose xcuitest mode, which runs w
 
 ## Fully local execution
 
-- Tests can be run entirely locally on a Mac. **While tests run**, your app and screen data never leave your own fleet of Macs and devices (scenarios can reach the destinations you write in the machine setting `sandbox.allowedDomains`; the default is empty, so none; with a runner machine, the data is sent to that other Mac). When you create tests, the screen contents are sent to the AI assistant you use. With an MCP-capable local LLM client, even creating the tests can be kept fully local (not verified by fleetest). This makes Fleetest easy to adopt in projects with high security requirements, such as those where cloud services are restricted.
+- Tests can be run entirely locally on a Mac. **While tests run**, your app and screen data never leave your own fleet of Macs and devices (scenarios can reach the destinations you write in the machine setting `sandbox.allowedDomains`; the default is empty, so none; with a runner machine, the data is sent to that other Mac). When you create tests, the screen contents are sent to the AI assistant you use. With an MCP-capable local LLM client, even creating the tests can be kept fully local (not verified by fleetest). This makes fleetest easy to adopt in projects with high security requirements, such as those where cloud services are restricted.
 
 <br>
 

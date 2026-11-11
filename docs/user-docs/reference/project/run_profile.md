@@ -49,7 +49,7 @@ for how `--profile` selects one.
 | `recordFailuresOnly` | bool | `false` | With `record: true`, keep only clips for failed (including frozen) scenarios |
 | `recordBitrateKbps` | int | `1000` | Re-encoding bitrate for saved clips |
 | `recordFullResolution` | bool | `false` | With `record: true`, skip the half-resolution re-encode. Test time does not change, but clip size and the wait for cutting clips after all tests finish go up, more so on screens with more motion |
-| `remoteControl` | object | — | Workspace declaration (`{ "workspace": "<path>" }`). The workspace is always enabled and defaults to `TestProjects/<project>/workspace`. Even a local run stages the original `appPath` package here and reads `scripts/run-setup.sh` / `run-teardown.sh` and `scripts/compose.yaml` from it; see [Remote Runners](../../fleet/remote_runners.md) |
+| `remoteControl` | object | — | Workspace declaration (`{ "workspace": "<path>" }`). The workspace is always enabled and defaults to `TestProjects/<project>/workspace`. Even a local run stages the original `appPath` package here and reads `scripts/run-setup.sh` / `run-teardown.sh` and `scripts/compose.yaml` from it; see [Remote runs](../../fleet/remote_runners.md) |
 
 ## FM usage
 

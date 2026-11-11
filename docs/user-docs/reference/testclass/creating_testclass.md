@@ -97,7 +97,7 @@ values with `writeMemo` / `readMemo` (see [memo](../commands/memo.md)).
 `func tearDownDevice()` (optional) runs **once, after the device has finished all of its scenarios
 in the run**, if at least one scenario of that class ran on the device — for cleaning up what
 `setUpDevice()` prepared (it runs even if `setUpDevice()` failed). It does not run on a device that
-dropped out mid-run or when the run is interrupted. Its result is written to the run log and a
+dropped out mid-run or when the run is interrupted. Its result is written to the execution log and a
 report, but it does not count toward the test results.
 
 ## Marking work in progress or retired tests

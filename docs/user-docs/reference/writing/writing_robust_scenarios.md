@@ -18,7 +18,7 @@ sliding in).
 
 Never guess an id or label. Capture the real screen (with `ft_snapshot`, or the VSCode
 extension's Device Monitor, Grid View element list) and copy the id/label/type it actually reports. Prefer `#id`
-first — it's the most durable. Where an id isn't available, add a label as a fallback with `||`:
+first — it's the most durable. Add a label after the `#id` with `||` as a fallback, so the step still resolves if the id changes:
 
 ```swift
 tap("#login_btn||Log In")   // tries #login_btn first, falls back to the label

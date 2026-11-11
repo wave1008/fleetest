@@ -37,14 +37,14 @@ How the files and destinations that test code (scenarios) can reach are restrict
 ## Token authentication for the LAN path
 
 - Each time the bridge starts, the host generates a **32-byte random value** and passes it to the
-  test runner as an environment variable.
+  test runner on the device as an environment variable (via the test-run configuration file).
 - Every request from your machine carries it in an `X-FT-Token` header. **A mismatch returns
   401** without touching the device at all. The comparison is constant-time.
 - **The bridge cannot open on all interfaces without a token** — the runner refuses to start if
   one is missing.
 - The token lives in `.fleetest/bridge-<port>.endpoint` (at the work folder's root, not inside a
   `TestProjects/<project>/`) and **never passes through
-  arguments or environment variables to other processes** (so it does not show up in `ps`).
+  arguments or environment variables to other processes on this Mac** (so it does not show up in `ps`).
 - **This protects against a third party on the same LAN.** The loopback path has no
   authentication at all — anyone who can log into that Mac already has equivalent access.
 
@@ -55,7 +55,7 @@ How the files and destinations that test code (scenarios) can reach are restrict
 - **The app under test is never sent to Google.** Android's `adb install` can otherwise be
   blocked indefinitely by a Play Protect prompt, so verification is turned off only for the
   duration of the install and always restored afterward.
-- **When you create tests**, MCP server responses (the screen tree, screenshots, the app's text) go to your AI assistant and
+- **When you create tests, and when you have the AI assistant run tests or read results**, MCP server responses (the screen tree, screenshots, the app's text) go to your AI assistant and
   on to that assistant's model provider (this is the AI assistant's traffic, not fleetest's; with a local LLM nothing leaves
   your machine).
 - Outbound traffic happens **only during setup, updates, the update check (once a day by the VSCode extension, with
@@ -105,7 +105,7 @@ traffic a scenario sends out. What allows a scenario's outbound traffic per dest
   ports open on every interface (the machine setting `services.publishForPhysicalDevices` is the consent to that).
 - When you use a physical iOS device over Wi-Fi, the device listens and the Mac connects to it. No setting is needed
   on the Mac.
-- **Only on a Mac you use as a remote runner**, turn off the firewall's "Block all incoming connections" (when it is
+- **Only on a Mac you use as a runner machine**, turn off the firewall's "Block all incoming connections" (when it is
   on, SSH is blocked too; the firewall itself can stay on). The steps are in
   [Adding a Mac](../fleet/adding_mac.md).
 
@@ -155,10 +155,10 @@ On a closed network you do not need one: **when you add a new release tag to the
 the internal release gate**, so you control which revision is taken without changing anything the
 user does.
 
-## Remote runners (running tests on another Mac)
+## Runner machines (running tests on another Mac)
 
 The only path is **SSH with key-based authentication**. The trust model and what ends up on a runner machine are
-covered in "Using it safely" in [Remote Runners](../fleet/remote_runners.md).
+covered in "Using it safely" in [Remote runs](../fleet/remote_runners.md).
 
 **Runner machines reach the same destinations as your Mac.** Each `fleetest remote setup` and version alignment makes
 the runner machine fetch fleetest from GitHub and build it. On a closed network, apply Option A / B above to the

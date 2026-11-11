@@ -93,7 +93,7 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   left once a second like the CPU and GPU charts (it drops to zero with the gauge). Hover over it for a per-machine breakdown.
 - The Device Monitor tab is split into three views, top to bottom: the **Line View** (the row of
   device tiles), the **Grid View** (enlarged screens of the selected devices), and the **Run Log View**
-  (the run log of the selected devices). Drag a divider to resize, click a view's header to collapse or
+  (the execution log of the selected devices). Drag a divider to resize, click a view's header to collapse or
   expand it (the header row always stays visible, wherever you drag).
 - The Grid View and the Run Log View show **only the devices selected in the Line View**. Clicking
   anywhere on a tile toggles its selection; clicking outside the tiles clears the selection. With
@@ -228,13 +228,12 @@ visible while it re-fetches in the background.
   screenshot, and — when available — self-healing suggestions).
 - The Test Explorer toolbar's **"Show Failed Tests Only"** filter narrows the tree to failed tests.
 
-## Self-Healing
+## Self-healing
 
-Setting `fleetest.heal` to `true` adds `--set heal=true` to Run (not Run (dry-run)) and Debug, enabling
-selector self-healing (fingerprint matching). When a run produces fix suggestions, it writes the fixed
+Selector self-healing (fingerprint matching) follows the run profile's `heal` (on by default). Setting `fleetest.heal` to `true` adds `--set heal=true` to Run (not Run (dry-run)) and Debug, turning it on even when the profile says `heal: false`. When a run produces fix suggestions, it writes the fixed
 selectors back to the scenario sources at the end and shows a notification. **"Show Changes"** opens
 VSCode's Source Control view; review the git diff and commit. Anything that could not be written back
-is listed in the run log (see [Self-healing](../running/self_healing.md)).
+is listed in the execution log (see [Self-healing](../running/self_healing.md)).
 
 ## Update Check
 
@@ -313,7 +312,7 @@ categories above or the Settings tab.
 | `fleetest.binaryPath` | `.build/debug/fleetest` | Path to the `fleetest` binary; falls back to `PATH` if not found |
 | `fleetest.project` | `""` | Test project name; auto-resolved when empty (the only project, or `project1` when there are several) |
 | `fleetest.profile` | `""` | Run profile name; when set, it decides devices/app instead of `fleetest.platform`/`port`/`serial` |
-| `fleetest.heal` | `false` | Enable `--set heal=true` on Run/Debug (fixed selectors are written back to the scenarios) |
+| `fleetest.heal` | `false` | `true` forces self-healing on regardless of the profile (`false` follows the profile's `heal`, which defaults to on; fixed selectors are written back to the scenarios) |
 | `fleetest.buildBeforeRun` | `true` | Build the Swift project before each run |
 | `fleetest.lptScheduling` | `true` | Schedule longer-running scenarios first (LPT), using recent run history |
 | `fleetest.monitorInterval` | `2` | Device Monitor polling interval, in seconds |

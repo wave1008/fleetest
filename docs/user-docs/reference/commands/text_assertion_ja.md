@@ -14,8 +14,10 @@ select("#msg"); lastElement.textIs("完了")    // lastElement を明示
 select("#msg"); textIs("完了")                // 暗黙(直前に掴んだ要素)
 ```
 
-引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形と空判定が `(期待値, strict:, waitSeconds:)` です(`textMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません
+引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形が `(期待値, strict:, waitSeconds:)`、空判定が `(strict:, waitSeconds:)` です(`textMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません
 — `textIs("#msg", "完了")` はコンパイルできません。
+
+暗黙形(`textIs("…")` のように lastElement を省いた形)に、`#` で始まる英数字だけの文字列や `||`・`>>` を含む文字列を渡すと、セレクタの書き誤りとみなして実行前に失敗します。そういう文字列を期待値にしたいときはチェーン形(`select("#tag").textIs("#swift")`)で書いてください。
 
 ## 関数
 
@@ -29,8 +31,8 @@ select("#msg"); textIs("完了")                // 暗黙(直前に掴んだ要�
 | `textMatchesDateFormat(format, requireVisible:, waitSeconds:)` | — | `DateFormatter` の書式文字列(例: `"yyyy/MM/dd"`) |
 | `textIsNotEmpty(strict:, waitSeconds:)` | `textIsEmpty(strict:, waitSeconds:)` | 空でない / 空 |
 
-上記はすべて `exist` / `select` の戻り値にチェーンでき、直前に掴んだ要素に効く1引数の
-暗黙形(自由関数)も持ちます。
+上記はすべて `exist` / `select` の戻り値にチェーンでき、直前に掴んだ要素に効く
+暗黙形(自由関数。引数はチェーン形と同じ)も持ちます。
 
 ## 例
 

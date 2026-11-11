@@ -27,7 +27,7 @@ httpRequest(_ url: String, method: String = "GET", headers: [String: String] = [
 | `method` | メソッド(大文字小文字は問いません) |
 | `headers` | 送るヘッダ |
 | `body` | 本文(UTF-8 の文字列) |
-| `waitSeconds` | 応答を待つ上限(秒)。省略時は 30 秒(ステップ全体の締切 120 秒より小さい値) |
+| `waitSeconds` | 応答を待つ上限(秒)。省略時は 30 秒。締切はこの値だけです(他のコマンドの 120 秒の上限は掛かりません) |
 
 `HTTPResponse` の中身:
 

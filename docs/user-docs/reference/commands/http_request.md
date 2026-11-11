@@ -27,7 +27,7 @@ httpRequest(_ url: String, method: String = "GET", headers: [String: String] = [
 | `method` | The method (case-insensitive) |
 | `headers` | Headers to send |
 | `body` | The body (a UTF-8 string) |
-| `waitSeconds` | How long to wait for the response (seconds). Default 30 (smaller than the 120-second limit of a whole step) |
+| `waitSeconds` | How long to wait for the response (seconds). Default 30. This is the only deadline (the 120-second per-command limit does not apply) |
 
 `HTTPResponse` has:
 

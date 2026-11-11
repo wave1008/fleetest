@@ -284,7 +284,7 @@ Expected result:
   destination the device can reach ("Point the app at the server" in [Preparing the servers your app depends on](../own_app/preparing_server.md)),
   then do steps 4 to 7 the same way.
 - **Measure regularly**: since only the same Mac and device are compared, pick one runner machine with the physical device
-  connected and dispatch to it with `--runner` ([Remote Runners](../fleet/remote_runners.md)).
+  connected and write its machine name in the `machine` of the measurement profile's device ([Remote runs](../fleet/remote_runners.md)).
 - **Specification**: [Response measurement](../reference/running/response_measurement.md), [Run profile](../reference/project/run_profile.md)
 
 ### Link

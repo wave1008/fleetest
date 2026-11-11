@@ -62,8 +62,8 @@ The settings of a run profile are in [Run profile settings](../project/run_profi
 | `results slow` | List scenarios by average duration, slowest first | `--limit`, `--since` | Same as above |
 | `results response` | Aggregate response times (time to first frame and time until ready) of response-measurement runs per step, with the change from the previous run on the same host and device | `--since`, `--json` | [Response measurement](../running/response_measurement.md) |
 | `results insights` | Detect things worth attention: regressions, consecutive failures, failures with a non-assertion signature, and stale selectors | `--since`, `--json` | [Analyzing results (fleetest results, dashboard)](../running/results_analysis.md) |
-| `results log <run-id>` | Print a run's per-scenario execution log (`events/*.ndjson`). The run ID can also be `latest` | `--scenario`, `--raw` | Same as above |
-| `results frames <run-id>` | Cut frames out of a scenario's recording into one PNG contact sheet, each labelled with the recording time and the step running then (default: the first failed step and the 5 seconds before it) | `--scenario` (required), `--device`, `--steps`, `--seconds-before`, `--every`, `--out`, `--json` | Same as above |
+| `results log <runID>` | Print a run's per-scenario execution log (`events/*.ndjson`). The run ID can also be `latest` | `--scenario`, `--raw` | Same as above |
+| `results frames <runID>` | Cut frames out of a scenario's recording into one PNG contact sheet, each labelled with the recording time and the step running then (default: the first failed step and the 5 seconds before it) | `--scenario` (required), `--device`, `--steps`, `--seconds-before`, `--every`, `--out`, `--json` | Same as above |
 | `clean` | Delete old recordings, event logs, reports, logs, Simulator attachments and xcresult bundles. Any category above 90% of its limit is swept back down to 90% | `--dry-run`, `--recordings`, `--event-logs`, `--reports`, `--logs` | [Maintenance for long-term use](../../in_action/maintenance.md) |
 
 ## Devices and bridges
@@ -121,16 +121,16 @@ bridge port; default 8123) and `--serial` (the Android device; optional when onl
 | Command | Description | Main options | Details |
 |---|---|---|---|
 | `remote setup <runner>` | Provision a runner machine to receive `--runner` dispatches (idempotent) | `--remote-dir`, `--skip-verify` | [Adding a Mac](../../fleet/adding_mac.md) |
-| `remote machines` | Manage the machine registry (local alias to SSH destination). Child commands: `list` (default), `add`, `remove` | `add <machine> --host <destination>` | [Remote Runners](../../fleet/remote_runners.md) |
-| `remote status` | Show reachability, login state, git revision, toolchain and free disk space of the remote runners | `--runner`, `--fm`, `--json` | Same as above |
+| `remote machines` | Manage the machine registry (local alias to SSH destination). Child commands: `list` (default), `add`, `remove` | `add <machine> --host <destination>` | [Remote runs](../../fleet/remote_runners.md) |
+| `remote status` | Show reachability, login state, git revision, toolchain and free disk space of the runner machines | `--runner`, `--fm`, `--json` | Same as above |
 | `remote align` | Fetch, checkout and build the local HEAD revision on a runner (the align step of `remote setup` alone) | `--remote-dir` | Same as above |
-| `remote exec <runner> -- <args>` | Run `fleetest <args>` on a remote runner and relay its output and exit code | `--remote-dir` (before the `--`) | Same as above |
-| `remote clean` | Stop orphaned bridges and Simulators and delete results, reports and dispatch leftovers older than `--keep-days` on remote runners | `--runner`, `--keep-days`, `--dry-run` (only list what would be deleted), `--ignore-lock` (kills a running run) | Same as above |
+| `remote exec <runner> -- <args>` | Run `fleetest <args>` on a runner machine and relay its output and exit code | `--remote-dir` (before the `--`) | Same as above |
+| `remote clean` | Stop orphaned bridges and Simulators and delete results, reports and dispatch leftovers older than `--keep-days` on runner machines | `--runner`, `--keep-days`, `--dry-run` (only list what would be deleted), `--ignore-lock` (kills a running run) | Same as above |
 | `remote unlock` | Release a dispatch lock that a dead dispatch left behind (never releases a lock whose run is still alive unless `--force`) | `--runner`, `--force` | Same as above |
 | `remote teardown` | Delete the remote base directory of a runner (destructive) | `--remote-dir` | Same as above |
 
 The `--runner` (send to one runner), `--fleet` (send across several machines with a fleet definition), `--split`, `--broadcast` and
-`--wait-lock` options of `run` are described in [Remote Runners](../../fleet/remote_runners.md) and
+`--wait-lock` options of `run` are described in [Remote runs](../../fleet/remote_runners.md) and
 [Parallel execution](../running/parallel_execution.md).
 
 ## Images

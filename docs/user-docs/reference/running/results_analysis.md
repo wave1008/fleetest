@@ -5,7 +5,7 @@
 Every `fleetest run` (CLI or `fleetest api run`) appends its results to
 `TestProjects/<name>/results/`. This page covers the `fleetest results` commands and how to read
 a failure; the full JSON schema is the single source of truth at
-[Results JSON schema](../../../results-json.md) (Japanese).
+[Result JSON schema](../../../results-json.md) (Japanese).
 
 ## Layout
 
@@ -48,8 +48,7 @@ All of them accept `--project`, and (except `log`) `--since <period>` (a relativ
 wrote — the same lines you'd see scroll by during `fleetest run` (steps with their pass/fail
 symbol, scenes, `print()` output on stdout/stderr, host-side notices such as a scenario being stopped because its output stopped or it ran past its time limit),
 reconstructed from `events/<scenarioID>.ndjson`. `<runID>` also accepts `latest`. Use `--scenario
-<id>` to show only one scenario, and `--raw` to print the underlying NDJSON lines unformatted (the per-scenario headings then go to stderr, so stdout stays pure NDJSON)
-instead.
+<id>` to show only one scenario, and `--raw` to print the underlying NDJSON lines unformatted instead (the per-scenario headings then go to stderr, so stdout stays pure NDJSON).
 
 Old runs, or runs whose `events/` was already cleared by the
 [log and recording cleanup](../tools/vscode_extension.md#cleaning-up-logs-and-recordings), have no execution log —

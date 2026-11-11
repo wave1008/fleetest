@@ -26,7 +26,7 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
 | 検証 | セレクタを取るのは `exist(sel)` / `notExist(sel)` / `countIs(sel, 個数)` だけ。`screenLooksLike(説明文)` は FM の見た目照合で、アサーションに数えない・MCP の既定では飛ぶ。**要素の属性検証は「掴んでから」書く**: `select(sel).enabledIsTrue()` / `.enabledIsFalse()` / `.checkIsON()` / `.checkIsOFF()` / `.idIs("…")` / `.imageIs("[ラベル]")`(要素の画像の分類。**プロジェクトの `vision/classifiers/DefaultClassifier/` に見本画像があるときだけ**書く = 無ければ必ず失敗する。見本は `ft_capture_element`(MCP)か `fleetest vision capture` で端末から採り、`fleetest vision check` で点検する)。`verify("説明") { … }` は複数アサーションを1ステップに集約(ブロック内0個なら inconclusive = passed でも failed でもない・シナリオは続行) |
 | テキスト・値の検証 | **セレクタは取らない**(対象は直前に掴んだ要素)。`select(sel).textIs("期待値")` と書くか、`select(sel)` の次の行に `textIs("期待値")` を書く(**同義**。`lastElement.textIs(…)` も同じ)。種類は `textIs` `textContains` `textStartsWith` `textEndsWith` `textMatches`(正規表現)`textMatchesDateFormat` `textIsEmpty` `textIsNotEmpty` と、**それぞれの否定** `textIsNot` `textContainsNot` … / `value…` も同名で一式。**これらに `scroll:` は無い**(静止画面の検証用。画面外は先に `scrollTo`) |
 | 画面に依らない値の検証 | `thisIs` `thisIsNot` `thisIsTrue` `thisContains` `thisMatchesDateFormat` `thisIsGreaterThan` …(API 応答・計算結果に直接生える。失敗は1ステップとして記録される) |
-| アプリ制御 | `launchApp(bundleID?)` / `restartApp()` / `terminateApp()` / `home()` / `appSwitcher()` / `installApp(path?)` / `removeApp(id?)` / `appIs(id, waitSeconds:)` / `tapAppIcon(name?)`(ホーム画面のアイコンをタップ。省略時はプロファイルの appName) |
+| アプリ制御 | `launchApp(bundleID?)` / `restartApp()` / `terminateApp()` / `home()` / `appSwitcher()` / `installApp(path?)` / `removeApp(id?)` / `clearAppData(id?)`(データと権限を消す。iOS 実機は入れ直し)/ `appIs(id, waitSeconds:)` / `tapAppIcon(name?)`(ホーム画面のアイコンをタップ。省略時はプロファイルの appName) |
 | 待機/分岐 | `wait(秒)` / `waitForDisplay(sel, waitSeconds:)`(表示まで待つ。スクロールしない)/ `waitForClose(sel, waitSeconds:)`(消えるまで待つ。スクロールしない)/ `ifCanSelect(sel, waitSeconds:) { … }.ifElse { … }` / `ios { }` / `android { }` / `procedure("名") { try … }`(同期・throws。`await` は書けない) |
 | 反復 | `repeatWhileCanSelect(sel, maxLoopCount: n) { … }`(解決できる限り繰り返す。上限到達は失敗にしない)/ `doUntilTrue("名", waitSeconds:) { 条件 }`(**アプリ・外部の状態待ち専用**。要素の出現待ちは各コマンドの `waitSeconds:`) |
 | 割り込み | `irregularHandler("#promo_modal", dismiss: "#btn_close")` を beforeEach で宣言すると、出るか不定の**アプリ内メッセージ**を出た時点で自動的に閉じる。**iOS の OS アラート(権限・ATT・「"◯◯"で開きますか?」)は別プロセスで木に載らないので `irregularHandler` では閉じない** —— `iosAlertHandler(alert: "*写真*", button: "許可しない")` を beforeEach で予告する(`alert:` は必須。宣言なしで自動で閉じるのは `openURL` の初回確認だけ)。**そのモーダル自体を検証・操作したい区間**では `suppressHandler { … }`(1つの CAE ブロックの内側)か `disableHandler()` … `enableHandler()`(**CAE を跨ぐとき**)で自動クローズを止める |
@@ -35,11 +35,11 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
 | 記録 | `screenshot(filename?)`(ファイル名はラベル無し)(現在の画面を撮り、このステップ直後にレポートへ埋め込む) |
 | 前後処理 | テストクラスに `func beforeEach()` / `func afterEach()`(引数なし)を書くと各 `@Test` の前後で自動実行 |
 
-- **要素が見つからなければ失敗**(シナリオ中断)。**唯一の例外は `select`**(空要素を返す。`.isEmpty` で分岐)。
+- **要素が見つからなければ失敗**(シナリオ中断)。**唯一の例外は `select`**(空要素を返す。`.isEmpty` で分岐。ただし Android でアプリが前面に無い間は断られて失敗する)。
   「出るか不定」を表す引数は無いので、アプリ内メッセージは `irregularHandler`、その場限りの分岐は
   `ifCanSelect(sel) { … }` で書く。`waitSeconds:` = ロケータ再試行の上限秒(0=即諦め)で、
   `ifCanSelect` / `select` の空振り短縮に使う。省略時の待ちは3値: 操作(`tap` / `type` / `clearInput`)は約0.7秒・`select` / `exist` / `textIs` 系は
-  実行プロファイルの `defaultTimeout`(既定5秒)・`ifCanSelect` だけ0。
+  実行プロファイルの `defaultTimeout`(既定5秒)・`ifCanSelect` / `repeatWhileCanSelect` は0。
 - **`wait(秒)` は原則不要**。`tap` はロケータ解決を約0.7秒(`waitSeconds:` でその秒数)まで再試行し、
   `exist`/`textIs`/`valueIs` は既定タイムアウト(5秒・実行プロファイルの `defaultTimeout`。`--set defaultTimeout=N` で1回だけ上書き)まで
   ポーリング再判定する。要素の**出現待ち**はこれらが暗黙にこなすので、遷移後の `exist` 直前などに
@@ -93,9 +93,10 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   スコープと併用すると**基準も対象も容器の中**で解決する(`#row >> 数量:rightButton`)
 - `=ラベル` — `#` や `.` で始まる**生ラベル**を label として扱うエスケープ
   (`>>` `&&` `:right` `*` を含むラベルもこれで書く)
-- **綴り誤り・未対応記法は実行前にエラー**になる(`:near` `:parent` 等の他ツール記法、未知の
-  フィルタ名 `textContans=`、型名の `=`、`[abc]`、閉じない括弧)。
-  黙ってラベル扱いにはならないので、通れば構文は正しい
+- **`:名前(` の形の未知のマーカー・既知のフィルタ名と紛らわしい綴り(`textContans=`)・型名の `=`・`[abc]`・
+  閉じない括弧は実行前にエラー**になる。ただし既知名と紛らわしくない `名前=値`(`notify=off`)や括弧の無い
+  `通知:near` はラベルとして扱われる(見つからないだけでエラーにならない)ので、通っても綴りが正しいとは
+  限らない
 - `A||B` — **候補の和集合**。`tap` は節の順で最初の候補に着地するので
   「id 優先・ラベルは代替」の書き方はそのまま通る。`countIs` は**和の総数**(同じ要素が複数の節に
   当たっても1度だけ)。例: `tap("#login_btn||ログイン||.button")`
@@ -127,14 +128,14 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   使わない**(上記の暗黙ポーリングで足りる。`exist` 前の `wait` は削る)。
 - **出るか不定なダイアログは `ifCanSelect` で無害化**(素で tap すると出ない環境で失敗する)。
 - **状態を変える操作(表示切替・トグル等)は同一 @Test 内で元に戻す**(他シナリオへ副作用を残さない)。
-  特に**実行を跨いで残る保存状態**(登録・作成・変更したデータ等)は、戻さないと次回実行の擬陽性源になる
+  特に**実行を跨いで残る保存状態**(登録・作成・変更したデータ等)は、戻さないと次回実行の誤った緑の原因になる
   (冒頭でリセット、または末尾で削除する)。
-- **擬陽性を避ける**: expectation は「その action が起きなければ落ちる」ものにする。実行を跨いで残る状態を
+- **誤った緑を避ける**: expectation は「その action が起きなければ落ちる」ものにする。実行を跨いで残る状態を
   presence だけで確認すると、前回の残留で緑になり action の失敗を見逃す。**基準化→action→検証**の形にする
   (例: 空にする→空マーカーを確認→追加→存在確認、または件数/合計の**差分**)。**基準化の直後に基準到達を
-  必ずアサート**してから action する(リセットが黙って失敗すると擬陽性が戻る)。なお**プロセス終了での
-  リセットは効かない/未対応のことがある**(terminate が in-app ドライバで不可等)。アプリ内のリセット手段を
-  確立し、実際に空/初期になることを確かめてから使う。
+  必ずアサート**してから action する(リセットが黙って失敗すると誤った緑に戻る)。データを初期状態へ
+  戻すのは `clearAppData()`(`launchApp()` / `terminateApp()` はプロセスを止めるだけでデータは消さない)。
+  キーチェーン / Keystore の値は消えないので、そこに状態を置くアプリはアプリ内のリセット手段を確かめてから使う。
 - **状態依存の入口はガードする**: 空状態のみ出る CTA・初回だけの導線・不定の再開画面は `ifCanSelect` で
   分岐して吸収する。前提をコメントで断るだけにしない(条件が崩れると不可解に落ちる)。
 - **launchApp が直前画面から再開する**アプリは、一覧/先頭画面へ正規化してから進める

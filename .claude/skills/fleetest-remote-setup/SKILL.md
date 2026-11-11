@@ -190,8 +190,8 @@ profile=`<実行プロファイル>`)で始め、`ft_run_status` で結果を引
     両機を同じ製品版に揃える人手の作業が要る(ベータの build 番号だけの違いは揃えなくても
     ディスパッチは止まらない)。macOS の更新は照合に掛からない)
 - モニターの見え方も伝える: **リモートのデバイスも手元と同じようにタイルに映る**
-  (状態・ライブ映像・起動/停止。ホスト名のバッジが付くのが違い)。**版が揃っていないと
-  状態も映像も来ず**「<ホスト> に届いていません」のままになる —— 版合わせはディスパッチ
+  (状態・ライブ映像・起動/停止。マシン名のバッジが付くのが違い)。**版が揃っていないと
+  状態も映像も来ず**、タイルは「状態不明」のままになる —— 版合わせはディスパッチ
   だけの話ではない
 
 ## 詰まったとき(頻出の3つ)
@@ -201,7 +201,7 @@ profile=`<実行プロファイル>`)で始め、`ft_run_status` で結果を引
 | `git revision mismatch` | 手元とランナー機の版が違う | `fleetest remote setup <宛先>` を流し直す(align が手元の作業ツリーを直送して合わせる。**コミットも push も要らない**。中身が既に同じなら何もせずに終わる)。手元が古い側(`localBehind`)のときは手元を更新する |
 | `FM alignment failed` / `FM resident alignment failed` | FM 常駐の切替・確認が未完了 | 使用中・保守ロック取得失敗なら処理終了後に再実行。安全な切替に非対応の旧常駐(通信版2・3)は自動停止しない。古い呼び手を止めて FM の利用終了を確認し、人手で一度だけ旧常駐を終了してから再実行する。常駐が手元より新しい場合は手元も更新。詳しくは docs/remote-runner-setup.md ステップ3。強制停止で押し切らない |
 | `toolchain mismatch` | 発行側の製品版に一致する Xcode がランナーに1つも無い(macOS は照合しない。ベータの build 番号だけの違いはこのエラーにならず `remote status` の TOOLCHAIN 欄に ⚠️(advisory)が出るだけで、ディスパッチは止まらない) | **`remote setup` では直らない**(Xcode の導入は GUI と sudo が要る)。🧑 に発行側と同じ Xcode 製品版を**ランナーの `/Applications` へ追加で**入れてもらう(既存の Xcode を消す必要はない。入れれば自動で選ばれる)。既存を置き換える運用にする場合だけ、フリートでは1台だけ更新して検証してから残りへ広げる |
-| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナーの `/Applications` に同じ製品版の Xcode が複数ある | 登録簿に pin する: `fleetest remote machines add <名前> --host <宛先> --developer-dir <使わせたい Xcode.app のパス>` |
+| `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナーの `/Applications` に同じ製品版の Xcode が複数ある | 登録簿に pin する: `fleetest remote machines add <名前> --host <宛先> --developer-dir <使わせたい Xcode.app のパス>`(作業ベースディレクトリを変えている場合は `--dir <パス>` も付ける) |
 | `could not tell which installed Xcode to dispatch with: none of the …` | ランナーに手元と一致する Xcode が1つも無い | 🧑 にその製品版の Xcode の導入を依頼する(既存の Xcode は消さなくてよい)。**pin では直らない** |
 | `is sitting at the login window` | ランナー機がログイン画面 | 🧑 に解錠+ログインを依頼(画面共有で可) |
 | `Cannot code-sign the bridge runner for a physical device` / `the keychain holding the signing key is locked in this session` | 実機 iPhone をランナー機で使うとき、署名鍵を持つキーチェーンが ssh セッションでロックされている(検索リスト全部に対する空パスワードの自動 unlock が効かない = 実パスワードが設定されている) | 🧑 に依頼: 署名鍵を**空パスワードの専用キーチェーン**へ移して検索リスト(`security list-keychains -d user`)に載せる(手順は docs/remote-runner-setup.md「うまくいかないとき」の同じ行)か、実機の run は GUI セッションから起こす。シミュレータだけなら無関係 |

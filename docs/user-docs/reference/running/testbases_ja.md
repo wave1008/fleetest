@@ -98,18 +98,18 @@ fleetest draft-scenario --project SampleApp --testbase docs/testbases/login.md
   **「ロケータを解決できません」で必ず失敗します**(空の実装で緑になるよりよい、という意図です)。
 - 手順の文章は、各コマンド行の末尾のコメントに必ず残ります。コマンドへの当てはめが外れても元の意図が読めます。
 
-手順の文章は、語彙の単純な包含でコマンドの雛形に写されます(目安であり、最終的には直します)。
+手順の文章は、語彙の単純な包含でコマンドの雛形に写されます(目安であり、最終的には直します)。英語のテストベースでは、下の表の英字の語(`type`・`scroll`・`swipe`・`wait`・`launch`・`disabled`・`enabled`・`app`)だけが効き、他の行は `tap("#TODO")` / `exist("#TODO")` になります。
 
 | 区分 | 文に含まれる語 | 出る雛形 |
 |---|---|---|
-| 条件 | 起動・立ち上げ・launch、または「アプリ」と「開く / 表示」の両方 | `launchApp()`(これ以外の条件は `// TODO` のコメントだけ) |
-| 操作 | 入力・記入・打ち込 | `type("#TODO", "TODO")` |
+| 条件 | 起動・立ち上げ・launch、または「アプリ / app」と「開く / 表示」の両方 | `launchApp()`(これ以外の条件は `// TODO` のコメントだけ) |
+| 操作 | 入力・記入・打ち込・type | `type("#TODO", "TODO")` |
 | 操作 | 長押し・ロングタップ | `tap("#TODO", holdSeconds: 1)` |
-| 操作 | スクロール・スワイプ | `scrollTo("#TODO")` |
-| 操作 | 再起動・起動し直 / 起動 / 待 | `restartApp()` / `launchApp()` / `wait(1)` |
+| 操作 | スクロール・スワイプ・scroll・swipe | `scrollTo("#TODO")` |
+| 操作 | 再起動・起動し直 / 起動・launch / 待・wait | `restartApp()` / `launchApp()` / `wait(1)` |
 | 操作 | 上のどれでもない | `tap("#TODO")` |
 | 期待 | 表示されない・消え・閉じ・非表示 など | `notExist("#TODO")` |
-| 期待 | 押せない・無効 / 押せる・有効 | `select("#TODO").enabledIsFalse()` / `enabledIsTrue()` |
+| 期待 | 押せない・操作できない・無効・タップできない・disabled / 押せる・操作できる・有効・enabled | `select("#TODO").enabledIsFalse()` / `enabledIsTrue()` |
 | 期待 | 「3件」「5 個」のような個数 | `countIs("#TODO", 3)` |
 | 期待 | と表示・文言・メッセージ | `select("#TODO").textIs("TODO")` |
 | 期待 | 上のどれでもない | `exist("#TODO")` |

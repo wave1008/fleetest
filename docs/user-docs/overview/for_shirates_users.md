@@ -2,7 +2,7 @@
 
 [in Japanese(日本語)](for_shirates_users_ja.md)
 
-Fleetest's Swift DSL follows Shirates (Classic) conventions. Command names, argument names,
+fleetest's Swift DSL follows Shirates (Classic) conventions. Command names, argument names,
 defaults, and behavior are carried over **in principle**. Some things are named differently (see
 the tables below) and some, such as nicknames, are intentionally absent, so read this page once
 before you switch.

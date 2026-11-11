@@ -25,7 +25,7 @@ scene(1, "Sign in") {
 }
 ```
 
-Account values live in `dataset/accounts.json` — see [Test data and accounts](../commands/dataset.md).
+Shareable values go in the project's `dataset/accounts.json`; passwords go in this Mac's `~/.config/fleetest/dataset/<project name>/accounts.json` ([Test data and accounts](../commands/dataset.md)).
 
 ## Listing it in the command index (`@FTCommand`)
 
@@ -95,7 +95,7 @@ not as a free function.
   different scenario file, so it is **not** listed as a command — instead the index reply carries
   a warning naming it. Drop the access modifier if it should be reusable from other scenario
   files, or drop `@FTCommand` if it's genuinely private to the file.
-- Reports and run logs show the commands inside your helper, one step each — not the helper's
+- Reports and execution logs show the commands inside your helper, one step each — not the helper's
   name. A failure points at the inner command's line.
 - The index lists your helpers; it doesn't run them. `ft_batch` (the MCP tool that executes DSL
   lines one at a time without saving a scenario) can only run built-in

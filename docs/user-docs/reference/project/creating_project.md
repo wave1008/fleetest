@@ -17,7 +17,7 @@ TestProjects/SampleApp/
 │   └── _disabled/                 # excluded from compilation (parking spot for generation
 │                                   # failures and anything you want to keep out of the build)
 ├── reports/                       # per-scenario Markdown reports
-├── results/                       # run-results JSON database (see results_analysis.md)
+├── results/                       # run-result JSON database (see results_analysis.md)
 └── .fleetest/                      # locator fingerprints and other per-project state
 ```
 

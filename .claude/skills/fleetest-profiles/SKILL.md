@@ -21,7 +21,8 @@ description: fleetest のアプリプロファイル・実行プロファイル�
 
 - **プロジェクトと WORK_DIR**: プロファイルは `WORK_DIR/TestProjects/<プロジェクト>/profiles/` に住む。
   TestProjects/ が1つならそれ。複数なら🧑どのプロジェクトかを確認する。
-  **プロジェクトが1つも無ければ作る(名前は常に `project1`。VSCode 拡張の自動作成と同じ名前で、名前は聞かない)**:
+  **依頼でプロジェクト名が示され、それが無ければ `fleetest project create <名前>` で作り、以降の全コマンドに `--project <名前>` を付ける。
+  名前の指定が無く、プロジェクトが1つも無いときだけ `project1`**(VSCode 拡張の自動作成と同じ名前で、名前は聞かない):
   ステップ1・2でプラットフォームとアプリIDが決まった後、`fleetest project create project1`
   を実行してからステップ3以降へ進む(シナリオもプロファイルも書かない = プロファイルはステップ3以降の
   `profile setup` が作る)(プロジェクト名は以降 `project1`)。
@@ -111,6 +112,7 @@ fleetest profile setup --project <プロジェクト> --platform <ios|android|hy
   何も導入せずに止まる): メッセージの package・サイズ・ライセンスを示し、選択ダイアログで本人に承諾してよいか聞く。
   承諾なら**同じコマンドに `--accept-licenses` を足して**再実行する。**本人の承諾なしに勝手に付けない**。
 - `--platform hybrid` で iOS と Android を1回で作る(論理名はそれぞれ「機種(OS)-01」)。
+  **iOS と Android でアプリ ID かパッケージのパスが違うときは `--platform hybrid` を使わず、`--platform ios` と `--platform android` を別々に撃つ**(hybrid は `--app-id` / `--app-path` を両 OS に同じ値で書く)。
   `--platform` はアプリプロファイルの対象 OS(`platform`)にも書かれる。既存のアプリプロファイルに別の OS を足すと `hybrid` になる。
 - 機種/OS をユーザーが指定した場合だけ `--auto-device` を外し、実体を明示する
   (iOS: `--device-name "<シミュレータ名>" --os <version>` か `--udid`、Android: `--avd <avdID>` か `--serial`)。

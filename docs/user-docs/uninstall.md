@@ -2,7 +2,7 @@
 
 [in Japanese(日本語)](uninstall_ja.md)
 
-How to uninstall Fleetest.
+How to uninstall fleetest.
 
 ## Ask your AI assistant
 
@@ -14,11 +14,13 @@ Uninstall fleetest by following ../fleetest/docs/user-docs/uninstall.md.
 
 ## 0. Runner machines (if you use them)
 
-If you use remote runner machines, delete the work area on each runner machine before removing fleetest from your Mac:
+If you use runner machines, delete the work area on each runner machine before removing fleetest from your Mac:
 
 ```bash
 ../fleetest/.build/debug/fleetest remote teardown <machine>
 ```
+
+This permanently deletes the runner's base directory. Where no confirmation can be typed (for example, when your AI assistant runs it), it is cancelled; add `--yes` once you have confirmed it is safe to delete.
 
 If you created a signing keychain on a runner machine for physical iPhones, delete it on the runner machine too (it
 holds your signing key):

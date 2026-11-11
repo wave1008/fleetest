@@ -35,8 +35,8 @@ findImage("[Camera Icon]").tap()   // 静止した画面から画像を読む
   `waitForDisplay` / `waitForClose` の代わりにはなりません。
   画面が止まるのを待ちたいときは、固定の `wait()` ではなく `waitForSettle` を使ってください。
 - **`waitForDisplay` の判定は `exist` と同じ可視性込み**です(コマンド名 displayed の意味に
-  沿わせています)—— `exist` の `requireVisible: false` に当たる逃げ道はありません。覆われ
-  検出を外したまま待ちたい場合は `exist(sel, requireVisible: false, waitSeconds: 15)` を使って
+  沿わせています)—— `exist` の `requireVisible: false` に当たる逃げ道はありません。可視性の判定を
+  外したまま待ちたい場合は `exist(sel, requireVisible: false, waitSeconds: 15)` を使って
   ください。
 - `waitForDisplay` / `waitForClose` はどちらもスクロールして探しません。画面外にある可能性が
   あるなら、先にスクロールするか `scrollTo` を使ってください。

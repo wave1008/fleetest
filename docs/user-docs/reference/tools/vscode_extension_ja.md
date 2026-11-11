@@ -218,8 +218,7 @@ iOS の Compose アプリでは、実機と `xcuitest` モードでダブルタ�
 
 ## 自己修復
 
-`fleetest.heal` を `true` にすると、**実行**(dry-run を除く)と**デバッグ**に `--set heal=true` が付与され、
-セレクタの自己修復(指紋照合方式)が有効になります。修復の提案が出た実行は、終了時に直ったセレクタを
+自己修復(指紋照合方式)は実行プロファイルの `heal`(既定 ON)で決まります。`fleetest.heal` を `true` にすると、プロファイルが `heal: false` でも**実行**(dry-run を除く)と**デバッグ**に `--set heal=true` を付けて有効にします。修復の提案が出た実行は、終了時に直ったセレクタを
 シナリオのソースへ自動で書き戻し、通知を出します。**「変更を表示」** で VSCode のソース管理ビューが開くので、
 git の差分を確認してコミットしてください。書き戻せなかったものは実行ログに出ます
 (詳細は [自己修復](../running/self_healing_ja.md))。
@@ -297,7 +296,7 @@ fleetest は Simulator を起動する直前に、そのデバイスのキャッ
 | `fleetest.binaryPath` | `.build/debug/fleetest` | `fleetest` バイナリのパス。見つからなければ `PATH` から探す |
 | `fleetest.project` | `""` | 対象のテストプロジェクト名。空なら自動判定(1つならそれ。複数なら `project1`) |
 | `fleetest.profile` | `""` | 使用する実行プロファイル名。設定するとデバイス/アプリの決定がこちらに委ねられる |
-| `fleetest.heal` | `false` | 実行/デバッグで `--set heal=true` を有効にし、自己修復を有効にする(修復したセレクタはシナリオへ書き戻される) |
+| `fleetest.heal` | `false` | `true` でプロファイルの設定に関わらず自己修復を有効にする(`false` ならプロファイルの `heal` に従う。プロファイルの既定は ON。修復したセレクタはシナリオへ書き戻される) |
 | `fleetest.buildBeforeRun` | `true` | 実行前に Swift プロジェクトをビルドする |
 | `fleetest.lptScheduling` | `true` | 過去の実行時間の記録から実行時間の長いシナリオを先に投入する(LPT) |
 | `fleetest.monitorInterval` | `2` | デバイスモニターのポーリング間隔(秒) |

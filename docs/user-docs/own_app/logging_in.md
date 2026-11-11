@@ -44,8 +44,8 @@ If they do, change them so that each scenario uses its own account. List the acc
 
 ## Keep passwords out of reports (optional)
 
-By default, typed passwords stay as they are in reports, run logs and result JSON. If you write `"redactAccountValues": true` yourself in
-`~/.config/fleetest/config.json` on this Mac, the values from `account()` are replaced with `***` in reports, run logs and result JSON (text visible in screenshots cannot be hidden).
+By default, typed passwords stay as they are in reports, execution logs and result JSON. If you write `"redactAccountValues": true` yourself in
+`~/.config/fleetest/config.json` on this Mac, the values from `account()` are replaced with `***` in reports, execution logs and result JSON (text visible in screenshots cannot be hidden).
 
 More:
 

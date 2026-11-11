@@ -28,7 +28,7 @@ git status --short
 
 Expected result:
 
-- `fleetest init` and the installer add these five lines to `.gitignore` (when the work folder is a git repository).
+- `fleetest init` adds these five lines to `.gitignore` (the installer also adds them when the work folder is a git repository).
 
 ```text
 .build/
@@ -44,7 +44,7 @@ TestProjects/*/workspace/apps/
 | `TestProjects/<project>/scenarios/` (scenarios) | `.fleetest/` (state of this Mac) |
 | `TestProjects/<project>/profiles/` (app and run profiles) | `TestProjects/*/reports/` (Markdown reports; they contain screen text) |
 | `TestProjects/<project>/dataset/` (test data that may be shared) | `TestProjects/*/results/` (result JSON and recordings; recordings show screen text) |
-| `TestProjects/<project>/docs/` (if present) | `TestProjects/*/workspace/apps/` (the app bundles are copied there on every run) |
+| `TestProjects/<project>/vision/` (image samples, if any)<br>`TestProjects/<project>/workspace/data/` (seed files used by `run-setup.sh`, no secrets)<br>`TestProjects/<project>/docs/` (if present) | `TestProjects/*/workspace/apps/` (the app bundles are copied there on every run) |
 | `TestProjects/<project>/workspace/scripts/compose.yaml` (server declarations; [Services the app depends on](../reference/writing/services.md)) | `.mcp.json` (contains absolute paths, so it differs per Mac; it is not added to `.gitignore` automatically, so do not `git add` it or add it yourself) |
 | | The contents of `~/.config/fleetest/` (outside the work folder, so never in git to begin with) |
 | | `.vscode/settings.json`, `.claude/settings.json` (contain the absolute path of the clone; if you do commit them, the second person rewrites them to their own path) |
@@ -71,7 +71,7 @@ Once you have checked the contents, tell it to push.
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-git add Package.swift .gitignore TestProjects/*/scenarios TestProjects/*/profiles TestProjects/*/workspace/scripts TestProjects/*/dataset
+git add Package.swift .gitignore TestProjects/*/scenarios TestProjects/*/profiles TestProjects/*/workspace/scripts TestProjects/*/dataset TestProjects/*/vision TestProjects/*/docs TestProjects/*/workspace/data   # git add errors on paths that do not exist, so add only the ones you have
 git status --short           # confirm reports/ and results/ are not included
 git commit -m "Add fleetest test project"
 git push
@@ -118,6 +118,8 @@ Expected result:
 
 ## 4. Prepare the second person's devices
 
+When there are several projects, pass `--project` to every command (omitting it picks `project1`).
+
 A run profile's `devices` point at devices by **name**. An iOS Simulator is looked up by `name` (the Simulator's own name) and
 `osVersion`, and an Android device by `avd` ("Devices" in [Profiles](../reference/project/profiles.md)).
 `fleetest run` does **not create** a device it cannot find. If the second person's Mac has no Simulator with the same name and OS,
@@ -134,7 +136,7 @@ There are two ways to fix it.
 ### Prompt for the AI
 
 ```text
-Create my own run profile ios-run-mine that uses the shared ios-app app profile.
+In the fleetest test project <project>, create my own run profile ios-run-mine that uses the shared ios-app app profile. Use the app ID already in ios-app.
 For the device, pick the newest-OS Simulator available on this Mac.
 ```
 
@@ -142,7 +144,7 @@ For the device, pick the newest-OS Simulator available on this Mac.
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-../fleetest/.build/debug/fleetest profile setup --platform ios --app-id <bundle ID> \
+../fleetest/.build/debug/fleetest profile setup --project <project> --platform ios --app-id <same value as ios.app in ios-app.json> \
   --app-ref ios-app --run ios-run-mine --auto-device
 ../fleetest/.build/debug/fleetest profile list
 ```
@@ -159,14 +161,14 @@ The app profile's `appPath` is the location of the built app, so check that it i
 ### Prompt for the AI
 
 ```text
-Run all the scenarios with the fleetest ios-run-mine profile.
+In the fleetest test project <project>, run all the scenarios with the ios-run-mine profile.
 ```
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
 ```bash
-../fleetest/.build/debug/fleetest run --profile ios-run-mine
+../fleetest/.build/debug/fleetest run --project <project> --profile ios-run-mine
 ```
 
 </details>
@@ -192,7 +194,7 @@ Try it. Two people ask their AI assistants at nearly the same time (`M1Max` is t
 ### Prompt for the AI
 
 ```text
-Run all scenarios with the fleetest ios-run profile on M1Max. If M1Max is in use, wait in line for up to 10 minutes.
+In the fleetest test project <project>, run all scenarios with the ios-run profile on M1Max. If M1Max is in use, wait in line for up to 10 minutes.
 ```
 
 <details>
@@ -201,7 +203,7 @@ Run all scenarios with the fleetest ios-run profile on M1Max. If M1Max is in use
 In two terminals, type the following at nearly the same time.
 
 ```bash
-../fleetest/.build/debug/fleetest run --profile ios-run --runner M1Max --wait-lock 600
+../fleetest/.build/debug/fleetest run --project <project> --profile ios-run --runner M1Max --wait-lock 600
 ```
 
 </details>
@@ -215,7 +217,7 @@ Expected result:
 
 You can see who is using it in the LOCK column of `fleetest remote status --runner M1Max`. To have your name appear in these displays,
 write `issuerId` in `~/.config/fleetest/config.json`. How to wait, how to release a lock, and the settings are in
-"Sharing one runner between several people" in [Remote Runners](../fleet/remote_runners.md).
+"Sharing one runner between several people" in [Remote runs](../fleet/remote_runners.md).
 Adding a runner machine is covered in [Adding a Mac](../fleet/adding_mac.md).
 
 ## 7. Review scenarios the AI wrote

@@ -28,7 +28,7 @@ how far you can trust it: **AI-friendliness, stability, security and privacy**. 
   This makes the most of the processor's multiple cores ([Parallel execution](../reference/running/parallel_execution.md)).
 - **Add a Mac and you can use it as a runner machine over the network.**
   Devices on runner machines can also be added to the fleet
-  ([Remote Runners](../fleet/remote_runners.md)).
+  ([Remote runs](../fleet/remote_runners.md)).
 
 ## Fault tolerance
 
@@ -85,7 +85,7 @@ There is no need to modify fleetest itself ([Adding your own features](../refere
   Run results are recorded, so you can later find which tests often fail and where
   ([Analyzing results (fleetest results, dashboard)](../reference/running/results_analysis.md)).
 - **You can watch tests as they run.**
-  The VSCode extension shows each device's screen and run log live
+  The VSCode extension shows each device's screen and execution log live
   ([VSCode extension](../reference/tools/vscode_extension.md)).
 - **Disk cleanup is automatic.**
   Recordings and logs are deleted oldest first as they approach their size limit
@@ -94,10 +94,10 @@ There is no need to modify fleetest itself ([Adding your own features](../refere
 ## Easy to adopt
 
 - **No changes to your app.**
-  No test components to embed and no test-only build. The app you use in everyday development works as is.
+  No test components to embed and no test-only build. The app you use in everyday development works as is (for React Native apps, use a Release-configuration build; see [Preparing your app](../own_app/preparing_app.md)).
 - **Free.** Running tests costs nothing per run (AI assistant fees are separate).
 - **What you need**: an Apple silicon Mac. Tested with iOS and Android apps built with the major UI frameworks
-  (SwiftUI / UIKit, View/XML, Compose Multiplatform, Flutter, React Native) ([Environment](environments.md)).
+  (SwiftUI / UIKit, View/XML, Jetpack Compose, Compose Multiplatform, Flutter, React Native) ([Environment](environments.md)).
 
 ### Link
 - [index](../index.md)

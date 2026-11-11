@@ -26,7 +26,7 @@ Common problems and how to resolve them. Some areas also have their own troubles
 | Android snapshot is slow | Check `fleetest bridge status --platform android` and `fleetest doctor` for the bridge's install/running state | Run `fleetest bridge up --platform android` to force a re-setup of the resident bridge |
 | Japanese (or other non-ASCII) text doesn't get typed on Android | The bridge normally types via `ACTION_SET_TEXT`, so no IME switching is needed | Check the bridge's install state with `fleetest doctor`; reinstalling the bridge (`fleetest bridge up --platform android`) usually resolves it |
 
-If none of this resolves the issue, ask your AI assistant to investigate — it can read bridge/run logs
+If none of this resolves the issue, ask your AI assistant to investigate — it can read bridge/execution logs
 and the failure report directly.
 
 ### Reporting a problem
@@ -34,7 +34,7 @@ and the failure report directly.
 Run `fleetest doctor --bundle fleetest-diag.zip` and attach the resulting zip when you report a
 problem to the fleetest developers. It collects bridge/install/cleanup/Emulator logs, the most recent run
 results (`--runs`, default 3, from `--project` or the default project) including each scenario's
-run log, tool/OS versions, and the output of `fleetest doctor --roots-only` / `--fm-only` into one
+execution log, tool/OS versions, and the output of `fleetest doctor --roots-only` / `--fm-only` into one
 file. It does not stop or restart any bridge, and nothing is sent anywhere by the command itself.
 **The bundle can contain on-screen text from your app** (step labels, element lists) — review it
 before sharing.

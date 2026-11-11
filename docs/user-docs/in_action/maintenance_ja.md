@@ -17,7 +17,7 @@ fleetest を長く使っていると、ディスクに溜まるものや、macOS
 | Android Emulator のデータ | テストの開始時に、データがしきい値(既定 8GB)を超えていれば Wipe Data します。アプリのインストールが容量不足で失敗したときも Wipe Data して入れ直します | [実行プロファイルの設定項目](../reference/project/run_profile_ja.md)の `wipeDataOnBloat` |
 | デバイス側のブリッジ | fleetest の版が変わると、次に使うときに入れ直し・作り直しをします | — |
 | 応答しなくなったブリッジ | 拡張が検出すると、テストが走っていない間に自動で修復を試みます(設定 `fleetest.autoRepairBridge`、既定 ON) | — |
-| 死んだ run が残したスクリプトの後始末・サービスの孤児 | 次の run の開始時と `fleetest hooks reap`(`remote clean` も撃ちます)が回収します | — |
+| 死んだ run が残したスクリプトの後始末・サービスの孤児 | 次の run の開始時と `fleetest hooks reap` が回収します(ランナー機では `fleetest remote clean` が同じ回収を行います) | — |
 | 更新の確認 | 拡張が1日1回確認して通知します(取り込みはしません) | [更新](../update_ja.md) |
 
 Simulator の掃除は、fleetest を通して起動したときだけ走ります(Xcode や Simulator.app から起動したときは

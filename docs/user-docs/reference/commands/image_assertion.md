@@ -50,6 +50,8 @@ fleetest vision capture --project <project> --classifier DefaultClassifier \
 fleetest vision check --project <project>
 ```
 
+On Android, pass `--platform android --serial <serial>` instead of `--port`.
+
 - `vision capture` refuses mistakes before saving, such as a label that does not fit the classifier (a folder name that does not end with `[…]`) or the
   same label in another folder.
 - `vision check` trains if needed and checks **whether the classifier can tell its own samples apart**. Samples it

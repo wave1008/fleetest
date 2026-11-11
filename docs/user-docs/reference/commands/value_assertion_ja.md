@@ -14,7 +14,7 @@ select("#email"); lastElement.valueIs("test@example.com") // lastElement を明�
 select("#email"); valueIs("test@example.com")              // 暗黙(直前に掴んだ要素)
 ```
 
-引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形と空判定が `(期待値, strict:, waitSeconds:)` です(`valueMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません。
+引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形が `(期待値, strict:, waitSeconds:)`、空判定が `(strict:, waitSeconds:)` です(`valueMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません。暗黙形に渡せない期待値の制約は[テキストの検証](./text_assertion_ja.md)を参照してください。
 
 ## 関数
 

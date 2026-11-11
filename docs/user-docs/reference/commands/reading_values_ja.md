@@ -52,7 +52,7 @@ scene(3, "確認画面にも同じ注文番号が出る") {
 - **要素を掴めなかったとき・失敗後にスキップされたとき・dry-run では `nil`** になります
   (「掴めなかったのに値が読める」状態を作らないためです)。
 - **掴めたかどうかは `.isEmpty` / `.isNotEmpty` で見てください(`.text == nil` では代用しません)**
-  — ラベルを持たない要素(アイコンだけのボタンなど)を掴んだときも `.text` は空になるため、
+  — ラベルを持たない要素(アイコンだけのボタンなど)を掴んだときも `.text` は `nil` になるため、
   `.text == nil` では「掴めていない」と誤判定します。
 
 ```swift
@@ -92,10 +92,13 @@ lastElement.idIs("order_btn")              // 操作コマンドも掴んだ要�
 (説明に `(from the grabbed value)` が付きます)。満たしていなければ `waitSeconds` まで
 ポーリングします。
 
+ただし、テキストの可視性検証が走る run(`fmTextVisibilityCheck` か `ocrTextVisibilityCheck` が `true`。既定)では、可視性を見る肯定形(`textIs` / `valueIs` など。`requireVisible: false` を除く)は掴んだ値で済ませず、必ずデバイスを見ます。`checkIsON` / `checkIsOFF` / `imageIs` も常にデバイスを見ます。
+
 ```swift
-exist("#total").textIs("1,200")   // 掴んだ値が "1,200" なら往復 0 回
+let 合計 = exist("#total")
+合計.textIs("1,200")              // 掴んだ値が "1,200" なら往復 0 回(可視性検証を切った run・否定形の場合)
 tap("#reload_btn")
-lastElement.textIs("1,500")       // 掴んだ値は古い → 取り直して "1,500" になるまで待つ
+合計.textIs("1,500")              // 掴んだ値は古い → 取り直して "1,500" になるまで待つ
 ```
 
 掴んでから検証までの間が空くほど、古い値がたまたま期待に一致して待たずに通ってしまう向きの
