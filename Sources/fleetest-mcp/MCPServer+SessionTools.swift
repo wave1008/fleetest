@@ -412,8 +412,8 @@ extension MCPServer {
             let serial = android.serial ?? (args["serial"] as? String) ?? connectedAndroidSerials[key]
             return await Self.runOffCooperativePool(name: "fleetest-mcp-was-running") { AndroidAppProcessEvidenceQuery.query(package: bundleID, serial: serial)?.running }
         }
-        guard let udid = iosTargetUDID(key: key, args: args) else { return nil }
-        let isPhysical = await isPhysicalIOSDevice(key: key, args: args)
+        guard let udid = iosTargetUDID(key: key, args: args),
+              let isPhysical = await physicalIOSDeviceVerdict(key: key, args: args) else { return nil }
         guard isPhysical else {
             return await Self.runOffCooperativePool(name: "fleetest-mcp-was-running") { SimulatorAppProcess.isRunning(udid: udid, bundleID: bundleID) }
         }

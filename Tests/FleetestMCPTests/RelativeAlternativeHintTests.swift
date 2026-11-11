@@ -106,6 +106,23 @@ final class RelativeAlternativeHintTests: XCTestCase {
         XCTAssertNil(naming.relativeAlternative(for: last, in: snap), "素性の無い要素で遠くの #EndButton を基準にした")
     }
 
+    /// ラベルも id も無いスイッチでも、同じ行の文字(行ごとに違う)を基準にした形は出る(相対セレクタの本来の用途)
+    func testUnlabeledSwitchIsAnchoredOnTheLabelInItsRow() throws {
+        var out = [el(99, "other", depth: 0, x: 0, y: 0, w: 1080, h: 2000),
+                   el(1, "other", id: "settings", depth: 1, x: 0, y: 0, w: 1080, h: 1000)]
+        for (i, name) in ["通知", "位置情報", "カメラ"].enumerated() {
+            let y = 20 + Double(i) * 80
+            out.append(el(10 + i * 3, "cell", depth: 2, x: 0, y: y, w: 1080, h: 70))
+            out.append(el(11 + i * 3, "staticText", label: name, depth: 3, x: 20, y: y + 10, w: 300, h: 50))
+            out.append(el(12 + i * 3, "switch", depth: 3, x: 900, y: y + 10, w: 120, h: 50))
+        }
+        let snap = snapshot(out)
+        let naming = SelectorNaming(snap)
+        let second = try XCTUnwrap(snap.elements.first { $0.ref == 15 })
+        let alt = try XCTUnwrap(naming.relativeAlternative(for: second, in: snap))
+        XCTAssertEqual(alt, "位置情報:rightSwitch")
+    }
+
     /// 最良の形が既に stable の要素は、相対形を計算も表示もしない(注記は従来どおり)
     func testStableFormsAreUntouched() throws {
         let snap = snapshot([

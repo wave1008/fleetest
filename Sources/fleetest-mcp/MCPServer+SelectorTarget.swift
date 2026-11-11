@@ -13,9 +13,7 @@ extension MCPServer {
     /// 一致なしは何も撃たずに断る。**複数一致は DSL の tap と同じ要素(ツリー順で `[n]` 番目・既定は先頭)を採る**
     static func resolveSelectorTarget(_ text: String, in snapshot: SnapshotResponse) throws -> (element: ElementInfo, note: String) {
         let parsed = try parseSelectorArgument(text, argument: "selector")
-        let step = FlowStep(action: "tap", locator: parsed.primary,
-                            fallbacks: parsed.fallbacks.isEmpty ? nil : parsed.fallbacks)
-        guard let resolved = LocatorResolver.resolveDetailed(step: step, in: snapshot) else {
+        guard let resolved = LocatorResolver.resolveDetailed(step: selectorStep(parsed), in: snapshot) else {
             throw MCPError("no element matches \(text) on the current screen — nothing was sent."
                 + notationHint(text, in: snapshot) + similarLabelsHint(text, in: snapshot)
                 + " Take an ft_snapshot to read the current labels/ids.")
@@ -74,5 +72,18 @@ extension MCPServer {
         let others = (LocatorResolver.candidates(locator, elements: snapshot.elements) ?? [])
             .filter { !TapTargetGeometry.contains(frame, $0.frame) && !TapTargetGeometry.contains($0.frame, frame) }
         return others.count + 1
+    }
+
+    static func selectorStep(_ parsed: FTSelector) -> FlowStep {
+        FlowStep(action: "tap", locator: parsed.primary, fallbacks: parsed.fallbacks.isEmpty ? nil : parsed.fallbacks)
+    }
+
+    /// 呼び手が渡した selector の耐久性(下書き用)。**撃つときと同じ解決で、実際に当たった書き方**(`a||b` の後ろ側を含む)を見る:
+    /// 相対 = 相対・序数か別々の複数に当たった = 位置依存・それ以外 = 安定。解決できなければ nil(呼び手の推奨の格付けのまま)
+    static func givenSelectorDurability(_ text: String, acted: ElementInfo, in snapshot: SnapshotResponse) -> Durability? {
+        guard let parsed = try? parseSelectorArgument(text, argument: "selector") else { return nil }
+        let used = LocatorResolver.resolveDetailed(step: selectorStep(parsed), in: snapshot)?.usedFallback ?? parsed.primary
+        if used.relative?.isEmpty == false { return .relative }
+        return used.index != nil || separateMatchCount(used, acted: acted, in: snapshot) > 1 ? .indexed : .stable
     }
 }

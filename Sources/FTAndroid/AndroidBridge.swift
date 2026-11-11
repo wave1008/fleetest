@@ -237,8 +237,14 @@ extension AndroidDriver {
         return status
     }
 
+    /// このプロセスの共有の控えで、その端末のブリッジが動いている(`.active`)か
+    public static func hasActiveBridge(serial: String?) -> Bool {
+        if case .active = getRegistry(serial ?? "default") { return true }
+        return false
+    }
+
     /// MCP の `allowVersionSkew: true` 用: 期限内の失敗の再生(`.unavailable`)だけを捨てる(`.active` は触らない)。
-    /// 新しいブリッジの拒否が 60 秒再生され、拒否文が案内する逃げ道が直後に効かなかった
+    /// 捨てないと、拒否文が案内する逃げ道が `unavailableRetryInterval` の間効かない
     public static func forgetCachedFailure(serial: String?) {
         let key = serial ?? "default"
         bridgeLock.lock()

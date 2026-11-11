@@ -176,11 +176,11 @@ public struct SelectorNaming {
     /// 遠くの部品(ツールバー等)を基準にした相対形は、並び順に頼る索引形と変わらないので基準をここに限る
     static func ownRow(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
         guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }
-        // 素性(ラベル・id)が無いと「別の項目」を見分けられず根まで上るので、自分の中だけにする
-        guard !(element.label ?? "").isEmpty || !(element.identifier ?? "").isEmpty else {
-            return LocatorResolver.descendants(of: element, in: elements)
-        }
+        // ラベルも id も無い要素は**型**を素性にする(素性が無いと「別の項目」を見分けられず根まで上る。
+        // 自分の中だけに絞ると、行の隣の文字を基準にした `通知:rightSwitch` の形まで消える)
+        let identified = !(element.label ?? "").isEmpty || !(element.identifier ?? "").isEmpty
         func sameIdentity(_ other: ElementInfo) -> Bool {
+            if !identified { return other.type == element.type }
             if let label = element.label, !label.isEmpty, other.label == label { return true }
             if let id = element.identifier, !id.isEmpty, other.identifier == id { return true }
             return false

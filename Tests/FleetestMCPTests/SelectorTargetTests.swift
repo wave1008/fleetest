@@ -127,6 +127,14 @@ final class SelectorTargetTests: XCTestCase {
         XCTAssertFalse(draft.contains("index-based selector"), "一意に当たった書き方は位置依存と言わない: \(draft)")
     }
 
+    /// `a||b` で後ろ側が当たったときは、当たった側で数える(先頭の外れた側で数えて安定に見せない)
+    func testDraftCountsTheFallbackThatActuallyMatched() async throws {
+        let (server, _) = make([element(1, id: nil, label: "OK", y: 0), element(2, id: nil, label: "OK", y: 100)])
+        _ = try await server.call(tool: "ft_tap", args: ["selector": "Missing||OK"])
+        let draft = texts(try await server.call(tool: "ft_draft_scenario", args: ["all": true]))
+        XCTAssertTrue(draft.contains("index-based selector"), draft)
+    }
+
     /// 別々の複数に当たった selector は木の順に頼る = 下書きは位置依存の注意を付ける(安定に見せない)
     func testDraftMarksAMultiMatchSelectorAsPositional() async throws {
         let (server, _) = make([element(1, id: nil, label: "OK", y: 0), element(2, id: nil, label: "OK", y: 100)])

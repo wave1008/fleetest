@@ -18,8 +18,8 @@ extension MCPServer {
     func driver(_ args: [String: Any]) async throws -> AppDriver {
         let previousPhase = SlowCallWatchdog.mark("resolving the device's bridge")
         defer { SlowCallWatchdog.restore(previousPhase) }
+        try await gateCachedVersionSkew(args: args)
         let resolved = try await resolveDriver(args)
-        try gateVersionSkewEachCall(args: args)
         await prepareAndroidDeviceIfNeeded(resolved, args: args)
         return resolved
     }
@@ -389,8 +389,12 @@ extension MCPServer {
         if allowSkew { AndroidDriver.forgetCachedFailure(serial: serial) }
         let driver = try AndroidDriver(serial: serial, acceptsNewerInstalledBridge: allowSkew,
                                        newerBridgeRefusalAddendum: Self.androidNewerBridgeAddendum)
-        // 版は許可の有無に依らず生成時に1回見る(既に動いている新しいブリッジは install の門を通らない = 黙って使われる)。
-        // adb の照会は協調プールの外で(mcp.md: 診断の外部コマンドでプールを塞がない)
+        // 動いていないブリッジは install の門(installBridgeIfNeeded)が版を見て断るので、照会は許可があるときと
+        // 既に動いているとき(install の門を通らない = 黙って使われる)だけ。adb は協調プールの外で(mcp.md)
+        guard allowSkew || AndroidDriver.hasActiveBridge(serial: serial) else {
+            versionSkew[key] = nil
+            return driver
+        }
         let probe = UncheckedTransfer(driver)
         guard let skew = await BlockingWork.offPool(name: "ft-android-skew-probe", {
             probe.value.newerInstalledBridgeSkew()
@@ -407,21 +411,39 @@ extension MCPServer {
         return driver
     }
 
-    /// **版ズレは呼び出しごとに門を掛ける**(生成時の1回だけだと、一度 `allowVersionSkew: true` で作ったドライバが控えに残り、
-    /// 許可の無い後の呼び出しも黙って通り、警告も最初の1回だけだった)。許可が無ければ断って控えを捨て、あれば毎回警告する
-    func gateVersionSkewEachCall(args: [String: Any]) throws {
+    /// **版ズレは呼び出しごとに門を掛ける**(控えのドライバで引く前 = 断った呼び出しを「駆動した」と記録しない)。
+    /// 許可があれば毎回警告する。許可が無ければ**今のブリッジで測り直し**、まだ食い違うときだけ断って控えを捨てる
+    /// (直ったブリッジを古い記録で断らない)。Android は許可つきの呼び出しなら、新しい版を受け入れない設定で作られた
+    /// 控えを捨てて作り直させる(期限内の失敗の再生も捨てる = 拒否文の逃げ道がその場で効く)
+    func gateCachedVersionSkew(args: [String: Any]) async throws {
         let key = Self.sessionKey(args)
-        guard let skew = versionSkew[key] else { return }
-        guard args["allowVersionSkew"] as? Bool == true else {
+        let allow = args["allowVersionSkew"] as? Bool == true
+        if allow, let android = drivers[key] as? AndroidDriver, !android.acceptsNewerInstalledBridge {
             drivers[key] = nil
             versionSkew[key] = nil
-            throw MCPVersionGuardRefusal(message: skew.contains("allowVersionSkew") ? skew
-                : skew + " Pass allowVersionSkew: true to proceed anyway.")
+            AndroidDriver.forgetCachedFailure(serial: android.serial)
+            return
         }
-        let warning = Self.skewOverrideWarning(skew)
-        if !(pendingWarnings[key]?.contains(warning) ?? false) {
-            pendingWarnings[key, default: []].append(warning)
+        guard let recorded = versionSkew[key], let cached = drivers[key] else { return }
+        if allow {
+            let warning = Self.skewOverrideWarning(recorded)
+            if !(pendingWarnings[key]?.contains(warning) ?? false) {
+                pendingWarnings[key, default: []].append(warning)
+            }
+            return
         }
+        let now: String?
+        if let android = cached as? AndroidDriver {
+            let probe = UncheckedTransfer(android)
+            now = await BlockingWork.offPool(name: "ft-android-skew-probe", { probe.value.newerInstalledBridgeSkew() })
+                .map { Self.androidNewerBridgeSkew($0) + " " + Self.androidNewerBridgeAddendum }
+        } else {
+            now = await Self.bridgeVersionSkew(driver: cached)
+        }
+        versionSkew[key] = nil
+        guard let now else { return }
+        drivers[key] = nil
+        throw MCPVersionGuardRefusal(message: now)
     }
 
     /// 入っている Android ブリッジが新しいまま使うときの版ズレの文(拒否の文ではない = 警告の本文)
