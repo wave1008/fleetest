@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# 回帰の開始時に、モニターの配信が張られていれば警告する(止めない = ユーザー決定)。
+# 回帰の開始時に、モニターの配信が張られていれば警告する(e2e.sh・e2ex.sh・e2ey.sh は止めずに警告だけ。
+# regress.py は止めてから回し、止めきれなかった分の名指しにこれを使う = ユーザー決定 2026-11-11)。
 # 呼び手: Scripts/regress.py・e2e.sh・e2ex.sh・e2ey.sh。終了コードは常に 0(判定できなくても回帰は止めない)。
 # 数えるのはプロセス表だけ: この機械の配信ヘルパー(fleetest-androidstream / fleetest-simstream)と、
 # 拡張がリモートのデバイスへ張る `fleetest remote exec <マシン> -- api device-stream`。

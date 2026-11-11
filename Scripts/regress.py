@@ -16,12 +16,59 @@
 #   FT_FULL_TEST=1 Scripts/regress.py --suites e2ex,e2ey  # スイートを絞る(--suts flutter,rn で SUT も。絞った回は印を書かない)
 #   Scripts/regress.py --dry-run [--ios-xcuitest]         # 対象の一覧と撃つコマンドだけ出す。デバイスを使わない
 # 全体の実行なので Scripts/test-scope-guard.py が FT_FULL_TEST=1 を求める(--dry-run は除く)。
-import argparse, glob, json, os, shlex, subprocess, sys, threading, time
+import argparse, glob, json, os, shlex, signal, subprocess, sys, threading, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLEETEST = os.path.join(ROOT, ".build", "debug", "fleetest")
 REMOTE_CLONE = "~/fleetest-runner/fleetest"
 SSH_UNREACHABLE = 255
+# 分。段2の前に全マシンのモニター(配信)を止める期限。回帰の実測 25〜30 分(11/9・11/11)の4倍。
+# 正常終了・中断では resume で即座に解くので、効くのは regress.py が SIGKILL されたときだけ(尽きると配信が戻るだけ)
+MONITOR_HOLD_MINUTES = 120
+# 秒。pause の後に配信のプロセスが消えるのを待つ上限(モニターは自分の周期で hold に気づく)。尽きたら残りを名指しして回す
+STREAM_TEARDOWN_WAIT = 60
+
+# 段2以降の中断: SIGINT/SIGTERM を受けたら走っている子へ SIGINT を1回だけ伝え、後段へ進まずに終わる。
+# 子は別のプロセスグループで起こす(端末の Ctrl-C が子へ直接も届くと二重の SIGINT になる)。
+# 自前で受けるのは、`nohup … &` で起こすと bash が SIGINT を無視に設定して Python へ継がせ、既定の KeyboardInterrupt が無いため
+_interrupted = False
+_child = None
+
+
+def _on_signal(signum, _frame):
+    global _interrupted
+    _interrupted = True
+    if _child is not None and _child.poll() is None:
+        _child.send_signal(signal.SIGINT)
+
+
+def run_child(cmd, **kwargs):
+    global _child
+    _child = subprocess.Popen(cmd, cwd=ROOT, process_group=0, **kwargs)
+    try:
+        while True:
+            try:
+                return _child.wait()
+            except InterruptedError:
+                continue
+    finally:
+        _child = None
+
+
+def hold_monitors(fleet, action):
+    """全マシンのモニターを止める(pause)/戻す(resume)。失敗は名指しして続ける(配信が残っていれば段2の前の確認が言う)"""
+    for machine, host in fleet:
+        sub = ["monitor", "pause", "--for", str(MONITOR_HOLD_MINUTES)] if action == "pause" else ["monitor", "resume"]
+        cmd = [FLEETEST] + sub if host is None else [FLEETEST, "remote", "exec", machine, "--"] + sub
+        out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        if out.returncode != 0:
+            print(f"   ⚠️ {machine}: monitor {action} が失敗しました(exit {out.returncode}): {(out.stdout + out.stderr).strip()[-200:]}")
+
+
+def remaining_streams():
+    """配信が張られていれば streaming_check.py の警告文、無ければ空文字"""
+    return subprocess.run(["python3", os.path.join(ROOT, "Scripts", "streaming_check.py")],
+                          capture_output=True, text=True).stdout
 
 # スイート → (スクリプト, プロジェクトの接頭辞, SUT → 回す OS)。**各スクリプトの SUT の表と同じ**(片方だけ変えない)
 SUITES = {
@@ -220,19 +267,43 @@ def main():
             record_machine_states(fleet, run_dir, "end")
             return 1
 
-    # 配信を張ったままなら警告だけ出す(止めない)。赤があった回は最後にもう一度言う
-    streaming = subprocess.run(["python3", os.path.join(ROOT, "Scripts", "streaming_check.py")],
-                               capture_output=True, text=True).stdout
-    print(streaming, end="")
+    # 配信は止めてから回す(ユーザー決定 2026-11-11。配信ありの回帰は手元の Android が白紙・固まりで赤になり、
+    # 止めて回し直すと通った = 11/1・11/11)。止めた分は終わり・中断のどちらでも finally で戻す
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+    print(f"==> 全マシンのモニター(配信)を止めます(最長 {MONITOR_HOLD_MINUTES} 分。終われば戻します)")
+    hold_monitors(fleet, "pause")
+    try:
+        return stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started)
+    finally:
+        hold_monitors(fleet, "resume")
+        print("→ 全マシンのモニターを戻しました")
+
+
+def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started):
+    deadline = time.time() + STREAM_TEARDOWN_WAIT
+    streaming = remaining_streams()
+    while streaming and time.time() < deadline and not _interrupted:
+        time.sleep(2)
+        streaming = remaining_streams()
+    if streaming:
+        print(f"   ⚠️ 止めた後も {STREAM_TEARDOWN_WAIT} 秒で消えなかった配信があります:")
+        print(streaming, end="")
+    if _interrupted:
+        return interrupted_exit(fleet, run_dir)
     print("==> 段 2: fleetest run(空いたマシンが次の対象を取る)")
     run_started = time.time()
-    run_ok = subprocess.run(run_args(targets, opts.record), cwd=ROOT, env=env).returncode == 0
+    run_ok = run_child(run_args(targets, opts.record), env=env) == 0
+    if _interrupted:
+        return interrupted_exit(fleet, run_dir)
     witness_ok = True
     if witness:
         print(f"\n═══ {WITNESS[0]} / ios-inapp-boost(in-app の証人: {WITNESS[1]})═══")
-        witness_ok = subprocess.run([FLEETEST, "run", "--project", WITNESS[0], "--profile", "ios-inapp-boost",
-                                     "--scenario", WITNESS[1], "--runner", "local", "--set", "record=false"],
-                                    cwd=ROOT, env=env).returncode == 0
+        witness_ok = run_child([FLEETEST, "run", "--project", WITNESS[0], "--profile", "ios-inapp-boost",
+                                "--scenario", WITNESS[1], "--runner", "local", "--set", "record=false"],
+                               env=env) == 0
+        if _interrupted:
+            return interrupted_exit(fleet, run_dir)
         print(f"{'✅' if witness_ok else '❌'} {WITNESS[0]} / ios-inapp-boost(証人)")
     degraded = degraded_scenarios({p for _, p, _ in targets}, run_started)
     if degraded:
@@ -259,7 +330,7 @@ def main():
                 print(f"→ {suite} の {mode} 経路を検証済みとして記録しました({os.path.relpath(marker, ROOT)})")
     print("✅ 回帰 全て成功" if all_green else "❌ 回帰に失敗があります")
     if not all_green and streaming:
-        print("   ⚠️ この回帰はモニターの配信を張ったまま回しました。Android の赤は配信の負荷の可能性があります(開始時の警告)")
+        print("   ⚠️ この回帰は止めきれなかった配信を残したまま回しました。Android の赤は配信の負荷の可能性があります(段2の前の警告)")
 
     stale = subprocess.run(["python3", os.path.join(ROOT, "Scripts", "verification_watch.py"), "stale"],
                            capture_output=True, text=True).stdout.strip()
@@ -279,8 +350,17 @@ def main():
     neg_failed = False
     if opts.negative:
         print("\n═══ 陽性対照(Scripts/e2e-negative.sh)═══")
-        neg_failed = subprocess.run([os.path.join(ROOT, "Scripts", "e2e-negative.sh")], cwd=ROOT, env=env).returncode != 0
+        neg_failed = run_child([os.path.join(ROOT, "Scripts", "e2e-negative.sh")], env=env) != 0
+        if _interrupted:
+            return interrupted_exit(fleet, run_dir)
     return 0 if all_green and not neg_failed else 1
+
+
+def interrupted_exit(fleet, run_dir):
+    """中断した回は後段(証人・検証済みの印・推奨・陽性対照)へ進まない。130 = SIGINT で終わった慣例の値"""
+    print("\n⛔ 中断しました。後段(証人・検証済みの印・陽性対照)は回しません")
+    record_machine_states(fleet, run_dir, "end")
+    return 130
 
 
 if __name__ == "__main__":
