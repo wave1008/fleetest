@@ -103,6 +103,8 @@ function hmMakeRow(rowEl, machine) {
     deadBadge: rowEl.querySelector('.hm-fm-dead-badge'),
     // ハードウェアビデオエンコーダー故障の語(FM バッジの右。死んでいるときだけ出す)
     encoderBadge: rowEl.querySelector('.hm-encoder-dead-badge'),
+    // Apple Vision(OCR / 特徴量)故障の語(最後尾。死んでいる対象だけ出す)
+    visionBadge: rowEl.querySelector('.hm-vision-dead-badge'),
     entries,
     capacity: {}, // metric → 容量(CPU/GPU はコア数・MEM は GB)。未着はキー無し
     all: [entries.cpu, entries.gpu, entries.vision, entries.fm, entries.mem],
@@ -119,6 +121,10 @@ function hmMakeRow(rowEl, machine) {
     // visionSupported: false = OS が画像入力を持たない(vision は常に null)・null = 欠測
     liveness: { text: null, vision: null, visionSupported: null, reason: null, checkedAt: null },
     encoder: { state: null, error: null, checkedAt: null },
+    visionLiveness: {
+      ocr: { state: null, error: null, checkedAt: null },
+      featurePrint: { state: null, error: null, checkedAt: null },
+    },
     // pending: 受信済みでまだ描いていないサンプル(1 tick の間に複数届いたら最後の1つだけ残る)。
     // latest: 直近に描いたサンプル(pending が無い tick はこれを使い回す)。missed はその回数。
     pending: undefined,
@@ -303,6 +309,11 @@ function hmEnsureRow(machine) {
   clonedEncoderBadge.classList.remove('hm-visible');
   clonedEncoderBadge.removeAttribute('data-hover-tip');
   clonedEncoderBadge.removeAttribute('title');
+  const clonedVisionBadge = rowEl.querySelector('.hm-vision-dead-badge');
+  clonedVisionBadge.textContent = '';
+  clonedVisionBadge.classList.remove('hm-visible');
+  clonedVisionBadge.removeAttribute('data-hover-tip');
+  clonedVisionBadge.removeAttribute('title');
   hmContainer.appendChild(rowEl);
   const row = hmMakeRow(rowEl, machine);
   hmRows.set(machine, row);
@@ -477,7 +488,33 @@ function hmRenderEncoderBadge(row) {
   ].filter((line) => line !== '').join('\n'));
 }
 
-/** Vision(Vision / Core ML。OCR と画像分類器)呼び出し回数の表示。**死活・バッジは持たない**(FM と違う) —— FM の失敗は
+/** Vision の死活バッジ。**dead の対象だけ語を出す**(OCR / FP。alive と不明は何も出さない = プローブの谷間で点滅しない)。
+ *  語は日英とも同じなので辞書を通さない。意味はツールチップが持つ。 */
+function hmRenderVisionBadge(row) {
+  const badge = row.visionBadge;
+  const subjects = [
+    ['ocr', 'OCR', 'wvMonitor2.hostCharts.visionOcrDeadLine'],
+    ['featurePrint', 'FP', 'wvMonitor2.hostCharts.visionFeaturePrintDeadLine'],
+  ].filter(([key]) => row.visionLiveness[key].state === 'dead');
+  if (subjects.length === 0) {
+    badge.textContent = '';
+    badge.classList.remove('hm-visible');
+    badge.removeAttribute('title');
+    badge.removeAttribute('data-hover-tip');
+    return;
+  }
+  badge.textContent = subjects.map(([, word]) => '⚠︎' + word).join(' ');
+  badge.classList.add('hm-visible');
+  const lines = [];
+  for (const [key, , message] of subjects) {
+    const verdict = row.visionLiveness[key];
+    lines.push(t(message), verdict.error ?? '', hmFormatAge(verdict.checkedAt));
+  }
+  setHoverTip(badge, [hmTitlePrefix(row) + lines[0], ...lines.slice(1)].filter((line) => line !== '').join('\n'));
+}
+
+/** Vision(Vision / Core ML。OCR と画像分類器)呼び出し回数の表示。**この欄は死活を持たない**(死活は内蔵の絵の確かめで
+ *  hmRenderVisionBadge が別に出す = 回数は誰も呼ばなければ 0 件で、死んでいても同じ絵になるため)。FM の失敗は
  *  ガード自体を無効化する(誰も知らせない)ので死活の軸が要るが、Vision の失敗はその回の判定が別の経路
  *  (OCR は FM・分類器は a11y)へ回るだけで判定能力は落ちない。失敗はツールチップの事実だけで足りる。 */
 function hmRenderVisionLabel(row) {
@@ -805,6 +842,13 @@ function hmRenderRow(row, sample) {
     error: sample && typeof sample.videoEncoderError === 'string' ? sample.videoEncoderError : null,
     checkedAt: sample && typeof sample.videoEncoderCheckedAt === 'number' ? sample.videoEncoderCheckedAt : null,
   };
+  // Vision の死活も欠測 tick は不明へ戻す(同じ理由)
+  const visionVerdict = (prefix) => ({
+    state: sample && typeof sample[prefix + 'State'] === 'string' ? sample[prefix + 'State'] : null,
+    error: sample && typeof sample[prefix + 'Error'] === 'string' ? sample[prefix + 'Error'] : null,
+    checkedAt: sample && typeof sample[prefix + 'CheckedAt'] === 'number' ? sample[prefix + 'CheckedAt'] : null,
+  });
+  row.visionLiveness = { ocr: visionVerdict('visionOCR'), featurePrint: visionVerdict('visionFeaturePrint') };
 
   hmPushSample(row.entries.cpu, cpu);
   hmPushSample(row.entries.gpu, gpu);
@@ -841,6 +885,7 @@ function hmRenderRow(row, sample) {
   hmRenderVisionLabel(row);
   hmRenderFmLabel(row);
   hmRenderEncoderBadge(row);
+  hmRenderVisionBadge(row);
   setHoverTip(row.entries.mem.el, prefix + t('wvMonitor2.hostCharts.memTitle', {
     used: hmFormatGb(memUsedBytes),
     total: hmFormatGb(memTotalBytes),

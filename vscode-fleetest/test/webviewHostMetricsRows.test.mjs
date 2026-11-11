@@ -1062,6 +1062,59 @@ test("新しい機械の行は、手元のエンコーダーが dead でも語�
   assert.equal(encoderTip(document, "mac2"), "");
 });
 
+function visionBadge(document, machine) {
+  const badge = rowFor(document, machine).querySelector(".hm-vision-dead-badge");
+  return badge.classList.contains("hm-visible") ? badge.textContent : null;
+}
+const visionTip = (document, machine) =>
+  tipOfEl(rowFor(document, machine).querySelector(".hm-vision-dead-badge"));
+const withVision = (sample, ocr, featurePrint, error = null, checkedAt = Date.now() / 1000) => ({
+  ...sample,
+  visionOCRState: ocr, visionOCRError: ocr === "dead" ? error : null, visionOCRCheckedAt: ocr ? checkedAt : null,
+  visionFeaturePrintState: featurePrint, visionFeaturePrintError: featurePrint === "dead" ? error : null,
+  visionFeaturePrintCheckedAt: featurePrint ? checkedAt : null,
+});
+
+test("Vision は dead の対象だけバッジに出し、alive / 不明は出さず、戻れば消える", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  send(window, { type: "hostMetricsMachines", machines: ["mac2"] });
+  send(window, withVision(hostMetricsSample("mac2", 0.9), "dead", "alive", "OCR did not read the built-in check image"));
+  send(window, hostMetricsSample(undefined, 0.1));
+  assert.equal(visionBadge(document, "mac2"), "⚠︎OCR");
+  const tip = visionTip(document, "mac2");
+  assert.match(tip, /^mac2 — この Mac の Vision の文字認識/);
+  assert.match(tip, /OCR did not read/);
+  assert.match(tip, /秒前/);
+
+  send(window, withVision(hostMetricsSample("mac2", 0.9), "alive", "dead", "distance 0"));
+  send(window, hostMetricsSample(undefined, 0.1));
+  assert.equal(visionBadge(document, "mac2"), "⚠︎FP");
+  send(window, withVision(hostMetricsSample("mac2", 0.9), "dead", "dead", "x"));
+  send(window, hostMetricsSample(undefined, 0.1));
+  assert.equal(visionBadge(document, "mac2"), "⚠︎OCR ⚠︎FP");
+  send(window, withVision(hostMetricsSample("mac2", 0.9), null, null));
+  send(window, hostMetricsSample(undefined, 0.1));
+  assert.equal(visionBadge(document, "mac2"), null, "不明は出さない");
+  assert.equal(visionTip(document, "mac2"), "");
+});
+
+test("欠測 tick で Vision のバッジも消え、新しい機械の行は語を持たずに始まる", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  send(window, withVision(hostMetricsSample(undefined, 0.1), "dead", "dead", "boom"));
+  assert.ok(visionBadge(document, ""));
+  send(window, { type: "hostMetricsMachines", machines: ["mac2"] });
+  assert.equal(visionBadge(document, "mac2"), null);
+  send(window, withVision(hostMetricsSample("mac2", 0.9), "dead", null, "boom"));
+  send(window, hostMetricsSample(undefined, 0.1));
+  assert.ok(visionBadge(document, "mac2"));
+  for (let i = 0; i < 4; i += 1) {
+    send(window, hostMetricsSample(undefined, 0.1));
+  }
+  assert.equal(visionBadge(document, "mac2"), null);
+});
+
 test("ホストのグラフの行は設定タブのマシン一覧の順に並び、並べ替えたら即座に並べ直す", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());

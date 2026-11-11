@@ -137,6 +137,15 @@ export const webviewMonitorBStrings = {
   "wvMonitor2.hostCharts.fmDeadBadgeAllFailed": { ja: "⚠︎ FM 全呼び出し失敗", en: "⚠︎ all FM calls failed" },
   // エラーバーの CLI 文言(英語)と訳の区切り(cliMessageTranslation.ts)。訳を付けるのは日本語 UI だけ
   "wvMonitor2.banner.translationLabel": { ja: "【日本語訳】", en: "[Japanese translation]" },
+  // Vision の死活のバッジ(OCR / 特徴量)。dead のときだけ出る(alive/不明は何も出さない)
+  "wvMonitor2.hostCharts.visionOcrDeadLine": {
+    ja: "この Mac の Vision の文字認識(OCR)が働いていません。内蔵の文字の絵を読ませても読めませんでした。文字の読み取りに頼る確認(テキストの可視性検証・リンク文字の tap など)は当てになりません",
+    en: "This Mac's Vision text recognition (OCR) is not working: it could not read a built-in image of known text. Checks that rely on reading text (text visibility checks, tapping link text, etc.) cannot be trusted right now.",
+  },
+  "wvMonitor2.hostCharts.visionFeaturePrintDeadLine": {
+    ja: "この Mac の Vision の画像特徴量が正しく働いていません(同じ画像で結果が揺れる、または別の画像が同じになります)。画像の照合(findImage など)の結果は当てになりません",
+    en: "This Mac's Vision image feature prints are not working correctly (the same image gives different results, or different images give identical ones). Image matching (findImage, etc.) cannot be trusted right now.",
+  },
   // ハードウェアビデオエンコーダー故障のバッジ。dead のときだけ出る(alive/不明は何も出さない)
   "wvMonitor2.hostCharts.encoderDeadLine": {
     ja: "この Mac のハードウェアビデオエンコーダーが使えません。録画の切り出しはソフトウェアで続けます(遅くなります)。Simulator の録画とライブ更新の配信にも影響します。これまでは Mac の再起動で戻りました",

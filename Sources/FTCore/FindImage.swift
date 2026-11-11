@@ -294,6 +294,11 @@ public enum FindImage {
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
+    /// VisionUsageLedger にも回数にも書かない特徴量(死活の確かめ `VisionLivenessProbe` 用。実使用の計数を汚さない)
+    static func featurePrintUnrecorded(_ image: CGImage) async throws -> FeaturePrintObservation {
+        try await GenerateImageFeaturePrintRequest().perform(on: image)
+    }
+
     /// 画像の特徴量(Shirates の ImageFeaturePrintMatcher.getFeaturePrintObservation と同じ要求)。
     /// 1回ごとに VisionUsageLedger へ1件書く
     public static func featurePrint(_ image: CGImage) async throws -> FeaturePrintObservation {

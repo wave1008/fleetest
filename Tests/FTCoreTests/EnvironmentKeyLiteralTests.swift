@@ -33,6 +33,7 @@ final class EnvironmentKeyLiteralTests: XCTestCase {
     /// 子が書かない置き場は理由つきでこの表に置く(新しい `FT_*_DIR` はどちらかに分類するまで落ちる)
     private static let notWrittenByTheScenarioChild: [String: String] = [
         "FT_VIDEO_ENCODER_LIVENESS_DIR": "書くのは親(録画の切り出し・host-metrics)だけ",
+        "FT_VISION_LIVENESS_DIR": "書くのは親(host-metrics)だけ",
         "FT_REPORT_DIR": "run の前後のスクリプトへ渡す出力先(シナリオの子ではない。スクリプトの枠は ScriptSandbox)",
     ]
 

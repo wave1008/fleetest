@@ -50,6 +50,12 @@ struct ApiHostMetricsCommand: AsyncParsableCommand {
               + " synthetic frames when the machine-wide ledger goes stale. Off by default."))
     var videoEncoderProbe = false
 
+    @Flag(name: .customLong("vision-probe"),
+          help: ArgumentHelp("Keep the Apple Vision verdicts (visionOCRState/visionFeaturePrintState) fresh by running"
+              + " a built-in OCR image and feature-print check when the machine-wide ledger goes stale."
+              + " Does not count toward the Vision usage numbers. Off by default."))
+    var visionProbe = false
+
     func run() async throws {
         // ストリーミング読み取りが前提のため常に行バッファにする(ApiMonitorCommand.swift と同じ理由)
         setvbuf(stdout, nil, _IOLBF, 0)
@@ -79,6 +85,8 @@ struct ApiHostMetricsCommand: AsyncParsableCommand {
         let probing = ProbeInFlight()
         // エンコーダの確かめも重ねない・刻みを止めない(固着したら HardwareEncoderProbe が以後撃たない)
         let encoderProbing = ProbeInFlight()
+        // Vision の確かめも重ねない・刻みを止めない(固着したら VisionLivenessProbe が以後その対象を撃たない)
+        let visionProbing = ProbeInFlight()
 
         while !stop.isSet {
             await ApiMonitorCommand.sleepInterruptible(seconds: interval, stop: stop)
@@ -93,6 +101,12 @@ struct ApiHostMetricsCommand: AsyncParsableCommand {
                 Task.detached {
                     await VideoEncoderLiveness.refreshIfStale()
                     encoderProbing.end()
+                }
+            }
+            if visionProbe, visionProbing.begin() {
+                Task.detached {
+                    await VisionLiveness.refreshIfStale()
+                    visionProbing.end()
                 }
             }
             if fmProbe, probing.begin() {
@@ -110,7 +124,9 @@ struct ApiHostMetricsCommand: AsyncParsableCommand {
                 visionCalls: vision?.calls, visionFailures: vision?.failures, visionTotalMs: vision?.totalMs,
                 ocrCompiling: OCRModelCompileLedger.activeCount(),
                 fmLiveness: FMLiveness.current(),
-                videoEncoder: VideoEncoderLiveness.current())
+                videoEncoder: VideoEncoderLiveness.current(),
+                visionOCR: VisionLiveness.current(.ocr),
+                visionFeaturePrint: VisionLiveness.current(.featurePrint))
             if let line = sample.encodedLine() {
                 ConsoleOut.out(line)
                 logger?.append(line)

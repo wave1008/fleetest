@@ -110,6 +110,14 @@ type HostMetricsRawEvent = {
   readonly videoEncoderState: string | null;
   readonly videoEncoderError: string | null;
   readonly videoEncoderCheckedAt: number | null;
+  /** Apple Vision の死活(OCR と特徴量は別の判定。"alive" / "dead" / null=不明・理由・観測時刻)。
+   *  Sources/FTCore/VisionLiveness.swift と同期。 */
+  readonly visionOCRState: string | null;
+  readonly visionOCRError: string | null;
+  readonly visionOCRCheckedAt: number | null;
+  readonly visionFeaturePrintState: string | null;
+  readonly visionFeaturePrintError: string | null;
+  readonly visionFeaturePrintCheckedAt: number | null;
   /** Vision / Core ML(OCR と画像分類器。FM 以外)呼び出しの実測。供給元は機械グローバルな控えで、このプロセスの
    *  実測ではない(fmCalls と同じ形。Sources 側は FTCore.VisionUsageLedger 相当)。null = 不明。 */
   readonly visionCalls: number | null;
@@ -149,6 +157,12 @@ function isHostMetricsEvent(value: unknown): value is HostMetricsRawEvent {
     stringOrNull(record.videoEncoderState) &&
     stringOrNull(record.videoEncoderError) &&
     numberOrNull(record.videoEncoderCheckedAt) &&
+    stringOrNull(record.visionOCRState) &&
+    stringOrNull(record.visionOCRError) &&
+    numberOrNull(record.visionOCRCheckedAt) &&
+    stringOrNull(record.visionFeaturePrintState) &&
+    stringOrNull(record.visionFeaturePrintError) &&
+    numberOrNull(record.visionFeaturePrintCheckedAt) &&
     numberOrNull(record.visionCalls) &&
     numberOrNull(record.visionFailures) &&
     numberOrNull(record.visionTotalMs) &&
@@ -188,6 +202,13 @@ export type HostMetricsToWebviewMessage =
       readonly videoEncoderState: string | null;
       readonly videoEncoderError: string | null;
       readonly videoEncoderCheckedAt: number | null;
+      /** Apple Vision の死活(OCR / 特徴量)。"dead" の対象だけ webview がバッジを出す(alive/null は何も出さない)。 */
+      readonly visionOCRState: string | null;
+      readonly visionOCRError: string | null;
+      readonly visionOCRCheckedAt: number | null;
+      readonly visionFeaturePrintState: string | null;
+      readonly visionFeaturePrintError: string | null;
+      readonly visionFeaturePrintCheckedAt: number | null;
       /** そのサンプリング間隔で完了した Vision / Core ML(OCR と画像分類器)呼び出し(その機械の全プロセス
        *  合計)。null = 控えを読めず不明、0 = 呼び出しが無かった(fmCalls と同じ区別)。 */
       readonly visionCalls: number | null;
@@ -928,7 +949,8 @@ export class MonitorProcessManager {
           // CLI から手で常駐させた host-metrics には FM を消費させたくないので既定 OFF ——
           // 渡すのはモニターだけ(Sources/fleetest/ApiHostMetricsCommand.swift 冒頭)。
           // --video-encoder-probe: HW エンコーダーの死活も同じ理由で(台帳が古いときだけ合成フレームで取り直す)。
-          ["api", "host-metrics", "--interval", "1", "--fm-probe", "--video-encoder-probe"],
+          // --vision-probe: Vision の OCR / 特徴量の死活も同じ理由で(内蔵の絵で確かめる。使用回数は汚さない)。
+          ["api", "host-metrics", "--interval", "1", "--fm-probe", "--video-encoder-probe", "--vision-probe"],
         ),
         {
           cwd: this.deps.workspaceRoot,
@@ -987,6 +1009,12 @@ export class MonitorProcessManager {
           videoEncoderState: value.videoEncoderState,
           videoEncoderError: value.videoEncoderError,
           videoEncoderCheckedAt: value.videoEncoderCheckedAt,
+          visionOCRState: value.visionOCRState,
+          visionOCRError: value.visionOCRError,
+          visionOCRCheckedAt: value.visionOCRCheckedAt,
+          visionFeaturePrintState: value.visionFeaturePrintState,
+          visionFeaturePrintError: value.visionFeaturePrintError,
+          visionFeaturePrintCheckedAt: value.visionFeaturePrintCheckedAt,
           visionCalls: value.visionCalls,
           visionFailures: value.visionFailures,
           visionTotalMs: value.visionTotalMs,

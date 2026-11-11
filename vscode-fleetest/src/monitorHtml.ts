@@ -356,6 +356,8 @@ function renderDevicesPanel(): string {
           <span class="hm-fm-dead-badge"></span>
           <!-- ハードウェアビデオエンコーダー故障のときだけ語を出す(hostCharts.js の hmRenderEncoderBadge)。FM バッジと同じく最後尾 -->
           <span class="hm-encoder-dead-badge"></span>
+          <!-- Vision(OCR / 特徴量)故障のときだけ語を出す(hostCharts.js の hmRenderVisionBadge)。最後尾 -->
+          <span class="hm-vision-dead-badge"></span>
         </div>
       </div>
       <!-- グラフの右・ツールバー右端の2つ。左からラインビューの表示・全選択トグル。

@@ -1111,7 +1111,8 @@ body.vscode-high-contrast-light .hm-capacity {
    .hm-row の gap 10px は消えないので、visibility では右端に隙間が残る。最後尾なので
    display を切っても左の列は動かない(錠前が visibility なのは列の途中に居るため)。 */
 .hm-fm-dead-badge,
-.hm-encoder-dead-badge {
+.hm-encoder-dead-badge,
+.hm-vision-dead-badge {
   display: none;
   font-size: 11px;
   font-weight: 600;
@@ -1130,7 +1131,8 @@ body.vscode-high-contrast-light .hm-capacity {
   margin-left: calc(4px - 10px);
 }
 /* HW エンコーダー故障の語。FM バッジの右に並ぶので負マージンは持たない(行の gap 10px のまま) */
-.hm-encoder-dead-badge.hm-visible {
+.hm-encoder-dead-badge.hm-visible,
+.hm-vision-dead-badge.hm-visible {
   display: inline-block;
 }
 /* 死んでいる間の FM の値の欄は空(ユーザー決定: 「– N/A」でなく「N/A」)なので欄ごと畳む ——

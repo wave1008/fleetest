@@ -459,6 +459,9 @@ RecordingIndex.swift・RecordingWallClock.swift)。録画自体の失敗は run 
 「⚠︎AVE」を出す(死のときだけ)。**故障の兆候は履歴に追記する**(`VideoEncoderHistory` = `~/.fleetest/video-encoder-history.ndjson`。
 切り出しの失敗・固まり、台帳の死への変わり目・死からの回復。起動の識別子と起動からの経過つき = 監視して改善する方針・ユーザー決定)。
 注入は `FT_FAKE_VIDEO_ENCODER_DEAD=1`(ハードウェアに触らずに死を返す)。
+Apple Vision の死活も同じ形(`VisionLiveness` = `~/.fleetest/vision-liveness.json`。OCR と特徴量は別の判定。書き手は `api host-metrics --vision-probe` だけ・
+内蔵の絵で確かめ `VisionUsageLedger` には書かない・OCR モデルのコンパイル中と OCR 非対応の機械の OCR は撃たない。変わり目は `vision-history.ndjson`。
+モニターは「⚠︎OCR」「⚠︎FP」を出す(死のときだけ・警告のみで合否には使わない)。注入は `FT_FAKE_VISION_DEAD=ocr|featurePrint|all`)。
 診断手順は docs/verification/operations.md「録画(record:true)の検証」。
 
 録画の付随設定(すべて `record: true` のときのみ意味を持つ): `recordFailuresOnly`(既定 false)

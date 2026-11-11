@@ -362,6 +362,14 @@ public struct HostMetricsSample: Encodable {
     public let videoEncoderState: String?
     public let videoEncoderError: String?
     public let videoEncoderCheckedAt: Double?
+    /// Apple Vision の死活(FTCore.VisionLiveness)。OCR と特徴量は別の判定。state は "alive" / "dead" / **null = 不明**。
+    /// 理由は死のときだけ(errorLimit で切り詰め済み)。対向: vscode-fleetest/src/monitorProcessManager.ts の HostMetricsRawEvent
+    public let visionOCRState: String?
+    public let visionOCRError: String?
+    public let visionOCRCheckedAt: Double?
+    public let visionFeaturePrintState: String?
+    public let visionFeaturePrintError: String?
+    public let visionFeaturePrintCheckedAt: Double?
 
     /// 1Hz で流す行に載せる理由の長さ。**原因の特定はここではやらない**(それは
     /// `fleetest doctor --fm-only` と結果 JSON の仕事)ので、どの種類の失敗かが分かれば足りる。
@@ -375,7 +383,9 @@ public struct HostMetricsSample: Encodable {
                 ocrCompiling: Int,
                 fmLiveness: FMLiveness.Reading = FMLiveness.Reading(text: nil, vision: nil),
                 fmVisionSupported: Bool = FMVisionSupport.isSupported,
-                videoEncoder: VideoEncoderLiveness.Verdict? = nil) {
+                videoEncoder: VideoEncoderLiveness.Verdict? = nil,
+                visionOCR: VisionLiveness.Verdict? = nil,
+                visionFeaturePrint: VisionLiveness.Verdict? = nil) {
         self.ts = ts
         self.cpu = cpu
         self.gpu = gpu
@@ -399,6 +409,12 @@ public struct HostMetricsSample: Encodable {
         self.videoEncoderState = videoEncoder?.state.rawValue
         self.videoEncoderError = videoEncoder?.error
         self.videoEncoderCheckedAt = videoEncoder?.checkedAt
+        self.visionOCRState = visionOCR?.state.rawValue
+        self.visionOCRError = visionOCR?.error
+        self.visionOCRCheckedAt = visionOCR?.checkedAt
+        self.visionFeaturePrintState = visionFeaturePrint?.state.rawValue
+        self.visionFeaturePrintError = visionFeaturePrint?.error
+        self.visionFeaturePrintCheckedAt = visionFeaturePrint?.checkedAt
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -406,6 +422,8 @@ public struct HostMetricsSample: Encodable {
         case visionCalls, visionFailures, visionTotalMs, ocrCompiling
         case fmTextState, fmVisionState, fmVisionSupported, fmDeadReason, fmCheckedAt
         case videoEncoderState, videoEncoderError, videoEncoderCheckedAt
+        case visionOCRState, visionOCRError, visionOCRCheckedAt
+        case visionFeaturePrintState, visionFeaturePrintError, visionFeaturePrintCheckedAt
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -433,6 +451,12 @@ public struct HostMetricsSample: Encodable {
         try container.encode(videoEncoderState, forKey: .videoEncoderState)
         try container.encode(videoEncoderError, forKey: .videoEncoderError)
         try container.encode(videoEncoderCheckedAt, forKey: .videoEncoderCheckedAt)
+        try container.encode(visionOCRState, forKey: .visionOCRState)
+        try container.encode(visionOCRError, forKey: .visionOCRError)
+        try container.encode(visionOCRCheckedAt, forKey: .visionOCRCheckedAt)
+        try container.encode(visionFeaturePrintState, forKey: .visionFeaturePrintState)
+        try container.encode(visionFeaturePrintError, forKey: .visionFeaturePrintError)
+        try container.encode(visionFeaturePrintCheckedAt, forKey: .visionFeaturePrintCheckedAt)
     }
 
     /// JSONEncoder([.sortedKeys, .withoutEscapingSlashes]) で1行の NDJSON にする
