@@ -329,6 +329,10 @@ extension StepExecutor {
         return signed * (magnitude + pad)
     }
 
+    /// 見切れの寄せを広げるときの最小の量(pt/px)。`dragGesture` は量の 0.9 倍が `minimumDragDistance`(50)を
+    /// 超えないと撃たない = 56 未満の寄せは撃たれずに払いへ落ちる。60 はそれを越える最小の切りのよい値
+    static let clipRecoveryMinimumJump = 60.0
+
     static func recoveryDirection(for element: ElementInfo, container: FTRect,
                                   searching finger: FTSwipeDirection) -> FTSwipeDirection {
         let frame = element.frame

@@ -995,6 +995,15 @@ public enum TapTargetGeometry {
         return start ? .right : .left
     }
 
+    /// 探索軸で中心が容器の中にあり、片方の縁だけで見切れているか(`clippedEdgeRecoveryDirection` が向きを返す形)
+    public static func isClippedAtOneEdgeWithCentreInside(_ frame: FTRect, container: FTRect, vertical: Bool) -> Bool {
+        let centre = vertical ? frame.centerY : frame.centerX
+        let lo = vertical ? container.y : container.x
+        let hi = lo + (vertical ? container.height : container.width)
+        guard centre >= lo, centre <= hi else { return false }
+        return clippedEdgeRecoveryDirection(for: frame, container: container, vertical: vertical) != nil
+    }
+
     /// 画面の主たる縦のスクロール容器 = `scrollable` を申告する要素のうち画面の
     /// `primaryContainerMinimumAreaRatio` 以上を占める最大のもの(対象を含む容器が無い形の送り先)
     public static func primaryScrollContainer(in elements: [ElementInfo], screen: FTRect) -> ElementInfo? {

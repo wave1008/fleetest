@@ -1177,9 +1177,15 @@ extension StepExecutor {
                     // (置き換えると SwiftUI で +28% の実退行。92s/72s の A/B で確定)。
                     // ジャンプ量 40pt 未満は嘘 frame(クランプ)の兆候なので通常のスワイプへ
                     // 1ページの払いよりは、小さな量を広げて寄せるほうが近い(dragGesture は 50 以下を撃たない)
+                    // **中心が中・片方の縁だけで少しはみ出した回も広げる**: 払いへ落とすと約1ページ動いて反対の縁へ
+                    // 飛び越し、次の回も少しはみ出して払いへ落ちる往復で maxSwipes を使い切った(E2EY-iOS の高さの揃わない
+                    // グリッドの XCUITest: はみ出し 5pt / 3pt → 寄せ 29 / 27 → 払い。8/8 赤)
+                    let widened = pagesPerSwipe
+                        || TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
+                            element.frame, container: viewport, vertical: back == .up || back == .down)
                     if path == nil || pagesPerSwipe,
                        let raw = Self.clipRecoveryJump(for: element, viewport: viewport, finger: back),
-                       case let jump = pagesPerSwipe ? (raw < 0 ? -1 : 1) * max(abs(raw), 60) : raw,
+                       case let jump = widened ? (raw < 0 ? -1 : 1) * max(abs(raw), Self.clipRecoveryMinimumJump) : raw,
                        abs(jump) >= 40,
                        // **キーボードを避けて掴む**: slowDrag は渡した container をそのまま
                        // 自分の viewport にも使う(始点・終点の両方に効く)ので、ここで

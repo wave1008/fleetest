@@ -255,6 +255,42 @@ extension StepExecutorTests {
                       "救済後の空打ちも全幅の行では撃たないこと: \(primary.dragCalls)")
     }
 
+    /// 中心が中・片方の縁だけで少しはみ出した対象(寄せ = はみ出し 5 + 24 = 29 < 40)は、払いへ落とさず
+    /// 最小量の遅いドラッグで寄せる(払いは約1ページ動いて反対の縁へ飛び越し、その往復で maxSwipes を使い切った)
+    func testSmallOneEdgeClipIsPulledBackBySlowDragNotASwipe() async throws {
+        let log = CallLog()
+        let container = framed(ref: 100, id: "grid", x: 0, y: 144, width: 400, height: 656, depth: 1)
+        let clipped = framed(ref: 1, id: "stag_47", x: 200, y: 605, width: 190, height: 200, depth: 2)
+        let inside = framed(ref: 1, id: "stag_47", x: 200, y: 575, width: 190, height: 200, depth: 2)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [
+            [container, clipped],
+            [container, clipped],
+            [container, inside],
+        ])
+        let executor = StepExecutor(driver: primary, releasesScrollTouch: true, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "stag_47"),
+                                            direction: "up", maxSwipes: 4))
+
+        let pulls = primary.dragCalls.filter { $0.fromX == $0.toX && $0.fromY > $0.toY }
+        XCTAssertTrue(pulls.contains { abs(($0.fromY - $0.toY) - StepExecutor.clipRecoveryMinimumJump * 0.9) < 0.5 },
+                      "最小量(60 × 0.9)の指を上へのドラッグで寄せること: drags=\(primary.dragCalls) log=\(log.entries)")
+        XCTAssertFalse(log.entries.contains("primary.swipe"), "払いへ落とさないこと: \(log.entries)")
+    }
+
+    /// 寄せを広げる最小量は、`dragGesture` が撃つ距離(量 × 0.9)の床を越えていること(下回ると撃たれずに払いへ落ちる)
+    func testClipRecoveryMinimumJumpClearsTheDragFloor() {
+        XCTAssertGreaterThan(StepExecutor.clipRecoveryMinimumJump * 0.9, StepExecutor.minimumDragDistance)
+        XCTAssertTrue(TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
+            FTRect(x: 0, y: 605, width: 100, height: 200), container: FTRect(x: 0, y: 144, width: 400, height: 656),
+            vertical: true))
+        XCTAssertFalse(TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
+            FTRect(x: 0, y: 760, width: 100, height: 200), container: FTRect(x: 0, y: 144, width: 400, height: 656),
+            vertical: true), "中心が外(下端 800 より下)なら広げない = 従来どおり")
+        XCTAssertFalse(TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
+            FTRect(x: 0, y: 200, width: 100, height: 200), container: FTRect(x: 0, y: 144, width: 400, height: 656),
+            vertical: true), "見切れていなければ false")
+    }
+
     /// 要素数の上限で打ち切られたスナップショットは「見つかりません」と区別が付かない。
     /// 失敗文言に必ず打ち切りを添える(WebView 画面は要素が多く最も当たりやすい)
     func testTruncationHint() {
