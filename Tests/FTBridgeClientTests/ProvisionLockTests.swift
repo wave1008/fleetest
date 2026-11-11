@@ -39,4 +39,28 @@ final class ProvisionLockTests: XCTestCase {
             acquiredTime.timeIntervalSince(releaseTime), -0.05,
             "lock2 は lock1 の解放後に取得されるべき(flock で直列化)")
     }
+
+    /// 別の持ち主がいるときだけ、待ち始める前に onWait を1回呼ぶ(黙って数分待つと止まったように見えた)。空いていれば呼ばない
+    func testOnWaitFiresOnlyWhenAnotherHolderHasTheLock() async throws {
+        let holder = try ProvisionLock(stateDir: stateDir)
+        let waiter = try ProvisionLock(stateDir: stateDir)
+        let calls = LockedCounter()
+        await holder.acquire(onWait: { calls.increment() })
+        XCTAssertEqual(calls.value, 0, "空いているロックで onWait を呼んだ")
+        let second = Task { await waiter.acquire(onWait: { calls.increment() }) }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(calls.value, 1, "持ち主がいるのに待ちを知らせなかった")
+        holder.release()
+        await second.value
+        waiter.release()
+        XCTAssertEqual(calls.value, 1)
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    // 不変条件: count は lock の内側でだけ読み書きする
+    private let lock = NSLock()
+    private var count = 0
+    func increment() { lock.lock(); count += 1; lock.unlock() }
+    var value: Int { lock.lock(); defer { lock.unlock() }; return count }
 }

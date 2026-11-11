@@ -143,15 +143,24 @@ public final class ProvisionLock: Sendable {
     }
 
     /// LOCK_EX を取得。取得待ちのブロッキングは別スレッドで行い、async executor を塞がない。
-    public func acquire() async {
+    /// `onWait`: すぐ取れなかった(別のプロセスが持っている)ときだけ、待ち始める前に1回呼ぶ。待ちは数分に及ぶことがあり
+    /// (別の run が8台の供給の間持つ)、黙って待つと止まったように見えた(`bridge up` が約 4 分半無言)
+    public func acquire(onWait: (@Sendable () -> Void)? = nil) async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             let fd = self.fd
             DispatchQueue.global().async {
-                _ = flock(fd, LOCK_EX)
+                if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+                    onWait?()
+                    _ = flock(fd, LOCK_EX)
+                }
                 cont.resume()
             }
         }
     }
+
+    /// `onWait` に渡す共通の文(供給の2経路が同じ文を出す)
+    public static let waitNotice = "waiting for another fleetest process on this Mac that is starting bridges"
+        + " (.fleetest/provision.lock) — it continues as soon as that process has taken its ports"
 
     /// **冪等**。早期解放(ポート確保が済んだ時点)と関数末尾の defer の両方から呼ばれるので、
     /// 2 回目を素通しにしないと close(fd) が無関係な fd を閉じる(fd は再利用される)
@@ -529,7 +538,7 @@ public struct BridgeProvisioner: Sendable {
         // クロスプロセス排他: scan→採番→起動(pid ファイル書き込み)を跨いで直列化する。
         // 他 fleetest プロセスと同じ空きポートを取り合う bindFailed(48) を防ぐ(ProvisionLock 参照)。
         let provisionLock = try ProvisionLock(stateDir: repoRoot.appendingPathComponent(".fleetest"))
-        await provisionLock.acquire()
+        await provisionLock.acquire(onWait: { safeLog("→ " + ProvisionLock.waitNotice) })
         defer { provisionLock.release() }
 
         // TTL 自主終了などで残った死んだランナーの pid ファイル、および対応する実体が消えた
@@ -1439,7 +1448,7 @@ public struct BridgeProvisioner: Sendable {
         } catch {
             return (.restartFailed(error.localizedDescription), probe)
         }
-        await provisionLock.acquire()
+        await provisionLock.acquire(onWait: { log("→ " + ProvisionLock.waitNotice) })
         defer { provisionLock.release() }
         let claimBarrier = PortClaimBarrier(expected: 1)
         let earlyRelease = Task {
