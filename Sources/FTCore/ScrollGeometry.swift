@@ -364,8 +364,21 @@ public enum ScrollGeometry {
 
         func clampX(_ x: Double) -> Double { min(max(x, area.x), area.x + area.width) }
         func clampY(_ y: Double) -> Double { min(max(y, area.y), area.y + area.height) }
-        let path = FTSwipePath(fromX: clampX(raw.fromX), fromY: clampY(raw.fromY),
-                               toX: clampX(raw.toX), toY: clampY(raw.toY))
+        // **始点が交差の外に出たら、縁ちょうどへ寄せず、同じ比率を交差に当てた点に置く**。縁の1点は一覧に当たらず
+        // 1px も動かない(Android の View の一覧で、上端 y=621 からのドラッグは 0/2・y=622 からは 3/3 で動いた)。
+        // 生の式が容器の中を指すとき(容器が画面の原点側にある)は Shirates の式のまま
+        // (下→上・右→左は、画面の下・右に寄った短い容器で反対側の外へ出る = 縁へ寄せると動かす幅が無くなり全画面の払いへ落ちる)
+        var fromX = clampX(raw.fromX), fromY = clampY(raw.fromY)
+        let outsideY = raw.fromY < area.y || raw.fromY > area.y + area.height
+        let outsideX = raw.fromX < area.x || raw.fromX > area.x + area.width
+        switch kind {
+        case .topToBottom where outsideY: fromY = area.y + area.height * ratio
+        case .bottomToTop where outsideY: fromY = area.y + area.height * (1 - ratio)
+        case .leftToRight where outsideX: fromX = area.x + area.width * ratio
+        case .rightToLeft where outsideX: fromX = area.x + area.width * (1 - ratio)
+        default: break
+        }
+        let path = FTSwipePath(fromX: fromX, fromY: fromY, toX: clampX(raw.toX), toY: clampY(raw.toY))
         return path.distance >= minUsableDistance ? path : nil
     }
 }

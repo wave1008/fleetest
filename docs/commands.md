@@ -432,7 +432,7 @@ withScrollDown {
 |---|---|
 | `flickCenterToTop/Bottom/Left/Right(scrollFrame:durationSeconds: 0.25 maxGestureSeconds: repeat: 1 intervalSeconds: 0.3 settle:)` | 画面(または `scrollFrame`)の中央を起点に4方向へ払う。`durationSeconds` の上限は既定 10 秒・`maxGestureSeconds:` で最大 60 秒まで上書き |
 | `flickLeftToRight/RightToLeft(scrollFrame:startMarginRatio:durationSeconds: 0.25 maxGestureSeconds: repeat: 1 intervalSeconds: 0.3 settle:)` | 端から端へ横方向。`startMarginRatio` 省略時は `scrollRight` 等と同じ既定(実測値 0.2)。`durationSeconds` の上限は既定 10 秒・`maxGestureSeconds:` で最大 60 秒まで上書き |
-| `flickBottomToTop/TopToBottom(scrollFrame:startMarginRatio:durationSeconds: 0.25 maxGestureSeconds: repeat: 1 intervalSeconds: 0.3 settle:)` | 端から端へ縦方向。`durationSeconds` の上限は既定 10 秒・`maxGestureSeconds:` で最大 60 秒まで上書き。**枠は静止した木から取る**(撃つ前に `settledSignature`。画面遷移の直後に1枚だけ撮った木の枠を撃つと、動いている最中か古い枠へ指を置いてリストが動かなかった = Android の CMP / Flutter / RN で間欠。待っている間に動いた回は注記 `settled-before-gesture`。swipe・scrollDown 等も同じ) |
+| `flickBottomToTop/TopToBottom(scrollFrame:startMarginRatio:durationSeconds: 0.25 maxGestureSeconds: repeat: 1 intervalSeconds: 0.3 settle:)` | 端から端へ縦方向。始点は画面(または `scrollFrame`)の下端・右端の座標に `startMarginRatio` を掛けた点(左→右・右→左も同じ)で、**その点が `scrollFrame` の外に出るとき(画面の途中から始まる一覧)は、同じ比率を `scrollFrame` に当てた点から払う**(縁ちょうどに指を置くと一覧に当たらず1px も動かないまま ✅ だった)。`durationSeconds` の上限は既定 10 秒・`maxGestureSeconds:` で最大 60 秒まで上書き。**枠は静止した木から取る**(撃つ前に `settledSignature`。画面遷移の直後に1枚だけ撮った木の枠を撃つと、動いている最中か古い枠へ指を置いてリストが動かなかった = Android の CMP / Flutter / RN で間欠。待っている間に動いた回は注記 `settled-before-gesture`。swipe・scrollDown 等も同じ) |
 
 - `scrollableElement` 引数は無い(`scrollFrame` のセレクタ式で足りる)
 

@@ -221,16 +221,36 @@ final class ScrollGeometryTests: XCTestCase {
         XCTAssertEqual(topToBottom?.toY ?? 0, 874, accuracy: 0.001)
     }
 
-    /// **safeMode 相当のクランプ**: 容器が左オフセットを持つと生の式(右端×ratio)は容器の外を指しうる。
-    /// クランプ後は `container ∩ viewport` の内側に収まること
-    func testFlickLeftToRightClampsRawFormulaIntoContainerIntersection() {
-        // 画面右半分(x=200..402)を対象。生の式は fromX = 402*0.2 = 80.4(容器の外)になるが、
-        // クランプ後は容器の左端(200)に寄る
+    /// 容器が左オフセットを持つと生の式(右端×ratio)は容器の外を指しうる。**始点は縁ちょうどへ寄せず、
+    /// 同じ比率を容器に当てた点に置く**(縁の1点は一覧に当たらず動かない)。終点はクランプのまま
+    func testFlickLeftToRightPutsAnOutsideStartInsideTheContainer() {
+        // 画面右半分(x=200..402)を対象。生の式は fromX = 402*0.2 = 80.4(容器の外)
         let rightHalf = FTRect(x: 200, y: 0, width: 202, height: 874)
         let path = ScrollGeometry.flickPath(container: rightHalf, viewport: screen,
                                             kind: .leftToRight, startMarginRatio: 0.2)
-        XCTAssertEqual(path?.fromX ?? -1, 200, accuracy: 0.001)
+        XCTAssertEqual(path?.fromX ?? -1, 200 + 202 * 0.2, accuracy: 0.001)
         XCTAssertEqual(path?.toX ?? -1, 402, accuracy: 0.001)
+    }
+
+    /// 画面の途中から始まる縦の一覧(Android の E2E のスクロール画面の実寸 px)。topToBottom の生の式は
+    /// fromY = 2355*0.2 = 471(容器の上端 621 の外)。縁ちょうど(621)だと一覧が動かなかったので、
+    /// 容器に比率を当てた 621 + 1734*0.2 に置く。容器の外へ出ない bottomToTop は Shirates の式のまま
+    func testFlickTopToBottomPutsAnOutsideStartInsideAMidScreenList() {
+        let viewport = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let list = FTRect(x: 48, y: 621, width: 1184, height: 1734)
+        let down = ScrollGeometry.flickPath(container: list, viewport: viewport,
+                                            kind: .topToBottom, startMarginRatio: 0.2)
+        XCTAssertEqual(down?.fromY ?? -1, 621 + 1734 * 0.2, accuracy: 0.001)
+        XCTAssertEqual(down?.toY ?? -1, 2355, accuracy: 0.001)
+        let up = ScrollGeometry.flickPath(container: list, viewport: viewport,
+                                          kind: .bottomToTop, startMarginRatio: 0.2)
+        XCTAssertEqual(up?.fromY ?? -1, 2355 * 0.8, accuracy: 0.001)
+        // 画面の下に寄った短い一覧: bottomToTop の生の式 2600*0.8 = 2080 は容器(2400..2600)の上の外
+        let low = FTRect(x: 48, y: 2400, width: 1184, height: 200)
+        let lowUp = ScrollGeometry.flickPath(container: low, viewport: viewport,
+                                             kind: .bottomToTop, startMarginRatio: 0.2)
+        XCTAssertEqual(lowUp?.fromY ?? -1, 2400 + 200 * 0.8, accuracy: 0.001)
+        XCTAssertEqual(lowUp?.toY ?? -1, 2400, accuracy: 0.001)
     }
 
     /// 交差なし(容器が画面外)は nil

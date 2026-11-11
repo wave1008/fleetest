@@ -90,4 +90,30 @@ class フリックが正しく動くこと {
             }
         }
     }
+
+    // **下端から逆向きに撃つ形**。S0010 は flickTopToBottom を上端でしか撃たない(動かないのが正しい = 指が一覧に
+    // 当たっていなくても緑)。画面の途中から始まる一覧で生の式の始点が一覧の外へ出ると、縁ちょうどへ寄せた指が
+    // 一覧に当たらず1px も動かないまま ✅ だった(手元の 6 台で 60/60)
+    @Test("下端から flickTopToBottom で一覧が上へ戻る")
+    func S0020() {
+        scenario {
+            scene(1, "一覧を下端へ送る") {
+                condition {
+                    launchApp()
+                }.action {
+                    tap("#nav_scroll")
+                    scrollToBottom(scrollFrame: "#list_rows")
+                }.expectation {
+                    select("#txt_scroll_top").textIs("top=row_30")
+                }
+            }
+            scene(2, "下端から flickTopToBottom を撃つと先頭の行が戻る") {
+                action {
+                    flickTopToBottom(scrollFrame: "#list_rows")
+                }.expectation {
+                    select("#txt_scroll_top").textIsNot("top=row_30")
+                }
+            }
+        }
+    }
 }
