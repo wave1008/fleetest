@@ -353,6 +353,21 @@ extension BridgeRouter {
             Thread.sleep(forTimeInterval: FocusWait.pollSeconds)
             mark = focusMark(app)
         }
+        if mark == nil {
+            // **上限内に立たなかった回だけ**、打鍵の前に XCTest が払う「アプリが落ち着くまで」の待ちを1回挟んで見直す(上限は
+            // QuiescenceWait.quiescenceCapSeconds)。同じ機械で 8 台の Flutter が同時に描くと、タップの後の焦点が 1.8〜4.6 秒後に
+            // 立った(32 本中 16 回が上限を越え、立たなかった回は 0)。焦点が立たない形(容器を叩いた)はこの分だけ断りが遅れる
+            let waitStart = Date()
+            QuiescenceWait.waitPreEvent(app)
+            let retryDeadline = Date().addingTimeInterval(FocusWait.waitSeconds)
+            mark = focusMark(app)
+            while mark == nil, Date() < retryDeadline {
+                Thread.sleep(forTimeInterval: FocusWait.pollSeconds)
+                mark = focusMark(app)
+            }
+            NSLog("[fleetest] keyboard focus missed %.1fs; after the settle wait: %@ (%.2fs)", FocusWait.waitSeconds,
+                  mark == nil ? "none" : "found", Date().timeIntervalSince(waitStart))
+        }
         guard let focused = mark else {
             throw BridgeError(422, "nothing has keyboard focus, so there is nothing to type into."
                 + " If you passed a ref, it is probably not the input element itself — tapping a"

@@ -195,7 +195,15 @@ enum QuiescenceWait {
     /// 実費(Simulator): 静かな画面 2〜5ms・ポップオーバーの直後 147ms・アニメーション中 815ms・Apple マップ 2〜844ms。
     /// 上限は `quiescenceCapSeconds`。`skip`(`settle: false`)なら待たない。非公開の口が無ければ何もしない
     static func waitBeforeTouch(_ app: XCUIApplication, skip: Bool) {
-        guard available, !skip else { return }
+        guard !skip else { return }
+        waitPreEvent(app)
+    }
+
+    /// XCTest の操作の前の待ちを1回だけ明示的に呼ぶ(上限は `quiescenceCapSeconds`)。**`capping` の内側では入れ子にしない** ——
+    /// `capping` の defer は capArmed / skippingPostEvent を無条件に下ろすので、/type の中で入れ子にすると外側の上限が外れ、
+    /// 続く打鍵の待ちが既定の 60s に戻る
+    static func waitPreEvent(_ app: XCUIApplication) {
+        guard available else { return }
         let sel = NSSelectorFromString("waitForQuiescenceIncludingAnimationsIdle:isPreEvent:")
         let appObject = app as NSObject
         // value(forKey:) は無い鍵で例外を投げてランナーを落とすので、各段で responds を先に見る
@@ -207,7 +215,7 @@ enum QuiescenceWait {
         typealias Fn = @convention(c) (AnyObject, Selector, Bool, Bool) -> Void
         let wait = unsafeBitCast(process.method(for: sel), to: Fn.self)
         // swizzle 済みの実装を通る = 上限は capping の間だけ縮む
-        capping(skipPostEvent: false) { wait(process, sel, true, true) }
+        if capArmed { wait(process, sel, true, true) } else { capping(skipPostEvent: false) { wait(process, sel, true, true) } }
     }
 
     static func around<T>(skip: Bool, skipByDefault: Bool = false, _ body: () throws -> T) rethrows -> T {
