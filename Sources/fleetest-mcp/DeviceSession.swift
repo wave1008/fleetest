@@ -189,6 +189,9 @@ struct DeviceSession {
     /// **撃つ操作の記録(`recordInteraction` / ft_batch の1手目)が `takeRefRetarget` で消費して `InteractionLog.Entry.retargeted` へ渡す**。
     /// `verifiedRef` の冒頭で必ず消す(撃たずに終わった付け替えが次の記録へ付かない)。消費は ref の番号が一致するときだけ
     var refRetarget: (ref: Int, note: String)?
+    /// `selector` で指した単発操作が解決に使った木(`withSelectorTarget` が預け、直後の `verifiedRef` が1回だけ取る)。
+    /// 間に操作が無いので読み直しと同じ = 撃つ前に2枚目を払わない。取らずに終わった預けは次の `verifiedRef` の冒頭で捨てる
+    var selectorJustRead: SnapshotResponse?
     /// 版ズレの内容。ft_status が「失敗するが理由を返す」ために覚えておく
     var versionSkew: String?
 }

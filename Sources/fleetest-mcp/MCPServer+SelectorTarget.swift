@@ -22,15 +22,9 @@ extension MCPServer {
         }
         // 序数 `[n]` と相対セレクタは「複数のうちの1つ」を自分で選んだ書き方なので数えない
         let used = resolved.usedFallback ?? parsed.primary
-        // 撃った要素と入れ子(包む・包まれる)の一致は同じ部品(ボタンとその中の文字が同じラベルを持つ形)なので数えない
-        let acted = resolved.element.frame
-        guard used.index == nil, used.relative?.isEmpty ?? true,
-              let count = LocatorResolver.candidates(used, elements: snapshot.elements)?
-                .filter({ !TapTargetGeometry.contains(acted, $0.frame) && !TapTargetGeometry.contains($0.frame, acted) })
-                .count, count >= 1 else {
-            return (resolved.element, "")
-        }
-        let total = count + 1
+        guard used.index == nil, used.relative?.isEmpty ?? true else { return (resolved.element, "") }
+        let total = separateMatchCount(used, acted: resolved.element, in: snapshot)
+        guard total > 1 else { return (resolved.element, "") }
         return (resolved.element, "note: selector \(text) matched \(total) separate elements; acted on [\(resolved.element.ref)]"
             + " — the same one a scenario line would pick. To name one, write its #id, a longer label, or a"
             + " scoped/indexed form (ft_snapshot's \"write one of these instead\" notes list writable ones).\n")
@@ -52,6 +46,8 @@ extension MCPServer {
         }
         var resolved = args
         resolved["ref"] = target.element.ref
+        sessions[Self.sessionKey(args), default: DeviceSession()].selectorJustRead = snapshot
+        defer { sessions[Self.sessionKey(args), default: DeviceSession()].selectorJustRead = nil }
         var out = try await run(resolved)
         guard !target.note.isEmpty, !out.isEmpty, let first = out[0]["text"] as? String else { return out }
         out[0]["text"] = target.note + first
@@ -69,5 +65,14 @@ extension MCPServer {
         }
         guard let system = await frontSystemAlert(driver: driver) else { return "" }
         return " \(system) — handle it first (ft_tap alertButton:)."
+    }
+
+    /// ロケータに当たる**別々の**要素の数(撃った要素を含む)。撃った要素と入れ子(包む・包まれる)の一致は同じ部品
+    /// (ボタンとその中の文字が同じラベルを持つ形)なので数えない。複数一致の注記と下書きの耐久性が共有する
+    static func separateMatchCount(_ locator: FlowLocator, acted: ElementInfo, in snapshot: SnapshotResponse) -> Int {
+        let frame = acted.frame
+        let others = (LocatorResolver.candidates(locator, elements: snapshot.elements) ?? [])
+            .filter { !TapTargetGeometry.contains(frame, $0.frame) && !TapTargetGeometry.contains($0.frame, frame) }
+        return others.count + 1
     }
 }

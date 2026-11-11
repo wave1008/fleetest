@@ -91,6 +91,21 @@ final class RelativeAlternativeHintTests: XCTestCase {
         XCTAssertNil(naming.relativeAlternative(for: last, in: snap), "行の外の #EndButton を基準にした")
     }
 
+    /// ラベルも id も無い要素は「自分の行」を見分けられない = 自分の中だけを基準の範囲にする(根まで上って遠くの部品を基準にしない)
+    func testUnidentifiedElementDoesNotClimbToTheRoot() throws {
+        // 画面全体の根(depth 0)の下にリストと画面の端のボタン。根まで上ると #EndButton が基準に入る
+        var out = [el(99, "other", depth: 0, x: 0, y: 0, w: 1080, h: 2000),
+                   el(1, "other", id: "list", depth: 1, x: 0, y: 0, w: 1080, h: 1000)]
+        for i in 0..<4 {
+            out.append(el(2 + i, "button", depth: 2, x: 900, y: 20 + Double(i) * 60, w: 60, h: 40))
+        }
+        out.append(el(100, "button", id: "EndButton", depth: 1, x: 900, y: 1200, w: 60, h: 40))
+        let snap = snapshot(out)
+        let naming = SelectorNaming(snap)
+        let last = try XCTUnwrap(snap.elements.first { $0.ref == 5 })
+        XCTAssertNil(naming.relativeAlternative(for: last, in: snap), "素性の無い要素で遠くの #EndButton を基準にした")
+    }
+
     /// 最良の形が既に stable の要素は、相対形を計算も表示もしない(注記は従来どおり)
     func testStableFormsAreUntouched() throws {
         let snap = snapshot([

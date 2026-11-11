@@ -761,9 +761,7 @@ extension MCPServer {
                     : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
                                             explain: explainMiss,
                                             // ft_launch は waitForChange を持たない = 持つツールでだけ案内する
-                                            canWaitForChange: Self.toolDeclares("waitForChange", tool: Self.currentTool),
-                                            notationStop: waited.quietStopAfter != nil
-                                                && Self.isNotationOnlyNearMiss(waitFor, in: snapshot))
+                                            canWaitForChange: Self.toolDeclares("waitForChange", tool: Self.currentTool))
                         + Self.appearedPromptNote(before: beforeAction, now: snapshot)
                         + " — this is the screen as it is now\(Self.truncationHint(snapshot))"
                         + (waited.partialSeenAfter.map { seenAfter in
@@ -1336,8 +1334,11 @@ extension MCPServer {
                              args: [String: Any], operation: String) async throws -> (ref: Int, note: String) {
         sessions[Self.sessionKey(args), default: DeviceSession()].refRetarget = nil
         var sessionRef = resolveSessionRef(ref, args: args)
-        // 撮ってから引いた木。下の「撃つ直前の読み直し」はこれを使う(間に操作が無いので読み直しと同じ = 2枚払わない)
-        var justRead: SnapshotResponse?
+        // 撮ってから引いた木。下の「撃つ直前の読み直し」はこれを使う(間に操作が無いので読み直しと同じ = 2枚払わない)。
+        // selector で指した呼び出しは解決に使った木を預けている(DeviceSession.selectorJustRead)
+        var justRead: SnapshotResponse? = sessions[Self.sessionKey(args)]?.selectorJustRead
+            .flatMap { tree in tree.elements.contains(where: { $0.ref == ref }) ? tree : nil }
+        sessions[Self.sessionKey(args), default: DeviceSession()].selectorJustRead = nil
         if sessionRef == nil, nextRefBase == 0 {
             // **1つも撮っていない = 撮ってから引く**(verifiedElement と同じ)。素通しすると、launch で空になった
             // ブリッジの番号表に当たって HTTP の 404(「Run GET /snapshot first」)がそのまま出た

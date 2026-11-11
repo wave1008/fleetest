@@ -79,7 +79,7 @@ public enum BridgeTargetError: Error, Equatable {
 }
 
 /// 繋いだブリッジの版と、この実行ファイルが期待する版の食い違い。**事実だけ**(文言は呼び手)。
-public struct BridgeVersionSkew: Equatable {
+public struct BridgeVersionSkew: Equatable, Sendable {
     public let running: Int
     public let expected: Int
 

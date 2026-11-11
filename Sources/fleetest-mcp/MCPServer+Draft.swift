@@ -388,7 +388,10 @@ extension MCPServer {
                 selector = given
                 // 入口(withSelectorTarget)で検査済みの文字列。共有の門を通す(SelectorParseSourceScanTests)
                 if let locator = try? Self.parseSelectorArgument(given, argument: "selector").primary {
-                    durability = locator.relative?.isEmpty == false ? .relative : locator.index != nil ? .indexed : .stable
+                    // 別々の複数に当たった書き方は木の順に頼る(撃つときの注記と同じ数え方)= 位置依存
+                    durability = locator.relative?.isEmpty == false ? .relative
+                        : locator.index != nil || Self.separateMatchCount(locator, acted: element, in: snapshot) > 1
+                            ? .indexed : .stable
                 }
             }
             described = "\(action) ref \(resolvedRef) — \(RefGuard.describe(element))"

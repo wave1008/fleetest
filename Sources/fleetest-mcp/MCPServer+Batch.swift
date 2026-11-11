@@ -978,9 +978,7 @@ extension MCPServer {
                 ? Self.waitForAppearedNote(waitFor, in: final,
                                            collapsingBulk: treeArgs["expandBulk"] as? Bool != true)
                 : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
-                                        explain: explainMiss, canWaitForChange: false,
-                                        notationStop: waited.quietStopAfter != nil
-                                            && Self.isNotationOnlyNearMiss(waitFor, in: final))
+                                        explain: explainMiss, canWaitForChange: false)
                     // alert は batchAlertAppearedNote が先に言う(重ねない)
                     + (Self.batchAlertAppearedNote(beforeBatch: beforeBatch, final: final, beforeLastStep: treeBeforeLastTap).isEmpty
                        ? Self.appearedPromptNote(before: beforeBatch, now: final) : "")

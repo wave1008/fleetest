@@ -19,6 +19,7 @@ extension MCPServer {
         let previousPhase = SlowCallWatchdog.mark("resolving the device's bridge")
         defer { SlowCallWatchdog.restore(previousPhase) }
         let resolved = try await resolveDriver(args)
+        try gateVersionSkewEachCall(args: args)
         await prepareAndroidDeviceIfNeeded(resolved, args: args)
         return resolved
     }
@@ -385,16 +386,42 @@ extension MCPServer {
     /// (`versionSkew` / `skewOverrideWarning`)。許可の無い呼び出しは AndroidDriver が拒否の文を返す(逃げ道つき)
     func androidDriver(serial: String, key: String, args: [String: Any]) async throws -> AndroidDriver {
         let allowSkew = args["allowVersionSkew"] as? Bool == true
+        if allowSkew { AndroidDriver.forgetCachedFailure(serial: serial) }
         let driver = try AndroidDriver(serial: serial, acceptsNewerInstalledBridge: allowSkew,
                                        newerBridgeRefusalAddendum: Self.androidNewerBridgeAddendum)
-        guard allowSkew, let skew = driver.newerInstalledBridgeSkew() else {
+        // 版は許可の有無に依らず生成時に1回見る(既に動いている新しいブリッジは install の門を通らない = 黙って使われる)。
+        // adb の照会は協調プールの外で(mcp.md: 診断の外部コマンドでプールを塞がない)
+        let probe = UncheckedTransfer(driver)
+        guard let skew = await BlockingWork.offPool(name: "ft-android-skew-probe", {
+            probe.value.newerInstalledBridgeSkew()
+        }) else {
             versionSkew[key] = nil
             return driver
         }
         let text = Self.androidNewerBridgeSkew(skew)
+        guard allowSkew else {
+            throw MCPVersionGuardRefusal(message: text + " " + Self.androidNewerBridgeAddendum)
+        }
         versionSkew[key] = text
         pendingWarnings[key, default: []].append(Self.skewOverrideWarning(text))
         return driver
+    }
+
+    /// **版ズレは呼び出しごとに門を掛ける**(生成時の1回だけだと、一度 `allowVersionSkew: true` で作ったドライバが控えに残り、
+    /// 許可の無い後の呼び出しも黙って通り、警告も最初の1回だけだった)。許可が無ければ断って控えを捨て、あれば毎回警告する
+    func gateVersionSkewEachCall(args: [String: Any]) throws {
+        let key = Self.sessionKey(args)
+        guard let skew = versionSkew[key] else { return }
+        guard args["allowVersionSkew"] as? Bool == true else {
+            drivers[key] = nil
+            versionSkew[key] = nil
+            throw MCPVersionGuardRefusal(message: skew.contains("allowVersionSkew") ? skew
+                : skew + " Pass allowVersionSkew: true to proceed anyway.")
+        }
+        let warning = Self.skewOverrideWarning(skew)
+        if !(pendingWarnings[key]?.contains(warning) ?? false) {
+            pendingWarnings[key, default: []].append(warning)
+        }
     }
 
     /// 入っている Android ブリッジが新しいまま使うときの版ズレの文(拒否の文ではない = 警告の本文)
@@ -1834,16 +1861,6 @@ extension MCPServer {
     /// (`waitMissHeadline`)。これより長く何も変えずに読み込む画面は、届く前に切り上げる
     static let waitForQuietCutoffSeconds: Double = 3.0
 
-    /// 待った式の**唯一の近い外れが通貨の表記違い**(`*円*` を待ったのに画面は `¥715`)か。判定は `notationHint` と同じ
-    /// (`currencyNotationHint` だけが出ている = 他の部分一致・形違い・分割の助言は出ていない)。
-    /// **根拠**: 待った中身は別の表記で既に届いている。待っても表記は変わらないので、`waitForQuietCutoffSeconds` も上限も待たず
-    /// 外れで返す。**尽きたとき(= 本物の部分一致や別の助言があるとき)は false** で従来どおり待つ
-    static func isNotationOnlyNearMiss(_ selector: String, in snapshot: SnapshotResponse) -> Bool {
-        let label = (try? parseSelectorArgument(selector, argument: "waitFor"))?.primary.label ?? ""
-        let currency = currencyNotationHint(label, in: snapshot)
-        return !currency.isEmpty && notationHint(selector, in: snapshot) == currency
-    }
-
     /// 切り上げてよい待ちか。上限が切り上げの時間以下なら意味が無い(呼び手が短い上限を選んでいる)・部分一致が
     /// 見えた・読み込み中の印(中身の無い大きなスクロール領域 = `emptyLoadingScroller`)があるときは上限まで待つ
     static func quietCutoffApplies(cap: Double, partialSeen: Bool, latest: SnapshotResponse) -> Bool {
@@ -1888,8 +1905,6 @@ extension MCPServer {
             partialHint = hint
         }
         if matches(selector, in: first) { return (true, first, nil, "", false, nil) }
-        // 表記違いだけの外れは待たない(`isNotationOnlyNearMiss` の doc)。quietStopAfter は「早く止めた経過秒」として流用する
-        if isNotationOnlyNearMiss(selector, in: first) { return (false, first, nil, "", false, 0) }
         SlowCallWatchdog.mark("waiting for \(selector) (cap \(secondsText(seconds)))")
         notePartial(first, elapsed: 0)
         let start = Date()
@@ -1906,9 +1921,6 @@ extension MCPServer {
                 ? try await driver.snapshot(bypassingCache: true) : try await driver.snapshot()
             refetched = true
             if matches(selector, in: latest) { return (true, latest, nil, "", true, nil) }
-            if isNotationOnlyNearMiss(selector, in: latest) {
-                return (false, latest, nil, "", true, Date().timeIntervalSince(start))
-            }
             notePartial(latest, elapsed: Date().timeIntervalSince(start))
             if !looksUnchanged(previous, latest) { lastChange = Date() }
             // **上限の後の読みでは切り上げと言わない**(最後の読みが上限を跨ぐと「上限より前に止めた」と言いながら

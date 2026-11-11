@@ -388,12 +388,18 @@ extension MCPServer {
     /// `SimulatorCatalog.isPhysical`(simctl の一覧を先に見る = Simulator なら devicectl を撃たない。どちらも同期の外部コマンド
     /// → 協調プールの外)に訊き、答えが出たら udid ごとに控える(判らない = nil は控えない)
     func isPhysicalIOSDevice(key: String, args: [String: Any]) async -> Bool {
-        guard let udid = iosTargetUDID(key: key, args: args) else { return false }
+        await physicalIOSDeviceVerdict(key: key, args: args) ?? false
+    }
+
+    /// 実機か。**判定できなければ nil**(宛先の udid が無い・カタログが答えない)。消す操作のように
+    /// 「分からない」を Simulator と読むと実機へ撃つ経路は、`isPhysicalIOSDevice` ではなくこちらを使う
+    func physicalIOSDeviceVerdict(key: String, args: [String: Any]) async -> Bool? {
+        guard let udid = iosTargetUDID(key: key, args: args) else { return nil }
         if let repoRoot = try? RepoRoot.find(), BridgeDeviceRecord.isRecorded(udid: udid, repoRoot: repoRoot) { return true }
         if let known = Self.physicalIOSUDIDMemo.withLock({ $0[udid] }) { return known }
         guard let found = await Self.runOffCooperativePool(name: "fleetest-mcp-is-physical",
                                                            { SimulatorCatalog.isPhysical(udid: udid) })
-        else { return false }
+        else { return nil }
         Self.physicalIOSUDIDMemo.withLock { $0[udid] = found }
         return found
     }
@@ -551,7 +557,7 @@ extension MCPServer {
             if iosTargetUDID(key: preKey, args: args) != nil {
                 appleDecision = Self.appleSystemAppDecision(
                     bundleID: bundleID, isAndroid: false,
-                    isPhysical: await isPhysicalIOSDevice(key: preKey, args: args))
+                    isPhysical: await physicalIOSDeviceVerdict(key: preKey, args: args))
             }
         }
         if case .refuse(let refusal) = appleDecision { throw MCPError(refusal) }
@@ -654,7 +660,7 @@ extension MCPServer {
     private func clearAppleAppOnSimulator(bundleID: String, args: [String: Any]) async throws -> [[String: Any]] {
         let key = Self.sessionKey(args)
         let udid = iosTargetUDID(key: key, args: args)
-        let physical = udid == nil ? nil : await isPhysicalIOSDevice(key: key, args: args)
+        let physical = udid == nil ? nil : await physicalIOSDeviceVerdict(key: key, args: args)
         guard let udid, case .wipeOnSimulator = Self.appleSystemAppDecision(bundleID: bundleID, isAndroid: false, isPhysical: physical) else {
             throw MCPError((Self.appleSystemAppRefusal(bundleID) ?? "")
                 + " (could not confirm that the target is an iOS Simulator — pass udid: <the Simulator's UDID>.)")

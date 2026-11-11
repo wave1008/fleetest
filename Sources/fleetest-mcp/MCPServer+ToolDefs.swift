@@ -280,10 +280,10 @@ extension MCPServer {
         tool("ft_release_device", "Let go of a device you are done driving, so `fleetest bridge down` and other "
             + "stops stop treating this MCP session as holding it (without this they refuse until the session "
             + "ends, or --force). Drops this session's hold mark and its memory of the device (snapshots, refs, "
-            + "launched app, default target — a later call naming no target is then refused rather than "
-            + "re-grabbing it). Does NOT stop the bridge, the app or the device, and does not need the bridge to "
+            + "launched app, default target). Does NOT stop the bridge, the app or the device, and does not need the bridge to "
             + "be alive. Only this session's own hold is removed, never another session's. Any later device "
-            + "tool call on the device simply takes the hold again", [:]),
+            + "tool call that reaches the device — including one naming no target when it is the only one "
+            + "running — takes the hold again", [:]),
         tool("ft_install", "Install a package (iOS: .app / Android: .apk, or .apks via bundletool)", [
             "packagePath": ["type": "string", "description": "Absolute path"],
         ], required: ["packagePath"]),

@@ -89,7 +89,8 @@ extension MCPServer {
             + " ft_snapshot (swiping it again can collapse the sheet)."
     }
 
-    /// `scrollFrame`(rect か ロケータ)が分かり、一致の frame がその外にあるか。容器が分からなければ false
+    /// `scrollFrame`(rect か ロケータ)が分かり、一致がその外にあるか。容器が分からなければ false。
+    /// `FTRect.contains` は**中心**で見る(容器の端で数 pt はみ出した行は中 = 見つかった行を失敗にしない)
     static func matchIsOutsideScrollFrame(_ hit: ElementInfo, step: FlowStep,
                                           in snapshot: SnapshotResponse) -> Bool {
         guard let container = step.scrollFrameRect
@@ -156,14 +157,7 @@ extension MCPServer {
     /// `explain`: 逃げ道の説明(waitForChange・waitSeconds)を付けるか。**デバイスごとに初回だけ**(呼び手が
     /// `firstTime("waitMissExplained")` を渡す。同じ長文が1計測で3回出ていた)
     static func waitMissHeadline(_ waitFor: String, seconds: Double, quietStopAfter: Double?,
-                                 explain: Bool = true, canWaitForChange: Bool, notationStop: Bool = false) -> String {
-        // `notationStop`: 呼び手が `quietStopAfter != nil && isNotationOnlyNearMiss(waitFor, in: 返った木)` を渡す(既定の false のままだと
-        // 表記違いの早期終了を「3秒動かなかった」と誤って言う)
-        if notationStop, let stopped = quietStopAfter {
-            return "waitFor \"\(waitFor)\" did not appear — the screen already shows this content in a different"
-                + " notation (see the note below), which waiting cannot change, so the wait stopped after"
-                + " \(secondsText(stopped)) instead of running to the \(secondsText(seconds)) cap"
-        }
+                                 explain: Bool = true, canWaitForChange: Bool) -> String {
         guard let stopped = quietStopAfter else {
             return "waitFor \"\(waitFor)\" did not appear within \(secondsText(seconds))"
                 + (explain ? waitTimeoutRemedy : "")

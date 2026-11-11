@@ -96,6 +96,10 @@ final class SheetExpansionRevealTests: XCTestCase {
         XCTAssertFalse(MCPServer.matchIsOutsideScrollFrame(row, step: withFrame, in: snap))
         XCTAssertFalse(MCPServer.matchIsOutsideScrollFrame(header, step: step("*立川*"), in: snap),
                        "scrollFrame を渡されていなければ従来どおり成功")
+        // 容器の下端で数 pt はみ出した行は中(リストの行に届いている)
+        let edgeRow = element(92, "Row", "立川駅 6:02", "cell", 0, 850, 402, 44)
+        XCTAssertFalse(MCPServer.matchIsOutsideScrollFrame(edgeRow, step: withFrame, in: snapshot([header, edgeRow])),
+                       "端で一部がはみ出しただけの行を外と読まない")
     }
 
     /// ft_scroll_to の救済の分岐が、外の一致を .passed にしない(判定を外す変異で落ちる)
