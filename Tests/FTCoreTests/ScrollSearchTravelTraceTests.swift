@@ -7,7 +7,7 @@ import XCTest
 final class ScrollSearchTravelTraceTests: XCTestCase {
 
     /// 読むたびに一覧の行が 50 ずつ上へ動く(`shift` = 読みの番号)。`sameIDs` が false なら行は毎回別の id・容器は id 無し(共通要素が無い)
-    private func screens(sameIDs: Bool) -> [[ElementInfo]] {
+    private func screens(sameIDs: Bool, pinnedHeaders: Int = 0) -> [[ElementInfo]] {
         (0..<30).map { shift in
             var elements = [ElementInfo(ref: 1, type: "collectionView", identifier: sameIDs ? "list" : nil, label: nil, value: nil,
                                         placeholder: nil, enabled: true,
@@ -19,15 +19,21 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
                                             label: "行\(row)", value: nil, placeholder: nil, enabled: true,
                                             frame: FTRect(x: 0, y: y, width: 400, height: 40), depth: 1))
             }
+            // 動かない id 付きの見出し(場所シートのタブ等)。中身が動いても、これが多いと全要素の中央値は 0 になる
+            for header in 0..<pinnedHeaders {
+                elements.append(ElementInfo(ref: 100 + header, type: "button", identifier: "tab_\(header)", label: "タブ\(header)",
+                                            value: nil, placeholder: nil, enabled: true,
+                                            frame: FTRect(x: Double(header) * 20, y: 100, width: 20, height: 30), depth: 1))
+            }
             return elements
         }
     }
 
-    private func failureMessage(sameIDs: Bool) async -> String {
+    private func failureMessage(sameIDs: Bool, pinnedHeaders: Int = 0) async -> String {
         var step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "missing"), direction: "up", maxSwipes: 2)
         // 共通要素の無い形は容器にも id が無い(動かない容器の id が共通だと 0 と測る)ので、名指しせず画面の高さが基準
         if sameIDs { step.scrollFrame = FlowLocator(id: "list") }
-        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: screens(sameIDs: sameIDs))
+        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: screens(sameIDs: sameIDs, pinnedHeaders: pinnedHeaders))
         let outcome = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(),
                                          uiFramework: .androidView).execute(step)
         guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return "" }
@@ -43,5 +49,11 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
     func testARoundWithNothingInCommonSaysTheTravelIsUnknown() async {
         let message = await failureMessage(sameIDs: false)
         XCTAssertTrue(message.contains("(moved ? of 800 — no element in common with the previous read)"), message)
+    }
+
+    func testPinnedHeadersDoNotHideTheTravelOfTheRows() async {
+        let message = await failureMessage(sameIDs: true, pinnedHeaders: 20)
+        XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300\)"#, options: .regularExpression),
+                        message)
     }
 }

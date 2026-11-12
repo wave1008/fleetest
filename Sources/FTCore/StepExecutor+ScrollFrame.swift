@@ -112,8 +112,10 @@ extension StepExecutor {
         return tally.values.max { $0.count < $1.count }?.rect
     }
 
+    /// `ignoringUnmoved`: 動かなかった要素を中央値から外す(探索の記録用)。固定の見出し・タブなど id 付きで動かない要素が
+    /// 多い木では、中身が動いても中央値が 0 になる(Google マップの場所シートの口コミ一覧で実測)。刻みの自己補正は今の値のまま
     static func measuredTravel(before: SnapshotResponse, after: SnapshotResponse,
-                               vertical: Bool) -> Double? {
+                               vertical: Bool, ignoringUnmoved: Bool = false) -> Double? {
         var deltas: [Double] = []
         let index = Dictionary(before.elements.compactMap { element -> (Int, ElementInfo)? in
             guard let id = element.identifier, !id.isEmpty else { return nil }
@@ -126,7 +128,8 @@ extension StepExecutor {
                                    : previous.frame.x - element.frame.x)
         }
         guard !deltas.isEmpty else { return nil }
-        let sorted = deltas.map(abs).sorted()
+        let moved = deltas.map(abs).filter { $0 > 1 }
+        let sorted = (ignoringUnmoved && !moved.isEmpty ? moved : deltas.map(abs)).sorted()
         return sorted[sorted.count / 2]
     }
 

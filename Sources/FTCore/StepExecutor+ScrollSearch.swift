@@ -1139,7 +1139,9 @@ extension StepExecutor {
                     .flatMap { ScrollGeometry.intersection($0, snapshot.screen) } ?? snapshot.screen
                 let extent = vertical ? container.height : container.width
                 if let travel = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical) {
-                    travelTrace = " (moved \(Int(travel.rounded())) of \(Int(extent.rounded())))"
+                    let moved = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical,
+                                                    ignoringUnmoved: true) ?? travel
+                    travelTrace = " (moved \(Int(moved.rounded())) of \(Int(extent.rounded())))"
                     if travel > extent * Self.travelCeilingRatio {
                         spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
                     }
