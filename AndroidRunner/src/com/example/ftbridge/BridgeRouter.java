@@ -597,18 +597,26 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         AccessibilityNodeInfo.AccessibilityAction action = direction.equals("forward")
                 ? AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD
                 : AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD;
+        String before = SnapshotBuilder.numberPickerValue(picker);
         boolean performed = picker.performAction(action.getId());
-        if (performed) {
-            if (!skipSettle) awaitScrollSettled(picker);
-            settle();
-        }
         JSONObject o = new JSONObject();
         o.put("performed", performed);
-        // 読み直す前に refresh() し、false(取り直せていない)なら古い値を返さず「読めなかった」とする
-        if (picker.refresh()) {
-            String value = SnapshotBuilder.numberPickerValue(picker);
-            if (!value.isEmpty()) o.put("value", value);
+        // **値が送る前と変わるまで読み直す**(画面全体の settle() は待たない)。待ちたいのは表示の値の変化だけで、settle() を含めると
+        // 1段 約 0.55s(分の 34→00 に 19.9s)かかっていた。待たずに読むと送る前の値が返る(実測: 1段ずつ遅れて読めた)。
+        // 変わらないまま上限(SCROLL_SETTLE_CAP_MS)に着いたら、その値を返す = 一覧の端(ホストのループが「動かない」で止まる)
+        String value = null;
+        if (performed) {
+            long deadline = SystemClock.uptimeMillis() + SCROLL_SETTLE_CAP_MS;
+            while (SystemClock.uptimeMillis() < deadline) {
+                SystemClock.sleep(SCROLL_SETTLE_POLL_MS);
+                // 取り直せていない(false)回は中身が古いので読まない(.claude/rules/android.md)
+                if (!picker.refresh()) continue;
+                String now = SnapshotBuilder.numberPickerValue(picker);
+                if (!now.isEmpty() && !now.equals(before)) { value = now; break; }
+            }
         }
+        if (value == null && picker.refresh()) value = SnapshotBuilder.numberPickerValue(picker);
+        if (value != null && !value.isEmpty()) o.put("value", value);
         return BridgeHttpServer.Response.json(200, o.toString());
     }
 
