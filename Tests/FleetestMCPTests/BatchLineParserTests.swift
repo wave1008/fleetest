@@ -90,6 +90,23 @@ final class BatchLineParserTests: XCTestCase {
         }
     }
 
+    /// `type("…", pressEnter: true)`(ft_type の引数の書き方)は、pressEnter が別の行のコマンドだと言う(地図の計測で3回、同じ書き方で1手を失った)。
+    /// コマンド名でないラベルには言わない
+    func testALabelThatIsACommandPointsToItsOwnLine() throws {
+        let signature = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == "type" }?.signature)
+        let keys = try XCTUnwrap(MCPServer.batchStepBuilders["type"]?.keys)
+        func message(_ line: String) -> String {
+            do {
+                _ = try BatchStepResolver.resolve(command: "type", signature: signature,
+                                                  args: try BatchLineParser.parse(line).args, declaredKeys: keys, stepIndex: 0)
+                return ""
+            } catch { return error.localizedDescription }
+        }
+        XCTAssertTrue(message("type 'x' pressEnter: true").contains("write pressEnter() as the next line"),
+                      message("type 'x' pressEnter: true"))
+        XCTAssertFalse(message("type 'x' submit: true").contains("as the next line"), message("type 'x' submit: true"))
+    }
+
     /// scrollTo の `waitSeconds:` は ft_batch でも受け、FlowStep.timeout に載る(読み込み中の一覧で端と確定しない待ち)
     func testScrollToWaitSecondsReachesTheStep() throws {
         let signature = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == "scrollTo" }?.signature)

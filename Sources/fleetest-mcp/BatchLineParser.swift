@@ -430,8 +430,12 @@ enum BatchStepResolver {
                         + " ft_batch — supported here: \(declaredKeys.joined(separator: ", "))."
                         + " Write the full form in the scenario instead.")
                 }
+                // ラベルが ft_batch のコマンド名そのもの(`type("…", pressEnter: true)` = ft_type の引数の書き方)なら、次の行に書く形を言う
+                // (計測で3回、同じ書き方で1手を失った)
+                let ownLine = MCPServer.batchStepBuilders[label] == nil ? ""
+                    : " \(label) is a command of its own here — write \(label)() as the next line."
                 throw ResolveError(message: "\(command) has no \"\(label):\" parameter —"
-                    + " signature: \(signature). See ft_dsl_commands.")
+                    + ownLine + " signature: \(signature). See ft_dsl_commands.")
             }
             guard raw[dictKey] == nil else {
                 throw ResolveError(message: "\(command) got \"\(label):\" more than once.")
