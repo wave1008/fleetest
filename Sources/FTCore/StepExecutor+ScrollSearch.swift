@@ -31,13 +31,35 @@ public enum SheetGeometry {
     }
 
     /// 半開きシートのグラバー。**名前で特定できるときだけ**返す。下半分に居るものだけを対象にする
-    /// (既に上まで開いているグラバーを更に引いても広がらず、実装によっては閉じる)。MCP の展開の救済と
-    /// `isPlausibleSheet` が共有する
+    /// (既に上まで開いているグラバーを更に引いても広がらず、実装によっては閉じる)。`isPlausibleSheet` 専用 ——
+    /// 画面を動かす呼び手は `draggableSheetGrabber`
     public static func grabber(in snapshot: SnapshotResponse) -> ElementInfo? {
         snapshot.elements.first { element in
             let name = ((element.identifier ?? "") + " " + (element.label ?? "")).lowercased()
             guard name.contains("grabber") else { return false }
             return element.frame.centerY > snapshot.screen.height * 0.3
+        }
+    }
+
+    /// **ドラッグしてよい**グラバー: `grabber` に加えて、半開きシートの幾何(`looksLikeBottomSheet`)を満たす要素の**上端の縁**に
+    /// 載っていること(縁の幅はグラバー自身の高さ = シートの上端の y がグラバーの縦の範囲に入る・横はシートの内側)。
+    /// 名前だけで撃つと、行の並べ替えの取っ手・分割ビューのつまみなど自前で `grabber` と名付けた部品を画面の上まで引きずる
+    /// (取り消せない)。実アプリの半開きシート(コーパス ios-home / ios-place / ios-maps_station / ios-maps_transit_steps)は
+    /// どれもシートの容器の上端がグラバーの縦の範囲に入る。**名前だけの `grabber` は「シートらしさ」の判定(`isPlausibleSheet`)
+    /// 専用** —— 画面を動かす呼び手はこちらを使う
+    public static func draggableSheetGrabber(in snapshot: SnapshotResponse) -> ElementInfo? {
+        snapshot.elements.first { candidate in
+            let name = ((candidate.identifier ?? "") + " " + (candidate.label ?? "")).lowercased()
+            guard name.contains("grabber"),
+                  candidate.frame.centerY > snapshot.screen.height * 0.3 else { return false }
+            let g = candidate.frame
+            return snapshot.elements.contains { sheet in
+                let s = sheet.frame
+                return sheet.ref != candidate.ref
+                    && looksLikeBottomSheet(frame: s, screen: snapshot.screen)
+                    && g.y <= s.y && s.y <= g.y + g.height
+                    && s.x <= g.x && g.x + g.width <= s.x + s.width
+            }
         }
     }
 

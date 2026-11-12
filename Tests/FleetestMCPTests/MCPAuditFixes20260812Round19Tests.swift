@@ -240,6 +240,9 @@ final class MCPAuditFixes20260812Round19Tests: XCTestCase {
         let tree = snapshot([
             element(9, type: "button", id: "Card grabber", label: "カードコントローラ",
                     frame: FTRect(x: 152, y: 637, width: 96, height: 23)),
+            // 半開きシートの容器(上端がグラバーの縦の範囲に入る = SheetGeometry.draggableSheetGrabber)
+            element(10, type: "other", id: "sheet", label: nil,
+                    frame: FTRect(x: 8, y: 642, width: 386, height: 224)),
         ])
         let hint = MCPServer.sheetManualExpandHint(tree)
         XCTAssertTrue(hint.contains("ft_drag fromRef: 9"), hint)

@@ -13,11 +13,10 @@ extension MCPServer {
     /// 半開きシートのグラバー。**名前で特定できるときだけ**返す(当てずっぽうのドラッグは
     /// 地図やリストを勝手に動かすので、確信が無いなら何もしないほうが良い)。
     /// UIKit/SwiftUI のシートは `Card grabber` のような id/ラベルを出す(実測: Apple マップ)。
-    ///
-    /// 下半分に居るものだけを対象にする —— 既に上まで開いているグラバーを更に引いても
-    /// 広がらず、実装によっては閉じる
+    /// 名前に加えて半開きシートの上端の縁に載っていることを求める(`SheetGeometry.draggableSheetGrabber`。
+    /// 救済のドラッグと手で開く案内が共有 = 撃たない部品を「これを引け」と名指ししない)
     static func sheetGrabber(in snapshot: SnapshotResponse) -> ElementInfo? {
-        SheetGeometry.grabber(in: snapshot)
+        SheetGeometry.draggableSheetGrabber(in: snapshot)
     }
 
     /// 救済(半開きシートを広げての再試行)がレイアウトを変えた可能性を伝える。

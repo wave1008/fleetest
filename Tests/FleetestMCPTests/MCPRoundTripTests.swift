@@ -245,10 +245,45 @@ final class MCPRoundTripTests: XCTestCase {
                     frame: FTRect(x: 150, y: y, width: 100, height: 24), depth: 1)
     }
 
-    func testSheetGrabberIsFoundByName() {
-        let snap = snapshot([element(1, id: "Card grabber", y: 640),
-                             element(2, id: "list", y: 700)])
+    /// 半開きシートの容器(下端が画面の下端・上端が画面の上 1/4 より下)の上端の縁に載ったグラバー
+    private func sheet(_ ref: Int, y: Double) -> ElementInfo {
+        ElementInfo(ref: ref, type: "other", identifier: "sheet", label: nil, value: nil,
+                    placeholder: nil, enabled: true,
+                    frame: FTRect(x: 8, y: y, width: 386, height: 874 - y - 8), depth: 1)
+    }
+
+    func testSheetGrabberIsFoundOnTheSheetsTopEdge() {
+        let snap = snapshot([element(1, id: "Card grabber", y: 640), sheet(2, y: 645),
+                             element(3, id: "list", y: 700)])
         XCTAssertEqual(MCPServer.sheetGrabber(in: snap)?.ref, 1)
+    }
+
+    /// **名前だけでは撃たない**: 一覧の途中の行の並べ替えの取っ手(自前で grabber と名付けた部品)を
+    /// 画面の上まで引きずると並びが変わる(取り消せない)。シートの上端の縁に載っていなければ返さない
+    func testAGrabberNamedPartAwayFromASheetTopEdgeIsNotDragged() {
+        let rowHandle = snapshot([element(1, id: "row_3", label: "Reorder grabber", y: 600),
+                                  sheet(2, y: 400)])
+        XCTAssertNil(MCPServer.sheetGrabber(in: rowHandle))
+        XCTAssertEqual(MCPServer.sheetManualExpandHint(rowHandle), "", "撃たない部品を「これを引け」と名指しした")
+        let noSheet = snapshot([element(1, id: "Card grabber", y: 640), element(2, id: "list", y: 700)])
+        XCTAssertNil(MCPServer.sheetGrabber(in: noSheet))
+    }
+
+    /// 実アプリの半開きシート(Apple マップ)は今までどおり見つかる。上まで開いた画面は対象外のまま
+    func testRealHalfOpenSheetsStillYieldTheirGrabber() throws {
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/RealAppSnapshots")
+        func load(_ name: String) throws -> SnapshotResponse {
+            try JSONDecoder().decode(SnapshotResponse.self,
+                                     from: Data(contentsOf: dir.appendingPathComponent("\(name).json")))
+        }
+        for name in ["ios-home", "ios-place", "ios-maps_station", "ios-maps_transit_steps"] {
+            XCTAssertEqual(MCPServer.sheetGrabber(in: try load(name))?.identifier, "Card grabber", name)
+        }
+        for name in ["ios-maps_transit_steps_expanded", "ios-place_guides_scrolled"] {
+            XCTAssertNil(MCPServer.sheetGrabber(in: try load(name)), name)
+        }
     }
 
     /// **名前で特定できないなら何もしない**: 当てずっぽうのドラッグは地図やリストを勝手に動かす
@@ -259,7 +294,7 @@ final class MCPRoundTripTests: XCTestCase {
 
     /// 既に上まで開いているグラバーは対象外(更に引いても広がらず、閉じる実装がある)
     func testGrabberNearTheTopIsLeftAlone() {
-        let snap = snapshot([element(1, id: "Card grabber", y: 60)])
+        let snap = snapshot([element(1, id: "Card grabber", y: 60), sheet(2, y: 65)])
         XCTAssertNil(MCPServer.sheetGrabber(in: snap))
     }
 
