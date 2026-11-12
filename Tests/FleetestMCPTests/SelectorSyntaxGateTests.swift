@@ -53,6 +53,20 @@ final class SelectorSyntaxGateTests: XCTestCase {
         }
     }
 
+    /// 文字の途中の `*` は文字どおりなので、待っても当たらない。操作を撃つ前に断る(実測: 計測3周で毎回 10 秒待って外れた)
+    func testInnerStarWaitForIsRefusedBeforeTheTap() async {
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["x": 10, "y": 10, "snapshotAfter": true, "waitFor": "19:* – *"])
+            XCTFail("文字の途中に * のある waitFor が通った")
+        } catch {
+            let message = error.localizedDescription
+            XCTAssertTrue(message.contains("was refused before anything was sent"), message)
+        }
+        XCTAssertFalse(driver.calls.contains { $0.hasPrefix("tap") }, "断ったのにタップを撃った: \(driver.calls)")
+        XCTAssertNil(MCPServer.innerWildcardWaitForRefusal("*19:0*"))
+        XCTAssertNil(MCPServer.innerWildcardWaitForRefusal("=a*b"), "文字どおりと明示した書き方は断らない")
+    }
+
     func testBatchScrollToRejectsEmptyIdSelectorBeforeAnyStepRuns() async {
         do {
             _ = try await server.call(tool: "ft_batch", args: ["steps": "scrollTo '#'"])

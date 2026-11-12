@@ -877,6 +877,17 @@ extension MCPServer {
             + " (for example *a* or b*)."
     }
 
+    /// **文字の途中に `*` がある waitFor は撃つ前に断る**(外れた後の `innerWildcardHint` では遅い)。
+    /// 実測(Google マップの計測3周すべて): `19:* – *` / `*19:0*–*` が毎回 10 秒待ってから外れていた。
+    /// 画面に `*` を含む文字を待つ書き方(`=` で始める)は断らない
+    static func innerWildcardWaitForRefusal(_ waitFor: String) -> String? {
+        guard !innerWildcardHint(waitFor).isEmpty else { return nil }
+        return "waitFor \"\(waitFor)\" was refused before anything was sent: a * in the middle of the text is matched"
+            + " literally — only a leading or trailing * is a wildcard (*text, text*, *text*) — so it would wait out"
+            + " waitSeconds without matching. Wait for one fragment instead (for example *a* or b*), or start the"
+            + " selector with = to match a literal *."
+    }
+
     /// 金額の表記が待った語と違うときの一言(`*円*` で待ったのに画面は `¥715`、またはその逆)。
     /// 実測(地図の運賃調べ・計測4回で計7回): waitFor `*円*` が外れ、画面は `¥715 IC料金` / `￥1020` だった。
     /// 同じ金額の書き方の違いだけを言う(何の金額かは言わない = 画面の意味は読み手が決める)

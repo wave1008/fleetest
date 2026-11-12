@@ -606,7 +606,10 @@ extension MCPServer {
         try Self.checkDeclaredArgumentTypes(tool: tool, args: cleaned)
         if let refusal = Self.nulCharacterRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
         // **waitFor の構文は操作を撃つ前に断る**(操作の後の待ちで弾くと、撃ってから上限まで待った。`* *`・`=` が通った)
-        if let waitFor = cleaned["waitFor"] as? String { _ = try Self.parseSelectorArgument(waitFor, argument: "waitFor") }
+        if let waitFor = cleaned["waitFor"] as? String {
+            _ = try Self.parseSelectorArgument(waitFor, argument: "waitFor")
+            if let refusal = Self.innerWildcardWaitForRefusal(waitFor) { throw MCPError(refusal) }
+        }
         // **値域は入口で1回だけ全数見る**(`intArgument`/`doubleArgument` の門だけでは足りない)
         // —— 条件付きでしか読まれない欄(`waitSeconds` は snapshotAfter のときだけ等)は、
         // 読まれない回に 0/負がそのまま通り、呼び手は「効いた」と誤解する
