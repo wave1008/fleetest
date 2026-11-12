@@ -192,6 +192,18 @@ final class RunProfileMachineDispatchTests: XCTestCase {
             project: project, profile: "multi", targetMachine: "runner2"))
     }
 
+    /// `--device-machine` を明示したディスパッチでも、名指しした端末がそのマシンで無効なら手元で「無効」と言って断る
+    /// (向こうは自分の端末だけに畳んだプロファイルを見て「全部が無効」と事実と違うことを言っていた)。有効な端末は通す
+    func testExplicitDeviceMachineRejectsANamedDisabledDevice() throws {
+        try writeMixed()
+        XCTAssertThrowsError(try rejectDisabledNamedDevices(
+            project: project, profile: "multi", deviceMachine: "runner2", devices: ["無効の機"])) { error in
+            XCTAssertTrue("\(error)".contains("is disabled"), "\(error)")
+        }
+        XCTAssertNoThrow(try rejectDisabledNamedDevices(
+            project: project, profile: "multi", deviceMachine: "runner1", devices: ["リモート機"]))
+    }
+
     /// 全台が1つのリモートに居れば `--runner` なしでそこへ自動ディスパッチする(登録名のみ受ける)
     func testEffectiveTargetAutoDispatchesWhenAllDevicesLiveOnOneRemote() throws {
         try writeRun("remote-only", """

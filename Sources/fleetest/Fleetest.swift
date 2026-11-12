@@ -1201,6 +1201,9 @@ struct RunScenarios: AsyncParsableCommand {
             (scopedDevices, scopedDeviceHost) = try machineScopedDeviceFilter(
                 project: testProject, profile: profile, targetMachine: dispatch.rawTarget,
                 requestedDevices: common.devices)
+        } else if let deviceMachine = common.deviceMachine {
+            try rejectDisabledNamedDevices(project: testProject, profile: profile, deviceMachine: deviceMachine,
+                                           devices: common.devices)
         }
         let exitCode = try await dispatcher.dispatch(
             project: testProject, profile: profile, scenarios: scenarios, folders: folders,

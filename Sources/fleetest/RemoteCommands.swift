@@ -1010,6 +1010,19 @@ func dryRunRunnerWarning(runner: String, entries: [RemoteHostEntry]) -> String? 
 
 // MARK: - shared helpers
 
+/// `--device-machine` を明示した `--runner` のディスパッチ(`machineScopedDeviceFilter` を通らない)でも、名指しした端末が
+/// そのマシンで無効なら手元で断る。向こうは自分の端末だけに畳んだプロファイルを見るので「全部が無効」と事実と違うことを言っていた
+func rejectDisabledNamedDevices(project: TestProject, profile: String, deviceMachine: String, devices: [String]) throws {
+    guard !devices.isEmpty else { return }
+    let enabledThere = Set(ProfileResolver.runDeviceMachines(project: project, runProfileName: profile)
+        .filter { DeviceMachineGrouping.display($0.machine) == deviceMachine }.map(\.name))
+    if let note = disabledDevicesNote(
+        missing: devices.filter { !enabledThere.contains($0) }, targetMachine: deviceMachine,
+        disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile) {
+        throw RemoteDispatchError.invalidDevice(note)
+    }
+}
+
 /// `--device` の名前が、そのマシンで `enabled: false` のデバイスに当たるときの断りの文(当たらなければ nil)。
 /// 純粋関数。「割り当て外」と言うと、事実(プロファイルには載っているが無効)と食い違う
 func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [RunDeviceMachine], profile: String) -> String? {

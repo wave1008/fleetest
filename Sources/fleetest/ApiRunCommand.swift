@@ -847,6 +847,9 @@ struct ApiRunCommand: AsyncParsableCommand {
             (scopedDevices, scopedDeviceHost) = try machineScopedDeviceFilter(
                 project: project, profile: profile, targetMachine: dispatch.rawTarget,
                 requestedDevices: common.devices)
+        } else if let deviceMachine = common.deviceMachine {
+            try rejectDisabledNamedDevices(project: project, profile: profile, deviceMachine: deviceMachine,
+                                           devices: common.devices)
         }
         let exitCode = try await dispatcher.dispatchApi(
             project: project, profile: profile, scenarios: scenarios,
