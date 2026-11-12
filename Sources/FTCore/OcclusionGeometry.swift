@@ -51,6 +51,8 @@ public enum OcclusionGeometry {
                          && scroller.frame.y <= cy && cy <= scroller.frame.y + scroller.frame.height)
                     && (TapTargetGeometry.hasSiblingsInside(at: other.depth, inside: scroller, in: elements)
                         || TapTargetGeometry.hasSiblingsInside(at: chain[index - 1].depth, inside: scroller, in: elements))
+                    // 横一列の容器から上下にだけ外れた鎖の要素 = 間引きで繋がっただけの偽の親(outsideDeclaredScroller と同じ門)
+                    && !TapTargetGeometry.isOffTheRowAxis(chain[index - 1], of: scroller, in: elements)
             }) { return false }
             // **容器の内側でも、原点へ潰れているだけなら描かれていない**。`isOutsideContainer` は容器の
             // **外**しか見ないため、容器の**原点にクランプ**された残骸(同じ原点の同 depth 兄弟が3つ以上=

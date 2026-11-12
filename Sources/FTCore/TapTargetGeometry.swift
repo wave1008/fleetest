@@ -189,10 +189,16 @@ public enum TapTargetGeometry {
                                                screen: FTRect) -> ElementInfo? {
         guard element.frame.width > 0, element.frame.height > 0 else { return nil }
         let chain = ancestors(of: element, in: elements)
-        guard let scrollerIndex = chain.firstIndex(where: { $0.scrollable == true }) else { return nil }
+        // **横一列の容器から上下にだけ外れた要素には、その容器を飛ばして次のスクロール容器で判定する**(`isOffTheRowAxis`。
+        // 間引きで繋がっただけの偽の親なので、本当の親 = 外側の一覧の外に出た送り残しは見逃さない)
+        guard let nearest = chain.firstIndex(where: { $0.scrollable == true }),
+              let scrollerIndex = chain[nearest...].firstIndex(where: {
+                  $0.scrollable == true && !isOffTheRowAxis(element, of: $0, in: elements)
+              }) else { return nil }
         let scroller = chain[scrollerIndex]
+        // 中間ノードの交わりを見るのは最寄りの容器より手前だけ(飛ばした容器より上は偽の親の祖先で、要素と交わらなくて当然)
         guard ScrollGeometry.intersection(element.frame, scroller.frame) == nil,
-              chainIsTrustworthy(chain[..<scrollerIndex], for: element),
+              chainIsTrustworthy(chain[..<nearest], for: element),
               !isDisplacedHorizontally(scroller.frame, screen: screen),
               hasSiblingsInside(at: element.depth, inside: scroller, in: elements),
               !ContainerGeometry.isChromePinnedOutside(element, container: scroller.frame,
@@ -238,10 +244,35 @@ public enum TapTargetGeometry {
     /// 間引きで繋がっただけの相手は、その depth の仲間が容器の中に1つも居ない
     static func hasSiblingsInside(at depth: Int, inside scroller: ElementInfo,
                                    in elements: [ElementInfo]) -> Bool {
+        siblingsInside(at: depth, inside: scroller, in: elements).count >= 2
+    }
+
+    /// 容器の子孫のうち、その深さで容器と交わるもの(`hasSiblingsInside` と `isOffTheRowAxis` が共有する)
+    static func siblingsInside(at depth: Int, inside scroller: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
         LocatorResolver.descendants(of: scroller, in: elements)
-            .filter { $0.depth == depth
-                && ScrollGeometry.intersection($0.frame, scroller.frame) != nil }
-            .count >= 2
+            .filter { $0.depth == depth && ScrollGeometry.intersection($0.frame, scroller.frame) != nil }
+    }
+
+    /// 容器の中の兄弟(その深さ・容器と交わるもの)が**横一列**に並ぶ(全組が縦に重なり、横は重ならない)のに、要素は容器と
+    /// 交わらず、横の範囲が重なったまま上下にだけ外れているか。横一列の容器は横に送るので、送り残しは左右へずれる ——
+    /// 上下にだけ外れた要素はその容器の中身ではなく、間引きで繋がっただけ(`hasSiblingsInside` は兄弟の深さが偶然そろうと通る)。
+    /// 実測(Google マップ Android の公共交通の経路一覧): 経路カード d23 の直前に条件の横カルーセル
+    /// `#query_options_filter_carousel` d22 (0,1690 1280x144) が並び、その本物の子 Switch 4つも d23 だったので、
+    /// 縦の一覧 `#directions_group_list` d19 の中の見えているカード2枚(子孫を含め12件)に scroll-leftover が付いた
+    static func isOffTheRowAxis(_ element: ElementInfo, of scroller: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        guard ScrollGeometry.intersection(element.frame, scroller.frame) == nil else { return false }
+        let inside = siblingsInside(at: element.depth, inside: scroller, in: elements)
+        guard inside.count >= 2 else { return false }
+        func overlaps(_ a: Double, _ aLength: Double, _ b: Double, _ bLength: Double) -> Bool {
+            a < b + bLength && b < a + aLength
+        }
+        for (index, a) in inside.enumerated() {
+            for b in inside[(index + 1)...] {
+                guard overlaps(a.frame.y, a.frame.height, b.frame.y, b.frame.height),
+                      !overlaps(a.frame.x, a.frame.width, b.frame.x, b.frame.width) else { return false }
+            }
+        }
+        return overlaps(element.frame.x, element.frame.width, scroller.frame.x, scroller.frame.width)
     }
 
     /// **プラットフォームに「引き当てられない」と言われて意味がある要素か**。

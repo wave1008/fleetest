@@ -66,6 +66,12 @@ final class SweepHarnessTests: XCTestCase {
         // 化けた witness と同一要素 = 真陽性。overlay 1(compass ← 候補行)も描画どおり
         "and-maps_suggest_ime": Counts(ghost: 0, overlay: 1, stacked: 0, misses: 0, disabled: 0,
                                        warnedTappable: 0, keyboard: 2),
+        // 2026-11-12 採取(Google マップの公共交通の経路一覧・ブリッジ版136)。見どころは **scrolledOut 0**: 経路カードが
+        // 間引きで横カルーセル `#query_options_filter_carousel` の子に復元され、見えているカード2枚(子孫を含め12件)に
+        // scroll-leftover が付いていた(`TapTargetGeometry.isOffTheRowAxis` で解消)。他の件数は採取時の値のまま(1件ずつは未検分)
+        "and-maps_transit_results": Counts(ghost: 0, overlay: 3, stacked: 0, misses: 1, disabled: 0, offscreen: 0,
+                                           warnedTappable: 1, keyboard: 0, sliver: 2, nested: 0, scrolledOut: 0,
+                                           clippedByContainer: 1),
         // 2026-08-12 採取(アーキタイプ拡張)。**キーパッド**(同じ形の 12 キー格子)。
         // nested 1 は真陽性: `#dialpad_view`(0,1220 1080x1141・clickable)の中心 (540,1790) が
         // その中の `#eight`(377,1779 324x168)の上にある = 容器を撃つと「8」が入る。

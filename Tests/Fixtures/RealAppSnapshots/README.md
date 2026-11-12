@@ -169,3 +169,9 @@
 | ファイル | アーキタイプ | 由来 | 何を代表するか |
 |---|---|---|---|
 | `ios-maps_transit_boarding_cards` | dense-list | Apple マップの乗車案内(経路の詳細。発車時刻のカードが横に2枚) | **同じ構造の兄弟カードが x だけずれて並ぶ**形。`OccupancyAndExitStackView` → `CarStackView` → アイコン3枚の6要素(名前も値も無い)が2枚で一致し、「同じ6要素が2回」と誤って言っていた。`DuplicateRegion.find` が**名前か値を持つ要素を含む並びだけ**を候補にする根拠 |
+
+**2026-11-12 に足した1枚**(`scroll-leftover` の誤検知の witness):
+
+| ファイル | アーキタイプ | 由来 | 何を代表するか |
+|---|---|---|---|
+| `and-maps_transit_results` | map | Google マップの公共交通の経路一覧 / Android 17(Emulator・ブリッジ版136) | **間引きで横一列の容器の子に復元される**形。縦の一覧 `#directions_group_list` d19 の経路カード d23 の直前に条件の横カルーセル `#query_options_filter_carousel` d22 が並び、その本物の子 Switch 4つも d23 なので `hasSiblingsInside` を通っていた。見えているカード2枚(子孫を含め12件)に `scroll-leftover` が付き、押すと詳細が開く = 誤検知。`TapTargetGeometry.isOffTheRowAxis` の根拠 |

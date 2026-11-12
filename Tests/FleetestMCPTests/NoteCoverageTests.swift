@@ -40,7 +40,7 @@ final class NoteCoverageTests: XCTestCase {
     /// **フィクスチャを足したらここにも足す**(testEveryFixtureHasAnArchetype が検出)
     static let archetypes: [String: String] = [
         // 地図(Google マップ / Apple マップ)—— 監査を繰り返してきた既存のコーパス
-        "and-directions_tabs": "map", "and-home": "map", "and-maps_suggest_ime": "map",
+        "and-directions_tabs": "map", "and-home": "map", "and-maps_suggest_ime": "map", "and-maps_transit_results": "map",
         "and-overflow": "map", "and-place": "map", "and-place_expanded": "map",
         "and-results": "map", "ios-home": "map", "ios-maps_station": "map",
         "ios-maps_suggest_guides": "map", "ios-maps_suggest_keyboard": "map",
@@ -189,7 +189,7 @@ final class NoteCoverageTests: XCTestCase {
         // (and-home)で、単純なキーだけの一致では別々の表の同名見出しに誤発火するため
         // y/x の幾何制約を必須にした(MCPServer.duplicateRegionNote の当該コメント参照)
         "duplicateRegionNote": Coverage(fixtures: ["ios-browser_jma_hscroll"], bytes: 391),
-        "scrollFrameCandidates": Coverage(fixtures: ["and-form_keyboard", "and-place_expanded", "and-results", "ios-browser_startpage", "ios-maps_route_options", "ios-maps_station", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-messages_keyboard", "ios-news_feed", "ios-place_guides_scrolled"], bytes: 2733),
+        "scrollFrameCandidates": Coverage(fixtures: ["and-form_keyboard", "and-maps_transit_results", "and-place_expanded", "and-results", "ios-browser_startpage", "ios-maps_route_options", "ios-maps_station", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-messages_keyboard", "ios-news_feed", "ios-place_guides_scrolled"], bytes: 3029),
         // 2026-10-26: 3429 → 3194。スクロールする要素に id が無いとき、枠のぴったり同じ包みの id で名指しするようにした
         // (`ScrollFrameCandidates.sameFrameSelector`)。変わった 9 画面を1件ずつ見て、どれも同じ容器へ届く名前と確認
         // 2026-08-15 に J1順位表(両OS)を追加して +555 バイト。and-/ios- とも 120要素上限で
@@ -223,19 +223,19 @@ final class NoteCoverageTests: XCTestCase {
         // 読み込めなかった URL を名指しするのはこの画面でこそ要る情報。同日に J1順位表(両OS)も
         // 追加(+524 バイト。url_bar/TabBarItemTitle が jleague.jp を名乗る)
         "addressBarNote": Coverage(fixtures: ["and-browser_error_page", "and-browser_j1_standings", "and-browser_weektable", "ios-browser_j1_standings", "ios-browser_jma_hscroll", "ios-browser_nationwide", "ios-browser_startpage", "ios-browser_weather_weekly", "ios-browser_weektable", "ios-safari_article"], bytes: 2634),
-        "unlabeledClickablesNote": Coverage(fixtures: ["and-apps_list", "and-browser_urlmenu", "and-directions_tabs", "and-home", "and-place", "and-place_expanded", "and-results", "ios-home", "ios-maps_route_options", "ios-news_feed"], bytes: 3845),
+        "unlabeledClickablesNote": Coverage(fixtures: ["and-apps_list", "and-browser_urlmenu", "and-directions_tabs", "and-home", "and-maps_transit_results", "and-place", "and-place_expanded", "and-results", "ios-home", "ios-maps_route_options", "ios-news_feed"], bytes: 4351),
         // **格子は曖昧ラベルの塊**: 週間表の2枚が入って +2,049 バイト。
         // 同じ数値(`29/24`・`90%`)が行と列に何度も出るので、増分は形そのもの。
         // J1順位表(両OS。2026-08-15)も同型で +2,246 バイト —— 同じ勝点/試合数が縦横に並ぶ
         // and-sutec_home(Android の Compose Scaffold・2026-08-31)で +1,135 バイト: 商品カードの
         // 画像とテキストが同じ商品名を持ち、バッジ「セール」「新着」も複数カードで重なる形(iOS 版の
         // sutec-home と同じ由来。判定は変えず、Android の木でも同じ量が出ることの記録)
-        "ambiguousLabelsNote": Coverage(fixtures: ["and-apps_list", "and-browser_j1_standings", "and-browser_weather", "and-browser_weather_weekly", "and-browser_weektable", "and-camera_canvas", "and-home", "and-maps_suggest_ime", "and-place", "and-place_expanded", "and-results", "and-sutec_home", "ios-browser_j1_standings", "ios-browser_jma_hscroll", "ios-browser_nationwide", "ios-browser_startpage", "ios-browser_weather_weekly", "ios-browser_weektable", "ios-browser_yahoo_top", "ios-home", "ios-maps_station", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps_expanded", "ios-messages_keyboard", "ios-news_feed", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-safari_article", "ios-settings_root", "sut-cmp_controls", "sut-cmp_home", "sut-e2e_noid", "sutec-detail", "sutec-home"], bytes: 24117),   // 11/12 +423: 索引形しか書けない項目へ、自身の行の文字を基準にした相対形を代わりに出す(地図の検索候補・経路の手順)
+        "ambiguousLabelsNote": Coverage(fixtures: ["and-apps_list", "and-browser_j1_standings", "and-browser_weather", "and-browser_weather_weekly", "and-browser_weektable", "and-camera_canvas", "and-home", "and-maps_suggest_ime", "and-maps_transit_results", "and-place", "and-place_expanded", "and-results", "and-sutec_home", "ios-browser_j1_standings", "ios-browser_jma_hscroll", "ios-browser_nationwide", "ios-browser_startpage", "ios-browser_weather_weekly", "ios-browser_weektable", "ios-browser_yahoo_top", "ios-home", "ios-maps_station", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps_expanded", "ios-messages_keyboard", "ios-news_feed", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-safari_article", "ios-settings_root", "sut-cmp_controls", "sut-cmp_home", "sut-e2e_noid", "sutec-detail", "sutec-home"], bytes: 25403),   // 11/12 +423: 索引形しか書けない項目へ、自身の行の文字を基準にした相対形を代わりに出す(地図の検索候補・経路の手順)
         // 2026-08-15 に 16,940 → 16,984(+44)。**発火する画面は1枚も増えていない** ——
         // 増えたのは ios-place_guides_scrolled の `#PlaceCollectionCell` ×3 の**中身**で、
         // 40字超のラベルしか無い行に `*断片*` が書けるようになったぶん(以前は索引形 `~`)。
         // 索引形が stable な式に替わった = 増えたバイトはそのまま再現性の改善
-        "duplicateIDsNote": Coverage(fixtures: ["and-dialer_keypad", "and-home", "and-overflow", "and-place_expanded", "and-results", "and-settings_root", "ios-browser_startpage", "ios-home", "ios-maps_route_options", "ios-maps_station", "ios-maps_suggest_guides", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-news_feed", "ios-photos_grid", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-settings_root", "sutec-home"], bytes: 22369),   // 11/12 +545: 同上(#DetailButton 等)。11/9 +55: ios-maps_suggest_guides の空白だけのラベル(コーパスで1件)を書けないラベルに数え、勧めが索引形になった
+        "duplicateIDsNote": Coverage(fixtures: ["and-dialer_keypad", "and-home", "and-maps_transit_results", "and-overflow", "and-place_expanded", "and-results", "and-settings_root", "ios-browser_startpage", "ios-home", "ios-maps_route_options", "ios-maps_station", "ios-maps_suggest_guides", "ios-maps_suggest_keyboard", "ios-maps_transit_boarding_cards", "ios-maps_transit_steps", "ios-maps_transit_steps_expanded", "ios-news_feed", "ios-photos_grid", "ios-place", "ios-place_guides_scrolled", "ios-profile", "ios-settings_root", "sutec-home"], bytes: 23436),   // 11/12 +545: 同上(#DetailButton 等)。11/9 +55: ios-maps_suggest_guides の空白だけのラベル(コーパスで1件)を書けないラベルに数え、勧めが索引形になった
         // bytes 1169→1366→1170(2026-08-14・「chrome の部分木は覆われた側に数えない」修正):
         // fixtures 集合は不変(発火する画面は変わらない = 全画面「nothing tappable」か列挙のどちらか
         // では出続ける)。ios-maps_suggest_guides/ios-messages_keyboard は列挙(2件)から
@@ -251,7 +251,7 @@ final class NoteCoverageTests: XCTestCase {
         // 2026-08-15 に J1順位表(Android)を足して初めて発火(それまで knownSilent)。
         // クラブ名「清水エスパルス」が下端で高さ6pxに切られた行 = SweepHarnessTests.baselines の
         // and-browser_j1_standings と同じ真陽性(sliver: 2)
-        "sliverNote": Coverage(fixtures: ["and-browser_j1_standings"], bytes: 249),
+        "sliverNote": Coverage(fixtures: ["and-browser_j1_standings", "and-maps_transit_results"], bytes: 539),
     ]
 
     /// **コーパスでは構造上発火し得ないと確かめた注記**。ここに載せるには理由が要る ——

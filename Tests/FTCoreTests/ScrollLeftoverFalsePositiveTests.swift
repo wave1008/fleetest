@@ -1,6 +1,7 @@
 // OI-129: `scroll-leftover`(TapTargetGeometry.outsideDeclaredScroller)の誤検知2形と、守る真陽性。
 // ①間引きで繋がっただけの中間ノードが要素と交わらない鎖(Emulator の生の木)
 // ②画面から横にずれた旧画面の容器の後ろに新画面の要素が並ぶ遷移中の木(iOS Simulator)
+// ③横一列の容器(カルーセル)の後ろに、上下にだけ外れた要素が並ぶ木(Google マップ Android の経路一覧)
 
 import XCTest
 @testable import FTCore
@@ -65,5 +66,76 @@ final class ScrollLeftoverFalsePositiveTests: XCTestCase {
         let settled = tree(scrollerX: 0)
         XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(settled[3], in: settled, screen: screen),
                         "画面内の容器の外の要素の印が消えた(対照)")
+    }
+
+    /// ③ Google マップ Android の経路一覧(形だけ写した): 横一列の条件カルーセル d22 の本物の子 d23 の後に、
+    /// 縦の一覧の経路カード d23(中間ノードは間引かれて無い)が上下にだけ外れて並ぶ
+    func testCardBelowAHorizontalRowScrollerIsNotLeftover() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let tree = [el(0, "collectionView", 19, 0, 1678, 1280, 1178, id: "directions_group_list", scrollable: true),
+                    el(1, "collectionView", 22, 0, 1690, 1280, 144, id: "query_options_filter_carousel", scrollable: true),
+                    el(2, "switch", 23, 168, 1690, 365, 144), el(3, "switch", 23, 557, 1690, 289, 144),
+                    el(4, "switch", 23, 870, 1690, 373, 144),
+                    el(5, "clickable", 23, 0, 1834, 1280, 345)]
+        XCTAssertNil(TapTargetGeometry.outsideDeclaredScroller(tree[5], in: tree, screen: screen),
+                     "横一列の容器の下に並ぶカードを、その容器の送り残しと読んだ")
+    }
+
+    /// 真陽性は残る: 横一列の容器から左右へ送り出された要素
+    func testItemPushedSidewaysOutOfAHorizontalRowStaysLeftover() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let tree = [el(0, "collectionView", 22, 100, 1690, 1080, 144, scrollable: true),
+                    el(1, "switch", 23, 168, 1690, 365, 144), el(2, "switch", 23, 557, 1690, 289, 144),
+                    el(3, "switch", 23, -300, 1690, 280, 144)]
+        XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(tree[3], in: tree, screen: screen))
+    }
+
+    /// 縦の一覧(中の兄弟が縦に積まれる)は従来どおり: 上下に外れた行は送り残し
+    func testRowOutsideAVerticalListStaysLeftoverEvenWhenColumnsOverlap() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let tree = [el(0, "collectionView", 22, 0, 1000, 1280, 600, scrollable: true),
+                    el(1, "clickable", 23, 0, 1000, 1280, 300), el(2, "clickable", 23, 0, 1300, 1280, 300),
+                    el(3, "clickable", 23, 0, 1700, 1280, 300)]
+        XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(tree[3], in: tree, screen: screen))
+    }
+
+    /// 中の兄弟が同じ場所に重なる(横一列ではない)容器では外さない: 横に並ぶ証拠が無い
+    func testStackedSiblingsAreNotARow() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let tree = [el(0, "collectionView", 22, 0, 1000, 1280, 300, scrollable: true),
+                    el(1, "clickable", 23, 0, 1000, 1280, 300), el(2, "clickable", 23, 0, 1000, 1280, 300),
+                    el(3, "clickable", 23, 0, 1400, 1280, 300)]
+        XCTAssertNotNil(TapTargetGeometry.outsideDeclaredScroller(tree[3], in: tree, screen: screen))
+    }
+
+    /// 偽の親(横一列の容器)を飛ばしても、本当の親 = 外側の縦の一覧の外へ出たカードには印が付く(見逃さない)
+    func testCardAboveTheOuterListStaysLeftoverPastTheRowScroller() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let tree = [el(0, "collectionView", 19, 0, 1678, 1280, 1178, id: "directions_group_list", scrollable: true),
+                    el(1, "other", 20, 0, 1690, 1280, 144, id: "query_options"),
+                    el(2, "collectionView", 22, 0, 1690, 1280, 144, id: "query_options_filter_carousel", scrollable: true),
+                    el(3, "switch", 23, 168, 1690, 365, 144), el(4, "switch", 23, 557, 1690, 289, 144),
+                    el(5, "clickable", 23, 0, 1834, 1280, 345),
+                    el(6, "clickable", 23, 0, 1200, 1280, 345)]
+        XCTAssertEqual(TapTargetGeometry.outsideDeclaredScroller(tree[6], in: tree, screen: screen)?.identifier,
+                       "directions_group_list", "横の容器を飛ばした先の一覧の外に出たカードを見逃した")
+        XCTAssertNil(TapTargetGeometry.outsideDeclaredScroller(tree[5], in: tree, screen: screen))
+    }
+
+    /// 覆いの判定も同じ門: 横一列の容器の下のカードの中身は、その容器に切り取られている扱いにしない(画面上の点を覆える)。
+    /// 実データでカード本体(d23)は推測の容器でも横の容器の外と読まれるが(覆う側から外れる・警告は出ない)、中身の見出し(d24)はこの門だけで決まる
+    func testCardContentBelowARowScrollerCanStillCoverAPoint() {
+        let screen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let target = el(0, "button", 9, 400, 1890, 100, 40, id: "behind")
+        // 覆われる側は木の後ろに置く(前に置くと preorder で後ろの全要素がその子孫になり、覆う側から外れる)
+        let tree = [el(1, "collectionView", 19, 0, 1678, 1280, 1178, id: "directions_group_list", scrollable: true),
+                    el(2, "collectionView", 22, 0, 1690, 1280, 144, id: "query_options_filter_carousel", scrollable: true),
+                    el(3, "switch", 23, 168, 1690, 365, 144), el(4, "switch", 23, 557, 1690, 289, 144),
+                    el(5, "clickable", 23, 0, 1834, 1280, 345, id: "card"),
+                    el(6, "other", 24, 60, 1882, 400, 68, id: "header"),
+                    el(7, "staticText", 28, 60, 1882, 235, 68),
+                    target]
+        XCTAssertEqual(OcclusionGeometry.occluder(of: target, in: tree, screen: screen)?.identifier, "header",
+                       "横一列の容器の下のカードの中身を、その容器に切り取られて覆えないと読んだ")
     }
 }

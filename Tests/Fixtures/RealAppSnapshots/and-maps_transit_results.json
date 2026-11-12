@@ -1,0 +1,1419 @@
+{
+  "elements": [
+    {
+      "clickable": true,
+      "depth": 10,
+      "enabled": true,
+      "frame": {
+        "height": 2856,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+      },
+      "ref": 1,
+      "type": "Clickable",
+      "z": 8
+    },
+    {
+      "depth": 10,
+      "enabled": true,
+      "frame": {
+        "height": 2856,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+      },
+      "ref": 2,
+      "scrollActions": [
+        "backward",
+        "forward"
+      ],
+      "scrollable": true,
+      "type": "ScrollView",
+      "z": 60
+    },
+    {
+      "depth": 13,
+      "enabled": true,
+      "frame": {
+        "height": 1517,
+        "width": 1280,
+        "x": 0,
+        "y": 1339
+      },
+      "identifier": "content_container",
+      "ref": 3,
+      "type": "Other",
+      "z": 63
+    },
+    {
+      "depth": 20,
+      "enabled": true,
+      "frame": {
+        "height": 336,
+        "width": 1280,
+        "x": 0,
+        "y": 1339
+      },
+      "identifier": "card_stack_peeking_header_container",
+      "ref": 4,
+      "type": "Other",
+      "z": 70
+    },
+    {
+      "clickable": true,
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 180,
+        "width": 788,
+        "x": 0,
+        "y": 1339
+      },
+      "label": "公共交通機関",
+      "ref": 5,
+      "type": "Clickable",
+      "z": 74
+    },
+    {
+      "depth": 27,
+      "enabled": true,
+      "frame": {
+        "height": 106,
+        "width": 456,
+        "x": 0,
+        "y": 1405
+      },
+      "label": "公共交通機関",
+      "ref": 6,
+      "type": "StaticText",
+      "z": 77
+    },
+    {
+      "clickable": true,
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 812,
+        "y": 1375
+      },
+      "identifier": "directions_header_preference_action_button",
+      "label": "オプション",
+      "ref": 7,
+      "type": "Button",
+      "z": 80
+    },
+    {
+      "depth": 27,
+      "enabled": true,
+      "frame": {
+        "height": 96,
+        "width": 96,
+        "x": 836,
+        "y": 1399
+      },
+      "label": "オプション",
+      "ref": 8,
+      "type": "StaticText",
+      "z": 81
+    },
+    {
+      "clickable": true,
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 956,
+        "y": 1375
+      },
+      "identifier": "directions_header_share_action_button",
+      "label": "共有",
+      "ref": 9,
+      "type": "Button",
+      "z": 83
+    },
+    {
+      "depth": 27,
+      "enabled": true,
+      "frame": {
+        "height": 96,
+        "width": 96,
+        "x": 980,
+        "y": 1399
+      },
+      "label": "共有",
+      "ref": 10,
+      "type": "StaticText",
+      "z": 84
+    },
+    {
+      "clickable": true,
+      "depth": 25,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 1100,
+        "y": 1375
+      },
+      "identifier": "terra_navigation_header_close_button",
+      "label": "閉じる",
+      "ref": 11,
+      "type": "Button",
+      "z": 85
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 96,
+        "width": 96,
+        "x": 1124,
+        "y": 1399
+      },
+      "label": "閉じる",
+      "ref": 12,
+      "type": "StaticText",
+      "z": 86
+    },
+    {
+      "depth": 27,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 1280,
+        "x": 0,
+        "y": 1519
+      },
+      "identifier": "directions_mode_tabs",
+      "ref": 13,
+      "scrollActions": [
+        "forward",
+        "right"
+      ],
+      "scrollable": true,
+      "type": "ScrollView",
+      "z": 91
+    },
+    {
+      "clickable": true,
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 331,
+        "x": 0,
+        "y": 1519
+      },
+      "label": "1 時間 31",
+      "ref": 14,
+      "type": "Clickable",
+      "z": 93
+    },
+    {
+      "depth": 32,
+      "enabled": true,
+      "frame": {
+        "height": 67,
+        "width": 169,
+        "x": 114,
+        "y": 1563
+      },
+      "label": "1 時間 31",
+      "ref": 15,
+      "type": "StaticText",
+      "z": 98
+    },
+    {
+      "checked": true,
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 265,
+        "x": 331,
+        "y": 1519
+      },
+      "ref": 16,
+      "type": "Other",
+      "z": 99
+    },
+    {
+      "checked": true,
+      "depth": 30,
+      "enabled": true,
+      "frame": {
+        "height": 72,
+        "width": 169,
+        "x": 379,
+        "y": 1561
+      },
+      "label": "交通機関モード: 47 分",
+      "ref": 17,
+      "type": "Other",
+      "z": 100
+    },
+    {
+      "checked": true,
+      "depth": 31,
+      "enabled": true,
+      "frame": {
+        "height": 72,
+        "width": 169,
+        "x": 379,
+        "y": 1561
+      },
+      "ref": 18,
+      "type": "Other",
+      "z": 101
+    },
+    {
+      "checked": true,
+      "depth": 32,
+      "enabled": true,
+      "frame": {
+        "height": 54,
+        "width": 54,
+        "x": 379,
+        "y": 1570
+      },
+      "ref": 19,
+      "type": "Other",
+      "z": 102
+    },
+    {
+      "checked": true,
+      "depth": 33,
+      "enabled": true,
+      "frame": {
+        "height": 54,
+        "width": 54,
+        "x": 379,
+        "y": 1570
+      },
+      "ref": 20,
+      "type": "Image",
+      "z": 103
+    },
+    {
+      "checked": true,
+      "depth": 32,
+      "enabled": true,
+      "frame": {
+        "height": 67,
+        "width": 103,
+        "x": 445,
+        "y": 1563
+      },
+      "label": "47 分",
+      "ref": 21,
+      "type": "StaticText",
+      "z": 104
+    },
+    {
+      "clickable": true,
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 282,
+        "x": 596,
+        "y": 1519
+      },
+      "label": "7 時間",
+      "ref": 22,
+      "type": "Clickable",
+      "z": 105
+    },
+    {
+      "depth": 32,
+      "enabled": true,
+      "frame": {
+        "height": 67,
+        "width": 120,
+        "x": 710,
+        "y": 1563
+      },
+      "label": "7 時間",
+      "ref": 23,
+      "type": "StaticText",
+      "z": 110
+    },
+    {
+      "clickable": true,
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 340,
+        "x": 878,
+        "y": 1519
+      },
+      "label": "2 時間 27",
+      "ref": 24,
+      "type": "Clickable",
+      "z": 111
+    },
+    {
+      "depth": 32,
+      "enabled": true,
+      "frame": {
+        "height": 67,
+        "width": 178,
+        "x": 992,
+        "y": 1563
+      },
+      "label": "2 時間 27",
+      "ref": 25,
+      "type": "StaticText",
+      "z": 116
+    },
+    {
+      "clickable": true,
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 156,
+        "width": 62,
+        "x": 1218,
+        "y": 1519
+      },
+      "ref": 26,
+      "type": "Clickable",
+      "z": 117
+    },
+    {
+      "checked": true,
+      "depth": 19,
+      "enabled": true,
+      "frame": {
+        "height": 1178,
+        "width": 1280,
+        "x": 0,
+        "y": 1678
+      },
+      "identifier": "directions_group_list",
+      "ref": 27,
+      "scrollActions": [
+        "forward"
+      ],
+      "scrollable": true,
+      "type": "CollectionView",
+      "z": 126
+    },
+    {
+      "depth": 20,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 1280,
+        "x": 0,
+        "y": 1690
+      },
+      "identifier": "query_options",
+      "ref": 28,
+      "type": "Other",
+      "z": 127
+    },
+    {
+      "depth": 22,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 1280,
+        "x": 0,
+        "y": 1690
+      },
+      "identifier": "query_options_filter_carousel",
+      "ref": 29,
+      "scrollActions": [
+        "forward"
+      ],
+      "scrollable": true,
+      "type": "CollectionView",
+      "z": 129
+    },
+    {
+      "clickable": true,
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 24,
+        "y": 1690
+      },
+      "label": "更新",
+      "ref": 30,
+      "type": "Button",
+      "z": 131
+    },
+    {
+      "depth": 25,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 24,
+        "y": 1690
+      },
+      "label": "更新",
+      "ref": 31,
+      "type": "StaticText",
+      "z": 132
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 365,
+        "x": 168,
+        "y": 1690
+      },
+      "label": "10:25 に出発",
+      "ref": 32,
+      "type": "Switch",
+      "value": "0",
+      "z": 133
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 365,
+        "x": 168,
+        "y": 1690
+      },
+      "label": "10:25 に出発",
+      "ref": 33,
+      "type": "Button",
+      "value": "0",
+      "z": 134
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 289,
+        "x": 557,
+        "y": 1690
+      },
+      "label": "移動手段",
+      "ref": 34,
+      "type": "Switch",
+      "value": "0",
+      "z": 135
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 289,
+        "x": 557,
+        "y": 1690
+      },
+      "label": "移動手段",
+      "ref": 35,
+      "type": "Button",
+      "value": "0",
+      "z": 136
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 373,
+        "x": 870,
+        "y": 1690
+      },
+      "label": "フィルタ条件",
+      "ref": 36,
+      "type": "Switch",
+      "value": "0",
+      "z": 137
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 373,
+        "x": 870,
+        "y": 1690
+      },
+      "label": "フィルタ条件",
+      "ref": 37,
+      "type": "Button",
+      "value": "0",
+      "z": 138
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 13,
+        "x": 1267,
+        "y": 1690
+      },
+      "label": "3 種類の移動手段",
+      "ref": 38,
+      "type": "Switch",
+      "value": "0",
+      "z": 139
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 13,
+        "x": 1267,
+        "y": 1690
+      },
+      "label": "3 種類の移動手段",
+      "ref": 39,
+      "type": "Button",
+      "value": "0",
+      "z": 140
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 345,
+        "width": 1280,
+        "x": 0,
+        "y": 1834
+      },
+      "label": "  ​​埼京線​",
+      "ref": 40,
+      "type": "Clickable",
+      "z": 144
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 992,
+        "x": 60,
+        "y": 1882
+      },
+      "identifier": "trip_card_main_header",
+      "ref": 41,
+      "type": "Other",
+      "z": 145
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 235,
+        "x": 60,
+        "y": 1882
+      },
+      "label": "  ​​埼京線​",
+      "ref": 42,
+      "type": "StaticText",
+      "z": 149
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 235,
+        "x": 367,
+        "y": 1882
+      },
+      "label": "  ​​中央線​",
+      "ref": 43,
+      "type": "StaticText",
+      "z": 150
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 144,
+        "x": 1076,
+        "y": 1882
+      },
+      "identifier": "trip_card_primary_detail",
+      "ref": 44,
+      "type": "Other",
+      "z": 151
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 128,
+        "x": 1092,
+        "y": 1882
+      },
+      "label": "47 分",
+      "ref": 45,
+      "type": "StaticText",
+      "z": 153
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 1992
+      },
+      "identifier": "trip_card_trip_summary",
+      "ref": 46,
+      "type": "Other",
+      "z": 154
+    },
+    {
+      "depth": 25,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 1992
+      },
+      "label": "10:28 – 11:15",
+      "ref": 47,
+      "type": "StaticText",
+      "z": 155
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 144,
+        "x": 1076,
+        "y": 1992
+      },
+      "identifier": "trip_card_secondary_detail",
+      "ref": 48,
+      "type": "Other",
+      "z": 156
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 116,
+        "x": 1076,
+        "y": 1992
+      },
+      "label": "720円",
+      "ref": 49,
+      "type": "StaticText",
+      "z": 160
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 53,
+        "width": 1160,
+        "x": 60,
+        "y": 2078
+      },
+      "identifier": "trip_card_full_width_notice",
+      "ref": 50,
+      "type": "Other",
+      "z": 161
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 53,
+        "width": 708,
+        "x": 60,
+        "y": 2078
+      },
+      "label": "1 分（遅延）後、8 分（遅延）後 赤羽駅 発",
+      "ref": 51,
+      "type": "StaticText",
+      "z": 163
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 427,
+        "width": 1280,
+        "x": 0,
+        "y": 2182
+      },
+      "label": "  ​​埼京線​",
+      "ref": 52,
+      "type": "Clickable",
+      "z": 166
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 992,
+        "x": 60,
+        "y": 2230
+      },
+      "identifier": "trip_card_main_header",
+      "ref": 53,
+      "type": "Other",
+      "z": 167
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 235,
+        "x": 60,
+        "y": 2230
+      },
+      "label": "  ​​埼京線​",
+      "ref": 54,
+      "type": "StaticText",
+      "z": 171
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 277,
+        "x": 367,
+        "y": 2230
+      },
+      "label": "  ​​武蔵野線​",
+      "ref": 55,
+      "type": "StaticText",
+      "z": 172
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 235,
+        "x": 716,
+        "y": 2230
+      },
+      "label": "  ​​中央線​",
+      "ref": 56,
+      "type": "StaticText",
+      "z": 173
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 144,
+        "x": 1076,
+        "y": 2230
+      },
+      "identifier": "trip_card_primary_detail",
+      "ref": 57,
+      "type": "Other",
+      "z": 174
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 126,
+        "x": 1094,
+        "y": 2230
+      },
+      "label": "52 分",
+      "ref": 58,
+      "type": "StaticText",
+      "z": 176
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 2340
+      },
+      "identifier": "trip_card_trip_summary",
+      "ref": 59,
+      "type": "Other",
+      "z": 177
+    },
+    {
+      "depth": 25,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 2340
+      },
+      "label": "10:34 – 11:26",
+      "ref": 60,
+      "type": "StaticText",
+      "z": 178
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 144,
+        "x": 1076,
+        "y": 2340
+      },
+      "identifier": "trip_card_secondary_detail",
+      "ref": 61,
+      "type": "Other",
+      "z": 179
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 116,
+        "x": 1076,
+        "y": 2340
+      },
+      "label": "720円",
+      "ref": 62,
+      "type": "StaticText",
+      "z": 183
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 135,
+        "width": 1160,
+        "x": 60,
+        "y": 2426
+      },
+      "identifier": "trip_card_full_width_notice",
+      "ref": 63,
+      "type": "Other",
+      "z": 184
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 77,
+        "width": 729,
+        "x": 60,
+        "y": 2426
+      },
+      "label": "7 分（遅延）後、10 分（遅延）後 赤羽駅 発",
+      "ref": 64,
+      "type": "StaticText",
+      "z": 186
+    },
+    {
+      "depth": 29,
+      "enabled": true,
+      "frame": {
+        "height": 58,
+        "width": 341,
+        "x": 114,
+        "y": 2503
+      },
+      "label": "埼京線：下り線 遅延",
+      "ref": 65,
+      "type": "StaticText",
+      "z": 191
+    },
+    {
+      "clickable": true,
+      "depth": 23,
+      "enabled": true,
+      "frame": {
+        "height": 244,
+        "width": 1280,
+        "x": 0,
+        "y": 2612
+      },
+      "label": "  ​​京浜東北線​",
+      "ref": 66,
+      "type": "Clickable",
+      "z": 194
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 992,
+        "x": 60,
+        "y": 2660
+      },
+      "identifier": "trip_card_main_header",
+      "ref": 67,
+      "type": "Other",
+      "z": 195
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 320,
+        "x": 60,
+        "y": 2660
+      },
+      "label": "  ​​京浜東北線​",
+      "ref": 68,
+      "type": "StaticText",
+      "z": 199
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 277,
+        "x": 452,
+        "y": 2660
+      },
+      "label": "  ​​武蔵野線​",
+      "ref": 69,
+      "type": "StaticText",
+      "z": 200
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 68,
+        "width": 235,
+        "x": 801,
+        "y": 2660
+      },
+      "label": "  ​​中央線​",
+      "ref": 70,
+      "type": "StaticText",
+      "z": 201
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 144,
+        "x": 1076,
+        "y": 2660
+      },
+      "identifier": "trip_card_primary_detail",
+      "ref": 71,
+      "type": "Other",
+      "z": 202
+    },
+    {
+      "depth": 26,
+      "enabled": true,
+      "frame": {
+        "height": 86,
+        "width": 126,
+        "x": 1094,
+        "y": 2660
+      },
+      "label": "52 分",
+      "ref": 72,
+      "type": "StaticText",
+      "z": 204
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 2770
+      },
+      "identifier": "trip_card_trip_summary",
+      "ref": 73,
+      "type": "Other",
+      "z": 205
+    },
+    {
+      "depth": 25,
+      "enabled": true,
+      "frame": {
+        "height": 57,
+        "width": 980,
+        "x": 60,
+        "y": 2770
+      },
+      "label": "10:34 – 11:26",
+      "ref": 74,
+      "type": "StaticText",
+      "z": 206
+    },
+    {
+      "depth": 24,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 144,
+        "x": 1076,
+        "y": 2770
+      },
+      "identifier": "trip_card_secondary_detail",
+      "ref": 75,
+      "type": "Other",
+      "z": 207
+    },
+    {
+      "depth": 28,
+      "enabled": true,
+      "frame": {
+        "height": 62,
+        "width": 116,
+        "x": 1076,
+        "y": 2770
+      },
+      "label": "720円",
+      "ref": 76,
+      "type": "StaticText",
+      "z": 211
+    },
+    {
+      "depth": 13,
+      "enabled": true,
+      "frame": {
+        "height": 12,
+        "width": 120,
+        "x": 580,
+        "y": 1363
+      },
+      "identifier": "grippy",
+      "ref": 77,
+      "type": "Other",
+      "z": 212
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 1339,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+      },
+      "identifier": "map_overlay",
+      "ref": 78,
+      "type": "Other",
+      "z": 29
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 492,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+      },
+      "identifier": "header_container",
+      "ref": 79,
+      "type": "Other",
+      "z": 33
+    },
+    {
+      "clickable": true,
+      "depth": 18,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 968,
+        "x": 108,
+        "y": 180
+      },
+      "label": "赤羽駅",
+      "ref": 80,
+      "type": "Clickable",
+      "z": 42
+    },
+    {
+      "depth": 19,
+      "enabled": true,
+      "frame": {
+        "height": 75,
+        "width": 168,
+        "x": 162,
+        "y": 214
+      },
+      "label": "赤羽駅",
+      "ref": 81,
+      "type": "StaticText",
+      "z": 45
+    },
+    {
+      "clickable": true,
+      "depth": 18,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 968,
+        "x": 108,
+        "y": 324
+      },
+      "label": "立川駅",
+      "ref": 82,
+      "type": "Clickable",
+      "z": 49
+    },
+    {
+      "depth": 19,
+      "enabled": true,
+      "frame": {
+        "height": 75,
+        "width": 168,
+        "x": 162,
+        "y": 358
+      },
+      "label": "立川駅",
+      "ref": 83,
+      "type": "StaticText",
+      "z": 52
+    },
+    {
+      "clickable": true,
+      "depth": 19,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 1076,
+        "y": 180
+      },
+      "label": "オーバーフローメニュー",
+      "ref": 84,
+      "type": "Button",
+      "z": 55
+    },
+    {
+      "clickable": true,
+      "depth": 19,
+      "enabled": true,
+      "frame": {
+        "height": 144,
+        "width": 144,
+        "x": 1076,
+        "y": 324
+      },
+      "label": "逆の経路を検索",
+      "ref": 85,
+      "type": "Clickable",
+      "z": 56
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 2364,
+        "width": 1280,
+        "x": 0,
+        "y": 492
+      },
+      "identifier": "home_bottom_sheet_container",
+      "ref": 86,
+      "type": "Other",
+      "z": 31
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 330,
+        "width": 1280,
+        "x": 0,
+        "y": 492
+      },
+      "identifier": "compass_container",
+      "ref": 87,
+      "type": "Other",
+      "z": 17
+    },
+    {
+      "depth": 11,
+      "enabled": true,
+      "frame": {
+        "height": 180,
+        "width": 1280,
+        "x": 0,
+        "y": 492
+      },
+      "identifier": "above_compass_container",
+      "ref": 88,
+      "type": "Other",
+      "z": 19
+    },
+    {
+      "depth": 12,
+      "enabled": true,
+      "frame": {
+        "height": 180,
+        "width": 1280,
+        "x": 0,
+        "y": 492
+      },
+      "identifier": "layers_fab_button",
+      "ref": 89,
+      "type": "Other",
+      "z": 20
+    },
+    {
+      "clickable": true,
+      "depth": 15,
+      "enabled": true,
+      "frame": {
+        "height": 162,
+        "width": 174,
+        "x": 1106,
+        "y": 510
+      },
+      "identifier": "layers_fab",
+      "label": "レイヤ",
+      "ref": 90,
+      "type": "Button",
+      "z": 23
+    },
+    {
+      "depth": 16,
+      "enabled": true,
+      "frame": {
+        "height": 138,
+        "width": 138,
+        "x": 1106,
+        "y": 510
+      },
+      "identifier": "fab_icon",
+      "ref": 91,
+      "type": "Other",
+      "z": 24
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 2217,
+        "width": 1280,
+        "x": 0,
+        "y": 639
+      },
+      "identifier": "expandingscrollview_container",
+      "ref": 92,
+      "scrollActions": [
+        "backward",
+        "forward"
+      ],
+      "scrollable": true,
+      "type": "ScrollView",
+      "z": 58
+    },
+    {
+      "depth": 9,
+      "enabled": true,
+      "frame": {
+        "height": 228,
+        "width": 228,
+        "x": 1052,
+        "y": 1111
+      },
+      "identifier": "on_map_secondary_action_button_container",
+      "ref": 93,
+      "type": "Other",
+      "z": 9
+    },
+    {
+      "depth": 10,
+      "enabled": true,
+      "frame": {
+        "height": 213,
+        "width": 228,
+        "x": 1052,
+        "y": 1111
+      },
+      "identifier": "qu_mylocation_container",
+      "ref": 94,
+      "type": "Other",
+      "z": 10
+    },
+    {
+      "clickable": true,
+      "depth": 11,
+      "enabled": true,
+      "frame": {
+        "height": 213,
+        "width": 228,
+        "x": 1052,
+        "y": 1111
+      },
+      "identifier": "mylocation_button",
+      "label": "現在地を地図の中心にして表示",
+      "ref": 95,
+      "type": "Button",
+      "z": 11
+    },
+    {
+      "depth": 12,
+      "enabled": true,
+      "frame": {
+        "height": 192,
+        "width": 192,
+        "x": 1052,
+        "y": 1111
+      },
+      "identifier": "fab_icon",
+      "ref": 96,
+      "type": "Other",
+      "z": 12
+    }
+  ],
+  "safeAreaTop": {
+    "measured": true,
+    "top": 156
+  },
+  "screen": {
+    "height": 2856,
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  "sessionBundleID": "com.google.android.apps.maps",
+  "truncatedCount": 0
+}

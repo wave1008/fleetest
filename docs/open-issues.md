@@ -32,7 +32,7 @@
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 14 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-184・OI-198・OI-214 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 28 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 29 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219 |
 
 ## 着手可
 
@@ -256,6 +256,16 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 
 ## 据え置き
+
+### OI-219 推測の容器でも、Android の経路カードが直前の横カルーセルの外と読まれる(覆う側から外れる)・その画面の他の検知の件数は未検分
+- 状態: 再現済み
+- 確認: 作業ツリー(2026-11-12)
+- 属性: 据え置き
+- 運用: 合否に響かない(警告が出ないだけで、誤った警告も赤も出ない)
+- 優先度: 低 — 観測した害は無い
+
+出典: Google マップ Android の公共交通の経路一覧(コーパス `and-maps_transit_results`・11/12)。申告された容器の判定(`TapTargetGeometry.outsideDeclaredScroller`)と覆いの切り取り(`OcclusionGeometry.occluder`)は `isOffTheRowAxis` で直したが、**推測の容器(`ContainerGeometry.clippingContainer`)は同じ取り違えのまま** —— カード本体 d23 と時刻の行 d25 の容器が横カルーセル `#query_options_filter_carousel` (0,1690 1280x144) と推測され、`isOutsideContainer` が true(カード2枚・時刻2行)。害は覆う側の候補から外れることだけで、`ghost`(覆われた残像)はコーパスで 0。②同じ画面の他の検知(overlay 3・misses 1・sliver 2・clippedByContainer 1)は採取時の値を基準値にしただけで、1件ずつ真陽性かを確かめていない
+- 次の一手: ①この取り違えで覆いを見逃した・誤った名指しをした観測が出たら、`clippingContainer` に同じ門を入れる(容器推定なので 5 SUT のフル E2E + xcuitest)②`and-maps_transit_results` を Emulator で開き、overlay 3 件の覆いをスクリーンショットで確かめる
 
 ### OI-216 xcuitest モードで、貼り付く見出しのリストの行への tap が何も起こさないまま ✅(E2EX の Flutter・RN・iOS)
 - 状態: 再現済み
