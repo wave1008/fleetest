@@ -158,12 +158,22 @@ extension StepExecutor {
         // 原因は名指さない(端に着いていても同じに見える)。settle: false の最後は撮っていないので比べない
         // **完全一致で比べる**(何も変わっていない = 確かに動いていない = 誤検知 0)。顔ぶれ・位置の閾値で緩めない: 長い本文1つ・
         // ラベルの無いタイル・値だけ変わるピッカーは、送れても顔ぶれが変わらない
+        // scrollFrame を書いた送りは、その枠の中だけを比べる(探索と同じ `sameContentInSearchRegion`)。枠の外の地図のピンが1つ
+        // 消えただけで「動いた」になり、半開きのシートの中で何も動かなかったことを黙っていた(Apple マップの場所カード)
+        let wroteFrame = step.scrollFrame != nil || step.scrollFrameRect != nil
         if !skippingSettle(step), let latest,
-           Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
+           wroteFrame ? Self.sameContentInSearchRegion(step, settledBefore.snapshot, latest)
+                      : Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
             noteCodesThisStep.insert(.scrollMovedNothing)
             // scrollFrame: を書いた送りに「scrollFrame: を渡せ」と言わない
-            notes.append(step.scrollFrame == nil && step.scrollFrameRect == nil ? StepNote.scrollMovedNothing.text
-                : StepNote.scrollMovedNothingInWrittenFrameText)
+            if !wroteFrame {
+                notes.append(StepNote.scrollMovedNothing.text)
+            } else if let region = Self.explicitScrollFrameRegion(step, in: latest),
+                      let grabber = SheetGeometry.halfOpenSheetGrabber(region: region, in: latest) {
+                notes.append(StepNote.scrollMovedNothingInHalfOpenSheetText(grabber: grabber))
+            } else {
+                notes.append(StepNote.scrollMovedNothingInWrittenFrameText)
+            }
         }
         return StepOutcome(status: .passed,
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
@@ -1253,5 +1263,4 @@ extension StepExecutor {
             try? await Task.sleep(for: .seconds(FocusWait.pollSeconds))
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
-    }
-}
+    }}

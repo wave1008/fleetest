@@ -47,6 +47,14 @@ public enum SheetGeometry {
     /// (取り消せない)。実アプリの半開きシート(コーパス ios-home / ios-place / ios-maps_station / ios-maps_transit_steps)は
     /// どれもシートの容器の上端がグラバーの縦の範囲に入る。**名前だけの `grabber` は「シートらしさ」の判定(`isPlausibleSheet`)
     /// 専用** —— 画面を動かす呼び手はこちらを使う
+    /// 払った枠 `region` が半開きのシート(`looksLikeBottomSheet`)で、ドラッグしてよいつまみがあればそのつまみ(scroll の「動かなかった」の注記)。
+    /// 半開きのシートの中身はシートを広げるまで動かず、送りの刻み(容器の半分)ではシートも次の段まで届かずに戻る
+    /// (Apple マップの場所カード: 188pt の送りは戻り、227pt のドラッグは全開になった)
+    public static func halfOpenSheetGrabber(region: FTRect, in snapshot: SnapshotResponse) -> ElementInfo? {
+        guard looksLikeBottomSheet(frame: region, screen: snapshot.screen) else { return nil }
+        return draggableSheetGrabber(in: snapshot)
+    }
+
     public static func draggableSheetGrabber(in snapshot: SnapshotResponse) -> ElementInfo? {
         snapshot.elements.first { candidate in
             let name = ((candidate.identifier ?? "") + " " + (candidate.label ?? "")).lowercased()
