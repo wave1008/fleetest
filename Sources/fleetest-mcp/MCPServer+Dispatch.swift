@@ -494,7 +494,7 @@ extension MCPServer {
         let reasons = unknown.compactMap { deliberatelyAbsentArguments[tool]?[$0] }
         return "⚠️ ignored unknown argument(s): " + described.joined(separator: ", ")
             + " — \(tool) takes: " + takes
-            + reasons.map { ". " + $0 }.joined()
+            + reasons.map { ". " + $0 + "." }.joined()
     }
 
     /// 他の操作の道具が持つのに、意図して持たない引数と、その理由と代わりの手(「揃っていない」と読まれて試行錯誤させない)。

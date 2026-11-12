@@ -136,6 +136,23 @@ final class SelectorTargetTests: XCTestCase {
         XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
     }
 
+    /// 文法の誤りはアラートが前面でもアラートを名指さない(閉じても直らない)
+    func testSyntaxErrorBehindAnAlertDoesNotNameTheAlert() async throws {
+        let alert = ElementInfo(ref: 10, type: "alert", identifier: nil, label: "安全に目的地に到達するために", value: nil,
+                                placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 300, width: 360, height: 200), depth: 1)
+        let ok = ElementInfo(ref: 11, type: "button", identifier: nil, label: "OK", value: nil, placeholder: nil,
+                             enabled: true, frame: FTRect(x: 20, y: 440, width: 100, height: 40), depth: 2)
+        let (server, _) = make([alert, ok])
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["selector": "#"])
+            XCTFail("文法の誤りは断るはず")
+        } catch {
+            let message = (error as? MCPError)?.message ?? "\(error)"
+            XCTAssertFalse(message.contains("安全に目的地に到達するために"), message)
+            XCTAssertFalse(message.hasPrefix("refusing: "), message)
+        }
+    }
+
     /// アラートが無ければ従来の文のまま(先頭に何も足さない)
     func testSelectorMissMessageWithoutAlertIsUnchanged() {
         XCTAssertEqual(MCPServer.selectorMissMessage("no element matches X", alertClause: ""), "no element matches X")

@@ -271,9 +271,12 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertFalse(outside.contains("ft_snapshot"), "広げた後の木は同じ応答に載る = 撮り直しを勧めない: \(outside)")
         XCTAssertEqual(MCPServer.matchOutsideScrollFrameNote(row, step: step, in: screen), "")
         // エラーにしない応答の見出しは「見つかった」と読まれない
-        let headline = MCPServer.sheetExpandedWithoutMatchHeadline("*立川*")
+        let headline = MCPServer.sheetExpandedWithoutMatchHeadline("*立川*", truncation: "")
         XCTAssertTrue(headline.contains("did NOT find"), headline)
         XCTAssertTrue(headline.contains("listed below"), headline)
+        // 打ち切られた木なら「ここで読め」の前にそうと言う(打ち切りで落ちた行を「無い」と読ませない)
+        let cut = MCPServer.sheetExpandedWithoutMatchHeadline("*立川*", truncation: " (the tree was truncated)")
+        XCTAssertTrue(cut.contains("list (the tree was truncated). The sheet"), cut)
     }
 
     /// **ref が消えたのがアプリ内のアラートのせいなら、アラートを名指しする**(「画面が変わった」と言わない)

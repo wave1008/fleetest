@@ -45,8 +45,10 @@ extension MCPServer {
                 target = try Self.resolveSelectorTarget(selector, in: snapshot)
                 break
             } catch let miss as MCPError {
-                guard attempt < StepExecutor.defaultLocatorRetryAttempts,
-                      (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil else {
+                let parses = (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil
+                guard attempt < StepExecutor.defaultLocatorRetryAttempts, parses else {
+                    // 文法の誤りはアラートを閉じても直らないので、アラートを名指さない(問い合わせも撃たない)
+                    guard parses else { throw miss }
                     // 一致なしは ref の経路(アラートの門)へ届かないので、前面のアラートはここで名指す(読み手は木だけ見て探し続ける)
                     throw MCPError(Self.selectorMissMessage(miss.message,
                                                             alertClause: await Self.frontAlertClause(snapshot, driver: d)))

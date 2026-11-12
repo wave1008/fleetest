@@ -44,6 +44,7 @@ final class UnknownArgumentNoteTests: XCTestCase {
         let note = MCPServer.unknownArgumentNote(tool: "ft_launch", args: ["bundleId": "x", "waitForChange": true])
         XCTAssertTrue(note.contains("waitForChange"), note)
         XCTAssertTrue(note.contains("on purpose") && note.contains("pass waitFor"), note)
+        XCTAssertTrue(note.hasSuffix("."), "次の警告と続けて読まれないよう文を閉じる: \(note)")
         let other = MCPServer.unknownArgumentNote(tool: "ft_launch", args: ["bundleId": "x", "bogus": true])
         XCTAssertFalse(other.contains("on purpose"), "理由は該当する引数にだけ付く: \(other)")
     }

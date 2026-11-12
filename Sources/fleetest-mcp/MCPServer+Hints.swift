@@ -85,14 +85,14 @@ extension MCPServer {
                                             in snapshot: SnapshotResponse) -> String {
         guard matchIsOutsideScrollFrame(hit, step: step, in: snapshot) else { return "" }
         return " The only match [\(hit.ref)] \(RefGuard.describe(hit)) is OUTSIDE the scrollFrame container, so no row"
-            + " inside the list was found — the list was NOT confirmed to contain it. The expanded list is below."
+            + " inside the list was found — the list was NOT confirmed to contain it."
     }
 
     /// シートを広げても容器の中に一致が無かったときの見出し(エラーにせず、広げた後の木を続けて返す)。
     /// 「見つかった」と読まれない語だけを使う
-    static func sheetExpandedWithoutMatchHeadline(_ selectorText: String) -> String {
-        "scrollTo \"\(selectorText)\" did NOT find it inside the scrollFrame list. The sheet is now expanded, so the"
-            + " rows it holds are listed below — read them here instead of searching again (nothing to tap was found)."
+    static func sheetExpandedWithoutMatchHeadline(_ selectorText: String, truncation: String) -> String {
+        "scrollTo \"\(selectorText)\" did NOT find it inside the scrollFrame list\(truncation). The sheet is now expanded,"
+            + " so the rows it holds are listed below — read them here instead of searching again."
     }
 
     /// `scrollFrame`(rect か ロケータ)が分かり、一致がその外にあるか。容器が分からなければ false。
