@@ -1132,14 +1132,19 @@ extension StepExecutor {
             // 既定経路の飛び越しをホスト側で塞ぐには座標スワイプを常用するしかなく、それは
             // 2度撤回済み(PT-3.19)。**ここを既定経路へ広げないこと**
             let vertical = direction == .up || direction == .down
-            if let previousSnapshot,
-               let travel = Self.measuredTravel(before: previousSnapshot, after: snapshot,
-                                                vertical: vertical) {
+            // 記録に添える移動量(前の回と重なっていたか = 飛び越しの有無を後から読むための測る口。判定には使わない)
+            var travelTrace = ""
+            if let previousSnapshot {
                 let container = scrollContainer(step: step, in: snapshot, vertical: vertical)
                     .flatMap { ScrollGeometry.intersection($0, snapshot.screen) } ?? snapshot.screen
                 let extent = vertical ? container.height : container.width
-                if travel > extent * Self.travelCeilingRatio {
-                    spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
+                if let travel = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical) {
+                    travelTrace = " (moved \(Int(travel.rounded())) of \(Int(extent.rounded())))"
+                    if travel > extent * Self.travelCeilingRatio {
+                        spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
+                    }
+                } else {
+                    travelTrace = " (moved ? of \(Int(extent.rounded())) — no element in common with the previous read)"
                 }
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
@@ -1151,7 +1156,7 @@ extension StepExecutor {
             }
             // 待ちの読み直し(同じ回が続く)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)
             let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
-            if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) { scrollSearchTrace.append(entry) }
+            if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) { scrollSearchTrace.append(entry + travelTrace) }
             if let (element, fallback) = traced {
                 // **見つけただけでは足りない**: 画面の縁で見切れている要素は、フレームワークに
                 // よっては frame がクランプされて**タップが外れる**(Compose iOS の既知の上流制約)。
