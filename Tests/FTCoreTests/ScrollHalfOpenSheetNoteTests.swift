@@ -40,7 +40,7 @@ final class ScrollHalfOpenSheetNoteTests: XCTestCase {
 
     func testAHalfOpenSheetThatDidNotMoveNamesItsGrabber() async {
         let text = await note(sheetTop: 480, scrollFrame: true) ?? ""
-        XCTAssertTrue(text.contains("it is a half-open sheet"), text)
+        XCTAssertTrue(text.contains("it looks like a half-open sheet"), text)
         XCTAssertTrue(text.contains("Card grabber"), text)
     }
 

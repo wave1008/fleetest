@@ -1263,4 +1263,5 @@ extension StepExecutor {
             try? await Task.sleep(for: .seconds(FocusWait.pollSeconds))
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
-    }}
+    }
+}

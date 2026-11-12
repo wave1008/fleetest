@@ -41,20 +41,20 @@ public enum SheetGeometry {
         }
     }
 
+    /// 払った枠 `region` が半開きのシート(`looksLikeBottomSheet`)で、ドラッグしてよいつまみがあればそのつまみ(scroll の「動かなかった」の注記)。
+    /// 形(幾何 + 上端に載ったつまみ)からの推定で、案内だけに使う(画面は動かさない)。半開きのシートは中身を広げるまで動かさず、
+    /// 送りの刻み(容器の半分)では次の段まで届かずに戻ることがある(観測: Apple マップの場所カードで 188pt の送りは戻り、227pt のドラッグは全開)
+    public static func halfOpenSheetGrabber(region: FTRect, in snapshot: SnapshotResponse) -> ElementInfo? {
+        guard looksLikeBottomSheet(frame: region, screen: snapshot.screen) else { return nil }
+        return draggableSheetGrabber(in: snapshot)
+    }
+
     /// **ドラッグしてよい**グラバー: `grabber` に加えて、半開きシートの幾何(`looksLikeBottomSheet`)を満たす要素の**上端の縁**に
     /// 載っていること(縁の幅はグラバー自身の高さ = シートの上端の y がグラバーの縦の範囲に入る・横はシートの内側)。
     /// 名前だけで撃つと、行の並べ替えの取っ手・分割ビューのつまみなど自前で `grabber` と名付けた部品を画面の上まで引きずる
     /// (取り消せない)。実アプリの半開きシート(コーパス ios-home / ios-place / ios-maps_station / ios-maps_transit_steps)は
     /// どれもシートの容器の上端がグラバーの縦の範囲に入る。**名前だけの `grabber` は「シートらしさ」の判定(`isPlausibleSheet`)
     /// 専用** —— 画面を動かす呼び手はこちらを使う
-    /// 払った枠 `region` が半開きのシート(`looksLikeBottomSheet`)で、ドラッグしてよいつまみがあればそのつまみ(scroll の「動かなかった」の注記)。
-    /// 半開きのシートの中身はシートを広げるまで動かず、送りの刻み(容器の半分)ではシートも次の段まで届かずに戻る
-    /// (Apple マップの場所カード: 188pt の送りは戻り、227pt のドラッグは全開になった)
-    public static func halfOpenSheetGrabber(region: FTRect, in snapshot: SnapshotResponse) -> ElementInfo? {
-        guard looksLikeBottomSheet(frame: region, screen: snapshot.screen) else { return nil }
-        return draggableSheetGrabber(in: snapshot)
-    }
-
     public static func draggableSheetGrabber(in snapshot: SnapshotResponse) -> ElementInfo? {
         snapshot.elements.first { candidate in
             let name = ((candidate.identifier ?? "") + " " + (candidate.label ?? "")).lowercased()

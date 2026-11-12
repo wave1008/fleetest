@@ -772,10 +772,10 @@ extension StepNote {
     public static let scrollMovedNothingInWrittenFrameText =
         "nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction"
 
-    /// 払った枠が半開きのシートのとき(`StepExecutor.halfOpenSheetGrabber`)。端の可能性ではなく、シートを広げる手を言う
+    /// 払った枠が半開きのシートの形のとき(`SheetGeometry.halfOpenSheetGrabber`)。端の可能性ではなく、シートを広げる手を言う(形からの推定なので断定しない)
     public static func scrollMovedNothingInHalfOpenSheetText(grabber: ElementInfo) -> String {
-        "nothing inside the scrollFrame moved — it is a half-open sheet, whose content does not scroll until the sheet"
-            + " is expanded, and a swipe of this length lets it fall back; drag its grabber \(TapTargetGeometry.describe(grabber))"
-            + " up to the top first"
+        "nothing inside the scrollFrame moved — it looks like a half-open sheet (judged from its shape), and such a sheet"
+            + " often keeps its content still until it is expanded and falls back after a swipe this short; try dragging its grabber"
+            + " \(TapTargetGeometry.describe(grabber)) up to the top first"
     }
 }
