@@ -1394,6 +1394,19 @@ public final class AndroidDriver: AppDriver {
         }
     }
 
+    /// NumberPicker を値で合わせる。ブリッジは1段送って値を読み直すだけで、止める判断は `PickerValueLoop`(観測できる事象だけ)。
+    /// 失敗は止まった値を言う 422。`frame` / `identifier` は iOS 用で読まない
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        do {
+            return try await PickerValueLoop.run(start: currentValue, wanted: value) { direction in
+                try await self.withBridge { try await $0.pickerStep(ref: ref, direction: direction) }
+            }
+        } catch let failure as PickerValueLoop.Failure {
+            throw DriverError.badResponse(status: 422, body: failure.description)
+        }
+    }
+
     /// gesture も apk 経由だけ(doubleTap/pinch と同じ理由。多点の同期が要る)
     public func gesture(_ request: GestureRequest) async throws {
         try await withBridge { try await $0.gesture(request) }

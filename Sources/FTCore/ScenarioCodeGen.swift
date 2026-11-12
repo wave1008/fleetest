@@ -211,6 +211,9 @@ public enum ScenarioCodeGen {
             case "hinge":
                 guard let degrees = step.degrees else { return nil }
                 return "hinge(\(FTSeconds.format(degrees)))"
+            case "setPickerValue":
+                guard step.locator != nil, let wanted = step.text else { return nil }
+                return "setPickerValue(\(literal(selector)), \(literal(wanted))\(actionWaitArg(step)))"
             case "doubleTap":
                 if step.locator == nil, let x = step.x, let y = step.y {
                     return "doubleTap(x: \(FTSeconds.format(x)), y: \(FTSeconds.format(y))\(settleArg(step)))"

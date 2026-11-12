@@ -689,6 +689,30 @@ private func doubleTapImpl(_ selector: FTSelector, settle: Bool, waitSeconds: Do
     return FTElement(selector: selector, matched: result.element)
 }
 
+/// ピッカーのホイール(iOS の pickerWheel・Android の NumberPicker)を値で1回で合わせる。
+/// 値は表示の文字(`"09"` `"30 minutes"`)か、数字だけなら先頭の整数での一致(`"19"` は `"19時"` にも合う)。
+/// セレクタは**ホイール1本**を指すこと(日時ピッカー全体ではなく中のホイール)。pickerWheel 以外・複数本は撃たずに失敗
+@discardableResult
+public func setPickerValue(_ selector: String, _ value: String, waitSeconds: Double? = nil,
+                           file: StaticString = #filePath, line: UInt = #line) -> FTElement {
+    setPickerValueImpl(FTSelector.parse(selector), value, waitSeconds: waitSeconds, file: file, line: line)
+}
+
+@discardableResult
+public func setPickerValue(_ selector: Sel, _ value: String, waitSeconds: Double? = nil,
+                           file: StaticString = #filePath, line: UInt = #line) -> FTElement {
+    setPickerValueImpl(selector.ftSelector, value, waitSeconds: waitSeconds, file: file, line: line)
+}
+
+private func setPickerValueImpl(_ selector: FTSelector, _ value: String, waitSeconds: Double?,
+                                file: StaticString, line: UInt) -> FTElement {
+    let step = FlowStep(action: "setPickerValue", locator: selector.primary,
+                        fallbacks: selector.stepFallbacks, text: value, timeout: waitSeconds)
+    let result = perform("setPickerValue", selector, step: step,
+                         description: "setPickerValue \"\(selector.text)\" \"\(value)\"", file: file, line: line)
+    return FTElement(selector: selector, matched: result.element)
+}
+
 /// 2本指を開くピンチ = **拡大**(scale > 1)。セレクタ無しは画面全体が対象。
 ///
 ///     pinchOut()                    // 2倍に拡大

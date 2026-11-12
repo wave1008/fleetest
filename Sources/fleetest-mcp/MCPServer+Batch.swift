@@ -124,6 +124,16 @@ extension MCPServer {
             let suffix = replace ? " (replace)" : ""
             return (step, "type\(target) \"\(text)\"\(suffix)")
         },
+        "setPickerValue": BatchStepBuilder(keys: ["selector", "value", "waitSeconds"]) { raw in
+            let selector = try requiredBatchSelector(raw, command: "setPickerValue")
+            guard let value = raw["value"] as? String, !TextNormalization.isBlank(value) else {
+                throw MCPError("setPickerValue requires a non-empty value (the text or number to set the wheel to)")
+            }
+            let step = FlowStep(action: "setPickerValue", locator: selector.primary,
+                                fallbacks: batchFallbacks(selector), text: value,
+                                timeout: raw["waitSeconds"] as? Double)
+            return (step, "setPickerValue \"\(selector.text)\" \"\(value)\"")
+        },
         "pressEnter": BatchStepBuilder(keys: ["settle"]) { raw in
             (FlowStep(action: "pressEnter", settle: batchSettle(raw)), "pressEnter")
         },

@@ -274,6 +274,11 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | `hideKeyboard`(iOS・WebView の欄) | WKWebView の欄はキーボードの上に OS の入力補助バー(識別子 `Toolbar` の Previous / Next / Done)を出し、バーは `keyboardFrame` に含まれない。ページが押せる部品で埋まっていると背景タップの空きが無い(E2E-iOS の WebView で実測) | 空きが無い・叩いても閉じないときは Enter の前にバーの Done を押す(アプリ独自のバーは押さない) | B |
 | 戻る | Compose / Flutter には BackButton が無い → エッジスワイプ | 戻るボタンがあれば押す | C |
 
+**`setPickerValue`(ピッカーのホイールを値で合わせる)は OS で経路が割れる**(B。結果は同じ・往復数が違う): **iOS**(UIDatePicker・UIPickerView の pickerWheel)は XCUITest ランナーの `adjust(toPickerWheelValue:)` を1回。
+行の文字と value の文字が違う(日本語の Simulator は value `14時`・行の文字は `14`)ので、現在値から作った候補を順に渡す。inapp-boost モードでも ref でなく frame で XCUITest ブリッジへ回る。
+**Android**(NumberPicker = 型 `pickerWheel`)は a11y の scroll を1段ずつ送って中の EditText を読み直す(`ACTION_SET_TEXT` は true を返すが値は変わらない)。時と分の EditText は同じ id なので親の NumberPicker から読み、
+循環するので「一致・値が動かない・一周」で止める(`FTCore.PickerValueLoop`)
+
 ---
 
 ### FD-2.6 チェック状態(`checkIsON` / `checkIsOFF` / `checked=`)
@@ -475,6 +480,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 | Android v129 | ブリッジが押せるノードに `clickable` を載せる(setOnClickListener を付けた TextView は `staticText` に写る)。塗り順のある Android の View・RN で、この申告のある覆いの下への触る操作は覆いが押せる型でなくても撃つ前に断る(シートの裏の行への tap が手前のキューの行を押して ✅ だった)。iOS は送らない(型が役割を語る) |
 | iOS v278 | in-app ブリッジが `accessibilityViewIsModal` で木から外した兄弟の数と旗付きの view の枠を `SnapshotResponse.modalScope` で申告する。解決できない失敗文はキーボードでなくモーダルを名指し、閉じる tap を撃たない(FD-2.1) |
 | iOS v277 | `/home` の対象アプリを要求の入口で消す(`handleHome` の `defer` で消していたため、出た後に組む 422 の名指しが読めずアプリ自身のアラートを「system alert」と言っていた) |
+| iOS v285・Android v137 | `POST /pickerValue`(XCUITest ランナー)と `POST /pickerStep`(Android)を足し、DSL `setPickerValue` / MCP `ft_set_picker_value` でピッカーのホイールを値で合わせる(FD-2.5)。Android の `NumberPicker` を型 `pickerWheel`(値は中の EditText の文字)として木に出す |
 | iOS v276・Android v126 | iOS: in-app ブリッジの `/hidekeyboard` が RN の焦点の欄(`RCTUITextField` / `RCTUITextView`)を resign で閉じる(FD-2.5)/ 手前の窓に覆われて落とした要素の数と枠を `SnapshotResponse.coveredByFrontWindow` で申告し、失敗文がその窓を名指す(FD-1.3)。Android: 入力接続の閉じた欄への `pressEnter` を `no-input-focus` で断る・押せるだけの要素への ref 付き `type` を焦点の接続へ打つ(FD-2.4) |
 | Android v127 | `/scrollAction` が、端と申告した容器の内側の同じ列にその向きへ送れる一覧があればそちらを送る(`nestedSenderInColumn`。FD-2.3)。ホスト側の対は `nestedScrollableMoves` |
 | iOS v269 | XCUITest ランナーの `GET /hittable` が、ref の代わりに `identifier`・`label`・`x`・`y`・`w`・`h` でも要素を引き当てる(inapp-boost モードの木の番号は in-app のもので ref では聞けない)。塗り順の無い iOS の木で、別のスクロール容器の押せる要素が中心に重なる対象だけ、撃つ前にこの照会をして `false` なら撃たずに断る(FD-1.4) |

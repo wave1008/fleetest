@@ -68,6 +68,7 @@
 - [flick は端に着いたかを判定しない](../commands/flick_ja.md#注意点) — 並べて送っても到達は分かりません。払った後は自分で到達先を検証します。
 
 ### マップ・キャンバス系のジェスチャ(doubleTap, pinchIn, pinchOut, gesture, hold)
+- [`setPickerValue` が回すのはホイール1本だけ](../commands/gestures_ja.md#注意点) — ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールやホイールでない要素は、何も送る前に断ります。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/gestures_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
 ### 画像の検証(imageIs)

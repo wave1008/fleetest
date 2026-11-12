@@ -343,6 +343,12 @@ public final class WebViewDelegatingDriver: AppDriver {
                                      durationSeconds: durationSeconds)
     }
 
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await screenDriver.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                              currentValue: currentValue, value: value)
+    }
+
     public func gesture(_ request: GestureRequest) async throws {
         try await screenDriver.gesture(request)
     }

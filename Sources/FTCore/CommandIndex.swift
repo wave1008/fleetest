@@ -211,6 +211,13 @@ public enum DSLCommandIndex {
                   + " system as the snapshot frames (returns nothing). Prefer a selector: coordinates hit"
                   + " something else as soon as the layout moves."
                   + " The selector form returns the element it grabbed, so assertions chain directly."),
+        .init("setPickerValue", "operation", "setPickerValue(selector, value, waitSeconds:)",
+              "Sets a picker wheel (an iOS pickerWheel of a date/time picker or UIPickerView, an Android NumberPicker of a"
+                  + " time/date spinner) to a value in one call. value is the text the wheel shows (\"09\", \"30 minutes\"),"
+                  + " or digits only to match the leading number (\"19\" also matches \"19 o’clock\" and \"07\" matches \"7\")."
+                  + " The selector must name ONE wheel (not the picker around it): a non-pickerWheel or several wheels fail"
+                  + " without sending anything. Fails with the value the wheel stopped at when it cannot reach the value."
+                  + " Returns the element it grabbed."),
         .init("pinchOut", "operation",
               "pinchOut(selector?, scale:, durationSeconds:, maxGestureSeconds:, settle:, waitSeconds:)",
               "Pinches open (zoom in). scale must be > 1. No selector = the whole screen. "

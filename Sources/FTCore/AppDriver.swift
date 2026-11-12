@@ -218,6 +218,12 @@ public protocol AppDriver {
     /// 理由は BridgeDTO の PinchRequest 参照。**プロトコル要件として宣言すること**
     func pinch(frame: FTRect?, identifier: String?, scale: Double,
                durationSeconds: Double) async throws
+    /// ピッカーのホイール(iOS の pickerWheel・Android の NumberPicker)を値で合わせる(DSL の setPickerValue / MCP の ft_set_picker_value)。
+    /// `ref` は直近の木の番号(Android が使う)・`frame` / `identifier` は iOS が使う(XCUITest ランナーは frame で引く =
+    /// inapp-boost モードの ref は別名前空間なので渡さない)。`currentValue` = 木で読めた現在の値(Android の向きの判断)。
+    /// 合わなければ止まった値を言って投げる。**既定は 501**(in-app ブリッジなど)。**プロトコル要件として宣言すること**、包むドライバは素通しする
+    func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                        value: String) async throws -> PickerValueOutcome
     /// ひと続きのジェスチャ(DSL の gesture / MCP の ft_gesture)。要求は `TouchGesture.validate` 済み。
     /// **プロトコル要件として宣言すること**(doubleTap / pinch と同じ理由)。包むドライバは必ず素通しする
     func gesture(_ request: GestureRequest) async throws
@@ -821,6 +827,11 @@ public extension AppDriver {
     func pinch(frame: FTRect?, identifier: String?, scale: Double,
                durationSeconds: Double) async throws {
         throw DriverError.badResponse(status: 501, body: "This driver does not support pinch")
+    }
+
+    func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                        value: String) async throws -> PickerValueOutcome {
+        throw DriverError.badResponse(status: 501, body: "This driver does not support setting a picker value")
     }
 
     func waitForSettle(_ request: WaitForSettleRequest, timeoutSeconds: Double) async throws -> WaitForSettleResponse {

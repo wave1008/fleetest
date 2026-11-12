@@ -175,6 +175,12 @@ public final class LaunchPreflightDriver: AppDriver {
                              durationSeconds: durationSeconds)
     }
 
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await base.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                      currentValue: currentValue, value: value)
+    }
+
     public func gesture(_ request: GestureRequest) async throws { try await base.gesture(request) }
 
     public func waitForSettle(_ request: WaitForSettleRequest,

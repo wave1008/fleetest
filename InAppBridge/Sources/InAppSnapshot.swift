@@ -325,7 +325,7 @@ enum InAppSnapshot {
             || !(node.accessibilityValue ?? "").isEmpty
 
         switch type {
-        case .button, .toggle, .textField, .secureTextField, .textView, .adjustable, .cell,
+        case .button, .toggle, .textField, .secureTextField, .textView, .adjustable, .pickerWheel, .cell,
              .link, .searchField, .picker:
             return Included(frame: frame)
         case .staticText, .image:
@@ -468,6 +468,9 @@ enum InAppSnapshot {
 
     enum UIKitType {
         case button, staticText, textField, secureTextField, textView, image, adjustable
+        /// ピッカーのホイール(調整できる要素のうち、入れ物に UIPickerView / UIDatePicker があるもの)。
+        /// XCUITest の elementType は pickerWheel を返すので、in-app だけ Slider だと `.pickerWheel` が inapp-boost モードで当たらない
+        case pickerWheel
         case cell, link, searchField, picker, navigationBar, tabBar, alert, keyboardKey, other
         /// switch は予約語なので toggle と命名(型名は "Switch" = XCUITest 版と同じ語彙)
         case toggle
@@ -529,7 +532,7 @@ enum InAppSnapshot {
         }
         if t.contains(.button) { return .button }
         if t.contains(.image) { return .image }
-        if t.contains(.adjustable) { return .adjustable }
+        if t.contains(.adjustable) { return isInsidePicker(node) ? .pickerWheel : .adjustable }
         if t.contains(.staticText) || t.contains(.header) { return .staticText }
         if node is UINavigationBar { return .navigationBar }
         if node is UITabBar { return .tabBar }
@@ -538,6 +541,23 @@ enum InAppSnapshot {
             return .staticText
         }
         return .other
+    }
+
+    /// 入れ物(a11y の container と superview)をたどって UIPickerView / UIDatePicker に行き着くか。
+    /// ホイールの要素は汎用の UIAccessibilityElement(ランナーの axClass で実測)でクラスからは分からない
+    private static func isInsidePicker(_ node: NSObject) -> Bool {
+        var current: NSObject? = node
+        while let x = current {
+            if x is UIPickerView || x is UIDatePicker { return true }
+            if let view = x as? UIView {
+                current = view.superview
+            } else if let element = x as? UIAccessibilityElement {
+                current = element.accessibilityContainer as? NSObject
+            } else {
+                current = nil
+            }
+        }
+        return false
     }
 
     private static func typeName(_ type: UIKitType) -> String {
@@ -550,6 +570,7 @@ enum InAppSnapshot {
         case .textView: return "TextView"
         case .image: return "Image"
         case .adjustable: return "Slider"
+        case .pickerWheel: return "PickerWheel"
         case .cell: return "Clickable"
         case .link: return "Link"
         case .searchField: return "SearchField"

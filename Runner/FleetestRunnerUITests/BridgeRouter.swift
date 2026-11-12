@@ -149,6 +149,8 @@ final class BridgeRouter {
             case ("POST", "/drag"): response = try handleDrag(request.body)
             case ("POST", "/doubletap"): response = try handleDoubleTap(request.body)
             case ("POST", "/pinch"): response = try handlePinch(request.body)
+            // **mutatingPaths に入れない**(/pinch と同じ理由: 整定はホストの performGesture が末尾で待つ)
+            case ("POST", "/pickerValue"): response = try handlePickerValue(request.body)
             case ("POST", "/gesture"): response = try handleGesture(request.body)
             case ("POST", "/rotate"): response = try handleRotate(request.body)
             case ("POST", "/press"): response = try handlePress(request.body)
@@ -1410,6 +1412,48 @@ final class BridgeRouter {
             + "\(appOrientation()?.rawValue ?? "unknown"): either the app does not declare that orientation in"
             + " UISupportedInterfaceOrientations, or something drawn over it (such as the app switcher) kept it from"
             + " rotating. The device orientation was set to \(req.orientation.rawValue) and stays so until it is rotated back)")
+    }
+
+    /// pickerWheel を `adjust(toPickerWheelValue:)` で合わせる(契約は BridgeDTO.PickerValueRequest)。
+    /// **ref でなく frame で引く**(inapp-boost モードのホストの ref は in-app の名前空間でここでは通じない)。
+    /// 候補を順に渡し、値が動いた(または候補と一致した)ところで止める。**合ったかの判定はホスト**(最後に読めた値を返すだけ)。
+    /// adjust は行が無いとテストの失敗を記録するが、`FleetestBridgeTests.record` が握りつぶすのでここへは例外にならない
+    /// = 値が変わらないことで分かる。ObjC 例外が出た回は文言を `note` に載せて次の候補へ進む
+    private func handlePickerValue(_ body: Data) throws -> BridgeHTTPServer.Response {
+        let req = try decode(PickerValueRequest.self, body)
+        guard !req.candidates.isEmpty else { throw BridgeError(400, "candidates must not be empty") }
+        let app = try requireForegroundAppForGesture()
+        let want = CGRect(x: req.frame.x, y: req.frame.y, width: req.frame.width, height: req.frame.height)
+        let wheels = app.pickerWheels.allElementsBoundByIndex.filter {
+            let f = $0.frame
+            return abs(f.origin.x - want.origin.x) <= 1 && abs(f.origin.y - want.origin.y) <= 1
+                && abs(f.width - want.width) <= 1 && abs(f.height - want.height) <= 1
+        }
+        guard wheels.count == 1, let wheel = wheels.first else {
+            throw BridgeError(422, wheels.isEmpty
+                ? "no pickerWheel is at frame (\(Int(want.origin.x)), \(Int(want.origin.y)), \(Int(want.width))x\(Int(want.height)))"
+                    + " now — the screen may have changed; take a new snapshot"
+                : "\(wheels.count) pickerWheels share that frame, so which one to turn is ambiguous")
+        }
+        let before = wheel.value as? String
+        var last = before
+        var matched: String?
+        var tried: [String] = []
+        var note: String?
+        for candidate in req.candidates {
+            tried.append(candidate)
+            ResponseMeasurement.noteInjection()
+            if let exception = FTCatchObjCException({ wheel.adjust(toPickerWheelValue: candidate) }) {
+                note = exception
+                continue
+            }
+            last = wheel.value as? String
+            if last != before || last == candidate {
+                matched = candidate
+                break
+            }
+        }
+        return .json(PickerValueResponse(matched: matched, value: last, tried: tried, note: note))
     }
 
     private func handlePress(_ body: Data) throws -> BridgeHTTPServer.Response {

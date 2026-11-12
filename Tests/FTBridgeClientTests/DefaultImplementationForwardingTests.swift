@@ -33,6 +33,9 @@ final class DefaultImplementationForwardingTests: XCTestCase {
         // addMedia は Simulator / 端末そのものへの操作で、inapp-boost モードでは primary/fallback(BridgeClient)が受ける
         "SystemUIDriver.addMedia": "springboard 参照専用。addMedia は primary/fallback が受ける",
         // in-app ブリッジは /gesture を持たない。既定の 501 が inapp-boost モードを XCUITest へ回す合図になる
+        // pickerWheel の操作は XCUITest ランナー(/pickerValue)と Android(/pickerStep)だけ。in-app の木に pickerWheel の型は無く、
+        // 既定の 501 が inapp-boost モードを XCUITest へ回す合図になる(HybridFallbackDriver / AppAttachDriver が受ける)
+        "InAppDriver.setPickerValue": "in-app に pickerWheel の操作は無い。501 で inapp-boost モードが XCUITest へ回す",
         "InAppDriver.gesture": "in-app に /gesture は無い。501 で inapp-boost モードが XCUITest へ回す",
         // 応答時間計測は実機だけで、実機の iOS は xcuitest(BridgeClient)だけ = in-app / inapp-boost モードの合成の部品には届かない
         "InAppDriver.prepareResponseMeasurement": "計測は実機の xcuitest だけ(in-app / inapp-boost モードの合成には乗らない)",

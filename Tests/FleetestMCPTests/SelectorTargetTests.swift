@@ -84,7 +84,7 @@ final class SelectorTargetTests: XCTestCase {
             XCTAssertNotNil(props?["selector"], "\(tool) に selector が無い")
         }
         XCTAssertEqual(MCPServer.selectorTargetTools,
-                       ["ft_tap", "ft_type", "ft_long_press", "ft_double_tap", "ft_clear_input"])
+                       ["ft_tap", "ft_type", "ft_long_press", "ft_double_tap", "ft_clear_input", "ft_set_picker_value"])
     }
 
     // MARK: - 排他

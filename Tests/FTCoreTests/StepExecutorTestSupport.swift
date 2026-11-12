@@ -376,6 +376,20 @@ final class FakeAppDriver: AppDriver {
         log.entries.append("\(name).pinch")
     }
 
+    var pickerError: Error?
+    private(set) var lastPickerSet: (ref: Int, frame: FTRect, currentValue: String?, value: String)?
+
+    func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                        value: String) async throws -> PickerValueOutcome {
+        lastPickerSet = (ref, frame, currentValue, value)
+        if let pickerError {
+            log.entries.append("\(name).setPickerValue(throws)")
+            throw pickerError
+        }
+        log.entries.append("\(name).setPickerValue")
+        return PickerValueOutcome(value: value, steps: 1)
+    }
+
     /// waitForSettle の応答列(呼び出し回数ぶん。尽きたら最後を繰り返す)。空 = 常に静止して返す
     var waitForSettleResponses: [WaitForSettleResponse] = []
     /// 非 nil なら waitForSettle がこのエラーを throw する(501 = 画面全体を撮れないブリッジの検証用)

@@ -307,6 +307,15 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         try record("pinch(\(target),id:\(identifier ?? "nil"),scale:\(scale))", "pinch")
     }
 
+    /// ピッカーのホイールの偽。撃った引数を `calls` に積み、`scriptedPickerFailure` があればそれで失敗する(止まった値の文言の写し)
+    var scriptedPickerFailure: String?
+    func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                        value: String) async throws -> PickerValueOutcome {
+        try record("setPickerValue(ref:\(ref),id:\(identifier ?? "nil"),current:\(currentValue ?? "nil"),value:\(value))", "setPickerValue")
+        if let scriptedPickerFailure { throw DriverError.badResponse(status: 422, body: scriptedPickerFailure) }
+        return PickerValueOutcome(value: value, steps: 1)
+    }
+
     /// **既定実装(AppDriver extension)は 501 を投げる**ので、上書きしないと ft_gesture が
     /// 一切テストできない。組み立てた `GestureRequest` を丸ごと控える(点ごとの座標/時刻は
     /// `calls` の文字列化では読みにくいので、等値比較したいテストは `lastGestureRequest` を見る)

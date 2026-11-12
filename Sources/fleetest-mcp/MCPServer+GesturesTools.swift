@@ -493,6 +493,37 @@ extension MCPServer {
             + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
     }
 
+    /// ピッカーのホイールを値で合わせる。**判定(合ったか・向き・止める条件)はドライバの `setPickerValue`(DSL と同じ経路)**。
+    /// ここは宛先の検査(pickerWheel だけ)と被覆の門・応答の組み立てだけ
+    func ftSetPickerValue(_ args: [String: Any]) async throws -> [[String: Any]] {
+        guard let wanted = try Self.stringArgument(args, "value"), !TextNormalization.isBlank(wanted) else {
+            throw MCPError("value is required and must not be empty")
+        }
+        guard let ref = try Self.intArgument(args, "ref") else { throw MCPError("selector or ref is required") }
+        let pickerDriver = try await driver(args)
+        let (element, labelNote) = try await verifiedElement(ref, driver: pickerDriver, args: args)
+        guard element.type == "pickerWheel" else {
+            throw MCPError("ft_set_picker_value turns a pickerWheel, but [\(ref)] is a \(element.type)"
+                + " — nothing was sent. Pick the wheel inside the picker (ft_snapshot lists them as pickerWheel)")
+        }
+        let guardNote = try await refGestureGuard(element, driver: pickerDriver, isAndroid: pickerDriver is AndroidDriver,
+                                                  operation: "set picker value", args: args)
+        let outcome: PickerValueOutcome
+        do {
+            // ブリッジへはその木の番号で渡す(セッションの ref のままだと、2回目以降の撮影で別の要素を指す = 実測で Button を指した)
+            outcome = try await pickerDriver.setPickerValue(ref: nativeRef(element.ref, args: args), frame: element.frame,
+                                                            identifier: element.identifier,
+                                                            currentValue: element.value, value: wanted)
+        } catch DriverError.badResponse(let status, let body) where status == 422 {
+            throw MCPError("set picker value \"\(wanted)\" on [\(ref)] failed: \(body)")
+        }
+        recordInteraction(action: "setPickerValue", resolvedRef: element.ref, args: args, text: wanted)
+        return text("picker [\(ref)] now reads \"\(outcome.value)\"." + guardNote + labelNote
+            + reproductionNote(resolvedRef: element.ref, args: args)
+            + changedHintOnce(args)
+            + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
+    }
+
     func ftDrag(_ args: [String: Any]) async throws -> [[String: Any]] {
         let dragDriver = try await driver(args)
         // **掴む側を ref で指せる**: 半開きのシートを広げる操作は

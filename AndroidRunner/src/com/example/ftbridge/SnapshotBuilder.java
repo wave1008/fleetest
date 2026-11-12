@@ -104,6 +104,8 @@ final class SnapshotBuilder {
         float rangeCurrent, rangeMin, rangeMax;
         boolean enabled = true;
         boolean password;
+        /** android.widget.NumberPicker の中の EditText の文字(= 今のホイールの値)。NumberPicker 以外は空。numberPickerValue 参照 */
+        String pickerValue = "";
         Rect bounds = new Rect();
         int depth;
         /** 子孫から引き継いだ役割クラス名(Compose の Role マーカー。adoptRoleFromMarkerChildren 参照) */
@@ -556,6 +558,7 @@ final class SnapshotBuilder {
 
         n.enabled = node.isEnabled();
         n.password = node.isPassword();
+        if (n.className.equals(NUMBER_PICKER_CLASS)) n.pickerValue = numberPickerValue(node);
         n.chromeRole = chromeRole(node);
         if (insideWebView) {
             android.os.Bundle extras = node.getExtras();
@@ -580,6 +583,24 @@ final class SnapshotBuilder {
             collect(node.getChild(i), depth + 1, out, insideWebView || isWebView, forceRefresh,
                     zPath);
         }
+    }
+
+    static final String NUMBER_PICKER_CLASS = "android.widget.NumberPicker";
+
+    /**
+     * NumberPicker の今の値 = 直下の EditText の文字(時と分のホイールは同じ resource-id `numberpicker_input` を持つので、
+     * id では引かず親の NumberPicker から読む)。読めない・空は空文字。上下のボタン(`button "13"`)は隣の行の文字で値ではない。
+     * 呼び手は先に node.refresh() して戻り値を見ること(キャッシュ供給で古い値を返し続ける。.claude/rules/android.md)
+     */
+    static String numberPickerValue(AccessibilityNodeInfo picker) {
+        for (int i = 0; i < picker.getChildCount(); i++) {
+            AccessibilityNodeInfo child = picker.getChild(i);
+            if (child == null) continue;
+            if ("android.widget.EditText".contentEquals(charSeq(child.getClassName()))) {
+                return charSeq(child.getText());
+            }
+        }
+        return "";
     }
 
     private static String charSeq(CharSequence cs) {
@@ -796,6 +817,8 @@ final class SnapshotBuilder {
             // 出ない。2026-07-29 実測)。既定分岐だと落ちてスコープ起点にできないので明示的に残す
             case "WebView":
                 return true;
+            case "PickerWheel":
+                return true;
             case "StaticText":
             case "Image":
                 return hasText;
@@ -827,6 +850,7 @@ final class SnapshotBuilder {
         if (node.checkable) {
             value = node.checked ? "1" : "0";
         }
+        if (type.equals("PickerWheel") && !node.pickerValue.isEmpty()) value = node.pickerValue;
 
         // resource-id は "com.example:id/foo" 形式 → "foo" に短縮
         String identifier = null;
@@ -941,6 +965,9 @@ final class SnapshotBuilder {
                 return "ScrollView";
             case "WebView":
                 return "WebView";
+            // 値は中の EditText の文字(makeInfo)。iOS の pickerWheel と同じ語にして setPickerValue の対象にする
+            case "NumberPicker":
+                return "PickerWheel";
             default:
                 // ここから下は「className が役割を語らない」ケース(Compose / Flutter の canvas 描画)。
                 // iOS 側が返す型に寄せるための推定。順序に意味がある(checkable → clickable → 葉テキスト)

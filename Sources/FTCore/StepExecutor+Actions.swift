@@ -1704,6 +1704,44 @@ extension StepExecutor {
             guard case .passed = outcome.status else { return outcome }
             driverFallback = Self.joinNotes(driverFallback, gestureAdvisory, pinchTapNote, coverPartNote,
                                             outcome.driverFallback)
+        case "setPickerValue":
+            let wanted = step.text ?? ""
+            if TextNormalization.isBlank(wanted) {
+                return StepOutcome(status: .failed("setPickerValue needs a non-empty value to set"))
+            }
+            // 対象は pickerWheel(iOS)/ NumberPicker(Android)1本。型違い・複数本は撃たずに断る(別のホイールを回さない)
+            guard element.type == "pickerWheel" else {
+                return StepOutcome(status: .failed(
+                    "setPickerValue needs a pickerWheel (an iOS picker wheel or an Android NumberPicker), but the selector"
+                        + " resolved to a \(element.type)\(element.label.map { " \"\($0)\"" } ?? ""). Name the wheel itself"
+                        + " (for example .pickerWheel with an index, or its #id), not the picker around it"))
+            }
+            // 序数 `[n]`・相対の指定は自分で1本を選んだ書き方なので数えない(数えると `.pickerWheel[1]` まで断った = 実測)
+            if let locator = step.locator, locator.index == nil, locator.relative?.isEmpty ?? true,
+               let matched = LocatorResolver.resolvedCandidates(locator, elements: snapshot.elements),
+               matched.filter({ $0.type == "pickerWheel" }).count > 1 {
+                return StepOutcome(status: .failed(
+                    "setPickerValue: the selector matches \(matched.filter { $0.type == "pickerWheel" }.count) picker wheels,"
+                        + " so which one to turn is ambiguous and nothing was sent. Narrow the selector to one wheel"))
+            }
+            var picked: PickerValueOutcome?
+            do {
+                let viaXCUITest = try await gestureWithFallback(phase: &phase) {
+                    picked = try await $0.setPickerValue(ref: element.ref, frame: element.frame, identifier: element.identifier,
+                                                         currentValue: element.value, value: wanted)
+                }
+                if viaXCUITest { driverFallback = Self.joinNotes(driverFallback, "fell back to XCUITest") }
+            } catch DriverError.badResponse(let status, let body) where status == 422 {
+                return StepOutcome(status: .failed("setPickerValue \"\(wanted)\" failed: \(body)"))
+            }
+            if let picked {
+                driverFallback = Self.joinNotes(driverFallback, "picker now reads \"\(picked.value)\"")
+            }
+            if !skippingSettle(step), try await settledSignature(phase: &phase).settled == false {
+                var settleNotes: [String] = []
+                note(.settleCapped, into: &settleNotes)
+                driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
+            }
         case "swipeElementToElement":
             guard let endLocator = step.endLocator else {
                 return StepOutcome(status: .failed("swipeElementToElement requires an end locator"))

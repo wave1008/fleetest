@@ -68,6 +68,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`flick` has no notion of the edge](../commands/flick.md#notes) — chained flicks do not tell you whether you arrived; verify the destination yourself afterwards.
 
 ### Gestures for maps and canvases (doubleTap, pinchIn, pinchOut, gesture, hold)
+- [`setPickerValue` turns exactly one wheel](../commands/gestures.md#notes) — name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
 - [`settle: false` skips the settle wait](../commands/gestures.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
 ### Image assertion (imageIs)

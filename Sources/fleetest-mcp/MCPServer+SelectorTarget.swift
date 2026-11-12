@@ -7,7 +7,7 @@ import FTCore
 extension MCPServer {
     /// `selector` を取る単発操作。**ref の経路へ畳むだけ**(門・撮り直し・付け替え・被覆の拒否・記録は ref の経路が全部持つ。
     /// 2つ目の門を書かない)。排他は `exclusiveArgumentGroups`
-    static let selectorTargetTools: Set<String> = ["ft_tap", "ft_type", "ft_long_press", "ft_double_tap", "ft_clear_input"]
+    static let selectorTargetTools: Set<String> = ["ft_tap", "ft_type", "ft_long_press", "ft_double_tap", "ft_clear_input", "ft_set_picker_value"]
 
     /// 撮り直した木で selector を DSL と同じ解決(`LocatorResolver.resolveDetailed`)にかけ、当たった要素と複数一致の注記を返す。
     /// 一致なしは何も撃たずに断る。**複数一致は DSL の tap と同じ要素(ツリー順で `[n]` 番目・既定は先頭)を採る**

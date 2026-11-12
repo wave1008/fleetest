@@ -30,4 +30,20 @@ class Androidの固有部品を操作できること {
             }
         }
     }
+
+    @Test("NumberPicker を値で合わせる")
+    func S0020() {
+        scenario {
+            scene(1, "NumberPicker を 7 にする") {
+                condition {
+                    launchApp()
+                    tap("#nav_native", scroll: .down)
+                }.action {
+                    setPickerValue(".pickerWheel", "7")
+                }.expectation {
+                    select("#txt_native_result").textIs("native=number_picker:7")
+                }
+            }
+        }
+    }
 }

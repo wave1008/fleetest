@@ -296,6 +296,22 @@ public final class AppAttachDriver: AppDriver {
         }
     }
 
+    /// pickerWheel は frame で引く(ref を使わない)ので pinch と同じ 409 回復を入れる。
+    /// **既定実装(501)に落とさない**: in-app が持たない inapp-boost モードの操作はここを経由する
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await ensureAttached()
+        do {
+            return try await client.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                                   currentValue: currentValue, value: value)
+        } catch {
+            guard Self.isRecoverableSession(error) else { throw error }
+            try await activateRunningApp()
+            return try await client.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                                   currentValue: currentValue, value: value)
+        }
+    }
+
     /// gesture も座標だけで完結するので pinch と同じ 409 回復を入れる
     public func gesture(_ request: GestureRequest) async throws {
         try await ensureAttached()

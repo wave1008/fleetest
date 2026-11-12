@@ -30,7 +30,7 @@ final class StepActionCoverageTests: XCTestCase {
             .scrollTo: (.skip, .skip), .swipePointToPoint: (.skip, .skip), .fold: (.skip, .skip),
             .unfold: (.skip, .skip), .hinge: (.skip, .skip), .rotateTo: (.skip, .skip), .pressEnter: (.skip, .skip),
             .hideKeyboard: (.skip, .skip), .holdEnd: (.skip, .skip), .waitForSettle: (.skip, .skip),
-            .select: (.skip, .skip),
+            .select: (.skip, .skip), .setPickerValue: (.skip, .skip),
         ]
         for action in StepAction.allCases {
             guard let row = table[action] else { XCTFail("\(action) が経路の表に無い"); continue }

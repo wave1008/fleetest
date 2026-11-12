@@ -171,6 +171,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
                 case "POST /clear": return handleClear(body(request));
                 case "POST /swipe": return handleSwipe(body(request));
                 case "POST /scrollAction": return handleScrollAction(body(request));
+                case "POST /pickerStep": return handlePickerStep(body(request));
                 case "POST /doubletap": return handleDoubleTap(body(request));
                 case "POST /pinch": return handlePinch(body(request));
                 case "POST /gesture": return handleGesture(body(request));
@@ -563,6 +564,69 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         }
         o.put("performed", performed);
         return BridgeHttpServer.Response.json(200, o.toString());
+    }
+
+    /**
+     * POST /pickerStep {ref, direction: "forward"|"backward"}。NumberPicker を a11y の ACTION_SCROLL_FORWARD/BACKWARD で
+     * 1段送り、整定後に中の EditText の文字を読み直して {performed, value} を返す。
+     * **ACTION_SET_TEXT は使わない**(EditText への SET_TEXT は true を返すが値は変わらない = 打鍵では合わせられない)。
+     * 汎用の forward/backward は scrollAxis が NumberPicker を軸不明にするので /scrollAction では撃てない。
+     * 送るかどうかの判断(向き・止め時)はホスト(FTCore.PickerValueLoop)。ここは1回撃って読むだけ。
+     * ref の型が pickerWheel でなければ 422(何も撃たない)
+     */
+    private BridgeHttpServer.Response handlePickerStep(JSONObject body) throws JSONException {
+        if (!body.has("ref")) throw new BridgeException(400, "ref is required");
+        String direction = body.optString("direction");
+        if (!direction.equals("forward") && !direction.equals("backward")) {
+            throw new BridgeException(400, "direction must be forward or backward");
+        }
+        int ref = body.optInt("ref");
+        double[] center = centerOf(ref);
+        String storedType = refTypes.get(ref);
+        if (storedType == null || !normalizedType(storedType).equals("pickerWheel")) {
+            throw new BridgeException(422, "reference [" + ref + "] is a " + storedType
+                    + ", not a NumberPicker (pickerWheel); nothing was sent");
+        }
+        AccessibilityNodeInfo root = ua().getRootInActiveWindow();
+        AccessibilityNodeInfo picker = root == null ? null : smallestNumberPickerAt(root, center[0], center[1]);
+        // 取り直せていない(false)ノードは中身が古いままなので撃たない
+        if (picker == null || !picker.refresh()) {
+            throw new BridgeException(422, "no NumberPicker is at reference [" + ref + "]'s position now;"
+                    + " nothing was sent — take a new snapshot and resolve the target again", STALE_REF_REASON);
+        }
+        AccessibilityNodeInfo.AccessibilityAction action = direction.equals("forward")
+                ? AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD
+                : AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD;
+        boolean performed = picker.performAction(action.getId());
+        if (performed) {
+            if (!skipSettle) awaitScrollSettled(picker);
+            settle();
+        }
+        JSONObject o = new JSONObject();
+        o.put("performed", performed);
+        // 読み直す前に refresh() し、false(取り直せていない)なら古い値を返さず「読めなかった」とする
+        if (picker.refresh()) {
+            String value = SnapshotBuilder.numberPickerValue(picker);
+            if (!value.isEmpty()) o.put("value", value);
+        }
+        return BridgeHttpServer.Response.json(200, o.toString());
+    }
+
+    /** (x, y) を含む NumberPicker のうち最小のもの(見つからなければ null) */
+    private static AccessibilityNodeInfo smallestNumberPickerAt(AccessibilityNodeInfo node, double x, double y) {
+        if (node == null) return null;
+        AccessibilityNodeInfo best = null;
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (SnapshotBuilder.NUMBER_PICKER_CLASS.contentEquals(String.valueOf(node.getClassName()))
+                && bounds.contains((int) Math.round(x), (int) Math.round(y))) {
+            best = node;
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo inner = smallestNumberPickerAt(node.getChild(i), x, y);
+            if (inner != null) best = inner;
+        }
+        return best;
     }
 
     /** 読み直しの間隔(ms)。Compose の a11y スクロールはアニメーション(実測 数百 ms)なので、1 フレームより長く・

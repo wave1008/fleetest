@@ -179,7 +179,7 @@ extension MCPServer {
         Every tree-returning call (ft_snapshot, snapshotAfter, ft_scroll_to) inherits interactiveOnly/expandBulk from \
         the last call that passed them unless passed explicitly; the first response that inherits a value says so.
 
-        Prefer selectors over refs: ft_tap / ft_type / ft_long_press / ft_double_tap / ft_clear_input take \
+        Prefer selectors over refs: ft_tap / ft_type / ft_long_press / ft_double_tap / ft_clear_input / ft_set_picker_value take \
         `selector` (same syntax and resolution as a scenario line, matched on a fresh tree) and it survives \
         redraws, alerts and scrolls that make refs stale; the passing step is a scenario line as written. \
         Use ref (or x/y) only for parts with no label or id. If a selector matches several elements, the one a \
@@ -467,6 +467,14 @@ extension MCPServer {
             + "double tap — a scenario in the default inapp-boost mode delivers it. " + coordinateCaveat, [
             "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
         ], extra: afterActionProperties()),
+        tool("ft_set_picker_value", "Set one picker wheel (iOS pickerWheel of a date/time picker or UIPickerView; Android "
+            + "NumberPicker, shown as pickerWheel) to a value in one call — instead of dragging or typing. value = the text "
+            + "the wheel shows (\"09\", \"30 minutes\"), or digits only to match its leading number (\"19\" also matches "
+            + "\"19 o’clock\"). Name ONE wheel (the picker's inner wheel, not the picker); anything but a pickerWheel is refused "
+            + "without sending. Fails with the value it stopped at.", [
+            "selector": selectorTargetProperty, "ref": refProperty,
+            "value": ["type": "string", "description": "Text or number to set the wheel to"],
+        ], extra: afterActionProperties(), required: ["value"]),
         tool("ft_drag", "Drag between points — for diagonal pans, and to expand a bottom sheet (drag its "
             + "grabber up). Start at fromRef (re-checked) or fromX/fromY; end at toX/toY or move by "
             + "dx/dy. A long durationSeconds drags slowly with no inertia; a short one flicks. "

@@ -34,6 +34,7 @@ final class MCPDraftCoverageTests: XCTestCase {
         "ft_long_press": (["x": 120.0, "y": 640.0, "holdSeconds": 2.0], "tap(x: 120, y: 640, holdSeconds: 2)"),
         "ft_double_tap": (["x": 120.0, "y": 640.0], "doubleTap(x: 120, y: 640)"),
         "ft_type": (["text": "hello"], "type(\"hello\")"),
+        "ft_set_picker_value": (["selector": "#hour_wheel", "value": "19"], "setPickerValue(\"#hour_wheel\", \"19\")"),
         "ft_clear_input": ([:], "clearInput()"),
         "ft_swipe": (["finger": "up"], "swipe(.up)"),
         "ft_drag": (["fromX": 10.0, "fromY": 10.0, "toX": 10.0, "toY": 60.0], "swipePointToPoint("),
@@ -90,6 +91,12 @@ final class MCPDraftCoverageTests: XCTestCase {
             fresh()
             if tool != "ft_launch" {
                 _ = try await server.call(tool: "ft_launch", args: ["bundleId": "com.example.app"])
+            }
+            // ft_set_picker_value は pickerWheel だけを撃つので、既定の木(ボタンだけ)へホイールを足す
+            if tool == "ft_set_picker_value" {
+                driver.snapshotResponse.elements.append(ElementInfo(
+                    ref: 5, type: "pickerWheel", identifier: "hour_wheel", label: nil, value: "14", placeholder: nil,
+                    enabled: true, frame: FTRect(x: 10, y: 300, width: 100, height: 40), depth: 1))
             }
             // ft_scroll_to は木を読むので、探す対象を先に見せておく
             if tool == "ft_scroll_to" { _ = try await server.call(tool: "ft_snapshot", args: [:]) }

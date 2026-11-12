@@ -220,6 +220,10 @@ public enum StepDescription {
             case "clearInput":
                 if step.locator == nil { return "clear the focused input" }
                 return isJapanese(obj) ? "\"\(obj)\"を空にする" : "clear \"\(obj)\""
+            case "setPickerValue":
+                let wanted = step.text ?? ""
+                return isJapanese(obj, wanted) ? "\"\(obj)\"のピッカーを\"\(wanted)\"に合わせる"
+                    : "set the picker \"\(obj)\" to \"\(wanted)\""
             case "doubleTap":
                 if step.locator == nil, let x = step.x, let y = step.y {
                     return "double-tap at (\(FTSeconds.format(x)), \(FTSeconds.format(y)))"

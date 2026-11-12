@@ -70,6 +70,11 @@ private final class RecordingDriver: AppDriver {
     func pinch(frame: FTRect?, identifier: String?, scale: Double, durationSeconds: Double) async throws {
         try record("pinch")
     }
+    func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                        value: String) async throws -> PickerValueOutcome {
+        try record("setPickerValue")
+        return PickerValueOutcome(value: value, steps: 1)
+    }
     func gesture(_ request: GestureRequest) async throws { try record("gesture") }
     func press(x: Double, y: Double, duration: Double) async throws { try record("press(xy)") }
     func hold(x: Double, y: Double, duration: Double) async throws { try record("hold") }
@@ -108,14 +113,16 @@ final class ActionCountingDriverTests: XCTestCase {
         try await driver.drag(fromX: 0, fromY: 0, toX: 1, toY: 1, pressSeconds: 0, durationSeconds: 0.1)
         try await driver.doubleTap(x: 1, y: 2)
         try await driver.pinch(frame: nil, identifier: nil, scale: 2, durationSeconds: 0.1)
+        _ = try await driver.setPickerValue(ref: 1, frame: FTRect(x: 0, y: 0, width: 1, height: 1), identifier: nil,
+                                            currentValue: nil, value: "1")
         try await driver.gesture(GestureRequest(fingers: []))
         try await driver.press(ref: 1, duration: 1)
         try await driver.press(x: 1, y: 2, duration: 1)
         try await driver.hold(x: 1, y: 2, duration: 1)
         _ = try await driver.rotate(to: .portrait)
         try await driver.setHingeAngle(degrees: 90)
-        XCTAssertEqual(counter.take(), 23)
-        XCTAssertEqual(base.calls.count, 23, "数えた操作は全部中のドライバへ転送されている")
+        XCTAssertEqual(counter.take(), 24)
+        XCTAssertEqual(base.calls.count, 24, "数えた操作は全部中のドライバへ転送されている")
     }
 
     func testReadsAndSettingsAreNotCounted() async throws {

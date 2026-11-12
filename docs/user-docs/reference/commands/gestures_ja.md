@@ -13,6 +13,7 @@
 | `pinchOut(sel?, scale: 2.0, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | 2本指を開きます = 拡大。`scale` は 1 より大きい値のみ指定できます。`durationSeconds` の上限は既定 10 秒で、`maxGestureSeconds:` を渡すとこの1回だけ最大 60 秒まで上げられます。 |
 | `pinchIn(sel?, scale: 0.5, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | 2本指を閉じます = 縮小。`scale` は 0 より大きく 1 未満の値のみ指定できます。上限は `pinchOut` と同じです。 |
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | 指1本以上の経路を、離さない1本のタッチ列として再生します —— パターンロック・長押しからのドラッグ・2本指回転など、`pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` で表せない動き用です。 |
+| `setPickerValue(sel, value, waitSeconds:)` | ピッカーのホイール1本 —— iOS の `pickerWheel`(日付・時刻ピッカー、`UIPickerView`)か Android の `NumberPicker`(`pickerWheel` として木に出ます)—— を値で合わせます。ホイールのドラッグや入力欄への打鍵は要りません。掴んだ要素を返します。下の「`setPickerValue`」の節を参照してください。 |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | 指を下げたままブロックを実行します(押している間だけ出る部品の確認用)。`holdSeconds` の既定は 3 秒です。下の「`hold`」の節を参照してください。 |
 
 対象の中心が画面の外のとき、`doubleTap`・長押し(`tap(sel, holdSeconds:)`)・(Android の)`pinchOut` / `pinchIn` は何も送らずに失敗します。画面の外へのタッチはどこにも当たらないためです。画面より大きい対象は断りません。先にスクロールして画面内へ入れてください。
@@ -58,6 +59,19 @@ gesture("#pad_map") {                 // 指が2本 = 手組みのピンチ
 **iOS では既定の inapp-boost モードでも、このコマンドは常に XCUITest ブリッジ経由で動きます。** 用途はパターンロック・
 長押しから離さないドラッグ(並べ替え等)・独自の2本指回転・3本指以上を要するジェスチャ・
 描画や署名など。この API を持たない古い Xcode では送れず、ステップは失敗します(ピンチと違い、代わりの経路はありません)。
+
+## `setPickerValue`: ピッカーのホイールを値で合わせる
+
+```swift
+setPickerValue("#hour_wheel", "19")     // スナップショットに pickerWheel と出るホイール
+setPickerValue(".pickerWheel[2]", "30")  // 時刻ピッカーの2本目(分)のホイール
+```
+
+- `value` はホイールが表示する文字(`"09"`・`"30 minutes"`)です。**数字だけを書くと、行の先頭の数と一致したものを合わせます**: `"19"` は `19時` と読める行にも、`"7"` は `07` にも合います。部分一致や丸めはしません。
+- セレクタは**ホイール1本**を指してください —— ピッカー全体ではなく、その中のホイールです。`pickerWheel` 以外に当たる・複数のホイールに当たるセレクタは、何も送らずに失敗します。
+- Android の `NumberPicker` は、レイアウトで id を付けていてもホイールに id が出ません(OS がアクセシビリティの情報に載せません)。`.pickerWheel` や `.pickerWheel[2]` で指してください。
+- 値に届かなかったとき(その行が無い・一覧の端)はステップが失敗し、止まった値が文言に出ます。
+- iOS は既定の inapp-boost モードでも XCUITest ブリッジ経由で動きます。Android はホイール自身のスクロール操作で1行ずつ送り(入力欄へ打鍵しても値は変わりません)、値が読めるか、一周して戻るまで続けます。
 
 ## `hold`: 押している間だけ出る部品の確認
 
@@ -127,6 +141,7 @@ hold("#btn_tooltip_anchor", holdSeconds: 3) {
 
 ## 注意点
 
+- **`setPickerValue` が回すのはホイール1本だけです。** ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールや、ホイールでない要素は、何も送る前に断ります。
 - **`settle: false`** を渡すと、このコマンドの操作後の「画面が落ち着くまでの待ち」を省きます(次のステップは動いている最中の画面を見ることがあります)。詳細は [tap](./tap_ja.md) 参照。
 
 ### Link

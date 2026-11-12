@@ -7,7 +7,7 @@ public enum StepAction: String, CaseIterable {
     case findImage, findImages, existImage
     case swipe, scroll, scrollToEdge, flick, scrollTo, swipePointToPoint
     case fold, unfold, hinge, rotateTo
-    case pressEnter, hideKeyboard, holdEnd, waitForSettle, select
+    case pressEnter, hideKeyboard, holdEnd, waitForSettle, select, setPickerValue
     case tap, type, clearInput
     case doubleTap, holdStart, swipeElementToElement, swipeBy, pinchOut, pinchIn, gesture
 
@@ -28,7 +28,7 @@ public enum StepAction: String, CaseIterable {
             return .ownGuardedPath
         case .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge, .flick, .scrollTo,
              .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo, .pressEnter, .hideKeyboard, .holdEnd,
-             .waitForSettle, .select:
+             .waitForSettle, .select, .setPickerValue:
             return .noElementTouch
         }
     }
@@ -41,7 +41,7 @@ public enum StepAction: String, CaseIterable {
         case .flick, .swipePointToPoint, .swipeElementToElement, .swipeBy:
             return true
         case .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge, .scrollTo, .fold, .unfold,
-             .hinge, .rotateTo, .pressEnter, .hideKeyboard, .holdEnd, .waitForSettle, .select, .tap, .type,
+             .hinge, .rotateTo, .pressEnter, .hideKeyboard, .holdEnd, .waitForSettle, .select, .setPickerValue, .tap, .type,
              .clearInput, .doubleTap, .holdStart, .pinchOut, .pinchIn, .gesture:
             return false
         }
@@ -55,7 +55,7 @@ public enum StepAction: String, CaseIterable {
         case .findImage, .findImages, .existImage, .waitForSettle, .select:
             return false
         case .swipe, .scroll, .scrollToEdge, .flick, .scrollTo, .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo,
-             .pressEnter, .hideKeyboard, .holdEnd, .tap, .type, .clearInput, .doubleTap, .holdStart,
+             .pressEnter, .hideKeyboard, .holdEnd, .setPickerValue, .tap, .type, .clearInput, .doubleTap, .holdStart,
              .swipeElementToElement, .swipeBy, .pinchOut, .pinchIn, .gesture:
             return true
         }
@@ -71,7 +71,7 @@ public enum StepAction: String, CaseIterable {
         case .holdStart: return "hold"
         case .tap, .type, .clearInput, .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge,
              .flick, .scrollTo, .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo, .pressEnter,
-             .hideKeyboard, .holdEnd, .waitForSettle, .select:
+             .hideKeyboard, .holdEnd, .waitForSettle, .select, .setPickerValue:
             return "tap"
         }
     }

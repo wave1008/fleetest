@@ -40,4 +40,23 @@ class 時刻ピッカーで時刻を確定できること {
             }
         }
     }
+
+    @Test("ホイールを値で合わせて OK")
+    func S0030() {
+        scenario {
+            scene(1, "7時45分にする") {
+                condition {
+                    launchApp()
+                    tap("#nav_time", scroll: .down)
+                }.action {
+                    tap("#btn_open_time")
+                    setPickerValue(".pickerWheel[1]", "7")
+                    setPickerValue(".pickerWheel[2]", "45")
+                    tap("#btn_time_ok")
+                }.expectation {
+                    select("#txt_time_result").textIs("time=07:45")
+                }
+            }
+        }
+    }
 }

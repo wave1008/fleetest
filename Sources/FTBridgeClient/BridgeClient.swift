@@ -1327,6 +1327,33 @@ public final class BridgeClient: AppDriver, Sendable {
                                            timeout: timeout(forDuration: request.durationSeconds ?? 0))
     }
 
+    /// XCUITest ランナー(POST /pickerValue)。候補は `PickerValueMatch.iosCandidates`。**合ったかの判定はここ(ホスト)** ——
+    /// ランナーは最後に読めた値を返すだけ。読めない・合わないときは事実(止まった値・試した候補)を言って 422 で投げる
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        let candidates = PickerValueMatch.iosCandidates(current: currentValue ?? "", wanted: value)
+        let res: PickerValueResponse = try await post(
+            "/pickerValue", body: PickerValueRequest(frame: frame, identifier: identifier, candidates: candidates),
+            timeout: interactionTimeout)
+        let tried = res.tried.map { "'\($0)'" }.joined(separator: ", ") + (res.note.map { "; the runner reported: \($0)" } ?? "")
+        guard let read = res.value else {
+            throw DriverError.badResponse(status: 422, body: "the picker's value could not be read after trying \(tried)")
+        }
+        guard PickerValueMatch.matches(current: read, wanted: value) else {
+            throw DriverError.badResponse(status: 422, body: "the picker stopped at '\(read)', not '\(value)'"
+                + " (tried \(tried); the wheel may not have a row with that text)")
+        }
+        return PickerValueOutcome(value: read, steps: res.tried.count)
+    }
+
+    /// Android ブリッジ(POST /pickerStep)。NumberPicker を1段送って値を読み直す。ref は直近の木の番号
+    public func pickerStep(ref: Int, direction: PickerValueMatch.Step) async throws -> PickerStepResult {
+        try refuseIfStepExpectationContradicts(ref)
+        let res: PickerStepResponse = try await post(
+            "/pickerStep", body: PickerStepRequest(ref: ref, direction: direction.rawValue), timeout: interactionTimeout)
+        return PickerStepResult(performed: res.performed, value: res.value)
+    }
+
     /// pinch と同じ理由(合成タッチを最後の指が離れるまで送り切ってから応答する)で
     /// `request.totalSeconds` ぶん timeout を延ばす
     public func gesture(_ request: GestureRequest) async throws {

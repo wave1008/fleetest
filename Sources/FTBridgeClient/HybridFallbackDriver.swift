@@ -118,6 +118,16 @@ public final class HybridFallbackDriver: AppDriver {
         }
     }
 
+    /// **ref を渡さない形で回す**(ref はブリッジごとに別名前空間)。XCUITest ランナーは frame で pickerWheel を引く。
+    /// in-app は既定の 501 で断るので fallback へ回る
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await withFallback {
+            try await $0.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                        currentValue: currentValue, value: value)
+        }
+    }
+
     public func gesture(_ request: GestureRequest) async throws {
         try await withFallback { try await $0.gesture(request) }
     }

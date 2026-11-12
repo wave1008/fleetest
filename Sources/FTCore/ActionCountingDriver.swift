@@ -22,7 +22,7 @@ public final class ActionCounter: Sendable {
 }
 
 /// **数えるのは「画面へ入力を送る」操作が正常に返ったときだけ**(throw は数えない)。
-/// 数える: tap(ref/x,y) / type / clearInput / hideKeyboard / pressEnter / swipe(2形) / drag / doubleTap / pinch / gesture /
+/// 数える: tap(ref/x,y) / type / clearInput / hideKeyboard / pressEnter / swipe(2形) / drag / doubleTap / pinch / setPickerValue / gesture /
 /// press(2形) / hold / back / home / openAppSwitcher / launch / terminate / openURL / rotate / setHingeAngle。
 /// 数えない: 読み取り(snapshot・hitTest・tapProbe・screenshot・status・systemAlert 等)・waitForSettle・応答計測・
 /// ツール内部の向け直し(activate / attach)・install / uninstall / clearAppData / addMedia・設定(captureKeyboardState…・
@@ -86,6 +86,13 @@ public final class ActionCountingDriver: AppDriver {
     public func pinch(frame: FTRect?, identifier: String?, scale: Double, durationSeconds: Double) async throws {
         try await counted {
             try await base.pinch(frame: frame, identifier: identifier, scale: scale, durationSeconds: durationSeconds)
+        }
+    }
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await counted {
+            try await base.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                          currentValue: currentValue, value: value)
         }
     }
     public func gesture(_ request: GestureRequest) async throws { try await counted { try await base.gesture(request) } }

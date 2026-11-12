@@ -266,6 +266,14 @@ public final class SessionRecoveryDriver: AppDriver {
         }
     }
 
+    public func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
+                               value: String) async throws -> PickerValueOutcome {
+        try await withRecovery {
+            try await base.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                          currentValue: currentValue, value: value)
+        }
+    }
+
     public func gesture(_ request: GestureRequest) async throws {
         try await withRecovery { try await base.gesture(request) }
     }

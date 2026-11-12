@@ -13,6 +13,7 @@ gesture builder for anything those three cannot express.
 | `pinchOut(sel?, scale: 2.0, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | Spreads two fingers apart = zoom in. `scale` must be greater than 1. `durationSeconds` is capped at 10 seconds by default — pass `maxGestureSeconds:` to allow up to 60 for this one call. |
 | `pinchIn(sel?, scale: 0.5, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | Pinches two fingers together = zoom out. `scale` must be greater than 0 and less than 1. Same cap as `pinchOut`. |
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | Replays one or more finger paths as a single continuous touch — for a pattern-lock swipe, a long-press that then drags, a two-finger rotate, or anything `pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` cannot express. |
+| `setPickerValue(sel, value, waitSeconds:)` | Sets one picker wheel — an iOS `pickerWheel` (date/time picker, `UIPickerView`) or an Android `NumberPicker` (shown as `pickerWheel`) — to a value in one step, so you do not drag a wheel or type into its field. Returns the element it grabbed. See the `setPickerValue` section below. |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | Runs the block while the finger stays down (for checking a component that only shows while pressed). `holdSeconds` defaults to 3 seconds. See the `hold` section below. |
 
 When the centre of the target is outside the screen, `doubleTap`, a long press (`tap(sel, holdSeconds:)`) and (on Android) `pinchOut` / `pinchIn` fail without sending anything, because a touch outside the screen lands nowhere. Targets larger than the screen are not refused. Scroll the target into view first.
@@ -58,6 +59,19 @@ a non-positive duration, too long a gesture) fails the step without touching the
 **On iOS this command always runs through XCUITest, even in the default inapp-boost mode.** Use cases: pattern lock,
 long-press-then-drag without lifting (e.g. reordering a list), a custom two-finger rotate,
 gestures needing 3+ fingers, drawing or signing. On an older Xcode without this API it cannot be sent and the step fails (unlike pinch, there is no alternative path).
+
+## `setPickerValue`: set a picker wheel by value
+
+```swift
+setPickerValue("#hour_wheel", "19")     // the wheel the snapshot lists as pickerWheel
+setPickerValue(".pickerWheel[2]", "30")  // the second wheel (minutes) of a time picker
+```
+
+- `value` is the text the wheel shows (`"09"`, `"30 minutes"`), or **digits only to match the number the row starts with**: `"19"` also matches a row that reads `19 o’clock`, and `"7"` matches `07`. There is no partial match or rounding.
+- The selector must name **one wheel** — the wheel inside the picker, not the picker around it. A selector that resolves to anything but a `pickerWheel`, or matches several wheels, fails without sending anything.
+- An Android `NumberPicker` shows no id on the wheel, even when the layout gives it one (the OS leaves it out of the accessibility data). Name it with `.pickerWheel` or `.pickerWheel[2]`.
+- If the wheel cannot reach the value (no such row, end of the list), the step fails and the message says the value it stopped at.
+- iOS goes through the XCUITest bridge even in the default inapp-boost mode. On Android the wheel is stepped one row at a time (the wheel's own scroll action; typing into its field does not change it) until it reads the value or goes all the way round.
 
 ## `hold`: verifying something that only shows while pressed
 
@@ -133,6 +147,7 @@ keep in mind:
 
 ## Notes
 
+- **`setPickerValue` turns exactly one wheel.** Name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
 - **`settle: false`** skips this command's post-action wait for the screen to settle (the next step may see a moving screen). See [tap](./tap.md) for details.
 
 ### Link

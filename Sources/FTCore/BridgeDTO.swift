@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 284
+    public static let bridgeProtocolVersion = 285
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1740,6 +1740,58 @@ public struct SwipeRequest: Codable {
         self.fling = fling
         self.velocity = velocity
         self.edge = edge
+    }
+}
+
+/// POST /pickerValue(**XCUITest ランナーだけ**。同期相手: Runner/.../BridgeRouter.swift handlePickerValue)。
+/// pickerWheel を `adjust(toPickerWheelValue:)` で合わせる。**ref でなく frame で指す**: inapp-boost モードでは
+/// ホストの木の ref が in-app の名前空間でここでは通じない(ランナーは frame が1pt 以内で一致する pickerWheel を引く)。
+/// `candidates` は順に試す(行の文字と value の文字が違うピッカーがあるため。`PickerValueMatch.iosCandidates`)
+public struct PickerValueRequest: Codable {
+    public var frame: FTRect
+    public var identifier: String?
+    public var candidates: [String]
+    public init(frame: FTRect, identifier: String? = nil, candidates: [String]) {
+        self.frame = frame
+        self.identifier = identifier
+        self.candidates = candidates
+    }
+}
+
+/// `matched` = 値が動いた/候補と一致した最初の候補(nil = どの候補でも変わらなかった)・`value` = 最後に読めた値
+/// (nil = 読めなかった)・`tried` = 渡した候補・`note` = adjust が投げた例外の文言(あったときだけ。事実のまま)。
+/// 照合の判定はホスト(`PickerValueMatch.matches`)
+public struct PickerValueResponse: Codable {
+    public var matched: String?
+    public var value: String?
+    public var tried: [String]
+    public var note: String?
+    public init(matched: String?, value: String?, tried: [String], note: String? = nil) {
+        self.matched = matched
+        self.value = value
+        self.tried = tried
+        self.note = note
+    }
+}
+
+/// POST /pickerStep(**Android ブリッジだけ**。同期相手: AndroidRunner/.../BridgeRouter.java handlePickerStep)。
+/// NumberPicker を a11y の ACTION_SCROLL_FORWARD/BACKWARD で1段送る。`direction` = "forward" / "backward"
+public struct PickerStepRequest: Codable {
+    public var ref: Int
+    public var direction: String
+    public init(ref: Int, direction: String) {
+        self.ref = ref
+        self.direction = direction
+    }
+}
+
+/// `performed` = 送りの a11y 操作が受理されたか・`value` = 整定後に中の EditText から読み直した文字(nil = 読めなかった)
+public struct PickerStepResponse: Codable {
+    public var performed: Bool
+    public var value: String?
+    public init(performed: Bool, value: String?) {
+        self.performed = performed
+        self.value = value
     }
 }
 
