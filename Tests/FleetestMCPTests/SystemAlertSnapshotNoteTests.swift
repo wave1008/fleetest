@@ -31,7 +31,8 @@ final class SystemAlertSnapshotNoteTests: XCTestCase {
         + " list is left out while it is up — nothing in the app can be reached until the alert is closed,"
         + " and the alert is drawn by SpringBoard so it never appears in the list. Handle the alert first:"
         + " `ft_tap alertButton: \"<button>\"`"
-        + " presses one of its buttons and returns to your app."
+        + " presses one of its buttons and returns to your app — pass alertButton with this same call to press it"
+        + " and then act, in one call."
 
     /// ft_launch の直後、最初の ft_snapshot はアラートを名指しする
     func testFirstSnapshotAfterLaunchCarriesTheAlertNote() async throws {

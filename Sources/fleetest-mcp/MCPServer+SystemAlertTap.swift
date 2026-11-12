@@ -21,6 +21,44 @@ extension MCPServer {
 
     func tapSystemAlertButton(_ label: String, driver d: AppDriver,
                               args: [String: Any]) async throws -> [[String: Any]] {
+        let pressed = try await pressSystemAlertButton(label, driver: d, args: args)
+        return text(pressed + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: true)))
+    }
+
+    /// `alertButton` を本来の操作(selector / ref / text 等)と一緒に渡された呼び出しの前段: ボタンを押してアプリへ向け直し、
+    /// その1文を返す(呼び手が操作の結果の前に付ける)。押せなければ投げる = 本来の操作も撃たない。
+    /// 実測(Apple マップの計測): 許可のアラートが操作のたびに後から出て、断られる → 押す → 撃ち直す で1周あたり4〜6回の呼び出しを使っていた
+    func pressingSystemAlertFirst(_ args: [String: Any], driver d: AppDriver) async throws -> String {
+        guard let button = try Self.stringArgument(args, "alertButton") else { return "" }
+        return try await pressSystemAlertButton(button, driver: d, args: args) + " Then: "
+    }
+
+    /// `alertButton` と本来の操作を1回の呼び出しで: 先にボタンを押し(押せなければ何も撃たずに投げる)、
+    /// `alertButton` を外した引数で本来の操作を撃つ。応答の先頭に押した1文を付ける。操作が失敗したら、押したことを添えて投げる
+    /// (アラートはもう閉じている = 撃ち直すなら alertButton を外す)
+    func withSystemAlertPressedFirst(_ args: [String: Any],
+                                     _ body: ([String: Any]) async throws -> [[String: Any]]) async throws -> [[String: Any]] {
+        guard args["alertButton"] != nil else { return try await body(args) }
+        let prefix = try await pressingSystemAlertFirst(args, driver: try await driver(args))
+        var rest = args
+        rest.removeValue(forKey: "alertButton")
+        var content: [[String: Any]]
+        do {
+            content = try await body(rest)
+        } catch {
+            throw MCPError(prefix + error.localizedDescription
+                + " (the alert is already closed — retry without alertButton)")
+        }
+        if let i = content.firstIndex(where: { $0["type"] as? String == "text" }), let first = content[i]["text"] as? String {
+            content[i]["text"] = prefix + first
+        } else {
+            content.insert(["type": "text", "text": prefix], at: 0)
+        }
+        return content
+    }
+
+    /// 前面のシステムアラートのボタンを押し、セッションをアプリへ戻す。戻り値は「押した・どこへ戻ったか」の1文
+    func pressSystemAlertButton(_ label: String, driver d: AppDriver, args: [String: Any]) async throws -> String {
         let key = Self.sessionKey(args)
         let probe: SystemAlertProbeResponse?
         switch await d.systemAlert() {
@@ -79,8 +117,7 @@ extension MCPServer {
                     + " than the app may be in front (another alert?). Check with ft_snapshot."
             }
         }
-        return text("Pressed \"\(label)\" on the system alert \(title).\(back)"
-            + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: true)))
+        return "Pressed \"\(label)\" on the system alert \(title).\(back)"
     }
 
     static let springboardBundleID = "com.apple.springboard"

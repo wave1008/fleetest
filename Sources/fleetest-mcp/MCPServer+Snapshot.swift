@@ -1155,7 +1155,7 @@ extension MCPServer {
     }
 
     private static let handleAlertFirst = "Handle the alert first: `ft_tap alertButton: \"<button>\"`"
-        + " presses one of its buttons and returns to your app"
+        + " presses one of its buttons and returns to your app — pass alertButton with this same call to press it and then act, in one call"
 
     /// 座標の ft_tap は ref の門(アラートの確認)を通らないので、ブリッジがアラートで届けずに断った 422
     /// (`DriverError.systemAlertBlocked`)に、ref の門と同じ出口をここで足す(ブリッジの本文はシナリオ向けで iosAlertHandler しか言わない)

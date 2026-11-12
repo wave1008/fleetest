@@ -657,7 +657,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
   profile 無しで in-app のポートに繋いでも `ExploreDriverResolver` が同じデバイスの XCUITest へ振り替え(用意できなければ in-app へは落とさず断る)、
   udid だけの呼び出しは XCUITest のポートを先に採る(`MCPServer.explorationOrder`)。profile ありもモードを xcuitest に差し替えて供給する
   (`resolveProfileTarget`)。理由: in-app の合成タッチは注入される前提で作られていないアプリ(Apple マップの経路カード)で効かないまま ok を返し、
-  別アプリ・システムアラートの扱いでもブリッジを意識させた。システムアラートは `ft_tap alertButton:`(SpringBoard へ向けて押し、`attach` で戻る)。
+  別アプリ・システムアラートの扱いでもブリッジを意識させた。システムアラートは `ft_tap alertButton:`(SpringBoard へ向けて押し、`attach` で戻る)。`ft_tap`(対象つき)・`ft_type`・`ft_batch` は `alertButton` を本来の操作と一緒に受け、押してから操作する(`MCPServer.withSystemAlertPressedFirst`。押せなければ何も撃たない。計測でアラートの往復が1周あたり4〜6回あった)。
   このため `profile` 無しではダブルタップ(Compose)・ピンチ(Flutter)が効かず、応答に切り分けを添える(`MCPServer.iosModeHint`。表と実測は docs/commands.md)
 - **宛先そのものも探す**(`BridgeDiscovery`)。`port` 未指定で既定 8123 が無応答なら範囲(8123〜8154)を走査し、**生きているブリッジが1本だけなら自動採用**
   (採用理由を stderr へ)・**複数ならデバイス名付きで列挙してエラー**(別デバイスを黙って操作させない)・0本なら `fleetest bridge up` を案内する。

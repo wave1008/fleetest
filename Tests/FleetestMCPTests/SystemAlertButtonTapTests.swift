@@ -160,13 +160,30 @@ final class SystemAlertButtonTapTests: XCTestCase {
                        "in-app しか無ければそれを採る(ExploreDriverResolver が XCUITest へ振り替える)")
     }
 
-    /// ref と併用させない(どちらを押したのか読み手が決められない)
-    func testRefusesAlertButtonTogetherWithARef() async {
+    /// **対象と一緒なら、アラートを押してから対象を押す(1回の呼び出し)**。実測(Apple マップの計測): 許可のアラートが
+    /// 操作のたびに後から出て、断られる → 押す → 撃ち直す で1周あたり4〜6回の呼び出しを使っていた
+    func testAlertButtonWithACoordinatePressesTheAlertThenTaps() async throws {
+        _ = try await server.call(tool: "ft_launch", args: ["bundleId": "com.apple.Maps"])
+        arrangeLocationAlert()
+        let result = try await server.call(tool: "ft_tap", args: ["alertButton": "許可しない", "x": 100.0, "y": 200.0])
+        let text = result.compactMap { $0["text"] as? String }.joined()
+        XCTAssertTrue(text.hasPrefix("Pressed \"許可しない\""), text)
+        XCTAssertTrue(text.contains("Then: "), text)
+        let calls = driver.calls
+        let press = try XCTUnwrap(calls.firstIndex(of: "tap(ref:4)"), "アラートのボタンを押していない: \(calls)")
+        let tap = try XCTUnwrap(calls.firstIndex(of: "tap(x:100.0,y:200.0)"), "対象を押していない: \(calls)")
+        XCTAssertLessThan(press, tap, "\(calls)")
+    }
+
+    /// ボタンが無ければ、対象も押さずに断る(押せなかったアラートの陰へ撃たない)
+    func testAlertButtonThatCannotBePressedSendsNothing() async {
+        _ = try? await server.call(tool: "ft_launch", args: ["bundleId": "com.apple.Maps"])
+        arrangeLocationAlert()
         do {
-            _ = try await server.call(tool: "ft_tap", args: ["alertButton": "許可しない", "ref": 1])
-            XCTFail("ref と併用できた")
+            _ = try await server.call(tool: "ft_tap", args: ["alertButton": "存在しない", "x": 100.0, "y": 200.0])
+            XCTFail("押せないのに通った")
         } catch {
-            XCTAssertTrue(error.localizedDescription.contains("not both"), error.localizedDescription)
+            XCTAssertFalse(driver.calls.contains("tap(x:100.0,y:200.0)"), "\(driver.calls)")
         }
     }
 }

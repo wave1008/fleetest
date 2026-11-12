@@ -92,7 +92,8 @@ Emulator-only operations are routed automatically: `ft_install` uses `devicectl`
 (using the path from the last `ft_install`, or `packagePath:`) on a physical iOS device (Android's
 `pm clear` still works on a physical device). Apple apps (`com.apple.*`) are never wiped on a physical iPhone. An iOS system alert (a location permission prompt, for
 example) can be answered in one call with `ft_tap alertButton: "Don't Allow"` — it presses that button and
-returns to the app (the alert note lists the button names). While a system alert is up, the app's element
+returns to the app (the alert note lists the button names). Passed together with an `ft_tap` `selector`, or on
+`ft_type` / `ft_batch`, `alertButton` presses the alert first and then does the rest of the call. While a system alert is up, the app's element
 list is left out of every tree response (nothing in it can be reached); an alert drawn by the app itself is
 returned on its own, without the screen behind it. After dismissing a system alert on SpringBoard,
 `ft_launch bundleId: <app> resume: true` returns to the app without terminating it.

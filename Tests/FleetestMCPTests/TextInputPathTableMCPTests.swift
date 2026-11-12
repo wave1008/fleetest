@@ -47,6 +47,7 @@ final class TextInputPathTableMCPTests: XCTestCase {
             "identifier / enum / free-form filter, not a compared screen text")
         add(["bundleId", "packagePath", "url", "launch"], "app identifier / path / URL")
         add(["text"], "text typed into the app; the read-back compares both sides with TextNormalization.text (ft_type note)")
+        add(["value"], "ft_set_picker_value: compared with the wheel's text by PickerValueMatch (its own table: PickerValueMatchTests)")
         add(["steps"], "DSL lines: each line is parsed by BatchLineParser and built by the batch builders (see the batch paths)")
         return table
     }()

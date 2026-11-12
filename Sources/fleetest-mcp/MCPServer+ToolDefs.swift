@@ -84,6 +84,11 @@ extension MCPServer {
     }
     nonisolated(unsafe) static let refProperty: [String: Any] = ["type": "integer", "description": "ft_snapshot ref"]
     /// ref の代わりの指し方。**説明に `a||b` を残す**(`selectorQuoteStrippedKeys` との同期テストの印)
+    /// ft_tap / ft_type / ft_batch が共有する。対象と一緒なら「押してから操作」を1回で(`withSystemAlertPressedFirst`)
+    nonisolated(unsafe) static let alertButtonProperty: [String: Any] = ["type": "string", "description": "iOS: first press "
+        + "this button of the system alert (SpringBoard) in front of the app and return to the app, then do the rest of "
+        + "this call — one call instead of two. Alone on ft_tap it only presses the button. The alert note names its buttons"]
+
     nonisolated(unsafe) static let selectorTargetProperty: [String: Any] = [
         "type": "string",
         "description": "Preferred over ref: resolved on a fresh tree like a scenario line (#id, label, .type, a||b)",
@@ -320,9 +325,7 @@ extension MCPServer {
             + "by ref (unlabeled parts), or a point (x,y). A ref is re-checked against a fresh tree: "
             + "moved → retargeted, gone → refused, scroll leftover → tapped with a warning. " + coordinateCaveat, [
             "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
-            "alertButton": ["type": "string", "description": "iOS: press this button of the system "
-                + "alert (SpringBoard) in front of the app, then return to the app — the alert note names "
-                + "its buttons"],
+            "alertButton": alertButtonProperty,
         ], extra: afterActionProperties()),
         tool("ft_type", "Type text; with selector (preferred) or ref it taps the field and waits for focus. APPENDS by default — "
             + "replace: true (or ft_clear_input) to replace. Typing never closes the keyboard; Enter "
@@ -331,6 +334,7 @@ extension MCPServer {
             "pressEnter": ["type": "boolean", "description": "Fire the Enter/IME action (search, submit)"],
             "selector": selectorTargetProperty,
             "ref": ["type": "integer", "description": "Input field ref (default: the focused element)"],
+            "alertButton": alertButtonProperty,
             // **値段と、二重払いの避け方まで書く**: replace は素の type の
             // 約2倍かかる(実測 6.1s 対 2.3s)。内訳は clear の1往復と、**打った結果の読み返し**
             // (in-app iOS は clear/type の成否を検証せず YES を返すので、読み返さないと
@@ -384,6 +388,7 @@ extension MCPServer {
             "steps": ["type": "string",
                       "description": "Up to \(batchStepLimit) DSL lines separated by ';' or newlines, "
                         + "e.g. \"tap '#btn_next'; type '#field' 'batch'\""],
+            "alertButton": alertButtonProperty,
             "launch": ["type": "string",
                        "description": "bundle ID / package to (re)launch before the steps, as ft_launch does "
                         + "(saves a call). The first step then needs a selector, not a ref; give it "

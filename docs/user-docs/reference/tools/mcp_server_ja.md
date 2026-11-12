@@ -91,6 +91,7 @@ cwd(あなたのパッケージ)とは別物です。
 パス、または `packagePath:`)でデータを消します(Android は実機でも `pm clear` が効きます)。Apple のアプリ(`com.apple.*`)は iPhone 実機では消せません。
 iOS のシステムアラート(位置情報の許可など)は `ft_tap alertButton: "許可しない"` のように
 ボタン名を指定すると、1回の呼び出しで押してアプリへ戻ります(ボタン名はアラートの注記に出ます)。
+`ft_tap` の `selector` や `ft_type`・`ft_batch` と一緒に `alertButton` を渡すと、アラートを押してからその操作まで1回で行います。
 システムアラートが出ている間は、木を返す応答にアプリの要素一覧を載せません(どれも押せないため)。
 アプリ自身が出すアラートは、背面の画面を省いてアラートだけを返します。
 SpringBoard でシステムアラートを閉じた後は `ft_launch bundleId: <app> resume: true` で、

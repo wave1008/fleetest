@@ -530,7 +530,7 @@ extension MCPServer {
     /// チェック軸がありうる = ft_drag の from 側と to 側)。**片方だけの指定(x のみ等)は対象外**
     /// (「ref or x/y is required」が別途断る)
     static let exclusiveArgumentGroups: [String: [[[String]]]] = [
-        "ft_tap": [[["ref"], ["selector"], ["x", "y"], ["alertButton"]]],
+        "ft_tap": [[["ref"], ["selector"], ["x", "y"]]],
         "ft_double_tap": [[["ref"], ["selector"], ["x", "y"]]],
         "ft_long_press": [[["ref"], ["selector"], ["x", "y"]]],
         "ft_set_picker_value": [[["ref"], ["selector"]]],
@@ -1020,10 +1020,18 @@ extension MCPServer {
             return try await ftSnapshot(args)
 
         case "ft_tap":
-            return try await withSelectorTarget(args) { try await self.ftTap($0) }
+            // alertButton だけならボタンを押すだけ(ftTap)。対象もあれば、押してからその対象を押す
+            if args["alertButton"] != nil, !["selector", "ref", "x", "y"].contains(where: { args[$0] != nil }) {
+                return try await ftTap(args)
+            }
+            return try await withSystemAlertPressedFirst(args) { rest in
+                try await self.withSelectorTarget(rest) { try await self.ftTap($0) }
+            }
 
         case "ft_type":
-            return try await withSelectorTarget(args) { try await self.ftType($0) }
+            return try await withSystemAlertPressedFirst(args) { rest in
+                try await self.withSelectorTarget(rest) { try await self.ftType($0) }
+            }
 
         case "ft_swipe":
             return try await ftSwipe(args)
@@ -1032,7 +1040,7 @@ extension MCPServer {
             return try await scrollTo(args)
 
         case "ft_batch":
-            return try await batch(args)
+            return try await withSystemAlertPressedFirst(args) { try await self.batch($0) }
 
         case "ft_rotate":
             return try await ftRotate(args)
