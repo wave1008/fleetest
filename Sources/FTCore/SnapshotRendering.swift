@@ -192,9 +192,11 @@ public enum SnapshotRenderer {
             // 隠していた = Apple マップの検索結果の評価の行・sutec-home の価格)。さらに祖先のラベルが別の子孫の文字
             // そのものなら、ラベルはその子1つの文字で、自分は偶然含まれただけ(Google マップの場所カード
             // `clickable "大阪城"` の中のカテゴリ「城」を隠していた)
+            // (自分を包む子孫がラベルと同じ文字なら、自分はその部分 = iOS の MultiTextView の中の TitleLabel。隠してよい)
             guard displayTruncate(label, labelDisplayLimit).contains(ownText) else { return false }
+            let enclosing = Set(TapTargetGeometry.ancestors(of: e, in: elements).map(\.ref))
             return !LocatorResolver.descendants(of: ancestor, in: elements).contains {
-                $0.ref != e.ref && redundancyText($0) == label
+                $0.ref != e.ref && !enclosing.contains($0.ref) && redundancyText($0) == label
             }
         }
     }

@@ -41,4 +41,13 @@ final class InteractiveOnlyRedundancyTests: XCTestCase {
                              el(3, "staticText", "+81 3 3433 5111", y: 130, height: 20, depth: 1)])
         XCTAssertFalse(text.contains("[2] staticText") || text.contains("[3] staticText"), text)
     }
+
+    /// 祖先のラベルと同じ文字の子孫が自分を包む(iOS の MultiTextView > TitleLabel)なら、自分はその部分で隠れたまま
+    func testPartsInsideTheElementThatRepeatsTheLabelStayHidden() {
+        let text = rendered([el(1, "button", "上野精養軒、カフェ · 台東区", y: 100, height: 60, depth: 0),
+                             el(2, "staticText", "上野精養軒、カフェ · 台東区", y: 100, height: 60, depth: 1),
+                             el(3, "staticText", "上野精養軒", y: 100, height: 20, depth: 2),
+                             el(4, "staticText", "カフェ · 台東区", y: 125, height: 20, depth: 2)])
+        XCTAssertFalse(["[2] staticText", "[3] staticText", "[4] staticText"].contains { text.contains($0) }, text)
+    }
 }

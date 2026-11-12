@@ -1639,7 +1639,7 @@ extension MCPServer {
     }
 
     /// シート展開救済の高さ計測(sheetExpansionGrew / sheetShrunkAfterRetry の入力)。
-    /// ref 形式は同じ要素を再照合、セレクタ形式は DSL と同じ照合の先頭一致で測る。
+    /// ref 形式は同じ要素を再照合、セレクタ形式は DSL と同じ照合(`ScrollFrameResolution`)で測る。
     /// scrollFrame 未指定なら nil = 判定は黙る(sheetExpansionGrew 側の宣言参照)
     /// ref で渡された容器を**矩形ではなく `#id` で渡す**(id がその画面で一意で、作ったセレクタが同じ要素に当たるときだけ。
     /// 無ければ nil = 矩形のまま)。矩形は探索の途中で容器が動いても追従せず、消えても止まらない(`scrollFrameUnresolved` は
@@ -1662,8 +1662,7 @@ extension MCPServer {
             return found.frame.height
         }
         guard let locator = step.scrollFrame else { return nil }
-        return LocatorResolver.resolvedCandidates(locator, elements: snapshot.elements)?
-            .first?.frame.height
+        return ScrollFrameResolution.resolve(locator, in: snapshot)?.frame.height
     }
 
     /// `StepExecutor` を組むための2つの入力(releasesScrollTouch の反転元 / 空打ちゲート用
