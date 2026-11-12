@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION_CODE=139
+VERSION_CODE=142
 
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 [ -d "$SDK" ] || { echo "Android SDK が見つかりません(ANDROID_HOME を設定)"; exit 1; }

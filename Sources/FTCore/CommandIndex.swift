@@ -218,6 +218,13 @@ public enum DSLCommandIndex {
                   + " The selector must name ONE wheel (not the picker around it): a non-pickerWheel or several wheels fail"
                   + " without sending anything. Fails with the value the wheel stopped at when it cannot reach the value."
                   + " Returns the element it grabbed."),
+        .init("setSliderValue", "operation", "setSliderValue(selector, number, waitSeconds:)",
+              "Sets a slider to a number in one call. number is the number the slider's value shows in the tree (what"
+                  + " valueIs reads): \"75%\" on iOS UIKit/SwiftUI/React Native, \"75.0\" on Compose for iOS, \"75\" on"
+                  + " Android (in the slider's own range); a % sign is ignored. Naming a container with ONE slider inside moves"
+                  + " that slider; several sliders inside fail without moving anything. Fails with the value the slider stopped"
+                  + " at when it cannot land exactly on the value (a step size that skips it, or out of range)."
+                  + " Returns the element it grabbed."),
         .init("pinchOut", "operation",
               "pinchOut(selector?, scale:, durationSeconds:, maxGestureSeconds:, settle:, waitSeconds:)",
               "Pinches open (zoom in). scale must be > 1. No selector = the whole screen. "

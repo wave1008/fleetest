@@ -41,7 +41,7 @@ extension StepExecutor {
             case .doubleTap, .holdStart, .swipeElementToElement: return .full
             case .tap, .type, .clearInput, .findImage, .findImages, .existImage, .swipe, .scroll, .scrollToEdge,
                  .flick, .scrollTo, .swipePointToPoint, .fold, .unfold, .hinge, .rotateTo, .pressEnter,
-                 .hideKeyboard, .holdEnd, .waitForSettle, .select, .setPickerValue:
+                 .hideKeyboard, .holdEnd, .waitForSettle, .select, .setPickerValue, .setSliderValue:
                 return .full
             }
         }

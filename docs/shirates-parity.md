@@ -116,6 +116,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | — | `doubleTap(sel?)` / `doubleTap(x:y:settle:)` | 🟢 2026-08-04 ブリッジ側の1操作(往復するとダブルタップ判定時間を超える)。座標形は `tap(x:y:)` と同じ座標系(戻り値なし) |
 | — | `pinchOut(sel?, scale:)` / `pinchIn(sel?, scale:)` | 🟢 2026-08-04 2本指ズーム。**Shirates(Classic) にピンチ系は無い**ので名前の準拠先も無い。対象指定は Android=座標合成 / iOS=XCUITest は identifier・in-app は座標。**指の座標は host 側 `FTCore.PinchGesture` の1箇所が決め、XCUITest は非公開 API で再生する**(2026-09-24)ので、ピンチは全フレームワークとも両モードで動く。Compose のダブルタップだけがモードで割れる(inapp-boost モードなら成立・xcuitest モードでは不成立。docs/commands.md の表) |
 | — | `setPickerValue(sel, value, waitSeconds:)` | 🟢 2026-11-12 ピッカーのホイール(iOS の pickerWheel・Android の NumberPicker)を値で合わせる。**Shirates に対応物は無い**(fleetest 独自)。`scroll:` は持たない(ホイールは画面内にある前提。`doubleTap` と同じ) |
+| — | `setSliderValue(sel, 数, waitSeconds:)` | 🟢 2026-11-13 スライダーを値で合わせる(値は木の value に出る数)。**Shirates に対応物は無い**(fleetest 独自)。`scroll:` は持たない(`setPickerValue` と同じ) |
 | — | `gesture(sel?) { FTFinger(...) }` | 🟢 2026-09-24 指ごとの時刻つき経路を**1本の連続タッチ**として再生する(区切りで離れない。`pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` で表せない動き用)。**Shirates(Classic) に対応物は無い**。iOS は既定の inapp-boost モードでも常に XCUITest ブリッジ経由(in-app ブリッジに経路が無い)・**座標ピンチと同じ非公開 API でフォールバック無し**(使えない Xcode では 422) |
 
 ## 存在・画面の検証

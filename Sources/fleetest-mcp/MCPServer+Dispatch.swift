@@ -534,6 +534,7 @@ extension MCPServer {
         "ft_double_tap": [[["ref"], ["selector"], ["x", "y"]]],
         "ft_long_press": [[["ref"], ["selector"], ["x", "y"]]],
         "ft_set_picker_value": [[["ref"], ["selector"]]],
+        "ft_set_slider_value": [[["ref"], ["selector"]]],
         // selector は撮り直した木で ref へ畳まれる(withSelectorTarget)。両方渡すと selector が黙って捨てられる
         "ft_type": [[["ref"], ["selector"]]],
         "ft_clear_input": [[["ref"], ["selector"]]],
@@ -1071,6 +1072,9 @@ extension MCPServer {
 
         case "ft_set_picker_value":
             return try await withSelectorTarget(args) { try await self.ftSetPickerValue($0) }
+
+        case "ft_set_slider_value":
+            return try await withSelectorTarget(args) { try await self.ftSetSliderValue($0) }
 
         case "ft_drag":
             return try await ftDrag(args)

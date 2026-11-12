@@ -524,6 +524,50 @@ extension MCPServer {
             + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
     }
 
+    /// スライダーを値で合わせる。**判定(どれを動かすか・合ったか・止める条件)は FTCore の `SliderTarget` とドライバの
+    /// `setSliderValue`(DSL と同じ経路)**。ここは被覆の門と応答の組み立てだけ
+    func ftSetSliderValue(_ args: [String: Any]) async throws -> [[String: Any]] {
+        guard let wanted = try Self.doubleArgument(args, "value") else { throw MCPError("value is required") }
+        guard let ref = try Self.intArgument(args, "ref") else { throw MCPError("selector or ref is required") }
+        let sliderDriver = try await driver(args)
+        let (element, labelNote) = try await verifiedElement(ref, driver: sliderDriver, args: args)
+        let elements = lastSnapshots[Self.sessionKey(args)]?.elements ?? [element]
+        let target: ElementInfo
+        switch SliderTarget.resolve(element, in: elements) {
+        case .target(let resolved): target = resolved
+        case .ambiguous(let count):
+            throw MCPError("[\(ref)] holds \(count) sliders, so which one to move is ambiguous — nothing was sent."
+                + " Pass the ref of one slider")
+        }
+        let guardNote = try await refGestureGuard(target, driver: sliderDriver, isAndroid: sliderDriver is AndroidDriver,
+                                                  operation: "set slider value", args: args)
+        let wantedText = SliderValueLoop.format(wanted)
+        let outcome: SliderValueOutcome
+        do {
+            outcome = try await sliderDriver.setSliderValue(ref: nativeRef(target.ref, args: args), frame: target.frame,
+                                                            area: element.frame,
+                                                            identifier: target.identifier,
+                                                            currentValue: SliderTarget.currentValue(target), value: wanted)
+        } catch DriverError.badResponse(let status, let body) where status == 422 {
+            throw MCPError("set slider value \(wantedText) on [\(ref)] failed: \(body)")
+        } catch where DriverError.isBridgeIncapable(error) {
+            // DSL と同じ: どのブリッジも動かせなければ帯の上のタップで合わせる(SliderTapPosition)
+            do {
+                outcome = try await SliderTapPosition.set(driver: sliderDriver, frame: target.frame, area: element.frame,
+                                                          identifier: target.identifier ?? element.identifier,
+                                                          current: SliderTarget.currentValue(target), wanted: wanted)
+            } catch let failure as SliderValueLoop.Failure {
+                throw MCPError("set slider value \(wantedText) on [\(ref)] failed: \(failure.description)"
+                    + " (no bridge could adjust it through accessibility, so setting it by tapping along its track was tried)")
+            }
+        }
+        recordInteraction(action: "setSliderValue", resolvedRef: element.ref, args: args, text: wantedText)
+        return text("slider [\(target.ref)] now reads \"\(outcome.value)\"." + guardNote + labelNote
+            + reproductionNote(resolvedRef: element.ref, args: args)
+            + changedHintOnce(args)
+            + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
+    }
+
     func ftDrag(_ args: [String: Any]) async throws -> [[String: Any]] {
         let dragDriver = try await driver(args)
         // **掴む側を ref で指せる**: 半開きのシートを広げる操作は

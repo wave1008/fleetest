@@ -224,6 +224,14 @@ public protocol AppDriver {
     /// 合わなければ止まった値を言って投げる。**既定は 501**(in-app ブリッジなど)。**プロトコル要件として宣言すること**、包むドライバは素通しする
     func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
                         value: String) async throws -> PickerValueOutcome
+    /// スライダーを値で合わせる(DSL の setSliderValue / MCP の ft_set_slider_value)。値は木の value に出る数(`SliderValueMatch`)。
+    /// `ref` は直近の木の番号(in-app・Android が使う)。**nil = 呼び手の木の番号がこのドライバの番号と違う**(inapp-boost モードで
+    /// in-app の木から XCUITest へ回した = 別の名前空間の番号で撃つと別の要素に当たる)ので ref を使う経路を飛ばす。
+    /// `frame` / `identifier` は XCUITest ランナーが使う(setPickerValue と同じ理由)。`area` = セレクタで決まった要素の枠(Android が毎回その中からスライダーを探し直す = Flutter のスライダーはつまみの大きさで
+    /// 値と一緒に動き、外側の入れ物の枠だけが動かない)。`currentValue` = 木で読めた現在の値(向きの判断)。合わなければ止まった値を言って 422 で投げる。**既定は 501**。
+    /// **プロトコル要件として宣言すること**、包むドライバは素通しする
+    func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                        value: Double) async throws -> SliderValueOutcome
     /// ひと続きのジェスチャ(DSL の gesture / MCP の ft_gesture)。要求は `TouchGesture.validate` 済み。
     /// **プロトコル要件として宣言すること**(doubleTap / pinch と同じ理由)。包むドライバは必ず素通しする
     func gesture(_ request: GestureRequest) async throws
@@ -832,6 +840,11 @@ public extension AppDriver {
     func setPickerValue(ref: Int, frame: FTRect, identifier: String?, currentValue: String?,
                         value: String) async throws -> PickerValueOutcome {
         throw DriverError.badResponse(status: 501, body: "This driver does not support setting a picker value")
+    }
+
+    func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                        value: Double) async throws -> SliderValueOutcome {
+        throw DriverError.badResponse(status: 501, body: "This driver does not support setting a slider value")
     }
 
     func waitForSettle(_ request: WaitForSettleRequest, timeoutSeconds: Double) async throws -> WaitForSettleResponse {

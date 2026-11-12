@@ -488,6 +488,7 @@ final class BatchLineParserTests: XCTestCase {
             FlowStep(action: "doubleTap", locator: selA.primary, fallbacks: fallbacks(selA)),
             FlowStep(action: "doubleTap", locator: nil),
             FlowStep(action: "setPickerValue", locator: selA.primary, fallbacks: fallbacks(selA), text: "19"),
+            FlowStep(action: "setSliderValue", locator: selA.primary, fallbacks: fallbacks(selA), text: "75"),
             FlowStep(action: "pinchOut", locator: selA.primary, fallbacks: fallbacks(selA),
                     duration: 1.0, scale: 3.0),
             FlowStep(action: "pinchIn", locator: nil, scale: 0.3),

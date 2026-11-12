@@ -22,7 +22,7 @@ public final class ActionCounter: Sendable {
 }
 
 /// **数えるのは「画面へ入力を送る」操作が正常に返ったときだけ**(throw は数えない)。
-/// 数える: tap(ref/x,y) / type / clearInput / hideKeyboard / pressEnter / swipe(2形) / drag / doubleTap / pinch / setPickerValue / gesture /
+/// 数える: tap(ref/x,y) / type / clearInput / hideKeyboard / pressEnter / swipe(2形) / drag / doubleTap / pinch / setPickerValue / setSliderValue / gesture /
 /// press(2形) / hold / back / home / openAppSwitcher / launch / terminate / openURL / rotate / setHingeAngle。
 /// 数えない: 読み取り(snapshot・hitTest・tapProbe・screenshot・status・systemAlert 等)・waitForSettle・応答計測・
 /// ツール内部の向け直し(activate / attach)・install / uninstall / clearAppData / addMedia・設定(captureKeyboardState…・
@@ -92,6 +92,14 @@ public final class ActionCountingDriver: AppDriver {
                                value: String) async throws -> PickerValueOutcome {
         try await counted {
             try await base.setPickerValue(ref: ref, frame: frame, identifier: identifier,
+                                          currentValue: currentValue, value: value)
+        }
+    }
+
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        try await counted {
+            try await base.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
                                           currentValue: currentValue, value: value)
         }
     }

@@ -909,6 +909,17 @@ final class SnapshotBuilder {
     }
 
     /** 整数なら小数点以下を落とす("50.0" ではなく "50")。読み手はこれをそのまま値として使う */
+    /**
+     * スライダーの今の値。木の value と同じ順で読む(RangeInfo の現在値 → 文字 → 説明)。Flutter のスライダーは RangeInfo を
+     * 持たず、値("50%")を説明に出す。同期相手: makeInfo の value / label・BridgeRouter.handleSliderSet / handleSliderStep
+     */
+    static String sliderValue(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo.RangeInfo range = node.getRangeInfo();
+        if (range != null) return trimFloat(range.getCurrent());
+        String text = charSeq(node.getText());
+        return !text.isEmpty() ? text : charSeq(node.getContentDescription());
+    }
+
     private static String trimFloat(float f) {
         return f == Math.rint(f) ? String.valueOf((long) f) : String.valueOf(f);
     }

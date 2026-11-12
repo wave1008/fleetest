@@ -307,6 +307,15 @@ public final class InAppDriver: AppDriver {
                                               durationSeconds: durationSeconds)))
         }
     }
+    /// in-app は accessibilityIncrement / Decrement で1段ずつ(/sliderStep)。調整できない要素は 501 で inapp-boost モードが
+    /// XCUITest ブリッジへ回す(BridgeClient.setSliderValue)
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        try await withCrashContext {
+            try await client.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
+                                            currentValue: currentValue, value: value)
+        }
+    }
     public func rotate(to orientation: FTOrientation) async throws -> FTOrientation {
         try await withCrashContext { try await client.rotate(to: orientation) }
     }

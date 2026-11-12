@@ -14,6 +14,7 @@
 | `pinchIn(sel?, scale: 0.5, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | 2本指を閉じます = 縮小。`scale` は 0 より大きく 1 未満の値のみ指定できます。上限は `pinchOut` と同じです。 |
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | 指1本以上の経路を、離さない1本のタッチ列として再生します —— パターンロック・長押しからのドラッグ・2本指回転など、`pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` で表せない動き用です。 |
 | `setPickerValue(sel, value, waitSeconds:)` | ピッカーのホイール1本 —— iOS の `pickerWheel`(日付・時刻ピッカー、`UIPickerView`)か Android の `NumberPicker`(`pickerWheel` として木に出ます)—— を値で合わせます。ホイールのドラッグや入力欄への打鍵は要りません。掴んだ要素を返します。下の「`setPickerValue`」の節を参照してください。 |
+| `setSliderValue(sel, 数, waitSeconds:)` | スライダーを値で1回で合わせます。値はスナップショットの value に出る数です(`%` は無視して数で比べます) |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | 指を下げたままブロックを実行します(押している間だけ出る部品の確認用)。`holdSeconds` の既定は 3 秒です。下の「`hold`」の節を参照してください。 |
 
 対象の中心が画面の外のとき、`doubleTap`・長押し(`tap(sel, holdSeconds:)`)・(Android の)`pinchOut` / `pinchIn` は何も送らずに失敗します。画面の外へのタッチはどこにも当たらないためです。画面より大きい対象は断りません。先にスクロールして画面内へ入れてください。
@@ -72,6 +73,18 @@ setPickerValue(".pickerWheel[2]", "30")  // 時刻ピッカーの2本目(分)の
 - Android の `NumberPicker` は、レイアウトで id を付けていてもホイールに id が出ません(OS がアクセシビリティの情報に載せません)。`.pickerWheel` や `.pickerWheel[2]` で指してください。
 - 値に届かなかったとき(その行が無い・一覧の端)はステップが失敗し、止まった値が文言に出ます。
 - iOS は既定の inapp-boost モードでも XCUITest ブリッジ経由で動きます。Android はホイール自身のスクロール操作で1行ずつ送り(入力欄へ打鍵しても値は変わりません)、値が読めるか、一周して戻るまで続けます。
+
+## `setSliderValue`: スライダーを値で合わせる
+
+```swift
+setSliderValue("#slider_volume", 75)
+select("#txt_slider").textIs("volume=75")
+```
+
+- 値は**スナップショットの value に出る数**(`valueIs` が読むもの)です。OS とフレームワークで書き方が違います: iOS の UIKit・SwiftUI・React Native は割合の `75%`、iOS の Compose Multiplatform は `75.0`、Android はスライダーの範囲の単位の `75` です。`%` は無視して数で比べます。丸めはしません。
+- id が外側の入れ物に付いていて中にスライダーが1つあるときは、その中のスライダーを動かします(Flutter の Android)。中にスライダーが2つ以上ある(範囲スライダーのつまみ)ときは、何も送らずに失敗します。
+- 刻み(ステップ)があるスライダーで刻みに無い値を指定したとき、または範囲の外を指定したときは、ステップが失敗し、止まった値が文言に出ます。
+- アクセシビリティの操作(値を置く・1段ずつ動かす)で動かせないスライダーは、スライダーの帯の上をタップして、値を読み直しながら合わせます。タップした位置へ値が飛ぶ作りのスライダー(Material のスライダー、タッチで値を決める自前の部品など)はこれで合います。つまみを引かないと動かないスライダーは、iOS では XCUITest の操作で動かします。
 
 ## `hold`: 押している間だけ出る部品の確認
 
@@ -142,6 +155,8 @@ hold("#btn_tooltip_anchor", holdSeconds: 3) {
 ## 注意点
 
 - **`setPickerValue` が回すのはホイール1本だけです。** ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールや、ホイールでない要素は、何も送る前に断ります。
+- **`setSliderValue` はスライダーの帯をタップすることがあります。** アクセシビリティの操作で動かせないスライダーは、帯の上のタップで値を合わせます(途中の値を通ります)。
+- **スナップショットに値が出ないスライダーは合わせられません。** iOS の xcuitest モードの Flutter のスライダーがこれにあたります(何も操作せずに失敗します)。既定の inapp-boost モードでは合わせられます。
 - **`settle: false`** を渡すと、このコマンドの操作後の「画面が落ち着くまでの待ち」を省きます(次のステップは動いている最中の画面を見ることがあります)。詳細は [tap](./tap_ja.md) 参照。
 
 ### Link

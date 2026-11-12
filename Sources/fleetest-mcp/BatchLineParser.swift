@@ -486,6 +486,8 @@ enum BatchStepResolver {
         "dxRatio", "dyRatio", "x", "y", "quietSeconds",
         // swipePointToPoint の2点(単位は x / y と同じ)
         "startX", "startY", "endX", "endY",
+        // setSliderValue の値(DSL では名前の無い Double。"value" は setPickerValue の文字列で使っているので別の名前)
+        "number",
     ]
     static let boolKeys: Set<String> = ["replace", "settle", "throwsException"]
 

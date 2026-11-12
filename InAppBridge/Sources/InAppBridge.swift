@@ -160,6 +160,7 @@ final class FTInAppBridge {
             case ("POST", "/drag"): return try handleDrag(req.body)
             case ("POST", "/rotate"): return try handleRotate(req.body)
             case ("POST", "/press"): return try handlePress(req.body)
+            case ("POST", "/sliderStep"): return try handleSliderStep(req.body)
             case ("GET", "/screenshot"): return try handleScreenshot()
             case ("POST", "/session"):
                 // in-app ブリッジは注入先アプリそのものに常駐している。ホストの launch(bundleID) は
@@ -1710,6 +1711,33 @@ final class FTInAppBridge {
     /// ダブルタップ。**Compose(iOS)はここでしか成立しない**: Compose は XCTest が合成したタッチを
     /// ダブルタップとして数えない(XCTest の doubleTap も、XCUITest ランナーが送る独立した2タッチも
     /// 間隔によらず double=0。2026-09-24 実測)。アプリ内で合成したタッチなら数える
+    /// POST /sliderStep(同期相手: Sources/FTCore/BridgeDTO.swift SliderStepRequest・FTCore.SliderValueLoop.byStepping)。
+    /// ref の AX 要素に accessibilityIncrement / Decrement を1回撃ち、整定後の accessibilityValue を返す。値が動くかは作り次第
+    /// (E2E の SUT で動いたのは Compose・Flutter。SwiftUI の刻み付き・RN の自前の View は値が動かず、ホストが1段目で見て
+    /// XCUITest へ回す = FTCore.SliderValueLoop.Failure.firstStepDidNotMove)。**調整できない要素は 501**
+    /// (inapp-boost モードが XCUITest ブリッジの /sliderPosition へ回す)。ref が引けなければ撃たずに 422 + stale-ref
+    private func handleSliderStep(_ body: Data) throws -> InAppHTTPServer.Response {
+        let req = try decode(SliderStepRequest.self, body)
+        guard req.direction == "increment" || req.direction == "decrement" else {
+            throw InAppError(400, "direction must be increment or decrement")
+        }
+        let node: NSObject? = mainSync { self.nodes.object(forKey: NSNumber(value: req.ref)) as? NSObject }
+        guard let node else {
+            throw InAppError(422, "reference [\(req.ref)] is no longer on screen; nothing was sent — take a new snapshot",
+                             reason: BridgeAPI.staleRefReason)
+        }
+        let adjustable = mainSync { node.accessibilityTraits.contains(.adjustable) }
+        guard adjustable else {
+            throw InAppError(501, "the element at [\(req.ref)] is not adjustable (no accessibilityIncrement / Decrement);"
+                + " inapp-boost mode hands it to the XCUITest bridge")
+        }
+        try performWithSettle(operation: "the slider step") { _ in
+            if req.direction == "increment" { node.accessibilityIncrement() } else { node.accessibilityDecrement() }
+        }
+        let value = mainSync { node.accessibilityValue }
+        return .json(SliderStepResponse(performed: true, value: value?.isEmpty == false ? value : nil))
+    }
+
     private func handleDoubleTap(_ body: Data) throws -> InAppHTTPServer.Response {
         let req = try decode(TapRequest.self, body)
         if let ref = req.ref { try requireExpectedRef(ref, expect: req.expect) }

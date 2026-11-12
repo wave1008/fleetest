@@ -1407,6 +1407,40 @@ public final class AndroidDriver: AppDriver {
         }
     }
 
+    /// スライダーを値で合わせる。まず ACTION_SET_PROGRESS で直接置き(View の SeekBar・Material・Compose・RN が持つ)、
+    /// 持たない(Flutter は送りだけ)か置いても合わなかったら1段ずつ送って合わせる(`SliderValueLoop`)。`frame` / `identifier` は iOS 用
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        // 既に合っていれば撃たない(同じ値への SET_PROGRESS は値が変わらず、ブリッジが読み直しの上限まで待つ)
+        if let now = currentValue, SliderValueMatch.matches(current: now, wanted: value) {
+            return SliderValueOutcome(value: now, steps: 0)
+        }
+        // Android のブリッジは ref で撃つ。別の木の番号しか無い呼び出しは Android には来ない(inapp-boost は iOS だけ)が、来たら撃たない
+        guard let ref else {
+            throw DriverError.badResponse(status: 501, body: "setting a slider on Android needs the tree's ref; nothing was sent")
+        }
+        let set = try await withBridge { try await $0.sliderSet(ref: ref, value: value, area: area) }
+        if set.supported, set.performed, let read = set.value, SliderValueMatch.matches(current: read, wanted: value) {
+            return SliderValueOutcome(value: read, steps: 1)
+        }
+        // 置けたが合わなかった(範囲の外・刻みに丸められた)回は、その値から送りで合わせ直す
+        let start = set.supported && set.performed ? set.value : currentValue
+        do {
+            var outcome = try await SliderValueLoop.byStepping(start: start, wanted: value) { direction in
+                try await self.withBridge { try await $0.sliderStep(ref: ref, direction: direction, area: area) }
+            }
+            if set.supported { outcome.steps += 1 }
+            return outcome
+        } catch let failure as SliderValueLoop.Failure {
+            // 値を置く操作も送る操作も持たない(タッチだけで値を決める自前の View = 実測)= このブリッジでは動かせない。
+            // 501 で返すと呼び手(実行器・MCP)が帯の上のタップで合わせる(SliderTapPosition)
+            if case .notPerformed = failure, !set.supported {
+                throw DriverError.badResponse(status: 501, body: failure.description)
+            }
+            throw DriverError.badResponse(status: 422, body: failure.description)
+        }
+    }
+
     /// gesture も apk 経由だけ(doubleTap/pinch と同じ理由。多点の同期が要る)
     public func gesture(_ request: GestureRequest) async throws {
         try await withBridge { try await $0.gesture(request) }

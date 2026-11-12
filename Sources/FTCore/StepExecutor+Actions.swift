@@ -1742,6 +1742,54 @@ extension StepExecutor {
                 note(.settleCapped, into: &settleNotes)
                 driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
             }
+        case "setSliderValue":
+            guard let wanted = step.text.flatMap(Double.init) else {
+                return StepOutcome(status: .failed("setSliderValue needs a number to set"))
+            }
+            // 入れ物の中のスライダーへ寄せる・複数なら撃たずに断る(判定は MCP と共有 = SliderTarget)
+            let target: ElementInfo
+            switch SliderTarget.resolve(element, in: snapshot.elements) {
+            case .target(let resolved): target = resolved
+            case .ambiguous(let count):
+                return StepOutcome(status: .failed(
+                    "setSliderValue: \(element.identifier.map { "#\($0)" } ?? element.type) holds \(count) sliders,"
+                        + " so which one to move is ambiguous and nothing was sent. Name one slider"))
+            }
+            let wantedText = step.text ?? ""
+            let current = SliderTarget.currentValue(target)
+            var moved: SliderValueOutcome?
+            do {
+                // **ref はこの木(主のドライバ)の番号**。typeDriver(XCUITest)へ回ったときは渡さない(別の名前空間)
+                let viaXCUITest = try await gestureWithFallback(phase: &phase) { performer in
+                    let ownTree = (performer as AnyObject) === (self.driver as AnyObject)
+                    moved = try await performer.setSliderValue(ref: ownTree ? target.ref : nil, frame: target.frame,
+                                                               area: element.frame,
+                                                        identifier: target.identifier,
+                                                        currentValue: current, value: wanted)
+                }
+                if viaXCUITest { driverFallback = Self.joinNotes(driverFallback, "fell back to XCUITest") }
+            } catch DriverError.badResponse(let status, let body) where status == 422 {
+                return StepOutcome(status: .failed("setSliderValue \(wantedText) failed: \(body)"))
+            } catch where DriverError.isBridgeIncapable(error) {
+                // どのブリッジもアクセシビリティ・XCTest の操作で動かせなかった = 帯の上のタップで合わせる(MCP と共有)
+                do {
+                    moved = try await SliderTapPosition.set(driver: driver, frame: target.frame, area: element.frame,
+                                                            identifier: target.identifier ?? element.identifier,
+                                                            current: current, wanted: wanted)
+                    driverFallback = Self.joinNotes(driverFallback, "set by tapping along the slider")
+                } catch let failure as SliderValueLoop.Failure {
+                    return StepOutcome(status: .failed("setSliderValue \(wantedText) failed: \(failure.description)"
+                        + " (no bridge could adjust it through accessibility, so setting it by tapping along its track was tried)"))
+                }
+            }
+            if let moved {
+                driverFallback = Self.joinNotes(driverFallback, "slider now reads \"\(moved.value)\"")
+            }
+            if !skippingSettle(step), try await settledSignature(phase: &phase).settled == false {
+                var settleNotes: [String] = []
+                note(.settleCapped, into: &settleNotes)
+                driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
+            }
         case "swipeElementToElement":
             guard let endLocator = step.endLocator else {
                 return StepOutcome(status: .failed("swipeElementToElement requires an end locator"))

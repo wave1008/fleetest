@@ -224,13 +224,16 @@ final class BridgeRouterStatusContractTests: XCTestCase {
         return String(rest[..<end.lowerBound])
     }
 
-    /// XCUITest ランナーの 501 は `handleHideKeyboard` の**1箇所だけ**。
+    /// XCUITest ランナーの 501 は `handleHideKeyboard` と `handleSliderPosition` の**2箇所だけ**。
     /// 501 は isBridgeIncapable が真になり、ホストは XCUITest へフォールバックする ——
     /// つまり**フォールバック先が自分自身**になるので、増やすと無限の遠回りを作る。
     ///
     /// 唯一の例外が hideKeyboard で、これは iOS に実装手段が無い(DS-10)ため in-app も
     /// XCUITest も 501 を返す。ホスト(`StepExecutor`)は in-app の 501 を typeDriver へ
     /// **1回だけ**回し、そこでも 501 なら失敗させるので、遠回りは1往復で止まる。
+    /// 2つ目の例外が `/sliderPosition` の「slider 型の要素が無い」(XCTest の adjust は slider 型だけが受ける)。これは inapp-boost
+    /// モードでは既に回った先の XCUITest が返すもので、ホストの実行器・MCP が明示的に受けて**帯の上のタップ**(SliderTapPosition)へ回す
+    /// (別のブリッジへは回らない = 遠回りは起きない)。
     /// **これ以外の 501 を足さないこと**(「今は無理」は 422)
     /// **ホームボタン機の appSwitcher は断る**(2026-08-28・実機 iPhone SE3 で2案とも実測)。
     /// 黙って別の面(コントロールセンター / ホーム)を開いて ok を返していたので、
@@ -248,12 +251,14 @@ final class BridgeRouterStatusContractTests: XCTestCase {
         let source = try routerSource
         // **ランナーの全ファイルで数える**(BridgeRouter* だけを読むと、CoordinatePinch.swift の 501 を見逃していた)
         let everyRunnerFile = try allRunnerSources()
-        XCTAssertEqual(try throwSites(status: 501, in: everyRunnerFile), 1,
-                       "XCUITest ランナー全体の 501 は hideKeyboard の1箇所だけ(BridgeRouter 以外のファイルも含む)")
-        XCTAssertEqual(try throwSites(status: 501, in: source), 1,
-                       "XCUITest ランナーの 501 は hideKeyboard の1箇所だけ。"
+        XCTAssertEqual(try throwSites(status: 501, in: everyRunnerFile), 2,
+                       "XCUITest ランナー全体の 501 は hideKeyboard と sliderPosition の2箇所だけ(BridgeRouter 以外のファイルも含む)")
+        XCTAssertEqual(try throwSites(status: 501, in: source), 2,
+                       "XCUITest ランナーの 501 は hideKeyboard と sliderPosition の2箇所だけ。"
                        + "増やすとフォールバック先が自分自身になる")
         XCTAssertTrue(source.contains("hideKeyboard is Android-only"),
                       "501 の1箇所は hideKeyboard であること")
+        XCTAssertTrue(source.contains("no slider-type element is at frame"),
+                      "501 のもう1箇所は sliderPosition の「slider 型の要素が無い」であること")
     }
 }

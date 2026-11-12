@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 288
+    public static let bridgeProtocolVersion = 292
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1791,6 +1791,89 @@ public struct PickerStepResponse: Codable {
     public var value: String?
     public init(performed: Bool, value: String?) {
         self.performed = performed
+        self.value = value
+    }
+}
+
+/// POST /sliderStep(**in-app ブリッジと Android ブリッジ**。同期相手: InAppBridge/Sources/InAppBridge.swift handleSliderStep・
+/// AndroidRunner/.../BridgeRouter.java handleSliderStep)。スライダーを1段動かして値を読み直す。`direction` = "increment" / "decrement"
+/// (in-app = accessibilityIncrement / Decrement・Android = ACTION_SCROLL_FORWARD / BACKWARD)。ref はそのブリッジの直近の木の番号。
+/// 調整できる要素でなければ 422(何も撃たない)。XCUITest ランナーは持たない(404 = ホストが /sliderPosition へ回る)
+/// `area`(Android だけが読む)= セレクタで決まった要素の枠。ブリッジは毎回その中からスライダーを探し直す(Flutter のスライダーは
+/// つまみの大きさで値と一緒に動くので、撮った時点の ref の中心には次の段でもう居ない = 実測)。in-app は ref の AX 要素を直接使う
+public struct SliderStepRequest: Codable {
+    public var ref: Int
+    public var direction: String
+    public var area: FTRect?
+    public init(ref: Int, direction: String, area: FTRect? = nil) {
+        self.ref = ref
+        self.direction = direction
+        self.area = area
+    }
+}
+
+/// `performed` = 操作が受理されたか・`value` = 撃った後に読み直した値(nil = 読めなかった)・
+/// `actions` = 撃てなかったとき(Android)にそのノードが持っていた a11y 操作の名前(失敗文に事実として出す。撃てた回は nil)
+public struct SliderStepResponse: Codable {
+    public var performed: Bool
+    public var value: String?
+    public var actions: [String]?
+    public init(performed: Bool, value: String?, actions: [String]? = nil) {
+        self.performed = performed
+        self.value = value
+        self.actions = actions
+    }
+}
+
+/// POST /sliderSet(**Android ブリッジだけ**。同期相手: BridgeRouter.java handleSliderSet)。ACTION_SET_PROGRESS で値を直接置く。
+/// `value` は RangeInfo の単位(木の value と同じ数)。`supported` = そのノードが SET_PROGRESS を持つか(false なら何も撃っていない
+/// = ホストは /sliderStep で1段ずつ合わせる)
+public struct SliderSetRequest: Codable {
+    public var ref: Int
+    public var value: Double
+    /// SliderStepRequest.area と同じ
+    public var area: FTRect?
+    public init(ref: Int, value: Double, area: FTRect? = nil) {
+        self.ref = ref
+        self.value = value
+        self.area = area
+    }
+}
+
+/// `actions` = SliderStepResponse.actions と同じ(supported が false の回だけ)
+public struct SliderSetResponse: Codable {
+    public var supported: Bool
+    public var performed: Bool
+    public var value: String?
+    public var actions: [String]?
+    public init(supported: Bool, performed: Bool, value: String?, actions: [String]? = nil) {
+        self.supported = supported
+        self.performed = performed
+        self.value = value
+        self.actions = actions
+    }
+}
+
+/// POST /sliderPosition(**XCUITest ランナーだけ**。同期相手: Runner/.../BridgeRouter.swift handleSliderPosition)。
+/// frame が1pt 以内で一致する slider 型の要素を `adjust(toNormalizedSliderPosition:)` で動かす(`position` nil = 動かさず読むだけ)。
+/// **ref でなく frame で指す**(PickerValueRequest と同じ理由)。slider 型でない(Compose・RN・Flutter の iOS は other)なら 422
+public struct SliderPositionRequest: Codable {
+    public var frame: FTRect
+    public var identifier: String?
+    public var position: Double?
+    public init(frame: FTRect, identifier: String? = nil, position: Double?) {
+        self.frame = frame
+        self.identifier = identifier
+        self.position = position
+    }
+}
+
+/// `position` = 撃った後の normalizedSliderPosition・`value` = 撃った後に読んだ値(nil = 読めなかった)
+public struct SliderPositionResponse: Codable {
+    public var position: Double
+    public var value: String?
+    public init(position: Double, value: String?) {
+        self.position = position
         self.value = value
     }
 }

@@ -312,6 +312,20 @@ public final class AppAttachDriver: AppDriver {
         }
     }
 
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        try await ensureAttached()
+        do {
+            return try await client.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
+                                                   currentValue: currentValue, value: value)
+        } catch {
+            guard Self.isRecoverableSession(error) else { throw error }
+            try await activateRunningApp()
+            return try await client.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
+                                                   currentValue: currentValue, value: value)
+        }
+    }
+
     /// gesture も座標だけで完結するので pinch と同じ 409 回復を入れる
     public func gesture(_ request: GestureRequest) async throws {
         try await ensureAttached()

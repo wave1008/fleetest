@@ -192,6 +192,12 @@ public final class FastLaunchDriver: AppDriver {
         try await base.setPickerValue(ref: ref, frame: frame, identifier: identifier,
                                       currentValue: currentValue, value: value)
     }
+
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        try await base.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
+                                      currentValue: currentValue, value: value)
+    }
     public func gesture(_ request: GestureRequest) async throws { try await base.gesture(request) }
     public func waitForSettle(_ request: WaitForSettleRequest,
                               timeoutSeconds: Double) async throws -> WaitForSettleResponse {

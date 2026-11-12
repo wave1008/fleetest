@@ -316,6 +316,17 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         return PickerValueOutcome(value: value, steps: 1)
     }
 
+    /// スライダーの偽。撃った引数を `calls` に積み、`scriptedSliderFailure` があればそれで失敗する
+    var scriptedSliderFailure: String?
+    /// 422 = 止まった(失敗)・501 = このブリッジでは動かせない(呼び手が帯の上のタップへ回る)
+    var scriptedSliderFailureStatus = 422
+    func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                        value: Double) async throws -> SliderValueOutcome {
+        try record("setSliderValue(ref:\(ref.map(String.init) ?? "nil"),id:\(identifier ?? "nil"),current:\(currentValue ?? "nil"),value:\(SliderValueLoop.format(value)))", "setSliderValue")
+        if let scriptedSliderFailure { throw DriverError.badResponse(status: scriptedSliderFailureStatus, body: scriptedSliderFailure) }
+        return SliderValueOutcome(value: SliderValueLoop.format(value), steps: 1)
+    }
+
     /// **既定実装(AppDriver extension)は 501 を投げる**ので、上書きしないと ft_gesture が
     /// 一切テストできない。組み立てた `GestureRequest` を丸ごと控える(点ごとの座標/時刻は
     /// `calls` の文字列化では読みにくいので、等値比較したいテストは `lastGestureRequest` を見る)

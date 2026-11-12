@@ -151,6 +151,7 @@ final class BridgeRouter {
             case ("POST", "/pinch"): response = try handlePinch(request.body)
             // **mutatingPaths に入れない**(/pinch と同じ理由: 整定はホストの performGesture が末尾で待つ)
             case ("POST", "/pickerValue"): response = try handlePickerValue(request.body)
+            case ("POST", "/sliderPosition"): response = try handleSliderPosition(request.body)
             case ("POST", "/gesture"): response = try handleGesture(request.body)
             case ("POST", "/rotate"): response = try handleRotate(request.body)
             case ("POST", "/press"): response = try handlePress(request.body)
@@ -1458,6 +1459,44 @@ final class BridgeRouter {
             }
         }
         return .json(PickerValueResponse(matched: matched, value: last, tried: tried, note: note))
+    }
+
+    /// POST /sliderPosition(同期相手: Sources/FTCore/BridgeDTO.swift SliderPositionRequest・FTCore.SliderValueLoop.byPosition)。
+    /// frame が1pt 以内で一致する slider 型の要素を adjust(toNormalizedSliderPosition:) で動かし(`position` nil = 読むだけ)、
+    /// 動かした後の位置と値を返す。**slider 型しか動かせない**(XCTest の adjust は slider 型の要素だけが受ける。iOS の Compose・
+    /// React Native・Flutter のスライダーは XCUITest の木で other)。無ければ何も撃たずに 501(下)。合ったかの判定はホスト
+    private func handleSliderPosition(_ body: Data) throws -> BridgeHTTPServer.Response {
+        let req = try decode(SliderPositionRequest.self, body)
+        if let position = req.position, !(0...1).contains(position) {
+            throw BridgeError(400, "position must be between 0 and 1")
+        }
+        let app = try requireForegroundAppForGesture()
+        let want = CGRect(x: req.frame.x, y: req.frame.y, width: req.frame.width, height: req.frame.height)
+        let sliders = app.sliders.allElementsBoundByIndex.filter {
+            let f = $0.frame
+            return abs(f.origin.x - want.origin.x) <= 1 && abs(f.origin.y - want.origin.y) <= 1
+                && abs(f.width - want.width) <= 1 && abs(f.height - want.height) <= 1
+        }
+        // 見つからないのは 501(XCTest では動かせない = ホストの実行器・MCP が帯の上のタップで合わせる。BridgeRouterStatusContractTests の
+        // 例外の2つ目)。2つ以上は 422(どれか決まらない)
+        if sliders.isEmpty {
+            throw BridgeError(501, "no slider-type element is at frame (\(Int(want.origin.x)), \(Int(want.origin.y)),"
+                + " \(Int(want.width))x\(Int(want.height))); nothing was sent. XCUITest can move only elements it sees as a"
+                + " slider (Compose, React Native and Flutter sliders on iOS appear as other)")
+        }
+        guard sliders.count == 1, let slider = sliders.first else {
+            throw BridgeError(422, "\(sliders.count) sliders share that frame, so which one to move is ambiguous; nothing was sent")
+        }
+        if let position = req.position {
+            ResponseMeasurement.noteInjection()
+            // 動かした後の値を読むので、アプリが落ち着くまで待つ(上限つきの既定の待ち)
+            if let exception = QuiescenceWait.around(skip: skipSettle, {
+                FTCatchObjCException({ slider.adjust(toNormalizedSliderPosition: CGFloat(position)) })
+            }) {
+                throw BridgeError(422, "adjust(toNormalizedSliderPosition:) failed: \(exception)")
+            }
+        }
+        return .json(SliderPositionResponse(position: Double(slider.normalizedSliderPosition), value: slider.value as? String))
     }
 
     private func handlePress(_ body: Data) throws -> BridgeHTTPServer.Response {

@@ -224,6 +224,10 @@ public enum StepDescription {
                 let wanted = step.text ?? ""
                 return isJapanese(obj, wanted) ? "\"\(obj)\"のピッカーを\"\(wanted)\"に合わせる"
                     : "set the picker \"\(obj)\" to \"\(wanted)\""
+            case "setSliderValue":
+                let wanted = step.text ?? ""
+                return isJapanese(obj) ? "\"\(obj)\"のスライダーを\(wanted)に合わせる"
+                    : "set the slider \"\(obj)\" to \(wanted)"
             case "doubleTap":
                 if step.locator == nil, let x = step.x, let y = step.y {
                     return "double-tap at (\(FTSeconds.format(x)), \(FTSeconds.format(y)))"

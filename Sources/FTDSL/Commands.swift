@@ -713,6 +713,31 @@ private func setPickerValueImpl(_ selector: FTSelector, _ value: String, waitSec
     return FTElement(selector: selector, matched: result.element)
 }
 
+/// スライダーを値で1回で合わせる。値は**木の value に出る数**(`valueIs` が読むもの): iOS の UIKit / SwiftUI / RN は割合の
+/// `"75%"`、Compose は `"75.0"`、Android は範囲の単位の `"75"`。単位(%)は無視して数で比べる。
+/// id が外側の入れ物に付いていて中にスライダーが1つあれば、その中のスライダーを動かす。止まった値が違えば失敗
+@discardableResult
+public func setSliderValue(_ selector: String, _ value: Double, waitSeconds: Double? = nil,
+                           file: StaticString = #filePath, line: UInt = #line) -> FTElement {
+    setSliderValueImpl(FTSelector.parse(selector), value, waitSeconds: waitSeconds, file: file, line: line)
+}
+
+@discardableResult
+public func setSliderValue(_ selector: Sel, _ value: Double, waitSeconds: Double? = nil,
+                           file: StaticString = #filePath, line: UInt = #line) -> FTElement {
+    setSliderValueImpl(selector.ftSelector, value, waitSeconds: waitSeconds, file: file, line: line)
+}
+
+private func setSliderValueImpl(_ selector: FTSelector, _ value: Double, waitSeconds: Double?,
+                                file: StaticString, line: UInt) -> FTElement {
+    let text = SliderValueLoop.format(value)
+    let step = FlowStep(action: "setSliderValue", locator: selector.primary,
+                        fallbacks: selector.stepFallbacks, text: text, timeout: waitSeconds)
+    let result = perform("setSliderValue", selector, step: step,
+                         description: "setSliderValue \"\(selector.text)\" \(text)", file: file, line: line)
+    return FTElement(selector: selector, matched: result.element)
+}
+
 /// 2本指を開くピンチ = **拡大**(scale > 1)。セレクタ無しは画面全体が対象。
 ///
 ///     pinchOut()                    // 2倍に拡大

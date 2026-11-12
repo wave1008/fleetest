@@ -14,6 +14,7 @@ gesture builder for anything those three cannot express.
 | `pinchIn(sel?, scale: 0.5, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | Pinches two fingers together = zoom out. `scale` must be greater than 0 and less than 1. Same cap as `pinchOut`. |
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | Replays one or more finger paths as a single continuous touch — for a pattern-lock swipe, a long-press that then drags, a two-finger rotate, or anything `pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` cannot express. |
 | `setPickerValue(sel, value, waitSeconds:)` | Sets one picker wheel — an iOS `pickerWheel` (date/time picker, `UIPickerView`) or an Android `NumberPicker` (shown as `pickerWheel`) — to a value in one step, so you do not drag a wheel or type into its field. Returns the element it grabbed. See the `setPickerValue` section below. |
+| `setSliderValue(sel, number, waitSeconds:)` | Sets a slider to a number in one call. The number is what the snapshot shows as the slider's value (a `%` sign is ignored) |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | Runs the block while the finger stays down (for checking a component that only shows while pressed). `holdSeconds` defaults to 3 seconds. See the `hold` section below. |
 
 When the centre of the target is outside the screen, `doubleTap`, a long press (`tap(sel, holdSeconds:)`) and (on Android) `pinchOut` / `pinchIn` fail without sending anything, because a touch outside the screen lands nowhere. Targets larger than the screen are not refused. Scroll the target into view first.
@@ -72,6 +73,18 @@ setPickerValue(".pickerWheel[2]", "30")  // the second wheel (minutes) of a time
 - An Android `NumberPicker` shows no id on the wheel, even when the layout gives it one (the OS leaves it out of the accessibility data). Name it with `.pickerWheel` or `.pickerWheel[2]`.
 - If the wheel cannot reach the value (no such row, end of the list), the step fails and the message says the value it stopped at.
 - iOS goes through the XCUITest bridge even in the default inapp-boost mode. On Android the wheel is stepped one row at a time (the wheel's own scroll action; typing into its field does not change it) until it reads the value or goes all the way round.
+
+## `setSliderValue`: set a slider by value
+
+```swift
+setSliderValue("#slider_volume", 75)
+select("#txt_slider").textIs("volume=75")
+```
+
+- The number is **what the snapshot shows as the slider's value** (what `valueIs` reads). The notation differs by OS and framework: `75%` (a percentage) on iOS UIKit, SwiftUI and React Native, `75.0` on iOS Compose Multiplatform, and `75` in the slider's own range on Android. A `%` sign is ignored and the numbers are compared. There is no rounding.
+- When the id is on a container that holds one slider, that slider is moved (Flutter on Android). A container with two or more sliders (the thumbs of a range slider) fails without sending anything.
+- If the slider moves in steps that skip the value, or the value is out of range, the step fails and the message says the value it stopped at.
+- A slider that accessibility actions (setting the value, or one step at a time) cannot move is set by tapping along its track and reading the value back. This works for sliders whose value jumps to where you tap (Material sliders, custom components that set the value from the touch, and so on). On iOS, sliders that only move when the thumb is dragged are moved through XCUITest.
 
 ## `hold`: verifying something that only shows while pressed
 
@@ -148,6 +161,8 @@ keep in mind:
 ## Notes
 
 - **`setPickerValue` turns exactly one wheel.** Name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
+- **`setSliderValue` may tap the slider's track.** A slider that accessibility actions cannot move is set by tapping along its track (it passes through other values on the way).
+- **A slider whose value does not appear in the snapshot cannot be set.** Flutter sliders in iOS xcuitest mode are like this (the step fails without touching anything). The default inapp-boost mode sets them.
 - **`settle: false`** skips this command's post-action wait for the screen to settle (the next step may see a moving screen). See [tap](./tap.md) for details.
 
 ### Link

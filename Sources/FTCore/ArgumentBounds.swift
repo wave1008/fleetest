@@ -101,6 +101,10 @@ public enum ArgumentBounds {
         // 負が正しい向きを表す(反対側へ動かす)ので縛らない
         "dxRatio": .unbounded,
         "dyRatio": .unbounded,
+        // ft_set_slider_value の値(スライダーの範囲は撃つ前に分からず、負の範囲もある)。ft_set_picker_value の value は文字列で、ここは引かない
+        "value": .unbounded,
+        // ft_batch の setSliderValue の値(上の value と同じ理由で縛らない)
+        "number": .unbounded,
     ]
 
     /// 空文字(空白のみを含む)を断る文字列引数。省略(キー自体が無い)は対象外 ——

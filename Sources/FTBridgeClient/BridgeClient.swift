@@ -1356,6 +1356,65 @@ public final class BridgeClient: AppDriver, Sendable {
         return PickerStepResult(performed: res.performed, value: res.value)
     }
 
+    /// iOS のスライダーを値で合わせる。in-app ブリッジは /sliderStep(accessibilityIncrement / Decrement を1段ずつ)、
+    /// XCUITest ランナーは /sliderStep を持たない(404)ので /sliderPosition(adjust(toNormalizedSliderPosition:) で位置を狭める)。
+    /// **合ったかの判定はホスト**(`SliderValueLoop`)。合わなければ止まった値を言って 422
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        // ref が無い(別の木の番号しか無い)= 1段ずつの経路(ref で撃つ)を飛ばして位置で合わせる
+        guard let ref else { return try await setSliderValueByPosition(frame: frame, identifier: identifier, value: value) }
+        do {
+            return try await SliderValueLoop.byStepping(start: currentValue, wanted: value) {
+                try await self.sliderStep(ref: ref, direction: $0)
+            }
+        } catch let failure as SliderValueLoop.Failure {
+            // 1段目で動かなかった = この送り方では動かせない(SwiftUI の刻み付きスライダーで実測)。位置で合わせる経路へ回す
+            // (in-app はその経路を持たず 404 = inapp-boost モードが XCUITest ブリッジへ回す)
+            guard case .firstStepDidNotMove = failure else {
+                throw DriverError.badResponse(status: 422, body: failure.description)
+            }
+            return try await setSliderValueByPosition(frame: frame, identifier: identifier, value: value)
+        } catch where DriverError.isBridgeIncapable(error) {
+            return try await setSliderValueByPosition(frame: frame, identifier: identifier, value: value)
+        }
+    }
+
+    private func setSliderValueByPosition(frame: FTRect, identifier: String?, value: Double) async throws -> SliderValueOutcome {
+        do {
+            let now: SliderPositionResponse = try await post(
+                "/sliderPosition", body: SliderPositionRequest(frame: frame, identifier: identifier, position: nil),
+                timeout: interactionTimeout)
+            let start = now.value.map { (position: now.position, value: $0) }
+            return try await SliderValueLoop.byPosition(
+                start: start, wanted: value, resolution: frame.width > 0 ? 1 / frame.width : 1
+            ) { position in
+                let res: SliderPositionResponse = try await self.post(
+                    "/sliderPosition", body: SliderPositionRequest(frame: frame, identifier: identifier, position: position),
+                    timeout: self.interactionTimeout)
+                return res.value
+            }
+        } catch let failure as SliderValueLoop.Failure {
+            throw DriverError.badResponse(status: 422, body: failure.description)
+        }
+    }
+
+    /// in-app ブリッジ・Android ブリッジ(POST /sliderStep)。1段動かして値を読み直す。ref は直近の木の番号
+    /// `area` は Android だけが読む(SliderStepRequest.area)
+    public func sliderStep(ref: Int, direction: SliderValueLoop.Step, area: FTRect? = nil) async throws -> SliderStepResult {
+        try refuseIfStepExpectationContradicts(ref)
+        let res: SliderStepResponse = try await post(
+            "/sliderStep", body: SliderStepRequest(ref: ref, direction: direction.rawValue, area: area),
+            timeout: interactionTimeout)
+        return SliderStepResult(performed: res.performed, value: res.value, actions: res.actions)
+    }
+
+    /// Android ブリッジ(POST /sliderSet)。ACTION_SET_PROGRESS で値を直接置く(持たないノードなら supported: false で何も撃たない)
+    public func sliderSet(ref: Int, value: Double, area: FTRect) async throws -> SliderSetResponse {
+        try refuseIfStepExpectationContradicts(ref)
+        return try await post("/sliderSet", body: SliderSetRequest(ref: ref, value: value, area: area),
+                              timeout: interactionTimeout)
+    }
+
     /// pinch と同じ理由(合成タッチを最後の指が離れるまで送り切ってから応答する)で
     /// `request.totalSeconds` ぶん timeout を延ばす
     public func gesture(_ request: GestureRequest) async throws {

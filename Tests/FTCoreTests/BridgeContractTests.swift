@@ -51,7 +51,7 @@ final class BridgeContractTests: XCTestCase {
     static let inAppRoutes: Set<String> = [
         "GET /screenshot", "GET /snapshot", "GET /status",
         "POST /appstate", "POST /clear", "POST /doubletap", "POST /drag", "POST /hidekeyboard", "POST /tapprobe", "POST /touchlands", "POST /pinch",
-        "POST /press", "POST /pressEnter", "POST /rotate", "POST /session", "POST /swipe",
+        "POST /press", "POST /pressEnter", "POST /rotate", "POST /session", "POST /sliderStep", "POST /swipe",
         "POST /tap", "POST /terminate", "POST /type",
     ]
 
@@ -74,7 +74,7 @@ final class BridgeContractTests: XCTestCase {
         "POST /systemui/drag", "POST /systemui/swipe",
         "GET /screenshot", "GET /snapshot", "GET /status",
         "POST /appstate", "POST /appswitcher", "POST /clear", "POST /doubletap", "POST /drag",
-        "POST /gesture", "POST /hidekeyboard", "POST /hold", "POST /hinge", "POST /home", "POST /pickerValue", "POST /pinch", "POST /press",
+        "POST /gesture", "POST /hidekeyboard", "POST /hold", "POST /hinge", "POST /home", "POST /pickerValue", "POST /pinch", "POST /press", "POST /sliderPosition",
         "POST /pressEnter", "POST /rotate", "POST /session", "POST /swipe", "POST /tap", "POST /terminate",
         "POST /type",
         // waitForSettle(v174)。画面全体を撮るのでセッションを要さない。in-app は持たない(アプリ自身の描画しか撮れない)
@@ -85,7 +85,7 @@ final class BridgeContractTests: XCTestCase {
 
     static let androidRoutes: Set<String> = [
         "GET /screenshot", "GET /snapshot", "GET /status",
-        "POST /clear", "POST /doubletap", "POST /gesture", "POST /hold", "POST /locale", "POST /pickerStep", "POST /pinch", "POST /press",
+        "POST /clear", "POST /doubletap", "POST /gesture", "POST /hold", "POST /locale", "POST /pickerStep", "POST /pinch", "POST /press", "POST /sliderSet", "POST /sliderStep",
         "POST /pressEnter", "POST /scrollAction", "POST /session", "POST /settle", "POST /swipe",
         "POST /tap", "POST /terminate", "POST /type",
         "POST /waitForSettle",
@@ -135,7 +135,7 @@ final class BridgeContractTests: XCTestCase {
         .inApp: [
             "InAppBridge/Sources/Bridging.h": "08799e6d190f958eed7c6bb4406f1cbbfea1bed1d252ce4572636273c65a5aad",
             "InAppBridge/Sources/DisplayHeartbeat.swift": "845b796af6d9a176780a96c852f9a2ccace5923d672ca947404adf2ba156b0de",
-            "InAppBridge/Sources/InAppBridge.swift": "1688efe69c3b9340635bf03ba6381469b6213e3cc9f7a12ec91dc76087f5bb7a",
+            "InAppBridge/Sources/InAppBridge.swift": "19fe794d8de0968aa66979781b87a8864f5b803817feea26a76918a9d9a299bf",
             "InAppBridge/Sources/InAppHTTPServer.swift": "d48cbe3699bc3fcf1de6558e033ea8812816207efc3aaf3f9210d4aee58e174c",
             "InAppBridge/Sources/InAppInput.h": "7cc1d91f345ce6e66ad6c58d1f5a8242c558d48759a769c6d24532bc06cd2a6f",
             "InAppBridge/Sources/InAppInput.m": "39e79ed03ffbf1c9c5980a747f2670ce4c3395df106e6162a80e005a05454d8d",
@@ -147,7 +147,7 @@ final class BridgeContractTests: XCTestCase {
             "InAppBridge/Sources/boot.m": "b23fc93fbc99ce2579c9fd8ae75a6f9bbfd0ec6122bec60eb6cd00775dd635ef",
             "InAppBridge/build.sh": "f609079a78b0321206b676972a78bdbb292788001645d31fd2d13905cbefa999",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "c1482745b984e9e0215229ee38144bd808d920b305ee0e4ec0ae85231f97b451",
+            "Sources/FTCore/BridgeDTO.swift": "514bae2b9fba2f3f402295954e29bf461d18f1c8d426955cbccc8ffcbe8bc08f",
             "Sources/FTCore/TypeReadback.swift": "0eadcab6e2b48cb3dad2d9749b1c2951856ccec8f20ffb2819f71d2177913045",
             "Sources/FTCore/UIFrameworkMarkers.swift": "6e40a5724138a0cc5b0b6f915e0cce19e5bb3468854cefe97893c7a152a742b6",
             "Sources/FTCore/WebViewDOMSnapshot.swift": "aa4dea12295f5da76b1f0b97cd59a2c00e4ad2aa8ee838ccbf5d4abc2eba22ca",
@@ -156,7 +156,7 @@ final class BridgeContractTests: XCTestCase {
             "Runner/FleetestRunnerUITests/BridgeHTTPServer.swift": "ef8c6573ab25f9cbdfed21e483ce74f1eb5d1a4345bc57a2d5b9ed2eb86b860e",
             "Runner/FleetestRunnerUITests/BridgeRouter+Snapshot.swift": "33a67bbe9c7f92d28d129c9866b267d9f56c1175f2ef0f7ae5e554767c779d37",
             "Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift": "312f8de799913327a118805898c0f3679f067a2adc26caaf77a31c6dc1ac8f85",
-            "Runner/FleetestRunnerUITests/BridgeRouter.swift": "5a37d14bcdc1fbc764f1e53999fe4142bd78ae20210029455c9c43d49cffd478",
+            "Runner/FleetestRunnerUITests/BridgeRouter.swift": "69bc5462f46446d1df442a6c0979ec565f2690ce62b4fc843b1270f81070691f",
             "Runner/FleetestRunnerUITests/BridgingHeader.h": "f7ff424d9283644d0e7a0c6e202911ecbf2d9c12d469eea330d91471c4788272",
             "Runner/FleetestRunnerUITests/CoordinatePinch.swift": "ebb8c8348f4dc8826e0555370a5386d627ce5210dfe49f4ecacae9addc8b9ad9",
             "Runner/FleetestRunnerUITests/DisplayHeartbeat.swift": "c62c30a45e842d5ec7aff60210284d679b76f6e44358a3f4c97429fe918e5ffa",
@@ -169,7 +169,7 @@ final class BridgeContractTests: XCTestCase {
             "Runner/FleetestRunnerUITests/ResponseMeasurement.swift": "6254e04c6f0a85d4504e45657f847f6d1a761fe2f635819b482457c34dd095b1",
             "Runner/FleetestRunnerUITests/VirtualHID.swift": "8ee358d73f27c9aabefbd6f98e41091dfde837ee8f15e5066997df1d97df802e",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "c1482745b984e9e0215229ee38144bd808d920b305ee0e4ec0ae85231f97b451",
+            "Sources/FTCore/BridgeDTO.swift": "514bae2b9fba2f3f402295954e29bf461d18f1c8d426955cbccc8ffcbe8bc08f",
             "Sources/FTCore/ResponseMeasurementWire.swift": "19f9ba212d1ce05ad3431dd350895329f0fc62a8bdbf6210c362583d22175dcd",
             "Sources/FTCore/SnapshotDedupe.swift": "f987a913f2010e8cd81e381c595c15242f58225c71a11a9be206590baccf8c9b",
             "Sources/FTCore/TypeReadback.swift": "0eadcab6e2b48cb3dad2d9749b1c2951856ccec8f20ffb2819f71d2177913045",
@@ -179,7 +179,7 @@ final class BridgeContractTests: XCTestCase {
             "AndroidRunner/build.sh": "b136074f6bd0753af9c4186ec066407492125748aef24dd13e6556cfd3c3524a",
             "AndroidRunner/src/com/example/ftbridge/BridgeHttpServer.java": "042e90f918e2b15e03293e881bd082bce59077921731929631101b6ded1b0eb4",
             "AndroidRunner/src/com/example/ftbridge/BridgeInstrumentation.java": "78fe5cc272782a091bbbc512d1693bed0a192cf363548699a586cb0f3d614824",
-            "AndroidRunner/src/com/example/ftbridge/BridgeRouter.java": "428cdf0b0fd9303e67f7f9c6a0a11ab9cd4e69f5300158f1047cedabb04c22ec",
+            "AndroidRunner/src/com/example/ftbridge/BridgeRouter.java": "e56a24012f9bea53ec39c455bad7ddb228b609365f69b7fb3563fcb2c18e8b3d",
             "AndroidRunner/src/com/example/ftbridge/DisplayHeartbeat.java": "77528d6e36f12d477cc3dfe4d9920f5ce69ad7912bc2461b698ace89a0ba6808",
             "AndroidRunner/src/com/example/ftbridge/FirstFrameState.java": "378cd2f84f8fa12de57da78bc19354933bf10ef32691d0225c6950b52109770a",
             "AndroidRunner/src/com/example/ftbridge/ImeOnboarding.java": "fe2d90d892046f64e4893c008148d47886e36bceb244dd9e68e560b368f0193b",
@@ -188,7 +188,7 @@ final class BridgeContractTests: XCTestCase {
             "AndroidRunner/src/com/example/ftbridge/QuietWaiter.java": "b939eb89d48c6a3591a78b8457b31f851cd95c0f188fffdaa1668f557153347d",
             "AndroidRunner/src/com/example/ftbridge/ResponseObserver.java": "f2f52a49eb907786fc7a60b89a1c89b87d417fd0e07de0c9b01054a820574f09",
             "AndroidRunner/src/com/example/ftbridge/ResponseProbe.java": "1c49c669fdc21ca27da02833f82e2f65f56dfd209b3264a8dbb2ab9f756801c1",
-            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "25c7d03da2d75cd513a9de7b8a2d51f11d2b5d34ff4b3245c6cdaddda74e6655",
+            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "0593c7499124fefe93603acdd124d286954b84b5c4b5f655a1ac8515cf6c8669",
         ],
     ]
 

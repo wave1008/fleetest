@@ -172,6 +172,8 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
                 case "POST /swipe": return handleSwipe(body(request));
                 case "POST /scrollAction": return handleScrollAction(body(request));
                 case "POST /pickerStep": return handlePickerStep(body(request));
+                case "POST /sliderSet": return handleSliderSet(body(request));
+                case "POST /sliderStep": return handleSliderStep(body(request));
                 case "POST /doubletap": return handleDoubleTap(body(request));
                 case "POST /pinch": return handlePinch(body(request));
                 case "POST /gesture": return handleGesture(body(request));
@@ -640,6 +642,152 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
     /** ホイールの値の読み直しの間隔(ms)。1フレーム(60Hz)。値はアニメーションの途中で切り替わるので、
      *  切り替わりを見逃す遅れを1フレームに抑える(SCROLL_SETTLE_POLL_MS は動きの止まりを見るための間隔で、ここには長い) */
     private static final long PICKER_POLL_MS = 16;
+
+    /**
+     * POST /sliderSet {ref, value}。ref の中心にあるスライダーを ACTION_SET_PROGRESS で value(RangeInfo の単位 = 木の value と同じ数)へ置き、
+     * 値が変わるまで読み直して {supported, performed, value} を返す。**SET_PROGRESS を持たないノード(Flutter のスライダーは送りだけ)は
+     * supported:false で何も撃たない**(ホストが /sliderStep で1段ずつ合わせる)。合ったかの判定はホスト(FTCore.SliderValueMatch)。
+     * 同期相手: Sources/FTCore/BridgeDTO.swift SliderSetRequest / SliderSetResponse・Sources/FTAndroid/AndroidDriver.swift setSliderValue
+     */
+    private BridgeHttpServer.Response handleSliderSet(JSONObject body) throws JSONException {
+        if (!body.has("ref") || !body.has("value")) throw new BridgeException(400, "ref and value are required");
+        AccessibilityNodeInfo slider = sliderAt(body.optInt("ref"), body.optJSONObject("area"));
+        int setProgress = AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId();
+        boolean supported = hasAction(slider, setProgress);
+        JSONObject o = new JSONObject();
+        o.put("supported", supported);
+        String before = SnapshotBuilder.sliderValue(slider);
+        if (!supported) {
+            o.put("performed", false);
+            if (!before.isEmpty()) o.put("value", before);
+            o.put("actions", actionNames(slider));
+            return BridgeHttpServer.Response.json(200, o.toString());
+        }
+        android.os.Bundle args = new android.os.Bundle();
+        args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, (float) body.optDouble("value"));
+        boolean performed = slider.performAction(setProgress, args);
+        o.put("performed", performed);
+        String value = performed ? awaitSliderValueChange(slider, before) : before;
+        if (value != null && !value.isEmpty()) o.put("value", value);
+        return BridgeHttpServer.Response.json(200, o.toString());
+    }
+
+    /**
+     * POST /sliderStep {ref, direction: "increment"|"decrement"}。ACTION_SCROLL_FORWARD / BACKWARD で1段動かし、値が変わるまで
+     * 読み直して {performed, value} を返す(その操作を持たないノードは performed:false で何も撃たない)。
+     * 同期相手: Sources/FTCore/BridgeDTO.swift SliderStepRequest / SliderStepResponse・FTCore.SliderValueLoop.byStepping
+     */
+    private BridgeHttpServer.Response handleSliderStep(JSONObject body) throws JSONException {
+        if (!body.has("ref")) throw new BridgeException(400, "ref is required");
+        String direction = body.optString("direction");
+        if (!direction.equals("increment") && !direction.equals("decrement")) {
+            throw new BridgeException(400, "direction must be increment or decrement");
+        }
+        AccessibilityNodeInfo slider = sliderAt(body.optInt("ref"), body.optJSONObject("area"));
+        int action = (direction.equals("increment")
+                ? AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD
+                : AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD).getId();
+        String before = SnapshotBuilder.sliderValue(slider);
+        boolean performed = hasAction(slider, action) && slider.performAction(action);
+        JSONObject o = new JSONObject();
+        o.put("performed", performed);
+        String value = performed ? awaitSliderValueChange(slider, before) : before;
+        if (value != null && !value.isEmpty()) o.put("value", value);
+        if (!performed) o.put("actions", actionNames(slider));
+        return BridgeHttpServer.Response.json(200, o.toString());
+    }
+
+    /** ノードが持つ a11y 操作の名前(撃てなかった回の事実としてホストの失敗文に出す。名前の無い独自操作はラベルか番号) */
+    private static org.json.JSONArray actionNames(AccessibilityNodeInfo node) {
+        org.json.JSONArray names = new org.json.JSONArray();
+        for (AccessibilityNodeInfo.AccessibilityAction action : node.getActionList()) {
+            // toString は "AccessibilityAction: ACTION_CLICK - <label>"(名前の表を引く actionToString は公開 API でない)
+            names.put(action.toString().replaceFirst("^AccessibilityAction: ", ""));
+        }
+        return names;
+    }
+
+    /**
+     * ref の中心を含むスライダーのうち最小のもの(RangeInfo を持つ・SeekBar・SET_PROGRESS を持つノード)。
+     * **木の id が外側の入れ物に付いていても中のスライダーを引く**(Flutter = 入れ物の中心にスライダーがある)。
+     * 無ければ何も撃たずに 422(ホストの文言で「止まった値」にならないよう、事実だけ言う)
+     */
+    private AccessibilityNodeInfo sliderAt(int ref, JSONObject area) {
+        double[] center = centerOf(ref);
+        AccessibilityNodeInfo root = ua().getRootInActiveWindow();
+        AccessibilityNodeInfo slider = null;
+        // **枠の中にスライダーがちょうど1つならそれ**(撮った時点の ref の中心には、動いたつまみがもう居ないことがある)。
+        // 0 か 2 以上なら ref の中心で探す(範囲スライダーの取り違えはホストが撃つ前に断っている)
+        if (root != null && area != null) {
+            Rect bounds = new Rect((int) Math.round(area.optDouble("x")), (int) Math.round(area.optDouble("y")),
+                    (int) Math.round(area.optDouble("x") + area.optDouble("width")),
+                    (int) Math.round(area.optDouble("y") + area.optDouble("height")));
+            java.util.List<AccessibilityNodeInfo> inside = new java.util.ArrayList<>();
+            collectSlidersIn(root, bounds, inside);
+            if (inside.size() == 1) slider = inside.get(0);
+        }
+        if (slider == null && root != null) slider = smallestSliderAt(root, center[0], center[1]);
+        // 取り直せていない(false)ノードは中身が古いままなので撃たない(.claude/rules/android.md)。
+        // **何も撃っていないので stale-ref**(ホストが木を撮り直して引き直す。Pixel 3a・Android 12 で、直後の問い合わせでは見つかる
+        // スライダーをこの瞬間だけ見つけられなかった = 実測)
+        if (slider == null || !slider.refresh()) {
+            throw new BridgeException(422, "no slider (a node with a range, a SeekBar, or one that takes SET_PROGRESS)"
+                    + " is at reference [" + ref + "]'s position now; nothing was sent", STALE_REF_REASON);
+        }
+        return slider;
+    }
+
+    /** 中心が `area` の中にあるスライダーを集める(入れ子のスライダーは内側だけ = 外側の入れ物がスライダーを名乗っても数えない) */
+    private static void collectSlidersIn(AccessibilityNodeInfo node, Rect area, java.util.List<AccessibilityNodeInfo> out) {
+        if (node == null) return;
+        int before = out.size();
+        for (int i = 0; i < node.getChildCount(); i++) collectSlidersIn(node.getChild(i), area, out);
+        if (out.size() > before || !isSliderLike(node)) return;
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (area.contains(bounds.centerX(), bounds.centerY())) out.add(node);
+    }
+
+    private static boolean isSliderLike(AccessibilityNodeInfo node) {
+        return node.getRangeInfo() != null
+                || String.valueOf(node.getClassName()).endsWith("SeekBar")
+                || hasAction(node, AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId());
+    }
+
+    private static AccessibilityNodeInfo smallestSliderAt(AccessibilityNodeInfo node, double x, double y) {
+        if (node == null) return null;
+        AccessibilityNodeInfo best = null;
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (isSliderLike(node) && bounds.contains((int) Math.round(x), (int) Math.round(y))) best = node;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo inner = smallestSliderAt(node.getChild(i), x, y);
+            if (inner != null) best = inner;
+        }
+        return best;
+    }
+
+    private static boolean hasAction(AccessibilityNodeInfo node, int actionId) {
+        for (AccessibilityNodeInfo.AccessibilityAction action : node.getActionList()) {
+            if (action.getId() == actionId) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 値が `before` から変わるまで読み直す(/pickerStep と同じ間隔と上限)。変わらないまま上限に着いたらその値を返す
+     * (端・同じ値への SET_PROGRESS)。取り直せない回は読まない
+     */
+    private static String awaitSliderValueChange(AccessibilityNodeInfo slider, String before) {
+        long deadline = SystemClock.uptimeMillis() + SCROLL_SETTLE_CAP_MS;
+        while (SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(PICKER_POLL_MS);
+            if (!slider.refresh()) continue;
+            String now = SnapshotBuilder.sliderValue(slider);
+            if (!now.isEmpty() && !now.equals(before)) return now;
+        }
+        return slider.refresh() ? SnapshotBuilder.sliderValue(slider) : null;
+    }
 
     /** (x, y) を含む NumberPicker のうち最小のもの(見つからなければ null) */
     private static AccessibilityNodeInfo smallestNumberPickerAt(AccessibilityNodeInfo node, double x, double y) {

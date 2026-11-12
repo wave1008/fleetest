@@ -394,6 +394,19 @@ final class FakeAppDriver: AppDriver {
         return PickerValueOutcome(value: value, steps: 1)
     }
 
+    var sliderError: Error?
+    private(set) var lastSliderSet: (ref: Int?, frame: FTRect, currentValue: String?, value: Double)?
+    func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                        value: Double) async throws -> SliderValueOutcome {
+        lastSliderSet = (ref, frame, currentValue, value)
+        if let sliderError {
+            log.entries.append("\(name).setSliderValue(throws)")
+            throw sliderError
+        }
+        log.entries.append("\(name).setSliderValue")
+        return SliderValueOutcome(value: SliderValueLoop.format(value), steps: 1)
+    }
+
     /// waitForSettle の応答列(呼び出し回数ぶん。尽きたら最後を繰り返す)。空 = 常に静止して返す
     var waitForSettleResponses: [WaitForSettleResponse] = []
     /// 非 nil なら waitForSettle がこのエラーを throw する(501 = 画面全体を撮れないブリッジの検証用)

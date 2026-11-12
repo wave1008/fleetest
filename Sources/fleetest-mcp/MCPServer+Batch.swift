@@ -134,6 +134,17 @@ extension MCPServer {
                                 timeout: raw["waitSeconds"] as? Double)
             return (step, "setPickerValue \"\(selector.text)\" \"\(value)\"")
         },
+        "setSliderValue": BatchStepBuilder(keys: ["selector", "number", "waitSeconds"]) { raw in
+            let selector = try requiredBatchSelector(raw, command: "setSliderValue")
+            guard let number = raw["number"] as? Double else {
+                throw MCPError("setSliderValue requires a number (the value to set the slider to)")
+            }
+            let text = SliderValueLoop.format(number)
+            let step = FlowStep(action: "setSliderValue", locator: selector.primary,
+                                fallbacks: batchFallbacks(selector), text: text,
+                                timeout: raw["waitSeconds"] as? Double)
+            return (step, "setSliderValue \"\(selector.text)\" \(text)")
+        },
         "pressEnter": BatchStepBuilder(keys: ["settle"]) { raw in
             (FlowStep(action: "pressEnter", settle: batchSettle(raw)), "pressEnter")
         },

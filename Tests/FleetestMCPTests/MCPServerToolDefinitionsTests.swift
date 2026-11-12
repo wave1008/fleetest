@@ -105,7 +105,7 @@ final class MCPServerToolDefinitionsTests: XCTestCase {
         XCTAssertEqual(Set(snapshotToolNames),
                        ["ft_tap", "ft_type", "ft_drag", "ft_swipe", "ft_double_tap",
                         "ft_long_press", "ft_pinch", "ft_navigate", "ft_open_url", "ft_gesture",
-                        "ft_launch", "ft_clear_input", "ft_hide_keyboard", "ft_set_picker_value"],
+                        "ft_launch", "ft_clear_input", "ft_hide_keyboard", "ft_set_picker_value", "ft_set_slider_value"],
                        "snapshotAfter を持つツールの集合が変わった場合はこのテストごと見直すこと")
         for name in snapshotToolNames {
             let props = properties(name)

@@ -128,6 +128,16 @@ public final class HybridFallbackDriver: AppDriver {
         }
     }
 
+    public func setSliderValue(ref: Int?, frame: FTRect, area: FTRect, identifier: String?, currentValue: String?,
+                               value: Double) async throws -> SliderValueOutcome {
+        // **ref は主(in-app)の木の番号**なので、予備(XCUITest)へは渡さない(別の名前空間 = 別の要素に当たる)
+        try await withFallback { driver in
+            try await driver.setSliderValue(ref: (driver as AnyObject) === (self.primary as AnyObject) ? ref : nil,
+                                            frame: frame, area: area, identifier: identifier,
+                                            currentValue: currentValue, value: value)
+        }
+    }
+
     public func gesture(_ request: GestureRequest) async throws {
         try await withFallback { try await $0.gesture(request) }
     }
