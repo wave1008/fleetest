@@ -182,16 +182,27 @@ public enum SnapshotRenderer {
         if flagging[e.ref] != nil { return false }
         if e.scrollable == true { return false }
         if isOperableType(e.type) { return false }
-        let ownLabel = e.label.map(FlowMatchMode.normalizeInvisibleCharacters) ?? ""
-        let ownValue = e.value.map(FlowMatchMode.normalizeInvisibleCharacters) ?? ""
-        let ownText = ownLabel.isEmpty ? ownValue : ownLabel
+        let ownText = redundancyText(e)
         guard !ownText.isEmpty else { return false }
         return TapTargetGeometry.ancestors(of: e, in: elements).contains { ancestor in
-            isOperableType(ancestor.type)
-                && (ancestor.label.map(FlowMatchMode.normalizeInvisibleCharacters) ?? "")
-                    .contains(ownText)
-                && TapTargetGeometry.contains(ancestor.frame, e.frame)
+            guard isOperableType(ancestor.type), TapTargetGeometry.contains(ancestor.frame, e.frame) else { return false }
+            let label = ancestor.label.map(displayText) ?? ""
+            if label == ownText { return true }
+            // 含むだけで隠すのは、祖先の行に**描かれる部分**にあるときだけ(切られた先にある評価・価格を
+            // 隠していた = Apple マップの検索結果の評価の行・sutec-home の価格)。さらに祖先のラベルが別の子孫の文字
+            // そのものなら、ラベルはその子1つの文字で、自分は偶然含まれただけ(Google マップの場所カード
+            // `clickable "大阪城"` の中のカテゴリ「城」を隠していた)
+            guard displayTruncate(label, labelDisplayLimit).contains(ownText) else { return false }
+            return !LocatorResolver.descendants(of: ancestor, in: elements).contains {
+                $0.ref != e.ref && redundancyText($0) == label
+            }
         }
+    }
+
+    /// 重複判定で比べる文字(ラベル、無ければ値)。祖先の行と同じ `displayText` で正規化する
+    private static func redundancyText(_ e: ElementInfo) -> String {
+        let label = e.label.map(displayText) ?? ""
+        return label.isEmpty ? (e.value.map(displayText) ?? "") : label
     }
 
     /// interactiveOnly の事前カウント(L35 付近)と行スキップ(render 内)が**同じ述語**を通すための束ね。
