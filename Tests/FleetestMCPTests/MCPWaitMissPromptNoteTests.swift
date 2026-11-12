@@ -111,6 +111,28 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertFalse(text.contains("ft_scroll_to first"), text)
     }
 
+    /// **ft_scroll_to がアプリ内アラートで届かなかったら、ボタンを ref つきで名指し、alertButton ではないと言う**
+    /// (計測: ref の無い注記を読んで alertButton を撃ち、断られた)
+    func testScrollToBehindAnInAppAlertNamesButtonsWithRefs() async throws {
+        let driver = FakeDriver()
+        driver.snapshotResponse.elements = [
+            el(1, "staticText", "経路", y: 600),
+            ElementInfo(ref: 10, type: "alert", identifier: nil, label: "安全に目的地に到達するために", value: nil,
+                        placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 300, width: 360, height: 200), depth: 1),
+            el(11, "button", "OK", depth: 2, y: 440),
+        ]
+        let server = MCPServer(write: { _ in }, makeDriver: { _ in driver }, recordSnapshot: { _, _, _ in })
+        server.settleWaitSeconds = 0
+        do {
+            _ = try await server.call(tool: "ft_scroll_to", args: ["selector": "*円*", "maxSwipes": 1])
+            XCTFail("アラートの陰では届かないはず")
+        } catch {
+            let message = (error as? MCPAnnotatedError)?.fullMessage ?? (error as? MCPError)?.message ?? "\(error)"
+            XCTAssertTrue(message.contains("[11] \"OK\""), message)
+            XCTAssertTrue(message.contains("alertButton is only for system alerts"), message)
+        }
+    }
+
     /// **表の定型フッター(「Tap these by ref…」)は初出だけ**(ref で打つ探索中は毎回読まない)
     func testTheTableFooterIsOnlyInTheFirstNote() {
         // 同じラベルで id が一意 = 群は畳めず(安定なセレクタがある)、brief では明細を畳んでフッターが付く形
@@ -277,6 +299,40 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         // 打ち切られた木なら「ここで読め」の前にそうと言う(打ち切りで落ちた行を「無い」と読ませない)
         let cut = MCPServer.sheetExpandedWithoutMatchHeadline("*立川*", truncation: " (the tree was truncated)")
         XCTAssertTrue(cut.contains("list (the tree was truncated). The sheet"), cut)
+    }
+
+    /// **広げた後は、容器の中の一致を先に採る**(計測: `*立川*` の先頭はシートの見出しで、一覧の中の「立川で降車」を見落とした)
+    func testExpansionPrefersTheMatchInsideTheScrollFrame() {
+        var step = FlowStep(action: "scrollTo", locator: FTSelector.parse("*立川*").primary)
+        step.scrollFrameRect = FTRect(x: 0, y: 134, width: 402, height: 740)
+        let both = tree([el(1, "staticText", "立川駅", id: "TitleLabel", y: 82), el(2, "staticText", "立川で降車", y: 722)])
+        XCTAssertEqual(MCPServer.visibleAfterExpansion(step: step, in: both)?.ref, 2)
+        // 中に無ければ従来どおり先頭(外の見出し)= 呼び手が「容器の外」と言う
+        let outsideOnly = tree([el(1, "staticText", "立川駅", id: "TitleLabel", y: 82), el(2, "staticText", "新宿で降車", y: 722)])
+        XCTAssertEqual(MCPServer.visibleAfterExpansion(step: step, in: outsideOnly)?.ref, 1)
+        // 序数で選んだ書き方は触らない
+        var first = FTSelector.parse("*立川*").primary
+        first.index = 0
+        var indexed = FlowStep(action: "scrollTo", locator: first)
+        indexed.scrollFrameRect = step.scrollFrameRect
+        XCTAssertEqual(MCPServer.visibleAfterExpansion(step: indexed, in: both)?.ref, 1)
+        // 容器が分からなければ先頭のまま
+        let noFrame = FlowStep(action: "scrollTo", locator: FTSelector.parse("*立川*").primary)
+        XCTAssertEqual(MCPServer.visibleAfterExpansion(step: noFrame, in: both)?.ref, 1)
+        // 多重一致の注記は、先頭でない要素を使ったときに「先頭を使った」と言わない
+        let matched = both.elements
+        XCTAssertTrue(MCPServer.multiMatchHint(matched, usedRef: 2).contains("[2] inside the scrollFrame list was used"))
+        XCTAssertTrue(MCPServer.multiMatchHint(matched, usedRef: 1).contains("the first in tree order was used"))
+    }
+
+    /// **alertButton の断りは、前面がアプリ内アラートならそれを ref つきで名指す**(計測: 何で押すのか分からなかった)
+    func testNoSystemAlertRefusalNamesTheInAppAlert() {
+        let alert = el(10, "alert", "安全に目的地に到達するために")
+        let named = MCPServer.noSystemAlertRefusal(inApp: (alert: alert, buttons: ["OK"], buttonRefs: [11]))
+        XCTAssertTrue(named.contains("[11] \"OK\""), named)
+        XCTAssertTrue(named.contains("ft_tap") && named.contains("安全に目的地に到達するために"), named)
+        XCTAssertEqual(MCPServer.noSystemAlertRefusal(inApp: nil),
+                       "alertButton: no system alert is in front of the app — nothing was tapped")
     }
 
     /// **ref が消えたのがアプリ内のアラートのせいなら、アラートを名指しする**(「画面が変わった」と言わない)

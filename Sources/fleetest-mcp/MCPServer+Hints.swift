@@ -62,11 +62,22 @@ extension MCPServer {
     /// 手前で落とす: offscreenAdvisory は画面の内側にある 0x0 を「画面内」と答えるので
     /// (外して実測)、これが無いと**描かれていない一致で救済を打ち切る**
     static func visibleAfterExpansion(step: FlowStep, in snapshot: SnapshotResponse) -> ElementInfo? {
-        guard let locator = step.locator,
-              let hit = LocatorResolver.match(locator, in: snapshot),
-              hit.frame.width > 0, hit.frame.height > 0,
-              TapTargetGeometry.offscreenAdvisory(for: hit, screen: snapshot.screen) == nil
-        else { return nil }
+        guard let locator = step.locator else { return nil }
+        let usable: (ElementInfo) -> Bool = {
+            $0.frame.width > 0 && $0.frame.height > 0
+                && TapTargetGeometry.offscreenAdvisory(for: $0, screen: snapshot.screen) == nil
+        }
+        let hit = LocatorResolver.match(locator, in: snapshot)
+        // **木の順で先頭の一致が容器の外なら、容器の中の一致を先に採る**(計測: `*立川*` の先頭はシートの見出し「立川駅」で、
+        // 一覧の中の「立川で降車」を見ずに「見つからない」と返していた = 3回中3回)。序数・相対の指定は自分で1つを選んだ書き方なので触らない
+        if locator.index == nil, locator.relative?.isEmpty ?? true,
+           hit.map({ !usable($0) || matchIsOutsideScrollFrame($0, step: step, in: snapshot) }) ?? true,
+           let inside = (LocatorResolver.resolvedCandidates(locator, elements: snapshot.elements) ?? [])
+               .first(where: { usable($0) && !matchIsOutsideScrollFrame($0, step: step, in: snapshot) }),
+           step.scrollFrameRect != nil || step.scrollFrame != nil {
+            return inside
+        }
+        guard let hit, usable(hit) else { return nil }
         return hit
     }
 

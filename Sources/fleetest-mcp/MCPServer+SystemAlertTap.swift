@@ -11,6 +11,14 @@ extension MCPServer {
     /// 順序: 照会(`/systemalert`)でボタンの実在を確かめる →
     /// SpringBoard へ向ける(ft_launch の springboard と同じ非破壊の経路)→ 同じラベルの button を押す →
     /// **元のアプリへ attach で向け直す**(activate は使わない = 前面確認だけ。CLAUDE.md の attach の規律)
+    /// alertButton を撃ったがシステムのアラートが無いときの断り。アプリ内のアラートが前面なら ft_tap で押すよう名指す
+    static func noSystemAlertRefusal(inApp: (alert: ElementInfo, buttons: [String], buttonRefs: [Int])?) -> String {
+        guard let inApp else { return "alertButton: no system alert is in front of the app — nothing was tapped" }
+        return "alertButton: no system alert is in front of the app — nothing was tapped. The alert in front is the app's own:"
+            + " \(RefGuard.describe(inApp.alert))" + inAppAlertButtonsClause(buttons: inApp.buttons, refs: inApp.buttonRefs)
+            + " — press its button with ft_tap (ref or selector), not alertButton"
+    }
+
     func tapSystemAlertButton(_ label: String, driver d: AppDriver,
                               args: [String: Any]) async throws -> [[String: Any]] {
         let key = Self.sessionKey(args)
@@ -25,7 +33,10 @@ extension MCPServer {
                 + " (\(reason)) — nothing was tapped")
         }
         guard let alert = probe, alert.present else {
-            throw MCPError("alertButton: no system alert is in front of the app — nothing was tapped")
+            // **前面がアプリ内のアラートなら、それとボタンの ref を名指す**(計測: アプリ内アラートへ alertButton を撃ち、
+            // この断りだけでは何で押すのか分からなかった)。撮り直すのは断る経路だけ
+            let inApp = (try? await freshSnapshot(d, args: args)).flatMap { Self.frontInAppAlertWithButtons($0) }
+            throw MCPError(Self.noSystemAlertRefusal(inApp: inApp))
         }
         let title = alert.title.map { "\"\($0)\"" } ?? "(untitled)"
         guard alert.buttons.contains(where: { Self.alertButtonMatches($0, label) }) else {

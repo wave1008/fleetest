@@ -1721,8 +1721,13 @@ extension MCPServer {
     /// `ft_scroll_to` 成功文に添える多重ヒットの注記(監査)。**セレクタ依存の本文**
     /// であって木だけから決まる注記ではないので NoteCatalog には登録しない
     /// (NoteCoverageTests のソース走査対象は木由来の注記だけ)
-    static func multiMatchHint(_ matched: [ElementInfo]) -> String {
+    static func multiMatchHint(_ matched: [ElementInfo], usedRef: Int?) -> String {
         guard matched.count >= 2 else { return "" }
+        // 使った要素が木の順の先頭でない = シートを広げた後に容器の中の一致を採った(`visibleAfterExpansion`)。「先頭を使った」と言わない
+        if let usedRef, let first = matched.first, first.ref != usedRef {
+            return " (\(matched.count) elements match this selector; [\(usedRef)] inside the scrollFrame list was used,"
+                + " not the first in tree order [\(first.ref)])"
+        }
         return " (\(matched.count) elements match this selector; the first in tree order was used)"
     }
 
@@ -2047,12 +2052,12 @@ extension MCPServer {
                 : ""
             // **アプリ内アラートが前面なら、アラートを閉じる案内だけを足す**: 探索はアラートの背面を動かせない(アラートの中の
             // 無名のスクロール領域を scrollFrame 候補に挙げたり、背面のラベルを並べたりしても従えない)
-            if let alert = AlertTreeScope.frontInAppAlert(in: after) {
-                let buttons = AlertTreeScope.buttonLabels(of: alert, in: after)
+            if let (alert, buttons, refs) = Self.frontInAppAlertWithButtons(after) {
                 let alertFailure = failedSwitched + "note: \(RefGuard.describe(alert)) is in front of the app"
-                    + (buttons.isEmpty ? "" : " (buttons: " + buttons.map { "\"\($0)\"" }.joined(separator: " / ") + ")") + ".\n"
+                    + Self.inAppAlertButtonsClause(buttons: buttons, refs: refs) + ".\n"
                     + "scrollTo \"\(selectorText)\" did not reach the element (\(reason)) — scrolling cannot move the screen behind"
-                    + " the alert, so close it first and search again."
+                    + " the alert, so close it first (ft_tap its button by ref or label — alertButton is only for system alerts)"
+                    + " and search again."
                 if let cause = outcome.thrownDriverError {
                     throw MCPAnnotatedError(underlying: cause, suffix: "", fullMessage: alertFailure)
                 }
@@ -2167,7 +2172,12 @@ extension MCPServer {
         // 他にも当たりがあったことを言わないと「別の意図しない要素に静かに命中した成功」を
         // 見分けられない(実測: tenki.jp で "*週間*" がタブ「2週間」に当たり、週間予報の行は
         // 無視された)。件数は `matchedInTree` で計算済み = 追加コストは無い
-        landed += Self.multiMatchHint(matchedInTree)
+        var usedRef: Int?
+        if let resolved = outcome.resolvedElement,
+           case .found(let found, _) = RefGuard.relocate(resolved, in: after.elements, screen: after.screen) {
+            usedRef = found.ref
+        }
+        landed += Self.multiMatchHint(matchedInTree, usedRef: usedRef)
         // **木を返す口はすべて名指しする**(掃討で漏れを見つけた)。上の再確認は
         // 「セレクタが居るか」しか見ないので、**別アプリに同じ id がある**と素通しする ——
         // E2E の 4 SUT は id・ラベルが共通契約なので、これは現に起こり得る形

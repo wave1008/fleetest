@@ -77,14 +77,21 @@ extension MCPServer {
     /// 一致なしの断りに添える前面のアラート(アプリ内はボタンの ref つき・無ければシステムのアラートを1問だけ聞く)。無ければ空
     static func frontAlertClause(_ snapshot: SnapshotResponse, driver: AppDriver) async -> String {
         if let (alert, buttons, refs) = frontInAppAlertWithButtons(snapshot) {
-            let named = buttons.enumerated().map { index, label in
-                refs.count == buttons.count ? "[\(refs[index])] \"\(label)\"" : "\"\(label)\""
-            }.joined(separator: " / ")
             return "\(RefGuard.describe(alert)) is in front of the app"
-                + (named.isEmpty ? "" : " (buttons: \(named))") + " — handle it first."
+                + inAppAlertButtonsClause(buttons: buttons, refs: refs) + " — handle it first."
         }
         guard let system = await frontSystemAlert(driver: driver) else { return "" }
         return "\(system) — handle it first (ft_tap alertButton:)."
+    }
+
+    /// アプリ内アラートのボタンの列挙(ref つき = そのまま ft_tap に渡せる)。ボタンが無ければ空。
+    /// 一致なしの断り・ft_scroll_to の断り・alertButton の断りが共有する
+    static func inAppAlertButtonsClause(buttons: [String], refs: [Int]) -> String {
+        guard !buttons.isEmpty else { return "" }
+        let named = buttons.enumerated().map { index, label in
+            refs.count == buttons.count ? "[\(refs[index])] \"\(label)\"" : "\"\(label)\""
+        }.joined(separator: " / ")
+        return " (buttons: \(named))"
     }
 
     /// ロケータに当たる**別々の**要素の数(撃った要素を含む)。撃った要素と入れ子(包む・包まれる)の一致は同じ部品
