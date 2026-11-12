@@ -83,7 +83,7 @@ extension MCPServer {
 
     /// `scrollFrame` の容器の矩形(rect の指定か、ロケータを今の木で引いたもの)。分からなければ nil
     static func scrollFrameContainer(step: FlowStep, in snapshot: SnapshotResponse) -> FTRect? {
-        step.scrollFrameRect ?? step.scrollFrame.flatMap({ LocatorResolver.match($0, in: snapshot)?.frame })
+        step.scrollFrameRect ?? step.scrollFrame.flatMap({ ScrollFrameResolution.resolve($0, in: snapshot)?.frame })
     }
 
     /// 前面のアプリ内アラートとそのボタン(無ければ nil)。`RefGuard.goneMessage` へ渡す
@@ -784,9 +784,11 @@ extension MCPServer {
             guard locator.index == nil, matches.count >= 2 else { return "" }
             let listed = matches.prefix(4).enumerated().map { index, element -> String in
                 let f = element.frame
-                return "[\(index)] (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))"
+                return "[\(index + 1)] (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))"
             }.joined(separator: " ")
-            return " scrollFrame \"\(frame)\" matches \(matches.count) elements and the first one"
+            let usedRef = ScrollFrameResolution.resolve(locator, in: snapshot)?.ref
+            let used = matches.firstIndex { $0.ref == usedRef }.map { $0 == 0 ? "the first one" : ScrollFrameResolution.skippedFirstPhrase($0) } ?? "the first one"
+            return " scrollFrame \"\(frame)\" matches \(matches.count) elements and \(used)"
                 + " was used — add [n] to pick another: \(listed)."
         }
         // **スクロール容器が1つも申告されない木**では、案内が出せない理由ごと言う(

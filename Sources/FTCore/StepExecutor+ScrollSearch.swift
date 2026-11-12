@@ -442,7 +442,7 @@ extension StepExecutor {
     static func explicitScrollFrameRegion(_ step: FlowStep, in snapshot: SnapshotResponse) -> FTRect? {
         if let rect = step.scrollFrameRect { return rect }
         guard let locator = step.scrollFrame else { return nil }
-        return LocatorResolver.match(locator, in: snapshot)?.frame
+        return ScrollFrameResolution.resolve(locator, in: snapshot)?.frame
     }
 
     /// 探索が「動いたか」を比べる領域。名指しの scrollFrame → 無ければブリッジが払う画面中央の下にある申告済みのスクロール容器
@@ -546,7 +546,7 @@ extension StepExecutor {
     /// runScrollSearch(scrollTo/exist/notExist 系)と scroll/scrollToEdge/flick の両方から呼ぶ
     static func scrollFrameUnresolved(_ step: FlowStep, in snapshot: SnapshotResponse) -> Bool {
         guard Self.coordinateScrollEnabled, let locator = step.scrollFrame else { return false }
-        return LocatorResolver.match(locator, in: snapshot) == nil
+        return ScrollFrameResolution.resolve(locator, in: snapshot) == nil
     }
 
     /// 明示 scrollFrame が解決できないときの fail-fast 文言。呼び手ごとに動詞(action)を渡す
@@ -896,7 +896,7 @@ extension StepExecutor {
     static func matchInsideScrollFrame(_ step: FlowStep, matched element: ElementInfo,
                                        in snapshot: SnapshotResponse) -> ScrollFrameNarrowing? {
         guard step.scrollFrameRect == nil, let locator = step.scrollFrame,
-              let container = LocatorResolver.match(locator, in: snapshot) else { return nil }
+              let container = ScrollFrameResolution.resolve(locator, in: snapshot) else { return nil }
         let inside = LocatorResolver.descendants(of: container, in: snapshot.elements)
         guard !inside.isEmpty, !inside.contains(where: { $0.ref == element.ref }) else { return nil }
         var scoped = snapshot

@@ -59,6 +59,9 @@ scrollTo("#row_40", scrollFrame: "#list_rows")
 - **Omitting it scrolls the whole screen**, centered, and margin ratios are ignored.
 - `withScrollDown(scrollFrame: "#list") { }` passes the region down to every search inside the
   block.
+- **When the selector matches several elements, the first one is used.** The exception: if the first one
+  does not scroll (no `scroll` mark, and no marked element overlaps it) while another match has the `scroll` mark,
+  that match is used instead (a page-dot indicator sharing its id with the list). A note says which one was used; add `[n]` to pick another.
 - **If the region resolves but nothing in it actually moves**, the swipe is still sent but a note
   is left on the step (`the specified scrollFrame is not scrollable (the swipe lands there but nothing moves)`).
   If the margins leave no room to move inside the region, the swipe goes over the whole screen instead, with the

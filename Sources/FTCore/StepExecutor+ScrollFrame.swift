@@ -162,7 +162,9 @@ extension StepExecutor {
               let matches = LocatorResolver.candidates(locator, elements: snapshot.elements),
               matches.count >= 2 else { return nil }
         let f = picked.frame
-        return "the scrollFrame selector matched \(matches.count) elements; the first one"
+        let position = matches.firstIndex { $0.ref == picked.ref } ?? 0
+        let used = position == 0 ? "the first one" : ScrollFrameResolution.skippedFirstPhrase(position)
+        return "the scrollFrame selector matched \(matches.count) elements; \(used)"
             + " (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height))) was used"
             + " — add [n] to pick another"
     }
@@ -258,7 +260,7 @@ extension StepExecutor {
         // これを先に返すだけで fail-fast を素通りできる — 別途の分岐は要らない
         if let rect = step.scrollFrameRect { return rect }
         if let locator = step.scrollFrame {
-            guard let element = LocatorResolver.match(locator, in: snapshot) else {
+            guard let element = ScrollFrameResolution.resolve(locator, in: snapshot) else {
                 // **未解決は呼び手(runScrollSearch / scroll・scrollToEdge・flick アクション)が
                 // fail-fast する**(全画面スワイプへの黙った退化がカードのボタン等を
                 // 誤発火させた実害があったため)。この関数自身は判定せず nil を返すだけでよい
@@ -323,7 +325,7 @@ extension StepExecutor {
             return snapshot.elements.first { $0.scrollable == true && ContainerGeometry.sameFrame($0.frame, rect) }
         }
         if let locator = step.scrollFrame {
-            return LocatorResolver.match(locator, in: snapshot)
+            return ScrollFrameResolution.resolve(locator, in: snapshot)
         }
         // 未指定はブリッジが払う画面中央の下の容器。**入れ子(SwipeRefreshLayout の中の RecyclerView 等)は
         // 最小のもの**を採る(「ちょうど1つのときだけ」だと入れ子で常に nil になり、引っ張って更新の一覧で

@@ -442,7 +442,7 @@ extension StepExecutor {
             if let rect = step.scrollFrameRect {
                 container = rect
             } else if let locator = step.scrollFrame {
-                container = LocatorResolver.match(locator, in: snapshot)?.frame
+                container = ScrollFrameResolution.resolve(locator, in: snapshot)?.frame
             } else {
                 container = snapshot.screen
             }
