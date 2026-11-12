@@ -198,7 +198,7 @@ extension MCPServer {
     /// ラベルに当たり、エージェントは運賃が出たと読み違えた)。畳まれた群の中なら下の一覧に行が無いことも言う
     static func waitForAppearedNote(_ selector: String, in snapshot: SnapshotResponse,
                                     collapsingBulk: Bool) -> String {
-        let matched = matchedElements(currencyWidenedWaitFor(selector) ?? selector, in: snapshot)
+        let matched = matchedElements(selector, in: snapshot)
         guard let first = matched.first else { return "waitFor \"\(selector)\" appeared.\n" }
         let folded = SnapshotRenderer.foldedGroups(snapshot, flagging: [:], collapsingBulk: collapsingBulk)
             .first(where: { $0.value.contains(first.ref) })?.key
@@ -223,11 +223,7 @@ extension MCPServer {
         let described = RefGuard.describe(first)
         var label = ""
         if let text = first.label, !described.contains("\"\(text)\"") { label = " \"\(text)\"" }
-        // 通貨記号を広げて当たったなら、そう言う(待った記号はこの画面に無い)
-        let asked = currencyMarks.filter { selector.contains($0) }
-        let widened = currencyWidenedWaitFor(selector) != nil && !asked.contains { (first.label ?? "").contains($0) }
-            ? " (counted as \(asked.map { "\"\($0)\"" }.joined(separator: "/")): this screen writes amounts with another mark)" : ""
-        return "waitFor \"\(selector)\" appeared: matched [\(first.ref)] \(described)\(label)\(others)\(where_)\(widened).\n"
+        return "waitFor \"\(selector)\" appeared: matched [\(first.ref)] \(described)\(label)\(others)\(where_).\n"
     }
 
     /// ①操作前に無かった alert → 名前とボタン ②操作前に無かったラベルの操作子だけが `appearedPromptMaxButtons` 個以下
@@ -899,24 +895,6 @@ extension MCPServer {
     /// 同じ金額の書き方の違いだけを言う(何の金額かは言わない = 画面の意味は読み手が決める)
     /// "\u{5186}" = 円(CLI の文字列は英語だけ = CLIEnglishStringsScanTests。これは画面の文字と照合する記号の表で表示ではない)
     static let currencyMarks = ["\u{5186}", "¥", "￥"]
-
-    /// **MCP の待ちでは、通貨記号だけの節(`*円*` / `*¥*` / `*￥*`)を他の記号にも当てる**(DSL の照合は変えない)。
-    /// 実測(Apple マップの計測4周): `*円*` の待ちが4回外れ、画面は `¥715` だった。外れた後の注記
-    /// (`currencyNotationHint`)を読んでも、次の画面で同じ待ちを繰り返していた。金額の付いた節(`*715円*`)は広げない
-    /// (記号の位置が書き方で前後する)。広げなかったら nil
-    static func currencyWidenedWaitFor(_ selector: String) -> String? {
-        let clauses = selector.components(separatedBy: "||").map { $0.trimmingCharacters(in: .whitespaces) }
-        var out: [String] = []
-        for clause in clauses {
-            out.append(clause)
-            guard let mark = currencyMarks.first(where: { clause == "*\($0)*" }) else { continue }
-            for other in currencyMarks where other != mark {
-                let alternative = "*\(other)*"
-                if !clauses.contains(alternative), !out.contains(alternative) { out.append(alternative) }
-            }
-        }
-        return out.count > clauses.count ? out.joined(separator: "||") : nil
-    }
 
     static func currencyNotationHint(_ selectorLabel: String, in snapshot: SnapshotResponse) -> String {
         guard let asked = currencyMarks.first(where: { selectorLabel.contains($0) }) else { return "" }

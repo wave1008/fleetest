@@ -352,20 +352,6 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertEqual(MCPServer.innerWildcardHint("=a*b"), "", "文字どおりと明示した書き方には言わない")
     }
 
-    /// **通貨記号だけの待ちは他の記号にも当てる**(実測: Apple マップの計測4周で `*円*` が4回外れ、画面は `¥715`)。
-    /// 金額の付いた節は広げない・当たったら「別の記号で数えた」と言う
-    func testCurrencyOnlyWaitForAlsoMatchesTheOtherMarks() async throws {
-        let yen = "\u{5186}"
-        XCTAssertEqual(MCPServer.currencyWidenedWaitFor("*\(yen)*"), "*\(yen)*||*¥*||*￥*")
-        XCTAssertNil(MCPServer.currencyWidenedWaitFor("*715\(yen)*"))
-        XCTAssertNil(MCPServer.currencyWidenedWaitFor("*経路*"))
-        let screen = tree([el(1, "staticText", "¥715 IC")])
-        let waited = try await MCPServer.waitFor("*\(yen)*", driver: FakeDriver(), first: screen, seconds: 0)
-        XCTAssertTrue(waited.found)
-        let note = MCPServer.waitForAppearedNote("*\(yen)*", in: screen, collapsingBulk: true)
-        XCTAssertTrue(note.contains("¥715 IC") && note.contains("another mark"), note)
-    }
-
     /// **ref が消えたのがアプリ内のアラートのせいなら、アラートを名指しする**(「画面が変わった」と言わない)
     func testAGoneRefBehindAnInAppAlertNamesTheAlert() {
         let target = el(5, "button", "交通機関", id: "TransitButton")
@@ -412,17 +398,16 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertTrue(snapshot.contains("duplicate"), snapshot)
     }
 
-    /// **通貨の表記の違いだけでは満額待たない**: `*715円*` を待っても画面が `¥715` のまま止まっていれば切り上げる
-    /// (計測: 止まった画面を 8s の上限まで待っていた)。注記は外れた応答に出る。記号だけの `*円*` は広げて当てる
-    /// (`testCurrencyOnlyWaitForAlsoMatchesTheOtherMarks`)ので、ここは金額付きの広げない形で見る
+    /// **通貨の表記の違いだけでは満額待たない**: `*円*` を待っても画面が `¥715` のまま止まっていれば切り上げる
+    /// (計測: 止まった画面を 8s の上限まで待っていた)。注記は外れた応答に出る
     func testACurrencyNotationDifferenceDoesNotForceAFullWait() async throws {
         let driver = FakeDriver()
         let screen = tree([el(1, "staticText", "¥715 IC料金")])
         driver.snapshotResponse = screen
-        let waited = try await MCPServer.waitFor("*715円*", driver: driver, first: screen, seconds: 8)
+        let waited = try await MCPServer.waitFor("*円*", driver: driver, first: screen, seconds: 8)
         XCTAssertFalse(waited.found)
         XCTAssertNotNil(waited.quietStopAfter, "止まった画面を上限まで待った")
-        XCTAssertTrue(MCPServer.notationHint("*715円*", in: screen).contains("written with \"¥\""))
+        XCTAssertTrue(MCPServer.notationHint("*円*", in: screen).contains("written with \"¥\""))
     }
 
     /// **通貨の注記は「この画面では」と限る**(計測: 運転の画面の「*￥* で待て」を次の交通機関の画面(円表記)に持ち越して外した)

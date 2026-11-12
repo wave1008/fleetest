@@ -1925,9 +1925,7 @@ extension MCPServer {
             partialSeenAfter = elapsed
             partialHint = hint
         }
-        // 通貨記号だけの節は他の記号にも当てる(`currencyWidenedWaitFor`)。部分一致・注記は元の式で見る
-        let target = currencyWidenedWaitFor(selector) ?? selector
-        if matches(target, in: first) { return (true, first, nil, "", false, nil) }
+        if matches(selector, in: first) { return (true, first, nil, "", false, nil) }
         SlowCallWatchdog.mark("waiting for \(selector) (cap \(secondsText(seconds)))")
         notePartial(first, elapsed: 0)
         let start = Date()
@@ -1943,7 +1941,7 @@ extension MCPServer {
             latest = driver.supportsCacheBypass
                 ? try await driver.snapshot(bypassingCache: true) : try await driver.snapshot()
             refetched = true
-            if matches(target, in: latest) { return (true, latest, nil, "", true, nil) }
+            if matches(selector, in: latest) { return (true, latest, nil, "", true, nil) }
             notePartial(latest, elapsed: Date().timeIntervalSince(start))
             if !looksUnchanged(previous, latest) { lastChange = Date() }
             // **上限の後の読みでは切り上げと言わない**(最後の読みが上限を跨ぐと「上限より前に止めた」と言いながら
