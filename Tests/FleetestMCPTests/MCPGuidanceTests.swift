@@ -107,7 +107,8 @@ final class MCPGuidanceTests: XCTestCase {
         XCTAssertTrue(none.contains("No system alert is in front"), none)
         let up = MCPServer.systemDialogHint(bridge: "xcuitest",
                                             probe: SystemAlertProbeResponse(present: true, title: "Allow Location?"))
-        XCTAssertTrue(up.contains("Allow Location?") && up.contains("com.apple.springboard"), up)
+        XCTAssertTrue(up.contains("Allow Location?") && up.contains("ft_tap alertButton:"), up)
+        XCTAssertFalse(up.contains("by ref"), "SpringBoard を開いて ref で押す古い3手を案内しない: \(up)")
     }
 
     /// 関係ない失敗(404・ネットワーク)に足さない = 誤誘導しない

@@ -1796,14 +1796,13 @@ extension MCPServer {
             return " A system alert is in front right now"
                 + (SystemUIGate.describeCovering(probe).map { " (\($0))" } ?? "")
                 + " — it is drawn by SpringBoard, not the app, so it is not in this tree and the app cannot"
-                + " receive input while it is there. Read it with ft_launch bundleId: com.apple.springboard"
-                + " (non-destructive), operate it by ref there, then ft_launch your app again."
+                + " receive input while it is there. Handle it: \(pressSystemAlertAdvice)."
         }
         return " If a system dialog is up (a permission prompt, an \"Open in …\" confirmation),"
             + " it is drawn by SpringBoard and not by the app, so it never appears in this tree"
             + " — and the app cannot receive input while it is there, which looks exactly like"
-            + " this. Read it with ft_launch bundleId: com.apple.springboard (non-destructive),"
-            + " operate it by ref there, then ft_launch your app again."
+            + " this. Read it with ft_launch bundleId: com.apple.springboard (non-destructive) to see its"
+            + " buttons, then \(pressSystemAlertAdvice)."
     }
 
     /// 詰まった瞬間だけ `/systemalert` に聞いてから `systemDialogHint` を作る(ゲート外の bridge では聞かない)

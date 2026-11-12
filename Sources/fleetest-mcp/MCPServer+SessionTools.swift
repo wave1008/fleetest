@@ -500,8 +500,7 @@ extension MCPServer {
         guard let alert = await frontSystemAlert(driver: driver) else { return "" }
         return " (warning: \(alert) is in front of the app after delivery — if it is the first-time"
             + " \"Open in …?\" confirmation, the automatic acceptance did not run or did not dismiss it,"
-            + " and the URL has not been handled yet. Handle it with `ft_launch bundleId:"
-            + " com.apple.springboard`, tap its button by ref, then `ft_launch` your app again)"
+            + " and the URL has not been handled yet. Handle it: \(pressSystemAlertAdvice))"
     }
 
     /// テスト対象でないシステムのアプリは撃つ前に断る(nil = 撃ってよい)。**iOS の Apple のアプリ**(`com.apple.*`・SpringBoard)は

@@ -122,6 +122,11 @@ extension MCPServer {
 
     static let springboardBundleID = "com.apple.springboard"
 
+    /// システムアラートの扱い方の案内(断り・注記が共有する)。**SpringBoard を開いて ref で押す3手を案内しない** ——
+    /// 計測で ft_type の失敗がその古い手順を返し、ft_tap の断り(alertButton)と食い違った
+    static let pressSystemAlertAdvice = "press its button with `ft_tap alertButton: \"<button>\"` (it returns to your"
+        + " app; pass alertButton together with your next action's target to do both in one call)"
+
     /// SpringBoard の木のうち、alert の部分木にある button(preorder + depth で alert の子孫を取る)
     static func systemAlertButtons(in board: SnapshotResponse) -> [ElementInfo] {
         var result: [ElementInfo] = []

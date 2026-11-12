@@ -149,7 +149,9 @@ final class SystemAlertTapRefusalTests: XCTestCase {
             let message = error.localizedDescription
             XCTAssertTrue(message.contains("system alert"), message)
             XCTAssertTrue(message.contains(Self.photosAlert.title!), message)
-            XCTAssertTrue(message.contains("ft_launch bundleId: com.apple.springboard"), message)
+            // 計測: この経路だけ古い3手(SpringBoard を開いて ref で押す)を案内し、ft_tap の断り(alertButton)と食い違った
+            XCTAssertTrue(message.contains("ft_tap alertButton:"), message)
+            XCTAssertFalse(message.contains("ft_launch bundleId: com.apple.springboard"), message)
         }
     }
 

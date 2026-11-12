@@ -548,9 +548,8 @@ extension MCPServer {
                 if resolvedTypeRef == nil, let alert = await Self.frontSystemAlert(driver: typeDriver) {
                     // 元のエラーを抱えたまま投げる(MCPError に畳むと、届いたか分からない注記と接続断の案内が出ない)
                     throw MCPAnnotatedError(underlying: error, suffix: " — \(alert) is in front of the"
-                        + " app, which likely explains the missing focus. Handle it first with"
-                        + " `ft_launch bundleId: com.apple.springboard`, tap its button by ref,"
-                        + " then `ft_launch` your app again.")
+                        + " app, which likely explains the missing focus. Handle it first:"
+                        + " \(Self.pressSystemAlertAdvice).")
                 }
                 if wantsReplace {
                     // 失敗の文言は「何も送っていない」だが、replace の消去は済んでいる(欄は空)
