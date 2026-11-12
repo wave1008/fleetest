@@ -150,7 +150,8 @@ public enum ScrollFrameCandidates {
               let index = selectorIndex(of: candidate, in: snapshot) else { return selector }
         // 軸まで言う: 縦に探すのに横カルーセルを渡す取り違えがいちばん起きる
         let axis = f.height >= f.width ? "tall" : "wide"
-        return "\(selector)[\(index)] \(rect) \(axis)"
+        // 添字は DSL の `[n]` と同じ 1 始まり(`FTSelector.idOrdinalLocator`)。0 始まりで出すと、貼った `[1]` が1番目を選び `[0]` は断られる
+        return "\(selector)[\(index + 1)] \(rect) \(axis)"
     }
 
     /// `scrollFrame:` にそのまま貼れる形。id が最優先(ラベルは容器では珍しく、

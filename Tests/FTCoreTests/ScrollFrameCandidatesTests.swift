@@ -81,7 +81,9 @@ final class ScrollFrameCandidatesTests: XCTestCase {
             element(3, id: "cards", frame: b), element(4, type: "scrollView", frame: b, scrollable: true),
         ])
         let note = try XCTUnwrap(ScrollFrameCandidates.note(snap))
-        XCTAssertTrue(note.contains("#cards[0]") && note.contains("#cards[1]"), note)
+        XCTAssertTrue(note.contains("#cards[1]") && note.contains("#cards[2]"), note)
+        // 注記の書き方をそのまま貼ると、その要素を指す
+        XCTAssertEqual(LocatorResolver.match(FTSelector.parse("#cards[2]").primary, in: snap)?.ref, 3)
     }
 
     func testOffscreenContainerIsNotACandidate() {
@@ -207,8 +209,10 @@ final class ScrollFrameCandidatesTests: XCTestCase {
                     scrollable: true),
         ])
         let text = ScrollFrameCandidates.note(snap) ?? ""
-        XCTAssertTrue(text.contains("#recycler_view[0] (0,300 400x126) wide"), text)
-        XCTAssertTrue(text.contains("#recycler_view[2] (0,490 200x290) tall"), text)
+        XCTAssertTrue(text.contains("#recycler_view[1] (0,300 400x126) wide"), text)
+        XCTAssertTrue(text.contains("#recycler_view[3] (0,490 200x290) tall"), text)
+        XCTAssertEqual(LocatorResolver.match(FTSelector.parse("#recycler_view[3]").primary, in: snap)?.ref, 4,
+                       "注記の書き方を貼っても、その容器に当たらない")
         // 一意なものは今までどおり名前だけ(読みやすさを落とさない)
         XCTAssertTrue(text.contains("/ #search_list_layout /"), text)
     }
