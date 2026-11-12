@@ -45,4 +45,17 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertEqual(ClearedFieldRelocation.relocate(noHint, in: [only])?.ref, 15,
                        "id も placeholder も無い欄は、その型の欄が木に1つだけで同じ列なら引く(アラートの入力欄)")
     }
+
+    /// 同じ id の欄が2つ(Android の時刻ピッカーの時と分 = どちらも `numberpicker_input`): 消した欄と同じ枠の方を採る。
+    /// 枠も重なるなら決めない(別の欄に打たない)
+    func testDuplicateIdentifiersAreTiedBrokenByTheSameFrame() {
+        func picker(_ ref: Int, x: Double, value: String?) -> ElementInfo {
+            ElementInfo(ref: ref, type: "textField", identifier: "numberpicker_input", label: nil, value: value, placeholder: nil,
+                        enabled: true, frame: FTRect(x: x, y: 1169, width: 192, height: 144), depth: 15)
+        }
+        let before = picker(454, x: 425, value: "14")
+        let after = [picker(11, x: 425, value: nil), picker(16, x: 663, value: "14")]
+        XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: after)?.ref, 11)
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [picker(11, x: 425, value: nil), picker(12, x: 425, value: nil)]))
+    }
 }

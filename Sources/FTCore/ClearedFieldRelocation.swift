@@ -7,7 +7,11 @@ public enum ClearedFieldRelocation {
     public static func byIdentifier(_ element: ElementInfo, id: String, in elements: [ElementInfo]) -> ElementInfo? {
         func only(_ matches: [ElementInfo]) -> ElementInfo? { matches.count == 1 ? matches[0] : nil }
         let sameId = elements.filter { $0.identifier == id }
-        if let same = only(sameId.filter { $0.type == element.type }) { return same }
+        let sameType = sameId.filter { $0.type == element.type }
+        if let same = only(sameType) { return same }
+        // **同じ id の欄が複数あれば、消した欄と同じ枠のものが1つだけのときに採る**(実測: Android の時刻ピッカーは時と分が
+        // どちらも `numberpicker_input` で、消去の後に「1つに決まらない」で諦め、同じ枠に残った時の欄を見失った)
+        if sameType.count > 1, let same = only(sameType.filter { $0.frame == element.frame }) { return same }
         guard TypeReadback.isTextInput(element) else { return nil }
         return only(sameId.filter { TypeReadback.isTextInput($0) })
     }
