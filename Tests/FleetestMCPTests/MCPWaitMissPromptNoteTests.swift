@@ -342,6 +342,16 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
                        "alertButton: no system alert is in front of the app — nothing was tapped")
     }
 
+    /// **途中の `*` は文字どおり**と言う(実測: `waitFor "19:*–*"` が `19:02 – 20:03` に当たらず上限まで待った = 3回)
+    func testInnerStarIsNamedAsLiteral() {
+        XCTAssertTrue(MCPServer.innerWildcardHint("19:*–*").contains("matched literally"))
+        XCTAssertTrue(MCPServer.innerWildcardHint("*発車*19:*||*発車*20:*").contains("matched literally"))
+        XCTAssertEqual(MCPServer.innerWildcardHint("*円*"), "")
+        XCTAssertEqual(MCPServer.innerWildcardHint("19:*"), "")
+        XCTAssertEqual(MCPServer.innerWildcardHint("*19:*||*20:*"), "")
+        XCTAssertEqual(MCPServer.innerWildcardHint("=a*b"), "", "文字どおりと明示した書き方には言わない")
+    }
+
     /// **ref が消えたのがアプリ内のアラートのせいなら、アラートを名指しする**(「画面が変わった」と言わない)
     func testAGoneRefBehindAnInAppAlertNamesTheAlert() {
         let target = el(5, "button", "交通機関", id: "TransitButton")

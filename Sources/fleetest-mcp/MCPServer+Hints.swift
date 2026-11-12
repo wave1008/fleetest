@@ -858,7 +858,23 @@ extension MCPServer {
             parts.append(" \(hint.prefix(1).uppercased())\(hint.dropFirst()).")
         }
         parts.append(currencyNotationHint(locator.label ?? "", in: snapshot))
+        parts.append(innerWildcardHint(selectorText))
         return parts.joined()
+    }
+
+    /// 文字の**途中**に置いた `*` は文字どおりに比べる(ワイルドカードは先頭と末尾だけ)ことを言う一言。
+    /// 実測(地図の時刻を待つ計測で3回): `waitFor "19:*–*"` が画面の `19:02 – 20:03` に当たらず、上限まで待ってから外れた。
+    /// 先頭が `=`(文字どおりと明示した書き方)の節は言わない
+    static func innerWildcardHint(_ selectorText: String) -> String {
+        let clauses = selectorText.components(separatedBy: "||").map { $0.trimmingCharacters(in: .whitespaces) }
+        let parsed = FTSelector.parse(selectorText)
+        let literalStars = zip(clauses, [parsed.primary] + parsed.fallbacks).contains { clause, locator in
+            !clause.hasPrefix("=") && (locator.label ?? "").contains("*")
+        }
+        guard literalStars else { return "" }
+        return " Note: a * in the middle of the text is matched literally — only a leading or trailing * is a wildcard"
+            + " (*text, text*, *text*), so a pattern like \"a*b*\" never matches \"a…b\". Wait for one fragment instead"
+            + " (for example *a* or b*)."
     }
 
     /// 金額の表記が待った語と違うときの一言(`*円*` で待ったのに画面は `¥715`、またはその逆)。
