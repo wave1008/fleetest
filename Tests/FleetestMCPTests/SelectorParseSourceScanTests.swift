@@ -27,6 +27,9 @@ final class SelectorParseSourceScanTests: XCTestCase {
         // similarLabelsHint / notationHint: どちらも同じ行を持つ(同一パターン)。
         // 呼び手は selector(scrollTo。ゲート後)と waitFor(ゲート後)のみ
         #"Sources/fleetest-mcp/MCPServer+Hints.swift#let locator = FTSelector.parse(selectorText).primary"#,
+        // innerWildcardHint: 呼び手は notationHint(上と同じ = ゲート後)と、入口の waitFor の検査
+        // (`parseSelectorArgument` を通した直後)だけ
+        #"Sources/fleetest-mcp/MCPServer+Hints.swift#let parsed = FTSelector.parse(selectorText)"#,
         // recordInteraction: `selector` は SelectorNaming(graded) が木から合成した文字列で、
         // 呼び手供給ではない(構文は常に正当)
         #"Sources/fleetest-mcp/MCPServer+Draft.swift#if let selector { step.locator = FTSelector.parse(selector).primary }"#,

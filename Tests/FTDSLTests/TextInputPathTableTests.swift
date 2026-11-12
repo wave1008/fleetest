@@ -285,6 +285,7 @@ final class TextInputPathTableTests: XCTestCase {
              "withScrollDown", "withScrollLeft", "withScrollRight", "withScrollUp"],
             "scrollFrame: goes through resolvedScrollFrame → FTSelector.scrollFrameLocator (same gate as scrollDown@scrollFrame)")
         add(["or", "find", "right", "left", "above", "below"], "Sel composition: inherits invalidReason from its operands (same gate as text@Sel)")
+        add(["setPickerValue"], "selector goes through the shared perform gate; the value is compared with the wheel's text by PickerValueMatch (its own table: PickerValueMatchTests)")
         add(["scene", "group", "verify", "procedure", "doUntilTrue"], "block title / label, never compared")
         add(["launchApp", "openURL", "restartApp", "clearAppData", "installApp", "removeApp", "appIs", "tapAppIcon"],
             "app identifier / URL / name, not a compared text")

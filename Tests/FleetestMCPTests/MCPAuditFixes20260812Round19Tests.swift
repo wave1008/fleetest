@@ -107,7 +107,12 @@ final class MCPAuditFixes20260812Round19Tests: XCTestCase {
     /// **述語を絞るなら、地図側の witness(`#expandingscrollview_container`)を
     /// フィクスチャに採ってからにすること** —— それが無いまま「全画面の器を除く」と
     /// 絞ると、この検知が生まれた動機の形を落としたことに気付けない
-    static let knownEmptyScrollerFirings: Set<String> = ["ios-messages_keyboard.json"]
+    ///
+    /// **2026-11-12 に地図側の witness(`and-maps_transit_results` の `#expandingscrollview_container`)が入った**。中身の出た経路一覧
+    /// (ラベルつきの要素が容器の枠の中に 50 件)でも子ゼロで返るので、これも述語としては誤検知。器が空のまま中身が兄弟で描かれる形で、
+    /// messages と同じ穴。**実害は messages より大きい**: 発火している間は外れた waitFor の切り上げ(`quietCutoffApplies`)が効かず
+    /// 上限まで待つ(Google マップの計測で外れた待ちが毎回 10 秒)。分ける観測(本当に読み込み中の形)がまだ無いので、述語は据え置いて固定する
+    static let knownEmptyScrollerFirings: Set<String> = ["ios-messages_keyboard.json", "and-maps_transit_results.json"]
 
     func testNoFalsePositiveOnTheRealAppCorpus() throws {
         let dir = URL(fileURLWithPath: #filePath)
