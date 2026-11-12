@@ -434,16 +434,20 @@ extension MCPServer {
     /// DSL の操作の `waitSeconds:`(対象が出るまで探す再試行の上限)と同じ名前なので「出るまで待って撃つ」と読まれる。
     /// 断らない(操作は既に撃てる形で、断ると二度撃ちを誘う)・注記するだけ
     static func ignoredWaitSecondsNote(tool: String, args: [String: Any]) -> String {
-        guard args["waitSeconds"] != nil, args["waitFor"] == nil, args["waitForChange"] as? Bool != true,
+        guard args["waitSeconds"] != nil, args["waitFor"] == nil,
               let definition = toolDefinitions.first(where: { $0["name"] as? String == tool }),
               let schema = definition["inputSchema"] as? [String: Any],
               let properties = schema["properties"] as? [String: Any],
               properties["waitFor"] != nil || properties["waitForChange"] != nil else { return "" }
+        // 宣言していない waitForChange(ft_launch)は落ちるので、渡されていても待ちは無い
+        let takesWaitForChange = properties["waitForChange"] != nil
+        if takesWaitForChange, args["waitForChange"] as? Bool == true { return "" }
         // **ft_open_url は snapshotAfter で待ちを省くと自分で waitForChange を立てる**(配送後の着地を待つ =
         // MCPServer+SessionTools.swift の wantsLandingWait)。その形の waitSeconds は使われるので言わない
         if tool == "ft_open_url", args["snapshotAfter"] as? Bool == true, args["waitForChange"] == nil { return "" }
-        return "⚠️ waitSeconds was ignored: in \(tool) it only bounds waitFor / waitForChange, and neither was"
-            + " given. It does not wait for the target to appear (in a scenario, an action's waitSeconds: is the"
+        return "⚠️ waitSeconds was ignored: in \(tool) it only bounds "
+            + (takesWaitForChange ? "waitFor / waitForChange, and neither was given." : "waitFor, which was not given.")
+            + " It does not wait for the target to appear (in a scenario, an action's waitSeconds: is the"
             + " retry for finding its target, about 0.7 s by default)"
     }
 
@@ -487,9 +491,19 @@ extension MCPServer {
                 .map { "\(key) (did you mean \"\($0)\"?)" } ?? key
         }
         let takes = declared.isEmpty ? "no arguments" : declared.sorted().joined(separator: ", ")
+        let reasons = unknown.compactMap { deliberatelyAbsentArguments[tool]?[$0] }
         return "⚠️ ignored unknown argument(s): " + described.joined(separator: ", ")
             + " — \(tool) takes: " + takes
+            + reasons.map { ". " + $0 }.joined()
     }
+
+    /// 他の操作の道具が持つのに、意図して持たない引数と、その理由と代わりの手(「揃っていない」と読まれて試行錯誤させない)。
+    /// 宣言側は `afterActionProperties(waitForChange:)`
+    static let deliberatelyAbsentArguments: [String: [String: String]] = [
+        "ft_launch": ["waitForChange": "ft_launch has no waitForChange on purpose: the screen before a launch is no"
+            + " baseline (a relaunch often lands on the same screen, so it would just wait out the deadline) —"
+            + " pass waitFor with an element only the expected screen has"],
+    ]
 
     /// 引数名の言い間違い候補(大文字小文字だけ違う、または編集距離2以下)。距離計算は
     /// `FTCore.SimilarLabels.editDistance`(唯一の定義元)を流用するだけの薄い判定 ——

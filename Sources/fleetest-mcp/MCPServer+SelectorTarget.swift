@@ -48,7 +48,8 @@ extension MCPServer {
                 guard attempt < StepExecutor.defaultLocatorRetryAttempts,
                       (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil else {
                     // 一致なしは ref の経路(アラートの門)へ届かないので、前面のアラートはここで名指す(読み手は木だけ見て探し続ける)
-                    throw MCPError(miss.message + (await Self.frontAlertClause(snapshot, driver: d)))
+                    throw MCPError(Self.selectorMissMessage(miss.message,
+                                                            alertClause: await Self.frontAlertClause(snapshot, driver: d)))
                 }
                 attempt += 1
                 try await Task.sleep(for: backoff.nextDelay())
@@ -65,17 +66,23 @@ extension MCPServer {
         return out
     }
 
+    /// 一致なしの断り。**前面のアラートがあるならそれを先頭に置く**(末尾に置くと主文の「no element matches」だけ読まれ、
+    /// 「要素が無い」と誤読された = Apple マップの計測で、アラートの陰の #TransitButton)
+    static func selectorMissMessage(_ miss: String, alertClause: String) -> String {
+        alertClause.isEmpty ? miss : "refusing: " + alertClause + " Behind it, " + miss
+    }
+
     /// 一致なしの断りに添える前面のアラート(アプリ内はボタンの ref つき・無ければシステムのアラートを1問だけ聞く)。無ければ空
     static func frontAlertClause(_ snapshot: SnapshotResponse, driver: AppDriver) async -> String {
         if let (alert, buttons, refs) = frontInAppAlertWithButtons(snapshot) {
             let named = buttons.enumerated().map { index, label in
                 refs.count == buttons.count ? "[\(refs[index])] \"\(label)\"" : "\"\(label)\""
             }.joined(separator: " / ")
-            return " \(RefGuard.describe(alert)) is in front of the app"
+            return "\(RefGuard.describe(alert)) is in front of the app"
                 + (named.isEmpty ? "" : " (buttons: \(named))") + " — handle it first."
         }
         guard let system = await frontSystemAlert(driver: driver) else { return "" }
-        return " \(system) — handle it first (ft_tap alertButton:)."
+        return "\(system) — handle it first (ft_tap alertButton:)."
     }
 
     /// ロケータに当たる**別々の**要素の数(撃った要素を含む)。撃った要素と入れ子(包む・包まれる)の一致は同じ部品

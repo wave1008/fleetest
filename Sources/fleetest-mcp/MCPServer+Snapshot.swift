@@ -1975,6 +1975,30 @@ extension MCPServer {
                 if !shrunkNote.isEmpty { rememberFutileSheetRescue(after, args: args) }
             }
         }
+        // **展開で行が出たが一致が容器の外だけ = 探索は届いていないが、画面は読める形になった**。失敗として投げると、読み手は
+        // 「失敗した」と読んでから ft_snapshot を1回足していた(Apple マップの計測で5回中4回)。届いていないことは文で言い、
+        // 広げた後の木をそのまま返す(エラーにしない)。下書きには行を残さない(再生しても届かない)
+        if matchOutsideContainer, AlertTreeScope.frontInAppAlert(in: after) == nil {
+            if let swipes = outcome.scrollSwipes, swipes > 0 {
+                var entry = InteractionLog.Entry(
+                    step: nil, unresolved: nil, summary: "scrollTo \"\(selectorText)\" (did not reach it)")
+                entry.todoNote = Self.failedScrollTodo(selector: selectorText, swipes: swipes)
+                recordAction(entry, args: args)
+            }
+            let (treeArgs, inheritedNote) = inheritingSnapshotFilters(args)
+            let collapsingBulk = treeArgs["expandBulk"] as? Bool != true
+            let cache = SnapshotAnnotationCache()
+            markLastGenerationDelivered(args: args)
+            return text(scrollFrameLabelNote + sheetNote
+                + Self.scrollTimingNote(totalMs: Int((timingClock.now - timingStart) / .milliseconds(1)),
+                                        swipes: outcome.scrollSwipes, slowDrags: outcome.slowDrags,
+                                        rescueMs: rescueMs, timing: outcome.timing)
+                + Self.sheetExpandedWithoutMatchHeadline(selectorText) + "\n" + inheritedNote
+                + SnapshotRenderer.render(after, flagging: cache.ghostFlags(after),
+                                          collapsingBulk: collapsingBulk,
+                                          interactiveOnly: treeArgs["interactiveOnly"] as? Bool == true,
+                                          unit: Self.coordinateUnit(scrollDriver)))
+        }
         // **成功は .passed/.passedViaFallback/.healed の3形**(StepExecutor.isSuccess の定義)。
         // fallback 一致も探索としては成功であり、失敗文を投げると内部 enum(FlowLocator ダンプ)が
         // そのまま利用者に見える(実害)

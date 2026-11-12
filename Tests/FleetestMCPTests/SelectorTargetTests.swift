@@ -115,6 +115,32 @@ final class SelectorTargetTests: XCTestCase {
         XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
     }
 
+    /// **アプリ内アラートの陰で一致しなかったら、アラートを先頭に書く**(末尾だと「要素が無い」と誤読された = Apple マップの計測)
+    func testNoMatchBehindAnInAppAlertLeadsWithTheAlert() async throws {
+        let alert = ElementInfo(ref: 10, type: "alert", identifier: nil, label: "安全に目的地に到達するために", value: nil,
+                                placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 300, width: 360, height: 200), depth: 1)
+        let ok = ElementInfo(ref: 11, type: "button", identifier: nil, label: "OK", value: nil, placeholder: nil,
+                             enabled: true, frame: FTRect(x: 20, y: 440, width: 100, height: 40), depth: 2)
+        let (server, fake) = make([alert, ok])
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["selector": "#TransitButton"])
+            XCTFail("一致なしは断るはず")
+        } catch {
+            let message = (error as? MCPError)?.message ?? "\(error)"
+            XCTAssertTrue(message.hasPrefix("refusing: "), message)
+            let alertAt = try XCTUnwrap(message.range(of: "安全に目的地に到達するために"), message)
+            let missAt = try XCTUnwrap(message.range(of: "no element matches #TransitButton"), message)
+            XCTAssertTrue(alertAt.lowerBound < missAt.lowerBound, "アラートが先: \(message)")
+            XCTAssertTrue(message.contains("[11] \"OK\""), message)
+        }
+        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
+    }
+
+    /// アラートが無ければ従来の文のまま(先頭に何も足さない)
+    func testSelectorMissMessageWithoutAlertIsUnchanged() {
+        XCTAssertEqual(MCPServer.selectorMissMessage("no element matches X", alertClause: ""), "no element matches X")
+    }
+
     /// 遷移の直後で1回目の読みに無くても、シナリオの行と同じ回数だけ撮り直して探す(2回目に現れたら撃つ)
     func testSelectorIsSearchedAgainLikeAScenarioLine() async throws {
         let (server, fake) = make([])

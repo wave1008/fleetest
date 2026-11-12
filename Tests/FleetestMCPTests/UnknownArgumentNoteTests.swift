@@ -39,6 +39,26 @@ final class UnknownArgumentNoteTests: XCTestCase {
         XCTAssertFalse(note.contains("surprise"), "値そのものは注記に要らない: \(note)")
     }
 
+    /// **意図して持たない引数は、理由と代わりの手を添える**(計測: ft_launch に waitForChange を渡し「揃っていない」と読まれた)
+    func testDeliberatelyAbsentArgumentCarriesItsReason() {
+        let note = MCPServer.unknownArgumentNote(tool: "ft_launch", args: ["bundleId": "x", "waitForChange": true])
+        XCTAssertTrue(note.contains("waitForChange"), note)
+        XCTAssertTrue(note.contains("on purpose") && note.contains("pass waitFor"), note)
+        let other = MCPServer.unknownArgumentNote(tool: "ft_launch", args: ["bundleId": "x", "bogus": true])
+        XCTAssertFalse(other.contains("on purpose"), "理由は該当する引数にだけ付く: \(other)")
+    }
+
+    /// waitForChange を持たない道具の waitSeconds の注記は、持たない待ちを名指ししない(渡されていても落ちる)
+    func testIgnoredWaitSecondsOnLaunchNamesOnlyWaitFor() {
+        let note = MCPServer.ignoredWaitSecondsNote(tool: "ft_launch",
+                                                    args: ["bundleId": "x", "waitSeconds": 5, "waitForChange": true])
+        XCTAssertTrue(note.contains("only bounds waitFor, which was not given"), note)
+        XCTAssertFalse(note.contains("waitForChange"), note)
+        let tap = MCPServer.ignoredWaitSecondsNote(tool: "ft_tap", args: ["ref": 1, "waitSeconds": 5])
+        XCTAssertTrue(tap.contains("waitFor / waitForChange"), tap)
+        XCTAssertEqual(MCPServer.ignoredWaitSecondsNote(tool: "ft_tap", args: ["ref": 1, "waitSeconds": 5, "waitForChange": true]), "")
+    }
+
     /// `_` 始まりの鍵(MCP クライアントの `_meta` 相当)は対象外
     func testUnderscorePrefixedKeysAreExempt() {
         XCTAssertEqual(MCPServer.unknownArgumentNote(tool: "ft_status", args: ["_meta": ["x": 1]]), "")

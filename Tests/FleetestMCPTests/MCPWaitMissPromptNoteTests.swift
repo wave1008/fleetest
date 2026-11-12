@@ -268,7 +268,12 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         let header = screen.elements[0], row = screen.elements[1]
         let outside = MCPServer.matchOutsideScrollFrameNote(header, step: step, in: screen)
         XCTAssertTrue(outside.contains("OUTSIDE the scrollFrame"), outside)
+        XCTAssertFalse(outside.contains("ft_snapshot"), "広げた後の木は同じ応答に載る = 撮り直しを勧めない: \(outside)")
         XCTAssertEqual(MCPServer.matchOutsideScrollFrameNote(row, step: step, in: screen), "")
+        // エラーにしない応答の見出しは「見つかった」と読まれない
+        let headline = MCPServer.sheetExpandedWithoutMatchHeadline("*立川*")
+        XCTAssertTrue(headline.contains("did NOT find"), headline)
+        XCTAssertTrue(headline.contains("listed below"), headline)
     }
 
     /// **ref が消えたのがアプリ内のアラートのせいなら、アラートを名指しする**(「画面が変わった」と言わない)
