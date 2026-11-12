@@ -15,10 +15,17 @@ public enum SimilarLabels {
     /// 編集距離だけの一致(短い語同士・2〜6文字・距離2以下)が弱**。
     public enum Strength { case strong, weak }
 
+    /// `a` = 探した語・`b` = 画面の語(向きで規則が違う)
     public static func similarityStrength(_ a: String, _ b: String) -> Strength? {
         let la = a.lowercased(), lb = b.lowercased()
         guard la != lb else { return nil }
-        if la.contains(lb) || lb.contains(la) { return .strong }
+        if lb.contains(la) { return .strong }
+        // **画面の語が探した語の一部、の向きは短すぎる語を数えない**(2文字以上・探した語の半分以上)。
+        // 実測: waitFor `発車時刻19*` に1文字のラベル「車」を「似ている」と挙げ、本物の「発車予定時刻19:02」を出せなかった
+        if la.contains(lb), lb.count >= 2, lb.count * 2 >= la.count { return .strong }
+        // **探した語の文字が画面の語に順に現れる**(間に別の字が挟まった形。3文字以上・画面の語が3倍以内)。
+        // 同じ実測の「発車時刻19」→「発車予定時刻19:02」。含む関係も短い語の編集距離も拾えない形
+        if la.count >= 3, lb.count <= la.count * 3, Self.isSubsequence(la, of: lb) { return .strong }
         // **1文字の語は編集距離で比べない**: 距離2以内なら3文字以下のラベルすべてに当たる
         // (実測: waitFor `*円*` に「定刻」「各停」「戻る」を挙げた)
         guard la.count >= 2, lb.count >= 2, la.count <= 6, lb.count <= 6 else { return nil }
@@ -30,6 +37,14 @@ public enum SimilarLabels {
     /// 部分文字列関係の無い短い語の書き間違いを拾えない
     public static func isSimilarText(_ a: String, _ b: String) -> Bool {
         Self.similarityStrength(a, b) != nil
+    }
+
+    static func isSubsequence(_ needle: String, of haystack: String) -> Bool {
+        var it = haystack.makeIterator()
+        return needle.allSatisfy { ch in
+            while let next = it.next() { if next == ch { return true } }
+            return false
+        }
     }
 
     /// 素朴な編集距離(挿入・削除・置換を1コストずつ)。短い文字列(≤6)にしか使わない前提の

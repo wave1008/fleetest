@@ -834,7 +834,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
   **初出だけ満額の注記(`once` / `onceNonEmpty`)の鍵はデバイス(sessionKey)ごと**(`MCPServer.noteScope`。1サーバを2エージェントが別デバイスで共有すると2人目が初出を見ていないのに「初出を見よ」と言われる)。
   **ft_launch / ft_clear_app_data でそのデバイスの鍵を忘れる**(`resetOnceNotes`。サーバはプロセス寿命で鍵を持つので次の呼び手が最初の操作から短縮形を受け取る)。
   **重複ラベル・重複 id の表は、操作の応答では行の名前が直前に出した表に含まれていれば出さない**(`MCPServer.unlessCovered`。件数は比べない)。`ft_snapshot` の満額は覚えない。
-  **似たラベル**は、部分一致の候補が無いとき「no label contains it; short labels on screen: …」と言う(2文字の語は編集距離で何にでも当たるので「似ている」と言わない)。
+  **似たラベル**は、部分一致の候補が無いとき「no label contains it; short labels on screen: …」と言う(2文字の語は編集距離で何にでも当たるので「似ている」と言わない)。探した語に含まれるだけの短い画面の語(1文字・探した語の半分未満)は「似ている」に数えず、探した語の文字が順に現れる画面の語(3文字以上・3倍以内)は数える(`SimilarLabels.similarityStrength`。`発車時刻19*` に「車」を挙げて「発車予定時刻19:02」を出せなかった)。
   **通貨の表記の注記**は「この画面では」と限り、待ちの中では部分一致に数えない。
   **⑶ シート展開救済の名乗り**(`MCPServer.sheetRescueMarker`)—— 所要時間の内訳(`sheet-expand rescue +1.4s`)と散文の語を揃え、4形(記憶で省いた/伸びなかった/展開だけで出た/再試行した)の先頭の語を固定する
   (この応答の宛先はエージェントの本文1本なので機械可読チャネルは増やさない)。

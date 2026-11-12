@@ -91,6 +91,25 @@ final class SimilarLabelsTests: XCTestCase {
         XCTAssertEqual(top.count, 1, "同じ文字は1件に畳む")
         XCTAssertEqual(top.first?.element.ref, 2, "文書順で後でも操作可能な方を代表に採る")
     }
+
+    /// 実測(Apple マップの経路一覧): waitFor `発車時刻19*` が外れ、ヒントは1文字の「車」だけで、本物の
+    /// 「発車予定時刻19:02」を出せなかった。①探した語に含まれるだけの短い語は数えない ②文字が順に現れる形を拾う
+    func testInterleavedTargetBeatsAOneCharacterFragment() {
+        XCTAssertNil(SimilarLabels.similarityStrength("発車時刻19", "車"))
+        XCTAssertEqual(SimilarLabels.similarityStrength("発車時刻19", "発車予定時刻19:02"), .strong)
+        let tree = snapshot([node(1, type: "staticText", label: "車"),
+                             node(2, type: "staticText", label: "発車予定時刻19:02")])
+        XCTAssertEqual(SimilarLabels.candidates(labelTarget: "発車時刻19", idTarget: nil, in: tree).map(\.matchedText),
+                       ["発車予定時刻19:02"])
+    }
+
+    /// 順に現れる形の歯止め: 2文字の語・3倍を超える長い語・順が違う語は拾わない
+    func testInterleavedMatchIsBounded() {
+        XCTAssertNil(SimilarLabels.similarityStrength("経路", "経由する道路の案内"))
+        XCTAssertNil(SimilarLabels.similarityStrength("abc", "a1234567b1234567c"))
+        XCTAssertNil(SimilarLabels.similarityStrength("時刻発車", "発車予定時刻"))
+        XCTAssertEqual(SimilarLabels.similarityStrength("Sign In Button", "sign in"), .strong, "半分以上の長さの部分は今までどおり")
+    }
 }
 
 // MARK: - LocatorResolver.candidateHint(この選定の利用者)
