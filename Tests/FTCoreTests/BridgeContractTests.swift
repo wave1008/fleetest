@@ -156,7 +156,7 @@ final class BridgeContractTests: XCTestCase {
             "Runner/FleetestRunnerUITests/BridgeHTTPServer.swift": "ef8c6573ab25f9cbdfed21e483ce74f1eb5d1a4345bc57a2d5b9ed2eb86b860e",
             "Runner/FleetestRunnerUITests/BridgeRouter+Snapshot.swift": "33a67bbe9c7f92d28d129c9866b267d9f56c1175f2ef0f7ae5e554767c779d37",
             "Runner/FleetestRunnerUITests/BridgeRouter+TextInput.swift": "312f8de799913327a118805898c0f3679f067a2adc26caaf77a31c6dc1ac8f85",
-            "Runner/FleetestRunnerUITests/BridgeRouter.swift": "9c695ed67a628a79d583a15a9b79defbda235d71589b18ee5ed47291d6088bc7",
+            "Runner/FleetestRunnerUITests/BridgeRouter.swift": "5a37d14bcdc1fbc764f1e53999fe4142bd78ae20210029455c9c43d49cffd478",
             "Runner/FleetestRunnerUITests/BridgingHeader.h": "f7ff424d9283644d0e7a0c6e202911ecbf2d9c12d469eea330d91471c4788272",
             "Runner/FleetestRunnerUITests/CoordinatePinch.swift": "ebb8c8348f4dc8826e0555370a5386d627ce5210dfe49f4ecacae9addc8b9ad9",
             "Runner/FleetestRunnerUITests/DisplayHeartbeat.swift": "c62c30a45e842d5ec7aff60210284d679b76f6e44358a3f4c97429fe918e5ffa",
