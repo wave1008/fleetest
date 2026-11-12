@@ -49,6 +49,12 @@ final class UnknownArgumentNoteTests: XCTestCase {
         XCTAssertFalse(other.contains("on purpose"), "理由は該当する引数にだけ付く: \(other)")
     }
 
+    /// ft_batch も waitForChange を意図して持たない(計測で渡され、代わりの手が分からなかった)
+    func testBatchWaitForChangeCarriesItsReason() {
+        let note = MCPServer.unknownArgumentNote(tool: "ft_batch", args: ["steps": "tap 'a'", "waitForChange": true])
+        XCTAssertTrue(note.contains("on purpose") && note.contains("pass waitFor"), note)
+    }
+
     /// waitForChange を持たない道具の waitSeconds の注記は、持たない待ちを名指ししない(渡されていても落ちる)
     func testIgnoredWaitSecondsOnLaunchNamesOnlyWaitFor() {
         let note = MCPServer.ignoredWaitSecondsNote(tool: "ft_launch",

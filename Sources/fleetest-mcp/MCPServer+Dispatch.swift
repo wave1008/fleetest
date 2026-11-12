@@ -503,6 +503,10 @@ extension MCPServer {
         "ft_launch": ["waitForChange": "ft_launch has no waitForChange on purpose: the screen before a launch is no"
             + " baseline (a relaunch often lands on the same screen, so it would just wait out the deadline) —"
             + " pass waitFor with an element only the expected screen has"],
+        // 実測(地図の計測): ft_batch に waitForChange を渡して「ignored」と返り、何が代わりか分からなかった
+        "ft_batch": ["waitForChange": "ft_batch has no waitForChange on purpose: there is no single \"before\" screen for"
+            + " several steps — it always replies with the screen after the last step; to wait for a result that loads"
+            + " after it, pass waitFor with an element only that result has"],
     ]
 
     /// 引数名の言い間違い候補(大文字小文字だけ違う、または編集距離2以下)。距離計算は
