@@ -47,9 +47,9 @@ final class PickerValueMatchTests: XCTestCase {
     func testIOSCandidatesReplaceTheLeadingDigitsKeepingTheRowWording() {
         XCTAssertEqual(PickerValueMatch.iosCandidates(current: "14時", wanted: "19"), ["19", "19時"])
         XCTAssertEqual(PickerValueMatch.iosCandidates(current: "9 o’clock", wanted: "19"), ["19", "19 o’clock"])
-        XCTAssertEqual(PickerValueMatch.iosCandidates(current: "09時", wanted: "7"), ["7", "07", "07時"], "ゼロ埋めの桁は current に合わせる")
+        XCTAssertEqual(PickerValueMatch.iosCandidates(current: "09時", wanted: "7"), ["07", "7", "07時"], "ゼロ埋めの桁は current に合わせる")
         // 分の行は "00"〜"59"(実測: "5" も "05 minutes" も行が無く、"05" で通る)。今の値の先頭が0で始まらなくても桁はそろえる
-        XCTAssertEqual(PickerValueMatch.iosCandidates(current: "30 minutes", wanted: "5"), ["5", "05", "05 minutes"])
+        XCTAssertEqual(PickerValueMatch.iosCandidates(current: "30 minutes", wanted: "5"), ["05", "5", "05 minutes"], "桁をそろえた数字を先に(外れの候補で待ちを使い切らない)")
         XCTAssertEqual(PickerValueMatch.iosCandidates(current: "30 minutes", wanted: "45"), ["45", "45 minutes"])
         XCTAssertEqual(PickerValueMatch.iosCandidates(current: "09", wanted: "09"), ["09"], "重複は除く")
     }

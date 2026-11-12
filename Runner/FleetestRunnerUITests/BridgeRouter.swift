@@ -1443,7 +1443,12 @@ final class BridgeRouter {
         for candidate in req.candidates {
             tried.append(candidate)
             ResponseMeasurement.noteInjection()
-            if let exception = FTCatchObjCException({ wheel.adjust(toPickerWheelValue: candidate) }) {
+            // **待ちの上限を縮め、操作の後の待ちは飛ばす**(/type と同じ: 合ったかは値の読み返しで確かめる)。包まないと落ち着いた
+            // 知らせを返さないアプリ(Apple マップ)で XCTest 既定の 60s まで待ち、ホストが打ち切ってランナーが起動し直された。
+            // 上限だけでは前後で約 6s×2 = 12.9s/候補(実測)で、候補が2つ目に進むとホストの打ち切りを越えた
+            if let exception = QuiescenceWait.capping(skipPostEvent: true, {
+                FTCatchObjCException({ wheel.adjust(toPickerWheelValue: candidate) })
+            }) {
                 note = exception
                 continue
             }

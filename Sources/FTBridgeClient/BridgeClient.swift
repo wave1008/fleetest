@@ -1334,7 +1334,9 @@ public final class BridgeClient: AppDriver, Sendable {
         let candidates = PickerValueMatch.iosCandidates(current: currentValue ?? "", wanted: value)
         let res: PickerValueResponse = try await post(
             "/pickerValue", body: PickerValueRequest(frame: frame, identifier: identifier, candidates: candidates),
-            timeout: interactionTimeout)
+            // 候補1つが操作1回(XCTest の待ちを1回払う)なので、操作1回ぶんの上限を候補の数だけ持つ(固定の1回ぶんでは
+            // 外れの候補の後に当たりを試している最中に打ち切り、ランナーが起動し直された = Apple マップの実測)
+            timeout: interactionTimeout * Double(max(candidates.count, 1)))
         let tried = res.tried.map { "'\($0)'" }.joined(separator: ", ") + (res.note.map { "; the runner reported: \($0)" } ?? "")
         guard let read = res.value else {
             throw DriverError.badResponse(status: 422, body: "the picker's value could not be read after trying \(tried)")
