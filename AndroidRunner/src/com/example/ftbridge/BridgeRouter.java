@@ -587,10 +587,24 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             throw new BridgeException(422, "reference [" + ref + "] is a " + storedType
                     + ", not a NumberPicker (pickerWheel); nothing was sent");
         }
-        AccessibilityNodeInfo root = ua().getRootInActiveWindow();
-        AccessibilityNodeInfo picker = root == null ? null : smallestNumberPickerAt(root, center[0], center[1]);
-        // 取り直せていない(false)ノードは中身が古いままなので撃たない
-        if (picker == null || !picker.refresh()) {
+        // **前の段と同じホイールなら探し直さない**(1段ごとに画面の木を全部たどると、地図の画面で1段 約 0.29s のうち
+        // 大きな割合を払っていた)。使い回すのは、取り直せて(refresh)、まだ NumberPicker で、ref の中心を含むときだけ
+        AccessibilityNodeInfo picker = null;
+        if (ref == cachedPickerRef && cachedPicker != null && cachedPicker.refresh()
+                && SnapshotBuilder.NUMBER_PICKER_CLASS.contentEquals(String.valueOf(cachedPicker.getClassName()))) {
+            Rect bounds = new Rect();
+            cachedPicker.getBoundsInScreen(bounds);
+            if (bounds.contains((int) Math.round(center[0]), (int) Math.round(center[1]))) picker = cachedPicker;
+        }
+        if (picker == null) {
+            AccessibilityNodeInfo root = ua().getRootInActiveWindow();
+            picker = root == null ? null : smallestNumberPickerAt(root, center[0], center[1]);
+            // 取り直せていない(false)ノードは中身が古いままなので撃たない
+            if (picker != null && !picker.refresh()) picker = null;
+        }
+        cachedPickerRef = picker == null ? -1 : ref;
+        cachedPicker = picker;
+        if (picker == null) {
             throw new BridgeException(422, "no NumberPicker is at reference [" + ref + "]'s position now;"
                     + " nothing was sent — take a new snapshot and resolve the target again", STALE_REF_REASON);
         }
@@ -608,7 +622,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         if (performed) {
             long deadline = SystemClock.uptimeMillis() + SCROLL_SETTLE_CAP_MS;
             while (SystemClock.uptimeMillis() < deadline) {
-                SystemClock.sleep(SCROLL_SETTLE_POLL_MS);
+                SystemClock.sleep(PICKER_POLL_MS);
                 // 取り直せていない(false)回は中身が古いので読まない(.claude/rules/android.md)
                 if (!picker.refresh()) continue;
                 String now = SnapshotBuilder.numberPickerValue(picker);
@@ -619,6 +633,13 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         if (value != null && !value.isEmpty()) o.put("value", value);
         return BridgeHttpServer.Response.json(200, o.toString());
     }
+
+    /** 直前の /pickerStep が使ったホイール(同じ ref の次の段で使い回す。handlePickerStep 参照) */
+    private int cachedPickerRef = -1;
+    private AccessibilityNodeInfo cachedPicker;
+    /** ホイールの値の読み直しの間隔(ms)。1フレーム(60Hz)。値はアニメーションの途中で切り替わるので、
+     *  切り替わりを見逃す遅れを1フレームに抑える(SCROLL_SETTLE_POLL_MS は動きの止まりを見るための間隔で、ここには長い) */
+    private static final long PICKER_POLL_MS = 16;
 
     /** (x, y) を含む NumberPicker のうち最小のもの(見つからなければ null) */
     private static AccessibilityNodeInfo smallestNumberPickerAt(AccessibilityNodeInfo node, double x, double y) {

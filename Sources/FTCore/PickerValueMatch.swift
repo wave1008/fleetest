@@ -44,6 +44,11 @@ public enum PickerValueMatch {
         return result
     }
 
+    /// `wanted` が数字だけならその数(Android のループが一周の向きを試す段数を決めるのに使う)
+    public static func numericTarget(_ wanted: String) -> Int? {
+        digitsOnly(canonical(wanted))
+    }
+
     /// 数値で決まるときだけ。小さい→ forward。数値でない・等しい(照合済み)は nil
     public static func androidDirection(current: String, wanted: String) -> Step? {
         guard let target = digitsOnly(canonical(wanted)), let now = leadingInteger(current), now != target else { return nil }

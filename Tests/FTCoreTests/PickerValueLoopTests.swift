@@ -71,7 +71,8 @@ final class PickerValueLoopTests: XCTestCase {
             XCTAssertEqual(last, "23")
             XCTAssertEqual(wanted, "30")
             XCTAssertTrue(reason.contains("did not change"), reason)
-            XCTAssertEqual(wheel.sent.count, 2, "動かなかった回で止まる(数値の向きは反対へ振らない)")
+            XCTAssertEqual(wheel.sent.count, 4 + 5 + 1,
+                           "逆向きを4段試して戻り(一周しない)、端で動かなかった回で止まる(数値の向きは反対へ振らない)")
         }
     }
 
@@ -82,9 +83,9 @@ final class PickerValueLoopTests: XCTestCase {
             XCTFail("一周で止まるはず")
         } catch let failure as PickerValueLoop.Failure {
             guard case let .stopped(last, _, reason) = failure else { return XCTFail() }
-            XCTAssertEqual(last, "03")
+            XCTAssertEqual(last, "23", "逆向きで一周(03 → 23)を見た後、そこから一周して戻る")
             XCTAssertTrue(reason.contains("all the way round"), reason)
-            XCTAssertEqual(wheel.sent.count, 24, "一周 = 値の数だけ送って開始値に戻る")
+            XCTAssertEqual(wheel.sent.count, 4 + 24, "逆向きの4段 + 一周 = 値の数だけ送って戻る")
         }
     }
 
@@ -96,7 +97,8 @@ final class PickerValueLoopTests: XCTestCase {
             XCTFail()
         } catch let failure as PickerValueLoop.Failure {
             XCTAssertTrue(failure.description.contains("could not scroll"), failure.description)
-            XCTAssertEqual(refused.sent.count, 1, "送れなかったら重ねて撃たない")
+            XCTAssertEqual(refused.sent.count, 2,
+                           "送れなかった(撃つ前に断られた = 届いていない)ら、逆向きを試すのをやめ、数値の向きで1回だけ試して止まる")
         }
         let blind = FakeWheel(hours, at: 3)
         blind.unreadable = true
@@ -107,6 +109,25 @@ final class PickerValueLoopTests: XCTestCase {
             XCTAssertTrue(failure.description.contains("could not be read"), failure.description)
             XCTAssertEqual(blind.sent.count, 1, "読めなければ次を撃たない(届いたか分からない送りを重ねない)")
         }
+    }
+
+    /// **一周する分のホイールは逆向きで近道する**(実測: Google マップの分を 53 → 00 で後ろへ約50段・17.3 秒)
+    func testAWrappingWheelTakesTheShortWayRound() async throws {
+        let minutes = (0..<60).map { String(format: "%02d", $0) }
+        let wheel = FakeWheel(minutes, at: 53)
+        let outcome = try await run(wheel, wanted: "00")
+        XCTAssertEqual(outcome.value, "00")
+        XCTAssertEqual(wheel.sent, Array(repeating: .forward, count: 7), "前へ7段(53 → 59 → 00)")
+    }
+
+    /// 一周しないホイールでは試した分だけ戻る(上乗せは試した段数の往復 = 数値の向きの段数以下)
+    func testANonWrappingWheelComesBackAfterTheProbe() async throws {
+        let years = (2000...2060).map(String.init)
+        let wheel = FakeWheel(years, at: 50, wraps: false)   // 2050 → 2010(後ろへ40段)
+        let outcome = try await run(wheel, wanted: "2010")
+        XCTAssertEqual(outcome.value, "2010")
+        XCTAssertEqual(wheel.sent.filter { $0 == .forward }.count, 11, "前へ試すのは端(2060)までの10段 + 端で動かなかった1回")
+        XCTAssertLessThanOrEqual(wheel.sent.count, 40 * 2)
     }
 
     func testUnknownStartStillFindsTheValue() async throws {

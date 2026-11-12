@@ -47,12 +47,51 @@ public enum PickerValueLoop {
         if let now = current, PickerValueMatch.matches(current: now, wanted: wanted) {
             return Outcome(value: now, steps: 0)
         }
+        var steps = 0
+        // **一周する作りのホイールは逆向きが近いことがある**(分の 53 → 00 は前へ 7 段・後ろへ 53 段)。一周するかは端にいるとき
+        // しか木から読めない(隣の行の文字は前後の値だけ)ので、数値の向きの段数 d の半分までは逆向きを試し、値が端から
+        // 反対の端へ飛んだ(一周した)のが見えたら進み続ける。見えなければ戻って数値の向きで合わせる。
+        // **外れたときの上乗せは試した段数の往復 = d 以下**(最悪でも数値の向きだけの2倍)。試す段数が2未満なら試さない
+        // (1段で一周が見えるのは値が数個のホイールだけ)。実測(Google マップ・分の 00 合わせ): 後ろへ約50段で 17.3 秒
+        if let now = current, let direction = PickerValueMatch.androidDirection(current: now, wanted: wanted),
+           let from = PickerValueMatch.leadingInteger(now), let target = PickerValueMatch.numericTarget(wanted) {
+            let budget = abs(target - from) / 2
+            if budget >= 2 {
+                let probe: PickerValueMatch.Step = direction == .forward ? .backward : .forward
+                var last = from
+                var wrapped = false
+                var tried = 0
+                probing: while wrapped || tried < budget {
+                    let result = try await step(probe)
+                    steps += 1
+                    tried += 1
+                    // 送れなかった(撃っていない)・動かない(端)= 一周しない側の端。数値の向きへ戻る
+                    guard result.performed else { break probing }
+                    // 読めなければ次を撃たない(届いたか分からない送りを重ねない = 下のループと同じ)
+                    guard let value = result.value else {
+                        throw Failure.stopped(lastValue: nil, wanted: wanted,
+                                              reason: "the value could not be read after scrolling \(probe.rawValue)")
+                    }
+                    guard value != current, let number = PickerValueMatch.leadingInteger(value) else {
+                        current = value
+                        break probing
+                    }
+                    current = value
+                    if PickerValueMatch.matches(current: value, wanted: wanted) {
+                        return Outcome(value: value, steps: steps)
+                    }
+                    if !wrapped, probe == .forward ? number < last : number > last { wrapped = true }
+                    // 一周した後に目当てを通り過ぎた(刻みが合わない等)= 数値の向きで合わせ直す
+                    if wrapped, probe == .forward ? number > target : number < target { break probing }
+                    last = number
+                }
+            }
+        }
         // 数値で向きが決まらないときは forward を試し、端で止まったら一度だけ反対へ振る
         var direction = current.flatMap { PickerValueMatch.androidDirection(current: $0, wanted: wanted) }
         var guessed = direction == nil
         var stepDirection = direction ?? .forward
         var visited: Set<String> = current.map { [$0] } ?? []
-        var steps = 0
         while true {
             let result = try await step(stepDirection)
             steps += 1
