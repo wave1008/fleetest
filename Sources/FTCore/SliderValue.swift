@@ -165,6 +165,8 @@ public enum SliderValueLoop {
     public static func byPosition(start: (position: Double, value: String)?, wanted: Double, resolution: Double,
                                   probe: (Double) async throws -> String?) async throws -> SliderValueOutcome {
         var steps = 0
+        // 最後に撃った位置と読んだ値(つまみが今いる所)。成功・失敗とも、ここにある値を言う
+        var last: (Double, String, Double)?
         func read(_ position: Double) async throws -> (Double, String, Double) {
             steps += 1
             guard let text = try await probe(position) else {
@@ -175,10 +177,13 @@ public enum SliderValueLoop {
             guard let number = SliderValueMatch.number(text) else {
                 throw Failure.stopped(lastValue: text, wanted: wanted, reason: "the value has no number to compare")
             }
+            last = (position, text, number)
             return (position, text, number)
         }
         var lo: (Double, String, Double)
         var hi: (Double, String, Double)
+        /// 両端を読んだか(片側だけなら、もう一方は撃つ前の値で端ではない = 範囲として言えない)
+        let readBothEnds: Bool
         if let start, let n = SliderValueMatch.number(start.value) {
             if SliderValueMatch.matches(current: start.value, wanted: wanted) {
                 return SliderValueOutcome(value: start.value, steps: 0)
@@ -186,16 +191,35 @@ public enum SliderValueLoop {
             let here = (start.position, start.value, n)
             let end = try await read(n < wanted ? 1 : 0)
             (lo, hi) = n < wanted ? (here, end) : (end, here)
+            readBothEnds = false
         } else {
             lo = try await read(0)
             hi = try await read(1)
+            readBothEnds = true
         }
+        // **端が当たったら、つまみをその端に置いてから成功を言う**。両端を順に撃つ形は最後に右端を撃つので、左端の値で成功を
+        // 返すとつまみは右端に残っていた(RN の Android で 0 を狙って 100 のまま ✅ = 8/8)
         for edge in [lo, hi] where SliderValueMatch.matches(current: edge.1, wanted: wanted) {
+            // 最後に撃った所の値が当たっていなければ、つまみは当たりの端に居ない = その端を撃ち直して確かめる
+            if let at = last, !SliderValueMatch.matches(current: at.1, wanted: wanted) {
+                let again = try await read(edge.0)
+                guard SliderValueMatch.matches(current: again.1, wanted: wanted) else {
+                    throw Failure.stopped(lastValue: again.1, wanted: wanted,
+                                          reason: "the end of the slider read '\(edge.1)' once but '\(again.1)' when moved back to it")
+                }
+                return SliderValueOutcome(value: again.1, steps: steps)
+            }
             return SliderValueOutcome(value: edge.1, steps: steps)
         }
         guard min(lo.2, hi.2) < wanted, wanted < max(lo.2, hi.2) else {
-            throw Failure.stopped(lastValue: hi.1, wanted: wanted,
-                                  reason: "it is outside what the slider reaches ('\(lo.1)' to '\(hi.1)')")
+            // 範囲の外: 目当てに近い端につまみを置いて(最後に撃ったのが反対の端なら撃ち直す)、そこで止まったと言う
+            let near = abs(lo.2 - wanted) <= abs(hi.2 - wanted) ? lo : hi
+            // 最後に撃った所の値が近い端と同じなら撃ち直さない(タップで値が動かない部品は両端とも同じ値を読む)
+            let resting = (last.map { $0.2 == near.2 } ?? true) ? (last ?? near) : try await read(near.0)
+            let reach = readBothEnds
+                ? "it is outside what the slider reaches ('\(lo.1)' to '\(hi.1)')"
+                : "it is beyond the slider's end on that side, which reads '\(near.1)'"
+            throw Failure.stopped(lastValue: resting.1, wanted: wanted, reason: reach)
         }
         while true {
             let span = hi.2 - lo.2

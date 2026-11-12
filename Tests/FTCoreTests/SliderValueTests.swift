@@ -156,7 +156,7 @@ final class SliderValueTests: XCTestCase {
         XCTAssertEqual(probes, 2)
     }
 
-    /// 範囲の外は端を読んだところで止まる
+    /// 範囲の外は目当ての側の端を読んだところで止まり、その端で止まったと言う(片側しか読んでいないので範囲は言わない)
     func testPositionOutOfRangeStops() async throws {
         do {
             _ = try await SliderValueLoop.byPosition(start: (0.5, "50%"), wanted: 120, resolution: 1.0 / 370) { p in
@@ -164,7 +164,50 @@ final class SliderValueTests: XCTestCase {
             }
             XCTFail("通った")
         } catch let failure as SliderValueLoop.Failure {
-            XCTAssertTrue(failure.description.contains("outside"), failure.description)
+            XCTAssertTrue(failure.description.contains("stopped at '100%'"), failure.description)
+            XCTAssertTrue(failure.description.contains("beyond the slider's end"), failure.description)
+        }
+    }
+
+    /// **始点が無い(帯をタップする)形で左端が当たったら、つまみを左端へ戻してから成功を言う**(両端を 0→1 の順に撃つので、
+    /// 左端の値で成功を返すとつまみは右端に残っていた = RN の Android で 0 を狙って 100 のまま ✅)
+    func testPositionWithoutStartLeavesTheThumbOnTheMatchingEnd() async throws {
+        var probes: [Double] = []
+        let outcome = try await SliderValueLoop.byPosition(start: nil, wanted: 0, resolution: 1.0 / 370) { p in
+            probes.append(p)
+            return self.steppedValue(p)
+        }
+        XCTAssertEqual(outcome.value, "0%")
+        XCTAssertEqual(probes.last, 0, "最後に撃ったのが左端でない = つまみが別の所に残る: \(probes)")
+    }
+
+    /// **範囲の外は、目当てに近い端につまみを置き、そこで止まったと言う**。片側の端しか読んでいなければ範囲を「A〜B」と言わない
+    /// (撃つ前の値を端と取り違えて「'50%' to '100%'」と言い、下向きでは動かした後の値でなく撃つ前の値を「止まった」と言っていた)
+    func testPositionOutOfRangeNamesTheEndItRestsOn() async throws {
+        var probes: [Double] = []
+        do {
+            _ = try await SliderValueLoop.byPosition(start: (0.5, "50%"), wanted: -10, resolution: 1.0 / 370) { p in
+                probes.append(p)
+                return self.steppedValue(p)
+            }
+            XCTFail("通った")
+        } catch let failure as SliderValueLoop.Failure {
+            XCTAssertTrue(failure.description.contains("stopped at '0%'"), failure.description)
+            XCTAssertFalse(failure.description.contains("'0%' to '50%'"), failure.description)
+            XCTAssertEqual(probes.last, 0)
+        }
+        // 両端を読んだ形(始点なし)は範囲を言い、目当てに近い端(下)へつまみを戻す
+        probes = []
+        do {
+            _ = try await SliderValueLoop.byPosition(start: nil, wanted: -10, resolution: 1.0 / 370) { p in
+                probes.append(p)
+                return self.steppedValue(p)
+            }
+            XCTFail("通った")
+        } catch let failure as SliderValueLoop.Failure {
+            XCTAssertTrue(failure.description.contains("stopped at '0%'"), failure.description)
+            XCTAssertTrue(failure.description.contains("'0%' to '100%'"), failure.description)
+            XCTAssertEqual(probes.last, 0, "\(probes)")
         }
     }
 
