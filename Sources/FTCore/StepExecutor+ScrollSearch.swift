@@ -878,6 +878,32 @@ extension StepExecutor {
     static let searchTraceLimit = 16
 
     /// 直近の回の事実に書き足す
+    /// 明示した scrollFrame の部分木の外で当たった回の記録(見つからなかった扱いの理由)
+    func noteSearchTraceEntry(attempt: Int, outside element: ElementInfo) {
+        scrollSearchTrace.append("round \(attempt): only outside scrollFrame \(Self.traceRectText(element.frame))")
+    }
+
+    /// **明示した scrollFrame(locator)の部分木の外で当たったら、部分木の中で当たり直す**(当たらなければ match は nil =
+    /// この回は見つからなかった)。部分木の外の一致は一覧の行ではないので、見切れの寄せ(`isClippedByViewport`)で
+    /// 一覧の中を逆へ払うと、一覧ではなく外側(シート)を動かす。実測(Google マップの経路詳細・計測2周とも): シートの見出しの
+    /// 「中央線」が #details_cardlist の上に見えていて、それを一覧の上に見切れた行と読んで指を下へ3回払い、シートを畳んでから
+    /// 枠の外の見出しを「見つかった」と返した。nil = 絞らない(scrollFrame が無い・rect・解決できない・部分木が空 = 子を出さない構成・
+    /// 元の一致が部分木の中)。実アプリのコーパスでは、容器の枠の中で子孫でない要素は重ね物(キーボード・バー・見出し)だけだった
+    struct ScrollFrameNarrowing {
+        let match: (ElementInfo, FlowLocator?)?
+    }
+
+    static func matchInsideScrollFrame(_ step: FlowStep, matched element: ElementInfo,
+                                       in snapshot: SnapshotResponse) -> ScrollFrameNarrowing? {
+        guard step.scrollFrameRect == nil, let locator = step.scrollFrame,
+              let container = LocatorResolver.match(locator, in: snapshot) else { return nil }
+        let inside = LocatorResolver.descendants(of: container, in: snapshot.elements)
+        guard !inside.isEmpty, !inside.contains(where: { $0.ref == element.ref }) else { return nil }
+        var scoped = snapshot
+        scoped.elements = inside
+        return ScrollFrameNarrowing(match: LocatorResolver.resolve(step: step, in: scoped, strictForAssert: true))
+    }
+
     func noteSearchTrace(_ text: String) {
         guard let last = scrollSearchTrace.last else { return }
         scrollSearchTrace[scrollSearchTrace.count - 1] = last + text
@@ -1117,7 +1143,12 @@ extension StepExecutor {
                 }
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
-            let traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            var traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            // **明示した scrollFrame の部分木の外の一致は、その一覧の行として扱わない**(`matchInsideScrollFrame`)
+            if let (element, _) = traced, let narrowed = Self.matchInsideScrollFrame(step, matched: element, in: snapshot) {
+                traced = narrowed.match
+                if narrowed.match == nil { noteSearchTraceEntry(attempt: attempt, outside: element) }
+            }
             // 待ちの読み直し(同じ回が続く)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)
             let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
             if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) { scrollSearchTrace.append(entry) }

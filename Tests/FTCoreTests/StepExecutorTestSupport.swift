@@ -257,7 +257,11 @@ final class FakeAppDriver: AppDriver {
         onMutatingCall?()
     }
 
+    /// 払った向きの記録(log には載せない = 既存のテストのログの完全一致を崩さない)
+    private(set) var swipeDirections: [FTSwipeDirection] = []
+
     func swipe(_ direction: FTSwipeDirection) async throws {
+        swipeDirections.append(direction)
         if let swipeError {
             log.entries.append("\(name).swipe(throws)")
             throw swipeError

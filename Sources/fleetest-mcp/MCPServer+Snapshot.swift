@@ -2156,9 +2156,12 @@ extension MCPServer {
         // 描かれていない(隠れたバー等)と答えられたら見出しを「画面にある」とは言わない
         var landedHidden = false
         var landedUnderKeyboard = false
+        // 実際に着いた要素(探索は scrollFrame の部分木の中の一致を採ることがある = 木の順の先頭とは限らない)
+        var landedRef: Int?
         if let resolved = outcome.resolvedElement {
             switch RefGuard.relocate(resolved, in: after.elements, screen: after.screen) {
             case .found(let found, _), .ghost(let found):
+                landedRef = found.ref
                 landed = " → [\(found.ref)] \(RefGuard.describe(found))"
                 landedHidden = await !Self.hiddenUnderChromeWarning(
                     found, nativeRef: nativeRef(found.ref, args: args), in: after, driver: scrollDriver).isEmpty
@@ -2177,7 +2180,7 @@ extension MCPServer {
         // 他にも当たりがあったことを言わないと「別の意図しない要素に静かに命中した成功」を
         // 見分けられない(実測: tenki.jp で "*週間*" がタブ「2週間」に当たり、週間予報の行は
         // 無視された)。件数は `matchedInTree` で計算済み = 追加コストは無い
-        landed += Self.multiMatchHint(matchedInTree, insideRef: preferredInsideRef)
+        landed += Self.multiMatchHint(matchedInTree, insideRef: preferredInsideRef ?? landedRef)
         // **木を返す口はすべて名指しする**(掃討で漏れを見つけた)。上の再確認は
         // 「セレクタが居るか」しか見ないので、**別アプリに同じ id がある**と素通しする ——
         // E2E の 4 SUT は id・ラベルが共通契約なので、これは現に起こり得る形
