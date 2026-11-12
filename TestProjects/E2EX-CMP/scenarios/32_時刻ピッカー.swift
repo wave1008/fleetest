@@ -40,4 +40,29 @@ class 時刻ピッカーで時刻を確定できること {
             }
         }
     }
+
+    /// Android の時計の文字盤の時刻ピッカーを 14:45 に合わせる書き方(docs/user-docs/reference/writing/ui_component_patterns の時刻ピッカー)
+    @Test("Android で 14:45 に合わせる")
+    func S0030() {
+        scenario {
+            scene(1, "開いて 14:45 にして OK") {
+                condition {
+                    launchApp()
+                    tap("#nav_time", scroll: .down)
+                }.action {
+                    android { tap("#btn_open_time") }
+                    android {
+                        tap("#btn_time_mode_toggle")
+                        // 数字入力は焦点のある側だけが入力欄(もう片方は選ぶ部品)。分を選ぶと入力欄が分へ入れ替わる
+                        type(".textField", "14", replace: true)
+                        tap(".checkBox")
+                        type(".textField", "45", replace: true)
+                        tap("#btn_time_ok")
+                    }
+                }.expectation {
+                    android { select("#txt_time_result").textIs("time=14:45") }
+                }
+            }
+        }
+    }
 }

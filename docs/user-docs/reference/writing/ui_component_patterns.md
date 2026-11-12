@@ -459,6 +459,27 @@ A list whose section headers stick to the top while scrolling.
 ## Time picker
 
 - Confirm / cancel. Target by label if it cannot carry an id
+- **Wheel pickers (iOS, and Android `NumberPicker`) are set with `setPickerValue`.** Android clock-face pickers are set per component as below (setting 14:45; each was checked on Android physical devices and Emulators)
+
+```swift
+// Android View MaterialTimePicker, React Native (Android's native TimePickerDialog): tap the numbers on the dial
+tap("14")
+tap("#material_minute_tv")   // React Native: tap("#minutes")
+tap("45")                    // the minute dial is in 5-minute steps; type other minutes in keyboard-input mode
+tap("OK")
+
+// Flutter showTimePicker: the dial is not in the tree, so switch to keyboard-input mode and type
+tap("Switch to text input mode")
+type(".textField[1]", "14", replace: true)
+type(".textField[2]", "45", replace: true)
+tap("OK")
+
+// Compose TimeInput: only the selected side is a text field; selecting the minutes swaps the field to them
+type(".textField", "14", replace: true)
+tap(".checkBox")             // select the minutes
+type(".textField", "45", replace: true)
+tap("#btn_time_ok")
+```
 
 | Framework | Component / difference |
 |---|---|

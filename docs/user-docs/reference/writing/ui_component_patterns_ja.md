@@ -444,6 +444,27 @@ Android View のように開いた欄に id があるならそれを `type("#id"
 ## 時刻ピッカー
 
 - 確定 / キャンセルを押す。付けられなければラベルで指す
+- **ホイール型(iOS・Android の `NumberPicker`)は `setPickerValue` で合わせます。** Android の時計の文字盤型は、部品ごとに次の書き方で合わせます(14:45 にする例。どれも Android の実機と Emulator で確かめた書き方です)
+
+```swift
+// Android View の MaterialTimePicker・React Native(Android のネイティブの TimePickerDialog): 文字盤の数字を押す
+tap("14")
+tap("#material_minute_tv")   // React Native は tap("#minutes")
+tap("45")                    // 分の文字盤は 5 分刻み。それ以外の分は数字入力のモードで打つ
+tap("OK")
+
+// Flutter の showTimePicker: 文字盤は木に出ないので、数字入力のモードに切り替えて打つ
+tap("Switch to text input mode")
+type(".textField[1]", "14", replace: true)
+type(".textField[2]", "45", replace: true)
+tap("OK")
+
+// Compose の TimeInput: 入力欄になるのは選んでいる側だけ。分を選ぶと入力欄が分に入れ替わる
+type(".textField", "14", replace: true)
+tap(".checkBox")             // 分を選ぶ
+type(".textField", "45", replace: true)
+tap("#btn_time_ok")
+```
 
 | フレームワーク | 部品・差分 |
 |---|---|

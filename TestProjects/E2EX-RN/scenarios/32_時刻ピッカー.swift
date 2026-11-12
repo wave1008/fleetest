@@ -43,4 +43,27 @@ class 時刻ピッカーで時刻を確定できること {
             }
         }
     }
+
+    /// Android の時計の文字盤の時刻ピッカーを 14:45 に合わせる書き方(docs/user-docs/reference/writing/ui_component_patterns の時刻ピッカー)
+    @Test("Android で 14:45 に合わせる")
+    func S0030() {
+        scenario {
+            scene(1, "開いて 14:45 にして OK") {
+                condition {
+                    launchApp()
+                    tap("#nav_time", scroll: .down)
+                }.action {
+                    android { tap("#btn_open_time") }
+                    android {
+                        tap("14")
+                        tap("#minutes")
+                        tap("45")
+                        tap("OK")
+                    }
+                }.expectation {
+                    android { select("#txt_time_result").textIs("time=14:45") }
+                }
+            }
+        }
+    }
 }
