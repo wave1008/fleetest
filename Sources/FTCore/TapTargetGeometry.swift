@@ -871,6 +871,9 @@ public enum TapTargetGeometry {
         // 推定するのは**文字(ラベル)を持つ**要素だけ。id だけの要素は文字の幅を申告している見出しではない
         // (Apple マップの経路の地点の行の中の `#RoutePlanningWaypointCell` = ラベル無しの小さな other を帯へ広げ、
         // 押せた「出発地を選択」に貼り付く見出しの警告を出した。Flutter の見出しはデバイスの木で `staticText "セクション F"`)
+        // 見逃しの幅(固定コーパス RealAppSnapshots + OcclusionTrees の全要素で前後を突き合わせ): 消えた発火 102 件は全部 id だけの
+        // 入れ物(地図の表示域 `ChromeViewController.Viewport` 75・設定の行 13・ズームの切替・アイコン・題の上の画像 等)で、
+        // 貼り付く見出しは0件・新しい発火も0件。ラベルの無い本物の見出しはコーパスに無い = 見つけたら実例を足して測り直す
         let name = text.label ?? ""
         let gap = text.frame.y - container.y
         // 幅のある文字は推定しない(縁に揃っているかは isPinnedTextBand の側で決まる)
