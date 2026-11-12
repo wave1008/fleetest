@@ -26,8 +26,8 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-223 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-218・OI-221・OI-222 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 16 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221 |
@@ -36,7 +36,26 @@
 
 ## 着手可
 
+### OI-223 setSliderValue の文言の残り: Android でスライダーでない要素に撃つと「古い参照・撮り直せ」と言う・Android で範囲の外を撃つと端まで動かしてから「動かせなかった」と言う
+- 状態: 再現済み
+- 確認: ff1147e8f(2026-11-13)
+- 属性: 着手可
+- 運用: 合否に響かない(文言。どちらも赤になる・①は何も動かしていない)
+- 優先度: 低 — 文言(②は端まで動かす副作用がある)
+
+出典: `_work/explore-20261113a/findings-*.md`(52周目・11/13)。①Android で `setSliderValue` をスライダーでない要素(ボタン・テキスト・チップ・CMP の RangeSlider)に撃つと「stale reference … Take a new snapshot and resolve the target again」で、従っても同じ・waitSeconds の間撃ち直しを払う(phys F1 DSL 1/1・MCP 7/7・alocal F1 4 SUT で 9/9)。原因は観測済み: `AndroidRunner/src/com/example/ftbridge/BridgeRouter.java` の sliderAt が「スライダーが無い」を stale-ref で断る(Pixel 3a で一瞬だけ見つからない回があったための意図した扱い)= ホストで撃つ前に「スライダーでない」と断る形にする。木で Android のスライダーを見分ける印(型か range)を既存の 5 SUT で反例まで確かめてから入れる ②Android で範囲の外(150・110・-10)を撃つと、/sliderSet が端へ丸めて動かした後、送りの1段目が端で撃てず「the bridge could not increment/decrement the slider」で赤(phys F2 DSL 1/1・MCP 3/3)。木には `range=0-100` が出ているので、範囲の外は撃つ前に断れる(`Sources/FTAndroid/AndroidDriver.swift` の setSliderValue)
+
 ## 要測定
+
+### OI-222 iPhone Duo で hideKeyboard が注記なしの ✅ なのにキーボードが出たまま・続く back() も ✅ で戻らない(2台中2台)
+- 状態: 再現済み
+- 確認: ff1147e8f(2026-11-13)
+- 属性: 要測定
+- 運用: 要注意 — Duo で hideKeyboard の後にキーボードの下の要素を撃つ・back() するシナリオは、閉じたことを検証する
+- 優先度: 高 — 既定の経路の誤った成功(Duo だけ)
+
+出典: `_work/explore-20261113a/findings-duo.md`(52周目・11/13)。①E2E-iOS(ios-duo・inapp-boost・DSL)の入力画面で `hideKeyboard()` が注記なし・0.00 秒で ✅、失敗時のスクリーンショットではキーボードが出たまま(Enter も届いていない)。続く `back()` が 9.96 秒で ✅ でも画面は入力画面のまま → `exist("#nav_input")` が赤(Duo-01・-02 で 2/2)。同じ画面で MCP の `ft_hide_keyboard` は開いた状態でも畳んだ状態でも「背景のタップでは閉じない・Enter は送っていない」と isError で断る・同じ周の SE3 の DSL は Enter を送って閉じた = Duo のときだけ DSL が「キーボードは出ていない」と読んで何もしない疑い。判断に使った木の keyboardFrame は採れていない = 材料不足 ②run の直後の MCP の ft_tap で Duo-01 の XCUITest ブリッジが死んでいたとして作り直され 44.4 秒(1/1・作り直しは成功・ランナーのプロセスは生きていた)
+- 次の一手: ①を Duo で再現し、hideKeyboard の直前の木の keyboardFrame(in-app と XCUITest の両方)と `KeyboardWait.isShown` の答えを採る
 
 ### OI-221 E2EX-iOS(inapp-boost)の並べ替えで、長押しからのドラッグ(XCUITest へ回した gesture)が ✅ なのに順番が変わらない(8台同時で約 3 割)
 - 状態: 再現済み
