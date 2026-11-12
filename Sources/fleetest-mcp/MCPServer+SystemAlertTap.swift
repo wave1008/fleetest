@@ -36,6 +36,8 @@ extension MCPServer {
             // **前面がアプリ内のアラートなら、それとボタンの ref を名指す**(計測: アプリ内アラートへ alertButton を撃ち、
             // この断りだけでは何で押すのか分からなかった)。撮り直すのは断る経路だけ
             let inApp = (try? await freshSnapshot(d, args: args)).flatMap { Self.frontInAppAlertWithButtons($0) }
+            // 名指した ref を返した世代として印す(印さないと後の撮影で世代ごと捨てられ、案内した ref が失効する)
+            if inApp != nil { markLastGenerationDelivered(args: args) }
             throw MCPError(Self.noSystemAlertRefusal(inApp: inApp))
         }
         let title = alert.title.map { "\"\($0)\"" } ?? "(untitled)"

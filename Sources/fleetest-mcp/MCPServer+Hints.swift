@@ -49,13 +49,14 @@ extension MCPServer {
     /// (呼び手の doc 参照 —— この画面ではスワイプがシートの折りたたみに化けるので、
     /// 出した行を自分で引っ込めることになる)。
     ///
-    /// **容器で絞らない**のが要点: 探索が `scrollFrame` の中を歩くのは「まだ見えていない行を
-    /// 出すため」であって、`scrollTo` が約束しているのは**画面に出ていること**。展開で
-    /// シートの見出しごと出てきた場合(実測: `*立川*` は展開後のシート見出し `立川駅` にも当たる)、
-    /// 容器の外だからと無視して再スワイプに入るのは、約束を満たしているのに壊しに行く動き。
+    /// **容器の外の一致でも返す**(nil にしない): 探索が `scrollFrame` の中を歩くのは「まだ見えていない行を
+    /// 出すため」で、展開でシートの見出しごと出てきた場合(実測: `*立川*` は展開後のシート見出し `立川駅` にも当たる)、
+    /// nil を返して再スワイプに入ると、この画面ではシートを畳んで出した行を引っ込める。
+    /// ただし**容器が引けて、木の順の先頭が容器の外なら、容器の中の一致を先に採る**(計測: 先頭の見出しだけを見て、
+    /// 一覧の中の「立川で降車」を見落とした = 3回中3回)。序数・相対の指定は自分で1つを選んだ書き方なので触らない。
     ///
-    /// 呼び手は、`scrollFrame` を渡されていて一致がその容器の外なら**成功にしない**(`matchIsOutsideScrollFrame`。
-    /// 再スワイプはしないまま「リストの中では見つからなかった」で終える)。この関数自体は容器で絞らない。
+    /// 呼び手は、返った一致がその容器の外なら**成功にしない**(`matchIsOutsideScrollFrame`。
+    /// 再スワイプはしないまま「リストの中では見つからなかった」で終える)。
     ///
     /// 画面内判定は `TapTargetGeometry.offscreenAdvisory`(nil = 画面の中)に委ねる ——
     /// **ここに2つ目の「見えているか」の定義を置かない**。ただし退化 frame(幅か高さ 0)だけは
@@ -68,17 +69,21 @@ extension MCPServer {
                 && TapTargetGeometry.offscreenAdvisory(for: $0, screen: snapshot.screen) == nil
         }
         let hit = LocatorResolver.match(locator, in: snapshot)
-        // **木の順で先頭の一致が容器の外なら、容器の中の一致を先に採る**(計測: `*立川*` の先頭はシートの見出し「立川駅」で、
-        // 一覧の中の「立川で降車」を見ずに「見つからない」と返していた = 3回中3回)。序数・相対の指定は自分で1つを選んだ書き方なので触らない
+        // 容器が引けないときは選び直さない(容器の外かを言えない = 外の一致を「中」として採りうる)
         if locator.index == nil, locator.relative?.isEmpty ?? true,
-           hit.map({ !usable($0) || matchIsOutsideScrollFrame($0, step: step, in: snapshot) }) ?? true,
+           let container = scrollFrameContainer(step: step, in: snapshot),
+           hit.map({ !usable($0) || !container.contains($0.frame) }) ?? true,
            let inside = (LocatorResolver.resolvedCandidates(locator, elements: snapshot.elements) ?? [])
-               .first(where: { usable($0) && !matchIsOutsideScrollFrame($0, step: step, in: snapshot) }),
-           step.scrollFrameRect != nil || step.scrollFrame != nil {
+               .first(where: { usable($0) && container.contains($0.frame) }) {
             return inside
         }
         guard let hit, usable(hit) else { return nil }
         return hit
+    }
+
+    /// `scrollFrame` の容器の矩形(rect の指定か、ロケータを今の木で引いたもの)。分からなければ nil
+    static func scrollFrameContainer(step: FlowStep, in snapshot: SnapshotResponse) -> FTRect? {
+        step.scrollFrameRect ?? step.scrollFrame.flatMap({ LocatorResolver.match($0, in: snapshot)?.frame })
     }
 
     /// 前面のアプリ内アラートとそのボタン(無ければ nil)。`RefGuard.goneMessage` へ渡す
@@ -110,9 +115,7 @@ extension MCPServer {
     /// `FTRect.contains` は**中心**で見る(容器の端で数 pt はみ出した行は中 = 見つかった行を失敗にしない)
     static func matchIsOutsideScrollFrame(_ hit: ElementInfo, step: FlowStep,
                                           in snapshot: SnapshotResponse) -> Bool {
-        guard let container = step.scrollFrameRect
-                ?? step.scrollFrame.flatMap({ LocatorResolver.match($0, in: snapshot)?.frame })
-        else { return false }
+        guard let container = scrollFrameContainer(step: step, in: snapshot) else { return false }
         return !container.contains(hit.frame)
     }
 

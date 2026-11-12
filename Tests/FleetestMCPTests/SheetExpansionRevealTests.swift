@@ -73,7 +73,7 @@ final class SheetExpansionRevealTests: XCTestCase {
         XCTAssertNil(MCPServer.visibleAfterExpansion(step: FlowStep(action: "scrollTo"), in: snap))
     }
 
-    /// `visibleAfterExpansion` 自体は容器で絞らない(外の一致は呼び手が `matchIsOutsideScrollFrame` で失敗に倒す)。
+    /// 容器の中に一致が無ければ、外の一致もそのまま返す(呼び手が `matchIsOutsideScrollFrame` で失敗に倒す)。
     /// 実際の例 —— 見出し `立川駅` はリスト容器の外に居る
     func testMatchOutsideTheScrollContainerStillCounts() {
         let header = element(88, "TitleLabel", "立川駅", "staticText", 20, 92, 84, 36)

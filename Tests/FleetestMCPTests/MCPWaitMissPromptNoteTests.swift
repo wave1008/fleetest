@@ -321,8 +321,15 @@ final class MCPWaitMissPromptNoteTests: XCTestCase {
         XCTAssertEqual(MCPServer.visibleAfterExpansion(step: noFrame, in: both)?.ref, 1)
         // 多重一致の注記は、先頭でない要素を使ったときに「先頭を使った」と言わない
         let matched = both.elements
-        XCTAssertTrue(MCPServer.multiMatchHint(matched, usedRef: 2).contains("[2] inside the scrollFrame list was used"))
-        XCTAssertTrue(MCPServer.multiMatchHint(matched, usedRef: 1).contains("the first in tree order was used"))
+        XCTAssertTrue(MCPServer.multiMatchHint(matched, insideRef: 2).contains("[2] inside the scrollFrame list was used"))
+        XCTAssertTrue(MCPServer.multiMatchHint(matched, insideRef: nil).contains("the first in tree order was used"))
+        // 容器をロケータで指していて今の木で引けないなら選び直さない(外の一致を「中」として採らない)
+        var unresolved = FlowStep(action: "scrollTo", locator: FTSelector.parse("*立川*").primary)
+        unresolved.scrollFrame = FTSelector.parse("#gone").primary
+        var zeroFirst = both
+        zeroFirst.elements[0].frame = FTRect(x: 20, y: 82, width: 0, height: 0)
+        XCTAssertNil(MCPServer.visibleAfterExpansion(step: unresolved, in: zeroFirst),
+                     "容器が引けないのに、先頭(描かれていない)を飛ばして別の一致を採った")
     }
 
     /// **alertButton の断りは、前面がアプリ内アラートならそれを ref つきで名指す**(計測: 何で押すのか分からなかった)
