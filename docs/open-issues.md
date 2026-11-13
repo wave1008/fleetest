@@ -181,6 +181,7 @@
 
 - 11/13(⑤ の材料・53周目 duo F1): -01 の XCUITest ブリッジの起動が 2 run とも 180 秒の時間切れ(文言は「connection refused」だけ)。直後の 11:36〜11:37 に -01 の SpringBoard と InputUI は launchd の状態が -5・PID 無しのまま(7回確かめた。同じ時刻の -02 の SpringBoard は動いていた)= OI-184 の落ちを繰り返した後に起き直さなくなった形。最後の SpringBoard の .ips は 11:20:36。起動を試していた間ずっと止まっていたかは採っていない = 材料不足。次に出たら、起動の時間切れの文言に SpringBoard の生死(`launchctl list` の状態)を添えるかを、起動の最中の状態を採ってから決める
 - 11/13(⑤ の原因の観測・54周目 duo): 12:25〜12:27 に両 Duo の SpringBoard と InputUI が同時に止まり(`launchctl list` で `- -5`・PID 無し)、12:37 まで起き直さなかった(約 25 回採取。新しい .ips は出ず、10:44 の .ips の更新時刻だけが 12:27 に変わった)。その間に撃った Duo-02 の XCUITest ブリッジの起動は 180 秒の時間切れ(「connection refused」・xcodebuild は BUILD INTERRUPTED)で、起動の最中の 3 回の採取でも SpringBoard は止まっていた = **起動の時間切れは SpringBoard が止まったままの Simulator で起きる**(53周目の -01 と同じ形)。文言は SpringBoard を名指さない。次の一手: Simulator の XCUITest ブリッジの起動が時間切れになったら、そのデバイスの SpringBoard の生死(`launchctl list` の状態)を文言に添える・止まっていれば Simulator の起動し直しを勧める(起こし直しの自動化は別に判断)
+- 11/13(直し): Simulator の XCUITest ブリッジの起動が時間切れになったら、`launchctl list` の SpringBoard の行の PID 列が `-` のときだけ「SpringBoard が動いていない・止まっている間ランナーは上がらなかった・Simulator を止めて起動し直す」を文言に添える(`SimulatorAppProcess.springBoardStopped`・UDID のときだけ聞く)。行の読みは実測の形(`- -5 com.apple.SpringBoard`)で固定。端末で止まったままの SpringBoard を作れなかった(殺しても launchd が数秒で起こし直す)ので、時間切れの文言そのものは次に出たときに確かめる
 ### OI-190 E2E-Flutter の Android で払いの向きが「下」と読まれる(低率)
 - 状態: 経路確定
 - 確認: 7161b1156(2026-11-11)

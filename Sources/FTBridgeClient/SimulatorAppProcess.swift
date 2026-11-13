@@ -67,6 +67,26 @@ public enum SimulatorAppProcess {
         return false
     }
 
+    /// その Simulator の SpringBoard が止まっているか(`launchctl list` の `com.apple.SpringBoard` の行の PID 列が `-`)。
+    /// 行が無い・simctl が答えなければ nil(判定できない = 止まっている、にしない)。**同期で最大 5 秒ブロックする**。
+    /// iPhone Duo の開閉の後に SpringBoard が落ち続けた末に止まったまま起き直さない形で、XCUITest ブリッジの起動が
+    /// 180 秒の時間切れになった(2台・2回とも、起動の最中も止まっていた)ので、時間切れの文言に事実として添える
+    public static func springBoardStopped(udid: String) -> Bool? {
+        guard let result = try? Shell.run(["xcrun", "simctl", "spawn", udid, "launchctl", "list"],
+                                          timeout: launchctlListTimeoutSeconds),
+              result.status == 0 else { return nil }
+        return springBoardStopped(inLaunchctlListOutput: result.output)
+    }
+
+    static func springBoardStopped(inLaunchctlListOutput output: String) -> Bool? {
+        for line in output.split(separator: "\n") {
+            let fields = line.split(separator: "\t")
+            guard fields.count >= 3, fields.last == "com.apple.SpringBoard" else { continue }
+            return fields[0] == "-"
+        }
+        return nil
+    }
+
     /// 直近 `within` 秒の .ips を、書かれるのを待ちながら探す(見つからなければ nil)。
     /// **同期で最大 4 秒ブロックする**。失敗が確定した経路だけから呼ぶ(正常系を遅らせない)
     public static func awaitCrashReport(bundleID: String, udid: String,

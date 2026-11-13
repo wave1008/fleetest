@@ -38,4 +38,13 @@ final class SimulatorAppProcessTests: XCTestCase {
                        "crash report: /x/A.ips (EXC_CRASH SIGABRT)")
         XCTAssertEqual(SimulatorAppProcess.crashReportLine(path: "/x/A.ips", reason: nil), "crash report: /x/A.ips")
     }
+
+    /// SpringBoard の行(実測の形: 止まっていると PID 列が "-"・状態 -5)。行が無ければ判定しない
+    func testSpringBoardStoppedIsReadFromItsLaunchctlLine() {
+        let stopped = "84819\t0\tcom.apple.backboardd\n-\t-5\tcom.apple.SpringBoard\n"
+        XCTAssertEqual(SimulatorAppProcess.springBoardStopped(inLaunchctlListOutput: stopped), true)
+        let running = "84819\t-5\tcom.apple.SpringBoard\n"
+        XCTAssertEqual(SimulatorAppProcess.springBoardStopped(inLaunchctlListOutput: running), false)
+        XCTAssertNil(SimulatorAppProcess.springBoardStopped(inLaunchctlListOutput: "1\t0\tcom.apple.SpringBoardFoundation\n"))
+    }
 }

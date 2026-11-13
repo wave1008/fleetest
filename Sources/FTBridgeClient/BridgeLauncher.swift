@@ -1194,8 +1194,21 @@ public struct BridgeLauncher: Sendable {
             throw IOSDeviceTransportError.addressNotAnnounced(
                 port: port, logPath: logPath.path, blocker: blocker)
         }
-        throw LauncherError.timedOut(lastError.map(BridgeClient.readinessDetail) ?? "no response", logPath.path)
+        throw LauncherError.timedOut((lastError.map(BridgeClient.readinessDetail) ?? "no response")
+                                        + (physical ? "" : Self.stoppedSpringBoardNote(udid: device)), logPath.path)
     }
+
+    /// Simulator の起動の時間切れに添える1文(SpringBoard が止まっているときだけ。それ以外・判定できなければ空)。
+    /// 止まったままの Simulator ではランナーが上がらなかった(iPhone Duo で実測)。起動し直せば SpringBoard も起きる
+    /// **UDID のときだけ聞く**(起動待ちを引き取る経路は既定の端末名のままの launcher で待つ。simctl は名前でも引けるので、
+    /// 同じ名前の別の Simulator を読んでしまう)
+    static func stoppedSpringBoardNote(udid: String) -> String {
+        guard UUID(uuidString: udid) != nil else { return "" }
+        return SimulatorAppProcess.springBoardStopped(udid: udid) == true ? stoppedSpringBoardText : ""
+    }
+
+    static let stoppedSpringBoardText = " — the simulator's SpringBoard is not running (launchctl lists it with no pid), and the"
+        + " runner did not come up while it was stopped; shut the simulator down and boot it again to bring SpringBoard back"
 
     /// ランナーアプリ(xctest の host app)がそのシミュレータで動いているか。ps の 1 行が
     /// `…/Devices/<udid>/…/FleetestRunnerUITests-Runner.app/FleetestRunnerUITests-Runner` を含む
