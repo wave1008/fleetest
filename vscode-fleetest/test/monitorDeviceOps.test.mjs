@@ -239,6 +239,25 @@ test("start-device は udid 指定時、--udid を渡す(接続中の実機の�
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// restart-bridge の udid は直指定ではなく控え: --name(と --project)を渡したうえで --udid も渡す。
+// 名前が選択中のプロジェクトの台帳に無いデバイス(モニターが合成した接続中の実機)を CLI が UDID で引く
+test("restart-bridge は udid 付きでも --name を渡し、--udid を併せて渡す", async () => {
+  const { dir, binaryPath, argsLog } = makeArgRecordingBinary();
+  const { deps } = makeDeps(binaryPath);
+  const deviceOps = new MonitorDeviceOps(deps);
+
+  const args = await runDeviceJobAndReadArgs(deviceOps, argsLog, {
+    kind: "device",
+    name: "iPhone SE3",
+    op: "restartBridge",
+    udid: "00008110-000260242EEB801E",
+  });
+  assert.match(args, /restart-bridge/);
+  assert.match(args, /--name iPhone SE3/);
+  assert.match(args, /--udid 00008110-000260242EEB801E/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // Android の up に直指定は無い(端末の電源を入れる操作は存在しない)。serial 付きの up は
 // 従来どおり --name 経路へ落ちること
 test("start-device は serial 指定でも直指定にせず --name 経路のまま", async () => {

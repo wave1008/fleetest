@@ -357,6 +357,8 @@ struct ApiMonitorBridgeLogRotationEvent: Codable, Equatable {
         /// devices[] の id と同じ値(拡張がタイルを特定する)
         let deviceId: String
         let name: String
+        /// 拡張が `restart-bridge --udid` に渡す(名前が選択中のプロジェクトの台帳に無いデバイス用)
+        let udid: String
         let port: UInt16
         /// 起動し直せば孤児になり消える束そのもののバイト数
         let bundleBytes: Int64

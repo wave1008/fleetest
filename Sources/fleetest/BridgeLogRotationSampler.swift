@@ -97,16 +97,17 @@ final class BridgeLogRotationSampler: @unchecked Sendable {
 }
 
 /// ポート → デバイスの対応(I/O を持たない純粋関数)。対応が引けない候補(このプロセスが
-/// 観測していないポート)は nil 扱い——束はあってもタイルを特定できず、拡張は何を起動し直すか言えない
+/// 観測していないポート・UDID が引けていない状態)は nil 扱い——束はあってもタイルを特定できず、拡張は何を起動し直すか言えない
 enum BridgeLogRotationCandidateMapping {
     static func candidate(
         raw: BridgeLogRotationSampler.RawCandidate?, states: [DeviceRuntimeState]
     ) -> ApiMonitorBridgeLogRotationEvent.Candidate? {
         guard let raw else { return nil }
-        guard let state = states.first(where: { $0.target.platform == "ios" && $0.iosPort == raw.port })
+        guard let state = states.first(where: { $0.target.platform == "ios" && $0.iosPort == raw.port }),
+              let udid = state.iosUdid
         else { return nil }
         return ApiMonitorBridgeLogRotationEvent.Candidate(
-            deviceId: state.target.id, name: state.target.name, port: raw.port,
+            deviceId: state.target.id, name: state.target.name, udid: udid, port: raw.port,
             bundleBytes: raw.bundleBytes, usageBytes: raw.usageBytes, limitBytes: raw.limitBytes)
     }
 }

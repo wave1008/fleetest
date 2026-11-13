@@ -94,7 +94,10 @@ XCUITest ランナーは HTTP サーバだけ死んで xcodebuild 親が残る�
     `"candidate":null`)。**この機械のデバイスだけ**(`RemoteMonitorFanout` は中継しない)。
     **`sweepAfterRun` が false なら候補を出さない**(利用者の止めるスイッチを共有する)。
     控えを返すたびに束の実在を確かめる(起動し直し後に古いポートを別のデバイスが使っても、そのデバイスを指さない)
-  - 撃つ: 拡張が lifecycle ジョブ `restartBridge` → `api restart-bridge --name` を積む。run 実行中・
+  - 撃つ: 拡張が lifecycle ジョブ `restartBridge` → `api restart-bridge --name <名前> --udid <UDID>` を積む
+    (`--udid` は名前が選択中のプロジェクトの台帳に無いときだけ使う控え。モニターは接続中の実機を台帳に無くても
+    タイルに出すので、名前だけだと「タイルにあるのに device not found」になる。台帳で引けたデバイスは
+    台帳のモード・ポートのまま起動し直す)。run 実行中・
     待ち行列 busy・同じデバイスに 20 分以内に撃った(計測 2 周期ぶん)ときは撃たない。`machine` 付きは無視
   - `api restart-bridge`: run・MCP・ライブ操作の印があれば断る(`DeviceBooter.deviceInUseRefusal`)→
     **XCUITest ランナーだけ**を止める(`BridgeLauncher.stopRunnersMatching`。in-app ブリッジと注入した

@@ -78,7 +78,7 @@ export class MonitorBridgeLogRotation {
       return;
     }
     this.cooldownUntil.set(candidate.deviceId, this.now() + COOLDOWN_MS);
-    this.deps.enqueueLifecycleJob({ kind: "device", name: candidate.name, op: "restartBridge" });
+    this.deps.enqueueLifecycleJob({ kind: "device", name: candidate.name, op: "restartBridge", udid: candidate.udid });
     this.deps.log(
       `[bridge-log-rotation] ${t("monitor.bridgeLogRotation.restarting", {
         name: candidate.name,

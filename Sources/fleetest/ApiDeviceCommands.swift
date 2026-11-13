@@ -775,6 +775,7 @@ enum ApiDeviceOperation {
     static func run(
         name: String, project: String?, profile: String?, deviceMachine: String? = nil,
         subcommand: String,
+        missingFallback: (() throws -> (spec: DeviceSpec, platform: String))? = nil,
         body: @escaping @Sendable (
             DeviceSpec, String, @escaping @Sendable (String) -> Void
         ) async throws -> Void
@@ -830,6 +831,19 @@ enum ApiDeviceOperation {
                 project: project, profile: profile, rosterLabel: rosterLabel))
             throw ExitCode(1)
         case .missing:
+            // 台帳に無いデバイスを呼び手が識別子で特定できるときだけ(restart-bridge の --udid)
+            if let missingFallback {
+                let resolved: (spec: DeviceSpec, platform: String)
+                do {
+                    resolved = try missingFallback()
+                } catch {
+                    ApiDeviceEventEmitter.emit(ApiDeviceFinishedEvent.failure(error))
+                    throw ExitCode(1)
+                }
+                spec = resolved.spec
+                platform = resolved.platform
+                break
+            }
             emitFinished(ok: false, error: "device not found: \(name)"
                 + (deviceMachine == nil ? ""
                    : " on \(DeviceMachineGrouping.display(MachineDispatch.normalize(deviceMachine)))")

@@ -29,19 +29,50 @@ struct ApiRestartBridgeCommand: AsyncParsableCommand {
     @Option(help: "Run profile name (when given, the device is looked up in that profile; otherwise in every run profile)")
     var profile: String?
 
+    /// 台帳(選択中のプロジェクトの実行プロファイル)に名前が無いときだけ使う。モニターは接続中の実機・起動中の
+    /// シミュレータを台帳に無くてもタイルに出すので、名前だけだと「タイルにあるのに device not found」になる
+    @Option(help: "UDID of the device, used only when --name is not in the run profiles (a device the monitor shows without a run-profile entry)")
+    var udid: String?
+
     @Option(name: .customLong("device-machine"),
             help: "Only match devices assigned to this machine (\"local\" or a registered host name). Set by the caller on the other end of ssh")
     var deviceMachine: String?
 
     func run() async throws {
+        var missingFallback: (() throws -> (spec: DeviceSpec, platform: String))?
+        if let udid {
+            missingFallback = {
+                let spec = try Self.directSpec(
+                    udid: udid,
+                    physicalDevices: (try? IOSPhysicalDeviceCatalog.devices()) ?? [],
+                    simulators: (try? SimulatorCatalog.devices()) ?? [])
+                return (spec: spec, platform: "ios")
+            }
+        }
         try await ApiDeviceOperation.run(
             name: name, project: project, profile: profile, deviceMachine: deviceMachine,
-            subcommand: "restart-bridge"
+            subcommand: "restart-bridge",
+            missingFallback: missingFallback
         ) { spec, platform, log in
             try Self.requireIOS(platform: platform)
             let repoRoot = try RepoRoot.find()
             try await Self.restart(spec: spec, repoRoot: repoRoot, log: log)
         }
+    }
+
+    /// 台帳に無いデバイスの spec を UDID から作る(純粋関数・テスト用)。モードは xcuitest・ポートは指定しない
+    /// (`start-device --udid` と同じ。台帳のモード・ポートを知らないので、名前で引けるデバイスはこの経路に来ない)
+    static func directSpec(udid: String, physicalDevices: [IOSPhysicalDeviceInfo],
+                           simulators: [SimDeviceInfo]) throws -> DeviceSpec {
+        if let device = physicalDevices.first(where: { $0.udid == udid || $0.deviceCtlIdentifier == udid }) {
+            return DeviceSpec(name: device.name, kind: .physical,
+                              osVersion: "iOS \(ApiInstalledDevicesCommand.normalizeOS(device.os))",
+                              udid: device.udid, mode: IOSMode.xcuitest)
+        }
+        if let sim = simulators.first(where: { $0.udid == udid }) {
+            return DeviceSpec(name: sim.name, kind: .virtual, udid: sim.udid, mode: IOSMode.xcuitest)
+        }
+        throw RestartBridgeError.udidNotFound(udid)
     }
 
     /// Android は対象外(純粋関数・テスト用)
@@ -96,6 +127,7 @@ enum RestartBridgeError: Error, LocalizedError, Equatable {
     case androidNotSupported
     case inUse(String)
     case noUDID(String)
+    case udidNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -106,6 +138,8 @@ enum RestartBridgeError: Error, LocalizedError, Equatable {
             return message
         case .noUDID(let name):
             return "could not resolve a UDID for \(name)"
+        case .udidNotFound(let udid):
+            return "no physical device or simulator with UDID \(udid) on this Mac"
         }
     }
 }

@@ -80,7 +80,7 @@ test("isMonitorEvent: monitorBridgeLogRotation は candidate:null / 正常な候
   const value = {
     kind: "monitorBridgeLogRotation",
     candidate: {
-      deviceId: "ios:Sim1", name: "Sim1", port: 8100,
+      deviceId: "ios:Sim1", name: "Sim1", udid: "SIM1-UDID", port: 8100,
       bundleBytes: 3_000_000_000, usageBytes: 2_700_000_000, limitBytes: 2_500_000_000,
     },
   };
@@ -93,13 +93,17 @@ test("isMonitorEvent: monitorBridgeLogRotation は candidate のフィールド�
     kind: "monitorBridgeLogRotation",
     candidate: { deviceId: "ios:Sim1", name: "Sim1", port: 8100, bundleBytes: 1, usageBytes: 1 },
   }), false, "limitBytes 欠落は false");
+  assert.equal(isMonitorEvent({
+    kind: "monitorBridgeLogRotation",
+    candidate: { deviceId: "ios:Sim1", name: "Sim1", port: 8100, bundleBytes: 1, usageBytes: 1, limitBytes: 1 },
+  }), false, "udid 欠落は false(restart-bridge が台帳に無いデバイスを引けなくなる)");
 });
 
 // **二重の備え**: 契約上ここに machine は乗らない(このマシンのデバイスだけ・リモート中継なし)。
 // 万一乗っていたら行/候補ごと丸ごと弾く(monitorBridgeLogRotation.ts 側の観測もクラス内で無視する)。
 test("isMonitorEvent: monitorBridgeLogRotation は machine を持つ行・candidate を false にする", () => {
   const goodCandidate = {
-    deviceId: "ios:Sim1", name: "Sim1", port: 8100,
+    deviceId: "ios:Sim1", name: "Sim1", udid: "SIM1-UDID", port: 8100,
     bundleBytes: 3_000_000_000, usageBytes: 2_700_000_000, limitBytes: 2_500_000_000,
   };
   assert.equal(isMonitorEvent({

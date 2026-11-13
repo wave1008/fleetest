@@ -91,9 +91,10 @@ final class BridgeLogRotationSamplerTests: XCTestCase {
         MonitorTarget(platform: "ios", spec: DeviceSpec(name: name))
     }
 
-    private func connectedIOSState(name: String, port: UInt16) -> DeviceRuntimeState {
+    private func connectedIOSState(name: String, port: UInt16,
+                                   udid: String? = "UDID-1") -> DeviceRuntimeState {
         DeviceRuntimeState(target: iosTarget(name: name), state: "connected", detail: "",
-                           iosPort: port, androidSerial: nil)
+                           iosPort: port, androidSerial: nil, iosUdid: udid)
     }
 
     func testMappingReturnsNilWhenThereIsNoRawCandidate() {
@@ -110,11 +111,18 @@ final class BridgeLogRotationSamplerTests: XCTestCase {
         let states = [connectedIOSState(name: "iPhone 17", port: 8123)]
         let candidate = BridgeLogRotationCandidateMapping.candidate(raw: Self.rawCandidate(port: 8123), states: states)
         XCTAssertEqual(candidate?.name, "iPhone 17")
+        XCTAssertEqual(candidate?.udid, "UDID-1")
         XCTAssertEqual(candidate?.port, 8123)
         XCTAssertEqual(candidate?.bundleBytes, 10)
         XCTAssertEqual(candidate?.usageBytes, 20)
         XCTAssertEqual(candidate?.limitBytes, 100)
         XCTAssertEqual(candidate?.deviceId, iosTarget(name: "iPhone 17").id)
+    }
+
+    /// UDID が引けていない状態は候補にしない(拡張が restart-bridge --udid に渡す値が無い)
+    func testMappingReturnsNilWhenTheStateHasNoUDID() {
+        let states = [connectedIOSState(name: "iPhone 17", port: 8123, udid: nil)]
+        XCTAssertNil(BridgeLogRotationCandidateMapping.candidate(raw: Self.rawCandidate(port: 8123), states: states))
     }
 
     /// Android の同じポート番号(iosPort は nil)には当たらない
@@ -134,10 +142,10 @@ final class BridgeLogRotationSamplerTests: XCTestCase {
 
     func testEncodedLineWithACandidate() throws {
         let candidate = ApiMonitorBridgeLogRotationEvent.Candidate(
-            deviceId: "ios:iPhone 17", name: "iPhone 17", port: 8123,
+            deviceId: "ios:iPhone 17", name: "iPhone 17", udid: "UDID-1", port: 8123,
             bundleBytes: 10, usageBytes: 20, limitBytes: 100)
         let line = try encodedLine(ApiMonitorBridgeLogRotationEvent(candidate: candidate))
-        XCTAssertEqual(line, #"{"candidate":{"bundleBytes":10,"deviceId":"ios:iPhone 17","limitBytes":100,"name":"iPhone 17","port":8123,"usageBytes":20},"kind":"monitorBridgeLogRotation"}"#)
+        XCTAssertEqual(line, #"{"candidate":{"bundleBytes":10,"deviceId":"ios:iPhone 17","limitBytes":100,"name":"iPhone 17","port":8123,"udid":"UDID-1","usageBytes":20},"kind":"monitorBridgeLogRotation"}"#)
     }
 
     private func encodedLine<T: Encodable>(_ value: T) throws -> String {

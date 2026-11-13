@@ -905,7 +905,8 @@ export class MonitorDeviceOps {
     // 一切参照しない契約。Sources/fleetest/ApiDeviceCommands.swift ApiDeviceDownDirectTarget)。
     // **up の直指定は --udid だけ** —— 実機のブリッジ起動(start-device --udid)がそれ。
     // serial(Android)の up は端末の電源を入れる操作になり存在しないので down のみ。
-    const direct = udid !== undefined || (op === "down" && serial !== undefined);
+    // restartBridge の udid は直指定ではなく、名前が台帳に無いときの控え(--name と併せて渡す)
+    const direct = op !== "restartBridge" && (udid !== undefined || (op === "down" && serial !== undefined));
     // **別の機械のデバイスはその機械で操作する** —— 手元で `--name` を渡すと、手元の実行
     // プロファイルの同名エントリを引いて**別の機械の設定でこの Mac にシミュレータを作る**
     // (simctl は無ければ作る)。一括起動が RemoteDeviceFanout で分散するのと同じ規律
@@ -926,6 +927,9 @@ export class MonitorDeviceOps {
       }
     } else {
       args.push("--name", name);
+      if (op === "restartBridge" && udid !== undefined) {
+        args.push("--udid", udid);
+      }
       if (resolution.kind === "resolved") {
         args.push("--project", resolution.project);
       }

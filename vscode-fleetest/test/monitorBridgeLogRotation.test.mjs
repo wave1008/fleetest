@@ -10,6 +10,7 @@ function candidate(overrides = {}) {
   return {
     deviceId: "ios:Sim1",
     name: "Sim1",
+    udid: "SIM1-UDID",
     port: 8100,
     bundleBytes: 3_000_000_000,
     usageBytes: 2_700_000_000,
@@ -20,7 +21,7 @@ function candidate(overrides = {}) {
 
 /** 別デバイス(クールダウンが deviceId 単位であることの対照)。 */
 function candidate2() {
-  return candidate({ deviceId: "ios:Sim2", name: "Sim2" });
+  return candidate({ deviceId: "ios:Sim2", name: "Sim2", udid: "SIM2-UDID" });
 }
 
 /** テスト用ハーネス。posts の代わりに jobs/logs を配列に記録し、now/runActive/queueBusy を手元で操作できる。 */
@@ -60,7 +61,7 @@ const COOLDOWN_MS = 20 * 60 * 1000;
 test("候補ありで busy/run 無しなら restartBridge ジョブを積み、ログを1行残す", () => {
   const h = createHarness();
   h.rotation.observe(candidate());
-  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge" }]);
+  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge", udid: "SIM1-UDID" }]);
   assert.equal(h.logs.length, 1);
   assert.ok(h.logs[0].includes("Sim1"), "ログにデバイス名を含む");
 });
@@ -79,7 +80,7 @@ test("実行中レーンがある間は投入しない(レーン終了後に再�
 
   h.setRunActive(false);
   h.rotation.reevaluate();
-  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge" }],
+  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge", udid: "SIM1-UDID" }],
     "run が終わったら再評価で拾い直す");
 });
 
@@ -90,7 +91,7 @@ test("デバイスライフサイクルキューが busy の間は投入しな�
 
   h.setQueueBusy(false);
   h.rotation.reevaluate();
-  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge" }],
+  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge", udid: "SIM1-UDID" }],
     "busy が解けたら再評価で拾い直す");
 });
 
@@ -126,8 +127,8 @@ test("クールダウンは deviceId 単位(別デバイスは独立して即時
 
   h.rotation.observe(candidate2());
   assert.deepEqual(h.jobs, [
-    { kind: "device", name: "Sim1", op: "restartBridge" },
-    { kind: "device", name: "Sim2", op: "restartBridge" },
+    { kind: "device", name: "Sim1", op: "restartBridge", udid: "SIM1-UDID" },
+    { kind: "device", name: "Sim2", op: "restartBridge", udid: "SIM2-UDID" },
   ], "別デバイスのクールダウンは互いに影響しない");
 });
 
@@ -157,6 +158,6 @@ test("撃てなかった候補(busy)を保持し、状況が変わった後の�
   h.setQueueBusy(false);
   h.rotation.reevaluate();
   h.rotation.reevaluate();
-  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge" }],
+  assert.deepEqual(h.jobs, [{ kind: "device", name: "Sim1", op: "restartBridge", udid: "SIM1-UDID" }],
     "busy 解除後の再評価で1回だけ投入し、以後はクールダウンで抑止される");
 });

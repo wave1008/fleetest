@@ -316,6 +316,8 @@ export type MonitorEvent =
 export interface MonitorBridgeLogRotationCandidate {
   readonly deviceId: string;
   readonly name: string;
+  /** `restart-bridge --udid` に渡す(名前が選択中のプロジェクトの台帳に無いデバイス用)。 */
+  readonly udid: string;
   readonly port: number;
   readonly bundleBytes: number;
   readonly usageBytes: number;
@@ -472,6 +474,7 @@ function isMonitorBridgeLogRotationCandidate(value: unknown): value is MonitorBr
     isRecord(value) &&
     typeof value.deviceId === "string" &&
     typeof value.name === "string" &&
+    typeof value.udid === "string" &&
     typeof value.port === "number" &&
     typeof value.bundleBytes === "number" &&
     typeof value.usageBytes === "number" &&
