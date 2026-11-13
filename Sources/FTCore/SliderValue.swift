@@ -276,6 +276,45 @@ public enum SliderTarget {
         }
     }
 
+    /// **Android の木でスライダーと読める要素**: slider 型(SeekBar)か範囲(RangeInfo)を持つ。ブリッジの `isSliderLike` は
+    /// SET_PROGRESS だけを持つノードも数えるが、木はその action を運ばない = それだけの形はここで見えない(5 SUT の Android では
+    /// スライダーは全部 slider 型 = View・CMP・RN は range も付く・Flutter は入れ物の中の slider)
+    public static func isAndroidSliderLike(_ element: ElementInfo) -> Bool {
+        element.type == "slider" || element.range != nil
+    }
+
+    /// Android で、撃つ前に「スライダーが無い」と言えるか(純粋)。`element` = 指した要素・`target` = `resolve` の結果。
+    /// 指した要素・その中心を含む要素・中心が指した枠の中にある要素のどれもスライダーと読めないとき true。
+    /// ブリッジは同じ形を「古い参照」で断り、ホストは撮り直して waitSeconds の間撃ち直していた(従っても同じ)
+    public static func androidHasNoSlider(element: ElementInfo, target: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        if isAndroidSliderLike(target) || isAndroidSliderLike(element) { return false }
+        let area = element.frame
+        return !elements.contains { candidate in
+            guard isAndroidSliderLike(candidate) else { return false }
+            let f = candidate.frame
+            let centreInside = area.x <= f.centerX && f.centerX <= area.x + area.width
+                && area.y <= f.centerY && f.centerY <= area.y + area.height
+            let holdsCentre = f.x <= area.centerX && area.centerX <= f.x + f.width
+                && f.y <= area.centerY && area.centerY <= f.y + f.height
+            return centreInside || holdsCentre
+        }
+    }
+
+    /// 木の範囲(`"0-100"`・負の端は `"-10-10"`)の両端。読めなければ nil
+    public static func range(of target: ElementInfo) -> (lower: Double, upper: Double)? {
+        guard let text = target.range,
+              let match = text.wholeMatch(of: /(-?[0-9]+(?:\.[0-9]+)?)-(-?[0-9]+(?:\.[0-9]+)?)/),
+              let lower = Double(match.1), let upper = Double(match.2) else { return nil }
+        return (min(lower, upper), max(lower, upper))
+    }
+
+    /// 撃つ前に断る文(木の範囲の外)。範囲を読めない・中なら nil。Android は範囲の外を端へ丸めて動かしてから送りで止まっていた
+    public static func outOfRangeRefusal(_ target: ElementInfo, wanted: Double) -> String? {
+        guard let bounds = range(of: target), wanted < bounds.lower || wanted > bounds.upper else { return nil }
+        return "\(SliderValueLoop.format(wanted)) is outside what the slider reaches (\(SliderValueLoop.format(bounds.lower))"
+            + " to \(SliderValueLoop.format(bounds.upper)), from its range in the tree), so nothing was moved"
+    }
+
     /// 木で読める今の値。Flutter の Android はスライダーの値をラベルに出す(value は空)
     public static func currentValue(_ target: ElementInfo) -> String? {
         target.value ?? (target.type == "slider" ? target.label : nil)

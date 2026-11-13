@@ -94,4 +94,25 @@ extension StepExecutorTests {
         XCTAssertFalse(primary.coordinateTaps.isEmpty)
         XCTAssertTrue(outcome.driverFallback?.contains("set by tapping along the slider") == true, outcome.driverFallback ?? "nil")
     }
+
+    /// Android はスライダーでない要素・木の範囲の外を撃つ前に断る(何も送らない)
+    func testAndroidRefusesANonSliderAndAnOutOfRangeValueWithoutSending() async throws {
+        let log = CallLog()
+        let button = sliderElement(1, type: "button", id: "btn_x", value: nil)
+        let notSlider = FakeAppDriver(name: "button", log: log, snapshotElements: [[button]])
+        let refused = await StepExecutor(driver: notSlider, isAndroid: true, tunables: RunTunables())
+            .execute(FlowStep(action: "setSliderValue", locator: FlowLocator(id: "btn_x"), text: "50"))
+        guard case .failed(let message) = refused.status else { return XCTFail("failed を期待: \(refused.status)") }
+        XCTAssertTrue(message.contains("#btn_x is not a slider"), message)
+        XCTAssertNil(notSlider.lastSliderSet)
+
+        var slider = sliderElement(2, id: "slider_volume", value: "50")
+        slider.range = "0-100"
+        let ranged = FakeAppDriver(name: "ranged", log: log, snapshotElements: [[slider]])
+        let outside = await StepExecutor(driver: ranged, isAndroid: true, tunables: RunTunables())
+            .execute(FlowStep(action: "setSliderValue", locator: FlowLocator(id: "slider_volume"), text: "150"))
+        guard case .failed(let outsideMessage) = outside.status else { return XCTFail("failed を期待: \(outside.status)") }
+        XCTAssertTrue(outsideMessage.contains("outside what the slider reaches (0 to 100"), outsideMessage)
+        XCTAssertNil(ranged.lastSliderSet)
+    }
 }

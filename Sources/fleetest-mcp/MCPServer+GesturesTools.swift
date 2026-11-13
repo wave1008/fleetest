@@ -539,6 +539,16 @@ extension MCPServer {
             throw MCPError("[\(ref)] holds \(count) sliders, so which one to move is ambiguous — nothing was sent."
                 + " Pass the ref of one slider")
         }
+        // DSL と同じ: Android は木でスライダーか・範囲の外かを撃つ前に言える(SliderTarget)
+        if sliderDriver is AndroidDriver {
+            if SliderTarget.androidHasNoSlider(element: element, target: target, in: elements) {
+                throw MCPError("[\(ref)] is not a slider — neither it nor anything at its position is a slider or has a range in the"
+                    + " tree, so nothing was sent")
+            }
+            if let refusal = SliderTarget.outOfRangeRefusal(target, wanted: wanted) {
+                throw MCPError("set slider value \(SliderValueLoop.format(wanted)) on [\(ref)] failed: \(refusal)")
+            }
+        }
         let guardNote = try await refGestureGuard(target, driver: sliderDriver, isAndroid: sliderDriver is AndroidDriver,
                                                   operation: "set slider value", args: args)
         let wantedText = SliderValueLoop.format(wanted)

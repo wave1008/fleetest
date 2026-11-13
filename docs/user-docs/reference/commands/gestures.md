@@ -83,7 +83,7 @@ select("#txt_slider").textIs("volume=75")
 
 - The number is **what the snapshot shows as the slider's value** (what `valueIs` reads). The notation differs by OS and framework: `75%` (a percentage) on iOS UIKit, SwiftUI and React Native, `75.0` on iOS Compose Multiplatform, and `75` in the slider's own range on Android. A `%` sign is ignored and the numbers are compared. There is no rounding.
 - When the id is on a container that holds one slider, that slider is moved (Flutter on Android). A container with two or more sliders (the thumbs of a range slider) fails without sending anything.
-- If the slider moves in steps that skip the value, or the value is out of range, the step fails and the message says the value it stopped at.
+- If the slider moves in steps that skip the value, or the value is out of range, the step fails and the message says the value it stopped at. On Android, a value outside the range and an element that is not a slider (no slider at the position you pointed to) fail right away without moving anything.
 - A slider that accessibility actions (setting the value, or one step at a time) cannot move is set by tapping along its track and reading the value back. This works for sliders whose value jumps to where you tap (Material sliders, custom components that set the value from the touch, and so on). On iOS, sliders that only move when the thumb is dragged are moved through XCUITest.
 
 ## `hold`: verifying something that only shows while pressed

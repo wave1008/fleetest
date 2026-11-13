@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-223 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 | |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
@@ -35,15 +35,6 @@
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 29 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219 |
 
 ## 着手可
-
-### OI-223 setSliderValue の文言の残り: Android でスライダーでない要素に撃つと「古い参照・撮り直せ」と言う・Android で範囲の外を撃つと端まで動かしてから「動かせなかった」と言う
-- 状態: 再現済み
-- 確認: ff1147e8f(2026-11-13)
-- 属性: 着手可
-- 運用: 合否に響かない(文言。どちらも赤になる・①は何も動かしていない)
-- 優先度: 低 — 文言(②は端まで動かす副作用がある)
-
-出典: `_work/explore-20261113a/findings-*.md`(52周目・11/13)。①Android で `setSliderValue` をスライダーでない要素(ボタン・テキスト・チップ・CMP の RangeSlider)に撃つと「stale reference … Take a new snapshot and resolve the target again」で、従っても同じ・waitSeconds の間撃ち直しを払う(phys F1 DSL 1/1・MCP 7/7・alocal F1 4 SUT で 9/9)。原因は観測済み: `AndroidRunner/src/com/example/ftbridge/BridgeRouter.java` の sliderAt が「スライダーが無い」を stale-ref で断る(Pixel 3a で一瞬だけ見つからない回があったための意図した扱い)= ホストで撃つ前に「スライダーでない」と断る形にする。木で Android のスライダーを見分ける印(型か range)を既存の 5 SUT で反例まで確かめてから入れる ②Android で範囲の外(150・110・-10)を撃つと、/sliderSet が端へ丸めて動かした後、送りの1段目が端で撃てず「the bridge could not increment/decrement the slider」で赤(phys F2 DSL 1/1・MCP 3/3)。木には `range=0-100` が出ているので、範囲の外は撃つ前に断れる(`Sources/FTAndroid/AndroidDriver.swift` の setSliderValue)
 
 ## 要測定
 

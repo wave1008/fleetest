@@ -1755,6 +1755,17 @@ extension StepExecutor {
                     "setSliderValue: \(element.identifier.map { "#\($0)" } ?? element.type) holds \(count) sliders,"
                         + " so which one to move is ambiguous and nothing was sent. Name one slider"))
             }
+            // Android は木でスライダーか・範囲の外かを撃つ前に言える(判定は MCP と共有 = SliderTarget)
+            if isAndroid {
+                if SliderTarget.androidHasNoSlider(element: element, target: target, in: snapshot.elements) {
+                    return StepOutcome(status: .failed(
+                        "setSliderValue: \(element.identifier.map { "#\($0)" } ?? element.type) is not a slider — neither it nor"
+                            + " anything at its position is a slider or has a range in the tree, so nothing was sent"))
+                }
+                if let refusal = SliderTarget.outOfRangeRefusal(target, wanted: wanted) {
+                    return StepOutcome(status: .failed("setSliderValue \(step.text ?? "") failed: \(refusal)"))
+                }
+            }
             let wantedText = step.text ?? ""
             let current = SliderTarget.currentValue(target)
             var moved: SliderValueOutcome?

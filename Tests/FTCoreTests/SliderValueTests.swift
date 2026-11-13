@@ -251,6 +251,44 @@ final class SliderValueTests: XCTestCase {
         XCTAssertNil(SliderTarget.currentValue(el(2, "other", label: "音量")))
     }
 
+    // MARK: - Android で撃つ前に断る
+
+    /// ボタン・RangeSlider(CMP の Android = other の中のつまみは staticText・範囲なし)はスライダーと読めない。
+    /// View・CMP・RN(slider 型 + range)と Flutter(入れ物の中の slider)は読める(5 SUT の木の実測の形)
+    func testAndroidNoSliderIsToldFromTheTree() {
+        let button = el(1, "button", id: "btn_x")
+        XCTAssertTrue(SliderTarget.androidHasNoSlider(element: button, target: button, in: [button]))
+        let rangeSlider = el(1, "other", id: "range_slider")
+        let thumbs = [el(2, "staticText", label: "範囲の先頭", x: 60, width: 18, depth: 2),
+                      el(3, "staticText", label: "範囲の末尾", x: 300, width: 18, depth: 2)]
+        XCTAssertTrue(SliderTarget.androidHasNoSlider(element: rangeSlider, target: rangeSlider, in: [rangeSlider] + thumbs))
+
+        var view = el(1, "slider", id: "slider_volume", value: "50")
+        view.range = "0-100"
+        XCTAssertFalse(SliderTarget.androidHasNoSlider(element: view, target: view, in: [view]))
+        let container = el(1, "other", id: "slider_volume")
+        let inner = el(2, "slider", label: "50%", x: 180, width: 48, depth: 2)
+        XCTAssertFalse(SliderTarget.androidHasNoSlider(element: container, target: container, in: [container, inner]))
+        // 範囲だけを持つ要素(型は他)もスライダーと読む
+        var ranged = el(2, "other", value: "3", x: 100, width: 100, depth: 2)
+        ranged.range = "0-10"
+        XCTAssertFalse(SliderTarget.androidHasNoSlider(element: container, target: container, in: [container, ranged]))
+    }
+
+    func testOutOfRangeIsRefusedFromTheTreesRange() {
+        var slider = el(1, "slider", value: "50")
+        slider.range = "0-100"
+        XCTAssertEqual(SliderTarget.outOfRangeRefusal(slider, wanted: 150),
+                       "150 is outside what the slider reaches (0 to 100, from its range in the tree), so nothing was moved")
+        XCTAssertNotNil(SliderTarget.outOfRangeRefusal(slider, wanted: -10))
+        XCTAssertNil(SliderTarget.outOfRangeRefusal(slider, wanted: 100))
+        XCTAssertNil(SliderTarget.outOfRangeRefusal(slider, wanted: 0))
+        slider.range = "-10-10"
+        XCTAssertNil(SliderTarget.outOfRangeRefusal(slider, wanted: -5))
+        XCTAssertNotNil(SliderTarget.outOfRangeRefusal(slider, wanted: -11))
+        XCTAssertNil(SliderTarget.outOfRangeRefusal(el(2, "slider", value: "50"), wanted: 150), "範囲の無い木では言わない")
+    }
+
     // MARK: - 撃てなかった・木の親子に頼らない・タップで合わせる
 
     /// ブリッジが1段目を撃てなかったら、持っている操作を運んで止まる(Android の自前の View = 実測)
