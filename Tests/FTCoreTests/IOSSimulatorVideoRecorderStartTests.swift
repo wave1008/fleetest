@@ -312,8 +312,11 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
           *) ( sleep 0.3; echo "\(HostRecordingProbe.startedMarker)" >&2 ) & printf data > "$out"; exit 0 ;;
         esac
         """, to: xcrun)
+        // 期限は2つとも偽 client の起動・終了に十分長くする。0.3 秒だと全体テストの負荷で越えた(CPU を埋めて単独で再現):
+        // 開始の期限 = part が終わる前に期限が来て「終わった part を読み切る」経路を通らず開始未確認 /
+        // 止める猶予 = 試し撮りが SIGINT で終わる前に testRecordingDidNotStop。どちらも client が終われば待ちを抜けるので所要は延びない
         let recorder = IOSSimulatorVideoRecorder(udid: "FAKE-\(UUID().uuidString)", workDir: dir, fileStem: "src", xcrunPath: xcrun.path,
-                                                 startConfirmLimit: 0.3, stopGraceLimit: 0.3)
+                                                 startConfirmLimit: 10, stopGraceLimit: 10)
         let started = await DeadlineRace.first(seconds: 30, onTimeout: Bool?.none) { await recorder.start() }
         XCTAssertEqual(started, true, "撮り始めてから終わった part は開始済み(撮り直しの対象)で、開始未確認(startNotConfirmed)ではない")
         let failure = await recorder.startFailure()
