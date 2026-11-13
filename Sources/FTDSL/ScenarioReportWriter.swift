@@ -83,7 +83,10 @@ public enum ScenarioReportWriter {
                 md += "\n> ⚠️ **Another window is in front of the app**: "
                 md += scene.failureForegroundWindows.joined(separator: ", ")
                 md += ". Input may have been swallowed by it, so `tap` can report success while nothing happened"
-                md += " (windows owned by other processes never appear in the app element list).\n"
+                // アプリ自身のダイアログ・PopupWindow だけなら「別のプロセスの窓」とは言わない(印は ownDialogs が付ける)
+                md += scene.failureForegroundWindows.allSatisfy { $0.hasSuffix(StepExecutor.ownDialogWindowMarker) }
+                    ? " (the app's own dialog or popup window takes what is behind it out of the app element list).\n"
+                    : " (windows owned by other processes never appear in the app element list).\n"
             }
             // **一覧を伏せた理由を言う**(FTRuntime.handleFailure がシステムアラートの下の失敗では一覧を載せない)。
             // 黙って消すと「取り損ねた」のか「わざと省いた」のか読み手が区別できない

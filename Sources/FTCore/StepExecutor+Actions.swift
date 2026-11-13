@@ -47,7 +47,7 @@ extension StepExecutor {
     }
 
     /// `AndroidForegroundWindows.ownDialogs` が窓の名前に付ける語尾(片方だけ変えない)
-    static let ownDialogWindowMarker = "(the app's own dialog window)"
+    public static let ownDialogWindowMarker = "(the app's own dialog window)"
 
     /// **対象アプリ自身のダイアログが手前にあるとき、見つからない失敗で待ちを勧めず、そのダイアログを名指す**(ダイアログの窓は
     /// 木に載らず、裏の要素が解決できない = 待っても出ない。8/8: `waitSeconds:` を勧めていた)。申告が無い・引けないときは nil(従来の文)。

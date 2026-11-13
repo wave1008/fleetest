@@ -280,6 +280,25 @@ final class ScenarioReportWriterTests: XCTestCase {
 
     /// 失敗した scene の要素一覧とスクショのファイル名を証跡に書く。スクショ名は md が参照する
     /// 実ファイルと同じ(読み手はこの名前でディレクトリから引く)
+    /// 前面の窓がアプリ自身のダイアログ・PopupWindow だけなら「別のプロセスの窓」と言わない(Android のメニューの裏の失敗)
+    func testOwnWindowsInFrontAreNotCalledOtherProcesses() throws {
+        func markdown(_ windows: [String]) throws -> String {
+            var record = ScenarioRecordData(id: "S.t", title: "", app: "a", platform: "android")
+            var scene = SceneRecordData(number: 1, title: "a")
+            scene.steps = [DSLStepRecord(index: 1, section: "action", description: "tap", status: .failed("x"), file: "", line: 0)]
+            scene.failureForegroundWindows = windows
+            record.scenes = [scene]
+            let dir = try makeTempDir()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            return try String(contentsOf: try ScenarioReportWriter.write(record: record, to: dir), encoding: .utf8)
+        }
+        let own = try markdown(["PopupWindow:a7ce221 " + StepExecutor.ownDialogWindowMarker])
+        XCTAssertTrue(own.contains("the app's own dialog or popup window"), own)
+        XCTAssertFalse(own.contains("owned by other processes"), own)
+        let mixed = try markdown(["PopupWindow:a7ce221 " + StepExecutor.ownDialogWindowMarker, "NotificationShade"])
+        XCTAssertTrue(mixed.contains("owned by other processes"), mixed)
+    }
+
     func testFailedSceneWritesEvidenceNextToTheReport() throws {
         var record = ScenarioRecordData(id: "Sample.testCase", title: "サンプル",
                                         app: "com.example.app", platform: "ios")

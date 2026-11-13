@@ -27,16 +27,26 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 | |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-218・OI-221・OI-225 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 16 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-184・OI-198・OI-214 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 29 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 30 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-224 |
 
 ## 着手可
 
 ## 要測定
+
+### OI-225 実機の iOS(inapp-boost)で、WebView の DOM 要素への合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する
+- 状態: 再現済み
+- 確認: 4563640be(2026-11-13)
+- 属性: 要測定
+- 運用: 合否に響かない(注記だけ・判定は緑で正しい)
+- 優先度: 低 — 事実と違う注記
+
+出典: `_work/explore-20261113c/findings-phys.md`(54周目 phys F1)。iPhone SE3(実機)の E2E-iOS の WebView 画面で、リンク・送信・アリアラベル・変形・固定の5つのボタンへの tap の全部に「activate did not fire -> synthetic touch …; the screen looked the same when it settled after the synthetic touch」(1 run 中 5/5)。直後の `textIs("wv_result=*")` は5つとも緑 = DOM の表示は変わっていた。Simulator の同じシナリオの最近 14 本では 0〜2 件/本。注記は in-app ブリッジの `pixelPrint`(`drawHierarchy(afterScreenUpdates: false)`)の前後一致で出るが、WKWebView の描画が写らないのか、JS の反映が整定より後なのかは確かめていない = 材料不足。同じ SE3 で `tap("#field_single")` にも同じ注記(キーボードが出たかは見ていない)
+- 次の一手: 実機で同じタップの前後の pixelPrint と、整定の後に少し空けた pixelPrint を採って、どちらの筋書きかを分ける
 
 ### OI-221 E2EX-iOS(inapp-boost)の並べ替えで、長押しからのドラッグ(XCUITest へ回した gesture)が ✅ なのに順番が変わらない(8台同時で約 3 割)
 - 状態: 再現済み
@@ -160,6 +170,7 @@
 - 11/10(⑤ Duo の -01 の XCUITest ブリッジの起動の時間切れ・材料不足): 11/9 に1本の run と MCP の `ft_run_scenario` が -01 の XCUITest ブリッジの起動の 180 秒の時間切れで止まった(duo 44・45周目 F2 = 2/2)。-01 だけを冷えた状態(Simulator を止めてから)で `bridge up` を3回 = 3回とも準備完了(全体 117 / 61 / 55 秒・xcodebuild の開始から待ち受けまで 52 / 19 / 13 秒。ホストの load1 は 86 と高かった)= 再現せず。手元の台帳のログで Duo の起動を数えると、-01 は 11/6〜11/9 に8回中7回、-02 も 11/6〜11/7 に3回が時間切れ。時間切れの回はどれも xcodebuild の最初の行の後にランナーの `Running tests...` が1行も無いまま `BUILD INTERRUPTED` = ランナーのテストが始まらない段で止まっている(成功の回は約 8 秒後に出る)。`invalidDigitCount(91016)` の行は成功の回にも毎回出る(Duo の版の文字列に対する xcodebuild の警告)ので原因ではない。11/9 以降に起動の経路の変更は無い。なぜランナーのテストが始まらなかったかの材料は無い(当時 -01 の SpringBoard は異常終了の跡 = 状態 -5 を持っていた・関係は不明)。次に出たら、時間切れの時点で Simulator の上のランナーのプロセスの有無を採る
 
 - 11/13(⑤ の材料・53周目 duo F1): -01 の XCUITest ブリッジの起動が 2 run とも 180 秒の時間切れ(文言は「connection refused」だけ)。直後の 11:36〜11:37 に -01 の SpringBoard と InputUI は launchd の状態が -5・PID 無しのまま(7回確かめた。同じ時刻の -02 の SpringBoard は動いていた)= OI-184 の落ちを繰り返した後に起き直さなくなった形。最後の SpringBoard の .ips は 11:20:36。起動を試していた間ずっと止まっていたかは採っていない = 材料不足。次に出たら、起動の時間切れの文言に SpringBoard の生死(`launchctl list` の状態)を添えるかを、起動の最中の状態を採ってから決める
+- 11/13(⑤ の原因の観測・54周目 duo): 12:25〜12:27 に両 Duo の SpringBoard と InputUI が同時に止まり(`launchctl list` で `- -5`・PID 無し)、12:37 まで起き直さなかった(約 25 回採取。新しい .ips は出ず、10:44 の .ips の更新時刻だけが 12:27 に変わった)。その間に撃った Duo-02 の XCUITest ブリッジの起動は 180 秒の時間切れ(「connection refused」・xcodebuild は BUILD INTERRUPTED)で、起動の最中の 3 回の採取でも SpringBoard は止まっていた = **起動の時間切れは SpringBoard が止まったままの Simulator で起きる**(53周目の -01 と同じ形)。文言は SpringBoard を名指さない。次の一手: Simulator の XCUITest ブリッジの起動が時間切れになったら、そのデバイスの SpringBoard の生死(`launchctl list` の状態)を文言に添える・止まっていれば Simulator の起動し直しを勧める(起こし直しの自動化は別に判断)
 ### OI-190 E2E-Flutter の Android で払いの向きが「下」と読まれる(低率)
 - 状態: 経路確定
 - 確認: 7161b1156(2026-11-11)
@@ -278,6 +289,15 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
+
+### OI-224 失敗文の添え書きが、後の操作が効いた後でも、前の「画面が変わらなかったタップ」(選択中のタブの押し直し等)を「飲まれたかも」と名指す
+- 状態: 再現済み
+- 確認: 4563640be(2026-11-13)
+- 属性: 据え置き
+- 運用: 合否に響かない(添え書きだけ・「may have been swallowed」とぼかしている)
+- 優先度: 低 — 帰属が的外れになることがある
+
+出典: `_work/explore-20261113c/findings-im4.md`(54周目 im4 F1)。launchApp の直後(既にホーム)に `tap("#tab_home")` → ダイアログを開いて OK → `back()`(自前の戻るの画面なので効かない・注記は事実どおり)→ `exist("#nav_dialog")` の赤に「earlier, the screen was also unchanged between tap id=tab_home and the tap after it — that interaction may have been swallowed」(RN・SwiftUI・CMP の iOS で 6/6)。原因は観測済み: `StepExecutor.earlierTapsHint` は「直前のタップが画面を変えないのが正常な操作でも、その前のタップが効いていなかった事実は消さない」設計で、後の操作で画面が変わっても外さない。**据え置きの理由**: 名指す事実(そのタップの後に画面が変わらなかった)は正しく、文はぼかしてある。後の操作が効いたことで外すと、空振りした保存の後に戻って赤になった形(sut-ec-mobile)で名指せなくなる。効かなかった `back()` は別の注記が既に言っている
 
 ### OI-219 推測の容器でも、Android の経路カードが直前の横カルーセルの外と読まれる(覆う側から外れる)・その画面の他の検知の件数は未検分
 - 状態: 再現済み

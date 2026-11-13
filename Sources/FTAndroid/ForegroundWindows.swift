@@ -34,6 +34,8 @@ public enum AndroidForegroundWindows {
             guard blocks[index].visible else { return nil }
             let name = blocks[index].name
             guard !name.hasPrefix("\(package)/") else { return nil }
+            // アプリ自身の PopupWindow は ownDialogs が数える(別のプロセスの窓と言わない)
+            guard !isOwnSubWindow(blocks[index], package: package) else { return nil }
             guard !chromePrefixes.contains(where: { name.hasPrefix($0) }) else { return nil }
             guard name != softKeyboardWindowName else { return nil }
             return name
@@ -42,12 +44,22 @@ public enum AndroidForegroundWindows {
 
     /// **対象アプリ自身のダイアログの窓**(同じ package の可視の窓で `ty=APPLICATION`)。窓の名前がアプリの Activity と同じなので
     /// `overlaying` は自分の package の窓として除く —— ダイアログの裏の要素への操作の失敗が覆いを名指さなかった。
-    /// Activity 本体は `ty=BASE_APPLICATION`。型が読めない窓は数えない(判定できないときは黙る)
+    /// Activity 本体は `ty=BASE_APPLICATION`。型が読めない窓は数えない(判定できないときは黙る)。
+    /// **アプリの PopupWindow(メニュー・ドロップダウン・ツールチップ)も数える**: 名前は `PopupWindow:<hash>` で package を持たず、
+    /// 持ち主は窓の `package=` の欄・型は `APPLICATION_SUB_PANEL`(Android 17 の Emulator で実測)。数えないと `overlaying` が
+    /// 「別のプロセスの窓」と言い、裏の要素の失敗が waitSeconds: を勧めていた。起動中の窓(`APPLICATION_STARTING`)は除く
     public static func ownDialogs(package: String, dumpsys: String) -> [String] {
         windowBlocks(dumpsys).compactMap { block in
-            guard block.visible, block.type == "APPLICATION", block.name.hasPrefix("\(package)/") else { return nil }
+            guard block.visible, isOwnSubWindow(block, package: package) else { return nil }
             return "\(block.name) (the app's own dialog window)"
         }
+    }
+
+    private static func isOwnSubWindow(_ block: (name: String, visible: Bool, type: String?, owner: String?),
+                                       package: String) -> Bool {
+        guard let type = block.type else { return false }
+        if type == "APPLICATION", block.name.hasPrefix("\(package)/") { return true }
+        return block.owner == package && type.hasPrefix("APPLICATION_") && type != "APPLICATION_STARTING"
     }
 
     /// `dumpsys window windows` にソフトキーボード(IME)の window が**表示中**で存在するか。
@@ -89,10 +101,12 @@ public enum AndroidForegroundWindows {
 
     /// `Window #N Window{... 名前}:` ブロックを (名前, isVisible) の並び(z 順)に分解する。
     /// overlaying / keyboardVisible の共通パーサ(可視性判定はここ1箇所)
-    private static func windowBlocks(_ dumpsys: String) -> [(name: String, visible: Bool, type: String?)] {
+    private static func windowBlocks(_ dumpsys: String) -> [(name: String, visible: Bool, type: String?, owner: String?)] {
         var names: [String] = []
         var visibility: [Bool] = []
         var types: [String?] = []
+        // `mOwnerUid=… package=<pkg> appop=…` の行の package(窓の持ち主。名前に package を持たない PopupWindow を見分ける)
+        var owners: [Int: String] = [:]
         var current: String?
         for line in dumpsys.split(separator: "\n", omittingEmptySubsequences: false) {
             let text = line.trimmingCharacters(in: .whitespaces)
@@ -105,6 +119,9 @@ public enum AndroidForegroundWindows {
             } else if current != nil, text.hasPrefix("isVisible="),
                       names.count > visibility.count {
                 visibility.append(text == "isVisible=true")
+            } else if current != nil, text.hasPrefix("mOwnerUid="),
+                      let field = text.split(separator: " ").first(where: { $0.hasPrefix("package=") }) {
+                owners[names.count - 1] = String(field.dropFirst("package=".count))
             } else if current != nil, names.count > types.count, text.hasPrefix("mAttrs="),
                       let type = layoutType(text) {
                 types.append(type)
@@ -112,7 +129,7 @@ public enum AndroidForegroundWindows {
         }
         if names.count > visibility.count { visibility.append(false) }
         if names.count > types.count { types.append(nil) }
-        return (0..<names.count).map { (name: names[$0], visible: visibility[$0], type: types[$0]) }
+        return (0..<names.count).map { (name: names[$0], visible: visibility[$0], type: types[$0], owner: owners[$0]) }
     }
 
     /// `mAttrs={… ty=APPLICATION …}` の窓の型(`APPLICATION` = ダイアログ・`BASE_APPLICATION` = Activity 本体)。

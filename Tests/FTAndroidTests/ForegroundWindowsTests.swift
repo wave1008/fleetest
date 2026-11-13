@@ -201,6 +201,33 @@ final class ForegroundWindowsTests: XCTestCase {
         }.joined(separator: "\n")
     }
 
+    /// **アプリ自身の PopupWindow(メニュー)は自分の窓**: 名前は `PopupWindow:<hash>` で package を持たず、持ち主は `package=` の欄
+    /// (Android 17 の Emulator の E2EX-Android のメニューで実測した行の形)。別のプロセスの PopupWindow は今までどおり overlaying
+    func testOwnPopupWindowIsTheAppsOwnWindowByItsOwnerField() {
+        func block(_ index: Int, _ name: String, owner: String, type: String) -> String {
+            """
+              Window #\(index) Window{abc\(index) u0 \(name)}:
+                mDisplayId=0 taskId=2157 mSession=Session{2d67e7 32291:u0a10237} mClient=android.os.BinderProxy@e333b49
+                mOwnerUid=10237 showForAllUsers=false package=\(owner) appop=NONE
+                mAttrs={(48,541)(588x480) gr=TOP START CENTER DISPLAY_CLIP_VERTICAL sim={state=unchanged adjust=resize} ty=\(type) fmt=TRANSLUCENT}
+                isVisible=true
+            """
+        }
+        let main = "\(package)/\(package).MainActivity"
+        let own = [block(0, "PopupWindow:a7ce221", owner: package, type: "APPLICATION_SUB_PANEL"),
+                   block(1, main, owner: package, type: "BASE_APPLICATION")].joined(separator: "\n")
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: own),
+                       ["PopupWindow:a7ce221 (the app's own dialog window)"])
+        XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: own), [])
+        let foreign = [block(0, "PopupWindow:b1", owner: "com.example.other", type: "APPLICATION_SUB_PANEL"),
+                       block(1, main, owner: package, type: "BASE_APPLICATION")].joined(separator: "\n")
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: foreign), [])
+        XCTAssertEqual(AndroidForegroundWindows.overlaying(package: package, dumpsys: foreign), ["PopupWindow:b1"])
+        let starting = [block(0, "Splash Screen \(package)", owner: package, type: "APPLICATION_STARTING"),
+                        block(1, main, owner: package, type: "BASE_APPLICATION")].joined(separator: "\n")
+        XCTAssertEqual(AndroidForegroundWindows.ownDialogs(package: package, dumpsys: starting), [], "起動中の窓はダイアログと言わない")
+    }
+
     /// 実害の形: アプリ自身のダイアログの窓は Activity と同じ名前(`ty=APPLICATION`)で、`overlaying` は名指せない
     func testOwnDialogWindowIsNamedAndTheActivityBodyIsNot() {
         let main = "\(package)/\(package).MainActivity"
