@@ -46,7 +46,8 @@ const forwardBtn = document.getElementById('recordings-forward');
 const seekBar = document.getElementById('recordings-seek');
 const timeCurrent = document.getElementById('recordings-time-current');
 const timeTotal = document.getElementById('recordings-time-total');
-const speedSelect = document.getElementById('recordings-speed');
+const speedSlider = document.getElementById('recordings-speed');
+const speedValue = document.getElementById('recordings-speed-value');
 const errorsEmpty = document.getElementById('recordings-errors-empty');
 const errorsList = document.getElementById('recordings-errors-list');
 const treeEmpty = document.getElementById('recordings-tree-empty');
@@ -62,7 +63,7 @@ const autoAdvanceCheckbox = document.getElementById('recordings-auto-advance');
 // (video 直後 / コントロール群と同じ .recordings-video-pane 配下)。表示切替は applyVideoAvailability。
 const recordingsVideoPane = playerView.querySelector('.recordings-video-pane');
 const recordingsNowPlayingBlock = playerView.querySelector('.recordings-now-playing');
-const recordingsControlsBlock = playerView.querySelector('.recordings-controls');
+const recordingsControlsBlock = playerView.querySelector('.recordings-transport');
 const noVideoMessage = document.createElement('div');
 noVideoMessage.className = 'recordings-no-video-message';
 video.insertAdjacentElement('afterend', noVideoMessage);
@@ -1061,8 +1062,14 @@ function seekRelative(deltaSeconds) {
 rewindBtn.addEventListener('click', () => seekRelative(-10));
 forwardBtn.addEventListener('click', () => seekRelative(10));
 
-speedSelect.addEventListener('change', () => {
-  video.playbackRate = Number(speedSelect.value);
+// スライダーの段(0..5)→ 倍率。段数と既定の段(1x)は monitorHtml.ts の recordings-speed の max / value と同期
+const PLAYBACK_RATES = [0.1, 0.2, 0.5, 1, 2, 4];
+// defaultPlaybackRate も合わせる: video.load()(テスト・シナリオの切り替え)は playbackRate を既定へ戻す
+speedSlider.addEventListener('input', () => {
+  const rate = PLAYBACK_RATES[Number(speedSlider.value)] ?? 1;
+  video.defaultPlaybackRate = rate;
+  video.playbackRate = rate;
+  speedValue.textContent = `${rate}x`;
 });
 
 // ドラッグ中(input)も即シークして画像を追従させる(スクラブ)。Chromium はシーク要求を

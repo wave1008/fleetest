@@ -42,6 +42,7 @@ export const panelsStrings = {
   "panels.recordings.rewindTitle": { ja: "10秒巻き戻し", en: "Rewind 10 seconds" },
   "panels.recordings.forwardTitle": { ja: "10秒早送り", en: "Forward 10 seconds" },
   "panels.recordings.seekAriaLabel": { ja: "再生位置", en: "Playback position" },
+  "panels.recordings.speedLabel": { ja: "再生速度", en: "Speed" },
   "panels.recordings.errorsTitle": { ja: "エラー一覧", en: "Errors" },
   "panels.recordings.treeTitle": { ja: "テスト", en: "Tests" },
   "panels.recordings.expandAllTitle": { ja: "全て開く", en: "Expand all" },

@@ -3950,8 +3950,23 @@ button.settings-remote-hosts-move-up[hidden] {
   background-color: #000;
   border-radius: 3px;
 }
-.recordings-controls {
+/* 再生位置・再生速度の2行。列(ラベル | スライダー | 残り)を共有して2本のスライダーの左右を揃える */
+.recordings-transport {
   flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.recordings-slider-label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+.recordings-speed-value {
+  justify-self: start;
+}
+.recordings-controls {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3992,9 +4007,11 @@ button.settings-remote-hosts-move-up[hidden] {
   background-color: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.3));
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
 }
-.recordings-seek-bar {
-  flex: 1 1 120px;
-  min-width: 80px;
+.recordings-seek-bar,
+.recordings-speed-slider {
+  width: auto;
+  min-width: 0;
+  margin: 0;
 }
 /* 再生位置に対応するテスト(クラス.メソッド › シーン › ステップ)の常時表示。
    recordingsTab.js の updateNowPlaying が timeupdate で更新する。 */
@@ -4061,9 +4078,6 @@ button.settings-remote-hosts-move-up[hidden] {
 }
 .recordings-time-sep {
   color: var(--vscode-descriptionForeground);
-}
-.recordings-speed {
-  padding: 2px 4px;
 }
 /* ツリーと同じ flex(1:1)で残り幅を等分する(recordings-tree-pane のコメント参照)。 */
 .recordings-errors-pane {

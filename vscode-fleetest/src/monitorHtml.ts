@@ -871,26 +871,28 @@ function renderRecordingsPanel(): string {
             <div id="recordings-now-playing-class" class="recordings-now-playing-line"></div>
             <div id="recordings-now-playing-detail" class="recordings-now-playing-line recordings-now-playing-detail"></div>
           </div>
-          <div class="recordings-controls">
-            <select id="recordings-speed" class="recordings-speed">
-              <option value="0.5">0.5x</option>
-              <option value="1" selected>1x</option>
-              <option value="2">2x</option>
-              <option value="4">4x</option>
-            </select>
+          <!-- 2行の格子(ラベル | スライダー | 残り)。列を共有して2本のスライダーの左右の端を揃える -->
+          <div class="recordings-transport">
+            <span class="recordings-slider-label">${t("panels.recordings.seekAriaLabel")}</span>
             <input id="recordings-seek" class="recordings-seek-bar" type="range" min="0" max="1000" value="0" step="1" aria-label="${t("panels.recordings.seekAriaLabel")}">
-            <span id="recordings-time-current" class="recordings-time">0:00</span>
-            <span class="recordings-time-sep">/</span>
-            <span id="recordings-time-total" class="recordings-time">0:00</span>
-            <button id="recordings-rewind" type="button" class="recordings-seek-button" title="${t("panels.recordings.rewindTitle")}">−10s</button>
-            <button id="recordings-play" type="button" class="icon-button recordings-play-button" title="${t("panels.recordings.playPauseTitle")}"></button>
-            <button id="recordings-forward" type="button" class="recordings-seek-button" title="${t("panels.recordings.forwardTitle")}">+10s</button>
-            <button id="recordings-prev-test" type="button" class="icon-button recordings-nav-button" title="${t("panels.recordings.prevTestTitle")}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3H5v10H3.5z"/><path d="M12.5 3v10L6 8z"/></svg></button>
-            <button id="recordings-next-test" type="button" class="icon-button recordings-nav-button" title="${t("panels.recordings.nextTestTitle")}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11 3h1.5v10H11z"/><path d="M3.5 3v10L10 8z"/></svg></button>
-            <label class="recordings-auto-advance">
-              <input type="checkbox" id="recordings-auto-advance">
-              ${t("panels.recordings.autoAdvanceLabel")}
-            </label>
+            <div class="recordings-controls">
+              <span id="recordings-time-current" class="recordings-time">0:00</span>
+              <span class="recordings-time-sep">/</span>
+              <span id="recordings-time-total" class="recordings-time">0:00</span>
+              <button id="recordings-rewind" type="button" class="recordings-seek-button" title="${t("panels.recordings.rewindTitle")}">−10s</button>
+              <button id="recordings-play" type="button" class="icon-button recordings-play-button" title="${t("panels.recordings.playPauseTitle")}"></button>
+              <button id="recordings-forward" type="button" class="recordings-seek-button" title="${t("panels.recordings.forwardTitle")}">+10s</button>
+              <button id="recordings-prev-test" type="button" class="icon-button recordings-nav-button" title="${t("panels.recordings.prevTestTitle")}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3H5v10H3.5z"/><path d="M12.5 3v10L6 8z"/></svg></button>
+              <button id="recordings-next-test" type="button" class="icon-button recordings-nav-button" title="${t("panels.recordings.nextTestTitle")}"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11 3h1.5v10H11z"/><path d="M3.5 3v10L10 8z"/></svg></button>
+              <label class="recordings-auto-advance">
+                <input type="checkbox" id="recordings-auto-advance">
+                ${t("panels.recordings.autoAdvanceLabel")}
+              </label>
+            </div>
+            <!-- 再生速度。値は段の番号(0..5)で、倍率の表は recordingsTab.js の PLAYBACK_RATES(value の既定 3 = 1x と同期) -->
+            <span class="recordings-slider-label">${t("panels.recordings.speedLabel")}</span>
+            <input id="recordings-speed" class="recordings-speed-slider" type="range" min="0" max="5" step="1" value="3" aria-label="${t("panels.recordings.speedLabel")}">
+            <span id="recordings-speed-value" class="recordings-time recordings-speed-value">1x</span>
           </div>
         </div>
         <div class="splitter splitter-vertical" id="recordings-splitter-tree" role="separator" aria-orientation="vertical" title="${t("panels.recordings.splitterTitle")}"></div>
