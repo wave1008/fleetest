@@ -239,6 +239,12 @@ public enum VisionLivenessProbe {
     /// 固まった実測 = `RegionText.modelCompileWaitCap` の doc)。返れば次の周期から確かめ直す
     private static let running = Mutex<[VisionLiveness.Subject: Double]>([:])
 
+    /// この機械で OCR モデルのコンパイル(run の compile-ocr 等 = `OCRModelCompileLedger`)を最後に見た時刻(epoch 秒)。
+    /// コンパイル中は Vision が重く、走っている確かめも巻き込まれて返らない(run の開始時に「前の確かめが 120 秒返らない」で
+    /// 死と出た)。**見えなくなってから `deadline` の間は**、返らない・期限切れを死と言わず nil(不明)にする。窓は有限 =
+    /// コンパイルが終わった後も固まったままの OCR は窓の後に死と出る
+    private static let lastCompileSeenAt = Mutex<Double?>(nil)
+
     /// 観測(生 / 死)。nil = 撃たなかった(非対応・OCR モデルのコンパイル中 = 台帳は古くなって不明になる)
     public static func check(
         _ subject: VisionLiveness.Subject,
@@ -255,12 +261,20 @@ public enum VisionLivenessProbe {
         }
         if subject == .ocr, !ocrSupported { return nil }
         let startedAt = now().timeIntervalSince1970
+        // コンパイル中は Vision が重く、確かめが遅れて死と誤るので撃たない。走っている確かめの「返らない」より先に見る
+        if compileActiveCount() > 0 {
+            lastCompileSeenAt.withLock { $0 = startedAt }
+            return nil
+        }
+        func overlapsCompile(at time: Double) -> Bool {
+            guard let seen = lastCompileSeenAt.withLock({ $0 }) else { return false }
+            return time - seen < deadline
+        }
         if let previous = running.withLock({ $0[subject] }) {
+            if overlapsCompile(at: startedAt) { return nil }
             return .init(state: .dead, checkedAt: startedAt, source: .probe,
                          error: "the previous Vision \(subject.rawValue) check has not returned for \(Int(startedAt - previous))s")
         }
-        // コンパイル中は Vision が重く、確かめが遅れて死と誤るので撃たない
-        if compileActiveCount() > 0 { return nil }
         running.withLock { $0[subject] = startedAt }
         let result: String?? = await DeadlineRace.first(seconds: deadline, onTimeout: String??.none) {
             await Task.detached {
@@ -270,6 +284,11 @@ public enum VisionLivenessProbe {
             }.value
         }
         let checkedAt = now().timeIntervalSince1970
+        // 確かめの間にコンパイルが重なったなら、期限切れも読めなかったも死と言わない(巻き込まれと区別できない)
+        if result != .some(nil) {
+            if compileActiveCount() > 0 { lastCompileSeenAt.withLock { $0 = checkedAt } }
+            if overlapsCompile(at: checkedAt) { return nil }
+        }
         guard let failure = result else {
             return .init(state: .dead, checkedAt: checkedAt, source: .probe,
                          error: "Vision \(subject.rawValue) check did not finish within \(Int(deadline))s")

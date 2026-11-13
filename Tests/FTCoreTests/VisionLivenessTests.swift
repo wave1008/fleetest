@@ -102,10 +102,46 @@ final class VisionLivenessTests: XCTestCase {
     func testProbeSkipsWhenUnsupportedOrCompiling() async {
         let unsupported = await VisionLivenessProbe.check(.ocr, environment: [:], ocrSupported: false, compileActiveCount: { 0 })
         XCTAssertNil(unsupported)
-        let compilingOCR = await VisionLivenessProbe.check(.ocr, environment: [:], ocrSupported: true, compileActiveCount: { 1 })
+        // 時刻は遠い過去(コンパイルを見た時刻が残り、同じプロセスの他のテストの窓に入らないように)
+        let compilingOCR = await VisionLivenessProbe.check(.ocr, environment: [:], ocrSupported: true, compileActiveCount: { 1 },
+                                                           now: { Date(timeIntervalSince1970: 0) })
         XCTAssertNil(compilingOCR)
-        let compilingFP = await VisionLivenessProbe.check(.featurePrint, environment: [:], ocrSupported: true, compileActiveCount: { 1 })
+        let compilingFP = await VisionLivenessProbe.check(.featurePrint, environment: [:], ocrSupported: true, compileActiveCount: { 1 },
+                                                          now: { Date(timeIntervalSince1970: 0) })
         XCTAssertNil(compilingFP)
+    }
+
+    /// コンパイル(run の compile-ocr)に巻き込まれて返らない確かめは、コンパイルを見てから期限の間は死と言わない(不明)。
+    /// 窓の後も返らなければ死と言う
+    func testHungCheckOverlappingACompileIsUnknownUntilTheWindowPasses() async throws {
+        let gate = LockedValue(false)
+        let clock = LockedValue(1_000_000.0)
+        let slowProbe: @Sendable (VisionLiveness.Subject) async -> String? = { _ in
+            while !gate.withLock({ $0 }) { try? await Task.sleep(for: .milliseconds(10)) }
+            return nil
+        }
+        func check(compiling: Int) async -> VisionLiveness.Verdict? {
+            await VisionLivenessProbe.check(.featurePrint, environment: [:], ocrSupported: true, compileActiveCount: { compiling },
+                                            now: { Date(timeIntervalSince1970: clock.withLock { $0 }) },
+                                            deadline: 0.1, probe: slowProbe)
+        }
+        let duringCompile = await check(compiling: 1)
+        XCTAssertNil(duringCompile)
+        clock.withLock { $0 += 0.05 }
+        let timedOut = await check(compiling: 0)
+        XCTAssertNil(timedOut, "コンパイルの窓の中の期限切れは死と言わない: \(timedOut?.error ?? "")")
+        let stillRunning = await check(compiling: 0)
+        XCTAssertNil(stillRunning, "窓の中の「返らない」も死と言わない: \(stillRunning?.error ?? "")")
+        clock.withLock { $0 += 1 }
+        let afterWindow = await check(compiling: 0)
+        XCTAssertEqual(afterWindow?.state, .dead, "窓の後も返らなければ死")
+        XCTAssertTrue(afterWindow?.error?.contains("has not returned") ?? false, afterWindow?.error ?? "")
+        gate.withLock { $0 = true }
+        for _ in 0..<200 {
+            if let verdict = await check(compiling: 0), verdict.state == .alive { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("確かめが返った後も確かめ直さない")
     }
 
     /// 単発の失敗で死と書かない: 連続 FMBreaker.threshold 回で初めて書き、生が1回入れば数え直す。注入はすぐ書く
