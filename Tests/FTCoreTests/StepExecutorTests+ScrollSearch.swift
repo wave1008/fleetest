@@ -277,6 +277,30 @@ extension StepExecutorTests {
         XCTAssertFalse(log.entries.contains("primary.swipe"), "払いへ落とさないこと: \(log.entries)")
     }
 
+    /// scrollFrame を書いた横の探索(path がある)でも、中心が中・片方の縁だけで見切れた対象は遅いドラッグで寄せる
+    /// (path の払いは XCUITest で容器幅以上流れ、反対の縁へ飛び越して往復した = E2EY-iOS の入れ子スクロール)
+    func testOneEdgeClipInsideAScrollFrameIsPulledBackBySlowDragNotASwipe() async throws {
+        let log = CallLog()
+        // 棚は画面の幅いっぱい・カードは右端で 10 はみ出し(寄せ = 10 + 24 = 34 < 40 → 最小量 60 へ広げる)・中心は中
+        let shelf = framed(ref: 100, id: "shelf_7", x: 0, y: 600, width: 400, height: 120, depth: 1)
+        let clipped = framed(ref: 1, id: "card_7_12", x: 270, y: 600, width: 140, height: 120, depth: 2)
+        let inside = framed(ref: 1, id: "card_7_12", x: 200, y: 600, width: 140, height: 120, depth: 2)
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [
+            [shelf, clipped],
+            [shelf, clipped],
+            [shelf, inside],
+        ])
+        let executor = StepExecutor(driver: primary, releasesScrollTouch: true, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "card_7_12"),
+                                            direction: "left", maxSwipes: 4,
+                                            scrollFrame: FlowLocator(id: "shelf_7")))
+
+        let pulls = primary.dragCalls.filter { $0.fromY == $0.toY && $0.fromX > $0.toX }
+        XCTAssertTrue(pulls.contains { abs(($0.fromX - $0.toX) - StepExecutor.clipRecoveryMinimumJump * 0.9) < 0.5 },
+                      "最小量(60 × 0.9)の指を左へのドラッグで寄せること: drags=\(primary.dragCalls) log=\(log.entries)")
+        XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.swipe") }, "払いへ落とさないこと: \(log.entries)")
+    }
+
     /// 寄せを広げる最小量は、`dragGesture` が撃つ距離(量 × 0.9)の床を越えていること(下回ると撃たれずに払いへ落ちる)
     func testClipRecoveryMinimumJumpClearsTheDragFloor() {
         XCTAssertGreaterThan(StepExecutor.clipRecoveryMinimumJump * 0.9, StepExecutor.minimumDragDistance)

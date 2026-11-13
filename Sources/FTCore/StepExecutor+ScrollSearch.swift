@@ -1248,10 +1248,13 @@ extension StepExecutor {
                     // **中心が中・片方の縁だけで少しはみ出した回も広げる**: 払いへ落とすと約1ページ動いて反対の縁へ
                     // 飛び越し、次の回も少しはみ出して払いへ落ちる往復で maxSwipes を使い切った(E2EY-iOS の高さの揃わない
                     // グリッドの XCUITest: はみ出し 5pt / 3pt → 寄せ 29 / 27 → 払い。8/8 赤)
-                    let widened = pagesPerSwipe
-                        || TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
-                            element.frame, container: viewport, vertical: back == .up || back == .down)
-                    if path == nil || pagesPerSwipe,
+                    // **この形は path があっても(scrollFrame・推定した容器)ドラッグで寄せる**: path の送りも XCUITest では
+                    // 慣性で容器幅以上流れ、横の棚(容器 370pt・カード 140pt)で 268 → -50 → 333 → -48 と往復した(xcuitest の
+                    // E2EY-iOS の入れ子スクロール 9 回中 2 回)。下の +28% は寄せ全体を置き換えた版の値
+                    let oneEdgeCentreInside = TapTargetGeometry.isClippedAtOneEdgeWithCentreInside(
+                        element.frame, container: viewport, vertical: back == .up || back == .down)
+                    let widened = pagesPerSwipe || oneEdgeCentreInside
+                    if path == nil || pagesPerSwipe || oneEdgeCentreInside,
                        let raw = Self.clipRecoveryJump(for: element, viewport: viewport, finger: back),
                        case let jump = widened ? (raw < 0 ? -1 : 1) * max(abs(raw), Self.clipRecoveryMinimumJump) : raw,
                        abs(jump) >= 40,
