@@ -27,26 +27,16 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 | |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-218・OI-221・OI-225 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 17 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 3 | OI-184・OI-198・OI-214 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 30 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-224 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 31 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-224・OI-225 |
 
 ## 着手可
 
 ## 要測定
-
-### OI-225 実機の iOS(inapp-boost)で、WebView の DOM 要素への合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する
-- 状態: 再現済み
-- 確認: 4563640be(2026-11-13)
-- 属性: 要測定
-- 運用: 合否に響かない(注記だけ・判定は緑で正しい)
-- 優先度: 低 — 事実と違う注記
-
-出典: `_work/explore-20261113c/findings-phys.md`(54周目 phys F1)。iPhone SE3(実機)の E2E-iOS の WebView 画面で、リンク・送信・アリアラベル・変形・固定の5つのボタンへの tap の全部に「activate did not fire -> synthetic touch …; the screen looked the same when it settled after the synthetic touch」(1 run 中 5/5)。直後の `textIs("wv_result=*")` は5つとも緑 = DOM の表示は変わっていた。Simulator の同じシナリオの最近 14 本では 0〜2 件/本。注記は in-app ブリッジの `pixelPrint`(`drawHierarchy(afterScreenUpdates: false)`)の前後一致で出るが、WKWebView の描画が写らないのか、JS の反映が整定より後なのかは確かめていない = 材料不足。同じ SE3 で `tap("#field_single")` にも同じ注記(キーボードが出たかは見ていない)
-- 次の一手: 実機で同じタップの前後の pixelPrint と、整定の後に少し空けた pixelPrint を採って、どちらの筋書きかを分ける
 
 ### OI-221 E2EX-iOS(inapp-boost)の並べ替えで、長押しからのドラッグ(XCUITest へ回した gesture)が ✅ なのに順番が変わらない(8台同時で約 3 割)
 - 状態: 再現済み
@@ -300,6 +290,17 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
+
+### OI-225 実機の iOS(inapp-boost)で、WebView の DOM 要素への合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する
+- 状態: 再現済み
+- 確認: 4563640be(2026-11-13)
+- 属性: 据え置き
+- 運用: 合否に響かない(注記だけ・判定は緑で正しい)
+- 優先度: 低 — 注記は「整定した時点で同じに見えた」でぼかしてあり、事実と食い違わない
+
+出典: `_work/explore-20261113c/findings-phys.md`(54周目 phys F1)。iPhone SE3(実機)の E2E-iOS の WebView 画面で、リンク・送信・アリアラベル・変形・固定の5つのボタンへの tap の全部に「activate did not fire -> synthetic touch …; the screen looked the same when it settled after the synthetic touch」(1 run 中 5/5)。直後の `textIs("wv_result=*")` は5つとも緑 = DOM の表示は変わっていた。Simulator の同じシナリオの最近 14 本では 0〜2 件/本。注記は in-app ブリッジの `pixelPrint`(`drawHierarchy(afterScreenUpdates: false)`)の前後一致で出るが、WKWebView の描画が写らないのか、JS の反映が整定より後なのかは確かめていない = 材料不足。同じ SE3 で `tap("#field_single")` にも同じ注記(キーボードが出たかは見ていない)
+- 11/13 に測定(SE3・1/1 で再現): in-app の絵(`/screenshot` = `drawHierarchy`。注記の比べと同じ撮り方)は WebView の中身を写す —— タップの前は `wv_result=-`、タップのステップが返った直後の絵は `wv_result=link`、1.5 秒後も同じ。= 「撮り方に写らない」は否定。注記はブリッジの中で合成タッチの直後の整定(メインスレッド)の終わりに比べるので、別のプロセスの WebContent の描画が整定より後に来た(直後の撮影には間に合う)= 間合いの問題
+- 据え置きの理由: 注記の文は「整定した時点で同じに見えた」+「後から反応する処理(RN の onPress 等)はまだ動きうる」で、事実と食い違わない。直すなら、WebView の DOM へ撃った回は注記の「後から反応する」の例に WebView を足すか注記を出さない(ブリッジの版上げが要る)
 
 ### OI-224 失敗文の添え書きが、後の操作が効いた後でも、前の「画面が変わらなかったタップ」(選択中のタブの押し直し等)を「飲まれたかも」と名指す
 - 状態: 再現済み
