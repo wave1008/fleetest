@@ -243,6 +243,7 @@ const EXTERNAL_CODE_NAMES = new Set([
   "ApplicationFirewall", "BootSessionIdentifier", "DiagnosticCollectionPolicy", "GenerativeExperiencesSafetyInferenceProvider",
   "JavaVirtualMachines", "MobileAsset", "ModuleCache", "RemoteVideoEncoder", "SwiftTestingInteropRecordHandler",
   "TextRecognition", "TodayFeedConfigDecoder", "V11E2EPipeline", "H14D",
+  "SimMetalHost",
   // sshd_config のキー
   "PasswordAuthentication", "PermitRootLogin", "PermitUserEnvironment", "StrictHostKeyChecking",
   // UI フレームワーク・エージェントの名前
