@@ -30,8 +30,8 @@
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 20 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 4 | OI-184・OI-198・OI-214・OI-228 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 21 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 5 | OI-184・OI-198・OI-214・OI-228・OI-231 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 32 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-224・OI-225・OI-228 |
 
 ## 着手可
@@ -288,6 +288,17 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/11(材料の採り口): 通った単数の `findImage` / `existImage` の照合の絵を次の1ステップへ持ち越し、そのステップ(`idIs` 等)が自分の絵を持たずに落ちたらレポートに添える(印 `preceding-image-match`)。照合の記述に採った候補の切り出しの枠(`cropped at x,y wxh`)も出す。**次に赤が出たら、添えた絵のその枠を切り出して 0.000 を作った絵を見る**(白紙・一色・正しい行と同じ絵か)。同じ時刻のその機械の Vision の死活の履歴(`vision-history.ndjson`・OI-137)も見る
 
 ## 環境側
+
+### OI-231 iOS Simulator で、アプリが OS のアクセシビリティの部品の中で SIGTRAP で落ちる(`AXBinaryMonitor` → `CFPrefs` の `_CFSetTSD`)
+- 状態: 再現済み
+- 確認: cacfc6f18(2026-11-14)
+- 属性: 環境側・低頻度
+- 運用: 再実行で吸収 — 落ちた後の手は「the target app … is not running」で赤(アプリの落ちはレポートの ⚠️ の行に出る)
+- 優先度: 低 — 落ちたのはアプリでも fleetest でもなく OS の部品
+
+出典: `_work/regress-20261113e`(11/13 の全マシンの回帰)。M1Max の E2EX-CMP / ios-xcuitest「時刻ピッカーで時刻を確定できること」S0020 で、`tap("#btn_time_cancel")` の直後の `select` が「Lost connection to the application」の 500 で赤。M1Max の落ちの報告 `iosApp-2026-11-13-190843.ips` の落ちたスレッドは `AXBinaryMonitor _processLoadedImagesMatchingName` → `CFPrefsPlistSource handleReply` → `_CFSetTSD.cold.1`(EXC_BREAKPOINT)= アプリのコードの枠が無い
+- 同じ落ち方は手元(M2Ultra)の SpringBoard(`SpringBoard-2026-11-13-104503.ips`)と CalendarPosterExtension(`…-104854.000.ips`)にもある = アプリに依らない。M1Ultra・M4Max の報告には無い(11/14 時点)
+- ツールの側で手を打つ材料は無い(落ちた後の撃ち直しは「届いたか分からない操作は撃ち直さない」で行わない)。頻度が上がったら Simulator のランタイムの入れ直しで減るかを測る
 
 ### OI-228 iOS Simulator で、Mac 側の Metal の中継(SimMetalHost の落ちの報告)が落ち、Flutter のアプリが SIGABRT で落ちる(手元・11/13 に 15 回)
 - 状態: 再現済み
