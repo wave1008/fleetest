@@ -542,8 +542,8 @@ extension MCPServer {
         // DSL と同じ: Android は木でスライダーか・範囲の外かを撃つ前に言える(SliderTarget)
         if sliderDriver is AndroidDriver {
             if SliderTarget.androidHasNoSlider(element: element, target: target, in: elements) {
-                throw MCPError("[\(ref)] is not a slider — neither it nor anything at its position is a slider or has a range in the"
-                    + " tree, so nothing was sent")
+                throw MCPError("[\(ref)] is not a slider in the tree — neither it nor anything at its position has the slider type or a"
+                    + " range there, so nothing was sent")
             }
             if let refusal = SliderTarget.outOfRangeRefusal(target, wanted: wanted) {
                 throw MCPError("set slider value \(SliderValueLoop.format(wanted)) on [\(ref)] failed: \(refusal)")

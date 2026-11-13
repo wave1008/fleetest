@@ -211,6 +211,14 @@ public enum SliderValueLoop {
             }
             return SliderValueOutcome(value: edge.1, steps: steps)
         }
+        // 端を撃っても値が変わらない = 撃って動く部品ではない(読み取り専用の進捗バー等)。範囲の外と言わない
+        // (両端の同じ値を「届く範囲」と書くと、木の range の中の値に「'0' to '0' の外」と言っていた)
+        if lo.2 == hi.2 {
+            throw Failure.stopped(lastValue: (last ?? lo).1, wanted: wanted,
+                                  reason: readBothEnds
+                                    ? "moving to either end of it left the value at '\(lo.1)', so it does not move this way"
+                                    : "moving to its end left the value at '\(lo.1)', so it does not move this way")
+        }
         guard min(lo.2, hi.2) < wanted, wanted < max(lo.2, hi.2) else {
             // 範囲の外: 目当てに近い端につまみを置いて(最後に撃ったのが反対の端なら撃ち直す)、そこで止まったと言う
             let near = abs(lo.2 - wanted) <= abs(hi.2 - wanted) ? lo : hi

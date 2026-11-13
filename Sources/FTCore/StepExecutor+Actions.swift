@@ -1759,8 +1759,8 @@ extension StepExecutor {
             if isAndroid {
                 if SliderTarget.androidHasNoSlider(element: element, target: target, in: snapshot.elements) {
                     return StepOutcome(status: .failed(
-                        "setSliderValue: \(element.identifier.map { "#\($0)" } ?? element.type) is not a slider — neither it nor"
-                            + " anything at its position is a slider or has a range in the tree, so nothing was sent"))
+                        "setSliderValue: \(element.identifier.map { "#\($0)" } ?? element.type) is not a slider in the tree — neither it"
+                            + " nor anything at its position has the slider type or a range there, so nothing was sent"))
                 }
                 if let refusal = SliderTarget.outOfRangeRefusal(target, wanted: wanted) {
                     return StepOutcome(status: .failed("setSliderValue \(step.text ?? "") failed: \(refusal)"))

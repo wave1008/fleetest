@@ -181,6 +181,20 @@ final class SliderValueTests: XCTestCase {
         XCTAssertEqual(probes.last, 0, "最後に撃ったのが左端でない = つまみが別の所に残る: \(probes)")
     }
 
+    /// **端を撃っても値が変わらない部品(読み取り専用の進捗バー)は「範囲の外」と言わない**(両端の同じ値を範囲と読み、
+    /// 木の range の中の 50 に「outside what the slider reaches ('0' to '0')」と言っていた = Android の View・RN の進捗バー)
+    func testPositionOnAPartThatDoesNotMoveSaysItDoesNotMove() async throws {
+        for start in [nil, (0.5, "0")] as [(position: Double, value: String)?] {
+            do {
+                _ = try await SliderValueLoop.byPosition(start: start, wanted: 50, resolution: 1.0 / 370) { _ in "0" }
+                XCTFail("通った")
+            } catch let failure as SliderValueLoop.Failure {
+                XCTAssertTrue(failure.description.contains("left the value at '0', so it does not move this way"), failure.description)
+                XCTAssertFalse(failure.description.contains("outside"), failure.description)
+            }
+        }
+    }
+
     /// **範囲の外は、目当てに近い端につまみを置き、そこで止まったと言う**。片側の端しか読んでいなければ範囲を「A〜B」と言わない
     /// (撃つ前の値を端と取り違えて「'50%' to '100%'」と言い、下向きでは動かした後の値でなく撃つ前の値を「止まった」と言っていた)
     func testPositionOutOfRangeNamesTheEndItRestsOn() async throws {
@@ -347,7 +361,7 @@ final class SliderValueTests: XCTestCase {
                       "\(driver.coordinateTaps)")
     }
 
-    /// タップで値が変わらない(つまみを引かないと動かない UISlider)なら、範囲の外として止まる(回数を数えずに終わる)
+    /// タップで値が変わらない(つまみを引かないと動かない UISlider)なら、両端を読んだところで「動かない」と言って止まる
     func testTapPositionStopsWhenTappingDoesNotMoveIt() async throws {
         let log = CallLog()
         let frame = FTRect(x: 16, y: 459, width: 370, height: 31)
@@ -358,7 +372,7 @@ final class SliderValueTests: XCTestCase {
             _ = try await SliderTapPosition.set(driver: driver, frame: frame, area: frame, identifier: "s", current: "50%", wanted: 75)
             XCTFail("通った")
         } catch let failure as SliderValueLoop.Failure {
-            XCTAssertTrue(failure.description.contains("outside"), failure.description)
+            XCTAssertTrue(failure.description.contains("left the value at '50%', so it does not move this way"), failure.description)
             XCTAssertEqual(driver.coordinateTaps.count, 2, "両端を読んだところで止まる")
         }
     }
