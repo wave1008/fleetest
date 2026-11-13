@@ -39,24 +39,18 @@ following ../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 
 4. If you use an **AI assistant other than Claude Code**, the setup asks whether to register the MCP server; choose to register it.
 
-5. When the installation finishes, restart VSCode.
+5. When the installation finishes, your AI assistant reports the environment check (`fleetest doctor`). Confirm that no errors are reported.
 
-6. Click **fleetest** in the status bar at the lower-left corner of VSCode. The Device Monitor opens.
+   Expected result:
+
+   - Xcode and (for Android) adb show ✅. The Simulator row shows ⚠️ (No booted simulators) when none is running, which is fine.
+   - You can go on even if the `On-device model` and `FM visual verification` rows show ❌.
+
+6. Restart VSCode.
+
+7. Click **fleetest** in the status bar at the bottom of VSCode. The Device Monitor opens.
 
    <img src="images/quick_start/en/device_monitor.png" width="1200" alt="The Device Monitor just opened">
-
-7. Give your AI assistant this instruction and confirm that no errors are reported
-
-```text
-Run ../fleetest/.build/debug/fleetest doctor and report the result.
-A ❌ on the `On-device model` and `FM visual verification (image input)` rows appears when Apple Intelligence is off and only disables screenLooksLike and FM-based scenario drafting (the text visibility check continues with OCR alone), so ignore it.
-Even if the exit code is 1, confirm there is no other ❌.
-```
-
-Expected result:
-
-- Xcode and (for Android) adb show ✅. The Simulator row shows ⚠️ (No booted simulators) when none is running, which is fine.
-- You can go on even if the `On-device model` and `FM visual verification` rows show ❌.
 
 ## 4. Preparing the sample app
 
@@ -97,19 +91,13 @@ Create the app profile and the run profile.
 
 ### Prompt for the AI
 
-For iOS:
-
 ```text
-In project1, build the sut-ec-mobile iOS app and create its profiles.
-The app's display name is "SUT Store". Use two devices. The app ID is com.sutec.mobile.ios.
-Use JDK 25 for the build (Homebrew's openjdk@25, at /opt/homebrew/opt/openjdk@25).
-```
-
-For Android:
-
-```text
-In project1, build the sut-ec-mobile Android app and create its profiles.
-The app's display name is "SUT Store". Use two devices. The app ID is com.sutec.mobile.android.
+In project1, build the sut-ec-mobile iOS app and Android app and create their profiles.
+If the Android SDK is not installed, iOS alone is fine.
+Set the app's display name to "SUT Store".
+Use two devices per OS. Set the app IDs to
+com.sutec.mobile.ios for iOS and
+com.sutec.mobile.android for Android.
 Use JDK 25 for the build (Homebrew's openjdk@25, at /opt/homebrew/opt/openjdk@25).
 ```
 
@@ -149,7 +137,7 @@ Passing the built app to `--app-path` makes the run install it on the device aut
 `--auto-device` picks a Simulator/Emulator with the newest iOS runtime and the newest Pixel (and creates it
 when missing; a missing iOS runtime is downloaded first: several GB, several minutes to tens of minutes;
 one that is not running is started automatically at run time). The app profiles are named `ios-app` and `android-app`, and the
-run profiles `ios-run` and `android-run`. `--count 2` makes the run profile hold two devices of that OS in total (existing devices with the same settings are reused in ascending number order and the missing ones are created; it is the same as "use two devices" in the instruction). You can also add devices later with "Add device" on the
+run profiles `ios-run` and `android-run`. `--count 2` makes the run profile hold two devices of that OS in total (existing devices with the same settings are reused in ascending number order and the missing ones are created; it is the same as "use two devices per OS" in the instruction). You can also add devices later with "Add device" on the
 "Profiles" tab of the VSCode extension's Device Monitor.
 If the Android system image is not installed yet, the command refuses unless you add `--accept-licenses` to accept the Android SDK license (check the license shown in the refusal first).
 
@@ -162,10 +150,46 @@ Open the "Profiles" tab of the VSCode Device Monitor and check that the app prof
 
 Expected result:
 
-- The "Profiles" tab lists ios-run (with two devices).
+- The "Profiles" tab lists ios-run and android-run (two devices each). Without the Android SDK, only ios-run is listed.
 - If no iOS runtime is installed, fetching it takes several GB and a few minutes to tens of minutes.
 
-## 6. Create the scenarios
+## 6. Launch the sample app
+
+Start the sample app's server, launch the app on a device, and operate it yourself from the Device Monitor.
+
+### Prompt for the AI
+
+```text
+Start the server project1 uses, with the ios-run profile.
+Install SUT Store on one device of ios-run, launch it, and tell me which device it is running on.
+```
+
+- If an MCP permission dialog appears, allow it.
+- To run it on Android, read "ios-run" as "android-run".
+
+Then operate the device from the Device Monitor.
+
+You can operate the app screen shown in the grid view (the selected device). Try out various operations.
+
+<img src="images/quick_start/en/live_control.png" width="1200" alt="Operating the app in the grid view of the Device Monitor">
+
+The server keeps running until you stop it, and the next step uses it as it is to create the scenario. To stop it, tell the AI "stop the server project1 uses".
+
+<details>
+<summary><b>If you do it manually (click to show details)</b></summary>
+
+Start and stop the server in your work folder.
+
+```bash
+../fleetest/.build/debug/fleetest services up --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services down --project project1 --profile ios-run
+```
+
+For operating the device from the Device Monitor, see "Touch it yourself (Live Control)" in [Watching in VSCode](tutorial/watching_in_vscode.md).
+
+</details>
+
+## 7. Create the scenarios
 
 Let's create a happy-path test up to opening a product.
 
@@ -200,7 +224,11 @@ Start the server by hand, create the test, and stop it when you are done.
 
 </details>
 
-## 7. Run it on a device
+<br>
+
+<img src="images/quick_start/en/create_scenario.png" width="600" alt="The AI assistant creating a scenario">
+
+## 8. Run it on a device
 
 Let's run the scenarios you created.
 
@@ -236,7 +264,7 @@ Command Palette. When the project has only one run profile, it is selected autom
 
 </details>
 
-## 8. Read the results
+## 9. Read the results
 
 Every run writes a Markdown report per scenario to `TestProjects/<project>/reports/`.
 
@@ -264,7 +292,7 @@ can open the report from there.
 
 </details>
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 If you run into a problem, ask your AI assistant. Common symptoms and how to narrow them down are
 collected in [Troubleshooting](in_action/troubleshooting.md).

@@ -39,24 +39,18 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 4. **Claude Code 以外の AIアシスタント**を使う場合は、セットアップの途中で MCP を登録するか聞かれるので、登録してください
 
-5. インストールが完了したら、VSCode を再起動します
+5. インストールが完了すると、AIアシスタントが環境の確認結果(`fleetest doctor`)を報告します。エラーが報告されていないことを確かめます
 
-6. VSCode の左下のステータスバーに表示される **fleetest** をクリックします。デバイスモニターが開きます
+   期待する結果:
+
+   - Xcode・(Android なら)adb が ✅ になります。Simulator は、起動していなければ ⚠️(No booted simulators)で正常です。
+   - `On-device model`・`FM visual verification` の行は ❌ でも先へ進めます。
+
+6. VSCode を再起動します
+
+7. VSCode の下部のステータスバーに表示される **fleetest** をクリックします。デバイスモニターが開きます
 
    <img src="images/quick_start/ja/device_monitor.png" width="1200" alt="デバイスモニターが開いたところ">
-
-7. AIアシスタントへ次のように指示し、エラーが出ないことを確かめます
-
-```text
-../fleetest/.build/debug/fleetest doctor を実行して結果を報告して。
-`On-device model` と `FM visual verification (image input)` の行の ❌ は、Apple Intelligence が無効なときに出るもので、screenLooksLike と FM によるシナリオの下書きが使えなくなるだけ(テキストの可視性検証は OCR だけで続く)なので無視してよい。
-終了コードが 1 でも、それ以外に ❌ が無ければよい。
-```
-
-期待する結果:
-
-- Xcode・(Android なら)adb が ✅ になります。Simulator は、起動していなければ ⚠️(No booted simulators)で正常です。
-- `On-device model`・`FM visual verification` の行は ❌ でも先へ進めます。
 
 ## 4. サンプルアプリの準備
 
@@ -97,19 +91,14 @@ bash ../sut-ec-mobile/fleetest/prepare.sh
 
 ### AIへの指示文
 
-iOS の場合:
-
 ```text
-project1 に、sut-ec-mobile の iOS アプリをビルドしてプロファイルを作成して。
-アプリの表示名は「SUT Store」。デバイスは2台にして。アプリ ID は com.sutec.mobile.ios。
-ビルドには JDK 25(Homebrew の openjdk@25。/opt/homebrew/opt/openjdk@25)を使って。
-```
-
-Android の場合:
-
-```text
-project1 に、sut-ec-mobile の Android アプリをビルドしてプロファイルを作成して。
-アプリの表示名は「SUT Store」。デバイスは2台にして。アプリ ID は com.sutec.mobile.android。
+project1 に、sut-ec-mobile の iOS アプリと Android アプリをビルドしてプロファイルを作成して。
+Android SDK が入っていなければ iOS だけでよい。
+アプリの表示名は「SUT Store」にして。
+デバイスは OS ごとに2台にして。アプリ ID は 
+iOS は com.sutec.mobile.ios、
+Android は com.sutec.mobile.android
+にして。
 ビルドには JDK 25(Homebrew の openjdk@25。/opt/homebrew/opt/openjdk@25)を使って。
 ```
 
@@ -149,7 +138,7 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
 `--auto-device` は、最新の iOS ランタイムと最新の Pixel を使う Simulator/Emulator を自動で選びます
 (足りなければ作成します。iOS のランタイムが未導入のときは数 GB をダウンロードするので数分〜数十分かかります。
 起動していないものは実行時に自動で起動します)。アプリプロファイルの名前は `ios-app`・`android-app`、実行プロファイルの名前は `ios-run`・`android-run` になります。
-`--count 2` は、その実行プロファイルの該当 OS のデバイスを全部で2台にします(同じ内容の既存デバイスは番号の小さい順に再利用し、足りない分を作ります。指示文の「デバイスは2台にして」と同じです)。あとから VSCode 拡張のデバイスモニターの「プロファイル」タブにある「デバイスを追加」でも足せます。
+`--count 2` は、その実行プロファイルの該当 OS のデバイスを全部で2台にします(同じ内容の既存デバイスは番号の小さい順に再利用し、足りない分を作ります。指示文の「デバイスは OS ごとに2台にして」と同じです)。あとから VSCode 拡張のデバイスモニターの「プロファイル」タブにある「デバイスを追加」でも足せます。
 Android のシステムイメージが未導入のときは、Android SDK のライセンスに同意する `--accept-licenses` を付けないとコマンドが断ります(ライセンスの内容は断ったときの表示で確かめてください)。
 
 </details>
@@ -161,10 +150,46 @@ VSCode のデバイスモニターの「プロファイル」タブを開き、�
 
 期待する結果:
 
-- 「プロファイル」タブに ios-run(デバイス2台)が並びます。
+- 「プロファイル」タブに ios-run と android-run(それぞれデバイス2台)が並びます。Android SDK が無ければ ios-run だけです。
 - iOS ランタイムが未導入なら、数 GB の取得で数分〜数十分かかります。
 
-## 6. シナリオを作る
+## 6. サンプルアプリを起動する
+
+サンプルアプリのサーバーを起動し、デバイスでアプリを起動して、デバイスモニターから自分の手で操作してみましょう。
+
+### AIへの指示文
+
+```text
+project1 で使用するサーバーを ios-run プロファイルで起動して。
+ios-run のデバイス1台に SUT Store を入れて起動し、どのデバイスで起動したかを報告して。
+```
+
+- MCPの許可ダイアログが表示された場合は許可してください。
+- Android で実行したい場合は「ios-run」を「android-run」に読み替えてください。
+
+続けて、デバイスモニターで操作します。
+
+グリッドビュー(選択したデバイス)に出たアプリの画面を操作できます。いろいろ操作してみてください
+
+<img src="images/quick_start/ja/live_control.png" width="1200" alt="デバイスモニターのグリッドビューでアプリを操作しているところ">
+
+サーバーは止めるまで動き続け、次のステップのシナリオ作成でもそのまま使います。止めるときは「project1 のサーバーを止めて」と指示します。
+
+<details>
+<summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
+
+サーバーは作業フォルダで起動・停止します。
+
+```bash
+../fleetest/.build/debug/fleetest services up --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services down --project project1 --profile ios-run
+```
+
+デバイスモニターの操作は[VSCode で見る](tutorial/watching_in_vscode_ja.md)の「自分の手で触る(ライブ操作)」を参照してください。
+
+</details>
+
+## 7. シナリオを作る
 
 商品を開くまでの基本ルートのテストを作成してみましょう。
 
@@ -199,7 +224,11 @@ project1 で、SUT Store の「商品詳細を開くテスト」を iOS で1本�
 
 </details>
 
-## 7. デバイスで実行する
+<br>
+
+<img src="images/quick_start/ja/create_scenario.png" width="600" alt="AIアシスタントがシナリオを作成しているところ">
+
+## 8. デバイスで実行する
 
 作成したシナリオを実行してみましょう。
 
@@ -235,7 +264,7 @@ VSCode からは **Test Explorer** でシナリオを選び、**実行**をク�
 
 </details>
 
-## 8. 結果を見る
+## 9. 結果を見る
 
 実行のたびに `TestProjects/<プロジェクト>/reports/` にシナリオごとの Markdown
 レポートが出ます。
@@ -264,7 +293,7 @@ project1 の直近の実行結果を要約し、失敗があればレポート�
 
 </details>
 
-## 9. トラブルシュート
+## 10. トラブルシュート
 
 問題が起きたら AIアシスタントに相談してください。よくある症状と切り分けは
 [トラブルシューティング](in_action/troubleshooting_ja.md)にまとめてあります。

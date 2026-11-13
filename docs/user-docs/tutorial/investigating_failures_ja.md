@@ -34,7 +34,7 @@ project1 の直近の実行結果を要約し、失敗があれば、失敗し�
 
 - `TestProjects/project1/reports/` にシナリオごとの Markdown レポートがあります。
 - VSCode では Test Explorer が成否を直接表示し、そこからレポートを開けます。
-  VSCode 左下のステータスバーの **fleetest** から開くモニターの「ダッシュボード」タブで、実行の履歴と成功率も見られます。
+  VSCode の下部のステータスバーの **fleetest** から開くモニターの「ダッシュボード」タブで、実行の履歴と成功率も見られます。
 
 </details>
 <br>
