@@ -131,6 +131,7 @@
 - [Android の折りたたみ機は閉じるとロック画面が出る](../commands/navigation_ja.md#注意点) — `fold()` はスワイプで外して進みますが、PIN やパターンのロックは外せません。
 - [hinge はどちらの画面が出るかを確かめない](../commands/navigation_ja.md#注意点) — 切り替わる角度は直前の状態に依存します。特定の画面が要るなら `fold()` / `unfold()` を使います。
 - [iOS の fold / unfold は非公開のヒンジイベントを送る](../commands/navigation_ja.md#注意点) — 将来の Xcode で受け付けなくなる可能性がありますが、切り替わりを確かめるので黙って通らず失敗します。
+- [iPhone Duo の Simulator は開くと落ち続けることがある](../commands/navigation_ja.md#注意点) — `unfold()` の後に SpringBoard とキーボードが落ちて起き直す間は、アプリが背景に回りキーボードも消えます。レポートに回数と時刻が載るので、操作の結果を検証で確かめます。
 
 ### pressEnter, hideKeyboard
 - [pressEnter が改行か確定アクションかはフィールドが決める](../commands/press_enter_hide_keyboard_ja.md#注意点) — コマンド側では選べません。`type` の末尾 `\n` も同じです。

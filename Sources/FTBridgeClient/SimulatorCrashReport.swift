@@ -199,6 +199,59 @@ public enum SimulatorCrashReport {
         return nil
     }
 
+    /// 落ちると、起き直すまでの間ステップが見る画面そのものが欠けるシステムのプロセス(`file` = .ips のファイル名の頭 = app_name)。
+    /// SpringBoard: アプリが背景に回る(in-app ブリッジは 423)/ InputUI: キーボードが消える(hideKeyboard が「出ていない」で ✅)。
+    /// iPhone Duo の開閉の後に FBSDisplayMode の assert で約 18 秒おきに落ち続ける。観測したこの2つだけ
+    public static let screenSystemProcesses: [(file: String, bundleID: String, role: String)] = [
+        ("SpringBoard", "com.apple.springboard", "the app goes to the background while it restarts"),
+        ("InputUI", "com.apple.InputUI", "no keyboard is on screen while it restarts"),
+    ]
+
+    public struct SystemCrash: Equatable, Sendable {
+        public let name: String
+        public let time: Date
+        public let path: String
+    }
+
+    /// `since` 以降にこのシミュレータで落ちた `screenSystemProcesses` の報告(古い順)。ファイル名の頭で先に絞る
+    /// (落ち続けると他のデーモンの報告も同じ窓に並ぶので、findRecent の 50 件の上限に掛けない)。
+    /// 発生時刻(`reportTime`)を読めない・デバイスを読めない報告は帰属させない
+    public static func systemCrashes(udid: String, since: Date,
+                                     dir: URL = FileManager.default.homeDirectoryForCurrentUser
+                                         .appendingPathComponent("Library/Logs/DiagnosticReports")) -> [SystemCrash] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return [] }
+        var found: [SystemCrash] = []
+        for process in screenSystemProcesses {
+            for name in names where name.hasPrefix(process.file + "-") && name.hasSuffix(".ips") {
+                let url = dir.appendingPathComponent(name)
+                guard let content = readWholeText(url),
+                      let header = splitHeaderAndPayload(content)?.header,
+                      header.contains("\"bundleID\":\"\(process.bundleID)\""),
+                      deviceUDID(inReport: content) == udid.uppercased(),
+                      let time = reportTime(inReport: content), time >= since else { continue }
+                found.append(SystemCrash(name: process.file, time: time, path: url.path))
+            }
+        }
+        return found.sorted { $0.time < $1.time }
+    }
+
+    /// シナリオの報告に添える1行(事実だけ: 何が何回・最初と最後の時刻・役割・報告1件)。無ければ nil
+    public static func systemCrashNotice(_ crashes: [SystemCrash], timeZone: TimeZone = .current) -> String? {
+        guard let first = crashes.first, let last = crashes.last else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "HH:mm:ss"
+        let counts = screenSystemProcesses.compactMap { process -> String? in
+            let n = crashes.filter { $0.name == process.file }.count
+            return n == 0 ? nil : "\(process.file) \(n) time\(n == 1 ? "" : "s") (\(process.role))"
+        }
+        let span = crashes.count == 1 ? "at \(formatter.string(from: first.time))"
+            : "from \(formatter.string(from: first.time)) to \(formatter.string(from: last.time))"
+        return "the simulator's system processes crashed while this scenario ran: " + counts.joined(separator: ", ")
+            + ", \(span); a step reported ok in that span may have run while one of them was restarting (latest report: \(last.path))"
+    }
+
     private static func readWholeText(_ url: URL) -> String? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return String(data: data, encoding: .utf8)

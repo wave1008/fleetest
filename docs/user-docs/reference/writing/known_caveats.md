@@ -131,6 +131,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Foldable Android lock screen](../commands/navigation.md#notes) — `fold()` dismisses the swipe-up lock screen; a PIN or pattern lock cannot be dismissed.
 - [`hinge` does not verify which screen shows](../commands/navigation.md#notes) — the switch angle depends on the previous state; use `fold()` / `unfold()` when you need a specific screen.
 - [iOS fold uses an undocumented hinge event](../commands/navigation.md#notes) — a future Xcode may stop accepting it, and `fold` / `unfold` would then fail loudly, never pass silently.
+- [The iPhone Duo Simulator may keep crashing once unfolded](../commands/navigation.md#notes) — while SpringBoard and the keyboard restart after `unfold()`, the app goes to the background and the keyboard disappears. The report lists how many times and when; check an action's result with a verification.
 
 ### pressEnter, hideKeyboard
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.

@@ -300,4 +300,38 @@ final class SimulatorCrashReportTests: XCTestCase {
 
         XCTAssertEqual(SimulatorCrashReport.deviceUDID(inReport: text), deviceA)
     }
+
+    // MARK: - systemCrashes / systemCrashNotice
+
+    /// 実物の SpringBoard / InputUI の .ips(macOS 27.2・iPhone Duo の開閉の後)と同じ形: ヘッダに bundleID と timestamp、本体に coalitionName
+    private func writeSystemIPS(name: String, bundleID: String?, timestamp: String, device: String) throws {
+        let id = bundleID.map { #","bundleID":"\#($0)""# } ?? ""
+        let header = #"{"app_name":"X","timestamp":"\#(timestamp)"\#(id),"bug_type":"309"}"#
+        let payload = #"{"coalitionName" : "com.apple.CoreSimulator.SimDevice.\#(device)","exception":{"type":"EXC_BREAKPOINT"}}"#
+        try "\(header)\n\(payload)".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+    }
+
+    func testSystemCrashesCountsOnlyThisDevicesSpringBoardAndInputUISinceTheStart() throws {
+        let since = try XCTUnwrap(SimulatorCrashReport.reportTime(inReport: #"{"timestamp":"2026-11-13 10:44:00.00 +0900"}"#))
+        try writeSystemIPS(name: "SpringBoard-a.ips", bundleID: "com.apple.springboard", timestamp: "2026-11-13 10:44:07.00 +0900", device: deviceA)
+        try writeSystemIPS(name: "InputUI-a.ips", bundleID: "com.apple.InputUI", timestamp: "2026-11-13 10:44:23.00 +0900", device: deviceA)
+        try writeSystemIPS(name: "SpringBoard-b.ips", bundleID: "com.apple.springboard", timestamp: "2026-11-13 10:44:24.00 +0900", device: deviceA)
+        // 開始より前・別のデバイス・対象外のプロセス
+        try writeSystemIPS(name: "SpringBoard-old.ips", bundleID: "com.apple.springboard", timestamp: "2026-11-13 10:43:59.00 +0900", device: deviceA)
+        try writeSystemIPS(name: "InputUI-other.ips", bundleID: "com.apple.InputUI", timestamp: "2026-11-13 10:44:30.00 +0900", device: deviceB)
+        try writeSystemIPS(name: "chronod-a.ips", bundleID: nil, timestamp: "2026-11-13 10:44:23.00 +0900", device: deviceA)
+
+        let crashes = SimulatorCrashReport.systemCrashes(udid: deviceA.lowercased(), since: since, dir: dir)
+
+        XCTAssertEqual(crashes.map(\.name), ["SpringBoard", "InputUI", "SpringBoard"])
+        let notice = try XCTUnwrap(SimulatorCrashReport.systemCrashNotice(crashes, timeZone: TimeZone(identifier: "Asia/Tokyo")!))
+        XCTAssertTrue(notice.contains("SpringBoard 2 times (the app goes to the background while it restarts)"), notice)
+        XCTAssertTrue(notice.contains("InputUI 1 time (no keyboard is on screen while it restarts)"), notice)
+        XCTAssertTrue(notice.contains("from 10:44:07 to 10:44:24"), notice)
+        XCTAssertTrue(notice.hasSuffix("SpringBoard-b.ips)"), notice)
+    }
+
+    func testSystemCrashNoticeIsNilWithoutCrashes() {
+        XCTAssertNil(SimulatorCrashReport.systemCrashNotice([]))
+    }
 }

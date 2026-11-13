@@ -27,7 +27,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-223 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-218・OI-221・OI-222 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-218・OI-221 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 16 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221 |
@@ -46,16 +46,6 @@
 出典: `_work/explore-20261113a/findings-*.md`(52周目・11/13)。①Android で `setSliderValue` をスライダーでない要素(ボタン・テキスト・チップ・CMP の RangeSlider)に撃つと「stale reference … Take a new snapshot and resolve the target again」で、従っても同じ・waitSeconds の間撃ち直しを払う(phys F1 DSL 1/1・MCP 7/7・alocal F1 4 SUT で 9/9)。原因は観測済み: `AndroidRunner/src/com/example/ftbridge/BridgeRouter.java` の sliderAt が「スライダーが無い」を stale-ref で断る(Pixel 3a で一瞬だけ見つからない回があったための意図した扱い)= ホストで撃つ前に「スライダーでない」と断る形にする。木で Android のスライダーを見分ける印(型か range)を既存の 5 SUT で反例まで確かめてから入れる ②Android で範囲の外(150・110・-10)を撃つと、/sliderSet が端へ丸めて動かした後、送りの1段目が端で撃てず「the bridge could not increment/decrement the slider」で赤(phys F2 DSL 1/1・MCP 3/3)。木には `range=0-100` が出ているので、範囲の外は撃つ前に断れる(`Sources/FTAndroid/AndroidDriver.swift` の setSliderValue)
 
 ## 要測定
-
-### OI-222 iPhone Duo で hideKeyboard が注記なしの ✅ なのにキーボードが出たまま・続く back() も ✅ で戻らない(2台中2台)
-- 状態: 再現済み
-- 確認: ff1147e8f(2026-11-13)
-- 属性: 要測定
-- 運用: 要注意 — Duo で hideKeyboard の後にキーボードの下の要素を撃つ・back() するシナリオは、閉じたことを検証する
-- 優先度: 高 — 既定の経路の誤った成功(Duo だけ)
-
-出典: `_work/explore-20261113a/findings-duo.md`(52周目・11/13)。①E2E-iOS(ios-duo・inapp-boost・DSL)の入力画面で `hideKeyboard()` が注記なし・0.00 秒で ✅、失敗時のスクリーンショットではキーボードが出たまま(Enter も届いていない)。続く `back()` が 9.96 秒で ✅ でも画面は入力画面のまま → `exist("#nav_input")` が赤(Duo-01・-02 で 2/2)。同じ画面で MCP の `ft_hide_keyboard` は開いた状態でも畳んだ状態でも「背景のタップでは閉じない・Enter は送っていない」と isError で断る・同じ周の SE3 の DSL は Enter を送って閉じた = Duo のときだけ DSL が「キーボードは出ていない」と読んで何もしない疑い。判断に使った木の keyboardFrame は採れていない = 材料不足 ②run の直後の MCP の ft_tap で Duo-01 の XCUITest ブリッジが死んでいたとして作り直され 44.4 秒(1/1・作り直しは成功・ランナーのプロセスは生きていた)
-- 次の一手: ①を Duo で再現し、hideKeyboard の直前の木の keyboardFrame(in-app と XCUITest の両方)と `KeyboardWait.isShown` の答えを採る
 
 ### OI-221 E2EX-iOS(inapp-boost)の並べ替えで、長押しからのドラッグ(XCUITest へ回した gesture)が ✅ なのに順番が変わらない(8台同時で約 3 割)
 - 状態: 再現済み
@@ -293,6 +283,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261106j/findings-*.md`(26周目・11/6)。④iPhone Duo の `unfold` → `home` → `tapAppIcon()` が「Application com.apple.springboard is not running」の 500 で赤(duo F1・1/1。同じ秒に testmanagerd 等のクラッシュ)・開いた Duo の `home()` が「3 回押しても前面のまま」の 422(duo F2・1/1・-02 だけ)= 環境側。11/6 の .ips 32 件のうち SpringBoard 24 件・testmanagerd 6 件がすべて同じ箇所の EXC_BREAKPOINT(`-[FBSDisplayMode _initWithWidth:height:…validityCheck:]` の assert。表示の構成が変わった通知で作り直した表示モードが妥当性の検査に落ちる)で、落ちたのは 2 台の Duo だけ(report-mduo。開閉の最中の途中の表示モードを受け取る筋書きは推測)。ツールは検知と回復まで。次の手(候補): Duo の開閉の後の赤に直近の .ips を事実として添える・開閉の直後は SpringBoard の pid が変わらないことを確かめてから次を撃つ
 - 43周目(11/9): DSL の `unfold()` の後に -01 の SpringBoard が1分に3回落ちた(duo F1 1/1・同じ FBSDisplayMode の EXC_BREAKPOINT。run はレーンを起こし直して緑・失敗文は「bridge up」を勧め SpringBoard を名指さない)。MCP の `ft_fold` の unfold の後は 40・41周目で計 3/3
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
+- 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
 

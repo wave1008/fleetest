@@ -849,6 +849,15 @@ struct RunScenario: AsyncParsableCommand {
             ConsoleOut.err("⚠️ \(notice)")
             reportNotices.append(notice)
         }
+        // 緑・赤どちらでも、このシナリオの間にシミュレータの SpringBoard / InputUI が落ちていたら事実として添える
+        // (起き直す間はアプリが背景・キーボードが無い = その間のステップの ✅ は欠けた画面を見ている)。
+        // .ips は落ちてから遅れて書かれるので、終わりの直前の落ちは載らないことがある(待たない)
+        if !deviceTeardownOnly, let watch = simulatorCrashWatch,
+           let notice = SimulatorCrashReport.systemCrashNotice(
+               SimulatorCrashReport.systemCrashes(udid: watch.udid, since: watch.since)) {
+            ConsoleOut.err("⚠️ \(notice)")
+            reportNotices.append(notice)
+        }
         let reportURL = try? ScenarioReportWriter.write(
             record: record, to: URL(fileURLWithPath: reportDir), notices: reportNotices,
             notApplicableReason: passed ? core.notApplicableReason : nil)
