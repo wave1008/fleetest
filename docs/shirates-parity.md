@@ -284,7 +284,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | fleetest | Shirates | |
 |---|---|---|
 | `restartApp` | `restartApp` | ✅ **揃えた**(2026-07-31) |
-| `notExist` | `dontExist` | ➖ **`notExist` を維持**(ユーザー決定 2026-07-31)。`notExist` は否定の意味が読み取りやすく、`exist` との対称も保てる。**再提案しない** |
+| `notExist` | `dontExist` | ➖ **`notExist` を維持**(DR-135)。`notExist` は否定の意味が読み取りやすく、`exist` との対称も保てる。**再提案しない** |
 | `optional:` 引数なし | `throwsException: false` | ➖ **全廃**(DR-34)。空振りを許す引数が操作系にあると腐ったセレクタが緑で残る。代替は `irregularHandler` / `ifCanSelect`、値を読む用途は `select` の空要素。**再提案しない**。唯一の例外は `waitForSettle` の `throwsException`(効くのは時間切れだけ・要素が見つからなければ常に失敗。「同期」の表) |
 
 ## OS で挙動が割れるもの(利用者に見える差)

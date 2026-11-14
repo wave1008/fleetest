@@ -519,7 +519,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 | `back()` は Shirates の `pressBack`(Android 専用)を home()/appSwitcher() と同列の OS 差吸収コマンドとして両 OS 提供(iOS はエッジスワイプ) | iOS に物理バックが無く、コマンド語彙を OS で割らない方針 |
 | `swipePointToPoint` / `swipeElementToElement` に withOffset・offsetY・intervalSeconds・repeat・safeMode・marginRatio・adjust が無い | ブリッジの drag が単発ジェスチャのため |
 | `optional:` 引数を持たない(Shirates は `throwsException: false`) | DR-34・**再提案しない**。「出るか不定」はアプリ内メッセージなら `irregularHandler`、その場限りなら `ifCanSelect { }` で表す。空振りを黙って許す引数が操作系に付いていると、腐ったセレクタが緑のまま残る。掴めないことが答えになり得る `select` だけは失敗させず空要素を返す |
-| `notExist`(Shirates は `dontExist`) | 否定の意味が読み取りやすく `exist` との対称も保てる(ユーザー決定 2026-07-31・**再提案しない**) |
+| `notExist`(Shirates は `dontExist`) | 否定の意味が読み取りやすく `exist` との対称も保てる(DR-135・**再提案しない**) |
 | `existAll` / `dontExistAll` を持たない | `exist` のチェーンで書く方が保守しやすく、要素ごとに `waitSeconds:` / `scroll:` を指定できる(DR-35・**再提案しない**) |
 | `clearInput` がソフトキー/Appium clear 機構ではない(xcuitest=末尾タップ+delete 連打 / inapp=first responder のテキスト置換(WebView の欄は全選択+削除1回で、確かめは呼び手が木で行う)/ Android=ACTION_SET_TEXT "") | キーボード要素を snapshot から除外しているため(pressEnter と同じ事情) |
 | キーボード可視の取得元がブリッジで違う(iOS xcuitest=AX ツリーの `.keyboard` ノード / iOS in-app=`UITextEffectsWindow` の可視判定 / Android=ホストが見る dumpsys の InputMethod window) | IME が別プロセスの window でアプリの a11y ツリーに出ないため(iOS の2経路の事情は下記「キーボードの観測と `hideKeyboard`」) |

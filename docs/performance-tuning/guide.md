@@ -695,8 +695,8 @@ window/transition/animator の `*_scale` はチューニングノブではなく
      見込みは Android 並み(シナリオ ~2s 級)。制約: タッチ合成に私有 API を使う。
      **実機への注入は実装済み**(開発署名のアプリのみ。DS-11.2・PT-10)。
      当初「実機は注入不可(自ビルドアプリへのリンク方式のみ)」としていたのは実測の無い前提だった。
-     **XCUITest ランナー(Runner/)は残す**(DR-124。当時は実機への注入が無く、
-     単一実装原則の明示的な例外として「シミュレータ=in-app / 実機=XCUITest」の 2 経路を許容した)。
+     **XCUITest ランナー(Runner/)は残す**(DR-124。単一実装原則の明示的な例外。決めた当時の理由は
+     実機への注入が無かったことで、今の役割は DR-124 の理由欄)。
   3. **in-app ブリッジの実装(`InAppBridge/`)**:
      DYLD 注入で対象アプリに常駐し HTTP 応答する in-app ブリッジ。`build.sh` が `BridgeDTO`(共有)+ in-app 実装 +
      ObjC 構成子を単一 dylib(`InAppBridge/build/libFTInAppBridge.dylib`)にリンク

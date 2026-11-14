@@ -155,6 +155,7 @@
 - DR-132 FM の「惜しい」転写の OCR 読み直しは `ocrTextVisibilityCheck` が off でも行う(精度優先)
 - DR-133 `fmTextVisibilityCheck`(FM の段)と `ocrTextVisibilityCheck`(OCR の段)を独立にする
 - DR-134 最初のシナリオを起こす前に `compile-ocr` の完了を待つ
+- DR-135 `exist` の否定形は `notExist` にする(Shirates の `dontExist` に揃えない)
 
 ## DR-1 失敗の記録に「環境要因」などの分類を置かない
 
@@ -1301,9 +1302,9 @@
 
 - 種別: 方針
 - 決定: ユーザー 2026-07-12
-- 内容: 単一実装原則の明示的な例外として「シミュレータ = in-app / 実機 = XCUITest」の2経路を許容した
-- 理由: 当時は実機への注入が無かった。のちに実機への注入が実装された(DS-11.2・PT-10)ので、この理由は今は成立しない
-- 見直す条件: 理由の前提(実機への注入が無い)が既に消えているので、見直しはユーザーへ上げる(testing.md「決定は「根拠が消えたか」で見直す」)
+- 内容: 単一実装原則(DR-120 と同じ PT-2)の明示的な例外として、in-app ブリッジと XCUITest ランナーの2経路を併存させる。決めた当時の分け方は「シミュレータ = in-app / 実機 = XCUITest」だった
+- 理由: 決めた当時の理由(実機への注入が無かった)は、実機への注入の実装(DS-11.2・PT-10)で消えた。今は次の3つの役割がある: ①inapp-boost モードで in-app ブリッジが撃てない操作を引き受ける(DR-67)②MCP の iOS は常に XCUITest ブリッジを使う(DR-69)③レスポンス計測は XCUITest ランナーにしか無い(`63775f72b`)
+- 見直す条件: 上の3つの役割がどれも XCUITest ランナーを要らなくなったとき
 - 参照元: docs/performance-tuning/guide.md の in-app ブリッジの項
 
 ## DR-125 M4Max で回すのは iOS 2台と Android 1台だけにする
@@ -1401,3 +1402,12 @@
 - 根拠: MN-18・MN-20・MN-69.5
 - 見直す条件: 未記録
 - 参照元: .claude/rules/fm-occlusion.md
+
+## DR-135 `exist` の否定形は `notExist` にする(Shirates の `dontExist` に揃えない)
+
+- 種別: 方針
+- 決定: ユーザー 2026-07-31
+- 内容: 名前は `notExist` を維持する。再提案しない
+- 理由: 否定の意味が読み取りやすく、`exist` との対称も保てる
+- 見直す条件: 未記録
+- 参照元: dsl-syntax.md「Shirates(Classic) 準拠の方針と承認済みの差分」・docs/shirates-parity.md の `notExist` の行
