@@ -64,6 +64,7 @@ public enum RegionText {
         var modelCompileFinish: (@Sendable () async -> Void)?
         var modelReady: Bool?
         var lateFinishObserver: (@Sendable () -> Void)?
+        var readRecognize: (@Sendable ([String]) async throws -> [String])?
     }
     private static let testingHooks = Mutex(TestingHooks())
 
@@ -763,8 +764,18 @@ public enum RegionText {
     }
 
     private static func recognize(_ image: CGImage, languages: [String]) async throws -> [String] {
-        try await recognizeObservations(image, languages: languages)
+        if let override = readRecognizeOverrideForTesting { return try await override(languages) }
+        return try await recognizeObservations(image, languages: languages)
             .compactMap { $0.topCandidates(1).first?.string }
+    }
+
+    /// 判定の読み(`read` → `recognize`)の Vision だけを差し替える口(production では nil)。切り抜き・拡大のはしご・照合は
+    /// 本物を通す。本物の Vision は負荷の下で `occlusionBudget` を越えて予算切れに化け、判定の流れを固定するテストが揺れた。
+    /// 探りの口(`recognizeOverrideForTesting`)とは別 = 探りの結果と判定の読みを独立に決める。
+    /// **既定が nil であることは `RegionTextRecognizeOverrideDefaultTests` が固定する**
+    public static var readRecognizeOverrideForTesting: (@Sendable ([String]) async throws -> [String])? {
+        get { testingHooks.withLock { $0.readRecognize } }
+        set { testingHooks.withLock { $0.readRecognize = newValue } }
     }
 
     /// `recognize` と `RegionText.locateLink` が共有する唯一の Vision 呼び出し(設定の二重実装を作らない)

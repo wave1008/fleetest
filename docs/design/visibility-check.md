@@ -2,7 +2,7 @@
 
 | 種別 | 範囲 | 読む場面 | 扱わないこと |
 |---|---|---|---|
-| 正典 | テキストの可視性検証(occlusion-guard)の段の構成・OCR の段・FM の段・起動直後の未描画画面・判定の控え(DS-24) | 可視性検証の判定・段・待ちを変える前 | FM 呼び出し層の共通部分(→ [overview.md](overview.md) DS-1.1・DS-5)・PoC と実測(→ [../poc-fm-occlusion-guard.md](../poc-fm-occlusion-guard.md) OG・PT-3.5.1) |
+| 正典 | テキストの可視性検証(occlusion-guard)の段の構成・OCR の段・FM の段・起動直後の未描画画面・判定の控え・段の出口と副作用の表(DS-24) | 可視性検証の判定・段・待ちを変える前 | FM 呼び出し層の共通部分(→ [overview.md](overview.md) DS-1.1・DS-5)・PoC と実測(→ [../poc-fm-occlusion-guard.md](../poc-fm-occlusion-guard.md) OG・PT-3.5.1) |
 
 `exist` の既定 `requireVisible` が、木の上では通ったテキストが画面に本当に描かれているかを画像で確かめる。
 利用者向けの名前は「テキストの可視性検証」、プロファイルのキーは `fmTextVisibilityCheck`(FM の段)/
@@ -119,3 +119,46 @@ occlusion-guard の FM 判定を、
 ための設計(FTRuntime の保持値の高速経路)で、控えはその検査を**同じ答えで**満たすだけ。
 理由: E2E-iOS ジェスチャ S0010 は FM 60 回中ほぼ半分がこの重複で、FM の遅い M1Ultra では
 180s の予算を超えて kill された。
+
+### DS-24.6 段の出口と副作用の表
+
+`StepExecutor.occlusionFlip` → `occlusionFlipOnScreen` の**書き順**がそのまま段の順になっている(宣言は無い)。
+各行は上から順に評価され、「出口」が緑(nil = 素通り)・赤・次へのどれかを決める。**段を足す・外す・並べ替える前に
+この表を直し、`VisibilityCheckCharacterizationTests` の等号を通す**(行ラベル V1〜V24 はテストの doc と対応)。
+門 = 起動直後の画面待ちの門 `firstFrameGatePending`(DS-24.4)。「消費」は `consumeFirstFrameGate` を通る出口。
+
+| 行 | 段 | 入る条件 | 出口 | 注記・書き換える状態 | 門 |
+|---|---|---|---|---|---|
+| V1 | 入口 | `visibilityGuardActive` が偽 | 緑 | なし(`guardEnteredThisStep` も立てない) | 残す |
+| V2 | 画面外 | 中心が画面外(`offscreenScrollGateCentre`) | 赤(offscreen) | `guardEnteredThisStep` | 残す |
+| V3 | 覆いの下 | 塗り順が本物の木で `coveredTouch` が tooThin | 次へ | `coveredByFrontElement` | — |
+| V4 | 行の確かめの判定 | iOS・OCR の段あり・文字の子の無い行 | 次へ(V17 で決める) | 最後の判定で `rowLabelNotRead` を付け外し | — |
+| V5 | 文字の子へ | 同じラベルの文字の子が1つ | 次へ(以降は子を見る) | — | — |
+| V6 | 段なし | FM の段も OCR の段も無い | 緑 | — | 残す |
+| V7 | 退化枠 | 幅か高さが 1 未満・期待が空 | 緑 | — | 残す |
+| V8 | 枠の復元 | Compose が削った枠 | 次へ | `a11yFrameRestored` | — |
+| V9 | 対象の足切り | `OcclusionEligibility.eligible` が偽 | 緑 | — | 残す |
+| V10 | 古い絵(新規撮影) | 撮り直しても `StaleFrameDetector` が古い | 緑 | 期待が OCR で読めれば `staleFrameTextVisible`、読めなければ `staleScreenshot`・`knownStaleGuardImageHash`・`guardFrameStaleThisEval` | 残す |
+| V11 | 既知の古い絵 | 前に古いと見た絵のまま(使い回しの絵を含む) | 緑 | V10 と同じ | 残す |
+| V12 | インクの足切り | 幾何の疑いなし・容器の縁でない・閾値 > 0・stdDev ≥ 閾値 | 緑 | 文字の型なら `pixelsShowedTextThisStep`・`lastGreenTextByElement` | **残す** |
+| V13 | 黒い絵 | `isBlackApartFromSystemBars` | 緑 | `blankScreenshot` | 残す |
+| V14 | WebView の取り逃し | 木で覆われていない・WebView の内側が一色 | 緑 | `webViewCaptureBlank` | 残す |
+| V15 | OCR のコンパイル待ち | OCR の段あり・未 ready・詰まりなし | 次へ | `ocrCompileWaited` / `ocrCompileCapped`(待ちは締め切りから差し引く) | — |
+| V16 | OCR の近道 | `shouldTakeShortcut` | 丸ごと読めて mode on なら緑、他は次へ | `pixelsShowedTextThisStep` / `ocrBudgetExhausted` / 見送りは `ocrShortcutBusy`・`ocrShortcutNotReady` | **残す** |
+| V17 | 行 | V4 が真 | 読めた文字に期待が無ければ赤、他は緑 | (V4 の注記) | 残す |
+| V18 | FM が使えない | FM の段なし・画像入力なし・無回答の注入 | `OCROnlyVisibility`: 可視 → 緑 / 不可視 → 赤 / 判定不能 → 緑 | 可視は `pixelsShowedTextThisStep`・部分の注記、不可視の notRendered は `lastNotRenderedFrame`、OCR も非対応なら `visualTextCheckUnsupported` | 可視・不可視で消費、判定不能は残す |
+| V19 | 判定の控え | 同じ絵・枠・期待(`VisibilityVerdictMemo`) | 次へ(FM を呼ばない) | — | — |
+| V20 | FM 無回答 | FM が nil を返した | V18 と同じ(控えない) | `visibilityGuardSkipped` を加える | V18 と同じ |
+| V21 | 空の転写の確かめ | FM 不可視・転写が空・領域に構造 | OCR の確認か訊き直しで読めたら緑、他は次へ | `ocrReadWhatFMMissed` / `fmEmptyTranscriptOnInk`・`fmReaskedEmptyTranscript`(控えを読めた答えへ・同じ絵に1回 = `reaskedEmptyTranscripts`)/ 失敗文の事実 | 読めたら消費 |
+| V22 | 突き合わせ | 以降すべて | `OCROnlyVisibility.merge` で可視なら緑 | 割れた注記・部分の注記・`pixelsShowedTextThisStep`・全部見えたら `lastGreenTextByElement` | **ここで消費**(可視・不可視とも) |
+| V23 | 前の値の古い絵 | FM の文字が同じ要素の1つ前の緑の値 | 緑 | `staleScreenshot`・`knownStaleGuardImageHash`・`guardFrameStaleThisEval` | (V22 で消費済み) |
+| V24 | FM の赤 | 上のどれでもない | 赤(on screen) | notRendered なら `lastNotRenderedFrame` | (V22 で消費済み) |
+
+**待ちのループ側**(`executeAssertExists` / `executeAssertTextComparison` に同じ形で2回ある): 赤が締め切りを跨いだら、
+①遅い木の撮り直し(`SlowSnapshotBudget`)②門が一様な絵を見た回(`firstFrameBlankObserved`・`first-frame-pending`)
+③1回目のガード評価が締め切りを跨いだ回(`guardCostExtended`)の順に、それぞれ1回だけ締め切りを延ばす。
+`select`(`StepExecutor+Actions`)は延長せず、見えないと出た回だけ木と絵を1回撮り直す。
+
+**表から見える未決の点**(挙動は変えずに残してある。直すなら原因を観測してから): 門は「判定が出た回に消費」
+(DS-24.4)だが、V12・V16(可視と決まった緑)と V2・V10・V11 は消費しない。門は次の launch まで残り、後の
+ステップの一様な絵に延長を与えうる(延ばすのは待つ長さだけで、合否は変えない)。

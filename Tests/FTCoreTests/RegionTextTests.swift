@@ -337,6 +337,8 @@ final class RegionTextRecognizeOverrideDefaultTests: XCTestCase {
     func testOverrideIsNotSetInProduction() {
         XCTAssertNil(RegionText.recognizeOverrideForTesting,
                      "差し替え口が残っている(テストが後始末していない)")
+        XCTAssertNil(RegionText.readRecognizeOverrideForTesting,
+                     "判定の読みの差し替え口が残っている(テストが後始末していない)")
     }
 }
 
