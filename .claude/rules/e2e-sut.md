@@ -21,7 +21,7 @@ paths:
 
 CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
 
-- **iOS のプロジェクトは `project.xcproj`(Xcode 27.2 の JSON 形式)を直接編集する**(Runner + `E2EAppIOS` / `E2EXAppIOS` / `E2EYAppIOS` +
+- **iOS のプロジェクトは `project.xcproj`(Xcode 27.2 の JSON 形式)を直接編集する**(DR-152。Runner + `E2EAppIOS` / `E2EXAppIOS` / `E2EYAppIOS` +
   `E2EAppCMP` / `E2EXAppCMP` / `E2EYAppCMP`)。**手書きで作り直さず既存を編集する**(xcodegen が暗黙に足していた既定値
   `CODE_SIGN_IDENTITY` / `TARGETED_DEVICE_FAMILY` 等が抜け、実機の署名に効く)・ターゲットの `id` は共有スキームの `BlueprintIdentifier` と一致させる。
   `Info.plist` もコミットするソース。**Flutter / RN の SUT は pbxproj のまま**(CocoaPods・flutter ツールが pbxproj を要る)。

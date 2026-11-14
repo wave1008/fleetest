@@ -76,7 +76,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (`checkDeclaredArgumentTypes` = スキーマの `type` と照合。JSON の真偽値と数値は `NSNumber` で来て
   `as? Int` / `as? Bool` が互いに通すので `isJSONBoolean` で分ける。型違いに専用の文言を持つ引数は
   `argumentsWithTheirOwnTypeMessage` に載せる)。**スキーマに無い引数名は、デバイスを操作する道具(`toolEffects` が drivesDevice / destructive)では撃つ前に断り、
-  読むだけの道具では断らずに注記する**(`refusesUnknownArguments` / `unknownArgumentNote`。宛先のつもりの引数が落ちると、操作は
+  読むだけの道具では断らずに注記する**(DR-140。`refusesUnknownArguments` / `unknownArgumentNote`。宛先のつもりの引数が落ちると、操作は
   焦点の欄・画面全体など別の物に効く = 探索で ft_clear_input が別の欄を消した。木の読み方だけの欄は操作の道具でも注記)。必須の文字列は空文字・空白のみを断る
   (省略は断らない = 呼び手ごとに既定が違う)→ MN-44.2。**長押し・ジェスチャの秒数は
   既定 10 秒まで、コマンドの `maxGestureSeconds:` 引数でその1回だけ最大 60 秒まで上書きできる**

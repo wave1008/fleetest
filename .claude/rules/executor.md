@@ -81,7 +81,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   チェックボックスも無い)—— FM を呼ぶかは `FMConfig.enabled = fmTextVisibilityCheck || screenLooksLike`
   で導く(両方 false なら実行バイナリへ `--no-fm`)。親と子で同じ状態を2か所に持っていた
   → MN-23
-- **受け手の環境で正解が変わる既定(待ち・締切・操作の所要)は `FTCore.RunTunables` に置く**
+- **受け手の環境で正解が変わる既定(待ち・締切・操作の所要)は `FTCore.RunTunables` に置く**(DR-170)
   (`ScenarioExecutionSettings.tunables` で運び、子へは `--tunables` の JSON 1つ)。欄名は将来の
   プロファイルのキー名。開放は `RunProfileDocument` に欄を足して変換 init で写すだけ。判定の閾値・
   安全網の上限は入れない。読むのは `StepExecutor` / `FTDriveCore` の `tunables` で、
@@ -97,7 +97,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   **失敗時の証跡の絵は inapp-boost モードなら XCUITest(`XCUIScreen`)で撮る**(`FTRuntime.handleFailure`。in-app の絵は
   アプリの window しか描かず OS のアラートが写らない)。保存前に PNG の向きの申告で回す(`FailureEvidenceImage.displayOriented`。横向きで 90° 回ったままになる)。**iOS の「飲まれたタップ」注記はアラートの可能性を
   併記する**(iOS の木はアプリのプロセスだけ = アラートを出したタップも無変化に見える)
-- **シナリオのサンドボックス(Seatbelt・常に有効)**: 全拒否が土台の Seatbelt でシナリオ実行バイナリを包む
+- **シナリオのサンドボックス(Seatbelt・常に有効 = DR-137)**: 全拒否が土台の Seatbelt でシナリオ実行バイナリを包む
   (`FTCore.ScenarioSandbox`。入口は `ScenarioHost.sandboxedLaunch` = 実行・dry-run・`list`・`compile-ocr` の全部。
   `ScenarioSandboxWiringTests`)。外せるのはマシン側の `sandbox.disabled` だけ。守る規律5つ:
   **①シナリオ実行バイナリを起こす経路を足したら入口を通す**(起こし方に関わらず利用者のコードが動きうる)/

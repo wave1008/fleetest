@@ -112,7 +112,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `InAppBridgeState.isRecordedForAnotherDevice`)。**空きポートの採番は `assignPort` と `freePort` の2つで、
   どちらも `.inapp` の残るポートを後回しにする**(片方だけ変えない)→ MN-58.9④ワークスペースのステージ先は
   `WorkspaceAppStaging.installPath(declared:)` = 宣言文字列の名前空間(絶対パスから導かない)
-- **録画ありの run は供給段階で「端末側に残った録画セッション」を解く**(`HostRecordingProbe` →
+- **録画ありの run は供給段階で「端末側に残った録画セッション」を解く**(DR-172。`HostRecordingProbe` →
   `ProfileWorkerFactory.recoverStaleRecordingIOSWorkers`。凍結の回復と同じ再起動・デバイスは外さない・不明は撃たない)。
   **iOS の供給口3つ全部で凍結トリアージの直後に通す**(`HostRecordingProbeTests` が固定)。
   **検査も録画も recordVideo は SIGINT でしか止めない**(SIGKILL/SIGTERM がこの状態を作る)。

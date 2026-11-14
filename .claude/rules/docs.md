@@ -3,6 +3,7 @@ paths:
   - "docs/*.md"
   - "docs/design/*.md"
   - "docs/maintainer-notes/*.md"
+  - "docs/decisions/*.md"
   - "docs/remote-runner/*.md"
   - "docs/performance-tuning/*.md"
   - "docs/verification/*.md"

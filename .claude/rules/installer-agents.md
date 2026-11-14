@@ -127,7 +127,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
 - **インストーラが面倒を見るエージェントは Claude Code だけ**(規約位置の唯一の定義元は
   `Sources/FTCore/AgentIntegration.swift`。経緯と表は DS-15)。
   - **runbook 本体(`.claude/skills/<name>/SKILL.md`)の正典はクローンの1箇所**。作業フォルダへの
-    コピーはステップ7.8 だけが作る(上記)。プラグイン配布と、スキルだけを curl で取る導入器は**廃止済み** —— 戻さない → MN-2.3
+    コピーはステップ7.8 だけが作る(上記)。プラグイン配布と、スキルだけを curl で取る導入器は**廃止済み** —— 戻さない → MN-2.3・DR-150
   - **他のエージェント(Codex・Cline 等)向けの分岐をコードに戻さない**。案内は
     **docs/user-docs/reference/tools/other_agents(.md/_ja.md) の1箇所**に集約する → MN-2.1
   - **インストーラ(スクリプト)は受け手のグローバル設定(`~/.codex/config.toml` 等)に1バイトも書かない**

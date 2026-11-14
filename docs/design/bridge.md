@@ -1296,7 +1296,7 @@ CoreSimulator.framework を直接叩き、`SimulatorCatalog.devices()` が直叩
   等価性は UDID/booted 集合の完全一致を live テストで担保
   (Tests/FTBridgeClientTests/SimulatorCatalogCoreSimTests.swift、FT_LIVE_SIM=1)
 - ステップ実行(tap ~490ms)は XCUITest ブリッジ内部コストでこの施策の対象外。
-  HID 注入バイパスは評価済み不採用(backboardd クラッシュ)・再提案しない
+  HID 注入バイパスは評価済み不採用(backboardd クラッシュ)・再提案しない(DR-158)
 
 **適用範囲は列挙だけではない**。シナリオ毎に1回走る simctl 往復2つも
 同じ作法で置き換えている(`CoreSimAppControl` が振り分け。殺しスイッチは同じ `FT_SIMULATOR_CONTROL=simctl`):

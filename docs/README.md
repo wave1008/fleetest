@@ -19,7 +19,9 @@
 | [design/README.md](design/README.md) | 索引 | 設計書のどのファイルに何があるかを探すとき(節の一覧) |
 | [design/overview.md](design/overview.md) | 正典 | 全体の構成・FM 呼び出し・CLI の方針を変える前 |
 | [design/visibility-check.md](design/visibility-check.md) | 正典 | テキストの可視性検証の判定・段・待ちを変える前 |
-| [decisions.md](decisions.md) | 正典 | ユーザーの決定(方針・不採用)を変えたく/緩めたくなったとき・同じ論点を提案する前 |
+| [decisions/README.md](decisions/README.md) | 索引 | ユーザーの決定を探すとき・決定を足す前(載せる基準と全決定の一覧) |
+| [decisions/001-089.md](decisions/001-089.md) | 正典 | ユーザーの決定を変えたく/緩めたくなったとき・同じ論点を提案する前(DR-1〜89) |
+| [decisions/090-180.md](decisions/090-180.md) | 正典 | ユーザーの決定を変えたく/緩めたくなったとき・同じ論点を提案する前(DR-90〜180) |
 | [design/bridge.md](design/bridge.md) | 正典 | ブリッジの挙動・エンドポイントを変える前 |
 | [design/webview.md](design/webview.md) | 正典 | WebView / ブラウザの読み取りを変える前 |
 | [design/dsl-syntax.md](design/dsl-syntax.md) | 正典 | DSL の記述・語彙・セレクタ・検証・スクロールを変える前 |
@@ -124,12 +126,12 @@ H1 の直後に次の表を置き、その下に1〜2文の導入を書く(こ�
 | `RM` | response-measurement(試作の記録)と design/response(現行の設計) |
 | `OG` | poc-fm-occlusion-guard |
 | `OI` | open-issues |
-| `DR` | decisions |
+| `DR` | decisions/ |
 
 ### 正典と記録
 
 - 正典には現在の仕様だけを書く。マイルストーン・廃止した機能の記述・見出しの日付を置かない。
-  ユーザーの決定のうち方針・不採用・トレードオフを伴うものは decisions.md に DR として置き、本文からは `DR-n` で指す
+  ユーザーの決定のうち方針・不採用・トレードオフを伴うものは decisions/ に DR として置き、本文からは `DR-n` で指す
   (理由・根拠・見直す条件はそちらに書く)。UI の見た目・文言・配置の好みは、本文に `決定: ユーザー 2026-10-20` の形で添えるだけでよい
 - 記録には日付と、その時点の状態を書く(現在の仕様として読まれないように)
 - 同じ事実は1箇所に置き、他の文書からは ID で参照する
