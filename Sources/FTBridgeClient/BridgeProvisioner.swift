@@ -81,6 +81,13 @@ public enum BridgeProvisionerError: Error, LocalizedError {
                 + " xcuitest). `fleetest bridge status` lists them, `fleetest doctor` names"
                 + " leftovers whose bridge is gone, and `fleetest bridge down --port <n>` frees one"
         case .notReady(let port, let underlying):
+            // **取り消しは「時間内に準備ができなかった」と言わない**: 待ちを切ったのは呼び手(蘇生の枠・run の中断)で、
+            // ブリッジ自身の起動の期限ではない(蘇生の枠が SpringBoard の起こし直しの途中で尽きた回に
+            // 「did not become ready in time … CancellationError」と出ていた)
+            if underlying is CancellationError {
+                return "starting the bridge was cancelled before it became ready (port \(port)):"
+                    + " the caller stopped waiting for it"
+            }
             // localizedDescription を使う。素の enum を補間すると
             // addressNotAnnounced(port: 8133, logPath: "...", blocker: Optional("..."))
             // のような内部表現がそのままユーザーに出る(実害)

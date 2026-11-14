@@ -41,6 +41,17 @@ final class SupplyAbandonBridgeStartTests: XCTestCase {
         XCTAssertTrue(BridgeProvisioner.abandonedLine(name: "-01").hasPrefix("⏹ -01:"))
     }
 
+    /// 呼び手が待ちを取り消した回(蘇生の枠が尽きた等)は「時間内に準備ができなかった」と言わない
+    /// (55周目: Duo の蘇生で「did not become ready in time … CancellationError」と出ていた)。期限切れは従来どおり
+    func testACancelledStartIsNotReportedAsTimingOut() {
+        let cancelled = BridgeProvisionerError.notReady(port: 8129, underlying: CancellationError()).localizedDescription
+        XCTAssertTrue(cancelled.contains("was cancelled before it became ready"), cancelled)
+        XCTAssertFalse(cancelled.contains("in time"), cancelled)
+        let timedOut = BridgeProvisionerError.notReady(
+            port: 8129, underlying: LauncherError.timedOut("no response", "/tmp/log")).localizedDescription
+        XCTAssertTrue(timedOut.contains("did not become ready in time"), timedOut)
+    }
+
     /// 印の配線(緑の run では1度も通らない経路なので、ソースで固定する)
     func testTheStopSignalReachesEveryStartupWaitOfTheSupply() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

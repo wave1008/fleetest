@@ -1117,6 +1117,7 @@ public enum ProfileWorkerFactory {
             let budgetSeconds: TimeInterval = device.spec.isPhysical
                 ? 2 * BridgeLauncher.startupTimeoutSeconds : 60
             let serializedLog = SerializedSink(log)
+            let budgetExpired = LockedValue(false)
             let provisioned = await withTaskGroup(of: [ProvisionedIOSDevice]?.self) { group in
                 group.addTask {
                     try? await provisioner.provision(
@@ -1127,11 +1128,17 @@ public enum ProfileWorkerFactory {
                 }
                 group.addTask {
                     try? await Task.sleep(nanoseconds: UInt64(budgetSeconds * 1_000_000_000))
+                    if !Task.isCancelled { budgetExpired.withLock { $0 = true } }
                     return nil
                 }
                 let first = await group.next() ?? nil
                 group.cancelAll()
                 return first
+            }
+            // 枠が尽きて供給を取り消した事実は言う(取り消された供給の行だけでは、誰が切ったのか分からない)
+            if provisioned == nil, budgetExpired.withLock({ $0 }) {
+                serializedLog("⏱ \(device.name): reviving gave up after \(Int(budgetSeconds))s"
+                    + " — the bridge was still being set up, so it was cancelled")
             }
             guard let first = provisioned?.first else { return nil }
             return makeIOSWorker(device: first, iosApp: iosApp)
