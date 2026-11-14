@@ -18,6 +18,7 @@
 |---|---|---|
 | [design/README.md](design/README.md) | 索引 | 設計書のどのファイルに何があるかを探すとき(節の一覧) |
 | [design/overview.md](design/overview.md) | 正典 | 全体の構成・FM 呼び出し・CLI の方針を変える前 |
+| [design/visibility-check.md](design/visibility-check.md) | 正典 | テキストの可視性検証の判定・段・待ちを変える前 |
 | [design/bridge.md](design/bridge.md) | 正典 | ブリッジの挙動・エンドポイントを変える前 |
 | [design/webview.md](design/webview.md) | 正典 | WebView / ブラウザの読み取りを変える前 |
 | [design/dsl-syntax.md](design/dsl-syntax.md) | 正典 | DSL の記述・語彙・セレクタ・検証・スクロールを変える前 |

@@ -522,7 +522,7 @@ snapshot/action/wait のどれにも計上されない時間だった実測。
 近道(OCR)は撃たない**(撃つとステップごとに予算を捨てるだけで、判定は結局 FM が下す)③**諦めた読みが
 走っている間は積み増さない** ④載った後の劣化に備え OCR 段に予算
 (`RegionText.occlusionBudget` = 1.3 秒 = 置き換える相手である FM 照合の実測下限)を持たせ、
-超えたら FM へ落として注記 `ocr-budget-exhausted` を残す(設計は docs/design/overview.md「Tier-2 は Vision OCR」の続き)。
+超えたら FM へ落として注記 `ocr-budget-exhausted` を残す(設計は docs/design/visibility-check.md DS-24.2)。
 **`ocr-budget-exhausted` の率が上がったら Vision が劣化している**(モデルが載っていない・OS 側の不調)。
 **コンパイルが終わっていなければ、近道の直前で終わるまで待つ**。**最初のシナリオを起こす前に
 `compile-ocr` の完了を待つ**(run のログに `waited Ns for the OCR model` が出る。その秒数はシナリオの所要に入らない)ので、

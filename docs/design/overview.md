@@ -31,7 +31,7 @@ Android は iOS と同じ `AppDriver` 抽象の上に実装している(DS-7, DS
 | マルチモーダル | 画像+テキスト入力(NSImage/CGImage/CVPixelBuffer/URL) | スクリーンショットの視覚検証 |
 | Dynamic Profiles | セッション中にモデル・ツール・instructions を切替 | 使っていない |
 | `LanguageModel` プロトコル | オンデバイス / PCC(32K ctx) / Claude / Gemini / MLX を同一 Session API で差替 | **使わない**。PCC は完全に禁止(下記)、外部 LLM も同様 |
-| 制約: コンテキスト ~4K トークン級 | TN3193 参照。プロンプト+応答で共有 | **設計全体を規定する最重要制約** |
+| 制約: コンテキスト ~4K トークン級 | TN3193 参照。プロンプト+応答で共有 | FM に渡す入力を絞る理由(crop 1 枚・testbase は先頭 2400 文字。DS-17)。再生は FM に依らないので設計全体は縛らない |
 | 制約: ホスト全体で共有される資源 | 許可枠(既定1、環境変数で上書き可)で制限される。並列度が枠を超えるとレイテンシが伸びる(PT-3.5) | 並列実行では FM 呼び出し数と枠が実行時間の下限に効く(PT-3.5) |
 
 **可否判定の罠**: `SystemLanguageModel.default.availability` は「端末が対応しているか」しか見ておらず、
@@ -40,106 +40,18 @@ Android は iOS と同じ `AppDriver` 抽象の上に実装している(DS-7, DS
 実際に1回推論する `FMDoctor.checkLive()` を使う(`fleetest doctor` / MCP の `ft_doctor` が採用)。
 同期の `FMDoctor.check()` はホットパス用で**可否を保証しない**。
 
-**FM 失敗は握りつぶされる**: occlusion-guard・screenLooksLike はいずれも FM 失敗時に nil を返して
+**FM 失敗は握りつぶされる**: テキストの可視性検証・screenLooksLike はいずれも FM 失敗時に nil を返して
 素通りする契約なので、FM が全滅してもテストは緑のまま**機能だけ無効**になる(自己修復は
-指紋照合のみで FM を呼ばないため、この契約の対象外 → MN-22)。
-**ただし黙らない**: occlusion-guard(`exist` の既定 `requireVisible`)は **FM に訊いたのに
-判定が返らなかったステップ**に `StepNote.visibilityGuardSkipped`(`visibility-guard-skipped`)を立て、
-結果 JSON の `notes` から run 横断で数えられる(立てるのは FM まで到達した回だけ。マスタースイッチ OFF・
-macOS 26・インクゲートで省いた回は「訊く必要が無かった」)。**requireVisible は2段**:
-Tier-0 幾何 = 収まる軸の中心が画面外なら不可視(`TapTargetGeometry.offscreenScrollGateCentre`。
-スクロール探索の「見つかった」ゲート・逆走査 `reverseSweep`・MCP の `ft_scroll_to` 再照合と同じ述語で、
-**文言は呼び手ごと**)→ Tier-1〜 FM。iOS の木は画面外の要素も frame ごと残し、FM 側は crop が
-画像の外に落ちると nil(素通り)なので、**通り過ぎた要素への exist は FM が生きていても FM では
-塞げない**(横スクロール区画で実際に起きた)。幾何の段は FM の有無に依らず
-`fmTextVisibilityCheck || ocrTextVisibilityCheck` の下で効く(`StepExecutor.visibilityGuardActive` が唯一の入口。FTRuntime の
-保持値の高速経路もこれを見る)。
-**Tier-2 は Vision OCR**: インク足切りを通って「FM に訊く」と決まった crop に、まず
-`FTCore.RegionText` が OCR を当て、**期待文字列が丸ごと読めたら可視として素通り**させる
-(FM を呼ばない)。crop 矩形は `FTCore.OcclusionCrop` を FM と共有するので、両者は同じ画素を見る。
-実 run で FM の段に届いた crop 163 枚のうち **97% がここで片付き**、FM に回ったのは本当に
-描かれていない 2 枚だけだった(p50 92ms。FM は 1.3〜2.8s)。守る規律は4つ:
-**①丸ごと読めなかったことだけを反転の根拠にしない**(日本語モデルを載せた版では可視な
-テキストの 29% を 1 文字誤読した)。FM の段(`fmTextVisibilityCheck`)が使えるときは丸ごと読めなかった回を**全部** FM に回し、
-`OCROnlyVisibility.merge` で**見えていると読めた側を採る**(赤は両方が見えないと言った回だけ。割れた回は注記
-`ocr-read-what-fm-missed` / `fm-read-what-ocr-missed`。OG-5.22)。FM の段が無い・使えないときは
-`OCROnlyVisibility` の判定だけで赤にする/ **②一致は完全含有だけ**(先頭一致を許すと、部分的に覆われて
-残りだけ読めた回を通してしまい誤った緑になる)/ **③読ませる言語は期待文字列から決め、言語補正は日本語の集合でだけ掛ける**
-(`RegionText.languages(for:)` / `usesLanguageCorrection(for:)`。ASCII の期待値に日本語モデルを載せると
-所要が 2.3 倍。en ロケールの端末は「単」を中国語フォントの字形で描き、補正なしだと「单」と読む)/
-**④読めなければ拡大して読み直す**(`upscaleLadder = [1,2,3]`。×4 で悪化するので上げ続けない。
-**1行も読めない crop は段を上げない** = 覆いが消えるのを待つ poll 周回で毎周 3 回払わない)。
-版(revision)は固定せず OS の既定に従い、**版・認識レベル・言語補正・言語規則が動いたことの検出は
-実 crop の固定コーパス**(`Tests/Fixtures/OcclusionCrops/`)が担う。既定 on・殺しスイッチは
-`FT_OCCLUSION_OCR=0`・`measure` でコーパス採取(実測は OG-5.17)。
-**①の例外は FM が判定を返さないときだけ**(実呼び出しの失敗。macOS 26 は OCR も使わない = `OCRSupport`・注記 `visual-text-check-unsupported`):
-近道が読んだ行を `TranscriptMatch.judge` に通し、行が無ければインク量で分ける(`FTCore.OCROnlyVisibility`)。
-不可視なら FM の反転と同じく赤(コーパス・E2E の誤った赤 0 を確認済み。
-実測は OG-5.19)。
-**先頭だけ描かれた形**は `TranscriptMatch` が FM と OCR で共通に分ける: 省略記号 → 緑(`text-ellipsized`)/
-割合 > 0.5 → 緑(`text-partially-hidden`)/ 以下 → 赤(ユーザー決定)。
+指紋照合のみで FM を呼ばないため、この契約の対象外 → MN-22)。可視性検証はそれでも黙らず、OCR の段が有効なら OCR だけで
+判定して走る(DS-24.1・DS-24.2)。run 単位の公表は DS-5.4。
 
-**FM 段は転写 + ホスト照合**: OCR で読めなかった crop に FM が答えるが、**FM に期待文字列は
-渡さない**。訊くのは「何が描かれているか」(転写 1 欄・prompt は定数)だけで、可否は `FTCore.TranscriptMatch`
-が期待文字列と突き合わせて決める(含む / 先頭 2 文字以上の切り詰め / 5 文字以上なら len÷5 の誤読・先頭文字
-必須 / 末尾だけ = covered / 空 = notRendered / 無関係 = textMismatch)。等倍で読めなければ 2 倍で読み直し、
-転写が 1 文字差で惜しいときだけ OCR に丸ごと読めたかを確かめる(素通りの向きだけ)。期待文字列を渡して
-「見えるか」を訊く形にしない(空白・別の文字の crop でも期待文字列を写して visible=true と答える
-おうむ返しになる。OG-5.18・MN-19)。
-
-**近道が本道より高くつかないための3つの門と、コンパイルの置き場**(MN-18): ①**モデルが載って実際に読めるまで近道は撃たない**
-(`RegionText.isModelReady`。コンパイルの探りが 1 行以上読めた回だけ ready。Vision が `[]` を返し続ける日がある)/
-②**諦めた読みが走っている間は撃たない**(`abandonedInFlight`。積み増すと 12 本が全部予算切れになり
-戻った瞬間に協調スレッドプールが止まる)/ ③**予算 1.3 秒 = 置き換える相手(FM 照合)の実測下限**
-(`RegionText.occlusionBudget`。尽きたら FM へ落ち注記 `ocr-budget-exhausted`。**諦めても読みは止めない**
-= そのままコンパイルとして効く。合流点は `TaskBudget`)。判定は3つとも変えない(読めなかったのと同じ扱い)。
-コンパイルの実体は Espresso(認識器)の **AOT コンパイル**で、キャッシュは
-`~/Library/Caches/<プロセス名>/com.apple.e5rt.e5bundlecache` に**プロセス名と署名 ID で**鍵付けされ(SwiftPM の Debug ビルドは
-ID に LC_UUID が入るので、`ScenarioHost.build` が ID を製品名に揃える。PT-3.33)、
-**コンパイル(コールド 20〜45 秒 × 言語集合 2)がそのプロセスの生存中に終わったときだけコミット**される。
-1 シナリオ = 1 プロセスの実行バイナリは終わる前に死んで `.tmp` を残すだけなので、
-**run の開始時に同じプロセス名の待てる子 `fleetest-scenarios-<project> compile-ocr` を背景で 1 本起こす**
-(`ScenarioHost.listForRun`。**その run で OCR の段か FM のテキストの可視性検証が有効なときだけ** = `ScenarioHost.ocrCompileNeeded`
-(プロファイル・`--set` で両方を切った run では起こさない。機械分担の親は起こさず機械ごとの run が決める)。dry-run / MCP / codegen の一覧取得 `list` では起こさない・機械で同時に 1 本
-= `OCRModelCompileLock`・**親の死を生き延びる** = `FT_PARENT_PID` を渡さない唯一の例外)。シナリオ側の探りは
-同じロックを**待ってから**読む(8 レーンが同じモデルを同時に焼かない)。認識器は **ANE を避けて CPU/GPU**
-に載せる(定常の所要は同じ 100〜160ms。判定の近道を FM フラップと同じ部品に依存させない。装置で読みが
-変わる 1 行はコーパスに固定)。実測: シナリオ側のコンパイル 22,980ms → 218ms、実 crop の初回読み 21,830ms → 98〜122ms。
-
-**launch 直後の未描画画面は「覆い」と見分けられない**: `restartApp` / `launchApp` は
-木が引けた時点で戻るので、a11y の木は新インスタンスの要素を返しているのに画面はまだ
-launch storyboard(全画素同一)ということが起きる。負荷の高いランナーでは描画が既定の待ち窓に
-間に合わず、occlusion-guard が**正しく**「見えていない」と言って赤になる(実測: crop 265x100 が
-全画素 (255,255,255))。そこで launch 系コマンドの直後だけ `StepExecutor.firstFrameGatePending` を
-一度きり立て、**最初に FM の可視性判定が返った回**で消費する(可視でも消費 = 描画済みなら猶予は
-要らない)。不可視かつ crop の `RegionInk.luminanceStdDev` が **`StepExecutor.firstFrameBlankStdDevCeiling`
-(= 1.0。8-bit 輝度の量子化1段階未満 = ディザ・圧縮の揺らぎしか無く構造が無い、の定義であって
-調整値ではない)未満**なら、そのステップの deadline を
-**一度だけ**同じ式(`step.timeout ?? FlowStep.defaultWaitSeconds`)で延ばして待ち直し、
-`first-frame-pending` を立てる。延ばしても一様色のままなら従来どおり赤にして `first-frame-timeout`
-を添える。**通る経路は増やさない**(flip は返し続ける) —— 変えるのは待つ長さだけなので、
-誤った緑は1つも作らない。**上限を厳密 0 にしない**(M1Max の launch storyboard は min=253 / max=255 = stdDev ≈ 0.1 で、0 では猶予が付かず赤になる。
-`nearBlankPNG` の対照と、上限をリテラルで固定するテストで縛る)。**stdDev は Tier-1 のインク足切りを通らない経路(幾何が疑い有り・閾値 0)
-では未計算**なので、門が開いている回だけ測り直す。
-
-**FM 判定の控え `VisibilityVerdictMemo`**: occlusion-guard の FM 判定を、
-**FM への入力そのもの**(スクショのバイト列の hash・frame・screen・期待文字列)を鍵に控える。
-「読む回数を減らす」ので、2回目の読みが担っていた砦を列挙してある —— ①画面が変わった
-(→ バイト列が変わり鍵が外れるので控えは効かない)②要素が動いた(→ frame が変わり鍵が外れる)
-③期待値が違う(→ 鍵が外れる)④FM の死活・ブレーカの回復(→ nil は控えないので次は必ず訊く)。
-残るのは「同じ画像・同じ領域・同じ文字列に FM が違う答えを返す」だけで、FM は同一画像に
-決定的(92_screenLooksLike の実測)なのでそこに砦は無い。**控えは直近のスクショ1枚ぶん**
-(バイト単位で変わった瞬間に丸ごと捨てる = 上限の定数を置かない)。効く場面は `select(...).textIs(...)`
-のように同じ要素を続けて確かめる書き方 —— textIs が保持値を再検証するのは「検査を静かに消さない」
-ための設計(FTRuntime の保持値の高速経路)で、控えはその検査を**同じ答えで**満たすだけ。
-起点: E2E-iOS ジェスチャ S0010 は FM 60 回中ほぼ半分がこの重複で、M1Ultra(vision ≈ 2.6s/回)では
-158s = 180s の予算超えで kill された(FM の遅さは M1Ultra の性質で、09-01 から同じ)。
+テキストの可視性検証(段の構成・OCR の段・FM の段・launch 直後の未描画画面・判定の控え)の正典は
+[visibility-check.md](visibility-check.md)(DS-24)。
 
 `FMHealth`(Sources/FTCore/FMHealth.swift)が呼び出しの回数・レイテンシ・成否を計上し、
 実行後に stderr へ警告する。結果 JSON の `fm` にも載る(PT-4.2)。
-**これは理論上の話ではない**: 実績値では 6066 呼び出し中 5673 失敗(93.5%)で、
-成功を含む run は 582 中 58 しかない。**E2E の「緑」は基本的にツリー一致の緑**であり、
-可視性検証を含むとは限らないことを前提に読むこと(切り分け手順は docs/verification/)。
+**これは理論上の話ではない**: FM の呼び出しは長期間ほとんど失敗し続けたことがある(実績値は docs/verification/triage.md)。
+**E2E の「緑」は基本的にツリー一致の緑**であり、可視性検証を含むとは限らないことを前提に読むこと(切り分け手順も同じ文書)。
 
 **全 FM 呼び出しは `FMCallAdmission.enter()` を通す**(Sources/FTCore/FMCallAdmission.swift)。
 ①サーキットブレーカ(FM は累積 20〜30 回で死に再起動まで回復しないので、連続 3 回失敗したら
@@ -167,7 +79,7 @@ FoundationModels はモデル型を2つ持ち、**`PrivateCloudComputeLanguageMo
 名指ししない ②セッションに `model:` を明示的に渡さない ③走査自体が Sources に届いていることの
 確認)。PCC のインスタンスは型名を書かずには得られないので、①だけで経路は閉じる —— ②は二重の備え。
 
-### DS-1.2 3B モデルに合わせた基本方針: 決定的な再生 + 失敗時のみ FM 介入
+### DS-1.2 基本方針: 決定的な再生。FM は判定の補助だけ
 
 小さいモデルに毎ステップ判断させ続ける自律エージェント型は、コンテキスト溢れと
 判断ミスが蓄積する。本ツールは **ハイブリッド型** を採る:
@@ -177,8 +89,9 @@ FoundationModels はモデル型を2つ持ち、**`PrivateCloudComputeLanguageMo
 
 (FM がアプリを自律探索してシナリオを生成する explore モードは持たない。ロケータ自己修復にも FM を使わない → MN-22)
 
-コンテキスト対策の原則:
-- アクセシビリティツリーは **圧縮テキスト(set-of-mark 形式)** にして 1 画面ずつ渡す
+FM を呼ぶときの原則(4K コンテキスト対策):
+- FM にアクセシビリティツリーは渡さない(渡すのは crop・スクリーンショット・testbase の本文だけ。木を読むのは
+  シナリオを書く AI アシスタントで、その圧縮は DS-4.4)
 - セッションは **呼び出し毎に新規作成**し、会話履歴は持ち回らない(DS-5.1)
 - 出力は全て `@Generable` で構造化(自由文を返させない)
 
@@ -320,7 +233,7 @@ fleetest/
   詳細と更新失敗時の対応は[リモートの版整合](../remote-runner/README.md)
 - **1 呼び出し = 1 セッション**。毎回新しい `LanguageModelSession` を作り(常駐プロセスでは暖めておいた予備を使い)、
   会話履歴は持ち回さない。渡すのは instructions(役割定義、~200 トークン)+
-  その場で必要な入力(壊れたロケータ・失敗ステップの差分・現在画面の圧縮スナップショット等)のみ
+  その場で必要な入力(可視性検証の crop・screenLooksLike のスクリーンショットと期待の説明・testbase の本文)のみ
 - 応答は必ず `@Generable` 型。自由文を返させないことで応答トークンも節約。
 
 ### DS-5.2 主要な @Generable 型
@@ -337,7 +250,7 @@ fleetest/
 | `OcclusionVerifier.swift` | アサーションがツリー通過した直後の、遮蔽による誤った緑の排除(マルチモーダル。要素 frame にクロップし、転写を常駐プロセスへ頼む) |
 | `FMServeServer.swift` | FM の常駐プロセス(`fleetest api fm-serve`)の本体。画像を伴う実呼び出し・載せたままにする暖機・無操作での終了。通信と起動は `FTCore/FMServe.swift` |
 | `PreloadSlot.swift` | 常駐プロセスの予備のセッション 1 つ分の規則(同じ instructions なら作り直さない・使ったら捨てる) |
-| `FMDoctor.swift` | FM 可用性判定。`check()` は同期・可否を保証しない / `checkLive()` は実際に1回推論する(DS-1.1 の罠) |
+| `FMDoctor.swift` | FM 可用性判定。`check()` は同期・可否を保証しない / `checkLive()` は実際に1回推論する(DS-1.1「可否判定の罠」) |
 | `TestbaseDrafter.swift` | テスト設計資料 → シナリオ下書き(DS-17)。FM 不可用時は決定的パーサへ落ちる |
 | `FMLivenessProbe.swift` | FM の死活プローブ(§リモート「FM の「死活」は回数とは別の軸」)。実呼び出しは常駐プロセスへ頼む。**FMCallAdmission を通さない** |
 | `FMLoadGenerator.swift` | `fleetest doctor --fm-load` の負荷測定。**FMCallAdmission を通さない**(測っている対象が門になるため) |

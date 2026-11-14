@@ -15,6 +15,10 @@
 - DS-6 CLI UX
 - DS-9 検証方法(E2E)
 
+### [visibility-check.md](visibility-check.md) — 設計: テキストの可視性検証
+
+- DS-24 テキストの可視性検証
+
 ### [bridge.md](bridge.md) — 設計: アプリ操作ブリッジ
 
 - DS-4 アプリ操作ブリッジ(自作)設計

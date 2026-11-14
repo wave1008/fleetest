@@ -38,6 +38,7 @@ paths:
   - "Tests/FTCoreTests/DeadlineExclusionTests.swift"
   - "Tests/FTCoreTests/FMBreakerTests.swift"
   - "Tests/FTCoreTests/FMHealthDescribeTests.swift"
+  - "docs/design/visibility-check.md"
   - "Tests/FTCoreTests/FMHealthTests.swift"
   - "Tests/FTCoreTests/FMLivenessTests.swift"
   - "Tests/FTCoreTests/FMUsageLedgerTests.swift"
