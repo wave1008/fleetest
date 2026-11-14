@@ -92,6 +92,7 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
     val panView = v.findViewById<TextView>(R.id.txt_pan)
     val doubleView = v.findViewById<TextView>(R.id.txt_double_count)
     val dragCountView = v.findViewById<TextView>(R.id.txt_drag_count)
+    val traceView = v.findViewById<TextView>(R.id.txt_touch_trace)
 
     var zoom = 1f
     var panX = 0f
@@ -107,6 +108,15 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
         dragCountView.text = "drag=$dragCount"
     }
 
+    // OI-233 の測る口: 1本のタッチ列(DOWN〜UP)で届いた MOVE の数・DOWN から最初の MOVE までの ms・
+    // GestureDetector の長押しが立った ms・onScroll の回数・UP の ms。DOWN で戻し UP で出す(判定には使わない)
+    var traceDownAt = 0L
+    var traceMoves = 0
+    var traceFirstMove = -1L
+    var traceLongPress = -1L
+    var traceScrolls = 0
+    fun ms(t: Long) = if (t < 0) "-" else "${t}"
+
     val scaleDetector = android.view.ScaleGestureDetector(activity,
         object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
@@ -118,6 +128,9 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
     val tapDetector = android.view.GestureDetector(activity,
         object : android.view.GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
+            override fun onLongPress(e: MotionEvent) {
+                traceLongPress = android.os.SystemClock.uptimeMillis() - traceDownAt  // e は DOWN の事象(eventTime = 押した時刻)
+            }
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 doubleCount += 1
                 render()
@@ -127,6 +140,7 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent,
                                   distanceX: Float, distanceY: Float): Boolean {
                 if (e2.pointerCount > 1) return false
+                traceScrolls += 1
                 panX -= distanceX   // distance は「前回からの減少量」なので符号が逆
                 panY -= distanceY
                 render()
@@ -141,6 +155,13 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
     var dragMaxDx = 0f
     var dragMaxDy = 0f
     v.findViewById<View>(R.id.pad_map).setOnTouchListener { view, ev ->
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            traceDownAt = ev.eventTime
+            traceMoves = 0
+            traceFirstMove = -1L
+            traceLongPress = -1L
+            traceScrolls = 0
+        }
         scaleDetector.onTouchEvent(ev)
         tapDetector.onTouchEvent(ev)
         when (ev.actionMasked) {
@@ -151,12 +172,16 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
                 dragMaxDy = 0f
             }
             MotionEvent.ACTION_MOVE -> {
+                traceMoves += 1
+                if (traceFirstMove < 0) traceFirstMove = ev.eventTime - traceDownAt
                 val dx = abs(ev.x - dragDownX)
                 val dy = abs(ev.y - dragDownY)
                 if (dx > dragMaxDx) dragMaxDx = dx
                 if (dy > dragMaxDy) dragMaxDy = dy
             }
             MotionEvent.ACTION_UP -> {
+                traceView.text = "trace=m${traceMoves} f${ms(traceFirstMove)} lp${ms(traceLongPress)} " +
+                    "s${traceScrolls} u${ev.eventTime - traceDownAt}"
                 if (dragMaxDx >= PAN_THRESHOLD || dragMaxDy >= PAN_THRESHOLD) {
                     dragCount += 1
                     render()

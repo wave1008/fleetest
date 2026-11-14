@@ -296,6 +296,7 @@ Android(`BridgeRouter.handleSwipe`)は縦 0.3h↔0.7h・横 0.2w↔0.8w(y=0.5h)�
 | `#txt_double_count` | Text | `double=<n>` 初期 `double=0` | ダブルタップで +1。**単タップでは増えない** |
 | `#txt_drag_count` | Text | `drag=<n>` 初期 `drag=0` | `#pad_map` で完了した**ドラッグ**(全指が離れるまでの一連のタッチ)の回数。パンと同じしきい値以上動いてから離したときだけ +1。**単タップ・ダブルタップでは増えない** |
 | `#btn_map_reset` | Button | `マップクリア` | 全カウンタ・倍率を初期化 |
+| `#txt_touch_trace` | Text | `trace=m<n> f<ms> lp<ms> s<n> u<ms>` 初期 `trace=-` | **E2EAppAndroid だけ**(OI-233 の測る口)。直前のタッチ列の MOVE の数・DOWN から最初の MOVE まで・長押しが立った時刻(`-` = 立たず)・パンの onScroll の回数・UP の時刻。シナリオは検証しない(赤の回の要素一覧に残すだけ) |
 
 判定の規約(全 SUT 共通):
 - **パンは指の移動方向**(左上へ払う = `pan=left-up`)。ジェスチャ画面の swipe と同じ向き規約。

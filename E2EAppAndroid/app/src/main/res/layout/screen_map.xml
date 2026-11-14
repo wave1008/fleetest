@@ -51,6 +51,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="drag=0" />
+
+        <!-- OI-233 の測る口(Android の SUT だけ)。直前のタッチ列の要約 = 赤の回の要素一覧に残す -->
+        <TextView
+            android:id="@+id/txt_touch_trace"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="trace=-" />
     </LinearLayout>
 
     <!-- 幅 45% は**横**の LinearLayout + weightSum で作る(縦に layout_weight を書くと
