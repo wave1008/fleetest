@@ -16,7 +16,7 @@
       "project": "E2E-iOS", "file": "95_可視性の幾何.swift", "profile": "ios-fpc", "os": "ios",
       "class": "可視性の幾何",
       "guards": "requireVisible の幾何の段(木に居るが中心が画面外なら不可視)。FM は使わない",
-      "watches": ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/TapTargetGeometry.swift", "Sources/FTDSL/CommandsVerify.swift", "InAppBridge/Sources/InAppSnapshot.swift"],
+      "watches": ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/StepExecutor+VisibilityPipeline.swift", "Sources/FTCore/TapTargetGeometry.swift", "Sources/FTDSL/CommandsVerify.swift", "InAppBridge/Sources/InAppSnapshot.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "exist", "failureKind": "assertion",
                    "detailContains": ["text visibility check failed (offscreen)"] },
@@ -37,7 +37,7 @@
       "project": "E2E-iOS", "file": "96_遮蔽の反転.swift", "profile": "ios-fpc", "os": "ios",
       "class": "遮蔽の反転",
       "guards": "テキストの可視性検証が FM に訊いて反転する経路(FM の転写が期待文字列を読めない → 赤)",
-      "watches": ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTFoundationModels/OcclusionVerifier.swift", "Sources/FTFoundationModels/ReplayAssist.swift", "Sources/FTFoundationModels/FMServeServer.swift", "Sources/FTCore/OcclusionEligibility.swift", "Sources/FTCore/RegionInk.swift", "Sources/FTCore/OcclusionSuspicion.swift", "Sources/FTCore/TranscriptMatch.swift", "Sources/FTCore/OCROnlyVisibility.swift", "Sources/FTCore/RegionText.swift", "Sources/FTCore/OcclusionCrop.swift", "Sources/FTCore/VisibilityVerdictMemo.swift", "Sources/FTCore/FMCallSlots.swift", "Sources/FTCore/FMCallAdmission.swift", "Sources/FTCore/FMVisionSupport.swift", "Sources/FTCore/StaleFrameDetector.swift", "Sources/FTCore/BlankFrameDetector.swift", "Sources/FTCore/FMServe.swift", "Sources/FTCore/FMHealth.swift"],
+      "watches": ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/StepExecutor+VisibilityPipeline.swift", "Sources/FTFoundationModels/OcclusionVerifier.swift", "Sources/FTFoundationModels/ReplayAssist.swift", "Sources/FTFoundationModels/FMServeServer.swift", "Sources/FTCore/OcclusionEligibility.swift", "Sources/FTCore/RegionInk.swift", "Sources/FTCore/OcclusionSuspicion.swift", "Sources/FTCore/TranscriptMatch.swift", "Sources/FTCore/OCROnlyVisibility.swift", "Sources/FTCore/RegionText.swift", "Sources/FTCore/OcclusionCrop.swift", "Sources/FTCore/VisibilityVerdictMemo.swift", "Sources/FTCore/FMCallSlots.swift", "Sources/FTCore/FMCallAdmission.swift", "Sources/FTCore/FMVisionSupport.swift", "Sources/FTCore/StaleFrameDetector.swift", "Sources/FTCore/BlankFrameDetector.swift", "Sources/FTCore/FMServe.swift", "Sources/FTCore/FMHealth.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "exist", "failureKind": "assertion",
                    "detailContains": ["text visibility check failed (on screen"],

@@ -59,7 +59,7 @@ final class TouchOverhangFrameRestoreTests: XCTestCase {
     /// 可視性検証の入口で、切り抜きより前に戻していること(全段が同じ枠を見る)と、注記を立てていること
     func testOcclusionFlipRestoresTheFrameBeforeAnyCrop() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
         let text = try String(contentsOf: url, encoding: .utf8)
         let start = try XCTUnwrap(text.range(of: "func occlusionFlip("))
         let body = text[start.upperBound...]

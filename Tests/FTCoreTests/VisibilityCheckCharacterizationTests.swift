@@ -496,4 +496,31 @@ final class VisibilityCheckCharacterizationTests: XCTestCase {
         let r4 = rig([[Self.element()]], shots: [inked], delegate: d4, ink: 10_000, armGate: true)
         check("V24 red inked gate", await r4.step(), "failed text visibility check failed (on screen) | notes=[fm-empty-transcript-on-ink] | fm=2 | gate=false | blank=false | pixels=false")
     }
+
+    /// 段の並びそのもの(DS-24.6 の行の順)。等号の出力だけでは見えない入れ替え(OCR の近道をインクの足切りより前へ等)を落とす。
+    /// 並びを変えるなら表を先に直し、ここを書き換える
+    func testStageOrderIsTheDeclaredTable() {
+        XCTAssertEqual(VisibilityStage.allCases, [
+            .entry, .offscreen, .coveredByFront, .rowCheckDecision, .sameLabelChild, .noStageConfigured,
+            .degenerateFrame, .frameRestore, .eligibility, .staleFresh, .staleKnown, .inkCutoff, .blackFrame,
+            .webViewMiss, .ocrCompileWait, .ocrShortcut, .rowByOCR, .fmUnavailable, .verdictMemo, .fmAsk,
+            .emptyTranscript, .reconcile, .previousValueStale, .fmRed,
+        ])
+    }
+
+    /// V12 は OCR の段が使える(on・準備済み)ときも読みを撃たずに緑で抜ける = インクの足切りが OCR の近道より前
+    func testV12InkCutoffDoesNotReadOCREvenWhenReady() async {
+        await StepExecutorTests.awaitAbandonedOCRReads()
+        let reads = LockedValue(0)
+        RegionText.modelReadyOverrideForTesting = true
+        RegionText.readRecognizeOverrideForTesting = { _ in reads.withLock { $0 += 1 }; return [Self.label] }
+        defer {
+            RegionText.modelReadyOverrideForTesting = nil
+            RegionText.readRecognizeOverrideForTesting = nil
+        }
+        let delegate = FakeVisibilityDelegate(visible: false)
+        let r = rig([[Self.element()]], shots: [inked], delegate: delegate, ocr: .on, armGate: true)
+        check("V12 ocr ready", await r.step(), "passed | notes=[] | fm=0 | gate=true | blank=false | pixels=true")
+        XCTAssertEqual(reads.withLock { $0 }, 0, "インクで緑の要素に OCR を撃った")
+    }
 }

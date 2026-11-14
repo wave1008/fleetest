@@ -10,7 +10,7 @@ final class OCRShortcutWiringTests: XCTestCase {
 
     private var assertFile: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
     }
 
     func testExecutorPassesTheLiveInFlightCountAndReadyState() throws {

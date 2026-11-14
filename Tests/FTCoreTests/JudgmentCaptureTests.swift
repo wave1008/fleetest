@@ -109,7 +109,7 @@ final class JudgmentCaptureTests: XCTestCase {
     /// Assert.swift は画像判定の撮影口を持たない(可視性検証の絵は guardScreenshot)が、直撮りが入らないよう走査は掛け続ける
     func testJudgmentFilesDoNotCaptureWithThePrimaryDirectly() throws {
         let judgmentFiles = ["Sources/FTCore/StepExecutor+AssertState.swift", "Sources/FTCore/StepExecutor+FindImage.swift"]
-        for path in judgmentFiles + ["Sources/FTCore/StepExecutor+Assert.swift"] {
+        for path in judgmentFiles + ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/StepExecutor+VisibilityPipeline.swift"] {
             let source = try String(contentsOf: Self.repoRoot.appendingPathComponent(path), encoding: .utf8)
             XCTAssertFalse(source.contains("driver.screenshot()"), "\(path) が画像判定の絵を主ドライバで直に撮っている")
             if judgmentFiles.contains(path) {

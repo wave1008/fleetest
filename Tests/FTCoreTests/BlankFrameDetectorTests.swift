@@ -240,7 +240,7 @@ final class BlankFrameDetectorTests: XCTestCase {
     func testVisualCheckSkipsBeforeReadingWhenTheWebViewAreaIsBlank() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+            .appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
         guard let check = code.range(of: "BlankFrameDetector.enclosingWebViewFrame(of: element, in: elements)"),
               let read = code.range(of: "RegionText.resolveWithinBudget(") else {

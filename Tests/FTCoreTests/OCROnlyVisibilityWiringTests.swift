@@ -11,7 +11,7 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
     private var source: String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+            .appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
         return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     }
 
@@ -28,7 +28,7 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
         let text = source
         XCTAssertFalse(text.isEmpty, "走査対象が読めていない")
         XCTAssertTrue(text.contains("let fmConfigured = fmVisibilityCheckEnabled && delegate != nil"))
-        XCTAssertTrue(text.contains("guard fmConfigured || occlusionOCRMode != .off else { return nil }"),
+        XCTAssertTrue(text.contains("guard fmConfigured || occlusionOCRMode != .off else { return .pass(.keep) }"),
                       "FM が無くても OCR の段があれば guard は続くはず")
         XCTAssertFalse(text.contains("guard let delegate else { return nil }"),
                        "delegate が無いだけで guard を止めると OCR だけの検証が効かない")
@@ -39,7 +39,7 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
     /// FM の段を使わない / 使えないとき FM を呼ばず OCROnlyVisibility へ落ち、FM に訊いていないので
     /// countsAsSkipped: false。文言の「FM gave no verdict」は FM を使う設定のときだけ(fmConfigured)
     func testUnavailableFMFallsBackWithoutCountingAsSkipped() throws {
-        let block = try body(from: "guard fmAvailable, let delegate else {",
+        let block = try body(from: "guard fmAvailable, delegate != nil else {",
                              to: "let memoKey = VisibilityVerdictMemo.key(", in: source)
         XCTAssertTrue(block.contains("applyOCROnlyVisibility("), block)
         XCTAssertTrue(block.contains("countsAsSkipped: false"), block)
@@ -51,7 +51,7 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
     func testOCRRedStillGoesToFMAndIsMergedAfter() throws {
         let text = source
         let block = try body(from: "let ocrOnly = ocrOnlyOutcome(",
-                             to: "guard fmAvailable, let delegate else {", in: text)
+                             to: "guard fmAvailable, delegate != nil else {", in: text)
         XCTAssertFalse(block.contains("return "), "OCR の判定で FM より前に返っている: \(block)")
         XCTAssertTrue(text.contains("ocr: occlusionOCRMode == .on ? ocrOnly.outcome : .undetermined)"))
         guard let fmCall = text.range(of: "delegate.verifyElementVisible("),
@@ -85,12 +85,14 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
 
         XCTAssertFalse(visibleBody.contains(".visibilityGuardSkipped"),
                        "可視側は FM で見えていると確認できたので visibilityGuardSkipped を立てないはず")
-        XCTAssertTrue(notVisibleBody.contains("consumeFirstFrameGate(visible: false"),
-                      "launch 直後の門を消費しないと launch storyboard を覆いと読んで赤にする")
+        XCTAssertTrue(notVisibleBody.contains(".consume(visible: false"),
+                      "launch 直後の門を消費しないと launch storyboard を覆いと読んで赤にする(消費は出口の値で運ぶ)")
         XCTAssertTrue(notVisibleBody.contains("if countsAsSkipped { noteCodesThisStep.insert(.visibilityGuardSkipped) }"))
         // 警告の段階: 不可視でも赤にしない(新しい検知は警告から。赤へ上げるのは誤検知 0 を確かめてから)
-        XCTAssertTrue(notVisibleBody.contains("return .failed("), "不可視側は赤のはず")
-        XCTAssertFalse(notVisibleBody.contains("return nil"), "不可視側が素通りしている")
+        XCTAssertTrue(notVisibleBody.contains("return .fail(.failed("), "不可視側は赤のはず")
+        XCTAssertFalse(notVisibleBody.contains("return .pass("), "不可視側が素通りしている")
+        XCTAssertTrue(visibleBody.contains("return .pass(.consume(visible: true"), "可視側は門を消費して緑のはず")
+        XCTAssertTrue(undeterminedBody.contains("return .pass(.keep)"), "判定不能は門を残して緑のはず")
         XCTAssertEqual(block.components(separatedBy: ".failed(").count, 2, ".failed は1か所だけ")
         // 読んでいない(nil)を「読んで何も無かった」([])へ畳まない(畳むとインク量だけで不可視と言う)
         XCTAssertTrue(block.contains("OCROnlyVisibility.judge(lines: ocrReading?.lines,"))

@@ -14,18 +14,19 @@ final class StaleFrameTextVisibleWiringTests: XCTestCase {
                 .deletingLastPathComponent()  // FTCoreTests
                 .deletingLastPathComponent()  // Tests
                 .deletingLastPathComponent()  // リポジトリルート
-                .appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+                .appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
             return try String(contentsOf: url, encoding: .utf8)
         }
     }
 
-    /// occlusionFlip の本体(次の関数宣言まで)
+    /// 判定の流れ全体(occlusionFlip から、各段の後ろの staleFrameShowsExpectedText の定義まで = 全段を含む)
     private static func occlusionFlipBody() throws -> String {
         let code = try source
         let start = try XCTUnwrap(code.range(of: "    func occlusionFlip(element: ElementInfo"),
                                   "occlusionFlip が見つからない(走査の前提が崩れた)")
         let rest = code[start.upperBound...]
-        let end = rest.range(of: "\n    func ")?.lowerBound ?? rest.endIndex
+        let end = try XCTUnwrap(rest.range(of: "private func staleFrameShowsExpectedText("),
+                                "staleFrameShowsExpectedText の定義が見つからない(走査の前提が崩れた)").lowerBound
         return String(code[start.lowerBound..<end])
     }
 

@@ -53,7 +53,7 @@ final class FailureWordingVocabularyTests: XCTestCase {
     /// 走査が失敗文言の実体と user-docs へ届いていること
     func testScanReachesTheFailureWording() throws {
         let scanned = try Self.scan().scanned
-        for path in ["Sources/FTCore/StepExecutor+Assert.swift",
+        for path in ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/StepExecutor+VisibilityPipeline.swift",
                      "docs/user-docs/reference/testclass/text_visibility_check.md"] {
             XCTAssertTrue(scanned.contains(path), "走査が届いていない: \(path)")
         }

@@ -9,7 +9,7 @@ final class OCRShortcutSkipNoteTests: XCTestCase {
     private var source: String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/FTCore/StepExecutor+Assert.swift")
+            .appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
         return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     }
 

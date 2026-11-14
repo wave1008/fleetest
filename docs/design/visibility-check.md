@@ -122,10 +122,11 @@ occlusion-guard の FM 判定を、
 
 ### DS-24.6 段の出口と副作用の表
 
-`StepExecutor.occlusionFlip` → `occlusionFlipOnScreen` の**書き順**がそのまま段の順になっている(宣言は無い)。
-各行は上から順に評価され、「出口」が緑(nil = 素通り)・赤・次へのどれかを決める。**段を足す・外す・並べ替える前に
-この表を直し、`VisibilityCheckCharacterizationTests` の等号を通す**(行ラベル V1〜V24 はテストの doc と対応)。
-門 = 起動直後の画面待ちの門 `firstFrameGatePending`(DS-24.4)。「消費」は `consumeFirstFrameGate` を通る出口。
+段の順は `VisibilityStage`(`StepExecutor+VisibilityPipeline.swift`)の宣言の順で、`occlusionFlip` がその順に
+段を呼び、最初に緑・赤を返した段で止まる。各段は `VisibilityStageOutcome`(次へ / 緑 / 赤)と門の扱い
+(`FirstFrameGateUse`)を返し、門の消費は `occlusionFlip` の1か所だけで行う。段をまたぐ値は `VisibilityEvidence` に積む。
+**段を足す・外す・並べ替える前にこの表を直し、`VisibilityCheckCharacterizationTests` の等号を通す**(行ラベル V1〜V24 は
+`VisibilityStage` の case とテストの doc と対応)。門 = 起動直後の画面待ちの門 `firstFrameGatePending`(DS-24.4)。
 
 | 行 | 段 | 入る条件 | 出口 | 注記・書き換える状態 | 門 |
 |---|---|---|---|---|---|
@@ -150,12 +151,12 @@ occlusion-guard の FM 判定を、
 | V19 | 判定の控え | 同じ絵・枠・期待(`VisibilityVerdictMemo`) | 次へ(FM を呼ばない) | — | — |
 | V20 | FM 無回答 | FM が nil を返した | V18 と同じ(控えない) | `visibilityGuardSkipped` を加える | V18 と同じ |
 | V21 | 空の転写の確かめ | FM 不可視・転写が空・領域に構造 | OCR の確認か訊き直しで読めたら緑、他は次へ | `ocrReadWhatFMMissed` / `fmEmptyTranscriptOnInk`・`fmReaskedEmptyTranscript`(控えを読めた答えへ・同じ絵に1回 = `reaskedEmptyTranscripts`)/ 失敗文の事実 | 読めたら消費 |
-| V22 | 突き合わせ | 以降すべて | `OCROnlyVisibility.merge` で可視なら緑 | 割れた注記・部分の注記・`pixelsShowedTextThisStep`・全部見えたら `lastGreenTextByElement` | **ここで消費**(可視・不可視とも) |
-| V23 | 前の値の古い絵 | FM の文字が同じ要素の1つ前の緑の値 | 緑 | `staleScreenshot`・`knownStaleGuardImageHash`・`guardFrameStaleThisEval` | (V22 で消費済み) |
-| V24 | FM の赤 | 上のどれでもない | 赤(on screen) | notRendered なら `lastNotRenderedFrame` | (V22 で消費済み) |
+| V22 | 突き合わせ | 以降すべて | `OCROnlyVisibility.merge` で可視なら緑 | 割れた注記・部分の注記・`pixelsShowedTextThisStep`・全部見えたら `lastGreenTextByElement` | 可視で消費(不可視の消費は V23・V24 の出口が運ぶ) |
+| V23 | 前の値の古い絵 | FM の文字が同じ要素の1つ前の緑の値 | 緑 | `staleScreenshot`・`knownStaleGuardImageHash`・`guardFrameStaleThisEval` | 不可視として消費 |
+| V24 | FM の赤 | 上のどれでもない | 赤(on screen) | notRendered なら `lastNotRenderedFrame` | 不可視として消費 |
 
-**待ちのループ側**(`executeAssertExists` / `executeAssertTextComparison` に同じ形で2回ある): 赤が締め切りを跨いだら、
-①遅い木の撮り直し(`SlowSnapshotBudget`)②門が一様な絵を見た回(`firstFrameBlankObserved`・`first-frame-pending`)
+**待ちのループ側**(`executeAssertExists` / `executeAssertTextComparison` が同じ判定 `GuardDeadlineExtension.decide` を呼ぶ):
+赤が締め切りを跨いだら、①遅い木の撮り直し(`SlowSnapshotBudget`)②門が一様な絵を見た回(`firstFrameBlankObserved`・`first-frame-pending`)
 ③1回目のガード評価が締め切りを跨いだ回(`guardCostExtended`)の順に、それぞれ1回だけ締め切りを延ばす。
 `select`(`StepExecutor+Actions`)は延長せず、見えないと出た回だけ木と絵を1回撮り直す。
 

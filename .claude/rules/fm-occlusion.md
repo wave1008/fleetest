@@ -22,6 +22,8 @@ paths:
   - "Sources/FTCore/RegionText.swift"
   - "Sources/FTCore/ScenarioHost.swift"
   - "Sources/FTCore/StepExecutor+Assert.swift"
+  - "Sources/FTCore/StepExecutor+VisibilityPipeline.swift"
+  - "Sources/FTCore/GuardDeadlineExtension.swift"
   - "Sources/FTCore/TapTargetGeometry.swift"
   - "Sources/FTCore/PaintOrder.swift"
   - "Sources/FTCore/CoveredTouchPart.swift"
