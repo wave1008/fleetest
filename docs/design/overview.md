@@ -4,12 +4,18 @@
 |---|---|---|---|
 | 正典 | 方針・全体アーキテクチャ・リポジトリ構成・FM 呼び出し層・CLI UX・E2E の検証方法(DS-1〜3・5・6・9) | 全体の構成や方針を変える前 | ブリッジ(→ [bridge.md](bridge.md))・DSL(→ [dsl-syntax.md](dsl-syntax.md)) |
 
-Foundation Models framework(オンデバイス 3B モデル。macOS 26+、視覚検証は 27+)を最大限活用する、
-iOS / Android 両対応のアプリ E2E テストツール。Android は iOS と同じ
-`AppDriver` 抽象の上に実装している(DS-7, DS-8 参照)。
+AI アシスタント(Claude Code 等)が MCP と CLI でアプリを操作してテストを書き、Swift DSL のコードとして
+決定的に再生する、iOS / Android 両対応のアプリ E2E テストツール。再生にクラウドの LLM は使わず、
+合否は基本的にアクセシビリティツリーの一致で決まる。
+Foundation Models(オンデバイス 3B モデル。macOS 26+、画像入力は 27+)は**任意の補助**で、使うのはテキストの可視性検証の
+最終段(OCR の段が有効なら、OCR で丸ごと読めなかった crop だけ)・`screenLooksLike`・testbase からの下書きと命名だけ
+(再生中の2つは実行プロファイルの `fmTextVisibilityCheck` / `screenLooksLike` で切れる)。
+Android は iOS と同じ `AppDriver` 抽象の上に実装している(DS-7, DS-8 参照)。
+当初の「FM を中心に据える」構想(FM 探索・FM ヒール・FM トリアージ)から現在の構成へ移った経緯は
+[history.md](history.md)(DS-7・DS-8.5・DS-22)。
 
 - ステータス: iOS / Android とも実装済み・運用中(GUI 入口は VSCode 拡張に一本化)
-- 決定事項: ハイブリッド型 / 自作 XCUITest ブリッジ+自作 Android ブリッジ / シミュレータ優先 / Swift + FoundationModels
+- 決定事項: ハイブリッド型 / 自作 XCUITest ブリッジ+自作 Android ブリッジ / シミュレータ優先 / Swift(FoundationModels は任意の補助 = 可視性検証の最終段など)
 
 ---
 
@@ -19,11 +25,11 @@ iOS / Android 両対応のアプリ E2E テストツール。Android は iOS と
 
 | 機能 | 内容 | 本ツールでの用途 |
 |---|---|---|
-| 新オンデバイスモデル (AFM 3) | ロジック・tool calling が大幅改善、Vision(画像入力)対応 | エージェントの頭脳 |
-| Guided Generation (`@Generable`) | constrained decoding による型安全な構造化出力。パース失敗が原理的に起きない | 全ての LLM 出力(修復案、レポート) |
-| Tool calling (`Tool` プロトコル) | 並列/直列の呼び出しグラフを framework が自動処理 | 画面詳細のオンデマンド取得など補助的に使用 |
+| 新オンデバイスモデル (AFM 3) | ロジック・tool calling が大幅改善、Vision(画像入力)対応 | 画像を見る判定の補助(OCR で読めなかった crop の転写・`screenLooksLike`)と testbase の下書き |
+| Guided Generation (`@Generable`) | constrained decoding による型安全な構造化出力。パース失敗が原理的に起きない | 全ての FM 出力(可視性検証の crop の転写・`screenLooksLike` の判定・testbase の下書きと命名) |
+| Tool calling (`Tool` プロトコル) | 並列/直列の呼び出しグラフを framework が自動処理 | 使っていない |
 | マルチモーダル | 画像+テキスト入力(NSImage/CGImage/CVPixelBuffer/URL) | スクリーンショットの視覚検証 |
-| Dynamic Profiles | セッション中にモデル・ツール・instructions を切替 | verifier の役割切替 |
+| Dynamic Profiles | セッション中にモデル・ツール・instructions を切替 | 使っていない |
 | `LanguageModel` プロトコル | オンデバイス / PCC(32K ctx) / Claude / Gemini / MLX を同一 Session API で差替 | **使わない**。PCC は完全に禁止(下記)、外部 LLM も同様 |
 | 制約: コンテキスト ~4K トークン級 | TN3193 参照。プロンプト+応答で共有 | **設計全体を規定する最重要制約** |
 | 制約: ホスト全体で共有される資源 | 許可枠(既定1、環境変数で上書き可)で制限される。並列度が枠を超えるとレイテンシが伸びる(PT-3.5) | 並列実行では FM 呼び出し数と枠が実行時間の下限に効く(PT-3.5) |
