@@ -26,7 +26,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   **④領域を渡すのは iOS だけ** —— Android は領域の**短辺**から指の幅を決めて中心に置くので、
   狭い領域だと最小スケール幅(27mm)に届かない
 - **座標ピンチは非公開 API**(`XCPointerEventPath` / `XCSynthesizedEventRecord`。
-  **`XCUI` 接頭辞は付かない**・公開ヘッダに宣言が無い。ユーザー決定 2026-09-22 ——
+  **`XCUI` 接頭辞は付かない**・公開ヘッダに宣言が無い。DR-49 ——
   公開 API に代替が無いことを実測で確かめてから採用した)。`Runner/.../CoordinatePinch.swift` の
   1箇所に閉じ、守る規律4つ: **①実行時に存在を確かめてから使う**(無ければ要素ピンチへ縮退し、
   注記で必ず言う)/ **②起動時にも1行出す**(`coordinate pinch/gesture/doubletap: available` —— 消えたことが

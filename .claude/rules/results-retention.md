@@ -69,7 +69,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
 - **`--since` / `--until` の文法は `FTCore.TimeBoundParse` が唯一の定義元**(docs/results-json.md
   §`--since`/`--until` の文法)。時刻境界を取るオプションを新設するときは必ずここを通す
 - **保持容量の掃除は run の完了後に背景の別プロセスで**(`RunCompletionSweep.spawn` →
-  `fleetest clean --background`。**テストの実行時間に含めない** = ユーザー決定。開始時に置く・
+  `fleetest clean --background`。**テストの実行時間に含めない** = DR-80。開始時に置く・
   run の中で同期に走らせる形へ戻さない)。起こすのは**結果を書く3経路**(`Fleetest.swift` の
   プロファイル経路・プロファイル無し経路・`ApiRunCommand`)で、`RunCompletionSweepWiringTests` が
   本数・順序(結果の後)・「記録開始の直後に無いこと」を固定する。**子の標準入出力は3本とも

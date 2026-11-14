@@ -77,7 +77,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   3本。型で守れる区間の走査は、リファクタのたびに走査だけが落ちる)。
   **`occlusionOCR` は OCR 全体のスイッチではない** —— プロファイルの `ocrTextVisibilityCheck`
   (可視性検証の OCR 段だけ)なので、**OCR の用途が増えてもこの Bool を再利用せず欄を足す**。
-  **FM / OCR の親スイッチ(`fm` / `ocr`)は置かない**(ユーザー決定 2026-09-15。キーも
+  **FM / OCR の親スイッチ(`fm` / `ocr`)は置かない**(DR-77。キーも
   チェックボックスも無い)—— FM を呼ぶかは `FMConfig.enabled = fmTextVisibilityCheck || screenLooksLike`
   で導く(両方 false なら実行バイナリへ `--no-fm`)。親と子で同じ状態を2か所に持っていた
   → MN-23

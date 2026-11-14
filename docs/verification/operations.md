@@ -34,7 +34,7 @@ OCR だけの判定が誤った赤)。ツールは OCR の読み誤りを許す�
 デバイスを `"enabled": false` にしてある**(`--target` の割り振りはプロファイルの `devices[].machine` で決まり、対象ごとにマシンを外す口は無い。
 2026-11-10 の全体の回帰で E2EY-CMP の iOS が M4Max へ割り振られ 3/3 赤)。M4Max を 27 へ上げたら6ファイルの M4Max の iOS -01・-02 と Android -01 の `enabled` を消す(下の台数の上限は残す)。
 
-**M4Max で回すのは iOS 2台(iPhone 18 Pro -01・-02)と Android 1台(Pixel 10 Pro -01)だけ**(ユーザー決定 2026-11-10)。
+**M4Max で回すのは iOS 2台(iPhone 18 Pro -01・-02)と Android 1台(Pixel 10 Pro -01)だけ**(DR-125)。
 TestProjects/ の全プロファイルで、M4Max の iOS -03 と Android -02・-03 は `"enabled": false`。M4Max の Emulator は回帰の中で
 起動の途中に固まって落ちる(QEMU の "hanging thread"・status 11)ことが 11/6 以降の回帰で繰り返し出ていた。デバイスを足すプロファイルを
 作るときも、M4Max の台数はこの範囲に収める。
@@ -280,7 +280,7 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   `--retrain-classifiers`(各 SUT の画像分類器のキャッシュを消してから回す) /
   `--align`(下記) / `--build-only`(SUT の鮮度確認とビルドだけ)。
   `--build-only` は `Scripts/regress.py` が撃つ口(`e2ex.sh` / `e2ey.sh` にもある)
-- **回帰は録画しない**(2026-10-27 ユーザー決定)。4本のスクリプト(e2e / e2ex / e2ey / e2e-devices)は既定で
+- **回帰は録画しない**(DR-126)。4本のスクリプト(e2e / e2ex / e2ey / e2e-devices)は既定で
   `--set record=false` を渡し、`--record` のときだけ録画する。録画の切り出しが run ごとの後始末の大半だった(PT-8.1)
 - **全マシンで回すときは `Scripts/regress.py`**: 回帰の対象(スイート × SUT × OS/モード = `<プロジェクト>:<プロファイル>`)を
   `fleetest run --target …` の1回に並べる薄い包み(配り方は RR-8.2 = 空いたマシンが次の対象を取り、終わり際はシナリオ単位で手伝う)。
@@ -330,7 +330,7 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
     合流するか(`fleetest run --project E2E-CMP --profile android --scenario <1本> --runner <マシン>`)も見る
 - **`e2e.sh` / `e2ex.sh` / `e2ey.sh` は引数に関係なく「スイート全体」として `Scripts/test-scope-guard.py` が断る**(全実施を頼まれたときだけ
   `FT_FULL_TEST=1`)。絞った確認は `fleetest run --project <P> --profile <prof> --scenario <クラス>` で通るシナリオを名指しする
-- **回帰の分担(ユーザー指示 2026-09-28。`Scripts/regress.py` を使わないときの形)**: E2E はこの Mac(M2Ultra)で `Scripts/e2e.sh --local`、
+- **回帰の分担(DR-127。`Scripts/regress.py` を使わないときの形)**: E2E はこの Mac(M2Ultra)で `Scripts/e2e.sh --local`、
   E2EX は `Scripts/e2ex.sh --on M1Ultra`(ssh でランナーのクローン `~/fleetest-runner/fleetest` に入り、
   **そこで SUT をビルドして**そこのデバイスで回す。残りの引数はそのまま渡す)を**同時に**起こす。向こうで動くのは
   align 済みのコミットなので commit → `Scripts/align.sh` → 実行の順。M1Ultra の道具(Flutter は
@@ -418,7 +418,7 @@ Flutter / RN の SUT の `Info.plist` も同じ(ソース)。
   ロック中は `UiAutomation.getRootInActiveWindow()` が対象アプリにならないので **全シナリオが
   launch 500(「アプリの画面が表示されませんでした」)で落ちる**
 - run 前に `AndroidPhysicalDevice.prepareForRun` が点灯・ロック解除を行う。**消灯は抑止しない**
-  (2026-09-05 ユーザー決定。`svc power stayon` は true も false も撃たない —— false を旧版の後始末として
+  (DR-128。`svc power stayon` は true も false も撃たない —— false を旧版の後始末として
   撃っていた頃は、持ち主の「充電中はスリープしない」を run・MCP のたびに消していた)。
   その代わり**シナリオごと(子プロセス)と MCP の呼び出しごとに1往復で画面を確かめ、消灯・ロック中の
   ときだけ起こす**(`wakeIfAsleep`。0.07〜0.15 秒)。run 開始時の1回だけだと、途中で1回消えた後の

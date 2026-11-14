@@ -161,7 +161,7 @@ DS-10 の前半は dsl-syntax.md。
   **iOS には軽い修復手段が無い**(確認できているのは `simctl shutdown`→`boot` だけ)ので、
   `recover:` に注入した `ProfileWorkerFactory.recoverFrozenIOSWorkers`(そのデバイスのブリッジを先に止めてから
   `simctl shutdown` → `SimulatorBoot.ensureBooted`・2 台ずつ・`recoveryAttempts` = 2)で**全機が戻るまで開始しない**
-  (ユーザー指示 2026-08-09。弾くだけだと凍結が多発した run はレーンが半分で走る)。戻らない個体だけレーンから外し、
+  (DR-40。弾くだけだと凍結が多発した run はレーンが半分で走る)。戻らない個体だけレーンから外し、
   復旧コマンドをログに出す。**iOS(BlankWorkerTriage)**の判定は恒常 blank
   (2.5s 間隔で5連続。約10秒の観測窓)に加え、一様が続いた機だけ画面を必ず変える入力を送る
   能動プローブ(`nudge`)で仕分ける ——「描画要求が無いだけの黒画面」(入力で戻る)と
@@ -294,7 +294,7 @@ DS-10 の前半は dsl-syntax.md。
   **label か value を持つものが3つ以上**。**入れ子の一本鎖は数えない**(Android のダイアログは `action_bar_root`→…→`custom` が全部同じ矩形)。数えるのを「中身を持つもの」に限るのは、
   件数だけだと普通の木が鳴るため(Android の同一 bounds のラッパー連鎖が可視ボトムシートで積み重なり扱いされた)。
   どちらも**拒否せず警告**。積み重なりは一覧にも `⚠️scroll-leftover` を出す(原因も打ち手も ghost と同じなので**印を2種類に割らない**)。
-  **例外はキーボード被覆**(決定: ユーザー 2026-09-14。`MCPServer.keyboardRefusal`): 中心がソフトキーボードの下にある要素への ref 操作(tap / long_press / type / clear / double_tap・batch の1手目)は
+  **例外はキーボード被覆**(DR-41。`MCPServer.keyboardRefusal`): 中心がソフトキーボードの下にある要素への ref 操作(tap / long_press / type / clear / double_tap・batch の1手目)は
   **両ブリッジとも断る**。結果が確実で副作用がある(XCUITest はキーの上に指が落ちて焦点の欄に文字が入り(実機 SE3・`#tab_about` で「o」)、in-app は 422 で断っていた = ブリッジで割れていた)。
   判定は ref 形・DSL と同じ `KeyboardOcclusion`(chrome 除外済み)。**座標形は断らない**(キーを押す意図があり得る。`keyboardCoordinateWarning` で警告)。**DSL の tap は据え置き**(注記)
 - **自分の子孫が中心を横取りする形**(`TapTargetGeometry.nestedActionCoveringCentre`)。`occluder` は祖先と子孫を除外する(親子の重なりは正常な入れ子)ので、この形を捕まえない。
@@ -325,7 +325,7 @@ DS-10 の前半は dsl-syntax.md。
   chrome 自身とその部分木(木は親→子順+`depth`)は除外する(覆っている側を「覆われている」とは言えない)。実測(`ios-maps_suggest_keyboard`): 16件(見落とし)→ 30件(広げただけ)→ **20件**(除外後)で、
   増分4は本当にキーボードに隠れた5件目の検索結果。**拾い直しが要る**: `SystemInputAssistantView` は申告矩形と縁が接するだけで交差しないので最初の走査に入らない —— 実効矩形で chrome を引き直さないと、その部分木が除外から漏れる
 
-### 描画崩壊の検査(iOS Simulator のみ・ユーザー決定)
+### 描画崩壊の検査(iOS Simulator のみ・DR-42)
 
 iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起動し直すまで戻らないことがある(触らずに置いた壊れた Compose が
 26 分以上文字なしのままだった)。形は2つ: アプリの領域が**一色**(白・黒。観測の約 70%)/ 図形は描かれるが**文字が一つも無い**(約 30%・Compose のみ)。
@@ -346,7 +346,7 @@ iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起
   画面を見ずに通った検証 N 件の名前)
 - **費用**: 画素で文字を確認した検証が無い区間だけ、スクリーンショット1枚(Simulator で約 100〜115ms)。E2E の iOS 実行の 15%(直近3日)
 - **公表だけの構成(Android Emulator・iOS Simulator の自前描画以外)も同じ区間で木とスクリーンショットを1組読む**(見つかった回だけ 1 秒あけた撮り直し)。公表の判定は、緑の経路では区切りだけ、可視性検証では赤が確定した時点だけ(poll の途中の1枚で公表しない)
-- **状態の公表(警告。ユーザー決定)**: 白紙(`blank` = 一色)と文字消え(`textless`)は凍結(❄️)とは別の状態として
+- **状態の公表(警告。DR-42)**: 白紙(`blank` = 一色)と文字消え(`textless`)は凍結(❄️)とは別の状態として
   `FTCore.DeviceScreenStateStore`(`.fleetest/screen-state-<デバイス鍵>.json`。鍵は `DeviceFrozenStore` と同じ)に公表し、モニターが
   `devices[].screenState` で配る。対象は **iOS Simulator と Android Emulator**(実機は対象外。`StepExecutor.publishesScreenState`)で、
   赤にするかどうか(上の `checksRenderCollapse`)とは**独立** —— Android と iOS の自前描画でない画面は公表だけで、シナリオの合否を変えない。
@@ -453,7 +453,7 @@ iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起
   この上限は掛からない(利用者向けの記述は docs/commands.md)
 - 失敗セマンティクス: コマンド NG → **シナリオ全体を中断**(以降のステップは scene を跨いで
   すべて skipped。throw を使わない Shirates 的中断)。afterEach だけは失敗後でも実行される。
-  scene 単位のスキップで次の scene へ進む形にはしない(ユーザー決定 2026-07-27): 失敗後の画面状態は不定で、
+  scene 単位のスキップで次の scene へ進む形にはしない(DR-43): 失敗後の画面状態は不定で、
   続けても壊れた前提の誤った緑・誤った赤を生むだけのため
 - **登録不要の単発実行**: `fleetest run-file <path.swift>`(Sources/fleetest/RunFileCommand.swift)。
   `fleetest project create/sync` で Package.swift へ登録していない .swift をそのまま実行する。
@@ -471,7 +471,7 @@ iOS Simulator ではアプリのプロセスの描画が壊れ、アプリを起
 
 現在の解決順は **プライマリ → フォールバック → 指紋照合**(FM は呼ばない)。ソース位置付きの
 修正提案をレポートに出し、実行の終わりにソースへ自動で書き戻す(下記「ソースへの書き戻し」)。`heal` は他のトグルから独立(自己修復は
-FM 機能ではないため。ユーザー決定 2026-09-15)。
+FM 機能ではないため。DR-7)。
 
 **FM ヒールもヒールキャッシュも置かない**: FM ヒールの採用門(confidence == high)が本番で実測 0/272 しか開かず
 (MN-22)、ヒールキャッシュは FM 版だけが書き手だったため、指紋照合だけの1層構成にしている。
@@ -517,7 +517,7 @@ VSCode 拡張は確認パネルを持たず、書き戻した実行の終わり�
   得られるのは速度だけ。一方、一意に一致したが実は別要素だった場合に誤りが永続化し、
   以後は注記無しで解決されて気付けなくなる。修正提案は毎回出す(提案と固定化は別)
 - 注記 `heal-fingerprint-match` を必ず立てる(結果 JSON に出て run 横断で数えられる)
-- **`heal=false` は指紋照合を止める**(ユーザー決定 2026-09-15)。門は `StepExecutor.execute`
+- **`heal=false` は指紋照合を止める**(DR-7)。門は `StepExecutor.execute`
   の入口1箇所。他のトグルとは独立 —— 自己修復は FM 機能ではない。
   **記録(採取)は heal=false でも続ける** —— 修復ではなく観測なので、heal を戻した日に
   控えが古びていない

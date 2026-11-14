@@ -44,7 +44,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
     **遅いだけで出力を続ける子は止めない**。出力の到着は**パイプの受け口**(`lineStream(onChunk:)`)で数える ——
     読み取りループで数えると、ループが installRequest を待つ間と、親が止まっていた直後の未消化の行を「無出力」と
     見る。打つ直前にパイプの未読(`hasUnreadOutput` = poll)も見る(親の再開と同時に起きた killer が先に走る形)。
-    警告の段を経ずに打ち切りで入れた(ユーザー決定 2026-10-12)。根拠の実測: 過去の全体打ち切り 61件のうち 45件は
+    警告の段を経ずに打ち切りで入れた(DR-23)。根拠の実測: 過去の全体打ち切り 61件のうち 45件は
     最後の出力から 30 秒以内 = 進行中の子を切っていた・緑の出力間隔は p99.9 で 57 秒、最長は OCR コンパイル待ちを
     含む 120 秒台(延長の申告で許される側)。9/17 の緑で最後のステップの後 555 秒・178 秒無出力だった2件は、当時
     シナリオごとの実行ログが無く原因を判定できていない(同じ形が出れば今は idle で赤になる)
@@ -407,7 +407,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
   テキスト検証(`textIs` 等)は探索手段を持たない(次項)
 - **テキスト検証コマンド(`textIs` / `valueIs` / `textContains` / `textMatches` /
   `textStartsWith` / `textEndsWith` / `textIsNot` / `textIsEmpty` / `textIsNotEmpty`)に
-  `scroll:` を足さない**(ユーザー決定 2026-07-27)。これらは**静止した画面のテキストを詳細に
+  `scroll:` を足さない**(DR-24)。これらは**静止した画面のテキストを詳細に
   検証する**ためのもので、条件を満たすまで自動でスクロールする挙動は**望まれていない**。
   `exist` と `tap` が `scroll:` を持つのは「在るか」を探す・操作するコマンドだから。
   一貫性を理由に対称化しないこと(**再提案しない**)
@@ -454,7 +454,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 - **xcuitest の `launchApp` も既定で simctl 化**(`FastLaunchDriver`)。`XCUIApplication.launch()`(約4.6s)の代わりに simctl terminate+launch+activate 接続(約2.4s)で再起動する
   (シナリオ wall −14〜19%)。`FT_NO_FAST_LAUNCH=1` で従来動作へ戻せる。attachOnly(整定なし接続)を launch に使わない理由は PT-6
 - **inapp の `launchApp` は毎回 `simctl launch --terminate-running-process` で terminate+relaunch するが、アプリのデータは消さない**ので、アプリがディスクへ永続化した直前ルートを復元し得る
-  (プロセス再利用ではない)。決定的なナビ状態リセットはアプリ側の責務で、ツールは状態リセットの注入(`SIMCTL_CHILD_FT_RESET` 等)を意図的に提供しない(決定: ユーザー 2026-07-20)。
+  (プロセス再利用ではない)。決定的なナビ状態リセットはアプリ側の責務で、ツールは状態リセットの注入(`SIMCTL_CHILD_FT_RESET` 等)を意図的に提供しない(DR-25)。
   シナリオ側は scene1 で対象タブをルートへ正規化して吸収する
 - **`launchApp` は全モードで常にプロセスを再起動する**(前面化ではない。Android はブリッジの force-stop+起動、xcuitest は `FastLaunchDriver` の terminate 込み launch)。
   「起動済みならプロセス温存でエントリー画面へ」の warm 化は実装・検証まで行って**中止・破棄**した(2026-08-08): Android は `am start --activity-clear-task` で成立するが、
@@ -510,17 +510,17 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 | スクロールの時間指定(`scrollDurationSeconds` / `scrollIntervalSeconds`)が無い | 現行のフリング前提の実測値(Android 300ms・端送り 150ms+fling / iOS 端送り velocity 1500)を捨てることになるため。**間隔は固定 sleep でなく静止待ち**で担保する。`scrollFrame` とマージンは実装済み(既定値だけ fleetest の実測で決める) |
 | `(a\|b)&&[2]` は「各節の2番目」(Shirates は和集合の2番目) | 節ごとに `[n]` を持つ fleetest の構造をそのまま使う |
 | `!` 短縮形で序数を否定できない(`![2]`) | 候補集合を絞れず黙って無視されるため実行前エラーにする |
-| テキスト検証(`textIs` 等)に `scroll:` が無い | ユーザー決定(上記「再提案しない」項) |
+| テキスト検証(`textIs` 等)に `scroll:` が無い | DR-24(上記「再提案しない」項) |
 | `thisIs` 系が素の値にも直接生える(`FTValue` 転送) | Swift は非 Optional に `Any?` 拡張が生えない(言語制約の吸収であり挙動差ではない) |
 | 相対セレクタの引数の `(a\|b)` は括弧を自分で書く | `:right(...)` の括弧が引数の括弧で `\|` の囲みにならないため |
-| `scrollFrame:` に型付きセレクタ(`Sel`)版が無い(String 固定) | ユーザー決定 2026-08-04・**再提案しない**。1対1を保証するのは**対象セレクタ**まで。`scrollTo` は対象と `scrollFrame` の両方を取るためオーバーロードが 2×2 になり、他20コマンドと合わせて語彙が増える割に、`scrollFrame` は生成コードにほとんど出ない(下記「型付きセレクタ」) |
+| `scrollFrame:` に型付きセレクタ(`Sel`)版が無い(String 固定) | DR-29・**再提案しない**。1対1を保証するのは**対象セレクタ**まで。`scrollTo` は対象と `scrollFrame` の両方を取るためオーバーロードが 2×2 になり、他20コマンドと合わせて語彙が増える割に、`scrollFrame` は生成コードにほとんど出ない(下記「型付きセレクタ」) |
 | フローベース相対セレクタ(`:flow` 等)を持たない | 根拠の無い調整値を要求する(上記 2026-07-26 決定・再提案しない) |
 | `pressEnter` の iOS 実装がソフトキー tap ではない(xcuitest = `typeText("\n")` / inapp = 受け口ごとに Compose は `insertText("\n")`・UIKit は delegate 再現・Flutter は Flutter engine への配送) | キーボード要素をスナップショットから除外しているため tap できない。受け口で機構が違うのは iOS 側の事情(上記「iOS の Enter は…」)。観測できる挙動(Return キー相当)はいずれも同等 |
 | `back()` は Shirates の `pressBack`(Android 専用)を home()/appSwitcher() と同列の OS 差吸収コマンドとして両 OS 提供(iOS はエッジスワイプ) | iOS に物理バックが無く、コマンド語彙を OS で割らない方針 |
 | `swipePointToPoint` / `swipeElementToElement` に withOffset・offsetY・intervalSeconds・repeat・safeMode・marginRatio・adjust が無い | ブリッジの drag が単発ジェスチャのため |
-| `optional:` 引数を持たない(Shirates は `throwsException: false`) | ユーザー決定 2026-08-02・**再提案しない**。「出るか不定」はアプリ内メッセージなら `irregularHandler`、その場限りなら `ifCanSelect { }` で表す。空振りを黙って許す引数が操作系に付いていると、腐ったセレクタが緑のまま残る。掴めないことが答えになり得る `select` だけは失敗させず空要素を返す |
+| `optional:` 引数を持たない(Shirates は `throwsException: false`) | DR-34・**再提案しない**。「出るか不定」はアプリ内メッセージなら `irregularHandler`、その場限りなら `ifCanSelect { }` で表す。空振りを黙って許す引数が操作系に付いていると、腐ったセレクタが緑のまま残る。掴めないことが答えになり得る `select` だけは失敗させず空要素を返す |
 | `notExist`(Shirates は `dontExist`) | 否定の意味が読み取りやすく `exist` との対称も保てる(ユーザー決定 2026-07-31・**再提案しない**) |
-| `existAll` / `dontExistAll` を持たない | `exist` のチェーンで書く方が保守しやすく、要素ごとに `waitSeconds:` / `scroll:` を指定できる(ユーザー決定 2026-07-31・**再提案しない**) |
+| `existAll` / `dontExistAll` を持たない | `exist` のチェーンで書く方が保守しやすく、要素ごとに `waitSeconds:` / `scroll:` を指定できる(DR-35・**再提案しない**) |
 | `clearInput` がソフトキー/Appium clear 機構ではない(xcuitest=末尾タップ+delete 連打 / inapp=first responder のテキスト置換(WebView の欄は全選択+削除1回で、確かめは呼び手が木で行う)/ Android=ACTION_SET_TEXT "") | キーボード要素を snapshot から除外しているため(pressEnter と同じ事情) |
 | キーボード可視の取得元がブリッジで違う(iOS xcuitest=AX ツリーの `.keyboard` ノード / iOS in-app=`UITextEffectsWindow` の可視判定 / Android=ホストが見る dumpsys の InputMethod window) | IME が別プロセスの window でアプリの a11y ツリーに出ないため(iOS の2経路の事情は下記「キーボードの観測と `hideKeyboard`」) |
 | `waitForDisplay` / `waitForClose` に `throwsException` が無い(タイムアウトは常に失敗として記録) | `optional:` を持たないのと同じ方針。空振りを許すと腐ったセレクタが緑のまま残る(2026-08-03 承認) |
@@ -529,12 +529,12 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 | 待ち系(`waitForDisplay`/`waitForClose`/`appIs`)のポーリング間隔が `PollBackoff`(100→1000ms)である(Shirates は 0.2s 固定) | ポーリングは既存機構の再利用が契約(PollBackoff.swift「コピペ禁止」)。既定の待ち秒数 15.0(`WAIT_SECONDS_ON_ISSCREEN`)は踏襲(2026-08-03 承認) |
 | `screenshot` が `force`/`onChangedOnly`/`withXmlSource` を持たない(`filename:` のみ) | この3引数は Shirates の auto-screenshot 機構(毎操作の自動撮影・変化なしスキップ・XML dump)の制御で、fleetest はその機構自体を持たない(撮るのは失敗時の証跡と `screenshot()` の明示呼び出しだけ)。画像はレポートの該当ステップ直後に埋め込む(2026-08-03 承認) |
 | `flick*` は画面基点の8種のみで、`scrollableElement`/`safeMode` を持たない。`flickAndGo*` 一族・要素基点 `flickTo*`/`flickOut*` は持たない | 領域指定は `scrollFrame` のセレクタ式で足りる(既存の scroll 系と同じ判断)。`flickAndGo*` は scroll 系の別名で語彙を増やすだけ(2026-08-03 承認) |
-| `verify` が Shirates の `MANUAL` 相当(強制 passed 化)を持たず、アサーション0個は**ステップ状態 inconclusive** | 2026-08-03 ユーザー決定。MANUAL の語彙は持たない(`manual`/`knownIssue` を入れない既存方針と同根)が、失敗にもしない。passed でも failed でもない中間状態(`StepResult.Status.inconclusive`)として理由つきで記録し、シナリオは中断しない。弱い修正提案も残す |
+| `verify` が Shirates の `MANUAL` 相当(強制 passed 化)を持たず、アサーション0個は**ステップ状態 inconclusive** | DR-36。MANUAL の語彙は持たない(`manual`/`knownIssue` を入れない既存方針と同根)が、失敗にもしない。passed でも failed でもない中間状態(`StepResult.Status.inconclusive`)として理由つきで記録し、シナリオは中断しない。弱い修正提案も残す |
 | `appIs` はニックネーム解決を持たず ID(iOS=bundle ID / Android=package)を直接書く | fleetest はアプリのニックネーム機構自体を持たない(既存方針。2026-08-03 承認) |
-| `packageIs` を持たない | 2026-08-03 ユーザー決定。ニックネームが無い fleetest では `appIs` が ID 直指定のため Android で完全に同じ検査になり、同じことを2通りで書ける語彙になる。**再提案しない** |
+| `packageIs` を持たない | DR-37。ニックネームが無い fleetest では `appIs` が ID 直指定のため Android で完全に同じ検査になり、同じことを2通りで書ける語彙になる。**再提案しない** |
 | `tapAppIcon` が `auto` 相当のみ(method 切替・マクロ機構なし) | 対象は実質エミュレータ/シミュレータで `auto` の分岐だけで足りる。名前省略時の既定は installApp と同じ形で親が解決する(`--app-name` = プロファイルの `appName`。2026-08-03 決定。実行自体は子のまま — UI 操作は「1シナリオ=1プロセス=1ドライバ」の子の責務で、親が同じランナーを叩くと二重クライアントの事故型になる) |
-| `installApp` の実行主体がオーケストレータ(親プロセス)である | 2026-08-03 ユーザー決定。子(シナリオサブプロセス)は install の依頼だけを親へ送り(stdin/stdout RPC)、親が実行プロファイルの `appPath` を解決して実インストールする。パス解決の優先順は明示引数 > プロファイルの `appPath`(Shirates の `appPackageFile` 既定に一致)。オーケストレータ無しの単独実行だけ、子が直接 `driver.install` を呼ぶ経路にフォールバックする(パス解決は 明示引数 > `--app-path` > 明示エラー)。iOS の inapp-boost モードではインストールで in-app ブリッジが道連れになるが、次の `launchApp()` が再注入する(注記は実行中の ℹ️ ログにのみ出る。保存レポートには残らない) |
-| `enabledIs(expected:)`/`checkedIs(expected:)`(生文字列親形)を持たず、糖衣形 `enabledIsTrue/False`・`checkIsON/OFF` のみ | 生値比較は OS 依存(checked の iOS "1"/"")で、正規化済み Bool と衝突する。糖衣形は OS 差を吸収済みで fleetest の正規化と一致(2026-08-04 ユーザー決定。Is 後置の社内語彙とも揃う) |
+| `installApp` の実行主体がオーケストレータ(親プロセス)である | DR-38。子(シナリオサブプロセス)は install の依頼だけを親へ送り(stdin/stdout RPC)、親が実行プロファイルの `appPath` を解決して実インストールする。パス解決の優先順は明示引数 > プロファイルの `appPath`(Shirates の `appPackageFile` 既定に一致)。オーケストレータ無しの単独実行だけ、子が直接 `driver.install` を呼ぶ経路にフォールバックする(パス解決は 明示引数 > `--app-path` > 明示エラー)。iOS の inapp-boost モードではインストールで in-app ブリッジが道連れになるが、次の `launchApp()` が再注入する(注記は実行中の ℹ️ ログにのみ出る。保存レポートには残らない) |
+| `enabledIs(expected:)`/`checkedIs(expected:)`(生文字列親形)を持たず、糖衣形 `enabledIsTrue/False`・`checkIsON/OFF` のみ | 生値比較は OS 依存(checked の iOS "1"/"")で、正規化済み Bool と衝突する。糖衣形は OS 差を吸収済みで fleetest の正規化と一致(DR-39。Is 後置の社内語彙とも揃う) |
 
 ### `clearInput` の受け口ごとの機構と Flutter の縮退
 
@@ -584,7 +584,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 keyboardFrame が遮蔽警告用の矩形で、**申告できる条件が違う**(例: in-app は通知値が無いと
 frame を申告しないが shown は言える)ため統合しない。
 
-**`hideKeyboard` は Android・iOS とも動く**(ユーザー方針: 「人が操作できないときだけエラーにし、人ができる操作はツールも
+**`hideKeyboard` は Android・iOS とも動く**(DR-26: 「人が操作できないときだけエラーにし、人ができる操作はツールも
 最善を尽くす」。「空白点タップは透明なタップ領域を踏む副作用がある」ことは、点の選び方(下記)で避ける)。
 出ていないときは何もせず成功する(冪等)。
 
@@ -596,7 +596,7 @@ frame を申告しないが shown は言える)ため統合しない。
   答えられないブリッジ(XCUITest)は木だけで決め、**木の最上端の要素より上は撃たない**(ステータスバーを避けるため)。
   点が無ければ待って探し直す(ステップの制限時間まで。トーストが消えることがある)。撃った後は最大 1.5 秒キーボードが閉じるのを待つ。
   閉じれば成功で、注記に撃った点を書く(撃った後にキーボードより上の要素が消えていれば、何も発火していないか確かめる注記も添える。
-  要素の比較は id があれば id で)。**閉じなければ(または点が無ければ)Enter を送る**(ユーザー決定)。注記に、Enter が欄の
+  要素の比較は id があれば id で)。**閉じなければ(または点が無ければ)Enter を送る**(DR-27)。注記に、Enter が欄の
   リターンキーの動作(検索・送信・次の欄)も発火させることを書く。それでも出ていれば失敗
 - **木で判定する理由**: Compose・Flutter・RN・SwiftUI は全てのタッチを1つの面で受けるので、OS の hit-test では背景とボタンを
   区別できない。区別できるのは a11y の木だけ。`/tapprobe` は木の判断を覆す裏取り(キーボード・
@@ -609,7 +609,7 @@ frame を申告しないが shown は言える)ため統合しない。
 それでも覆われていれば、**副作用のない手段だけ**でキーボードを閉じる(iOS = 上の背景タップから Enter フォールバックを除いたもの /
 Android = `hideKeyboard` の戻るキー)→ 木を読み直して対象を解決し直し、注記を添えて操作する。副作用なしに閉じられないときは
 何も触らずステップを失敗にする(文言に「リターンキーなら閉じられるが欄の動作も発火するので自動では押さない・意図するなら
-ステップの前に `pressEnter()`」を書く。ユーザー決定: ここでは Enter を自動で押さない)。閉じた後に対象が消えた・まだ覆われていれば失敗。
+ステップの前に `pressEnter()`」を書く。DR-28: ここでは Enter を自動で押さない)。閉じた後に対象が消えた・まだ覆われていれば失敗。
 **Android**: キーボードが出ている間に対象が見つからないとき(窓が縮み、下の要素が木に無い。Android は枠を申告せず `keyboardShown` だけの
 ことがある)は、通常の待ちの後に戻るキーで閉じて**1回だけ**解決し直す。長押し(`holdSeconds` > 0)は注記だけ。
 
@@ -641,7 +641,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
   **片方だけ足さない** — `Sel` を選ぶと別名族が使えない状態は「型付き経路を選ぶと機能が減る」
   ことを意味し、生成側を Sel 既定に寄せられなくなる。取りこぼしは
   `Tests/FTDSLTests/SelOverloadParityTests.swift` がソース走査で検出する
-- **`scrollFrame:` 引数だけは String 固定**(Sel 版を持たない。ユーザー決定 2026-08-04・
+- **`scrollFrame:` 引数だけは String 固定**(Sel 版を持たない。DR-29・
   **再提案しない**)。1対1の対象は**対象セレクタ**であって全てのセレクタ式引数ではない。
   理由: `scrollTo` は対象と `scrollFrame` の両方を取るのでオーバーロードが 2×2 になり、
   他20コマンド(`scroll*` / `scrollToEdge` 系 / `withScroll*` / `flick*`)と合わせて語彙が一気に増える。
@@ -649,7 +649,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
   「型付き経路を選ぶと機能が減る」の実害が最も小さい場所。
   `SelOverloadParityTests.testScrollFrameRemainsStringOnly` がこの決定を固定する
 - **スクロールを関数名で指定する別名族(`*WithScrollDown/Up/Right/Left`・`*WithoutScroll`)は置かない**
-  (ユーザー決定 2026-09-19)。
+  (DR-30)。
   指定は各コマンドの `scroll:` だけ = 同じことを2通りで書ける組み合わせを作らない(生成側の語彙のブレを消す)。
   Shirates の名前は `UnavailableCommands.swift` がコンパイルエラーで書き方を返す。**別名を再提案しない**
 - 組み立てるのは**文字列版と同じ `FlowLocator`**。解決・実行・レポート・ヒールは完全に共通で、
@@ -666,7 +666,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
 - 型名は `SelType` の静的メンバ(OS 共通契約の5型 + エイリアス + 頻出型)。語彙に無いものは
   `.custom("...")`(先頭小文字へ正規化)
 - **生成側(`ScenarioCodeGen` / `/fleetest-scenario`)は文字列版を出す。
-  Sel を既定にしない**(ユーザー決定 2026-07-30・**再提案しない**)。生成コードは
+  Sel を既定にしない**(DR-31・**再提案しない**)。生成コードは
   **人が必要に応じてカスタマイズする前提**で、`Sel` は型指定を好む人のためのシンタックスシュガー
   という位置づけ。したがって `Sel` の利用が少ないこと自体は想定どおりで、「未使用だから撤去/既定化」
   という判断にはならない。**再検討条件**: 人がカスタマイズしない領域の生成が出てきたとき
@@ -713,7 +713,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
 ### 暗黙の要素保持(`lastElement`)
 
 戻り値を受けていなくても直前に掴んだ要素を読める(Shirates の `TestDriver.lastElement` 相当)。
-**鮮度のリスクを承知したうえでのユーザー決定**(2026-08-04)。
+**鮮度のリスクを承知したうえでの決定**(DR-108)。
 
 - **更新点は1か所**: `Commands.swift` の共通経路 `perform(_:_:step:…)`。セレクタを取るコマンドは
   全部ここを通るので個々のコマンドに書き足さない(足し忘れると「どのコマンドで差し替わるか」の
@@ -732,7 +732,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
 
 `exist(…).textIs(…)` は**掴んだ時点の値で先に判定し、満たしていれば実機を見に行かない**。
 満たしていなければ何もせず通常経路へ落ちる = 取り直しながらポーリングする。
-**ユーザー決定**(2026-08-04)。
+**決定**(DR-32)。
 
 - **判定できるアサートの表は `FTCore/HeldElementAssert`**。比較そのものは
   `LocatorResolver.matchedText` / `negativeAssertSatisfied` を**呼ぶ**(独自に書くと、同じアサートが
@@ -754,7 +754,7 @@ select(.id("txt_result")).textIs("dialog=none")   // 検証はセレクタを取
 ### 検証の対象は「直前に掴んだ要素」に固定
 
 `textIs("#btn_ok", "OK")` の形(セレクタを取る検証の自由関数)は**無く**、対象は
-`lastElement` に固定する。**ユーザー決定**。3つの書き方が同義になる:
+`lastElement` に固定する。**決定**(DR-33)。3つの書き方が同義になる:
 
 ```swift
 select("#btn_ok").textIs("OK")                  // FTElement のメソッド(判定の実体)
@@ -767,8 +767,7 @@ select("#btn_ok"); textIs("OK")                 // 暗黙(トップレベルの�
   (`exist` は掴む側なので当然セレクタが要る)
 - **判定の実体は `FTElement` のメソッド1か所**。自由関数は `lastElement.<同名>` へ委譲するだけで、
   ステップ記録も往復回数も一致する(`HeldValueAssertTests.testTheThreeFormsAreEquivalent` が固定)
-- **セレクタを取る形の unavailable スタブは置かない**(移行案内は不要・ユーザー決定
-  2026-08-04)。`textIs("#id", "OK")` はコンパイラの素のエラー(`extra argument in call`)になる
+- **セレクタを取る形の unavailable スタブは置かない**(移行案内は不要・DR-33)。`textIs("#id", "OK")` はコンパイラの素のエラー(`extra argument in call`)になる
 - **1引数形にセレクタらしい期待値が来たら実行前に落とす**(`expectedLooksLikeSelector`)。
   `textIsNot("#btn_ok")` のような書き方は「そのテキストではない」が常に真で**黙って緑**になる。
   逃げ道はチェーン形(対象が明示なので曖昧さが無い)
@@ -1002,7 +1001,7 @@ select("#btn_ok"); textIs("OK")                 // 暗黙(トップレベルの�
   (`FTScrollOption` = 4方向 + `.noScroll`。`*WithoutScroll` という関数は置かない。**省略(nil)= 文脈に従う、とは別の値**)。
   明示の `scroll:` 引数が常に最優先(`FTDriveCore.effectiveScroll` の1箇所で解く)。`FTScrollDirection` に
   `.noScroll` を混ぜないのは、向きを取る側(`scrollTo(direction:)`・`withScroll*`・MCP)に書けてしまうため
-- **`textIs` 等の検証コマンドに `scroll:` は持たせない**(ユーザー決定 2026-07-27)。
+- **`textIs` 等の検証コマンドに `scroll:` は持たせない**(DR-24)。
   静止した画面を詳細に検証するためのもので、条件が揃うまで自動でスクロールする挙動は望まれていない。
   **再提案しない**
 - **`scrollFrame` でスクロール領域を指定できる**(Shirates と同じくセレクタ式で受ける)。

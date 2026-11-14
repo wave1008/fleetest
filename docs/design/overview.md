@@ -61,7 +61,7 @@ Android は iOS と同じ `AppDriver` 抽象の上に実装している(DS-7, DS
 なお**ロックの有無自体は全滅の防止には効果が無いことが実測で確認済み**(残しているのは p50 が
 下がるため。経緯と対照データは docs/verification/)。
 
-**PCC(Private Cloud Compute)は完全に禁止**(ユーザー決定 2026-09-07)。macOS 27 SDK の
+**PCC(Private Cloud Compute)は完全に禁止**(DR-8)。macOS 27 SDK の
 FoundationModels はモデル型を2つ持ち、**`PrivateCloudComputeLanguageModel` を使うとアプリの
 画面情報が Mac の外へ出る**。受け手向けドキュメントが「画面情報は Mac の外に出ない」と
 断定しているので、これは表現ではなく守るべき不変条件。使ってよいのは

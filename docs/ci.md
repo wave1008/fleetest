@@ -131,7 +131,7 @@ CI 用のシナリオ単位リトライは**実装していない**。自動リ�
 - **振り直しはシナリオ単位の再実行**(同じデバイスのことも別のデバイスのこともある。`RunOrchestrator.requeuesWithoutRetiring`)。
   表示の凍結を確定したデバイスでは直前の**成功**も捨てて振り直す(docs/design/ の DisplayFreezeWatch)。
   ステップ単位の「撃ち直さない」原則(CLAUDE.md)の例外で、取り消せない操作を含むシナリオは1 run で2回走りうる。
-  **止める口は作らない**(ユーザー決定: シナリオは再実行される前提で作るもの。利用者向けは
+  **止める口は作らない**(DR-105: シナリオは再実行される前提で作るもの。利用者向けは
   docs/user-docs/in_action/ci_ja.md と reference/writing/writing_robust_scenarios_ja.md に明記)
 
 ## 関連

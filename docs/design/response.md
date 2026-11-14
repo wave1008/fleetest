@@ -12,7 +12,7 @@
 
 ## RM-1 何を測るか
 
-「レスポンス計測モード」で、並列なしで回す。**対象は実機(決定: ユーザー 2026-10-15)**。Simulator / Emulator は対象外。
+「レスポンス計測モード」で、並列なしで回す。**対象は実機(DR-74)**。Simulator / Emulator は対象外。
 1回の操作について、次の3つの時刻を取る。
 
 ```
@@ -143,7 +143,7 @@ Shirates にはこの機能が無いので踏襲元は無い。利用者向け�
   - 帰属・分類の欄は置かない(失敗の記録と同じ規律)
 - `RunMetaRecord.responseMeasurement`(`ResponseMeasurementRunInfo`)に、デバイスの識別(`deviceName`・`serial` / `udid`・`model`・`osVersion`)と `repeatCount` を書く。
   run.json の識別は配る前に書き、失敗の finish でも残す。前回比の「同じ端末」は `serial ?? udid ?? deviceName`
-- **欄の扱い = 省略可・`ProtocolVersion` は上げない・保存記録は移行しない**(決定: ユーザー 2026-10-18。必須 + null・版 +1・保存記録の移行の案は採らない)。理由:
+- **欄の扱い = 省略可・`ProtocolVersion` は上げない・保存記録は移行しない**(DR-75。必須 + null・版 +1・保存記録の移行の案は採らない)。理由:
   - 結果のファイルは読めないと**黙って飛ばされる**(`RunResultsStore` の decodeFailure)。必須にすると、移行しそこねた保存記録が履歴からまるごと消える
     = 「沈黙する縮退」をこちらが作る
   - `response` が無いことは「計測モードの回ではない(= 測っていない)」という**正しい意味**を持ち、古い記録でも同じ意味になる。読むときに既定値で埋めて

@@ -32,7 +32,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   出典は `Sources/FTCore/ProjectCommandIndex.swift`(ソーステキストを直接読む純粋な走査。デバイス・
   ビルド非依存)—— `CommandIndexSyncTests` 等の組み込み同期テストはこちらを対象にしない(走査対象は
   ユーザーのシナリオファイルで、リポジトリには実例を置かない)
-- **スクロールの指定は各コマンドの `scroll:` 引数だけ**(ユーザー決定 2026-09-19)。向き(`.down` 等)か
+- **スクロールの指定は各コマンドの `scroll:` 引数だけ**(DR-30)。向き(`.down` 等)か
   `.noScroll`(`withScroll*` の中でもこの1コマンドだけ送らない)。**関数名で指定する別名
   (`*WithScrollDown/Up/Right/Left`・`*WithoutScroll`)は1つも置かない・再提案しない** —— 別名は族ごとに
   シグネチャが不揃いになり(`maxSwipes:` しか取らない・`exist` は上下だけ…)、同じことが2通りで書ける。
@@ -52,10 +52,10 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (片方だけだと実在するラベルを断り、無いラベルを受ける。緑のまま通った = `BatchLineParserTests.testWaitCapLabelFollowsTheDSL`)
 - **置いていない名前は `Sources/FTDSL/UnavailableCommands.swift` で受け止める**(他ツールの名前・
   対称性から実在すると誤解される別名。`cannot find in scope` の代わりに正しい書き方を出す)
-- **`tap` は対象が操作可能になるまで待ってから撃つ**(ユーザー決定「待って、それでも無効なら撃つ」)。
+- **`tap` は対象が操作可能になるまで待ってから撃つ**(DR-44「待って、それでも無効なら撃つ」)。
   **待ち切れなくても撃つ** = 無効な要素をわざと叩く書き方を壊さない。`&&enabled=` 明示の
   セレクタでは待たない。witness は `E2EAppAndroid` の `#btn_enables_late`(1.5 秒後に有効)
-- **`tap(入力欄)` → `type("文字列")`(Shirates 伝統形)は支えるべき書き方**(ユーザー指示)——
+- **`tap(入力欄)` → `type("文字列")`(Shirates 伝統形)は支えるべき書き方**(DR-45)——
   容器を叩いて焦点が立たなかったときは `InputFocusRescue` が入力欄を名指しして入れ直す
   (払うのはタップ直後の木1枚だけ・入れ先が一意に決まらなければ何もしない・注記
   `type-focus-recovered`)。**witness は `E2EAppAndroid` の `#field_wrapped`**

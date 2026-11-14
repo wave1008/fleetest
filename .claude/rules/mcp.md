@@ -80,7 +80,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   焦点の欄・画面全体など別の物に効く = 探索で ft_clear_input が別の欄を消した。木の読み方だけの欄は操作の道具でも注記)。必須の文字列は空文字・空白のみを断る
   (省略は断らない = 呼び手ごとに既定が違う)→ MN-44.2。**長押し・ジェスチャの秒数は
   既定 10 秒まで、コマンドの `maxGestureSeconds:` 引数でその1回だけ最大 60 秒まで上書きできる**
-  (ユーザー決定 2026-09-24)。**方針の判定(既定10・上書き上限60)はホスト側**(DSL は
+  (DR-48)。**方針の判定(既定10・上書き上限60)はホスト側**(DSL は
   `StepExecutor.executeAction` の入口 = `FlowStep.gestureDurationViolation`・MCP/ライブ操作は
   `ArgumentBounds.gestureCapViolation`)。**定義元は `BridgeAPI.defaultMaxGestureSeconds` /
   `BridgeAPI.gestureSecondsCeiling`**。
@@ -107,7 +107,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `outsideTheAppTree: true`(既定値を置かない = 呼び手に決めさせる)。`looksUnchanged` はキーボードの出入りも変化に数える
   (キーボードもアプリの木の外)。⑤**DSL が操作の前後で待っているもの**(type の後のキーボードの出現 = `KeyboardWait.shouldAwaitAppearance`
   等)は、MCP では次の ref 操作の撮り直し(`verifiedRef`)で払う(読みを足さない)
-- **MCP の iOS は常に XCUITest**(ユーザー決定。inapp-boost モードを組まない = `MCPBridgeFollowingTests` がソースで固定)。
+- **MCP の iOS は常に XCUITest**(DR-69。inapp-boost モードを組まない = `MCPBridgeFollowingTests` がソースで固定)。
   下の inapp-boost モードの予備ポートの規律は**ライブ操作の話**(MCP の経路にも照合の呼び出しは残るが、予備ポートを持たないので働かない)。
 - **inapp-boost モードの予備(XCUITest ブリッジ)ポートも使うたびに本人確認する**(`FTBridgeClient.HybridFallbackIdentity` を
   MCP のキャッシュ命中とライブ操作の命令ごとが共有。主の udid だけ見ると、起動し直しで予備ポートが別のデバイス・
@@ -171,7 +171,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   登録する(等号照合なので新しい死に注記は落ちる)。
   **1つのアーキタイプがコーパスの 60% を超えないこと**(`testNoArchetypeDominatesTheCorpus`)——
   深く掘るほど1アプリが増え、**掘るほど汎用性の判定が悪くなる**逆向きの力が働くので機械で止める
-- **MCP は既定で FM と Vision を使わない**(ユーザー決定 2026-10-12。Vision のコンパイルも起こさない)。`ft_run_scenario` は
+- **MCP は既定で FM と Vision を使わない**(DR-61。Vision のコンパイルも起こさない)。`ft_run_scenario` は
   `MCPServer.withoutFMAndVision` で、`ft_start_run` は `--set` の4キー(`fmAndVisionProfileKeys`)で切る(run の開始時の
   `compile-ocr` も `ScenarioHost.ocrCompileNeeded` で止まり、別の機械へも届く)。手元の子へは `FT_OCCLUSION_OCR=off`・
   `FT_FIND_IMAGE_PREWARM=off` も渡す。findImage の見本の暖機も切る(`findImagePrewarm`)。`ft_doctor` は既定で撃たない。

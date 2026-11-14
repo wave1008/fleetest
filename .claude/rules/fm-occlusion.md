@@ -97,7 +97,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `prewarm` は完了を待つ API が無いので、排他で保証できるのは先読みの開始まで(生成の実際の完了と混ぜない)。
   **直近 20 回の暖機のうち遅い回(4 秒超え)が 6 回以上ならその機械では暖機をやめる**
   = 全部品が ANE に収まらず呼び出しの中で載せ直している印で、続けても積み下ろしを撃つだけ。M1mini(8GB)がそうだった。
-  **ただし搭載メモリ 16GiB 以上の機械ではやめない**(ユーザー決定。M2Ultra でも Simulator の一斉起動の間に成立して暖機が止まり、その後の逼迫の最中に載せ直しで死んだ → MN-97)⑥要求・応答の欄を変えたら
+  **ただし搭載メモリ 16GiB 以上の機械ではやめない**(DR-131。M2Ultra でも Simulator の一斉起動の間に成立して暖機が止まり、その後の逼迫の最中に載せ直しで死んだ → MN-97)⑥要求・応答の欄を変えたら
   `FMServeWire.protocolVersion` を +1。**止めるのは相手が自分の実行ファイルより古いときだけ**(`FMServeHost.decide`。版の違いだけで
   止めると、作り直す前から生きている host-metrics が新しい常駐プロセスを毎分止めた)⑦**安全判定による拒否は失敗に数えない**
   (`refused` → skip。失敗に数えると同じ画面で毎回起きる拒否が「死」を記録して FM を止めた)
@@ -152,9 +152,9 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   覆いの「Cookieの設定」に当たって素通りする)。
   **読ませる言語は期待文字列から決める**(`languages(for:)`。ASCII の期待値に日本語モデルを
   載せると所要が 2.3 倍になる)。**FM の「惜しい」転写の OCR 読み直し(`OcclusionVerifier.nearMissOCRBudget`)は `ocrTextVisibilityCheck` を見ない**
-  (ユーザー決定: 精度優先。off でも字形の取り違えを誤った赤にしない。off はコンパイルしないのでその回だけ初回コンパイルを
+  (DR-132: 精度優先。off でも字形の取り違えを誤った赤にしない。off はコンパイルしないのでその回だけ初回コンパイルを
   払いうる。利用者向けは run_profile に明記)。**FM の空の転写(領域に濃淡あり)の OCR 確認は `ocrTextVisibilityCheck` がオンのときだけ**
-  (`StepExecutor.emptyTranscriptOCRBudget`。近道の読みが無いときだけ読む)。**「オフでも OCR を使う」は惜しい転写に限ったユーザー決定で、
+  (`StepExecutor.emptyTranscriptOCRBudget`。近道の読みが無いときだけ読む)。**「オフでも OCR を使う」は惜しい転写に限った決定(DR-132)で、
   別の確認へ広げない**(広げてレビューで止められた = MN-92.1)。**言語補正は日本語の集合でだけ掛ける**(`usesLanguageCorrection(for:)`。
   en ロケールの端末は「単」を中国語フォントの字形で描き、補正なしだと Vision も FM も「单」と読む。
   ASCII は切ったまま = 欠けを推測で埋めさせない)。読めなければ crop を
@@ -163,7 +163,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (OS の既定に従う)—— 版・認識レベル・言語補正・言語規則が動いたことの検出は、実 crop の固定
   コーパス `Tests/Fixtures/OcclusionCrops/` が読みと撃つ回数を等号で固定して担う。
   crop 矩形は `FTCore.OcclusionCrop` を FM と共有する(別々に持つと同じ画面で判断が食い違う)
-- **`fmTextVisibilityCheck`(FM の段)と `ocrTextVisibilityCheck`(OCR の段)は独立**(ユーザー決定 2026-09-26)。
+- **`fmTextVisibilityCheck`(FM の段)と `ocrTextVisibilityCheck`(OCR の段)は独立**(DR-133)。
   guard はどちらかが true なら走る(FTRuntime が `occlusionGuardEnabled` に合成・FM の段は
   `StepExecutor.fmVisibilityCheckEnabled`)。**FM の段が使えるときは OCR の赤でも FM に回し**、
   `OCROnlyVisibility.merge` で**見えていると読めた側を採る**(赤は両方が見えないと言った回だけ。割れた回は
@@ -205,7 +205,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   (`guard-retaken`。FM 待ちはアプリの応答ではないので待ち予算から引かない。同じ絵は
   `VisibilityVerdictMemo` が同じ verdict を返すので、テストでは撮り直しごとに違う絵を渡す)
 - **occlusion-guard の OCR 近道は、コンパイルが終わっていなければ終わるまで待ってから撃つ**(2026-09-15)。
-  **2026-10-06 のユーザー決定で、最初のシナリオを起こす前に `compile-ocr` の完了を待つ**(`ScenarioHost.awaitOCRModelCompile`。
+  **2026-10-06 の決定(DR-134)で、最初のシナリオを起こす前に `compile-ocr` の完了を待つ**(`ScenarioHost.awaitOCRModelCompile`。
   9/15 の「run の開始時には待たない」は取り消し。シナリオの中で待つとアプリの時間が進み、一時的な状態を確かめる手順が
   壊れた = E2EY-Android の骨組み。ステップ内の待ちは受け皿として残す。経緯は MN-18・MN-20・MN-69.5): 認識器(Espresso)の
   コンパイルキャッシュは**プロセス名と署名 ID ごと(SwiftPM の Debug ビルドは ID に LC_UUID が入り中身が変わる

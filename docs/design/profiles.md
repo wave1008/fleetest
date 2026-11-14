@@ -82,8 +82,7 @@ executableTarget `fleetest-scenarios-<name>`(path: `TestProjects/<name>/scenario
 **`appPathPhysical` は実機に配るパッケージ**(省略時は `appPath`)。iOS はシミュレータ用ビルド
 (iphonesimulator SDK・未署名)を実機へ入れられず、`0xe8008014 The executable contains an
 invalid signature.` で失敗するため、同じアプリでも成果物が2つ要る。**端末ごとにアプリ
-プロファイルを分けないための欄**(2026-08-26 ユーザー決定。分けると実行プロファイルまで
-二重管理になり、`all` のような混在プロファイルに実機を入れられない)。Android は同じ APK が
+プロファイルを分けないための欄**(DR-50)。Android は同じ APK が
 両方で動くので普通は書かない。選び分けの規則は `ResolvedAppTarget.packagePath(physical:)` の1箇所。
 **ステージング先は `apps/physical/<declared のハッシュ12桁>/<ファイル名>`**(仮想デバイス用は
 `apps/<declared のハッシュ12桁>/<ファイル名>`。`WorkspaceAppStaging.installPath`)——
@@ -126,7 +125,7 @@ targeting = bundletool にしか決められない。feature module を足した
   が受け付けるのは前者だけ。Identifier を書いても解決はする)。Android 実機の `serial` は
   `adb devices` の左列(WiFi 接続なら `192.168.1.23:5555` 形式)
 - 拡張のデバイスピッカー(「+既存から選択」)が接続中の実機を出すので、手書きしなくてよい
-- **iOS 実機も inapp-boost モードに対応する**(開発署名のアプリのみ。ユーザー決定 2026-10-22)。供給が、注入する dylib を
+- **iOS 実機も inapp-boost モードに対応する**(開発署名のアプリのみ = DR-51)。供給が、注入する dylib を
   アプリと同じチームの証明書で署名(`InAppCodeSign`。leaf 証明書の SHA-1 で `codesign`)→ `devicectl` でアプリの
   データコンテナへ置き → `DYLD_INSERT_LIBRARIES` 付きで `devicectl process launch` → iproxy のトンネル(XCUITest 実機と同じ
   `IOSDeviceTransport`)で到達する。**開発署名(get-task-allow)でないアプリは注入できないので、供給がモードを
@@ -141,7 +140,7 @@ targeting = bundletool にしか決められない。feature module を足した
   と一緒に置く**(`PresignedInAppDylib.prepare` ← `RemoteRunDispatcher.prepareWorkspace`)。ランナー機は**自分で署名できない
   ときだけ**、証明書と digest が一致する控えを使う(`InAppCodeSign.inspect(sourceDigest:)`。一致しなければ理由を足して縮退)
 - **一括起動(`devices up` / `api start-all-devices` / モニターの「全て起動」)は実機を含む**
-  (ユーザー決定 2026-09-08)—— 実機の「起動」= ブリッジの起動
+  (DR-52)—— 実機の「起動」= ブリッジの起動
   (iOS は `BridgeProvisioner` の供給、Android は `DeviceBooter.startPhysicalAndroidBridge`)。
   **仮想デバイスの同時起動枠(maxConcurrent=2)とは別の、幅1の専用レーンで走る**
   (`DeviceBooter.buildBootQueue` の `physicalItems`)ので、数分かかるブリッジ供給が
@@ -157,7 +156,7 @@ targeting = bundletool にしか決められない。feature module を足した
   テストが直接叩く(`DeviceBooterAlreadyStoppedTests`)
 - **一括停止(`devices down` の `--profile` 指定時 / `--profile` 無しの掃討(sweep) /
   `api stop-all-devices` / モニターの「全て終了」)は実機のブリッジだけ止める**
-  (ユーザー決定 2026-09-08。起動側の規則は変えていない)—— **端末そのものは絶対に落とさない**
+  (DR-53。起動側の規則は変えていない)—— **端末そのものは絶対に落とさない**
   (利用者の電話を勝手に落とさない)。イベントは `deviceStopping`/`deviceFinished` を出さない
   (実機は端末が生き続けるので、出すと拡張のタイルが「停止した」→次の観測で「接続中」に戻り
   ちらつく) —— log イベント1行だけ報告する。分岐は2箇所ある(どちらも同じ制約を満たす):
@@ -197,7 +196,7 @@ targeting = bundletool にしか決められない。feature module を足した
   撮影1回 約 50ms をステップごとに払う。**動画の録画を起動できなかったデバイス(シミュレータの試し撮りが空・
   adb が無い等)もこの方式へ切り替える**(`VideoRecordingCoordinator.start`。警告を1行出す)。iOS シミュレータは
   デバイス×実行の約2%で録画が丸ごと消える(3/135)。**常用はしない** —— 設定で全デバイスを
-  静止画にする `recordStillFrames` は置かない(2026-10-04 ユーザー決定): 撮影1枚あたりの実測
+  静止画にする `recordStillFrames` は置かない(DR-54): 撮影1枚あたりの実測
   (2026-10-03・M2 Ultra・モニター停止・E2E の「起動と画面遷移」1本 = 14枚・静止画/録画なしを交互に5回ずつ・
   シナリオの durationMs の差 ÷ 14)が iOS シミュレータ 約 112ms(6415 vs 4850ms・+32%)/ Android
   エミュレータ 約 165ms(7939 vs 5634ms・+41%)で、操作と操作の間の出来事(遷移・読み込み表示)も残らない。
@@ -273,7 +272,7 @@ run では該当ステップは skip(素通り)になり、FM 利用不可時と
 (セレクタの自己修復(`heal`)・OCR の視覚検証・FM の視覚検証・FM の
 `screenLooksLike`)で並ぶ。`heal`(既定は `--profile` 実行 true / プロファイル無し false)は
 同じセクションに並ぶが他のトグルから独立している(自己修復は FM 機能ではない。
-ユーザー決定 → MN-22)。
+DR-7 → MN-22)。
 
 **guest の /data だけが満杯**(ホスト側の合計は閾値未満)の形は上の肥大化チェックでは拾えず、
 `adb install` が `INSTALL_FAILED_INSUFFICIENT_STORAGE` で落ちる(実測 2026-09-28 M1Ultra Pixel-07: 5.8GB 中
@@ -282,7 +281,7 @@ run では該当ステップは skip(素通り)になり、FM 利用不可時と
 Wipe Data し、パッケージマネージャの応答を待ってから1回だけ入れ直す(`AndroidInstallFailure` /
 `AndroidStorageRecovery`。同じ serial で戻ってきたときだけ)。**OFF のときは Wipe せず離脱**し、
 理由と手動の Wipe(`fleetest api wipe-device`)をログに言う(Wipe は破壊的 = 利用者が自動 Wipe を許した
-ときだけ撃つ。ユーザー決定 2026-09-28)。判定は Android 側が出す2つの形で、自前の文言の一致ではない。
+ときだけ撃つ = DR-55)。判定は Android 側が出す2つの形で、自前の文言の一致ではない。
 `wipeDataOnBloat`(既定 true)は実行開始時に Android AVD の wipe 対象
 (userdata/cache/snapshots)合計が `wipeDataThresholdGB`(既定 8。**Play イメージは wipe 直後の
 再構築だけで 2〜4GB になるため 4GB 以下はスラッシング**、実測 2026-07-17)超過なら Wipe Data してから
@@ -340,7 +339,7 @@ Android 実機はグローバル設定が**永続的に**書き換わるので�
 
 **`adb install` の検証(Play Protect)は install の間だけ切る**(`AdbInstallVerifier`。**実機・
 エミュレータを問わず全 Android**に効く —— Google Play 入りの像は Play Protect を持つ。
-**ユーザー決定 2026-09-05: テストツールはアプリを Google へ送らない・確認も取らない**)。
+**テストツールはアプリを Google へ送らない・確認も取らない = DR-56**)。
 実機 Pixel 4a(Android 13)で release 署名の APK を入れると Play Protect が
 「Send app for a security check?」を出して `adb install` が無期限に止まった(9.5 分・ログ 0 バイト。
 同じ APK でも毎回)。`verifier_verify_adb_installs`(開発者オプション「USB 経由でアプリを確認」)を
@@ -360,7 +359,7 @@ Android 実機はグローバル設定が**永続的に**書き換わるので�
 影響はほぼゼロ。UI は「プロファイル」タブの実行プロファイル設定。
 
 **XCUITest ランナーはタップ・ダブルタップ・長押しの前の quiescence 待ちを既定で飛ばし、整定は木の観察で行う**(操作後の
-`captureSettled`。ユーザー決定。4 SUT の A/B で退行無し)。**スワイプ(スクロールを含む)は待ちを残す**(慣性の終わりを木では
+`captureSettled`。DR-57)。**スワイプ(スクロールを含む)は待ちを残す**(慣性の終わりを木では
 見届けられない = E2E-RN S0090 が 6 回中 4 回落ちた)が、操作の間は待ちの上限を 6 秒に縮める(`QuiescenceWait.quiescenceCapSeconds`)。
 **DSL の `settle: false`(コマンド1回だけ、操作後の整定をすべて飛ばす)**: スワイプ(スクロールを含む)・/drag・/pinch・/rotate・/systemui/*・アプリスイッチャー・ホームの XCTest の待ちは
 `settle: false` のときだけ飛ばし、それ以外は上限 6s に縮める(/drag と /systemui/* も縮める: 縮めないと、知らせを返さないアプリで 60s 止まってランナーが起動し直される。走査 `RunnerQuiescenceCapCoverageTests` が上限の外の操作を落とす。/type・/clear の中の焦点のタップは待ちを飛ばす = 直後の打鍵の前の待ちと二重になり、/type 1回が 24s でホストの上限 20s を超えるため。/type の中だけ操作の**後**の待ち(isPreEvent == false)も飛ばす = `QuiescenceWait.capping(skipPostEvent:)`。完了は読み返しが値で確かめるので二重で、知らせを返さないアプリで /type が 7.8〜12.9s → 0.9〜1.8s)(/type・/clear・/pressEnter は前の待ちを飛ばさないが、待ちの上限だけ 6s に縮める = `QuiescenceWait.capping`。キーボード出現待ちを quiescence に頼るため飛ばせないが、上限が無いと落ち着かないアプリでは打鍵ごとに XCTest 既定の 60s を待つ)。契約:
@@ -420,7 +419,7 @@ RecordingIndex.swift・RecordingWallClock.swift)。録画自体の失敗は run 
 拡張は行に「録画失敗 N 台」を出し、再生ビューでは**「録れていない」を「切り出せなかった」より
 優先して**理由に出す(直す場所が simctl / screenrecord 側なのか、エンコーダ側なのかが変わるため)。
 
-**切り出しは全シナリオが終わってからまとめて行う**(`VideoRecordingCoordinator.finish`。方式は1つだけ = ユーザー決定。
+**切り出しは全シナリオが終わってからまとめて行う**(`VideoRecordingCoordinator.finish`。方式は1つだけ = DR-58。
 シナリオごとに区切る方式・この Mac の run がすべて終わってから背景で切り出す方式は不採用: ハードウェアで切り出せる
 状態では壁時計の差が数秒で、区切る方式は各シナリオの先頭 約 0.5 秒が欠け、区切りと停止の SIGINT が重なると最後のファイルが
 壊れる。比較の数値は PT-3.37)。
@@ -432,7 +431,7 @@ RecordingIndex.swift・RecordingWallClock.swift)。録画自体の失敗は run 
 (上限 10 秒)。確かめられなかった Android の録画は止め、自動では撮り直さない(撮り直すかは次のシナリオ前の確認が決める)。
 **防げないもの**: シナリオの最中に止まった録画(次のシナリオ前に撮り直す)・Android の 3 分ごとの切り替えの間(約 0.2〜0.3 秒)。
 
-**エンコーダはハードウェア優先・2 並列**(ユーザー決定)。実測(M2 Ultra・E2E の実クリップ 116 本): ハードウェア 2 並列 18.2 秒 /
+**エンコーダはハードウェア優先・2 並列**(DR-59)。実測(M2 Ultra・E2E の実クリップ 116 本): ハードウェア 2 並列 18.2 秒 /
 ソフトウェア 2 並列 79.5 秒(ソフトウェアは別プロセス `VTEncoderXPCService` で総処理量が並列度でほぼ増えない。混ぜると遅くなる)。
 出力はハードウェアが約 1.22 倍大きく、OCR で読める文字数は同じ(39 本)。ソフトウェアへ切り替えるのは次のとき(**その run の残り**):
 - ハードウェアの**失敗・固まりが1回でも出た**(壊れる前に手を引く = 故障の前には失敗がぽつぽつ出ていた。素材のせいでも切り替える)
@@ -557,14 +556,14 @@ DeviceBooter.defaultLocale(実行プロファイルの locale が届くのは wi
   `fleetest.profile` 設定)、プロファイル JSON の編集・保存時検証は問題パネル(Diagnostics)で行う。
   **実行/デバッグ実行は `fleetest.profile` 未指定なら実行せず、「デバイスモニター」タブでの指定を促す通知
   (ボタン「デバイスモニター」タブを開く = `fleetest.showDeviceMonitor`)を出す**(未指定だとブリッジ自動供給の無い
-  直接ポート接続に落ち、全シナリオが接続拒否で即失敗するため。ユーザー決定 2026-07-26。
+  直接ポート接続に落ち、全シナリオが接続拒否で即失敗するため。DR-60。
   dry-run は実デバイスを要さないため除外)
   内部的には CLI と同じ `fleetest api ...` サブコマンドを呼ぶため、解決ロジック(ProfileResolver 等)
   は CLI と共通(詳細は [vscode-fleetest/README.md](../../vscode-fleetest/README.md))
 - MCP: `ft_list_scenarios` / `ft_run_scenario` に `project` / `profile` 引数、`ft_list_projects` 追加。
   ft_run_scenario は 1 シナリオ実行なので profile からはシナリオの platform に合う先頭デバイス・
   heal・reportDir のみ利用(シナリオを書いている途中の確認用。results/・録画・setup/teardown は持たない)
-- **MCP は既定で FM と Vision を使わない**(ユーザー決定。Vision のコンパイルも起こさない)。`ft_run_scenario` は
+- **MCP は既定で FM と Vision を使わない**(DR-61。Vision のコンパイルも起こさない)。`ft_run_scenario` は
   `MCPServer.withoutFMAndVision`(FM 全体・OCR の段・checkIsON の分類器の優先を切る)、`ft_start_run` は
   `--set` の4キー(run の開始時の `compile-ocr` もこれで起きない。別の機械へも `--set` が届く)と、手元の子へ効く
   `FT_OCCLUSION_OCR=off`・`FT_FIND_IMAGE_PREWARM=off`、`ft_doctor` は実呼び出しを撃たない。findImage の見本の暖機も切る
@@ -737,7 +736,7 @@ docs/user-docs/reference/tools/mcp_server_ja.md §サンドボックスと承認
 ### DS-13.1 MonitorLease(占有ガード、B1)は撤去済み
 
 「モニターが見ているデバイスへの外部 run を lease で拒否する」占有ガードは置かない
-(**テスト実行をモニターより優先する**方針・ユーザー決定)。
+(**テスト実行をモニターより優先する**方針 = DR-62)。
 `MonitorLease` の実装も `.fleetest/monitor-*.lease` も現在は**存在しない**。
 モニターは受動ビューアで、run に割り込まれても respawn で復帰する。**再提案しない**。
 

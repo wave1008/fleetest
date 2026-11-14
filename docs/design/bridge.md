@@ -36,7 +36,7 @@ WebDriverAgent と同じ原理を最小構成で自作する(iOS)。Android に�
   provision の reclaim 側)。自主終了はホスト側の pid ファイルを消せないため、provision が
   採番前に死んだランナーの pid ファイルを回収する(`BridgeLauncher.sweepStalePidFiles`。
   残すと `assignPort` が使用中とみなし採番がドリフトする)。
-- **実機の自動ロックは端末側で切る(2026-09-05 ユーザー決定)**。実機は run の待ちの最中に
+- **実機の自動ロックは端末側で切る(DR-63)**。実機は run の待ちの最中に
   自動ロックされ、以後の launch が `denied by SBMainWorkspace ... reason: Locked` で拒否されて
   run ごと死ぬ。**ツールは起こさない** —— **設定 → 画面表示と明るさ → 自動ロック → なし**に
   しておくのが実機を使う前提。
@@ -78,7 +78,7 @@ WebDriverAgent と同じ原理を最小構成で自作する(iOS)。Android に�
   ボタン)を残す。止めない・閉じない(新しい検知は警告から。閉じるのはシナリオの責務)。
   失敗文言に題名が出るので、時間切れの仕分けが「アラートだった」で即決まる。**MCP も同じ形**: `ft_launch` / `ft_open_url` / `ft_install` / `ft_clear_app_data` の直後の**最初の
   `ft_snapshot` で1回**(出ていたら閉じるまで木を返す応答ごとに確かめ続ける)、**ref の操作(ft_tap / ft_type / ft_clear_input / ft_long_press / ft_batch の1手目)
-  では毎回聞き、前面にあれば断る**。**アラートが前面にある間はアプリの木を出さない**(ユーザー決定 2026-10-11。
+  では毎回聞き、前面にあれば断る**。**アラートが前面にある間はアプリの木を出さない**(DR-64。
   背面の木は押せない要素の一覧で、読み手はそこから次の手を探す。木から決まる注記も出さない)。**アプリ内の alert**
   (木の中の `alert`。描かれているものだけ = 枠が0・画面外は閉じた後の残り)は、その部分木だけを返す。判定は
   `FTCore.AlertTreeScope` の1箇所で、MCP の木を返す口(`snapshotBody` と `ft_scroll_to`)と DSL の失敗レポートの
@@ -163,7 +163,7 @@ InApp の `GET /screenshot` は `drawHierarchy(afterScreenUpdates: false)` で�
 (`captureRenderBefore`。操作を起こす経路は `tapByRef` と `performSettlingIfMoved` の2つで、両方が通す。
 約 12ms)/ **②`/screenshot` は、木が変わったのに画素が控えと同じ間だけ待つ**(上限 1.0 秒 = 実測の遅れの
 2倍強。ホストが操作後に木を読んでいなければブリッジが自分で1回読んで比べる(2ms)。frames/nodes の対応表は
-書き換えない)/ **③遷移の完了・アニメーションの静止は待たない**(ユーザー決定。ループする絵で毎回上限まで
+書き換えない)/ **③遷移の完了・アニメーションの静止は待たない**(DR-65。ループする絵で毎回上限まで
 待つ形を作らない。画素が1度でも変われば撮る)。**門は層の型ではなくフレームワークの自己申告** ——
 Compose の `CMPMetalLayer` は `CAMetalLayer` の子孫ではなく素の `CALayer` の子クラスで、`nextDrawable` の
 差し替えも1件も記録できなかった。
@@ -210,7 +210,7 @@ in-app のまま回し、実際に回る(同じ2機種で実測)。in-app が 50
 アプリの窓を読むので、**セッションのアプリが落ちていれば 503・背面なら 422 で撃たずに断る**
 (`requireForegroundAppForRotation`。読むと XCTest が Tear Down してランナーごと消える。v118)。
 
-**回転の契約は「アプリの UI がその向きになること」**(2026-08-10 ユーザー決定)。デバイスがどう
+**回転の契約は「アプリの UI がその向きになること」**(DR-66)。デバイスがどう
 傾いているかではない —— テストが観測できる frame と画面サイズは、iOS も Android も、
 Compose / SwiftUI / View-XML / Flutter / React Native のどれでも**アプリ座標系**で返る
 (PoC で全部実測)。跨いで同じ意味を持つのはここまでなので、**語彙は portrait / landscape の2値**に
@@ -271,7 +271,7 @@ Android の整定判定は**スナップショットの画面サイズ**で行�
   効果: E2E-CMP の `ios-inapp-boost` が 18/18・37.3s(導入前は3シナリオ失敗・93.9s)。409 が表面化するのは typeDriver が無い構成
   (XCUITest ブリッジ無し)だけで、メッセージが xcuitest プロファイルへ誘導する。`type` の事前ルーティングは置かない
   (Compose でも in-app の type が可能で速い: 266ms 対 attach 1.0〜1.3s。ジェスチャは不可能なので事前ルーティングが常に得)
-- **「in-app で不可・XCUITest で可」は常に XCUITest へ回す**(決定: ユーザー 2026-07-28)。判定は `DriverError.isBridgeIncapable` の1箇所:
+- **「in-app で不可・XCUITest で可」は常に XCUITest へ回す**(DR-67)。判定は `DriverError.isBridgeIncapable` の1箇所:
   **501 と「ルート不明の 404」(本文 `not found:` 前置)だけ**(409 は含めない。in-app の 404 には ref 不明もあるので本文で見分ける)。対象:
   - `home` / `appSwitcher`: in-app は自プロセス外を触れないので原理的に不可。最初から XCUITest へ直行する(`FTDriveCore.systemDriver`)。
     XCUITest 側の `/home`・`/appswitcher` はセッション不要なので attach も activate も挟まない
@@ -468,7 +468,7 @@ Android の整定判定は**スナップショットの画面サイズ**で行�
     のような**子と同じ矩形のレイアウト容器**で、実地確認でも 9〜18 行が消えた。
     **隠すのは描画だけ**(ホストが覚える木は素のまま)なので ref も frame も動かず、
     隠れた行も `ft_tap` で撃てる。**印の付いた行は隠さない** —— 印は行ごとに読ませるためにある
-- **比較前の正規化は用途で2つに割れる**(`FTCore/TextNormalization`。2026-08-09 のユーザー決定)。
+- **比較前の正規化は用途で2つに割れる**(`FTCore/TextNormalization`。DR-68)。
   求められるものが逆を向いているため、1つの規則では両立しない:
 
   | | セレクタでフィルタ(`.selector`) | テキストと期待値の比較(`.text`) | `strict` |
@@ -653,7 +653,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
 
 **MCP(`ft_*`)の iOS の構成と応答の規律**(MCP が撃つ・読む経路の設計。判定を DSL と共有するものは dsl-execution.md の「失敗時に返す情報」)
 
-- **MCP の iOS は常に XCUITest**(決定: ユーザー。in-app は使わない。in-app を主にした合成 `HybridFallbackDriver` を使うのはライブ操作だけ)。
+- **MCP の iOS は常に XCUITest**(DR-69。in-app は使わない。in-app を主にした合成 `HybridFallbackDriver` を使うのはライブ操作だけ)。
   profile 無しで in-app のポートに繋いでも `ExploreDriverResolver` が同じデバイスの XCUITest へ振り替え(用意できなければ in-app へは落とさず断る)、
   udid だけの呼び出しは XCUITest のポートを先に採る(`MCPServer.explorationOrder`)。profile ありもモードを xcuitest に差し替えて供給する
   (`resolveProfileTarget`)。理由: in-app の合成タッチは注入される前提で作られていないアプリ(Apple マップの経路カード)で効かないまま ok を返し、
@@ -793,7 +793,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
   600 は実測(1179px の iPhone で CJK 本文もステータスバーも読め、画素は 1/2.4)。密な画面は `maxWidth` / `fullSize` で逃がす
 - **`ft_batch` は StepExecutor に委ねる**。MCP の dispatch を順に回す案は採らない —— 複数手の実行は探索ロジックなので、2つ目の実装を作らず StepExecutor へ渡す(`ft_scroll_to` と同じ)。
   主目的は**「バッチで通った = そのまま書けばシナリオでも通る」を成立させる**こと。
-  **steps は DSL の手を並べた文字列1本・表記は最小記述の1つだけ**(決定: ユーザー 2026-08-10):
+  **steps は DSL の手を並べた文字列1本・表記は最小記述の1つだけ**(DR-70):
   `"steps": "type '#f' 'abc'; scrollTo '#item' direction: .down"` —— 引数は引用符+空白区切り・手は `;`(改行も同義。どちらも引用符の中では区切らない。`BatchLineParser.splitSteps`)。
   MCP の arguments はオブジェクト必須なのでキー自体は消せない。廃止した表記(括弧・引数カンマ・配列 steps)は**書き換え方を添えて拒否**する —— 黙って受けると表記が再び分裂し、黙って落とすと1往復増える。
   **文字列の引用符だけは `'…'` と `"…"` の両方を等価に受ける**(JSON の `\"` 経由で `"…"` が届くのは自然な書き方なので拒まない。案内する推奨は JSON エスケープの要らない `'…'`)。
@@ -809,7 +809,7 @@ UIKit の Switch(`id=sw_notify 61x28` と無名の `63x28`)/ `UIAlertController`
   **ref は1手目でだけ書ける**: 禁止の理由「ref はそれを撮ったスナップショットに対してだけ有効で、各手が木を変えるので後続の手の ref は黙って別の要素に当たる」は2手目以降にしか当てはまらない。
   1手目は ft_tap と同じ経路(`verifiedRef` = RefGuard の再照合。gone は拒否・ghost/移動は警告付きで続行)で解決し、**そのまま書けるセレクタへ変換してから**実行する
   (`SelectorNaming.graded` = ft_tap の推奨セレクタと同じ実装。変換できない要素は拒否 —— ref はシナリオに書けないため)。**何に解決したかは応答に出す**。記録(`InteractionLog`)も解決後のセレクタで残す。
-  **2手目以降の ref は採用しない**(決定: ユーザー 2026-08-16・**再提案しない**)—— 一意なセレクタが無い要素をバッチで叩く手段としては座標タップのほうが筋が良く、`tap x: y:` は `ScenarioCodeGen` が1:1で書き出せる。
+  **2手目以降の ref は採用しない**(DR-71・**再提案しない**)—— 一意なセレクタが無い要素をバッチで叩く手段としては座標タップのほうが筋が良く、`tap x: y:` は `ScenarioCodeGen` が1:1で書き出せる。
   拒否文言は `tap` のときだけ座標形を逃げ道として案内し、**理由と書き換え方まで返す**。通すのは operation/scroll カテゴリだけで、判定は `DSLCommandIndex` から導出する。
   ライフサイクル・破壊的なコマンドは弾く(1回の承認でデータ消去へ届かせない)。**検証は実行より前に全手へ通す**(途中で弾くと前半の手だけがデバイスに残る)。最初の失敗で止め、
   **木は最後に1回だけ**返す(毎手の木を積むとバッチにした意味が消える)。その最後の木は MCP の描画経路を通すので遮蔽・ghost 等の MCP 固有の注記は付く。
@@ -950,7 +950,7 @@ Android のアプリ内 WebView・ブラウザ)と、a11y が id を出す構成
 そこでは**黙って不一致にせず、構成を名指しして落とす**(`#id` の意味を構成ごとに変えない、
 という原則は維持する)。
 
-**`#x` は identifier で引けなければ placeholder を引く**(2026-08-15 ユーザー指示。
+**`#x` は identifier で引けなければ placeholder を引く**(DR-72。
 判定は `LocatorResolver.candidates` の1箇所)。**構成ごとに意味を変える例外ではない** ——
 規則はどの OS・モードでも同じで、`#` が指す名前の集合が「identifier ∪(identifier で
 引けないときの)placeholder」になる。入力欄はまさにここが経路で割れる(xcuitest は HTML id を
@@ -1236,7 +1236,7 @@ Android `VERSION_CODE` 100。XCUITest ランナーと Android ブリッジが持
 ## DS-16 エミュレータ操作の gRPC 制御
 
 Android エミュレータへの操作は**既定で emulator 内蔵の gRPC(EmulatorController)経由**、失敗時は
-adb へ自動フォールバックする(ユーザー決定 2026-07-25)。動機は PoC 実測: スクショ 48ms vs adb
+adb へ自動フォールバックする(DR-73)。動機は PoC 実測: スクショ 48ms vs adb
 140〜250ms(3〜6倍)、キー注入 1.2ms vs 215ms、run 起動オーバーヘッド 3.2s→0.6s、adb 経路死亡個体
 への修復・停止の到達性。
 

@@ -203,8 +203,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   **弾かれたポートだけ**起動し直す)/ **④起動し直しの要らない段から検証する**(単体テスト →
   dry-run → 生きているブリッジ1台での MCP 確認 → 最後にデバイス実行)。
   **ワイヤ形式(DTO の enum・フィールド)を変えたら必ず版を上げる**
-- **回帰は E2E をこの Mac(M2Ultra)で・E2EX を M1Ultra で同時に回す**(ユーザー指示 2026-09-28。全マシンの待ち行列で回すなら
-  `Scripts/regress.py` = docs/verification/operations.md):
+- **回帰は `Scripts/regress.py` で全マシンを回す**(E2E・E2EX・E2EY。docs/verification/operations.md)。
+  **使わないときは E2E をこの Mac(M2Ultra)で・E2EX を M1Ultra で同時に回す**(DR-127。この形は E2EY を回さない):
   `Scripts/e2e.sh --local`(手元のデバイスだけ)と `Scripts/e2ex.sh --on M1Ultra`(ssh でランナーの
   クローンに入り、そこで SUT をビルドして回す)を同時に起こす。先に `Scripts/align.sh M1Ultra`
   (手元の作業ツリーを未コミットのまま直送する。push もコミットも要らない)。E2EX の SUT は M1Ultra でビルドする(競合しない・負荷分散)
@@ -367,7 +367,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `vscode-fleetest/src/protocolVersion.ts` の版を +1(両者一致必須・`protocolVersion.test.mjs` が
   検出。拡張は起動時に照合し不一致を警告)。**後方互換の読み替えは置かない**
   (DR-5)—— 欄を足すときも `decodeIfPresent ?? 既定値` で古い形を吸わず、
-  **必須にして版を +1** する。リモートは `Scripts/align.sh` で毎回使う機械を手元と同じ中身へ揃える運用で、
+  **必須にして版を +1** する(欄が無いこと自体が「測っていない」等の意味を持つ省略可の欄は読み替えに当たらない = DR-75)。リモートは `Scripts/align.sh` で毎回使う機械を手元と同じ中身へ揃える運用で、
   版がずれた状態は存在しない(ずれていれば適合チェックが止める)。互換を入れると、その経路は
   テストでしか踏まれずに腐り、**沈黙する縮退**(decode 失敗で機械1台ぶんの行が消える等)を作る
 - **`fleetest run` と `fleetest api run` は2実装**。共通のオプション宣言と検査は
