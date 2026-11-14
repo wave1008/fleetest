@@ -143,8 +143,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
   Swift 側は記録・分析のため載せ続ける契約のまま)
 - **watchdog**(`vscode-fleetest/src/monitorHealthWatchdog.ts`): 異常種別ごとに修復ラダーが分かれる。
   ライフサイクルキュー busy 中は保留(起動/停止処理との競合回避)。テスト実行中は保留しない
-  (ユーザー決定 2026-07-17: 凍結は実行完了を待たず即修復。実行中の該当デバイスは再起動で落ちるが
-  凍結済みで証跡が撮れないため許容)。設定 `fleetest.autoRepairDeviceHealth` は
+  (凍結は実行完了を待たず即修復 = DR-10)。設定 `fleetest.autoRepairDeviceHealth` は
   **既定 OFF**(autoRepairBridge と異なり、Wi-Fi をわざと切ったテスト環境を勝手に上書きしないため)。
   検出通知(タイルの警告バッジ)は設定 OFF でも出す。
   - **wifi-disabled 単独**: まず `adb shell cmd wifi set-wifi-enabled enabled`(軽量修復、クールダウン 120s)。
@@ -225,7 +224,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
     label→id 変換は WorkerIDMap(NSLock)で iOS 合流時に merge。CLI(ProfileRunner)も同構成。
     **供給の手順(両レーンの中身)は `ProfileSupplyLanes` の1箇所**で、run・api run の並列経路・--debug の逐次経路が
     同じ関数を呼ぶ(2経路に別々に持つと片方だけ WebView の更新・実機の画面の観測・Android のホームが抜ける。
-    `ProfileSupplyLanesWiringTests`)。**全滅は異常として run を止める**(ユーザー決定 2026-10-20): Android のレーンは
+    `ProfileSupplyLanesWiringTests`)。**全滅は異常として run を止める**(DR-11): Android のレーンは
     実行前のチェックで全台が除外されたら投げる(run の開始前)/ iOS は**1台も合流しなかった時点で** RunOrchestrator が
     配布を止める —— 走っているシナリオは最後まで走らせ、残りは理由つきの未実行(`noWorker`)、run.json は `abortReason`
     (中断ではないので `interrupted` は立てない)。iOS のシナリオが待っていなければ止めない。一部の台だけが落ちたときは
@@ -345,7 +344,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
     `workerDisplayLabel`): worker 名だけでは、同名のデバイスが別の機械にも居る実行
     (例: performance-android は M1Max と M1Ultra の両方に "Pixel 10…-01"〜"-04")で**どちらの機械の行か判別できない**。レーン見出しの hover と
     同じ規則(`machine/name`)を1箇所に置いて両方から呼ぶ
-  - **iOS ブリッジの実行前プレフライトは不採用**(ユーザー決定 2026-07-18): ウェッジ機で
+  - **iOS ブリッジの実行前プレフライトは不採用**(DR-12): ウェッジ機で
     `scenarioTimeout`(当時の既定 90s)を失うのを実行前の status 確認で回避する試み。①「item を取ってから
     5s×2 判定→振り直し+離脱」は 10台同時の AX スパイク(一過性の遅さ)で9台一斉離脱・freeze-retry
     上限到達の失敗まで発生、②「取る前に 2s 即断・無応答中は取らずに回復待ち(60s)」も負荷時の
@@ -442,7 +441,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
   `ps` の fleetest 関連常駐を分類表示
   (`residentProcesses.ts`)。Android ブリッジは**エミュレータ内 `am instrument`= ホスト `ps` に出ない**ため
   `adb forward --list` から情報行を合成(ホスト PID 無し→PID 列は `(遅延起動)`/デバイス内 PID `(12345)`)。
-  停止ボタンは「プロセスを終了してタブを閉じる」の1つ。掃討スコープは**ユーザー決定**で: ① iOS ブリッジ/ランナー・in-app・モニター/
+  停止ボタンは「プロセスを終了してタブを閉じる」の1つ。掃討スコープは DR-13: ① iOS ブリッジ/ランナー・in-app・モニター/
   host-metrics/stream を停止し **iOS シミュレータと Android エミュ本体(qemu)は残す**(「デバイスモニター」タブの領域。
   `bridge down --all`=sim を残す/`bridge down --platform android`=qemu を残す/残余 SIGKILL は
   **この workspace 由来のみ**=workspaceRoot/binaryDir を含むコマンド。machine-wide 巻き込み回避)、
@@ -462,7 +461,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
   `monitorHealthWatchdog` が **clock-skew 等の host 再起動分岐のみ inRun 中は保留**(restartAttempts/cooldown を
   動かさず見送る)。**blank-screen(CPU フォールバック再起動)と wifi 修復は inRun でも実行**(凍結はデータ汚染で
   即対応が要件、wifi は非破壊)。凍結で run のワーカーが壊れる分は DS-12.4 の requeue が回復する
-- **MCP と run の協調(mcp-lease)**(2026-09-11・ユーザー決定「避けて、足りなければ警告して使う」):
+- **MCP と run の協調(mcp-lease)**(DR-14「避けて、足りなければ警告して使う」):
   fleetest-mcp はデバイスを指すツールのたびに `.fleetest/mcp-<key>.lease`(`MCPDeviceLease`・鍵は run-lease と同じ)へ
   `<pid> <開始時刻>` を書く。**生死は pid + 開始時刻**(時間の閾値を置かない —— run は印を避けるだけで断らないので、
   使い終わった後も MCP が生きている間は残る印の損は「そのデバイスを避ける」に収まる。開始時刻まで見るのは pid の再利用で
@@ -484,7 +483,7 @@ adb 接続は生きているがゲスト側が不健全(Wi-Fi 無効・ゲスト
 monitor が `monitorDevices[].storage`(`usedBytes` / `freeBytes` / `freeScope` / `measuredAt`)を配る。
 契約は `Sources/fleetest/ApiMonitorEvents.swift` の `ApiMonitorDeviceInfo.storage`。
 
-- **測る契機は利用者の「ストレージ使用を更新」ボタンだけ**(ユーザー決定): 拡張がモニターの stdin へ
+- **測る契機は利用者の「ストレージ使用を更新」ボタンだけ**(DR-15): 拡張がモニターの stdin へ
   `{"cmd":"storageRefresh"}`(1回きりの指示)を送り、モニターはその周期に**動いている(connected / booted。
   ブリッジ未起動でも測れる)仮想デバイスを全台**積む。間隔・デバイスの起動し直し・モニターの起動では測らず、
   **run の有無でも止めない**(run で使っているデバイス・run が動いている Mac の iOS も測る)。実機は測らない(欄を省く)。
@@ -500,7 +499,7 @@ monitor が `monitorDevices[].storage`(`usedBytes` / `freeBytes` / `freeScope` /
 - **iOS Simulator**: データディレクトリをプロセス内で**並列に歩いた割り当て済みの大きさ**(du -sk と同じ量。
   隠しファイル込み・リンクは辿らない)+ ホストのボリュームの空き(`SimulatorStorageProbe`。締切 300 秒)。
   `freeScope: "hostVolume"`(Simulator はホストのディスクを間借りしているので、空きはホスト側の値)。
-  **並列度は CPU コア数の半分**(ユーザー決定)。律速はカーネルのメタデータ処理で、単一スレッドは API を変えても
+  **並列度は CPU コア数の半分**(DR-16)。律速はカーネルのメタデータ処理で、単一スレッドは API を変えても
   du と同じ(実測 12〜14 秒・`taskpolicy -b du` は 22〜28 秒)。4 スレッドで約 4 秒(データ 7.9GB / 16 万ファイル・
   load avg 11〜19)。各スレッドは I/O を throttle にし、background QoS にはしない(CPU も後回しになり所要が倍になる)。
 - **配信の周期で計測を待たない**(`DeviceStorageSampler`): 周期は更新の要求があればデバイスを裏のキューへ積んで
@@ -599,7 +598,7 @@ backboardd のこのエラーは、モニターが画面を配信しているデ
 
 ### DS-12.5 タイルペインの auto-fit と「非表示中は実測しない」規律
 
-> **auto-fit は無い**(ユーザー決定 2026-09-17。ボタン・`tileFitModel.js`・`tileAutoFit` の保存を置かない)。
+> **auto-fit は無い**(DR-17。ボタン・`tileFitModel.js`・`tileAutoFit` の保存を置かない)。
 > セパレーターは手動だけで、保存値が無いときの初期位置は表示エリアの 20%(`splitter.js` の
 > `DEFAULT_TILE_PANE_RATIO`。領域が測れた最初の描画で決める)。下の「非表示中は実測しない」規律は
 > `relayoutTiles` と `splitAreaHidden` に残っている。
@@ -608,7 +607,7 @@ backboardd のこのエラーは、モニターが画面を配信しているデ
   `deviceTiles.js` の `relayoutTiles`)→ タイル幅(`--tile-image-h × --tile-aspect`)。
   padding/border/gap の定数は持たず全て実測する(style.css を変えたとき片方だけ古くなるのを防ぐ)
 - **罠**: `devices` のポーリングは「デバイスモニター」タブが**非表示の間も届き続ける**
-  (タブ非表示の間もフレーム配信は続く = 他タブから戻ったとき張り直しで映らない時間を作らない。ユーザー決定)。`applyDevices` は毎回
+  (タブ非表示の間もフレーム配信は続く = 他タブから戻ったとき張り直しで映らない時間を作らない。DR-18)。`applyDevices` は毎回
   `relayoutTiles` を呼ぶため、`display:none` 中は `clientHeight=0` → `--tile-image-h` が当時の下限 60px(現在は `MIN_TILE_IMAGE_HEIGHT` = 120)に
   潰れて書き込まれ、ペイン高さと `--tile-image-h` の対応が壊れていた。**タブへ戻ると実際の画像高さぶん過大**になりタイルが
   はみ出す(初回表示だけ正しく、他タブを経由すると必ず崩れる)。対策は
@@ -637,8 +636,7 @@ backboardd のこのエラーは、モニターが画面を配信しているデ
   囲んだデバイスだけの選択に絞る(「このデバイスのみ選択」の複数台版。幾何はラインビューと同じ `marqueeModel.js`)。
   **選択は離したときに1回だけ変える**(ドラッグ中に変えると段組みが組み直されて矩形の下が動く。ドラッグ中は `.marquee-hit` の印だけ)・
   何も囲まなければ変えない・**1台表示では始めない**(画面の上のドラッグはスワイプ)
-- **テスト実行中のデバイスも操作を止めない**(ヒューマンインザループ。ユーザー決定 2026-10-25「常に介入可能・
-  利用者の自己責任」)。トグルも確認も置かない(再提案しない)。人の操作の事実は CLI が
+- **テスト実行中のデバイスも操作を止めない**(ヒューマンインザループ。DR-19)。トグルも確認も置かない(再提案しない)。人の操作の事実は CLI が
   結果 JSON の `humanOperations` に残し、ダッシュボードのシナリオ詳細と Markdown レポートに出す(DS-13.3 (0b))。
   止めるのは**整定のための自動の撮り直し**だけ(`gridLivePanel.js` の `scheduleOpSettleRefresh` /
   `refreshAfterPictureSettled`。判定は `laneLog.js` の `isDeviceRunning(id)` = `workerRunning` / hydrate の
@@ -812,7 +810,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
 
 **見せるもの**: 走っている run を1行ずつ、進捗(done/total・失敗数)・経過・残り見積もり・
 レーン(デバイス)の内訳。**主語は run であってデバイスではない** —— 台数が増えてもボードは伸びない。
-対象は共有フリート全体(手元 + 全ランナー機・**自分の run も他人の run も**。ユーザー決定 2026-09-20)。
+対象は共有フリート全体(手元 + 全ランナー機・**自分の run も他人の run も**。DR-20)。
 
 ### DS-18.1 供給源は台帳(`FTCore.RunProgressLedger`)
 
@@ -919,7 +917,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
   `laneDropouts`(レーンが離脱した回数)、レーン単位の `expectedSeconds`(実行中シナリオの
   実績中央値。実績が無ければ省く)。**「遅い」「異常」とは書かない** —— それを分ける測定を
   していない(MN-29)。
-  **`expectedSeconds` は記録用で画面には出さない**(ユーザー決定 2026-09-21)—— 経過の隣に
+  **`expectedSeconds` は記録用で画面には出さない**(DR-21)—— 経過の隣に
   並べると、超えた瞬間は同じ値が2つ並ぶだけ(`0:08(中央 0:08)`)で情報が無い。
   後から「いつもと比べてどうだったか」を分析するために**台帳と NDJSON には残す**
 - **レーンごとの「残り本数」は持たない**。shared dispatch は同一 platform のレーンが1つのキューを
@@ -1035,7 +1033,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
 - **詰まりは事実の並置だけ**(段6。ユーザー決定 2026-09-20): run 行に `⟳N`(再キュー)と
   `レーン離脱 N` を、**0 のときは出さない**。**語は中立に**(「遅い」「刺さっている」と書かない)
   —— ツールにはアプリが重いのか機械が混んでいるのか分けられない(失敗の記録に分類を置かないのと
-  同じ理由)。**実績中央値は画面に出さない**(ユーザー決定 2026-09-21。記録には残す = DS-18.1)
+  同じ理由)。**実績中央値は画面に出さない**(DR-21。記録には残す = DS-18.1)
 - **デバイスの行にはデバイスのアイコンを名前の左に置く**(ユーザー決定 2026-09-22)。**色は
   プラットフォームのバッジと同じ値**(iOS / Android。`platform` が無いデバイスは色を付けない ——
   知らないものをどちらかに見せない)
@@ -1088,8 +1086,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
   `remote status` の LOCK/FM 欄が判定不能に使うのと同じ記法)。**どちらもグレーで、警告色は
   使わない** —— 観測できていないのは異常ではない。ダッシュの意味は title で言う。
   **不明を空きに見せない**のがこの行の目的で、区別は語と「—」が担う
-- **他人の run もプロジェクト名・プロファイル名・シナリオ名まで出す**(ユーザー決定 2026-09-20。
-  同一信頼グループ前提)。自分の run では issuer を出さない
+- **他人の run もプロジェクト名・プロファイル名・シナリオ名まで出す**(DR-20)。自分の run では issuer を出さない
 - 機械分担の run は `runGroup` で1本に束ねて数える(行は機械ごと = 上の「1行 = 1機械」)
 - 機械の行のクリックでその機械のデバイスを**ラインビューで選択**(既存の `selectedDeviceIds`)。
   run の行はその run がその機械で使っているデバイスだけ。**デバイスの行は押しても何も起きない**(ユーザー決定 2026-09-22)——
@@ -1192,8 +1189,8 @@ run ボードの見出しに、「実行中 N」・全て展開の右から順�
   rename の後も読み切れる。**周期の中で待たない**(1周期で読むのは読み始めた時点のファイルサイズまで)。開くのは
   `events/.inflight-*.ndjson` の通常ファイルだけ(台帳は機械グローバルで誰でも書ける)
 - **整形は `ScenarioLogFormatter`**(CLI の通常出力と同じ)。stderr / text の行はそのまま・読めない行も原文で出す(捨てない)
-- **行を省略・間引き・件数で打ち切らない**(ユーザー決定。テストのエビデンス)。画面のレーンは従来どおり最新 500 行
-  (`runLaneModel.ts` の `MAX_LANE_LINES`)で古い行から消えるが、証跡はディスクのイベントログに全部残る(ユーザー決定)
+- **行を省略・間引き・件数で打ち切らない**(DR-22)。画面のレーンは従来どおり最新 500 行
+  (`runLaneModel.ts` の `MAX_LANE_LINES`)で古い行から消えるが、証跡はディスクのイベントログに全部残る
 - **ssh は足さない**: リモートは既存の fan-out の1本に `monitorRunLog` が乗る。中継(`RemoteMonitorFanout.ingest`)が
   `machine` を埋め、`device` をマシン付きの id(`<platform>:<machine>/<name>`)に直す
 - **拡張が自分で起こした run は捨てる**(既存の `runEvent` で既に出ている。そちらは供給の進行・待機列なども持つので経路を1本に
