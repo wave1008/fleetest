@@ -31,6 +31,46 @@ public enum AndroidBackGestureEdges {
         return (left + leftInset, right + rightInset, bottom)
     }
 
+    /// 帯を読む1回の結果(呼び手 = `AndroidDriver.backGestureEdgeWidths`)。読めなかった理由を注記へ残すためだけに使う
+    public enum ReadOutcome: Sendable {
+        case timedOut(seconds: Double)
+        case threw(String)
+        case exited(status: Int32, output: String)
+    }
+
+    /// `parse` が nil になった回の理由(事実だけ。OI-232: 期限切れか・失敗の終了か・出力のどこが欠けたかを分ける)。
+    /// 読めた回(3ボタン navigation の (0,0,0) を含む)は nil
+    public static func unreadReason(_ outcome: ReadOutcome, bottomFallback: Double = 0) -> String? {
+        switch outcome {
+        case .timedOut(let seconds):
+            return "dumpsys did not answer within \(formatSeconds(seconds))s"
+        case .threw(let message):
+            return "adb could not be run: \(message)"
+        case .exited(let status, let output):
+            guard status == 0 else {
+                return "dumpsys exited \(status) (\(output.utf8.count) bytes of output\(lastLine(output)))"
+            }
+            guard parse(output, bottomFallback: bottomFallback) == nil else { return nil }
+            guard let block = block(named: "EdgeBackGestureHandler:", in: output) else {
+                return "the output (\(output.utf8.count) bytes) has no EdgeBackGestureHandler block"
+            }
+            guard gestureEnabled(in: block) != nil else {
+                return "the EdgeBackGestureHandler block (\(block.count) lines) has no gesture-enabled field"
+            }
+            return "the EdgeBackGestureHandler block (\(block.count) lines) has no mEdgeWidthLeft/mEdgeWidthRight value"
+        }
+    }
+
+    private static func formatSeconds(_ seconds: Double) -> String {
+        seconds == seconds.rounded() ? String(Int(seconds)) : String(format: "%.1f", seconds)
+    }
+
+    private static func lastLine(_ output: String) -> String {
+        guard let line = output.split(separator: "\n").last?.trimmingCharacters(in: .whitespaces), !line.isEmpty
+        else { return "" }
+        return ", last line: \(line.prefix(120))"
+    }
+
     /// 有効かの欄の名前は OS の版で違う。**両方あれば `mIsGestureHandlingEnabled` を優先**(Android 15 の実測の形)。
     /// どちらも無ければ nil(除外しない側に倒す)
     private static func gestureEnabled(in block: [Substring]) -> Bool? {

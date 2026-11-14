@@ -131,4 +131,23 @@ final class AndroidBackGestureEdgesTests: XCTestCase {
         XCTAssertEqual(AndroidBackGestureEdges.parse(rotated)?.right, 218)
         XCTAssertEqual(AndroidBackGestureEdges.parse(Self.gestureNavSnippet)?.left, 78, "inset の欄が無い版は従来どおり")
     }
+
+    /// 読めなかった回の理由は経路ごとに別の事実を言い、読めた回(3ボタンの (0,0,0) を含む)は nil(OI-232)
+    func testUnreadReasonNamesWhichWayTheReadFailed() {
+        typealias E = AndroidBackGestureEdges
+        XCTAssertEqual(E.unreadReason(.timedOut(seconds: 5)), "dumpsys did not answer within 5s")
+        XCTAssertEqual(E.unreadReason(.threw("adb missing")), "adb could not be run: adb missing")
+        XCTAssertEqual(E.unreadReason(.exited(status: 1, output: "x\nerror: device offline\n")),
+                       "dumpsys exited 1 (24 bytes of output, last line: error: device offline)")
+        XCTAssertEqual(E.unreadReason(.exited(status: 0, output: "Can't find service")),
+                       "the output (18 bytes) has no EdgeBackGestureHandler block")
+        let noEnabled = Self.gestureNavSnippet.replacingOccurrences(of: "mIsGestureHandlingEnabled=true", with: "")
+        XCTAssertEqual(E.unreadReason(.exited(status: 0, output: noEnabled)),
+                       "the EdgeBackGestureHandler block (3 lines) has no gesture-enabled field")
+        let noWidth = Self.gestureNavSnippet.replacingOccurrences(of: "mEdgeWidthLeft=78", with: "")
+        XCTAssertEqual(E.unreadReason(.exited(status: 0, output: noWidth)),
+                       "the EdgeBackGestureHandler block (3 lines) has no mEdgeWidthLeft/mEdgeWidthRight value")
+        XCTAssertNil(E.unreadReason(.exited(status: 0, output: Self.gestureNavSnippet)))
+        XCTAssertNil(E.unreadReason(.exited(status: 0, output: Self.threeButtonNavSnippet)))
+    }
 }

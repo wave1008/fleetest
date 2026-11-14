@@ -662,6 +662,24 @@ extension StepExecutorTests {
         }
     }
 
+    /// 読めなかった理由をドライバが言えるなら注記に足す(OI-232: 期限切れか・失敗の終了か・出力の欠けかを次の赤で分ける)。
+    /// 言えなければ従来の文のまま(「why」を空で付けない)
+    func testSwipeByNoteCarriesTheBandReadFailureReason() async throws {
+        for reason in ["dumpsys did not answer within 5s", nil] as [String?] {
+            let primary = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[]])
+            primary.backGestureBandReadFailureAnswer = reason
+            let outcome = await StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables())
+                .execute(FlowStep(action: "swipeBy", dxRatio: -0.9, dyRatio: 0))
+            let note = outcome.driverFallback ?? "-"
+            if let reason {
+                XCTAssertTrue(note.contains("(why: \(reason))"), note)
+            } else {
+                XCTAssertTrue(note.contains("could not read the Android back-gesture band"), note)
+                XCTAssertFalse(note.contains("why:"), note)
+            }
+        }
+    }
+
     /// **witness**: 比率の上限(0.9)を超えた指定は丸めて注記を残す(黙って丸めると、小さい要素で
     /// 「14 倍払った」つもりが数 pt しか動かず緑になる。E2EX-CMP のシートの見出しで実測)。逆向きも見る
     func testSwipeByNotesACappedRatio() async throws {

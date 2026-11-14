@@ -354,6 +354,9 @@ public protocol AppDriver {
     /// (既定 nil に落とすと、gesture navigation の端末で swipeBy がこの帯の中に始点/終点を
     /// 置き back に化ける。`ScrollGeometry.panPath` の `backGestureEdgeWidths` 参照)
     func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)?
+    /// 直前の `backGestureEdgeWidths()` が nil を返した理由(事実の1文。注記に足すだけ = 判定に使わない)。
+    /// 既定 nil。**プロトコル要件として宣言すること・ラッパーは base の値を透過すること**(backGestureEdgeWidths と同じ理由)
+    func backGestureBandReadFailure() -> String?
 }
 
 extension DriverError {
@@ -753,6 +756,8 @@ public extension AppDriver {
 
     /// 既定は nil(除外なし)。答えられるのは Android(AndroidDriver)だけ
     func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? { nil }
+
+    func backGestureBandReadFailure() -> String? { nil }
 
     func activate(bundleID: String) async throws {
         try await launch(bundleID: bundleID)

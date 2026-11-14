@@ -180,4 +180,5 @@ public final class ActionCountingDriver: AppDriver {
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await base.backGestureEdgeWidths()
     }
+    public func backGestureBandReadFailure() -> String? { base.backGestureBandReadFailure() }
 }

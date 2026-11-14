@@ -1955,7 +1955,11 @@ extension StepExecutor {
             // **Android で帯を読めなかった事実は言う**: 除かずに払うので、端まで届く払いの始点・終点が帯に乗ると OS の
             // 「戻る」として消費される(E2EX-CMP android 不具合の回帰 S0050 で1回: dx -0.9 の始点は帯を読めないと x 1026 =
             // 右の帯 1002〜 の中、読めていれば 956)。原因の帰属はこの注記が出た回だけできる
-            if isAndroid, readWidths == nil { bandNote = Self.backGestureBandUnreadNote }
+            // 読めなかった理由(期限切れ・終了コード・出力の欠け)も足す = どちらで読めないのかを測る(OI-232)
+            if isAndroid, readWidths == nil {
+                bandNote = Self.backGestureBandUnreadNote
+                    + (driver.backGestureBandReadFailure().map { " (why: \($0))" } ?? "")
+            }
             guard let path = ScrollGeometry.panPath(container: target, viewport: viewport,
                                                     dxRatio: step.dxRatio ?? 0,
                                                     dyRatio: step.dyRatio ?? 0,

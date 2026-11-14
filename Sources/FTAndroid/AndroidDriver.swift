@@ -74,6 +74,7 @@ public final class AndroidDriver: AppDriver {
 
     /// `backGestureEdgeWidths()` の読めた値(端末ごとに固定)。読めなかった回は控えない
     private var cachedBackGestureEdgeWidths: (left: Double, right: Double, bottom: Double)?
+    private var lastBackGestureBandReadFailure: String?
 
     private struct PersistedState: Codable {
         var centers: [Int: [Double]]
@@ -741,18 +742,33 @@ public final class AndroidDriver: AppDriver {
         // **帯の実幅は向きで変わる**(横向きは切り欠き側の inset が乗り、回転方向で左右も入れ替わる)ので、控えるのは縦向きだけ。
         // 向きは直近の木の画面の縦横で見る(未取得 = 幅 0 は縦向き扱いにせず控えない)
         let portrait = screen.width > 0 && screen.width <= screen.height
+        lastBackGestureBandReadFailure = nil
         if portrait, let cachedBackGestureEdgeWidths { return cachedBackGestureEdgeWidths }
-        let result = try? adbProbe(["shell", "dumpsys", "activity", "service",
-                                    "com.android.systemui/.SystemUIService"], timeout: Self.deviceAnswerTimeoutSeconds)
+        let outcome: AndroidBackGestureEdges.ReadOutcome
+        do {
+            let result = try adbProbe(["shell", "dumpsys", "activity", "service",
+                                       "com.android.systemui/.SystemUIService"], timeout: Self.deviceAnswerTimeoutSeconds)
+            outcome = .exited(status: result.status, output: result.output)
+        } catch ShellError.timedOut {
+            outcome = .timedOut(seconds: Self.deviceAnswerTimeoutSeconds)
+        } catch {
+            outcome = .threw(String(describing: error))
+        }
         // 下端の帯はダンプに高さが出ない版がある。フォールバックは AOSP の 3ボタンバー高(48dp)=
         // ジェスチャナビの帯(それ以下)の上限。実測した値ではない(尽きたら dump の値を読む側を足す)
         let bottomFallback = Self.bottomGestureBandFallbackDp * pointScale
-        let value = result?.outputIfSucceeded.flatMap {
-            AndroidBackGestureEdges.parse($0, bottomFallback: bottomFallback)
+        var value: (left: Double, right: Double, bottom: Double)?
+        if case .exited(let status, let output) = outcome, status == 0 {
+            value = AndroidBackGestureEdges.parse(output, bottomFallback: bottomFallback)
+        }
+        if value == nil {
+            lastBackGestureBandReadFailure = AndroidBackGestureEdges.unreadReason(outcome, bottomFallback: bottomFallback)
         }
         if portrait, let value { cachedBackGestureEdgeWidths = value }
         return value
     }
+
+    public func backGestureBandReadFailure() -> String? { lastBackGestureBandReadFailure }
 
     public func snapshot() async throws -> SnapshotResponse {
         try await snapshot(bypassingCache: false)

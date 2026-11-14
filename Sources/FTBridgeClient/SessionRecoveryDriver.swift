@@ -228,6 +228,7 @@ public final class SessionRecoveryDriver: AppDriver {
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {
         await base.backGestureEdgeWidths()
     }
+    public func backGestureBandReadFailure() -> String? { base.backGestureBandReadFailure() }
     public func tap(x: Double, y: Double) async throws { try await withRecovery { try await base.tap(x: x, y: y) } }
     public func swipe(_ direction: FTSwipeDirection) async throws {
         try await withRecovery { try await base.swipe(direction) }

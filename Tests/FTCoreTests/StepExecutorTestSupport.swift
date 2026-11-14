@@ -39,6 +39,9 @@ final class FakeAppDriver: AppDriver {
     /// このドライバでキャッシュ迂回が意味を持つか(既定は AppDriver の既定実装と同じ false)。
     /// bypassesCache の真理値表の検証で切り替える
     var bypassSupported = false
+    /// `backGestureBandReadFailure()` の答え(既定 nil = 理由を言えない)
+    var backGestureBandReadFailureAnswer: String?
+    func backGestureBandReadFailure() -> String? { backGestureBandReadFailureAnswer }
     /// 迂回付きで撮られた回数(素取得と区別する)
     private(set) var bypassedSnapshotCount = 0
     /// 非 nil なら type(ref:text:) がこのエラーを throw する(409 リアクティブ切替の検証用)

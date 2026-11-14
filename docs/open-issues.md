@@ -47,7 +47,8 @@
 
 出典: `_work/oi216`(11/14 の全マシンの回帰と、その後の全端末への配り)。E2EY-CMP の Android「スワイプの距離で結果が変わること」S0020 の `swipeBy("#sw_row_4", -0.9, 0)` に注記 `could not read the Android back-gesture band (dumpsys of SystemUI), so the drag was not kept out of it` が付き、失敗の時点の木はホームの機能の一覧 = 払いが戻るとして取られた。2回とも M1Ultra の Pixel 10 Pro(Android 17)-06(emulator-5564)
 - 読めないのはその時々: 直後に同じ端末で `dumpsys activity service com.android.systemui/.SystemUIService` は 0.05〜0.10 秒で読め、`EdgeBackGestureHandler:` も出た。読めなかった回が期限切れか失敗の終了かは記録に無い(`AndroidDriver.backGestureEdgeWidths` は失敗を黙って nil に畳む)
-- 次の一手: 読めなかった回の理由(期限・終了コード・出力の長さ)を注記に残して、どちらで読めないのかを測る。読めない回に帯を推定で置くかは、その後に決める(推測の帯で別の払いを縮める誤りが出うる)
+- 測る口(11/15): 読めなかった回の注記に理由を足した(`(why: …)` = 期限切れ・adb を起こせない・終了コードと出力の長さと最後の行・出力に `EdgeBackGestureHandler:` が無い・有効の欄が無い・幅が無い。`AndroidBackGestureEdges.unreadReason`)。読める回の swipeBy は手元の Android で E2EY-CMP「スワイプの距離で結果が変わること」4本が緑・注記なし。理由を出す経路はデバイスでは未通過(読めない回が起きていない)
+- 次の一手: 次にこの注記が出たら `why:` を見て、期限切れか・失敗の終了か・出力の欠けかを分ける。読めない回に帯を推定で置くかは、その後に決める(推測の帯で別の払いを縮める誤りが出うる)
 
 ### OI-233 Android の E2E-Android「連続ジェスチャ」で、1本指の `gesture` の後にパンが検出されない(`pan=-`・17 回中 1 回)
 - 状態: 再現済み
