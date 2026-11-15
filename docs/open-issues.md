@@ -369,7 +369,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 ## 据え置き
 
-### OI-225 実機の iOS(inapp-boost)で、WebView の DOM 要素への合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する
+### OI-225 実機の iOS(inapp-boost)で、合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する(WebView の DOM 要素・UIKit の入力欄・SwiftUI の行)
 - 状態: 再現済み
 - 確認: 4563640be(2026-11-13)
 - 属性: 据え置き
@@ -378,6 +378,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 出典: `_work/explore-20261113c/findings-phys.md`(54周目 phys F1)。iPhone SE3(実機)の E2E-iOS の WebView 画面で、リンク・送信・アリアラベル・変形・固定の5つのボタンへの tap の全部に「activate did not fire -> synthetic touch …; the screen looked the same when it settled after the synthetic touch」(1 run 中 5/5)。直後の `textIs("wv_result=*")` は5つとも緑 = DOM の表示は変わっていた。Simulator の同じシナリオの最近 14 本では 0〜2 件/本。注記は in-app ブリッジの `pixelPrint`(`drawHierarchy(afterScreenUpdates: false)`)の前後一致で出るが、WKWebView の描画が写らないのか、JS の反映が整定より後なのかは確かめていない = 材料不足。同じ SE3 で `tap("#field_single")` にも同じ注記(キーボードが出たかは見ていない)
 - 11/13 に測定(SE3・1/1 で再現): in-app の絵(`/screenshot` = `drawHierarchy`。注記の比べと同じ撮り方)は WebView の中身を写す —— タップの前は `wv_result=-`、タップのステップが返った直後の絵は `wv_result=link`、1.5 秒後も同じ。= 「撮り方に写らない」は否定。注記はブリッジの中で合成タッチの直後の整定(メインスレッド)の終わりに比べるので、別のプロセスの WebContent の描画が整定より後に来た(直後の撮影には間に合う)= 間合いの問題
+- 2026-11-15(55周目の補い phys F1・SE3・7/7): WebView 以外でも出る —— `tap("#field_single")`(UIKit の欄。直後の `keyboardIsShown` が緑 = キーボードが出た)と `tap("#row_30")`(直後の `textIs("#txt_row_selected", "selected=row_30")` が緑 = 同じプロセスの SwiftUI の文字が変わった)の両方に同じ注記。対照: アラートのボタン `#btn_dialog_ok` の合成タッチには付かない。「別プロセスの WebContent の描画が遅れる」では SwiftUI の行を説明できない。キーボードはアプリの窓の外なので `drawHierarchy` に写らない、SwiftUI の更新が整定より後の描画で入る、はどちらも推測 = 材料不足。次の一手(測る口): 注記を出した回に、比べた前後の指紋と、整定の後さらに1フレーム待って撮った指紋を注記の材料として返す(ブリッジの版上げが要る)。Simulator では同じ画面でこの注記がほぼ出ないので、実機だけの間合いかを見分けられる
 - 据え置きの理由: 注記の文は「整定した時点で同じに見えた」+「後から反応する処理(RN の onPress 等)はまだ動きうる」で、事実と食い違わない。直すなら、WebView の DOM へ撃った回は注記の「後から反応する」の例に WebView を足すか注記を出さない(ブリッジの版上げが要る)
 
 ### OI-224 失敗文の添え書きが、後の操作が効いた後でも、前の「画面が変わらなかったタップ」(選択中のタブの押し直し等)を「飲まれたかも」と名指す
