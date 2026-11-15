@@ -30,7 +30,7 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         elif [ "$3" = shell ] && [ "$4" = stat ]; then
           remote="${!#}"; n="${remote##*-}"; n="${n%.mp4}"
           case "$mode" in
-            hang) exec sleep 5 ;;
+            hang) exec sleep 30 ;;
             shellhang|pullstall|pullslow) echo 100 ;;
             rollover) if [ "$n" = 1 ]; then echo 100; else echo 0; fi ;;
             generation)
@@ -82,7 +82,8 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "fake adb did not reach \(url.lastPathComponent)")
     }
 
-    /// adb の stat が応答しなくても、撮り始めの確かめは上限で終わるはず(stat に残り時間の期限を渡す)
+    /// adb の stat が応答しなくても、撮り始めの確かめは上限で終わるはず(stat に残り時間の期限を渡す)。
+    /// 打ち切れれば約 1 秒・打ち切れなければ 30 秒以上なので、上限 10 秒は全体テストの負荷(4.2 秒の観測)に負けずに両者を分ける
     func testStartConfirmationIsBoundedEvenIfADBHangs() async throws {
         let (dir, adb) = try fakeADB(mode: "hang")
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
@@ -91,7 +92,7 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         let ok = await recorder.start()
         let elapsed = Date().timeIntervalSince(started)
         XCTAssertFalse(ok, "撮り始めを確かめられなければ false のはず")
-        XCTAssertLessThan(elapsed, 4, "stat が 5 秒応答しなくても上限 1 秒 + 後始末で戻るはず(\(elapsed)s)")
+        XCTAssertLessThan(elapsed, 10, "stat が 30 秒応答しなくても上限 1 秒 + 後始末で戻るはず(\(elapsed)s)")
     }
 
     /// 3 分ごとの切り替えで撮り直したセグメントの確かめの途中に、ensureRecording は「撮れている」と言わないはず

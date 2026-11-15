@@ -31,7 +31,8 @@ final class ResignAndFrontWindowHintWiringTests: XCTestCase {
     func testNotFoundMessagePrefersTheFrontWindowHintOverTheWaitHint() throws {
         let src = try source("Sources/FTCore/StepExecutor+Actions.swift")
         XCTAssertTrue(src.contains("(leftHint ?? Self.frontWindowCoverHint(hintSnapshot)\n"
-            + "                            ?? (Self.waitHintAfterSearch("))
+            + "                            ?? (scopeHint.isEmpty\n"
+            + "                                ? Self.waitHintAfterSearch("))
     }
 
     func testReactNativeTriesResignBeforeTappingAboveTheKeyboard() throws {
