@@ -117,7 +117,7 @@ class チェックアウトできること {
                     ensurePayment()
                 }.expectation {
                     // ログイン済みの証拠。未ログインなら #btn_login のままここで落ちる
-                    exist("#btn_logout")
+                    exist("#btn_logout", scroll: .down)
                 }
             }
             scene(2, "カートを空にして基準を作る") {

@@ -104,7 +104,7 @@ class 注文履歴に確定した注文が並ぶこと {
                     ensureSignedIn()
                     ensureAddressAndPayment()
                 }.expectation {
-                    exist("#btn_logout")
+                    exist("#btn_logout", scroll: .down)
                 }
             }
             scene(2, "注文を1件確定して履歴に載せる材料を作る") {
