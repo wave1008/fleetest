@@ -85,7 +85,7 @@ export const exploreHealStrings = {
     en: "Remeasure storage usage of running virtual devices (never remeasured automatically)",
   },
   "exploreHeal.dashboard.colRemoved": { ja: "run から除外", en: "Excluded from Run" },
-  "exploreHeal.dashboard.colRequeued": { ja: "振り直し", en: "Requeued" },
+  "exploreHeal.dashboard.colRequeued": { ja: "再実行", en: "Requeued" },
   "exploreHeal.dashboard.colPreRun": { ja: "run 前の除外・修復", en: "Pre-run Exclude/Repair" },
   "exploreHeal.dashboard.colRecovered": { ja: "回復操作", en: "Recovery" },
   "exploreHeal.dashboard.colAppCrashes": { ja: "アプリのクラッシュ", en: "App Crashes" },

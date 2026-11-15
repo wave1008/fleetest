@@ -2,17 +2,17 @@
 
 [in English](select.md)
 
-デバイスを操作せずに要素を掴みます。値の読み出しや検証コマンドの起点に使います。
+デバイスを操作せずに要素を取得します。値の読み出しや検証コマンドの起点に使います。
 
 ## 関数
 
 | 関数 | 説明 |
 |---|---|
-| `select(sel, requireVisible:waitSeconds:scroll:maxSwipes:)` | 要素を掴みます。`exist` と違い**検証ではない**ので、レポートに検証ステップとして残りません。値の読み出し(`.text`/`.value`/`.id`)や検証コマンドへのチェーンの起点に使います。掴めなければ失敗させず**空要素**を返すので、呼び出し側は `.isEmpty`/`.isNotEmpty` で分岐します。在ることを保証したいなら `exist` を使ってください。`requireVisible: false` で可視性照合自体を外せます。「見えない」と判定したときは、画面を1回撮り直してから決めます(画面が切り替わる途中の1枚で空を返さないため)。 |
+| `select(sel, requireVisible:waitSeconds:scroll:maxSwipes:)` | 要素を取得します。`exist` と違い**検証ではない**ので、レポートに検証ステップとして残りません。値の読み出し(`.text`/`.value`/`.id`)や検証コマンドへのチェーンの起点に使います。見つからなければ失敗させず**空要素**を返すので、呼び出し側は `.isEmpty`/`.isNotEmpty` で分岐します。在ることを保証したいなら `exist` を使ってください。`requireVisible: false` で可視性照合自体を外せます。「見えない」と判定したときは、画面を1回撮り直してから決めます(画面が切り替わる途中の1枚で空を返さないため)。 |
 | `select(sel, scroll: .noScroll)` | `withScrollDown { }` ブロックの中でも、現在画面だけで解決します。 |
-| `select(sel).tap(holdSeconds:maxGestureSeconds:settle:)` | 掴んだ要素をタップします。セレクタから引き直してタップするので `tap(sel)` と同じ挙動です。`findImage` / `findImages` で掴んだ要素は、見つけた枠の中心を座標でタップします(見つからなかった画像要素は失敗します)。 |
-| `select(sel).type(text, replace:settle:waitSeconds:)` | 掴んだ要素へ入力します。セレクタから引き直すので `type(sel, text)` と同じ挙動です。掴めていない要素では失敗します。`findImage` / `findImages` で掴んだ要素には入力できません(先に `.tap()` してから `type(text)` と書きます)。入力するだけなら `type(sel, text)` と書けば足ります。 |
-| `lastElement` | **直前に掴んだ要素**(引数なし)。要素を1つに定めて解決したコマンド(`select`/`exist`/`tap`/`type`/`waitForDisplay`/テキスト・値の検証など)が通るたびに差し替わります。値は掴んだ時点の凍結値で、その後のスクロールやタップでは更新されません。 |
+| `select(sel).tap(holdSeconds:maxGestureSeconds:settle:)` | 取得した要素をタップします。セレクタから引き直してタップするので `tap(sel)` と同じ挙動です。`findImage` / `findImages` で取得した要素は、見つけた枠の中心を座標でタップします(見つからなかった画像要素は失敗します)。 |
+| `select(sel).type(text, replace:settle:waitSeconds:)` | 取得した要素へ入力します。セレクタから引き直すので `type(sel, text)` と同じ挙動です。取得できていない要素では失敗します。`findImage` / `findImages` で取得した要素には入力できません(先に `.tap()` してから `type(text)` と書きます)。入力するだけなら `type(sel, text)` と書けば足ります。 |
+| `lastElement` | **直前に取得した要素**(引数なし)。要素を1つに定めて解決したコマンド(`select`/`exist`/`tap`/`type`/`waitForDisplay`/テキスト・値の検証など)が通るたびに差し替わります。値は取得した時点で固定された値で、その後のスクロールやタップでは更新されません。 |
 
 どのコマンドも、セレクタ文字列の代わりに型付きセレクタ `Sel` を取れます([型付きセレクタ](../selector/typed_selector_ja.md))。
 
@@ -27,7 +27,7 @@ if e.isNotEmpty {
 }
 ```
 
-掴んだ要素から値を読み出す方法(`.text` / `.value` / `.id`)は
+取得した要素から値を読み出す方法(`.text` / `.value` / `.id`)は
 [値の読み出し](./reading_values_ja.md)を参照してください。
 
 ## 注意点
@@ -35,8 +35,8 @@ if e.isNotEmpty {
 - `select` 単体でシナリオを失敗させることはありません。見つからなければ空要素になるだけで、
   例外は投げられません。失敗しうるのはチェーンした検証コマンド(`.textIs(...)` 等)側です。
 - **Android では、テスト対象のアプリが前面に無い間(ホーム画面・別のアプリ・アプリスイッチャーが出ている間)の `select` は断られます。** `notExist`・`countIs(0)` と同じく、アプリが戻るのを通常の待ち時間だけ待ち、戻らなければ空要素を返さずにステップが失敗します(空要素を「要素が無い」と取り違えないためです)。先に `launchApp()` か `tapAppIcon()` でアプリを戻してください([navigation](./navigation_ja.md) 参照)。
-- `lastElement` は各 `scene` の開始時点で空になり、掴めなかったコマンドが通ると空要素で
-  上書きされ、一度も掴んでいなければ空(+警告)になります。
+- `lastElement` は各 `scene` の開始時点で空になり、見つからなかったコマンドが通ると空要素で
+  上書きされ、一度も取得していなければ空(+警告)になります。
 - `waitSeconds:` を省くと、実行プロファイルの既定の待ち時間(`defaultTimeout`。既定 5 秒)まで要素を探してから空要素を返します
   (`tap` などの操作の約 0.7 秒とは違います)。今の画面を1回だけ見て分岐したいときは `select(sel, waitSeconds: 0)` と書いてください。
 

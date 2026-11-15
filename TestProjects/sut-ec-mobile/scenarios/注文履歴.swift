@@ -8,7 +8,7 @@
 // こちらは履歴への反映とステータス。準備が重なるのは準備だから。
 //
 // **注文詳細を開く手順は入れていない**: 履歴の行は id が生成 ID(#order_row_ord_b26b7852)で、
-// 一覧の容器にも画面にも id が無い。行を安定して指す手段が現状のアプリには無く、
+// 一覧のコンテナにも画面にも id が無い。行を安定して指す手段が現状のアプリには無く、
 // MCP も生成 ID をそのまま勧めてくる(別環境では存在しない値)。行に安定 id が付いたら足す。
 
 import FTDSL
@@ -75,7 +75,7 @@ class 注文履歴に確定した注文が並ぶこと {
             type("#field_city", "千代田区")
             type("#field_address_line", "千代田1-1")
             // 住所のフォームはスクロールしない。キーボードが出ている間 #field_phone はその下。Compose の iOS は欄の外を叩いても
-            // 閉じず Return でだけ閉じる(欄の確定操作なので type は自動で撃たない)。hideKeyboard は閉じなければ Enter まで送る
+            // 閉じず Return でだけ閉じる(欄の確定操作なので type は自動で実行しない)。hideKeyboard は閉じなければ Enter まで送る
             hideKeyboard()
             type("#field_phone", "09012345678")
             pressEnter()
@@ -110,7 +110,7 @@ class 注文履歴に確定した注文が並ぶこと {
             scene(2, "注文を1件確定して履歴に載せる材料を作る") {
                 action {
                     tap("#tab_cart")
-                    // カートは実行を跨いで累積する。空を基準にしないと「入れた1点」が曖昧になる
+                    // カートは実行を跨いで累積する。空に初期化しないと「入れた1点」が曖昧になる
                     ifCanSelect("#btn_remove_fashion_5", waitSeconds: 1) { tap("#btn_remove_fashion_5") }
                     tap("#tab_home")
                     tap("#product_card_fashion_5", waitSeconds: 5)  // おすすめは非同期ロード

@@ -2,7 +2,7 @@
 // testbase: TC-33(SC-33)数量指定でカート追加(数量3→カートに数量3で反映)。
 // 商品詳細の数量ステッパー(#btn_qty_increment)で個数を増やして追加すると、
 // カートの小計/合計に単価×個数が反映されることを検証する。
-// 擬陽性対策: カートを空にしてから 3 個(¥18,000×3=¥54,000)追加し、¥54,000 の出現で確認。
+// 偽の成功の対策: カートを空にしてから 3 個(¥18,000×3=¥54,000)追加し、¥54,000 の出現で確認。
 // セレクタは iPhone 17 Pro(iOS 27.0)/ja_JP・修正版ビルドで採取。
 
 import FTDSL
@@ -11,19 +11,19 @@ import FTDSL
 class 数量を指定してカートに追加できること {
 
     // launchApp は直前画面から再開する。各 @Test の前に毎回実行され、
-    // 以降の正規化・基準作りは各シナリオの scene 1 が担う
+    // 以降の正規化・初期化は各シナリオの scene 1 が担う
     func beforeEach() {
         launchApp()
     }
 
-    /// 対象商品(fashion_5)の行を削除して空にする(基準化)。各行の削除ボタンは id=btn_remove_<productId> で一意。
+    /// 対象商品(fashion_5)の行を削除して空にする(初期化)。各行の削除ボタンは id=btn_remove_<productId> で一意。
     /// 空カートなら空振りして無害。本スイートはこの1商品のみ扱う。
     private func emptyCart() {
         ifCanSelect("#btn_remove_fashion_5", waitSeconds: 1) { tap("#btn_remove_fashion_5") }
     }
 
-    // カートは実行を跨いで累積する。緑経路の後始末 scene に加えて afterEach でも空へ戻す —
-    // 失敗はシナリオ全体を中断するので、後始末 scene は失敗時に実行されない
+    // カートは実行を跨いで累積する。緑経路の後処理 scene に加えて afterEach でも空へ戻す —
+    // 失敗はシナリオ全体を中断するので、後処理 scene は失敗時に実行されない
     func afterEach() {
         ifCanSelect("#btn_back") { tap("#btn_back") }
         ifCanSelect("#tab_cart") { tap("#tab_cart") }
@@ -33,7 +33,7 @@ class 数量を指定してカートに追加できること {
     @Test("数量を3にして追加すると小計に反映される")
     func S0010() {
         scenario {
-            scene(1, "基準: カートを空にする") {
+            scene(1, "初期化: カートを空にする") {
                 action {
                     tap("#tab_cart")
                     emptyCart()
@@ -51,10 +51,10 @@ class 数量を指定してカートに追加できること {
                     tap("#btn_open_cart")
                 }.expectation {
                     exist("合計")
-                    exist("¥54,000")  // ¥18,000 × 3(空基準なのでこの額=数量反映の証拠)
+                    exist("¥54,000")  // ¥18,000 × 3(空に初期化したのでこの額=数量反映の証拠)
                 }
             }
-            scene(3, "後始末: カートを空に戻す") {
+            scene(3, "後処理: カートを空に戻す") {
                 action {
                     tap("#btn_remove_fashion_5")  // 行ごとに id=btn_remove_<productId>
                 }.expectation {

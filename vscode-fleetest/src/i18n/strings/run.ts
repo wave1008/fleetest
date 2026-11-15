@@ -65,7 +65,7 @@ export const runStrings = {
 
   "run.cancelled": { ja: "実行がキャンセルされました。", en: "The run was cancelled." },
   "run.cancel.stillRunningMessage": {
-    ja: "実行の後始末(終了スクリプト・ロック解放)を待っています。応答しない場合は強制終了できます。",
+    ja: "実行の後処理(終了スクリプト・ロック解放)を待っています。応答しない場合は強制終了できます。",
     en: "Waiting for the run to finish cleaning up (teardown script, lock release). You can force kill it if it's unresponsive.",
   },
   "run.cancel.forceKillButton": { ja: "強制終了", en: "Force kill" },
@@ -79,7 +79,7 @@ export const runStrings = {
     en: 'Failed to run the fleetest CLI ({message}). Check the "fleetest" output panel.',
   },
   "run.result.missing": {
-    ja: "実行結果イベントを受信できませんでした(振り直し等で欠落した可能性)。出力パネル「fleetest」を確認してください。",
+    ja: "実行結果イベントを受信できませんでした(再実行等で欠落した可能性)。出力パネル「fleetest」を確認してください。",
     en: 'Could not receive the run result event (possibly lost during a requeue). Check the "fleetest" output panel.',
   },
 
@@ -117,7 +117,7 @@ export const runStrings = {
   "run.debug.varPosition": { ja: "位置", en: "Position" },
 
   "run.debug.stillRunning": {
-    ja: "実行の後始末(終了スクリプト・ロック解放)を待っています。応答しない場合はもう一度「停止」を押すと強制終了します。",
+    ja: "実行の後処理(終了スクリプト・ロック解放)を待っています。応答しない場合はもう一度「停止」を押すと強制終了します。",
     en: "Waiting for the run to finish cleaning up (teardown script, lock release). Press Stop again to force kill it if it's unresponsive.",
   },
   "run.debug.stdinWriteFailed": {

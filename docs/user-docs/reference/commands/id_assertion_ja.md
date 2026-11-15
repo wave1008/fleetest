@@ -2,13 +2,13 @@
 
 [in English](id_assertion.md)
 
-直前に掴んだ要素の identifier を検証します。
+直前に取得した要素の identifier を検証します。
 
 ## 関数
 
 | 関数 | 説明 |
 |---|---|
-| `select(selector).idIs(expected, strict:, waitSeconds:)` | 要素の identifier が `expected` と一致することを検証します。対象は直前に掴んだ要素で、暗黙形 `idIs(expected, strict:, waitSeconds:)` としても書けます。 |
+| `select(selector).idIs(expected, strict:, waitSeconds:)` | 要素の identifier が `expected` と一致することを検証します。対象は直前に取得した要素で、暗黙形 `idIs(expected, strict:, waitSeconds:)` としても書けます。 |
 
 暗黙形に渡せない期待値の制約は[テキストの検証](./text_assertion_ja.md)を参照してください。
 

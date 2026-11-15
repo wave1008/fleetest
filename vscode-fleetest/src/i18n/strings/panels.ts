@@ -121,7 +121,7 @@ export const panelsStrings = {
   "panels.runProfile.removeTitle": { ja: "実行プロファイルの削除", en: "Delete run profile" },
   "panels.runProfile.renameTitle": { ja: "実行プロファイル名の変更", en: "Rename run profile" },
   "panels.runProfile.appLabel": { ja: "参照するアプリプロファイル", en: "App profile to reference" },
-  "panels.runProfile.healLabel": { ja: "セレクタの自己修復を有効にする(指紋照合方式)", en: "Enable selector self-healing (fingerprint matching)" },
+  "panels.runProfile.healLabel": { ja: "セレクタの自己修復を有効にする(フィンガープリント照合方式)", en: "Enable selector self-healing (fingerprint matching)" },
   "panels.runProfile.advancedSectionTitle": { ja: "Advanced Features", en: "Advanced Features" },
   "panels.runProfile.fmTextVisibilityCheckLabel": {
     ja: "FMを使用したテキストの可視性検証を有効にする(Experimental, macOS 27+)",

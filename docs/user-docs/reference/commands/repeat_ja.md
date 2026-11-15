@@ -8,7 +8,7 @@
 
 | 関数 | 説明 |
 |---|---|
-| `repeatWhileCanSelect(sel, maxLoopCount: 10, waitSeconds: 0, title:) { }` | セレクタが解決できる限りブロックを繰り返します。件数不定の一括操作(不定数のカードを閉じる等)に。上限 `maxLoopCount` への到達は失敗にしませんが記録には残ります。 |
+| `repeatWhileCanSelect(sel, maxLoopCount: 10, waitSeconds: 0, title:) { }` | セレクタが解決できる限りブロックを繰り返します。件数が決まっていない一括操作(数が決まっていないカードを閉じる等)に。上限 `maxLoopCount` への到達は失敗にしませんが記録には残ります。 |
 | `doUntilTrue("説明", waitSeconds: 10, intervalSeconds: 0.5, maxLoopCount: 100) { 条件 }` | ブロックが true を返すまで繰り返します。ブロックの中で `scrollDown()` や `select(...)` などのコマンドを呼べます。throw したらリトライせず即座に失敗します。 |
 
 ## 例

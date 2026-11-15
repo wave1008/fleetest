@@ -16,13 +16,13 @@
 | `ログイン` | ラベル(**完全一致のみ**。完全形は `text=ログイン`) |
 | `*ログイン*` / `ログイン*` / `*ログイン` | 部分一致 / 前方一致 / 後方一致(完全形は `textContains=` `textStartsWith=` `textEndsWith=`)。`*` の側に書いた空白は書いたとおりに比べる(`投稿 *` は「投稿 」で始まるラベルだけに当たり、「投稿」には当たらない) |
 | `textMatches=^行 [0-9]+$` / `idMatches=^row_[0-9]+$` | 正規表現(**部分一致**。全体一致は `^…$` を書く) |
-| `.button` / `.button[2]` | 型+順番(**1 オリジン**。`.button[2]` = 2番目の Button。1番目は `.button` または `.button[1]`)。**iOS では順番が数える木によって変わる** —— シナリオの既定の inapp-boost モードと、xcuitest モード・MCP(`ft_batch` と `ft_tap` などの `selector`)とで要素の並びが違うので、同じ `[n]` が別の要素を指すことがある。iOS では、セレクタに `[n]` があり、手前にスコープが無いステップに注記 `ordinal-without-scope` が付きます。スコープの中で数える `[n]`(`#list >> .button[2]`)には付きません。`#id` かラベルで書くか、スコープ(`#list >> .button[2]`)の中で数える |
+| `.button` / `.button[2]` | 型+順番(**1 オリジン**。`.button[2]` = 2番目の Button。1番目は `.button` または `.button[1]`)。**iOS では順番が数えるツリーによって変わる** —— シナリオの既定の inapp-boost モードと、xcuitest モード・MCP(`ft_batch` と `ft_tap` などの `selector`)とで要素の並びが違うので、同じ `[n]` が別の要素を指すことがある。iOS では、セレクタに `[n]` があり、手前にスコープが無いステップに注記 `ordinal-without-scope` が付きます。スコープの中で数える `[n]`(`#list >> .button[2]`)には付きません。`#id` かラベルで書くか、スコープ(`#list >> .button[2]`)の中で数える |
 | `.switch#id` / `.switch&&ラベル` | 型と id/label の併用(値検証などで型を絞りたいときに使う) |
 | `#save&&.button&&enabled=true` | **`&&` で AND 合成**。属性は `text` `value` `placeholder` `id` `type` `pos` `checked` `enabled`。一致方法(`Contains`/`StartsWith`/`EndsWith`/`Matches`)を持つのは `text`/`value`/`placeholder`/`id` の4属性のみで、`type`/`pos`/`checked`/`enabled` は完全一致のみ |
 | `(保存\|OK)` / `text=(保存\|OK)` | **フィルタ内 OR**。`保存\|\|OK` と等価(相対セレクタの引数では括弧を自分で書く: `:right((保存\|OK))`) |
 | `.button&&text!=キャンセル` / `.button&&!キャンセル` | **否定フィルタ**(`!値` は短縮形)。`textContains!=` `!#id` `!.button` も可。**否定だけの節・序数の否定は書けない** |
 | `.input` / `.widget` | 型エイリアス(`.input` = textField\|secureTextField / `.widget` = button・staticText・textField・secureTextField・switch の5つ。このほかのエイリアスは無い) |
-| `#list >> .clickable[2]` | **スコープ**(祖先 >> 子孫)。序数はスコープ内で数えるので画面クロムやスクロール位置でずれない。**祖先がアプリの a11y ツリーに公開されている必要**があり、畳まれた容器(Flutter の `MergeSemantics` 等)は子孫が消えるためスコープに使えない |
+| `#list >> .clickable[2]` | **スコープ**(祖先 >> 子孫)。序数はスコープ内で数えるので画面クロムやスクロール位置でずれない。**祖先がアプリの a11y ツリーに公開されている必要**があり、畳まれたコンテナ(Flutter の `MergeSemantics` 等)は子孫が消えるためスコープに使えない |
 | `通知:rightSwitch` | **相対セレクタ**(**基準が先**)。基準の帯に入り、その方向にある最も近い候補。該当が無ければ失敗する。詳細は[相対セレクタ](./relative_selector_ja.md) |
 | `数量:right(2)` / `#a:below(.button&&項目)` / `見出し:right:belowButton` | 序数 / 任意フィルタ / 連鎖 |
 | `<変更&&.button>:right(数量)` | 基準を `<...>` で囲む(任意。基準の範囲を目で追いやすくする) |
@@ -68,7 +68,7 @@
 
 ## 注意点
 
-- **スコープ(`>>`)の祖先は、木の上で中身を子に持っている必要があります。** iOS の Compose Multiplatform は、`testTag` だけを付けた Row/Column を中身の無い要素として出し、中身はその隣(同じ階層)に並べます。この祖先を使ったスコープは、iOS では何にも一致しません(Android では一致します)。失敗文に `the scope's container … has nothing under it` と出たらこの形です。スコープを外して、一意な `#id`・ラベル・隣の要素からの相対セレクタ(`#btn_qty_decrement:right` など)で書きます。両 OS で回すシナリオでスコープを使うときは、iOS でも通ることを確かめてから採ります。
+- **スコープ(`>>`)の祖先は、ツリー上で中身を子に持っている必要があります。** iOS の Compose Multiplatform は、`testTag` だけを付けた Row/Column を中身の無い要素として出し、中身はその隣(同じ階層)に並べます。この祖先を使ったスコープは、iOS では何にも一致しません(Android では一致します)。失敗文に `the scope's container … has nothing under it` と出たらこの形です。スコープを外して、一意な `#id`・ラベル・隣の要素からの相対セレクタ(`#btn_qty_decrement:right` など)で書きます。両 OS で回すシナリオでスコープを使うときは、iOS でも通ることを確かめてから採ります。
 
 ### Link
 - [index](../../index_ja.md)

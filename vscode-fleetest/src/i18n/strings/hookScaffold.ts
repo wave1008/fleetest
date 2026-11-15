@@ -30,7 +30,7 @@ export const hookScaffoldStrings = {
 #   - 繋げるのは compose.yaml で公開したポート(127.0.0.1:<port>)と、この Mac の設定
 #     sandbox.allowedDomains に書いた外部ドメイン(プロキシ経由。HTTP_PROXY / HTTPS_PROXY が入っている)
 #     だけ。それ以外のポート・外部へは繋がらない。ブリッジ・adb・Docker には繋げない。
-#   - サーバー・DB・スタブはこのスクリプトで起こさない(docker / docker compose / container は使えない)。
+#   - サーバー・DB・スタブはこのスクリプトで起動しない(docker / docker compose / container は使えない)。
 #     同じ scripts/ の compose.yaml に宣言する(fleetest が run ごとに起動して止める。起動完了
 #     (healthcheck)を待ってから run-setup.sh が走る)。
 #   - コンテナの中での操作は中継コマンド fleetest-services で(PATH にある):
@@ -146,7 +146,7 @@ set -eu
 #     (下の例が "|| true" で終わっているのはそのため)。
 #   - 片付ける前に run ごと殺された場合(ssh の切断・SIGKILL)は、この機械で次に走る run が
 #     代わりにこのスクリプトを実行する。"fleetest hooks reap" で手動でも実行でき、
-#     リモートのランナー機に対しては "fleetest remote clean" がこれを撃つ。
+#     リモートのランナー機に対しては "fleetest remote clean" がこれを実行する。
 #   - 環境変数は run-setup.sh と同じ(FT_HOOK だけ "teardown" になる)。ただし上記の代理実行では
 #     run の文脈が無いため、FT_MACHINE・FT_REPORT_DIR・デバイス一覧は空になる
 #     (FT_WORKSPACE・FT_PROJECT・FT_PROFILE は常に入っている)。
@@ -159,7 +159,7 @@ set -eu
 #   - 繋げるのは compose.yaml で公開したポート(127.0.0.1:<port>)と、この Mac の設定
 #     sandbox.allowedDomains に書いた外部ドメイン(プロキシ経由。HTTP_PROXY / HTTPS_PROXY が入っている)
 #     だけ。それ以外のポート・外部へは繋がらない。ブリッジ・adb・Docker には繋げない。
-#   - サーバー・DB・スタブはこのスクリプトで起こさない(docker / docker compose / container は使えない)。
+#   - サーバー・DB・スタブはこのスクリプトで起動しない(docker / docker compose / container は使えない)。
 #     同じ scripts/ の compose.yaml に宣言する(fleetest が run ごとに起動して止める。起動完了
 #     (healthcheck)を待ってから run-setup.sh が走る)。
 #   - コンテナの中での操作は中継コマンド fleetest-services で(PATH にある):
@@ -186,7 +186,7 @@ set -eu
 
 set -u
 
-# --- 例: データの後始末 ------------------------------------------------------
+# --- 例: データの後処理 ------------------------------------------------------
 # fleetest-services exec db -- psql -U app -c 'TRUNCATE orders, users' || true
 #
 # rm -f "$FT_WORKSPACE/data/fixture.json" || true

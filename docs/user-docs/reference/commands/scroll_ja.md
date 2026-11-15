@@ -9,11 +9,11 @@
 | 関数 | 説明 |
 |---|---|
 | `scrollTo(sel, direction: .down, scrollFrame:, startMarginRatio:, endMarginRatio:, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、端に着いて中身が動かなくなっても、その秒数の間は端と決めずに待ちます(一覧がまだ出ていない・骨組みのまま・末尾に「再試行」などが遅れて出る形)。秒数は、1度も動いていなければ探し始めから、途中まで動いた後なら端に着いたときから数えます。待つ間は送らずに画面を読み直すだけなので、`maxSwipes:` の本数は使いません(中身が変われば探索を続けます)。省略時は2周動かなければ打ち切ります。その向きに中身が動いたあとで、端まで送って(または `maxSwipes:` を使い切って)も見つからなかったときだけ、送りが行を飛び越した分を拾うために、ゆっくりした小さなドラッグ(最大 8 本)で少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、戻らず、反対側を探さずに失敗します。探索を始めた画面が起動したアプリでなく別のアプリのものだったときも戻りません。キーボードが送る領域の下を覆ったまま何も動かなかったときは、副作用のない手段(`tap` と同じ。Enter は送りません)でキーボードを閉じて、探索を1回だけやり直します。 |
-| `scrollDown(scrollFrame:, startMarginRatio:, endMarginRatio:, repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | 1画面ぶんスクロールします(`repeat:` 回繰り返します)。画面が1つも動かなかったときは、成功のまま注記 `scroll-moved-nothing` を付けます(既に端に着いているか、払いの始点が一覧の外です。特定の一覧の中で払うなら `scrollFrame:` を渡してください。`scrollFrame:` を渡した送りでは、端に着いている可能性だけを言います)。 |
+| `scrollDown(scrollFrame:, startMarginRatio:, endMarginRatio:, repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | 1画面ぶんスクロールします(`repeat:` 回繰り返します)。画面が1つも動かなかったときは、成功のまま注記 `scroll-moved-nothing` を付けます(既に端に着いているか、スワイプの始点が一覧の外です。特定の一覧の中でスワイプするなら `scrollFrame:` を渡してください。`scrollFrame:` を渡した送りでは、端に着いている可能性だけを言います)。 |
 | `scrollToBottom(scrollFrame:, startMarginRatio:, endMarginRatio:, settle:, maxSwipes: 50)` / `scrollToTop` / `scrollToRightEdge` / `scrollToLeftEdge` | 端まで送ります(画面が変化しなくなるまで)。`maxSwipes` は暴走を止める上限で、上限で打ち切るとステップに注記が付きます。 |
 | `withScrollDown { … }` / `withScrollUp` / `withScrollRight` / `withScrollLeft` | ブロック内の `tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` を**すべてスクロール探索**にします(明示の `scroll:` があればそちらが優先)。**`notExist` は意味が変わります** —— 探索中に見つかった時点で失敗になります。 |
 | `withoutScroll { … }` | 外側の `withScroll*` を打ち消し、ブロック内は現在画面だけで解決します。 |
-| `withoutContainerInference { … }` | ブロック内のすべてのコマンドで、容器の推測に依存する補正(後述)を止めます。 |
+| `withoutContainerInference { … }` | ブロック内のすべてのコマンドで、コンテナの推測に依存する補正(後述)を止めます。 |
 | `scroll: .noScroll`(`tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` の引数) | `withScroll*` の中でも、この1コマンドだけスクロールしません(現在画面だけで解決します)。引数を省いた場合は、ブロックの向きに従います。 |
 
 **`settle: false`** を渡すと、このコマンドの操作後の「画面が落ち着くまでの待ち」を省きます(次のステップは動いている最中の画面を見ることがあります)。詳細は [tap](./tap_ja.md) 参照。
@@ -34,7 +34,7 @@
 ## 例
 
 ```swift
-tap("設定", scroll: .down)          // 折り返しの下にある項目を探索してからタップ
+tap("設定", scroll: .down)          // 画面外(スクロールしないと見えない位置)にある項目を探索してからタップ
 withScrollDown {
     tap("#row_40")                  // 書かなくても探索される
     exist("#header", scroll: .noScroll)   // 固定ヘッダは現在画面で確認
@@ -43,7 +43,7 @@ withScrollDown {
 
 ## スクロールさせたい領域: `scrollFrame:`
 
-`scrollFrame:` が空・構文の誤り・代替(`||` や `(a|b)`)を含むときは、スクロールする前に失敗します(領域は1つの容器です)。
+`scrollFrame:` が空・構文の誤り・代替(`||` や `(a|b)`)を含むときは、スクロールする前に失敗します(領域は1つのコンテナです)。
 
 `scrollFrame:`(および `startMarginRatio:` / `endMarginRatio:`)は `scroll*` / `scrollToBottom`
 等 / `scrollTo` の引数で、`withScroll*` は `scrollFrame:` のみ取ります。実際にスクロールさせたい
@@ -62,14 +62,14 @@ scrollTo("#row_40", scrollFrame: "#list_rows")
   (ページの点のインジケータと一覧が同じ id を持つ形)。どれを使ったかは注記で分かります。別の一致を使うには `[n]` を付けます。
 - **領域は解決できたが中の何も動かない場合**、スワイプ自体は送られますがステップに注記が
   付きます(`the specified scrollFrame is not scrollable (the swipe lands there but nothing moves)`)。
-  マージンで領域の中に動かせる幅が残らない場合は、スワイプを画面全体で払い、注記
+  マージンで領域の中に動かせる幅が残らない場合は、スワイプを画面全体で行い、注記
   `the specified scrollFrame resolved but leaves nothing to move, so the whole screen was swiped` が付きます。
-- **半分開いたボトムシート**(指定した容器が画面下端に接し、上端が画面の上 1/4 より下)の中で、下へ送る
-  探索が1度も動かずに止まったら、その容器の中で1回だけ速く払ってシートを広げてから探し直します
+- **半分開いたボトムシート**(指定したコンテナが画面下端に接し、上端が画面の上 1/4 より下)の中で、下へ送る
+  探索が1度も動かずに止まったら、そのコンテナの中で1回だけ速くスワイプしてシートを広げてから探し直します
   (注記 `the sheet was expanded by a drag inside the scrollFrame first`)。
 - **領域が画面に1件も無い場合は、スワイプを1本も送らずに失敗します** —— これは `scrollTo`
   の探索だけでなく `scroll*` / `scrollTo*Edge` 系 / `flick*` / `withScroll*` 配下の探索すべてに
-  当てはまります。**`select` 系だけは例外**で、掴めなければ空要素を返す契約が優先されます。
+  当てはまります。**`select` 系だけは例外**で、見つからなければ空要素を返す契約が優先されます。
 
 ## レポートに出る注記
 
@@ -92,14 +92,14 @@ flick は端に着いたかどうかを判定しないため([flick](./flick_ja.
 ## 端から少しだけ出た要素
 
 探索で見つかった要素が、送っている向きの端から少しだけ出ていて、指で押せる大きさ(44pt / dp)ほども見えていないときは、
-容器の半分の距離だけゆっくり送ってから押します(1回だけ)。細い部分を押すと、画面の端の操作(Android の戻る・ホームの
+コンテナの半分の距離だけゆっくり送ってから押します(1回だけ)。細い部分を押すと、画面の端の操作(Android の戻る・ホームの
 ジェスチャ)に取られたり、別の物に当たったりするためです。
 iOS の既定のモード(inapp-boost)の Compose Multiplatform / Flutter では1回の送りが1ページ固定なので、この送り直しは入りません。
 
-## 容器の推測に依存する補正
+## コンテナの推測に依存する補正
 
-`tap`/`scrollTo` などの座標解決は、見切れ判定・掴み直し・救済ドラッグ・見えている部分を撃つ
-座標補正・壊れた座標の候補除外といった「容器の推測」に依存する補正を行います。既定で有効
+`tap`/`scrollTo` などの座標解決は、見切れ判定・取得し直し・救済ドラッグ・見えている部分を実行する
+座標補正・壊れた座標の候補除外といった「コンテナの推測」に依存する補正を行います。既定で有効
 ですが、想定外の画面構成(独自のスクロールコンテナ実装など)で補正が裏目に出るときだけ切れます。
 4つの単位のどこで切るかを選べます:
 

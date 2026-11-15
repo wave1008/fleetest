@@ -25,7 +25,7 @@ Docker(Rancher Desktop・Docker Desktop など。unix ソケット経由)か、A
 
 `runtime` は `"docker"` か `"apple"` です。未設定なら Docker → Apple Container の順に探し、**使えるものがちょうど1つ**ならそれを
 使います。両方が使える(Docker が動いていて、Apple Container のシステムサービスも起動している)ときは黙って選ばず、
-`runtime` で名指しするよう求めて止まります。Apple のシステムサービスを自動で起こすのは、Docker が使えないときだけです。
+`runtime` で名指しするよう求めて止まります。Apple のシステムサービスを自動で起動するのは、Docker が使えないときだけです。
 
 ## 例
 
@@ -170,7 +170,7 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 
 ## 手で起動して止める
 
-探索・ライブ操作・シナリオ作成のために、run の前にサービスを人が起こせます。
+探索・ライブ操作・シナリオ作成のために、run の前にサービスを人が起動できます。
 
 | コマンド | 内容 |
 |---|---|
@@ -181,10 +181,10 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 
 `up` / `down` / `status` / `reset` は、プロジェクトにプロファイルが1つなら `--profile` を省略できます(複数あると `--profile is required` で止まります)。`--project` を省くと `project1` が選ばれます。
 
-`up` で起こしたサービスは、VSCode 拡張のモニターの run ボードで、そのマシンの行に「サーバー稼働中」と出ます。
+`up` で起動したサービスは、VSCode 拡張のモニターの run ボードで、そのマシンの行に「サーバー稼働中」と出ます。
 
-**本番の run(`fleetest run` / `ft_start_run`)は、`up` で起こしたサービスを引き取ります。** 警告を出して止め、自分で
-起こし直して自分で止めます(結果を再現できる形にするためです)。run が握っている間の `services down` は断られます。
+**本番の run(`fleetest run` / `ft_start_run`)は、`up` で起動したサービスを引き取ります。** 警告を出して止め、自分で
+起動し直して自分で止めます(結果を再現できる形にするためです)。run が握っている間の `services down` は断られます。
 
 MCP では `ft_services` が同じことをします。`action` は `up` / `down` / `status`、`profile` は `up` / `down` で必須、
 `project`・`physical`・`androidSerials`(文字列の配列)は任意です。`ft_start_run` と同じく承認を求めます

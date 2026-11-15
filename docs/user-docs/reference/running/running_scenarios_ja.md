@@ -2,7 +2,7 @@
 
 [in English](running_scenarios.md)
 
-`fleetest run` は Swift DSL シナリオを決定的に実行します。再生そのものと自己修復(ロケータの指紋照合)は FM を呼びません。
+`fleetest run` は Swift DSL シナリオを決定的に実行します。再生そのものと自己修復(ロケータのフィンガープリント照合)は FM を呼びません。
 FM を呼ぶのは実行プロファイルの `fmTextVisibilityCheck` / `screenLooksLike`(どちらも既定 ON・オンデバイスだけ)で、
 両方を `false` にすれば run 中に FM は一切呼ばれません([実行プロファイルの設定項目](../project/run_profile_ja.md))。このページでは CLI オプションを説明します。`--dry-run` は
 [dry_run_ja.md](./dry_run_ja.md)、`--set` による自己修復の有効化は

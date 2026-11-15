@@ -60,7 +60,7 @@ func login(user: String, password: String) {
 
 ### `extension FTElement` のメソッド
 
-掴んだ要素に対して働くヘルパーは、自由関数ではなく `FTElement` の extension として書くと、
+取得した要素に対して働くヘルパーは、自由関数ではなく `FTElement` の extension として書くと、
 組み込みの `.textIs(...)` などと同じ形でチェーンできます:
 
 ```swift

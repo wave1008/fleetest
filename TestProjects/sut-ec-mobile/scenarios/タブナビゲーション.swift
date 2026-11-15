@@ -12,19 +12,19 @@ import FTDSL
 class タブが正しく遷移すること {
 
     // launchApp は直前画面から再開する。各 @Test の前に毎回実行され、
-    // 以降の正規化・基準作りは各シナリオの scene 1 が担う
+    // 以降の正規化・初期化は各シナリオの scene 1 が担う
     func beforeEach() {
         launchApp()
     }
 
-    /// 対象商品(fashion_5)の行を削除して空にする(前回残留の基準化)。各行の削除ボタンは
+    /// 対象商品(fashion_5)の行を削除して空にする(前回残留の初期化)。各行の削除ボタンは
     /// id=btn_remove_<productId> で一意。空カートなら空振りして無害。本シナリオはこの1商品のみ扱う。
     private func emptyCart() {
         ifCanSelect("#btn_remove_fashion_5", waitSeconds: 1) { tap("#btn_remove_fashion_5") }
     }
 
-    // カートは実行を跨いで累積する。緑経路の後始末 scene に加えて afterEach でも空へ戻す —
-    // 失敗はシナリオ全体を中断するので、後始末 scene は失敗時に実行されない
+    // カートは実行を跨いで累積する。緑経路の後処理 scene に加えて afterEach でも空へ戻す —
+    // 失敗はシナリオ全体を中断するので、後処理 scene は失敗時に実行されない
     func afterEach() {
         ifCanSelect("#btn_back") { tap("#btn_back") }
         ifCanSelect("#tab_cart") { tap("#tab_cart") }
@@ -34,7 +34,7 @@ class タブが正しく遷移すること {
     @Test("下部タブが各セクションへ正しく着地する")
     func S0010() {
         scenario {
-            scene(1, "基準: カートを空にする") {
+            scene(1, "初期化: カートを空にする") {
                 action {
                     tap("#tab_cart")
                     emptyCart()
@@ -92,7 +92,7 @@ class タブが正しく遷移すること {
                     exist("おすすめ")
                 }
             }
-            scene(8, "後始末: カートを空に戻す") {
+            scene(8, "後処理: カートを空に戻す") {
                 action {
                     tap("#tab_cart")
                     tap("#btn_remove_fashion_5")  // 行ごとに id=btn_remove_<productId>

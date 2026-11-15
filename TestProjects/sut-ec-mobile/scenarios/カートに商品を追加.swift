@@ -5,8 +5,8 @@
 // 主要導線に accessibilityIdentifier が付いたため id 指定へ移行（旧・順序依存の .button[N] を撤去）。
 // タブスタック汚染バグ（ホームタブがカートを開く）は修正済みで、#tab_home が正常にホームへ遷移する。
 //
-// 擬陽性対策（維持）: カートはセッションを跨いで保持され累積する。単なる存在確認だと前回残留で緑になり
-// 追加失敗を見逃す。→ 冒頭で全行削除して「空」を基準化し（scene1）、追加後の存在確認を意味あるものにする。
+// 偽の成功の対策（維持）: カートはセッションを跨いで保持され累積する。単なる存在確認だと前回残留で緑になり
+// 追加失敗を見逃す。→ 冒頭で全行削除して「空」に初期化し（scene1）、追加後の存在確認を意味あるものにする。
 // 末尾で追加分を削除して副作用を残さない（scene4 + 失敗時は afterEach）。
 
 import FTDSL
@@ -15,19 +15,19 @@ import FTDSL
 class カートに商品を追加できること {
 
     // launchApp は直前画面から再開する。各 @Test の前に毎回実行され、
-    // 以降の正規化・基準作りは各シナリオの scene 1 が担う
+    // 以降の正規化・初期化は各シナリオの scene 1 が担う
     func beforeEach() {
         launchApp()
     }
 
-    /// 対象商品(fashion_5)の行を削除して空にする（擬陽性防止の基準作り）。
+    /// 対象商品(fashion_5)の行を削除して空にする（偽の成功の防止の初期化）。
     /// 各行の削除ボタンは id=btn_remove_<productId> で一意。空カートなら空振りして無害。本スイートはこの1商品のみ扱う。
     private func emptyCart() {
         ifCanSelect("#btn_remove_fashion_5", waitSeconds: 1) { tap("#btn_remove_fashion_5") }
     }
 
-    // カートは実行を跨いで累積する。緑経路の後始末 scene に加えて afterEach でも空へ戻す —
-    // 失敗はシナリオ全体を中断するので、後始末 scene は失敗時に実行されない
+    // カートは実行を跨いで累積する。緑経路の後処理 scene に加えて afterEach でも空へ戻す —
+    // 失敗はシナリオ全体を中断するので、後処理 scene は失敗時に実行されない
     func afterEach() {
         ifCanSelect("#btn_back") { tap("#btn_back") }
         ifCanSelect("#tab_cart") { tap("#tab_cart") }
@@ -37,7 +37,7 @@ class カートに商品を追加できること {
     @Test("おすすめの商品をカートに追加できる")
     func S0010() {
         scenario {
-            scene(1, "カートを空にして基準を作る") {
+            scene(1, "カートを空にして初期化する") {
                 action {
                     tap("#tab_cart")  // カートタブ（id 指定）
                     emptyCart()
@@ -64,7 +64,7 @@ class カートに商品を追加できること {
                     exist("ミニマルデザイン腕時計")  // scene1で空を確認済み → 存在=今回の追加が成立
                 }
             }
-            scene(4, "後始末: カートを空に戻す") {
+            scene(4, "後処理: カートを空に戻す") {
                 action {
                     // 追加した1点を削除（行ごとに id=btn_remove_<productId>）。副作用を残さない
                     tap("#btn_remove_fashion_5")

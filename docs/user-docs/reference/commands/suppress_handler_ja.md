@@ -52,8 +52,8 @@ condition {
 - **`useHandler { }` は入れ子のブロックだけ自動クローズを戻します**。外側の抑止(`suppressHandler`
   または `disableHandler()`)は終わらず、入れ子のブロックを抜けると再び抑止に戻ります。
 - **抑止しても、アプリが割り込みを出すこと自体は止められません** —— 止まるのは「ツールが
-  閉じること」だけです。モーダルが出ているあいだに送ったタップは、それでも吸われることが
-  あります。吸われた操作の扱いは [irregularHandler](./irregular_handler_ja.md) を参照して
+  閉じること」だけです。モーダルが出ているあいだに送ったタップは、それでも割り込みに遮られることが
+  あります。遮られた操作の扱いは [irregularHandler](./irregular_handler_ja.md) を参照して
   ください。
 - 抑止したままステップが失敗すると、失敗の注記に
   「a declared interruption was on screen but automatic closing is suppressed here」が

@@ -64,7 +64,7 @@ class ログインテスト {
         irregularHandler("#promo_modal", dismiss: "#btn_promo_close")
     }
     func afterEach() {
-        // 失敗しても必ず走らせたい後始末
+        // 失敗しても必ず走らせたい後処理
     }
 
     @Test("...")
@@ -74,7 +74,7 @@ class ログインテスト {
 
 `beforeEach()` と `afterEach()` は、クラス内の各 `@Test` の前後で自動実行されます。
 **`afterEach()` は失敗後でも実行される**ため、シナリオが途中で中断してもスキップされては
-困る後始末をここに置きます。
+困る後処理をここに置きます。
 
 `func beforeAll()`(任意)は、**1回の run × 1クラスで1回だけ**、そのクラスのどのシナリオよりも前に
 (どのデバイスでも)自動実行されます。run 全体で共有する準備(テストデータの作成と、できた値の `writeMemo` など。

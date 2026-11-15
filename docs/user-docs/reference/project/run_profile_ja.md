@@ -23,11 +23,11 @@
 |---|---|---|---|
 | `app` | string | — | 使用する `apps/<name>.json` プロファイル名。そのアプリプロファイルの `platform`(対象 OS)を引き継ぎ、対象外の OS の `devices` は実行時に無視されます([profiles_ja.md](./profiles_ja.md)) |
 | `devices` | array | — | 実行するデバイスの実体(同じ配列に iOS/Android を混在可)。各要素: `platform`(`"ios"`/`"android"`、必須)、`machine`(そのデバイスが居るマシン。手元は `"local"`、`fleetest remote machines add` で登録した名前も書ける)、`name`(必須。`machine` と組み合わせて一意。iOS Simulator では Simulator 自身の名前)、`enabled`(`false` なら一覧に残すが走らせない。省略 = 走らせる)、そのデバイス自身の実体キー(`osVersion`/`udid`/`avd`/`serial`/`kind`/`port`/`mode`/`model`。詳細は [profiles_ja.md](./profiles_ja.md)) |
-| `heal` | bool | `--profile` 実行は `true`・プロファイル無しの素の `fleetest run` は `false` | セレクタの自己修復(指紋照合方式)を許可する([self_healing_ja.md](../running/self_healing_ja.md)参照)。下記の FM・OCR 系のトグルとは独立(自己修復は FM を使わない) |
+| `heal` | bool | `--profile` 実行は `true`・プロファイル無しの素の `fleetest run` は `false` | セレクタの自己修復(フィンガープリント照合方式)を許可する([self_healing_ja.md](../running/self_healing_ja.md)参照)。下記の FM・OCR 系のトグルとは独立(自己修復は FM を使わない) |
 | `fmTextVisibilityCheck` | bool | `true` | FM(Foundation Models。experimental — [environments_ja.md](../../overview/environments_ja.md))でテキストの可視性検証をする。詳細は[テキストの可視性検証](../testclass/text_visibility_check_ja.md)。FM が呼ばれるのは、これか `screenLooksLike` が `true` のときだけ |
 | `screenLooksLike` | bool | `true` | `screenLooksLike`(FM 視覚検証。experimental — [environments_ja.md](../../overview/environments_ja.md))を有効にする。`false` のときは該当ステップが失敗ではなく skip になる |
 | `ocrTextVisibilityCheck` | bool | `true` | 端末の OCR(Vision)でテキストの可視性検証をする。`fmTextVisibilityCheck` と独立で、どちらかが `true` なら視覚検証は走る(両方 `false` なら走らない)。FM が判定を返せないときは、この読みだけで判定する。詳細は[テキストの可視性検証](../testclass/text_visibility_check_ja.md) |
-| `preferCheckStateClassifier` | bool | `true` | `checkIsON` / `checkIsOFF` の判定で CheckStateClassifier(プロジェクトの `vision/classifiers/CheckStateClassifier/[ON]`・`[OFF]` に置いた見本画像から学習する画像分類器)をアクセシビリティより優先する。`false` なら、アクセシビリティが状態を報告しない要素にだけ使う。見本画像が無ければ効かない |
+| `preferCheckStateClassifier` | bool | `true` | `checkIsON` / `checkIsOFF` の判定で CheckStateClassifier(プロジェクトの `vision/classifiers/CheckStateClassifier/[ON]`・`[OFF]` に置いた学習用画像から学習する画像分類器)をアクセシビリティより優先する。`false` なら、アクセシビリティが状態を報告しない要素にだけ使う。学習用画像が無ければ効かない |
 | `reportDir` | string | `"reports"` | Markdown レポートの出力先(プロジェクトルート相対) |
 | `defaultTimeout` | number(秒) | `5` | `waitSeconds:` を取る DSL コマンドの既定タイムアウト |
 | `scenarioTimeout` | int(秒) | `600` | シナリオ単位のホスト側 watchdog(壁時計タイムアウト)。個々のコマンド待ちを縛る `defaultTimeout` とは別物。シナリオに `@Test(scenarioTimeout:)` を書くとそのシナリオだけこちらより優先される(短くする向きも効く)。別に、シナリオの出力が 240 秒(1 ステップの上限 120 秒の 2 倍)途切れたときもそこで打ち切る(遅いだけで進んでいるシナリオは止めない)。モニターのプロファイルタブ(実行プロファイルの「テスト実行」)の「シナリオの制限時間(秒)」でも設定できる |
@@ -37,13 +37,13 @@
 | `updateWebView` | bool | `true` | 実行開始時に端末上の WebView 版を揃える(同じシナリオが端末の WebView 版によって挙動が変わるのを防ぐ) |
 | `recoverCpuFallbackToGpu` | bool | `false` | 実行開始時、CPU 描画(swiftshader)へフォールバック済みの Android Emulator を GPU モードで起動し直す |
 | `locale` | string | `"ja_JP"` | Android Emulator のブート時に適用するロケール。iOS には影響しない |
-| `iosPreActionPing` | bool | `true` | interop WebView 画面(Compose/Flutter 等の埋め込み WebView)でタップ・入力の直前にランナーへ1回問い合わせてから撃つ。attach したままの XCUITest セッションは放置後の座標イベントを成功応答のまま届け損なうことがある。コストは該当画面のイベント1回につき約 +0.4 秒(読み取りと他の画面には掛からない)。inapp-boost モードのときだけ効く |
-| `containerInference` | bool | `true` | スクロール容器を幾何から推測する補正(端の見切れ・座標補正等)を有効にする。FM とは無関係 |
+| `iosPreActionPing` | bool | `true` | interop WebView 画面(Compose/Flutter 等の埋め込み WebView)でタップ・入力の直前にランナーへ1回問い合わせてから実行する。attach したままの XCUITest セッションは放置後の座標イベントを成功応答のまま届け損なうことがある。コストは該当画面のイベント1回につき約 +0.4 秒(読み取りと他の画面には掛からない)。inapp-boost モードのときだけ効く |
+| `containerInference` | bool | `true` | スクロールコンテナを幾何から推測する補正(端の見切れ・座標補正等)を有効にする。FM とは無関係 |
 | `enableAnimations` | bool | `false` | 実行のためにアプリのアニメーションを無効化せず残す |
 | `responseMeasurement` | bool | `false` | **Android か iOS の実機 1 台**を対象にしたレスポンス計測モード。使う有効なデバイス(`--device` で絞った後)が 1 台で、`kind: physical` でなければ run を断る。アプリのアニメーションを残し(`enableAnimations` を強制的に有効)、iOS は xcuitest モードで走らせ、`fmTextVisibilityCheck`・`ocrTextVisibilityCheck`・`screenLooksLike`・`record`・ホスト負荷による減速を止め、run が終わるまでデバイスモニターを止める。`enableAnimations: false` や、`iosMode`(またはデバイスの `mode`)を `inapp-boost`、FM・OCR・`record` のキーを `true` にした併用はエラー。`--broadcast`・`--fleet`・`--split` とは併用できない。[レスポンス計測](../running/response_measurement_ja.md)参照 |
 | `responseRepeat` | int | `5` | `responseMeasurement: true` のときだけ指定できます(無しで指定するとエラー)。各シナリオをデバイス上で続けて回す回数で、`1` 〜 `50`。どの回も計測します。結果ファイルは `<id>`、`<id>~2`、`<id>~3`、… の名前で並びます |
 | `orientation` | string | 未指定(向きに触らない) | `portrait` / `landscape`(`rotateTo` と同じ値)。各シナリオの `launchApp` / `restartApp` のたびにその直後に回し(起動し直すと向きが残らないことがあるため)、シナリオの終わりに最初の元の向きへ戻す。`--set orientation=landscape` でも指定でき、`--profile` の有無は問わない。それ以外の値(大文字を含む)はエラーで、実行を断る。回すのは通常の [`rotateTo`](../commands/navigation_ja.md) のステップとしてで、レポートにもその行が載る。アプリがその向きを許可していないとそのステップで失敗する。`launchApp` / `restartApp` を呼ばないシナリオでは回らない |
-| `homeOnStart` | bool | `--profile` 実行は `true`・プロファイル無しの素の `fleetest run` は `false` | 実行開始時に各デバイスへ Home を1回撃つ(一斉起動直後に画面が黒いまま止まるのを防ぐ) |
+| `homeOnStart` | bool | `--profile` 実行は `true`・プロファイル無しの素の `fleetest run` は `false` | 実行開始時に各デバイスへ Home を1回送る(一斉起動直後に画面が黒いまま止まるのを防ぐ) |
 | `playProtectBypass` | bool | `true` | Android の `adb install` で Play Protect の照会(「アプリをセキュリティ確認のために送信しますか?」)を通さない。インストールの間だけ「USB 経由でアプリを確認」を切って元に戻す(アプリを Google へ送らない)。`false` はキルスイッチ: ツールは端末の設定に触らず、release 署名の APK は端末側のダイアログで止まったままになる(ツールはそのダイアログに答えない) |
 | `record` | bool | `true` | 各ワーカーの画面を run 全体で録画し、シナリオごとの clip に切り出す。物理 iPhone は動画を取り出す手段が無いので、最初の操作の直前と、操作したステップ・失敗したステップの直後に撮った画面を時刻どおりに並べた clip になる(コマ送り。撮影1回ごとに約 50ms かかる)。Android の実機は通常どおり録画する。シミュレータ・エミュレータ・Android 実機で画面録画を起動できなかったデバイスも、警告を出してこのコマ送りに切り替える |
 | `recordFailuresOnly` | bool | `false` | `record: true` のとき、失敗(frozen 含む)したシナリオの clip のみ残す |

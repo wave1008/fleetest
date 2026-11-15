@@ -75,7 +75,7 @@ class UIベンチマークの密度チップが正しいこと {
                     select("#benchmark_cell_count").textIs("セル数: 4383")
                 }
             }
-            scene(6, "後始末: 既定の3年へ戻す") {
+            scene(6, "後処理: 既定の3年へ戻す") {
                 // rememberSaveable で年数が保持されるため、他シナリオへ 12年を残さない。
                 action {
                     tap("#chip_years_3")

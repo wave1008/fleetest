@@ -9,8 +9,8 @@
 | 関数 | 説明 |
 |---|---|
 | `tap(sel, holdSeconds: 0, maxGestureSeconds:containerInference:linkText:settle:waitSeconds:scroll:maxSwipes:)` | セレクタにマッチする最初の要素をタップします。`holdSeconds` を 0 より大きくすると長押しになります(既定 0 = 通常タップ。上限は既定 10 秒で、`maxGestureSeconds:` を渡すとこの1回だけ最大 60 秒まで上げられます)。タップ前に対象が操作可能になるまで待ちます(後述)。タップした要素を返すので、検証をそのままチェーンできます(`tap("#btn_ok").textIs("OK")`)。 |
-| `tap(sel, linkText: "文字列")` | セレクタで解決した要素の**中で** `linkText` が描かれている位置をタップします。段落の中の文中リンクのように、Compose Multiplatform・Android の View(`ClickableSpan`)・SwiftUI(`AttributedString` のリンク)ではアクセシビリティの木にノードとして出ないものを押すためのものです。位置は、まず木(`linkText` に label か value が一致する子孫。Flutter・React Native はリンクがノードとして出ます)、無ければ要素の画素を OCR で読んで決めます。OCR は **macOS 27+ だけ**で使えます。macOS 26 では、木で位置が決まらないとき、撮る前にその旨を示して失敗します。どちらでも見つからなければステップは失敗し、OCR が読めた行を添えます。要素の中心へ黙って落とすことはありません。どちらで決めたか(`tree` / `ocr`)はステップの注記に残ります。2行に折り返したリンクは OCR では見つかりません。`linkText:` を省くと要素の中心をタップします。 |
-| `tap(x: Double, y: Double, holdSeconds: 0, maxGestureSeconds:, settle:)` | 座標を直接タップします。座標は snapshot の `screen` と同じ座標系です(iOS = pt / Android = px。dp ではありません)。セレクタで指せるならそちらを優先してください。画面の外の点は、何も送らずに失敗になります(負の座標は常に。要素の一覧を読む場面では画面の大きさまで確かめます)。iOS の inapp-boost モードでは、画面外の点は失敗になります。ソフトキーボードの上の点は、XCUITest ブリッジで撃つのでキーが押されます。キーボードの下を押したいときは、先に `pressEnter` か `hideKeyboard` でキーボードを閉じてください。スクロール容器で切れて見えていない要素は、frame が点を含んでも activate せず、その点に実際に見えている物へタッチを送ります(注記 `<element> contains this point but is clipped by its scroll container here (not drawn), so it was not activated; sent a touch to what is on screen at that point` が付きます)。 |
+| `tap(sel, linkText: "文字列")` | セレクタで解決した要素の**中で** `linkText` が描かれている位置をタップします。段落の中の文中リンクのように、Compose Multiplatform・Android の View(`ClickableSpan`)・SwiftUI(`AttributedString` のリンク)ではアクセシビリティツリーにノードとして出ないものを押すためのものです。位置は、まずツリー(`linkText` に label か value が一致する子孫。Flutter・React Native はリンクがノードとして出ます)、無ければ要素のピクセルを OCR で読んで決めます。OCR は **macOS 27+ だけ**で使えます。macOS 26 では、ツリーで位置が決まらないとき、撮る前にその旨を示して失敗します。どちらでも見つからなければステップは失敗し、OCR が読めた行を添えます。要素の中心へ黙って落とすことはありません。どちらで決めたか(`tree` / `ocr`)はステップの注記に残ります。2行に折り返したリンクは OCR では見つかりません。`linkText:` を省くと要素の中心をタップします。 |
+| `tap(x: Double, y: Double, holdSeconds: 0, maxGestureSeconds:, settle:)` | 座標を直接タップします。座標は snapshot の `screen` と同じ座標系です(iOS = pt / Android = px。dp ではありません)。セレクタで指せるならそちらを優先してください。画面の外の点は、何も送らずに失敗になります(負の座標は常に。要素の一覧を読む場面では画面の大きさまで確かめます)。iOS の inapp-boost モードでは、画面外の点は失敗になります。ソフトキーボードの上の点は、XCUITest ブリッジで実行するのでキーが押されます。キーボードの下を押したいときは、先に `pressEnter` か `hideKeyboard` でキーボードを閉じてください。スクロールコンテナで切れて見えていない要素は、frame が点を含んでも activate せず、その点に実際に見えている物へタッチを送ります(注記 `<element> contains this point but is clipped by its scroll container here (not drawn), so it was not activated; sent a touch to what is on screen at that point` が付きます)。 |
 | `tap(sel, scroll: .noScroll)` | `withScrollDown { }` ブロックの中でも、この1コマンドだけスクロールせずにタップします。 |
 | `tapAppIcon(name?)` | ホーム画面のアイコンをタップします。名前の照合と探索の順は [navigation](./navigation_ja.md) を参照。 |
 
@@ -18,7 +18,7 @@
 
 ```swift
 tap("#login_btn||ログイン")
-tap("設定", scroll: .down)             // 折り返しの下にある項目を探索してからタップ
+tap("設定", scroll: .down)             // 画面外(スクロールしないと見えない位置)にある項目を探索してからタップ
 tap("#row_03", holdSeconds: 1)         // 長押し
 tap("#txt_terms", linkText: "利用規約")           // 段落の中のリンク
 tap(x: 120, y: 640)                    // セレクタで指せないときだけ
@@ -37,7 +37,7 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   出てこない形なので、`scroll:` が無ければ何も押さずにステップを失敗にし、送る向き(`scroll: .up` 等)を案内します。
   `scroll:` を書くと、対象が覆いの下から出るまで一覧を送ってから押します。
   失敗文は `did not touch <セレクタ>: its centre is under <覆っている物>, and touching it there would land on something else (nothing was touched). Add scroll: .up so the list is scrolled until the target comes out`(向きは状況に合うもの)の形です。
-- **対象が見つからず、手前の窓やモーダルが対象を木から外しているとき**: iOS の inapp-boost モードだけ、アプリが「別の窓が手前にある」「モーダルビュー(`accessibilityViewIsModal`)が開いていて外側の要素が木から外れている」と申告します。このとき失敗文がその窓やモーダルを名指します(窓: `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window … — waiting will not bring the target back` / モーダル: `a modal view (accessibilityViewIsModal) at (x,y WxH) is open and left N element group(s) out of the tree; if the target is behind it, close the modal (dismiss the dialog) first …`)。**これに `waitSeconds:` を伸ばして対処しないでください**。窓やモーダルを閉じるまで対象は戻ってきません。前のステップでダイアログやシートを閉じるか、`irregularHandler` で宣言してください。xcuitest モードと Android にはこの申告が無く、従来どおりの「見つからない」の文言になります。
+- **対象が見つからず、手前の窓やモーダルが対象をツリーから外しているとき**: iOS の inapp-boost モードだけ、アプリが「別の窓が手前にある」「モーダルビュー(`accessibilityViewIsModal`)が開いていて外側の要素がツリーから外れている」と申告します。このとき失敗文がその窓やモーダルを名指します(窓: `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window … — waiting will not bring the target back` / モーダル: `a modal view (accessibilityViewIsModal) at (x,y WxH) is open and left N element group(s) out of the tree; if the target is behind it, close the modal (dismiss the dialog) first …`)。**これに `waitSeconds:` を伸ばして対処しないでください**。窓やモーダルを閉じるまで対象は戻ってきません。前のステップでダイアログやシートを閉じるか、`irregularHandler` で宣言してください。xcuitest モードと Android にはこの申告が無く、従来どおりの「見つからない」の文言になります。
 - **重なりの順を知れない画面**(SwiftUI・Compose Multiplatform・Flutter のアプリ、iOS の xcuitest モード、MCP の操作)では、
   ツールは手前かどうかを推測せず、対象の中心を押します。重なりは端末の画面の大きさで変わるので、シナリオを書く時点では
   避けられません。押した後に結果を確かめるステップが失敗し、その直前の操作の対象に別の要素が重なっていた疑いがあれば、
@@ -45,12 +45,12 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   ようシナリオの直し方を案内します。直すのはあなたです(失敗した端末の画面を見て判断してください)。
   iOS では、プラットフォームが「その位置では押せない」と答えたときだけ、押さずに失敗にします。このときの文言は、手前のシートやパネルを
   閉じるか、このステップの前に一覧を送って対象を外すよう案内します。
-- **アプリが落ちて別のアプリが前面に出ているとき**: 起動したアプリのプロセスが居ないのに、画面の木が別のアプリのものなら、
-  その木の要素を押したり確かめたりせず、ステップを失敗にします(同じ `#id` を持つ別のアプリを誤って操作しないため)。
-- **`tap` は対象が操作可能になるまで待ってから撃ちます。** 画面が出た直後は、要素は木に
+- **アプリが落ちて別のアプリが前面に出ているとき**: 起動したアプリのプロセスが居ないのに、画面のツリーが別のアプリのものなら、
+  そのツリーの要素を押したり確かめたりせず、ステップを失敗にします(同じ `#id` を持つ別のアプリを誤って操作しないため)。
+- **`tap` は対象が操作可能になるまで待ってから実行します。** 画面が出た直後は、要素はツリーに
   居るのにまだ触れないことがあります(読み込み中のフォーム・検証が通るまで無効なボタン)。
   `tap` は、対象が `enabled` になるまで、最大で `waitSeconds:`(省略時は実行プロファイルの `defaultTimeout`。既定 5 秒)まで解決を
-  再試行します。それでも有効にならなければ、そのまま撃ちます —— 無効な要素をわざと叩いて
+  再試行します。それでも有効にならなければ、そのまま実行します —— 無効な要素をわざと叩いて
   「反応しない」ことを確かめる書き方も正当に動きます。`&&enabled=false` のようにセレクタで
   状態を明示している場合や `waitSeconds: 0` の場合は待ちません。
 - **要素が現れるまでの待ちは短い**: `waitSeconds:` を省くと、要素が見つかるまでの再試行は約 0.7 秒です
@@ -58,8 +58,8 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   `tap("#btn", waitSeconds: 5)` のように渡すか、先に `waitForDisplay("#btn")` で待ってください。
   `type` などの他の操作も同じです。
 - **`tap` してから `type` する書き方**: `tap("#field")` の後に `type("文字列")` と書く形も使えます。Android で
-  `#id` が入力欄の中身ではなく容器側に解決するとき、タップだけではフォーカスが入力欄へ
-  移らないことがありますが、その場合は `type` が容器内の唯一の入力欄を名指しして入れ直します。
+  `#id` が入力欄の中身ではなくコンテナ側に解決するとき、タップだけではフォーカスが入力欄へ
+  移らないことがありますが、その場合は `type` がコンテナ内の唯一の入力欄を名指しして入れ直します。
   詳細は [type](./type_ja.md) 参照。
 - **Android の画面最下端の要素**: ジェスチャーナビゲーションの端末では、画面の最下端の帯(ホーム・アプリ切替の操作を
   受け付ける帯)の中を押すと、その押下が OS に取られてアプリが背面へ回ることがあります。要素の中心がこの帯の中にあり、
@@ -71,7 +71,7 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   あります(例: キーボードの上の入力バーの下に潜ったボタン)。要素の枠の中心で本物のタッチが別の view に
   当たるときは、ステップは緑のまま `in-app operated the element directly, but a real touch at the centre of its
   frame lands on another view (<view> at (x, y))` の注記が付きます(機械可読は `inapp-tap-outside-hit-area`)。
-  撃ち直しも失敗もしません。枠の中心を押す XCUITest ブリッジでは、同じタップが赤になることがあります。
+  再試行も失敗もしません。枠の中心を押す XCUITest ブリッジでは、同じタップが赤になることがあります。
   判定できないとき(全部を1枚の view に描く Flutter など)は何も言いません。文字の部分しか押せない SwiftUI の
   `.plain` のボタンには、代わりに別の注記 `in-app activated the element at its activation point, which is not the
   centre of its frame that a coordinate tap presses (activation point (x, y), centre (x, y))` が付きます(機械可読は

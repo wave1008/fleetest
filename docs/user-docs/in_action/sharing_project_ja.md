@@ -44,7 +44,7 @@ TestProjects/*/workspace/apps/
 | `TestProjects/<プロジェクト>/scenarios/`(シナリオ) | `.fleetest/`(この Mac の状態) |
 | `TestProjects/<プロジェクト>/profiles/`(アプリ・実行プロファイル) | `TestProjects/*/reports/`(Markdown レポート。画面の文字が入る) |
 | `TestProjects/<プロジェクト>/dataset/`(共有してよいテストデータ) | `TestProjects/*/results/`(結果 JSON と録画。録画は画面の文字が写る) |
-| `TestProjects/<プロジェクト>/vision/`(画像の見本。あれば)<br>`TestProjects/<プロジェクト>/workspace/data/`(`run-setup.sh` が使うシード。秘密を含まないもの)<br>`TestProjects/<プロジェクト>/docs/`(あれば) | `TestProjects/*/workspace/apps/`(run のたびにアプリの束が複製される) |
+| `TestProjects/<プロジェクト>/vision/`(分類器の学習用画像。あれば)<br>`TestProjects/<プロジェクト>/workspace/data/`(`run-setup.sh` が使うシード。秘密を含まないもの)<br>`TestProjects/<プロジェクト>/docs/`(あれば) | `TestProjects/*/workspace/apps/`(run のたびにアプリの束が複製される) |
 | `TestProjects/<プロジェクト>/workspace/scripts/compose.yaml`(サーバーの宣言。[アプリが依存するサービス](../reference/writing/services_ja.md)) | `.mcp.json`(絶対パスを含むので Mac ごとに違う。`.gitignore` には自動では入らないので、`git add` しないか自分で足す) |
 | | `~/.config/fleetest/` の中身(作業フォルダの外にあり、そもそも git に入らない) |
 | | `.vscode/settings.json`・`.claude/settings.json`(クローンの絶対パスを含む。入れるなら2人目が自分のパスへ書き直す) |
@@ -125,7 +125,7 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 `osVersion` で探し、Android は `avd` で探します([プロファイル](../reference/project/profiles_ja.md)の「デバイス」)。
 `fleetest run` は、見つからないデバイスを**作りません**。2人目の Mac に同じ名前と OS の Simulator が無いと、
 iOS では `simulator not found: <名前>(<OS>)` と、その Mac にある Simulator の名前の一覧つきで止まります。
-Android は、その AVD を起こそうとして 3 回失敗してから(数分かかります)`no running emulator for AVD "<avd>"` と、
+Android は、その AVD を起動しようとして 3 回失敗してから(数分かかります)`no running emulator for AVD "<avd>"` と、
 動いている Emulator の一覧つきで止まります(Emulator 自身のログには `Unknown AVD name` と出ます)。
 
 直し方は2つあります。
@@ -236,7 +236,7 @@ fleetest のシナリオを、壊れにくいシナリオの書き方の観点�
 - 要素の出現待ちに `wait` を置かない
 - セレクタは記憶ではなく実スクリーンショットから採る
 - 座標タップをシナリオに残さない
-- 出るか不定のものは `ifCanSelect` と `irregularHandler` で包む
+- 出るかどうか決まっていないものは `ifCanSelect` と `irregularHandler` で包む
 - `expectation` に必ずアサーションを置く
 - 失敗はシナリオ全体を中断する(`afterEach` は走る)
 - 両 OS で回すなら `app:` / `platform:` を書かない

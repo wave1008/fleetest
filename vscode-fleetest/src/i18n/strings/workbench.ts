@@ -257,7 +257,7 @@ export const workbenchStrings = {
     en: "[fleetest] Cleaned up orphaned resident processes: PID {pids}",
   },
   "workbench.orphanSweep.skippedUnownedLog": {
-    ja: "[fleetest] 同名の孤児プロセス {count} 件は拡張が起こしたものではないので触りませんでした(FT_PARENT_PID なし)",
+    ja: "[fleetest] 同名の孤児プロセス {count} 件は拡張が起動したものではないので触りませんでした(FT_PARENT_PID なし)",
     en: "[fleetest] Left {count} same-name orphan process(es) alone: not spawned by the extension (no FT_PARENT_PID)",
   },
 

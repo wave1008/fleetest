@@ -26,7 +26,7 @@ run ディレクトリ(`results/runs/<YYYY-MM>/<runID>/`)の直下には、ほ�
 
 - `events/<シナリオID>.ndjson` —— シナリオごとの実行ログ
 - `host-metrics.ndjson` —— 実行中のホスト負荷の記録
-- `superseded/` —— 振り直しで取り消した記録の退避
+- `superseded/` —— 再実行で取り消した記録の退避
 - `services/<サービス>.log` —— compose.yaml のある run で、`run-setup.sh` か run が失敗したときのサービスのログ
 
 Markdown レポートと同じ場所には、`scenario-<日時>-….failure.json` と `.png` も置かれます。
@@ -42,11 +42,11 @@ JUnit XML ファイルも追加で出力されます。
 シナリオごとに1本のクリップへ切り出して `<runDir>/recordings/` に保存します。録画自体が
 失敗しても run は失敗しません。録画しないときは `record: false` にします。
 
-## ロケータの指紋
+## ロケータのフィンガープリント
 
 自己修復が有効なとき、`TestProjects/<プロジェクト>/.fleetest/locator-fingerprints.json` に、
 各セレクタが直前に直接解決できた要素の型・ラベル(入力欄はプレースホルダも)が保存されます。
-これにより、ソースが古いセレクタのままでも、改名後のセレクタを指紋照合で追従できます。
+これにより、ソースが古いセレクタのままでも、改名後のセレクタをフィンガープリント照合で追従できます。
 詳細は[自己修復](../running/self_healing_ja.md)を参照してください。
 
 ## 直近の結果(`--failed` 用)

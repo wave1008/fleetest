@@ -26,10 +26,10 @@ Compose Multiplatform・Flutter・React Native・Android(Views/XML)・iOS(SwiftU
 
 ## 全部品に共通すること
 
-### モーダルが開いている間、背後の画面は木から消える
+### モーダルが開いている間、背後の画面はツリーから消える
 
 ドロワー・ドロップダウンメニュー・ボトムシート・ポップアップメニューが開いている間、**背後の画面の
-要素は木(スナップショット)に載りません**(全フレームワーク・iOS/Android の両方で確認。SwiftUI の
+要素はツリー(スナップショット)に現れません**(全フレームワーク・iOS/Android の両方で確認。SwiftUI の
 `Menu`/`Picker(.menu)` も同様)。残るのはモーダルの中身と、スクリムの「閉じる」ボタンだけです。
 
 - 背後の結果表示(`#txt_result` 等)は、**モーダルを閉じてから**読む
@@ -47,7 +47,7 @@ select("#txt_state").textIs("drawerOpen=false")
 **現時点の制約**: React Native は `accessible` な祖先(`accessible={true}` な `View`/`Pressable`)の
 下を丸ごと1要素へ畳む。この畳み込みは Android では起きず iOS だけで起きるため、`Tooltip` や
 `BottomSheetModal` のようにライブラリが既定で `accessible` を立てる部品では**中身の要素が iOS でだけ
-木から消える**(下の「ツールチップ」「ボトムシート」の節を参照)。回避策はアプリ側で
+ツリーから消える**(下の「ツールチップ」「ボトムシート」の節を参照)。回避策はアプリ側で
 `accessible={false}` を渡すことなので、シナリオ側では直せない(対象アプリの実装依存)。
 
 **現時点の制約**: **Flutter の iOS**は、画面にオーバーレイ(`Tooltip`・ダイアログ等)を一度出すと、
@@ -65,12 +65,12 @@ select("#txt_state").textIs("drawerOpen=false")
 では、iOS のラベルが文字と**連結される**ことがあります。その場合は `#id` で指すか、部分一致
 `*文字列*` で書いてください。
 
-### 横に送る容器は scrollFrame を必ず渡す
+### 横に送るコンテナは scrollFrame を必ず渡す
 
-`scroll: .right` / `withScrollRight { }` は、指定が無いと**画面の中央**を払います。ページャ(CMP の
+`scroll: .right` / `withScrollRight { }` は、指定が無いと**画面の中央**をスワイプします。ページャ(CMP の
 `HorizontalPager` / Flutter の `PageView` / RN の `react-native-pager-view` / Android の
 `ViewPager2` / iOS の `TabView(.page)`)や横にはみ出すタブ列が画面の中央に無いと、何も動かずに
-失敗します。**横の容器を探索するときは、その容器を `scrollFrame:` で指定**してください(容器に
+失敗します。**横のコンテナを探索するときは、そのコンテナを `scrollFrame:` で指定**してください(コンテナに
 `#id` が必要です)。
 
 ```swift
@@ -85,8 +85,8 @@ iOS の in-app ブリッジは、RN の `react-native-pager-view`(中身は `UIP
 
 ### Android の画面端は OS の「戻る」
 
-ジェスチャーナビゲーションの Android では、**画面の左右の端から始めた横の払いは OS の「戻る」**に
-なります(全フレームワーク共通)。払いの始点を画面の端に寄せないでください
+ジェスチャーナビゲーションの Android では、**画面の左右の端から始めた横のスワイプは OS の「戻る」**に
+なります(全フレームワーク共通)。スワイプの始点を画面の端に寄せないでください
 (`flickLeftToRight(startMarginRatio:)` を小さくしない。既定のままにする)。
 
 ### 戻るボタンの指し方はフレームワークで違う
@@ -121,13 +121,13 @@ android { tap("戻る") }       // Android View: ラベルで指す(id なし)
 
 ## ボトムシート
 
-- 開いた証拠はシートの中の要素で取る(背後は木から消える)
+- 開いた証拠はシートの中の要素で取る(背後はツリーから消える)
 - シートの中の長いリスト: `tap("#row_25", scroll: .down)` で届く(シートが伸びてから中が送られる)。
   `scrollFrame:` でシートの中の一覧を指していて、**半分開いたシートの中で一覧が1度も動かなかったときは、
-  その一覧の中で1回だけ長めに払ってシートを広げてから探し直す**(XCUITest の短い送りでは、シートの伸び縮みに
+  その一覧の中で1回だけ長めにスワイプしてシートを広げてから探し直す**(XCUITest の短い送りでは、シートの伸び縮みに
   使われて元の高さへ戻ることがあるため。ステップに注記が付く)
 - 選択肢を押して閉じる形は全フレームワークで問題なし
-- 払って閉じる: **見出しからシートの下のほうの行まで指を動かす**。`swipeBy` は使わない ——
+- スワイプして閉じる: **見出しからシートの下のほうの行まで指を動かす**。`swipeBy` は使わない ——
   比率は**対象の大きさに対する割合**で片側 0.9 が上限なので、小さい見出しでは数 pt しか動かない
 
 ```swift
@@ -136,15 +136,15 @@ swipeElementToElement("#sheet_title", "#row_04", durationSeconds: 0.3)
 
 | フレームワーク | 部品・差分 |
 |---|---|
-| CMP | `ModalBottomSheet`(既定は半分まで展開)。iOS はスクリムの「閉じる」ボタンでも閉じられる(iOS の木にローカライズされたラベルのボタンが出る。ラベルはロケールで変わるのでスナップショットから採る) |
-| Flutter | `showModalBottomSheet(isScrollControlled: true)` + 固定高さ(70%)。**高さの半分を越えて払わないと閉じない**(閉じる距離はアプリの設定による。払う距離が足りないと戻る) |
+| CMP | `ModalBottomSheet`(既定は半分まで展開)。iOS はスクリムの「閉じる」ボタンでも閉じられる(iOS のツリーにローカライズされたラベルのボタンが出る。ラベルはロケールで変わるのでスナップショットから採る) |
+| Flutter | `showModalBottomSheet(isScrollControlled: true)` + 固定高さ(70%)。**高さの半分を越えてスワイプしないと閉じない**(閉じる距離はアプリの設定による。スワイプする距離が足りないと戻る) |
 | RN | `@gorhom/bottom-sheet` の `BottomSheetModal`。**iOS では既定で中身が `accessible=true` の1要素へ畳まれる**(見出し・選択肢・行が消える。アプリ側で `accessible={false}` を渡して回避。Android は畳まれない) |
 | Android View | `BottomSheetDialogFragment`。共通 |
 | SwiftUI(iOS) | `.sheet` + `.presentationDetents([.medium, .large])`。dismiss 判定はアプリが自前管理 |
 
 **現時点の制約**: RN の `@gorhom/bottom-sheet` の常駐シート(`BottomSheet`)を半分まで開いた状態では、**iOS の探索がシートを
-伸ばせない**(シートの中の一覧の上からの払いでは、XCUITest の払いでも伸びない。Android は伸ばしてから中を送る)。
-回避策: 探す前にシートの見出しから上へ払って全開にする
+伸ばせない**(シートの中の一覧の上からのスワイプでは、XCUITest のスワイプでも伸びない。Android は伸ばしてから中を送る)。
+回避策: 探す前にシートの見出しから上へスワイプして全開にする
 
 ```swift
 swipeElementToElement("#txt_player_title", "#txt_sheet_state", durationSeconds: 0.5)
@@ -155,7 +155,7 @@ tap("#queue_row_21", scroll: .down)
 
 - 項目は `#id` でもラベルでも押せる
 - 項目を押すとメニューは閉じる
-- **外側を押して閉じる**: 背後が木に無いので要素では指せません。
+- **外側を押して閉じる**: 背後がツリーに無いので要素では指せません。
   Android は `back()`、iOS は画面の空いた場所を座標で押す
 
 ```swift
@@ -180,14 +180,14 @@ notExist("#menu_item_copy")   // 閉じたことを確かめる
 | フレームワーク | 部品 | 値の場所 |
 |---|---|---|
 | CMP | `ExposedDropdownMenuBox` | **`.value`**。`.text` は iOS では欄のラベル(例: `果物`)、Android では `nil` |
-| Flutter | `DropdownMenu` | id は外側の容器に付き、**選んだ値は内側のノードにだけ出る(iOS)**。**Android の木には値が出ない** |
+| Flutter | `DropdownMenu` | id は外側のコンテナに付き、**選んだ値は内側のノードにだけ出る(iOS)**。**Android のツリーには値が出ない** |
 | RN | `Pressable` + 読み取り専用 `TextInput` | 外側の `View` に `accessibilityValue` で出す実装(アプリ側の作り。フィールド自体の値は iOS で消えることがある) |
-| Android View | `MaterialAutoCompleteTextView` | **木に値が出ない**。アプリ自身の echo 表示で確かめる |
+| Android View | `MaterialAutoCompleteTextView` | **ツリーに値が出ない**。アプリ自身の echo 表示で確かめる |
 | SwiftUI(iOS) | `Picker(.pickerStyle: .menu)` | **選択結果はラベル自体に出る**(例: `果物, バナナ`)。`.value` は無い |
 
 ```swift
 select("#field_fruit").valueContains("バナナ")   // ○ CMP(両OS)
-// Android View / Flutter(Android)は木に値が出ないので、アプリの echo で確かめる
+// Android View / Flutter(Android)はツリーに値が出ないので、アプリの echo で確かめる
 select("#txt_fruit_result").textIs("fruit=banana")
 ```
 
@@ -216,9 +216,9 @@ tap("OK")
 ## ドロワー
 
 - ボタンで開く・項目を押して閉じる形は全フレームワークで問題なし
-- 開いている間、背後の画面は木から消える(「全部品に共通すること」の節)。
+- 開いている間、背後の画面はツリーから消える(「全部品に共通すること」の節)。
   状態の表示は閉じてから読む
-- **払って開く**: `flickLeftToRight()` / 閉じるのは `flickRightToLeft()`。**始点は既定のまま**に
+- **フリックして開く**: `flickLeftToRight()` / 閉じるのは `flickRightToLeft()`。**始点は既定のまま**に
   する —— Android で `startMarginRatio:` を小さく(0.05 など)すると、始点が画面の端に入って OS の
   「戻る」になり、前の画面へ戻ってしまう
 
@@ -226,7 +226,7 @@ tap("OK")
 |---|---|
 | CMP | `ModalNavigationDrawer(gesturesEnabled = true)`。共通 |
 | Flutter | `Scaffold.drawer` + `Drawer`。共通 |
-| RN | `@react-navigation/drawer`。**払って開くのは画面端からのエッジスワイプで、Android のジェスチャーナビゲーションの「戻る」帯と重なる** —— シナリオでは払いに頼らずアプリの開くボタンを使う |
+| RN | `@react-navigation/drawer`。**スワイプして開くのは画面端からのエッジスワイプで、Android のジェスチャーナビゲーションの「戻る」帯と重なる** —— シナリオではスワイプに頼らずアプリの開くボタンを使う |
 | Android View | `DrawerLayout` + `NavigationView`。同じくエッジスワイプは Android OS の「戻る」帯と重なるため、**シナリオはボタンで開く** |
 | SwiftUI(iOS) | **無い**(iOS に標準のモーダルドロワーが無いため、検証アプリはこの画面自体を持たない) |
 
@@ -254,7 +254,7 @@ tap("OK")
       FTFinger(x: 0.5, y: 0.3).move(x: 0.5, y: 0.85, durationSeconds: 1.0).hold(seconds: 0.3)
   }
   ```
-- **iOS の xcuitest モード**(`iosMode: "xcuitest"`)では、XCUITest が容器の「まだ送れるか」を教えないので、
+- **iOS の xcuitest モード**(`iosMode: "xcuitest"`)では、XCUITest がコンテナの「まだ送れるか」を教えないので、
   端に着いたことを短くゆっくりしたドラッグで確かめます(引っ張りにならない)。ただし**行に `#id` が無い一覧**や、
   **1回の送りで端に着く短い一覧のうち、行が一覧の枠の縁に揃わないもの**ではこの確かめに切り替えられず、一覧の上端で `scrollToTop()` を
   使うと**更新が1回余分に走ることがあります**(確かめの送りが「引っ張る」になる)。既定の iOS モードでは起きない
@@ -280,13 +280,13 @@ tap("OK")
 | SwiftUI(iOS) | **標準のスナックバー部品が無い**ため自前実装(オーバーレイ)。挙動は共通 |
 
 **すぐ消える部品の確認は可視性検証を外します**: `exist("Deleted", requireVisible: false)`。
-テキストの可視性検証は画面を撮って読むので、時間がかかります(並列のレーンが多い・マシンが混んでいる・
+テキストの可視性検証は画面を撮って読むので、時間がかかります(並列のレーンが多い・マシンの負荷が高い・
 プロジェクトの初回実行で OCR モデルをコンパイルしている、のどれでも延びます)。検証が終わる前に部品が消えると、
-出ていたのに「見つからない」で失敗します。外した確認は「木に居ること」だけを見ます。
+出ていたのに「見つからない」で失敗します。外した確認は「ツリーにあること」だけを見ます。
 
 ## グリッド
 
-- 画面外のセルは木に居ません。`tap("#cell_86", scroll: .down)` で届く。戻りは `scroll: .up`
+- 画面外のセルはツリーにありません。`tap("#cell_86", scroll: .down)` で届く。戻りは `scroll: .up`
 - 1行に複数の要素が並んでも、縦の探索はそのまま使える
 
 全フレームワーク共通(CMP `LazyVerticalGrid` / Flutter `GridView.builder` / RN
@@ -295,20 +295,20 @@ tap("OK")
 
 ## スワイプで削除
 
-- 行の上で横に払う: `swipeBy("#row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`。
+- 行の上で横にスワイプする: `swipeBy("#row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`。
   比率の上限は片側 0.9
-- 無効な向きへ払っても何も起きないこと(行が残ること)も確かめられる
+- 無効な向きへスワイプしても何も起きないこと(行が残ること)も確かめられる
 
 | フレームワーク | 部品・差分 |
 |---|---|
-| CMP | `SwipeToDismissBox`。払うと直接消える |
-| Flutter | `Dismissible(direction: .endToStart)`。払うと直接消える |
-| RN | `react-native-gesture-handler` の `Swipeable`。払うと直接消える |
-| Android View | `ItemTouchHelper`(LEFT のみ)。払うと直接消える。ツールが払う経路を OS の「戻る」の帯(画面の左右の端)に入らないよう内側へ寄せる |
-| SwiftUI(iOS) | `.swipeActions(edge: .trailing, allowsFullSwipe: true)`。**払っただけでは消えず、右端に現れる「削除」ボタンを押す必要がある**(iOS の定番の見せ方)。**iOS 26 以降は、leading 側に何も登録していない行を右へ払うと画面が戻ることがある**(コンテンツの上の右払いも OS の「戻る」になる。実測で 12 回に 1 回)。「無効な向きは何も起きない」を確かめるなら、アプリ側がその画面でこのジェスチャを切っている必要がある |
+| CMP | `SwipeToDismissBox`。スワイプすると直接消える |
+| Flutter | `Dismissible(direction: .endToStart)`。スワイプすると直接消える |
+| RN | `react-native-gesture-handler` の `Swipeable`。スワイプすると直接消える |
+| Android View | `ItemTouchHelper`(LEFT のみ)。スワイプすると直接消える。ツールがスワイプする経路を OS の「戻る」の帯(画面の左右の端)に入らないよう内側へ寄せる |
+| SwiftUI(iOS) | `.swipeActions(edge: .trailing, allowsFullSwipe: true)`。**スワイプしただけでは消えず、右端に現れる「削除」ボタンを押す必要がある**(iOS の定番の見せ方)。**iOS 26 以降は、leading 側に何も登録していない行を右へスワイプすると画面が戻ることがある**(コンテンツの上の右スワイプも OS の「戻る」になる。実測で 12 回に 1 回)。「無効な向きは何も起きない」を確かめるなら、アプリ側がその画面でこのジェスチャを切っている必要がある |
 
 ```swift
-// SwiftUI(iOS)だけ、払った後にボタンを押す
+// SwiftUI(iOS)だけ、スワイプした後にボタンを押す
 swipeBy("#swipe_row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)
 ios { tap("<削除ボタンのラベル。スナップショットから採る>") }
 ```
@@ -336,13 +336,13 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 
 | フレームワーク | 部品・差分 |
 |---|---|
-| CMP | `AnimatedVisibility`(非表示で composition から外れる = 木から消える)/ `AnimatedContent` |
-| Flutter | `AnimatedOpacity`(**非表示でも要素は木に残ったまま透明度だけ動く**。CMP と違い要素の有無では判定できないので、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
-| RN | `react-native-reanimated` の `FadeIn`/`FadeOut`。**カウンタ切り替えは `key` によるコンポーネントの再マウント方式**なので、切り替え中は新旧2つの要素が一瞬同時に木へ乗ることがある(CMP の `AnimatedContent` と同じ特性) |
+| CMP | `AnimatedVisibility`(非表示で composition から外れる = ツリーから消える)/ `AnimatedContent` |
+| Flutter | `AnimatedOpacity`(**非表示でも要素はツリーに残ったまま透明度だけ動く**。CMP と違い要素の有無では判定できないので、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
+| RN | `react-native-reanimated` の `FadeIn`/`FadeOut`。**カウンタ切り替えは `key` によるコンポーネントの再マウント方式**なので、切り替え中は新旧2つの要素が一瞬同時にツリーへ乗ることがある(CMP の `AnimatedContent` と同じ特性) |
 | Android View | `Fade`(`TransitionManager`)/ `TextSwitcher`。共通 |
 | SwiftUI(iOS) | `withAnimation` + `.transition(.opacity)` / `.contentTransition(.numericText())`。共通 |
 
-**現時点の制約**: Flutter の `AnimatedOpacity` は非表示化しても要素を木から消さないため、
+**現時点の制約**: Flutter の `AnimatedOpacity` は非表示化しても要素をツリーから消さないため、
 「要素が無いこと」を可視性の根拠にしないでください。この画面に限らず、Flutter でフェードによる
 表示切り替えを検証するときは、アプリが出す状態の echo(または `checkIsON`/`checkIsOFF` が使える
 部品ならそちら)で判定してください。
@@ -355,10 +355,10 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 
 | フレームワーク | 部品・差分 |
 |---|---|
-| CMP | `TooltipBox` + `PlainTooltip`。iOS は離した後もしばらく出ている。**Android は押している間だけ出る**ので `hold { }` の中で検証する(文字も木で読める) |
+| CMP | `TooltipBox` + `PlainTooltip`。iOS は離した後もしばらく出ている。**Android は押している間だけ出る**ので `hold { }` の中で検証する(文字もツリーで読める) |
 | Flutter | `Tooltip(triggerMode: longPress)`。吹き出し本文に id を付けられないためラベルで指す。**表示中かどうかの状態は近似値**(表示イベントから固定の表示秒数だけ待って hidden とみなす実装で、非表示アニメーション完了の直接観測ではない) |
-| RN | `react-native-paper` の `Tooltip`。**`accessible` な祖先がアンカー(`IconButton`)を1要素へ畳むため、アンカー自身に付けた識別子は iOS で木から消える**(Android は畳まない)。アプリ側はより外側の `View` にアンカーの識別子を持たせて回避している。**吹き出しは押している間だけ表示され、指を離すと消える**ので、`hold("#anchor", holdSeconds: 3) { … }` のブロックの中で検証する(`tap(holdSeconds:)` は離してから検証するので確認できない) |
-| Android View | `TooltipCompat` 標準ポップアップは別プロセス描画で内容を読めない。自前の `PopupWindow`(フォーカスを取らない別ウィンドウ)も**文字は木に載らない**。出ていることは、`hold { }` の中でアプリが出す状態の表示で確かめる |
+| RN | `react-native-paper` の `Tooltip`。**`accessible` な祖先がアンカー(`IconButton`)を1要素へ畳むため、アンカー自身に付けた識別子は iOS でツリーから消える**(Android は畳まない)。アプリ側はより外側の `View` にアンカーの識別子を持たせて回避している。**吹き出しは押している間だけ表示され、指を離すと消える**ので、`hold("#anchor", holdSeconds: 3) { … }` のブロックの中で検証する(`tap(holdSeconds:)` は離してから検証するので確認できない) |
+| Android View | `TooltipCompat` 標準ポップアップは別プロセス描画で内容を読めない。自前の `PopupWindow`(フォーカスを取らない別ウィンドウ)も**文字はツリーに現れない**。出ていることは、`hold { }` の中でアプリが出す状態の表示で確かめる |
 | SwiftUI(iOS) | **無い**(iOS の長押しはコンテキストメニューに倒れる慣用のため、検証アプリはこの画面自体を持たない) |
 
 `tap(holdSeconds:)` は指を離してから次の行へ進むので、押している間だけ出る部品は次の行では
@@ -406,7 +406,7 @@ Android View のように開いた欄に id があるならそれを `type("#id"
 | フレームワーク | 部品・差分 |
 |---|---|
 | CMP | navigation-compose の `NavHost`。共通 |
-| Flutter | `go_router`。**iOS はエッジスワイプで戻らないことがある**(合成したエッジスワイプが `MaterialPage` の戻りを起こさない。始点・時間を変えても再現)。回避策: iOS ではアプリの戻るボタン(`#btn_back`)を使い、Android だけ OS の `back()` を使う |
+| Flutter | `go_router`。**iOS はエッジスワイプで戻らないことがある**(合成したエッジスワイプが `MaterialPage` の戻りが起きない。始点・時間を変えても再現)。回避策: iOS ではアプリの戻るボタン(`#btn_back`)を使い、Android だけ OS の `back()` を使う |
 | RN | `@react-navigation/native-stack`。共通(戻るは常にシステムの `back()` かネイティブの戻るボタン) |
 | Android View | Navigation コンポーネントの `NavHostFragment`。**現時点の制約**: 詳細画面を複数積んだ状態でツールバーの戻る(ラベル「戻る」)を押しても1つ戻らないことがある(調査中)。回避策: 複数階層を検証するシナリオでは、ツールバーのタップではなく OS の `back()` を使う |
 | SwiftUI(iOS) | `NavigationStack`。戻るボタンは固定 id `#BackButton` |
@@ -421,12 +421,12 @@ Android View のように開いた欄に id があるならそれを `type("#id"
 | Flutter | `CustomScrollView` + `SliverAppBar(pinned, expandedHeight)` + `SliverList`。共通 |
 | RN | `Animated.FlatList` + `useAnimatedScrollHandler` によるスクロール連動ヘッダ(別レイヤーで重ねる自前実装)。共通 |
 | Android View | `CoordinatorLayout` + `AppBarLayout` + `CollapsingToolbarLayout`。共通 |
-| SwiftUI(iOS) | `List` + `.navigationBarTitleDisplayMode(.large)`。**実際に伸縮するシステムの大見出し自体には識別子が付かない**(戻るボタンと同じ理由で UINavigationBar の内部描画に公開 API が無い)。「大きな見出し」に当たるものは別要素として置かれ、`#txt_collapse_result` は縮小後も木に残る固定位置に置かれている |
+| SwiftUI(iOS) | `List` + `.navigationBarTitleDisplayMode(.large)`。**実際に伸縮するシステムの大見出し自体には識別子が付かない**(戻るボタンと同じ理由で UINavigationBar の内部描画に公開 API が無い)。「大きな見出し」に当たるものは別要素として置かれ、`#txt_collapse_result` は縮小後もツリーに残る固定位置に置かれている |
 
-行を押すと echo が出る点・echo が縮んでも木に残る位置に置かれている点は全フレームワーク共通です。
+行を押すと echo が出る点・echo が縮んでもツリーに残る位置に置かれている点は全フレームワーク共通です。
 
 **現時点の制約**: RN の `react-native-collapsible-tab-view` で**タブを替えた直後、iOS では一覧の先頭の行がヘッダの裏に居る**
-ことがある。in-app ブリッジの木には覆っている物が出ないので、fleetest は覆いを避けて送れない(xcuitest モードでは
+ことがある。in-app ブリッジのツリーには覆っている物が出ないので、fleetest は覆いを避けて送れない(xcuitest モードでは
 失敗文が `#Toolbar` を名指しする)。ヘッダの下に見えている行を押す
 
 ## 貼り付く見出し
@@ -438,7 +438,7 @@ Android View のように開いた欄に id があるならそれを `type("#id"
 | CMP | `LazyColumn` の `stickyHeader`。共通 |
 | Flutter | `SliverPersistentHeader(pinned)` をセクションごとに `SliverMainAxisGroup` でまとめる(単純に並べるだけだと複数の見出しが同時に貼り付くため) |
 | RN | `SectionList`(`stickySectionHeadersEnabled`)。**次のセクションの見出しが上端に来るタイミングで、そのセクションの先頭行に見出しの高さぶん重なる**(貼り付く見出しを持つリスト実装に共通の挙動で RN 固有ではない)。**見出しに潜った行を `tap` するときは、fleetest が見出しの外まで送ってから押す**(注記 `scrolled the container to bring the target out from under #hdr_… before touching it`)ので書き方は変わらない |
-| Android View | `RecyclerView` + 貼り付く見出しの `ItemDecoration`。**貼り付いている間の見出しは canvas への直接描画で a11y ツリーに出ない**。実物の見出し行は通常のリストアイテムとして別に存在し、スクロールで通過する間だけ木に載る |
+| Android View | `RecyclerView` + 貼り付く見出しの `ItemDecoration`。**貼り付いている間の見出しは canvas への直接描画で a11y ツリーに現れない**。実物の見出し行は通常のリストアイテムとして別に存在し、スクロールで通過する間だけツリーに現れる |
 | SwiftUI(iOS) | `List(.plain)` + `Section(header:)`。plain スタイルの Section 見出しは標準で上端に貼り付く |
 
 ## 時刻ピッカー
@@ -453,7 +453,7 @@ tap("#material_minute_tv")   // React Native は tap("#minutes")
 tap("45")                    // 分の文字盤は 5 分刻み。それ以外の分は数字入力のモードで打つ
 tap("OK")
 
-// Flutter の showTimePicker: 文字盤は木に出ないので、数字入力のモードに切り替えて打つ
+// Flutter の showTimePicker: 文字盤はツリーに出ないので、数字入力のモードに切り替えて打つ
 tap("Switch to text input mode")
 type(".textField[1]", "14", replace: true)
 type(".textField[2]", "45", replace: true)
@@ -511,7 +511,7 @@ select("#txt_context_result").textIs("context=row2:copy")
 全フレームワーク共通の書き方です(CMP `combinedClickable(onLongClick)` + `DropdownMenu` /
 Flutter `onLongPressStart` + `showMenu` / RN `Pressable(onLongPress)` +
 `react-native-paper` の `Menu` / Android View `registerForContextMenu` / SwiftUI
-`.contextMenu`)。メニューは別ウィンドウなので、モーダル共通の規律(背後が木から消える)が
+`.contextMenu`)。メニューは別ウィンドウなので、モーダル共通の規律(背後がツリーから消える)が
 そのまま当てはまります。
 
 ## 並べ替え(ドラッグ)
@@ -537,7 +537,7 @@ select("#txt_reorder_result").textMatches("^order=2,")
 | Flutter | `ReorderableListView`(既定のドラッグハンドル)。指を離した位置がそのまま最終順序になる |
 | RN | 定番の外部ライブラリを使わず `Gesture.Pan().activateAfterLongPress()` の自前実装。しきい値(行の高さの半分)を跨ぐたびに並べ替えるので、**指を離した位置までまとめて動く**(2行ぶんの移動で末尾まで動くことがある) |
 | Android View | `ItemTouchHelper`。ドラッグ中に複数行をまたいでも、1回のドラッグで最終的な release 位置まで正しく移動する |
-| SwiftUI(iOS) | `List` + `.onMove` + 常時編集モード(`.environment(\.editMode, .constant(.active))`)。右端のハンドルを掴んでドラッグする |
+| SwiftUI(iOS) | `List` + `.onMove` + 常時編集モード(`.environment(\.editMode, .constant(.active))`)。右端のハンドルを押さえてドラッグする |
 
 ## 入力の種類
 
@@ -567,7 +567,7 @@ select("#txt_focus_echo").textIs("focus=second")
 | Flutter | `TextField` + Material `Autocomplete<String>`。数字キーパッド欄は数字以外を受け付けない(`FilteringTextInputFormatter.digitsOnly`) |
 | RN | `react-native-paper` の `TextInput` + 自前の前方一致候補リスト。日本語ロケール端末の既定キーボードがローマ字→仮名変換を行うため、英字専用欄は `autoCorrect={false}` + `keyboardType="ascii-capable"` 等で素の英字キーボードにする(アプリ側の対処) |
 | Android View | `TextInputLayout` + `TextInputEditText` + `MaterialAutoCompleteTextView`(編集可)。**オートコンプリートの候補行に id が無い**(`ListPopupWindow` の無名行。ラベルで指す) |
-| SwiftUI(iOS) | `TextField`(`.numberPad` / `.vertical` axis)/ `SecureField` + `@FocusState`。**オートコンプリートの候補は iOS だけで検証**(Android は候補ウィンドウが a11y の木に出ないため。下記) |
+| SwiftUI(iOS) | `TextField`(`.numberPad` / `.vertical` axis)/ `SecureField` + `@FocusState`。**オートコンプリートの候補は iOS だけで検証**(Android は候補ウィンドウが a11y のツリーに現れないため。下記) |
 
 - **オートコンプリートの候補は、打った後に遅れて出ます**(非同期)。候補を押すときは出るまで待ちます。
   待たないと、遅いマシンでだけ「候補が見つからない」で落ちます。
@@ -579,13 +579,13 @@ select("#txt_focus_echo").textIs("focus=second")
 
 **現時点の制約**:
 
-- **Android(全フレームワーク共通)は非フォーカスのポップアップウィンドウの中身が木に出ないことがあります**。
-  Android の a11y の木の根は「アクティブウィンドウ1枚だけ」(`getRootInActiveWindow()`)なので、
-  フォーカスを取らないポップアップ(オートコンプリートの候補一覧など)は木に載らない画面がある。
+- **Android(全フレームワーク共通)は非フォーカスのポップアップウィンドウの中身がツリーに現れないことがあります**。
+  Android の a11y のツリーの根は「アクティブウィンドウ1枚だけ」(`getRootInActiveWindow()`)なので、
+  フォーカスを取らないポップアップ(オートコンプリートの候補一覧など)はツリーに現れない画面がある。
   **`Spinner`/`ExposedDropdownMenuBox` のようにフォーカスを持つポップアップの候補は表示
   される**。**ツールチップ・一部のオートコンプリート候補は依然として非表示**。
   回避策: 候補を直接検証できないときは、アプリ自身の echo で確定後の値を確かめる
-- **Android の Flutter のオートコンプリートは、候補の位置が画面の表示とずれます**。候補は木に載りますが、
+- **Android の Flutter のオートコンプリートは、候補の位置が画面の表示とずれます**。候補はツリーに現れますが、
   その位置が実際に描かれた位置より上(数百 px)を指し、時間がたっても直りません。候補を `tap` すると
   その位置にある別のもの(多くは入力欄)に当たり、**候補は選ばれないまま成功します**。
   候補を押した後は、選んだ値を必ず確かめます(押した手が緑でも選べたとは限りません)。
@@ -644,7 +644,7 @@ tap("検索")
 ## ステッパーと進捗
 
 - +/- ボタンで数量を増減。進捗バーは決定的に2秒で 0→100% になる
-- 不定の回転インジケータは進行中だけ表示される
+- 進捗を示さない回転インジケータは進行中だけ表示される
 
 ```swift
 tap("#btn_qty_plus")
@@ -718,8 +718,8 @@ gesture-handler の `Gesture.Pinch()` / Android View `PinchZoomImageView`(`Scale
 ## 文中リンク(1つの文の中のリンク・メンション・URL)
 
 - 押すのは `tap(要素, linkText: "文字列")`。要素の中でその文字列が描かれている位置を押す
-- Flutter・RN はリンクが子ノードとして木に出るので、木で位置を決める。Compose・Android View(`ClickableSpan`)・
-  SwiftUI(`AttributedString` のリンク)は木に出ないので、画面の絵を OCR で読んで位置を決める
+- Flutter・RN はリンクが子ノードとしてツリーに現れるので、ツリーで位置を決める。Compose・Android View(`ClickableSpan`)・
+  SwiftUI(`AttributedString` のリンク)はツリーに現れないので、画面の絵を OCR で読んで位置を決める
   (結果の注記に `located by tree` / `located by ocr`)
 - `tap("利用規約")` は段落全体に当たるだけで、リンクの位置は押せない。段落の中央を押して「何も起きない」を
   確かめる書き方は、画面幅で中央に来る文字が変わるので書かない
@@ -738,7 +738,7 @@ select("#txt_links_result").textIs("link=terms")
 ## 読み込み中の骨組み(スケルトン)
 
 - 読み込み中も本物と同じ `#id`・ラベルの行を出す作りでは、`exist` は骨組みの時点で通る
-- `tap` は対象が押せるようになるまで待ってから撃つので、読み込み直した直後に `tap` してよい
+- `tap` は対象が押せるようになるまで待ってから実行するので、読み込み直した直後に `tap` してよい
   (骨組みが無効として公開されていれば、本物に変わってから押される)
 - 一覧の末尾に一時的に出る「読み込み中」「再試行」の行は、再試行を押してから続きを探す
 
@@ -750,19 +750,19 @@ select("#txt_loading_result").textIs("loading=row_l_03")
 
 ## スクロールで隠れるバー
 
-- 下へ送ると隠れるバーや FAB は、`tap(sel, scroll: .up)` で少し戻して出してから押す(隠れた物は木に居ない)
+- 下へ送ると隠れるバーや FAB は、`tap(sel, scroll: .up)` で少し戻して出してから押す(隠れた物はツリーにない)
 
 ```swift
 tap("#fab_hiding", scroll: .up)
 ```
 
-**現時点の制約**: Flutter の `AnimatedSlide` で隠すバーは、隠れている間も木では元の位置に居ると申告されるため、探索が送らずに撃ち、見た目には無いボタンを押すことがある。
+**現時点の制約**: Flutter の `AnimatedSlide` で隠すバーは、隠れている間もツリーでは元の位置に居ると申告されるため、探索がスクロールせずにタップし、見た目には無いボタンを押すことがある。
 
-## 途中まで払うスワイプ(ボタンを出す・返信)
+## 途中までのスワイプ(ボタンを出す・返信)
 
-- 途中まで払うときは**ゆっくり**払う(`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`)。
+- 途中までスワイプするときは**ゆっくり**スワイプする(`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`)。
   速く離すと部品の fling が次の段(削除まで)へ送る
-- `swipeBy` の比率は片側 0.9 で頭打ち。シートを引き上げるように対象より遠くへ払うときは
+- `swipeBy` の比率は片側 0.9 で頭打ち。シートを引き上げるように対象より遠くへスワイプするときは
   `swipeElementToElement("#mini_player", "#txt_sheet_state")`
 
 ## フレームワーク固有部品
@@ -775,7 +775,7 @@ tap("#fab_hiding", scroll: .up)
 |---|---|
 | CMP | M3 `HorizontalMultiBrowseCarousel` / `NavigationRail` / `BottomSheetScaffold` |
 | Flutter | `Hero` での画面遷移(**トリガーのボタンではなく、別の視覚要素を `Hero` にする**のがこのアプリの実装。ボタン自体を `Hero` にすると遷移の見た目が不自然になるため)/ `CupertinoSwitch` / `CupertinoPicker` / `PlatformView`(ネイティブの `UILabel`/`TextView` をラベル付きで埋め込み) |
-| RN | `@shopify/flash-list` の `FlashList`(**仮想化されるため、木に乗るのは画面に収まる分だけ** —— 他の `FlatList` 系画面と同じ特性)/ core の `Modal`(非全画面)/ core の `Switch` |
+| RN | `@shopify/flash-list` の `FlashList`(**仮想化されるため、ツリーに現れるのは画面に収まる分だけ** —— 他の `FlatList` 系画面と同じ特性)/ core の `Modal`(非全画面)/ core の `Switch` |
 | Android View | `Spinner` / `NumberPicker` / `MotionLayout`(ボタン駆動の片道遷移) |
 | SwiftUI(iOS) | `UICollectionView`(compositional layout)/ `.popover` / `.confirmationDialog`。**`.popover` は iPhone では adaptive presentation によりシート状に表示されることがある**(iOS 標準の既定挙動) |
 

@@ -5,13 +5,13 @@
 要素のラベルではなく**値**(入力欄の内容など)を検証します。構成は
 [テキストの検証](./text_assertion_ja.md)と同じです。
 
-**対象は常に「直前に掴んだ要素」で、これらのコマンドにセレクタは渡しません。**
-まず `select`(または `exist` / `tap` など)で要素を掴み、そのうえで検証します。
+**対象は常に「直前に取得した要素」で、これらのコマンドにセレクタは渡しません。**
+まず `select`(または `exist` / `tap` など)で要素を取得し、そのうえで検証します。
 
 ```swift
 select("#email").valueIs("test@example.com")              // 戻り値へチェーン
 select("#email"); lastElement.valueIs("test@example.com") // lastElement を明示
-select("#email"); valueIs("test@example.com")              // 暗黙(直前に掴んだ要素)
+select("#email"); valueIs("test@example.com")              // 暗黙(直前に取得した要素)
 ```
 
 引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形が `(期待値, strict:, waitSeconds:)`、空判定が `(strict:, waitSeconds:)` です(`valueMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません。暗黙形に渡せない期待値の制約は[テキストの検証](./text_assertion_ja.md)を参照してください。
@@ -45,7 +45,7 @@ select("#email").valueContains("@example.com")
   `textIsEmpty` / `textIs` を当てないでください。
 - 否定系と空判定は可視性を見ません。また、これらのコマンドに `scroll:` はありません
   — テキストの検証と同じ規則です。
-- チェーンした検証は、まず掴んだ時点の値で判定し、それで満たしていなければデバイスをポーリングします。
+- チェーンした検証は、まず取得した時点の値で判定し、それで満たしていなければデバイスをポーリングします。
   詳細は[テキストの検証](./text_assertion_ja.md)を参照してください。
 
 ### Link

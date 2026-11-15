@@ -14,7 +14,7 @@
 
 ### ifCanSelect, ios, android
 - [ifCanSelect は既定で即時1回の判定](../commands/branch_ja.md#注意点) — 遅れて出る要素を待つなら `waitSeconds:` を渡さないと「無い」と判定されます。
-- [ifCanSelect は出るか不定の画面の無害化に使う](../commands/branch_ja.md#注意点) — 出るか不定のダイアログやバナーの分岐は、専用の引数が無いので常に `ifCanSelect` で書きます。
+- [ifCanSelect は出るかどうか決まっていない画面の無害化に使う](../commands/branch_ja.md#注意点) — 出るかどうか決まっていないダイアログやバナーの分岐は、専用の引数が無いので常に `ifCanSelect` で書きます。
 - [ifCanSelect はスクロールして探さない](../commands/branch_ja.md#注意点) — `withScroll*` の中でも今の画面だけを照合し、画面外の要素は不成立(ブロック不実行)になります。
 - [条件判定も宣言済みの割り込みを先に閉じる](../commands/branch_ja.md#注意点) — 覆われた要素は閉じてから判定されます。閉じないと黙って「無い」と読まれ、誤った分岐になるためです。
 - [値や画面状態の分岐は2種類だけ](../commands/branch_ja.md#注意点) — 読んだ値には素の Swift `if`、画面に出ているかには `ifCanSelect` を使います。
@@ -40,22 +40,22 @@
 
 ### exist, notExist, countIs
 - [exist の戻り値は text・value・id の検証にチェーンできる](../commands/existence_assertion_ja.md#注意点) — 各検証コマンドのページを参照してチェーンします。
-- [exist / notExist / countIs は常にセレクタを取る](../commands/existence_assertion_ja.md#注意点) — 直前に掴んだ要素へ暗黙に効く形は無いので、毎回セレクタを書きます。
-- [notExist は可視性を見ない](../commands/existence_assertion_ja.md#注意点) — 別のモーダルに覆われて木に残っている要素は「まだ在る」と扱われ、待ち時間後に失敗します。
-- [モーダルの裏で通った「無い」には absence-behind-modal の注記が付く](../commands/existence_assertion_ja.md#注意点) — 裏の要素が木から外れると、要素が在っても `notExist` が通ります。合否は変わらないので注記を確認します。
+- [exist / notExist / countIs は常にセレクタを取る](../commands/existence_assertion_ja.md#注意点) — 直前に取得した要素へ暗黙に効く形は無いので、毎回セレクタを書きます。
+- [notExist は可視性を見ない](../commands/existence_assertion_ja.md#注意点) — 別のモーダルに覆われてツリーに残っている要素は「まだ在る」と扱われ、待ち時間後に失敗します。
+- [モーダルの裏で通った「無い」には absence-behind-modal の注記が付く](../commands/existence_assertion_ja.md#注意点) — 裏の要素がツリーから外れると、要素が在っても `notExist` が通ります。合否は変わらないので注記を確認します。
 - [Android で別アプリの画面を読んで通った「無い」には注記が付く](../commands/existence_assertion_ja.md#注意点) — 前面がテスト対象でないと、検証は対象について何も言っていません。合否は変わらないので注記を確認します。
 - [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 末尾が省略記号なら緑(`text-ellipsized`)、描かれたのが期待の半分より多いと緑(`text-partially-hidden`)、半分以下は失敗です。大部分を隠す画面は `requireVisible: false` を使います。
 
 ### 画像で探す(findImage, findImages, existImage)
 - [記録の距離を threshold の目安にする](../commands/find_image_ja.md#注意点) — 記録には距離と比べた候補の数が出ます。見つからないときは最も近かった距離が出ます。
-- [文字だけが違う同じ形の部品は別の行を掴むことがある](../commands/find_image_ja.md#注意点) — 距離が既定の `threshold`(0.15)を下回るためです。記録の距離を見て `threshold: 0.03` などに絞ります。
-- [見本は OS の版・画面の倍率ごとに採る](../commands/find_image_ja.md#注意点) — 版が違うと距離が離れます。版ごとの見本を同じラベルのフォルダへ足せば、両方の端末で掴めます。
+- [文字だけが違う同じ形の部品は別の行を取得することがある](../commands/find_image_ja.md#注意点) — 距離が既定の `threshold`(0.15)を下回るためです。記録の距離を見て `threshold: 0.03` などに絞ります。
+- [テンプレート画像は OS の版・画面の倍率ごとに採る](../commands/find_image_ja.md#注意点) — 版が違うと距離が離れます。版ごとのテンプレート画像を同じラベルのフォルダへ足せば、両方の端末で取得できます。
 - [waitSeconds の既定は 0(今の画面を1回だけ見る)](../commands/find_image_ja.md#注意点) — 画面切り替え直後は `waitSeconds: 3` のように秒数を渡して待ちます。
 - [existImage の失敗時は最も近かった距離と使った画像が出る](../commands/find_image_ja.md#注意点) — 失敗文言に距離と `threshold` が出て、判定に使ったスクリーンショットがレポートに添えられます。
 - [withScrollDown { } の中ではスクロールしながら探す](../commands/find_image_ja.md#注意点) — 今の画面だけを見るなら `scroll: .noScroll` を渡します。
 - [スクロールして探すときは scroll: を渡す](../commands/find_image_ja.md#注意点) — `findImageWithScrollDown` のような別名は無く、`findImage("[Icon]", scroll: .down)` と書きます。
-- [見本が1枚も無いと設定の誤りとして失敗する](../commands/find_image_ja.md#注意点) — ラベルのフォルダに見本を置いてから使います。
-- [Vision が一時的におかしな特徴量を返すことがある](../commands/find_image_ja.md#注意点) — Mac が混んでいるときに出ます。待って探し直し、戻らなければ失敗します(注記 `vision-anomaly-retried`)。
+- [テンプレート画像が1枚も無いと設定の誤りとして失敗する](../commands/find_image_ja.md#注意点) — ラベルのフォルダにテンプレート画像を置いてから使います。
+- [Vision が一時的におかしな特徴量を返すことがある](../commands/find_image_ja.md#注意点) — Mac の負荷が高いときに出ます。待って探し直し、戻らなければ失敗します(注記 `vision-anomaly-retried`)。
 - [スクリーンショットが一色だと撮れていないとみなして比べない](../commands/find_image_ja.md#注意点) — 待って撮り直し(注記 `blank-screenshot-retaken`)、それでも一色なら失敗します。
 - [inapp-boost モードでの絵の撮り方はテキストの可視性検証と同じ](../commands/find_image_ja.md#注意点) — 覆われた要素は、画面全体の絵では覆いの絵として比べられます。
 - [見つけた要素にセレクタがあれば検証をつなげられる](../commands/find_image_ja.md#注意点) — id か一意なラベルがある要素には `textIs` などをチェーンできます。
@@ -65,7 +65,7 @@
 ### flick
 - [flick はコンテンツを見ないジェスチャ](../commands/flick_ja.md#注意点) — 要素が見つかるまで探す `scroll*` と違い、速い1ストロークを送るだけで、既定の時間は `swipe` より短いです。
 - [対象領域は scrollFrame: で指定する](../commands/flick_ja.md#注意点) — `scroll` と同じセレクタ式で指します。
-- [flick は端に着いたかを判定しない](../commands/flick_ja.md#注意点) — 並べて送っても到達は分かりません。払った後は自分で到達先を検証します。
+- [flick は端に着いたかを判定しない](../commands/flick_ja.md#注意点) — 並べて送っても到達は分かりません。フリックした後は自分で到達先を検証します。
 
 ### マップ・キャンバス系のジェスチャ(doubleTap, pinchIn, pinchOut, gesture, hold)
 - [`setPickerValue` が回すのはホイール1本だけ](../commands/gestures_ja.md#注意点) — ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールやホイールでない要素は、何も送る前に断ります。
@@ -74,8 +74,8 @@
 - [settle: false は操作後の落ち着き待ちを省く](../commands/gestures_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
 ### 画像の検証(imageIs)
-- [見本が無いと待たずに失敗する](../commands/image_assertion_ja.md#注意点) — `label` を含むラベルの見本も必要で、無いと待たずに失敗します。
-- [失敗の文言に分類されたラベルと確信度が出る](../commands/image_assertion_ja.md#注意点) — 文言を見て、見本とのずれを判断します。
+- [学習用画像が無いと待たずに失敗する](../commands/image_assertion_ja.md#注意点) — `label` を含むラベルの学習用画像も必要で、無いと待たずに失敗します。
+- [失敗の文言に分類されたラベルと確信度が出る](../commands/image_assertion_ja.md#注意点) — 文言を見て、学習用画像とのずれを判断します。
 
 ### installApp, removeApp, clearAppData
 - [iOS の inapp-boost では installApp() の直後に launchApp() を呼ぶ](../commands/install_app_ja.md#注意点) — インストールでアプリの中のブリッジが終了し、再起動まで tap などが届きません。
@@ -95,7 +95,7 @@
 - [既定では1ステップ最大10回まで閉じる](../commands/irregular_handler_ja.md#注意点) — `maxDismissals:` で変えられます。2回閉じても残れば諦め、「完全には閉じられなかった」と記録します。
 - [条件判定も割り込みを閉じてから答える](../commands/irregular_handler_ja.md#注意点) — 閉じないと覆われた対象が黙って「無い」と読まれ、誤った分岐になります。
 - [OS のシステムダイアログ(権限の許可等)には効かない](../commands/irregular_handler_ja.md#注意点) — 別プロセスが描画するため対象外です。`iosAlertHandler` を使います。
-- [iOS の別ウィンドウのモーダルは木に載るが、全面を覆うと背面が木から消える](../commands/irregular_handler_ja.md#注意点) — 背面の `exist` やタップは失敗するので誤成功にはならず、モーダルを閉じてから操作します。
+- [iOS の別ウィンドウのモーダルはツリーに現れるが、全面を覆うと背面がツリーから消える](../commands/irregular_handler_ja.md#注意点) — 背面の `exist` やタップは失敗するので誤成功にはならず、モーダルを閉じてから操作します。
 
 ### キーボードの検証(keyboardIsShown, keyboardIsNotShown)
 - [表示 / 非表示はブリッジが申告する枠で決まる](../commands/keyboard_assertion_ja.md#注意点) — 枠が画面の外なら非表示で、どちらも不明なときは失敗します。iOS の xcuitest モードでは閉じたことを確定できないことがあるので、閉じた確認は inapp-boost モード(または Android)で書きます。
@@ -116,9 +116,9 @@
 - [back() の前後で画面が変わらなくても失敗しない](../commands/navigation_ja.md#注意点) — 注記が付くだけです。アプリ自身の戻るボタンを `tap` するか、`back()` をもう一度呼びます。
 - [back() の注記(back-stayed-on-screen など)](../commands/navigation_ja.md#注意点) — 失敗にはならないので、注記が出たらどの画面に着いたかを自分で確かめます。
 - [tapAppIcon の探索順](../commands/navigation_ja.md#注意点) — 現在の画面、Android はドロワー、iOS はページ送りと App ライブラリの順に探します。
-- [iOS の tapAppIcon はホームの手前のシステムアラートを名指して失敗する](../commands/navigation_ja.md#注意点) — アラートが出ている間はアイコンが木に無いので、先にアラートを処理します。
-- [tapAppIcon はホーム画面の木が表示中の画面と一致しないと撃たない](../commands/navigation_ja.md#注意点) — 内蔵画面が2枚の Simulator で木の画面の大きさが違うと失敗します。
-- [terminateApp() 等で止めた後の iOS の back() 等は撃たずに失敗する](../commands/navigation_ja.md#注意点) — 止めた後は `launchApp()` でアプリを起こしてから操作します。
+- [iOS の tapAppIcon はホームの手前のシステムアラートを名指して失敗する](../commands/navigation_ja.md#注意点) — アラートが出ている間はアイコンがツリーに無いので、先にアラートを処理します。
+- [tapAppIcon はホーム画面のツリーが表示中の画面と一致しないと実行しない](../commands/navigation_ja.md#注意点) — 内蔵画面が2枚の Simulator でツリーの画面の大きさが違うと失敗します。
+- [terminateApp() 等で止めた後の iOS の back() 等は実行せずに失敗する](../commands/navigation_ja.md#注意点) — 止めた後は `launchApp()` でアプリを起動してから操作します。
 - [rotateTo が契約するのはアプリの UI の向き](../commands/navigation_ja.md#注意点) — 実機の傾きではありません。値は `.portrait` / `.landscape` の2つだけです。
 - [rotateTo は向きが変わるまで待ってから返る](../commands/navigation_ja.md#注意点) — 向きが変わったことを別に待つ必要はありません。
 - [回転は終了時に元の向きへ自動で戻る](../commands/navigation_ja.md#注意点) — Android は自動回転の設定も戻します。
@@ -161,7 +161,7 @@
 ### select, lastElement
 - [select 単体ではシナリオを失敗させない](../commands/select_ja.md#注意点) — 見つからなければ空要素になるだけです。失敗しうるのはチェーンした検証側です。
 - [Android でアプリが前面に無い間の select は断られる](../commands/select_ja.md#注意点) — 空要素を「要素が無い」と取り違えないための失敗です。先に `launchApp()` か `tapAppIcon()` で戻します。
-- [lastElement は各 scene の開始時に空になる](../commands/select_ja.md#注意点) — 一度も掴んでいなければ空(+警告)です。
+- [lastElement は各 scene の開始時に空になる](../commands/select_ja.md#注意点) — 一度も取得していなければ空(+警告)です。
 - [waitSeconds: を省くと defaultTimeout(既定 5 秒)まで探す](../commands/select_ja.md#注意点) — 今の画面を1回だけ見て分岐するなら `select(sel, waitSeconds: 0)` と書きます。
 
 ### 状態の検証(enabledIsTrue, enabledIsFalse, checkIsON, checkIsOFF)
@@ -175,7 +175,7 @@
 - [suppressHandler { } はブロック形で失敗しても自動で戻る](../commands/suppress_handler_ja.md#注意点) — モーダルとのやり取りが1ブロックに収まるならこちらを使います。
 - [条件・操作・検証を跨げるのは disableHandler() / enableHandler() だけ](../commands/suppress_handler_ja.md#注意点) — `condition {}` で存在を確かめて `action {}` で操作したいときに使います。
 - [useHandler { } は入れ子のブロックだけ自動クローズを戻す](../commands/suppress_handler_ja.md#注意点) — 外側の抑止は終わらず、ブロックを抜けると再び抑止に戻ります。
-- [抑止してもアプリが割り込みを出すこと自体は止められない](../commands/suppress_handler_ja.md#注意点) — 止まるのはツールが閉じることだけで、モーダル中のタップは吸われることがあります。
+- [抑止してもアプリが割り込みを出すこと自体は止められない](../commands/suppress_handler_ja.md#注意点) — 止まるのはツールが閉じることだけで、モーダル中のタップは遮られることがあります。
 - [抑止したまま失敗すると失敗の注記が追加される](../commands/suppress_handler_ja.md#注意点) — 成功したステップには何も足されません。
 - [enableHandler() の呼び忘れは抑止がシナリオ終了まで続く](../commands/suppress_handler_ja.md#注意点) — 中断後の `afterEach()` で出た割り込みも閉じられません。気になるならブロック形を使います。
 - [OS のシステムダイアログは抑止の影響を受けない](../commands/suppress_handler_ja.md#注意点) — シナリオが直接操作しているアラートも、抑止の有無に関わらず奪われません。
@@ -191,12 +191,12 @@
 - [同じセレクタに複数一致するとき、覆われた先頭を避けて押す](../commands/tap_ja.md#注意点) — 覆われていない要素を押します(注記付き)。全部覆われているときは何も押さず失敗します。
 - [対象の中心がタブバーや固定フッタの下にあると、見えている部分を押す](../commands/tap_ja.md#注意点) — まず一覧を送って外し、外せなければ見えている部分を押します。薄すぎる(8pt/8dp 未満)と失敗します。
 - [スクロールで隠れた対象がナビバーの下にあると scroll: が要る](../commands/tap_ja.md#注意点) — `scroll:` が無いと何も押さず失敗し、向きを案内します。`scroll: .up` 等を書きます。
-- [対象が見つからず手前の窓やモーダルが木から外しているときは失敗文が名指す](../commands/tap_ja.md#注意点) — 失敗文が窓やモーダルを名指ししても、`waitSeconds:` を伸ばして待つのは無駄です(閉じるまで対象は戻りません)。前のステップで閉じるか `irregularHandler` で宣言します。
+- [対象が見つからず手前の窓やモーダルがツリーから外しているときは失敗文が名指す](../commands/tap_ja.md#注意点) — 失敗文が窓やモーダルを名指ししても、`waitSeconds:` を伸ばして待つのは無駄です(閉じるまで対象は戻りません)。前のステップで閉じるか `irregularHandler` で宣言します。
 - [重なりの順を知れない画面では推測せず対象の中心を押す](../commands/tap_ja.md#注意点) — SwiftUI・Compose Multiplatform・Flutter・xcuitest・MCP 操作が該当し、覆われていると別の物を押します。
 - [アプリが落ちて別のアプリが前面のときは失敗する](../commands/tap_ja.md#注意点) — 同じ `#id` を持つ別のアプリを誤って操作しないための断りです。
-- [tap は対象が enabled になるまで待ってから撃つ](../commands/tap_ja.md#注意点) — `waitSeconds:`(既定 5 秒)まで待ち、なお無効でもそのまま撃ちます。
+- [tap は対象が enabled になるまで待ってから実行する](../commands/tap_ja.md#注意点) — `waitSeconds:`(既定 5 秒)まで待ち、なお無効でもそのまま実行します。
 - [要素が現れるまでの待ちは短い(約 0.7 秒)](../commands/tap_ja.md#注意点) — 遷移後に遅れて出る要素は `tap("#btn", waitSeconds: 5)` か `waitForDisplay` で待ちます。
-- [tap してから type する書き方もできる](../commands/tap_ja.md#注意点) — Android で `#id` が容器に解決して焦点が移らないとき、`type` が入力欄を名指して入れ直します。
+- [tap してから type する書き方もできる](../commands/tap_ja.md#注意点) — Android で `#id` がコンテナに解決して焦点が移らないとき、`type` が入力欄を名指して入れ直します。
 - [Android の画面最下端の帯の要素は OS に押下を取られることがある](../commands/tap_ja.md#注意点) — ジェスチャーナビの端末では、要素の帯より上の部分を押します(注記付き)。
 - [iOS の in-app ブリッジは本物の指で押せない要素にも届くことがある](../commands/tap_ja.md#注意点) — 緑のまま「本物のタッチは別の物に当たる」注記が付くので、注記が出たら画面の覆いを疑います。
 - [座標タップは最後の手段](../commands/tap_ja.md#注意点) — アプリが要素を公開しないときだけ使い、長く使うシナリオではセレクタを優先します。
@@ -210,7 +210,7 @@
 - [要素は在る前提で waitSeconds まで値の変化を待つ](../commands/text_assertion_ja.md#注意点) — 値が更新されるのを待つ用途にも使えます。
 - [否定系と空判定は可視性を見ない](../commands/text_assertion_ja.md#注意点) — `textIsNot`・`textIsEmpty` などは「見えていないこと」を画面照合できません。
 - [これらに scroll: は無い](../commands/text_assertion_ja.md#注意点) — 対象を先に `select(selector, scroll: .down)` などでビューに入れてから検証します。
-- [チェーンした検証は掴んだ時点の値でまず判定する](../commands/text_assertion_ja.md#注意点) — 満たしていればデバイスを見に行かず、説明に `(from the grabbed value)` が付きます。
+- [チェーンした検証は取得した時点の値でまず判定する](../commands/text_assertion_ja.md#注意点) — 満たしていればデバイスを見に行かず、説明に `(from the grabbed value)` が付きます。
 
 ### type
 - [type("") は打つ前に失敗する](../commands/type_ja.md#注意点) — 欄を空にするなら `clearInput()` か `type("", replace: true)` を使います。
@@ -231,7 +231,7 @@
 ### 値の検証(valueIs, valueContains, …)
 - [入力欄の内容は value* で見る](../commands/value_assertion_ja.md#注意点) — 一部のフレームワーク(Compose Multiplatform と Flutter の iOS・React Native)では入力欄の `text` が placeholder を返すので、`textIs` / `textIsEmpty` を当てません。空欄は `valueIsEmpty` で判定します。
 - [否定系と空判定は可視性を見ず、scroll: も無い](../commands/value_assertion_ja.md#注意点) — テキストの検証と同じ規則です。
-- [チェーンした検証は掴んだ時点の値でまず判定する](../commands/value_assertion_ja.md#注意点) — 満たしていなければデバイスをポーリングします。
+- [チェーンした検証は取得した時点の値でまず判定する](../commands/value_assertion_ja.md#注意点) — 満たしていなければデバイスをポーリングします。
 
 ### まとめて検証(verify)
 - [アサーションが0個だと inconclusive(結論なし)になる](../commands/verify_ja.md#注意点) — passed でも failed でもなく、シナリオも中断しません。レポートには理由が出るので、検証を入れ忘れていないか確認します。
@@ -246,7 +246,7 @@
 ## セレクタ
 
 ### セレクタ式
-- [スコープ(>>)の祖先は木の上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
+- [スコープ(>>)の祖先はツリーの上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
 
 ### 型付きセレクタ(Sel)
 - [綴り誤りは Sel ではコンパイルエラーになる](../selector/typed_selector_ja.md#注意点) — 文字列版では実行時の構文エラーか、黙って生ラベル扱いになります。
@@ -255,12 +255,12 @@
 
 ## UI 部品ごとの癖(現時点の制約)
 
-### モーダルが開いている間、背後の画面は木から消える
-- [React Native の accessible な祖先の下は iOS で1要素に畳まれる](ui_component_patterns_ja.md#モーダルが開いている間背後の画面は木から消える) — `Tooltip` や `BottomSheetModal` の中身が iOS でだけ木から消えます。直せるのはアプリ側の `accessible={false}` だけです。
-- [Flutter の iOS はオーバーレイを出すと a11y の矩形が縮む](ui_component_patterns_ja.md#モーダルが開いている間背後の画面は木から消える) — xcuitest モードでは補正されずタップがずれます。別の画面へ移って戻ってから操作します(既定の inapp-boost は自動補正)。
+### モーダルが開いている間、背後の画面はツリーから消える
+- [React Native の accessible な祖先の下は iOS で1要素に畳まれる](ui_component_patterns_ja.md#モーダルが開いている間背後の画面はツリーから消える) — `Tooltip` や `BottomSheetModal` の中身が iOS でだけツリーから消えます。直せるのはアプリ側の `accessible={false}` だけです。
+- [Flutter の iOS はオーバーレイを出すと a11y の矩形が縮む](ui_component_patterns_ja.md#モーダルが開いている間背後の画面はツリーから消える) — xcuitest モードでは補正されずタップがずれます。別の画面へ移って戻ってから操作します(既定の inapp-boost は自動補正)。
 
 ### ボトムシート
-- [RN の BottomSheet を半分開いた状態では iOS の探索がシートを伸ばせない](ui_component_patterns_ja.md#ボトムシート) — 探す前にシートの見出しから上へ払って全開にしてから探します。
+- [RN の BottomSheet を半分開いた状態では iOS の探索がシートを伸ばせない](ui_component_patterns_ja.md#ボトムシート) — 探す前にシートの見出しから上へスワイプして全開にしてから探します。
 
 ### 選択式の入力欄(読み取り専用ドロップダウン)
 - [候補の行に id が無く、ラベルで選ぶ](ui_component_patterns_ja.md#選択式の入力欄読み取り専用ドロップダウン) — Android View の `MaterialAutoCompleteTextView` と Flutter の `DropdownMenu` は、候補をラベルで指します。
@@ -273,7 +273,7 @@
 - [Android は全フレームワークで起きない](ui_component_patterns_ja.md#引っ張って更新) — `scrollToTop()` / `scrollToBottom()` は a11y のスクロール操作で送るので、端を越えた引っ張りにならないためです。
 
 ### アニメーション(フェード・切り替え)
-- [Flutter の AnimatedOpacity は非表示にしても木から消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — 「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
+- [Flutter の AnimatedOpacity は非表示にしてもツリーから消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — 「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
 
 ### 画面遷移(ナビゲーション)
 - [Android View の NavHostFragment でツールバーの戻るが1つ戻らないことがある](ui_component_patterns_ja.md#画面遷移ナビゲーション) — 調査中です。複数階層を検証するシナリオでは、ツールバーのタップではなく OS の `back()` を使います。
@@ -282,7 +282,7 @@
 - [RN の collapsible-tab-view でタブを替えた直後、iOS では先頭の行がヘッダの裏に居る](ui_component_patterns_ja.md#伸縮するヘッダ) — 覆いを避けて送れないので、ヘッダの下に見えている行を押します。
 
 ### 入力の種類
-- [Android は非フォーカスのポップアップの中身が木に出ないことがある](ui_component_patterns_ja.md#入力の種類) — オートコンプリート候補やツールチップは見えない画面があります。候補を直接検証できないときはアプリの echo で確定後の値を確かめます。
+- [Android は非フォーカスのポップアップの中身がツリーに現れないことがある](ui_component_patterns_ja.md#入力の種類) — オートコンプリート候補やツールチップは見えない画面があります。候補を直接検証できないときはアプリの echo で確定後の値を確かめます。
 - [Android の Flutter のオートコンプリートは候補の位置がずれ、tap が選ばずに緑になる](ui_component_patterns_ja.md#入力の種類) — 候補を押した後は必ず選んだ値を `textIs` などで確かめます。
 - [Android は一部の入力欄で ACTION_SET_TEXT を拒否する](ui_component_patterns_ja.md#入力の種類) — Material の `SearchView` などで起きます。回避策は無く、`type` は通常の打鍵で入力されます。
 - [RN の iOS(inapp-boost)で欄の直下の候補を押せないことがある](ui_component_patterns_ja.md#入力の種類) — 調査中です。候補がキーボードに隠れない画面構成にするか、確定後の値をアプリの echo で確かめます。
@@ -294,7 +294,7 @@
 - [RN の FlatList の onEndReached は初期表示だけで発火することがある](ui_component_patterns_ja.md#無限スクロール) — 回避策は無く、初期読み込み件数を厳密に assert するならアプリの対処に依存します。
 
 ### スクロールで隠れるバー
-- [Flutter の AnimatedSlide で隠すバーは木では元の位置に居ると申告される](ui_component_patterns_ja.md#スクロールで隠れるバー) — 見た目には無いボタンを押すことがあります。隠れている間は押さず、バーが出たことを確かめてから押します。
+- [Flutter の AnimatedSlide で隠すバーはツリーでは元の位置に居ると申告される](ui_component_patterns_ja.md#スクロールで隠れるバー) — 見た目には無いボタンを押すことがあります。隠れている間は押さず、バーが出たことを確かめてから押します。
 
 ### Link
 - [index](../../index_ja.md)

@@ -32,7 +32,7 @@ func login(user: String, password: String) {
 }
 ```
 
-掴んだ要素に対して働くヘルパーは `extension FTElement` に書くと、`select("#x").tapAndConfirm("#y")` の形で
+取得した要素に対して働くヘルパーは `extension FTElement` に書くと、`select("#x").tapAndConfirm("#y")` の形で
 チェーンできます。
 
 よくある使い方:
@@ -41,7 +41,7 @@ func login(user: String, password: String) {
   チームの取り決めをここに閉じ込めます。
 - **画面ごとのまとまり**: 画面ごとに関数をファイルへ分けます(Page Object に近い形)。`@FTCommand` を付けられるのは
   トップレベルの関数と `extension` の中のメソッドだけで、`class` / `struct` の中には付けられません。
-- **定番部品の操作**: 日付ピッカー・途中まで払うスワイプ・[`gesture`](../commands/gestures_ja.md) で組んだ独自のマルチタッチなど。
+- **定番部品の操作**: 日付ピッカー・途中までのスワイプ・[`gesture`](../commands/gestures_ja.md) で組んだ独自のマルチタッチなど。
   部品ごとの癖は [UI 部品ごとの書き方と癖](ui_component_patterns_ja.md) にあります。
 
 レポートに並ぶのは関数の中の個々のコマンドで、関数の名前は出ません。まとまりとして見せたいときは
@@ -66,8 +66,8 @@ procedure("テスト用の注文を API で作る") {
   前のステップが失敗していても実行されます)。
 - 出るか分からないアプリ内のお知らせ・キャンペーンは、`beforeEach()` で
   [`irregularHandler`](../commands/irregular_handler_ja.md) を宣言しておくと自動で閉じます。
-  割り込みに吸われたかもしれない操作をツールは撃ち直さないので、復帰が要るなら関数で書きます。
-  **もう一度実行しても安全な操作(画面遷移のタップなど)だけ**にしてください。送信・購入を撃ち直すと二重に実行されることがあります。
+  割り込みに遮られたかもしれない操作をツールは再試行しないので、復帰が要るなら関数で書きます。
+  **もう一度実行しても安全な操作(画面遷移のタップなど)だけ**にしてください。送信・購入を再試行すると二重に実行されることがあります。
 - クラスの前後処理は `beforeEach()` / `afterEach()`、run で1回だけの準備は `beforeAll()`、デバイスごとに1回だけの準備と片付けは
   `setUpDevice()` / `tearDownDevice()` に書きます。
 
@@ -102,7 +102,7 @@ procedure("テスト用の注文を API で作る") {
 ## run の前後で処理を走らせる
 
 run の前後でデータを用意する(シードの投入・準備用 API の呼び出しなど)・後で片付けるには、テストプロジェクトの
-ワークスペースにスクリプトを置きます。**サーバー・DB・スタブはスクリプトで起こしません**。`scripts/compose.yaml` に宣言します
+ワークスペースにスクリプトを置きます。**サーバー・DB・スタブはスクリプトで起動しません**。`scripts/compose.yaml` に宣言します
 ([アプリが依存するサービス](services_ja.md))。
 
 | ファイル | 走るとき |
@@ -121,7 +121,7 @@ run の前後でデータを用意する(シードの投入・準備用 API の�
   - `~/.ssh` などの秘密は読めません。
   - 繋げるのは、compose.yaml で公開したポート(`127.0.0.1:<port>`)と、プロキシ経由の `sandbox.allowedDomains` だけです。
     ブリッジ・adb・Docker には繋げません。
-  - **サーバー・DB・スタブをスクリプトで起こさないでください**(`docker` / `container` は使えません)。compose.yaml に
+  - **サーバー・DB・スタブをスクリプトで起動しないでください**(`docker` / `container` は使えません)。compose.yaml に
     宣言します。コンテナの中の操作は `fleetest-services` です
     ([アプリが依存するサービス](services_ja.md#スクリプトからコンテナを操作する))。
   - 背景に残したプロセスは、run の後に止められます。
@@ -147,7 +147,7 @@ run の前後でデータを用意する(シードの投入・準備用 API の�
 |---|---|
 | デバイスへの新しい種類の操作・新しく取得する情報 | ドライバとブリッジの機能なので、fleetest 本体の変更が要ります。組み込みのコマンドを組み合わせて書けるものだけが、自分で足せる範囲です |
 | シナリオから任意のファイルを書く・ホームの秘密を読む | シナリオはサンドボックスの中で動きます。書くときは [`TestLog.directoryForLog` / `directoryForTemp`](../commands/test_log_ja.md) を使います |
-| シナリオから他のアプリを起こす・adb や simctl を直接使う | 決まった操作だけを fleetest 本体が代わりに行います。adb はこの Mac の設定 `allowDirectAdb` で開けられます([サンドボックスの既定](../running/sandbox_access_ja.md)) |
+| シナリオから他のアプリを起動する・adb や simctl を直接使う | 決まった操作だけを fleetest 本体が代わりに行います。adb はこの Mac の設定 `allowDirectAdb` で開けられます([サンドボックスの既定](../running/sandbox_access_ja.md)) |
 | 独自コマンドを `ft_batch` で実行する | `ft_batch` が実行するのは組み込みのコマンドだけです。独自コマンドはシナリオの `.swift` に書いて実行します |
 | シェルの環境変数(トークンなど)をシナリオで読む | シナリオには fleetest が使う変数しか渡りません。秘密は `account()` のこの Mac 側のファイルに置きます |
 

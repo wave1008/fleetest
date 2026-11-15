@@ -32,7 +32,7 @@ class 言語を切り替えられること {
     @Test("日本語とEnglishを切り替えられる")
     func S0010() {
         scenario {
-            scene(1, "アカウントを開き日本語を基準化") {
+            scene(1, "アカウントを開き日本語に初期化") {
                 action {
                     // 前回残留が English でも日本語へ正規化(既に日本語なら無害)
                     tap("#btn_toggle_language_ja")
@@ -49,7 +49,7 @@ class 言語を切り替えられること {
                     exist("Log in / Sign up")  // UI が英語化した
                 }
             }
-            scene(3, "後始末: 日本語に戻す") {
+            scene(3, "後処理: 日本語に戻す") {
                 action {
                     tap("#btn_toggle_language_ja")
                 }.expectation {

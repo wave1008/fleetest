@@ -37,14 +37,14 @@ hinge(130)              // 半開きのブック姿勢
 
 - **iOS の inapp-boost モード(既定)と Android では、`home()`・`appSwitcher()`・`tapAppIcon()`・`openURL()`・`launchApp(url:)`・`back()` の後は、アプリを前面へ戻してから操作します。** iOS では、テスト対象のアプリが前面に無い間(ホーム画面・別のアプリ・アプリスイッチャーが出ている間)は、アプリを読む・触る step(`back()` を含む)は
   いつもの待ち時間のあいだアプリが戻るのを待ち、戻らなければ見えないアプリへ操作せずに失敗します。
-  Android の木は前面の画面そのものなので、同じ扱いになるのは「無い」で通ってしまう `notExist`・`countIs(0)`・`select`・条件の判定(`ifCanSelect` 等)と、
+  Android のツリーは前面の画面そのものなので、同じ扱いになるのは「無い」で通ってしまう `notExist`・`countIs(0)`・`select`・条件の判定(`ifCanSelect` 等)と、
   別のアプリへ届いてしまうスクロールの送りだけです(それ以外の読み・操作は前面の画面に効きます。ホーム画面のアイコンを押す・読むこともできます)。断られたときの `failureKind` は `app-in-background`、アプリスイッチャーが開いている間は
   `system-ui-covered` です。`tapAppIcon()` か `launchApp()` で戻してください。
   `home()` 自体も、アプリが前面から外れたことを確かめてから終わります(外れなければ押し直し、3回押しても前面のままなら失敗します)。
 - **`back(settle:)` の確実さは画面によります。** iOS では、システムのナビゲーションバーを持つ画面は
   決定的に戻れますが、フレームワーク独自のナビゲーション(自前描画のナビバー等)を持つ画面は
   エッジスワイプに落ち、これは interactive pop に対応している画面でしか成立しません —
-  戻れない画面で `back(settle:)` を撃たないでください(代わりにアプリ内の戻るボタンを `tap()` します)。
+  戻れない画面で `back(settle:)` を実行しないでください(代わりにアプリ内の戻るボタンを `tap()` します)。
   Android では、ソフトキーボードが開いていると1回目の `back(settle:)` はキーボードを閉じるのに
   消費されます(OS の仕様)。入力欄にフォーカスが残っている可能性があるときは2回呼んでください。
 - `back()` の前後で画面が変わらなかったときは、ステップに注記(`the tree is identical to the one before back …`)が付きます(アプリ独自のナビゲーションが
@@ -57,10 +57,10 @@ hinge(130)              // 半開きのブック姿勢
   アプリ)は、送り切った先の App ライブラリの検索欄を押して出る名前順の一覧から開きます(一覧は行が見えるまで送ります)。その一覧に名前の無い行があるとき(iOS がアプリの名前を欠いたまま行を描くことがあります)は、App ライブラリの見えているカテゴリのフォルダも順に開いて探します。最後まで見つからなければ `"App icon not found.(name)"` で
   失敗します。アイコンは、位置が連続2回の画面読み取りで同じになってからタップします(動いている
   ドロワーやページはタップを飲むため)。アイコンが自分のアプリのものなら、その後アプリが前面に
-  来るまで待ち、来なければ(撃ち直さずに)失敗します。
-- **iOS の `tapAppIcon` は、ホーム画面の手前に出ているシステムアラートを名指して失敗します。** アラートが出ている間は木にアラートの中の要素しか載らないので、アイコンは見つかりません。アイコンが木に無く、アラートが手前に出ているときは、ページを送り続けずにアラートを名指して失敗します(`App icon not found.(name) — … is in front of the home screen, so the icons are not in the element list and the search was not run`)。シナリオの中でアラートに答えるか、アラートが出るステップの前に [`iosAlertHandler`](./ios_alert_handler_ja.md) を登録してください。
-- **`tapAppIcon` は、ホーム画面の木が表示中の画面と一致しないときは撃ちません。** iPhone Duo の Simulator と Xcode 27.2 RC の組み合わせで、内側の画面の配置が木に混ざる事象を確認しています。内蔵画面が2枚の Simulator では木の画面の大きさを表示中の画面と照合し、違えば `the home screen tree reports a … screen but the shown display is …` で失敗します。アイコンの中心が画面の外に載っているときは画面の待ち時間まで読み直し、直らなければ `the home screen reports the icon outside the screen …` で失敗します(当たらない所を撃ちません)。
-- **`terminateApp()`・`removeApp()`・`clearAppData()` で止めた後(アプリが動いていないとき)の iOS の扱い**(Simulator ではアプリが動いているかを確かめます。実機では確かめられないので、止めた後にアプリを起こしうる操作を挟んでいないときだけ同じ扱いになります。止めた後は `launchApp()` で起こすのが確実です): `back()` は撃たずに失敗します(`back()` はアプリを起こしてしまいますが、人は動いていないアプリへ「戻る」ことはできません)。`launchApp()` か `tapAppIcon()` で起こしてください。inapp-boost モードの `tapAppIcon()` は、アイコンを見つけた後、押す代わりにアプリを起動し、ステップに注記(`the app was not running, so after finding its icon this launched the app …`)が付きます(アイコンから起きたアプリには inapp-boost モードの操作の口が載らず、後の手順が全部届かないため)。アプリが背面で動いているだけなら、これまでどおりアイコンを押します。inapp-boost モードでは、ほかの操作(`rotateTo` など)も、止めたアプリを起こさずに `The app under test (…) is not running — this scenario stopped it — so this step was not sent` で失敗します。
+  来るまで待ち、来なければ(再試行せずに)失敗します。
+- **iOS の `tapAppIcon` は、ホーム画面の手前に出ているシステムアラートを名指して失敗します。** アラートが出ている間はツリーにアラートの中の要素しか載らないので、アイコンは見つかりません。アイコンがツリーに無く、アラートが手前に出ているときは、ページを送り続けずにアラートを名指して失敗します(`App icon not found.(name) — … is in front of the home screen, so the icons are not in the element list and the search was not run`)。シナリオの中でアラートに答えるか、アラートが出るステップの前に [`iosAlertHandler`](./ios_alert_handler_ja.md) を登録してください。
+- **`tapAppIcon` は、ホーム画面のツリーが表示中の画面と一致しないときは実行しません。** iPhone Duo の Simulator と Xcode 27.2 RC の組み合わせで、内側の画面の配置がツリーに混ざる事象を確認しています。内蔵画面が2枚の Simulator ではツリーの画面の大きさを表示中の画面と照合し、違えば `the home screen tree reports a … screen but the shown display is …` で失敗します。アイコンの中心が画面の外に載っているときは画面の待ち時間まで読み直し、直らなければ `the home screen reports the icon outside the screen …` で失敗します(当たらない所へ送りません)。
+- **`terminateApp()`・`removeApp()`・`clearAppData()` で止めた後(アプリが動いていないとき)の iOS の扱い**(Simulator ではアプリが動いているかを確かめます。実機では確かめられないので、止めた後にアプリを起動しうる操作を挟んでいないときだけ同じ扱いになります。止めた後は `launchApp()` で起動するのが確実です): `back()` は実行せずに失敗します(`back()` はアプリを起動してしまいますが、人は動いていないアプリへ「戻る」ことはできません)。`launchApp()` か `tapAppIcon()` で起動してください。inapp-boost モードの `tapAppIcon()` は、アイコンを見つけた後、押す代わりにアプリを起動し、ステップに注記(`the app was not running, so after finding its icon this launched the app …`)が付きます(アイコンから起きたアプリには inapp-boost モードの操作の口が載らず、後の手順が全部届かないため)。アプリが背面で動いているだけなら、これまでどおりアイコンを押します。inapp-boost モードでは、ほかの操作(`rotateTo` など)も、止めたアプリを起動せずに `The app under test (…) is not running — this scenario stopped it — so this step was not sent` で失敗します。
 - **`rotateTo` が契約するのはアプリの UI の向き**であって、実機の傾きではありません —
   シナリオが読む frame はアプリ座標系で、iOS / Android のどの UI フレームワークでも同じ意味で
   振る舞います。値は `.portrait` / `.landscape` の2つだけです(左右の区別はありません)。

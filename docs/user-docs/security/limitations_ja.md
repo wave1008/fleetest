@@ -22,7 +22,7 @@
 - ローカルのプロキシ(通信の解析ツール、社内プロキシのエージェント、SSH のポートフォワードなど):
   `allowedDomains` を迂回して任意の宛先へ出られます
 - TCP で公開した Docker の API(`0.0.0.0:2375` / `2376`): run のサービス
-  ([compose.yaml](../reference/writing/services_ja.md))のために起こしたコンテナがそこへ届き、この Mac のファイルを
+  ([compose.yaml](../reference/writing/services_ja.md))のために起動したコンテナがそこへ届き、この Mac のファイルを
   マウントできます。その状態では fleetest はサービスを起動せず、`fleetest doctor` が警告します
 
 シナリオでできないこと(一時フォルダへの書き込み・環境変数の読み取りなど)と代わりの方法は、[サンドボックスを確かめて、必要な穴をあける](sandbox_ja.md)の手順で試せます。

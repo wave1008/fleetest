@@ -23,7 +23,7 @@ fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。
 |---|---|
 | タップ・アプリアイコン | `tap`(+`holdSeconds:`)、`tapAppIcon` |
 | 存在検証 | `exist`、`appIs` |
-| 掴んだ要素 | `lastElement` |
+| 取得した要素 | `lastElement` |
 | キーボード・入力 | `pressEnter`、`clearInput`、`hideKeyboard`(iOS の閉じ方が違う)、`keyboardIsShown` / `keyboardIsNotShown` |
 | 属性・状態の検証 | `idIs`、`enabledIsTrue` / `enabledIsFalse`、`checkIsON` / `checkIsOFF` |
 | テキスト・値の検証 | `textIs` / `textIsNot` / `textContains(Not)` / `textStartsWith(Not)` / `textEndsWith(Not)` / `textMatches(Not)` / `textMatchesDateFormat` / `textIsEmpty` / `textIsNotEmpty`、`valueIs…` も同じ10種一式 |
@@ -48,7 +48,7 @@ fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。
 | `sendKeys` | `type("…")` / `type(sel, "…")` | `type(sel, "…", replace: true)` で「クリアしてから入力」を1コマンドに畳める(Shirates は2コマンドに分かれる) |
 | `pressBack` | `back()` | 両 OS で使える(iOS はナビゲーションバーの戻るボタンが無ければエッジスワイプに落ちる) |
 | `pressHome` | `home()` | 両 OS で使える |
-| `irregularHandler { }`(ラムダ登録) | `irregularHandler(sel, dismiss:, maxDismissals:)` | ラムダではなくセレクタで宣言する形。出るか不定のアプリ内モーダルを出るたびに自動で閉じる |
+| `irregularHandler { }`(ラムダ登録) | `irregularHandler(sel, dismiss:, maxDismissals:)` | ラムダではなくセレクタで宣言する形。出るかどうか決まっていないアプリ内モーダルを出るたびに自動で閉じる |
 | `goPreviousApp` | `appSwitcher()` | アプリスイッチャーを開くだけで、直前のアプリへの切り替えまでは行わない |
 | `displayedIs` | `requireVisible:` 引数 + 実行プロファイルの `fmTextVisibilityCheck` / `ocrTextVisibilityCheck` | 可視性の確認は独立したアサーションではなく、各コマンドの引数として指定する |
 | `doUntilTrue` | `doUntilTrue` | ブロックの throw は即失敗(Shirates の既定はリトライ)。`retryOnError` 等の引数は無い |
@@ -115,11 +115,11 @@ Shirates に対応物が無いもの:
 | `clearAppData(bundleID?)` | 再インストール不要でアプリのデータと権限を消す(初回起動・権限ダイアログのテストに) |
 | `openURL(url)` / `launchApp(url:)` | ディープリンク配送(アプリ再起動あり・なしの両方) |
 | `rotateTo(.landscape)` | 画面を回転する。シナリオ終了時に元の向きへ自動で戻る |
-| `waitForSettle(sel?, quietSeconds:, throwsException:, waitSeconds:)` | 画面(または要素の範囲)の画素が止まりきり、木も追いつくまで待つ —— スクロールの慣性が止まりきった画面で画像の判定やスクリーンショットをしたいときに([wait](../reference/commands/wait_ja.md)) |
+| `waitForSettle(sel?, quietSeconds:, throwsException:, waitSeconds:)` | 画面(または要素の範囲)のピクセルが止まりきり、ツリーも追いつくまで待つ —— スクロールの慣性が止まりきった画面で画像の判定やスクリーンショットをしたいときに([wait](../reference/commands/wait_ja.md)) |
 | `hold(sel, holdSeconds:) { }` | 押している間だけ出る部品(ツールチップ等)の確認用。指が下がっている間にブロックの中身が走る([gestures](../reference/commands/gestures_ja.md)) |
 | `dataFile(filename)` / `addMedia(filename)` | データセットのフォルダのファイル(CSV・JSON・画像)の `URL` を得る / 画像・動画を写真ライブラリへ入れる(iOS 実機は失敗)([dataset](../reference/commands/dataset_ja.md)) |
 | `httpRequest(url, method:, headers:, body:, waitSeconds:)` | サンドボックスの中から外部の API を叩く。4xx/5xx は失敗にせず、通信の失敗と時間切れは失敗にする([http_request](../reference/commands/http_request_ja.md)) |
-| `tap(sel, linkText:)` | 段落の中の文中リンクを、要素の中での文字列の位置で押す(木の子孫 → OCR の順。見つからなければ失敗) |
+| `tap(sel, linkText:)` | 段落の中の文中リンクを、要素の中での文字列の位置で押す(ツリーの子孫 → OCR の順。見つからなければ失敗) |
 | `iosAlertHandler(alert:, button:)` | iOS のシステムアラート(権限確認等)を自動で閉じる(別プロセスなので `irregularHandler` では扱えない) |
 | `@Draft("理由")` | 実装中(未完成)マーク。`@Deleted` と同様に一括実行から除外されるが、完全一致 ID なら実行できる |
 | `group("名前") { }` | 一連のステップをレポート上でラベル付けする。実行・失敗の扱いは変わらない |

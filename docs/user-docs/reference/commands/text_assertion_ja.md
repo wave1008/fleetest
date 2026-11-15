@@ -4,14 +4,14 @@
 
 要素のラベル(表示テキスト)を検証します。
 
-**対象は常に「直前に掴んだ要素」で、これらのコマンドにセレクタは渡しません。**
-まず `select`(または `exist` / `tap` など)で要素を掴み、そのうえで検証します。
+**対象は常に「直前に取得した要素」で、これらのコマンドにセレクタは渡しません。**
+まず `select`(または `exist` / `tap` など)で要素を取得し、そのうえで検証します。
 次の3つの書き方はまったく同じ意味で、記録されるステップもデバイス往復の回数も同じです。
 
 ```swift
 select("#msg").textIs("完了")                 // 戻り値へチェーン
 select("#msg"); lastElement.textIs("完了")    // lastElement を明示
-select("#msg"); textIs("完了")                // 暗黙(直前に掴んだ要素)
+select("#msg"); textIs("完了")                // 暗黙(直前に取得した要素)
 ```
 
 引数は、肯定形が `(期待値, requireVisible:, strict:, waitSeconds:)`、否定形が `(期待値, strict:, waitSeconds:)`、空判定が `(strict:, waitSeconds:)` です(`textMatchesDateFormat` は `strict:` を取りません。下の表のとおり)。セレクタを渡す形はありません
@@ -31,7 +31,7 @@ select("#msg"); textIs("完了")                // 暗黙(直前に掴んだ要�
 | `textMatchesDateFormat(format, requireVisible:, waitSeconds:)` | — | `DateFormatter` の書式文字列(例: `"yyyy/MM/dd"`) |
 | `textIsNotEmpty(strict:, waitSeconds:)` | `textIsEmpty(strict:, waitSeconds:)` | 空でない / 空 |
 
-上記はすべて `exist` / `select` の戻り値にチェーンでき、直前に掴んだ要素に効く
+上記はすべて `exist` / `select` の戻り値にチェーンでき、直前に取得した要素に効く
 暗黙形(自由関数。引数はチェーン形と同じ)も持ちます。
 
 ## 例
@@ -65,7 +65,7 @@ exist("#total")
   — 「見えていないこと」は画面照合できないためです。
 - **これらに `scroll:` はありません。** 静止した画面を検証するためのコマンドなので、
   対象を先に `select(selector, scroll: .down)` などでビューに入れてから検証してください。
-- `exist(…)` / `select(…)` / `lastElement` にチェーンした検証は、まず掴んだ時点の値で判定します。
+- `exist(…)` / `select(…)` / `lastElement` にチェーンした検証は、まず取得した時点の値で判定します。
   それで条件を満たしていればデバイスを見に行きません(ステップは記録され、説明に
   `(from the grabbed value)` が付きます)。満たしていなければ `waitSeconds` までポーリングします。
 

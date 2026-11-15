@@ -406,7 +406,7 @@ fleetest run --profile <実行プロファイル> --scenario <シナリオID>
 実行プロファイルのデバイスに `"machine": "M1Max"` が書いてあれば、`--runner` を付けなくても
 ランナー機で実行されます。この1回だけ別のマシンへ送りたいときは `--runner M1Max` を付けます。
 
-Android の Emulator は、run が開始前に起動していないものを自動で起こします。事前に温めておきたいときだけ、次を実行します(任意):
+Android の Emulator は、run が開始前に起動していないものを自動で起動します。事前に温めておきたいときだけ、次を実行します(任意):
 
 ```bash
 fleetest remote exec M1Max -- devices up --profile <実行プロファイル>
@@ -470,7 +470,7 @@ fleetest remote exec M1Max -- devices up --profile <実行プロファイル>
 | `could not tell which installed Xcode to dispatch with: … match this Mac's product version` | ランナー機に、手元の Mac の製品版に一致する Xcode が複数ある | 使わせたい方を固定します: `fleetest remote machines add <マシン名> --host <宛先> --developer-dir <.app へのパス>`(作業ベースディレクトリを変えている場合は `--dir <パス>` も付けます) |
 | `could not tell which installed Xcode to dispatch with: none of the …` | ランナー機に手元と一致する Xcode が1つも無い(メッセージが見つかった Xcode を全部並べます) | その製品版の Xcode をランナー機へ追加で入れます(他の版は消さなくて構いません)。固定しても直りません |
 | `no runner workspace at …` | ランナー機にあなたの作業場所がまだ無い | `fleetest remote setup M1Max` を1回実行します |
-| `no running emulator for AVD …` | Android の Emulator が起動していない(run の開始前の自動起動でも起こせなかった) | ステップ6の `devices up` で起動を試し、出力を確かめます |
+| `no running emulator for AVD …` | Android の Emulator が起動していない(run の開始前の自動起動でも起動できなかった) | ステップ6の `devices up` で起動を試し、出力を確かめます |
 | `app package not found at …` | 手元の `appPath` にアプリが無い | 手元でアプリをビルドするか、`appPath` を直します |
 | タイルが「状態不明」のまま | ランナー機の fleetest の版が古い、または SSH で接続できない | ステップ3をもう一度実行し、ツールバーの「モニター再起動」を押します |
 

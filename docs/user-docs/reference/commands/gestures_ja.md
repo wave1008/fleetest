@@ -13,7 +13,7 @@
 | `pinchOut(sel?, scale: 2.0, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | 2本指を開きます = 拡大。`scale` は 1 より大きい値のみ指定できます。`durationSeconds` の上限は既定 10 秒で、`maxGestureSeconds:` を渡すとこの1回だけ最大 60 秒まで上げられます。 |
 | `pinchIn(sel?, scale: 0.5, durationSeconds: 0.5, maxGestureSeconds:, settle:, waitSeconds:)` | 2本指を閉じます = 縮小。`scale` は 0 より大きく 1 未満の値のみ指定できます。上限は `pinchOut` と同じです。 |
 | `gesture(sel?, maxGestureSeconds:settle:waitSeconds:) { FTFinger(x:y:).move(x:y:durationSeconds:).hold(seconds:) }` | 指1本以上の経路を、離さない1本のタッチ列として再生します —— パターンロック・長押しからのドラッグ・2本指回転など、`pinchOut`/`pinchIn`/`doubleTap`/`swipeBy` で表せない動き用です。 |
-| `setPickerValue(sel, value, waitSeconds:)` | ピッカーのホイール1本 —— iOS の `pickerWheel`(日付・時刻ピッカー、`UIPickerView`)か Android の `NumberPicker`(`pickerWheel` として木に出ます)—— を値で合わせます。ホイールのドラッグや入力欄への打鍵は要りません。掴んだ要素を返します。下の「`setPickerValue`」の節を参照してください。 |
+| `setPickerValue(sel, value, waitSeconds:)` | ピッカーのホイール1本 —— iOS の `pickerWheel`(日付・時刻ピッカー、`UIPickerView`)か Android の `NumberPicker`(`pickerWheel` としてツリーに現れます)—— を値で合わせます。ホイールのドラッグや入力欄への打鍵は要りません。取得した要素を返します。下の「`setPickerValue`」の節を参照してください。 |
 | `setSliderValue(sel, 数, waitSeconds:)` | スライダーを値で1回で合わせます。値はスナップショットの value に出る数です(`%` は無視して数で比べます) |
 | `hold(sel, holdSeconds: 3, maxGestureSeconds:, settle:, waitSeconds:, scroll:, maxSwipes:) { … }` | 指を下げたままブロックを実行します(押している間だけ出る部品の確認用)。`holdSeconds` の既定は 3 秒です。下の「`hold`」の節を参照してください。 |
 
@@ -137,7 +137,7 @@ hold("#btn_tooltip_anchor", holdSeconds: 3) {
   - **「—」** は未確認です。
   - MCP からの使い方は [MCP サーバー](../tools/mcp_server_ja.md) を参照してください。
 - **ダブルタップが効かない構成では、拡大の確認に `pinchOut` を使ってください。** 地図・写真の
-  ように、ダブルタップが「拡大」を意味する画面なら、`pinchOut` で同じ拡大を起こして確かめられます。
+  ように、ダブルタップが「拡大」を意味する画面なら、`pinchOut` で同じ拡大を再現して確かめられます。
   ピンチは Compose を含む全フレームワークで、どちらのモードでも動きます:
 
   ```swift

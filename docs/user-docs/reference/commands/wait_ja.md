@@ -11,7 +11,7 @@
 | `wait(秒)` | 固定待ち。小数可。 |
 | `waitForDisplay(sel, waitSeconds: 15)` | 要素が表示されるまで待ちます(**スクロールしません**)。戻り値は `FTElement` で、`exist` と同様にチェーンできます。見つからなければシナリオを失敗させます。 |
 | `waitForClose(sel, waitSeconds: 15)` | 要素が消えるまで待ちます(**スクロールしません**)。`sel` は省略できません(直前セレクタを再利用する省略形はありません)。 |
-| `waitForSettle(sel?, quietSeconds:, throwsException: true, waitSeconds: 15)` | 画面(`sel` を渡せばその要素の枠)の画素が `quietSeconds` のあいだ1つも変わらなくなるまで待ち、続けてアクセシビリティの木が追いつくまで待ってから `true` を返します。戻り値は `Bool` です(`@discardableResult`。`if` の条件に使えます)。詳細は下の「waitForSettle」。 |
+| `waitForSettle(sel?, quietSeconds:, throwsException: true, waitSeconds: 15)` | 画面(`sel` を渡せばその要素の枠)のピクセルが `quietSeconds` のあいだ1つも変わらなくなるまで待ち、続けてアクセシビリティツリーが追いつくまで待ってから `true` を返します。戻り値は `Bool` です(`@discardableResult`。`if` の条件に使えます)。詳細は下の「waitForSettle」。 |
 
 ## 例
 
@@ -50,13 +50,13 @@ waitForSettle(_ selector: String? = nil, quietSeconds: Double? = nil,
 ```
 
 画面の動きが止まるまで待ちます。**書いたときだけ待ちます** —— 通常の操作(`tap`・`swipe`・`scroll*` など)は
-画素の静止を待ちません。絵を読むステップの直前に書いてください。
+ピクセルの静止を待ちません。絵を読むステップの直前に書いてください。
 
 - 画像の判定(`findImage` / `existImage` / `imageIs`)や、OCR を使うテキストの可視性検証の前
-- 画素単位の位置に依存する操作の前
+- ピクセル単位の位置に依存する操作の前
 - レポート用のスクリーンショットの前
-- **Compose Multiplatform・Flutter の iOS アプリで、自分で払った(`scrollDown()`・`flick*` など)直後に要素をタップするとき**
-  —— 慣性が残っている間のタッチは、スクロール容器が「慣性を止める」のに使ってしまい、タップとして届きません。
+- **Compose Multiplatform・Flutter の iOS アプリで、自分でスクロールした(`scrollDown()`・`flick*` など)直後に要素をタップするとき**
+  —— 慣性が残っている間のタッチは、スクロールコンテナが「慣性を止める」のに使ってしまい、タップとして届きません。
   探索つきの操作(`tap(…, scroll:)`・`scrollTo`)はツールが自動で処置するので不要です
 
 特に、スクロールやフリックの直後に慣性がまだ内容を動かしているときに効きます。
@@ -65,9 +65,9 @@ waitForSettle(_ selector: String? = nil, quietSeconds: Double? = nil,
 
 次の2段を、`waitSeconds` の上限の中で順に待ちます。
 
-1. **画像** —— 比べる範囲の画素が `quietSeconds` のあいだ1つも変わらないこと。
-2. **木** —— 絵が止まったあと、アクセシビリティの木が追いつくこと(範囲に入る要素だけを比べた木のスナップショットが
-   2回連続で同一)。木は絵より遅れることがあり、そのままだと次のステップが古い木で要素を解決してしまうためです。
+1. **画像** —— 比べる範囲のピクセルが `quietSeconds` のあいだ1つも変わらないこと。
+2. **ツリー** —— 絵が止まったあと、アクセシビリティツリーが追いつくこと(範囲に入る要素だけを比べたツリーのスナップショットが
+   2回連続で同一)。ツリーは絵より遅れることがあり、そのままだと次のステップが古いツリーで要素を解決してしまうためです。
 
 両方が上限内に済むと `true` を返します。
 
@@ -77,8 +77,8 @@ waitForSettle(_ selector: String? = nil, quietSeconds: Double? = nil,
 |---|---|
 | `selector` | 省略 = 画面全体。渡すとその要素の枠が比べる範囲になります。止まらない物(スピナー・シマーの骨組みなど)を範囲から外したいときは、それを含まない要素を渡します。要素が見つからなければ、ステップは**必ず失敗**します(`throwsException` を参照)。 |
 | `quietSeconds` | 画面がこの時間のあいだ変わらなければ「止まった」とみなす**基準**です。範囲は 0.1〜5 秒。省略時の既定はアプリの UI フレームワークで決まります: iOS の Compose Multiplatform(とフレームワークを判定できないとき)は **0.8 秒**、iOS のそれ以外のフレームワークと Android は **0.5 秒**。慣性の終わりに出る描画の間隔の最大の実測(Compose Multiplatform の 1px ずつの這い 650ms・SwiftUI 368ms・Android の負荷時 385ms)に約 2 割の余裕を足した値です。 |
-| `waitSeconds` | 待ち全体(`selector` の要素を探す時間 + 画像 + 木)の**上限**です。要素が見つからないときは、この時間まで探してから失敗します。省略時は 15 秒(`waitForDisplay` / `waitForClose` / `appIs` と同じ)。範囲は 0〜60 秒。 |
-| `throwsException` | 既定は `true`。`waitSeconds` までに画面(または木)が止まらなかったとき、`true` ならステップが失敗してシナリオを中断し、`false` ならステップは通って注記 `settle-not-reached` を残し、`false` を返します。 |
+| `waitSeconds` | 待ち全体(`selector` の要素を探す時間 + 画像 + ツリー)の**上限**です。要素が見つからないときは、この時間まで探してから失敗します。省略時は 15 秒(`waitForDisplay` / `waitForClose` / `appIs` と同じ)。範囲は 0〜60 秒。 |
+| `throwsException` | 既定は `true`。`waitSeconds` までに画面(またはツリー)が止まらなかったとき、`true` ならステップが失敗してシナリオを中断し、`false` ならステップは通って注記 `settle-not-reached` を残し、`false` を返します。 |
 
 ### 注意点
 
@@ -88,14 +88,14 @@ waitForSettle(_ selector: String? = nil, quietSeconds: Double? = nil,
   必ず失敗します。fleetest には、存在しない要素を通せる引数はありません。これは文書化された唯一の例外で、
   このコマンドの時間切れに限ります。
 - **失敗文言は事実だけを述べます。** 画像の段は `the screen kept changing for N s (last change at x, y, w×h)`、
-  木の段は `the screen was still but the accessibility tree kept changing for N s (changing: …)` です。要素を探すのに
+  ツリーの段は `the screen was still but the accessibility tree kept changing for N s (changing: …)` です。要素を探すのに
   上限の大半を使い、残りが `quietSeconds` より短かったときは、`only N s of waitSeconds was left after finding the element, …`
   (止まったと確かめる時間が残っていなかった)と出ます。止まらない物が
   原因で失敗するなら、それを含まない `selector` を渡すか、`quietSeconds` / `waitSeconds` を調整してください。
 - **判定はブリッジの中で完結し、画像はホストへ出ません。**
-  - iOS は、既定の inapp-boost モードでも画素の撮影は常に XCUITest ランナーで行います。in-app ブリッジが見えるのは
+  - iOS は、既定の inapp-boost モードでもピクセルの撮影は常に XCUITest ランナーで行います。in-app ブリッジが見えるのは
     アプリ自身の描画だけ(キーボード・システムアラート・他のプロセスは写らない)で、アプリの中で撮り続けるとメイン
-    スレッドを塞ぐためです。木の段は次のステップを解決するドライバで行います(inapp-boost モードなら in-app の木)。
+    スレッドを塞ぐためです。ツリーの段は次のステップを解決するドライバで行います(inapp-boost モードなら in-app のツリー)。
   - Android は、instrumentation の中で動くブリッジが撮影します。
 - MCP の `ft_batch` も `waitForSettle` を同じ引数で受けます。
 

@@ -133,7 +133,7 @@ E2E テストツールです。
 - まとめて検証
     - [まとめて検証(verify)](reference/commands/verify_ja.md)
 - 値の読み出し
-    - [掴んだ要素の値を読む(.text, .value, .id, lastElement)](reference/commands/reading_values_ja.md)
+    - [取得した要素の値を読む(.text, .value, .id, lastElement)](reference/commands/reading_values_ja.md)
 - シナリオ間で値を共有
     - [メモ(writeMemo, readMemo, clearMemo, memoTextAs)](reference/commands/memo_ja.md)
 - テストデータ・ファイル・外部との通信

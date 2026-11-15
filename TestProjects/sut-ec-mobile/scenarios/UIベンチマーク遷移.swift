@@ -20,7 +20,7 @@ import FTDSL
 class UIベンチマークを操作できること {
 
     // launchApp は直前画面から再開する。各 @Test の前に毎回実行され、
-    // 以降の正規化・基準作りは各シナリオの scene 1 が担う
+    // 以降の正規化・初期化は各シナリオの scene 1 が担う
     func beforeEach() {
         launchApp()
     }
@@ -28,11 +28,11 @@ class UIベンチマークを操作できること {
     @Test("日タップで日詳細へ遷移でき戻れる")
     func S0010() {
         scenario {
-            scene(1, "アカウント → UIベンチマーク到達・3年に基準化") {
+            scene(1, "アカウント → UIベンチマーク到達・3年に初期化") {
                 action {
                     tap("#tab_account")
                     tap("#btn_benchmark")
-                    // 直前の実行が別年数で残っていても 3年へ基準化する(resume 時の擬陽性回避)。
+                    // 直前の実行が別年数で残っていても 3年へ初期化する(resume 時の偽の成功の回避)。
                     tap("#chip_years_3")
                 }.expectation {
                     select("#benchmark_cell_count").textIs("セル数: 1096")  // 3年ぶんの総日数

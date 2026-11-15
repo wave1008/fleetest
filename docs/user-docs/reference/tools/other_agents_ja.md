@@ -81,7 +81,7 @@ FT_TOOL_ROOT = "<ABS_TOOL_ROOT>"
 ```
 
 Codex は MCP のツールを呼ぶたびに承認を求めます(画面の探索では数十回になり、非対話の
-`codex exec` では全部拒否されます)。おすすめは、**全体は承認なしで通し、本番の実行 `ft_start_run` と、サービスを起こす `ft_services` だけ
+`codex exec` では全部拒否されます)。おすすめは、**全体は承認なしで通し、本番の実行 `ft_start_run` と、サービスを起動する `ft_services` だけ
 承認を求める**設定です):
 
 ```toml

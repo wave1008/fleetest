@@ -1,6 +1,6 @@
 // カートの数量操作.swift
 // testbase TC-41(SC-41)数量増減と再計算 / TC-42(SC-42)数量1→0で自動削除。
-// 対象: product_card_fashion_5 =「ミニマルデザイン腕時計」¥18,000。空カートを基準化して検証する。
+// 対象: product_card_fashion_5 =「ミニマルデザイン腕時計」¥18,000。空カートに初期化して検証する。
 // セレクタは修正版ビルドで採取(#btn_qty_increment/#btn_qty_decrement はカート行のもの・1商品なので一意)。
 
 import FTDSL
@@ -8,7 +8,7 @@ import FTDSL
 @TestClass  // iOS/Android 両対応(#id は testTag→resource-id/accessibilityId で共通)
 class カートの数量を操作できること {
 
-    /// カート画面で対象行を削除して空にする(基準化)
+    /// カート画面で対象行を削除して空にする(初期化)
     private func emptyCart() {
         ifCanSelect("#btn_remove_fashion_5", waitSeconds: 1) { tap("#btn_remove_fashion_5") }
     }
@@ -21,7 +21,7 @@ class カートの数量を操作できること {
     }
 
     // カートは実行を跨いで累積するため、失敗後でも必ず空へ戻す(afterEach は失敗後でも実行される。
-    // 失敗はシナリオ全体を中断するので、後始末をシナリオ内の scene に置いても実行されない)
+    // 失敗はシナリオ全体を中断するので、後処理をシナリオ内の scene に置いても実行されない)
     func afterEach() {
         ifCanSelect("#btn_back") { tap("#btn_back") }
         ifCanSelect("#tab_cart") { tap("#tab_cart") }
@@ -54,7 +54,7 @@ class カートの数量を操作できること {
                     exist("¥36,000")  // ¥18,000 × 2 に再計算
                 }
             }
-            scene(3, "後始末: カートを空に戻す") {
+            scene(3, "後処理: カートを空に戻す") {
                 action {
                     tap("#btn_remove_fashion_5")
                 }.expectation {
@@ -67,7 +67,7 @@ class カートの数量を操作できること {
     // TC-42(SC-42)準拠: 数量1で − → 明細が自動削除される、を期待する。
     // 【現状 RED / 不具合 D-01】実装は数量1で #btn_qty_decrement が disabled で削除されない
     // (削除はゴミ箱のみ)。仕様違反のため本テストは意図的に RED。修正(1→0自動削除の実装)で緑化する。
-    // 失敗はシナリオ全体を中断するため、残留の後始末はシナリオ内ではなく afterEach が担う。
+    // 失敗はシナリオ全体を中断するため、残留の後処理はシナリオ内ではなく afterEach が担う。
     @Test("数量1から減らすとカートから削除される")
     func S0020() {
         scenario {

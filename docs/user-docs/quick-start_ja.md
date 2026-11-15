@@ -215,7 +215,7 @@ project1 で、SUT Store の「商品詳細を開くテスト」を iOS で1本�
 
 自分で書くときは[テストクラスの作成](reference/testclass/creating_testclass_ja.md)を参照してください。
 
-サーバーを手で起こしてからテストを作り、終わったら止めます。
+サーバーを手で起動してからテストを作り、終わったら止めます。
 
 ```bash
 ../fleetest/.build/debug/fleetest services up --profile ios-run

@@ -9,7 +9,7 @@ import FTDSL
 class 詳細から戻れること {
 
     // launchApp は直前画面から再開する。各 @Test の前に毎回実行され、
-    // 以降の正規化・基準作りは各シナリオの scene 1 が担う
+    // 以降の正規化・初期化は各シナリオの scene 1 が担う
     func beforeEach() {
         launchApp()
     }

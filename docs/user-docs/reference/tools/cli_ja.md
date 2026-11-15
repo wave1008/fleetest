@@ -94,7 +94,7 @@ MCP の `ft_*` ツール([MCP サーバー](./mcp_server_ja.md))と同じ操作�
 
 | コマンド | 説明 | 主なオプション |
 |---|---|---|
-| `snapshot` | 今の画面のアクセシビリティの木を(圧縮して)表示する | `--json`(生の JSON) |
+| `snapshot` | 今の画面のアクセシビリティツリーを(圧縮して)表示する | `--json`(生の JSON) |
 | `tap` | 座標をタップする | `--x`・`--y`(iOS は pt・Android は px。snapshot の枠と同じ単位) |
 | `type <テキスト>` | フォーカスしている要素へテキストを入力する | — |
 | `swipe <方向>` | スワイプする(方向は up / down / left / right) | — |
@@ -113,7 +113,7 @@ MCP の `ft_*` ツール([MCP サーバー](./mcp_server_ja.md))と同じ操作�
 | `services pull` | `compose.yaml` が宣言するイメージを run の前に取得する(初回は中継用イメージもビルドする) | `--refresh` | 同上 |
 | `services load` | レジストリへ届かない Mac のために、tar アーカイブからイメージをコンテナランタイムへ読み込む | — | 同上 |
 | `services reset` | このワークスペースのサービスのコンテナ・ネットワーク・ボリューム、貸出とロックを消す | `--force`(常駐の `services up` を止めてから消す) | 同上 |
-| `hooks reap` | 後始末の前に死んだ run が残した teardown スクリプトを実行する | `--quiet` | 同上 |
+| `hooks reap` | 後処理の前に死んだ run が残した teardown スクリプトを実行する | `--quiet` | 同上 |
 
 ## フリート
 
@@ -135,8 +135,8 @@ MCP の `ft_*` ツール([MCP サーバー](./mcp_server_ja.md))と同じ操作�
 
 | コマンド | 説明 | 主なオプション | 詳細 |
 |---|---|---|---|
-| `vision capture` | 画面の要素をアクセシビリティの枠で切り出し、画像分類器の見本画像として保存する | `--classifier`・`--label`・`--selector`(いずれも必須)・`--name` | [画像の検証](../commands/image_assertion_ja.md) |
-| `vision check` | 必要なら分類器を学習し、各分類器が見分けられない見本画像を警告として報告する(終了コードは常に 0) | `--classifier`・`--project` | 同上 |
+| `vision capture` | 画面の要素をアクセシビリティの枠で切り出し、画像分類器の学習用画像として保存する | `--classifier`・`--label`・`--selector`(いずれも必須)・`--name` | [画像の検証](../commands/image_assertion_ja.md) |
+| `vision check` | 必要なら分類器を学習し、各分類器が見分けられない学習用画像を警告として報告する(終了コードは常に 0) | `--classifier`・`--project` | 同上 |
 
 ## 外部ツール向け(api)
 
