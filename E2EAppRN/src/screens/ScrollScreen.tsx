@@ -46,15 +46,16 @@ export function ScrollScreen() {
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 1 }).current;
 
   // OI-218 の測る口(Android だけ・判定には使わない): 一覧が受けた直近 4 本のタッチ列を `#list_rows` のラベルに載せる。
-  // 1本 = `m<移動の数><e 離した|c 取り消し = ScrollView が引き取った><終わった ms>y<始まりの位置>:<次のタッチまでの最小>-<最大>`
-  // (位置は onScroll の contentOffset.y・dp。新しい順)。onScrollBeginDrag は取り消しの後に届くので使わない。
+  // 1本 = `m<移動の数><e 離した|c 取り消し = ScrollView が引き取った><終わった ms>y<始まりの位置>:<次のタッチまでの最小>-<最大>
+  // v<離した瞬間の縦の速度(onScrollEndDrag)>f<慣性のスクロールが始まった = 1>`(位置は onScroll の contentOffset.y・dp。新しい順)。onScrollBeginDrag は取り消しの後に届くので使わない。
   // 表示を足すと一覧が縮み契約(#row_06 まで完全に見える)が崩れるのでラベルに載せる。iOS は載せない
   const [trace, setTrace] = useState('trace=-');
   const scrollY = useRef(0);
-  const touch = useRef({ start: 0, moves: 0, end: '', y0: 0, min: 0, max: 0 });
+  const touch = useRef({ start: 0, moves: 0, end: '', y0: 0, min: 0, max: 0, v: NaN, fling: 0 });
   const history = useRef<string[]>([]);
   const entry = (t: typeof touch.current) =>
-    `m${t.moves}${t.end || '?'}y${Math.round(t.y0)}:${Math.round(t.min)}-${Math.round(t.max)}`;
+    `m${t.moves}${t.end || '?'}y${Math.round(t.y0)}:${Math.round(t.min)}-${Math.round(t.max)}` +
+    `v${Number.isNaN(t.v) ? '-' : t.v.toFixed(2)}f${t.fling}`;
   const publish = () => {
     const t = touch.current;
     const parts = t.start > 0 ? [entry(t), ...history.current] : history.current;
@@ -82,7 +83,7 @@ export function ScrollScreen() {
               console.log(`OI218 ${done}`);
             }
             const y = scrollY.current;
-            touch.current = { start: Date.now(), moves: 0, end: '', y0: y, min: y, max: y };
+            touch.current = { start: Date.now(), moves: 0, end: '', y0: y, min: y, max: y, v: NaN, fling: 0 };
           },
           onTouchMove: () => {
             touch.current.moves += 1;
@@ -95,8 +96,17 @@ export function ScrollScreen() {
             touch.current.end = `c${Date.now() - touch.current.start}`;
             publish();
           },
+          onMomentumScrollBegin: () => {
+            touch.current.fling = 1;
+          },
           onMomentumScrollEnd: publish,
-          onScrollEndDrag: publish,
+          onScrollEndDrag: (e: { nativeEvent: { velocity?: { y: number } } }) => {
+            const vy = e.nativeEvent.velocity?.y;
+            if (vy !== undefined) {
+              touch.current.v = vy;
+            }
+            publish();
+          },
         }
       : {};
 

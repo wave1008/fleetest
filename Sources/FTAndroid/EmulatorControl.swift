@@ -66,8 +66,23 @@ public enum EmulatorControl {
                             leadIn: EmulatorGrpcSession.DragLeadIn? = nil) async throws -> GestureDelivery {
         try await performGesture(serial: serial) {
             try await EmulatorGrpcSession.drag(endpoint: $0, fromX: fromX, fromY: fromY,
-                                               toX: toX, toY: toY, durationMs: durationMs, leadIn: leadIn)
+                                               toX: toX, toY: toY, durationMs: durationMs, leadIn: leadIn,
+                                               onTiming: { elapsedMs, maxGapMs in
+                if let line = dragTimingNote(durationMs: durationMs, elapsedMs: elapsedMs, maxGapMs: maxGapMs) {
+                    ConsoleOut.err("[fleetest] \(serial): " + line)
+                }
+            })
         }
+    }
+
+    /// 送りが予定から大きくずれたドラッグだけ1行言う(OI-218 の測る口。判定には使わない)。
+    /// しきい値: 所要が予定 + 500ms か予定の 2 倍の大きいほうを超えた・送りの間隔が 250ms を超えた。**根拠**(11/15・手元の 6 台・153 本):
+    /// 送りのたびに往復 + 16ms 待つので所要は普段から予定の 1.50〜1.70 倍・間隔は中央値 80ms / 95% 137ms / 最大 200ms
+    /// = 普段の幅では何も言わない(1.5 倍で言うと全部の遅いドラッグで警告が並んだ)
+    static func dragTimingNote(durationMs: Int, elapsedMs: Int, maxGapMs: Int) -> String? {
+        let late = elapsedMs > max(durationMs + 500, durationMs * 2)
+        guard late || maxGapMs > 250 else { return nil }
+        return "emulator drag took \(elapsedMs)ms for a planned \(durationMs)ms (largest gap between touches \(maxGapMs)ms)"
     }
 
     /// 座標ロングプレス

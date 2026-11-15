@@ -129,14 +129,25 @@ public enum EmulatorGrpcSession {
     /// 2点間ドラッグ(`input swipe` の代替)。down → ~16ms 刻みの補間 move → up を
     /// 1接続内で送る(pressure 0 の up を必ず送らないと identifier が残留する。proto 契約)。
     /// 座標は screencap と同じ物理ピクセル
+    /// `onTiming` = 撃ち終えたときの (実際の所要 ms, 送りと送りの最大の間隔 ms)。測る口(OI-218: 遅いドラッグが一度に流れた回に、
+    /// 送りが詰まったか・間が空いたかを後から読む)で、撃ち方は変えない
     public static func drag(endpoint: EmulatorEndpoint,
                             fromX: Int32, fromY: Int32, toX: Int32, toY: Int32,
-                            durationMs: Int, leadIn: DragLeadIn? = nil) async throws {
+                            durationMs: Int, leadIn: DragLeadIn? = nil,
+                            onTiming: (@Sendable (_ elapsedMs: Int, _ maxGapMs: Int) -> Void)? = nil) async throws {
         try await withController(endpoint: endpoint,
                                  timeout: .milliseconds(durationMs + 10_000)) { client, metadata, options in
+            let clock = ContinuousClock()
+            var firstSent: ContinuousClock.Instant?
+            var lastSent: ContinuousClock.Instant?
+            var maxGap: Duration = .zero
             func touch(_ x: Int32, _ y: Int32, pressure: Int32) async throws {
                 _ = try await client.sendTouch(touchEvent(x: x, y: y, pressure: pressure),
                                                metadata: metadata, options: options)
+                let now = clock.now
+                if let lastSent { maxGap = max(maxGap, now - lastSent) }
+                if firstSent == nil { firstSent = now }
+                lastSent = now
             }
             try await requireController(client, metadata: metadata, options: options, clearingStrayFingerAt: (fromX, fromY))
             var last = (x: fromX, y: fromY)
@@ -154,6 +165,10 @@ public enum EmulatorGrpcSession {
                 }
                 last = (toX, toY)
                 try await touch(toX, toY, pressure: 0)
+                if let onTiming, let firstSent, let lastSent {
+                    func ms(_ d: Duration) -> Int { Int(d.components.seconds) * 1000 + Int(d.components.attoseconds / 1_000_000_000_000_000) }
+                    onTiming(ms(lastSent - firstSent), ms(maxGap))
+                }
             } catch {
                 let released = await releaseFinger(endpoint: endpoint, x: last.x, y: last.y)
                 throw GestureInterrupted(cause: error, fingerReleased: released)
