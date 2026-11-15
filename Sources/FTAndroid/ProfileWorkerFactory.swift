@@ -1099,6 +1099,12 @@ public enum ProfileWorkerFactory {
             requestedMode: device.requestedMode, modeFallbackReason: device.modeFallbackReason)
     }
 
+    /// 蘇生の記録の1行に、蘇生を始めてからの経過秒を前置する(`[revive +12.3s] …`)
+    static func reviveStamped(_ line: String, elapsed: Duration) -> String {
+        let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+        return "[revive +\(String(format: "%.1f", seconds))s] " + line
+    }
+
     /// logicalName の1台だけを再供給する。到達不能・供給失敗は nil(throw しない)。
     public static func buildWorker(forLogicalName name: String, resolved: ResolvedProfile,
                                    repoRoot: URL, log: @escaping (String) -> Void) async -> RunWorker? {
@@ -1116,7 +1122,14 @@ public enum ProfileWorkerFactory {
             // 2 段の締切から導く(独立した定数を置かない)
             let budgetSeconds: TimeInterval = device.spec.isPhysical
                 ? 2 * BridgeLauncher.startupTimeoutSeconds : 60
-            let serializedLog = SerializedSink(log)
+            // 蘇生の各行に始めてからの経過秒を付ける(OI-234 の測る口: 枠のどこを起動・遅さの測り直し・SpringBoard の
+            // 起こし直し・再起動が使ったかを後から読む。判定には使わない)
+            let reviveClock = ContinuousClock()
+            let reviveStart = reviveClock.now
+            let stampedLog = SerializedSink(log)
+            let serializedLog: @Sendable (String) -> Void = { line in
+                stampedLog(Self.reviveStamped(line, elapsed: reviveClock.now - reviveStart))
+            }
             let budgetExpired = LockedValue(false)
             let provisioned = await withTaskGroup(of: [ProvisionedIOSDevice]?.self) { group in
                 group.addTask {

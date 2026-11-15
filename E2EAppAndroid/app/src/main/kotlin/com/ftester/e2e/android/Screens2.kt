@@ -115,6 +115,24 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
     var traceFirstMove = -1L
     var traceLongPress = -1L
     var traceScrolls = 0
+    // x = 閾値(touch slop)を越えた最初の MOVE をアプリが処理した時刻(事象の時刻ではない)・a = 事象の時刻から処理までの最大の遅れ・
+    // h = DOWN〜UP のメインスレッドの最大のフレーム間隔(長押しのタイマーが入力より先に走ったか・アプリが詰まっていたかを分ける)
+    var traceSlopHandled = -1L
+    var traceMaxAge = 0L
+    var traceMaxFrame = 0L
+    var traceLastFrameNs = 0L
+    var traceFramesOn = false
+    val touchSlop = android.view.ViewConfiguration.get(activity).scaledTouchSlop
+    val frameCallback = object : android.view.Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!traceFramesOn) return
+            if (traceLastFrameNs > 0) {
+                traceMaxFrame = maxOf(traceMaxFrame, (frameTimeNanos - traceLastFrameNs) / 1_000_000)
+            }
+            traceLastFrameNs = frameTimeNanos
+            android.view.Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
     fun ms(t: Long) = if (t < 0) "-" else "${t}"
 
     val scaleDetector = android.view.ScaleGestureDetector(activity,
@@ -161,7 +179,17 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
             traceFirstMove = -1L
             traceLongPress = -1L
             traceScrolls = 0
+            traceSlopHandled = -1L
+            traceMaxAge = 0L
+            traceMaxFrame = 0L
+            traceLastFrameNs = 0L
+            if (!traceFramesOn) {
+                traceFramesOn = true
+                android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+            }
         }
+        val handledAt = android.os.SystemClock.uptimeMillis()
+        traceMaxAge = maxOf(traceMaxAge, handledAt - ev.eventTime)
         scaleDetector.onTouchEvent(ev)
         tapDetector.onTouchEvent(ev)
         when (ev.actionMasked) {
@@ -176,12 +204,14 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
                 if (traceFirstMove < 0) traceFirstMove = ev.eventTime - traceDownAt
                 val dx = abs(ev.x - dragDownX)
                 val dy = abs(ev.y - dragDownY)
+                if (traceSlopHandled < 0 && (dx > touchSlop || dy > touchSlop)) traceSlopHandled = handledAt - traceDownAt
                 if (dx > dragMaxDx) dragMaxDx = dx
                 if (dy > dragMaxDy) dragMaxDy = dy
             }
             MotionEvent.ACTION_UP -> {
+                traceFramesOn = false
                 traceView.text = "trace=m${traceMoves} f${ms(traceFirstMove)} lp${ms(traceLongPress)} " +
-                    "s${traceScrolls} u${ev.eventTime - traceDownAt}"
+                    "s${traceScrolls} u${ev.eventTime - traceDownAt} x${ms(traceSlopHandled)} a${traceMaxAge} h${traceMaxFrame}"
                 if (dragMaxDx >= PAN_THRESHOLD || dragMaxDy >= PAN_THRESHOLD) {
                     dragCount += 1
                     render()

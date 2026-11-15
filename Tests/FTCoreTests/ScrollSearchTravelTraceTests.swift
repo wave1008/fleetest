@@ -42,8 +42,23 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
 
     func testEachRoundSaysHowFarItMovedAgainstTheContainer() async {
         let message = await failureMessage(sameIDs: true)
-        XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300\)"#, options: .regularExpression),
+        XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300, content went up\)"#, options: .regularExpression),
                         message)
+    }
+
+    /// 向きは中身が動いた向き(行が上へ動いた = 一覧は先へ送られた)。上向きの探索なのに `up` と出れば、払いが逆へ効いた(OI-218)
+    func testContentDirectionFollowsTheSignOfTheTravel() {
+        func snap(_ y: Double) -> SnapshotResponse {
+            SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800), elements: [
+                ElementInfo(ref: 1, type: "staticText", identifier: "row", label: nil, value: nil, placeholder: nil,
+                            enabled: true, frame: FTRect(x: 0, y: y, width: 400, height: 40), depth: 0),
+                ElementInfo(ref: 2, type: "button", identifier: "pinned", label: nil, value: nil, placeholder: nil,
+                            enabled: true, frame: FTRect(x: 0, y: 0, width: 40, height: 40), depth: 0),
+            ], truncatedCount: 0)
+        }
+        XCTAssertEqual(StepExecutor.measuredContentDirection(before: snap(300), after: snap(200), vertical: true), "up")
+        XCTAssertEqual(StepExecutor.measuredContentDirection(before: snap(200), after: snap(300), vertical: true), "down")
+        XCTAssertNil(StepExecutor.measuredContentDirection(before: snap(200), after: snap(200), vertical: true))
     }
 
     func testARoundWithNothingInCommonSaysTheTravelIsUnknown() async {
@@ -53,7 +68,7 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
 
     func testPinnedHeadersDoNotHideTheTravelOfTheRows() async {
         let message = await failureMessage(sameIDs: true, pinnedHeaders: 20)
-        XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300\)"#, options: .regularExpression),
+        XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300, content went up\)"#, options: .regularExpression),
                         message)
     }
 }

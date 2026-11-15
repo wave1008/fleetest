@@ -133,6 +133,23 @@ extension StepExecutor {
         return sorted[sorted.count / 2]
     }
 
+    /// 中身が動いた向き(`up` / `down` / `left` / `right`)。共通の id の要素のうち 1 より動いたものの符号つきの中央値。
+    /// 動いた要素が無ければ nil。探索の記録に添える測る口(OI-218: 上向きの探索が実際に上へ動いたかを後から読む)で、判定には使わない
+    static func measuredContentDirection(before: SnapshotResponse, after: SnapshotResponse, vertical: Bool) -> String? {
+        let index = Dictionary(before.elements.compactMap { element -> (String, ElementInfo)? in
+            guard let id = element.identifier, !id.isEmpty else { return nil }
+            return (id, element)
+        }, uniquingKeysWith: { first, _ in first })
+        let deltas = after.elements.compactMap { element -> Double? in
+            guard let id = element.identifier, !id.isEmpty, let previous = index[id] else { return nil }
+            let delta = vertical ? previous.frame.y - element.frame.y : previous.frame.x - element.frame.x
+            return abs(delta) > 1 ? delta : nil
+        }.sorted()
+        guard !deltas.isEmpty else { return nil }
+        let median = deltas[deltas.count / 2]
+        return vertical ? (median > 0 ? "up" : "down") : (median > 0 ? "left" : "right")
+    }
+
     /// 指定した `scrollFrame` が**スクロールできない領域**を指していないか。
     /// 指していれば座標は正しく作られ、スワイプは 200 を返し、**何も起きない**(端に達したのと
     /// 区別できないので署名では検出できない)= 黙った空振りになる。

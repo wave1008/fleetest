@@ -1171,7 +1171,9 @@ extension StepExecutor {
                 if let travel = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical) {
                     let moved = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical,
                                                     ignoringUnmoved: true) ?? travel
-                    travelTrace = " (moved \(Int(moved.rounded())) of \(Int(extent.rounded())))"
+                    let heading = Self.measuredContentDirection(before: previousSnapshot, after: snapshot, vertical: vertical)
+                        .map { ", content went \($0)" } ?? ""
+                    travelTrace = " (moved \(Int(moved.rounded())) of \(Int(extent.rounded()))\(heading))"
                     if travel > extent * Self.travelCeilingRatio {
                         spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
                     }

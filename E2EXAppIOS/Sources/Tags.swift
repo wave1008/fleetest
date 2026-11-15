@@ -157,6 +157,7 @@ enum Tags {
     // 並べ替え
     static func reorderRow(_ n: Int) -> String { "reorder_row_\(n)" }
     static let txtReorderResult = "txt_reorder_result"
+    static let txtTouchTrace = "txt_touch_trace"
 
     // 入力の種類
     static let fieldNumber = "field_number"

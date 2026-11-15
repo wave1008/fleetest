@@ -70,6 +70,9 @@ testTag を付けられる所には全部付ける・付けられない部品の
 - 行 `#reorder_row_1` … `#reorder_row_5`(`並べ替え 1` …)を**ドラッグで並べ替える**。
   **離した位置の行の場所へ移る**(2行ぶん下で離せば2つ下へ。隣と1回入れ替えるだけにしない)(長押ししてから動かす形・ハンドルを掴む形のどちらでも。その SUT の定番に従う)
 - `#txt_reorder_result` = `order=1,2,3,4,5`(現在の並び。初期値もこの形)
+- `#txt_touch_trace` = `trace=m<n> f<ms> g<ms> l<ms> h<ms> u<ms>`(初期 `trace=-`)。**E2EXAppIOS だけ**(OI-221 の測る口)。直前のタッチ列の
+  移動の数・最初の移動まで・移動の最大の間隔・事象の時刻から処理までの最大の遅れ・メインスレッドの最大のフレーム間隔・離した時刻
+  (取り消しなら `c`)。シナリオは検証しない(赤の回の要素一覧に残すだけ)
 - 実装の例: Flutter `ReorderableListView` / Android `ItemTouchHelper`(上下の移動)/ iOS `List` + `.onMove`(`EditButton` か常時編集)/
   RN `react-native-draggable-flatlist` / Compose 長押しドラッグの自前実装(定番ライブラリが無いことを契約に書く)
 
