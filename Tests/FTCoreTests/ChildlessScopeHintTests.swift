@@ -59,9 +59,9 @@ final class ChildlessScopeHintTests: XCTestCase {
         XCTAssertEqual(LocatorResolver.childlessScopeContainer(of: locator, in: flattened)?.identifier, "cart_item_fashion_5")
     }
 
-    private func executor(_ elements: [ElementInfo]) -> StepExecutor {
+    private func executor(_ elements: [ElementInfo], isAndroid: Bool = false) -> StepExecutor {
         let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [elements])
-        return StepExecutor(driver: driver, typeDriver: nil, isAndroid: false, tunables: RunTunables(), uiFramework: .compose)
+        return StepExecutor(driver: driver, typeDriver: nil, isAndroid: isAndroid, tunables: RunTunables(), uiFramework: .compose)
     }
 
     private func message(_ status: StepResult.Status) -> String {
@@ -98,5 +98,29 @@ final class ChildlessScopeHintTests: XCTestCase {
         let text = message(outcome.status)
         XCTAssertFalse(text.contains("has nothing under it"), text)
         XCTAssertTrue(text.contains("add waitSeconds"), text)
+    }
+
+    /// 理由は木の形と OS から言えるものだけ: iOS の入れ物の型だけ CMP の平坦化を言い、葉の型は「中身を持たない型」と言う。
+    /// Android では CMP を持ち出さない。例は特定のアプリの id を出さない(56周目 im4 F1・amax F1 = SwiftUI / View のアプリで CMP の説明が出た)
+    func testReasonFollowsTheContainerTypeAndPlatform() async {
+        let leaf = [
+            node(1, "staticText", depth: 5, id: "txt_row_selected", 0, 100, 200, 20),
+            node(2, "staticText", depth: 5, id: "row_02", 0, 200, 200, 20),
+        ]
+        let leafScope = scoped(FlowLocator(id: "row_02"), "txt_row_selected")
+        for isAndroid in [false, true] {
+            let text = message(await executor(leaf, isAndroid: isAndroid).execute(FlowStep(action: "tap", locator: leafScope)).status)
+            XCTAssertTrue(text.contains("has nothing under it"), text)
+            XCTAssertTrue(text.contains("it is a staticText, which holds no other elements"), text)
+            XCTAssertFalse(text.contains("Compose Multiplatform"), text)
+            XCTAssertFalse(text.contains("btn_qty_decrement"), text)
+        }
+        let groupScope = scoped(FlowLocator(id: "btn_remove_fashion_5"), "cart_item_fashion_5")
+        let ios = message(await executor(flattened).execute(FlowStep(action: "tap", locator: groupScope)).status)
+        XCTAssertTrue(ios.contains("Compose Multiplatform"), ios)
+        XCTAssertFalse(ios.contains("btn_qty_decrement"), ios)
+        let android = message(await executor(flattened, isAndroid: true).execute(FlowStep(action: "tap", locator: groupScope)).status)
+        XCTAssertTrue(android.contains("has nothing under it"), android)
+        XCTAssertFalse(android.contains("Compose Multiplatform"), android)
     }
 }

@@ -791,9 +791,13 @@ extension StepExecutor {
                 }
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
                 // モーダルの申告は leftHint と同じ位置で先に採る(window の覆いの案内より具体的)
-                let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot) ?? ownDialogHint()
+                // モーダルの中にも送れる一覧があれば、対象はモーダルの「裏」でなく「中」の送りの先かもしれない = 送りの案内も添える
+                // (待ちの案内は添えない。E2EX-iOS のボトムシートの行で「閉じろ」だけを言っていた = 56周目 iultra F1)
+                let leftHint = await leftForegroundHint()
+                    ?? Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
+                    ?? ownDialogHint()
                 // スコープの容器が木の上で中身を持たないなら、待っても送っても出ない = 待ち・送りの案内の代わりに言う
-                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements)
+                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements, isAndroid: isAndroid)
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")

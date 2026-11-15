@@ -614,7 +614,7 @@ extension StepExecutor {
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
-                       + Self.childlessScopeHint(step, lastSnapshot?.elements)
+                       + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid)
                        + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -823,7 +823,7 @@ extension StepExecutor {
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements)
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid)
                       + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -1126,7 +1126,7 @@ extension StepExecutor {
                            + Self.truncationHint(lastSnapshot)
                            + Self.keyboardResizedHint(lastSnapshot)
                            + tapDiagnosisHint(lastSeenElements)
-                           + Self.childlessScopeHint(step, lastSnapshot?.elements))
+                           + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
         }
         let subject = assert.hasPrefix("value") ? "value" : "text"
         if missingOnLastRead {
@@ -1226,7 +1226,7 @@ extension StepExecutor {
             : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements))
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
     }
 
     /// キーボード開閉はアニメーションを伴うため単発チェックはフレークする → notExists と同じ
@@ -1400,7 +1400,7 @@ extension StepExecutor {
             : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements))
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
     }
 
     /// imageIs(Shirates Vision の DefaultClassifier): 掴んだ要素の枠で切った画像の1位のラベル
@@ -1452,7 +1452,7 @@ extension StepExecutor {
         guard found else {
             return failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
                           + Self.truncationHint(lastSnapshot)
-                          + Self.childlessScopeHint(step, lastSnapshot?.elements))
+                          + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
         }
         guard let lastClassification else {
             if let classifierFailureThisStep {

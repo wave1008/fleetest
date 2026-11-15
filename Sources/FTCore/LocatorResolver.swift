@@ -219,6 +219,12 @@ public enum LocatorResolver {
         return nil
     }
 
+    /// 中身の無い容器が「入れ物の型」か(`other` = 型の無い group)。それ以外(文字・ボタン・画像など)は元から中身を
+    /// 持たない葉で、iOS の CMP の平坦化(上の doc)では説明できない = 失敗文は CMP を持ち出さず「葉を容器にした」と言う
+    public static func childlessContainerIsGroup(_ container: ElementInfo) -> Bool {
+        container.type == "other"
+    }
+
     /// ロケータの属性フィルタに一致する全要素(スナップショットのツリー順)。
     /// **フィルタは全て AND**。一致ゼロなら空、絞り込み条件が1つも無ければ nil
     /// (スコープだけは条件として認める。`#list >> [2]` を書けるようにするため)。

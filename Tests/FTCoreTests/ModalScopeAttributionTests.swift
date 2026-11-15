@@ -50,10 +50,58 @@ final class ModalScopeAttributionTests: XCTestCase {
         XCTAssertLessThan(modal.lowerBound, kb.lowerBound)
     }
 
-    func testFailureMessageUsesModalHintAndDropsKeyboardClause() throws {
+    func testFailureMessageDropsKeyboardClauseUnderModal() throws {
         let src = try source("Sources/FTCore/StepExecutor+Actions.swift")
-        XCTAssertTrue(src.contains("let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot)"))
         XCTAssertTrue(src.contains("keyboardClause = Self.hasModalScope(snapshot) ? \"\" : Self.keyboardResizedHint(snapshot)"))
+    }
+
+    /// モーダルの中に送れる一覧があれば、tap の「解決できない」はモーダルを名指したうえで送りの案内も言う
+    /// (対象はモーダルの裏でなく中の送りの先にありうる。待ちの案内は言わない。56周目 iultra F1 = E2EX-iOS のボトムシート)
+    func testTapMissUnderModalKeepsScrollAdviceWhenAListIsInTheModal() async {
+        let list = ElementInfo(ref: 1, type: "collectionView", identifier: "list_sheet", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 300, width: 402, height: 574), depth: 3, scrollable: true)
+        let row = ElementInfo(ref: 2, type: "staticText", identifier: "row_sheet_00", label: "シート行 00", value: nil,
+                              placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 300, width: 402, height: 44), depth: 4)
+        let modal = ModalScopeCover(droppedCount: 1, frames: [FTRect(x: 0, y: 0, width: 402, height: 874)])
+        let withList = await tapMissReason(elements: [list, row], modal: modal)
+        XCTAssertTrue(withList.contains("close the modal"), withList)
+        XCTAssertTrue(withList.contains("add scroll:"), withList)
+        XCTAssertFalse(withList.contains("add waitSeconds"), withList)
+        // 一覧が無ければ従来どおりモーダルの案内だけ
+        let withoutList = await tapMissReason(elements: [row], modal: modal)
+        XCTAssertTrue(withoutList.contains("close the modal"), withoutList)
+        XCTAssertFalse(withoutList.contains("add scroll:"), withoutList)
+    }
+
+    private func tapMissReason(elements: [ElementInfo], modal: ModalScopeCover) async -> String {
+        let driver = ModalDriver(snapshot: SnapshotResponse(
+            sessionBundleID: "app", screen: FTRect(x: 0, y: 0, width: 402, height: 874), elements: elements,
+            truncatedCount: 0, modalScope: modal))
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_sheet_28"), timeout: 0.2))
+        if case .failed(let text) = outcome.status { return text }
+        XCTFail("failed を期待: \(outcome.status)")
+        return ""
+    }
+
+    private final class ModalDriver: AppDriver {
+        let fixed: SnapshotResponse
+        init(snapshot: SnapshotResponse) { fixed = snapshot }
+        func status() async throws -> StatusResponse {
+            StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
+        }
+        func install(packagePath: String) async throws -> String? { nil }
+        func uninstall(bundleID: String) async throws {}
+        func isAppForeground(bundleID: String) async throws -> Bool { true }
+        func launch(bundleID: String) async throws {}
+        func snapshot() async throws -> SnapshotResponse { fixed }
+        func tap(ref: Int) async throws {}
+        func tap(x: Double, y: Double) async throws {}
+        func type(ref: Int?, text: String) async throws {}
+        func swipe(_ direction: FTSwipeDirection) async throws {}
+        func press(ref: Int, duration: Double) async throws {}
+        func screenshot() async throws -> Data { Data() }
+        func terminate() async throws {}
     }
 
     func testInAppReportsTheDroppedSiblingsAndBridgeVersionIsBumped() throws {

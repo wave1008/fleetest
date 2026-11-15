@@ -1959,13 +1959,22 @@ public final class StepExecutor {
 
     /// 「見つからない」の失敗に添える: スコープの容器は見つかったが、木の上で中身を持たない(判定は
     /// `LocatorResolver.childlessScopeContainer`。MCP の `ft_tap` 等の selector の断りと共有)。木が無ければ空
-    static func childlessScopeHint(_ step: FlowStep, _ elements: [ElementInfo]?) -> String {
+    /// 理由は木の形と OS から言えるものだけ(葉の型なら「中身を持たない型」・iOS の入れ物の型だけ CMP の平坦化)。例は一般形
+    /// (特定のアプリの id を出さない)
+    static func childlessScopeHint(_ step: FlowStep, _ elements: [ElementInfo]?, isAndroid: Bool) -> String {
         guard let locator = step.locator, let elements,
               let container = LocatorResolver.childlessScopeContainer(of: locator, in: elements) else { return "" }
+        let reason: String
+        if !LocatorResolver.childlessContainerIsGroup(container) {
+            reason = " — it is a \(container.type), which holds no other elements"
+        } else if !isAndroid {
+            reason = " — on iOS, Compose Multiplatform lists the contents of a Row/Column that only has a testTag beside it rather than under it"
+        } else {
+            reason = ""
+        }
         return " (the scope's container \(TapTargetGeometry.describe(container)) is in the tree but has nothing under it,"
-            + " so nothing can be found inside it — on iOS, Compose Multiplatform lists the contents of a Row/Column that only"
-            + " has a testTag beside it rather than under it. Point at the target without this scope: a unique #id, a label,"
-            + " or a relative selector from an element next to it (e.g. #btn_qty_decrement:right))"
+            + " so nothing can be found inside it\(reason). Point at the target without this scope: a unique #id, a label,"
+            + " or a relative selector from an element next to it (e.g. #<id of a neighbour>:right))"
     }
 
     /// 操作の対象が解決できなかった失敗に添える(検証の失敗の `tapDiagnosisHint` と同じ証跡)。この手が tap なら直前の tap は

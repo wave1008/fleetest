@@ -2,6 +2,7 @@
 // ft_tap / ft_type / ft_long_press / ft_double_tap / ft_clear_input の `selector`(ref・座標の代わりの指し方)
 
 import Foundation
+import FTAndroid
 import FTCore
 
 extension MCPServer {
@@ -11,12 +12,12 @@ extension MCPServer {
 
     /// 撮り直した木で selector を DSL と同じ解決(`LocatorResolver.resolveDetailed`)にかけ、当たった要素と複数一致の注記を返す。
     /// 一致なしは何も撃たずに断る。**複数一致は DSL の tap と同じ要素(ツリー順で `[n]` 番目・既定は先頭)を採る**
-    static func resolveSelectorTarget(_ text: String, in snapshot: SnapshotResponse) throws -> (element: ElementInfo, note: String) {
+    static func resolveSelectorTarget(_ text: String, in snapshot: SnapshotResponse, isAndroid: Bool) throws -> (element: ElementInfo, note: String) {
         let parsed = try parseSelectorArgument(text, argument: "selector")
         guard let resolved = LocatorResolver.resolveDetailed(step: selectorStep(parsed), in: snapshot) else {
             throw MCPError("no element matches \(text) on the current screen — nothing was sent."
                 + notationHint(text, in: snapshot) + similarLabelsHint(text, in: snapshot)
-                + childlessScopeHint(parsed.primary, in: snapshot)
+                + childlessScopeHint(parsed.primary, in: snapshot, isAndroid: isAndroid)
                 + " Take an ft_snapshot to read the current labels/ids.")
         }
         // 序数 `[n]` と相対セレクタは「複数のうちの1つ」を自分で選んだ書き方なので数えない
@@ -35,6 +36,7 @@ extension MCPServer {
                             run: ([String: Any]) async throws -> [[String: Any]]) async throws -> [[String: Any]] {
         guard let selector = args["selector"] as? String else { return try await run(args) }
         let d = try await driver(args)
+        let isAndroid = bridges[Self.sessionKey(args)] == "android" || d is AndroidDriver
         var snapshot = try await freshSnapshot(d, args: args)
         let target: (element: ElementInfo, note: String)
         // 一致なしは何も撃っていないので、シナリオの行と同じ回数・間隔(`StepExecutor.defaultLocatorRetryAttempts` と
@@ -43,7 +45,7 @@ extension MCPServer {
         var attempt = 0
         while true {
             do {
-                target = try Self.resolveSelectorTarget(selector, in: snapshot)
+                target = try Self.resolveSelectorTarget(selector, in: snapshot, isAndroid: isAndroid)
                 break
             } catch let miss as MCPError {
                 let parses = (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil
@@ -70,11 +72,19 @@ extension MCPServer {
     }
 
     /// スコープの容器は見つかったが木の上で中身を持たない(判定は `LocatorResolver.childlessScopeContainer` を DSL と共有・文言はここ)
-    static func childlessScopeHint(_ locator: FlowLocator, in snapshot: SnapshotResponse) -> String {
+    static func childlessScopeHint(_ locator: FlowLocator, in snapshot: SnapshotResponse, isAndroid: Bool) -> String {
         guard let container = LocatorResolver.childlessScopeContainer(of: locator, in: snapshot.elements) else { return "" }
-        return " The scope's container \(RefGuard.describe(container)) has nothing under it in the tree (on iOS, Compose"
-            + " Multiplatform lists the contents of a Row/Column that only has a testTag beside it), so a `>>` scope on it never"
-            + " matches — drop the scope and use a unique #id, a label, or a relative selector (#neighbour:right)."
+        // 理由は DSL と同じ選び方(葉の型なら中身を持たない型・iOS の入れ物の型だけ CMP の平坦化)
+        let reason: String
+        if !LocatorResolver.childlessContainerIsGroup(container) {
+            reason = " (it is a \(container.type), which holds no other elements)"
+        } else if !isAndroid {
+            reason = " (on iOS, Compose Multiplatform lists the contents of a Row/Column that only has a testTag beside it)"
+        } else {
+            reason = ""
+        }
+        return " The scope's container \(RefGuard.describe(container)) has nothing under it in the tree\(reason), so a `>>` scope"
+            + " on it never matches — drop the scope and use a unique #id, a label, or a relative selector (#neighbour:right)."
     }
 
     /// 一致なしの断り。**前面のアラートがあるならそれを先頭に置く**(末尾に置くと主文の「no element matches」だけ読まれ、

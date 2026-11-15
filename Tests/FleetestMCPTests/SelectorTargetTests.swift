@@ -39,11 +39,11 @@ final class SelectorTargetTests: XCTestCase {
                                                   element(3, id: "cancel", label: "Cancel", y: 100)])
         let step = FlowStep(action: "tap", locator: FTSelector.parse("Save").primary)
         let dsl = try XCTUnwrap(LocatorResolver.resolve(step: step, in: tree)).0
-        let picked = try MCPServer.resolveSelectorTarget("Save", in: tree)
+        let picked = try MCPServer.resolveSelectorTarget("Save", in: tree, isAndroid: false)
         XCTAssertEqual(picked.element.ref, dsl.ref)
         XCTAssertTrue(picked.note.contains("matched 2 separate elements; acted on [\(dsl.ref)]"), picked.note)
         XCTAssertTrue(picked.note.contains("a scenario line would pick"), picked.note)
-        XCTAssertEqual(try MCPServer.resolveSelectorTarget("#cancel", in: tree).note, "", "一意なら注記なし")
+        XCTAssertEqual(try MCPServer.resolveSelectorTarget("#cancel", in: tree, isAndroid: false).note, "", "一意なら注記なし")
     }
 
     /// ボタンとその中の文字が同じラベル(入れ子)= 同じ部品なので複数一致と言わない(実測: Apple マップの「今はしない」)
@@ -52,7 +52,7 @@ final class SelectorTargetTests: XCTestCase {
                              ElementInfo(ref: 2, type: "staticText", identifier: nil, label: "Later", value: nil,
                                          placeholder: nil, enabled: true,
                                          frame: FTRect(x: 10, y: 5, width: 100, height: 30), depth: 2)])
-        let picked = try MCPServer.resolveSelectorTarget("Later", in: tree)
+        let picked = try MCPServer.resolveSelectorTarget("Later", in: tree, isAndroid: false)
         XCTAssertEqual(picked.element.ref, 1)
         XCTAssertEqual(picked.note, "")
     }
@@ -61,7 +61,7 @@ final class SelectorTargetTests: XCTestCase {
     func testOrdinalSelectorIsNotReportedAsAmbiguous() throws {
         let tree = snapshot([element(1, id: nil, label: "Save", y: 0),
                                                   element(2, id: nil, label: "Save", y: 50)])
-        let picked = try MCPServer.resolveSelectorTarget(".button[2]", in: tree)
+        let picked = try MCPServer.resolveSelectorTarget(".button[2]", in: tree, isAndroid: false)
         XCTAssertEqual(picked.element.ref, 2)
         XCTAssertEqual(picked.note, "")
     }
@@ -117,6 +117,23 @@ final class SelectorTargetTests: XCTestCase {
             XCTAssertTrue(message.contains("has nothing under it in the tree"), message)
         }
         XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
+    }
+
+    /// 葉の型(文字)を容器にしたときは CMP の平坦化を持ち出さず「中身を持たない型」と言う(DSL と同じ選び方)
+    func testChildlessLeafContainerSaysItIsALeafNotCompose() {
+        let text = ElementInfo(ref: 1, type: "staticText", identifier: "txt_selected", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 0, width: 200, height: 20), depth: 5)
+        let row = ElementInfo(ref: 2, type: "staticText", identifier: "row_02", label: nil, value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 0, y: 40, width: 200, height: 20), depth: 5)
+        let snapshot = SnapshotResponse(sessionBundleID: "app", screen: FTRect(x: 0, y: 0, width: 402, height: 874),
+                                        elements: [text, row], truncatedCount: 0)
+        var locator = FlowLocator(id: "row_02")
+        locator.scope = [FlowLocator(id: "txt_selected")]
+        for isAndroid in [false, true] {
+            let hint = MCPServer.childlessScopeHint(locator, in: snapshot, isAndroid: isAndroid)
+            XCTAssertTrue(hint.contains("it is a staticText"), hint)
+            XCTAssertFalse(hint.contains("Compose"), hint)
+        }
     }
 
     /// 一致なしは何も撃たず、近いラベルを添えて断る
