@@ -187,7 +187,7 @@ extension StepExecutorTests {
         let executor = StepExecutor(driver: primary, delegate: delegate, occlusionInkThreshold: 10_000,
                                     isAndroid: false, tunables: RunTunables())
         executor.occlusionOCRMode = .on
-        executor.awaitReadableVision = { true }
+        executor.awaitReadableVision = { .ready }
         let outcome = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
                                                       timeout: 0, occlusionGuard: true))
         guard case .passed = outcome.status else { return XCTFail("訊き直しで読めたのに赤: \(outcome.status)") }
@@ -233,13 +233,57 @@ extension StepExecutorTests {
         let executor = StepExecutor(driver: primary, delegate: FakeVisibilityDelegate(visible: false),
                                     occlusionInkThreshold: 10_000, isAndroid: false, tunables: RunTunables())
         executor.occlusionOCRMode = .on
-        executor.awaitReadableVision = { waits.incrementAndGet(); return true }
+        executor.awaitReadableVision = { waits.incrementAndGet(); return .ready }
         let outcome = await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
                                                       timeout: 0, occlusionGuard: true))
         guard case .failed(let message) = outcome.status else { return XCTFail("実際は \(outcome.status)") }
         XCTAssertTrue(message.contains("FM transcribed nothing"), message)
         XCTAssertTrue(message.contains("; OCR "), message)
         XCTAssertEqual(waits.value, 1, "空の確かめの後に Vision の準備を待っていない")
+        XCTAssertTrue(message.contains("(read again once Vision was ready)"), message)
+    }
+
+    /// 確かめの読みが空で Vision の待ちが読めないと答えた回は、読み直さずに、読み直さなかった理由を失敗文に載せる(OI-235)。
+    /// 読みは「待ちの後なら文字が読める」Vision にする = 読み直したかを緑・赤で見分ける(読みの回数は数えない ——
+    /// 同じプロセスの前のテストの読みが予算の後に差し替え口へ届き、回数がずれる)
+    func testEmptyConfirmationStatesWhyItWasNotReadAgain() async throws {
+        RegionText.modelReadyOverrideForTesting = false
+        RegionText.modelCompileFinishOverrideForTesting = {}
+        defer {
+            RegionText.modelReadyOverrideForTesting = nil
+            RegionText.modelCompileFinishOverrideForTesting = nil
+            RegionText.readRecognizeOverrideForTesting = nil
+        }
+        func run(_ wait: RegionText.ReadableVisionWait) async -> StepResult.Status {
+            let waited = LockedCallCount()
+            RegionText.readRecognizeOverrideForTesting = { _ in waited.value > 0 ? ["こんにちは"] : [] }
+            let primary = FakeAppDriver(name: "primary", log: CallLog(),
+                                        snapshotElements: [[textElement(id: "msg", label: "こんにちは")]],
+                                        screenshots: [Self.inkedPNG])
+            let executor = StepExecutor(driver: primary, delegate: FakeVisibilityDelegate(visible: false),
+                                        occlusionInkThreshold: 10_000, isAndroid: false, tunables: RunTunables())
+            executor.occlusionOCRMode = .on
+            executor.awaitReadableVision = { waited.incrementAndGet(); return wait }
+            return await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "msg"),
+                                                   timeout: 0, occlusionGuard: true)).status
+        }
+        guard case .failed(let message) = await run(.waitAlreadyExhausted) else {
+            return XCTFail("待ちが尽きていたのに読み直した(読み直さなければ赤のはず)")
+        }
+        XCTAssertTrue(message.contains("; OCR found no text there (not read again: Vision was not ready, "
+                                       + "and an earlier wait in this run had already timed out)"), message)
+        guard case .passed = await run(.ready) else { return XCTFail("ready なのに読み直していない") }
+    }
+
+    /// 読み直さなかった理由の文言を等号で固定する(待たなかった回 = nil は何も足さない)
+    func testVisionWaitFactWording() {
+        XCTAssertEqual(StepExecutor.visionWaitFact(nil), "")
+        XCTAssertEqual(StepExecutor.visionWaitFact(.ready), " (read again once Vision was ready)")
+        XCTAssertEqual(StepExecutor.visionWaitFact(.waitAlreadyExhausted),
+                       " (not read again: Vision was not ready, and an earlier wait in this run had already timed out)")
+        XCTAssertEqual(StepExecutor.visionWaitFact(.waitedUnreadable),
+                       " (not read again: Vision was still not ready after waiting 10.0 seconds)")
+        XCTAssertEqual(StepExecutor.visionWaitFact(.noProbe), " (not read again: Vision's readiness could not be checked)")
     }
 
     /// FM が「見える」と判定したときも、先頭だけ読めた形(partiallyHidden / ellipsized)を注記に残す。

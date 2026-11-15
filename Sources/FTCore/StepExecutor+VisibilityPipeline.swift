@@ -661,10 +661,15 @@ extension StepExecutor {
                 budget: Self.emptyTranscriptOCRBudget)
             // ここへ来るのは近道の準備ができていない(このプロセスの Vision がまだ空を返す)ときなので、確かめの読みも
             // 空で返りやすい。空なら読めるようになるまで待って1回だけ読み直す(誤読は読み直さない = 読めている Vision の答え)
-            if Self.confirmationSawNothing(confirmation), await awaitReadableVision() {
-                confirmation = await RegionText.resolveWithinBudget(
-                    expected: expectedText, pngData: screenshot, frame: element.frame, screen: screen,
-                    budget: Self.emptyTranscriptOCRBudget)
+            var visionWait: RegionText.ReadableVisionWait?
+            if Self.confirmationSawNothing(confirmation) {
+                let wait = await awaitReadableVision()
+                visionWait = wait
+                if wait == .ready {
+                    confirmation = await RegionText.resolveWithinBudget(
+                        expected: expectedText, pngData: screenshot, frame: element.frame, screen: screen,
+                        budget: Self.emptyTranscriptOCRBudget)
+                }
             }
             let ocrElapsed = Self.ms(clock.now - ocrStart)
             phase.guardMs += ocrElapsed
@@ -674,7 +679,7 @@ extension StepExecutor {
                 pixelsShowedTextThisStep = true
                 return .pass(.consume(visible: true, sd: sd))
             }
-            ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation)
+            ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation) + Self.visionWaitFact(visionWait)
         }
         // **OCR で確かめられなかった回は FM に1回だけ訊き直す**: OCR の段がオフ、またはオンでも確かめの読みが読めなかった
         // (Vision が空を返した = 突き合わせる相手が居ない)
@@ -779,6 +784,20 @@ extension StepExecutor {
             return "; OCR returned no reading (the crop could not be made or Vision failed)"
         case .budgetExhausted:
             return "; OCR did not finish within \(Self.emptyTranscriptOCRBudget)"
+        }
+    }
+
+    /// 確かめの読みが空だった回に、読み直したか・読み直さなかった理由(OI-235 の測る口。待たなかった回 = nil は空文字)。
+    /// `.ready` は読み直した後もこの事実が付く = 「Vision が読める状態でも空だった」
+    static func visionWaitFact(_ wait: RegionText.ReadableVisionWait?) -> String {
+        switch wait {
+        case nil: return ""
+        case .ready: return " (read again once Vision was ready)"
+        case .waitAlreadyExhausted:
+            return " (not read again: Vision was not ready, and an earlier wait in this run had already timed out)"
+        case .waitedUnreadable:
+            return " (not read again: Vision was still not ready after waiting \(RegionText.readableVisionWaitCap))"
+        case .noProbe: return " (not read again: Vision's readiness could not be checked)"
         }
     }
 

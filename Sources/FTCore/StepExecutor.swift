@@ -602,7 +602,9 @@ public final class StepExecutor {
     public var onSystemAlertDismissed: (@Sendable (String) -> Void)?
     /// FM の空の転写の確かめが何も読めなかったとき、Vision が読めるようになるまで待つ(`RegionText.awaitReadableVision`)。
     /// テストが呼ばれたことを数えるための差し替え口(production は既定のまま)
-    var awaitReadableVision: @Sendable () async -> Bool = { await RegionText.awaitReadableVision() }
+    var awaitReadableVision: @Sendable () async -> RegionText.ReadableVisionWait = {
+        await RegionText.awaitReadableVisionOutcome()
+    }
     /// 割り込みハンドラ(アプリ内メッセージ・自前のお知らせダイアログ用)。
     /// **閉じ方はアプリ作者しか知らない**ので、ツールが推測せずプロジェクト側で1回宣言してもらう
     /// (DSL の `irregularHandler`)。detect が現在のスナップショットで解決できたら dismiss をタップし、

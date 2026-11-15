@@ -48,7 +48,8 @@
 出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
 - 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
 - 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
-- 次の一手: 確かめの OCR が「文字なし」を返した回に、Vision の待ちがすでに尽きていたのか(`readableVisionWaitExhausted`)・待って探りが読めなかったのか・読み直しても空だったのかは記録に無い(679ms では待ちを1回払ったとは考えにくいが推測)。どれだったかを注記に出す測る口を足してから、直し方を決める
+- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
+- 次の一手: 次にこの赤が出たら括弧の中を見て、待ちの使い切り・待っても読めない・読める Vision でも空のどれかを分けてから直し方を決める(679ms では待ちを1回払ったとは考えにくいので、前の待ちで尽きていた回と推測している)
 
 ### OI-234 iOS Simulator のワーカーの蘇生が、起動直後の遅さで始まる SpringBoard の起こし直しとブリッジの再起動の途中で、蘇生の枠(60 秒)に切られる(Duo-02 で 2 回中 2 回)
 - 状態: 再現済み

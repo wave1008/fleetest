@@ -513,13 +513,14 @@ final class RegionTextAwaitReadableVisionTests: XCTestCase {
         RegionText.modelReadyOverrideForTesting = false
         let callCount = LockedCallCount()
         RegionText.recognizeOverrideForTesting = { _ in callCount.incrementAndGet(); return [] }
-        let first = await RegionText.awaitReadableVision(cap: .milliseconds(200), interval: .milliseconds(20))
+        let first = await RegionText.awaitReadableVisionOutcome(cap: .milliseconds(200), interval: .milliseconds(20))
         let afterFirst = callCount.value
         let clock = ContinuousClock()
         let start = clock.now
-        let second = await RegionText.awaitReadableVision(cap: .seconds(5), interval: .milliseconds(20))
-        XCTAssertFalse(first)
-        XCTAssertFalse(second)
+        let second = await RegionText.awaitReadableVisionOutcome(cap: .seconds(5), interval: .milliseconds(20))
+        // 2回の「読めなかった」を理由で分ける(失敗文の事実 = OI-235 の測る口)
+        XCTAssertEqual(first, .waitedUnreadable)
+        XCTAssertEqual(second, .waitAlreadyExhausted)
         XCTAssertLessThan(clock.now - start, .milliseconds(500), "2回目も待っている")
         XCTAssertGreaterThan(afterFirst, 1)
     }

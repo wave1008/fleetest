@@ -233,20 +233,37 @@ public enum RegionText {
     /// (Vision が終日空を返す機械では、FM の空振りのたび・待ちのループの周回のたびに 10 秒ずつ払うことになる)
     public static func awaitReadableVision(cap: Duration = readableVisionWaitCap,
                                            interval: Duration = readableVisionProbeInterval) async -> Bool {
-        if isModelReady { return true }
-        guard OCRSupport.isSupported else { return false }
+        await awaitReadableVisionOutcome(cap: cap, interval: interval) == .ready
+    }
+
+    /// `awaitReadableVision` の答えを、読めなかった理由ごとに分けたもの(失敗文に事実として載せる = OI-235)
+    public enum ReadableVisionWait: Equatable, Sendable {
+        /// 読める(もとから・待つ間に読めるようになった)
+        case ready
+        /// このプロセスの前の待ちが上限まで読めずに尽きていたので、待たなかった
+        case waitAlreadyExhausted
+        /// 上限まで探り直して待ったが読めなかった(この回で待ちが尽きた)
+        case waitedUnreadable
+        /// 探りを撃てなかった(OCR 非対応・探りの絵を作れない)
+        case noProbe
+    }
+
+    public static func awaitReadableVisionOutcome(cap: Duration = readableVisionWaitCap,
+                                                  interval: Duration = readableVisionProbeInterval) async -> ReadableVisionWait {
+        if isModelReady { return .ready }
+        guard OCRSupport.isSupported else { return .noProbe }
         if readableVisionWaitExhausted.withLock({ $0 }) {
             requestReprobeIfDue()
-            return false
+            return .waitAlreadyExhausted
         }
-        guard let image = renderedProbe() else { return false }
+        guard let image = renderedProbe() else { return .noProbe }
         let (lines, _, _) = await probeWithRetry(image: image, budget: cap, interval: interval)
         guard modelReady(probe: lines) else {
             readableVisionWaitExhausted.withLock { $0 = true }
-            return false
+            return .waitedUnreadable
         }
         markModelReady()
-        return true
+        return .ready
     }
 
     /// `awaitReadableVision` を一度待ち切って読めなかったか(プロセス全体で1つ)
