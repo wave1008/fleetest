@@ -66,5 +66,9 @@
 `.widget` は型エイリアスです。この記法をコンパイル時にチェック可能な形で書けるのが
 [型付きセレクタ](./typed_selector_ja.md)です。
 
+## 注意点
+
+- **スコープ(`>>`)の祖先は、木の上で中身を子に持っている必要があります。** iOS の Compose Multiplatform は、`testTag` だけを付けた Row/Column を中身の無い要素として出し、中身はその隣(同じ階層)に並べます。この祖先を使ったスコープは、iOS では何にも一致しません(Android では一致します)。失敗文に `the scope's container … has nothing under it` と出たらこの形です。スコープを外して、一意な `#id`・ラベル・隣の要素からの相対セレクタ(`#btn_qty_decrement:right` など)で書きます。両 OS で回すシナリオでスコープを使うときは、iOS でも通ることを確かめてから採ります。
+
 ### Link
 - [index](../../index_ja.md)

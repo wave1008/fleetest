@@ -1957,6 +1957,17 @@ public final class StepExecutor {
             + " — that interaction may have been swallowed\(outOfAppCaveat))"
     }
 
+    /// 「見つからない」の失敗に添える: スコープの容器は見つかったが、木の上で中身を持たない(判定は
+    /// `LocatorResolver.childlessScopeContainer`。MCP の `ft_tap` 等の selector の断りと共有)。木が無ければ空
+    static func childlessScopeHint(_ step: FlowStep, _ elements: [ElementInfo]?) -> String {
+        guard let locator = step.locator, let elements,
+              let container = LocatorResolver.childlessScopeContainer(of: locator, in: elements) else { return "" }
+        return " (the scope's container \(TapTargetGeometry.describe(container)) is in the tree but has nothing under it,"
+            + " so nothing can be found inside it — on iOS, Compose Multiplatform lists the contents of a Row/Column that only"
+            + " has a testTag beside it rather than under it. Point at the target without this scope: a unique #id, a label,"
+            + " or a relative selector from an element next to it (e.g. #btn_qty_decrement:right))"
+    }
+
     /// 操作の対象が解決できなかった失敗に添える(検証の失敗の `tapDiagnosisHint` と同じ証跡)。この手が tap なら直前の tap は
     /// 手の入口で控えたもの(`tapEvidenceAtEntry`)を使い、まだ比べていない直前の tap は解決に使った木と比べて足す。**追加の撮影はしない・タップの記録は変えない**。
     /// 名指しした回はステップの注記の印(`unchangedTapBeforeFailure`)を立てる = 失敗の文面を組むときだけ呼ぶ

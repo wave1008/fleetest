@@ -204,6 +204,21 @@ public enum LocatorResolver {
         return pool
     }
 
+    /// スコープの容器のうち、**解決できたのに木に子孫を1つも持たない**もの(外側から最初の1つ)。無ければ nil。
+    /// iOS の Compose Multiplatform は testTag だけの Row/Column を子の無い葉で出し、中身を兄弟へ繰り上げる
+    /// (CMP 1.11 の AX を直に読んで確認)。中身を矩形で補う案は実測で無関係な重なりを拾ったので採らず(DR-181)、
+    /// 「見つからない」の失敗文でこの事実を言うだけにする(DSL と MCP が共有する判定・文言は呼び手ごと)
+    public static func childlessScopeContainer(of locator: FlowLocator, in elements: [ElementInfo]) -> ElementInfo? {
+        var pool = elements
+        for scopeLocator in locator.scope ?? [] {
+            guard let (container, _) = matchDetailed(scopeLocator, elements: pool) else { return nil }
+            let inside = descendants(of: container, in: elements)
+            if inside.isEmpty { return container }
+            pool = inside
+        }
+        return nil
+    }
+
     /// ロケータの属性フィルタに一致する全要素(スナップショットのツリー順)。
     /// **フィルタは全て AND**。一致ゼロなら空、絞り込み条件が1つも無ければ nil
     /// (スコープだけは条件として認める。`#list >> [2]` を書けるようにするため)。

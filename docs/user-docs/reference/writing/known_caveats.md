@@ -245,6 +245,9 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ## Selectors
 
+### Selector expressions
+- [The ancestor of a scope (>>) must have its contents under it in the tree](../selector/selector_expression.md#notes) — on iOS, a Compose Multiplatform Row/Column with only a `testTag` matches nothing as an ancestor (only on iOS). Write a unique `#id`, a label, or a relative selector instead.
+
 ### Typed selector (Sel)
 - [Misspelled member is a compile error](../selector/typed_selector.md#notes) — unlike the string form, `.buton` fails at compile time instead of silently becoming a literal label.
 - [`scrollFrame:` stays string-only](../selector/typed_selector.md#notes) — there is no `Sel` overload for that argument, even on commands with a full `Sel` overload.

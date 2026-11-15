@@ -614,6 +614,7 @@ extension StepExecutor {
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
+                       + Self.childlessScopeHint(step, lastSnapshot?.elements)
                        + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -822,6 +823,7 @@ extension StepExecutor {
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements)
                       + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -1123,7 +1125,8 @@ extension StepExecutor {
                            + (Self.coverReportHint(lastSnapshot) ?? "")
                            + Self.truncationHint(lastSnapshot)
                            + Self.keyboardResizedHint(lastSnapshot)
-                           + tapDiagnosisHint(lastSeenElements))
+                           + tapDiagnosisHint(lastSeenElements)
+                           + Self.childlessScopeHint(step, lastSnapshot?.elements))
         }
         let subject = assert.hasPrefix("value") ? "value" : "text"
         if missingOnLastRead {
@@ -1222,7 +1225,8 @@ extension StepExecutor {
             ? .failed("the element is \(wantEnabled ? "disabled" : "enabled"): \(step.locatorSummary)")
             : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
                       + Self.truncationHint(lastSnapshot)
-                      + Self.keyboardResizedHint(lastSnapshot))
+                      + Self.keyboardResizedHint(lastSnapshot)
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements))
     }
 
     /// キーボード開閉はアニメーションを伴うため単発チェックはフレークする → notExists と同じ
@@ -1395,7 +1399,8 @@ extension StepExecutor {
                       + tapDiagnosisHint(lastSnapshot?.elements))
             : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
                       + Self.truncationHint(lastSnapshot)
-                      + Self.keyboardResizedHint(lastSnapshot))
+                      + Self.keyboardResizedHint(lastSnapshot)
+                      + Self.childlessScopeHint(step, lastSnapshot?.elements))
     }
 
     /// imageIs(Shirates Vision の DefaultClassifier): 掴んだ要素の枠で切った画像の1位のラベル
@@ -1446,7 +1451,8 @@ extension StepExecutor {
         }
         guard found else {
             return failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
-                          + Self.truncationHint(lastSnapshot))
+                          + Self.truncationHint(lastSnapshot)
+                          + Self.childlessScopeHint(step, lastSnapshot?.elements))
         }
         guard let lastClassification else {
             if let classifierFailureThisStep {

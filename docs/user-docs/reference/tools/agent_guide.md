@@ -93,7 +93,7 @@ class SignInExample {
 
 - Prefer `#id`. A bare label (`"Home"`) matches the whole label exactly; `*text*` is a wildcard
   for dynamic text only.
-- `.type[n]` breaks when siblings are added or removed. Scope it instead: `#container >> .button`.
+- `.type[n]` breaks when siblings are added or removed. Scope it instead: `#container >> .button`. The ancestor must have its contents under it in the tree, though: on iOS, a Compose Multiplatform Row/Column with only a `testTag` has nothing under it, so the scope matches only on Android. For a scenario that runs on both OSes, check that it passes on iOS too; if not, write a unique `#id` or a relative selector.
 - Never write a selector you have not seen in a snapshot.
 
 ## Make it independent of the screen size

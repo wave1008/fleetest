@@ -16,6 +16,7 @@ extension MCPServer {
         guard let resolved = LocatorResolver.resolveDetailed(step: selectorStep(parsed), in: snapshot) else {
             throw MCPError("no element matches \(text) on the current screen — nothing was sent."
                 + notationHint(text, in: snapshot) + similarLabelsHint(text, in: snapshot)
+                + childlessScopeHint(parsed.primary, in: snapshot)
                 + " Take an ft_snapshot to read the current labels/ids.")
         }
         // 序数 `[n]` と相対セレクタは「複数のうちの1つ」を自分で選んだ書き方なので数えない
@@ -66,6 +67,14 @@ extension MCPServer {
         guard !target.note.isEmpty, !out.isEmpty, let first = out[0]["text"] as? String else { return out }
         out[0]["text"] = target.note + first
         return out
+    }
+
+    /// スコープの容器は見つかったが木の上で中身を持たない(判定は `LocatorResolver.childlessScopeContainer` を DSL と共有・文言はここ)
+    static func childlessScopeHint(_ locator: FlowLocator, in snapshot: SnapshotResponse) -> String {
+        guard let container = LocatorResolver.childlessScopeContainer(of: locator, in: snapshot.elements) else { return "" }
+        return " The scope's container \(RefGuard.describe(container)) has nothing under it in the tree (on iOS, Compose"
+            + " Multiplatform lists the contents of a Row/Column that only has a testTag beside it), so a `>>` scope on it never"
+            + " matches — drop the scope and use a unique #id, a label, or a relative selector (#neighbour:right)."
     }
 
     /// 一致なしの断り。**前面のアラートがあるならそれを先頭に置く**(末尾に置くと主文の「no element matches」だけ読まれ、

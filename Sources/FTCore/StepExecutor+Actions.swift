@@ -792,12 +792,16 @@ extension StepExecutor {
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
                 // モーダルの申告は leftHint と同じ位置で先に採る(window の覆いの案内より具体的)
                 let leftHint = await leftForegroundHint() ?? Self.modalScopeHint(hintSnapshot) ?? ownDialogHint()
+                // スコープの容器が木の上で中身を持たないなら、待っても送っても出ない = 待ち・送りの案内の代わりに言う
+                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements)
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
                         + (leftHint ?? Self.frontWindowCoverHint(hintSnapshot)
-                            ?? (Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
-                                + Self.scrollOffHint(step, in: hintSnapshot)))
+                            ?? (scopeHint.isEmpty
+                                ? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
+                                    + Self.scrollOffHint(step, in: hintSnapshot)
+                                : scopeHint))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)

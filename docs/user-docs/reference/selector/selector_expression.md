@@ -69,5 +69,9 @@ Type names are lowercase (`.button`, `.staticText`, not `.Button`). `.input` and
 are aliases; see [Typed selector](./typed_selector.md) for the compile-time-checked
 equivalent of this same notation.
 
+## Notes
+
+- **The ancestor of a scope (`>>`) must have its contents under it in the tree.** On iOS, Compose Multiplatform shows a Row/Column that only has a `testTag` as an element with nothing under it, and lists its contents beside it (at the same level). A scope on such an ancestor matches nothing on iOS (it matches on Android). When the failure message says `the scope's container … has nothing under it`, this is the case. Drop the scope and write a unique `#id`, a label, or a relative selector from an element next to it (such as `#btn_qty_decrement:right`). When a scenario that runs on both OSes uses a scope, check that it passes on iOS too before keeping it.
+
 ### Link
 - [index](../../index.md)

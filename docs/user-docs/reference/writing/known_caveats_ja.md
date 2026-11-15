@@ -245,6 +245,9 @@
 
 ## セレクタ
 
+### セレクタ式
+- [スコープ(>>)の祖先は木の上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
+
 ### 型付きセレクタ(Sel)
 - [綴り誤りは Sel ではコンパイルエラーになる](../selector/typed_selector_ja.md#注意点) — 文字列版では実行時の構文エラーか、黙って生ラベル扱いになります。
 - [scrollFrame: だけは文字列版のみ](../selector/typed_selector_ja.md#注意点) — 他の引数が `Sel` 版を持つコマンドでも、`scrollFrame:` には文字列で書きます。

@@ -101,6 +101,24 @@ final class SelectorTargetTests: XCTestCase {
 
     // MARK: - 一致なし
 
+    /// スコープの容器が木の上で中身を持たない(iOS の CMP の testTag だけの Row)なら、DSL と同じ判定でその事実を言う
+    func testNoMatchUnderAChildlessScopeContainerSaysSo() async throws {
+        let row = ElementInfo(ref: 1, type: "other", identifier: "cart_item_1", label: nil, value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 0, y: 0, width: 370, height: 94), depth: 10)
+        let remove = ElementInfo(ref: 2, type: "button", identifier: "btn_remove_1", label: "削除", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 330, y: 0, width: 48, height: 48), depth: 10)
+        let (server, fake) = make([row, remove])
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["selector": "#cart_item_1 >> #btn_remove_1"])
+            XCTFail("一致なしは断るはず")
+        } catch {
+            let message = (error as? MCPError)?.message ?? "\(error)"
+            XCTAssertTrue(message.contains("no element matches"), message)
+            XCTAssertTrue(message.contains("has nothing under it in the tree"), message)
+        }
+        XCTAssertFalse(fake.calls.contains { $0.hasPrefix("tap(") }, "\(fake.calls)")
+    }
+
     /// 一致なしは何も撃たず、近いラベルを添えて断る
     func testNoMatchRefusesWithoutSendingAnything() async throws {
         let (server, fake) = make([element(1, id: nil, label: "Save", y: 0)])

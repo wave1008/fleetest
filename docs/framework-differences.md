@@ -110,6 +110,7 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 | Compose(iOS)の Checkbox/Radio・Flutter(iOS)の Radio | **オンだけ**報告する(オフと「状態を持たない」が同じ見え方) | 同じシナリオで一度オンを見た要素ならオフも確定する。見る前の `checkIsOFF` は通して警告。**見本画像を置けば、見る前のオフも画像で判定できる**(FD-2.6) |
 | Flutter・Compose(iOS)・Android | indeterminate(一部だけ選択)をオフと区別して出さない(Flutter は `"0"`) | **`[INDETERMINATE]` の見本画像を置けば画像で判定できる**(FD-2.6)。ほかは echo の文字列で |
 | WebKit の `<input type=radio>`(XCUITest 経路) | id の無い `other` 型(ラベル・value `"1"`/`"0"` 付き)で届き、木の規則(id の無い `other` は落とす)で**要素ごと消える** | in-app(DOM 経路)なら読める。XCUITest ではラベルのテキストを指す |
+| Compose(iOS) | `testTag` だけの Row/Column を子の無い葉で出し、中身は一番近いまとまり(semanticGroup・クリック可能な要素)の直下へ兄弟として繰り上げる(Android は同じ画面を入れ子で出す。CMP 1.11・sut-ec-mobile のカートの AX を lldb で直に読んで確認 2026-11-16)。`#行 >> #ボタン` が iOS だけ一致しない | スコープの祖先には中身を子に持つ容器を選ぶ。無ければ一意な `#id`・ラベル・相対セレクタで書く。失敗文が `the scope's container … has nothing under it` で知らせる(DR-181) |
 | SwiftUI・Compose(iOS) | Slider の value が `"50%"` などパーセント表記 | 値は echo の文字列で確かめる |
 | SwiftUI(UITableView) | 画面外の行ラベルが、id 無しで全行分木に残る | ラベルの部分一致で不在検証しない |
 | React Native(iOS in-app) | Modal の中身と背景が同じ木に載りうる(XCUITest は Modal だけ)。in-app が背景を外すのは、`accessibilityViewIsModal` を立てた可視の view の手前の兄弟だけ(`InAppSnapshot.modalChildOnly`。FD-2.1)なので、RN の Modal がその旗を立てない形では外れない(旗の有無は未観測) | ダイアログ内は背景と衝突しない `#id` で指す |

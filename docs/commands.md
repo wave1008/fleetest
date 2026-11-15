@@ -88,6 +88,8 @@ docs/user-docs/reference/testclass/testcode_structure_ja.md と docs/user-docs/r
 
 iOS では in-app の木(inapp-boost モード)と XCUITest の木(xcuitest モード・MCP)で要素の並びが違う(in-app はナビゲーションバーを末尾に置く)ので、`.button[5]` のように**容器のスコープ(`>>`)を持たない序数**は、モードによって別の要素を指しうる(`ft_batch` で通した列がシナリオで別の行を押した実例)。iOS で `[n]` を書いたステップには注記 `ordinal-without-scope` が付く(`FlowLocator.hasUnscopedOrdinal`・Android は付かない・MCP の警告と共有)。**推奨は `#id`・ラベル、または容器の中で数える `#list >> .button[n]`**(容器の子の順なので並びの差を受けない)。
 
+**スコープの祖先は木の上で中身を子に持っている必要がある**。iOS の Compose Multiplatform は `testTag` だけの Row/Column を子の無い葉で出し、中身を隣へ兄弟として繰り上げる(FD-1.4)ので、その祖先のスコープは iOS だけ何にも一致しない。矩形で中身を補う案は実測で無関係な重なりを拾ったので採らない(DR-181)。代わりに「見つからない」の失敗文で事実を言う(`LocatorResolver.childlessScopeContainer` = 容器は解決できたのに木に子孫が無い。DSL の操作・検証と MCP の selector の断りが共有し、文言は呼び手ごと。操作では待ち・送りの案内の代わりに出す = 待っても出ない)。
+
 ## 操作
 
 | コマンド | 説明 |
