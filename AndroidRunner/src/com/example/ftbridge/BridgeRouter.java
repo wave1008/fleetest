@@ -1505,6 +1505,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         }
         // キーボードの初回シートを、アプリを出す前に済ませる(言語ごとに1回。ImeOnboarding の冒頭コメント)
         ImeOnboarding.primeOnce(instrumentation, ua());
+        long launchStartedAt = android.os.SystemClock.uptimeMillis();
         if (attemptLaunch(bundleID)) return ok();
         // 前面判定が別パッケージの居座りで詰んだ。前面を掃除して1回だけ再試行する。
         // force-stop が bundleID しか殺さないと以後の launchApp が全滅する既知の罠(DS-8.7)。
@@ -1560,7 +1561,13 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             return stoppedForeground == null ? ok() : BridgeHttpServer.Response.json(200,
                     "{\"ok\":true,\"stoppedForeground\":" + JSONObject.quote(stoppedForeground) + "}");
         }
-        throw new BridgeException(500, "the app never came to the foreground: " + bundleID);
+        // 測った事実を添える(OI-236: 失敗の画面ではアプリが前面に居た回がある = 待ちが負けたのか・何が前面に居たのかを後から読む)
+        String after = activePackage();
+        throw new BridgeException(500, "the app never came to the foreground: " + bundleID
+                + " (in front before the retry: " + (stuck == null ? "unknown" : stuck)
+                + (stoppedForeground != null ? ", which was force-stopped" : "")
+                + "; in front after the retry: " + (after == null ? "unknown" : after)
+                + "; " + (android.os.SystemClock.uptimeMillis() - launchStartedAt) + "ms in all)");
     }
 
     private BridgeHttpServer.Response handleTerminate() {
