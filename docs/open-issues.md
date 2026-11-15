@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 | |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 4 | OI-218・OI-234・OI-235・OI-236 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-236 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 25 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 7 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 34 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 37 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235 |
 
 ## 着手可
 
@@ -47,45 +47,8 @@
 
 出典: `_work/regress-20261115c`(11/15 の全マシンの回帰)。M1Max の E2EY-CMP の Android で、-02(「スワイプの距離で結果が変わること」S0030)と -04(「シートが畳まれていても背面を操作できること」S0020)の `launch` が `The driver returned an error (500): the app never came to the foreground: com.ftester.e2ey`。同じ形が 11/10 の M1Max の E2EY-CMP にも 2 本(run 20261110-193808Z-442999f0)。手元・M1Ultra・M4Max の結果には無い
 - 観測: -02 の失敗の記録の画面はアプリのホーム(機能の一覧)= 証跡を撮った時点では前面に居た。回帰の後に 2 台を見ると、起きていて前面はアプリ・ロックは無効(MN-63.1 のロック画面の形ではない)。文言に systemui の説明が無い = `BridgeRouter.handleLaunch` の最後の経路(前面の居座りを止めて 1 回だけ起動し直し、それでも前面に来ない)を通った
-- 次の一手: 材料不足(前面待ちが期限に負けたのか・何が前面に居たのか)。測る口は、最後の経路の失敗文に再試行の前に前面に居たパッケージ(`stuck`)と待った時間を載せること(ブリッジの変更 = Android の版を上げる)
-
-### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回)
-- 状態: 再現済み
-- 確認: 6e1dce9ec(2026-11-15)
-- 属性: 要測定・低頻度
-- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
-- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
-
-出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
-- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
-- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
-- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
-- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
-- 次の一手: 次にこの赤が出たら括弧の中を見て、待ちの使い切り・待っても読めない・読める Vision でも空のどれかを分けてから直し方を決める(679ms では待ちを1回払ったとは考えにくいので、前の待ちで尽きていた回と推測している)
-
-### OI-234 iOS Simulator のワーカーの蘇生が、起動直後の遅さで始まる SpringBoard の起こし直しとブリッジの再起動の途中で、蘇生の枠(60 秒)に切られる(Duo-02 で 2 回中 2 回)
-- 状態: 再現済み
-- 確認: 35040589d(2026-11-15)
-- 属性: 要測定・低頻度
-- 運用: 再実行で吸収 — そのデバイスは run から外れ、残りの台が続ける
-- 優先度: 低 — 赤やデバイスの離脱になるが、誤った緑ではない
-
-出典: `_work/explore-20261115a/duo/r1.log`(55周目 duo)。開いた iPhone Duo(iOS 27.2)-02 で SpringBoard / InputUI が落ちた後(OI-184)にワーカーが離脱。蘇生の2回とも「xcuitest bridge ready → 1要素の照会が 2.03s / 6.86s(普通は 0.3s 未満)→ SpringBoard を起こし直してブリッジを再起動」の途中で取り消され、「Could not revive the worker」になった。取り消したのは蘇生の枠(`ProfileWorkerFactory.buildWorker` の Simulator は 60s・任務グループの `cancelAll`)= 起動を待つ `BridgeLauncher.waitUntilReady` の `Task.checkCancellation`(観測済み: 取り消しの出どころはこの経路にこれだけ)
-- 文言は 11/15 に直した(取り消しを「did not become ready in time」と言わない・枠が尽きた事実を `⏱ … reviving gave up after 60s` で言う)
-- 測る口(11/15): 蘇生の記録の各行に、蘇生を始めてからの経過秒を前置した(`[revive +12.3s] …`。`ProfileWorkerFactory.reviveStamped`)。デバイスでは未通過(蘇生が起きていない)
-- 次の一手: 次に「reviving gave up after 60s」が出たら、前の行の経過秒で起動・遅さの測り直し・SpringBoard の起こし直し・再起動のどれが枠を使ったかを読む。60s が和に足りないのか、Duo の SpringBoard が落ち続けていて枠を延ばしても直らないのかはその後に決める(延ばすと本当に死んだデバイスで run が待つ)
-
-### OI-218 RN の Android で上向きの探索が上に行が残るのに「端に着いた」で赤(手元の 6 台で 60 回中 1 回)
-- 状態: 再現済み
-- 確認: 80c658e07(2026-11-15)
-- 属性: 要測定・低頻度
-- 運用: 再実行で吸収(赤は 1〜6% = 11/15 の手元の周回で 48 回中 3 回・60 回中 1 回)
-- 優先度: 低 — 赤になる(誤った緑ではない)
-
-出典: `_work/explore-20261111a/findings-amax.md`(51周目・11/11)。E2E-RN の Android で、行27 が見えている位置から撃った `tap("#row_21", scroll: .up)` が「the scroll area reached its end — the content stopped moving」で赤。失敗時の画面は一覧の下端
-- **11/15 に測った**: 探索の記録に中身の向きを足した(`(moved N of M, content went up|down)`・`StepExecutor.measuredContentDirection`)。再現では round 1〜3 が `moved 0` = 払いが中身を動かさなかった。SUT の E2EAppRN(Android)の一覧に、タッチ列ごとのスクロール位置を `#list_rows` のラベルと logcat(`ReactNativeJS` の `OI218 …`)へ出す測る口を足し、手元の 6 台へ 10 周(`_work/oi218d`・毎周の logcat つき)。**60 回すべてで、行27 の位置(contentOffset 588dp)からの最初の上向きの払いが一覧を先頭(0)まで流し、行21 を飛び越した**(一覧の窓は約 446dp)。先頭では払いが動かないので「端に着いた」になり、そこからの逆向きの遅いドラッグが 0→245→472→699 と戻して行21 を見つけるのが緑の回。**赤の 1 回は、逆向きの最初の遅いドラッグが 0→1880 と一度に下端まで流れた**(同じ入力が緑では 245 だけ動いた)
-- 飛び越しそのものは既定経路(scrollFrame 無し)の払いの移動量が窓を超える既知の形で、刻みをホスト側で縮める直しは 2 度撤回済み(PT-3.19・`StepExecutor+ScrollSearch.swift` の移動量の doc)。ここでは変えない
-- 次の一手: 遅いドラッグが流れた理由は材料不足(ブリッジの注入の時刻か、RN の ScrollView の速度の計算か)。次に測るなら、ブリッジの遅いドラッグの各 MOVE の予定時刻と実際に撃った時刻を記録する
+- 測る口(11/15・Android ブリッジ v143): 最後の経路の失敗文に、再試行の前に前面に居たパッケージ・止めたか・再試行の後に前面に居たパッケージ・launch 全体の所要を載せた(`BridgeRouter.handleLaunch`)。再現の試み: M1Max の 4 台へ過去に落ちた 4 クラスを 5 周 broadcast(260 回)と、11/15 の全マシンの回帰(E2EY-CMP の Android は手元)で起きず
+- 次の一手: 次にこの赤が出たら括弧の中(前面に居たもの・所要)を見て、前面待ちが期限に負けたのか、別のものが前面に居たのかを分ける
 
 ## 要判断
 
@@ -316,6 +279,36 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 ## 環境側
 
+### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回)
+- 状態: 据え置き
+- 確認: 6e1dce9ec(2026-11-15)
+- 属性: 環境側・低頻度・据え置き
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
+
+出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
+- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
+- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
+- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
+- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
+- **原因(11/15 の回帰で観測)**: 測る口が出した理由は `(not read again: Vision was not ready, and an earlier wait in this run had already timed out)`(手元の E2E-CMP の Android「WebViewの中身を操作できること」S0010・Pixel 10 Pro -03・`_work/regress-20261115d`)。そのステップの OCR の所要は 10,661ms = Vision が読めるまでの待ち(上限 10 秒)をこのステップの中で使い切り、判定の取り直しで 2 回目に通ったときは尽きていた。切り抜きには `wv_result=-` がはっきり写っている = **はっきり描かれた文字を、同じプロセスの Vision(10 秒探っても空)と FM(空の転写)が同時に読めなかった**。手元の負荷が高く、エミュレータの白紙・固まりが多発していた時間帯(同じ回帰で手元の Android 16 台ぶんが外れた)
+- 判断(据え置き): 読み手が 2 つとも読めないとツールには文字が見えていると確かめられない(赤が正しい)。待ちの上限(10 秒)を延ばすと、Vision が長く読めない機械で失敗のたびに 10 秒以上を払う
+- 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
+
+### OI-234 iOS Simulator のワーカーの蘇生が、起動直後の遅さで始まる SpringBoard の起こし直しとブリッジの再起動の途中で、蘇生の枠(60 秒)に切られる(Duo-02 で 2 回中 2 回)
+- 状態: 据え置き
+- 確認: 35040589d(2026-11-15)
+- 属性: 環境側・低頻度・据え置き
+- 運用: 再実行で吸収 — そのデバイスは run から外れ、残りの台が続ける
+- 優先度: 低 — 赤やデバイスの離脱になるが、誤った緑ではない
+
+出典: `_work/explore-20261115a/duo/r1.log`(55周目 duo)。開いた iPhone Duo(iOS 27.2)-02 で SpringBoard / InputUI が落ちた後(OI-184)にワーカーが離脱。蘇生の2回とも「xcuitest bridge ready → 1要素の照会が 2.03s / 6.86s(普通は 0.3s 未満)→ SpringBoard を起こし直してブリッジを再起動」の途中で取り消され、「Could not revive the worker」になった。取り消したのは蘇生の枠(`ProfileWorkerFactory.buildWorker` の Simulator は 60s・任務グループの `cancelAll`)= 起動を待つ `BridgeLauncher.waitUntilReady` の `Task.checkCancellation`(観測済み: 取り消しの出どころはこの経路にこれだけ)
+- 文言は 11/15 に直した(取り消しを「did not become ready in time」と言わない・枠が尽きた事実を `⏱ … reviving gave up after 60s` で言う)
+- 測る口(11/15): 蘇生の記録の各行に、蘇生を始めてからの経過秒を前置した(`[revive +12.3s] …`。`ProfileWorkerFactory.reviveStamped`)。デバイスでは未通過(蘇生が起きていない)
+- **原因(11/15 に観測)**: 手元の Duo 2 台で 55 周目の手順(開いた Duo で一覧の行・入力からホームへ出て閉じる)を回し、経過秒つきの蘇生の記録を採った(`_work/oi234`・`_work/oi234b`)。**60 秒の枠**の蘇生 2 回はどちらも「XCUITest ブリッジの起動 29〜38 秒 → 1 問の照会 2.03s / 2.04s で遅いと判断 → SpringBoard の起こし直し 3〜7 秒 → 2 回目の起動の途中で枠切れ」。**枠を 180 秒に広げた実験**(手元だけ・戻した)では、起動し直しの後も照会は 2.04s のまま(SpringBoard の起こし直しは simctl が 30 秒で終わらず失敗)= 起動し直しは効かない。4 回の蘇生のうち戻ったのは遅さが出なかった 1 回(+27s)だけで、残り 3 回はブリッジの起動だけで 80〜160 秒以上かかるか終わらなかった
+- 判断(据え置き): SpringBoard の落ちが続いた Duo(OI-184)は端末そのものが使えない状態で、枠を広げても run が長く待つだけ。蘇生をあきらめて残りの台で続けるのが正しい振る舞い
+- 見直す条件: Duo 以外の Simulator でも同じ蘇生の枠切れが出たら(記録の `[revive +N s]` で段ごとの所要を見る)
+
 ### OI-233 Android の E2E-Android「連続ジェスチャ」で、1本指の `gesture` の後にパンが検出されない(`pan=-`・17 回中 1 回)
 - 状態: 据え置き
 - 確認: 80c658e07(2026-11-15)
@@ -389,6 +382,20 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
+
+### OI-218 RN の Android で上向きの探索が上に行が残るのに「端に着いた」で赤(手元の 6 台で 60 回中 1 回)
+- 状態: 据え置き
+- 確認: 80c658e07(2026-11-15)
+- 属性: 据え置き・低頻度
+- 運用: 再実行で吸収(赤は 1〜6% = 11/15 の手元の周回で 48 回中 3 回・60 回中 1 回)
+- 優先度: 低 — 赤になる(誤った緑ではない)
+
+出典: `_work/explore-20261111a/findings-amax.md`(51周目・11/11)。E2E-RN の Android で、行27 が見えている位置から撃った `tap("#row_21", scroll: .up)` が「the scroll area reached its end — the content stopped moving」で赤。失敗時の画面は一覧の下端
+- **11/15 に測った**: 探索の記録に中身の向きを足した(`(moved N of M, content went up|down)`・`StepExecutor.measuredContentDirection`)。再現では round 1〜3 が `moved 0` = 払いが中身を動かさなかった。SUT の E2EAppRN(Android)の一覧に、タッチ列ごとのスクロール位置を `#list_rows` のラベルと logcat(`ReactNativeJS` の `OI218 …`)へ出す測る口を足し、手元の 6 台へ 10 周(`_work/oi218d`・毎周の logcat つき)。**60 回すべてで、行27 の位置(contentOffset 588dp)からの最初の上向きの払いが一覧を先頭(0)まで流し、行21 を飛び越した**(一覧の窓は約 446dp)。先頭では払いが動かないので「端に着いた」になり、そこからの逆向きの遅いドラッグが 0→245→472→699 と戻して行21 を見つけるのが緑の回。**赤の 1 回は、逆向きの最初の遅いドラッグが 0→1880 と一度に下端まで流れた**(同じ入力が緑では 245 だけ動いた)
+- 飛び越しそのものは既定経路(scrollFrame 無し)の払いの移動量が窓を超える既知の形で、刻みをホスト側で縮める直しは 2 度撤回済み(PT-3.19・`StepExecutor+ScrollSearch.swift` の移動量の doc)。ここでは変えない
+- **流れた理由(11/15 に観測)**: SUT の記録に離した瞬間の速度(`onScrollEndDrag` の velocity)を、ホストの gRPC のドラッグに所要と送りの最大の間隔(`EmulatorControl.dragTimingNote`。普段の幅を超えたときだけ1行)を足し、手元の 6 台へ 20 周(`_work/oi218e`)。逆向きの遅いドラッグ 320 本のうち流れた(1000dp 以上動いた)5 本は、ネイティブの ScrollView が報告した離した瞬間の速度が -111〜-861(流れなかった 315 本は中央値 0.06・1 本は 0.00 で流れた)。ホストの送りの間隔が大きかった 5 本とは 1 本しか重ならない = 送りは予定どおりで、速度はゲストの側で大きく計算された(なぜ大きくなったかは未測定)
+- 判断(据え置き): 直すなら「遅いドラッグは離す前に同じ点で止まる」(速度の計算に使う直近の移動を 0 にする)だが、ドラッグの口(`AppDriver.drag`)に引数を足してドライバ 13 個と偽のドライバを通す必要があり、救えるのは 60 回に 1 回の赤(既知の飛び越しの後始末の経路)だけ
+- 見直す条件: 逆走査以外の遅いドラッグ(寄せ・端の確かめ)でも流れる赤が出たら
 
 ### OI-225 実機の iOS(inapp-boost)で、合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する(WebView の DOM 要素・UIKit の入力欄・SwiftUI の行)
 - 状態: 再現済み
