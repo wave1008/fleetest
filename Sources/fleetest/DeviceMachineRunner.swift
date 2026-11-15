@@ -615,24 +615,12 @@ enum DeviceMachineRunner {
         return lines
     }
 
-    /// FleetRunner.buildMachineContext の同名ヘルパと同じ規律(手元の鍵で facts を保存、
-    /// dispatchOverheadSeconds は既存値を保持)。こちらは local グループの台数が分かるので
-    /// concurrentDevices も埋める。**鍵はこの機械のホスト名**("local" ではない ——
-    /// エイリアスも予約名も記録の鍵にしない。ユーザー決定)
+    /// こちらは local グループの台数が分かるので concurrentDevices も埋める(規律は RemoteHostFactsStore.saveLocal)
     private static func saveLocalHostFacts(project: TestProject, hardware: MachineHardware, groups: [Group]) {
-        let dir = RemoteHostFactsStore.dir(project: project)
-        let localHost = RunRecorder.currentMachine()
-        let existing = RemoteHostFactsStore.load(dir: dir, host: localHost)
-        let localDeviceCount = groups.first(where: { $0.machine == nil })?.deviceNames.count
-        let facts = RemoteHostFacts(
-            host: localHost,
-            // 手元の表示名は "local"(FTCore.DeviceMachineGrouping.localDisplayName)
-            machineAlias: DeviceMachineGrouping.localDisplayName,
-            dispatchOverheadSeconds: existing?.dispatchOverheadSeconds,
-            processorModel: hardware.processorModel, coreCount: hardware.coreCount,
-            concurrentDevices: localDeviceCount ?? existing?.concurrentDevices,
-            updatedAt: ISO8601DateFormatter().string(from: Date()))
-        RemoteHostFactsStore.save(facts, dir: dir, host: localHost)
+        RemoteHostFactsStore.saveLocal(
+            dir: RemoteHostFactsStore.dir(project: project), host: RunRecorder.currentMachine(),
+            hardware: hardware,
+            concurrentDevices: groups.first(where: { $0.machine == nil })?.deviceNames.count)
     }
 
     // MARK: - 結果の無いシナリオ(サブ実行のクラッシュ)

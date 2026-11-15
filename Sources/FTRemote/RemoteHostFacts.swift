@@ -1,6 +1,7 @@
 // RemoteHostFacts.swift
-// ディスパッチが観測した「ホストの事実」の手元キャッシュ。書き手は RemoteRunDispatcher、
-// 読み手は FleetRunner / DeviceMachineRunner(FleetSplit.MachineContext を組み立てる側)。
+// ディスパッチが観測した「ホストの事実」の手元キャッシュ。書き手は RemoteRunDispatcher(リモート)と saveLocal(この機械・手元の run のたび)、
+// 読み手は FleetRunner / DeviceMachineRunner(FleetSplit.MachineContext を組み立てる側)と、host → 表示名の読み替え
+// (aliasPairs = api results の machines・拡張の recordingsStore.ts / issuerLabel.ts が同じファイルを直接読む)。
 // 同一ホストへのディスパッチは dispatch.lock で直列化される(RemoteDispatchLock)ため、
 // このストアはファイル競合を気にしなくてよい(DeviceFrozenStore と違い pid 生存判定は不要 ——
 // 「最新の観測値」を保つだけの単純なキャッシュ)。
@@ -105,6 +106,25 @@ public enum RemoteHostFactsStore {
 
     private static func entryURL(dir: URL, host: String) -> URL {
         dir.appendingPathComponent("\(fileKey(host: host)).json")
+    }
+
+    /// **この機械の facts**(鍵 = `RunRecorder.currentMachine()` のホスト名・表示名 = "local")を書く唯一の口。
+    /// 手元の run のたびに書く —— 書かないと手元1台だけの利用者は読み替え表(`aliasPairs` と拡張の
+    /// `readMachineAliases` / `readIssuerAliases`)に組が無く、記録・画面にホスト名が出る(タイルは "local")。
+    /// concurrentDevices は nil なら既存値を保つ(分かる呼び手 = DeviceMachineRunner だけが渡す)。
+    /// dispatchOverheadSeconds・hardwareUUID は手元では採らないので既存値を保つ(save は全置換)
+    public static func saveLocal(dir: URL, host: String, hardware: MachineHardware,
+                                 concurrentDevices: Int? = nil, now: Date = Date()) {
+        let existing = load(dir: dir, host: host)
+        let facts = RemoteHostFacts(
+            host: host,
+            machineAlias: DeviceMachineGrouping.localDisplayName,
+            hardwareUUID: existing?.hardwareUUID,
+            dispatchOverheadSeconds: existing?.dispatchOverheadSeconds,
+            processorModel: hardware.processorModel, coreCount: hardware.coreCount,
+            concurrentDevices: concurrentDevices ?? existing?.concurrentDevices,
+            updatedAt: ISO8601DateFormatter().string(from: now))
+        save(facts, dir: dir, host: host)
     }
 
     /// **ローカルエイリアス(machine)から鍵(ホスト)を引く**。登録簿にあればその ssh 宛先、

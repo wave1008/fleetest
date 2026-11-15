@@ -224,6 +224,38 @@ final class RemoteHostFactsTests: XCTestCase {
         XCTAssertEqual(pairs.first?.machine, "M1Max")
     }
 
+    // MARK: - saveLocal
+
+    /// 手元1台だけの利用者でも、記録の host(ホスト名)が "local" へ読み替わる組が表に入る
+    func testSaveLocalPutsTheHostToLocalPairInTheAliasTable() {
+        RemoteHostFactsStore.saveLocal(
+            dir: dir, host: "Someones-MacBook", hardware: MachineHardware(processorModel: "Apple M9", coreCount: 12))
+        let pairs = RemoteHostFactsStore.aliasPairs(dir: dir)
+        XCTAssertEqual(pairs.map(\.host), ["Someones-MacBook"])
+        XCTAssertEqual(pairs.map(\.machine), ["local"])
+        let saved = RemoteHostFactsStore.load(dir: dir, host: "Someones-MacBook")
+        XCTAssertEqual(saved?.processorModel, "Apple M9")
+        XCTAssertEqual(saved?.coreCount, 12)
+    }
+
+    /// save は全置換なので、手元では採らない欄を既存値から運ぶ。concurrentDevices は渡したときだけ上書き
+    func testSaveLocalKeepsFieldsItDoesNotMeasure() {
+        RemoteHostFactsStore.save(
+            RemoteHostFacts(host: "PC2", machineAlias: "local", hardwareUUID: "UUID-1",
+                            dispatchOverheadSeconds: 3.5, concurrentDevices: 4,
+                            updatedAt: "2026-08-31T00:00:00Z"),
+            dir: dir, host: "PC2")
+        let hardware = MachineHardware(processorModel: "Apple M9", coreCount: 12)
+        RemoteHostFactsStore.saveLocal(dir: dir, host: "PC2", hardware: hardware)
+        var saved = RemoteHostFactsStore.load(dir: dir, host: "PC2")
+        XCTAssertEqual(saved?.hardwareUUID, "UUID-1")
+        XCTAssertEqual(saved?.dispatchOverheadSeconds, 3.5)
+        XCTAssertEqual(saved?.concurrentDevices, 4)
+        RemoteHostFactsStore.saveLocal(dir: dir, host: "PC2", hardware: hardware, concurrentDevices: 2)
+        saved = RemoteHostFactsStore.load(dir: dir, host: "PC2")
+        XCTAssertEqual(saved?.concurrentDevices, 2)
+    }
+
     // MARK: - MachineHardware.current()
 
     /// この機械上での sanity チェック(具体値は環境依存なので形だけ確認する)

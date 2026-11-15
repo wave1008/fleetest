@@ -339,23 +339,11 @@ enum FleetRunner {
             entryFallbackFactors: entryFallbackFactors)
     }
 
-    /// **この機械のホスト名を鍵に** facts を保存する(ローカル機の CPU 情報は RemoteRunDispatcher の
-    /// プローブ経路を通らないので、ここでこの run のたびに書く)。dispatchOverheadSeconds/
-    /// concurrentDevices は分からないので触らない(既存値を保持。RemoteHostFactsStore.save は
-    /// 全置換なので既存値は読み直して埋める)。best-effort(失敗しても run の成否を変えない)
+    /// ローカル機の CPU 情報は RemoteRunDispatcher のプローブ経路を通らないので、ここでこの run のたびに書く。
+    /// best-effort(失敗しても run の成否を変えない)
     private static func saveLocalHostFacts(project: TestProject, hardware: MachineHardware) {
-        let dir = RemoteHostFactsStore.dir(project: project)
-        let localHost = RunRecorder.currentMachine()
-        let existing = RemoteHostFactsStore.load(dir: dir, host: localHost)
-        let facts = RemoteHostFacts(
-            host: localHost,
-            // 手元の表示名は "local"(FTCore.DeviceMachineGrouping.localDisplayName)
-            machineAlias: DeviceMachineGrouping.localDisplayName,
-            dispatchOverheadSeconds: existing?.dispatchOverheadSeconds,
-            processorModel: hardware.processorModel, coreCount: hardware.coreCount,
-            concurrentDevices: existing?.concurrentDevices,
-            updatedAt: ISO8601DateFormatter().string(from: Date()))
-        RemoteHostFactsStore.save(facts, dir: dir, host: localHost)
+        RemoteHostFactsStore.saveLocal(dir: RemoteHostFactsStore.dir(project: project),
+                                       host: RunRecorder.currentMachine(), hardware: hardware)
     }
 
     private static func medianMs(_ values: [Double]) -> Double? {

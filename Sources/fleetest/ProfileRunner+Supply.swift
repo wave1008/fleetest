@@ -3,6 +3,7 @@ import Foundation
 import FTAndroid
 import FTBridgeClient
 import FTCore
+import FTRemote
 
 // `fleetest run --profile` の準備の段(プロファイル解決 → 台数の絞り込み → 二重使用の確認 → サービス → 開始スクリプト →
 // 供給のタスクを起こす)。ビルドが要る回は呼び手(Fleetest.swift の run)がビルドの**前**にこれを呼び、供給をビルドと
@@ -137,6 +138,9 @@ extension ProfileRunner {
                                    supplyProgress: RunSupplyProgress, interruptState: RunInterruptState,
                                    log: @escaping (String) -> Void) throws {
         try rejectIfDevicesLeasedBeforePreparation(resolved: resolved, leaseStateDir: stateDir)
+        // 手元1台だけの run でも「ホスト名 → local」の読み替えの組を残す(書く口と理由は saveLocal の宣言)
+        RemoteHostFactsStore.saveLocal(dir: RemoteHostFactsStore.dir(project: resolved.project),
+                                       host: RunRecorder.currentMachine(), hardware: MachineHardware.current())
         if resolved.responseMeasurement {
             // レスポンス計測中はモニターを止める
             cleanup.responseMonitorHold = stateDir.flatMap { ResponseMeasurementMonitorHold.acquire(stateDir: $0, log: log) }
