@@ -44,6 +44,36 @@ final class AndroidBackGestureEdgesTests: XCTestCase {
         XCTAssertNil(AndroidBackGestureEdges.parse(""))
     }
 
+    /// 実測(M1Ultra の Pixel 10 Pro -06・48 回中 1 回): ブロックの 2 行目だけ字下げが崩れて出る。
+    /// 崩れた行で切らずに読み切る(切ると有効の欄に届かず nil = 帯を避けない払いが「戻る」と取られた)
+    func testAOneLineIndentGlitchDoesNotCutTheBlock() {
+        let snippet = """
+              EdgeBackGestureHandler:
+                mIsEnabled=true
+            mIsAttached=true
+                mIsBackGestureAllowed=true
+                mIsGestureHandlingEnabled=true
+                mEdgeWidthLeft=78
+                mEdgeWidthRight=78
+              mLastReportedConfig=
+            """
+        let widths = AndroidBackGestureEdges.parse(snippet)
+        XCTAssertEqual(widths?.left, 78)
+        XCTAssertEqual(widths?.right, 78)
+    }
+
+    /// 浅い行の後にブロックの字下げへ戻らないなら、そこで終わる(後ろの親の欄・別の段落の値を拾わない)
+    func testAShallowLineThatDoesNotReturnEndsTheBlock() {
+        let snippet = """
+              EdgeBackGestureHandler:
+                mIsBackGestureAllowed=true
+              mIsGestureHandlingEnabled=true
+              mEdgeWidthLeft=78
+              mEdgeWidthRight=78
+            """
+        XCTAssertNil(AndroidBackGestureEdges.parse(snippet))
+    }
+
     /// mIsGestureHandlingEnabled 自体が読めない(欄が欠けている)ときも nil
     func testMissingEnabledKeyReturnsNil() {
         let snippet = """
@@ -132,7 +162,7 @@ final class AndroidBackGestureEdgesTests: XCTestCase {
         XCTAssertEqual(AndroidBackGestureEdges.parse(Self.gestureNavSnippet)?.left, 78, "inset の欄が無い版は従来どおり")
     }
 
-    /// 読めなかった回の理由は経路ごとに別の事実を言い、読めた回(3ボタンの (0,0,0) を含む)は nil(OI-232)
+    /// 読めなかった回の理由は経路ごとに別の事実を言い、読めた回(3ボタンの (0,0,0) を含む)は nil
     func testUnreadReasonNamesWhichWayTheReadFailed() {
         typealias E = AndroidBackGestureEdges
         XCTAssertEqual(E.unreadReason(.timedOut(seconds: 5)), "dumpsys did not answer within 5s")

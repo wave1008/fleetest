@@ -38,7 +38,7 @@ public enum AndroidBackGestureEdges {
         case exited(status: Int32, output: String)
     }
 
-    /// `parse` が nil になった回の理由(事実だけ。OI-232: 期限切れか・失敗の終了か・出力のどこが欠けたかを分ける)。
+    /// `parse` が nil になった回の理由(事実だけ: 期限切れか・失敗の終了か・出力のどこが欠けたかを分ける)。
     /// 読めた回(3ボタン navigation の (0,0,0) を含む)は nil
     public static func unreadReason(_ outcome: ReadOutcome, bottomFallback: Double = 0) -> String? {
         switch outcome {
@@ -78,20 +78,35 @@ public enum AndroidBackGestureEdges {
     }
 
     /// ヘッダ行より深いインデントの行だけをブロックとして切り出す(次に同じ/浅いインデントの
-    /// 非空行が来たら終端)
+    /// 非空行が来たら終端)。**ただし字下げの崩れた1行は続きとして読む**: 浅い行が `key=value` の形で、
+    /// 次の非空行がまたブロックの字下げへ戻るとき(実測: 6 文字のはずの `mIsAttached=true` が 2 文字で出て、
+    /// ブロックが 1 行で切れ、有効の欄に届かず帯を避けなかった。同じ端末で 48 回中 1 回)。
+    /// 戻らない浅い行(ブロックの後の親の欄・次の見出し)は今までどおり終端
     private static func block(named header: String, in dumpsys: String) -> [Substring]? {
         let lines = dumpsys.split(separator: "\n", omittingEmptySubsequences: false)
         guard let start = lines.firstIndex(where: {
             $0.trimmingCharacters(in: .whitespaces).hasPrefix(header)
         }) else { return nil }
         let headerIndent = indent(of: lines[start])
+        let rest = lines[(start + 1)...].filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         var body: [Substring] = []
-        for line in lines[(start + 1)...] {
-            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
-            guard indent(of: line) > headerIndent else { break }
+        for (offset, line) in rest.enumerated() {
+            if indent(of: line) > headerIndent {
+                body.append(line)
+                continue
+            }
+            let next = offset + 1 < rest.count ? rest[rest.startIndex + offset + 1] : nil
+            guard isKeyValueLine(line), let next, indent(of: next) > headerIndent else { break }
             body.append(line)
         }
         return body
+    }
+
+    /// `name=value` の形の行(見出し `Name:` ではない)
+    private static func isKeyValueLine(_ line: Substring) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let eq = trimmed.firstIndex(of: "="), eq != trimmed.startIndex else { return false }
+        return !trimmed[..<eq].contains(" ") && !trimmed.hasSuffix(":")
     }
 
     private static func indent(of line: Substring) -> Int {

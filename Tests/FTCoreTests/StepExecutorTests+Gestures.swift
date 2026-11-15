@@ -662,7 +662,7 @@ extension StepExecutorTests {
         }
     }
 
-    /// 読めなかった理由をドライバが言えるなら注記に足す(OI-232: 期限切れか・失敗の終了か・出力の欠けかを次の赤で分ける)。
+    /// 読めなかった理由をドライバが言えるなら注記に足す(期限切れか・失敗の終了か・出力の欠けかを次の赤で分ける)。
     /// 言えなければ従来の文のまま(「why」を空で付けない)
     func testSwipeByNoteCarriesTheBandReadFailureReason() async throws {
         for reason in ["dumpsys did not answer within 5s", nil] as [String?] {
