@@ -42,6 +42,43 @@ final class DeclaredArgumentTypeCheckTests: XCTestCase {
         }
     }
 
+    // MARK: - enum の値は宛先の解決より前に断る
+
+    /// 実地(55周目の補い): ft_fold に state "folded" を渡すと、udid の解決がブリッジを起動して 73 秒払ってから
+    /// ツールの中で断っていた。入口で断れば、udid の解決(居ない udid なら「no running bridge」)に届かない
+    func testEnumOutsideValueIsRefusedBeforeTheTargetIsResolved() async {
+        do {
+            _ = try await server.call(tool: "ft_fold", args: jsonArgs(
+                #"{"state":"folded","udid":"00000000-0000-0000-0000-00000000DEAD"}"#))
+            XCTFail("state \"folded\" が通った")
+        } catch {
+            let message = error.localizedDescription
+            XCTAssertTrue(message.hasPrefix("state must be one of fold, unfold (got \"folded\")"), message)
+        }
+    }
+
+    /// 必須の欄が無い呼び出しも宛先の解決より前に断る。使い方を添える欄はツールの中と同じ文言
+    func testMissingRequiredArgumentIsRefusedBeforeTheTargetIsResolved() async {
+        let deadUDID = "00000000-0000-0000-0000-00000000DEAD"
+        for (tool, expected) in [("ft_navigate", "target is required"),
+                                 ("ft_scroll_to", MCPServer.scrollToSelectorRequiredMessage)] {
+            do {
+                _ = try await server.call(tool: tool, args: ["udid": deadUDID])
+                XCTFail("\(tool): 必須の欄が無いのに通った")
+            } catch {
+                XCTAssertEqual(error.localizedDescription, expected, tool)
+            }
+        }
+    }
+
+    /// 大文字の platform も断る(platformName は "android" との完全一致 = 通すと黙って iOS に落ちる)。候補の中の値は通す
+    func testEnumValueRefusalCoversEveryDeclaredEnumAndPassesAllowedValues() {
+        XCTAssertNotNil(MCPServer.enumValueRefusal(tool: "ft_snapshot", args: ["platform": "Android"]))
+        XCTAssertNil(MCPServer.enumValueRefusal(tool: "ft_snapshot", args: ["platform": "android"]))
+        XCTAssertNil(MCPServer.enumValueRefusal(tool: "ft_fold", args: ["state": "unfold"]))
+        XCTAssertNil(MCPServer.enumValueRefusal(tool: "ft_fold", args: ["degrees": 90]))
+    }
+
     // MARK: - checkDeclaredArgumentTypes(純粋関数): NSNumber の boolean/数値の取り違え
 
     /// JSON の `true`/`false` は NSNumber(CFBoolean)で来るので、素朴な `as? Int` は

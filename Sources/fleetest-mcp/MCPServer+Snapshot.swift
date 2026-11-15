@@ -1754,7 +1754,7 @@ extension MCPServer {
         // 空白だけも空として断る(ArgumentBounds.emptyViolation と同じ扱い)
         guard let selectorText = args["selector"] as? String,
               !selectorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw MCPError("selector is required (same syntax as the DSL: #id, a label, .type, a||b)")
+            throw MCPError(Self.scrollToSelectorRequiredMessage)
         }
         guard let direction = FTScrollDirection(rawValue: args["direction"] as? String ?? "down") else {
             throw MCPError("direction must be one of down/up/right/left (content direction)")

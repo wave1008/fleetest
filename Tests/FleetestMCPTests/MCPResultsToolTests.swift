@@ -173,7 +173,7 @@ final class MCPResultsToolTests: XCTestCase {
     func testQueryIsRequiredAndMustBeKnown() async {
         for (args, expected) in [
             ([String: Any](), "query is required"),
-            (["query": "nope"], "query must be one of: list, summary, flaky, trend, devices, slow, insights, log"),
+            (["query": "nope"], "query must be one of list, summary, flaky, trend, devices, slow, insights, log (got \"nope\")"),
             (["query": ""], "query must not be empty"),
             (["query": 3], "query must be a string"),
         ] as [([String: Any], String)] {

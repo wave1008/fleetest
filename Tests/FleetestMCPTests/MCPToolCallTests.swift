@@ -778,7 +778,7 @@ final class MCPToolCallTests: XCTestCase {
             ("ft_type", [:], "text"),
             ("ft_long_press", [:], "ref"),
             ("ft_tap", [:], "ref or x/y"),
-            ("ft_swipe", ["finger": "sideways"], "up/down/left/right"),
+            ("ft_swipe", ["finger": "sideways"], "finger must be one of up, down, left, right"),
             ("ft_run_scenario", [:], "id"),
             ("ft_dry_run", [:], "id"),
         ]

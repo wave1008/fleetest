@@ -18,11 +18,14 @@ extension MCPServer {
     /// 返す(デバイスに触る前 = `driver(args)` より前に呼べる形を保つ ——
     /// `resolve` は screen が要るので driver 取得後にしか呼べないが、JSON の形だけの誤りは
     /// ここで先に弾く。CLAUDE.md「MCP と DSL が共有する唯一の判定」—— ここは JSON の形だけを見る)
+    /// 入口の必須検査(`requiredArgumentRefusal`)もこの文言を返す
+    static let gestureFingersRequiredMessage = "fingers is required: an array of 1-\(TouchGesture.maxFingers) finger"
+        + " paths, each { x, y, startSeconds?, steps?: [{x, y, durationSeconds} or"
+        + " {holdSeconds}] } — absolute coordinates, same system as ft_tap's x/y"
+
     static func gestureFingersArgument(_ args: [String: Any]) throws -> [FTFinger] {
         guard let raw = args["fingers"] else {
-            throw MCPError("fingers is required: an array of 1-\(TouchGesture.maxFingers) finger"
-                + " paths, each { x, y, startSeconds?, steps?: [{x, y, durationSeconds} or"
-                + " {holdSeconds}] } — absolute coordinates, same system as ft_tap's x/y")
+            throw MCPError(Self.gestureFingersRequiredMessage)
         }
         guard let rawFingers = raw as? [Any] else {
             throw MCPError("fingers must be an array (got \(describeArgumentValue(raw)))")

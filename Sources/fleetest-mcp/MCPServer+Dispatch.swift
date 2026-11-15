@@ -342,6 +342,44 @@ extension MCPServer {
         }
     }
 
+    /// スキーマの `required` の欄が無ければ入口で断る(純粋。`enumValueRefusal` と同じく宛先の解決より前 =
+    /// 欠けた呼び出しがブリッジの起動を払ってからツールの中で断っていた)。空文字・型違いは各ツールと型の検査が見る
+    static func requiredArgumentRefusal(tool: String, args: [String: Any]) -> String? {
+        guard let definition = toolDefinitions.first(where: { $0["name"] as? String == tool }),
+              let schema = definition["inputSchema"] as? [String: Any],
+              let required = schema["required"] as? [String] else { return nil }
+        guard let missing = required.first(where: { args[$0] == nil }) else { return nil }
+        return requiredArgumentUsage[tool]?[missing] ?? "\(missing) is required"
+    }
+
+    /// 欠けたときに使い方を添える欄(ツールの中の同じ throw と文言を共有する)
+    static let requiredArgumentUsage: [String: [String: String]] = [
+        "ft_batch": ["steps": batchStepsUsage],
+        "ft_gesture": ["fingers": gestureFingersRequiredMessage],
+        "ft_scroll_to": ["selector": scrollToSelectorRequiredMessage],
+    ]
+
+    static let scrollToSelectorRequiredMessage = "selector is required (same syntax as the DSL: #id, a label, .type, a||b)"
+
+    /// スキーマに `enum` を宣言した文字列の欄は、値が候補の外なら入口で断る(純粋。型の検査の後に呼ぶ)。
+    /// 各ツールの中の検査は宛先の解決(`foldingUDIDIntoPort` = 居なければブリッジを起動する)より後なので、
+    /// ft_fold の state の打ち間違いがブリッジの起動に 73 秒払ってから断られていた。大文字の "Android" 等も
+    /// ここで断る(platformName は "android" との完全一致なので、通すと黙って iOS に落ちる)
+    static func enumValueRefusal(tool: String, args: [String: Any]) -> String? {
+        guard let definition = toolDefinitions.first(where: { $0["name"] as? String == tool }),
+              let schema = definition["inputSchema"] as? [String: Any],
+              let properties = schema["properties"] as? [String: Any] else { return nil }
+        for key in args.keys.sorted() {
+            guard let value = args[key] as? String,
+                  let allowed = (properties[key] as? [String: Any])?["enum"] as? [String],
+                  !allowed.contains(value) else { continue }
+            if let empty = ArgumentBounds.emptyViolation(key, value) { return empty }
+            return "\(key) must be one of \(allowed.joined(separator: ", ")) (got \(value.debugDescription))"
+                + " — nothing was sent"
+        }
+        return nil
+    }
+
     /// 宣言した欄の文字列(配列の要素も)に NUL があれば断る(純粋)。URL・プロジェクト名・シナリオ名は外部コマンドの引数へ流れ、
     /// `Process` は NUL を ObjC 例外で abort させる = MCP サーバごと落ちる(`Shell.runRaw` も断るが、`Process` を直に起こす経路がある)
     static func nulCharacterRefusal(tool: String, args: [String: Any]) -> String? {
@@ -610,6 +648,8 @@ extension MCPServer {
             .filter { !$0.isEmpty }.joined(separator: " ")
         try Self.checkDeclaredArgumentTypes(tool: tool, args: cleaned)
         if let refusal = Self.nulCharacterRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
+        if let refusal = Self.requiredArgumentRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
+        if let refusal = Self.enumValueRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
         // **waitFor の構文は操作を撃つ前に断る**(操作の後の待ちで弾くと、撃ってから上限まで待った。`* *`・`=` が通った)
         if let waitFor = cleaned["waitFor"] as? String {
             _ = try Self.parseSelectorArgument(waitFor, argument: "waitFor")

@@ -36,7 +36,7 @@ final class MCPFoldTests: XCTestCase {
 
     func testRejectsUnknownStateAndOutOfRangeDegrees() async {
         let state = await failure(["platform": "android", "state": "half"])
-        XCTAssertTrue(state.contains("\"fold\" or \"unfold\""), state)
+        XCTAssertTrue(state.contains("state must be one of fold, unfold"), state)
         for degrees in [-1.0, 181.0] {
             let message = await failure(["platform": "android", "degrees": degrees])
             XCTAssertTrue(message.contains("degrees"), message)
