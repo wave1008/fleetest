@@ -554,6 +554,9 @@ enum InAppSnapshot {
         if t.contains(.staticText) || t.contains(.header) { return .staticText }
         if node is UINavigationBar { return .navigationBar }
         if node is UITabBar { return .tabBar }
+        // アラートの入れ物 = UIAlertController の根の view(SwiftUI の `.alert` もこれ)。無いと XCUITest の木が出す `alert` が
+        // in-app にだけ無く、MCP の木から写した `.alert >> #ok` が inapp-boost モードで赤になる
+        if let view = node as? UIView, view.next is UIAlertController { return .alert }
         if node.isAccessibilityElement,
            LiveRegionText.isLabelOnlyLiveRegion(traits: t.rawValue, label: node.accessibilityLabel) {
             return .staticText

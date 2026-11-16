@@ -1794,13 +1794,18 @@ final class BridgeRouter {
                 + " (\(Int(point.x)),\(Int(point.y))). Retry, or close it by hand")
         }
         #endif
-        let verifiable = app.map { $0.state == .runningForeground && sessionBundleID != "com.apple.springboard" } ?? false
+        // **確かめる相手は要求の対象(ホストが渡す bundleID)を先に使う**: セッションが SpringBoard のままでも対象のアプリは
+        // 確かめられる。セッションだけで決めると確かめられずに1回で抜け、2回目の仮想 HID へ一度も届かない
+        // (閉じた iPhone Duo の Simulator は press(.home) の宛先が無い = backboardd の destinations:<none>。19/19 赤だった)
+        let verifyTarget: XCUIApplication? = target.bundleID.flatMap { $0 == "com.apple.springboard" ? nil : homeTargetApp }
+            ?? (sessionBundleID == "com.apple.springboard" ? nil : app)
+        let verifiable = verifyTarget.map { $0.state == .runningForeground } ?? false
         for attempt in 1...Self.homeAttempts {
             sendHome(sb, attempt: attempt)
             // XCTest が割り込み(アラート)で諦めた控えが残っていれば押し直さない(1回の送信で約 6.6 秒かかり、押し直しは
             // 3 回 × 約 9 秒 = 27 秒になった。押し直してもアラートは消えない)。控えは要求の終わりで 422 になる
             if InterruptionGuard.shared.hasBlocked { break }
-            guard verifiable, let app else { break }
+            guard verifiable, let app = verifyTarget else { break }
             let deadline = Date().addingTimeInterval(Self.homeSettleSeconds)
             var left = false
             while Date() < deadline {
@@ -1818,7 +1823,7 @@ final class BridgeRouter {
                     + " by tapping one of its buttons")
             }
             if attempt == Self.homeAttempts {
-                throw BridgeError(422, "the home gesture was sent \(attempt) times but \(sessionBundleID ?? "the app")"
+                throw BridgeError(422, "the home gesture was sent \(attempt) times but \(target.bundleID ?? sessionBundleID ?? "the app")"
                     + " is still in the foreground (XCUIDevice.press(.home) can be swallowed on physical devices)."
                     + " Retry, or bring the home screen up by hand")
             }
