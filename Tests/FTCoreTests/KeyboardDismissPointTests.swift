@@ -18,7 +18,7 @@ final class KeyboardDismissPointTests: XCTestCase {
     private func form(extra: [ElementInfo] = []) -> [ElementInfo] {
         [el(1, "scrollView", nil, screen, depth: 0),
          el(2, "staticText", nil, FTRect(x: 56, y: 126, width: 95, height: 22), depth: 1),
-         el(3, "textView", "field_city", field, depth: 1, focused: true)] + extra
+         el(3, "textField", "field_city", field, depth: 1, focused: true)] + extra
     }
 
     private func candidates(_ elements: [ElementInfo], overlays: [FTRect] = []) -> [KeyboardDismissPoint.Choice] {
@@ -159,6 +159,40 @@ final class KeyboardDismissPointTests: XCTestCase {
         XCTAssertEqual(driver.coordinateTaps.count, 1, "先に背景を叩くはず")
         XCTAssertTrue(log.entries.contains("primary.pressEnter"), log.entries.description)
         XCTAssertTrue(outcome.driverFallback?.contains("so sent Enter") == true, outcome.driverFallback ?? "nil")
+    }
+
+    /// 焦点の欄が複数行(textView)なら Enter を送らずに失敗(改行を入れて値だけが変わる = DR-185・59周目 iultra F1)
+    func testIOSHideKeyboardDoesNotSendEnterIntoAMultiLineField() async throws {
+        let log = CallLog()
+        let multiLine = [el(1, "scrollView", nil, screen, depth: 0),
+                         el(2, "staticText", nil, FTRect(x: 56, y: 126, width: 95, height: 22), depth: 1),
+                         el(3, "textView", "field_title", field, depth: 1, focused: true)]
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [multiLine])
+        driver.keyboardFrame = keyboard
+        driver.tapProbeAnswer = background
+        driver.afterPressEnter = { driver.keyboardFrame = nil }
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("Enter was not sent because the focused field is multi-line"), message)
+        XCTAssertFalse(log.entries.contains("primary.pressEnter"), log.entries.description)
+        XCTAssertEqual(driver.coordinateTaps.count, 1, "先に背景を叩くのは変わらない")
+    }
+
+    /// 焦点の印が無い木(CMP の in-app)でも、直前に打った欄が複数行なら Enter を送らない
+    func testIOSHideKeyboardUsesTheLastTypedFieldWhenNothingIsMarkedFocused() async throws {
+        let log = CallLog()
+        let multiLine = [el(1, "scrollView", nil, screen, depth: 0),
+                         el(3, "textView", "field_title", field, depth: 1)]
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [multiLine])
+        driver.keyboardFrame = keyboard
+        driver.tapProbeAnswer = background
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        executor.lastFieldTouchTarget = multiLine[1]
+        let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("Enter was not sent because the focused field is multi-line"), message)
+        XCTAssertFalse(log.entries.contains("primary.pressEnter"), log.entries.description)
     }
 
     /// Enter へ進まない設定(MCP)なら、閉じなければ Enter を送らずに失敗

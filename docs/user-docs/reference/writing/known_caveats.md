@@ -135,7 +135,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### pressEnter, hideKeyboard
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.
-- [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost sends no Enter.
+- [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost, and a focused multi-line field, get no Enter.
 - [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched.
 - [Keyboard state is a separate assertion](../commands/press_enter_hide_keyboard.md#notes) — verify whether it is showing with the keyboard assertions.
 - [`settle: false` skips the settle wait](../commands/press_enter_hide_keyboard.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
