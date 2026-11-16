@@ -51,6 +51,16 @@ final class AndroidDriverSettleOverrideTests: XCTestCase {
         XCTAssertTrue(made.first?.contains("keyevent") == true, "\(made)")
     }
 
+    /// キーの操作(ここでは back)の後の次の1枚はキャッシュを迂回する(Compose の画面は a11y のキャッシュが前の画面の木を返す)。
+    /// 整定を飛ばした回も同じ(印は整定と独立)
+    func testBackMakesTheNextSnapshotBypassTheCache() async throws {
+        let adb = try fakeADB()
+        let driver = AndroidDriver(serial: serial, adbPath: adb.path)
+        XCTAssertFalse(driver.nextSnapshotBypassesCache)
+        try await SettleOverride.$skip.withValue(true) { try await driver.back() }
+        XCTAssertTrue(driver.nextSnapshotBypassesCache, "back の後の読みが a11y のキャッシュ(前の画面の木)を引く")
+    }
+
     /// 陽性対照: 既定(settle する)ではキー操作の後にブリッジへ整定を頼みに行き、失敗すると固定待ちへ落ちる
     func testBackByDefaultSettlesViaTheBridge() async throws {
         let adb = try fakeADB()

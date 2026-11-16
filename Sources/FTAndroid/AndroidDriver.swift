@@ -265,6 +265,12 @@ public final class AndroidDriver: AppDriver {
     /// 分けられないので、文言の一致で仕分けず、すべて撃ち直さない側へ倒す。失敗は `bridgeUnreachable`(= 配達不明)で投げる
     func sendKeyevent(_ key: String, what: String) throws {
         let result = try adbAnswering(["shell", "input", "keyevent", key])
+        // **キーの後の次の1枚はキャッシュを迂回する**(届いたか分からない失敗の回も = 画面が替わったかもしれない)。Compose の画面は
+        // 画面が替わった後も a11y のキャッシュが前の画面の木を返し続ける(back の後・整定が返った直後の素取得 5/5 が前の画面、
+        // tap で進んだ後の素取得は 3/5 が6秒経っても前の画面・キャッシュを捨てる読みはどちらも 5/5 が新しい画面。View は素取得でも
+        // 新しい画面)。キーの操作(back・Enter・ホーム・スイッチャー・キーボードを閉じる)は StepExecutor の「画面を動かした
+        // 操作の後の迂回」を通らない経路(DSL の back() 等)からも撃たれるので、ドライバで立てる
+        nextSnapshotBypassesCache = true
         guard result.status != 0 else { return }
         throw DriverError.bridgeUnreachable(context: androidContext(),
             detail: "\(what) failed (adb exit \(result.status)): whether the key reached the device is unknown"
@@ -1377,8 +1383,8 @@ public final class AndroidDriver: AppDriver {
 
     /// 直前の端送りで「もう端」と分かったか(`AppDriver.reachedEdgeOnLastSwipe`)
     public private(set) var atEdgeOnLastSwipe: Bool?
-    /// 次の snapshot を1回だけキャッシュ迂回にする(a11y のスクロール操作の直後。swipe の端送り参照)
-    private var nextSnapshotBypassesCache = false
+    /// 次の snapshot を1回だけキャッシュ迂回にする(a11y のスクロール操作の直後 = swipe の端送り参照・キーの操作の直後 = sendKeyevent 参照)
+    private(set) var nextSnapshotBypassesCache = false
     /// 読み直しの後の素取得を確かめる控え(A11yCacheStalenessGuard)
     private var cacheStalenessGuard = A11yCacheStalenessGuard()
     public var reachedEdgeOnLastSwipe: Bool? { atEdgeOnLastSwipe }

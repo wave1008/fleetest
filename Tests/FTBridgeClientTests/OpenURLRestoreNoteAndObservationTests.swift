@@ -101,9 +101,12 @@ final class OpenURLRestoreNoteAndObservationTests: XCTestCase {
         }
     }
 
+    /// 前後とも同じ読み(observe)を通り、iOS は observationSnapshot(再前面化しない読み)・Android はキャッシュ迂回(Compose は a11y のキャッシュが前の画面の木を返す)
     func testBackReadsBeforeAndAfterThroughObservationSnapshot() throws {
         let src = try source("Sources/FTDSL/CommandsAppControl.swift")
-        XCTAssertTrue(src.contains("let before = try? await observer.observationSnapshot()"))
-        XCTAssertTrue(src.contains("let after = try? await observer.observationSnapshot()"))
+        XCTAssertTrue(src.contains("let before = await observe()"))
+        XCTAssertTrue(src.contains("let after = await observe()"))
+        XCTAssertTrue(src.contains("bypass ? try? await observer.snapshot(bypassingCache: true) : try? await observer.observationSnapshot()"))
+        XCTAssertTrue(src.contains("let bypass = core.platform == \"android\" && observer.supportsCacheBypass"))
     }
 }

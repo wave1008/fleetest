@@ -349,7 +349,13 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         }
         // 直前の type のキーボードが出きるのを先に待つ(StepExecutor.awaitKeyboardBeforeBack)
         try await executor.awaitKeyboardBeforeBack()
-        let before = try? await observer.observationSnapshot()
+        // **Android は前後ともキャッシュを迂回して読む**: Compose の画面は画面が替わった後も a11y のキャッシュが前の画面の木を返す
+        // (AndroidDriver.sendKeyevent の doc)。直前の tap で進んだ後の前の木も古いまま = 迂回した後の木と同じに見えて「効かなかった」と注記した(5 回中 3 回)
+        let bypass = core.platform == "android" && observer.supportsCacheBypass
+        func observe() async -> SnapshotResponse? {
+            bypass ? try? await observer.snapshot(bypassingCache: true) : try? await observer.observationSnapshot()
+        }
+        let before = await observe()
         // performCustom は FlowStep を通らないので、ドライバへ届く TaskLocal はここで入れる(`settle:` は tap を参照)
         try await SettleOverride.$skip.withValue(!settle) { try await driver.back() }
         // back はアプリを抜けうる(Android の最初の画面 = ランチャーへ出る。24周目 amax F2)。**門の後に立てる**: hook で先に立てると
@@ -358,7 +364,7 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         // Android は木にキーボードの枠が無いと「閉じた」とは言えない(照会しないと不明 = nil)。前に出ていた回だけ、後の木で照会を頼む
         // (dumpsys の固定費はこの形の1回だけ。頼まないと closedKeyboardOnly が常に黙った = 42・44周目)
         if core.platform == "android", let before, KeyboardWait.isShown(before) { observer.captureKeyboardStateOnNextSnapshot() }
-        guard let before, let after = try? await observer.observationSnapshot() else { return }
+        guard let before, let after = await observe() else { return }
         let expectedOwners = [core.appBundleID, executor.lastLaunchedAppBundleID].compactMap { $0 }
         // 撃つ前から対象アプリが前面に居なかった(止めた・ホームの後)なら、back の注記は付けない(アプリを抜けたのは back ではない)
         if core.platform == "android",
