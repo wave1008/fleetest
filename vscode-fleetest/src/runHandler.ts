@@ -18,7 +18,7 @@ import { type FleetestConfig, listRunProfileNames, resolveProjectName } from "./
 import { resolveEntryAtCursor, truncateForStatusBar, type TreeItemEntry } from "./copyTestName";
 import { checkForDyldLaunchFailure } from "./dyldLaunchNotice";
 import { t } from "./i18n";
-import { laneStrings, tLane } from "./i18n/strings/lane";
+import { descriptionOnPassed, descriptionOnStarted } from "./healedMark";
 import { lastResultsDir, lookupKey, readFailedScenarioIds } from "./lastResults";
 import { runOneShot } from "./oneShotCli";
 import { decideRemoteCompat, hasXcodeSelectionError, type RemoteCompatMachine, type RemoteCompatReport } from "./remoteCompatGate";
@@ -795,11 +795,7 @@ async function executeRun(
         // 振り直しで再開したシナリオは「実行中」へ戻す(最終結果は次の passed/failed で確定する)。
         finished.delete(action.scenario);
         if (item) {
-          // 自分が付けた印だけ外す(削除中・下書きの description は触らない)。付けた後に言語が変わっても外れるよう両言語と照合
-          const healedMark = laneStrings["lane.healedDescription"];
-          if (item.description === healedMark.ja || item.description === healedMark.en) {
-            item.description = undefined;
-          }
+          item.description = descriptionOnStarted(item.description);
           run.started(item);
         }
         break;
@@ -817,9 +813,7 @@ async function executeRun(
           const durationMs = action.durationMs;
           reapplyTerminal.set(action.scenario, () => run.passed(item, durationMs));
           run.passed(item, durationMs);
-          if (action.healedSteps > 0 && !item.description) {
-            item.description = tLane("lane.healedDescription");
-          }
+          item.description = descriptionOnPassed(item.description, action.healedSteps);
         }
         break;
       }
