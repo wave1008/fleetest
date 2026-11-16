@@ -67,8 +67,8 @@ export const laneStrings = {
   "lane.failedText": { ja: "失敗しました", en: "Failed" },
   "lane.passed": { ja: "  ✅ 成功", en: "  ✅ Passed" },
   "lane.passedViaHeal": {
-    ja: "  🔧 自己修復で通りました({count} ステップ)。セレクタはシナリオへ書き戻されます。git の差分を確認してください",
-    en: "  🔧 Passed via self-heal ({count} steps). The selectors will be written back to the scenario; review the git diff",
+    ja: "  🔧 自己修復で通りました({count} ステップ)。書いたセレクタが画面と合っていません(書き戻しの結果は run の終わりに出ます。git の差分を確認してください)",
+    en: "  🔧 Passed via self-heal ({count} steps). The written selectors no longer match the screen (the write-back result follows at the end of the run; review the git diff)",
   },
   // runHandler.ts が Test Explorer の TestItem.description に付ける印(一致したときだけ外す)
   "lane.healedDescription": { ja: "🔧 自己修復で成功", en: "🔧 passed via self-heal" },

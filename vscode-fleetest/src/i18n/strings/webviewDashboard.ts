@@ -150,8 +150,8 @@ export const webviewDashboardStrings = {
   },
 
   "wvDashboard.headlineDiff.healedHeading": {
-    ja: "自己修復で通ったシナリオ(セレクタがシナリオへ書き戻されます。git の差分を確認してください)",
-    en: "Scenarios that passed via self-heal (selectors are written back to the scenario; review the git diff)",
+    ja: "自己修復で通ったシナリオ(書いたセレクタが画面と合っていません。書き戻した差分を git で確認してください)",
+    en: "Scenarios that passed via self-heal (the written selectors no longer match the screen; review the written-back diff in git)",
   },
 
   // summaryTable.js
