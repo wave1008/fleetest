@@ -87,6 +87,7 @@ import {
   runCleanup,
   updateRetention,
 } from "./retentionController";
+import { fetchDeviceSettings, updateDeviceSettings } from "./deviceSettingsController";
 import { formatBytesAuto, type RetentionPatch } from "./retentionModel";
 import {
   TYPE_ORDER,
@@ -802,6 +803,25 @@ export class MonitorPanelController implements vscode.Disposable {
     this.lastKnownMachineColors = merged.machineColors;
   }
 
+  /**
+   * 設定タブ「実機をテストで使用する」を CLI 側のマシン設定へ書き、**モニターを起こし直す**(モニターは
+   * 起動時にだけ読む)。確定値は CLI の応答で返す。失敗したら現在値を読み直して理由と一緒に返す
+   * (理由だけだとチェックが押した側のまま残り、値が黙って戻ったように見える)。
+   */
+  private async applyUsePhysicalDevices(value: boolean): Promise<void> {
+    const deps = this.remoteHostsDeps();
+    const result = await updateDeviceSettings(deps, value);
+    if (result.error !== undefined) {
+      const refreshed = await fetchDeviceSettings(deps);
+      this.post({ type: "deviceSettings", usePhysicalDevices: refreshed.usePhysicalDevices, error: result.error });
+      return;
+    }
+    this.post({ type: "deviceSettings", ...result });
+    if (this.panel) {
+      this.processManager.restartMonitorProcess();
+    }
+  }
+
   /** クリーンアップ設定の CLI 呼び出しも、リモートホスト登録簿と同じ短命ワンショット
    *  (キャンセル対象に登録せず終了を待つだけ)。 */
   private retentionDeps(): RetentionCliDeps {
@@ -1186,6 +1206,9 @@ export class MonitorPanelController implements vscode.Disposable {
       case "runUpdate":
         void this.update.runUpdate();
         break;
+      case "setUsePhysicalDevices":
+        void this.applyUsePhysicalDevices(message.value);
+        break;
       case "setShowMachineCapacity":
         this.showMachineCapacity = message.value;
         void this.workspaceState.update("monitor.showMachineCapacity", message.value);
@@ -1442,6 +1465,9 @@ export class MonitorPanelController implements vscode.Disposable {
     // (読めなくても他の初期化を止めない)。
     // **2段で読む**: 上限だけなら即座に返る(実測 0.9 秒)が、使用量の集計は全ファイルを
     // stat して回るので実測 21 秒かかる。1回で済ませると、その間ずっと入力欄が空欄になる
+    void fetchDeviceSettings(this.remoteHostsDeps()).then((result) => {
+      this.post({ type: "deviceSettings", ...result });
+    });
     void fetchRetention(this.retentionDeps()).then((result) => {
       this.post({ type: "retention", ...result });
       if (result.error !== undefined) {

@@ -1193,6 +1193,8 @@ public enum ProfileError: Error, LocalizedError {
     case missingDevices(run: String)
     /// devices はあるが全台が enabled: false
     case noEnabledDevices(run: String)
+    /// 有効なデバイスが実機だけで、設定タブ「実機をテストで使用する」が OFF(PhysicalDeviceUse)
+    case physicalDevicesNotUsed(run: String, devices: [String])
     /// 同じ (platform 横断で machine, name) が2つある。**別マシンの同名は重複ではない**(DeviceMachineGrouping)
     case duplicateDeviceName(name: String, deviceMachine: String?, run: String)
     case missingBundleID(platform: String, appProfile: String)
@@ -1237,6 +1239,10 @@ public enum ProfileError: Error, LocalizedError {
             return "run profile \(run) has no \"devices\""
         case .noEnabledDevices(let run):
             return "run profile \(run) has no enabled devices (every entry in \"devices\" has \"enabled\": false)"
+        case .physicalDevicesNotUsed(let run, let devices):
+            return "run profile \(run) uses only physical devices (\(devices.joined(separator: ", ")))"
+                + " and \"Use physical devices for tests\" is off in the monitor's Settings tab"
+                + " (machine setting usePhysicalDevices) — turn it on, or add a simulator/emulator"
         case .duplicateDeviceName(let name, let deviceMachine, let run):
             return "duplicate device name in run profile \(run): \(name)"
                 + " on machine \(DeviceMachineGrouping.display(deviceMachine))"
@@ -1341,7 +1347,8 @@ public enum ProfileResolver {
               let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData) else {
             return []
         }
-        let runDoc = loadedRunDoc.applyingOverrides(overrides)
+        let runDoc = PhysicalDeviceUse.applying(
+            to: loadedRunDoc.applyingOverrides(overrides), off: PhysicalDeviceUse.isOff()).doc
         let entries = DeviceMachineGrouping.entries(runDevices: runDoc.devices ?? [], enabledOnly: true)
         return AppPlatformScoping.partition(
             entries, scope: AppPlatformScoping.scope(project: project, runDoc: runDoc)).kept
@@ -1356,6 +1363,21 @@ public enum ProfileResolver {
               let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData) else { return [] }
         let runDoc = loadedRunDoc.applyingOverrides(overrides)
         return (runDoc.devices ?? []).filter { !$0.isEnabled }.map { device in
+            RunDeviceMachine(machine: MachineDispatch.normalize(device.spec.machine), name: device.spec.name,
+                             platform: device.platform)
+        }
+    }
+
+    /// プロファイルでは有効なのに、設定タブ「実機をテストで使用する」OFF で実行から外れている実機(PhysicalDeviceUse)。
+    /// `disabledRunDevices`(JSON の `enabled: false`)と分けるのは、断りの文が案内する直し方が違うため
+    public static func physicallyExcludedRunDevices(project: TestProject, runProfileName: String,
+                                                    overrides: [String: RunProfileSetValue] = [:]) -> [RunDeviceMachine] {
+        guard PhysicalDeviceUse.isOff() else { return [] }
+        let runURL = project.runsDir.appendingPathComponent("\(runProfileName).json")
+        guard let runData = try? Data(contentsOf: runURL),
+              let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData) else { return [] }
+        let runDoc = loadedRunDoc.applyingOverrides(overrides)
+        return (runDoc.devices ?? []).filter { $0.isEnabled && $0.spec.isPhysical }.map { device in
             RunDeviceMachine(machine: MachineDispatch.normalize(device.spec.machine), name: device.spec.name,
                              platform: device.platform)
         }
@@ -1515,9 +1537,18 @@ public enum ProfileResolver {
             throw ProfileError.duplicateDeviceName(
                 name: duplicate.name, deviceMachine: duplicate.machine, run: runName)
         }
-        let allEnabledEntries = DeviceMachineGrouping.entries(runDevices: deviceRefs, enabledOnly: true)
+        // 設定タブ「実機をテストで使用する」が OFF なら実機を enabled: false として読む(PhysicalDeviceUse)
+        let physical = PhysicalDeviceUse.applying(
+            to: runDoc, off: PhysicalDeviceUse.isOff())
+        let allEnabledEntries = DeviceMachineGrouping.entries(runDevices: physical.doc.devices ?? [], enabledOnly: true)
         guard !allEnabledEntries.isEmpty else {
+            if !physical.excluded.isEmpty {
+                throw ProfileError.physicalDevicesNotUsed(run: runName, devices: physical.excluded)
+            }
             throw ProfileError.noEnabledDevices(run: runName)
+        }
+        if !physical.excluded.isEmpty {
+            warnings.append(PhysicalDeviceUse.excludedWarning(physical.excluded, run: runName))
         }
         // アプリプロファイルの platform が対象外にした OS のデバイスは無視(JSON は変えない)
         let appScope = appProfile.platform ?? .hybrid

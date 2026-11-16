@@ -95,6 +95,9 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   device tiles), the **Grid View** (enlarged screens of the selected devices), and the **Run Log View**
   (the execution log of the selected devices). Drag a divider to resize, click a view's header to collapse or
   expand it (the header row always stays visible, wherever you drag).
+- Turning off **"Use physical devices for tests"** (Device Monitor section of the Settings tab, on by default)
+  stops using physical devices for tests (runs skip the physical devices listed in the run profile) and
+  removes them from the Line View (those on this Mac and on runner machines; simulators and emulators stay).
 - The Grid View and the Run Log View show **only the devices selected in the Line View**. Clicking
   anywhere on a tile toggles its selection; clicking outside the tiles clears the selection. With
   nothing selected both views say "Select a device" (provisioning progress during a run still appears

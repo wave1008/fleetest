@@ -25,6 +25,8 @@ import { stepFromPlaceholder } from './placeholderStep.js';
 
 const pollingModeCheckbox = document.getElementById('settings-polling-mode');
 const showMachineCapacityCheckbox = document.getElementById('settings-show-machine-capacity');
+const usePhysicalDevicesCheckbox = document.getElementById('settings-use-physical-devices');
+const deviceSettingsError = document.getElementById('settings-device-settings-error');
 const liveFpsInput = document.getElementById('settings-live-fps');
 const lptCheckbox = document.getElementById('settings-lpt');
 const lptHistoryInput = document.getElementById('settings-lpt-history');
@@ -46,6 +48,21 @@ document.getElementById('settings-tool-processes').addEventListener('click', () 
 showMachineCapacityCheckbox.addEventListener('change', () => {
   vscode.postMessage({ type: 'setShowMachineCapacity', value: showMachineCapacityCheckbox.checked });
 });
+
+// 確定値は CLI の応答(deviceSettings)で入れ直すので、応答までは押せなくする(連打で書き込みが交差しない)
+usePhysicalDevicesCheckbox.addEventListener('change', () => {
+  usePhysicalDevicesCheckbox.disabled = true;
+  vscode.postMessage({ type: 'setUsePhysicalDevices', value: usePhysicalDevicesCheckbox.checked });
+});
+
+function applyDeviceSettings(message) {
+  if (typeof message.usePhysicalDevices === 'boolean') {
+    usePhysicalDevicesCheckbox.checked = message.usePhysicalDevices;
+    usePhysicalDevicesCheckbox.disabled = false;
+  }
+  deviceSettingsError.hidden = !message.error;
+  deviceSettingsError.textContent = message.error ? message.error : '';
+}
 
 pollingModeCheckbox.addEventListener('change', () => {
   vscode.postMessage({ type: 'setPollingMode', value: pollingModeCheckbox.checked });
@@ -977,5 +994,7 @@ export function applySettings(message) {
     applyUpdateStatus(message);
   } else if (message.type === 'retention') {
     applyRetention(message);
+  } else if (message.type === 'deviceSettings') {
+    applyDeviceSettings(message);
   }
 }

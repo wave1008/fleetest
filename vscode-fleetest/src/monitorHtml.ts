@@ -954,6 +954,11 @@ function renderSettingsPanel(): string {
         <!-- ツールバーのホストグラフの名札を CPU n / GPU n / MEM GB にする(既定 ON)。
              対向: settingsTab.js / hostCharts.js の setShowMachineCapacity, monitorPanel.ts。 -->
         <label class="settings-item"><input type="checkbox" id="settings-show-machine-capacity" checked> ${t("panels.settings.showMachineCapacityLabel")}</label>
+        <!-- 実体は CLI 側のマシン設定 usePhysicalDevices("fleetest api device-settings")。off で実機を
+             実行からもモニターの一覧からも外す(FTCore/PhysicalDeviceUse.swift)。読めるまで無効(CLI の応答で有効にする)。
+             対向: settingsTab.js の applyDeviceSettings, monitorPanel.ts の applyUsePhysicalDevices。 -->
+        <label class="settings-item"><input type="checkbox" id="settings-use-physical-devices" checked disabled> ${t("panels.settings.usePhysicalDevicesLabel")}</label>
+        <div id="settings-device-settings-error" class="settings-hint" hidden></div>
       </div>
       <div class="settings-group">
         <div class="settings-section-title">${t("panels.settings.schedulingSectionTitle")}</div>

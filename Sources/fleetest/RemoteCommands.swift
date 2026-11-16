@@ -1018,14 +1018,24 @@ func rejectDisabledNamedDevices(project: TestProject, profile: String, deviceMac
         .filter { DeviceMachineGrouping.display($0.machine) == deviceMachine }.map(\.name))
     if let note = disabledDevicesNote(
         missing: devices.filter { !enabledThere.contains($0) }, targetMachine: deviceMachine,
-        disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile) {
+        disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile,
+        physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(project: project, runProfileName: profile)) {
         throw RemoteDispatchError.invalidDevice(note)
     }
 }
 
 /// `--device` の名前が、そのマシンで `enabled: false` のデバイスに当たるときの断りの文(当たらなければ nil)。
 /// 純粋関数。「割り当て外」と言うと、事実(プロファイルには載っているが無効)と食い違う
-func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [RunDeviceMachine], profile: String) -> String? {
+/// `physicallyExcluded`(設定タブ「実機をテストで使用する」OFF で外れた実機)は先に見る —— `enabled` を直せと言うと事実と違う
+func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [RunDeviceMachine], profile: String,
+                         physicallyExcluded: [RunDeviceMachine] = []) -> String? {
+    let physicalHits = missing.filter { name in
+        physicallyExcluded.contains { $0.name == name && DeviceMachineGrouping.display($0.machine) == targetMachine }
+    }
+    if !physicalHits.isEmpty {
+        return "\(physicalHits.map { "\"\($0)\"" }.joined(separator: ", ")) is a physical device, and"
+            + " \"Use physical devices for tests\" is off in the monitor's Settings tab — turn it on to use it"
+    }
     let hits = missing.filter { name in
         disabled.contains { $0.name == name && DeviceMachineGrouping.display($0.machine) == targetMachine }
     }
@@ -1058,7 +1068,8 @@ func machineScopedDeviceFilter(
             // 実行から外れている(enabled:false)名前は「割り当て外」ではなく無効なので、有効化の場所を言う
             let disabled = disabledDevicesNote(
                 missing: missing, targetMachine: targetMachine,
-                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile)
+                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile,
+                physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(project: project, runProfileName: profile))
             if let disabled { throw RemoteDispatchError.invalidDevice(disabled) }
             throw RemoteDispatchError.invalidDevice(
                 "\(names) is not assigned to machine \"\(targetMachine)\" in profile \"\(profile)\""

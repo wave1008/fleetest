@@ -18,13 +18,15 @@ extension ApiMonitorCommand {
     /// 各デバイスへ振り分ける(デバイス毎に simctl/adb を叩くと台数に比例して遅くなるため)。
     /// internal: ApiListDevicesCommand.swift が単発の状態判定にも同じロジックを再利用する
     /// includeUnregistered: true のとき、台帳未記載でも起動中(iOS booted sim /
-    /// Android running AVD)なら合成した DeviceRuntimeState を追加で返す(unregisteredStates 参照。
-    /// 実機は対象外)。list-devices(--profile 指定時と同様スコープを絞る意図)は既定 false のまま。
+    /// Android running AVD)と接続中の実機を合成した DeviceRuntimeState を追加で返す(unregisteredStates 参照)。
+    /// includeUnregisteredPhysical: false で実機の合成と列挙を飛ばす(モニターの usePhysicalDevices: false)。
+    /// list-devices(--profile 指定時と同様スコープを絞る意図)は既定 false のまま。
     /// `skipped`(id 衝突で落とした合成デバイス)は**返すだけ** —— 常駐監視は毎周期ここを通るので、
     /// その場で出すと原因が残る間ずっと同じ行が流れ続ける(呼び手が変化を見て出す)
     static func determineStates(targets: [MonitorTarget],
                                 repoRoot: URL? = try? RepoRoot.find(),
-                                includeUnregistered: Bool = false)
+                                includeUnregistered: Bool = false,
+                                includeUnregisteredPhysical: Bool = true)
         async -> (states: [DeviceRuntimeState], skipped: [String]) {
         async let bridgeStatusesTask = scanBridgeStatuses(repoRoot: repoRoot)
         let simCatalog = (try? SimulatorCatalog.devices()) ?? []
@@ -54,7 +56,7 @@ extension ApiMonitorCommand {
         // **1回の scanBootCompleted に畳む** —— 別に呼ぶと同じ adb 往復を毎サイクル二重に払う
         let unregisteredAndroidSerials: Set<String> = includeUnregistered
             ? Set(runningAVDs.filter { !registeredCanonicalAVDIDs.contains($0.value) }.keys)
-                .union(connectedSerials.filter { !$0.hasPrefix("emulator-") })
+                .union(includeUnregisteredPhysical ? connectedSerials.filter { !$0.hasPrefix("emulator-") } : [])
             : []
         async let bootCompletedTask = scanBootCompleted(
             serials: androidCandidateSerials.union(unregisteredAndroidSerials))
@@ -75,9 +77,12 @@ extension ApiMonitorCommand {
         // **接続中の実機も合成する**(unregisteredStates の doc)。列挙元は api installed-devices と
         // 同じ(iOS=IOSPhysicalDeviceCatalog / Android=adb の serial)。ブリッジの有無は登録済みと
         // 同じ判定(BridgeLauncher.portsMatching + /status が返ったポート)で決める
-        let physicalSerialsForInventory = connectedSerials.filter { !$0.hasPrefix("emulator-") }
-        let inventory = physicalInventory(serials: physicalSerialsForInventory)
-        let physicalIOS = inventory.ios
+        // includeUnregisteredPhysical == false(モニターの「実機を隠す」)では実機の列挙ごと飛ばす
+        let physicalSerialsForInventory: Set<String> = includeUnregisteredPhysical
+            ? connectedSerials.filter { !$0.hasPrefix("emulator-") } : []
+        let inventory: PhysicalInventory? = includeUnregisteredPhysical
+            ? physicalInventory(serials: physicalSerialsForInventory) : nil
+        let physicalIOS = inventory?.ios ?? []
         var iosBridgePorts: [String: UInt16] = [:]
         for device in physicalIOS {
             let ports = repoRoot.map { BridgeLauncher.portsMatching(udid: device.udid, repoRoot: $0) } ?? []
@@ -86,7 +91,7 @@ extension ApiMonitorCommand {
             }
         }
         let physicalSerials = physicalSerialsForInventory
-        let androidPhysicalNames = inventory.androidNames
+        let androidPhysicalNames = inventory?.androidNames ?? [:]
         let (unregistered, skipped) = unregisteredStates(
             simCatalog: simCatalog, runningAVDs: runningAVDs, bootCompleted: bootCompleted,
             registeredTargets: targets, registeredIosUdids: registeredIosUdids,

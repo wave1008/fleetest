@@ -51,6 +51,9 @@ public struct LocalConfig: Codable, Sendable, Equatable {
     public var services: ServicesSettings?
     /// setup/teardown スクリプトの枠(`hooks.writablePaths`)。**検めて読むのは `HooksSettings.load` だけ**(未知のキーは誤り)
     public var hooks: HooksSettings?
+    /// false で実機(物理端末)をテストに使わない: 実行から外し(`PhysicalDeviceUse`)、デバイスモニターの一覧からも外す
+    /// (`ApiMonitorCommand`)。nil・true = 使う(既定)。保存するのは false だけ(`localMachineEnabled` と同じ)。書くのは `api device-settings`(設定タブ「デバイスモニター」)
+    public var usePhysicalDevices: Bool?
 
     public init(defaultProject: String? = nil,
                 lastRunProfile: [String: String]? = nil,
@@ -59,7 +62,8 @@ public struct LocalConfig: Codable, Sendable, Equatable {
                 fmConcurrency: Int? = nil, localMachineEnabled: Bool? = nil,
                 retention: RetentionPolicy? = nil, sandbox: ScenarioSandbox.MachineSettings? = nil,
                 redactAccountValues: Bool? = nil, hostLoadPacing: HostLoadPacing? = nil,
-                services: ServicesSettings? = nil, hooks: HooksSettings? = nil) {
+                services: ServicesSettings? = nil, hooks: HooksSettings? = nil,
+                usePhysicalDevices: Bool? = nil) {
         self.defaultProject = defaultProject
         self.lastRunProfile = lastRunProfile
         self.developmentTeam = developmentTeam
@@ -74,6 +78,7 @@ public struct LocalConfig: Codable, Sendable, Equatable {
         self.hostLoadPacing = hostLoadPacing
         self.services = services
         self.hooks = hooks
+        self.usePhysicalDevices = usePhysicalDevices
     }
 
     /// 実機署名の設定。優先順位: 環境変数 > 設定ファイル。

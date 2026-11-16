@@ -257,6 +257,7 @@ export const panelsStrings = {
   "panels.settings.deviceScreenSectionTitle": { ja: "デバイス画面", en: "Device screen" },
   "panels.settings.schedulingSectionTitle": { ja: "スケジューリング", en: "Scheduling" },
   "panels.settings.deviceMonitorSectionTitle": { ja: "デバイスモニター", en: "Device Monitor" },
+  "panels.settings.usePhysicalDevicesLabel": { ja: "実機をテストで使用する", en: "Use physical devices for tests" },
   "panels.settings.lptSchedulingLabel": {
     ja: "LPT スケジューリングを有効にする",
     en: "Enable LPT scheduling",

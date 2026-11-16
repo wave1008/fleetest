@@ -349,6 +349,10 @@ export type MonitorToWebviewMessage =
   // setShowMachineCapacity 受信直後に送る(対: setShowMachineCapacity)。webview は settingsTab.js と
   // hostCharts.js の両方へ渡す
   | { readonly type: "showMachineCapacity"; readonly value: boolean }
+  // 設定タブ「実機をテストで使用する」の現在値(CLI の `api device-settings` が返した実効値)。ready 直後と
+  // setUsePhysicalDevices の応答で送る。読めなければ error だけ(webview は欄を無効のまま理由を出す)。
+  // 対向: settingsTab.js の applyDeviceSettings
+  | { readonly type: "deviceSettings"; readonly usePhysicalDevices?: boolean; readonly error?: string }
   // run ボードの見出しのタコメーター表示切替の現在値。ready 直後と setShowTachometer 受信直後に送る
   // (対: setShowTachometer)。webview は runBoard.js へ渡す
   | { readonly type: "showTachometer"; readonly value: boolean }
@@ -854,6 +858,9 @@ export type MonitorFromWebviewMessage =
   // 設定タブの容量表示チェックボックス変更(settingsTab.js)。monitorPanel.ts が workspaceState へ永続化し、
   // 対の "showMachineCapacity" で即時反映する
   | { readonly type: "setShowMachineCapacity"; readonly value: boolean }
+  // 設定タブ「実機をテストで使用する」の変更(settingsTab.js)。monitorPanel.ts が CLI 側のマシン設定へ書き、
+  // モニターを起こし直す(モニターは起動時にだけ読む)。対の "deviceSettings" で確定値を返す
+  | { readonly type: "setUsePhysicalDevices"; readonly value: boolean }
   // run ボードの見出しのタコメーター切替ボタン(runBoard.js)。monitorPanel.ts が workspaceState へ永続化し、
   // 対の "showTachometer" で即時反映する
   | { readonly type: "setShowTachometer"; readonly value: boolean }
@@ -1268,6 +1275,7 @@ export function isMonitorFromWebviewMessage(value: unknown): value is MonitorFro
     case "setKeepPhysicalDevicesAwake":
     case "setPollingMode":
     case "setShowMachineCapacity":
+    case "setUsePhysicalDevices":
     case "setShowTachometer":
       return typeof value.value === "boolean";
     case "setLanguage":

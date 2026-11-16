@@ -37,9 +37,12 @@ enum RunnerProfileTransfer {
         if let runs {
             let targetDir = staging.appendingPathComponent("runs")
             try? FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
+            // 手元の「実機をテストで使用する」OFF を enabled: false に焼いて運ぶ(向こうの子は向こうのマシン設定で解決する。PhysicalDeviceUse)
+            let physicalOff = PhysicalDeviceUse.isOff()
             for profile in runs {
                 let localized = RunnerProfileView.localizeRunProfile(
-                    profile.object, alias: alias, projectIsMachineAnnotated: annotated)
+                    PhysicalDeviceUse.applying(toJSON: profile.object, off: physicalOff),
+                    alias: alias, projectIsMachineAnnotated: annotated)
                 guard let rendered = try? OrderedProfileJSON.data(localized) else { continue }
                 try? rendered.write(to: targetDir.appendingPathComponent(profile.name))
             }

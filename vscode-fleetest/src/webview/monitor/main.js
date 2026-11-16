@@ -277,6 +277,7 @@ window.addEventListener('message', (event) => {
     case 'language':
     case 'updateStatus':
     case 'retention':
+    case 'deviceSettings':
       applySettings(message);
       break;
     // devicePickMachine.js は remoteConfig(#device-pick-overlay 内のマシン選択の選択肢)を独立に

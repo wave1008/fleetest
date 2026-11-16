@@ -30,6 +30,14 @@ final class CLIResidueFixesTests: XCTestCase {
         XCTAssertNil(disabledDevicesNote(missing: ["iPhone A"], targetMachine: "M1", disabled: disabled, profile: "p"))
     }
 
+    func testPhysicalDeviceExcludedBySettingIsNotCalledEnabledFalse() {
+        let excluded = [RunDeviceMachine(machine: "local", name: "iPhone SE3", platform: "ios")]
+        let note = disabledDevicesNote(missing: ["iPhone SE3"], targetMachine: "local", disabled: [], profile: "p",
+                                       physicallyExcluded: excluded)
+        XCTAssertTrue(note?.contains("Use physical devices for tests") == true, note ?? "nil")
+        XCTAssertFalse(note?.contains("\"enabled\"") == true, "enabled を直せと言うと事実と違う")
+    }
+
     func testTypeWarnsOnTextAfterALineBreak() {
         XCTAssertNotNil(TypeCommand.lineBreakNote("ab\ncd"))
         XCTAssertNil(TypeCommand.lineBreakNote("abcd"))

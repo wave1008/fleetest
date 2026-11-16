@@ -76,6 +76,12 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         ResidentProcessGuard.startOrphanWatchdog(logLabel: "monitor")
 
         let testProject = try ScenarioHost.project(named: project)
+        // リモートの子へはフラグで運ばない(版のずれた子が未知のフラグで落ち、その機械のデバイスが全部消える)。
+        // 子が送ってきた実機は mergedDevices が落とし、一覧に無い id のフレームは拡張が捨てる(deviceTiles.js の applyFrame)
+        let hidePhysical = LocalConfig.load().usePhysicalDevices == false
+        if hidePhysical {
+            logStderr("[monitor] Physical devices are hidden (machine setting usePhysicalDevices is false)")
+        }
         // 監視対象のデバイス。**実行プロファイルを選んでいるかどうかで作り方が違う**:
         //   選んでいる: その実行プロファイルの enabled のデバイス
         //   選んでいない(拡張の「(プロファイルなし)」): **台帳を1つに決めない** —— runs/ を
@@ -83,11 +89,11 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         //     決められないからと「今動いているデバイス」だけに縮退すると、**未起動のデバイスが1台も出ない**
         //     (実害)
         // **実効マシンは spec に焼き込まれている**(id・帰属判定・拡張へ出す machine がすべてこの1つの値を見る)
-        let targets: [MonitorTarget]
+        let allTargets: [MonitorTarget]
         if let profile {
             // 選んでいるのに0台なのは設定の誤りなので落とす(RunProfileScope が投げる)
             let scoped = try RunProfileScope.roster(project: testProject, runProfileName: profile)
-            targets = DeviceMachineGrouping.entries(roster: scoped).map {
+            allTargets = DeviceMachineGrouping.entries(roster: scoped).map {
                 MonitorTarget(platform: $0.platform, spec: $0.spec)
             }
         } else {
@@ -98,14 +104,15 @@ struct ApiMonitorCommand: AsyncParsableCommand {
             // **食い違いは黙って畳まない** —— 負けた台帳のデバイスが実在するほうだと、起動中のデバイスが
             // 下の unregisteredStates で「id 衝突」として落ち、画面から消える(実害)
             for conflict in merged.conflicts { logStderr("[monitor] \(conflict.message)") }
-            targets = merged.entries.map { MonitorTarget(platform: $0.platform, spec: $0.spec) }
+            allTargets = merged.entries.map { MonitorTarget(platform: $0.platform, spec: $0.spec) }
             // **0台でも続ける**(起動中のデバイスが現れたら出す)
             logStderr("[monitor] No run profile is selected — monitoring the devices registered for this"
                 + " machine and for every machine in the remote registry"
-                + " (\(targets.count) device(s) from \(sources.count) run profile(s);"
+                + " (\(allTargets.count) device(s) from \(sources.count) run profile(s);"
                 + " registry: \(registry.isEmpty ? "none" : registry.joined(separator: ", ")))")
         }
 
+        let targets = Self.visibleTargets(allTargets, hidePhysical: hidePhysical)
         let scope = Self.scope(targets: targets, deviceMachine: deviceMachine)
         let ownedTargets = scope.owned
         let listedTargets = scope.listed
@@ -299,7 +306,8 @@ struct ApiMonitorCommand: AsyncParsableCommand {
 
             // --profile 指定時はスコープを絞る意図のため未登録デバイスは合成しない
             let (observed, skipped) = await Self.determineStates(
-                targets: ownedTargets, includeUnregistered: profile == nil)
+                targets: ownedTargets, includeUnregistered: profile == nil,
+                includeUnregisteredPhysical: !hidePhysical)
             // **変わったときだけ出す** —— 毎周期そのまま出すと同じ行が永久に流れ続ける。
             // 空へ戻った回も1行出す(出さないと「直ったのか、まだ衝突しているのか」が読めない)
             let skippedNow = Set(skipped)
@@ -483,7 +491,7 @@ struct ApiMonitorCommand: AsyncParsableCommand {
             }
             emitLine(ApiMonitorDevicesEvent(devices: Self.mergedDevices(
                 listedTargets: listedTargets, observed: observedInfos,
-                remote: fanout?.snapshot() ?? [:])))
+                remote: fanout?.snapshot() ?? [:], hidePhysical: hidePhysical)))
 
             // 接続が切れた機の記憶を落とす(次回同じエラーが起きても「状態変化」として扱えるように。
             // 凍結は**落ちている機を数え続けない**ので確定も捨てる)
@@ -754,6 +762,11 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         return Scope(owned: owned, listed: deviceMachine == nil ? targets : owned, foreignMachines: machines)
     }
 
+    /// `hidePhysical` のときは台帳の実機を監視対象から外す(観測も撮影もしない)
+    static func visibleTargets(_ targets: [MonitorTarget], hidePhysical: Bool) -> [MonitorTarget] {
+        hidePhysical ? targets.filter { !$0.spec.isPhysical } : targets
+    }
+
     /// 出す1サイクルぶんの devices を組み立てる。**並びは台帳の順のまま**
     /// (拡張も並べ替えるが、順序の正はここ = 手元とリモートで別扱いにしない)。
     /// - observed: この機械が simctl/adb で観測したデバイス(未登録の起動中デバイスを含みうる)
@@ -762,8 +775,10 @@ struct ApiMonitorCommand: AsyncParsableCommand {
     /// どちらにも無いデバイスは **「状態を取得できない」** として出す —— 観測していないものを
     /// offline と言うと、向こうで動いていても止まって見える(実害)。
     /// I/O を持たない pure 関数(MonitorMachineScopeTests)
+    /// `hidePhysical` は最後に kind で落とす —— リモートの子が合流させた実機はここでしか落ちない
     static func mergedDevices(listedTargets: [MonitorTarget], observed: [ApiMonitorDeviceInfo],
-                              remote: [String: ApiMonitorDeviceInfo]) -> [ApiMonitorDeviceInfo] {
+                              remote: [String: ApiMonitorDeviceInfo],
+                              hidePhysical: Bool = false) -> [ApiMonitorDeviceInfo] {
         var observedByID: [String: ApiMonitorDeviceInfo] = [:]
         for info in observed { observedByID[info.id] = info }
         var merged = listedTargets.map { target in
@@ -785,6 +800,7 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         // 決められないものを隠すと、その実機が一覧から消える
         let wiredUdids = Set(merged.compactMap { $0.wired == true ? $0.udid : nil })
         merged.removeAll { $0.wired == false && $0.udid.map(wiredUdids.contains) == true }
+        if hidePhysical { merged.removeAll { $0.kind == "physical" } }
         return merged
     }
 

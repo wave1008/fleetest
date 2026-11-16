@@ -109,6 +109,55 @@ final class MonitorMachineScopeTests: XCTestCase {
         XCTAssertEqual(merged.map(\.id), ["ios:A", "ios:stray"],
                        "マシンプロファイルに無い起動中デバイスも落とさない")
     }
+
+    // MARK: - 実機を隠す(マシン設定 usePhysicalDevices: false)
+
+    func testHidePhysicalDropsPhysicalDevicesFromEveryOrigin() {
+        let targets = [target("A", host: nil)]
+        let merged = ApiMonitorCommand.mergedDevices(
+            listedTargets: targets,
+            observed: [info(id: "ios:A", state: "connected"),
+                       info(id: "ios:phone", state: "booted", kind: "physical")],
+            remote: ["ios:M1Ultra/phone": info(id: "ios:M1Ultra/phone", state: "connected", kind: "physical"),
+                     "ios:M1Ultra/sim": info(id: "ios:M1Ultra/sim", state: "connected")],
+            hidePhysical: true)
+        XCTAssertEqual(merged.map(\.id), ["ios:A", "ios:M1Ultra/sim"],
+                       "手元の合成ぶんもリモートの子が送ってきたぶんも落とす")
+    }
+
+    func testPhysicalDevicesStayListedByDefault() {
+        let merged = ApiMonitorCommand.mergedDevices(
+            listedTargets: [],
+            observed: [info(id: "ios:phone", state: "booted", kind: "physical")],
+            remote: [:])
+        XCTAssertEqual(merged.map(\.id), ["ios:phone"])
+    }
+
+    func testVisibleTargetsDropsRegisteredPhysicalDevicesOnlyWhenHiding() {
+        var phone = DeviceSpec(name: "phone", kind: .physical, udid: "U1")
+        phone.machine = "M1Ultra"
+        let targets = [target("A", host: nil), MonitorTarget(platform: "ios", spec: phone)]
+        XCTAssertEqual(ApiMonitorCommand.visibleTargets(targets, hidePhysical: true).map(\.name), ["A"],
+                       "台帳の実機を残すと観測・撮影され、一覧にも並ぶ")
+        XCTAssertEqual(ApiMonitorCommand.visibleTargets(targets, hidePhysical: false).map(\.name), ["A", "phone"])
+    }
+
+    func testLocalConfigDecodesUsePhysicalDevicesInMonitor() throws {
+        let config = try JSONDecoder().decode(
+            LocalConfig.self, from: Data(#"{"usePhysicalDevices": false}"#.utf8))
+        XCTAssertEqual(config.usePhysicalDevices, false)
+        XCTAssertNil(LocalConfig().usePhysicalDevices, "既定は出す")
+    }
+
+    func testDeviceSettingsStoresOnlyFalse() {
+        var config = LocalConfig()
+        ApiDeviceSettingsCommand.apply(usePhysicalDevices: false, to: &config)
+        XCTAssertEqual(config.usePhysicalDevices, false)
+        XCTAssertEqual(ApiDeviceSettingsCommand.Output(config).usePhysicalDevices, false)
+        ApiDeviceSettingsCommand.apply(usePhysicalDevices: true, to: &config)
+        XCTAssertNil(config.usePhysicalDevices, "既定(使う)は欄ごと消す")
+        XCTAssertEqual(ApiDeviceSettingsCommand.Output(config).usePhysicalDevices, true)
+    }
 }
 
 // MARK: - fan-out 先の決定(プロファイル未選択 = 拡張の「起動中のデバイス」)

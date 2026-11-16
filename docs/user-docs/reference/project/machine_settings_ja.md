@@ -55,6 +55,7 @@
 | `redactAccountValues` | 真偽値 | `false`(伏せない) | `true` で `account()` の値をレポート・実行ログ・結果 JSON で `***` に伏せます | [テストデータ・アカウント](../commands/dataset_ja.md) |
 | `hostLoadPacing` | オブジェクト | 有効(`disabled` なし) | Mac の CPU 負荷が高い瞬間に、画面を変える操作の前へ短い待ちを1回入れる「ステップの減速」。`disabled: true` で止め、`tiers`(`cpuPercentAtLeast` と `delayMs` の組の配列)で段を変えます | [並列実行](../running/parallel_execution_ja.md) |
 | `hostLoadPacing.tiers` | 配列 | CPU 90% 以上で 200ms・95% 以上で 1000ms | 空の配列 `[]` は「段が無い = 待たない」です。値が正しくないときは既定の段で動き、実行の開始時に警告が1回出ます | [並列実行](../running/parallel_execution_ja.md) |
+| `usePhysicalDevices` | 真偽値 | `true`(出す) | `false` で実機をテストに使いません。実行プロファイルに書いてある実機も外して走らせ(外した実機は警告に出ます。実機しか無いプロファイルはエラーになります)、デバイスモニターの一覧からも外します(この Mac とランナー機の両方の実機。シミュレータ・エミュレータはそのまま)。モニターの設定タブ「デバイスモニター」の「実機をテストで使用する」で切り替えられます | [VSCode 拡張](../tools/vscode_extension_ja.md) |
 | `retention` | オブジェクト | 下の表のとおり | ログ・録画・レポートなどの保持容量。欄が無いのは「全部既定」で、「掃除しない」ではありません | [長く使うためのメンテナンス](../../in_action/maintenance_ja.md)・[VSCode 拡張](../tools/vscode_extension_ja.md) |
 | `remoteHosts` | 配列 | なし | リモート実行のランナー機の登録簿(`machine`・`host`・`dir`・`fmConcurrency`・`color`・`enabled`・`developerDir`) | [Mac を追加する](../../fleet/adding_mac_ja.md)・[リモート実行](../../fleet/remote_runners_ja.md) |
 | `developmentTeam` | 文字列 | なし(実機のビルドはできない) | iOS 実機ブリッジの署名に使う Apple Developer の Team ID。環境変数 `FT_DEVELOPMENT_TEAM` が優先されます | [実機を追加する](../../fleet/adding_physical_devices_ja.md) |
