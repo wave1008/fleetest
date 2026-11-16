@@ -776,15 +776,22 @@ extension StepExecutor {
                 // 閉じる試みをした回は、その結果(閉じた・閉じられなかった)を事実で言い、閉じた後の木で候補を作る
                 let hintSnapshot: SnapshotResponse
                 let keyboardClause: String
+                var keyboardKeptUp = false
                 switch retry {
                 case .closedButNotFound(let closedNote, let after):
                     hintSnapshot = after
                     keyboardClause = " (the soft keyboard was up: \(closedNote); the target is not on the screen after it closed either"
                         + " — the keyboard is closed now, so closing it is not the fix)"
                 case .notClosed(let tried):
+                    // **向き(上か下か)を言わない**: キーボードを避けて画面がずれる・縮むと、要素はキーボードの上へ押し出されても
+                    // (SwiftUI の上端の戻るボタン・CMP の反転チャットの上端の行)下に隠れても木から消える。前は「下に居た要素が
+                    // 消えた」と決めつけ、キーボードが出たままでは確かめていない「待て」も添えていた(下の waitHint を外す)
                     hintSnapshot = snapshot
+                    keyboardKeptUp = true
                     keyboardClause = " (the soft keyboard is up and the target is not in the tree; closing it without side effects failed:"
-                        + " \(tried). Elements that sat below the keyboard may be gone from the tree, not just covered)"
+                        + " \(tried). While the keyboard is up the screen may be shifted or shrunk to make room for it, so an element"
+                        + " can leave the tree whether it sat above or below the keyboard; waiting does not bring it back while the"
+                        + " keyboard stays up — close the keyboard from the app (its Done button or another control) first)"
                 default:
                     hintSnapshot = snapshot
                     keyboardClause = Self.hasModalScope(snapshot) ? "" : Self.keyboardResizedHint(snapshot)
@@ -805,7 +812,7 @@ extension StepExecutor {
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
                         + (reasonHint ?? Self.frontWindowCoverHint(hintSnapshot)
-                            ?? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
+                            ?? (keyboardKeptUp ? "" : Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped)))
                                 + Self.scrollOffHint(step, in: hintSnapshot))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause

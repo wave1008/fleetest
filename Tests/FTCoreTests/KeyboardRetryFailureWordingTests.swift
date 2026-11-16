@@ -39,6 +39,10 @@ final class KeyboardRetryFailureWordingTests: XCTestCase {
         let (message, _) = await run(closes: false)
         XCTAssertTrue(message.contains("closing it without side effects failed"), message)
         XCTAssertTrue(message.contains("did not close it"), message)
+        // 上か下かを決めつけず、キーボードが出たままでは確かめていない「待て」を言わない(上端の戻るボタンが上へ押し出された形 = 58周目 duo)
+        XCTAssertFalse(message.contains("sat below the keyboard"), message)
+        XCTAssertTrue(message.contains("whether it sat above or below the keyboard"), message)
+        XCTAssertFalse(message.contains("add waitSeconds"), message)
     }
 
     private func field(value: String?) -> ElementInfo {
