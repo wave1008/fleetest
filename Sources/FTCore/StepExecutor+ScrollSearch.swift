@@ -433,6 +433,14 @@ extension StepExecutor {
             + (result?.coverHint ?? loadingWaitHint(step, result))
     }
 
+    /// 検証の「見つからない」に添える理由(覆いかスコープのどちらか1つ)。**スコープの容器に中身が無いならそれだけを言い、
+    /// 覆いの案内(モーダルを閉じろ)は言わない** —— 容器に中身が無いのは覆いの有無に関わらない事実で、閉じても直らない
+    /// (tap の `cannot resolve the locator` と同じ順。57周目 im4・imax・alocal)
+    func notFoundCoverOrScopeHint(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> String {
+        let scope = Self.childlessScopeHint(step, snapshot?.elements, isAndroid: isAndroid)
+        return scope.isEmpty ? (Self.coverReportHint(snapshot) ?? "") : scope
+    }
+
     /// 木の覆いの申告の名指し(モーダル → 手前の窓の順。`cannot resolve the locator` と同じ順)。申告が無い木・木が無いは nil
     static func coverReportHint(_ snapshot: SnapshotResponse?) -> String? {
         guard let snapshot else { return nil }

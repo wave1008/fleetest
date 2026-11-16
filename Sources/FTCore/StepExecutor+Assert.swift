@@ -610,11 +610,10 @@ extension StepExecutor {
         let leftHint = await leftForegroundHint() ?? ownDialogHint() ?? ""
         return failed(.notFound, "element not found: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
                        + leftHint
-                       + (Self.coverReportHint(lastSnapshot) ?? "")
+                       + notFoundCoverOrScopeHint(step, lastSnapshot)
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
-                       + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid)
                        + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -819,11 +818,10 @@ extension StepExecutor {
                       + Self.webViewPathHint(lastSnapshot))
             : failed(.notFound, "element not found: \(step.locatorSummary)"
                       + leftHint
-                      + (Self.coverReportHint(lastSnapshot) ?? "")
+                      + notFoundCoverOrScopeHint(step, lastSnapshot)
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid)
                       + Self.webViewPathHint(lastSnapshot))
     }
 
@@ -1122,11 +1120,10 @@ extension StepExecutor {
         }
         guard found else {
             return failed(.notFound, "element not found: \(step.locatorSummary)"
-                           + (Self.coverReportHint(lastSnapshot) ?? "")
+                           + notFoundCoverOrScopeHint(step, lastSnapshot)
                            + Self.truncationHint(lastSnapshot)
                            + Self.keyboardResizedHint(lastSnapshot)
-                           + tapDiagnosisHint(lastSeenElements)
-                           + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
+                           + tapDiagnosisHint(lastSeenElements))
         }
         let subject = assert.hasPrefix("value") ? "value" : "text"
         if missingOnLastRead {
@@ -1223,10 +1220,9 @@ extension StepExecutor {
         }
         return found
             ? .failed("the element is \(wantEnabled ? "disabled" : "enabled"): \(step.locatorSummary)")
-            : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
+            : failed(.notFound, "element not found: \(step.locatorSummary)" + notFoundCoverOrScopeHint(step, lastSnapshot)
                       + Self.truncationHint(lastSnapshot)
-                      + Self.keyboardResizedHint(lastSnapshot)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
+                      + Self.keyboardResizedHint(lastSnapshot))
     }
 
     /// キーボード開閉はアニメーションを伴うため単発チェックはフレークする → notExists と同じ
@@ -1397,10 +1393,9 @@ extension StepExecutor {
             ? .failed(Self.checkStateFailure(lastState, locator: step.locatorSummary,
                                              classification: lastClassification, classifierError: classifierError)
                       + tapDiagnosisHint(lastSnapshot?.elements))
-            : failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
+            : failed(.notFound, "element not found: \(step.locatorSummary)" + notFoundCoverOrScopeHint(step, lastSnapshot)
                       + Self.truncationHint(lastSnapshot)
-                      + Self.keyboardResizedHint(lastSnapshot)
-                      + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
+                      + Self.keyboardResizedHint(lastSnapshot))
     }
 
     /// imageIs(Shirates Vision の DefaultClassifier): 掴んだ要素の枠で切った画像の1位のラベル
@@ -1450,9 +1445,8 @@ extension StepExecutor {
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
         guard found else {
-            return failed(.notFound, "element not found: \(step.locatorSummary)" + (Self.coverReportHint(lastSnapshot) ?? "")
-                          + Self.truncationHint(lastSnapshot)
-                          + Self.childlessScopeHint(step, lastSnapshot?.elements, isAndroid: isAndroid))
+            return failed(.notFound, "element not found: \(step.locatorSummary)" + notFoundCoverOrScopeHint(step, lastSnapshot)
+                          + Self.truncationHint(lastSnapshot))
         }
         guard let lastClassification else {
             if let classifierFailureThisStep {

@@ -822,6 +822,11 @@ extension MCPServer {
     /// に同じ文字列を渡す) —— どちらの欄で書き間違えたかは読み手にも分からないため
     static func similarLabelsHint(_ selectorText: String, in snapshot: SnapshotResponse) -> String {
         let locator = FTSelector.parse(selectorText).primary
+        // スコープの外に対象そのものが居るなら似た名前を挙げない(完全一致は挙がらず、隣の要素を勧めることになる。DSL と同じ判定)
+        if let target = LocatorResolver.targetOutsideScope(locator, in: snapshot.elements) {
+            let name = target.identifier.map { "#\($0)" } ?? target.label.map { "\"\($0)\"" } ?? target.type
+            return " note: \(name) itself is on screen, but not inside the scope you gave."
+        }
         guard let raw = locator.label ?? locator.id,
               !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
         let target = FlowMatchMode.normalizeInvisibleCharacters(raw)

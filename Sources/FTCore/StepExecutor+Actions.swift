@@ -790,22 +790,23 @@ extension StepExecutor {
                     keyboardClause = Self.hasModalScope(snapshot) ? "" : Self.keyboardResizedHint(snapshot)
                 }
                 let hint = LocatorResolver.candidateHint(for: step, in: hintSnapshot)
-                // モーダルの申告は leftHint と同じ位置で先に採る(window の覆いの案内より具体的)
+                // 理由は1つだけ言う。順は「前面を離れた → スコープの容器に中身が無い → モーダル → 自分のダイアログ → 窓の覆い →
+                // 待ち・送り」。**容器に中身が無いのはモーダルの有無に関わらない事実**で、モーダルの案内(閉じろ・送れ)に従っても
+                // 直らない(57周目 im4・imax・alocal: シートの中で葉を容器にした tap が「閉じろ」だけを言った)。前面を離れたときの木は
+                // 別のアプリの木なので、容器の判定より先に言う。
                 // モーダルの中にも送れる一覧があれば、対象はモーダルの「裏」でなく「中」の送りの先かもしれない = 送りの案内も添える
                 // (待ちの案内は添えない。E2EX-iOS のボトムシートの行で「閉じろ」だけを言っていた = 56周目 iultra F1)
-                let leftHint = await leftForegroundHint()
+                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements, isAndroid: isAndroid)
+                let reasonHint = await leftForegroundHint()
+                    ?? (scopeHint.isEmpty ? nil : scopeHint)
                     ?? Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
                     ?? ownDialogHint()
-                // スコープの容器が木の上で中身を持たないなら、待っても送っても出ない = 待ち・送りの案内の代わりに言う
-                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements, isAndroid: isAndroid)
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")
-                        + (leftHint ?? Self.frontWindowCoverHint(hintSnapshot)
-                            ?? (scopeHint.isEmpty
-                                ? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
-                                    + Self.scrollOffHint(step, in: hintSnapshot)
-                                : scopeHint))
+                        + (reasonHint ?? Self.frontWindowCoverHint(hintSnapshot)
+                            ?? Self.waitHintAfterSearch(step, settleCutOff: noteCodesThisStep.contains(.settleCapped))
+                                + Self.scrollOffHint(step, in: hintSnapshot))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
                         + Self.webViewPathHint(hintSnapshot)

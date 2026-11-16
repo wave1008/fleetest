@@ -387,6 +387,12 @@ public enum LocatorResolver {
     static func candidateHint(for step: FlowStep, in snapshot: SnapshotResponse) -> String? {
         guard let locator = step.locator else { return nil }
         let elements = snapshot.elements
+        // **スコープの外に対象そのものが居るなら、似た名前の候補を挙げない**: 完全一致は SimilarLabels が挙げない
+        // (similarityStrength は同じ語に nil)ので、候補は隣の要素だけになり、書き換えると別の要素を押すシナリオになる
+        // (57周目 alocal F1: `#txt_row_selected >> #row_02` に #row_01 / #row_03 を勧めた)。居ることだけを言う
+        if let target = targetOutsideScope(locator, in: elements) {
+            return "the target itself is in the tree (\(nearMatchSummary(target))) but not inside the scope"
+        }
         var picked: [ElementInfo] = []
 
         func add(_ candidates: [ElementInfo]) {
@@ -408,20 +414,7 @@ public enum LocatorResolver {
         }
         var hints: [String] = []
         if !picked.isEmpty {
-            let summaries = picked.prefix(3).map { element -> String in
-                var parts = [element.type]
-                if let id = element.identifier, !id.isEmpty { parts.append("#\(id)") }
-                // ゼロ幅文字は落とす(見た目が正しいのに一致しない事故を防ぐ)が、これは
-                // **「型 #id "ラベル」の複合名指し」**であって単一のセレクタ式ではない。
-                // ラベルは24字で切り詰めるので完全一致の保証も無い(SnapshotRenderer.truncate)——
-                // `TapTargetGeometry.describe` と同じ「後者」(単なる名指し)扱いで、記法として
-                // 読まれる先頭文字のエスケープ(SelectorNaming.needsEscaping)は通していない
-                if let label = element.label.map(FlowMatchMode.normalizeInvisibleCharacters),
-                   !label.isEmpty {
-                    parts.append("\"\(SnapshotRenderer.truncate(label, 24))\"")
-                }
-                return parts.joined(separator: " ")
-            }
+            let summaries = picked.prefix(3).map(nearMatchSummary)
             hints.append("near matches: \(summaries.joined(separator: " / "))")
         }
         if let hint = partialMatchHint(for: locator, in: elements) { hints.append(hint) }
@@ -429,6 +422,28 @@ public enum LocatorResolver {
         if let hint = clampedStackHint(for: locator, in: elements) { hints.append(hint) }
         // 候補の区切りが " / " なので、ヒント同士は別の記号で割る(読み手が機械でも人でも混ざらない)
         return hints.isEmpty ? nil : hints.joined(separator: "; ")
+    }
+
+    /// スコープ付きのロケータで、**スコープを外せば一致する要素**(木の順の先頭)。スコープが無い・外しても一致しないなら nil。
+    /// 似た名前の候補(SimilarLabels は完全一致を挙げない)の代わりに「対象は居る」と言うための判定(DSL と MCP が共有)
+    public static func targetOutsideScope(_ locator: FlowLocator, in elements: [ElementInfo]) -> ElementInfo? {
+        guard !(locator.scope ?? []).isEmpty else { return nil }
+        var unscoped = locator
+        unscoped.scope = nil
+        return candidates(unscoped, elements: elements)?.first
+    }
+
+    /// 候補の名指し(`型 #id "ラベル"`)。ゼロ幅文字は落とす(見た目が正しいのに一致しない事故を防ぐ)が、これは
+    /// **「型 #id "ラベル」の複合名指し」**であって単一のセレクタ式ではない。ラベルは24字で切り詰めるので完全一致の保証も無い
+    /// (SnapshotRenderer.truncate)—— `TapTargetGeometry.describe` と同じ「後者」(単なる名指し)扱いで、記法として
+    /// 読まれる先頭文字のエスケープ(SelectorNaming.needsEscaping)は通していない
+    static func nearMatchSummary(_ element: ElementInfo) -> String {
+        var parts = [element.type]
+        if let id = element.identifier, !id.isEmpty { parts.append("#\(id)") }
+        if let label = element.label.map(FlowMatchMode.normalizeInvisibleCharacters), !label.isEmpty {
+            parts.append("\"\(SnapshotRenderer.truncate(label, 24))\"")
+        }
+        return parts.joined(separator: " ")
     }
 
     /// **候補から外した理由**を書く(`hasClampedCoordinates` 参照)。これが無いと、画面外の行を

@@ -73,12 +73,41 @@ final class ModalScopeAttributionTests: XCTestCase {
         XCTAssertFalse(withoutList.contains("add scroll:"), withoutList)
     }
 
-    private func tapMissReason(elements: [ElementInfo], modal: ModalScopeCover) async -> String {
+    /// モーダルの中でも、スコープの容器に中身が無いことは言う(閉じろ・送れに従っても直らない)。
+    /// 57周目 im4・imax・alocal: シートの中で葉の見出しを容器にした tap が「モーダルを閉じろ」だけを言った
+    func testTapMissUnderModalStillSaysTheScopeContainerHasNothingUnderIt() async {
+        let title = ElementInfo(ref: 1, type: "staticText", identifier: "txt_sheet_title", label: "シート", value: nil,
+                                placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 300, width: 200, height: 20), depth: 3,
+                                keptDepth: 1)
+        let option = ElementInfo(ref: 2, type: "button", identifier: "btn_sheet_opt_2", label: "選択肢 2", value: nil,
+                                 placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 340, width: 402, height: 44), depth: 4,
+                                 keptDepth: 1)
+        let modal = ModalScopeCover(droppedCount: 1, frames: [FTRect(x: 0, y: 0, width: 402, height: 874)])
+        var locator = FlowLocator(id: "btn_sheet_opt_2")
+        locator.scope = [FlowLocator(id: "txt_sheet_title")]
+        let reason = await tapMissReason(elements: [title, option], modal: modal, locator: locator)
+        XCTAssertTrue(reason.contains("the scope's container #txt_sheet_title"), reason)
+        XCTAssertTrue(reason.contains("has nothing under it"), reason)
+        XCTAssertFalse(reason.contains("close the modal"), reason)
+        XCTAssertFalse(reason.contains("add scroll:"), reason)
+        // 検証(exist)も同じ順で理由を1つだけ言う
+        let assertion = await tapMissReason(elements: [title, option], modal: modal, locator: locator, assert: "exists")
+        XCTAssertTrue(assertion.contains("element not found"), assertion)
+        XCTAssertTrue(assertion.contains("has nothing under it"), assertion)
+        XCTAssertFalse(assertion.contains("close the modal"), assertion)
+        // 容器に中身があれば、検証でも従来どおりモーダルの案内
+        let ordinary = await tapMissReason(elements: [title, option], modal: modal, assert: "exists")
+        XCTAssertTrue(ordinary.contains("close the modal"), ordinary)
+    }
+
+    private func tapMissReason(elements: [ElementInfo], modal: ModalScopeCover,
+                               locator: FlowLocator = FlowLocator(id: "row_sheet_28"), assert: String? = nil) async -> String {
         let driver = ModalDriver(snapshot: SnapshotResponse(
             sessionBundleID: "app", screen: FTRect(x: 0, y: 0, width: 402, height: 874), elements: elements,
             truncatedCount: 0, modalScope: modal))
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
-            .execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_sheet_28"), timeout: 0.2))
+            .execute(assert.map { FlowStep(assert: $0, locator: locator, timeout: 0.2) }
+                     ?? FlowStep(action: "tap", locator: locator, timeout: 0.2))
         if case .failed(let text) = outcome.status { return text }
         XCTFail("failed を期待: \(outcome.status)")
         return ""

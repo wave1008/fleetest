@@ -136,6 +136,23 @@ final class SelectorTargetTests: XCTestCase {
         }
     }
 
+    /// スコープの外に対象そのものが居るなら、似た名前(隣の行)を勧めず「居る」と言う(57周目 alocal F1 の MCP 側)
+    func testScopedMissNamesTheTargetOutsideTheScopeInsteadOfSimilarLabels() {
+        let text = ElementInfo(ref: 1, type: "staticText", identifier: "txt_selected", label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 0, width: 200, height: 20), depth: 5)
+        let rows = (1...3).map { n in
+            ElementInfo(ref: 1 + n, type: "button", identifier: "row_0\(n)", label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: Double(40 * n), width: 200, height: 20), depth: 5)
+        }
+        let snapshot = SnapshotResponse(sessionBundleID: "app", screen: FTRect(x: 0, y: 0, width: 402, height: 874),
+                                        elements: [text] + rows, truncatedCount: 0)
+        let scoped = MCPServer.similarLabelsHint("#txt_selected >> #row_02", in: snapshot)
+        XCTAssertTrue(scoped.contains("#row_02 itself is on screen, but not inside the scope"), scoped)
+        XCTAssertFalse(scoped.contains("#row_01"), scoped)
+        // スコープが無ければ従来どおり
+        XCTAssertFalse(MCPServer.similarLabelsHint("#row_0", in: snapshot).contains("itself is on screen"))
+    }
+
     /// 一致なしは何も撃たず、近いラベルを添えて断る
     func testNoMatchRefusesWithoutSendingAnything() async throws {
         let (server, fake) = make([element(1, id: nil, label: "Save", y: 0)])

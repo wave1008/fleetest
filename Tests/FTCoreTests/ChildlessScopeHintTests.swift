@@ -79,6 +79,18 @@ final class ChildlessScopeHintTests: XCTestCase {
         XCTAssertTrue(text.contains("has nothing under it"), text)
         XCTAssertFalse(text.contains("add waitSeconds"), text)
         XCTAssertEqual(outcome.failureKind, .notFound)
+        // 対象そのものは木にある = 似た名前の候補(隣の行)を勧めず、居ることを言う(57周目 alocal F1)
+        XCTAssertTrue(text.contains("the target itself is in the tree (button #btn_remove_fashion_5"), text)
+        XCTAssertFalse(text.contains("near matches"), text)
+    }
+
+    /// スコープの外にも対象が無ければ、従来どおり似た名前の候補を挙げる
+    func testNearMatchesStayWhenTheTargetIsNowhere() async {
+        let outcome = await executor(flattened).execute(
+            FlowStep(action: "tap", locator: scoped(FlowLocator(id: "btn_remove"), "cart_item_fashion_5")))
+        let text = message(outcome.status)
+        XCTAssertTrue(text.contains("near matches"), text)
+        XCTAssertFalse(text.contains("the target itself is in the tree"), text)
     }
 
     /// 検証(exist)の失敗にも添える
