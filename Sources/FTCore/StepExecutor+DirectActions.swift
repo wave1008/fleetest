@@ -962,15 +962,6 @@ extension StepExecutor {
         // 次の欄への移動)なので、撃ったことを必ず注記に出す
         // 焦点の欄の値を Enter の前に控える(複数行の欄では Enter が改行を入れる。閉じなかったとき事実で言うため。値は文言に出さない)
         let focusedBeforeEnter = try? await freshSnapshot(.afterOwnMove).elements.first { $0.focused == true }
-        // **焦点の欄が複数行なら Enter を送らない**(DR-185): 改行を入れて値だけが変わり、閉じた例は観測が無い(E2EY-CMP の iOS の
-        // `#field_title` = textView で 6/6 が改行を足して閉じずに赤 = 59周目 iultra F1)。欄は焦点の印で決め、印が無ければ直前に打った・
-        // 叩いた欄で決める(CMP の in-app の木は焦点の印を立てない = 同じ欄で実測。どちらも hideKeyboard の入口では捨てない)。
-        // どれも無ければ従来どおり送る
-        if let focused = focusedBeforeEnter ?? lastFieldTouchTarget ?? lastTapTarget, Self.hideKeyboardSkipsEnter(for: focused) {
-            return StepOutcome(status: .failed("the keyboard is still shown: \(tried); Enter was not sent because the focused field"
-                + " is multi-line (\(focused.type)), where Enter inserts a newline instead of closing the keyboard — close it from"
-                + " the app (a Done button or tapping another control), or end the step without hideKeyboard()"))
-        }
         let enter = try await executeDirectPressEnter(phase: &phase)
         guard StepExecutor.isSuccess(enter.status) else {
             return StepOutcome(status: .failed("the keyboard was not closed: \(tried), and"
@@ -995,11 +986,6 @@ extension StepExecutor {
         return StepOutcome(status: .passed,
                            driverFallback: Self.joinNotes("closed the keyboard: \(tried), so \(enterNote)",
                                                           enter.driverFallback))
-    }
-
-    /// hideKeyboard が Enter を送らない焦点の欄か(複数行の欄 = Enter が改行を入れる。DR-185)
-    static func hideKeyboardSkipsEnter(for focused: ElementInfo) -> Bool {
-        focused.type == "textView"
     }
 
     /// Enter の前に焦点を持っていた欄の値が、後の木の同じ欄で変わったか(純粋)。同じ欄 = identifier(あれば)、無ければ枠の左上。
