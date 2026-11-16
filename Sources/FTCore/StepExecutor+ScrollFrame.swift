@@ -394,7 +394,7 @@ extension StepExecutor {
 
     /// 端と申告した容器の**内側**に、同じ列(縦の送りなら容器の中央の x を含む)で同じ軸の、その向きへ送れると申告する
     /// scrollable があるか。あれば端ではない: 外側の ScrollView が [forward] だけでも、バーが戻った後の内側の一覧は
-    /// backward を持ち、ブリッジの /scrollAction はその一覧を送る(OI-169 ⑧。同期相手: AndroidRunner の
+    /// backward を持ち、ブリッジの /scrollAction はその一覧を送る(11/4 の探索 = 12周目の所見 ⑧。同期相手: AndroidRunner の
     /// BridgeRouter.nestedSenderInColumn)。軸は向きの名前(up/down・left/right)か子の並び(`ContainerGeometry.childrenFlow`)で
     /// 決まるものだけ数え、決まらない内側は数えない(分からないものを「送れる」の根拠にしない)
     /// preorder で `container` の直後から、一段深い要素だけ(深さが戻ったら終わり)
