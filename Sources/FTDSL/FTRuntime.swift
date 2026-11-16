@@ -1159,12 +1159,11 @@ public final class FTDriveCore {
 
     /// `#id` が「解決できた」のか「否定側でしか使われていない」のかを覚える。
     /// notExist / countIs 0 は要素が**無い**ことで成功するので、解決の証拠にはならない
-    private func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String, behindModal: Bool) {
+    func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String, behindModal: Bool) {
         // スコープ付き(`#容器 >> #id`)の否定は「容器の外にあること」の検証であり、
         // id が実在しても解決しない。typo 検出の対象から外す(誤検知になるため)
         let locators = ([step.locator] + (step.fallbacks ?? [])).compactMap { $0 }
         let ids = locators.filter { $0.scope?.isEmpty ?? true }.compactMap { $0.id }
-        guard !ids.isEmpty else { return }
         let isNegative = step.assert == "notExists"
             || (step.assert == "count" && step.expectedCount == 0)
         let succeeded: Bool
@@ -1172,6 +1171,16 @@ public final class FTDriveCore {
         case .passed, .passedViaFallback, .healed: succeeded = true
         case .failed, .skipped, .inconclusive: succeeded = false
         }
+        // **スコープの容器の id は、肯定の手順が通った回に解決している**(容器が木に無ければスコープ付きのロケータは何にも一致しない)。
+        // 数えないと `tap("#list_rows >> #row_03")` が通った後の `notExist("#list_rows")` に「一度も解決しなかった・綴りを確かめろ」と
+        // 提案した(59周目 im4 F1)。否定は容器が無くても通るので数えない
+        if succeeded, !isNegative {
+            for id in locators.flatMap({ $0.scope ?? [] }).compactMap(\.id) {
+                resolvedIDs.insert(id)
+                negativeOnlyIDs[id] = nil
+            }
+        }
+        guard !ids.isEmpty else { return }
         for id in ids {
             if succeeded, !isNegative {
                 resolvedIDs.insert(id)

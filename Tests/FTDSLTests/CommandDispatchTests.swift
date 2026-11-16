@@ -352,6 +352,31 @@ final class CommandDispatchTests: XCTestCase {
         XCTAssertFalse(failed.contains { $0.contains("never resolved") }, "赤の否定に綴りの提案を付けた: \(failed)")
     }
 
+    /// スコープの容器として通った id には「一度も解決しなかった」と言わない(59周目 im4 F1)。否定だけの id には従来どおり言う
+    func testScopeContainerOfAPassedStepCountsAsResolved() {
+        let core = makeCore(driver: RecordingDriver())
+        var scoped = FlowLocator(id: "row_03")
+        scoped.scope = [FlowLocator(id: "list_rows")]
+        core.trackIDResolution(step: FlowStep(action: "tap", locator: scoped), status: .passed,
+                               description: "tap", behindModal: false)
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: "list_rows")), status: .passed,
+                               description: "notExist", behindModal: false)
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: "no_such_id")), status: .passed,
+                               description: "notExist", behindModal: false)
+        // スコープ付きの否定が通っても容器は解決していない(容器が無くても通る)
+        var negativeScoped = FlowLocator(id: "x")
+        negativeScoped.scope = [FlowLocator(id: "panel_gone")]
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: negativeScoped), status: .passed,
+                               description: "notExist", behindModal: false)
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: "panel_gone")), status: .passed,
+                               description: "notExist", behindModal: false)
+        core.warnAboutNeverResolvedIDs()
+        let messages = core.finalRecord.fixSuggestions.map(\.message)
+        XCTAssertFalse(messages.contains { $0.contains("`#list_rows` never resolved") }, "\(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#no_such_id` never resolved") }, "\(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#panel_gone` never resolved") }, "\(messages)")
+    }
+
     /// `launchApp(url:)` は配送の後に「前面を離れたかもしれない」の印を立て直す(hook は本体より前に印を落とすので)。
     /// 立てないと別のアプリを開いた後の読みが停止した in-app へ約 45 秒待った(22周目 im4 F1・iultra F2)。ソース走査
     func testLaunchAppWithURLRaisesTheLeftAppMarkAfterDelivery() throws {
