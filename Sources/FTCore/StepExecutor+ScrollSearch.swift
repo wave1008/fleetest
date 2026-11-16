@@ -158,6 +158,9 @@ extension StepExecutor {
         var keyboardFrame: FTRect? = nil
         /// 探索が最後に読んだ木の覆いの申告の名指し(`coverReportHint`)。失敗文が待ち・逆向きの案内の代わりに言う
         var coverHint: String? = nil
+        /// 最後に読んだ木でのスコープの理由(`scopeReasonHint`)。空でなければ失敗文はこれだけを言う(送り・待ち・scrollFrame: の案内は
+        /// 従っても直らない。58周目 im4 F3: 中身の無い容器へのスコープ付き tap を withScrollRight の中で撃つと「withScrollRight で包め」と循環した)
+        var scopeHint = ""
         /// `scrollFrame` 未指定で全画面探索したときだけ埋める —— 探索方向に合う
         /// (縦横比から推定)、書けるセレクタを持つスクロール容器が木にあったら、その名前。
         /// found の成否に関わらず埋まりうる(失敗文が「scrollFrame: を検討しろ」と
@@ -322,6 +325,9 @@ extension StepExecutor {
         // 打ち切ったときは**実際の回数**を出す(上限を名乗ると「8回も振ったのに」と読めてしまう)
         let swipes = result?.stoppedUnmoving == true || result?.appLeftForeground != nil || result?.screenResized == true
             ? (result?.swipes ?? limit) : limit
+        if let scope = result?.scopeHint, !scope.isEmpty, result?.appLeftForeground == nil {
+            return "element not found after \(swipes) scroll(s): \(step.locatorSummary)" + scope
+        }
         // **「stopped early」と言わない**。旧文言は「途中で諦めた」としか
         // 読めず、実際には**リストの末尾に着いていた**回(iOS の設定アプリで実測)を欠陥と
         // 受け取らせ、maxSwipes を上げた再試行を誘っていた。上げても結果は変わらないので明言する。
@@ -437,7 +443,7 @@ extension StepExecutor {
     /// 覆いの案内(モーダルを閉じろ)は言わない** —— 容器に中身が無いのは覆いの有無に関わらない事実で、閉じても直らない
     /// (tap の `cannot resolve the locator` と同じ順。57周目 im4・imax・alocal)
     func notFoundCoverOrScopeHint(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> String {
-        let scope = Self.childlessScopeHint(step, snapshot?.elements, isAndroid: isAndroid)
+        let scope = Self.scopeReasonHint(step, snapshot?.elements, isAndroid: isAndroid)
         return scope.isEmpty ? (Self.coverReportHint(snapshot) ?? "") : scope
     }
 
@@ -975,10 +981,15 @@ extension StepExecutor {
         let cover = CoverHintBox()
         var result = try await searchBody(step: step, recoverOnMiss: recoverOnMiss, cover: cover, phase: &phase)
         result.coverHint = cover.hint
+        result.scopeHint = cover.scope
         return result
     }
 
-    final class CoverHintBox { var hint: String? }
+    final class CoverHintBox {
+        var hint: String?
+        /// 最後に読んだ木でのスコープの理由(`scopeReasonHint`。無ければ "")
+        var scope = ""
+    }
 
     private func searchBody(step: FlowStep, recoverOnMiss: Bool, cover: CoverHintBox,
                             phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
@@ -1109,6 +1120,7 @@ extension StepExecutor {
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
             cover.hint = Self.coverReportHint(snapshot)
+            cover.scope = Self.scopeReasonHint(step, snapshot.elements, isAndroid: isAndroid)
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)

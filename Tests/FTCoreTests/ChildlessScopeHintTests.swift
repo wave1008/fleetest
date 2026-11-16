@@ -79,9 +79,46 @@ final class ChildlessScopeHintTests: XCTestCase {
         XCTAssertTrue(text.contains("has nothing under it"), text)
         XCTAssertFalse(text.contains("add waitSeconds"), text)
         XCTAssertEqual(outcome.failureKind, .notFound)
-        // 対象そのものは木にある = 似た名前の候補(隣の行)を勧めず、居ることを言う(57周目 alocal F1)
-        XCTAssertTrue(text.contains("the target itself is in the tree (button #btn_remove_fashion_5"), text)
+        // 対象そのものは木にある = 似た名前の候補(隣の行)を勧めない(57周目 alocal F1)。理由は容器に中身が無いことを先に言う
         XCTAssertFalse(text.contains("near matches"), text)
+    }
+
+    /// 中身のある容器の外に対象が居る: 「スコープの外」とだけ言い、待ち・送りの案内も近い候補も添えない。検証も同じ(58周目)
+    func testTargetOutsideAContainerWithContentSaysSoAndNothingElse() async {
+        let locator = scoped(FlowLocator(id: "btn_qty_decrement"), "cart_item_fashion_5")
+        for step in [FlowStep(action: "tap", locator: locator), FlowStep(assert: "exists", locator: locator, timeout: 0.2)] {
+            let text = message(await executor(nested + [node(6, "button", depth: 1, id: "btn_qty_decrement", label: "数量を減らす",
+                                                          114, 400, 48, 48)]).execute(step).status)
+            XCTAssertTrue(text.contains("the target itself is in the tree (button #btn_qty_decrement"), text)
+            XCTAssertTrue(text.contains("but not inside the scope"), text)
+            XCTAssertFalse(text.contains("add waitSeconds"), text)
+            XCTAssertFalse(text.contains("add scroll:"), text)
+            XCTAssertFalse(text.contains("near matches"), text)
+        }
+    }
+
+    /// 容器が木に無く、対象は居る: 容器が無いと言う(閉じろ・待て・送れは言わない)
+    func testScopeContainerMissingButTargetPresent() async {
+        let locator = scoped(FlowLocator(id: "btn_remove_fashion_5"), "no_such_row")
+        let text = message(await executor(nested).execute(FlowStep(assert: "exists", locator: locator, timeout: 0.2)).status)
+        XCTAssertTrue(text.contains("but the scope's container is not"), text)
+    }
+
+    /// 送りの探索の失敗も、スコープの理由があればそれだけを言う(58周目 im4 F3: withScrollRight の中で「withScrollRight で包め」と循環した)
+    func testScrollSearchFailureSaysOnlyTheScopeReason() {
+        var result = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0, swipes: 3)
+        result.stoppedUnmoving = true
+        result.directionMatchedScrollFrameCandidate = "#stab_row"
+        result.scopeHint = " (the scope's container #stab_row is in the tree but has nothing under it)"
+        var step = FlowStep(action: "tap", locator: scoped(FlowLocator(id: "stab_10"), "stab_row"))
+        step.direction = "left"
+        let text = StepExecutor.scrollNotFoundMessage(step, result, defaultMaxSwipes: 8)
+        XCTAssertTrue(text.contains("has nothing under it"), text)
+        XCTAssertFalse(text.contains("withScroll"), text)
+        XCTAssertFalse(text.contains("waitSeconds"), text)
+        // 理由が無ければ従来どおり
+        result.scopeHint = ""
+        XCTAssertTrue(StepExecutor.scrollNotFoundMessage(step, result, defaultMaxSwipes: 8).contains("withScroll"))
     }
 
     /// スコープの外にも対象が無ければ、従来どおり似た名前の候補を挙げる

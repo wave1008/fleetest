@@ -796,7 +796,7 @@ extension StepExecutor {
                 // 別のアプリの木なので、容器の判定より先に言う。
                 // モーダルの中にも送れる一覧があれば、対象はモーダルの「裏」でなく「中」の送りの先かもしれない = 送りの案内も添える
                 // (待ちの案内は添えない。E2EX-iOS のボトムシートの行で「閉じろ」だけを言っていた = 56周目 iultra F1)
-                let scopeHint = Self.childlessScopeHint(step, hintSnapshot.elements, isAndroid: isAndroid)
+                let scopeHint = Self.scopeReasonHint(step, hintSnapshot.elements, isAndroid: isAndroid)
                 let reasonHint = await leftForegroundHint()
                     ?? (scopeHint.isEmpty ? nil : scopeHint)
                     ?? Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
@@ -1835,6 +1835,7 @@ extension StepExecutor {
                 return StepOutcome(status: .failed(
                     "cannot resolve the end locator: \(endStep.locatorSummary)"
                         + (hint.map { ". \($0)" } ?? "")
+                        + Self.scopeReasonHint(endStep, snapshot.elements, isAndroid: isAndroid)
                         + Self.truncationHint(snapshot)
                         + Self.keyboardResizedHint(snapshot)))
             }

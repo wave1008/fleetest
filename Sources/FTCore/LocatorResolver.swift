@@ -390,9 +390,8 @@ public enum LocatorResolver {
         // **スコープの外に対象そのものが居るなら、似た名前の候補を挙げない**: 完全一致は SimilarLabels が挙げない
         // (similarityStrength は同じ語に nil)ので、候補は隣の要素だけになり、書き換えると別の要素を押すシナリオになる
         // (57周目 alocal F1: `#txt_row_selected >> #row_02` に #row_01 / #row_03 を勧めた)。居ることだけを言う
-        if let target = targetOutsideScope(locator, in: elements) {
-            return "the target itself is in the tree (\(nearMatchSummary(target))) but not inside the scope"
-        }
+        // 理由(対象は居るがスコープの外)は呼び手が `StepExecutor.scopeReasonHint` で言う
+        if targetOutsideScope(locator, in: elements) != nil { return nil }
         var picked: [ElementInfo] = []
 
         func add(_ candidates: [ElementInfo]) {

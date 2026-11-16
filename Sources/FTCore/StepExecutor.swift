@@ -1961,6 +1961,24 @@ public final class StepExecutor {
     /// `LocatorResolver.childlessScopeContainer`。MCP の `ft_tap` 等の selector の断りと共有)。木が無ければ空
     /// 理由は木の形と OS から言えるものだけ(葉の型なら「中身を持たない型」・iOS の入れ物の型だけ CMP の平坦化)。例は一般形
     /// (特定のアプリの id を出さない)
+    /// **スコープが原因の「見つからない」の理由**(容器に中身が無い → 容器が木に無い → 対象がスコープの外に居る)。どれでもなければ ""。
+    /// どれも待っても送っても閉じても直らない事実なので、tap・検証・送りの探索の失敗文はこれを言うときほかの案内(待ち・送り・覆い・
+    /// 自分のダイアログ)を添えない(58周目: 「スコープの外」の後に scroll: / waitSeconds: / 閉じろが続いた・検証は言わなかった)。
+    /// 対象がスコープの外に居るときは近い候補も挙げない(`LocatorResolver.candidateHint`)
+    static func scopeReasonHint(_ step: FlowStep, _ elements: [ElementInfo]?, isAndroid: Bool) -> String {
+        let childless = childlessScopeHint(step, elements, isAndroid: isAndroid)
+        if !childless.isEmpty { return childless }
+        guard let locator = step.locator, let elements,
+              let target = LocatorResolver.targetOutsideScope(locator, in: elements) else { return "" }
+        let named = LocatorResolver.nearMatchSummary(target)
+        if LocatorResolver.scopedPool(locator.scope, elements: elements) == nil {
+            return " (the target itself is in the tree (\(named)), but the scope's container is not, so waiting, scrolling or"
+                + " closing anything will not help — drop the scope, or name a container that holds the target)"
+        }
+        return " (the target itself is in the tree (\(named)) but not inside the scope, so waiting or scrolling will not bring it in"
+            + " — drop the scope, or name the container that holds the target)"
+    }
+
     static func childlessScopeHint(_ step: FlowStep, _ elements: [ElementInfo]?, isAndroid: Bool) -> String {
         guard let locator = step.locator, let elements,
               let container = LocatorResolver.childlessScopeContainer(of: locator, in: elements) else { return "" }
