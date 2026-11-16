@@ -213,10 +213,10 @@ Command **"fleetest: Open Results Dashboard"** shows, in the Device Monitor's **
   The "All / Performance runs only" toggle lists only runs made with `--performance`. Check 2 rows at the left edge to compare their per-scenario durations
   (the earlier run is the baseline; only scenarios that passed in both are listed, largest slowdown first; a note appears
   when the 2 runs differ in profile or machine)
-- **Notable issues** (insights): grouped by severity, collapsed when 4 or more of the same kind appear
-- **Flaky scenarios** and scenario history
-- **Slow scenarios**
-- **Scenario summary**: filterable by scenario ID, a "failures only" checkbox, sortable by clicking column headers
+- **⚠ Notable Issues** (insights): grouped by severity, collapsed when 4 or more of the same kind appear
+- **Flaky Scenarios (last 10 runs)** and scenario history
+- **Slow Tests (last 10 runs)**
+- **Scenario Summary (last 10 runs)**: filterable by scenario ID, a "failures only" checkbox, sortable by clicking column headers
 
 A toolbar control switches the aggregation period (last 5/10 minutes, 1/3/8/16 hours, or 1/2/3/7/30/90 days; the default is the last 16 hours, and the period you pick is remembered). Machine health and device health are always shown, even when the period has no runs. Refreshing keeps the current view
 visible while it re-fetches in the background.

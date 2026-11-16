@@ -41,7 +41,7 @@
   修正提案が出ます。例:
 
   > `TestProjects/SampleApp/scenarios/LoginTest.swift:17` — change the selector "#email_input" to
-  > "#email||.textField[1]" (passed via locator fingerprint matching; reason: matched by locator
+  > "#email" (passed via locator fingerprint matching; reason: matched by locator
   > fingerprint (type+label))
 
   レポートの文は英語です。書き戻された後の実行は新しいセレクタで直接解決するので、修復は起きません。
@@ -78,7 +78,7 @@
 
 ```text
 ✏️ Self-healing wrote 1 selector fix(es) back to the scenarios — review them with git diff and commit:
-   - scenarios/LoginTest.swift:17: "#email_input" → "#email||.textField[1]"
+   - scenarios/LoginTest.swift:17: "#email_input" → "#email"
 ```
 
 書けなかったものは次の形で理由とともに出ます。提案はシナリオレポートに残ります。

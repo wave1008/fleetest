@@ -42,7 +42,7 @@ Self-healing is fingerprint matching only — it does not call FM (Foundation Mo
   suggestion with a source location, e.g.:
 
   > `TestProjects/SampleApp/scenarios/LoginTest.swift:17` — change the selector "#email_input" to
-  > "#email||.textField[1]" (passed via locator fingerprint matching; reason: matched by locator
+  > "#email" (passed via locator fingerprint matching; reason: matched by locator
   > fingerprint (type+label))
 
   After the fix has been written back, the next run resolves the new selector directly, so no repair happens.
@@ -83,7 +83,7 @@ After the existing ⚠️ line, the run output prints the following (to stderr f
 
 ```text
 ✏️ Self-healing wrote 1 selector fix(es) back to the scenarios — review them with git diff and commit:
-   - scenarios/LoginTest.swift:17: "#email_input" → "#email||.textField[1]"
+   - scenarios/LoginTest.swift:17: "#email_input" → "#email"
 ```
 
 Anything that could not be written is listed with its reason; the suggestions stay in the scenario reports:
