@@ -1019,8 +1019,11 @@ public struct BridgeLauncher: Sendable {
                 stopped.append(port)
                 try? FileManager.default.removeItem(at: entry)
             case "inapp":
-                // in-app ブリッジ(dylib 注入)はシミュレータ専用(実機に in-app 注入は無い)ので
-                // skipPhysical に関わらず全部止めてよい
+                // 実機の in-app も実際に止まる(devicectl)ので、実機を外す呼び手では記録ごと残す
+                if skipPhysical, let state = InAppBridgeState.read(at: entry),
+                   SimulatorCatalog.isPhysical(udid: state.udid) == true {
+                    continue
+                }
                 InAppBridgeState.terminateAndRemove(at: entry)
                 stopped.append(entry.deletingPathExtension().lastPathComponent
                     .replacingOccurrences(of: "bridge-", with: ""))

@@ -66,12 +66,19 @@ public enum InAppBridgeState {
         read(at: url(stateDir: stateDir, port: port))?.sourceDigest
     }
 
-    /// 記録された udid+bundleID を simctl terminate してからファイルを削除する。
-    /// アプリ/シミュレータが既に死んでいる場合の terminate 失敗は無視する(stale ファイル許容)。
+    /// 記録された udid+bundleID のアプリを止めてからファイルを削除する。
+    /// アプリ/デバイスが既に死んでいる場合の terminate 失敗は無視する(stale ファイル許容)。
+    /// **実機は devicectl で止める**(simctl terminate は実機に何もしない。止まらなかった注入済みのアプリは背面で suspend され、
+    /// 端末側のポートを握ったまま答えない = 同じ番号を次のアプリへ割り当てると、新しい in-app ブリッジが黙って bind に失敗し
+    /// 到達待ちが 30 秒の時間切れになった。SE3 の実測)
     public static func terminateAndRemove(at path: URL) {
         if let state = read(at: path) {
-            // teardown 経路。simctl が wedge しても停止が永久ブロックしないよう時限化(15s)。
-            _ = try? Shell.run(["xcrun", "simctl", "terminate", state.udid, state.bundleID], timeout: 15)
+            if SimulatorCatalog.isPhysical(udid: state.udid) == true {
+                InAppLauncher.terminateOnPhysicalDevice(udid: state.udid, bundleID: state.bundleID)
+            } else {
+                // teardown 経路。simctl が wedge しても停止が永久ブロックしないよう時限化(15s)。
+                _ = try? Shell.run(["xcrun", "simctl", "terminate", state.udid, state.bundleID], timeout: 15)
+            }
         }
         try? FileManager.default.removeItem(at: path)
     }

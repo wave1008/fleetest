@@ -61,6 +61,13 @@ final class UsbTunnelAdviceTests: XCTestCase {
         XCTAssertFalse(tunnelGone.contains("bridge on the device has stopped"), tunnelGone)
         XCTAssertEqual(advice(.networkConnectionLost, macSide: .unknown), generic, "確かめが決まらなければ帰属を言わない")
         XCTAssertEqual(advice(.networkConnectionLost), generic, "確かめていなければ帰属を言わない")
-        XCTAssertEqual(advice(.timedOut), generic, "切り分けられない種類は従来の案内")
+    }
+
+    /// 時間切れは端末側に答えない待ち受けがある形(実測: 背面で止まったアプリの in-app ブリッジが握ったポート)。ケーブルを言わない
+    func testTimeoutNamesAnUnansweringHolderOnTheDeviceNotTheCable() {
+        let text = advice(.timedOut)
+        XCTAssertTrue(text.contains("holds that port but does not answer"), text)
+        XCTAssertTrue(text.contains("port 8130"), text)
+        XCTAssertFalse(text.contains("cable"), text)
     }
 }

@@ -1676,6 +1676,12 @@ public final class BridgeClient: AppDriver, Sendable {
             return " (the USB tunnel (iproxy) on port \(port) is up, but the device's end did not take the connection"
                 + " — the bridge on the device has stopped (in inapp-boost mode it lives inside the app, in xcuitest mode it"
                 + " is the XCUITest runner), or the device is no longer reachable over USB)"
+        case .timedOut?:
+            // 実測(SE3・端末側のポートを総なめ): 空きのポートは即 reset、背面で止まった(suspend)アプリの in-app ブリッジが
+            // 握ったポートは時間切れ。ケーブルを言わない(この形で帰属を言える観測は無い)
+            return " (the request through the USB tunnel on port \(port) got no answer in time — something on the device"
+                + " holds that port but does not answer: a bridge that is busy, or an app left in the background (suspended)"
+                + " from an earlier run whose in-app bridge still holds the port. Stopping that app frees the port)"
         default:
             break
         }
