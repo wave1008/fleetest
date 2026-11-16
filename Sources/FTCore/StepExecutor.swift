@@ -1965,6 +1965,17 @@ public final class StepExecutor {
     /// どれも待っても送っても閉じても直らない事実なので、tap・検証・送りの探索の失敗文はこれを言うときほかの案内(待ち・送り・覆い・
     /// 自分のダイアログ)を添えない(58周目: 「スコープの外」の後に scroll: / waitSeconds: / 閉じろが続いた・検証は言わなかった)。
     /// 対象がスコープの外に居るときは近い候補も挙げない(`LocatorResolver.candidateHint`)
+    /// 送りの探索の失敗に添えるスコープの理由。`scopeReasonHint` に加えて、**容器も対象も木に無い**ときも言う(探索はもう送って待った後 =
+    /// 容器が無ければ何も探せなかったのは事実。言わないとシートを広げろ・閉じろの案内へ落ちた = 59周目 iultra F2)。
+    /// 送りの無い操作・検証では言わない(容器が読み込み中なら待てば出る = 待ちの案内を消さない)
+    static func searchScopeHint(_ step: FlowStep, _ elements: [ElementInfo]?, isAndroid: Bool) -> String {
+        let reason = scopeReasonHint(step, elements, isAndroid: isAndroid)
+        guard reason.isEmpty, let locator = step.locator, let elements, !(locator.scope ?? []).isEmpty,
+              LocatorResolver.scopedPool(locator.scope, elements: elements) == nil else { return reason }
+        return " (the scope's container is not in the tree after the search either, so there was nothing to search inside —"
+            + " check the container's selector, or make sure the container is on this screen)"
+    }
+
     static func scopeReasonHint(_ step: FlowStep, _ elements: [ElementInfo]?, isAndroid: Bool) -> String {
         let childless = childlessScopeHint(step, elements, isAndroid: isAndroid)
         if !childless.isEmpty { return childless }

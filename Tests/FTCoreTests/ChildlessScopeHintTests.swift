@@ -104,6 +104,20 @@ final class ChildlessScopeHintTests: XCTestCase {
         XCTAssertTrue(text.contains("but the scope's container is not"), text)
     }
 
+    /// 送りの探索の後に容器も対象も木に無ければ、容器が無いと言う(59周目 iultra F2)。送りの無い操作の理由には含めない(待てば出うる)
+    func testSearchSaysTheContainerIsMissingWhenNeitherIsInTheTree() {
+        let locator = scoped(FlowLocator(id: "row_sheet_18"), "list_sheet")
+        let step = FlowStep(action: "tap", locator: locator)
+        let search = StepExecutor.searchScopeHint(step, nested, isAndroid: false)
+        XCTAssertTrue(search.contains("the scope's container is not in the tree after the search either"), search)
+        XCTAssertEqual(StepExecutor.scopeReasonHint(step, nested, isAndroid: false), "", "送りの無い経路では言わない")
+        // 容器が木にあれば言わない(従来の案内のまま)
+        XCTAssertEqual(StepExecutor.searchScopeHint(FlowStep(action: "tap", locator: scoped(FlowLocator(id: "missing"), "cart_item_fashion_5")),
+                                                    nested, isAndroid: false), "")
+        // スコープの無いロケータでは言わない
+        XCTAssertEqual(StepExecutor.searchScopeHint(FlowStep(action: "tap", locator: FlowLocator(id: "missing")), nested, isAndroid: false), "")
+    }
+
     /// 送りの探索の失敗も、スコープの理由があればそれだけを言う(58周目 im4 F3: withScrollRight の中で「withScrollRight で包め」と循環した)
     func testScrollSearchFailureSaysOnlyTheScopeReason() {
         var result = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false, hintJumps: 0, swipes: 3)

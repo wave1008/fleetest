@@ -1120,7 +1120,7 @@ extension StepExecutor {
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
             cover.hint = Self.coverReportHint(snapshot)
-            cover.scope = Self.scopeReasonHint(step, snapshot.elements, isAndroid: isAndroid)
+            cover.scope = Self.searchScopeHint(step, snapshot.elements, isAndroid: isAndroid)
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)
