@@ -42,6 +42,9 @@ final class TypeNoFocusAdviceTests: XCTestCase {
         XCTAssertTrue(body.contains("soft keyboard is showing"), body)
         XCTAssertTrue(body.contains("hideKeyboard"), body)
         XCTAssertFalse(body.contains("TextInputEditText"), body)
+        // 閉じてからセレクタ無しで打ち直す対処は言わない(View の形では焦点が戻らず効かない = Pixel 3a の実測)
+        XCTAssertFalse(body.contains("type again"), body)
+        XCTAssertTrue(body.contains("then type by selector"), body)
     }
 
     /// 最後の tap の後に type が通っていれば、容器の話ではなく「焦点を持っていた欄が木から消えた」話をする

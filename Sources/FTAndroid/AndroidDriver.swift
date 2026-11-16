@@ -1141,11 +1141,15 @@ public final class AndroidDriver: AppDriver {
         // 注入器の「by ref」は MCP の言い方で、DSL に ref は無い。下で呼び手どちらにも従える対処を足すので落とす(41周目 alocal F2)
         let body = rawBody.replacingOccurrences(of: bridgeRefAdvice, with: "")
         if let advice = noFocusFrontAdvice(after: error, front: front, lastTreePackage: lastTreePackage) { return advice }
+        // **対処は「閉じてからセレクタで打つ」だけ**: View の画面は窓が縮むと欄の高さが 0 に潰れ、端末から焦点そのものが消える
+        // (Pixel 3a の E2E-Android の #field_multiline: tap の直後に焦点の View が 0 件・閉じても焦点は戻らず、セレクタ無しの打ち直しは
+        // また赤・閉じた後のセレクタの type は通った)。キーボードを出したままのセレクタの type は欄が木に無いので断られる
         if keyboardShown {
             return DriverError.badResponse(status: status, body: body
-                + " — the soft keyboard is showing, so the field you tapped may be pushed out of the accessibility tree"
-                + " (typical in landscape or in a short window), which hides the focused field from the bridge."
-                + " Close the keyboard (hideKeyboard) and type again, or type by selector: type(<selector>, \"…\")")
+                + " — the soft keyboard is showing: the window shrank to make room for it, and the field you tapped may have been"
+                + " squeezed out of the accessibility tree or lost input focus altogether (a person can still type on the keyboard,"
+                + " but nothing here can say which field receives it). Close the keyboard (hideKeyboard), then type by selector:"
+                + " type(<selector>, \"…\") focuses the field again")
         }
         // 最後の tap の後に type が通っている = 叩いた容器の話ではなく、焦点を持っていた欄が画面の外へ送られて木から消えた
         // (Flutter は画面外の欄を木から外し、焦点も消える)
