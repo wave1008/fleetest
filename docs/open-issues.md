@@ -136,7 +136,8 @@
 出典: 59周目 iultra F1(M1Ultra の iPhone 18 Pro 6台・inapp-boost)。同じ画面の SwiftUI と Flutter の単一行の欄は背景のタップで閉じず Enter で閉じて ✅
 - 経緯: 「焦点の欄の型が `textView` なら Enter を送らない」で直した(DR-185・0.22.1)が、iOS の Compose Multiplatform は1行の欄も `textView` で出すため、背景のタップで閉じず Enter で閉じる1行の欄(sut-ec-mobile の住所フォーム)で hideKeyboard が失敗する退行になり、取り消した
 - 材料が無いこと: 木の型では1行と複数行を見分けられない(E2E-CMP の iOS の `#field_single`(singleLine)も `textView`)。枠の高さ・ラベルで決める形は推測になるので取らない
-- 次の一手: in-app ブリッジが Compose の欄の「1行か」を事実として読めるか(a11y の属性・入力の特性)を測る。読めれば、そのときだけ Enter を送らない
+- 測った(11/16・E2E-CMP の iOS の `#field_single`・`#field_password`・`#field_multiline`): 型は XCUITest の木(MCP)でも in-app の木でも3つとも `textView`。焦点を持つ実体は3つとも Compose の `OverlayInputView` で、入力の特性(`UITextInputTraits` = リターンキーの種類・キーボードの種類)を持たない(in-app ブリッジに一時的に足した診断で確認)。打った文字を受ける UIKit の部品も無い = UIKit の側からは1行か複数行かを読めない
+- 次の一手: Compose の a11y の要素(UIAccessibilityElement)の属性に1行か複数行かが出ていないかを見る(出ていなければ据え置き)
 
 ### OI-237 XCUITest ブリッジの木では、スコープ `>>` の子孫を depth で引くので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(MCP と xcuitest モード)
 - 状態: 再現済み
