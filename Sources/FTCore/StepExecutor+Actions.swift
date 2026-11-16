@@ -809,7 +809,7 @@ extension StepExecutor {
                                 + Self.scrollOffHint(step, in: hintSnapshot))
                         + Self.truncationHint(hintSnapshot)
                         + keyboardClause
-                        + Self.webViewPathHint(hintSnapshot)
+                        + Self.webViewPathHint(hintSnapshot, precedingTapWasWeb: tapTargetBeforeThisStep?.web == true)
                         + unresolvedActionTapHint(hintSnapshot.elements)))
             }
         }

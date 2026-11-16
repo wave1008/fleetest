@@ -290,7 +290,9 @@ extension StepExecutor {
     /// 原因が離れているので、失敗した側に経路を書いておかないと追跡コストが跳ね上がる。
     /// 目印(`WebViewDOM.isInteropHosted`)は React Native / Capacitor / Flutter のクラス名変更で
     /// いつでも取りこぼし得るため、この注記は「目印が正しい間も」必要。
-    static func webViewPathHint(_ snapshot: SnapshotResponse?) -> String {
+    /// `precedingTapWasWeb` = 直前の tap が Web の要素(`ElementInfo.web`)を撃ったか。**無反応タップの疑いはそのときだけ言う**
+    /// (直前が操作でない・ネイティブの要素を探しているときにも付けていた。既定値を置かない = 呼び手が決める)
+    static func webViewPathHint(_ snapshot: SnapshotResponse?, precedingTapWasWeb: Bool) -> String {
         // **要素の形から推測しない**。Android は webView 型を出すが web フラグを持たないため、
         // 推測すると「XCUITest へ委譲」と名乗って Android のデバッグを誤誘導する(実害)。
         // 申告が無いドライバ(Android・xcuitest モード単独・旧ブリッジ)では何も足さない
@@ -312,6 +314,7 @@ extension StepExecutor {
             return " (the WebView contents could not be read at all, so this tree holds only the native"
                 + " elements — a web element that is really on screen cannot be found in it.\(legend))"
         case WebViewPath.dom:
+            guard precedingTapWasWeb else { return "" }
             return " (WebView contents were read through the DOM path. Taps are synthesized onto DOM rects, so "
                 + "a WebView embedded through interop **records success even when nothing responds**. "
                 + "Suspect that the preceding interaction had no effect.)"
@@ -616,7 +619,7 @@ extension StepExecutor {
                        + Self.truncationHint(lastSnapshot)
                        + Self.keyboardResizedHint(lastSnapshot)
                        + tapDiagnosisHint(lastSnapshot?.elements)
-                       + Self.webViewPathHint(lastSnapshot))
+                       + Self.webViewPathHint(lastSnapshot, precedingTapWasWeb: lastTapTarget?.web == true))
     }
 
     private func executeAssertTextComparison(
@@ -817,14 +820,14 @@ extension StepExecutor {
                       + Self.coveringHint(element: lastElement, elements: lastElements,
                                           screen: lastScreen)
                       + tapDiagnosisHint(lastSnapshot?.elements)
-                      + Self.webViewPathHint(lastSnapshot))
+                      + Self.webViewPathHint(lastSnapshot, precedingTapWasWeb: lastTapTarget?.web == true))
             : failed(.notFound, "element not found: \(step.locatorSummary)"
                       + leftHint
                       + notFoundCoverOrScopeHint(step, lastSnapshot)
                       + Self.truncationHint(lastSnapshot)
                       + Self.keyboardResizedHint(lastSnapshot)
                       + tapDiagnosisHint(lastSnapshot?.elements)
-                      + Self.webViewPathHint(lastSnapshot))
+                      + Self.webViewPathHint(lastSnapshot, precedingTapWasWeb: lastTapTarget?.web == true))
     }
 
     /// text 系の検証が、ラベルを持たず値だけを持つ入力欄に当たったときの事実(Android の入力欄は

@@ -357,13 +357,15 @@ extension StepExecutorTests {
                              truncatedCount: 0, webViewPath: path)
         }
 
-        XCTAssertEqual(StepExecutor.webViewPathHint(nil), "")
+        XCTAssertEqual(StepExecutor.webViewPathHint(nil, precedingTapWasWeb: true), "")
 
-        let dom = StepExecutor.webViewPathHint(snapshot("dom"))
+        let dom = StepExecutor.webViewPathHint(snapshot("dom"), precedingTapWasWeb: true)
         XCTAssertTrue(dom.contains("DOM path"), dom)
         XCTAssertTrue(dom.contains("nothing responds"), "無反応タップの可能性まで書くこと: \(dom)")
+        // 直前の tap が Web の要素でなければ言わない(直前が操作でない・ネイティブの要素を撃った)
+        XCTAssertEqual(StepExecutor.webViewPathHint(snapshot("dom"), precedingTapWasWeb: false), "")
 
-        let delegated = StepExecutor.webViewPathHint(snapshot("delegated"))
+        let delegated = StepExecutor.webViewPathHint(snapshot("delegated"), precedingTapWasWeb: true)
         XCTAssertTrue(delegated.contains("XCUITest"), delegated)
         XCTAssertFalse(delegated.contains("無反応"), "委譲側は合成タッチを使わないので警告しない")
 
@@ -371,15 +373,15 @@ extension StepExecutorTests {
         // note が無ければ iOS の鍵の読み方を出す
         var unread = snapshot("dom-unread")
         unread.note = "com.a's WebView content could not be read: the devtools socket never opens"
-        let unreadHint = StepExecutor.webViewPathHint(unread)
+        let unreadHint = StepExecutor.webViewPathHint(unread, precedingTapWasWeb: true)
         XCTAssertTrue(unreadHint.contains("The bridge note says: com.a's WebView content could not be read"), unreadHint)
         XCTAssertFalse(unreadHint.contains("webview-loading"), "note があるときは鍵の凡例を出さない: \(unreadHint)")
-        let unreadNoNote = StepExecutor.webViewPathHint(snapshot("dom-unread"))
+        let unreadNoNote = StepExecutor.webViewPathHint(snapshot("dom-unread"), precedingTapWasWeb: true)
         XCTAssertTrue(unreadNoNote.contains("webview-loading"), unreadNoNote)
 
         // dom-interop: DOM は読めるが操作は実タッチ(XCUITest)で行う第三のモード。
         // "dom" と違い DOM-tap の無反応な成功記録という弱点を持たないので、その警告は出さない
-        let domInterop = StepExecutor.webViewPathHint(snapshot("dom-interop"))
+        let domInterop = StepExecutor.webViewPathHint(snapshot("dom-interop"), precedingTapWasWeb: true)
         XCTAssertTrue(domInterop.contains("XCUITest"), domInterop)
         XCTAssertTrue(domInterop.lowercased().contains("real") || domInterop.lowercased().contains("touch"),
                       domInterop)
@@ -388,13 +390,13 @@ extension StepExecutorTests {
 
         // **Android**: WebView 要素は出るが経路の申告は無い。XCUITest を名乗ってはいけない
         // (Android に XCUITest は存在せず、デバッグ中の人を誤誘導する)
-        let android = StepExecutor.webViewPathHint(snapshot(nil))
+        let android = StepExecutor.webViewPathHint(snapshot(nil), precedingTapWasWeb: true)
         XCTAssertEqual(android, "", "申告が無ければ何も足さない: \(android)")
 
         // 通常画面(WebView 要素すら無い)も当然そのまま
         let plain = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [content],
                                      truncatedCount: 0)
-        XCTAssertEqual(StepExecutor.webViewPathHint(plain), "")
+        XCTAssertEqual(StepExecutor.webViewPathHint(plain, precedingTapWasWeb: true), "")
     }
 
     // MARK: - スクロールヒント(WebView の画面外ノードによる長距離ドラッグ)
