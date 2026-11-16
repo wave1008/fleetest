@@ -1258,7 +1258,8 @@ adb へ自動フォールバックする(DR-73)。動機は PoC 実測: スク�
 - gRPC 化済み: blank プローブ/sleep-wake 修復(AndroidHealthProbe)・停止=setVmState SHUTDOWN
   (DeviceBooter/DataWiper/DevicesCommand)・serial→AVD 名=ディスカバリ読み・bootCompleted
   (booted=true のみ確定、他は getprop 再確認)・難治型 reboot の adb 不達時 RESET・
-  drag・press のタッチ合成(AndroidDriver)
+  press のタッチ合成(AndroidDriver)。**座標ドラッグは gRPC から外した**(ブリッジの `/gesture` で端末の中で予定の時刻を付けて撃つ = DR-186。
+  gRPC はホストから実時間で送るので、ホストの負荷で払いが伸びて速さで決める部品が戻った)
 - adb 残存(原理的に置き換え不可): ブリッジ到達の `adb forward`+localhost HTTP・shell 系
   (am/pm/settings/getprop/cmd wifi/dumpsys)・install・pull・実機の全操作
 - **キー系は adb keyevent 固定**(home/back/appSwitcher/pressEnter)。gRPC のキー注入は

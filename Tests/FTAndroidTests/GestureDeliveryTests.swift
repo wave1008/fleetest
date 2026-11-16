@@ -36,12 +36,20 @@ final class GestureDeliveryTests: XCTestCase {
         } catch { XCTAssertTrue(error is CancellationError, "\(error)") }
     }
 
-    /// ソース走査: 座標の drag / long-press は gRPC の前に端末の応答を確かめ、adb の swipe を協調プールに載せない(探索 b F2)
+    /// ソース走査: 座標の long-press は gRPC の前に端末の応答を確かめ、adb の swipe を協調プールに載せない(探索 b F2)。
+    /// 座標の drag はブリッジの /gesture で撃つ(DR-186)が、撃つ前に端末の応答を確かめる門は同じ
     func testCoordinateGesturesGateOnDeviceAnswerAndLeaveThePool() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTAndroid/AndroidDriver.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        for signature in ["public func drag(fromX", "public func press(x: Double, y: Double, duration: Double)"] {
+        let dragStart = try XCTUnwrap(source.range(of: "public func drag(fromX"))
+        let dragBody = String(source[dragStart.lowerBound...].prefix(2500))
+        let dragRegion = String(dragBody[..<(dragBody.range(of: "\n    }\n")?.lowerBound ?? dragBody.endIndex)])
+        let dragGate = try XCTUnwrap(dragRegion.range(of: "requireDeviceAnswersOffPool()"), "drag: 門が無い")
+        let bridge = try XCTUnwrap(dragRegion.range(of: "withBridge {"), "drag: ブリッジで撃っていない")
+        XCTAssertTrue(dragGate.lowerBound < bridge.lowerBound, "drag: 門がブリッジより後ろにある")
+        XCTAssertFalse(dragRegion.contains("EmulatorControl."), "drag: gRPC で撃っている(DR-186)")
+        for signature in ["public func press(x: Double, y: Double, duration: Double)"] {
             let start = try XCTUnwrap(source.range(of: signature), signature)
             let body = String(source[start.lowerBound...].prefix(2500))
             let end = body.range(of: "\n    }\n")?.lowerBound ?? body.endIndex

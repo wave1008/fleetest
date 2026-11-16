@@ -62,14 +62,14 @@ final class AndroidTouchRotationTests: XCTestCase {
         XCTAssertEqual(state.naturalSize, natural)
     }
 
-    /// AndroidDriver の gRPC 経路(drag / long-press)が必ず回転を通す
+    /// AndroidDriver の gRPC 経路(long-press)が必ず回転を通す。座標ドラッグは gRPC を使わずブリッジの /gesture で撃つ(DR-186)
     func testDriverRoutesGrpcThroughNativeTouchPoint() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/FTAndroid/AndroidDriver.swift")
         let text = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(text.contains("EmulatorControl.drag(serial: serial, fromX: from.x"))
         XCTAssertTrue(text.contains("EmulatorControl.longPress(serial: serial, x: native.x"))
-        XCTAssertFalse(text.contains("fromX: fromXi, fromY: fromYi,\n                                 toX: toXi"))
+        XCTAssertFalse(text.contains("EmulatorControl.drag("), "座標ドラッグは gRPC で撃たない(ホストの負荷で払いが伸びる = DR-186)")
+        XCTAssertTrue(text.contains("try await withBridge { try await $0.gesture(request) }"))
     }
 }

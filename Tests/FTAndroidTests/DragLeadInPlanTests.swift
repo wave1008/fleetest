@@ -43,10 +43,11 @@ final class DragLeadInPlanTests: XCTestCase {
         XCTAssertNil(S.leadInPlan(distancePx: 31, durationMs: 600, densityPxPerDp: 0))
     }
 
-    func testDriverPassesThePlanToTheGrpcDrag() throws {
+    /// 座標ドラッグはブリッジの /gesture で撃つ(DR-186)。経路を組む関数が同じ計画を使う
+    func testDriverPassesThePlanToTheBridgeDrag() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
         let src = try String(contentsOf: root.appendingPathComponent("Sources/FTAndroid/AndroidDriver.swift"), encoding: .utf8)
-        XCTAssertTrue(src.contains("leadIn: EmulatorGrpcSession.leadInPlan("))
+        XCTAssertTrue(src.contains("if let lead = EmulatorGrpcSession.leadInPlan(distancePx: distance, durationMs: durationMs, densityPxPerDp: densityPxPerDp)"))
     }
 }

@@ -1679,9 +1679,11 @@ public final class AndroidDriver: AppDriver {
         return plan
     }
 
-    /// 2点間ドラッグ。ブリッジ経由ではなく gRPC タッチ合成(down→補間 move→up)優先・
-    /// adb input swipe フォールバック(どちらも snapshot と同じピクセル座標)。
-    /// gRPC はゲスト内 app_process 起動(~300ms/回)が無くステップ列が高速。
+    /// 2点間ドラッグ。**ブリッジの `/gesture`(1本指)で、端末の中で撃つ**(DR-186。DR-73 の gRPC を座標ドラッグについて狭めた)。
+    /// ブリッジは出来事に予定の時刻(開始 + t)を付けるので、送るのが遅れても Android が見積もる離す直前の速さは予定どおり。
+    /// gRPC はホストから実時間で送るので、ホストの負荷で払いが伸びて速さが落ち、速さで決める部品(払って消す等)が戻った
+    /// (E2EX-Android の行を払って消すシナリオ: 0.3 秒の払いが 0.51 秒に伸びた回だけ赤。同じ負荷で gRPC 80 回中 3 回赤・ブリッジ 0 回、所要は中央値 0.95 秒対 0.86 秒)。
+    /// 座標は表示の座標のまま(ブリッジが表示の座標で撃つ = 回転の読み取りが要らない)。実機も同じ道。
     /// pressSeconds は対応がなく未使用。durationSeconds を duration(ms)へ変換し
     /// 50〜60000ms(= `BridgeAPI.gestureSecondsCeiling`)にクランプ。**方針の判定
     /// (既定10秒・maxGestureSeconds での上書き)はホスト側の StepExecutor / ArgumentBounds が持つ**
@@ -1696,29 +1698,23 @@ public final class AndroidDriver: AppDriver {
         let toXi = try Self.checkedInt32(toX, field: "toX")
         let toYi = try Self.checkedInt32(toY, field: "toY")
         try await requireDeviceAnswersOffPool()
-        // gRPC は自然な向きの座標を取る(表示の回転を知らない)。回転が読めなければ撃たず adb(表示の座標)へ
-        if let serial, let from = await nativeTouchPoint(x: fromXi, y: fromYi),
-           let to = await nativeTouchPoint(x: toXi, y: toYi),
-           try await Self.gestureFinished(
-            EmulatorControl.drag(serial: serial, fromX: from.x, fromY: from.y,
-                                 toX: to.x, toY: to.y, durationMs: durationMs,
-                                 // 短くて遅いドラッグ(寄せ)が長押しとして受け取られないよう最初の区間だけ速める(OI-168 ⑥。
-                                 // adb input swipe の退避経路は撃ち方を変えられないので対象外)
-                                 leadIn: EmulatorGrpcSession.leadInPlan(
-                                    distancePx: Self.dragDistance(fromXi, fromYi, toXi, toYi),
-                                    durationMs: durationMs, densityPxPerDp: pointScale)),
-            verb: "drag", context: androidContext()) {
-            return
+        let request = Self.dragGestureRequest(fromX: Double(fromXi), fromY: Double(fromYi), toX: Double(toXi), toY: Double(toYi),
+                                              durationMs: durationMs, densityPxPerDp: pointScale)
+        try await withBridge { try await $0.gesture(request) }
+    }
+
+    /// 1本指のドラッグの経路(純粋)。短くて遅いドラッグが長押しと読まれないよう、slop を越えるのが長押しのしきい値に近いときは
+    /// 最初の区間を速める点を足す(`EmulatorGrpcSession.leadInPlan` と同じ計画 = OI-168 ⑥。ブリッジは点の間を時刻どおりに補間する)
+    static func dragGestureRequest(fromX: Double, fromY: Double, toX: Double, toY: Double,
+                                   durationMs: Int, densityPxPerDp: Double) -> GestureRequest {
+        let distance = ((toX - fromX) * (toX - fromX) + (toY - fromY) * (toY - fromY)).squareRoot()
+        var points = [GesturePoint(x: fromX, y: fromY, t: 0)]
+        if let lead = EmulatorGrpcSession.leadInPlan(distancePx: distance, durationMs: durationMs, densityPxPerDp: densityPxPerDp) {
+            let f = lead.px / distance
+            points.append(GesturePoint(x: fromX + (toX - fromX) * f, y: fromY + (toY - fromY) * f, t: Double(lead.ms) / 1000))
         }
-        let swipeArgs = ["shell", "input", "swipe", String(fromXi), String(fromYi),
-                         String(toXi), String(toYi), String(durationMs)]
-        let driver = UncheckedTransfer(self)
-        let result = try await Self.offCooperativePool { try driver.value.adb(swipeArgs) }
-        guard result.status == 0 else {
-            if let cut = Self.shellInputCutOff(result, verb: "drag", context: androidContext()) { throw cut }
-            throw DriverError.badResponse(status: Int(result.status),
-                body: "drag failed: \(result.tail)")
-        }
+        points.append(GesturePoint(x: toX, y: toY, t: Double(durationMs) / 1000))
+        return GestureRequest(fingers: [GestureFinger(points: points)])
     }
 
     static func dragDistance(_ fromX: Int32, _ fromY: Int32, _ toX: Int32, _ toY: Int32) -> Double {

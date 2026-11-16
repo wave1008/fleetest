@@ -214,3 +214,4 @@
 - DR-183 既知の失敗(追跡中の不具合 ID とシナリオの結び付け)を表す仕組みを置かない
 - DR-184 テストベースから骨組みを作る CLI を `fleetest draft-from-testbase` と呼ぶ
 - DR-185 iOS の `hideKeyboard` は、焦点の欄が複数行なら Enter を送らない(取り消した)
+- DR-186 Android の座標ドラッグは gRPC ではなくブリッジの `/gesture` で撃つ(DR-73 を狭める)
