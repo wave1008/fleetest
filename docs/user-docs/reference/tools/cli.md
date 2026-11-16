@@ -53,7 +53,7 @@ The settings of a run profile are in [Run profile settings](../project/run_profi
 |---|---|---|---|
 | `run` | Run Swift DSL scenarios | `--profile`, `--scenario`, `--folder`, `--failed`, `--dry-run`, `--set`, `--junit`, `--runner`, `--fleet` | [Running scenarios](../running/running_scenarios.md) |
 | `run-file <file>` | Run an unregistered `.swift` scenario as-is (profiles are borrowed from an existing project) | `--project`, `--profile`, `--scenario` | [Running scenarios](../running/running_scenarios.md) |
-| `draft-scenario` | Generate a scenario draft from a test base (`docs/testbases/*.md`) | `--testbase`, `--name`, `--no-fm`, `--dry-run` | [Test bases and scenario drafts](../running/testbases.md) |
+| `draft-from-testbase` | Generate a scenario draft from a test base (`docs/testbases/*.md`) and write it to a file (unlike the MCP `ft_draft_scenario`, which drafts from the operations an AI actually performed and returns it) | `--testbase`, `--name`, `--no-fm`, `--dry-run` | [Test bases and scenario drafts](../running/testbases.md) |
 | `results list` | List runs, newest first | `--since`, `--limit`, `--json` | [Analyzing results (fleetest results, dashboard)](../running/results_analysis.md) |
 | `results summary` | Aggregate run count, pass rate and duration per scenario (lowest pass rate first) | `--scenario`, `--since`, `--json` | Same as above |
 | `results flaky` | List scenarios that both pass and fail, most flaky first | `--min-runs`, `--since` | Same as above |

@@ -7,7 +7,7 @@ fleetest 固有の用語を五十音順に並べました。英字で始まる�
 ## 用語
 
 - **アプリプロファイル** — テスト対象のアプリ(bundle ID / パッケージ名、ビルド成果物のパス)を記す設定です。`profiles/apps/<name>.json` に置きます。 詳しくは [プロファイル(アプリ / 実行)](../reference/project/profiles_ja.md)。
-- **FM(Foundation Models)** — Apple のオンデバイスの言語モデルです。macOS 26 以降で Apple Intelligence を有効にすると使えます。画像を渡す機能(`screenLooksLike`・テキストの可視性検証の FM 段)だけは macOS 27 以降で、オンデバイス OCR も同じです。`draft-scenario` の構造化はテキスト系なので macOS 26 で動きます。使うのはオンデバイスのモデルだけで、画面の情報は Mac の外に出ません。 詳しくは [環境](environments_ja.md)。
+- **FM(Foundation Models)** — Apple のオンデバイスの言語モデルです。macOS 26 以降で Apple Intelligence を有効にすると使えます。画像を渡す機能(`screenLooksLike`・テキストの可視性検証の FM 段)だけは macOS 27 以降で、オンデバイス OCR も同じです。`draft-from-testbase` の構造化はテキスト系なので macOS 26 で動きます。使うのはオンデバイスのモデルだけで、画面の情報は Mac の外に出ません。 詳しくは [環境](environments_ja.md)。
 - **MCP サーバー(ft_*)** — デバイス操作・シナリオ実行・シナリオ作成を `ft_*` ツールとして公開する stdio の MCP サーバー(`fleetest-mcp`)です。AIアシスタントが人の代わりに CLI・拡張と同じ機能を呼び出せます。 詳しくは [MCP サーバー](../reference/tools/mcp_server_ja.md)。
 - **モード** — iOS で画面を読み操作する構成です。`inapp-boost`(既定。XCUITest ブリッジに in-app ブリッジを足したハイブリッド構成。in-app ブリッジで実行できる操作はそちらで速く実行し、できない操作は XCUITest ブリッジで実行する)と `xcuitest`(汎用の XCUITest ブリッジだけ)があります。iOS の実機も、アプリが**開発署名(デバッグ可能)**なら inapp-boost モードを使えます(そうでなければ自動で xcuitest モードに縮退します)。Android に選択肢はありません。 詳しくは [実行プロファイルの設定項目](../reference/project/run_profile_ja.md)。
 - **仮想デバイス** — Simulator(iOS)と Emulator(Android)の総称です。実機とは区別します。 詳しくは [フリートの考え方](../fleet/concepts_ja.md)。
@@ -31,7 +31,7 @@ fleetest 固有の用語を五十音順に並べました。英字で始まる�
 - **テキストの可視性検証** — ツリーで一致した要素について、その文字が画面に実際に描かれているかをスクリーンショットで確かめ、見えていなければ失敗にする検証です。OCR と FM を組み合わせて判定します。 詳しくは [テキストの可視性検証の判定](../reference/testclass/text_visibility_check_ja.md)。
 - **テストクラス** — `@TestClass` を付けた、1つ以上の `@Test` メソッドを持つクラスです。シナリオのファイルは、テストクラスを書いたものです。 詳しくは [テストクラスの作成](../reference/testclass/creating_testclass_ja.md)。
 - **テストプロジェクト** — 1つのアプリに対するシナリオ・プロファイル・レポートをまとめる器です。`TestProjects/<name>/` に置きます。 詳しくは [テストプロジェクトの作成](../reference/project/creating_project_ja.md)。
-- **テストベース** — シナリオの根拠にする仕様・テスト観点・元ネタを Markdown で置いたものです。`TestProjects/<プロジェクト>/docs/testbases/` に置き、`fleetest draft-scenario` でシナリオの下書き(`@Draft` 付き)にできます。 詳しくは [テストベースとシナリオの下書き](../reference/running/testbases_ja.md)。
+- **テストベース** — シナリオの根拠にする仕様・テスト観点・元ネタを Markdown で置いたものです。`TestProjects/<プロジェクト>/docs/testbases/` に置き、`fleetest draft-from-testbase` でシナリオの下書き(`@Draft` 付き)にできます。 詳しくは [テストベースとシナリオの下書き](../reference/running/testbases_ja.md)。
 - **デバイスモニター** — VSCode 拡張のタブで、デバイスの画面と状態を見る場所です。上から順に、ラインビュー(デバイスタイルの並び)・グリッドビュー(選択したデバイスの拡大表示)・実行ログビュー(選択したデバイスの実行ログ)の3つの常設のペインに分かれます。グリッドビューと実行ログビューに出るのは、ラインビューで選択したデバイスだけです。 詳しくは [VSCode 拡張](../reference/tools/vscode_extension_ja.md)。
 - **dry-run** — デバイスにも FM にも触れず、シナリオのステップを列挙・検証する実行です(`fleetest run --dry-run`)。セレクタの構文誤りやアサーションの無い `expectation` などを数秒で見つけます。 詳しくは [dry-run](../reference/running/dry_run_ja.md)。
 - **hooks(run-setup.sh / run-teardown.sh)** — run の前後に走らせるスクリプトです。ワークスペースの `scripts/` に置き、`run-setup.sh` はサービスの起動完了を待ってから、`run-teardown.sh` は run の後に走ります。死んだ run が残した後処理は `fleetest hooks reap` が行います。 詳しくは [アプリが依存するサービス(compose.yaml)](../reference/writing/services_ja.md)。

@@ -10,9 +10,9 @@ import FTCore
 // プレースホルダの規約も DSL 側の運用(@Draft を外す手順)と一体だから
 import FTDSL
 
-struct DraftScenarioCommand: AsyncParsableCommand {
+struct DraftFromTestbaseCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "draft-scenario",
+        commandName: "draft-from-testbase",
         abstract: "Generate a scenario draft from a test base (docs/testbases/*.md)")
 
     @Option(help: "Test project name (defaults to the only one in TestProjects/, or the default project)")
@@ -64,7 +64,7 @@ struct DraftScenarioCommand: AsyncParsableCommand {
                 ? ScenarioCodeGen.existingClassNames(in: [testProject.scenariosDir]) : [])
         let code = ScenarioDraftCodeGen.render(
             draft: outline, className: className, platform: platform,
-            source: source.lastPathComponent, generatedBy: "fleetest draft-scenario")
+            source: source.lastPathComponent, generatedBy: "fleetest draft-from-testbase")
 
         if dryRun {
             ConsoleOut.out(code)

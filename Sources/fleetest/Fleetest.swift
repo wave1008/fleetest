@@ -28,7 +28,7 @@ struct Fleetest: AsyncParsableCommand {
             Terminate.self,
             RunScenarios.self,
             RunFileCommand.self,
-            DraftScenarioCommand.self,
+            DraftFromTestbaseCommand.self,
             ProjectCommand.self,
             ProfileCommand.self,
             DevicesCommand.self,

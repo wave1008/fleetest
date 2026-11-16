@@ -1,9 +1,9 @@
-# テストベースとシナリオの下書き(draft-scenario)
+# テストベースとシナリオの下書き(draft-from-testbase)
 
 [in English](testbases.md)
 
 **テストベース**は、シナリオの根拠にする仕様・テスト観点・元ネタを Markdown で置いたものです。
-`fleetest draft-scenario` はテストベースを読み、`scene`(条件・操作・期待)の骨組みを持つ Swift シナリオの**下書き**を作ります。
+`fleetest draft-from-testbase` はテストベースを読み、`scene`(条件・操作・期待)の骨組みを持つ Swift シナリオの**下書き**を作ります。
 セレクタだけは決められないので、すべて `#TODO` のプレースホルダで出ます。人か AIアシスタントが実画面からセレクタを採って
 置き換え、出来たら `@Draft` を外します。
 
@@ -13,7 +13,7 @@
 そこに SC / TC などの仕様書、テスト観点表、元になった要件のメモを Markdown で置き、AIアシスタントにシナリオを書かせるときの根拠にします。
 フォルダ内の `README.md` は置き場の説明で、テストベースとしては数えません。
 
-`draft-scenario` が読めるファイルは次のとおりです。
+`draft-from-testbase` が読めるファイルは次のとおりです。
 
 - 拡張子が `.md`・`.markdown`・`.txt` のファイル。`--testbase <パス>` で、フォルダの外のファイルも直接指せます。
 - `--testbase` を省くと、`docs/testbases/` にテストベースが**ちょうど 1 つ**のときだけそれを使います。0 個ならエラー、
@@ -67,7 +67,7 @@
 ## 下書きを作る
 
 ```bash
-fleetest draft-scenario --project SampleApp --testbase docs/testbases/login.md
+fleetest draft-from-testbase --project SampleApp --testbase docs/testbases/login.md
 ```
 
 | オプション | 説明 |
@@ -129,7 +129,7 @@ fleetest draft-scenario --project SampleApp --testbase docs/testbases/login.md
 テストベースを置いたあとは、次のように頼みます([fleetest の使い方の基本](../../tutorial/basic_usage_ja.md))。
 
 ```text
-docs/testbases/login.md をテストベースにして、fleetest draft-scenario でシナリオの下書きを作って。
+docs/testbases/login.md をテストベースにして、fleetest draft-from-testbase でシナリオの下書きを作って。
 そのあと実際のアプリを操作して #TODO を実セレクタに置き換え、実行して通るようにして。通ったら @Draft を外して。
 ```
 
@@ -138,7 +138,7 @@ docs/testbases の仕様書を根拠に、iOS 向けのシナリオを書いて�
 テストを実挙動に合わせて緑にせず、仕様どおりの期待のまま失敗させて、不具合として記録して。
 ```
 
-下書きを経由せず、AIアシスタントが仕様書を直接読んでシナリオを書くこともできます。`draft-scenario` は、
+下書きを経由せず、AIアシスタントが仕様書を直接読んでシナリオを書くこともできます。`draft-from-testbase` は、
 まず骨組みを機械的に作ってから仕上げたいときの入口です。なお、MCP の `ft_draft_scenario` は別物で、
 探索中に実行した操作列を Swift シナリオにして返します([MCP サーバー](../tools/mcp_server_ja.md))。
 

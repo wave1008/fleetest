@@ -65,7 +65,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
 - `@Draft("コメント")` で実装中(未完成)マーク。テストクラスまたは `@Test` メソッドに付与する。
   除外・実行可否の規則は `@Deleted` と同一(全実行・フォルダ実行・クラス名指定からは除外、
   完全一致 ID なら実行可)で、**違うのは意味だけ**(Deleted=もう使わない / Draft=これから使う)。
-  `fleetest draft-scenario` の生成物にはこちらが付く
+  `fleetest draft-from-testbase` の生成物にはこちらが付く
 - コマンド(tap/type/exist/…)は**同期・非 throw のモジュールレベル自由関数**。
   `try await` も `{ it in }` も不要。カレント実行コンテキストを暗黙参照する。
   **DSL スレッド外(Task / 別スレッド)からの呼び出しは fatalError にしない**。

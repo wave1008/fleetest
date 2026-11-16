@@ -1,9 +1,9 @@
-# Test bases and scenario drafts (draft-scenario)
+# Test bases and scenario drafts (draft-from-testbase)
 
 [in Japanese(日本語)](testbases_ja.md)
 
 A **test base** is a Markdown file holding the specification, test viewpoints or source material that scenarios are based on.
-`fleetest draft-scenario` reads a test base and produces a **draft** Swift scenario with the skeleton of `scene`s (condition,
+`fleetest draft-from-testbase` reads a test base and produces a **draft** Swift scenario with the skeleton of `scene`s (condition,
 action, expectation). Selectors cannot be decided from text, so every one comes out as a `#TODO` placeholder. A person or an AI
 assistant then captures the real selectors from the live screen, replaces the placeholders, and removes `@Draft` when it works.
 
@@ -14,7 +14,7 @@ The location is `TestProjects/<project>/docs/testbases/` (the folder is created 
 original requirements there as Markdown; they are the basis for having an AI assistant write scenarios.
 The `README.md` in that folder describes the place and does not count as a test base.
 
-`draft-scenario` reads these files:
+`draft-from-testbase` reads these files:
 
 - Files with the extension `.md`, `.markdown` or `.txt`. `--testbase <path>` can also point at a file outside the folder.
 - Without `--testbase`, it uses the file only when `docs/testbases/` has **exactly one** test base. With none it is an error;
@@ -70,7 +70,7 @@ are removed.
 ## Generating a draft
 
 ```bash
-fleetest draft-scenario --project SampleApp --testbase docs/testbases/login.md
+fleetest draft-from-testbase --project SampleApp --testbase docs/testbases/login.md
 ```
 
 | Option | Description |
@@ -137,7 +137,7 @@ In the first `scene`, `launchApp()` is added when the condition has no launch.
 Once the test base is in place, ask like this ([Basics of using fleetest](../../tutorial/basic_usage.md)).
 
 ```text
-Use docs/testbases/login.md as the test base and create a scenario draft with fleetest draft-scenario.
+Use docs/testbases/login.md as the test base and create a scenario draft with fleetest draft-from-testbase.
 Then operate the real app, replace the #TODO selectors with real ones, and make it run and pass. When it passes, remove @Draft.
 ```
 
@@ -147,7 +147,7 @@ do not bend the test to the actual behaviour to make it green: keep the specifie
 and record the issue as a defect.
 ```
 
-An AI assistant can also read the specification directly and write a scenario without a draft. `draft-scenario` is the entry point
+An AI assistant can also read the specification directly and write a scenario without a draft. `draft-from-testbase` is the entry point
 for when you want a mechanical skeleton first and finish it afterwards. Note that the MCP `ft_draft_scenario` is a different
 thing: it returns the operations you performed while exploring as a Swift scenario ([MCP server](../tools/mcp_server.md)).
 

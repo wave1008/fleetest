@@ -163,7 +163,7 @@ E2E テストツールです。
 - [並列実行](reference/running/parallel_execution_ja.md)
 - [結果の分析(fleetest results・ダッシュボード)](reference/running/results_analysis_ja.md)
 - [レスポンス計測](reference/running/response_measurement_ja.md)
-- [テストベースとシナリオの下書き(draft-scenario)](reference/running/testbases_ja.md)
+- [テストベースとシナリオの下書き(draft-from-testbase)](reference/running/testbases_ja.md)
 - [サンドボックスの既定(書ける場所・読めない場所・通信先)](reference/running/sandbox_access_ja.md)
 
 ### ツール

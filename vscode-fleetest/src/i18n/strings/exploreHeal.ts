@@ -216,8 +216,8 @@ export const exploreHealStrings = {
     en: "Lane Count",
   },
   "exploreHeal.dashboard.colLaneUtilisation": {
-    ja: "稼働率",
-    en: "Utilisation",
+    ja: "デバイス稼働率",
+    en: "Device utilisation",
   },
   "exploreHeal.dashboard.colMaxScenario": {
     ja: "最長1本",

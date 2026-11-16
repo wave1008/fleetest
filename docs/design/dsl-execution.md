@@ -561,7 +561,7 @@ v1 で採取 → v2 で2周 → `heal=false` で赤、を1台に固定して判�
 ## DS-17 テストベースからのシナリオ下書き生成
 
 `TestProjects/<name>/docs/testbases/*.md`(テスト設計の元資料)を Swift DSL シナリオの**下書き**に
-落とす。`fleetest draft-scenario`。探索の操作列からの下書き(MCP の `ft_draft_scenario`)は実セレクタを持つが、
+落とす。`fleetest draft-from-testbase`。探索の操作列からの下書き(MCP の `ft_draft_scenario`)は実セレクタを持つが、
 こちらは設計資料しか無いのでセレクタは全て TODO プレースホルダになる。
 
 ### DS-17.1 二段構え(FM → 決定的パーサ)

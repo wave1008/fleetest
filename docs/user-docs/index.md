@@ -163,7 +163,7 @@ scenarios the AI assistant wrote, or to write some yourself.
 - [Parallel execution](reference/running/parallel_execution.md)
 - [Analyzing results (fleetest results, dashboard)](reference/running/results_analysis.md)
 - [Response measurement](reference/running/response_measurement.md)
-- [Test bases and scenario drafts (draft-scenario)](reference/running/testbases.md)
+- [Test bases and scenario drafts (draft-from-testbase)](reference/running/testbases.md)
 - [Sandbox defaults (writable places, unreadable places, destinations)](reference/running/sandbox_access.md)
 
 ### Tools

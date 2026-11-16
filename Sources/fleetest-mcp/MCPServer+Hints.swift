@@ -412,9 +412,9 @@ extension MCPServer {
         let disabled = reading.deadPaths == ["vision"]
             ? "screenLooksLike is silently skipped and the occlusion-guard of runs judges from on-device OCR alone" + OCROnlyVisibility.fmFallbackCaveat
             : reading.deadPaths == ["text"]
-                ? "FM-based scenario drafting (draft-scenario) is unavailable"
+                ? "FM-based scenario drafting (draft-from-testbase) is unavailable"
                 : "screenLooksLike is silently skipped and the occlusion-guard of runs judges from on-device OCR alone" + OCROnlyVisibility.fmFallbackCaveat + ", and FM-based"
-                    + " scenario drafting (draft-scenario) is unavailable"
+                    + " scenario drafting (draft-from-testbase) is unavailable"
         return "\n⚠️ FM is dead on this machine (\(reading.deadPaths.joined(separator: " + "))):"
             + " \(disabled). \(reason)"
     }

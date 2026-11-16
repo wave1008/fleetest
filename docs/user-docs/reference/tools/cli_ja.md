@@ -53,7 +53,7 @@ fleetest のクローン内で作業している場合は `swift run fleetest` �
 |---|---|---|---|
 | `run` | Swift DSL のシナリオを実行する | `--profile`・`--scenario`・`--folder`・`--failed`・`--dry-run`・`--set`・`--junit`・`--runner`・`--fleet` | [シナリオの実行](../running/running_scenarios_ja.md) |
 | `run-file <ファイル>` | 登録していない `.swift` のシナリオをそのまま実行する(プロファイルは既存のプロジェクトから借りる) | `--project`・`--profile`・`--scenario` | [シナリオの実行](../running/running_scenarios_ja.md) |
-| `draft-scenario` | テストベース(`docs/testbases/*.md`)からシナリオの下書きを作る | `--testbase`・`--name`・`--no-fm`・`--dry-run` | [テストベースとシナリオの下書き](../running/testbases_ja.md) |
+| `draft-from-testbase` | テストベース(`docs/testbases/*.md`)からシナリオの下書きを作ってファイルに書く(MCP の `ft_draft_scenario` は AI が実際に行った操作から下書きを作って返すもので別物) | `--testbase`・`--name`・`--no-fm`・`--dry-run` | [テストベースとシナリオの下書き](../running/testbases_ja.md) |
 | `results list` | run を新しい順に一覧する | `--since`・`--limit`・`--json` | [結果の分析](../running/results_analysis_ja.md) |
 | `results summary` | シナリオごとの実行回数・成功率・所要時間を集計する(成功率の低い順) | `--scenario`・`--since`・`--json` | 同上 |
 | `results flaky` | 成功も失敗もしたシナリオを、ぶれの大きい順に一覧する | `--min-runs`・`--since` | 同上 |

@@ -1,5 +1,5 @@
 // Flow(インメモリの内部モデル)→ Swift DSL シナリオコードの生成。render は MCP の ft_draft_scenario(探索の操作列からの下書き)、
-// クラス名の決定と書き込み(writeValidated = ビルド検証・失敗は _disabled/ へ隔離)は draft-scenario も使う。
+// クラス名の決定と書き込み(writeValidated = ビルド検証・失敗は _disabled/ へ隔離)は draft-from-testbase も使う。
 // 生成コードは人が追記編集する前提の素直な直列コードにする。
 //
 // FTCore に居る理由: 入出力(Flow/FlowStep/FlowLocator/TestProject/ScenarioHost)は全て FTCore の型で、

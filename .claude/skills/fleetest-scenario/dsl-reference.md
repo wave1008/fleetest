@@ -14,7 +14,7 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   throw しない。`afterEach` だけは失敗後でも実行される)。
 - `@Deleted("理由")` をクラス/メソッドに付けると論理削除(一括実行から除外・完全一致 ID でのみ実行可)。
 - `@Draft("理由")` は実装中(未完成)マーク。除外・実行可否の規則は `@Deleted` と同じで、意味だけが違う
-  (Deleted=もう使わない / Draft=これから使う)。`fleetest draft-scenario` の生成物にはこちらが付く。
+  (Deleted=もう使わない / Draft=これから使う)。`fleetest draft-from-testbase` の生成物にはこちらが付く。
 
 ### コマンド
 

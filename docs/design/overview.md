@@ -294,7 +294,7 @@ fleetest bridge up|down|status [--platform ios|android] [--device ...] [--serial
 fleetest run [--project P] [--profile 名] [--scenario id...] \
     [--set キー=値] [--report-dir ...] [--port 8123 --port 8124] [--skip-build]
                                            # Swift シナリオの決定的実行(プロファイル実行はDS-11)
-fleetest draft-scenario [--project P] [--testbase 資料.md] [--no-fm] [--dry-run]
+fleetest draft-from-testbase [--project P] [--testbase 資料.md] [--no-fm] [--dry-run]
                                            # テスト設計資料からシナリオ下書きを生成(DS-17)
 fleetest project create|list|sync          # テストプロジェクトの作成・一覧・Package.swift 再整合(DS-11)
 fleetest profile list                      # 実行プロファイルの一覧と現在マシンでの解決チェック(DS-11)
