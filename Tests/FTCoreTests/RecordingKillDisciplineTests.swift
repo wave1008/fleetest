@@ -121,15 +121,15 @@ final class RecordingKillDisciplineTests: XCTestCase {
         let started = dir.appendingPathComponent("started")
         let ignoring = dir.appendingPathComponent("ignoring")
         let script = dir.appendingPathComponent("recorder")
-        // 0.6 秒は SIGINT を無視し、その後に撮り始めて SIGINT で終わる
+        // 0.6 秒は SIGINT を無視し、その後に撮り始めて SIGINT で終わる。撮り始めた後は perl で受ける(interruptRecorder は撮り始めた後に
+        // 1回だけ送る。bash の trap は負荷の下でその1回を約 1% 取りこぼす = IOSSimulatorVideoRecorderStartTests の冒頭の実測)。
+        // 撮り始めの印は処理関数を掛けた後に置く
         try """
         #!/bin/bash
         trap '' INT
         touch '\(ignoring.path)'
         for i in $(seq 1 12); do sleep 0.05; done
-        trap 'exit 0' INT
-        touch '\(started.path)'
-        while true; do sleep 0.05; done
+        exec /usr/bin/perl -e 'use Time::HiRes qw(sleep); $SIG{INT} = sub { exit 0 }; open(my $s, ">", $ARGV[0]); close $s; sleep 0.05 while 1;' '\(started.path)'
         """.write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         let process = Process()

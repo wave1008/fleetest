@@ -2,6 +2,10 @@
 // **製品バイナリの fleetest(`api recorder-watch`)**で確かめる。偽物は simctl recordVideo の実測の性質を真似る:
 // "Recording started" より前の SIGINT は無視する / 撮り始めた直後に止めると中身が空になる / 一時ファイル `<名前>.sb-…` を作る。
 // 偽の UDID はテストごとに作る(本物のシミュレータの録画に pkill が当たらない)。
+// **撮り始めた後に SIGINT 1回で止まる偽物は perl で書く**(bash の trap にしない): 本体は撮り始めた後の client に SIGINT を
+// 1回だけ送る(本物の simctl はそれで止まる)。bash の trap の偽物は 60 本同時の負荷で約 1% その1回を取りこぼして止まらず、
+// 全体テストが時々赤になった。合図を処理関数で受ける偽物(C)は 960 回すべて受けた = 届いていないのではなく bash の側の取りこぼし。
+// perl の偽物は同じ負荷で 480 回中 0 回。撮り始める前の SIGINT を無視する部分は bash のまま(無視するだけ = 取りこぼしが結果を変えない)
 //
 // 順序の固定: 録画クラスの期限は差し替えた時計で測る。テストは時計を止めたまま偽 client の準備("ready")を確かめ、
 // その後に時計を解放して期限を越えさせる = 「ファイル作成 → 期限切れ → 見張りへ渡す → 呼び手の復帰」が構成で決まる。
@@ -91,7 +95,7 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
     }
 
     /// 偽の xcrun。出力名が `handOffPattern` に当たる client は、SIGINT を無視 → 最終名と `<最終名>.sb-test` を作る → "ready-<名前>" →
-    /// "go" が現れるまで待つ → SIGINT で終わる、の順。それ以外は正常(撮り始めを言い、SIGINT で中身を書いて終わる)。
+    /// "go" が現れるまで待つ → SIGINT で終わる(受け付けたら "armed-<名前>" を置く = 1回だけ送るテストはこれを待つ)、の順。それ以外は正常(撮り始めを言い、SIGINT で中身を書いて終わる)。
     /// どの client も自分の pid を `client-<名前>.pid` に書く(見張りが起きなくても後始末できる)
     private func fakeXcrun(in dir: URL, handOffPattern: String) throws -> String {
         let xcrun = dir.appendingPathComponent("xcrun")
@@ -106,13 +110,9 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
             : > "$out"; : > "$out.sb-test"
             touch "$D/ready-$name"
             while [ ! -f "$D/go" ]; do sleep 0.05; done
-            trap 'exit 0' INT
-            echo "\(HostRecordingProbe.startedMarker)" >&2
-            while true; do sleep 0.05; done ;;
+            exec /usr/bin/perl -e 'use Time::HiRes qw(sleep); $SIG{INT} = sub { exit 0 }; open(my $a, ">", "$ARGV[0]/armed-$ARGV[1]"); close $a; print STDERR "\(HostRecordingProbe.startedMarker)\\n"; sleep 0.05 while 1;' "$D" "$name" ;;
           *)
-            trap 'printf data > "$out"; exit 0' INT
-            echo "\(HostRecordingProbe.startedMarker)" >&2
-            while true; do sleep 0.05; done ;;
+            exec /usr/bin/perl -e 'use Time::HiRes qw(sleep); $SIG{INT} = sub { open(my $f, ">", $ARGV[0]); print $f "data"; close $f; exit 0 }; print STDERR "\(HostRecordingProbe.startedMarker)\\n"; sleep 0.05 while 1;' "$out" ;;
         esac
         """, to: xcrun)
         return xcrun.path
@@ -150,14 +150,15 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
         let dir = try makeDir()
         let xcrun = dir.appendingPathComponent("xcrun")
         try writeScript("""
-        #!/bin/bash
-        out="${!#}"
-        trap '' INT
-        for i in $(seq 1 30); do sleep 0.05; done
-        trap 'now=$(python3 -c "import time;print(time.time_ns())"); if [ $(( (now - began) / 1000000 )) -ge 500 ]; then printf data > "$out"; else : > "$out"; fi; exit 0' INT
-        began=$(python3 -c 'import time;print(time.time_ns())')
-        echo "Recording started" >&2
-        while true; do sleep 0.05; done
+        #!/usr/bin/perl
+        use Time::HiRes qw(time sleep);
+        my $out = $ARGV[-1];
+        $SIG{INT} = 'IGNORE';
+        sleep 0.05 for 1..30;
+        my $began = time;
+        $SIG{INT} = sub { open(my $f, '>', $out); print $f ((time - $began) >= 0.5 ? 'data' : ''); close $f; exit 0 };
+        print STDERR "Recording started\n";
+        sleep 0.05 while 1;
         """, to: xcrun)
         let udid = "FAKE-\(UUID().uuidString)"
         let recorder = IOSSimulatorVideoRecorder(udid: udid, workDir: dir, fileStem: "src", xcrunPath: xcrun.path)
@@ -293,7 +294,8 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
         XCTAssertEqual(watcherPIDs(file: dir.appendingPathComponent("src~smoke.mov")), [])
         // 見張りが無いので誰も止めない: "go" の後にテストが SIGINT を送ると終わる(= それまで生きていた証拠)
         try Data().write(to: dir.appendingPathComponent("go"))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // SIGINT を受け付けた印を待ってから1回だけ送る(固定の待ちだと、負荷で受け付ける前に届いて捨てられた)
+        try await expectEventually(10, "go の後に SIGINT を受け付けるはず") { self.exists(dir.appendingPathComponent("armed-src~smoke.mov")) }
         kill(client, SIGINT)
         try await expectEventually(10) { !ProcessLiveness.isAlive(client) }
     }
@@ -308,7 +310,7 @@ final class IOSSimulatorVideoRecorderStartTests: XCTestCase {
         #!/bin/bash
         out="${!#}"; name=$(basename "$out")
         case "$name" in
-          *~smoke.mov) trap 'printf data > "$out"; exit 0' INT; echo "\(HostRecordingProbe.startedMarker)" >&2; while true; do sleep 0.05; done ;;
+          *~smoke.mov) exec /usr/bin/perl -e 'use Time::HiRes qw(sleep); $SIG{INT} = sub { open(my $f, ">", $ARGV[0]); print $f "data"; close $f; exit 0 }; print STDERR "\(HostRecordingProbe.startedMarker)\\n"; sleep 0.05 while 1;' "$out" ;;
           *) ( sleep 0.3; echo "\(HostRecordingProbe.startedMarker)" >&2 ) & printf data > "$out"; exit 0 ;;
         esac
         """, to: xcrun)
