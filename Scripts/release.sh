@@ -94,9 +94,14 @@ echo "✅ タグ $VERSION を作成しました(HEAD: $(git rev-parse --short HE
 if [[ "$PUSH" == "1" ]]; then
   git push origin "$VERSION"
   echo "✅ push 完了。受け手は次の install / update で $VERSION へ移ります"
+  # GitHub Release は見え方と通知(Watch の Releases only)のためだけ。受け手の更新はタグ(ls-remote)しか見ない。
+  # --verify-tag: 上流にタグが無ければ失敗させる(無いと gh が HEAD に新しいタグを作る)。
+  gh release create "$VERSION" --verify-tag --title "fleetest $VERSION" --notes-file "$NOTES_FILE"
+  echo "✅ GitHub Release $VERSION を作成しました"
 else
   echo ""
   echo "ローカルにタグを作成しました(未 push)。公開するには:"
   echo "  git push origin $VERSION"
+  echo "  gh release create $VERSION --verify-tag --title \"fleetest $VERSION\" --notes-file $NOTES_FILE"
   echo "push すると受け手の次の更新で $VERSION に移ります。"
 fi
