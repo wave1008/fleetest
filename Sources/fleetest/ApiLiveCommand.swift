@@ -41,9 +41,11 @@
 //     {"kind":"snapshot","ok":true,"error":null,"platform":"ios"|"android",
 //      "screen":{"width":..,"height":..},"image":"<base64 JPEG>",
 //      "elements":[{"ref":..,"type":"..","label":..|null,"identifier":..|null,"value":..|null,
-//                    "frame":{"x":..,"y":..,"width":..,"height":..}}, ...],
+//                    "frame":{"x":..,"y":..,"width":..,"height":..},
+//                    "marks":["disabled"|"checked"|"indeterminate"|"scroll", ...]}, ...],
 //      "notes":[<String>, ...],"bridgeStarting":<Bool>,"capturedAtMs":<Int>}   notes = 観測そのものへの注記(鮮度警告等。
 //                                 FTCore.StaleFrameDetector。無ければ空配列。elements と違い null にしない)。
+//                                 marks = 状態の印(FTCore.SnapshotRenderer.stateMarks。ft_snapshot と同じ語・無ければ空配列で null にしない)。
 //                                 capturedAtMs = 画面を撮り始めた時刻(この機械の epoch ミリ秒)。拡張はこの絵より前に撮られた
 //                                 モニターのポーリングの絵(monitorFrame の capturedAtMs)を捨てる —— どちらもデバイスの居る機械で撮るので同じ時計
 //     {"kind":"snapshot","ok":false,"error":"<説明>","platform":null,"screen":null,"image":null,
@@ -1137,7 +1139,8 @@ struct ApiLiveServe: AsyncParsableCommand {
             let snap = try await snapshotWithSessionFallback(driver: driver, follower: follower)
             let elements = snap.elements.map {
                 ApiLiveElement(ref: $0.ref, type: $0.type, label: $0.label,
-                               identifier: $0.identifier, value: $0.value, frame: $0.frame)
+                               identifier: $0.identifier, value: $0.value, frame: $0.frame,
+                               marks: SnapshotRenderer.stateMarks($0))
             }
             let notes = await staleFrameTracker.staleNotes(png: png, elements: snap.elements)
                 + runnerHealth.takeNotes()
@@ -1624,9 +1627,10 @@ private struct ApiLiveElement: Encodable {
     let identifier: String?
     let value: String?
     let frame: FTRect
+    let marks: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case ref, type, label, identifier, value, frame
+        case ref, type, label, identifier, value, frame, marks
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1637,5 +1641,6 @@ private struct ApiLiveElement: Encodable {
         try container.encode(identifier, forKey: .identifier)
         try container.encode(value, forKey: .value)
         try container.encode(frame, forKey: .frame)
+        try container.encode(marks, forKey: .marks)
     }
 }

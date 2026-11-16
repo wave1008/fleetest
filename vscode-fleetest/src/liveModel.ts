@@ -111,6 +111,8 @@ export interface LiveElement {
   readonly identifier: string | null;
   readonly value: string | null;
   readonly frame: LiveRect;
+  /** 状態の印(disabled/checked/indeterminate/scroll。契約: ApiLiveCommand.swift 冒頭・FTCore.SnapshotRenderer.stateMarks)。必須・無ければ空配列。 */
+  readonly marks: readonly string[];
 }
 
 export interface LiveSnapshot {
@@ -195,7 +197,9 @@ function isLiveElement(value: unknown): value is LiveElement {
     (value.label === null || typeof value.label === "string") &&
     (value.identifier === null || typeof value.identifier === "string") &&
     (value.value === null || typeof value.value === "string") &&
-    isLiveRect(value.frame)
+    isLiveRect(value.frame) &&
+    Array.isArray(value.marks) &&
+    value.marks.every((mark) => typeof mark === "string")
   );
 }
 
@@ -523,6 +527,7 @@ export function formatElementLine(element: LiveElement): string {
   if (element.value !== null && element.value.length > 0) {
     parts.push(`=${element.value}`);
   }
+  parts.push(...element.marks);
   return parts.join(" ");
 }
 

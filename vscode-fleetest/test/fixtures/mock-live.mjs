@@ -94,6 +94,7 @@ if (command === "list-devices") {
           identifier: "login_button",
           value: null,
           frame: { x: 20, y: 780, width: 362, height: 48 },
+          marks: [],
         },
         {
           ref: 2,
@@ -102,6 +103,7 @@ if (command === "list-devices") {
           identifier: "username_field",
           value: "",
           frame: { x: 20, y: 200, width: 362, height: 44 },
+          marks: [],
         },
       ],
       notes: [],

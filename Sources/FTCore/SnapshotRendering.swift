@@ -400,6 +400,28 @@ public enum SnapshotRenderer {
         FlowMatchMode.normalizeInvisibleCharacters(foldLineBreaks(s))
     }
 
+    /// 状態の印(順序固定: disabled, checked/indeterminate, scroll)。ft_snapshot の要素行と
+    /// ライブ操作の要素一覧(ApiLiveElement.marks)が共有する1箇所。
+    /// checked/indeterminate は**オンと indeterminate のときだけ**(「印が無い」は「オフ」と「状態を持たない」の両方。
+    /// checkIsOFF が状態を持たない要素でも通る既定と同じ意味論。StepExecutor+Assert 参照)。
+    /// scroll は**true のときだけ**(申告できないブリッジがあるので「印が無い = スクロールしない」ではない。
+    /// ElementInfo.scrollable 参照)
+    public static func stateMarks(_ e: ElementInfo) -> [String] {
+        var marks: [String] = []
+        if !e.enabled {
+            marks.append("disabled")
+        }
+        switch CheckStateReading.onOrIndeterminate(e) {
+        case .on: marks.append("checked")
+        case .indeterminate: marks.append("indeterminate")
+        default: break
+        }
+        if e.scrollable == true {
+            marks.append("scroll")
+        }
+        return marks
+    }
+
     static func renderElement(_ e: ElementInfo, idCount: Int? = nil) -> String {
         var parts: [String] = ["[\(e.ref)]", e.type]
         // 不可視文字・改行は truncate の前に正規化する(ゼロ幅は除去・NBSP 等は通常空白へ・
@@ -431,23 +453,7 @@ public enum SnapshotRenderer {
         if Self.textInputTypes.contains(e.type), e.value == nil, label == nil || label!.isEmpty {
             parts.append("empty")
         }
-        if !e.enabled {
-            parts.append("disabled")
-        }
-        // 選択・チェック状態(CheckStateReading。value 由来のオン/indeterminate も含む)。
-        // **オンと indeterminate のときだけ**出す = 「印が無い」は「オフ」と「状態を持たない」の両方を含む
-        // (checkIsOFF が状態を持たない要素でも通る既定と同じ意味論。StepExecutor+Assert 参照)。
-        // これが無いと、タブの選択状態は checkIsON では表明できるのに ft_snapshot からは見えない
-        switch CheckStateReading.onOrIndeterminate(e) {
-        case .on: parts.append("checked")
-        case .indeterminate: parts.append("indeterminate")
-        default: break
-        }
-        // `scrollFrame:` に指定できる容器の印。**true のときだけ**出す(申告できないブリッジが
-        // あるので「印が無い = スクロールしない」ではない。ElementInfo.scrollable 参照)
-        if e.scrollable == true {
-            parts.append("scroll")
-        }
+        parts.append(contentsOf: stateMarks(e))
         let f = e.frame
         parts.append("(\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))")
         return parts.joined(separator: " ")

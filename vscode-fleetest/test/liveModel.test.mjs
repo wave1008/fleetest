@@ -149,7 +149,7 @@ test("parseLiveSnapshotResult: 成功形(ok:true)をそのまま返す", () => {
     screen: { width: 402, height: 874 },
     image: "AAAA",
     elements: [
-      { ref: 1, type: "Button", label: "ログイン", identifier: null, value: null, frame: { x: 0, y: 0, width: 10, height: 10 } },
+      { ref: 1, type: "Button", label: "ログイン", identifier: null, value: null, frame: { x: 0, y: 0, width: 10, height: 10 }, marks: [] },
     ],
     notes: [],
     bridgeStarting: false,
@@ -179,6 +179,15 @@ test("parseLiveSnapshotResult: elements の frame が欠落していれば undef
     bridgeStarting: false,
   };
   assert.equal(parseLiveSnapshotResult(value), undefined);
+});
+
+test("parseLiveSnapshotResult: elements の marks が欠落・文字列配列でなければ undefined", () => {
+  const base = { ok: true, error: null, capturedAtMs: 1, platform: "ios", screen: { width: 1, height: 1 }, image: "A", notes: [], bridgeStarting: false };
+  const el = { ref: 1, type: "Button", label: null, identifier: null, value: null, frame: { x: 0, y: 0, width: 1, height: 1 } };
+  assert.equal(parseLiveSnapshotResult({ ...base, elements: [el] }), undefined);
+  assert.equal(parseLiveSnapshotResult({ ...base, elements: [{ ...el, marks: null }] }), undefined);
+  assert.equal(parseLiveSnapshotResult({ ...base, elements: [{ ...el, marks: [1] }] }), undefined);
+  assert.notEqual(parseLiveSnapshotResult({ ...base, elements: [{ ...el, marks: ["scroll"] }] }), undefined);
 });
 
 test("parseLiveSnapshotResult: 何にも一致しない値は undefined", () => {
@@ -605,6 +614,7 @@ test("formatElementLine: label/identifier/value が全て揃っている場合",
     identifier: "username_field",
     value: "wave1008",
     frame: { x: 16, y: 120, width: 370, height: 44 },
+    marks: [],
   });
   // 矩形は別カラム(formatElementFrame)なので本文には含めない
   assert.equal(line, '[3] TextField "ユーザー名" id=username_field =wave1008');
@@ -618,6 +628,7 @@ test("formatElementLine: null/空文字のフィールドは省く", () => {
     identifier: null,
     value: "",
     frame: { x: 20, y: 780, width: 362, height: 48 },
+    marks: [],
   });
   assert.equal(line, '[1] Button "ログイン"');
 });
@@ -630,8 +641,22 @@ test("formatElementLine: label/identifier/value 全て無ければ [ref] type �
     identifier: null,
     value: null,
     frame: { x: 0, y: 0, width: 402, height: 874 },
+    marks: [],
   });
   assert.equal(line, "[5] Image");
+});
+
+test("formatElementLine: marks を値の後ろに空白区切りで足す", () => {
+  const line = formatElementLine({
+    ref: 2,
+    type: "Switch",
+    label: "通知",
+    identifier: null,
+    value: "1",
+    frame: { x: 0, y: 0, width: 10, height: 10 },
+    marks: ["disabled", "checked", "scroll"],
+  });
+  assert.equal(line, '[2] Switch "通知" =1 disabled checked scroll');
 });
 
 // ---- formatElementFrame ----
@@ -755,6 +780,7 @@ test("toSnapshotMessage: elements に formatElementLine と同じ line フィー
         identifier: "login_button",
         value: null,
         frame: { x: 20, y: 780, width: 362, height: 48 },
+        marks: [],
       },
     ],
     notes: [],

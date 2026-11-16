@@ -534,3 +534,38 @@ final class PartialBulkCollapseTests: XCTestCase {
         XCTAssertFalse(text.contains("listed separately below"), text)
     }
 }
+
+/// 状態の印(ft_snapshot の要素行とライブ操作の要素一覧が共有する1箇所)
+final class SnapshotStateMarksTests: XCTestCase {
+    private func el(enabled: Bool = true, value: String? = nil, scrollable: Bool? = nil, type: String = "button") -> ElementInfo {
+        ElementInfo(ref: 1, type: type, identifier: nil, label: "x", value: value,
+                    placeholder: nil, enabled: enabled,
+                    frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1,
+                    scrollable: scrollable)
+    }
+
+    func testPlainElementHasNoMarks() {
+        XCTAssertEqual(SnapshotRenderer.stateMarks(el()), [])
+    }
+
+    func testDisabledAndScrollInOrder() {
+        XCTAssertEqual(SnapshotRenderer.stateMarks(el(enabled: false, scrollable: true)), ["disabled", "scroll"])
+    }
+
+    func testScrollableFalseIsNotMarked() {
+        XCTAssertEqual(SnapshotRenderer.stateMarks(el(scrollable: false)), [])
+    }
+
+    func testIndeterminateFromWebValue() {
+        var e = el(value: "2", type: "checkBox")
+        e.web = true
+        XCTAssertEqual(SnapshotRenderer.stateMarks(e), ["indeterminate"])
+    }
+
+    func testCheckedAndRenderElementAgree() {
+        let e = el(enabled: false, value: "1", scrollable: true, type: "switch")
+        let marks = SnapshotRenderer.stateMarks(e)
+        XCTAssertEqual(marks, ["disabled", "checked", "scroll"])
+        XCTAssertTrue(SnapshotRenderer.renderElement(e).contains(marks.joined(separator: " ")))
+    }
+}
