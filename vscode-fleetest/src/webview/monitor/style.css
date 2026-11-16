@@ -583,8 +583,6 @@ body {
   --tacho-mid: #3d5afe;
   --tacho-high: #d32f2f;
   --tacho-off: #dde3ea;
-  --tacho-line: #3d5afe;
-  --tacho-fill: rgba(61, 90, 254, 0.12);
   --run-lamp-android: #1f9d55;
 }
 body.vscode-dark {
@@ -592,8 +590,6 @@ body.vscode-dark {
   --tacho-mid: #a37cff;
   --tacho-high: #ff3b3b;
   --tacho-off: #12262d;
-  --tacho-line: #00e5ff;
-  --tacho-fill: rgba(0, 229, 255, 0.16);
   --run-lamp-android: #39e27d;
 }
 body.vscode-high-contrast,
@@ -602,14 +598,12 @@ body.vscode-high-contrast-light {
   --tacho-mid: var(--vscode-foreground);
   --tacho-high: var(--vscode-foreground);
   --tacho-off: transparent;
-  --tacho-line: var(--vscode-foreground);
-  --tacho-fill: transparent;
   --run-lamp-android: var(--vscode-foreground);
 }
 /* アクション/秒メーター(#run-board-tachometer。中身は runBoard.js が1回だけ作る)。発光は暗いテーマの
    **点いた段・数値・推移の線だけ**(見出し行の地色や他の文字はテーマ色のまま) */
 .run-board-tachometer {
-  /* 40段を超えるとバーが右へ延びる。見出し行を押し広げず、行の右端で切る(縮められるのはこの入れ物だけ) */
+  /* 既定の段数を超えるとバーが右へ延びる。見出し行を押し広げず、行の右端で切る(縮められるのはこの入れ物だけ) */
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -648,7 +642,7 @@ body.vscode-dark .tacho-seg[data-lit="1"][data-tier="mid"] { filter: drop-shadow
 body.vscode-dark .tacho-seg[data-lit="1"][data-tier="high"] { filter: drop-shadow(0 0 2px var(--tacho-high)); }
 .tacho-value {
   /* 桁で右の並び(単位・バー)が動かないよう幅を固定して右寄せ。5文字 = 999.9/秒まで(実測の負荷は手元 8 台で
-     約 15/秒・バーの全段 40/秒)。min-width では桁が増えたところで欄が広がって左右に揺れた */
+     約 15/秒・バーの全段 30/秒)。min-width では桁が増えたところで欄が広がって左右に揺れた */
   flex: 0 0 auto;
   width: 5ch;
   white-space: nowrap;
@@ -671,11 +665,15 @@ body.vscode-dark .tacho-value {
   font-size: 0.85em;
   opacity: 0.8;
 }
-.tacho-trend-area { fill: var(--tacho-fill); stroke: none; }
-.tacho-trend-line { stroke: var(--tacho-line); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
-.tacho-trend-dot { fill: var(--tacho-line); }
-body.vscode-dark .tacho-trend-line,
-body.vscode-dark .tacho-trend-dot { filter: drop-shadow(0 0 2px var(--tacho-line)); }
+/* 推移の線と面は段と同じ低・中・高の色(runBoard.js。線 = #tacho-trend-grad で線の高さの帯・面 = #tacho-trend-area-grad で各時刻の値の帯) */
+.tacho-stop-low { stop-color: var(--tacho-low); }
+.tacho-stop-mid { stop-color: var(--tacho-mid); }
+.tacho-stop-high { stop-color: var(--tacho-high); }
+.tacho-trend-area { fill: url(#tacho-trend-area-grad); fill-opacity: 0.14; stroke: none; }
+body.vscode-high-contrast .tacho-trend-area,
+body.vscode-high-contrast-light .tacho-trend-area { fill: transparent; }
+.tacho-trend-line { stroke: url(#tacho-trend-grad); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
+body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 @media (prefers-reduced-motion: reduce) {
   .tacho-seg { transition: none; }
 }

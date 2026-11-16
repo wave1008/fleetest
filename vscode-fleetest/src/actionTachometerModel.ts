@@ -9,10 +9,10 @@
 import { LOCAL_MACHINE_KEY } from "./runBoardModel";
 
 /** メーターの既定の段数(段の間隔は固定。超える値では同じ間隔の段を右へ足す = segmentCount)。 */
-export const METER_SEGMENTS = 40;
+export const METER_SEGMENTS = 30;
 /** メーター(LED バー)と数値の窓(ms)。直近 3 秒に増えた数 ÷ 3 = 1 秒あたり(ユーザー決定) */
 export const METER_WINDOW_MS = 3_000;
-/** 1目盛りのアクション/秒(ユーザー決定)。METER_SEGMENTS 段(40/秒)を超えたら段を右へ足す(右端に張り付かせない。ユーザー決定)。 */
+/** 1目盛りのアクション/秒(ユーザー決定)。METER_SEGMENTS 段(30/秒)を超えたら段を右へ足す(右端に張り付かせない。ユーザー決定)。 */
 export const ACTIONS_PER_SECOND_PER_SEGMENT = 1;
 /** サンプルの保持(ms)。窓(METER_WINDOW_MS)の前端の値を引けるぶん(前端より古い 1 件は tick が残す)。 */
 const SAMPLE_RETENTION_MS = METER_WINDOW_MS;
@@ -37,10 +37,27 @@ export function segmentLevel(shownPerSecond: number, index: number): number {
 
 export type SegmentTier = "low" | "mid" | "high";
 
-/** 下から 7/12 までが低・10/12 までが中・残りが高(段数に依らない割合)。右へ足した段(index ≥ METER_SEGMENTS)は高。 */
+/** 中の色の最初の段(0 始まり)。1〜10段目が低・11〜15段目が中(ユーザー決定)。 */
+const MID_TIER_FIRST_INDEX = 10;
+/** 高の色の最初の段(0 始まり)。16段目から上(右へ足した段を含む)が高(ユーザー決定)。 */
+const HIGH_TIER_FIRST_INDEX = 15;
+
+/** 段の色帯。段の位置(= アクション/秒)で決める絶対値で、段数の割合ではない。 */
 export function segmentTier(index: number): SegmentTier {
-  const f = index / METER_SEGMENTS;
-  return f < 7 / 12 ? "low" : f < 10 / 12 ? "mid" : "high";
+  return index < MID_TIER_FIRST_INDEX ? "low" : index < HIGH_TIER_FIRST_INDEX ? "mid" : "high";
+}
+
+/** 推移のチャートの色帯の切り替わり位置(縦の割合。0 = 底・1 = 上端)。段と同じ境目(値が 10/秒を超えたら中・
+ * 15/秒を超えたら高 = segmentTier(ceil(値) - 1) と同じ)を、縦軸の上限 trendMax(表示中の最大)に対する比で返す。1 で頭打ち。 */
+export function trendTierStops(trendMax: number): { readonly mid: number; readonly high: number } {
+  const at = (firstIndex: number) =>
+    trendMax > 0 ? Math.min(1, (firstIndex * ACTIONS_PER_SECOND_PER_SEGMENT) / trendMax) : 1;
+  return { mid: at(MID_TIER_FIRST_INDEX), high: at(HIGH_TIER_FIRST_INDEX) };
+}
+
+/** 値(アクション/秒)の色帯。段と同じ = その値まで点いたいちばん上の段の色。0 以下は低。 */
+export function valueTier(perSecond: number): SegmentTier {
+  return perSecond > 0 ? segmentTier(Math.ceil(perSecond / ACTIONS_PER_SECOND_PER_SEGMENT) - 1) : "low";
 }
 
 /** 点灯する段数(上限なし)。引数はアクション/秒(`meterPerSecond`)。1段 = ACTIONS_PER_SECOND_PER_SEGMENT。 */

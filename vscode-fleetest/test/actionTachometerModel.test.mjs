@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  ACTIONS_PER_SECOND_PER_SEGMENT, ActionTachometer, METER_WINDOW_MS, METER_TIME_CONSTANT_MS, easeToward, segmentLevel, segmentCount, litSegments, METER_SEGMENTS, segmentTier,
+  ACTIONS_PER_SECOND_PER_SEGMENT, ActionTachometer, METER_WINDOW_MS, METER_TIME_CONSTANT_MS, easeToward, segmentLevel, segmentCount, litSegments, METER_SEGMENTS, segmentTier, trendTierStops, valueTier,
 } from "../src/actionTachometerModel";
 
 const S = 1000;
@@ -69,14 +69,14 @@ test("機械別の内訳は同じ計算で、手元(空文字)が先頭", () => 
 
 test("点灯段数と段の色帯", () => {
   assert.equal(ACTIONS_PER_SECOND_PER_SEGMENT, 1, "1目盛り = 1アクション/秒");
-  assert.equal(METER_SEGMENTS, 40);
+  assert.equal(METER_SEGMENTS, 30);
   assert.equal(litSegments(0), 0);
   assert.equal(litSegments(0.4), 0);
   assert.equal(litSegments(1), 1);
   assert.equal(litSegments(15.3), 15);
-  assert.equal(litSegments(40), METER_SEGMENTS);
-  assert.equal(litSegments(55), 55, "40段を超えても数える(右へ延ばす)");
-  assert.deepEqual([0, 23, 24, 33, 34, 39].map(segmentTier), ["low", "low", "mid", "mid", "high", "high"]);
+  assert.equal(litSegments(30), METER_SEGMENTS);
+  assert.equal(litSegments(55), 55, "30段を超えても数える(右へ延ばす)");
+  assert.deepEqual([0, 9, 10, 14, 15, 29].map(segmentTier), ["low", "low", "mid", "mid", "high", "high"], "1〜10段目が低・11〜15段目が中・16段目から高");
 });
 
 test("メーターは直近 3 秒に増えた数を 3 で割った 1 秒あたり(60 秒窓の数値とは別)", () => {
@@ -119,11 +119,25 @@ test("機械別にもメーターと同じ窓の 1 秒あたりが付く", () =>
   assert.equal(s.meterPerSecond, 5, "合計もバーと同じ窓");
 });
 
-test("40段に収まらない値では段を右へ足し、下がれば 40段に戻る", () => {
+test("30段に収まらない値では段を右へ足し、下がれば 30段に戻る", () => {
   assert.equal(segmentCount(0), METER_SEGMENTS);
-  assert.equal(segmentCount(39.2), METER_SEGMENTS);
-  assert.equal(segmentCount(40), METER_SEGMENTS);
-  assert.equal(segmentCount(40.3), 41, "途中の段まで含めて足す");
+  assert.equal(segmentCount(29.2), METER_SEGMENTS);
+  assert.equal(segmentCount(30), METER_SEGMENTS);
+  assert.equal(segmentCount(30.3), 31, "途中の段まで含めて足す");
   assert.equal(segmentCount(57), 57);
   assert.equal(segmentTier(45), "high", "足した段は高の色");
+});
+
+test("推移のチャートの色帯の境目は段と同じ値(10/秒・15/秒)を縦軸の上限に対する比で置き、上限を超えたら頭打ち", () => {
+  assert.deepEqual(trendTierStops(30), { mid: 10 / 30, high: 15 / 30 });
+  assert.deepEqual(trendTierStops(12), { mid: 10 / 12, high: 1 }, "15/秒に届かない軸では高の帯は無い");
+  assert.deepEqual(trendTierStops(5), { mid: 1, high: 1 }, "低だけの軸");
+  // 境目は段の色と同じ: 値 v の色 = segmentTier(ceil(v) - 1)
+  assert.equal(segmentTier(Math.ceil(10) - 1), "low");
+  assert.equal(segmentTier(Math.ceil(10.01) - 1), "mid");
+  assert.equal(segmentTier(Math.ceil(15.01) - 1), "high");
+});
+
+test("値の色帯は段と同じ境目(10/秒まで低・15/秒まで中・それより上が高)", () => {
+  assert.deepEqual([0, 0.5, 10, 10.01, 15, 15.01, 40].map(valueTier), ["low", "low", "low", "mid", "mid", "high", "high"]);
 });

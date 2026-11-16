@@ -34,7 +34,7 @@ import {
   machineServicesNotes,
 } from '../../runBoardModel';
 import {
-  ACTIONS_PER_SECOND_PER_SEGMENT, ActionTachometer, easeToward, segmentLevel, segmentCount, METER_SEGMENTS, segmentTier,
+  ACTIONS_PER_SECOND_PER_SEGMENT, ActionTachometer, easeToward, segmentLevel, segmentCount, METER_SEGMENTS, segmentTier, trendTierStops, valueTier,
 } from '../../actionTachometerModel';
 
 // run ボードの ❄️ ○ T(RunBoardRun の欄名・絵文字・説明。説明の文言はタイルと同じ)
@@ -962,11 +962,13 @@ function renderLeadWidth() {
 // 中身は最初に1回だけ作り、以後は属性と textContent だけ更新する(周期描画で要素を作り直さない規律。
 // マウスを載せている間にツールチップが消えて点滅するのを避ける)。
 const SVG_NS = 'http://www.w3.org/2000/svg';
-// バーは幅固定(40段 × 7px。段 5px + 隙間 2px)。見出しの幅に引き伸ばさない(ユーザー決定)
-const METER_W = 280;
+// バーは幅固定(30段 × 7px。段 5px + 隙間 2px)。見出しの幅に引き伸ばさない(ユーザー決定)
+const METER_W = 210;
 const METER_H = 11;
 const TREND_W = 60;
 const TREND_H = 18;
+/** 推移のチャートの上下左右の余白(px)。線の太さぶん枠で切れないように */
+const TREND_PAD = 2;
 const tachometer = new ActionTachometer();
 const tachoUi = {};
 // 数値(アクション/秒)の書式。小数 1 桁(1 目盛り = 1/秒なので、整数に丸めると 1 段に満たない動きが数値に出ない)
@@ -991,10 +993,35 @@ function buildTachometer() {
   unit.className = 'tacho-unit';
   const trend = svgEl('svg', { class: 'tacho-trend', width: TREND_W, height: TREND_H,
     viewBox: `0 0 ${TREND_W} ${TREND_H}`, 'aria-hidden': 'true' });
+  // 線と面は低・中・高で色分けする(段と同じ境目)。線は縦方向のグラデーションを境目で硬く切り替える =
+  // 線の高さ(値)でその帯の色になる。境目の位置は縦軸の上限で変わるので drawTrend が offset を書き直す。
+  // 面は横方向のグラデーションで、各点の値の帯の色を縦一列に塗る(縦にすると高い時刻でも面の大半が低の色になる)。
+  // stop は点の数 × 2 を最初に作り、以後は offset と class だけ書き直す(周期描画で要素を作り直さない)
+  // 発光(暗いテーマ)は drop-shadow だと1色しか出せないので、自身をぼかして重ねるフィルタで帯の色のまま光らせる
+  const defs = svgEl('defs', {});
+  const grad = svgEl('linearGradient', { id: 'tacho-trend-grad', gradientUnits: 'userSpaceOnUse',
+    x1: 0, y1: TREND_H - TREND_PAD, x2: 0, y2: TREND_PAD });
+  tachoUi.stops = ['low', 'low', 'mid', 'mid', 'high', 'high'].map((tier, i) =>
+    svgEl('stop', { class: `tacho-stop-${tier}`, offset: i === 0 ? 0 : 1 })); // 描く前は全部を低に
+  grad.append(...tachoUi.stops);
+  const areaGrad = svgEl('linearGradient', { id: 'tacho-trend-area-grad', gradientUnits: 'userSpaceOnUse',
+    x1: 0, y1: 0, x2: TREND_W, y2: 0 });
+  tachoUi.areaStops = Array.from({ length: HM_MAX_SAMPLES * 2 }, () =>
+    svgEl('stop', { class: 'tacho-stop-low', offset: 0 }));
+  areaGrad.append(...tachoUi.areaStops);
+  // 範囲は userSpaceOnUse で描画域ごと取る。既定の objectBoundingBox は線の外接矩形に対する比なので、値が一定の
+  // 水平な線(待機中の 0 など)では高さ 0 = フィルタの範囲が空になり、線ごと描かれなくなる
+  const glow = svgEl('filter', { id: 'tacho-trend-glow', filterUnits: 'userSpaceOnUse',
+    x: -TREND_PAD, y: -TREND_PAD, width: TREND_W + TREND_PAD * 2, height: TREND_H + TREND_PAD * 2 });
+  glow.append(svgEl('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 1, result: 'blur' }));
+  const merge = svgEl('feMerge', {});
+  merge.append(svgEl('feMergeNode', { in: 'blur' }), svgEl('feMergeNode', { in: 'SourceGraphic' }));
+  glow.append(merge);
+  defs.append(grad, areaGrad, glow);
+  trend.append(defs);
   tachoUi.area = svgEl('path', { class: 'tacho-trend-area', d: '' });
   tachoUi.line = svgEl('path', { class: 'tacho-trend-line', d: '', fill: 'none' });
-  tachoUi.dot = svgEl('circle', { class: 'tacho-trend-dot', r: 1.8, cx: TREND_W - 2, cy: TREND_H - 2 });
-  trend.append(tachoUi.area, tachoUi.line, tachoUi.dot);
+  trend.append(tachoUi.area, tachoUi.line);
   runBoardTachometer.append(trend, value, unit, meter);
   tachoUi.value = value;
   tachoUi.unit = unit;
@@ -1007,7 +1034,7 @@ function setTextIfChanged(el, text) {
   if (el.textContent !== text) { el.textContent = text; }
 }
 
-// 段の間隔(px)は既定の幅 ÷ 既定の段数で固定し、40段を超える値では同じ間隔の段を右へ足す(右端に張り付かせない)
+// 段の間隔(px)は既定の幅 ÷ 既定の段数で固定し、既定の段数を超える値では同じ間隔の段を右へ足す(右端に張り付かせない)
 const SEG_PITCH = METER_W / METER_SEGMENTS;
 
 /** 段を count 個まで用意する。**作った段は消さない**(下がったら隠すだけ = 周期描画で要素を作り直さない規律) */
@@ -1026,7 +1053,7 @@ function drawMeter() {
   setTextIfChanged(tachoUi.value, formatPerSecond(tachoUi.shown));
   // 数値の色は、いちばん上に点いている段(途中の段を含む)の色。何も点いていなければ最下段の色
   setAttrIfChanged(tachoUi.value, 'data-tier', segmentTier(Math.max(0, Math.ceil(tachoUi.shown) - 1)));
-  // 40段に収まらなければ右へ延ばす(下がれば戻る)。幅は段数 × 間隔
+  // 既定の段数に収まらなければ右へ延ばす(下がれば戻る)。幅は段数 × 間隔
   const count = segmentCount(tachoUi.shown);
   ensureSegments(count);
   const width = (count * SEG_PITCH).toFixed(2);
@@ -1080,7 +1107,7 @@ function drawTrend() {
   const samples = tachoUi.trendSamples;
   if (samples.length < 2) { return; }
   // y は表示中の最大(最低 1目盛り = 1/秒)に対する比
-  const pad = 2;
+  const pad = TREND_PAD;
   const trendMax = Math.max(ACTIONS_PER_SECOND_PER_SEGMENT, ...samples);
   const stepX = (TREND_W - pad * 2) / (HM_MAX_SAMPLES - 1);
   const startIndex = HM_MAX_SAMPLES - samples.length;
@@ -1093,9 +1120,30 @@ function drawTrend() {
   const first = pts[0];
   const last = pts[pts.length - 1];
   setAttrIfChanged(tachoUi.line, 'd', line);
+  // 色帯の境目: [低, 低|中の境, 中, 中|高の境, 高, 高] の順に offset を置く(同じ offset の2つで硬く切り替える)
+  const { mid, high } = trendTierStops(trendMax);
+  [0, mid, mid, high, high, 1].forEach((offset, i) => {
+    setAttrIfChanged(tachoUi.stops[i], 'offset', offset.toFixed(4));
+  });
+  // 面: 点 i はその左右の点との中点までを受け持ち、その間を点 i の値の帯の色で塗る(同じ色の stop を2つ = 色が混ざらない)。
+  // 使わない stop(点が 60 に満たない間)は左端の offset 0 に寄せる(stop の offset は昇順でなければならない)
+  const unused = tachoUi.areaStops.length - pts.length * 2;
+  tachoUi.areaStops.forEach((stop, k) => {
+    let offset = 0;
+    let tier = valueTier(samples[0]);
+    if (k >= unused) {
+      const j = k - unused;
+      const i = Math.floor(j / 2);
+      const x = j % 2 === 0
+        ? (i === 0 ? 0 : (pts[i - 1][0] + pts[i][0]) / 2)
+        : (i === pts.length - 1 ? TREND_W : (pts[i][0] + pts[i + 1][0]) / 2);
+      offset = x / TREND_W;
+      tier = valueTier(samples[i]);
+    }
+    setAttrIfChanged(stop, 'offset', offset.toFixed(4));
+    setAttrIfChanged(stop, 'class', `tacho-stop-${tier}`);
+  });
   setAttrIfChanged(tachoUi.area, 'd', `${line} L${last[0].toFixed(1)} ${TREND_H} L${first[0].toFixed(1)} ${TREND_H} Z`);
-  setAttrIfChanged(tachoUi.dot, 'cx', last[0].toFixed(1));
-  setAttrIfChanged(tachoUi.dot, 'cy', last[1].toFixed(1));
 }
 
 onHostMetricsCommitted(drawTrend);

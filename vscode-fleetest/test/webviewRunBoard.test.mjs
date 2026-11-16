@@ -964,7 +964,7 @@ test("アクション/秒メーター: run 0 本でも出て、再適用で要�
   t.after(() => window.close());
   const tacho = document.getElementById("run-board-tachometer");
   assert.ok(tacho, "見出しにメーターの入れ物がある");
-  assert.equal(tacho.querySelectorAll(".tacho-seg").length, 40, "run 0 本でも40段は作ってある");
+  assert.equal(tacho.querySelectorAll(".tacho-seg").length, 30, "run 0 本でも30段は作ってある");
   assert.equal(tacho.style.display, "none", "run 0 本の間は出さない");
   assert.equal(tacho.querySelectorAll(".tacho-seg[data-lit='1']").length, 0, "全段消灯");
   assert.equal(tacho.querySelector(".tacho-value").textContent, "0.0");
@@ -984,7 +984,7 @@ test("アクション/秒メーター: run 0 本でも出て、再適用で要�
   assert.equal(tacho.querySelectorAll(".tacho-seg[data-lit='1']").length, 0, "直後は跳ねない");
   await new Promise((resolve) => setTimeout(resolve, 300));
   const litAfter = tacho.querySelectorAll(".tacho-seg[data-lit='1']").length;
-  assert.ok(litAfter > 0 && litAfter < 40, `途中まで伸びている(${litAfter} 段)`);
+  assert.ok(litAfter > 0 && litAfter < 30, `途中まで伸びている(${litAfter} 段)`);
   const shownNumber = Number(tacho.querySelector(".tacho-value").textContent);
   // 数値 = バーの表示値(1 目盛り = 1/秒)。点いている段数(途中の段を含む)と同じ値の帯にある
   assert.ok(shownNumber > litAfter - 1 && shownNumber <= litAfter, `数値 ${shownNumber} が ${litAfter} 段と連動`);
@@ -1015,31 +1015,51 @@ test("推移のチャートは CPU・GPU と同じ host-metrics の tick で1点
   post(window, hostMetricsTick);
   assert.notEqual(q(".tacho-trend-line").getAttribute("d"), "", "手元の host-metrics の tick で描く");
   // ゲージが 0 ならチャートも 0(底 = 高さ 18 − 余白 2)
-  assert.equal(q(".tacho-trend-dot").getAttribute("cy"), "16.0", "ゲージ 0 で底");
+  assert.equal(q(".tacho-trend-line").getAttribute("d").trim().split(" ").pop(), "16.0", "ゲージ 0 で底");
+  assert.equal(q(".tacho-trend-dot"), null, "先端に丸い点を置かない(CPU・MEM のチャートと同じ)");
+  // 発光のフィルタは描画域で範囲を取る(線の外接矩形の比だと、水平な線 = 高さ 0 で線ごと消える)
+  assert.equal(window.document.getElementById("tacho-trend-glow").getAttribute("filterUnits"), "userSpaceOnUse");
+  const offsets = () => [...window.document.querySelectorAll("#tacho-trend-grad stop")]
+    .map((st) => [st.getAttribute("class"), st.getAttribute("offset")]);
+  assert.deepEqual(offsets().map(([c]) => c),
+    ["tacho-stop-low", "tacho-stop-low", "tacho-stop-mid", "tacho-stop-mid", "tacho-stop-high", "tacho-stop-high"]);
+  assert.deepEqual(offsets().map(([, o]) => o), ["0.0000", "1.0000", "1.0000", "1.0000", "1.0000", "1.0000"],
+    "値が 1/秒に満たない軸では全部が低の色");
   for (let i = 0; i < 70; i += 1) { post(window, hostMetricsTick); }
   const points = q(".tacho-trend-line").getAttribute("d").split("L").length;
   assert.equal(points, 60, "CPU・GPU と同じ直近 60 点だけ(古い点は流れて消える)");
 });
 
-test("タコメーター: 40段に収まらない値では右端に張り付かず、同じ間隔の段を右へ足して延ばす", async (t) => {
+test("タコメーター: 30段に収まらない値では右端に張り付かず、同じ間隔の段を右へ足して延ばす", async (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   const tacho = document.getElementById("run-board-tachometer");
   const meter = tacho.querySelector(".tacho-meter");
   const visible = () => [...tacho.querySelectorAll(".tacho-seg")].filter((s) => s.style.display !== "none");
-  assert.equal(visible().length, 40);
+  assert.equal(visible().length, 30);
   assert.equal(tacho.querySelector(".tacho-value").getAttribute("data-tier"), "low", "0 のときは最下段の色");
-  assert.equal(Number(meter.getAttribute("width")), 280);
+  assert.equal(Number(meter.getAttribute("width")), 210);
   const run = (actions) => monitorRunsMessage({ runs: [{ ...monitorRunsMessage().runs[0], actions }] });
   post(window, run(0));
   post(window, run(600)); // 直近 3 秒に 600 = 200/秒 → 200 段まで延びていく
   await new Promise((resolve) => setTimeout(resolve, 400));
   const grown = visible();
-  assert.ok(grown.length > 40, `右へ足した(${grown.length} 段)`);
-  assert.ok(Number(meter.getAttribute("width")) > 280, "幅も延びる");
+  assert.ok(grown.length > 30, `右へ足した(${grown.length} 段)`);
+  assert.ok(Number(meter.getAttribute("width")) > 210, "幅も延びる");
   assert.equal(grown[grown.length - 1].getAttribute("data-tier"), "high", "足した段は高の色");
   assert.equal(grown.filter((s) => s.getAttribute("data-lit") === "1").length, grown.length, "延ばした段まで点いている");
   assert.equal(tacho.querySelector(".tacho-value").getAttribute("data-tier"), "high", "数値の色はいちばん上の段の色");
+  // 推移の面は各時刻の値の帯の色で縦一列に塗る(高い時刻の面は高の色)
+  post(window, hostMetricsTick);
+  post(window, hostMetricsTick);
+  const areaStops = [...document.querySelectorAll("#tacho-trend-area-grad stop")];
+  assert.equal(areaStops.length, 120, "点の数 × 2 を最初に作ってある");
+  const used = areaStops.slice(-4);
+  assert.deepEqual(used.map((st) => st.getAttribute("class")), Array(4).fill("tacho-stop-high"));
+  assert.equal(used[3].getAttribute("offset"), "1.0000", "最新の点は右端まで");
+  const offs = areaStops.map((st) => Number(st.getAttribute("offset")));
+  assert.ok(offs.every((o, i) => i === 0 || o >= offs[i - 1]), "offset は昇順");
+  assert.equal(tacho.querySelector(".tacho-trend-area").getAttribute("d").length > 0, true);
 });
 
 test("タコメーターは run が終わっても 10 秒は出したまま、その後フェードで隠す。間に次の run が来れば隠さない", async (t) => {
