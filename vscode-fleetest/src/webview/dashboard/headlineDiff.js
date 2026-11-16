@@ -7,8 +7,9 @@ import { t } from '../i18n.js';
 import { clearChildren } from './domUtil.js';
 import { syncChildren } from '../monitor/rowSync.js';
 import { requestTrend } from './trend.js';
+import { listHealedScenarios } from './headlineDiffLogic.js';
 
-export { computeHeadlineDiff, selectComparisonGroups } from './headlineDiffLogic.js';
+export { computeHeadlineDiff, listHealedScenarios, selectComparisonGroups } from './headlineDiffLogic.js';
 
 function listSection(heading, entries) {
   const wrap = document.createElement('div');
@@ -40,8 +41,9 @@ export function clearHeadlineDiff() {
   }
 }
 
-/** diff = computeHeadlineDiff() の戻り値、または比較相手が無い場合は null。 */
-export function renderHeadlineDiff(diff) {
+/** diff = computeHeadlineDiff() の戻り値、または比較相手が無い場合は null。
+ * latestPayloads = 最新の run の results-run 応答(自己修復で通ったシナリオの節に使う)。 */
+export function renderHeadlineDiff(diff, latestPayloads = []) {
   const container = document.getElementById('headline-diff');
   if (!container) {
     return;
@@ -52,6 +54,10 @@ export function renderHeadlineDiff(diff) {
   }
   if (diff && diff.recovered.length > 0) {
     sections.push(listSection(t('wvDashboard.headlineDiff.recoveredHeading'), diff.recovered));
+  }
+  const healed = listHealedScenarios(latestPayloads);
+  if (healed.length > 0) {
+    sections.push(listSection(t('wvDashboard.headlineDiff.healedHeading'), healed));
   }
   syncChildren(container, sections);
 }

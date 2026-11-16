@@ -74,3 +74,24 @@ export function computeHeadlineDiff(latestPayloads, previousPayloads) {
   }
   return { newFailures, recovered };
 }
+
+/** 最新の run(payloads = results-run 応答の配列)で passed かつ steps.healed > 0 のシナリオ。
+ * 自己修復で通った = セレクタがシナリオへ書き戻される対象。skipKind のある記録は除く。 */
+export function listHealedScenarios(payloads) {
+  const seen = new Set();
+  const healed = [];
+  for (const payload of payloads) {
+    for (const scenario of payload.scenarios) {
+      if (scenario.skipKind || !scenario.passed || !scenario.steps || !(scenario.steps.healed > 0)) {
+        continue;
+      }
+      const key = scenarioKey(scenario);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      healed.push({ scenarioID: scenario.scenarioID, platform: scenario.platform });
+    }
+  }
+  return healed;
+}

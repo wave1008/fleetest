@@ -165,20 +165,21 @@ function applyData(payload) {
   renderSummaryTable(payload.summary);
 }
 
-// 直前の実行(同じ profile・全構成 run の集計が揃っている最も新しいグループ)が見つかれば
-// ホストへ問い合わせる。見つからなければ何も送らず前回比セクションを畳む。
+// 直前の実行(同じ profile・全構成 run の集計が揃っている最も新しいグループ)を相手に問い合わせる。
+// 相手が無くても最新だけで問い合わせる(previous 空 = 前回比は出ず、自己修復で通ったシナリオの節だけ出る)。
 function requestHeadlineDiff(runGroups) {
   const comparison = selectComparisonGroups(runGroups);
-  if (!comparison) {
+  const latest = comparison ? comparison.latest : runGroups && runGroups[0];
+  if (!latest || latest.length === 0) {
     expectedHeadlineDiffRunID = null;
     clearHeadlineDiff();
     return;
   }
-  expectedHeadlineDiffRunID = comparison.latest[0].runID;
+  expectedHeadlineDiffRunID = latest[0].runID;
   vscode.postMessage({
     type: 'headlineDiff',
-    latestRunIDs: comparison.latest.map((r) => r.runID),
-    previousRunIDs: comparison.previous.map((r) => r.runID),
+    latestRunIDs: latest.map((r) => r.runID),
+    previousRunIDs: comparison ? comparison.previous.map((r) => r.runID) : [],
   });
 }
 
@@ -225,7 +226,7 @@ export function handleDashboardMessage(message) {
       if (message.latest[0]?.run.runID !== expectedHeadlineDiffRunID) {
         break; // 別のデータに対する古い応答
       }
-      renderHeadlineDiff(computeHeadlineDiff(message.latest, message.previous));
+      renderHeadlineDiff(computeHeadlineDiff(message.latest, message.previous), message.latest);
       break;
     case 'compareRuns':
       showRunsCompare(message.previousRunIDs, message.latestRunIDs, message.comparison);

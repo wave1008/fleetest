@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { computeHeadlineDiff, selectComparisonGroups } from "../src/webview/dashboard/headlineDiffLogic.js";
+import { computeHeadlineDiff, listHealedScenarios, selectComparisonGroups } from "../src/webview/dashboard/headlineDiffLogic.js";
 
 function run(overrides = {}) {
   return {
@@ -145,4 +145,26 @@ test("computeHeadlineDiff: 同じ (scenarioID, platform) が複数あれば1件�
   const latestAllPass = [runPayload([scenario({ scenarioID: "A", passed: true })])];
   const previousMixed = [runPayload([scenario({ scenarioID: "A", passed: false }), scenario({ scenarioID: "A", passed: true })])];
   assert.deepEqual(computeHeadlineDiff(latestAllPass, previousMixed).recovered, [{ scenarioID: "A", platform: "ios" }]);
+});
+
+test("listHealedScenarios: passed かつ steps.healed > 0 だけを重複なく列挙する", () => {
+  const sc = (id, over = {}) => ({
+    scenarioID: id, platform: "ios", passed: true,
+    steps: { total: 1, passed: 1, failed: 0, skipped: 0, healed: 1, passedViaFallback: 0 },
+    ...over,
+  });
+  const payloads = [
+    { scenarios: [
+      sc("A.t1"),
+      sc("A.t2", { steps: { total: 1, passed: 1, failed: 0, skipped: 0, healed: 0, passedViaFallback: 0 } }),
+      sc("A.t3", { passed: false }),
+      sc("A.t4", { skipKind: "notApplicable" }),
+    ] },
+    { scenarios: [sc("A.t1"), sc("A.t1", { platform: "android" })] },
+  ];
+  assert.deepEqual(listHealedScenarios(payloads), [
+    { scenarioID: "A.t1", platform: "ios" },
+    { scenarioID: "A.t1", platform: "android" },
+  ]);
+  assert.deepEqual(listHealedScenarios([]), []);
 });

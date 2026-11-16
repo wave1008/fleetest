@@ -149,6 +149,11 @@ export const webviewDashboardStrings = {
     en: "Scenarios recovered since the previous run",
   },
 
+  "wvDashboard.headlineDiff.healedHeading": {
+    ja: "自己修復で通ったシナリオ(セレクタがシナリオへ書き戻されます。git の差分を確認してください)",
+    en: "Scenarios that passed via self-heal (selectors are written back to the scenario; review the git diff)",
+  },
+
   // summaryTable.js
   "wvDashboard.summary.countText": { ja: "{total}件中{shown}件", en: "{shown} of {total}" },
 

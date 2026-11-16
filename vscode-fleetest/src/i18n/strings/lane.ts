@@ -66,6 +66,12 @@ export const laneStrings = {
   "lane.detailInconclusive": { ja: "     結論なし: {detail}", en: "     Inconclusive: {detail}" },
   "lane.failedText": { ja: "失敗しました", en: "Failed" },
   "lane.passed": { ja: "  ✅ 成功", en: "  ✅ Passed" },
+  "lane.passedViaHeal": {
+    ja: "  🔧 自己修復で通りました({count} ステップ)。セレクタはシナリオへ書き戻されます。git の差分を確認してください",
+    en: "  🔧 Passed via self-heal ({count} steps). The selectors will be written back to the scenario; review the git diff",
+  },
+  // runHandler.ts が Test Explorer の TestItem.description に付ける印(一致したときだけ外す)
+  "lane.healedDescription": { ja: "🔧 自己修復で成功", en: "🔧 passed via self-heal" },
   "lane.failed": { ja: "  ❌ 失敗", en: "  ❌ Failed" },
   "lane.reportSuffix": { ja: " — レポート: {path}", en: " — report: {path}" },
   "lane.scenarioFailedText": { ja: "シナリオが失敗しました", en: "The scenario failed" },

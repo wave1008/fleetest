@@ -57,7 +57,7 @@ test("全 passed: started → passed → end のアクション列になる", ()
     actions.filter((a) => a.type !== "output"),
     [
       { type: "started", scenario: "S.T1" },
-      { type: "passed", scenario: "S.T1", durationMs: 500 },
+      { type: "passed", scenario: "S.T1", durationMs: 500, healedSteps: 0 },
       { type: "end", passed: 1, failed: 0, skipped: 0 },
     ],
   );
@@ -156,6 +156,46 @@ test("skipped ステップを含んでいてもシナリオ自体は passed に�
   assert.ok(!actions.some((a) => a.type === "failed"));
   // スキップの情報は output として出力される(⚠️ マーク)
   assert.ok(actions.some((a) => a.type === "output" && a.text.includes("⚠️")));
+});
+
+const healedStep = (scenario) => ({
+  kind: "step", scenario, index: 1, description: 'tap "#a"', status: "healed", detail: "#a → #b",
+});
+
+test("healed ステップを数え、passed のとき成功の行の直後に自己修復の行を出す", () => {
+  const actions = feed([
+    { kind: "scenarioStarted", scenario: "S.T1" },
+    healedStep("S.T1"),
+    healedStep("S.T1"),
+    { kind: "scenarioFinished", scenario: "S.T1", passed: true },
+  ]);
+  const passedIdx = actions.findIndex((a) => a.type === "passed");
+  assert.equal(actions[passedIdx].healedSteps, 2);
+  assert.match(actions[passedIdx - 1].text, /自己修復で通りました\(2 ステップ\)/);
+  assert.match(actions[passedIdx - 2].text, /成功/);
+});
+
+test("振り直し(scenarioStarted の再発行)で healed の数を数え直す", () => {
+  const actions = feed([
+    { kind: "scenarioStarted", scenario: "S.T1" },
+    healedStep("S.T1"),
+    { kind: "scenarioStarted", scenario: "S.T1" },
+    { kind: "scenarioFinished", scenario: "S.T1", passed: true },
+  ]);
+  const passed = actions.find((a) => a.type === "passed");
+  assert.equal(passed.healedSteps, 0);
+  assert.ok(!actions.some((a) => a.type === "output" && a.text.includes("自己修復で通りました")));
+});
+
+test("healed 0 では自己修復の行を出さない(別シナリオの healed も混ざらない)", () => {
+  const actions = feed([
+    { kind: "scenarioStarted", scenario: "S.T1" },
+    { kind: "scenarioStarted", scenario: "S.T2" },
+    healedStep("S.T2"),
+    { kind: "scenarioFinished", scenario: "S.T1", passed: true },
+  ]);
+  assert.equal(actions.find((a) => a.type === "passed").healedSteps, 0);
+  assert.ok(!actions.some((a) => a.type === "output" && a.text.includes("自己修復で通りました")));
 });
 
 test("複数シナリオ: それぞれ独立して started/passed/failed が発生する", () => {

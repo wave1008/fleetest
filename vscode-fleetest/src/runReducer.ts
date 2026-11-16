@@ -26,7 +26,7 @@ export interface RunFailureMessage {
 export type RunAction =
   | { type: "started"; scenario: string }
   | { type: "output"; text: string; scenario?: string; location?: RunLocation; worker?: string }
-  | { type: "passed"; scenario: string; durationMs: number }
+  | { type: "passed"; scenario: string; durationMs: number; healedSteps: number }
   | { type: "failed"; scenario: string; messages: RunFailureMessage[]; durationMs: number }
   | { type: "skipped"; scenario: string; reason: string; durationMs: number }
   | { type: "end"; passed: number; failed: number; skipped: number }
@@ -38,6 +38,8 @@ export type RunAction =
 interface ScenarioProgress {
   startedAtMs: number;
   messages: RunFailureMessage[];
+  /** status "healed" のステップ数(scenarioStarted で作り直す = 振り直し後は数え直し)。 */
+  healedSteps: number;
 }
 
 /** reduceRunEvent が使い回す内部状態。中身は runHandler.ts からは触らない。 */
@@ -91,7 +93,7 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [{ type: "workers", workers: event.workers }];
 
     case "scenarioStarted": {
-      state.scenarios.set(event.scenario, { startedAtMs: nowMs, messages: [] });
+      state.scenarios.set(event.scenario, { startedAtMs: nowMs, messages: [], healedSteps: 0 });
       const label = event.title ? `${event.title} [${event.scenario}]` : event.scenario;
       return [
         { type: "started", scenario: event.scenario },
@@ -224,6 +226,14 @@ function stepActions(
   const mark = STATUS_MARK[event.status] ?? "•";
   const index = event.index != null ? `${String(event.index)}. ` : "";
   const location = toLocation(event.file, event.line);
+  if (event.status === "healed") {
+    const progress = state.scenarios.get(event.scenario);
+    if (progress) {
+      progress.healedSteps += 1;
+    } else {
+      state.scenarios.set(event.scenario, { startedAtMs: 0, messages: [], healedSteps: 1 });
+    }
+  }
   const actions: RunAction[] = [
     {
       type: "output",
@@ -270,7 +280,7 @@ function stepActions(
     } else {
       // scenarioStarted を観測する前に step が来ることは無い想定だが、
       // 念のため見失わないよう即席の progress を用意しておく
-      state.scenarios.set(event.scenario, { startedAtMs: 0, messages: [message] });
+      state.scenarios.set(event.scenario, { startedAtMs: 0, messages: [message], healedSteps: 0 });
     }
   }
 
@@ -299,15 +309,25 @@ function scenarioFinishedActions(
   }
 
   if (event.passed) {
-    return [
+    const healedSteps = progress?.healedSteps ?? 0;
+    const actions: RunAction[] = [
       {
         type: "output",
         scenario: event.scenario,
         text: `${tLane("lane.passed")} (${String(durationMs)}ms)`,
         worker: event.worker,
       },
-      { type: "passed", scenario: event.scenario, durationMs },
     ];
+    if (healedSteps > 0) {
+      actions.push({
+        type: "output",
+        scenario: event.scenario,
+        text: tLane("lane.passedViaHeal", { count: healedSteps }),
+        worker: event.worker,
+      });
+    }
+    actions.push({ type: "passed", scenario: event.scenario, durationMs, healedSteps });
+    return actions;
   }
 
   const reportSuffix = event.reportPath ? tLane("lane.reportSuffix", { path: event.reportPath }) : "";
