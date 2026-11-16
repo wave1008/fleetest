@@ -533,7 +533,21 @@ final class FTInAppBridge {
         // DOM 由来の要素は z を持たない = 木に UIView でない要素が混じるので全要素 nil(塗り順は全か無か)
         let hasDOMElements = kept.contains { if case .dom = $0 { return true } else { return false } }
         let containerDepths = Dictionary(containers.map { ($0.ref, $0.depth) }, uniquingKeysWith: { first, _ in first })
+        // keptDepth は間引き直した後の木で数え直す(落としたネイティブの祖先を飛ばす)。DOM の要素は WebView の子
+        // (base の ref = 添字 + 1)。添字は base を 0..<n、DOM を n 以降に置く
+        var mergedParents = base.keptParents
+        var mergedOrder: [Int] = []
         for slot in kept {
+            switch slot {
+            case .base(let i): mergedOrder.append(i)
+            case .dom(let container, _):
+                mergedParents.append(container - 1)
+                mergedOrder.append(mergedParents.count - 1)
+            }
+        }
+        let mergedDepths = BridgeAPI.keptDepths(
+            keptParents: BridgeAPI.keptParents(parents: mergedParents, order: mergedOrder))
+        for (position, slot) in kept.enumerated() {
             var copy: ElementInfo
             var frame: CGRect?
             var node: NSObject?
@@ -554,6 +568,7 @@ final class FTInAppBridge {
                 copy.depth = (containerDepths[container] ?? 0) + 1
             }
             copy.ref = elements.count + 1
+            copy.keptDepth = mergedDepths[position]
             if hasDOMElements { copy.z = nil }
             elements.append(copy)
             if let frame { frames[copy.ref] = frame }

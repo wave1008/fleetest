@@ -18,10 +18,14 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class SnapshotBuilder {
 
@@ -108,6 +112,8 @@ final class SnapshotBuilder {
         String pickerValue = "";
         Rect bounds = new Rect();
         int depth;
+        /** 木に出した祖先の数(BridgeDTO.ElementInfo.keptDepth)。assignKeptDepth が出す要素を決めた後に書く */
+        int keptDepth;
         /** 子孫から引き継いだ役割クラス名(Compose の Role マーカー。adoptRoleFromMarkerChildren 参照) */
         String roleClassName = "";
         /** WebView 内ノードの Blink ロール名(非ローカライズ。EXTRA_CHROME_ROLE 参照)。web 以外は空 */
@@ -349,6 +355,7 @@ final class SnapshotBuilder {
         List<UINode> kept = included.size() <= maxElements
                 ? included : selectByPriority(included, maxElements);
         int truncated = included.size() - kept.size();
+        assignKeptDepth(nodes, kept);
 
         JSONArray elements = new JSONArray();
         Map<Integer, double[]> centers = new HashMap<>();
@@ -905,7 +912,28 @@ final class SnapshotBuilder {
         info.put("z", node.z);
         info.put("frame", rectJSON(node.bounds));
         info.put("depth", node.depth);
+        info.put("keptDepth", node.keptDepth);
         return info;
+    }
+
+    /**
+     * 出す要素ごとに「木に出した祖先の数」を書く(BridgeDTO.ElementInfo.keptDepth)。depth は出さなかった入れ物も数えるので、
+     * 葉の直後に並ぶ「出さなかった兄弟の入れ物」の中身が depth の上では葉の子孫に見える(OI-237)。
+     * nodes は間引く前の全ノードの preorder + 元の depth(窓の根はどれも depth 2)なので、祖先はここで正しく引ける
+     */
+    static void assignKeptDepth(List<UINode> nodes, List<UINode> kept) {
+        Set<UINode> keptSet = Collections.newSetFromMap(new IdentityHashMap<UINode, Boolean>());
+        keptSet.addAll(kept);
+        ArrayDeque<UINode> ancestors = new ArrayDeque<>();
+        int keptAncestors = 0;
+        for (UINode node : nodes) {
+            while (!ancestors.isEmpty() && ancestors.peek().depth >= node.depth) {
+                if (keptSet.contains(ancestors.pop())) keptAncestors--;
+            }
+            node.keptDepth = keptAncestors;
+            ancestors.push(node);
+            if (keptSet.contains(node)) keptAncestors++;
+        }
     }
 
     /** 整数なら小数点以下を落とす("50.0" ではなく "50")。読み手はこれをそのまま値として使う */

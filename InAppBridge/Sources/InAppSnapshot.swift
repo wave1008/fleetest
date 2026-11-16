@@ -31,6 +31,9 @@ enum InAppSnapshot {
         var frontWindowCover: FrontWindowCover?
         /// `accessibilityViewIsModal` の view の外として木から外した兄弟の申告(SnapshotResponse.modalScope)。外した物が無ければ nil
         var modalScope: ModalScopeCover?
+        /// elements の添字 → 木に出した直近の祖先の elements の添字(`BridgeAPI.keptParents`)。DOM マージが間引き直した後に
+        /// keptDepth を数え直すために使う
+        var keptParents: [Int?]
     }
 
     /// 手前の窓に覆われて落とした要素の集計(collect が書く。1スナップショットにつき1つ・メインスレッドだけ)
@@ -69,6 +72,8 @@ enum InAppSnapshot {
         var node: NSObject
         var clip: CGRect?
         var rescale: AXFrameRescale?
+        /// 直近の「集めた」祖先の gathered の添字(nil = 根)。`ElementInfo.keptDepth` の材料
+        var parent: Int?
     }
 
     /// **2パス**: 集めるときは上限で打ち切らず、超過したときだけ優先度順に間引いて ref を振る
@@ -108,11 +113,11 @@ enum InAppSnapshot {
         let ordered = FTInAppBridge.backToFront(windows)   // 奥 → 手前
         for (index, window) in ordered.enumerated() {
             collect(window, depth: 0, screen: screen, front: Array(ordered[(index + 1)...]),
-                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered, tally: tally)
+                    clip: nil, flutter: nil, parent: nil, visited: &visited, gathered: &gathered, tally: tally)
         }
         for root in extraRoots {
             collect(root, depth: 0, screen: screen, front: [],
-                    clip: nil, flutter: nil, visited: &visited, gathered: &gathered, tally: tally)
+                    clip: nil, flutter: nil, parent: nil, visited: &visited, gathered: &gathered, tally: tally)
         }
 
         // 塗り順 z: 全要素の番号が決まるときだけ付ける(全か無か。BridgeAPI.paintNumber / allOrNothingPaintOrder)。
@@ -150,6 +155,8 @@ enum InAppSnapshot {
         var nodes: [Int: NSObject] = [:]
         var clips: [Int: CGRect] = [:]
         var rescales: [ObjectIdentifier: AXFrameRescale] = [:]
+        let keptParents = BridgeAPI.keptParents(parents: gathered.map(\.parent), order: keptIndices)
+        let keptDepths = BridgeAPI.keptDepths(keptParents: keptParents)
         for index in keptIndices {
             if let rescale = gathered[index].rescale {
                 rescales[ObjectIdentifier(gathered[index].node)] = rescale
@@ -157,6 +164,7 @@ enum InAppSnapshot {
             let ref = elements.count + 1
             var info = gathered[index].info
             info.ref = ref
+            info.keptDepth = keptDepths[ref - 1]
             frames[ref] = gathered[index].frame
             nodes[ref] = gathered[index].node
             clips[ref] = gathered[index].clip
@@ -168,7 +176,7 @@ enum InAppSnapshot {
             elements: elements, frames: frames, nodes: nodes, clips: clips,
             truncated: gathered.count - keptIndices.count,
             truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, rescales: rescales,
-            frontWindowCover: tally.result, modalScope: tally.modalResult)
+            frontWindowCover: tally.result, modalScope: tally.modalResult, keptParents: keptParents)
     }
 
     /// UIView → 塗り順の通し番号。窓を渡された順(奥 → 手前)に、各窓のビュー階層を前順(親 → 子)で辿り、
@@ -206,7 +214,7 @@ enum InAppSnapshot {
     /// hitTest では見分けられない)ので、見えている範囲を別に運ぶ
     /// `flutter` = Flutter の縮んだ AX 矩形の補正の状態(`rescaleBelow` 参照)。nil = 申告どおり
     private static func collect(_ node: NSObject, depth: Int, screen: CGRect, front: [UIWindow],
-                                clip: CGRect?, flutter inherited: FlutterFrames?,
+                                clip: CGRect?, flutter inherited: FlutterFrames?, parent: Int?,
                                 visited: inout Set<ObjectIdentifier>, gathered: inout [Gathered], tally: CoverTally) {
         guard visited.insert(ObjectIdentifier(node)).inserted else { return }
         // 非表示サブツリーは丸ごと除外
@@ -230,7 +238,7 @@ enum InAppSnapshot {
                 included = true
                 gathered.append(Gathered(
                     info: makeInfo(node, type: type, ref: 0, depth: depth, frame: info.frame),
-                    frame: info.frame, node: node, clip: clip, rescale: rescale))
+                    frame: info.frame, node: node, clip: clip, rescale: rescale, parent: parent))
             }
         }
 
@@ -244,12 +252,22 @@ enum InAppSnapshot {
         // isAccessibilityElement で、その中の id つきの View(pointerEvents="none" の欄)が丸ごと消えていた
         // (XCUITest の木には出る = 型セレクタも id もブリッジで食い違う)
         if let view = node as? UIView, view.isAccessibilityElement, included { return }
-        let children = modalChildOnly(axChildren(node), tally: tally)
+        let allChildren = axChildren(node)
+        let children = modalChildOnly(allChildren, tally: tally)
         let childClip = isScrollableContainer(node) == true
             ? (clip ?? .infinite).intersection(nodeFrame) : clip
+        var childParent = included ? gathered.count - 1 : parent
+        // **Flutter のセマンティクスの容器は子の先頭に自分自身のノードを持ち、中身はその後ろに兄弟として並ぶ**(rescaleBelow と
+        // 同じ実測)。id はその先頭の子に付くので、先頭の子を木に出したら後ろの兄弟はその子の中身として数える(keptDepth)。
+        // 数えないと `#list_nested >> …` が「容器に中身が無い」になる(元の depth ではたまたま子孫に見えていた)
+        let ownNode = !included && NSStringFromClass(Swift.type(of: node)) == "SemanticsObjectContainer" ? allChildren.first : nil
         for child in children {
+            let before = gathered.count
             collect(child, depth: depth + 1, screen: screen, front: front, clip: childClip,
-                    flutter: flutter, visited: &visited, gathered: &gathered, tally: tally)
+                    flutter: flutter, parent: childParent, visited: &visited, gathered: &gathered, tally: tally)
+            if let ownNode, child === ownNode, gathered.count > before, gathered[before].node === child {
+                childParent = before
+            }
         }
     }
 

@@ -96,7 +96,7 @@ public struct SelectorNaming {
                                    in snapshot: SnapshotResponse,
                                    label: String) -> (plain: Int, typed: Int) {
         var plain = 0, typed = 0
-        for e in LocatorResolver.descendants(of: scope, in: snapshot.elements)
+        for e in LocatorResolver.scopeDescendants(of: scope, in: snapshot.elements)
         where SnapshotRenderer.displayText(e.label ?? "") == label {
             plain += 1
             if e.type == element.type { typed += 1 }
@@ -484,7 +484,7 @@ public extension SelectorNaming {
     static func scopedSelector(scope: ElementInfo, for element: ElementInfo,
                                in snapshot: SnapshotResponse) -> String? {
         guard let scopeID = scope.identifier else { return nil }
-        let siblings = LocatorResolver.descendants(of: scope, in: snapshot.elements)
+        let siblings = LocatorResolver.scopeDescendants(of: scope, in: snapshot.elements)
             .filter { $0.type == element.type }
         guard let position = siblings.firstIndex(where: { $0.ref == element.ref }) else { return nil }
         return "#\(scopeID) >> .\(element.type)[\(position + 1)]"

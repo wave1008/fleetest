@@ -199,7 +199,7 @@ public enum LocatorResolver {
         var pool = elements
         for scopeLocator in scope ?? [] {
             guard let (container, _) = matchDetailed(scopeLocator, elements: pool) else { return nil }
-            pool = descendants(of: container, in: elements)
+            pool = scopeDescendants(of: container, in: elements)
         }
         return pool
     }
@@ -212,7 +212,7 @@ public enum LocatorResolver {
         var pool = elements
         for scopeLocator in locator.scope ?? [] {
             guard let (container, _) = matchDetailed(scopeLocator, elements: pool) else { return nil }
-            let inside = descendants(of: container, in: elements)
+            let inside = scopeDescendants(of: container, in: elements)
             if inside.isEmpty { return container }
             pool = inside
         }
@@ -590,10 +590,30 @@ public enum LocatorResolver {
     /// 外しても照合の結果は変わらない
     static let splitTextSameLineTolerance: Double = 4
 
+    /// スコープ `>>` の容器の子孫。**木に出した祖先の数(`ElementInfo.keptDepth`)で引く** —— `descendants` の depth は
+    /// 出さなかった入れ物も数えるので、葉の直後に並ぶ「出さなかった兄弟の入れ物」の中身が葉の子孫に見え、
+    /// 中身を持たない要素を容器にした `>>` が別の要素を押して ✅ になった(OI-237)。木に1つでも keptDepth の無い要素が
+    /// あれば(XCUITest ブリッジの木・ホストで組んだ木)depth で引く。スコープを組む側(`SelectorNaming`)もこれを通す = 提案と解決が割れない
+    public static func scopeDescendants(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
+        guard element.keptDepth != nil, elements.allSatisfy({ $0.keptDepth != nil }) else {
+            return descendants(of: element, in: elements)
+        }
+        guard let start = elements.firstIndex(where: { $0.ref == element.ref }),
+              let own = elements[start].keptDepth else { return [] }
+        var result: [ElementInfo] = []
+        var index = elements.index(after: start)
+        while index < elements.endIndex, let depth = elements[index].keptDepth, depth > own {
+            result.append(elements[index])
+            index = elements.index(after: index)
+        }
+        return result
+    }
+
     /// 要素の子孫(スナップショットは pre-order + 元ツリーの depth を保つため、
     /// 直後から depth がその要素以下になるまでが子孫。3 ブリッジとも同じ規約で組み立てる
-    /// [BridgeRouter.collect / InAppSnapshot.collect / SnapshotBuilder.collect]。
-    /// 中間ノードのフィルタや上限打ち切りは pre-order を崩さないのでこの判定は保たれる)
+    /// [BridgeRouter.collect / InAppSnapshot.collect / SnapshotBuilder.collect])。
+    /// **出さなかった入れ物の中身を、直前の葉の子孫に数えることがある**(depth を詰めないため。OI-237)。
+    /// スコープの解決は `scopeDescendants` を使う
     public static func descendants(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
         guard let start = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }
         var result: [ElementInfo] = []

@@ -168,6 +168,7 @@ public extension WebViewDOM {
         let nested = added.map { element -> ElementInfo in
             var copy = element
             copy.depth = webView.depth + 1
+            copy.keptDepth = webView.keptDepth.map { $0 + 1 }
             return copy
         }
         var out = elements

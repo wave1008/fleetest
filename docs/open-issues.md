@@ -26,27 +26,15 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-237 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-236・OI-238 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 12 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 13 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 25 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-169・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 37 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235 |
 
 ## 着手可
-
-### OI-237 スコープ `>>` の子孫を depth で復元するので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(Flutter の iOS・inapp-boost・6/6)
-- 状態: 再現済み
-- 確認: 56周目(2026-11-16)
-- 属性: 着手可
-- 運用: 要注意 — 容器を誤って書いたシナリオでも緑になる。容器は id で入れ物を指す
-- 優先度: 中 — 誤った緑だが、書いた容器が対象を含んでいれば結果は同じ要素
-
-出典: 56周目 iultra F3(M1Ultra の iPhone 18 Pro 6台)と手元の iPhone 18 Pro -01 で再現。E2EY-Flutter の入れ子スクロールで `tap("#txt_nested_result >> #card_0_01")` が ✅ でカードを押す(同じ書き方は CMP では「容器に中身が無い」で赤)
-- 原因の観測(in-app の `/snapshot`): `#txt_nested_result` は depth 7 の葉で、その直後に兄弟の入れ物(Expanded の ListView。名前も id も無いので木に出ない)の子 `#list_nested` が depth 8 で並ぶ。`LocatorResolver.descendants` は「直後から depth がその要素以下になるまで」を子孫とするので、間引かれた兄弟の中身が文字の子孫に入る。in-app の `InAppSnapshot.collect` は出さなかった要素の depth を詰めない(子は `depth + 1` のまま)ので、doc の「中間ノードのフィルタは pre-order を崩さないのでこの判定は保たれる」は成り立たない(祖先の復元が間引きで嘘になることは `TapTargetGeometry` の doc にも書いてある)
-- 同じ型(推測): 56周目 alocal の `.staticText >> #queue_row_03`(E2EY-Android。最初の staticText は葉の見出し)が行を押して緑(DSL 4/4・MCP 2/2)
-- 次の一手: ブリッジ3つ(in-app・XCUITest・Android)が「木に出した祖先の数」(出さなかった入れ物を数えない深さ)を別の欄で載せ、スコープの子孫はその欄で引く。既存の depth は同じ depth の兄弟の照合(`ContainerGeometry` 等)が使うので変えない。ワイヤを変えるので版を上げる(固定コーパス `RealAppSnapshots` は欄を持たないので、撮り直すか、スコープの判定のテストを別の木で組む)
 
 ## 要測定
 
@@ -78,6 +66,19 @@
 (いまこの属性を持つ項目は無い)
 
 ## 木に材料なし
+
+### OI-237 XCUITest ブリッジの木では、スコープ `>>` の子孫を depth で引くので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(MCP と xcuitest モード)
+- 状態: 再現済み
+- 確認: 56周目(2026-11-16)
+- 属性: 木に材料なし
+- 運用: 要注意 — MCP(iOS は常に XCUITest)と xcuitest モードでは、容器を誤って書いたシナリオでも緑になる。容器は id で入れ物を指す
+- 優先度: 低 — 既定の経路(DSL の inapp-boost モードと Android)では赤になる。書いた容器が対象を含んでいれば結果は同じ要素
+
+出典: 56周目 iultra F3(Flutter の iOS・inapp-boost)。E2EY-Flutter の入れ子スクロールで `tap("#txt_nested_result >> #card_0_01")` が ✅ でカードを押した。同じ型が alocal の `.staticText >> #queue_row_03`(E2EY-Android)
+- 原因の観測(in-app の `/snapshot`): `#txt_nested_result` は depth 7 の葉で、直後に兄弟の入れ物(名前も id も無いので木に出ない)の子 `#list_nested` が depth 8 で並ぶ。ブリッジは出さなかった要素の depth を詰めないので、`LocatorResolver.descendants`(直後から depth がその要素以下になるまで)が隣の中身を葉の子孫に数える
+- 直したもの(in-app ブリッジ v293・Android ブリッジ v144): ブリッジが「木に出した祖先の数」`ElementInfo.keptDepth` を送り、スコープの子孫は `LocatorResolver.scopeDescendants` で引く(スコープの提案 `SelectorNaming` も同じ)。in-app は Flutter のセマンティクスの容器(`SemanticsObjectContainer`。先頭の子が容器自身で、中身はその後ろの兄弟)の後ろの兄弟を先頭の子の中身として数える(数えないと `#list_nested >> …` が「中身が無い」になった = 元の depth ではこの形がたまたま子孫に見えていた)。手元の Simulator / Emulator で、葉を容器にした書き方が赤・本物の容器が緑(Flutter の iOS の inapp-boost・Flutter の Android・E2EY-Android の `.staticText >> #queue_row_03`)。全マシンの回帰でスコープの解決の失敗 0 件
+- 残り: XCUITest ブリッジは keptDepth を送らない(ホストは depth のまま引く)。Flutter の容器を見分ける材料が無い —— 属性 5004 は Flutter の要素を `UIAccessibilityElement` と返し、容器は木に出ない。見分けずに数えると Flutter の本物の容器の `>>` が壊れる(xcuitest モードで実測)
+- 次の一手: XCUITest のスナップショットで、出さない容器の側に Flutter の容器だと言える事実(属性・クラス)が取れるかを測る。取れれば in-app と同じ規則で keptDepth を送る
 
 ### OI-163 キーボードの下の欄への clearInput の時間切れ・タブの下の行への tap・上端の一覧の scroll: が引っ張って更新を走らせるほか
 - 状態: 再現済み
