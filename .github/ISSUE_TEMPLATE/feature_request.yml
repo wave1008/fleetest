@@ -1,0 +1,21 @@
+name: Feature request / 要望
+description: Something fleetest cannot do yet. / fleetest でまだできないこと。
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do / やりたいこと
+      description: The test you want to write or the situation you are in, not the solution. / 解決策ではなく、書きたいテストや困っている状況。
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: What happens today / 今はどうなるか
+      description: How you work around it, or where it stops. / 今の回避方法か、どこで止まるか。
+  - type: textarea
+    id: context
+    attributes:
+      label: Environment / 環境
+      description: Platform, UI framework, iOS mode, if relevant. / 関係があれば、プラットフォーム・UI フレームワーク・iOS のモード。

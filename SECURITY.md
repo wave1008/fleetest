@@ -13,7 +13,7 @@ Please **do not open a public issue** for a security problem.
 Report it privately from the repository's **Security** tab → **Report a vulnerability**
 (<https://github.com/wave1008/fleetest/security/advisories/new>). Only you, the maintainer, and anyone the maintainer invites to help fix it can see the report.
 
-Include what you can: the fleetest version (release tag), macOS / Xcode versions, steps to reproduce, and the impact you expect.
+Include what you can: the output of `fleetest --version`, macOS / Xcode versions, steps to reproduce, and the impact you expect.
 
 ## What to expect
 
@@ -45,7 +45,7 @@ Out of scope:
 
 - 修正の対象は**最新のリリースタグだけ**です(ベータ版のため、古いタグには修正を出しません)。
 - 対応はできる範囲で行い、回答の期限や報奨金はありません。
-- 報告には、fleetest の版(リリースタグ)・macOS と Xcode の版・再現手順・想定される影響を、分かる範囲で書いてください。
+- 報告には、`fleetest --version` の出力・macOS と Xcode の版・再現手順・想定される影響を、分かる範囲で書いてください。
 - 確認できた報告は新しいリリースで修正し、advisory を(希望しない場合を除き)あなたの名前付きで公開します。
 - 範囲外: fleetest が自身のテストとクイックスタートに使うアプリとシナリオのプロジェクト(`E2E*App*/`・`TestProjects/`)・同じ macOS ユーザーとしてコードを実行できることが前提の問題(例: 同じ Mac の別のプロセスがループバックだけで待ち受けるブリッジに届く)・fleetest への影響を示せない依存の脆弱性(上流へ報告してください)。
 - 範囲の例は、上の英語の **Scope** を見てください。

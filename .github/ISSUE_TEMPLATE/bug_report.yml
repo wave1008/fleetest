@@ -1,0 +1,96 @@
+name: Bug report / 不具合の報告
+description: Something in fleetest does not work as documented. / fleetest が docs の通りに動かない。
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are **public**. Do not paste anything about your app you cannot share (screen text, IDs, URLs, credentials).
+        Issue は**公開**されます。共有できないアプリの情報(画面の文字・ID・URL・認証情報)は貼らないでください。
+  - type: input
+    id: version
+    attributes:
+      label: fleetest version / fleetest の版
+      description: Output of `fleetest --version`. / `fleetest --version` の出力。
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: macOS / Xcode
+      placeholder: macOS 27.2, Xcode 27.2
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / プラットフォーム
+      multiple: true
+      options:
+        - iOS Simulator
+        - iOS physical device / iOS 実機
+        - Android Emulator
+        - Android physical device / Android 実機
+        - Not device-related / デバイスに関係しない
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version / デバイスと OS の版
+      placeholder: iPhone 17 Simulator, iOS 27.1 / Pixel 9 Emulator, API 36
+  - type: dropdown
+    id: ios-mode
+    attributes:
+      label: iOS mode / iOS のモード
+      options:
+        - inapp-boost (default / 既定)
+        - xcuitest
+        - Not iOS / iOS ではない
+  - type: dropdown
+    id: framework
+    attributes:
+      label: App UI framework / アプリの UI フレームワーク
+      multiple: true
+      options:
+        - SwiftUI / UIKit
+        - Android View / Jetpack Compose
+        - Compose Multiplatform
+        - Flutter
+        - React Native
+        - Other / その他
+        - Not app-related / アプリに関係しない
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Where it happened / どこで起きたか
+      multiple: true
+      options:
+        - Scenario run (CLI / VSCode) / シナリオの実行
+        - MCP server (AI assistant) / MCP サーバー
+        - VSCode extension UI / VSCode 拡張の画面
+        - Install / update / 導入・更新
+        - Remote runner machine / ランナー機
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened / 起きたこと
+      description: The failing step or command and its exact message. / 失敗したステップかコマンドと、その文言をそのまま。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected / 期待したこと
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce / 再現手順
+      description: A minimal scenario or command sequence, and how often it happens. / 最小のシナリオかコマンドの手順と、起きる頻度。
+  - type: markdown
+    attributes:
+      value: |
+        If you can, attach the zip from `fleetest doctor --bundle fleetest-diag.zip`. **It can contain on-screen text from your app — review it before attaching.**
+        可能なら `fleetest doctor --bundle fleetest-diag.zip` の zip を添付してください。**アプリの画面の文字が入ることがあるので、添付する前に中身を確かめてください。**
