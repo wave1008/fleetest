@@ -55,6 +55,10 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 | MCP サーバー | AIアシスタントがデバイスを操作して、アプリを探索し、テストを書いたり直したりする([リファレンス](docs/user-docs/reference/tools/mcp_server_ja.md)) |
 | Swift DSL | テストコードを書くための関数群([リファレンス](docs/user-docs/reference/testclass/testcode_structure_ja.md)) |
 
+## セキュリティ
+
+脆弱性の報告は [SECURITY.md](SECURITY.md) を見てください(公開の Issue には書かないでください)。
+
 ## ライセンス
 
 [LICENSE](LICENSE)

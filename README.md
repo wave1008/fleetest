@@ -56,6 +56,10 @@ The step-by-step guide, including running a sample app, is the [Quick start](doc
 | MCP server | Lets an AI assistant drive devices to explore apps and write or debug tests ([reference](docs/user-docs/reference/tools/mcp_server.md)) |
 | Swift DSL | The functions you write test code with ([reference](docs/user-docs/reference/testclass/testcode_structure.md)) |
 
+## Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md) (do not open a public issue).
+
 ## License
 
 [LICENSE](LICENSE)
