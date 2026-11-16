@@ -331,7 +331,7 @@ public final class AndroidDriver: AppDriver {
         }
         refCenters = [:]
         domBridgeRefs = [:]
-        if let bundleID { currentPackage = bundleID }
+        if let bundleID { currentPackage = bundleID; lastTreeForegroundPackage = nil }
         persistState()
     }
 
@@ -618,6 +618,7 @@ public final class AndroidDriver: AppDriver {
         refCenters = [:]
         domBridgeRefs = [:]
         currentPackage = bundleID
+        lastTreeForegroundPackage = nil  // 前の木の前面は launch した相手より古い(焦点なしの文の名指しは木の前面が先)
         persistState()
     }
 
@@ -682,6 +683,7 @@ public final class AndroidDriver: AppDriver {
         }
         restoreStateIfNeeded()  // 状態保持の前面化なので refs は維持(空の状態で persist して消さない)
         currentPackage = bundleID
+        lastTreeForegroundPackage = nil
         persistState()
     }
 
@@ -955,7 +957,7 @@ public final class AndroidDriver: AppDriver {
             try await withoutStepExpectation { try await withBridge { try await $0.clearInput(ref: target) } }
         } catch let error as DriverError {
             throw Self.noFocusFrontAdvice(after: error, front: noInputFocusFront(after: error),
-                                          lastTreePackage: currentPackage ?? lastTreeForegroundPackage) ?? error
+                                          lastTreePackage: lastTreeForegroundPackage ?? currentPackage) ?? error
         }
     }
 
@@ -1087,7 +1089,11 @@ public final class AndroidDriver: AppDriver {
             // 照会は「フォーカス不在」で落ちた回だけ(正常系には掛からない)
             // 失敗の種類に依らず覆い・アプリ不在を言う(ロック画面の下の SET_TEXT 拒否・アプリが落ちた後の読み返しの失敗)
             let front = noInputFocusFront(after: error)
-            let lastTree = currentPackage ?? lastTreeForegroundPackage
+            // **木の前面を帳簿より先に使う**: 帳簿(currentPackage)は端末ごとの控えのファイルから別のプロセスの値が戻りうる
+            // (同じ端末で前に別のアプリを launch したプロセス)。帳簿を先にすると、このプロセスの木が e2e.android のときに
+            // 「the app of the last tree」として e2ey.flutter を名指し「落ちたか離れた」と誤って言った(Pixel 3a・MCP)。
+            // このプロセスの launch / activate / openURL は木の控えを消すので、その後は帳簿(撃った相手)が使われる
+            let lastTree = lastTreeForegroundPackage ?? currentPackage
             throw Self.typeNoFocusAdvice(after: error, hadRef: ref != nil, front: front, lastTreePackage: lastTree,
                                          keyboardShown: ref == nil && noInputFocusKeyboardShown(after: error),
                                          fieldTypedSinceLastTap: typedSinceLastTap)

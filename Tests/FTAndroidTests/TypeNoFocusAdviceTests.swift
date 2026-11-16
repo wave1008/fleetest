@@ -119,3 +119,18 @@ final class TypeNoFocusFrontAdviceTests: XCTestCase {
         XCTAssertTrue(b.contains("TextInputEditText"), b)
     }
 }
+
+/// 焦点なしの文が名指す「直近の木のアプリ」は木の前面が先(端末ごとの控えのファイルから戻った別のプロセスの帳簿を先にすると、
+/// このプロセスの木が e2e.android なのに e2ey.flutter を「落ちたか離れた」と言った = Pixel 3a・MCP)。launch 系は木の控えを消す
+final class NoFocusLastTreeOrderTests: XCTestCase {
+    func testTheLastTreeWinsOverTheRestoredLedger() throws {
+        let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTAndroid/AndroidDriver.swift")
+        let src = try String(contentsOf: path, encoding: .utf8)
+        XCTAssertFalse(src.contains("currentPackage ?? lastTreeForegroundPackage"), "帳簿を木より先に使っている")
+        XCTAssertEqual(src.components(separatedBy: "lastTreeForegroundPackage ?? currentPackage").count - 1, 3,
+                       "type・clearInput(と既に木を先に使っていた1か所)")
+        XCTAssertEqual(src.components(separatedBy: "lastTreeForegroundPackage = nil").count - 1, 3,
+                       "launch・activate・openURL が木の控えを消す")
+    }
+}
