@@ -76,7 +76,7 @@ Usage: install.sh [options]
                      created (only an empty TestProjects/); /fleetest-profiles creates TestProjects/project1 later
   --tool-root <dir>  Location of the fleetest clone (default: <work-dir>/../fleetest)
   --no-clone         Do not clone when missing (an existing clone is required)
-  --no-pull          Do not update an existing clone (to pin a version, or while developing the tool)
+  --no-pull          Do not update an existing clone (while developing the tool; not a way to pin a version)
   --skip-extension   Do not install the VSCode extension
   --skip-project     Do not create a project (TestProjects/<name>/) — e.g. MCP-only installs
   --skip-mcp         Do not generate/merge .mcp.json

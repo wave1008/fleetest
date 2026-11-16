@@ -35,7 +35,7 @@ Usage: update.sh [options]
 
   --work-dir <dir>   Consumer directory that holds TestProjects/ (default: current directory)
   --tool-root <dir>  Location of the fleetest clone (default: <work-dir>/../fleetest)
-  --no-pull          Do not update the clone (to pin a version, or while developing the tool)
+  --no-pull          Do not update the clone (while developing the tool; not a way to pin a version)
   --force            Run everything even without an update (to redo a broken install)
   --skip-extension   Do not reinstall the VSCode extension
   --skip-skills      Do not refresh the skills copied into <work-dir>/.claude/skills
