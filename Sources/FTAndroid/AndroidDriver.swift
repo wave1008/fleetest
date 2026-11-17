@@ -53,7 +53,7 @@ public final class AndroidDriver: AppDriver {
     private var lastTreeForegroundPackage: String?
     /// 木の前面が別のパッケージへ移ったとき、離れた側(離れた先の木を読んでも残る = 焦点なしの文が名指す「撃った相手」)。
     /// 戻ってきた・launch / activate / openURL で nil。back() / home() は前面確認で離れた先の木を読むので、
-    /// これが無いと lastTreeForegroundPackage が前面と一致して前面の文が出ない
+    /// これが無いと lastTreeForegroundPackage が前面と一致して前面の文が出ない。離れた先へ tap を届けたら nil(そこで続けている)
     private var departedTreePackage: String?
     /// 焦点なしの文が「直近の木のアプリ」として名指す相手(離れていれば離れた側)
     private var noFocusTreePackage: String? { departedTreePackage ?? lastTreeForegroundPackage ?? currentPackage }
@@ -960,6 +960,9 @@ public final class AndroidDriver: AppDriver {
     public func tap(x: Double, y: Double) async throws {
         typedSinceLastTap = false
         try await withBridge { try await $0.tap(x: x, y: y) }
+        // 離れた先で操作を届けた = 利用者がそのアプリで続けている(リンクで開いたブラウザ・ランチャーから別のアプリ)。
+        // 残すと、そこで焦点なしに落ちた文が「離れた側が前面に居ない・落ちたかも」と事実と逆を言う
+        departedTreePackage = nil
     }
 
     public func clearInput(ref: Int?) async throws {

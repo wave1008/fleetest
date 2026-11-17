@@ -377,6 +377,30 @@ final class CommandDispatchTests: XCTestCase {
         XCTAssertTrue(messages.contains { $0.contains("`#panel_gone` never resolved") }, "\(messages)")
     }
 
+    /// 解決に数えるのは一致した候補だけ: `#ok || #okk` が #ok で通っても #okk は数えない・指紋で直した回の元の id も数えない
+    func testOnlyTheMatchedAlternativeCountsAsResolved() {
+        let core = makeCore(driver: RecordingDriver())
+        var tap = FlowStep(action: "tap", locator: FlowLocator(id: "ok"))
+        tap.fallbacks = [FlowLocator(id: "okk")]
+        core.trackIDResolution(step: tap, status: .passed, description: "tap", behindModal: false)
+        core.trackIDResolution(step: FlowStep(action: "tap", locator: FlowLocator(id: "btn_old")),
+                               status: .healed(FlowLocator(id: "btn_new")), description: "tap", behindModal: false)
+        var viaFallback = FlowStep(action: "tap", locator: FlowLocator(id: "primary_gone"))
+        viaFallback.fallbacks = [FlowLocator(id: "second")]
+        core.trackIDResolution(step: viaFallback, status: .passedViaFallback(FlowLocator(id: "second")),
+                               description: "tap", behindModal: false)
+        for id in ["ok", "okk", "btn_old", "second"] {
+            core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: id)), status: .passed,
+                                   description: "notExist", behindModal: false)
+        }
+        core.warnAboutNeverResolvedIDs()
+        let messages = core.finalRecord.fixSuggestions.map(\.message)
+        XCTAssertFalse(messages.contains { $0.contains("`#ok` never resolved") }, "\(messages)")
+        XCTAssertFalse(messages.contains { $0.contains("`#second` never resolved") }, "\(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#okk` never resolved") }, "\(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#btn_old` never resolved") }, "\(messages)")
+    }
+
     /// スコープ付きの肯定が通ったら対象の id も解決に数える(60周目 imax F6)。スコープ付きの否定は数えない
     func testScopedTargetOfAPassedStepCountsAsResolved() {
         let core = makeCore(driver: RecordingDriver())

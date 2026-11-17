@@ -694,10 +694,13 @@ extension StepExecutor {
     /// 閉じる tap の前にキーボードの上にあって、後の木に無い要素の名前(最大3件・並びは名前順。空 = 変化なし)。
     /// 比較の規則は `contentAbove` / `contents(of:)`(位置を見ない・増えた要素は数えない)
     /// **キーボードの上端に接した帯(入力補助のバー = inputAccessoryView 等。画面幅の半分以上)の中の要素は数えない** ——
-    /// キーボードと一緒に消えるのが正当で、数えると「完了」バー付きの画面のキーボードの下の対象が全部赤になる
+    /// キーボードと一緒に消えるのが正当で、数えると「完了」バー付きの画面のキーボードの下の対象が全部赤になる。
+    /// **帯はキーボードの上の領域の半分より低いものだけ**(バーは帯であって中身ではない)—— キーボードを避けて上端まで縮んだ
+    /// 全幅の容器(SwiftUI の ScrollView 等)も下端が接するので、高さを見ないと中身が全部除外されて検出が効かなくなる
     static func elementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
         let bands = before.elements.filter {
             abs($0.frame.y + $0.frame.height - keyboard.y) <= 1 && $0.frame.width >= before.screen.width / 2
+                && $0.frame.height < keyboard.y / 2
         }.map(\.frame)
         let attached = Set(before.elements.filter { e in
             bands.contains { b in e.frame.y >= b.y - 1 && e.frame.y + e.frame.height <= b.y + b.height + 1 }

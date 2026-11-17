@@ -51,6 +51,17 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
                        ["#dialog"])
     }
 
+    /// キーボードを避けて上端まで縮んだ全幅の容器は帯ではない = 中の消えた要素を数える(帯として除くと検出が効かない)
+    func testShrunkContainerEndingAtTheKeyboardIsNotABand() {
+        let container = ElementInfo(ref: 5, type: "scrollView", identifier: "content", label: nil, value: nil, placeholder: nil,
+                                    enabled: true, frame: FTRect(x: 0, y: 100, width: 402, height: 460), depth: 1)
+        let before = snap([container, el("btn_save", y: 400)])
+        let after = snap([ElementInfo(ref: 5, type: "scrollView", identifier: "content", label: nil, value: nil, placeholder: nil,
+                                      enabled: true, frame: FTRect(x: 0, y: 100, width: 402, height: 774), depth: 1)])
+        XCTAssertEqual(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: before, after: after),
+                       ["#btn_save"])
+    }
+
     func testClauseStatesTheFactsAndThatTheTargetWasNotTouched() {
         let clause = StepExecutor.keyboardCloseChangedScreenClause(note: "closed the keyboard by tapping (25, 529) above the keyboard",
                                                                    gone: ["#field_prompt", "#btn_save"])

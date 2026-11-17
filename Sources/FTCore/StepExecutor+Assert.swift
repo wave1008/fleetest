@@ -268,9 +268,9 @@ extension StepExecutor {
     /// 上の場合の失敗文: 閉じても直らない(`.alert` が消える)ので「閉じろ」と言わない
     static func scopeIsTheModalHint(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> String? {
         guard scopeContainerIsInModal(step, snapshot) else { return nil }
-        return " (the scope's container is the modal in front of the screen itself (or inside it), and the target is not in it;"
-            + " what is behind the modal can never be inside it, and closing the modal removes the scope too —"
-            + " drop the scope to look behind it, or name something in the modal)"
+        return " (the scope's container is the modal in front of the screen itself (or inside it), and the target is not in it"
+            + " now; an element behind the modal can never be inside it, and closing the modal removes the scope too —"
+            + " if the target is behind the modal, drop the scope to look behind it)"
     }
 
     /// **要素が 0 個の木は「無い」の根拠にしない**(起動直後の木は要素 0 個で来ることがある。RN の `launchApp()` の 3ms 後の

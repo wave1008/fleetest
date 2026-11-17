@@ -1167,30 +1167,30 @@ public final class FTDriveCore {
         let isNegative = step.assert == "notExists"
             || (step.assert == "count" && step.expectedCount == 0)
         let succeeded: Bool
+        // 解決したと言えるのは**実際に一致した候補だけ**(`#ok || #okk` が #ok で通っても #okk は解決していない。
+        // 指紋で直した回は元のロケータが一致していない)。数えると後の notExist("#okk") の綴りの提案を黙って消す
+        let matched: [FlowLocator]
         switch status {
-        case .passed, .passedViaFallback, .healed: succeeded = true
-        case .failed, .skipped, .inconclusive: succeeded = false
+        case .passed: succeeded = true; matched = step.locator.map { [$0] } ?? []
+        case .passedViaFallback(let fallback): succeeded = true; matched = [fallback]
+        case .healed: succeeded = true; matched = []
+        case .failed, .skipped, .inconclusive: succeeded = false; matched = []
         }
-        // **スコープの容器の id は、肯定の手順が通った回に解決している**(容器が木に無ければスコープ付きのロケータは何にも一致しない)。
-        // 数えないと `tap("#list_rows >> #row_03")` が通った後の `notExist("#list_rows")` に「一度も解決しなかった・綴りを確かめろ」と
-        // 提案した(59周目 im4 F1)。否定は容器が無くても通るので数えない
+        // **スコープの容器の id と、スコープ付きの対象の id も、肯定の手順が通った回に解決している**(容器が木に無ければスコープ付きの
+        // ロケータは何にも一致しない)。数えないと `tap("#list_rows >> #row_03")` が通った後の `notExist("#list_rows")` に「一度も
+        // 解決しなかった・綴りを確かめろ」と提案した(59周目 im4 F1・60周目 imax F6)。否定は容器が無くても通るので数えない
         if succeeded, !isNegative {
-            for id in locators.flatMap({ $0.scope ?? [] }).compactMap(\.id) {
-                resolvedIDs.insert(id)
-                negativeOnlyIDs[id] = nil
-            }
-            // スコープ付きの対象の id も同じ(`tap(".alert >> #btn_dialog_ok")` が通れば #btn_dialog_ok は実在して解決している。60周目 imax F6)。
-            // 否定は「容器の外にあること」の検証でも通るので、数えるのは肯定が通った回だけ
-            for id in locators.filter({ !($0.scope?.isEmpty ?? true) }).compactMap(\.id) {
-                resolvedIDs.insert(id)
-                negativeOnlyIDs[id] = nil
+            for locator in matched {
+                for id in (locator.scope ?? []).compactMap(\.id) + [locator.id].compactMap({ $0 }) {
+                    resolvedIDs.insert(id)
+                    negativeOnlyIDs[id] = nil
+                }
             }
         }
         guard !ids.isEmpty else { return }
         for id in ids {
             if succeeded, !isNegative {
-                resolvedIDs.insert(id)
-                negativeOnlyIDs[id] = nil
+                continue
             } else if isNegative, succeeded, !behindModal, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
                 // 手前のダイアログが裏を隠した木で通った否定(注記 absence-behind-modal)は、綴りではなくダイアログが理由 = 積まない
                 // **通った否定だけ**を積む(提案の前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で読まなかった)に

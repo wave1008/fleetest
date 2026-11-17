@@ -748,6 +748,9 @@ extension StepExecutor {
                     healedStep = healed
                     healedByFingerprint = true
                     status = .healed(parsed.primary)
+                } else {
+                    // 書き戻さない理由を注記に残す(無いと緑の run で「直した」とも「書けない」とも見えず、ドリフトが黙って残る)
+                    note(.healUnwritable, into: &notes)
                 }
             } else {
                 // **操作は続けるが healedStep は立てない**(healUnwritable と同じ規律)。
@@ -789,6 +792,7 @@ extension StepExecutor {
                 case .closedChangedScreen(let closedNote, let gone, let after):
                     // 閉じるタップで画面の要素が消えた(ダイアログのバリア等に当たった疑い)= 対象は撃っていない
                     hintSnapshot = after
+                    closedNoteForClause = closedNote
                     keyboardClause = Self.keyboardCloseChangedScreenClause(note: closedNote, gone: gone)
                 case .notClosed(let tried) where Self.targetWasInTreeBeforeKeyboard(step, lastKeyboardFreeSnapshot):
                     // **向き(上か下か)を言わない**: キーボードを避けて画面がずれる・縮むと、要素はキーボードの上へ押し出されても
@@ -798,6 +802,11 @@ extension StepExecutor {
                     hintSnapshot = snapshot
                     keyboardKeptUp = true
                     keyboardClause = Self.keyboardNotClosedClause(tried)
+                case .notClosed(let tried):
+                    // 閉じられなかった事実だけ言う(キーボードの出る前の木が無い・そこにも居なかった = 帰属は言わない)。
+                    // default の「閉じてから撃ち直せ」(keyboardResizedHint)は閉じる試みが失敗した事実と矛盾する
+                    hintSnapshot = snapshot
+                    keyboardClause = " (the soft keyboard is up; closing it without side effects failed: \(tried))"
                 default:
                     hintSnapshot = snapshot
                     keyboardClause = Self.hasModalScope(snapshot) ? "" : Self.keyboardResizedHint(snapshot)
@@ -816,9 +825,8 @@ extension StepExecutor {
                 }
                 let reasonHint = await leftForegroundHint()
                     ?? (scopeHint.isEmpty ? nil : scopeHint)
-                    ?? (Self.scopeContainerIsInModal(step, hintSnapshot)
-                        ? Self.scopeIsTheModalHint(step, hintSnapshot)
-                        : Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) })
+                    ?? (Self.scopeIsTheModalHint(step, hintSnapshot) ?? Self.modalScopeHint(hintSnapshot))
+                        .map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
                     ?? ownDialogHint()
                 return StepOutcome(status: failed(
                     .notFound,
