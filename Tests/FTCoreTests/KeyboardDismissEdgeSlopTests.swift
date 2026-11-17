@@ -109,7 +109,7 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
                        "戻るボタンの余白の中を選んだ: (\(first.x), \(first.y))")
     }
 
-    /// 余白の中にしか空きが無ければ、余白を除かずに選び直す(候補を失うと Enter = 送信へ落ちる)
+    /// 余白の中にしか空きが無い画面: 余白の外の候補は空(呼び手が先に Done を探す)、余白を除かない候補は残る(Done も無ければこちら)
     func testFallsBackIntoTheSlopWhenNoOtherSpotIsFree() {
         // 全幅の押せない入れ物の上に、上下左右 8pt だけ空けて並んだ行(SwiftUI の Form の行が button で出る形)
         var elements = [el(1, "other", nil, screen, depth: 0)]
@@ -120,11 +120,21 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
             y += 48
             ref += 1
         }
-        let found = KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: [])
-        XCTAssertFalse(found.isEmpty, "余白の中の空きまで捨てて候補が空になった")
-        XCTAssertTrue(KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: [],
-                                                      controlSlop: KeyboardDismissPoint.controlSlopRects(elements)).isEmpty,
-                      "この形は余白の外に空きが無い前提")
+        XCTAssertTrue(KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: []).isEmpty)
+        XCTAssertFalse(KeyboardDismissPoint.candidatesIgnoringControlSlop(elements: elements, screen: screen, keyboard: keyboard,
+                                                                          overlays: []).isEmpty, "余白の中の空きまで捨てた")
+    }
+
+    /// 呼び手の順: 余白の外の空き → OS の入力補助バーの Done → 余白の中の空き(Done を飛ばして戻るボタンの隣を叩かない)
+    func testCallerTriesDoneBeforeSpotsInsideTheSlop() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+DirectActions.swift"), encoding: .utf8)
+        let body = try XCTUnwrap(src.components(separatedBy: "func closeKeyboardByTappingOutside(").dropFirst().first)
+        let outside = try XCTUnwrap(body.range(of: "KeyboardDismissPoint.candidates("))
+        let done = try XCTUnwrap(body.range(of: "KeyboardAccessoryDone.target("))
+        let inside = try XCTUnwrap(body.range(of: "KeyboardDismissPoint.candidatesIgnoringControlSlop("))
+        XCTAssertLessThan(outside.lowerBound, done.lowerBound)
+        XCTAssertLessThan(done.lowerBound, inside.lowerBound)
     }
 
     /// キーボードの子孫・無効な部品・大きさ0の枠は余白を持たない

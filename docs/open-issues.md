@@ -433,7 +433,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 出典: 60周目 ipad F1(iPad Air だけ 2/2・同じ run の iPad Pro は「nudged」で緑)・F2(両機 2/2)。キーボードでタブバーが押し上がり、送信が WebView の見える範囲の外に出て木から外れた。閉じようとしたタップ (73, 78) は「戻る」ボタンの 1pt 隣。hideKeyboard は背景のタップも Enter も効かず、iPad のキーボードの閉じるキーは使わない
 - 測った(11/17・iPad Air の Simulator・横向き 1180x820): WebView の見える範囲は (0,126 1180x210) で下端 336、「送信」(16,339) はその 3pt 下 = 見える範囲の外(XCUITest の木では ⚠️scroll-leftover)。Pro は寸法が違い端に残ったので寄せて押せた(Air だけ赤の差はこの 3pt)。キーボードを閉じれば WebView が伸びて届くが、WKWebView の欄は外側のタップでも Enter でも焦点を失わず閉じない(DSL で両機 2/2)。iPad のキーボードの右下に閉じるキーがあるが、XCUITest ブリッジはキーボードの部分木をキーごと木から落とす(`BridgeRouter+Snapshot.gather`)= 押す口が無い
-- 直した(11/17): 閉じるタップの点が戻るボタンの当たり判定の余白(枠の 1pt 右・12pt 下で戻るが押されホームへ遷移 = MCP の ft_hide_keyboard で再現)に落ちていた → 小さな押せる部品の周り全体を除く(`KeyboardDismissPoint.slopControlTypes`)。点は (172,78) へ移り画面は変わらない
+- 直した(11/17): 閉じるタップの点が戻るボタンの当たり判定の余白(枠の 1pt 右・12pt 下で戻るが押されホームへ遷移 = MCP の ft_hide_keyboard で再現)に落ちていた → ボタン類(`KeyboardDismissPoint.slopControlTypes`)の周りの余白(`controlHitSlop`)の外の空きを先に選び、無ければ OS の入力補助バーの Done、それも無ければ余白の中の空き、最後に Enter。点は (172,78) へ移り画面は変わらない
 - 決定(11/17 ユーザー・DR-187): 据え置き。iPad のキーボードの閉じるキーを押す口はブリッジに足さない(版上げ・全端末のランナーの作り直し・キーの見分け方の実測に対し、影響は横向きの iPad の WebView だけで縦向きで避けられる)。見直すのは横向きの iPad の WebView の利用者から要望が出たとき
 
 ### OI-236 Android の E2EY-CMP で、launch が「the app never came to the foreground」(500)で赤になるのに、失敗時の画面ではアプリが前面に居る(M1Max・1 run で 2 本 × 2 回)

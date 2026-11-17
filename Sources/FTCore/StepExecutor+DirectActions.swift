@@ -1090,7 +1090,7 @@ extension StepExecutor {
                                                       screen: before.screen)
             guard let frame = occlusion.frame ?? before.keyboardFrame else { return .notShown }
             keyboard = frame
-            let candidates = KeyboardDismissPoint.candidates(
+            var candidates = KeyboardDismissPoint.candidates(
                 elements: before.elements, screen: before.screen, keyboard: keyboard,
                 overlays: before.overlayWindowFrames ?? [])
             if candidates.isEmpty {
@@ -1101,6 +1101,10 @@ extension StepExecutor {
                     accessoryDone = done
                     break searching
                 }
+                // Done も無ければ、押せる部品の当たり判定の余白の中の空きを試す(Enter = 欄の確定操作より害が小さい)
+                candidates = KeyboardDismissPoint.candidatesIgnoringControlSlop(
+                    elements: before.elements, screen: before.screen, keyboard: keyboard,
+                    overlays: before.overlayWindowFrames ?? [])
             }
             var refusals: [String] = []
             for candidate in candidates.prefix(Self.keyboardDismissProbeLimit) {

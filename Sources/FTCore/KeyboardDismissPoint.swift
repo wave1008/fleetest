@@ -38,28 +38,30 @@ public enum KeyboardDismissPoint {
     /// 押せる部品の当たり判定の余白を持つ入れ物の型(子ではなく自身の枠。タブの間の隙間を空きと読まない)
     static let slopContainerTypes: Set<String> = ["tabBar", "toolbar"]
 
-    /// 押せる部品の当たり判定が、キーボードの縁から離れた場所でも枠の外へはみ出す幅(pt)。`edgeHitSlop`(縁の上側の実測)とは別の文脈の値。
+    /// 押せる部品の当たり判定が、キーボードの縁から離れた場所でも枠の外へはみ出す幅(pt)。`edgeHitSlop` とは別に持つ(片方を詰めても他方は動かさない)。
     /// **根拠**: E2E-iOS の WebView 画面(iPad の Simulator)で、戻るボタン #btn_back (16,48 56x62) の枠の 1pt 右 (73,78)(横向き)と
-    /// 12pt 下 (52,122)(縦向き)のタップが戻るボタンを押してホームへ遷移した。12pt を覆い、縁の実測(11pt で反応・23pt で反応しない)の間に収まる値。
-    /// 横・下へのはみ出しの上限は測っていない。**尽きたとき**(この余白の外に空きが無い)は余白を除かずに選び直す(`candidates`)= Enter へは落とさない
+    /// 12pt 下 (52,122)(縦向き)のタップが戻るボタンを押してホームへ遷移した = この文脈の実測は「12pt では反応する」だけ。反応しない距離は測っていない。
+    /// **尽きたとき**(この余白の外に空きが無い)は呼び手が OS の入力補助バーの Done を先に探し、無ければ余白の中の空き(`candidatesIgnoringControlSlop`)を試す
     static let controlHitSlop: Double = 16
 
-    /// **周り全体に当たり判定の余白(`controlHitSlop`)を持つ押せる部品の型**(叩くと動く・焦点が移る部品)。
-    /// **セル・clickable・テキストビュー・WebView・地図は入れない** —— 縦長・全幅の面で、余白を後回しにしても多くの画面で候補が余白の中だけになる
+    /// **周り全体に当たり判定の余白(`controlHitSlop`)を持つ押せる部品の型**(叩くと動く部品)。
+    /// **セル・clickable・テキストビュー・WebView・地図・文字の欄は入れない** —— 縦長・全幅の面や詰めて並ぶ欄で、多くの画面の空きが余白の中だけになる
     static let slopControlTypes: Set<String> = [
         "button", "link", "switch", "checkBox", "radioButton", "tab", "toggle", "segmentedControl", "stepper", "menuItem",
-        "textField", "secureTextField", "searchField", "slider",
     ]
 
-    /// 押せる部品の当たり判定の余白(`controlSlopRects`)の外の空きを先に選び、無ければ余白を除かずに選び直す
-    /// (余白の中しか空きの無い画面で候補を失うと、呼び手は Enter = 送信・改行へ落ちる。余白の中の空きを叩くほうが害が小さい)
+    /// 押せる部品の当たり判定の余白(`controlSlopRects`)の外の空き。空なら呼び手は OS の入力補助バーの Done を先に探し、
+    /// 無ければ `candidatesIgnoringControlSlop` を試す(余白の中の空きを叩くのは、副作用の無い手段が尽きてから = Enter の手前)
     public static func candidates(elements: [ElementInfo], screen: FTRect, keyboard: FTRect,
                                   overlays: [FTRect]) -> [Choice] {
-        let avoiding = candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: overlays,
-                                  controlSlop: controlSlopRects(elements))
-        return avoiding.isEmpty
-            ? candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: overlays, controlSlop: [])
-            : avoiding
+        candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: overlays,
+                   controlSlop: controlSlopRects(elements))
+    }
+
+    /// 押せる部品の余白を除かない空き(部品の枠の上とキーボードの縁の帯は除く)。`candidates` が空で Done も無いときだけ使う
+    public static func candidatesIgnoringControlSlop(elements: [ElementInfo], screen: FTRect, keyboard: FTRect,
+                                                     overlays: [FTRect]) -> [Choice] {
+        candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: overlays, controlSlop: [])
     }
 
     /// 周り全体に余白を持つ部品の枠を `controlHitSlop` だけ広げた矩形。無効な部品・大きさ0の枠・キーボードの子孫は除く
