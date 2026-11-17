@@ -100,15 +100,15 @@ Create the app profile and the run profile, using the app built in step 4.
 In project1, create the profiles for the sut-ec-mobile apps.
 
 iOS app profile
-App location: ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
-App display name: SUT Store
+Display name: SUT Store
 App ID: com.sutec.mobile.ios
+App package location: ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
 2 Simulators
 
 Android app profile (if there is an Android app)
-App location: ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
-App display name: SUT Store
+Display name: SUT Store
 App ID: com.sutec.mobile.android
+App package location: ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 2 Emulators
 ```
 

@@ -100,15 +100,15 @@ bash ../sut-ec-mobile/fleetest/build.sh
 project1 に、sut-ec-mobile のアプリのプロファイルを作成して。
 
 iOSアプリのプロファイル
-アプリの場所： ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
-アプリの表示名： SUT Store
-アプリ ID: com.sutec.mobile.ios
+表示名： SUT Store
+アプリID: com.sutec.mobile.ios
+アプリの配布場所： ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
 Simulator 2台
 
 Androidアプリのプロファイル　（Androidアプリがある場合）
-アプリの場所： ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
-アプリの表示名： SUT Store
-アプリ ID: com.sutec.mobile.android
+表示名： SUT Store
+アプリID: com.sutec.mobile.android
+アプリの配布場所： ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 Emulator 2台
 ```
 
