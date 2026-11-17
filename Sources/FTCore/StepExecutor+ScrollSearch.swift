@@ -1015,6 +1015,7 @@ extension StepExecutor {
         // (1周で切らないのは、遅れて描画される行を「動かなかった」と誤断しないため)
         var swipes = 0
         var unmovedRounds = 0
+        var swipesAtLastTraceEntry = -1
         // 最後に中身が動いた時刻。打ち切りの猶予(edgeClaimGraceAfterMove)の起点
         var lastMoveAt: ContinuousClock.Instant?
         // 打ち切りの理由文を分けるためだけの記録(ScrollSearchResult.contentEverMoved 参照)
@@ -1211,9 +1212,14 @@ extension StepExecutor {
                 traced = narrowed.match
                 if narrowed.match == nil { noteSearchTraceEntry(attempt: attempt, outside: element) }
             }
-            // 待ちの読み直し(同じ回が続く)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)
+            // 待ちの読み直し(払わずに同じ回を読み直す)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)。
+            // **間に払いがあった回はまとめない** —— 動かなかった払いは同じ回の番号で払い直す(`ScrollSearchBudget`)ので、まとめると
+            // 失敗文の本数(swipes)より記録が少なく見えた
             let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
-            if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) { scrollSearchTrace.append(entry + travelTrace) }
+            if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) || swipes != swipesAtLastTraceEntry {
+                scrollSearchTrace.append(entry + travelTrace)
+            }
+            swipesAtLastTraceEntry = swipes
             if let (element, fallback) = traced {
                 // **見つけただけでは足りない**: 画面の縁で見切れている要素は、フレームワークに
                 // よっては frame がクランプされて**タップが外れる**(Compose iOS の既知の上流制約)。
@@ -1571,7 +1577,7 @@ extension StepExecutor {
                                    ?? ContainerGeometry.uniqueScrollContainer(in: confirmed.snapshot, vertical: vertical)?.frame
                                    ?? confirmed.snapshot.screen) {
                             keyboardRetryTried = true
-                            if case .closed(let closedNote, let after) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+                            if case .closed(let closedNote, let after, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
                                 if pendingScrollFrameNote == nil {
                                     pendingScrollFrameNote = "nothing moved while the soft keyboard covered the scroll area, so the search \(closedNote)"
                                         + " and started over"
@@ -1613,6 +1619,8 @@ extension StepExecutor {
                                     previousSnapshot = after
                                     continue
                                 }
+                                // 払った1本は swipes に数えたので記録にも残す(残さないと失敗文の本数と記録が食い違う)
+                                scrollSearchTrace.append("swipe inside the only scroll area \(Self.traceRectText(only.frame)): nothing moved")
                             }
                         }
                         // 打ち切り確定時点(confirmed)で引き直す —— ループ先頭の effectiveKeyboard は

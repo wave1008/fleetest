@@ -968,7 +968,7 @@ extension StepExecutor {
         case .notShown:
             hideKeyboardFoundNoKeyboard = true
             return StepOutcome(status: .passed)
-        case .closed(let note, _): return StepOutcome(status: .passed, driverFallback: note)
+        case .closed(let note, _, _): return StepOutcome(status: .passed, driverFallback: note)
         case .notClosed(let what): tried = what
         }
         guard hideKeyboardFallsBackToEnter else {
@@ -1019,7 +1019,9 @@ extension StepExecutor {
     /// キーボードを閉じた結果。`after` は閉じたのを確かめた木(主ドライバ)
     enum KeyboardClose {
         case notShown
-        case closed(note: String, after: SnapshotResponse)
+        /// `touchedScreen`: 画面を叩いて閉じたか(キーボードの外の空き・ツールバーの完了)。戻るキー・resign は false =
+        /// 画面の要素に触れていないので、閉じた後に消えた要素は閉じ方のせいではない(焦点の飾りが消えるだけ)
+        case closed(note: String, after: SnapshotResponse, touchedScreen: Bool)
         /// 閉じなかった。値は試したこと(失敗文・Enter の注記に入れる)
         case notClosed(String)
     }
@@ -1039,7 +1041,7 @@ extension StepExecutor {
         phase.actionMs += Self.ms(clock.now - start)
         let after = try await awaitKeyboardClosed(within: step.timeout ?? tunables.defaultTimeout, phase: &phase)
         guard !KeyboardWait.isShown(after) else { return .notClosed("hiding the keyboard (back key) did not close it") }
-        return .closed(note: "closed the keyboard (back key)", after: after)
+        return .closed(note: "closed the keyboard (back key)", after: after, touchedScreen: false)
     }
 
     /// iOS の RN: in-app ブリッジの /hidekeyboard が焦点の RN の入力欄(RCTUITextField / RCTUITextView)を resign して閉じる
@@ -1058,7 +1060,7 @@ extension StepExecutor {
         let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
         guard !KeyboardWait.isShown(after) else { return nil }
         return .closed(note: "closed the keyboard by resigning the focused React Native text input (no Enter sent)",
-                       after: after)
+                       after: after, touchedScreen: false)
     }
 
     /// iOS: キーボードの上の空きを叩いて閉じる(手順は `executeIOSHideKeyboard` の doc。Enter へは進まない)
@@ -1148,7 +1150,7 @@ extension StepExecutor {
                     notes.append("\(vanished.count) element(s) that were above the keyboard are gone after that tap"
                         + " (\(named.joined(separator: ", "))) — check that it did not trigger something")
                 }
-                return .closed(note: notes.joined(separator: " / "), after: after)
+                return .closed(note: notes.joined(separator: " / "), after: after, touchedScreen: true)
             }
             tried.append("tapping \(place) did not close it")
         } else if accessoryDone == nil {
@@ -1179,7 +1181,7 @@ extension StepExecutor {
             if !KeyboardWait.isShown(after) {
                 let why = tried.isEmpty ? lastReason : tried.joined(separator: "; ")
                 return .closed(note: "closed the keyboard by tapping the Done button of its toolbar at (\(Int(x)), \(Int(y)))"
-                    + (why.isEmpty ? "" : " (\(why))"), after: after)
+                    + (why.isEmpty ? "" : " (\(why))"), after: after, touchedScreen: true)
             }
             tried.append("tapping the Done button of the keyboard's toolbar did not close it")
         }

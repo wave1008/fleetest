@@ -86,7 +86,7 @@ extension StepExecutor {
         if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
             notes.append(Self.keyboardStayedUpNote(why))
         }
-        if case .closed(let closedNote, _)? = keyboardCloseOutcome {
+        if case .closed(let closedNote, _, _)? = keyboardCloseOutcome {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)

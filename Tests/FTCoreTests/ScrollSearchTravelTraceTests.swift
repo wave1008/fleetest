@@ -71,4 +71,21 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
         XCTAssertNotNil(message.range(of: #"round 1: not in the tree \(moved [1-9][0-9]* of 300, content went up\)"#, options: .regularExpression),
                         message)
     }
+
+    /// 何も動かない画面: 動かなかった払いは同じ回の番号で払い直し、唯一の容器の中でも1本払う。どの払いも記録に残し、
+    /// 失敗文の本数と round 0(払う前の読み)より後の記録の数が一致する
+    func testEverySwipeTheMessageCountsHasATraceEntry() async throws {
+        let still = Array(repeating: screens(sameIDs: true)[0], count: 30)
+        let step = FlowStep(action: "tap", locator: FlowLocator(id: "missing"), direction: "up")
+        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: still)
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(),
+                                         uiFramework: .swiftUI).execute(step)
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        let count = try XCTUnwrap(message.range(of: #"after (\d+) scroll"#, options: .regularExpression)
+            .map { Int(message[$0].split(separator: " ")[1])! })
+        let trace = try XCTUnwrap(message.components(separatedBy: "[search: ").last?.dropLast())
+        let entries = trace.components(separatedBy: "; ")
+        XCTAssertGreaterThan(count, 1, message)
+        XCTAssertEqual(entries.count - 1, count, message)
+    }
 }

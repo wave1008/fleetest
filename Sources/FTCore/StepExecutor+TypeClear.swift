@@ -588,7 +588,7 @@ extension StepExecutor {
                 + " next field), so it is not pressed automatically: call pressEnter() before this step if that is"
                 + " intended")
         case .notShown: note = "the keyboard had closed by itself before reaching the target"
-        case .closed(let closedNote, _): note = closedNote + " — the target was under it"
+        case .closed(let closedNote, _, _): note = closedNote + " — the target was under it"
         }
         let clock = ContinuousClock()
         let start = clock.now
@@ -630,20 +630,22 @@ extension StepExecutor {
         let closed = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase)
         // 閉じる試みの結果は捨てない: 失敗文が「閉じた・閉じられなかった」を事実で言う(閉じてから失敗したのに「閉じろ」と言わない)
         let note: String
+        let touchedScreen: Bool
         switch closed {
         case .notShown: return .notAttempted
         case .notClosed(let tried): return .notClosed(tried)
-        case .closed(let closedNote, _): note = closedNote
+        case .closed(let closedNote, _, let touched): note = closedNote; touchedScreen = touched
         }
         let clock = ContinuousClock()
         let start = clock.now
         let after = try await freshSnapshot(.afterOwnMove)
         phase.snapshotMs += Self.ms(clock.now - start)
         // 閉じる tap の後にキーボードの上の要素が消えていたら、tap が画面を変えた(ダイアログの外の幕を叩いて閉じた等)。
-        // 対象が現れても、利用者が書いたのはその画面への操作ではないので撃たない
+        // 対象が現れても、利用者が書いたのはその画面への操作ではないので撃たない。**画面を叩かずに閉じた回(resign)は見ない** ——
+        // 消えるのは焦点の飾り(RN paper の欄の下線)だけで、「That tap」と言って画面が閉じられたかもと案内していた
         let keyboardRect = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                      screen: snapshot.screen).frame ?? snapshot.keyboardFrame
-        if !isAndroid, let keyboardRect {
+        if !isAndroid, touchedScreen, let keyboardRect {
             let gone = Self.elementsGoneAfterKeyboardClose(keyboard: keyboardRect, before: snapshot, after: after)
             if !gone.isEmpty { return .closedChangedScreen(note: note, gone: gone, snapshot: after) }
         }

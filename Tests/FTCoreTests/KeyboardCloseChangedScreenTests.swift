@@ -89,8 +89,24 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
         // 条件ごと固定する(`if false && …` のように条件を殺す変異を、文字列の順だけでは見逃した)
         let changed = try XCTUnwrap(body.range(of: "if !gone.isEmpty { return .closedChangedScreen("),
                                     "消えた要素があれば撃たずに返す条件が見当たらない")
-        XCTAssertTrue(body.contains("if !isAndroid, let keyboardRect {"), "iOS の閉じるタップの後の確かめが外れた")
+        XCTAssertTrue(body.contains("if !isAndroid, touchedScreen, let keyboardRect {"),
+                      "iOS の閉じるタップの後の確かめが外れた(画面を叩かずに閉じた回 = resign は見ない)")
         let resolve = try XCTUnwrap(body.range(of: "LocatorResolver.resolve(step: step, in: after)"))
         XCTAssertLessThan(changed.lowerBound, resolve.lowerBound)
+    }
+
+    /// 閉じ方の申告: 画面を叩いた閉じ方だけ touchedScreen = true(resign の後に消えた欄の下線を「That tap」で画面の変化と言った)
+    func testOnlyTapClosesClaimToHaveTouchedTheScreen() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+DirectActions.swift")
+        let src = try String(contentsOf: url, encoding: .utf8)
+        func closes(in function: String) throws -> [String] {
+            let entry = try XCTUnwrap(src.range(of: "func \(function)("))
+            let body = String(src[entry.upperBound...].components(separatedBy: "\n    func ").first ?? "")
+            return body.components(separatedBy: "touchedScreen: ").dropFirst().map { String($0.prefix(5)) }
+        }
+        XCTAssertEqual(try closes(in: "closeReactNativeKeyboardByResign"), ["false"])
+        XCTAssertEqual(try closes(in: "closeKeyboardWithoutSideEffects"), ["false"], "Android の戻るキー")
+        XCTAssertEqual(try closes(in: "closeKeyboardByTappingOutside"), ["true)", "true)"])
     }
 }

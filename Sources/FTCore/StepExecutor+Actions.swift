@@ -935,7 +935,7 @@ extension StepExecutor {
         if onlyDismissesKeyboard, case .notClosed(let why)? = keyboardCloseOutcome {
             driverFallback = Self.joinNotes(driverFallback, Self.keyboardStayedUpNote(why))
         }
-        if case .closed(let closedNote, _)? = keyboardCloseOutcome {
+        if case .closed(let closedNote, _, _)? = keyboardCloseOutcome {
             let start = ContinuousClock().now
             let after = try await freshSnapshot(.afterOwnMove)
             phase.snapshotMs += Self.ms(ContinuousClock().now - start)
@@ -1482,7 +1482,7 @@ extension StepExecutor {
                     var closedTree: SnapshotResponse?
                     if relocated == nil, KeyboardWait.isShown(current) {
                         do {
-                            if case .closed(_, let after) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
+                            if case .closed(_, let after, _) = try await closeKeyboardWithoutSideEffects(step: step, phase: &phase) {
                                 keyboardClosed = true
                                 if !switchedToFallbackDriver { closedTree = after }
                             }
