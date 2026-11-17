@@ -1,0 +1,74 @@
+{
+  "id": "r60-imax-F5",
+  "finding": "入力つきダイアログを開いたままダイアログの裏のボタンを指した tap で、キーボードを閉じる tap がバリアに当たってダイアログを閉じ、そのまま裏のボタンを押して ✅(60周目 imax F5 12/12。直し cd0ce14b9 = 閉じる tap の後にキーボードの上の要素が消えたら対象を撃たずに赤)",
+  "platform": "ios",
+  "rounds": 3,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.flutter"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "$killApp",
+      {
+        "bundleId": "com.ftester.e2ex.flutter",
+        "seconds": 0.5
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ex.flutter"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_dialogs' scroll: .down; tap '#btn_prompt'; type '#field_prompt' 'qq'"
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "裏の全画面ボタンへの tap(DSL と同じ実行機)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#btn_fullscreen' waitSeconds: 2"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 1.5,
+      "expect": [
+        "txt_dialogs_result"
+      ]
+    },
+    {
+      "name": "裏のアラートボタンへの tap",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "tap '#btn_alert' waitSeconds: 2"
+          }
+        ]
+      ],
+      "allowErrors": true,
+      "settleSeconds": 1.5,
+      "expect": [
+        "txt_dialogs_result"
+      ],
+      "reject": [
+        "キャンセル"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

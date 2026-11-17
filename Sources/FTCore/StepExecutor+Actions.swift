@@ -784,15 +784,17 @@ extension StepExecutor {
                 var keyboardClause: String
                 var keyboardKeptUp = false
                 var closedNoteForClause: String?
+                var closeChangedScreen = false
                 switch retry {
                 case .closedButNotFound(let closedNote, let after):
                     hintSnapshot = after
                     closedNoteForClause = closedNote
                     keyboardClause = Self.keyboardClosedNotFoundClause(closedNote)
                 case .closedChangedScreen(let closedNote, let gone, let after):
-                    // 閉じるタップで画面の要素が消えた(ダイアログのバリア等に当たった疑い)= 対象は撃っていない
+                    // 閉じるタップで画面の要素が消えた(ダイアログのバリア等に当たった疑い)= 対象は撃っていない。
+                    // この節が理由そのもの = 下で scope の案内に差し替えない(容器ごと閉じた回に「scope を外せ」と言うと裏を押させる)
                     hintSnapshot = after
-                    closedNoteForClause = closedNote
+                    closeChangedScreen = true
                     keyboardClause = Self.keyboardCloseChangedScreenClause(note: closedNote, gone: gone)
                 case .notClosed(let tried) where Self.targetWasInTreeBeforeKeyboard(step, lastKeyboardFreeSnapshot):
                     // **向き(上か下か)を言わない**: キーボードを避けて画面がずれる・縮むと、要素はキーボードの上へ押し出されても
@@ -818,7 +820,7 @@ extension StepExecutor {
                 // 別のアプリの木なので、容器の判定より先に言う。
                 // モーダルの中にも送れる一覧があれば、対象はモーダルの「裏」でなく「中」の送りの先かもしれない = 送りの案内も添える
                 // (待ちの案内は添えない。E2EX-iOS のボトムシートの行で「閉じろ」だけを言っていた = 56周目 iultra F1)
-                let scopeHint = Self.scopeReasonHint(step, hintSnapshot.elements, isAndroid: isAndroid)
+                let scopeHint = closeChangedScreen ? "" : Self.scopeReasonHint(step, hintSnapshot.elements, isAndroid: isAndroid)
                 // スコープの容器が無いと分かっているときは、閉じた後の節が「対象が画面に無い」と言わない(対象は木に居る = 自己矛盾)
                 if let closedNote = closedNoteForClause, !scopeHint.isEmpty {
                     keyboardClause = " (the soft keyboard was up: \(closedNote))"
@@ -2453,13 +2455,17 @@ extension StepExecutor {
                              _ body: (AppDriver) async throws -> Void) async throws -> Bool {
         let clock = ContinuousClock()
         let start = clock.now
+        // 届いた印(`gestureDeliveredThisStep`)を立てる: 立てないと、届いた後の読みの失敗が「届いていない」と記録され、
+        // 撃ち直してよい側に数えられる(DR-136)。swipeWithFallback / 座標の dragWithFallback と同じ
         do {
             try await body(driver)
+            gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             return false
         } catch {
             guard DriverError.isBridgeIncapable(error), let td = typeDriver else { throw error }
             try await body(td)
+            gestureDeliveredThisStep = true
             phase.actionMs += Self.ms(clock.now - start)
             return true
         }

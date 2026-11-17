@@ -1361,13 +1361,7 @@ public final class AndroidDriver: AppDriver {
         // 画面の大きさが分からないとき(snapshot 前)は ScrollGeometry が nil を返し、
         // 呼び手は通常の /swipe へ落ちる。**ここで別途ガードしない**(同じ判定を2箇所に置くと、
         // 変異テストで「殺せない条件」として残るだけで何も守らない)
-        let kind: FlickKind
-        switch direction {
-        case .up: kind = .centerToTop
-        case .down: kind = .centerToBottom
-        case .left: kind = .centerToLeft
-        case .right: kind = .centerToRight
-        }
+        let kind = FlickKind.edge(for: direction)
         return ScrollGeometry.flickPath(
             container: screen, viewport: screen, kind: kind,
             startMarginRatio: FTScrollDefaults.startMarginRatio(

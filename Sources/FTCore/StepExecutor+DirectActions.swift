@@ -179,16 +179,6 @@ extension StepExecutor {
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
     }
 
-    /// 指の向き → 端送りのストロークの種類(`AndroidDriver.edgeStroke` と同じ写像)
-    static func edgeFlickKind(_ direction: FTSwipeDirection) -> FlickKind {
-        switch direction {
-        case .up: return .centerToTop
-        case .down: return .centerToBottom
-        case .left: return .centerToLeft
-        case .right: return .centerToRight
-        }
-    }
-
     // 端まで送る(Shirates の scrollToBottom 等)。**画面が変化しなくなったら端**とみなす。
     // 比較は**静止してから**行う(フリングの減速中に撮ると動いていないように見える)。
     // さらに **2 回続けて変化なし**を条件にする — Android では次のスワイプがフリングの
@@ -358,9 +348,13 @@ extension StepExecutor {
             if isAndroid, let element = scrollingElement,
                Self.rowsRunAgainstAxis(of: element, in: settled.snapshot, vertical: vertical),
                let stroke = path ?? ScrollGeometry.flickPath(
-                    container: element.frame, viewport: settled.snapshot.screen, kind: Self.edgeFlickKind(direction),
+                    container: element.frame, viewport: settled.snapshot.screen, kind: FlickKind.edge(for: direction),
                     startMarginRatio: FTScrollDefaults.startMarginRatio(intent: .gesture, vertical: vertical)) {
-                _ = try await dragWithFallback(path: stroke, durationSeconds: FlowStep.defaultFlickDurationSeconds, phase: &phase)
+                let viaTypeDriver = try await dragWithFallback(path: stroke, durationSeconds: FlowStep.defaultFlickDurationSeconds,
+                                                               phase: &phase)
+                // フリングは慣性を残す = 次のステップが吸収する(swipeWithFallback と同じ印)
+                swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: viaTypeDriver)
+                swipeInertiaDirection = direction
                 sentSwipes += 1
                 continue
             }

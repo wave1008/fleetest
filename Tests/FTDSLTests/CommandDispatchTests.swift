@@ -389,7 +389,9 @@ final class CommandDispatchTests: XCTestCase {
         viaFallback.fallbacks = [FlowLocator(id: "second")]
         core.trackIDResolution(step: viaFallback, status: .passedViaFallback(FlowLocator(id: "second")),
                                description: "tap", behindModal: false)
-        for id in ["ok", "okk", "btn_old", "second"] {
+        core.trackIDResolution(step: FlowStep(action: "tap", locator: FlowLocator(id: "fp_old")), status: .passed,
+                               description: "tap", behindModal: false, resolvedByFingerprint: true)
+        for id in ["ok", "okk", "btn_old", "btn_new", "second", "fp_old"] {
             core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: id)), status: .passed,
                                    description: "notExist", behindModal: false)
         }
@@ -399,6 +401,8 @@ final class CommandDispatchTests: XCTestCase {
         XCTAssertFalse(messages.contains { $0.contains("`#second` never resolved") }, "\(messages)")
         XCTAssertTrue(messages.contains { $0.contains("`#okk` never resolved") }, "\(messages)")
         XCTAssertTrue(messages.contains { $0.contains("`#btn_old` never resolved") }, "\(messages)")
+        XCTAssertFalse(messages.contains { $0.contains("`#btn_new` never resolved") }, "直した先は一致している: \(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#fp_old` never resolved") }, "指紋で掴んだ回の元の id: \(messages)")
     }
 
     /// スコープ付きの肯定が通ったら対象の id も解決に数える(60周目 imax F6)。スコープ付きの否定は数えない

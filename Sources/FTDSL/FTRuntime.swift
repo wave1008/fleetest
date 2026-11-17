@@ -971,7 +971,8 @@ public final class FTDriveCore {
             recordStep(description: description + "(\(StepNote.heldValue.text))", status: .passed,
                        file: filePath, line: Int(line), durationMs: 0,
                        notes: [.heldValue], command: command)
-            trackIDResolution(step: step, status: .passed, description: description, behindModal: false)
+            // id の解決は数えない: 掴んだ要素を返した select が一致した候補を数え済み(ここで .passed を渡すと
+            // `select("#ok || #okk")` が #okk で掴んだ値に #ok を数える)
             noteAssertionUnlessSkipped(.passed)
             // 掴んだ値で済ませた検証は画素を見ていない(描画崩壊の確かめの義務に数える)
             executor.noteTreeReadCheck(assert, step: step, status: .passed, afterExecution: false)
@@ -1109,8 +1110,10 @@ public final class FTDriveCore {
             }
         }
 
+        // 指紋で掴んだが書き戻せなかった回(注記 heal-fingerprint-match)は .passed のまま来る = 元のロケータは一致していない
         trackIDResolution(step: step, status: status, description: description,
-                          behindModal: outcome?.notes.contains(.absenceBehindModal) == true)
+                          behindModal: outcome?.notes.contains(.absenceBehindModal) == true,
+                          resolvedByFingerprint: outcome?.notes.contains(.healFingerprintMatch) == true)
         trackCheckedObservation(step: step, status: status, outcome: outcome,
                                 selectorText: selectorText, description: description)
 
@@ -1159,7 +1162,8 @@ public final class FTDriveCore {
 
     /// `#id` が「解決できた」のか「否定側でしか使われていない」のかを覚える。
     /// notExist / countIs 0 は要素が**無い**ことで成功するので、解決の証拠にはならない
-    func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String, behindModal: Bool) {
+    func trackIDResolution(step: FlowStep, status: StepResult.Status, description: String, behindModal: Bool,
+                           resolvedByFingerprint: Bool = false) {
         // スコープ付き(`#容器 >> #id`)の否定は「容器の外にあること」の検証であり、
         // id が実在しても解決しない。typo 検出の対象から外す(誤検知になるため)
         let locators = ([step.locator] + (step.fallbacks ?? [])).compactMap { $0 }
@@ -1168,17 +1172,18 @@ public final class FTDriveCore {
             || (step.assert == "count" && step.expectedCount == 0)
         let succeeded: Bool
         // 解決したと言えるのは**実際に一致した候補だけ**(`#ok || #okk` が #ok で通っても #okk は解決していない。
-        // 指紋で直した回は元のロケータが一致していない)。数えると後の notExist("#okk") の綴りの提案を黙って消す
+        // 指紋で掴んだ回は元のロケータが一致していない = 直した先だけ数える。書き戻せなかった回は .passed で来るので
+        // `resolvedByFingerprint` で外す)。数えると後の notExist("#okk") の綴りの提案を黙って消す
         let matched: [FlowLocator]
         switch status {
-        case .passed: succeeded = true; matched = step.locator.map { [$0] } ?? []
+        case .passed: succeeded = true; matched = resolvedByFingerprint ? [] : (step.locator.map { [$0] } ?? [])
         case .passedViaFallback(let fallback): succeeded = true; matched = [fallback]
-        case .healed: succeeded = true; matched = []
+        case .healed(let healed): succeeded = true; matched = [healed]
         case .failed, .skipped, .inconclusive: succeeded = false; matched = []
         }
         // **スコープの容器の id と、スコープ付きの対象の id も、肯定の手順が通った回に解決している**(容器が木に無ければスコープ付きの
         // ロケータは何にも一致しない)。数えないと `tap("#list_rows >> #row_03")` が通った後の `notExist("#list_rows")` に「一度も
-        // 解決しなかった・綴りを確かめろ」と提案した(59周目 im4 F1・60周目 imax F6)。否定は容器が無くても通るので数えない
+        // 解決しなかった・綴りを確かめろ」と提案した。否定は容器が無くても通るので数えない
         if succeeded, !isNegative {
             for locator in matched {
                 for id in (locator.scope ?? []).compactMap(\.id) + [locator.id].compactMap({ $0 }) {
@@ -1189,9 +1194,7 @@ public final class FTDriveCore {
         }
         guard !ids.isEmpty else { return }
         for id in ids {
-            if succeeded, !isNegative {
-                continue
-            } else if isNegative, succeeded, !behindModal, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
+            if isNegative, succeeded, !behindModal, negativeOnlyIDs[id] == nil, !resolvedIDs.contains(id) {
                 // 手前のダイアログが裏を隠した木で通った否定(注記 absence-behind-modal)は、綴りではなくダイアログが理由 = 積まない
                 // **通った否定だけ**を積む(提案の前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で読まなかった)に
                 // 「綴りを確かめろ」と言うと事実と逆になった(16周目 im4 F2・22周目 iultra F1)

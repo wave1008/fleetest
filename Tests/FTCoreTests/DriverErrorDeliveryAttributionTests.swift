@@ -52,5 +52,11 @@ final class DriverErrorDeliveryAttributionTests: XCTestCase {
         let settle = try source("Sources/FTCore/StepExecutor+Settle.swift")
         XCTAssertEqual(settle.components(separatedBy: "gestureDeliveredThisStep = true").count - 1, 6,
                        "dragWithFallback の3経路 + swipeWithFallback の3経路")
+        // 座標の path ドラッグ・ダブルタップ・ピンチ・長押しが通る共通の経路(主ドライバ・typeDriver の2経路)
+        let actions = try source("Sources/FTCore/StepExecutor+Actions.swift")
+        let body = try XCTUnwrap(actions.components(separatedBy: "func gestureWithFallback(").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first)
+        XCTAssertEqual(body.components(separatedBy: "gestureDeliveredThisStep = true").count - 1, 2,
+                       "gestureWithFallback の主ドライバ・typeDriver の2経路")
     }
 }

@@ -1,0 +1,94 @@
+{
+  "id": "r60-amax-F2",
+  "finding": "RN の Android の反転チャット(FlatList inverted)で scrollToTop / scrollToBottom が一覧を動かさないまま ✅(60周目 amax F2 12/12。直し 041faa5e9 = 行が逆順の容器では申告で端と決めず、a11y の送りでなく容器の中のストロークで払う)",
+  "platform": "android",
+  "rounds": 3,
+  "setup": [
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.rn"
+      }
+    ]
+  ],
+  "reset": [
+    [
+      "$adb",
+      {
+        "args": [
+          "shell",
+          "am",
+          "force-stop",
+          "com.ftester.e2ey.rn"
+        ],
+        "seconds": 0.3
+      }
+    ],
+    [
+      "ft_launch",
+      {
+        "bundleId": "com.ftester.e2ey.rn"
+      }
+    ],
+    [
+      "ft_batch",
+      {
+        "steps": "tap '#nav_chat' scroll: .down"
+      }
+    ]
+  ],
+  "resetSeconds": 0.5,
+  "forms": [
+    {
+      "name": "scrollToTop(scrollFrame あり・開いた直後 = 最新の端から)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollToTop scrollFrame: '#list_chat'"
+          }
+        ]
+      ],
+      "settleSeconds": 1.5,
+      "expect": [
+        "at_bottom=false",
+        "msg_00"
+      ]
+    },
+    {
+      "name": "scrollToTop(scrollFrame なし)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollToTop"
+          }
+        ]
+      ],
+      "settleSeconds": 1.5,
+      "expect": [
+        "at_bottom=false",
+        "msg_00"
+      ]
+    },
+    {
+      "name": "過去の端から scrollToBottom(scrollFrame あり)",
+      "steps": [
+        [
+          "ft_batch",
+          {
+            "steps": "scrollToTop scrollFrame: '#list_chat'; scrollToBottom scrollFrame: '#list_chat'"
+          }
+        ]
+      ],
+      "settleSeconds": 1.5,
+      "expect": [
+        "at_bottom=true"
+      ],
+      "reject": [
+        "at_bottom=false"
+      ]
+    }
+  ],
+  "redConfirmed": true
+}

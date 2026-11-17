@@ -62,6 +62,16 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
                        ["#btn_save"])
     }
 
+    /// キーボードの上に載ったボトムシート(焦点の欄を含む・低い)も帯ではない = 閉じる tap で閉じたら中身を数える
+    func testSheetRestingOnTheKeyboardWithTheFocusedFieldIsNotABand() {
+        let sheet = ElementInfo(ref: 6, type: "other", identifier: "sheet", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 340, width: 402, height: 220), depth: 1)
+        let field = ElementInfo(ref: 7, type: "textField", identifier: "sheet_field", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 20, y: 380, width: 360, height: 44), depth: 2, focused: true)
+        let gone = StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([sheet, field]), after: snap([]))
+        XCTAssertEqual(gone, ["#sheet", "#sheet_field"])
+    }
+
     func testClauseStatesTheFactsAndThatTheTargetWasNotTouched() {
         let clause = StepExecutor.keyboardCloseChangedScreenClause(note: "closed the keyboard by tapping (25, 529) above the keyboard",
                                                                    gone: ["#field_prompt", "#btn_save"])

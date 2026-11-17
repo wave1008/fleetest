@@ -61,6 +61,9 @@ final class KeyboardRetryFailureWordingTests: XCTestCase {
         XCTAssertFalse(message.contains("the soft keyboard is up and the target is not in the tree"), message)
         XCTAssertFalse(message.contains("waiting does not bring it back"), message)
         XCTAssertTrue(message.contains("cannot resolve the locator: id=no_such"), message)
+        // 閉じられなかった事実は言い、それと矛盾する「閉じてから撃ち直せ」は言わない
+        XCTAssertTrue(message.contains("the soft keyboard is up; closing it without side effects failed"), message)
+        XCTAssertFalse(message.contains("Close it first"), message)
     }
 
     private func field(value: String?) -> ElementInfo {

@@ -388,6 +388,16 @@ public enum FlickKind: String, Codable, Sendable, CaseIterable {
     case centerToTop, centerToBottom, centerToLeft, centerToRight
     case leftToRight, rightToLeft, bottomToTop, topToBottom
 
+    /// 指の向き → 端送りのストローク(Android の端送り `AndroidDriver.edgeStroke` とホストの反転一覧の端送りが共有する)
+    public static func edge(for direction: FTSwipeDirection) -> FlickKind {
+        switch direction {
+        case .up: return .centerToTop
+        case .down: return .centerToBottom
+        case .left: return .centerToLeft
+        case .right: return .centerToRight
+        }
+    }
+
     /// startMarginRatio の既定値選びに使う軸(centerTo系は無関係だが一貫させておく)
     public var isVertical: Bool {
         switch self {
