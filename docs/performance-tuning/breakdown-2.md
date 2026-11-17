@@ -552,7 +552,7 @@ iOS シミュレータ(iPhone 17 Pro・in-app)/ Android エミュレータ(Pixel
   更新されない(払った直後に 20〜40ms おきに取得: CMP 最大 134ms・RN 174ms・SwiftUI 125ms)ので、100ms 周期の 2 枚が途中で一致する。
   `AppDriver.treeLagsBehindMotion` が true のドライバ(XCUITest)だけ、整定の周期を `laggingTreeSettlePeriodMs`(350ms)以上にした
 
-### PT-3.33 OCR のコンパイル待ちはシナリオの実行ファイルを作り直すたびに払う(2026-10-08・**原因は署名 ID。`ScenarioHost.build` で揃えて対策済み**)
+### PT-3.33 OCR のコンパイル待ちはシナリオの実行ファイルを作り直すたびに払う(2026-10-08・2026-11-17 追記・**原因は署名 ID。`ScenarioHost.build` で揃えて対策済み**)
 
 - **症状**: モニターの「Vision コンパイル中」(run の段階 `compiling`)が頻繁に出る。正体は PT-3.5.1 の表⑨の**実行時の OCR 認識器の
   AOT コンパイル**で、run の開始時に `compile-ocr` を待っている間だけ出る。**Swift の Vision モジュール(`.pcm`)のビルドではない** ——
@@ -561,13 +561,27 @@ iOS シミュレータ(iPhone 17 Pro・in-app)/ Android エミュレータ(Pixel
 - **キャッシュの中身**: `~/Library/Caches/<プロセス名>/com.apple.e5rt.e5bundlecache/<OS のビルド番号>/<hash>/<hash>.bundle` が 3 つで、
   **3 つとも TextRecognition のモデル**(`.e5` の先頭に元のモデルのパスがある): `cr_td_model_v3_e5`(文字の検出)・
   `cr_orientation_model_v1_e5`(向き)・`cr_tr_model_latincyrillic_v3_e5`(ラテン・キリル文字の認識)。全 `fleetest-scenarios-*` と
-  `com.apple.dt.xctest.tool` で同じ 3 つ。`.bundle` の中身は `main_ane/model.anehash`(ANE 側の実体へのハッシュ)で、
+  `com.apple.dt.xctest.tool` で同じ 3 つ。`.bundle` の中身は `main_ane/model.anehash`(ANE 側の実体へのハッシュ。2026-11-17 の観察では
+  `H14D.bundle/main/main_ane/` が 1 つ・`H14D.bundle/main_1024/main_ane/` が 2 つ)で、
   コンパイルは `aned` → `ANECompilerService` が行う(`aned` のログは呼び出し元の署名 ID を `csIdentity` として持つ)
+- **ANE 側の実体の置き場**(2026-11-17・macOS 27.2.1(26B131)・M2 Ultra。初回のコンパイル中の `fs_usage` で観察):
+  `/Library/Caches/com.apple.aned/<OS のビルド番号>/ModelAssetsCache/<呼び出し元の署名 ID>_unsigned/<hash>/` にモデルごとに 1 つ。
+  **ANE 側も実行ファイル(署名 ID)ごと**で、アプリをまたいだ使い回しは無い(新しい署名 ID では 3 つともコンパイルし直した
+  = 約 40 秒・`ANECompilerService` 3 回。同じ場所に `fleetest-55554944…_unsigned` などの別の ID のフォルダもある)。
+  `<hash>` は `model.anehash` の `_` より前と一致する(= `model.anehash` は aned 側のフォルダを指す)。同じ検出モデルの前半は
+  別の実行ファイルでも同じで後半だけ違った(2 回分の比較。もう 1 回は日付・実行ファイル未記録)。`ANECompilerService` は
+  `/private/var/folders/…/T/com.apple.aned/TemporaryItems/NSIRD_ANECompilerService_*` を作って 1.5〜13ms で消す(3 回 = モデルの数。
+  コンパイルは十数秒かかるので、ここで作業しているわけではない。何に使うかは未確認)。
+  フォルダ自体は**データ保管庫と見られる**(root でも stat すら `Operation not permitted`。保護の種類は直接は未確認・`sudo ls` を
+  撃った端末のフルディスクアクセスの有無は未記録)。aned のサンドボックス設定
+  `/System/Library/Sandbox/Profiles/com.apple.aned.sb` で読み書きが許されたキャッシュはここだけ。
+  モデルごとのフォルダの中のファイル名・大きさは未確認
 - **モデルの形式が2つある**(`/System/Library/PrivateFrameworks/TextRecognition.framework/Versions/A/Resources/`):
   ML Program(名前に `_e5`・`model.mil`)= 検出・向き・ラテン/キリル・アラビア・デーヴァナーガリーの認識 /
   旧形式の NeuralNetwork(`model.espresso.net`)= **日本語・中国語(`cr_tr_model_cj_v3`)**・韓国語・タイ語の認識。
   **実行ファイルごとにコンパイル・キャッシュされるのは ML Program だけ**。cj は新しい実行ファイルでもコンパイラが呼ばれない
-  (ANE に載せるときのコンパイル済みの形はシステム側にあると推定。`/Library/Caches/com.apple.aned` は root でないと読めず未確認)
+  (ANE に載せるときのコンパイル済みの形はシステム側にあると推定。`/Library/Caches/com.apple.aned` は root でも読めず
+  (上の「ANE 側の実体の置き場」)、cj の分がどこにあるかは未確認)
 - **キャッシュの鍵は「実行ファイル名(= 置き場所のディレクトリ)」と「コード署名の Identifier」の組**。中身(cdhash)・置き場所の
   ディレクトリは見ない。1 段目のディレクトリが OS のビルド番号なので、macOS を更新しても無効になる。**モデルごとに最新の 1 つしか
   持たない**(ID を A → B → A と戻すと、戻した A もコールド)。実測(2026-10-08・この Mac・`swiftc` の小さな実行ファイル。
@@ -672,6 +686,10 @@ iOS シミュレータ(iPhone 17 Pro・in-app)/ Android エミュレータ(Pixel
     `Calling ANECompilerService` / `Compilation success` / `ANE_ProgramCreate` / `coreAnalyticsClientType` / `modelSize`。
     **zsh では `log` が組み込みコマンド**なので `/usr/bin/log` と書く(`too many arguments` で落ちる)。
     時刻で切り出すと直前のプロセスの分が混ざるので、前後に 1 秒空ける
+  - ANE 側の実体の置き場: 新しい名前の実行ファイルで OCR を 1 回撃つ間、別の端末で
+    `sudo fs_usage -w -f pathname aned ANECompilerService` を記録する(フォルダは root でも開けないので、書き込みを横から見る)。
+    `grep com.apple.aned` で絞って記録すると、フォルダの中のファイルの操作が 1 行も残らなかった(フォルダ基準の相対パスで
+    開いたため落ちたと推定)。全体を残してから絞れば拾える見込み(未確認)
   - 補助の準備の所要: `fleetest-scenarios-<project> compile-ocr` を直接起動する(JSON 1 行に言語集合ごとの ms)
   - 隠れる余地: `TestProjects/*/results/runs/*/*/run.json` の `startedAt` と `events/*.ndjson` の先頭行の `t` の差。
     ミリ秒で取るなら試作で `FT_PHASE_LOG` に「補助の準備ができた」の印を足す

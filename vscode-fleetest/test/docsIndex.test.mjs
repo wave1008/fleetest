@@ -242,7 +242,7 @@ const EXTERNAL_CODE_NAMES = new Set([
   // OS・Apple の非公開実装・設定キー
   "ApplicationFirewall", "BootSessionIdentifier", "DiagnosticCollectionPolicy", "GenerativeExperiencesSafetyInferenceProvider",
   "JavaVirtualMachines", "MobileAsset", "ModuleCache", "RemoteVideoEncoder", "SwiftTestingInteropRecordHandler",
-  "TextRecognition", "TodayFeedConfigDecoder", "V11E2EPipeline", "H14D",
+  "TextRecognition", "TodayFeedConfigDecoder", "V11E2EPipeline", "H14D", "ModelAssetsCache",
   "SimMetalHost",
   // sshd_config のキー
   "PasswordAuthentication", "PermitRootLogin", "PermitUserEnvironment", "StrictHostKeyChecking",
