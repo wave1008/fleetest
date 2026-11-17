@@ -88,4 +88,20 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
         let found = KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: [])
         XCTAssertTrue(found.contains { $0.y > 546 - KeyboardDismissPoint.edgeHitSlop }, "\(found.map(\.y))")
     }
+
+    /// 縁から離れた小さな押せる部品も周り全体に余白を持つ(戻るボタンの枠の 1pt 右・12pt 下のタップが戻るボタンを押した)
+    func testBackButtonHitSlopIsAvoidedAwayFromTheKeyboard() {
+        let back = el(2, "button", "btn_back", FTRect(x: 16, y: 48, width: 56, height: 62), depth: 1)
+        XCTAssertTrue(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 73, y: 78, elements: [back], keyboardRefs: []))
+        XCTAssertTrue(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 52, y: 122, elements: [back], keyboardRefs: []))
+        XCTAssertFalse(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 120, y: 78, elements: [back], keyboardRefs: []))
+        // 実測の画面の形: 見出しの下からキーボードまでを WebView が埋め、空きは見出しの行(戻るボタンの脇)にしか無い
+        let webView = el(3, "webView", "wv_container", FTRect(x: 0, y: 126, width: screen.width, height: keyboard.y - 126), depth: 1)
+        let found = KeyboardDismissPoint.candidates(elements: [back, webView], screen: screen, keyboard: keyboard, overlays: [])
+        XCTAssertFalse(found.isEmpty)
+        for choice in found {
+            XCTAssertFalse(choice.x <= 72 + KeyboardDismissPoint.edgeHitSlop && choice.y <= 110 + KeyboardDismissPoint.edgeHitSlop,
+                           "戻るボタンの余白の中を選んだ: (\(choice.x), \(choice.y))")
+        }
+    }
 }

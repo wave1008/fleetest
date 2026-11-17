@@ -47,8 +47,8 @@ final class KeyboardDismissPointTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(choice.x, step, "左端の列を候補にした")
             XCTAssertLessThanOrEqual(choice.x, screen.width - step, "右端の列を候補にした")
         }
-        // 端の列を除いた全域が押せる部品で塞がっていれば、端の列へ戻る
-        let blocker = el(9, "button", "wide", FTRect(x: step, y: 0, width: screen.width - 2 * step, height: 538), depth: 2)
+        // 端の列を除いた全域が押せる部品で塞がっていれば、端の列へ戻る(周り全体に余白を持たない型 = セルで塞ぐ。ボタンは余白で端の列まで覆う)
+        let blocker = el(9, "cell", "wide", FTRect(x: step, y: 0, width: screen.width - 2 * step, height: 538), depth: 2)
         let edgeOnly = candidates(form(extra: [blocker]))
         XCTAssertFalse(edgeOnly.isEmpty)
         XCTAssertTrue(edgeOnly.allSatisfy { $0.x < step || $0.x > screen.width - step }, "\(edgeOnly)")

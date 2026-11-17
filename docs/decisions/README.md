@@ -215,3 +215,4 @@
 - DR-184 テストベースから骨組みを作る CLI を `fleetest draft-from-testbase` と呼ぶ
 - DR-185 iOS の `hideKeyboard` は、焦点の欄が複数行なら Enter を送らない(取り消した)
 - DR-186 Android の座標ドラッグは gRPC ではなくブリッジの `/gesture` で撃つ(DR-73 を狭める)
+- DR-187 iPad のキーボードの閉じるキーを押す口をブリッジに足さない(横向きの iPad の WebView は据え置き)

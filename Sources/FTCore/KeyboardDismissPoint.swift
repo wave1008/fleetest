@@ -38,6 +38,15 @@ public enum KeyboardDismissPoint {
     /// 押せる部品の当たり判定の余白を持つ入れ物の型(子ではなく自身の枠。タブの間の隙間を空きと読まない)
     static let slopContainerTypes: Set<String> = ["tabBar", "toolbar"]
 
+    /// **キーボードの縁から離れていても周り全体に当たり判定の余白(`edgeHitSlop`)を持つ小さな押せる部品の型**。
+    /// 実測(E2E-iOS の WebView 画面・iPad の Simulator): 戻るボタン #btn_back (16,48 56x62) の枠の 1pt 右 (73,78)(横向き)と
+    /// 12pt 下 (52,122)(縦向き)のタップが戻るボタンを押してホームへ遷移した = 閉じるはずのタップが画面を変えた。
+    /// **セル・clickable・テキストビュー・WebView・地図は入れない** —— 縦長の面の脇の狭い余白(その画面で唯一の空き)まで潰れ、
+    /// Enter へ落ちる(`isNearKeyboardEdgeControl` の doc)
+    static let slopControlTypes: Set<String> = [
+        "button", "link", "switch", "checkBox", "radioButton", "tab", "toggle", "segmentedControl", "stepper", "menuItem",
+    ]
+
     public static func candidates(elements: [ElementInfo], screen: FTRect, keyboard: FTRect,
                                   overlays: [FTRect]) -> [Choice] {
         let top = screen.y
@@ -105,7 +114,8 @@ public enum KeyboardDismissPoint {
     static func emptySpotContainer(x: Double, y: Double, elements: [ElementInfo], screen: FTRect,
                                    keyboardTop: Double, keyboardRefs: Set<Int>) -> Int? {
         guard !isNearKeyboardEdgeControl(x: x, y: y, elements: elements, keyboardTop: keyboardTop,
-                                         keyboardRefs: keyboardRefs) else { return nil }
+                                         keyboardRefs: keyboardRefs),
+              !isWithinHitSlopOfControl(x: x, y: y, elements: elements, keyboardRefs: keyboardRefs) else { return nil }
         let containing = elements.filter { contains($0.frame, x: x, y: y) }
         guard !containing.contains(where: { unsafeTypes.contains($0.type) || isLeaf($0, in: elements)
                   || !isScreenWide($0, screen: screen) }) else { return nil }
@@ -126,6 +136,17 @@ public enum KeyboardDismissPoint {
             guard !keyboardRefs.contains(element.ref),
                   unsafeTypes.contains(element.type) || slopContainerTypes.contains(element.type),
                   element.frame.y + element.frame.height >= keyboardTop - edgeHitSlop else { return false }
+            let f = element.frame
+            return x >= f.x - edgeHitSlop && x <= f.x + f.width + edgeHitSlop
+                && y >= f.y - edgeHitSlop && y <= f.y + f.height + edgeHitSlop
+        }
+    }
+
+    /// 小さな押せる部品(`slopControlTypes`)の枠を `edgeHitSlop` だけ広げた範囲の中の点か。キーボードの子孫は除く
+    /// (キーボードの上端より上のタッチはアプリへ届く = 予測変換のボタンの余白は上の行を潰すだけ)
+    static func isWithinHitSlopOfControl(x: Double, y: Double, elements: [ElementInfo], keyboardRefs: Set<Int>) -> Bool {
+        elements.contains { element in
+            guard !keyboardRefs.contains(element.ref), slopControlTypes.contains(element.type) else { return false }
             let f = element.frame
             return x >= f.x - edgeHitSlop && x <= f.x + f.width + edgeHitSlop
                 && y >= f.y - edgeHitSlop && y <= f.y + f.height + edgeHitSlop
