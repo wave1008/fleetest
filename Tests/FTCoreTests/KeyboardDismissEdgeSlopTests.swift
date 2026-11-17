@@ -52,7 +52,7 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
     func testControlsAwayFromTheKeyboardEdgeKeepOnlyTheirFrames() {
         let field = el(2, "textField", "f", FTRect(x: 16, y: 100, width: 370, height: 40), depth: 1)
         XCTAssertFalse(KeyboardDismissPoint.isNearKeyboardEdgeControl(x: 200, y: 145, elements: [field], keyboardTop: 546,
-                                                                       keyboardRefs: []))
+                                                                       keyboardRefs: [], slop: KeyboardDismissPoint.edgeHitSlop))
     }
 
     /// キーボードまで届く縦長のテキストビューの脇の狭い余白(その画面で唯一の空き)は、縁の帯より上なら候補に残る
@@ -76,7 +76,7 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
     func testKeyTypedControlOutsideTheKeyboardKeepsItsSlop() {
         let accessory = el(2, "key", "accessory_done", FTRect(x: 0, y: 548, width: 402, height: 40), depth: 1)
         XCTAssertTrue(KeyboardDismissPoint.isNearKeyboardEdgeControl(x: 200, y: 540, elements: [accessory],
-                                                                     keyboardTop: 546, keyboardRefs: []))
+                                                                     keyboardTop: 546, keyboardRefs: [], slop: KeyboardDismissPoint.edgeHitSlop))
     }
 
     /// キーボードの子孫(予測変換バーのボタン)の余白はキーボードの上の帯を潰さない(アプリの裏のタブだけが余白を持つ)
@@ -104,7 +104,7 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
         let tabs = el(5, "button", "tab_home", FTRect(x: 0, y: 336, width: 1180, height: 62), depth: 1)
         let found = KeyboardDismissPoint.candidates(elements: [back, title, webView, tabs], screen: wide, keyboard: kb, overlays: [])
         let first = try XCTUnwrap(found.first)
-        let slop = KeyboardDismissPoint.inflated(back.frame, by: KeyboardDismissPoint.controlHitSlop)
+        let slop = KeyboardDismissPoint.inflated(back.frame, by: KeyboardDismissPoint.controlSlop(screen: wide))
         XCTAssertFalse(first.x >= slop.x && first.x <= slop.x + slop.width && first.y >= slop.y && first.y <= slop.y + slop.height,
                        "戻るボタンの余白の中を選んだ: (\(first.x), \(first.y))")
     }
@@ -147,6 +147,43 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
                         disabled,
                         el(5, "button", "zero", FTRect(x: 0, y: 0, width: 0, height: 0), depth: 1),
                         el(6, "button", "back", FTRect(x: 16, y: 48, width: 56, height: 62), depth: 1)]
-        XCTAssertEqual(KeyboardDismissPoint.controlSlopRects(elements).map(\.x), [0])
+        XCTAssertEqual(KeyboardDismissPoint.controlSlopRects(elements, screen: screen).map(\.x), [0])
+    }
+
+    /// 既定値はリテラルで固定する(iPad の実測: 押し上がったタブは 25pt 上(Pro)・24pt 上(Air)で反応・28pt 上(Pro)・26pt 上(Air)で反応しない)
+    func testLargeScreenSlopIsPinned() {
+        XCTAssertEqual(KeyboardDismissPoint.largeScreenHitSlop, 28)
+        XCTAssertEqual(KeyboardDismissPoint.largeScreenMinSide, 744)
+    }
+
+    /// iPad の大きさだけ大きい余白を使う。iPhone・閉じた/開いた iPhone Duo は 16pt のまま(測っていない文脈へ流用しない)
+    func testOnlyIPadSizedScreensUseTheLargerSlop() {
+        for (w, h) in [(834.0, 1210.0), (1210, 834), (820, 1180), (744, 1133)] {
+            XCTAssertEqual(KeyboardDismissPoint.controlSlop(screen: FTRect(x: 0, y: 0, width: w, height: h)), 28, "\(w)x\(h)")
+            XCTAssertEqual(KeyboardDismissPoint.edgeSlop(screen: FTRect(x: 0, y: 0, width: w, height: h)), 28, "\(w)x\(h)")
+        }
+        for (w, h) in [(402.0, 874.0), (874, 402), (466, 678), (951, 669)] {
+            XCTAssertEqual(KeyboardDismissPoint.controlSlop(screen: FTRect(x: 0, y: 0, width: w, height: h)), 16, "\(w)x\(h)")
+            XCTAssertEqual(KeyboardDismissPoint.edgeSlop(screen: FTRect(x: 0, y: 0, width: w, height: h)), 16, "\(w)x\(h)")
+        }
+    }
+
+    /// 実測の画面(iPad Pro 11 縦向き 834x1210・E2E-iOS のテキスト入力): キーボードで押し上がったタブ #tab_home (0,808 278x62) の
+    /// 25pt 上 (52, 783) を選んでタブを押し、ホームへ遷移した。iPad の余白(28pt)の中は選ばない
+    func testIPadTabPushedUpByTheKeyboardKeepsItsLargerSlop() throws {
+        let pad = FTRect(x: 0, y: 0, width: 834, height: 1210)
+        let kb = FTRect(x: 0, y: 870, width: 834, height: 340)
+        let tab = el(5, "tab", "tab_home", FTRect(x: 0, y: 808, width: 278, height: 62), depth: 2)
+        let elements = [el(1, "other", nil, pad, depth: 0),
+                        el(2, "button", "btn_back", FTRect(x: 16, y: 48, width: 56, height: 62), depth: 1),
+                        el(3, "textField", "field_single", FTRect(x: 16, y: 140, width: 802, height: 40), depth: 1),
+                        el(4, "tabBar", nil, FTRect(x: 0, y: 808, width: 834, height: 62), depth: 1),
+                        tab,
+                        el(6, "tab", "tab_controls", FTRect(x: 278, y: 808, width: 278, height: 62), depth: 2),
+                        el(7, "tab", "tab_settings", FTRect(x: 556, y: 808, width: 278, height: 62), depth: 2)]
+        let found = KeyboardDismissPoint.candidates(elements: elements, screen: pad, keyboard: kb, overlays: [])
+        let first = try XCTUnwrap(found.first)
+        // 期待値は実測の事実(タブの上端から 25pt 上で反応した)で書く。定数から計算すると定数を戻す変異と一緒に動く
+        XCTAssertLessThan(first.y, 808 - 25, "タブが反応した距離の中を選んだ: (\(first.x), \(first.y))")
     }
 }
