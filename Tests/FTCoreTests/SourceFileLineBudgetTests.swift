@@ -26,7 +26,6 @@ final class SourceFileLineBudgetTests: XCTestCase {
         ("Sources/FTBridgeClient/BridgeProvisioner.swift", 2263, "分割未着手"),
         ("Sources/FTCore/BridgeDTO.swift", 2261, "分割未着手"),
         ("Sources/fleetest-mcp/MCPServer+Snapshot.swift", 2259, "分割未着手"),
-        ("Sources/FTCore/StepExecutor.swift", 2230, "分割未着手"),
         ("Sources/fleetest-mcp/MCPServer+Driver.swift", 2206, "分割未着手"),
         ("Sources/FTDSL/FTRuntime.swift", 2162, "分割未着手"),
         ("Sources/FTAndroid/AndroidDriver.swift", 2040, "分割未着手"),
