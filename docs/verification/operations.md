@@ -290,7 +290,9 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   `--ios-xcuitest` で xcuitest モードの対象も足す・`--ios-xcuitest-only` で iOS の xcuitest モードの対象だけを回す(xcuitest の印だけを書く。
   `--ios-xcuitest` は inapp-boost の赤1本でも xcuitest の印を書かない)・`--suites` で絞るとそのスイートの印だけを書き、`--suts` で絞った回は印を書かない。`--skip-build` で段 1 を飛ばす・
   `--record` で録画する(既定は `--set record=false`)・`--dry-run` で対象と撃つコマンドだけ出す。SUT をそろえられないマシンがあれば回さない(設定タブでそのマシンを無効にすれば外れる)。
-  **先に commit → `Scripts/align.sh`**(リモートはアライン済みのコミットで動く)
+  **先に `Scripts/align.sh`**(未コミットのまま直送する)。**道具の中身が手元と食い違うリモート(アラインの後に足した未追跡のファイルも含む)が
+  1台でもあれば、段 1 の前に名指しして回さない**(`fleetest remote status --json` の `revisionCompatible`。放っておくと段 2 で各リモートが
+  整合チェックで断り、全対象を手元1台が背負う = 11/17 に手元だけで 117 分・負荷の白紙で赤 20 本)
   開始と終了で全マシンの状態(起動経過時間・load・FM・Vision・AVE の台帳)を `.fleetest/regress/<時刻>/machine-state.ndjson` へ残す
   (`Scripts/machine-state.py`。読むだけ・判定は置かない)。**赤の帰属を見る前にここを見る** —— 同じコミットで再起動だけで赤 19 → 全緑になった回がある
 - **回帰に参加するマシンに入れておくもの**(`regress.py` の段 1 は SUT を各マシンでビルドするので、1台でも欠けると回帰全体が止まる。

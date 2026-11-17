@@ -129,6 +129,34 @@ def machines():
     return found
 
 
+def misaligned(fleet):
+    """リモートのうち、手元と道具の中身が食い違う(または届かない)マシン → 理由。
+    段1(SUT のビルド)はこれを見ないので、放っておくと段2で各リモートが整合チェックで断り、全対象を手元1台が背負う
+    (11/17: 3台が断り、手元だけで 117 分・負荷で白紙の赤 20 本)"""
+    remotes = [(m, h) for m, h in fleet if h is not None]
+    if not remotes:
+        return {}
+    cmd = [FLEETEST, "remote", "status", "--json"]
+    for m, _ in remotes:
+        cmd += ["--runner", m]
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    # 食い違い・届かないマシンがあっても JSON を出したうえで exit 1(RemoteCommands の status)= 終了コードでなく中身で見る
+    try:
+        by_host = {h.get("host"): h for h in json.loads(out.stdout).get("hosts", [])}
+    except (ValueError, AttributeError):
+        return {m: f"fleetest remote status の答えを読めません(exit {out.returncode})" for m, _ in remotes}
+    found = {}
+    for m, host in remotes:
+        h = by_host.get(host)
+        if h is None:
+            found[m] = "remote status の答えに含まれていません"
+        elif not h.get("reachable"):
+            found[m] = "届きません"
+        elif not h.get("revisionCompatible"):
+            found[m] = f"道具の中身が手元と食い違います(リモート {str(h.get('digest'))[:7]})"
+    return found
+
+
 def command(host, args):
     if host is None:
         return args
@@ -260,6 +288,13 @@ def main():
     started = time.time()
     fleet = machines()
     print(f"==> マシン: {', '.join(m for m, _ in fleet)} / 対象: {len(targets)} / ログ: {run_dir}")
+    stale = misaligned(fleet)
+    if stale:
+        for machine, why in stale.items():
+            print(f"   ❌ {machine}: {why}")
+        print(f"❌ 手元とそろっていないマシンがあるので回しません(Scripts/align.sh {' '.join(stale)} の後に回し直してください。"
+              "アラインの後に作業ツリーへ足したファイル(未追跡を含む)も食い違いになります)")
+        return 1
     record_machine_states(fleet, run_dir, "start")
 
     if not opts.skip_build:
