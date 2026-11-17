@@ -128,8 +128,11 @@ final class NoFocusLastTreeOrderTests: XCTestCase {
             .deletingLastPathComponent().appendingPathComponent("Sources/FTAndroid/AndroidDriver.swift")
         let src = try String(contentsOf: path, encoding: .utf8)
         XCTAssertFalse(src.contains("currentPackage ?? lastTreeForegroundPackage"), "帳簿を木より先に使っている")
-        XCTAssertEqual(src.components(separatedBy: "lastTreeForegroundPackage ?? currentPackage").count - 1, 3,
-                       "type・clearInput(と既に木を先に使っていた1か所)")
+        XCTAssertEqual(src.components(separatedBy: "lastTreeForegroundPackage ?? currentPackage").count - 1, 2,
+                       "焦点なしの文の名指し(noFocusTreePackage)と WebView の端送り")
+        XCTAssertTrue(src.contains("private var noFocusTreePackage: String? { departedTreePackage ?? lastTreeForegroundPackage ?? currentPackage }"))
+        XCTAssertEqual(src.components(separatedBy: "lastTreePackage: noFocusTreePackage").count
+                       + src.components(separatedBy: "let lastTree = noFocusTreePackage").count - 2, 2, "type・clearInput")
         XCTAssertEqual(src.components(separatedBy: "lastTreeForegroundPackage = nil").count - 1, 3,
                        "launch・activate・openURL が木の控えを消す")
     }

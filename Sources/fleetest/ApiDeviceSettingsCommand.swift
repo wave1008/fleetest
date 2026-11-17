@@ -27,7 +27,7 @@ struct ApiDeviceSettingsCommand: AsyncParsableCommand {
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        print(String(decoding: try encoder.encode(Output(config)), as: UTF8.self))
+        ConsoleOut.out(String(decoding: try encoder.encode(Output(config)), as: UTF8.self))
     }
 
     /// 保存するのは false だけ(既定へ戻すときは欄ごと消す。`localMachineEnabled` と同じ)

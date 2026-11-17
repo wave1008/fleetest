@@ -36,7 +36,7 @@ final class AndroidWebViewEdgeJumpGateTests: XCTestCase {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         XCTAssertTrue(code.contains("case .unavailable:\n            webViewEdgeJumpUnavailableFor = package"))
         XCTAssertTrue(code.contains("case .noRoom:\n            return false"))
-        XCTAssertTrue(code.contains("lastTreeForegroundPackage = snapshot.sessionBundleID ?? currentPackage"))
+        XCTAssertTrue(code.contains("Self.treeForegroundUpdate(\n            previous: lastTreeForegroundPackage, departed: departedTreePackage, new: snapshot.sessionBundleID ?? currentPackage)"))
         XCTAssertTrue(code.contains("AndroidWebViewDOM.shouldJumpToEdge("))
         XCTAssertTrue(code.contains("WebViewDOM.hasMultipleWebViews(in: snapshot.elements)"))
         XCTAssertTrue(code.contains("WebViewDOM.isUsable(payload)"))
