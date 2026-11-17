@@ -224,29 +224,47 @@ public enum TranscriptMatch {
         })
     }
 
-    /// OCR が字形で取り違える組(文字と数字・縦棒)。**文字同士(i と l)は入れない** —— 入れると「Mail」と「Mall」のような
-    /// 別の語が一致する
+    /// OCR が字形で取り違える組(大文字小文字を保った字で持つ)。**小文字同士の i と l は入れない** —— 入れると「Mail」と「Mall」の
+    /// ような別の語が一致する。大文字の I と小文字の l はサンセリフで同じ字形なので入れる
     private static let confusableGlyphPairs: Set<[Character]> = [
-        ["0", "o"], ["1", "l"], ["1", "i"], ["1", "|"], ["l", "|"], ["i", "|"],
+        ["0", "o"], ["0", "O"], ["O", "o"],
+        ["1", "l"], ["1", "I"], ["1", "i"], ["1", "|"], ["I", "l"], ["l", "|"], ["I", "|"], ["i", "|"],
     ]
 
-    /// `normalize` した2つが同じ長さで、違う位置がすべて字形の取り違えの組(`confusableGlyphPairs`)か。同じ文字列は false
-    /// (呼び手は先に `judge` で一致を見る)。使うのは FM で確かめ直さない行の判定(`OCROnlyVisibility.rowLabelNotRead`)だけ ——
-    /// 文字の要素は FM との突き合わせが取り違えを拾う
-    public static func differsOnlyByConfusableGlyphs(_ transcript: String, _ expected: String) -> Bool {
-        let o = Array(normalize(transcript)), e = Array(normalize(expected))
-        guard o.count == e.count, o != e else { return false }
-        return zip(o, e).allSatisfy { $0 == $1 || confusableGlyphPairs.contains([$0, $1].sorted()) }
+    private static func confusable(_ a: Character, _ b: Character) -> Bool {
+        a == b || a.lowercased() == b.lowercased() || confusableGlyphPairs.contains([a, b].sorted())
+    }
+
+    /// 転写のどこかに、期待と同じ長さで違う位置がすべて字形の取り違え(`confusableGlyphPairs`)か大文字小文字だけの区間があるか
+    /// (正規化・絵文字の除去は `judge` と同じ。大文字小文字は保って比べる)。使うのは FM で確かめ直さない行の判定
+    /// (`OCROnlyVisibility.rowLabelNotRead`)だけ —— 文字の要素は FM との突き合わせが取り違えを拾う
+    public static func containsWithConfusableGlyphs(transcript: String, expected: String) -> Bool {
+        var o = normalizeKeepingCase(transcript)
+        var e = normalizeKeepingCase(expected)
+        if !withoutEmoji(e).isEmpty {
+            e = withoutEmoji(e)
+            o = withoutEmoji(o)
+        }
+        let oc = Array(o), ec = Array(e)
+        guard !ec.isEmpty, oc.count >= ec.count else { return false }
+        return (0...(oc.count - ec.count)).contains { start in
+            ec.indices.allSatisfy { confusable(oc[start + $0], ec[$0]) }
+        }
     }
 
     /// NFKC 互換合成 → 引用符の半角化 → 空白(半角・全角・改行・タブ)除去 → 末尾の省略記号
     /// (`ellipsisTailLength`)除去 → 小文字化。
     public static func normalize(_ s: String) -> String {
+        normalizeKeepingCase(s).lowercased()
+    }
+
+    /// `normalize` の小文字化の手前まで(字形の取り違えは大文字小文字で組が変わる = I と l)
+    static func normalizeKeepingCase(_ s: String) -> String {
         // 見えない文字(ZWSP・BOM・WJ 等)は NFKC でも空白除去でも残るので先に外す(除外の規則は `TextNormalization` の1か所)
         var t = foldQuotes(TextNormalization.text.apply(s).precomposedStringWithCompatibilityMapping)
             .components(separatedBy: .whitespacesAndNewlines)
             .joined()
         t.removeLast(ellipsisTailLength(t))
-        return t.lowercased()
+        return t
     }
 }

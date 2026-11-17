@@ -178,6 +178,9 @@ extension StepExecutorTests {
     func testRowLabelConfusableGlyphMisreadIsNotRed() {
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Y01"], expected: "yo1"), "描かれた yo1 を Vision が Y01 と読んだ")
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ce11 1og"], expected: "cell log"))
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ceII Iog"], expected: "cell log"), "大文字の I と小文字の l")
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Y01 12:30"], expected: "yo1"), "同じ行に時刻も読めた")
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Y0", "1"], expected: "yo1"), "折り返し")
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ｌｏｇ1"], expected: "10g1"), "全角は正規化してから比べる")
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Mall"], expected: "Mail"), "文字同士の違い(i と l)は取り違えに数えない")
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["y0l2"], expected: "yo1x"), "取り違えに加えて別の文字が1つ違う")

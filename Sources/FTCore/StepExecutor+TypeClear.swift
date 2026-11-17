@@ -701,18 +701,23 @@ extension StepExecutor {
     /// **帯はキーボードの上の領域の半分より低く、焦点の欄を含まないものだけ**(バーは帯であって中身ではない・入力補助のバーは
     /// 編集中の欄を持たない)—— キーボードを避けて上端まで縮んだ全幅の容器(SwiftUI の ScrollView 等)や、キーボードの上に
     /// 載ったボトムシート・ダイアログも下端が接するので、帯にすると中身が全部除外されて検出が効かなくなる
-    /// **焦点の欄の枠の内側の要素(欄の飾り)は数えない** —— 焦点が外れると消えるのが正当(RN paper の欄の下線 `#text-input-underline` は
-    /// 欄 (50,392 302x56) の内側 (50,446.5 302x2) にあり、閉じただけで消えた)。欄そのものは数える(ダイアログごと閉じれば欄も消える)
+    /// **焦点の欄の枠の内側にある、ラベルも値も無い `other` / `image`(欄の飾り)は数えない** —— 焦点が外れると消えるのが正当
+    /// (RN paper の欄の下線 `#text-input-underline` は欄 (50,392 302x56) の内側 (50,446.5 302x2)・木では欄の子ではない = 枠で決める)。
+    /// 欄そのもの・ラベルを持つ要素は数える(ダイアログごと閉じれば欄もボタンも消える。大きな焦点の欄の中に描かれた覆いも数える)。
+    /// 除くのは要素そのもの(同じ署名の別の要素は数える)
     static func elementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
         let focusedElements = before.elements.filter { $0.focused == true }
         let focused = focusedElements.map(\.frame)
-        let decorations = Set(before.elements.filter { e in
-            e.focused != true && focusedElements.contains { f in
-                e.frame.x >= f.frame.x - 1 && e.frame.x + e.frame.width <= f.frame.x + f.frame.width + 1
-                    && e.frame.y >= f.frame.y - 1 && e.frame.y + e.frame.height <= f.frame.y + f.frame.height + 1
-            }
-        }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
-            .flatMap { $0 })
+        let decorationRefs = Set(before.elements.filter { e in
+            e.focused != true && (e.type == "other" || e.type == "image")
+                && (e.label ?? "").isEmpty && (e.value ?? "").isEmpty
+                && focusedElements.contains { f in
+                    e.frame.x >= f.frame.x - 1 && e.frame.x + e.frame.width <= f.frame.x + f.frame.width + 1
+                        && e.frame.y >= f.frame.y - 1 && e.frame.y + e.frame.height <= f.frame.y + f.frame.height + 1
+                }
+        }.map(\.ref))
+        var undecorated = before
+        undecorated.elements = before.elements.filter { !decorationRefs.contains($0.ref) }
         let bands = before.elements.filter { e in
             abs(e.frame.y + e.frame.height - keyboard.y) <= 1 && e.frame.width >= before.screen.width / 2
                 && e.frame.height < keyboard.y / 2
@@ -722,7 +727,7 @@ extension StepExecutor {
             bands.contains { b in e.frame.y >= b.y - 1 && e.frame.y + e.frame.height <= b.y + b.height + 1 }
         }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
             .flatMap { $0 })
-        return contentAbove(keyboard, in: before).subtracting(attached).subtracting(decorations).subtracting(contents(of: after))
+        return contentAbove(keyboard, in: undecorated).subtracting(attached).subtracting(contents(of: after))
             .sorted().prefix(3)
             .map { $0.replacingOccurrences(of: "|", with: " ") }
     }

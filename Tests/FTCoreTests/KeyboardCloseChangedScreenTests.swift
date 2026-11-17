@@ -114,6 +114,19 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
                                                                   after: snap([unfocused])).isEmpty)
         XCTAssertEqual(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([field, underline]), after: snap([])),
                        ["#field_prompt"])
+        // 欄の枠の内側でもラベルを持つ要素(大きな焦点の欄の中に描かれたダイアログの見出し等)は数える
+        let titled = ElementInfo(ref: 10, type: "other", identifier: nil, label: "確認", value: nil, placeholder: nil,
+                                 enabled: true, frame: FTRect(x: 60, y: 400, width: 100, height: 20), depth: 3)
+        XCTAssertEqual(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([field, underline, titled]),
+                                                                   after: snap([unfocused])), ["other 確認"])
+        // 除くのは飾りの要素そのもの: 同じ署名の別の要素(欄の外の無名の覆い)が消えたら数える
+        let anonymousInside = ElementInfo(ref: 11, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                                          enabled: true, frame: FTRect(x: 60, y: 440, width: 10, height: 4), depth: 3)
+        let anonymousOutside = ElementInfo(ref: 12, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                                           enabled: true, frame: FTRect(x: 0, y: 100, width: 402, height: 200), depth: 1)
+        XCTAssertEqual(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard,
+                                                                   before: snap([field, anonymousInside, anonymousOutside]),
+                                                                   after: snap([unfocused])), ["other "])
     }
 
     /// 閉じ方の申告: 画面を叩いた閉じ方だけ touchedScreen = true(文言の「That tap」はこれで決める)
@@ -123,9 +136,9 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
         let src = try String(contentsOf: url, encoding: .utf8)
         func closes(in function: String) throws -> [String] {
             let entry = try XCTUnwrap(src.range(of: "func \(function)("))
-            // 次の宣言(修飾子つきの func も含む)で切る
+            // 次の宣言(修飾子・属性つきの func も含む)で切る
             let rest = String(src[entry.upperBound...])
-            let end = rest.range(of: #"\n    (?:(?:private|fileprivate|static|public|internal) )*func "#, options: .regularExpression)?.lowerBound
+            let end = rest.range(of: #"\n    [^\n/]*\bfunc "#, options: .regularExpression)?.lowerBound
                 ?? rest.endIndex
             let body = String(rest[..<end])
             return body.components(separatedBy: "touchedScreen: ").dropFirst().map { String($0.prefix(5)) }

@@ -910,7 +910,7 @@ extension StepExecutor {
     }
 
     /// 探索の失敗文。覆いの下に潜ったまま見つかった対象があれば、その事実を足す(画面に無いとは読ませない)。
-    /// 末尾に回ごとの事実(`scrollSearchTrace`)を添える(探索が見つけられなかった理由を測る口。多いときは後ろの `searchTraceLimit` 回だけ)
+    /// 末尾に回ごとの事実(`scrollSearchTrace`)を添える(探索が見つけられなかった理由を測る口。多いときは `boundedTrace` で round 0 と後ろだけ)
     func scrollSearchFailureMessage(_ step: FlowStep, _ result: ScrollSearchResult) -> String {
         var base = Self.scrollNotFoundMessage(step, result, defaultMaxSwipes: tunables.defaultMaxSwipes)
         if let cover = scrollSearchBuriedCover {
