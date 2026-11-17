@@ -26,7 +26,7 @@ Install the following.
 
 ## 3. Installing fleetest
 
-1. Create a **new, test-only folder** in Finder
+1. Create a **new, test-only folder** (such as myTest) in Finder
 
 2. Open the folder you created in VSCode
 
@@ -39,12 +39,7 @@ following ../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 
 4. If you use an **AI assistant other than Claude Code**, the setup asks whether to register the MCP server; choose to register it.
 
-5. When the installation finishes, your AI assistant reports the environment check (`fleetest doctor`). Confirm that no errors are reported.
-
-   Expected result:
-
-   - Xcode and (for Android) adb show ✅. The Simulator row shows ⚠️ (No booted simulators) when none is running, which is fine.
-   - You can go on even if the `On-device model` and `FM visual verification` rows show ❌.
+5. When the installation finishes, your AI assistant reports the environment check (`fleetest doctor`). Confirm that no errors are reported (you can go on even if the FM rows show ❌).
 
 6. Restart VSCode.
 
@@ -55,19 +50,24 @@ following ../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 ## 4. Preparing the sample app
 
 Prepare the sample app
-([sut-ec-mobile](https://github.com/wave1008/sut-ec-mobile), a Compose Multiplatform shopping app)
-and declare its server to fleetest. The server is built with Kotlin (Ktor) and PostgreSQL.
+([sut-ec-mobile](https://github.com/wave1008/sut-ec-mobile), a Compose Multiplatform shopping app),
+declare its server to fleetest, and build the app. The server is built with Kotlin (Ktor) and PostgreSQL.
 
 ### Prompt for the AI
 
 ```text
 Clone https://github.com/wave1008/sut-ec-mobile next to this folder (if it is already there, update it with git pull), then run bash ../sut-ec-mobile/fleetest/prepare.sh in this folder.
+Then run bash ../sut-ec-mobile/fleetest/build.sh to build the app.
 ```
 
 Expected result:
 
-- The process completes without errors.
+- Apple Container is installed.
+- The server's container images are downloaded.
+- The test project `project1` is created.
 - `TestProjects/project1/workspace/scripts/compose.yaml` is created.
+- JDK 25, used to build the app, is installed.
+- The app is built. If no iOS runtime is installed, fetching it takes several GB and a few minutes to tens of minutes.
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -77,50 +77,45 @@ Run these in your work folder:
 ```bash
 git clone https://github.com/wave1008/sut-ec-mobile.git ../sut-ec-mobile
 bash ../sut-ec-mobile/fleetest/prepare.sh
+bash ../sut-ec-mobile/fleetest/build.sh
+#   -> App (iOS): …/sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
+#   -> App (Android): …/sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 If `../sut-ec-mobile` already exists, update it with `git -C ../sut-ec-mobile pull` instead of cloning.
 
 To use a different test project name, pass it like `bash ../sut-ec-mobile/fleetest/prepare.sh <name>`.
 
+Without the Android SDK, `build.sh` builds only the iOS app. To build for one OS only, pass `ios` or `android` (for example, `bash ../sut-ec-mobile/fleetest/build.sh ios`).
+
 </details>
 
 ## 5. Prepare the profiles
 
-Create the app profile and the run profile.
+Create the app profile and the run profile, using the app built in step 4.
 
 ### Prompt for the AI
 
 ```text
-In project1, build the sut-ec-mobile iOS app and Android app and create their profiles.
-If the Android SDK is not installed, iOS alone is fine.
-Set the app's display name to "SUT Store".
-Use two devices per OS. Set the app IDs to
-com.sutec.mobile.ios for iOS and
-com.sutec.mobile.android for Android.
-Use JDK 25 for the build (Homebrew's openjdk@25, at /opt/homebrew/opt/openjdk@25).
+In project1, create the profiles for the sut-ec-mobile apps.
+
+iOS app profile
+App location: ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
+App display name: SUT Store
+App ID: com.sutec.mobile.ios
+2 Simulators
+
+Android app profile (if there is an Android app)
+App location: ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
+App display name: SUT Store
+App ID: com.sutec.mobile.android
+2 Emulators
 ```
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
-Build the app in the sut-ec-mobile folder. The build uses JDK 25 (prepare.sh in step 4 installs Homebrew's openjdk@25).
-
-```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-
-# iOS Simulator
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath build/ios-sim CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
-#   -> build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
-
-# Android
-./gradlew :androidApp:assembleDebug
-#   -> androidApp/build/outputs/apk/debug/androidApp-debug.apk
-```
-
-Go back to your work folder and run the following. The profiles are created in the test project project1 that step 4 created.
+Run the following in your work folder. The profiles are created in the test project project1 that step 4 created.
 
 ```bash
 # iOS
@@ -137,7 +132,7 @@ Passing the built app to `--app-path` makes the run install it on the device aut
 `--auto-device` picks a Simulator/Emulator with the newest iOS runtime and the newest Pixel (and creates it
 when missing; a missing iOS runtime is downloaded first: several GB, several minutes to tens of minutes;
 one that is not running is started automatically at run time). The app profiles are named `ios-app` and `android-app`, and the
-run profiles `ios-run` and `android-run`. `--count 2` makes the run profile hold two devices of that OS in total (existing devices with the same settings are reused in ascending number order and the missing ones are created; it is the same as "use two devices per OS" in the instruction). You can also add devices later with "Add device" on the
+run profiles `ios-run` and `android-run`. `--count 2` makes the run profile hold two devices of that OS in total (existing devices with the same settings are reused in ascending number order and the missing ones are created; it is the same as "2 Simulators" and "2 Emulators" in the prompt). You can also add devices later with "Add device" on the
 "Profiles" tab of the VSCode extension's Device Monitor.
 If the Android system image is not installed yet, the command refuses unless you add `--accept-licenses` to accept the Android SDK license (check the license shown in the refusal first).
 
@@ -150,8 +145,7 @@ Open the "Profiles" tab of the VSCode Device Monitor and check that the app prof
 
 Expected result:
 
-- The "Profiles" tab lists ios-run and android-run (two devices each). Without the Android SDK, only ios-run is listed.
-- If no iOS runtime is installed, fetching it takes several GB and a few minutes to tens of minutes.
+- The run profiles ios-run and android-run (two devices each) are created on the "Profiles" tab. Without the Android SDK, only ios-run is created.
 
 ## 6. Launch the sample app
 
@@ -160,8 +154,8 @@ Start the sample app's server, launch the app on a device, and operate it yourse
 ### Prompt for the AI
 
 ```text
-Start the server project1 uses, with the ios-run profile.
-Install SUT Store on one device of ios-run, launch it, and tell me which device it is running on.
+Start the server with project1's ios-run profile.
+Install the SUT Store app on one device of ios-run, launch it, and tell me which device it is running on.
 ```
 
 - If an MCP permission dialog appears, allow it.
@@ -196,7 +190,7 @@ Let's create a happy-path test up to opening a product.
 ### Prompt for the AI
 
 ```text
-In project1, create one "open-product-details test" for SUT Store on iOS. Name the file OpenProductDetails.swift.
+In project1, create one "open-product-details test" for the SUT Store app on iOS. Name the file OpenProductDetails.swift.
 It checks the happy path (the normal flow) of opening a product from the home screen until its product details are shown. Put the step that switches the app to English mode in setUpDevice.
 Stop once you've told me the file name of the new scenario.
 ```

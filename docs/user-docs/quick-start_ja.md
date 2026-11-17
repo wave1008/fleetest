@@ -6,13 +6,13 @@ fleetest をインストールし、サンプルアプリを対象に、テス�
 
 ## 1. 環境
 
-本ツールは Apple silicon の Mac、macOS 26+ で動作します。環境の詳細は[環境](overview/environments_ja.md)を参照してください。
+本ツールは Apple silicon の Mac、macOS 26以降で動作します。環境の詳細は[環境](overview/environments_ja.md)を参照してください。
 
 ## 2. 事前準備
 
 以下をインストールしてください。
 
-- **Xcode 27.2+**
+- **Xcode 27.2以降**
   - <https://apps.apple.com/jp/app/xcode/id497799835>
   - インストールしたら Xcode のアプリを一度起動し、コンポーネントのダウンロードを済ませてください。
 - **Homebrew**
@@ -26,7 +26,7 @@ fleetest をインストールし、サンプルアプリを対象に、テス�
 
 ## 3. fleetest のインストール
 
-1. Finder で**テスト専用の新規フォルダ**を作成します
+1. Finder で**テスト専用の新規フォルダ**（myTestなど）を作成します
 
 2. 作成したフォルダを VSCode で開きます
 
@@ -39,12 +39,7 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 4. **Claude Code 以外の AIアシスタント**を使う場合は、セットアップの途中で MCP を登録するか聞かれるので、登録してください
 
-5. インストールが完了すると、AIアシスタントが環境の確認結果(`fleetest doctor`)を報告します。エラーが報告されていないことを確かめます
-
-   期待する結果:
-
-   - Xcode・(Android なら)adb が ✅ になります。Simulator は、起動していなければ ⚠️(No booted simulators)で正常です。
-   - `On-device model`・`FM visual verification` の行は ❌ でも先へ進めます。
+5. インストールが完了すると、AIアシスタントが環境の確認結果(`fleetest doctor`)を報告します。エラーが報告されていないことを確かめます(FM の行は ❌ でも先へ進めます)
 
 6. VSCode を再起動します
 
@@ -56,18 +51,23 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 サンプルアプリ
 ([sut-ec-mobile](https://github.com/wave1008/sut-ec-mobile)。Compose Multiplatform の EC 買い物アプリ)を
-セットアップし、そのサーバー(Kotlin(Ktor)+ PostgreSQL)を fleetest に宣言します。
+セットアップし、そのサーバー(Kotlin(Ktor)+ PostgreSQL)を fleetest に宣言して、アプリをビルドします。
 
 ### AIへの指示文
 
 ```text
 https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone して(既にあれば git pull で最新にして)、このフォルダで bash ../sut-ec-mobile/fleetest/prepare.sh を実行して。
+続けて bash ../sut-ec-mobile/fleetest/build.sh を実行してアプリをビルドして。
 ```
 
 期待する結果:
 
-- エラーなしで処理が完了します。
-- `TestProjects/project1/workspace/scripts/compose.yaml` ができます。
+- Apple Container がインストールされます。
+- サーバーのコンテナイメージがダウンロードされます。
+- テストプロジェクト `project1` が作成されます。
+- `TestProjects/project1/workspace/scripts/compose.yaml` が作成されます。
+- アプリのビルドに使う JDK 25 がインストールされます。
+- アプリがビルドされます。iOS のランタイムが未導入なら、数 GB の取得で数分〜数十分かかります。
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -77,51 +77,45 @@ https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone �
 ```bash
 git clone https://github.com/wave1008/sut-ec-mobile.git ../sut-ec-mobile
 bash ../sut-ec-mobile/fleetest/prepare.sh
+bash ../sut-ec-mobile/fleetest/build.sh
+#   -> App (iOS): …/sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
+#   -> App (Android): …/sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 `../sut-ec-mobile` が既にあるときは、clone の代わりに `git -C ../sut-ec-mobile pull` で最新にします。
 
 テストプロジェクトの名前を変えるときは、`bash ../sut-ec-mobile/fleetest/prepare.sh <名前>` のように渡します。
 
+`build.sh` は Android SDK が無ければ iOS だけをビルドします。片方の OS だけをビルドするときは `ios` か `android` を渡します(例: `bash ../sut-ec-mobile/fleetest/build.sh ios`)。
+
 </details>
 
 ## 5. プロファイルを用意する
 
-アプリプロファイルと実行プロファイルを作成します。
+ステップ4でビルドしたアプリを使って、アプリプロファイルと実行プロファイルを作成します。
 
 ### AIへの指示文
 
 ```text
-project1 に、sut-ec-mobile の iOS アプリと Android アプリをビルドしてプロファイルを作成して。
-Android SDK が入っていなければ iOS だけでよい。
-アプリの表示名は「SUT Store」にして。
-デバイスは OS ごとに2台にして。アプリ ID は 
-iOS は com.sutec.mobile.ios、
-Android は com.sutec.mobile.android
-にして。
-ビルドには JDK 25(Homebrew の openjdk@25。/opt/homebrew/opt/openjdk@25)を使って。
+project1 に、sut-ec-mobile のアプリのプロファイルを作成して。
+
+iOSアプリのプロファイル
+アプリの場所： ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
+アプリの表示名： SUT Store
+アプリ ID: com.sutec.mobile.ios
+Simulator 2台
+
+Androidアプリのプロファイル　（Androidアプリがある場合）
+アプリの場所： ../sut-ec-mobile/androidApp/build/outputs/apk/debug/androidApp-debug.apk
+アプリの表示名： SUT Store
+アプリ ID: com.sutec.mobile.android
+Emulator 2台
 ```
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
-sut-ec-mobile のフォルダでアプリをビルドします。ビルドには JDK 25 を使います(ステップ4の prepare.sh が Homebrew の openjdk@25 を入れます)。
-
-```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-
-# iOS Simulator
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath build/ios-sim CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
-#   -> build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
-
-# Android
-./gradlew :androidApp:assembleDebug
-#   -> androidApp/build/outputs/apk/debug/androidApp-debug.apk
-```
-
-作業フォルダに戻って実行します。プロファイルは、ステップ4で作られたテストプロジェクト project1 に作られます。
+作業フォルダで実行します。プロファイルは、ステップ4で作られたテストプロジェクト project1 に作られます。
 
 ```bash
 # iOS
@@ -138,7 +132,7 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
 `--auto-device` は、最新の iOS ランタイムと最新の Pixel を使う Simulator/Emulator を自動で選びます
 (足りなければ作成します。iOS のランタイムが未導入のときは数 GB をダウンロードするので数分〜数十分かかります。
 起動していないものは実行時に自動で起動します)。アプリプロファイルの名前は `ios-app`・`android-app`、実行プロファイルの名前は `ios-run`・`android-run` になります。
-`--count 2` は、その実行プロファイルの該当 OS のデバイスを全部で2台にします(同じ内容の既存デバイスは番号の小さい順に再利用し、足りない分を作ります。指示文の「デバイスは OS ごとに2台にして」と同じです)。あとから VSCode 拡張のデバイスモニターの「プロファイル」タブにある「デバイスを追加」でも足せます。
+`--count 2` は、その実行プロファイルの該当 OS のデバイスを全部で2台にします(同じ内容の既存デバイスは番号の小さい順に再利用し、足りない分を作ります。指示文の「Simulator 2台」「Emulator 2台」と同じです)。あとから VSCode 拡張のデバイスモニターの「プロファイル」タブにある「デバイスを追加」でも足せます。
 Android のシステムイメージが未導入のときは、Android SDK のライセンスに同意する `--accept-licenses` を付けないとコマンドが断ります(ライセンスの内容は断ったときの表示で確かめてください)。
 
 </details>
@@ -150,8 +144,7 @@ VSCode のデバイスモニターの「プロファイル」タブを開き、�
 
 期待する結果:
 
-- 「プロファイル」タブに ios-run と android-run(それぞれデバイス2台)が並びます。Android SDK が無ければ ios-run だけです。
-- iOS ランタイムが未導入なら、数 GB の取得で数分〜数十分かかります。
+- 「プロファイル」タブに実行プロファイルとして ios-run と android-run(それぞれデバイス2台)が作成されます。Android SDK が無ければ ios-run だけです。
 
 ## 6. サンプルアプリを起動する
 
@@ -160,8 +153,8 @@ VSCode のデバイスモニターの「プロファイル」タブを開き、�
 ### AIへの指示文
 
 ```text
-project1 で使用するサーバーを ios-run プロファイルで起動して。
-ios-run のデバイス1台に SUT Store を入れて起動し、どのデバイスで起動したかを報告して。
+project1 の ios-run プロファイルでサーバーを起動して。
+ios-run のデバイス1台に SUT Store アプリを入れて起動し、どのデバイスで起動したかを報告して。
 ```
 
 - MCPの許可ダイアログが表示された場合は許可してください。
@@ -196,7 +189,7 @@ ios-run のデバイス1台に SUT Store を入れて起動し、どのデバイ
 ### AIへの指示文
 
 ```text
-project1 で、SUT Store の「商品詳細を開くテスト」を iOS で1本作成して。ファイル名は 商品詳細を開く.swift にして。
+project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS で1本作成して。ファイル名は 商品詳細を開く.swift にして。
 ホームから商品を1つ開いて商品詳細が表示されるまでの基本ルート(正常に進む流れ)を確かめる。アプリを日本語モードに切り替える処理は setUpDevice に書いて。
 シナリオのファイル名を報告したら終わりにして。
 ```
