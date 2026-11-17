@@ -89,19 +89,54 @@ final class KeyboardDismissEdgeSlopTests: XCTestCase {
         XCTAssertTrue(found.contains { $0.y > 546 - KeyboardDismissPoint.edgeHitSlop }, "\(found.map(\.y))")
     }
 
-    /// 縁から離れた小さな押せる部品も周り全体に余白を持つ(戻るボタンの枠の 1pt 右・12pt 下のタップが戻るボタンを押した)
-    func testBackButtonHitSlopIsAvoidedAwayFromTheKeyboard() {
+    func testControlHitSlopIsPinned() {
+        XCTAssertEqual(KeyboardDismissPoint.controlHitSlop, 16)
+    }
+
+    /// 実測の画面(iPad 横向き 1180x820・E2E-iOS の WebView): 戻るボタンの枠の外 1pt (73,78) を選んで戻るを押した。
+    /// 余白の外に空きがあれば、戻るボタンの余白の中は選ばない
+    func testBackButtonHitSlopIsAvoidedOnTheMeasuredScreen() throws {
+        let wide = FTRect(x: 0, y: 0, width: 1180, height: 820)
+        let kb = FTRect(x: 0, y: 398, width: 1180, height: 422)
         let back = el(2, "button", "btn_back", FTRect(x: 16, y: 48, width: 56, height: 62), depth: 1)
-        XCTAssertTrue(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 73, y: 78, elements: [back], keyboardRefs: []))
-        XCTAssertTrue(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 52, y: 122, elements: [back], keyboardRefs: []))
-        XCTAssertFalse(KeyboardDismissPoint.isWithinHitSlopOfControl(x: 120, y: 78, elements: [back], keyboardRefs: []))
-        // 実測の画面の形: 見出しの下からキーボードまでを WebView が埋め、空きは見出しの行(戻るボタンの脇)にしか無い
-        let webView = el(3, "webView", "wv_container", FTRect(x: 0, y: 126, width: screen.width, height: keyboard.y - 126), depth: 1)
-        let found = KeyboardDismissPoint.candidates(elements: [back, webView], screen: screen, keyboard: keyboard, overlays: [])
-        XCTAssertFalse(found.isEmpty)
-        for choice in found {
-            XCTAssertFalse(choice.x <= 72 + KeyboardDismissPoint.edgeHitSlop && choice.y <= 110 + KeyboardDismissPoint.edgeHitSlop,
-                           "戻るボタンの余白の中を選んだ: (\(choice.x), \(choice.y))")
+        let title = el(3, "staticText", "txt_screen_title", FTRect(x: 80, y: 68, width: 73, height: 20), depth: 1)
+        let webView = el(4, "webView", "wv_container", FTRect(x: 0, y: 126, width: 1180, height: 210), depth: 1)
+        let tabs = el(5, "button", "tab_home", FTRect(x: 0, y: 336, width: 1180, height: 62), depth: 1)
+        let found = KeyboardDismissPoint.candidates(elements: [back, title, webView, tabs], screen: wide, keyboard: kb, overlays: [])
+        let first = try XCTUnwrap(found.first)
+        let slop = KeyboardDismissPoint.inflated(back.frame, by: KeyboardDismissPoint.controlHitSlop)
+        XCTAssertFalse(first.x >= slop.x && first.x <= slop.x + slop.width && first.y >= slop.y && first.y <= slop.y + slop.height,
+                       "戻るボタンの余白の中を選んだ: (\(first.x), \(first.y))")
+    }
+
+    /// 余白の中にしか空きが無ければ、余白を除かずに選び直す(候補を失うと Enter = 送信へ落ちる)
+    func testFallsBackIntoTheSlopWhenNoOtherSpotIsFree() {
+        // 全幅の押せない入れ物の上に、上下左右 8pt だけ空けて並んだ行(SwiftUI の Form の行が button で出る形)
+        var elements = [el(1, "other", nil, screen, depth: 0)]
+        var y = 8.0
+        var ref = 10
+        while y < keyboard.y - 40 {
+            elements.append(el(ref, "button", "row\(ref)", FTRect(x: 8, y: y, width: screen.width - 16, height: 40), depth: 1))
+            y += 48
+            ref += 1
         }
+        let found = KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: [])
+        XCTAssertFalse(found.isEmpty, "余白の中の空きまで捨てて候補が空になった")
+        XCTAssertTrue(KeyboardDismissPoint.candidates(elements: elements, screen: screen, keyboard: keyboard, overlays: [],
+                                                      controlSlop: KeyboardDismissPoint.controlSlopRects(elements)).isEmpty,
+                      "この形は余白の外に空きが無い前提")
+    }
+
+    /// キーボードの子孫・無効な部品・大きさ0の枠は余白を持たない
+    func testSlopRectsSkipKeyboardDisabledAndEmptyControls() {
+        var disabled = el(3, "button", "send", FTRect(x: 300, y: 400, width: 60, height: 40), depth: 1)
+        disabled.enabled = false
+        let elements = [el(1, "keyboard", nil, keyboard, depth: 0),
+                        el(2, "button", "prediction", FTRect(x: 0, y: 546, width: 402, height: 44), depth: 1),
+                        el(4, "other", nil, screen, depth: 0),
+                        disabled,
+                        el(5, "button", "zero", FTRect(x: 0, y: 0, width: 0, height: 0), depth: 1),
+                        el(6, "button", "back", FTRect(x: 16, y: 48, width: 56, height: 62), depth: 1)]
+        XCTAssertEqual(KeyboardDismissPoint.controlSlopRects(elements).map(\.x), [0])
     }
 }
