@@ -22,11 +22,11 @@ enum LocalDeviceLeaseWaitPolicy {
 
 enum ProfileRunner {
 
-    /// 実行プロファイルの実効 FM 設定を、`ResolvedProfile.fm`/`ocrTextVisibilityCheck` から
+    /// 実行プロファイルの実効設定を、`ResolvedProfile.fm`/`ocrTextVisibilityCheck` から
     /// そのまま写す(**上書きは `--set` が `ProfileResolver.resolve(overrides:)` で当て済み**なので、
     /// ここで CLI 由来の override を二重に適用しない)
-    static func fmSettingsRecord(resolved: ResolvedProfile) -> FMSettingsRecord {
-        FMSettingsRecord(
+    static func effectiveSettingsRecord(resolved: ResolvedProfile) -> EffectiveSettingsRecord {
+        EffectiveSettingsRecord(
             heal: resolved.heal,
             fmTextVisibilityCheck: resolved.fm.fmTextVisibilityCheck,
             screenLooksLike: resolved.fm.screenLooksLike,
@@ -307,8 +307,8 @@ enum ProfileRunner {
         return "needed \(plural(needed, "lane"))" + derivation + " but \(freeClause)"
     }
 
-    /// 戻り値: 実行サマリ(失敗数+劣化ワーカー)+ この run で実際に効いていた FM 設定。
-    /// **fmSettings は tuple の2つ目として非 Optional で返す** —— `RunSummary.fmSettings` 自体は
+    /// 戻り値: 実行サマリ(失敗数+劣化ワーカー)+ この run で実際に効いていた 実効設定。
+    /// **effectiveSettings は tuple の2つ目として非 Optional で返す** —— `RunSummary.effectiveSettings` 自体は
     /// `RunOrchestrator` の生サマリ(プロファイルの実効値を知らないので常に nil)と共有する型なので
     /// Optional のままだが、この関数は0件早期リターンも含め全ての戻り経路で計算済みの値を持つ
     /// (下の2箇所の return 参照)。呼び出し側が `!` で開けずに済むよう、その保証を型で運ぶ
@@ -342,7 +342,7 @@ enum ProfileRunner {
                     early: PreparedSupply?,
                     // 準備の段の待ちと片付けはここへ載せる(本体の defer で片付けると、走っている供給の横で終了スクリプトが動く)
                     runExit: RunExitGuard
-    ) async throws -> (summary: RunSummary, fmSettings: FMSettingsRecord) {
+    ) async throws -> (summary: RunSummary, effectiveSettings: EffectiveSettingsRecord) {
         var items = rawItems
         let runClockStart = Date()
         // 1. プロファイル合成(準備の段を先に済ませた run は、その解決をそのまま使う)
@@ -351,9 +351,9 @@ enum ProfileRunner {
             project: project, profileName: profileName, setOverrides: setOverrides,
             workspaceOverride: workspaceOverride, deviceFilter: deviceFilter, deviceMachine: deviceMachine,
             broadcast: broadcast)
-        // **filteringDevices/limitingDevices/broadcast は FM 設定に触れない**ので、devices を
+        // **filteringDevices/limitingDevices/broadcast は 実効設定に触れない**ので、devices を
         // 絞る前のこの時点で計算して 0 件早期リターン・本編の両方で使う
-        let fmSettings = Self.fmSettingsRecord(resolved: full)
+        let effectiveSettings = Self.effectiveSettingsRecord(resolved: full)
         // OS 対象外(`@TestClass(platform:)` / `@Test(platform:)` がこの run に無い OS を指す)は
         // **キューへ入れる前に外す** —— 入れると RunOrchestrator の「担当ワーカーなし」に落ち、
         // 意図された対象外が失敗として数えられる(PlatformApplicability の宣言)。
@@ -380,7 +380,7 @@ enum ProfileRunner {
         // 準備の段を先に済ませた run の片付けは呼び手が持つ
         if items.isEmpty {
             return (RunSummary(total: 0, failed: 0, performanceMode: performanceMode,
-                               fmSettings: fmSettings), fmSettings)
+                               effectiveSettings: effectiveSettings), effectiveSettings)
         }
 
         // 供給段(ワーカー構築・install 等)の例外で1本も始まらずに抜けるときは、残りを `--failed` の
@@ -618,12 +618,12 @@ enum ProfileRunner {
                                  fmUnavailableScenarios: finalSummary.fmUnavailableScenarios,
                                  workerAnomalies: finalSummary.workerAnomalies + triageBox.getAnomalies(),
                                  performanceMode: performanceMode,
-                                 fmSettings: fmSettings,
+                                 effectiveSettings: effectiveSettings,
                                  interrupted: finalSummary.interrupted,
                                  abortReason: finalSummary.abortReason,
                                  servicesWarnings: servicesSession?.warnings ?? [],
                                  responseMeasurement: ResponseMeasurementPolicy.runInfo(resolved: resolved))
-        return (resultSummary, fmSettings)
+        return (resultSummary, effectiveSettings)
     }
 
     /// FM を使う run の開始前に、FM が**本当に呼べるか**を確かめて警告する。

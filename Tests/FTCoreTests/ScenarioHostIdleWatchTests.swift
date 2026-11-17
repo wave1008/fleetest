@@ -5,7 +5,7 @@
 import XCTest
 @testable import FTCore
 
-private let testFMSettings = FMSettingsRecord(
+private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 final class ScenarioHostIdleWatchTests: XCTestCase {
@@ -72,7 +72,7 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
             recording: ScenarioRecording(recorder: recorder)) { sink.append($0) }
         let returned = ContinuousClock.now
         recorder.finish(total: 1, passed: passed ? 1 : 0, failed: passed ? 0 : 1,
-                        performanceMode: false, fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+                        performanceMode: false, effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
         return (passed, RunResultsStore.records(runDir: recorder.runDir).first,
                 sink.events.compactMap(\.message),
                 Self.timeline(start: start, sink: sink, marks: [("ScenarioHost.run returned", returned),

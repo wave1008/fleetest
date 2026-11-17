@@ -10,7 +10,7 @@
 import XCTest
 @testable import FTCore
 
-private let testFMSettings = FMSettingsRecord(
+private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 final class ScenarioHostRegisterChildProcessTests: XCTestCase {
@@ -85,7 +85,7 @@ final class ScenarioHostRegisterChildProcessTests: XCTestCase {
             recording: ScenarioRecording(recorder: recorder),
             registerChildProcess: { registration.register($0) }) { _ in }
         recorder.finish(total: 1, passed: passed ? 1 : 0, failed: passed ? 0 : 1,
-                        performanceMode: false, fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+                        performanceMode: false, effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
 
         XCTAssertFalse(passed, "exit 1 する子は失敗として扱われる(通常の失敗経路と同じ)")
         XCTAssertEqual(registration.callCount, 1, "起動できた子は必ず1回登録される")
@@ -114,7 +114,7 @@ final class ScenarioHostRegisterChildProcessTests: XCTestCase {
             recording: ScenarioRecording(recorder: recorder),
             registerChildProcess: { registration.register($0) }) { _ in }
         recorder.finish(total: 1, passed: passed ? 1 : 0, failed: passed ? 0 : 1,
-                        performanceMode: false, fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+                        performanceMode: false, effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
 
         XCTAssertFalse(passed)
         XCTAssertEqual(registration.callCount, 0)

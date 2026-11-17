@@ -22,13 +22,13 @@ export const resultsExportStrings = {
   "resultsExport.overview.stepSectionLabel": { ja: "ステップ", en: "Steps" },
   "resultsExport.overview.classesTitle": { ja: "クラス別", en: "By Class" },
 
-  // FM 設定(4つ常に同じ順で「ラベル=ON/OFF」を並べる。docs/results-json.md の fmSettings)。
-  "resultsExport.fm.heal": { ja: "自己修復", en: "Self-heal" },
-  "resultsExport.fm.fmTextVisibilityCheck": { ja: "テキストの可視性検証", en: "Text visibility check" },
-  "resultsExport.fm.ocrTextVisibilityCheck": { ja: "OCRを使ったテキストの可視性検証", en: "OCR text visibility check" },
-  "resultsExport.fm.screenLooksLike": { ja: "画面の見た目判定", en: "Screen appearance check" },
-  "resultsExport.fm.on": { ja: "ON", en: "ON" },
-  "resultsExport.fm.off": { ja: "OFF", en: "OFF" },
+  // run の実効設定(4つ常に同じ順で「ラベル=ON/OFF」を並べる。docs/results-json.md の effectiveSettings)。
+  "resultsExport.effective.heal": { ja: "自己修復", en: "Self-heal" },
+  "resultsExport.effective.fmTextVisibilityCheck": { ja: "テキストの可視性検証", en: "Text visibility check" },
+  "resultsExport.effective.ocrTextVisibilityCheck": { ja: "OCRを使ったテキストの可視性検証", en: "OCR text visibility check" },
+  "resultsExport.effective.screenLooksLike": { ja: "画面の見た目判定", en: "Screen appearance check" },
+  "resultsExport.effective.on": { ja: "ON", en: "ON" },
+  "resultsExport.effective.off": { ja: "OFF", en: "OFF" },
 
   "resultsExport.count.total": { ja: "合計", en: "Total" },
 

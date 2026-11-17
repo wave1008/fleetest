@@ -333,8 +333,8 @@ export async function loadRecordingSessionDetail(
   return { runDir, index: session.index, recorded: session.recorded, machine, scenarios };
 }
 
-/** run.json の fmSettings(docs/results-json.md)。寛容に読む(欠落した欄は null)。 */
-export interface RunMetaFmSettings {
+/** run.json の effectiveSettings(docs/results-json.md)。寛容に読む(欠落した欄は null)。 */
+export interface RunMetaEffectiveSettings {
   readonly heal: boolean | null;
   readonly fmTextVisibilityCheck: boolean | null;
   readonly screenLooksLike: boolean | null;
@@ -352,7 +352,7 @@ export interface RunMetaFragment {
   readonly finishedAt: string | null;
   readonly trigger: string | null;
   readonly issuer: string | null;
-  readonly fmSettings: RunMetaFmSettings | null;
+  readonly effectiveSettings: RunMetaEffectiveSettings | null;
 }
 
 function booleanField(obj: Record<string, unknown> | null, key: string): boolean | null {
@@ -364,12 +364,12 @@ function booleanField(obj: Record<string, unknown> | null, key: string): boolean
 export async function loadRunMeta(runDir: string): Promise<RunMetaFragment> {
   const metaRaw = await readJson(path.join(runDir, "run.json"));
   const meta = isRecord(metaRaw) ? metaRaw : null;
-  const fmSettingsRaw = isRecord(meta?.fmSettings) ? meta.fmSettings : null;
-  const fmSettings: RunMetaFmSettings | null = fmSettingsRaw === null ? null : {
-    heal: booleanField(fmSettingsRaw, "heal"),
-    fmTextVisibilityCheck: booleanField(fmSettingsRaw, "fmTextVisibilityCheck"),
-    screenLooksLike: booleanField(fmSettingsRaw, "screenLooksLike"),
-    ocrTextVisibilityCheck: booleanField(fmSettingsRaw, "ocrTextVisibilityCheck"),
+  const effectiveSettingsRaw = isRecord(meta?.effectiveSettings) ? meta.effectiveSettings : null;
+  const effectiveSettings: RunMetaEffectiveSettings | null = effectiveSettingsRaw === null ? null : {
+    heal: booleanField(effectiveSettingsRaw, "heal"),
+    fmTextVisibilityCheck: booleanField(effectiveSettingsRaw, "fmTextVisibilityCheck"),
+    screenLooksLike: booleanField(effectiveSettingsRaw, "screenLooksLike"),
+    ocrTextVisibilityCheck: booleanField(effectiveSettingsRaw, "ocrTextVisibilityCheck"),
   };
   return {
     profile: stringField(meta, "profile") ?? null,
@@ -378,6 +378,6 @@ export async function loadRunMeta(runDir: string): Promise<RunMetaFragment> {
     finishedAt: stringField(meta, "finishedAt") ?? null,
     trigger: stringField(meta, "trigger") ?? null,
     issuer: stringField(meta, "issuer") ?? null,
-    fmSettings,
+    effectiveSettings,
   };
 }

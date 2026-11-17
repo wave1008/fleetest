@@ -137,7 +137,7 @@ def result(run):
         return None
     d = json.load(open(files[0]))
     meta = json.load(open(os.path.join(run, "run.json")))
-    d["_heal"] = (meta.get("fmSettings") or {}).get("heal")
+    d["_heal"] = (meta.get("effectiveSettings") or {}).get("heal")
     d["_notes"] = {n for st in (d.get("timeline") or []) for n in (st.get("notes") or [])}
     d["_fixes"] = [(x.get("oldSelector"), x.get("newSelector")) for x in (d.get("fixSuggestions") or [])]
     d["_fail"] = " ".join((st.get("detail") or "") for st in (d.get("failedSteps") or []))

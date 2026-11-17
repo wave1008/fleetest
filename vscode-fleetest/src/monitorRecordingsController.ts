@@ -187,7 +187,7 @@ export class MonitorRecordingsController {
           issuer: meta.issuer,
           profile: meta.profile,
           machine: detail.machine,
-          fmSettings: meta.fmSettings,
+          effectiveSettings: meta.effectiveSettings,
         });
         for (const raw of detail.scenarios) {
           const source = extractResultsExportScenarioSource(raw, meta.profile, detail.machine);

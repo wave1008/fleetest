@@ -292,7 +292,7 @@ public final class RunRecorder: @unchecked Sendable {
         RunResultsStore.supersedeScenario(runDir: runDir, fileName: removed.fileName)
     }
 
-    /// - fmSettings: その run で実際に効いていた FM 設定(実効値)。**既定値を置かない** ——
+    /// - effectiveSettings: その run で実際に効いていた 実効設定(実効値)。**既定値を置かない** ——
     ///   `fleetest run` / `fleetest api run` は別実装で、既定値があると片方の呼び出し元が
     ///   渡し忘れてもコンパイルが通ってしまう(OverlayWindowOcclusion と同じ規律)
     /// - Returns: `FTCore.SlowWorkerDetector` が検出した遅いデバイス(除外・自動修復はしない観測のみ)。
@@ -308,11 +308,11 @@ public final class RunRecorder: @unchecked Sendable {
                        // **既定値を置かない** —— `fleetest run` と `fleetest api run` は別実装で、
                        // 片方が渡し忘れても両方緑のまま通る(実際 api run が渡しておらず、
                        // 拡張から起こした計測 run が run.json 上で通常 run と見分けられなかった)。
-                       // 渡し忘れをコンパイルで止める。fmSettings も同じ理由で既定値なし
+                       // 渡し忘れをコンパイルで止める。effectiveSettings も同じ理由で既定値なし
                        performanceMode: Bool,
-                       fmSettings: FMSettingsRecord,
+                       effectiveSettings: EffectiveSettingsRecord,
                        // `--set` の上書き(RunProfileSetValue.token に変換済みの文字列。無ければ
-                       // nil)。**既定値を置かない** —— performanceMode/fmSettings と同じ理由
+                       // nil)。**既定値を置かない** —— performanceMode/effectiveSettings と同じ理由
                        // (`fleetest run`/`api run` は別実装。渡し忘れをコンパイルで止める。
                        //)
                        setOverrides: [String: String]?,
@@ -375,7 +375,7 @@ public final class RunRecorder: @unchecked Sendable {
             fmDeadReason: fmReading.deadSummary(),
             guarded: guardedValue, guardSkipped: guardSkippedValue,
             guardStaleFrame: guardStaleFrameValue,
-            fmSettings: fmSettings,
+            effectiveSettings: effectiveSettings,
             // 空辞書は nil に畳む(「上書き無し」と「キー0件の空辞書」を区別する意味が無い)
             setOverrides: (setOverrides?.isEmpty ?? true) ? nil : setOverrides,
             // false/nil は書かない(既存レコードと同じ形。他の Bool 欄と同じ流儀)

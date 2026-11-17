@@ -9,8 +9,8 @@
 import XCTest
 @testable import FTCore
 
-/// この種のテストが finish() へ渡す fmSettings は値そのものを検査しないので固定の1値でよい
-private let testFMSettings = FMSettingsRecord(
+/// この種のテストが finish() へ渡す effectiveSettings は値そのものを検査しないので固定の1値でよい
+private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 final class ScenarioHostRunnerUnavailableTests: XCTestCase {
@@ -56,7 +56,7 @@ final class ScenarioHostRunnerUnavailableTests: XCTestCase {
         }
         recorder.finish(total: 1, passed: passed ? 1 : 0, failed: passed ? 0 : 1,
                         performanceMode: false,
-                        fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+                        effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
         return (passed, RunResultsStore.records(runDir: recorder.runDir), sink.events)
     }
 

@@ -10,8 +10,8 @@
 import XCTest
 @testable import FTCore
 
-/// この種のテストが finish() へ渡す fmSettings は値そのものを検査しないので固定の1値でよい
-private let testFMSettings = FMSettingsRecord(
+/// この種のテストが finish() へ渡す effectiveSettings は値そのものを検査しないので固定の1値でよい
+private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 /// 呼ばれない前提のドライバ(このテストは worker の識別子だけを見る)
@@ -185,7 +185,7 @@ final class FailureFactsTests: XCTestCase {
                             kind: "degraded", worker: "android:Pixel",
                             label: "Pixel(android:emulator-5556)", reason: "dropped out")],
                         performanceMode: false,
-                        fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+                        effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
 
         let runDir = RunResultsStore.runDir(
             resultsDir: RunResultsStore.resultsDir(projectRoot: project.rootURL),
@@ -210,7 +210,7 @@ final class FailureFactsTests: XCTestCase {
         let recorder = RunRecorder.begin(project: project, profile: nil, trigger: "test",
                                          captureHostMetrics: false)
 
-        recorder.finish(total: 1, passed: 1, failed: 0, performanceMode: false, fmSettings: testFMSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
+        recorder.finish(total: 1, passed: 1, failed: 0, performanceMode: false, effectiveSettings: testEffectiveSettings, setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
 
         let runDir = RunResultsStore.runDir(
             resultsDir: RunResultsStore.resultsDir(projectRoot: project.rootURL),

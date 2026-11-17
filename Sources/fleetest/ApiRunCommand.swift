@@ -627,17 +627,17 @@ struct ApiRunCommand: AsyncParsableCommand {
         // (DeviceIndependentRunSettings)のどちらもここへ来る前に当て済みなので、
         // ここで CLI 由来の override を二重に適用しない(run.json には実効値がそのまま乗る)。
         // 供給段の abort 記録(下の catch)にも要るためここで先に計算する(元は outcome 確定後だった)
-        let fmSettings: FMSettingsRecord
+        let effectiveSettings: EffectiveSettingsRecord
         if let resolvedProfile {
             let fm = resolvedProfile.fm
-            fmSettings = FMSettingsRecord(
+            effectiveSettings = EffectiveSettingsRecord(
                 heal: resolvedProfile.heal, fmTextVisibilityCheck: fm.fmTextVisibilityCheck,
                 screenLooksLike: fm.screenLooksLike,
                 ocrTextVisibilityCheck: resolvedProfile.ocrTextVisibilityCheck)
         } else {
             // runDirect と同じ設定(DeviceIndependentRunSettings)
             let fm = noProfileSettings.fm
-            fmSettings = FMSettingsRecord(
+            effectiveSettings = EffectiveSettingsRecord(
                 heal: noProfileSettings.heal, fmTextVisibilityCheck: fm.fmTextVisibilityCheck,
                 screenLooksLike: fm.screenLooksLike,
                 ocrTextVisibilityCheck: noProfileSettings.ocrTextVisibilityCheck)
@@ -710,7 +710,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             // run-setup.sh やサービスの起動の失敗 = サービスのログも証跡に残す(run の記録があるときだけ)
             if let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
             recorder?.finish(total: selected.count, passed: 0, failed: selected.count,
-                             performanceMode: performanceMode, fmSettings: fmSettings,
+                             performanceMode: performanceMode, effectiveSettings: effectiveSettings,
                              setOverrides: profileOverrides.mapValues(\.token),
                              servicesWarnings: cleanup.servicesSession?.warnings ?? [],
                              responseMeasurement: resolvedProfile.flatMap(ResponseMeasurementPolicy.runInfo(resolved:)),
@@ -737,7 +737,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             degradedWorkers: outcome.degradedWorkers, blankExclusions: outcome.blankExclusions)
         // 赤の run はサービスのログの末尾も記録へ(ProfileRunner.run と同じ。片付けの前に読む)
         if outcome.failed > 0, let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
-        // fmSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
+        // effectiveSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
         let slowWorkers = recorder?.finish(total: selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
                          degradedWorkers: outcome.degradedWorkers,
                          freezeRetries: outcome.freezeRetries,
@@ -747,7 +747,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                          measurementInvalidReasons: validity.reasons,
                          workerAnomalies: outcome.workerAnomalies,
                          performanceMode: performanceMode,
-                         fmSettings: fmSettings,
+                         effectiveSettings: effectiveSettings,
                          setOverrides: profileOverrides.mapValues(\.token),
                          servicesWarnings: cleanup.servicesSession?.warnings ?? [],
                          responseMeasurement: resolvedProfile.flatMap(ResponseMeasurementPolicy.runInfo(resolved:)),

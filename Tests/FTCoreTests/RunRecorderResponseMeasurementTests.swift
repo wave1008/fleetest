@@ -50,7 +50,7 @@ final class RunRecorderResponseMeasurementTests: XCTestCase {
         let recorder = makeRecorder()
         recorder.recordResponseMeasurement(info)
         recorder.finish(total: 1, passed: 0, failed: 1, performanceMode: false,
-                        fmSettings: FMSettingsRecord(heal: false, fmTextVisibilityCheck: false,
+                        effectiveSettings: EffectiveSettingsRecord(heal: false, fmTextVisibilityCheck: false,
                                                       screenLooksLike: false, ocrTextVisibilityCheck: false),
                         setOverrides: nil, servicesWarnings: [], responseMeasurement: nil)
         let meta = RunResultsStore.meta(runDir: recorder.runDir)

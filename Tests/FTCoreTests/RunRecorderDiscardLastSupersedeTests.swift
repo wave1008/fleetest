@@ -8,8 +8,8 @@ import Foundation
 import XCTest
 @testable import FTCore
 
-/// この種のテストが finish() へ渡す fmSettings は値そのものを検査しないので固定の1値でよい
-private let testFMSettings = FMSettingsRecord(
+/// この種のテストが finish() へ渡す effectiveSettings は値そのものを検査しないので固定の1値でよい
+private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 final class RunRecorderDiscardLastSupersedeTests: XCTestCase {

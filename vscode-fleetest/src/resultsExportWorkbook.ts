@@ -6,7 +6,7 @@
 import { t, type MessageKey } from "./i18n";
 import type {
   ResultsExportClassSummary,
-  ResultsExportFmSettings,
+  ResultsExportEffectiveSettings,
   ResultsExportModel,
   ResultsExportScenarioResult,
 } from "./resultsExportModel";
@@ -118,17 +118,17 @@ function excelDateSerial(iso: string): number | null {
   return localMs / 86400000 + 25569;
 }
 
-function fmSettingsText(fm: ResultsExportFmSettings | null): string {
+function effectiveSettingsText(fm: ResultsExportEffectiveSettings | null): string {
   if (fm === null) return "";
   const parts: readonly [boolean | null, MessageKey][] = [
-    [fm.heal, "resultsExport.fm.heal"],
-    [fm.fmTextVisibilityCheck, "resultsExport.fm.fmTextVisibilityCheck"],
-    [fm.ocrTextVisibilityCheck, "resultsExport.fm.ocrTextVisibilityCheck"],
-    [fm.screenLooksLike, "resultsExport.fm.screenLooksLike"],
+    [fm.heal, "resultsExport.effective.heal"],
+    [fm.fmTextVisibilityCheck, "resultsExport.effective.fmTextVisibilityCheck"],
+    [fm.ocrTextVisibilityCheck, "resultsExport.effective.ocrTextVisibilityCheck"],
+    [fm.screenLooksLike, "resultsExport.effective.screenLooksLike"],
   ];
   return parts
     .filter((p): p is [boolean, MessageKey] => p[0] !== null)
-    .map(([on, key]) => `${t(key)}=${on ? t("resultsExport.fm.on") : t("resultsExport.fm.off")}`)
+    .map(([on, key]) => `${t(key)}=${on ? t("resultsExport.effective.on") : t("resultsExport.effective.off")}`)
     .join(", ");
 }
 
@@ -196,7 +196,7 @@ function renderOverviewSheet(workbook: XlsxWorkbook, sheet: XlsxSheet, model: Re
   setLabel(11, "resultsExport.overview.issuer");
   sheet.setString(11, 2, overview.issuers.join(", "), valueStyle);
   setLabel(12, "resultsExport.overview.settings");
-  sheet.setString(12, 2, fmSettingsText(overview.fmSettings), valueStyle);
+  sheet.setString(12, 2, effectiveSettingsText(overview.effectiveSettings), valueStyle);
 
   renderCountBlock(workbook, sheet, 14, t("resultsExport.overview.scenarioSectionLabel"), [
     { label: t("resultsExport.count.total"), value: overview.scenarioTotal },

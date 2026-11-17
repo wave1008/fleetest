@@ -217,7 +217,7 @@ function runMeta(overrides = {}) {
     issuer: null,
     profile: null,
     machine: null,
-    fmSettings: null,
+    effectiveSettings: null,
     ...overrides,
   };
 }
@@ -246,10 +246,10 @@ test("概要: プロファイル/マシン/起動元/実行者は run 横断で�
   assert.deepEqual(overview.issuers, ["alice"]);
 });
 
-test("概要: fmSettings は最初に見つかった非 null 値を代表として使う", () => {
+test("概要: effectiveSettings は最初に見つかった非 null 値を代表として使う", () => {
   const fm = { heal: true, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: false };
-  const metas = [runMeta({ runID: "r1", fmSettings: null }), runMeta({ runID: "r2", fmSettings: fm })];
-  assert.deepEqual(modelFrom([], metas).overview.fmSettings, fm);
+  const metas = [runMeta({ runID: "r1", effectiveSettings: null }), runMeta({ runID: "r2", effectiveSettings: fm })];
+  assert.deepEqual(modelFrom([], metas).overview.effectiveSettings, fm);
 });
 
 test("概要: シナリオ件数はシナリオの結果種別ごとの合計", () => {

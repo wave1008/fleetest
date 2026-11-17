@@ -123,14 +123,14 @@ public struct WorkerAnomalyRecord: Codable, Sendable {
     }
 }
 
-/// その run で実際に効いていた FM 設定(`FTCore.ResolvedProfile` の実効値。CLI の
+/// その run で実際に効いていた判定系の設定(`FTCore.ResolvedProfile` の実効値。CLI の
 /// `--set`(heal/fmTextVisibilityCheck/screenLooksLike/ocrTextVisibilityCheck)による
 /// 上書きを反映した後の値)。
 /// **4つとも常に明示的に書く**(true/false のどちらも省略しない) —— 省略を許すと
-/// RunMetaRecord.fmSettings が nil(旧レコード)なのか、この構造体の中の1欄だけが
-/// 省略されたのか区別できなくなる。`heal` / `ocrTextVisibilityCheck` は `FMConfig` の外
-/// (`RunProfileDocument` の独立の兄弟キー。heal は FM を使わない)だが、記録上はここへまとめる
-public struct FMSettingsRecord: Codable, Sendable, Equatable {
+/// RunMetaRecord.effectiveSettings が nil(旧レコード)なのか、この構造体の中の1欄だけが
+/// 省略されたのか区別できなくなる。FM の設定の入れ物ではない —— `heal`(指紋照合・DR-7)と
+/// `ocrTextVisibilityCheck`(Vision)は FM を使わない
+public struct EffectiveSettingsRecord: Codable, Sendable, Equatable {
     public var heal: Bool
     public var fmTextVisibilityCheck: Bool
     public var screenLooksLike: Bool
@@ -179,7 +179,7 @@ public struct RunMetaRecord: Codable, Sendable {
         case total, passed, failed, degradedWorkers, freezeRetries, blankRepairs, blankExclusions
         case measurementInvalid, measurementInvalidReasons, workerAnomalies, issuer, runGroup
         case performanceMode, fmDead, fmDeadReason
-        case guarded, guardSkipped, guardStaleFrame, fmSettings, setOverrides
+        case guarded, guardSkipped, guardStaleFrame, effectiveSettings, setOverrides
         case interrupted, abortReason, slowWorkers, servicesWarnings, responseMeasurement, workerModes
     }
 
@@ -213,7 +213,7 @@ public struct RunMetaRecord: Codable, Sendable {
         guarded = try c.decodeIfPresent(Int.self, forKey: .guarded)
         guardSkipped = try c.decodeIfPresent(Int.self, forKey: .guardSkipped)
         guardStaleFrame = try c.decodeIfPresent(Int.self, forKey: .guardStaleFrame)
-        fmSettings = try c.decodeIfPresent(FMSettingsRecord.self, forKey: .fmSettings)
+        effectiveSettings = try c.decodeIfPresent(EffectiveSettingsRecord.self, forKey: .effectiveSettings)
         setOverrides = try c.decodeIfPresent([String: String].self, forKey: .setOverrides)
         interrupted = try c.decodeIfPresent(Bool.self, forKey: .interrupted)
         abortReason = try c.decodeIfPresent(String.self, forKey: .abortReason)
@@ -253,7 +253,7 @@ public struct RunMetaRecord: Codable, Sendable {
         try c.encodeIfPresent(guarded, forKey: .guarded)
         try c.encodeIfPresent(guardSkipped, forKey: .guardSkipped)
         try c.encodeIfPresent(guardStaleFrame, forKey: .guardStaleFrame)
-        try c.encodeIfPresent(fmSettings, forKey: .fmSettings)
+        try c.encodeIfPresent(effectiveSettings, forKey: .effectiveSettings)
         try c.encodeIfPresent(setOverrides, forKey: .setOverrides)
         try c.encodeIfPresent(interrupted, forKey: .interrupted)
         try c.encodeIfPresent(abortReason, forKey: .abortReason)
@@ -339,10 +339,10 @@ public struct RunMetaRecord: Codable, Sendable {
     public var guardSkipped: Int?
     /// guarded のうち絵が古いまま撮り直しても stale で素通りした回の合計(`StepNote.staleScreenshot`)
     public var guardStaleFrame: Int?
-    /// この run で実際に効いていた FM 設定(実効値。プロファイルの値ではなく CLI 上書き後の値)。
+    /// この run で実際に効いていた 実効設定(実効値。プロファイルの値ではなく CLI 上書き後の値)。
     /// **欄が無い = この版より前の記録**であって、FM が無効だった意味ではない
     /// (fmDead 等と同じ「無い/false」を混ぜない規律)
-    public var fmSettings: FMSettingsRecord?
+    public var effectiveSettings: EffectiveSettingsRecord?
     /// `--set <key>=<value>` の上書き。**キーは
     /// プロファイル JSON のキーそのもの**(`RunProfileSetOverride.parse` が受けたもの)・値は
     /// `RunProfileSetValue.token`(型を問わず文字列化。例 "3"/"false")。上書きが無い run では nil
@@ -388,7 +388,7 @@ public struct RunMetaRecord: Codable, Sendable {
                 performanceMode: Bool? = nil,
                 fmDead: [String]? = nil, fmDeadReason: String? = nil,
                 guarded: Int? = nil, guardSkipped: Int? = nil, guardStaleFrame: Int? = nil,
-                fmSettings: FMSettingsRecord? = nil,
+                effectiveSettings: EffectiveSettingsRecord? = nil,
                 setOverrides: [String: String]? = nil,
                 interrupted: Bool? = nil, abortReason: String? = nil,
                 slowWorkers: [String]? = nil,
@@ -423,7 +423,7 @@ public struct RunMetaRecord: Codable, Sendable {
         self.guarded = guarded
         self.guardSkipped = guardSkipped
         self.guardStaleFrame = guardStaleFrame
-        self.fmSettings = fmSettings
+        self.effectiveSettings = effectiveSettings
         self.setOverrides = setOverrides
         self.interrupted = interrupted
         self.abortReason = abortReason

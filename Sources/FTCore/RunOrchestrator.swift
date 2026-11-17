@@ -280,10 +280,10 @@ public struct RunSummary: Sendable {
     /// orchestrator 自身は performanceMode を知らないため常に false を返す —— measurementInvalid と
     /// 同じ理由で呼び手が自分で構築した RunSummary へ埋める
     public let performanceMode: Bool
-    /// この run で実際に効いていた FM 設定(RunMetaRecord.fmSettings にそのまま焼き込む)。
+    /// この run で実際に効いていた 実効設定(RunMetaRecord.effectiveSettings にそのまま焼き込む)。
     /// orchestrator 自身はプロファイルの実効値を知らないため常に nil を返す —— 呼び手
     /// (ProfileRunner/ApiRunCommand)が resolve 済みの値で自分の RunSummary へ埋める
-    public let fmSettings: FMSettingsRecord?
+    public let effectiveSettings: EffectiveSettingsRecord?
     /// この run が SIGINT/SIGTERM で中断されたか(RunOrchestrator.requestInterrupt() が
     /// 呼ばれたか)。**呼び手が RunMetaRecord.interrupted へそのまま焼き込む** ——
     /// 「デバイス/ワーカーの問題で赤くなった」と「利用者が止めた」を results insights が
@@ -307,7 +307,7 @@ public struct RunSummary: Sendable {
                 fmUnavailableScenarios: Int = 0,
                 workerAnomalies: [WorkerAnomalyRecord] = [],
                 performanceMode: Bool = false,
-                fmSettings: FMSettingsRecord? = nil,
+                effectiveSettings: EffectiveSettingsRecord? = nil,
                 interrupted: Bool = false,
                 abortReason: String? = nil,
                 servicesWarnings: [String] = [],
@@ -324,7 +324,7 @@ public struct RunSummary: Sendable {
         self.fmUnavailableScenarios = fmUnavailableScenarios
         self.workerAnomalies = workerAnomalies
         self.performanceMode = performanceMode
-        self.fmSettings = fmSettings
+        self.effectiveSettings = effectiveSettings
         self.interrupted = interrupted
         self.abortReason = abortReason
         self.servicesWarnings = servicesWarnings

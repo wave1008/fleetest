@@ -1,15 +1,15 @@
-// 欠陥③(2026-09-08): `Sources/fleetest/Fleetest.swift` は `runSummary.fmSettings!` で
-// `RunOrchestrator.RunSummary.fmSettings`(Optional。ProfileRunner が「常に埋める」契約を型で
+// 欠陥③(2026-09-08): `Sources/fleetest/Fleetest.swift` は `runSummary.effectiveSettings!` で
+// `RunOrchestrator.RunSummary.effectiveSettings`(Optional。ProfileRunner が「常に埋める」契約を型で
 // 表せていなかった)を強制アンラップしていた。`ProfileRunner.run` の戻り値を
-// `(summary: RunSummary, fmSettings: FMSettingsRecord)` に変え、`!` を使わずに済む形にした。
-// ここでは 0 件早期リターン(デバイスに一切触れない経路)でも fmSettings が非 Optional のまま
+// `(summary: RunSummary, effectiveSettings: EffectiveSettingsRecord)` に変え、`!` を使わずに済む形にした。
+// ここでは 0 件早期リターン(デバイスに一切触れない経路)でも effectiveSettings が非 Optional のまま
 // 実際の実効値を運ぶことを固定する。
 
 import XCTest
 import FTCore
 @testable import fleetest
 
-final class ProfileRunnerFMSettingsTests: XCTestCase {
+final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
     var tempDir: URL!
     var project: TestProject!
 
@@ -34,7 +34,7 @@ final class ProfileRunnerFMSettingsTests: XCTestCase {
     /// `items` に載っている唯一のシナリオが android 宣言で、machine のデバイスが ios だけなら
     /// `PlatformApplicability.partition` が全件を対象外へ落とし、`items.isEmpty` の
     /// 0件早期リターンに入る(デバイスにもアプリのインストールにも触れない経路)
-    func testEarlyReturnWhenNoScenarioIsApplicableStillReturnsConcreteFMSettings() async throws {
+    func testEarlyReturnWhenNoScenarioIsApplicableStillReturnsConcreteEffectiveSettings() async throws {
         try write("""
         { "ios": { "app": "com.example.sampleapp" } }
         """, to: project.appsDir, name: "sampleapp")
@@ -47,7 +47,7 @@ final class ProfileRunnerFMSettingsTests: XCTestCase {
 
         let androidOnly = ScenarioRunItem(info: ScenarioInfo(id: "A.S0010", title: "S0010", platform: "android"))
         let runExit = RunExitGuard()
-        let (summary, fmSettings) = try await ProfileRunner.run(
+        let (summary, effectiveSettings) = try await ProfileRunner.run(
             project: project, profileName: "iosOnly", items: [androidOnly],
             reportDirOverride: nil, supplyProgress: RunSupplyProgress(),
             interruptState: RunInterruptState(recorder: nil), early: nil, runExit: runExit)
@@ -57,8 +57,8 @@ final class ProfileRunnerFMSettingsTests: XCTestCase {
         XCTAssertEqual(summary.failed, 0)
         // 値が実際にプロファイルから読まれたことも確認する
         // (既定 true のまま素通りしていないか = ProfileResolver.resolve と同じ経路を通った証拠)
-        XCTAssertFalse(fmSettings.fmTextVisibilityCheck)
-        XCTAssertFalse(fmSettings.screenLooksLike)
-        XCTAssertFalse(fmSettings.ocrTextVisibilityCheck)
+        XCTAssertFalse(effectiveSettings.fmTextVisibilityCheck)
+        XCTAssertFalse(effectiveSettings.screenLooksLike)
+        XCTAssertFalse(effectiveSettings.ocrTextVisibilityCheck)
     }
 }

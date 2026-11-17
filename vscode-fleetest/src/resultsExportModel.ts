@@ -164,7 +164,7 @@ export function extractResultsExportScenarioSource(
 
 // ---- run.json 抜粋(概要シート) ------------------------------------------------------------
 
-export interface ResultsExportFmSettings {
+export interface ResultsExportEffectiveSettings {
   readonly heal: boolean | null;
   readonly fmTextVisibilityCheck: boolean | null;
   readonly screenLooksLike: boolean | null;
@@ -180,7 +180,7 @@ export interface ResultsExportRunMeta {
   readonly profile: string | null;
   /** run.json 由来のマシン名(alias 解決済み)。 */
   readonly machine: string | null;
-  readonly fmSettings: ResultsExportFmSettings | null;
+  readonly effectiveSettings: ResultsExportEffectiveSettings | null;
 }
 
 // ---- モデル(レポートの行構造) ---------------------------------------------------------------
@@ -232,7 +232,7 @@ export interface ResultsExportOverview {
   readonly triggers: readonly string[];
   readonly issuers: readonly string[];
   /** 束ねた run のうち最初に見つかった非 null 値(run 間で食い違っても単一の代表値)。 */
-  readonly fmSettings: ResultsExportFmSettings | null;
+  readonly effectiveSettings: ResultsExportEffectiveSettings | null;
   readonly scenarioTotal: number;
   readonly scenarioPassed: number;
   readonly scenarioFailed: number;
@@ -352,7 +352,7 @@ function buildOverview(
   const triggersSeen = new Set<string>();
   const issuers: string[] = [];
   const issuersSeen = new Set<string>();
-  let fmSettings: ResultsExportFmSettings | null = null;
+  let effectiveSettings: ResultsExportEffectiveSettings | null = null;
   for (const meta of runMetas) {
     if (meta.startedAt !== null && (startedAt === null || meta.startedAt < startedAt)) startedAt = meta.startedAt;
     if (meta.finishedAt !== null && (finishedAt === null || meta.finishedAt > finishedAt)) finishedAt = meta.finishedAt;
@@ -360,7 +360,7 @@ function buildOverview(
     pushDistinct(machines, machinesSeen, meta.machine);
     pushDistinct(triggers, triggersSeen, meta.trigger);
     pushDistinct(issuers, issuersSeen, meta.issuer);
-    if (fmSettings === null && meta.fmSettings !== null) fmSettings = meta.fmSettings;
+    if (effectiveSettings === null && meta.effectiveSettings !== null) effectiveSettings = meta.effectiveSettings;
   }
   const durationSeconds = startedAt !== null && finishedAt !== null
     ? (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000
@@ -401,7 +401,7 @@ function buildOverview(
     machines,
     triggers,
     issuers,
-    fmSettings,
+    effectiveSettings,
     scenarioTotal, scenarioPassed, scenarioFailed, scenarioTimedOut, scenarioInterrupted, scenarioSkipped,
     stepTotal, stepPassed, stepHealed, stepPassedViaFallback, stepFailed, stepSkipped, stepInconclusive,
   };

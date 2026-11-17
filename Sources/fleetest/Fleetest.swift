@@ -924,10 +924,10 @@ struct RunScenarios: AsyncParsableCommand {
 
         if let profile = common.profile {
             let runSummary: RunSummary
-            let fmSettings: FMSettingsRecord
+            let effectiveSettings: EffectiveSettingsRecord
             let servicesBox = ServicesSessionBox()
             do {
-                (runSummary, fmSettings) = try await ProfileRunner.run(
+                (runSummary, effectiveSettings) = try await ProfileRunner.run(
                     project: testProject, profileName: profile, items: items,
                     setOverrides: profileOverrides,
                     reportDirOverride: reportDir,
@@ -949,16 +949,16 @@ struct RunScenarios: AsyncParsableCommand {
                 // (finishedAt 無し = results insights が「クラッシュ/強制終了」に誤分類する)。
                 // ここへ来るのは常にシナリオ実行が
                 // 1本も始まる前なので、items 分すべて未実行という分かっている事実だけを記録する。
-                // fmSettings は**ロックの前に解決したプロファイル**(`earlyResolved` = `--set` の上書きを当てた実効値)から作る。
+                // effectiveSettings は**ロックの前に解決したプロファイル**(`earlyResolved` = `--set` の上書きを当てた実効値)から作る。
                 // プロファイル無しの基底で近似すると heal: false 等の効いていなかった値を「実効値」として残す
-                // (results-json の fmSettings は実効値の欄)。dry-run ではないのでここで nil にはならない
+                // (results-json の effectiveSettings は実効値の欄)。dry-run ではないのでここで nil にはならない
                 let effective = earlyResolved
                 // 先行供給(ビルドと並行)が上げたサービスは箱に入る前に失敗することがあるので、そちらも見る。api run の catch と対
                 let failedServices = servicesBox.session ?? earlySupply?.servicesSession
                 failedServices?.saveLogs(to: recorder.runDir) { ConsoleOut.out($0) }
                 recorder.finish(total: items.count, passed: 0, failed: items.count,
                                 performanceMode: performanceMode,
-                                fmSettings: FMSettingsRecord(
+                                effectiveSettings: EffectiveSettingsRecord(
                                     heal: effective?.heal ?? noProfileSettings.heal,
                                     fmTextVisibilityCheck: (effective?.fm ?? noProfileSettings.fm).fmTextVisibilityCheck,
                                     screenLooksLike: (effective?.fm ?? noProfileSettings.fm).screenLooksLike,
@@ -997,7 +997,7 @@ struct RunScenarios: AsyncParsableCommand {
                             measurementInvalidReasons: runSummary.measurementInvalidReasons,
                             workerAnomalies: runSummary.workerAnomalies,
                             performanceMode: runSummary.performanceMode,
-                            fmSettings: fmSettings,
+                            effectiveSettings: effectiveSettings,
                             setOverrides: profileOverrides.mapValues(\.token),
                             servicesWarnings: runSummary.servicesWarnings,
                             responseMeasurement: runSummary.responseMeasurement,
@@ -1075,8 +1075,8 @@ struct RunScenarios: AsyncParsableCommand {
             : nil
 
         // 供給段の例外(AndroidDriver 初期化等)は run.json を完了させずに投げていた。
-        // fmSettings は下の finish 呼び出しと同じ noProfileSettings 由来の値なので先に計算する
-        let noProfileFMSettings = FMSettingsRecord(
+        // effectiveSettings は下の finish 呼び出しと同じ noProfileSettings 由来の値なので先に計算する
+        let noProfileEffectiveSettings = EffectiveSettingsRecord(
             heal: noProfileSettings.heal,
             fmTextVisibilityCheck: noProfileSettings.fm.fmTextVisibilityCheck,
             screenLooksLike: noProfileSettings.fm.screenLooksLike,
@@ -1111,7 +1111,7 @@ struct RunScenarios: AsyncParsableCommand {
             // 供給段の throw はここへ来る時点で
             // シナリオ実行が1本も始まっていない(total 分すべて未実行)
             recorder.finish(total: items.count, passed: 0, failed: items.count,
-                            performanceMode: false, fmSettings: noProfileFMSettings,
+                            performanceMode: false, effectiveSettings: noProfileEffectiveSettings,
                             setOverrides: profileOverrides.mapValues(\.token),
                             servicesWarnings: [],
                             responseMeasurement: nil,
@@ -1129,7 +1129,7 @@ struct RunScenarios: AsyncParsableCommand {
                         workerAnomalies: parallelSummary?.workerAnomalies ?? [],
                         // --performance は --profile 専用(ヘルプ参照)。この経路は素通りするので false
                         performanceMode: false,
-                        fmSettings: noProfileFMSettings,
+                        effectiveSettings: noProfileEffectiveSettings,
                         setOverrides: profileOverrides.mapValues(\.token),
                         servicesWarnings: [],
                         responseMeasurement: nil,
