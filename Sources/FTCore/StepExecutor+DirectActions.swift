@@ -1019,8 +1019,8 @@ extension StepExecutor {
     /// キーボードを閉じた結果。`after` は閉じたのを確かめた木(主ドライバ)
     enum KeyboardClose {
         case notShown
-        /// `touchedScreen`: 画面を叩いて閉じたか(キーボードの外の空き・ツールバーの完了)。戻るキー・resign は false =
-        /// 画面の要素に触れていないので、閉じた後に消えた要素は閉じ方のせいではない(焦点の飾りが消えるだけ)
+        /// `touchedScreen`: 画面を叩いて閉じたか(キーボードの外の空き・ツールバーの完了)。戻るキー・resign は false。
+        /// 使うのは失敗文の言い方だけ(「That tap」と言うか)。消えた要素の確かめは閉じ方に関わらず走る(`resolveAfterClosingKeyboard`)
         case closed(note: String, after: SnapshotResponse, touchedScreen: Bool)
         /// 閉じなかった。値は試したこと(失敗文・Enter の注記に入れる)
         case notClosed(String)
@@ -1148,11 +1148,11 @@ extension StepExecutor {
                 var notes = ["closed the keyboard by tapping \(place)"
                     + (unconfirmed ? " (this bridge cannot check for a status bar or another window there; chosen from"
                         + " the tree only)" : "")]
-                let vanished = Self.contentAbove(keyboard, in: before).subtracting(Self.contents(of: after))
+                // 消えた要素の判定は `elementsGoneAfterKeyboardClose` の1か所(入力補助のバー・欄の飾りはキーボードと一緒に消えるのが正当)
+                let vanished = Self.allElementsGoneAfterKeyboardClose(keyboard: keyboard, before: before, after: after)
                 if !vanished.isEmpty {
-                    let named = vanished.sorted().prefix(3).map { $0.replacingOccurrences(of: "|", with: " ") }
                     notes.append("\(vanished.count) element(s) that were above the keyboard are gone after that tap"
-                        + " (\(named.joined(separator: ", "))) — check that it did not trigger something")
+                        + " (\(vanished.prefix(3).joined(separator: ", "))) — check that it did not trigger something")
                 }
                 return .closed(note: notes.joined(separator: " / "), after: after, touchedScreen: true)
             }

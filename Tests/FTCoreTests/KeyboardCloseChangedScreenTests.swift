@@ -147,4 +147,15 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
         XCTAssertEqual(try closes(in: "closeKeyboardWithoutSideEffects"), ["false"], "Android の戻るキー")
         XCTAssertEqual(try closes(in: "closeKeyboardByTappingOutside"), ["true)", "true)"])
     }
+
+    /// hideKeyboard の成功時の注記(消えた要素の件数)も同じ判定を通す(自前で数えると入力補助のバー・欄の飾りまで「消えた」と言う)
+    func testHideKeyboardSuccessNoteSharesTheGoneJudgment() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+DirectActions.swift")
+        let src = try String(contentsOf: url, encoding: .utf8)
+        let body = try XCTUnwrap(src.components(separatedBy: "func closeKeyboardByTappingOutside(").dropFirst().first?
+            .components(separatedBy: "\n    func ").first)
+        XCTAssertTrue(body.contains("Self.allElementsGoneAfterKeyboardClose(keyboard: keyboard, before: before, after: after)"))
+        XCTAssertFalse(body.contains("contentAbove(keyboard, in: before).subtracting"), "消えた要素を自前で数えている")
+    }
 }

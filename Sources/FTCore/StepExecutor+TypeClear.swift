@@ -694,7 +694,7 @@ extension StepExecutor {
             + "and check the screen)"
     }
 
-    /// 閉じる tap の前にキーボードの上にあって、後の木に無い要素の名前(最大3件・並びは名前順。空 = 変化なし)。
+    /// 閉じる前にキーボードの上にあって、後の木に無い要素の名前(最大3件・並びは名前順。空 = 変化なし)。
     /// 比較の規則は `contentAbove` / `contents(of:)`(位置を見ない・増えた要素は数えない)
     /// **キーボードの上端に接した帯(入力補助のバー = inputAccessoryView 等。画面幅の半分以上)の中の要素は数えない** ——
     /// キーボードと一緒に消えるのが正当で、数えると「完了」バー付きの画面のキーボードの下の対象が全部赤になる。
@@ -706,6 +706,11 @@ extension StepExecutor {
     /// 欄そのもの・ラベルを持つ要素は数える(ダイアログごと閉じれば欄もボタンも消える。大きな焦点の欄の中に描かれた覆いも数える)。
     /// 除くのは要素そのもの(同じ署名の別の要素は数える)
     static func elementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
+        Array(allElementsGoneAfterKeyboardClose(keyboard: keyboard, before: before, after: after).prefix(3))
+    }
+
+    /// `elementsGoneAfterKeyboardClose` の全件(名前順)。件数を言う呼び手(hideKeyboard の成功時の注記)が使う
+    static func allElementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
         let focusedElements = before.elements.filter { $0.focused == true }
         let focused = focusedElements.map(\.frame)
         let decorationRefs = Set(before.elements.filter { e in
@@ -728,7 +733,7 @@ extension StepExecutor {
         }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
             .flatMap { $0 })
         return contentAbove(keyboard, in: undecorated).subtracting(attached).subtracting(contents(of: after))
-            .sorted().prefix(3)
+            .sorted()
             .map { $0.replacingOccurrences(of: "|", with: " ") }
     }
 
