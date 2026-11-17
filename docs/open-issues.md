@@ -30,7 +30,7 @@
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 16 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 25 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 26 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 42 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256 |
 
@@ -171,6 +171,16 @@
 出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。
 
 ## 低頻度
+
+### OI-257 全体の単体テストで `ShellTimeoutTests.testTimeoutReturnsEvenWhenAGrandchildHoldsStdout` が自分の pid ファイル(一時フォルダの `ft-shell-grandchild-<pid>.pid`)を読めずに赤(1回・単独では緑)
+- 状態: 再現済み
+- 確認: 2026-11-17
+- 属性: 低頻度
+- 運用: 再実行で吸収 — 単独の `swift test --filter ShellTimeoutTests` は 3/3 緑
+- 優先度: 低 — テストの赤だけ
+
+出典: 11/17 の `FT_FULL_TEST=1 Scripts/unit-tests.py`(22 並列・13,388 件中 1 件)。失敗は「caught error: … ft-shell-grandchild-31121.pid を削除できませんでした(NSCocoaErrorDomain Code=4)」で、孫が書いたはずのファイルが読む時点で無い。テスト自身は読んだ後の defer でしか消さない
+- 材料不足: 並列で走った別のテストが一時フォルダを掃除したのか、孫がファイルを書く前に止められたのか
 
 ### OI-250 全体の単体テストで `ScenarioHostIdleWatchTests.testSilentChildIsKilledWhenOutputStops` が「最初の出力から 6 秒以内に返る」を 9.6 秒で外して赤(1回・単独では緑)
 - 状態: 再現済み
