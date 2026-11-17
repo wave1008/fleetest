@@ -177,7 +177,10 @@ extension StepExecutorTests {
     /// OCR の字形の取り違え(o/0・l/i/|/1)だけの差は赤にしない。取り違え以外の差を含む読みは赤のまま
     func testRowLabelConfusableGlyphMisreadIsNotRed() {
         XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Y01"], expected: "yo1"), "描かれた yo1 を Vision が Y01 と読んだ")
-        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ce11 Iog"], expected: "cell log"))
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ce11 1og"], expected: "cell log"))
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ｌｏｇ1"], expected: "10g1"), "全角は正規化してから比べる")
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Mall"], expected: "Mail"), "文字同士の違い(i と l)は取り違えに数えない")
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["y0l2"], expected: "yo1x"), "取り違えに加えて別の文字が1つ違う")
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["メッセージ 59"], expected: "メッセージ 60"), "隣の行")
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["01"], expected: "yo1"), "先頭が欠けた読み")
         XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["y02"], expected: "yo1"), "取り違え以外の差")

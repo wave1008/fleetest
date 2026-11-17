@@ -224,17 +224,19 @@ public enum TranscriptMatch {
         })
     }
 
-    /// OCR が字形で取り違える英数字を1つの字へ畳む(小文字化の後の比較用。o→0・l/i/|→1)。
-    /// 使うのは FM で確かめ直さない行の判定(`OCROnlyVisibility.rowLabelNotRead`)だけ —— 文字の要素は FM との
-    /// 突き合わせが取り違えを拾うので、ここで畳むと値だけ違う読みを緑にする口が増えるだけ
-    public static func foldConfusableGlyphs(_ s: String) -> String {
-        String(s.lowercased().map { c -> Character in
-            switch c {
-            case "o": return "0"
-            case "l", "i", "|": return "1"
-            default: return c
-            }
-        })
+    /// OCR が字形で取り違える組(文字と数字・縦棒)。**文字同士(i と l)は入れない** —— 入れると「Mail」と「Mall」のような
+    /// 別の語が一致する
+    private static let confusableGlyphPairs: Set<[Character]> = [
+        ["0", "o"], ["1", "l"], ["1", "i"], ["1", "|"], ["l", "|"], ["i", "|"],
+    ]
+
+    /// `normalize` した2つが同じ長さで、違う位置がすべて字形の取り違えの組(`confusableGlyphPairs`)か。同じ文字列は false
+    /// (呼び手は先に `judge` で一致を見る)。使うのは FM で確かめ直さない行の判定(`OCROnlyVisibility.rowLabelNotRead`)だけ ——
+    /// 文字の要素は FM との突き合わせが取り違えを拾う
+    public static func differsOnlyByConfusableGlyphs(_ transcript: String, _ expected: String) -> Bool {
+        let o = Array(normalize(transcript)), e = Array(normalize(expected))
+        guard o.count == e.count, o != e else { return false }
+        return zip(o, e).allSatisfy { $0 == $1 || confusableGlyphPairs.contains([$0, $1].sorted()) }
     }
 
     /// NFKC 互換合成 → 引用符の半角化 → 空白(半角・全角・改行・タブ)除去 → 末尾の省略記号

@@ -88,4 +88,15 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
         XCTAssertGreaterThan(count, 1, message)
         XCTAssertEqual(entries.count - 1, count, message)
     }
+
+    /// 上限を超えた記録は round 0 と後ろを残し、省いた数を言う
+    func testBoundedTraceKeepsRoundZero() {
+        let trace = (0..<20).map { "round \($0)" }
+        let bounded = StepExecutor.boundedTrace(trace)
+        XCTAssertEqual(bounded.first, "round 0")
+        XCTAssertEqual(bounded[1], "… 4 more")
+        XCTAssertEqual(bounded.last, "round 19")
+        XCTAssertEqual(bounded.count, StepExecutor.searchTraceLimit + 1)
+        XCTAssertEqual(StepExecutor.boundedTrace(Array(trace.prefix(16))), Array(trace.prefix(16)))
+    }
 }

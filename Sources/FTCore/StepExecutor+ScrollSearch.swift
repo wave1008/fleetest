@@ -918,11 +918,19 @@ extension StepExecutor {
                 + " nothing was touched; scroll the other way or point at an element that is not covered)"
         }
         guard !scrollSearchTrace.isEmpty else { return base }
-        return base + " [search: " + scrollSearchTrace.suffix(Self.searchTraceLimit).joined(separator: "; ") + "]"
+        return base + " [search: " + Self.boundedTrace(scrollSearchTrace).joined(separator: "; ") + "]"
     }
 
     /// 失敗文に添える回の数の上限(既定の maxSwipes 8 の回と0回目が収まる倍。逆走査の回は記録しない。長い探索で文が膨らまないように)
     static let searchTraceLimit = 16
+
+    /// 上限を超えたら最初の記録(round 0 = 払う前の読み)と後ろの記録を残し、間を省いたことを言う
+    /// (動かなかった払いは回数に数えないので、払いの本数は maxSwipes を超えうる)
+    static func boundedTrace(_ trace: [String]) -> [String] {
+        guard trace.count > searchTraceLimit else { return trace }
+        let tail = trace.suffix(searchTraceLimit - 1)
+        return [trace[0], "… \(trace.count - 1 - tail.count) more"] + tail
+    }
 
     /// 直近の回の事実に書き足す
     /// 明示した scrollFrame の部分木の外で当たった回の記録(見つからなかった扱いの理由)
@@ -1213,8 +1221,7 @@ extension StepExecutor {
                 if narrowed.match == nil { noteSearchTraceEntry(attempt: attempt, outside: element) }
             }
             // 待ちの読み直し(払わずに同じ回を読み直す)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)。
-            // **間に払いがあった回はまとめない** —— 動かなかった払いは同じ回の番号で払い直す(`ScrollSearchBudget`)ので、まとめると
-            // 失敗文の本数(swipes)より記録が少なく見えた
+            // **間に払いがあった回はまとめない** —— 動かなかった払いは同じ回の番号で払い直す(`ScrollSearchBudget`)= 払った本数と記録の数を揃える
             let entry = "round \(attempt): " + (traced.map { Self.traceRectText($0.0.frame) } ?? "not in the tree")
             if !(scrollSearchTrace.last?.hasPrefix(entry) ?? false) || swipes != swipesAtLastTraceEntry {
                 scrollSearchTrace.append(entry + travelTrace)
@@ -1565,6 +1572,7 @@ extension StepExecutor {
                                 previousSnapshot = expanded
                                 continue
                             }
+                            scrollSearchTrace.append("drag to expand the sheet \(Self.traceRectText(frame)): it did not grow")
                         }
                         // **キーボードが容器の下部を覆ったまま1度も動かなかったら、副作用の無い手段で閉じて探索を1回だけやり直す**。
                         // キーボードが出ても容器の枠が縮まない構成(RN の Android)では、キーボードの下の欄は送りで出せない。人はキーボードを

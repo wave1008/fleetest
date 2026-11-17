@@ -640,14 +640,13 @@ extension StepExecutor {
         let start = clock.now
         let after = try await freshSnapshot(.afterOwnMove)
         phase.snapshotMs += Self.ms(clock.now - start)
-        // 閉じる tap の後にキーボードの上の要素が消えていたら、tap が画面を変えた(ダイアログの外の幕を叩いて閉じた等)。
-        // 対象が現れても、利用者が書いたのはその画面への操作ではないので撃たない。**画面を叩かずに閉じた回(resign)は見ない** ——
-        // 消えるのは焦点の飾り(RN paper の欄の下線)だけで、「That tap」と言って画面が閉じられたかもと案内していた
+        // 閉じた後にキーボードの上の要素が消えていたら、画面が変わった(閉じる tap がダイアログの外の幕を叩いた・欄の焦点が外れて
+        // アプリが自分で閉じた等)。対象が現れても、利用者が書いたのはその画面への操作ではないので撃たない。閉じ方(touchedScreen)は文言だけに使う
         let keyboardRect = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                      screen: snapshot.screen).frame ?? snapshot.keyboardFrame
-        if !isAndroid, touchedScreen, let keyboardRect {
+        if !isAndroid, let keyboardRect {
             let gone = Self.elementsGoneAfterKeyboardClose(keyboard: keyboardRect, before: snapshot, after: after)
-            if !gone.isEmpty { return .closedChangedScreen(note: note, gone: gone, snapshot: after) }
+            if !gone.isEmpty { return .closedChangedScreen(note: note, gone: gone, touchedScreen: touchedScreen, snapshot: after) }
         }
         guard let (found, usedFallback) = LocatorResolver.resolve(step: step, in: after) else {
             return .closedButNotFound(note: note, snapshot: after)
@@ -682,12 +681,14 @@ extension StepExecutor {
         case closedButNotFound(note: String, snapshot: SnapshotResponse)
         /// 閉じる tap の後にキーボードの上の要素が消えた(`gone` = 消えた要素の名前)。対象は撃たない。
         /// 失敗文は呼び手(`StepExecutor+Actions`)の `default` ではなく専用の節で事実を言う
-        case closedChangedScreen(note: String, gone: [String], snapshot: SnapshotResponse)
+        case closedChangedScreen(note: String, gone: [String], touchedScreen: Bool, snapshot: SnapshotResponse)
     }
 
     /// `closedChangedScreen` の失敗文の節。**言うのは事実だけ**(叩いた点・消えた要素・対象は撃っていない)で、原因は推測しない
-    static func keyboardCloseChangedScreenClause(note: String, gone: [String]) -> String {
-        " (the soft keyboard was up and the target was not on the screen; \(note). That tap was not side-effect free: "
+    /// `touchedScreen` が false(resign・戻るキー)なら「That tap」と言わない(画面を叩いていない)
+    static func keyboardCloseChangedScreenClause(note: String, gone: [String], touchedScreen: Bool) -> String {
+        " (the soft keyboard was up and the target was not on the screen; \(note). "
+            + (touchedScreen ? "That tap was not side-effect free: " : "Closing the keyboard was not side-effect free: ")
             + "\(gone.joined(separator: ", ")) disappeared from the screen after it, so the target was not touched — "
             + "the screen the step was written for may have been closed or replaced; close the keyboard from the app first "
             + "and check the screen)"
@@ -700,8 +701,18 @@ extension StepExecutor {
     /// **帯はキーボードの上の領域の半分より低く、焦点の欄を含まないものだけ**(バーは帯であって中身ではない・入力補助のバーは
     /// 編集中の欄を持たない)—— キーボードを避けて上端まで縮んだ全幅の容器(SwiftUI の ScrollView 等)や、キーボードの上に
     /// 載ったボトムシート・ダイアログも下端が接するので、帯にすると中身が全部除外されて検出が効かなくなる
+    /// **焦点の欄の枠の内側の要素(欄の飾り)は数えない** —— 焦点が外れると消えるのが正当(RN paper の欄の下線 `#text-input-underline` は
+    /// 欄 (50,392 302x56) の内側 (50,446.5 302x2) にあり、閉じただけで消えた)。欄そのものは数える(ダイアログごと閉じれば欄も消える)
     static func elementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
-        let focused = before.elements.filter { $0.focused == true }.map(\.frame)
+        let focusedElements = before.elements.filter { $0.focused == true }
+        let focused = focusedElements.map(\.frame)
+        let decorations = Set(before.elements.filter { e in
+            e.focused != true && focusedElements.contains { f in
+                e.frame.x >= f.frame.x - 1 && e.frame.x + e.frame.width <= f.frame.x + f.frame.width + 1
+                    && e.frame.y >= f.frame.y - 1 && e.frame.y + e.frame.height <= f.frame.y + f.frame.height + 1
+            }
+        }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
+            .flatMap { $0 })
         let bands = before.elements.filter { e in
             abs(e.frame.y + e.frame.height - keyboard.y) <= 1 && e.frame.width >= before.screen.width / 2
                 && e.frame.height < keyboard.y / 2
@@ -711,7 +722,8 @@ extension StepExecutor {
             bands.contains { b in e.frame.y >= b.y - 1 && e.frame.y + e.frame.height <= b.y + b.height + 1 }
         }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
             .flatMap { $0 })
-        return contentAbove(keyboard, in: before).subtracting(attached).subtracting(contents(of: after)).sorted().prefix(3)
+        return contentAbove(keyboard, in: before).subtracting(attached).subtracting(decorations).subtracting(contents(of: after))
+            .sorted().prefix(3)
             .map { $0.replacingOccurrences(of: "|", with: " ") }
     }
 

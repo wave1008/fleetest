@@ -74,7 +74,7 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
 
     func testClauseStatesTheFactsAndThatTheTargetWasNotTouched() {
         let clause = StepExecutor.keyboardCloseChangedScreenClause(note: "closed the keyboard by tapping (25, 529) above the keyboard",
-                                                                   gone: ["#field_prompt", "#btn_save"])
+                                                                   gone: ["#field_prompt", "#btn_save"], touchedScreen: true)
         XCTAssertTrue(clause.contains("#field_prompt, #btn_save disappeared"), clause)
         XCTAssertTrue(clause.contains("the target was not touched"), clause)
     }
@@ -89,20 +89,45 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
         // 条件ごと固定する(`if false && …` のように条件を殺す変異を、文字列の順だけでは見逃した)
         let changed = try XCTUnwrap(body.range(of: "if !gone.isEmpty { return .closedChangedScreen("),
                                     "消えた要素があれば撃たずに返す条件が見当たらない")
-        XCTAssertTrue(body.contains("if !isAndroid, touchedScreen, let keyboardRect {"),
-                      "iOS の閉じるタップの後の確かめが外れた(画面を叩かずに閉じた回 = resign は見ない)")
+        XCTAssertTrue(body.contains("if !isAndroid, let keyboardRect {"), "iOS の閉じた後の確かめが外れた(閉じ方に関わらず見る)")
         let resolve = try XCTUnwrap(body.range(of: "LocatorResolver.resolve(step: step, in: after)"))
         XCTAssertLessThan(changed.lowerBound, resolve.lowerBound)
     }
 
-    /// 閉じ方の申告: 画面を叩いた閉じ方だけ touchedScreen = true(resign の後に消えた欄の下線を「That tap」で画面の変化と言った)
+    /// 画面を叩かずに閉じた(resign)回は「That tap」と言わない
+    func testClauseDoesNotCallAResignATap() {
+        let clause = StepExecutor.keyboardCloseChangedScreenClause(note: "closed the keyboard by resigning the focused React Native text input",
+                                                                   gone: ["#overlay"], touchedScreen: false)
+        XCTAssertFalse(clause.contains("That tap"), clause)
+        XCTAssertTrue(clause.contains("Closing the keyboard was not side-effect free: #overlay disappeared"), clause)
+    }
+
+    /// 焦点の欄の枠の内側の飾り(RN paper の下線)は消えても数えない。欄そのものが消えたら数える
+    func testDecorationsInsideTheFocusedFieldAreNotCounted() {
+        let field = ElementInfo(ref: 8, type: "textField", identifier: "field_prompt", label: nil, value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 50, y: 392, width: 302, height: 56), depth: 2, focused: true)
+        let underline = ElementInfo(ref: 9, type: "other", identifier: "text-input-underline", label: nil, value: nil, placeholder: nil,
+                                    enabled: true, frame: FTRect(x: 50, y: 446.5, width: 302, height: 2), depth: 3)
+        var unfocused = field
+        unfocused.focused = false
+        XCTAssertTrue(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([field, underline]),
+                                                                  after: snap([unfocused])).isEmpty)
+        XCTAssertEqual(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([field, underline]), after: snap([])),
+                       ["#field_prompt"])
+    }
+
+    /// 閉じ方の申告: 画面を叩いた閉じ方だけ touchedScreen = true(文言の「That tap」はこれで決める)
     func testOnlyTapClosesClaimToHaveTouchedTheScreen() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/StepExecutor+DirectActions.swift")
         let src = try String(contentsOf: url, encoding: .utf8)
         func closes(in function: String) throws -> [String] {
             let entry = try XCTUnwrap(src.range(of: "func \(function)("))
-            let body = String(src[entry.upperBound...].components(separatedBy: "\n    func ").first ?? "")
+            // 次の宣言(修飾子つきの func も含む)で切る
+            let rest = String(src[entry.upperBound...])
+            let end = rest.range(of: #"\n    (?:(?:private|fileprivate|static|public|internal) )*func "#, options: .regularExpression)?.lowerBound
+                ?? rest.endIndex
+            let body = String(rest[..<end])
             return body.components(separatedBy: "touchedScreen: ").dropFirst().map { String($0.prefix(5)) }
         }
         XCTAssertEqual(try closes(in: "closeReactNativeKeyboardByResign"), ["false"])

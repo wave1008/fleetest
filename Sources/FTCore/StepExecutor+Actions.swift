@@ -790,12 +790,12 @@ extension StepExecutor {
                     hintSnapshot = after
                     closedNoteForClause = closedNote
                     keyboardClause = Self.keyboardClosedNotFoundClause(closedNote)
-                case .closedChangedScreen(let closedNote, let gone, let after):
-                    // 閉じるタップで画面の要素が消えた(ダイアログのバリア等に当たった疑い)= 対象は撃っていない。
+                case .closedChangedScreen(let closedNote, let gone, let touchedScreen, let after):
+                    // 閉じた後に画面の要素が消えた(閉じるタップがダイアログのバリア等に当たった・焦点が外れてアプリが閉じた疑い)= 対象は撃っていない。
                     // この節が理由そのもの = 下で scope の案内に差し替えない(容器ごと閉じた回に「scope を外せ」と言うと裏を押させる)
                     hintSnapshot = after
                     closeChangedScreen = true
-                    keyboardClause = Self.keyboardCloseChangedScreenClause(note: closedNote, gone: gone)
+                    keyboardClause = Self.keyboardCloseChangedScreenClause(note: closedNote, gone: gone, touchedScreen: touchedScreen)
                 case .notClosed(let tried) where Self.targetWasInTreeBeforeKeyboard(step, lastKeyboardFreeSnapshot):
                     // **向き(上か下か)を言わない**: キーボードを避けて画面がずれる・縮むと、要素はキーボードの上へ押し出されても
                     // (SwiftUI の上端の戻るボタン・CMP の反転チャットの上端の行)下に隠れても木から消える。前は「下に居た要素が

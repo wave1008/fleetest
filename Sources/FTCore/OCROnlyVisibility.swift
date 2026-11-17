@@ -45,15 +45,13 @@ public enum OCROnlyVisibility {
     /// 赤にするのは**読めた文字があるのに `TranscriptMatch` が見えていないと言う**(別の文字・先頭の半分以下)ときだけ =
     /// 省略記号で切った文字・半分より多く見えている文字はテキストの要素と同じく緑。
     /// nil(読んでいない)と空(1行も読めない = ラベルが文字として描かれていない行)は赤にしない
-    /// **字形の取り違え(`TranscriptMatch.foldConfusableGlyphs`)だけの差は赤にしない** —— 行は FM で確かめ直さない
+    /// **読めた行のどれかが期待と字形の取り違え(`TranscriptMatch.differsOnlyByConfusableGlyphs`)だけ違うなら赤にしない** —— 行は FM で確かめ直さない
     /// (1件 1.5〜2 秒の払いを避ける)ので、OCR の取り違えがそのまま赤になる(E2EY-iOS の反転チャットで描かれた "yo1" を Vision は
     /// 等倍 "01"・×2/×3 "Y01" と読み、上位候補も1つだけ)。隣の行・別の文字は取り違え以外の差を含むので赤のまま
     public static func rowLabelNotRead(lines: [String]?, expected: String) -> Bool {
         guard let lines, !lines.isEmpty else { return false }
-        let transcript = lines.joined(separator: " ")
-        if TranscriptMatch.judge(transcript: transcript, expected: expected).visible { return false }
-        return !TranscriptMatch.judge(transcript: TranscriptMatch.foldConfusableGlyphs(transcript),
-                                      expected: TranscriptMatch.foldConfusableGlyphs(expected)).visible
+        if TranscriptMatch.judge(transcript: lines.joined(separator: " "), expected: expected).visible { return false }
+        return !lines.contains { TranscriptMatch.differsOnlyByConfusableGlyphs($0, expected) }
     }
 
     /// `lines` が nil(読んでいない)なら判定不能。空でなければ `TranscriptMatch.judge` へそのまま回す。
