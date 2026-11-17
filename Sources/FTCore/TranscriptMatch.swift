@@ -224,6 +224,19 @@ public enum TranscriptMatch {
         })
     }
 
+    /// OCR が字形で取り違える英数字を1つの字へ畳む(小文字化の後の比較用。o→0・l/i/|→1)。
+    /// 使うのは FM で確かめ直さない行の判定(`OCROnlyVisibility.rowLabelNotRead`)だけ —— 文字の要素は FM との
+    /// 突き合わせが取り違えを拾うので、ここで畳むと値だけ違う読みを緑にする口が増えるだけ
+    public static func foldConfusableGlyphs(_ s: String) -> String {
+        String(s.lowercased().map { c -> Character in
+            switch c {
+            case "o": return "0"
+            case "l", "i", "|": return "1"
+            default: return c
+            }
+        })
+    }
+
     /// NFKC 互換合成 → 引用符の半角化 → 空白(半角・全角・改行・タブ)除去 → 末尾の省略記号
     /// (`ellipsisTailLength`)除去 → 小文字化。
     public static func normalize(_ s: String) -> String {

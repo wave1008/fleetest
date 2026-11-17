@@ -174,6 +174,15 @@ extension StepExecutorTests {
                        "半分より多く見えている")
     }
 
+    /// OCR の字形の取り違え(o/0・l/i/|/1)だけの差は赤にしない。取り違え以外の差を含む読みは赤のまま
+    func testRowLabelConfusableGlyphMisreadIsNotRed() {
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Y01"], expected: "yo1"), "描かれた yo1 を Vision が Y01 と読んだ")
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["ce11 Iog"], expected: "cell log"))
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["メッセージ 59"], expected: "メッセージ 60"), "隣の行")
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["01"], expected: "yo1"), "先頭が欠けた読み")
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["y02"], expected: "yo1"), "取り違え以外の差")
+    }
+
     /// 待ちの途中で一度だけ読めなかった行が後で読めて緑になったら、注記を残さない(事実と違う注記になる)
     func testRowNoteIsDroppedWhenALaterPollReadsTheLabel() async throws {
         let first = try renderedRowPNG("Different Words")
