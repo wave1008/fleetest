@@ -12,12 +12,9 @@
 | Xcode | Xcode 27.2+ (<https://apps.apple.com/app/xcode/id497799835>) |
 | Homebrew | Homebrew (<https://brew.sh/>) |
 | VSCode | VSCode (<https://code.visualstudio.com/docs/setup/mac>) |
-| Android SDK | Android SDK (adb, Command-line Tools) (if you test Android) (<https://developer.android.com/studio/install>). Creating an Emulator needs Java (the one bundled with Android Studio, or a JDK; without either, `--auto-device` fails) |
-| Devices under test | iOS 18 or later (Simulator, physical), Android 8.0 (API 26) or later (Emulator, physical) |
-| iOS physical devices (if used) | An Apple Developer Program team (a free Personal Team's signing expires in about 7 days). See [Adding physical devices](../fleet/adding_physical_devices.md) |
-| AI assistant | One that supports MCP. Claude Code and Codex are verified. For others (Cline, Cursor, Copilot, etc.) see [AI assistants other than Claude Code](../reference/tools/other_agents.md) |
-
-Administrator rights are needed only to accept the Xcode license and to install Homebrew (the AI assistant does not do these for you).
+| Android SDK | Android SDK (adb, Command-line Tools) (if you test Android) (<https://developer.android.com/studio/install>). Creating an Emulator needs Java (the one bundled with Android Studio, or a JDK) |
+| Physical devices (if used) | iOS 18 or later, Android 8.0 (API 26) or later. iOS needs an Apple Developer Program team |
+| AI assistant | One that supports MCP. Claude Code and Codex are verified |
 
 ### What is installed automatically
 
@@ -28,21 +25,19 @@ Administrator rights are needed only to accept the Xcode license and to install 
 
 ### Optional: Foundation Models (FM)
 
-FM works on macOS 26+ (System Settings → Apple Intelligence & Siri). **Only the features that pass an image (`screenLooksLike` and the FM stage of the text visibility check) need macOS 27+** (System Settings → Siri). **On-device OCR (Vision text recognition) is also macOS 27+ only**: on macOS 26, `tap(linkText:)` fails with that requirement, the screen readback of typed text is skipped, and the OCR stage of the text visibility check is off. Everything else works.
-
-On a Mac without FM, `screenLooksLike` passes without being judged (a ⚠️ line is printed at start), and the text visibility check uses OCR only.
-
-Features that use FM are experimental (their behavior may change with OS updates).
+Turn on Apple Intelligence in System Settings.
 
 ## Supported UI frameworks
 
-| Framework | Platforms |
-|---|---|
-| SwiftUI / UIKit | iOS |
-| Compose Multiplatform | iOS, Android |
-| Flutter | iOS, Android |
-| React Native | iOS, Android |
-| View/XML, Jetpack Compose | Android |
+| Framework | Platforms | Verified version |
+|---|---|---|
+| SwiftUI / UIKit | iOS | (comes with the OS) |
+| Compose Multiplatform | iOS, Android | 1.12.1 (Kotlin 2.4.21) |
+| Flutter | iOS, Android | 3.47.7 |
+| React Native | iOS, Android | 0.87.1 |
+| View/XML, Jetpack Compose | Android | (comes with the OS and AndroidX) |
+
+These are the versions we have verified. Older versions have not been checked.
 
 <br>
 

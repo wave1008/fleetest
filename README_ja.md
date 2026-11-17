@@ -18,7 +18,7 @@ CI に向きます(一部の検証は Mac 上の Foundation Models を使いま�
 ## 必要環境
 
 - Apple silicon の Mac、macOS 26+(FM の画像入力とオンデバイス OCR は macOS 27+)
-- Xcode 27.2+
+- Xcode 27.2以降
 - Homebrew
 - VSCode
 - Android SDK(Android をテストする場合)

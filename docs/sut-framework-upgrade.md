@@ -160,6 +160,8 @@ for u in org/jetbrains/compose/compose-gradle-plugin org/jetbrains/kotlin/kotlin
 上げたフレームワークの古い版でしか確かめていない差・制約を見直す。E2E・E2EX・E2EY で再現を確かめたら、`確認環境:` を新しい版に更新する。
 再現しなくなったものは、製品が吸収したなら `docs/verification/resolved.md` へ、差が消えたなら該当の行を区分 A へ移す。
 
+利用者向けの `docs/user-docs/overview/environments(_ja).md`「サポートする UI フレームワーク」の「確認済みの版」も新しい版へ書き換える(en/ja の両方)。
+
 ## 6. 実行中に起きたこと
 
 ### FM が ANE の「no memory」で止まる
