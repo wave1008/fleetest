@@ -527,10 +527,11 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-10)
 - 属性: 据え置き
-- 運用: ③〜⑧合否に響かない(文言・MCP だけ・Duo だけ)⑨再実行で吸収(供給から落ちた台のぶんは残りの台が回す)
+- 運用: ③M4Max では合否に響く(下の 11/17)・ほかの機械と④〜⑧は合否に響かない(文言・MCP だけ・Duo だけ)⑨再実行で吸収(供給から落ちた台のぶんは残りの台が回す)
 - 優先度: 低 — 文言・MCP・Duo の形
 
 出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
+- 11/17(回帰): ③の形が E2EX-CMP の「検索バーで検索できること」S0030・S0040 を **M4Max でだけ**赤にする(`clearInput "#field_search"` が「12 character(s) still there」・`type(replace)` が「value remained: 検索候補は次のとおりです」)。M4Max の2台で一斉に回し直して 4/8 赤・手元の8台で 32/32 緑。11/9 の回帰でも M4Max でだけ同じ2本が赤。M4Max で欄の値が説明文になる理由(Simulator の設定か SUT のビルドの違いか)は未測定
 
 ### OI-211 xcuitest モードで、SwiftUI の隠れるバーを送って戻した後の FAB への tap が「行が手前」と断られる
 - 状態: 再現済み
