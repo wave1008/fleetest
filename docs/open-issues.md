@@ -524,6 +524,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - ①(11/11 済み): 控える元に `pinnedBandCovering` を足した(文言だけ・決定の範囲内。`OtherLayerHitTestWiringTests.testFailureAfterATapUnderAStickyHeaderNamesTheHeader`)
 - ②の材料は無い(11/11 に測定): XCUITest の `isHittable` は見出しの下の行にも true を返す(Flutter: `#row_s_A0` 179..235 の中心 207 が `#hdr_A` の帯 170..210 の下・RN: `#row_s_A0` 162..206 の中心 184 が `#hdr_A` 157..190 の中。どちらも中心を撃つと `sticky=none` のまま = 見出しに当たった。対照の `#row_s_A1` は押せた)。true は見出しの下を見分けられないので門にできない = 送り出しは戻さない(OI-170 の決定のまま)
 - 印の扱い(11/11 ユーザー決定): このシナリオは xcuitest モードで探索の止まる位置しだいで赤になる(手元8台で 1〜5/8)ので、xcuitest の印の条件からだけ外す(`Scripts/mark_exclusions.py`。シナリオは回し続け、外した赤は名指す)。失敗の文言は①で見出しを名指して直し方を言う
+- シナリオの扱い(11/17 ユーザー決定): SUT のシナリオを「見出しに掛からない位置まで送ってから撃つ」形に書き換えない(罠が試験から見えなくなる)。今の形(赤 + 見出しを名指す文言)で確定。送り出しを戻すのは XCUITest の木に塗り順の材料が出たときだけ(DR-145)
 
 ### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・CMP のドロップダウンを開いたままの type の文言・セレクタの末尾の空白ほか
 - 状態: 再現済み
