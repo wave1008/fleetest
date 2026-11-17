@@ -175,7 +175,7 @@ extension StepExecutor {
                         "the count", step: step,
                         evidence: Self.ceilingTruncationEvidence(snapshot)))
                 }
-                if expectedCount == 0 { noteAbsenceBehindModal(snapshot) }
+                if expectedCount == 0 { noteAbsenceBehindModal(snapshot, step: step) }
                 return .passed
             }
             if Date() >= deadline {

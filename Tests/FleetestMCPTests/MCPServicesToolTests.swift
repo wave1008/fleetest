@@ -29,27 +29,33 @@ final class MCPServicesToolTests: XCTestCase {
                        ["swift", "run", "fleetest", "services", "down", "--project", "P", "--profile", "r"])
     }
 
-    func testSkipBuildIsStatusOnly() {
-        XCTAssertEqual(MCPServices.arguments(action: "status", project: nil, profile: nil, skipBuild: true),
-                       ["swift", "run", "--skip-build", "fleetest", "services", "status"])
-        XCTAssertEqual(MCPServices.arguments(action: "up", project: "P", profile: "r", skipBuild: true),
+    func testPrebuiltRunsTheExecutableDirectlyForStatusOnly() {
+        XCTAssertEqual(MCPServices.arguments(action: "status", project: "P", profile: nil, prebuilt: "/x/fleetest"),
+                       ["/x/fleetest", "services", "status", "--project", "P"])
+        XCTAssertEqual(MCPServices.arguments(action: "up", project: "P", profile: "r", prebuilt: "/x/fleetest"),
                        ["swift", "run", "fleetest", "services", "up", "--project", "P", "--profile", "r"])
-        XCTAssertEqual(MCPServices.arguments(action: "down", project: "P", profile: "r", skipBuild: true),
+        XCTAssertEqual(MCPServices.arguments(action: "down", project: "P", profile: "r", prebuilt: "/x/fleetest"),
                        ["swift", "run", "fleetest", "services", "down", "--project", "P", "--profile", "r"])
+        XCTAssertFalse(MCPServices.arguments(action: "status", project: nil, profile: nil, prebuilt: "/x/fleetest")
+            .contains("swift"), "status は swift run(= .build の鍵)を通さない")
     }
 
-    func testCanSkipBuildNeedsABuiltSiblingAndStatus() throws {
+    func testPrebuiltFleetestNeedsABuiltSiblingAndStatus() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        XCTAssertFalse(MCPServices.canSkipBuild(action: "status", packageRoot: root), "成果物が無ければ従来の経路")
+        XCTAssertNil(MCPServices.prebuiltFleetest(action: "status", packageRoot: root), "成果物が無ければ従来の経路")
+        let real = root.appendingPathComponent("real")
         let bin = root.appendingPathComponent(".build/debug")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-        let exe = bin.appendingPathComponent("fleetest")
+        let exe = real.appendingPathComponent("fleetest")
         try "#!/bin/sh\n".write(to: exe, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
-        XCTAssertTrue(MCPServices.canSkipBuild(action: "status", packageRoot: root))
-        XCTAssertFalse(MCPServices.canSkipBuild(action: "up", packageRoot: root))
-        XCTAssertFalse(MCPServices.canSkipBuild(action: "down", packageRoot: root))
+        try FileManager.default.createSymbolicLink(at: bin.appendingPathComponent("fleetest"), withDestinationURL: exe)
+        XCTAssertEqual(MCPServices.prebuiltFleetest(action: "status", packageRoot: root),
+                       exe.resolvingSymlinksInPath().path, "リンクではなく実体のパス")
+        XCTAssertNil(MCPServices.prebuiltFleetest(action: "up", packageRoot: root))
+        XCTAssertNil(MCPServices.prebuiltFleetest(action: "down", packageRoot: root))
     }
 
     func testOptionLikeValuesAreRefused() {

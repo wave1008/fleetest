@@ -348,7 +348,7 @@ enum InAppSnapshot {
             return Included(frame: frame)
         case .staticText, .image:
             return hasText ? Included(frame: frame) : nil
-        case .navigationBar, .tabBar, .alert, .webView:
+        case .navigationBar, .tabBar, .alert, .sheet, .webView:
             return Included(frame: frame)
         case .keyboardKey:
             return nil
@@ -489,7 +489,7 @@ enum InAppSnapshot {
         /// ピッカーのホイール(調整できる要素のうち、入れ物に UIPickerView / UIDatePicker があるもの)。
         /// XCUITest の elementType は pickerWheel を返すので、in-app だけ Slider だと `.pickerWheel` が inapp-boost モードで当たらない
         case pickerWheel
-        case cell, link, searchField, picker, navigationBar, tabBar, alert, keyboardKey, other
+        case cell, link, searchField, picker, navigationBar, tabBar, alert, sheet, keyboardKey, other
         /// switch は予約語なので toggle と命名(型名は "Switch" = XCUITest 版と同じ語彙)
         case toggle
         /// WKWebView。**a11y ツリー経由では中身が一切見えない**(Web コンテンツの AX は別プロセスが
@@ -554,14 +554,27 @@ enum InAppSnapshot {
         if t.contains(.staticText) || t.contains(.header) { return .staticText }
         if node is UINavigationBar { return .navigationBar }
         if node is UITabBar { return .tabBar }
-        // アラートの入れ物 = UIAlertController の根の view(SwiftUI の `.alert` もこれ)。無いと XCUITest の木が出す `alert` が
-        // in-app にだけ無く、MCP の木から写した `.alert >> #ok` が inapp-boost モードで赤になる
-        if let view = node as? UIView, view.next is UIAlertController { return .alert }
+        // 入れ物 = UIAlertController の根の view(SwiftUI の `.alert` / `confirmationDialog` もこれ)。XCUITest は alert 形を `alert`・
+        // actionSheet 形を `sheet` と出すので preferredStyle で分ける(合わせないと `.alert >> …` / `.sheet >> …` がモードで割れる)。
+        // 表示の形(modalPresentationStyle)では分けない: SwiftUI の confirmationDialog は iPhone でも `.popover` と申告して
+        // 画面下のシートに適応表示する(分けた版は iPhone で容器が消え `.sheet >> …` も `.alert >> …` も赤 = 60周目の確認)
+        if let view = node as? UIView, let controller = view.next as? UIAlertController {
+            return alertContainerType(preferredStyle: controller.preferredStyle)
+        }
         if node.isAccessibilityElement,
            LiveRegionText.isLabelOnlyLiveRegion(traits: t.rawValue, label: node.accessibilityLabel) {
             return .staticText
         }
         return .other
+    }
+
+    /// UIAlertController の根の view の型(純粋関数。テスト用に internal)
+    static func alertContainerType(preferredStyle: UIAlertController.Style) -> UIKitType {
+        switch preferredStyle {
+        case .alert: return .alert
+        case .actionSheet: return .sheet
+        @unknown default: return .other
+        }
     }
 
     /// 入れ物(a11y の container と superview)をたどって UIPickerView / UIDatePicker に行き着くか。
@@ -599,6 +612,7 @@ enum InAppSnapshot {
         case .navigationBar: return "NavigationBar"
         case .tabBar: return "TabBar"
         case .alert: return "Alert"
+        case .sheet: return "Sheet"
         case .keyboardKey: return "KeyboardKey"
         case .webView: return "WebView"
         case .other: return "Other"

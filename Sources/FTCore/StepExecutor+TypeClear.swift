@@ -639,6 +639,14 @@ extension StepExecutor {
         let start = clock.now
         let after = try await freshSnapshot(.afterOwnMove)
         phase.snapshotMs += Self.ms(clock.now - start)
+        // 閉じる tap の後にキーボードの上の要素が消えていたら、tap が画面を変えた(ダイアログの外の幕を叩いて閉じた等)。
+        // 対象が現れても、利用者が書いたのはその画面への操作ではないので撃たない
+        let keyboardRect = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                     screen: snapshot.screen).frame ?? snapshot.keyboardFrame
+        if !isAndroid, let keyboardRect {
+            let gone = Self.elementsGoneAfterKeyboardClose(keyboard: keyboardRect, before: snapshot, after: after)
+            if !gone.isEmpty { return .closedChangedScreen(note: note, gone: gone, snapshot: after) }
+        }
         guard let (found, usedFallback) = LocatorResolver.resolve(step: step, in: after) else {
             return .closedButNotFound(note: note, snapshot: after)
         }
@@ -670,6 +678,33 @@ extension StepExecutor {
         case notClosed(String)
         /// 閉じた(= 画面を変えた)が、閉じた後の木にも対象が無い
         case closedButNotFound(note: String, snapshot: SnapshotResponse)
+        /// 閉じる tap の後にキーボードの上の要素が消えた(`gone` = 消えた要素の名前)。対象は撃たない。
+        /// 失敗文は呼び手(`StepExecutor+Actions`)の `default` ではなく専用の節で事実を言う
+        case closedChangedScreen(note: String, gone: [String], snapshot: SnapshotResponse)
+    }
+
+    /// `closedChangedScreen` の失敗文の節。**言うのは事実だけ**(叩いた点・消えた要素・対象は撃っていない)で、原因は推測しない
+    static func keyboardCloseChangedScreenClause(note: String, gone: [String]) -> String {
+        " (the soft keyboard was up and the target was not on the screen; \(note). That tap was not side-effect free: "
+            + "\(gone.joined(separator: ", ")) disappeared from the screen after it, so the target was not touched — "
+            + "the screen the step was written for may have been closed or replaced; close the keyboard from the app first "
+            + "and check the screen)"
+    }
+
+    /// 閉じる tap の前にキーボードの上にあって、後の木に無い要素の名前(最大3件・並びは名前順。空 = 変化なし)。
+    /// 比較の規則は `contentAbove` / `contents(of:)`(位置を見ない・増えた要素は数えない)
+    /// **キーボードの上端に接した帯(入力補助のバー = inputAccessoryView 等。画面幅の半分以上)の中の要素は数えない** ——
+    /// キーボードと一緒に消えるのが正当で、数えると「完了」バー付きの画面のキーボードの下の対象が全部赤になる
+    static func elementsGoneAfterKeyboardClose(keyboard: FTRect, before: SnapshotResponse, after: SnapshotResponse) -> [String] {
+        let bands = before.elements.filter {
+            abs($0.frame.y + $0.frame.height - keyboard.y) <= 1 && $0.frame.width >= before.screen.width / 2
+        }.map(\.frame)
+        let attached = Set(before.elements.filter { e in
+            bands.contains { b in e.frame.y >= b.y - 1 && e.frame.y + e.frame.height <= b.y + b.height + 1 }
+        }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }
+            .flatMap { $0 })
+        return contentAbove(keyboard, in: before).subtracting(attached).subtracting(contents(of: after)).sorted().prefix(3)
+            .map { $0.replacingOccurrences(of: "|", with: " ") }
     }
 
     enum KeyboardReach {

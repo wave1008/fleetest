@@ -134,3 +134,26 @@ final class NoFocusLastTreeOrderTests: XCTestCase {
                        "launch・activate・openURL が木の控えを消す")
     }
 }
+
+/// back() / home() で離れた先(ランチャー)の木を読んだ後も、焦点なしの文は前面の食い違いを言う
+final class TreeForegroundDepartureTests: XCTestCase {
+    func testLeavingKeepsTheDepartedAppAndReturnClearsIt() {
+        var s = AndroidDriver.treeForegroundUpdate(previous: nil, departed: nil, new: "com.app")
+        XCTAssertNil(s.departed)
+        s = AndroidDriver.treeForegroundUpdate(previous: s.last, departed: s.departed, new: "com.launcher")
+        XCTAssertEqual(s.last, "com.launcher")
+        XCTAssertEqual(s.departed, "com.app")
+        s = AndroidDriver.treeForegroundUpdate(previous: s.last, departed: s.departed, new: "com.launcher")
+        XCTAssertEqual(s.departed, "com.app", "離れた先を続けて読んでも残る")
+        s = AndroidDriver.treeForegroundUpdate(previous: s.last, departed: s.departed, new: "com.app")
+        XCTAssertNil(s.departed)
+    }
+
+    func testLauncherInFrontIsNamedAgainstTheDepartedApp() throws {
+        guard case .badResponse(_, let b)? = AndroidDriver.typeNoFocusAdvice(
+            after: .badResponse(status: 500, body: "no-input-focus: nothing has input focus"), hadRef: false,
+            front: "com.launcher", lastTreePackage: "com.app", fieldTypedSinceLastTap: true) else { return XCTFail() }
+        XCTAssertTrue(b.contains("com.launcher is in front, not com.app"), b)
+        XCTAssertFalse(b.contains("scroll"), b)
+    }
+}

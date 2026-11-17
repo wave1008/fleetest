@@ -743,9 +743,12 @@ extension StepExecutor {
                 healed.note = (step.note.map { $0 + " / " } ?? "")
                     + "self-healed: matched by locator fingerprint (type=\(found.type),"
                     + " label=\(found.label ?? "nil"))" + graded.durability.caution
-                healedStep = healed
-                healedByFingerprint = true
-                status = .healed(parsed.primary)
+                // スコープ付きをスコープ無しへ書き換えて書き戻さない(`HealWriteBackScope`)。操作は続ける
+                if HealWriteBackScope.preservesScope(original: step.locator, healed: parsed.primary) {
+                    healedStep = healed
+                    healedByFingerprint = true
+                    status = .healed(parsed.primary)
+                }
             } else {
                 // **操作は続けるが healedStep は立てない**(healUnwritable と同じ規律)。
                 // 掴んだ要素は手元にあるので叩くこと自体は正しく、書き戻せないという理由だけで
@@ -775,23 +778,26 @@ extension StepExecutor {
                 // (レポート側の全要素一覧は ScenarioReportWriter が別途出す)
                 // 閉じる試みをした回は、その結果(閉じた・閉じられなかった)を事実で言い、閉じた後の木で候補を作る
                 let hintSnapshot: SnapshotResponse
-                let keyboardClause: String
+                var keyboardClause: String
                 var keyboardKeptUp = false
+                var closedNoteForClause: String?
                 switch retry {
                 case .closedButNotFound(let closedNote, let after):
                     hintSnapshot = after
-                    keyboardClause = " (the soft keyboard was up: \(closedNote); the target is not on the screen after it closed either"
-                        + " — the keyboard is closed now, so closing it is not the fix)"
-                case .notClosed(let tried):
+                    closedNoteForClause = closedNote
+                    keyboardClause = Self.keyboardClosedNotFoundClause(closedNote)
+                case .closedChangedScreen(let closedNote, let gone, let after):
+                    // 閉じるタップで画面の要素が消えた(ダイアログのバリア等に当たった疑い)= 対象は撃っていない
+                    hintSnapshot = after
+                    keyboardClause = Self.keyboardCloseChangedScreenClause(note: closedNote, gone: gone)
+                case .notClosed(let tried) where Self.targetWasInTreeBeforeKeyboard(step, lastKeyboardFreeSnapshot):
                     // **向き(上か下か)を言わない**: キーボードを避けて画面がずれる・縮むと、要素はキーボードの上へ押し出されても
                     // (SwiftUI の上端の戻るボタン・CMP の反転チャットの上端の行)下に隠れても木から消える。前は「下に居た要素が
-                    // 消えた」と決めつけ、キーボードが出たままでは確かめていない「待て」も添えていた(下の waitHint を外す)
+                    // 消えた」と決めつけ、キーボードが出たままでは確かめていない「待て」も添えていた(下の waitHint を外す)。
+                    // **キーボードのせいにするのは、対象がキーボードの出る前の木に居たときだけ**(最初から無い対象には従っても直らない)
                     hintSnapshot = snapshot
                     keyboardKeptUp = true
-                    keyboardClause = " (the soft keyboard is up and the target is not in the tree; closing it without side effects failed:"
-                        + " \(tried). While the keyboard is up the screen may be shifted or shrunk to make room for it, so an element"
-                        + " can leave the tree whether it sat above or below the keyboard; waiting does not bring it back while the"
-                        + " keyboard stays up — close the keyboard from the app (its Done button or another control) first)"
+                    keyboardClause = Self.keyboardNotClosedClause(tried)
                 default:
                     hintSnapshot = snapshot
                     keyboardClause = Self.hasModalScope(snapshot) ? "" : Self.keyboardResizedHint(snapshot)
@@ -804,9 +810,15 @@ extension StepExecutor {
                 // モーダルの中にも送れる一覧があれば、対象はモーダルの「裏」でなく「中」の送りの先かもしれない = 送りの案内も添える
                 // (待ちの案内は添えない。E2EX-iOS のボトムシートの行で「閉じろ」だけを言っていた = 56周目 iultra F1)
                 let scopeHint = Self.scopeReasonHint(step, hintSnapshot.elements, isAndroid: isAndroid)
+                // スコープの容器が無いと分かっているときは、閉じた後の節が「対象が画面に無い」と言わない(対象は木に居る = 自己矛盾)
+                if let closedNote = closedNoteForClause, !scopeHint.isEmpty {
+                    keyboardClause = " (the soft keyboard was up: \(closedNote))"
+                }
                 let reasonHint = await leftForegroundHint()
                     ?? (scopeHint.isEmpty ? nil : scopeHint)
-                    ?? Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
+                    ?? (Self.scopeContainerIsInModal(step, hintSnapshot)
+                        ? Self.scopeIsTheModalHint(step, hintSnapshot)
+                        : Self.modalScopeHint(hintSnapshot).map { $0 + Self.scrollOffHint(step, in: hintSnapshot) })
                     ?? ownDialogHint()
                 return StepOutcome(status: failed(
                     .notFound,
@@ -2632,3 +2644,25 @@ extension StepExecutor {
 
 }
 
+
+extension StepExecutor {
+    /// キーボードを閉じた後の木にも対象が無かったときの節
+    static func keyboardClosedNotFoundClause(_ closedNote: String) -> String {
+        " (the soft keyboard was up: \(closedNote); the target is not on the screen after it closed either"
+            + " — the keyboard is closed now, so closing it is not the fix)"
+    }
+
+    /// キーボードを閉じられなかったときの節。**対処は条件付き**: Done のような閉じる部品が無い画面(WebView 等)では従えない
+    static func keyboardNotClosedClause(_ tried: String) -> String {
+        " (the soft keyboard is up and the target is not in the tree; closing it without side effects failed:"
+            + " \(tried). While the keyboard is up the screen may be shifted or shrunk to make room for it, so an element"
+            + " can leave the tree whether it sat above or below the keyboard; waiting does not bring it back while the"
+            + " keyboard stays up — if the screen has a control that closes it (a Done button, for example), use that first)"
+    }
+
+    /// 対象が、キーボードの出る前に読んだ木に居たか。木が無い・居なかったときは false = キーボードの帰属を言わない
+    static func targetWasInTreeBeforeKeyboard(_ step: FlowStep, _ before: SnapshotResponse?) -> Bool {
+        guard let before else { return false }
+        return LocatorResolver.resolve(step: step, in: before) != nil
+    }
+}

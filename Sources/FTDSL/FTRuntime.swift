@@ -1179,6 +1179,12 @@ public final class FTDriveCore {
                 resolvedIDs.insert(id)
                 negativeOnlyIDs[id] = nil
             }
+            // スコープ付きの対象の id も同じ(`tap(".alert >> #btn_dialog_ok")` が通れば #btn_dialog_ok は実在して解決している。60周目 imax F6)。
+            // 否定は「容器の外にあること」の検証でも通るので、数えるのは肯定が通った回だけ
+            for id in locators.filter({ !($0.scope?.isEmpty ?? true) }).compactMap(\.id) {
+                resolvedIDs.insert(id)
+                negativeOnlyIDs[id] = nil
+            }
         }
         guard !ids.isEmpty else { return }
         for id in ids {

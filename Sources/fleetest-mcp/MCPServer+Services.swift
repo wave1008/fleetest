@@ -1,7 +1,8 @@
 // MCPServer+Services.swift
 // ft_services: `fleetest services up|down|status` を本物の CLI で同期に実行する。
 //
-// **`swift run fleetest` 経由**(読むだけの `status` は隣の fleetest が既にビルド済みなら `--skip-build`): MCP のランチャーが作るのは fleetest-mcp だけで、隣の fleetest は古いことがある(ft_start_run と同じ)。
+// **`swift run fleetest` 経由**(読むだけの `status` だけは隣の fleetest が既にビルド済みなら実行ファイルを直接起こす): MCP のランチャーが作るのは fleetest-mcp だけで、隣の fleetest は古いことがある(ft_start_run と同じ)。
+// **`swift run --skip-build` に置き換えない**(SwiftPM は --skip-build でも .build の鍵を取り、シナリオのビルドと重なると 100〜200 秒待つ)。
 // **子の出力はパイプで読まない**(一時ファイルへ直接書き、終了後に末尾だけ読む。readDataToEndOfFile の走査対象外にする)。
 // **非0終了も MCPError にしない**(利用者が出力を読んで判断する)。承認は `ProjectScaffold.mcpServicesPermission`(ask)。
 
@@ -18,11 +19,15 @@ enum MCPServices {
     static let outputWindowBytes: UInt64 = 256 * 1024
 
     /// `physical` / `serials` は `up` だけが受ける(CLI の `services up --physical --serial`。他の動詞には渡さない)
-    /// `skipBuild` は読むだけの `status` にだけ効く(他の動詞は隣の fleetest を作り直してから撃つ)
+    /// `prebuilt` は読むだけの `status` にだけ効く(他の動詞は隣の fleetest を作り直してから撃つ)。実体のパスを直接起こし、`swift run` を通さない
     static func arguments(action: String, project: String?, profile: String?,
-                          physical: Bool = false, serials: [String] = [], skipBuild: Bool = false) -> [String] {
-        var args = ["swift", "run"] + (skipBuild && action == "status" ? ["--skip-build"] : [])
-            + ["fleetest", "services", action]
+                          physical: Bool = false, serials: [String] = [], prebuilt: String? = nil) -> [String] {
+        var args: [String]
+        if action == "status", let prebuilt {
+            args = [prebuilt, "services", action]
+        } else {
+            args = ["swift", "run", "fleetest", "services", action]
+        }
         if let project { args += ["--project", project] }
         if let profile { args += ["--profile", profile] }
         if action == "up" {
@@ -32,12 +37,14 @@ enum MCPServices {
         return args
     }
 
-    /// `status` を作り直しなしで撃ってよいか = 隣の fleetest が既にビルドされているとき。
-    /// 無ければ従来どおり `swift run`(ビルドする)に落とす(`--skip-build` は成果物が無いと失敗する)。
+    /// `status` を作り直しなしで撃ってよいときの、隣の fleetest の**実体のパス**(ビルド済みのとき。無ければ nil = 従来どおり `swift run`)。
+    /// `.build/debug` はビルドのたびに作り直すリンクなので `ExecutablePath.resolved` で実体へ解決する。
     /// ビルド中の E2E と衝突させず(保守者の「E2E 中にビルドしない」)、古い fleetest が status を読む副作用は受け入れる
-    static func canSkipBuild(action: String, packageRoot: URL) -> Bool {
-        action == "status" && FileManager.default.isExecutableFile(
-            atPath: packageRoot.appendingPathComponent(".build/debug/fleetest").path)
+    static func prebuiltFleetest(action: String, packageRoot: URL) -> String? {
+        guard action == "status" else { return nil }
+        let link = packageRoot.appendingPathComponent(".build/debug/fleetest")
+        guard FileManager.default.isExecutableFile(atPath: link.path) else { return nil }
+        return ExecutablePath.resolved(link).path
     }
 
     /// `physical` / `androidSerials` は `up` だけが読む。**他の動詞に渡されたら断る**(`arguments` は黙って捨てていた =
@@ -97,7 +104,7 @@ extension MCPServer {
         let resolvedProject = try ScenarioHost.project(named: project).name
         let arguments = MCPServices.arguments(action: action, project: resolvedProject, profile: profile,
                                               physical: physical, serials: serials,
-                                              skipBuild: MCPServices.canSkipBuild(action: action, packageRoot: packageRoot))
+                                              prebuilt: MCPServices.prebuiltFleetest(action: action, packageRoot: packageRoot))
         let environment = MCPRunJobs.childEnvironment(packageRoot: packageRoot, toolRoot: try? RepoRoot.find())
         // CLI の終了まで**ブロッキングで**待つ(up は上がるまで返らない)ので、協調スレッドプールの外の専用 Thread で
         let outcome = await Self.runOffCooperativePool(name: "fleetest-mcp-services") {

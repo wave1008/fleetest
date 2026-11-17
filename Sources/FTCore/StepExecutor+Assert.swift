@@ -236,11 +236,41 @@ extension StepExecutor {
     /// 要素を外した(`coveredByFrontWindow`。40周目 im4 F2)・Android のアプリ自身のダイアログの窓が手前(`ownDialogHint`)。
     /// そのときは WebView 向けの `treeUnderreported` を外す(理由が別で、案内が事実と違った)。
     /// **通る直前に1回だけ呼ぶ**(Android は窓の一覧を adb で引く = 周ごとに払わない)
-    func noteAbsenceBehindModal(_ snapshot: SnapshotResponse) {
+    /// スコープの容器が手前のモーダル自身(の中)なら出さない: そこでの「無い」は裏を見ていない本物の不在で、閉じると `.alert` ごと消える
+    func noteAbsenceBehindModal(_ snapshot: SnapshotResponse, step: FlowStep? = nil) {
+        if let step, Self.scopeContainerIsInModal(step, snapshot) { return }
         guard Self.hasModalScope(snapshot) || (snapshot.coveredByFrontWindow?.droppedCount ?? 0) > 0
                 || ownDialogHint() != nil else { return }
         noteCodesThisStep.insert(.absenceBehindModal)
         noteCodesThisStep.remove(.treeUnderreported)
+    }
+
+    /// ロケータのスコープの最内の容器が木に在り、`modalScope` の枠の中にあるか。モーダルの外は木から外されているので、
+    /// 木に残った容器はモーダルの中(か、その枠と同じ大きさの祖先)= 裏の対象は容器の中に入りえない。型名・ラベルでは決めない
+    static func scopeContainerIsInModal(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> Bool {
+        guard let snapshot, hasModalScope(snapshot), let modal = snapshot.modalScope,
+              let scope = step.locator?.scope, !scope.isEmpty else { return false }
+        var pool = snapshot.elements
+        var container: ElementInfo?
+        for locator in scope {
+            guard let (found, _) = LocatorResolver.matchDetailed(locator, elements: pool) else { return false }
+            container = found
+            pool = LocatorResolver.scopeDescendants(of: found, in: snapshot.elements)
+        }
+        guard let frame = container?.frame else { return false }
+        let tol = 1.0
+        return modal.frames.contains { m in
+            frame.x >= m.x - tol && frame.y >= m.y - tol
+                && frame.x + frame.width <= m.x + m.width + tol && frame.y + frame.height <= m.y + m.height + tol
+        }
+    }
+
+    /// 上の場合の失敗文: 閉じても直らない(`.alert` が消える)ので「閉じろ」と言わない
+    static func scopeIsTheModalHint(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> String? {
+        guard scopeContainerIsInModal(step, snapshot) else { return nil }
+        return " (the scope's container is the modal in front of the screen itself (or inside it), and the target is not in it;"
+            + " what is behind the modal can never be inside it, and closing the modal removes the scope too —"
+            + " drop the scope to look behind it, or name something in the modal)"
     }
 
     /// **要素が 0 個の木は「無い」の根拠にしない**(起動直後の木は要素 0 個で来ることがある。RN の `launchApp()` の 3ms 後の
@@ -997,7 +1027,7 @@ extension StepExecutor {
                         continue
                     }
                 }
-                noteAbsenceBehindModal(snapshot)
+                noteAbsenceBehindModal(snapshot, step: step)
                 return .passed
             }
             if Date() >= deadline {
@@ -1289,7 +1319,7 @@ extension StepExecutor {
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
         guard lastShown != nil else {
-            return failedWithoutKind("cannot determine the keyboard state (the bridge may be outdated)")
+            return failedWithoutKind("cannot determine the keyboard state (the snapshot carried no keyboard report)")
         }
         return .failed(wantShown
             ? "keyboard is not shown (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"

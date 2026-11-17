@@ -51,6 +51,19 @@ public final class AndroidDriver: AppDriver {
     private var lastTreeHasWebView = false
     /// 直近の木の前面パッケージ(`sessionBundleID ?? currentPackage`。帳簿が nil の MCP でも撃てるように)
     private var lastTreeForegroundPackage: String?
+    /// 木の前面が別のパッケージへ移ったとき、離れた側(離れた先の木を読んでも残る = 焦点なしの文が名指す「撃った相手」)。
+    /// 戻ってきた・launch / activate / openURL で nil。back() / home() は前面確認で離れた先の木を読むので、
+    /// これが無いと lastTreeForegroundPackage が前面と一致して前面の文が出ない
+    private var departedTreePackage: String?
+    /// 焦点なしの文が「直近の木のアプリ」として名指す相手(離れていれば離れた側)
+    private var noFocusTreePackage: String? { departedTreePackage ?? lastTreeForegroundPackage ?? currentPackage }
+
+    /// 木の前面の控えの更新(純関数)。前面が移ったら移る前を departed に残し、戻ったら消す
+    static func treeForegroundUpdate(previous: String?, departed: String?, new: String?) -> (last: String?, departed: String?) {
+        if let new, new == departed { return (new, nil) }
+        if let previous, let new, previous != new { return (new, previous) }
+        return (new, departed)
+    }
     private var warnedMultipleWebViews = false
     /// 最後の tap の後に、この driver 経由で type が通ったか(tap で偽・type 成功で真)。ref 無しの type が「フォーカス不在」で落ちたとき、
     /// 「叩いた容器の話」でなく「焦点を持っていた欄が木から消えた話」と言い分ける材料(`typeNoFocusAdvice`)
@@ -331,7 +344,7 @@ public final class AndroidDriver: AppDriver {
         }
         refCenters = [:]
         domBridgeRefs = [:]
-        if let bundleID { currentPackage = bundleID; lastTreeForegroundPackage = nil }
+        if let bundleID { currentPackage = bundleID; lastTreeForegroundPackage = nil; departedTreePackage = nil }
         persistState()
     }
 
@@ -618,6 +631,7 @@ public final class AndroidDriver: AppDriver {
         refCenters = [:]
         domBridgeRefs = [:]
         currentPackage = bundleID
+        departedTreePackage = nil
         lastTreeForegroundPackage = nil  // 前の木の前面は launch した相手より古い(焦点なしの文の名指しは木の前面が先)
         persistState()
     }
@@ -684,6 +698,7 @@ public final class AndroidDriver: AppDriver {
         restoreStateIfNeeded()  // 状態保持の前面化なので refs は維持(空の状態で persist して消さない)
         currentPackage = bundleID
         lastTreeForegroundPackage = nil
+        departedTreePackage = nil
         persistState()
     }
 
@@ -888,7 +903,8 @@ public final class AndroidDriver: AppDriver {
                 }
             }
         }
-        lastTreeForegroundPackage = snapshot.sessionBundleID ?? currentPackage
+        (lastTreeForegroundPackage, departedTreePackage) = Self.treeForegroundUpdate(
+            previous: lastTreeForegroundPackage, departed: departedTreePackage, new: snapshot.sessionBundleID ?? currentPackage)
         lastTreeHasWebView = WebViewDOM.webViewElement(in: snapshot.elements) != nil
         syncLocalState(from: snapshot)
         // IME は別プロセスの window でアプリの a11y ツリーに出ないため、オンデバイスのブリッジでは
@@ -957,7 +973,7 @@ public final class AndroidDriver: AppDriver {
             try await withoutStepExpectation { try await withBridge { try await $0.clearInput(ref: target) } }
         } catch let error as DriverError {
             throw Self.noFocusFrontAdvice(after: error, front: noInputFocusFront(after: error),
-                                          lastTreePackage: lastTreeForegroundPackage ?? currentPackage) ?? error
+                                          lastTreePackage: noFocusTreePackage) ?? error
         }
     }
 
@@ -1093,7 +1109,7 @@ public final class AndroidDriver: AppDriver {
             // (同じ端末で前に別のアプリを launch したプロセス)。帳簿を先にすると、このプロセスの木が e2e.android のときに
             // 「the app of the last tree」として e2ey.flutter を名指し「落ちたか離れた」と誤って言った(Pixel 3a・MCP)。
             // このプロセスの launch / activate / openURL は木の控えを消すので、その後は帳簿(撃った相手)が使われる
-            let lastTree = lastTreeForegroundPackage ?? currentPackage
+            let lastTree = noFocusTreePackage
             throw Self.typeNoFocusAdvice(after: error, hadRef: ref != nil, front: front, lastTreePackage: lastTree,
                                          keyboardShown: ref == nil && noInputFocusKeyboardShown(after: error),
                                          fieldTypedSinceLastTap: typedSinceLastTap)

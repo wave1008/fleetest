@@ -357,7 +357,9 @@ final class BridgeRouter {
             truncatedCount: cap.truncated,
             note: cap.settleCapped ? "snapshot taken before the screen settled (budget)" : nil,
             offscreen: cap.offscreen.isEmpty ? nil : cap.offscreen,
-            keyboardShown: cap.keyboardFrame != nil ? true : nil,
+            // 木を読んで `.keyboard` が無かった = 非表示と確定(false)。nil は「測っていない」(KeyboardWait.shownState)で、
+            // nil を返すと keyboardIsNotShown が必ず「cannot determine」で赤になる
+            keyboardShown: cap.keyboardFrame != nil,
             keyboardFrame: cap.keyboardFrame.map {
                 FTRect(x: $0.origin.x, y: $0.origin.y, width: $0.width, height: $0.height)
             },

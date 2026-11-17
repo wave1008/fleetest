@@ -377,6 +377,27 @@ final class CommandDispatchTests: XCTestCase {
         XCTAssertTrue(messages.contains { $0.contains("`#panel_gone` never resolved") }, "\(messages)")
     }
 
+    /// スコープ付きの肯定が通ったら対象の id も解決に数える(60周目 imax F6)。スコープ付きの否定は数えない
+    func testScopedTargetOfAPassedStepCountsAsResolved() {
+        let core = makeCore(driver: RecordingDriver())
+        var scoped = FlowLocator(id: "btn_dialog_ok")
+        scoped.scope = [FlowLocator(id: "alert_box")]
+        core.trackIDResolution(step: FlowStep(action: "tap", locator: scoped), status: .passed,
+                               description: "tap", behindModal: false)
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: "btn_dialog_ok")), status: .passed,
+                               description: "notExist", behindModal: false)
+        var negativeScoped = FlowLocator(id: "typo_id")
+        negativeScoped.scope = [FlowLocator(id: "alert_box")]
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: negativeScoped), status: .passed,
+                               description: "notExist", behindModal: false)
+        core.trackIDResolution(step: FlowStep(assert: "notExists", locator: FlowLocator(id: "typo_id")), status: .passed,
+                               description: "notExist", behindModal: false)
+        core.warnAboutNeverResolvedIDs()
+        let messages = core.finalRecord.fixSuggestions.map(\.message)
+        XCTAssertFalse(messages.contains { $0.contains("`#btn_dialog_ok` never resolved") }, "\(messages)")
+        XCTAssertTrue(messages.contains { $0.contains("`#typo_id` never resolved") }, "\(messages)")
+    }
+
     /// `launchApp(url:)` は配送の後に「前面を離れたかもしれない」の印を立て直す(hook は本体より前に印を落とすので)。
     /// 立てないと別のアプリを開いた後の読みが停止した in-app へ約 45 秒待った(22周目 im4 F1・iultra F2)。ソース走査
     func testLaunchAppWithURLRaisesTheLeftAppMarkAfterDelivery() throws {

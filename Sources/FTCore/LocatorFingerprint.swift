@@ -59,3 +59,14 @@ public struct LocatorFingerprint: Codable, Equatable, Sendable {
         return matches.count == 1 ? matches[0] : nil
     }
 }
+
+/// 指紋で直したセレクタを書き戻してよいか。**スコープ(`.alert >> X` の `.alert`)は「その容器の中に限る」という利用者の指定**で、
+/// 指紋(type+label)は容器を控えない。スコープ付きのステップを、スコープの無い書き換えで書き戻すと指定を黙って落とす
+/// (モードで容器の型が割れた画面で `.alert >> X` → `X` と書き戻され、戻したモードでは裏の同ラベルを押しうる)。
+/// 操作は続け、書き戻しだけ止める。
+public enum HealWriteBackScope {
+    public static func preservesScope(original: FlowLocator?, healed: FlowLocator?) -> Bool {
+        guard let scope = original?.scope, !scope.isEmpty else { return true }
+        return !(healed?.scope ?? []).isEmpty
+    }
+}

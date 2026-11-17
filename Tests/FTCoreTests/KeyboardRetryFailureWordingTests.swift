@@ -10,7 +10,8 @@ final class KeyboardRetryFailureWordingTests: XCTestCase {
                                    placeholder: nil, enabled: true, frame: FTRect(x: 20, y: 400, width: 360, height: 50),
                                    depth: 1)
 
-    private func run(closes: Bool) async -> (String, [String]) {
+    /// `seedBefore`: キーボードの出る前に読んだ木に対象が居た状態を作る(居なければ帰属しない)
+    private func run(closes: Bool, seedBefore: Bool = false) async -> (String, [String]) {
         let log = CallLog()
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[city]])
         primary.keyboardFrame = FTRect(x: 0, y: 450, width: 400, height: 350)
@@ -21,6 +22,12 @@ final class KeyboardRetryFailureWordingTests: XCTestCase {
             }
         }
         let executor = StepExecutor(driver: primary, isAndroid: true, tunables: RunTunables(defaultTimeout: 0.2))
+        if seedBefore {
+            let target = ElementInfo(ref: 9, type: "button", identifier: "no_such", label: nil, value: nil, placeholder: nil,
+                                     enabled: true, frame: FTRect(x: 20, y: 600, width: 100, height: 40), depth: 1)
+            executor.lastKeyboardFreeSnapshot = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                                                 elements: [city, target], truncatedCount: 0)
+        }
         let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "no_such")))
         guard case .failed(let message) = outcome.status else { return ("not failed: \(outcome.status)", log.entries) }
         return (message, log.entries)
@@ -36,13 +43,24 @@ final class KeyboardRetryFailureWordingTests: XCTestCase {
 
     /// 閉じられなかった: 試したことを失敗文に残す(捨てて「cannot resolve」だけにしない)
     func testFailureWhenTheKeyboardWillNotCloseNamesWhatWasTried() async {
-        let (message, _) = await run(closes: false)
+        let (message, _) = await run(closes: false, seedBefore: true)
         XCTAssertTrue(message.contains("closing it without side effects failed"), message)
+        // 閉じる部品(Done)が無い画面では従えないので、対処は条件付き
+        XCTAssertTrue(message.contains("if the screen has a control that closes it"), message)
+        XCTAssertFalse(message.contains("close the keyboard from the app"), message)
         XCTAssertTrue(message.contains("did not close it"), message)
         // 上か下かを決めつけず、キーボードが出たままでは確かめていない「待て」を言わない(上端の戻るボタンが上へ押し出された形 = 58周目 duo)
         XCTAssertFalse(message.contains("sat below the keyboard"), message)
         XCTAssertTrue(message.contains("whether it sat above or below the keyboard"), message)
         XCTAssertFalse(message.contains("add waitSeconds"), message)
+    }
+
+    /// 対象がキーボードの出る前の木に居なかった(別画面・どこにも無い id)なら、キーボードのせいにしない
+    func testNoKeyboardAttributionWhenTheTargetWasNeverInTheTree() async {
+        let (message, _) = await run(closes: false)
+        XCTAssertFalse(message.contains("the soft keyboard is up and the target is not in the tree"), message)
+        XCTAssertFalse(message.contains("waiting does not bring it back"), message)
+        XCTAssertTrue(message.contains("cannot resolve the locator: id=no_such"), message)
     }
 
     private func field(value: String?) -> ElementInfo {

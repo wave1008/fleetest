@@ -326,7 +326,8 @@ extension StepExecutor {
         let swipes = result?.stoppedUnmoving == true || result?.appLeftForeground != nil || result?.screenResized == true
             ? (result?.swipes ?? limit) : limit
         if let scope = result?.scopeHint, !scope.isEmpty, result?.appLeftForeground == nil {
-            return "element not found after \(swipes) scroll(s): \(step.locatorSummary)" + scope
+            // 容器が木に無くて止まった回は stoppedUnmoving 等の印が立たず、上限を名乗ると記録(1回)と食い違う
+            return "element not found after \(result?.swipes ?? swipes) scroll(s): \(step.locatorSummary)" + scope
         }
         // **「stopped early」と言わない**。旧文言は「途中で諦めた」としか
         // 読めず、実際には**リストの末尾に着いていた**回(iOS の設定アプリで実測)を欠陥と
@@ -444,7 +445,9 @@ extension StepExecutor {
     /// (tap の `cannot resolve the locator` と同じ順。57周目 im4・imax・alocal)
     func notFoundCoverOrScopeHint(_ step: FlowStep, _ snapshot: SnapshotResponse?) -> String {
         let scope = Self.scopeReasonHint(step, snapshot?.elements, isAndroid: isAndroid)
-        return scope.isEmpty ? (Self.coverReportHint(snapshot) ?? "") : scope
+        if !scope.isEmpty { return scope }
+        if let inModal = Self.scopeIsTheModalHint(step, snapshot) { return inModal }
+        return Self.coverReportHint(snapshot) ?? ""
     }
 
     /// 木の覆いの申告の名指し(モーダル → 手前の窓の順。`cannot resolve the locator` と同じ順)。申告が無い木・木が無いは nil

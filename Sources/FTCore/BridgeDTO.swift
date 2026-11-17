@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 294
+    public static let bridgeProtocolVersion = 296
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1190,8 +1190,8 @@ public struct SnapshotResponse: Codable, Sendable {
     /// 追加 optional フィールドのみなので bridgeProtocolVersion は据え置き(webViewPath と同じ方針。
     /// 旧ブリッジは返さず nil = 申告なし = 注記も出ない、で安全に縮退する)
     public var webViewPath: String?
-    /// **ソフトキーボードが表示中か**(true のときだけ送る = checked/web/focused と同じ省略規約。
-    /// 省略は「非表示、または不明」)。要素単位ではなくスナップショット全体の状態。
+    /// **ソフトキーボードが表示中か**。iOS の両ブリッジは木を走査した回は false も送る(省略 = 測っていない。
+    /// XCUITest が true だけ送っていた頃は keyboardIsNotShown が常に「判定できない」で赤だった)。要素単位ではなくスナップショット全体の状態。
     /// 取得元は iOS xcuitest=ツリー走査中に `.keyboard` ノードを見たか / iOS in-app=同走査中に
     /// `.keyboardKey` ノードを見たか / Android=オンデバイスのブリッジではなくホスト側の
     /// `AndroidDriver.snapshot()` が `dumpsys window windows` から算出(dumpsys の固定費を避けるため

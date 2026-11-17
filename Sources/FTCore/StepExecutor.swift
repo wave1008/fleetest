@@ -1152,8 +1152,13 @@ public final class StepExecutor {
         if bypass, case .repoll = freshness { markRepollBypassed() }
         let snapshot = try await driver.snapshot(bypassingCache: bypass)
         lastTreeOwnerThisStep = snapshot.sessionBundleID
+        if !KeyboardWait.isShown(snapshot) { lastKeyboardFreeSnapshot = snapshot }
         return snapshot
     }
+
+    /// 直近に読んだ「キーボードが出ていない」木。キーボードを閉じられなかったときの失敗文が、対象が**キーボードの出る前の木に居たか**を
+    /// 見るのに使う(居なかった対象をキーボードのせいにしない)。`freshSnapshot` だけが更新する
+    var lastKeyboardFreeSnapshot: SnapshotResponse?
 
     /// このステップで立った注記。順序を rawValue 固定にするのは、記録が run 間で決定的に
     /// 比較できるようにするため(Set の反復順はプロセスごとに変わる)

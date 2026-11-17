@@ -7,6 +7,16 @@ final class ScrollAppLeftForegroundWordingTests: XCTestCase {
 
     private let step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "missing"), direction: "up", maxSwipes: 8)
 
+    /// 容器が木に無くて止まった回は、上限(8)でなく実際に送った回数を言う
+    func testScopeHintSaysTheActualSwipeCount() {
+        var r = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false,
+                                                hintJumps: 0, swipes: 1)
+        r.scopeHint = " (the scope's container is not in the tree)"
+        let m = StepExecutor.scrollNotFoundMessage(step, r, defaultMaxSwipes: 8)
+        XCTAssertTrue(m.contains("after 1 scroll(s)"), m)
+        XCTAssertFalse(m.contains("after 8 scroll(s)"), m)
+    }
+
     func testLeftForegroundDoesNotClaimTheEnd() {
         var r = StepExecutor.ScrollSearchResult(found: false, fallback: nil, viaXCUITest: false,
                                                 hintJumps: 0, swipes: 3)
