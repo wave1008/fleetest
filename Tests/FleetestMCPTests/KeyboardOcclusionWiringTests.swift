@@ -33,6 +33,7 @@ final class KeyboardOcclusionWiringTests: XCTestCase {
     func testAllResolveSitesBuildKeyboardOcclusionFromTheSnapshot() throws {
         let sites = [
             "FTCore/StepExecutor+Actions.swift",
+            "FTCore/StepExecutor+KeyboardCover.swift",   // liftCoveredTarget(覆いの下から送り出す)
             "fleetest-mcp/MCPServer+Snapshot.swift",
             "fleetest-mcp/MCPServer+Hints.swift",
             "fleetest-mcp/MCPServer+GesturesTools.swift",
