@@ -977,7 +977,8 @@ extension StepExecutor {
         // **背景で閉じなければ Enter**(ユーザー決定)。Enter はキーボードを閉じる操作ではなく欄の確定操作(検索・送信・
         // 次の欄への移動)なので、撃ったことを必ず注記に出す
         // 焦点の欄の値を Enter の前に控える(複数行の欄では Enter が改行を入れる。閉じなかったとき事実で言うため。値は文言に出さない)
-        let focusedBeforeEnter = try? await freshSnapshot(.afterOwnMove).elements.first { $0.focused == true }
+        let beforeEnter = try? await freshSnapshot(.afterOwnMove)
+        let focusedBeforeEnter = beforeEnter?.elements.first { $0.focused == true }
         let enter = try await executeDirectPressEnter(phase: &phase)
         guard StepExecutor.isSuccess(enter.status) else {
             return StepOutcome(status: .failed("the keyboard was not closed: \(tried), and"
@@ -999,9 +1000,20 @@ extension StepExecutor {
                 + (changed ? " — the focused field's value changed after Enter (a newline was probably added to it; every"
                     + " further hideKeyboard() adds another)" : "")))
         }
+        // 画面を叩いて閉じた経路と同じく、Enter の前後でキーボードより上の要素が消えたら言う(Enter はアラートの既定のボタン・
+        // 欄の送信を発火させうる = SwiftUI の .alert の入力欄で保存が走りダイアログごと閉じた)。判定は `elementsGoneAfterKeyboardClose` の1か所
+        var vanishedNote: String?
+        if let beforeEnter, let keyboard = KeyboardOcclusion.resolve(reported: beforeEnter.keyboardFrame, in: beforeEnter.elements,
+                                                                     screen: beforeEnter.screen).frame ?? beforeEnter.keyboardFrame {
+            let vanished = Self.allElementsGoneAfterKeyboardClose(keyboard: keyboard, before: beforeEnter, after: afterEnter)
+            if !vanished.isEmpty {
+                vanishedNote = "\(vanished.count) element(s) that were above the keyboard are gone after Enter"
+                    + " (\(vanished.prefix(3).joined(separator: ", "))) — check that it did not trigger something"
+            }
+        }
         return StepOutcome(status: .passed,
                            driverFallback: Self.joinNotes("closed the keyboard: \(tried), so \(enterNote)",
-                                                          enter.driverFallback))
+                                                          vanishedNote, enter.driverFallback))
     }
 
     /// Enter の前に焦点を持っていた欄の値が、後の木の同じ欄で変わったか(純粋)。同じ欄 = identifier(あれば)、無ければ枠の左上。

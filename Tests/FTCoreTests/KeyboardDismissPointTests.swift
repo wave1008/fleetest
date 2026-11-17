@@ -161,6 +161,30 @@ final class KeyboardDismissPointTests: XCTestCase {
         XCTAssertEqual(driver.coordinateTaps.count, 1, "先に背景を叩くはず")
         XCTAssertTrue(log.entries.contains("primary.pressEnter"), log.entries.description)
         XCTAssertTrue(outcome.driverFallback?.contains("so sent Enter") == true, outcome.driverFallback ?? "nil")
+        XCTAssertFalse(outcome.driverFallback?.contains("gone after Enter") == true, "画面は変わっていない: \(outcome.driverFallback ?? "nil")")
+    }
+
+    /// 実測の形(E2EX-iOS・SwiftUI の .alert の入力欄): 背景のタップでは閉じず、Enter がアラートの既定のボタン(保存)を発火させて
+    /// ダイアログごと閉じた。✅ のままでも、Enter の後に消えた要素を注記で言う(画面を叩いて閉じた経路と同じ判定)
+    func testIOSHideKeyboardSaysWhatEnterMadeDisappear() async throws {
+        let log = CallLog()
+        let alert = [el(1, "other", nil, screen, depth: 0),
+                     el(2, "alert", "dialog", FTRect(x: 60, y: 200, width: 282, height: 220), depth: 1),
+                     el(3, "textField", "field_prompt", FTRect(x: 76, y: 280, width: 250, height: 36), depth: 2, focused: true),
+                     el(4, "button", "btn_save", FTRect(x: 201, y: 370, width: 141, height: 44), depth: 2)]
+        let saved = [el(1, "other", nil, screen, depth: 0),
+                     el(5, "staticText", "txt_dialogs_result", FTRect(x: 16, y: 120, width: 200, height: 22), depth: 1)]
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [alert])
+        driver.keyboardFrame = keyboard
+        driver.tapProbeAnswer = background
+        driver.afterPressEnter = { driver.keyboardFrame = nil; driver.snapshotElements = [saved] }
+        let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2))
+        let outcome = await executor.execute(FlowStep(action: "hideKeyboard"))
+        guard case .passed = outcome.status else { return XCTFail("\(outcome.status)") }
+        let note = outcome.driverFallback ?? ""
+        XCTAssertTrue(note.contains("so sent Enter"), note)
+        XCTAssertTrue(note.contains("gone after Enter"), note)
+        XCTAssertTrue(note.contains("#btn_save"), note)
     }
 
     /// Enter へ進まない設定(MCP)なら、閉じなければ Enter を送らずに失敗
