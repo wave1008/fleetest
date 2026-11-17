@@ -91,7 +91,7 @@ paths:
   - "Tests/FleetestTests/DispatchPrelockTests.swift"
   - "Tests/FleetestTests/InterruptRelayEarlyRegistrationWiringTests.swift"
   - "Tests/FleetestTests/InterruptRelayTests.swift"
-  - "Tests/FleetestTests/ProfileRunnerFMSettingsTests.swift"
+  - "Tests/FleetestTests/ProfileRunnerEffectiveSettingsTests.swift"
   - "Tests/FleetestTests/RemoteDeveloperDirWiringTests.swift"
   - "Tests/FleetestTests/RemoteDeviceFanoutTests.swift"
   - "Tests/FleetestTests/RemoteMonitorFanoutIDTests.swift"

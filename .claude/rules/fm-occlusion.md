@@ -74,7 +74,7 @@ paths:
   - "Tests/FTFoundationModelsTests/OcclusionTranscriptTests.swift"
   - "Tests/FleetestMCPTests/KeyboardOcclusionWiringTests.swift"
   - "Tests/FleetestMCPTests/OverlayWindowOcclusionWiringTests.swift"
-  - "Tests/FleetestTests/ProfileRunnerFMSettingsTests.swift"
+  - "Tests/FleetestTests/ProfileRunnerEffectiveSettingsTests.swift"
 ---
 
 # FM・テキストの可視性検証(occlusion-guard / OCR) の規律
