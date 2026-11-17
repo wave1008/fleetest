@@ -21,7 +21,7 @@ final class SourceFileLineBudgetTests: XCTestCase {
 
     /// 上限を超えたまま凍結したファイル。path はリポジトリ相対・lines は凍結した行数・reason は分割を見送っている理由
     static let frozen: [(path: String, lines: Int, reason: String)] = [
-        ("Sources/FTCore/StepExecutor+Actions.swift", 2682, "分割未着手"),
+        ("Sources/FTCore/StepExecutor+Actions.swift", 2362, "分割未着手"),
         ("Sources/FTCore/RunOrchestrator.swift", 2377, "分割未着手"),
         ("Sources/FTBridgeClient/BridgeProvisioner.swift", 2263, "分割未着手"),
         ("Sources/FTCore/BridgeDTO.swift", 2261, "分割未着手"),
