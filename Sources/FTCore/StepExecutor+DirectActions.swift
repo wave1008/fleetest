@@ -179,6 +179,16 @@ extension StepExecutor {
                            driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
     }
 
+    /// 指の向き → 端送りのストロークの種類(`AndroidDriver.edgeStroke` と同じ写像)
+    static func edgeFlickKind(_ direction: FTSwipeDirection) -> FlickKind {
+        switch direction {
+        case .up: return .centerToTop
+        case .down: return .centerToBottom
+        case .left: return .centerToLeft
+        case .right: return .centerToRight
+        }
+    }
+
     // 端まで送る(Shirates の scrollToBottom 等)。**画面が変化しなくなったら端**とみなす。
     // 比較は**静止してから**行う(フリングの減速中に撮ると動いていないように見える)。
     // さらに **2 回続けて変化なし**を条件にする — Android では次のスワイプがフリングの
@@ -342,6 +352,18 @@ extension StepExecutor {
                 continue
             }
             let path = scrollPath(step: step, intent: .edge, in: settled.snapshot)
+            // **行が逆順の容器(RN の反転一覧)へは Android の a11y の scroll 操作を使わず、容器の中のストロークで払う**:
+            // 端送りの Android は a11y の操作で先に送るが、反転一覧はその向きも鏡映で、最新の端から scrollToTop が
+            // 居る側へ送って「動かない = 端」と ✅ にした(60周目 amax F2)。指の払いは見た目どおりに効く(scrollUp は 4/4 で動いた)
+            if isAndroid, let element = scrollingElement,
+               Self.rowsRunAgainstAxis(of: element, in: settled.snapshot, vertical: vertical),
+               let stroke = path ?? ScrollGeometry.flickPath(
+                    container: element.frame, viewport: settled.snapshot.screen, kind: Self.edgeFlickKind(direction),
+                    startMarginRatio: FTScrollDefaults.startMarginRatio(intent: .gesture, vertical: vertical)) {
+                _ = try await dragWithFallback(path: stroke, durationSeconds: FlowStep.defaultFlickDurationSeconds, phase: &phase)
+                sentSwipes += 1
+                continue
+            }
             let swipedViaXCUITest = try await swipeWithFallback(direction, intent: .edge, path: path, phase: &phase)
             if swipedViaXCUITest { viaXCUITest = true }
             sentSwipes += 1

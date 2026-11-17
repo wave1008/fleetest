@@ -385,11 +385,32 @@ extension StepExecutor {
     static func declaredAtEdge(step: FlowStep, in snapshot: SnapshotResponse, finger: FTSwipeDirection) -> Bool {
         let vertical = finger == .up || finger == .down
         guard let element = scrollContainerElement(step: step, in: snapshot, vertical: vertical) else { return false }
+        // **行が読みの逆順(preorder で y / x が降順)に並ぶ容器の申告は信じない** = 撃って確かめる側へ戻す。
+        // RN の反転一覧(FlatList inverted)は申告が上下鏡映で、最新の端を「上端」と読んで scrollToTop が1本も払わずに ✅ だった
+        // (60周目 amax F2・12/12)。CMP の reverseLayout も降順だが申告は正しい = 木で見分けられない(OI-163)ので、
+        // 両方とも近道を使わない(代償は端の確かめの1本)
+        if rowsRunAgainstAxis(of: element, in: snapshot, vertical: vertical) { return false }
         guard ScrollActionAvailability.atEdge(
             container: element,
             enclosing: enclosingScrollables(of: element, step: step, in: snapshot),
             forSwipe: finger) else { return false }
         return !nestedScrollableMoves(inside: element, in: snapshot, finger: finger, vertical: vertical)
+    }
+
+    /// 容器のすぐ下の段の行(枠のあるもの・3つ以上)の起点が、preorder で払う軸に沿って狭義に減っていくか
+    static func rowsRunAgainstAxis(of container: ElementInfo, in snapshot: SnapshotResponse, vertical: Bool) -> Bool {
+        guard let start = snapshot.elements.firstIndex(where: { $0.ref == container.ref }) else { return false }
+        var descendants: [ElementInfo] = []
+        for e in snapshot.elements[(start + 1)...] {
+            if e.depth <= container.depth { break }
+            if e.frame.width > 0, e.frame.height > 0 { descendants.append(e) }
+        }
+        // ブリッジは入れ物を間引くので「直接の子」ではなく、容器の下で一番浅い段を行と見る
+        guard let shallowest = descendants.map(\.depth).min() else { return false }
+        let rows = descendants.filter { $0.depth == shallowest }
+        guard rows.count >= 3 else { return false }
+        let origins = rows.map { vertical ? $0.frame.y : $0.frame.x }
+        return zip(origins, origins.dropFirst()).allSatisfy { $0 > $1 }
     }
 
     /// 端と申告した容器の**内側**に、同じ列(縦の送りなら容器の中央の x を含む)で同じ軸の、その向きへ送れると申告する
