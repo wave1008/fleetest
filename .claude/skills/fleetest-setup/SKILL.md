@@ -227,9 +227,13 @@ bash <SCRIPTS>/install.sh --no-doctor
 MCP のデバイス操作・`/fleetest-scenario` のシナリオ作成・dry-run は FM 無しで動く。**人間に「有効か」を聞かない**：
 
 - **exit 0**（`✅ On-device model: available`）→ 次へ。
-- **exit 1**（無効／ダウンロード中／対象外）→ **セットアップは中断せず続行する**。有効化のための
-  停止・待機・質問はしない。理由を控えておき、ステップ9の完了報告に
-  「Apple Intelligence 要有効化（FM 機能を使う場合）」として残す：後から システム設定 →
+- **exit 1** → **セットアップは中断せず続行する**。停止・待機・質問はしない。❌ の行の形で理由を分けて控え、
+  ステップ9の完了報告に残す（**有効なのに失敗した形を「無効」と言い換えない** —— 有効化を案内すると誤った対処になる）:
+  - `On-device model: unavailable (…)`（無効／ダウンロード中／対象外）→「Apple Intelligence 要有効化（FM 機能を使う場合）」
+  - `On-device model: a live call failed` など**実呼び出しの失敗**（availability は使える側）→「FM が一時的に動いていない
+    （モデルの資産か ANE の不調。この Mac の再起動で直ることがある）」として、doctor の出力の Error の行を添える
+
+  「要有効化」の対処: 後から システム設定 →
   Siri で Siri をオン(macOS 27。Siri が Apple Intelligence を使う)/ システム設定 → Apple Intelligence と Siri で
   Apple Intelligence をオン(macOS 26)にし、`fleetest doctor --fm-only` が ✅ になれば視覚検証・
   シナリオ生成がそのまま使えるようになる（セットアップのやり直しは不要）。
@@ -468,9 +472,10 @@ Claude Code 以外のエージェントは、このコピーを使わずクロ�
 `cd` を前に付けない = 許可リストの形のまま打つ。clone 構成は `.build/debug/fleetest doctor`）。**終了コードが 1 でも続行する**。
 結果を次の基準で判定し、❌・⚠️ の行を名指しして報告に含める:
 
-- `On-device model` と `FM visual verification (image input)` の ❌ は Apple Intelligence が無効なときに出るもので、
-  screenLooksLike と FM によるシナリオの下書きが使えないだけ（テキストの可視性検証は OCR だけで続く）。**問題なしとして扱い**、
-  ステップ2.5 の「Apple Intelligence 要有効化（FM 機能を使う場合）」として残す
+- `On-device model` と `FM visual verification (image input)` の ❌ は、screenLooksLike と FM によるシナリオの下書きが
+  使えないだけ（テキストの可視性検証は OCR だけで続く）。**問題なしとして扱い**、原因はステップ2.5 と同じく ❌ の行の形で分けて書く
+  （`unavailable (…)` = Apple Intelligence 要有効化 / `a live call failed` = 有効だが実呼び出しが失敗。再起動で直ることがある。
+  後者を「Apple Intelligence が無効」と言わない）
 - Simulator の ⚠️（No booted simulators）は起動していないだけで正常
 - **それ以外の ❌ が残るときは**、その行と doctor の出力が示す対処を示し、🧑 に対処を依頼する（ここで終了してよい。
   対処後に `fleetest doctor` を再実行すれば足り、セットアップのやり直しは不要）
