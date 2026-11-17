@@ -79,7 +79,11 @@ final class AdbPolicyBuilderSyncTests: XCTestCase {
         let call = try NSRegularExpression(pattern: #"\b(?:adb|adbAnswering|adbProbe|rawAdb)\(\[((?:"[^"\\]*"(?:,\s*)?)+)\]\s*[,)]"#)
         let literal = try NSRegularExpression(pattern: #""([^"\\]*)""#)
         var checked = 0
-        for name in ["AndroidDriver.swift", "AndroidBridge.swift"] {
+        // AndroidDriver は extension のファイル(AndroidDriver+*.swift)に分かれている = 全部読む(本体だけだと移した呼び出しが黙って外れる)
+        let driverFiles = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasPrefix("AndroidDriver") && $0.hasSuffix(".swift") }.sorted()
+        XCTAssertTrue(driverFiles.contains("AndroidDriver+InstalledPackages.swift"), "走査が extension のファイルに届いていない")
+        for name in driverFiles + ["AndroidBridge.swift"] {
             let source = try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)
             for match in call.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
                 let list = String(source[Range(match.range(at: 1), in: source)!])

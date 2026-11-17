@@ -17,9 +17,21 @@ final class AndroidDeviceAnswerTimeoutScanTests: XCTestCase {
             .components(separatedBy: "\n").map { $0.components(separatedBy: "//")[0] }.joined(separator: "\n")
     }
 
+    /// AndroidDriver の本体と extension のファイル(AndroidDriver+*.swift)を全部つないだもの。本体だけ読むと、
+    /// extension へ移した呼び出しが黙って走査の外に出る(各呼び出しの「手前の func」は同じファイルの中で見つかる)
+    private static func driverSources() throws -> String {
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/FTAndroid")
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasPrefix("AndroidDriver") && $0.hasSuffix(".swift") }.sorted()
+        XCTAssertTrue(names.contains("AndroidDriver+InstalledPackages.swift"), "走査が extension のファイルに届いていない")
+        return try names.map { try source($0) }.joined(separator: "\n")
+    }
+
     /// 短い命令(keyevent・dumpsys window・settings・force-stop・pm list)を AndroidDriver が素の `adb(` で撃たない
     func testShortDeviceCommandsInTheDriverAreBounded() throws {
-        let text = try Self.source("AndroidDriver.swift")
+        let text = try Self.driverSources()
         let unbounded = [
             #"adb(["shell", "input", "keyevent""#,
             #"adb(["shell", "dumpsys", "window""#,
@@ -35,7 +47,7 @@ final class AndroidDeviceAnswerTimeoutScanTests: XCTestCase {
     /// 理由つきの免除表に載っているかを見る。禁止形の列挙だけだと新しい形(monkey・wm density・uninstall)が
     /// すり抜けた(凍結しかけた Emulator への `ft_launch resume:true` が monkey で 240 秒返らなかった)
     func testEveryUnboundedAdbCallInTheDriverIsGatedOrExempted() throws {
-        let text = try Self.source("AndroidDriver.swift")
+        let text = try Self.driverSources()
         // 免除 = 端末の応答を確かめずに撃つと決めたもの(等号で固定する。足すなら理由を書く)
         // 座標ジェスチャの `input swipe` は入口の門を通す(凍結した端末で他の端末まで塞いだ)
         let exempted: [String: String] = [:]

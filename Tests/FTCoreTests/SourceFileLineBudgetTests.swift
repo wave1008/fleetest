@@ -28,7 +28,6 @@ final class SourceFileLineBudgetTests: XCTestCase {
         ("Sources/fleetest-mcp/MCPServer+Snapshot.swift", 2259, "分割未着手"),
         ("Sources/fleetest-mcp/MCPServer+Driver.swift", 2206, "分割未着手"),
         ("Sources/FTDSL/FTRuntime.swift", 2162, "分割未着手"),
-        ("Sources/FTAndroid/AndroidDriver.swift", 2040, "分割未着手"),
         ("Sources/FTCore/RunProfile.swift", 2004, "分割未着手"),
     ]
 
