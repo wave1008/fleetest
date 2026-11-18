@@ -496,6 +496,39 @@ extension StepExecutorTests {
                       "外のまま操作したことを notes に残す: \(outcome.notes)")
     }
 
+    /// 救済の後も対象が座標のクランプされた残骸(中身のある要素が同じ点に3つ以上積み重なる = 注記の stacked)なら撃たない(DR-188)。
+    /// 実測(iOS 連絡先の編集フォーム・XCUITest の木): その点に描かれていたアバターのボタンが押されて ✅ になった
+    func testTapDoesNotFireAtAClampedLeftoverAfterTheRescue() async throws {
+        let log = CallLog()
+        let screen = framed(ref: 99, id: "form", x: 0, y: 116, width: 402, height: 700, depth: 1)
+        let container = framed(ref: 100, id: "list_rows", x: 16, y: 230, width: 370, height: 462, depth: 2)
+        let inside1 = framed(ref: 1, id: "row_28", x: 16, y: 300, width: 370, height: 56, depth: 3)
+        let inside2 = framed(ref: 2, id: "row_29", x: 16, y: 360, width: 370, height: 56, depth: 3)
+        let target = framed(ref: 3, id: "row_30", x: 16, y: 420, width: 370, height: 56, depth: 3)
+        // 容器の外で、同じ枠に積み重なった中身のある3行(実例の (0,116 330x21) の形。原点を貸す祖先はいない = 解決の候補に残る)
+        func stackedRow(_ ref: Int, _ id: String, _ label: String) -> ElementInfo {
+            ElementInfo(ref: ref, type: "staticText", identifier: id, label: label, value: nil, placeholder: nil, enabled: true,
+                        frame: FTRect(x: 0, y: 140, width: 330, height: 21), depth: 3)
+        }
+        let ghost = stackedRow(4, "row_30", "連絡先を削除")
+        let other1 = stackedRow(5, "row_31", "メモ")
+        let other2 = stackedRow(6, "row_32", "住所")
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [
+            [screen, container, inside1, inside2, target],
+            [screen, container, inside1, inside2, ghost, other1, other2],
+        ])
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables())
+        let step = FlowStep(action: "tap", locator: FlowLocator(id: "row_30"), direction: "up", maxSwipes: 2)
+
+        let outcome = await executor.execute(step)
+
+        guard case .failed(let message) = outcome.status else {
+            XCTFail("クランプの残骸を撃って \(outcome.status) になった 呼び出し=\(log.entries)"); return
+        }
+        XCTAssertTrue(message.contains("nothing was touched"), message)
+        XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.tap(") }, "撃っていないこと: \(log.entries)")
+    }
+
     /// **救済で送った直後は、容器が次の1タッチを吸う**ので空打ちで肩代わりしてからタップする。
     /// 探索終端では以前からやっているが、救済経路には無かった —— 実測(S0110 を8並列):
     /// 救済が走った 18 件のうち 4 件が失敗、走らなかった 22 件は 0 件(p≈0.03)。

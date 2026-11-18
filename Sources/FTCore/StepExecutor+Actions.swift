@@ -614,12 +614,9 @@ extension StepExecutor {
                 let settled = try await settledSignature(phase: &phase)
                 let beforeDrag = snapshot
                 snapshot = settled.snapshot
-                // 空打ちで木が入れ替わるので ref を取り直す(古い ref は別要素を指す)。
-                // **取り直せないなら撃たずに失敗させる**: 空打ちが画面を変えた(下の行・ボタンが
-                // 発火した)形で、古い ref のまま撃つと新しい木の別の要素を押して ok になる
-                // (物理 iPhone 13: 空打ちで診断画面へ遷移 → 古い ref が #tab_home を押して
-                // ホームへ戻り ok)。救済(キャッシュ・指紋・FM)にも回さない —— 変わった画面で
-                // 別の要素へ「修復」するのも同じ誤った緑。撃ち直しもしない(吸われた操作と同じ規律)
+                // 空打ちで木が入れ替わるので ref を取り直す(古い ref は別要素を指す)。**取り直せないなら撃たずに失敗させる**: 空打ちが画面を変えた(下の行・ボタンが
+                // 発火した)形で、古い ref のまま撃つと新しい木の別の要素を押して ok になる(物理 iPhone 13: 空打ちで診断画面へ遷移 → 古い ref が #tab_home を押して
+                // ホームへ戻り ok)。救済(キャッシュ・指紋・FM)にも回さない —— 変わった画面で別の要素へ「修復」するのも同じ誤った緑。撃ち直しもしない(吸われた操作と同じ規律)
                 guard let refreshed = SameTargetResolution.resolve(step: step, original: target,
                                                                    originalElements: beforeDrag.elements, in: snapshot) else {
                     return StepOutcome(status: failed(.notFound,
@@ -642,6 +639,9 @@ extension StepExecutor {
                 + (ghostDidNotMove ? " and did not move when the container was swiped, so no more swipes were sent" : "")
                 + (grabsOnly ? "" : "; the interaction may be swallowed")
                 + (ghostTrace.isEmpty ? "" : " [rescue: " + ghostTrace.joined(separator: "; ") + "]")
+            if !grabsOnly, let target = resolved?.0, OcclusionGeometry.stackedRefs(snapshot.elements).contains(target.ref) {
+                return StepOutcome(status: failed(.notFound, Self.stackedLeftoverRefusal(step, target: target, trace: ghostTrace)))
+            }
         } else if ghostRetries > 0 {
             ghostNote = "re-resolved \(ghostRetries) time(s)"
                 + (ghostSwipes > 0 ? " with \(ghostSwipes) extra swipe(s)" : "")
@@ -1296,7 +1296,7 @@ extension StepExecutor {
                     if !(centreCoverOnly && pressedByActivate) { adviseTarget(centreAdvisory) }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {
-                        let centre = "(\(Int(miss.x.rounded())), \(Int(miss.y.rounded())))"
+                        let centre = "(\(Int(saturating: miss.x.rounded())), \(Int(saturating: miss.y.rounded())))"
                         switch miss.kind {
                         case .receivedBy(let receiver):
                             noteCodesThisStep.insert(.inAppTapOutsideHitArea)
@@ -1306,7 +1306,7 @@ extension StepExecutor {
                         case .activationPoint(let x, let y):
                             noteCodesThisStep.insert(.inAppActivationPointOffCentre)
                             driverFallback = Self.joinNotes(driverFallback, StepNote.inAppActivationPointOffCentre.text
-                                + " (activation point (\(Int(x.rounded())), \(Int(y.rounded()))), centre \(centre))")
+                                + " (activation point (\(Int(saturating: x.rounded())), \(Int(saturating: y.rounded()))), centre \(centre))")
                         case .movedBeforeFire:
                             noteCodesThisStep.insert(.staleRefAtTap)
                             driverFallback = Self.joinNotes(driverFallback, StepNote.staleRefAtTap.text + " (at \(centre))")
@@ -2066,7 +2066,7 @@ extension StepExecutor {
     /// アプリに届いたかも言えない。木は送った後に読んだものを使う(追加の読みは無い)
     static func uncoveredAlternativeNote(_ element: ElementInfo) -> String {
         "the first match is covered by another element, so the uncovered match "
-            + (element.identifier.map { "#\($0)" } ?? "at (\(Int(element.frame.centerX)), \(Int(element.frame.centerY)))")
+            + (element.identifier.map { "#\($0)" } ?? "at (\(Int(saturating: element.frame.centerX)), \(Int(saturating: element.frame.centerY)))")
             + " was touched instead"
     }
 

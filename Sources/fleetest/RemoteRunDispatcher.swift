@@ -169,8 +169,8 @@ struct RemoteRunDispatcher {
         do {
             exitCode = try runRemoteAndRelay(
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
-                stamp: stamp, project: project.name, developerDir: developerDir,
-                interruptFlag: interruptFlag, workQueue: workQueue)
+                stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
+                developerDir: developerDir, interruptFlag: interruptFlag, workQueue: workQueue)
         } catch {
             // timeout (throws from runInheritedWithLineRewrite): the remote run may still be
             // alive — the ssh session was just signalled, but the runner's teardown is
@@ -188,7 +188,7 @@ struct RemoteRunDispatcher {
                       interrupted: interruptFlag.interrupted, exitCode: exitCode)
         if let localJUnitPath, let remoteJUnitPath {
             collectJUnit(remotePath: remoteJUnitPath, localPath: localJUnitPath, layout: layout,
-                        stamp: stamp, project: project.name)
+                        stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path)
         }
         let transferredScenarioPaths = collectArtifacts(project: project, layout: layout)
         // 今回の回収で転送された scenario JSON だけを読む。**読んだ結果は1回だけ作り**、
@@ -263,8 +263,8 @@ struct RemoteRunDispatcher {
         do {
             exitCode = try runRemoteAndRelay(
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
-                stamp: stamp, project: project.name, developerDir: developerDir,
-                interruptFlag: interruptFlag, workQueue: workQueue)
+                stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
+                developerDir: developerDir, interruptFlag: interruptFlag, workQueue: workQueue)
         } catch {
             // 理由は dispatch() の同じ catch 参照(timeout でも生きていれば外さない)
             lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
@@ -989,20 +989,21 @@ struct RemoteRunDispatcher {
     private var registeredFMConcurrency: Int? { registeredEntry?.fmConcurrency }
 
     private func runRemoteAndRelay(fleetestArgs: [String], layout: RemoteLayout,
-                                   timeoutSeconds: Int?, stamp: String, project: String,
+                                   timeoutSeconds: Int?, stamp: String, project: String, localRoot: String,
                                    developerDir: String?,
                                    interruptFlag: DispatchInterruptFlag, workQueue: Bool) throws -> Int32 {
         log("==> running on \(host.sshTarget): fleetest \(fleetestArgs.joined(separator: " "))")
         let command = RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: fleetestArgs,
                                                    issuer: LocalConfig.resolveIssuerId(),
                                                    fmConcurrency: registeredFMConcurrency,
+                                                   occlusionDumpDir: layout.dispatchReportDir(stamp: stamp) + "/occlusion",
                                                    developerDir: developerDir)
         // ssh を「このプロセスが死んだら止まる」包みに入れる(孤児の ssh がリモートの run を出力の write で
         // 止めたままにする。理由は ParentBoundCommand の冒頭)
         let status = try runInheritedWithLineRewrite(
             ParentBoundCommand.wrap(sshRunBase + [host.sshTarget, command],
                                     parentPID: ProcessInfo.processInfo.processIdentifier),
-            layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project,
+            layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project, localRoot: localRoot,
             interruptFlag: interruptFlag, workQueue: workQueue)
         if status == 90 {
             log("==> the remote fleetest binary is missing — build it on the remote first"
@@ -1012,6 +1013,12 @@ struct RemoteRunDispatcher {
                 + " — run `fleetest remote setup \(host.sshTarget)` once for this issuer (RR-18)")
         }
         return status
+    }
+
+    /// リモートの workDir に対応する手元の場所 = 受け手のパッケージ(`TestProjects/<proj>` の2つ上)。
+    /// `localRepoRoot` はツールのクローンで、外部構成ではパッケージと別の場所(置換先にすると手元に無いパスを表示した = OI-269)
+    static func packageRoot(of project: TestProject) -> URL {
+        project.rootURL.deletingLastPathComponent().deletingLastPathComponent()
     }
 
     // MARK: - 5. 成果物回収
@@ -1320,7 +1327,7 @@ struct RemoteRunDispatcher {
     }
 
     private func collectJUnit(remotePath: String, localPath: String, layout: RemoteLayout,
-                              stamp: String, project: String) {
+                              stamp: String, project: String, localRoot: String) {
         guard let xml = try? sshCapture("cat \(RemoteShell.quote(remotePath))"), !xml.isEmpty else {
             log("warning: failed to collect the remote JUnit report (\(remotePath))")
             return
@@ -1334,7 +1341,7 @@ struct RemoteRunDispatcher {
         // 残って手元に存在しないパスができる(実害。RR-18.6 の発行者ネームスペースを
         // 足したときに追随し損ねていた)
         let rewritten = RemotePathRewrite.rewrite(
-            reportsRedirected, remoteRoot: layout.workDir, localRoot: localRepoRoot.path)
+            reportsRedirected, remoteRoot: layout.workDir, localRoot: localRoot)
         let url = URL(fileURLWithPath: localPath)
         do {
             try FileManager.default.createDirectory(
@@ -1461,7 +1468,7 @@ struct RemoteRunDispatcher {
     /// 撃つのと同じ操作(SIGTERM)を自分で撃つ
     private func runInheritedWithLineRewrite(_ argv: [String], layout: RemoteLayout,
                                              timeoutSeconds: Int?, stamp: String,
-                                             project: String,
+                                             project: String, localRoot: String,
                                              interruptFlag: DispatchInterruptFlag,
                                              workQueue: Bool) throws -> Int32 {
         let process = Process()
@@ -1481,7 +1488,6 @@ struct RemoteRunDispatcher {
         let splitter = StreamLineSplitter()
         // **写す先は workDir**(base ではない。collectJUnit と同じ理由)
         let remoteRoot = layout.workDir
-        let localRoot = localRepoRoot.path
         let mode = self.mode
         @Sendable func relayLine(_ line: String) {
             // 親子の配りの行(WorkQueueProtocol)は書き換えず、そのまま stdout へ(api run の機械可読行でもある)

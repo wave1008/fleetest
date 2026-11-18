@@ -160,8 +160,8 @@ extension StepExecutor {
         guard let snapshot else { return "" }
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
         guard occlusion.windowResizedAboveKeyboard, let kb = occlusion.frame else { return "" }
-        return " (the soft keyboard is up at (\(Int(kb.x)),\(Int(kb.y))"
-            + " \(Int(kb.width))x\(Int(kb.height))) and the window has shrunk to fit above it,"
+        return " (the soft keyboard is up at (\(Int(saturating: kb.x)),\(Int(saturating: kb.y))"
+            + " \(Int(saturating: kb.width))x\(Int(saturating: kb.height))) and the window has shrunk to fit above it,"
             + " so elements that sat below the keyboard are gone from the tree, not just covered."
             + " Close it first (hideKeyboard()) or scroll inside"
             + " the container, then retry.)"

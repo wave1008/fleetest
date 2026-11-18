@@ -106,8 +106,10 @@ extension StepExecutor {
     /// 既定 maxSwipes で届かなくなる。PT-3.19)。ここは
     /// **もう届かないと確定した後**なので、その撤回理由に触れない。
     /// 容器は推測なので `containerInference` で切れる(呼び出し側で判定済み)
+    /// **開始位置より先は探さない**(DR-189): 逆走査は飛び越した分の救済で、指定と逆の向きを探す機能ではない。
+    /// `start`(送る前の木)にあった `#id` の要素が開始位置を越えて戻ったら、越えた帯で見つけた物は採らずに止める
     func reverseSweep(step: FlowStep, container: FTRect,
-                              searching finger: FTSwipeDirection,
+                              searching finger: FTSwipeDirection, start: SnapshotResponse?,
                               phase: inout PhaseAccumulator) async throws -> FlowLocator?? {
         let back: FTSwipeDirection = switch finger {
         case .up: .down
@@ -137,8 +139,11 @@ extension StepExecutor {
                                  phase: &phase) else { return nil }
             reverseSweepDragsSent += 1
             let snapshot = try await freshSnapshot(.afterOwnMove)
+            let crossed = start.map { Self.reverseSweepCrossing(start: $0.elements, now: snapshot.elements,
+                                                                 region: container, finger: back) } ?? 0
             if let (element, fallback) = LocatorResolver.resolve(step: step, in: snapshot,
-                                                     strictForAssert: true) {
+                                                     strictForAssert: true),
+               !Self.liesBeyondStart(element.frame, crossed: crossed, container: container, finger: back) {
                 // **見つけただけでは足りない**(本編の探索と同じ規則): 容器の縁で見切れている
                 // 要素は frame がクランプされていてタップが外れる。まだ戻せるなら送り続ける
                 // (iOS/Compose は可視域の外の行も木に残すので、ここを省くと ghost を掴む)。
@@ -160,6 +165,8 @@ extension StepExecutor {
                     return .some(fallback)
                 }
             }
+            // 開始位置まで戻った = 飛び越した区間は見終えた
+            if crossed > 0 { return nil }
             // 反対の端まで戻った(もう動かない)なら、この画面には無い
             let signature = Self.contentSignature(snapshot.elements)
             if signature == previous {
@@ -168,6 +175,43 @@ extension StepExecutor {
             previous = signature
         }
         return nil
+    }
+
+    /// 逆走査が開始位置を越えて戻った量(越えていなければ 0)。送る前の木と今の木に1つずつある `#id` の要素の、指の向き
+    /// (= 中身が戻る向き)への変位の最大。整定の揺れ(`SettleMotion.restThresholdPt`)以下は越えていないと読む。共通の要素が
+    /// 無ければ測れないので 0(従来どおり反対の端まで戻る)
+    static func reverseSweepCrossing(start: [ElementInfo], now: [ElementInfo], region: FTRect,
+                                     finger: FTSwipeDirection) -> Double {
+        func unique(_ elements: [ElementInfo]) -> [String: FTRect] {
+            var seen: [String: FTRect] = [:], dup: Set<String> = []
+            for e in elements {
+                guard let id = e.identifier, !id.isEmpty, ScrollGeometry.intersection(e.frame, region) != nil else { continue }
+                if seen[id] != nil { dup.insert(id) } else { seen[id] = e.frame }
+            }
+            return seen.filter { !dup.contains($0.key) }
+        }
+        let a = unique(start), b = unique(now)
+        let shift = Set(a.keys).intersection(b.keys).map { id -> Double in
+            let s = a[id]!, n = b[id]!
+            switch finger {
+            case .down: return n.y - s.y
+            case .up: return s.y - n.y
+            case .right: return n.x - s.x
+            case .left: return s.x - n.x
+            }
+        }.max() ?? 0
+        return shift > SettleMotion.restThresholdPt ? shift : 0
+    }
+
+    /// 開始位置を越えて戻った帯(指の向きの側の縁から `crossed`)に中心がある = 送る前の画面より向こうにあった要素
+    static func liesBeyondStart(_ frame: FTRect, crossed: Double, container: FTRect, finger: FTSwipeDirection) -> Bool {
+        guard crossed > 0 else { return false }
+        switch finger {
+        case .down: return frame.centerY < container.y + crossed
+        case .up: return frame.centerY > container.y + container.height - crossed
+        case .right: return frame.centerX < container.x + crossed
+        case .left: return frame.centerX > container.x + container.width - crossed
+        }
     }
 
     /// 1 周の変位が `SettleMotion.restThresholdPt` 以内なら止まったとみなすか。**iOS だけ**。

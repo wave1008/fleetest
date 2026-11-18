@@ -1329,6 +1329,12 @@ extension MCPServer {
         guard let snapshot = lastSnapshots[Self.sessionKey(args)],
               let element = snapshot.elements.first(where: { $0.ref == resolvedRef })
         else { return "" }
+        // 呼び手が渡したセレクタがこの要素だけを選ぶならそれを返す(別の形を勧めると、状態を映す文字を錨にした
+        // 相対形など渡した形より脆いものに書き換わった = OI-268⑩)
+        if var passed = (args["selector"] as? String)?.trimmingCharacters(in: .whitespaces), !passed.isEmpty {
+            if passed.count >= 2, passed.hasPrefix("\""), passed.hasSuffix("\"") { passed = String(passed.dropFirst().dropLast()) }
+            if Self.SelectorNaming.picksOnlyOne(element, with: passed, in: snapshot) { return " (selector: \(passed))" }
+        }
         if let graded = Self.SelectorNaming(snapshot).graded(for: element, in: snapshot) {
             // **セレクタ自体は毎回出すが、但し書きは初回だけ満額**: id の薄いアプリ
             // (地図等)ではタップのたび同じ index-based 注意が繰り返され、id を足せない他社
@@ -1372,14 +1378,14 @@ extension MCPServer {
     /// 判定はブリッジの1箇所で、ここは写すだけ)。事実だけを言い、原因は推測しない
     static func tapHitAreaMissNote(_ driver: AppDriver) -> String {
         guard let miss = driver.lastTapHitAreaMiss else { return "" }
-        let centre = "(\(Int(miss.x.rounded())), \(Int(miss.y.rounded())))"
+        let centre = "(\(Int(saturating: miss.x.rounded())), \(Int(saturating: miss.y.rounded())))"
         switch miss.kind {
         case .receivedBy(let receiver):
             return " Note: the in-app bridge operated this element directly, but a real touch at the centre"
                 + " of its frame \(centre) lands on \(receiver), not on this element."
         case .activationPoint(let x, let y):
             return " Note: the in-app bridge activated this element at its activation point"
-                + " (\(Int(x.rounded())), \(Int(y.rounded()))), which is not the centre of its frame \(centre)"
+                + " (\(Int(saturating: x.rounded())), \(Int(saturating: y.rounded()))), which is not the centre of its frame \(centre)"
                 + " that a coordinate tap presses."
         case .movedBeforeFire:
             return " Note: when the tap was sent, this element was no longer at \(centre) where the snapshot saw it"

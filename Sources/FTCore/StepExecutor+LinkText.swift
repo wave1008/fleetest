@@ -96,14 +96,14 @@ extension StepExecutor {
             return StepOutcome(status: .passed,
                                driverFallback: Self.joinNotes(notes,
                                    "link text \"\(linkText)\" located by ocr"
-                                       + " at (\(Int(point.x.rounded())), \(Int(point.y.rounded())))",
+                                       + " at (\(Int(saturating: point.x.rounded())), \(Int(saturating: point.y.rounded())))",
                                    "sent via XCUITest (a point inside one node)", waitedFact, unsettledFact))
         }
         let tapped = try await executeDirectCoordinateTap(step: step, x: point.x, y: point.y, phase: &phase)
         return StepOutcome(status: tapped.status,
                            driverFallback: Self.joinNotes(notes,
                                "link text \"\(linkText)\" located by \(point.source.rawValue)"
-                                   + " at (\(Int(point.x.rounded())), \(Int(point.y.rounded())))",
+                                   + " at (\(Int(saturating: point.x.rounded())), \(Int(saturating: point.y.rounded())))",
                                tapped.driverFallback, waitedFact, unsettledFact))
     }
 

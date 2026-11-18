@@ -38,10 +38,10 @@ public enum StaleFrameDetector {
             hasher.combine(element.type)
             hasher.combine(element.identifier)
             hasher.combine(element.label)
-            hasher.combine(Int(element.frame.x.rounded()))
-            hasher.combine(Int(element.frame.y.rounded()))
-            hasher.combine(Int(element.frame.width.rounded()))
-            hasher.combine(Int(element.frame.height.rounded()))
+            hasher.combine(Int(saturating: element.frame.x.rounded()))
+            hasher.combine(Int(saturating: element.frame.y.rounded()))
+            hasher.combine(Int(saturating: element.frame.width.rounded()))
+            hasher.combine(Int(saturating: element.frame.height.rounded()))
         }
         return hasher.finalize()
     }

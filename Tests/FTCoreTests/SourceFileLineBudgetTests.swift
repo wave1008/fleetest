@@ -23,7 +23,7 @@ final class SourceFileLineBudgetTests: XCTestCase {
     static let frozen: [(path: String, lines: Int, reason: String)] = [
         ("Sources/FTCore/StepExecutor+Actions.swift", 2362, "分割未着手"),
         ("Sources/FTCore/RunOrchestrator.swift", 2377, "分割未着手"),
-        ("Sources/FTBridgeClient/BridgeProvisioner.swift", 2263, "分割未着手"),
+        ("Sources/FTBridgeClient/BridgeProvisioner.swift", 2211, "分割未着手"),
         ("Sources/FTCore/BridgeDTO.swift", 2261, "両 iOS ブリッジの入力(build.sh・project.xcproj・BridgeSourceSet・契約テストの指紋)で、移動でも版上げが要る。次のブリッジの版上げに同梱して分割する(単独で版を上げない)"),
         ("Sources/fleetest-mcp/MCPServer+Snapshot.swift", 2259, "分割未着手"),
         ("Sources/fleetest-mcp/MCPServer+Driver.swift", 2206, "分割未着手"),

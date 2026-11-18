@@ -434,8 +434,8 @@ extension StepExecutor {
         if probes > 0 {
             noteCodesThisStep.insert(.edgeProbedGently)
             let why = probeFlush ? "the content came to rest flush with the edge of its frame"
-                : probeEvidence.map { "the last swipe moved the content \(Int($0.moved.rounded()))pt,"
-                    + " short of \(Int($0.travel.rounded()))pt" } ?? "the last swipe stopped short"
+                : probeEvidence.map { "the last swipe moved the content \(Int(saturating: $0.moved.rounded()))pt,"
+                    + " short of \(Int(saturating: $0.travel.rounded()))pt" } ?? "the last swipe stopped short"
             notes.append("confirmed the edge with \(probes) short drag(s) instead of full swipes (\(why))")
         }
         if sawUnsettled { note(.settleCapped, into: &notes) }
@@ -601,7 +601,7 @@ extension StepExecutor {
         let outside = screen.map { !TapTargetGeometry.isPointOnScreen(x: x, y: y, screen: $0) }
             ?? TapTargetGeometry.isDragPointOffScreen(x: x, y: y, screen: nil)
         guard outside else { return nil }
-        let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
+        let size = screen.map { " (\(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" } ?? ""
         return "\(operation): the point (\(x), \(y)) is outside the screen\(size), so nothing was sent."
             + " Use coordinates inside the screen"
     }
@@ -656,7 +656,7 @@ extension StepExecutor {
     /// 始点か終点が画面の外なら撃たずに断る文(判定は `TapTargetGeometry.isDragPointOffScreen`。縁ちょうどは内)。
     /// `screen` が nil の段は木を読まずに言える負の座標・非有限だけ、Android の帯の補正で木を読んだ段は画面の大きさまで見る
     static func offscreenDragPointRefusal(x: Double, y: Double, toX: Double, toY: Double, screen: FTRect?) -> String? {
-        let size = screen.map { " (\(Int($0.width))x\(Int($0.height)))" } ?? ""
+        let size = screen.map { " (\(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" } ?? ""
         for (label, px, py) in [("start", x, y), ("end", toX, toY)]
         where TapTargetGeometry.isDragPointOffScreen(x: px, y: py, screen: screen) {
             return "swipePointToPoint: the \(label) point (\(px), \(py)) is outside the screen\(size), so the drag would"
@@ -1142,7 +1142,7 @@ extension StepExecutor {
                     continue
                 }
                 if answer.background { point = candidate; break searching }
-                refusals.append("(\(Int(candidate.x)), \(Int(candidate.y))) \(answer.reason ?? "could react")"
+                refusals.append("(\(Int(saturating: candidate.x)), \(Int(saturating: candidate.y))) \(answer.reason ?? "could react")"
                     + (answer.receiver.map { " on \($0)" } ?? ""))
             }
             if !refusals.isEmpty { lastReason = "every spot checked could react to a tap — " + refusals.prefix(3).joined(separator: "; ") }
@@ -1154,7 +1154,7 @@ extension StepExecutor {
             var start = clock.now
             try await driver.tap(x: point.x, y: point.y)
             phase.actionMs += Self.ms(clock.now - start)
-            let place = "(\(Int(point.x)), \(Int(point.y))) above the keyboard"
+            let place = "(\(Int(saturating: point.x)), \(Int(saturating: point.y))) above the keyboard"
             let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
             if !KeyboardWait.isShown(after) {
                 var notes = ["closed the keyboard by tapping \(place)"
@@ -1196,7 +1196,7 @@ extension StepExecutor {
             let after = try await awaitKeyboardClosed(within: Self.keyboardCloseAfterTapWaitSeconds, phase: &phase)
             if !KeyboardWait.isShown(after) {
                 let why = tried.isEmpty ? lastReason : tried.joined(separator: "; ")
-                return .closed(note: "closed the keyboard by tapping the Done button of its toolbar at (\(Int(x)), \(Int(y)))"
+                return .closed(note: "closed the keyboard by tapping the Done button of its toolbar at (\(Int(saturating: x)), \(Int(saturating: y)))"
                     + (why.isEmpty ? "" : " (\(why))"), after: after, touchedScreen: true)
             }
             tried.append("tapping the Done button of the keyboard's toolbar did not close it")

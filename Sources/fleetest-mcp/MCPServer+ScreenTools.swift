@@ -100,7 +100,7 @@ extension MCPServer {
     /// 後ろに置くと「may have hit …」が先頭に残り、読み手が中心を撃ったと誤読した = OI-163 ⑲)。frame の中心を前提にした遮蔽・縁またぎの警告は撃った点の話ではない
     static func visiblePartTapNote(x: Double, y: Double) -> String {
         " The element's reported frame has its centre outside its scroll container (a row cut in half at the edge),"
-            + " so the visible part was tapped at (\(Int(x.rounded())), \(Int(y.rounded()))) instead of the centre —"
+            + " so the visible part was tapped at (\(Int(saturating: x.rounded())), \(Int(saturating: y.rounded()))) instead of the centre —"
             + " nothing was scrolled and the ref is unchanged. Warnings below about the frame's centre do not describe this point."
     }
 
@@ -173,7 +173,7 @@ extension MCPServer {
         case .visiblePart(let rect, let over)?:
             return .part(x: rect.centerX, y: rect.centerY,
                          note: " Its centre is covered by \(TapTargetGeometry.describe(over)), so the part not covered by anything in"
-                            + " front was used at (\(Int(rect.centerX.rounded())), \(Int(rect.centerY.rounded()))) — the ref is unchanged.")
+                            + " front was used at (\(Int(saturating: rect.centerX.rounded())), \(Int(saturating: rect.centerY.rounded()))) — the ref is unchanged.")
         case .tooThin(let visible, let floor, let over)?:
             func n(_ v: Double) -> String { String(format: "%g", (v * 10).rounded() / 10) }
             let name = TapTargetGeometry.describe(over)
@@ -496,6 +496,9 @@ extension MCPServer {
                               before: focusedBeforeLastTaps[Self.sessionKey(args)], after: focused) {
                     // 焦点は叩いた操作が動かした先(検索ボタンが開いた検索欄など)= 意図どおり。警告しない
                     // (入った先は下の typedIntoNote が言う。実測: 「目的地を入力」→ 検索欄で誤った警告が出ていた)
+                } else if focused == nil, KeyboardWait.isShown(fresh) {
+                    // 焦点が木に出ないがキーボードは出ている(隠し入力欄・OTP)= 届いたか確かめられない形。
+                    // 下の noFocusNote が「確かめられない」と言うので、矛盾する警告は出さない
                 } else {
                     note += " (warning: tapping \(RefGuard.describe(tapped)) left input focus"
                         + (focusedName.map { " on \($0)" } ?? " nowhere")

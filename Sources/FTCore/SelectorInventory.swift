@@ -5,7 +5,7 @@
 // 探索フェーズで撮ったスナップショットの id を貯めておけば、dry-run が突き合わせて先に言える。
 //
 // 規律:
-// - **書き手は MCP の `ft_snapshot` だけ**(シナリオを書くエージェントが必ず通る道)。
+// - **書き手は MCP の木を返す口すべて**(ft_snapshot・snapshotAfter・ft_batch・ft_rotate・ft_fold・ft_scroll_to。`MCPServer.recordSnapshot`)。
 //   実行(run)の hot path では書かない —— スナップショット毎のファイル I/O を実行時間に載せない
 // - **和集合で単調に増やす**(画面ごとに撮るので、消すと他画面の id が失われる)。
 //   古い id が残っても**警告が減る方向**にしか効かないので誤検知は増えない
@@ -20,7 +20,7 @@ public struct SelectorInventory: Codable, Sendable {
     public struct PlatformEntry: Codable, Sendable {
         /// 最後に記録した時刻(警告文で「いつのスナップショットか」を示す)
         public var updatedAt: Date
-        /// 記録回数(= ft_snapshot を撮った回数。台帳の厚みの目安)
+        /// 記録回数(= MCP が木を返した回数。台帳の厚みの目安)
         public var captures: Int
         /// 観測した id の和集合(ソート済み・重複なし)
         public var ids: [String]

@@ -351,8 +351,13 @@ public struct SelectorNaming {
                                     anchorRefs: Set<Int>? = nil) -> [String] {
         guard element.frame.width > 0, element.frame.height > 0 else { return [] }
         var anchors: [(name: String, element: ElementInfo, distance: Double)] = []
+        // キーボードの範囲の要素は錨にしない(id が inputView 等でない部品も = キーボードを閉じると消えて壊れる)。
+        // 隠れたキーボード(画面外の矩形)は resolve が「無し」に倒す
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
+                                                 screen: snapshot.screen)
         for other in snapshot.elements where other.ref != element.ref {
             guard other.frame.width > 0, other.frame.height > 0,
+                  !keyboard.isKeyboardChrome(other),
                   anchorRefs.map({ $0.contains(other.ref)
                       && !TapTargetGeometry.contains(other.frame, element.frame) }) ?? true,
                   let name = anchorName(for: other) else { continue }
@@ -409,7 +414,7 @@ public extension SelectorNaming {
     /// 「一意に指せる」と嘘の助言を出す(`MCPWritableSelectorTests` が捕まえた)。
     /// **`[n]` を含む式には使わない**: `resolvedCandidates` は添字を適用する前の候補列なので、
     /// 添字付きのスコープ記法を「曖昧」と誤判定する(`picksExactly` のコメント参照)
-    static func picksOnlyOne(_ element: ElementInfo, with selector: String,
+    public static func picksOnlyOne(_ element: ElementInfo, with selector: String,
                              in snapshot: SnapshotResponse) -> Bool {
         guard picksExactly(element, with: selector, in: snapshot) else { return false }
         let parsed = FTSelector.parse(selector)

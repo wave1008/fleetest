@@ -54,7 +54,7 @@ public enum ClearResidualDrawn {
     public static func orientationReason(imageWidth: Int, imageHeight: Int, screen: FTRect) -> String? {
         guard imageWidth > 0, imageHeight > 0,
               !OcclusionCrop.orientationMatches(imageWidth: imageWidth, imageHeight: imageHeight, screen: screen) else { return nil }
-        return "the screenshot (\(imageWidth)x\(imageHeight) px) and the screen tree (\(Int(screen.width))x\(Int(screen.height))) are in"
+        return "the screenshot (\(imageWidth)x\(imageHeight) px) and the screen tree (\(Int(saturating: screen.width))x\(Int(saturating: screen.height))) are in"
             + " different orientations, so the field's area could not be cut out of the screenshot"
     }
 

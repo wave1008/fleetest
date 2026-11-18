@@ -2125,7 +2125,7 @@ public final class FTDriveCore {
         }
         // アプリが別プロセスの window に覆われていたなら、それが第一の容疑
         // (要素一覧・スクショだけでは「なぜ操作が効かなかったのか」に辿り着けない)
-        let overlays = foregroundOverlays?(executor.lastLaunchedAppBundleID) ?? []
+        let overlays = appLaunchedInThisProcess && appUnderTestLife == .notLaunched ? [] : foregroundOverlays?(executor.lastLaunchedAppBundleID) ?? []  // 起動が一度も成功していない(未インストール等)= 前面に出ていないので覆われたと言わない。試みた印 appLaunchedInThisProcess だけでは決まらない
         guard !overlays.isEmpty else { return }
         let recorded = withState { () -> Bool in
             guard let index = currentSceneIndex else { return false }

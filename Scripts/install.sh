@@ -1219,12 +1219,14 @@ fi
 # /private/tmp と /tmp(や /private/var と /var)は同じ場所。Foundation の
 # resolvingSymlinksInPath は /private を落とし、シェルの pwd は付けるので、
 # 突き合わせ前に両側から /private を外す(実測で食い違った)
+# doctor は実体のパスを出すので、こちらも pwd -P で実体へ解く(TOOL_ROOT をシンボリックリンクで渡すと食い違った)
 unprivate() { printf '%s' "$1" | sed 's|^/private/|/|'; }
+physical() { ( cd "$1" 2>/dev/null && pwd -P ) || printf '%s' "$1"; }
 roots_norm="$(printf '%s' "$roots" | sed 's|/private/|/|g')"
 roots_ok=1
-printf '%s' "$roots_norm" | grep -qF "$(unprivate "$TOOL_ROOT")" || roots_ok=0
+printf '%s' "$roots_norm" | grep -qF "$(unprivate "$(physical "$TOOL_ROOT")")" || roots_ok=0
 if [ -f "$WORK_DIR/Package.swift" ]; then
-  printf '%s' "$roots_norm" | grep -qF "$(unprivate "$WORK_DIR")" || roots_ok=0
+  printf '%s' "$roots_norm" | grep -qF "$(unprivate "$(physical "$WORK_DIR")")" || roots_ok=0
 fi
 if [ "$roots_ok" = "1" ]; then
   record "root-resolution" ok "tool root=$TOOL_ROOT / package=$WORK_DIR"

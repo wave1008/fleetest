@@ -136,8 +136,8 @@ public enum KeyboardSwipeCoverage {
 
     /// 払いがキー・抽出欄に乗って打鍵になりうる、という注記(払い自体は変えない)
     public static func note(_ keyboard: FTRect) -> String {
-        "warning: the soft keyboard covers most of the screen (\(Int(keyboard.x)),\(Int(keyboard.y))"
-            + " \(Int(keyboard.width))x\(Int(keyboard.height))), so the swipe may have landed on keys or the keyboard's"
+        "warning: the soft keyboard covers most of the screen (\(Int(saturating: keyboard.x)),\(Int(saturating: keyboard.y))"
+            + " \(Int(saturating: keyboard.width))x\(Int(saturating: keyboard.height))), so the swipe may have landed on keys or the keyboard's"
             + " own text field and typed — check the field's value; close the keyboard first (hideKeyboard)"
     }
 }

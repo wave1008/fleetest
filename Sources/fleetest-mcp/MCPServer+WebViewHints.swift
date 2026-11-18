@@ -31,12 +31,12 @@ extension MCPServer {
         let shown = Array(bands.prefix(webViewGapBandsReported))
         let located: String
         if shown.count == 1, let band = shown.first {
-            located = "nothing is listed between y=\(Int(band.y)) and"
-                + " y=\(Int(band.y + band.height)) — a band \(Int(band.height)) tall with no"
+            located = "nothing is listed between y=\(Int(saturating: band.y)) and"
+                + " y=\(Int(saturating: band.y + band.height)) — a band \(Int(saturating: band.height)) tall with no"
                 + " element at all."
         } else {
             let listed = shown
-                .map { "y=\(Int($0.y))-\(Int($0.y + $0.height)) (\(Int($0.height)) tall)" }
+                .map { "y=\(Int(saturating: $0.y))-\(Int(saturating: $0.y + $0.height)) (\(Int(saturating: $0.height)) tall)" }
                 .joined(separator: ", ")
             let more = bands.count > shown.count
                 ? ", and \(bands.count - shown.count) more" : ""
@@ -169,9 +169,9 @@ extension MCPServer {
                     + " (see the first snapshot's note).\n"
             }
             return "note: inside \(RefGuard.describe(container)), a \(grid.columns)x\(grid.rows)"
-                + " grid of values starts at y=\(Int(grid.band.y + grid.band.height)), but nothing"
-                + " is listed above its columns (y=\(Int(grid.band.y))-"
-                + "\(Int(grid.band.y + grid.band.height))) — its header row (e.g. column labels)"
+                + " grid of values starts at y=\(Int(saturating: grid.band.y + grid.band.height)), but nothing"
+                + " is listed above its columns (y=\(Int(saturating: grid.band.y))-"
+                + "\(Int(saturating: grid.band.y + grid.band.height))) — its header row (e.g. column labels)"
                 + " may be missing from the accessibility tree; a browser can publish only part of"
                 + " a page (Android's Chrome does this). Read the header with ft_screenshot before"
                 + " matching values to it, and match cells by x position, not tree order — the"

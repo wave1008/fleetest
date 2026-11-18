@@ -130,58 +130,6 @@ public enum BridgeProvisionerError: Error, LocalizedError {
     }
 }
 
-/// provision() のプランニング〜起動を跨いだクロスプロセス排他(.fleetest/provision.lock への flock 助言ロック)。
-/// ポート予約は pid ファイル存在で判定するが pid ファイルは起動フェーズまで書かれないため、複数の
-/// fleetest プロセスが同時に provision すると同じ空きポートを選び bindFailed(48) を起こす。provision()
-/// 全体をこのロックで直列化して防ぐ(pid 予約ロジックには手を入れない)。flock はプロセス終了で
-/// 自動解放されるためデッドロックしない。1 プロセス内の複数デバイス並列起動は provision 内部で維持される。
-public final class ProvisionLock: Sendable {
-    enum LockError: Error { case openFailed(Int32) }
-    private let fd: Int32
-    private let released = Mutex(false)
-
-    /// stateDir/<lockName> を flock 対象にする。既定は provision.lock(ブリッジ供給用)。
-    /// 別用途(例: 実行プロファイルへのデバイス追記)は別 lockName を渡して独立させる。
-    public init(stateDir: URL, lockName: String = "provision.lock") throws {
-        try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-        let path = stateDir.appendingPathComponent(lockName).path
-        fd = open(path, O_CREAT | O_NOFOLLOW | O_RDWR, 0o644)
-        guard fd >= 0 else { throw LockError.openFailed(errno) }
-    }
-
-    /// LOCK_EX を取得。取得待ちのブロッキングは別スレッドで行い、async executor を塞がない。
-    /// `onWait`: すぐ取れなかった(別のプロセスが持っている)ときだけ、待ち始める前に1回呼ぶ。待ちは数分に及ぶことがあり
-    /// (別の run が8台の供給の間持つ)、黙って待つと止まったように見えた(`bridge up` が約 4 分半無言)
-    public func acquire(onWait: (@Sendable () -> Void)? = nil) async {
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            let fd = self.fd
-            DispatchQueue.global().async {
-                if flock(fd, LOCK_EX | LOCK_NB) != 0 {
-                    onWait?()
-                    _ = flock(fd, LOCK_EX)
-                }
-                cont.resume()
-            }
-        }
-    }
-
-    /// `onWait` に渡す共通の文(供給の2経路が同じ文を出す)
-    public static let waitNotice = "waiting for another fleetest process on this Mac that is starting bridges"
-        + " (.fleetest/provision.lock) — it continues as soon as that process has taken its ports"
-
-    /// **冪等**。早期解放(ポート確保が済んだ時点)と関数末尾の defer の両方から呼ばれるので、
-    /// 2 回目を素通しにしないと close(fd) が無関係な fd を閉じる(fd は再利用される)
-    public func release() {
-        let already = released.withLock { already in
-            defer { already = true }
-            return already
-        }
-        guard !already else { return }
-        _ = flock(fd, LOCK_UN)
-        close(fd)
-    }
-}
-
 /// 台帳(.pid/.inapp/.endpoint/.device)1ポートぶんの掃除判定(純粋関数。実 FS/lsof は呼び手が渡す)。
 /// **実測**: 誰も LISTEN していない .inapp と、対になる .pid が無い .endpoint/.device が
 /// 手元に残っていた。前者は assignPort に「使用中」と誤認されてポートが飛ばされ、後者は
@@ -545,7 +493,7 @@ public struct BridgeProvisioner: Sendable {
         // クロスプロセス排他: scan→採番→起動(pid ファイル書き込み)を跨いで直列化する。
         // 他 fleetest プロセスと同じ空きポートを取り合う bindFailed(48) を防ぐ(ProvisionLock 参照)。
         let provisionLock = try ProvisionLock(stateDir: repoRoot.appendingPathComponent(".fleetest"))
-        await provisionLock.acquire(onWait: { safeLog("→ " + ProvisionLock.waitNotice) })
+        await provisionLock.acquire(onWait: { safeLog("→ " + $0) })
         defer { provisionLock.release() }
 
         // TTL 自主終了などで残った死んだランナーの pid ファイル、および対応する実体が消えた
@@ -1455,7 +1403,7 @@ public struct BridgeProvisioner: Sendable {
         } catch {
             return (.restartFailed(error.localizedDescription), probe)
         }
-        await provisionLock.acquire(onWait: { log("→ " + ProvisionLock.waitNotice) })
+        await provisionLock.acquire(onWait: { log("→ " + $0) })
         defer { provisionLock.release() }
         let claimBarrier = PortClaimBarrier(expected: 1)
         let earlyRelease = Task {

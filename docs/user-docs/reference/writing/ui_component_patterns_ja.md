@@ -83,6 +83,11 @@ iOS の in-app ブリッジは、RN の `react-native-pager-view`(中身は `UIP
 自分では送れないので、その領域の送りだけ XCUITest の実スワイプに切り替えます(注記 `fell back to XCUITest`)。
 書き方は変わりません。
 
+**現時点の制約**: 横のコンテナに `#id` が無く、ツリーにもコンテナとして出ないと(CMP の testTag の無い `LazyRow` を
+iOS の xcuitest モードで読むとき等)、`scrollFrame:` で指せず、横の探索は奥の要素に届きません。中の要素を
+`scrollFrame:` に指すと1回は送れますが、送った要素がツリーから消えた時点で探索は失敗します。アプリ側でコンテナに
+`#id`(testTag / accessibilityIdentifier)を付けてください。
+
 ### Android の画面端は OS の「戻る」
 
 ジェスチャーナビゲーションの Android では、**画面の左右の端から始めた横のスワイプは OS の「戻る」**に
@@ -155,6 +160,8 @@ tap("#queue_row_21", scroll: .down)
 
 - 項目は `#id` でもラベルでも押せる
 - 項目を押すとメニューは閉じる
+- **閉じるためだけに開かない**: 状態(どれが選ばれているか等)はメニューを開かずに画面の要素で判定し、開くのは
+  項目を押すときだけにする。iOS のポップオーバーは開いている間、開いたボタンもツリーから消えるので、同じボタンでは閉じられない
 - **外側を押して閉じる**: 背後がツリーに無いので要素では指せません。
   Android は `back()`、iOS は画面の空いた場所を座標で押す
 
@@ -235,6 +242,9 @@ tap("OK")
 - 更新させる: 一覧の上の行から下の行へ指を動かす
   (`swipeElementToElement("#row_01", "#row_06", durationSeconds: 0.6)`)
 - 更新の完了はアプリの表示(回数・時刻など)で確かめる
+- 速い指の動き(探索の `ft_drag` を 0.3 秒ほどで送る・`flick`)では、更新が始まらないまま終わることがあります(何も言われない。
+  Android の実機で、約 900px を 0.3 秒で引いて始まらず、1 秒かけて引くと始まった)。探索でも上の `swipeElementToElement` か、
+  `durationSeconds` を 1 秒ほどにしたドラッグで試す
 
 | フレームワーク | 部品・差分 |
 |---|---|
@@ -569,6 +579,9 @@ select("#txt_focus_echo").textIs("focus=second")
 | Android View | `TextInputLayout` + `TextInputEditText` + `MaterialAutoCompleteTextView`(編集可)。**オートコンプリートの候補行に id が無い**(`ListPopupWindow` の無名行。ラベルで指す) |
 | SwiftUI(iOS) | `TextField`(`.numberPad` / `.vertical` axis)/ `SecureField` + `@FocusState`。**オートコンプリートの候補は iOS だけで検証**(Android は候補ウィンドウが a11y のツリーに現れないため。下記) |
 
+- **Flutter では `#field_*` の id が入力欄を包むコンテナ(型 `other`)に付きます**(Android で確認)。`type` は
+  `type("#field_number >> .textField", "123")` のように中の入力欄を指します。コンテナを指すと、焦点が中の欄に立つことに頼る形になり、
+  ツールが警告します(入れた値が意図とずれることがあります)。
 - **オートコンプリートの候補は、打った後に遅れて出ます**(非同期)。候補を押すときは出るまで待ちます。
   待たないと、遅いマシンでだけ「候補が見つからない」で落ちます。
 

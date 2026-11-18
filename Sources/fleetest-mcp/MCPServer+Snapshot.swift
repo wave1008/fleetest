@@ -849,8 +849,7 @@ extension MCPServer {
         return "note: \(RefGuard.describe(alert)) is in front of the app"
             + (buttons.isEmpty ? "" : " (buttons: " + buttons.map { "\"\($0)\"" }.joined(separator: " / ") + ")")
             + ". The screen behind it is left out of the list below — nothing there can be reached until the"
-            + " alert is closed. Handle the alert first: ft_tap selector: \"<button>\" (or its ref)"
-            + " (a system alert refuses both: use `ft_tap alertButton: \"<button>\"` for it).\n"
+            + " alert is closed. It is part of the app's tree, so press its button with ft_tap selector: \"<button>\" (or its ref).\n"
     }
 
     /// 明細を畳む注記の鍵(`FT_MCP_NOTES_BRIEF` の指定に足す)
@@ -1085,8 +1084,8 @@ extension MCPServer {
     /// 下・横の外は従来どおり警告して撃つ(探索が動かせる)。ref を引く全経路(`verifiedRef` と `refGestureGuard`)が呼ぶ
     static func aboveScreenRefusal(_ found: ElementInfo, screen: FTRect, label: String) -> String? {
         guard TapTargetGeometry.centreIsAboveScreen(found, screen: screen) else { return nil }
-        return "refusing \(label): \(RefGuard.describe(found))'s centre (\(Int(found.frame.centerX)), \(Int(found.frame.centerY)))"
-            + " is above the top of the screen (y < \(Int(screen.y))) — a touch there lands on the status bar"
+        return "refusing \(label): \(RefGuard.describe(found))'s centre (\(Int(saturating: found.frame.centerX)), \(Int(saturating: found.frame.centerY)))"
+            + " is above the top of the screen (y < \(Int(saturating: screen.y))) — a touch there lands on the status bar"
             + " (which scrolls the list back to its top), not on the element. Nothing was sent."
             + " ft_scroll_to it (or swipe the other way), then take a fresh ft_snapshot and use the new ref"
     }
@@ -1099,7 +1098,7 @@ extension MCPServer {
         let why: String
         switch cover {
         case .raisedBar(let bar): why = "covered by \(RefGuard.describe(bar)), which rose above the keyboard"
-        case .collapsed: why = "collapsed to a thin band (\(Int(found.frame.width))x\(Int(found.frame.height)))"
+        case .collapsed: why = "collapsed to a thin band (\(Int(saturating: found.frame.width))x\(Int(saturating: found.frame.height)))"
         }
         return "refusing \(label): \(RefGuard.describe(found)) is \(why)"
             + " while the on-screen keyboard is up, so a touch would not land on it. Nothing was sent."
@@ -1632,8 +1631,8 @@ extension MCPServer {
     /// (multiMatchHint と同じ扱い)
     static func scrollFrameNotDeclaredScrollableNote(_ found: ElementInfo) -> String {
         " (the swipe area was taken from [\(found.ref)] \(RefGuard.describe(found))'s frame"
-            + " (\(Int(found.frame.x)),\(Int(found.frame.y))"
-            + " \(Int(found.frame.width))x\(Int(found.frame.height)));"
+            + " (\(Int(saturating: found.frame.x)),\(Int(saturating: found.frame.y))"
+            + " \(Int(saturating: found.frame.width))x\(Int(saturating: found.frame.height)));"
             + " it does not declare itself scrollable, so the gesture is a plain drag inside"
             + " that rectangle)"
     }
@@ -2067,14 +2066,13 @@ extension MCPServer {
                 }
                 throw MCPError(alertFailure)
             }
-            // **展開で行が出たが一致が容器の外だけ = 探索は届いていないが、画面は読める形になった**。失敗として投げると、読み手は
-            // 「失敗した」と読んでから ft_snapshot を1回足していた(Apple マップの計測で5回中4回)。届いていないことは文で言い、
-            // 広げた後の木を返す(エラーにしない)。前置き(別のアプリ・打ち切り)は失敗文と同じものを付ける。下書きの TODO は上で記録済み。
-            // **ドライバが投げた回はここに入らない**(届いたか分からない操作の事実は MCPAnnotatedError で運ぶ)・アラートが前面の回は上で投げ済み
+            // **展開で行が出たが一致が容器の外だけ = 探索は届いていないが、画面は読める形になった**。失敗として投げると、読み手は「失敗した」と読んでから ft_snapshot を1回足していた(Apple マップの計測で5回中4回)。
+            // 届いていないことは文で言い、広げた後の木を返す(エラーにしない)。前置き(別のアプリ・打ち切り)は失敗文と同じものを付ける。下書きの TODO は上で記録済み。**ドライバが投げた回はここに入らない**(届いたか分からない操作の事実は MCPAnnotatedError で運ぶ)・アラートが前面の回は上で投げ済み
             if matchOutsideContainer, outcome.thrownDriverError == nil {
                 let (treeArgs, inheritedNote) = inheritingSnapshotFilters(args)
                 let cache = SnapshotAnnotationCache()
                 markLastGenerationDelivered(args: args)
+                recordSnapshot(after, scrollDriver is AndroidDriver ? "android" : "ios", args)
                 return text(failedSwitched + scrollFrameLabelNote + sheetNote + containerGoneNote + truncatedDuringSearch
                     + Self.scrollTimingNote(totalMs: Int((timingClock.now - timingStart) / .milliseconds(1)),
                                             swipes: outcome.scrollSwipes, slowDrags: outcome.slowDrags,
@@ -2223,6 +2221,7 @@ extension MCPServer {
         let cache = SnapshotAnnotationCache()
         // **アプリ内のアラートが前面なら、木はアラートの部分木だけ**(snapshotBody と同じ規律 = `AlertTreeScope`)
         markLastGenerationDelivered(args: args)   // ft_scroll_to の木も返した世代(snapshotBody と同じ理由)
+        recordSnapshot(after, scrollDriver is AndroidDriver ? "android" : "ios", args)  // 木を返す口は台帳へ(漏らすと探した id に dry-run が綴り誤りを疑う)
         if let inAppAlert = AlertTreeScope.frontInAppAlert(in: after) {
             return text(switched + scrollFrameLabelNote + sheetNote + timingNote
                 + Self.scrollToHeadline(selectorText, swipes: outcome.scrollSwipes, hiddenUnderChrome: landedHidden, underKeyboard: landedUnderKeyboard) + "\(landed)\(fallbackNote).\n"

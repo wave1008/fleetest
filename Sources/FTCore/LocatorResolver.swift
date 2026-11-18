@@ -464,8 +464,8 @@ public enum LocatorResolver {
         let stacked = elements.filter { ContainerGeometry.sameFrame($0.frame, frame) && $0.depth == sample.depth }
         return "it is in the tree but its coordinates are unusable"
             + " — \(stacked.count) elements are"
-            + " stacked at the same spot (\(Int(frame.x)),\(Int(frame.y))"
-            + " \(Int(frame.width))x\(Int(frame.height)));"
+            + " stacked at the same spot (\(Int(saturating: frame.x)),\(Int(saturating: frame.y))"
+            + " \(Int(saturating: frame.width))x\(Int(saturating: frame.height)));"
             + " the framework clamps offscreen descendants to the container origin,"
             + " so scroll it into view first (scrollTo / tap(scroll:))"
     }

@@ -45,15 +45,23 @@ final class ProvisionLockTests: XCTestCase {
         let holder = try ProvisionLock(stateDir: stateDir)
         let waiter = try ProvisionLock(stateDir: stateDir)
         let calls = LockedCounter()
-        await holder.acquire(onWait: { calls.increment() })
+        await holder.acquire(onWait: { _ in calls.increment() })
         XCTAssertEqual(calls.value, 0, "空いているロックで onWait を呼んだ")
-        let second = Task { await waiter.acquire(onWait: { calls.increment() }) }
+        let second = Task { await waiter.acquire(onWait: { _ in calls.increment() }) }
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(calls.value, 1, "持ち主がいるのに待ちを知らせなかった")
         holder.release()
         await second.value
         waiter.release()
         XCTAssertEqual(calls.value, 1)
+    }
+
+    /// 待ちの経過は一定の間隔で1行ずつ言う(見込みは言わない = DR-191)。間隔の既定はリテラルで固定する
+    func testStillWaitingNoticeSaysOnlyTheElapsedTime() {
+        XCTAssertEqual(ProvisionLock.stillWaitingIntervalSeconds, 30)
+        let line = ProvisionLock.stillWaitingNotice(seconds: 60)
+        XCTAssertTrue(line.contains("60s so far"), line)
+        XCTAssertFalse(line.contains("remaining") || line.contains("about"), line)
     }
 }
 

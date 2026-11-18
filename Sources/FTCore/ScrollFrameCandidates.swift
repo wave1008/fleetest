@@ -141,9 +141,9 @@ public enum ScrollFrameCandidates {
     /// `matches[0]` = 高さ126pxの横チップ行が黙って選ばれ、結果リストは1pxも動かなかった
     static func describe(_ candidate: Candidate, in snapshot: SnapshotResponse) -> String {
         let f = candidate.visible
-        let rect = "(\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))"
+        let rect = "(\(Int(saturating: f.x)),\(Int(saturating: f.y)) \(Int(saturating: f.width))x\(Int(saturating: f.height)))"
         guard let selector = candidate.selector else {
-            return "(\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)) — no id)"
+            return "(\(Int(saturating: f.x)),\(Int(saturating: f.y)) \(Int(saturating: f.width))x\(Int(saturating: f.height)) — no id)"
         }
         let all = candidates(in: snapshot)
         guard isAmbiguous(candidate, among: all),
@@ -184,7 +184,7 @@ public enum ScrollFrameCandidates {
     }
 
     static func frameKey(_ rect: FTRect) -> String {
-        "\(Int(rect.x)),\(Int(rect.y)),\(Int(rect.width)),\(Int(rect.height))"
+        "\(Int(saturating: rect.x)),\(Int(saturating: rect.y)),\(Int(saturating: rect.width)),\(Int(saturating: rect.height))"
     }
 
     static func intersectionOverUnion(_ a: FTRect, _ b: FTRect) -> Double {

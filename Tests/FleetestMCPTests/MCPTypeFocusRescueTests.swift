@@ -110,6 +110,31 @@ final class MCPTypeFocusRescueTests: XCTestCase {
         XCTAssertTrue(body.contains("no single input field inside the tapped element"), body)
     }
 
+    /// 焦点が木に出ないがキーボードは出ている(隠し入力欄の OTP 等)→ 「焦点が nowhere」の警告は出さない
+    /// (キーボードが出ていなければ従来どおり警告する)
+    func testNoFocusWithKeyboardShownIsNotWarned() async throws {
+        func withKeyboard(_ base: SnapshotResponse, shown: Bool) -> SnapshotResponse {
+            SnapshotResponse(sessionBundleID: base.sessionBundleID, screen: base.screen, elements: base.elements,
+                             truncatedCount: 0,
+                             keyboardFrame: shown ? FTRect(x: 0, y: 544, width: 390, height: 300) : nil)
+        }
+        for shown in [true, false] {
+            driver = FakeDriver()
+            let fake = driver!
+            server = MCPServer(write: { _ in }, makeDriver: { _ in fake }, recordSnapshot: { _, _, _ in })
+            let ambiguous = withKeyboard(screen(focusOn: 0, innerFields: 2), shown: shown)
+            driver.snapshotResponse = ambiguous
+            _ = try await server.call(tool: "ft_snapshot", args: [:])
+            _ = try await server.call(tool: "ft_tap", args: ["ref": 2])
+            driver.scriptedSnapshots = [ambiguous, ambiguous]
+
+            let result = try await server.call(tool: "ft_type", args: ["text": "123456"])
+
+            let body = text(result)
+            XCTAssertEqual(body.contains("left input focus nowhere"), !shown, body)
+        }
+    }
+
     /// ⑤叩いた操作が焦点を動かした(検索ボタン → 開いた検索欄に焦点)→ 意図どおりなので警告しない。
     /// 実測: Google マップの「目的地を入力」→ 検索欄へ正しく入ったのに「前の欄へ入ったかも」と警告していた
     func testFocusMovedByTheTapIsNotWarned() async throws {

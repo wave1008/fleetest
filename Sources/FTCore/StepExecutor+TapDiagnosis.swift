@@ -5,6 +5,17 @@
 import Foundation
 
 extension StepExecutor {
+    /// 救済の送りの後も掴んだ要素が座標のクランプされた残骸(同じ点に中身のある要素が積み重なる = 注記の stacked と同じ
+    /// `OcclusionGeometry.stackedRefs`)のままのとき、撃たずに返す失敗文(DR-188)。その点に描かれているのは別の物で、撃つと
+    /// 別の画面が開いて ✅ になった(iOS 連絡先の編集フォーム・XCUITest の木)
+    static func stackedLeftoverRefusal(_ step: FlowStep, target: ElementInfo, trace: [String]) -> String {
+        "did not touch \(step.locatorSummary): it resolved to \(TapTargetGeometry.describe(target)), which is still reported"
+            + " outside its scroll container with clamped coordinates (stacked on the same spot as other elements), so a touch there"
+            + " would land on whatever is drawn at that point (nothing was touched). Scroll the list until it is drawn first"
+            + " (for example scrollTo or scrollToBottom()) and then touch it"
+            + (trace.isEmpty ? "" : " [rescue: " + trace.joined(separator: "; ") + "]")
+    }
+
     /// 2つの木の内容が同じか(`contentSignature`)
     public static func sameContent(_ a: [ElementInfo], _ b: [ElementInfo]) -> Bool {
         contentSignature(a) == contentSignature(b)
@@ -24,7 +35,7 @@ extension StepExecutor {
             let frame = element.frame
             text += "\(element.type)|\(element.identifier ?? "")|\(element.label ?? "")"
             text += "|\(element.value ?? "")|\(element.enabled)|\(element.checked ?? false)"
-            text += "|\(Int(frame.x)),\(Int(frame.y)),\(Int(frame.width)),\(Int(frame.height));"
+            text += "|\(Int(saturating: frame.x)),\(Int(saturating: frame.y)),\(Int(saturating: frame.width)),\(Int(saturating: frame.height));"
         }
         return text
     }
@@ -164,7 +175,7 @@ extension StepExecutor {
         guard (dx * dx + dy * dy).squareRoot() >= Self.movedTargetThreshold else { return ("", false) }
         // 「動く前の座標を撃った」とは言わない: tap は ref で撃たれ、ブリッジが撃つ時点の枠の中心へ解決する。動いたのは tap の結果
         // (焦点 → キーボードで押し上げ等)のことが多く、失敗したステップが tap と無関係でも同じ文が付いていた
-        return (" (the target has moved (\(Int(dx)),\(Int(dy))) since the preceding"
+        return (" (the target has moved (\(Int(saturating: dx)),\(Int(saturating: dy))) since the preceding"
             + " \(last.description) — the layout shifted after that tap (for example the keyboard opened and pushed the content up)."
             + " This is only a fact about the screen: the tap itself may have been fine)", false)
     }

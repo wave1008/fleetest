@@ -263,8 +263,8 @@ enum RefGuard {
         // OS の scrollsToTop が一覧を先頭へ戻す(実測 9/9 で効いた。座標の経路は同じ点を断る)
         let centreY = element.frame.y + element.frame.height / 2
         if centreY < screen.y - TapTargetGeometry.offscreenCentreTolerance {
-            return " (warning: \(describe(element)) — its centre (\(Int(element.frame.x + element.frame.width / 2)),"
-                + " \(Int(centreY))) is outside the visible screen, above its top edge, so the element itself is not"
+            return " (warning: \(describe(element)) — its centre (\(Int(saturating: element.frame.x + element.frame.width / 2)),"
+                + " \(Int(saturating: centreY))) is outside the visible screen, above its top edge, so the element itself is not"
                 + " tapped; on iOS the touch can land on the status bar instead, which scrolls a list back to its top"
                 + " (the screen may have changed). Bring it into view with ft_scroll_to and re-snapshot)"
         }
@@ -382,7 +382,7 @@ enum RefGuard {
             // 縁の一致 + 高さ不足の shortfall witness でしか拾えない
             let edge = TapTargetGeometry.isClippedAtBottomEdge(found, container: container)
                 ? "bottom" : "top"
-            let h = Int(found.frame.height.rounded())
+            let h = Int(saturating: found.frame.height.rounded())
             if isAndroid {
                 return " (note: \(describe(found)) is cut off at the \(edge) edge of"
                     + " \(describe(container)), only \(h) of its height is drawn, but on Android"
@@ -404,7 +404,7 @@ enum RefGuard {
 
     /// `unit` は木の座標の単位(iOS=pt / Android=px)。呼び手が `isAndroid` から渡す(既定は Android の px)
     static func movedNote(found: ElementInfo, moved: Double, cause: String, unit: String = "px") -> String {
-        " (\(describe(found)) had moved \(Int(moved.rounded()))\(unit) since the snapshot;"
+        " (\(describe(found)) had moved \(Int(saturating: moved.rounded()))\(unit) since the snapshot;"
             + " retargeted to where it is now\(cause))"
     }
 

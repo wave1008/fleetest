@@ -20,7 +20,7 @@ MCP exposes the same check as `ft_dry_run`; the VSCode extension runs it via
 | Selector syntax errors | The selector expression parser runs before any device call |
 | Mistakes inside `ifCanSelect { }` / `.ifElse { }` | In a dry-run **both blocks are executed** regardless of the condition, so selector syntax errors and unknown `#id`s inside either one are reported |
 | An `expectation { }` block with zero assertions | Counted the same way `verify` counts assertions (`exist`/`notExist`/`textIs` and friends, `thisIs` variants, `appIs`; `select` does not count). A scenario with **zero** assertions overall gets a stronger warning |
-| `#id`s that don't exist in any screen you've captured | Checked against the project's selector inventory (`<project>/.fleetest/selector-inventory.json`), built by `ft_snapshot` calls made while writing the scenario |
+| `#id`s that don't exist in any screen you've captured | Checked against the project's selector inventory (`<project>/.fleetest/selector-inventory.json`), built from the trees the `ft_*` tools returned while writing the scenario (`ft_snapshot`, an action's `snapshotAfter`, `ft_scroll_to`, `ft_batch`, …) |
 | Commands the profile's devices cannot run (only with `--profile`) | The commands of the steps that ran are checked against the kind of every device that could take the scenario (all devices of that OS). See the table below |
 
 Notes on the last check: it only warns about screens you have actually captured — if the

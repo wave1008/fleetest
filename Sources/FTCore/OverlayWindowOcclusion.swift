@@ -50,8 +50,8 @@ public struct OverlayWindowOcclusion: Sendable {
     /// (`KeyboardOcclusion.advisory` と同じ分担)
     public func advisory(for element: ElementInfo) -> String? {
         guard covering(element) != nil else { return nil }
-        let cx = Int(element.frame.centerX)
-        let cy = Int(element.frame.centerY)
+        let cx = Int(saturating: element.frame.centerX)
+        let cy = Int(saturating: element.frame.centerY)
         return "its centre (\(cx), \(cy)) is under an overlay window drawn above the app"
             + " (a popup, tooltip, floating toolbar, sheet or modal; its contents may or may not be in the element list) — the tap will"
             + " land on that overlay, not this element. Dismiss it first (go back, or tap a"

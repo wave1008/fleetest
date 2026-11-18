@@ -200,7 +200,8 @@ public enum DSLCommandIndex {
                   + "10s by default — pass maxGestureSeconds: (up to 60) to allow longer."),
         .init("swipeBy", "operation",
               "swipeBy(selector?, dxRatio:, dyRatio:, durationSeconds:, maxGestureSeconds:, settle:, waitSeconds:)",
-              "Drags from the center of the target by a ratio of its size. Diagonal is allowed "
+              "Drags from the center of the target by a ratio of its size. dxRatio: and dyRatio: are both required "
+                  + "(pass dyRatio: 0 for a horizontal swipe). Diagonal is allowed "
                   + "(both ratios non-zero). No selector = the whole screen. durationSeconds is capped "
                   + "at 10s by default — pass maxGestureSeconds: (up to 60) to allow longer."
                   + " The selector form returns the element it grabbed."),

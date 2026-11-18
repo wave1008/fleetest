@@ -27,7 +27,8 @@ public enum PickerValueMatch {
 
     /// adjust(toPickerWheelValue:) に順に渡す候補。`[wanted]` に加え、`wanted` が数字だけで `current` が数字で始まるなら
     /// ①`current` の先頭の数字の桁数までゼロ埋めした数字(分の行は "00"〜"59" の2桁で、"5" では行が見つからない = 実測)
-    /// ②`current` の先頭の数字列をその数字に置き換えた形("14時" → "19時")
+    /// ②`current` の先頭の数字列をその数字に置き換えた形("14時" → "19時")。ゼロ埋めした形の後に、埋めない形も置く
+    /// (時計のタイマーの分の行は "5 分" で、"05" / "5" / "05 分" ではホイールが動かなかった = 実測)
     /// **桁をそろえた数字を先に置く**(1候補ごとに XCTest の待ちを払う = 外れの候補を先に試すと時間を使い切る。
     /// 実測で行の文字は "19" / "00" の形で通り、"19時" の形は断られた = 置き換えた形は最後)
     public static func iosCandidates(current: String, wanted: String) -> [String] {
@@ -38,7 +39,9 @@ public enum PickerValueMatch {
         let digits = String(number)
         let body = String(repeating: "0", count: max(0, lead.count - digits.count)) + digits
         var result: [String] = []
-        for candidate in [body, wanted, body + String(c.dropFirst(lead.count))] where !result.contains(candidate) {
+        let suffix = String(c.dropFirst(lead.count))
+        let unpadded = suffix.isEmpty ? [] : [digits + suffix]
+        for candidate in [body, wanted, body + suffix] + unpadded where !result.contains(candidate) {
             result.append(candidate)
         }
         return result

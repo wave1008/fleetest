@@ -327,6 +327,10 @@ enum InAppSnapshot {
 
     private static func shouldInclude(_ node: NSObject, type: UIKitType, frame: CGRect,
                                       screen: CGRect) -> Included? {
+        // 画面上の位置を持たない枠(`CGRect.infinite` / null / 非有限)は出さない。iOS の連絡先で合成 AX 要素の slider が
+        // infinite の枠で来た(XCUITest の木には出ない)。素通しすると全画面を覆う要素に見え、Int 変換で落ちた
+        guard !frame.isInfinite, !frame.isNull,
+              [frame.origin.x, frame.origin.y, frame.width, frame.height].allSatisfy(\.isFinite) else { return nil }
         guard frame.width >= 2, frame.height >= 2 else { return nil }
         guard screen.isEmpty || frame.intersects(screen) else { return nil }
 

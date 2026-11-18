@@ -241,7 +241,7 @@ extension StepExecutor {
     private func stageOffscreen(_ e: inout VisibilityEvidence) -> VisibilityStageOutcome {
         guard let c = TapTargetGeometry.offscreenScrollGateCentre(for: e.element, screen: e.screen) else { return .next }
         return .fail(.failed("text visibility check failed (offscreen): present in the tree but its centre"
-                             + " (\(Int(c.x)), \(Int(c.y))) is outside the screen, so it is not visible"
+                             + " (\(Int(saturating: c.x)), \(Int(saturating: c.y))) is outside the screen, so it is not visible"
                              + " (scroll it into view before this step)"), .keep)
     }
 

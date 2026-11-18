@@ -1287,6 +1287,7 @@ public enum RemoteShell {
     public static func remoteRunCommand(layout: RemoteLayout, fleetestArgs: [String],
                                         issuer: String? = nil,
                                         fmConcurrency: Int? = nil,
+                                        occlusionDumpDir: String? = nil,
                                         developerDir: String? = nil,
                                         streamOwner: String? = StreamOwner.current()) -> String {
         let binary = quote(layout.binary)
@@ -1308,11 +1309,14 @@ public enum RemoteShell {
         let issuerCmd = issuer.map { "export FT_ISSUER=\(quote($0)) && " } ?? ""
         let fmCmd = fmConcurrency.map { "export FT_FM_CONCURRENCY=\(quote(String($0))) && " } ?? ""
         let devDirCmd = developerDir.map { "export DEVELOPER_DIR=\(quote($0)) && " } ?? ""
+        // テキストの可視性検証の切り抜きを回収されるレポートの下へ(既定の ~/Library/Logs はランナー機に残り、失敗文のパスも
+        // 手元に無かった = OI-269②)。`<workDir>/.fleetest` の下 = サンドボックスの書ける場所の中(ScenarioSandbox.checkRedirects)
+        let dumpCmd = occlusionDumpDir.map { "export \(ProcessEnvironmentKey.occlusionDumpDir)=\(quote($0)) && " } ?? ""
         return "cd \(quote(layout.workDir)) 2>/dev/null && test -f Package.swift || "
             + "{ echo \"no runner workspace at \(layout.workDir) — run: fleetest remote setup"
             + " <this host> once for this issuer (RR-18)\" >&2; exit 91; } && "
             + "\(pathCmd) && \(issuerCmd)\(streamOwnerCmd(streamOwner))"
-            + "\(devDirCmd)\(fmCmd)\(lockHeldCmd)\(dispatchedRunCmd)\(guardCmd) && \(syncCmd) && \(launch)"
+            + "\(devDirCmd)\(dumpCmd)\(fmCmd)\(lockHeldCmd)\(dispatchedRunCmd)\(guardCmd) && \(syncCmd) && \(launch)"
     }
 
     /// **ディスパッチが向こうで起こす run に「このロックは親が握っている」印を運ぶ**。

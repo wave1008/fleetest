@@ -546,7 +546,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 let x = icon.frame.x + icon.frame.width / 2
                 let y = icon.frame.y + icon.frame.height / 2
                 throw FTCommandError.message(
-                    "tapAppIcon \"\(appIconName)\": tapped the icon at (\(Int(x)),\(Int(y))) but "
+                    "tapAppIcon \"\(appIconName)\": tapped the icon at (\(Int(saturating: x)),\(Int(saturating: y))) but "
                     + "\(core.appBundleID) did not come to the foreground within \(FTSeconds.format(waitSeconds))s")
             }
             if core.homeScreenSharesRunnerSession {
@@ -580,8 +580,8 @@ public func tapAppIcon(_ appIconName: String? = nil,
             while !AppIconLocator.isCentreOnScreen(icon, in: latest) {
                 guard Date() < deadline else {
                     let centre = AppIconLocator.centre(of: icon)
-                    let where_ = "(centre (\(Int(centre.x)),\(Int(centre.y))) of "
-                        + "\(Int(latest.screen.width))x\(Int(latest.screen.height)))"
+                    let where_ = "(centre (\(Int(saturating: centre.x)),\(Int(saturating: centre.y))) of "
+                        + "\(Int(saturating: latest.screen.width))x\(Int(saturating: latest.screen.height)))"
                     let waited = "\(FTSeconds.format(waitSeconds))s"
                     throw FTCommandError.message(
                         "tapAppIcon \"\(appIconName)\": the home screen reports the icon outside the screen "
@@ -621,8 +621,8 @@ public func tapAppIcon(_ appIconName: String? = nil,
             else { return }
             throw FTCommandError.message(
                 "tapAppIcon \"\(appIconName)\": the home screen tree reports a "
-                + "\(Int(tree.screen.width))x\(Int(tree.screen.height)) screen but the shown display is "
-                + "\(Int(shown.width))x\(Int(shown.height)) — the system UI tree does not match the shown display "
+                + "\(Int(saturating: tree.screen.width))x\(Int(saturating: tree.screen.height)) screen but the shown display is "
+                + "\(Int(saturating: shown.width))x\(Int(saturating: shown.height)) — the system UI tree does not match the shown display "
                 + "on this device, so nothing was tapped")
         }
 

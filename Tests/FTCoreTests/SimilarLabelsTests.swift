@@ -103,6 +103,14 @@ final class SimilarLabelsTests: XCTestCase {
                        ["発車予定時刻19:02"])
     }
 
+    /// 1文字の語は部分文字列関係を強い一致にしない(全体一致は呼び手が先に扱う)
+    func testSingleAlphanumericNeedleMatchesOnlyAsAToken() {
+        XCTAssertNil(SimilarLabels.similarityStrength("7", "_TtGC7SwiftUI32NavigationStackHosting"))
+        XCTAssertEqual(SimilarLabels.similarityStrength("7", "7 items"), .strong, "前後が英数字でない位置なら当てる")
+        XCTAssertEqual(SimilarLabels.similarityStrength("円", "715円"), .strong, "英数字でない1文字は従来どおり")
+        XCTAssertEqual(SimilarLabels.similarityStrength("ab", "xaby"), .strong)
+    }
+
     /// 順に現れる形の歯止め: 2文字の語・3倍を超える長い語・順が違う語は拾わない
     func testInterleavedMatchIsBounded() {
         XCTAssertNil(SimilarLabels.similarityStrength("経路", "経由する道路の案内"))

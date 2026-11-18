@@ -264,7 +264,7 @@ struct ProjectCommand: AsyncParsableCommand {
 struct ProfileCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "profile",
-        abstract: "Create, list and validate profiles (apps/runs)",
+        abstract: "Create and list profiles (apps/runs). To check a profile file, use fleetest api validate-profile",
         subcommands: [ProfileSetupCommand.self, List.self])
 
     struct List: AsyncParsableCommand {

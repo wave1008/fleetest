@@ -196,6 +196,7 @@ public enum TapTargetGeometry {
                   $0.scrollable == true && !isOffTheRowAxis(element, of: $0, in: elements)
               }) else { return nil }
         let scroller = chain[scrollerIndex]
+        guard isKeptDescendant(element, of: scroller, in: elements) else { return nil }
         // 中間ノードの交わりを見るのは最寄りの容器より手前だけ(飛ばした容器より上は偽の親の祖先で、要素と交わらなくて当然)
         guard ScrollGeometry.intersection(element.frame, scroller.frame) == nil,
               chainIsTrustworthy(chain[..<nearest], for: element),
@@ -206,6 +207,13 @@ public enum TapTargetGeometry {
                                                   in: elements, screen: screen)
         else { return nil }
         return scroller
+    }
+
+    /// ブリッジの keptDepth で見て `element` が `container` の部分木に居るか(`LocatorResolver.scopeDescendants`)。
+    /// 木に keptDepth の無い要素があれば(XCUITest の木・固定コーパス)判断できないので true = 従来の depth の判定に任せる
+    static func isKeptDescendant(_ element: ElementInfo, of container: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        guard container.keptDepth != nil, elements.allSatisfy({ $0.keptDepth != nil }) else { return true }
+        return LocatorResolver.scopeDescendants(of: container, in: elements).contains { $0.ref == element.ref }
     }
 
     /// 要素と容器のあいだの復元した祖先(中間ノード)が、どれも要素の枠と交わるか。
@@ -262,7 +270,10 @@ public enum TapTargetGeometry {
     static func isOffTheRowAxis(_ element: ElementInfo, of scroller: ElementInfo, in elements: [ElementInfo]) -> Bool {
         guard ScrollGeometry.intersection(element.frame, scroller.frame) == nil else { return false }
         let inside = siblingsInside(at: element.depth, inside: scroller, in: elements)
-        guard inside.count >= 2 else { return false }
+        guard inside.count >= 2,
+              // 容器が2行目を収められない高さのときだけ横一列と読む。縦のグリッドで見えている行が1行だけの形(兄弟は横に並ぶ)は、
+              // 下へ押し出された本物の送り残しを持つ(ChromePinnedOutsideTests の2列グリッド)
+              let shortest = inside.map(\.frame.height).min(), scroller.frame.height < shortest * 2 else { return false }
         func overlaps(_ a: Double, _ aLength: Double, _ b: Double, _ bLength: Double) -> Bool {
             a < b + bLength && b < a + aLength
         }
@@ -480,7 +491,7 @@ public enum TapTargetGeometry {
                 + " them is really drawn there — the rest are clamped leftovers"
         case .clippedByContainer(let container):
             let edge = isClippedAtBottomEdge(element, container: container) ? "bottom" : "top"
-            let h = Int(element.frame.height.rounded())
+            let h = Int(saturating: element.frame.height.rounded())
             if isAndroid {
                 return "the target is cut off at the \(edge) edge of \(describe(container)) — only"
                     + " \(h) of its height is drawn (px), but on Android the visible part is"
@@ -1290,7 +1301,7 @@ public enum TapTargetGeometry {
               ScrollGeometry.intersection(element.frame, container) != nil else { return nil }
         let centreX = element.frame.centerX
         guard centreX < container.x || centreX > container.x + container.width else { return nil }
-        return "its centre (\(Int(centreX)), \(Int(element.frame.centerY))) falls outside the side edge of its scroll"
+        return "its centre (\(Int(centreX)), \(Int(saturating: element.frame.centerY))) falls outside the side edge of its scroll"
             + " container (partly clipped), so the \(operation) lands on the empty margin beside it, not on the visible part —"
             + " scroll it fully inside the container first"
     }
@@ -1326,10 +1337,10 @@ public enum TapTargetGeometry {
         let visibleW = min(element.frame.x + element.frame.width, screen.x + screen.width) - max(element.frame.x, screen.x)
         let visibleH = min(element.frame.y + element.frame.height, screen.y + screen.height) - max(element.frame.y, screen.y)
         if visibleW > 0, visibleH > 0 {
-            return "its centre (\(Int(cx)), \(Int(cy))) is outside the visible screen, although part of it"
+            return "its centre (\(Int(saturating: cx)), \(Int(saturating: cy))) is outside the visible screen, although part of it"
                 + " (\(Int(visibleW))x\(Int(visibleH))) is drawn — a touch at the centre does not land on the element, so this may have done nothing"
         }
-        return "its centre (\(Int(cx)), \(Int(cy))) is outside the visible screen,"
+        return "its centre (\(Int(saturating: cx)), \(Int(saturating: cy))) is outside the visible screen,"
             + " so this almost certainly did nothing"
     }
 
@@ -1385,7 +1396,7 @@ public enum TapTargetGeometry {
     /// (`MCPServer+Snapshot.swift`)もこれへ揃える(単独の `offscreenAdvisory` ではなくこちら)
     public static func offscreenScrollGateAdvisory(for element: ElementInfo, screen: FTRect) -> String? {
         guard let c = offscreenScrollGateCentre(for: element, screen: screen) else { return nil }
-        return "its centre (\(Int(c.x)), \(Int(c.y))) is outside the visible screen,"
+        return "its centre (\(Int(saturating: c.x)), \(Int(saturating: c.y))) is outside the visible screen,"
             + " so this almost certainly did nothing"
     }
 
@@ -1449,7 +1460,7 @@ public enum TapTargetGeometry {
         let cx = element.frame.centerX
         let cy = element.frame.centerY
         guard cy >= screen.y, cy < screen.y + top else { return nil }
-        return "its centre (\(Int(cx)), \(Int(cy))) is inside the top safe-area band (the top \(Int(top)) of the screen:"
+        return "its centre (\(Int(saturating: cx)), \(Int(saturating: cy))) is inside the top safe-area band (the top \(Int(saturating: top)) of the screen:"
             + " status bar / notch / Dynamic Island), where the touch can go to the system instead of"
             + " this element. Scroll it clear of the band first if the tap has no effect"
     }
@@ -1472,7 +1483,7 @@ public enum TapTargetGeometry {
         let cy = element.frame.centerY
         guard cx >= keyboardFrame.x, cx <= keyboardFrame.x + keyboardFrame.width,
               cy >= keyboardFrame.y, cy <= keyboardFrame.y + keyboardFrame.height else { return nil }
-        return "its centre (\(Int(cx)), \(Int(cy))) is under the soft keyboard — the \(operation) will land"
+        return "its centre (\(Int(saturating: cx)), \(Int(saturating: cy))) is under the soft keyboard — the \(operation) will land"
             + " on the keyboard, not this element. Close the keyboard first (hideKeyboard), or scroll"
             + " the element clear of it"
     }

@@ -39,7 +39,7 @@ public enum SnapshotRenderer {
                               unit: String? = nil) -> String {
         var lines: [String] = []
         let s = snapshot.screen
-        lines.append("screen: \(Int(s.width))x\(Int(s.height))"
+        lines.append("screen: \(Int(saturating: s.width))x\(Int(saturating: s.height))"
             + (unit.map { " \($0) (all x/y below are \($0))" } ?? ""))
         // 同じ id が2つ以上ある要素は、生成側へ「単独では曖昧」と伝えるため件数を付す
         var idCounts: [String: Int] = [:]
@@ -455,7 +455,7 @@ public enum SnapshotRenderer {
         }
         parts.append(contentsOf: stateMarks(e))
         let f = e.frame
-        parts.append("(\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))")
+        parts.append("(\(Int(saturating: f.x)),\(Int(saturating: f.y)) \(Int(saturating: f.width))x\(Int(saturating: f.height)))")
         return parts.joined(separator: " ")
     }
 

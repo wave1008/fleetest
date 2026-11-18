@@ -255,6 +255,9 @@
 
 ## UI 部品ごとの癖(現時点の制約)
 
+### 横に送るコンテナは scrollFrame を必ず渡す
+- [id の無い横のコンテナは名指せず、横の探索が奥へ届かない](ui_component_patterns_ja.md#横に送るコンテナは-scrollframe-を必ず渡す) — ツリーにコンテナとして出ないと `scrollFrame:` で指せません。アプリ側でコンテナに `#id` を付けます。
+
 ### モーダルが開いている間、背後の画面はツリーから消える
 - [React Native の accessible な祖先の下は iOS で1要素に畳まれる](ui_component_patterns_ja.md#モーダルが開いている間背後の画面はツリーから消える) — `Tooltip` や `BottomSheetModal` の中身が iOS でだけツリーから消えます。直せるのはアプリ側の `accessible={false}` だけです。
 - [Flutter の iOS はオーバーレイを出すと a11y の矩形が縮む](ui_component_patterns_ja.md#モーダルが開いている間背後の画面はツリーから消える) — xcuitest モードでは補正されずタップがずれます。別の画面へ移って戻ってから操作します(既定の inapp-boost は自動補正)。

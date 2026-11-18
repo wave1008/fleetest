@@ -779,7 +779,7 @@ extension MCPServer {
             guard locator.index == nil, matches.count >= 2 else { return "" }
             let listed = matches.prefix(4).enumerated().map { index, element -> String in
                 let f = element.frame
-                return "[\(index + 1)] (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height)))"
+                return "[\(index + 1)] (\(Int(saturating: f.x)),\(Int(saturating: f.y)) \(Int(saturating: f.width))x\(Int(saturating: f.height)))"
             }.joined(separator: " ")
             let usedRef = ScrollFrameResolution.resolve(locator, in: snapshot)?.ref
             let used = matches.firstIndex { $0.ref == usedRef }.map { $0 == 0 ? "the first one" : ScrollFrameResolution.skippedFirstPhrase($0) } ?? "the first one"
@@ -1166,7 +1166,7 @@ extension MCPServer {
         if KeyboardWait.isShown(snapshot), let kb = snapshot.keyboardFrame, snapshot.screen.height > 0,
            kb.height * 2 > snapshot.screen.height {
             return "note: the element list is empty and the soft keyboard covers most of the screen"
-                + " (\(Int(kb.width))x\(Int(kb.height)) of \(Int(snapshot.screen.width))x\(Int(snapshot.screen.height)))"
+                + " (\(Int(saturating: kb.width))x\(Int(saturating: kb.height)) of \(Int(saturating: snapshot.screen.width))x\(Int(saturating: snapshot.screen.height)))"
                 + " — a full-screen keyboard (such as the landscape extract view) hides the app's window from the tree, so"
                 + " this is not a screen mid-transition. Close the keyboard (ft_hide_keyboard; ft_navigate back on Android),"
                 + " then take a fresh ft_snapshot.\n"
@@ -1265,7 +1265,7 @@ extension MCPServer {
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
         guard let kb = occlusion.frame else { return "" }
         let header = "the soft keyboard covers"
-            + " (\(Int(kb.x)),\(Int(kb.y)) \(Int(kb.width))x\(Int(kb.height)))"
+            + " (\(Int(saturating: kb.x)),\(Int(saturating: kb.y)) \(Int(saturating: kb.width))x\(Int(saturating: kb.height)))"
         // **入力欄も数える**(キーボードの下に隠れる代表が入力欄。interactiveTypes はタップの受け手だけで入力欄を含まない)
         let covered = snapshot.elements.filter {
             (RefGuard.interactiveTypes.contains($0.type) || TypeReadback.isTextInput($0)) && occlusion.covers($0)

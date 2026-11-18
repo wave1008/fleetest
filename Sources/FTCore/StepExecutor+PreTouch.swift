@@ -323,7 +323,7 @@ extension StepExecutor {
         if !allowsVisiblePart, paintOrderKnown,
            let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
             return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
-                + " (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
+                + " (\(Int(saturating: element.frame.centerX)), \(Int(saturating: element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
                 + " which scrolling its container did not clear — a touch there would land on \(TapTargetGeometry.describe(over))"
                 + " (nothing was \(done))", kind: nil)
         }
@@ -381,8 +381,8 @@ extension StepExecutor {
         default: fires = false
         }
         guard fires, let c = TapTargetGeometry.offscreenScrollGateCentre(for: element, screen: screen) else { return nil }
-        return "cannot \(action): the \(role ?? "target")'s centre (\(Int(c.x)), \(Int(c.y))) is outside the visible screen"
-            + " (\(Int(screen.width))x\(Int(screen.height))), so the touch would land nowhere and nothing was sent."
+        return "cannot \(action): the \(role ?? "target")'s centre (\(Int(saturating: c.x)), \(Int(saturating: c.y))) is outside the visible screen"
+            + " (\(Int(saturating: screen.width))x\(Int(saturating: screen.height))), so the touch would land nowhere and nothing was sent."
             + " Bring it into view first (scroll: / scrollTo)"
     }
 }

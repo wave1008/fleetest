@@ -858,7 +858,7 @@ type("#WebView 入力", "hello123")   // id が無い WebView の入力欄も pl
 
 ## セレクタの綴り誤りの検知(dry-run)
 
-`ft_snapshot` で撮った画面の `#id` はプロジェクトの台帳
+MCP の `ft_*` が返した木(`ft_snapshot`・操作の `snapshotAfter`・`ft_scroll_to`・`ft_batch` 等)の `#id` はプロジェクトの台帳
 (`<プロジェクト>/.fleetest/selector-inventory.json`)に貯まり、**dry-run がシナリオ中の `#id` と
 突き合わせて**、どのスナップショットにも無い id を警告します(失敗にはしません)。
 

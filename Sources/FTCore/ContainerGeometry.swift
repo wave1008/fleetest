@@ -24,6 +24,10 @@ public enum ContainerGeometry {
                !StepExecutor.declaresAxis(element.scrollActions, vertical: false),
                let flow = childrenFlow(of: element, in: snapshot.elements),
                vertical ? flow == .alongX : flow == .alongY { continue }
+            // 横の払い直しは、横へ動くと言える容器(申告か子の横の並び)だけを数える(DR-190)。並びの決まらない全画面の容器を
+            // 「横の唯一の容器」にして、縦の本体の中央をもう一度払っていた(SUT Store の iOS の並べ替えチップ・XCUITest の木)
+            if !vertical, !StepExecutor.declaresAxis(element.scrollActions, vertical: false),
+               childrenFlow(of: element, in: snapshot.elements) != .alongX { continue }
             if found.contains(where: { sameFrame($0.frame, element.frame) }) { continue }
             found.append(element)
         }
@@ -233,7 +237,17 @@ public enum ContainerGeometry {
         guard let container = clippingContainer(of: element, in: elements) else { return false }
         guard ScrollGeometry.intersection(element.frame, container) == nil else { return false }
         if isFloatingOverDeclaredScroller(element, in: elements) { return false }
-        let containerIsViewport = TapTargetGeometry.ancestors(of: element, in: elements)
+        let chain = TapTargetGeometry.ancestors(of: element, in: elements)
+        // ブリッジが木に出した入れ物の数(keptDepth)で、容器の部分木に居ないなら送り残しではない(depth の復元が間引かれた
+        // 入れ物を挟んで兄弟を子に見せた形。実測(Compose の Android): 商品詳細の固定フッタ・上部バーのボタンは keptDepth が容器と同じ 0)
+        if let holder = chain.first(where: { sameFrame($0.frame, container) }),
+           !TapTargetGeometry.isKeptDescendant(element, of: holder, in: elements) { return false }
+        // 容器が横一列の申告容器で、要素が縦にだけ外れているなら送り残しではない(`TapTargetGeometry.isOffTheRowAxis`。
+        // MCP の `outsideDeclaredScroller` と同じ除外 = ghost の定義を割らない)。実測(Compose の Android): 木に出ない
+        // 検索結果グリッドのカードがカテゴリチップの行の子に復元され、救済のドラッグがチップを押して絞り込みを変えた
+        if chain.contains(where: { $0.scrollable == true && sameFrame($0.frame, container)
+                                    && TapTargetGeometry.isOffTheRowAxis(element, of: $0, in: elements) }) { return false }
+        let containerIsViewport = chain
             .contains { $0.scrollable == true && sameFrame($0.frame, container) }
         return !isChromePinnedOutside(element, container: container,
                                       containerIsViewport: containerIsViewport,

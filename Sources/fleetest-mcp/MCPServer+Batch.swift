@@ -914,8 +914,8 @@ extension MCPServer {
             // 同名なので名前だけでは区別できない —— どれを撃ったかは位置で言う(実測: 「先頭」がどれか読めなかった)
             if let count = outcome.ambiguousMatchCount {
                 let used = outcome.resolvedElement.map { element in
-                    " (\(RefGuard.describe(element)) at \(Int(element.frame.x)),\(Int(element.frame.y))"
-                        + " \(Int(element.frame.width))x\(Int(element.frame.height)))"
+                    " (\(RefGuard.describe(element)) at \(Int(saturating: element.frame.x)),\(Int(saturating: element.frame.y))"
+                        + " \(Int(saturating: element.frame.width))x\(Int(saturating: element.frame.height)))"
                 } ?? ""
                 okLine += " (warning: the selector matched \(count) elements — the first one was used\(used);"
                     + " narrow it with #id, a type, or [n])"

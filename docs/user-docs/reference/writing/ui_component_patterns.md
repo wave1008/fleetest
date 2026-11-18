@@ -89,6 +89,12 @@ The iOS in-app bridge cannot page RN's `react-native-pager-view` (a `UIPageViewC
 itself, so it switches to a real XCUITest swipe for that area only (note `fell back to XCUITest`).
 Nothing changes in how you write it.
 
+**Current limitation**: when a horizontal container has no `#id` and does not appear in the tree as a
+container (for example a CMP `LazyRow` without a testTag, read in iOS xcuitest mode), it cannot be named in
+`scrollFrame:`, and a horizontal search does not reach the items further along. Naming an item inside it as
+`scrollFrame:` swipes once, but the search fails as soon as that item leaves the tree. Give the container an
+`#id` (testTag / accessibilityIdentifier) in the app.
+
 ### On Android the screen edges are the OS "back"
 
 On Android with gesture navigation, **a horizontal swipe that starts at the left or right edge of the
@@ -163,6 +169,9 @@ tap("#queue_row_21", scroll: .down)
 
 - Items can be pressed by `#id` or by label
 - Pressing an item closes the menu
+- **Do not open a menu just to close it again**: decide the state (which option is selected and so on) from elements
+  on the screen without opening the menu, and open it only to press an item. While an iOS popover is open, the
+  button that opened it also drops out of the tree, so the same button cannot close it
 - **Tap outside to close**: nothing behind the menu is in the tree, so it cannot be targeted by an
   element. On Android use `back()`; on iOS tap an empty spot of the screen by coordinates
 
@@ -244,6 +253,9 @@ tap("OK")
 - Trigger a refresh: move a finger from an upper row to a lower row of the list
   (`swipeElementToElement("#row_01", "#row_06", durationSeconds: 0.6)`)
 - Check that the refresh finished with what the app shows (a count, a timestamp, …)
+- A fast finger movement (an exploratory `ft_drag` fired in about 0.3 seconds, or a `flick`) can end without starting the refresh (nothing
+  tells you so: on a physical Android device, pulling about 900px in 0.3 seconds did not start it, pulling over 1 second did). While
+  exploring, try the `swipeElementToElement` above or a drag with `durationSeconds` of about 1 second
 
 | Framework | Component / difference |
 |---|---|
@@ -588,6 +600,9 @@ select("#txt_focus_echo").textIs("focus=second")
 | Android View | `TextInputLayout` + `TextInputEditText` + `MaterialAutoCompleteTextView` (editable). **The autocomplete suggestion rows carry no id** (unnamed `ListPopupWindow` rows; target by label) |
 | SwiftUI (iOS) | `TextField` (`.numberPad` / `.vertical` axis) / `SecureField` + `@FocusState`. **The autocomplete suggestions are only verifiable on iOS** (on Android the suggestion popup does not appear in the a11y tree; see below) |
 
+- **On Flutter, the `#field_*` id sits on the container that wraps the input field (type `other`)** (confirmed on Android).
+  Target the field inside it for `type`, as in `type("#field_number >> .textField", "123")`. Targeting the container relies on
+  focus landing on the field inside it, and the tool warns about it (the value can end up different from what you typed).
 - **Autocomplete suggestions show up a moment after you type** (they are asynchronous). Wait for the
   suggestion before tapping it; without the wait, the step fails with "not found" only on slower machines.
 

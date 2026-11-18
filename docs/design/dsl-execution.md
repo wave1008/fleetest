@@ -259,7 +259,7 @@ DS-10 の前半は dsl-syntax.md。
   記録は `select` では消さない(`tap → select → textIs` が失敗の定型)。
   機構・署名の作り方・誤検知の向きは docs/verification/triage.md「操作は ✅ なのに画面が変わらないとき」
 
-- **スクロール残像(ghost)は拒否せず、警告して撃つ**(`RefGuard.ghostWarning`)。Compose iOS は容器の外へ出た行をフルフレームで木に残し、`ios-xcuitest` はそれを座標で叩く
+- **スクロール残像(ghost)は拒否せず、警告して撃つ**(`RefGuard.ghostWarning`)。**例外は DSL の触る操作で、救済の送りの後も座標がクランプされた残骸(`OcclusionGeometry.stackedRefs`)のまま** —— 撃たずに失敗する(DR-188)。Compose iOS は容器の外へ出た行をフルフレームで木に残し、`ios-xcuitest` はそれを座標で叩く
   (実測: 下部タブへ遷移して "tap done" を返した。`ios-inapp-boost` は要素起動なので当たる = モードで割れる)。**応答に「何に当たったかもしれないか」を添え**、一覧の行にも
   `⚠️scroll-leftover` を出す(`MCPServer.ghostNote` / `ghostFlags`。先頭の注記だけでは、行から ref をコピーする動作に届かない)。
   - **印は2種類に割る**: `⚠️scroll-leftover` は「撃つと別の物に当たる」(沈黙した誤操作)、`⚠️offscreen` は「今そこに無い」だけ。**割る基準は打ち手ではなく危険度** ——

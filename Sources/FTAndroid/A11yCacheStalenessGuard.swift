@@ -51,7 +51,7 @@ struct A11yCacheStalenessGuard {
             let frame = element.frame
             text += "\(element.type)|\(element.identifier ?? "")|\(element.label ?? "")"
             text += "|\(element.value ?? "")|\(element.enabled)|\(element.checked ?? false)"
-            text += "|\(Int(frame.x)),\(Int(frame.y)),\(Int(frame.width)),\(Int(frame.height));"
+            text += "|\(Int(saturating: frame.x)),\(Int(saturating: frame.y)),\(Int(saturating: frame.width)),\(Int(saturating: frame.height));"
         }
         return text
     }

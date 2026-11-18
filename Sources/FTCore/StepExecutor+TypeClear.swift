@@ -582,7 +582,7 @@ extension StepExecutor {
                 return .visiblePart(visible, note: "the target's centre is under the soft keyboard and the keyboard could not be"
                     + " closed without side effects (\(tried)) — tapped its visible part above the keyboard")
             }
-            return .refused("the target's centre (\(Int(element.frame.centerX)), \(Int(element.frame.centerY))) is under"
+            return .refused("the target's centre (\(Int(saturating: element.frame.centerX)), \(Int(saturating: element.frame.centerY))) is under"
                 + " the soft keyboard and the keyboard could not be closed without side effects (\(tried)) — \(nothing)."
                 + " The return key may close it, but it also fires the field's action (submit, search or moving to the"
                 + " next field), so it is not pressed automatically: call pressEnter() before this step if that is"
@@ -663,7 +663,7 @@ extension StepExecutor {
     /// (`SnapshotResponse.modalScope`)。待っても閉じないので `waitSeconds:` は案内しない。申告が無い木は nil = 従来の案内
     static func modalScopeHint(_ snapshot: SnapshotResponse) -> String? {
         guard let scope = snapshot.modalScope, scope.droppedCount > 0 else { return nil }
-        let frames = scope.frames.prefix(2).map { "(\(Int($0.x)),\(Int($0.y)) \(Int($0.width))x\(Int($0.height)))" }
+        let frames = scope.frames.prefix(2).map { "(\(Int(saturating: $0.x)),\(Int(saturating: $0.y)) \(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" }
             .joined(separator: ", ")
         return " — a modal view (accessibilityViewIsModal) at \(frames) is open and left \(scope.droppedCount) element group(s) out of"
             + " the tree; if the target is behind it, close the modal (dismiss the dialog) first — waiting will not bring back"

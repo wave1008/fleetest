@@ -35,7 +35,8 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
   既存のテストに足す・書き方を合わせるときは読む。アプリの振る舞いは、画面(`ft_snapshot` / `ft_screenshot`)・依頼文・
   プロジェクトの仕様書(`TestProjects/<プロジェクト>/docs/testbases/`)から得て、それでも決まらないことは人に聞く(選択ダイアログ)。
   fleetest の仕様は docs から得る。docs はクローン(`.fleetest/state.json` の TOOL_ROOT。外部構成なら作業フォルダの隣の
-  `../fleetest`)にある:
+  `../fleetest`)にある。**この手順書に出る `docs/…` のパスはすべてそのクローンのルートからの相対**(スキルのフォルダ
+  `.claude/skills/fleetest-scenario/` の下には無い):
 
   | 知りたいこと | 読む場所 |
   |---|---|
@@ -46,7 +47,7 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
 
   docs で答えが見つからなければ、ソースを読みに行かず、完了報告で「docs に無かったこと」として挙げる
   (docs の不足を直す材料になる)。
-- **書く前に必ず docs/user-docs/reference/writing/known_caveats_ja.md(注意事項の一覧)を読む**。
+- **書く前に必ずクローンの docs/user-docs/reference/writing/known_caveats_ja.md(注意事項の一覧)を読む**。
   コマンドと UI 部品の注意事項(黙って誤る操作を含む)が1行ずつ並んでいる。使うコマンド・画面の部品に当てはまる行があれば、
   リンク先の節を読み、そこに書いた書き方で書く。完了報告では、当てはまった注意事項とどう書いたかを挙げる
 - **画面に Material3 の定番部品(ページャ・ボトムシート・メニュー・日付ピッカー・ドロワー・
@@ -136,7 +137,7 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
    ラベルも id も無い部品だけ ref / 座標を使って、フローを1手ずつ進め、遷移の各画面でまた snapshot する。これが CAE の action と expectation の素になる。
    **最初の `ft_snapshot` に `interactiveOnly: true` を渡す**(以後の木を返す呼び出しにも引き継がれる)。レイアウトだけの行
    (ラベルも値も無く、操作もスクロールもしない行)を省くので木が半分〜3分の1になり、ラベル・値を持つ行(検証に使う文字)は残る。
-   **通った画面は撮っておく** —— `ft_snapshot` は撮った `#id` をプロジェクトの台帳に貯め、
+   **通った画面は撮っておく** —— 木を返す `ft_*`(`ft_snapshot`・操作の `snapshotAfter`・`ft_scroll_to`・`ft_batch` 等)は返した木の `#id` をプロジェクトの台帳に貯め、
    ステップ4.5 の dry-run が綴り誤りの照合に使う(撮っていない画面の id は照合できない)。
    **長いリストは `ft_swipe` を繰り返さず `ft_scroll_to`(selector 指定)を使う** —— 要素の上で
    止まったうえで撮り直した一覧を返すので、送りすぎ・古い ref のまま叩く事故が起きない。
@@ -247,9 +248,9 @@ class ログインできること {
 | 出る警告 | 意味 | 直し方 |
 |---|---|---|
 | `contains no assertions` / `no assertions at all` | 操作しただけで何も検証していない | expectation に `exist` / `textIs` / `thisIs` 等を足す |
-| `no snapshot taken for this project contains this id` | その `#id` は、**ステップ2で撮ったスナップショットのどれにも無い** = 綴り誤りの疑い | スナップショットの実物と突き合わせる。まだ撮っていない画面のものなら `ft_snapshot` を撮り直す(撮った時点で台帳に入る) |
+| `no snapshot taken for this project contains this id` | その `#id` は、**ステップ2で撮ったスナップショットのどれにも無い** = 綴り誤りの疑い | スナップショットの実物と突き合わせる。まだ木を見ていない画面のものなら `ft_snapshot` を撮る(木を返した時点で台帳に入る) |
 
-id の照合は**ステップ2で `ft_snapshot` を撮った画面ぶんだけ**効く(`ft_snapshot` が
+id の照合は**ステップ2で木を返させた画面ぶんだけ**効く(木を返す `ft_*` が
 `<プロジェクト>/.fleetest/selector-inventory.json` に貯める)。**撮らずに書いたシナリオでは
 何も言わない**ので、セレクタを推測で書かない原則は変わらない。ラベルとワイルドカード
 (`#row_*`)は照合対象外。

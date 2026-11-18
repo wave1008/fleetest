@@ -22,7 +22,11 @@ final class StoppedAppMarkDSLTests: XCTestCase {
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
         func isAppForeground(bundleID: String) async throws -> Bool { true }
-        func launch(bundleID: String) async throws { launched.append(bundleID) }
+        var launchError: Error?
+        func launch(bundleID: String) async throws {
+            if let launchError { throw launchError }
+            launched.append(bundleID)
+        }
         func openURL(_ url: String, bundleID: String?) async throws {}
         func snapshot() async throws -> SnapshotResponse {
             SnapshotResponse(sessionBundleID: "com.example.app", screen: FTRect(x: 0, y: 0, width: 400, height: 800),
@@ -89,6 +93,21 @@ final class StoppedAppMarkDSLTests: XCTestCase {
         let all = logs(events).joined(separator: "\n")
         XCTAssertTrue(all.contains("Another window is in front of the app"), all)
         XCTAssertFalse(all.contains("swallowed"), all)
+    }
+
+    /// 起動に失敗したシナリオ(未インストール等)の赤に、前面の窓を言わない(アプリは一度も前面に出ていない)
+    func testWindowsInFrontAreNotSaidWhenTheLaunchNeverSucceeded() {
+        struct LaunchFailed: Error {}
+        let events = LockedValue<[ScenarioEvent]>([])
+        let driver = FakeDriver()
+        driver.launchError = LaunchFailed()
+        let core = androidCore(driver, events: events)
+        core.foregroundOverlays = { _ in ["com.android.systemui/NotificationShade"] }
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        launchApp()
+        let all = logs(events).joined(separator: "\n")
+        XCTAssertFalse(all.contains("Another window is in front of the app"), all)
     }
 
     // MARK: 1. 印の寿命

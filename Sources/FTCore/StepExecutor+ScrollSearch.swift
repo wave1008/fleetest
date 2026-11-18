@@ -418,8 +418,8 @@ extension StepExecutor {
         var keyboardHint = ""
         if result?.stoppedUnmoving == true, result?.contentEverMoved == false,
            let kb = result?.keyboardFrame {
-            keyboardHint = ": the soft keyboard covers (\(Int(kb.x)),\(Int(kb.y))"
-                + " \(Int(kb.width))x\(Int(kb.height))); pass scrollFrame or close the keyboard"
+            keyboardHint = ": the soft keyboard covers (\(Int(saturating: kb.x)),\(Int(saturating: kb.y))"
+                + " \(Int(saturating: kb.width))x\(Int(saturating: kb.height))); pass scrollFrame or close the keyboard"
         }
         // 逆走査を撃った失敗だけ(数に入らない遅いドラッグが走り、画面が戻されていることを見せる)。
         // **「reached its end」「not reaching a scrolling area」を含めない**: 順方向の事実を言う別の分岐の語
@@ -468,7 +468,7 @@ extension StepExecutor {
     /// 申告が無い木(XCUITest・Android・旧ブリッジ)は nil = 従来の案内
     static func frontWindowCoverHint(_ snapshot: SnapshotResponse) -> String? {
         guard let cover = snapshot.coveredByFrontWindow, cover.droppedCount > 0 else { return nil }
-        let frames = cover.frames.prefix(2).map { "(\(Int($0.x)),\(Int($0.y)) \(Int($0.width))x\(Int($0.height)))" }
+        let frames = cover.frames.prefix(2).map { "(\(Int(saturating: $0.x)),\(Int(saturating: $0.y)) \(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" }
             .joined(separator: ", ")
         return " — a window in front of the app at \(frames) covers \(cover.droppedCount) element(s), which are left out"
             + " of the tree; the target may be behind it. Close that window (dismiss the dialog or sheet) before acting on"
@@ -1018,6 +1018,8 @@ extension StepExecutor {
         var settleCapped = false
         // 自己補正の材料(直前の周回のツリー)。**較正値は持たず毎周測り直す**
         var previousSnapshot: SnapshotResponse?
+        // 送る前の木(逆走査を開始位置で止める基準 = DR-189)
+        var startSnapshot: SnapshotResponse?
         // 撃ったスワイプ数と、**振っても木が1文字も変わらなかった**連続回数。
         // 端に着いた後も上限まで振り続けるのは丸損なので、2周続けて変化が無ければ打ち切る
         // (1周で切らないのは、遅れて描画される行を「動かなかった」と誤断しないため)
@@ -1133,6 +1135,7 @@ extension StepExecutor {
             try await dismissInterruption(in: &snapshot, phase: &phase)
             cover.hint = Self.coverReportHint(snapshot)
             cover.scope = Self.searchScopeHint(step, snapshot.elements, isAndroid: isAndroid)
+            if attempt == 0 { startSnapshot = snapshot }
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)
@@ -1205,12 +1208,12 @@ extension StepExecutor {
                                                     ignoringUnmoved: true) ?? travel
                     let heading = Self.measuredContentDirection(before: previousSnapshot, after: snapshot, vertical: vertical)
                         .map { ", content went \($0)" } ?? ""
-                    travelTrace = " (moved \(Int(moved.rounded())) of \(Int(extent.rounded()))\(heading))"
+                    travelTrace = " (moved \(Int(saturating: moved.rounded())) of \(Int(saturating: extent.rounded()))\(heading))"
                     if travel > extent * Self.travelCeilingRatio {
                         spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
                     }
                 } else {
-                    travelTrace = " (moved ? of \(Int(extent.rounded())) — no element in common with the previous read)"
+                    travelTrace = " (moved ? of \(Int(saturating: extent.rounded())) — no element in common with the previous read)"
                 }
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
@@ -1671,7 +1674,7 @@ extension StepExecutor {
                         // ここでだけ推測した容器で細刻みの逆走査を掛ける
                         // (通常の送りには触らない = 2度撤回した「暗黙の座標化」にならない)
                         let recoveredBySweep = try await reverseSweep(step: step, container: container,
-                                                                      searching: direction, phase: &phase)
+                                                                      searching: direction, start: startSnapshot, phase: &phase)
                         // 撃てた本数で決める(最初の1本が撃てずに諦めた回に「逆走査した」と言わない)
                         result.reverseSweepRan = reverseSweepDragsSent > 0
                         result.reverseSweepDrags = reverseSweepDragsSent
@@ -1744,7 +1747,7 @@ extension StepExecutor {
            let container = (scrolledContainer ?? Self.overflowingContainer(in: latest))
                .flatMap({ ScrollGeometry.intersection($0, latest.screen) }) {
             let recoveredBySweep = try await reverseSweep(step: step, container: container,
-                                                          searching: direction, phase: &phase)
+                                                          searching: direction, start: startSnapshot, phase: &phase)
             reverseSweepRan = reverseSweepDragsSent > 0
             reverseSweepDrags = reverseSweepDragsSent
             if let recovered = recoveredBySweep {

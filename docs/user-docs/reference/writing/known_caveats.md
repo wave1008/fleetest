@@ -255,6 +255,9 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ## UI component quirks (current limitations)
 
+### Always pass scrollFrame for horizontal containers
+- [A horizontal container without an id cannot be named, and a horizontal search does not reach further items](ui_component_patterns.md#always-pass-scrollframe-for-horizontal-containers) — if it does not appear in the tree as a container, `scrollFrame:` cannot point at it. Give the container an `#id` in the app.
+
 ### While a modal is open, the screen behind it drops out of the tree
 - [React Native collapses under `accessible` ancestors](ui_component_patterns.md#while-a-modal-is-open-the-screen-behind-it-drops-out-of-the-tree) — on iOS only, inner elements of `Tooltip` and `BottomSheetModal` go missing; the app must pass `accessible={false}`, so a scenario cannot fix it.
 - [Flutter iOS overlay shrinks a11y rects](ui_component_patterns.md#while-a-modal-is-open-the-screen-behind-it-drops-out-of-the-tree) — after an overlay, taps land in the wrong spot in xcuitest mode only; move to another screen and back before the next action.

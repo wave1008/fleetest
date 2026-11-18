@@ -51,6 +51,28 @@ final class SelectorNamingRelativeTests: XCTestCase {
         XCTAssertFalse(selector?.contains("inputView") ?? false, selector ?? "nil")
     }
 
+    /// 申告されたキーボードの範囲にある要素(id が chrome 名でない部品)は錨にしない。申告が無ければ従来どおり錨になる
+    func testElementInsideTheReportedKeyboardIsNotTheAnchor() throws {
+        // キーボードの部品は根(`inputView`)の部分木。実物の木(ios-maps_suggest_keyboard)と同じ形
+        let root = ElementInfo(ref: 4, type: "other", identifier: "inputView", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 538, width: 400, height: 262), depth: 1)
+        let part = ElementInfo(ref: 1, type: "scrollView", identifier: "CenterPageView", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 538, width: 400, height: 45), depth: 2)
+        let field = element(2, type: "textField", x: 50, y: 300, width: 300)
+        let other = element(3, type: "textField", x: 50, y: 200, width: 300)
+        func snap(keyboard: FTRect?) -> SnapshotResponse {
+            SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                             elements: [field, other, root, part], truncatedCount: 0, keyboardFrame: keyboard)
+        }
+        let withKeyboard = snap(keyboard: FTRect(x: 0, y: 538, width: 400, height: 262))
+        XCTAssertNil(SelectorNaming(withKeyboard).selector(for: withKeyboard.elements[0], in: withKeyboard))
+        let without = snap(keyboard: nil)
+        let selector = try XCTUnwrap(SelectorNaming(without).selector(for: without.elements[0], in: without))
+        XCTAssertTrue(selector.contains("CenterPageView"), selector)
+    }
+
     /// 基準にできる一意な要素が無ければ、これまでどおり書けない(nil)
     func testNoUniqueAnchorStillYieldsNil() {
         let snap = snapshot([

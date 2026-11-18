@@ -481,7 +481,7 @@ public enum VisionClassifier {
         if let image = ImageDownscale.displayOriented(png: png),
            !OcclusionCrop.orientationMatches(imageWidth: image.width, imageHeight: image.height, screen: screen) {
             return "could not crop: the screenshot is \(image.width)x\(image.height) px but the screen is"
-                + " \(Int(screen.width))x\(Int(screen.height)) (the picture is not in the screen's orientation),"
+                + " \(Int(saturating: screen.width))x\(Int(saturating: screen.height)) (the picture is not in the screen's orientation),"
                 + " so nothing was cut. This is not about the element being outside the screen"
         }
         return "could not crop the element from the screenshot (is it inside the screen?)"

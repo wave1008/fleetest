@@ -19,7 +19,11 @@ public enum SimilarLabels {
     public static func similarityStrength(_ a: String, _ b: String) -> Strength? {
         let la = a.lowercased(), lb = b.lowercased()
         guard la != lb else { return nil }
-        if lb.contains(la) { return .strong }
+        // 1文字の英数字は、前後が英数字でない位置に現れたときだけ含むとする(実測: 計算機で ft_tap "7" に Swift のマングル名の
+        // id `_TtGC7SwiftUI…` を挙げた)。英数字でない1文字(「円」→「715円」)は従来どおり含有で当てる
+        if lb.contains(la), la.count >= 2 || !Self.isASCIIAlphanumeric(la) || Self.containsAsToken(la, in: lb) {
+            return .strong
+        }
         // **画面の語が探した語の一部、の向きは短すぎる語を数えない**(2文字以上・探した語の半分以上)。
         // 実測: waitFor `発車時刻19*` に1文字のラベル「車」を「似ている」と挙げ、本物の「発車予定時刻19:02」を出せなかった
         if la.contains(lb), lb.count >= 2, lb.count * 2 >= la.count { return .strong }
@@ -37,6 +41,22 @@ public enum SimilarLabels {
     /// 部分文字列関係の無い短い語の書き間違いを拾えない
     public static func isSimilarText(_ a: String, _ b: String) -> Bool {
         Self.similarityStrength(a, b) != nil
+    }
+
+    static func isASCIIAlphanumeric(_ text: String) -> Bool {
+        text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
+    }
+
+    /// `needle` が前後に英数字の無い位置に現れるか
+    static func containsAsToken(_ needle: String, in haystack: String) -> Bool {
+        var start = haystack.startIndex
+        while let range = haystack.range(of: needle, range: start..<haystack.endIndex) {
+            let before = range.lowerBound > haystack.startIndex ? haystack[haystack.index(before: range.lowerBound)] : nil
+            let after = range.upperBound < haystack.endIndex ? haystack[range.upperBound] : nil
+            if [before, after].allSatisfy({ $0.map { !($0.isASCII && ($0.isLetter || $0.isNumber)) } ?? true }) { return true }
+            start = range.upperBound
+        }
+        return false
     }
 
     static func isSubsequence(_ needle: String, of haystack: String) -> Bool {

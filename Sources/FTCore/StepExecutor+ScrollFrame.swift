@@ -185,7 +185,7 @@ extension StepExecutor {
         let position = matches.firstIndex { $0.ref == picked.ref } ?? 0
         let used = position == 0 ? "the first one" : ScrollFrameResolution.skippedFirstPhrase(position)
         return "the scrollFrame selector matched \(matches.count) elements; \(used)"
-            + " (\(Int(f.x)),\(Int(f.y)) \(Int(f.width))x\(Int(f.height))) was used"
+            + " (\(Int(saturating: f.x)),\(Int(saturating: f.y)) \(Int(saturating: f.width))x\(Int(saturating: f.height))) was used"
             + " — add [n] to pick another"
     }
 

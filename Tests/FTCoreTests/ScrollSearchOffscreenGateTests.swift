@@ -241,7 +241,7 @@ final class ScrollSearchOffscreenGateTests: XCTestCase {
 
         let recovered = try await executor.reverseSweep(
             step: scrollTo(direction: "right", maxSwipes: 0),
-            container: screen, searching: .right, phase: &phase)
+            container: screen, searching: .right, start: nil, phase: &phase)
 
         XCTAssertTrue(recovered == nil, "中心が画面外の要素を逆走査が拾い直したことにしている")
         XCTAssertGreaterThan(driver.drags, 0, "逆走査のドラッグが1本も出ていない(経路に入っていない)")
@@ -257,7 +257,7 @@ final class ScrollSearchOffscreenGateTests: XCTestCase {
 
         let recovered = try await executor.reverseSweep(
             step: scrollTo(direction: "right", maxSwipes: 0),
-            container: screen, searching: .right, phase: &phase)
+            container: screen, searching: .right, start: nil, phase: &phase)
 
         XCTAssertTrue(recovered != nil, "画面内にある要素まで逆走査が拾わなくなっている")
     }
