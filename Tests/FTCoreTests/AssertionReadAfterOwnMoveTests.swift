@@ -48,6 +48,19 @@ final class AssertionReadAfterOwnMoveTests: XCTestCase {
         XCTAssertTrue(executor.nextResolveBypassesCache, "迂回した読みの後、次の解決の迂回が消えた(MN-38)")
     }
 
+    /// 条件の判定(canSelect)の読みも、画面を動かした直後の1読みだけ迂回する(repeatWhileCanSelect の本文が行を消した直後に
+    /// 前の木で成立し、本文の tap が落ちた形)。2回目の判定は素取得に戻る
+    func testConditionReadAfterATapBypassesOnce() async throws {
+        let driver = RecordingDriver()
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "sw")))
+        let before = driver.reads.count
+        _ = try await executor.conditionSnapshot()
+        _ = try await executor.conditionSnapshot()
+        XCTAssertEqual(Array(driver.reads[before...]), [true, false], "\(driver.reads)")
+        XCTAssertTrue(executor.nextResolveBypassesCache, "迂回した読みの後、次の解決の迂回が消えた")
+    }
+
     func testOnlyTheFirstAssertionAfterTheTapBypasses() async {
         let driver = RecordingDriver()
         let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)

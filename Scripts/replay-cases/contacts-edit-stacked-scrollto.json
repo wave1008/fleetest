@@ -1,0 +1,26 @@
+{
+  "id": "contacts-edit-stacked-scrollto",
+  "finding": "iOS の連絡先の編集フォームで、同じ点へ潰れた送り残しの行(連絡先を削除)を探索が0周目で見つかったとし、1度も払わずに止まる",
+  "platform": "ios",
+  "redConfirmed": true,
+  "redNote": "直しを外した HEAD(3695350cd)の xcuitest モードで、DSL の scrollTo(\"連絡先を削除\") が 0.69 秒(払いなし)で ✅・続く exist も緑(描かれていない行)。直した版は 8.70 秒かけて払い届く。MCP の ft_scroll_to は 2.3 秒で「NOT hittable」を返し画面は動かなかった(2026-11-18・Sim iOS 27.2・Kate Bell)",
+  "setup": [["ft_launch", {"bundleId": "com.apple.MobileAddressBook"}]],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.apple.MobileAddressBook"}],
+    ["ft_type", {"selector": ".searchField", "text": "Kate", "replace": true}],
+    ["$wait", {"seconds": 1}],
+    ["ft_tap", {"selector": "Kate Bell*"}],
+    ["$wait", {"seconds": 1}],
+    ["ft_tap", {"selector": "編集"}],
+    ["$wait", {"seconds": 1}]
+  ],
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "MCP の ft_scroll_to で末尾の行へ",
+      "steps": [["ft_scroll_to", {"selector": "連絡先を削除"}]],
+      "replyReject": ["NOT hittable"],
+      "expect": ["連絡先を削除"]
+    }
+  ]
+}

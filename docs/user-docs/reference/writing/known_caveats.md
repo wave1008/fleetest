@@ -200,6 +200,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Android bottom gesture band](../commands/tap.md#notes) — an element whose centre is in the gesture band is touched above it (note), so the OS cannot send the app to the background; an element wholly in the band is touched at its centre.
 - [iOS in-app "real touch would land elsewhere" note](../commands/tap.md#notes) — the step stays green with `inapp-tap-outside-hit-area`, but the same tap can fail on the XCUITest bridge; check that the element is truly reachable.
 - [Coordinate taps are a last resort](../commands/tap.md#notes) — prefer a selector in scenarios you keep, because coordinates hit whatever is there after the layout moves.
+- [A SwiftUI link may look like an element in MCP but not in scenarios](../commands/tap.md#notes) — write `tap(element, linkText:)`.
 - [`settle: false` skips the settle wait](../commands/tap.md#notes) — the next step may see a moving screen; use it only when speed matters and the next step does not depend on final positions.
 
 ### Text assertion (textIs, textContains, ...)

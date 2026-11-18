@@ -1427,6 +1427,23 @@ public enum RemoteReportLink {
     }
 }
 
+extension RemoteReportLink {
+    /// 回収したレポート本文(.md / .failure.json)の「crop: <リモート絶対パス>」等を回収先の絶対パスへ直す。
+    /// 隔離先(`<リモートの workDir>/.fleetest/dispatch/<stamp>/reports/`)は回収後に消えるので、残すと実体の無い
+    /// パスを指す。**この stamp のものだけ**(他の run の記録に触らない)。`localReportsDir` は `TestProject.reportsDir`。
+    public static func rewriteCollectedReportText(_ text: String, stamp: String, localReportsDir: String) -> String {
+        let marker = ".fleetest/dispatch/\(stamp)/reports/"
+        guard text.contains(marker),
+              let regex = try? NSRegularExpression(
+                pattern: "[^\\s\\[\\]\"']*" + NSRegularExpression.escapedPattern(for: marker)) else { return text }
+        var dir = localReportsDir
+        while dir.hasSuffix("/") { dir.removeLast() }
+        return regex.stringByReplacingMatches(
+            in: text, range: NSRange(text.startIndex..., in: text),
+            withTemplate: NSRegularExpression.escapedTemplate(for: dir + "/"))
+    }
+}
+
 public enum RemotePathRewrite {
 
     /// テキスト(JUnit XML / NDJSON 行)内の remoteRoot(絶対パス)を localRoot へ全置換する。

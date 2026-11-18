@@ -535,9 +535,20 @@ extension MCPServer {
             + reasons.map { ". " + $0 + "." }.joined()
     }
 
+    /// MCP の操作の道具に `scroll` が無い理由(スクロールは ft_scroll_to が持つ。DSL の `scroll:` 引数とは別の口)
+    static let scrollArgumentReason = "to reach an element below the fold, ft_scroll_to it first, then act on it;"
+        + " in a scenario write the command with scroll: .down as one line, e.g. tap(selector, scroll: .down)"
+
     /// 他の操作の道具が持つのに、意図して持たない引数と、その理由と代わりの手(「揃っていない」と読まれて試行錯誤させない)。
     /// 宣言側は `afterActionProperties(waitForChange:)`
     static let deliberatelyAbsentArguments: [String: [String: String]] = [
+        "ft_tap": ["scroll": scrollArgumentReason, "linkText": "ft_tap cannot press a link inside a paragraph; in a"
+            + " scenario write tap(selector, linkText: \"…\"). While exploring, tap the link's drawn position with"
+            + " x/y to see what it does, but keep tap(selector, linkText:) in the scenario (coordinates break on"
+            + " another device)"],
+        "ft_long_press": ["scroll": scrollArgumentReason],
+        "ft_double_tap": ["scroll": scrollArgumentReason],
+        "ft_type": ["scroll": scrollArgumentReason],
         "ft_launch": ["waitForChange": "ft_launch has no waitForChange on purpose: the screen before a launch is no"
             + " baseline (a relaunch often lands on the same screen, so it would just wait out the deadline) —"
             + " pass waitFor with an element only the expected screen has"],

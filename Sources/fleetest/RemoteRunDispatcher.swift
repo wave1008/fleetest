@@ -186,6 +186,7 @@ struct RemoteRunDispatcher {
 
         collectReports(project: project, remoteReportDir: remoteReportDir,
                       interrupted: interruptFlag.interrupted, exitCode: exitCode)
+        relinkCollectedReportTexts(project: project, stamp: stamp)
         if let localJUnitPath, let remoteJUnitPath {
             collectJUnit(remotePath: remoteJUnitPath, localPath: localJUnitPath, layout: layout,
                         stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path)
@@ -277,6 +278,7 @@ struct RemoteRunDispatcher {
 
         collectReports(project: project, remoteReportDir: remoteReportDir,
                       interrupted: interruptFlag.interrupted, exitCode: exitCode)
+        relinkCollectedReportTexts(project: project, stamp: stamp)
         let transferredScenarioPaths = collectArtifacts(project: project, layout: layout)
         // 理由は dispatch() と同じ(読むのは今回転送された分だけ・結果は1回だけ作って共有)
         let texts = collectedScenarioTexts(
@@ -1040,6 +1042,21 @@ struct RemoteRunDispatcher {
         collectRsync(["rsync", "-az", "--safe-links"] + SSHOptions.rsyncRemoteShellArgs
                         + [remoteReports, localReports.path + "/"],
                      what: "reports", missingNote: Self.reportsMissingNote(interrupted: interrupted, exitCode: exitCode))
+    }
+
+    /// 回収した reports/ 直下の .md / .failure.json に残るリモートの隔離先パス(可視性検証の `[crop: …]` 等)を
+    /// 回収先へ直す。stamp を含むファイルだけ書き換える。失敗は黙って飛ばす(run の成否は変えない)
+    private func relinkCollectedReportTexts(project: TestProject, stamp: String) {
+        let dir = project.reportsDir
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
+        var relinked = 0
+        for name in names where name.hasSuffix(".md") || name.hasSuffix(".failure.json") {
+            let url = dir.appendingPathComponent(name)
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let rewritten = RemoteReportLink.rewriteCollectedReportText(text, stamp: stamp, localReportsDir: dir.path)
+            if rewritten != text, (try? rewritten.write(to: url, atomically: true, encoding: .utf8)) != nil { relinked += 1 }
+        }
+        if relinked > 0 { log("==> relinked paths inside \(relinked) collected report file(s)") }
     }
 
     /// 実績 JSON(run.json/scenarios/*.json/host-metrics.ndjson)と録画を含め results/ を

@@ -1411,6 +1411,23 @@ final class RemoteDispatchTests: XCTestCase {
             command.contains("export DEVELOPER_DIR='/Applications/Xcode_27.app/Contents/Developer' && "), command)
     }
 
+    // MARK: - RemoteReportLink(本文の crop パス)
+
+    func testCollectedReportTextCropPathPointsToLocalCopy() {
+        let stamp = "20261118-111112-22108"
+        let text = "failed [crop: /Users/x/fleetest-runner/users/x/work/.fleetest/dispatch/\(stamp)/reports/occlusion/o.png] end"
+        XCTAssertEqual(
+            RemoteReportLink.rewriteCollectedReportText(text, stamp: stamp, localReportsDir: "/L/TestProjects/P/reports/"),
+            "failed [crop: /L/TestProjects/P/reports/occlusion/o.png] end")
+    }
+
+    func testCollectedReportTextOfAnotherStampIsLeftAlone() {
+        let text = "[crop: /r/.fleetest/dispatch/20261118-999999-1/reports/occlusion/o.png]"
+        XCTAssertEqual(
+            RemoteReportLink.rewriteCollectedReportText(text, stamp: "20261118-111112-22108", localReportsDir: "/L/reports"),
+            text)
+    }
+
     // MARK: - RemoteReportLink
 
     /// リモートが記録する reportPath はディスパッチ単位の隔離先で、そこは回収後に消える。

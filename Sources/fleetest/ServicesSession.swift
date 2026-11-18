@@ -452,6 +452,22 @@ final class ServicesSession {
             published: published)
     }
 
+    /// 計画が公開するホストポート(宣言したサービス + 中継)
+    private func plannedWants() -> [ServicesPortConflict.Want] {
+        var wants = plan.containers.flatMap { launch in
+            launch.publishes.map { ServicesPortConflict.Want(hostIP: $0.hostIP, hostPort: $0.hostPort, proto: $0.proto.rawValue) }
+        }
+        if let relay = plan.relay {
+            wants += relay.forwards.map { ServicesPortConflict.Want(hostIP: $0.hostIP, hostPort: $0.hostPort, proto: $0.proto.rawValue) }
+        }
+        return wants
+    }
+
+    /// 起動の失敗の文言へ、同じポートを持つ別プロジェクトの生きた控えの持ち主を添える(無ければ空)
+    private func portHolderNote() -> String {
+        ServicesPortConflict.hint(wanted: plannedWants(), myPrefix: plan.prefix, home: home).map { "; " + $0 } ?? ""
+    }
+
     // MARK: 同じ接頭辞の控え
 
     /// 生きている他人の控えがあるときの文言(相手と自分の種類で対処が違う)
@@ -882,7 +898,7 @@ final class ServicesSession {
         let started = cli.run(commands.containerStart(relay.name), timeout: Self.containerStartTimeoutSeconds)
         guard started.succeeded else {
             throw ServicesError(phase: .start, detail: "starting the relay container failed (exit \(started.status))"
-                + "; a published host port may already be in use", logTail: started.tail(lines: 5))
+                + "; a published host port may already be in use" + portHolderNote(), logTail: started.tail(lines: 5))
         }
     }
 
@@ -964,7 +980,8 @@ final class ServicesSession {
             : commands.containerRun(launch: launch, image: image, envFile: envFile.path, hostsFile: hostsFile?.path, detached: true)
         let created = cli.run(argv, timeout: Self.containerStartTimeoutSeconds)
         guard created.succeeded else {
-            throw ServicesError(phase: .start, detail: "\(cli.isDocker ? "creating" : "starting") \(launch.service) failed (exit \(created.status))",
+            throw ServicesError(phase: .start, detail: "\(cli.isDocker ? "creating" : "starting") \(launch.service) failed (exit \(created.status))"
+                                + (cli.isDocker ? "" : portHolderNote()),
                                 logTail: created.tail(lines: 8))
         }
         let id = Self.lastLine(created.output)
@@ -981,7 +998,7 @@ final class ServicesSession {
             let started = cli.run(commands.containerStart(launch.name), timeout: Self.containerStartTimeoutSeconds)
             guard started.succeeded else {
                 throw ServicesError(phase: .start, detail: "starting \(launch.service) failed (exit \(started.status))"
-                    + "; a published host port may already be in use", logTail: started.tail(lines: 8))
+                    + "; a published host port may already be in use" + portHolderNote(), logTail: started.tail(lines: 8))
             }
         } else if let hostsFile {
             let address = try waitForAddress(launch)

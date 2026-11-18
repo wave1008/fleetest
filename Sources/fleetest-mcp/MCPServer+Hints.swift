@@ -869,6 +869,9 @@ extension MCPServer {
         if let hint = LocatorResolver.partialMatchHint(for: locator, in: snapshot.elements) {
             parts.append(" The element is \(hint).")
         }
+        if let hint = LocatorResolver.idWrittenAsLabelHint(for: locator, in: snapshot.elements) {
+            parts.append(" \(hint).")
+        }
         if let hint = partialMatchFormHint(locator, in: snapshot.elements) {
             parts.append(hint)
         }
@@ -1666,5 +1669,26 @@ extension MCPServer {
         else { return nil }
         knownScreens[key] = screen
         return screen
+    }
+}
+
+extension MCPServer {
+    /// scrollFrame に ref で渡された要素が `scrollable` を申告していないときの但し書き。
+    /// **セレクタ依存の本文であって木だけから決まる注記ではないので NoteCatalog には登録しない**
+    /// (multiMatchHint と同じ扱い)
+    static func scrollFrameNotDeclaredScrollableNote(_ found: ElementInfo) -> String {
+        " (the swipe area was taken from [\(found.ref)] \(RefGuard.describe(found))'s frame"
+            + " (\(Int(saturating: found.frame.x)),\(Int(saturating: found.frame.y))"
+            + " \(Int(saturating: found.frame.width))x\(Int(saturating: found.frame.height)));"
+            + " it does not declare itself scrollable, so the gesture is a plain drag inside"
+            + " that rectangle)"
+    }
+
+    /// `[n]` だけで選ぶ(`>>` のスコープ無し)セレクタへの注記。位置は探索のスワイプのたびに別の要素を指す。
+    /// 断らない(画面が動かない対象なら通る)。該当しなければ空
+    static func positionalSelectorNote(selector: FTSelector, selectorText: String) -> String {
+        guard selector.primary.hasUnscopedOrdinal else { return "" }
+        return "note: \"\(selectorText)\" picks by position, which changes as the list moves —"
+            + " scroll to an #id or a label instead.\n"
     }
 }

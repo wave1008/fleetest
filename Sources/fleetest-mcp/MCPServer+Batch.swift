@@ -476,6 +476,18 @@ extension MCPServer {
         let command: String
     }
 
+    /// ft_batch が走らない種類のコマンドへの断り(構文の検査より先に使う。走れるコマンドは nil)
+    private static func batchCategoryRefusal(command: String, info: DSLCommandInfo) -> MCPError? {
+        guard !(batchAllowedCategories.contains(info.category) || batchDeclarationCommands.contains(command)) else { return nil }
+        if info.category == "app", let alternative = batchAppCommandAlternatives[command] {
+            return MCPError("\"\(command)\" changes the app's lifecycle or its data, which ft_batch"
+                + " does not run (one approval should not be able to reach data-wiping commands)"
+                + " — \(alternative)")
+        }
+        return MCPError("\"\(command)\" is a DSL command in the \(info.category) category — ft_batch only runs"
+            + " operation/scroll commands. " + batchCategoryGuidance(info.category))
+    }
+
     /// 1手(DSL の呼び出し1行)の検証(**デバイスに触らない**。実行前に全行へ通す)。
     /// 構文は `BatchLineParser`(純粋関数)、引数の妥当性は `BatchStepResolver` に委ね、ここは
     /// 「コマンド名は実在するか」「カテゴリは operation/scroll か」「1ステップへ翻訳できるか」の
@@ -490,6 +502,17 @@ extension MCPServer {
         do {
             parsed = try BatchLineParser.parse(line)
         } catch let error as BatchLineSyntaxError {
+            // 実行できない種類のコマンドは、引数の構文より先に「なぜ断るか」を言う(`launch com.x` が構文エラーに化けない)
+            if let name = error.commandName {
+                if name == "launch", let alternative = batchAppCommandAlternatives["launchApp"] {
+                    // ツール名の `launch` は DSL に無い(正しい名前は launchApp)
+                    throw MCPError("\"launch\" is not a DSL command and ft_batch does not run app launches — \(alternative)")
+                }
+                if let info = DSLCommandIndex.all.first(where: { $0.name == name }),
+                   let refusal = batchCategoryRefusal(command: name, info: info) {
+                    throw refusal
+                }
+            }
             var message = error.baseMessage
             if let name = error.commandName,
                let info = DSLCommandIndex.all.first(where: { $0.name == name }) {
@@ -506,15 +529,7 @@ extension MCPServer {
             throw MCPError("\"\(command)\" is not a DSL command — call ft_dsl_commands to see the"
                 + " valid names (a name not in that index does not exist)")
         }
-        guard batchAllowedCategories.contains(info.category) || batchDeclarationCommands.contains(command) else {
-            if info.category == "app", let alternative = batchAppCommandAlternatives[command] {
-                throw MCPError("\"\(command)\" changes the app's lifecycle or its data, which ft_batch"
-                    + " does not run (one approval should not be able to reach data-wiping commands)"
-                    + " — \(alternative)")
-            }
-            throw MCPError("\"\(command)\" is a DSL command in the \(info.category) category — ft_batch only runs"
-                + " operation/scroll commands. " + batchCategoryGuidance(info.category))
-        }
+        if let refusal = batchCategoryRefusal(command: command, info: info) { throw refusal }
         guard let builder = batchStepBuilders[command] else {
             throw MCPError("\"\(command)\" is recognized (category: \(info.category)) but ft_batch"
                 + " has no single-step translation for it — \(batchUnsupportedGuidance(command))")

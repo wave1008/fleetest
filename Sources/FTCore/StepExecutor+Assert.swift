@@ -67,6 +67,16 @@ extension StepExecutor {
 
     /// アサーションの待ちループの1周の読み。**直呼びしない**(読み直しの迂回で nextResolveBypassesCache を
     /// 立てる所がここだけ)
+    /// **条件の判定(canSelect = ifCanSelect / repeatWhileCanSelect)の読み**。アサーションの最初の読みと同じく、画面を動かした
+    /// 直後の1読みだけ迂回する(印を消費する)。素取得のままだと、本文の tap が行を消した直後の判定が Android のキャッシュの
+    /// 前の木で成立し、本文の tap(迂回して読む)が見つけられずに落ちた(Compose の Android の repeatWhileCanSelect)
+    public func conditionSnapshot() async throws -> SnapshotResponse {
+        let afterOwnMove = assertionReadAfterOwnMove && driver.supportsCacheBypass
+        assertionReadAfterOwnMove = false
+        if afterOwnMove { markRepollBypassed() }
+        return try await driver.snapshot(bypassingCache: afterOwnMove)
+    }
+
     func assertionSnapshot(_ retry: inout AssertFreshRetry) async throws -> SnapshotResponse {
         // **画面を動かす操作の直後の最初の読みは迂回する**(Android の素取得は tap の直後に前の値を返しうる: 8 回中 6 回
         // 「前の値」を読んだ = OI-161 ⑥。その木は「画面が変わらなかった = 飲まれたかも」の根拠にも使われる)。

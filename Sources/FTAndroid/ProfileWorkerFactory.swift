@@ -1036,6 +1036,9 @@ public enum ProfileWorkerFactory {
         resolved: ResolvedProfile, log: (String) -> Void = { _ in },
         makeWorker: (ResolvedDevice) throws -> RunWorker = ProfileWorkerFactory.makeAndroidWorker
     ) throws -> [RunWorker] {
+        for device in resolved.androidDevices {
+            if let warning = AndroidDeviceCatalog.nameAvdMismatchWarning(spec: device.spec) { log(warning) }
+        }
         syncAnimationSettings(resolved: resolved, log: log)
         let outcomes: [(name: String, result: Result<RunWorker, Error>)] = resolved.androidDevices.map {
             device in (name: device.name, result: Result { try makeWorker(device) })

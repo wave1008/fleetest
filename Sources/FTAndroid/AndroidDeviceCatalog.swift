@@ -236,6 +236,24 @@ public enum AndroidDeviceCatalog {
         return name
     }
 
+    /// プロファイルの `name` と `avd` が**別々の既存 AVD** を指すときの警告(解決は avd が優先 = name の AVD ではない台を使う)。
+    /// name を AVD として引けないとき(ただの表示名)は nil。純粋関数
+    static func nameAvdMismatchWarning(
+        name: String, avd: String?, installed: [(id: String, displayName: String?)]
+    ) -> String? {
+        guard let avd else { return nil }
+        let avdID = canonicalAVDID(avd, installed: installed)
+        let nameID = canonicalAVDID(name, installed: installed)
+        guard nameID != avdID, installed.contains(where: { $0.id == nameID }) else { return nil }
+        return "⚠️ device \"\(name)\": its avd is \(avdID), which is a different emulator from the one with that name"
+            + " (\(nameID)) — fleetest uses the avd"
+    }
+
+    public static func nameAvdMismatchWarning(spec: DeviceSpec) -> String? {
+        guard spec.avd != nil, !spec.isPhysical else { return nil }
+        return nameAvdMismatchWarning(name: spec.name, avd: spec.avd, installed: installedAVDs())
+    }
+
     /// 実機は serial 直指定(AVD 照合は使えない)。接続確認だけして返す。
     /// エミュレータは avd → 起動中エミュレータの AVD ID 照合
     public static func resolveSerial(spec: DeviceSpec) throws -> String {

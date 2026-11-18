@@ -417,6 +417,7 @@ public enum LocatorResolver {
             hints.append("near matches: \(summaries.joined(separator: " / "))")
         }
         if let hint = partialMatchHint(for: locator, in: elements) { hints.append(hint) }
+        if let hint = idWrittenAsLabelHint(for: locator, in: elements) { hints.append(hint) }
         if let hint = splitTextHint(for: locator, in: elements) { hints.append(hint) }
         if let hint = clampedStackHint(for: locator, in: elements) { hints.append(hint) }
         // 候補の区切りが " / " なので、ヒント同士は別の記号で割る(読み手が機械でも人でも混ざらない)
@@ -482,6 +483,20 @@ public enum LocatorResolver {
     /// **当たる相手を名指しする**: 部分一致は別の要素に当たりうる(Apple マップで「立川駅、立川市」を
     /// 外したとき `*立川駅、立川市*` は「西武立川駅、立川市」= 別の駅に当たる形だった)。
     /// 「would find it」とだけ言うと本命が見つかると読まれる
+    /// 素のラベルとして外れたが、画面に **id がその文字と完全一致する要素**があるときの書き方の案内
+    /// (`nav_collapse` と `#nav_collapse`)。素のラベル(`#`・型・値・祖先スコープ・相対なし)で、
+    /// ラベルの完全一致が1つも無いときだけ。MCP も DSL もこれを呼ぶ(文言はここの1箇所)
+    public static func idWrittenAsLabelHint(for locator: FlowLocator,
+                                            in elements: [ElementInfo]) -> String? {
+        guard let label = locator.label, !label.isEmpty,
+              (locator.labelMatch ?? .exact) == .exact,
+              locator.id == nil, locator.type == nil, locator.value == nil, locator.placeholder == nil,
+              locator.scope?.isEmpty ?? true, locator.relative?.isEmpty ?? true,
+              !elements.contains(where: { $0.label == label }),
+              elements.contains(where: { $0.identifier == label }) else { return nil }
+        return "\"\(label)\" is read as a label; an element with that id is on screen — write #\(label)"
+    }
+
     public static func partialMatchHint(for locator: FlowLocator,
                                         in elements: [ElementInfo]) -> String? {
         if let label = locator.label, !label.isEmpty,

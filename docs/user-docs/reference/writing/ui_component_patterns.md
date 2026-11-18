@@ -45,9 +45,9 @@ the drawer and not drawn, so checking them while it is open fails in the real ru
 ```swift
 tap("#btn_open_drawer")
 exist("#txt_drawer_header")          // OK: prove it opened with an element inside the modal
-// select("#txt_state").textIs(...)  // NG: elements behind are not found while it is open
+// select("#txt_drawer_state").textIs(...)  // NG: elements behind are not found while it is open
 tap("#drawer_item_sent")             // close it first
-select("#txt_state").textIs("drawerOpen=false")
+select("#txt_drawer_state").textIs("drawerOpen=false")
 ```
 
 **Current limitation**: React Native collapses everything under an `accessible` ancestor
@@ -691,9 +691,10 @@ tap("#btn_qty_plus")
 select("#txt_qty").textIs("qty=2")
 
 tap("#btn_start_progress")
-select("#txt_progress").textIs("progress=running")
-select("#txt_progress", waitSeconds: 3).textIs("progress=done")
+select("#txt_progress", waitSeconds: 5).textIs("progress=done")
 ```
+
+Intermediate states of a fast progress (such as `progress=running`) can already be gone about 1 second after the tap, so they are timing-dependent. Do not assert them; wait only for the final state.
 
 | Framework | Component / difference |
 |---|---|

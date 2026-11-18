@@ -6,9 +6,10 @@ import XCTest
 final class ScrollSearchAxisHintTests: XCTestCase {
 
     private func el(_ ref: Int, id: String, x: Double, y: Double, w: Double, h: Double,
-                    scrollable: Bool? = nil, actions: [String]? = nil) -> ElementInfo {
+                    scrollable: Bool? = nil, actions: [String]? = nil, depth: Int? = nil) -> ElementInfo {
+        // 容器(ref 1)は depth 2・その他は既定で直下の子(depth 3)
         ElementInfo(ref: ref, type: "scrollView", identifier: id, label: nil, value: nil, placeholder: nil,
-                    enabled: true, frame: FTRect(x: x, y: y, width: w, height: h), depth: 2,
+                    enabled: true, frame: FTRect(x: x, y: y, width: w, height: h), depth: depth ?? (ref == 1 ? 2 : 3),
                     scrollable: scrollable, scrollActions: actions)
     }
 
@@ -39,6 +40,15 @@ final class ScrollSearchAxisHintTests: XCTestCase {
                    el(2, id: "r1", x: 0, y: 100, w: 2000, h: 90), el(3, id: "r2", x: 0, y: 200, w: 2000, h: 90),
                    el(4, id: "r3", x: 0, y: 300, w: 2000, h: 90)]
         XCTAssertFalse(StepExecutor.scrollFrameRunsOtherAxis(step: frameStep(), in: snap(col), vertical: true))
+    }
+
+    /// 子(ボタン)の中の文字まで数えると段がずれて並びを言えなかった(CMP の iOS の横のタブ列)。直下の子だけで横と言う
+    func testNestedLabelsDoNotHideAHorizontalRow() {
+        let row = [el(1, id: "shelf", x: 0, y: 198, w: 402, h: 48),
+                   el(2, id: "t1", x: 52, y: 198, w: 101, h: 48), el(3, id: "l1", x: 68, y: 212, w: 69, h: 20, depth: 4),
+                   el(4, id: "t2", x: 153, y: 198, w: 103, h: 48), el(5, id: "l2", x: 169, y: 212, w: 71, h: 20, depth: 4),
+                   el(6, id: "t3", x: 256, y: 198, w: 103, h: 48), el(7, id: "l3", x: 272, y: 212, w: 71, h: 20, depth: 4)]
+        XCTAssertTrue(StepExecutor.scrollFrameRunsOtherAxis(step: frameStep(), in: snap(row), vertical: true))
     }
 
     func testFailureMessageDoesNotAdviseTheVerticalOppositeForAHorizontalContainer() {

@@ -9,6 +9,26 @@ import FTCore
 
 extension MCPServer {
 
+    /// 申告の無い枠への ft_swipe を swipeBy で残すときの移動量(要素の幅/高さに対する割合。
+    /// E2EY の swipe-row シナリオも ±0.4〜0.5 を使う)
+    static let plainSwipeRecordedRatio = 0.5
+
+    /// 下書きへ残す手。実行する手(`scrollStep`)とは別: 枠が `scrollable` を申告していないと分かっているときだけ
+    /// 指の向きどおりの swipeBy にし、それ以外(申告あり・不明)は実行した scroll の手のまま
+    static func swipeRecordedStep(direction: FTSwipeDirection, scrollFrameArg: ScrollFrameArg,
+                                  locator: FlowLocator, scrollStep: FlowStep) -> FlowStep {
+        guard scrollFrameArg.declaresScrollable == false else { return scrollStep }
+        let r = plainSwipeRecordedRatio
+        let (dx, dy): (Double, Double)
+        switch direction {
+        case .left: (dx, dy) = (-r, 0)
+        case .right: (dx, dy) = (r, 0)
+        case .up: (dx, dy) = (0, -r)
+        case .down: (dx, dy) = (0, r)
+        }
+        return FlowStep(action: "swipeBy", locator: locator, dxRatio: dx, dyRatio: dy)
+    }
+
     func ftSwipe(_ args: [String: Any]) async throws -> [[String: Any]] {
         guard let direction = FTSwipeDirection(rawValue: args["finger"] as? String ?? "") else {
             throw MCPError("finger must be one of up/down/left/right (the direction the finger moves)")
@@ -92,10 +112,15 @@ extension MCPServer {
         // (ScenarioCodeGen の "scroll" ケース)。**ref 形だけは書き戻せない** ——
         // rect は木の中の座標で、セレクタとして再現できないので正直に unresolved で残す
         // (セレクタの無い要素と同じ regime)
-        if scrollFrameArg.locator != nil {
+        if let locator = scrollFrameArg.locator {
+            // 申告の無い枠は scroll の手へ書き戻すと in-app ブリッジで何も動かない。指の動きそのものの swipeBy で残す
+            let recorded = Self.swipeRecordedStep(direction: direction, scrollFrameArg: scrollFrameArg,
+                                                  locator: locator, scrollStep: step)
+            let isPlainDrag = recorded.action == "swipeBy"
             recordAction(InteractionLog.Entry(
-                step: step, unresolved: nil,
-                summary: "swipe \(direction.rawValue) inside \(containerName)"), args: args)
+                step: recorded, unresolved: nil,
+                summary: isPlainDrag ? "swipe \(direction.rawValue) across \(containerName)"
+                    : "swipe \(direction.rawValue) inside \(containerName)"), args: args)
         } else {
             recordAction(InteractionLog.Entry(
                 step: nil,

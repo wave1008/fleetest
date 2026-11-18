@@ -652,7 +652,16 @@ extension MCPServer {
                 + waitForWithoutSnapshotAfterNote(args)
                 + afterBody)
         }
-        try await typeDriver.pressEnter()
+        do {
+            try await typeDriver.pressEnter()
+        } catch {
+            // 文字は既に届いている(撃ち直すと二重に入る)ので、入力済みを先に言って Enter の失敗だけを分ける
+            let typedPart = content.map { "Typed: \"\($0)\"" } ?? "Nothing was typed"
+            throw MCPError(typedPart + note + typedSelector + " — the text was typed, but Enter was not delivered: "
+                + error.localizedDescription + " (the text was already sent — do not type it again; ft_snapshot"
+                + " shows the field and its focus, then call ft_type with pressEnter: true and no text on the field,"
+                + " or ft_tap the field first)")
+        }
         return text((content.map { "Typed: \"\($0)\" and pressed Enter" } ?? "Pressed Enter")
             + note + typedSelector + waitForWithoutSnapshotAfterNote(args)
             + (await snapshotAfterBody(args, outsideTheAppTree: false)))

@@ -861,7 +861,10 @@ extension StepExecutor {
         if let actions = container.scrollActions, declaresAxis(actions, vertical: true) || declaresAxis(actions, vertical: false) {
             return declaresOnlyOtherAxis(actions, vertical: vertical)
         }
-        guard let flow = ContainerGeometry.childrenFlow(of: container, in: snapshot.elements) else { return false }
+        // **直下の子だけで並びを見る**: 子の中の文字(ボタンの中のラベル)まで数えると段がずれて並びを言えず、横のタブ列に
+        // 縦の向きを案内した(CMP の iOS の `#stab_row`。scrollFrame の候補の判定 `StepExecutor+ScrollFrame` と同じ取り方)
+        guard let flow = ContainerGeometry.childrenFlow(of: container, in: Self.directChildren(of: container, in: snapshot.elements))
+        else { return false }
         return vertical ? flow == .alongX : flow == .alongY
     }
 
@@ -1372,7 +1375,13 @@ extension StepExecutor {
                 let buriedCover = searchTouchBlock(element, step: step, in: snapshot)
                 let buriedUnderBar = buriedCover != nil
                 if let buriedCover { scrollSearchBuriedCover = buriedCover; noteSearchTrace(" under \(buriedCover)") }
-                if !buriedUnderBar,
+                // **同じ点へ潰れた送り残し(`OcclusionGeometry.stackedRefs`)は見つかったにしない**: 描かれていない行の座標で、
+                // 撃つ前の断り(`StepExecutor+Actions` の stacked)は撃たずに断る。ここで見つかったにすると1度も払わずに止まり、
+                // ft_scroll_to は「NOT hittable」、tap(scroll:) は「scrollTo せよ」と言う袋小路になった(iOS の連絡先の編集フォーム・
+                // 3件)。送れば実際の枠を持つ(素の swipe で届いた)
+                let stackedClamp = OcclusionGeometry.stackedRefs(snapshot.elements).contains(element.ref)
+                if stackedClamp { noteSearchTrace(" stacked onto the same spot as other rows (not drawn there)") }
+                if !buriedUnderBar, !stackedClamp,
                    TapTargetGeometry.offscreenScrollGateAdvisory(for: element, screen: snapshot.screen) == nil {
                     // **スワイプしたなら静止を待つ**(空打ち→静止待ちの順。settleAfterFind 参照)。
                     // スワイプしていない周回(attempt == 0)は静止しているので追加コストを払わない

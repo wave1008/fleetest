@@ -1709,16 +1709,16 @@ extension MCPServer {
         return verdict
     }
 
-    /// 撃つ側(Android・in-app)で確かめられなかったときの記録。**断る側では出さない** ——
-    /// あちらは拒否文言そのものが呼び出し元へ届く
+    /// 撃つ側(Android・in-app)で確かめられなかったときの記録。**断る側では出さない** —— あちらは拒否文言そのものが呼び出し元へ届く
     static func uncheckedNote(bundleID: String, reason: String) -> String {
         "could not verify whether \(bundleID) is installed (\(reason)) — launching anyway."
     }
 
-    static func notInstalledMessage(bundleID: String) -> String {
-        "\(bundleID) is not installed on this device."
-            + " Install it with ft_install packagePath: <.app or .apk>, or check the bundle ID"
+    /// `isAndroid`: MCP が autoInstall で入れるのは iOS だけ(mcp_server.md の差分表)。Android ではそう言う
+    static func notInstalledMessage(bundleID: String, isAndroid: Bool = false) -> String {
+        "\(bundleID) is not installed on this device. Install it with ft_install packagePath: <.app or .apk>, or check the bundle ID"
             + " (Android: the package name)."
+            + (isAndroid ? " The MCP installs from an app profile's autoInstall only for iOS — on Android, ft_install it." : "")
     }
 
     /// **ft_launch の門**。nil = 撃ってよい・非 nil = その文言で断る。判定そのものは
@@ -1730,7 +1730,7 @@ extension MCPServer {
         switch InstalledAppCheck.launchGuard(
             verdict: verdict, isAndroid: isAndroid, bridge: bridge, bundleID: bundleID) {
         case .allow: return nil
-        case .refuse(.notInstalled): return notInstalledMessage(bundleID: bundleID)
+        case .refuse(.notInstalled): return notInstalledMessage(bundleID: bundleID, isAndroid: isAndroid)
         case .refuse(.unknown(let reason)): return uncheckedLaunchRefusal(bundleID: bundleID, reason: reason)
         }
     }

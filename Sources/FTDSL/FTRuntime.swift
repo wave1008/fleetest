@@ -1787,7 +1787,7 @@ public final class FTDriveCore {
         // (途中の一過性の失敗は、後の読みが成功すれば不成立の根拠に影響しない)
         var unread: SnapshotReadFailure?
         func readPrimary() -> SnapshotResponse? {
-            switch FTSync.runThrowing({ try await driver.snapshot() }) {
+            switch FTSync.runThrowing({ try await executor.conditionSnapshot() }) {  // 画面を動かした直後の1読みは迂回
             case .success(let snapshot):
                 unread = nil
                 return snapshot

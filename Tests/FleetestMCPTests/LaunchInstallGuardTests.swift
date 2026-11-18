@@ -48,6 +48,16 @@ final class LaunchInstallGuardTests: XCTestCase {
         XCTAssertEqual(refusal, MCPServer.notInstalledMessage(bundleID: bundleID))
     }
 
+    /// Android の未インストールは「MCP の autoInstall は iOS だけ」を添える(iOS には付けない)
+    func testNotInstalledOnAndroidNamesTheIOSOnlyAutoInstall() {
+        let android = MCPServer.launchGuardDecision(
+            verdict: .notInstalled, isAndroid: true, bridge: nil, bundleID: bundleID) ?? ""
+        XCTAssertTrue(android.contains("autoInstall only for iOS"), android)
+        let ios = MCPServer.launchGuardDecision(
+            verdict: .notInstalled, isAndroid: false, bridge: "xcuitest", bundleID: bundleID) ?? ""
+        XCTAssertFalse(ios.contains("autoInstall"), ios)
+    }
+
     /// installed は常に撃つ
     func testInstalledProceeds() {
         XCTAssertNil(MCPServer.launchGuardDecision(

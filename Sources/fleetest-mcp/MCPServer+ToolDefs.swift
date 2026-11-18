@@ -426,7 +426,8 @@ extension MCPServer {
             + "may close it but also fires the field's action (submit, search, next field)",
             afterActionProperties()),
         tool("ft_clear_app_data", "Wipe the app's data and permissions; stops the app (ft_launch after). "
-            + "Scenarios start from clearAppData(), so explore from this state. An iOS physical device "
+            + "A scenario that needs a clean start should call clearAppData() itself (runs do not reset app data); "
+            + "explore from the same state it starts in. An iOS physical device "
             + "reinstalls instead — pass packagePath or ft_install first. Apple apps (com.apple.*): Simulator "
             + "only — the data container and its app group containers are emptied (the reply lists what was "
             + "and was not wiped); refused on a physical iPhone, for SpringBoard, and when the target cannot be confirmed "

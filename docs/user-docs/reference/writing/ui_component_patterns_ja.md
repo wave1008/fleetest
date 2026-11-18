@@ -41,9 +41,9 @@ Compose Multiplatform・Flutter・React Native・Android(Views/XML)・iOS(SwiftU
 ```swift
 tap("#btn_open_drawer")
 exist("#txt_drawer_header")          // ○ 開いた証拠はモーダルの中で取る
-// select("#txt_state").textIs(...)  // × 背後の要素は開いている間は見つからない
+// select("#txt_drawer_state").textIs(...)  // × 背後の要素は開いている間は見つからない
 tap("#drawer_item_sent")             // 閉じてから
-select("#txt_state").textIs("drawerOpen=false")
+select("#txt_drawer_state").textIs("drawerOpen=false")
 ```
 
 **現時点の制約**: React Native は `accessible` な祖先(`accessible={true}` な `View`/`Pressable`)の
@@ -666,9 +666,10 @@ tap("#btn_qty_plus")
 select("#txt_qty").textIs("qty=2")
 
 tap("#btn_start_progress")
-select("#txt_progress").textIs("progress=running")
-select("#txt_progress", waitSeconds: 3).textIs("progress=done")
+select("#txt_progress", waitSeconds: 5).textIs("progress=done")
 ```
+
+速い進捗の途中の状態(`progress=running` 等)は、タップの約 1 秒後にはもう消えていることがあり、タイミング次第です。途中の状態は確かめず、最終の状態だけを待ちます。
 
 | フレームワーク | 部品・差分 |
 |---|---|

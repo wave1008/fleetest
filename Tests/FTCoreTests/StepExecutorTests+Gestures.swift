@@ -527,7 +527,8 @@ extension StepExecutorTests {
         guard case .failed(let message) = outcome.status else {
             XCTFail("クランプの残骸を撃って \(outcome.status) になった 呼び出し=\(log.entries)"); return
         }
-        XCTAssertTrue(message.contains("nothing was touched"), message)
+        // 探索が潰れた残骸を「見つかった」にしないので、撃つ前の断りではなく探索の失敗として理由を言う
+        XCTAssertTrue(message.contains("stacked onto the same spot"), message)
         XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.tap(") }, "撃っていないこと: \(log.entries)")
     }
 

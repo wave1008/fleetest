@@ -9,7 +9,7 @@
 | 関数 | 説明 |
 |---|---|
 | `tap(sel, holdSeconds: 0, maxGestureSeconds:containerInference:linkText:settle:waitSeconds:scroll:maxSwipes:)` | セレクタにマッチする最初の要素をタップします。`holdSeconds` を 0 より大きくすると長押しになります(既定 0 = 通常タップ。上限は既定 10 秒で、`maxGestureSeconds:` を渡すとこの1回だけ最大 60 秒まで上げられます)。タップ前に対象が操作可能になるまで待ちます(後述)。タップした要素を返すので、検証をそのままチェーンできます(`tap("#btn_ok").textIs("OK")`)。 |
-| `tap(sel, linkText: "文字列")` | セレクタで解決した要素の**中で** `linkText` が描かれている位置をタップします。段落の中の文中リンクのように、Compose Multiplatform・Android の View(`ClickableSpan`)・SwiftUI(`AttributedString` のリンク)ではアクセシビリティツリーにノードとして出ないものを押すためのものです。位置は、まずツリー(`linkText` に label か value が一致する子孫。Flutter・React Native はリンクがノードとして出ます)、無ければ要素のピクセルを OCR で読んで決めます。OCR は **macOS 27+ だけ**で使えます。macOS 26 では、ツリーで位置が決まらないとき、撮る前にその旨を示して失敗します。どちらでも見つからなければステップは失敗し、OCR が読めた行を添えます。要素の中心へ黙って落とすことはありません。どちらで決めたか(`tree` / `ocr`)はステップの注記に残ります。2行に折り返したリンクは OCR では見つかりません。`linkText:` を省くと要素の中心をタップします。 |
+| `tap(sel, linkText: "文字列")` | セレクタで解決した要素の**中で** `linkText` が描かれている位置をタップします。段落の中の文中リンクのように、Compose Multiplatform・Android の View(`ClickableSpan`)・SwiftUI(`AttributedString` のリンク)ではアクセシビリティツリーにノードとして出ないものを押すためのものです。位置は、まずツリー(`linkText` に label か value が一致する子孫。Flutter・React Native はリンクがノードとして出ます)、無ければ要素のピクセルを OCR で読んで決めます。OCR は **macOS 27+ だけ**で使えます。macOS 26 では、ツリーで位置が決まらないとき、撮る前にその旨を示して失敗します。どちらでも見つからなければステップは失敗し、OCR が読めた行を添えます。要素の中心へ黙って落とすことはありません。どちらで決めたか(`tree` / `ocr`)はステップの注記に残ります。iOS の MCP ツール(XCUITest ブリッジ経由)ではこのリンクが独立した要素として見えることがありますが、シナリオは既定の inapp-boost モードで動き、そこでは見えません。探索でリンクが要素として見えても `tap(要素, linkText:)` と書いてください。2行に折り返したリンクは OCR では見つかりません。`linkText:` を省くと要素の中心をタップします。 |
 | `tap(x: Double, y: Double, holdSeconds: 0, maxGestureSeconds:, settle:)` | 座標を直接タップします。座標は snapshot の `screen` と同じ座標系です(iOS = pt / Android = px。dp ではありません)。セレクタで指せるならそちらを優先してください。画面の外の点は、何も送らずに失敗になります(負の座標は常に。要素の一覧を読む場面では画面の大きさまで確かめます)。iOS の inapp-boost モードでは、画面外の点は失敗になります。ソフトキーボードの上の点は、XCUITest ブリッジで実行するのでキーが押されます。キーボードの下を押したいときは、先に `pressEnter` か `hideKeyboard` でキーボードを閉じてください。スクロールコンテナで切れて見えていない要素は、frame が点を含んでも activate せず、その点に実際に見えている物へタッチを送ります(注記 `<element> contains this point but is clipped by its scroll container here (not drawn), so it was not activated; sent a touch to what is on screen at that point` が付きます)。 |
 | `tap(sel, scroll: .noScroll)` | `withScrollDown { }` ブロックの中でも、この1コマンドだけスクロールせずにタップします。 |
 | `tapAppIcon(name?)` | ホーム画面のアイコンをタップします。名前の照合と探索の順は [navigation](./navigation_ja.md) を参照。 |
@@ -82,6 +82,7 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   |---|---|
   | シナリオに残す(長く使う) | セレクタを優先します。座標は最後の手段で、レイアウトが動いた瞬間に別の物を叩きます。 |
   | その場限りの調査 | セレクタを優先しますが、座標のほうが早く解決するならそれでも構いません。 |
+- **SwiftUI のリンクは MCP の探索では要素に見えても、シナリオ(inapp-boost モード)では見えません。** `tap(要素, linkText:)` と書きます。
 - **`settle: false` を渡すと、そのコマンド1回だけ、操作後の「画面が落ち着くまでの待ち」を省きます。** 通常はコマンドが
   画面が落ち着くのを待ってから戻るので(ブリッジの整定の待ちと、操作後に fleetest が行う要素の一覧の比較。待つ時間には上限があります)、
   次のステップは最終的な位置を見られます。`settle: false` ではその呼び出しだけ操作後の待ちを省くので、コマンドは早く戻りますが、

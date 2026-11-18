@@ -352,7 +352,7 @@ final class UncoverOutsideContainerTests: XCTestCase {
     func testNotFoundTapSuggestsScrollWhenAListCanBeScrolled() {
         let withList = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true)], truncatedCount: 0)
         let bare = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [], truncatedCount: 0)
-        XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: withList).contains("scroll: .up"))
+        XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: withList).contains("scroll: .down, or .up"))
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap", direction: "down"), in: withList), "")
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: bare), "")
         let doubleTap = StepExecutor.scrollOffHint(FlowStep(action: "doubleTap"), in: withList)

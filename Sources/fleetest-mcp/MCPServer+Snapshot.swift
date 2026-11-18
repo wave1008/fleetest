@@ -1540,6 +1540,8 @@ extension MCPServer {
         var rect: FTRect?
         var original: ElementInfo?
         var note: String = ""
+        /// 解決した枠が `scrollable` を申告しているか。nil = 確かめられない(セレクタ文字列で渡された枠)
+        var declaresScrollable: Bool?
     }
 
     /// **型は入口で確かめる**(レビュー指摘): resolveScrollFrameArg が見るのは
@@ -1613,9 +1615,9 @@ extension MCPServer {
                 // **id が一意なら矩形でなく `#id` で渡す**(DSL のシナリオと同じ形 = 1本ごとに今の木で引き直し、消えれば止まる)。
                 // 矩形は探索の途中で容器が動いても追従しない(scrollFrameLocator の doc)。一意でなければ従来の矩形
                 if let locator = Self.scrollFrameLocator(for: found, in: fresh) {
-                    return ScrollFrameArg(locator: locator, original: target, note: note)
+                    return ScrollFrameArg(locator: locator, original: target, note: note, declaresScrollable: found.scrollable == true)
                 }
-                return ScrollFrameArg(rect: found.frame, original: target, note: note)
+                return ScrollFrameArg(rect: found.frame, original: target, note: note, declaresScrollable: found.scrollable == true)
             }
         }
         if let text = args["scrollFrame"] as? String {
@@ -1624,17 +1626,6 @@ extension MCPServer {
             return ScrollFrameArg(locator: resolved.locator)
         }
         return ScrollFrameArg()
-    }
-
-    /// scrollFrame に ref で渡された要素が `scrollable` を申告していないときの但し書き。
-    /// **セレクタ依存の本文であって木だけから決まる注記ではないので NoteCatalog には登録しない**
-    /// (multiMatchHint と同じ扱い)
-    static func scrollFrameNotDeclaredScrollableNote(_ found: ElementInfo) -> String {
-        " (the swipe area was taken from [\(found.ref)] \(RefGuard.describe(found))'s frame"
-            + " (\(Int(saturating: found.frame.x)),\(Int(saturating: found.frame.y))"
-            + " \(Int(saturating: found.frame.width))x\(Int(saturating: found.frame.height)));"
-            + " it does not declare itself scrollable, so the gesture is a plain drag inside"
-            + " that rectangle)"
     }
 
     /// シート展開救済の高さ計測(sheetExpansionGrew / sheetShrunkAfterRetry の入力)。
@@ -1762,6 +1753,7 @@ extension MCPServer {
         // 探索が最後まで振り切る(実測46秒)。ここで落とせば driver(args) すら要らない
         let selector = try Self.parseSelectorArgument(selectorText, argument: "selector")
         try Self.validateScrollFrameArg(args)
+        let positionalNote = Self.positionalSelectorNote(selector: selector, selectorText: selectorText)
         let scrollDriver = try await driver(args)
         // **曖昧さは「渡す前に見えていた画面」で判定する**: 探索後の木で数えると、リストが
         // 読み込み直しに入っている回に同名の容器が1つしか残らず黙ってしまう
@@ -1776,8 +1768,8 @@ extension MCPServer {
             maxSwipes: try Self.intArgument(args, "maxSwipes") ?? FlowStep.defaultMaxSwipes,
             scrollFrame: scrollFrameArg.locator,
             scrollFrameRect: scrollFrameArg.rect)
-        let scrollFrameLabelNote = scrollFrameArg.note.isEmpty ? ""
-            : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n"
+        let scrollFrameLabelNote = positionalNote + (scrollFrameArg.note.isEmpty ? ""
+            : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n")
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(scrollDriver, args: args)
         // **直前の ft_type のキーボードが上がりきってから探索する**(新しい executor は type の印を持たない。
         // 待たないと上がる前の木で「見えている」と判断して送らず、後から上がったキーボードの下に対象が入る =
@@ -2009,6 +2001,7 @@ extension MCPServer {
             // element」はスワイプを何本か送った前提の文言で、fail-fast は1本も送っていないので
             // そのままでは誤解を招く(StepNote.scrollFrameMissing = DSL と共有した判定)
             if outcome.notes.contains(.scrollFrameMissing) {
+                recordSnapshot(after, scrollDriver is AndroidDriver ? "android" : "ios", args)  // 失敗文が列挙する木も台帳へ
                 throw MCPError(failedSwitched + scrollFrameLabelNote + "scrollTo \"\(selectorText)\": \(reason)"
                     // fail-fast はスワイプを撃たない = 読み直した木が今の画面(覚えていた木は古いことがある)
                     + Self.scrollAlternativesHint(after))
@@ -2084,6 +2077,7 @@ extension MCPServer {
                                               interactiveOnly: treeArgs["interactiveOnly"] as? Bool == true,
                                               unit: Self.coordinateUnit(scrollDriver)))
             }
+            recordSnapshot(after, scrollDriver is AndroidDriver ? "android" : "ios", args)  // 失敗文が列挙する木も台帳へ(漏らすと探した id に dry-run が綴り誤りを疑う)
             let failureMessage: String = (failedSwitched + scrollFrameLabelNote + sheetNote + containerGoneNote
                 + truncatedDuringSearch
                 + Self.scrollTimingNote(totalMs: Int((timingClock.now - timingStart)

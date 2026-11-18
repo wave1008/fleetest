@@ -115,6 +115,13 @@ public enum TranscriptMatch {
            approximateSubstringDistance(haystack: o, needle: e) <= tolerance {
             return Verdict(visible: true, state: .fullyVisible, reason: "")
         }
+        // **中ほどだけに一致する転写は覆いの形ではない**: 左からの覆いなら転写は期待の末尾に一致する
+        // (「About」→「bout」)。末尾にも先頭にも届かないのは、ラベルが描かれない飾りの文字を前後に
+        // 持つ形(CMP の DatePicker の見出しは「現在の選択: 2026年1月20日 火曜日」のうち日付だけを描く。
+        // 2台の Sim で誤反転を観測)。両端を覆われた形は観測していない(報告書の covered の全数を当たって確認)
+        if o.count >= truncatedPrefixMinimum, e.contains(o), !e.hasSuffix(o) {
+            return Verdict(visible: true, state: .partiallyHidden, reason: "")
+        }
         if o.count >= truncatedPrefixMinimum, e.contains(o) {
             return Verdict(visible: false, state: .covered,
                            reason: "only the tail \"\(transcript)\" of the expected text is drawn; its beginning is covered")

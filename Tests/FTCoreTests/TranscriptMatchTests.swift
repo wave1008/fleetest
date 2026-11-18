@@ -140,6 +140,16 @@ final class TranscriptMatchTests: XCTestCase {
         XCTAssertEqual(TranscriptMatch.judge(transcript: "ents", expected: "No Recents").state, .covered)
     }
 
+    /// 期待の中ほどだけに一致する転写(前後に描かれない飾りの文字を持つラベル)は覆いと言わない。
+    /// 末尾一致(左からの覆い)は上の covered のまま
+    func testMiddleOnlyMatchIsNotCovered() {
+        let v = TranscriptMatch.judge(transcript: "2026年1月20日", expected: "現在の選択: 2026年1月20日 火曜日")
+        XCTAssertTrue(v.visible)
+        XCTAssertNotEqual(v.state, .covered)
+        XCTAssertEqual(TranscriptMatch.judge(transcript: "2026年1月20日 火曜日",
+                                             expected: "現在の選択: 2026年1月20日 火曜日").state, .covered)
+    }
+
     func testEmptyTranscriptIsNotRendered() {
         let v = TranscriptMatch.judge(transcript: "", expected: "情報")
         XCTAssertFalse(v.visible)
