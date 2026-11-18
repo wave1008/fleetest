@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-282 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-261 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 27 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 43 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 42 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256 |
 
 ## 着手可
 
@@ -40,7 +40,21 @@
 
 ## 要測定
 
-(いまこの属性を持つ項目は無い)
+### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
+- 状態: 再現済み
+- 確認: 3695350cd(2026-11-18)
+- 属性: 要測定
+- 運用: 合否に響かない(注記)
+- 優先度: 低 — 注記の文言だけ
+
+出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
+- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
+- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
+- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
+- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
+- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
+- 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
+- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る
 
 ## 要判断
 
@@ -472,22 +486,6 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
-
-### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 据え置き
-- 運用: 合否に響かない(注記)
-- 優先度: 低 — 注記の文言だけ
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
-- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
-- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
-- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
-- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
-- 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
-- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る
 
 ### OI-256 ランナー機の上で、そのランナー機に固定した実行プロファイルを `--device-machine <自分の名前>` で回すと、自分自身へ ssh しようとして落ちる
 - 状態: 再現済み
