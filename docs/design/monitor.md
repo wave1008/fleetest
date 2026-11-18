@@ -30,6 +30,7 @@ VSCode 拡張のデバイスモニターの設計。
 - DS-18.8 タコメーター(アクション/秒。ユーザー決定 2026-10-28)
 - DS-18.9 実行ログを CLI・他人・リモートの run にも流す(`monitorRunLog`。ユーザー決定 2026-10-28)
 - DS-18.10 サーバー(compose.yaml)を run ボードに出す(`monitorRuns.services`)
+- DS-18.11 ジョブ(run の上の1階層。`monitorRuns.jobs`)
 
 ## DS-12 デバイスモニターの画面配信と自己修復
 
@@ -825,7 +826,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
 ```json
 { "pid": 41233, "runID": "…", "runGroup": "…", "issuer": "alice@air",
   "project": "ec-mobile", "profile": "ios-smoke",
-  "phase": "running", "requeued": 1, "laneDropouts": 0,
+  "phase": "running", "requeued": 1, "laneDropouts": 0, "jobID": "…",
   "startedAt": "2026-09-20T10:03:12Z", "total": 12, "done": 7, "failed": 2,
   "actions": 412, "owner": "<host>:<pid>",
   "etaSeconds": 190,
@@ -836,7 +837,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
 ```
 
 `actions`(デバイスへ送った操作の累計)は DS-18.8、`owner`(拡張から起こした run の印)と `eventLog`(そのレーンがいま書いて
-いるイベントログ)は DS-18.9。
+いるイベントログ)は DS-18.9、`jobID`(属するジョブ = 環境変数 `FT_JOB_ID`)は DS-18.11。
 
 - **記帳は `RunOrchestrator` の1箇所**。run-lease と同じ注入口(`writeRunLease` の隣)で、
   `runSequential` / `runParallel` の両方がここを通る = 記帳の実装を2つ持たない
@@ -948,7 +949,8 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
    "lanes":[{"key":"…","name":"iPhone 17-01","scenario":"05_検索",
              "scenarioElapsedSeconds":72}]}],
  "services":[{"project":"ec-mobile","profile":"ios-smoke","holder":"owner","pid":51200,
-              "phase":"running","orphan":false}]}
+              "phase":"running","orphan":false}],
+ "jobs":[]}   // ジョブ(必須の欄。中身は DS-18.11)
 ```
 
 - **machine は中継する親が埋める**(子は `--device-machine local` で自分を local と名乗るので、
@@ -1146,7 +1148,7 @@ CLI 実行・他人の run・ランナー機で直に打たれた run は `inRun
 
 run ボードの見出しに、「実行中 N」・全て展開の右から順に推移・数値・30段の LED バーを置く(3案のうち横長のタコメーターを
 採用し、並びはユーザーの見本に合わせた)。バーは幅固定で、見出しの幅に引き伸ばさない(ユーザー決定)。
-**タコメーターは run が実行中(「実行中 N」の N ≥ 1。準備中も含む)のときだけ出す**(ユーザー決定)。隠している間も数え続ける。
+**タコメーターは run が実行中(「実行中 N」の N ≥ 1。準備中も含む)のときだけ出す**(ユーザー決定)。**ただしジョブが続いている間は run が 0 本でも出す**(DS-18.11)。隠している間も数え続ける。
 **見出し行の LED バーの形のボタンで表示・非表示を切り替えられる**(既定 ON・ワークスペースごとに保存。ユーザー決定。設定タブには置かない)。
 **出し入れはフェード(0.4 秒)**(run の開始・終了とボタン。ユーザー決定)。**run が終わっても 10 秒は出したまま**(ユーザー決定。その間に次の run が始まれば隠さない = 周の切れ目でちらつかない。ボタンの OFF は待たない)。消すときは透明になってから詰める。パネルを開いた直後の最初の判定(まだ run を受け取っていないので隠す)と動きを減らす設定では即座に切り替える。
 
@@ -1240,3 +1242,71 @@ RR-17(サービスの宣言)のサーバーを run ボードの2か所で出す:
 - **やらないもの**: 停止・reset のボタン、サービスごとの行・公開ポート・大きさ(`services status` の担当)、サーバーの出力を
   実行ログビューへ流すこと(DS-18.9 の経路はシナリオのイベントログ専用)
 - ProtocolVersion 62(`monitorRuns.services`。必須の欄)
+
+### DS-18.11 ジョブ(run の上の1階層。`monitorRuns.jobs`)
+
+**動機**: run ボードには走っている run しか出ない。`e2e.sh` のように run を順に何本も起こすスクリプトや、
+複数対象の run(`fleetest run --target A --target B`。RR-8.2)では「あと何本の run が控えているか」がどこにも無い
+(複数対象の待ち行列は配り手のメモリの中だけ・スクリプトの残りはシェルのループの中だけ)。
+
+**形**: ジョブ = 予定の run の一覧とそれぞれの状態。**1階層だけ**(入れ子のジョブ・run を伴わない段 = ビルドやアラインの行は持たない。DR-198)。
+**fleetest はジョブを実行しない** —— 順番に回すのは呼び手(スクリプト・CI・複数対象の配り手)で、ジョブはその進み具合の台帳。
+画面と docs で「キュー」と呼ばない(控えている run は「待機」。DR-198)。
+コードの `job` は run の上のジョブだけを指す(複数対象の「対象1つ」は target。`BacklogPlacement` の `job` は配る単位の汎用名で別物)。
+
+```
+~/.fleetest/jobs/<jobID>.json        ← 機械グローバル(runs/ の隣・同じ規律)
+{ "jobID": "…", "title": "E2E", "issuer": "…", "ownerPid": 41200, "startedAt": "…",
+  "runs": [ { "project": "E2E-CMP", "profile": "android", "state": "running", "machines": [], "pid": 41233 } ] }
+```
+
+- **state**: `pending` / `running` / `passed` / `failed` / `canceled` / `skipped` の6語だけ。失敗に分類を付けない(DR-1)
+- **行の照合**(`JobRunMarking.mark`。純粋関数): 鍵は project:profile の完全一致。running にするときは pending の行を優先(無ければ running の行 =
+  別マシンが加わる)、終端にするときは終端でない最初の行。**該当行が無ければ末尾に足す**(宣言していない run も事実として載せる)
+- **生存判定は `ownerPid` + `startedAt`**(`RunProgressLedger` と同じ。mtime を見ない)。持ち主が死んだジョブは読み手が無視し、
+  次にジョブを作る者(`job begin`・自前のジョブを作る複数対象の run = どちらも `JobProgressLedger.begin`)が掃く。
+  **read-modify-write は `<jobID>.lock` の flock で直列化**(同じジョブの run が並行しうる)。ID はパスの部品なので英数字と `-` だけ通す
+- **書き手は3つ**:
+  - `fleetest job begin --title <T> --owner-pid <PID> [--run <project>:<profile>]...` / `fleetest job end --id <ID>`(スクリプト・CI)。
+    `--owner-pid` が必須なのはコマンド置換の中では親 pid が当てにならないため(`Scripts/job.sh` は `$$`)
+  - **run の自動の紐付け**(`FTCore.JobMembership`。`RunExitGuard.run` の入口で claim・出口で finish = `fleetest run` と `fleetest api run` の
+    両経路が通る。走査テスト `ApiMonitorJobsTests.testBothRunPathsPassJobRunToTheExitGuard` で固定): `FT_JOB_ID` があり `FT_JOB_MARKED` が無い run は入口で行を running(pid = 自分)にし、
+    `FT_JOB_MARKED=1` を立てる = 機械分担の子・`--work-queue` の子・リモートの子(`RemoteDispatch` が `FT_JOB_ID` と一緒に `FT_JOB_MARKED=1` を運ぶ)は
+    紐付け(`RunProgressRecord.jobID`)だけで行に触らない。終わりは終了コードで passed(0)/ canceled(130 = 開始前の中断)/ failed。
+    **ただし中断した run は終了コードが失敗の有無で 0 / 1 になる**ので、`RunRecorder.finish(interrupted:)` が立てる印(`JobMembership.noteInterrupted`)が
+    あれば終了コードより先に canceled(印は claim で消す = 受け持つ前の印を持ち越さない)。dry-run とプロジェクトが引けない run は受け持たない。
+    `--profile` の無い run は profile が空の行になる(宣言した行には当たらず末尾に足される)
+  - **複数対象の run**(`MultiTargetJobTracker`): `FT_JOB_MARKED` が既にあれば何もしない(祖先が受け持っている)。`FT_JOB_ID` が無ければ
+    自分でジョブを作り(題名 `run`)、有れば外側のジョブの行を使う。どちらも子へ `FT_JOB_MARKED=1` を継がせる。
+    対象を始めた・加わった → running + 担当マシン(`machines`。手元は `local`)+ **親の pid** / 最後の子が終わり配り切った・配り切れずに終わった →
+    `MultiTargetJobTracker.finalState`(子の終了コード・配られなかったシナリオ・中断を読む = 失敗が無ければ passed、失敗があれば中断なら canceled・
+    それ以外は failed)/ 回せるシナリオが無い → skipped / 始めなかった対象 → 中断なら canceled・それ以外は failed。出口の安全網(`closeOut`)は、自分のジョブなら消すだけ、
+    **外側のジョブなら running にしたまま閉じていない自分の対象の行だけを canceled にする**(全行を閉じると、この run の後で回す予定の
+    同じ鍵の行 = regress.py の証人まで canceled になる)
+- **使う側**: `Scripts/e2e.sh` / `e2ex.sh` / `e2ey.sh` は `Scripts/job.sh` で予定の行を宣言し(実行ループの写し。e2e.sh は証人と `--record` の
+  一時プロファイル名も)、EXIT の trap で `job end`。`Scripts/regress.py` は全対象 + 証人をジョブとして宣言し、段2の複数対象の run がその行を使う
+  (段1のビルド中から待機が見える)。**宣言する側は外から継いだ `FT_JOB_MARKED` を外す**(残すと中の run が誰も行を受け持たない)。
+  陽性対照は `FT_JOB_ID` / `FT_JOB_MARKED` を抜いた環境で起こす(落ちるのが正常な run をジョブに載せない)
+- **監視**: `monitorRuns` に必須の欄 `jobs` を足す。ワイヤの形は台帳と別(pid・ownerPid・startedAt は運ばない。経過は監視が秒に直す = DS-18.3。
+  `mine` は issuer が自分と一致するときだけ = nil は false):
+  ```jsonc
+  "jobs":[{"jobID":"…","title":"E2E","issuer":"…","mine":true,"elapsedSeconds":312,
+           "runs":[{"project":"E2E-CMP","profile":"android","state":"running","machines":["M1Ultra"]}]}]
+  ```
+  変化の判定は**生の記録**で比べる(変換後の形は経過が毎周期変わる。並びは startedAt → jobID で固定 = 固定しないと変化が無くても毎回出る)。
+  加えて **pid が死んだ running の行の pid の集合**(`orphanedJobPids`)も比べ、**その行は canceled として出す**(台帳は SIGKILL された run の行を
+  書き換えないので、記録の比較だけでは次に何かが変わるまで実行中に見える)。行の pid は開始時刻を照合しない(行に時刻が無い = 持ち主の判定より弱い)。
+  中継(`RemoteMonitorFanout`)は `machines` の `"local"` をその機械名へ書き換える(子は自分を local と名乗る)。
+  `runs[].jobID` も運ぶ(`RunProgressRecord.jobID`)が、いまの UI は読まない
+- **UI**: 見出しの行のタコメーターの右(境目に余白)に、ジョブごとの数と経過**だけ**を出す(ユーザー決定 2026-11-18。各 run の中身は数のホバーに任せ、
+  見出しの行の外に行を足さない)。数 = 「run 済 N/M」(終端の4状態の合計)・❌n(failed だけ・0 なら出さない)・実行中・**待機**。
+  ジョブが2つ以上のときだけ数の前に題名を添える。「run 済」「実行中」「待機」のホバーは該当の run を全件(run 済は状態・実行中はマシン名つき)。
+  **`runBoard.js` の `JOB_FINISHED_KINDS` と `jobCounts` の finished は同じ集合**(片方だけ変えない)。未知の state は待機として数える(`jobRunKind`)。
+  **run の行はマシンの行に残す**(ジョブの下へ移さない = マシン単位の構成 DS-18.5 を崩さない)。**ジョブ単位の残り時間は出さない**(見積もりの材料が無い。DR-4)
+- **ジョブが続いている間の見出しの行**(ユーザー決定 2026-11-18): **タコメーターを隠さない**(run 0 本でも。run と run のあいだに隠すと右の数が左右に動く。
+  判定は表示の一覧 = `listJobs` が空でないか)、**「全て終了」を押させない**(DR-198。run と run のあいだはデバイスの lease が無く、CLI の使用中の門
+  `deviceInUseRefusal` も素通りして次の run のデバイスを止める)。「全て終了」の判定は **`jobsMayBeRunning`** = 観測できている機械のジョブに加え、
+  **観測できなくなった機械が最後に知らせたジョブも数える**(不明を空きに倒さない = 破壊的操作を誤って許さない。remote.md ①)。
+  `runBoard.js` の render が `deviceTiles.setJobActive` へ渡す。**門は webview のボタンの無効化だけ**(ホストの `confirmThenBulkDown` も CLI もジョブを
+  見ない。一括停止の入口を足すときはジョブも見る)。監視の起動し直し(`resetRunBoard`)の直後は最初の `monitorRuns` が届くまで控えが空 = その間は押せる
+- ProtocolVersion 76(`monitorRuns.jobs`・`runs[].jobID`)

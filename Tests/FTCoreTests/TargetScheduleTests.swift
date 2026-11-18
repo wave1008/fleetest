@@ -1,24 +1,24 @@
-// JobSchedule.decide(RR-8.2)。期待値は手計算で固定する。
+// TargetSchedule.decide(RR-8.2)。期待値は手計算で固定する。
 
 import XCTest
 @testable import FTCore
 
-final class JobScheduleTests: XCTestCase {
+final class TargetScheduleTests: XCTestCase {
 
-    private typealias State = JobSchedule.MachineState
+    private typealias State = TargetSchedule.MachineState
 
-    private func idle(_ m: Int) -> State { State(machine: m, currentJob: nil, expectedFreeAt: nil) }
-    private func busy(_ m: Int, _ job: String = "x", until: Double?) -> State {
-        State(machine: m, currentJob: job, expectedFreeAt: until)
+    private func idle(_ m: Int) -> State { State(machine: m, currentTarget: nil, expectedFreeAt: nil) }
+    private func busy(_ m: Int, _ unit: String = "x", until: Double?) -> State {
+        State(machine: m, currentTarget: unit, expectedFreeAt: until)
     }
 
-    /// job → [machine: 見込み]。載っていないマシンでは回せない
+    /// unit → [machine: 見込み]。載っていないマシンでは回せない
     private func decide(
         _ machine: Int, now: Double = 1000, unstarted: [String] = [], running: [String: Set<Int>] = [:],
         pending: Set<String>? = nil, machines: [State], alone: [String: [Int: Double]],
         overhead: [Int: Double] = [:], join: [String: [Int: Double]] = [:], lpt: Bool = true
-    ) -> JobSchedule.Decision {
-        JobSchedule.decide(
+    ) -> TargetSchedule.Decision {
+        TargetSchedule.decide(
             for: machine, now: now, unstarted: unstarted, running: running,
             hasPending: { pending?.contains($0) ?? true }, machines: machines,
             aloneMs: { alone[$0]?[$1] }, overheadMs: { overhead[$0] ?? 0 }, joinGainMs: { join[$0]?[$1] }, lpt: lpt)
@@ -144,7 +144,7 @@ final class JobScheduleTests: XCTestCase {
     }
 
     func testJoinRejectedWhenGainIsNotPositive() {
-        // 早まらない(0)・1本ももらえない(nil)→ 加わらない・走っている仕事があるので待つ
+        // 早まらない(0)・1本ももらえない(nil)→ 加わらない・走っている対象があるので待つ
         let alone: [String: [Int: Double]] = ["r": [0: 1000, 1: 1000]]
         for join: [String: [Int: Double]] in [["r": [0: 0]], [:]] {
             XCTAssertEqual(
@@ -153,8 +153,8 @@ final class JobScheduleTests: XCTestCase {
         }
     }
 
-    private func joinLane(_ entry: Int, devices: Int, at t: Double, _ platforms: Set<String> = ["ios"]) -> JobSchedule.JoinLane {
-        JobSchedule.JoinLane(entry: entry, devices: devices, platforms: platforms, availableAt: t)
+    private func joinLane(_ entry: Int, devices: Int, at t: Double, _ platforms: Set<String> = ["ios"]) -> TargetSchedule.JoinLane {
+        TargetSchedule.JoinLane(entry: entry, devices: devices, platforms: platforms, availableAt: t)
     }
 
     private func scenarios(_ ids: String...) -> [DynamicSplit.Scenario] {
@@ -163,7 +163,7 @@ final class JobScheduleTests: XCTestCase {
 
     func testJoinGainIsNilWhenFastMembersTakeEverythingBeforeJoinerArrives() {
         // 担当 2 台が a・b を 10 で終える。加わる側は固定費の後 30 に空く → 1本も積まれない
-        XCTAssertNil(JobSchedule.joinGain(
+        XCTAssertNil(TargetSchedule.joinGain(
             pending: scenarios("a", "b"), members: [joinLane(0, devices: 2, at: 0)], joiner: joinLane(1, devices: 1, at: 30),
             estimateMs: { _, _ in 10 }))
     }
@@ -171,7 +171,7 @@ final class JobScheduleTests: XCTestCase {
     func testJoinGainIgnoresScenariosNeitherSideCanRun() {
         // x は android(担当にも加わる側にも回せない = 他のマシンの担当分)。積まずに ios の4本だけで見る → 15 早まる
         let pending = scenarios("a", "b", "c", "d") + [DynamicSplit.Scenario(id: "x", platform: "android")]
-        XCTAssertEqual(JobSchedule.joinGain(
+        XCTAssertEqual(TargetSchedule.joinGain(
             pending: pending, members: [joinLane(0, devices: 1, at: 0)],
             joiner: joinLane(1, devices: 1, at: 5), estimateMs: { _, _ in 10 }), 15)
     }
@@ -179,7 +179,7 @@ final class JobScheduleTests: XCTestCase {
     func testJoinGainCountsDiscreteScenarios() {
         // 担当 1 台(0 に空く)・加わる側 1 台(5 に空く)・各 10。a → 担当 10・b → 加わる側 15・c → 担当 20・d → 加わる側 25
         // 加わると 25・加わらないと 40 → 15 早まる
-        XCTAssertEqual(JobSchedule.joinGain(
+        XCTAssertEqual(TargetSchedule.joinGain(
             pending: scenarios("a", "b", "c", "d"), members: [joinLane(0, devices: 1, at: 0)],
             joiner: joinLane(1, devices: 1, at: 5), estimateMs: { _, _ in 10 }), 15)
     }
@@ -202,7 +202,7 @@ final class JobScheduleTests: XCTestCase {
     }
 
     func testMachineNeverGetsJobItCannotRun() {
-        // 機械0では回せない仕事しか無い → start でも join でもない
+        // 機械0では回せない対象しか無い → start でも join でもない
         let alone: [String: [Int: Double]] = ["u": [1: 100], "r": [1: 100]]
         XCTAssertEqual(
             decide(

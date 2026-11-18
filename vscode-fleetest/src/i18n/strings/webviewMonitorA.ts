@@ -224,6 +224,11 @@ export const webviewMonitorAStrings = {
     en: "Unavailable while devices are stopping (wait for it to finish).",
   },
 
+  "wvMonitor.bulk.stopAllDisabledJob": {
+    ja: "ジョブの実行中は使えません(次の run が使うデバイスまで止めてしまうため)。ジョブが終わるのを待つか、ジョブを止めてから押してください。",
+    en: "Unavailable while a job is running, because it would also stop the devices the next run needs. Wait for the job to finish, or stop the job first.",
+  },
+
   "wvMonitor.bulk.startAllDisabledRunning": {
     ja: "「(起動中のデバイス)」表示中は使えません(未起動のデバイスが一覧に出ないため)。「(プロファイルなし)」か実行プロファイルを選んでください。",
     en: "Unavailable while showing \"(Running devices)\" because devices that are not started are hidden. Select \"(No profile)\" or a run profile.",

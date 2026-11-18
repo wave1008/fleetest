@@ -47,7 +47,7 @@ final class ApiMonitorRunLogTests: XCTestCase {
         return RunProgressRecord(pid: pid, runID: "r1", runGroup: nil, issuer: nil, project: "p", profile: nil,
                                  startedAt: "2026-09-20T10:00:00Z", total: 1, done: 0, failed: 0, actions: 0,
                                  requeued: 0, laneDropouts: 0, etaSeconds: nil, lanes: [lane] + extra,
-                                 phase: "running", supply: [], videoClips: nil, owner: owner)
+                                 phase: "running", supply: [], videoClips: nil, owner: owner, jobID: nil)
     }
 
     private func stdoutLine(_ eventJSON: String) -> String {

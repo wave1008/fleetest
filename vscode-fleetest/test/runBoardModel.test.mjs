@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  applyMonitorRunsEvent,
+  applyMonitorRunsEvent as applyMonitorRunsEventRaw,
   buildRunGroups,
   machinesWithoutRuns,
   liveElapsedSeconds,
@@ -16,9 +16,17 @@ import {
   machineRunStatus,
   currentSupplyStep,
   machineServicesNotes,
+  jobRunKind,
+  jobCounts,
+  listJobs,
+  jobsMayBeRunning,
 } from "../src/runBoardModel";
 import { isMonitorEvent } from "../src/monitorDeviceModel";
 import { toWebviewMessage } from "../src/monitorModel";
+
+// 既存の畳み込みのテストは jobs を持たない形で書かれている(jobs は必須の欄 = 本物の呼び手は必ず渡す)。
+// ここだけ空配列を補う。ジョブを見るテストは jobs を明示する(補いは上書きされる)。
+const applyMonitorRunsEvent = (state, event, nowMs) => applyMonitorRunsEventRaw(state, { jobs: [], ...event }, nowMs);
 
 // **`remaining`(レーンごとの残り本数)は持たない**(FTCore.RunProgressLane の契約。
 // shared dispatch のレーンは同じキューを共有するので、レーン別の残数は誤読を招く)。
@@ -340,7 +348,7 @@ test("束ねた run の supply は machine 昇順の run の順に連結する",
 // ---- webview 境界(型検査の効かない postMessage 契約)-----------------------------------------
 
 const wireEvent = {
-  kind: "monitorRuns", machine: "M1Max", observed: true,
+  kind: "monitorRuns", machine: "M1Max", observed: true, jobs: [],
   runs: [{
     pid: 41233, runID: "run-1", runGroup: "grp-1", issuer: "alice@air", mine: false,
     project: "ec-mobile", profile: "ios-smoke", phase: "running", requeued: 0, laneDropouts: 0, actions: 0,
@@ -424,7 +432,7 @@ test("isMonitorEvent: lanes の型崩れは拒否する。observed:false は run
   brokenLane.runs[0].lanes[0].scenarioElapsedSeconds = "seventy-two";
   assert.equal(isMonitorEvent(brokenLane), false);
 
-  const notObserved = { kind: "monitorRuns", observed: false, runs: [], services: [] };
+  const notObserved = { kind: "monitorRuns", observed: false, runs: [], jobs: [], services: [] };
   assert.equal(isMonitorEvent(notObserved), true, "observed:false は runs:[] で妥当");
 });
 
@@ -467,4 +475,72 @@ test("observed:false の機械は「不明」として残す(空きに倒さな�
   state = applyMonitorRunsEvent(state, { machine: "M1Max", observed: false, runs: [] });
   const idle = machinesWithoutRuns(state, ["M1Max"], buildRunGroups(state));
   assert.deepEqual(idle, [{ machine: "M1Max", status: "unknown" }]);
+});
+
+// ---- ジョブ(ProtocolVersion 76)-----------------------------------------------------------
+
+const jr = (state, extra) => ({ project: "P", profile: "ios", state, machines: [], ...extra });
+const job = (overrides) => ({ jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760, runs: [], ...overrides });
+
+test("ジョブの数え上げ: run 済 = passed+failed+canceled+skipped・待機 = pending・未知の state は待機に数える(落とさない)", () => {
+  const counts = jobCounts(job({ runs: [
+    jr("passed"), jr("failed"), jr("canceled"), jr("skipped"), jr("running"), jr("pending"), jr("future-state"),
+  ] }));
+  assert.deepEqual(counts, { total: 7, finished: 4, failed: 1, running: 1, pending: 2 });
+  assert.equal(jobRunKind("future-state"), "pending");
+  assert.equal(jobRunKind("failed"), "failed");
+});
+
+test("listJobs: 機械ごとの控えから手元 → 機械名 → 届いた順に並べる。observed:false の機械は出さない", () => {
+  let state = applyMonitorRunsEvent(new Map(), { machine: "M1Max", observed: true, runs: [],
+    jobs: [job({ jobID: "b" }), job({ jobID: "a" })] });
+  state = applyMonitorRunsEvent(state, { observed: true, runs: [], jobs: [job({ jobID: "z", title: "local" })] });
+  state = applyMonitorRunsEvent(state, { machine: "Gone", observed: true, runs: [], jobs: [job({ jobID: "g" })] });
+  assert.deepEqual(listJobs(state).map((j) => j.jobID), ["z", "g", "b", "a"]);
+  assert.equal(listJobs(state)[0].machine, undefined);
+  assert.equal(listJobs(state)[2].machine, "M1Max");
+  state = applyMonitorRunsEvent(state, { machine: "Gone", observed: false, runs: [], jobs: [] });
+  assert.deepEqual(listJobs(state).map((j) => j.jobID), ["z", "b", "a"], "不明の機械のジョブは出さない");
+});
+
+test("jobsMayBeRunning: 観測できている機械のジョブに加え、観測できなくなった機械が最後に知らせたジョブも数える(不明を空きに倒さない)", () => {
+  let state = applyMonitorRunsEvent(new Map(), { machine: "M", observed: true, runs: [], jobs: [] });
+  assert.equal(jobsMayBeRunning(state), false, "ジョブが無ければ false");
+  state = applyMonitorRunsEvent(state, { machine: "M", observed: true, runs: [], jobs: [job()] });
+  assert.equal(jobsMayBeRunning(state), true);
+  state = applyMonitorRunsEvent(state, { machine: "M", observed: false, runs: [], jobs: [] });
+  assert.deepEqual(listJobs(state), [], "表示には出さない");
+  assert.equal(jobsMayBeRunning(state), true, "観測が途切れても、最後に知らせたジョブがあれば続いているかもしれない");
+  state = applyMonitorRunsEvent(state, { machine: "M", observed: true, runs: [], jobs: [] });
+  assert.equal(jobsMayBeRunning(state), false, "観測が戻ってジョブが無いと分かれば false");
+});
+
+test("listJobs: 機械の行が来たら置き換える(消えたジョブは残らない)。同じ鍵の重複は最後の1件", () => {
+  let state = applyMonitorRunsEvent(new Map(), { machine: "M", observed: true, runs: [], jobs: [job({ jobID: "a" })] });
+  state = applyMonitorRunsEvent(state, { machine: "M", observed: true, runs: [],
+    jobs: [job({ jobID: "b", title: "old" }), job({ jobID: "b", title: "new" })] });
+  const listed = listJobs(state);
+  assert.deepEqual(listed.map((j) => `${j.jobID}:${j.title}`), ["b:new"]);
+  state = applyMonitorRunsEvent(state, { machine: "M", observed: true, runs: [],
+    jobs: [job({ jobID: "a" }), job({ jobID: "b" }), job({ jobID: "a", title: "again" })] });
+  assert.deepEqual(listJobs(state).map((j) => `${j.jobID}:${j.title}`), ["b:E2E", "a:again"], "重複は最後の位置の1件");
+});
+
+test("isMonitorEvent: jobs は必須・jobID は省略可。型崩れは拒否し、未知の state は運ぶ。toWebviewMessage は jobs を渡す", () => {
+  const ok = structuredClone(wireEvent);
+  ok.jobs = [{ jobID: "j", title: "E2E", issuer: null, mine: true, elapsedSeconds: 1,
+    runs: [{ project: "P", profile: "ios", state: "future", machines: ["local"] }] }];
+  ok.runs[0].jobID = "j";
+  assert.equal(isMonitorEvent(ok), true);
+  assert.equal(ok.jobs[0].issuer, undefined);
+  assert.equal(toWebviewMessage(ok).jobs[0].runs[0].state, "future");
+  const missing = structuredClone(wireEvent);
+  delete missing.jobs;
+  assert.equal(isMonitorEvent(missing), false, "古い形(jobs 無し)は受理しない");
+  const broken = structuredClone(ok);
+  broken.jobs[0].runs[0].machines = "local";
+  assert.equal(isMonitorEvent(broken), false);
+  const brokenRunJob = structuredClone(ok);
+  brokenRunJob.runs[0].jobID = 5;
+  assert.equal(isMonitorEvent(brokenRunJob), false);
 });

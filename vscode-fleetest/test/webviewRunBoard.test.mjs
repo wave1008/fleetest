@@ -80,7 +80,7 @@ function sendLocalDevice(window) {
 
 function monitorRunsMessage(overrides) {
   return {
-    type: "monitorRuns",
+    type: "monitorRuns", jobs: [],
     observed: true, services: [],
     runs: [{
       pid: 41233, runID: "run-1", mine: true, phase: "running", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
@@ -113,7 +113,7 @@ test("1行 = 1機械。run のある機械は同じ行に範囲と進捗、無�
   post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1Ultra"] });
   post(window, { type: "profileInfo", project: "sut-ec-mobile", projects: ["sut-ec-mobile"],
                  profiles: ["local+remote"], current: "local+remote" });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });   // 手元 = 観測できて 0 本
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });   // 手元 = 観測できて 0 本
   post(window, monitorRunsMessage({ machine: "M1Max" }));            // 実行中 → run の行になる
   // M1Ultra へは1行も送らない = 一度も聞いていない
   assert.deepEqual(boardRows(document).map(badgeOf), ["local", "M1Max", "M1Ultra"], "機械の順に1行ずつ");
@@ -135,9 +135,9 @@ test("機械分担の run は機械ごとの行になり、件数は1本と数�
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
   const base = monitorRunsMessage().runs[0];
-  post(window, { type: "monitorRuns", observed: true, services: [],
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [],
                  runs: [{ ...base, runGroup: "g-1", total: 10, done: 3, failed: 0 }] });
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [],
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [],
                  runs: [{ ...base, pid: 99, runID: "run-2", runGroup: "g-1", total: 8, done: 5, failed: 0 }] });
   assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
   assert.deepEqual(runRows(document).map((el) =>
@@ -149,7 +149,7 @@ test("機械分担の run は機械ごとの行になり、件数は1本と数�
 test("準備中の run は本数でなく「準備中」を出し、進捗バーは隠す", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "preparing", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
     project: "E2E-iOS", profile: "ios-inapp-boost",
     elapsedSeconds: 12, total: 0, done: 0, failed: 0, lanes: [],
@@ -176,7 +176,7 @@ test("準備中の run は供給の段階を1つ出す(ランナーのビルド�
     { name: "iPhone 17-02", platform: "ios", step: "booting" },
     { name: "iPhone 17-03", platform: "ios", step: "bridge" },
   ];
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "preparing", requeued: 0, laneDropouts: 0, actions: 0, supply,
     project: "E2E-iOS", profile: "ios-inapp-boost",
     elapsedSeconds: 12, total: 0, done: 0, failed: 0, lanes: [],
@@ -187,7 +187,7 @@ test("準備中の run は供給の段階を1つ出す(ランナーのビルド�
   assert.equal(runRow.querySelector(".run-board-progress").style.display, "none");
 
   // ランナーのビルド(端末に属さない行)→ 段階が進んで ready が増える
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "preparing", requeued: 0, laneDropouts: 0, actions: 0,
     supply: [{ name: "", platform: "ios", step: "runnerBuild" },
              { name: "iPhone 17-01", platform: "ios", step: "ready" },
@@ -204,7 +204,7 @@ test("ビルド中・コンパイル中は供給の段階を添えない", (t) =
   const { window, document } = createWebview();
   t.after(() => window.close());
   for (const [phase, expected] of [["building", "シナリオをビルド中"], ["compiling", "Vision コンパイル中"]]) {
-    post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+    post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
       pid: 41233, runID: "run-1", mine: true, phase, requeued: 0, laneDropouts: 0, actions: 0,
       supply: [{ name: "iPhone 17-01", platform: "ios", step: "booting" }],
       project: "E2E-iOS", profile: "ios-inapp-boost",
@@ -218,7 +218,7 @@ test("ビルド中・コンパイル中は供給の段階を添えない", (t) =
 test("供給の段階がすべて ready の準備中は「テストを開始しています」", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "preparing", requeued: 0, laneDropouts: 0, actions: 0,
     supply: [{ name: "iPhone 17-01", platform: "ios", step: "ready" }],
     project: "E2E-iOS", profile: "ios-inapp-boost",
@@ -232,7 +232,7 @@ test("供給の段階がすべて ready の準備中は「テストを開始し�
 test("設定を書き込んでいる端末が残る準備中は「デバイスを設定しています」", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "preparing", requeued: 0, laneDropouts: 0, actions: 0,
     supply: [{ name: "iPhone 17-01", platform: "ios", step: "ready" },
              { name: "iPhone 17-02", platform: "ios", step: "configuring" }],
@@ -273,7 +273,7 @@ test("running でも供給が続いていれば、進捗はそのままに準備
 test("Vision のコンパイル待ちの run は「Vision コンパイル中」を出し、進捗バーは隠す", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "compiling", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
     project: "E2E-iOS", profile: "ios-inapp-boost",
     elapsedSeconds: 30, total: 4, done: 0, failed: 0, lanes: [],
@@ -286,7 +286,7 @@ test("Vision のコンパイル待ちの run は「Vision コンパイル中」�
 test("動画の切り出し中は残りの代わりに「動画を編集中 n/m」を出し、本数と進捗バーはそのまま", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "running", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
     project: "E2E-iOS", profile: "ios-inapp-boost", elapsedSeconds: 171, total: 48, done: 48, failed: 0, lanes: [],
     videoClips: { done: 12, total: 48 },
@@ -302,9 +302,9 @@ test("失敗があるときだけ ❌失敗数 を足し、無ければ本数だ
   t.after(() => window.close());
   const base = { pid: 41233, runID: "run-1", mine: true, phase: "running", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
     project: "E2E-iOS", profile: "ios-inapp-boost", elapsedSeconds: 30, lanes: [] };
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [{ ...base, total: 54, done: 54, failed: 2 }] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [{ ...base, total: 54, done: 54, failed: 2 }] });
   assert.equal(runRows(document)[0].querySelector(".run-board-counts").textContent, "54/54❌2");
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [{ ...base, total: 54, done: 10, failed: 0 }] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [{ ...base, total: 54, done: 10, failed: 0 }] });
   assert.equal(runRows(document)[0].querySelector(".run-board-counts").textContent, "10/54");
 });
 
@@ -361,8 +361,8 @@ test("並びは常に機械の順で、run が始まっても位置が動かな�
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1Ultra"] });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });                 // local = 空き
-  post(window, { type: "monitorRuns", machine: "M1Ultra", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });                 // local = 空き
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Ultra", observed: true, services: [], runs: [] });
   const label = () => boardRows(document).map((el) =>
     `${badgeOf(el)}:${el.dataset.rowKey.startsWith("run") ? "run" : "空き"}`);
   assert.deepEqual(label(), ["local:空き", "M1Max:空き", "M1Ultra:空き"]);
@@ -455,7 +455,7 @@ test("台の行にはプラットフォームの色のデバイスアイコン�
         kind: "virtual", serial: "SER-1", recording: false },
     ],
   });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   const icons = [...document.querySelectorAll(".run-board-lane")].map((el) => {
     const icon = el.querySelector(".run-board-lane-icon");
     return `${el.querySelector(".run-board-lane-name").textContent}:${icon.getAttribute("class")}`;
@@ -511,7 +511,7 @@ test("observed:false は run を消さず「不明」に倒す(件数から外�
   t.after(() => window.close());
   post(window, monitorRunsMessage({ machine: "M1Max" }));
   assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: false, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: false, services: [], runs: [] });
   assert.equal(document.getElementById("run-board-title").textContent, "実行中 0",
     "観測できなくなった機械の run は数えない(不明を実行中に混ぜない)");
 });
@@ -594,8 +594,8 @@ test("run が無い機械の行にも台がツリーで並ぶ", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
   sendDevices(window, [
     { name: "iPhone 17 Pro-01", udid: "U-L1" },
     { name: "iPhone 17 Pro-02", udid: "U-L2" },
@@ -650,7 +650,7 @@ test("「起動中のデバイス」で絞っていてもツリーの台は消�
     ],
   });
   // ビルド中 = レーンがまだ1本も無い。デバイスの一覧だけがツリーの供給源になる
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [{
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [{
     pid: 41233, runID: "run-1", mine: true, phase: "building", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
     project: "E2E-CMP", profile: "ios-inapp-boost",
     elapsedSeconds: 8, total: 0, done: 0, failed: 0, lanes: [],
@@ -668,7 +668,7 @@ test("「起動中のデバイス」で絞っていてもツリーの台は消�
 test("run が無い機械の枝でも、停止中の台がツリーに並ぶ", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   post(window, {
     type: "devices",
     filter: "running",
@@ -684,7 +684,7 @@ test("run が無い機械の枝でも、停止中の台がツリーに並ぶ", (
 test("run の無い機械の行は既定で閉じ、三角でその場で開閉できる", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   sendDevices(window, [{ name: "iPhone 17 Pro-01", udid: "U-L1" }]);
   const row = () => idleRows(document)[0];
   assert.equal(row().classList.contains("run-board-row-expanded"), false, "run の無い行の既定は閉じた状態");
@@ -694,7 +694,7 @@ test("run の無い機械の行は既定で閉じ、三角でその場で開閉�
   assert.equal(row().classList.contains("run-board-row-expanded"), true, "押した直後に開く");
   assert.equal(row().querySelector(".run-board-chevron").dataset.expanded, "true");
   // 次の監視サイクルが来ても利用者の開閉を保つ
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   assert.equal(row().classList.contains("run-board-row-expanded"), true, "描き直しでも開いたまま");
 
   click(window, row().querySelector(".run-board-chevron"));
@@ -708,14 +708,14 @@ const expandedMachines = (document) => boardRows(document)
   .filter((el) => el.classList.contains("run-board-row-expanded")).map(badgeOf);
 
 function runOn(machine, pid) {
-  return { type: "monitorRuns", machine, observed: true, services: [],
+  return { type: "monitorRuns", jobs: [], machine, observed: true, services: [],
            runs: [{ ...monitorRunsMessage().runs[0], machine, pid, runID: `run-${pid}` }] };
 }
 
 function twoMachines(window) {
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
   sendDevices(window, [
     { name: "iPhone 17-01", udid: "UDID-1" },
     { name: "iPhone 17 Pro-01", id: "ios:M1Max-01", udid: "U-M1", machine: "M1Max" },
@@ -747,7 +747,7 @@ test("開いた機械は次の run・空きに戻っても開いたまま、他�
   assert.deepEqual(expandedMachines(document), ["M1Max"], "次の run");
   click(window, runRows(document)[0].querySelector(".run-board-chevron"));
   assert.deepEqual(expandedMachines(document), [], "run の行で閉じる");
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
   assert.deepEqual(expandedMachines(document), [], "実行中 → 空き でも閉じたまま");
 });
 
@@ -784,7 +784,7 @@ test("準備中に開いた run の行は、走り出して runID が付いて�
   const { window, document } = createWebview();
   t.after(() => window.close());
   sendDevices(window, [{ name: "iPhone 17 Pro-01", udid: "U-L1" }]);
-  const run = (fields) => ({ type: "monitorRuns", observed: true, services: [], runs: [Object.assign({
+  const run = (fields) => ({ type: "monitorRuns", jobs: [], observed: true, services: [], runs: [Object.assign({
     pid: 41233, mine: true, requeued: 0, laneDropouts: 0, actions: 0, supply: [], project: "E2E-iOS", profile: "ios-inapp-boost",
     elapsedSeconds: 3, total: 0, done: 0, failed: 0, lanes: [],
   }, fields)] });
@@ -805,7 +805,7 @@ test("無効にした機械は行を出さない(有効に戻すとその場で�
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1mini"] });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   assert.deepEqual(machineRows(document), ["local空き", "M1Max—", "M1mini—"], "前提: 3機とも出る");
 
   post(window, { type: "remoteConfig", machineColors: [],
@@ -845,7 +845,7 @@ test("ステータスは右カラム・名前は左カラムに入る", (t) => {
 test("run の無い機械の行も同じ2カラム(名前は左・状態は右)", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   const header = idleRows(document)[0].querySelector(".run-board-row-summary");
   assert.equal(colText(header, "left").includes("local"), true);
   const status = header.querySelector(".run-board-idle-machine-status");
@@ -877,7 +877,7 @@ test("境目の既定はいちばん長いラベル + 100px で、ドラッグ�
   t.after(() => window.close());
   giveWidth(document);
   giveLabelWidth(window, 10);
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   // 機械の行の左カラムは "▶local"(6字)。**いちばん長い行に合わせる**ので、デバイスが出ると
   // そちら("iPhone 17 Pro-01" = 16字)に広がる。既定は**それに 100px 足した幅**(ユーザー決定 2026-09-30)
   assert.equal(leftWidth(document), "161px", "6字 × 10 + 端数 0.4 を切り上げて 61 + 100");
@@ -931,7 +931,7 @@ test("境目は端まで引き切れない(左右どちらも 80px は残す)", 
   const { window, document } = createWebview();
   t.after(() => window.close());
   giveWidth(document);
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
   const split = document.getElementById("run-board-split");
   split.setPointerCapture = () => {};
   split.releasePointerCapture = () => {};
@@ -950,9 +950,9 @@ test("機械の行は設定タブのマシン一覧の順に並び、並べ替�
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1Ultra"] });
-  post(window, { type: "monitorRuns", observed: true, services: [], runs: [] });
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [], runs: [] });
-  post(window, { type: "monitorRuns", machine: "M1Ultra", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Ultra", observed: true, services: [], runs: [] });
   const machines = () => boardRows(document).map(badgeOf);
   assert.deepEqual(machines(), ["local", "M1Max", "M1Ultra"], "一覧が届く前は名前順");
   post(window, { type: "remoteConfig", hosts: [{ machine: "M1Ultra", host: "u@u", dir: "" }, { machine: "M1Max", host: "u@m", dir: "" }] });
@@ -1142,10 +1142,10 @@ test("run 行の経過 / 残りの左端は、実行中の行と準備中の行�
   }
   const base = monitorRunsMessage().runs[0];
   post(window, monitorRunsMessage({ runs: [base] }));
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, services: [],
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [],
     runs: [{ ...base, pid: 2, runID: "run-2", phase: "preparing", lanes: [], supply: [{ name: "", step: "bridge" }] }] });
   post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1Ultra"] });
-  post(window, { type: "monitorRuns", machine: "M1Ultra", observed: true, services: [], runs: [] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Ultra", observed: true, services: [], runs: [] });
   const leads = [...document.querySelectorAll(".run-board-lead")].filter((el) => el.style.display !== "none");
   assert.equal(leads.length, 2, "実行中と準備中の2行");
   const width = document.getElementById("run-board").style.getPropertyValue("--rb-lead");
@@ -1167,8 +1167,8 @@ test("サーバー: 空きのマシンに常駐(services up)を出し、ツー�
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
-  post(window, { type: "monitorRuns", observed: true, runs: [], services: [servicesLease({})] });
-  post(window, { type: "monitorRuns", machine: "M1Max", observed: true, runs: [], services: [] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, runs: [], services: [servicesLease({})] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, runs: [], services: [] });
   const shown = shownServices(document);
   assert.equal(shown.length, 1, "サーバーのあるマシンだけ");
   assert.equal(badgeOf(shown[0].closest(".run-board-row")), "local");
@@ -1181,7 +1181,7 @@ test("サーバー: 空きのマシンに常駐(services up)を出し、ツー�
 test("サーバー: 持ち主のいない控えは警告色で片付け方を言う。run が持つ生きた控えは出さない", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  post(window, { type: "monitorRuns", observed: true, runs: [], services: [
+  post(window, { type: "monitorRuns", jobs: [], observed: true, runs: [], services: [
     servicesLease({ holder: "run", pid: 10 }),
     servicesLease({ project: "shop", holder: "run", pid: 11, orphan: true }),
   ] });
@@ -1189,12 +1189,12 @@ test("サーバー: 持ち主のいない控えは警告色で片付け方を言
   assert.equal(el.textContent, "サーバー(持ち主なし) shop", "run が持つ生きた控え(sut-ec-mobile)は出さない");
   assert.ok(el.classList.contains("run-board-services-orphan"));
   assert.match(el.getAttribute("data-hover-tip"), /fleetest services reset --project shop --profile ios-1/);
-  post(window, { type: "monitorRuns", observed: true, runs: [], services: [
+  post(window, { type: "monitorRuns", jobs: [], observed: true, runs: [], services: [
     servicesLease({ holder: "run", pid: 10, phase: "tearingDown" }),
   ] });
   assert.equal(el.textContent, "サーバーを停止中 sut-ec-mobile", "run の台帳が消えた後の停止は出す(マシンを「空き」に見せない)");
   assert.match(el.getAttribute("data-hover-tip"), /終わった run\(pid 10\)がサーバーを止めています/);
-  post(window, { type: "monitorRuns", observed: true, runs: [], services: [servicesLease({ holder: "run", pid: 10 })] });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, runs: [], services: [servicesLease({ holder: "run", pid: 10 })] });
   assert.deepEqual(shownServices(document), [], "出すものが無くなれば消す");
   assert.equal(el.getAttribute("data-hover-tip"), null, "ツールチップも外す");
 });
@@ -1203,7 +1203,7 @@ test("サーバー: run のあるマシンでは最初の行だけに出す。�
   const { window, document } = createWebview();
   t.after(() => window.close());
   const run = monitorRunsMessage().runs[0];
-  post(window, { type: "monitorRuns", observed: true, services: [
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [
     servicesLease({ project: "a" }), servicesLease({ project: "b", pid: 2 }), servicesLease({ project: "c", phase: "starting", pid: 3 }),
   ], runs: [run, { ...run, pid: 2, runID: "run-2" }] });
   const rows = runRows(document);
@@ -1234,4 +1234,123 @@ test("run ボード: ❌ の後ろに ❄️ ○ T の数を並べ(0 の種類�
   assert.equal(counts.querySelector(".run-board-counts-failed").nextElementSibling, states[0], "❌ の直後に並ぶ");
   assert.match(states[0].getAttribute("data-hover-tip") || "", /凍結/);
   assert.match(states[1].getAttribute("data-hover-tip") || "", /文字消え/);
+});
+
+// ---- ジョブ(ProtocolVersion 76)。マシンの行の上に出る。run の行はマシンの行の中のまま ----
+/** マシンの行の並び(#run-board-rows)に出たジョブの物(出さないことを確かめる) */
+const jobsInRowsOf = (document) => [...document.querySelectorAll("#run-board-rows .run-board-job, #run-board-rows .run-board-header-job")];
+/** 見出しの行(タコメーターの右)のジョブの数と経過 */
+const jobHeadsOf = (document) => [...document.querySelectorAll("#run-board-header .run-board-header-job")];
+const jobFixture = () => ({
+  jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760,
+  runs: [
+    { project: "E2E-CMP", profile: "ios", state: "passed", machines: ["local"] },
+    { project: "E2E-CMP", profile: "android", state: "failed", machines: ["M1Ultra"] },
+    { project: "E2E-Flutter", profile: "android", state: "running", machines: ["M1Ultra"] },
+    { project: "E2E-RN", profile: "ios", state: "pending", machines: [] },
+    { project: "E2E-RN", profile: "android", state: "pending", machines: [] },
+    { project: "X", profile: "p", state: "canceled", machines: [] },
+    { project: "Y", profile: "p", state: "skipped", machines: [] },
+    { project: "Z", profile: "p", state: "from-the-future", machines: [] },
+  ],
+});
+
+test("ジョブ: 数(run 済・失敗・実行中・待機)と経過だけを見出しの行のタコメーターの右に出し、マシンの行の並びには何も出さない", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  post(window, monitorRunsMessage({ jobs: [jobFixture()] }));
+  assert.equal(jobsInRowsOf(document).length, 0, "マス・待機の並び・題名の行は出さない");
+  const [head] = jobHeadsOf(document);
+  assert.ok(head, "見出しの行に数が出る");
+  const headerKids = [...document.querySelector("#run-board-header").children];
+  assert.ok(headerKids.indexOf(head.parentElement) > headerKids.indexOf(document.querySelector("#run-board-tachometer")),
+    "タコメーターの右");
+  assert.equal(head.querySelector(".run-board-job-title").textContent, "", "ジョブが1つなら題名は出さない");
+  const lead = head.querySelector(".run-board-job-lead").textContent;
+  assert.match(lead, /run 済 4\/8/);
+  assert.match(lead, /❌1/);
+  assert.match(lead, /実行中 1/);
+  assert.match(lead, /待機 3/, "pending + 未知の state");
+  assert.match(head.querySelector(".run-board-job-elapsed").textContent, /^12:4\d$/);
+  assert.equal(runRows(document).length, 1, "run の行はマシンの行のまま");
+});
+
+test("ジョブ: 「待機 N」にマウスを載せると、待機中の run を省略なしで番号付きで出す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const many = jobFixture();
+  for (let i = 1; i <= 6; i++) many.runs.push({ project: `P${i}`, profile: "p", state: "pending", machines: [] });
+  post(window, monitorRunsMessage({ jobs: [many] }));
+  const expected = ["待機中の run(9 本)", "1. E2E-RN / ios", "2. E2E-RN / android", "3. Z / p",
+    "4. P1 / p", "5. P2 / p", "6. P3 / p", "7. P4 / p", "8. P5 / p", "9. P6 / p"].join("\n");
+  assert.equal(jobHeadsOf(document)[0].querySelector(".run-board-job-count-pending").getAttribute("data-hover-tip"), expected);
+
+  // 待機が無くなったらツールチップも外す
+  const done = jobFixture();
+  done.runs = done.runs.map((run) => ({ ...run, state: "passed" }));
+  post(window, monitorRunsMessage({ jobs: [done] }));
+  assert.match(jobHeadsOf(document)[0].querySelector(".run-board-job-lead").textContent, /run 済 8\/8/, "見出しの数は残る");
+  assert.equal(jobHeadsOf(document)[0].querySelector(".run-board-job-count-pending").getAttribute("data-hover-tip"), null);
+});
+
+test("ジョブ: 「run 済」は終わった run を状態つきで、「実行中」は走っている run をマシン名つきで、マウスを載せると出す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  post(window, monitorRunsMessage({ jobs: [jobFixture()] }));
+  const [jobEl] = jobHeadsOf(document);
+  assert.equal(jobEl.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"),
+    ["終わった run(4 本)", "1. E2E-CMP / ios — 成功", "2. E2E-CMP / android — 失敗", "3. X / p — 中止", "4. Y / p — スキップ"].join("\n"));
+  assert.equal(jobEl.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"),
+    ["実行中の run(1 本)", "1. E2E-Flutter / android(M1Ultra)"].join("\n"));
+
+  // 該当が無ければツールチップを外す
+  const fresh = jobFixture();
+  fresh.runs = fresh.runs.map((run) => ({ ...run, state: "pending", machines: [] }));
+  post(window, monitorRunsMessage({ jobs: [fresh] }));
+  const [after] = jobHeadsOf(document);
+  assert.equal(after.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"), null);
+  assert.equal(after.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"), null);
+});
+
+test("ジョブ: ジョブが続いている間は run が 0 本でもタコメーターを隠さない(右の数が左右に動かない)。ジョブが終われば従来どおり隠す", async (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const tacho = document.getElementById("run-board-tachometer");
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  post(window, monitorRunsMessage({ jobs: [jobFixture()] }));
+  assert.equal(tacho.style.display, "", "run が来たら出す");
+  // run と run のあいだ(次の SUT のビルド中等)= run 0 本・ジョブは続いている
+  post(window, monitorRunsMessage({ runs: [], jobs: [jobFixture()] }));
+  await wait(10_500);
+  assert.ok(!tacho.classList.contains("tacho-hidden"), "10 秒を過ぎても隠さない");
+  assert.equal(tacho.style.display, "");
+  // ジョブも終わった = 従来どおり 10 秒後にフェードで隠す
+  post(window, monitorRunsMessage({ runs: [], jobs: [] }));
+  await wait(10_500);
+  assert.ok(tacho.classList.contains("tacho-hidden"), "ジョブが終われば隠す");
+});
+
+test("ジョブ: ジョブが続いている間は「全て終了」を押せず、マウスを載せると理由が出る。ジョブが終われば押せる", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const btn = document.getElementById("btn-devices-down");
+  assert.equal(btn.disabled, false, "ジョブが無ければ押せる");
+  // run と run のあいだ(run 0 本・ジョブは続いている)も押させない = ここが lease の無い区間
+  post(window, monitorRunsMessage({ runs: [], jobs: [jobFixture()] }));
+  assert.equal(btn.disabled, true);
+  assert.match(btn.getAttribute("data-hover-tip") || "", /ジョブの実行中は使えません/);
+  post(window, monitorRunsMessage({ runs: [], jobs: [] }));
+  assert.equal(btn.disabled, false, "ジョブが終われば押せる");
+  assert.equal(btn.getAttribute("data-hover-tip"), null, "理由も外す");
+});
+
+test("ジョブ: 2つ以上なら見出しの数の前に題名を添える。消えたジョブは見出しに残らない", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const second = { ...jobFixture(), jobID: "j2", title: "nightly" };
+  post(window, monitorRunsMessage({ jobs: [jobFixture(), second] }));
+  assert.deepEqual(jobHeadsOf(document).map((h) => h.querySelector(".run-board-job-title").textContent), ["E2E:", "nightly:"]);
+  post(window, monitorRunsMessage({ jobs: [] }));
+  assert.equal(jobHeadsOf(document).length, 0);
+  assert.equal(runRows(document).length, 1, "ジョブに属さない run は今まで通り");
 });

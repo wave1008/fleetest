@@ -1,11 +1,11 @@
 // MultiTargetRunner.swift
 // 複数の対象(プロジェクト × 実行プロファイル)を1回の `fleetest run` で回す親(RR-8.2)。
-// 空いたマシンが次の対象を取り(`JobSchedule.decide`)、終わり際はシナリオ単位で同じ対象に加わる。
+// 空いたマシンが次の対象を取り(`TargetSchedule.decide`)、終わり際はシナリオ単位で同じ対象に加わる。
 // 子はマシン × 対象ごとに `--work-queue` で起こし、対象ごとの `DynamicDispatcher` がシナリオを1本ずつ配る(RR-8.1)。
 //
-// - 仕事(job)の ID は "<project>/<profile>"、マシンは全対象のグループから作る一覧の添字(Int)
+// - 対象(unit)の ID は "<project>/<profile>"、マシンは全対象のグループから作る一覧の添字(Int)
 // - マシンは同時に1つの子だけ。dispatch.lock は使う全マシンを最初に `DispatchPrelock` で取り、最後まで手放さない
-// - 同じ (仕事, マシン) の子は1回だけ起こす(DynamicDispatcher は終わったエントリの要求を無視するので、起こし直すと返事が来ない)
+// - 同じ (対象, マシン) の子は1回だけ起こす(DynamicDispatcher は終わったエントリの要求を無視するので、起こし直すと返事が来ない)
 
 import ArgumentParser
 import FTCore
@@ -59,7 +59,7 @@ enum MultiTargetRunner {
         }
     }
 
-    /// 残った仕事が使うマシンのラベルだけ(添字の順のまま)。飛ばした対象だけが使うマシンのロックを取らない
+    /// 残った対象が使うマシンのラベルだけ(添字の順のまま)。飛ばした対象だけが使うマシンのロックを取らない
     /// (取ると `--wait-lock` ぶん待ったうえ、使わないマシンを最後まで占有する)。machineLabels 自体は添字の基準なので削らない
     static func labelsInUse(_ machineLabels: [String], entryMaps: [Set<Int>]) -> [String] {
         let used = entryMaps.reduce(into: Set<Int>()) { $0.formUnion($1) }
@@ -75,8 +75,8 @@ enum MultiTargetRunner {
 
     // MARK: - 実行
 
-    /// 1つの仕事(対象)の実行時の束
-    private struct Job {
+    /// 1つの対象(対象)の実行時の束
+    private struct TargetUnit {
         let id: String
         let project: TestProject
         let profile: String
@@ -90,10 +90,10 @@ enum MultiTargetRunner {
         let infos: [ScenarioInfo]
     }
 
-    private static func writerKey(_ job: String, _ entry: Int) -> String { "\(job)\u{1}\(entry)" }
+    private static func writerKey(_ unit: String, _ entry: Int) -> String { "\(unit)\u{1}\(entry)" }
 
     private struct ChildOutcome {
-        let job: String
+        let unit: String
         let machine: Int
         let exitCode: Int32
         let duration: TimeInterval
@@ -141,18 +141,23 @@ enum MultiTargetRunner {
             }
         }
 
+        // ジョブの行(見える化の台帳。DS-18.11)。どの出口でも closeOut が閉じる = 自分で作ったジョブなら消す・外側のジョブなら
+        // 自分が running にしたまま閉じていない行だけを canceled にする(外側の他の予定には触らない)
+        let job = MultiTargetJobTracker.begin(targets: resolvedTargets.map { ($0.project.name, $0.profile) })
+        defer { job?.closeOut() }
+
         FleetRunner.log("==> \(resolvedTargets.count) target(s) on \(machineLabels.count) machine(s)"
             + " — each free machine takes the next target; the last targets are shared scenario by scenario")
 
         let clock = DynamicDispatcher.monotonicClock()
         let writers = LockedValue<[String: ChildStdinWriter]>([:])
         // 前段(入口の印・チケット・手元のロックの先取り・ビルド・使用中の待ち・全マシンの Prelock)は
-        // MachineFanoutFrontHalf の1箇所。ここが持つのは差分 = プロジェクトごとのビルドと仕事ごとの配り手
+        // MachineFanoutFrontHalf の1箇所。ここが持つのは差分 = プロジェクトごとのビルドと対象ごとの配り手
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .cliRun, remoteDir: remoteDir, forceLock: forceLock, waitLock: waitLock,
                 setOverrides: setOverrides, log: { FleetRunner.log($0) }, emitLocalLockWaiting: nil, emitLocalDevicesWaiting: nil),
-            build: { parentInterrupt -> (built: ([Job], [String: HealSourceWriteBack.Collection]), plan: MachineFanoutFrontHalf.Plan)? in
+            build: { parentInterrupt -> (built: ([TargetUnit], [String: HealSourceWriteBack.Collection]), plan: MachineFanoutFrontHalf.Plan)? in
                 // 2. 手元で1回ずつビルドして一覧を出す(プロジェクトごと)。中断はプロジェクトの境目で拾う
                 var builtProjects: Set<String> = []
                 var listed: [String: [ScenarioInfo]] = [:]
@@ -180,8 +185,8 @@ enum MultiTargetRunner {
                     healByProject[target.project.name] = HealSourceWriteBack.Collection()
                 }
 
-                // 3. 仕事ごとの配り手
-                var jobs: [Job] = []
+                // 3. 対象ごとの配り手
+                var units: [TargetUnit] = []
                 for target in resolvedTargets {
                     let id = "\(target.project.name)/\(target.profile)"
                     let all = listed[target.project.name] ?? []
@@ -195,6 +200,7 @@ enum MultiTargetRunner {
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: target.groups))
                     guard !resolved.isEmpty else {
                         FleetRunner.log("==> \(id): no scenario applies to this profile's devices; skipping")
+                        job?.mark(project: target.project.name, profile: target.profile, state: .skipped)
                         continue
                     }
                     var entryByMachine: [Int: Int] = [:]
@@ -204,38 +210,38 @@ enum MultiTargetRunner {
                     let inputs = DeviceMachineRunner.estimationInputs(
                         project: target.project, groups: target.groups, lptHistoryRuns: lptHistoryRuns)
                     let estimate = DeviceMachineRunner.dynamicEstimator(inputs: inputs, groups: target.groups)
-                    let jobID = id
+                    let targetID = id
                     let dispatcher = DynamicDispatcher(
                         scenarios: resolved, estimateMs: estimate, nowMs: clock, lpt: !noLPT,
                         send: { entry, reply in
-                            writers.withLock { $0[MultiTargetRunner.writerKey(jobID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
+                            writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
                         })
-                    jobs.append(Job(
+                    units.append(TargetUnit(
                         id: id, project: target.project, profile: target.profile, groups: target.groups,
                         entryByMachine: entryByMachine, resolved: resolved, dispatcher: dispatcher, estimate: estimate,
                         healCollection: healByProject[target.project.name] ?? HealSourceWriteBack.Collection(),
                         infos: runnable))
                 }
-                guard !jobs.isEmpty else {
+                guard !units.isEmpty else {
                     FleetRunner.log("==> no target has a scenario to run; nothing to run")
                     return nil
                 }
 
                 var leaseChecks: [MachineFanoutFrontHalf.LeaseCheck] = []
-                for job in jobs {
-                    guard let local = job.groups.first(where: { $0.machine == nil }) else { continue }
-                    let ids = Set(DynamicDispatcher.candidateIDs(for: local, in: job.resolved))
+                for unit in units {
+                    guard let local = unit.groups.first(where: { $0.machine == nil }) else { continue }
+                    let ids = Set(DynamicDispatcher.candidateIDs(for: local, in: unit.resolved))
                     leaseChecks.append(.init(
-                        project: job.project, profileName: job.profile, localDeviceNames: local.deviceNames,
-                        localScenarios: job.infos.filter { ids.contains($0.id) }, broadcast: false))
+                        project: unit.project, profileName: unit.profile, localDeviceNames: local.deviceNames,
+                        localScenarios: unit.infos.filter { ids.contains($0.id) }, broadcast: false))
                 }
-                return ((jobs, healByProject), .init(
+                return ((units, healByProject), .init(
                     leaseChecks: leaseChecks,
-                    machines: labelsInUse(machineLabels, entryMaps: jobs.map { Set($0.entryByMachine.keys) }),
-                    prelockProject: jobs[0].project))
+                    machines: labelsInUse(machineLabels, entryMaps: units.map { Set($0.entryByMachine.keys) }),
+                    prelockProject: units[0].project))
             }) else { return 0 }
         defer { held.close() }
-        let (jobs, healByProject) = built
+        let (units, healByProject) = built
         let runGroup = held.runGroup
         let ticket = held.ticket
         let prelock = held.prelock
@@ -246,43 +252,57 @@ enum MultiTargetRunner {
         let dispatchStart = Date()
 
         // 5. 配り手
-        let overheadByMachine = overheadsMs(project: jobs[0].project, labels: machineLabels)
-        var specs: [MultiTargetCoordinator.Job] = []
-        for job in jobs {
+        let overheadByMachine = overheadsMs(project: units[0].project, labels: machineLabels)
+        var specs: [MultiTargetCoordinator.TargetUnit] = []
+        for unit in units {
             var lanes: [Int: MultiTargetCoordinator.Lane] = [:]
-            for (machine, entry) in job.entryByMachine {
-                let group = job.groups[entry]
+            for (machine, entry) in unit.entryByMachine {
+                let group = unit.groups[entry]
                 lanes[machine] = .init(entry: entry, devices: group.deviceNames.count, platforms: group.platforms)
             }
-            let dispatcher = job.dispatcher
+            let dispatcher = unit.dispatcher
             specs.append(.init(
-                id: job.id, lanes: lanes, pending: { dispatcher.pendingScenarios }, estimateMs: job.estimate,
+                id: unit.id, lanes: lanes, pending: { dispatcher.pendingScenarios }, estimateMs: unit.estimate,
                 childExited: { dispatcher.childExited(entry: $0) }, interrupt: { dispatcher.interrupt() }))
         }
-        let jobByID = Dictionary(uniqueKeysWithValues: jobs.map { ($0.id, $0) })
+        let targetByID = Dictionary(uniqueKeysWithValues: units.map { ($0.id, $0) })
         let childCounter = LockedValue(0)
         let childHosts = LockedValue<[(host: String, index: Int)]>([])
         let outcomes = LockedValue<[ChildOutcome]>([])
-        let launch: MultiTargetCoordinator.Launch = { jobID, machine, finished in
-            guard let job = jobByID[jobID], let entry = job.entryByMachine[machine] else { finished(127); return }
-            let group = job.groups[entry]
-            let label = "\(group.machineLabel):\(job.id)"
+        // ジョブの行: 走っている子の数(対象ごと)と、終端にした対象。最後の子が終わり配り切れていたらその場で終端にする
+        let isInterrupted = parentInterrupt.isSet
+        let runningChildren = LockedValue<[String: Int]>([:])
+        let finalizedTargets = LockedValue<Set<String>>([])
+        let finalizeRow: @Sendable (TargetUnit, Bool) -> Void = { unit, interrupted in
+            guard let job, finalizedTargets.withLock({ $0.insert(unit.id).inserted }) else { return }
+            let codes = outcomes.withLock { $0.filter { $0.unit == unit.id }.map(\.exitCode) }
+            job.mark(project: unit.project.name, profile: unit.profile,
+                     state: MultiTargetJobTracker.finalState(
+                        codes: codes, started: true, hasUnhanded: !unit.dispatcher.unhandedIDs.isEmpty,
+                        interrupted: interrupted))
+        }
+        let launch: MultiTargetCoordinator.Launch = { targetID, machine, finished in
+            guard let unit = targetByID[targetID], let entry = unit.entryByMachine[machine] else { finished(127); return }
+            let group = unit.groups[entry]
+            let label = "\(group.machineLabel):\(unit.id)"
             let writer = ChildStdinWriter()
-            writers.withLock { $0[MultiTargetRunner.writerKey(jobID, entry)] = writer }
+            writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] = writer }
             let index = childCounter.withLock { value -> Int in value += 1; return value }
+            runningChildren.withLock { $0[targetID, default: 0] += 1 }
+            job?.running(project: unit.project.name, profile: unit.profile, machine: group.machineLabel)
             childHosts.withLock { $0.append((host: label, index: index)) }
             let args = DeviceMachineRunner.childArgs(
-                project: job.project.name, host: group.machineLabel, profile: job.profile,
+                project: unit.project.name, host: group.machineLabel, profile: unit.profile,
                 deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
-                scenarios: DynamicDispatcher.candidateIDs(for: group, in: job.resolved), folders: [],
+                scenarios: DynamicDispatcher.candidateIDs(for: group, in: unit.resolved), folders: [],
                 setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                 performanceMode: performanceMode, forceLock: forceLock,
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
                 junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                 runGroup: runGroup, reportDir: reportDir, workQueue: true)
-            let dispatcher = job.dispatcher
+            let dispatcher = unit.dispatcher
             let marker = lockMarkers[group.machineLabel]
-            let heal = job.healCollection
+            let heal = unit.healCollection
             Task {
                 let started = Date()
                 let code = await FleetRunner.runEntry(
@@ -290,14 +310,22 @@ enum MultiTargetRunner {
                     healCollection: heal, stdin: writer,
                     lineInterceptor: { line in dispatcher.intercept(line: line, entry: entry, writer: writer) })
                 outcomes.withLock {
-                    $0.append(ChildOutcome(job: jobID, machine: machine, exitCode: code,
+                    $0.append(ChildOutcome(unit: targetID, machine: machine, exitCode: code,
                                            duration: Date().timeIntervalSince(started)))
+                }
+                let left = runningChildren.withLock { counts -> Int in
+                    counts[targetID, default: 1] -= 1
+                    return counts[targetID] ?? 0
+                }
+                // 配り切って最後の子が終わった対象はその場で終端(まだ配るものが残るなら別マシンが引き継ぐので待つ)
+                if left == 0, dispatcher.pendingScenarios.isEmpty {
+                    finalizeRow(unit, isInterrupted())
                 }
                 finished(code)
             }
         }
         let coordinator = MultiTargetCoordinator(
-            jobs: specs, machineCount: machineLabels.count, overheadMs: overheadByMachine,
+            units: specs, machineCount: machineLabels.count, overheadMs: overheadByMachine,
             nowMs: clock, lpt: !noLPT, launch: launch, log: { FleetRunner.log($0) })
         // catchUp: ロックの取得中(DispatchPrelock の購読が受けた)の中断も、ここで配り手へ伝える
         let relay = InterruptRelay.observing(catchUp: true) { coordinator.interrupt() }
@@ -320,35 +348,47 @@ enum MultiTargetRunner {
 
         var neverHandedFailure = false
         var interruptedWithWorkLeft = false
-        for job in jobs {
-            let ids = job.dispatcher.unhandedIDs
+        for unit in units {
+            let ids = unit.dispatcher.unhandedIDs
             guard !ids.isEmpty else { continue }
-            FleetRunner.log("[\(job.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
+            FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
             if interrupted { interruptedWithWorkLeft = true }
             if !interrupted {
                 neverHandedFailure = true
                 for id in ids {
-                    LastResultsStore.record(project: job.project, scenarioID: id, passed: false, profile: job.profile)
+                    LastResultsStore.record(project: unit.project, scenarioID: id, passed: false, profile: unit.profile)
                 }
             }
         }
-        let neverStarted = coordinator.unstartedJobs
+        let neverStarted = coordinator.unstartedTargets
+        // 走り終えて終端になっていない対象(配り切れなかった・中断)と、一度も起こさなかった対象
+        for unit in units {
+            if neverStarted.contains(unit.id) {
+                if finalizedTargets.withLock({ $0.insert(unit.id).inserted }) {
+                    job?.mark(project: unit.project.name, profile: unit.profile,
+                              state: MultiTargetJobTracker.finalState(
+                                codes: [], started: false, hasUnhanded: false, interrupted: interrupted))
+                }
+            } else {
+                finalizeRow(unit, interrupted)
+            }
+        }
         for id in neverStarted {
             FleetRunner.log("⚠️ \(interrupted ? "interrupted: " : "")\(id) was never started on any machine")
             if !interrupted { neverHandedFailure = true } else { interruptedWithWorkLeft = true }
         }
 
-        printSummary(jobs: jobs, machineLabels: machineLabels, outcomes: results, wallSeconds: wallMs / 1000)
+        printSummary(units: units, machineLabels: machineLabels, outcomes: results, wallSeconds: wallMs / 1000)
         for (name, collection) in healByProject.sorted(by: { $0.key < $1.key }) {
-            if let project = jobs.first(where: { $0.project.name == name })?.project {
+            if let project = units.first(where: { $0.project.name == name })?.project {
                 collection.finish(project: project) { FleetRunner.log($0) }
             }
         }
-        for job in jobs {
-            let assigned: [(Int, DeviceMachineRunner.Group, [String])] = job.entryByMachine
+        for unit in units {
+            let assigned: [(Int, DeviceMachineRunner.Group, [String])] = unit.entryByMachine
                 .sorted(by: { $0.key < $1.key })
-                .map { ($0.value, job.groups[$0.value], job.dispatcher.assignedIDs(entry: $0.value)) }
-            let missing = reportMissingResults(job: job, runGroup: runGroup, since: dispatchStart, assigned: assigned,
+                .map { ($0.value, unit.groups[$0.value], unit.dispatcher.assignedIDs(entry: $0.value)) }
+            let missing = reportMissingResults(unit: unit, runGroup: runGroup, since: dispatchStart, assigned: assigned,
                                                outcomes: results, machineLabels: machineLabels)
             // 渡したのに結果が無い分(子が受け取る前の中断など)。中断なら 130・それ以外は 1
             if missing > 0 {
@@ -356,7 +396,7 @@ enum MultiTargetRunner {
             }
         }
         if let junit, let junitTempDir {
-            let names = Array(Set(jobs.map(\.project.name))).sorted().joined(separator: "+")
+            let names = Array(Set(units.map(\.project.name))).sorted().joined(separator: "+")
             FleetRunner.mergeAndWriteJUnit(
                 junit: junit, project: names, tempDir: junitTempDir, entries: childHosts.withLock { $0 })
         }
@@ -379,29 +419,29 @@ enum MultiTargetRunner {
         }
     }
 
-    /// 仕事ごとの「結果の無いシナリオ」。DeviceMachineRunner.reportMissingResults と同じ文言・同じ記録で、
+    /// 対象ごとの「結果の無いシナリオ」。DeviceMachineRunner.reportMissingResults と同じ文言・同じ記録で、
     /// 走査を **profile でも絞る**(同じプロジェクトの別プロファイルが同じシナリオ ID を記録して欠落を隠さない)
     /// 戻り値 = 結果の無いシナリオの数(親の終了コードに載せる)
     @discardableResult
     private static func reportMissingResults(
-        job: Job, runGroup: String, since: Date, assigned: [(Int, DeviceMachineRunner.Group, [String])],
+        unit: TargetUnit, runGroup: String, since: Date, assigned: [(Int, DeviceMachineRunner.Group, [String])],
         outcomes: [ChildOutcome], machineLabels: [String]
     ) -> Int {
         guard assigned.contains(where: { !$0.2.isEmpty }) else { return 0 }
         var missingTotal = 0
         let recorded = DeviceMachineRunner.scanRecordedScenarios(
-            project: job.project, runGroup: runGroup, since: since, profile: job.profile,
+            project: unit.project, runGroup: runGroup, since: since, profile: unit.profile,
             expected: assigned.flatMap { $0.2 })
         for (_, group, ids) in assigned {
             let machine = machineLabels.firstIndex(of: group.machineLabel)
-            let exitCode = outcomes.last(where: { $0.job == job.id && $0.machine == machine })?.exitCode ?? -1
-            let label = "\(group.machineLabel):\(job.id)"
+            let exitCode = outcomes.last(where: { $0.unit == unit.id && $0.machine == machine })?.exitCode ?? -1
+            let label = "\(group.machineLabel):\(unit.id)"
             let missing = DeviceMachineRunner.unrecordedScenarioIDs(assigned: ids, recorded: recorded.all)
             missingTotal += missing.count
             if !missing.isEmpty {
                 FleetRunner.log(DeviceMachineRunner.missingResultsLine(machineLabel: label, exitCode: exitCode, ids: missing))
                 for id in missing {
-                    LastResultsStore.record(project: job.project, scenarioID: id, passed: false, profile: job.profile)
+                    LastResultsStore.record(project: unit.project, scenarioID: id, passed: false, profile: unit.profile)
                 }
             }
             guard exitCode != 0 else { continue }
@@ -414,18 +454,18 @@ enum MultiTargetRunner {
         return missingTotal
     }
 
-    private static func printSummary(jobs: [Job], machineLabels: [String], outcomes: [ChildOutcome], wallSeconds: Double) {
+    private static func printSummary(units: [TargetUnit], machineLabels: [String], outcomes: [ChildOutcome], wallSeconds: Double) {
         FleetRunner.log("")
-        FleetRunner.log("=== \(jobs.count) target(s) across \(machineLabels.count) machine(s) ===")
-        for job in jobs {
-            let mine = outcomes.filter { $0.job == job.id }
+        FleetRunner.log("=== \(units.count) target(s) across \(machineLabels.count) machine(s) ===")
+        for unit in units {
+            let mine = outcomes.filter { $0.unit == unit.id }
             let code = FleetProfile.aggregateExitCode(mine.map(\.exitCode))
             let used = Dictionary(grouping: mine, by: \.machine).keys.sorted().map { machine -> String in
-                let entry = job.entryByMachine[machine]
-                return "\(machineLabels[machine])(\(entry.map { job.dispatcher.assignedIDs(entry: $0).count } ?? 0))"
+                let entry = unit.entryByMachine[machine]
+                return "\(machineLabels[machine])(\(entry.map { unit.dispatcher.assignedIDs(entry: $0).count } ?? 0))"
             }.joined(separator: ", ")
             let result = mine.isEmpty ? "not run" : (code == 0 ? "✅ pass" : "❌ fail (exit \(code))")
-            FleetRunner.log("\(job.id): \(result)  machines(scenarios): \(used.isEmpty ? "-" : used)")
+            FleetRunner.log("\(unit.id): \(result)  machines(scenarios): \(used.isEmpty ? "-" : used)")
         }
         for (machine, label) in machineLabels.enumerated() {
             let busy = outcomes.filter { $0.machine == machine }.reduce(0) { $0 + $1.duration }
@@ -435,23 +475,23 @@ enum MultiTargetRunner {
     }
 }
 
-// MARK: - 配り手(仕事 × マシンの割り当て)
+// MARK: - 配り手(対象 × マシンの割り当て)
 
-/// 空いたマシンごとに `JobSchedule.decide` を呼び、子の起動を指示する。状態は全部 LockedValue の中。
+/// 空いたマシンごとに `TargetSchedule.decide` を呼び、子の起動を指示する。状態は全部 LockedValue の中。
 /// 子の終了・タイマー・中断のどれが来ても空いているマシンを全部判定し直す(固定周期では回さない)。
-/// ロックの順序は 配り手 → 仕事のクロージャ(DynamicDispatcher のロック)の一方向。DynamicDispatcher は配り手を呼ばない
+/// ロックの順序は 配り手 → 対象のクロージャ(DynamicDispatcher のロック)の一方向。DynamicDispatcher は配り手を呼ばない
 final class MultiTargetCoordinator: Sendable {
 
     struct Lane: Sendable {
-        /// 仕事のグループ(= DynamicDispatcher のエントリ)の添字
+        /// 対象のグループ(= DynamicDispatcher のエントリ)の添字
         let entry: Int
         let devices: Int
         let platforms: Set<String>
     }
 
-    struct Job: Sendable {
+    struct TargetUnit: Sendable {
         let id: String
-        /// 全マシン一覧の添字 → この仕事のレーン。載っていないマシンは回せない
+        /// 全マシン一覧の添字 → この対象のレーン。載っていないマシンは回せない
         let lanes: [Int: Lane]
         let pending: @Sendable () -> [DynamicSplit.Scenario]
         let estimateMs: @Sendable (DynamicSplit.Scenario, Int) -> Double
@@ -460,20 +500,20 @@ final class MultiTargetCoordinator: Sendable {
     }
 
     /// 子を起こす。起こしたら戻り、子が終わったら `finished(終了コード)` を1回呼ぶ(テストは偽物を渡す)
-    typealias Launch = @Sendable (_ job: String, _ machine: Int, _ finished: @escaping @Sendable (Int32) -> Void) -> Void
+    typealias Launch = @Sendable (_ unit: String, _ machine: Int, _ finished: @escaping @Sendable (Int32) -> Void) -> Void
 
     enum Status: Equatable, Sendable {
         case idle, busy(String), finished
     }
 
-    private struct Pair: Hashable { let job: String; let machine: Int }
+    private struct Pair: Hashable { let unit: String; let machine: Int }
 
     private struct State {
         var status: [Status]
         var unstarted: [String]
         var running: [String: Set<Int>] = [:]
         var launched: Set<Pair> = []
-        /// 仕事ごとの「終わる見込みの時刻」の記憶[ms]。始めた・加わったときの見込みの早いほう(expectedFreeAt を見よ)
+        /// 対象ごとの「終わる見込みの時刻」の記憶[ms]。始めた・加わったときの見込みの早いほう(expectedFreeAt を見よ)
         var anchor: [String: Double] = [:]
         var dead: Set<Int> = []
         var active = 0
@@ -484,39 +524,39 @@ final class MultiTargetCoordinator: Sendable {
     }
 
     private let state: LockedValue<State>
-    private let jobs: [String: Job]
+    private let units: [String: TargetUnit]
     private let overheadMs: [Double]
     private let nowMs: @Sendable () -> Double
     private let timer: DynamicDispatcher.Timer
     private let launch: Launch
     private let log: @Sendable (String) -> Void
-    /// false = `--no-lpt`(未着手の仕事を宣言の順に試す)
+    /// false = `--no-lpt`(未着手の対象を宣言の順に試す)
     private let lpt: Bool
 
-    init(jobs: [Job], machineCount: Int, overheadMs: [Double],
+    init(units: [TargetUnit], machineCount: Int, overheadMs: [Double],
          nowMs: @escaping @Sendable () -> Double = DynamicDispatcher.monotonicClock(),
          timer: @escaping DynamicDispatcher.Timer = DynamicDispatcher.dispatchTimer,
          lpt: Bool = true,
          launch: @escaping Launch, log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.lpt = lpt
-        self.jobs = Dictionary(jobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.units = Dictionary(units.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.overheadMs = overheadMs
         self.nowMs = nowMs
         self.timer = timer
         self.launch = launch
         self.log = log
         state = LockedValue(State(status: Array(repeating: .idle, count: machineCount),
-                                  unstarted: jobs.map(\.id)))
+                                  unstarted: units.map(\.id)))
     }
 
     // MARK: - 入口
 
     func start() { reconsider() }
 
-    /// 中断: 以後は子を起こさず、各仕事の配り手が保留中も以後の要求も none で答える。走っている子は待つ
+    /// 中断: 以後は子を起こさず、各対象の配り手が保留中も以後の要求も none で答える。走っている子は待つ
     func interrupt() {
         state.withLock { $0.interrupted = true }
-        for job in jobs.values { job.interrupt() }
+        for unit in units.values { unit.interrupt() }
         reconsider()
     }
 
@@ -531,29 +571,29 @@ final class MultiTargetCoordinator: Sendable {
     // MARK: - 読み出し
 
     var isInterrupted: Bool { state.withLock { $0.interrupted } }
-    /// 一度もどのマシンでも起こさなかった仕事(担当が抜けて未着手へ戻った仕事は含めない = その残りは仕事ごとの「配られなかった」が言う)
-    var unstartedJobs: [String] {
-        state.withLock { s in s.unstarted.filter { id in !s.launched.contains { $0.job == id } } }
+    /// 一度もどのマシンでも起こさなかった対象(担当が抜けて未着手へ戻った対象は含めない = その残りは対象ごとの「配られなかった」が言う)
+    var unstartedTargets: [String] {
+        state.withLock { s in s.unstarted.filter { id in !s.launched.contains { $0.unit == id } } }
     }
     var deadMachines: Set<Int> { state.withLock { $0.dead } }
     var statuses: [Status] { state.withLock { $0.status } }
 
     // MARK: - 判定
 
-    private func childFinished(job: String, machine: Int, exitCode: Int32) {
-        if let spec = jobs[job], let lane = spec.lanes[machine] { spec.childExited(lane.entry) }
-        let pendingLeft = !(jobs[job]?.pending().isEmpty ?? true)
+    private func childFinished(unit: String, machine: Int, exitCode: Int32) {
+        if let spec = units[unit], let lane = spec.lanes[machine] { spec.childExited(lane.entry) }
+        let pendingLeft = !(units[unit]?.pending().isEmpty ?? true)
         state.withLock { s in
             s.active -= 1
-            s.running[job]?.remove(machine)
-            if s.running[job]?.isEmpty == true {
-                s.running.removeValue(forKey: job)
+            s.running[unit]?.remove(machine)
+            if s.running[unit]?.isEmpty == true {
+                s.running.removeValue(forKey: unit)
                 // **担当が0台になっても誰にも渡していない分が残っていれば、未着手へ戻す**(ほかのマシンが始める)。
                 // 戻さないと「走っている」でも「未着手」でもなくなり、落ちた1台の残りが誰にも配られず赤で残った。
-                // 渡し済みは回し直さない(配り手が持たない)・抜けたマシンは同じ仕事を起こし直さない(launched)
-                if pendingLeft, !s.unstarted.contains(job) {
-                    s.unstarted.append(job)
-                    s.anchor[job] = nil   // 始め直す側の見込みで覚え直す(古い時刻のままだと始めた直後から期限切れに見える)
+                // 渡し済みは回し直さない(配り手が持たない)・抜けたマシンは同じ対象を起こし直さない(launched)
+                if pendingLeft, !s.unstarted.contains(unit) {
+                    s.unstarted.append(unit)
+                    s.anchor[unit] = nil   // 始め直す側の見込みで覚え直す(古い時刻のままだと始めた直後から期限切れに見える)
                 }
             }
             // 0(全緑)と 1(シナリオの失敗)以外は子が異常終了した印。そのマシンには以後配らない
@@ -565,14 +605,14 @@ final class MultiTargetCoordinator: Sendable {
             }
         }
         if exitCode != 0 && exitCode != 1 {
-            log("⚠️ machine #\(machine) ended abnormally (exit \(exitCode)) while running \(job); no further work goes to it")
+            log("⚠️ machine #\(machine) ended abnormally (exit \(exitCode)) while running \(unit); no further work goes to it")
         }
         reconsider()
     }
 
     private func reconsider() {
-        let starts: [(job: String, machine: Int)] = state.withLock { s in
-            var out: [(job: String, machine: Int)] = []
+        let starts: [(unit: String, machine: Int)] = state.withLock { s in
+            var out: [(unit: String, machine: Int)] = []
             let now = nowMs()
             s.cancelTimer?()
             s.cancelTimer = nil
@@ -587,17 +627,17 @@ final class MultiTargetCoordinator: Sendable {
                     for m in s.status.indices where s.status[m] == .idle {
                         switch decide(&s, machine: m, now: now) {
                         case .start(let id), .join(let id):
-                            guard jobs[id] != nil, !s.launched.contains(Pair(job: id, machine: m)) else {
+                            guard units[id] != nil, !s.launched.contains(Pair(unit: id, machine: m)) else {
                                 s.status[m] = .finished
                                 break
                             }
-                            if let finish = expectedFinish(job: id, adding: m, state: s, now: now) {
+                            if let finish = expectedFinish(unit: id, adding: m, state: s, now: now) {
                                 s.anchor[id] = min(s.anchor[id] ?? .infinity, finish)
                             }
                             s.unstarted.removeAll { $0 == id }
                             s.running[id, default: []].insert(m)
                             s.status[m] = .busy(id)
-                            s.launched.insert(Pair(job: id, machine: m))
+                            s.launched.insert(Pair(unit: id, machine: m))
                             s.active += 1
                             out.append((id, m))
                             progressed = true
@@ -626,14 +666,14 @@ final class MultiTargetCoordinator: Sendable {
             }
             return out
         }
-        for (job, machine) in starts {
+        for (unit, machine) in starts {
             // **予約したあとに中断が来ていたら起こさない**(予約はロックの中・起動は外なので、その間の中断を見落とすと
             // 中断のあとに子が起きる)。予約を戻して終わりの判定をし直す
             let cancelled = state.withLock { s -> Bool in
                 guard s.interrupted else { return false }
                 s.active -= 1
-                s.running[job]?.remove(machine)
-                if s.running[job]?.isEmpty == true { s.running.removeValue(forKey: job) }
+                s.running[unit]?.remove(machine)
+                if s.running[unit]?.isEmpty == true { s.running.removeValue(forKey: unit) }
                 s.status[machine] = .finished
                 return true
             }
@@ -641,83 +681,83 @@ final class MultiTargetCoordinator: Sendable {
                 reconsider()
                 continue
             }
-            launch(job, machine) { [self] code in childFinished(job: job, machine: machine, exitCode: code) }
+            launch(unit, machine) { [self] code in childFinished(unit: unit, machine: machine, exitCode: code) }
         }
     }
 
-    private func decide(_ s: inout State, machine: Int, now: Double) -> JobSchedule.Decision {
-        let states: [JobSchedule.MachineState] = s.status.indices.map { m in
+    private func decide(_ s: inout State, machine: Int, now: Double) -> TargetSchedule.Decision {
+        let states: [TargetSchedule.MachineState] = s.status.indices.map { m in
             if case .busy(let id) = s.status[m] {
-                return JobSchedule.MachineState(machine: m, currentJob: id,
-                                                expectedFreeAt: expectedFreeAt(job: id, running: s, now: now))
+                return TargetSchedule.MachineState(machine: m, currentTarget: id,
+                                                expectedFreeAt: expectedFreeAt(unit: id, running: s, now: now))
             }
-            return JobSchedule.MachineState(machine: m, currentJob: nil, expectedFreeAt: nil)
+            return TargetSchedule.MachineState(machine: m, currentTarget: nil, expectedFreeAt: nil)
         }
         let snapshot = s
-        return JobSchedule.decide(
+        return TargetSchedule.decide(
             for: machine, now: now, unstarted: s.unstarted, running: s.running,
-            hasPending: { id in !(jobs[id]?.pending().isEmpty ?? true) },
+            hasPending: { id in !(units[id]?.pending().isEmpty ?? true) },
             machines: states,
-            aloneMs: { id, m in aloneMs(job: id, machine: m, state: snapshot) },
+            aloneMs: { id, m in aloneMs(unit: id, machine: m, state: snapshot) },
             overheadMs: { m in m < overheadMs.count ? overheadMs[m] : 0 },
-            joinGainMs: { id, m in joinGain(job: id, machine: m, state: snapshot, now: now) }, lpt: lpt)
+            joinGainMs: { id, m in joinGain(unit: id, machine: m, state: snapshot, now: now) }, lpt: lpt)
     }
 
-    /// machine が走っている仕事に加わると終わりがどれだけ早まるか(`JobSchedule.joinGain`)。担当のデバイスは今、加わるデバイスは固定費の後に空く
-    private func joinGain(job id: String, machine: Int, state s: State, now: Double) -> Double? {
-        guard let job = jobs[id], let lane = job.lanes[machine] else { return nil }
-        func joinLane(_ l: Lane, at t: Double) -> JobSchedule.JoinLane {
-            JobSchedule.JoinLane(entry: l.entry, devices: l.devices, platforms: l.platforms, availableAt: t)
+    /// machine が走っている対象に加わると終わりがどれだけ早まるか(`TargetSchedule.joinGain`)。担当のデバイスは今、加わるデバイスは固定費の後に空く
+    private func joinGain(unit id: String, machine: Int, state s: State, now: Double) -> Double? {
+        guard let unit = units[id], let lane = unit.lanes[machine] else { return nil }
+        func joinLane(_ l: Lane, at t: Double) -> TargetSchedule.JoinLane {
+            TargetSchedule.JoinLane(entry: l.entry, devices: l.devices, platforms: l.platforms, availableAt: t)
         }
-        let members = (s.running[id] ?? []).sorted().compactMap { job.lanes[$0].map { joinLane($0, at: now) } }
+        let members = (s.running[id] ?? []).sorted().compactMap { unit.lanes[$0].map { joinLane($0, at: now) } }
         let overhead = machine < overheadMs.count ? overheadMs[machine] : 0
-        return JobSchedule.joinGain(
-            pending: job.pending(), members: members, joiner: joinLane(lane, at: now + overhead),
-            estimateMs: job.estimateMs)
+        return TargetSchedule.joinGain(
+            pending: unit.pending(), members: members, joiner: joinLane(lane, at: now + overhead),
+            estimateMs: unit.estimateMs)
     }
 
-    /// その仕事を、このマシンのこの仕事のデバイスだけで、まだ配っていない分を全部回す時間[ms]。
+    /// その対象を、このマシンのこの対象のデバイスだけで、まだ配っていない分を全部回す時間[ms]。
     /// 回せない(レーンが無い・死んだ・一度起こして抜けた・残りにこのマシンで回せるものが無い)なら nil。
-    /// **今その仕事を回しているマシンは nil にしない** —— 加わる判定(JobSchedule)は回しているマシンの速さの和で
+    /// **今その対象を回しているマシンは nil にしない** —— 加わる判定(TargetSchedule)は回しているマシンの速さの和で
     /// 「加わらないときの終わり」を出すので、nil だと速さ 0 になり、終わり際に1台も加わらなかった。
     /// 抜けたマシンを外すのは、配り手が終わったエントリの要求を受けない(起こし直せない)ため
-    private func aloneMs(job id: String, machine: Int, state s: State) -> Double? {
-        let leftAlready = s.launched.contains(Pair(job: id, machine: machine))
+    private func aloneMs(unit id: String, machine: Int, state s: State) -> Double? {
+        let leftAlready = s.launched.contains(Pair(unit: id, machine: machine))
             && !(s.running[id]?.contains(machine) ?? false)
-        guard let job = jobs[id], let lane = job.lanes[machine], !s.dead.contains(machine),
+        guard let unit = units[id], let lane = unit.lanes[machine], !s.dead.contains(machine),
               !leftAlready else { return nil }
-        let fitting = job.pending().filter { lane.platforms.contains($0.platform) }
+        let fitting = unit.pending().filter { lane.platforms.contains($0.platform) }
         guard !fitting.isEmpty else { return nil }
-        let total = fitting.reduce(0.0) { $0 + job.estimateMs($1, lane.entry) }
+        let total = fitting.reduce(0.0) { $0 + unit.estimateMs($1, lane.entry) }
         return total / Double(max(lane.devices, 1))
     }
 
-    /// 走っている仕事が終わる見込みの時刻 = min(記憶した時刻, 今 + 残りの見込み)。
+    /// 走っている対象が終わる見込みの時刻 = min(記憶した時刻, 今 + 残りの見込み)。
     /// **「今 + 残り」だけにしない** —— 毎回いまから作り直すので、見込みより遅れても期限を過ぎた側へ一度も倒れず、
-    /// JobSchedule の安全弁が効かない(FM が落ちて遅くなった手元を「もうすぐ空く速いマシン」と見続け、空いた2台が
-    /// 未着手の仕事を取らずに10分以上待った)。記憶した時刻は遅れを覚え、残りの見込みは早く進んだ分を拾う
-    private func expectedFreeAt(job id: String, running s: State, now: Double) -> Double {
-        let rest = remainingFinish(job: id, members: s.running[id] ?? [], now: now)
+    /// TargetSchedule の安全弁が効かない(FM が落ちて遅くなった手元を「もうすぐ空く速いマシン」と見続け、空いた2台が
+    /// 未着手の対象を取らずに10分以上待った)。記憶した時刻は遅れを覚え、残りの見込みは早く進んだ分を拾う
+    private func expectedFreeAt(unit id: String, running s: State, now: Double) -> Double {
+        let rest = remainingFinish(unit: id, members: s.running[id] ?? [], now: now)
         return min(s.anchor[id] ?? .infinity, rest ?? now)
     }
 
-    /// その仕事を members で回したときの「今 + 残り」。速さはマシンごとの 1/見込み の和。残りが無ければ nil
-    private func remainingFinish(job id: String, members: Set<Int>, now: Double) -> Double? {
-        guard let job = jobs[id] else { return nil }
+    /// その対象を members で回したときの「今 + 残り」。速さはマシンごとの 1/見込み の和。残りが無ければ nil
+    private func remainingFinish(unit id: String, members: Set<Int>, now: Double) -> Double? {
+        guard let unit = units[id] else { return nil }
         var rate = 0.0
         for m in members {
-            guard let lane = job.lanes[m] else { continue }
-            let fitting = job.pending().filter { lane.platforms.contains($0.platform) }
-            let total = fitting.reduce(0.0) { $0 + job.estimateMs($1, lane.entry) } / Double(max(lane.devices, 1))
+            guard let lane = unit.lanes[m] else { continue }
+            let fitting = unit.pending().filter { lane.platforms.contains($0.platform) }
+            let total = fitting.reduce(0.0) { $0 + unit.estimateMs($1, lane.entry) } / Double(max(lane.devices, 1))
             if total > 0 { rate += 1 / total }
         }
         return rate > 0 ? now + 1 / rate : nil
     }
 
     /// machine が始める・加わるときの終わる見込み(固定費の後から加わった速さで回る近似)
-    private func expectedFinish(job id: String, adding machine: Int, state s: State, now: Double) -> Double? {
+    private func expectedFinish(unit id: String, adding machine: Int, state s: State, now: Double) -> Double? {
         let overhead = machine < overheadMs.count ? overheadMs[machine] : 0
-        guard let rest = remainingFinish(job: id, members: (s.running[id] ?? []).union([machine]), now: now + overhead)
+        guard let rest = remainingFinish(unit: id, members: (s.running[id] ?? []).union([machine]), now: now + overhead)
         else { return nil }
         return rest
     }

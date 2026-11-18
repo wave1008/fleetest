@@ -27,6 +27,7 @@ import {
   type MonitorDevice,
   type MonitorEvent,
   type MonitorPlatform,
+  type MonitorJob,
   type MonitorRunEntry,
   type MonitorServicesLease,
 } from "./monitorDeviceModel";
@@ -74,6 +75,7 @@ export type MonitorToWebviewMessage =
       readonly machine?: string;
       readonly observed: boolean;
       readonly runs: readonly MonitorRunEntry[];
+      readonly jobs: readonly MonitorJob[];
       readonly services: readonly MonitorServicesLease[];
     }
   // monitor プロセスの再起動(startMonitorProcess)の合図。machineLocks と同じ寿命の規律 ——
@@ -612,7 +614,7 @@ export function toWebviewMessage(
       };
     case "monitorRuns":
       return {
-        type: "monitorRuns", machine: event.machine, observed: event.observed, runs: event.runs, services: event.services,
+        type: "monitorRuns", machine: event.machine, observed: event.observed, runs: event.runs, jobs: event.jobs, services: event.services,
       };
   }
 }

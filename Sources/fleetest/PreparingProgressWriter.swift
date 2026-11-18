@@ -66,7 +66,8 @@ final class PreparingProgressWriter: Sendable {
             startedAt: startedAt, total: 0, done: 0, failed: 0, actions: 0,
             requeued: 0, laneDropouts: 0, etaSeconds: nil, lanes: [], phase: phase,
             supply: supply.snapshot(), videoClips: nil,
-            owner: RunProgressRecord.ownerFromEnvironment()),
+            owner: RunProgressRecord.ownerFromEnvironment(),
+            jobID: JobMembership.jobIDFromEnvironment()),
             directory: RunProgressLedger.directory())
     }
 }

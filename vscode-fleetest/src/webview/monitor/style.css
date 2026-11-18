@@ -924,6 +924,48 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 .run-board[data-collapsed="true"] .run-board-split {
   display: none;
 }
+/* ジョブ(run の上の1階層)。数と経過だけを見出しの行(.run-board-header-jobs)に出す */
+.run-board-job-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.run-board-job-count-running {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+.run-board-job-count-pending {
+  color: var(--vscode-descriptionForeground);
+}
+/* 見出しの行でタコメーターの右に置くジョブの数と経過。見出しを押し広げず、縮むときは右端で切る */
+.run-board-header-jobs {
+  flex: 0 1 auto;
+  min-width: 0;
+  /* タコメーターとの境目(見出しの要素どうしの gap 6px に足して 16px にする = 別のまとまりに見せる) */
+  margin-left: 10px;
+  overflow: hidden;
+  display: flex;
+  /* ジョブが2つ以上のときのジョブどうしのあいだ(1つのジョブの中の 12px より広く) */
+  gap: 20px;
+  white-space: nowrap;
+}
+.run-board-header-job {
+  display: inline-flex;
+  align-items: center;
+  /* 数のまとまりと経過のあいだ(数どうしの 8px より広げて、経過を別のまとまりに見せる) */
+  gap: 12px;
+}
+.run-board-job-lead {
+  /* 数どうしのあいだ(run 行の .run-board-lead と同じ 8px) */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.run-board-job-elapsed {
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
 .run-board-lead {
   /* 時刻より前のまとまり。幅は全 run 行で最大に揃える(--rb-lead = runBoard.js の renderLeadWidth) */
   flex: 0 0 auto;

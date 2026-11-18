@@ -32,7 +32,7 @@ final class RunProgressLedgerTests: XCTestCase {
             lanes: [RunProgressLane(key: "UDID-A", name: "iPhone 17-01", platform: "ios",
                                     scenario: "05_検索", scenarioStartedAt: "2026-09-20T10:04:00Z",
                                     expectedSeconds: nil)],
-            phase: phase, supply: supply, videoClips: nil, owner: nil)
+            phase: phase, supply: supply, videoClips: nil, owner: nil, jobID: nil)
     }
 
     func testDefaultDirectoryIsHomeDotFleetestRuns() {
@@ -60,7 +60,7 @@ final class RunProgressLedgerTests: XCTestCase {
             pid: 41233, runID: nil, runGroup: nil, issuer: nil, project: "p", profile: nil,
             startedAt: "2026-09-20T10:03:12Z", total: 1, done: 0, failed: 0, actions: 0, requeued: 0,
             laneDropouts: 0, etaSeconds: nil, lanes: [lane], phase: "running", supply: [], videoClips: nil,
-            owner: "host:77")
+            owner: "host:77", jobID: nil)
         RunProgressLedger.write(record, directory: dir)
         let read = RunProgressLedger.readAll(directory: dir, isAlive: { _ in true }, startTime: Self.unknownStart)
         XCTAssertEqual(read, [record])

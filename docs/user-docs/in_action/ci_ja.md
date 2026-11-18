@@ -75,6 +75,9 @@ ios-run を --quiet --junit reports/junit.xml 付きで回して。終了コー�
 - **失敗の調査**: `TestProjects/<name>/reports/` に失敗ごとの Markdown レポート(要素一覧・
   スクリーンショット・自己修復の提案)が出ます。ビルド成果物として保存しておくと、JUnit の
   `report:` 行から辿れます。
+- 1つの CI ジョブで `fleetest run` を何本も順に起動するときは、`fleetest job begin` で予定を宣言しておくと、run ボードに待機中の本数が出ます。
+  CI 機には拡張を入れないので、CI 機を[ランナー機として登録した](../fleet/adding_mac_ja.md#ステップ2-マシンを登録する) Mac の VSCode 拡張で見ます
+  (書き方は [CLI](../reference/tools/cli_ja.md#ジョブで待機中の-run-を見せる))。
 
 期待する結果:
 

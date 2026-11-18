@@ -106,13 +106,15 @@ public struct RunProgressRecord: Codable, Equatable, Sendable {
     /// run を回しているプロセスの環境変数 `FT_STREAM_OWNER` の値**だけ**(`StreamOwner.current` の `FT_PARENT_PID` への
     /// fallback は使わない)。拡張から起こした run を見分ける印で、CLI の run は nil。リモートの run も `RemoteShell` が運ぶので同じ値を持つ
     public let owner: String?
+    /// 環境変数 `FT_JOB_ID` の値(所属するジョブ。行を受け持っているかに関わらず運ぶ。JobProgressLedger)。無ければ nil
+    public let jobID: String?
 
     public init(pid: Int32, runID: String?, runGroup: String?, issuer: String?, project: String,
                profile: String?, startedAt: String, total: Int, done: Int, failed: Int, actions: Int,
                requeued: Int, laneDropouts: Int, etaSeconds: Int?, lanes: [RunProgressLane],
                phase: String, supply: [RunProgressSupply], videoClips: RunProgressVideoClips?,
                frozenDevices: Int = 0, blankDevices: Int = 0, textlessDevices: Int = 0,
-               owner: String?) {
+               owner: String?, jobID: String?) {
         self.pid = pid
         self.runID = runID
         self.runGroup = runGroup
@@ -135,6 +137,7 @@ public struct RunProgressRecord: Codable, Equatable, Sendable {
         self.blankDevices = blankDevices
         self.textlessDevices = textlessDevices
         self.owner = owner
+        self.jobID = jobID
     }
 
     /// 環境変数 `FT_STREAM_OWNER` の値だけ。空は nil(`StreamOwner.current` の FT_PARENT_PID への fallback はしない)

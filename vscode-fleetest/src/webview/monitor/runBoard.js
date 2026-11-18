@@ -19,7 +19,7 @@ import { compareMachineOrder } from '../../monitorDeviceModel';
 import { setHoverTip } from './hoverTip.js';
 import {
   deviceIdForLane, selectOnlyDevices, devicesOnMachine, setRunningDevices,
-  isPlatformVisible, onPlatformFilterChanged,
+  isPlatformVisible, onPlatformFilterChanged, setJobActive,
 } from './deviceTiles.js';
 import { reapplyPaneHeights } from './splitter.js';
 import { HM_MAX_SAMPLES, onHostMetricsCommitted } from './hostCharts.js';
@@ -27,6 +27,11 @@ import {
   LOCAL_MACHINE_KEY,
   applyMonitorRunsEvent,
   buildRunGroups,
+  listJobs,
+  jobCounts,
+  jobsMayBeRunning,
+  jobRunKind,
+  jobKey,
   machinesWithoutRuns,
   liveElapsedSeconds,
   liveRemaining,
@@ -320,8 +325,9 @@ function setTachometerVisible(visible) {
 const TACHO_HOLD_AFTER_RUN_MS = 10_000;
 let tachoHoldTimer;
 
-function updateTachometerVisibility(runCount) {
-  if (!showTachometer || runCount > 0) {
+/** activeCount = 走っている run の数 + 続いているジョブの数 */
+function updateTachometerVisibility(activeCount) {
+  if (!showTachometer || activeCount > 0) {
     clearTimeout(tachoHoldTimer);
     tachoHoldTimer = undefined;
     setTachometerVisible(showTachometer);
@@ -337,11 +343,13 @@ function updateTachometerVisibility(runCount) {
   }, TACHO_HOLD_AFTER_RUN_MS);
 }
 
-function renderHeader(groups) {
+function renderHeader(groups, jobCount) {
   runBoardTitle.textContent = t('runBoard.title', { count: String(groups.length) });
   // タコメーターは run が実行中(「実行中 N」の N ≥ 1。準備中も含む)のときだけ出す(ユーザー決定)。
+  // **ジョブが続いている間は run が 0 本でも隠さない**(ユーザー決定)—— run と run のあいだ(次の SUT のビルド中等)に
+  // 隠すと、右のジョブの数が左へ寄り、次の run で元の位置へ戻る動きになる。
   // hidden 属性は .run-board-tachometer の display に負けるので style で切る。隠している間も数え続ける
-  updateTachometerVisibility(groups.length);
+  updateTachometerVisibility(groups.length + jobCount);
   // **折りたたみ中は出さない**(本体が見えないので押しても何も起きない)。run 0 本でも出す ——
   // これはモードのスイッチで、「いま開く行があるか」とは別
   runBoardExpandAll.style.display = collapsed ? 'none' : '';
@@ -867,9 +875,113 @@ function renderServices(row, machine, first) {
   setHoverTip(row.servicesEl, tip);
 }
 
+// ---- ジョブ(run の上の1階層。ProtocolVersion 76)----------------------------------------------
+// run ボードの見出しの行(タコメーターの右)に、ジョブごとの数(run 済 N/M・❌n・実行中・待機)と経過だけを出す。
+// 各 run の中身は数のホバーで一覧する。run の行はマシンの行の中のまま。ジョブ単位の残り時間は出さない(見積もりの材料が無い。DR-4)。
+// ジョブの鍵(jobKey)→ 見出しの行に置いた要素
+const jobRows = new Map();
+// 見出しの行でジョブの数と経過を並べる入れ物。**タコメーターの右**(ユーザー決定)。
+// 見出しを押すと run ボードが開閉するのは他の部分と同じ
+const runBoardHeaderJobs = document.createElement('span');
+runBoardHeaderJobs.className = 'run-board-header-jobs';
+runBoardHeader.append(runBoardHeaderJobs);
+
+function ensureJobRow(key) {
+  const existing = jobRows.get(key);
+  if (existing) {
+    return existing;
+  }
+  // 見出しの行(タコメーターの右)に置く数と経過。題名はジョブが2つ以上のときだけ添える(見分けるため)
+  const headEl = document.createElement('span');
+  headEl.className = 'run-board-header-job';
+  headEl.dataset.jobKey = key;
+  const titleEl = document.createElement('span');
+  titleEl.className = 'run-board-job-title';
+  const leadEl = document.createElement('span');
+  leadEl.className = 'run-board-job-lead';
+  const elapsedEl = document.createElement('span');
+  elapsedEl.className = 'run-board-job-elapsed';
+  headEl.append(titleEl, leadEl, elapsedEl);
+  const row = { key, headEl, titleEl, leadEl, elapsedEl, sig: '', job: null };
+  jobRows.set(key, row);
+  return row;
+}
+
+function jobRunScope(run) {
+  return run.profile ? `${run.project} / ${run.profile}` : run.project;
+}
+
+function jobCountSpan(className, text) {
+  const el = document.createElement('span');
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+function updateJobRow(row, job, showTitle) {
+  row.job = job;
+  // **要素は中身が変わったときだけ作り直す**(周期描画でマウスを載せた数のツールチップが点滅しない)。
+  // 鍵 = 表示に効く欄の全部(経過は秒読みで別に書く)
+  const sig = JSON.stringify([job.title, job.runs, showTitle]);
+  if (row.sig !== sig) {
+    row.sig = sig;
+    row.titleEl.textContent = showTitle ? `${job.title}:` : '';
+    row.titleEl.style.display = showTitle ? '' : 'none';
+    const counts = jobCounts(job);
+    row.leadEl.textContent = '';
+    const doneEl = jobCountSpan('run-board-job-count run-board-job-count-done', t('runBoard.jobDone', {
+      done: String(counts.finished), total: String(counts.total),
+    }));
+    setHoverTip(doneEl, jobRunsTip(job, JOB_FINISHED_KINDS, 'runBoard.jobDoneTip', 'state'));
+    row.leadEl.append(doneEl);
+    if (counts.failed > 0) {
+      const failedEl = jobCountSpan('run-board-counts-failed', `❌${counts.failed}`);
+      setHoverTip(failedEl, t('runBoard.jobFailedTip'));
+      row.leadEl.append(failedEl);
+    }
+    const runningEl = jobCountSpan('run-board-job-count run-board-job-count-running', t('runBoard.jobRunning', { count: String(counts.running) }));
+    setHoverTip(runningEl, jobRunsTip(job, ['running'], 'runBoard.jobRunningTip', 'machines'));
+    // 待機中の run は数のホバーで全件(並びの行は置かない)
+    const pendingEl = jobCountSpan('run-board-job-count run-board-job-count-pending', t('runBoard.jobPending', { count: String(counts.pending) }));
+    setHoverTip(pendingEl, jobRunsTip(job, ['pending'], 'runBoard.jobPendingTip', 'none'));
+    row.leadEl.append(runningEl, pendingEl);
+  }
+  renderJobTime(row);
+}
+
+/** 「run 済」に数える終端の4状態(jobCounts の finished と同じ集合) */
+const JOB_FINISHED_KINDS = ['passed', 'failed', 'canceled', 'skipped'];
+
+/** 見出しの数のホバー: kinds に当たる run の一覧(宣言順・番号付き)。detail = 'state'(状態を添える)/ 'machines'(マシン名を添える)/ 'none'。
+ * 該当が無ければ空(ツールチップを出さない) */
+function jobRunsTip(job, kinds, titleKey, detail) {
+  const runs = job.runs.filter((run) => kinds.includes(jobRunKind(run.state)));
+  if (runs.length === 0) return '';
+  const lines = runs.map((run, index) => {
+    let text = jobRunScope(run);
+    if (detail === 'state') {
+      text += ` — ${t(`runBoard.jobState.${jobRunKind(run.state)}`)}`;
+    } else if (detail === 'machines' && run.machines.length > 0) {
+      text = t('runBoard.jobRunWithMachines', { scope: text, machines: run.machines.join(', ') });
+    }
+    return `${index + 1}. ${text}`;
+  });
+  return [t(titleKey, { count: String(runs.length) }), ...lines].join('\n');
+}
+
+function renderJobTime(row) {
+  const entry = row.job;
+  if (entry) {
+    row.elapsedEl.textContent = formatMinSec(liveElapsedSeconds(entry.elapsedSeconds, entry.receivedAtMs, Date.now()));
+  }
+}
+
 function render() {
   const groups = buildRunGroups(runsByMachine);
-  renderHeader(groups);
+  const jobs = listJobs(runsByMachine);
+  renderHeader(groups, jobs.length);
+  // 表示(jobs)ではなく「続いているかもしれない」で止める = 監視が途切れた機械のジョブも数える(不明を空きに倒さない)
+  setJobActive(jobsMayBeRunning(runsByMachine));
   // グリッドビューの点灯マーク: いまシナリオを走らせているレーン(scenario あり = 待機中は含まない)のデバイス
   const running = new Set();
   for (const group of groups) {
@@ -896,6 +1008,21 @@ function render() {
     // 既存ノードへの appendChild は移動として働く(重複しない)
     runBoardRows.appendChild(row.rowEl);
   };
+  // ジョブの数と経過は見出しの行(タコメーターの右)へ。run の行はマシンの行の中のまま(ジョブへ移さない)
+  const seenJobs = new Set();
+  for (const job of jobs) {
+    const key = jobKey(job);
+    seenJobs.add(key);
+    const jobRow = ensureJobRow(key);
+    updateJobRow(jobRow, job, jobs.length > 1);
+    runBoardHeaderJobs.appendChild(jobRow.headEl);
+  }
+  for (const [key, jobRow] of jobRows) {
+    if (!seenJobs.has(key)) {
+      jobRow.headEl.remove();
+      jobRows.delete(key);
+    }
+  }
   const placedMachines = new Set();
   for (const machine of machineList()) {
     placedMachines.add(machine);
@@ -1187,6 +1314,7 @@ export function applyMonitorRuns(message) {
     machine: message.machine,
     observed: message.observed,
     runs: message.runs,
+    jobs: message.jobs,
     services: message.services,
   });
   tachometer.apply({ machine: message.machine, observed: message.observed, runs: message.runs }, Date.now());
@@ -1210,6 +1338,9 @@ renderTachometer();
 setInterval(() => {
   tachometer.tick(Date.now());
   renderTachometer();
+  for (const row of jobRows.values()) {
+    renderJobTime(row);
+  }
   for (const row of rows.values()) {
     if (row.run) {
       renderRowTime(row);

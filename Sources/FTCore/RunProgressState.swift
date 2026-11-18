@@ -40,6 +40,8 @@ actor RunProgressState {
     private let startedAt: String
     /// `FT_STREAM_OWNER` の値(init で1回だけ読んで固定)
     private let owner: String?
+    /// `FT_JOB_ID` の値(init で1回だけ読んで固定)
+    private let jobID: String?
     /// pulled(`ScenarioDispatch.pulled`)のときだけ `growTotal` で増える。それ以外は不変
     private var total: Int
     private var done = 0
@@ -73,9 +75,11 @@ actor RunProgressState {
         pendingScenarios: [RunProgressEstimate.ScenarioKey] = [],
         supply: RunSupplyProgress? = nil,
         owner: String? = RunProgressRecord.ownerFromEnvironment(),
+        jobID: String? = JobMembership.jobIDFromEnvironment(),
         write: (@Sendable (RunProgressRecord) -> Void)?, remove: (@Sendable () -> Void)?) {
         self.supply = supply
         self.owner = owner
+        self.jobID = jobID
         self.pid = pid
         self.runID = runID
         self.runGroup = runGroup
@@ -122,7 +126,7 @@ actor RunProgressState {
             supply: supply?.snapshot() ?? [], videoClips: videoClips,
             frozenDevices: devicesByState[.frozen]?.count ?? 0,
             blankDevices: devicesByState[.blank]?.count ?? 0,
-            textlessDevices: devicesByState[.textless]?.count ?? 0, owner: owner)
+            textlessDevices: devicesByState[.textless]?.count ?? 0, owner: owner, jobID: jobID)
         guard record != lastWritten else { return }
         let firstWrite = lastWritten == nil
         lastWritten = record

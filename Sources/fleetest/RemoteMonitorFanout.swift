@@ -308,6 +308,19 @@ final class RemoteMonitorFanout: @unchecked Sendable {
         waitForExit()
     }
 
+    /// ジョブの担当マシン名の "local" をその機械名へ書き換える(子は自分を local と名乗る。machine を埋めるのと同じ理由)
+    static func machineStamped(jobs: [ApiMonitorJob], machine: String) -> [ApiMonitorJob] {
+        jobs.map { job in
+            var job = job
+            job.runs = job.runs.map { run in
+                var run = run
+                run.machines = run.machines.map { $0 == "local" ? machine : $0 }
+                return run
+            }
+            return job
+        }
+    }
+
     /// 子の stdout 1行。devices は保持し、それ以外(frame/error)は行のまま中継する。
     /// internal: RemoteMonitorFanoutIDTests が「親が id とマシンバッジを埋める」ことを固定する
     func ingest(line: String, machine: String) {
@@ -339,6 +352,7 @@ final class RemoteMonitorFanout: @unchecked Sendable {
                 return
             }
             event.machine = machine
+            event.jobs = Self.machineStamped(jobs: event.jobs, machine: machine)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             guard let encoded = try? encoder.encode(event),

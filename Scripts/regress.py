@@ -304,6 +304,34 @@ def main():
     run_dir = os.path.join(ROOT, ".fleetest", "regress", time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(run_dir, exist_ok=True)
     env = {**os.environ, "FT_FULL_TEST": "1"}
+    job_id = begin_job(targets, witness)
+    if job_id:
+        env["FT_JOB_ID"] = job_id
+        env.pop("FT_JOB_MARKED", None)
+    try:
+        return run_stages(opts, fleet, targets, suts, suites, witness, run_dir, env)
+    finally:
+        if job_id:
+            subprocess.run([FLEETEST, "job", "end", "--id", job_id], capture_output=True, stdin=subprocess.DEVNULL)
+
+
+def begin_job(targets, witness):
+    """回帰の全体をジョブとして宣言する(run ボードに待機中の対象が出る。DS-18.11)。段2の fleetest run は FT_JOB_ID を見て
+    外側のこのジョブの行を使う。宣言できなければ None(見える化だけなので回帰は続ける)"""
+    rows = [f"{project}:{profile}" for _, project, profile in targets]
+    if witness:
+        rows.append(f"{WITNESS[0]}:ios-inapp-boost")
+    cmd = [FLEETEST, "job", "begin", "--title", "regress", "--owner-pid", str(os.getpid())]
+    for row in rows:
+        cmd += ["--run", row]
+    out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    job_id = out.stdout.strip() if out.returncode == 0 else ""
+    if not job_id:
+        print(f"   ⚠️ ジョブを宣言できませんでした(run ボードに待機中の対象が出ません。回帰は続けます): {out.stderr.strip()[-200:]}")
+    return job_id or None
+
+
+def run_stages(opts, fleet, targets, suts, suites, witness, run_dir, env):
     started = time.time()
     print(f"==> マシン: {', '.join(m for m, _ in fleet)} / 対象: {len(targets)} / ログ: {run_dir}")
     record_machine_states(fleet, run_dir, "start")
@@ -409,7 +437,9 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started):
     neg_failed = False
     if opts.negative:
         print("\n═══ 陽性対照(Scripts/e2e-negative.sh)═══")
-        neg_failed = run_child([os.path.join(ROOT, "Scripts", "e2e-negative.sh")], env=env) != 0
+        # 陽性対照の run(落ちるのが正常)は回帰のジョブに載せない
+        neg_env = {k: v for k, v in env.items() if k not in ("FT_JOB_ID", "FT_JOB_MARKED")}
+        neg_failed = run_child([os.path.join(ROOT, "Scripts", "e2e-negative.sh")], env=neg_env) != 0
         if _interrupted:
             return interrupted_exit(fleet, run_dir)
     return 0 if all_green and not neg_failed else 1

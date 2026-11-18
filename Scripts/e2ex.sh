@@ -86,8 +86,10 @@ done
 # HUP = 手元の ssh -tt が切れたとき
 # shellcheck source=crash-dialog.sh
 . "$ROOT/Scripts/crash-dialog.sh"
-trap 'crash_dialog_restore' EXIT
-trap 'crash_dialog_restore; exit 130' INT TERM HUP
+# shellcheck source=job.sh
+. "$ROOT/Scripts/job.sh"
+trap 'crash_dialog_restore; job_end' EXIT
+trap 'crash_dialog_restore; job_end; exit 130' INT TERM HUP
 crash_dialog_suppress
 # 配信を張ったままなら警告だけ出す(止めない。--on なら向こうの機械の配信ヘルパーを見る)
 [ "$BUILD_ONLY" = 1 ] || python3 "$ROOT/Scripts/streaming_check.py"
@@ -177,6 +179,26 @@ run_sut() {
     run_profile "$project" "android"
   fi
 }
+
+# ジョブの予定の行(Scripts/job.sh)。**下の run_sut の呼び方と同じ規則**(SUT ごとに回す OS)
+job_rows() {
+  local sut
+  for sut in $SUTS; do
+    case "$sut" in
+      cmp|flutter|rn)
+        [ "$RUN_IOS" = 1 ] && echo "E2EX-$(sut_suffix "$sut"):$IOS_PROFILE"
+        [ "$RUN_ANDROID" = 1 ] && echo "E2EX-$(sut_suffix "$sut"):android" ;;
+      android-native) [ "$RUN_ANDROID" = 1 ] && echo "E2EX-Android:android" ;;
+      ios-native) [ "$RUN_IOS" = 1 ] && echo "E2EX-iOS:$IOS_PROFILE" ;;
+    esac
+  done
+  return 0
+}
+sut_suffix() { case "$1" in cmp) echo CMP ;; flutter) echo Flutter ;; rn) echo RN ;; esac; }
+if [ "$BUILD_ONLY" = 0 ]; then
+  # shellcheck disable=SC2046  # 行は空白を含まない project:profile
+  job_begin E2EX $(job_rows)
+fi
 
 for sut in $SUTS; do
   case "$sut" in

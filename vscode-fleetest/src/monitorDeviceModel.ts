@@ -174,6 +174,28 @@ export interface MonitorRunSupply {
   readonly step: string;
 }
 
+/** ジョブの予定の run 1行(ProtocolVersion 76。FTCore の ApiMonitorJob.runs と対)。
+ * state は "pending" | "running" | "passed" | "failed" | "canceled" | "skipped"。**未知の値は落とさず運ぶ**
+ * (表示は pending と同じ扱い = runBoardModel.jobRunKind)。machines は中継で書き換え済みの機械名(手元は "local" のこともある)。 */
+export interface MonitorJobRun {
+  readonly project: string;
+  readonly profile: string;
+  readonly state: string;
+  readonly machines: readonly string[];
+}
+
+/** run の上の1階層のジョブ(ProtocolVersion 76。入れ子のジョブ・タスクは無い)。 */
+export interface MonitorJob {
+  readonly jobID: string;
+  readonly title: string;
+  /** 省略されうる。 */
+  readonly issuer?: string;
+  readonly mine: boolean;
+  /** 受信時点の経過秒(run と同じく秒読みは読み手が進める)。 */
+  readonly elapsedSeconds: number;
+  readonly runs: readonly MonitorJobRun[];
+}
+
 /** run ボードの1 run(1機械ぶん。DS-18.1)。機械分担の run は `runGroup` を共有する
  * 複数の MonitorRunEntry に分かれて届く(束ねるのは読み手 = runBoardModel.ts)。 */
 export interface MonitorRunEntry {
@@ -199,6 +221,8 @@ export interface MonitorRunEntry {
   /** 自己申告のディスパッチ発行者。不明・自分の run では省略されうる。 */
   readonly issuer?: string;
   readonly mine: boolean;
+  /** その run が属するジョブ(MonitorJob.jobID)。属さなければ省略(ProtocolVersion 76)。 */
+  readonly jobID?: string;
   readonly project: string;
   /** プロファイル無し実行(--dry-run 等)では省略されうる。 */
   readonly profile?: string;
@@ -290,6 +314,8 @@ export type MonitorEvent =
       readonly machine?: string;
       readonly observed: boolean;
       readonly runs: readonly MonitorRunEntry[];
+      /** その機械が見ているジョブ(**必須**。ProtocolVersion 76)。observed:false では空 */
+      readonly jobs: readonly MonitorJob[];
       /** その機械のサーバーの控え全部(DS-18.10)。observed:false では空 */
       readonly services: readonly MonitorServicesLease[];
     }
@@ -483,6 +509,35 @@ function isMonitorBridgeLogRotationCandidate(value: unknown): value is MonitorBr
   );
 }
 
+function isMonitorJobRun(value: unknown): value is MonitorJobRun {
+  return (
+    isRecord(value) &&
+    typeof value.project === "string" &&
+    typeof value.profile === "string" &&
+    typeof value.state === "string" &&
+    Array.isArray(value.machines) &&
+    value.machines.every((m) => typeof m === "string")
+  );
+}
+
+function isMonitorJob(value: unknown): value is MonitorJob {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.issuer === null) {
+    value.issuer = undefined;
+  }
+  return (
+    typeof value.jobID === "string" &&
+    typeof value.title === "string" &&
+    (value.issuer === undefined || typeof value.issuer === "string") &&
+    typeof value.mine === "boolean" &&
+    typeof value.elapsedSeconds === "number" &&
+    Array.isArray(value.runs) &&
+    value.runs.every(isMonitorJobRun)
+  );
+}
+
 function isMonitorRunEntry(value: unknown): value is MonitorRunEntry {
   if (!isRecord(value)) {
     return false;
@@ -495,6 +550,9 @@ function isMonitorRunEntry(value: unknown): value is MonitorRunEntry {
   }
   if (value.issuer === null) {
     value.issuer = undefined;
+  }
+  if (value.jobID === null) {
+    value.jobID = undefined;
   }
   if (value.profile === null) {
     value.profile = undefined;
@@ -512,6 +570,7 @@ function isMonitorRunEntry(value: unknown): value is MonitorRunEntry {
     (value.runGroup === undefined || typeof value.runGroup === "string") &&
     (value.issuer === undefined || typeof value.issuer === "string") &&
     typeof value.mine === "boolean" &&
+    (value.jobID === undefined || typeof value.jobID === "string") &&
     typeof value.project === "string" &&
     (value.profile === undefined || typeof value.profile === "string") &&
     typeof value.elapsedSeconds === "number" &&
@@ -587,6 +646,8 @@ export function isMonitorEvent(value: unknown): value is MonitorEvent {
         (value.machine === undefined || typeof value.machine === "string") &&
         Array.isArray(value.runs) &&
         value.runs.every(isMonitorRunEntry) &&
+        Array.isArray(value.jobs) &&
+        value.jobs.every(isMonitorJob) &&
         Array.isArray(value.services) &&
         value.services.every(isMonitorServicesLease)
       );

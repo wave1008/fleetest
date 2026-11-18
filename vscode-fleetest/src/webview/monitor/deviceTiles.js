@@ -2155,6 +2155,16 @@ export function applyRecordingsFinalizing(active) {
   refreshBulkButtons();
 }
 
+// どこかの機械でジョブ(DS-18.11)が続いているか(run ボードの描画が知らせる)。続いている間は「全て終了」を押させない ——
+// run と run のあいだ(次の SUT のビルド中等)はデバイスの lease が無く、CLI 側の使用中の門も素通りして次の run のデバイスを止める
+let jobActive = false;
+
+export function setJobActive(active) {
+  if (active === jobActive) { return; }
+  jobActive = active;
+  refreshBulkButtons();
+}
+
 function refreshBulkButtons() {
   // bulk up 実行中は「全て起動」ボタンを中断ボタンに転用する(クリック時の分岐は main.js。
   // 受け手: monitorPanel.ts devicesUpCancel → MonitorDeviceOps.cancelBulkUp)。
@@ -2184,7 +2194,8 @@ function refreshBulkButtons() {
   // 起動キューが動いている間は畳む操作を出さない(「全て終了」は down の最中も同じ)。
   // 「モニター再起動」は monitor プロセスごと起動し直すので、起動の進行(bootBusy)を
   // 取りこぼして中断の導線が消える。
-  btnDown.disabled = bulkBusy || testRunActive;
+  btnDown.disabled = bulkBusy || testRunActive || jobActive;
+  setHoverTip(btnDown, jobActive && !bulkBusy && !testRunActive ? t('wvMonitor.bulk.stopAllDisabledJob') : '');
   btnRestart.disabled = upCancelMode || recordingsFinalizing;
   setHoverTip(btnRestart, upCancelMode
     ? t('wvMonitor.bulk.disabledWhileStarting')

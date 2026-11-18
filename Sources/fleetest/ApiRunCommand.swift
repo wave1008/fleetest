@@ -229,7 +229,12 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 子プロセスを1本も起こす前に(供給の adb なども stdin を受け継ぐ)
         if common.workQueue { _ = WorkQueueStdin.claim() }
         try common.rejectWorkQueueMeasurement(setOverrides: setOverrides)
-        try await RunExitGuard.run(log: { logStderr($0) }) { try await runBody(runExit: $0) }
+        try await RunExitGuard.run(log: { logStderr($0) }, jobRun: jobRunTarget) { try await runBody(runExit: $0) }
+    }
+
+    /// ジョブの行を受け持つ対象(`JobMembership`)。dry-run は受け持たない
+    private func jobRunTarget() -> (project: String, profile: String)? {
+        dryRun ? nil : (try? ScenarioHost.project(named: common.project).name).map { ($0, common.profile ?? "") }
     }
 
     private func runBody(runExit: RunExitGuard) async throws {

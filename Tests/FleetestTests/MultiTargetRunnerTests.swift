@@ -14,32 +14,32 @@ final class MultiTargetRunnerTests: XCTestCase {
         // @unchecked の根拠: 可変状態は全部 LockedValue の中
         let clock = LockedValue(0.0)
         let timers = LockedValue<[(afterMs: Double, fire: @Sendable () -> Void)]>([])
-        let launches = LockedValue<[(job: String, machine: Int)]>([])
+        let launches = LockedValue<[(unit: String, machine: Int)]>([])
         let finishers = LockedValue<[String: @Sendable (Int32) -> Void]>([:])
         let pending = LockedValue<[String: [DynamicSplit.Scenario]]>([:])
-        let exited = LockedValue<[(job: String, entry: Int)]>([])
+        let exited = LockedValue<[(unit: String, entry: Int)]>([])
         let interrupted = LockedValue<[String]>([])
         /// 起動の口が呼ばれた直後に呼ぶ(起動の合間に中断が来る順序を作る)
         let onLaunch = LockedValue<(@Sendable () -> Void)?>(nil)
         var coordinator: MultiTargetCoordinator!
 
-        static func key(_ job: String, _ machine: Int) -> String { "\(job)#\(machine)" }
+        static func key(_ unit: String, _ machine: Int) -> String { "\(unit)#\(machine)" }
 
-        /// lanes: 仕事 → そのマシンの添字の集合(entry はマシンの添字と同じにする)。scenarios: 仕事 → 本数。
+        /// lanes: 対象 → そのマシンの添字の集合(entry はマシンの添字と同じにする)。scenarios: 対象 → 本数。
         /// msPerScenario: マシン → 1本の見込み[ms](無ければ 1000)。overheadMs: マシン → 固定費[ms](無ければ 0)
         init(machines: Int, lanes: [String: Set<Int>], scenarios: [String: Int], order: [String],
              msPerScenario: [Int: Double] = [:], overheadMs: [Int: Double] = [:]) {
-            for (job, count) in scenarios {
+            for (unit, count) in scenarios {
                 pending.withLock {
-                    $0[job] = (0..<count).map { DynamicSplit.Scenario(id: "\(job).s\($0)", platform: "ios") }
+                    $0[unit] = (0..<count).map { DynamicSplit.Scenario(id: "\(unit).s\($0)", platform: "ios") }
                 }
             }
-            let specs = order.map { id -> MultiTargetCoordinator.Job in
+            let specs = order.map { id -> MultiTargetCoordinator.TargetUnit in
                 var laneMap: [Int: MultiTargetCoordinator.Lane] = [:]
                 for machine in lanes[id] ?? [] {
                     laneMap[machine] = .init(entry: machine, devices: 1, platforms: ["ios"])
                 }
-                return MultiTargetCoordinator.Job(
+                return MultiTargetCoordinator.TargetUnit(
                     id: id, lanes: laneMap,
                     pending: { [self] in pending.withLock { $0[id] ?? [] } },
                     estimateMs: { _, entry in msPerScenario[entry] ?? 1000 },
@@ -47,15 +47,15 @@ final class MultiTargetRunnerTests: XCTestCase {
                     interrupt: { [self] in interrupted.withLock { $0.append(id) } })
             }
             coordinator = MultiTargetCoordinator(
-                jobs: specs, machineCount: machines, overheadMs: (0..<machines).map { overheadMs[$0] ?? 0 },
+                units: specs, machineCount: machines, overheadMs: (0..<machines).map { overheadMs[$0] ?? 0 },
                 nowMs: { [self] in clock.withLock { $0 } },
                 timer: { [self] afterMs, fire in
                     timers.withLock { $0.append((afterMs, fire)) }
                     return {}
                 },
-                launch: { [self] job, machine, finished in
-                    launches.withLock { $0.append((job, machine)) }
-                    finishers.withLock { $0[Self.key(job, machine)] = finished }
+                launch: { [self] unit, machine, finished in
+                    launches.withLock { $0.append((unit, machine)) }
+                    finishers.withLock { $0[Self.key(unit, machine)] = finished }
                     onLaunch.withLock { $0 }?()
                 })
         }
@@ -69,13 +69,13 @@ final class MultiTargetRunnerTests: XCTestCase {
             for timer in pendingTimers { timer.fire() }
         }
 
-        var launched: [String] { launches.withLock { $0.map { "\($0.job)@\($0.machine)" } } }
+        var launched: [String] { launches.withLock { $0.map { "\($0.unit)@\($0.machine)" } } }
 
-        /// 仕事の残りを配り切った状態にしてから、その子を終わらせる
-        func finish(_ job: String, _ machine: Int, code: Int32 = 0, drain: Bool = true) {
-            if drain { pending.withLock { $0[job] = [] } }
-            let finisher = finishers.withLock { $0[Self.key(job, machine)] }
-            XCTAssertNotNil(finisher, "\(job)@\(machine) の子が起こされていない")
+        /// 対象の残りを配り切った状態にしてから、その子を終わらせる
+        func finish(_ unit: String, _ machine: Int, code: Int32 = 0, drain: Bool = true) {
+            if drain { pending.withLock { $0[unit] = [] } }
+            let finisher = finishers.withLock { $0[Self.key(unit, machine)] }
+            XCTAssertNotNil(finisher, "\(unit)@\(machine) の子が起こされていない")
             finisher?(code)
         }
     }
@@ -86,12 +86,12 @@ final class MultiTargetRunnerTests: XCTestCase {
         let h = Harness(machines: 2, lanes: ["A": [0, 1], "B": [0, 1]],
                         scenarios: ["A": 10, "B": 2], order: ["B", "A"])
         h.coordinator.start()
-        XCTAssertEqual(h.launched.count, 2, "空いている2台が両方すぐ仕事を取る: \(h.launched)")
-        XCTAssertEqual(h.launched.first, "A@0", "見込みの長い仕事から取る(宣言順 B,A に依らない)")
+        XCTAssertEqual(h.launched.count, 2, "空いている2台が両方すぐ対象を取る: \(h.launched)")
+        XCTAssertEqual(h.launched.first, "A@0", "見込みの長い対象から取る(宣言順 B,A に依らない)")
         XCTAssertEqual(Set(h.launched), ["A@0", "B@1"])
     }
 
-    /// 速いマシンの仕事が見込みより遅れている(残りが減らない)とき、遅いマシンは待ち続けず未着手の仕事を取る。
+    /// 速いマシンの対象が見込みより遅れている(残りが減らない)とき、遅いマシンは待ち続けず未着手の対象を取る。
     /// 終わる見込みを毎回「今 + 残り」で作り直すと期限を過ぎた側へ倒れず、安全弁が効かなかった
     func testSlowerMachineStopsWaitingOnceTheFastMachineIsOverdue() {
         let h = Harness(machines: 2, lanes: ["A": [0], "B": [0, 1]],
@@ -111,7 +111,7 @@ final class MultiTargetRunnerTests: XCTestCase {
         let h = Harness(machines: 3, lanes: ["A": [0, 1, 2], "B": [0, 1, 2]],
                         scenarios: ["A": 10, "B": 2], order: ["A", "B"])
         h.coordinator.start()
-        XCTAssertTrue(h.launched.contains("A@2"), "未開始が無い終わり際は残りの多い仕事に加わる: \(h.launched)")
+        XCTAssertTrue(h.launched.contains("A@2"), "未開始が無い終わり際は残りの多い対象に加わる: \(h.launched)")
     }
 
     /// 加わっても1本ももらえないなら加わらない(子 run の後始末のぶん終わりを延ばした)。
@@ -141,8 +141,8 @@ final class MultiTargetRunnerTests: XCTestCase {
         XCTAssertEqual(h.launched, ["A@0"], "マシンは同時に1つの子だけ")
         h.finish("A", 0)
         XCTAssertEqual(h.launched, ["A@0", "B@0"])
-        XCTAssertEqual(h.exited.withLock { $0.map { "\($0.job):\($0.entry)" } }, ["A:0"],
-                       "子が終わったら仕事の配り手へ知らせる")
+        XCTAssertEqual(h.exited.withLock { $0.map { "\($0.unit):\($0.entry)" } }, ["A:0"],
+                       "子が終わったら対象の配り手へ知らせる")
         h.finish("B", 0)
         XCTAssertEqual(h.coordinator.statuses, [.finished])
     }
@@ -152,7 +152,7 @@ final class MultiTargetRunnerTests: XCTestCase {
         h.coordinator.start()
         h.finish("A", 0)
         await h.coordinator.waitUntilFinished()
-        XCTAssertTrue(h.coordinator.unstartedJobs.isEmpty)
+        XCTAssertTrue(h.coordinator.unstartedTargets.isEmpty)
     }
 
     func testInterruptStopsStartingAndWaitsForRunningChildren() async {
@@ -160,11 +160,11 @@ final class MultiTargetRunnerTests: XCTestCase {
                         scenarios: ["A": 5, "B": 5], order: ["A", "B"])
         h.coordinator.start()
         h.coordinator.interrupt()
-        XCTAssertEqual(Set(h.interrupted.withLock { $0 }), ["A", "B"], "全仕事の配り手へ中断を伝える")
+        XCTAssertEqual(Set(h.interrupted.withLock { $0 }), ["A", "B"], "全対象の配り手へ中断を伝える")
         h.finish("A", 0, drain: false)
         await h.coordinator.waitUntilFinished()
         XCTAssertEqual(h.launched, ["A@0"], "中断後は子を起こさない")
-        XCTAssertEqual(h.coordinator.unstartedJobs, ["B"])
+        XCTAssertEqual(h.coordinator.unstartedTargets, ["B"])
         XCTAssertTrue(h.coordinator.isInterrupted)
     }
 
@@ -176,12 +176,12 @@ final class MultiTargetRunnerTests: XCTestCase {
         h.coordinator.start()
         XCTAssertEqual(h.launched.count, 1, "中断のあとに予約済みの子を起こした: \(h.launched)")
         // 起こされた子は全部終わらせてから待つ(変異で2台目が起きても待ちが詰まらない)
-        for launched in h.launches.withLock({ $0 }) { h.finish(launched.job, launched.machine, drain: false) }
+        for launched in h.launches.withLock({ $0 }) { h.finish(launched.unit, launched.machine, drain: false) }
         await h.coordinator.waitUntilFinished()
         XCTAssertTrue(h.coordinator.isInterrupted)
     }
 
-    /// ロックを取るのは残った仕事が使うマシンだけ(飛ばした対象だけが使うマシンは取らない)・添字の順のまま
+    /// ロックを取るのは残った対象が使うマシンだけ(飛ばした対象だけが使うマシンは取らない)・添字の順のまま
     func testLabelsInUseKeepOnlyMachinesOfRemainingJobs() {
         let labels = ["local", "M1Ultra", "M1Max"]
         XCTAssertEqual(MultiTargetRunner.labelsInUse(labels, entryMaps: [[0], [2]]), ["local", "M1Max"])
@@ -208,7 +208,7 @@ final class MultiTargetRunnerTests: XCTestCase {
         h.finish("A", 0, code: 137, drain: false)
         h.finish("B", 1)
         XCTAssertEqual(h.launched, ["A@0", "B@1", "A@1"], "落ちた1台の残りを誰も取っていない: \(h.launched)")
-        XCTAssertEqual(h.coordinator.unstartedJobs, [], "一度起こした仕事を「一度も起こしていない」と数えている")
+        XCTAssertEqual(h.coordinator.unstartedTargets, [], "一度起こした対象を「一度も起こしていない」と数えている")
     }
 
     func testExitCodeOneIsAScenarioFailureNotACrash() {

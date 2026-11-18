@@ -38,6 +38,7 @@ struct Fleetest: AsyncParsableCommand {
             HooksCommand.self,
             ServicesCommand.self,
             MonitorCommand.self,
+            JobCommand.self,
             CleanCommand.self,
             VisionCommand.self,
         ]
@@ -530,7 +531,12 @@ struct RunScenarios: AsyncParsableCommand {
             try await asSingleTarget(only).run()
             return
         }
-        try await RunExitGuard.run(log: { ConsoleOut.out($0) }) { try await runBody(runExit: $0) }
+        try await RunExitGuard.run(log: { ConsoleOut.out($0) }, jobRun: jobRunTarget) { try await runBody(runExit: $0) }
+    }
+
+    /// ジョブの行を受け持つ対象(`JobMembership`)。dry-run は受け持たない
+    private func jobRunTarget() -> (project: String, profile: String)? {
+        dryRun ? nil : (try? ScenarioHost.project(named: common.project).name).map { ($0, common.profile ?? "") }
     }
 
     private func runBody(runExit: RunExitGuard) async throws {

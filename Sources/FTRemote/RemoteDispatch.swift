@@ -1289,10 +1289,16 @@ public enum RemoteShell {
                                         fmConcurrency: Int? = nil,
                                         occlusionDumpDir: String? = nil,
                                         developerDir: String? = nil,
-                                        streamOwner: String? = StreamOwner.current()) -> String {
+                                        streamOwner: String? = StreamOwner.current(),
+                                        jobID: String? = JobMembership.jobIDFromEnvironment()) -> String {
         let binary = quote(layout.binary)
         let guardCmd = "test -x \(binary) || { echo \"fleetest binary not found on remote"
             + " — run: swift build --product fleetest\" >&2; exit 90; }"
+        // ジョブの ID(台帳は発行側にある)。**`FT_JOB_MARKED=1` を必ず一緒に運ぶ** —— 向こうの run は行を受け持たない
+        // (ID だけ持つ = run ボードの jobID)。exec には置かない: exec は照会・単発操作で run の行を受け持つ相手ではない
+        let jobCmd = jobID.map {
+            "export \(JobMembership.jobIDKey)=\(quote($0)) && export \(JobMembership.markedKey)=1 && "
+        } ?? ""
         // 波括弧の組の終了コードは最後の文 = 成功なら代入の 0・失敗なら tail の 0(`&&` の連鎖を切らない)
         let syncCmd = "{ ft_sync_out=$(\(binary) project sync 2>&1) || "
             + "{ echo \"warning: fleetest project sync failed on the runner (continuing with the current"
@@ -1315,7 +1321,7 @@ public enum RemoteShell {
         return "cd \(quote(layout.workDir)) 2>/dev/null && test -f Package.swift || "
             + "{ echo \"no runner workspace at \(layout.workDir) — run: fleetest remote setup"
             + " <this host> once for this issuer (RR-18)\" >&2; exit 91; } && "
-            + "\(pathCmd) && \(issuerCmd)\(streamOwnerCmd(streamOwner))"
+            + "\(pathCmd) && \(issuerCmd)\(streamOwnerCmd(streamOwner))\(jobCmd)"
             + "\(devDirCmd)\(dumpCmd)\(fmCmd)\(lockHeldCmd)\(dispatchedRunCmd)\(guardCmd) && \(syncCmd) && \(launch)"
     }
 

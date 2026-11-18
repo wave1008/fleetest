@@ -1,25 +1,25 @@
-// JobSchedule.swift
-// マシンをまたぐ複数対象の run で、空いたマシンに次の仕事(対象1つ = 子 run 1本)を今始めるか・加わるか・待つかの判定(RR-8.2)。
-// 純粋関数: 時計も I/O も持たない。時刻[ms]は呼び手が決めた単調な1本の軸。DynamicSplit(シナリオ単位)と同じ規則を仕事の単位へ上げたもの。
+// TargetSchedule.swift
+// マシンをまたぐ複数対象の run で、空いたマシンに次の対象(対象1つ = 子 run 1本)を今始めるか・加わるか・待つかの判定(RR-8.2)。
+// 純粋関数: 時計も I/O も持たない。時刻[ms]は呼び手が決めた単調な1本の軸。DynamicSplit(シナリオ単位)と同じ規則を対象の単位へ上げたもの。
 //
 // 規則(ユーザー指示):
-// - 候補 = まだ誰も始めていない仕事のうちこのマシンで回せるもの。マシンでの見込みの長い順(同着は ID 昇順 = LPT・決定的)
-// - 未着手の仕事を全部(このマシンで回せないものも = 他マシンを塞ぐ)LPT の順に「終わり = 空く時刻 + 固定費 + 見込み」が
-//   一番早いマシンへ仮に積み(BacklogPlacement。同着はこのマシン)、このマシンに最初に積まれた仕事を始める。
+// - 候補 = まだ誰も始めていない対象のうちこのマシンで回せるもの。マシンでの見込みの長い順(同着は ID 昇順 = LPT・決定的)
+// - 未着手の対象を全部(このマシンで回せないものも = 他マシンを塞ぐ)LPT の順に「終わり = 空く時刻 + 固定費 + 見込み」が
+//   一番早いマシンへ仮に積み(BacklogPlacement。同着はこのマシン)、このマシンに最初に積まれた対象を始める。
 //   控えが1本なら here = 今 + 固定費 + 見込み <= alt = 他マシンの一番早い終わり、と同じ
-// - 1本も積まれなければ待たせる(遅いマシンが終わり際に長い仕事を取って全体を引き延ばさない = 待たせる理由)。
-//   他マシンに控えている仕事を数えずに比べると、控えの山を前に遅いマシンが待ち続ける
+// - 1本も積まれなければ待たせる(遅いマシンが終わり際に長い対象を取って全体を引き延ばさない = 待たせる理由)。
+//   他マシンに控えている対象を数えずに比べると、控えの山を前に遅いマシンが待ち続ける
 // - 安全弁: 他マシンが見込みの時刻を過ぎても空かないときは、超過した分だけ空く時刻を後ろへ倒す(固まったマシンを待ち続けない)。
 //   見込みの無い busy マシンは空く時刻を無限遠とみなす(待たない)。待たせた判断が変わりうる時刻は reconsiderAt で返す
-// - 加わる(終わり際): 始められる候補がそもそも無い(このマシンで回せる未着手の仕事が無い)ときだけ。
-//   走っている仕事 J(未配のシナリオあり・このマシンはまだ加わっていない・回せる)ごとに joinGainMs(J, このマシン)
+// - 加わる(終わり際): 始められる候補がそもそも無い(このマシンで回せる未着手の対象が無い)ときだけ。
+//   走っている対象 J(未配のシナリオあり・このマシンはまだ加わっていない・回せる)ごとに joinGainMs(J, このマシン)
 //   (呼び手が joinGain で出す)が正で最大のものに加わる。nil・0 以下は加わらない
-public enum JobSchedule {
+public enum TargetSchedule {
 
     public enum Decision: Equatable, Sendable {
-        /// まだ誰も始めていない仕事をこのマシンで始める
+        /// まだ誰も始めていない対象をこのマシンで始める
         case start(String)
-        /// 走っている仕事に2台目以降として加わる(終わり際だけ)
+        /// 走っている対象に2台目以降として加わる(終わり際だけ)
         case join(String)
         /// 何もしないで待つ。この時刻[ms]になれば判断が変わりうる(nil = 他のマシンの知らせを待つだけ)
         case hold(reconsiderAt: Double?)
@@ -27,14 +27,14 @@ public enum JobSchedule {
         case done
     }
 
-    /// マシンの今。currentJob nil = 空いて次を待っている。expectedFreeAt = 走っている仕事が終わる見込み[ms](busy のとき。nil = 見込み無し)
+    /// マシンの今。currentTarget nil = 空いて次を待っている。expectedFreeAt = 走っている対象が終わる見込み[ms](busy のとき。nil = 見込み無し)
     public struct MachineState: Sendable {
         public let machine: Int
-        public let currentJob: String?
+        public let currentTarget: String?
         public let expectedFreeAt: Double?
-        public init(machine: Int, currentJob: String?, expectedFreeAt: Double?) {
+        public init(machine: Int, currentTarget: String?, expectedFreeAt: Double?) {
             self.machine = machine
-            self.currentJob = currentJob
+            self.currentTarget = currentTarget
             self.expectedFreeAt = expectedFreeAt
         }
     }
@@ -52,30 +52,30 @@ public enum JobSchedule {
     ) -> Decision {
         let overhead = overheadMs(machine)
         // lpt false(`--no-lpt`)= unstarted の並び(宣言の順)のまま試す
-        let fitting: [(job: String, alone: Double)] = unstarted
-            .compactMap { job in aloneMs(job, machine).map { (job: job, alone: $0) } }
+        let fitting: [(unit: String, alone: Double)] = unstarted
+            .compactMap { unit in aloneMs(unit, machine).map { (unit: unit, alone: $0) } }
         let candidates = lpt
-            ? fitting.sorted { $0.alone != $1.alone ? $0.alone > $1.alone : $0.job < $1.job } : fitting
+            ? fitting.sorted { $0.alone != $1.alone ? $0.alone > $1.alone : $0.unit < $1.unit } : fitting
         let others = machines.filter { $0.machine != machine }
 
         /// 他マシンが空く見込みの時刻。超過中は超過した分だけ後ろへ倒す(安全弁)・見込み無しの busy は無限遠
         func freeAt(_ state: MachineState) -> Double {
-            if state.currentJob == nil { return now }
+            if state.currentTarget == nil { return now }
             guard let expected = state.expectedFreeAt else { return .infinity }
             return expected >= now ? expected : now + (now - expected)
         }
 
-        // 仮に積む順の鍵 = このマシンでの見込み(回せない仕事は回せるマシンの最短)。どこでも回せない仕事は積まない
-        let keyed: [(job: String, key: Double)] = unstarted.compactMap { job in
-            if let here = aloneMs(job, machine) { return (job, here) }
-            return others.compactMap { aloneMs(job, $0.machine) }.min().map { (job, $0) }
+        // 仮に積む順の鍵 = このマシンでの見込み(回せない対象は回せるマシンの最短)。どこでも回せない対象は積まない
+        let keyed: [(unit: String, key: Double)] = unstarted.compactMap { unit in
+            if let here = aloneMs(unit, machine) { return (unit, here) }
+            return others.compactMap { aloneMs(unit, $0.machine) }.min().map { (unit, $0) }
         }
         let order = lpt
-            ? keyed.sorted { $0.key != $1.key ? $0.key > $1.key : $0.job < $1.job }.map(\.job) : keyed.map(\.job)
+            ? keyed.sorted { $0.key != $1.key ? $0.key > $1.key : $0.unit < $1.unit }.map(\.unit) : keyed.map(\.unit)
         let placed = BacklogPlacement.place(
             jobs: order, requester: machine, requesterAvailable: now,
             workers: others.map { (worker: $0.machine, available: freeAt($0)) },
-            cost: { job, m in aloneMs(job, m).map { overheadMs(m) + $0 } })
+            cost: { unit, m in aloneMs(unit, m).map { overheadMs(m) + $0 } })
         if let first = placed.first { return .start(first) }
 
         if !candidates.isEmpty {
@@ -85,19 +85,19 @@ public enum JobSchedule {
                 if t > now, t < (reconsiderAt ?? .infinity) { reconsiderAt = t }
             }
             for state in others {
-                guard state.currentJob != nil, let expected = state.expectedFreeAt else { continue }
+                guard state.currentTarget != nil, let expected = state.expectedFreeAt else { continue }
                 // ちょうど今は超過の側で解く(DynamicSplit と同じ理由: > now の時刻しか採らないので見込みの側だと時刻が作られない)
                 if expected > now {
                     consider(expected)
                 } else {
                     // 超過中は alt も here も時刻に 1:1 で伸びるので、t + (t - expected) + B + oM + aM >= t + oH + aH を解く。
-                    // B = 仮に積んだときその仕事より先にそのマシンへ積まれた分(0 = 控えを数えない場合の時刻。早めに見直すのは害が無い)
+                    // B = 仮に積んだときその対象より先にそのマシンへ積まれた分(0 = 控えを数えない場合の時刻。早めに見直すのは害が無い)
                     let placedOn = Dictionary(placed.placements.map { ($0.job, $0) }, uniquingKeysWith: { first, _ in first })
                     for candidate in candidates {
-                        guard let aOther = aloneMs(candidate.job, state.machine) else { continue }
+                        guard let aOther = aloneMs(candidate.unit, state.machine) else { continue }
                         let base = expected + (overhead + candidate.alone) - (overheadMs(state.machine) + aOther)
                         consider(base)
-                        if let p = placedOn[candidate.job], p.worker == state.machine {
+                        if let p = placedOn[candidate.unit], p.worker == state.machine {
                             consider(base - (p.availableBefore - freeAt(state)))
                         }
                     }
@@ -106,19 +106,19 @@ public enum JobSchedule {
             return .hold(reconsiderAt: reconsiderAt)
         }
 
-        var best: (job: String, gain: Double)?
+        var best: (unit: String, gain: Double)?
         var couldRun = false
-        for job in running.keys.sorted() where hasPending(job) {
-            guard aloneMs(job, machine) != nil else { continue }
+        for unit in running.keys.sorted() where hasPending(unit) {
+            guard aloneMs(unit, machine) != nil else { continue }
             couldRun = true
-            guard let members = running[job], !members.contains(machine) else { continue }
-            if let gain = joinGainMs(job, machine), gain > 0, gain > (best?.gain ?? 0) { best = (job, gain) }
+            guard let members = running[unit], !members.contains(machine) else { continue }
+            if let gain = joinGainMs(unit, machine), gain > 0, gain > (best?.gain ?? 0) { best = (unit, gain) }
         }
-        if let best { return .join(best.job) }
+        if let best { return .join(best.unit) }
         return couldRun ? .hold(reconsiderAt: nil) : .done
     }
 
-    /// 加わる判定のための1つのレーン(マシンのその仕事のデバイス群)。availableAt = そのデバイスたちが次を取れる時刻[ms]
+    /// 加わる判定のための1つのレーン(マシンのその対象のデバイス群)。availableAt = そのデバイスたちが次を取れる時刻[ms]
     public struct JoinLane: Sendable {
         public let entry: Int
         public let devices: Int

@@ -30,11 +30,25 @@ final class RunExitGuard {
     var stopInterruptRelay: (() -> Void)?
     let supplyAbandon = SupplyAbandon()
 
-    static func run(log: (String) -> Void, _ body: (RunExitGuard) async throws -> Void) async throws {
+    /// ジョブの行の受け持ち(`JobMembership`)。**run / api run の2経路が必ずここを通る**ので、claim は入口・finish は
+    /// 終了コードの確定する出口(片付けの後)に1箇所ずつ置く。`jobRun` が nil(dry-run・プロジェクトが引けない)なら受け持たない(プロファイル無しの run は profile が空の行)。
+    /// 終了コード: 正常 = 0・`ExitCode` はその値・中断(`RunInterruptedBeforeStartError`)= 130・他の例外 = 1
+    static func run(
+        log: (String) -> Void, jobRun: () -> (project: String, profile: String)? = { nil },
+        _ body: (RunExitGuard) async throws -> Void
+    ) async throws {
+        if let target = jobRun() { JobMembership.claim(project: target.project, profile: target.profile) }
         let exit = RunExitGuard()
         do {
             try await body(exit)
         } catch {
+            defer {
+                let code: Int32
+                if let exitCode = error as? ExitCode { code = exitCode.rawValue }
+                else if error is RunInterruptedBeforeStartError { code = 130 }
+                else { code = 1 }
+                JobMembership.finish(exitCode: code)
+            }
             // 供給の完了を待つ間、落ちた理由が出ないと止まって見える(赤の run の ExitCode は理由を持たない・中断は受けた時に言っている)
             if exit.settle != nil, !(error is ExitCode), !(error is RunInterruptedBeforeStartError) {
                 log("→ Stopping, then cleaning up: \(error.localizedDescription)")
@@ -43,6 +57,7 @@ final class RunExitGuard {
             throw error
         }
         await exit.finish()
+        JobMembership.finish(exitCode: 0)
     }
 
     func finish() async {

@@ -83,7 +83,18 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   (hover for how to stop them). Servers whose starting process has exited without cleaning up show as
   "Servers without owner: <project>" (hover for how to remove them). For the few seconds a finished run
   takes to stop its servers, the row says "Servers stopping: <project>".
-- The **tachometer** to the right of "Running N" in the run board header (shown only while a run is going, and for 10 seconds after it ends; the LED-bar button in the header shows or hides it) shows how fast the
+- When a script or CI pipeline that starts several runs in turn declares its plan, a **job** (the list of runs about to be started) appears on the run board.
+  In the run board header, to the right of the tachometer, you see "N/M runs done", the number of failed runs (❌, only when some failed),
+  how many of the job's runs are running and **waiting**, and the elapsed time. With two or more jobs, each job's title comes before its counts.
+  Hovering over "runs done", "running" and "waiting" lists those runs (finished runs show their result; for runs started with several
+  `--target`s, running runs also show their machine). No time left is shown for a job.
+  A job appears when a script declares its planned runs with `fleetest job begin` (see the [CLI](cli.md#showing-waiting-runs-with-a-job)) and when you run
+  several targets at once with `fleetest run --target … --target …` (or a repeated `--profile`; titled `run`).
+  A job disappears when `fleetest job end` is called or when the `--owner-pid` process (normally the script that declared it) exits.
+  A job from a run with several `--target`s disappears when that run ends.
+  While a job is running, the toolbar's "Stop All" is disabled (pressed between runs, it would also stop the devices the next run needs).
+  To make it available again, stop the script that declared the job, or run `fleetest job end --id "$FT_JOB_ID"` in that shell.
+- The **tachometer** to the right of "Running N" in the run board header (shown only while a run is going, for 10 seconds after it ends, and throughout a job, including the gaps between its runs; the LED-bar button in the header shows or hides it) shows how fast the
   runs on this Mac and the runner machines **send operations to devices**. The LED bar on the right is the
   count over **the last 3 seconds** per second, and the number (actions/s) is the bar's value itself
   (when the bar is at zero, so is the number). Tapping once a second and nothing else reads 1.0. Only operations sent to a device count — taps, typing, swipes

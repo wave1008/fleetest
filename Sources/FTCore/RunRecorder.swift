@@ -327,6 +327,8 @@ public final class RunRecorder: @unchecked Sendable {
                        interrupted: Bool = false,
                        abortReason: String? = nil) -> [SlowWorkerFinding] {
         hostMetrics?.stop()
+        // ジョブの行を中止にする印(中断した run も終了コードは 0 / 1 = 成功・失敗に見える)。結果を書く3経路が必ずここを通る
+        if interrupted { JobMembership.noteInterrupted() }
         // FM の死活は**引数で受け取らない** —— 機械グローバルな事実(FMLiveness)なので、
         // 呼び出し元が run のたびに集めて渡す形にすると経路ごとに渡し忘れが出る
         // (`fleetest run` / `api run` は別実装。RunCommandFlagParityTests の教訓)

@@ -151,8 +151,10 @@ resume_monitor() {
 }
 # shellcheck source=crash-dialog.sh
 . "$ROOT/Scripts/crash-dialog.sh"
-trap 'resume_monitor; crash_dialog_restore' EXIT
-trap 'resume_monitor; crash_dialog_restore; exit 130' INT TERM HUP
+# shellcheck source=job.sh
+. "$ROOT/Scripts/job.sh"
+trap 'resume_monitor; crash_dialog_restore; job_end' EXIT
+trap 'resume_monitor; crash_dialog_restore; job_end; exit 130' INT TERM HUP
 crash_dialog_suppress
 if [ "$PERFORMANCE" = 1 ]; then
   "$FLEETEST" monitor pause --for 60
@@ -372,6 +374,20 @@ run_inapp_witness() {  # $1 = プロジェクト名, $2 = シナリオ ID
     FAILED=1
   fi
 }
+
+# ジョブの予定の行(Scripts/job.sh)。planned_profiles に、実行ループが回す証人の run と --record の一時プロファイル名を写す
+# (行の照合は fleetest run が受け取った project:profile。食い違うと宣言した行は待機のまま残り、run は末尾に足される)
+job_rows() {
+  local project profile
+  planned_profiles | while read -r project profile; do
+    if [ "$RECORD" = 1 ]; then echo "$project:$profile-record-tmp"; else echo "$project:$profile"; fi
+    if [ "$project" = E2E-CMP ] && [ "$profile" = ios-inapp-boost ]; then echo "E2E-CMP:ios-inapp-boost"; fi
+  done
+}
+if [ "$BUILD_ONLY" = 0 ]; then
+  # shellcheck disable=SC2046  # 行は空白を含まない project:profile
+  job_begin E2E $(job_rows)
+fi
 
 for sut in $SUTS; do
   case "$sut" in

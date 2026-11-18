@@ -134,6 +134,27 @@ struct ApiMonitorRunProgress: Codable, Equatable {
     let frozenDevices: Int
     let blankDevices: Int
     let textlessDevices: Int
+    /// 所属するジョブ(`FT_JOB_ID`)。台帳の値をそのまま運ぶ(ProtocolVersion 76)
+    let jobID: String?
+}
+
+/// ジョブ(予定の run の一覧。DS-18 の monitorRuns.jobs[]。ProtocolVersion 76)。経過は monitor が自分の時計で秒に直す
+struct ApiMonitorJob: Codable, Equatable {
+    let jobID: String
+    let title: String
+    let issuer: String?
+    /// **issuer が nil のときは false**(不明を自分扱いにしない)
+    let mine: Bool
+    let elapsedSeconds: Int
+    var runs: [ApiMonitorJobRun]
+}
+
+struct ApiMonitorJobRun: Codable, Equatable {
+    let project: String
+    let profile: String
+    let state: String
+    /// 担当マシン名(手元は "local")。中継する RemoteMonitorFanout がその機械名へ書き換える
+    var machines: [String]
 }
 
 /// monitorRuns イベント: フリート横断の run 進捗(DS-18.2)。**手元でも出す**
@@ -149,12 +170,16 @@ struct ApiMonitorRunsEvent: Codable, Equatable {
     let runs: [ApiMonitorRunProgress]
     /// その機械のサーバーの控え全部(DS-18.10。ProtocolVersion 62)。絞り込みは表示がする
     let services: [ApiMonitorServicesLease]
+    /// その機械のジョブ全部(ProtocolVersion 76)。中継では machines の "local" をその機械名へ書き換える
+    var jobs: [ApiMonitorJob]
 
-    init(runs: [ApiMonitorRunProgress], services: [ApiMonitorServicesLease], machine: String? = nil) {
+    init(runs: [ApiMonitorRunProgress], services: [ApiMonitorServicesLease], jobs: [ApiMonitorJob],
+         machine: String? = nil) {
         self.machine = machine
         self.observed = true
         self.runs = runs
         self.services = services
+        self.jobs = jobs
     }
 
     /// 「この機械はもう観測できていない」1行(親が子の死を見たときだけ出す)
@@ -163,6 +188,7 @@ struct ApiMonitorRunsEvent: Codable, Equatable {
         self.observed = false
         self.runs = []
         self.services = []
+        self.jobs = []
     }
 }
 

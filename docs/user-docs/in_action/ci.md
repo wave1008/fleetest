@@ -75,6 +75,10 @@ Run ios-run with --quiet --junit reports/junit.xml. Also tell me the exit code a
 - **Investigating a failure**: `TestProjects/<name>/reports/` holds a Markdown report per failure
   (element list, screenshot, self-healing suggestions). Archive it as a build artifact so the
   JUnit `report:` line can be followed back to it.
+- If one CI job starts several `fleetest run`s in turn, declare them first with `fleetest job begin` so the run board shows how many are still waiting.
+  The CI Mac has no extension, so you see it in the VSCode extension on a Mac that has
+  [registered the CI Mac as a runner](../fleet/adding_mac.md#step-2-register-the-machine-on-your-mac)
+  (see the [CLI](../reference/tools/cli.md#showing-waiting-runs-with-a-job)).
 
 Expected result:
 

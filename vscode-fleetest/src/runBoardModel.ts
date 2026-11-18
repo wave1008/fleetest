@@ -51,6 +51,8 @@ export interface RunBoardRawRun {
   readonly runGroup?: string;
   readonly issuer?: string;
   readonly mine: boolean;
+  /** 属するジョブ(RunBoardJob.jobID)。属さなければ省略。 */
+  readonly jobID?: string;
   readonly project: string;
   /** プロファイル無し実行では省略されうる。 */
   readonly profile?: string;
@@ -73,6 +75,30 @@ export interface RunBoardVideoClips {
   readonly total: number;
 }
 
+/** ジョブの予定の run 1行(MonitorJobRun と同じ形)。state の未知の値は落とさず運ぶ(jobRunKind が pending へ寄せる)。 */
+export interface RunBoardJobRun {
+  readonly project: string;
+  readonly profile: string;
+  readonly state: string;
+  readonly machines: readonly string[];
+}
+
+/** run の上の1階層のジョブ(MonitorJob と同じ形)。入れ子のジョブは無い。 */
+export interface RunBoardJob {
+  readonly jobID: string;
+  readonly title: string;
+  readonly issuer?: string;
+  readonly mine: boolean;
+  readonly elapsedSeconds: number;
+  readonly runs: readonly RunBoardJobRun[];
+}
+
+/** 控えに畳んだあとのジョブ。machine / receivedAtMs の意味は RunBoardRun と同じ(秒読みの基準)。 */
+export interface RunBoardJobEntry extends RunBoardJob {
+  readonly machine?: string;
+  readonly receivedAtMs: number;
+}
+
 /** 控えに畳んだあとの1 run。machine は undefined = 手元(MonitorDevice.machine と同じ規約)。 */
 export interface RunBoardRun extends RunBoardRawRun {
   readonly machine?: string;
@@ -87,6 +113,8 @@ export interface RunBoardRun extends RunBoardRawRun {
 export interface MachineRunsEntry {
   readonly observed: boolean;
   readonly runs: readonly RunBoardRun[];
+  /** その機械が見ているジョブ。runs と同じ規律(observed:false でも消さず、表示・集計は observed のときだけ読む) */
+  readonly jobs: readonly RunBoardJobEntry[];
   /** その機械のサーバーの控え(DS-18.10)。表示は machineServicesNotes を通す */
   readonly services: readonly RunBoardServicesLease[];
 }
@@ -107,6 +135,8 @@ export interface MonitorRunsEventInput {
   readonly machine?: string;
   readonly observed: boolean;
   readonly runs: readonly RunBoardRawRun[];
+  /** **必須**(ProtocolVersion 76。古い形を空で吸わない)。 */
+  readonly jobs: readonly RunBoardJob[];
   readonly services: readonly RunBoardServicesLease[];
 }
 
@@ -123,12 +153,15 @@ export function applyMonitorRunsEvent(
     // **控えを消さない**(machineLockModel.ts と同じ理由)。直前の一覧は残すが、observed:false の
     // 間は buildRunGroups/machineRunStatus のどちらも読まない = 表示には出ない。
     const previous = current.get(key);
-    next.set(key, { observed: false, runs: previous?.runs ?? [], services: previous?.services ?? [] });
+    next.set(key, {
+      observed: false, runs: previous?.runs ?? [], jobs: previous?.jobs ?? [], services: previous?.services ?? [],
+    });
     return next;
   }
   next.set(key, {
     observed: true,
     runs: event.runs.map((run) => ({ ...run, machine: event.machine, receivedAtMs: nowMs })),
+    jobs: event.jobs.map((job) => ({ ...job, machine: event.machine, receivedAtMs: nowMs })),
     services: event.services,
   });
   return next;
@@ -303,6 +336,91 @@ export function buildRunGroups(state: ReadonlyMap<string, MachineRunsEntry>): re
     }
     return a.groupKey.localeCompare(b.groupKey);
   });
+}
+
+// ---- ジョブ(run の上の1階層。ProtocolVersion 76)----------------------------------------------
+
+export type JobRunKind = "passed" | "failed" | "running" | "canceled" | "skipped" | "pending";
+
+/** 行の state を数え方・ホバーの状態名の種類へ。**未知の値は pending と同じ扱い**(落とさず・壊さない)。 */
+export function jobRunKind(state: string): JobRunKind {
+  switch (state) {
+    case "passed":
+    case "failed":
+    case "running":
+    case "canceled":
+    case "skipped":
+      return state;
+    default:
+      return "pending";
+  }
+}
+
+export interface JobCounts {
+  /** 全行(M)。 */
+  readonly total: number;
+  /** run 済 = passed + failed + canceled + skipped(N)。 */
+  readonly finished: number;
+  readonly failed: number;
+  readonly running: number;
+  /** 待機 = pending(未知の state を含む)。 */
+  readonly pending: number;
+}
+
+export function jobCounts(job: RunBoardJob): JobCounts {
+  let finished = 0;
+  let failed = 0;
+  let running = 0;
+  let pending = 0;
+  for (const run of job.runs) {
+    const kind = jobRunKind(run.state);
+    if (kind === "pending") {
+      pending += 1;
+    } else if (kind === "running") {
+      running += 1;
+    } else {
+      finished += 1;
+      if (kind === "failed") {
+        failed += 1;
+      }
+    }
+  }
+  return { total: job.runs.length, finished, failed, running, pending };
+}
+
+/** ジョブは (machine, jobID) で識別する。見出しの行に置く要素の鍵に使う。 */
+export function jobKey(job: { readonly machine?: string; readonly jobID: string }): string {
+  return `${job.machine ?? LOCAL_MACHINE_KEY}\u0000${job.jobID}`;
+}
+
+/** observed:true の機械の控えからジョブの一覧を作る(run ボードの見出しの行に並べる)。
+ * (machine, jobID) で一意(同じ鍵が重複して届けば最後の1件)。並びは手元 → 機械名 → 届いた順で固定。
+ * observed:false の機械は出さない(不明を混ぜない)。 */
+export function listJobs(state: ReadonlyMap<string, MachineRunsEntry>): readonly RunBoardJobEntry[] {
+  const entries = [...state.entries()]
+    .filter(([, entry]) => entry.observed)
+    .sort(([a], [b]) => a.localeCompare(b));
+  const byKey = new Map<string, RunBoardJobEntry>();
+  for (const [, entry] of entries) {
+    for (const job of entry.jobs) {
+      const key = jobKey(job);
+      byKey.delete(key);
+      byKey.set(key, job);
+    }
+  }
+  return [...byKey.values()];
+}
+
+/** ジョブが続いているかもしれないか(「全て終了」を止める判定。DS-18.11)。観測できている機械にジョブがある、または
+ * **観測できなくなった機械が最後に知らせたジョブを持っている**(不明を空きに倒さない = 破壊的操作を誤って許さない。
+ * machineLockModel.ts の `lock.held || !lock.observed` と同じ向き)。表示の一覧(listJobs)は observed の機械だけ。 */
+export function jobsMayBeRunning(state: ReadonlyMap<string, MachineRunsEntry>): boolean {
+  for (const entry of state.values()) {
+    if (entry.jobs.length > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** run が1本も走っていない機械(ボード展開時に本体へ並べる)。`machine` は

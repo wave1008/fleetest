@@ -88,7 +88,7 @@ public enum DynamicSplit {
         for state in others {
             guard let busy = state.busy else { continue }
             let expected = busy.since + estimateMs(busy.scenario, state.lane.entry)
-            // ちょうど今は超過の側で解く(> now の時刻しか採らないので、見込みの側だと時刻が作られずタイマーが消える。JobSchedule と同じ)
+            // ちょうど今は超過の側で解く(> now の時刻しか採らないので、見込みの側だと時刻が作られずタイマーが消える。TargetSchedule と同じ)
             if expected > now {
                 consider(expected)
             } else {

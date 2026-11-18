@@ -19,7 +19,7 @@ fleetest のクローン内で作業している場合は `swift run fleetest` �
 ```
 
 `fleetest help <サブコマンド>` で、そのサブコマンドの全オプションと既定値が出ます。
-`bridge`・`project`・`profile`・`devices`・`results`・`remote`・`services`・`hooks`・`monitor`・`vision`・`api` は
+`bridge`・`project`・`profile`・`devices`・`results`・`remote`・`services`・`hooks`・`monitor`・`job`・`vision`・`api` は
 子コマンドを持ちます。`fleetest --version` は `<git の短い revision> (protocol <版>)` を表示します(`fleetest api version` はプロトコル版だけを JSON で返す別の口です)。
 
 ## 準備と診断
@@ -53,6 +53,7 @@ fleetest のクローン内で作業している場合は `swift run fleetest` �
 |---|---|---|---|
 | `run` | Swift DSL のシナリオを実行する | `--profile`・`--scenario`・`--folder`・`--failed`・`--dry-run`・`--set`・`--junit`・`--runner`・`--fleet` | [シナリオの実行](../running/running_scenarios_ja.md) |
 | `run-file <ファイル>` | 登録していない `.swift` のシナリオをそのまま実行する(プロファイルは既存のプロジェクトから借りる) | `--project`・`--profile`・`--scenario` | [シナリオの実行](../running/running_scenarios_ja.md) |
+| `job begin` / `job end` | 何本もの `run` を順に起動するスクリプトや CI で、予定の run を先に宣言する(VSCode 拡張の run ボードに「あと何本待機しているか」が出る)。`job begin` は予定を載せるだけで、run を代わりに起動しない | `begin`: `--title`(必須)・`--owner-pid`(必須)・`--run <プロジェクト>:<プロファイル>`(繰り返し)/ `end`: `--id` | [下の節](#ジョブで待機中の-run-を見せる) |
 | `draft-from-testbase` | テストベース(`docs/testbases/*.md`)からシナリオの下書きを作ってファイルに書く(MCP の `ft_draft_scenario` は AI が実際に行った操作から下書きを作って返すもので別物) | `--testbase`・`--name`・`--no-fm`・`--dry-run` | [テストベースとシナリオの下書き](../running/testbases_ja.md) |
 | `results list` | run を新しい順に一覧する | `--since`・`--limit`・`--json` | [結果の分析](../running/results_analysis_ja.md) |
 | `results summary` | シナリオごとの実行回数・成功率・所要時間を集計する(成功率の低い順) | `--scenario`・`--since`・`--json` | 同上 |
@@ -65,6 +66,42 @@ fleetest のクローン内で作業している場合は `swift run fleetest` �
 | `results log <runID>` | run のシナリオごとの実行ログ(`events/*.ndjson`)を表示する。runID に `latest` も使える | `--scenario`・`--raw` | 同上 |
 | `results frames <runID>` | シナリオの録画からフレームを切り出し、録画時刻とそのとき実行中のステップを添えた PNG 1枚のコンタクトシートにする(既定は最初に失敗したステップと、その直前の5秒) | `--scenario`(必須)・`--device`・`--steps`・`--seconds-before`・`--every`・`--out`・`--json` | 同上 |
 | `clean` | 古い録画・実行ログ・レポート・ログ・Simulator の添付・xcresult を削除する。上限の 90% を超えたカテゴリを 90% まで掃除する | `--dry-run`・`--recordings`・`--event-logs`・`--reports`・`--logs` | [長く使うためのメンテナンス](../../in_action/maintenance_ja.md) |
+
+### ジョブで待機中の run を見せる
+
+ここでの「ジョブ」は、これから回す run の予定の一覧です(CI のジョブとは別物です)。
+
+```bash
+FLEETEST=../fleetest/.build/debug/fleetest   # このページの「呼び方」を参照
+FT_JOB_ID=$("$FLEETEST" job begin --title nightly --owner-pid $$ --run App:ios --run App:android) && export FT_JOB_ID
+trap '"$FLEETEST" job end --id "$FT_JOB_ID" || true' EXIT
+trap 'exit 130' INT TERM
+rc=0
+"$FLEETEST" run --project App --profile ios || rc=1
+"$FLEETEST" run --project App --profile android || rc=1
+exit $rc
+```
+
+- `job begin` は標準出力にジョブの ID を1行だけ出します。環境変数 `FT_JOB_ID` に入れて **`export` してください**
+  (しないと `run` に届かず、run ボードの「run 済」「待機」の数が動きません)。ジョブは表示のためだけの機能なので、例の書き方
+  (`&& export`・trap の `|| true`)なら `begin` や `end` が失敗してもテストの結果は変わりません(`set -e` の下でも止まりません。
+  Jenkins の `sh` ステップは既定で `set -e` です)
+- `trap 'exit 130' INT TERM` は、Ctrl-C や CI のジョブの中止で今の run を止めたときに、スクリプトごと終わらせるためです
+  (無いと、止めた run の次の `run` が始まります)。Jenkinsfile では `sh '''…'''`(単一引用符3つ)で囲みます(二重引用符だと
+  `$$` や `$(…)` を Jenkins 側が解釈します)
+- `run` は、プロジェクト名とプロファイル名がどちらも `--run` と完全に一致する予定を、待機 → 実行中 → 成功(終了コード 0)・失敗(それ以外)と
+  進めます。Ctrl-C・CI のジョブの中止・強制終了で止まった run は「中止」になります。`--profile` を省いた run や宣言に無い組み合わせの run は
+  予定に1本足され(「run 済 N/M」の M が増えます)、宣言した予定は待機のまま残ります。`--dry-run` は予定を進めません。
+  `--runner` で別のマシンへ送る run や `--target` を並べた run も、同じように予定を進めます
+- `--owner-pid` には、ジョブの最後の run が終わるまで生きているプロセスの PID を渡します(普通はそのスクリプトの `$$`)。
+  そのプロセスが終わると、ジョブは `end` を呼ばなくても run ボードから消えます。**`begin`・すべての `run`・`end` は同じシェルに書いてください**
+  (Jenkins なら1つの `sh` ステップ。ステップが分かれると、`begin` のシェルが終わった時点でジョブが消え、`FT_JOB_ID` も次のステップへ渡りません)。
+  対話のターミナルで試すときは `$$` がそのターミナルのシェルなので、`end` を打つかターミナルを閉じるまでジョブが残ります
+  (その間、モニターの「全て終了」も押せません)
+- `job end` はジョブを run ボードから消します(結果は各 run のレポートに残ります)。回さなかった予定は `end` まで待機に数えられます
+- `job begin` は `fleetest run` を打つのと同じ Mac で実行します。同じ Mac で複数のジョブを同時に宣言できます(run が進めるのは
+  自分の `FT_JOB_ID` のジョブの予定だけです)。ただし1台の Mac で同時に走る run は1本なので、重なりうる run には `--wait-lock` を付けます
+  (順番を待っている間も「実行中」に数えられます)
 
 ## デバイスとブリッジ
 

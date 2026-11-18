@@ -592,7 +592,7 @@ test("左上の点灯マークは、シナリオを実行中のデバイスだ�
     "マシン名の段の中には入れない(拡大表示へ複製される段なので二重に出る)");
   assert.equal(visiblePreviews(document)[0].querySelectorAll(".run-lamp").length, 1, "拡大表示のマークは1つだけ");
   const runs = (lanes) => ({
-    type: "monitorRuns", observed: true, services: [],
+    type: "monitorRuns", jobs: [], observed: true, services: [],
     runs: [{
       pid: 1, runID: "r", mine: true, phase: "running", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
       project: "p", elapsedSeconds: 1, total: 2, done: 0, failed: 0, lanes,
@@ -607,7 +607,7 @@ test("左上の点灯マークは、シナリオを実行中のデバイスだ�
     data: runs([{ key: "UDID-0", name: "Dev 0", platform: "ios" }]),
   }));
   assert.equal(lamp().dataset.on, "0", "待機中(scenario なし)は消える");
-  window.dispatchEvent(new window.MessageEvent("message", { data: { type: "monitorRuns", observed: true, services: [], runs: [] } }));
+  window.dispatchEvent(new window.MessageEvent("message", { data: { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] } }));
   assert.equal(lamp().dataset.on, "0", "run が終われば消える");
   assert.equal(tileLamp().dataset.on, "0", "ラインビューのタイルも消える");
 });
@@ -626,13 +626,13 @@ test("点灯マークは MCP が掴んでいるデバイスでも点き、説明
   assert.equal(tileLamp().dataset.hoverTip, "実行中(MCP)");
   assert.equal(document.querySelectorAll("#grid .tile .run-lamp")[1].dataset.on, "0", "印の無い隣のデバイスは点かない");
   window.dispatchEvent(new window.MessageEvent("message", { data: {
-    type: "monitorRuns", observed: true, services: [],
+    type: "monitorRuns", jobs: [], observed: true, services: [],
     runs: [{ pid: 1, runID: "r", mine: true, phase: "running", requeued: 0, laneDropouts: 0, actions: 0, supply: [],
       project: "p", elapsedSeconds: 1, total: 1, done: 0, failed: 0,
       lanes: [{ key: "UDID-0", name: "Dev 0", platform: "ios", scenario: "S1", scenarioElapsedSeconds: 1 }] }],
   } }));
   assert.equal(tileLamp().dataset.hoverTip, "実行中", "run も走っていれば run の説明を出す");
-  window.dispatchEvent(new window.MessageEvent("message", { data: { type: "monitorRuns", observed: true, services: [], runs: [] } }));
+  window.dispatchEvent(new window.MessageEvent("message", { data: { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [] } }));
   sendDevices(window, [{ inMCP: false }, { inMCP: false }]);
   assert.equal(tileLamp().dataset.on, "0", "MCP の印が消えれば消える");
   assert.equal(lamp().dataset.on, "0");

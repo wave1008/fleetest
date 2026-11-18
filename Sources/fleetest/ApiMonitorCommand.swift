@@ -226,6 +226,12 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         var lastRunRecords: [RunProgressRecord]?
         // サーバーの控え(DS-18.10)。同じ monitorRuns に載せる = どちらかが変わったら1行出す
         var lastServices: [ApiMonitorServicesLease]?
+        // ジョブ(JobProgressLedger)。run と同じく**生の記録で比べる**(変換後は経過が毎周期変わる)。jobs だけが変わっても1行出す
+        let jobProgressDir = JobProgressLedger.directory()
+        var lastJobRecords: [JobProgressRecord]?
+        // 実行中の行の pid が死んだことも変化に数える(台帳は SIGKILL された run の行を書き換えないので、記録の比較だけでは
+        // 次に何かが変わるまで「実行中」のまま見え続ける)
+        var lastOrphanedJobPids: Set<Int32> = []
         let servicesHome = NSHomeDirectory()
         // 台帳が指すシナリオのイベントログを tail して monitorRunLog を出す(ApiMonitorRunLog.swift)
         let runLogTailer = RunLogTailer()
@@ -245,12 +251,19 @@ struct ApiMonitorCommand: AsyncParsableCommand {
                                                               startTime: ProcessLiveness.startTime)
                 .sorted { $0.pid < $1.pid }
             let currentServices = MonitorServicesReader.read(home: servicesHome)
-            if Self.shouldEmitRuns(current: currentRunRecords, last: lastRunRecords) || currentServices != lastServices {
+            let currentJobRecords = JobProgressLedger.readAll(directory: jobProgressDir)
+                .sorted { ($0.startedAt, $0.jobID) < ($1.startedAt, $1.jobID) }
+            let orphanedJobPids = Self.orphanedJobPids(records: currentJobRecords)
+            if Self.shouldEmitRuns(current: currentRunRecords, last: lastRunRecords) || currentServices != lastServices
+                || currentJobRecords != lastJobRecords || orphanedJobPids != lastOrphanedJobPids {
                 lastRunRecords = currentRunRecords
                 lastServices = currentServices
+                lastJobRecords = currentJobRecords
+                lastOrphanedJobPids = orphanedJobPids
                 emitLine(ApiMonitorRunsEvent(
                     runs: Self.monitorRuns(records: currentRunRecords, now: Date(), myIssuer: myIssuer),
-                    services: currentServices))
+                    services: currentServices,
+                    jobs: Self.monitorJobs(records: currentJobRecords, now: Date(), myIssuer: myIssuer)))
             }
             // 変化の有無に関わらず毎周期読む(増分があるかはファイルを見ないと分からない。待たない・件数で切らない)
             for event in runLogTailer.poll(records: currentRunRecords) { emitLine(event) }
@@ -737,7 +750,37 @@ struct ApiMonitorCommand: AsyncParsableCommand {
                     },
                     phase: record.phase, supply: record.supply, videoClips: record.videoClips,
                     frozenDevices: record.frozenDevices, blankDevices: record.blankDevices,
-                    textlessDevices: record.textlessDevices)
+                    textlessDevices: record.textlessDevices, jobID: record.jobID)
+            }
+    }
+
+    /// 実行中の行のうち pid が死んでいるもの(`monitorJobs` が canceled として出す行)。変化の判定に使う
+    static func orphanedJobPids(records: [JobProgressRecord],
+                                isAlive: (Int32) -> Bool = ProcessLiveness.isAlive) -> Set<Int32> {
+        Set(records.flatMap { $0.runs.compactMap { $0.state == .running ? $0.pid : nil } }.filter { !isAlive($0) })
+    }
+
+    /// `JobProgressRecord` → 拡張へ渡す形。**state が running で pid があり、その pid が死んでいれば "canceled" として出す**
+    /// (SIGKILL された単発の run の行が実行中のまま残らない)。並びは startedAt → jobID で固定
+    /// (固定しないと変化していないのに比較のたびに emit する)。I/O を持たない pure 関数(isAlive は差し替え口)
+    static func monitorJobs(
+        records: [JobProgressRecord], now: Date, myIssuer: String,
+        isAlive: (Int32) -> Bool = ProcessLiveness.isAlive
+    ) -> [ApiMonitorJob] {
+        let iso = ISO8601DateFormatter()
+        return records
+            .sorted { ($0.startedAt, $0.jobID) < ($1.startedAt, $1.jobID) }
+            .map { record in
+                let elapsed = iso.date(from: record.startedAt).map { max(0, Int(now.timeIntervalSince($0).rounded())) } ?? 0
+                return ApiMonitorJob(
+                    jobID: record.jobID, title: record.title, issuer: record.issuer,
+                    mine: record.issuer.map { $0 == myIssuer } ?? false, elapsedSeconds: elapsed,
+                    runs: record.runs.map { run in
+                        let orphaned = run.state == .running && run.pid.map { !isAlive($0) } == true
+                        return ApiMonitorJobRun(project: run.project, profile: run.profile,
+                                                state: (orphaned ? JobRunState.canceled : run.state).rawValue,
+                                                machines: run.machines)
+                    })
             }
     }
 

@@ -19,7 +19,7 @@ If you work inside the fleetest clone, `swift run fleetest` is equivalent.
 ```
 
 `fleetest help <subcommand>` shows every option of that subcommand with its default.
-`bridge`, `project`, `profile`, `devices`, `results`, `remote`, `services`, `hooks`, `monitor`, `vision` and `api` have
+`bridge`, `project`, `profile`, `devices`, `results`, `remote`, `services`, `hooks`, `monitor`, `job`, `vision` and `api` have
 child commands. `fleetest --version` shows `<short git revision> (protocol <version>)`; `fleetest api version` is a separate entry that returns only the protocol version as JSON.
 
 ## Preparation and diagnosis
@@ -53,6 +53,7 @@ The settings of a run profile are in [Run profile settings](../project/run_profi
 |---|---|---|---|
 | `run` | Run Swift DSL scenarios | `--profile`, `--scenario`, `--folder`, `--failed`, `--dry-run`, `--set`, `--junit`, `--runner`, `--fleet` | [Running scenarios](../running/running_scenarios.md) |
 | `run-file <file>` | Run an unregistered `.swift` scenario as-is (profiles are borrowed from an existing project) | `--project`, `--profile`, `--scenario` | [Running scenarios](../running/running_scenarios.md) |
+| `job begin` / `job end` | Declare the planned runs up front in a script or CI pipeline that starts several `run`s in turn (the VSCode extension's run board then shows how many are still waiting). `job begin` only lists the plan and never starts a run itself | `begin`: `--title` (required), `--owner-pid` (required), `--run <project>:<profile>` (repeatable) / `end`: `--id` | [Section below](#showing-waiting-runs-with-a-job) |
 | `draft-from-testbase` | Generate a scenario draft from a test base (`docs/testbases/*.md`) and write it to a file (unlike the MCP `ft_draft_scenario`, which drafts from the operations an AI actually performed and returns it) | `--testbase`, `--name`, `--no-fm`, `--dry-run` | [Test bases and scenario drafts](../running/testbases.md) |
 | `results list` | List runs, newest first | `--since`, `--limit`, `--json` | [Analyzing results (fleetest results, dashboard)](../running/results_analysis.md) |
 | `results summary` | Aggregate run count, pass rate and duration per scenario (lowest pass rate first) | `--scenario`, `--since`, `--json` | Same as above |
@@ -65,6 +66,43 @@ The settings of a run profile are in [Run profile settings](../project/run_profi
 | `results log <runID>` | Print a run's per-scenario execution log (`events/*.ndjson`). The run ID can also be `latest` | `--scenario`, `--raw` | Same as above |
 | `results frames <runID>` | Cut frames out of a scenario's recording into one PNG contact sheet, each labelled with the recording time and the step running then (default: the first failed step and the 5 seconds before it) | `--scenario` (required), `--device`, `--steps`, `--seconds-before`, `--every`, `--out`, `--json` | Same as above |
 | `clean` | Delete old recordings, event logs, reports, logs, Simulator attachments and xcresult bundles. Any category above 90% of its limit is swept back down to 90% | `--dry-run`, `--recordings`, `--event-logs`, `--reports`, `--logs` | [Maintenance for long-term use](../../in_action/maintenance.md) |
+
+### Showing waiting runs with a job
+
+A "job" here is the list of runs you are about to start (not the same thing as a CI job).
+
+```bash
+FLEETEST=../fleetest/.build/debug/fleetest   # see "How to call it" at the top of this page
+FT_JOB_ID=$("$FLEETEST" job begin --title nightly --owner-pid $$ --run App:ios --run App:android) && export FT_JOB_ID
+trap '"$FLEETEST" job end --id "$FT_JOB_ID" || true' EXIT
+trap 'exit 130' INT TERM
+rc=0
+"$FLEETEST" run --project App --profile ios || rc=1
+"$FLEETEST" run --project App --profile android || rc=1
+exit $rc
+```
+
+- `job begin` prints only the job ID, on one line. Put it in the `FT_JOB_ID` environment variable and **export it**
+  (otherwise `run` does not see it, and the run board's "runs done" and "waiting" counts never change). A job only affects what the run
+  board shows; written as in the example (`&& export`, `|| true` in the trap), a failing `begin` or `end` never changes your test result,
+  even under `set -e` (which a Jenkins `sh` step uses by default)
+- `trap 'exit 130' INT TERM` makes Ctrl-C, or an aborted CI job, end the whole script after stopping the current run
+  (without it, the next `run` starts). In a Jenkinsfile, wrap the script in `sh '''…'''` (three single quotes); with double quotes
+  Jenkins interprets `$$` and `$(…)` itself
+- Each `run` takes the planned run whose project and profile names both match a `--run` exactly, and moves it from waiting to running,
+  then to passed (exit code 0) or failed (anything else). A run stopped by Ctrl-C, an aborted CI job or a kill becomes canceled.
+  A run without `--profile`, or with a combination you did not declare, is added to the plan (the M in "N/M runs done" grows) and the
+  declared one stays waiting. `--dry-run` does not move anything. Runs sent to another machine with `--runner`, and runs with several
+  `--target`s, move the plan the same way
+- Pass to `--owner-pid` the PID of a process that stays alive until the job's last run has finished (normally the script's `$$`).
+  When that process exits, the job leaves the run board even without `end`. **Put `begin`, all the `run`s and `end` in one shell**
+  (in Jenkins, one `sh` step: across separate steps the job vanishes when the `begin` step's shell exits, and `FT_JOB_ID` does not reach
+  the next step). If you try this in an interactive terminal, `$$` is that terminal's shell, so the job stays until you run `end` or
+  close the terminal (the monitor's "Stop All" stays disabled meanwhile)
+- `job end` removes the job from the run board (each run's results stay in its report). Planned runs you never start count as waiting until `end`
+- Run `job begin` on the same Mac where you type `fleetest run`. Several jobs can be declared on one Mac at the same time (a run only
+  moves the plan of the job in its own `FT_JOB_ID`). Only one run goes at a time on a Mac, though, so add `--wait-lock` to runs that may
+  overlap (a run waiting for its turn already counts as running)
 
 ## Devices and bridges
 
