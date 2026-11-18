@@ -56,7 +56,8 @@ final class CommandDispatchTests: XCTestCase {
                     : FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "cleanup", label: "片付け",
                                        value: "1200", placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0,
+                                       // 原点に置かない(原点に貼り付いた枠は tap の前に警告が付く = 記録の文言が変わる)
+                                       frame: FTRect(x: 100, y: 100, width: 10, height: 10), depth: 0,
                                        // pressEnter の焦点待ち(StepExecutor+Actions)が即進行するための印
                                        focused: true),
                            // label を持たない要素(isEmpty が .text の有無と別物であることの検証用)

@@ -561,7 +561,8 @@ final class AssertKindsTests: XCTestCase {
 
     /// 宣言が無ければ何もしない(追加のスナップショットも取らない)
     func testNoInterruptHandlerMeansNoExtraWork() async {
-        let target = node(1, id: "btn_submit")
+        var target = node(1, id: "btn_submit")
+        target.frame = FTRect(x: 100, y: 100, width: 10, height: 10)   // 原点に貼り付いた枠の警告を避ける
         let driver = TapRecordingDriver(frames: [[target]])
         let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
             .execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_submit")))
@@ -573,7 +574,8 @@ final class AssertKindsTests: XCTestCase {
 
     /// 宣言していても出ていなければ発火しない
     func testInterruptHandlerDoesNotFireWhenAbsent() async {
-        let target = node(1, id: "btn_submit")
+        var target = node(1, id: "btn_submit")
+        target.frame = FTRect(x: 100, y: 100, width: 10, height: 10)   // 原点に貼り付いた枠の警告を避ける
         let driver = TapRecordingDriver(frames: [[target]])
         let executor = StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
         executor.interruptHandlers = [

@@ -390,7 +390,7 @@ final class SelectorScopeTests: XCTestCase {
 
     /// **`tap("*語*")` で長い文を引いた tap には「文の中心を押す・linkText:」と注記する**(19周目 im4 F1・iultra F1/F2:
     /// 段落の中の文中リンクを `*利用規約*` で書き、中心の別のリンクを押して ✅)。linkText 付き・完全一致・同じ語の要素・ボタンには言わない
-    /// 読み上げ用の長いラベルを持つ正方形のセル(カレンダーの日付)には言わない(実測 2026-11-18: `2026年1月20日火曜日` の 132x132 に
+    /// 読み上げ用の長いラベルを持つ正方形のセル(カレンダーの日付)には言わない(実測: `2026年1月20日火曜日` の 132x132 に
     /// `*1月20日*` で当たった)。段落(横長)には従来どおり言う
     func testPartialTextTapAdvisoryIsOnlyForTextShapedElements() {
         let contains = FlowLocator(label: "1月20日", labelMatch: .contains)

@@ -1,5 +1,5 @@
 // keptDepth(ブリッジが木に出した入れ物の数)で容器の部分木に居ない要素を、送り残し(ghost)と読まない。
-// 実測(SUT Store の Android・商品詳細。2026-11-18 の `fleetest snapshot --json`): スクロール容器 d10/k0 の後に、
+// 実測(SUT Store の Android・商品詳細の `fleetest snapshot --json`): スクロール容器 d10/k0 の後に、
 // 本文の最後の行 d11/k1、上部バーのボタン d12/k0、固定フッタの数量ボタン d12/k0 と「カートに追加」d11/k0 が並ぶ。
 // depth の復元ではどれも容器の子に見え、容器の外 = ghost と読まれて毎回救済のドラッグが本文を送っていた
 

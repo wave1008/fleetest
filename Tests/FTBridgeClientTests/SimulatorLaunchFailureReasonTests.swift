@@ -1,5 +1,5 @@
 // Simulator でランナーを起動できなかった理由を xcodebuild のログから拾う。行は M1Max の iPhone 17e の実ログ
-// (`bridge-8130.prev.log`・2026-11-18。SpringBoard が落ちて "Host is down")から写した
+// (`bridge-8130.prev.log`。SpringBoard が落ちて "Host is down")から写した
 
 import XCTest
 @testable import FTBridgeClient

@@ -115,7 +115,8 @@ final class MCPOutsideAppTreeSweepTests: XCTestCase {
         } catch {
             XCTAssertTrue("\(error)".contains("keyboard"), "上がりきった木で判定していない: \(error)")
         }
-        XCTAssertEqual(driver.calls.filter { $0.hasPrefix("snapshot") }.count - typed, 3, "\(driver.calls)")
+        // 上がりきるまでの3枚で判定する(読みを足さない)。その後に続く読みは、キーボードの下の対象を閉じる試み(DR-195)の分
+        XCTAssertGreaterThanOrEqual(driver.calls.filter { $0.hasPrefix("snapshot") }.count - typed, 3, "\(driver.calls)")
     }
 
     /// 陰性対照: type の後でもキーボードが既に画面に出ていれば待たない(読みを足さない)

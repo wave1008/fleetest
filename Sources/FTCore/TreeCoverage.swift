@@ -411,7 +411,7 @@ public enum TreeCoverage {
 
     /// `collapsedTree` が真の木のうち「モーダルが木を置き換えた」と言う根拠がある形か(**文言だけを分ける**。発火は変えない)。
     /// モーダルは横にも狭い(左右に余白)か、上端の側も空く。下端だけが空いた全幅の木は、内容が画面の途中で終わる短い画面と
-    /// 見分けられない(評価 2026-11-18: 戻るとタイトルの下に数行だけの画面で5セッションが「モーダルかも」を読み、
+    /// 見分けられない(シナリオ作成の評価: 戻るとタイトルの下に数行だけの画面で5セッションが「モーダルかも」を読み、
     /// スクリーンショットで確かめてから無視した)
     public static func collapsedTreeLooksLikeModal(_ snapshot: SnapshotResponse) -> Bool {
         let screen = snapshot.screen
