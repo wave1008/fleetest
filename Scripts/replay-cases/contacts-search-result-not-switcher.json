@@ -1,0 +1,22 @@
+{
+  "id": "contacts-search-result-not-switcher",
+  "finding": "iOS の連絡先の検索結果の行への ft_tap に「App スイッチャーが開いている・ほぼ確実に届いていない」と警告するが、実際は届いて遷移する(その行だけ /hittable が引き当てられず、同じ画面の見出しは引き当てられる)",
+  "platform": "ios",
+  "redConfirmed": true,
+  "redNote": "3695350cd + 作業ツリー(直す前の MCP)で、作ったばかりの連絡先「計測」の検索結果の行への ft_tap が警告し、同じ応答の waitFor \"編集\" は遷移先で一致した(2026-11-19・Sim iOS 27.2)。/hittable は行・写真のボタン・文字が unresolved、見出し「上位の一致した名前」は hittable。前提: 連絡先「計測」があること",
+  "setup": [["ft_launch", {"bundleId": "com.apple.MobileAddressBook"}]],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.apple.MobileAddressBook"}],
+    ["ft_type", {"selector": ".searchField", "text": "計測", "replace": true}],
+    ["$wait", {"seconds": 1}]
+  ],
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "検索結果の行を selector で押す",
+      "steps": [["ft_tap", {"selector": "計測"}]],
+      "replyReject": ["no longer the one being queried"],
+      "expect": ["編集"]
+    }
+  ]
+}

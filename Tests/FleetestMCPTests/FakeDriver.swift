@@ -82,6 +82,8 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
 
     /// `GET /hittable` の答え。既定は「答えられない」= 旧ブリッジ / in-app / Android と同じ縮退
     var hitTestAnswer: HitTestAnswer = .unavailable
+    /// 番号ごとの答え(無い番号は `hitTestAnswer`)
+    var hitTestAnswersByRef: [Int: HitTestAnswer] = [:]
 
     /// `GET /systemui/covering` の答え。nil = 覆い無し(答える構成なら本物と同じく `covering: false` を返す)
     var systemUICoveringResponse: SystemUICoveringResponse?
@@ -105,7 +107,7 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
 
     func hitTest(ref: Int) async throws -> HitTestAnswer {
         try record("hitTest(\(ref))", "hitTest")
-        return hitTestAnswer
+        return hitTestAnswersByRef[ref] ?? hitTestAnswer
     }
 
     func isAppForeground(bundleID: String) async throws -> Bool {

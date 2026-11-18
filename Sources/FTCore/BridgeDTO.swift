@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 298
+    public static let bridgeProtocolVersion = 299
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1305,9 +1305,9 @@ public struct FrontWindowCover: Codable, Sendable, Equatable {
 public struct ModalScopeCover: Codable, Sendable, Equatable {
     public let droppedCount: Int
     public let frames: [FTRect]
-    public init(droppedCount: Int, frames: [FTRect]) {
-        self.droppedCount = droppedCount
-        self.frames = frames
+    public let droppedSamples: [String]  // 外した兄弟の見本(`<型> (x,y WxH) "<読み上げの文字>"…`・数件)。失敗文と測定で名指す
+    public init(droppedCount: Int, frames: [FTRect], droppedSamples: [String] = []) {
+        self.droppedCount = droppedCount; self.frames = frames; self.droppedSamples = droppedSamples
     }
 }
 

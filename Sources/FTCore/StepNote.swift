@@ -414,6 +414,16 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// **率が上がったらガードの所要(gateWait+推論)がステップの既定 timeout に対して重い**
     case guardRetaken = "guard-retaken"
 
+    /// `waitForSettle` の画面全体の待ちで、変わり続けたのが入力欄のカーソルの点滅だけだった(焦点の印のある欄・印が無ければキーボードが出ている間の欄)ので、止まったとみなして
+    /// 木の同期へ進んだ(`StepExecutor.isCaretBlink`)。**率が上がったら、点滅以外の細い動き(欄の中の細いインジケータ)を見落としていないか**
+    case settleIgnoredCaret = "settle-ignored-caret"
+
+    /// inapp-boost の存在のアサーションが in-app の木では見つからず締め切りに来たので、アプリの XCUITest の木を1回照会し、
+    /// そこで見つかって可視性検証も通った(DR-199)。**率が上がったら in-app の木が読めない描き方の画面が増えている**
+    case foundInXCUITestTree = "found-in-xcuitest-tree"
+    /// DR-199 の照会を撃とうとしたが、前面の確認が答えない・XCUITest の木を読めなかった(照会せずに赤のまま)。率が上がったら照会が効いていない
+    case xcuitestTreeUnread = "xcuitest-tree-unread"
+
     /// `type` がソフトキーボードを出した/動かした直後、次のロケータ操作の解決を
     /// `settledSignature` で押し上げアニメーションの収束まで待ったところ、**待っている間に
     /// 実際に木が変わった**(= 待たなければ古い座標を掴んでいた)。`StepExecutor.pendingTypeKeyboardCheck`
@@ -720,6 +730,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .guardRetaken:
             return "the occlusion check itself used up this step's wait budget on the first look,"
                 + " so this waited once more and the retaken frame passed"
+        case .xcuitestTreeUnread:
+            return "could not consult the app's XCUITest tree (the foreground check did not answer or the tree could not be read)"
+        case .foundInXCUITestTree:
+            return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
+        case .settleIgnoredCaret:
+            return "the only thing still changing was the blinking cursor of the focused input field,"
+                + " so the screen was treated as still"
         case .settledAfterKeyboard:
             return "the preceding type shifted the on-screen layout (keyboard), so this waited for"
                 + " it to settle before resolving the target"

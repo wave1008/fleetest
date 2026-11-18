@@ -26,113 +26,21 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-283 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-268・OI-269・OI-277・OI-279・OI-280・OI-282 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-261 |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 16 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 27 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 42 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 43 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282 |
 
 ## 着手可
 
-### OI-283 `waitForSettle()`(画面全体)が、焦点のある入力欄のカーソルの点滅で整定しない
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 着手可
-- 運用: 回避可 — `waitForSettle("#要素")` で範囲を限る
-- 優先度: 中 — 手引きどおりの書き方で赤
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- 観測(r2_sutstore_ios・CMP の iOS): `waitForSettle()` が「the screen kept changing for 15.2s (last change at x=74.3, y=516, 2×24)」。変化の矩形はフォーカスした入力欄のカーソルの大きさ。`waitForSettle("#btn_save")` は整定した
-- 原因(コードで確認): 画面全体の待ちは木を読む前にブリッジへ撃ち(`StepExecutor+Actions.swift` の waitForSettle)、ブリッジは画素の完全一致で比べる(iOS `BridgeRouter.handleWaitForSettle`・Android `BridgeRouter.java` の `sameAs`)。除外は縁の 10% だけ(`BridgeAPI.waitForSettleCompareRect`)で、焦点の欄・カーソルの除外は無い
-- 直した(11/18・同じ項目の旧①): `repeatWhileCanSelect` が最後の1件を消した直後の判定で Android のキャッシュの前の木を読んで成立し、本文の tap(迂回して読む)が落ちた → 条件の判定の読みも、画面を動かした直後の1読みは迂回する(`StepExecutor.conditionSnapshot`)
-- 次の一手: `WaitForSettleRequest` に除外の矩形(焦点のある欄の枠)を足し、両ブリッジで「変化がその矩形の中だけなら変化に数えない」。要求の欄を足すのでブリッジの版を上げる = ブリッジに触る他の直しとまとめて1回で上げる(CLAUDE.md「デバイス実行」①)
+(いまこの属性を持つ項目は無い)
 
 ## 要測定
 
-### OI-277 iOS Simulator(iOS 27.2)の inapp-boost の木が、標準アプリの空状態の文字・行のラベルを落とし、作成時(XCUITest)は緑のシナリオが本番で赤
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 要測定
-- 運用: 回避不可 — 空状態の文字の検証は xcuitest モードでしか通らない
-- 優先度: 高 — 普通の書き方で避けられない赤(別の AI の作り直しでも同じ行を書いた)
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- 観測(builtin_ios・r5_builtin_ios。手元の Sim・M4Max の Sim で決まって出る・計3回): 連絡先で削除後の `exist("*検索結果なし*")` が赤。画面には「"フリート検証" の検索結果なし」が描かれているが、inapp-boost の木は `other "検索結果" scroll (0,0 402x874)`・clickable・searchField・「閉じる」の4要素だけ。添え書きは「a modal view (accessibilityViewIsModal) at (0,0 402x874) is open and left 1 element group(s) out of the tree … close the modal first」(文字はモーダルの中にあるので案内が外れ)。リマインダーの `exist("リマインダーなし")` も同じ。追加した行が `clickable id=<x-apple-reminderkit://…>` でラベル無し・リマインダーの「さらに表示」ボタン(id は TopOverflowBar…ButtonItem)への tap が「covered by button "編集"」で撃たずに赤
-- 対照: 同じ Sim の xcuitest モードなら連絡先は緑。**実機 SE3(iOS 26.6)の inapp-boost では同じ `exist("*検索結果なし*")`・`exist("リマインダーなし")` が緑**(r2_builtin_se3)
-- 仕組みの候補(コードから・未観測): `InAppSnapshot.swift:277-291`(`modalChildOnly`・規則は `BridgeDTO.swift:202`)は `accessibilityViewIsModal` の付いた最後の見える子より前の兄弟を、重なりを見ずに全部落とす。iOS 27.2 で検索結果の入れ物がこの印を持ち、空状態のビューがその前の兄弟に居る、と推測
-- 測定(11/18 23:3x): ①実機 SE3(iOS 26.6)の inapp-boost では同じ `exist("*検索結果なし*")`・`exist("リマインダーなし")` が緑(r2_builtin_se3)・Sim(27.2)では5周目の作り直しでも同じ手で赤 = OS の版(か Simulator)で割れる ②Sim の連絡先に lldb で付けて UIView の並びを読もうとしたが、システムのアプリは付けられない(「Not allowed to attach to process」)= 外から測る手が無い
-- 次の一手(改): in-app ブリッジのスナップショットに、`modalChildOnly` が落とした兄弟の型・枠・`accessibilityLabel` を返す測る口を足す(ブリッジの版上げ = OI-283 の版上げとまとめる)。その答えで、空状態のビューが印つきのビューの前の兄弟に居ることを確かめてから、残す条件を決める
-- 次の一手: Sim(iOS 27.2)の連絡先の検索結果なしの画面で、402x874 の印つきのビューの親の子(型・順番・`accessibilityViewIsModal`・枠)を書き出し、空状態のビューがどこに居るかを確かめる。落とされた兄弟が印つきのビューの枠の外か内か(描かれているか)で残す条件を決められるか、既存の4形(ダイアログ・全画面カバー・アラート・メニュー)の反例と並べて確かめる
-
-### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 要測定
-- 運用: 回避可 — 本番(inapp-boost)では効く。作成時は ft_start_run で確かめる(DR-196)
-- 優先度: 中 — 作成ループで誤った判断を招く
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- 観測: ①spec_ios のホームの検索バー(textView「商品を検索」)を XCUITest で押しても遷移しない(セレクタ2回・座標1回)→ AI は仕様違反 D-01 を起票して赤のまま残した → 本番(inapp-boost)では S0013 を含む 6/6 緑 ②r2_sutstore_ios の住所フォームの「保存」`#btn_save`(木では (16,789 370x48)・整定済み)へのセレクタの tap(中心)が3回とも無反応、上端寄りの座標 `tap(x:201, y:795)` なら保存できた → AI は座標で書いた。staticText「保存」の高さが 4pt
-- 対照: 同じ評価で XCUITest のカートの数量±の起票(r4_spec_ios)は本番でも再現 = アプリ側
-- 測定(11/18 23:1x・Sim -05・MCP = XCUITest): SUT Store のホームの検索バー(`textView "商品を検索" (16,112 370x56)`)へ ①セレクタの tap(中心)②座標 (201,117)(上端寄り)③0.3 秒の長押し、のどれも遷移しない(木は操作の前と同じ)。同じ画面の本番(inapp-boost)は遷移する = XCUITest の合成の入力が、押す位置・時間によらずこの CMP の欄に効かない。保存ボタンで上端なら効いた形とは別
-- 次の一手: 同じ画面で、XCUITest の木の要素の枠と in-app の木の枠を並べ、XCUITest の中心の座標に何が居るか(`/hittable`・ヒットテスト)を測る
-
-### OI-280 MCP の撃つ前の照合が、検索結果・ポップオーバーの中の要素に「App スイッチャーが開いている・ほぼ確実に届いていない」と誤って警告する
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 要測定
-- 運用: 合否に響かない(MCP の注記)
-- 優先度: 中 — 届いた操作を撃ち直させる文言(DR-136 の逆向き)
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- 観測(builtin_ios・r5_builtin_ios の2回・同じ2か所): 連絡先の検索結果の行 `ft_tap("フリート検証太郎")`・リマインダーの「消去」メニューへの `ft_tap` に「the platform cannot find … at all, even though the tree just listed it — the app is no longer the one being queried (the app switcher is open, another app came to the front …) This tap almost certainly did not reach the app」。**同じ応答の `waitFor "編集"` が遷移先で一致**(届いていた)
-- コード: `MCPServer+Snapshot.swift` の `treeDoesNotMatchScreenWarning`(撃つ前の `/hittable` が unresolvable)。アプリ内アラートは同じ理由で例外済み(`insideInAppAlert`)
-- 測定(11/18 23:0x・Sim -07・MCP): 既存の連絡先(Kate Bell)の検索結果の行への ft_tap を2回 → 警告は出ず遷移も成功(0/2)。評価で出たのは**作ったばかりの連絡先**の検索結果の行(作成 → 一覧 → 検索の直後)で、形が違う可能性 = 材料不足
-- 次の一手: その2画面で `/hittable` が unresolvable を返すこと・前面の判定(`inForegroundProbe`)は前面と言うことを測る。言えれば、前面と言えている間は「別アプリ・スイッチャー」の帰属を言わない
-
-### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
-- 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
-- 属性: 要測定
-- 運用: 合否に響かない(注記)
-- 優先度: 低 — 注記の文言だけ
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
-- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
-- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
-- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
-- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
-- 次の一手: ①は読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る
-
-### OI-268 本当に無い要素への失敗で、送りの案内(`scroll:` を足せ)が内容の収まった一覧にも出る
-- 状態: 再現済み
-- 確認: 0b9a7aeb6 + 作業ツリー(2026-11-18)
-- 属性: 要測定
-- 運用: 合否に響かない(案内の文言)
-- 優先度: 低 — 文言だけ
-
-出典: シナリオ作成の評価(2026-11-18・`_work/scen-eval-20261118/`。AI のセッション 26 本が作った 215 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
-- 直した(11/18。注記の誤誘導の他の9件): ②1文字の英数字の似たラベル ③アプリ内アラートの括弧書き ⑤-b 隠し入力欄の焦点の警告 ⑧未インストールの起動の「吸われた」 ⑩渡したセレクタの返し方・キーボードの部品の錨 ①下端だけが空いた全幅の短い画面では「モーダルかも」と言わず弱い文言にする(`TreeCoverage.collapsedTreeLooksLikeModal`。発火は同じ)⑤-a「inline link なら `linkText:`」は文の形(縦横比 2 以上)の要素だけ(5 SUT の文中リンクの段落は 7 以上・日付セルは 1)⑦標準アプリで appPath を指せない事情を文言に足した ⑨pressEnter の読み返しの文言を観測した瞬間の事実に限った(ランナーの文字列 = ブリッジ v298)。待ちの案内には「この画面に無ければ待っても送っても直らない」を足した。④は木の事実で正しい注記だった
-- 観測(残り): ⑥メモの空のフォルダ(一覧は画面に収まっている)で「`scroll:` を足せ」と案内した
-- 材料不足: 容器の子がどちらの端でも切れていないときに送りの案内を抑えた場合、隠れるバー(E2EY)の形で正しい案内が消えないか
-- 次の一手: E2EY の隠れるバーの画面と、内容の収まった一覧の画面で、失敗時の木の形を並べて見分けられるか確かめてから条件にする
-
-### OI-269 M1Max の iPhone 17e で SpringBoard が落ちてランナーを起動できず、再実行でも同じ失敗(自分では起こし直さない)
-- 状態: 再現済み
-- 確認: 0b9a7aeb6 + 作業ツリー(2026-11-18)
-- 属性: 要測定・低頻度
-- 運用: 再実行では吸収できない — 手で起こし直す
-- 優先度: 低 — 特定の機械だけ
-
-出典: シナリオ作成の評価(2026-11-18・`_work/scen-eval-20261118/`。AI のセッション 26 本が作った 215 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
-- 測定(11/18・M1Max のランナーの `bridge-8130.prev.log`): `Simulator device failed to launch com.example.ftrunner.uitests.xctrunner.` / `Host is down` / `Failure Reason: The system shell probably crashed.`。11/18 の処理の時点では SpringBoard は動いていた(終了状態 -6 = 一度落ちて起動し直された跡)ので、起こし直しで直るかは測れなかった
-- 直した(11/18): 外部構成のディスパッチのレポートのパス・可視性検証の切り抜きの置き場。Simulator でランナーを起動できなかったとき、xcodebuild のログの理由(`Finished with error` と `Failure Reason`)を初回の文言に出す(`BridgeLauncher.simulatorLaunchFailureReason`)
-- 材料不足: SpringBoard が止まった状態で、shutdown → boot で直るか
-- 観測(11/18・2回目のシナリオ作成の評価): M1Max の iPhone 17e を2回(e2e_ios_sim・e2ey_cmp_ios の本番の経路)使い、どちらも起動できた(SpringBoard の落ちは出ず)= 低頻度のまま
-- 次の一手: 次に起きたとき、手で起こし直して直ることを測る。直るなら、供給で1回だけ起こし直して効いたかを測る形(`RunnerRestartFutility` と同じ規律)を入れる
+(いまこの属性を持つ項目は無い)
 
 ## 要判断
 
@@ -149,6 +57,20 @@
 - 決めること: デバイス実行で誤検知が無いと確かめた後、この形への触る操作を撃たずに断る(失敗にする)へ上げるか
 
 ## 木に材料なし
+
+### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
+- 状態: 再現済み
+- 確認: 3695350cd(2026-11-18)
+- 属性: 木に材料なし
+- 運用: 回避可 — 本番(inapp-boost)では効く。作成時は ft_start_run で確かめる(DR-196)
+- 優先度: 中 — 作成ループで誤った判断を招く
+
+出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
+- 観測: ①spec_ios のホームの検索バー(textView「商品を検索」)を XCUITest で押しても遷移しない(セレクタ2回・座標1回)→ AI は仕様違反 D-01 を起票して赤のまま残した → 本番(inapp-boost)では S0013 を含む 6/6 緑 ②r2_sutstore_ios の住所フォームの「保存」`#btn_save`(木では (16,789 370x48)・整定済み)へのセレクタの tap(中心)が3回とも無反応、上端寄りの座標 `tap(x:201, y:795)` なら保存できた → AI は座標で書いた。staticText「保存」の高さが 4pt
+- 対照: 同じ評価で XCUITest のカートの数量±の起票(r4_spec_ios)は本番でも再現 = アプリ側
+- 測定(11/18 23:1x・Sim -05・MCP = XCUITest): SUT Store のホームの検索バー(`textView "商品を検索" (16,112 370x56)`)へ ①セレクタの tap(中心)②座標 (201,117)(上端寄り)③0.3 秒の長押し、のどれも遷移しない(木は操作の前と同じ)。同じ画面の本番(inapp-boost)は遷移する = XCUITest の合成の入力が、押す位置・時間によらずこの CMP の欄に効かない。保存ボタンで上端なら効いた形とは別
+- 測定(11/19 1:0x・Sim -05・ランナーの /hittable を直接): 検索バーの `textView "商品を検索"` は `hittable: true`(label で引き当て)。それでも要素の tap・座標の tap・0.3 秒の長押しのどれも効かない = 届かない理由は木にもヒットテストの答えにも出ない
+- 次の一手: 材料が出るまで据え置き(XCUITest の合成のタッチを CMP の欄が受け取らない理由をブリッジの側で測る口が要る)
 
 ### OI-251 xcuitest モードで、送りで隠れた上部バーのボタンへの tap が何も押さずに ✅(E2EY-iOS「スクロールで隠れるバー」)
 - 状態: 再現済み
@@ -273,6 +195,20 @@
 出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。
 
 ## 低頻度
+
+### OI-269 M1Max の iPhone 17e で SpringBoard が落ちてランナーを起動できず、再実行でも同じ失敗(自分では起こし直さない)
+- 状態: 再現済み
+- 確認: 0b9a7aeb6 + 作業ツリー(2026-11-18)
+- 属性: 低頻度
+- 運用: 再実行では吸収できない — 手で起こし直す
+- 優先度: 低 — 特定の機械だけ
+
+出典: シナリオ作成の評価(2026-11-18・`_work/scen-eval-20261118/`。AI のセッション 26 本が作った 215 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
+- 測定(11/18・M1Max のランナーの `bridge-8130.prev.log`): `Simulator device failed to launch com.example.ftrunner.uitests.xctrunner.` / `Host is down` / `Failure Reason: The system shell probably crashed.`。11/18 の処理の時点では SpringBoard は動いていた(終了状態 -6 = 一度落ちて起動し直された跡)ので、起こし直しで直るかは測れなかった
+- 直した(11/18): 外部構成のディスパッチのレポートのパス・可視性検証の切り抜きの置き場。Simulator でランナーを起動できなかったとき、xcodebuild のログの理由(`Finished with error` と `Failure Reason`)を初回の文言に出す(`BridgeLauncher.simulatorLaunchFailureReason`)
+- 材料不足: SpringBoard が止まった状態で、shutdown → boot で直るか
+- 観測(11/18・2回目のシナリオ作成の評価): M1Max の iPhone 17e を2回(e2e_ios_sim・e2ey_cmp_ios の本番の経路)使い、どちらも起動できた(SpringBoard の落ちは出ず)= 低頻度のまま
+- 次の一手: 次に起きたとき、手で起こし直して直ることを測る。直るなら、供給で1回だけ起こし直して効いたかを測る形(`RunnerRestartFutility` と同じ規律)を入れる
 
 ### OI-257 全体の単体テストで `ShellTimeoutTests.testTimeoutReturnsEvenWhenAGrandchildHoldsStdout` が自分の pid ファイル(一時フォルダの `ft-shell-grandchild-<pid>.pid`)を読めずに赤(1回・単独では緑)
 - 状態: 再現済み
@@ -536,6 +472,22 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 
 ## 据え置き
+
+### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
+- 状態: 再現済み
+- 確認: 3695350cd(2026-11-18)
+- 属性: 据え置き
+- 運用: 合否に響かない(注記)
+- 優先度: 低 — 注記の文言だけ
+
+出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
+- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
+- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
+- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
+- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
+- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
+- 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
+- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る
 
 ### OI-256 ランナー機の上で、そのランナー機に固定した実行プロファイルを `--device-machine <自分の名前>` で回すと、自分自身へ ssh しようとして落ちる
 - 状態: 再現済み

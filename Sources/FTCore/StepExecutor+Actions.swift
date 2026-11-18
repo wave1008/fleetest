@@ -82,17 +82,6 @@ extension StepExecutor {
         result.appGone != nil || result.appLeftForeground != nil
     }
 
-    static func scrollOffHint(_ step: FlowStep, in snapshot: SnapshotResponse) -> String {
-        guard step.direction == nil,
-              TapTargetGeometry.primaryScrollContainer(in: snapshot.elements, screen: snapshot.screen) != nil else { return "" }
-        let why = ". If it is off the screen or was hidden by scrolling (for example a bar that hides while the list scrolls),"
-        if coveredTouchAcceptsScroll(step.action) {
-            return why + " add scroll: to this step (for example scroll: .down, or .up if it is above) so the list is scrolled until it appears"
-        }
-        guard let action = step.action, interactsByTouch(action) else { return "" }
-        return why + " scroll the list before this step (scrollUp() or scrollDown()) until it appears — this command has no scroll: argument"
-    }
-
     func executeAction(_ action: String, step: FlowStep,
                                fingerprint: LocatorFingerprint? = nil,
                                phase: inout PhaseAccumulator) async throws -> StepOutcome {

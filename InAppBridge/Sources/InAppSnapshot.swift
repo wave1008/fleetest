@@ -43,13 +43,15 @@ enum InAppSnapshot {
         var order: [ObjectIdentifier] = []
         var modalDropped = 0
         var modalFrames: [FTRect] = []
-        func recordModal(dropped: Int, frame: CGRect) {
+        var modalSamples: [String] = []
+        func recordModal(dropped: Int, frame: CGRect, samples: [String]) {
             modalDropped += dropped
             let rect = FTRect(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: frame.height)
             if !modalFrames.contains(rect) { modalFrames.append(rect) }
+            for sample in samples where modalSamples.count < modalDroppedSampleLimit { modalSamples.append(sample) }
         }
         var modalResult: ModalScopeCover? {
-            modalDropped > 0 ? ModalScopeCover(droppedCount: modalDropped, frames: modalFrames) : nil
+            modalDropped > 0 ? ModalScopeCover(droppedCount: modalDropped, frames: modalFrames, droppedSamples: modalSamples) : nil
         }
         func record(_ window: UIWindow) {
             dropped += 1
@@ -280,14 +282,37 @@ enum InAppSnapshot {
             isModal: views.map { $0?.accessibilityViewIsModal ?? false },
             isVisible: views.map { $0.map { !$0.isHidden && $0.alpha >= 0.01 } ?? false })
         guard let start = modal else { return children }
-        let dropped = children[..<start].filter { node in
+        let droppedNodes = children[..<start].filter { node in
             guard let view = node as? UIView else { return true }
             return !(view.isHidden || view.alpha < 0.01 || view.accessibilityElementsHidden)
-        }.count
-        if dropped > 0, let modalView = views[start] {
-            tally.recordModal(dropped: dropped, frame: modalView.convert(modalView.bounds, to: nil))
+        }
+        if !droppedNodes.isEmpty, let modalView = views[start] {
+            tally.recordModal(dropped: droppedNodes.count, frame: modalView.convert(modalView.bounds, to: nil),
+                              samples: droppedNodes.prefix(max(0, modalDroppedSampleLimit - tally.modalSamples.count)).map(droppedSample))
         }
         return Array(children[start...])
+    }
+
+    /// `ModalScopeCover.droppedSamples` の件数と、1件に載せる文字の数(応答の大きさの上限。名指すには数件で足りる)
+    static let modalDroppedSampleLimit = 3
+    static let modalDroppedSampleTextLimit = 3
+
+    /// 外した兄弟1つの見本: 型・画面上の枠・部分木の読み上げの文字(先頭から数件。走査は浅く小さく打ち切る)
+    private static func droppedSample(_ node: NSObject) -> String {
+        var texts: [String] = []
+        var queue: [(NSObject, Int)] = [(node, 0)]
+        var visited = 0
+        while !queue.isEmpty, texts.count < modalDroppedSampleTextLimit, visited < 200 {
+            let (current, depth) = queue.removeFirst()
+            visited += 1
+            if let view = current as? UIView, view.isHidden || view.alpha < 0.01 { continue }
+            if let label = current.accessibilityLabel, !label.isEmpty, !texts.contains(label) { texts.append(label) }
+            if depth < 12 { queue.append(contentsOf: axChildren(current).map { ($0, depth + 1) }) }
+        }
+        let rect = (node as? UIView).map { $0.convert($0.bounds, to: nil) } ?? node.accessibilityFrame
+        // Int(_:) は非有限・巨大な枠で落ちる(シナリオのプロセスごと落ちた型)ので書式で丸める
+        let box = String(format: "(%.0f,%.0f %.0fx%.0f)", rect.origin.x, rect.origin.y, rect.width, rect.height)
+        return "\(NSStringFromClass(Swift.type(of: node))) \(box)" + texts.map { " \"\($0)\"" }.joined()
     }
 
     private static func axChildren(_ node: NSObject) -> [NSObject] {

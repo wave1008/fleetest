@@ -63,7 +63,10 @@ final class ModalScopeAttributionTests: XCTestCase {
         let row = ElementInfo(ref: 2, type: "staticText", identifier: "row_sheet_00", label: "シート行 00", value: nil,
                               placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 300, width: 402, height: 44), depth: 4)
         let modal = ModalScopeCover(droppedCount: 1, frames: [FTRect(x: 0, y: 0, width: 402, height: 874)])
-        let withList = await tapMissReason(elements: [list, row], modal: modal)
+        // 実物のシートの一覧は下端の行が容器の縁をまたぐ(送れる中身がある)
+        let lastRow = ElementInfo(ref: 3, type: "staticText", identifier: "row_sheet_12", label: "シート行 12", value: nil,
+                                  placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 850, width: 402, height: 44), depth: 4)
+        let withList = await tapMissReason(elements: [list, row, lastRow], modal: modal)
         XCTAssertTrue(withList.contains("close the modal"), withList)
         XCTAssertTrue(withList.contains("add scroll:"), withList)
         XCTAssertFalse(withList.contains("add waitSeconds"), withList)

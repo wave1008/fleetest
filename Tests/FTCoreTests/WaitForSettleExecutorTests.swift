@@ -161,6 +161,40 @@ final class WaitForSettleExecutorTests: XCTestCase {
         XCTAssertEqual(driver.snapshotCallCount, 0, "静止しなかったら段2へ進まない")
     }
 
+    /// 変わり続けたのが焦点のある入力欄のカーソル(細い縦線・欄の中)だけなら、止まったとみなして段2へ進み注記を残す
+    func testCaretBlinkInsideTheFocusedFieldCountsAsStill() async {
+        var field = ElementInfo(ref: 2, type: "textField", identifier: "field_name", label: nil, value: "山田", placeholder: nil,
+                                enabled: true, frame: FTRect(x: 16, y: 500, width: 370, height: 44), depth: 1)
+        field.focused = true
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[element(1, id: "list", frame: listFrame), field]])
+        driver.waitForSettleResponses = [unsettled(change: FTRect(x: 74.3, y: 510, width: 2, height: 24))]
+        let outcome = await makeExecutor(driver).execute(FlowStep(action: "waitForSettle", timeout: 5))
+        XCTAssertTrue(isPassed(outcome.status), "\(outcome.status)")
+        XCTAssertTrue(outcome.notes.contains(.settleIgnoredCaret))
+    }
+
+    /// 焦点の印が無い木(CMP の iOS の in-app)でも、キーボードが出ていて変化が入力欄の中なら同じ扱い
+    func testCaretInsideAnInputWhileTheKeyboardIsUpCountsAsStillWithoutAFocusMark() {
+        let field = ElementInfo(ref: 2, type: "textView", identifier: "field_search", label: nil, value: "キーボード", placeholder: nil,
+                                enabled: true, frame: FTRect(x: 56, y: 70, width: 338, height: 57), depth: 1)
+        let change = FTRect(x: 187.7, y: 87.3, width: 2, height: 22.7)
+        let up = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 402, height: 874), elements: [field],
+                                  truncatedCount: 0, keyboardFrame: FTRect(x: 0, y: 583, width: 402, height: 291))
+        XCTAssertNotNil(StepExecutor.caretField(for: change, in: up, scale: 1))
+        let down = SnapshotResponse(sessionBundleID: nil, screen: up.screen, elements: [field], truncatedCount: 0)
+        XCTAssertNil(StepExecutor.caretField(for: change, in: down, scale: 1), "キーボードが無ければ焦点があると言えない")
+    }
+
+    /// 細い変化でも焦点の欄が無い・欄の外なら従来どおり失敗(カーソルと言える材料が無い)
+    func testThinChangeWithoutAFocusedFieldStillFails() async {
+        let driver = steady()
+        driver.waitForSettleResponses = [unsettled(change: FTRect(x: 74, y: 510, width: 2, height: 24))]
+        let outcome = await makeExecutor(driver).execute(FlowStep(action: "waitForSettle", timeout: 5))
+        XCTAssertTrue((message(outcome.status) ?? "").contains("kept changing"), "\(outcome.status)")
+        XCTAssertFalse(StepExecutor.isCaretBlink(FTRect(x: 74, y: 600, width: 2, height: 24),
+                                                 inside: FTRect(x: 16, y: 500, width: 370, height: 44), scale: 1))
+    }
+
     func testStageOneTimeoutWithoutAChangeRegionOmitsTheClause() async {
         let driver = steady()
         driver.waitForSettleResponses = [unsettled()]

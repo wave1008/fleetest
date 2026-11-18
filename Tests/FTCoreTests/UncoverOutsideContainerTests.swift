@@ -350,7 +350,15 @@ final class UncoverOutsideContainerTests: XCTestCase {
 
     /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。scroll: を持たない触る操作には先に送る手。向きを書いた回・一覧の無い画面・触らない操作では足さない
     func testNotFoundTapSuggestsScrollWhenAListCanBeScrolled() {
-        let withList = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true)], truncatedCount: 0)
+        // 送れる中身がある一覧 = 下端の行が容器の縁をまたぐ
+        let withList = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [
+            el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true),
+            el(2, "button", FTRect(x: 0, y: 850, width: 402, height: 48))], truncatedCount: 0)
+        // 中身が収まった一覧(メモの空のフォルダ・E2EY のホーム)には案内しない
+        let fitting = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [
+            el(1, "other", FTRect(x: 0, y: 174, width: 402, height: 700), scrollable: true),
+            el(2, "button", FTRect(x: 0, y: 200, width: 402, height: 48))], truncatedCount: 0)
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: fitting), "")
         let bare = SnapshotResponse(sessionBundleID: nil, screen: screen, elements: [], truncatedCount: 0)
         XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: withList).contains("scroll: .down, or .up"))
         XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap", direction: "down"), in: withList), "")

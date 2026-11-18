@@ -76,7 +76,7 @@ final class TreeCoverageTests: XCTestCase {
                        "疑われる画面の集合が変わった。増分を1件ずつ検分すること")
     }
 
-    /// 発火した画面のうち「モーダルかも」と言うのはモーダルの形だけ(OI-268①)。固定コーパスの発火はどれも真陽性なので全部モーダルの形。
+    /// 発火した画面のうち「モーダルかも」と言うのはモーダルの形だけ。固定コーパスの発火はどれも真陽性なので全部モーダルの形。
     /// 下端だけが空いた全幅の短い画面(評価で5セッションが誤読した形)は弱い文言に回る
     func testModalWordingOnlyForTheModalShape() throws {
         for (name, snapshot) in try corpus() where TreeCoverage.collapsedTree(in: snapshot) {

@@ -1202,6 +1202,21 @@ final class MCPRefGuardTests: XCTestCase {
         XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, "拒否ではなく警告して撃つこと")
     }
 
+    /// **同じ木の別の要素が引き当てられるなら、アプリは問い合わせ対象のまま**(連絡先の検索結果の行だけが引き当てられず、
+    /// 届いたのに「スイッチャー・ほぼ確実に届いていない」と言っていた)。スイッチャーでは全要素が引き当てられない(上のテスト)
+    func testTapDoesNotClaimTheAppIsGoneWhenAnotherElementOnTheScreenResolves() async throws {
+        driver.snapshotResponse = screen([
+            element(ref: 1, type: "button", label: "上位の一致した名前", x: 0, y: 62, w: 402, h: 36),
+            element(ref: 2, type: "button", label: "計測", x: 0, y: 98, w: 386, h: 77),
+        ])
+        driver.hitTestAnswer = .unresolvable
+        driver.hitTestAnswersByRef = [1: .hittable(true)]
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 2]))
+        XCTAssertFalse(text.contains("no longer the one being queried"), text)
+        XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, "撃つこと")
+    }
+
     /// **アプリ内アラートのボタンには「別アプリ」の推論を当てない**。実機 SE3 の SwiftUI `.alert` のボタンは
     /// `/hittable` が引き当てられないことがあり(5/5)、押せば届いて閉じたのに「did not reach the app」と言っていた
     func testTapOnAnInAppAlertButtonDoesNotClaimTheAppIsGone() async throws {

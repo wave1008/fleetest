@@ -977,12 +977,13 @@ extension MCPServer {
     /// 「アプリスイッチャー/別アプリ」と断じて撃ち直しを誘っていた。木がアラートを前面と言っている以上、
     /// 問い合わせ対象が外れたという推論は成り立たないので聞かない(覆いは聞く)
     /// `operation` = 文言の操作名(ft_tap の経路は "tap"。ref のジェスチャは "double tap" / "drag" / "pinch")
-    static func screenNotRepresentedWarning(_ found: ElementInfo, nativeRef: Int, driver: AppDriver,
+    static func screenNotRepresentedWarning(_ found: ElementInfo, nativeRef: Int, otherNativeRefs: [Int], driver: AppDriver,
                                             insideInAppAlert: Bool, operation: String) async -> String {
         let covering = await systemUICoveringWarning(found, driver: driver, operation: operation)
         if !covering.isEmpty { return covering }
         if insideInAppAlert { return "" }
-        return await treeDoesNotMatchScreenWarning(found, nativeRef: nativeRef, driver: driver, operation: operation)
+        return await treeDoesNotMatchScreenWarning(found, nativeRef: nativeRef, otherNativeRefs: otherNativeRefs,
+                                                   driver: driver, operation: operation)
     }
 
     /// **`screenNotRepresentedWarning` を毎タップ聞き直さない**。
@@ -1014,7 +1015,9 @@ extension MCPServer {
         let insideAlert = AlertTreeScope.frontInAppAlert(in: fresh).map { alert in
             AlertTreeScope.alertOnly(alert, in: fresh).elements.contains { $0.ref == found.ref }
         } ?? false
-        let warning = await Self.screenNotRepresentedWarning(found, nativeRef: nativeRef(found.ref, args: args),
+        let others = fresh.elements.filter { $0.ref != found.ref && !($0.label ?? "").isEmpty && TapTargetGeometry.platformShouldResolve($0) }
+            .prefix(2).map { nativeRef($0.ref, args: args) }
+        let warning = await Self.screenNotRepresentedWarning(found, nativeRef: nativeRef(found.ref, args: args), otherNativeRefs: others,
                                                              driver: driver, insideInAppAlert: insideAlert,
                                                              operation: operation)
         lastScreenProbe[key] = (fingerprint, warning)
@@ -1273,11 +1276,15 @@ extension MCPServer {
     /// エージェントが1手ずつ撃つので影響が無い。DSL は1 run で数千回撃つため、
     /// 同じ費用を毎ステップ払う判断は実測してから(今回は入れていない)
     /// `nativeRef` = ブリッジの番号(`found.ref` はセッションの番号 = 最初の世代以外は別の要素を指す)
-    static func treeDoesNotMatchScreenWarning(_ found: ElementInfo, nativeRef: Int,
+    /// `otherNativeRefs` = 同じ木の別の要素。どれかが引き当てられたらアプリは問い合わせ対象のまま = 帰属を言わない(連絡先の検索結果の行だけが引き当てられない形。スイッチャーでは全要素 12/12 が引き当てられない)
+    static func treeDoesNotMatchScreenWarning(_ found: ElementInfo, nativeRef: Int, otherNativeRefs: [Int],
                                               driver: AppDriver, operation: String = "tap") async -> String {
         guard TapTargetGeometry.platformShouldResolve(found),
               (try? await driver.hitTest(ref: nativeRef)) == .unresolvable
         else { return "" }
+        for other in otherNativeRefs {
+            if let answer = try? await driver.hitTest(ref: other), answer != .unresolvable { return "" }
+        }
         return " (warning: the platform cannot find \(RefGuard.describe(found)) at all, even though"
             + " the tree just listed it — the app is no longer the one being queried (the app"
             + " switcher is open, another app came to the front, or the device's screen is off or locked),"

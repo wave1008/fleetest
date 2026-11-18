@@ -62,7 +62,7 @@ extension StepExecutor {
             return (.failed(Self.waitForSettleNeedsScreenCapture), nil)
         }
         phase.waitMs += Self.ms(clock.now - stageOneStart)
-        guard response.settled else {
+        if !response.settled {
             // 窓より短い時間しか見られなかった(要素を探すのに上限の大半を使った・waitSeconds < quietSeconds)なら、
             // 「変わり続けた」とは言えない = 見られた時間が窓に足りなかった事実を書く
             if timeoutMs < plan.quietMs {
@@ -74,12 +74,21 @@ extension StepExecutor {
                         + " (\(quiet)s), so the screen could not be confirmed still"
                 return gaveUpWaitingForSettle(step: step, message: message)
             }
-            var message = "the screen kept changing for \(Self.settleSecondsText(Double(response.elapsedMs) / 1000))s"
-            if let change = response.lastChangeRegion {
-                message += " (last change at x=\(Self.coordinateText(change.x)), y=\(Self.coordinateText(change.y)),"
-                    + " \(Self.coordinateText(change.width))×\(Self.coordinateText(change.height)))"
+            // **変わり続けたのが焦点のある入力欄のカーソルの点滅だけなら、画面は止まっている**: ブリッジの比較は画素の完全一致で、
+            // 点滅は窓の間ずっと続く(CMP の iOS で「last change … 2×24」が欄の中のカーソル)。最後の変化の矩形がカーソルの細さで
+            // 焦点の欄の中に収まるときだけ段2へ進む(他の動きが同じ組の差に入れば矩形はそれを含んで広がる)。読みは失敗しかけた回だけ
+            if let change = response.lastChangeRegion, change.width <= Self.caretWidthCeilingPt * driver.pointScale,
+               let snapshot = try? await driver.snapshot(),
+               Self.caretField(for: change, in: snapshot, scale: driver.pointScale) != nil {
+                noteCodesThisStep.insert(.settleIgnoredCaret)
+            } else {
+                var message = "the screen kept changing for \(Self.settleSecondsText(Double(response.elapsedMs) / 1000))s"
+                if let change = response.lastChangeRegion {
+                    message += " (last change at x=\(Self.coordinateText(change.x)), y=\(Self.coordinateText(change.y)),"
+                        + " \(Self.coordinateText(change.width))×\(Self.coordinateText(change.height)))"
+                }
+                return gaveUpWaitingForSettle(step: step, message: message)
             }
-            return gaveUpWaitingForSettle(step: step, message: message)
         }
 
         // 段2。ここから先は driver(次のステップのロケータを解決するほう)の木
@@ -154,5 +163,35 @@ extension StepExecutor {
             try await Task.sleep(for: .milliseconds(max(Self.scrollSettleMinSleepMs, min(period, remaining))))
             phase.waitMs += Self.ms(clock.now - waitStart)
         }
+    }
+}
+
+extension StepExecutor {
+    /// カーソルの幅の上限(pt。iOS のキャレットは 2pt 前後・Android は 2dp 前後)。欄の枠の外へのはみ出しの許容(pt)
+    static let caretWidthCeilingPt = 4.0
+    static let caretFieldSlackPt = 2.0
+
+    static func isTextInputType(_ type: String) -> Bool {
+        ["textField", "secureTextField", "textView", "searchField"].contains(type)
+    }
+
+    /// カーソルの点滅と言える入力欄: 焦点の印のある欄、印が無ければ(CMP の iOS の in-app の木は付けない)キーボードが出ている間の
+    /// 入力欄のうち変化を中に含むもの(キーボードが出ている = どれかの欄に焦点がある)
+    static func caretField(for change: FTRect, in snapshot: SnapshotResponse, scale: Double) -> ElementInfo? {
+        let inputs = snapshot.elements.filter { isTextInputType($0.type) }
+        if let focused = inputs.first(where: { $0.focused == true }) {
+            return isCaretBlink(change, inside: focused.frame, scale: scale) ? focused : nil
+        }
+        guard KeyboardWait.isShown(snapshot) else { return nil }
+        return inputs.first { isCaretBlink(change, inside: $0.frame, scale: scale) }
+    }
+
+    /// 最後の変化の矩形が、焦点の欄の中に収まる細い縦線(カーソル)か。`scale` = 木の単位 1pt あたり(Android は px)
+    static func isCaretBlink(_ change: FTRect, inside field: FTRect, scale: Double) -> Bool {
+        let slack = caretFieldSlackPt * scale
+        return change.width <= caretWidthCeilingPt * scale && change.height <= field.height + slack
+            && change.x >= field.x - slack && change.y >= field.y - slack
+            && change.x + change.width <= field.x + field.width + slack
+            && change.y + change.height <= field.y + field.height + slack
     }
 }

@@ -1341,7 +1341,7 @@ extension MCPServer {
               let element = snapshot.elements.first(where: { $0.ref == resolvedRef })
         else { return "" }
         // 呼び手が渡したセレクタがこの要素だけを選ぶならそれを返す(別の形を勧めると、状態を映す文字を錨にした
-        // 相対形など渡した形より脆いものに書き換わった = OI-268⑩)
+        // 相対形など渡した形より脆いものに書き換わった)
         if var passed = (args["selector"] as? String)?.trimmingCharacters(in: .whitespaces), !passed.isEmpty {
             if passed.count >= 2, passed.hasPrefix("\""), passed.hasSuffix("\"") { passed = String(passed.dropFirst().dropLast()) }
             if Self.SelectorNaming.picksOnlyOne(element, with: passed, in: snapshot) { return " (selector: \(passed))" }

@@ -28,7 +28,10 @@ final class IdWrittenAsLabelHintTests: XCTestCase {
                                     enabled: true, frame: FTRect(x: 0, y: 0, width: 400, height: 800), depth: 1,
                                     scrollable: true, scrollActions: ["up", "down"])
         let snapshot = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
-                                        elements: [container], truncatedCount: 0)
+                                        elements: [container, ElementInfo(ref: 2, type: "button", identifier: "row_9", label: nil, value: nil,
+                                                                          placeholder: nil, enabled: true,
+                                                                          frame: FTRect(x: 0, y: 780, width: 400, height: 48), depth: 2)],
+                                        truncatedCount: 0)
         let hint = StepExecutor.scrollOffHint(FlowStep(action: "tap", locator: FlowLocator(id: "x")), in: snapshot)
         XCTAssertTrue(hint.contains("scroll: .down, or .up if it is above"), hint)
         XCTAssertFalse(hint.contains("scroll: .up)"), hint)
