@@ -368,9 +368,12 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
 
     /// 非 nil なら hideKeyboard がこのエラーを投げる(iOS の 501 を再現する)
     var hideKeyboardError: Error?
+    /// hideKeyboard が成功した直後に呼ぶ(閉じた後の木へ差し替える台本用)
+    var onHideKeyboard: (() -> Void)?
     func hideKeyboard() async throws {
         try record("hideKeyboard", "hideKeyboard")
         if let hideKeyboardError { throw hideKeyboardError }
+        onHideKeyboard?()
     }
 
     /// false = キーボードが出ていない台本(何も送らずに false を返す = Android のドライバと同じ)

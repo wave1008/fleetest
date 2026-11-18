@@ -108,6 +108,21 @@ SpringBoard でシステムアラートを閉じた後は `ft_launch bundleId: <
   XCUITest ブリッジを用意できないときは、in-app には落とさずエラーで知らせます。
 - 別のアプリ(マップなど)・SpringBoard・システムアラートも、そのまま操作できます。
 
+## シナリオに写すときの違い
+
+`ft_*` で確かめた操作をシナリオ(DSL)に写すときは、次の違いに合わせて書き換えます。
+
+| MCP | DSL | 写し方 |
+|---|---|---|
+| `ft_tap` に `scroll:` は無い | `tap("#id", scroll: .down)` | 探索では `ft_scroll_to` で出してから `ft_tap`。シナリオでは `tap(..., scroll:)` の1行にまとめる |
+| `ft_type` の `pressEnter: true` | `type` に Enter の引数は無い | `type("#id", "文字")` の次の行に `pressEnter()` |
+| キーボードの下の対象 | キーボードの下の対象 | どちらも Enter を送らずにキーボードを閉じてから押す(MCP は閉じられなければ断る) |
+| アプリの自動インストール(`autoInstall`) | 実行プロファイルのとおり | MCP で効くのは iOS のプロファイルの `autoInstall` だけ。Android は `ft_install` で入れる |
+| `waitFor` / `waitForChange` と `waitSeconds` | 各コマンドの `waitSeconds:` | MCP の `waitSeconds` は `waitFor` / `waitForChange` の待ちの上限だけで、単独では効かない。操作の道具の `waitFor` は `snapshotAfter: true` と一緒に渡す。シナリオでは待つ対象のコマンドに `waitSeconds:` を書く |
+
+`waitFor` は、操作の前から同じ文字で在った要素にも即座に一致します(操作の結果を待ったことにならない)。その場合は応答が
+注記で知らせるので、新しい値そのものを待つか、`waitForChange: true` を使います。
+
 ## 役割分担
 
 意図的に「探索」ツールは用意していません。探索・判断は呼び出し元のエージェントに残し

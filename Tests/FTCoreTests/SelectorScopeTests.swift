@@ -379,7 +379,7 @@ final class SelectorScopeTests: XCTestCase {
     /// 段落の中心 = 別のリンクを押して ✅ になった。18周目 amax F1)。id があれば id で名指す。ボタン・行には言わない
     func testPartialMatchInsideALongerTextPointsAtLinkText() {
         let paragraph = [node(1, "staticText", depth: 1, id: "txt_terms",
-                              label: "続行すると利用規約とプライバシーポリシーに同意したものとみなされます。")]
+                              label: "続行すると利用規約とプライバシーポリシーに同意したものとみなされます。", width: 370, height: 48)]
         let hint = LocatorResolver.partialMatchHint(for: FlowLocator(label: "利用規約"), in: paragraph) ?? ""
         XCTAssertTrue(hint.hasSuffix("write tap(\"#txt_terms\", linkText: \"利用規約\")"), hint)
         XCTAssertTrue(hint.contains("lands on the middle of that whole text"), hint)
@@ -390,8 +390,21 @@ final class SelectorScopeTests: XCTestCase {
 
     /// **`tap("*語*")` で長い文を引いた tap には「文の中心を押す・linkText:」と注記する**(19周目 im4 F1・iultra F1/F2:
     /// 段落の中の文中リンクを `*利用規約*` で書き、中心の別のリンクを押して ✅)。linkText 付き・完全一致・同じ語の要素・ボタンには言わない
+    /// 読み上げ用の長いラベルを持つ正方形のセル(カレンダーの日付)には言わない(実測 2026-11-18: `2026年1月20日火曜日` の 132x132 に
+    /// `*1月20日*` で当たった)。段落(横長)には従来どおり言う
+    func testPartialTextTapAdvisoryIsOnlyForTextShapedElements() {
+        let contains = FlowLocator(label: "1月20日", labelMatch: .contains)
+        var cell = node(1, "staticText", depth: 1, label: "2026年1月20日火曜日")
+        cell.frame = FTRect(x: 342, y: 1357, width: 132, height: 132)
+        XCTAssertNil(LocatorResolver.partialTextTapAdvisory(for: contains, element: cell, linkText: nil))
+        var line = node(2, "staticText", depth: 1, label: "締切は2026年1月20日火曜日です")
+        line.frame = FTRect(x: 16, y: 182, width: 370, height: 48)
+        XCTAssertNotNil(LocatorResolver.partialTextTapAdvisory(for: contains, element: line, linkText: nil))
+    }
+
     func testPartialTextTapAdvisoryOnlyForAPartOfALongerText() {
-        let paragraph = node(1, "staticText", depth: 1, id: "txt_terms", label: "続行すると利用規約とプライバシーポリシーに同意します")
+        let paragraph = node(1, "staticText", depth: 1, id: "txt_terms", label: "続行すると利用規約とプライバシーポリシーに同意します",
+                             width: 370, height: 48)
         let contains = FlowLocator(label: "利用規約", labelMatch: .contains)
         let note = LocatorResolver.partialTextTapAdvisory(for: contains, element: paragraph, linkText: nil) ?? ""
         XCTAssertTrue(note.hasPrefix("matched only part of a longer text"), note)
@@ -413,7 +426,7 @@ final class SelectorScopeTests: XCTestCase {
 
     /// 完全一致で外したが部分一致なら在るときは、書き換え方を失敗メッセージに出す
     func testPartialMatchHintSuggestsWildcard() {
-        let elements = [node(1, "staticText", depth: 1, label: "通知を許可")]
+        let elements = [node(1, "staticText", depth: 1, label: "通知を許可", width: 120, height: 24)]
         let hint = LocatorResolver.partialMatchHint(for: FlowLocator(label: "許可"), in: elements)
         XCTAssertEqual(hint, "present as a partial match: writing \"*許可*\" would find staticText \"通知を許可\""
             + "; a tap on it lands on the middle of that whole text, not on these words — to tap the words inside it"

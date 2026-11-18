@@ -1143,7 +1143,10 @@ public struct BridgeLauncher: Sendable {
                 // 先に総称の「session already ended」を投げると、ログに理由が書いてあるのに
                 // 呼び手には届かない(iPhone SE3 で実測)
                 _ = try physicalDiagnosis()
-                throw LauncherError.timedOut("the test session already ended (\(marker))",
+                // Simulator はランナーを起動できなかった理由を xcodebuild がログに書く(M1Max の 17e: SpringBoard が落ちて
+                // "Host is down" = "The system shell probably crashed")。表の文言に出さないと再実行でも同じ所で止まる
+                let reason = physical ? nil : Self.simulatorLaunchFailureReason(inLog: text ?? "")
+                throw LauncherError.timedOut("the test session already ended (\(marker))" + (reason.map { ": " + $0 } ?? ""),
                                              logPath.path)
             case .runnerExited?:
                 // **死んだランナーを待たない**: xcodebuild が起動直後に落ちる形(`Existing file at

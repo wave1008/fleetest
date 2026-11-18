@@ -757,7 +757,7 @@ extension MCPServer {
                 let explainMiss = waited.found ? false : firstTime("waitMissExplained")
                 waitNote = waited.found
                     ? Self.waitForAppearedNote(waitFor, in: snapshot,
-                                               collapsingBulk: effectiveArgs["expandBulk"] as? Bool != true)
+                                               collapsingBulk: effectiveArgs["expandBulk"] as? Bool != true) + Self.waitMatchedBeforeNote(waitFor, before: beforeAction, now: snapshot, canWaitForChange: Self.toolDeclares("waitForChange", tool: Self.currentTool))
                     : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
                                             explain: explainMiss,
                                             // ft_launch は waitForChange を持たない = 持つツールでだけ案内する
@@ -1330,7 +1330,7 @@ extension MCPServer {
     /// (`submitted=-` → `submitted=physical`)。
     /// 返す ref は**セッション ref**(ブリッジへ渡す前に呼び手が `nativeRef` を通すこと)
     func verifiedRef(_ ref: Int, driver: AppDriver,
-                             args: [String: Any], operation: String) async throws -> (ref: Int, note: String) {
+                             args: [String: Any], operation: String, keyboardClosed: Bool = false) async throws -> (ref: Int, note: String) {
         sessions[Self.sessionKey(args), default: DeviceSession()].refRetarget = nil
         var sessionRef = resolveSessionRef(ref, args: args)
         // 撮ってから引いた木。下の「撃つ直前の読み直し」はこれを使う(間に操作が無いので読み直しと同じ = 2枚払わない)。
@@ -1405,10 +1405,8 @@ extension MCPServer {
             loadingRefNoteShown.insert(key)
         }
         let originNote = staleNote + probeNote + screenChangedNote + refFrontAppNote(fresh, args: args)
-        // **申告 keyboardFrame はキー面だけ**(サジェストバー・地球儀/Dictate 行を含まない)。
-        // 木の chrome で広げ、chrome 自身とその部分木は除外する(KeyboardOcclusion の doc)。
-        // DSL 側(StepExecutor+Actions.swift)も同じ型で揃える —— 片方だけ広げると
-        // MCP と DSL が同じ画面で違う判断をする
+        // **申告 keyboardFrame はキー面だけ**(サジェストバー・地球儀/Dictate 行を含まない)。木の chrome で広げ、chrome 自身とその部分木は除外する
+        // (KeyboardOcclusion の doc)。DSL 側(StepExecutor+Actions.swift)も同じ型で揃える —— 片方だけ広げると MCP と DSL が同じ画面で違う判断をする
         let keyboardOcclusion = KeyboardOcclusion.resolve(reported: fresh.keyboardFrame, in: fresh.elements, screen: fresh.screen)
         // **木に出ないオーバーレイ・ウィンドウ**(Android のポップアップ)。keyboardFrame と
         // 同じく申告からしか言えない —— 覆っている実体が fresh.elements に1要素も載らない
@@ -1430,6 +1428,7 @@ extension MCPServer {
             // **キーボード被覆だけは断る**(`keyboardRefusal` の doc)
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
                                                       tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
+                if let reached = try await refAfterClosingKeyboard(ref, driver: driver, args: args, operation: operation, closedAlready: keyboardClosed) { return reached }
                 throw MCPError(refusal)
             }
             if let refusal = Self.aboveScreenRefusal(found, screen: fresh.screen, label: "[\(ref)]") {
@@ -1444,6 +1443,7 @@ extension MCPServer {
         case .found(let found, let moved):
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
                                                       tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
+                if let reached = try await refAfterClosingKeyboard(ref, driver: driver, args: args, operation: operation, closedAlready: keyboardClosed) { return reached }
                 throw MCPError(refusal)
             }
             // **キーボードで枠が細い帯に潰れた・せり上がったバーに覆われた対象は撃たない**(DSL は閉じてから撃つ。判定は `PreFireGuard`)

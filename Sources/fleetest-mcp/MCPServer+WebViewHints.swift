@@ -107,6 +107,12 @@ extension MCPServer {
             // 内側込みの素の未代表率を出すと、読み手が確かめようのない数字になる
             let percent = Int(
                 (TreeCoverage.edgeUnrepresentedFractionExcludingKeyboard(snapshot) * 100).rounded())
+            // 文言だけを形で分ける(判定は `TreeCoverage.collapsedTreeLooksLikeModal`。発火は同じ)
+            guard TreeCoverage.collapsedTreeLooksLikeModal(snapshot) else {
+                return "note: \(percent)% of the screen at its edge has no element in the tree — if the screen draws something"
+                    + " there, it is not in the tree (an assertion that something is absent would pass for the wrong reason);"
+                    + " a short screen that simply ends there is normal. Check with ft_screenshot.\n"
+            }
             return "note: \(percent)% of the screen has no element in the tree at all — a modal,"
                 + " sheet or menu may have replaced it, in which case everything behind it is gone"
                 + " from the tree (it cannot be waited for, scrolled to, or tapped by selector, and"

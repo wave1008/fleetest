@@ -76,6 +76,24 @@ final class TreeCoverageTests: XCTestCase {
                        "疑われる画面の集合が変わった。増分を1件ずつ検分すること")
     }
 
+    /// 発火した画面のうち「モーダルかも」と言うのはモーダルの形だけ(OI-268①)。固定コーパスの発火はどれも真陽性なので全部モーダルの形。
+    /// 下端だけが空いた全幅の短い画面(評価で5セッションが誤読した形)は弱い文言に回る
+    func testModalWordingOnlyForTheModalShape() throws {
+        for (name, snapshot) in try corpus() where TreeCoverage.collapsedTree(in: snapshot) {
+            XCTAssertTrue(TreeCoverage.collapsedTreeLooksLikeModal(snapshot), name)
+        }
+        func el(_ ref: Int, _ x: Double, _ y: Double, _ w: Double, _ h: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: "e\(ref)", label: "e\(ref)", value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: x, y: y, width: w, height: h), depth: 1)
+        }
+        // 実測の形(e2ey_flutter_ios の文中リンク画面): 戻る・題・行が上に寄り、最下は y=330(402x874)
+        let short = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 402, height: 874),
+                                     elements: [el(1, 4, 62, 48, 48), el(2, 56, 74, 200, 24), el(3, 16, 283, 156, 47),
+                                                el(4, 16, 120, 370, 120)], truncatedCount: 0)
+        XCTAssertTrue(TreeCoverage.collapsedTree(in: short), "前提: 発火はする")
+        XCTAssertFalse(TreeCoverage.collapsedTreeLooksLikeModal(short))
+    }
+
     /// **モーダル形の発火集合を等号で固定する**(ネイティブを含む)
     func testCollapsedTreeFiresOnExactlyTheKnownScreens() throws {
         let fired = Set(try corpus().filter { TreeCoverage.collapsedTree(in: $0.snapshot) }.map(\.name))

@@ -347,6 +347,10 @@ enum RefGuard {
             // **DSL にだけあり MCP のタップ時には出ていなかった形**(合流済み)
             return " (warning: \(describe(found))'s reported frame has zero width/height,"
                 + " so the \(operation) may land on whatever is at that point — verify with ft_screenshot)"
+        case .originPinned:
+            return " (warning: \(describe(found))'s reported frame sits at the top-left corner of the screen — the framework did"
+                + " not report where it is drawn, so the \(operation) lands on that corner (the status bar, which can switch"
+                + " to the previous app), not on it — verify with ft_screenshot)"
         case .offscreen:
             // 画面外の中心は「何にも当たらない」= 遮蔽・中身外しより強い事実なので先に言う
             return offscreenWarning(found, screen: screen)

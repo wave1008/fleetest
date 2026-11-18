@@ -543,13 +543,13 @@ struct RunScenario: AsyncParsableCommand {
             // 掴んだ要素のクラス名(第3段。AccessibilityClassHint)で決め、それも無い(旧ランナー)なら
             // 撃たない。**run に残す**。stderr は ScenarioHost が "⚠️ " 付きの log イベントへ変換する
             if runPlatform == "ios", uiFrameworkHint == nil {
-                ConsoleOut.err(
-                    "could not determine the UI framework of \(appBundleID) (the bridge did not"
-                     + " report it, no .app/.ipa was available, and nothing is remembered for this"
-                     + " bundle id): the relief drag after a scroll search is decided per element from"
-                     + " the accessibility tree (custom-drawn elements get it; with an older bridge that"
-                     + " does not report element classes it is not sent). Point appPath / appPathPhysical"
-                     + " at the app package once to settle it; the result is remembered")
+                let unknownFramework = "could not determine the UI framework of \(appBundleID) (the bridge did not report it,"
+                    + " no .app/.ipa was available, and nothing is remembered for this bundle id): the relief drag after a scroll"
+                    + " search is decided per element from the accessibility tree (custom-drawn elements get it; with an older bridge"
+                    + " that does not report element classes it is not sent). Point appPath / appPathPhysical at the app package once"
+                    + " to settle it; the result is remembered. An app that ships with the OS has no package to point at — it then"
+                    + " stays undetermined, which affects only that relief drag"
+                ConsoleOut.err(unknownFramework)
             }
         }
 

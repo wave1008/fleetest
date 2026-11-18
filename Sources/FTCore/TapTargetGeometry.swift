@@ -335,6 +335,8 @@ public enum TapTargetGeometry {
     /// (同じ判定に対して言い回しが違うため。詳細は各呼び出し側)
     public enum TapAdvisoryKind {
         case zeroFrame
+        /// 枠が画面の原点に貼り付いた小さな要素 = 描かれている位置が申告されていない(`isPinnedToScreenOrigin`)
+        case originPinned
         case offscreen
         case scrolledOut(ElementInfo)
         case overlayCovering(ElementInfo)
@@ -346,12 +348,13 @@ public enum TapTargetGeometry {
     }
 
     /// **座標に依る警告の優先順チェーン**(強い事実から先に、最初の1件だけ)。
-    /// 順序: zeroFrame → offscreen → scrolledOut → overlayCovering → missedContent →
+    /// 順序: zeroFrame → originPinned → offscreen → scrolledOut → overlayCovering → missedContent →
     /// nested → stacked → clippedByContainer → sliver。**frame の中心を撃つ経路でしか言えない**
     /// (`StepExecutor.visibleTapRect` で寄せた場合は呼ばない —— 撃つ点が変わるので嘘になる)
     public static func advisoryKind(for element: ElementInfo, in elements: [ElementInfo],
                                     screen: FTRect) -> TapAdvisoryKind? {
         if element.frame.width <= 0 || element.frame.height <= 0 { return .zeroFrame }
+        if isPinnedToScreenOrigin(element, screen: screen) { return .originPinned }
         if offscreenAdvisory(for: element, screen: screen) != nil { return .offscreen }
         if let scroller = outsideDeclaredScroller(element, in: elements, screen: screen) {
             return .scrolledOut(scroller)
@@ -371,6 +374,17 @@ public enum TapTargetGeometry {
         }
         if isClippedSliver(element, screen: screen) { return .sliver }
         return nil
+    }
+
+    /// 枠が画面の原点(±0.5)から始まり、幅が画面の半分未満・高さが 1/4 未満の要素か。実測(iPhone SE3・XCUITest・メモの編集中):
+    /// チェックリストのチェックボックスが `(0,0 25x25)` で返り、ref の tap がステータスバーの「◀前のアプリ」を押してアプリが背面へ回った。
+    /// 固定コーパス(実アプリ 53 画面)にこの形の要素は 0 件 = 描かれた位置としての原点ではない。全画面の容器・本文(幅か高さが大きい)は外れる。
+    /// **警告だけ**(新しい検知)
+    public static func isPinnedToScreenOrigin(_ element: ElementInfo, screen: FTRect) -> Bool {
+        let f = element.frame
+        return screen.width > 0 && screen.height > 0
+            && abs(f.x - screen.x) <= 0.5 && abs(f.y - screen.y) <= 0.5
+            && f.width < screen.width / 2 && f.height < screen.height / 4
     }
 
     /// 縁で切り詰められた高さの実質的な下限差(pt/dp)。**4pt 以下は丸め・padding の差**として
@@ -469,6 +483,9 @@ public enum TapTargetGeometry {
         case .zeroFrame:
             return "its reported frame has zero width/height — the tap may land on whatever"
                 + " is at that point"
+        case .originPinned:
+            return "its reported frame sits at the top-left corner of the screen, so the framework did not report where it is"
+                + " drawn — the tap lands on that corner (the status bar), not on it"
         case .offscreen:
             return offscreenAdvisory(for: element, screen: screen)
         case .scrolledOut(let scroller):

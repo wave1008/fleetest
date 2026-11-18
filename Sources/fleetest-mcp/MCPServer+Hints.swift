@@ -195,6 +195,20 @@ extension MCPServer {
     /// 待ちが外れても木を読み直すまで気付かなかった(1回あたり待ち約4秒 + 思考約3秒)。
     /// waitFor が当たったときの1行。**何に当たったかを名指しする**(計測: `*円*` が畳まれた地図のピンの
     /// ラベルに当たり、エージェントは運賃が出たと読み違えた)。畳まれた群の中なら下の一覧に行が無いことも言う
+    /// waitFor が、操作の前から同じ id・ラベル・値で在った要素に一致した = 待たずに返り、操作の結果を待ったことにならない
+    /// (実測: ft_batch の waitFor が開く前の `overlay=none` に即一致し、AI がその値を期待値に書いて本番で赤)。事実だけを言う
+    static func waitMatchedBeforeNote(_ selector: String, before: SnapshotResponse?, now: SnapshotResponse,
+                                      canWaitForChange: Bool) -> String {
+        guard let before, let first = matchedElements(selector, in: now).first,
+              matchedElements(selector, in: before).contains(where: {
+                  $0.identifier == first.identifier && $0.label == first.label && $0.value == first.value
+              }) else { return "" }
+        return "note: \"\(selector)\" already matched \(RefGuard.describe(first)) with the same text before the action, so the wait"
+            + " returned at once and does not show the action's result. "
+            + (canWaitForChange ? "To wait until the screen changes, pass waitForChange: true instead; to wait for a new value, wait for that value itself.\n"
+                                : "To wait for a new value, wait for that value itself.\n")
+    }
+
     static func waitForAppearedNote(_ selector: String, in snapshot: SnapshotResponse,
                                     collapsingBulk: Bool) -> String {
         let matched = matchedElements(selector, in: snapshot)

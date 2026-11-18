@@ -271,6 +271,15 @@ extension MCPServer {
         return true
     }
 
+    /// キーボードの下の対象は、副作用なしで閉じて(Enter を送らない = ft_hide_keyboard と同じ)から引き直す(DR-195。DSL の tap と同じ)。
+    /// 閉じられなかった・閉じても下のままなら nil = 呼び手が従来どおり断る(DR-41)
+    func refAfterClosingKeyboard(_ ref: Int, driver: AppDriver, args: [String: Any], operation: String,
+                                 closedAlready: Bool) async throws -> (ref: Int, note: String)? {
+        guard !closedAlready, await closeKeyboardWithoutEnter(driver, args: args) else { return nil }
+        let reached = try await verifiedRef(ref, driver: driver, args: args, operation: operation, keyboardClosed: true)
+        return (reached.ref, " (the target was under the soft keyboard, so the keyboard was closed first without sending Enter)" + reached.note)
+    }
+
     /// DSL の `hideKeyboard()` と同じ StepExecutor のアクションを撃つ(ft_batch と同じ経路)。
     /// **executor の「次の解決でキーボードが木から消えるのを待つ」は1回の呼び出しで捨てられる**ので、
     /// Android ではここで待ってから返す(次の ft_tap が下端の要素を掴めるように)

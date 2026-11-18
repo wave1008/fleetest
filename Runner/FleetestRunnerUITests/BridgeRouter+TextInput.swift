@@ -264,8 +264,9 @@ extension BridgeRouter {
                 + " — check the whole value with the app's own display if it matters"
         }
         if consumedByApp {
-            return "the field was back to its previous value after typing, but the screen outside it changed —"
-                + " taken as the app consuming the input (e.g. submitting a complete code); not re-sent"
+            return "when read back right after typing, the field did not show the typed text, while the screen outside it changed —"
+                + " taken as the app consuming the input (e.g. submitting a complete code or starting a search); not re-sent."
+                + " Check the field's value if it matters"
         }
         if whitespaceAltered {
             return "the field holds different whitespace than the typed text"

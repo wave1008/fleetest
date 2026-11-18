@@ -513,11 +513,18 @@ public enum LocatorResolver {
     /// (18周目 amax F1: E2EY-Android の文中リンクで 4/4)。文中リンクが載るのは文字の要素(`staticText`)だけ ——
     /// ボタン・行の部分一致(Apple マップの「西武立川駅、立川市」= 別の駅)に linkText を勧めると誤った助言になるので空
     static func inlineWordsNote(label: String, in element: ElementInfo) -> String {
-        guard element.type == "staticText", let whole = element.label, whole != label else { return "" }
+        guard element.type == "staticText", let whole = element.label, whole != label,
+              // 文の行・段落の形(横長)だけ。読み上げ用の長いラベルを持つ正方形のセル(カレンダーの日付 132x132 = 1:1)では、描かれているのは
+              // 短い文字で中心を押すのが正しい。実測の文中リンクの段落は縦横比 7 以上(CMP 370x48・Flutter 379x41・RN 370x40・SwiftUI 365x33)。
+              // 枠の無い木(高さ 0)は形で判断できないので従来どおり言う
+              element.frame.height <= 0 || element.frame.width >= Self.inlineTextMinAspect * element.frame.height else { return "" }
         let selector = element.identifier.flatMap { $0.isEmpty ? nil : "#\($0)" } ?? "*\(label)*"
         return "; a tap on it lands on the middle of that whole text, not on these words — to tap the words inside it"
             + " (an inline link), write tap(\"\(selector)\", linkText: \"\(label)\")"
     }
+
+    /// 文の行・段落と読む縦横比(幅 / 高さ)の下限。実測の段落の最小 7 と日付セルの 1 の間
+    static let inlineTextMinAspect: Double = 2
 
     /// `tap("*語*")` のように語の部分一致で**もっと長い文字の要素**を引いた tap への注記(撃つ点は要素の中心 = 文の中心で、
     /// その語の上ではない)。段落の中の文中リンクを `*利用規約*` で書いた tap が中心の別のリンクを押して ✅ になった

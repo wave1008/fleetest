@@ -998,6 +998,8 @@ extension MCPServer {
             let waitNote = waited.found
                 ? Self.waitForAppearedNote(waitFor, in: final,
                                            collapsingBulk: treeArgs["expandBulk"] as? Bool != true)
+                    // ft_batch は waitForChange を持たない
+                    + Self.waitMatchedBeforeNote(waitFor, before: beforeBatch, now: final, canWaitForChange: false)
                 : Self.waitMissHeadline(waitFor, seconds: seconds, quietStopAfter: waited.quietStopAfter,
                                         explain: explainMiss, canWaitForChange: false)
                     // alert は batchAlertAppearedNote が先に言う(重ねない)
@@ -1081,7 +1083,7 @@ extension MCPServer {
     /// 失敗の行から `StepExecutor.defaultWaitHint` の対処文(「waitSeconds: を足せ」)を外す。無ければそのまま
     static func droppingDefaultWaitHint(_ line: String) -> String {
         let opening = ". Without waitSeconds: this command looks for the element"
-        let closing = "(for example waitSeconds: 5)"
+        let closing = "the element list below shows what is"   // defaultWaitHint の文の終わり(片方だけ変えない)
         guard let start = line.range(of: opening), let end = line.range(of: closing, range: start.upperBound..<line.endIndex)
         else { return line }
         return line.replacingCharacters(in: start.lowerBound..<end.upperBound, with: "")

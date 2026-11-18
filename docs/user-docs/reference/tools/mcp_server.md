@@ -109,6 +109,21 @@ returned on its own, without the screen behind it. After dismissing a system ale
   XCUITest bridge can be prepared, it reports an error instead of falling back to in-app.
 - Other apps (Maps, for example), SpringBoard and system alerts can be driven as they are.
 
+## Differences when copying into a scenario
+
+When you copy an operation you confirmed with `ft_*` into a scenario (DSL), adjust it for these differences.
+
+| MCP | DSL | How to copy it |
+|---|---|---|
+| `ft_tap` has no `scroll:` | `tap("#id", scroll: .down)` | While exploring, bring it into view with `ft_scroll_to`, then `ft_tap`. In the scenario, write the single line `tap(..., scroll:)` |
+| `ft_type` with `pressEnter: true` | `type` has no Enter argument | Put `pressEnter()` on the line after `type("#id", "text")` |
+| A target under the keyboard | A target under the keyboard | Both close the keyboard without sending Enter and then press it (MCP refuses if it cannot close it) |
+| Installing the app automatically (`autoInstall`) | As the run profile says | In MCP only an iOS profile's `autoInstall` takes effect. On Android install it with `ft_install` |
+| `waitFor` / `waitForChange` and `waitSeconds` | Each command's `waitSeconds:` | In MCP `waitSeconds` only bounds the `waitFor` / `waitForChange` wait and does nothing on its own. On an action tool, pass `waitFor` together with `snapshotAfter: true`. In the scenario, write `waitSeconds:` on the command that waits |
+
+`waitFor` also matches at once an element that already had the same text before the action (so it did not wait for the
+action's result). The response says so in a note; wait for the new value itself, or use `waitForChange: true`.
+
 ## Role split
 
 The tools intentionally do not include an "explore" tool: exploration and judgment stay with the

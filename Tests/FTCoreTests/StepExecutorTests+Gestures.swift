@@ -100,11 +100,13 @@ extension StepExecutorTests {
     /// tap(holdSeconds:) の 501 切替は ref を typeDriver 側 snapshot で取り直すこと(ref はブリッジごとに別名前空間)
     func testTapHoldSeconds501FallsBackAndReresolvesRef() async throws {
         let log = CallLog()
+        // 原点に貼り付いた枠は別の警告が付くので外す(TapTargetGeometry.isPinnedToScreenOrigin)
+        func placed(_ e: ElementInfo) -> ElementInfo { var c = e; c.frame = FTRect(x: 100, y: 100, width: 10, height: 10); return c }
         let primary = FakeAppDriver(name: "primary", log: log,
-                                    snapshotElements: [[element(ref: 1, id: "btn_long")]])
+                                    snapshotElements: [[placed(element(ref: 1, id: "btn_long"))]])
         primary.pressError = DriverError.badResponse(status: 501, body: "compose では press が効きません")
         let typeDriver = FakeAppDriver(name: "typedriver", log: log,
-                                       snapshotElements: [[element(ref: 9, id: "btn_long")]])
+                                       snapshotElements: [[placed(element(ref: 9, id: "btn_long"))]])
         let executor = StepExecutor(driver: primary, typeDriver: typeDriver, isAndroid: false, tunables: RunTunables())
         let step = FlowStep(action: "tap", locator: FlowLocator(id: "btn_long"), duration: 1.0)
 

@@ -21,14 +21,14 @@ extension StepExecutor {
         return DurationConversion.seconds(total)
     }
 
-    /// 既定の短い待ち(`waitSeconds:` 省略)のまま見つからなかったときだけ、延ばし方を添える。
-    /// 指定した待ちで見つからなかったなら待ちの長さが原因とは言えないので何も足さない
+    /// 既定の短い待ち(`waitSeconds:` 省略)のまま見つからなかったときだけ、延ばし方を添える。指定した待ちで見つからなかったなら待ちの長さが原因とは言えないので何も足さない
     static func defaultWaitHint(_ step: FlowStep) -> String {
         guard step.timeout == nil else { return "" }
         let seconds = String(format: "%.1f", defaultLocatorRetrySeconds)
         return ". Without waitSeconds: this command looks for the element for only about \(seconds) s;"
             + " if it appears later (for example right after a screen transition), add waitSeconds: to this step"
-            + " (for example waitSeconds: 5)"
+            + " (for example waitSeconds: 5); if it is not on this screen at all, neither waiting nor scrolling helps —"
+            + " the element list below shows what is"
     }
 
     /// **Android で前面を離れたかもしれない後(`home()`・`back()`・別アプリ向けの `openURL` 等)に見つからなかった失敗文**。

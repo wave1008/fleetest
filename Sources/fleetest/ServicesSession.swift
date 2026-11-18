@@ -187,6 +187,8 @@ final class ServicesSession {
     private var lease: ServicesLease
     private var satisfied = Set<String>()
     private var tornDown = false
+    /// run が引き取った `services up` の所有者の控え。run の片付けの後に同じ指定で起こし直す(DR-194)
+    private var takenOverOwners: [ServicesLease] = []
     private var readySeconds: Double = 0
 
     private init(cli: RuntimeCLI, plan: ServicePlan, stateDir: URL, privateDir: URL, home: String,
@@ -246,7 +248,9 @@ final class ServicesSession {
                 adbReverseSerials: options.adbReverseSerials, interrupt: interruptState,
                 allowedDomains: prepared.allowedDomains, proxyPort: prepared.proxyPort, lease: prepared.lease)
             // run は `services up` の所有者を引き取る(排他の外で終了を待つ = 所有者も同じ排他の中で片付ける)
-            if options.kind == .run { try takeOverOwners(prefix: prepared.plan.prefix, stateDir: stateDir, log: log) }
+            if options.kind == .run {
+                session.takenOverOwners = try takeOverOwners(prefix: prepared.plan.prefix, stateDir: stateDir, log: log)
+            }
             // 排他の中で行うのは「確認 → 控えを書く」まで。作成(pull / build / 起動完了の待ち)は排他の外 ——
             // 握ったままだと、起動中の所有者へ `down` / 引き取りが SIGTERM を送る前の排他の取得で止まる(30 s で失敗)。
             // 書いた控え(phase starting・pid 生存)が他の起動を止める(`claimPrefix` は生きている控えを断る)
@@ -466,20 +470,21 @@ final class ServicesSession {
     /// 生きている所有者(`services up`)の控えがあれば SIGTERM を送り、**排他の外で**終了を待つ(所有者も同じ排他の中で片付けるので、
     /// 握ったまま待つと待ち合う)。所有者は自分の控えの ID だけを消す = 終わった後に run が同じ名前で作れる。
     /// 片付けに失敗して残った控えは孤児として `claimPrefix` が拾う。待ちの上限は所有者の控えから(`ServicesTeardown.teardownBudgetSeconds`)。
+    @discardableResult
     static func takeOverOwners(prefix: String, stateDir: URL, budgetOverrideSeconds: Double? = nil,
                                isAlive: (Int32, String) -> Bool = ServicesProcessIdentity.isAlive,
                                terminate: (Int32) -> Void = { _ = kill($0, SIGTERM) },
-                               log: (String) -> Void) throws {
-        struct Owner { let pid: Int32; let startedAt: String; let budget: Double }
+                               log: (String) -> Void) throws -> [ServicesLease] {
+        struct Owner { let pid: Int32; let startedAt: String; let budget: Double; let lease: ServicesLease }
         let owners: [Owner] = try ServicesLock.withLock(prefix: prefix, stateDir: stateDir) {
             ServicesLeaseStore.entries(stateDir: stateDir, prefix: prefix).compactMap { entry in
                 guard let other = entry.lease, other.kind == .owner,
                       !ServicesLeaseFile.isOrphan(other, isAlive: isAlive) else { return nil }
-                log("⚠️ services: taking over the services started by \(other.holderDescription) — this run stops them"
-                    + " and starts them again (a run never shares services with a live `services up`)")
+                log("⚠️ services: taking over the services started by \(other.holderDescription) — this run stops them,"
+                    + " starts its own, and starts `services up` again when it ends (a run never shares services with a live `services up`)")
                 terminate(other.pid)
                 return Owner(pid: other.pid, startedAt: other.pidStartedAt,
-                             budget: budgetOverrideSeconds ?? ServicesTeardown.teardownBudgetSeconds(lease: other))
+                             budget: budgetOverrideSeconds ?? ServicesTeardown.teardownBudgetSeconds(lease: other), lease: other)
             }
         }
         for owner in owners {
@@ -492,6 +497,25 @@ final class ServicesSession {
                 Thread.sleep(forTimeInterval: pollIntervalSeconds)
             }
         }
+        return owners.map(\.lease)
+    }
+
+    /// 引き取った所有者を起こし直す指定(`services up` の引数)。控えから導く: LAN へ束縛した公開ポートがあれば `--physical`、
+    /// `adb reverse` を張っていたシリアルは `--serial`。同じ project・profile は1回だけ
+    struct OwnerRestore: Equatable {
+        let project: String, profile: String, physical: Bool, serials: [String]
+    }
+
+    static func ownerRestores(_ leases: [ServicesLease]) -> [OwnerRestore] {
+        var result: [OwnerRestore] = []
+        for lease in leases {
+            let restore = OwnerRestore(
+                project: lease.project, profile: lease.profile,
+                physical: lease.publishedPorts.contains { !["127.0.0.1", "::1", "localhost"].contains($0.hostIP) },
+                serials: Array(Set(lease.adbReverse.map(\.serial))).sorted())
+            if !result.contains(where: { $0.project == restore.project && $0.profile == restore.profile }) { result.append(restore) }
+        }
+        return result
     }
 
     private func claimPrefix(log: (String) -> Void) throws {
@@ -1194,6 +1218,37 @@ final class ServicesSession {
             // 資源は控えの ID で特定できるので、ロックが取れなくても自分のぶんは消せる
             log("⚠️ \(error.localizedDescription) — removing the services without the lock")
             teardown(log: log)
+        }
+        restoreTakenOverOwners(log: log)
+    }
+
+    /// run の前に `services up` で上がっていたなら、片付けの後に同じ指定で起こし直す(DR-194。探索中の別のセッションがサーバーを
+    /// 失わない)。**排他の外**で起こす(所有者も同じ排他で控えを書く)。上がるのは待たない(pull / build はネットワーク次第で、
+    /// run の終わりを延ばさない)。中断した run・資源を消し切れなかった run は起こさず、その事実と手順を言う
+    private func restoreTakenOverOwners(log: (String) -> Void) {
+        let restores = Self.ownerRestores(takenOverOwners)
+        takenOverOwners = []
+        guard !restores.isEmpty else { return }
+        let reason: String? = interrupt?.isStopped == true ? "the run was interrupted"
+            : ServicesLeaseStore.entries(stateDir: stateDir, prefix: plan.prefix).contains { $0.lease?.pid == lease.pid }
+                ? "this run's services could not all be removed" : nil
+        guard reason == nil, let executable = ExecutablePath.current else {
+            log("⚠️ services: did not start `services up` again (\(reason ?? "the fleetest executable was not found"));"
+                + " run `fleetest services up` to bring them back")
+            return
+        }
+        for restore in restores {
+            let attemptLog = ServicesOwnerLaunch.attemptLogURL(stateDir: stateDir, prefix: plan.prefix)
+            do {
+                let (owner, _, _) = try ServicesOwnerLaunch.spawn(
+                    executable: executable, project: restore.project, profile: restore.profile,
+                    physical: restore.physical, serials: restore.serials, attemptLog: attemptLog)
+                log("→ services: starting `services up` again as before this run (owner pid \(owner.processIdentifier),"
+                    + " log \(attemptLog.path)); check with `fleetest services status`")
+            } catch {
+                log("⚠️ services: could not start `services up` again: \(error.localizedDescription);"
+                    + " run `fleetest services up` to bring them back")
+            }
         }
     }
 

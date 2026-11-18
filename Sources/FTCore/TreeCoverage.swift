@@ -409,6 +409,29 @@ public enum TreeCoverage {
         return edgeUnrepresentedFractionExcludingKeyboard(snapshot) >= collapsedTreeFractionThreshold
     }
 
+    /// `collapsedTree` が真の木のうち「モーダルが木を置き換えた」と言う根拠がある形か(**文言だけを分ける**。発火は変えない)。
+    /// モーダルは横にも狭い(左右に余白)か、上端の側も空く。下端だけが空いた全幅の木は、内容が画面の途中で終わる短い画面と
+    /// 見分けられない(評価 2026-11-18: 戻るとタイトルの下に数行だけの画面で5セッションが「モーダルかも」を読み、
+    /// スクリーンショットで確かめてから無視した)
+    public static func collapsedTreeLooksLikeModal(_ snapshot: SnapshotResponse) -> Bool {
+        let screen = snapshot.screen
+        guard screen.width > 0, screen.height > 0, !snapshot.elements.isEmpty else { return false }
+        let minX = snapshot.elements.map(\.frame.x).min() ?? screen.x
+        let maxX = snapshot.elements.map { $0.frame.x + $0.frame.width }.max() ?? (screen.x + screen.width)
+        let leftMargin = (minX - screen.x) / screen.width
+        let rightMargin = (screen.x + screen.width - maxX) / screen.width
+        if max(leftMargin, rightMargin) >= modalSideMarginRatio { return true }
+        let keyboard = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: screen).frame
+        let viewport = ScrollGeometry.viewport(screen, excludingKeyboard: keyboard)
+        guard viewport.height > 0 else { return false }
+        let topEdge = snapshot.elements.map(\.frame.y).filter { $0 >= viewport.y }.min() ?? viewport.y
+        return (topEdge - viewport.y) / viewport.height >= collapsedTreeFractionThreshold
+    }
+
+    /// 横の余白(画面幅に対する比)がこれ以上ならモーダルの形。固定コーパスの真陽性の最小 0.13(`and-dialog_confirm`。
+    /// `and-overflow` は 0.29)と、評価で誤った言い方をした全幅の画面の最大 0.04(左端 16pt / 402pt)の間
+    static let modalSideMarginRatio = 0.1
+
     // MARK: - まとめ(否定判定の裏取り)
 
     /// この木は画面を代表していない疑いがあるか。**否定アサーションが「無い」を結論する前**に

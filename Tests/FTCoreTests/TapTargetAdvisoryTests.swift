@@ -66,7 +66,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
 
     /// 有効な要素では黙る(毎回付くと注記が意味を失う)
     func testEnabledPlainTargetIsSilent() {
-        let on = element(1, "btn", "button", 0, 0, 100, 40)
+        let on = element(1, "btn", "button", 20, 120, 100, 40)
         XCTAssertNil(TapTargetGeometry.advisory(for: on, in: [on], screen: screen,
                                                     keyboardOcclusion: .none,
                                                     overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
@@ -510,10 +510,10 @@ final class TapTargetAdvisoryTests: XCTestCase {
     func testNestedActionIsCalledOutByChain() {
         let parent = ElementInfo(ref: 1, type: "cell", identifier: "row", label: nil, value: nil,
                                  placeholder: nil, enabled: true,
-                                 frame: FTRect(x: 0, y: 0, width: 100, height: 100), depth: 2)
+                                 frame: FTRect(x: 0, y: 200, width: 100, height: 100), depth: 2)
         let child = ElementInfo(ref: 2, type: "button", identifier: "chip", label: nil, value: nil,
                                 placeholder: nil, enabled: true,
-                                frame: FTRect(x: 40, y: 40, width: 20, height: 20), depth: 3)
+                                frame: FTRect(x: 40, y: 240, width: 20, height: 20), depth: 3)
         let note = TapTargetGeometry.occlusionAdvisory(for: parent, in: [parent, child], screen: screen, isAndroid: false)
         XCTAssertTrue(note?.contains("#chip") == true, note ?? "")
         XCTAssertTrue(note?.contains("instead") == true, note ?? "")
@@ -1368,16 +1368,16 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
     func testOverlayCoveringBeatsMissedContent() {
         let target = ElementInfo(ref: 1, type: "other", identifier: "target", label: nil,
                                  value: nil, placeholder: nil, enabled: true,
-                                 frame: FTRect(x: 0, y: 0, width: 100, height: 100), depth: 2)
+                                 frame: FTRect(x: 0, y: 200, width: 100, height: 100), depth: 2)
         let child = ElementInfo(ref: 2, type: "image", identifier: "child", label: nil,
                                 value: nil, placeholder: nil, enabled: true,
-                                frame: FTRect(x: 80, y: 80, width: 10, height: 10), depth: 3)
+                                frame: FTRect(x: 80, y: 280, width: 10, height: 10), depth: 3)
         // **target と同じ矩形にしない**: `occluder` は矩形の完全一致を遮蔽と言わない
         // (積み重なりは stackedRefs の担当なので、ここで同じ矩形にすると occluder が
         // overlay を候補から外し、この対照が overlayCovering を1件も検証しないテストになる)
         let overlay = ElementInfo(ref: 3, type: "clickable", identifier: "overlay", label: nil,
                                   value: nil, placeholder: nil, enabled: true,
-                                  frame: FTRect(x: 30, y: 30, width: 40, height: 40), depth: 2)
+                                  frame: FTRect(x: 30, y: 230, width: 40, height: 40), depth: 2)
         let withOverlay = [target, child, overlay]
         XCTAssertNotNil(TapTargetGeometry.missesItsOwnContent(target, in: withOverlay, screen: screen),
                         "この形では missedContent 条件も同時に成り立つこと(対照の前提)")
@@ -1400,16 +1400,16 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
     func testNestedActionBeatsStacked() {
         let target = ElementInfo(ref: 1, type: "cell", identifier: "row1", label: "行1",
                                  value: nil, placeholder: nil, enabled: true,
-                                 frame: FTRect(x: 0, y: 0, width: 100, height: 100), depth: 2)
+                                 frame: FTRect(x: 0, y: 200, width: 100, height: 100), depth: 2)
         let chip = ElementInfo(ref: 2, type: "button", identifier: "chip", label: nil,
                                value: nil, placeholder: nil, enabled: true,
-                               frame: FTRect(x: 40, y: 40, width: 20, height: 20), depth: 3)
+                               frame: FTRect(x: 40, y: 240, width: 20, height: 20), depth: 3)
         let dup2 = ElementInfo(ref: 3, type: "cell", identifier: "row2", label: "行2",
                                value: nil, placeholder: nil, enabled: true,
-                               frame: FTRect(x: 0, y: 0, width: 100, height: 100), depth: 2)
+                               frame: FTRect(x: 0, y: 200, width: 100, height: 100), depth: 2)
         let dup3 = ElementInfo(ref: 4, type: "cell", identifier: "row3", label: "行3",
                                value: nil, placeholder: nil, enabled: true,
-                               frame: FTRect(x: 0, y: 0, width: 100, height: 100), depth: 2)
+                               frame: FTRect(x: 0, y: 200, width: 100, height: 100), depth: 2)
         let elements = [target, chip, dup2, dup3]
         XCTAssertTrue(OcclusionGeometry.stackedRefs(elements).contains(target.ref),
                      "この形では stacked 条件も同時に成り立つこと(対照の前提)")

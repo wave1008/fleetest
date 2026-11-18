@@ -57,6 +57,28 @@ final class ServicesOwnerTakeoverTests: XCTestCase {
         XCTAssertFalse(lockHeld())
     }
 
+    /// 引き取った所有者の控えを返す = run の片付けの後に同じ指定で起こし直す材料(DR-194)
+    func testTakeoverReturnsTheOwnersItStopped() throws {
+        try place(lease(pid: 5004, kind: .owner))
+        var signalled = false
+        let taken = try ServicesSession.takeOverOwners(prefix: prefix, stateDir: stateDir,
+                                                       isAlive: { _, _ in !signalled },
+                                                       terminate: { _ in signalled = true }, log: { _ in })
+        XCTAssertEqual(taken.map(\.pid), [5004])
+        XCTAssertEqual(ServicesSession.ownerRestores(taken),
+                       [.init(project: "p", profile: "r", physical: false, serials: [])])
+    }
+
+    /// LAN へ束縛した公開ポートがあれば `--physical`、`adb reverse` のシリアルは `--serial` で起こし直す。同じ project・profile は1回
+    func testOwnerRestoreCarriesThePhysicalOptions() {
+        var physical = lease(pid: 1, kind: .owner)
+        physical.publishedPorts = [.init(hostIP: "127.0.0.1", hostPort: 8090, proto: "tcp", service: "server"),
+                                   .init(hostIP: "192.168.1.10", hostPort: 8090, proto: "tcp", service: "server")]
+        physical.adbReverse = [.init(serial: "R2", hostPort: 8090), .init(serial: "R1", hostPort: 8090), .init(serial: "R1", hostPort: 9000)]
+        XCTAssertEqual(ServicesSession.ownerRestores([physical, lease(pid: 2, kind: .owner)]),
+                       [.init(project: "p", profile: "r", physical: true, serials: ["R1", "R2"])])
+    }
+
     func testLiveRunLeaseIsNotSignalled() throws {
         try place(lease(pid: 5002, kind: .run))
         var signalled: [Int32] = []

@@ -648,8 +648,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .typeTargetLeftTree:
             return TypeReadback.targetLeftTreeNote
         case .typeConsumedByApp:
-            return "the field was back to its previous value after typing, but the screen outside it changed —"
-                + " taken as the app consuming the input (e.g. submitting a complete code); not re-sent"
+            return "when read back right after typing, the field did not show the typed text, while the screen outside it changed —"
+                + " taken as the app consuming the input (e.g. submitting a complete code or starting a search); not re-sent."
+                + " Check the field's value if it matters"
         case .launchURLBeforeInteractiveUI:
             return "the URL was delivered before any tappable element appeared, so the app may not"
                 + " have been listening yet"

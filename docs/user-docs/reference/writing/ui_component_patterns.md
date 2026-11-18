@@ -32,11 +32,13 @@ matching section before writing.
 ### While a modal is open, the screen behind it drops out of the tree
 
 While a drawer, a dropdown menu, a bottom sheet or a popup menu is open, **the elements of the screen
-behind it are not in the tree (snapshot)** (verified on every framework, on both iOS and Android;
-SwiftUI's `Menu`/`Picker(.menu)` behave the same way). Only the modal's contents and the scrim's
-"close" button remain.
+behind it are usually not in the tree (snapshot)** (SwiftUI's `Menu`/`Picker(.menu)` behave the same way).
+Only the modal's contents and the scrim's "close" button remain. **A drawer is the exception: with Android
+View's `DrawerLayout` and on Android with RN, the elements behind it can stay in the tree**. They are hidden under
+the drawer and not drawn, so checking them while it is open fails in the real run (with the text visibility check).
 
-- Read result labels behind the modal (`#txt_result` etc.) **after closing the modal**
+- Read result labels behind the modal (`#txt_result` etc.) **after closing the modal**, even when they show
+  up in the tree
 - "Tap outside the modal to close it" cannot be written as an element tap, because nothing behind it
   can be targeted (see the "Dropdown menu" section below)
 

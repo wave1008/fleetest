@@ -46,6 +46,23 @@ final class TapAdvisoryKindSharedTests: XCTestCase {
         XCTAssertTrue(mcp.contains("#z"), "MCP 側は要素を名指しすること: \(mcp)")
     }
 
+    /// originPinned: 枠が画面の原点に貼り付いた小さな要素(実測: iPhone SE3・メモのチェックボックス (0,0 25x25))。
+    /// 原点から始まる全画面の容器・本文は外れる
+    func testOriginPinnedKindDrivesBothWordings() {
+        let e = element(1, "z", "button", 0, 0, 25, 25)
+        guard case .originPinned = TapTargetGeometry.advisoryKind(for: e, in: [e], screen: screen) else {
+            return XCTFail("originPinned が発火していない")
+        }
+        let dsl = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false)
+        XCTAssertTrue(dsl?.contains("top-left corner") == true, dsl ?? "-")
+        let mcp = RefGuard.overlapWarning(found: e, in: [e], screen: screen, isAndroid: false, operation: "tap")
+        XCTAssertTrue(mcp.contains("top-left corner") && mcp.contains("#z"), mcp)
+        let body = element(2, "body", "textView", 0, 0, screen.width, screen.height * 0.6)
+        if case .originPinned? = TapTargetGeometry.advisoryKind(for: body, in: [body], screen: screen) {
+            XCTFail("原点から始まる大きな本文を貼り付きと読んだ")
+        }
+    }
+
     /// offscreen: 中心が画面の外
     func testOffscreenKindDrivesBothWordings() {
         let smallScreen = FTRect(x: 0, y: 0, width: 402, height: 874)
@@ -118,8 +135,8 @@ final class TapAdvisoryKindSharedTests: XCTestCase {
 
     /// nestedAction: 対話的な親の中で、子孫の小さな帯が中心を横取りする
     func testNestedActionKindDrivesBothWordings() {
-        let parent = element(1, "row", "cell", 0, 0, 100, 100)
-        let chip = element(2, "chip", "button", 40, 40, 20, 20, depth: 3)
+        let parent = element(1, "row", "cell", 0, 200, 100, 100)
+        let chip = element(2, "chip", "button", 40, 240, 20, 20, depth: 3)
         let elements = [parent, chip]
         guard case .nestedAction(let hit) = TapTargetGeometry.advisoryKind(
             for: parent, in: elements, screen: screen) else {
