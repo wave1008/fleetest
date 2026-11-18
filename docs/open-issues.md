@@ -411,6 +411,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - **原因(11/15 に観測)**: 手元の Duo 2 台で 55 周目の手順(開いた Duo で一覧の行・入力からホームへ出て閉じる)を回し、経過秒つきの蘇生の記録を採った(`_work/oi234`・`_work/oi234b`)。**60 秒の枠**の蘇生 2 回はどちらも「XCUITest ブリッジの起動 29〜38 秒 → 1 問の照会 2.03s / 2.04s で遅いと判断 → SpringBoard の起こし直し 3〜7 秒 → 2 回目の起動の途中で枠切れ」。**枠を 180 秒に広げた実験**(手元だけ・戻した)では、起動し直しの後も照会は 2.04s のまま(SpringBoard の起こし直しは simctl が 30 秒で終わらず失敗)= 起動し直しは効かない。4 回の蘇生のうち戻ったのは遅さが出なかった 1 回(+27s)だけで、残り 3 回はブリッジの起動だけで 80〜160 秒以上かかるか終わらなかった
 - 判断(据え置き): SpringBoard の落ちが続いた Duo(OI-184)は端末そのものが使えない状態で、枠を広げても run が長く待つだけ。蘇生をあきらめて残りの台で続けるのが正しい振る舞い
 - 見直す条件: Duo 以外の Simulator でも同じ蘇生の枠切れが出たら(記録の `[revive +N s]` で段ごとの所要を見る)
+- 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 
 ### OI-233 Android の E2E-Android「連続ジェスチャ」で、1本指の `gesture` の後にパンが検出されない(`pan=-`・17 回中 1 回)
 - 状態: 据え置き
@@ -484,6 +485,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 43周目(11/9): DSL の `unfold()` の後に -01 の SpringBoard が1分に3回落ちた(duo F1 1/1・同じ FBSDisplayMode の EXC_BREAKPOINT。run はレーンを起こし直して緑・失敗文は「bridge up」を勧め SpringBoard を名指さない)。MCP の `ft_fold` の unfold の後は 40・41周目で計 3/3
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
+- 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 
 ## 据え置き
 

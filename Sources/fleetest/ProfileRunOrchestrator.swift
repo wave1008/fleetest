@@ -174,6 +174,29 @@ enum ProfileRunOrchestrator {
                     log(RunnerAccessibilityHealth.reviveRefusedMessage(name: retired.connection.deviceName ?? name))
                     return nil
                 }
+                // SpringBoard が落ち続ける Simulator は蘇生しても使えない(起こし直しも効かない = OI-234 の測定)。止めて、この run では戻さない(DR-200)
+                if !retired.connection.physical, let udid = retired.connection.udid,
+                   let spec = resolved.iosDevices.first(where: { $0.name == name })?.spec {
+                    let watched = LockedValue(false)
+                    let verdict = await SimulatorSpringBoard.probeCrashLoop(udid: udid, onWatch: { first in
+                        watched.withLock { $0 = true }
+                        let state = first.map { "exited abnormally before (status \($0.lastExit))" } ?? "could not be read"
+                        log("🔍 \(name): SpringBoard \(state) — watching it for \(Int(SimulatorSpringBoard.crashLoopWindowSeconds))s before reviving")
+                    })
+                    if watched.withLock({ $0 }), !verdict.isUnusable { log("🔍 \(name): \(verdict.description) — reviving") }
+                    if verdict.isUnusable {
+                        log("⛔ \(name): \(verdict.description) — shutting the simulator down and not reviving it in this run"
+                            + " (the next run boots it again)")
+                        do {
+                            // 止める前に他の run・MCP の持ち主を確かめる(自分の run の lease は数えない)
+                            try await DeviceBooter.shutdownOne(spec: spec, platform: "ios", repoRoot: repoRoot,
+                                                               leaseStateDir: leaseStateDir, log: { log($0) })
+                        } catch {
+                            log("⚠️ \(name): could not shut the simulator down: \(error.localizedDescription)")
+                        }
+                        return nil
+                    }
+                }
                 let deadline = Date().addingTimeInterval(reviveTimeout)
                 while Date() < deadline {
                     if let w = await ProfileWorkerFactory.buildWorker(forLogicalName: name, resolved: resolved,
