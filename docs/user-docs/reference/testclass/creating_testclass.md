@@ -147,8 +147,8 @@ class OrderFlow {
 
 The flow in this example is normally folded into one `@Test`. Split it only when it is too long and you want to see a failure in the middle separately.
 
-`@Order(n)` goes on a `@Test` method. In a `@RunInOrder` class it is **required on every `@Test`**, with an integer value (gaps such as
-10, 20, 30 are fine); a value cannot repeat within a class. Using it in a class without `@RunInOrder` is a compile error.
+`@Order(n)` goes on a `@Test` method. In a `@RunInOrder` class it is **required on every `@Test`**, with an integer written directly (gaps such as
+10, 20, 30 are fine; constant names and expressions are not accepted); a value cannot repeat within a class. Using it in a class without `@RunInOrder` is a compile error.
 
 You cannot write which machine or device the class is kept on: it is kept where the first test of the class was handed out. In a run that
 is divided over several machines, one line in the execution log says where. If the device of a device-bound class (`@RunOnSingleDevice` / `@RunInOrder`) drops out, fleetest waits for it to come
@@ -157,7 +157,7 @@ back and reruns the interrupted test; if it cannot come back, the remaining test
 **What is an error**
 
 - Two or more of the three attributes on one class, or one on a class without `@TestClass` or on a `@Test` method (compile error).
-- `@Order` in a class without `@RunInOrder`, a `@Test` without `@Order` in a `@RunInOrder` class, or a repeated `@Order` value (compile error).
+- `@Order` in a class without `@RunInOrder`, a `@Test` without `@Order` in a `@RunInOrder` class, a repeated `@Order` value, or a constant name or expression instead of an integer in `@Order` (compile error).
   `@Order` on a method without `@Test`, or on something that is not a method, is a compile error too. A `@Draft` / `@Deleted` test also needs
   `@Order`; it is left out of the run, and "from the first test" is counted over the sequence without it.
 - In a `@RunOnSingleDevice` / `@RunInOrder` class, tests whose OS declarations (`@TestClass(platform:)` / `@Test(platform:)`) are not uniform

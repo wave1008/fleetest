@@ -123,7 +123,7 @@ final class ClassPlacementMacroTests: XCTestCase {
             macroSpecs: macros)
     }
 
-    func testOrderの値がリテラルでなければ重複を検査しない() {
+    func testOrderの値が整数リテラルでなければエラー() {
         assertMacroExpansion(
             """
             @TestClass
@@ -140,6 +140,34 @@ final class ClassPlacementMacroTests: XCTestCase {
             }
             """,
             expandedSource: expected(entries: [("S0010", ["order: first,"]), ("S0020", ["order: first,"])],
+                                     placement: "inOrder"),
+            diagnostics: [
+                DiagnosticSpec(message: Self.orderNotLiteral, line: 5, column: 12),
+                DiagnosticSpec(message: Self.orderNotLiteral, line: 9, column: 12),
+            ],
+            macroSpecs: macros)
+    }
+
+    private static let orderNotLiteral =
+        "@Order needs an integer written directly, such as @Order(10), so that duplicate values can be found at compile time"
+
+    func testOrderの値は負の数と区切りの入った整数も受け付ける() {
+        assertMacroExpansion(
+            """
+            @TestClass
+            @RunInOrder
+            class T {
+                @Test
+                @Order(-1)
+                func S0010() {
+                }
+                @Test
+                @Order(1_000)
+                func S0020() {
+                }
+            }
+            """,
+            expandedSource: expected(entries: [("S0010", ["order: -1,"]), ("S0020", ["order: 1_000,"])],
                                      placement: "inOrder"),
             macroSpecs: macros)
     }

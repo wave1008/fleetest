@@ -172,6 +172,15 @@ public struct OrderMacro: PeerMacro {
                 node: Syntax(node),
                 message: FTDSLDiagnostic("@Order requires @Test on the same method", id: "order-without-test")))
         }
+        // 重複の検査(TestClassMacro)は値をコンパイル時に読むので、リテラル以外を通すと重複が黙って素通りする
+        if let value = node.arguments?.as(LabeledExprListSyntax.self)?.first?.expression,
+           TestClassMacro.integerLiteralValue(value) == nil {
+            context.diagnose(Diagnostic(
+                node: Syntax(value),
+                message: FTDSLDiagnostic(
+                    "@Order needs an integer written directly, such as @Order(10), so that duplicate values can be found at compile time",
+                    id: "order-not-literal")))
+        }
         return []
     }
 }
