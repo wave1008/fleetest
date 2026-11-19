@@ -14,13 +14,16 @@ Install the following.
 
 - **Xcode 27.2+**
   - <https://apps.apple.com/app/xcode/id497799835>
-  - After installing it, launch the Xcode app once and finish downloading its components.
+  - After installing it, launch the Xcode app once and install the required components on the first screen it shows. The iOS Simulator runtime is installed automatically in a later step, when it is needed.
 - **Homebrew**
   - <https://brew.sh/>
+  - A package manager for macOS. Install it by running the command shown on its website in Terminal.
 - **VSCode**
   - <https://code.visualstudio.com/docs/setup/mac>
+  - Used to edit and run scenarios and to work with the AI assistant.
 - **Android SDK (adb, Command-line Tools)** (if you test Android)
   - <https://developer.android.com/studio/install>
+  - Installing Android Studio gives you the Android SDK (including adb) and the Java needed to create Emulators. If Command-line Tools are missing, the AI assistant asks whether to install them in a later step (you can also add them beforehand from the "SDK Tools" tab of the SDK Manager in Android Studio).
 - **AI assistant (Claude Code, etc.)**
   - Install an AI assistant that supports MCP. Claude Code and Codex can be installed as VSCode extensions.
 

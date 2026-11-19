@@ -14,13 +14,16 @@ fleetest をインストールし、サンプルアプリを対象に、テス�
 
 - **Xcode 27.2以降**
   - <https://apps.apple.com/jp/app/xcode/id497799835>
-  - インストールしたら Xcode のアプリを一度起動し、コンポーネントのダウンロードを済ませてください。
+  - インストールしたら Xcode のアプリを一度起動し、最初に表示される画面で、必要なコンポーネントをインストールしてください。iOS Simulator のランタイムは、後の手順で必要になったときに自動でインストールされます。
 - **Homebrew**
   - <https://brew.sh/ja/>
+  - macOS 用のパッケージ管理ツールです。公式サイトにあるコマンドをターミナルで実行してインストールします。
 - **VSCode**
   - <https://code.visualstudio.com/docs/setup/mac>
+  - シナリオの編集・実行と、AIアシスタントとのやり取りに使います。
 - **Android SDK(adb・Command-line Tools)**(Android をテストする場合)
   - <https://developer.android.com/studio/install?hl=ja>
+  - Android Studio をインストールすると、adb を含む Android SDK と、Emulator を作るのに要る Java が入ります。Command-line Tools が入っていなければ、後の手順で AIアシスタントがインストールしてよいか確認します(Android Studio の SDK Manager の「SDK Tools」タブで先に追加しておくこともできます)。
 - **AIアシスタント(Claude Code など)**
   - MCP に対応した AIアシスタントをインストールしてください。Claude Code や Codex の場合は VSCode 拡張からインストールできます。
 
