@@ -1,0 +1,67 @@
+# docs/user-docs を GitHub Pages(https://wave1008.github.io/fleetest/)へ公開する。
+# 公開する中身は最新リリースのタグの docs/user-docs(受け手の配布口はリリースタグ・main は開発線)。
+# 変換は Scripts/md2html(Shirates の md2html の Node 移植)。道具とサイトの見た目(Scripts/user-docs-site)は
+# このワークフローを動かした ref のものを使う = 道具が入る前のタグも公開でき、見た目の直しはリリースを待たずに出せる。
+# 前提(リポジトリ設定): Pages の Source = GitHub Actions。release で動かすには github-pages 環境の
+# 「Deployment branches and tags」にリリースタグ(例 `*.*.*`)を足す(既定は main だけで、タグからの配備は断られる)。
+name: Publish user docs to Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "公開する docs/user-docs の ref(空 = 最新リリースのタグ)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # git archive <tag> と sitemap の lastmod(git log)に履歴とタグが要る
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve ref
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_REF: ${{ inputs.ref }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          ref="${RELEASE_TAG:-$INPUT_REF}"
+          if [ -z "$ref" ]; then ref=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName); fi
+          git rev-parse --verify "$ref^{commit}" >/dev/null
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: md2html
+        run: |
+          npm ci --ignore-scripts --prefix Scripts/md2html
+          node Scripts/md2html/md2html.mjs Scripts/user-docs-site/md2htmlConfig.json \
+            "ref=${{ steps.ref.outputs.ref }}" "outputDirectory=$GITHUB_WORKSPACE/_site"
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

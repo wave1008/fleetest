@@ -1,0 +1,9 @@
+{
+  "name": "md2html-node",
+  "private": true,
+  "description": "Shirates の md2html の Node 移植(md2html.mjs)",
+  "type": "module",
+  "dependencies": {
+    "markdown-it": "14.3.3"
+  }
+}

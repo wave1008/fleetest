@@ -33,3 +33,6 @@ InAppBridge/build/
 # Python のバイトコードのキャッシュ(Scripts/ の試作・補助スクリプトを実行すると作られる)
 __pycache__/
 *.pyc
+
+# md2html(Node 移植)の依存
+Scripts/md2html/node_modules/

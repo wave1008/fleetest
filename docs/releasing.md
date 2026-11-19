@@ -65,6 +65,11 @@ gh release create 0.1.0 --verify-tag --title "fleetest 0.1.0" --notes-file /path
 作業ツリーがクリーンか確認 → タグ重複チェック → `swift build` + `Scripts/unit-tests.py`(単体テストの全体。合否は exit code) →
 注釈付きタグ作成(**注釈 = `fleetest <版>` の題名行 + 空行 + `--notes-file` の本文**。題名は release.sh が付けるので notes に書かない)→(`--push` 時のみ)push → GitHub Release の作成(題名 `fleetest <版>`・本文は `--notes-file`。`--verify-tag` で上流のタグを要求する)。
 **GitHub Release は見え方と通知(Watch の Releases only)のためだけ** —— 受け手の導入・更新・拡張の更新通知はタグ(`ls-remote --tags`)しか見ない。
+**例外は利用者向けドキュメントの公開**: GitHub Release の作成(published)で `.github/workflows/user-docs-pages.yml` が
+そのタグの docs/user-docs を HTML にして GitHub Pages(https://wave1008.github.io/fleetest/)へ出す。リリースを伴わずに
+docs だけ出し直すときは Actions から手動実行(ref 空 = 最新リリースのタグ)。変換は `Scripts/md2html`
+(Shirates の md2html の Node 移植。切れたリンク・存在しない見出しへのリンクがあれば公開しない)、サイトの見た目と設定は
+`Scripts/user-docs-site/`(手元での確認の手順もそこの README.md)。
 
 ## 発行後の確認
 

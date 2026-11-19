@@ -1,0 +1,12 @@
+{
+  "inputDirectory": "../../docs/user-docs",
+  "outputDirectory": "../../.build/user-docs-site",
+  "templateDirectory": ".",
+  "generateSitemap": "true",
+  "siteRoot": "https://wave1008.github.io/fleetest/",
+  "outsideLinkBase": "https://github.com/wave1008/fleetest/blob/${ref}/",
+  "languages": [{ "suffix": "_ja", "lang": "ja" }],
+  "defaultLanguage": "en",
+  "typographer": "false",
+  "gtag": "false"
+}
