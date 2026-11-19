@@ -10,6 +10,7 @@ docs/user-docs を https://wave1008.github.io/fleetest/ へ公開するときの
 | `_template.html` | 全ページ共通の HTML。変数 `${contentHtml}` `${relative}` `${assets}` `${h1}` `${gtag}` `${lang}` `${langSuffix}` `${siteRoot}` `${pageUrl}` `${description}`。リンクプレビュー(OGP)のタグもここ |
 | `_assets/` | 出力の `_assets/` へそのまま写る(CSS・画像・JS) |
 | `_assets/og-card.jpg` | リンクプレビューの画像(1200×630・日英共通。`og:image` は絶対 URL でないと読まれないので `${siteRoot}` から組む)。ロゴは中央の 630×630 の中にアイコンと文字を縦に並べてある —— はてなブログのカードは画像を中央で正方形に切るので、横長のロゴは両端が切れる。差し替えたら `_template.html` の `og:image:width` / `og:image:height` も合わせ、ファイル名も変える(各サービスは画像を URL で覚えている) |
+| `_assets/logo.png` | ヘッダーのロゴ(背景透明・476×108 = 表示 176×40 の約 3 倍)。差し替えたら `_template.html` の img の width/height も合わせる |
 | `_template_gtag` | Google Analytics のタグ。公開のワークフローだけが `gtag=true` を渡して `${gtag}` に入れる(Shirates と同じ。手元の確認では入らない = 計測されない) |
 
 ## 手元で確かめる

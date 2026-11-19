@@ -22,7 +22,7 @@ header {
 
 .header-nav {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     max-width: 1200px;
     margin: 0 auto;
@@ -30,9 +30,13 @@ header {
 }
 
 .site-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #1f2328;
+    display: block;
+    line-height: 0;
+}
+
+/* logo.png は 3 倍の解像度(476×108)。表示の大きさは img の width/height */
+.site-title img {
+    display: block;
 }
 
 .Box {
