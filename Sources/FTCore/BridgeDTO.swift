@@ -634,29 +634,15 @@ public enum BridgeCoordinateTapTarget {
 }
 
 /// GET /snapshot が maxSnapshotElements を超えたときに何を先に捨てるかの判定。
-/// **in-app dylib と XCUITest ランナーの共通実装**(BridgeSourceSet 参照。両方コンパイルする)。
-/// Android は Java で書けないため `AndroidRunner/.../SnapshotBuilder.java` の `priorityTier` に
-/// 個別実装している —— **こちらを正とする。tier0〜2 を変えたら Java 側も直すこと**。
-/// **tier3(bulk)は iOS だけ**: コーパス14本の実測で Android は1画面も発火しなかった
-/// (Google マップを含む)ため移植していない。Android で bulk 群が出る画面を見つけたら、
-/// ここを写して VERSION_CODE を上げる。
-///
-/// 捨てる順序は tier2(それ以外) → tier3(bulk) → tier1(ラベル/identifier を持つ) →
-/// tier0(操作可能 or scrollable な容器)。tier2 から全部捨ててもまだ超過するなら tier3、
-/// それでも超過するなら tier1 → tier0 と捨てる。ラベル/id 付きの同一id反復群(tier3)は
-/// ラベル無し装飾(tier2)より本物のコンテンツである可能性が高いため、装飾を先に落とす。
-/// 同一 tier 内は preorder の後ろから捨てる(先頭寄りの要素を優先して残す)。
-///
-/// bulk tier の根拠(コーパス14本・iOS/Android・2種の地図アプリ・4 SUT で確認):
-/// 装飾ピン(同一 identifier ×90・非操作)は地図画面の枠の大半を占めて本物のコンテンツ
-/// (リスト・詳細シート)を押し出す。**当初は scrollable な祖先を持つ群を bulk から除外**していたが、
-/// 地図 POI 自体がスクロール容器(地図)の中に居るため素通りしてラベル付き tier1 になり、
-/// preorder 前方(地図は木の先頭)に居るため同 tier 内では最後まで残って、後方のカード内容から
-/// 先に落ちる +84 切り詰めを起こした(実測、Apple マップ)。
-/// **免除は「自身がスクロール容器か」だけに縮小**(祖先ベースの免除は撤去)。リスト行の
-/// ラベル群(同一id×20+)も bulk 対象になるが、捨て順は tier2(無ラベル装飾)が先
-/// (indicesToKeep)なので、装飾より先に本物の行が消えることはない。
-/// 容器そのものは indicesToKeep が tier に関係なく cap 免除する。
+/// **in-app dylib と XCUITest ランナーの共通実装**(BridgeSourceSet 参照)。Android は `AndroidRunner/.../SnapshotBuilder.java` の
+/// `priorityTier` に個別実装 —— **こちらが正。tier0〜2 を変えたら Java 側も直す**。tier3(bulk)は iOS だけ(コーパス14本で Android は
+/// 1画面も発火しなかった。出る画面を見つけたら写して VERSION_CODE を上げる)。
+/// 捨てる順: tier2(それ以外)→ tier3(bulk)→ tier1(ラベル/identifier あり)→ tier0(操作可能・scrollable な容器)。同じ tier は
+/// preorder の後ろから捨てる。容器そのものは indicesToKeep が tier に関係なく cap 免除する。
+/// bulk の根拠: 地図の装飾ピン(同一 identifier ×90・非操作)が枠の大半を占めて本物のコンテンツ(リスト・詳細シート)を押し出した。
+/// **免除は「自身がスクロール容器か」だけ** —— 祖先で免除すると、地図(スクロール容器)の中の POI がラベル付きの tier1 として
+/// 木の先頭に最後まで残り、後方のカード内容から先に落ちた(実測 Apple マップ・+84 切り詰め)。リスト行のラベル群(同一 id ×20+)も
+/// bulk になるが、無ラベルの装飾(tier2)が先に落ちるので本物の行が先に消えることはない
 public enum BridgeSnapshotThinning {
 
     /// 同一 identifier の出現数がこの数以上なら bulk tier の対象候補。

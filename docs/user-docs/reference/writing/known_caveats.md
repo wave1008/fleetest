@@ -207,6 +207,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [iOS in-app "real touch would land elsewhere" note](../commands/tap.md#notes) — the step stays green with `inapp-tap-outside-hit-area`, but the same tap can fail on the XCUITest bridge; check that the element is truly reachable.
 - [Coordinate taps are a last resort](../commands/tap.md#notes) — prefer a selector in scenarios you keep, because coordinates hit whatever is there after the layout moves.
 - [A SwiftUI link may look like an element in MCP but not in scenarios](../commands/tap.md#notes) — write `tap(element, linkText:)`.
+- [Pass only the link's own text to linkText:](../commands/tap.md#notes) — with surrounding words the tap lands on the centre of the whole string and may miss the link on some devices.
 - [An element reported as a small box at the top-left corner is not touched](../commands/tap.md#notes) — a touch there lands on the status bar; point at a neighbouring element.
 - [`settle: false` skips the settle wait](../commands/tap.md#notes) — the next step may see a moving screen; use it only when speed matters and the next step does not depend on final positions.
 

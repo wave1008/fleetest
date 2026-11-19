@@ -873,10 +873,14 @@ public enum TapTargetGeometry {
     }
 
     /// **貼り付く見出しが対象の中心を覆っているときの注記**(MCP の ref の経路が使う。DSL は `liftCoveredTarget` が送って外す)。
-    /// 判定は `pinnedBandCovering` の1つ。容器が分からなければ nil。**警告のみ**
+    /// 判定は `pinnedBandCovering` の1つ。容器が分からなければ nil。**警告のみ**。
+    /// **容器が scrollable を申告した要素の枠のときだけ言う**: 推定の容器は行そのものになり、行の上端の題名を「容器の上端の帯」と
+    /// 読んで同じ行の兄弟を見出しと名指した(固定コーパス 53 画面で 94 件・ほぼ全部が誤検知。OI-282)。
+    /// 代償: 一覧が申告しない CMP iOS の貼り付く見出しには言わない(申告は画面全体の scrollView だけ)。DSL の送り(`liftCoveredTarget`)は変えない
     public static func pinnedBandNote(for element: ElementInfo, in elements: [ElementInfo],
                                       inferContainer: Bool = true, operation: String) -> String? {
         guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferContainer),
+              elements.contains(where: { $0.scrollable == true && frameContains($0.frame, container) && frameContains(container, $0.frame) }),
               let band = pinnedBandCovering(element, in: elements, container: container) else { return nil }
         return " (warning: \(describe(element))'s centre is under the sticky header \(describe(band)), so this \(operation)"
             + " may land on the header instead — scroll the element clear of it first with ft_scroll_to or by dragging)"

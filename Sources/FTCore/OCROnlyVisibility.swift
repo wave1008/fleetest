@@ -61,9 +61,10 @@ public enum OCROnlyVisibility {
         return true
     }
 
-    /// 結合ラベルの先頭の区切り(`、` / `, ` の手前)。区切りが無い・先頭が空なら nil
+    /// 結合ラベルの先頭の区切り(`、` / `, ` の手前)。区切りが無い・先頭が空なら nil。
+    /// 読点(U+3001)は照合用で表示ではないので、エスケープで書く(CLIEnglishStringsScanTests。SnapshotRendering と同じ)
     static func mergedLabelHead(_ label: String) -> String? {
-        guard let cut = [label.range(of: "、"), label.range(of: ", ")].compactMap({ $0 }).min(by: { $0.lowerBound < $1.lowerBound })
+        guard let cut = [label.range(of: "\u{3001}"), label.range(of: ", ")].compactMap({ $0 }).min(by: { $0.lowerBound < $1.lowerBound })
         else { return nil }
         let head = label[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
         return head.isEmpty ? nil : head

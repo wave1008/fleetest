@@ -28,11 +28,11 @@
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 3 | OI-282・OI-310・OI-311 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 31 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 44 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-291・OI-298 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
 
@@ -41,55 +41,6 @@
 ## 要測定
 
 ## 要判断
-
-### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
-- 状態: 再現済み
-- 確認: 657e032d1(2026-11-19)
-- 属性: 要判断
-- 運用: 合否に響かない(注記)
-- 優先度: 低 — 注記の文言だけ
-
-出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
-- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
-- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
-- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
-- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
-- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
-- 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
-- 3回目の評価(11/19・`_work/scen-eval-20261119/`): ①④⑤は出ず。②はまだ出る(phys_and_3a 50〜77%・e2ey_cmp_3a / r3_e2ey_cmp_3a の PIN 画面 36%・e2ex_flutter_emu 61%)。③はまだ出る(「under the sticky header」が `#circle`・`#otp_box_1`・同じ段落の続きの文・商品名の staticText を名指す 5 件 / OTP の「may have hit #otp_box_1」3 件)。新しい形: ⑥「#pad_swipe is still empty after a short re-read wait — it may be genuinely empty, or still loading」が本文を持つ scrollView・子を持たない設計のジェスチャ板に出る(r3_e2e_flutter_ios・e2e_flutter_en)⑦snapshotAfter の即時の木に別ウィンドウのモーダル・アニメーション中のシートが出ていないのに、注記は「a dynamic list … may not have populated yet」(e2e_ios_sim・r6_e2ey_flutter_ios)⑧遅れて届く更新(着信)に「the action may not have changed the screen」(3 件)
-- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る ②⑦は直した(②モーダルの形は左の余白で見る・⑦初回の注記に開きかけのシートと別ウィンドウを足した)。⑧は文言が「変わらなかった」と「窓がまだ木に来ていない」の両方を言っており据え置き。残るのは③と⑥
-- ⑥の測定(11/19): 注記は画面の 3 割以上の高さのスクロール可能な要素に depth の子が無いと出す(`emptyLoadingScroller`)。Flutter は中身を容器の子でなく兄弟として返す(r3_e2e_flutter_ios・e2e_flutter_en の木で、容器の枠の中に中身が同じ depth で並ぶ)。「容器の枠の中に中心がある要素があれば空と言わない」で直すと、固定コーパスの真陽性 2 件(`ios-messages_keyboard` = 新規会話の空の一覧の枠の中にナビバー・入力欄が重なる / `and-maps_transit_results`)も消える = 反例を見分けられないので直さなかった。次の一手: Flutter の兄弟と、重なった別部品(ナビバー等)を depth・木の順で見分けられるかを、Flutter の木(depth 付き)と2件で比べる
-- 4回目の評価(11/19・`_work/scen-eval-20261119b/`): ③はまだ出る(7 セッション。e2ey_ios5 は注記を鵜呑みにして先頭の行を避けるようにシナリオを変えた)。⑥もまだ出る(Flutter の PIN 画面・日付ピッカー・ジェスチャ板。6 セッション)。②の「モーダルかも」は全部本物のモーダルの場面だった(直しは効いている)
-- 11/19 夜: ⑥を直した(`MCPServer.emptyLoadingScroller` に「枠の中に中心のある小さな要素があれば空と言わない」を足した。固定コーパスで発火していた2件 = 器が空のまま中身が兄弟で描かれる誤検知が消えた。**本当に読み込み中の形の witness はコーパスに無い**ので、検知がまだ実画面で発火するかは未確認)。残るのは③(装飾の重なりの形をコーパスで数える)
-- ③の測定(11/19 夜・固定コーパス 53 画面の全要素に `pinnedBandCovering` を当てた): **94 件発火し、ほぼ全部が貼り付く見出しではない**(設定の行の題名が同じ行の説明文を覆う・天気の日付の文字片どうし・地図の候補の行の題名が行のボタンを覆う 等 = 同じ行の中の兄弟)。94 件中 89 件は容器が申告の無い推定(`clippingContainer(inferring: true)` が行そのものを容器と読み、行の上端の題名を「容器の上端に貼り付いた帯」と読む)。witness(E2EX-RN・Flutter の sticky の単体テストの木)はどちらも容器が scrollable を申告している。**直しの候補**: MCP の注記(`pinnedBandNote`)は申告された容器のときだけ出す。**未確認なのは反例側** —— scrollable を申告しない CMP iOS(XCUITest)の sticky で witness を落とさないか。反例側を測った(11/19 夜・E2EX-CMP の iOS Simulator・XCUITest の木): 申告された容器は画面全体の `scrollView`(0,0 402x874)だけで、貼り付いた `#hdr_A` は y=182 = 容器の縁に揃わない。**申告された容器に限ると CMP iOS の本物の貼り付く見出しを見逃す**ので、申告だけでは誤検知と witness を見分けられない(MN-108)。**決めてほしいこと**: (a) 注記だけの見逃しとして CMP iOS を諦めて申告された容器に限る (b) 推定の容器でも、帯が行の兄弟(同じ行の中の題名)でないことを別の材料で見分ける形を探す(材料は未発見)(c) 据え置き
-
-### OI-310 `linkText:` に「リンクを含む文」を渡すと、OCR の枠の中心が境界に来て、端末で押し分けが割れる
-- 状態: 再現済み
-- 確認: 作業ツリー(91c8c035e + RR-8.3 の実装。2026-11-19)
-- 属性: 要判断
-- 運用: 回避可 — リンクの文字列だけを渡す
-- 優先度: 低 — 作成物の誤り(リンクでない文字列を渡した)でしか起きない
-
-出典: シナリオ作成の評価 4回目(2026-11-19・`_work/scen-eval-20261119b/`。67 セッション・本番 98 回・延べ 482 本・緑 442。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
-- r2_e2ey_cmp_4a: `tap("#row_with_link", linkText: "詳細はこちら")` が作成時(4a)は `link=row`・本番(Emulator -08・M1Ultra の 2 回)は `link text "詳細はこちら" located by ocr at (420, 905)` で `link=inner` になり赤。契約(E2EYAppCMP/docs/ui-contract.md)ではリンクは「こちら」だけ
-- 作成物の誤り(リンクでない文字列を渡した)。ツールは渡した文字列がリンクかを確かめずに中心を押す
-- 判断: 文字列がリンクより長い(行の本体を含む)ことを OCR の枠と木から言えるなら注記する/言えないので据え置く
-
-
-### OI-311 全体の単体テストで、作業前から落ちている2件(日本語の区切り文字のリテラル・BridgeDTO の行数の凍結値)
-- 状態: 再現済み
-- 確認: 作業ツリー(91c8c035e + RR-8.3 の実装。2026-11-19)
-- 属性: 要判断
-- 運用: 合否に響かない(製品の挙動ではない)
-- 優先度: 中 — 全体テストが赤のまま
-
-出典: シナリオ作成の評価 4回目(2026-11-19・`_work/scen-eval-20261119b/`。67 セッション・本番 98 回・延べ 482 本・緑 442。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
-出典: RR-8.3 の実装中の単体テスト(2026-11-19)。どちらも HEAD(91c8c035e)の時点で落ちていた
-- `CLIEnglishStringsScanTests`: `Sources/FTCore/OCROnlyVisibility.swift:66` の `"、"`(結合ラベルの区切りとの照合。表示する文字列ではない = f3c88e211 = 3回目の評価の直し)
-- `SourceFileLineBudgetTests`: `Sources/FTCore/BridgeDTO.swift` が 2270 行 > 凍結 2261(4f1b0819e の版上げで増えた。この表は分割をブリッジの版上げに同梱する決まり)
-- 許可表へ足す・凍結値を上げる直しは、検査を緩める操作として自動の判定に断られた(保守者の判断が要る)
-- 判断: ①許可表に理由付きで足す/区切りの照合を Unicode のエスケープで書く ②凍結値を上げて理由を書く/次の版上げを待たずに分割する
-
 
 ## 木に材料なし
 
@@ -563,6 +514,28 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 
 ## 据え置き
+
+### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
+- 状態: 再現済み
+- 確認: 657e032d1(2026-11-19)
+- 属性: 据え置き
+- 運用: 合否に響かない(注記)
+- 優先度: 低 — 注記の文言だけ
+
+出典: シナリオ作成の評価 2回目(2026-11-18・`_work/scen-eval-20261118b/`。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`)
+- ① `ft_type` の読み返しが CMP の iOS の反映の遅れを「the field did not show the typed text … taken as the app consuming the input」と断定(sutstore_ios(pressEnter あり)・e2e_cmp_ios5(なし)。直後の ft_snapshot では値が入っている)
+- ② 「NN% of the screen has no element … a modal, sheet or menu may have replaced it」がモーダルの無い短い画面で出る(sutstore_and のログイン 47%・r3_e2ex_flutter_ios のメニュー等 60%。88154bc65 で下端だけ空いた全幅の形は弱めた = 別の形)
+- ③ 「貼り付く見出し(sticky header)」の警告が、行の中のチェック円 `#circle` や OTP の装飾ボックス `#otp_box_1` を「見出し」と名指す(r3_e2ey_ios_sim)/ OTP の装飾ボックスの重なりに「may have hit #otp_box_1 instead」(3件・入力は通る)
+- ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
+- ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
+- 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
+- 3回目の評価(11/19・`_work/scen-eval-20261119/`): ①④⑤は出ず。②はまだ出る(phys_and_3a 50〜77%・e2ey_cmp_3a / r3_e2ey_cmp_3a の PIN 画面 36%・e2ex_flutter_emu 61%)。③はまだ出る(「under the sticky header」が `#circle`・`#otp_box_1`・同じ段落の続きの文・商品名の staticText を名指す 5 件 / OTP の「may have hit #otp_box_1」3 件)。新しい形: ⑥「#pad_swipe is still empty after a short re-read wait — it may be genuinely empty, or still loading」が本文を持つ scrollView・子を持たない設計のジェスチャ板に出る(r3_e2e_flutter_ios・e2e_flutter_en)⑦snapshotAfter の即時の木に別ウィンドウのモーダル・アニメーション中のシートが出ていないのに、注記は「a dynamic list … may not have populated yet」(e2e_ios_sim・r6_e2ey_flutter_ios)⑧遅れて届く更新(着信)に「the action may not have changed the screen」(3 件)
+- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る ②⑦は直した(②モーダルの形は左の余白で見る・⑦初回の注記に開きかけのシートと別ウィンドウを足した)。⑧は文言が「変わらなかった」と「窓がまだ木に来ていない」の両方を言っており据え置き。残るのは③と⑥
+- ⑥の測定(11/19): 注記は画面の 3 割以上の高さのスクロール可能な要素に depth の子が無いと出す(`emptyLoadingScroller`)。Flutter は中身を容器の子でなく兄弟として返す(r3_e2e_flutter_ios・e2e_flutter_en の木で、容器の枠の中に中身が同じ depth で並ぶ)。「容器の枠の中に中心がある要素があれば空と言わない」で直すと、固定コーパスの真陽性 2 件(`ios-messages_keyboard` = 新規会話の空の一覧の枠の中にナビバー・入力欄が重なる / `and-maps_transit_results`)も消える = 反例を見分けられないので直さなかった。次の一手: Flutter の兄弟と、重なった別部品(ナビバー等)を depth・木の順で見分けられるかを、Flutter の木(depth 付き)と2件で比べる
+- 4回目の評価(11/19・`_work/scen-eval-20261119b/`): ③はまだ出る(7 セッション。e2ey_ios5 は注記を鵜呑みにして先頭の行を避けるようにシナリオを変えた)。⑥もまだ出る(Flutter の PIN 画面・日付ピッカー・ジェスチャ板。6 セッション)。②の「モーダルかも」は全部本物のモーダルの場面だった(直しは効いている)
+- 11/19 夜: ⑥を直した(`MCPServer.emptyLoadingScroller` に「枠の中に中心のある小さな要素があれば空と言わない」を足した。固定コーパスで発火していた2件 = 器が空のまま中身が兄弟で描かれる誤検知が消えた。**本当に読み込み中の形の witness はコーパスに無い**ので、検知がまだ実画面で発火するかは未確認)。残るのは③(装飾の重なりの形をコーパスで数える)
+- ③の測定(11/19 夜・固定コーパス 53 画面の全要素に `pinnedBandCovering` を当てた): **94 件発火し、ほぼ全部が貼り付く見出しではない**(設定の行の題名が同じ行の説明文を覆う・天気の日付の文字片どうし・地図の候補の行の題名が行のボタンを覆う 等 = 同じ行の中の兄弟)。94 件中 89 件は容器が申告の無い推定(`clippingContainer(inferring: true)` が行そのものを容器と読み、行の上端の題名を「容器の上端に貼り付いた帯」と読む)。witness(E2EX-RN・Flutter の sticky の単体テストの木)はどちらも容器が scrollable を申告している。**直しの候補**: MCP の注記(`pinnedBandNote`)は申告された容器のときだけ出す。**未確認なのは反例側** —— scrollable を申告しない CMP iOS(XCUITest)の sticky で witness を落とさないか。反例側を測った(11/19 夜・E2EX-CMP の iOS Simulator・XCUITest の木): 申告された容器は画面全体の `scrollView`(0,0 402x874)だけで、貼り付いた `#hdr_A` は y=182 = 容器の縁に揃わない。**申告された容器に限ると CMP iOS の本物の貼り付く見出しを見逃す**ので、申告だけでは誤検知と witness を見分けられない(MN-108)。**決めてほしいこと**: (a) 注記だけの見逃しとして CMP iOS を諦めて申告された容器に限る (b) 推定の容器でも、帯が行の兄弟(同じ行の中の題名)でないことを別の材料で見分ける形を探す(材料は未発見)(c) 据え置き
+- 11/19 深夜(ユーザー決定「おすすめで」= (a)): MCP の貼り付く見出しの注記(`TapTargetGeometry.pinnedBandNote`)を、容器が scrollable を申告した要素の枠のときだけ出すようにした。固定コーパスの発火は 94 → 5 件(`PinnedBandNoteCorpusTests` が上限 5 で固定)。代償として CMP iOS の本物の貼り付く見出しには注記を出さない。DSL の撃つ前の送りは変えていない。**残りは据え置き**: OTP の装飾の重なりの「may have hit #otp_box_1」(入力は通る・注記だけ)と⑧(文言が両方の可能性を言っている)
 
 ### OI-298 inapp-boost の `swipeBy(dxRatio: -0.6)` が CMP の iOS で行を払い切り、削除を確定させる(作成時の XCUITest では途中で止まる)
 - 状態: 再現済み
