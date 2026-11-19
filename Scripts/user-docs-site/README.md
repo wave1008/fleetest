@@ -9,7 +9,7 @@ docs/user-docs を https://wave1008.github.io/fleetest/ へ公開するときの
 | `md2htmlConfig.json` | 変換の設定(入力・出力・公開 URL・言語の接尾辞・外へのリンクの書き換え先・gtag の有無) |
 | `_template.html` | 全ページ共通の HTML。変数 `${contentHtml}` `${relative}` `${assets}` `${h1}` `${gtag}` `${lang}` `${langSuffix}` |
 | `_assets/` | 出力の `_assets/` へそのまま写る(CSS・画像・JS) |
-| `_template_gtag`(無し) | 置くと、設定の `"gtag": "true"` で `${gtag}` に入る(Shirates と同じ。閲覧データが Google へ送られる) |
+| `_template_gtag` | Google Analytics のタグ。公開のワークフローだけが `gtag=true` を渡して `${gtag}` に入れる(Shirates と同じ。手元の確認では入らない = 計測されない) |
 
 ## 手元で確かめる
 

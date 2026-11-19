@@ -55,7 +55,7 @@ jobs:
         run: |
           npm ci --ignore-scripts --prefix Scripts/md2html
           node Scripts/md2html/md2html.mjs Scripts/user-docs-site/md2htmlConfig.json \
-            "ref=${{ steps.ref.outputs.ref }}" "outputDirectory=$GITHUB_WORKSPACE/_site"
+            "ref=${{ steps.ref.outputs.ref }}" "outputDirectory=$GITHUB_WORKSPACE/_site" gtag=true
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
