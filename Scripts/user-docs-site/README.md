@@ -9,7 +9,7 @@ docs/user-docs を https://wave1008.github.io/fleetest/ へ公開するときの
 | `md2htmlConfig.json` | 変換の設定(入力・出力・公開 URL・言語の接尾辞・外へのリンクの書き換え先・gtag の有無) |
 | `_template.html` | 全ページ共通の HTML。変数 `${contentHtml}` `${relative}` `${assets}` `${h1}` `${gtag}` `${lang}` `${langSuffix}` `${siteRoot}` `${pageUrl}` `${description}`。リンクプレビュー(OGP)のタグもここ |
 | `_assets/` | 出力の `_assets/` へそのまま写る(CSS・画像・JS) |
-| `_assets/og.jpg` | リンクプレビューの画像(1200×630 = 各サービスが切らずに出す 1.91:1・JPEG 品質 85 で約 120KB・日英共通。`og:image` は絶対 URL でないと読まれないので `${siteRoot}` から組む)。差し替えたら `_template.html` の `og:image:width` / `og:image:height` も合わせる |
+| `_assets/og-card.jpg` | リンクプレビューの画像(1200×630・日英共通。`og:image` は絶対 URL でないと読まれないので `${siteRoot}` から組む)。ロゴは中央の 630×630 の中にアイコンと文字を縦に並べてある —— はてなブログのカードは画像を中央で正方形に切るので、横長のロゴは両端が切れる。差し替えたら `_template.html` の `og:image:width` / `og:image:height` も合わせ、ファイル名も変える(各サービスは画像を URL で覚えている) |
 | `_template_gtag` | Google Analytics のタグ。公開のワークフローだけが `gtag=true` を渡して `${gtag}` に入れる(Shirates と同じ。手元の確認では入らない = 計測されない) |
 
 ## 手元で確かめる
