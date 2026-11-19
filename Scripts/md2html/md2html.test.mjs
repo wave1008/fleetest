@@ -77,3 +77,27 @@ test("md2html の出力でない中身がある outputDirectory は消さずに�
   convert(c2, { log: () => {} });
   convert(c2, { log: () => {} });
 });
+
+test("OGP の変数: ページの絶対 URL・導入の段落(言語切替のリンクだけの段落は飛ばす)か設定の説明・属性値のエスケープ", () => {
+  const { root, config } = site({
+    "tpl/_template.html": "<meta content=\"${pageUrl}\"><meta content=\"${siteRoot}og${langSuffix}.png\"><meta content=\"${description}\">\n${contentHtml}",
+    "in/index.md": "# Top\n\n[in Japanese](sub/p_ja.md)\n\nfleetest is a \"tool\" for\n`iOS` & [Android](https://a.test).\n\nSecond.\n",
+    "in/sub/p_ja.md": "# P\n\n" + "あ".repeat(250) + "\n",
+    "in/w_ja.md": "# W\n\n折り返して、\n続く Mac の\nデバイス\nと Swift\nDSL。\n",
+    "in/t.md": "# T\n\n[in Japanese](t_ja.md)\n\n## S\n\n- item\n\nLater.\n",
+    "in/t_ja.md": "# T\n\n| a |\n|---|\n| b |\n\n- 項目\n",
+  }, { description: { en: "Site & more", ja: "サイト" } });
+  const r = convert(config, { log: () => {} });
+  assert.deepEqual(r.errors, []);
+  const index = readFileSync(path.join(root, "out/index.html"), "utf8");
+  assert.ok(index.startsWith('<meta content="https://example.test/x/index.html"><meta content="https://example.test/x/og.png">' +
+    '<meta content="fleetest is a &quot;tool&quot; for iOS &amp; Android.">'), index);
+  const page = readFileSync(path.join(root, "out/sub/p_ja.html"), "utf8");
+  assert.ok(page.includes('content="https://example.test/x/sub/p_ja.html"'), page);
+  assert.ok(page.includes('content="https://example.test/x/og_ja.png"'), page);
+  assert.ok(page.includes(`content="${"あ".repeat(199)}…"`), page);
+  assert.ok(readFileSync(path.join(root, "out/w_ja.html"), "utf8").includes('<meta content="折り返して、続く Mac のデバイスと Swift DSL。">'));
+  // 導入の段落が無い(最初の h2 の後・リストの中の段落しか無い)ページは設定の言語ごとの説明
+  assert.ok(readFileSync(path.join(root, "out/t.html"), "utf8").includes('<meta content="Site &amp; more">'));
+  assert.ok(readFileSync(path.join(root, "out/t_ja.html"), "utf8").includes('<meta content="サイト">'));
+});

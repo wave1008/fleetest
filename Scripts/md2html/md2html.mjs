@@ -17,10 +17,12 @@
 //   languages         [{ "suffix": "_ja", "lang": "ja" }]。ファイル名(拡張子の前)の接尾辞で ${lang}・${langSuffix} を決める
 //   defaultLanguage   接尾辞に当たらないページの ${lang}(既定 "en")
 //   typographer       "true" で引用符・記号を活字体へ(元の TypographicExtension 相当。GitHub の表示とずれるので既定 "false")
+//   description       { "<lang>": "..." }。導入の段落が無いページの ${description}
 //   checkLinks        "false" で切れたリンクの検査を止める(既定 "true" = 1件でもあれば非ゼロで終わる)
 //
 // テンプレート変数(元と同じ): ${contentHtml} ${relative} ${assets} ${h1} ${gtag}
 //   追加: ${lang} ${langSuffix}(言語の接尾辞。英語は空)
+//         ${siteRoot}(末尾 /)${pageUrl}(そのページの絶対 URL)${description}(導入の段落の平文か設定の description。OGP 用。属性値としてエスケープ済み)
 //   行に `<!-- disable-variable -->` / `<!-- enable-variable -->` だけを書くと、その間の行は変数を置き換えない(元と同じ)
 //
 // 元との違い(どれも元では壊れていた所):
@@ -69,6 +71,7 @@ export function loadConfig(configFile = "md2htmlConfig.json", args = [], cwd = p
   c.templateDirectory ??= c.inputDirectory;
   c.generateSitemap = String(c.generateSitemap ?? "true") === "true";
   c.gtag = String(c.gtag ?? "false") === "true";
+  c.description ??= {};
   c.typographer = String(c.typographer ?? "false") === "true";
   c.checkLinks = String(c.checkLinks ?? "true") === "true";
   c.languages ??= [];
@@ -83,6 +86,32 @@ export function githubSlug(text) {
 }
 
 const escapeText = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escapeAttr = (s) => escapeText(s).replace(/"/g, "&quot;");
+/** リンクプレビュー(og:description)の上限。X・Slack は約 200 字で切るので、それより先は送っても表示されない */
+const DESCRIPTION_MAX_CHARS = 200;
+
+/** 導入の段落(最初の h2 より前・最上位)の平文。リンクだけの段落(言語切替 `[in English](...)`)は飛ばす。無ければ "" */
+export function pageDescription(tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type === "heading_open" && tokens[i].tag !== "h1") return "";
+    if (tokens[i].type !== "paragraph_open" || tokens[i].level !== 0 || tokens[i + 1]?.type !== "inline") continue;
+    const kids = tokens[i + 1].children ?? [];
+    let text = "", inLink = 0, outside = "";
+    for (const k of kids) {
+      if (k.type === "link_open") inLink++;
+      else if (k.type === "link_close") inLink--;
+      const t = k.type === "text" || k.type === "code_inline" ? k.content
+        : k.type === "softbreak" || k.type === "hardbreak" ? "\n" : "";
+      text += t;
+      if (!inLink) outside += t;
+    }
+    if (!outside.trim()) continue;
+    // 折り返しは日本語どうしの間なら詰める(空白を入れると「して、 出力」になる)・それ以外は空白
+    text = text.replace(/([^\x00-\x7F])\n(?=[^\x00-\x7F])/g, "$1").replace(/\s+/g, " ").trim();
+    return text.length > DESCRIPTION_MAX_CHARS ? text.slice(0, DESCRIPTION_MAX_CHARS - 1) + "…" : text;
+  }
+  return "";
+}
 const isExternal = (url) => /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith("//");
 
 /** 元の行単位の置き換え。disable/enable の行そのものは出力しない */
@@ -225,6 +254,9 @@ export function convert(c, { log = console.log } = {}) {
         assets: `${relative}_assets`,
         h1: escapeText(h1),
         gtag,
+        siteRoot: escapeAttr(c.siteRoot),
+        pageUrl: escapeAttr(c.siteRoot + pageHtml),
+        description: escapeAttr(pageDescription(tokens) || c.description[language?.lang ?? c.defaultLanguage] || ""),
         lang: language?.lang ?? c.defaultLanguage,
         langSuffix: language?.suffix ?? "",
       }, md.renderer.render(tokens, md.options, env));

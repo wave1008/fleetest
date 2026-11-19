@@ -8,5 +8,9 @@
   "languages": [{ "suffix": "_ja", "lang": "ja" }],
   "defaultLanguage": "en",
   "typographer": "false",
-  "gtag": "false"
+  "gtag": "false",
+  "description": {
+    "en": "E2E tests for iOS and Android apps, written by your AI assistant and run in parallel on Simulators, Emulators and physical devices — on your own Macs.",
+    "ja": "AIアシスタントが書いた iOS / Android アプリの E2E テストを、手元の Mac で Simulator・Emulator・実機に並列で実行するツールです。"
+  }
 }
