@@ -104,4 +104,22 @@ final class OCROnlyVisibilityTests: XCTestCase {
         XCTAssertTrue(bothGreen.visible)
         XCTAssertNil(bothGreen.disagreement)
     }
+
+    /// 結合ラベルの行は先頭の区切り(題名)が読めれば赤にしない(リマインダーの一覧: 「、0件のリマインダー」は読み上げ用で描かれない)
+    func testMergedRowLabelIsJudgedByItsHead() {
+        let expected = "Ztestリスト、0件のリマインダー"
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["＜", "Ztestリスト"], expected: expected))
+        XCTAssertFalse(OCROnlyVisibility.rowLabelNotRead(lines: ["Inbox", "3"], expected: "Inbox, 3 reminders"))
+        // 題名も読めない(別の行の文字)なら従来どおり赤
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["フリートテストリスト", "0"], expected: expected))
+        // 区切りの無いラベルは全体で確かめる(先頭の半分以下は赤のまま)
+        XCTAssertTrue(OCROnlyVisibility.rowLabelNotRead(lines: ["Ztest"], expected: "Ztestリストの名前の長い行"))
+    }
+
+    func testMergedLabelHead() {
+        XCTAssertEqual(OCROnlyVisibility.mergedLabelHead("今日、0件のリマインダー、11/19"), "今日")
+        XCTAssertEqual(OCROnlyVisibility.mergedLabelHead("Inbox, 3 reminders"), "Inbox")
+        XCTAssertNil(OCROnlyVisibility.mergedLabelHead("Ztestリスト"))
+        XCTAssertNil(OCROnlyVisibility.mergedLabelHead("、先頭が空"))
+    }
 }

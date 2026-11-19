@@ -48,7 +48,7 @@ extension StepExecutor {
     /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。
     /// 見つかって **XCUITest が押せる(`isHittable`)と答えた**ときだけ、その木とドライバで撃つ(XCUITest の木はモーダルの裏の要素も残す =
     /// 見つかっただけでは採らない。押せるかの判定はデバイスの答えに任せる)。標準アプリのリマインダーの新規行の入力欄は in-app の木に
-    /// 出ず、XCUITest の木にだけ出た(OI-290 ①)。前面の確かめは `appXCUITestTreeMatch` と同じ(XCUITest の木の読みは activate する)
+    /// 出ず、XCUITest の木にだけ出た。前面の確かめは `appXCUITestTreeMatch` と同じ(XCUITest の木の読みは activate する)
     func appXCUITestTreeActionTarget(step: FlowStep, action: String,
                                      phase: inout PhaseAccumulator) async -> (element: ElementInfo, usedFallback: FlowLocator?,
                                                                              snapshot: SnapshotResponse, driver: AppDriver)? {

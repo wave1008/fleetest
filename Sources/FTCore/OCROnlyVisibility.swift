@@ -48,11 +48,25 @@ public enum OCROnlyVisibility {
     /// **読めた文字が期待と字形の取り違え(`TranscriptMatch.containsWithConfusableGlyphs`)だけ違う区間を含むなら赤にしない** —— 行は FM で確かめ直さない
     /// (1件 1.5〜2 秒の払いを避ける)ので、OCR の取り違えがそのまま赤になる(E2EY-iOS の反転チャットで描かれた "yo1" を Vision は
     /// 等倍 "01"・×2/×3 "Y01" と読み、上位候補も1つだけ)。隣の行・別の文字は取り違え以外の差を含むので赤のまま
+    /// **結合ラベル(`、` か `, ` で子の文字をつないだ行のラベル)は先頭の区切り(行の題名)で確かめる** —— 読み上げ用の文(「、0件のリマインダー」)は
+    /// 画面に描かれず、全体を求めると OCR が読み終えた回は決まって赤になった(標準アプリのリマインダーの一覧・Simulator iOS 27.2。描かれるのは
+    /// 「Ztestリスト」と件数の「0」だけ)。先頭の区切りも読めなければ(何も読めない・別の文字)従来どおり赤
     public static func rowLabelNotRead(lines: [String]?, expected: String) -> Bool {
         guard let lines, !lines.isEmpty else { return false }
         let transcript = lines.joined(separator: " ")
-        if TranscriptMatch.judge(transcript: transcript, expected: expected).visible { return false }
-        return !TranscriptMatch.containsWithConfusableGlyphs(transcript: transcript, expected: expected)
+        for candidate in [expected, mergedLabelHead(expected)].compactMap({ $0 }) {
+            if TranscriptMatch.judge(transcript: transcript, expected: candidate).visible { return false }
+            if TranscriptMatch.containsWithConfusableGlyphs(transcript: transcript, expected: candidate) { return false }
+        }
+        return true
+    }
+
+    /// 結合ラベルの先頭の区切り(`、` / `, ` の手前)。区切りが無い・先頭が空なら nil
+    static func mergedLabelHead(_ label: String) -> String? {
+        guard let cut = [label.range(of: "、"), label.range(of: ", ")].compactMap({ $0 }).min(by: { $0.lowerBound < $1.lowerBound })
+        else { return nil }
+        let head = label[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
+        return head.isEmpty ? nil : head
     }
 
     /// `lines` が nil(読んでいない)なら判定不能。空でなければ `TranscriptMatch.judge` へそのまま回す。

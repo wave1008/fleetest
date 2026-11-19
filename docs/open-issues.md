@@ -27,7 +27,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-282・OI-290 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-282 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 30 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297 |
@@ -57,24 +57,6 @@
 - 3回目の評価(11/19・`_work/scen-eval-20261119/`): ①④⑤は出ず。②はまだ出る(phys_and_3a 50〜77%・e2ey_cmp_3a / r3_e2ey_cmp_3a の PIN 画面 36%・e2ex_flutter_emu 61%)。③はまだ出る(「under the sticky header」が `#circle`・`#otp_box_1`・同じ段落の続きの文・商品名の staticText を名指す 5 件 / OTP の「may have hit #otp_box_1」3 件)。新しい形: ⑥「#pad_swipe is still empty after a short re-read wait — it may be genuinely empty, or still loading」が本文を持つ scrollView・子を持たない設計のジェスチャ板に出る(r3_e2e_flutter_ios・e2e_flutter_en)⑦snapshotAfter の即時の木に別ウィンドウのモーダル・アニメーション中のシートが出ていないのに、注記は「a dynamic list … may not have populated yet」(e2e_ios_sim・r6_e2ey_flutter_ios)⑧遅れて届く更新(着信)に「the action may not have changed the screen」(3 件)
 - 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る ②⑦は直した(②モーダルの形は左の余白で見る・⑦初回の注記に開きかけのシートと別ウィンドウを足した)。⑧は文言が「変わらなかった」と「窓がまだ木に来ていない」の両方を言っており据え置き。残るのは③と⑥
 - ⑥の測定(11/19): 注記は画面の 3 割以上の高さのスクロール可能な要素に depth の子が無いと出す(`emptyLoadingScroller`)。Flutter は中身を容器の子でなく兄弟として返す(r3_e2e_flutter_ios・e2e_flutter_en の木で、容器の枠の中に中身が同じ depth で並ぶ)。「容器の枠の中に中心がある要素があれば空と言わない」で直すと、固定コーパスの真陽性 2 件(`ios-messages_keyboard` = 新規会話の空の一覧の枠の中にナビバー・入力欄が重なる / `and-maps_transit_results`)も消える = 反例を見分けられないので直さなかった。次の一手: Flutter の兄弟と、重なった別部品(ナビバー等)を depth・木の順で見分けられるかを、Flutter の木(depth 付き)と2件で比べる
-
-### OI-290 iOS Simulator の inapp-boost で、標準アプリのリマインダーの新規行の欄・オーバーフローのボタン・行のラベルが割れる
-- 状態: 再現済み
-- 確認: 657e032d1(2026-11-19)
-- 属性: 要測定
-- 運用: 回避可 — iosMode: "xcuitest"
-- 優先度: 中 — 標準アプリ(OS 同梱)だけ
-
-出典: シナリオ作成の評価 3回目(2026-11-19・`_work/scen-eval-20261119/`。AI のセッション 65 本が作った 332 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで 93 回・延べ 446 本回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
-- 3 つの別の AI(builtin_ios・r5_builtin_ios・r7_builtin_ios)のリマインダーが手元 Sim -08・M4Max の 2 台で 1/2・0/2・0/2・0/2・0/4・0/4。2回目の評価の A-1 のうち連絡先は DR-199 で直り、リマインダーが残った
-- ① `tap("新規")` の後の `type(".textField&&タイトル", …)` が in-app の木で解けない。ツールはキーボードの上を押して閉じ、「that tap was not side-effect free: #<x-apple-reminderkit://…>, #Notes text view, button 円 disappeared」と言う(編集中の行が消える)
-- ② リストの右上の「…」(id TopOverflowBarButtonItem)への tap が「its centre is covered by button "編集", and only 0 of the target is left uncovered」で撃たずに赤
-- ③ `exist("Ztestリスト、*")` がテキストの可視性検証で赤:「the row's label "Ztestリスト、0件のリマインダー" is not drawn in its frame — the text read there is "＜", "Ztestリスト" (judged by OCR)」(手元 Sim -08 の 1 回。M4Max では緑)
-- 測定(11/19・失敗時の木と画面): ①は in-app の木で新規の行が `clickable id=<x-apple-reminderkit://…>` だけ(ラベルも中の入力欄も無い)。XCUITest の木では行のラベル・textField「タイトル」が出る = DR-199 と同じ「OS の読み上げにだけ出る要素」→ DR-202 で直した。②は in-app の木でナビゲーションバーの同じ位置 (288,66) に `button "編集" (288,66 56x36)`・`button "リストを追加" (288,66 36x36)`・`button "さらに表示"`(リストの「…」・(288,66 38x36)) の 3 つが重なって出る(画面に見えるのは「…」だけ)= 表示されていない代わりのバーボタンが木に残り、手前と読まれた
-- ①は DR-202 で解いた(in-app の木で解けない操作の対象を XCUITest の木で照会し、押せると答えた要素を XCUITest で撃つ)。11/19 の Sim -08 で、`type(".textField&&タイトル", …)` が in-app の木で解けずに XCUITest の木から撃った(キーボードを閉じる tap は撃っていない)。入った先は別のセッションが残した既存のリマインダーの欄で、xcuitest モードでも同じ端末・同じ状態で同じ欄へ入った(XCUITest の木では各行のタイトル欄が全部 `.textField&&タイトル` に一致し、先頭を撃つ)= 選び方はモードで揃った。シナリオの赤は残ったデータとセレクタの曖昧さ
-- ②は直した(11/19・ブリッジ v300): in-app ブリッジに一時的な測る口を足して、0.1 秒おきに「…」の位置の要素と祖先の view を読んだ。重なりはリストの詳細へ移る遷移の途中の 0.2 秒足らずだけで、前の画面の「編集」「リストを追加」は祖先の view の1つが alpha 0(消える途中)・新しい画面の「さらに表示」は祖先が全部見えていた。ナビゲーションバーの `accessibilityElements` がボタンを直接返すので、走査は透明な祖先を検めずに載せていた。祖先に隠れた・透明な view がある要素を木から外した(`BridgeAPI.hiddenByAncestor`)。直す前は「移ってすぐ押す」流れが赤・直した後は緑、評価で赤だったリストのシナリオの「…」のタップも緑
-- ③は手元 Sim -08 で再現した(11/19 の②の確認の回。M4Max の緑の回とは別)。行のラベル「Ztestリスト、0件のリマインダー」のうち「、0件のリマインダー」は読み上げ用の文で画面に描かれない。OCR は「＜」「Ztestリスト」を読み、描かれたのが期待の半分以下として赤
-- 次の一手: ③は同じ行で、緑の回(M4Max)の判定の段(FM か OCR か)と読みを照らす。読み上げ用のラベルの一部だけが描かれる形を、`TranscriptMatch` の先頭一致(半分より多いと緑)が分けられないなら、可視性検証に何を渡すか(描かれる文字だけ)を考える
 
 ## 要判断
 
