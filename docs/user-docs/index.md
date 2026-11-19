@@ -135,7 +135,7 @@ scenarios the AI assistant wrote, or to write some yourself.
 - Reading values
     - [Reading values of the grabbed element (.text, .value, .id, lastElement)](reference/commands/reading_values.md)
 - Sharing values between scenarios
-    - [Memo (writeMemo, readMemo, clearMemo, memoTextAs)](reference/commands/memo.md)
+    - [Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](reference/commands/memo.md)
 - Test data, files, and talking to servers
     - [Test data and accounts (account, data, dataFile, addMedia)](reference/commands/dataset.md)
     - [Output folder and temporary folder (TestLog)](reference/commands/test_log.md)

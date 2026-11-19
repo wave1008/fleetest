@@ -31,10 +31,10 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### group, procedure, beforeEach, afterEach, beforeAll, afterAll, setUpDevice, tearDownDevice
 - [`procedure { }` for code to skip after a failure](../commands/descriptors.md#notes) — raw Swift directly in `action { }` / `expectation { }` still runs after an earlier failure; put it in `procedure { }`.
-- [`beforeAll()` instance properties are not shared](../commands/descriptors.md#notes) — it runs in the first scenario's process; pass values with `writeMemo` / `readMemo`, and if it fails the class's remaining scenarios fail unrun.
-- [`setUpDevice()` instance properties are not shared](../commands/descriptors.md#notes) — pass values with `writeMemo` / `readMemo`; a failure fails the class's remaining scenarios on that device and is never retried.
+- [`beforeAll()` instance properties are not shared](../commands/descriptors.md#notes) — it runs in the first scenario's process; pass values with `writeRunMemo` / `readRunMemo`, and if it fails the class's remaining scenarios fail unrun.
+- [`setUpDevice()` instance properties are not shared](../commands/descriptors.md#notes) — pass values with `writeRunMemo` / `readRunMemo` (`setUpDevice()` cannot write it); a failure fails the class's remaining scenarios on that device and is never retried.
 - [`afterEach()` runs even after a failure](../commands/descriptors.md#notes) — use it for cleanup that must always happen, such as terminating the app.
-- [`tearDownDevice()` has its own process](../commands/descriptors.md#notes) — it can read memos and runs even if `setUpDevice()` failed, but not on dropped devices; its result is not counted in the test results.
+- [`tearDownDevice()` has its own process](../commands/descriptors.md#notes) — it can read the run memo and runs even if `setUpDevice()` failed, but not on dropped devices; its result is not counted in the test results.
 - [`@Deleted` / `@Draft` are excluded from bulk runs](../commands/descriptors.md#notes) — they can only be run by exact ID, so a scenario marked this way silently does not run in all/folder/class runs.
 - [Describe steps in the scene title](../commands/descriptors.md#notes) — write the steps in the scene's title string.
 

@@ -123,6 +123,19 @@ struct RunCommonOptions: ParsableArguments {
             visibility: .hidden))
     var workQueue = false
 
+    /// **手で打つものではない**。マシンをまたぐ run の親(発行元)と stdin / stdout の行でつながる子であることの印。
+    /// run メモ(DR-208)を発行元の通し番号の順に全マシンへそろえる通り道で、`--work-queue`(動的な割り振り)の子は
+    /// これも含む。`--broadcast`・レスポンス計測の run・静的な割り振りの子は、これだけでつながる。ssh 越しの子へは `RemoteRunArgs` が中継する
+    @Flag(name: .customLong("run-memo-link"),
+          help: ArgumentHelp(
+            "Internal: share run memo values with the parent of a multi-machine run "
+            + "(lines on stdout and stdin). Set by the parent; not for hand use",
+            visibility: .hidden))
+    var runMemoLink = false
+
+    /// 親とつながる子か(`--work-queue` は含む)。run の入口で stdin を移す条件
+    var linkedToParent: Bool { workQueue || runMemoLink }
+
     /// **手で打つものではない**。RemoteRunDispatcher がミラー後の絶対パスを渡す
     /// (Sources/FTRemote/RemoteDispatch.swift の RemoteRunArgs.build)。プロファイルの
     /// `remoteControl.workspace` を上書きし、appPath のインストール先(ステージ先。原本の解決基準は

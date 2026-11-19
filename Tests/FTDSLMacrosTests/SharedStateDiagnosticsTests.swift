@@ -35,7 +35,7 @@ final class SharedStateDiagnosticsTests: XCTestCase {
         XCTAssertEqual(summary(found), ["orderID: S0010() -> S0020()"])
         XCTAssertEqual(found.first?.message,
                        "`orderID` is written in S0010() but read in S0020(): every @Test runs in its own process,"
-                           + " so the value does not carry over. Share the value with writeMemo / readMemo")
+                           + " so the value does not carry over. Share the value with writeRunMemo / readRunMemo")
     }
 
     func testWrittenInSetUpDeviceAndReadInTests() {
@@ -188,7 +188,7 @@ final class SharedStateDiagnosticsWiringTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "`x` is written in S0010() but read in S0020(): every @Test runs in its own process,"
-                        + " so the value does not carry over. Share the value with writeMemo / readMemo",
+                        + " so the value does not carry over. Share the value with writeRunMemo / readRunMemo",
                     line: 6, column: 9, severity: .warning),
             ],
             macroSpecs: [

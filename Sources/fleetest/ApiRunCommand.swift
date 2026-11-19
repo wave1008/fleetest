@@ -227,7 +227,7 @@ struct ApiRunCommand: AsyncParsableCommand {
 
     func run() async throws {
         // 子プロセスを1本も起こす前に(供給の adb なども stdin を受け継ぐ)
-        if common.workQueue { _ = WorkQueueStdin.claim() }
+        if common.linkedToParent { ParentLink.enable() }
         try common.rejectWorkQueueMeasurement(setOverrides: setOverrides)
         try await RunExitGuard.run(log: { logStderr($0) }, jobRun: jobRunTarget) { try await runBody(runExit: $0) }
     }
@@ -311,7 +311,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         explicitTarget: runner, profile: common.profile, project: common.project,
             requireProfileMachine: !dryRun) {
             // 中継役をコピーから動かす(手元でビルドしても殺されない。DispatchSelfCopy の規律)
-            if !common.workQueue { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
+            if !common.linkedToParent { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
             try await dispatchToRemoteHost(dispatch, project: testProject)
             return
         }
@@ -871,6 +871,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             performanceMode: performanceMode,
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout.map(Double.init),
             workQueue: common.workQueue,
+            runMemoLink: common.runMemoLink,
             remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)

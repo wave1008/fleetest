@@ -486,9 +486,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// **率が上がったら起動の遅いデバイス・高負荷**で、ランナー喪失の手前にいる
     case launchActivatedBeforeForeground = "launch-activated-before-foreground"
 
-    /// `readMemo` のキーが**このデバイスのメモに無かった**(`""` を返した)。メモはデバイス単位なので、
-    /// 書いた関数が別のデバイスへ配られた形でも立つ。**どこで書かれたかは推測しない**(事実だけ)
+    /// `readMemo` のキーが**このテストのメモに無かった**(`""` を返した)。**どこで書かれたかは推測しない**(事実だけ)
     case memoKeyNotFound = "memo-key-not-found"
+
+    /// `readRunMemo` のキーが**この run のメモ(開始時点の写し)に無かった**(`""` を返した)。
+    /// 書き手がまだ走っている・別のマシンの書き込みがまだ届いていない形でも立つ。**どれかは推測しない**(事実だけ)
+    case runMemoKeyNotFound = "run-memo-key-not-found"
 
     /// in-app が ref タップで要素を直接撃ったが(activate か、要素の窓へ直接送る合成タッチ)、撃った点
     /// (枠の中心 = 座標タップ・XCUITest が押す点)で本物のタッチを受けるのは別の view だった
@@ -794,7 +797,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "waited for the just-presented dialog or sheet to finish appearing before tapping"
                 + " (a tap during the transition is dropped)"
         case .memoKeyNotFound:
-            return "nothing was written under this key on this device in this run (the memo is per device)"
+            return "nothing was written under this key in this test (the memo lives inside one test)"
+        case .runMemoKeyNotFound:
+            return "nothing was written under this key in the run memo as it was when this scenario started"
         case .unchangedTapBeforeFailure:
             return "a tap before this failure did not change the app's tree at all"
         case .rowLabelNotRead:

@@ -485,19 +485,31 @@ public enum DSLCommandIndex {
         .init("doUntilTrue", "control", "doUntilTrue(description, waitSeconds:, intervalSeconds:, maxLoopCount:) { condition }",
               "Repeats the block (DSL commands allowed inside) until it returns true."),
 
-        // MARK: memo (values shared by every scenario of one run, on every device)
+        // MARK: memo (test-scoped: inside one test; run-scoped: shared by the whole run on every machine)
         .init("writeMemo", "memo", "writeMemo(key, text)",
-              "Appends a value to the key's history in the memo. The memo is shared by every scenario of one run on"
-                  + " every device (write shared values in beforeAll). A scenario sees the memo as it was when it"
-                  + " started; writes are not serialized across devices."),
+              "Appends a value to the key's history in the test's memo. The memo lives inside one test (beforeEach, the"
+                  + " test body and afterEach) and is empty at the start of every test; it is an error outside a test"
+                  + " (beforeAll, setUpDevice, tearDownDevice, afterAll). Use writeRunMemo to share across tests."),
         .init("readMemo", "memo", "readMemo(key)",
-              "Returns the last value written under the key, or \"\" when there is none (not a failure;"
-                  + " the step carries the memo-key-not-found note)."),
+              "Returns the last value written under the key in the test's memo, or \"\" when there is none (not a failure;"
+                  + " the step carries the memo-key-not-found note). An error outside a test."),
         .init("clearMemo", "memo", "clearMemo()",
-              "Clears the whole memo of the run."),
+              "Clears the whole memo of the test. An error outside a test."),
         .init("memoTextAs", "memo", "element.memoTextAs(key) / string.memoTextAs(key)",
-              "Writes an element's text (the first non-empty of label and value) or a String to the memo under the key and"
+              "Writes an element's text (the first non-empty of label and value) or a String to the test's memo under the key and"
                   + " returns the element or string, so it chains: select(\"#total\").memoTextAs(\"total\")."),
+        .init("writeRunMemo", "memo", "writeRunMemo(key, text)",
+              "Appends a value to the key's history in the run memo, shared by every scenario of one run on every"
+                  + " machine (write shared values in beforeAll). A scenario sees the run memo as it was when it"
+                  + " started; writes are not serialized (no locking). An error in setUpDevice, tearDownDevice and afterAll."),
+        .init("readRunMemo", "memo", "readRunMemo(key)",
+              "Returns the last value written under the key in the run memo, or \"\" when there is none (not a failure;"
+                  + " the step carries the run-memo-key-not-found note). Readable in every phase."),
+        .init("clearRunMemo", "memo", "clearRunMemo()",
+              "Clears the whole run memo. An error in setUpDevice, tearDownDevice and afterAll."),
+        .init("runMemoTextAs", "memo", "element.runMemoTextAs(key) / string.runMemoTextAs(key)",
+              "Writes an element's text (the first non-empty of label and value) or a String to the run memo under the key and"
+                  + " returns the element or string, so it chains: select(\"#total\").runMemoTextAs(\"total\")."),
 
         // MARK: data (account / test data datasets, and outbound HTTP)
         .init("account", "data", "account(longKey) / account(datasetName, attributeName)",
@@ -572,7 +584,7 @@ public enum DSLCommandIndex {
 
     /// 自由関数ではなく型のメンバとして生える索引項目(`element.memoTextAs` / `string.memoTextAs`)。
     /// 「ソースにあるが索引に無い」の照合は行頭の `public func` を拾うので、これらはその対象外
-    public static let memberOnlyNames: Set<String> = ["memoTextAs"]
+    public static let memberOnlyNames: Set<String> = ["memoTextAs", "runMemoTextAs"]
 
     /// 型の静的メンバとして生える索引項目(`TestLog.directoryForLog` 等)。名前は `型.メンバ` の形で索引に載る
     public static let staticMemberNames: Set<String> = ["TestLog.directoryForLog", "TestLog.directoryForTemp"]

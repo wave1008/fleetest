@@ -1,7 +1,7 @@
 import FTDSL
 
 // クラスの実行の寄せ方(RR-8.3)の陽性対照。**E2E-CMP だけに置く**(5 SUT の共通契約には載せない)。
-// 順番は関数名の順と逆にしてある(S0030 → S0010 → S0020)= @Order が効いていなければ readMemo が赤になる。
+// 順番は関数名の順と逆にしてある(S0030 → S0010 → S0020)= @Order が効いていなければ readRunMemo が赤になる。
 // どのマシン・デバイスで走ったかは結果 JSON の machine / worker で見る(シナリオからは見えない)。
 
 @RunInOrder("順番の保証の陽性対照")
@@ -14,9 +14,9 @@ class 順に流すクラス {
         scenario {
             scene(1, "印を書く") {
                 action {
-                    writeMemo("inOrderStep", "1")
+                    writeRunMemo("inOrderStep", "1")
                 }.expectation {
-                    readMemo("inOrderStep").thisIs("1")
+                    readRunMemo("inOrderStep").thisIs("1")
                 }
             }
         }
@@ -28,10 +28,10 @@ class 順に流すクラス {
         scenario {
             scene(1, "前の印を読む") {
                 action {
-                    writeMemo("inOrderSeen2", readMemo("inOrderStep"))
-                    writeMemo("inOrderStep", "2")
+                    writeRunMemo("inOrderSeen2", readRunMemo("inOrderStep"))
+                    writeRunMemo("inOrderStep", "2")
                 }.expectation {
-                    readMemo("inOrderSeen2").thisIs("1")
+                    readRunMemo("inOrderSeen2").thisIs("1")
                 }
             }
         }
@@ -43,9 +43,9 @@ class 順に流すクラス {
         scenario {
             scene(1, "前の印を読む") {
                 action {
-                    writeMemo("inOrderSeen3", readMemo("inOrderStep"))
+                    writeRunMemo("inOrderSeen3", readRunMemo("inOrderStep"))
                 }.expectation {
-                    readMemo("inOrderSeen3").thisIs("2")
+                    readRunMemo("inOrderSeen3").thisIs("2")
                 }
             }
         }

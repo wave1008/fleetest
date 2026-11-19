@@ -24,11 +24,11 @@ final class DispatchSelfCopyTests: XCTestCase {
         XCTAssertEqual(left, ["fleetest-dispatch-222", "fleetest-dispatch-abc", "other-333"])
     }
 
-    /// コピーへ移るのは**単一のリモートへの分岐の中だけ**・`--work-queue` の子では移らない、を両コマンドで固定する。
+    /// コピーへ移るのは**単一のリモートへの分岐の中だけ**・親とつながる子(`--work-queue` / `--run-memo-link`)では移らない、を両コマンドで固定する。
     /// 手元の run で移ると、隣のヘルパーと手元のシナリオ実行バイナリが見つからなくなる。
-    /// work-queue の子で移ると、入口で close-on-exec へ移した stdin(親からの返事)が exec で消える
+    /// 親とつながる子で移ると、入口で close-on-exec へ移した stdin(親からの返事)が exec で消える
     func testBothCommandsCopyOnlyOnTheSingleRemoteBranch() throws {
-        let call = "if !common.workQueue { DispatchSelfCopy.reexecIfNeeded("
+        let call = "if !common.linkedToParent { DispatchSelfCopy.reexecIfNeeded("
         let cases = [
             ("Sources/fleetest/Fleetest.swift", "try await dispatchToRemoteHost(dispatch)\n"),
             ("Sources/fleetest/ApiRunCommand.swift", "try await dispatchToRemoteHost(dispatch, project: testProject)\n"),
@@ -40,7 +40,7 @@ final class DispatchSelfCopyTests: XCTestCase {
             let branch = try XCTUnwrap(text.range(of: "resolveEffectiveDispatchTarget("), file)
             let dispatch = try XCTUnwrap(text.range(of: dispatchCall, range: branch.upperBound..<text.endIndex), file)
             XCTAssertTrue(text[branch.upperBound..<dispatch.lowerBound].contains(call),
-                          "\(file): copy the relay (guarded by !common.workQueue) right before the single remote dispatch")
+                          "\(file): copy the relay (guarded by !common.linkedToParent) right before the single remote dispatch")
         }
     }
 

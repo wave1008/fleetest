@@ -748,6 +748,7 @@ public enum RemoteRunArgs {
                              performanceMode: Bool,
                              broadcast: Bool = false,
                              workQueue: Bool = false,
+                             runMemoLink: Bool = false,
                              remoteJUnitPath: String?,
                              reportDir: String?, workspace: String? = nil,
                              runGroup: String? = nil) -> [String] {
@@ -794,6 +795,8 @@ public enum RemoteRunArgs {
         if broadcast { args.append("--broadcast") }
         // 中継しないとリモートは自分の持ち分を静的に決めて走る(親の配りを待たない)。stdin の中継は RemoteRunDispatcher
         if workQueue { args.append("--work-queue") }
+        // 中継しないとリモートの run メモが発行元とつながらず、そのマシンだけの値になる(stdin の中継は RemoteRunDispatcher)
+        if runMemoLink { args.append("--run-memo-link") }
         if let remoteJUnitPath { args += ["--junit", remoteJUnitPath] }
         // 束ね鍵は**中継しないと向こうの run.json に載らない** = リモートで撮った録画だけが
         // 束から外れる(RunMetaRecord.runGroup の宣言)
@@ -809,6 +812,7 @@ public enum RemoteRunArgs {
                                 performanceMode: Bool,
                                 defaultTimeout: Double?, scenarioTimeout: Double?,
                                 workQueue: Bool = false,
+                                runMemoLink: Bool = false,
                                 reportDir: String?, workspace: String? = nil,
                                 runGroup: String? = nil) -> [String] {
         // --runner local の理由は build() のコメント(リモートでの再ディスパッチを止める)
@@ -833,6 +837,8 @@ public enum RemoteRunArgs {
         if let scenarioTimeout { args += ["--scenario-timeout", formatTimeout(scenarioTimeout)] }
         // 理由は build() の --work-queue と同じ
         if workQueue { args.append("--work-queue") }
+        // 理由は build() の --run-memo-link と同じ
+        if runMemoLink { args.append("--run-memo-link") }
         // 中継の理由は build() の --run-group と同じ
         if let runGroup { args += ["--run-group", runGroup] }
         return args

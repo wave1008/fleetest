@@ -55,7 +55,7 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   `account()` の値をレポートで `***` に伏せるのはマシン側の `redactAccountValues` で、**既定は伏せない**。
   `~/.config/fleetest/` はエージェントが書かない(🧑 が書く)
 - **ファイル直下に `var` を書かない**(Swift 6 で `is not concurrency-safe` のコンパイルエラー)。各 `@Test` は
-  別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeMemo` / `readMemo`
+  別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` は1つのテストの中だけ)
 - 同じ手順を関数に切り出して使い回してよい(private func。例: 不定ダイアログの `dismiss…IfAny()`)。
 - `procedure` は任意 Swift(データ準備等)を1ステップとして記録。throw すると NG 扱いでシナリオ中断。
 

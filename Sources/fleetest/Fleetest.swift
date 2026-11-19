@@ -513,7 +513,7 @@ struct RunScenarios: AsyncParsableCommand {
 
     func run() async throws {
         // 子プロセスを1本も起こす前に(供給の adb なども stdin を受け継ぐ)
-        if common.workQueue { _ = WorkQueueStdin.claim() }
+        if common.linkedToParent { ParentLink.enable() }
         try common.rejectWorkQueueMeasurement(setOverrides: setOverrides)
         let targets = try multiTargets()
         if targets.count >= 2 {
@@ -591,7 +591,7 @@ struct RunScenarios: AsyncParsableCommand {
         explicitTarget: runner, profile: common.profile, project: common.project,
             requireProfileMachine: true) {
             // 中継役をコピーから動かす(手元でビルドしても殺されない。DispatchSelfCopy の規律)
-            if !common.workQueue { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
+            if !common.linkedToParent { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
             try await dispatchToRemoteHost(dispatch)
             return
         }
@@ -1227,6 +1227,7 @@ struct RunScenarios: AsyncParsableCommand {
             setOverrides: dispatchOverrides,
             noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: common.workQueue,
+            runMemoLink: common.runMemoLink,
             localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)

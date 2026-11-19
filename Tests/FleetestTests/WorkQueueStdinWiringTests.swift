@@ -1,4 +1,4 @@
-// `--work-queue` の子は run の入口で最初に stdin を自分だけの fd へ移す(WorkQueueStdin.claim)。
+// `--work-queue` / `--run-memo-link` の子は run の入口で最初に stdin を自分だけの fd へ移す(ParentLink.enable = WorkQueueStdin.claim)。
 // 子プロセスが fd 0 を受け継いで読むと親の返事を横取りし、レーンが渡されたシナリオを受け取れずに止まる。
 // claim はテストのプロセスの fd 0 を書き換えるので、ここでは配線をソース走査で固定する(効き目はデバイス実行で確かめた)
 
@@ -40,7 +40,7 @@ final class WorkQueueStdinWiringTests: XCTestCase {
     func testBothRunEntriesClaimStdinBeforeAnythingElse() throws {
         for file in ["Sources/fleetest/Fleetest.swift", "Sources/fleetest/ApiRunCommand.swift"] {
             let first = firstStatementOfRun(in: try source(file), file: file)
-            XCTAssertEqual(first, "if common.workQueue { _ = WorkQueueStdin.claim() }",
+            XCTAssertEqual(first, "if common.linkedToParent { ParentLink.enable() }",
                            "\(file): run() の最初で stdin を移していない")
         }
     }

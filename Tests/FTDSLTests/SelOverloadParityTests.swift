@@ -21,7 +21,7 @@ final class SelOverloadParityTests: XCTestCase {
         "iosAlertHandler",      // OS アラートのボタンラベル(SpringBoard 側。アプリのセレクタではない)
         "findImage", "findImages", "existImage",  // 見本画像のラベル(DefaultClassifier)
         "group", "procedure", "scene", "verify", "doUntilTrue",  // 記録用のタイトル・説明
-        "writeMemo", "readMemo",  // メモのキーと値(デバイスセッション)
+        "writeMemo", "readMemo", "writeRunMemo", "readRunMemo",  // メモのキーと値
         "account", "data",  // データセットの longKey(`[account1].password`)
         "dataFile", "addMedia",  // データセットのフォルダからの相対パス
         "httpRequest",      // 通信先の URL

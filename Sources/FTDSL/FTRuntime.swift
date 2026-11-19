@@ -296,10 +296,10 @@ public final class FTDriveCore {
     private var lastElementWarned = false
     /// group("名前") { } の入れ子。記録時にステップ説明へ `[外/内]` を前置する
     var groupStack: [String] = []
-    /// デバイスセッションのメモ(キー → 書いた順の値)。親が `--device-session-stdin` で渡した写しで始まり、
-    /// 書き込みは `memoWrite` / `memoClear` イベントで親へ片道通知する(応答は無い)。
-    /// 契約は FTCore/DeviceSessionHandoff.swift。DSL スレッド専有で lock 不要
-    public var deviceMemo: [String: [String]] = [:]
+    /// run メモ(キー → 書いた順の値)。親が渡した写しで始まり、書き込みは runMemoWrite / runMemoClear で親へ片道通知する
+    /// (契約は FTCore/DeviceSessionHandoff.swift)。testMemo はこのプロセスの中だけ。どちらも DSL スレッド専有で lock 不要
+    public var runMemo: [String: [String]] = [:]
+    public var testMemo: [String: [String]] = [:]
     /// `account()` / `data()` のデータセット(種類ごとに初回に1回読む。ファイル読みは DSL スレッドだけが行う)
     let datasets = LockedValue<[ScenarioDataset.Kind: ScenarioDataset]>([:])
     /// `account()` の値を伏せ字の登録簿へ入れるか(マシン側の `redactAccountValues`。既定 false)

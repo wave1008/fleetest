@@ -241,10 +241,10 @@ enum DeviceMachineRunner {
         // サブ実行のクラッシュ検出(reportMissingResults)が「この run で書かれた記録」を
         // 走査の窓で絞るための開始時刻。子の起動より前に捕まえる(子の書き込みは必ずこの後)
         let dispatchStart = Date()
-        // 動的な割り振り: 子ごとの stdin 書き込み口と配り手。中断は親が受けて全要求へ none を返す
-        // (返事待ちの子は中断フラグを見られない)
-        let writers: [Int: ChildStdinWriter] = dynamicPlan == nil ? [:]
-            : Dictionary(uniqueKeysWithValues: active.map { ($0.0, ChildStdinWriter()) })
+        // 子ごとの stdin 書き込み口(run メモの通り道 = どの形の子にも開ける。DR-208)と、動的な割り振りの配り手。
+        // 中断は親が受けて全要求へ none を返す(返事待ちの子は中断フラグを見られない)
+        let writers: [Int: ChildStdinWriter] = Dictionary(uniqueKeysWithValues: active.map { ($0.0, ChildStdinWriter()) })
+        let memoRelay = RunMemoRelay(writers: writers)
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
@@ -270,19 +270,14 @@ enum DeviceMachineRunner {
                         quiet: quiet,
                         junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                         broadcast: broadcast, runGroup: runGroup, reportDir: reportDir,
-                        workQueue: dispatcher != nil)
-                    let writer = writers[index]
-                    let interceptor: (@Sendable (String) -> Bool)?
-                    if let dispatcher, let writer {
-                        interceptor = { line in dispatcher.intercept(line: line, entry: index, writer: writer) }
-                    } else {
-                        interceptor = nil
-                    }
+                        workQueue: dispatcher != nil, runMemoLink: true)
                     let start = Date()
                     let exitCode = await FleetRunner.runEntry(
                         binary: binary, args: args, hostLabel: group.machineLabel, ticket: ticket,
                         lockMarker: lockMarkers[group.machineLabel], healCollection: healCollection,
-                        stdin: writer, lineInterceptor: interceptor)
+                        stdin: writers[index],
+                        lineInterceptor: { line in memoRelay.intercept(line: line, entry: index, dispatcher: dispatcher) })
+                    memoRelay.childExited(entry: index)
                     dispatcher?.childExited(entry: index)
                     return (index, FleetEntryOutcome(
                         host: group.machineLabel, profile: profileName, exitCode: exitCode,
@@ -500,7 +495,7 @@ enum DeviceMachineRunner {
         performanceMode: Bool,
         forceLock: Bool, remoteDir: String?, remoteTimeout: Int?,
         quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil,
-        reportDir: String? = nil, workQueue: Bool = false
+        reportDir: String? = nil, workQueue: Bool = false, runMemoLink: Bool = false
     ) -> [String] {
         var args = FleetRunner.buildArgs(
             project: project, host: host, profile: profile,
@@ -516,6 +511,8 @@ enum DeviceMachineRunner {
         }
         // 動的な割り振り(RR-8.1)の子だけ。--scenario は全候補で、回すのは親が1本ずつ渡した分
         if workQueue { args += ["--work-queue"] }
+        // run メモ(DR-208)を発行元の通し番号の順に全マシンへそろえる通り道。動的でない形(--broadcast・計測・静的)の子もつなぐ
+        if runMemoLink { args += ["--run-memo-link"] }
         return args
     }
 

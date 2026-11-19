@@ -79,7 +79,7 @@ procedure("テスト用の注文を API で作る") {
 | `dataFile()` | CSV・JSON・画像などをファイルのまま使います |
 | `addMedia()` | 写真・動画をデバイスの写真ライブラリへ入れます(iOS 実機には入れられません) |
 | `httpRequest` / `fleetestURLSession` | API でテストデータを用意する・後片付けする・サーバー側の状態を読む |
-| [`writeMemo` / `readMemo`](../commands/memo_ja.md) | `beforeAll()` で用意した値を他のシナリオへ渡す |
+| [`writeRunMemo` / `readRunMemo`](../commands/memo_ja.md) | `beforeAll()` で用意した値を他のシナリオへ渡す |
 
 よくある使い方:
 

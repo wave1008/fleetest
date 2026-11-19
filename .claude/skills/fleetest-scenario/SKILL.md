@@ -245,7 +245,7 @@ class ログインできること {
 - 順番が要る流れは、まず1つの `@Test` にまとめる。属性は必要な場合だけ(`@RunInOrder` は並列化を妨げ、失敗すると残りは実行されず、再テストもクラスの最初から。
   `@RunOnSingleDevice` は順番を決めず、防ぐのはそのクラスの中の同時実行だけ。`@RunOnSingleMachine` はマシン間の負荷分散を失う)
 - `@RunInOrder` のクラスは全 `@Test` に `@Order(整数)` が必須(整数をそのまま書く・重複不可)。途中の1本だけは流せないので、確かめるときはクラスごと流し、まだ書いていない後ろは `@Draft`
-- メモ(`writeMemo`)を `setUpDevice()` / `tearDownDevice()` / `afterAll()` で書かない(失敗になる)。テスト間で値を渡せるのは `@RunInOrder` のクラスだけ
+- メモ(`writeMemo` 等)の範囲はテスト1本で、テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`)では読み書きとも失敗になる。run 全体で共有する値は `writeRunMemo` / `readRunMemo`(マシンをまたいで1つ・排他なし・同じキーへ書くのは1か所)で、確実なのは `beforeAll()` で書いて各テストで読む形。`setUpDevice()` / `tearDownDevice()` / `afterAll()` では run メモも書けない。テスト間で値を渡せるのは `@RunInOrder` のクラスで `writeRunMemo` した場合だけ
 
 - 属性のコンパイルエラーが出たら、属性を足して黙らせる前に、まず属性を外してテストを独立させられないか考える
 

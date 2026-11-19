@@ -423,8 +423,8 @@ extension MCPServer {
             return "It is DSL control flow (loop/conditional), which only makes sense inside a"
                 + " written scenario."
         case "memo":
-            return "The memo belongs to the run's device session, which a live ft_batch call does not have —"
-                + " it works only inside a scenario run (fleetest run / ft_run_scenario)."
+            return "The memo (and the run memo) lives inside a scenario run, which a live ft_batch call does not have —"
+                + " it works only in a written scenario (fleetest run / ft_run_scenario)."
         case "structure":
             return "It is a structural DSL keyword (scene/action/expectation/…), not a runnable step."
         case "flick":

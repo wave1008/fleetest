@@ -4,8 +4,8 @@
 
 Even on one machine, if it has several devices, the tests run in parallel on those devices and in no fixed order.
 
-When a run uses several machines, `beforeAll()`, the [memo](../commands/memo.md) and the [servers of compose.yaml](services.md) are
-also split **once per machine** (a setup in which every machine connects to one shared server is also possible; then all machines
+When a run uses several machines, `beforeAll()` and the [servers of compose.yaml](services.md) are
+also split **once per machine** (the [run memo](../commands/memo.md) is shared across machines) (a setup in which every machine connects to one shared server is also possible; then all machines
 touch the same database at the same time). Write the scenarios by these three rules so that they pass in either setup.
 
 ## Rules

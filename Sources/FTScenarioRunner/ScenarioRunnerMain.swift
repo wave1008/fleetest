@@ -258,7 +258,7 @@ struct RunScenario: AsyncParsableCommand {
     var pauseOnStart = false
 
     @Flag(name: .customLong("device-session-stdin"),
-          help: "Read the device session (shared memo and the setUpDevice flag) from the first line of stdin (set by ScenarioHost)")
+          help: "Read the device session (shared run memo and the setUpDevice flag) from the first line of stdin (set by ScenarioHost)")
     var deviceSessionStdin = false
 
     @Flag(name: .customLong("device-teardown-only"),
@@ -651,7 +651,7 @@ struct RunScenario: AsyncParsableCommand {
         core.appPackagePath = appPath
         core.appDisplayName = appName
         if let deviceSession {
-            core.deviceMemo = deviceSession.memo
+            core.runMemo = deviceSession.runMemo
             core.runSetUpDevice = deviceSession.runSetUpDevice
             core.runBeforeAll = deviceSession.runBeforeAll
         }

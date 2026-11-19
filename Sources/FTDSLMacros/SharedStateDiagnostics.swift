@@ -38,7 +38,7 @@ enum SharedStateDiagnostics {
         var message: String {
             "`\(property)` is written in \(writer.display) but read in "
                 + readers.map(\.display).joined(separator: ", ")
-                + ": \(reason). Share the value with writeMemo / readMemo"
+                + ": \(reason). Share the value with writeRunMemo / readRunMemo"
         }
 
         private var reason: String {

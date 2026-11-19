@@ -2,7 +2,7 @@ import XCTest
 @testable import FTDSL
 import FTCore
 
-/// デバイスセッション(メモ + setUpDevice)の子側。親への通知イベントと、親が渡す `runSetUpDevice` への従い方を固定する。
+/// デバイスセッション(run メモ + setUpDevice)の子側。親への通知イベントと、親が渡す `runSetUpDevice` への従い方を固定する。
 final class DeviceSessionMemoTests: XCTestCase {
 
     private final class Sink: @unchecked Sendable {
@@ -69,7 +69,7 @@ final class DeviceSessionMemoTests: XCTestCase {
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
         // setUpDevice での書き込みは失敗になる(DR-207)ので、区切りの記録は読み込みで確かめる
-        ftRunSetUpDevice { _ = readMemo("k") }
+        ftRunSetUpDevice { _ = readRunMemo("k") }
         XCTAssertEqual(setUpDeviceStatuses(sink), ["began", "passed"])
         XCTAssertEqual(steps(core).first?.section, "setUpDevice")
     }
@@ -95,7 +95,27 @@ final class DeviceSessionMemoTests: XCTestCase {
         XCTAssertEqual(setUpDeviceStatuses(sink), [])
     }
 
-    func testWriteMemoEmitsAndReadMemoReturnsLastValue() {
+    private func memoEvents(_ sink: Sink) -> [ScenarioEvent] {
+        sink.events.filter { $0.kind.lowercased().contains("memo") }
+    }
+
+    func testWriteRunMemoEmitsAndReadRunMemoReturnsLastValue() {
+        let sink = Sink()
+        let core = makeCore(sink: sink)
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        writeRunMemo("k", "first")
+        writeRunMemo("k", "second")
+        XCTAssertEqual(readRunMemo("k"), "second")
+        let writes = sink.events.filter { $0.kind == "runMemoWrite" }
+        XCTAssertEqual(writes.map { $0.memoKey }, ["k", "k"])
+        XCTAssertEqual(writes.map { $0.memoValue }, ["first", "second"])
+        XCTAssertEqual(steps(core).map(\.description),
+                       ["writeRunMemo \"k\" = \"first\"", "writeRunMemo \"k\" = \"second\"", "readRunMemo \"k\" → \"second\""])
+    }
+
+    /// test 範囲のメモは親へ何も出さず、run メモとも混ざらない
+    func testTestMemoEmitsNothingAndIsSeparateFromRunMemo() {
         let sink = Sink()
         let core = makeCore(sink: sink)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
@@ -103,23 +123,38 @@ final class DeviceSessionMemoTests: XCTestCase {
         writeMemo("k", "first")
         writeMemo("k", "second")
         XCTAssertEqual(readMemo("k"), "second")
-        let writes = sink.events.filter { $0.kind == "memoWrite" }
-        XCTAssertEqual(writes.map { $0.memoKey }, ["k", "k"])
-        XCTAssertEqual(writes.map { $0.memoValue }, ["first", "second"])
-        XCTAssertEqual(steps(core).map(\.description),
-                       ["writeMemo \"k\" = \"first\"", "writeMemo \"k\" = \"second\"", "readMemo \"k\" → \"second\""])
+        "s".memoTextAs("t")
+        clearMemo()
+        XCTAssertEqual(readMemo("k"), "")
+        XCTAssertTrue(memoEvents(sink).isEmpty)
+        XCTAssertTrue(core.runMemo.isEmpty)
+        writeRunMemo("k", "run")
+        XCTAssertEqual(readMemo("k"), "", "run メモの値が test 範囲のメモから見えている")
+        XCTAssertEqual(readRunMemo("k"), "run")
     }
 
-    func testHandedOverMemoIsReadable() {
+    func testHandedOverRunMemoIsReadableAndTestMemoStartsEmpty() {
         let sink = Sink()
         let core = makeCore(sink: sink)
-        core.deviceMemo = ["k": ["a", "b"]]
+        core.runMemo = ["k": ["a", "b"]]
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
-        XCTAssertEqual(readMemo("k"), "b")
+        XCTAssertEqual(readRunMemo("k"), "b")
+        XCTAssertEqual(readMemo("k"), "")
     }
 
-    func testReadMemoOfAbsentKeyReturnsEmptyWithNote() {
+    func testReadRunMemoOfAbsentKeyReturnsEmptyWithNote() {
+        let sink = Sink()
+        let core = makeCore(sink: sink)
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        XCTAssertEqual(readRunMemo("nope"), "")
+        let step = sink.events.last { $0.kind == "step" }
+        XCTAssertEqual(step?.notes, [StepNote.runMemoKeyNotFound.rawValue])
+        XCTAssertEqual(step?.status, "passed")
+    }
+
+    func testReadMemoOfAbsentKeyReturnsEmptyWithTestNote() {
         let sink = Sink()
         let core = makeCore(sink: sink)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
@@ -130,15 +165,15 @@ final class DeviceSessionMemoTests: XCTestCase {
         XCTAssertEqual(step?.status, "passed")
     }
 
-    func testClearMemoEmptiesAndEmits() {
+    func testClearRunMemoEmptiesAndEmits() {
         let sink = Sink()
         let core = makeCore(sink: sink)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
-        writeMemo("k", "v")
-        clearMemo()
-        XCTAssertEqual(readMemo("k"), "")
-        XCTAssertEqual(sink.events.filter { $0.kind == "memoClear" }.count, 1)
+        writeRunMemo("k", "v")
+        clearRunMemo()
+        XCTAssertEqual(readRunMemo("k"), "")
+        XCTAssertEqual(sink.events.filter { $0.kind == "runMemoClear" }.count, 1)
     }
 
     func testStringMemoTextAsWritesAndReturnsTheString() {
@@ -148,6 +183,9 @@ final class DeviceSessionMemoTests: XCTestCase {
         defer { FTRuntime.tearDown() }
         XCTAssertEqual("hello".memoTextAs("g"), "hello")
         XCTAssertEqual(readMemo("g"), "hello")
+        XCTAssertEqual("world".runMemoTextAs("r"), "world")
+        XCTAssertEqual(readRunMemo("r"), "world")
+        XCTAssertEqual(sink.events.filter { $0.kind == "runMemoWrite" }.compactMap(\.memoValue), ["world"])
     }
 
     private func element(label: String?, value: String?) -> FTElement {
@@ -163,13 +201,15 @@ final class DeviceSessionMemoTests: XCTestCase {
         let core = makeCore(sink: sink)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
-        element(label: "", value: "abc").memoTextAs("field")
-        element(label: "Total", value: "9").memoTextAs("total")
-        element(label: nil, value: nil).memoTextAs("blank")
-        XCTAssertEqual(readMemo("field"), "abc")
-        XCTAssertEqual(readMemo("total"), "Total")
-        XCTAssertEqual(core.deviceMemo["blank"], [""])
-        XCTAssertEqual(sink.events.filter { $0.kind == "memoWrite" }.compactMap(\.memoValue), ["abc", "Total", ""])
+        element(label: "", value: "abc").runMemoTextAs("field")
+        element(label: "Total", value: "9").runMemoTextAs("total")
+        element(label: nil, value: nil).runMemoTextAs("blank")
+        element(label: "", value: "abc").memoTextAs("tfield")
+        XCTAssertEqual(readRunMemo("field"), "abc")
+        XCTAssertEqual(readRunMemo("total"), "Total")
+        XCTAssertEqual(core.runMemo["blank"], [""])
+        XCTAssertEqual(readMemo("tfield"), "abc")
+        XCTAssertEqual(sink.events.filter { $0.kind == "runMemoWrite" }.compactMap(\.memoValue), ["abc", "Total", ""])
     }
 
     func testAbortedScenarioSkipsMemoCommandsAndEmitsNothing() {
@@ -180,9 +220,13 @@ final class DeviceSessionMemoTests: XCTestCase {
         core.scenarioAborted = true
         writeMemo("k", "v")
         clearMemo()
+        writeRunMemo("k", "v")
+        clearRunMemo()
         XCTAssertEqual(readMemo("k"), "")
-        XCTAssertTrue(sink.events.filter { $0.kind == "memoWrite" || $0.kind == "memoClear" }.isEmpty)
-        XCTAssertTrue(core.deviceMemo.isEmpty)
+        XCTAssertEqual(readRunMemo("k"), "")
+        XCTAssertTrue(memoEvents(sink).isEmpty)
+        XCTAssertTrue(core.runMemo.isEmpty)
+        XCTAssertTrue(core.testMemo.isEmpty)
         XCTAssertTrue(steps(core).allSatisfy {
             if case .skipped = $0.status { return true } else { return false }
         })

@@ -85,6 +85,8 @@ enum MultiTargetRunner {
         let entryByMachine: [Int: Int]
         let resolved: [DynamicSplit.Scenario]
         let dispatcher: DynamicDispatcher
+        /// この対象の run メモの正本(対象 = 1つの run なので対象ごとに持つ。DR-208)
+        let memoHub: RunMemoHub
         let estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double
         let healCollection: HealSourceWriteBack.Collection
         let infos: [ScenarioInfo]
@@ -228,9 +230,14 @@ enum MultiTargetRunner {
                         send: { entry, reply in
                             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
                         })
+                    let memoHub = RunMemoHub(send: { entry, lines in
+                        writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?
+                            .write(line: lines.joined(separator: "\n"))
+                    })
                     units.append(TargetUnit(
                         id: id, project: target.project, profile: target.profile, groups: target.groups,
-                        entryByMachine: entryByMachine, resolved: resolved, dispatcher: dispatcher, estimate: estimate,
+                        entryByMachine: entryByMachine, resolved: resolved, dispatcher: dispatcher, memoHub: memoHub,
+                        estimate: estimate,
                         healCollection: healByProject[target.project.name] ?? HealSourceWriteBack.Collection(),
                         infos: runnable))
                 }
@@ -311,8 +318,9 @@ enum MultiTargetRunner {
                 performanceMode: performanceMode, forceLock: forceLock,
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
                 junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
-                runGroup: runGroup, reportDir: reportDir, workQueue: true)
+                runGroup: runGroup, reportDir: reportDir, workQueue: true, runMemoLink: true)
             let dispatcher = unit.dispatcher
+            let memoHub = unit.memoHub
             let marker = lockMarkers[group.machineLabel]
             let heal = unit.healCollection
             Task {
@@ -320,7 +328,10 @@ enum MultiTargetRunner {
                 let code = await FleetRunner.runEntry(
                     binary: binary, args: args, hostLabel: label, ticket: ticket, lockMarker: marker,
                     healCollection: heal, stdin: writer,
-                    lineInterceptor: { line in dispatcher.intercept(line: line, entry: entry, writer: writer) })
+                    lineInterceptor: { line in
+                        RunMemoRelay.intercept(line: line, hub: memoHub, entry: entry, dispatcher: dispatcher, writer: writer)
+                    })
+                memoHub.entryExited(entry)
                 outcomes.withLock {
                     $0.append(ChildOutcome(unit: targetID, machine: machine, exitCode: code,
                                            duration: Date().timeIntervalSince(started)))

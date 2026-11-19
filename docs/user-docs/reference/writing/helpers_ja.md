@@ -13,7 +13,7 @@
 | CSV・JSON・画像をファイルのまま使う | `dataFile()` |
 | 写真・動画をデバイスに入れる | `addMedia()` |
 | API でテストデータを用意する・後片付けする | `httpRequest` / `fleetestURLSession` |
-| シナリオ間で値を渡す | `writeMemo` / `readMemo` |
+| シナリオ間で値を渡す | `writeRunMemo` / `readRunMemo`(1つのテストの中なら `writeMemo` / `readMemo`) |
 | 秘密をレポートに残さない | `redactAccountValues` |
 | 外部の Swift パッケージを使う | `fleetestScenarioDependencies` |
 | run の前後に DB やスタブサーバーを用意する | `scripts/compose.yaml` / `run-setup.sh` / `run-teardown.sh` |
@@ -76,9 +76,9 @@ response.status.thisIs(201)
 
 ## シナリオ間で値を渡す(memo)
 
-`beforeAll()` で用意した値を、run の他のシナリオへ(どのデバイスでも)渡します。ファイルを自分で書いて受け渡す必要はありません。
+`beforeAll()` で用意した値を、run の他のシナリオへ(どのデバイスでも・どのマシンでも)`writeRunMemo` / `readRunMemo` で渡します。ファイルを自分で書いて受け渡す必要はありません。`writeMemo` / `readMemo` は1つのテストの中だけで値を持ち越します。
 
-詳細: [メモ(writeMemo, readMemo, clearMemo, memoTextAs)](../commands/memo_ja.md)
+詳細: [メモ(writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](../commands/memo_ja.md)
 
 ## 秘密をレポートに残さない(redactAccountValues)
 

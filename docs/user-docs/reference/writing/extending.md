@@ -82,7 +82,7 @@ To verify values that do not depend on the screen (API responses, computed value
 | `dataFile()` | Using CSV, JSON, images and other files as files |
 | `addMedia()` | Adding photos and videos to the device's photo library (not possible on a physical iOS device) |
 | `httpRequest` / `fleetestURLSession` | Creating test data through an API, cleaning up, reading server-side state |
-| [`writeMemo` / `readMemo`](../commands/memo.md) | Passing values prepared in `beforeAll()` to other scenarios |
+| [`writeRunMemo` / `readRunMemo`](../commands/memo.md) | Passing values prepared in `beforeAll()` to other scenarios |
 
 Common uses:
 

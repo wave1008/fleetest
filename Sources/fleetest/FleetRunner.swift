@@ -24,6 +24,10 @@ struct FleetEntryOutcome: Sendable {
 
 enum FleetRunner {
 
+    /// `--fleet` は各エントリが別の run(別のプロファイル)で、親がシナリオの一覧を持たないため、run メモ(DR-208)を
+    /// マシンをまたいで1つにはしない。run メモを使うかどうかは見えないので、エントリが2つ以上なら常に1行出す
+    static let runMemoPerMachineNotice = "ℹ️ writeRunMemo values are shared per machine in a --fleet run, not across machines"
+
     /// 「マシン有効」が off の機械のエントリを外す(純粋関数)。host は登録名か "local" で書く契約
     /// (FleetProfile.validate)なので、`MachineDispatch.normalize` で畳んで表示名と突き合わせる
     static func excludingDisabledMachines(
@@ -80,6 +84,7 @@ enum FleetRunner {
         let binary = selfBinaryPath()
         log("==> fleet \"\(fleetName)\": launching \(fleet.runs.count) entr"
             + "\(fleet.runs.count == 1 ? "y" : "ies") in parallel")
+        if fleet.runs.count > 1 { log(runMemoPerMachineNotice) }
 
         // **親が機械の全順序どおりに1台ずつ取り切ってから子を起こす**(DispatchPrelock)
         let prelock = DispatchPrelock(actions: DispatchPrelock.live(
@@ -244,6 +249,7 @@ enum FleetRunner {
         let binary = selfBinaryPath()
         log("==> fleet \"\(fleetName)\" --split: dispatching \(active.count) of \(fleet.runs.count) entr"
             + "\(fleet.runs.count == 1 ? "y" : "ies") in parallel")
+        if active.count > 1 { log(runMemoPerMachineNotice) }
 
         // ロックを取るのは**実際にディスパッチするエントリだけ**(0本割当のエントリの機械を
         // 握ると、走らせもしない run が他人のディスパッチを止める)

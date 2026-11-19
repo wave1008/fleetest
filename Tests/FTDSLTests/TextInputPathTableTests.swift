@@ -292,7 +292,7 @@ final class TextInputPathTableTests: XCTestCase {
             "app identifier / URL / name, not a compared text")
         add(["screenshot"], "file name")
         add(["account", "data", "dataFile", "addMedia", "httpRequest"], "dataset / HTTP / media arguments, not compared text")
-        add(["memoTextAs", "readMemo", "writeMemo"], "memo keys")
+        add(["memoTextAs", "readMemo", "writeMemo", "runMemoTextAs", "readRunMemo", "writeRunMemo"], "memo keys")
         add(["effectivePlatform", "renderCollapseCheckpoint"], "platform / checkpoint label")
         add(["findImage", "findImages", "existImage", "imageIs"], "image name, matched against the vision classifier labels")
         add(["screenLooksLike"], "text goes to FM; the blank guard (isBlank) lives in StepExecutor.executeAssertScreenMatches and needs the executor")

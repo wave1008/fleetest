@@ -1133,7 +1133,7 @@ public func ftRunBeforeEach(_ body: () -> Void) {
 /// 親はそれが終わるまで他のデバイスでこのクラスのシナリオを起動しない。"began" を出した後は結果が不明でも撃ち直さない
 /// (at-most-once)。失敗はシナリオ中断で、このクラスの残りのシナリオは親が走らせずに落とす。
 /// 中断・画面凍結・ユーザー停止で本体が走らなかったときは "began" も出さない(親は未試行へ戻し、別のシナリオが受け持ち直す)。
-/// 値を他のシナリオへ渡すのは writeMemo(メモは run 全体で共有)
+/// 値を他のシナリオへ渡すのは writeRunMemo(run メモは run 全体で共有)
 public func ftRunBeforeAll(_ body: () -> Void) {
     let core = FTRuntime.requireCore(command: "beforeAll")
     guard core.runBeforeAll, !core.scenarioAborted, !core.deviceFrozen, !core.stoppedByUser else { return }
@@ -1152,7 +1152,7 @@ public func ftRunBeforeAll(_ body: () -> Void) {
 /// 結果が不明でも同じデバイスで撃ち直されない。失敗はシナリオ中断(後続シナリオは親が走らせずに落とす)。
 /// 中断・画面凍結・ユーザー停止で本体が走らなかったときは "began" も出さない。
 /// setUpDevice で設定したインスタンスのプロパティは**このシナリオのプロセスだけ**で見える
-/// (他のシナリオへは writeMemo / readMemo で渡す)
+/// (他のシナリオへは writeRunMemo / readRunMemo で渡す)
 public func ftRunSetUpDevice(_ body: () -> Void) {
     let core = FTRuntime.requireCore(command: "setUpDevice")
     guard core.runSetUpDevice, !core.scenarioAborted, !core.deviceFrozen, !core.stoppedByUser else { return }
@@ -1177,7 +1177,7 @@ public func ftRunAfterEach(_ body: () -> Void) {
 
 /// @TestClass マクロが afterAll() の呼び出しを包むために生成する(利用者が直接書くものではない)。
 /// 呼ばれるのは `--after-all-only` の専用の子だけ(親が run の全デバイスの仕事の後に、run × クラスで1回起こす)。
-/// beforeAll の成否に関わらず走る(片付け)。メモは読める
+/// beforeAll の成否に関わらず走る(片付け)。run メモは読める
 public func ftRunAfterAll(_ body: () -> Void) {
     FTRuntime.requireCore(command: "afterAll").runLifecycle("afterAll", allowAfterFailure: true, body)
 }

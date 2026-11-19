@@ -38,7 +38,8 @@ present, and what only fleetest has.
 | Waiting | `wait` / `waitForDisplay` / `waitForClose` |
 | Recording / flow | `procedure`, `screenshot`, `verify`, `@Deleted` |
 | Before / after | `beforeEach` / `afterEach` |
-| Memo | `writeMemo` / `readMemo` / `clearMemo` / `memoTextAs` |
+| Memo | `writeMemo` / `readMemo` / `clearMemo` / `memoTextAs` (scope: one test) |
+| Run memo | `writeRunMemo` / `readRunMemo` / `clearRunMemo` / `runMemoTextAs` |
 | Log folder | `TestLog.directoryForLog` |
 
 ## Renamed / different form

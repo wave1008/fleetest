@@ -1,5 +1,5 @@
 // RunDeviceSession(デバイスごとの setUpDevice の済み印・run 全体のメモと beforeAll)と DeviceSessionHandoff の単体テスト。
-// 末尾の ScenarioHost 結合は偽ランナー(sh)で、子の stdin 1行目と memoWrite の横取りを確かめる。
+// 末尾の ScenarioHost 結合は偽ランナー(sh)で、子の stdin 1行目と runMemoWrite の横取りを確かめる。
 
 import XCTest
 @testable import FTCore
@@ -35,7 +35,7 @@ final class DeviceSessionTests: XCTestCase {
         let handoff = await Self.launch(session, "Login")
         XCTAssertEqual(handoff?.runSetUpDevice, true)
         XCTAssertEqual(handoff?.runBeforeAll, false, "beforeAll を持たないクラスに受け持たせた")
-        XCTAssertEqual(handoff?.memo, [:])
+        XCTAssertEqual(handoff?.runMemo, [:])
         XCTAssertEqual(handoff?.cmd, "deviceSession")
     }
 
@@ -85,16 +85,16 @@ final class DeviceSessionTests: XCTestCase {
 
     func testMemoKeepsWriteOrderAndClearEmptiesAll() async {
         let session = RunDeviceSession()
-        XCTAssertTrue(session.apply(event("memoWrite", key: "user", value: "a"), className: "X"))
-        session.apply(event("memoWrite", key: "user", value: "b"), className: "X")
-        session.apply(event("memoWrite", key: "other", value: "z"), className: "X")
-        session.apply(event("memoWrite", key: nil, value: "ignored"), className: "X")
-        session.apply(event("memoWrite", key: "k", value: nil), className: "X")
+        XCTAssertTrue(session.apply(event("runMemoWrite", key: "user", value: "a"), className: "X"))
+        session.apply(event("runMemoWrite", key: "user", value: "b"), className: "X")
+        session.apply(event("runMemoWrite", key: "other", value: "z"), className: "X")
+        session.apply(event("runMemoWrite", key: nil, value: "ignored"), className: "X")
+        session.apply(event("runMemoWrite", key: "k", value: nil), className: "X")
         let written = await Self.launch(session, "Y")
-        XCTAssertEqual(written?.memo, ["user": ["a", "b"], "other": ["z"]])
-        XCTAssertTrue(session.apply(event("memoClear"), className: "X"))
+        XCTAssertEqual(written?.runMemo, ["user": ["a", "b"], "other": ["z"]])
+        XCTAssertTrue(session.apply(event("runMemoClear"), className: "X"))
         let cleared = await Self.launch(session, "Y")
-        XCTAssertEqual(cleared?.memo, [:])
+        XCTAssertEqual(cleared?.runMemo, [:])
     }
 
     // MARK: - run 全体の共有(メモ・beforeAll)
@@ -105,14 +105,14 @@ final class DeviceSessionTests: XCTestCase {
         let book = RunDeviceSessionBook()
         let iphone = book.session(for: "iPhone-01")
         let pixel = book.session(for: "Pixel-01")
-        iphone.apply(event("memoWrite", key: "token", value: "abc"), className: "Login")
+        iphone.apply(event("runMemoWrite", key: "token", value: "abc"), className: "Login")
         iphone.apply(event("deviceSetUp", status: "passed"), className: "Login")
         let onPixel = await Self.launch(pixel, "Login")
-        XCTAssertEqual(onPixel?.memo, ["token": ["abc"]], "別のデバイスで書いたメモが見えない")
+        XCTAssertEqual(onPixel?.runMemo, ["token": ["abc"]], "別のデバイスで書いたメモが見えない")
         XCTAssertEqual(onPixel?.runSetUpDevice, true, "setUpDevice の済み印がデバイスをまたいだ")
-        pixel.apply(event("memoClear"), className: "Login")
+        pixel.apply(event("runMemoClear"), className: "Login")
         let afterClear = await Self.launch(iphone, "Login")
-        XCTAssertEqual(afterClear?.memo, [:])
+        XCTAssertEqual(afterClear?.runMemo, [:])
     }
 
     /// beforeAll は run × クラスで1回。受け持ったデバイスが終えるまで、別のデバイスはそのクラスを起動しない
@@ -127,11 +127,11 @@ final class DeviceSessionTests: XCTestCase {
         // 受け持った側が始めて終えるまで、待つ側は返らない
         first.apply(event("beforeAll", status: "began"), className: "Login")
         try? await Task.sleep(for: .milliseconds(100))
-        first.apply(event("memoWrite", key: "account", value: "u1"), className: "Login")
+        first.apply(event("runMemoWrite", key: "account", value: "u1"), className: "Login")
         first.apply(event("beforeAll", status: "passed"), className: "Login")
         let afterwards = await waiting.value
         XCTAssertEqual(afterwards?.runBeforeAll, false, "beforeAll が2回走る")
-        XCTAssertEqual(afterwards?.memo, ["account": ["u1"]], "beforeAll で書いたメモが届かない")
+        XCTAssertEqual(afterwards?.runMemo, ["account": ["u1"]], "beforeAll で書いたメモが届かない")
         first.scenarioEnded(className: "Login")
         let later = await Self.launch(first, "Login", beforeAll: true)
         XCTAssertEqual(later?.runBeforeAll, false)
@@ -189,14 +189,14 @@ final class DeviceSessionTests: XCTestCase {
     }
 
     func testHandoffRoundTrip() {
-        let original = DeviceSessionHandoff(memo: ["k": ["1", "2"]], runSetUpDevice: true, runBeforeAll: true)
+        let original = DeviceSessionHandoff(runMemo: ["k": ["1", "2"]], runSetUpDevice: true, runBeforeAll: true)
         let decoded = DeviceSessionHandoff.decode(line: original.encodedLine())
         XCTAssertEqual(decoded, original)
     }
 
     func testHandoffDecodeRejectsOtherCmd() {
         XCTAssertNil(DeviceSessionHandoff.decode(
-            line: #"{"cmd":"installResult","memo":{},"runSetUpDevice":false}"#))
+            line: #"{"cmd":"installResult","runMemo":{},"runSetUpDevice":false}"#))
         XCTAssertNil(DeviceSessionHandoff.decode(line: "not json"))
     }
 
@@ -221,10 +221,10 @@ final class DeviceSessionTests: XCTestCase {
 
     func testTearDownHandoffNeverRunsSetUpEvenAfterSetUpFailed() {
         let session = RunDeviceSession()
-        session.apply(event("memoWrite", key: "k", value: "v"), className: "Login")
+        session.apply(event("runMemoWrite", key: "k", value: "v"), className: "Login")
         session.apply(event("deviceSetUp", status: "failed"), className: "Login")
         XCTAssertEqual(session.tearDownHandoff(),
-                       DeviceSessionHandoff(memo: ["k": ["v"]], runSetUpDevice: false, runBeforeAll: false))
+                       DeviceSessionHandoff(runMemo: ["k": ["v"]], runSetUpDevice: false, runBeforeAll: false))
     }
 }
 
@@ -266,7 +266,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         #!/bin/sh
         read first
         printf '%s\\n' "$first" > '\(received)'
-        echo '{"kind":"memoWrite","memoKey":"token","memoValue":"abc"}'
+        echo '{"kind":"runMemoWrite","memoKey":"token","memoValue":"abc"}'
         echo '{"kind":"deviceSetUp","status":"began"}'
         echo '{"kind":"deviceSetUp","status":"passed"}'
         echo '{"kind":"scenarioFinished","passed":true}'
@@ -290,10 +290,10 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         let first = try String(contentsOfFile: received, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertEqual(DeviceSessionHandoff.decode(line: first),
-                       DeviceSessionHandoff(memo: [:], runSetUpDevice: true, runBeforeAll: false))
-        XCTAssertFalse(sink.events.contains { ["memoWrite", "memoClear", "deviceSetUp"].contains($0.kind) })
+                       DeviceSessionHandoff(runMemo: [:], runSetUpDevice: true, runBeforeAll: false))
+        XCTAssertFalse(sink.events.contains { ["runMemoWrite", "runMemoClear", "deviceSetUp"].contains($0.kind) })
         let next = await session.handoff(className: "Login", classHasBeforeAll: false)
-        XCTAssertEqual(next, .launch(DeviceSessionHandoff(memo: ["token": ["abc"]], runSetUpDevice: false,
+        XCTAssertEqual(next, .launch(DeviceSessionHandoff(runMemo: ["token": ["abc"]], runSetUpDevice: false,
                                                           runBeforeAll: false)))
     }
 

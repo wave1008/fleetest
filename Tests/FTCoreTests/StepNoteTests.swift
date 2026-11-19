@@ -43,6 +43,7 @@ final class StepNoteTests: XCTestCase {
         XCTAssertEqual(StepNote.keyboardAppearedLate.rawValue, "keyboard-appeared-late")
         XCTAssertEqual(StepNote.actedOutsideContainer.rawValue, "acted-outside-container")
         XCTAssertEqual(StepNote.unchangedTapBeforeFailure.rawValue, "unchanged-tap-before-failure")
+        XCTAssertEqual(StepNote.runMemoKeyNotFound.rawValue, "run-memo-key-not-found")
         XCTAssertEqual(StepNote.launchActivatedBeforeForeground.rawValue, "launch-activated-before-foreground")
         XCTAssertEqual(StepNote.ocrReadWhatFMMissed.rawValue, "ocr-read-what-fm-missed")
         XCTAssertEqual(StepNote.fmReadWhatOCRMissed.rawValue, "fm-read-what-ocr-missed")

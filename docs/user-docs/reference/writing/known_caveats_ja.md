@@ -31,8 +31,8 @@
 
 ### group, procedure, beforeEach, afterEach, beforeAll, afterAll, setUpDevice, tearDownDevice
 - [procedure { } は失敗後に走らせたくない処理の置き場](../commands/descriptors_ja.md#注意点) — シーンのブロックに直接書いた生の Swift は、前段が失敗しても実行されます。
-- [beforeAll() で設定したプロパティは他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値の受け渡しは `writeMemo` / `readMemo` を使い、失敗するとそのクラスの残りは実行されず失敗になります。
-- [setUpDevice() で設定したプロパティも他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値は `writeMemo` / `readMemo` で渡し、失敗すると同デバイスの同クラスの残りは失敗として記録されます。
+- [beforeAll() で設定したプロパティは他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値の受け渡しは `writeRunMemo` / `readRunMemo` を使い、失敗するとそのクラスの残りは実行されず失敗になります。
+- [setUpDevice() で設定したプロパティも他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値は `writeRunMemo` / `readRunMemo` で渡し(`setUpDevice()` では書けません)、失敗すると同デバイスの同クラスの残りは失敗として記録されます。
 - [afterEach() は @Test が失敗した後でも実行される](../commands/descriptors_ja.md#注意点) — アプリの終了など、成否に関わらず必要な後片付けに使います。
 - [tearDownDevice() は専用プロセスで走り、合否に数えない](../commands/descriptors_ja.md#注意点) — デバイスが使えなくなった場合や run を中断した場合は走りません。
 - [@Deleted / @Draft は一括実行から除外される](../commands/descriptors_ja.md#注意点) — 完全一致 ID を明示したときだけ実行できます。

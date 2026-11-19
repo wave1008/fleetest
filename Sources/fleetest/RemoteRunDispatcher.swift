@@ -105,6 +105,7 @@ struct RemoteRunDispatcher {
                   performanceMode: Bool,
                   broadcast: Bool = false,
                   workQueue: Bool = false,
+                  runMemoLink: Bool = false,
                   localJUnitPath: String?,
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
@@ -156,6 +157,7 @@ struct RemoteRunDispatcher {
             setOverrides: setOverrides,
             noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
+            runMemoLink: runMemoLink,
             remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
             runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
@@ -170,7 +172,8 @@ struct RemoteRunDispatcher {
             exitCode = try runRemoteAndRelay(
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
-                developerDir: developerDir, interruptFlag: interruptFlag, workQueue: workQueue)
+                developerDir: developerDir, interruptFlag: interruptFlag,
+                linkedToParent: workQueue || runMemoLink)
         } catch {
             // timeout (throws from runInheritedWithLineRewrite): the remote run may still be
             // alive — the ssh session was just signalled, but the runner's teardown is
@@ -221,6 +224,7 @@ struct RemoteRunDispatcher {
                      performanceMode: Bool,
                      defaultTimeout: Double?, scenarioTimeout: Double?,
                      workQueue: Bool = false,
+                     runMemoLink: Bool = false,
                      remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
@@ -252,6 +256,7 @@ struct RemoteRunDispatcher {
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode,
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
+            runMemoLink: runMemoLink,
             reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
             explicit: remoteTimeoutSeconds, scenarioCount: scenarios.count)
@@ -265,7 +270,8 @@ struct RemoteRunDispatcher {
             exitCode = try runRemoteAndRelay(
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
-                developerDir: developerDir, interruptFlag: interruptFlag, workQueue: workQueue)
+                developerDir: developerDir, interruptFlag: interruptFlag,
+                linkedToParent: workQueue || runMemoLink)
         } catch {
             // 理由は dispatch() の同じ catch 参照(timeout でも生きていれば外さない)
             lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
@@ -993,7 +999,7 @@ struct RemoteRunDispatcher {
     private func runRemoteAndRelay(fleetestArgs: [String], layout: RemoteLayout,
                                    timeoutSeconds: Int?, stamp: String, project: String, localRoot: String,
                                    developerDir: String?,
-                                   interruptFlag: DispatchInterruptFlag, workQueue: Bool) throws -> Int32 {
+                                   interruptFlag: DispatchInterruptFlag, linkedToParent: Bool) throws -> Int32 {
         log("==> running on \(host.sshTarget): fleetest \(fleetestArgs.joined(separator: " "))")
         let command = RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: fleetestArgs,
                                                    issuer: LocalConfig.resolveIssuerId(),
@@ -1006,7 +1012,7 @@ struct RemoteRunDispatcher {
             ParentBoundCommand.wrap(sshRunBase + [host.sshTarget, command],
                                     parentPID: ProcessInfo.processInfo.processIdentifier),
             layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project, localRoot: localRoot,
-            interruptFlag: interruptFlag, workQueue: workQueue)
+            interruptFlag: interruptFlag, linkedToParent: linkedToParent)
         if status == 90 {
             log("==> the remote fleetest binary is missing — build it on the remote first"
                 + " (swift build --product fleetest)")
@@ -1477,7 +1483,7 @@ struct RemoteRunDispatcher {
     /// ConsoleOut.out(stdout) する。stderr は継承のまま。パイプ 64KB 飽和で子がブロックする罠を避けるため
     /// 読み取りは別スレッドで行う。期限超過時は SIGTERM→2秒猶予→SIGKILL(Shell.runRaw の
     /// timeout 経路と同じ規律)。stdin は /dev/null(`-tt` は TTY として stdin を要求するが、ディスパッチは
-    /// 対話しない)。**`--work-queue` だけは親の返事を渡す**(下の standardInput)。**timeoutSeconds nil = 無期限**
+    /// 対話しない)。**親とつながる子(`--work-queue` / `--run-memo-link`)だけは親の返事を渡す**(下の standardInput)。**timeoutSeconds nil = 無期限**
     /// (`.distantFuture` を渡す。欠陥2: RemoteTimeout.seconds がシナリオ数不明を表す nil)。
     /// **`interruptFlag` に既定値を置かない** —— 呼び出し元(runRemoteAndRelay)は
     /// ssh 起動の直前で一度確かめてから呼ぶが、コマンド組み立てや `process.run()` 自体の間にも
@@ -1487,14 +1493,14 @@ struct RemoteRunDispatcher {
                                              timeoutSeconds: Int?, stamp: String,
                                              project: String, localRoot: String,
                                              interruptFlag: DispatchInterruptFlag,
-                                             workQueue: Bool) throws -> Int32 {
+                                             linkedToParent: Bool) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = argv
-        // --work-queue のときだけ親の返事を ssh へ渡す。`-tt` は変えない(中断の SIGHUP の役)。
+        // 親とつながる子(--work-queue / --run-memo-link)のときだけ親の返事を ssh へ渡す。`-tt` は変えない(中断の SIGHUP の役)。
         // **fd 0 ではなく移した fd**(WorkQueueStdin.claim)を渡す —— run の入口で fd 0 は /dev/null に差し替え済み
         // (渡すとリモートへ返事が1本も届かない)。差し替えは、結果の回収などで起こす別の ssh が stdin を読んで返事を横取りしないため
-        process.standardInput = workQueue
+        process.standardInput = linkedToParent
             ? FileHandle(fileDescriptor: WorkQueueStdin.claim(), closeOnDealloc: false) : FileHandle.nullDevice
         let stdoutPipe = Pipe()
         process.standardOutput = stdoutPipe

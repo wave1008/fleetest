@@ -132,7 +132,7 @@ When masking is on:
 - What is masked is the text the scenario writes out: step descriptions, failure reasons, the execution log, and the
   Markdown report with the failure-time element list. **Screenshots (text inside the pixels) cannot be masked.** If a
   screen shows the password in plain text, a failure-time screenshot shows it.
-- If you write an `account()` value with `writeMemo`, the memo value handed to other scenarios also becomes `***`
+- If you write an `account()` value with `writeRunMemo`, the run memo value handed to other scenarios also becomes `***`
   (do not put secrets in the memo).
 - A value that happens to match part of other text masks that part too (for example a 4-character password `true`
   would also change the JSON word `true`).

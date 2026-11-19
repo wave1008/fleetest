@@ -1,12 +1,13 @@
 // RunDeviceSession.swift
 // 1回の run(または1回の呼び出し)で共有する状態の親側の持ち主。受け渡しの契約は DeviceSessionHandoff.swift。
-// ScenarioHost.run が子の memoWrite / memoClear / deviceSetUp / beforeAll を横取りしてここへ反映し、
+// ScenarioHost.run が子の runMemoWrite / runMemoClear / deviceSetUp / beforeAll を横取りしてここへ反映し、
 // 次のシナリオの起動時に handoff を stdin へ書く。
 // 共有の範囲(ユーザー決定):
-//   - メモ・beforeAll の済み印・afterAll の申告 = **run 全体**(`RunSharedSession`。全デバイスのセッションが同じ1つを持つ)
+//   - run メモ = **run 全体**(DR-208。`RunSharedSession` の `RunMemoStore`。マシンをまたぐ run では発行元の通し番号の順に
+//     全マシンでそろう = RunMemoStore.swift / RunMemoHub.swift)
+//   - beforeAll の済み印・afterAll の申告 = **1つの fleetest プロセスが束ねるデバイスの範囲**(`RunSharedSession`。
+//     機械ごとに分かれる run はマシンごと)
 //   - setUpDevice の済み印・tearDownDevice の申告 = **1デバイス**(`RunDeviceSession`)
-// 「run 全体」は1つの fleetest プロセスが束ねるデバイスの範囲。機械ごとに分かれる run(`--fleet` / 複数の機械に
-// またがるプロファイル)は機械ごとに別の run なので、メモも beforeAll / afterAll も機械ごとになる(制限)
 
 import Foundation
 
@@ -23,7 +24,7 @@ public final class RunSharedSession: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var memo: [String: [String]] = [:]
+    private let runMemo: RunMemoStore
     private var beforeAll: [String: BeforeAllState] = [:]
     private var waiters: [CheckedContinuation<Void, Never>] = []
     /// afterAll を持つと子が申告したクラス(申告順 = 片付けの順)と、申告したシナリオが走った OS
@@ -31,7 +32,10 @@ public final class RunSharedSession: @unchecked Sendable {
     private var afterAllPlatforms: [String: Set<String>] = [:]
     private var afterAllTaken: Set<String> = []
 
-    public init() {}
+    /// `runMemo` を省くと、マシンをまたぐ run の子(`ParentLink` が開いている)ならその通り道に載った1つ、そうでなければ新しい1つ
+    public init(runMemo: RunMemoStore? = nil) {
+        self.runMemo = runMemo ?? ParentLink.memoStore() ?? RunMemoStore()
+    }
 
     func declareAfterAll(className: String, platform: String?) {
         lock.lock()
@@ -50,23 +54,11 @@ public final class RunSharedSession: @unchecked Sendable {
         return pending.map { ($0, afterAllPlatforms[$0] ?? []) }
     }
 
-    func memoSnapshot() -> [String: [String]] {
-        lock.lock()
-        defer { lock.unlock() }
-        return memo
-    }
+    func runMemoSnapshot() -> [String: [String]] { runMemo.snapshot() }
 
-    func appendMemo(key: String, value: String) {
-        lock.lock()
-        memo[key, default: []].append(value)
-        lock.unlock()
-    }
+    func appendRunMemo(key: String, value: String) { runMemo.write(key: key, value: value) }
 
-    func clearMemo() {
-        lock.lock()
-        memo.removeAll()
-        lock.unlock()
-    }
+    func clearRunMemo() { runMemo.clear() }
 
     enum BeforeAllTicket: Equatable, Sendable { case run, skip, failed }
 
@@ -191,11 +183,11 @@ public final class RunDeviceSession: @unchecked Sendable {
             if runBeforeAll { releaseBeforeAll(className: className) }
             return .setUpDeviceFailed
         }
-        return .launch(DeviceSessionHandoff(memo: shared.memoSnapshot(), runSetUpDevice: state == nil,
+        return .launch(DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: state == nil,
                                             runBeforeAll: runBeforeAll))
     }
 
-    /// 子の memoWrite / memoClear / deviceSetUp / beforeAll / afterAll / deviceTearDown を反映する。
+    /// 子の runMemoWrite / runMemoClear / deviceSetUp / beforeAll / afterAll / deviceTearDown を反映する。
     /// 戻り値 true = 横取りした(emit しない)。`platform` = そのシナリオを走らせた OS(afterAll の申告に添える。
     /// ScenarioHost は接続の OS を必ず渡す)
     @discardableResult
@@ -205,13 +197,13 @@ public final class RunDeviceSession: @unchecked Sendable {
             // status "declared" だけ(子がシナリオの開始時に、クラスが afterAll を持つときに出す)
             if event.status == "declared" { shared.declareAfterAll(className: className, platform: platform) }
             return true
-        case "memoWrite":
+        case "runMemoWrite":
             if let key = event.memoKey, let value = event.memoValue {
-                shared.appendMemo(key: key, value: value)
+                shared.appendRunMemo(key: key, value: value)
             }
             return true
-        case "memoClear":
-            shared.clearMemo()
+        case "runMemoClear":
+            shared.clearRunMemo()
             return true
         case "beforeAll":
             shared.beforeAllEvent(className: className, status: event.status)
@@ -245,7 +237,7 @@ public final class RunDeviceSession: @unchecked Sendable {
 
     /// tearDownDevice 専用の子へ渡す写し(setUpDevice も beforeAll も走らせない・失敗済みでも片付けは走らせる)
     public func tearDownHandoff() -> DeviceSessionHandoff {
-        DeviceSessionHandoff(memo: shared.memoSnapshot(), runSetUpDevice: false, runBeforeAll: false)
+        DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: false, runBeforeAll: false)
     }
 
     /// まだ片付けていない申告済みクラス(申告順)を返し、**返した時点で済み印を付ける** = 1デバイスで最大1回

@@ -128,4 +128,27 @@ final class StdioPullSourceTests: XCTestCase {
         let resolved = await id
         XCTAssertEqual(resolved, "A")
     }
+
+    /// 同じ stdin に返事と run メモの確定が混ざっても、読み手1本が振り分ける(返事は待っている要求へ・確定は store へ)。
+    /// 2本で同じ fd を読むと親の行を取り合う
+    func testOneReaderServesBothRepliesAndRunMemoConfirmations() async {
+        let input = makePipe()
+        let reader = ParentLinkReader(fd: input.read)
+        let written = LockedValue<[String]>([])
+        let source = StdioPullSource(reader: reader, write: { line in written.withLock { $0.append(line) } })
+        let link = RunMemoLink(source: "me", send: { _ in }, warn: { _ in })
+        let store = RunMemoStore(link: link)
+        reader.addLineHandler { line in link.receive(line: line) }
+        async let id = source.next(platform: "ios", lane: "a")
+        for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
+        let req = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeWant)?.req ?? -1
+        let pieces = RunMemoWire.pieces(for: .write(key: "k", value: "v"))
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(
+            src: "other", lid: 1, seq: 1, i: 0, n: pieces.count, d: pieces[0])), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req, id: "A")), to: input.write)
+        let resolved = await id
+        XCTAssertEqual(resolved, "A")
+        for _ in 0..<200 where store.snapshot().isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(store.snapshot(), ["k": ["v"]])
+    }
 }

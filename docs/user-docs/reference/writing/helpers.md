@@ -13,7 +13,7 @@ instead. All of them work inside the sandbox as they are.
 | Use CSV, JSON or images as files | `dataFile()` |
 | Put photos and videos on the device | `addMedia()` |
 | Prepare test data or clean up through an API | `httpRequest` / `fleetestURLSession` |
-| Pass values between scenarios | `writeMemo` / `readMemo` |
+| Pass values between scenarios | `writeRunMemo` / `readRunMemo` (within one test: `writeMemo` / `readMemo`) |
 | Keep secrets out of reports | `redactAccountValues` |
 | Use external Swift packages | `fleetestScenarioDependencies` |
 | Prepare a DB or stub server around a run | `scripts/compose.yaml` / `run-setup.sh` / `run-teardown.sh` |
@@ -76,10 +76,10 @@ Details: [HTTP request (httpRequest)](../commands/http_request.md), [Network acc
 
 ## Passing values between scenarios (memo)
 
-Pass values prepared in `beforeAll()` to the other scenarios of the run (on any device). You do not need to write and exchange
-files yourself.
+Pass values prepared in `beforeAll()` to the other scenarios of the run (on any device and any machine) with `writeRunMemo` / `readRunMemo`. You do not need to write and exchange
+files yourself. `writeMemo` / `readMemo` carry a value only within one test.
 
-Details: [Memo (writeMemo, readMemo, clearMemo, memoTextAs)](../commands/memo.md)
+Details: [Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](../commands/memo.md)
 
 ## Keeping secrets out of reports (redactAccountValues)
 

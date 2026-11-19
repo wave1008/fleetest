@@ -79,19 +79,19 @@ not be skipped when a scenario is aborted mid-way.
 
 `func beforeAll()` (optional) runs **once per run, per class** (in a run that spans machines, once per machine), before any scenario of that class on
 any device — for preparation shared by the whole run (for example creating test data and writing
-the values it produces with `writeMemo`; see [memo](../commands/memo.md)). Other devices that
+the values it produces with `writeRunMemo`; see [memo](../commands/memo.md)). Other devices that
 pick up a scenario of that class wait until it finishes. If it fails, the remaining scenarios of
 that class in the run are recorded as failed without running.
 
 `func afterAll()` (optional) runs **once per run, per class** (in a run that spans machines, once per machine), after every device has finished the
 run, in a process of its own — for run-wide cleanup such as deleting the test data `beforeAll()`
-created. It runs whether or not `beforeAll()` passed and can read the memo. It does not run in an
+created. It runs whether or not `beforeAll()` passed and can read the run memo. It does not run in an
 interrupted run.
 
 `func setUpDevice()` (optional) runs **at most once per run, per device, per class**, before
 `beforeEach()` of the first scenario of that class that lands on the device — for preparation that
 should not repeat for every test but is needed on each device (for example switching the app's language). Each scenario is
-its own process, so instance properties set there are visible only to that first scenario; `setUpDevice()` cannot write the memo (it can only read it); pass values by writing them in `beforeAll()` (see [memo](../commands/memo.md)).
+its own process, so instance properties set there are visible only to that first scenario; `setUpDevice()` cannot write the run memo (it can only read it); pass values by writing them with `writeRunMemo` in `beforeAll()` (see [memo](../commands/memo.md)).
 
 `func tearDownDevice()` (optional) runs **once, after the device has finished all of its scenarios
 in the run**, if at least one scenario of that class ran on the device — for cleaning up what
@@ -132,8 +132,8 @@ class OrderFlow {
 | After a failure | continues | continues | the rest is not run and is recorded as failed |
 | `--failed` | only what failed | only what failed | from the first test of the class |
 
-- **`@RunOnSingleMachine`** keeps every test of the class on one machine. A test on another machine cannot see the data `beforeAll()` created,
-  the memo, or the data of the compose.yaml server of this machine, so use it for a class whose tests must see the same ones (for example
+- **`@RunOnSingleMachine`** keeps every test of the class on one machine. A test on another machine cannot see the data `beforeAll()` created
+  or the data of the compose.yaml server of this machine, so use it for a class whose tests must see the same ones (for example
   tests that all read the data `beforeAll()` created in the compose.yaml server). The load can no longer be split between machines.
   If a run uses only one machine, it has no effect.
 - **`@RunOnSingleDevice`** runs the tests of the class one at a time on one device. The class loses its parallelism, so use it only for tests
@@ -170,7 +170,7 @@ back and reruns the interrupted test; if it cannot come back, the remaining test
   with `@TestClass(platform:)`, or give one machine devices of both OSes).
 
 With `--broadcast`, and in a run that runs the same thing on several machines (`--fleet` without `--split`; see [Remote runs](../../fleet/remote_runners.md)), the attribute has no effect (the class runs on several
-devices or machines). `--broadcast` prints one line saying so; `--fleet` does not. See [Where to put test data](../writing/test_data_placement.md) and [Memo](../commands/memo.md).
+devices or machines). `--broadcast` prints one line saying so; `--fleet` does not. See [Where to put test data](../writing/test_data_placement.md) and [Memo](../commands/memo.md) (the run memo is shared across machines, except in `--fleet` without `--split`).
 
 ## Marking work in progress or retired tests
 

@@ -185,10 +185,10 @@ enum ApiRunMachineFanout {
         // 増やした孫プロセス**を対象にする(既存の保護の外側)
         let registry = ChildProcessRegistry()
 
-        // 動的な割り振り: 子ごとの stdin 書き込み口(キーは groups の添字 = 配り手のエントリ番号)と配り手。
-        // 中断は親が受けて全要求へ none を返す(子も自分の待ちを解く = ScenarioPullSource.stopWaiting)
-        let writers: [Int: ChildStdinWriter] = dynamicPlan == nil ? [:]
-            : Dictionary(uniqueKeysWithValues: active.map { ($0.index, ChildStdinWriter()) })
+        // 子ごとの stdin 書き込み口(キーは groups の添字 = 配り手のエントリ番号。run メモの通り道 = どの形の子にも開ける。DR-208)と、
+        // 動的な割り振りの配り手。中断は親が受けて全要求へ none を返す(子も自分の待ちを解く = ScenarioPullSource.stopWaiting)
+        let writers: [Int: ChildStdinWriter] = Dictionary(uniqueKeysWithValues: active.map { ($0.index, ChildStdinWriter()) })
+        let memoRelay = RunMemoRelay(writers: writers)
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !options.noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
@@ -224,18 +224,16 @@ enum ApiRunMachineFanout {
                     let args = buildArgs(
                         project: project.name, profileName: profileName, group: group,
                         scenarioIDs: ids, options: options, runGroup: runGroup,
-                        workQueue: dispatcher != nil)
-                    var childDispatch: (dispatcher: DynamicDispatcher, entry: Int, writer: ChildStdinWriter)?
-                    if let dispatcher, let writer = writers[groupIndex] {
-                        childDispatch = (dispatcher, groupIndex, writer)
-                    }
+                        workQueue: dispatcher != nil, runMemoLink: true)
+                    let childLink = ChildLink(relay: memoRelay, dispatcher: dispatcher, entry: groupIndex,
+                                              writer: writers[groupIndex])
                     let start = Date()
                     let exitCode = await runChild(
                         index: position, binary: binary, args: args, machineLabel: group.machineLabel,
                         ticket: ticket, lockMarker: lockMarkers[group.machineLabel],
                         healCollection: healCollection,
                         continuation: continuation, registry: registry,
-                        dispatch: childDispatch)
+                        link: childLink)
                     return (position, FleetEntryOutcome(
                         host: group.machineLabel, profile: profileName, exitCode: exitCode,
                         duration: Date().timeIntervalSince(start)))
@@ -309,7 +307,8 @@ enum ApiRunMachineFanout {
     /// internal: 束ね鍵の中継を RunGroupPlumbingTests が等号で固定する
     static func buildArgs(
         project: String, profileName: String, group: DeviceMachineRunner.Group,
-        scenarioIDs: [String], options: Options, runGroup: String, workQueue: Bool = false
+        scenarioIDs: [String], options: Options, runGroup: String, workQueue: Bool = false,
+        runMemoLink: Bool = false
     ) -> [String] {
         let machineLabel = group.machineLabel
         var args = ["api", "run", "--project", project, "--profile", profileName]
@@ -335,6 +334,8 @@ enum ApiRunMachineFanout {
         args += ["--scenario"] + scenarioIDs
         // 動的な割り振り(RR-8.1)の子だけ。--scenario は全候補で、回すのは親が1本ずつ渡した分
         if workQueue { args += ["--work-queue"] }
+        // run メモ(DR-208)を発行元の通し番号の順に全マシンへそろえる通り道(DeviceMachineRunner.childArgs と同じ)
+        if runMemoLink { args += ["--run-memo-link"] }
         // 中継しないと黙って無視される(子はプロファイルの既定で走る。FleetRunner.buildArgs と同じ理由)
         for key in options.setOverrides.keys.sorted() {
             args += ["--set", "\(key)=\(options.setOverrides[key]!.token)"]
@@ -358,6 +359,14 @@ enum ApiRunMachineFanout {
         case neverHanded([String])
     }
 
+    /// 子と発行元の間の通り道(run メモの中継と、動的な割り振りの配り手)。writer = 子の stdin への書き込み口
+    private struct ChildLink: Sendable {
+        let relay: RunMemoRelay
+        let dispatcher: DynamicDispatcher?
+        let entry: Int
+        let writer: ChildStdinWriter?
+    }
+
     /// 子1体ぶん。stdout(NDJSON)は行単位で continuation へ、stderr(診断)はホスト名を前置して
     /// そのまま親の stderr へ流す(stdout は NDJSON 専用の契約なので混ぜない)
     /// `ticket` は dispatch.lock の待機列の鍵。**親が1回だけ採ったものを受け取るだけ**で、
@@ -367,7 +376,7 @@ enum ApiRunMachineFanout {
         index: Int, binary: String, args: [String], machineLabel: String, ticket: DispatchTicket,
         lockMarker: String?, healCollection: HealSourceWriteBack.Collection,
         continuation: AsyncStream<ChildEvent>.Continuation, registry: ChildProcessRegistry,
-        dispatch: (dispatcher: DynamicDispatcher, entry: Int, writer: ChildStdinWriter)? = nil
+        link: ChildLink
     ) async -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
@@ -375,7 +384,7 @@ enum ApiRunMachineFanout {
                                                                     lockHeldTarget: lockMarker,
                                                                     healCollection: healCollection)
         process.arguments = args
-        let stdinPipe: Pipe? = dispatch == nil ? nil : Pipe()
+        let stdinPipe: Pipe? = link.writer == nil ? nil : Pipe()
         process.standardInput = stdinPipe ?? FileHandle.nullDevice
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -385,32 +394,33 @@ enum ApiRunMachineFanout {
         // 起こす直前に中断を見る(FleetRunner.runEntry と同じ)。起こさなかった子は起動の失敗と同じ形で終わりを知らせる
         if InterruptRelay.hasReceivedInterrupt {
             logStderr("[\(machineLabel)] interrupted — this sub-run was not started")
-            dispatch?.dispatcher.childExited(entry: dispatch?.entry ?? index)
+            link.relay.childExited(entry: link.entry)
+            link.dispatcher?.childExited(entry: link.entry)
             continuation.yield(.exited(index: index, status: 130,
-                                       assigned: dispatch.map { $0.dispatcher.assignedIDs(entry: $0.entry) }))
+                                       assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
             return 130
         }
         do {
             try process.run()
         } catch {
             logStderr("[\(machineLabel)] error: failed to launch subprocess: \(error.localizedDescription)")
-            dispatch?.dispatcher.childExited(entry: dispatch?.entry ?? index)
+            link.relay.childExited(entry: link.entry)
+            link.dispatcher?.childExited(entry: link.entry)
             continuation.yield(.exited(index: index, status: 127,
-                                       assigned: dispatch.map { $0.dispatcher.assignedIDs(entry: $0.entry) }))
+                                       assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
             return 127
         }
-        if let dispatch, let stdinPipe {
+        if let writer = link.writer, let stdinPipe {
             // 親側の読み端を閉じる(子が死んだら書き込みが EPIPE で返る)
             try? stdinPipe.fileHandleForReading.close()
-            dispatch.writer.attach(stdinPipe.fileHandleForWriting)
+            writer.attach(stdinPipe.fileHandleForWriting)
         }
-        defer { dispatch?.writer.close() }
+        defer { link.writer?.close() }
         registry.register(process)
 
-        // `{"ftWork"` の行は NDJSON へ流さず、配り手が消費する(classify の前)
+        // `{"ftWork"` の行は NDJSON へ流さず、run メモの中継か配り手が消費する(classify の前)
         let consumed: @Sendable (String) -> Bool = { line in
-            guard let dispatch else { return false }
-            return dispatch.dispatcher.intercept(line: line, entry: dispatch.entry, writer: dispatch.writer)
+            link.relay.intercept(line: line, entry: link.entry, dispatcher: link.dispatcher)
         }
         let stdoutPump = PipeLinePump(handle: stdoutPipe.fileHandleForReading) { line in
             if consumed(line) { return }
@@ -427,9 +437,10 @@ enum ApiRunMachineFanout {
             continuation.yield(.line(index: index, text: remaining))
         }
         if let remaining = await stderrPump.drain() { logStderr("[\(machineLabel)] \(remaining)") }
-        dispatch?.dispatcher.childExited(entry: dispatch?.entry ?? index)
+        link.relay.childExited(entry: link.entry)
+        link.dispatcher?.childExited(entry: link.entry)
         continuation.yield(.exited(index: index, status: process.terminationStatus,
-                                   assigned: dispatch.map { $0.dispatcher.assignedIDs(entry: $0.entry) }))
+                                   assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
         return process.terminationStatus
     }
 
