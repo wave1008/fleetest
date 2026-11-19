@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 299
+    public static let bridgeProtocolVersion = 300
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -202,6 +202,15 @@ public enum BridgeAPI {
     public static func visibleModalChildStart(isModal: [Bool], isVisible: [Bool]) -> Int? {
         precondition(isModal.count == isVisible.count)
         return isModal.indices.last { isModal[$0] && isVisible[$0] }
+    }
+
+    /// in-app の木: 祖先の view(`superview` の連なり。自分は含めない)に隠れた(`isHidden`)か透明(alpha < 0.01)なものがあれば、その要素は
+    /// 描かれていないので木に載せない。`accessibilityElements` は祖先を飛ばして子孫を直接返す(UINavigationBar がボタンを直接返す)ので、
+    /// 走査が通った view だけを検めると、透明な祖先の下の要素が残る。遷移の途中の前の画面のバーボタン(祖先の alpha が 0)が、新しい画面の
+    /// ボタンと同じ位置に重なって手前と読まれ、撃たずに赤になった(標準アプリのリマインダー・Simulator iOS 27.2 で測定)。
+    /// 祖先が透明なら子孫は合成されない(UIKit の層の合成)ので、アプリの作りに依らない
+    public static func hiddenByAncestor(ancestors: [(hidden: Bool, alpha: Double)]) -> Bool {
+        ancestors.contains { $0.hidden || $0.alpha < 0.01 }
     }
 
     /// 一覧(UITableView / UICollectionView)の子の並べ替え: セル(`isCell`。呼び手は隠れた再利用待ちのセルを含めない =

@@ -221,7 +221,7 @@ enum InAppSnapshot {
         guard visited.insert(ObjectIdentifier(node)).inserted else { return }
         // 非表示サブツリーは丸ごと除外
         if let view = node as? UIView, view.isHidden || view.alpha < 0.01
-            || view.accessibilityElementsHidden { return }
+            || view.accessibilityElementsHidden || hiddenByAncestor(view) { return }
         let flutter = rescaleBelow(node, inherited: inherited)
         let rescale = flutter?.rescale
 
@@ -313,6 +313,17 @@ enum InAppSnapshot {
         // Int(_:) は非有限・巨大な枠で落ちる(シナリオのプロセスごと落ちた型)ので書式で丸める
         let box = String(format: "(%.0f,%.0f %.0fx%.0f)", rect.origin.x, rect.origin.y, rect.width, rect.height)
         return "\(NSStringFromClass(Swift.type(of: node))) \(box)" + texts.map { " \"\($0)\"" }.joined()
+    }
+
+    /// 祖先の view に隠れた・透明なものがあるか(判定は `BridgeAPI.hiddenByAncestor`。走査が `accessibilityElements` で祖先を飛ばした要素に効く)
+    private static func hiddenByAncestor(_ view: UIView) -> Bool {
+        var chain: [(hidden: Bool, alpha: Double)] = []
+        var current = view.superview
+        while let ancestor = current {
+            chain.append((ancestor.isHidden, Double(ancestor.alpha)))
+            current = ancestor.superview
+        }
+        return BridgeAPI.hiddenByAncestor(ancestors: chain)
     }
 
     private static func axChildren(_ node: NSObject) -> [NSObject] {
