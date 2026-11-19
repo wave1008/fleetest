@@ -194,8 +194,10 @@ For exploring, Live Control and writing scenarios, a person can start the servic
 Services started with `up` show on their machine's row of the run board in the VSCode extension's monitor as "Servers up".
 
 **A real run (`fleetest run` / `ft_start_run`) takes over services started with `up`**: it prints a warning, stops them,
-starts them again itself and stops them itself (so that the result is reproducible). While a run holds the services,
-`services down` is refused.
+starts them again itself and stops them itself (so that the result is reproducible). After stopping them, it starts
+`services up` again with the same options as before the run (the run does not wait for the services to be ready; check
+with `fleetest services status`). After an interrupted run it does not, so run `fleetest services up` again. While a run
+holds the services, `services down` is refused.
 
 From MCP, `ft_services` does the same: `action` is `up` / `down` / `status`, `profile` is required for `up` / `down`,
 and `project`, `physical` and `androidSerials` (an array of strings) are optional. Like `ft_start_run`, it asks for approval

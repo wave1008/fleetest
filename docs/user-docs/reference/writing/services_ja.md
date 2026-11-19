@@ -184,7 +184,9 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 `up` で起動したサービスは、VSCode 拡張のモニターの run ボードで、そのマシンの行に「サーバー稼働中」と出ます。
 
 **本番の run(`fleetest run` / `ft_start_run`)は、`up` で起動したサービスを引き取ります。** 警告を出して止め、自分で
-起動し直して自分で止めます(結果を再現できる形にするためです)。run が握っている間の `services down` は断られます。
+起動し直して自分で止めます(結果を再現できる形にするためです)。止めた後は、run の前と同じ指定で `services up` を
+起動し直します(サーバーが使える状態に戻るのを run は待ちません。`fleetest services status` で確かめてください)。
+中断した run の後は起動し直さないので、`fleetest services up` を打ち直してください。run が握っている間の `services down` は断られます。
 
 MCP では `ft_services` が同じことをします。`action` は `up` / `down` / `status`、`profile` は `up` / `down` で必須、
 `project`・`physical`・`androidSerials`(文字列の配列)は任意です。`ft_start_run` と同じく承認を求めます

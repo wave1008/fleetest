@@ -3,7 +3,8 @@
 [in English](preparing_app_server.md)
 
 SUT Store のサーバー(API サーバーと PostgreSQL)は、クイックスタートで fleetest に宣言済みです。宣言したサーバーは、
-`fleetest run` のたびに自動で起動し、終わると止まります。仕様の細部は[アプリが依存するサービス](../reference/writing/services_ja.md)です。
+`fleetest run` のたびに自動で起動し、終わると止まります。run の前から `services up` で起動していた場合は、run が一度止めて
+引き取り、終わった後にまた起動します。仕様の細部は[アプリが依存するサービス](../reference/writing/services_ja.md)です。
 
 ## 1. 宣言を見る
 

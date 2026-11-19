@@ -3,7 +3,8 @@
 [in Japanese(日本語)](preparing_app_server_ja.md)
 
 The SUT Store server (an API server and PostgreSQL) was already declared to fleetest in the Quick Start. Declared servers
-start automatically on every `fleetest run` and stop when it ends. The details are in
+start automatically on every `fleetest run` and stop when it ends. If they were already running from `services up` before
+the run, the run stops and takes them over, and starts them again after it ends. The details are in
 [Services the app depends on](../reference/writing/services.md).
 
 ## 1. Look at the declaration
