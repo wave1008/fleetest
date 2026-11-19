@@ -22,6 +22,7 @@ import argparse, glob, json, os, shlex, signal, subprocess, sys, threading, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "Scripts"))
 import mark_exclusions  # noqa: E402  印の条件から外す赤(e2ex.sh と共有)
+import regress_placement_checks  # noqa: E402  クラスの寄せ方・run メモのマシン間の共有の検査
 FLEETEST = os.path.join(ROOT, ".build", "debug", "fleetest")
 REMOTE_CLONE = "~/fleetest-runner/fleetest"
 SSH_UNREACHABLE = 255
@@ -391,17 +392,30 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started):
         print("❌ 見本はあるのに画像分類器を使えなかったシナリオがあります(理由はシナリオ末尾の ⚠️ 行)")
         for path in degraded:
             print(f"   {path}")
+    # クラスの寄せ方(RR-8.3)と run メモのマシン間の共有(DR-208)は緑の run の中では見えないので、結果を読んで確かめる
+    placement = regress_placement_checks.placement_findings(run_started)
+    if placement:
+        print("❌ 1台・1マシンに寄せるはずのクラスが散りました:")
+        for line in placement:
+            print(f"   {line}")
+    memo_failures, memo_unjudged = regress_placement_checks.run_memo_findings(run_started)
+    if memo_failures:
+        print("❌ run メモがマシンをまたいで届いていません:")
+        for line in memo_failures:
+            print(f"   {line}")
+    for line in memo_unjudged:
+        print(f"   ℹ️ run メモのマシン間の共有は判定できませんでした: {line}")
     record_machine_states(fleet, run_dir, "end")
     print(f"全体の所要: {(time.time() - started) / 60:.1f} 分")
 
-    all_green = run_ok and witness_ok and not degraded
+    all_green = run_ok and witness_ok and not degraded and not placement and not memo_failures
     # 赤が全部「印の条件から外す赤」(mark_exclusions.py)なら印だけは書く。終了コードは赤のまま・外した赤は名指す
     excluded = None if run_ok else mark_exclusions.excluded_reds([(p, q) for _, p, q in targets], run_started)
     if excluded:
         print(f"⚠️ 印の条件から外した赤 {len(excluded)} 本(赤はこれだけ。シナリオは回し続ける):")
         for project, profile, sid, reason in excluded:
             print(f"   {project} / {profile}: {sid}({reason})")
-    if (all_green or (excluded and witness_ok and not degraded)) and not suts:
+    if (all_green or (excluded and witness_ok and not degraded and not placement and not memo_failures)) and not suts:
         # スクリプトが全体を回したときと同じ印。iOS の対象をそのモードで全部回したスイートだけ書く
         for suite in suites:
             for mode, profile in (("inapp", "ios-inapp-boost"), ("xcuitest", "ios-xcuitest")):
