@@ -472,7 +472,7 @@ final class ResponseMeasurementStepTests: XCTestCase {
     func testThrowAfterInjectionKeepsTheCollectedFacts() async {
         let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: [[
             ElementInfo(ref: 1, type: "textField", identifier: "field", label: nil, value: nil, placeholder: nil,
-                        enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)]])
+                        enabled: true, frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)]])
         driver.typeError = DriverError.badResponse(status: 500, body: "server error")
         let executor = makeExecutor(measuring: true, driver: driver)
         let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "hi"))

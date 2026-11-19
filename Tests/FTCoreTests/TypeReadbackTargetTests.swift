@@ -458,7 +458,7 @@ private final class ReadbackStubDriver: AppDriver {
                          elements: [ElementInfo(ref: 1, type: "textField", identifier: "field",
                                                 label: nil, value: typed ? after : before,
                                                 placeholder: nil, enabled: true,
-                                                frame: FTRect(x: 0, y: 0, width: 100, height: 40),
+                                                frame: FTRect(x: 1, y: 1, width: 100, height: 40),
                                                 depth: 1)],
                          truncatedCount: 0)
     }
@@ -496,7 +496,7 @@ private final class ReadbackSequenceDriver: AppDriver {
 
     private func node(_ ref: Int, _ type: String, id: String?, value: String?) -> ElementInfo {
         ElementInfo(ref: ref, type: type, identifier: id, label: nil, value: value, placeholder: nil, enabled: true,
-                    frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 1)
+                    frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 1)
     }
 
     private var response: SnapshotResponse {

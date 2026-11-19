@@ -1584,7 +1584,7 @@ extension StepExecutorTests {
     func testTypeIntoClickableOnSelfRenderedFrameworkIsNotRefused() async throws {
         let log = CallLog()
         let field = ElementInfo(ref: 1, type: "clickable", identifier: "field_name", label: nil, value: nil,
-                                placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                                placeholder: nil, enabled: true, frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field]])
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(), uiFramework: .compose)
         _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field_name"), text: "hello"))
@@ -1598,7 +1598,7 @@ extension StepExecutorTests {
         let wrapper = element(ref: 1, id: "row_height")
         let field = ElementInfo(ref: 2, type: "textField", identifier: nil, label: nil, value: nil,
                                 placeholder: nil, enabled: true,
-                                frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1)
+                                frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1)
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[wrapper, field]])
         let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(), uiFramework: .uikit)
         _ = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "row_height"), text: "170"))

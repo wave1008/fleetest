@@ -385,4 +385,15 @@ extension StepExecutor {
             + " (\(Int(saturating: screen.width))x\(Int(saturating: screen.height))), so the touch would land nowhere and nothing was sent."
             + " Bring it into view first (scroll: / scrollTo)"
     }
+
+    /// 枠が画面の原点に貼り付いた小さな要素へ撃たない断り(描かれた位置が申告されていない = 撃つとステータスバーに当たり、前のアプリへ
+    /// 移りうる。DR-203。判定は `TapTargetGeometry.isPinnedToScreenOrigin`。MCP は `aboveScreenRefusal`)。要素へ撃つ操作だけ
+    static func originPinnedRefusal(action: String, step: FlowStep, element: ElementInfo, screen: FTRect) -> String? {
+        guard action != "select", PreFireGuard.keyboardSensitiveActions.contains(action),
+              TapTargetGeometry.isPinnedToScreenOrigin(element, screen: screen) else { return nil }
+        return "did not touch \(step.locatorSummary): \(TapTargetGeometry.describe(element))'s reported frame sits at the top-left corner"
+            + " of the screen, so the framework did not report where it is drawn — a touch would land on that corner (the status"
+            + " bar, which can switch to the previous app), so nothing was touched. Point at a neighbouring element instead"
+            + " (the row or label next to it, or a relative selector such as :right)"
+    }
 }

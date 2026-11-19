@@ -418,7 +418,7 @@ final class MCPReproductionSelectorTests: XCTestCase {
             elements: [
                 ElementInfo(ref: 1, type: "clickable", identifier: nil, label: nil, value: nil,
                             placeholder: nil, enabled: true,
-                            frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1),
+                            frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1),
                 ElementInfo(ref: 2, type: "clickable", identifier: nil, label: nil, value: nil,
                             placeholder: nil, enabled: true,
                             frame: FTRect(x: 0, y: 20, width: 10, height: 10), depth: 1),
@@ -442,7 +442,7 @@ final class MCPReproductionSelectorTests: XCTestCase {
             elements: [
                 ElementInfo(ref: 1, type: "staticText", identifier: nil, label: nil, value: nil,
                             placeholder: nil, enabled: true,
-                            frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1),
+                            frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1),
                 ElementInfo(ref: 2, type: "staticText", identifier: nil, label: nil, value: nil,
                             placeholder: nil, enabled: true,
                             frame: FTRect(x: 0, y: 20, width: 10, height: 10), depth: 1),

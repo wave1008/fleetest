@@ -8,7 +8,7 @@
 
 | 関数 | 説明 |
 |---|---|
-| `scrollTo(sel, direction: .down, scrollFrame:, startMarginRatio:, endMarginRatio:, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、端に着いて中身が動かなくなっても、その秒数の間は端と決めずに待ちます(一覧がまだ出ていない・骨組みのまま・末尾に「再試行」などが遅れて出る形)。秒数は、1度も動いていなければ探し始めから、途中まで動いた後なら端に着いたときから数えます。待つ間は送らずに画面を読み直すだけなので、`maxSwipes:` の本数は使いません(中身が変われば探索を続けます)。省略時は2周動かなければ打ち切ります。その向きに中身が動いたあとで、端まで送って(または `maxSwipes:` を使い切って)も見つからなかったときだけ、送りが行を飛び越した分を拾うために、ゆっくりした小さなドラッグ(最大 8 本)で少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、戻らず、反対側を探さずに失敗します。探索を始めた画面が起動したアプリでなく別のアプリのものだったときも戻りません。キーボードが送る領域の下を覆ったまま何も動かなかったときは、副作用のない手段(`tap` と同じ。Enter は送りません)でキーボードを閉じて、探索を1回だけやり直します。 |
+| `scrollTo(sel, direction: .down, scrollFrame:, startMarginRatio:, endMarginRatio:, containerInference:, settle:, waitSeconds:, maxSwipes: 8)` | 要素が見つかるまでスクロールします(見つかったら成功。タップはしません)。探すのは `direction:` の向きだけです。`waitSeconds:` を書くと、端に着いて中身が動かなくなっても、その秒数の間は端と決めずに待ちます(一覧がまだ出ていない・骨組みのまま・末尾に「再試行」などが遅れて出る形)。秒数は、1度も動いていなければ探し始めから、途中まで動いた後なら端に着いたときから数えます。待つ間は送らずに画面を読み直すだけなので、`maxSwipes:` の本数は使いません(中身が変われば探索を続けます)。省略時は2周動かなければ打ち切ります。その向きに中身が動いたあとで、端まで送って(または `maxSwipes:` を使い切って)も見つからなかったときだけ、送りが行を飛び越した分を拾うために、ゆっくりした小さなドラッグ(最大 8 本)で少しずつ戻して探し直します。最初から端にいて1度も動かなかったときは、戻らず、反対側を探さずに失敗します。`#` の無いラベルがどの要素とも一致せず、同じ文字の id を持つ要素が画面にあるときは、送らずに「`#…` と書く」よう案内して失敗します。探索を始めた画面が起動したアプリでなく別のアプリのものだったときも戻りません。キーボードが送る領域の下を覆ったまま何も動かなかったときは、副作用のない手段(`tap` と同じ。Enter は送りません)でキーボードを閉じて、探索を1回だけやり直します。 |
 | `scrollDown(scrollFrame:, startMarginRatio:, endMarginRatio:, repeat: 1, settle:)` / `scrollUp` / `scrollRight` / `scrollLeft` | 1画面ぶんスクロールします(`repeat:` 回繰り返します)。画面が1つも動かなかったときは、成功のまま注記 `scroll-moved-nothing` を付けます(既に端に着いているか、スワイプの始点が一覧の外です。特定の一覧の中でスワイプするなら `scrollFrame:` を渡してください。`scrollFrame:` を渡した送りでは、端に着いている可能性だけを言います)。 |
 | `scrollToBottom(scrollFrame:, startMarginRatio:, endMarginRatio:, settle:, maxSwipes: 50)` / `scrollToTop` / `scrollToRightEdge` / `scrollToLeftEdge` | 端まで送ります(画面が変化しなくなるまで)。`maxSwipes` は暴走を止める上限で、上限で打ち切るとステップに注記が付きます。 |
 | `withScrollDown { … }` / `withScrollUp` / `withScrollRight` / `withScrollLeft` | ブロック内の `tap` / `type` / `clearInput` / `select` / `exist` / `notExist` / `findImage` / `existImage` / `hold` を**すべてスクロール探索**にします(明示の `scroll:` があればそちらが優先)。**`notExist` は意味が変わります** —— 探索中に見つかった時点で失敗になります。 |
@@ -44,6 +44,8 @@ withScrollDown {
 ## スクロールさせたい領域: `scrollFrame:`
 
 `scrollFrame:` が空・構文の誤り・代替(`||` や `(a|b)`)を含むときは、スクロールする前に失敗します(領域は1つのコンテナです)。
+
+`scrollFrame:` に一覧の行(それ自身はスクロールしない要素)を渡し、その行をスクロールする一覧が収めているときは、その一覧の中で送ります(行は中身と一緒に動くためです)。そうしたことは注記で伝えます。
 
 `scrollFrame:`(および `startMarginRatio:` / `endMarginRatio:`)は `scroll*` / `scrollToBottom`
 等 / `scrollTo` の引数で、`withScroll*` は `scrollFrame:` のみ取ります。実際にスクロールさせたい

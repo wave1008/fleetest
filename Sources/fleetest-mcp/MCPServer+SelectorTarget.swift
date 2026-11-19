@@ -18,6 +18,7 @@ extension MCPServer {
             throw MCPError("no element matches \(text) on the current screen — nothing was sent."
                 + notationHint(text, in: snapshot) + similarLabelsHint(text, in: snapshot)
                 + childlessScopeHint(parsed.primary, in: snapshot, isAndroid: isAndroid)
+                + hiddenOrOffscreenHint(in: snapshot, isAndroid: isAndroid)
                 + " Take an ft_snapshot to read the current labels/ids.")
         }
         // 序数 `[n]` と相対セレクタは「複数のうちの1つ」を自分で選んだ書き方なので数えない
@@ -28,6 +29,16 @@ extension MCPServer {
         return (resolved.element, "note: selector \(text) matched \(total) separate elements; acted on [\(resolved.element.ref)]"
             + " — the same one a scenario line would pick. To name one, write its #id, a longer label, or a"
             + " scoped/indexed form (ft_snapshot's \"write one of these instead\" notes list writable ones).\n")
+    }
+
+    /// 一致なしの断りに添える「木に無い理由の候補」。Android でキーボードが出ていれば、窓が縮んで下の要素が木から消えている
+    /// (iOS は覆われても木に残るので言わない)。それ以外は画面外の要素 = ft_scroll_to。判定は共有の `KeyboardWait.isShown`
+    static func hiddenOrOffscreenHint(in snapshot: SnapshotResponse, isAndroid: Bool) -> String {
+        if isAndroid && KeyboardWait.isShown(snapshot) {
+            return " The soft keyboard is up — on Android, what sits below it leaves the tree: close it with"
+                + " ft_hide_keyboard and look again."
+        }
+        return " If it is outside the visible part of a list, ft_scroll_to it first, then act on it."
     }
 
     /// 呼び手の `args` が selector を持つなら、解決して `ref` を足した引数で `run` を撃つ(`selector` は残す = 下書きが読む)。

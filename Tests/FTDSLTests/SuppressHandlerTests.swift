@@ -37,7 +37,7 @@ final class SuppressHandlerTests: XCTestCase {
                             placeholder: nil, enabled: true,
                             frame: FTRect(x: 0, y: y, width: 100, height: 40), depth: 0)
             }
-            var elements = [element(1, "target", 0)]
+            var elements = [element(1, "target", 10)]
             if modalShown {
                 elements.append(element(2, modalID, 100))
                 elements.append(element(3, closeID, 200))

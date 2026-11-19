@@ -696,4 +696,13 @@ enum RefGuard {
                 + " so the container scrolled rather than this element alone"
             : "; its siblings did not shift, so the layout changed around it"
     }
+
+    /// 枠が画面の原点に貼り付いた小さな要素への ref 操作の断り(`MCPServer.aboveScreenRefusal` が先に呼ぶ。DSL は `StepExecutor.originPinnedRefusal`)
+    static func originPinnedRefusal(_ found: ElementInfo, screen: FTRect, label: String) -> String? {
+        guard TapTargetGeometry.isPinnedToScreenOrigin(found, screen: screen) else { return nil }
+        return "refusing \(label): \(describe(found))'s reported frame sits at the top-left corner of the screen —"
+            + " the framework did not report where it is drawn, so a touch lands on that corner (the status bar, which can"
+            + " switch to the previous app), not on the element. Nothing was sent. Act on a neighbouring element instead"
+            + " (the row or label next to it), or check with ft_screenshot where it is drawn"
+    }
 }

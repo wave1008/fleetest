@@ -26,7 +26,7 @@ final class MCPNonInputTargetRefusalTests: XCTestCase {
                 // ref 1: ボタン。内側に入力欄なし → 拒否されるべき
                 ElementInfo(ref: 1, type: "button", identifier: "btn_submit", label: "Submit",
                             value: nil, placeholder: nil, enabled: true,
-                            frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 1),
+                            frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 1),
                 // ref 2: 容器。内側に入力欄が2つ(どちらを指すか言えない)→ 拒否されるべき
                 ElementInfo(ref: 2, type: "other", identifier: "wrap_two", label: nil,
                             value: nil, placeholder: nil, enabled: true,

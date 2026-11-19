@@ -35,6 +35,8 @@ final class TextInputPathTableMCPTests: XCTestCase {
         ("label@bounds", plainGate, { ArgumentBounds.emptyViolation("label", $0) == nil ? .accepted : .refused }),
         ("id@bounds", plainGate, { ArgumentBounds.emptyViolation("id", $0) == nil ? .accepted : .refused }),
         ("selector@bounds", plainGate, { ArgumentBounds.emptyViolation("selector", $0) == nil ? .accepted : .refused }),
+        // ft_tap の linkText: 空は撃つ前に断る(照合は DSL と同じ LinkTextLocator = TextNormalization.text)
+        ("linkText@bounds", plainGate, { ArgumentBounds.emptyViolation("linkText", $0) == nil ? .accepted : .refused }),
     ]
 
     /// 引数名のうち、比べる・解く経路ではないもの(理由つき)。**理由が書けない引数は表に載せる**

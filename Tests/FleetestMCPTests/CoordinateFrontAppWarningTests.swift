@@ -69,14 +69,14 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         XCTAssertFalse(source.contains("func foregroundAppID("))
     }
 
-    /// 座標で撃つ経路の集合を本数で固定する(tap / double tap / long press / drag / pinch / gesture / 全画面 swipe / ft_batch の座標の手)。
+    /// 座標で撃つ経路の集合を本数で固定する(tap / tap の linkText / double tap / long press / drag / pinch / gesture / 全画面 swipe / ft_batch の座標の手)。
     /// 経路を足したらここも増やす。**撃つ前に読むこと**は各経路で警告の取得が発火より前にあることで見る
     func testEveryCoordinatePathAsksBeforeFiring() throws {
         let source = try MCPServerSourceText.combined()
         let code = source.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         let calls = code.components(separatedBy: "await coordinateFrontAppWarning(").count - 1
-        XCTAssertEqual(calls, 9, "座標で撃つ経路と警告の配線の本数がずれた")
+        XCTAssertEqual(calls, 10, "座標で撃つ経路と警告の配線の本数がずれた")
         for (warning, fire) in [
             ("coordinateFrontAppWarning(d, args: args)", "try await d.tap(x: x, y: y)"),
             ("coordinateFrontAppWarning(swipeDriver, args: args)", "try await swipeDriver.swipe(direction)"),
@@ -85,6 +85,7 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
             ("coordinateFrontAppWarning(pinchDriver, args: args)", "try await pinchDriver.pinch("),
             ("coordinateFrontAppWarning(gestureDriver, args: args)", "try await gestureDriver.gesture("),
             ("coordinateFrontAppWarning(pressDriver, args: args)", "try await pressDriver.press(x: x, y: y"),
+            ("linkFrontWarning = await coordinateFrontAppWarning(d, args: args)", "try await d.tap(x: point.x, y: point.y)"),
         ] {
             let asked = try XCTUnwrap(code.range(of: warning), warning)
             let fired = try XCTUnwrap(code.range(of: fire, range: asked.upperBound..<code.endIndex),

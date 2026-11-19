@@ -101,6 +101,26 @@ final class SelectorTargetTests: XCTestCase {
 
     // MARK: - 一致なし
 
+    /// 一致なしの断り: Android でキーボードが出ていれば「木から消える → ft_hide_keyboard」・それ以外は画面外の案内
+    func testNoMatchRefusalHintsAtTheKeyboardOnAndroidAndAtScrollToOtherwise() {
+        var tree = snapshot([element(1, id: "field_name", label: "Name", y: 0)])
+        tree.keyboardFrame = FTRect(x: 0, y: 500, width: 390, height: 344)
+        func refusal(_ tree: SnapshotResponse, android: Bool) -> String {
+            do { _ = try MCPServer.resolveSelectorTarget("#field_phone", in: tree, isAndroid: android); return "" }
+            catch { return "\(error)" }
+        }
+        let onAndroid = refusal(tree, android: true)
+        XCTAssertTrue(onAndroid.contains("ft_hide_keyboard"), onAndroid)
+        XCTAssertFalse(onAndroid.contains("ft_scroll_to"), onAndroid)
+        let onIOS = refusal(tree, android: false)
+        XCTAssertFalse(onIOS.contains("ft_hide_keyboard"), onIOS)
+        XCTAssertTrue(onIOS.contains("ft_scroll_to it first"), onIOS)
+        tree.keyboardFrame = FTRect(x: 0, y: 900, width: 390, height: 344)
+        let hidden = refusal(tree, android: true)
+        XCTAssertFalse(hidden.contains("ft_hide_keyboard"), "画面の外の矩形 = 出ていない: \(hidden)")
+        XCTAssertTrue(hidden.contains("ft_scroll_to it first"), hidden)
+    }
+
     /// スコープの容器が木の上で中身を持たない(iOS の CMP の testTag だけの Row)なら、DSL と同じ判定でその事実を言う
     func testNoMatchUnderAChildlessScopeContainerSaysSo() async throws {
         let row = ElementInfo(ref: 1, type: "other", identifier: "cart_item_1", label: nil, value: nil, placeholder: nil,

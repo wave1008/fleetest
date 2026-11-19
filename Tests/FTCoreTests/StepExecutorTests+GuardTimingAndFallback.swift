@@ -484,7 +484,7 @@ extension StepExecutorTests {
         func run(scrollable: Bool) async -> (StepResult.Status, Int) {
             var container = ElementInfo(ref: 0, type: "scrollView", identifier: "pane", label: nil, value: nil,
                                         placeholder: nil, enabled: true,
-                                        frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)
+                                        frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)
             container.scrollable = scrollable
             var text = textElement(id: "msg", label: "こんにちは")
             text.depth = 1
@@ -736,7 +736,7 @@ extension StepExecutorTests {
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[]])
         let disabled = ElementInfo(ref: 1, type: "button", identifier: "target", label: nil, value: nil,
                                    placeholder: nil, enabled: false,
-                                   frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                                   frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
         let fallback = FakeAppDriver(name: "fallback", log: log, snapshotElements: [[disabled]])
         let executor = StepExecutor(driver: primary, fallbackDriver: fallback, isAndroid: false, tunables: RunTunables())
         let step = FlowStep(action: "tap", locator: FlowLocator(id: "target"), timeout: 1)

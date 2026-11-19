@@ -391,5 +391,32 @@ final class SliderValueTests: XCTestCase {
         }
         XCTAssertTrue(driver.coordinateTaps.isEmpty, "\(driver.coordinateTaps)")
     }
-}
 
+    private func heldTree(_ value: String, y: Double = 473) -> [ElementInfo] {
+        [ElementInfo(ref: 1, type: "slider", identifier: "s", label: nil, value: value, placeholder: nil, enabled: true,
+                     frame: FTRect(x: 16, y: y, width: 370, height: 44), depth: 1)]
+    }
+
+    func testHeldFailureIsNilWhenTheValueIsStillHeld() {
+        let frame = FTRect(x: 16, y: 473, width: 370, height: 44)
+        XCTAssertNil(SliderTapPosition.heldFailure(reported: SliderValueOutcome(value: "75", steps: 1), tappedFrame: frame, area: frame,
+                                                   identifier: "s", wanted: 75, settled: heldTree("75")))
+    }
+
+    func testHeldFailureNamesBothValuesWhenTheValueReverted() throws {
+        let frame = FTRect(x: 16, y: 473, width: 370, height: 44)
+        let text = try XCTUnwrap(SliderTapPosition.heldFailure(
+            reported: SliderValueOutcome(value: "75", steps: 1), tappedFrame: frame, area: frame,
+            identifier: "s", wanted: 75, settled: heldTree("50")))
+        XCTAssertTrue(text.contains("\"75\"") && text.contains("\"50\""), text)
+        XCTAssertFalse(text.contains("frame moved"), text)
+    }
+
+    func testHeldFailureMentionsTheFrameMove() throws {
+        let frame = FTRect(x: 16, y: 664, width: 370, height: 44)
+        let text = try XCTUnwrap(SliderTapPosition.heldFailure(
+            reported: SliderValueOutcome(value: "75", steps: 1), tappedFrame: frame, area: frame,
+            identifier: "s", wanted: 75, settled: heldTree("50", y: 201)))
+        XCTAssertTrue(text.contains("frame moved") && text.contains("scrolled"), text)
+    }
+}

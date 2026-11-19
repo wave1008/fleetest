@@ -187,6 +187,8 @@ extension StepExecutor {
         /// 起こしたアプリのプロセスが居ないのに木が別アプリのものだった(`AppProcessGone`)の断り文、または始点の木が別アプリのもので送らず断った文(`startedOnOtherAppRefusal`)。始点の木なら探索せずに断った
         /// (`message`)、途中の回なら送りを止めた(`messageAfterSearch` = 送った数を言う)
         var appGone: String? = nil
+        /// 払う前に断った理由(素のラベルが無く同じ文字の id が在る = `idWrittenAsLabelRefusal`)。スワイプは1本も撃っていない
+        var immediateRefusal: String? = nil
     }
 
     /// **半開きシートを広げるドラッグ**(探索が半開きシートの中で1度も動かずに止まったときに1回だけ撃つ)。
@@ -311,6 +313,7 @@ extension StepExecutor {
                                       _ result: ScrollSearchResult? = nil,
                                       defaultMaxSwipes: Int) -> String {
         if let gone = result?.appGone { return gone }
+        if let refusal = result?.immediateRefusal { return refusal }
         // **fail-fast は別の文**: 実際にはスワイプを1本も送っていないので、通常の
         // 「N 回振って見つからなかった」は嘘になる
         if result?.scrollFrameMissing == true {
@@ -1007,6 +1010,8 @@ extension StepExecutor {
 
     private func searchBody(step: FlowStep, recoverOnMiss: Bool, cover: CoverHintBox,
                             phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
+        // 始点の木で scrollFrame を容器へ切り替えることがある(enclosingScrollable)ので var
+        var step = step
         let clock = ContinuousClock()
         let searchStart = clock.now
         // 動いた後に端へ着いた最初の時刻(書かれた waitSeconds: の起点。endWaitStart)
@@ -1139,6 +1144,19 @@ extension StepExecutor {
             cover.hint = Self.coverReportHint(snapshot)
             cover.scope = Self.searchScopeHint(step, snapshot.elements, isAndroid: isAndroid)
             if attempt == 0 { startSnapshot = snapshot }
+            // scrollFrame が行(自身は scrollable でない)なら、それを収める容器の中を払う。行は中身と一緒に動いて払う場所が細くなる
+            if attempt == 0, step.scrollFrameRect == nil, let frameLocator = step.scrollFrame,
+               let named = ScrollFrameResolution.resolve(frameLocator, in: snapshot),
+               let container = ScrollFrameResolution.enclosingScrollable(of: named, in: snapshot.elements,
+                                                                       vertical: direction == .up || direction == .down) {
+                step.scrollFrame = nil
+                step.scrollFrameRect = container.frame
+                searchStep = step
+                if pendingScrollFrameNote == nil {
+                    pendingScrollFrameNote = ScrollFrameResolution.enclosingScrollableNote(
+                        frame: Self.traceRectText(named.frame), container: container)
+                }
+            }
             if attempt > 0, ownerChanged == nil, let base = searchBundleID, !base.isEmpty,
                let owner = snapshot.sessionBundleID, !owner.isEmpty, owner != base, owner != startedOnOther {
                 ownerChanged = (owner, attempt)
@@ -1423,6 +1441,14 @@ extension StepExecutor {
                                           hintJumps: hintJumps, swipes: swipes,
                                           startedOnOtherApp: (owner, launched),
                                           appGone: Self.startedOnOtherAppRefusal((owner, launched)))
+            }
+            // **素のラベルが無く同じ文字の id が画面に在るなら、払わずに断る**(始点の木で分かる事実。払うと 18 秒かけて同じことを言う)
+            if attempt == 0, let locator = step.locator,
+               let refusal = LocatorResolver.idWrittenAsLabelRefusal(for: locator, fallbacks: step.fallbacks, in: snapshot.elements) {
+                var result = ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
+                                                hintJumps: hintJumps, swipes: swipes)
+                result.immediateRefusal = refusal
+                return result
             }
             // **横の探索で枠がほとんど窓の外なら、先に外側の縦の容器を送って枠を窓へ入れる**
             // (見えている帯が低いと横の払いが画面の縁に乗る。`ScrollGeometry.bringIntoView`)。

@@ -1,4 +1,4 @@
-// 断り・失敗文が次の一手を言う(ft_tap の scroll / linkText・ft_batch の launch・id を素のラベルで書いた)
+// 断り・失敗文が次の一手を言う(ft_tap の scroll・ft_batch の launch・id を素のラベルで書いた)
 
 import XCTest
 import FTCore
@@ -16,10 +16,21 @@ final class NextMoveWordingTests: XCTestCase {
         }
     }
 
-    func testTapLinkTextRefusalPointsAtTheScenarioForm() {
-        let refusal = MCPServer.unknownArgumentRefusal(tool: "ft_tap", args: ["selector": "#terms", "linkText": "規約"]) ?? ""
-        XCTAssertTrue(refusal.contains("tap(selector, linkText:"), refusal)
-        XCTAssertTrue(refusal.contains("coordinates break on another device"), refusal)
+    func testSwipeDirectionRefusalNamesFinger() {
+        let refusal = MCPServer.unknownArgumentRefusal(tool: "ft_swipe", args: ["direction": "down"]) ?? ""
+        XCTAssertTrue(refusal.contains("takes the finger's movement as finger"), refusal)
+        XCTAssertTrue(refusal.contains("ft_scroll_to with direction:"), refusal)
+    }
+
+    func testLaunchWithoutBundleIdNamesTheProfileKeys() {
+        let refusal = MCPServer.requiredArgumentRefusal(tool: "ft_launch", args: [:]) ?? ""
+        XCTAssertTrue(refusal.hasPrefix("bundleId is required"), refusal)
+        XCTAssertTrue(refusal.contains("ios.bundleId"), refusal)
+        XCTAssertTrue(refusal.contains("android.app"), refusal)
+    }
+
+    func testTapAcceptsLinkText() {
+        XCTAssertNil(MCPServer.unknownArgumentRefusal(tool: "ft_tap", args: ["selector": "#terms", "linkText": "規約"]))
     }
 
     func testBatchLaunchWithABareArgumentIsRefusedByCategoryNotSyntax() async {

@@ -1117,6 +1117,9 @@ fi
 #   受け手のものとして触らない。無ければ足して印に入れる。シンボリックリンクは触らない。
 # - **クローンの作業ツリーの内側には書かない**(7.6 と同じ理由・同じ判定)。
 # - `A && continue` を素の文で書かない(A が偽だと set -e で止まる)。if で書く。
+# - 写すのはスキルのフォルダの**直下の通常ファイル全部**(SKILL.md が Read させる dsl-reference.md 等。
+#   SKILL.md だけ写すと AI が作業フォルダで探して見つけられない)。写しから正典に無いファイルは消す
+#   (印にある = こちらのフォルダなので)。
 SKILLS_MARKER_NAME=".fleetest-copied"
 place_skills() {
   sk_src="$TOOL_ROOT/.claude/skills"
@@ -1144,6 +1147,26 @@ print("inside" if os.path.commonpath([target, clone]) == clone else "outside")' 
     sk_owned="$(grep -v -x -e 'fleetest-setup' -e '' "$sk_marker" 2>/dev/null || true)"
   fi
   sk_owned_before="$sk_owned"
+  # 正典の1スキルを写しへ揃える。出力: changed / same / failed
+  sk_sync() {
+    sy_changed=0
+    for sy_f in "$1"/*; do
+      if [ ! -f "$sy_f" ] || [ -L "$sy_f" ]; then continue; fi
+      sy_to="$2/$(basename "$sy_f")"
+      if ! cmp -s "$sy_f" "$sy_to" 2>/dev/null; then
+        if ! cp "$sy_f" "$sy_to"; then echo failed; return 0; fi
+        sy_changed=1
+      fi
+    done
+    for sy_t in "$2"/*; do
+      if [ ! -f "$sy_t" ] || [ -L "$sy_t" ]; then continue; fi
+      if [ ! -e "$1/$(basename "$sy_t")" ]; then
+        if ! rm -f "$sy_t"; then echo failed; return 0; fi
+        sy_changed=1
+      fi
+    done
+    if [ "$sy_changed" = "1" ]; then echo changed; else echo same; fi
+  }
   sk_placed=0; sk_refreshed=0; sk_removed=0; sk_failed=0
   sk_names=""
   for sk_path in "$sk_src"/*/; do
@@ -1153,20 +1176,17 @@ print("inside" if os.path.commonpath([target, clone]) == clone else "outside")' 
     sk_to="$sk_dest/$sk_name"
     if [ -L "$sk_to" ] || [ -L "$sk_to/SKILL.md" ]; then continue; fi
     if [ ! -e "$sk_to" ]; then
-      if mkdir -p "$sk_to" && cp "$sk_src/$sk_name/SKILL.md" "$sk_to/SKILL.md"; then
+      if mkdir -p "$sk_to" && [ "$(sk_sync "$sk_src/$sk_name" "$sk_to")" != "failed" ]; then
         sk_owned="$sk_owned${sk_owned:+$'\n'}$sk_name"
         sk_placed=$((sk_placed + 1))
       else
         sk_failed=1
       fi
     elif printf '%s\n' "$sk_owned" | grep -qxF -- "$sk_name"; then
-      if ! cmp -s "$sk_src/$sk_name/SKILL.md" "$sk_to/SKILL.md" 2>/dev/null; then
-        if cp "$sk_src/$sk_name/SKILL.md" "$sk_to/SKILL.md"; then
-          sk_refreshed=$((sk_refreshed + 1))
-        else
-          sk_failed=1
-        fi
-      fi
+      case "$(sk_sync "$sk_src/$sk_name" "$sk_to")" in
+        changed) sk_refreshed=$((sk_refreshed + 1)) ;;
+        failed) sk_failed=1 ;;
+      esac
     fi
   done
   # 正典から消えた名前の写しを片付ける(印にある名前だけ。リンクは触らない)
@@ -1178,7 +1198,9 @@ print("inside" if os.path.commonpath([target, clone]) == clone else "outside")' 
     elif [ -L "$sk_dest/$sk_name" ]; then
       :
     else
-      rm -f "$sk_dest/$sk_name/SKILL.md"
+      for sy_t in "$sk_dest/$sk_name"/*; do
+        if [ -f "$sy_t" ] && [ ! -L "$sy_t" ]; then rm -f "$sy_t"; fi
+      done
       rmdir "$sk_dest/$sk_name" 2>/dev/null || true
       sk_removed=$((sk_removed + 1))
     fi

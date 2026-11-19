@@ -423,6 +423,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     case foundInXCUITestTree = "found-in-xcuitest-tree"
     /// DR-199 の照会を撃とうとしたが、前面の確認が答えない・XCUITest の木を読めなかった(照会せずに赤のまま)。率が上がったら照会が効いていない
     case xcuitestTreeUnread = "xcuitest-tree-unread"
+    /// inapp-boost の操作(tap・type 等)の対象が in-app の木で解けず、アプリの XCUITest の木で見つかって押せると答えたので、
+    /// XCUITest ブリッジで撃った(DR-202)。**率が上がったら in-app の木が読めない描き方の画面が増えている**
+    case actedViaXCUITestTree = "acted-via-xcuitest-tree"
+    /// countIs の一致が、中身が枠の外へ続くスクロール容器の中にあった = 見えている件数が画面の大きさ・向きで変わる(DR-204。判定は変えない)。
+    /// **率が上がったら、画面の大きさに依存する数え方のシナリオが増えている**
+    case countInScrollingList = "count-in-scrolling-list"
 
     /// `type` がソフトキーボードを出した/動かした直後、次のロケータ操作の解決を
     /// `settledSignature` で押し上げアニメーションの収束まで待ったところ、**待っている間に
@@ -734,6 +740,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "could not consult the app's XCUITest tree (the foreground check did not answer or the tree could not be read)"
         case .foundInXCUITestTree:
             return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
+        case .countInScrollingList:
+            return "counted inside a scrolling list whose content continues past its edge — how many are on the screen depends on"
+                + " the screen size and orientation, so this count may differ on another device; count what does not depend on the"
+                + " viewport (or scroll to each item and check it)"
+        case .actedViaXCUITestTree:
+            return "not in the in-app tree, but found in the app's XCUITest tree, reported hittable there, and acted on through XCUITest"
         case .settleIgnoredCaret:
             return "the only thing still changing was the blinking cursor of the focused input field,"
                 + " so the screen was treated as still"

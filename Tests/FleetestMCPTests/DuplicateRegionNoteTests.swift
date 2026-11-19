@@ -153,7 +153,8 @@ final class DuplicateRegionNoteTests: XCTestCase {
         elements.append(element(3, "webView", label: "page", x: 0, y: 100, width: 10, height: 10))
         let note = MCPServer.missingPageContentNote(tree(elements))
         XCTAssertFalse(note.contains("no page content"), note)
-        XCTAssertTrue(note.contains("no element in the tree at all"), note)
+        // 左端から始まる木なのでモーダルの形ではなく、縁が空いているという一般形の文言(どちらも同じ鍵)
+        XCTAssertTrue(note.contains("at its edge has no element in the tree"), note)
     }
 
     /// **アドレス欄が無ければブラウザとは判定しない**(ブラウザ専用の文言は使わない)。

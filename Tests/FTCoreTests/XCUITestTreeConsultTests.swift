@@ -60,3 +60,69 @@ final class XCUITestTreeConsultTests: XCTestCase {
         guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
     }
 }
+
+/// 操作(tap・type)の対象が in-app の木で解けないとき、キーボードを閉じる前に XCUITest の木を1回照会し、
+/// 見つかって XCUITest が押せると答えた要素だけ XCUITest で撃つ(DR-202)
+final class XCUITestTreeActionConsultTests: XCTestCase {
+
+    private static let field = ElementInfo(ref: 7, type: "textField", identifier: nil, label: "タイトル", value: nil,
+                                           placeholder: nil, enabled: true,
+                                           frame: FTRect(x: 20, y: 300, width: 300, height: 40), depth: 0)
+
+    private func run(_ step: FlowStep, hittable: HitTestAnswer, foreground: Bool = true,
+                     xcuitestTree: [ElementInfo] = [field]) async -> (StepOutcome, [String]) {
+        let log = CallLog()
+        let inApp = FakeAppDriver(name: "primary", log: log, snapshotElements: [[]])
+        let xcuitest = FakeAppDriver(name: "xcuitest", log: log, snapshotElements: [xcuitestTree])
+        xcuitest.appForeground = foreground
+        xcuitest.hitTestAnswer = hittable
+        let executor = StepExecutor(driver: inApp, typeDriver: xcuitest, delegate: FakeVisibilityDelegate(visible: true),
+                                    occlusionOCRMode: .off, fmVisibilityCheckEnabled: false, isAndroid: false,
+                                    tunables: RunTunables(), uiFramework: .uikit)
+        executor.launchedBundleID = "com.example.reminders"
+        let outcome = await executor.execute(step)
+        return (outcome, log.entries)
+    }
+
+    private var tapStep: FlowStep {
+        FlowStep(action: "tap", locator: FlowLocator(label: "タイトル", type: "textField"), occlusionGuard: false)
+    }
+
+    func testHittableInTheXCUITestTreeIsTappedThroughXCUITest() async {
+        let (outcome, log) = await run(tapStep, hittable: .hittable(true))
+        if case .failed(let message) = outcome.status { return XCTFail(message.description) }
+        XCTAssertTrue(log.contains("xcuitest.tap(ref:7)"), "\(log)")
+        XCTAssertFalse(log.contains { $0.hasPrefix("primary.tap") }, "\(log)")
+        XCTAssertTrue(outcome.notes.contains(.actedViaXCUITestTree), "\(outcome.notes)")
+    }
+
+    func testTypeIntoTheFieldGoesThroughXCUITest() async {
+        let step = FlowStep(action: "type", locator: FlowLocator(label: "タイトル", type: "textField"), text: "牛乳",
+                            occlusionGuard: false)
+        let (outcome, log) = await run(step, hittable: .hittable(true))
+        XCTAssertTrue(log.contains { $0.hasPrefix("xcuitest.type(ref:7)") }, "\(log) \(outcome.status)")
+        XCTAssertTrue(outcome.notes.contains(.actedViaXCUITestTree), "\(outcome.notes)")
+    }
+
+    /// 木に在っても押せない(モーダルの裏など)と答えたら撃たない
+    func testNotHittableIsNotActedOn() async {
+        let (outcome, log) = await run(tapStep, hittable: .hittable(false))
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertFalse(log.contains { $0.contains(".tap(ref:") }, "\(log)")
+        XCTAssertFalse(outcome.notes.contains(.actedViaXCUITestTree))
+    }
+
+    /// 押せるかを答えられないなら撃たない(推測で採らない)
+    func testUnansweredHitTestIsNotActedOn() async {
+        let (outcome, log) = await run(tapStep, hittable: .unavailable)
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertFalse(log.contains { $0.contains(".tap(ref:") }, "\(log)")
+    }
+
+    /// 前面を離れたアプリは照会しない(XCUITest の木の読みは activate して引き戻す)
+    func testAppNotInFrontIsNotConsulted() async {
+        let (outcome, log) = await run(tapStep, hittable: .hittable(true), foreground: false)
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertFalse(log.contains("xcuitest.tap(ref:7)"), "\(log)")
+    }
+}

@@ -805,6 +805,8 @@ tap("#fab_hiding", scroll: .up)
 
 **Current limitation**: a bar hidden with Flutter's `AnimatedSlide` is still reported at its original place in the tree while hidden, so the search does not scroll and the tap may land where the button no longer is.
 
+**Current limitation**: on iOS with Compose Multiplatform, a hidden bottom bar and FAB stay in the tree below the bottom edge of the screen, and `scroll: .up` does not bring them back (the bar follows the scroll direction). Scroll back to the top first (`scrollTo` the first row of the list) so the bar shows, then tap.
+
 ## Partial swipes (revealing buttons, swipe to reply)
 
 - Swipe **slowly** for a partial swipe (`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`).

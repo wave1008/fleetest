@@ -357,7 +357,12 @@ extension MCPServer {
         "ft_batch": ["steps": batchStepsUsage],
         "ft_gesture": ["fingers": gestureFingersRequiredMessage],
         "ft_scroll_to": ["selector": scrollToSelectorRequiredMessage],
+        "ft_launch": ["bundleId": launchBundleIDRequiredMessage],
     ]
+
+    /// bundleId はプロファイルから読まない(`ft_launch` は常に明示)。アプリのプロファイルの置き場を名指す
+    static let launchBundleIDRequiredMessage = "bundleId is required — ft_launch does not read it from the profile; take it from the"
+        + " app profile (ios.bundleId for iOS, android.app for Android) or ft_list_apps"
 
     static let scrollToSelectorRequiredMessage = "selector is required (same syntax as the DSL: #id, a label, .type, a||b)"
 
@@ -542,13 +547,12 @@ extension MCPServer {
     /// 他の操作の道具が持つのに、意図して持たない引数と、その理由と代わりの手(「揃っていない」と読まれて試行錯誤させない)。
     /// 宣言側は `afterActionProperties(waitForChange:)`
     static let deliberatelyAbsentArguments: [String: [String: String]] = [
-        "ft_tap": ["scroll": scrollArgumentReason, "linkText": "ft_tap cannot press a link inside a paragraph; in a"
-            + " scenario write tap(selector, linkText: \"…\"). While exploring, tap the link's drawn position with"
-            + " x/y to see what it does, but keep tap(selector, linkText:) in the scenario (coordinates break on"
-            + " another device)"],
+        "ft_tap": ["scroll": scrollArgumentReason],
         "ft_long_press": ["scroll": scrollArgumentReason],
         "ft_double_tap": ["scroll": scrollArgumentReason],
         "ft_type": ["scroll": scrollArgumentReason],
+        "ft_swipe": ["direction": "ft_swipe takes the finger's movement as finger (up/down/left/right; finger up scrolls the"
+            + " content down) — to read content towards a direction, use ft_scroll_to with direction:"],
         "ft_launch": ["waitForChange": "ft_launch has no waitForChange on purpose: the screen before a launch is no"
             + " baseline (a relaunch often lands on the same screen, so it would just wait out the deadline) —"
             + " pass waitFor with an element only the expected screen has"],
@@ -1075,6 +1079,11 @@ extension MCPServer {
             // alertButton だけならボタンを押すだけ(ftTap)。対象もあれば、押してからその対象を押す
             if args["alertButton"] != nil, !["selector", "ref", "x", "y"].contains(where: { args[$0] != nil }) {
                 return try await ftTap(args)
+            }
+            if args["linkText"] != nil {
+                return try await withSystemAlertPressedFirst(args) { rest in
+                    try await self.withSelectorTarget(rest) { try await self.ftTapLinkText($0) }
+                }
             }
             return try await withSystemAlertPressedFirst(args) { rest in
                 try await self.withSelectorTarget(rest) { try await self.ftTap($0) }

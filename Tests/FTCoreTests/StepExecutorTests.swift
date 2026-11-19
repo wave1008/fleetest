@@ -72,7 +72,7 @@ final class StepExecutorTests: XCTestCase {
     func textElement(id: String, label: String) -> ElementInfo {
         ElementInfo(ref: 1, type: "staticText", identifier: id, label: label, value: nil,
                     placeholder: nil, enabled: true,
-                    frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)
+                    frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0)
     }
 
     // MARK: - 見切れ判定(スクロール探索が「見えた瞬間」で止まらないための条件)
@@ -111,14 +111,14 @@ final class StepExecutorTests: XCTestCase {
     func element(ref: Int, id: String) -> ElementInfo {
         ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil,
                    placeholder: nil, enabled: true,
-                   frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                   frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
     }
 
     /// 打ち込み先の入力欄(type / clearInput は入力欄でない型を撃つ前に断るので、打鍵の経路を見るテストはこちら)
     func textField(ref: Int, id: String) -> ElementInfo {
         ElementInfo(ref: ref, type: "textField", identifier: id, label: nil, value: nil,
                    placeholder: nil, enabled: true,
-                   frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                   frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
     }
 
     /// 内側に入力欄がちょうど1つあるボタン型の容器(button + 子の textField)。type / clearInput の撃つ前の門
@@ -127,7 +127,7 @@ final class StepExecutorTests: XCTestCase {
     func buttonWrappingOneField(ref: Int, id: String) -> [ElementInfo] {
         [ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil,
                      placeholder: nil, enabled: true,
-                     frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0),
+                     frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0),
          ElementInfo(ref: ref + 1, type: "textField", identifier: nil, label: nil, value: nil,
                      placeholder: nil, enabled: true,
                      frame: FTRect(x: 10, y: 5, width: 80, height: 30), depth: 1)]
@@ -137,7 +137,7 @@ final class StepExecutorTests: XCTestCase {
     func clickable(ref: Int, id: String) -> ElementInfo {
         ElementInfo(ref: ref, type: "clickable", identifier: id, label: nil, value: nil,
                    placeholder: nil, enabled: true,
-                   frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                   frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
     }
 
     /// SpringBoard の木に載るアラート本体(題名を持つ)
@@ -150,13 +150,13 @@ final class StepExecutorTests: XCTestCase {
     func labeled(ref: Int, label: String) -> ElementInfo {
         ElementInfo(ref: ref, type: "button", identifier: nil, label: label, value: nil,
                    placeholder: nil, enabled: true,
-                   frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                   frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
     }
 
     /// clearInput の事後検証テスト用の入力欄。value/placeholder/focused を個別に指定できる
     func inputField(ref: Int, id: String? = nil, value: String? = nil,
                             placeholder: String? = nil, focused: Bool? = nil,
-                            frame: FTRect = FTRect(x: 0, y: 0, width: 100, height: 20)) -> ElementInfo {
+                            frame: FTRect = FTRect(x: 1, y: 1, width: 100, height: 20)) -> ElementInfo {
         ElementInfo(ref: ref, type: "textField", identifier: id, label: nil, value: value,
                    placeholder: placeholder, enabled: true, frame: frame, depth: 0,
                    focused: focused)
@@ -580,7 +580,7 @@ final class StepExecutorTests: XCTestCase {
         let log = CallLog()
         let match = ElementInfo(ref: 1, type: "staticText", identifier: "msg", label: "OK",
                                 value: nil, placeholder: nil, enabled: true,
-                                frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)
+                                frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0)
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[]])   // 常に空
         let fallback = FakeAppDriver(name: "fallback", log: log, snapshotElements: [[match]])
         let delegate = SequenceVisibilityDelegate([false])   // ガードが走れば覆いで失敗させる
@@ -600,7 +600,7 @@ final class StepExecutorTests: XCTestCase {
         func el(_ label: String) -> ElementInfo {
             ElementInfo(ref: 1, type: "staticText", identifier: "msg", label: label, value: nil,
                         placeholder: nil, enabled: true,
-                        frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)
+                        frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0)
         }
         // 1周目: 一致(覆い)→ 2周目以降: 不一致
         let primary = FakeAppDriver(name: "primary", log: log,
@@ -622,7 +622,7 @@ final class StepExecutorTests: XCTestCase {
         let log = CallLog()
         let el = ElementInfo(ref: 1, type: "staticText", identifier: nil, label: "Hello, World",
                              value: nil, placeholder: nil, enabled: true,
-                             frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)
+                             frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0)
         let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[el]])
         let delegate = FakeVisibilityDelegate(visible: false)
         let executor = StepExecutor(driver: primary, delegate: delegate, isAndroid: false, tunables: RunTunables())
@@ -1313,7 +1313,7 @@ final class StepExecutorTests: XCTestCase {
             primary?.snapshotElements = [[ElementInfo(
                 ref: 1, type: "staticText", identifier: "result", label: "photos=denied",
                 value: nil, placeholder: nil, enabled: true,
-                frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)]]
+                frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)]]
         }
         let executor = StepExecutor(driver: primary, fallbackDriver: fallback, isAndroid: false, tunables: RunTunables())
         executor.systemAlertWatchlist.register(SystemAlertRule(alert: "*写真ライブラリ*", button: "許可しない"))

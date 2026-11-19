@@ -109,6 +109,9 @@ final class FakeAppDriver: AppDriver {
     /// isAppForeground の答え(既定 false = 従来どおり)
     var appForeground = false
     func isAppForeground(bundleID: String) async throws -> Bool { appForeground }
+    /// `hitTest(ref:)` の答え(既定 = 答えられない = AppDriver の既定実装と同じ)
+    var hitTestAnswer: HitTestAnswer = .unavailable
+    func hitTest(ref: Int) async throws -> HitTestAnswer { hitTestAnswer }
 
     func launch(bundleID: String) async throws {
         log.entries.append("\(name).launch")

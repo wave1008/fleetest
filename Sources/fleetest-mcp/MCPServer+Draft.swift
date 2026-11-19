@@ -356,7 +356,7 @@ extension MCPServer {
                            coordinate: (x: Double, y: Double)? = nil,
                            duration: Double? = nil, maxGestureSeconds: Double? = nil,
                            scale: Double? = nil, degrees: Double? = nil,
-                           replace: Bool = false, noEffectWarning: String? = nil) {
+                           replace: Bool = false, noEffectWarning: String? = nil, linkText: String? = nil) {
         // tap → type の間に別の操作が入ったら「叩いた欄へ入れる」意図ではない(DSL と同じ規律)。
         // **ref を渡した type も捨てる**: 欄を名指しした後の ref なし type は、その欄の続きであって数手前のタップの続きではない
         // (残すと、画面遷移のタップ → ref つき type → ref なし type が、遷移先の別の欄へ打った。Emulator の E2EX で 2/2)
@@ -442,6 +442,7 @@ extension MCPServer {
         step.scale = scale
         step.degrees = degrees
         step.replace = replace ? true : nil
+        step.linkText = linkText
         // **下書きの本文にも格付けを残す**(掃討で判明): 注記と ft_tap の戻り値だけに
         // 印を出しても、その場で読まれなければ意味が無い —— 添字付きのセレクタは
         // シナリオに書かれた後で静かに壊れるので、コードの側に理由を残す。

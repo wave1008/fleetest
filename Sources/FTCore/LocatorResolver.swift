@@ -497,6 +497,15 @@ public enum LocatorResolver {
         return "\"\(label)\" is read as a label; an element with that id is on screen — write #\(label)"
     }
 
+    /// スクロール探索を撃つ前の断り。素のラベルが画面に無く同じ文字の id が在るなら、払っても当たらない(探索の始点で決まる事実)。
+    /// 判定は `idWrittenAsLabelHint` と同じ(DSL の探索と MCP の ft_scroll_to が探索の入口で共有)。`||` の代案・添字付きは対象外
+    public static func idWrittenAsLabelRefusal(for locator: FlowLocator, fallbacks: [FlowLocator]?,
+                                               in elements: [ElementInfo]) -> String? {
+        guard fallbacks?.isEmpty ?? true, locator.index == nil,
+              let hint = idWrittenAsLabelHint(for: locator, in: elements) else { return nil }
+        return hint + " (nothing was scrolled: the id is already on the current screen, so swiping could not help)"
+    }
+
     public static func partialMatchHint(for locator: FlowLocator,
                                         in elements: [ElementInfo]) -> String? {
         if let label = locator.label, !label.isEmpty,

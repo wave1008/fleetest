@@ -44,4 +44,32 @@ extension StepExecutor {
         }
         return element
     }
+
+    /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。
+    /// 見つかって **XCUITest が押せる(`isHittable`)と答えた**ときだけ、その木とドライバで撃つ(XCUITest の木はモーダルの裏の要素も残す =
+    /// 見つかっただけでは採らない。押せるかの判定はデバイスの答えに任せる)。標準アプリのリマインダーの新規行の入力欄は in-app の木に
+    /// 出ず、XCUITest の木にだけ出た(OI-290 ①)。前面の確かめは `appXCUITestTreeMatch` と同じ(XCUITest の木の読みは activate する)
+    func appXCUITestTreeActionTarget(step: FlowStep, action: String,
+                                     phase: inout PhaseAccumulator) async -> (element: ElementInfo, usedFallback: FlowLocator?,
+                                                                             snapshot: SnapshotResponse, driver: AppDriver)? {
+        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
+              PreFireGuard.keyboardSensitiveActions.contains(action) else { return nil }
+        let foreground: Bool
+        do { foreground = try await xcuitest.isAppForeground(bundleID: bundleID) } catch {
+            noteCodesThisStep.insert(.xcuitestTreeUnread)
+            return nil
+        }
+        guard foreground else { return nil }
+        let clock = ContinuousClock()
+        let start = clock.now
+        guard let tree = try? await xcuitest.snapshot() else {
+            noteCodesThisStep.insert(.xcuitestTreeUnread)
+            return nil
+        }
+        phase.snapshotMs += Self.ms(clock.now - start)
+        guard let (element, usedFallback) = LocatorResolver.resolve(step: step, in: tree),
+              (try? await xcuitest.hitTest(ref: element.ref)) == .hittable(true) else { return nil }
+        noteCodesThisStep.insert(.actedViaXCUITestTree)
+        return (element, usedFallback, tree, xcuitest)
+    }
 }

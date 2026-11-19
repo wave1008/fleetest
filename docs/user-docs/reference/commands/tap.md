@@ -89,6 +89,9 @@ tap(x: 120, y: 640)                    // only when no selector is available
   | Writing a scenario (kept long-term) | Prefer a selector. Coordinates are a last resort — they hit whatever is there once the layout moves. |
   | Ad-hoc exploration | A selector is still preferred, but coordinates are fine if they resolve faster. |
 - **A SwiftUI link may look like an element in MCP exploration but not in scenarios (inapp-boost mode).** Write `tap(element, linkText:)`.
+- **An element whose reported frame is a small box at the top-left corner of the screen is not touched; the step fails.**
+  The app's framework did not report where it is drawn, and a touch there lands on the status bar (on iOS it can switch to
+  the previous app). Point at a neighbouring element (the row or label next to it, or a relative selector such as `:right`).
 - **`settle: false` skips the wait for the screen to settle after this one command.** Normally a command
   waits for the screen to settle before returning (the bridge's settle wait and fleetest's comparison of
   the element tree after the command; each wait has an upper limit), so the next step sees the final positions. With `settle: false`

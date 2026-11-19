@@ -7,14 +7,14 @@ final class SystemAlertUndeliveredRetryTests: XCTestCase {
 
     private func target() -> ElementInfo {
         ElementInfo(ref: 1, type: "button", identifier: "target", label: nil, value: nil, placeholder: nil,
-                    enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)
+                    enabled: true, frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)
     }
 
     private func alertTree() -> [ElementInfo] {
         [ElementInfo(ref: 100, type: "alert", identifier: nil, label: "写真ライブラリへのアクセス", value: nil,
                      placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 0, width: 300, height: 200), depth: 0),
          ElementInfo(ref: 9, type: "button", identifier: nil, label: "許可しない", value: nil, placeholder: nil,
-                     enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1)]
+                     enabled: true, frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1)]
     }
 
     /// 開始の確認では居ない → 撃つと断られる → 閉じて(fallback.tap)撃ち直す

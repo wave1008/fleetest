@@ -57,6 +57,9 @@ final class TapAdvisoryKindSharedTests: XCTestCase {
         XCTAssertTrue(dsl?.contains("top-left corner") == true, dsl ?? "-")
         let mcp = RefGuard.overlapWarning(found: e, in: [e], screen: screen, isAndroid: false, operation: "tap")
         XCTAssertTrue(mcp.contains("top-left corner") && mcp.contains("#z"), mcp)
+        // MCP の ref 操作は撃たずに断る(DR-203。`aboveScreenRefusal` が ref を引く全経路で先に呼ぶ)
+        let refusal = MCPServer.aboveScreenRefusal(e, screen: screen, label: "[1]") ?? ""
+        XCTAssertTrue(refusal.contains("top-left corner") && refusal.contains("Nothing was sent"), refusal)
         let body = element(2, "body", "textView", 0, 0, screen.width, screen.height * 0.6)
         if case .originPinned? = TapTargetGeometry.advisoryKind(for: body, in: [body], screen: screen) {
             XCTFail("原点から始まる大きな本文を貼り付きと読んだ")

@@ -1188,7 +1188,7 @@ public final class StepExecutor {
     /// **書き手への警告として足した注記(合否を変えない)はここに載せる** —— 載せ忘れると結果 JSON のコードにしか出ず、レポートでは
     /// 注記の無い ✅ に見える(40周目 iultra F1・im4 F1: absence-behind-modal / covered-by-front-element)
     static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp, .absenceBehindModal,
-                                                .coveredByFrontElement, .typeFocusNotReported]
+                                                .coveredByFrontElement, .typeFocusNotReported, .countInScrollingList]
     private func readerNotesText() -> String? {
         Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map { note in
             if note == .absenceCheckedOnAnotherApp, let stopped = absenceReadWhileStoppedThisStep, let app = appUnderTestBundleID {

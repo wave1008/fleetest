@@ -587,6 +587,7 @@ extension MCPServer {
                                                   operation: "set slider value", args: args)
         let wantedText = SliderValueLoop.format(wanted)
         let outcome: SliderValueOutcome
+        var tappedAlong: (identifier: String?, area: FTRect)?
         do {
             outcome = try await sliderDriver.setSliderValue(ref: nativeRef(target.ref, args: args), frame: target.frame,
                                                             area: element.frame,
@@ -600,9 +601,19 @@ extension MCPServer {
                 outcome = try await SliderTapPosition.set(driver: sliderDriver, frame: target.frame, area: element.frame,
                                                           identifier: target.identifier ?? element.identifier,
                                                           current: SliderTarget.currentValue(target), wanted: wanted)
+                tappedAlong = (target.identifier ?? element.identifier, element.frame)
             } catch let failure as SliderValueLoop.Failure {
                 throw MCPError("set slider value \(wantedText) on [\(ref)] failed: \(failure.description)"
                     + " (no bridge could adjust it through accessibility, so setting it by tapping along its track was tried)")
+            }
+        }
+        // 帯のタップの直後の値は一瞬のこともある(タップの間に中身がスクロールすると後で戻る)。DSL と同じ判定で、落ち着いた後の木でも保たれているか確かめる
+        if let tappedAlong {
+            let settled = try await rereadAfterGrace(sliderDriver, args: args)
+            if let failure = SliderTapPosition.heldFailure(reported: outcome, tappedFrame: target.frame, area: tappedAlong.area,
+                                                           identifier: tappedAlong.identifier, wanted: wanted,
+                                                           settled: settled.elements) {
+                throw MCPError("set slider value \(wantedText) on [\(ref)] failed: \(failure)")
             }
         }
         recordInteraction(action: "setSliderValue", resolvedRef: element.ref, args: args, text: wantedText)

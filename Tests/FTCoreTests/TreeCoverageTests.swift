@@ -92,6 +92,16 @@ final class TreeCoverageTests: XCTestCase {
                                                 el(4, 16, 120, 370, 120)], truncatedCount: 0)
         XCTAssertTrue(TreeCoverage.collapsedTree(in: short), "前提: 発火はする")
         XCTAssertFalse(TreeCoverage.collapsedTreeLooksLikeModal(short))
+        // 左端から始まり右だけが空く形(実測の誤発火: 左 0.04・右 0.18〜0.57)。上端は詰まっている
+        let rightGap = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                        elements: [el(1, 8, 0, 150, 100), el(2, 8, 100, 150, 100), el(3, 8, 200, 150, 100)],
+                                        truncatedCount: 0)
+        XCTAssertFalse(TreeCoverage.collapsedTreeLooksLikeModal(rightGap))
+        // 左に余白がある(実測の真陽性 0.13・0.29)形はモーダル
+        let inset = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                     elements: [el(1, 60, 0, 300, 100), el(2, 60, 100, 300, 100), el(3, 60, 200, 300, 100)],
+                                     truncatedCount: 0)
+        XCTAssertTrue(TreeCoverage.collapsedTreeLooksLikeModal(inset))
     }
 
     /// **モーダル形の発火集合を等号で固定する**(ネイティブを含む)

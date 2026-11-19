@@ -638,25 +638,19 @@ extension StepExecutor {
                 + (ghostTrace.isEmpty ? "" : " [rescue: " + ghostTrace.joined(separator: "; ") + "]")
         }
 
-        // **解決できないのは上限で間引かれたからかもしれない**。否定アサーションと
-        // 同じ retake を操作側にも入れる —— こちらは誤った成功ではなく**実在する要素での赤**
-        // (flake)になる形だが、直す手段は同じ。
+        // **解決できないのは上限で間引かれたからかもしれない**。否定アサーションと同じ retake を操作側にも入れる
+        // (誤った成功ではなく**実在する要素での赤**(flake)になる形だが、直す手段は同じ)。
         // **ドライバ切替と指紋照合より前**に置く: 切り詰められた木で指紋を照合すると、実在する本命が
         // 候補に無いまま同じ型+ラベルの別要素が「ちょうど1件」になり、修正提案が利用者の .swift へ書き戻される。
-        // **`select` も対象にする**(下のドライバ切替は select を除外するが、あちらの理由は
-        // fallbackDriver が springboard セッションを張ってアプリ attach を潰すことで、
-        // ここには当てはまらない)。`ifCanSelect` が切り詰められた木で「無い」側の枝を選ぶのは
-        // notExist の誤った成功と同じ形なので、掴めないことが答えになり得るコマンドこそ要る
-        //
-        // **ラッチが既に立っているならここは撮らない**: 上のリトライループ入口で先に撮り直して
-        // いれば、以後の周回は freshSnapshot がラッチ経由で天井のまま読んでいるので、ここで
-        // もう1枚撮っても同じ木が返るだけの無駄になる
+        // **`select` も対象にする**(下のドライバ切替が select を除外する理由 = fallbackDriver が springboard セッションを張って
+        // アプリ attach を潰す、はここに当てはまらない)。`ifCanSelect` が切り詰められた木で「無い」側の枝を選ぶのは
+        // notExist の誤った成功と同じ形なので、掴めないことが答えになり得るコマンドこそ要る。
+        // **ラッチが既に立っているならここは撮らない**(上のリトライループ入口で撮り直していれば、以後の周回は freshSnapshot が
+        // ラッチ経由で天井のまま読んでいる = もう1枚撮っても同じ木が返るだけ)
         if resolved == nil, snapshot.truncatedCount > 0, !elementLimitCeilingLatchedThisStep {
-            // **ラッチを立てる**: one-shot の arm はこの1枚にしか効かないので、このステップの
-            // 後続読み(freshSnapshot 経由・下の readback ヘルパの直呼び)も天井で撮らせる
-            // (elementLimitCeilingLatchedThisStep の doc)。立てないと縁またぎの撮り直し(下の
-            // straddle 補正)や type/clearInput の読み返しが既定上限へ戻り、この撮り直しで
-            // 拾えた対象がまた落ちる
+            // **ラッチを立てる**: one-shot の arm はこの1枚にしか効かないので、このステップの後続読み(freshSnapshot 経由・
+            // 下の readback ヘルパの直呼び)も天井で撮らせる(elementLimitCeilingLatchedThisStep の doc)。立てないと縁またぎの
+            // 撮り直し(straddle 補正)や type/clearInput の読み返しが既定上限へ戻り、この撮り直しで拾えた対象がまた落ちる
             elementLimitCeilingLatchedThisStep = true
             snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             resolved = LocatorResolver.resolve(step: step, in: snapshot)
@@ -689,6 +683,10 @@ extension StepExecutor {
                     switchedToFallbackDriver = true
                 }
             }
+        }
+        // inapp-boost: in-app の木で解けない対象は、キーボードを閉じる・指紋で直す前に XCUITest の木を1回照会する(DR-202)
+        if resolved == nil, action != "select", let c = await appXCUITestTreeActionTarget(step: step, action: action, phase: &phase) {
+            (resolved, snapshot, actingDriver, switchedToFallbackDriver) = ((c.element, c.usedFallback), c.snapshot, c.driver, true)
         }
 
         var status: StepResult.Status = .passed
@@ -979,7 +977,8 @@ extension StepExecutor {
         }
 
         if let refusal = Self.offscreenCentreRefusal(action: action, step: step, element: element,
-                                                     screen: snapshot.screen, isAndroid: isAndroid) {
+                                                     screen: snapshot.screen, isAndroid: isAndroid)
+            ?? Self.originPinnedRefusal(action: action, step: step, element: element, screen: snapshot.screen) {
             return StepOutcome(status: .failed(refusal))
         }
 
@@ -1796,6 +1795,7 @@ extension StepExecutor {
             let wantedText = step.text ?? ""
             let current = SliderTarget.currentValue(target)
             var moved: SliderValueOutcome?
+            var tappedAlong: (frame: FTRect, area: FTRect, identifier: String?)?
             do {
                 // **ref はこの木(主のドライバ)の番号**。typeDriver(XCUITest)へ回ったときは渡さない(別の名前空間)
                 let viaXCUITest = try await gestureWithFallback(phase: &phase) { performer in
@@ -1814,6 +1814,7 @@ extension StepExecutor {
                     moved = try await SliderTapPosition.set(driver: driver, frame: target.frame, area: element.frame,
                                                             identifier: target.identifier ?? element.identifier,
                                                             current: current, wanted: wanted)
+                    tappedAlong = (target.frame, element.frame, target.identifier ?? element.identifier)
                     driverFallback = Self.joinNotes(driverFallback, "set by tapping along the slider")
                 } catch let failure as SliderValueLoop.Failure {
                     return StepOutcome(status: .failed("setSliderValue \(wantedText) failed: \(failure.description)"
@@ -1827,6 +1828,15 @@ extension StepExecutor {
                 var settleNotes: [String] = []
                 note(.settleCapped, into: &settleNotes)
                 driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
+            }
+            // 帯のタップの直後の値は一瞬のこともある(タップの間に中身がスクロールすると後で戻る)。整定の後にもう一度読んで保たれていなければ赤
+            if let tappedAlong, let moved {
+                let settledTree = driver.supportsCacheBypass ? try await driver.snapshot(bypassingCache: true) : try await driver.snapshot()
+                if let failure = SliderTapPosition.heldFailure(reported: moved, tappedFrame: tappedAlong.frame, area: tappedAlong.area,
+                                                               identifier: tappedAlong.identifier, wanted: wanted,
+                                                               settled: settledTree.elements) {
+                    return StepOutcome(status: .failed("setSliderValue \(wantedText) failed: \(failure)"))
+                }
             }
         case "swipeElementToElement":
             guard let endLocator = step.endLocator else {

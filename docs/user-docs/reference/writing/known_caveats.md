@@ -44,6 +44,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`notExist` ignores visibility](../commands/existence_assertion.md#notes) — an element merely covered by a modal but still in the tree counts as present, and the check fails after the wait.
 - [Absence passes behind a dialog (`absence-behind-modal`)](../commands/existence_assertion.md#notes) — a dialog in front can remove elements from the tree, so `notExist` passes (with this note) though the element is behind it; close the dialog first.
 - [Absence read on another app (`absence-checked-on-another-app`)](../commands/existence_assertion.md#notes) — on Android, `notExist` passes with this note while another app is in front and says nothing about your app; bring your app back first.
+- [`countIs` inside a scrolling list (`count-in-scrolling-list`)](../commands/existence_assertion.md#notes) — the number of rows on the screen depends on its size and orientation, so the count can differ on another device; count what does not depend on the screen.
 - [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis (`text-ellipsized`) or more than half drawn (`text-partially-hidden`) passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
 
 ### Find by image (findImage, findImages, existImage)
@@ -201,6 +202,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [iOS in-app "real touch would land elsewhere" note](../commands/tap.md#notes) — the step stays green with `inapp-tap-outside-hit-area`, but the same tap can fail on the XCUITest bridge; check that the element is truly reachable.
 - [Coordinate taps are a last resort](../commands/tap.md#notes) — prefer a selector in scenarios you keep, because coordinates hit whatever is there after the layout moves.
 - [A SwiftUI link may look like an element in MCP but not in scenarios](../commands/tap.md#notes) — write `tap(element, linkText:)`.
+- [An element reported as a small box at the top-left corner is not touched](../commands/tap.md#notes) — a touch there lands on the status bar; point at a neighbouring element.
 - [`settle: false` skips the settle wait](../commands/tap.md#notes) — the next step may see a moving screen; use it only when speed matters and the next step does not depend on final positions.
 
 ### Text assertion (textIs, textContains, ...)
@@ -299,6 +301,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### Bars that hide on scroll
 - [Flutter `AnimatedSlide` bar stays at its original place](ui_component_patterns.md#bars-that-hide-on-scroll) — the search does not scroll and the tap may land where the button no longer is.
+- [Compose Multiplatform hidden bottom bar on iOS does not come back with scroll: .up](ui_component_patterns.md#bars-that-hide-on-scroll) — scroll back to the top of the list so the bar shows, then tap.
 
 ### Link
 - [index](../../index.md)

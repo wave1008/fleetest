@@ -24,7 +24,7 @@ final class LocatorFingerprintRecordingTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "btn1", label: "修復対象",
                                        value: nil, placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}
@@ -51,7 +51,7 @@ final class LocatorFingerprintRecordingTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "id_seed", label: "修復対象",
                                        value: nil, placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}
@@ -81,7 +81,7 @@ final class LocatorFingerprintRecordingTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "id_drifted", label: "修復対象",
                                        value: nil, placeholder: "drifted", enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}
@@ -276,7 +276,7 @@ final class LocatorFingerprintRecordingTests: XCTestCase {
                 elements: [
                     ElementInfo(ref: 1, type: "button", identifier: "btn_p", label: "P",
                                value: nil, placeholder: nil, enabled: true,
-                               frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0),
+                               frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0),
                     ElementInfo(ref: 2, type: "button", identifier: "btn_q", label: "Q",
                                value: nil, placeholder: nil, enabled: true,
                                frame: FTRect(x: 0, y: 60, width: 100, height: 40), depth: 0),
@@ -307,7 +307,7 @@ final class LocatorFingerprintRecordingTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "btn_p", label: "P",
                                        value: nil, placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}

@@ -240,7 +240,7 @@ final class SelScrollVariantDispatchTests: XCTestCase {
             let elements = revealed
                 ? [ElementInfo(ref: 1, type: "button", identifier: "target", label: "対象",
                                value: nil, placeholder: nil, enabled: true,
-                               frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)]
+                               frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)]
                 : []
             return SnapshotResponse(sessionBundleID: nil,
                                     screen: FTRect(x: 0, y: 0, width: 400, height: 800),

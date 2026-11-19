@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 1 | OI-282 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-261 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-282・OI-290 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 27 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 30 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 42 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 43 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-291 |
 
 ## 着手可
 
@@ -42,7 +42,7 @@
 
 ### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
 - 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
+- 確認: 657e032d1(2026-11-19)
 - 属性: 要測定
 - 運用: 合否に響かない(注記)
 - 優先度: 低 — 注記の文言だけ
@@ -54,27 +54,33 @@
 - ④ OTP の隠し入力欄への selector なし `type` に「left input focus nowhere … the text may have gone nowhere」(r2_e2ey_cmp_4a。1回目の評価で直した隠し入力欄の焦点の警告の別の形・入力は通る)
 - ⑤ `waitForChange` が内容の同じ木でも「the tree differs」(spec_ios)/ 読み返しに出所不明の既存値「the field already held "^_^"」(notes_se3)
 - 測定(11/19 1:1x・Sim -05・SUT Store の検索欄): ①は pressEnter 無し・あり の2回とも読み返しは正常(「Typed: …」だけ)= 再現せず。②〜⑤は注記の文言だけで合否に響かないので測っていない
-- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る
+- 3回目の評価(11/19・`_work/scen-eval-20261119/`): ①④⑤は出ず。②はまだ出る(phys_and_3a 50〜77%・e2ey_cmp_3a / r3_e2ey_cmp_3a の PIN 画面 36%・e2ex_flutter_emu 61%)。③はまだ出る(「under the sticky header」が `#circle`・`#otp_box_1`・同じ段落の続きの文・商品名の staticText を名指す 5 件 / OTP の「may have hit #otp_box_1」3 件)。新しい形: ⑥「#pad_swipe is still empty after a short re-read wait — it may be genuinely empty, or still loading」が本文を持つ scrollView・子を持たない設計のジェスチャ板に出る(r3_e2e_flutter_ios・e2e_flutter_en)⑦snapshotAfter の即時の木に別ウィンドウのモーダル・アニメーション中のシートが出ていないのに、注記は「a dynamic list … may not have populated yet」(e2e_ios_sim・r6_e2ey_flutter_ios)⑧遅れて届く更新(着信)に「the action may not have changed the screen」(3 件)
+- 次の一手: ①が再び出たら、読み返しの時刻と値が入る時刻の差を測る ②は2画面の木の形を並べ、短い画面とモーダルを見分ける材料があるか ③④は装飾の重なりの形をコーパスで数える ⑤は再現を取る ②⑦は直した(②モーダルの形は左の余白で見る・⑦初回の注記に開きかけのシートと別ウィンドウを足した)。⑧は文言が「変わらなかった」と「窓がまだ木に来ていない」の両方を言っており据え置き。残るのは③と⑥
+- ⑥の測定(11/19): 注記は画面の 3 割以上の高さのスクロール可能な要素に depth の子が無いと出す(`emptyLoadingScroller`)。Flutter は中身を容器の子でなく兄弟として返す(r3_e2e_flutter_ios・e2e_flutter_en の木で、容器の枠の中に中身が同じ depth で並ぶ)。「容器の枠の中に中心がある要素があれば空と言わない」で直すと、固定コーパスの真陽性 2 件(`ios-messages_keyboard` = 新規会話の空の一覧の枠の中にナビバー・入力欄が重なる / `and-maps_transit_results`)も消える = 反例を見分けられないので直さなかった。次の一手: Flutter の兄弟と、重なった別部品(ナビバー等)を depth・木の順で見分けられるかを、Flutter の木(depth 付き)と2件で比べる
+
+### OI-290 iOS Simulator の inapp-boost で、標準アプリのリマインダーの新規行の欄・オーバーフローのボタン・行のラベルが割れる
+- 状態: 再現済み
+- 確認: 657e032d1(2026-11-19)
+- 属性: 要測定
+- 運用: 回避可 — iosMode: "xcuitest"
+- 優先度: 中 — 標準アプリ(OS 同梱)だけ
+
+出典: シナリオ作成の評価 3回目(2026-11-19・`_work/scen-eval-20261119/`。AI のセッション 65 本が作った 332 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで 93 回・延べ 446 本回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
+- 3 つの別の AI(builtin_ios・r5_builtin_ios・r7_builtin_ios)のリマインダーが手元 Sim -08・M4Max の 2 台で 1/2・0/2・0/2・0/2・0/4・0/4。2回目の評価の A-1 のうち連絡先は DR-199 で直り、リマインダーが残った
+- ① `tap("新規")` の後の `type(".textField&&タイトル", …)` が in-app の木で解けない。ツールはキーボードの上を押して閉じ、「that tap was not side-effect free: #<x-apple-reminderkit://…>, #Notes text view, button 円 disappeared」と言う(編集中の行が消える)
+- ② リストの右上の「…」(id TopOverflowBarButtonItem)への tap が「its centre is covered by button "編集", and only 0 of the target is left uncovered」で撃たずに赤
+- ③ `exist("Ztestリスト、*")` がテキストの可視性検証で赤:「the row's label "Ztestリスト、0件のリマインダー" is not drawn in its frame — the text read there is "＜", "Ztestリスト" (judged by OCR)」(手元 Sim -08 の 1 回。M4Max では緑)
+- 測定(11/19・失敗時の木と画面): ①は in-app の木で新規の行が `clickable id=<x-apple-reminderkit://…>` だけ(ラベルも中の入力欄も無い)。XCUITest の木では行のラベル・textField「タイトル」が出る = DR-199 と同じ「OS の読み上げにだけ出る要素」→ DR-202 で直した。②は in-app の木でナビゲーションバーの同じ位置 (288,66) に `button "編集" (288,66 56x36)`・`button "リストを追加" (288,66 36x36)`・`button "さらに表示"`(リストの「…」・(288,66 38x36)) の 3 つが重なって出る(画面に見えるのは「…」だけ)= 表示されていない代わりのバーボタンが木に残り、手前と読まれた
+- ①は DR-202 で解いた(in-app の木で解けない操作の対象を XCUITest の木で照会し、押せると答えた要素を XCUITest で撃つ)。11/19 の Sim -08 で、`type(".textField&&タイトル", …)` が in-app の木で解けずに XCUITest の木から撃った(キーボードを閉じる tap は撃っていない)。入った先は別のセッションが残した既存のリマインダーの欄で、xcuitest モードでも同じ端末・同じ状態で同じ欄へ入った(XCUITest の木では各行のタイトル欄が全部 `.textField&&タイトル` に一致し、先頭を撃つ)= 選び方はモードで揃った。シナリオの赤は残ったデータとセレクタの曖昧さ
+- 次の一手: ②はその3つのボタンの UIView の hidden・alpha・window を in-app ブリッジで読む ③は M4Max で同じ行の OCR が何を読んだか(緑の回)を照らす
 
 ## 要判断
-
-### OI-261 XCUITest がメモの編集中のチェックボックスの枠を画面の原点 `(0,0 25x25)` で返し、ref の tap がステータスバー(「◀前のアプリ」)に当たる
-- 状態: 再現済み
-- 確認: 0b9a7aeb6 + 作業ツリー(2026-11-18)
-- 属性: 要判断
-- 運用: 要注意 — 押した後の検証が赤にする。今は警告が付く
-- 優先度: 中 — 別アプリへ移る操作を撃ちうる
-
-出典: シナリオ作成の評価(2026-11-18・`_work/scen-eval-20261118/`。AI のセッション 26 本が作った 215 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
-- 測定(11/18・iPhone SE3 の実機・MCP = XCUITest): メモで新規メモ → チェックリスト → 文字を打った直後の木で、チェックボックスが `button "未実行, チェックリスト項目" (0,0 25x25)`(1/1 で再現)。ref で押すと応答は ok、画面は変わらなかった(評価の回はステータスバーに「◀前のアプリ」があり、そちらが押されて背面へ回った)
-- 直した(11/18): 枠が画面の原点から始まる小さな要素を、tap の前の警告の並び(`TapTargetGeometry.advisoryKind` の `originPinned`。DSL と MCP が共有)で名指す。固定コーパス(実アプリ 53 画面)にこの形は 0 件。新しい検知なので警告だけ
-- 決めること: デバイス実行で誤検知が無いと確かめた後、この形への触る操作を撃たずに断る(失敗にする)へ上げるか
 
 ## 木に材料なし
 
 ### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
 - 状態: 再現済み
-- 確認: 3695350cd(2026-11-18)
+- 確認: 657e032d1(2026-11-19)
 - 属性: 木に材料なし
 - 運用: 回避可 — 本番(inapp-boost)では効く。作成時は ft_start_run で確かめる(DR-196)
 - 優先度: 中 — 作成ループで誤った判断を招く
@@ -84,7 +90,9 @@
 - 対照: 同じ評価で XCUITest のカートの数量±の起票(r4_spec_ios)は本番でも再現 = アプリ側
 - 測定(11/18 23:1x・Sim -05・MCP = XCUITest): SUT Store のホームの検索バー(`textView "商品を検索" (16,112 370x56)`)へ ①セレクタの tap(中心)②座標 (201,117)(上端寄り)③0.3 秒の長押し、のどれも遷移しない(木は操作の前と同じ)。同じ画面の本番(inapp-boost)は遷移する = XCUITest の合成の入力が、押す位置・時間によらずこの CMP の欄に効かない。保存ボタンで上端なら効いた形とは別
 - 測定(11/19 1:0x・Sim -05・ランナーの /hittable を直接): 検索バーの `textView "商品を検索"` は `hittable: true`(label で引き当て)。それでも要素の tap・座標の tap・0.3 秒の長押しのどれも効かない = 届かない理由は木にもヒットテストの答えにも出ない
-- 次の一手: 材料が出るまで据え置き(XCUITest の合成のタッチを CMP の欄が受け取らない理由をブリッジの側で測る口が要る)
+- 3回目の評価(11/19・`_work/scen-eval-20261119/`): ①spec_ios で同じ検索バーに同じ仕様違反 D-01 が起票され、本番(inapp-boost)では同じシナリオが緑(3回目)②の保存ボタンを 3 つの AI が踏んだ: r2_sutstore_ios は失敗時の木で文字が `staticText "保存" (187,801 28x4)` = **高さ 4pt に切り詰め**・スクリーンショットでも最下端で見切れ(scrollToBottom → pressEnter → tap の回り道で緑)、r6_sutstore_ios は断念、r7_sutstore_ios は XCUITest で 4 回以上無反応のまま赤で残した。**同じ r7 のシナリオを本番(inapp-boost・M1Ultra)で回すと `tap("#btn_save")` が「nudged the element fully inside its container before touching it」で保存できた** = ②は「容器の縁で切れた要素の中心を押す」形で、inapp-boost の DSL は容器の内側へ寄せてから押すが、XCUITest の作成ループ(MCP・ft_run_scenario)では寄せが働いていない
+- 測定(11/19・評価のセッションのログ = MCP の XCUITest の木): 住所フォームの木は `scrollView scroll (0,0 402x874)`(画面全体)と `button "保存" id=btn_save (16,797 370x48)` = **XCUITest の木では保存ボタンが容器の中に収まって見え、「縁にまたがる」の判定(寄せ)の材料が無い**。切られている痕跡は子の文字の枠(`staticText "保存" (187,801 28x4)`)の高さだけ。inapp-boost の木は縁をまたいで見えるので寄せてから押せた
+- 次の一手: ②は子の文字の枠が親より大きく切られている形を「見えている部分」の材料にできるか(反例 = 文字が小さいだけのボタン を同じ材料で見分けられるか)を固定コーパスで確かめる。①は材料が出るまで据え置き(XCUITest の合成のタッチを CMP の欄が受け取らない理由をブリッジの側で測る口が要る)
 
 ### OI-251 xcuitest モードで、送りで隠れた上部バーのボタンへの tap が何も押さずに ✅(E2EY-iOS「スクロールで隠れるバー」)
 - 状態: 再現済み
@@ -380,6 +388,43 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/10: 配信を張ったままの全体の回帰(9d8f94471・`_work/regress-20261110b`)で再発。手元は再起動から 6.9 時間 = 「長く動かした機械」だけではない。記述は `found (distance 0.000, next 0.066) / 11 compared` = 同じ距離の候補は1つだけ(全候補が並ぶ縮退ではない)・次点 0.066 は健全なときの正しい行の距離 = 正しい行の計算は健全で、**別の1行だけが 0.000 になった**。直後に手元の6台で3周(72 本)回すと全部緑(正しい行を分類器が 0.066 で採る)。候補の側の門は、何が 0.000 を作るか(その行の切り出しの絵)を観測するまで掛けない
 - 11/11(材料の採り口): 通った単数の `findImage` / `existImage` の照合の絵を次の1ステップへ持ち越し、そのステップ(`idIs` 等)が自分の絵を持たずに落ちたらレポートに添える(印 `preceding-image-match`)。照合の記述に採った候補の切り出しの枠(`cropped at x,y wxh`)も出す。**次に赤が出たら、添えた絵のその枠を切り出して 0.000 を作った絵を見る**(白紙・一色・正しい行と同じ絵か)。同じ時刻のその機械の Vision の死活の履歴(`vision-history.ndjson`・OI-137)も見る
 
+### OI-289 Android 実機の横向きのフルスクリーン IME(extract view)で、DSL の type・Enter・検証が割れる
+- 状態: 再現済み
+- 確認: 657e032d1(2026-11-19)
+- 属性: 低頻度
+- 運用: 回避可 — type の後に hideKeyboard()。ただし①は避けられない
+- 優先度: 高 — 横向きの実機で普通の書き方が赤になる
+
+出典: シナリオ作成の評価 3回目(2026-11-19・`_work/scen-eval-20261119/`。AI のセッション 65 本が作った 332 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで 93 回・延べ 446 本回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
+- 横向きの Pixel 4a でキーボードが出るとアプリの窓が木から丸ごと消える(注記「a full-screen keyboard (such as the landscape extract view) hides the app's window from the tree」)。5 セッションで踏んだ
+- ① r6_e2ex_flutter_4a(Flutter): 入力の種類のパスワード欄・複数行欄への DSL の `type` が 500「cannot type into the field that was tapped (the field could not be found again after ACTION_SET_TEXT was accepted, 4000ms waited; read back 0 masked characters, …, the IME window is in front; giving up rather than typing into the wrong field)」で赤(2 本)。先頭の数字欄は緑。**縦の Emulator では同じ 9 本が全部緑**。MCP の ft_type は通る
+- ② r3_e2ex_and_4a(Android View の SearchView): `ft_type(pressEnter: true)` で値は入るが、結果表示は search=none のまま(2 回)
+- ③ e2e_rn_4a・r4_e2e_and_4a: type の直後の `textIs` が「element not found」だけで赤(キーボードが覆っている可能性を言わない)
+- 測定(11/19 06:1x〜06:3x・同じ 4a): 作成時の赤(05:10〜05:15 に 5 回とも 500)は、縦で 7/7・横向き(user_rotation=1・ft_rotate)にして 4/4 とも緑。`dumpsys input_method` は横向きでも `mInFullscreenMode=false`(キーボードは窓を縮めるだけ)= 作成時に出ていた全画面入力(extract view)の状態を作り直せなかった。4a の向きは評価の途中(05:15〜06:12 の間)に横から縦へ変わっていた(誰が変えたかは未観測)
+- 次の一手: 全画面入力が出る状態(Gboard の横向きの全画面入力)になったら、①の SET_TEXT の後に欄を見つけ直せない理由と②の Enter の宛先を測る
+
+### OI-292 RN の iOS(XCUITest)の type が、短い文字列でも毎回「retyped the whole text 1 time(s) after a keystroke was dropped mid-string」
+- 状態: 再現済み
+- 確認: 657e032d1(2026-11-19)
+- 属性: 低頻度
+- 運用: 合否に響かない(打ち直しで正しく入る)
+- 優先度: 低 — 時間の損だけ
+
+出典: シナリオ作成の評価 3回目(2026-11-19・`_work/scen-eval-20261119/`。AI のセッション 65 本が作った 332 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで 93 回・延べ 446 本回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
+- 観測: r2_e2ey_rn_ios の `type("#field_otp", "123456")`・`type("#field_title", "こんにちは")` が MCP でも run でも毎回 1 回打ち直し
+- 測定(11/19 06:4x・Sim -07): 同じシナリオ(PIN と OTP・戻るの横取り)を inapp-boost・xcuitest の両モードで回し、打ち直しは 0 回(2/2 緑・注記なし)= 再現せず
+- 次の一手: 再び出たら 1 回目の打鍵で何文字落ちたかを測る
+
+### OI-297 全体の単体テスト(`Scripts/unit-tests.py`)の並列の負荷の下で、`FMServeAlignmentTests.testSocketReleaseHasItsOwnBudgetAfterRetirementIsAccepted` が1回赤
+- 状態: 再現済み
+- 確認: 作業ツリー(2026-11-19)
+- 属性: 低頻度
+- 運用: 合否に響かない(単体テストだけ)
+- 優先度: 低 — 全体テストの揺れ
+
+- 観測(11/19): 全体テスト(22 並列)で1回「the FM process is still busy」・`["status", "retire"]` が `["status", "retire", "retire"]` に届かず赤。同じクラスを単独で3回回して 0/3(緑)。触った変更(MCP の linkText・XCUITest の木の照会・countIs の注記・原点の断り)は FM の常駐と関係しない
+- 次の一手: 全体テストで再び出たら、退役の照会の間隔と、テストが待つ上限(`retirementWaitSeconds` の差し替え値)を並べて、負荷の下で1周が上限を越えたかを測る
+
 ## 環境側
 
 ### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回)
@@ -488,6 +533,19 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 
 ## 据え置き
+
+### OI-291 scrollFrame の枠の外にある固定要素を探すと、最初の読みで枠の外と分かっていても払い切る
+- 状態: 再現済み
+- 確認: 657e032d1(2026-11-19)
+- 属性: 据え置き
+- 運用: 回避可
+- 優先度: 低 — 時間の損だけ(①の scrollFrame に行を渡した形は直した = 行を収める容器を払う)
+
+出典: シナリオ作成の評価 3回目(2026-11-19・`_work/scen-eval-20261119/`。AI のセッション 65 本が作った 332 本を、作成と別の端末で本番の経路 = `fleetest run`・inapp-boost・テキストの可視性検証ありで 93 回・延べ 446 本回した。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・実行ログは `logs/run-*.log`)
+- ① r3_e2ex_cmp_4a: `ft_scroll_to(selector: "#nav_search", scrollFrame: "#nav_pager")`(一覧の先頭の項目 = 容器でない)が 66px 動いた後「nothing moved at all during the search … raising maxSwipes will not help」で端扱い。AI は一覧が 6 項目だと誤認しかけた(容器は id の無い `other scroll`)
+- ② r2_e2ey_cmp_ios: スクロール枠の外の固定要素 `#txt_staggered_result` を `scrollFrame: "#grid_staggered"` で探すと、round 0 で「only outside scrollFrame (16,134 110x24)」と分かっているのに 8 払い+逆 8 で 34.8 秒
+- 測定(11/19 06:3x・4a・縦・MCP): 同じ `ft_scroll_to(selector: "#nav_search", scrollFrame: "#nav_pager")` は 2 払いで届いた。1 回目の払いの後、scrollFrame に渡した `#nav_pager` 自身が中身と一緒に送られて `(0,246 1080x68)`(容器 `other scroll (0,312 …)` の上端をまたぐ 68px の帯)になっていた = **scrollFrame に渡した行は中身と一緒に動くので、払う場所が払うたびに細く・画面の外へずれる**。対象が遠いと次の払いが細い帯の中になり「nothing moved」へ落ちる(①の原因)
+- 据え置きの理由: 同じ id の要素が後から枠の中に現れうるので、枠の外に見えたことで打ち切らない。症状が実害(誤った結論)になったら見直す
 
 ### OI-256 ランナー機の上で、そのランナー機に固定した実行プロファイルを `--device-machine <自分の名前>` で回すと、自分自身へ ssh しようとして落ちる
 - 状態: 再現済み

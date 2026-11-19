@@ -548,10 +548,9 @@ extension MCPServer {
     /// 残したのは行動に要る2つ:「操作直後の木である」と「waitFor で確かめてから無いと言え」
     private func immediateReadNote() -> String {
         once("snapshotAfterImmediateNote",
-            full: "note: this tree was read immediately after the action — a dynamic list"
-                + " (search suggestions, network results) may not have populated yet."
-                + " If something you expect is missing, confirm with ft_snapshot waitFor"
-                + " before concluding it is absent.\n",
+            full: "note: this tree was read immediately after the action — a dynamic list (search suggestions, network"
+                + " results) or a sheet or window still animating in may not be in it yet. If something you expect is"
+                + " missing, confirm with ft_snapshot waitFor before concluding it is absent.\n",
             short: "(immediate read — see the first snapshotAfter note)\n")
     }
 
@@ -1068,7 +1067,7 @@ extension MCPServer {
         // 断る理由はプラットフォームごとの事実だけを言う(Android に XCUITest の説明を出さない)
         let consequence = isAndroid
             ? "A touch there would land on the keyboard, not on the element."
-            : "On XCUITest the finger would press a key and type into the focused field; the in-app bridge rejects it (422)."
+            : "The finger would press a key and type into the focused field."
         return "refusing to act on \(RefGuard.describe(target)): \(advisory). \(consequence)"
             + " Close the keyboard with ft_hide_keyboard (it sends no Enter; ft_navigate back on Android), or"
             + " ft_scroll_to the element, then take a fresh ft_snapshot. ft_type pressEnter: true also closes it"
@@ -1083,9 +1082,10 @@ extension MCPServer {
     }
 
     /// **ref の経路も座標の経路と同じく、中心が画面の上の外なら撃たずに断る**(`offscreenCoordinateError` の上の外と同じ判定
-    /// `TapTargetGeometry.isPointAboveScreen`)。撃つとステータスバーが押され、一覧が先頭へ戻って別の画面になる。
-    /// 下・横の外は従来どおり警告して撃つ(探索が動かせる)。ref を引く全経路(`verifiedRef` と `refGestureGuard`)が呼ぶ
+    /// `TapTargetGeometry.isPointAboveScreen`。撃つとステータスバーが押され、一覧が先頭へ戻って別の画面になる)。下・横の外は従来どおり
+    /// 警告して撃つ(探索が動かせる)。ref を引く全経路(`verifiedRef` と `refGestureGuard`)が呼ぶ
     static func aboveScreenRefusal(_ found: ElementInfo, screen: FTRect, label: String) -> String? {
+        if let pinned = RefGuard.originPinnedRefusal(found, screen: screen, label: label) { return pinned }  // 原点に貼り付いた枠(DR-203)
         guard TapTargetGeometry.centreIsAboveScreen(found, screen: screen) else { return nil }
         return "refusing \(label): \(RefGuard.describe(found))'s centre (\(Int(saturating: found.frame.centerX)), \(Int(saturating: found.frame.centerY)))"
             + " is above the top of the screen (y < \(Int(saturating: screen.y))) — a touch there lands on the status bar"
@@ -1431,8 +1431,7 @@ extension MCPServer {
                                                 inAppAlert: Self.frontInAppAlertWithButtons(fresh),
                                                 currentCounterpart: Self.counterpartClause(for: target, in: fresh)))
         case .ghost(let found):
-            // **拒否せず警告して撃つ**(方針を後退させた。理由は RefGuard の宣言)。
-            // **キーボード被覆だけは断る**(`keyboardRefusal` の doc)
+            // **拒否せず警告して撃つ**(理由は RefGuard の宣言)。**キーボード被覆だけは断る**(`keyboardRefusal` の doc)
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
                                                       tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
                 if let reached = try await refAfterClosingKeyboard(ref, driver: driver, args: args, operation: operation, closedAlready: keyboardClosed) { return reached }
@@ -1612,19 +1611,20 @@ extension MCPServer {
                         + " zero-size frame, so there is nothing to swipe inside")
                 }
                 var note = retarget
-                // **ref はどんな要素の frame も掴める**(scrollable 申告を確かめない —— それが
-                // この逃げ道の存在意義: id の重複・欠落で選べない容器も frame さえ分かれば渡せる)。
-                // ただし黙って撃つと「マークされた容器の中を振った」という誤った印象を残すので、
-                // 申告が無い(true でない)ときは出所を名乗る
-                if found.scrollable != true {
-                    note += Self.scrollFrameNotDeclaredScrollableNote(found)
+                // 行(自身は scrollable でない)は中身と一緒に動くので、収める容器を払う(判定は DSL の探索と共有)
+                let swipeArea = ScrollFrameResolution.enclosingScrollable(of: found, in: fresh.elements, vertical: !["left", "right"].contains((args["direction"] ?? args["finger"]) as? String ?? "down")) ?? found
+                if swipeArea.ref != found.ref { note += " — " + ScrollFrameResolution.enclosingScrollableNote(frame: "[\(ref)]", container: swipeArea) }
+                // **ref はどんな要素の frame も掴める**(scrollable 申告を確かめない = id の重複・欠落で選べない容器の逃げ道)。
+                // 黙って撃つと「マークされた容器の中を振った」と誤読させるので、申告が無いときは出所を名乗る
+                if swipeArea.scrollable != true {
+                    note += Self.scrollFrameNotDeclaredScrollableNote(swipeArea)
                 }
                 // **id が一意なら矩形でなく `#id` で渡す**(DSL のシナリオと同じ形 = 1本ごとに今の木で引き直し、消えれば止まる)。
                 // 矩形は探索の途中で容器が動いても追従しない(scrollFrameLocator の doc)。一意でなければ従来の矩形
-                if let locator = Self.scrollFrameLocator(for: found, in: fresh) {
-                    return ScrollFrameArg(locator: locator, original: target, note: note, declaresScrollable: found.scrollable == true)
+                if let locator = Self.scrollFrameLocator(for: swipeArea, in: fresh) {
+                    return ScrollFrameArg(locator: locator, original: swipeArea.ref == found.ref ? target : swipeArea, note: note, declaresScrollable: swipeArea.scrollable == true)
                 }
-                return ScrollFrameArg(rect: found.frame, original: target, note: note, declaresScrollable: found.scrollable == true)
+                return ScrollFrameArg(rect: swipeArea.frame, original: swipeArea.ref == found.ref ? target : swipeArea, note: note, declaresScrollable: swipeArea.scrollable == true)
             }
         }
         if let text = args["scrollFrame"] as? String {
@@ -2094,8 +2094,8 @@ extension MCPServer {
                 + "scrollTo \"\(selectorText)\" did not reach the element"
                 + " (\(reason))\(manualExpand)\(Self.truncationHint(after))."
                 + " \(Self.visibleLabelsHint(after))"
-                + Self.scrollNotationHint(selectorText, after: after, beforeScroll: beforeScroll,
-                                          backDirection: Self.reversedDirection(direction))
+                + (reason.contains("is read as a label") ? "" : Self.scrollNotationHint(selectorText, after: after, beforeScroll: beforeScroll,
+                                          backDirection: Self.reversedDirection(direction)))
                 + Self.similarLabelsHint(selectorText, in: after)
                 + Self.scrollAreaHint(Self.scrollFrameHintTree(args, before: beforeScroll, after: after), args: args, isAndroid: isAndroid))
             // 投げられた DriverError があれば抱えたまま投げる(MCPError に畳むと notDelivered / deliveryUnknown / 接続断の案内が消える)。

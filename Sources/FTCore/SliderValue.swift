@@ -358,11 +358,37 @@ public enum SliderTapPosition {
         }
     }
 
-    static func readValue(identifier: String?, area: FTRect, in elements: [ElementInfo]) -> String? {
+    /// 帯のタップの直後の値(`reported`)が、画面が落ち着いた後の木 `settled` でも保たれているか。保たれていれば nil・
+    /// そうでなければ失敗の文。タップの間に中身がスクロールするとタップがスライダーの操作にならず、直後の読み返しだけが
+    /// 一瞬 `wanted` を示して後で戻る(RN の ScrollView 内で実測)。`tappedFrame` = タップ前の枠(動いたかの比較元)
+    public static func heldFailure(reported: SliderValueOutcome, tappedFrame: FTRect, area: FTRect, identifier: String?,
+                                   wanted: Double, settled: [ElementInfo]) -> String? {
+        let slider = findSlider(identifier: identifier, area: area, in: settled)
+        let now = slider.flatMap { SliderTarget.currentValue($0) }
+        if let now, SliderValueMatch.matches(current: now, wanted: wanted) { return nil }
+        var text = "the slider read \"\(reported.value)\" right after the tap, but "
+            + (now.map { "reads \"\($0)\"" } ?? "its value can no longer be read") + " once the screen settled"
+        if let slider {
+            let f = slider.frame
+            if abs(f.x - tappedFrame.x) > 1 || abs(f.y - tappedFrame.y) > 1 {
+                text += "; its frame moved from (\(Int(saturating: tappedFrame.x)),\(Int(saturating: tappedFrame.y))) to (\(Int(saturating: f.x)),\(Int(saturating: f.y))),"
+                    + " so the content scrolled during the tap and the tap did not set the slider"
+            }
+        } else {
+            text += "; the slider is not in the tree"
+        }
+        return text
+    }
+
+    static func findSlider(identifier: String?, area: FTRect, in elements: [ElementInfo]) -> ElementInfo? {
         if let identifier, let same = elements.first(where: { $0.identifier == identifier }) {
-            if case .target(let target) = SliderTarget.resolve(same, in: elements) { return SliderTarget.currentValue(target) }
+            if case .target(let target) = SliderTarget.resolve(same, in: elements) { return target }
         }
         let inside = SliderTarget.sliders(inside: area, in: elements)
-        return inside.count == 1 ? SliderTarget.currentValue(inside[0]) : nil
+        return inside.count == 1 ? inside[0] : nil
+    }
+
+    static func readValue(identifier: String?, area: FTRect, in elements: [ElementInfo]) -> String? {
+        findSlider(identifier: identifier, area: area, in: elements).flatMap { SliderTarget.currentValue($0) }
     }
 }

@@ -326,6 +326,10 @@ extension MCPServer {
             + "moved → retargeted, gone → refused, scroll leftover → tapped with a warning. " + coordinateCaveat, [
             "selector": selectorTargetProperty, "ref": refProperty, "x": pointXProperty, "y": pointYProperty,
             "alertButton": alertButtonProperty,
+            "linkText": ["type": "string", "description": "Press where this text is drawn inside the selector/ref element "
+                + "(an inline link in a paragraph) — same as tap(selector, linkText:) in a scenario. Found in the tree's "
+                + "descendants; reading the pixels (OCR) needs fmAndVision: true"],
+            "fmAndVision": fmAndVisionProperty,
         ], extra: afterActionProperties()),
         tool("ft_type", "Type text; with selector (preferred) or ref it taps the field and waits for focus. APPENDS by default — "
             + "replace: true (or ft_clear_input) to replace. Typing never closes the keyboard; Enter "

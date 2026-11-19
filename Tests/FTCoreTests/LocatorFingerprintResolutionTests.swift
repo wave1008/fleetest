@@ -31,7 +31,7 @@ final class LocatorFingerprintResolutionTests: XCTestCase {
                          label: String? = nil, depth: Int = 0) -> ElementInfo {
         ElementInfo(ref: ref, type: type, identifier: id, label: label, value: nil,
                     placeholder: nil, enabled: true,
-                    frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: depth)
+                    frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: depth)
     }
 
     private func snapshot(_ elements: [ElementInfo]) -> SnapshotResponse {
@@ -108,7 +108,7 @@ final class LocatorFingerprintResolutionTests: XCTestCase {
         // placeholder を候補にしないので書けるセレクタを作れない形)
         let field = ElementInfo(ref: 1, type: "textField", identifier: nil, label: nil, value: nil,
                                 placeholder: "検索", enabled: true,
-                                frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0)
+                                frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0)
         let snap = snapshot([field])
         let driver = StubDriver(snap)
         let executor = StepExecutor(driver: driver, healingEnabled: true, isAndroid: false, tunables: RunTunables())

@@ -24,7 +24,7 @@ final class FTRuntimeLifecycleTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "button", identifier: "cleanup", label: nil,
                                        value: nil, placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws { tapped.append(ref) }

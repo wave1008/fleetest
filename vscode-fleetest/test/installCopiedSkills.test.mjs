@@ -271,5 +271,28 @@ test("--skip-skills・クローン構成・クローンの内側の置き先は 
 test("コピーでありリンクではない(作業フォルダは git にコミットされうる)", () => {
   const body = placeSnippet();
   assert.doesNotMatch(body, /\bln\s+-s/, "place_skills がシンボリックリンクを作っている");
-  assert.match(body, /\bcp "\$sk_src/, "place_skills がコピーしていない");
+  assert.match(body, /\bcp "\$sy_f"/, "place_skills がコピーしていない");
+});
+
+test("スキルのフォルダ直下のファイルは SKILL.md 以外も写し、正典から消えたファイルは写しから消す", () => {
+  withTemp((base) => {
+    const toolRoot = makeToolRoot(base);
+    const refPath = path.join(toolRoot, ".claude/skills/fleetest-scenario/dsl-reference.md");
+    writeFileSync(refPath, "reference v1\n");
+    const { workDir, skillsDir } = makeWorkDir(base, { skills: { "fleetest-setup": RECEIVER_SETUP } });
+    const copied = path.join(skillsDir, "fleetest-scenario/dsl-reference.md");
+    runPlace(toolRoot, workDir);
+    assert.equal(readFileSync(copied, "utf8"), "reference v1\n", "SKILL.md 以外のファイルが写されていない");
+
+    // SKILL.md が同じでも、他のファイルだけ変われば写し直す
+    writeFileSync(refPath, "reference v2\n");
+    const r = runPlace(toolRoot, workDir);
+    assert.match(r.detail, /0 placed, 1 refreshed, 0 removed/);
+    assert.equal(readFileSync(copied, "utf8"), "reference v2\n");
+
+    rmSync(refPath);
+    runPlace(toolRoot, workDir);
+    assert.ok(!existsSync(copied), "正典から消えたファイルが写しに残っている");
+    assert.ok(existsSync(path.join(skillsDir, "fleetest-scenario/SKILL.md")));
+  });
 });

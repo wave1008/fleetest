@@ -19,7 +19,7 @@ final class TapThenTapStaleTreeTests: XCTestCase {
 
         private func tree(rowEnabled: Bool) -> [ElementInfo] {
             [ElementInfo(ref: 1, type: "button", identifier: "btn_reload", label: nil, value: nil, placeholder: nil,
-                         enabled: true, frame: FTRect(x: 0, y: 0, width: 100, height: 40), depth: 0),
+                         enabled: true, frame: FTRect(x: 1, y: 1, width: 100, height: 40), depth: 0),
              ElementInfo(ref: 2, type: "button", identifier: "row_l_03", label: nil, value: nil, placeholder: nil,
                          enabled: rowEnabled, frame: FTRect(x: 0, y: 100, width: 300, height: 60), depth: 0)]
         }

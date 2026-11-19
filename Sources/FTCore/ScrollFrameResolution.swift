@@ -32,4 +32,31 @@ public enum ScrollFrameResolution {
     public static func skippedFirstPhrase(_ position: Int) -> String {
         "match [\(position + 1)] (the first that scrolls — the first match does not scroll)"
     }
+
+    /// scrollFrame に渡された要素が**自身はスクロールを申告せず**、申告した容器の中の行のとき、払う場所にすべき容器。
+    /// 行は中身と一緒に動くので、行の枠で払うと回を重ねるごとに細く・画面の外へずれ「何も動かなかった」へ落ちる。
+    /// 木で最も近い祖先を優先し(枠が行を収めるときだけ)、無ければ行を収める最小の申告容器。
+    /// **要素が scrollable・申告した容器が収めない・子孫に scrollable がある(`resolve` の領分)ときは nil = 従来どおり**
+    /// (Android の申告の無い一覧を変えない)。DSL の探索と MCP の ref 解決が共有する。
+    /// **容器が払う向き(`vertical`)に行より長いときだけ**切り替える: 申告の無い横の列(CMP iOS のタブ列 `#stab_row`)は縦の一覧の
+    /// 中にあり、縦の一覧へ切り替えると横に払えなかった(回帰で実測)。行の向きの長さは容器と同じなので外れる
+    public static func enclosingScrollable(of element: ElementInfo, in elements: [ElementInfo], vertical: Bool) -> ElementInfo? {
+        guard element.scrollable != true,
+              !LocatorResolver.descendants(of: element, in: elements).contains(where: { $0.scrollable == true }) else { return nil }
+        func holds(_ c: ElementInfo) -> Bool {
+            c.ref != element.ref && c.scrollable == true && c.frame.width > 0 && c.frame.height > 0
+                && c.frame.contains(element.frame)
+                && (vertical ? c.frame.height > element.frame.height + 1 : c.frame.width > element.frame.width + 1)
+        }
+        if let index = elements.firstIndex(where: { $0.ref == element.ref }),
+           let ancestor = ContainerGeometry.nearestScrollableAncestor(of: element, at: index, in: elements),
+           holds(ancestor) { return ancestor }
+        return elements.filter(holds).min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+    }
+
+    /// `enclosingScrollable` へ切り替えたときの注記(DSL と MCP が共有)
+    public static func enclosingScrollableNote(frame: String, container: ElementInfo) -> String {
+        "scrollFrame \(frame) is a row inside a scroll container, which moves with the content — searched inside the container"
+            + " [\(container.ref)] instead"
+    }
 }

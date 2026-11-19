@@ -41,7 +41,7 @@ final class AssertKindsTests: XCTestCase {
                       checked: Bool? = nil) -> ElementInfo {
         ElementInfo(ref: ref, type: type, identifier: id, label: label, value: nil,
                     placeholder: nil, enabled: enabled,
-                    frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: depth,
+                    frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: depth,
                     checked: checked)
     }
 
@@ -166,7 +166,7 @@ final class AssertKindsTests: XCTestCase {
 
     private func stateNode(_ type: String, value: String? = nil, checked: Bool? = nil) -> ElementInfo {
         ElementInfo(ref: 1, type: type, identifier: "cb", label: nil, value: value, placeholder: nil,
-                    enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1, checked: checked)
+                    enabled: true, frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1, checked: checked)
     }
 
     private func runCheck(_ assert: String, _ frames: [[ElementInfo]],
@@ -761,7 +761,7 @@ final class AssertKindsTests: XCTestCase {
     func testCountBreakdownSumsToTotalWhenClausesOverlap() {
         let shared = ElementInfo(ref: 1, type: "button", identifier: "save", label: "保存",
                                  value: nil, placeholder: nil, enabled: true,
-                                 frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1)
+                                 frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1)
         let byClause = LocatorResolver.unionByClause(
             [FlowLocator(id: "save"), FlowLocator(label: "保存")], elements: [shared])
         XCTAssertEqual(byClause.map(\.elements.count), [1, 0])
@@ -826,7 +826,7 @@ final class AssertKindsTests: XCTestCase {
     private func valued(_ ref: Int, id: String, value: String) -> ElementInfo {
         ElementInfo(ref: ref, type: "textField", identifier: id, label: nil, value: value,
                     placeholder: nil, enabled: true,
-                    frame: FTRect(x: 0, y: 0, width: 10, height: 10), depth: 1)
+                    frame: FTRect(x: 1, y: 1, width: 10, height: 10), depth: 1)
     }
 
     /// value 系は label ではなく value を見る(text 系と同じ判定器を共有する)

@@ -44,6 +44,7 @@
 - [notExist は可視性を見ない](../commands/existence_assertion_ja.md#注意点) — 別のモーダルに覆われてツリーに残っている要素は「まだ在る」と扱われ、待ち時間後に失敗します。
 - [モーダルの裏で通った「無い」には absence-behind-modal の注記が付く](../commands/existence_assertion_ja.md#注意点) — 裏の要素がツリーから外れると、要素が在っても `notExist` が通ります。合否は変わらないので注記を確認します。
 - [Android で別アプリの画面を読んで通った「無い」には注記が付く](../commands/existence_assertion_ja.md#注意点) — 前面がテスト対象でないと、検証は対象について何も言っていません。合否は変わらないので注記を確認します。
+- [スクロールする一覧の中を数えた countIs には count-in-scrolling-list の注記が付く](../commands/existence_assertion_ja.md#注意点) — 見えている行の数は画面の大きさ・向きで変わるので、別の端末では別の数になりえます。画面の大きさに依らないものを数えます。
 - [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 末尾が省略記号なら緑(`text-ellipsized`)、描かれたのが期待の半分より多いと緑(`text-partially-hidden`)、半分以下は失敗です。大部分を隠す画面は `requireVisible: false` を使います。
 
 ### 画像で探す(findImage, findImages, existImage)
@@ -201,6 +202,7 @@
 - [iOS の in-app ブリッジは本物の指で押せない要素にも届くことがある](../commands/tap_ja.md#注意点) — 緑のまま「本物のタッチは別の物に当たる」注記が付くので、注記が出たら画面の覆いを疑います。
 - [座標タップは最後の手段](../commands/tap_ja.md#注意点) — アプリが要素を公開しないときだけ使い、長く使うシナリオではセレクタを優先します。
 - [SwiftUI のリンクは MCP では要素に見えてもシナリオでは見えない](../commands/tap_ja.md#注意点) — `tap(要素, linkText:)` と書きます。
+- [左上隅の小さな四角として報告された要素は押さない](../commands/tap_ja.md#注意点) — そこを押すとステータスバーに当たるので、隣の要素を指します。
 - [settle: false はそのコマンド1回だけ操作後の待ちを省く](../commands/tap_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見て位置がずれることがあります。
 
 ### テキストの検証(textIs, textContains, …)
@@ -299,6 +301,7 @@
 
 ### スクロールで隠れるバー
 - [Flutter の AnimatedSlide で隠すバーはツリーでは元の位置に居ると申告される](ui_component_patterns_ja.md#スクロールで隠れるバー) — 見た目には無いボタンを押すことがあります。隠れている間は押さず、バーが出たことを確かめてから押します。
+- [Compose Multiplatform の iOS で隠れた下部のバーは scroll: .up で出てこない](ui_component_patterns_ja.md#スクロールで隠れるバー) — 一覧の先頭まで戻してバーを出してから押します。
 
 ### Link
 - [index](../../index_ja.md)

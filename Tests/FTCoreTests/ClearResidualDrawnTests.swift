@@ -71,7 +71,7 @@ final class ClearResidualDrawnTests: XCTestCase {
 
     private func searchField(value: String?, focused: Bool? = nil) -> ElementInfo {
         ElementInfo(ref: 7, type: "textView", identifier: "field_search", label: "検索, 検索", value: value,
-                    placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0,
+                    placeholder: nil, enabled: true, frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0,
                     focused: focused)
     }
 

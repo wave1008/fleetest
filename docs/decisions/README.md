@@ -229,3 +229,7 @@
 - DR-198 run の上に「ジョブ」を1階層だけ置き、見える化の台帳に留める(fleetest は実行しない・キューと呼ばない)
 - DR-199 inapp-boost の肯定の存在のアサーションは、赤にする前にアプリの XCUITest の木も1回照会する
 - DR-200 SpringBoard が落ち続ける iOS Simulator は、蘇生の入口で止めてその run では戻さない
+- DR-201 MCP の `ft_tap` に `linkText` を足す(木の子孫で位置を決め、OCR は `fmAndVision: true` のときだけ)
+- DR-202 inapp-boost の操作の対象が in-app の木で解けないとき、アプリの XCUITest の木を1回照会し、押せると答えた要素は XCUITest で撃つ(DR-199 を操作へ広げる)
+- DR-203 画面の原点に貼り付いた小さな要素(`originPinned`)への触る操作は、回帰で誤検知が無いと確かめてから、撃たずに断る(赤)へ上げる
+- DR-204 画面の大きさに依存する `countIs` は、スキルの規則を足すのをやめ、実行時の注記で知らせる(DR-197 の見直し)

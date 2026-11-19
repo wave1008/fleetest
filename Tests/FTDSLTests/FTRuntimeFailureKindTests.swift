@@ -26,7 +26,7 @@ final class FTRuntimeFailureKindTests: XCTestCase {
                 screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                 elements: [ElementInfo(ref: 1, type: "textField", identifier: "field", label: nil,
                                        value: "leftover", placeholder: nil, enabled: true,
-                                       frame: FTRect(x: 0, y: 0, width: 100, height: 20), depth: 0)],
+                                       frame: FTRect(x: 1, y: 1, width: 100, height: 20), depth: 0)],
                 truncatedCount: 0)
         }
         func tap(ref: Int) async throws {}
