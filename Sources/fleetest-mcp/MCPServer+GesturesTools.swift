@@ -586,6 +586,8 @@ extension MCPServer {
         let guardNote = try await refGestureGuard(target, driver: sliderDriver, isAndroid: sliderDriver is AndroidDriver,
                                                   operation: "set slider value", args: args)
         let wantedText = SliderValueLoop.format(wanted)
+        let alreadyThere = SliderTarget.currentValue(target).map { SliderValueMatch.matches(current: $0, wanted: wanted) } == true
+        let beforeAction = lastSnapshots[Self.sessionKey(args)]
         let outcome: SliderValueOutcome
         var tappedAlong: (identifier: String?, area: FTRect)?
         do {
@@ -617,10 +619,13 @@ extension MCPServer {
             }
         }
         recordInteraction(action: "setSliderValue", resolvedRef: element.ref, args: args, text: wantedText)
-        return text("slider [\(target.ref)] now reads \"\(outcome.value)\"." + guardNote + labelNote
+        return text("slider [\(target.ref)] now reads \"\(outcome.value)\"."
+            + (alreadyThere ? " It already read that before this call, so the screen is not expected to change." : "") + guardNote + labelNote
             + reproductionNote(resolvedRef: element.ref, args: args)
             + changedHintOnce(args)
-            + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false)))
+            + waitForWithoutSnapshotAfterNote(args) + (await snapshotAfterBody(args, outsideTheAppTree: false,
+                                                                               unchangedIsExpected: alreadyThere,
+                                                                               baseline: beforeAction)))
     }
 
     func ftDrag(_ args: [String: Any]) async throws -> [[String: Any]] {

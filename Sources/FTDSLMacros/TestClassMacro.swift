@@ -35,6 +35,12 @@ public struct TestClassMacro {
         let deleted: Bool
         /// メソッドに @Draft が付いている(クラス側の @Draft は展開時に OR する)
         let draft: Bool
+        /// @Order(n) の引数式(verbatim 転写)。無ければ nil
+        let orderExpr: String?
+        /// @Order の引数式のノード(重複・欠落の診断位置)
+        let orderNode: ExprSyntax?
+        /// 欠落の診断位置(メソッド名)
+        let nameNode: Syntax
     }
 
     /// 属性リストに @Deleted(FTDSL.Deleted も可)が含まれるか
@@ -96,9 +102,13 @@ public struct TestClassMacro {
             var platformExpr: String?
             var scenarioTimeoutExpr: String?
             var isScenario = false
+            var orderArgument: ExprSyntax?
             for attr in fn.attributes {
                 guard let attrSyntax = attr.as(AttributeSyntax.self) else { continue }
                 let name = attrSyntax.attributeName.trimmedDescription
+                if name == "Order" || name.hasSuffix(".Order") {
+                    orderArgument = attrSyntax.arguments?.as(LabeledExprListSyntax.self)?.first?.expression
+                }
                 guard name == "Test" || name.hasSuffix(".Test") else { continue }
                 isScenario = true
                 guard let args = attrSyntax.arguments?.as(LabeledExprListSyntax.self) else { continue }
@@ -138,7 +148,10 @@ public struct TestClassMacro {
                                          platformExpr: platformExpr,
                                          scenarioTimeoutExpr: scenarioTimeoutExpr,
                                          deleted: hasDeleted(fn.attributes),
-                                         draft: hasDraft(fn.attributes)))
+                                         draft: hasDraft(fn.attributes),
+                                         orderExpr: orderArgument?.trimmedDescription,
+                                         orderNode: orderArgument,
+                                         nameNode: Syntax(fn.name)))
         }
         return result
     }
@@ -227,6 +240,8 @@ extension TestClassMacro: ExtensionMacro {
             ? ",\n            afterAll: { let ftInstance = \(className)(); "
               + "FTDSL.ftRunAfterAll { ftInstance.afterAll() } }"
             : ""
+        let placement = diagnoseClassPlacement(cls, methods: methods, classPlatformExpr: platform, context: context)
+        let placementArg = placement.map { ",\n            placement: .\($0.rawValue)" } ?? ""
         let entries = methods.map { m in
             let deletedArg = (classDeleted || m.deleted) ? "\n                deleted: true," : ""
             let draftArg = (classDraft || m.draft) ? "\n                draft: true," : ""
@@ -242,10 +257,11 @@ extension TestClassMacro: ExtensionMacro {
             }
             let platformArg = m.platformExpr.map { "\n                platform: \($0)," } ?? ""
             let timeoutArg = m.scenarioTimeoutExpr.map { "\n                scenarioTimeout: \($0)," } ?? ""
+            let orderArg = (placement == .inOrder ? m.orderExpr : nil).map { "\n                order: \($0)," } ?? ""
             return """
                         FTDSL.FTScenarioDescriptor(
                             name: \(literalString(m.name)),
-                            title: \(m.titleExpr ?? "\"\""),\(deletedArg)\(draftArg)\(platformArg)\(timeoutArg)
+                            title: \(m.titleExpr ?? "\"\""),\(deletedArg)\(draftArg)\(platformArg)\(timeoutArg)\(orderArg)
                             run: { \(body) }),
             """
         }.joined(separator: "\n")
@@ -259,7 +275,7 @@ extension TestClassMacro: ExtensionMacro {
                         platform: \(raw: platform),
                         scenarios: [
             \(raw: entries)
-                        ]\(raw: tearDownDeviceArg)\(raw: hasBeforeAll ? ",\n            hasBeforeAll: true" : "")\(raw: afterAllArg))
+                        ]\(raw: tearDownDeviceArg)\(raw: hasBeforeAll ? ",\n            hasBeforeAll: true" : "")\(raw: afterAllArg)\(raw: placementArg))
                 }
             }
             """)
@@ -315,7 +331,22 @@ public struct TestMacro: PeerMacro {
                 message: FTDSLDiagnostic("@Test can only be attached to a method", id: "not-a-function")))
             return []
         }
+        diagnoseMissingTestClass(node: node, context: context)
         return []
+    }
+
+    /// @Test を囲む型に @TestClass が無いと、そのテストは一覧から黙って落ちる(別のクラスがあればコンパイルも通る)。
+    /// extension の中は拡張先の属性が見えず判定できないので通す(@TestClass はクラス本体のメンバーしか読まない)
+    static func diagnoseMissingTestClass(node: AttributeSyntax, context: some MacroExpansionContext) {
+        let enclosing = context.lexicalContext.first
+        if let enclosing, enclosing.is(ExtensionDeclSyntax.self) { return }
+        if let cls = enclosing?.as(ClassDeclSyntax.self), TestClassMacro.hasTestClass(cls.attributes) { return }
+        context.diagnose(Diagnostic(
+            node: Syntax(node),
+            message: FTDSLDiagnostic(
+                "@Test requires the enclosing class to have @TestClass; without it this test is silently left out"
+                    + " of the scenario list. Add @TestClass to the class",
+                id: "test-without-test-class")))
     }
 }
 

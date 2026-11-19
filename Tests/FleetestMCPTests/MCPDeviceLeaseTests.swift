@@ -77,9 +77,16 @@ final class MCPDeviceLeaseTests: XCTestCase {
         // (どちらも生きているデバイスの代表は最小 pid = 1)
         XCTAssertEqual(MCPDeviceLease.liveHolders(stateDir: stateDir, excluding: []),
                        ["UDID-X": 1], "自分の印を書いても相手の印を上書き・消去しない")
+        // 相手が自分の前回の印より後に操作していなければ黙る(相手の印 = 相手の最後の操作。朝に一度触っただけの常駐セッションの印で
+        // 別のセッションの全応答に付き続けた)
+        let quiet = try await snapshotText()
+        XCTAssertFalse(quiet.contains("another MCP session"), "相手が操作していない間は黙る: \(quiet)")
+        // 相手がまた操作した(印を書き直した)ら、次の呼び出しで言う
+        try await Task.sleep(for: .milliseconds(50))
+        MCPDeviceLease.write(stateDir: stateDir, key: "UDID-X", pid: 1)
         let again = try await snapshotText()
         XCTAssertTrue(again.contains("another MCP session (pid 1) is driving this device too"),
-                      "相手が生きている限り、触るたびに言う: \(again)")
+                      "相手が操作したら言う: \(again)")
     }
 
     /// 自分の印しか無ければ黙る

@@ -809,7 +809,8 @@ struct RunScenarios: AsyncParsableCommand {
                     throw ProfileError.runProfileNotFound(name: profile, available: names)
                 }
             }
-            let failedSet = LastResultsStore.failedIDs(project: testProject, profile: common.profile)
+            let failedSet = ClassPlacementRules.expandingFailed(
+                LastResultsStore.failedIDs(project: testProject, profile: common.profile), all: all)
             selected = selected.filter { failedSet.contains($0.id) }
             guard !selected.isEmpty else {
                 // 記録は消えたシナリオのファイルを消さない。今のプロジェクトに無い ID は「範囲の外の失敗」に数えない
@@ -835,6 +836,15 @@ struct RunScenarios: AsyncParsableCommand {
             }
             ConsoleOut.out("Nothing to run (every scenario is marked @Deleted or @Draft)")
             return
+        }
+        // クラスの寄せ方(RR-8.3)の選び方の検査。dry-run はデバイスを使わないので掛けない(api run と同じ関数)
+        if !dryRun {
+            try RunPlacementPreflight.check(
+                selected: selected, all: all,
+                measuresResponse: common.profile.map {
+                    ProfileResolver.declaresResponseMeasurement(project: testProject, runName: $0, overrides: profileOverrides)
+                } ?? false,
+                broadcast: broadcast, log: { ConsoleOut.out($0) })
         }
         // LPT 投入順の適用は実行経路ごとに行う(実効 platform が確定してからでないと
         // 別 platform の実績で並べてしまう): --profile は ProfileRunner.run、--port は runParallel。
@@ -1504,20 +1514,30 @@ struct RunScenarios: AsyncParsableCommand {
 
         var failedCount = 0
         var skippedCount = 0
+        // クラスの寄せ方(RR-8.3): 並べ替えと @RunInOrder の失敗の後の扱い(RunOrchestrator を通らない経路)
+        let orderedItems = SequentialPlacementGate.ordered(items)
+        var placementGate = SequentialPlacementGate()
         // 逐次実行のデバイスは platform ごとに1台(ios = --port・android = --serial)
         var deviceSessions: [String: RunDeviceSession] = [:]
         // メモと beforeAll の済み印は run 全体で1つ(OS ごとのセッションが同じものを持つ)
         let sharedSession = RunSharedSession()
         var sessionConnections: [String: DriverConnection] = [:]
-        for (index, item) in items.enumerated() {
+        for (index, item) in orderedItems.enumerated() {
             if interruptState.isStopped {
                 // 始まらなかった分を記録して失敗に数える(RunRecorder.recordInterruptedBeforeStart)
-                let notStarted = items[index...].map(\.info)
+                let notStarted = orderedItems[index...].map(\.info)
                 recorder?.recordInterruptedBeforeStart(notStarted, defaultPlatform: resolvedPlatform)
                 failedCount += notStarted.count
                 break
             }
             let platform = item.info.platform ?? resolvedPlatform
+            if let reason = placementGate.skipReason(for: item.info) {
+                recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title, platform: platform,
+                                        worker: nil, reason: reason)
+                ConsoleOut.out("❌ \(item.info.id): \(reason)")
+                failedCount += 1
+                continue
+            }
             let driver: AppDriver
             let connection: DriverConnection
             if platform == "android" {
@@ -1562,6 +1582,7 @@ struct RunScenarios: AsyncParsableCommand {
                     ConsoleOut.out(buffer.joined(separator: "\n"))
                 }
             }
+            placementGate.record(item.info, passed: outcome == .passed || outcome == .notApplicable)
             if outcome == .notApplicable { skippedCount += 1 }
             else if outcome != .passed { failedCount += 1 }
         }

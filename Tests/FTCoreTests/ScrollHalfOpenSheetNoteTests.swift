@@ -55,4 +55,33 @@ final class ScrollHalfOpenSheetNoteTests: XCTestCase {
         let text = await note(sheetTop: 150, bottom: 650, scrollFrame: false) ?? ""
         XCTAssertFalse(text.contains("nothing on the screen moved") || text.contains("half-open sheet"), text)
     }
+
+    /// 書いた枠が一覧でない行(返信の行): 行は元へ戻り、結果は枠の外の表示に出る。「動かなかった・端かも」と言わない
+    func testAChangeOutsideANonScrollerFrameIsNotCalledNothingMoved() async {
+        let screens: [[ElementInfo]] = (0..<12).map { read in
+            [el(1, "clickable", id: "reply_row_1", label: "返信行 1", y: 300, height: 56, depth: 1),
+             el(2, "staticText", id: "txt_reply_target", label: read < 3 ? "reply=none" : "reply=reply_row_1", y: 100, height: 24, depth: 1)]
+        }
+        var step = FlowStep(action: "scroll", direction: "left", maxSwipes: 1)
+        step.scrollFrame = FlowLocator(id: "reply_row_1")
+        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: screens)
+        let outcome = await StepExecutor(driver: driver, releasesScrollTouch: true, isAndroid: false, tunables: RunTunables(),
+                                         uiFramework: .uikit).execute(step)
+        let text = outcome.driverFallback ?? ""
+        XCTAssertFalse(text.contains("nothing on the screen moved"), text)
+    }
+
+    /// 書いた枠が一覧でない入力欄で、画面のどこも変わらなかった: 「端かも」でなく「枠が一覧でない」と言う
+    func testANonScrollerFrameThatChangedNothingSaysItIsNotAList() async {
+        let screens: [[ElementInfo]] = (0..<12).map { _ in
+            [el(1, "textField", id: "field_full_name", label: "氏名", y: 300, height: 44, depth: 1)]
+        }
+        var step = FlowStep(action: "scroll", direction: "up", maxSwipes: 1)
+        step.scrollFrame = FlowLocator(id: "field_full_name")
+        let driver = FakeAppDriver(name: "d", log: CallLog(), snapshotElements: screens)
+        let outcome = await StepExecutor(driver: driver, releasesScrollTouch: true, isAndroid: false, tunables: RunTunables(),
+                                         uiFramework: .uikit).execute(step)
+        let text = outcome.driverFallback ?? ""
+        XCTAssertTrue(text.contains(StepNote.scrollMovedNothingInNonScrollerFrameText), text)
+    }
 }

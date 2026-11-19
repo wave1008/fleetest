@@ -7,6 +7,23 @@
 import Foundation
 import Synchronization
 
+/// クラスの寄せ方(RR-8.3・DR-206)。@RunOnSingleMachine / @RunOnSingleDevice / @RunInOrder
+public enum ClassPlacement: String, Codable, Sendable, Hashable {
+    case singleMachine, singleDevice, inOrder
+
+    /// デバイス1台に寄せるか(singleDevice / inOrder)
+    public var bindsDevice: Bool { self != .singleMachine }
+
+    /// 文言に出す属性名
+    public var attributeName: String {
+        switch self {
+        case .singleMachine: return "@RunOnSingleMachine"
+        case .singleDevice: return "@RunOnSingleDevice"
+        case .inOrder: return "@RunInOrder"
+        }
+    }
+}
+
 /// シナリオのメタデータ(fleetest-scenarios list --json の1エントリ)
 public struct ScenarioInfo: Codable, Sendable, Hashable {
     /// クラス名.メソッド名
@@ -26,10 +43,14 @@ public struct ScenarioInfo: Codable, Sendable, Hashable {
     /// 終わるまで他のデバイスでそのクラスのシナリオを起動しない(`RunSharedSession.takeBeforeAll`)。
     /// 子 → ホストの一覧(同一ビルド)だけを通り、`fleetest api` の契約には載せない
     public let beforeAll: Bool
+    /// クラスの寄せ方(nil = 寄せない)。子 → ホストの一覧(同一ビルド)だけを通り、`fleetest api` の契約には載せない
+    public let placement: ClassPlacement?
+    /// `@Order(n)` の値。`@RunInOrder` のクラスのテストだけ非 nil
+    public let order: Int?
 
     public init(id: String, title: String, platform: String? = nil,
                 scenarioTimeout: Int? = nil, deleted: Bool = false, draft: Bool = false,
-                beforeAll: Bool = false) {
+                beforeAll: Bool = false, placement: ClassPlacement? = nil, order: Int? = nil) {
         self.id = id
         self.title = title
         self.platform = platform
@@ -37,6 +58,8 @@ public struct ScenarioInfo: Codable, Sendable, Hashable {
         self.deleted = deleted
         self.draft = draft
         self.beforeAll = beforeAll
+        self.placement = placement
+        self.order = order
     }
 }
 
@@ -334,14 +357,20 @@ public enum ScenarioHost {
                 + " \(project.name) (scenarios/\(StagedScenarioSweep.dirName)); the existing binary was built with it"
                 + " and still lists those scenarios until the next build")
         }
-        guard let root = packageRoot() else { return }
+        if let warning = skipBuildStaleWarning(project: project) { log(warning) }
+    }
+
+    /// `--skip-build` / MCP の `skipBuild` が古いバイナリを使うときの警告文(古さの判定の唯一の定義元。CLI と MCP が共有する)。
+    /// 古くない・判定材料が無いときは nil
+    public static func skipBuildStaleWarning(project: TestProject) -> String? {
+        guard let root = packageRoot() else { return nil }
         guard let fingerprint = BuildFingerprint.compute(
-            repoRoot: root, scenariosDir: project.scenariosDir) else { return }
+            repoRoot: root, scenariosDir: project.scenariosDir) else { return nil }
         guard fingerprint != BuildFingerprint.stored(
-            productName: project.productName, repoRoot: root) else { return }
-        log("⚠️ --skip-build: the scenario source has changed since \(project.productName) was last"
+            productName: project.productName, repoRoot: root) else { return nil }
+        return "⚠️ --skip-build: the scenario source has changed since \(project.productName) was last"
             + " built (or it was never built through fleetest) — running with the existing binary,"
-            + " which may not match the current source")
+            + " which may not match the current source"
     }
 
     /// ランナー実行ファイルの場所: packageRoot/.build/debug(そのプロジェクトを所有する repo)→

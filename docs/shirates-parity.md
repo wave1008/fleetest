@@ -223,6 +223,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 |---|---|---|
 | `procedure` | 同名。中で DSL のコマンドを呼べる・レポートでは中の成功したステップを畳み `procedure` の1行だけ(Shirates の `describe` + `silent` と同じ見え方)。失敗・フォールバック・自己修復は畳まない・結果 JSON には全部残す | ✅ |
 | `@Deleted` | 同名マクロ | ✅ |
+| `@Order` | 同名(Shirates は JUnit 5 の `@Order`) | 🟡 **`@RunInOrder` のクラスでだけ使え、そのクラスの全 `@Test` で必須**(重複不可・整数)。`@RunInOrder` の無いクラスで使うとコンパイルエラー(並列に走るクラスで守られない順番を書けてしまうため。DR-206) |
 | `describe` / `caption` / `comment` / `target` / `output` / `codeblock` | `scene` の説明文に集約 | 🟡 |
 | `macro` | Swift の関数 + `@FTCommand` | 🟡 **コード生成は無い**(手順のまとまりは `group("名") { }` が記録側を担う)。`@FTCommand("説明")` を付けると `fleetest api dsl-commands` / `ft_dsl_commands` の索引に `[project: file:line]` 付きで載り、MCP/エージェントが実在を確認したうえで使える(独自のマクロ機構は間接参照が増えるだけなので入れない) |
 | `silent` / `info` / `warn` | — | ➖ **ログの出し分けは持たない**。レポートに残るのは**ステップ**で、任意の情報行を足せると「検証していないのに書いてある」記録が増える |

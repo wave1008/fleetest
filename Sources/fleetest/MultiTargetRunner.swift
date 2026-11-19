@@ -195,8 +195,16 @@ enum MultiTargetRunner {
                     for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: target.groups) {
                         FleetRunner.log(line)
                     }
+                    if ProfileResolver.declaresResponseMeasurement(
+                        project: target.project, runName: target.profile, overrides: setOverrides),
+                       let message = ClassPlacementRules.measurementError(runnable) {
+                        throw ValidationError("[\(id)] " + message)
+                    }
+                    if let message = DynamicDispatcher.coverageError(selected: runnable, groups: target.groups) {
+                        throw ValidationError("[\(id)] " + message)
+                    }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable.map { (id: $0.id, platform: $0.platform) },
+                        runnable,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: target.groups))
                     guard !resolved.isEmpty else {
                         FleetRunner.log("==> \(id): no scenario applies to this profile's devices; skipping")
@@ -211,8 +219,12 @@ enum MultiTargetRunner {
                         project: target.project, groups: target.groups, lptHistoryRuns: lptHistoryRuns)
                     let estimate = DeviceMachineRunner.dynamicEstimator(inputs: inputs, groups: target.groups)
                     let targetID = id
+                    let targetGroups = target.groups
                     let dispatcher = DynamicDispatcher(
                         scenarios: resolved, estimateMs: estimate, nowMs: clock, lpt: !noLPT,
+                        entryPlatforms: DynamicDispatcher.entryPlatforms(groups: targetGroups),
+                        entryLabel: { targetGroups[$0].machineLabel },
+                        log: { FleetRunner.log("[\(targetID)] " + $0) },
                         send: { entry, reply in
                             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
                         })
@@ -262,7 +274,7 @@ enum MultiTargetRunner {
             }
             let dispatcher = unit.dispatcher
             specs.append(.init(
-                id: unit.id, lanes: lanes, pending: { dispatcher.pendingScenarios }, estimateMs: unit.estimate,
+                id: unit.id, lanes: lanes, pending: { dispatcher.handablePendingScenarios }, estimateMs: unit.estimate,
                 childExited: { dispatcher.childExited(entry: $0) }, interrupt: { dispatcher.interrupt() }))
         }
         let targetByID = Dictionary(uniqueKeysWithValues: units.map { ($0.id, $0) })
@@ -318,7 +330,7 @@ enum MultiTargetRunner {
                     return counts[targetID] ?? 0
                 }
                 // 配り切って最後の子が終わった対象はその場で終端(まだ配るものが残るなら別マシンが引き継ぐので待つ)
-                if left == 0, dispatcher.pendingScenarios.isEmpty {
+                if left == 0, dispatcher.handablePendingScenarios.isEmpty {
                     finalizeRow(unit, isInterrupted())
                 }
                 finished(code)
@@ -352,6 +364,9 @@ enum MultiTargetRunner {
             let ids = unit.dispatcher.unhandedIDs
             guard !ids.isEmpty else { continue }
             FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
+            if let line = DynamicDispatcher.keptUnhandedLine(unit.dispatcher.keptUnhanded) {
+                FleetRunner.log("[\(unit.id)] " + line)
+            }
             if interrupted { interruptedWithWorkLeft = true }
             if !interrupted {
                 neverHandedFailure = true

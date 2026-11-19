@@ -58,6 +58,18 @@ final class MCPAuditFixes20260812Round19Tests: XCTestCase {
         XCTAssertNil(MCPServer.emptyLoadingScroller(in: tree))
     }
 
+    /// Flutter は中身を容器の子でなく兄弟(同じ depth)で返す: 枠の中に中心のある要素があれば空と言わない(OI-282 ⑥。
+    /// PIN 画面・日付ピッカーで「still empty … or still loading」と誤って言った)
+    func testSiblingContentInsideTheFrameIsNotReportedAsLoading() {
+        let tree = snapshot([
+            element(1, type: "scrollView", id: "pad",
+                    frame: FTRect(x: 0, y: 100, width: 402, height: 700), depth: 1, scrollable: true),
+            element(2, id: "key_1", label: "1",
+                    frame: FTRect(x: 20, y: 300, width: 100, height: 60), depth: 1),
+        ])
+        XCTAssertNil(MCPServer.emptyLoadingScroller(in: tree))
+    }
+
     /// 小さな帯(フィルタの横並び等)の空は正常。**画面の3割**に満たない容器は見ない
     func testSmallEmptyScrollerIsIgnored() {
         let tree = snapshot([
@@ -112,7 +124,10 @@ final class MCPAuditFixes20260812Round19Tests: XCTestCase {
     /// (ラベルつきの要素が容器の枠の中に 50 件)でも子ゼロで返るので、これも述語としては誤検知。器が空のまま中身が兄弟で描かれる形で、
     /// messages と同じ穴。**実害は messages より大きい**: 発火している間は外れた waitFor の切り上げ(`quietCutoffApplies`)が効かず
     /// 上限まで待つ(Google マップの計測で外れた待ちが毎回 10 秒)。分ける観測(本当に読み込み中の形)がまだ無いので、述語は据え置いて固定する
-    static let knownEmptyScrollerFirings: Set<String> = ["ios-messages_keyboard.json", "and-maps_transit_results.json"]
+    /// **2026-11-19(OI-282 ⑥)**: 「枠の中に中心のある小さな要素があれば空と言わない」を足し、上の2件(どちらも器が空のまま中身が兄弟で描かれる
+    /// 誤検知)は発火しなくなった。**本当に読み込み中の形の witness はまだコーパスに無い**(地図の経路検索の子ゼロの瞬間は採れていない)ので、
+    /// 検知が実画面でまだ発火するかはこの集合からは言えない。採れたらフィクスチャに入れてここへ足す
+    static let knownEmptyScrollerFirings: Set<String> = []
 
     func testNoFalsePositiveOnTheRealAppCorpus() throws {
         let dir = URL(fileURLWithPath: #filePath)

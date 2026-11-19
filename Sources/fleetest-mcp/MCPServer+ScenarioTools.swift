@@ -29,8 +29,9 @@ extension MCPServer {
 
     /// 切った run の応答に必ず添える(黙ると、見えていない文字の緑を検証済みと読まれる)
     static let fmAndVisionOffNote = "ℹ️ ran without Foundation Models and Vision (MCP default): no text visual"
-        + " verification, screenLooksLike steps are skipped, checkIsON reads the tree only. Pass fmAndVision: true"
-        + " to use them"
+        + " verification, screenLooksLike steps are skipped, checkIsON reads the tree only. This does not turn off"
+        + " the OCR a run uses to locate a tap(linkText:) target (notes say `located by ocr`). Pass"
+        + " fmAndVision: true to use the Foundation Models and Vision checks"
 
     /// iOS で走らせた ft_run_scenario の応答に必ず添える。**MCP の iOS は常に XCUITest**(ユーザー決定)なのに、
     /// `fleetest run` / ft_start_run はプロファイルのモード(既定 inapp-boost)で走る。黙ると、
@@ -41,6 +42,20 @@ extension MCPServer {
 }
 
 extension MCPServer {
+
+    /// `skipBuild: true` でシナリオのソースが前回のビルドより新しいときの応答先頭の注記。古さの判定は CLI の `--skip-build` と共有
+    /// (`ScenarioHost.skipBuildStaleWarning`)。回した後の編集に気づかないと、古い期待値の赤を原因の取り違えとして調べ直す
+    static func skipBuildStaleNote(skipBuild: Bool, stale: Bool) -> String? {
+        guard skipBuild, stale else { return nil }
+        return "⚠️ skipBuild: the scenario source is newer than the last build, so this ran the OLD binary —"
+            + " results may not reflect your latest edit. Run again without skipBuild"
+    }
+
+    func skipBuildStaleNote(_ args: [String: Any], project: TestProject) -> String? {
+        let skip = args["skipBuild"] as? Bool ?? false
+        return Self.skipBuildStaleNote(
+            skipBuild: skip, stale: skip && ScenarioHost.skipBuildStaleWarning(project: project) != nil)
+    }
 
     /// シナリオ一覧(自動ビルド込み。コンパイルエラーはそのまま返す=エージェントが直せる)
     func listScenarios(_ args: [String: Any]) throws -> [[String: Any]] {
@@ -120,7 +135,7 @@ extension MCPServer {
                 + "\(RunWorker.knownPlatforms.sorted().joined(separator: "/")): \(given)")
         }
         let fallbackPlatform = args["platform"] as? String ?? "ios"
-        var lines: [String] = []
+        var lines: [String] = skipBuildStaleNote(args, project: project).map { [$0] } ?? []
         var passedCount = 0
         var failedCount = 0
         var outcomes: [(id: String, passed: Bool, reportPath: String?, skipped: Bool)] = []
@@ -198,6 +213,12 @@ extension MCPServer {
     /// (ft_run_scenario のツール定義。ProfileRunner.run/ApiRunCommand と違い setup/teardown
     /// スクリプト・home()・results/ への記録は無い。アプリを入れるのは profile 付き iOS の
     /// ブリッジ準備(autoInstall)だけ = resolveProfileTarget)
+    /// 選び方の検査(@RunInOrder のクラスはクラス全体か先頭からの連続だけ)と、寄せるクラスの並べ替え(RR-8.3。純粋関数)
+    static func placementPlan(selected: [ScenarioInfo], all: [ScenarioInfo]) throws -> [ScenarioInfo] {
+        if let message = ClassPlacementRules.selectionError(selected: selected, all: all) { throw MCPError(message) }
+        return ClassPlacementRules.ordered(selected)
+    }
+
     func runScenario(_ args: [String: Any]) async throws -> [[String: Any]] {
         let id = try Self.requiredStringArgument(args, "id")
         if let conflict = Self.profileConflict(args) { throw MCPError(conflict) }
@@ -206,12 +227,15 @@ extension MCPServer {
             try ScenarioHost.build(project: project)
         }
         let all = try ScenarioHost.list(project: project)
-        let infos: [ScenarioInfo]
+        let resolved: [ScenarioInfo]
         do {
-            infos = try ScenarioSelection.resolve([id], from: all, scenariosDir: project.scenariosDir)
+            resolved = try ScenarioSelection.resolve([id], from: all, scenariosDir: project.scenariosDir)
         } catch {
             throw MCPError(error.localizedDescription)
         }
+        // クラスの寄せ方(RR-8.3): 選び方の検査と並べ替え。ft_dry_run には掛けない
+        let infos = try Self.placementPlan(selected: resolved, all: all)
+        var placementGate = InOrderGate()
 
         var exec = ScenarioExecutionSettings(heal: args["heal"] as? Bool ?? false)
         var reportDir = project.reportsDir.path
@@ -320,6 +344,7 @@ extension MCPServer {
             prologue.append(Self.fmAndVisionOffNote)
         }
         if connection.platform == "ios" { prologue.append(Self.iosXCUITestBridgeNote) }
+        if let note = skipBuildStaleNote(args, project: project) { prologue.insert(note, at: 0) }
         var lines: [String] = prologue
         var passedCount = 0
         var failedCount = 0
@@ -332,6 +357,12 @@ extension MCPServer {
         // 自己修復の修正提案(この経路は run を通らないので、書き戻しもここで行う。`HealSourceWriteBack`)
         var healSuggestions: [HealWriteBack.Suggestion] = []
         for info in infos {
+            if let reason = placementGate.skipReason(for: info, lane: "") {
+                lines.append("❌ \(info.id): \(reason)")
+                outcomes.append((info.id, false, nil, false))
+                failedCount += 1
+                continue
+            }
             var declaredNotApplicable = false
             let passed = await ScenarioHost.run(project: project, scenarioID: info.id,
                                        connection: connection,
@@ -354,6 +385,7 @@ extension MCPServer {
                     outcomes.append((event.scenario ?? info.id, event.passed == true, event.reportPath, skipped))
                 }
             }
+            placementGate.record(info, lane: "", passed: passed)
             if passed && declaredNotApplicable { skippedCount += 1 }
             else if passed { passedCount += 1 } else { failedCount += 1 }
         }

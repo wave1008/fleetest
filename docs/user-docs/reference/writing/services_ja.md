@@ -86,7 +86,7 @@ volumes:
 - **`healthcheck` を書いてください。** 無いと、「起動した」時点で使えるとみなします。
 - **`service_completed_successfully` で待たれる側**(初期化のコンテナ)は前面で実行され、終了コードで決着します。
   0 以外なら run は始まりません。
-- **名前付きボリュームは run をまたいで残ります。** 消すのは `fleetest services reset` です。
+- **名前付きボリュームは run をまたいで残ります。** 消すのは `fleetest services reset` です。残ったデータに頼らず、テストが自分の範囲のデータを自分で用意します([テストデータの置き方](test_data_placement_ja.md))。
 - **起動や healthcheck に失敗すると、run はシナリオを1本も実行せずに止まり**、失敗したサービスのログの末尾を出します。
 - **`run-setup.sh` が失敗したとき・run が赤で終わったときは、各サービスのログの末尾を保存します**(run の結果の
   ディレクトリ `results/runs/<月>/<runID>/services/<service>.log`)。

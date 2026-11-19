@@ -43,6 +43,10 @@ withScrollDown {
 }
 ```
 
+## Notes
+
+- **In iOS inapp-boost mode a scroll has no inertia: one swipe moves about the container's visible height (width).** A swipe in xcuitest mode (and MCP's checks) carries further by inertia, so a `scrollTo` that reached its element while you wrote the scenario can use up `maxSwipes` in the real run. Give a larger `maxSwipes:` for a far element. A keyboard that is up shrinks the list and shortens each swipe, so close it with `hideKeyboard()` first.
+
 ## The scrollable region: `scrollFrame:`
 
 A `scrollFrame:` that is empty, has a syntax error, or has alternatives (`||` or `(a|b)`) fails before anything is scrolled (the region is one container).

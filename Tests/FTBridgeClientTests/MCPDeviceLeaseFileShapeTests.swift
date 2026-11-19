@@ -49,8 +49,9 @@ final class MCPDeviceLeaseFileShapeTests: XCTestCase {
         XCTAssertEqual(warning, "⚠️ another MCP session (pid \(other)) is driving this device too — the two"
             + " sessions move each other's screens, so refs and snapshots go stale under you."
             + " Drive another device, or finish one of the sessions.")
-        // もう一度呼んでも(自分の印を書き直しても)相手はまだ見える ―― 上書きで消えていない
-        XCTAssertEqual(MCPDeviceLease.writeAndWarnIfInUse(stateDir: stateDir, key: udid, pid: me), warning)
+        // もう一度呼んでも(自分の印を書き直しても)相手はまだ見える ―― 上書きで消えていない。相手はその間に操作していないので
+        // 警告はしない(相手の印 = 相手の最後の操作)
+        XCTAssertNil(MCPDeviceLease.writeAndWarnIfInUse(stateDir: stateDir, key: udid, pid: me))
         XCTAssertEqual(MCPDeviceLease.holderPID(stateDir: stateDir, key: udid, excluding: [me]), other)
     }
 

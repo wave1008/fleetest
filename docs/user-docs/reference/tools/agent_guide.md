@@ -149,6 +149,13 @@ Both can be put on a class or on an individual `@Test`.
 In reports to the user, do not call a Simulator or Emulator a "physical device". That word means
 only a real iPhone / Android handset (connected over USB or Wi-Fi; `kind: "physical"` in the run profile). When unsure, say "device".
 
+## Before putting an attribute on a class
+
+Before `@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder` (+ `@Order`), **first ask whether the tests can be made independent**
+(prepare test data in the test's own range, with an account of its own and unique names; see [Where to put test data](../writing/test_data_placement.md)).
+A flow that needs an order goes into a single `@Test` first. Add an attribute only when it is needed
+([Running a class in one place or in order](../testclass/creating_testclass.md#running-a-class-in-one-place-or-in-order-runonsinglemachine--runonsingledevice--runinorder)).
+
 ## Known caveats
 
 Before writing a scenario, always read [Known caveats](../writing/known_caveats.md). It lists the caveats of

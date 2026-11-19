@@ -32,6 +32,7 @@ final class XCUITestTreeConsultTests: XCTestCase {
         let outcome = await run(fmVisible: false)
         guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertFalse(outcome.notes.contains(.foundInXCUITestTree))
+        XCTAssertTrue(outcome.notes.contains(.xcuitestTreeUnverified), "照会の結果(見つかったが確かめられない)を記録に残す: \(outcome.notes)")
     }
 
     /// 可視性検証が無効なら照会しない(見つかっただけでは採らない)
@@ -39,6 +40,7 @@ final class XCUITestTreeConsultTests: XCTestCase {
         let outcome = await run(fmVisible: true, guardOn: false)
         guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
         XCTAssertFalse(outcome.notes.contains(.foundInXCUITestTree))
+        XCTAssertTrue(outcome.notes.contains(.xcuitestTreeNotConsulted), "\(outcome.notes)")
     }
 
     /// 段が1つも設定されていない(FM も OCR も切った)回は文字を読まずに素通りするので採らない
@@ -58,6 +60,7 @@ final class XCUITestTreeConsultTests: XCTestCase {
     func testAbsentFromBothTreesStaysRed() async {
         let outcome = await run(fmVisible: true, xcuitestTree: [])
         guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(outcome.notes.contains(.xcuitestTreeNoMatch), "\(outcome.notes)")
     }
 }
 

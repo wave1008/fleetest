@@ -11,15 +11,31 @@
 //   他レーンに控えている候補を数えずに比べると、控えの山を前に遅いレーンが待ち続ける
 // - 安全弁: 他レーンが見込みの時刻を過ぎても空かないときは、超過した分だけ空く時刻を後ろへ倒す
 //   (固まった速いレーンを遅いレーンが待ち続けない)。待たせた判断が変わりうる時刻は reconsiderAt で返す
+// - クラスの寄せ方(RR-8.3): 束ねたクラスは束ねた先にだけ渡し、束ねたレーンへは次を必ず渡す。束ねる前のクラスは
+//   1つの塊(1ジョブ)として比べる。group の無いシナリオだけの run は上の規則のまま
 public enum DynamicSplit {
+
+    /// 寄せる属性のクラス(RR-8.3)。name = クラス名。order = @Order の値(@RunInOrder のクラスだけ非 nil)
+    public struct Group: Hashable, Sendable {
+        public let name: String
+        public let placement: ClassPlacement
+        public let order: Int?
+        public init(name: String, placement: ClassPlacement, order: Int? = nil) {
+            self.name = name
+            self.placement = placement
+            self.order = order
+        }
+    }
 
     /// 配る単位。platform は呼び手が解決済み(未宣言は run の既定 platform。子の run と同じ規則)
     public struct Scenario: Hashable, Sendable {
         public let id: String
         public let platform: String
-        public init(id: String, platform: String) {
+        public let group: Group?
+        public init(id: String, platform: String, group: Group? = nil) {
             self.id = id
             self.platform = platform
+            self.group = group
         }
     }
 
@@ -54,14 +70,106 @@ public enum DynamicSplit {
         case none
     }
 
+    /// クラスの束ねた先(RR-8.3)。記帳は呼び手(DynamicDispatcher)が、渡した直後に record で行う
+    public struct Bindings: Sendable, Equatable {
+        /// @RunOnSingleMachine のクラス名 → エントリ番号
+        public var machine: [String: Int] = [:]
+        /// @RunOnSingleDevice / @RunInOrder のクラス名 → レーン
+        public var device: [String: Lane] = [:]
+
+        public init() {}
+
+        /// group を持つシナリオのクラスを lane(のエントリ)へ束ねる。束縛済みのクラスは変えない
+        public mutating func record(_ scenario: Scenario, to lane: Lane) {
+            guard let group = scenario.group else { return }
+            switch group.placement {
+            case .singleMachine:
+                if machine[group.name] == nil { machine[group.name] = lane.entry }
+            case .singleDevice, .inOrder:
+                if device[group.name] == nil { device[group.name] = lane }
+            }
+        }
+    }
+
+    /// 1ジョブ。ほとんどは1シナリオ。束ねる前のクラスは pending のメンバー全部を1つの塊にする(head = order 昇順 → ID の最初)
+    private struct Job: Hashable {
+        let head: Scenario
+        let members: [Scenario]
+        /// 束ねる前のクラスの塊なら、その寄せ方
+        let chunk: ClassPlacement?
+        /// 束縛済みの singleMachine のクラスのメンバーなら束縛先のエントリ
+        let boundEntry: Int?
+        /// 塊のメンバーの OS(singleMachine のエントリ検査用)
+        let platforms: Set<String>
+    }
+
+    private static func precedes(_ lhs: Scenario, _ rhs: Scenario) -> Bool {
+        let l = lhs.group?.order ?? Int.max, r = rhs.group?.order ?? Int.max
+        return l != r ? l < r : lhs.id < rhs.id
+    }
+
     public static func decide(
         for requester: Lane, now: Double, pending: [Scenario], lanes: [LaneState],
-        estimateMs: (Scenario, Int) -> Double, lpt: Bool = true
+        estimateMs: (Scenario, Int) -> Double, lpt: Bool = true,
+        bindings: Bindings = Bindings(), entryPlatforms: [Int: Set<String>] = [:]
     ) -> Decision {
+        let sameOS = pending.filter { $0.platform == requester.platform }
+
+        // 規則1: このレーンに束ねたクラスが残っていれば、他を挟まずその次を渡す
+        for name in bindings.device.filter({ $0.value == requester }).keys.sorted() {
+            if let next = sameOS.filter({ $0.group?.name == name }).min(by: precedes) { return .assign(next.id) }
+        }
+
+        // 規則2: 他へ束ねたクラスは候補から外す。束ねる前の singleMachine のクラスは、全メンバーの OS を持たないエントリへ渡さない
+        var jobs: [Job] = []
+        var unbound: [String: [Scenario]] = [:]
+        for scenario in sameOS {
+            guard let group = scenario.group else {
+                jobs.append(Job(head: scenario, members: [scenario], chunk: nil, boundEntry: nil, platforms: []))
+                continue
+            }
+            switch group.placement {
+            case .singleMachine:
+                if let entry = bindings.machine[group.name] {
+                    if entry == requester.entry {
+                        jobs.append(Job(head: scenario, members: [scenario], chunk: nil, boundEntry: entry, platforms: []))
+                    }
+                } else {
+                    unbound[group.name, default: []].append(scenario)
+                }
+            case .singleDevice, .inOrder:
+                if bindings.device[group.name] == nil { unbound[group.name, default: []].append(scenario) }
+            }
+        }
+        for members in unbound.values {
+            let head = members.min(by: precedes)!
+            let allPlatforms = Set(pending.filter { $0.group?.name == head.group?.name }.map(\.platform))
+            jobs.append(Job(head: head, members: members, chunk: head.group!.placement, boundEntry: nil,
+                            platforms: allPlatforms))
+        }
+
+        /// 同じ OS のそのエントリのレーン数(要求者を含む。最小 1)
+        func laneCount(_ entry: Int) -> Int {
+            var set = Set(lanes.map(\.lane).filter { $0.entry == entry && $0.platform == requester.platform })
+            if requester.entry == entry { set.insert(requester) }
+            return max(set.count, 1)
+        }
+        /// そのレーンでジョブを始めてから終わるまで[ms](nil = そのレーンへは渡せない)。
+        /// 塊は重さ: singleMachine = 見込みの和 ÷ そのエントリの同じ OS のレーン数 / デバイスに寄せる = 和(1台なので割らない)
+        func costOn(_ job: Job, _ lane: Lane) -> Double? {
+            if let bound = job.boundEntry, bound != lane.entry { return nil }
+            guard let chunk = job.chunk else { return estimateMs(job.head, lane.entry) }
+            let sum = job.members.reduce(0) { $0 + estimateMs($1, lane.entry) }
+            guard chunk == .singleMachine else { return sum }
+            if let have = entryPlatforms[lane.entry], !job.platforms.isSubset(of: have) { return nil }
+            return sum / Double(laneCount(lane.entry))
+        }
+
         // lpt false(`--no-lpt`)= 候補を ID 順に試す。待つかどうかの比べ方は変えない
-        let candidates = pending.filter { $0.platform == requester.platform }
-            .map { (scenario: $0, here: estimateMs($0, requester.entry)) }
-            .sorted { lpt && $0.here != $1.here ? $0.here > $1.here : $0.scenario.id < $1.scenario.id }
+        let candidates = jobs.compactMap { job -> (job: Job, here: Double)? in
+            costOn(job, requester).map { (job: job, here: $0) }
+        }
+            .sorted { lpt && $0.here != $1.here ? $0.here > $1.here : $0.job.head.id < $1.job.head.id }
         if candidates.isEmpty { return .none }
 
         let others = lanes.filter { $0.lane.platform == requester.platform && $0.lane != requester }
@@ -74,10 +182,10 @@ public enum DynamicSplit {
         }
 
         let placed = BacklogPlacement.place(
-            jobs: candidates.map(\.scenario), requester: requester, requesterAvailable: now,
+            jobs: candidates.map(\.job), requester: requester, requesterAvailable: now,
             workers: others.map { (worker: $0.lane, available: freeAt($0)) },
-            cost: { scenario, lane in estimateMs(scenario, lane.entry) })
-        if let first = placed.first { return .assign(first.id) }
+            cost: { job, lane in costOn(job, lane) })
+        if let first = placed.first { return .assign(first.head.id) }
         let placedOn = Dictionary(placed.placements.map { ($0.job, $0) }, uniquingKeysWith: { first, _ in first })
 
         // 規則が反転しうる最も早い時刻。空いている他レーンは時刻を作らない(そのレーンの要求で判断される)
@@ -94,9 +202,11 @@ public enum DynamicSplit {
             } else {
                 // 超過中は alt も here も時刻に 1:1 で伸びるので、t + (t - expected) + B + estL >= t + estHere を解く。
                 // B = 仮に積んだときその候補より先にそのレーンへ積まれた分(0 = 控えを数えない場合の時刻。早めに見直すのは害が無い)
+                // 塊のジョブは重さ(costOn)でそのレーンの値を引く(代表1本の見込みだと時刻がずれる)
                 for candidate in candidates {
-                    let p = placedOn[candidate.scenario]
-                    let base = expected + candidate.here - estimateMs(candidate.scenario, state.lane.entry)
+                    guard let there = costOn(candidate.job, state.lane) else { continue }
+                    let p = placedOn[candidate.job]
+                    let base = expected + candidate.here - there
                     consider(base)
                     if let p, p.worker == state.lane {
                         consider(base - (p.availableBefore - freeAt(state)))

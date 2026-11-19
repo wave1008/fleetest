@@ -205,7 +205,7 @@ public enum MCPDeviceLease {
         let previousMark = markDate(stateDir: stateDir, key: key, pid: pid)
         write(stateDir: stateDir, key: key, pid: pid, role: .mcp)
         return warning(stateDir: stateDir, key: key, pid: pid, previousMark: previousMark,
-                       warnsAboutSessions: true)
+                       warnsAboutSessions: true, mcpPeerOnlyIfOperated: true)
     }
 
     /// ライブ操作の印を書き、警告文を返す(`LiveDeviceLease.refresh`)。`acting` = このコマンドがデバイスを
@@ -220,7 +220,7 @@ public enum MCPDeviceLease {
         if case .live(let lastAction)? = record(at: url)?.role { carried = lastAction } else { carried = nil }
         write(stateDir: stateDir, key: key, pid: pid, role: .live(lastAction: acting ? now : carried))
         return warning(stateDir: stateDir, key: key, pid: pid, previousMark: previousMark,
-                       warnsAboutSessions: acting)
+                       warnsAboutSessions: acting, mcpPeerOnlyIfOperated: false)
     }
 
     /// 自分の印を前回書いた時刻(ファイルの mtime)。無ければ nil
@@ -231,8 +231,10 @@ public enum MCPDeviceLease {
 
     /// 警告の判定。MCP の相手は居るだけで警告する。ライブ操作の相手は「自分の前回の印より後に操作した」
     /// ときだけ(前回の印が無い = このデバイスで初めての呼び出しは、古くなる ref をまだ持っていないので黙る)
+    /// `mcpPeerOnlyIfOperated`: MCP 同士だけ true(相手の MCP が自分の前回の印より後に操作したときだけ言う)。ライブ操作は人への
+    /// 警告(「AI のセッションが握っているデバイスの画面を動かしている」)なので居るだけで言う = false
     private static func warning(stateDir: URL, key: String, pid: Int32, previousMark: Date?,
-                                warnsAboutSessions: Bool) -> String? {
+                                warnsAboutSessions: Bool, mcpPeerOnlyIfOperated: Bool) -> String? {
         if let holder = RunLease.holderPID(stateDir: stateDir, key: key), holder != pid {
             return "⚠️ a fleetest run (pid \(holder)) is using this device right now — what you do here and what"
                 + " the run does interfere with each other (screens, input, app state)."
@@ -240,7 +242,14 @@ public enum MCPDeviceLease {
         }
         guard warnsAboutSessions else { return nil }
         let others = liveEntries(stateDir: stateDir, excluding: [pid]).filter { $0.key == key }
-        if let otherSession = others.filter({ $0.role == .mcp }).map(\.pid).min() {
+        // MCP の相手も「自分の前回の印より後に操作した」ときだけ(相手の印はデバイスを指す呼び出しのたびに書き直される =
+        // ファイルの mtime が相手の最後の操作)。このデバイスで初めての呼び出しは居るだけで言う。居るだけで毎回言うと、
+        // 朝に一度触っただけの保守者の常駐セッションの印で、別のセッションの全応答に付き続けた(48〜127 回/セッション)
+        let mcpOthers = others.filter { $0.role == .mcp }.map(\.pid).filter { other in
+            guard mcpPeerOnlyIfOperated, let previousMark else { return true }
+            return (markDate(stateDir: stateDir, key: key, pid: other) ?? .distantFuture) > previousMark
+        }
+        if let otherSession = mcpOthers.min() {
             return "⚠️ another MCP session (pid \(otherSession)"
                 + ProcessLiveness.orphanedLauncherClause(sessionPID: otherSession)
                 + ") is driving this device too — the two"

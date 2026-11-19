@@ -58,4 +58,19 @@ final class ClearedFieldRelocationTests: XCTestCase {
         XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: after)?.ref, 11)
         XCTAssertNil(ClearedFieldRelocation.relocate(before, in: [picker(11, x: 425, value: nil), picker(12, x: 425, value: nil)]))
     }
+
+    /// 編集を始めると欄の右に付属のボタンが出て幅だけ縮んだ(標準アプリのリマインダーの題名の欄 332 → 298pt。同じ型・同じラベルの欄が並ぶ)。
+    /// 左上と高さが同じ1つは同じ欄として引く。位置の違う同じラベルの欄は引かない
+    func testAFieldThatOnlyNarrowedIsFoundAgain() {
+        func title(_ ref: Int, y: Double, width: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "textField", identifier: nil, label: "タイトル", value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 54, y: y, width: width, height: 23), depth: 3)
+        }
+        let before = title(13, y: 228, width: 332)
+        let after = [title(49, y: 228, width: 298), title(58, y: 338, width: 332), title(61, y: 382, width: 332)]
+        XCTAssertEqual(ClearedFieldRelocation.relocate(before, in: after)?.ref, 49)
+        // 実画面の形(同じ列に同じラベルの欄が並ぶ)で、縮んだ欄の位置まで変わったら引かない
+        let moved = [title(49, y: 240, width: 298), title(58, y: 338, width: 332), title(61, y: 382, width: 332)]
+        XCTAssertNil(ClearedFieldRelocation.relocate(before, in: moved), "位置が変わった同じラベルの欄は推測で採らない")
+    }
 }

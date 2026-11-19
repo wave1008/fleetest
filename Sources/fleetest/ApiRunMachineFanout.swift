@@ -89,6 +89,12 @@ enum ApiRunMachineFanout {
                     throw ValidationError("no scenarios to run after filtering")
                 }
 
+                try DeviceMachineRunner.placementPreflight(
+                    selected: selected, all: all, groups: groups, broadcast: false,
+                    measuresResponse: ProfileResolver.declaresResponseMeasurement(
+                        project: project, runName: profileName, overrides: options.setOverrides),
+                    log: { logStderr($0) })
+
                 // 動的な割り振り(RR-8.1。DeviceMachineRunner.run と同じ分岐。FT_STATIC_SPLIT=1 で静的へ戻る)
                 let notApplicable: [ScenarioInfo]
                 let active: [(index: Int, group: DeviceMachineRunner.Group, ids: [String])]
@@ -101,7 +107,7 @@ enum ApiRunMachineFanout {
                     let split = DeviceMachineRunner.splitApplicable(selected: selected, groups: groups)
                     notApplicable = split.notApplicable
                     let resolved = DynamicDispatcher.resolve(
-                        split.runnable.map { (id: $0.id, platform: $0.platform) },
+                        split.runnable,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index in
                         let ids = DynamicDispatcher.candidateIDs(for: groups[index], in: resolved)
@@ -185,6 +191,8 @@ enum ApiRunMachineFanout {
             : Dictionary(uniqueKeysWithValues: active.map { ($0.index, ChildStdinWriter()) })
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !options.noLPT,
+                              entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
+                              entryLabel: { groups[$0].machineLabel }, log: { logStderr($0) },
                               send: { entry, reply in writers[entry]?.write(line: WorkQueueProtocol.encode(reply)) })
         }
 
@@ -257,6 +265,7 @@ enum ApiRunMachineFanout {
                 let interrupted = interruptedWhileChildrenRan
                 interruptedWithWorkLeft = interrupted
                 logStderr(DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
+                if let line = DynamicDispatcher.keptUnhandedLine(dispatcher.keptUnhanded) { logStderr(line) }
                 if !interrupted {
                     neverHandedFailure = true
                     continuation.yield(.neverHanded(ids))

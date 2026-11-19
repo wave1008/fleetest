@@ -489,6 +489,13 @@ extension StepExecutor {
 
     /// 明示した scrollFrame(rect か解決できる locator)の枠。名指しが無い・解決できないは nil(= 木全体を比べる)。
     /// `scrollContainer` と違い注記(`pendingScrollFrameNote`)を積まない
+    /// 書いた scrollFrame(セレクタ)が一覧でない要素か(自身も子孫も scrollable を申告しない = 行・入力欄)。矩形だけの指定・引けないときは false
+    static func writtenFrameIsNotScroller(_ step: FlowStep, in snapshot: SnapshotResponse) -> Bool {
+        guard let locator = step.scrollFrame, let element = ScrollFrameResolution.resolve(locator, in: snapshot) else { return false }
+        return element.scrollable != true
+            && !LocatorResolver.descendants(of: element, in: snapshot.elements).contains { $0.scrollable == true }
+    }
+
     static func explicitScrollFrameRegion(_ step: FlowStep, in snapshot: SnapshotResponse) -> FTRect? {
         if let rect = step.scrollFrameRect { return rect }
         guard let locator = step.scrollFrame else { return nil }

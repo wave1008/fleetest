@@ -72,6 +72,7 @@
 - [`setPickerValue` が回すのはホイール1本だけ](../commands/gestures_ja.md#注意点) — ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールやホイールでない要素は、何も送る前に断ります。
 - [`setSliderValue` はスライダーの帯をタップすることがある](../commands/gestures_ja.md#注意点) — アクセシビリティの操作で動かせないスライダーは、帯の上のタップで値を合わせます(途中の値を通ります)。
 - [スナップショットに値が出ないスライダーは setSliderValue で合わせられない](../commands/gestures_ja.md#注意点) — iOS の xcuitest モードの Flutter のスライダーがこれにあたります。既定の inapp-boost モードでは合わせられます。
+- [離す速さで結果が変わる部品はモードで結果が割れる](../commands/gestures_ja.md#注意点) — 途中まで払うスワイプ行は inapp-boost で削除まで走り、xcuitest(MCP の確認)ではボタンで止まることがあります。本番と同じモードで確かめ、ボタンだけなら小さめの比率にします。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/gestures_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
 ### 画像の検証(imageIs)
@@ -158,6 +159,10 @@
 ### screenshot
 - [スクリーンショットは撮ったステップの直後にレポートへ入る](../commands/screenshot_ja.md#注意点) — 見たい位置に呼び出しを置きます。
 - [Android の WebView 画面は写らないことがある](../commands/screenshot_ja.md#注意点) — 間欠的で、補完は WebView のデバッグが有効なときだけです。画面の到達確認は `exist` / `notExist` で行います。
+
+### スクロール(scrollTo, scrollDown, withScrollDown, scrollFrame, …)
+
+- [iOS の inapp-boost モードの送りは慣性を持たない](../commands/scroll_ja.md#注意点) — 1回の送りは容器の見えている高さほどで、作成時(xcuitest・MCP)に届いた scrollTo が本番で maxSwipes を使い切ることがあります。遠い要素は maxSwipes を大きめに、キーボードは先に閉じます。
 
 ### select, lastElement
 - [select 単体ではシナリオを失敗させない](../commands/select_ja.md#注意点) — 見つからなければ空要素になるだけです。失敗しうるのはチェーンした検証側です。
@@ -255,6 +260,15 @@
 - [綴り誤りは Sel ではコンパイルエラーになる](../selector/typed_selector_ja.md#注意点) — 文字列版では実行時の構文エラーか、黙って生ラベル扱いになります。
 - [scrollFrame: だけは文字列版のみ](../selector/typed_selector_ja.md#注意点) — 他の引数が `Sel` 版を持つコマンドでも、`scrollFrame:` には文字列で書きます。
 - [生成されるコードは既定で文字列版](../selector/typed_selector_ja.md#注意点) — `Sel` は手書きで型指定を好む人の選択肢です。詳細はセレクタ式のページを参照します。
+
+## テストデータとクラスを1か所で・順番に流す指定
+
+- [テストは他のテストが作ったデータに頼らない](../writing/test_data_placement_ja.md#注意点) — 書き換えるデータは自分専用のアカウント・一意な名前で `beforeEach()` か `condition` に用意します。
+- [run-setup.sh と beforeAll() は何度走っても・同時に走っても壊れない形で書く](../writing/test_data_placement_ja.md#注意点) — 「無ければ作る」は良く、「全部消して入れ直す」は共有サーバーで互いのデータを消します。
+- [片付けを合否の前提にしない](../writing/test_data_placement_ja.md#注意点) — 自分が作ったものだけを消し、残っても合否に響かないようにします。
+- [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときだけ使います。
+- [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
+- [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。
 
 ## UI 部品ごとの癖(現時点の制約)
 

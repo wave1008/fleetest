@@ -72,6 +72,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`setPickerValue` turns exactly one wheel](../commands/gestures.md#notes) — name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
 - [`setSliderValue` may tap the slider's track](../commands/gestures.md#notes) — a slider that accessibility actions cannot move is set by tapping along its track (it passes through other values on the way).
 - [`setSliderValue` cannot set a slider whose value is not in the snapshot](../commands/gestures.md#notes) — Flutter sliders in iOS xcuitest mode are like this. The default inapp-boost mode sets them.
+- [Components whose result depends on the release speed can differ by mode](../commands/gestures.md#notes) — a partway swipe row may run to delete in inapp-boost but stop at the buttons in xcuitest (MCP's checks); check in the real run's mode and use a smaller ratio for the buttons.
 - [`settle: false` skips the settle wait](../commands/gestures.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
 ### Image assertion (imageIs)
@@ -158,6 +159,10 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### screenshot
 - [Place it where you want the picture](../commands/screenshot.md#notes) — the screenshot is embedded right after the step that took it.
 - [Android WebView may be missing](../commands/screenshot.md#notes) — the capture can drop the WebView layer; it is filled in only when WebView debugging is on, so never assert a screen loaded from a screenshot; use `exist` / `notExist`.
+
+### scroll (scrollTo, scrollDown, withScrollDown, scrollFrame, ...)
+
+- [A scroll in iOS inapp-boost mode has no inertia](../commands/scroll.md#notes) — one swipe moves about the container's visible height, so a scrollTo that reached its element while writing (xcuitest, MCP) can use up maxSwipes in the real run; give far elements a larger maxSwipes and close the keyboard first.
 
 ### select, lastElement
 - [`select` never fails by itself](../commands/select.md#notes) — a missing element becomes an empty element; only chained commands such as `.textIs(...)` can fail the step.
@@ -255,6 +260,15 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Misspelled member is a compile error](../selector/typed_selector.md#notes) — unlike the string form, `.buton` fails at compile time instead of silently becoming a literal label.
 - [`scrollFrame:` stays string-only](../selector/typed_selector.md#notes) — there is no `Sel` overload for that argument, even on commands with a full `Sel` overload.
 - [Generated code uses the string form](../selector/typed_selector.md#notes) — `Sel` is for people who prefer to write selectors by hand.
+
+## Test data and running a class in one place
+
+- [A test does not rely on data another test created](../writing/test_data_placement.md#notes) — prepare the data it changes in `beforeEach()` or `condition`, with an account of its own and unique names.
+- [Write `run-setup.sh` and `beforeAll()` so they are safe to repeat and to run at the same time](../writing/test_data_placement.md#notes) — "create if missing" is fine; "delete everything and reload" erases others' data on a shared server.
+- [Do not make cleanup a precondition of a pass](../writing/test_data_placement.md#notes) — delete only what you created, and let leftovers not affect the result.
+- [`@RunOnSingleMachine` stops the load from being split between machines](../testclass/creating_testclass.md#notes) — use it only to gather `beforeAll()` or data on one machine.
+- [`@RunOnSingleDevice` removes the class's parallelism and defines no order](../testclass/creating_testclass.md#notes) — it prevents only simultaneous runs inside that class.
+- [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test.
 
 ## UI component quirks (current limitations)
 

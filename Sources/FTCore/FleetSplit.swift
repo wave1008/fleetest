@@ -176,6 +176,9 @@ public enum FleetSplit {
     ///   **台数が違うホストへ同じ量を配ると台数の少ない側が終わらない**。総量ではなく
     ///   「見込み終了時刻 = 負荷合計 / 台数」で比べる。全員同じ値なら比較順序は変わらないので、
     ///   既定(全員 1)なら台数差を考慮しない場合と割り当てが1バイトも変わらない
+    /// - groups: シナリオ ID → 寄せる属性のクラス(RR-8.3)。同じクラスのメンバーは1つの塊(1ジョブ)として、
+    ///   メンバー全部の platform を回せるエントリへ丸ごと置く。重さ = メンバーの見積りの和(台数で割るのは今までと同じ)。
+    ///   空(既定)なら今までと同じ割り当て
     /// - machineContext: 機械ごとの速度差・ディスパッチ固定費を見積りへ反映する(リモート実行)。
     ///   **投入順(降順ソート)は machineContext の有無によらず混合見積りで決める**
     ///   (機械非依存 = 決定的。エントリごとに順序が割れない)。nil(既定)は
@@ -186,11 +189,12 @@ public enum FleetSplit {
         entryPlatforms: [Set<String>],
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
-        machineContext: MachineContext? = nil
+        machineContext: MachineContext? = nil,
+        groups: [String: DynamicSplit.Group] = [:]
     ) throws -> [Bucket] {
         try plan(scenarios: scenarios, durations: durations, entryPlatforms: entryPlatforms,
                  unknownDurationMs: unknownDurationMs, entryCapacities: entryCapacities,
-                 machineContext: machineContext).buckets
+                 machineContext: machineContext, groups: groups).buckets
     }
 
     /// partition と同じ割り当てに、見積りの根拠(EstimateBasis)を添えて返す。
@@ -202,7 +206,8 @@ public enum FleetSplit {
         entryPlatforms: [Set<String>],
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
-        machineContext: MachineContext? = nil
+        machineContext: MachineContext? = nil,
+        groups: [String: DynamicSplit.Group] = [:]
     ) throws -> (buckets: [Bucket], basis: [EstimateBasis]) {
         let capacities = entryCapacities ?? [Double](repeating: 1, count: entryPlatforms.count)
         precondition(capacities.count == entryPlatforms.count,
@@ -217,40 +222,69 @@ public enum FleetSplit {
         let entryFallback = estimator.entryFallback
         let factors = estimator.factors
 
-        // 見積り降順、同着は scenario ID 昇順(決定的)。machine 非依存の混合見積りで決める
+        // 投入の単位。group の無いシナリオは1本ずつ、同じクラスのメンバーは1つの塊(メンバーは order 昇順 → ID)
+        typealias Item = (id: String, platform: String?)
+        var units: [[Item]] = []
+        var classUnits: [String: [Item]] = [:]
+        for scenario in scenarios {
+            if let group = groups[scenario.id] {
+                classUnits[group.name, default: []].append(scenario)
+            } else {
+                units.append([scenario])
+            }
+        }
+        for members in classUnits.values {
+            units.append(members.sorted {
+                let l = groups[$0.id]?.order ?? Int.max, r = groups[$1.id]?.order ?? Int.max
+                return l != r ? l < r : $0.id < $1.id
+            })
+        }
+        // 見積り降順(塊は和)、同着は先頭の scenario ID 昇順(決定的)。machine 非依存の混合見積りで決める
         // (scope は fleet 全体の和集合 = エントリを跨いでも同じ値になる)
-        let ordered = scenarios.sorted { lhs, rhs in
-            let l = estimator.mixedMs(id: lhs.id, platform: lhs.platform)
-            let r = estimator.mixedMs(id: rhs.id, platform: rhs.platform)
+        func mixedWeight(_ unit: [Item]) -> Double {
+            unit.reduce(0) { $0 + estimator.mixedMs(id: $1.id, platform: $1.platform) }
+        }
+        let weights = Dictionary(units.map { ($0[0].id, mixedWeight($0)) }, uniquingKeysWith: { first, _ in first })
+        let ordered = units.sorted { lhs, rhs in
+            let l = weights[lhs[0].id] ?? 0, r = weights[rhs[0].id] ?? 0
             if l != r { return l > r }
-            return lhs.id < rhs.id
+            return lhs[0].id < rhs[0].id
         }
 
         var scenarioIDs = [[String]](repeating: [], count: entryPlatforms.count)
         var totals = [Double](repeating: 0, count: entryPlatforms.count)
         var sources = [[EstimateSource]](repeating: [], count: entryPlatforms.count)
 
-        for scenario in ordered {
+        for unit in ordered {
+            // 塊はメンバー全部の platform を回せるエントリだけ
             let fitting = entryPlatforms.indices.filter { index in
-                guard let platform = scenario.platform else { return !entryPlatforms[index].isEmpty }
-                return entryPlatforms[index].contains(platform)
+                unit.allSatisfy { scenario in
+                    guard let platform = scenario.platform else { return !entryPlatforms[index].isEmpty }
+                    return entryPlatforms[index].contains(platform)
+                }
             }
             // 見込み終了時刻(固定費 + 負荷合計 / 台数)が最小のエントリへ。同着は entryIndex 昇順(決定的)。
             // 固定費は台数で割らない(デバイスが走り出す前の壁時計はデバイス数と無関係)
             func finishIfAssigned(_ index: Int) -> Double {
                 entryOffsets[index]
-                    + (totals[index] + estimator.estimate(id: scenario.id, platform: scenario.platform, entry: index).ms) / max(capacities[index], 1)
+                    + (totals[index] + unit.reduce(0) {
+                        $0 + estimator.estimate(id: $1.id, platform: $1.platform, entry: index).ms
+                    }) / max(capacities[index], 1)
             }
             guard let target = fitting.min(by: {
                 (finishIfAssigned($0), $0) < (finishIfAssigned($1), $1)
             }) else {
+                let platforms = Set(unit.compactMap(\.platform))
                 throw FleetSplitError.noFittingEntry(
-                    scenarioID: scenario.id, platform: scenario.platform ?? "ios/android")
+                    scenarioID: unit[0].id,
+                    platform: platforms.isEmpty ? "ios/android" : platforms.sorted().joined(separator: "+"))
             }
-            let assigned = estimator.estimate(id: scenario.id, platform: scenario.platform, entry: target)
-            scenarioIDs[target].append(scenario.id)
-            totals[target] += assigned.ms
-            sources[target].append(assigned.source)
+            for scenario in unit {
+                let assigned = estimator.estimate(id: scenario.id, platform: scenario.platform, entry: target)
+                scenarioIDs[target].append(scenario.id)
+                totals[target] += assigned.ms
+                sources[target].append(assigned.source)
+            }
         }
 
         let buckets = entryPlatforms.indices.map {

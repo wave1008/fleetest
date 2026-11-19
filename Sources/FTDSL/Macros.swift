@@ -73,3 +73,25 @@ public macro FTCommand(_ summary: String) =
 @attached(peer)
 public macro Draft(_ comment: String = "") =
     #externalMacro(module: "FTDSLMacros", type: "DraftMacro")
+
+/// クラスを run の中で1台のマシンに寄せる(マシンの中は並列・順番は決めない)。`@TestClass` のクラスにだけ付ける。
+/// 3つの属性(`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder`)は同時に付けられない。
+@attached(peer)
+public macro RunOnSingleMachine(_ reason: String = "") =
+    #externalMacro(module: "FTDSLMacros", type: "RunOnSingleMachineMacro")
+
+/// クラスを1台のデバイスで1本ずつ(他のクラスを挟まず)流す。順番は決めない・失敗しても続ける。
+/// テストの OS の宣言(`platform:`)がクラス内でそろっている必要がある。
+@attached(peer)
+public macro RunOnSingleDevice(_ reason: String = "") =
+    #externalMacro(module: "FTDSLMacros", type: "RunOnSingleDeviceMacro")
+
+/// クラスを1台のデバイスで `@Order` の順に流す。失敗したら残りは実行しない。全 `@Test` に `@Order` が必要。
+@attached(peer)
+public macro RunInOrder(_ reason: String = "") =
+    #externalMacro(module: "FTDSLMacros", type: "RunInOrderMacro")
+
+/// `@RunInOrder` のクラスの `@Test` の実行順(昇順・クラス内で重複不可)。
+@attached(peer)
+public macro Order(_ value: Int) =
+    #externalMacro(module: "FTDSLMacros", type: "OrderMacro")

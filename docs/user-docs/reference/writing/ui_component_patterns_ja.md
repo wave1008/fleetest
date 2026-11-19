@@ -102,7 +102,7 @@ iOS の xcuitest モードで読むとき等)、`scrollFrame:` で指せず、�
 |---|---|
 | CMP | `#btn_back`(アイコンだけの `IconButton`)。ラベル(contentDescription)でも押せる |
 | Flutter | `#btn_back` と同じ。**iOS はエッジスワイプで戻らないことがある**(下の「画面遷移」参照。この場合はアプリの戻るボタンを使う) |
-| RN | **`#btn_back` は無い**。`native-stack` の戻るボタンはネイティブ描画で `testID` を通せない。`back()`(システムの戻る)で操作する |
+| RN | **`#btn_back` は無い**。`native-stack` の戻るボタンはネイティブ描画で `testID` を通せない。`back()`(システムの戻る)で操作する(iOS ではネイティブの戻るボタンに OS が `#BackButton` を付けることがあるので、スナップショットで確かめる) |
 | Android View | **`#btn_back` は無い**。`MaterialToolbar` の navigationIcon は内部の無名 `ImageButton` なので、ラベル(contentDescription「戻る」相当)で指す |
 | SwiftUI(iOS) | **`#BackButton`** という固定 id で指せる。ラベルは前画面のタイトルと同じ文字列(画面が狭いと OS が汎用のラベルに丸めることがある) |
 
@@ -278,8 +278,10 @@ tap("OK")
 
 ## スナックバー / トースト
 
-- 中身には `#id` を付けられません。メッセージもアクションも**ラベルで指します**
-  (`exist("Deleted")` / `tap("Undo")`)
+- アプリ側では中身に `#id` を付けられません。メッセージもアクションも**ラベルで指します**
+  (`exist("Deleted")` / `tap("Undo")`)。Android の Material `Snackbar` は、ライブラリ内部の id
+  `#snackbar_text` / `#snackbar_action` が木に出ることがあります(出るかはフレームワーク・版しだい。
+  スナップショットで確かめ、安定して指せるのはラベルです)
 - 自然に消えるのを待つ: `waitForClose("Saved", waitSeconds: 10)`
   (短い表示は約4秒・長い表示は約10秒)
 
@@ -735,8 +737,10 @@ gesture-handler の `Gesture.Pinch()` / Android View `PinchZoomImageView`(`Scale
 
 - 押すのは `tap(要素, linkText: "文字列")`。要素の中でその文字列が描かれている位置を押す
 - Flutter・RN はリンクが子ノードとしてツリーに現れるので、ツリーで位置を決める。Compose・Android View(`ClickableSpan`)・
-  SwiftUI(`AttributedString` のリンク)はツリーに現れないので、画面の絵を OCR で読んで位置を決める
-  (結果の注記に `located by tree` / `located by ocr`)
+  SwiftUI(`AttributedString` のリンク)は**多くの場合**ツリーに現れないので、画面の絵を OCR で読んで位置を決める
+  (結果の注記に `located by tree` / `located by ocr`)。フレームワーク・版によっては、これらのリンクやダイアログのボタン・
+  メニューの候補に id やリンク型の要素がツリーに出ることがある(Flutter のダイアログの `#btn_dialog_ok`・SwiftUI の `link`
+  など)。**断定せず、スナップショットで実物を確かめて書く**
 - `tap("利用規約")` は段落全体に当たるだけで、リンクの位置は押せない。段落の中央を押して「何も起きない」を
   確かめる書き方は、画面幅で中央に来る文字が変わるので書かない
 - 2行に折り返したリンクは OCR で見つからないことがある

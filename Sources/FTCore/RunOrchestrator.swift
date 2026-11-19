@@ -436,7 +436,7 @@ private final class FirstResumer<Value: Sendable>: @unchecked Sendable {
 
 /// 1 シナリオあたりの凍結再実行上限。ポイズンシナリオのフリート全滅を防ぐ
 /// (2→1: 意図的に NG になるテストがデバイス不調と重なった際の再実行を最小化。ユーザー決定)
-private let MAX_FREEZE_RETRIES = 1
+let MAX_FREEZE_RETRIES = 1
 
 /// 失敗後ブリッジチェックの観察窓と、ログ静止によるウェッジ確定時間(秒)。
 /// AX 飽和(健全だが数十秒無応答)を「接続不能」と誤検知しないための値(bridgeUnreachable 参照)
@@ -543,118 +543,6 @@ private actor JoinedLaneKeys {
     private var keys: Set<String> = []
     func insert(_ key: String) { keys.insert(key) }
     func snapshot() -> Set<String> { keys }
-}
-
-/// 並列ワーカーへのシナリオ分配キュー(早い者勝ち)
-actor ScenarioQueue {
-    private var items: [ScenarioRunItem]
-    private var attempts: [URL: Int] = [:]
-    /// pulled(`ScenarioDispatch.pulled`)だけ。外の配り手から取る。shared / broadcast は nil
-    private let pull: PullState?
-    /// 配り手が nil を返した = この platform にはもう来ない(以後は聞き直さない)
-    private var pullExhausted = false
-
-    struct PullState: Sendable {
-        let source: any ScenarioPullSource
-        let platform: String
-        /// シナリオ ID → 配れる item(同じ ID が複数あれば先頭から。計測の繰り返し展開)
-        let catalog: LockedValue<[String: [ScenarioRunItem]]>
-        /// 配った1本ごと(total を増やす)
-        let onHandOut: @Sendable (ScenarioRunItem) async -> Void
-        /// カタログに無い ID が来た(ワーカーログへ出して聞き直す)
-        let onUnknownID: @Sendable (String) -> Void
-    }
-
-    init(_ items: [ScenarioRunItem]) { self.items = items; self.pull = nil }
-    init(pulled: PullState) { self.items = []; self.pull = pulled }
-
-    /// このキューを消化するレーン(`RunWorker.logicalName`)。参加でふやし、`laneEnded` で減らす。
-    /// ブリッジ不達の振り直しが「落としたレーン以外」に空きがあるかを知るためだけに持つ
-    private var liveLanes: Set<String> = []
-    /// ブリッジ不達で振り直した item → それを落としたレーン。別のレーンが生きている間は、そのレーンへ戻さない
-    private var avoidedLane: [URL: String] = [:]
-    /// 避けられた item しか残っていないレーンが、別のレーンが取るのを待つ間の見直しの間隔。
-    /// 他のレーンの空きを知らせるイベントが無いので見直すしかない(秒単位の待ちなので 0.2 秒で足りる・尽きる上限は無い =
-    /// 別のレーンが全部終われば `laneEnded` で待ちが解ける)
-    static let avoidedItemRecheckInterval: Duration = .milliseconds(200)
-
-    func laneJoined(_ lane: String?) { if let lane, !lane.isEmpty { liveLanes.insert(lane) } }
-    func laneEnded(_ lane: String?) { if let lane { liveLanes.remove(lane) } }
-
-    private func takeAllowed(lane: String) -> ScenarioRunItem? {
-        guard let i = items.firstIndex(where: { lane.isEmpty || avoidedLane[$0.id] != lane }) else { return nil }
-        let item = items.remove(at: i)
-        avoidedLane[item.id] = nil
-        return item
-    }
-
-    /// 再キューされたもの(pulled では常に先)→ 配り手。`lane` = `RunWorker.logicalName`(配り手が
-    /// どのデバイスが空いたかを知るための名前)。shared / broadcast では配り手に使わない。
-    /// **ブリッジ不達で振り直された item は、落としたレーン以外が生きている間そのレーンへ渡さない**
-    /// (pulled で配り手に残りがあれば先にそちらを渡し、無ければ他のレーンが取るまで待つ。他のレーンが無ければ従来どおり渡す)。
-    /// `shouldStop` が真なら待たずに nil(残りは手元に残る)
-    func next(lane: String? = nil, shouldStop: (@Sendable () async -> Bool)? = nil) async -> ScenarioRunItem? {
-        let lane = lane ?? ""
-        while true {
-            if let item = takeAllowed(lane: lane) { return item }
-            if pull != nil, !pullExhausted {
-                if let item = await pullNext(lane: lane) { return item }
-                // 返事を待つ間に別のレーンが離脱して再キューした分を拾う(拾わずに終わると、回せる健全なレーンが居たのに
-                // ドレインで未実行の失敗になる)
-                continue
-            }
-            if items.isEmpty { return nil }
-            // 残りは自分が落とした item だけ
-            guard liveLanes.contains(where: { $0 != lane }) else {
-                let item = items.removeFirst()
-                avoidedLane[item.id] = nil
-                return item
-            }
-            if await shouldStop?() == true { return nil }
-            try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
-        }
-    }
-
-    /// 配り手から1本。配り手が尽きたら nil
-    private func pullNext(lane: String) async -> ScenarioRunItem? {
-        guard let pull else { return nil }
-        while !pullExhausted {
-            guard let id = await pull.source.next(platform: pull.platform, lane: lane) else {
-                pullExhausted = true
-                return nil
-            }
-            let item = pull.catalog.withLock { catalog -> ScenarioRunItem? in
-                guard var list = catalog[id], !list.isEmpty else { return nil }
-                let first = list.removeFirst()
-                catalog[id] = list
-                return first
-            }
-            if let item {
-                await pull.onHandOut(item)
-                return item
-            }
-            pull.onUnknownID(id)
-        }
-        return nil
-    }
-
-    /// 配り手へ聞かず手元の残りだけ(ドレイン用。shared では `next()` と同じ)
-    func nextLocal() -> ScenarioRunItem? { items.isEmpty ? nil : items.removeFirst() }
-
-    /// shared / broadcast: 手元に残りがあるか。pulled: 手元に残りがある、または配り手からまだ来うる
-    func hasItems() -> Bool { !items.isEmpty || (pull != nil && !pullExhausted) }
-
-    /// 凍結による再実行。上限(MAX_FREEZE_RETRIES)まで item を末尾へ戻し、
-    /// 何回目の再実行かを返す。上限超過なら nil(=もう再実行しない)。
-    /// `avoiding` = 落としたレーン(ブリッジ不達の振り直しだけ渡す。`next` が別のレーンを優先する)
-    func requeue(_ item: ScenarioRunItem, avoiding lane: String? = nil) -> Int? {
-        let n = (attempts[item.id] ?? 0) + 1
-        attempts[item.id] = n
-        guard n <= MAX_FREEZE_RETRIES else { return nil }
-        if let lane, !lane.isEmpty { avoidedLane[item.id] = lane }
-        items.append(item)
-        return n
-    }
 }
 
 /// 1 シナリオの実行(サブプロセス起動+イベント変換)。
@@ -1570,11 +1458,17 @@ public final class RunOrchestrator: Sendable {
                     continuation.yield(.workerLog(worker: worker.label, message: message))
                 })
                 await testingSlots.open()
-                await queue.laneJoined(worker.logicalName)
+                await queue.laneJoined(ScenarioQueue.lane(of: worker))
                 group.addTask {
                     let failed = await self.superviseWorker(worker, queue: queue)
-                    await queue.laneEnded(worker.logicalName)
-                    return failed
+                    // 束ねたクラスの残りは別のレーンへ移さず実行しなかった赤にする(中断のときはドレインが記録する)
+                    let orphans = await queue.laneEnded(ScenarioQueue.lane(of: worker), orphaning: await !self.stoppedByUser())
+                    return failed + self.recordNotRun(orphans, worker: worker) {
+                        ClassPlacementRules.orphanReason(
+                            placement: $0.info.placement ?? .singleDevice,
+                            className: ClassPlacementRules.className(of: $0.info.id),
+                            lane: worker.logicalName ?? worker.label)
+                    }
                 }
             }
             // 参加待ちの枠(下の admit ループ・遅延参加を抜けたら閉じる)
@@ -1794,7 +1688,7 @@ public final class RunOrchestrator: Sendable {
                 // **中断中は撃たない・復帰させない**(キューは中断後も残るので `hasItems` だけでは門にならない。
                 // 回復の待ち(Emulator の起動待ち最大120秒)と revive の作り直しで、中断の応答が数十秒遅れた)
                 if let state = renderingPending.withLock({ $0.removeValue(forKey: Self.leaseKey(retired) ?? retired.label) }),
-                   let recoverRendering, revives < MAX_WORKER_REVIVES, reviveWorker != nil, await queue.hasItems(),
+                   let recoverRendering, revives < MAX_WORKER_REVIVES, reviveWorker != nil, await queue.hasItems(lane: ScenarioQueue.lane(of: retired)),
                    await !stoppedByUser() {
                     let log: @Sendable (String) -> Void = { [continuation, label = retired.label] message in
                         continuation.yield(.workerLog(worker: label, message: message))
@@ -1823,7 +1717,7 @@ public final class RunOrchestrator: Sendable {
                     }
                 }
                 // queue が空/復帰未注入/復帰回数上限 のいずれかならこれ以上粘っても無駄なので諦める
-                guard revives < MAX_WORKER_REVIVES, await queue.hasItems(), await !stoppedByUser(),
+                guard revives < MAX_WORKER_REVIVES, await queue.hasItems(lane: ScenarioQueue.lane(of: retired)), await !stoppedByUser(),
                       let revive = reviveWorker else {
                     if let retiredKey { await runLeases.release(retiredKey) }
                     await closeTestingSlot()
@@ -1882,6 +1776,31 @@ public final class RunOrchestrator: Sendable {
                              resultDiscardedReason: passed ? discardReason : nil)
     }
 
+    /// 実行しなかった赤をドレインと同じ形で記録する。**サーキットブレーカには数えない**(1本の失敗で健全なデバイスを離脱させない)。
+    /// 戻り値 = 失敗に数える本数
+    private func recordNotRun(_ items: [ScenarioRunItem], worker: RunWorker,
+                              reason: (ScenarioRunItem) -> String) -> Int {
+        for item in items {
+            let text = reason(item)
+            continuation.yield(.flowSkipped(flowURL: item.url, reason: text))
+            recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title, platform: worker.platform,
+                                    worker: ScenarioRunner.recordingWorker(worker), reason: text)
+        }
+        return items.count
+    }
+
+    /// 失敗が確定した @RunInOrder のテストの後、同じクラスの残りを実行しない(振り直す分では呼ばない)。戻り値 = 失敗に数える本数
+    private func abandonInOrder(after item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue) async -> Int {
+        let rest = await queue.abandonInOrderClass(after: item, lane: ScenarioQueue.lane(of: worker))
+        return recordNotRun(rest, worker: worker) { _ in ClassPlacementRules.notRunReason(failedID: item.info.id) }
+    }
+
+    /// 失敗が確定した1本ぶん(1)+@RunInOrder で実行しなかった残り
+    private func failureCount(_ item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue) async -> Int {
+        let rest = await abandonInOrder(after: item, worker: worker, queue: queue)
+        return 1 + rest
+    }
+
     private func retireUnusable(_ item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue,
                                 reason: String, cause: WorkerAnomalyCause?, failed: Int,
                                 progressLaneKey: String, leaseKey: String?,
@@ -1906,7 +1825,7 @@ public final class RunOrchestrator: Sendable {
                 continuation.yield(.workerLog(worker: worker.label, message: "❌ \(item.info.id): \(message)"))
             }
             await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
-            failed += 1
+            failed += await failureCount(item, worker: worker, queue: queue)
         }
         if cause == .frozen { await progressState?.deviceStateObserved(deviceKey: progressLaneKey, state: .frozen) }
         await reportWorkerFailed(worker, "dropped out because of \(reason)", cause: cause)
@@ -1994,8 +1913,14 @@ public final class RunOrchestrator: Sendable {
         // 中断要求後は新しいシナリオを配らない(既にキューから抜けた1件は最後まで走らせる ——
         // ここで打ち切ると in-flight の子プロセスと記録の整合が崩れる。子を止めるのは
         // registerChildProcess 経由の SIGTERM で、呼び出し側の責務)
-        while await !interruptRequested.isRequested(), let item = await queue.next(lane: worker.logicalName, shouldStop: { [interruptRequested] in
+        while await !interruptRequested.isRequested(), let item = await queue.next(lane: ScenarioQueue.lane(of: worker), shouldStop: { [interruptRequested] in
             await interruptRequested.isRequested() }) {
+            // @RunInOrder のクラスが同じレーンで先に失敗していたら実行せずに赤(配り手から受け取る経路)
+            if let reason = await queue.inOrderSkipReason(for: item, lane: ScenarioQueue.lane(of: worker)) {
+                failed += recordNotRun([item], worker: worker) { _ in reason }
+                continue
+            }
+            let positionNotice = await queue.positionNotice(for: item)
             // 録画の区間・進捗の開始より前に置く(消すのに掛かった時間をシナリオに数えない)。
             // 何をしたかは**そのシナリオのログ**に残す(結果のイベントログに載る = 権限を拒否で閉じた等が残る)
             let residualAlertNotice = await clearResidualSystemAlert?(worker)
@@ -2026,7 +1951,7 @@ public final class RunOrchestrator: Sendable {
                 appBundleID: appBundleIDs[worker.platform],
                 appPath: appTargets[worker.platform]?
                     .packagePath(physical: worker.connection.physical),
-                hostNotices: residualAlertNotice.map { [$0] } ?? [],
+                hostNotices: (residualAlertNotice.map { [$0] } ?? []) + (positionNotice.map { [$0] } ?? []),
                 registerChildProcess: registerChildProcess,
                 humanOperationsStateDir: humanOperationsStateDir,
                 onActions: { [weak self] actions in
@@ -2168,7 +2093,7 @@ public final class RunOrchestrator: Sendable {
                 // **レーンが空いている今だけ測り直す**(次の 1 件をまだ取っていない)。
                 // 失敗の経路は除く —— 離脱すれば revive が供給を通り、そこで同じ 1 問が測る。
                 // 中断中・残りが無いときは撃たない(起動し直しは数十秒かかり、次の run の再利用が測る)
-                if let recheckRunner, await !interruptRequested.isRequested(), await queue.hasItems() {
+                if let recheckRunner, await !interruptRequested.isRequested(), await queue.hasItems(lane: ScenarioQueue.lane(of: worker)) {
                     let verdict = await recheckRunner(worker, slowestStep.value) { [continuation] message in
                         continuation.yield(.workerLog(worker: worker.label, message: message))
                     }
@@ -2208,7 +2133,7 @@ public final class RunOrchestrator: Sendable {
                 } else {
                     await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
                 }
-                if !requeued { failed += 1 }
+                if !requeued { failed += await failureCount(item, worker: worker, queue: queue) }
                 continue
             }
             // デバイスが使用不能なら結果取り消し+別デバイス再実行+ワーカー離脱。
@@ -2286,7 +2211,7 @@ public final class RunOrchestrator: Sendable {
                     } else {
                         await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
                     }
-                    if !requeued { failed += 1 }
+                    if !requeued { failed += await failureCount(item, worker: worker, queue: queue) }
                     continue
                 }
             }
@@ -2329,7 +2254,7 @@ public final class RunOrchestrator: Sendable {
                                                 outcome: outcome, cause: unusableCause))
             }
             await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
-            failed += 1
+            failed += await failureCount(item, worker: worker, queue: queue)
         }
         // もうシナリオを取らないので、切り離しの判定で「引き取れるレーン」に数えない(片付けの間も含めて)
         renderingBook.withLock { $0.leave(laneKey: progressLaneKey) }

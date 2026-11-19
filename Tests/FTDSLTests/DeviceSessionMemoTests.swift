@@ -68,7 +68,8 @@ final class DeviceSessionMemoTests: XCTestCase {
         let core = makeCore(sink: sink)
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
-        ftRunSetUpDevice { writeMemo("k", "v") }
+        // setUpDevice での書き込みは失敗になる(DR-207)ので、区切りの記録は読み込みで確かめる
+        ftRunSetUpDevice { _ = readMemo("k") }
         XCTAssertEqual(setUpDeviceStatuses(sink), ["began", "passed"])
         XCTAssertEqual(steps(core).first?.section, "setUpDevice")
     }

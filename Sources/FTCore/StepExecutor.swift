@@ -1825,6 +1825,11 @@ public final class StepExecutor {
     /// 表現できる**(別に立てていた `reportedScrollFrameNote` フラグは、唯一の代入元が
     /// 常に `pendingScrollFrameNote != nil` と同値になり、ガード条件として無力だった)
     var pendingScrollFrameNote: String?
+    /// 探索が scrollFrame を行の容器へ差し替えたときの注記(`ScrollFrameResolution.enclosingScrollableNote`)。それ以外は nil。
+    /// MCP の ft_scroll_to が応答に載せる口(DSL は driverFallback で運ぶ)
+    public var scrollFrameSwitchNote: String? {
+        pendingScrollFrameNote.flatMap { $0.contains(ScrollFrameResolution.enclosingScrollableMarker) ? $0 : nil }
+    }
 
     /// 探索スワイプの刻み倍率(自己補正)。**1回の移動量が容器を超えると要素を飛び越す**ので、
     /// 実移動量を毎周測って詰める。較正表は持たない(端末・SUT を跨ぐと再現しないため。

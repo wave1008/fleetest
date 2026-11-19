@@ -23,6 +23,8 @@ public struct FTScenarioDescriptor: Sendable {
     public let platform: String?
     /// @Test(scenarioTimeout:) の秒。nil = 未指定(ScenarioHost.run が プロファイル → 既定の順に解く)
     public let scenarioTimeout: Int?
+    /// @Order(n)(@RunInOrder のクラスのテストだけ。マクロ生成)
+    public let order: Int?
     /// テストクラスの新規インスタンスを作ってメソッドを呼ぶクロージャ(マクロ生成)。
     /// @Sendable だが捕捉するのは常にクロージャ内で新規生成したインスタンスだけ
     /// (TestClassMacro.swift 参照)なので、テストクラス自体を Sendable にする必要は無い
@@ -30,6 +32,7 @@ public struct FTScenarioDescriptor: Sendable {
 
     public init(name: String, title: String, deleted: Bool = false, draft: Bool = false,
                 platform: String? = nil, scenarioTimeout: Int? = nil,
+                order: Int? = nil,
                 run: @escaping @Sendable () -> Void) {
         self.name = name
         self.title = title
@@ -37,6 +40,7 @@ public struct FTScenarioDescriptor: Sendable {
         self.draft = draft
         self.platform = platform
         self.scenarioTimeout = scenarioTimeout
+        self.order = order
         self.run = run
     }
 
@@ -63,18 +67,22 @@ public struct FTTestClassDescriptor {
     /// 親が `--after-all-only` の専用の子で run × クラスで1回呼ぶ(ScenarioHost.runAfterAlls)。
     /// 非 nil の間、各シナリオの子は親へ afterAll "declared" を申告する
     public let afterAll: (@Sendable () -> Void)?
+    /// @RunOnSingleMachine / @RunOnSingleDevice / @RunInOrder(マクロ生成。無ければ nil)
+    public let placement: ClassPlacement?
 
     public init(className: String, platform: String? = nil,
                 scenarios: [FTScenarioDescriptor],
                 tearDownDevice: (@Sendable () -> Void)? = nil,
                 hasBeforeAll: Bool = false,
-                afterAll: (@Sendable () -> Void)? = nil) {
+                afterAll: (@Sendable () -> Void)? = nil,
+                placement: ClassPlacement? = nil) {
         self.className = className
         self.platform = platform
         self.scenarios = scenarios
         self.tearDownDevice = tearDownDevice
         self.hasBeforeAll = hasBeforeAll
         self.afterAll = afterAll
+        self.placement = placement
     }
 
     /// 子の `list --json` が親へ渡す1クラス分の行(親は `ScenarioHost.list` でこれを decode する)
@@ -83,7 +91,8 @@ public struct FTTestClassDescriptor {
             ScenarioInfo(id: "\(className).\(scenario.name)", title: scenario.title,
                          platform: scenario.effectivePlatform(classPlatform: platform),
                          scenarioTimeout: scenario.scenarioTimeout,
-                         deleted: scenario.deleted, draft: scenario.draft, beforeAll: hasBeforeAll)
+                         deleted: scenario.deleted, draft: scenario.draft, beforeAll: hasBeforeAll,
+                         placement: placement, order: scenario.order)
         }
     }
 }

@@ -423,6 +423,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     case foundInXCUITestTree = "found-in-xcuitest-tree"
     /// DR-199 の照会を撃とうとしたが、前面の確認が答えない・XCUITest の木を読めなかった(照会せずに赤のまま)。率が上がったら照会が効いていない
     case xcuitestTreeUnread = "xcuitest-tree-unread"
+    /// DR-199 の照会で、アプリの XCUITest の木にも一致が無かった(赤のまま)。照会の結果を記録から言えるようにする口
+    case xcuitestTreeNoMatch = "xcuitest-tree-no-match"
+    /// DR-199 の照会で XCUITest の木には一致があったが、見えていると確かめられなかったので採らなかった(赤のまま。可視性検証が反転・
+    /// 画素に文字を読めなかった等)。**率が上がったら、XCUITest の木にだけ出る描き方の画面で照会が効いていない**
+    case xcuitestTreeUnverified = "xcuitest-tree-unverified"
+    /// テキストの可視性検証が無効なので、DR-199 の照会をしなかった(赤のまま。照会は見えていると確かめられたときだけ採るため)
+    case xcuitestTreeNotConsulted = "xcuitest-tree-not-consulted"
     /// inapp-boost の操作(tap・type 等)の対象が in-app の木で解けず、アプリの XCUITest の木で見つかって押せると答えたので、
     /// XCUITest ブリッジで撃った(DR-202)。**率が上がったら in-app の木が読めない描き方の画面が増えている**
     case actedViaXCUITestTree = "acted-via-xcuitest-tree"
@@ -740,6 +747,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "could not consult the app's XCUITest tree (the foreground check did not answer or the tree could not be read)"
         case .foundInXCUITestTree:
             return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
+        case .xcuitestTreeNoMatch:
+            return "not in the in-app tree, and the app's XCUITest tree had no match either"
+        case .xcuitestTreeUnverified:
+            return "not in the in-app tree; the app's XCUITest tree had a match, but it could not be confirmed visible on the screen,"
+                + " so it was not taken"
+        case .xcuitestTreeNotConsulted:
+            return "not in the in-app tree; the app's XCUITest tree was not consulted because the text visibility check is off"
         case .countInScrollingList:
             return "counted inside a scrolling list whose content continues past its edge — how many are on the screen depends on"
                 + " the screen size and orientation, so this count may differ on another device; count what does not depend on the"
@@ -801,6 +815,11 @@ extension StepNote {
     /// `scrollMovedNothing` の、`scrollFrame:` を書いた送りの文(「scrollFrame: を渡せ」と言わない)
     public static let scrollMovedNothingInWrittenFrameText =
         "nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction"
+
+    /// 書いた scrollFrame が一覧でない要素(行・入力欄)で、画面のどこも変わらなかったとき。「端かも」と言わない
+    public static let scrollMovedNothingInNonScrollerFrameText =
+        "nothing on the screen moved after the swipe(s) — the scrollFrame is not a scroll container (it does not scroll and holds"
+            + " no scrolling list), so there was no list to move; name the list itself, or use a drag gesture for a swipe on that element"
 
     /// 払った枠が半開きのシートの形のとき(`SheetGeometry.halfOpenSheetGrabber`)。端の可能性ではなく、シートを広げる手を言う(形からの推定なので断定しない)
     public static func scrollMovedNothingInHalfOpenSheetText(grabber: ElementInfo) -> String {

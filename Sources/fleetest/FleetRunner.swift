@@ -180,7 +180,15 @@ enum FleetRunner {
                 + " (RR-8)")
         }
 
+        if let message = ClassPlacementRules.selectionError(selected: selected, all: all) {
+            throw ValidationError(message)
+        }
         let entryPlatforms = try fleet.runs.map { try resolveEntryPlatforms($0, project: project) }
+        if let message = ClassPlacementRules.singleMachineCoverageError(
+            selected, defaultPlatform: entryPlatforms.contains(where: { $0.contains("ios") }) ? "ios" : "android",
+            entries: zip(fleet.runs, entryPlatforms).map { (label: $0.host, platforms: $1) }) {
+            throw ValidationError(message)
+        }
 
         let historyRuns = max(1, lptHistoryRuns ?? LPTOrdering.defaultHistoryRuns)
         let resultsDir = RunResultsStore.resultsDir(projectRoot: project.rootURL)
@@ -214,7 +222,8 @@ enum FleetRunner {
                 durations: durations, entryPlatforms: entryPlatforms, unknownDurationMs: unknownDurationMs,
                 // 実績ゼロ = unknownDurationMs が単位重みのときは context を落とす(ms の offset が
                 // 重み1.0を支配して全シナリオが local へ寄る。FleetSplit.machineContext の宣言)
-                machineContext: FleetSplit.machineContext(machineContext, ifHistoryExists: durations))
+                machineContext: FleetSplit.machineContext(machineContext, ifHistoryExists: durations),
+                groups: DynamicDispatcher.groups(of: selected))
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("fleet \"\(fleetName)\" --split: \(error.localizedDescription)")
         }

@@ -348,6 +348,20 @@ final class UncoverOutsideContainerTests: XCTestCase {
         XCTAssertNil(TapTargetGeometry.clippedByOuterScroller(likes, in: [leaving, tabRow, likes], screen: screen, scale: 1))
     }
 
+    /// Android は容器の外へはみ出す行を可視の範囲へ切って返す(最後の行が高さ 12・他は 168)。またぐ要素が無くても案内を足す。
+    /// 収まった一覧の端の行(全高)には足さない
+    func testScrollOffHintFiresForRowClippedToContainerEdgeOnAndroid() {
+        let androidScreen = FTRect(x: 0, y: 0, width: 1280, height: 2856)
+        let rows = (0..<5).map { i in el(10 + i, "button", FTRect(x: 0, y: 324 + 168 * Double(i), width: 1280, height: 168)) }
+        let container = el(1, "other", FTRect(x: 0, y: 324, width: 1280, height: 2532), scrollable: true)
+        let clipped = SnapshotResponse(sessionBundleID: nil, screen: androidScreen,
+            elements: [container] + rows + [el(30, "button", FTRect(x: 0, y: 2844, width: 1280, height: 12))], truncatedCount: 0)
+        XCTAssertTrue(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: clipped).contains("add scroll: to this step"))
+        let fullRowAtEdge = SnapshotResponse(sessionBundleID: nil, screen: androidScreen,
+            elements: [container] + rows + [el(30, "button", FTRect(x: 0, y: 2688, width: 1280, height: 168))], truncatedCount: 0)
+        XCTAssertEqual(StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: fullRowAtEdge), "")
+    }
+
     /// 見つからない tap(向き無し・送れる一覧あり)には scroll: の案内も足す。scroll: を持たない触る操作には先に送る手。向きを書いた回・一覧の無い画面・触らない操作では足さない
     func testNotFoundTapSuggestsScrollWhenAListCanBeScrolled() {
         // 送れる中身がある一覧 = 下端の行が容器の縁をまたぐ

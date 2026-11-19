@@ -1391,7 +1391,7 @@ extension StepExecutor {
                         // ので、観測していない値は名乗らず「撃つ前に入っていた値」だけを言う
                         : "the field already held \"\(SnapshotRenderer.truncate(priorValue, 30))\";"
                             + " type appends, so the result will not simply be what you typed."
-                            + " Call clearInput first if you meant to replace it")
+                            + " Call clearInput first if you meant to replace it" + Self.severalFieldsMatchedNote(step, in: snapshot.elements))
             // **キーボードの下の欄へは打たない**。焦点を当てるタップがキーボードに
             // 当たるので焦点が移らず、**打鍵が直前に焦点のあった欄へ流れ込む**
             // (受け手の 4.7 インチ実機で実測: 市区町村の欄に住所が3回ぶん追記された。

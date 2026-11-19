@@ -164,10 +164,18 @@ extension StepExecutor {
         if !skippingSettle(step), let latest,
            wroteFrame ? Self.sameContentInSearchRegion(step, settledBefore.snapshot, latest)
                       : Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
+            // 書いた枠が一覧でない要素(行・入力欄)で、枠の外の画面は変わった = 払いは効いている(返信の行は元へ戻り、結果は枠の外の表示に出る)。
+            // 「動かなかった・端かも」と言わない
+            let frameIsNotScroller = wroteFrame && Self.writtenFrameIsNotScroller(step, in: latest)
+            if frameIsNotScroller, !Self.sameContent(settledBefore.snapshot.elements, latest.elements) {
+                return StepOutcome(status: .passed, driverFallback: notes.isEmpty ? nil : notes.joined(separator: " / "))
+            }
             noteCodesThisStep.insert(.scrollMovedNothing)
             // scrollFrame: を書いた送りに「scrollFrame: を渡せ」と言わない
             if !wroteFrame {
                 notes.append(StepNote.scrollMovedNothing.text)
+            } else if frameIsNotScroller {
+                notes.append(StepNote.scrollMovedNothingInNonScrollerFrameText)
             } else if let region = Self.explicitScrollFrameRegion(step, in: latest),
                       let grabber = SheetGeometry.halfOpenSheetGrabber(region: region, in: latest) {
                 notes.append(StepNote.scrollMovedNothingInHalfOpenSheetText(grabber: grabber))

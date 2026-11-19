@@ -142,6 +142,13 @@ class SignInExample {
 利用者への報告では、Simulator・Emulator を「実機」と呼ばない。「実機」は本物の iPhone / Android
 だけを指す(USB でも Wi-Fi でも。実行プロファイルの `kind: "physical"`)。どちらか分からないときは「デバイス」と書く。
 
+## 属性を付ける前に
+
+`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder`(+ `@Order`)を付ける前に、**テストを独立させられないかを先に考える**
+(テストデータは自分専用のアカウント・一意な名前で、テスト自身の範囲で用意する。[テストデータの置き方](../writing/test_data_placement_ja.md))。
+順番が要る流れは、まず1つの `@Test` にまとめる。属性は必要な場合だけ付ける
+([クラスのテストを1か所で・順番に流す](../testclass/creating_testclass_ja.md#クラスのテストを1か所で順番に流すrunonsinglemachine--runonsingledevice--runinorder))。
+
 ## 注意事項の一覧
 
 シナリオを書く前に、必ず [注意事項の一覧](../writing/known_caveats_ja.md) を読む。コマンドと UI 部品の注意事項

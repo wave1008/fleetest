@@ -81,4 +81,45 @@ final class ScrollSearchPreflightTests: XCTestCase {
                          el(3, id: "inner", y: 110, h: 300, depth: 3, scrollable: true)]
         XCTAssertNil(ScrollFrameResolution.enclosingScrollable(of: withInner[1], in: withInner, vertical: true))
     }
+
+    /// XCUITest の木の CMP(回帰で実測): 一覧 `#list_rows` は scrollable を申告せず、行が枠の外へはみ出す = 行ではなく一覧。
+    /// 画面全体の容器へ切り替えると何も動かず赤になった
+    func testUndeclaredListWhoseRowsOverflowIsNotTreatedAsARow() {
+        let elements = [el(1, id: nil, y: 0, w: 402, h: 874, depth: 1, scrollable: true),
+                        el(2, id: "list_rows", x: 16, y: 230, w: 370, h: 462, depth: 2),
+                        el(3, id: "row_20", x: 16, y: 206, w: 370, h: 39, depth: 3),
+                        el(4, id: "row_21", x: 16, y: 245, w: 370, h: 56, depth: 3),
+                        el(5, id: "row_29", x: 16, y: 692, w: 370, h: 56, depth: 3)]
+        XCTAssertNil(ScrollFrameResolution.enclosingScrollable(of: elements[1], in: elements, vertical: true))
+    }
+
+    /// 横のページャ `#pager_main`(子は枠の中)を横に探す: 画面全体の縦の容器(子は縦に並ぶ・向きの申告なし)へは切り替えない(DR-190 と同じ)
+    func testHorizontalSearchDoesNotSwitchToAContainerThatOnlyStacksVertically() {
+        let elements = [el(1, id: nil, y: 0, w: 402, h: 874, depth: 1, scrollable: true),
+                        el(2, id: "btn_back", x: 4, y: 70, w: 48, h: 48, depth: 2),
+                        el(3, id: "pager_main", x: 16, y: 142, w: 370, h: 240, depth: 2),
+                        el(4, id: "txt_page_2", x: 32, y: 158, w: 61, h: 24, depth: 3),
+                        el(5, id: "txt_pager_state", x: 16, y: 390, w: 60, h: 24, depth: 2),
+                        el(6, id: "btn_pager_next", x: 16, y: 454, w: 114, h: 48, depth: 2)]
+        XCTAssertNil(ScrollFrameResolution.enclosingScrollable(of: elements[2], in: elements, vertical: false))
+    }
+
+    /// 横へ動くと申告した容器の中の行を横に探す形は切り替える。縦の探索で、申告が横だけの容器へは切り替えない
+    func testContainerMustMoveAlongTheSearchAxis() {
+        func declared(_ ref: Int, x: Double, y: Double, w: Double, h: Double, actions: [String]) -> ElementInfo {
+            ElementInfo(ref: ref, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil, enabled: true,
+                        frame: FTRect(x: x, y: y, width: w, height: h), depth: 1, scrollable: true, scrollActions: actions)
+        }
+        let sideways = [declared(1, x: 0, y: 300, w: 402, h: 80, actions: ["left", "right"]),
+                        el(2, id: "chip_01", x: 10, y: 310, w: 100, h: 60, depth: 2)]
+        XCTAssertEqual(ScrollFrameResolution.enclosingScrollable(of: sideways[1], in: sideways, vertical: false)?.ref, 1)
+        XCTAssertNil(ScrollFrameResolution.enclosingScrollable(of: sideways[1], in: sideways, vertical: true))
+    }
+
+    /// MCP の ft_scroll_to は注記の見分けの鍵で差し替えを拾う。文言を変えて鍵が外れると MCP だけ黙る
+    func testSwitchNoteCarriesTheMarkerMCPLooksFor() {
+        let container = el(1, id: nil, y: 0, h: 800, depth: 1, scrollable: true)
+        let note = ScrollFrameResolution.enclosingScrollableNote(frame: "#nav_pager", container: container)
+        XCTAssertTrue(note.contains(ScrollFrameResolution.enclosingScrollableMarker), note)
+    }
 }

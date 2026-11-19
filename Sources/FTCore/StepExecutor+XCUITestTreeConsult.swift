@@ -12,8 +12,11 @@ extension StepExecutor {
     /// **XCUITest の木はモーダルの裏の要素も残す**ので、見つかっただけで採らない = 可視性検証が無効・読めなかった回は採らない
     func appXCUITestTreeMatch(step: FlowStep, phase: inout PhaseAccumulator) async throws -> ElementInfo? {
         // 可視性検証が無効なら下の「文字を読めた」でも落ちる。ここは XCUITest の木を読む手間を省くだけ
-        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
-              visibilityGuardActive(perStepGuard: step.occlusionGuard) else { return nil }
+        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID else { return nil }
+        guard visibilityGuardActive(perStepGuard: step.occlusionGuard) else {
+            noteCodesThisStep.insert(.xcuitestTreeNotConsulted)
+            return nil
+        }
         // XCUITest の snapshot は対象を activate する = 前面を離れたアプリを引き戻すので、activate しない /appstate で前面を確かめてから読む
         let foreground: Bool
         do { foreground = try await xcuitest.isAppForeground(bundleID: bundleID) } catch {
@@ -28,7 +31,10 @@ extension StepExecutor {
             return nil
         }
         phase.snapshotMs += Self.ms(clock.now - start)
-        guard let (element, _) = LocatorResolver.resolve(step: step, in: tree, strictForAssert: true) else { return nil }
+        guard let (element, _) = LocatorResolver.resolve(step: step, in: tree, strictForAssert: true) else {
+            noteCodesThisStep.insert(.xcuitestTreeNoMatch)
+            return nil
+        }
         let notesBefore = noteCodesThisStep
         let pixelsBefore = pixelsShowedTextThisStep
         pixelsShowedTextThisStep = false
@@ -39,7 +45,21 @@ extension StepExecutor {
             keyboardShown: KeyboardWait.isShown(tree), keyboard: tree.keyboardFrame,
             looseMatch: false, perStepGuard: step.occlusionGuard, phase: &phase)
         // 素通りの段(対象外の型・段が未設定・絵が古い 等)は文字を読まずに nil を返すので、画素に文字を読めた回だけ採る
+        // 検証が素通りの段(対象外の型)で降りて画素を読まなかった行は、その枠を OCR で1回読む。XCUITest の木の行は
+        // 入力欄の子(標準アプリのリマインダーの題名 = `textField "タイトル"`)を持つので行の確かめ(V4)に乗らず、見えていても採れなかった。
+        // 結合ラベル(「題名、未実行」)は先頭の区切りで比べる(読み上げ用の文は描かれない = OCROnlyVisibility.rowLabelNotRead と同じ)。
+        // モーダルの裏の行は枠で別の文字を読むので採らない
+        if flip == nil, !pixelsShowedTextThisStep, occlusionOCRMode == .on,
+           noteCodesThisStep.subtracting(notesBefore).isDisjoint(with: Self.unverifiedVisibilityNotes),
+           let label = element.label, !label.isEmpty,
+           let shot = try? await xcuitest.screenshot(),
+           case .read(let readable, _) = await RegionText.resolveWithinBudget(
+               expected: OCROnlyVisibility.mergedLabelHead(label) ?? label, pngData: shot,
+               frame: element.frame, screen: tree.screen), readable {
+            pixelsShowedTextThisStep = true
+        }
         guard flip == nil, pixelsShowedTextThisStep, noteCodesThisStep.subtracting(notesBefore).isDisjoint(with: Self.unverifiedVisibilityNotes) else {
+            noteCodesThisStep.insert(.xcuitestTreeUnverified)
             return nil
         }
         return element

@@ -109,7 +109,7 @@ not make `flickLeftToRight(startMarginRatio:)` small; keep the default).
 |---|---|
 | CMP | `#btn_back` (icon-only `IconButton`). Can also be pressed by its label |
 | Flutter | Same `#btn_back`. **On iOS an edge swipe sometimes does not go back** (see "Navigation" below; use the app's back button in that case) |
-| RN | **No `#btn_back`**. The `native-stack` back button is rendered natively and cannot carry a `testID`. Drive it with `back()` (the system back) |
+| RN | **No `#btn_back`**. The `native-stack` back button is rendered natively and cannot carry a `testID`. Drive it with `back()` (the system back). On iOS the OS may give the native back button the id `#BackButton`, so check the snapshot |
 | Android View | **No `#btn_back`**. The `MaterialToolbar`'s navigationIcon is an internal, unnamed `ImageButton`, so target it by its label (the equivalent of a "Back" content description) |
 | SwiftUI (iOS) | Targetable by the fixed id **`#BackButton`**. Its label is the same string as the previous screen's title (on a narrow screen, iOS may round it to a generic label) |
 
@@ -290,8 +290,10 @@ tap("OK")
 
 ## Snackbar / toast
 
-- Its contents cannot carry an `#id`. Target both the message and the action **by label**
-  (`exist("Deleted")` / `tap("Undo")`)
+- The app cannot attach an `#id` to its contents. Target both the message and the action **by label**
+  (`exist("Deleted")` / `tap("Undo")`). Android's Material `Snackbar` may expose the library's internal ids
+  `#snackbar_text` / `#snackbar_action` in the tree (it depends on the framework and version; check the
+  snapshot — the label is what you can rely on)
 - Wait for it to go away: `waitForClose("Saved", waitSeconds: 10)`
   (short ≈ 4 s, long ≈ 10 s)
 
@@ -765,7 +767,7 @@ zoomed content so it does not spill outside the frame.
 - Use `tap(element, linkText: "text")`: it taps where that text is drawn inside the element
 - Flutter and RN expose links as child nodes, so the position comes from the tree. Compose, Android Views
   (`ClickableSpan`) and SwiftUI (`AttributedString` links) do not, so the position comes from reading the
-  screenshot with OCR (the step note says `located by tree` / `located by ocr`)
+  screenshot with OCR (the step note says `located by tree` / `located by ocr`). SwiftUI links usually are not in the tree, but depending on the framework and version, links, dialog buttons and menu candidates can show up with an id or a link-type element (a Flutter dialog's `#btn_dialog_ok`, a SwiftUI `link`, etc.). **Do not assume either way; check the snapshot**
 - `tap("Terms")` only hits the whole paragraph and cannot press the link. Do not tap the paragraph centre to
   check that "nothing happens" — which word sits at the centre depends on the screen width
 - A link wrapped across two lines may not be found by OCR

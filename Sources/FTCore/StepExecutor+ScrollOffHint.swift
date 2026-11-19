@@ -18,14 +18,27 @@ extension StepExecutor {
     }
 
     /// 容器(`container`)の上下どちらかの縁を 1pt 越えてまたぐ要素があるか(縦の一覧の送れる中身の印。容器の外に並ぶ見出しのバー等は
-    /// またがないので数えない)
+    /// またがないので数えない)。**縁までで切られた行も印**: Android は容器の外へはみ出す行の frame を可視の範囲へ切って返すので
+    /// またぐ要素が木に出ない(実測 E2EX-Flutter Android: 容器 324..2856 の最後の行が 2844..2856 の高さ 12・他の行は 168)。
+    /// 縁に接し、同じ幅の兄弟の高さの中央値の半分に満たない行を、切られた行とみなす(収まった一覧の端の行は全高なので当たらない)
     static func contentOverflows(_ container: ElementInfo, in elements: [ElementInfo]) -> Bool {
         let top = container.frame.y, bottom = container.frame.y + container.frame.height
-        return elements.contains { e in
-            guard e.ref != container.ref, e.frame.width > 0, e.frame.height > 0,
-                  e.frame.x < container.frame.x + container.frame.width, e.frame.x + e.frame.width > container.frame.x else { return false }
+        let overlapping = elements.filter { e in
+            e.ref != container.ref && e.frame.width > 0 && e.frame.height > 0
+                && e.frame.x < container.frame.x + container.frame.width && e.frame.x + e.frame.width > container.frame.x
+        }
+        if overlapping.contains(where: { e in
             let eTop = e.frame.y, eBottom = e.frame.y + e.frame.height
             return (eTop < top - 1 && eBottom > top + 1) || (eTop < bottom - 1 && eBottom > bottom + 1)
+        }) { return true }
+        return overlapping.contains { e in
+            let eTop = e.frame.y, eBottom = e.frame.y + e.frame.height
+            guard abs(eBottom - bottom) <= 1 || abs(eTop - top) <= 1,
+                  eTop >= top - 1, eBottom <= bottom + 1 else { return false }
+            let siblings = overlapping.filter { $0.ref != e.ref && abs($0.frame.width - e.frame.width) <= 1 && $0.frame.y >= top - 1
+                && $0.frame.y + $0.frame.height <= bottom + 1 }.map { $0.frame.height }.sorted()
+            guard siblings.count >= 2 else { return false }
+            return e.frame.height < siblings[siblings.count / 2] * 0.5
         }
     }
 }

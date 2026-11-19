@@ -182,6 +182,7 @@ scenarios the AI assistant wrote, or to write some yourself.
 - [UI component patterns and quirks](reference/writing/ui_component_patterns.md)
 - [Network access from scenarios](reference/writing/network_access.md)
 - [Services the app depends on (compose.yaml)](reference/writing/services.md)
+- [Where to put test data](reference/writing/test_data_placement.md)
 - [Helpful features for writing test code](reference/writing/helpers.md)
 - [Adding your own features](reference/writing/extending.md)
 

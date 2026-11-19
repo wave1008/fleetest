@@ -254,8 +254,6 @@ const EXTERNAL_CODE_NAMES = new Set([
   "FastInput", "MonitorLease", "LocalConfig.currentMachineName",
   // 書式の例(`FlowStep.defaultXxx` = 既定値の置き場の型)
   "FlowStep.defaultXxx",
-  // 設計だけで未実装の属性(RR-8.3・DR-206)。実装したらここから外す
-  "RunOnSingleMachine", "RunOnSingleDevice", "RunInOrder",
 ]);
 
 /** backtick 内の CamelCase の名前(と `型.メンバ`)のうち、照合先に無いもの。 */

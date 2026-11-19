@@ -28,6 +28,12 @@ public enum ClearedFieldRelocation {
         if let id = element.identifier, !id.isEmpty { return byIdentifier(element, id: id, in: elements) }
         if let found = locate?(), found.type == element.type { return found }
         if let same = only(elements.filter { $0.type == element.type && $0.frame == element.frame }) { return same }
+        // ③b 型・左上の位置・高さが同じで、幅だけ変わった要素が1つ(編集を始めると欄の右に付属のボタンが出て欄が縮む = 標準アプリの
+        // リマインダーの題名の欄 332 → 298pt)。同じ位置を別の欄が占めることは無いので、別の欄に打つことにならない
+        if let same = only(elements.filter {
+            $0.type == element.type && $0.frame.x == element.frame.x && $0.frame.y == element.frame.y
+                && $0.frame.height == element.frame.height
+        }) { return same }
         // ④は推測の段なので、キーボードが動かす向き(縦)だけの移動に限る = 横の位置と幅が消した欄と同じものだけ
         func sameColumn(_ other: ElementInfo) -> Bool { other.frame.x == element.frame.x && other.frame.width == element.frame.width }
         if let hint = [element.placeholder, element.label].compactMap({ $0 }).first(where: { !$0.isEmpty }),

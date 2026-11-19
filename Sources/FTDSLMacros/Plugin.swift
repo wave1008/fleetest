@@ -9,5 +9,9 @@ struct FTDSLPlugin: CompilerPlugin {
         DeletedMacro.self,
         DraftMacro.self,
         FTCommandMacro.self,
+        RunOnSingleMachineMacro.self,
+        RunOnSingleDeviceMacro.self,
+        RunInOrderMacro.self,
+        OrderMacro.self,
     ]
 }

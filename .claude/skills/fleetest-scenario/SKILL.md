@@ -47,7 +47,8 @@ docs/commands.md・docs/user-docs/reference/(testclass/・selector/)。ここは
 
   docs で答えが見つからなければ、ソースを読みに行かず、完了報告で「docs に無かったこと」として挙げる
   (docs の不足を直す材料になる)。
-- **書く前に必ずクローンの docs/user-docs/reference/writing/known_caveats_ja.md(注意事項の一覧)を読む**。
+- **書く前に必ずクローンの docs/user-docs/reference/writing/known_caveats_ja.md(注意事項の一覧)を読む**(スキルのフォルダにも作業フォルダにも無い。
+  `<クローン>/docs/user-docs/reference/writing/known_caveats_ja.md` と、上の TOOL_ROOT のルートからのパスで Read する)。
   コマンドと UI 部品の注意事項(黙って誤る操作を含む)が1行ずつ並んでいる。使うコマンド・画面の部品に当てはまる行があれば、
   リンク先の節を読み、そこに書いた書き方で書く。完了報告では、当てはまった注意事項とどう書いたかを挙げる
 - **画面に Material3 の定番部品(ページャ・ボトムシート・メニュー・日付ピッカー・ドロワー・
@@ -236,6 +237,19 @@ class ログインできること {
   シナリオの最後で元へ戻す
 - **開いた直後に自動で終わる途中の状態**(読み込み中の骨組み等)を検証しない。速い端末では検証の前に終わっている。
   途中の状態を確かめたいなら、アプリの「読み込み直す」等の操作でその状態を作ってから読む
+
+**クラスに属性(`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder` + `@Order`)を付ける前に、テストを独立させられないかを先に考える**:
+
+- テストデータは自分の範囲で用意する(書き換えるデータは `beforeEach()` / `condition` で、自分専用のアカウント・一意な名前を使う。他のテストが作ったデータに頼らない。
+  `run-setup.sh` / `beforeAll()` は何度走っても・同時に走っても壊れない形で書き、片付けを合否の前提にしない)
+- 順番が要る流れは、まず1つの `@Test` にまとめる。属性は必要な場合だけ(`@RunInOrder` は並列化を妨げ、失敗すると残りは実行されず、再テストもクラスの最初から。
+  `@RunOnSingleDevice` は順番を決めず、防ぐのはそのクラスの中の同時実行だけ。`@RunOnSingleMachine` はマシン間の負荷分散を失う)
+- `@RunInOrder` のクラスは全 `@Test` に `@Order(整数)` が必須(重複不可)。途中の1本だけは流せないので、確かめるときはクラスごと流し、まだ書いていない後ろは `@Draft`
+- メモ(`writeMemo`)を `setUpDevice()` / `tearDownDevice()` / `afterAll()` で書かない(失敗になる)。テスト間で値を渡せるのは `@RunInOrder` のクラスだけ
+
+- 属性のコンパイルエラーが出たら、属性を足して黙らせる前に、まず属性を外してテストを独立させられないか考える
+
+詳細: `docs/user-docs/reference/testclass/creating_testclass_ja.md`・`reference/writing/test_data_placement_ja.md`
 
 ### 4. コンパイル検証ゲート
 

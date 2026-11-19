@@ -607,36 +607,6 @@ extension MCPServer {
 
     /// **中身が1つも入っていない大きなスクロール容器**の名前(無ければ nil)。
     ///
-    /// `looksUnchanged` では拾えない「まだ読み込み中」の形を1つだけ足す(監査)。
-    /// 実測(Google マップ・経路検索): 出発地/目的地を確定した直後の snapshotAfter は
-    /// `#expandingscrollview_container` が**子ゼロ**のまま返り、経路一覧は次の ft_snapshot で
-    /// 初めて出た —— 木そのものは前の画面から大きく変わっているので、既存の settle-lite
-    /// (操作前と見分けが付かないときだけ待つ)は構造上まったく発火しない。
-    ///
-    /// **誤発火を避けるための3条件**:
-    /// - `scrollable` 申告がある容器だけ(true を見つけたときだけ使ってよい。ElementInfo の宣言参照)
-    /// - **画面の3割以上の高さ**を占める容器だけ(小さな横カルーセルの空は正常なことがある)
-    /// - 子が**1つも無い**(preorder で depth が大きい後続要素が0件)—— 1件でも入っていれば
-    ///   「描画は始まっている」ので待たない
-    ///
-    /// 空のリストは正当にも存在する(検索結果0件)ので、**これを根拠に throw も再試行もしない** ——
-    /// 呼び手が払うのは settle-lite と同じ1回きりの短い待ちだけ
-    static func emptyLoadingScroller(in snapshot: SnapshotResponse) -> ElementInfo? {
-        let screenHeight = snapshot.screen.height
-        guard screenHeight > 0 else { return nil }
-        let elements = snapshot.elements
-        for (index, element) in elements.enumerated() {
-            guard element.scrollable == true,
-                  element.frame.height >= screenHeight * emptyScrollerScreenRatio else { continue }
-            let hasChild = elements[(index + 1)...].prefix { $0.depth > element.depth }.isEmpty == false
-            if !hasChild { return element }
-        }
-        return nil
-    }
-
-    /// `emptyLoadingScroller` が見る容器の最小の高さ(画面比)。小さな帯(フィルタの横並び等)の
-    /// 空は正常なので、**画面の主役になる大きさ**だけを読み込み中の候補にする
-    static let emptyScrollerScreenRatio = 0.3
 
     /// waitFor は snapshotAfter の待ち方の指定であって独立の引数ではない。
     /// snapshotAfter なしで渡されたら黙って無視せず気付かせる —— **throw はしない**
@@ -713,8 +683,14 @@ extension MCPServer {
     /// `outsideTheAppTree`: 操作の相手がアプリの木に出ない(SpringBoard のアラート・ホーム画面・別のアプリ)。閉じても
     /// アプリの木は変わらないのが正常なので、操作前の木との比較(「効かなかったかも」)をしない。
     /// **既定値を置かない** —— 新しい呼び手に「相手はアプリの木の中か」を決めさせる(書き忘れをコンパイルで止める)
-    func snapshotAfterBody(_ args: [String: Any], outsideTheAppTree: Bool) async -> String {
-        await snapshotAfterBodyWithStatus(args, outsideTheAppTree: outsideTheAppTree).text
+    /// `unchangedIsExpected`: 操作が画面を変えないと撃つ前に分かっている(スライダーが既に目標の値)。木が変わらないのは正しいので
+    /// 撮り直しも「効かなかったかも」の注記も出さない(実測: 同じ値を2回入れると「read the screen again before repeating」と誤誘導した)。
+    /// `baseline`: 操作の前の木。**操作と snapshotAfter の間に `freshSnapshot` で読む呼び手は渡す** —— `adoptSnapshot` が
+    /// `lastSnapshots` を後の木で上書きし、後の木どうしを比べて「unchanged」と言う(実測: CMP iOS の帯のタップの経路で 25→50 に動いたのに出た)
+    func snapshotAfterBody(_ args: [String: Any], outsideTheAppTree: Bool, unchangedIsExpected: Bool = false,
+                           baseline: SnapshotResponse? = nil) async -> String {
+        await snapshotAfterBodyWithStatus(args, outsideTheAppTree: outsideTheAppTree, unchangedIsExpected: unchangedIsExpected,
+                                          baseline: baseline).text
     }
 
     /// `snapshotAfterBody` 本体。**back の無効判定(ft_navigate)が succeeded を見る**
@@ -722,14 +698,15 @@ extension MCPServer {
     /// 残るため、`succeeded` を返さずに「今の lastSnapshots」だけを見ると back 前の木と
     /// 指紋が自明に一致し、謝罪文の横に「back は効かなかった」という偽の注記が並ぶ
     /// (実測)。他の呼び出し口は text だけを使い、この差は見ない
-    func snapshotAfterBodyWithStatus(_ args: [String: Any],
-                                     outsideTheAppTree: Bool) async -> (text: String, succeeded: Bool) {
+    func snapshotAfterBodyWithStatus(_ args: [String: Any], outsideTheAppTree: Bool,
+                                     unchangedIsExpected: Bool = false,
+                                     baseline: SnapshotResponse? = nil) async -> (text: String, succeeded: Bool) {
         guard args["snapshotAfter"] as? Bool == true else { return ("", false) }
         SlowCallWatchdog.mark("reading the screen after the action")
         do {
             let snapshotDriver = try await driver(args)
             let key = Self.sessionKey(args)
-            let beforeAction = outsideTheAppTree ? nil : lastSnapshots[key]
+            let beforeAction = outsideTheAppTree ? nil : baseline ?? lastSnapshots[key]
 
             let (effectiveArgs, inheritedNote) = inheritingSnapshotFilters(args)
 
@@ -786,7 +763,7 @@ extension MCPServer {
                                                          driver: snapshotDriver, args: args)
                 snapshot = result.snapshot
                 settleNote = result.note
-            } else if let beforeAction, Self.looksUnchanged(beforeAction, snapshot) {
+            } else if !unchangedIsExpected, let beforeAction, Self.looksUnchanged(beforeAction, snapshot) {
                 // 撮り直しの段は分ける(「操作の後の読み」が平均 0.94s で、待ちと読みのどちらか分からなかった = 計測)
                 SlowCallWatchdog.mark("re-reading: the tree looked unchanged")
                 let reread = try await rereadAfterGrace(snapshotDriver, args: args)
@@ -1775,8 +1752,7 @@ extension MCPServer {
             maxSwipes: try Self.intArgument(args, "maxSwipes") ?? FlowStep.defaultMaxSwipes,
             scrollFrame: scrollFrameArg.locator,
             scrollFrameRect: scrollFrameArg.rect)
-        let scrollFrameLabelNote = positionalNote + (scrollFrameArg.note.isEmpty ? ""
-            : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n")
+        var scrollFrameLabelNote = positionalNote + (scrollFrameArg.note.isEmpty ? "" : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n")
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(scrollDriver, args: args)
         // **直前の ft_type のキーボードが上がりきってから探索する**(新しい executor は type の印を持たない。
         // 待たないと上がる前の木で「見えている」と判断して送らず、後から上がったキーボードの下に対象が入る =
@@ -1802,6 +1778,7 @@ extension MCPServer {
         // どれに使われたかを分ける(16.5 秒の呼び出しの内訳が読めなかった)
         SlowCallWatchdog.mark("scroll search")
         var outcome = await executor.execute(step)
+        if let switched = executor.scrollFrameSwitchNote { scrollFrameLabelNote += "note: \(switched).\n" }  // 探索が行の容器へ差し替えた注記(DSL は driverFallback)
         // **必ず撮り直す**(0スワイプで見つかった回も)。executor が解決に使った木を再利用して
         // 1枚ぶん(iOS 実測 2.0s)節約する案は実装して**撤回**した ——
         // 撮り直しは節約ではなく**独立した砦**で、これを省くと「対象が返す木から消えている」

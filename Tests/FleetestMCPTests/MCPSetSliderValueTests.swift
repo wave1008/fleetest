@@ -80,4 +80,35 @@ final class MCPSetSliderValueTests: XCTestCase {
         }
         XCTAssertTrue(fake.calls.contains { $0.hasPrefix("tap(x:") }, "\(fake.calls)")
     }
+
+    /// 既に目標の値なら木は変わらないのが正しい: 「効かなかったかも・読み直せ」と言わず、撮り直しも撃たない(実測: CMP iOS で同じ値を2回入れると誤誘導した)
+    func testAlreadyAtTheValueSaysSoAndSkipsTheUnchangedReread() async throws {
+        let (server, fake) = make([el(1, "slider", id: "volume", value: "75", x: 16, width: 370)])
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = texts(try await server.call(tool: "ft_set_slider_value",
+                                               args: ["selector": "#volume", "value": 75.0, "snapshotAfter": true]))
+        XCTAssertTrue(text.contains("It already read that before this call"), text)
+        XCTAssertFalse(text.contains("still looked unchanged"), text)
+        XCTAssertFalse(text.contains("looked unchanged right after the action"), text)
+    }
+
+    /// 対照: 値が変わる呼び出しには「既に」と言わない
+    func testMovingCallDoesNotClaimItWasAlreadyThere() async throws {
+        let (server, _) = make([el(1, "slider", id: "volume", value: "50", x: 16, width: 370)])
+        let text = texts(try await server.call(tool: "ft_set_slider_value", args: ["selector": "#volume", "value": 75.0]))
+        XCTAssertFalse(text.contains("already read that"), text)
+    }
+
+    /// 帯のタップの経路は確かめの読み直しで `lastSnapshots` を後の木へ上書きする。比べる元は操作の前の木のまま(実測: CMP iOS で 25→50 に動いたのに「unchanged」)
+    func testTrackTapPathComparesAgainstTheTreeBeforeTheAction() async throws {
+        let (server, fake) = make([el(1, "slider", id: "volume", value: "50", x: 16, width: 370)])
+        fake.scriptedSliderFailure = "no slider-type element"
+        fake.scriptedSliderFailureStatus = 501
+        fake.onTap = { fake.snapshotResponse.elements = [self.el(1, "slider", id: "volume", value: "75", x: 16, width: 370)] }
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = texts(try await server.call(tool: "ft_set_slider_value",
+                                               args: ["selector": "#volume", "value": 75.0, "snapshotAfter": true]))
+        XCTAssertTrue(text.contains("now reads \"75\""), text)
+        XCTAssertFalse(text.contains("unchanged"), text)
+    }
 }

@@ -22,6 +22,31 @@ extension FTDriveCore {
     }
 }
 
+extension FTDriveCore {
+    /// setUpDevice / tearDownDevice / afterAll でのメモの書き込みを断る理由(DR-207)。書いてよい場所なら nil。
+    /// 判定は実行中のフェーズ(`currentSection`)で行う = ヘルパー関数を経由しても止まる
+    static func memoWriteRejection(command: String, section: String?) -> String? {
+        switch section {
+        case "setUpDevice":
+            return "\(command) is not allowed in setUpDevice(): the value would be overwritten by the other devices' values."
+                + " Write it in beforeAll() instead"
+        case "tearDownDevice", "afterAll":
+            return "\(command) is not allowed in \(section ?? "")(): nothing reads the memo after it."
+                + " Write it in beforeAll() and read it in the tests instead"
+        default:
+            return nil
+        }
+    }
+
+    /// 書き込みを断るべきなら失敗として記録して true を返す(4つの入口 = writeMemo・memoTextAs ×2・clearMemo が呼ぶ)
+    func rejectMemoWrite(command: String, description: String, file: String, line: Int) -> Bool {
+        guard let reason = Self.memoWriteRejection(command: command, section: currentSection) else { return false }
+        recordStep(description: description, status: .failed(reason), file: file, line: line, command: command)
+        handleFailure(stepDescription: description, reason: reason)
+        return true
+    }
+}
+
 /// メモにキーの値を追記する(履歴を持ち、readMemo は最後の値を返す)
 public func writeMemo(_ key: String, _ text: String,
                       file: StaticString = #filePath, line: UInt = #line) {
@@ -33,6 +58,7 @@ public func writeMemo(_ key: String, _ text: String,
                         file: "\(file)", line: Int(line), command: "writeMemo")
         return
     }
+    if core.rejectMemoWrite(command: "writeMemo", description: description, file: "\(file)", line: Int(line)) { return }
     core.memoAppend(key, text)
     core.recordStep(description: description, status: .passed,
                     file: "\(file)", line: Int(line), command: "writeMemo")
@@ -68,6 +94,7 @@ public func clearMemo(file: StaticString = #filePath, line: UInt = #line) {
                         file: "\(file)", line: Int(line), command: "clearMemo")
         return
     }
+    if core.rejectMemoWrite(command: "clearMemo", description: "clearMemo", file: "\(file)", line: Int(line)) { return }
     core.memoRemoveAll()
     core.recordStep(description: "clearMemo", status: .passed,
                     file: "\(file)", line: Int(line), command: "clearMemo")
@@ -86,6 +113,9 @@ extension FTElement {
         if core.scenarioAborted {
             core.recordStep(description: "memoTextAs \"\(key)\"", status: .skipped(core.skipReason),
                             file: filePath, line: Int(line), command: "memoTextAs")
+            return self
+        }
+        if core.rejectMemoWrite(command: "memoTextAs", description: "memoTextAs \"\(key)\"", file: filePath, line: Int(line)) {
             return self
         }
         let text = matched.map { m in [m.label, m.value].compactMap { $0 }.first { !$0.isEmpty } ?? "" }
@@ -114,6 +144,9 @@ extension String {
         if core.scenarioAborted {
             core.recordStep(description: "memoTextAs \"\(key)\"", status: .skipped(core.skipReason),
                             file: "\(file)", line: Int(line), command: "memoTextAs")
+            return self
+        }
+        if core.rejectMemoWrite(command: "memoTextAs", description: "memoTextAs \"\(key)\"", file: "\(file)", line: Int(line)) {
             return self
         }
         core.memoAppend(key, self)

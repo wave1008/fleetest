@@ -91,7 +91,7 @@ The syntax is the same as compose.
 - **Write a `healthcheck`.** Without one, a service is considered usable as soon as it has started.
 - **A service that another one waits for with `service_completed_successfully`** (an initialisation container) runs in
   the foreground, and its exit code decides: non-zero and the run does not start.
-- **Named volumes remain between runs.** Delete them with `fleetest services reset`.
+- **Named volumes remain between runs.** Delete them with `fleetest services reset`. Do not rely on leftover data: each test prepares its own range ([Where to put test data](test_data_placement.md)).
 - **If a service fails to start or its healthcheck fails, the run stops without executing any scenario** and prints
   the tail of the failed service's log.
 - **When `run-setup.sh` fails or the run ends red, the tail of each service's log is saved** under the run's results

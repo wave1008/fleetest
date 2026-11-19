@@ -580,6 +580,13 @@ struct ApiRunCommand: AsyncParsableCommand {
         guard !selected.isEmpty else {
             throw ValidationError("nothing to run (every scenario is marked @Deleted or @Draft)")
         }
+        // クラスの寄せ方(RR-8.3)の選び方の検査(`fleetest run` と同じ関数)。dry-run は掛けない
+        // (--debug は掛ける = 拡張の木からのデバッグ実行も途中の1本を断る。RR-8.3)
+        if !dryRun {
+            try RunPlacementPreflight.check(
+                selected: selected, all: all, measuresResponse: resolvedProfile?.responseMeasurement ?? false,
+                broadcast: false, log: { logStderr($0) })
+        }
         // validate() の「ちょうど1本」は引数の個数だけ見る。クラス名・フォルダは解決後に複数本へ展開されるので、ここで本数を見る
         if debug, selected.count != 1 {
             throw ValidationError(ScenarioPreflight.debugNeedsOneScenarioMessage(resolvedCount: selected.count))
@@ -936,15 +943,25 @@ struct ApiRunCommand: AsyncParsableCommand {
         var timing = ScenarioTimingTracker()
         // --port 直指定のデバイスは platform ごとに1台(ios = --port・android = --serial)
         let deviceSessions = RunDeviceSessionBook()
-        for (index, info) in selected.enumerated() {
+        // クラスの寄せ方(RR-8.3): 並べ替えと @RunInOrder の失敗の後の扱い。dry-run / --debug には掛けない
+        let orderedSelected = dryRun || debugOptions != nil ? selected : SequentialPlacementGate.ordered(selected)
+        var placementGate = SequentialPlacementGate()
+        for (index, info) in orderedSelected.enumerated() {
             if interruptState.isStopped {
                 // 始まらなかった分を記録して失敗に数える(RunRecorder.recordInterruptedBeforeStart)
-                let notStarted = Array(selected[index...])
+                let notStarted = Array(orderedSelected[index...])
                 recorder?.recordInterruptedBeforeStart(notStarted, defaultPlatform: effectivePlatform)
                 failedCount += notStarted.count
                 break
             }
             let scenarioPlatform = info.platform ?? effectivePlatform
+            if !dryRun, debugOptions == nil, let reason = placementGate.skipReason(for: info) {
+                recorder?.recordSkipped(scenarioID: info.id, title: info.title, platform: scenarioPlatform,
+                                        worker: nil, reason: reason)
+                logStderr("❌ \(info.id): \(reason)")
+                failedCount += 1
+                continue
+            }
             let connection = scenarioPlatform == "android"
                 ? DriverConnection(platform: "android", serial: serial)
                 // 宛先・実機判定は記録から引く(PortDirectIOSTarget。`fleetest run` と同じ判定)
@@ -976,6 +993,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             }
             let scenarioEnd = Date()
             timing.recordSequential(start: scenarioStart, finish: scenarioEnd)
+            placementGate.record(info, passed: passed)
             if passed && declaredNotApplicable { skippedCount += 1 }
             else if passed { passedCount += 1 } else { failedCount += 1 }
         }

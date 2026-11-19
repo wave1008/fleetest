@@ -147,7 +147,8 @@ enum DeviceMachineRunner {
                 if failed {
                     // Fleetest.swift の単機経路と同じ判定・同じ文言(LastResultsStore.failedIDs は
                     // (project, profile) 単位。この分割経路もここでしか failed を見ないので1回だけ絞る)
-                    let failedSet = LastResultsStore.failedIDs(project: project, profile: profileName)
+                    let failedSet = ClassPlacementRules.expandingFailed(
+                        LastResultsStore.failedIDs(project: project, profile: profileName), all: all)
                     selected = selected.filter { failedSet.contains($0.id) }
                     guard !selected.isEmpty else {
                         FleetRunner.log(LastResultsStore.nothingFailedMessage(
@@ -157,6 +158,12 @@ enum DeviceMachineRunner {
                     }
                     FleetRunner.log("→ Re-running the \(selected.count) scenario(s) that failed last time")
                 }
+
+                try placementPreflight(
+                    selected: selected, all: all, groups: groups, broadcast: broadcast,
+                    measuresResponse: ProfileResolver.declaresResponseMeasurement(
+                        project: project, runName: profileName, overrides: setOverrides),
+                    log: { FleetRunner.log($0) })
 
                 let active: [(Int, Group, [String])]
                 // 動的な割り振りのときだけ入る(RR-8.1)
@@ -177,8 +184,7 @@ enum DeviceMachineRunner {
                     let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable.map { (id: $0.id, platform: $0.platform) },
-                        defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
+                        runnable, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index -> (Int, Group, [String])? in
                         let ids = DynamicDispatcher.candidateIDs(for: groups[index], in: resolved)
                         return ids.isEmpty ? nil : (index, groups[index], ids)
@@ -241,6 +247,8 @@ enum DeviceMachineRunner {
             : Dictionary(uniqueKeysWithValues: active.map { ($0.0, ChildStdinWriter()) })
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !noLPT,
+                              entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
+                              entryLabel: { groups[$0].machineLabel }, log: { FleetRunner.log($0) },
                               send: { entry, reply in writers[entry]?.write(line: WorkQueueProtocol.encode(reply)) })
         }
         let interruptRelay = dispatcher.map { dispatcher in InterruptRelay.observing(catchUp: true) { dispatcher.interrupt() } }
@@ -314,6 +322,7 @@ enum DeviceMachineRunner {
                 let interrupted = interruptedWhileChildrenRan
                 interruptedWithWorkLeft = interrupted
                 FleetRunner.log(neverHandedLine(ids: ids, interrupted: interrupted))
+                if let line = DynamicDispatcher.keptUnhandedLine(dispatcher.keptUnhanded) { FleetRunner.log(line) }
                 if !interrupted {
                     neverHandedFailure = true
                     for id in ids {
@@ -440,6 +449,21 @@ enum DeviceMachineRunner {
         }
     }
 
+    /// 選び方の確定後・配る前の検査(RR-8.3。run と api run の機械分担で共有)。違反は ValidationError。
+    /// broadcast は断らず、寄せる属性が効かない旨の1行を出す
+    static func placementPreflight(
+        selected: [ScenarioInfo], all: [ScenarioInfo], groups: [Group], broadcast: Bool,
+        measuresResponse: Bool, log: (String) -> Void
+    ) throws {
+        try RunPlacementPreflight.check(selected: selected, all: all, measuresResponse: measuresResponse,
+                                        broadcast: broadcast, log: log)
+        if broadcast { return }
+        let runnable = splitApplicable(selected: selected, groups: groups).runnable
+        if let message = DynamicDispatcher.coverageError(selected: runnable, groups: groups) {
+            throw ValidationError(message)
+        }
+    }
+
     /// 動的な割り振りを使うか。`FT_STATIC_SPLIT=1` は保守者の殺しスイッチ(静的な割り当てへ戻す・利用者向けの口ではない)
     /// measuresResponse: レスポンス計測の run は動的にしない —— 反復(responseRepeat)は子だけが展開し、親は同じ ID を1回しか
     /// 配らないので、指定の回数を回さずに成功する(`--device` でリモートの1台に絞ると1グループでもここへ来る)
@@ -518,7 +542,8 @@ enum DeviceMachineRunner {
                 entryPlatforms: groups.map(\.platforms),
                 unknownDurationMs: inputs.unknownDurationMs,
                 entryCapacities: groups.map { Double($0.deviceNames.count) },
-                machineContext: inputs.machineContext)
+                machineContext: inputs.machineContext,
+                groups: DynamicDispatcher.groups(of: runnable))
             return (plan.buckets, plan.basis, notApplicable)
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("profile \"\(project.name)\": \(error.localizedDescription)")

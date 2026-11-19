@@ -182,6 +182,7 @@ E2E テストツールです。
 - [UI 部品ごとの書き方と癖](reference/writing/ui_component_patterns_ja.md)
 - [シナリオから外部へ通信する](reference/writing/network_access_ja.md)
 - [アプリが依存するサービス(compose.yaml)](reference/writing/services_ja.md)
+- [テストデータの置き方](reference/writing/test_data_placement_ja.md)
 - [テストコードを書くときの便利機能](reference/writing/helpers_ja.md)
 - [自分で機能を足す](reference/writing/extending_ja.md)
 
