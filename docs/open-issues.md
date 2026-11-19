@@ -399,7 +399,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 測定(11/19 06:4x・Sim -07): 同じシナリオ(PIN と OTP・戻るの横取り)を inapp-boost・xcuitest の両モードで回し、打ち直しは 0 回(2/2 緑・注記なし)= 再現せず
 - 次の一手: 再び出たら 1 回目の打鍵で何文字落ちたかを測る
 
-### OI-297 全体の単体テスト(`Scripts/unit-tests.py`)の並列の負荷の下で、`FMServeAlignmentTests.testSocketReleaseHasItsOwnBudgetAfterRetirementIsAccepted` が1回赤
+### OI-297 全体のテストの並列の負荷の下でだけ赤になる単体テストが3つある(単独では緑)
 - 状態: 再現済み
 - 確認: 作業ツリー(2026-11-19)
 - 属性: 低頻度
@@ -407,7 +407,8 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 優先度: 低 — 全体テストの揺れ
 
 - 観測(11/19): 全体テスト(22 並列)で1回「the FM process is still busy」・`["status", "retire"]` が `["status", "retire", "retire"]` に届かず赤。同じクラスを単独で3回回して 0/3(緑)。触った変更(MCP の linkText・XCUITest の木の照会・countIs の注記・原点の断り)は FM の常駐と関係しない
-- 次の一手: 全体テストで再び出たら、退役の照会の間隔と、テストが待つ上限(`retirementWaitSeconds` の差し替え値)を並べて、負荷の下で1周が上限を越えたかを測る
+- 観測(11/18・ジョブ機能を入れた回): `ShellTimeoutTests`(pid ファイルを削除できない)・`FMServeAlignmentTests`(fm-serve に書けない)が単体テストの全体の並列でだけ赤、単独では緑。拡張の `webviewRunBoard.test.mjs`「アクション/秒メーター: run 0 本でも出て…」(300ms 待って段数と数値の連動を見る)が2回赤・回し直しで緑。どれもジョブの変更とは無関係
+- 次の一手: 全体テストで再び出たら、FMServeAlignmentTests は退役の照会の間隔とテストが待つ上限(`retirementWaitSeconds` の差し替え値)を並べて負荷の下で1周が上限を越えたかを、ShellTimeoutTests は削除できなかった pid ファイルの持ち主と時刻を、webviewRunBoard は 300ms の待ちの間に描き直しが何回走ったかを測る
 
 ## 環境側
 
