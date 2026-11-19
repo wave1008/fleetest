@@ -43,7 +43,7 @@ final class ScreenRenderingRecoveryWiringTests: XCTestCase {
         let text = try Self.code("Sources/FTCore/RunOrchestrator.swift")
         let recover = try XCTUnwrap(text.range(of: "let recoverRendering, revives < MAX_WORKER_REVIVES"))
         XCTAssertTrue(String(text[recover.upperBound...].prefix(200)).contains("await !stoppedByUser()"))
-        let revive = try XCTUnwrap(text.range(of: "guard revives < MAX_WORKER_REVIVES, await queue.hasItems()"))
+        let revive = try XCTUnwrap(text.range(of: "guard revives < MAX_WORKER_REVIVES, await queue.hasItems(lane: ScenarioQueue.lane(of: retired))"))
         XCTAssertTrue(String(text[revive.upperBound...].prefix(120)).contains("await !stoppedByUser()"))
     }
 

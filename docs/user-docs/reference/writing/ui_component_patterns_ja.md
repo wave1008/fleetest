@@ -280,7 +280,7 @@ tap("OK")
 
 - アプリ側では中身に `#id` を付けられません。メッセージもアクションも**ラベルで指します**
   (`exist("Deleted")` / `tap("Undo")`)。Android の Material `Snackbar` は、ライブラリ内部の id
-  `#snackbar_text` / `#snackbar_action` が木に出ることがあります(出るかはフレームワーク・版しだい。
+  `#snackbar_text` / `#snackbar_action` がツリーに出ることがあります(出るかはフレームワーク・版しだい。
   スナップショットで確かめ、安定して指せるのはラベルです)
 - 自然に消えるのを待つ: `waitForClose("Saved", waitSeconds: 10)`
   (短い表示は約4秒・長い表示は約10秒)

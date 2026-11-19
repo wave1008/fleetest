@@ -403,6 +403,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 - 観測(11/19): 全体テスト(22 並列)で1回「the FM process is still busy」・`["status", "retire"]` が `["status", "retire", "retire"]` に届かず赤。同じクラスを単独で3回回して 0/3(緑)。触った変更(MCP の linkText・XCUITest の木の照会・countIs の注記・原点の断り)は FM の常駐と関係しない
 - 観測(11/18・ジョブ機能を入れた回): `ShellTimeoutTests`(pid ファイルを削除できない)・`FMServeAlignmentTests`(fm-serve に書けない)が単体テストの全体の並列でだけ赤、単独では緑。拡張の `webviewRunBoard.test.mjs`「アクション/秒メーター: run 0 本でも出て…」(300ms 待って段数と数値の連動を見る)が2回赤・回し直しで緑。どれもジョブの変更とは無関係
+- 観測(11/20): 全体テストの2回目で `FMServeAlignmentTests.testNormalStartupRechecksIdentityBeforeReusingOrStartingAReplacement` が `["status"]` ≠ `["retire", "status"]`(退役の失敗の後に身元を読み直していない)で赤。1回目の全体は緑・単独で3回とも緑
 - 次の一手: 全体テストで再び出たら、FMServeAlignmentTests は退役の照会の間隔とテストが待つ上限(`retirementWaitSeconds` の差し替え値)を並べて負荷の下で1周が上限を越えたかを、ShellTimeoutTests は削除できなかった pid ファイルの持ち主と時刻を、webviewRunBoard は 300ms の待ちの間に描き直しが何回走ったかを測る
 
 ## 環境側
