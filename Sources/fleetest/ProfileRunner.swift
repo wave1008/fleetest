@@ -145,7 +145,7 @@ enum ProfileRunner {
         let full = resolvedAll.filteringDevices(
             names: localDeviceNames, deviceMachine: DeviceMachineGrouping.localDisplayName)
         guard !full.devices.isEmpty else { return }
-        let counts = full.scenarioCounts(platforms: localScenarios.map(\.platform))
+        let counts = full.scenarioCounts(localScenarios)
         let (resolved, _) = limitingDevicesAvoidingMCP(
             full, iosScenarios: counts.ios, androidScenarios: counts.android,
             trim: !broadcast, leaseStateDir: leaseStateDir)
@@ -397,7 +397,7 @@ enum ProfileRunner {
         if let early {
             prepared = early
         } else {
-            let counts = full.scenarioCounts(platforms: items.map(\.info.platform))
+            let counts = full.scenarioCounts(items.map(\.info))
             prepared = try await Self.prepareSupply(
                 full: full, profileName: profileName,
                 iosScenarios: counts.ios, androidScenarios: counts.android,

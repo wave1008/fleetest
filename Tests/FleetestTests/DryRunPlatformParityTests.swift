@@ -31,7 +31,7 @@ final class DryRunPlatformParityTests: XCTestCase {
     func testRunPlatformAndDeviceEstimateShareTheRule() throws {
         let runner = try source("Sources/fleetest/ProfileRunner.swift")
         let api = try source("Sources/fleetest/ApiRunCommand.swift")
-        XCTAssertEqual(runner.components(separatedBy: "full.scenarioCounts(platforms:").count - 1, 2,
+        XCTAssertEqual(runner.components(separatedBy: "full.scenarioCounts(").count - 1, 2,
                        "一覧の確定した2経路(run の準備・機械分担の事前判定)が共有の数え方を使っていない")
         XCTAssertFalse(runner.contains("platform != \"android\" }.count"), "未宣言を両 OS に数える形が残っている")
         XCTAssertFalse(runner.contains("platform != \"ios\" }.count"), "未宣言を両 OS に数える形が残っている")

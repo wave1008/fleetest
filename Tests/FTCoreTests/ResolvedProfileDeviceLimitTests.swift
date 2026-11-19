@@ -87,6 +87,38 @@ final class ResolvedProfileDeviceLimitTests: XCTestCase {
         XCTAssertEqual(limited.devices.map(\.name), ["i1"])
     }
 
+    /// 1台に寄せるクラス(@RunOnSingleDevice / @RunInOrder)は本数に関わらず1台ぶん。@RunOnSingleMachine と属性無しは1本 = 1台ぶん
+    func testDeviceBoundClassesCountAsOneDeviceEach() {
+        let ios = profile([device("i1", "ios"), device("i2", "ios"), device("i3", "ios"), device("i4", "ios")])
+        let scenarios = [
+            ScenarioInfo(id: "Ordered.S0010", title: "", placement: .inOrder, order: 1),
+            ScenarioInfo(id: "Ordered.S0020", title: "", placement: .inOrder, order: 2),
+            ScenarioInfo(id: "Ordered.S0030", title: "", placement: .inOrder, order: 3),
+            ScenarioInfo(id: "Single.S0010", title: "", placement: .singleDevice),
+            ScenarioInfo(id: "Single.S0020", title: "", placement: .singleDevice),
+            ScenarioInfo(id: "Machine.S0010", title: "", placement: .singleMachine),
+            ScenarioInfo(id: "Machine.S0020", title: "", placement: .singleMachine),
+        ]
+        XCTAssertEqual(ios.scenarioCounts(scenarios).ios, 4)
+        XCTAssertEqual(ios.scenarioCounts(Array(scenarios.prefix(3))).ios, 1)
+        let limited = ios.limitingDevices(iosScenarios: ios.scenarioCounts(Array(scenarios.prefix(3))).ios,
+                                          androidScenarios: 0, avoiding: { _ in false })
+        XCTAssertEqual(limited.devices.map(\.name), ["i1"])
+    }
+
+    /// 寄せるクラスも OS の振り分けは同じ規則(未宣言は undeclaredScenarioPlatform の側)
+    func testDeviceBoundClassCountsTowardItsDeclaredPlatform() {
+        let mixed = profile([device("i1", "ios"), device("a1", "android")])
+        let scenarios = [
+            ScenarioInfo(id: "Ordered.S0010", title: "", platform: "android", placement: .inOrder, order: 1),
+            ScenarioInfo(id: "Ordered.S0020", title: "", platform: "android", placement: .inOrder, order: 2),
+            ScenarioInfo(id: "Plain.S0010", title: ""),
+        ]
+        let counts = mixed.scenarioCounts(scenarios)
+        XCTAssertEqual(counts.android, 1)
+        XCTAssertEqual(counts.ios, 1)
+    }
+
     /// 本数が分からない(nil)の OS は今までどおり全台を残す(一覧の前に台数を決める経路)
     func testUnknownCountKeepsEveryDeviceOfThatPlatform() {
         let mixed = profile([device("i1", "ios"), device("i2", "ios"), device("a1", "android")])
