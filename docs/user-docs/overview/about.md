@@ -29,7 +29,7 @@ Results are stable, runs are fast, and there are no charges.
 
 ## Optimized with custom drivers
 
-fleetest implements its own custom drivers for both iOS and Android and optimizes them. Instead of depending on a general-purpose third-party automation server, it builds them on top of the OS facilities (XCUITest, Android accessibility).
+fleetest implements its own custom drivers for both iOS and Android and optimizes them, instead of depending on a general-purpose third-party automation server.
 
 ## The `inapp-boost` mode for iOS
 
