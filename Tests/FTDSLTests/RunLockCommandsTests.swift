@@ -90,6 +90,8 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertFalse(ran)
         XCTAssertTrue(failedReason(core)?.contains("control characters") == true)
         XCTAssertTrue(core.scenarioAborted)
+        // ステップの説明も制御文字を `\u{..}` にする(そのまま出すとレポート・run ログの行が割れる)
+        XCTAssertEqual(steps(core).first?.description, "withRunLock \"a\\u{0A}b\"")
     }
 
     func testNestedLockWithADifferentKeyFailsWithoutContentionAndSkipsTheInnerBody() {

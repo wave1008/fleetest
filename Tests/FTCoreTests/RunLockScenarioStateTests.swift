@@ -69,10 +69,14 @@ final class RunLockScenarioStateTests: XCTestCase {
         XCTAssertTrue(message([""]).contains("blank"))
         XCTAssertTrue(message(["a\nb"]).contains("control characters"))
         XCTAssertTrue(message(["a\u{7F}"]).contains("control characters"), "DEL も制御文字")
-        XCTAssertTrue(message([String(repeating: "x", count: RunLockLimits.maxKeyBytes + 1)]).contains("bytes"))
-        XCTAssertNotEqual(message([String(repeating: "x", count: RunLockLimits.maxKeyBytes)]).contains("bytes"), true)
-        XCTAssertTrue(message((0...RunLockLimits.maxKeysPerCall).map { "k\($0)" }).contains("at most"))
-        XCTAssertEqual(message((0..<RunLockLimits.maxKeysPerCall).map { "k\($0)" }), "")
+    }
+
+    /// キーの長さと個数に上限を置かない(DR-210)。上限を戻すと落ちる
+    func testLongKeysAndManyKeysAreAccepted() throws {
+        let long = String(repeating: "あ", count: 1_000)   // 3,000 バイト
+        XCTAssertEqual(try RunLockKeys.normalize([long]).get(), [long])
+        let many = (0..<100).map { String(format: "k%03d", $0) }
+        XCTAssertEqual(try RunLockKeys.normalize(many.reversed()).get(), many)
     }
 
     // MARK: 入れ子の全面禁止(競合が無くても・どのアクセスでもエラー)
@@ -471,6 +475,20 @@ final class RunLockScenarioStateTests: XCTestCase {
         XCTAssertEqual(warnings.value.filter { $0 == "overlap!" }.count, 1, "重なりの警告はサーバーを起こした時に1回だけ")
         host.stop()
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    /// --fleet で断るときの文言は、直し方(1つの実行プロファイルでマシンをまたぐ)を言う
+    func testFleetRefusalNamesTheFix() {
+        XCTAssertTrue(RunLockHost.fleetEntryRefusal.contains("name the machines on the devices of one run profile"),
+                      RunLockHost.fleetEntryRefusal)
+    }
+
+    /// 見つからなかったときの文言は、探した場所と直し方を言う(別のパッケージにだけ書いた利用者がたどり着けるように)
+    func testNotDetectedRefusalNamesWhereItLookedAndTheFix() {
+        let message = RunLockHost.notDetectedRefusal
+        XCTAssertTrue(message.contains("scenarios/"), message)
+        XCTAssertTrue(message.contains("another target or package"), message)
+        XCTAssertTrue(message.contains("write at least one withRunLock call in a scenario file"), message)
     }
 
     func testHostInterruptBeforeAndAfterStartFailsNewRequests() throws {

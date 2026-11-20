@@ -19,7 +19,8 @@ public func withRunLock(_ keys: String..., waitSeconds: Double? = nil,
 extension FTDriveCore {
     func runLockBlock(command: String, keys: [String], waitSeconds: Double?,
                       file: String, line: Int, body: () -> Void) {
-        let keyText = keys.map { "\"\($0)\"" }.joined(separator: ", ")
+        // 検査の前のキー(制御文字を含みうる)なので、表示用の形にしてから並べる
+        let keyText = keys.map { "\"\(RunLockKeys.displayName($0))\"" }.joined(separator: ", ")
         let description = "\(command) \(keyText)"
         debugCheckpoint(description: description, file: relativePath(file), line: line)
         if scenarioAborted {

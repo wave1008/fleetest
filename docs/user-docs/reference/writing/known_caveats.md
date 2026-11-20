@@ -274,9 +274,8 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [A `beforeRun()` that resets a shared server can break another run using it at the same time](../testclass/creating_testclass.md#notes) — MCP runs it on every `ft_run_scenario` call; write it to be safe while other runs are in progress.
 - [`@RunOnSingleMachine` stops the load from being split between machines](../testclass/creating_testclass.md#notes) — use it only to gather `beforeAll()` or data on one machine, and also for a class that passes a value from `beforeAll()` through the run memo.
 - [`@RunOnSingleDevice` removes the class's parallelism and defines no order](../testclass/creating_testclass.md#notes) — it prevents only simultaneous runs inside that class.
-- [Write a key that a run-wide lock guards only inside the lock](../commands/memo.md#notes) — a write to that key outside any lock (by another scenario, or after you leave the lock) is not ordered by the lock and can overwrite the value written inside.
-- [A scenario that is run again runs the lock block again](../commands/memo.md#notes) — a counter is added twice when a scenario is requeued or retried.
-- [Run-wide locks do not work in `--fleet`](../commands/memo.md#notes) — the call fails at once with an explanation (on machines reached over ssh they work; a key whose remote owner lost its connection stays unavailable until that machine's run has ended); heavy contention can reach the wait cap, so use the test server's database for heavy or run-spanning exclusion, and never wait for another test with a lock.
+- [Calling a lock inside a lock is an error](../commands/run_lock.md#notes) — nesting is an error whether the key is the same or not; pass all the keys you need in one call (calling a helper that takes a lock from inside a lock is nesting too).
+- [Consider `@RunInOrder` instead of a lock when the tests need not run at the same time](../commands/run_lock.md#notes) — a `@RunInOrder` class runs its tests one after another on one device, so no lock is needed.
 - [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test; the app screen state carries over between tests unless a later test calls `launchApp()` / `clearAppData()`.
 
 ## UI component quirks (current limitations)

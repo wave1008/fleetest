@@ -50,7 +50,8 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   from a scenario that starts after it arrives. In the end every machine holds the same history in the same order.
 - **Plain run memo writes are not locked.** Writes are never lost and are appended in the order they arrive, but the run memo does not guarantee anything about another scenario writing
   between your read and your write, or about which of two simultaneous writes to one key comes last. **Write each key from one place** — make the key per test
-  (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](#run-wide-locks-withrunlock) for light cases, or the database of your test server for heavy or run-spanning ones.
+  (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](run_lock.md) for light cases, or the database of your test server for heavy or run-spanning ones.
+- **Writes inside a [run-wide lock](run_lock.md)** (`writeRunMemo` / `clearRunMemo` / `runMemoTextAs`) are committed before the next step, and `readRunMemo` inside the lock returns the latest value (the value stays visible after the lock).
 - `clearRunMemo()` clears the run memo as it stands at that point, including your own writes not yet confirmed.
 - **In a run whose run profile has devices on several machines** (a run profile whose devices name another machine in `machine`; see [remote runners](../../fleet/remote_runners.md); and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
   **The exception is a `--fleet` run**: with or without `--split`, its run memo is shared per machine, not across machines (the run prints one line at the start saying so).
@@ -62,59 +63,6 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
 - If `beforeAll()` fails, the remaining scenarios of that class in the run are recorded as failed
   without running; it is never re-run. If `setUpDevice()` fails, the remaining
   scenarios of that class on that device are recorded as failed without running.
-
-## Run-wide locks (`withRunLock`)
-
-Use it to occupy a resource that exists only once across device operations (for example, there is a single one-time-password (OTP) inbox, and two devices sending at the same time would pick up each other's value). Wrap sending, receiving and typing in one lock, and the other scenarios wait until it ends.
-
-```swift
-withRunLock("otp-inbox") {
-    select("#send_otp").tap()
-    let otp = readOtpFromInbox()   // your own function that reads the latest OTP from the inbox
-    select("#otp_input").tap()
-    type(otp)
-    select("#verify").tap()
-}
-```
-
-Exclusion of data only (a counter, for example) can also be done with the test server's database. If serializing by class is enough, use `@RunOnSingleDevice` / `@RunInOrder`. An example that adds to a run memo counter:
-
-```swift
-withRunLock("counter") {
-    let n = Int(readRunMemo("count")) ?? 0
-    writeRunMemo("count", String(n + 1))
-}
-```
-
-- `withRunLock(keys..., waitSeconds:) { }` runs the block while no other scenario of the run holds any of the keys.
-- Keys: one or more, not blank, no control characters, at most 120 bytes each and 8 per call. Several keys in one call are taken one by one in
-  the order of their names (UTF-8 bytes). **Calling a lock inside a lock (nesting) is an error**, whether the key is the same or different, even when nothing contends and in a dry-run; a helper function that takes a lock cannot be called from inside a lock (that is nesting too), but calling it from outside a lock is fine (you may put a shared procedure in a function). **Pass all the keys you need in one call.**
-- It waits until the keys are free. The wait is not counted in `scenarioTimeout` (in a run that spans several machines it is also excluded from the time limit of the remote parts of the run, which can be extended by at most the length of that limit; a single `run --runner <machine>` does not extend it), and the time each scenario waited is recorded in the results JSON as `lockWaitMs` (the time estimates for ordering and splitting leave it out). One call waits at most the longest `scenarioTimeout` of the
-  run (including `@Test(scenarioTimeout:)`). `waitSeconds:` is optional (default: that cap), must be greater than 0 (0 or a negative value is an error, not "try once"), and can only make the wait shorter. On timeout the step fails and the block does not run.
-  Under heavy contention the wait can reach this cap, so use a database for heavy or cross-run exclusion. **Do not use a lock to wait for
-  another test to finish** (the order scenarios are handed out differs between one machine and many).
-- Inside a lock, `writeRunMemo` / `clearRunMemo` / `runMemoTextAs` are committed before the next step and `readRunMemo` returns the latest
-  value (the value stays visible after the lock). A write outside any lock works as before.
-  **Write a key that a lock guards only inside the lock.** A value over the run memo size limit (about 1.4 MB encoded) is an error inside a lock; outside a lock it stays on its own machine with one warning line.
-
-To read a value from the screen **once per run** and share it across all machines and classes (`beforeRun()` cannot use the device), read it under a lock at the top of each test, so only the first test to get there reads it:
-
-```swift
-withRunLock("shop") {
-    if readRunMemo("shop").isEmpty { select("#shop_name").runMemoTextAs("shop") }
-}
-```
-
-Inside the lock `readRunMemo` returns the latest value, so every later test finds it filled and skips the read.
-- If the scenario fails, the block is skipped; once the scenario is aborted inside the block the rest of your plain Swift code still runs, and the
-  lock is released when the block exits. A scenario that is run again (requeued or retried) runs the block again (a counter is added twice).
-- **Your own run memo writes outside the lock** are applied before a read or write inside the lock answers (the lock waits for the writes this scenario already made, so they are neither lost nor overwritten); writes of other scenarios are ordered only by the locks.
-- A dry-run runs the block without locking (nesting is still an error). In a run that spans several machines, the lock works on every machine, including machines reached over ssh (the lock server runs on the machine where you started fleetest).
-  If the connection of a remote scenario breaks while it holds a key, that key stays unavailable (waiting and new requests fail at once with an explanation) until the run on that machine is confirmed to have ended; the next step that takes it carries a note that the previous holder's writes may be missing. In a `--fleet` run the call fails with an explanation instead of silently splitting the lock.
-- Locks are granted at once, without exclusion, inside `beforeRun()` / `afterRun()` and in debug runs.
-- The lock server starts only when a `withRunLock` call is found under the project's `scenarios/` folder (not in `_disabled/`, comments or strings). Otherwise a lock call fails at once with a reason; calls that exist only in another target or package added in `Package.swift` fail too.
-- In MCP, calls of the same project on one MCP server exclude each other.
-- Not accepted by `ft_batch`.
 
 ## Example
 
@@ -150,12 +98,6 @@ class OrderFlow {
 ```
 
 In this example every machine writes the same shop name from `beforeAll()`, so the duplicate write is harmless. A value that differs per machine needs `@RunOnSingleMachine` on the class, or `beforeRun()`.
-
-## Notes
-
-- Write a key that a run-wide lock guards only inside the lock (see [Run-wide locks](#run-wide-locks-withrunlock)).
-- A scenario that is run again (requeued or retried) runs the lock block again (a counter is added twice).
-- Run-wide locks do not work in `--fleet`; use the test server's database for heavy or run-spanning exclusion.
 
 ### Link
 - [index](../../index.md)

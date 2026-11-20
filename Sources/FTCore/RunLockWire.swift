@@ -101,17 +101,13 @@ public enum RunLockLimits {
     /// 1メッセージの上限の目安。run メモ1件の上限(`RunMemoWire.maxPieces` × 断片 ≈ 1.4 MB の base64 の元の値)の JSON と、
     /// 読みの返事(全キーの履歴)が収まる大きさ。超えた行は壊れた接続として切る(メモリを際限なく食わない)
     public static let maxLineBytes = 64 << 20
-    /// キーの長さ(UTF-8 のバイト数)と1回の個数の根拠: キーはステップの説明・失敗の文言・run ログに並んで出る。
-    /// ssh -tt や pty を通る行は約 1024 バイトで切れる(`RunMemoWire.pieceCharacters` の根拠と同じ)ので、
-    /// 全キーを引用符とコンマ付きで並べた部分が 1000 バイト未満に収まる値にする: 8 個 × (120 + 4) = 992
-    public static let maxKeyBytes = 120
-    public static let maxKeysPerCall = 8
 }
 
 /// キーの検査と正規化(呼んだ時点で行う。エラー文言は英語)
 public enum RunLockKeys {
     /// 検査して、**UTF-8 のバイト列の順**に並べ、バイト列が同じものの重複を除いて返す。
-    /// 並べ方は Swift の `String` の比較(Unicode の正規化に依る = 版の違うマシンの間で順番が割れうる)を使わない
+    /// 並べ方は Swift の `String` の比較(Unicode の正規化に依る = 版の違うマシンの間で順番が割れうる)を使わない。
+    /// キーの長さと個数に上限を置かない(根拠が無い。キーは端末を通る行に載らず、ソケットの1行は `maxLineBytes` が止める。DR-210)
     public static func normalize(_ keys: [String]) -> Result<[String], RunLockError> {
         guard !keys.isEmpty else { return .failure(RunLockError("at least one lock key is required")) }
         var seen = Set<[UInt8]>()
@@ -121,23 +117,15 @@ public enum RunLockKeys {
                 return .failure(RunLockError("a lock key must not be blank"))
             }
             if key.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) {
-                return .failure(RunLockError("a lock key must not contain control characters (got \(debugName(key)))"))
-            }
-            if key.utf8.count > RunLockLimits.maxKeyBytes {
-                return .failure(RunLockError(
-                    "a lock key must be at most \(RunLockLimits.maxKeyBytes) bytes in UTF-8 (got \(key.utf8.count) bytes)"))
+                return .failure(RunLockError("a lock key must not contain control characters (got \(displayName(key)))"))
             }
             if seen.insert(Array(key.utf8)).inserted { unique.append(key) }
-        }
-        guard unique.count <= RunLockLimits.maxKeysPerCall else {
-            return .failure(RunLockError(
-                "at most \(RunLockLimits.maxKeysPerCall) lock keys can be taken in one call (got \(unique.count))"))
         }
         return .success(unique.sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) })
     }
 
-    /// 制御文字を含むキーを文言に出すときの形(そのまま出すと行が割れる)
-    private static func debugName(_ key: String) -> String {
+    /// キーを文言・ステップの説明に出すときの形。制御文字は `\u{..}` にする(そのまま出すと行が割れる。検査の前のキーも通る)
+    public static func displayName(_ key: String) -> String {
         key.unicodeScalars.map { $0.properties.generalCategory == .control ? String(format: "\\u{%02X}", $0.value) : String($0) }.joined()
     }
 }

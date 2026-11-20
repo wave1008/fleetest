@@ -170,7 +170,7 @@ fleetest run --runner M1Max --profile <実行プロファイル> --scenario <シ
 
 ## 複数のマシンにまたがる run で共有されるもの
 
-このページの「ロック」(`--wait-lock`・`remote unlock`)は**ランナー機の占有ロック**で、いまどの run がランナー機を使うかを決めるだけのものです。シナリオの `withRunLock` とは別物です([メモ](../reference/commands/memo_ja.md#run-全体のロックwithrunlock))。
+このページの「ロック」(`--wait-lock`・`remote unlock`)は**ランナー機の占有ロック**で、いまどの run がランナー機を使うかを決めるだけのものです。シナリオの `withRunLock` とは別物です([run 全体のロック](../reference/commands/run_lock_ja.md))。
 
 - **run メモ**は1回の run で1つで、run の全マシンで共有されます。`beforeAll()` はマシンごとに走るので、マシンが作る値をそこから渡すのは `@RunOnSingleMachine` を付けたクラスだけにします。
 - **`beforeRun()` / `afterRun()`** は、fleetest を起動したマシン(`run --runner <マシン>` ではランナー機)で1回だけ走ります([run 全体の準備と片付け](../reference/testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun))。

@@ -157,7 +157,9 @@ public final class RunLockHost: @unchecked Sendable {
     private static let mcpHosts = LockedValue<[String: RunLockHost]>([:])
 
     /// `--fleet` の各エントリが立てる印(隠しフラグ `--fleet-entry`)。エントリは別々の run なので、マシンをまたいで同じロックを共有できない
-    public static let fleetEntryRefusal = "--fleet runs do not share locks across machines"
+    /// 直し方まで言う(利用者向けの docs には書かない。踏んだ AI・利用者はこの文言で知る)
+    public static let fleetEntryRefusal = "--fleet starts a separate run on each machine, so the machines do not share locks"
+        + " — to exclude across machines, name the machines on the devices of one run profile instead"
     private static let fleetEntry = LockedValue(false)
     public static func markFleetEntry() { fleetEntry.value = true }
     /// この run が `--fleet` のエントリか(`RunWideHookPlan.hooksClassToRun` の2つ目の門が見る)
@@ -165,10 +167,12 @@ public final class RunLockHost: @unchecked Sendable {
 
     /// 発行元から `--lock-socket` を受けていない親とつながった子(ソースがロックを使うと見えなかった・ssh の転送を張れなかった)
     public static let linkedChildRefusal = "the parent of this multi-machine run did not hand over a run lock socket"
-        + " (the project source was not found to use withRunLock, or the ssh forward for this machine could not be set up)"
+        + " (no withRunLock call was found under the project's scenarios/ folder, or the ssh forward for this machine could not be set up)"
     public static let notConfiguredRefusal = "this way of running does not set up run-wide locks"
-    public static let notDetectedRefusal = "the project source was not found to use withRunLock"
-        + " (the scan skips comments, strings and _disabled/, so a call it cannot see gets this failure instead of a wait)"
+    /// 探した場所と直し方を言う: 共通のヘルパーを別のパッケージにまとめて、そこでだけ呼ぶと「呼んでいるのに使えない」になる
+    public static let notDetectedRefusal = "no withRunLock call was found under the project's scenarios/ folder"
+        + " (comments, strings and _disabled/ are skipped; a call that exists only in another target or package is not seen"
+        + " — write at least one withRunLock call in a scenario file)"
 
     /// 親が適用したロックの外のメモ操作の数(`RunDeviceSession.apply` が数える)
     public let appliedOps = RunLockAppliedOps()

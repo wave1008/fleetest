@@ -58,16 +58,16 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
 - **ファイル直下に `var` を書かない**(Swift 6 で `is not concurrency-safe` のコンパイルエラー)。各 `@Test` は
   別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` は1つのテストの中だけ)
 - **run 全体のロック** `withRunLock("キー", ...) { }`(ブロック形のみ・キーは文字列。`waitSeconds:` 任意)。
-  主な用途は、1つしかない資源(例: OTP の受信箱)をデバイスの操作をまたいで占有すること: `withRunLock("otp-inbox") { select("#send_otp").tap(); let otp = readOtpFromInbox() /* 利用者が書く関数 */; select("#otp_input").tap(); type(otp) }`。
+  主な用途は、1つしかない資源(例: OTP の受信箱)をデバイスの操作をまたいで占有すること: `withRunLock("otp-inbox") { tap("#send_otp"); let otp = readOtpFromInbox() /* 利用者が書く関数 */; tap("#otp_input"); type(otp) }`。
   データだけの排他(カウンタ等)はテスト用サーバーの DB でもできる。クラス単位で直列にすれば足りるなら `@RunOnSingleDevice` / `@RunInOrder`(`@RunInOrder` のクラスのテストは1台のデバイスで順に走るので、後のテストが `launchApp()` / `clearAppData()` をしなければ前のテストが残した画面の状態が持ち越される)。画面から読む値を run で1回だけ読み全マシンで共有するなら(`beforeRun()` はデバイス不可)各テストの先頭で `withRunLock("shop") { if readRunMemo("shop").isEmpty { select("#shop_name").runMemoTextAs("shop") } }`。run メモのカウンタ: `withRunLock("counter") { let n = Int(readRunMemo("count")) ?? 0; writeRunMemo("count", String(n + 1)) }`
   - 複数キーは1回の呼び出しで名前の順(UTF-8 バイト)に取る。**入れ子は全面禁止**(ロックの中でロックを呼ぶとキーが同じでも別でも・競合が無くても・dry-run でもエラー。要るキーは全部1回の呼び出しで渡す。ロックを取るヘルパー関数をロックの中から呼ぶ書き方もできない(入れ子)。ロックの外から呼ぶのは可)
   - 待ちは `scenarioTimeout` に数えず、1回の待ちの上限はその run の最長の `scenarioTimeout`(台数が多く激しく取り合うと当たる。重い排他・run をまたぐ排他はテスト用サーバーの DB)。他のテストの完了待ちに使わない。`waitSeconds:` は省略すると上限まで待ち、0 より大きい値だけ(0 や負はエラーで「1回だけ試す」にはならない)・上限を短くするだけで延ばせない
-  - キーは1個以上・空白だけは不可・制御文字は不可・1個 120 バイト(UTF-8)まで・1回の呼び出しで重複を除いて 8 個まで
+  - キーは1個以上・空白だけは不可・制御文字は不可
   - **ロックはプロジェクトの `scenarios/` の下(`_disabled/`・コメント・文字列を除く)に `withRunLock` の呼び出しがあるときだけ使える**。無いと呼んだ時点で理由つきの失敗(Package.swift で足した別のターゲット・パッケージにだけ書いても失敗する)。共通のヘルパーに切り出すときも、呼び出しを `scenarios/` の下に置く
   - `beforeRun()` / `afterRun()` の中とデバッグ実行ではロックは待たずにすぐ通る(排他は効かない)
   - ロックの中の `readRunMemo` は最新の値・書き込みはロックを外す前に確定。**ロックで守るキーはロックの中でだけ書く**(ロックの外の書き込みは順序が決まらず、中で書いた値を上書きすることがある)。ロックの外では従来どおり書ける。run メモの1つの値が大きすぎる(エンコード後 約 1.4 MB)と、ロックの中ではエラー・外ではそのマシンに留まり警告が1行出る
   - 再実行されたシナリオはブロックをもう一度実行する。ブロックの中で失敗したら残りの DSL は飛ばされ、ロックはブロックを抜けたとき外れる
-  - 効くのは1台のマシンの run と、マシンをまたぐ run の全マシン(ssh 越しのリモートを含む)。`--fleet` では呼ぶと即エラー。リモートの接続が切れたキーは向こうの run の終わりを確かめるまで取れず、外れた後の最初の取得のステップには注記が付く。MCP `ft_run_scenario` は可・`ft_batch` は不可・dry-run は取らずに通す
+  - 効くのは1台のマシンの run と、マシンをまたぐ run の全マシン(ssh 越しのリモートを含む)。`--fleet` では呼ぶと即エラー(マシンをまたいで排他したいなら、実行プロファイルのデバイスにマシンを書いて1つの run にする)。リモートの接続が切れたキーは向こうの run の終わりを確かめるまで取れず、外れた後の最初の取得のステップには注記が付く。MCP `ft_run_scenario` は可・`ft_batch` は不可・dry-run は取らずに通す
 - 同じ手順を関数に切り出して使い回してよい(private func。例: 不定ダイアログの `dismiss…IfAny()`)。
 - `procedure` は任意 Swift(データ準備等)を1ステップとして記録。throw すると NG 扱いでシナリオ中断。
 

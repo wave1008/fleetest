@@ -136,6 +136,8 @@ E2E テストツールです。
     - [取得した要素の値を読む(.text, .value, .id, lastElement)](reference/commands/reading_values_ja.md)
 - シナリオ間で値を共有
     - [メモ(writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](reference/commands/memo_ja.md)
+- 排他
+    - [run 全体のロック(withRunLock)](reference/commands/run_lock_ja.md)
 - テストデータ・ファイル・外部との通信
     - [テストデータ・アカウント(account, data, dataFile, addMedia)](reference/commands/dataset_ja.md)
     - [出力フォルダと一時フォルダ(TestLog)](reference/commands/test_log_ja.md)
