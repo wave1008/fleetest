@@ -93,4 +93,21 @@ final class WorkQueueProtocolTests: XCTestCase {
         XCTAssertEqual(WorkQueueProtocol.decodeStartSignal(
             WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.cancel(reason: " \n "))), .cancel(reason: "cancelled"))
     }
+
+    /// 文字数で切っても行のバイト数は収まらない(結合した絵文字は1字で数十バイト・制御文字は JSON で6バイトに膨らむ)。
+    /// 行が `maxStartLineBytes` を超えると ssh -tt の先の子が開始の合図を受け取れずに待ち続ける
+    func testCancelLineStaysWithinTheByteLimitForWideCharacters() {
+        let family = "👨‍👩‍👧‍👦"  // 1つの Character・25 バイト
+        for reason in [String(repeating: family, count: 300), String(repeating: "\u{1b}[31m", count: 300)] {
+            let line = WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.cancel(reason: reason))
+            XCTAssertLessThanOrEqual(line.utf8.count, WorkQueueProtocol.maxStartLineBytes)
+            XCTAssertFalse(line.contains("\\u001b"), "制御文字を残している")
+            guard case .cancel(let decoded)? = WorkQueueProtocol.decodeStartSignal(line) else { return XCTFail("取りやめに読めない") }
+            XCTAssertNotEqual(decoded, "cancelled", "理由を消している(絵文字・制御文字の後の文字を残していない)")
+        }
+        // 書式文字(ZWJ)でつないだ絵文字は制御文字ではない = 残す
+        guard case .cancel(let kept)? = WorkQueueProtocol.decodeStartSignal(
+            WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.cancel(reason: "x" + family))) else { return XCTFail() }
+        XCTAssertEqual(kept, "x" + family)
+    }
 }

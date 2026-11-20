@@ -68,6 +68,19 @@ final class RunHookParentTests: XCTestCase {
         XCTAssertTrue(xml.contains("beforeRun() failed: boom"), xml)
     }
 
+    /// `--fleet` の拒否は、ビルドされない `_disabled/` に退避した `@RunHooks` を数えない
+    func testFleetRefusalScanIgnoresTheDisabledFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("RunHookFleetScan-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = TestProject(name: "P", rootURL: root)
+        try FileManager.default.createDirectory(at: project.disabledDir, withIntermediateDirectories: true)
+        let source = "import FTDSL\n@RunHooks\nclass Hooks { func beforeRun() {} }\n"
+        try source.write(to: project.disabledDir.appendingPathComponent("Hooks.swift"), atomically: true, encoding: .utf8)
+        XCTAssertFalse(FleetRunner.declaresRunHooks(project: project))
+        try source.write(to: project.scenariosDir.appendingPathComponent("Hooks.swift"), atomically: true, encoding: .utf8)
+        XCTAssertTrue(FleetRunner.declaresRunHooks(project: project))
+    }
+
     /// 他のマシンへ配れない大きさの書き込みは黙って捨てない(通常のシナリオの書き込みの `RunMemoLink.publish` と同じく1行言う)
     func testAnOversizedBeforeRunWriteIsDroppedWithALine() async {
         let base = makeContext()

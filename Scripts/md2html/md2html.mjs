@@ -13,7 +13,7 @@
 //   gtag              "true" で _template_gtag を ${gtag} に入れる(元は引数 gtag=true だけ)
 //   ref               git の ref。指定すると inputDirectory をその ref の中身から読む(作業ツリーの未コミット分を混ぜない)
 //   outsideLinkBase   inputDirectory の外を指す相対リンクの書き換え先。`${ref}` と、リポジトリ直下からのパスを後ろに付ける
-//                     (例 https://github.com/o/r/blob/${ref}/)。無ければ外へのリンクは切れたリンクとして断る
+//                     (例 https://github.com/wave1008/fleetest/blob/${ref}/)。無ければ外へのリンクは切れたリンクとして断る
 //   languages         [{ "suffix": "_ja", "lang": "ja" }]。ファイル名(拡張子の前)の接尾辞で ${lang}・${langSuffix} を決める
 //   defaultLanguage   接尾辞に当たらないページの ${lang}(既定 "en")
 //   typographer       "true" で引用符・記号を活字体へ(元の TypographicExtension 相当。GitHub の表示とずれるので既定 "false")

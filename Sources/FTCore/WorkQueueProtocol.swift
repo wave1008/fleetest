@@ -85,8 +85,13 @@ public enum WorkQueueProtocol {
         case cancel(reason: String)
     }
 
-    /// 取りやめの理由の最大文字数。根拠: 1行は ssh -tt の行規律の約 1024 バイトに収める(日本語など3バイト文字で 3 倍・印と JSON の括りで約 50 バイト)
+    /// 取りやめの理由の最大文字数(読みやすさの上限。行の長さの保証は `maxStartLineBytes` が持つ)
     public static let maxCancelReasonCharacters = 200
+
+    /// 開始・取りやめの1行の最大バイト数。根拠: ssh -tt の先の子の stdin は端末の行規律(canonical)で、1行が約 1024 バイトを超えると
+    /// 改行まで捨てられ、子が開始の合図を受け取れずに待ち続ける。文字数では足りない(結合した絵文字は1字 25 バイト前後・
+    /// 制御文字は JSON で `\u001b` の6バイト)ので、符号化した行のバイト数で切る
+    public static let maxStartLineBytes = 900
 
     struct StartBody: Codable, Equatable {
         let op: String
@@ -105,15 +110,23 @@ public enum WorkQueueProtocol {
     public static func encode(_ piece: MemoPiece) -> String { encodeBody(piece) }
     public static func encode(_ hello: MemoHello) -> String { encodeBody(hello) }
 
-    /// 開始・取りやめの行。理由は改行を空白に直して `maxCancelReasonCharacters` で切る(空なら "cancelled")
+    /// 開始・取りやめの行。理由は改行・制御文字(Cc だけ。`CharacterSet.controlCharacters` は書式文字 Cf も含み、ZWJ でつないだ絵文字を
+    /// 丸ごと消す)を空白に直して `maxCancelReasonCharacters` で切り、さらに行が
+    /// `maxStartLineBytes` に収まるまで末尾から削る(空なら "cancelled")
     public static func encode(_ signal: StartSignal) -> String {
         switch signal {
         case .start:
             return encodeBody(StartBody(op: "start", reason: nil))
         case .cancel(let reason):
-            let flat = String(reason.map { $0.isNewline ? " " : $0 }.prefix(maxCancelReasonCharacters))
-            let trimmed = flat.trimmingCharacters(in: .whitespaces)
-            return encodeBody(StartBody(op: "cancel", reason: trimmed.isEmpty ? "cancelled" : trimmed))
+            var flat = Array(reason.map { character -> Character in
+                character.isNewline || character.unicodeScalars.contains { $0.properties.generalCategory == .control } ? " " : character
+            }.prefix(maxCancelReasonCharacters))
+            while true {
+                let trimmed = String(flat).trimmingCharacters(in: .whitespaces)
+                let line = encodeBody(StartBody(op: "cancel", reason: trimmed.isEmpty ? "cancelled" : trimmed))
+                if line.utf8.count <= maxStartLineBytes || flat.isEmpty { return line }
+                flat.removeLast()
+            }
         }
     }
 
