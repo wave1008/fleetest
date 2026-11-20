@@ -47,7 +47,7 @@
 - 運用: 合否に響かない — 注記だけ。ただし結果を疑わせる
 - 優先度: 低 — 合否に響かない
 
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
 - 観測: ord_cmp_ios・mix_cmp_emu の2セッション(同じ作業フォルダで6セッションが並行してビルドしていた)
 - 測定(2026-11-20 23:20 頃・評価の作業フォルダ): 指紋は作業フォルダの Package.swift・Package.resolved とパス依存先(fleetest)の Sources の更新時刻を含む。
   Package.resolved は 22:33:41(第1波の最中)に書き換わっていた。①別のプロジェクトのソースを変えてビルドしても ord の指紋は変わらない
@@ -62,7 +62,7 @@
 - 運用: 回避可 — 空の欄なら replace を外す
 - 優先度: 中 — docs の書き方で赤
 
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
 - 観測: once_flutter_ios(Simulator・MCP の ft_run_scenario = XCUITest)。素の type(追記)は同じ欄で通る
 - 測定(2026-11-20 23:45 頃・Simulator -05・単独): `launchApp → tap(#nav_input) → type(#field_single, replace: true)` を xcuitest モード 3 回・inapp-boost 3 回 = 6/6 緑。
   観測した1回は6セッションが同じ Mac で並行していた(負荷の下)。単独では再現しない
@@ -75,7 +75,7 @@
 - 運用: 回避可 — 行を名指しせず端まで送る
 - 優先度: 低 — 赤になる側(誤った緑ではない)
 
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
 - 観測: se3_cmp の作成時。失敗時の木に `#row_15` が 31pt で出ていた。`round 2: (16,197 343x56) ... the settle wait was cut off and the re-read did not show it touchable`
 - 測定(2026-11-20 23:50 頃・SE3・単独): `launchApp → tap(#nav_scroll) → scrollTo(#row_15, maxSwipes: 12)` を inapp-boost 2 回・xcuitest 1 回 = 3/3 緑。
   観測した1回は作成中の MCP(XCUITest)で、直前の手順が違う。単独では再現しない
@@ -90,7 +90,7 @@
 - 運用: 回避可 — 空なら打たない分岐を書く
 - 優先度: 低 — dry-run だけ
 
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
 - 観測: once_flutter_ios。`type: nothing to type (the text is empty)`。r2_order_rn_ios では replace 付きで空を打って緑・`thisIsNotEmpty ""` も dry-run では緑
 - 決めること: dry-run で値が空のときの type を ①今のまま失敗 ②注記つきで通す のどちらにするか
 
@@ -101,7 +101,7 @@
 - 運用: 回避可 — profile だけ渡す
 - 優先度: 低 — MCP だけ・文言で直せる
 
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
 - 観測: mix_cmp_emu。`profile cannot be combined with platform/port/serial/udid (the profile picks the device)`。CLI の `--profile` + `--platform` の併用エラーに合わせた意図的な設計(`MCPServer.profileConflict`)
 - 決めること: プロファイルの OS と同じ platform なら受けるか、今のまま断るか
 

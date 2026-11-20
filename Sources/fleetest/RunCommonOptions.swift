@@ -133,7 +133,7 @@ struct RunCommonOptions: ParsableArguments {
             visibility: .hidden))
     var runMemoLink = false
 
-    /// **手で打つものではない**。`--fleet` のエントリの印。別々の run どうしでロック(withExclusiveLock)を共有できないので、
+    /// **手で打つものではない**。`--fleet` のエントリの印。別々の run どうしでロック(withRunLock)を共有できないので、
     /// ロックを呼ぶと英語の失敗になる(黙って割れない)。ssh 越しの子へは `RemoteRunArgs` が中継する
     @Flag(name: .customLong("fleet-entry"),
           help: ArgumentHelp(

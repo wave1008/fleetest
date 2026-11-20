@@ -23,8 +23,8 @@ public struct RunLockHoldings: Sendable {
         if !held.isEmpty {
             let heldNames = held.map { "\"\($0)\"" }.joined(separator: ", ")
             return .failure(RunLockError(
-                "withExclusiveLock cannot be called inside another withExclusiveLock (held: \(heldNames));"
-                + " take all the keys in one call, e.g. withExclusiveLock(\"a\", \"b\") { ... }"))
+                "withRunLock cannot be called inside another withRunLock (held: \(heldNames));"
+                + " take all the keys in one call, e.g. withRunLock(\"a\", \"b\") { ... }"))
         }
         return .success(Plan(keys: keys))
     }

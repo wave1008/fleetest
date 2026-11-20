@@ -188,7 +188,7 @@ final class RunLockIssuerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
         XCTAssertNil(RunLockIssuer.startIfUsed(project: project, waitCapSeconds: 5, hub: hub, log: { _ in }))
-        try "withExclusiveLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("S.swift"), atomically: true, encoding: .utf8)
+        try "withRunLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("S.swift"), atomically: true, encoding: .utf8)
         let issuer = try XCTUnwrap(RunLockIssuer.startIfUsed(project: project, waitCapSeconds: 5, hub: hub, log: { _ in }))
         XCTAssertTrue(FileManager.default.fileExists(atPath: issuer.socketPath))
         issuer.stop()

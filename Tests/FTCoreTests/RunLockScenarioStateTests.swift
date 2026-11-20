@@ -81,7 +81,7 @@ final class RunLockScenarioStateTests: XCTestCase {
         let state = state(.immediate)
         let outer = try entry(state.enter(keys: ["a"], waitSeconds: nil))
         let message = failure(state.enter(keys: ["b"], waitSeconds: nil))
-        XCTAssertTrue(message.contains("cannot be called inside another withExclusiveLock"), message)
+        XCTAssertTrue(message.contains("cannot be called inside another withRunLock"), message)
         XCTAssertTrue(message.contains("\"a\"") && message.contains("one call"), message)
         state.leave(outer)
         XCTAssertFalse(state.isHolding)
@@ -91,7 +91,7 @@ final class RunLockScenarioStateTests: XCTestCase {
     func testNestedLockWithTheSameKeyIsAnErrorAndKeepsTheOuterHolding() throws {
         let state = state(.immediate)
         let outer = try entry(state.enter(keys: ["k"], waitSeconds: nil))
-        XCTAssertTrue(failure(state.enter(keys: ["k"], waitSeconds: nil)).contains("another withExclusiveLock"))
+        XCTAssertTrue(failure(state.enter(keys: ["k"], waitSeconds: nil)).contains("another withRunLock"))
         XCTAssertTrue(state.isHolding, "エラーでも外側の持ち分は残る")
         state.leave(outer)
         XCTAssertFalse(state.isHolding)
@@ -385,14 +385,14 @@ final class RunLockScenarioStateTests: XCTestCase {
     // MARK: 走査・上限・ホスト
 
     func testSourceScanFindsCallsOutsideCommentsAndStringsOnly() {
-        XCTAssertTrue(RunLockUsage.sourceUsesLocks("withExclusiveLock(\"a\") { }"))
-        XCTAssertTrue(RunLockUsage.sourceUsesLocks("  withExclusiveLock(\"a\") { }"))
-        XCTAssertTrue(RunLockUsage.sourceUsesLocks("FTDSL.withExclusiveLock(\"a\") { }"))
-        XCTAssertFalse(RunLockUsage.sourceUsesLocks("// withExclusiveLock(\"a\") { }"))
-        XCTAssertFalse(RunLockUsage.sourceUsesLocks("/* withExclusiveLock */"))
-        XCTAssertFalse(RunLockUsage.sourceUsesLocks("let s = \"withExclusiveLock\""))
-        XCTAssertFalse(RunLockUsage.sourceUsesLocks("func mywithExclusiveLockHelper() {}"))
-        XCTAssertFalse(RunLockUsage.sourceUsesLocks("withExclusiveLockX()"))
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("withRunLock(\"a\") { }"))
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("  withRunLock(\"a\") { }"))
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("FTDSL.withRunLock(\"a\") { }"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("// withRunLock(\"a\") { }"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("/* withRunLock */"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("let s = \"withRunLock\""))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("func mywithRunLockHelper() {}"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("withRunLockX()"))
     }
 
     func testProjectScanSkipsTheDisabledFolder() throws {
@@ -400,10 +400,10 @@ final class RunLockScenarioStateTests: XCTestCase {
         let project = TestProject(name: "P", rootURL: root)
         try FileManager.default.createDirectory(at: project.disabledDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        try "withExclusiveLock(\"a\") {}".write(to: project.disabledDir.appendingPathComponent("Old.swift"),
+        try "withRunLock(\"a\") {}".write(to: project.disabledDir.appendingPathComponent("Old.swift"),
                                                  atomically: true, encoding: .utf8)
         XCTAssertFalse(RunLockUsage.projectUsesLocks(project))
-        try "withExclusiveLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("New.swift"),
+        try "withRunLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("New.swift"),
                                                atomically: true, encoding: .utf8)
         XCTAssertTrue(RunLockUsage.projectUsesLocks(project))
     }

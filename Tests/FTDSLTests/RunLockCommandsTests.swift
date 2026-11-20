@@ -2,7 +2,7 @@ import XCTest
 @testable import FTDSL
 import FTCore
 
-/// `withExclusiveLock`(RR-8.5)の DSL 側: ステップの記録・失敗の後は本体を実行しない・ロックの中の run メモ
+/// `withRunLock`(RR-8.5)の DSL 側: ステップの記録・失敗の後は本体を実行しない・ロックの中の run メモ
 final class RunLockCommandsTests: XCTestCase {
     private final class Sink: @unchecked Sendable {
         private let lock = NSLock()
@@ -77,16 +77,16 @@ final class RunLockCommandsTests: XCTestCase {
     func testBodyRunsAndTheStepNamesTheSortedKeys() {
         let core = makeCore(sink: Sink(), access: .immediate)
         var ran = false
-        withExclusiveLock("b", "a") { ran = true }
+        withRunLock("b", "a") { ran = true }
         XCTAssertTrue(ran)
-        XCTAssertEqual(steps(core).first?.description, "withExclusiveLock \"a\", \"b\"")
+        XCTAssertEqual(steps(core).first?.description, "withRunLock \"a\", \"b\"")
         XCTAssertNil(failedReason(core))
     }
 
     func testInvalidKeysFailTheStepAndSkipTheBody() {
         let core = makeCore(sink: Sink(), access: .immediate)
         var ran = false
-        withExclusiveLock("a\nb") { ran = true }
+        withRunLock("a\nb") { ran = true }
         XCTAssertFalse(ran)
         XCTAssertTrue(failedReason(core)?.contains("control characters") == true)
         XCTAssertTrue(core.scenarioAborted)
@@ -96,28 +96,28 @@ final class RunLockCommandsTests: XCTestCase {
         let core = makeCore(sink: Sink(), access: .immediate)
         var inner = false
         var afterInner = false
-        withExclusiveLock("a") {
-            withExclusiveLock("b") { inner = true }
+        withRunLock("a") {
+            withRunLock("b") { inner = true }
             afterInner = true  // 失敗の印が立った後の生の Swift は走り続ける(DSL のコマンドだけが飛ばされる)
         }
         XCTAssertFalse(inner)
         XCTAssertTrue(afterInner)
-        XCTAssertTrue(failedReason(core)?.contains("cannot be called inside another withExclusiveLock") == true)
+        XCTAssertTrue(failedReason(core)?.contains("cannot be called inside another withRunLock") == true)
         XCTAssertTrue(failedReason(core)?.contains("one call") == true)
         XCTAssertFalse(core.runLocks.isHolding, "外側はブロックを抜けた時点で外れる")
     }
 
     func testNestedLockWithTheSameKeyFailsAndSkipsTheInnerBody() {
         let core = makeCore(sink: Sink(), access: .immediate)
-        withExclusiveLock("k") { withExclusiveLock("k") { XCTFail("must not run") } }
-        XCTAssertTrue(failedReason(core)?.contains("another withExclusiveLock") == true)
+        withRunLock("k") { withRunLock("k") { XCTFail("must not run") } }
+        XCTAssertTrue(failedReason(core)?.contains("another withRunLock") == true)
     }
 
     func testAnAbortedScenarioSkipsTheBodyWithoutTakingTheLock() {
         let core = makeCore(sink: Sink(), access: .immediate)
         core.handleFailure(stepDescription: "x", reason: "boom")
         var ran = false
-        withExclusiveLock("a") { ran = true }
+        withRunLock("a") { ran = true }
         XCTAssertFalse(ran)
         XCTAssertFalse(core.runLocks.isHolding)
         if case .skipped = steps(core).last?.status {} else { XCTFail("skipped step expected") }
@@ -126,7 +126,7 @@ final class RunLockCommandsTests: XCTestCase {
     func testRefuseFailsAndSkipsTheBody() {
         let core = makeCore(sink: Sink(), access: .refuse("--fleet runs do not share locks across machines"))
         var ran = false
-        withExclusiveLock("a") { ran = true }
+        withRunLock("a") { ran = true }
         XCTAssertFalse(ran)
         XCTAssertTrue(failedReason(core)?.contains("--fleet runs do not share locks") == true)
     }
@@ -134,19 +134,19 @@ final class RunLockCommandsTests: XCTestCase {
     func testPassThroughRunsTheBodyAndStillReportsViolations() {
         let core = makeCore(sink: Sink(), access: .passThrough)
         var ran = false
-        withExclusiveLock("a") { ran = true }
+        withRunLock("a") { ran = true }
         XCTAssertTrue(ran)
         XCTAssertNil(failedReason(core))
-        withExclusiveLock("z") { withExclusiveLock("z") {} }
+        withRunLock("z") { withRunLock("z") {} }
         XCTAssertNotNil(failedReason(core), "dry-run・その場で渡す構成でも入れ子はエラー")
     }
 
-    func testWriteRunMemoInsideExclusiveLockGoesThroughTheServerNotTheStdoutEvent() throws {
+    func testWriteRunMemoInsideRunLockGoesThroughTheServerNotTheStdoutEvent() throws {
         let store = RunMemoStore()
         let server = try startServer(store)
         let sink = Sink()
         let core = makeCore(sink: sink, access: .socket(server.socketPath))
-        withExclusiveLock("counter") {
+        withRunLock("counter") {
             writeRunMemo("n", "1")
             XCTAssertEqual(store.snapshot(), ["n": ["1"]], "確定の返事の前にサーバー側へ入っている")
             XCTAssertEqual(readRunMemo("n"), "1")
@@ -168,7 +168,7 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertEqual(core.runMemo["n"], nil)
         store.write(key: "n", value: "from-other")  // 別のシナリオがロックの中で書いた
         var seen = ""
-        withExclusiveLock("k") { seen = readRunMemo("n") }
+        withRunLock("k") { seen = readRunMemo("n") }
         XCTAssertEqual(seen, "from-other")
         XCTAssertEqual(readRunMemo("n"), "from-other", "ロックを出た後もその写しを見続ける")
     }
@@ -188,7 +188,7 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertEqual(holder.wait(id: id, timeout: .seconds(5)), .granted)
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
         var ran = false
-        withExclusiveLock("db", waitSeconds: 0.3) { ran = true }
+        withRunLock("db", waitSeconds: 0.3) { ran = true }
         XCTAssertFalse(ran)
         let reason = failedReason(core) ?? ""
         XCTAssertTrue(reason.contains("\"db\"") && reason.contains("timed out"), reason)
@@ -197,7 +197,7 @@ final class RunLockCommandsTests: XCTestCase {
     func testTheLockIsReleasedWhenTheBlockExitsEvenIfTheBodyAborted() throws {
         let server = try startServer()
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
-        withExclusiveLock("k") { withExclusiveLock("j") {} }  // 入れ子の失敗で中断
+        withRunLock("k") { withRunLock("j") {} }  // 入れ子の失敗で中断
         XCTAssertTrue(core.scenarioAborted)
         XCTAssertFalse(core.runLocks.isHolding)
         let other = try RunLockClient.connect(path: server.socketPath, scenario: "O", machine: "m", device: "d")
@@ -212,7 +212,7 @@ final class RunLockCommandsTests: XCTestCase {
         _ = holder.wait(id: id, timeout: .seconds(5))
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
         Thread { usleep(300_000); holder.release(id: id) }.start()
-        withExclusiveLock("db") {}
+        withRunLock("db") {}
         let description = steps(core).first?.description ?? ""
         XCTAssertTrue(description.contains("(waited "), description)
     }
@@ -242,7 +242,7 @@ final class RunLockCommandsTests: XCTestCase {
         let core = makeCore(sink: sink, access: .socket(server.socketPath))
         writeRunMemo("token", "abc")  // ロックの外(イベントは遅れて親に適用される)
         var inside = ""
-        withExclusiveLock("c") { inside = readRunMemo("token") }
+        withRunLock("c") { inside = readRunMemo("token") }
         XCTAssertEqual(inside, "abc", "外の書き込みが適用されるまで読みを待つ")
         XCTAssertEqual(readRunMemo("token"), "abc", "ロックを出た後も消えない")
         XCTAssertNil(failedReason(core))
@@ -256,7 +256,7 @@ final class RunLockCommandsTests: XCTestCase {
         delayedHost(sink, store: store, applied: applied)
         let core = makeCore(sink: sink, access: .socket(server.socketPath))
         clearRunMemo()  // ロックの外(適用は遅れる)
-        withExclusiveLock("c") { writeRunMemo("n", "1") }
+        withRunLock("c") { writeRunMemo("n", "1") }
         Thread.sleep(forTimeInterval: 0.8)  // 遅れて届く分が全部届く時間
         XCTAssertEqual(store.snapshot(), ["n": ["1"]], "外の clear が先に適用されてから中の書き込みが入る")
         XCTAssertNil(failedReason(core))
@@ -272,12 +272,12 @@ final class RunLockCommandsTests: XCTestCase {
         holder = nil  // 死んだプロセスの接続が閉じる = ここで外れて印が付く
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
         var ran = false
-        withExclusiveLock("db") { ran = true }
+        withRunLock("db") { ran = true }
         XCTAssertTrue(ran, "注記であって失敗ではない")
         XCTAssertNil(failedReason(core))
         let description = steps(core).first?.description ?? ""
         XCTAssertTrue(description.contains("[note: the previous holder of \"db\" lost its connection, so its writes may be missing]"), description)
-        withExclusiveLock("other") {}
+        withRunLock("other") {}
         XCTAssertFalse((steps(core).last?.description ?? "").contains("[note:"), "印の無いキーには付かない")
     }
 
@@ -288,7 +288,7 @@ final class RunLockCommandsTests: XCTestCase {
         servers.append(hubServer)
         let sink = Sink()
         _ = makeCore(sink: sink, access: .socket(hubServer.socketPath))
-        withExclusiveLock("c") { writeRunMemo("n", "1"); clearRunMemo() }
+        withRunLock("c") { writeRunMemo("n", "1"); clearRunMemo() }
         let committed = sink.events.filter { $0.kind == "runMemoCommitted" }
         XCTAssertEqual(committed.map(\.memoSeq), [1, 2])
         XCTAssertEqual(committed.first?.memoKey, "n")
@@ -298,7 +298,7 @@ final class RunLockCommandsTests: XCTestCase {
         let plainSink = Sink()
         let server = try startServer()
         _ = makeCore(sink: plainSink, access: .socket(server.socketPath))
-        withExclusiveLock("c") { writeRunMemo("n", "1") }
+        withRunLock("c") { writeRunMemo("n", "1") }
         XCTAssertFalse(plainSink.events.contains { $0.kind == "runMemoCommitted" }, "1台の run は親のストアへ直接入る")
     }
 }

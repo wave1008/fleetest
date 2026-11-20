@@ -1,5 +1,5 @@
 // CommandsLock.swift
-// run 全体のロック `withExclusiveLock`(RR-8.5・DR-210)。判定・待ち・サーバーとの通信は FTCore の `RunLockScenarioState`
+// run 全体のロック `withRunLock`(RR-8.5・DR-210)。判定・待ち・サーバーとの通信は FTCore の `RunLockScenarioState`
 // (`FTDriveCore.runLocks`)。ここは「ステップの記録・失敗の扱い・本体の実行」だけ。
 // - 失敗は例外ではなく中断の印: **印が立った後は本体を実行しない**。本体の途中で印が立っても、外すのはブロックを抜けた時点
 // - ロックの中の run メモ(読み・書き)の扱いは CommandsMemo.swift
@@ -9,10 +9,10 @@ import FTCore
 
 /// 排他ロックを取って本体を実行する。キーは名前の順(UTF-8 のバイト列)に1つずつ取る。取れるまで待つ(上限はこの run の最長の scenarioTimeout・
 /// `waitSeconds:` で短くできる)。本体の中の run メモの書き込みはサーバーが確定してから戻る
-public func withExclusiveLock(_ keys: String..., waitSeconds: Double? = nil,
+public func withRunLock(_ keys: String..., waitSeconds: Double? = nil,
                               file: StaticString = #filePath, line: UInt = #line, _ body: () -> Void) {
-    FTRuntime.requireCore(command: "withExclusiveLock")
-        .runLockBlock(command: "withExclusiveLock", keys: keys, waitSeconds: waitSeconds,
+    FTRuntime.requireCore(command: "withRunLock")
+        .runLockBlock(command: "withRunLock", keys: keys, waitSeconds: waitSeconds,
                       file: "\(file)", line: Int(line), body: body)
 }
 

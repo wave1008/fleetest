@@ -11,7 +11,7 @@ import Foundation
 
 /// ロックのコマンドをプロジェクトのソースが使っているかの走査(ビルドせずに見る)
 public enum RunLockUsage {
-    public static let commandNames = ["withExclusiveLock"]
+    public static let commandNames = ["withRunLock"]
 
     /// コメントと文字列リテラルの外に、ロックのコマンドの呼び出しがあるか(名前の前後が識別子の文字でないものだけ)
     public static func sourceUsesLocks(_ source: String) -> Bool {
@@ -165,9 +165,9 @@ public final class RunLockHost: @unchecked Sendable {
 
     /// 発行元から `--lock-socket` を受けていない親とつながった子(ソースがロックを使うと見えなかった・ssh の転送を張れなかった)
     public static let linkedChildRefusal = "the parent of this multi-machine run did not hand over a run lock socket"
-        + " (the project source was not found to use withExclusiveLock, or the ssh forward for this machine could not be set up)"
+        + " (the project source was not found to use withRunLock, or the ssh forward for this machine could not be set up)"
     public static let notConfiguredRefusal = "this way of running does not set up run-wide locks"
-    public static let notDetectedRefusal = "the project source was not found to use withExclusiveLock"
+    public static let notDetectedRefusal = "the project source was not found to use withRunLock"
         + " (the scan skips comments, strings and _disabled/, so a call it cannot see gets this failure instead of a wait)"
 
     /// 親が適用したロックの外のメモ操作の数(`RunDeviceSession.apply` が数える)

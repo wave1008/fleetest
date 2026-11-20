@@ -20,7 +20,7 @@ touch the same database at the same time). The [run memo](../commands/memo.md) i
 3. **Do not make cleanup (`afterEach()`, `afterAll()`, `run-teardown.sh`) a precondition of a pass.** Delete only what you
    created, and make sure the data left behind does not affect the result when cleanup did not run.
 
-When tests really must share one value (a counter), use the [run-wide locks](../commands/memo.md#run-wide-locks-withexclusivelock) for light cases and the test server's database for heavy or run-spanning exclusion.
+When tests really must share one value (a counter), use the [run-wide locks](../commands/memo.md#run-wide-locks-withrunlock) for light cases and the test server's database for heavy or run-spanning exclusion.
 
 Named volumes remain between runs, so a test prepares its own range on the assumption that data from an earlier run is still there.
 

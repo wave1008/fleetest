@@ -1,5 +1,5 @@
 // RunLockTable.swift
-// run 全体のロック(`withExclusiveLock`。RR-8.5・DR-210)の判定。**I/O を持たない純粋な型**:
+// run 全体のロック(`withRunLock`。RR-8.5・DR-210)の判定。**I/O を持たない純粋な型**:
 // サーバー(`RunLockServer`)とテストが同じ型を使う。操作はどれも「送るべき渡し・失敗」を返すだけで、書くのは呼び手。
 //
 // 規則:

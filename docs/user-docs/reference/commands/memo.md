@@ -50,7 +50,7 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   from a scenario that starts after it arrives. In the end every machine holds the same history in the same order.
 - **Plain run memo writes are not locked.** Writes are never lost and are appended in the order they arrive, but the run memo does not guarantee anything about another scenario writing
   between your read and your write, or about which of two simultaneous writes to one key comes last. **Write each key from one place** — make the key per test
-  (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](#run-wide-locks-withexclusivelock) for light cases, or the database of your test server for heavy or run-spanning ones.
+  (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](#run-wide-locks-withrunlock) for light cases, or the database of your test server for heavy or run-spanning ones.
 - `clearRunMemo()` clears the run memo as it stands at that point, including your own writes not yet confirmed.
 - **In a run whose run profile has devices on several machines** (a run profile whose devices name another machine in `machine`; see [remote runners](../../fleet/remote_runners.md); and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
   **The exception is a `--fleet` run**: with or without `--split`, its run memo is shared per machine, not across machines (the run prints one line at the start saying so).
@@ -63,12 +63,12 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   without running; it is never re-run. If `setUpDevice()` fails, the remaining
   scenarios of that class on that device are recorded as failed without running.
 
-## Run-wide locks (`withExclusiveLock`)
+## Run-wide locks (`withRunLock`)
 
 Use it to occupy a resource that exists only once across device operations (for example, there is a single one-time-password (OTP) inbox, and two devices sending at the same time would pick up each other's value). Wrap sending, receiving and typing in one lock, and the other scenarios wait until it ends.
 
 ```swift
-withExclusiveLock("otp-inbox") {
+withRunLock("otp-inbox") {
     select("#send_otp").tap()
     let otp = readOtpFromInbox()   // your own function that reads the latest OTP from the inbox
     select("#otp_input").tap()
@@ -80,13 +80,13 @@ withExclusiveLock("otp-inbox") {
 Exclusion of data only (a counter, for example) can also be done with the test server's database. If serializing by class is enough, use `@RunOnSingleDevice` / `@RunInOrder`. An example that adds to a run memo counter:
 
 ```swift
-withExclusiveLock("counter") {
+withRunLock("counter") {
     let n = Int(readRunMemo("count")) ?? 0
     writeRunMemo("count", String(n + 1))
 }
 ```
 
-- `withExclusiveLock(keys..., waitSeconds:) { }` runs the block while no other scenario of the run holds any of the keys.
+- `withRunLock(keys..., waitSeconds:) { }` runs the block while no other scenario of the run holds any of the keys.
 - Keys: one or more, not blank, no control characters, at most 120 bytes each and 8 per call. Several keys in one call are taken one by one in
   the order of their names (UTF-8 bytes). **Calling a lock inside a lock (nesting) is an error**, whether the key is the same or different, even when nothing contends and in a dry-run; a helper function that takes a lock cannot be called from inside a lock (that is nesting too), but calling it from outside a lock is fine (you may put a shared procedure in a function). **Pass all the keys you need in one call.**
 - It waits until the keys are free. The wait is not counted in `scenarioTimeout` (in a run that spans several machines it is also excluded from the time limit of the remote parts of the run, which can be extended by at most the length of that limit; a single `run --runner <machine>` does not extend it), and the time each scenario waited is recorded in the results JSON as `lockWaitMs` (the time estimates for ordering and splitting leave it out). One call waits at most the longest `scenarioTimeout` of the
@@ -100,7 +100,7 @@ withExclusiveLock("counter") {
 To read a value from the screen **once per run** and share it across all machines and classes (`beforeRun()` cannot use the device), read it under a lock at the top of each test, so only the first test to get there reads it:
 
 ```swift
-withExclusiveLock("shop") {
+withRunLock("shop") {
     if readRunMemo("shop").isEmpty { select("#shop_name").runMemoTextAs("shop") }
 }
 ```
@@ -112,7 +112,7 @@ Inside the lock `readRunMemo` returns the latest value, so every later test find
 - A dry-run runs the block without locking (nesting is still an error). In a run that spans several machines, the lock works on every machine, including machines reached over ssh (the lock server runs on the machine where you started fleetest).
   If the connection of a remote scenario breaks while it holds a key, that key stays unavailable (waiting and new requests fail at once with an explanation) until the run on that machine is confirmed to have ended; the next step that takes it carries a note that the previous holder's writes may be missing. In a `--fleet` run the call fails with an explanation instead of silently splitting the lock.
 - Locks are granted at once, without exclusion, inside `beforeRun()` / `afterRun()` and in debug runs.
-- The lock server starts only when a `withExclusiveLock` call is found under the project's `scenarios/` folder (not in `_disabled/`, comments or strings). Otherwise a lock call fails at once with a reason; calls that exist only in another target or package added in `Package.swift` fail too.
+- The lock server starts only when a `withRunLock` call is found under the project's `scenarios/` folder (not in `_disabled/`, comments or strings). Otherwise a lock call fails at once with a reason; calls that exist only in another target or package added in `Package.swift` fail too.
 - In MCP, calls of the same project on one MCP server exclude each other.
 - Not accepted by `ft_batch`.
 
@@ -153,7 +153,7 @@ In this example every machine writes the same shop name from `beforeAll()`, so t
 
 ## Notes
 
-- Write a key that a run-wide lock guards only inside the lock (see [Run-wide locks](#run-wide-locks-withexclusivelock)).
+- Write a key that a run-wide lock guards only inside the lock (see [Run-wide locks](#run-wide-locks-withrunlock)).
 - A scenario that is run again (requeued or retried) runs the lock block again (a counter is added twice).
 - Run-wide locks do not work in `--fleet`; use the test server's database for heavy or run-spanning exclusion.
 

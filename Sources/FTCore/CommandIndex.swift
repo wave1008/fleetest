@@ -485,11 +485,11 @@ public enum DSLCommandIndex {
         .init("doUntilTrue", "control", "doUntilTrue(description, waitSeconds:, intervalSeconds:, maxLoopCount:) { condition }",
               "Repeats the block (DSL commands allowed inside) until it returns true."),
 
-        .init("withExclusiveLock", "control", "withExclusiveLock(keys..., waitSeconds:) { }",
+        .init("withRunLock", "control", "withRunLock(keys..., waitSeconds:) { }",
               "Takes an exclusive run-wide lock on the keys (in UTF-8 byte order of the names, one by one) and runs the block, so"
                   + " no other scenario of the run holds any of them meanwhile. Waits until it is free (at most the longest scenarioTimeout"
                   + " of the run; waitSeconds: (optional, must be > 0 — 0 is an error, not a try-once) shortens it). Keys: 1 or more, not blank, no control characters, at most 120 bytes each and 8 per call."
-                  + " Nesting is an error (a withExclusiveLock inside another one, same key or not): take all the keys in one call."
+                  + " Nesting is an error (a withRunLock inside another one, same key or not): take all the keys in one call."
                   + " Inside it, writeRunMemo / clearRunMemo / runMemoTextAs are committed before the next step and readRunMemo returns the latest value."
                   + " Works only when a call is written under the project's scenarios/ (not _disabled/); granted at once (no exclusion)"
                   + " inside beforeRun/afterRun and in a debug run. Fails when called in a --fleet run. Not accepted by ft_batch."),
@@ -512,7 +512,7 @@ public enum DSLCommandIndex {
               "Appends a value to the key's history in the run memo, shared by every scenario of one run on every"
                   + " machine (write run-wide values in beforeRun of an @RunHooks class; beforeAll runs once per machine, so pass a value"
                   + " made there only from a class with @RunOnSingleMachine). A scenario sees the run memo as it was when it started;"
-                  + " writes outside withExclusiveLock are not serialized (inside it they are committed in lock order). An error in"
+                  + " writes outside withRunLock are not serialized (inside it they are committed in lock order). An error in"
                   + " setUpDevice, tearDownDevice, afterAll and afterRun."),
         .init("readRunMemo", "memo", "readRunMemo(key)",
               "Returns the last value written under the key in the run memo, or \"\" when there is none (not a failure;"

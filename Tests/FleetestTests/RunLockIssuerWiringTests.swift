@@ -57,7 +57,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
         let project = TestProject(name: "P", rootURL: root)
         try FileManager.default.createDirectory(at: project.scenariosDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        try "withExclusiveLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("S.swift"), atomically: true, encoding: .utf8)
+        try "withRunLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("S.swift"), atomically: true, encoding: .utf8)
         let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
         let issuer = try XCTUnwrap(RunLockIssuer.startIfUsed(project: project, waitCapSeconds: 5, hub: hub, log: { _ in }))
         defer { issuer.stop() }

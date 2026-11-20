@@ -800,7 +800,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
     /// 介入が原因の赤をアプリの不具合に見せないための事実で、分類はしない。入力した文字列は載せない
     /// (`HumanOperationLedger`・docs/results-json.md)
     public var humanOperations: [HumanOperationRecord]?
-    /// run 全体のロック(`withExclusiveLock`)の待ちで止まっていた時間(ミリ秒)。**0 より大きいときだけ書く**
+    /// run 全体のロック(`withRunLock`)の待ちで止まっていた時間(ミリ秒)。**0 より大きいときだけ書く**
     /// (欄が無い = 待った記録が無い = ロックを使わなかった・待たなかった・測っていない。古い記録も同じ。欄が無いこと自体が意味を持つので
     /// 互換の読み替えではない = DR-75)。**`durationMs` に含まれる**(壁時計)。所要の見積り(LPT・動的な割り振り・残り時間)は
     /// この分を引いた値を使う(`estimateDurationMs`): ロックの待ちは同時に走る他のシナリオの数で決まり、シナリオ自身の仕事量ではない。
