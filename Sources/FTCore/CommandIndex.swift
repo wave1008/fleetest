@@ -485,6 +485,18 @@ public enum DSLCommandIndex {
         .init("doUntilTrue", "control", "doUntilTrue(description, waitSeconds:, intervalSeconds:, maxLoopCount:) { condition }",
               "Repeats the block (DSL commands allowed inside) until it returns true."),
 
+        .init("withExclusiveLock", "control", "withExclusiveLock(keys..., waitSeconds:) { }",
+              "Takes an exclusive run-wide lock on the keys (in UTF-8 byte order of the names, one by one) and runs the block, so"
+                  + " no other scenario of the run holds any of them meanwhile. Waits until it is free (at most the longest scenarioTimeout"
+                  + " of the run; waitSeconds: shortens it). Keys: 1 or more, not blank, no control characters, at most 120 bytes each and 8 per call."
+                  + " Nested: a key you do not hold yet must sort after every key you hold, else it is an error (take all keys in one call)."
+                  + " Inside it, writeRunMemo / clearRunMemo / runMemoTextAs are committed before the next step and readRunMemo returns the latest value."
+                  + " Not accepted by ft_batch."),
+        .init("withSharedLock", "control", "withSharedLock(keys..., waitSeconds:) { }",
+              "Like withExclusiveLock but shared: other scenarios may hold the same keys shared at the same time, no exclusive holder is"
+                  + " let in. Use it to read: writeRunMemo / clearRunMemo / runMemoTextAs inside it are an error unless an exclusive lock is held too."
+                  + " Taking a key exclusively inside a shared lock on it (upgrade) is an error."),
+
         // MARK: memo (test-scoped: inside one test; run-scoped: shared by the whole run on every machine)
         .init("writeMemo", "memo", "writeMemo(key, text)",
               "Appends a value to the key's history in the test's memo. The memo lives inside one test (beforeEach, the"

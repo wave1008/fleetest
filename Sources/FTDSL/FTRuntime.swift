@@ -298,7 +298,7 @@ public final class FTDriveCore {
     var groupStack: [String] = []
     /// run メモ(キー → 書いた順の値)。親が渡した写しで始まり、書き込みは runMemoWrite / runMemoClear で親へ片道通知する
     /// (契約は FTCore/DeviceSessionHandoff.swift)。testMemo はこのプロセスの中だけ。どちらも DSL スレッド専有で lock 不要
-    public var runMemo: [String: [String]] = [:]
+    public var runMemo: [String: [String]] = [:]; public let runLocks = RunLockScenarioState()  // ロック(RR-8.5)。DSL スレッド専有
     public var testMemo: [String: [String]] = [:]
     /// `account()` / `data()` のデータセット(種類ごとに初回に1回読む。ファイル読みは DSL スレッドだけが行う)
     let datasets = LockedValue<[ScenarioDataset.Kind: ScenarioDataset]>([:])

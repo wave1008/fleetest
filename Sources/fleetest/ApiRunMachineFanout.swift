@@ -63,6 +63,8 @@ enum ApiRunMachineFanout {
         let totalScenarios = LockedValue(0)
         // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
         let listedHooksClass = LockedValue<String?>(nil)
+        // 配るシナリオの scenarioTimeout(ロックの待ちの上限を求める材料。RR-8.5)
+        let listedScenarioTimeouts = LockedValue<[Int?]>([])
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .apiRun, remoteDir: options.remoteDir, forceLock: false, waitLock: options.waitLock,
@@ -89,6 +91,7 @@ enum ApiRunMachineFanout {
                 let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all)
                 if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { logStderr(notice) }
                 let selected = resolution.selected
+                listedScenarioTimeouts.value = selected.map(\.scenarioTimeout)
                 guard !selected.isEmpty else {
                     throw ValidationError("no scenarios to run after filtering")
                 }
@@ -205,6 +208,14 @@ enum ApiRunMachineFanout {
         }
         defer { hookParent?.close() }
         let memoRelay = RunMemoRelay(writers: writers, gateMode: hookParent == nil ? .startOnHello : .awaitDecision)
+        // run 全体のロック(RR-8.5)のサーバー(ソースがロックを使うときだけ。子が全員終わるまで持つ)
+        let lockIssuer = RunLockIssuerSetup.start(
+            project: project, profiles: [profileName], setOverrides: options.setOverrides,
+            explicitScenarioTimeout: options.scenarioTimeout, scenarioTimeouts: listedScenarioTimeouts.value,
+            hub: memoRelay.hub, log: { logStderr($0) })
+        defer { lockIssuer?.stop() }
+        let lockInterruptRelay = lockIssuer.map { issuer in InterruptRelay.observing(catchUp: true) { issuer.interrupt() } }
+        defer { lockInterruptRelay?.stop() }
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !options.noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
@@ -241,7 +252,8 @@ enum ApiRunMachineFanout {
                     let args = buildArgs(
                         project: project.name, profileName: profileName, group: group,
                         scenarioIDs: ids, options: options, runGroup: runGroup,
-                        workQueue: dispatcher != nil, runMemoLink: true)
+                        workQueue: dispatcher != nil, runMemoLink: true,
+                        lockSocket: lockIssuer?.socketPath)
                     let childLink = ChildLink(relay: memoRelay, dispatcher: dispatcher, entry: groupIndex,
                                               writer: writers[groupIndex])
                     let start = Date()
@@ -338,7 +350,7 @@ enum ApiRunMachineFanout {
     static func buildArgs(
         project: String, profileName: String, group: DeviceMachineRunner.Group,
         scenarioIDs: [String], options: Options, runGroup: String, workQueue: Bool = false,
-        runMemoLink: Bool = false
+        runMemoLink: Bool = false, lockSocket: String? = nil
     ) -> [String] {
         let machineLabel = group.machineLabel
         var args = ["api", "run", "--project", project, "--profile", profileName]
@@ -351,6 +363,8 @@ enum ApiRunMachineFanout {
         // の宣言参照。リモートは自前でビルドするので、渡す必要も無い)
         if machineLabel == DeviceMachineGrouping.localDisplayName {
             args += ["--skip-build"]
+            // 発行元のロックのサーバー(RR-8.5)。ローカルの子だけ(リモートの子は呼んだら失敗)
+            if let lockSocket { args += ["--lock-socket", lockSocket] }
         } else {
             if let remoteDir = options.remoteDir { args += ["--remote-dir", remoteDir] }
             if let remoteTimeout = options.remoteTimeout { args += ["--remote-timeout", String(remoteTimeout)] }

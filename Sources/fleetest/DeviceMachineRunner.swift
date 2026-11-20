@@ -123,6 +123,8 @@ enum DeviceMachineRunner {
         typealias DynamicPlan = (scenarios: [DynamicSplit.Scenario], estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)
         // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
         let listedHooksClass = LockedValue<String?>(nil)
+        // 配るシナリオの scenarioTimeout(@Test の指定。ロックの待ちの上限 = 最長の実効値を求める材料。RR-8.5)
+        let listedScenarioTimeouts = LockedValue<[Int?]>([])
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .cliRun, remoteDir: remoteDir, forceLock: forceLock, waitLock: waitLock,
@@ -163,6 +165,7 @@ enum DeviceMachineRunner {
                     FleetRunner.log("→ Re-running the \(selected.count) scenario(s) that failed last time")
                 }
 
+                listedScenarioTimeouts.value = selected.map(\.scenarioTimeout)
                 try placementPreflight(
                     selected: selected, all: all, groups: groups, broadcast: broadcast,
                     measuresResponse: ProfileResolver.declaresResponseMeasurement(
@@ -261,6 +264,13 @@ enum DeviceMachineRunner {
         }
         defer { hookParent?.close() }
         let memoRelay = RunMemoRelay(writers: writers, gateMode: hookParent == nil ? .startOnHello : .awaitDecision)
+        // run 全体のロック(RR-8.5)のサーバー。ソースがロックを使うときだけ。子が全員終わるまで持ち、中断はここへも伝える
+        let lockIssuer = RunLockIssuerSetup.start(
+            project: project, profiles: [profileName], setOverrides: setOverrides,
+            scenarioTimeouts: listedScenarioTimeouts.value, hub: memoRelay.hub, log: { FleetRunner.log($0) })
+        defer { lockIssuer?.stop() }
+        let lockInterruptRelay = lockIssuer.map { issuer in InterruptRelay.observing(catchUp: true) { issuer.interrupt() } }
+        defer { lockInterruptRelay?.stop() }
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
@@ -287,7 +297,8 @@ enum DeviceMachineRunner {
                         quiet: quiet,
                         junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                         broadcast: broadcast, runGroup: runGroup, reportDir: reportDir,
-                        workQueue: dispatcher != nil, runMemoLink: true)
+                        workQueue: dispatcher != nil, runMemoLink: true,
+                        lockSocket: lockIssuer?.socketPath)
                     let start = Date()
                     let exitCode = await FleetRunner.runEntry(
                         binary: binary, args: args, hostLabel: group.machineLabel, ticket: ticket,
@@ -526,10 +537,11 @@ enum DeviceMachineRunner {
         performanceMode: Bool,
         forceLock: Bool, remoteDir: String?, remoteTimeout: Int?,
         quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil,
-        reportDir: String? = nil, workQueue: Bool = false, runMemoLink: Bool = false
+        reportDir: String? = nil, workQueue: Bool = false, runMemoLink: Bool = false,
+        lockSocket: String? = nil
     ) -> [String] {
         var args = FleetRunner.buildArgs(
-            project: project, host: host, profile: profile,
+            project: project, host: host, profile: profile, fleetEntry: false,
             deviceNames: deviceNames, deviceMachine: deviceMachine,
             scenarios: scenarios, folders: folders,
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
@@ -539,6 +551,8 @@ enum DeviceMachineRunner {
         if host == "local" {
             args += ["--skip-build"]
             if let reportDir { args += ["--report-dir", reportDir] }
+            // 発行元のロックのサーバー(RR-8.5)。**ローカルの子だけ**(リモートの子へは渡さない = 第2b段まで呼んだら失敗)
+            if let lockSocket { args += ["--lock-socket", lockSocket] }
         }
         // 動的な割り振り(RR-8.1)の子だけ。--scenario は全候補で、回すのは親が1本ずつ渡した分
         if workQueue { args += ["--work-queue"] }

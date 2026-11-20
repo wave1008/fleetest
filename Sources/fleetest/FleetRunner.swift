@@ -119,7 +119,7 @@ enum FleetRunner {
             for (index, entry) in fleet.runs.enumerated() {
                 group.addTask {
                     let args = buildArgs(
-                        project: project.name, host: entry.host, profile: entry.profile,
+                        project: project.name, host: entry.host, profile: entry.profile, fleetEntry: true,
                         scenarios: scenarios, folders: folders,
                         setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                         performanceMode: performanceMode, forceLock: forceLock,
@@ -285,7 +285,7 @@ enum FleetRunner {
             for (index, entry, ids) in active {
                 group.addTask {
                     let args = buildArgs(
-                        project: project.name, host: entry.host, profile: entry.profile,
+                        project: project.name, host: entry.host, profile: entry.profile, fleetEntry: true,
                         scenarios: ids, folders: [],
                         setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                         performanceMode: performanceMode, forceLock: forceLock,
@@ -484,8 +484,11 @@ enum FleetRunner {
     /// デバイス単位 host のサブ実行("同じプロファイルをホストごとに、担当デバイスだけで")の
     /// **両方がここを通る** —— run のフラグを足すときに片方だけ中継し忘れると、そのフラグは
     /// 黙って無視される(リモートはプロファイルの既定で走る)
+    /// - fleetEntry: `--fleet` のエントリか(各エントリは別々の run = ロックを共有できない = 子に「呼んだら失敗」を立てさせる)。
+    ///   **既定値を置かない** —— `DeviceMachineRunner` のマシン別サブ実行もこの関数を使うので、無条件に付けると
+    ///   1つの run の子までロックを断る(デバイスでの陽性対照で実際に踏んだ)
     static func buildArgs(
-        project: String, host: String, profile: String,
+        project: String, host: String, profile: String, fleetEntry: Bool,
         deviceNames: [String] = [], deviceMachine: String? = nil,
         scenarios: [String], folders: [String],
         setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
@@ -532,6 +535,7 @@ enum FleetRunner {
         // 機械ごとに分かれた run を束ねる鍵(FTCore.RunMetaRecord.runGroup)。**マシン別サブ実行
         // だけが渡す** —— --fleet(プロファイル別)は別々の実行なので束ねない
         if let runGroup { args += ["--run-group", runGroup] }
+        if fleetEntry { args.append("--fleet-entry") }
         return args
     }
 

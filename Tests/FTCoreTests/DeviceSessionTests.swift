@@ -189,7 +189,7 @@ final class DeviceSessionTests: XCTestCase {
     }
 
     func testHandoffRoundTrip() {
-        let original = DeviceSessionHandoff(runMemo: ["k": ["1", "2"]], runSetUpDevice: true, runBeforeAll: true)
+        let original = DeviceSessionHandoff(runMemo: ["k": ["1", "2"]], runSetUpDevice: true, runBeforeAll: true, lockAccess: .immediate, lockWaitCapSeconds: ScenarioHost.defaultScenarioTimeout, lockOwnerToken: "t")
         let decoded = DeviceSessionHandoff.decode(line: original.encodedLine())
         XCTAssertEqual(decoded, original)
     }
@@ -223,8 +223,12 @@ final class DeviceSessionTests: XCTestCase {
         let session = RunDeviceSession()
         session.apply(event("runMemoWrite", key: "k", value: "v"), className: "Login")
         session.apply(event("deviceSetUp", status: "failed"), className: "Login")
-        XCTAssertEqual(session.tearDownHandoff(),
-                       DeviceSessionHandoff(runMemo: ["k": ["v"]], runSetUpDevice: false, runBeforeAll: false))
+        let handoff = session.tearDownHandoff()
+        // 既定の起動は「呼んだら失敗」(設定を忘れた経路が黙って競合しない)。起動の印は1つずつ違う
+        XCTAssertEqual(handoff,
+                       DeviceSessionHandoff(runMemo: ["k": ["v"]], runSetUpDevice: false, runBeforeAll: false,
+                                            lockAccess: .refuse(RunLockHost.notConfiguredRefusal), lockWaitCapSeconds: ScenarioHost.defaultScenarioTimeout, lockOwnerToken: handoff.lockOwnerToken))
+        XCTAssertFalse(handoff.lockOwnerToken.isEmpty)
     }
 }
 
@@ -289,12 +293,16 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         XCTAssertTrue(passed)
         let first = try String(contentsOfFile: received, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertEqual(DeviceSessionHandoff.decode(line: first),
-                       DeviceSessionHandoff(runMemo: [:], runSetUpDevice: true, runBeforeAll: false))
+        let decoded = try XCTUnwrap(DeviceSessionHandoff.decode(line: first))
+        XCTAssertEqual(decoded,
+                       DeviceSessionHandoff(runMemo: [:], runSetUpDevice: true, runBeforeAll: false,
+                                            lockAccess: .refuse(RunLockHost.notConfiguredRefusal), lockWaitCapSeconds: ScenarioHost.defaultScenarioTimeout, lockOwnerToken: decoded.lockOwnerToken))
         XCTAssertFalse(sink.events.contains { ["runMemoWrite", "runMemoClear", "deviceSetUp"].contains($0.kind) })
         let next = await session.handoff(className: "Login", classHasBeforeAll: false)
-        XCTAssertEqual(next, .launch(DeviceSessionHandoff(runMemo: ["token": ["abc"]], runSetUpDevice: false,
-                                                          runBeforeAll: false)))
+        guard case .launch(let nextHandoff) = next else { return XCTFail("launch expected") }
+        XCTAssertEqual(nextHandoff, DeviceSessionHandoff(runMemo: ["token": ["abc"]], runSetUpDevice: false,
+                                                         runBeforeAll: false,
+                                                         lockAccess: .refuse(RunLockHost.notConfiguredRefusal), lockWaitCapSeconds: ScenarioHost.defaultScenarioTimeout, lockOwnerToken: nextHandoff.lockOwnerToken))
     }
 
     func testScenarioIsNotRunWhenSetUpDeviceFailedEarlier() async throws {

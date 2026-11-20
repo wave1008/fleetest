@@ -993,6 +993,8 @@ inconclusive はシナリオを中断しない。レポート・ログには ❓
 | `clearRunMemo()` | run メモを全部消す |
 | `element.runMemoTextAs(key)` | 掴んだ要素のテキストを run メモへ書き、要素を返す。要素を掴めていなければ失敗 |
 | `string.runMemoTextAs(key)` | 文字列を run メモへ書き、その文字列を返す |
+| `withExclusiveLock(キー..., waitSeconds:) { }` | run 全体の排他ロック(DR-210・RR-8.5)。ブロックの間、run の他のシナリオはそのキーを持てない。キーは名前の順(UTF-8 のバイト列)に1つずつ取る。入れ子は後ろのキーだけ(違反は競合が無くてもエラー)・同じキーの取り直しは何もしない・共有の中の排他はエラー。待ちは `scenarioTimeout` から外し、上限はその run の最長の `scenarioTimeout`(`waitSeconds:` は短くするだけ)。ロックの中の run メモの書き込みは確定を待つ・読みは最新の値。失敗した後はブロックを実行しない |
+| `withSharedLock(キー..., waitSeconds:) { }` | 共有ロック。共有どうしは同時に持てる。排他を持たない間の run メモの書き込み(`writeRunMemo`・`clearRunMemo`・`runMemoTextAs`)はエラー(読むだけに使う)。マシンをまたぐ run では起動したマシンの子にだけ効き(発行元のロックのサーバー・`--lock-socket`)、ssh 越しのリモートの子・`--fleet` のエントリは呼ぶと失敗する(2b) |
 
 - **メモの範囲はテスト1本**(そのテストの `beforeEach()`・本体・`afterEach()`)。シナリオのプロセスの中で完結し、親へ通知しない。
   次のテストは空から始まる。**テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()`)では読み書きとも実行時のエラー**

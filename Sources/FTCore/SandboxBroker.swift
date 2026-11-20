@@ -544,7 +544,7 @@ enum UnixSocket {
         return address
     }
 
-    static func listen(path: String) throws -> Int32 {
+    static func listen(path: String, backlog: Int32 = 16) throws -> Int32 {
         var address = try address(path)
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
@@ -559,7 +559,7 @@ enum UnixSocket {
             }
         }
         // 同じユーザーの他プロセスからも繋がせない理由は無いが、他ユーザーには開けない
-        guard bound == 0, chmod(path, 0o600) == 0, Darwin.listen(descriptor, 16) == 0 else {
+        guard bound == 0, chmod(path, 0o600) == 0, Darwin.listen(descriptor, backlog) == 0 else {
             let code = errno
             close(descriptor)
             throw POSIXError(.init(rawValue: code) ?? .EIO)
@@ -567,10 +567,13 @@ enum UnixSocket {
         return descriptor
     }
 
-    static func connect(path: String) throws -> Int32 {
+    /// `closeOnExec`: 子プロセスへ fd を継がせない(長生きの子が接続を握ったままだと、持ち主が死んでも相手の接続が閉じない。
+    /// socket() の直後に付ける = connect までの間に起こした子にも継がれない)
+    static func connect(path: String, closeOnExec: Bool = false) throws -> Int32 {
         var address = try address(path)
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
+        if closeOnExec { _ = fcntl(descriptor, F_SETFD, FD_CLOEXEC) }
         var noSigpipe: Int32 = 1
         setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSigpipe, socklen_t(MemoryLayout<Int32>.size))
         let connected = withUnsafePointer(to: &address) {

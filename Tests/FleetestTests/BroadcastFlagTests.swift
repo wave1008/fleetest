@@ -13,7 +13,7 @@ final class BroadcastFlagTests: XCTestCase {
     func testFleetBuildArgsRelaysBroadcastOnlyWhenSet() {
         func args(broadcast: Bool) -> [String] {
             FleetRunner.buildArgs(
-                project: "E2E", host: "local", profile: "p",
+                project: "E2E", host: "local", profile: "p", fleetEntry: false,
                 deviceNames: ["iPhone-01"], deviceMachine: "local",
                 scenarios: ["Warm.up"], folders: [],
                 noLPT: false, lptHistoryRuns: nil, performanceMode: false,

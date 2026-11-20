@@ -106,6 +106,7 @@ struct RemoteRunDispatcher {
                   broadcast: Bool = false,
                   workQueue: Bool = false,
                   runMemoLink: Bool = false,
+                  fleetEntry: Bool = false,
                   localJUnitPath: String?,
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
@@ -157,7 +158,7 @@ struct RemoteRunDispatcher {
             setOverrides: setOverrides,
             noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
-            runMemoLink: runMemoLink,
+            runMemoLink: runMemoLink, fleetEntry: fleetEntry,
             remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
             runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
@@ -230,6 +231,7 @@ struct RemoteRunDispatcher {
                      defaultTimeout: Double?, scenarioTimeout: Double?,
                      workQueue: Bool = false,
                      runMemoLink: Bool = false,
+                     fleetEntry: Bool = false,
                      remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
@@ -261,7 +263,7 @@ struct RemoteRunDispatcher {
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode,
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
-            runMemoLink: runMemoLink,
+            runMemoLink: runMemoLink, fleetEntry: fleetEntry,
             reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
             explicit: remoteTimeoutSeconds, scenarioCount: scenarios.count)

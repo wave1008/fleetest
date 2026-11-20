@@ -515,6 +515,8 @@ struct RunScenarios: AsyncParsableCommand {
         // 子プロセスを1本も起こす前に(供給の adb なども stdin を受け継ぐ)
         if common.linkedToParent { ParentLink.enable() }
         try common.rejectWorkQueueMeasurement(setOverrides: setOverrides)
+        if common.fleetEntry { RunLockHost.markFleetEntry() }
+        if let path = common.lockSocket { RunLockHost.markIssuerSocket(path) }
         let targets = try multiTargets()
         if targets.count >= 2 {
             let exitCode = try await MultiTargetRunner.run(
@@ -1247,7 +1249,7 @@ struct RunScenarios: AsyncParsableCommand {
             setOverrides: dispatchOverrides,
             noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: common.workQueue,
-            runMemoLink: common.runMemoLink,
+            runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)
@@ -1545,6 +1547,10 @@ struct RunScenarios: AsyncParsableCommand {
         var deviceSessions: [String: RunDeviceSession] = [:]
         // メモと beforeAll の済み印は run 全体で1つ(OS ごとのセッションが同じものを持つ)
         let sharedSession = RunSharedSession()
+        // run 全体のロック(RR-8.5)。この経路は scenarioTimeout の設定を持たない(対象ごとの @Test の値と既定だけ)
+        defer { sharedSession.locks.stop() }
+        sharedSession.locks.configure(project: project, scenarioTimeouts: items.map(\.info.scenarioTimeout),
+                                      settingsTimeout: nil) { ConsoleOut.out($0) }
         var sessionConnections: [String: DriverConnection] = [:]
         for (index, item) in orderedItems.enumerated() {
             if interruptState.isStopped {

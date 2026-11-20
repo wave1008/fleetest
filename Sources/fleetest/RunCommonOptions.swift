@@ -133,6 +133,25 @@ struct RunCommonOptions: ParsableArguments {
             visibility: .hidden))
     var runMemoLink = false
 
+    /// **手で打つものではない**。`--fleet` のエントリの印。別々の run どうしでロック(withExclusiveLock)を共有できないので、
+    /// ロックを呼ぶと英語の失敗になる(黙って割れない)。ssh 越しの子へは `RemoteRunArgs` が中継する
+    @Flag(name: .customLong("fleet-entry"),
+          help: ArgumentHelp(
+            "Internal: this run is one entry of a --fleet run, so run-wide locks are refused. "
+            + "Set by --fleet; not for hand use",
+            visibility: .hidden))
+    var fleetEntry = false
+
+    /// **手で打つものではない**。マシンをまたぐ run の発行元が、**自分と同じマシンで起こす子(`--runner local`)にだけ**渡す、
+    /// 発行元のロックのサーバー(unix ソケット)のパス。親とつながった子はこれを受けたときだけ run 全体のロックを使える
+    /// (受けていない = ssh 越しのリモートの子は「呼んだら失敗」)。ssh 越しの子へは中継しない(`RemoteRunArgs` に載せない)
+    @Option(name: .customLong("lock-socket"),
+            help: ArgumentHelp(
+            "Internal: path of the run lock server of the parent of a multi-machine run "
+            + "(local children only). Set by the parent; not for hand use",
+            visibility: .hidden))
+    var lockSocket: String?
+
     /// 親とつながる子か(`--work-queue` は含む)。run の入口で stdin を移す条件
     var linkedToParent: Bool { workQueue || runMemoLink }
 

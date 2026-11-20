@@ -217,7 +217,9 @@ extension ScenarioHost {
         // 写しの書き込みは**打ち切りの監視を起こした後**・呼んだスレッドをブロックしない別スレッドで行う
         // (子が stdin を読まないまま止まると、パイプが詰まった書き込みが打ち切りの監視より前でブロックして上限が効かない)。
         // 子が死ねば書き込みは EPIPE で戻る(F_SETNOSIGPIPE 済み)
-        let handoff = DeviceSessionHandoff(runMemo: runMemo, runSetUpDevice: false, runBeforeAll: false)
+        // beforeRun / afterRun は run に1つ・他のシナリオと時間が重ならないので、ロックはその場で渡す
+        let handoff = DeviceSessionHandoff(runMemo: runMemo, runSetUpDevice: false, runBeforeAll: false,
+                                           lockAccess: .immediate, lockWaitCapSeconds: 0, lockOwnerToken: "")
         let handoffData = Data((handoff.encodedLine() + "\n").utf8)
         let stdinWriter = stdinPipe.fileHandleForWriting
         DispatchQueue.global(qos: .utility).async {

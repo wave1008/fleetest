@@ -353,8 +353,11 @@ extension MCPServer {
         // 最初に落ちたシナリオのレポート(証跡の読み先)。scenarioFinished が運ぶ
         var firstFailedReport: String?
         var outcomes: [(id: String, passed: Bool, reportPath: String?, skipped: Bool)] = []
-        // 1回の呼び出し = 1デバイス(connection は1つ)= 1セッション
-        let deviceSession = RunDeviceSession()
+        // 1回の呼び出し = 1デバイス(connection は1つ)= 1セッション。ロックは**MCP サーバーのプロセスで1つのホスト**を共有する
+        // (別々の呼び出しが別のデバイスで同時に走りうるので、その場で渡さない)。設定は呼び出しごとに足し込む
+        RunLockHost.mcpShared(project: project.name).configure(project: project, scenarioTimeouts: infos.map(\.scenarioTimeout),
+                                        settingsTimeout: exec.scenarioTimeout, merge: true) { ConsoleOut.err($0) }
+        let deviceSession = RunDeviceSession(shared: RunSharedSession(lockHost: .mcpShared(project: project.name)))
         // beforeRun(RR-8.4。ft_run_scenario も run なので1本流すたびに走る。判断・上限は CLI の run と同じ `RunWideHookPlan`)。
         // 失敗なら1本も流さず afterRun だけ走らせて失敗で返す
         let hookContext = RunWideHookPlan.hooksClassToRun(

@@ -14,7 +14,7 @@ final class SetOverrideRelayTests: XCTestCase {
     /// (子はプロファイルの既定で走る)。キーは辞書順で安定させる
     func testFleetRunnerBuildArgsRelaysSetOverridesSortedByKey() {
         let args = FleetRunner.buildArgs(
-            project: "E2E-Android", host: "local", profile: "android",
+            project: "E2E-Android", host: "local", profile: "android", fleetEntry: true,
             scenarios: ["A.S0010"], folders: [],
             setOverrides: ["heal": true, "enableAnimations": false],
             noLPT: false, lptHistoryRuns: nil, performanceMode: false,
@@ -24,12 +24,12 @@ final class SetOverrideRelayTests: XCTestCase {
             return XCTFail("--set が中継されていない: \(args)")
         }
         XCTAssertEqual(Array(args[index...]),
-                       ["--set", "enableAnimations=false", "--set", "heal=true"], "\(args)")
+                       ["--set", "enableAnimations=false", "--set", "heal=true", "--fleet-entry"], "\(args)")
     }
 
     func testFleetRunnerBuildArgsOmitsSetWhenEmpty() {
         let args = FleetRunner.buildArgs(
-            project: "E2E-Android", host: "local", profile: "android",
+            project: "E2E-Android", host: "local", profile: "android", fleetEntry: true,
             scenarios: [], folders: [],
             noLPT: false, lptHistoryRuns: nil, performanceMode: false,
             forceLock: false, remoteDir: nil, remoteTimeout: nil,

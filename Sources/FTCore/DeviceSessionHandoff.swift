@@ -21,14 +21,24 @@ public struct DeviceSessionHandoff: Codable, Sendable, Equatable {
     public var runSetUpDevice: Bool
     /// true = このシナリオの前に beforeAll を走らせる(この run でこのクラスの beforeAll を受け持つ)
     public var runBeforeAll: Bool
+    /// run 全体のロック(RR-8.5)の扱い。**必須**(後方互換の読み替えは置かない = DR-5。付け忘れた起動はデコードで落ちる)
+    public var lockAccess: RunLockAccess
+    /// ロックの待ちの絶対の上限(秒)= この run の対象の最も長い実効の scenarioTimeout。`socket` のときだけ意味を持つ
+    public var lockWaitCapSeconds: Int
+    /// この起動の印(ロックのサーバーへの名乗りに載せる)。親が適用した「ロックの外の run メモ操作」の数・run メモの持ち主をこれで引く
+    public var lockOwnerToken: String
 
     public static let command = "deviceSession"
 
-    public init(runMemo: [String: [String]], runSetUpDevice: Bool, runBeforeAll: Bool) {
+    public init(runMemo: [String: [String]], runSetUpDevice: Bool, runBeforeAll: Bool,
+                lockAccess: RunLockAccess, lockWaitCapSeconds: Int, lockOwnerToken: String) {
         self.cmd = Self.command
         self.runMemo = runMemo
         self.runSetUpDevice = runSetUpDevice
         self.runBeforeAll = runBeforeAll
+        self.lockAccess = lockAccess
+        self.lockWaitCapSeconds = lockWaitCapSeconds
+        self.lockOwnerToken = lockOwnerToken
     }
 
     /// stdin へ書く1行(改行は含まない)
@@ -36,7 +46,7 @@ public struct DeviceSessionHandoff: Codable, Sendable, Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         guard let data = try? encoder.encode(self), let line = String(data: data, encoding: .utf8) else {
-            return #"{"cmd":"deviceSession","runMemo":{},"runBeforeAll":false,"runSetUpDevice":false}"#
+            return #"{"cmd":"deviceSession","lockAccess":{"immediate":{}},"lockOwnerToken":"","lockWaitCapSeconds":0,"runBeforeAll":false,"runMemo":{},"runSetUpDevice":false}"#
         }
         return line
     }

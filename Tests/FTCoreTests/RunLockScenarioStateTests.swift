@@ -1,0 +1,494 @@
+import XCTest
+@testable import FTCore
+
+/// シナリオのプロセスの側(キーの検査・規則②③・待ちと時間切れ・run メモの規則・受け渡しの行・走査)
+final class RunLockScenarioStateTests: XCTestCase {
+    private var servers: [RunLockServer] = []
+
+    override func tearDown() {
+        servers.forEach { $0.stop() }
+        servers = []
+        DeadlineExclusion.observer = nil
+        super.tearDown()
+    }
+
+    private final class NullMemo: RunLockMemoBackend, @unchecked Sendable {
+        func snapshot() -> [String: [String]] { [:] }
+        func apply(_ op: RunMemoOp) {}
+    }
+
+    private func makeServer() throws -> RunLockServer {
+        let server = try RunLockServer(memo: NullMemo(), log: { _ in })
+        servers.append(server)
+        return server
+    }
+
+    private func state(_ access: RunLockAccess, cap: Int = 30) -> RunLockScenarioState {
+        let state = RunLockScenarioState()
+        state.access = access
+        state.waitCapSeconds = cap
+        state.scenarioID = "T.s"
+        state.machine = "m"
+        state.device = "d"
+        return state
+    }
+
+    private func entry(_ result: Result<RunLockScenarioState.Entry, RunLockError>,
+                       file: StaticString = #filePath, line: UInt = #line) throws -> RunLockScenarioState.Entry {
+        switch result {
+        case .success(let entry): return entry
+        case .failure(let error):
+            XCTFail("expected a lock but got: \(error.message)", file: file, line: line)
+            throw error
+        }
+    }
+
+    private func failure(_ result: Result<RunLockScenarioState.Entry, RunLockError>) -> String {
+        if case .failure(let error) = result { return error.message }
+        return ""
+    }
+
+    // MARK: キー
+
+    func testKeysAreSortedByUTF8BytesAndDeduplicatedByBytes() throws {
+        XCTAssertEqual(try RunLockKeys.normalize(["b", "a", "b"]).get(), ["a", "b"])
+        // 合成済みの é(C3 A9)と分解形の e + U+0301(65 CC 81)は Swift の String では等しいが、バイト列では別のキーで、分解形が先
+        let precomposed = "\u{E9}", decomposed = "e\u{301}"
+        XCTAssertEqual(precomposed, decomposed)
+        XCTAssertEqual(try RunLockKeys.normalize([precomposed, decomposed]).get().map { Array($0.utf8) },
+                       [Array(decomposed.utf8), Array(precomposed.utf8)])
+    }
+
+    func testInvalidKeysAreRefused() {
+        func message(_ keys: [String]) -> String {
+            if case .failure(let error) = RunLockKeys.normalize(keys) { return error.message }
+            return ""
+        }
+        XCTAssertTrue(message([]).contains("at least one"))
+        XCTAssertTrue(message(["ok", "  "]).contains("blank"))
+        XCTAssertTrue(message([""]).contains("blank"))
+        XCTAssertTrue(message(["a\nb"]).contains("control characters"))
+        XCTAssertTrue(message(["a\u{7F}"]).contains("control characters"), "DEL も制御文字")
+        XCTAssertTrue(message([String(repeating: "x", count: RunLockLimits.maxKeyBytes + 1)]).contains("bytes"))
+        XCTAssertNotEqual(message([String(repeating: "x", count: RunLockLimits.maxKeyBytes)]).contains("bytes"), true)
+        XCTAssertTrue(message((0...RunLockLimits.maxKeysPerCall).map { "k\($0)" }).contains("at most"))
+        XCTAssertEqual(message((0..<RunLockLimits.maxKeysPerCall).map { "k\($0)" }), "")
+    }
+
+    // MARK: 規則②③(競合が無くても違反はエラー)
+
+    func testNestedKeyThatSortsBeforeAHeldKeyIsAnErrorEvenWithoutContention() throws {
+        let state = state(.immediate)
+        let outer = try entry(state.enter(keys: ["b"], mode: .exclusive, waitSeconds: nil))
+        let message = failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertTrue(message.contains("one call"), message)
+        XCTAssertTrue(message.contains("\"a\"") && message.contains("\"b\""), message)
+        // 後ろのキーは入れ子で取れる
+        let inner = try entry(state.enter(keys: ["c"], mode: .exclusive, waitSeconds: nil))
+        state.leave(inner)
+        state.leave(outer)
+    }
+
+    func testReentryAndUpgradeRules() throws {
+        let state = state(.immediate)
+        let shared = try entry(state.enter(keys: ["k"], mode: .shared, waitSeconds: nil))
+        XCTAssertTrue(failure(state.enter(keys: ["k"], mode: .exclusive, waitSeconds: nil)).contains("upgraded"),
+                      "共有の中の排他(格上げ)はエラー")
+        _ = try entry(state.enter(keys: ["k"], mode: .shared, waitSeconds: nil))  // 共有の中の共有
+        state.leave(shared)
+        XCTAssertTrue(state.isHolding, "内側の分が残っている(持つ回数を数える)")
+
+        let exclusive = RunLockScenarioState()
+        let outer = try entry(exclusive.enter(keys: ["k"], mode: .exclusive, waitSeconds: nil))
+        let again = try entry(exclusive.enter(keys: ["k"], mode: .exclusive, waitSeconds: nil))  // 排他の中の排他
+        let sharedInside = try entry(exclusive.enter(keys: ["k"], mode: .shared, waitSeconds: nil))  // 排他の中の共有
+        exclusive.leave(sharedInside)
+        exclusive.leave(again)
+        XCTAssertTrue(exclusive.isHolding)
+        exclusive.leave(outer)
+        XCTAssertFalse(exclusive.isHolding)
+    }
+
+    func testReentryDoesNotAskTheServerAgainAndTheOuterRequestStaysUntilTheOuterBlockLeaves() throws {
+        let server = try makeServer()
+        let state = state(.socket(server.socketPath))
+        let other = try RunLockClient.connect(path: server.socketPath, scenario: "O", machine: "m", device: "d")
+        let outer = try entry(state.enter(keys: ["k"], mode: .exclusive, waitSeconds: nil))
+        let inner = try entry(state.enter(keys: ["k"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertNil(inner.requestIDForTesting, "取り直しはサーバーへ頼まない")
+        state.leave(inner)
+        let id = try other.request(keys: ["k"], mode: .exclusive).get()
+        XCTAssertEqual(other.wait(id: id, timeout: .milliseconds(200)), .timedOut, "内側を抜けても外側が持っている")
+        state.leave(outer)
+        XCTAssertEqual(other.wait(id: id, timeout: .seconds(5)), .granted)
+    }
+
+    func testPassThroughRunsWithoutLockingButStillReportsOrderViolations() throws {
+        let state = state(.passThrough)
+        let outer = try entry(state.enter(keys: ["b"], mode: .shared, waitSeconds: nil))
+        XCTAssertFalse(failure(state.enter(keys: ["a"], mode: .shared, waitSeconds: nil)).isEmpty)
+        XCTAssertTrue(failure(state.enter(keys: ["b"], mode: .exclusive, waitSeconds: nil)).contains("upgraded"))
+        state.leave(outer)
+    }
+
+    func testRefuseFailsWithTheReasonAndDoesNotWait() {
+        let state = state(.refuse("because"))
+        let message = failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertTrue(message.contains("because"), message)
+        XCTAssertFalse(state.isHolding)
+    }
+
+    func testInvalidWaitSecondsIsRefused() {
+        for value in [0.0, -1.0, .nan, .infinity] {
+            XCTAssertTrue(failure(state(.immediate).enter(keys: ["a"], mode: .exclusive, waitSeconds: value))
+                .contains("waitSeconds"))
+        }
+    }
+
+    // MARK: サーバーとの待ち
+
+    func testWaitTimesOutAfterWaitSecondsNamingTheKeyAndTheSecondsAndThenTheKeyIsFree() throws {
+        let server = try makeServer()
+        let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
+        let heldID = try holder.request(keys: ["db"], mode: .exclusive).get()
+        XCTAssertEqual(holder.wait(id: heldID, timeout: .seconds(5)), .granted)
+        let waiter = state(.socket(server.socketPath), cap: 30)
+        let started = Date()
+        let message = failure(waiter.enter(keys: ["db"], mode: .exclusive, waitSeconds: 0.3))
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.25)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        XCTAssertTrue(message.contains("\"db\"") && message.contains("timed out") && message.contains("0.3"), message)
+        XCTAssertFalse(waiter.isHolding)
+        // 時間切れで取り消した要求はもう渡されない: 持ち主が放した後に別の人がすぐ取れる
+        holder.release(id: heldID)
+        let third = state(.socket(server.socketPath))
+        _ = try entry(third.enter(keys: ["db"], mode: .exclusive, waitSeconds: 5))
+    }
+
+    func testWaitSecondsLongerThanTheAbsoluteCapDoesNotExtendTheCap() throws {
+        let server = try makeServer()
+        let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
+        _ = try holder.request(keys: ["db"], mode: .exclusive).get()
+        let waiter = state(.socket(server.socketPath), cap: 1)
+        let started = Date()
+        let message = failure(waiter.enter(keys: ["db"], mode: .exclusive, waitSeconds: 600))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5, "上限(1秒)で切れる")
+        XCTAssertTrue(message.contains("limit 1s"), message)
+    }
+
+    func testTheWaitOpensAndClosesTheDeadlineExclusionWindowWithTheAbsoluteCap() throws {
+        let server = try makeServer()
+        let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
+        let heldID = try holder.request(keys: ["db"], mode: .exclusive).get()
+        _ = holder.wait(id: heldID, timeout: .seconds(5))
+        let changes = LockedValue<[DeadlineExclusion.Change]>([])
+        DeadlineExclusion.observer = { change in changes.withLock { $0.append(change) } }
+        let waiter = state(.socket(server.socketPath), cap: 7)
+        _ = waiter.enter(keys: ["db"], mode: .exclusive, waitSeconds: 0.2)
+        let seen = changes.value
+        XCTAssertEqual(seen.count, 2)
+        guard case .began(let capMs)? = seen.first else { return XCTFail("began first: \(seen)") }
+        XCTAssertEqual(capMs, 7000, "窓の上限は waitSeconds ではなく絶対の上限")
+        guard case .ended? = seen.last else { return XCTFail("ended last: \(seen)") }
+    }
+
+    func testAnImmediateGrantDoesNotOpenTheExclusionWindow() throws {
+        let server = try makeServer()
+        let changes = LockedValue<[DeadlineExclusion.Change]>([])
+        DeadlineExclusion.observer = { change in changes.withLock { $0.append(change) } }
+        let state = state(.socket(server.socketPath))
+        let held = try entry(state.enter(keys: ["free"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertTrue(changes.value.isEmpty)
+        XCTAssertLessThan(held.waited, 1)
+        state.leave(held)
+    }
+
+    func testUnreachableServerFailsAtOnceAndEveryLaterCallFailsWithoutReconnecting() throws {
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("ftlock-none-\(UUID().uuidString.prefix(6)).sock")
+        let state = state(.socket(path))
+        let started = Date()
+        XCTAssertTrue(failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil)).contains("cannot reach"))
+        XCTAssertTrue(failure(state.enter(keys: ["b"], mode: .exclusive, waitSeconds: nil)).contains("cannot reach"))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2, "待たずに失敗する")
+    }
+
+    /// つなぐと ECONNREFUSED になる(ファイルはあるが待ち受けが無い)パス
+    private func refusingSocketPath() throws -> String {
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("ftlock-refuse-\(UUID().uuidString.prefix(6)).sock")
+        let listener = try UnixSocket.listen(path: path)
+        close(listener)
+        return path
+    }
+
+    func testTransientConnectRefusalIsRetriedWithinTheCapAndThenFails() throws {
+        let path = try refusingSocketPath()
+        defer { unlink(path) }
+        let changes = LockedValue<[DeadlineExclusion.Change]>([])
+        DeadlineExclusion.observer = { change in changes.withLock { $0.append(change) } }
+        let state = state(.socket(path), cap: 1)
+        let started = Date()
+        XCTAssertTrue(failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil)).contains("cannot reach"))
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.9, "上限(1秒)まで再試行する")
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        XCTAssertEqual(changes.value.count, 2, "再試行の間は待ちの窓を開く")
+    }
+
+    func testConnectSucceedsWhenTheServerComesUpDuringTheRetry() throws {
+        let path = try refusingSocketPath()
+        defer { unlink(path) }
+        Thread {
+            usleep(300_000)
+            guard let listener = try? UnixSocket.listen(path: path) else { return }
+            let conn = accept(listener, nil, nil)
+            let channel = RunLockLineChannel(descriptor: conn)
+            while case .line(let data) = channel.readLine(timeoutMs: 3000) {
+                if case .acquire(let id, _, _)? = RunLockMessage.decode(line: data) {
+                    _ = RunLockLineChannel.writeAll(conn, RunLockMessage.granted(id: id).encodedLine())
+                }
+            }
+            close(conn)
+            close(listener)
+        }.start()
+        let state = state(.socket(path), cap: 10)
+        let held = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        state.leave(held)
+    }
+
+    func testMissingServerFileStillFailsAtOnceWithoutRetrying() {
+        let state = state(.socket("/tmp/ftlock-missing-\(UUID().uuidString.prefix(6)).sock"), cap: 30)
+        let started = Date()
+        XCTAssertTrue(failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil)).contains("cannot reach"))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
+    }
+
+    func testBrokenConnectionMakesEveryLaterLockCallFail() throws {
+        let server = try makeServer()
+        let state = state(.socket(server.socketPath))
+        let held = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        server.stop()
+        let message = failure(state.enter(keys: ["z"], mode: .exclusive, waitSeconds: 1))
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertFalse(failure(state.enter(keys: ["y"], mode: .exclusive, waitSeconds: 1)).isEmpty)
+        state.leave(held)
+    }
+
+    func testMultiKeyEnterWithAHeldSecondKeyTimesOutAndReleasesTheFirst() throws {
+        let server = try makeServer()
+        let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
+        let heldID = try holder.request(keys: ["b"], mode: .exclusive).get()
+        _ = holder.wait(id: heldID, timeout: .seconds(5))
+        let waiter = state(.socket(server.socketPath))
+        XCTAssertFalse(failure(waiter.enter(keys: ["b", "a"], mode: .exclusive, waitSeconds: 0.2)).isEmpty)
+        let third = state(.socket(server.socketPath))
+        _ = try entry(third.enter(keys: ["a"], mode: .exclusive, waitSeconds: 2))
+    }
+
+    // MARK: run メモ
+
+    func testRunMemoWriteRulesInsideLocks() throws {
+        let state = state(.immediate)
+        let op = RunMemoOp.write(key: "k", value: "v")
+        XCTAssertNil(state.memoWriteRejection(command: "writeRunMemo", op: op), "ロックの外は今のまま")
+        let shared = try entry(state.enter(keys: ["a"], mode: .shared, waitSeconds: nil))
+        for command in ["writeRunMemo", "clearRunMemo", "runMemoTextAs"] {
+            XCTAssertTrue(state.memoWriteRejection(command: command, op: command == "clearRunMemo" ? .clear : op)?
+                .contains("needs an exclusive lock") == true, command)
+        }
+        // 無関係なキーの排他を持てば書ける(近似)
+        let exclusive = try entry(state.enter(keys: ["z"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertNil(state.memoWriteRejection(command: "writeRunMemo", op: op))
+        state.leave(exclusive)
+        state.leave(shared)
+    }
+
+    func testOversizeRunMemoWriteIsRefusedEvenOnASingleMachineConfiguration() throws {
+        let state = state(.immediate)
+        let exclusive = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        let huge = String(repeating: "x", count: RunMemoWire.maxPieces * RunMemoWire.pieceCharacters)
+        XCTAssertTrue(state.memoWriteRejection(command: "writeRunMemo", op: .write(key: "k", value: huge))?
+            .contains("too large") == true)
+        state.leave(exclusive)
+    }
+
+    func testServerMemoIsUsedOnlyWhileHoldingALockOverAConnection() throws {
+        let server = try makeServer()
+        let state = state(.socket(server.socketPath))
+        XCTAssertFalse(state.usesServerMemo)
+        let held = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertTrue(state.usesServerMemo)
+        state.leave(held)
+        XCTAssertFalse(state.usesServerMemo)
+        // その場で渡す / 取らずに通すは接続を持たない = ロックの中でも手元の通り道
+        let immediate = self.state(.immediate)
+        let h2 = try entry(immediate.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        XCTAssertFalse(immediate.usesServerMemo)
+        immediate.leave(h2)
+    }
+
+    func testPendingReplyOpensTheDeadlineExclusionWindowWithTheAbsoluteCapDuringTheMemoWait() throws {
+        let applied = RunLockAppliedOps()
+        let server = try RunLockServer(memoFor: { _ in NullMemo() }, applied: applied, waitCapSeconds: { 30 }, log: { _ in })
+        servers.append(server)
+        let state = state(.socket(server.socketPath), cap: 7)
+        state.ownerToken = "tok"
+        let held = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        state.noteOutsideMemoOp()  // ロックの外の操作が1件(親がまだ適用していない)
+        let changes = LockedValue<[DeadlineExclusion.Change]>([])
+        DeadlineExclusion.observer = { change in changes.withLock { $0.append(change) } }
+        let done = DispatchSemaphore(value: 0)
+        let result = LockedValue<Result<[String: [String]], RunLockError>?>(nil)
+        Thread { result.value = state.serverMemoRead(); done.signal() }.start()
+        let deadline = Date().addingTimeInterval(5)
+        while changes.value.isEmpty, Date() < deadline { usleep(10_000) }
+        guard case .began(let capMs)? = changes.value.first else { return XCTFail("window must open: \(changes.value)") }
+        XCTAssertEqual(capMs, 7000, "窓の上限は絶対上限")
+        XCTAssertEqual(done.wait(timeout: .now() + .milliseconds(200)), .timedOut, "適用が届くまで読みは待つ")
+        applied.note(token: "tok")
+        XCTAssertEqual(done.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(changes.value.count, 2, "終わったら窓を閉じる")
+        XCTAssertNotNil(try? result.value?.get())
+        state.leave(held)
+    }
+
+    func testNoWindowOpensWhenTheOutsideOpsAreAlreadyApplied() throws {
+        let applied = RunLockAppliedOps()
+        let server = try RunLockServer(memoFor: { _ in NullMemo() }, applied: applied, waitCapSeconds: { 30 }, log: { _ in })
+        servers.append(server)
+        let state = state(.socket(server.socketPath))
+        state.ownerToken = "tok"
+        let held = try entry(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil))
+        let changes = LockedValue<[DeadlineExclusion.Change]>([])
+        DeadlineExclusion.observer = { change in changes.withLock { $0.append(change) } }
+        XCTAssertNotNil(try? state.serverMemoRead().get())
+        XCTAssertTrue(changes.value.isEmpty)
+        state.leave(held)
+    }
+
+    // MARK: 受け渡しの行
+
+    func testHandoffRoundTripsEveryAccessKindAndRequiresTheFields() throws {
+        for access in [RunLockAccess.socket("/tmp/x.sock"), .immediate, .passThrough, .refuse("why \"quoted\"")] {
+            let original = DeviceSessionHandoff(runMemo: [:], runSetUpDevice: true, runBeforeAll: false,
+                                                lockAccess: access, lockWaitCapSeconds: 123, lockOwnerToken: "tok")
+            XCTAssertEqual(DeviceSessionHandoff.decode(line: original.encodedLine()), original)
+        }
+        // 必須の欄(DR-5): 欄の無い古い形は読めない
+        XCTAssertNil(DeviceSessionHandoff.decode(
+            line: #"{"cmd":"deviceSession","runMemo":{},"runSetUpDevice":false,"runBeforeAll":false}"#))
+        XCTAssertNil(DeviceSessionHandoff.decode(
+            line: #"{"cmd":"deviceSession","runMemo":{},"runSetUpDevice":false,"runBeforeAll":false,"lockAccess":{"immediate":{}}}"#))
+    }
+
+    // MARK: 走査・上限・ホスト
+
+    func testSourceScanFindsCallsOutsideCommentsAndStringsOnly() {
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("withExclusiveLock(\"a\") { }"))
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("  withSharedLock(\"a\") { }"))
+        XCTAssertTrue(RunLockUsage.sourceUsesLocks("FTDSL.withSharedLock(\"a\") { }"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("// withExclusiveLock(\"a\") { }"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("/* withSharedLock */"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("let s = \"withExclusiveLock\""))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("func mywithExclusiveLockHelper() {}"))
+        XCTAssertFalse(RunLockUsage.sourceUsesLocks("withExclusiveLockX()"))
+    }
+
+    func testProjectScanSkipsTheDisabledFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("lockscan-\(UUID().uuidString)")
+        let project = TestProject(name: "P", rootURL: root)
+        try FileManager.default.createDirectory(at: project.disabledDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "withExclusiveLock(\"a\") {}".write(to: project.disabledDir.appendingPathComponent("Old.swift"),
+                                                 atomically: true, encoding: .utf8)
+        XCTAssertFalse(RunLockUsage.projectUsesLocks(project))
+        try "withSharedLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("New.swift"),
+                                               atomically: true, encoding: .utf8)
+        XCTAssertTrue(RunLockUsage.projectUsesLocks(project))
+    }
+
+    func testWaitCapIsTheLongestEffectiveScenarioTimeoutIncludingTestOverrides() {
+        XCTAssertEqual(RunLockUsage.waitCapSeconds(scenarioTimeouts: [nil, nil], settingsTimeout: 300), 300)
+        XCTAssertEqual(RunLockUsage.waitCapSeconds(scenarioTimeouts: [nil, 1200, 60], settingsTimeout: 300), 1200,
+                       "@Test(scenarioTimeout:) が長ければそれ")
+        XCTAssertEqual(RunLockUsage.waitCapSeconds(scenarioTimeouts: [60], settingsTimeout: 300), 60,
+                       "シナリオ側が短いときも実効の値(最長はその中の最大)")
+        XCTAssertEqual(RunLockUsage.waitCapSeconds(scenarioTimeouts: [], settingsTimeout: nil), ScenarioHost.defaultScenarioTimeout)
+    }
+
+    func testOverlapLineCountsOtherRunsOfTheSameProjectOnly() {
+        func record(pid: Int32, project: String) -> RunProgressRecord { RunProgressRecord(
+            pid: pid, runID: nil, runGroup: nil, issuer: nil, project: project, profile: nil, startedAt: "2026-11-20T00:00:00Z",
+            total: 1, done: 0, failed: 0, actions: 0, requeued: 0, laneDropouts: 0, etaSeconds: nil, lanes: [],
+            phase: "running", supply: [], videoClips: nil, owner: nil, jobID: nil) }
+        XCTAssertNil(RunLockUsage.overlapLine(project: "P", ownPid: 1, records: [record(pid: 1, project: "P"), record(pid: 2, project: "Q")]))
+        let line = RunLockUsage.overlapLine(project: "P", ownPid: 1, records: [record(pid: 1, project: "P"), record(pid: 2, project: "P")])
+        XCTAssertTrue(line?.contains("pid 2") == true)
+    }
+
+    func testEachOwnerTokenIsRoutedToItsOwnRunMemoAndUnregisterRefusesIt() throws {
+        let host = RunLockHost(mode: .ownServer)
+        let storeA = RunMemoStore(), storeB = RunMemoStore()
+        host.register(token: "A", memo: storeA)
+        host.register(token: "B", memo: storeB)
+        guard case .socket(let path) = host.access() else { return XCTFail("socket expected") }
+        defer { host.stop() }
+        let clientA = try RunLockClient.connect(path: path, scenario: "S", machine: "m", device: "d", token: "A")
+        let clientB = try RunLockClient.connect(path: path, scenario: "S", machine: "m", device: "d", token: "B")
+        XCTAssertNil(clientA.memoWrite(.write(key: "k", value: "a"), outsideOps: 0))
+        XCTAssertNil(clientB.memoWrite(.write(key: "k", value: "b"), outsideOps: 0))
+        XCTAssertEqual(storeA.snapshot(), ["k": ["a"]])
+        XCTAssertEqual(storeB.snapshot(), ["k": ["b"]])
+        host.unregister(token: "A")
+        XCTAssertNotNil(clientA.memoWrite(.write(key: "k", value: "again"), outsideOps: 0))
+        XCTAssertEqual(storeA.snapshot(), ["k": ["a"]])
+    }
+
+    func testMergedConfigurationKeepsUsesAndTheLargerCap() {
+        let host = RunLockHost(mode: .ownServer)
+        host.configure(usesLocks: true, waitCapSeconds: 100, linkedToParent: false, merge: true) { _ in }
+        host.configure(usesLocks: false, waitCapSeconds: 50, linkedToParent: false, merge: true) { _ in }
+        XCTAssertEqual(host.currentWaitCapSeconds, 100)
+        guard case .socket = host.access() else { return XCTFail("使う呼び出しが先にあったので止めない") }
+        host.stop()
+    }
+
+    func testHostAccessFollowsTheConfigurationAndStopRemovesTheSocket() throws {
+        let host = RunLockHost(mode: .refuse(RunLockHost.notConfiguredRefusal))
+        XCTAssertEqual(host.access(), .refuse(RunLockHost.notConfiguredRefusal))
+        let warnings = LockedValue<[String]>([])
+        host.configure(usesLocks: false, waitCapSeconds: 42, linkedToParent: false) { _ in }
+        XCTAssertEqual(host.access(), .refuse(RunLockHost.notDetectedRefusal))
+        host.configure(usesLocks: true, waitCapSeconds: 42, linkedToParent: true) { _ in }
+        XCTAssertEqual(host.access(), .refuse(RunLockHost.linkedChildRefusal), "親とつながった子は使っていても断る")
+        host.configure(usesLocks: true, waitCapSeconds: 42, linkedToParent: false,
+                       overlapWarning: { "overlap!" }) { line in warnings.withLock { $0.append(line) } }
+        XCTAssertEqual(host.currentWaitCapSeconds, 42)
+        guard case .socket(let path) = host.access() else { return XCTFail("socket expected") }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+        _ = host.access()
+        XCTAssertEqual(warnings.value.filter { $0 == "overlap!" }.count, 1, "重なりの警告はサーバーを起こした時に1回だけ")
+        host.stop()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+
+    func testHostInterruptBeforeAndAfterStartFailsNewRequests() throws {
+        let host = RunLockHost(mode: .ownServer)
+        host.interrupt()
+        guard case .socket(let path) = host.access() else { return XCTFail("socket expected") }
+        let client = try RunLockClient.connect(path: path, scenario: "S", machine: "m", device: "d")
+        let id = try client.request(keys: ["a"], mode: .exclusive).get()
+        XCTAssertEqual(client.wait(id: id, timeout: .seconds(5)), .failed(RunLockTable.interruptedReason))
+        host.stop()
+    }
+
+    func testDroppingTheHostRemovesTheSocketFile() throws {
+        var host: RunLockHost? = RunLockHost(mode: .ownServer)
+        guard case .socket(let path)? = host?.access() else { return XCTFail("socket expected") }
+        host = nil
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+    }
+}
+
+extension RunLockScenarioState.Entry {
+    /// テスト用: サーバーへ頼んだ要求の番号(頼んでいなければ nil)
+    var requestIDForTesting: Int? { requestID }
+}

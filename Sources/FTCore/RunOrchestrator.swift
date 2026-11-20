@@ -1170,6 +1170,8 @@ public final class RunOrchestrator: Sendable {
     public func runMemoSnapshot() -> [String: [String]] { deviceSessions.shared.runMemoSnapshot() }
 
     public func requestInterrupt() {
+        // 待っているロックの要求を失敗にし、以後の新しい要求もすぐ失敗にする(RR-8.5)
+        deviceSessions.shared.locks.interrupt()
         Task { await interruptRequested.request() }
         let source = pullInterrupt.withLock { p -> (any ScenarioPullSource)? in
             p.interrupted = true
@@ -1273,6 +1275,10 @@ public final class RunOrchestrator: Sendable {
     public func run(items: [ScenarioRunItem], defaultPlatform: String,
                     dispatch: ScenarioDispatch = .shared,
                     startGate: (@Sendable () async -> WorkQueueProtocol.StartSignal)? = nil) async -> RunSummary {
+        // run 全体のロック(RR-8.5): ソースの走査・待ちの上限(この run の対象の最長の scenarioTimeout)・run ログへの出し口
+        let lockLog = continuation; defer { deviceSessions.shared.locks.stop() }
+        deviceSessions.shared.locks.configure(project: project, scenarioTimeouts: items.map(\.info.scenarioTimeout),
+                                              settingsTimeout: settings.scenarioTimeout) { lockLog.yield(.workerLog(worker: "run", message: $0)) }
         // Vision の特徴量の救済用の補助プロセス(run / api run / リモートのランナー機の run が共有する唯一の入口。
         // デバッグ実行では起こさない)。見本を持たないプロジェクトでは何も起こらない(VisionHelperHost)
         if case .broadcast = dispatch { detachesRendering.withLock { $0 = false } }

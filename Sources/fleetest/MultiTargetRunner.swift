@@ -324,6 +324,25 @@ enum MultiTargetRunner {
         let lockMarkers = held.lockMarkers
         let dispatchStart = Date()
 
+        // run 全体のロック(RR-8.5)のサーバー: **プロジェクトごとに1つ**(ロックの範囲は run × プロジェクト。キーは別のプロジェクトと混ざらない)。
+        // ソースがロックを使うプロジェクトだけ。待ちの上限はそのプロジェクトの全対象のシナリオの最長の実効 scenarioTimeout。
+        // 子が全員終わるまで持ち、中断は全部へ伝える
+        var lockIssuers: [String: RunLockIssuer] = [:]
+        for unit in units where lockIssuers[unit.project.name] == nil {
+            let name = unit.project.name
+            let sameProject = units.filter { $0.project.name == name }
+            lockIssuers[name] = RunLockIssuerSetup.start(
+                project: unit.project, profiles: sameProject.map(\.profile), setOverrides: setOverrides,
+                scenarioTimeouts: sameProject.flatMap { $0.infos.map(\.scenarioTimeout) }, hub: unit.memoHub,
+                log: { FleetRunner.log("[\(name)] " + $0) })
+        }
+        let lockIssuersByProject = lockIssuers
+        defer { lockIssuersByProject.values.forEach { $0.stop() } }
+        let lockInterruptRelays = lockIssuersByProject.values.map { issuer in
+            InterruptRelay.observing(catchUp: true) { issuer.interrupt() }
+        }
+        defer { lockInterruptRelays.forEach { $0.stop() } }
+
         // 5. 配り手
         let overheadByMachine = overheadsMs(project: units[0].project, labels: machineLabels)
         var specs: [MultiTargetCoordinator.TargetUnit] = []
@@ -384,7 +403,8 @@ enum MultiTargetRunner {
                 performanceMode: performanceMode, forceLock: forceLock,
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
                 junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
-                runGroup: runGroup, reportDir: reportDir, workQueue: true, runMemoLink: true)
+                runGroup: runGroup, reportDir: reportDir, workQueue: true, runMemoLink: true,
+                lockSocket: lockIssuersByProject[unit.project.name]?.socketPath)
             let dispatcher = unit.dispatcher
             let memoHub = unit.memoHub
             let marker = lockMarkers[group.machineLabel]

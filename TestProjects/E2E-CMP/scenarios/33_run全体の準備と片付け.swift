@@ -17,5 +17,7 @@ class run全体のフック {
     // 結果は run ログの「afterRun: passed」。合否には数えない(読んだ値が違えば afterRun の失敗としてログに出る)
     func afterRun() {
         readRunMemo("beforeRunRan").thisIs("yes")
+        // 35_ の排他ロックのカウンタの最後の値を run ログに残す(35_ を回した run では本数と同じ値。回していなければ空)
+        readRunMemo("lockCounter")
     }
 }

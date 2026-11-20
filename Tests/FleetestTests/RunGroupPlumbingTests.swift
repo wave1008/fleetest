@@ -16,7 +16,7 @@ final class RunGroupPlumbingTests: XCTestCase {
     func testFleetRunnerBuildArgsRelaysTheRunGroupForEveryHost() {
         for host in ["local", "M1Max"] {
             let args = FleetRunner.buildArgs(
-                project: "E2E-Android", host: host, profile: "android",
+                project: "E2E-Android", host: host, profile: "android", fleetEntry: true,
                 deviceNames: ["Pixel 3a"], deviceMachine: host,
                 scenarios: ["A.S0010"], folders: [],
                 noLPT: false, lptHistoryRuns: nil, performanceMode: false,
@@ -33,7 +33,7 @@ final class RunGroupPlumbingTests: XCTestCase {
     /// 単機の run(束ねる相手が居ない)には付けない —— 旧レコードと同じ形を保つ
     func testFleetRunnerBuildArgsOmitsTheRunGroupWhenAbsent() {
         let args = FleetRunner.buildArgs(
-            project: "E2E-Android", host: "local", profile: "android",
+            project: "E2E-Android", host: "local", profile: "android", fleetEntry: true,
             scenarios: [], folders: [],
             noLPT: false, lptHistoryRuns: nil, performanceMode: false,
             forceLock: false, remoteDir: nil, remoteTimeout: nil,

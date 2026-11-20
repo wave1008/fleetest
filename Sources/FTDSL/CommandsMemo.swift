@@ -12,18 +12,37 @@ extension FTDriveCore {
         testMemo[key, default: []].append(text)
     }
 
-    /// 追記してから親へ片道通知する(応答なし)。呼び出し側が scenarioAborted を先に見る
-    func runMemoAppend(_ key: String, _ text: String) {
+    /// 追記する。呼び出し側が scenarioAborted を先に見る。断る・失敗したときは理由(英語)を返す(書いていない or 届いたか不明)。
+    /// **ロックの中**(RR-8.5): サーバーへ送って確定の返事を待つ(失敗しても親への片道通知へ落とさない = DR-136)。
+    /// **ロックの外**: 手元の写しへ追記して親へ片道通知する(応答なし)
+    func runMemoAppend(command: String, _ key: String, _ text: String) -> String? {
+        let op = RunMemoOp.write(key: key, value: text)
+        if let reason = runLocks.memoWriteRejection(command: command, op: op) { return reason }
+        if runLocks.usesServerMemo {
+            if let failure = runLocks.serverMemoWrite(op) { return failure.message }
+            runMemo[key, default: []].append(text)
+            return nil
+        }
         runMemo[key, default: []].append(text)
         var event = ScenarioEvent(kind: "runMemoWrite")
         event.memoKey = key
         event.memoValue = text
+        runLocks.noteOutsideMemoOp()  // 親が適用し終えるまでロックの中の読み書きは待たされる(RunLockMessage.memoRead)
         emit(event)
+        return nil
     }
 
-    func runMemoRemoveAll() {
+    func runMemoRemoveAll(command: String) -> String? {
+        if let reason = runLocks.memoWriteRejection(command: command, op: .clear) { return reason }
+        if runLocks.usesServerMemo {
+            if let failure = runLocks.serverMemoWrite(.clear) { return failure.message }
+            runMemo.removeAll()
+            return nil
+        }
         runMemo.removeAll()
+        runLocks.noteOutsideMemoOp()
         emit(ScenarioEvent(kind: "runMemoClear"))
+        return nil
     }
 }
 
@@ -59,7 +78,7 @@ extension FTDriveCore {
         }
     }
 
-    private func recordRejection(_ reason: String?, command: String, description: String,
+    func recordRejection(_ reason: String?, command: String, description: String,
                                  file: String, line: Int) -> Bool {
         guard let reason else { return false }
         recordStep(description: description, status: .failed(reason), file: file, line: line, command: command)
@@ -157,7 +176,8 @@ public func writeRunMemo(_ key: String, _ text: String,
         return
     }
     if core.rejectRunMemoWrite(command: "writeRunMemo", description: description, file: "\(file)", line: Int(line)) { return }
-    core.runMemoAppend(key, text)
+    if core.recordRejection(core.runMemoAppend(command: "writeRunMemo", key, text), command: "writeRunMemo",
+                            description: description, file: "\(file)", line: Int(line)) { return }
     core.recordStep(description: description, status: .passed,
                     file: "\(file)", line: Int(line), command: "writeRunMemo")
 }
@@ -174,6 +194,9 @@ public func readRunMemo(_ key: String,
                         file: "\(file)", line: Int(line), command: "readRunMemo")
         return ""
     }
+    // ロックの中ならサーバーの最新の値を聞く(ロックを出た後もその写しを見続ける)
+    if core.recordRejection(core.refreshRunMemoFromLockServer(), command: "readRunMemo",
+                            description: "readRunMemo \"\(key)\"", file: "\(file)", line: Int(line)) { return "" }
     guard let value = core.runMemo[key]?.last else {
         core.recordStep(description: "readRunMemo \"\(key)\" → \"\"", status: .passed,
                         file: "\(file)", line: Int(line), notes: [.runMemoKeyNotFound], command: "readRunMemo")
@@ -194,7 +217,8 @@ public func clearRunMemo(file: StaticString = #filePath, line: UInt = #line) {
         return
     }
     if core.rejectRunMemoWrite(command: "clearRunMemo", description: "clearRunMemo", file: "\(file)", line: Int(line)) { return }
-    core.runMemoRemoveAll()
+    if core.recordRejection(core.runMemoRemoveAll(command: "clearRunMemo"), command: "clearRunMemo",
+                            description: "clearRunMemo", file: "\(file)", line: Int(line)) { return }
     core.recordStep(description: "clearRunMemo", status: .passed,
                     file: "\(file)", line: Int(line), command: "clearRunMemo")
 }
@@ -208,18 +232,18 @@ extension FTElement {
     @discardableResult
     public func memoTextAs(_ key: String,
                            file: StaticString = #filePath, line: UInt = #line) -> FTElement {
-        memoText(key, command: "memoTextAs", file: file, line: line) { core, value in core.testMemoAppend(key, value) }
+        memoText(key, command: "memoTextAs", file: file, line: line) { core, value in core.testMemoAppend(key, value); return nil }
     }
 
     /// `memoTextAs` の run メモ版(親へ通知する。書き込みを断る場所は writeRunMemo と同じ)
     @discardableResult
     public func runMemoTextAs(_ key: String,
                               file: StaticString = #filePath, line: UInt = #line) -> FTElement {
-        memoText(key, command: "runMemoTextAs", file: file, line: line) { core, value in core.runMemoAppend(key, value) }
+        memoText(key, command: "runMemoTextAs", file: file, line: line) { core, value in core.runMemoAppend(command: "runMemoTextAs", key, value) }
     }
 
     private func memoText(_ key: String, command: String, file: StaticString, line: UInt,
-                          append: (FTDriveCore, String) -> Void) -> FTElement {
+                          append: (FTDriveCore, String) -> String?) -> FTElement {
         let core = FTRuntime.requireCore(command: command)
         let description = "\(command) \"\(key)\""
         core.debugCheckpoint(description: description, file: core.relativePath("\(file)"), line: Int(line))
@@ -242,7 +266,8 @@ extension FTElement {
             return self
         }
         let value = text ?? ""
-        append(core, value)
+        if core.recordRejection(append(core, value), command: command, description: description,
+                                file: filePath, line: Int(line)) { return self }
         core.recordStep(description: "\(description) = \"\(value)\"", status: .passed,
                         file: filePath, line: Int(line), command: command)
         return self
@@ -254,18 +279,18 @@ extension String {
     @discardableResult
     public func memoTextAs(_ key: String,
                            file: StaticString = #filePath, line: UInt = #line) -> String {
-        memoText(key, command: "memoTextAs", file: file, line: line) { core in core.testMemoAppend(key, self) }
+        memoText(key, command: "memoTextAs", file: file, line: line) { core in core.testMemoAppend(key, self); return nil }
     }
 
     /// `memoTextAs` の run メモ版(親へ通知する。書き込みを断る場所は writeRunMemo と同じ)
     @discardableResult
     public func runMemoTextAs(_ key: String,
                               file: StaticString = #filePath, line: UInt = #line) -> String {
-        memoText(key, command: "runMemoTextAs", file: file, line: line) { core in core.runMemoAppend(key, self) }
+        memoText(key, command: "runMemoTextAs", file: file, line: line) { core in core.runMemoAppend(command: "runMemoTextAs", key, self) }
     }
 
     private func memoText(_ key: String, command: String, file: StaticString, line: UInt,
-                          append: (FTDriveCore) -> Void) -> String {
+                          append: (FTDriveCore) -> String?) -> String {
         let core = FTRuntime.requireCore(command: command)
         let description = "\(command) \"\(key)\""
         core.debugCheckpoint(description: description, file: core.relativePath("\(file)"), line: Int(line))
@@ -278,7 +303,8 @@ extension String {
             ? core.rejectRunMemoWrite(command: command, description: description, file: "\(file)", line: Int(line))
             : core.rejectTestMemo(command: command, description: description, file: "\(file)", line: Int(line))
         if rejected { return self }
-        append(core)
+        if core.recordRejection(append(core), command: command, description: description,
+                                file: "\(file)", line: Int(line)) { return self }
         core.recordStep(description: "\(description) = \"\(self)\"", status: .passed,
                         file: "\(file)", line: Int(line), command: command)
         return self

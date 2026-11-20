@@ -49,6 +49,8 @@ extension RunScenario {
                                preferCheckStateClassifier: false, findImagePrewarm: false,
                                emit: emit)
         core.runMemo = deviceSession?.runMemo ?? [:]
+        // beforeRun / afterRun はその場で渡す(handoff が無くても既定がその場)
+        if let deviceSession { core.runLocks.configure(handoff: deviceSession, scenarioID: scenarioID, device: "run hook") }
         core.redactAccountValues = redactAccountValues
         core.directoryForLog = TestLogPaths.logDirectory(
             reportDir: URL(fileURLWithPath: reportDir).standardizedFileURL,

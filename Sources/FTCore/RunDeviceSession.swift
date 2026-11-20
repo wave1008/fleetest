@@ -25,6 +25,8 @@ public final class RunSharedSession: @unchecked Sendable {
 
     private let lock = NSLock()
     private let runMemo: RunMemoStore
+    /// run 全体のロック(RR-8.5)。親とつながった子(`ParentLink.isLinked`)は「呼んだら失敗」で始まる
+    public let locks: RunLockHost
     private var beforeAll: [String: BeforeAllState] = [:]
     private var waiters: [CheckedContinuation<Void, Never>] = []
     /// afterAll を持つと子が申告したクラス(申告順 = 片付けの順)と、申告したシナリオが走った OS
@@ -33,8 +35,21 @@ public final class RunSharedSession: @unchecked Sendable {
     private var afterAllTaken: Set<String> = []
 
     /// `runMemo` を省くと、マシンをまたぐ run の子(`ParentLink` が開いている)ならその通り道に載った1つ、そうでなければ新しい1つ
-    public init(runMemo: RunMemoStore? = nil) {
-        self.runMemo = runMemo ?? ParentLink.memoStore() ?? RunMemoStore()
+    /// `lockMode` の既定は「呼んだら失敗」(設定を忘れた経路が黙って割れない・黙って競合しない)。run の入口は `locks.configure`
+    /// (走査の結果と上限・ここで `.ownServer` へ切り替わる)を呼ぶ。親とつながった子は常に「呼んだら失敗」。
+    /// `lockHost`: プロセスで共有するホスト(MCP)を使うとき
+    public init(runMemo: RunMemoStore? = nil, lockMode: RunLockHost.Mode = .refuse(RunLockHost.notConfiguredRefusal),
+                lockHost: RunLockHost? = nil) {
+        let store = runMemo ?? ParentLink.memoStore() ?? RunMemoStore()
+        self.runMemo = store
+        self.locks = lockHost ?? RunLockHost(mode: ParentLink.isLinked ? .refuse(RunLockHost.linkedChildRefusal) : lockMode)
+    }
+
+    /// 子へ渡すロックの扱い(`DeviceSessionHandoff` の3欄)。起動ごとの印を作り、この起動の run メモを登録する
+    func lockHandoff() -> (access: RunLockAccess, capSeconds: Int, token: String) {
+        let token = UUID().uuidString
+        locks.register(token: token, memo: runMemo)
+        return (locks.access(), locks.currentWaitCapSeconds, token)
     }
 
     func declareAfterAll(className: String, platform: String?) {
@@ -66,9 +81,16 @@ public final class RunSharedSession: @unchecked Sendable {
         }
     }
 
-    func appendRunMemo(key: String, value: String) { runMemo.write(key: key, value: value) }
+    /// 子のイベントで届いた「ロックの外」の書き込み。ストアへ入れた後に数える(ロックのサーバーはこの数に届くまで run メモに答えない)
+    func appendRunMemo(key: String, value: String, token: String) {
+        let locks = self.locks
+        runMemo.write(key: key, value: value) { locks.noteOutsideApplied(token: token) }
+    }
 
-    func clearRunMemo() { runMemo.clear() }
+    func clearRunMemo(token: String) {
+        let locks = self.locks
+        runMemo.clear { locks.noteOutsideApplied(token: token) }
+    }
 
     enum BeforeAllTicket: Equatable, Sendable { case run, skip, failed }
 
@@ -193,15 +215,18 @@ public final class RunDeviceSession: @unchecked Sendable {
             if runBeforeAll { releaseBeforeAll(className: className) }
             return .setUpDeviceFailed
         }
+        let lock = shared.lockHandoff()
         return .launch(DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: state == nil,
-                                            runBeforeAll: runBeforeAll))
+                                            runBeforeAll: runBeforeAll,
+                                            lockAccess: lock.access, lockWaitCapSeconds: lock.capSeconds,
+                                            lockOwnerToken: lock.token))
     }
 
     /// 子の runMemoWrite / runMemoClear / deviceSetUp / beforeAll / afterAll / deviceTearDown を反映する。
     /// 戻り値 true = 横取りした(emit しない)。`platform` = そのシナリオを走らせた OS(afterAll の申告に添える。
     /// ScenarioHost は接続の OS を必ず渡す)
     @discardableResult
-    public func apply(_ event: ScenarioEvent, className: String, platform: String? = nil) -> Bool {
+    public func apply(_ event: ScenarioEvent, className: String, platform: String? = nil, lockOwnerToken: String = "") -> Bool {
         switch event.kind {
         case "afterAll":
             // status "declared" だけ(子がシナリオの開始時に、クラスが afterAll を持つときに出す)
@@ -209,11 +234,11 @@ public final class RunDeviceSession: @unchecked Sendable {
             return true
         case "runMemoWrite":
             if let key = event.memoKey, let value = event.memoValue {
-                shared.appendRunMemo(key: key, value: value)
+                shared.appendRunMemo(key: key, value: value, token: lockOwnerToken)
             }
             return true
         case "runMemoClear":
-            shared.clearRunMemo()
+            shared.clearRunMemo(token: lockOwnerToken)
             return true
         case "beforeAll":
             shared.beforeAllEvent(className: className, status: event.status)
@@ -247,7 +272,10 @@ public final class RunDeviceSession: @unchecked Sendable {
 
     /// tearDownDevice 専用の子へ渡す写し(setUpDevice も beforeAll も走らせない・失敗済みでも片付けは走らせる)
     public func tearDownHandoff() -> DeviceSessionHandoff {
-        DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: false, runBeforeAll: false)
+        let lock = shared.lockHandoff()
+        return DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: false, runBeforeAll: false,
+                                    lockAccess: lock.access, lockWaitCapSeconds: lock.capSeconds,
+                                    lockOwnerToken: lock.token)
     }
 
     /// まだ片付けていない申告済みクラス(申告順)を返し、**返した時点で済み印を付ける** = 1デバイスで最大1回

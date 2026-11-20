@@ -229,6 +229,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 子プロセスを1本も起こす前に(供給の adb なども stdin を受け継ぐ)
         if common.linkedToParent { ParentLink.enable() }
         try common.rejectWorkQueueMeasurement(setOverrides: setOverrides)
+        if common.fleetEntry { RunLockHost.markFleetEntry() }
+        if let path = common.lockSocket { RunLockHost.markIssuerSocket(path) }
         try await RunExitGuard.run(log: { logStderr($0) }, jobRun: jobRunTarget) { try await runBody(runExit: $0) }
     }
 
@@ -887,7 +889,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             performanceMode: performanceMode,
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout.map(Double.init),
             workQueue: common.workQueue,
-            runMemoLink: common.runMemoLink,
+            runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)
@@ -960,6 +962,10 @@ struct ApiRunCommand: AsyncParsableCommand {
         var timing = ScenarioTimingTracker()
         // --port 直指定のデバイスは platform ごとに1台(ios = --port・android = --serial)
         let deviceSessions = RunDeviceSessionBook()
+        // run 全体のロック(RR-8.5)。待ちの上限は対象の最長の実効 scenarioTimeout(@Test の値を含む)
+        defer { deviceSessions.shared.locks.stop() }
+        deviceSessions.shared.locks.configure(project: project, scenarioTimeouts: selected.map(\.scenarioTimeout),
+                                              settingsTimeout: effectiveScenarioTimeout) { logStderr($0) }
         // クラスの寄せ方(RR-8.3): 並べ替えと @RunInOrder の失敗の後の扱い。dry-run / --debug には掛けない
         let orderedSelected = dryRun || debugOptions != nil ? selected : SequentialPlacementGate.ordered(selected)
         var placementGate = SequentialPlacementGate()

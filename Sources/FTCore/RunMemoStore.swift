@@ -62,6 +62,11 @@ public struct RunMemoLedger: Sendable {
 public final class RunMemoStore: Sendable {
     private let ledger = LockedValue(RunMemoLedger())
     private let link: RunMemoLink?
+    /// lid → 「その書き込みが発行元の確定として戻った(または上げずに終えた)」ときに1回呼ぶ口。
+    /// 書き込みの前に登録するので、確定の戻りの方が早くても取りこぼさない(観測口をストアで共有せず、書き手ごとに持つ =
+    /// プロセス全体で1つのストアを複数のセッションが使っても奪い合わない)。確定が戻らない行(失われた行)の分は残るが、
+    /// 本数は台帳の未確定(pending)と同じ数で増えない
+    private let confirmCallbacks = LockedValue<[Int: @Sendable () -> Void]>([:])
 
     /// `link` = マシンをまたぐ run の子で発行元とつながっている通り道(nil = このプロセスだけで完結)
     public init(link: RunMemoLink? = nil) {
@@ -71,18 +76,32 @@ public final class RunMemoStore: Sendable {
 
     public func snapshot() -> [String: [String]] { ledger.withLock { $0.view() } }
 
-    public func write(key: String, value: String) { record(.write(key: key, value: value)) }
+    /// 書く。`onConfirmed` = 発行元の確定が戻った時点で1回呼ぶ(`RunSharedSession` がロックの外の書き込みの適用の観測に使う)。
+    /// **確定が来ない書き込みは確定を待たずその場で呼ぶ**: 発行元とつながっていない(書いた時点で確定と同じ)・
+    /// 大きすぎて上げなかった(`RunMemoLink.publish` が1行警告してこのマシンだけに残す。発行元は確定しないので、
+    /// 待たせるとロックの中の読み書きが上限まで止まり、1台の run と結果が割れる)
+    public func write(key: String, value: String, onConfirmed: (@Sendable () -> Void)? = nil) {
+        record(.write(key: key, value: value), onConfirmed: onConfirmed)
+    }
 
-    public func clear() { record(.clear) }
+    public func clear(onConfirmed: (@Sendable () -> Void)? = nil) { record(.clear, onConfirmed: onConfirmed) }
 
-    private func record(_ op: RunMemoOp) {
+    private func record(_ op: RunMemoOp, onConfirmed: (@Sendable () -> Void)?) {
         let lid = ledger.withLock { $0.addLocal(op) }
-        link?.publish(lid: lid, op: op)
+        guard let link else {
+            onConfirmed?()
+            return
+        }
+        if let onConfirmed { confirmCallbacks.withLock { $0[lid] = onConfirmed } }
+        if !link.publish(lid: lid, op: op) {
+            confirmCallbacks.withLock { $0.removeValue(forKey: lid) }?()
+        }
     }
 
     private func confirm(_ confirmed: RunMemoLink.Confirmed) {
         let own = confirmed.src == link?.source ? confirmed.lid : nil
         _ = ledger.withLock { $0.confirm(seq: confirmed.seq, op: confirmed.op, ownLid: own) }
+        if let own { confirmCallbacks.withLock { $0.removeValue(forKey: own) }?() }
     }
 }
 
@@ -162,18 +181,21 @@ public final class RunMemoLink: Sendable {
         receiver.withLock { $0 = handler }
     }
 
-    /// 自分の書き込みを発行元へ上げる(1回の `send` に断片の行をまとめる = 他の出力が間に挟まらない)
-    public func publish(lid: Int, op: RunMemoOp) {
+    /// 自分の書き込みを発行元へ上げる(1回の `send` に断片の行をまとめる = 他の出力が間に挟まらない)。
+    /// 戻り値 false = 大きすぎて上げなかった(このマシンだけに残る。発行元は確定しないので、確定を待つ呼び手はこの戻り値で扱う)
+    @discardableResult
+    public func publish(lid: Int, op: RunMemoOp) -> Bool {
         let pieces = RunMemoWire.pieces(for: op)
         guard pieces.count <= RunMemoWire.maxPieces else {
             warn("⚠️ a run memo value is too large to share across machines; it stays on this machine only")
-            return
+            return false
         }
         let lines = pieces.enumerated().map { piece in
             WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(
                 src: source, lid: lid, seq: nil, i: piece.offset, n: pieces.count, d: piece.element))
         }
         send(lines.joined(separator: "\n"))
+        return true
     }
 
     /// 起動を発行元へ知らせる。発行元はそれまでの履歴をこの子へ送る(子の stdin が読める前に流れた分を取りこぼさない)

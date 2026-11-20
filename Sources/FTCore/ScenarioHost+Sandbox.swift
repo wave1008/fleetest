@@ -26,6 +26,8 @@ extension ScenarioHost {
     static func sandboxedLaunch(project: TestProject, runner: URL, arguments: [String],
                                 reportDir: String?, extraWritable: [String] = [],
                                 connection: DriverConnection?, drivesDevice: Bool,
+                                /// run 全体のロックのサーバー(`DeviceSessionHandoff.lockAccess` の `socket`)。子がつなぐので枠に名指しする
+                                lockSocket: String? = nil,
                                 settings: () throws -> ScenarioSandbox.MachineSettings = {
                                     try ScenarioSandbox.machineSettings()
                                 }) throws -> SandboxedLaunch? {
@@ -38,6 +40,7 @@ extension ScenarioHost {
         try ScenarioSandbox.prepareWritableRoots(scope)
         // 子は環境変数で受けた補助プロセスへ繋ぐ(`childEnvironment` と同じ値を読む)
         scope.helperSockets = [VisionHelperHost.activeSocketPath, FMServeHost.activeSocketPath].compactMap { $0 }
+        if let lockSocket { scope.helperSockets.append(lockSocket) }
         // CoreSimulator の直叩き(FTCoreSimShim)を止めて simctl = broker 経由へ倒す
         var environment = [ProcessEnvironmentKey.simulatorControl: "simctl"]
         if let temp = ScenarioSandbox.childTemporaryDirectory(runnerName: runner.lastPathComponent) {

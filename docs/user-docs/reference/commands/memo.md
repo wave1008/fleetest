@@ -61,6 +61,34 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   without running; it is never re-run. If `setUpDevice()` fails, the remaining
   scenarios of that class on that device are recorded as failed without running.
 
+## Run-wide locks (`withExclusiveLock`, `withSharedLock`)
+
+```swift
+withExclusiveLock("counter") {
+    let n = Int(readRunMemo("count")) ?? 0
+    writeRunMemo("count", String(n + 1))
+}
+```
+
+- `withExclusiveLock(keys..., waitSeconds:) { }` runs the block while no other scenario of the run holds any of the keys; `withSharedLock` lets
+  several scenarios hold the same keys at once but keeps exclusive holders out. **Use a shared lock only to read.**
+- Keys: one or more, not blank, no control characters, at most 120 bytes each and 8 per call. Several keys in one call are taken one by one in
+  the order of their names (UTF-8 bytes). A nested call may only take keys that sort after every key you hold, otherwise it is an error even
+  when nothing contends: **take all the keys in one call instead of nesting**. Taking a key again that you already hold does nothing
+  (exclusive in exclusive, shared in exclusive, shared in shared); taking it exclusively inside a shared lock on it is an error.
+- It waits until the keys are free. The wait is not counted in `scenarioTimeout`. One call waits at most the longest `scenarioTimeout` of the
+  run (including `@Test(scenarioTimeout:)`); `waitSeconds:` makes it shorter. On timeout the step fails and the block does not run.
+  Under heavy contention the wait can reach this cap, so use a database for heavy or cross-run exclusion. **Do not use a lock to wait for
+  another test to finish** (the order scenarios are handed out differs between one machine and many).
+- Inside a lock, `writeRunMemo` / `clearRunMemo` / `runMemoTextAs` are committed before the next step and `readRunMemo` returns the latest
+  value (the value stays visible after the lock). Writing needs an exclusive lock on some key: inside shared locks only it is an error.
+  **Write a key that a lock guards only inside the lock.** A value over the run memo size limit is an error.
+- If the scenario fails, the block is skipped; once the scenario is aborted inside the block the rest of your plain Swift code still runs, and the
+  lock is released when the block exits. A scenario that is requeued runs the block again (a counter is added twice).
+- **Your own run memo writes outside the lock** are applied before a read or write inside the lock answers (the lock waits for the writes this scenario already made, so they are neither lost nor overwritten); writes of other scenarios are ordered only by the locks. Use shared locks only for reading. A retried scenario runs the block again. With many devices, heavy contention can reach the wait cap.
+- A dry-run runs the block without locking (order violations are still reported). In a run that spans several machines, the lock works for scenarios running on the machine that started the run;
+  on machines reached over ssh, and in an entry of `--fleet`, the call fails with an explanation instead of splitting the lock silently. Not accepted by `ft_batch`.
+
 ## Example
 
 ```swift

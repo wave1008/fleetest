@@ -663,6 +663,8 @@ struct RunScenario: AsyncParsableCommand {
             core.runMemo = deviceSession.runMemo
             core.runSetUpDevice = deviceSession.runSetUpDevice
             core.runBeforeAll = deviceSession.runBeforeAll
+            core.runLocks.configure(handoff: deviceSession, scenarioID: scenarioID,
+                                    device: "\(runPlatform):\(serial ?? String(port))")
         }
         core.redactAccountValues = redactAccountValues
         core.hostLoadPacing = runHostLoadPacing

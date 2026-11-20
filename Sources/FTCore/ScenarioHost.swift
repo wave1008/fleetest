@@ -748,7 +748,7 @@ public enum ScenarioHost {
         if let reason = ScenarioTimeoutResolution.invalidScenarioValueReason(scenarioTimeoutOverride) {
             return abortBeforeLaunch(reason)
         }
-        let handoff: DeviceSessionHandoff
+        var handoff: DeviceSessionHandoff
         switch handoffDecision {
         case .launch(let value):
             handoff = value
@@ -758,6 +758,12 @@ public enum ScenarioHost {
         case .beforeAllFailed:
             return abortBeforeLaunch("beforeAll of \(className) failed earlier in this run,"
                                      + " so this scenario was not run")
+        }
+        // ロック(RR-8.5): dry-run は取らずに通す・debug 実行は1シナリオ・1台なのでその場で渡す(他の起動はセッションの値)
+        if dryRun {
+            handoff.lockAccess = .passThrough
+        } else if debug != nil {
+            handoff.lockAccess = .immediate
         }
 
         let runner: URL
@@ -858,7 +864,8 @@ public enum ScenarioHost {
             if let launch = try sandboxedLaunch(
                 project: project, runner: runner, arguments: args, reportDir: reportDir,
                 extraWritable: (dryRun ? nil : stillFramesDir).map { [$0.path] } ?? [],
-                connection: childConnection, drivesDevice: !dryRun) {
+                connection: childConnection, drivesDevice: !dryRun,
+                lockSocket: { if case .socket(let path) = handoff.lockAccess { return path } else { return nil } }()) {
                 sandboxBroker = launch.broker
                 process.executableURL = launch.executable
                 process.arguments = launch.arguments
@@ -909,7 +916,10 @@ public enum ScenarioHost {
         let unregisterChildProcess = registerChildProcess?(process)
         defer { unregisterChildProcess?() }
         // 子の終了後(watchdog 打ち切り含む全 return 経路)に began のままのクラスを failed にする
-        defer { deviceSession.scenarioEnded(className: className) }
+        defer {
+            deviceSession.scenarioEnded(className: className)
+            deviceSession.shared.locks.unregister(token: handoff.lockOwnerToken)
+        }
         // 子が死んでいる場合の broken pipe は無視(handleInstallRequest と同じ理由)
         var stdinClosed = false
         try? stdinPipe?.fileHandleForWriting.write(contentsOf: Data((handoff.encodedLine() + "\n").utf8))
@@ -1046,7 +1056,8 @@ public enum ScenarioHost {
                     idleTracker?.activity(at: idleClock.now)
                     continue
                 }
-                if deviceSession.apply(event, className: className, platform: connection.platform) { continue }
+                if deviceSession.apply(event, className: className, platform: connection.platform,
+                                       lockOwnerToken: handoff.lockOwnerToken) { continue }
                 if event.kind == "idleAllowance" {
                     if event.status == "began" {
                         idleTracker?.beginAllowance(.milliseconds(max(0, event.durationMs ?? 0)))
