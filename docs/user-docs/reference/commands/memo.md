@@ -87,8 +87,8 @@ withExclusiveLock("counter") {
 - If the scenario fails, the block is skipped; once the scenario is aborted inside the block the rest of your plain Swift code still runs, and the
   lock is released when the block exits. A scenario that is requeued runs the block again (a counter is added twice).
 - **Your own run memo writes outside the lock** are applied before a read or write inside the lock answers (the lock waits for the writes this scenario already made, so they are neither lost nor overwritten); writes of other scenarios are ordered only by the locks. Use shared locks only for reading. A retried scenario runs the block again. With many devices, heavy contention can reach the wait cap.
-- A dry-run runs the block without locking (order violations are still reported). In a run that spans several machines, the lock works for scenarios running on the machine that started the run;
-  on machines reached over ssh, and in an entry of `--fleet`, the call fails with an explanation instead of splitting the lock silently. Not accepted by `ft_batch`.
+- A dry-run runs the block without locking (order violations are still reported). In a run that spans several machines, the lock works on every machine, including machines reached over ssh (the lock server runs on the machine that started the run).
+  If the connection of a remote scenario breaks while it holds a key, that key stays unavailable (waiting and new requests fail with an explanation) until the run on that machine is confirmed to have ended; the next step that takes it carries a note that the previous holder's writes may be missing. In an entry of `--fleet` the call fails with an explanation instead of splitting the lock silently. Not accepted by `ft_batch`.
 
 ## Example
 
@@ -127,7 +127,7 @@ class OrderFlow {
 
 - Write a key that a run-wide lock guards only inside the lock (see [Run-wide locks](#run-wide-locks-withexclusivelock-withsharedlock)).
 - Use `withSharedLock` only to read; a retried scenario runs the lock block again.
-- Run-wide locks do not work on machines reached over ssh or in `--fleet`; use the test server's database for heavy or run-spanning exclusion.
+- Run-wide locks do not work in `--fleet`; use the test server's database for heavy or run-spanning exclusion.
 
 ### Link
 - [index](../../index.md)

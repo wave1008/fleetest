@@ -103,6 +103,25 @@ final class RunLockWiringTests: XCTestCase {
         }
     }
 
+    /// 親が子を**見届けた後**にだけ知らせる。早く知らせると、まだ走っているシナリオの持ち分を外す(誤った緑)
+    func testScenarioHostReportsTheScenarioEndOnlyAfterTheChildProcessWasReaped() throws {
+        let host = try source("Sources/FTCore/ScenarioHost.swift")
+        let launch = try XCTUnwrap(host.range(of: "let processExited = ProcessExitWait.prepare(process)"))
+        let wait = try XCTUnwrap(host.range(of: "for await _ in processExited {}", range: launch.upperBound..<host.endIndex))
+        let ended = try XCTUnwrap(host.range(of: "deviceSession.shared.locks.noteScenarioEnded(token: handoff.lockOwnerToken)"))
+        let unregister = try XCTUnwrap(host.range(of: "deviceSession.shared.locks.unregister(token: handoff.lockOwnerToken)"))
+        XCTAssertLessThan(wait.upperBound, ended.lowerBound, "子の終了を待った後(`processExited` の待ちの後)に知らせる")
+        // 登録を外すのは関数の終わり(defer)= 知らせた後
+        XCTAssertLessThan(unregister.lowerBound, wait.lowerBound)
+        XCTAssertTrue(host[host.index(unregister.lowerBound, offsetBy: -200)..<unregister.lowerBound].contains("defer {"))
+        XCTAssertEqual(host.components(separatedBy: "noteScenarioEnded(").count - 1, 1, "知らせる場所は1つだけ")
+        // 起動より前(= 待ちの前に抜ける経路)に知らせる呼び出しを置かない・defer の中(早い return でも待たずに走る)に置かない
+        let beforeWait = host[launch.upperBound..<wait.lowerBound]
+        XCTAssertFalse(beforeWait.contains("noteScenarioEnded("))
+        let deferStart = try XCTUnwrap(host.range(of: "defer {", range: launch.upperBound..<wait.lowerBound))
+        XCTAssertFalse(host[deferStart.upperBound..<wait.lowerBound].prefix(400).contains("noteScenarioEnded("))
+    }
+
     func testHookChildrenGetTheirLocksAtOnce() throws {
         XCTAssertTrue(try source("Sources/FTCore/RunHookHost.swift").contains("lockAccess: .immediate"))
     }

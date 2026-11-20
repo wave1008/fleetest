@@ -42,7 +42,11 @@ extension FTDriveCore {
             // 取った(または dry-run / その場で渡す)。実際に待ったときだけ待った秒を出す
             let waited = entry.waited >= 0.05 ? " (waited \(String(format: "%.1f", entry.waited))s)" : ""
             let sortedKeys = entry.keys.map { "\"\($0)\"" }.joined(separator: ", ")
-            recordStep(description: "\(command) \(sortedKeys)\(waited)", status: .passed, file: file, line: line, command: command)
+            // 前の持ち主が接続を失ったキー: 注記(失敗ではない)
+            let lost = entry.lostKeys.isEmpty ? "" : " [note: the previous holder of "
+                + entry.lostKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+                + " lost its connection, so its writes may be missing]"
+            recordStep(description: "\(command) \(sortedKeys)\(waited)\(lost)", status: .passed, file: file, line: line, command: command)
             // 本体の途中で失敗の印が立っても、外すのはブロックを抜けたときだけ
             defer { runLocks.leave(entry) }
             body()

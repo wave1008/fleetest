@@ -267,7 +267,8 @@ enum DeviceMachineRunner {
         // run 全体のロック(RR-8.5)のサーバー。ソースがロックを使うときだけ。子が全員終わるまで持ち、中断はここへも伝える
         let lockIssuer = RunLockIssuerSetup.start(
             project: project, profiles: [profileName], setOverrides: setOverrides,
-            scenarioTimeouts: listedScenarioTimeouts.value, hub: memoRelay.hub, log: { FleetRunner.log($0) })
+            scenarioTimeouts: listedScenarioTimeouts.value, hub: memoRelay.hub,
+            log: { FleetRunner.log($0) })
         defer { lockIssuer?.stop() }
         let lockInterruptRelay = lockIssuer.map { issuer in InterruptRelay.observing(catchUp: true) { issuer.interrupt() } }
         defer { lockInterruptRelay?.stop() }
@@ -287,6 +288,8 @@ enum DeviceMachineRunner {
         let outcomes = await withTaskGroup(of: (Int, FleetEntryOutcome).self) { taskGroup in
             for (index, group, ids) in active {
                 taskGroup.addTask {
+                    // このディスパッチ(子の起動1回)の待ち受け。子が終わったら閉じる(RR-8.5)
+                    let lockSockets = lockIssuer?.openChildSockets(machineLabel: group.machineLabel)
                     let args = childArgs(
                         project: project.name, host: group.machineLabel, profile: profileName,
                         deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
@@ -298,13 +301,14 @@ enum DeviceMachineRunner {
                         junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                         broadcast: broadcast, runGroup: runGroup, reportDir: reportDir,
                         workQueue: dispatcher != nil, runMemoLink: true,
-                        lockSocket: lockIssuer?.socketPath)
+                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
                     let start = Date()
                     let exitCode = await FleetRunner.runEntry(
                         binary: binary, args: args, hostLabel: group.machineLabel, ticket: ticket,
                         lockMarker: lockMarkers[group.machineLabel], healCollection: healCollection,
                         stdin: writers[index],
                         lineInterceptor: { line in memoRelay.intercept(line: line, entry: index, dispatcher: dispatcher) })
+                    lockIssuer?.closeChildSockets(lockSockets)
                     memoRelay.childExited(entry: index)
                     dispatcher?.childExited(entry: index)
                     return (index, FleetEntryOutcome(
@@ -538,7 +542,7 @@ enum DeviceMachineRunner {
         forceLock: Bool, remoteDir: String?, remoteTimeout: Int?,
         quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil,
         reportDir: String? = nil, workQueue: Bool = false, runMemoLink: Bool = false,
-        lockSocket: String? = nil
+        lockSocket: String? = nil, lockControlSocket: String? = nil
     ) -> [String] {
         var args = FleetRunner.buildArgs(
             project: project, host: host, profile: profile, fleetEntry: false,
@@ -553,6 +557,10 @@ enum DeviceMachineRunner {
             if let reportDir { args += ["--report-dir", reportDir] }
             // 発行元のロックのサーバー(RR-8.5)。**ローカルの子だけ**(リモートの子へは渡さない = 第2b段まで呼んだら失敗)
             if let lockSocket { args += ["--lock-socket", lockSocket] }
+        } else if let lockSocket, let lockControlSocket {
+            // リモートの機械(ssh 越し): 子 = 中継役へ、**その機械の待ち受け**(ssh の `-R` の転送先)と手元の待ち受け(終わりの知らせ用)を渡す。
+            // 中継役が向こうの run へは転送先のパスを `--lock-socket` として中継する
+            args += ["--lock-socket", lockSocket, "--lock-control-socket", lockControlSocket]
         }
         // 動的な割り振り(RR-8.1)の子だけ。--scenario は全候補で、回すのは親が1本ずつ渡した分
         if workQueue { args += ["--work-queue"] }

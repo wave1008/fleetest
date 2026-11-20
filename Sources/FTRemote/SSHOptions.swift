@@ -21,6 +21,12 @@ public enum SSHOptions {
         "-o", "ServerAliveCountMax=\(serverAliveCountMax)",
     ]
 
+    /// 転送が張れなくても ssh(= run 全体)を落とさない(`-R` の転送だけ失敗させる)。**明示する**理由: 利用者の
+    /// `~/.ssh/config` の `ExitOnForwardFailure yes` が効くと、ランナーの sshd が転送を断ったときに run ごと落ちる。
+    /// 転送専用なので共通の基底には入れない。(向こうの古いソケットのファイルの置き換えは向こうの sshd の
+    /// `StreamLocalBindUnlink` の設定で決まり、クライアント側のオプションでは変えられない = ここでは頼らず、パスをディスパッチごとに一意にする)
+    public static let exitOnForwardFailureNoArgs: [String] = ["-o", "ExitOnForwardFailure=no"]
+
     /// rsync の `-e`。rsync は値を空白で分割して実行するので1文字列にまとめる(ローカル間転送では使われない)
     public static let rsyncRemoteShellArgs: [String] = ["-e", (["ssh"] + keepAliveArgs).joined(separator: " ")]
 }

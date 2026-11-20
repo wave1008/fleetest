@@ -4,6 +4,7 @@
 
 import XCTest
 import FTCore
+import FTRemote
 @testable import fleetest
 
 final class RunLockIssuerWiringTests: XCTestCase {
@@ -13,31 +14,28 @@ final class RunLockIssuerWiringTests: XCTestCase {
         return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
 
-    func testLockSocketIsPassedToLocalChildrenOnly() {
-        func run(host: String) -> [String] {
+    func testLocalChildrenGetTheLocalSocketAndRemoteChildrenTheMachineSocketAndTheControlSocket() {
+        func run(host: String, lock: String?, control: String?) -> [String] {
             DeviceMachineRunner.childArgs(
                 project: "E2E", host: host, profile: "p", deviceNames: ["d"], deviceMachine: host,
                 scenarios: ["A.S0010"], folders: [], noLPT: false, lptHistoryRuns: nil, performanceMode: false,
                 forceLock: false, remoteDir: nil, remoteTimeout: nil, quiet: true, junitPath: nil,
-                runMemoLink: true, lockSocket: "/tmp/ftlock-x.sock")
+                runMemoLink: true, lockSocket: lock, lockControlSocket: control)
         }
-        let local = run(host: DeviceMachineGrouping.localDisplayName)
-        let index = local.firstIndex(of: "--lock-socket")
-        XCTAssertNotNil(index)
-        XCTAssertEqual(index.map { local[$0 + 1] }, "/tmp/ftlock-x.sock")
-        XCTAssertFalse(run(host: "M1Ultra").contains("--lock-socket"), "ssh 越しのリモートの子へは渡さない")
-        // マシン別サブ実行は1つの run の子 = `--fleet` のエントリではない(付けると子がロックを断る。デバイスの陽性対照で踏んだ)
-        for host in [DeviceMachineGrouping.localDisplayName, "M1Ultra"] {
-            XCTAssertFalse(run(host: host).contains("--fleet-entry"), "host=\(host)")
-        }
-        XCTAssertTrue(FleetRunner.buildArgs(
-            project: "E2E", host: "local", profile: "p", fleetEntry: true, scenarios: [], folders: [],
-            noLPT: false, lptHistoryRuns: nil, performanceMode: false, forceLock: false, remoteDir: nil,
-            remoteTimeout: nil, quiet: true, junitPath: nil).contains("--fleet-entry"))
+        let local = run(host: DeviceMachineGrouping.localDisplayName, lock: "/tmp/ftlock-local.sock", control: nil)
+        XCTAssertEqual(local.firstIndex(of: "--lock-socket").map { local[$0 + 1] }, "/tmp/ftlock-local.sock")
+        XCTAssertFalse(local.contains("--lock-control-socket"), "手元の子は直接つなぐので制御用は要らない")
+        let remote = run(host: "M1Ultra", lock: "/tmp/ftlock-m1.sock", control: "/tmp/ftlock-local.sock")
+        XCTAssertEqual(remote.firstIndex(of: "--lock-socket").map { remote[$0 + 1] }, "/tmp/ftlock-m1.sock",
+                       "リモートの子(中継役)には**その機械の待ち受け**を渡す")
+        XCTAssertEqual(remote.firstIndex(of: "--lock-control-socket").map { remote[$0 + 1] }, "/tmp/ftlock-local.sock")
+        XCTAssertFalse(run(host: "M1Ultra", lock: nil, control: nil).contains("--lock-socket"), "待ち受けが無ければ渡さない")
+        XCTAssertFalse(run(host: "M1Ultra", lock: "/tmp/x.sock", control: nil).contains("--lock-socket"),
+                       "制御用が無いリモートの子へは片方だけ渡さない")
     }
 
-    func testApiFanoutPassesLockSocketToLocalChildrenOnly() {
-        func args(machine: String?) -> [String] {
+    func testApiFanoutPassesTheSocketsTheSameWay() {
+        func args(machine: String?, lock: String?, control: String?) -> [String] {
             ApiRunMachineFanout.buildArgs(
                 project: "E2E", profileName: "p",
                 group: DeviceMachineRunner.Group(machine: machine, deviceNames: ["d"], platforms: ["android"]),
@@ -45,15 +43,102 @@ final class RunLockIssuerWiringTests: XCTestCase {
                 options: ApiRunMachineFanout.Options(
                     defaultTimeout: nil, scenarioTimeout: nil, noLPT: false, lptHistoryRuns: nil,
                     performanceMode: false, remoteDir: nil, remoteTimeout: nil, waitLock: nil),
-                runGroup: "g", runMemoLink: true, lockSocket: "/tmp/ftlock-x.sock")
+                runGroup: "g", runMemoLink: true, lockSocket: lock, lockControlSocket: control)
         }
-        XCTAssertTrue(args(machine: nil).contains("--lock-socket"))
-        XCTAssertFalse(args(machine: "M1Ultra").contains("--lock-socket"))
+        XCTAssertTrue(args(machine: nil, lock: "/tmp/a.sock", control: nil).contains("--lock-socket"))
+        let remote = args(machine: "M1Ultra", lock: "/tmp/m.sock", control: "/tmp/a.sock")
+        XCTAssertEqual(remote.firstIndex(of: "--lock-socket").map { remote[$0 + 1] }, "/tmp/m.sock")
+        XCTAssertTrue(remote.contains("--lock-control-socket"))
+        XCTAssertFalse(args(machine: "M1Ultra", lock: nil, control: nil).contains("--lock-socket"))
     }
 
-    func testLockSocketIsNeverRelayedToRemoteRuns() throws {
-        XCTAssertFalse(try source("Sources/FTRemote/RemoteDispatch.swift").contains("lock-socket"))
-        XCTAssertFalse(try source("Sources/fleetest/RemoteRunDispatcher.swift").contains("lockSocket"))
+    func testEachRemoteChildLaunchOpensItsOwnListenerAndClosingItLeavesTheOthers() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("lockchild-\(UUID().uuidString)")
+        let project = TestProject(name: "P", rootURL: root)
+        try FileManager.default.createDirectory(at: project.scenariosDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "withExclusiveLock(\"a\") {}".write(to: project.scenariosDir.appendingPathComponent("S.swift"), atomically: true, encoding: .utf8)
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let issuer = try XCTUnwrap(RunLockIssuer.startIfUsed(project: project, waitCapSeconds: 5, hub: hub, log: { _ in }))
+        defer { issuer.stop() }
+        let local = try XCTUnwrap(issuer.openChildSockets(machineLabel: DeviceMachineGrouping.localDisplayName))
+        XCTAssertEqual(local.lockSocket, issuer.socketPath)
+        XCTAssertNil(local.control)
+        // 同じ機械へ続けて起こす別のディスパッチ(MultiTarget の別の対象)は別の待ち受け
+        let first = try XCTUnwrap(issuer.openChildSockets(machineLabel: "M1Ultra"))
+        let second = try XCTUnwrap(issuer.openChildSockets(machineLabel: "M1Ultra"))
+        XCTAssertNotEqual(first.lockSocket, second.lockSocket, "ディスパッチごとに別の待ち受け(出どころ・持ち主不明の範囲を分ける)")
+        XCTAssertNotEqual(first.lockSocket, issuer.socketPath, "リモートは手元の待ち受けと別(出どころの区別)")
+        XCTAssertEqual(first.control, issuer.socketPath)
+        issuer.closeChildSockets(first)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.lockSocket))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.lockSocket))
+        issuer.closeChildSockets(local)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: issuer.socketPath), "手元の待ち受けは閉じない")
+    }
+
+    func testTheRelayForwardsOnlyWhenBothSocketsAreGivenAndNeverRequiresTheForwardToSucceed() {
+        XCTAssertNil(RemoteLockLink.make(machineSocket: nil, controlSocket: "/tmp/c.sock"))
+        XCTAssertNil(RemoteLockLink.make(machineSocket: "/tmp/m.sock", controlSocket: nil))
+        XCTAssertNil(RemoteLockLink.make(machineSocket: "/tmp/a:b.sock", controlSocket: "/tmp/c.sock"), "`-R` の書式は ':' で分かれる")
+        let link = RemoteLockLink.make(machineSocket: "/tmp/m.sock", controlSocket: "/tmp/c.sock", remotePath: "/tmp/ftlock-abcd1234.sock")
+        XCTAssertEqual(link?.sshArgs, ["-o", "ExitOnForwardFailure=no", "-R", "/tmp/ftlock-abcd1234.sock:/tmp/m.sock"])
+        XCTAssertFalse((link?.sshArgs ?? []).joined(separator: " ").contains("ExitOnForwardFailure=yes"), "転送の失敗で run を落とさない(利用者の ssh_config の yes に負けないよう no を明示)")
+        XCTAssertFalse((link?.sshArgs ?? []).contains("StreamLocalBindUnlink=yes"), "クライアント側の指定は -R に効かない(向こうの sshd の設定)")
+        for _ in 0..<20 {
+            let path = RemoteLockLink.randomRemotePath()
+            XCTAssertFalse(path.contains(":"))
+            XCTAssertTrue(path.hasPrefix("/tmp/ftlock-") && path.hasSuffix(".sock"))
+            XCTAssertLessThan(path.utf8.count, 104)
+        }
+        XCTAssertNotEqual(RemoteLockLink.randomRemotePath(), RemoteLockLink.randomRemotePath(), "ディスパッチごとに一意")
+    }
+
+    func testTheRemoteRunReceivesTheForwardedPathAsLockSocketOnlyWhenForwarded() {
+        let with = RemoteRunArgs.build(
+            project: "E2E", profile: "p", scenarios: [], folders: [], noLPT: false, lptHistoryRuns: nil,
+            performanceMode: false, runMemoLink: true, lockSocket: "/tmp/ftlock-abcd1234.sock",
+            remoteJUnitPath: nil, reportDir: nil)
+        XCTAssertEqual(with.firstIndex(of: "--lock-socket").map { with[$0 + 1] }, "/tmp/ftlock-abcd1234.sock")
+        let without = RemoteRunArgs.build(
+            project: "E2E", profile: "p", scenarios: [], folders: [], noLPT: false, lptHistoryRuns: nil,
+            performanceMode: false, runMemoLink: true, remoteJUnitPath: nil, reportDir: nil)
+        XCTAssertFalse(without.contains("--lock-socket"))
+        let api = RemoteRunArgs.buildApi(
+            project: "E2E", profile: "p", scenarios: [], noLPT: false, lptHistoryRuns: nil, performanceMode: false,
+            defaultTimeout: nil, scenarioTimeout: nil, runMemoLink: true, lockSocket: "/tmp/ftlock-abcd1234.sock", reportDir: nil)
+        XCTAssertTrue(api.contains("--lock-socket"))
+    }
+
+    func testBothRelayPathsBuildTheForwardAndRecheckRightAfterSshEndsBeforeTheRunEndWaitAndStopOnInterrupt() throws {
+        let relay = try source("Sources/fleetest/RemoteRunDispatcher.swift")
+        XCTAssertEqual(relay.components(separatedBy: "RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)").count - 1, 2,
+                       "dispatch と dispatchApi の両方")
+        XCTAssertEqual(relay.components(separatedBy: "lockSocket: lockLink?.remotePath").count - 1, 2)
+        XCTAssertTrue(relay.contains("sshRunBase + (lockLink?.sshArgs ?? [])"))
+        XCTAssertTrue(relay.contains("rm -f \\(RemoteShell.quote(link.remotePath))"), "向こうのソケットのファイルを best effort で消す")
+        // 順序: 各経路で、ssh の終わり(通常の戻りと打ち切りの throw の両方)の直後に確かめ直し、その後に run の終わりの待ち(`awaitRemoteRunEnd`)・回収
+        for entry in ["let exitCode: Int32\n        do {", ] {
+            var from = relay.startIndex
+            var paths = 0
+            while let start = relay.range(of: entry, range: from..<relay.endIndex) {
+                paths += 1
+                let tail = relay[start.upperBound...]
+                let normal = try XCTUnwrap(tail.range(of: "finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)"))
+                let thrown = try XCTUnwrap(tail.range(of: "finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)"))
+                let waitRange = try XCTUnwrap(tail.range(of: "awaitRemoteRunEnd("))
+                XCTAssertLessThan(normal.lowerBound, waitRange.lowerBound, "通常の終わりの確かめ直しは run の終わりの待ちより前")
+                XCTAssertLessThan(thrown.lowerBound, waitRange.lowerBound, "打ち切りの確かめ直しも run の終わりの待ちより前")
+                from = start.upperBound
+            }
+            XCTAssertEqual(paths, 2, "dispatch と dispatchApi の両方")
+        }
+        // 中断を渡して確かめ直しを止める・細かく眠って中断に気付く
+        XCTAssertTrue(relay.contains("interrupted: { interruptFlag.interrupted }"))
+        XCTAssertTrue(relay.contains("while remaining > 0, !interruptFlag.interrupted"))
+        for file in ["Sources/fleetest/Fleetest.swift", "Sources/fleetest/ApiRunCommand.swift"] {
+            XCTAssertTrue(try source(file).contains("lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket"), file)
+        }
     }
 
     func testBothRunEntriesMarkTheIssuerSocketAfterTheStdinClaim() throws {
@@ -71,12 +156,14 @@ final class RunLockIssuerWiringTests: XCTestCase {
         for (name, text) in [("DeviceMachineRunner", device), ("ApiRunMachineFanout", api), ("MultiTargetRunner", multi)] {
             XCTAssertTrue(text.contains("RunLockIssuerSetup.start("), "\(name): サーバーを起こしていない")
             XCTAssertTrue(text.contains("InterruptRelay.observing(catchUp: true) { issuer.interrupt() }"), "\(name): 中断を伝えていない")
-            XCTAssertTrue(text.contains("lockSocket: lockIssuer"), "\(name): 子へソケットを渡していない")
+            XCTAssertTrue(text.contains("lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control"), "\(name): 子へソケットを渡していない")
+            XCTAssertTrue(text.contains("openChildSockets(machineLabel: group.machineLabel)"), "\(name): ディスパッチごとの待ち受けを開いていない")
+            XCTAssertTrue(text.contains("closeChildSockets(lockSockets)"), "\(name): 子が終わった後に待ち受けを閉じていない")
         }
         XCTAssertTrue(device.contains("defer { lockIssuer?.stop() }") && api.contains("defer { lockIssuer?.stop() }"))
         XCTAssertTrue(multi.contains("defer { lockIssuersByProject.values.forEach { $0.stop() } }"))
         // 複数対象はプロジェクトごとに1つ(同じプロジェクトの対象は同じ hub・同じサーバー)
-        XCTAssertTrue(multi.contains("lockIssuersByProject[unit.project.name]?.socketPath"))
+        XCTAssertTrue(multi.contains("lockIssuersByProject[unit.project.name]"))
         XCTAssertTrue(multi.contains("for unit in units where lockIssuers[unit.project.name] == nil"))
         // 待ちの上限は配るシナリオの @Test の値を含めて求める
         XCTAssertTrue(device.contains("listedScenarioTimeouts.value = selected.map(\\.scenarioTimeout)"))

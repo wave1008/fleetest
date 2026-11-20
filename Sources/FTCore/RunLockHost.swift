@@ -169,8 +169,9 @@ public final class RunLockHost: @unchecked Sendable {
     private static let fleetEntry = LockedValue(false)
     public static func markFleetEntry() { fleetEntry.value = true }
 
-    /// 発行元から `--lock-socket` を受けていない親とつながった子 = ssh 越しのリモートの子(第2b段で転送を張るまで使えない)
-    public static let linkedChildRefusal = "run-wide locks across machines over ssh are not available yet"
+    /// 発行元から `--lock-socket` を受けていない親とつながった子(ソースがロックを使うと見えなかった・ssh の転送を張れなかった)
+    public static let linkedChildRefusal = "the parent of this multi-machine run did not hand over a run lock socket"
+        + " (the project source was not found to use withExclusiveLock / withSharedLock, or the ssh forward for this machine could not be set up)"
     public static let notConfiguredRefusal = "this way of running does not set up run-wide locks"
     public static let notDetectedRefusal = "the project source was not found to use withExclusiveLock / withSharedLock"
         + " (the scan skips comments, strings and _disabled/, so a call it cannot see gets this failure instead of a wait)"
@@ -191,7 +192,7 @@ public final class RunLockHost: @unchecked Sendable {
     // 発行元のサーバーへの1本の接続(子のプロセスで1つ)。forwardLock の内側
     private let forwardLock = NSLock()
     private var forwarder: RunLockClient?
-    private var pendingNotes: [String] = []
+    private var pendingNotes: [RunLockMessage] = []
     private var retrying = false
     /// 起動の印 → その起動の run メモ(`RunSharedSession.lockHandoff` が登録し、シナリオの終わりに外す)
     private var memos: [String: RunLockMemoBackend] = [:]
@@ -301,8 +302,27 @@ public final class RunLockHost: @unchecked Sendable {
             appliedOps.note(token: token)
             return
         }
+        forward(.outsideApplied(token: token), path: issuerPath)
+    }
+
+    /// 起動の印 `token` のシナリオのプロセスを、親(この host を持つプロセス)が見届けた(reap した)。
+    /// サーバーはその印の持ち分を外す(臨界区間の途中で死んだ・kill されたシナリオの持ち分を、接続の切れや pid の終わりを待たずに外す。
+    /// リモートのマシンでは「持ち主不明」を作らない)。サーバーへ届かなければ `noteOutsideApplied` と同じ再送
+    public func noteScenarioEnded(token: String) {
+        let target = lock.withLock { () -> (path: String?, server: RunLockServer?) in
+            if case .issuer(let path) = mode { return (path, nil) }
+            return (nil, server)
+        }
+        if let path = target.path {
+            forward(.scenarioEnded(token: token), path: path)
+        } else {
+            target.server?.scenarioEnded(token: token)
+        }
+    }
+
+    private func forward(_ message: RunLockMessage, path issuerPath: String) {
         forwardLock.lock()
-        pendingNotes.append(token)
+        pendingNotes.append(message)
         let startRetry = !flushPendingNotesLocked(path: issuerPath) && !retrying
         if startRetry { retrying = true }
         forwardLock.unlock()
@@ -311,11 +331,11 @@ public final class RunLockHost: @unchecked Sendable {
 
     /// 送れる分を送る。全部送れたら true。forwardLock を持って呼ぶ
     private func flushPendingNotesLocked(path: String) -> Bool {
-        while let token = pendingNotes.first {
+        while let message = pendingNotes.first {
             if forwarder == nil || forwarder?.isBroken == true {
                 forwarder = try? RunLockClient.connect(path: path, scenario: "run-lock-forwarder", machine: "child", device: "-")
             }
-            guard forwarder?.sendOutsideApplied(token: token) == true else { return false }
+            guard forwarder?.sendNote(message) == true else { return false }
             pendingNotes.removeFirst()
         }
         return true
@@ -396,8 +416,16 @@ public struct RunMemoHubLockBackend: RunLockMemoBackend {
 /// 発行元(マシンをまたぐ run の親)が持つロックのサーバー。プロジェクトのソースがロックを使うときだけ起こす。
 /// ロックの範囲は run × プロジェクト(複数対象の run ではプロジェクトごとに1つ)
 public final class RunLockIssuer: @unchecked Sendable {
+    /// 手元の待ち受け(この機械で起こした子・中継役がつなぐ)
     public let socketPath: String
     private let server: RunLockServer
+
+    /// リモートの機械へのディスパッチ1回ぶんの待ち受けを開く(中継役の子を起こす直前)。ssh の `-R` の転送先になり、
+    /// 同時に**そのディスパッチの識別子**(`sshEnded` / `remoteRunEnded` に使う)。nil = 開けなかった(子はロックを使えない)
+    public func openRemoteListener(machine: String) -> String? { try? server.openRemoteListener(machine: machine) }
+
+    /// 中継役の子が終わった後に閉じる(受けた接続と持ち主不明は残る)
+    public func closeRemoteListener(path: String) { server.closeRemoteListener(path: path) }
 
     private init(server: RunLockServer) {
         self.server = server

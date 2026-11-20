@@ -114,6 +114,8 @@ public final class RunLockScenarioState {
         let requestID: Int?
         /// 待った秒(ステップの記述に出す)
         public let waited: Double
+        /// 前の持ち主が接続を失った(持ち主不明から外した)キー。そのキーの書き込みが欠けているかもしれない(注記。失敗ではない)
+        public var lostKeys: [String] = []
         public var keys: [String] { plan.keys }
         public var mode: RunLockTable.Mode { plan.mode }
     }
@@ -267,7 +269,9 @@ public final class RunLockScenarioState {
         switch outcome {
         case .granted:
             holdings.commit(plan)
-            return .success(Entry(plan: plan, requestID: id, waited: waited))
+            var entry = Entry(plan: plan, requestID: id, waited: waited)
+            entry.lostKeys = client.takeLostKeys()
+            return .success(entry)
         case .timedOut:
             client.cancel(id: id)
             let names = plan.newKeys.map { "\"\($0)\"" }.joined(separator: ", ")

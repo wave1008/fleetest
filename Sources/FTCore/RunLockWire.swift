@@ -34,7 +34,20 @@ public enum RunLockMessage: Codable, Equatable, Sendable {
     /// 起動の印 `token` のシナリオがロックの外で出した run メモの操作1件が、**発行元の正本(hub)に確定した**。
     /// サーバーは `memoRead` / `memoWrite` の前に、クライアントが出した数だけ届くまで待つ(プロセスをまたぐ `outsideOps` の順序)
     case outsideApplied(token: String)
+    /// 子(マシンの親)から: `token` のシナリオのプロセスを**親が見届けた**(reap した)。サーバーはその印の持ち分を外し、待ちを消す
+    /// (リモートのシナリオが臨界区間の中で死んでも、ssh が生きている間は持ち主不明を作らない)
+    case scenarioEnded(token: String)
+    /// 中継役(`run --runner <機>` の ssh の親。発行元の手元のプロセス)から、**手元の待ち受けへ**: そのディスパッチの ssh が終わった。
+    /// `listener` = そのディスパッチのリモートの待ち受けのパス(ディスパッチの識別子)。サーバーはその待ち受けで受けた残りの持ち分を持ち主不明にして `unknownKeys` を返す(繰り返してよい = 数の照会にも使う)
+    case sshEnded(listener: String)
+    /// 中継役から: そのディスパッチの向こうの run が終わったと確かめた。サーバーはその待ち受けの持ち主不明だけを外し、印を付ける
+    case remoteRunEnded(listener: String)
     // サーバー → クライアント
+    /// `sshEnded` / `remoteRunEnded` への返事: そのディスパッチの持ち主不明のキーの数(0 = 確かめ直しは要らない)
+    /// `capSeconds` = ロックの待ちの絶対上限(中継役が確かめ直しの上限を決める材料)
+    case unknownKeys(listener: String, count: Int, capSeconds: Int)
+    /// 渡し。**印のあるキー**(持ち主不明から外した = 前の持ち主の書き込みが欠けているかもしれない)を含むときはこちら
+    case grantedAfterLoss(id: Int, keys: [String])
     /// run メモの読み書きが、親が適用し終えていない「ロックの外の操作」を待っている(クライアントは待ちの窓を開く)。
     /// 続けて結果(`memo` / `committed` / `failed`)が来る
     case pending(id: Int)

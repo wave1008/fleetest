@@ -32,3 +32,23 @@ enum RunLockIssuerSetup {
         return RunLockIssuer.startIfUsed(project: project, waitCapSeconds: cap, hub: hub, log: log)
     }
 }
+
+extension RunLockIssuer {
+    /// 子(1回のディスパッチ)へ渡す `--lock-socket` / `--lock-control-socket` の値。**呼ぶたびにリモートの待ち受けを新しく開く**
+    /// (ディスパッチごとに別の待ち受け = 同じ機械の別のディスパッチの持ち主不明と混ざらない)ので、子の起動ごとに1回だけ呼び、
+    /// 子が終わったら `closeRemoteListener` で閉じる。
+    /// - 手元の子(`local`): その子が直接つなぐ手元の待ち受け(制御用は要らない・閉じるものは無い)
+    /// - リモートの機械: **このディスパッチの待ち受け**(中継役が ssh の `-R` の転送先と識別子にする)と、中継役が手元からつなぐ手元の待ち受け
+    /// 開けなければ nil(手元の待ち受けで代用しない = リモートの run が手元の出どころとして扱われてしまう)
+    func openChildSockets(machineLabel: String) -> (lockSocket: String, control: String?)? {
+        if machineLabel == DeviceMachineGrouping.localDisplayName { return (socketPath, nil) }
+        guard let dispatchSocket = openRemoteListener(machine: machineLabel) else { return nil }
+        return (dispatchSocket, socketPath)
+    }
+
+    /// 子が終わった後にその待ち受けを閉じる(手元の待ち受けは閉じない)
+    func closeChildSockets(_ sockets: (lockSocket: String, control: String?)?) {
+        guard let sockets, sockets.control != nil else { return }
+        closeRemoteListener(path: sockets.lockSocket)
+    }
+}

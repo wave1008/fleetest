@@ -212,7 +212,8 @@ enum ApiRunMachineFanout {
         let lockIssuer = RunLockIssuerSetup.start(
             project: project, profiles: [profileName], setOverrides: options.setOverrides,
             explicitScenarioTimeout: options.scenarioTimeout, scenarioTimeouts: listedScenarioTimeouts.value,
-            hub: memoRelay.hub, log: { logStderr($0) })
+            hub: memoRelay.hub,
+            log: { logStderr($0) })
         defer { lockIssuer?.stop() }
         let lockInterruptRelay = lockIssuer.map { issuer in InterruptRelay.observing(catchUp: true) { issuer.interrupt() } }
         defer { lockInterruptRelay?.stop() }
@@ -249,11 +250,13 @@ enum ApiRunMachineFanout {
             for (position, entry) in active.enumerated() {
                 let (groupIndex, group, ids) = entry
                 taskGroup.addTask {
+                    // このディスパッチ(子の起動1回)の待ち受け。子が終わったら閉じる(RR-8.5)
+                    let lockSockets = lockIssuer?.openChildSockets(machineLabel: group.machineLabel)
                     let args = buildArgs(
                         project: project.name, profileName: profileName, group: group,
                         scenarioIDs: ids, options: options, runGroup: runGroup,
                         workQueue: dispatcher != nil, runMemoLink: true,
-                        lockSocket: lockIssuer?.socketPath)
+                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
                     let childLink = ChildLink(relay: memoRelay, dispatcher: dispatcher, entry: groupIndex,
                                               writer: writers[groupIndex])
                     let start = Date()
@@ -263,6 +266,7 @@ enum ApiRunMachineFanout {
                         healCollection: healCollection,
                         continuation: continuation, registry: registry,
                         link: childLink)
+                    lockIssuer?.closeChildSockets(lockSockets)
                     return (position, FleetEntryOutcome(
                         host: group.machineLabel, profile: profileName, exitCode: exitCode,
                         duration: Date().timeIntervalSince(start)))
@@ -350,7 +354,7 @@ enum ApiRunMachineFanout {
     static func buildArgs(
         project: String, profileName: String, group: DeviceMachineRunner.Group,
         scenarioIDs: [String], options: Options, runGroup: String, workQueue: Bool = false,
-        runMemoLink: Bool = false, lockSocket: String? = nil
+        runMemoLink: Bool = false, lockSocket: String? = nil, lockControlSocket: String? = nil
     ) -> [String] {
         let machineLabel = group.machineLabel
         var args = ["api", "run", "--project", project, "--profile", profileName]
@@ -363,9 +367,13 @@ enum ApiRunMachineFanout {
         // の宣言参照。リモートは自前でビルドするので、渡す必要も無い)
         if machineLabel == DeviceMachineGrouping.localDisplayName {
             args += ["--skip-build"]
-            // 発行元のロックのサーバー(RR-8.5)。ローカルの子だけ(リモートの子は呼んだら失敗)
+            // 発行元のロックのサーバー(RR-8.5): 手元の子はその待ち受けへ直接つなぐ
             if let lockSocket { args += ["--lock-socket", lockSocket] }
         } else {
+            // リモートの機械(ssh 越し)の子 = 中継役へ: その機械の待ち受け(ssh の `-R` の転送先)と、終わりの知らせ用の手元の待ち受け
+            if let lockSocket, let lockControlSocket {
+                args += ["--lock-socket", lockSocket, "--lock-control-socket", lockControlSocket]
+            }
             if let remoteDir = options.remoteDir { args += ["--remote-dir", remoteDir] }
             if let remoteTimeout = options.remoteTimeout { args += ["--remote-timeout", String(remoteTimeout)] }
             // **`--wait-lock` は子へ渡さない** —— 待つのは親(DispatchPrelock)の役目。

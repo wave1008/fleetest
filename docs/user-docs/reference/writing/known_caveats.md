@@ -275,7 +275,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`@RunOnSingleDevice` removes the class's parallelism and defines no order](../testclass/creating_testclass.md#notes) — it prevents only simultaneous runs inside that class.
 - [Write a key that a run-wide lock guards only inside the lock](../commands/memo.md#notes) — a write outside the lock can arrive later and overwrite the value written inside.
 - [Use `withSharedLock` only to read](../commands/memo.md#notes) — writing the run memo with only shared locks held is an error; a retried scenario runs the lock block again.
-- [Run-wide locks do not work on machines reached over ssh or in `--fleet`](../commands/memo.md#notes) — the call fails at once with an explanation; heavy contention can reach the wait cap, so use the test server's database for heavy or run-spanning exclusion, and never wait for another test with a lock.
+- [Run-wide locks do not work in `--fleet`](../commands/memo.md#notes) — the call fails at once with an explanation (on machines reached over ssh they work; a key whose remote owner lost its connection stays unavailable until that machine's run has ended); heavy contention can reach the wait cap, so use the test server's database for heavy or run-spanning exclusion, and never wait for another test with a lock.
 - [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test.
 
 ## UI component quirks (current limitations)

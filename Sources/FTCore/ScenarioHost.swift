@@ -1085,6 +1085,9 @@ public enum ScenarioHost {
 
         // waitUntilExit() は使わない(永久ハングの実害。理由は ProcessExitWait 参照)
         for await _ in processExited {}
+        // 子を**見届けた後**に知らせる(早く知らせると、まだ走っているシナリオの持ち分を外してしまう = 誤った緑)。
+        // サーバーは接続が閉じたときに持ち分を外す(`RunLockServer.scenarioEnded`)
+        deviceSession.shared.locks.noteScenarioEnded(token: handoff.lockOwnerToken)
         // イベントログのハンドルはここで閉じない(EventLogAppender がプロセス寿命で1本持つ。
         // シナリオ毎に閉じると次のシナリオの追記先が失われる)。write(2) は無バッファなので flush 不要
         if !stdinClosed { try? stdinPipe?.fileHandleForWriting.close() }

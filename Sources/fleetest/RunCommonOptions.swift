@@ -152,6 +152,15 @@ struct RunCommonOptions: ParsableArguments {
             visibility: .hidden))
     var lockSocket: String?
 
+    /// **手で打つものではない**。発行元が**リモートの機械向けの子(中継役 = `run --runner <機>`)にだけ**渡す、発行元の手元の待ち受けのパス
+    /// (`--lock-socket` はその機械の待ち受け)。中継役は ssh が終わったとき・向こうの run の終わりを確かめたとき、ここへ知らせる
+    @Option(name: .customLong("lock-control-socket"),
+            help: ArgumentHelp(
+            "Internal: path of the parent's local run lock socket, used by the relay of a remote machine "
+            + "to report the end of ssh and of the remote run. Set by the parent; not for hand use",
+            visibility: .hidden))
+    var lockControlSocket: String?
+
     /// 親とつながる子か(`--work-queue` は含む)。run の入口で stdin を移す条件
     var linkedToParent: Bool { workQueue || runMemoLink }
 

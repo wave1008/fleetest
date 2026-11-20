@@ -1250,6 +1250,7 @@ struct RunScenarios: AsyncParsableCommand {
             noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: common.workQueue,
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
+            lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
             localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)

@@ -395,6 +395,9 @@ enum MultiTargetRunner {
             runningChildren.withLock { $0[targetID, default: 0] += 1 }
             job?.running(project: unit.project.name, profile: unit.profile, machine: group.machineLabel)
             childHosts.withLock { $0.append((host: label, index: index)) }
+            // このディスパッチ(子の起動1回)の待ち受け。同じ機械へ続けて起こす別の対象とは別のものを開き、子が終わったら閉じる(RR-8.5)
+            let lockIssuer = lockIssuersByProject[unit.project.name]
+            let lockSockets = lockIssuer?.openChildSockets(machineLabel: group.machineLabel)
             let args = DeviceMachineRunner.childArgs(
                 project: unit.project.name, host: group.machineLabel, profile: unit.profile,
                 deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
@@ -404,7 +407,7 @@ enum MultiTargetRunner {
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
                 junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                 runGroup: runGroup, reportDir: reportDir, workQueue: true, runMemoLink: true,
-                lockSocket: lockIssuersByProject[unit.project.name]?.socketPath)
+                lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
             let dispatcher = unit.dispatcher
             let memoHub = unit.memoHub
             let marker = lockMarkers[group.machineLabel]
@@ -418,6 +421,7 @@ enum MultiTargetRunner {
                         RunMemoRelay.intercept(line: line, hub: memoHub, child: .init(target: targetID, entry: entry),
                                                dispatcher: dispatcher, writer: writer)
                     })
+                lockIssuer?.closeChildSockets(lockSockets)
                 memoHub.entryExited(.init(target: targetID, entry: entry))
                 outcomes.withLock {
                     $0.append(ChildOutcome(unit: targetID, machine: machine, exitCode: code,

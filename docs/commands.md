@@ -994,7 +994,7 @@ inconclusive はシナリオを中断しない。レポート・ログには ❓
 | `element.runMemoTextAs(key)` | 掴んだ要素のテキストを run メモへ書き、要素を返す。要素を掴めていなければ失敗 |
 | `string.runMemoTextAs(key)` | 文字列を run メモへ書き、その文字列を返す |
 | `withExclusiveLock(キー..., waitSeconds:) { }` | run 全体の排他ロック(DR-210・RR-8.5)。ブロックの間、run の他のシナリオはそのキーを持てない。キーは名前の順(UTF-8 のバイト列)に1つずつ取る。入れ子は後ろのキーだけ(違反は競合が無くてもエラー)・同じキーの取り直しは何もしない・共有の中の排他はエラー。待ちは `scenarioTimeout` から外し、上限はその run の最長の `scenarioTimeout`(`waitSeconds:` は短くするだけ)。ロックの中の run メモの書き込みは確定を待つ・読みは最新の値。失敗した後はブロックを実行しない |
-| `withSharedLock(キー..., waitSeconds:) { }` | 共有ロック(現在の範囲は 2a: 1台のマシンの run と、マシンをまたぐ run の手元の子)。共有どうしは同時に持てる。排他を持たない間の run メモの書き込み(`writeRunMemo`・`clearRunMemo`・`runMemoTextAs`)はエラー(読むだけに使う)。マシンをまたぐ run では起動したマシンの子にだけ効き(発行元のロックのサーバー・`--lock-socket`)、ssh 越しのリモートの子・`--fleet` のエントリは呼ぶと失敗する(2b) |
+| `withSharedLock(キー..., waitSeconds:) { }` | 共有ロック(範囲: 1台のマシンの run と、マシンをまたぐ run の全マシン。ssh 越しのリモートのマシンも効く = 2b 第1ステップ)。共有どうしは同時に持てる。排他を持たない間の run メモの書き込み(`writeRunMemo`・`clearRunMemo`・`runMemoTextAs`)はエラー(読むだけに使う)。マシンをまたぐ run では発行元のロックのサーバーが効き(手元の子は `--lock-socket`・リモートのマシンは ssh の unix ソケットの転送)、`--fleet` のエントリは呼ぶと失敗する。リモートの接続が途中で切れたキーは「持ち主不明」になり、向こうの run の終わりを確かめるまで取れず、外した後の最初の取得のステップには注記が付く |
 
 - **メモの範囲はテスト1本**(そのテストの `beforeEach()`・本体・`afterEach()`)。シナリオのプロセスの中で完結し、親へ通知しない。
   次のテストは空から始まる。**テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()`)では読み書きとも実行時のエラー**

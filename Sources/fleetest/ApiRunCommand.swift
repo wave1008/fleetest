@@ -890,6 +890,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout.map(Double.init),
             workQueue: common.workQueue,
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
+            lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
             remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
         if exitCode != 0 {
             throw ExitCode(exitCode)

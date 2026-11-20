@@ -275,4 +275,23 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertEqual(store.snapshot(), ["n": ["1"]], "外の clear が先に適用されてから中の書き込みが入る")
         XCTAssertNil(failedReason(core))
     }
+
+    /// 前の持ち主が放さずに終わった(親がシナリオの終わりを見届けた)キーを次に取るステップには注記が付く(失敗ではない)
+    func testTheNextAcquisitionOfAKeyWhoseOwnerEndedInsideTheLockCarriesANote() throws {
+        let server = try startServer()
+        var holder: RunLockClient? = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d", token: "H")
+        let id = try XCTUnwrap(holder).request(keys: ["db"], mode: .exclusive).get()
+        XCTAssertEqual(try XCTUnwrap(holder).wait(id: id, timeout: .seconds(5)), .granted)
+        server.scenarioEnded(token: "H")  // シナリオのプロセスが臨界区間の中で死んだ(親が見届けた)
+        holder = nil  // 死んだプロセスの接続が閉じる = ここで外れて印が付く
+        let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
+        var ran = false
+        withExclusiveLock("db") { ran = true }
+        XCTAssertTrue(ran, "注記であって失敗ではない")
+        XCTAssertNil(failedReason(core))
+        let description = steps(core).first?.description ?? ""
+        XCTAssertTrue(description.contains("[note: the previous holder of \"db\" lost its connection, so its writes may be missing]"), description)
+        withExclusiveLock("other") {}
+        XCTAssertFalse((steps(core).last?.description ?? "").contains("[note:"), "印の無いキーには付かない")
+    }
 }

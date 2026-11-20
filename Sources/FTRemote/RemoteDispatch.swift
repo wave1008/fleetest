@@ -761,6 +761,7 @@ public enum RemoteRunArgs {
                              workQueue: Bool = false,
                              runMemoLink: Bool = false,
                              fleetEntry: Bool = false,
+                             lockSocket: String? = nil,
                              remoteJUnitPath: String?,
                              reportDir: String?, workspace: String? = nil,
                              runGroup: String? = nil) -> [String] {
@@ -811,6 +812,9 @@ public enum RemoteRunArgs {
         if runMemoLink { args.append("--run-memo-link") }
         // 中継しないと、リモートの run が自分だけのロックを持ち、--fleet のエントリの間で割れる(黙って割れない = 呼んだら失敗)
         if fleetEntry { args.append("--fleet-entry") }
+        // 向こうの機械のロックの転送元のパス(RR-8.5)。ロックを使うプロジェクトで中継役が `-R` を張るときだけ渡す =
+        // 向こうの run が手元の子と同じにそのパスへつなぐ。渡さなければ「呼んだら失敗」
+        if let lockSocket { args += ["--lock-socket", lockSocket] }
         if let remoteJUnitPath { args += ["--junit", remoteJUnitPath] }
         // 束ね鍵は**中継しないと向こうの run.json に載らない** = リモートで撮った録画だけが
         // 束から外れる(RunMetaRecord.runGroup の宣言)
@@ -828,6 +832,7 @@ public enum RemoteRunArgs {
                                 workQueue: Bool = false,
                                 runMemoLink: Bool = false,
                                 fleetEntry: Bool = false,
+                                lockSocket: String? = nil,
                                 reportDir: String?, workspace: String? = nil,
                                 runGroup: String? = nil) -> [String] {
         // --runner local の理由は build() のコメント(リモートでの再ディスパッチを止める)
@@ -856,6 +861,8 @@ public enum RemoteRunArgs {
         if runMemoLink { args.append("--run-memo-link") }
         // 理由は build() の --fleet-entry と同じ
         if fleetEntry { args.append("--fleet-entry") }
+        // 理由は build() の --lock-socket と同じ
+        if let lockSocket { args += ["--lock-socket", lockSocket] }
         // 中継の理由は build() の --run-group と同じ
         if let runGroup { args += ["--run-group", runGroup] }
         return args

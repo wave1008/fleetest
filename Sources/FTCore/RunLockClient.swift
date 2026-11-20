@@ -22,6 +22,8 @@ public final class RunLockClient: @unchecked Sendable {
     private var brokenReason: String?
     /// 取り消しを送った要求。後から渡しが届いたら外す(すれ違い)
     private var cancelled = Set<Int>()
+    /// 直近の渡しが印つき(持ち主不明から外したキー)だったときのキー
+    private var lostKeys: [String] = []
 
     private init(descriptor: Int32) {
         self.descriptor = descriptor
@@ -40,6 +42,14 @@ public final class RunLockClient: @unchecked Sendable {
             throw RunLockError("the run lock server closed the connection")
         }
         return client
+    }
+
+    /// 直近の渡しの注記: 前の持ち主が接続を失ったキー(読んだら空に戻す)
+    public func takeLostKeys() -> [String] {
+        lock.withLock { () -> [String] in
+            defer { lostKeys = [] }
+            return lostKeys
+        }
     }
 
     /// テスト用: `FD_CLOEXEC` を確かめる
@@ -79,9 +89,13 @@ public final class RunLockClient: @unchecked Sendable {
                 }
                 switch message {
                 case .queued(let queued) where queued == id: onQueued()
+                case .grantedAfterLoss(let granted, let keys) where granted == id:
+                    lock.withLock { lostKeys = keys }
+                    return .granted
                 case .granted(let granted) where granted == id: return .granted
                 case .failed(let failed, let reason) where failed == id: return .failed(reason)
                 case .granted(let late): releaseIfCancelled(late)
+                case .grantedAfterLoss(let late, _): releaseIfCancelled(late)
                 default: continue
                 }
             }
@@ -96,6 +110,9 @@ public final class RunLockClient: @unchecked Sendable {
 
     /// 子のプロセスが、`token` のシナリオの「ロックの外の操作1件」が正本に確定したと伝える(返事は無い。切れていれば false)
     public func sendOutsideApplied(token: String) -> Bool { send(.outsideApplied(token: token)) }
+
+    /// 子のプロセスからサーバーへの片道の知らせ(`outsideApplied` / `scenarioEnded`)
+    public func sendNote(_ message: RunLockMessage) -> Bool { send(message) }
 
     /// 渡し済みの要求を外す(切れていれば何もしない)
     public func release(id: Int) {

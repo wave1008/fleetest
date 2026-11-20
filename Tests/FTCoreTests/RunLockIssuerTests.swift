@@ -172,11 +172,11 @@ final class RunLockIssuerTests: XCTestCase {
         XCTAssertTrue(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 1, timeout: .zero))
     }
 
-    func testLinkedChildWithoutAnIssuerSocketRefusesWithTheOverSshReason() {
+    func testLinkedChildWithoutAnIssuerSocketRefusesWithAReasonThatNamesTheCauses() {
         let host = RunLockHost(mode: .ownServer)
         host.configure(usesLocks: true, waitCapSeconds: 1, linkedToParent: true, issuerSocket: nil) { _ in }
         XCTAssertEqual(host.access(), .refuse(RunLockHost.linkedChildRefusal))
-        XCTAssertTrue(RunLockHost.linkedChildRefusal.contains("over ssh"))
+        XCTAssertTrue(RunLockHost.linkedChildRefusal.contains("did not hand over a run lock socket"))
         host.configure(usesLocks: true, waitCapSeconds: 1, linkedToParent: true, issuerSocket: "/tmp/x.sock") { _ in }
         XCTAssertEqual(host.access(), .socket("/tmp/x.sock"), "--lock-socket を受けた子はそのソケットを使う")
     }
@@ -272,5 +272,41 @@ final class RunLockIssuerTests: XCTestCase {
         while lines.value.isEmpty, Date() < deadline { usleep(50_000) }
         XCTAssertEqual(lines.value.count, 1)
         XCTAssertTrue(lines.value.first?.contains("gave up") == true, "\(lines.value)")
+    }
+
+    func testReapedScenarioIsReportedToTheOwnServerAndToTheIssuerOverTheSocket() throws {
+        // 自前のサーバー: 見届けたら持ち分を外す
+        let host = RunLockHost(mode: .ownServer)
+        guard case .socket(let path) = host.access() else { return XCTFail("socket expected") }
+        defer { host.stop() }
+        var holder: RunLockClient? = try RunLockClient.connect(path: path, scenario: "H", machine: "m", device: "d", token: "T")
+        let id = try XCTUnwrap(holder).request(keys: ["k"], mode: .exclusive).get()
+        XCTAssertEqual(try XCTUnwrap(holder).wait(id: id, timeout: .seconds(5)), .granted)
+        let waiter = try RunLockClient.connect(path: path, scenario: "W", machine: "m", device: "d", token: "W")
+        let waiting = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        XCTAssertEqual(waiter.wait(id: waiting, timeout: .milliseconds(200)), .timedOut)
+        host.noteScenarioEnded(token: "T")
+        holder = nil  // 接続が閉じたとき(見届け済みの印)に持ち分を外す
+        XCTAssertEqual(waiter.wait(id: waiting, timeout: .seconds(5)), .granted)
+
+        // 発行元へつなぐ子: ソケットで知らせる
+        let fakePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("ftlock-end-\(UUID().uuidString.prefix(6)).sock")
+        let received = LockedValue<[RunLockMessage]>([])
+        let listener = try UnixSocket.listen(path: fakePath)
+        defer { close(listener); unlink(fakePath) }
+        Thread {
+            let conn = accept(listener, nil, nil)
+            let channel = RunLockLineChannel(descriptor: conn)
+            while case .line(let data) = channel.readLine(timeoutMs: 3000) {
+                if let message = RunLockMessage.decode(line: data) { received.withLock { $0.append(message) } }
+            }
+            close(conn)
+        }.start()
+        let child = RunLockHost(mode: .ownServer)
+        child.configure(usesLocks: true, waitCapSeconds: 10, linkedToParent: true, issuerSocket: fakePath) { _ in }
+        child.noteScenarioEnded(token: "T9")
+        let deadline = Date().addingTimeInterval(5)
+        while !received.value.contains(.scenarioEnded(token: "T9")), Date() < deadline { usleep(20_000) }
+        XCTAssertTrue(received.value.contains(.scenarioEnded(token: "T9")))
     }
 }

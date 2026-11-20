@@ -107,6 +107,7 @@ struct RemoteRunDispatcher {
                   workQueue: Bool = false,
                   runMemoLink: Bool = false,
                   fleetEntry: Bool = false,
+                  lockSocket: String? = nil, lockControlSocket: String? = nil,
                   localJUnitPath: String?,
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
@@ -152,13 +153,15 @@ struct RemoteRunDispatcher {
         let remoteReportDir = layout.dispatchReportDir(stamp: stamp)
         let remoteJUnitPath = localJUnitPath != nil
             ? "\(layout.workDir)/.fleetest/dispatch/\(stamp)/junit.xml" : nil
+        // run 全体のロック(RR-8.5): 発行元がこの機械の待ち受けを渡したときだけ、ssh に転送を足して向こうの run へ転送元のパスを渡す
+        let lockLink = RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)
         let fleetestArgs = RemoteRunArgs.build(
             project: project.name, profile: profile, scenarios: scenarios, folders: folders,
             deviceNames: deviceNames, deviceMachine: deviceMachine,
             setOverrides: setOverrides,
             noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
-            runMemoLink: runMemoLink, fleetEntry: fleetEntry,
+            runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockLink?.remotePath,
             remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
             runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
@@ -174,8 +177,10 @@ struct RemoteRunDispatcher {
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
                 developerDir: developerDir, interruptFlag: interruptFlag,
-                linkedToParent: workQueue || runMemoLink)
+                linkedToParent: workQueue || runMemoLink, lockLink: lockLink)
+            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
         } catch {
+            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
             // timeout (throws from runInheritedWithLineRewrite): the remote run may still be
             // alive — the ssh session was just signalled, but the runner's teardown is
             // asynchronous. Release only if it has actually ended (same M7 judgment as the
@@ -232,6 +237,7 @@ struct RemoteRunDispatcher {
                      workQueue: Bool = false,
                      runMemoLink: Bool = false,
                      fleetEntry: Bool = false,
+                     lockSocket: String? = nil, lockControlSocket: String? = nil,
                      remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
@@ -257,13 +263,14 @@ struct RemoteRunDispatcher {
 
         let stamp = Self.makeStamp()
         let remoteReportDir = layout.dispatchReportDir(stamp: stamp)
+        let lockLink = RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)
         let fleetestArgs = RemoteRunArgs.buildApi(
             project: project.name, profile: profile, scenarios: scenarios,
             deviceNames: deviceNames, deviceMachine: deviceMachine,
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode,
             defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
-            runMemoLink: runMemoLink, fleetEntry: fleetEntry,
+            runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockLink?.remotePath,
             reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
         let timeoutSeconds = RemoteTimeout.seconds(
             explicit: remoteTimeoutSeconds, scenarioCount: scenarios.count)
@@ -278,8 +285,10 @@ struct RemoteRunDispatcher {
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
                 developerDir: developerDir, interruptFlag: interruptFlag,
-                linkedToParent: workQueue || runMemoLink)
+                linkedToParent: workQueue || runMemoLink, lockLink: lockLink)
+            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
         } catch {
+            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
             // 理由は dispatch() の同じ catch 参照(timeout でも生きていれば外さない)
             lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
             if !lockReleasedEarly { logKeptDispatchLock(afterCollecting: false) }
@@ -787,6 +796,45 @@ struct RemoteRunDispatcher {
         return released
     }
 
+    /// ssh が終わった直後の、run 全体のロック(RR-8.5)の後始末。手元の発行元へ「この dispatch の ssh が終わった」と知らせ、
+    /// その dispatch の持ち分が持ち主不明になったときだけ、向こうの run の終わりを確かめ直して知らせる(`RunLockRecheck`)。
+    /// **中断されたら確かめ直さない**(中断の後は誰もそのキーを待てない。Ctrl-C が上限 + 猶予まで戻らなくなる)。
+    /// `exitCode` が 0/1 で中断でないなら向こうの run は正常に終わっている(ssh を撃たずに「終わった」とする)。
+    /// 向こうに作らせた転送のソケットのファイルは、最後に best effort で消す
+    private func finishLockLink(_ link: RemoteLockLink?, reportDir: String, exitCode: Int32?, interruptFlag: DispatchInterruptFlag) {
+        guard let link else { return }
+        defer { _ = try? sshCapture("rm -f \(RemoteShell.quote(link.remotePath))") }
+        guard let control = try? RunLockControl.connect(path: link.controlSocket) else {
+            log("==> cannot reach the run lock server of the issuer; locks held on \(hostLabel ?? host.sshTarget) stay unavailable until the run ends")
+            return
+        }
+        let knownEnded = exitCode.map { !Self.shouldAwaitRemoteRunEnd(exitCode: $0, interrupted: interruptFlag.interrupted) } ?? false
+        let outcome = RunLockRecheck.run(
+            listener: link.machineSocket, control: control,
+            runEnded: { knownEnded || remoteRunHasEnded(reportDir: reportDir) },
+            interrupted: { interruptFlag.interrupted },
+            sleep: { duration in
+                // 中断に気付けるよう細かく眠る(根拠: 中断から確かめ直しを止めるまでの遅れを 0.2 秒に収める)
+                var remaining = Double(DurationConversion.milliseconds(duration)) / 1000
+                while remaining > 0, !interruptFlag.interrupted {
+                    Thread.sleep(forTimeInterval: min(0.2, remaining))
+                    remaining -= 0.2
+                }
+            })
+        switch outcome {
+        case .released: log("==> the run on \(hostLabel ?? host.sshTarget) has ended; its lost lock owners were released")
+        case .gaveUp:
+            log("==> could not confirm that the run on \(hostLabel ?? host.sshTarget) has ended; keys its scenarios held stay unavailable until the run ends")
+        case .noUnknownKeys, .unreachable, .issuerClosed, .interrupted: break
+        }
+    }
+
+    /// 向こうの run が終わったか(この dispatch の `--report-dir` を引数に持つプロセスが居ない)。ssh が通らなければ false(終わったと言わない)
+    private func remoteRunHasEnded(reportDir: String) -> Bool {
+        guard let output = try? sshCapture(RemoteDispatchLock.runEndedCommand(reportDir: reportDir)) else { return false }
+        return RemoteDispatchLock.runHasEnded(output)
+    }
+
     /// 自分から中断したとき、または exit 0/1 でない(ssh の断・kill = 255/137 等)ときは、
     /// 回収(collectReports)の前に「このディスパッチの run がランナー上でもう終わったか」を待つ
     /// (**中断も待つ** —— ssh は SIGHUP で即座に閉じるが、向こうの run はそこから後始末して run.json を
@@ -1011,7 +1059,8 @@ struct RemoteRunDispatcher {
     private func runRemoteAndRelay(fleetestArgs: [String], layout: RemoteLayout,
                                    timeoutSeconds: Int?, stamp: String, project: String, localRoot: String,
                                    developerDir: String?,
-                                   interruptFlag: DispatchInterruptFlag, linkedToParent: Bool) throws -> Int32 {
+                                   interruptFlag: DispatchInterruptFlag, linkedToParent: Bool,
+                                   lockLink: RemoteLockLink? = nil) throws -> Int32 {
         log("==> running on \(host.sshTarget): fleetest \(fleetestArgs.joined(separator: " "))")
         let command = RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: fleetestArgs,
                                                    issuer: LocalConfig.resolveIssuerId(),
@@ -1021,7 +1070,7 @@ struct RemoteRunDispatcher {
         // ssh を「このプロセスが死んだら止まる」包みに入れる(孤児の ssh がリモートの run を出力の write で
         // 止めたままにする。理由は ParentBoundCommand の冒頭)
         let status = try runInheritedWithLineRewrite(
-            ParentBoundCommand.wrap(sshRunBase + [host.sshTarget, command],
+            ParentBoundCommand.wrap(sshRunBase + (lockLink?.sshArgs ?? []) + [host.sshTarget, command],
                                     parentPID: ProcessInfo.processInfo.processIdentifier),
             layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project, localRoot: localRoot,
             interruptFlag: interruptFlag, linkedToParent: linkedToParent)

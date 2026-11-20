@@ -40,12 +40,29 @@ public final class RunLockServer: @unchecked Sendable {
     /// 待ちの上限は最長の `scenarioTimeout`(既定 600 秒)なので、1分以内に原因(持ち主)が1行は見える長さにする
     public static let defaultReportInterval: Duration = .seconds(30)
 
+    /// 手元(このプロセスと、この機械で起こした子・中継役)用の待ち受けのパス。**接続の出どころはどの待ち受けで受けたかだけで決める**
+    /// (相手の名乗りや `LOCAL_PEERPID` には頼らない: 転送越しの接続の pid は手元の ssh のものになり、リモートの run は自分を local と名乗る)
     public let socketPath: String
+
+    /// 接続の出どころ = 受けた待ち受け。**リモートはディスパッチ(中継役の子)ごとに別の待ち受け**で、`scope` = その待ち受けのパス
+    /// (持ち主不明を外せるのは同じ scope の知らせだけ。同じ機械の別のディスパッチの不明を巻き込まない)
+    enum Origin: Equatable, Sendable {
+        case local
+        case remote(machine: String, scope: String)
+    }
+
+    /// 閉じた後も持ち分が残っている接続(`scenarioEnded` と、不明を外すときの掃除が引く)
+    private struct ClosedHolder {
+        let token: String
+        /// リモートの待ち受けで受けた接続のときだけ(持ち主不明の範囲)
+        let scope: String?
+    }
 
     private final class Conn: @unchecked Sendable {
         let id: Int
         let descriptor: Int32
         let pid: pid_t
+        let origin: Origin
         // 不変条件: scenario / machine / device / token は server.lock の内側。
         // `closed` は stateLock の内側で、**fd を閉じる(= closed を立てる)のは writeLock と stateLock の両方を持つとき**だけ。
         // 書き込み(writeLock の内側)は closed を見てから書くので、閉じた後の番号(再利用されうる)へは書かない。
@@ -59,10 +76,11 @@ public final class RunLockServer: @unchecked Sendable {
         private let stateLock = NSLock()
         private var closed = false
 
-        init(id: Int, descriptor: Int32, pid: pid_t) {
+        init(id: Int, descriptor: Int32, pid: pid_t, origin: Origin) {
             self.id = id
             self.descriptor = descriptor
             self.pid = pid
+            self.origin = origin
         }
 
         func send(_ message: RunLockMessage) {
@@ -102,6 +120,10 @@ public final class RunLockServer: @unchecked Sendable {
         var nextConnection = 1
         var waiting: [RunLockTable.Owner: Waiting] = [:]
         var stopped = false
+        var closedHolders: [Int: ClosedHolder] = [:]
+        /// 親が見届けた(reap した)シナリオの起動の印。**持ち分を外すのはその接続が閉じたとき**(接続の EOF は、その接続の
+        /// それまでの全メッセージ(`release` を含む)の後に処理される。別の接続の `scenarioEnded` が先に着いても、放した分に印を付けない)
+        var endedTokens: Set<String> = []
     }
 
     private let lock = NSLock()
@@ -114,7 +136,12 @@ public final class RunLockServer: @unchecked Sendable {
     private let log: @Sendable (String) -> Void
     private let pidExitWaiter: PidExitWaiter
     private let reportInterval: Duration
-    private var acceptLoop: AcceptLoop?
+    // 不変条件: acceptLoops / allPaths / remoteLoops は listenersLock の内側(動的に待ち受けを足す・閉じるため)
+    private let listenersLock = NSLock()
+    private var acceptLoops: [AcceptLoop] = []
+    private var allPaths: [String] = []
+    private var remoteLoops: [String: AcceptLoop] = [:]
+    private let directory: String
     private let readers = DispatchGroup()
     private let reporterWake = DispatchSemaphore(value: 0)
     private let stopOnce = LockedValue(false)
@@ -136,6 +163,7 @@ public final class RunLockServer: @unchecked Sendable {
                 pidExitWaiter: @escaping PidExitWaiter = RunLockServer.kqueueExitWaiter,
                 peerPidReader: @escaping PeerPidReader = RunLockServer.peerPid,
                 maxReplyBytes: Int = RunLockLimits.maxLineBytes) throws {
+        self.directory = directory
         self.maxReplyBytes = maxReplyBytes
         applied.reopen()
         self.memoFor = memoFor
@@ -145,33 +173,70 @@ public final class RunLockServer: @unchecked Sendable {
         self.log = log
         self.reportInterval = reportInterval
         self.pidExitWaiter = pidExitWaiter
-        // sun_path は 104 バイト: 一時フォルダ(約 50 文字)+ 短い一意の名前に収める
-        let name = "ftlock-" + String(UUID().uuidString.prefix(8)).lowercased() + ".sock"
-        let path = (directory as NSString).appendingPathComponent(name)
-        self.socketPath = path
+        let localPath = Self.uniquePath(directory: directory)
+        self.socketPath = localPath
+        do {
+            try addListener(path: localPath, origin: .local)
+        } catch {
+            for loop in acceptLoops { loop.stop() }
+            for path in allPaths { Self.removeSocketFile(path) }
+            throw error
+        }
+        startReporter()
+    }
+
+    /// sun_path は 104 バイト: 一時フォルダ(約 50 文字)+ 短い一意の名前に収める。待ち受けごとに別のパス
+    private static func uniquePath(directory: String) -> String {
+        (directory as NSString).appendingPathComponent("ftlock-" + String(UUID().uuidString.prefix(8)).lowercased() + ".sock")
+    }
+
+    private func addListener(path: String, origin: Origin) throws {
         let listener = try UnixSocket.listen(path: path, backlog: Self.listenBacklog)
         Self.registerForExitCleanup(path)
         do {
-            acceptLoop = try AcceptLoop(listener: listener, name: "fleetest-run-lock-accept") { [weak self] descriptor in
+            let loop = try AcceptLoop(listener: listener, name: "fleetest-run-lock-accept") { [weak self] descriptor in
                 guard let self else {
                     close(descriptor)
                     return false
                 }
-                self.accept(descriptor)
+                self.accept(descriptor, origin: origin)
                 return true
+            }
+            listenersLock.withLock {
+                acceptLoops.append(loop)
+                allPaths.append(path)
+                if case .remote = origin { remoteLoops[path] = loop }
             }
         } catch {
             close(listener)
             Self.removeSocketFile(path)
             throw error
         }
-        startReporter()
+    }
+
+    /// リモートの機械へのディスパッチ1回ぶんの待ち受けを開く(中継役の子を起こす直前)。戻り値 = そのパス = ディスパッチの識別子
+    /// (中継役の ssh の `-R` の転送先。`sshEnded` / `remoteRunEnded` もこのパスで呼ぶ)。**ディスパッチごとに別の待ち受け** =
+    /// 同じ機械の別のディスパッチ(前の対象)の持ち主不明と混ざらない
+    public func openRemoteListener(machine: String) throws -> String {
+        let path = Self.uniquePath(directory: directory)
+        try addListener(path: path, origin: .remote(machine: machine, scope: path))
+        return path
+    }
+
+    /// そのディスパッチの待ち受けを閉じる(中継役の子が終わった後)。**既に受けた接続と持ち主不明は残る**(外すのは `remoteRunEnded` だけ)
+    public func closeRemoteListener(path: String) {
+        let loop = listenersLock.withLock { () -> AcceptLoop? in
+            allPaths.removeAll { $0 == path }
+            return remoteLoops.removeValue(forKey: path)
+        }
+        loop?.stop()
+        Self.removeSocketFile(path)
     }
 
     deinit {
-        acceptLoop?.requestStop()
+        for loop in acceptLoops { loop.requestStop() }
         reporterWake.signal()
-        Self.removeSocketFile(socketPath)
+        for path in allPaths { Self.removeSocketFile(path) }
     }
 
     /// 全ての接続が同じ run メモを使う形(テスト・1つの run だけを受け持つ呼び手)
@@ -203,17 +268,16 @@ public final class RunLockServer: @unchecked Sendable {
         reporterWake.signal()
         applied.abort("the run lock server stopped")  // 適用待ちで止まっている読むスレッドを起こす(`readers.wait()` が上限まで待たない)
         for conn in conns { conn.wake() }
+        let (loops, paths) = listenersLock.withLock { (acceptLoops, allPaths) }
         if isOnOwnThread {
-            acquireLoopRequestStop()
-            Self.removeSocketFile(socketPath)
+            for loop in loops { loop.requestStop() }
+            for path in paths { Self.removeSocketFile(path) }
             return
         }
-        acceptLoop?.stop()
+        for loop in loops { loop.stop() }
         readers.wait()
-        Self.removeSocketFile(socketPath)
+        for path in listenersLock.withLock({ allPaths }) { Self.removeSocketFile(path) }
     }
-
-    private func acquireLoopRequestStop() { acceptLoop?.requestStop() }
 
     private static let ownThreadKey = "fleetest.runLockServer"
     private var isOnOwnThread: Bool {
@@ -221,14 +285,18 @@ public final class RunLockServer: @unchecked Sendable {
     }
     private func markOwnThread() { Thread.current.threadDictionary[Self.ownThreadKey] = ObjectIdentifier(self) }
 
+    /// テスト用: 閉じた後も持ち分が残っている接続の数(外したら掃除されること)
+    var closedHolderCountForTesting: Int { lock.withLock { state.closedHolders.count } }
+
     public var isStopped: Bool { lock.withLock { state.stopped } }
 
     // MARK: 接続
 
-    private func accept(_ descriptor: Int32) {
+    private func accept(_ descriptor: Int32, origin: Origin) {
         let conn: Conn? = lock.withLock {
             guard !state.stopped else { return nil }
-            let conn = Conn(id: state.nextConnection, descriptor: descriptor, pid: peerPidReader(descriptor))
+            let conn = Conn(id: state.nextConnection, descriptor: descriptor,
+                            pid: origin == .local ? peerPidReader(descriptor) : 0, origin: origin)
             state.nextConnection += 1
             state.conns[conn.id] = conn
             return conn
@@ -324,7 +392,43 @@ public final class RunLockServer: @unchecked Sendable {
             conn.send(.committed(id: id))
         case .outsideApplied(let token):
             applied.note(token: token)
-        case .queued, .pending, .granted, .failed, .memo, .committed:
+        case .scenarioEnded(let token):
+            scenarioEnded(token: token)
+        case .sshEnded(let listener):
+            guard conn.origin == .local else { return }  // 中継役は手元のプロセス(手元の待ち受け以外の主張は読まない)
+            var count = 0
+            perform { state, lines in
+                var effects = RunLockTable.Effects.none
+                var machine = listener
+                for open in state.conns.values {
+                    guard case .remote(let name, let scope) = open.origin, scope == listener else { continue }
+                    machine = name
+                    let more = state.table.markUnknown(connection: open.id, scope: scope, machine: name)
+                    effects.grants += more.grants
+                    effects.failures += more.failures
+                    effects.lossMarked.merge(more.lossMarked) { $1 }
+                }
+                count = state.table.unknownKeyCount(scope: listener)
+                if count > 0 {
+                    lines.append("run lock: ssh to \(machine) ended while its scenarios held \(count) key(s);"
+                        + " they are unavailable until that dispatch's run is confirmed to have ended")
+                }
+                return effects
+            }
+            conn.send(.unknownKeys(listener: listener, count: count, capSeconds: max(1, waitCapSeconds())))
+        case .remoteRunEnded(let listener):
+            guard conn.origin == .local else { return }
+            perform { state, lines in
+                let released = state.table.releaseUnknown(scope: listener)
+                for (id, closed) in state.closedHolders where closed.scope == listener { state.closedHolders.removeValue(forKey: id) }
+                if released.keys > 0 {
+                    lines.append("run lock: the remote run has ended; released \(released.keys) key(s) of its lost owners"
+                        + " (the next holder is told their writes may be missing)")
+                }
+                return released.effects
+            }
+            conn.send(.unknownKeys(listener: listener, count: 0, capSeconds: max(1, waitCapSeconds())))
+        case .queued, .pending, .granted, .grantedAfterLoss, .failed, .memo, .committed, .unknownKeys:
             break
         }
     }
@@ -351,21 +455,66 @@ public final class RunLockServer: @unchecked Sendable {
         }
     }
 
-    private func connectionDidClose(_ conn: Conn) {
-        var held: [RunLockTable.Owner] = []
-        var stopped = false
+    /// その印のシナリオのプロセスを親が見届けた(reap した)。**その印の接続がまだ開いていれば何もしない**: 持ち分を外すのは接続が閉じたとき
+    /// (EOF は、その接続のそれまでの全メッセージ = `release` の後に処理されるので、放した分に印を付けない)。
+    /// 既に閉じていて持ち分(持ち主不明・pid 待ち)が残っていれば、ここで外す(閉じたまま持っていた = 印が付く)
+    public func scenarioEnded(token: String) {
+        guard !token.isEmpty else { return }
         perform { state, _ in
+            state.endedTokens.insert(token)
+            var effects = RunLockTable.Effects.none
+            for (id, closed) in state.closedHolders.sorted(by: { $0.key < $1.key }) where closed.token == token {
+                let released = state.table.releaseAll(connection: id)
+                effects.grants += released.grants
+                effects.failures += released.failures
+                effects.lossMarked.merge(released.lossMarked) { $1 }
+                state.closedHolders.removeValue(forKey: id)
+            }
+            return effects
+        }
+    }
+
+    /// 接続が閉じた。**1回の操作で**(別のスレッドの `scenarioEnded` / `sshEnded` が間に入って取りこぼされない)
+    /// 表から外し・持ち主を決める:
+    /// - 持ち分が無ければ何もしない
+    /// - その印のシナリオを親が見届けていれば(`scenarioEnded` が先に着いていた)、閉じたまま持っていたので外して印を付ける
+    /// - リモートの待ち受けで受けた接続は**持ち主不明**(ssh の切断でも閉じ、切れた先でまだ臨界区間を走っていることがある)
+    /// - 手元の待ち受けで受けた接続は、相手のプロセスの終わりを待って外す
+    private func connectionDidClose(_ conn: Conn) {
+        var localHeld: [RunLockTable.Owner] = []
+        var stopped = false
+        perform { state, lines in
             stopped = state.stopped
             state.conns.removeValue(forKey: conn.id)
             let closed = state.table.connectionClosed(conn.id)
-            held = closed.held
+            var effects = closed.effects
             for owner in state.waiting.keys where owner.connection == conn.id && !closed.held.contains(owner) {
                 state.waiting.removeValue(forKey: owner)
             }
-            return closed.effects
+            guard !closed.held.isEmpty, !state.stopped else { return effects }
+            func merge(_ more: RunLockTable.Effects) {
+                effects.grants += more.grants
+                effects.failures += more.failures
+                effects.lossMarked.merge(more.lossMarked) { $1 }
+            }
+            if !conn.token.isEmpty, state.endedTokens.contains(conn.token) {
+                merge(state.table.releaseAll(connection: conn.id))
+                return effects
+            }
+            switch conn.origin {
+            case .remote(let machine, let scope):
+                state.closedHolders[conn.id] = ClosedHolder(token: conn.token, scope: scope)
+                lines.append("run lock: \(describe(conn)) lost its connection while holding locks, so the keys it held are unknown-owner"
+                    + " until the run on \(machine) is confirmed to have ended")
+                merge(state.table.markUnknown(connection: conn.id, scope: scope, machine: machine))
+            case .local:
+                state.closedHolders[conn.id] = ClosedHolder(token: conn.token, scope: nil)
+                localHeld = closed.held
+            }
+            return effects
         }
-        guard !held.isEmpty, !stopped else { return }
-        let heldOwners = held
+        guard !localHeld.isEmpty, !stopped else { return }
+        let heldOwners = localHeld
         let releaseHeld: @Sendable () -> Void = { [self] in
             perform { state, _ in
                 var effects = RunLockTable.Effects.none
@@ -374,6 +523,7 @@ public final class RunLockServer: @unchecked Sendable {
                     effects.grants += released.grants
                     effects.failures += released.failures
                 }
+                state.closedHolders.removeValue(forKey: conn.id)
                 return effects
             }
         }
@@ -402,7 +552,13 @@ public final class RunLockServer: @unchecked Sendable {
             let effects = body(&state, &lines)
             for owner in effects.grants {
                 state.waiting.removeValue(forKey: owner)
-                if let conn = state.conns[owner.connection] { sends.append((conn, .granted(id: owner.requestID))) }
+                if let conn = state.conns[owner.connection] {
+                    if let lost = effects.lossMarked[owner] {
+                        sends.append((conn, .grantedAfterLoss(id: owner.requestID, keys: lost)))
+                    } else {
+                        sends.append((conn, .granted(id: owner.requestID)))
+                    }
+                }
             }
             for failure in effects.failures {
                 state.waiting.removeValue(forKey: failure.owner)
