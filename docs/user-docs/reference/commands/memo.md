@@ -52,7 +52,7 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   between your read and your write, or about which of two simultaneous writes to one key comes last. **Write each key from one place** — make the key per test
   (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](#run-wide-locks-withexclusivelock-withsharedlock) for light cases, or the database of your test server for heavy or run-spanning ones.
 - `clearRunMemo()` clears the run memo as it stands at that point, including your own writes not yet confirmed.
-- **In a run whose run profile has devices on several machines** (and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
+- **In a run whose run profile has devices on several machines** (a run profile whose devices name another machine in `machine`; see [remote runners](../../fleet/remote_runners.md); and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
   **The exception is a `--fleet` run**: with or without `--split`, its run memo is shared per machine, not across machines (the run prints one line at the start saying so).
 - Trying to pass a value through a test-class property (`var`) produces a build warning when the writer
   and the reader run in different processes — written in one `@Test` and read in another, or written in
