@@ -1069,11 +1069,18 @@ struct RemoteRunDispatcher {
                                                    developerDir: developerDir)
         // ssh を「このプロセスが死んだら止まる」包みに入れる(孤児の ssh がリモートの run を出力の write で
         // 止めたままにする。理由は ParentBoundCommand の冒頭)
+        // ロックの待ちの時間だけ期限を延ばす(発行元のサーバーが数える)。延長の合計の上限は元の期限
+        let extender: RemoteLockWaitExtender? = lockLink.flatMap { link in
+            timeoutSeconds.map { total in
+                RemoteLockWaitExtender(listener: link.machineSocket, capMs: total * 1000,
+                                       connect: { try? RunLockControl.connect(path: link.controlSocket) })
+            }
+        }
         let status = try runInheritedWithLineRewrite(
             ParentBoundCommand.wrap(sshRunBase + (lockLink?.sshArgs ?? []) + [host.sshTarget, command],
                                     parentPID: ProcessInfo.processInfo.processIdentifier),
             layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project, localRoot: localRoot,
-            interruptFlag: interruptFlag, linkedToParent: linkedToParent)
+            interruptFlag: interruptFlag, linkedToParent: linkedToParent, lockWaitExtender: extender)
         if status == 90 {
             log("==> the remote fleetest binary is missing — build it on the remote first"
                 + " (swift build --product fleetest)")
@@ -1554,7 +1561,8 @@ struct RemoteRunDispatcher {
                                              timeoutSeconds: Int?, stamp: String,
                                              project: String, localRoot: String,
                                              interruptFlag: DispatchInterruptFlag,
-                                             linkedToParent: Bool) throws -> Int32 {
+                                             linkedToParent: Bool,
+                                             lockWaitExtender: RemoteLockWaitExtender? = nil) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = argv
@@ -1616,8 +1624,14 @@ struct RemoteRunDispatcher {
         defer { relay.stop() }
         // **登録の直前までに届いていた中断を閉じる**(宣言は関数冒頭参照)
         if interruptFlag.interrupted { process.terminate() }
-        let deadline = timeoutSeconds.map { DispatchTime.now() + .seconds($0) } ?? .distantFuture
-        if waitExit(deadline) == .timedOut {
+        // 期限に達したら、ロックの待ちで止まっていた時間(発行元のサーバーが数えた累計)のぶんだけ延ばす(RR-8.5。繰り返しの規則は
+        // `RemoteDeadlineWait`)。接続が無ければ延ばさない。**延ばせるのは多マシンの run の中継役(`lockWaitExtender` を持つ子)だけ**
+        let deadlineResult = RemoteDeadlineWait.run(
+            initialDeadline: timeoutSeconds.map { DispatchTime.now() + .seconds($0) } ?? .distantFuture,
+            waitExit: waitExit, capMs: (timeoutSeconds ?? 0) * 1000,
+            extension: lockWaitExtender.map { extender in { extender.additionalMs() } }, log: { log($0) })
+        let timedOut = deadlineResult.timedOut
+        if timedOut {
             process.terminate()                        // SIGTERM; -tt が SIGHUP をリモートへ伝える(RR-16.1)
             if waitExit(.now() + 2.0) == .timedOut {   // 猶予後も生存していれば強制終了
                 kill(process.processIdentifier, SIGKILL)
@@ -1625,8 +1639,13 @@ struct RemoteRunDispatcher {
             }
             readDone.wait()
             if let remaining = splitter.flush() { relayLine(remaining) }
+            let baseSeconds = timeoutSeconds ?? 0
+            let extendedSeconds = deadlineResult.extendedMs / 1000
+            let timeoutDescription: String = extendedSeconds > 0
+                ? "after \(baseSeconds + extendedSeconds)s (\(baseSeconds)s + \(extendedSeconds)s extended for run-wide lock waits)"
+                : "after \(baseSeconds)s"
             throw RemoteDispatchError.remoteRunTimedOut(
-                "after \(timeoutSeconds ?? 0)s (the remote process was signalled;"
+                timeoutDescription + " (the remote process was signalled;"
                 + " run `fleetest remote clean <host>` if devices remain busy)")
         }
         readDone.wait()

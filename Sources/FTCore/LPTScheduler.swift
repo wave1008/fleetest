@@ -138,7 +138,7 @@ public enum LPTScheduler {
             }
             guard !group.isEmpty else { return nil }
             return Duration(scenarioID: key.scenarioID, platform: key.platform,
-                            medianMs: median(of: group.map { Double($0.durationMs) }))
+                            medianMs: median(of: group.map { Double($0.estimateDurationMs) }))
         }
         // 集計順は Dictionary 由来で不定なので、呼び出し側が決定的に扱えるよう並べておく
         .sorted { $0.scenarioID == $1.scenarioID ? $0.platform < $1.platform
@@ -158,7 +158,7 @@ public enum LPTScheduler {
         }
         return grouped.map { key, group in
             MachineDuration(scenarioID: key.scenarioID, platform: key.platform, machine: key.machine,
-                            medianMs: median(of: group.map { Double($0.durationMs) }))
+                            medianMs: median(of: group.map { Double($0.estimateDurationMs) }))
         }
         // 集計順は Dictionary 由来で不定なので、呼び出し側が決定的に扱えるよう並べておく
         .sorted {

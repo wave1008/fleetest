@@ -43,6 +43,10 @@ public enum RunLockMessage: Codable, Equatable, Sendable {
     /// 中継役から: そのディスパッチの向こうの run が終わったと確かめた。サーバーはその待ち受けの持ち主不明だけを外し、印を付ける
     case remoteRunEnded(listener: String)
     // サーバー → クライアント
+    /// 中継役から、手元の待ち受けへ: そのディスパッチの待ちの和集合の累計(`RunLockWaitUnion`)を知りたい
+    case waitedQuery(listener: String)
+    /// `waitedQuery` への返事(ミリ秒)
+    case waited(listener: String, ms: Int)
     /// `sshEnded` / `remoteRunEnded` への返事: そのディスパッチの持ち主不明のキーの数(0 = 確かめ直しは要らない)
     /// `capSeconds` = ロックの待ちの絶対上限(中継役が確かめ直しの上限を決める材料)
     case unknownKeys(listener: String, count: Int, capSeconds: Int)

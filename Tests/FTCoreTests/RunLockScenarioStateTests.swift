@@ -233,12 +233,30 @@ final class RunLockScenarioStateTests: XCTestCase {
         XCTAssertEqual(changes.value.count, 2, "再試行の間は待ちの窓を開く")
     }
 
+    /// 結んだが待ち受けていないソケット(つなぐと ECONNREFUSED)。後から同じ fd で `listen` すれば、ファイルを消して結び直す隙間
+    /// (その間につなぐと ENOENT = 再試行しない失敗)を作らずに「サーバーが立った」を再現できる
+    private func boundButNotListening() throws -> (path: String, descriptor: Int32) {
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("ftlock-late-\(UUID().uuidString.prefix(6)).sock")
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            for (index, byte) in Array(path.utf8).enumerated() { buffer[index] = byte }
+        }
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        guard descriptor >= 0, bound == 0 else { throw POSIXError(.EIO) }
+        return (path, descriptor)
+    }
+
     func testConnectSucceedsWhenTheServerComesUpDuringTheRetry() throws {
-        let path = try refusingSocketPath()
+        let (path, listener) = try boundButNotListening()
         defer { unlink(path) }
         Thread {
             usleep(300_000)
-            guard let listener = try? UnixSocket.listen(path: path) else { return }
+            guard Darwin.listen(listener, 16) == 0 else { return }
             let conn = accept(listener, nil, nil)
             let channel = RunLockLineChannel(descriptor: conn)
             while case .line(let data) = channel.readLine(timeoutMs: 3000) {
@@ -258,7 +276,8 @@ final class RunLockScenarioStateTests: XCTestCase {
         let state = state(.socket("/tmp/ftlock-missing-\(UUID().uuidString.prefix(6)).sock"), cap: 30)
         let started = Date()
         XCTAssertTrue(failure(state.enter(keys: ["a"], mode: .exclusive, waitSeconds: nil)).contains("cannot reach"))
-        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
+        // 見分けるのは「即座」と「上限(30秒)まで再試行」。境目は上限の半分(全体のテストの並列の負荷で、即座の失敗でも 2 秒を超えた)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 15)
     }
 
     func testBrokenConnectionMakesEveryLaterLockCallFail() throws {

@@ -385,6 +385,7 @@ final class RunLockRemoteTests: XCTestCase {
             return (value, capSeconds)
         }
         func remoteRunEnded(listener: String) -> Bool { remoteEndedCalls += 1; return true }
+        func waitedMs(listener: String) -> Int? { nil }
         func issuerClosed() -> Bool { closed }
     }
 
@@ -445,6 +446,7 @@ final class RunLockRemoteTests: XCTestCase {
         struct Dead: RunLockRelayControl {
             func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
             func remoteRunEnded(listener: String) -> Bool { false }
+            func waitedMs(listener: String) -> Int? { nil }
             func issuerClosed() -> Bool { false }
         }
         XCTAssertEqual(RunLockRecheck.run(listener: "L1", control: Dead(), runEnded: { true }, sleep: { _ in }), .unreachable)

@@ -887,6 +887,8 @@ struct RunScenario: AsyncParsableCommand {
         // 最後のステップの後の端数(afterEach・片付け・向きの復元など)
         let remainingActions = actionCounter.take()
         if remainingActions > 0 { finished.actions = remainingActions }
+        // ロックの待ちで止まっていた時間(結果 JSON の `lockWaitMs`)。待たなかったシナリオは載せない
+        if core.runLocks.totalWaitedMs > 0 { finished.lockWaitMs = core.runLocks.totalWaitedMs }
         emit(finished)
 
         // FM 失敗は各呼び出し箇所が nil を返して素通りさせる契約のため、結果からは見えない。

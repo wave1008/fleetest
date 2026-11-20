@@ -181,4 +181,134 @@ final class RunLockIssuerWiringTests: XCTestCase {
             project: project, profiles: ["p"], setOverrides: [:], scenarioTimeouts: []), ScenarioHost.defaultScenarioTimeout,
                        "プロファイルを読めなければ既定")
     }
+
+    // MARK: 中継役の期限の延長(ロックの待ち)
+
+    private final class WaitedControl: RunLockRelayControl, @unchecked Sendable {
+        var waited: [Int?]
+        private(set) var asked = 0
+        init(_ waited: [Int?]) { self.waited = waited }
+        func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+        func remoteRunEnded(listener: String) -> Bool { false }
+        func waitedMs(listener: String) -> Int? { asked += 1; return waited.isEmpty ? nil : waited.removeFirst() }
+        func issuerClosed() -> Bool { false }
+    }
+
+    func testTheExtenderExtendsByTheDifferenceSinceTheLastCheckAndNeverBeyondTheCap() {
+        let control = WaitedControl([4_000, 9_000, 9_000, 500_000])
+        let extender = RemoteLockWaitExtender(listener: "L", capMs: 20_000, connect: { control })
+        XCTAssertEqual(extender.additionalMs(), 4_000)
+        XCTAssertEqual(extender.additionalMs(), 5_000, "前回との差")
+        XCTAssertEqual(extender.additionalMs(), 0, "増えていなければ延ばさない")
+        XCTAssertEqual(extender.additionalMs(), 11_000, "合計は元の期限(上限)まで: 20_000 - 9_000")
+    }
+
+    func testTheExtenderNeverExtendsWithoutAConnectionAndStaysGone() {
+        var connects = 0
+        let none = RemoteLockWaitExtender(listener: "L", capMs: 20_000, connect: { connects += 1; return nil })
+        XCTAssertEqual(none.additionalMs(), 0)
+        XCTAssertEqual(none.additionalMs(), 0)
+        XCTAssertEqual(connects, 1, "つなげなかったら以後つなぎ直さない")
+        // 途中で接続が切れた(答えが nil)
+        let control = WaitedControl([3_000, nil, 9_000])
+        let dropped = RemoteLockWaitExtender(listener: "L", capMs: 20_000, connect: { control })
+        XCTAssertEqual(dropped.additionalMs(), 3_000)
+        XCTAssertEqual(dropped.additionalMs(), 0)
+        XCTAssertEqual(dropped.additionalMs(), 0, "切れた後は延ばさない")
+        XCTAssertEqual(control.asked, 2)
+    }
+
+    /// 偽の世界: 時計はこの値だけ進む・`waitExit` は期限まで時計を進めて「まだ終わっていない」を返す(上限回数を超えたら終わった扱いで暴走を止める)
+    private final class FakeWorld {
+        var nowNs: UInt64 = 1_000_000_000_000
+        var waitCalls = 0
+        var logs: [String] = []
+        func now() -> DispatchTime { DispatchTime(uptimeNanoseconds: nowNs) }
+        func waitExit(_ deadline: DispatchTime) -> DispatchTimeoutResult {
+            waitCalls += 1
+            if waitCalls > 10_000 { return .success }
+            nowNs = max(nowNs, deadline.uptimeNanoseconds)
+            return .timedOut
+        }
+    }
+
+    func testNothingWaitedMeansTheDeadlineFiresOnce() {
+        let world = FakeWorld()
+        var queries = 0
+        let result = RemoteDeadlineWait.run(
+            initialDeadline: world.now() + .seconds(60), waitExit: world.waitExit, capMs: 60_000,
+            extension: { queries += 1; return 0 }, now: world.now, log: { world.logs.append($0) })
+        XCTAssertTrue(result.timedOut)
+        XCTAssertEqual(world.waitCalls, 1, "延ばす材料が無ければ1回で打ち切る(`guard extra > 0` を外すと無限に続く)")
+        XCTAssertEqual(queries, 1)
+        XCTAssertEqual(result.extendedMs, 0)
+        XCTAssertTrue(world.logs.isEmpty)
+        // 延長の仕組みを持たない(単発の `run --runner`)も同じ
+        let plain = FakeWorld()
+        XCTAssertTrue(RemoteDeadlineWait.run(initialDeadline: plain.now() + .seconds(60), waitExit: plain.waitExit,
+                                             capMs: 60_000, extension: nil, now: plain.now, log: { _ in }).timedOut)
+        XCTAssertEqual(plain.waitCalls, 1)
+    }
+
+    /// 待ちが続く間でも、問い合わせは最小の長さ(5秒)ごとにしか起きず、ログは最初と最後だけ。上限に達したら打ち切る
+    func testQueriesAreBoundedWhileWaitingContinuesAndTheLogIsOnlyFirstAndSummary() {
+        let world = FakeWorld()
+        let start = world.nowNs
+        let capMs = 600_000  // 延長の合計の上限(10分)
+        let extender = RemoteLockWaitExtender(listener: "L", capMs: capMs, connect: {
+            // サーバーの累計 = 開始からの経過(ずっと待ちが続いている)
+            final class Growing: RunLockRelayControl {
+                let world: FakeWorld, start: UInt64
+                init(_ w: FakeWorld, _ s: UInt64) { world = w; start = s }
+                func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+                func remoteRunEnded(listener: String) -> Bool { false }
+                func waitedMs(listener: String) -> Int? { Int((world.nowNs - start) / 1_000_000) }
+                func issuerClosed() -> Bool { false }
+            }
+            return Growing(world, start)
+        })
+        let result = RemoteDeadlineWait.run(
+            initialDeadline: world.now() + .seconds(30), waitExit: world.waitExit, capMs: capMs,
+            extension: { extender.additionalMs() }, now: world.now, log: { world.logs.append($0) })
+        XCTAssertTrue(result.timedOut, "上限まで延ばしても終わらなければ打ち切る")
+        // 問い合わせの数 ≤ 延長の合計の上限 / 最小の長さ + 余裕(数ミリ秒ごとの空回りなら数万回になる)
+        XCTAssertLessThan(world.waitCalls, capMs / (RemoteDeadlineWait.minimumStepSeconds * 1000) + 5, "\(world.waitCalls)")
+        XCTAssertEqual(world.logs.count, 2, "最初の延長と最後の要約だけ: \(world.logs)")
+        XCTAssertTrue(world.logs.last?.contains("extended by") == true)
+        // 新しい期限は max(いまの期限, いま) から数える: 時計は期限へ進んでいるので、延長のたびに少なくとも最小の長さ進む
+        XCTAssertGreaterThanOrEqual(result.extendedMs, capMs, "上限の分は使い切る")
+    }
+
+    /// 待ちが細く続く(累計が経過時間の 2% ずつしか増えない)run でも、延長の合計は上限まで・問い合わせは上限 / 最小の長さ 回以内
+    func testASlowlyGrowingWaitCannotExtendBeyondTheCapOrQueryMoreThanCapOverMinimumStep() {
+        final class Slow: RunLockRelayControl {
+            let world: FakeWorld, start: UInt64
+            init(_ w: FakeWorld, _ s: UInt64) { world = w; start = s }
+            func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+            func remoteRunEnded(listener: String) -> Bool { false }
+            func waitedMs(listener: String) -> Int? { Int((world.nowNs - start) / 1_000_000 / 50) }
+            func issuerClosed() -> Bool { false }
+        }
+        let world = FakeWorld()
+        let capMs = 100_000
+        let control = Slow(world, world.nowNs)
+        let extender = RemoteLockWaitExtender(listener: "L", capMs: capMs, connect: { control })
+        let result = RemoteDeadlineWait.run(
+            initialDeadline: world.now() + .seconds(30), waitExit: world.waitExit, capMs: capMs,
+            extension: { extender.additionalMs() }, now: world.now, log: { world.logs.append($0) })
+        XCTAssertTrue(result.timedOut)
+        XCTAssertLessThanOrEqual(result.extendedMs, capMs, "延長の合計は上限まで(最小の長さによる超過で上限を超えない)")
+        XCTAssertLessThanOrEqual(world.waitCalls, capMs / (RemoteDeadlineWait.minimumStepSeconds * 1000) + 2, "\(world.waitCalls)")
+        XCTAssertEqual(world.logs.count, 2)
+    }
+
+    func testTheDeadlineWaitIsWiredThroughTheSharedHelperAndTheTimeoutMessageNamesTheExtension() throws {
+        let relay = try source("Sources/fleetest/RemoteRunDispatcher.swift")
+        XCTAssertTrue(relay.contains("RemoteDeadlineWait.run("))
+        XCTAssertTrue(relay.contains("extension: lockWaitExtender.map"))
+        XCTAssertTrue(relay.contains("RemoteLockWaitExtender(listener: link.machineSocket, capMs: total * 1000"),
+                      "延長の合計の上限は元の期限(dispatch と dispatchApi が共有する runRemoteAndRelay)")
+        XCTAssertEqual(relay.components(separatedBy: "lockWaitExtender: extender").count - 1, 1)
+        XCTAssertTrue(relay.contains("deadlineResult.extendedMs"), "打ち切りの文言に延長した合計を含める")
+    }
 }

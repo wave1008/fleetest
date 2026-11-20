@@ -52,13 +52,13 @@ public final class RunLockServer: @unchecked Sendable {
     }
 
     /// 閉じた後も持ち分が残っている接続(`scenarioEnded` と、不明を外すときの掃除が引く)
-    private struct ClosedHolder {
+    fileprivate struct ClosedHolder {
         let token: String
         /// リモートの待ち受けで受けた接続のときだけ(持ち主不明の範囲)
         let scope: String?
     }
 
-    private final class Conn: @unchecked Sendable {
+    fileprivate final class Conn: @unchecked Sendable {
         let id: Int
         let descriptor: Int32
         let pid: pid_t
@@ -108,17 +108,27 @@ public final class RunLockServer: @unchecked Sendable {
         }
     }
 
-    private struct Waiting {
+    fileprivate struct Waiting {
         let keys: [String]
         let mode: RunLockTable.Mode
         let since: SuspendingClock.Instant
+        /// リモートのディスパッチの待ち(その待ち受けの識別子)。手元は nil(数えない)
+        let scope: String?
     }
 
-    private struct State {
+    /// 待ちの時刻(ミリ秒)の起点。`RunLockWaitUnion` へ渡す値はこの起点からの経過
+    private static let clockOrigin = SuspendingClock().now
+    private static func nowMs() -> Int { DurationConversion.milliseconds(SuspendingClock().now - clockOrigin) }
+
+    fileprivate struct State {
         var table = RunLockTable()
         var conns: [Int: Conn] = [:]
         var nextConnection = 1
         var waiting: [RunLockTable.Owner: Waiting] = [:]
+        /// リモートのディスパッチ(待ち受けの識別子)ごとの待ちの和集合
+        var waitUnion: [String: RunLockWaitUnion] = [:]
+        /// 待ち受けを閉じた範囲。待ちが尽きたら `waitUnion` から外す
+        var closedScopes: Set<String> = []
         var stopped = false
         var closedHolders: [Int: ClosedHolder] = [:]
         /// 親が見届けた(reap した)シナリオの起動の印。**持ち分を外すのはその接続が閉じたとき**(接続の EOF は、その接続の
@@ -231,6 +241,10 @@ public final class RunLockServer: @unchecked Sendable {
         }
         loop?.stop()
         Self.removeSocketFile(path)
+        lock.withLock {
+            state.closedScopes.insert(path)
+            state.pruneWaitUnion(path)
+        }
     }
 
     deinit {
@@ -349,8 +363,11 @@ public final class RunLockServer: @unchecked Sendable {
             case .success(let keys):
                 perform { state, _ in
                     let effects = state.table.acquire(connection: conn.id, requestID: id, keys: keys, mode: mode)
-                    if !state.table.isGranted(owner), state.table.waitingKey(of: owner) != nil {
-                        state.waiting[owner] = Waiting(keys: keys, mode: mode, since: SuspendingClock().now)
+                    // 表が**この要求を新しく**行列に入れたときだけ待ちに数える(重複で断られた要求は、元の待ちが数えられているので重ねない)
+                    if state.waiting[owner] == nil, !effects.failures.contains(where: { $0.owner == owner }),
+                       !state.table.isGranted(owner), state.table.waitingKey(of: owner) != nil {
+                        let scope: String? = { if case .remote(_, let scope) = conn.origin { return scope } else { return nil } }()
+                        state.beginWaiting(owner, Waiting(keys: keys, mode: mode, since: SuspendingClock().now, scope: scope), nowMs: Self.nowMs())
                         // 順序の根拠: 渡しを書くのも同じ lock の内側なので、`queued` は必ず `granted` より前に届く
                         conn.send(.queued(id: id))
                     }
@@ -365,7 +382,7 @@ public final class RunLockServer: @unchecked Sendable {
                     lines.append("run lock: \(describe(conn)) gave up waiting for \"\(key)\" after \(seconds)s;"
                         + " held by \(holdersText(of: key, in: state))")
                 }
-                state.waiting.removeValue(forKey: owner)
+                state.endWaiting(owner, nowMs: Self.nowMs())
                 return state.table.cancel(connection: conn.id, requestID: id)
             }
         case .release(let id):
@@ -428,7 +445,11 @@ public final class RunLockServer: @unchecked Sendable {
                 return released.effects
             }
             conn.send(.unknownKeys(listener: listener, count: 0, capSeconds: max(1, waitCapSeconds())))
-        case .queued, .pending, .granted, .grantedAfterLoss, .failed, .memo, .committed, .unknownKeys:
+        case .waitedQuery(let listener):
+            guard conn.origin == .local else { return }
+            let ms = lock.withLock { state.waitUnion[listener]?.totalMs(nowMs: Self.nowMs()) ?? 0 }
+            conn.send(.waited(listener: listener, ms: ms))
+        case .queued, .pending, .granted, .grantedAfterLoss, .failed, .memo, .committed, .unknownKeys, .waited:
             break
         }
     }
@@ -489,7 +510,7 @@ public final class RunLockServer: @unchecked Sendable {
             let closed = state.table.connectionClosed(conn.id)
             var effects = closed.effects
             for owner in state.waiting.keys where owner.connection == conn.id && !closed.held.contains(owner) {
-                state.waiting.removeValue(forKey: owner)
+                state.endWaiting(owner, nowMs: Self.nowMs())
             }
             guard !closed.held.isEmpty, !state.stopped else { return effects }
             func merge(_ more: RunLockTable.Effects) {
@@ -551,7 +572,7 @@ public final class RunLockServer: @unchecked Sendable {
         lock.withLock {
             let effects = body(&state, &lines)
             for owner in effects.grants {
-                state.waiting.removeValue(forKey: owner)
+                state.endWaiting(owner, nowMs: Self.nowMs())
                 if let conn = state.conns[owner.connection] {
                     if let lost = effects.lossMarked[owner] {
                         sends.append((conn, .grantedAfterLoss(id: owner.requestID, keys: lost)))
@@ -561,7 +582,7 @@ public final class RunLockServer: @unchecked Sendable {
                 }
             }
             for failure in effects.failures {
-                state.waiting.removeValue(forKey: failure.owner)
+                state.endWaiting(failure.owner, nowMs: Self.nowMs())
                 if let conn = state.conns[failure.owner.connection] {
                     sends.append((conn, .failed(id: failure.owner.requestID, reason: failure.reason)))
                 }
@@ -708,5 +729,30 @@ public final class RunLockServer: @unchecked Sendable {
     private static func removeSocketFile(_ path: String) {
         unlink(path)
         livePaths.withLock { _ = $0.remove(path) }
+    }
+}
+
+extension RunLockServer.State {
+    /// 待ちに入った(リモートのディスパッチなら和集合に数える)
+    fileprivate mutating func beginWaiting(_ owner: RunLockTable.Owner, _ waiting: RunLockServer.Waiting, nowMs: Int) {
+        self.waiting[owner] = waiting
+        if let scope = waiting.scope { waitUnion[scope, default: RunLockWaitUnion()].begin(nowMs: nowMs) }
+    }
+
+    /// 待ちが終わった(渡し・失敗・取り消し・接続の終わり)。待っていなければ何もしない
+    fileprivate mutating func endWaiting(_ owner: RunLockTable.Owner, nowMs: Int) {
+        guard let waiting = self.waiting.removeValue(forKey: owner) else { return }
+        if let scope = waiting.scope {
+            waitUnion[scope]?.end(nowMs: nowMs)
+            pruneWaitUnion(scope)
+        }
+    }
+
+    /// 待ち受けを閉じた範囲の和集合は、待ちが尽きたら捨てる(ディスパッチごとに増え続けない)
+    fileprivate mutating func pruneWaitUnion(_ scope: String) {
+        if closedScopes.contains(scope), waitUnion[scope]?.isActive != true {
+            waitUnion.removeValue(forKey: scope)
+            closedScopes.remove(scope)
+        }
     }
 }

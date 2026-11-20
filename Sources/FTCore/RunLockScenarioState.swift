@@ -89,6 +89,8 @@ public final class RunLockScenarioState {
     /// このシナリオがロックの外で出した run メモの操作(runMemoWrite + runMemoClear のイベント)の数。
     /// ロックの中の読み書きに載せ、サーバーは親が同じ数を適用し終えてから答える
     public private(set) var outsideMemoOps = 0
+    /// このシナリオがロックの待ちで止まっていた合計(ミリ秒。行列に入って待った呼び出しだけ。結果 JSON の `lockWaitMs`)
+    public private(set) var totalWaitedMs = 0
 
     public func noteOutsideMemoOp() { outsideMemoOps += 1 }
 
@@ -264,8 +266,12 @@ public final class RunLockScenarioState {
         // **呼び出しの絶対の上限**(`waitSeconds:` で短くしても窓は短くしない = こちらが先に閉じて watchdog に切られない)
         var window: DeadlineExclusion.Token?
         let outcome = client.wait(id: id, timeout: .seconds(limit), onQueued: { window = DeadlineExclusion.begin(cap: .seconds(cap)) })
-        if let window { DeadlineExclusion.end(window) }
-        let waited = Double(DurationConversion.milliseconds(clock.now - started)) / 1000
+        let waitedMs = DurationConversion.milliseconds(clock.now - started)
+        if let window {
+            DeadlineExclusion.end(window)
+            totalWaitedMs += waitedMs  // 行列に入って待った分だけ(すぐ渡された呼び出しの往復は数えない)
+        }
+        let waited = Double(waitedMs) / 1000
         switch outcome {
         case .granted:
             holdings.commit(plan)

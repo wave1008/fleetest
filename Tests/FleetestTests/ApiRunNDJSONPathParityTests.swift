@@ -28,6 +28,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
         "message", "fm", "requestID", "installPath", "appCrash", "skipped", "memoKey", "memoValue", "notApplicableReason", "resultDiscardedReason",
         "readyUpdate",   // responseReady の欄(step には載らない)
         "actions",       // 子 → 親の操作数の増分。親が RunProgressRecord.actions に累計し、拡張は monitorRuns だけを読む
+        "lockWaitMs",    // scenarioFinished の欄(シナリオの記録 ScenarioRunRecord.lockWaitMs へ畳む。step には載らない)
     ]
 
     private func fullStepEvent() -> ScenarioEvent {

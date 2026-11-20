@@ -122,6 +122,19 @@ final class RunLockWiringTests: XCTestCase {
         XCTAssertFalse(host[deferStart.upperBound..<wait.lowerBound].prefix(400).contains("noteScenarioEnded("))
     }
 
+    /// 子が `scenarioFinished` にロックの待ちの合計を載せる(結果 JSON の `lockWaitMs`)。待ったときだけ・emit の前
+    func testTheChildCarriesTheLockWaitOnScenarioFinishedBeforeEmitting() throws {
+        let runner = try source("Sources/FTScenarioRunner/ScenarioRunnerMain.swift")
+        let carry = try XCTUnwrap(runner.range(of: "if core.runLocks.totalWaitedMs > 0 { finished.lockWaitMs = core.runLocks.totalWaitedMs }"))
+        let emit = try XCTUnwrap(runner.range(of: "emit(finished)", range: carry.upperBound..<runner.endIndex))
+        XCTAssertLessThan(carry.upperBound, emit.lowerBound)
+        XCTAssertTrue(runner[carry.upperBound..<emit.lowerBound].count < 200, "載せた直後の emit(別の scenarioFinished へ飛ばない)")
+        var event = ScenarioEvent(kind: "scenarioFinished")
+        XCTAssertFalse(event.encodedLine().contains("lockWaitMs"), "待たなければ載せない")
+        event.lockWaitMs = 1_011
+        XCTAssertEqual(ScenarioEvent.decode(line: event.encodedLine())?.lockWaitMs, 1_011)
+    }
+
     func testHookChildrenGetTheirLocksAtOnce() throws {
         XCTAssertTrue(try source("Sources/FTCore/RunHookHost.swift").contains("lockAccess: .immediate"))
     }

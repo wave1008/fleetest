@@ -112,7 +112,7 @@ final class RemoteDispatchLockLaunchInterruptTests: XCTestCase {
             return XCTFail("must recheck interruptFlag right after registering forwarding and"
                           + " call process.terminate() if it is already set")
         }
-        guard let deadlineRange = body.range(of: "let deadline =") else {
+        guard let deadlineRange = body.range(of: "RemoteDeadlineWait.run(") else {
             return XCTFail("deadline computation not found")
         }
         XCTAssertTrue(forwardingRange.upperBound < recheckRange.lowerBound

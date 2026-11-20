@@ -60,7 +60,7 @@ final class LPTOrderingTests: XCTestCase {
     }
 
     /// 実際のレイアウト results/runs/<YYYY-MM>/<runID>/scenarios/<id>.json に1件書く。
-    private func writeRecord(scenarioID: String, durationMs: Int,
+    private func writeRecord(scenarioID: String, durationMs: Int, lockWaitMs: Int = 0,
                              startedAt: String = iso(recent),
                              platform: String = "android",
                              machine: String = "TEST",
@@ -78,7 +78,7 @@ final class LPTOrderingTests: XCTestCase {
             "reportPath": "reports/x.md", "scenes": [],
             "steps": ["passed": 1, "failed": 0, "healed": 0,
                       "passedViaFallback": 0, "skipped": 0, "total": 1],
-        ]
+        ].merging(lockWaitMs > 0 ? ["lockWaitMs": lockWaitMs] : [:]) { $1 }
         let data = try JSONSerialization.data(withJSONObject: record)
         try data.write(to: runDir.appendingPathComponent("\(scenarioID).json"))
     }
@@ -141,6 +141,14 @@ final class LPTOrderingTests: XCTestCase {
 
         let (result, _) = apply([item("B"), item("A")])
         XCTAssertEqual(ids(result), ["B", "A"])
+    }
+
+    /// ロックの待ちは仕事量ではない: 待ちの大きいシナリオを「長いシナリオ」として先頭に置かない(`lockWaitMs` を引いた値で並べる)
+    func testLockWaitIsLeftOutOfTheDurationUsedForOrdering() throws {
+        try writeRecord(scenarioID: "待ち", durationMs: 100_000, lockWaitMs: 95_000)  // 仕事は 5 秒
+        try writeRecord(scenarioID: "通常", durationMs: 20_000)
+        let (result, _) = apply([item("待ち"), item("通常")])
+        XCTAssertEqual(ids(result), ["通常", "待ち"], "引かなければ「待ち」(100 秒)が先頭に来る")
     }
 
     // MARK: - 適用しない条件

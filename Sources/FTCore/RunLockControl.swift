@@ -11,6 +11,8 @@ public protocol RunLockRelayControl {
     func sshEnded(listener: String) -> (count: Int, capSeconds: Int)?
     /// 向こうの run が終わったと確かめた(そのディスパッチの)。送れたか
     func remoteRunEnded(listener: String) -> Bool
+    /// そのディスパッチの待ちの和集合の累計(ミリ秒)。nil = 接続が無い・届かなかった(延長しない)
+    func waitedMs(listener: String) -> Int?
     /// 発行元が接続を閉じたか(閉じた = 発行元の仕事は全部終わった)
     func issuerClosed() -> Bool
 }
@@ -44,6 +46,19 @@ public final class RunLockControl: RunLockRelayControl, @unchecked Sendable {
     public func remoteRunEnded(listener: String) -> Bool {
         guard send(.remoteRunEnded(listener: listener)) else { return false }
         return awaitUnknownKeys(listener: listener) != nil
+    }
+
+    public func waitedMs(listener: String) -> Int? {
+        guard send(.waitedQuery(listener: listener)) else { return nil }
+        return lock.withLock {
+            while true {
+                switch channel.readLine(timeoutMs: Self.replyTimeoutMs) {
+                case .line(let data):
+                    if case .waited(let name, let ms)? = RunLockMessage.decode(line: data), name == listener { return ms }
+                case .timeout, .closed: return nil
+                }
+            }
+        }
     }
 
     /// 今届いているものだけを見て、EOF なら閉じられた(読んだ行は捨てない = 返事を待つ呼び出しが読む)

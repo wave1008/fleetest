@@ -678,7 +678,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         case schemaVersion, runID, scenarioID, title, platform, worker, host, profile
         case passed, timedOut, startedAt, durationMs, scenes, steps, reportPath, failedSteps
         case fixSuggestions, errorLogs, fm, timeline, skipKind, skipReason, interrupted, appCrash, mode
-        case humanOperations
+        case humanOperations, lockWaitMs
     }
 
     public init(from decoder: Decoder) throws {
@@ -709,6 +709,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         appCrash = try c.decodeIfPresent(AppCrashRecord.self, forKey: .appCrash)
         mode = try c.decodeIfPresent(String.self, forKey: .mode)
         humanOperations = try c.decodeIfPresent([HumanOperationRecord].self, forKey: .humanOperations)
+        lockWaitMs = try c.decodeIfPresent(Int.self, forKey: .lockWaitMs)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -739,6 +740,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         try c.encodeIfPresent(appCrash, forKey: .appCrash)
         try c.encodeIfPresent(mode, forKey: .mode)
         try c.encodeIfPresent(humanOperations, forKey: .humanOperations)
+        try c.encodeIfPresent(lockWaitMs, forKey: .lockWaitMs)
     }
 
     public var schemaVersion: Int
@@ -798,6 +800,15 @@ public struct ScenarioRunRecord: Codable, Sendable {
     /// 介入が原因の赤をアプリの不具合に見せないための事実で、分類はしない。入力した文字列は載せない
     /// (`HumanOperationLedger`・docs/results-json.md)
     public var humanOperations: [HumanOperationRecord]?
+    /// run 全体のロック(`withExclusiveLock` / `withSharedLock`)の待ちで止まっていた時間(ミリ秒)。**0 より大きいときだけ書く**
+    /// (欄が無い = 待った記録が無い = ロックを使わなかった・待たなかった・測っていない。古い記録も同じ。欄が無いこと自体が意味を持つので
+    /// 互換の読み替えではない = DR-75)。**`durationMs` に含まれる**(壁時計)。所要の見積り(LPT・動的な割り振り・残り時間)は
+    /// この分を引いた値を使う(`estimateDurationMs`): ロックの待ちは同時に走る他のシナリオの数で決まり、シナリオ自身の仕事量ではない。
+    /// 数えるのは「行列に入って待った」時間だけ(すぐ渡された呼び出しは数えない)
+    public var lockWaitMs: Int?
+
+    /// 所要の見積りに使う値 = `durationMs` からロックの待ちを引いたもの(欄が無ければ引かない。最小 1。0 にすると「短いシナリオ」と誤認される)
+    public var estimateDurationMs: Int { max(1, durationMs - (lockWaitMs ?? 0)) }
 
     public init(schemaVersion: Int = RunRecordSchema.current, runID: String = "",
                 scenarioID: String, title: String? = nil, platform: String, worker: String? = nil,
@@ -813,7 +824,9 @@ public struct ScenarioRunRecord: Codable, Sendable {
                 skipReason: String? = nil,
                 appCrash: AppCrashRecord? = nil,
                 mode: String? = nil,
-                humanOperations: [HumanOperationRecord]? = nil) {
+                humanOperations: [HumanOperationRecord]? = nil,
+                lockWaitMs: Int? = nil) {
+        self.lockWaitMs = lockWaitMs
         self.mode = mode
         self.humanOperations = humanOperations
         self.fm = fm
@@ -860,6 +873,7 @@ public struct ScenarioRecordBuilder {
     private var fm: FMUsageRecord?
     private var appCrash: AppCrashRecord?
     private var notApplicableReason: String?
+    private var lockWaitMs: Int?
     /// 全ステップのタイムライン(成否によらず到着順で蓄積。build() で timeline へ)
     private var timeline: [TimelineStepRecord] = []
 
@@ -903,6 +917,7 @@ public struct ScenarioRecordBuilder {
             fm = event.fm
             appCrash = event.appCrash
             notApplicableReason = event.notApplicableReason
+            lockWaitMs = event.lockWaitMs
         case "log":
             if let message = event.message,
                message.hasPrefix("❌") || message.hasPrefix("⚠️") || message.hasPrefix("⏱") {
@@ -1020,7 +1035,8 @@ public struct ScenarioRecordBuilder {
             // 同じ規律で条件分岐を増やさない)
             appCrash: appCrash,
             mode: mode,
-            humanOperations: humanOperations.isEmpty ? nil : humanOperations)
+            humanOperations: humanOperations.isEmpty ? nil : humanOperations,
+            lockWaitMs: lockWaitMs)
     }
 
     private static func relativize(_ path: String?, packageRoot: URL?) -> String? {

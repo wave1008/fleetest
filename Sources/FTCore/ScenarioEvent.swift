@@ -146,6 +146,9 @@ public struct ScenarioEvent: Codable, Sendable {
     /// kind == step / scenarioFinished: 前のイベントからの間にデバイスへ実際に送った操作の回数(`ActionCountingDriver`)。
     /// 0 は載せない(キーごと省略)。scenarioFinished は最後のステップの後の端数を運ぶ
     public var actions: Int?
+    /// kind == scenarioFinished: このシナリオが run 全体のロックの待ちで止まっていた合計(ミリ秒)。0 は載せない(キーごと省略)。
+    /// 親は `ScenarioRunRecord.lockWaitMs`(省略可。欄が無い = 待った記録が無い)へ畳む
+    public var lockWaitMs: Int?
 
     public init(kind: String) {
         self.kind = kind

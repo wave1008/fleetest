@@ -77,7 +77,7 @@ withExclusiveLock("counter") {
   the order of their names (UTF-8 bytes). A nested call may only take keys that sort after every key you hold, otherwise it is an error even
   when nothing contends: **take all the keys in one call instead of nesting**. Taking a key again that you already hold does nothing
   (exclusive in exclusive, shared in exclusive, shared in shared); taking it exclusively inside a shared lock on it is an error.
-- It waits until the keys are free. The wait is not counted in `scenarioTimeout`. One call waits at most the longest `scenarioTimeout` of the
+- It waits until the keys are free. The wait is not counted in `scenarioTimeout` (in a run that spans several machines it is also excluded from the time limit of the remote machines' runs, up to that limit again; a single `run --runner <machine>` does not extend it), and the time each scenario waited is recorded in the results JSON as `lockWaitMs` (the time estimates for ordering and splitting leave it out). One call waits at most the longest `scenarioTimeout` of the
   run (including `@Test(scenarioTimeout:)`); `waitSeconds:` makes it shorter. On timeout the step fails and the block does not run.
   Under heavy contention the wait can reach this cap, so use a database for heavy or cross-run exclusion. **Do not use a lock to wait for
   another test to finish** (the order scenarios are handed out differs between one machine and many).
