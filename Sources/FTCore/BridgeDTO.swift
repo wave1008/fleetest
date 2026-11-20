@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 300
+    public static let bridgeProtocolVersion = 301
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -525,9 +525,9 @@ extension FocusLanding {
     /// 同じ要素と見なす枠の差(pt)。in-app の取り直しが id 無しの要素を同定する許容(frame ±2pt)と同じ
     static let sameElementFrameTolerance: CGFloat = 2
 
-    /// ref 付きの type / clear が、打つ前の欄への合成タップを省くか。直前の tap がこの欄へ焦点を立てていて
-    /// (`priorTapLanded`)いま受け口がある(`receiverPresent`)ときだけ省く。受け口が無い(キーボードが閉じた等)なら
-    /// 叩いて焦点を取り直す。CMP は焦点のある欄の2度目のタップで編集メニュー(Select All)を出して残す
+    /// ref 付きの type / clear が、打つ前の欄への合成タップを省くか。直前の tap(または同じ欄を空にできた ref 付きの clear =
+    /// replace の前段)がこの欄へ焦点を立てていて(`priorTapLanded`)いま受け口がある(`receiverPresent`)ときだけ省く。
+    /// 受け口が無い(キーボードが閉じた等)なら叩いて焦点を取り直す。CMP は焦点のある欄の2度目のタップで編集メニュー(Select All)を出して残す
     public static func skipsRetapBeforeText(priorTapLanded: Bool, receiverPresent: Bool) -> Bool {
         priorTapLanded && receiverPresent
     }

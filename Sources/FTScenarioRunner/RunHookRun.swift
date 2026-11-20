@@ -23,9 +23,11 @@ extension RunScenario {
             throw ExitCode(64)
         }
         let hookName = phase == .before ? "beforeRun" : "afterRun"
+        // 片方だけ書いたクラスは正当(DR-209)。親は段ごとに子を起こすので、宣言の無い段は何もせず成功で返し、
+        // 「宣言が無い」を事実として1件知らせる(親は走ったと言わない = `RunHookOutcome.declared`)
         guard let body = phase == .before ? found.beforeRun : found.afterRun else {
-            ConsoleOut.err("--run-hook \(rawPhase): \(found.className) declares no \(hookName)()")
-            throw ExitCode(64)
+            if json { ConsoleOut.out(ScenarioEvent(kind: RunHookOutcome.notDeclaredEventKind).encodedLine()) }
+            return
         }
         let scenarioID = "\(found.className).\(hookName)"
 

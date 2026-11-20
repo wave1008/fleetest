@@ -489,15 +489,10 @@ public enum DSLCommandIndex {
               "Takes an exclusive run-wide lock on the keys (in UTF-8 byte order of the names, one by one) and runs the block, so"
                   + " no other scenario of the run holds any of them meanwhile. Waits until it is free (at most the longest scenarioTimeout"
                   + " of the run; waitSeconds: (optional, must be > 0 — 0 is an error, not a try-once) shortens it). Keys: 1 or more, not blank, no control characters, at most 120 bytes each and 8 per call."
-                  + " Nested: a key you do not hold yet must sort after every key you hold, else it is an error (take all keys in one call)."
+                  + " Nesting is an error (a withExclusiveLock inside another one, same key or not): take all the keys in one call."
                   + " Inside it, writeRunMemo / clearRunMemo / runMemoTextAs are committed before the next step and readRunMemo returns the latest value."
                   + " Works only when a call is written under the project's scenarios/ (not _disabled/); granted at once (no exclusion)"
                   + " inside beforeRun/afterRun and in a debug run. Fails when called in a --fleet run. Not accepted by ft_batch."),
-        .init("withSharedLock", "control", "withSharedLock(keys..., waitSeconds:) { }",
-              "Like withExclusiveLock but shared: other scenarios may hold the same keys shared at the same time, no exclusive holder is"
-                  + " let in. Use it to read: writeRunMemo / clearRunMemo / runMemoTextAs inside it are an error unless an exclusive lock is held too."
-                  + " Re-taking the same key exclusively while holding it shared (upgrade) is an error; another key may be taken exclusively"
-                  + " if it sorts after the keys held."),
 
         // MARK: memo (test-scoped: inside one test; run-scoped: shared by the whole run on every machine)
         .init("writeMemo", "memo", "writeMemo(key, text)",

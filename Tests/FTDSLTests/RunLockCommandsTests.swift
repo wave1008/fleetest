@@ -2,7 +2,7 @@ import XCTest
 @testable import FTDSL
 import FTCore
 
-/// `withExclusiveLock` / `withSharedLock`(RR-8.5)の DSL 側: ステップの記録・失敗の後は本体を実行しない・ロックの中の run メモ
+/// `withExclusiveLock`(RR-8.5)の DSL 側: ステップの記録・失敗の後は本体を実行しない・ロックの中の run メモ
 final class RunLockCommandsTests: XCTestCase {
     private final class Sink: @unchecked Sendable {
         private let lock = NSLock()
@@ -92,23 +92,25 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertTrue(core.scenarioAborted)
     }
 
-    func testNestedOrderViolationFailsWithoutContentionAndSkipsTheInnerBody() {
+    func testNestedLockWithADifferentKeyFailsWithoutContentionAndSkipsTheInnerBody() {
         let core = makeCore(sink: Sink(), access: .immediate)
         var inner = false
         var afterInner = false
-        withExclusiveLock("b") {
-            withExclusiveLock("a") { inner = true }
+        withExclusiveLock("a") {
+            withExclusiveLock("b") { inner = true }
             afterInner = true  // 失敗の印が立った後の生の Swift は走り続ける(DSL のコマンドだけが飛ばされる)
         }
         XCTAssertFalse(inner)
         XCTAssertTrue(afterInner)
+        XCTAssertTrue(failedReason(core)?.contains("cannot be called inside another withExclusiveLock") == true)
         XCTAssertTrue(failedReason(core)?.contains("one call") == true)
+        XCTAssertFalse(core.runLocks.isHolding, "外側はブロックを抜けた時点で外れる")
     }
 
-    func testUpgradeFails() {
+    func testNestedLockWithTheSameKeyFailsAndSkipsTheInnerBody() {
         let core = makeCore(sink: Sink(), access: .immediate)
-        withSharedLock("k") { withExclusiveLock("k") { XCTFail("must not run") } }
-        XCTAssertTrue(failedReason(core)?.contains("upgraded") == true)
+        withExclusiveLock("k") { withExclusiveLock("k") { XCTFail("must not run") } }
+        XCTAssertTrue(failedReason(core)?.contains("another withExclusiveLock") == true)
     }
 
     func testAnAbortedScenarioSkipsTheBodyWithoutTakingTheLock() {
@@ -132,27 +134,11 @@ final class RunLockCommandsTests: XCTestCase {
     func testPassThroughRunsTheBodyAndStillReportsViolations() {
         let core = makeCore(sink: Sink(), access: .passThrough)
         var ran = false
-        withSharedLock("a") { ran = true }
+        withExclusiveLock("a") { ran = true }
         XCTAssertTrue(ran)
         XCTAssertNil(failedReason(core))
-        withExclusiveLock("z") { withExclusiveLock("y") {} }
-        XCTAssertNotNil(failedReason(core))
-    }
-
-    func testWriteRunMemoInsideOnlySharedLockFailsForEveryWritingCommand() {
-        for command in ["writeRunMemo", "clearRunMemo", "runMemoTextAs"] {
-            let core = makeCore(sink: Sink(), access: .immediate)
-            withSharedLock("k") {
-                switch command {
-                case "writeRunMemo": writeRunMemo("n", "1")
-                case "clearRunMemo": clearRunMemo()
-                default: _ = "text".runMemoTextAs("n")
-                }
-            }
-            XCTAssertTrue(failedReason(core)?.contains("needs an exclusive lock") == true, command)
-            XCTAssertEqual(core.runMemo, [:], command)
-            FTRuntime.tearDown()
-        }
+        withExclusiveLock("z") { withExclusiveLock("z") {} }
+        XCTAssertNotNil(failedReason(core), "dry-run・その場で渡す構成でも入れ子はエラー")
     }
 
     func testWriteRunMemoInsideExclusiveLockGoesThroughTheServerNotTheStdoutEvent() throws {
@@ -182,7 +168,7 @@ final class RunLockCommandsTests: XCTestCase {
         XCTAssertEqual(core.runMemo["n"], nil)
         store.write(key: "n", value: "from-other")  // 別のシナリオがロックの中で書いた
         var seen = ""
-        withSharedLock("k") { seen = readRunMemo("n") }
+        withExclusiveLock("k") { seen = readRunMemo("n") }
         XCTAssertEqual(seen, "from-other")
         XCTAssertEqual(readRunMemo("n"), "from-other", "ロックを出た後もその写しを見続ける")
     }
@@ -198,7 +184,7 @@ final class RunLockCommandsTests: XCTestCase {
     func testTimeoutFailsTheStepWithKeyAndSecondsAndSkipsTheBodyThenReleasesNothing() throws {
         let server = try startServer()
         let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
-        let id = try holder.request(keys: ["db"], mode: .exclusive).get()
+        let id = try holder.request(keys: ["db"]).get()
         XCTAssertEqual(holder.wait(id: id, timeout: .seconds(5)), .granted)
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
         var ran = false
@@ -211,18 +197,18 @@ final class RunLockCommandsTests: XCTestCase {
     func testTheLockIsReleasedWhenTheBlockExitsEvenIfTheBodyAborted() throws {
         let server = try startServer()
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
-        withSharedLock("k") { writeRunMemo("n", "1") }  // 失敗(共有だけでは書けない)
+        withExclusiveLock("k") { withExclusiveLock("j") {} }  // 入れ子の失敗で中断
         XCTAssertTrue(core.scenarioAborted)
         XCTAssertFalse(core.runLocks.isHolding)
         let other = try RunLockClient.connect(path: server.socketPath, scenario: "O", machine: "m", device: "d")
-        let id = try other.request(keys: ["k"], mode: .exclusive).get()
+        let id = try other.request(keys: ["k"]).get()
         XCTAssertEqual(other.wait(id: id, timeout: .seconds(5)), .granted, "ブロックを抜けた時点で外れている")
     }
 
     func testWaitedSecondsAppearInTheStepDescription() throws {
         let server = try startServer()
         let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
-        let id = try holder.request(keys: ["db"], mode: .exclusive).get()
+        let id = try holder.request(keys: ["db"]).get()
         _ = holder.wait(id: id, timeout: .seconds(5))
         let core = makeCore(sink: Sink(), access: .socket(server.socketPath))
         Thread { usleep(300_000); holder.release(id: id) }.start()
@@ -280,7 +266,7 @@ final class RunLockCommandsTests: XCTestCase {
     func testTheNextAcquisitionOfAKeyWhoseOwnerEndedInsideTheLockCarriesANote() throws {
         let server = try startServer()
         var holder: RunLockClient? = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d", token: "H")
-        let id = try XCTUnwrap(holder).request(keys: ["db"], mode: .exclusive).get()
+        let id = try XCTUnwrap(holder).request(keys: ["db"]).get()
         XCTAssertEqual(try XCTUnwrap(holder).wait(id: id, timeout: .seconds(5)), .granted)
         server.scenarioEnded(token: "H")  // シナリオのプロセスが臨界区間の中で死んだ(親が見届けた)
         holder = nil  // 死んだプロセスの接続が閉じる = ここで外れて印が付く

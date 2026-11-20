@@ -170,11 +170,11 @@ fleetest run --runner M1Max --profile <実行プロファイル> --scenario <シ
 
 ## 複数のマシンにまたがる run で共有されるもの
 
-このページの「ロック」(`--wait-lock`・`remote unlock`)は**ランナー機の占有ロック**で、いまどの run がランナー機を使うかを決めるだけのものです。シナリオの `withExclusiveLock` / `withSharedLock` とは別物です([メモ](../reference/commands/memo_ja.md#run-全体のロックwithexclusivelock-withsharedlock))。
+このページの「ロック」(`--wait-lock`・`remote unlock`)は**ランナー機の占有ロック**で、いまどの run がランナー機を使うかを決めるだけのものです。シナリオの `withExclusiveLock` とは別物です([メモ](../reference/commands/memo_ja.md#run-全体のロックwithexclusivelock))。
 
 - **run メモ**は1回の run で1つで、run の全マシンで共有されます。`beforeAll()` はマシンごとに走るので、マシンが作る値をそこから渡すのは `@RunOnSingleMachine` を付けたクラスだけにします。
 - **`beforeRun()` / `afterRun()`** は、fleetest を起動したマシン(`run --runner <マシン>` ではランナー機)で1回だけ走ります([run 全体の準備と片付け](../reference/testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun))。
-- **`withExclusiveLock` / `withSharedLock`** は run の全マシンにまたがって効きます。
+- **`withExclusiveLock`** は run の全マシンにまたがって効きます。デバイスの `machine` に別のマシンを書いた実行プロファイルの run は ssh のディスパッチなので、run メモと run 全体のロックは全マシンで効きます(効かないのは `--fleet` の run だけです)。
 - **`--fleet` の run** では、`@RunHooks` があるプロジェクトは開始時に断られ、ロックは呼んだ時点で理由つきの失敗になり、run メモはマシンごとになり、`--split` が無ければ配置の属性(`@RunOnSingleMachine` など)は効きません。
 
 ## 知っておくこと

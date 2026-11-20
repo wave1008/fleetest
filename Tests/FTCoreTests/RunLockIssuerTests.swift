@@ -280,10 +280,10 @@ final class RunLockIssuerTests: XCTestCase {
         guard case .socket(let path) = host.access() else { return XCTFail("socket expected") }
         defer { host.stop() }
         var holder: RunLockClient? = try RunLockClient.connect(path: path, scenario: "H", machine: "m", device: "d", token: "T")
-        let id = try XCTUnwrap(holder).request(keys: ["k"], mode: .exclusive).get()
+        let id = try XCTUnwrap(holder).request(keys: ["k"]).get()
         XCTAssertEqual(try XCTUnwrap(holder).wait(id: id, timeout: .seconds(5)), .granted)
         let waiter = try RunLockClient.connect(path: path, scenario: "W", machine: "m", device: "d", token: "W")
-        let waiting = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        let waiting = try waiter.request(keys: ["k"]).get()
         XCTAssertEqual(waiter.wait(id: waiting, timeout: .milliseconds(200)), .timedOut)
         host.noteScenarioEnded(token: "T")
         holder = nil  // 接続が閉じたとき(見届け済みの印)に持ち分を外す

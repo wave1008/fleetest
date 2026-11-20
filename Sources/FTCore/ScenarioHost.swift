@@ -247,7 +247,8 @@ public enum ScenarioHost {
 
         // 死んだ run-file の置き場を通常の run に混ぜない(指紋の計算より前 = 残骸込みの指紋にしない)
         StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
-        let fingerprint = BuildFingerprint.compute(repoRoot: root, scenariosDir: project.scenariosDir)
+        let fingerprintSnapshot = BuildFingerprint.snapshot(repoRoot: root, scenariosDir: project.scenariosDir)
+        let fingerprint = fingerprintSnapshot?.digest
         if !buildNeeded(fingerprint: fingerprint, project: project, root: root),
            let runner = try? runnerURL(project: project) {
             log?("→ No changes — skipping the scenario build")
@@ -266,8 +267,8 @@ public enum ScenarioHost {
             if BuildAbort.isAborted { throw ScenarioHostError.buildInterrupted }
             throw ScenarioHostError.buildFailed(result.tail)
         }
-        if let fingerprint {
-            BuildFingerprint.store(fingerprint, productName: project.productName, repoRoot: root)
+        if let fingerprintSnapshot {
+            BuildFingerprint.store(fingerprintSnapshot, productName: project.productName, repoRoot: root)
         }
         if let runner = try? runnerURL(project: project) {
             pinSigningIdentifier(binary: runner, productName: project.productName, log: log)
@@ -284,9 +285,9 @@ public enum ScenarioHost {
     /// まとめたビルドが毎回失敗して1本ずつに戻った(PT-8.1)
     public static func prebuildTogether(projects: [TestProject], log: ((String) -> Void)? = nil) {
         guard let root = packageRoot() else { return }
-        let stale: [(project: TestProject, fingerprint: String?)] = projects.compactMap { project in
-            let fingerprint = BuildFingerprint.compute(repoRoot: root, scenariosDir: project.scenariosDir)
-            return buildNeeded(fingerprint: fingerprint, project: project, root: root) ? (project, fingerprint) : nil
+        let stale: [(project: TestProject, fingerprint: BuildFingerprint.Snapshot?)] = projects.compactMap { project in
+            let fingerprint = BuildFingerprint.snapshot(repoRoot: root, scenariosDir: project.scenariosDir)
+            return buildNeeded(fingerprint: fingerprint?.digest, project: project, root: root) ? (project, fingerprint) : nil
         }
         if stale.count >= 2 {
             log?("→ Building scenarios of \(stale.count) projects in one swift build...")
@@ -367,14 +368,27 @@ public enum ScenarioHost {
     /// `--skip-build` / MCP の `skipBuild` が古いバイナリを使うときの警告文(古さの判定の唯一の定義元。CLI と MCP が共有する)。
     /// 古くない・判定材料が無いときは nil
     public static func skipBuildStaleWarning(project: TestProject) -> String? {
-        guard let root = packageRoot() else { return nil }
-        guard let fingerprint = BuildFingerprint.compute(
-            repoRoot: root, scenariosDir: project.scenariosDir) else { return nil }
-        guard fingerprint != BuildFingerprint.stored(
-            productName: project.productName, repoRoot: root) else { return nil }
+        guard let staleness = skipBuildStaleness(project: project) else { return nil }
         return "⚠️ --skip-build: the scenario source has changed since \(project.productName) was last"
             + " built (or it was never built through fleetest) — running with the existing binary,"
-            + " which may not match the current source"
+            + " which may not match the current source" + (staleness.firstChanged.map { " (first changed: \($0))" } ?? "")
+    }
+
+    public struct SkipBuildStaleness: Sendable, Equatable {
+        public let firstChanged: String?
+    }
+
+    /// 古さの判定の唯一の定義元(CLI の警告と MCP の注記が共有)。古くない・判定材料が無いなら nil。
+    /// `firstChanged` = 前回のビルドの材料の行と最初に食い違ったパス(材料の行が残っていなければ nil)
+    public static func skipBuildStaleness(project: TestProject) -> SkipBuildStaleness? {
+        guard let root = packageRoot() else { return nil }
+        guard let fingerprint = BuildFingerprint.snapshot(
+            repoRoot: root, scenariosDir: project.scenariosDir) else { return nil }
+        guard fingerprint.digest != BuildFingerprint.stored(
+            productName: project.productName, repoRoot: root) else { return nil }
+        let changed = BuildFingerprint.storedLines(productName: project.productName, repoRoot: root)
+            .flatMap { BuildFingerprint.changedEntry(stored: $0, current: fingerprint.lines) }
+        return SkipBuildStaleness(firstChanged: changed)
     }
 
     /// ランナー実行ファイルの場所: packageRoot/.build/debug(そのプロジェクトを所有する repo)→

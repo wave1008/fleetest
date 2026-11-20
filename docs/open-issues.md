@@ -27,10 +27,10 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 0 |  |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-319・OI-320・OI-321 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 2 | OI-323・OI-324 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 32 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 36 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
@@ -40,7 +40,70 @@
 
 ## 要測定
 
+### OI-319 `ft_list_scenarios` でビルドした直後・無編集の `skipBuild: true` に「ran the OLD binary」の注記が付く(実行は新しいソースどおり)
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 要測定
+- 運用: 合否に響かない — 注記だけ。ただし結果を疑わせる
+- 優先度: 低 — 合否に響かない
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: ord_cmp_ios・mix_cmp_emu の2セッション(同じ作業フォルダで6セッションが並行してビルドしていた)
+- 測定(2026-11-20 23:20 頃・評価の作業フォルダ): 指紋は作業フォルダの Package.swift・Package.resolved とパス依存先(fleetest)の Sources の更新時刻を含む。
+  Package.resolved は 22:33:41(第1波の最中)に書き換わっていた。①別のプロジェクトのソースを変えてビルドしても ord の指紋は変わらない
+  ②`.build/workspace-state.json` が無い状態の初回の `swift package resolve` は、中身が同じなら Package.resolved を書き換えない。
+  どちらの仮説も否定。22:33:41 に何が書き換えたかは材料が無い
+- 次の一手: 警告に「first changed: <パス>」を出す口を足した(指紋と一緒に材料の行を `.fleetest/build-fingerprint-<製品>.entries.txt` に残す。作業ツリー 2026-11-21)。次に出たときにそのパスを見て、誰が書き換えたかを決める
+
+### OI-320 Flutter の iOS で `type(sel, text, replace: true)` が「tapping the input field did not give it keyboard focus within 1.5s」で赤
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 要測定・低頻度
+- 運用: 回避可 — 空の欄なら replace を外す
+- 優先度: 中 — docs の書き方で赤
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: once_flutter_ios(Simulator・MCP の ft_run_scenario = XCUITest)。素の type(追記)は同じ欄で通る
+- 測定(2026-11-20 23:45 頃・Simulator -05・単独): `launchApp → tap(#nav_input) → type(#field_single, replace: true)` を xcuitest モード 3 回・inapp-boost 3 回 = 6/6 緑。
+  観測した1回は6セッションが同じ Mac で並行していた(負荷の下)。単独では再現しない
+- 次の一手: 負荷の下(同じ Mac で並行の run)で反復し、出たときの焦点待ちの所要を採る
+
+### OI-321 実機 SE3 の CMP のリストで、境界で薄く切られた行への `scrollTo("#row_15")` が「reached its end」で赤
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 要測定・低頻度
+- 運用: 回避可 — 行を名指しせず端まで送る
+- 優先度: 低 — 赤になる側(誤った緑ではない)
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: se3_cmp の作成時。失敗時の木に `#row_15` が 31pt で出ていた。`round 2: (16,197 343x56) ... the settle wait was cut off and the re-read did not show it touchable`
+- 測定(2026-11-20 23:50 頃・SE3・単独): `launchApp → tap(#nav_scroll) → scrollTo(#row_15, maxSwipes: 12)` を inapp-boost 2 回・xcuitest 1 回 = 3/3 緑。
+  観測した1回は作成中の MCP(XCUITest)で、直前の手順が違う。単独では再現しない
+- 次の一手: 作成セッションの直前の手順(同じ画面での前の操作)を再生して再現を探す
+
 ## 要判断
+
+### OI-323 dry-run では画面から読んだ値と run メモが空になり、それを `type` すると「nothing to type」で dry-run が赤になる
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 要判断
+- 運用: 回避可 — 空なら打たない分岐を書く
+- 優先度: 低 — dry-run だけ
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: once_flutter_ios。`type: nothing to type (the text is empty)`。r2_order_rn_ios では replace 付きで空を打って緑・`thisIsNotEmpty ""` も dry-run では緑
+- 決めること: dry-run で値が空のときの type を ①今のまま失敗 ②注記つきで通す のどちらにするか
+
+### OI-324 `ft_run_scenario` だけ `profile` と `platform` の併用を断る(他の ft_* は受ける)
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 要判断
+- 運用: 回避可 — profile だけ渡す
+- 優先度: 低 — MCP だけ・文言で直せる
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withExclusiveLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: mix_cmp_emu。`profile cannot be combined with platform/port/serial/udid (the profile picks the device)`。CLI の `--profile` + `--platform` の併用エラーに合わせた意図的な設計(`MCPServer.profileConflict`)
+- 決めること: プロファイルの OS と同じ platform なら受けるか、今のまま断るか
 
 ## 木に材料なし
 
@@ -184,6 +247,29 @@
 出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。
 
 ## 低頻度
+
+### OI-326 全体の単体テストで `AndroidScreenVideoRecorderConfirmTests.testConfirmationWaitEndsWhenItsSegmentDies` が赤(1回・単独では緑)
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-21)
+- 属性: 低頻度
+- 運用: 合否に響かない — 単体テストだけ(製品の挙動ではない)
+- 優先度: 低 — テストの時間の前提が負荷で崩れた疑い
+
+出典: `FT_FULL_TEST=1 Scripts/unit-tests.py`(2026-11-20 23:50 頃・13,954 件中 2 件赤のうちの1件。もう1件は表記の検査で、直した)
+- 観測: `XCTAssertEqual failed: ("nil") is not equal to ("Optional(false)") - 確認中の第3世代が死んだら、第4世代の確認を待たずに失敗する`。同じクラスを単独で回すと緑。録画のコードは今回触っていない
+- 次の一手: 次に出たときの所要と、テストが待つ時間の前提を見る(全体のテストは 22 並列の負荷)
+
+### OI-325 E2EY-RN の iOS(inapp-boost)で、行の長押し(`tap(hold: 1)` を XCUITest へ回した)が選択モードに入らないまま ✅(回帰の負荷の下で1回・単独では 3/3 緑)
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-21)
+- 属性: 低頻度
+- 運用: 要注意 — 長押しの ✅ が効いていない。後の検証で赤になる
+- 優先度: 中 — 誤った緑だが後続の検証で赤になる
+
+出典: 回帰(`_work/regress-20261121/`・手元の Simulator -07)
+- 観測: `選択モードで行を選んで削除できること.S0020` の `tap "#sel_row_05" (hold 1s)(fell back to XCUITest)` が ✅、続く `textIs "#txt_select_mode" == "mode=select"` が `actual "mode=normal"`。同じシナリオを単独で 3 回回すと緑。11/20 の回帰では緑
+- 関係: OI-221(XCUITest へ回した長押しからのドラッグが ✅ なのに効かない・負荷の下)と同じ系統の可能性(推測)
+- 次の一手: 回帰と同じ負荷の下(`--broadcast` で手元の全台)で反復し、出たときの XCUITest の press の所要と、アプリが受けた長押しの長さを採る
 
 ### OI-315 E2EX-CMP の iOS(M4Max)で、検索バーの入力欄を空にできず赤(clearInput が「空にできない」/「成功と言ったが値が残る」)
 - 状態: 再現済み

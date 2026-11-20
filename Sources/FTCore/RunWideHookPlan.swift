@@ -261,7 +261,7 @@ public enum RunHookFlow {
         let verdict = RunWideHookPlan.classify(outcome: outcome, interrupted: interrupted())
         switch verdict {
         case .passed:
-            log(RunWideHookPlan.ranLine(.before, machine: context.machine))
+            if outcome.declared { log(RunWideHookPlan.ranLine(.before, machine: context.machine)) }
         case .failed(let reason):
             log("❌ " + reason + " (on \(context.machine))" + (outcome.reportPath.map { " (report: \($0))" } ?? ""))
         case .interrupted:
@@ -276,7 +276,7 @@ public enum RunHookFlow {
                                 log: @escaping (String) -> Void) async -> RunHookOutcome {
         let outcome = await context.launcher(context, .after, runMemo, registerChildProcess, log)
         if outcome.passed {
-            log(RunWideHookPlan.ranLine(.after, machine: context.machine))
+            if outcome.declared { log(RunWideHookPlan.ranLine(.after, machine: context.machine)) }
         } else {
             log("⚠️ afterRun() failed on \(context.machine)" + (outcome.failureReason.map { ": \($0)" } ?? "")
                 + (outcome.reportPath.map { " (report: \($0))" } ?? "") + " — the run result is unchanged")

@@ -23,7 +23,14 @@ public struct RunHookOutcome: Sendable {
     /// 子が書いたレポートのパス(書けなかった・子が起きなかったときは nil)
     public let reportPath: String?
 
-    public init(passed: Bool, failureReason: String? = nil, runMemoOps: [RunMemoOp] = [], reportPath: String? = nil) {
+    /// クラスがその段のフックを宣言しているか(false = 子は何もしなかった。親は「走った」と言わない)
+    public let declared: Bool
+    /// 子が「この段のフックは宣言されていない」と知らせるイベントの kind(FTScenarioRunner/RunHookRun.swift と対)
+    public static let notDeclaredEventKind = "runHookNotDeclared"
+
+    public init(passed: Bool, failureReason: String? = nil, runMemoOps: [RunMemoOp] = [], reportPath: String? = nil,
+                declared: Bool = true) {
+        self.declared = declared
         self.passed = passed
         self.failureReason = failureReason
         self.runMemoOps = runMemoOps
@@ -63,6 +70,7 @@ struct RunHookEventFold {
     private(set) var finishedPassed: Bool?
     private(set) var reportPath: String?
     private(set) var firstFailure: String?
+    private(set) var notDeclared = false
 
     /// イベントを1件取り込み、呼び手の log へ流す行を返す(run メモの書き込み・内部のイベントは流さない)
     mutating func consume(_ event: ScenarioEvent) -> [String] {
@@ -74,6 +82,9 @@ struct RunHookEventFold {
             ops.append(.clear)
             return []
         case "idleAllowance", "deadlineExclusion", "installRequest":
+            return []
+        case RunHookOutcome.notDeclaredEventKind:
+            notDeclared = true
             return []
         case "scenarioFinished":
             finishedPassed = event.passed
@@ -103,7 +114,7 @@ struct RunHookEventFold {
                 runMemoOps: ops, reportPath: reportPath)
         }
         let passed = finishedPassed ?? (exitStatus == 0)
-        if passed { return RunHookOutcome(passed: true, runMemoOps: ops, reportPath: reportPath) }
+        if passed { return RunHookOutcome(passed: true, runMemoOps: ops, reportPath: reportPath, declared: !notDeclared) }
         let reason = firstFailure ?? stderrTail ?? "\(phase.hookName)() exited with status \(exitStatus)"
         return RunHookOutcome(passed: false, failureReason: reason, runMemoOps: ops, reportPath: reportPath)
     }

@@ -127,4 +127,29 @@ final class BuildFingerprintTests: XCTestCase {
         XCTAssertEqual(BuildFingerprint.pathDependencyRoots(repoRoot: repoRoot), [])
         XCTAssertNotNil(BuildFingerprint.compute(repoRoot: repoRoot, scenariosDir: scenariosDir))
     }
+
+    /// 警告の根拠に名指すパス: 変わった行・足された行・消えた行の最初(名前の順)。食い違いが無ければ nil
+    func testChangedEntryNamesTheFirstDifferingPath() {
+        let before = ["Package.resolved\t100\t5", "a.swift\t1\t1", "toolchain\tX|1"]
+        XCTAssertNil(BuildFingerprint.changedEntry(stored: before, current: before))
+        XCTAssertEqual(BuildFingerprint.changedEntry(
+            stored: before, current: ["Package.resolved\t200\t5", "a.swift\t1\t1", "toolchain\tX|1"]), "Package.resolved")
+        XCTAssertEqual(BuildFingerprint.changedEntry(stored: before, current: before + ["b.swift\t2\t2"]), "b.swift")
+        XCTAssertEqual(BuildFingerprint.changedEntry(stored: before, current: Array(before.dropFirst())), "Package.resolved")
+        XCTAssertEqual(BuildFingerprint.changedEntry(
+            stored: before, current: ["Package.resolved\t100\t5", "a.swift\t1\t1", "toolchain\tY|1"]), "toolchain")
+    }
+
+    /// 材料の行は指紋と同じ瞬間の材料(digest と行が別々の時点を指さない)
+    func testSnapshotDigestMatchesCompute() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("bf-\(UUID().uuidString)")
+        let scenarios = root.appendingPathComponent("TestProjects/p/scenarios")
+        try FileManager.default.createDirectory(at: scenarios, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "x".write(to: scenarios.appendingPathComponent("a.swift"), atomically: true, encoding: .utf8)
+        let snap = try XCTUnwrap(BuildFingerprint.snapshot(repoRoot: root, scenariosDir: scenarios, toolchainIdentity: "T"))
+        XCTAssertEqual(snap.digest, BuildFingerprint.compute(repoRoot: root, scenariosDir: scenarios, toolchainIdentity: "T"))
+        XCTAssertEqual(snap.lines.last, "toolchain\tT")
+        XCTAssertTrue(snap.lines.contains { $0.contains("TestProjects/p/scenarios/a.swift\t") })
+    }
 }

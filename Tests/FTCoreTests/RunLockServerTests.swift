@@ -83,9 +83,9 @@ final class RunLockServerTests: XCTestCase {
         try RunLockClient.connect(path: server.socketPath, scenario: name, machine: "m", device: "d-\(name)")
     }
 
-    private func take(_ client: RunLockClient, _ keys: [String], _ mode: RunLockTable.Mode = .exclusive,
+    private func take(_ client: RunLockClient, _ keys: [String],
                       timeout: Duration = .seconds(5)) throws -> (id: Int, outcome: RunLockClient.Outcome) {
-        let id = try client.request(keys: keys, mode: mode).get()
+        let id = try client.request(keys: keys).get()
         return (id, client.wait(id: id, timeout: timeout))
     }
 
@@ -94,7 +94,7 @@ final class RunLockServerTests: XCTestCase {
     func testMessagesRoundTripThroughOneLineOfJSON() throws {
         let messages: [RunLockMessage] = [
             .hello(scenario: "S.a", machine: "m", device: "ios:1", token: "t"), .queued(id: 3),
-            .acquire(id: 3, keys: ["a", "é"], mode: .shared), .cancel(id: 3), .release(id: 3), .memoRead(id: 6, outsideOps: 2),
+            .acquire(id: 3, keys: ["a", "é"]), .cancel(id: 3), .release(id: 3), .memoRead(id: 6, outsideOps: 2),
             .memoWrite(id: 4, op: .write(key: "k", value: "line1\nline2"), outsideOps: 1), .memoWrite(id: 5, op: .clear, outsideOps: 0),
             .granted(id: 3), .failed(id: 3, reason: "r"), .memo(values: ["k": ["1", "2"]]), .committed(id: 4, seq: 9), .committed(id: 5, seq: nil),
         ]
@@ -114,23 +114,10 @@ final class RunLockServerTests: XCTestCase {
         let b = try connect(server, "B")
         let first = try take(a, ["k"])
         XCTAssertEqual(first.outcome, .granted)
-        let second = try b.request(keys: ["k"], mode: .exclusive).get()
+        let second = try b.request(keys: ["k"]).get()
         XCTAssertEqual(b.wait(id: second, timeout: .milliseconds(200)), .timedOut)
         a.release(id: first.id)
         XCTAssertEqual(b.wait(id: second, timeout: .seconds(5)), .granted)
-    }
-
-    func testSharedLocksCoexistAndAnExclusiveWaiterBlocksLaterShared() throws {
-        let server = try makeServer()
-        let a = try connect(server, "A"), b = try connect(server, "B")
-        let c = try connect(server, "C"), d = try connect(server, "D")
-        let sharedA = try take(a, ["k"], .shared)
-        XCTAssertEqual(try take(b, ["k"], .shared).outcome, .granted)
-        let exclusive = try c.request(keys: ["k"], mode: .exclusive).get()
-        XCTAssertEqual(c.wait(id: exclusive, timeout: .milliseconds(150)), .timedOut)
-        let late = try d.request(keys: ["k"], mode: .shared).get()
-        XCTAssertEqual(d.wait(id: late, timeout: .milliseconds(150)), .timedOut, "排他が待っている間は新しい共有を渡さない")
-        a.release(id: sharedA.id)
     }
 
     // MARK: 持ち主の接続が閉じたとき
@@ -141,7 +128,7 @@ final class RunLockServerTests: XCTestCase {
         var holder: RunLockClient? = try connect(server, "A")
         let waiting = try connect(server, "B")
         XCTAssertEqual(try take(try XCTUnwrap(holder), ["k"]).outcome, .granted)
-        let id = try waiting.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiting.request(keys: ["k"]).get()
         holder = nil  // 外すを送らずに接続が閉じる
         let deadline = Date().addingTimeInterval(5)
         while waiters.requestedPids.isEmpty, Date() < deadline { usleep(10_000) }
@@ -156,7 +143,7 @@ final class RunLockServerTests: XCTestCase {
         var holder: RunLockClient? = try connect(server, "A")
         let waiting = try connect(server, "B")
         XCTAssertEqual(try take(try XCTUnwrap(holder), ["k"]).outcome, .granted)
-        let id = try waiting.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiting.request(keys: ["k"]).get()
         holder = nil
         XCTAssertEqual(waiting.wait(id: id, timeout: .seconds(5)), .granted)
     }
@@ -168,8 +155,8 @@ final class RunLockServerTests: XCTestCase {
         var gone: RunLockClient? = try connect(server, "B")
         let third = try connect(server, "C")
         let held = try take(holder, ["k"])
-        _ = try XCTUnwrap(gone).request(keys: ["k"], mode: .exclusive).get()
-        let queued = try third.request(keys: ["k"], mode: .exclusive).get()
+        _ = try XCTUnwrap(gone).request(keys: ["k"]).get()
+        let queued = try third.request(keys: ["k"]).get()
         gone = nil
         usleep(200_000)
         XCTAssertTrue(waiters.requestedPids.isEmpty, "待っていただけの接続は終わりを待たない")
@@ -183,8 +170,8 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer()
         let a = try connect(server, "A"), b = try connect(server, "B"), c = try connect(server, "C")
         let held = try take(a, ["k"])
-        let cancelled = try b.request(keys: ["k"], mode: .exclusive).get()
-        let next = try c.request(keys: ["k"], mode: .exclusive).get()
+        let cancelled = try b.request(keys: ["k"]).get()
+        let next = try c.request(keys: ["k"]).get()
         b.cancel(id: cancelled)
         a.release(id: held.id)
         XCTAssertEqual(c.wait(id: next, timeout: .seconds(5)), .granted)
@@ -194,7 +181,7 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer()
         let a = try connect(server, "A"), b = try connect(server, "B"), c = try connect(server, "C")
         _ = try take(a, ["b"])
-        let multi = try b.request(keys: ["a", "b"], mode: .exclusive).get()
+        let multi = try b.request(keys: ["a", "b"]).get()
         XCTAssertEqual(b.wait(id: multi, timeout: .milliseconds(150)), .timedOut)
         b.cancel(id: multi)
         XCTAssertEqual(try take(c, ["a"]).outcome, .granted, "取っていた a が放されている")
@@ -204,7 +191,7 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer()
         let a = try connect(server, "A"), b = try connect(server, "B")
         let held = try take(a, ["k"])
-        let waiting = try b.request(keys: ["k"], mode: .exclusive).get()
+        let waiting = try b.request(keys: ["k"]).get()
         server.interrupt()
         XCTAssertEqual(b.wait(id: waiting, timeout: .seconds(5)), .failed(RunLockTable.interruptedReason))
         XCTAssertEqual(try take(b, ["other"]).outcome, .failed(RunLockTable.interruptedReason))
@@ -264,7 +251,7 @@ final class RunLockServerTests: XCTestCase {
         XCTAssertEqual(received.value.filter { if case .memoWrite = $0 { return true } else { return false } }.count, 1,
                        "撃ち直さない")
         XCTAssertTrue(client.isBroken)
-        guard case .failure = client.request(keys: ["a"], mode: .exclusive) else { return XCTFail("再接続しない") }
+        guard case .failure = client.request(keys: ["a"]) else { return XCTFail("再接続しない") }
         XCTAssertNotNil(client.memoWrite(.clear, outsideOps: 0))
     }
 
@@ -281,11 +268,11 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer()
         let a = try connect(server, "A"), b = try connect(server, "B")
         let freeQueued = LockedValue(0)
-        let first = try a.request(keys: ["k"], mode: .exclusive).get()
+        let first = try a.request(keys: ["k"]).get()
         XCTAssertEqual(a.wait(id: first, timeout: .seconds(5), onQueued: { freeQueued.withLock { $0 += 1 } }), .granted)
         XCTAssertEqual(freeQueued.value, 0, "すぐ渡せるときは queued を返さない")
         let blockedQueued = LockedValue(0)
-        let second = try b.request(keys: ["k"], mode: .exclusive).get()
+        let second = try b.request(keys: ["k"]).get()
         XCTAssertEqual(b.wait(id: second, timeout: .milliseconds(200), onQueued: { blockedQueued.withLock { $0 += 1 } }), .timedOut)
         XCTAssertEqual(blockedQueued.value, 1, "待ちに入ったとき1回だけ")
         a.release(id: first)
@@ -340,7 +327,7 @@ final class RunLockServerTests: XCTestCase {
         var holder: RunLockClient? = try connect(server, "Holder.scn")
         let waiting = try connect(server, "B")
         XCTAssertEqual(try take(try XCTUnwrap(holder), ["k"]).outcome, .granted)
-        let id = try waiting.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiting.request(keys: ["k"]).get()
         holder = nil
         let deadline = Date().addingTimeInterval(5)
         while !lines.all.contains(where: { $0.contains("could not be identified") }), Date() < deadline { usleep(20_000) }
@@ -361,7 +348,7 @@ final class RunLockServerTests: XCTestCase {
         box.server = server
         let a = try connect(server, "A"), b = try connect(server, "B")
         _ = try take(a, ["k"])
-        let id = try b.request(keys: ["k"], mode: .exclusive).get()
+        let id = try b.request(keys: ["k"]).get()
         _ = b.wait(id: id, timeout: .milliseconds(100))
         b.cancel(id: id)  // 取り消しの行(持ち主の名指し)が log を呼ぶ
         let deadline = Date().addingTimeInterval(5)
@@ -382,7 +369,7 @@ final class RunLockServerTests: XCTestCase {
         box.server = server
         let a = try connect(server, "A"), b = try connect(server, "B")
         _ = try take(a, ["k"])
-        let id = try b.request(keys: ["k"], mode: .exclusive).get()
+        let id = try b.request(keys: ["k"]).get()
         _ = b.wait(id: id, timeout: .milliseconds(100))
         b.cancel(id: id)
         XCTAssertEqual(stopped.wait(timeout: .now() + 5), .success, "自分を待って詰まらない")
@@ -441,7 +428,7 @@ final class RunLockServerTests: XCTestCase {
         }
         defer { close(listener); unlink(path) }
         let client = try RunLockClient.connect(path: path, scenario: "S", machine: "m", device: "d")
-        let id = try client.request(keys: ["a"], mode: .exclusive).get()
+        let id = try client.request(keys: ["a"]).get()
         XCTAssertEqual(client.wait(id: id, timeout: .milliseconds(100)), .timedOut)
         client.cancel(id: id)
         _ = client.memoRead(outsideOps: 0)  // 届いた渡しをここで読む
@@ -509,7 +496,7 @@ final class RunLockServerTests: XCTestCase {
         var holder: RunLockClient? = try connect(server, "Holder.scn")
         let waiting = try connect(server, "B")
         XCTAssertEqual(try take(try XCTUnwrap(holder), ["k"]).outcome, .granted)
-        let id = try waiting.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiting.request(keys: ["k"]).get()
         holder = nil
         let deadline = Date().addingTimeInterval(5)
         while !lines.all.contains(where: { $0.contains("cannot wait for the process") }), Date() < deadline { usleep(20_000) }
@@ -560,7 +547,7 @@ final class RunLockServerTests: XCTestCase {
         let a = try connect(server, "A")
         let held = try take(a, ["k"])
         let b = try connect(server, "B")
-        let waiting = try b.request(keys: ["k"], mode: .exclusive).get()
+        let waiting = try b.request(keys: ["k"]).get()
         server.stop()
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
         guard case .failed = b.wait(id: waiting, timeout: .seconds(5)) else { return XCTFail("EOF で失敗") }
@@ -575,7 +562,7 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer(lines: lines, interval: .milliseconds(50))
         let a = try connect(server, "Holder.scn"), b = try connect(server, "Waiter.scn")
         _ = try take(a, ["db"])
-        _ = try b.request(keys: ["db"], mode: .exclusive).get()
+        _ = try b.request(keys: ["db"]).get()
         let deadline = Date().addingTimeInterval(5)
         while !lines.all.contains(where: { $0.contains("Waiter.scn") && $0.contains("\"db\"") && $0.contains("Holder.scn") }),
               Date() < deadline { usleep(20_000) }
@@ -588,7 +575,7 @@ final class RunLockServerTests: XCTestCase {
         let server = try makeServer(lines: lines)
         let a = try connect(server, "Holder.scn"), b = try connect(server, "Waiter.scn")
         _ = try take(a, ["db"])
-        let id = try b.request(keys: ["db"], mode: .exclusive).get()
+        let id = try b.request(keys: ["db"]).get()
         XCTAssertEqual(b.wait(id: id, timeout: .milliseconds(100)), .timedOut)
         b.cancel(id: id)
         let deadline = Date().addingTimeInterval(5)

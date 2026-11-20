@@ -120,7 +120,6 @@ public final class RunLockServer: @unchecked Sendable {
 
     fileprivate struct Waiting {
         let keys: [String]
-        let mode: RunLockTable.Mode
         let since: SuspendingClock.Instant
         /// リモートのディスパッチの待ち(その待ち受けの識別子)。手元は nil(数えない)
         let scope: String?
@@ -359,19 +358,19 @@ public final class RunLockServer: @unchecked Sendable {
                 conn.device = device
                 conn.token = token
             }
-        case .acquire(let id, let rawKeys, let mode):
+        case .acquire(let id, let rawKeys):
             let owner = RunLockTable.Owner(connection: conn.id, requestID: id)
             switch RunLockKeys.normalize(rawKeys) {
             case .failure(let error):
                 conn.send(.failed(id: id, reason: error.message))
             case .success(let keys):
                 perform { state, _ in
-                    let effects = state.table.acquire(connection: conn.id, requestID: id, keys: keys, mode: mode)
+                    let effects = state.table.acquire(connection: conn.id, requestID: id, keys: keys)
                     // 表が**この要求を新しく**行列に入れたときだけ待ちに数える(重複で断られた要求は、元の待ちが数えられているので重ねない)
                     if state.waiting[owner] == nil, !effects.failures.contains(where: { $0.owner == owner }),
                        !state.table.isGranted(owner), state.table.waitingKey(of: owner) != nil {
                         let scope: String? = { if case .remote(_, let scope) = conn.origin { return scope } else { return nil } }()
-                        state.beginWaiting(owner, Waiting(keys: keys, mode: mode, since: SuspendingClock().now, scope: scope), nowMs: Self.nowMs())
+                        state.beginWaiting(owner, Waiting(keys: keys, since: SuspendingClock().now, scope: scope), nowMs: Self.nowMs())
                         // 順序の根拠: 渡しを書くのも同じ lock の内側なので、`queued` は必ず `granted` より前に届く
                         conn.send(.queued(id: id))
                     }
@@ -640,7 +639,7 @@ public final class RunLockServer: @unchecked Sendable {
                 .sorted { ($0.key.connection, $0.key.requestID) < ($1.key.connection, $1.key.requestID) }
                 .compactMap { owner, waiting in
                     guard let conn = state.conns[owner.connection], let key = state.table.waitingKey(of: owner) else { return nil }
-                    return "run lock: \(describe(conn)) has waited \(Self.seconds(now - waiting.since))s for \(waiting.mode.rawValue)"
+                    return "run lock: \(describe(conn)) has waited \(Self.seconds(now - waiting.since))s for"
                         + " lock \"\(key)\" (held by \(holdersText(of: key, in: state)))"
                 }
         }

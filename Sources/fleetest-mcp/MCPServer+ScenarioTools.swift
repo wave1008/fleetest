@@ -45,16 +45,17 @@ extension MCPServer {
 
     /// `skipBuild: true` でシナリオのソースが前回のビルドより新しいときの応答先頭の注記。古さの判定は CLI の `--skip-build` と共有
     /// (`ScenarioHost.skipBuildStaleWarning`)。回した後の編集に気づかないと、古い期待値の赤を原因の取り違えとして調べ直す
-    static func skipBuildStaleNote(skipBuild: Bool, stale: Bool) -> String? {
+    static func skipBuildStaleNote(skipBuild: Bool, stale: Bool, firstChanged: String? = nil) -> String? {
         guard skipBuild, stale else { return nil }
         return "⚠️ skipBuild: the scenario source is newer than the last build, so this ran the OLD binary —"
             + " results may not reflect your latest edit. Run again without skipBuild"
+            + (firstChanged.map { " (first changed: \($0))" } ?? "")
     }
 
     func skipBuildStaleNote(_ args: [String: Any], project: TestProject) -> String? {
         let skip = args["skipBuild"] as? Bool ?? false
-        return Self.skipBuildStaleNote(
-            skipBuild: skip, stale: skip && ScenarioHost.skipBuildStaleWarning(project: project) != nil)
+        let staleness = skip ? ScenarioHost.skipBuildStaleness(project: project) : nil
+        return Self.skipBuildStaleNote(skipBuild: skip, stale: staleness != nil, firstChanged: staleness?.firstChanged)
     }
 
     /// シナリオ一覧(自動ビルド込み。コンパイルエラーはそのまま返す=エージェントが直せる)

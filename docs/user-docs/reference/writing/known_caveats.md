@@ -90,6 +90,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Android install verification is turned off during install](../commands/install_app.md#notes) — Play Protect's check is disabled temporarily and restored, so the app is never sent to Google; set `playProtectBypass` to false to stop this.
 
 ### iosAlertHandler
+- [The same title can be registered several times with different buttons](../commands/ios_alert_handler.md#notes) — the one matching a button on the alert shown is pressed.
 - [Empty or all-wildcard alternative fails at declaration](../commands/ios_alert_handler.md#notes) — an empty alternative or one of only `*` and invisible characters would match any alert, so declare concrete text.
 
 ### irregularHandler
@@ -274,9 +275,9 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`@RunOnSingleMachine` stops the load from being split between machines](../testclass/creating_testclass.md#notes) — use it only to gather `beforeAll()` or data on one machine, and also for a class that passes a value from `beforeAll()` through the run memo.
 - [`@RunOnSingleDevice` removes the class's parallelism and defines no order](../testclass/creating_testclass.md#notes) — it prevents only simultaneous runs inside that class.
 - [Write a key that a run-wide lock guards only inside the lock](../commands/memo.md#notes) — a write to that key outside any lock (by another scenario, or after you leave the lock) is not ordered by the lock and can overwrite the value written inside.
-- [Use `withSharedLock` only to read](../commands/memo.md#notes) — writing the run memo with only shared locks held is an error; a scenario that is run again (requeued or retried) runs the lock block again.
+- [A scenario that is run again runs the lock block again](../commands/memo.md#notes) — a counter is added twice when a scenario is requeued or retried.
 - [Run-wide locks do not work in `--fleet`](../commands/memo.md#notes) — the call fails at once with an explanation (on machines reached over ssh they work; a key whose remote owner lost its connection stays unavailable until that machine's run has ended); heavy contention can reach the wait cap, so use the test server's database for heavy or run-spanning exclusion, and never wait for another test with a lock.
-- [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test.
+- [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test; the app screen state carries over between tests unless a later test calls `launchApp()` / `clearAppData()`.
 
 ## UI component quirks (current limitations)
 

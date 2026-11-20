@@ -22,7 +22,7 @@ public enum RunLockMessage: Codable, Equatable, Sendable {
     // クライアント → サーバー
     /// `token`: 受け渡しの行の `lockOwnerToken`(この起動の印。親が適用した外のメモ操作の数え・メモの持ち主をこれで引く)
     case hello(scenario: String, machine: String, device: String, token: String)
-    case acquire(id: Int, keys: [String], mode: RunLockTable.Mode)
+    case acquire(id: Int, keys: [String])
     case cancel(id: Int)
     case release(id: Int)
     /// `outsideOps`: このシナリオがロックの外で出した run メモの操作(runMemoWrite + runMemoClear のイベント)の数。

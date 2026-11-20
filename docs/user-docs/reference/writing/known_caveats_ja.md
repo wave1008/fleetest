@@ -90,6 +90,7 @@
 - [Android のインストール中だけ Play Protect の検証を切る](../commands/install_app_ja.md#注意点) — アプリは Google へ送られず、終わると設定を元に戻します。有効のままだと `adb install` がダイアログで止まります。
 
 ### iOS のシステムアラート(iosAlertHandler)
+- [同じタイトルにボタン違いで複数登録してよい](../commands/ios_alert_handler_ja.md#注意点) — 出ているアラートのボタンに合うものが押されます。
 - [空または * と見えない文字だけの分岐は宣言時に失敗する](../commands/ios_alert_handler_ja.md#注意点) — どのアラートにも一致してしまうためです。具体的な文言を書きます。
 
 ### irregularHandler
@@ -274,9 +275,9 @@
 - [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときと、beforeAll() から run メモ経由で値を渡すクラスにだけ使います。
 - [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
 - [run 全体のロックで守るキーは、ロックの中でだけ書く](../commands/memo_ja.md#注意点) — ロックの外での書き込み(別のシナリオの書き込みや、ロックを出た後の書き込み)はロックで順序が決まらず、中で書いた値を上書きすることがあります。
-- [withSharedLock は読むだけに使う](../commands/memo_ja.md#注意点) — 共有ロックだけを持って run メモへ書くとエラーです。再実行されたシナリオはロックのブロックをもう一度実行します。
+- [再実行されたシナリオはロックのブロックをもう一度実行する](../commands/memo_ja.md#注意点) — 再実行されると、カウンタは二重に足されます。
 - [run 全体のロックは --fleet では効かない](../commands/memo_ja.md#注意点) — 呼んだ時点で理由つきの失敗になります(ssh 越しのマシンでは効きます。リモートの持ち主の接続が切れたキーは、向こうの run の終わりを確かめるまで取れません)。激しく取り合うと待ちの上限に当たるので、重い排他や run をまたぐ排他はテスト用サーバーの DB を使い、他のテストの完了待ちにロックを使わないでください。
-- [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。
+- [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。後のテストが `launchApp()` / `clearAppData()` をしなければ、アプリの画面の状態がそのまま次のテストに持ち越されます。
 
 ## UI 部品ごとの癖(現時点の制約)
 

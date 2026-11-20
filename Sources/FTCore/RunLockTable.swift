@@ -1,22 +1,18 @@
 // RunLockTable.swift
-// run 全体のロック(`withExclusiveLock` / `withSharedLock`。RR-8.5・DR-210)の判定。**I/O を持たない純粋な型**:
+// run 全体のロック(`withExclusiveLock`。RR-8.5・DR-210)の判定。**I/O を持たない純粋な型**:
 // サーバー(`RunLockServer`)とテストが同じ型を使う。操作はどれも「送るべき渡し・失敗」を返すだけで、書くのは呼び手。
 //
 // 規則:
-//  - キーごとに先着順の待ち行列。共有は共有どうしで重ねて持てるが、**排他を待つ人が行列にいる間は新しい共有を渡さない**
-//    (行列の先頭だけが渡される = 共有の後ろの排他が飢えない)
+//  - キーごとに先着順の待ち行列(先頭だけが渡される)
 //  - 1回の要求のキーは呼び手が**名前の順に並べて重複を除いて**渡す。**1つずつ順に取り、取った分は持ったまま次を待つ**
 //    (全員が同じ順でしか待たないので待ちの輪ができない)。全部持った時点で「渡し」
 //  - **持ち主不明**(リモートの待ち受けで受けた接続が「外す」なしで閉じた = ssh の切断でも閉じ、切れた先でまだ臨界区間を走っていることがある):
-//    排他で持っていたら、**そのキーの待ちも新しい要求も(共有・排他とも)すぐ失敗**にする。共有で持っていたら、共有の要求は渡し、
-//    排他の要求だけすぐ失敗にする。向こうの run の終わりを確かめた呼び手が `releaseUnknown` で外し、そのキーは**印**を持つ
+//    **そのキーの待ちも新しい要求もすぐ失敗**にする。向こうの run の終わりを確かめた呼び手が `releaseUnknown` で外し、そのキーは**印**を持つ
 //    (以後そのキーを渡すとき `Effects.lossMarked` に載せる = 前の持ち主の書き込みが欠けているかもしれない注記の材料)
 
 import Foundation
 
 public struct RunLockTable: Sendable {
-    public enum Mode: String, Codable, Sendable { case shared, exclusive }
-
     /// 要求の持ち主 = (接続, 接続の中の要求番号)
     public struct Owner: Hashable, Sendable {
         public let connection: Int
@@ -43,7 +39,6 @@ public struct RunLockTable: Sendable {
 
     private struct Request {
         let keys: [String]
-        let mode: Mode
         /// 持ち終えたキーの数(keys[0..<held] を持つ。held == keys.count で渡し済み)
         var held = 0
         var isGranted: Bool { held == keys.count }
@@ -55,7 +50,6 @@ public struct RunLockTable: Sendable {
 
     private struct KeyState {
         var holders: [Owner] = []
-        var holderMode: Mode = .shared
         var queue: [Owner] = []
     }
 
@@ -72,13 +66,13 @@ public struct RunLockTable: Sendable {
     // MARK: 操作
 
     /// `keys` は名前の順(UTF-8 のバイト列)に並べて重複を除いたもの。**同じ (接続, 番号) の二重の要求は失敗にする**
-    public mutating func acquire(connection: Int, requestID: Int, keys: [String], mode: Mode) -> Effects {
+    public mutating func acquire(connection: Int, requestID: Int, keys: [String]) -> Effects {
         let owner = Owner(connection: connection, requestID: requestID)
         if interrupted { return Effects(failures: [Failure(owner: owner, reason: Self.interruptedReason)]) }
         if requests[owner] != nil {
             return Effects(failures: [Failure(owner: owner, reason: "duplicate lock request \(requestID)")])
         }
-        requests[owner] = Request(keys: keys, mode: mode)
+        requests[owner] = Request(keys: keys)
         if keys.isEmpty { return Effects(grants: [owner]) }
         keyStates[Array(keys[0].utf8), default: KeyState()].queue.append(owner)
         return pump()
@@ -218,17 +212,16 @@ public struct RunLockTable: Sendable {
             progressed = false
             for key in keyStates.keys.sorted(by: { $0.lexicographicallyPrecedes($1) }) {
                 guard var state = keyStates[key], let head = state.queue.first, let request = requests[head] else { continue }
-                if let machine = unknownMachineBlocking(request.mode, state) {
+                if let machine = unknownMachineBlocking(state) {
                     detach(head)
                     effects.failures.append(Failure(owner: head, reason: Self.unknownOwnerReason(
                         key: String(decoding: key, as: UTF8.self), machine: machine)))
                     progressed = true
                     continue
                 }
-                guard canGrant(request.mode, state) else { continue }
+                guard state.holders.isEmpty else { continue }
                 state.queue.removeFirst()
                 state.holders.append(head)
-                state.holderMode = request.mode
                 keyStates[key] = state
                 var advanced = request
                 advanced.held += 1
@@ -247,19 +240,13 @@ public struct RunLockTable: Sendable {
         return effects
     }
 
-    /// そのキーに持ち主不明の持ち主が居て、この要求を断るか(居る機械の名前を返す)。排他の不明は全部断る・共有の不明は排他だけ断る
-    private func unknownMachineBlocking(_ mode: Mode, _ state: KeyState) -> String? {
-        guard let machine = state.holders.compactMap({ requests[$0]?.unknown?.machine }).first else { return nil }
-        return (state.holderMode == .exclusive || mode == .exclusive) ? machine : nil
+    /// そのキーに持ち主不明の持ち主が居て、この要求を断るか(居る機械の名前を返す)
+    private func unknownMachineBlocking(_ state: KeyState) -> String? {
+        state.holders.compactMap { requests[$0]?.unknown?.machine }.first
     }
 
     public static func unknownOwnerReason(key: String, machine: String) -> String {
         "run lock \"\(key)\" cannot be taken: its owner on machine \(machine) lost its connection"
             + " (it may still be running there, so the lock stays unavailable until that machine's run has ended)"
-    }
-
-    private func canGrant(_ mode: Mode, _ state: KeyState) -> Bool {
-        if state.holders.isEmpty { return true }
-        return mode == .shared && state.holderMode == .shared
     }
 }

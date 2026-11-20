@@ -590,7 +590,7 @@ final class FTInAppBridge {
     private var lastRefTap: (targetID: String?, before: ReceiverMark?)?
 
     /// main で呼ぶ。直近の ref の tap が `ref` の要素へ焦点を立てていたか(根拠と条件は `FocusLanding.priorTapLanded`)。
-    /// 判定したら記録は捨てる(type / clear を挟んだ後の叩き直しに使い回さない)
+    /// 判定したら記録は捨てる(type / clear を挟んだ後の叩き直しに使い回さない。空にできた clear だけは焦点の記録を作り直す = handleClear)
     private func priorTapLanded(ref: Int) -> Bool {
         defer { lastRefTap = nil }
         guard let recorded = lastRefTap, let id = recorded.targetID, !id.isEmpty, let current = frames[ref] else { return false }
@@ -1195,25 +1195,37 @@ final class FTInAppBridge {
     private func handleClear(_ body: Data) throws -> InAppHTTPServer.Response {
         let req = try decode(ClearRequest.self, body)
         if req.ref == nil { lastRefTap = nil }
+        var focusRecord: (targetID: String?, before: ReceiverMark?)?
         if let ref = req.ref {
             try requireExpectedRef(ref, expect: req.expect)
             var point = CGPoint.zero
             var before: ReceiverMark?
             var landedByPriorTap = false
+            var focusedFrom: ReceiverMark?
+            var targetID: String?
             try performWithSettle { window in
                 point = try self.pointFollowingMove(ref: ref)
                 before = Self.receiverMark()
+                let prior = self.lastRefTap
                 landedByPriorTap = self.priorTapLanded(ref: ref)
                 if !FocusLanding.skipsRetapBeforeText(priorTapLanded: landedByPriorTap, receiverPresent: before != nil) {
                     point = try self.focusTapPointOffKeyboard(ref: ref, centre: point)
                     FTSynthTap(window, point)
                 }
+                // 焦点を立てた叩きの直前の受け口(叩き直さなかったなら、焦点を立てた前の tap の記録のもの)
+                focusedFrom = landedByPriorTap ? prior?.before : before
+                targetID = (self.nodes.object(forKey: NSNumber(value: ref)) as? NSObject).flatMap { FTAccessibilityIdentifier($0) }
             }
             try requireFocusMoved(ref: ref, tapped: point, before: before, landedByPriorTap: landedByPriorTap,
                                   action: "clear")
+            focusRecord = (targetID, focusedFrom)
         }
         var cleared = false
         try performWithSettle { _ in cleared = FTClearTextInFirstResponder() }
+        // 空にした欄は焦点を持ったまま。続く /type(replace の打鍵)がこの欄を叩き直さないよう、焦点を立てた記録を残す
+        // (`priorTapLanded` は読むと記録を捨てるので、ここで作り直さないと /type が焦点のある欄を2度目に叩き、
+        // CMP が編集メニュー Select All を出して残す)
+        if cleared, let focusRecord { lastRefTap = focusRecord }
         guard cleared else {
             throw InAppError(409, "no focused input field — tap the target field first."
                 + " If it still fails on a focused field, the input is not UIKit-backed"

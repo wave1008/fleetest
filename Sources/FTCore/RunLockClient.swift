@@ -58,13 +58,13 @@ public final class RunLockClient: @unchecked Sendable {
     public var isBroken: Bool { lock.withLock { brokenReason != nil } }
 
     /// 要求を送る。番号を返す(切れていれば失敗)
-    public func request(keys: [String], mode: RunLockTable.Mode) -> Result<Int, RunLockError> {
+    public func request(keys: [String]) -> Result<Int, RunLockError> {
         if let reason = lock.withLock({ brokenReason }) { return .failure(RunLockError(reason)) }
         let id = lock.withLock { () -> Int in
             defer { nextID += 1 }
             return nextID
         }
-        guard send(.acquire(id: id, keys: keys, mode: mode)) else {
+        guard send(.acquire(id: id, keys: keys)) else {
             return .failure(RunLockError(lock.withLock { brokenReason } ?? "the run lock connection is broken"))
         }
         return .success(id)

@@ -102,7 +102,7 @@ between several test projects can be imported from scenarios once you list them 
 
 Building the added dependencies (including macros and build plugins) runs outside the sandbox. Add only packages you trust.
 
-If a shared helper calls `withExclusiveLock` / `withSharedLock`, keep at least one call under the project's `scenarios/` folder: the lock server starts only when such a call is found there (not in `_disabled/`, comments or strings), and a call that exists only in another target or package fails at once.
+If a shared helper calls `withExclusiveLock`, keep at least one call under the project's `scenarios/` folder: the lock server starts only when such a call is found there (not in `_disabled/`, comments or strings), and a call that exists only in another target or package fails at once.
 
 ## Running scripts before and after a run
 

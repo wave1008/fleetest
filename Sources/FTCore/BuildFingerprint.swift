@@ -19,6 +19,19 @@ public enum BuildFingerprint {
     public static func compute(
         repoRoot: URL, scenariosDir: URL, toolchainIdentity: String? = nil
     ) -> String? {
+        snapshot(repoRoot: repoRoot, scenariosDir: scenariosDir, toolchainIdentity: toolchainIdentity)?.digest
+    }
+
+    /// 指紋と、その材料の行(`パス<TAB>mtimeMs<TAB>size` と末尾の `toolchain<TAB>…`)。行は「何が変わったか」を名指す材料
+    /// (`changedEntry`)で、判定には digest だけを使う
+    public struct Snapshot: Sendable, Equatable {
+        public let digest: String
+        public let lines: [String]
+    }
+
+    public static func snapshot(
+        repoRoot: URL, scenariosDir: URL, toolchainIdentity: String? = nil
+    ) -> Snapshot? {
         var entries: [(path: String, mtimeMs: Int64, size: Int64)] = []
 
         if let entry = fileEntry(repoRoot.appendingPathComponent("Package.swift"), repoRoot: repoRoot) {
@@ -60,10 +73,45 @@ public enum BuildFingerprint {
         for entry in entries {
             combined += "\(entry.path)\u{0}\(entry.mtimeMs)\u{0}\(entry.size)\n"
         }
-        combined += toolchainIdentity ?? defaultToolchainIdentity()
+        let toolchain = toolchainIdentity ?? defaultToolchainIdentity()
+        combined += toolchain
 
         let digest = SHA256.hash(data: Data(combined.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        return Snapshot(digest: digest.map { String(format: "%02x", $0) }.joined(),
+                        lines: entries.map { "\($0.path)\t\($0.mtimeMs)\t\($0.size)" } + ["toolchain\t\(toolchain)"])
+    }
+
+    /// 前回のビルドで残した材料の行と今の行を比べ、最初に食い違ったパス(足された・消えたも含む。`toolchain` は Xcode)。
+    /// 材料の行が残っていない(この口より前のビルド)・食い違いが無いなら nil。純粋関数
+    public static func changedEntry(stored: [String], current: [String]) -> String? {
+        func table(_ lines: [String]) -> [String: String] {
+            var out: [String: String] = [:]
+            for line in lines {
+                let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+                if parts.count == 2 { out[String(parts[0])] = String(parts[1]) }
+            }
+            return out
+        }
+        let before = table(stored), now = table(current)
+        return Set(before.keys).union(now.keys).sorted().first { before[$0] != now[$0] }
+    }
+
+    public static func storedLines(productName: String, repoRoot: URL) -> [String]? {
+        guard let text = try? String(contentsOf: entriesURL(productName: productName, repoRoot: repoRoot), encoding: .utf8)
+        else { return nil }
+        return text.split(separator: "\n").map(String.init)
+    }
+
+    /// 指紋と材料の行を残す(行は `changedEntry` で警告に名指すためだけ。書き込み失敗は握りつぶす)
+    public static func store(_ snapshot: Snapshot, productName: String, repoRoot: URL) {
+        store(snapshot.digest, productName: productName, repoRoot: repoRoot)
+        try? snapshot.lines.joined(separator: "\n").write(to: entriesURL(productName: productName, repoRoot: repoRoot),
+                                                           atomically: true, encoding: .utf8)
+    }
+
+    private static func entriesURL(productName: String, repoRoot: URL) -> URL {
+        repoRoot.appendingPathComponent(".fleetest")
+            .appendingPathComponent("build-fingerprint-\(productName).entries.txt")
     }
 
     /// repoRoot/Package.swift が宣言するパス依存の先(相対パスは repoRoot 基準)。

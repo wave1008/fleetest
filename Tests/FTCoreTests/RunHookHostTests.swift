@@ -118,6 +118,26 @@ final class RunHookHostTests: XCTestCase {
         XCTAssertEqual(silent.failureReason, "afterRun() exited with status 9")
     }
 
+    /// afterRun() だけ / beforeRun() だけのクラス(DR-209 で正当)。宣言の無い段の子は「宣言なし」を知らせて成功で返り、
+    /// 親はそれを失敗にせず・「走った」とも言わない(失敗にすると run のシナリオが1本も流れない)
+    func testAnUndeclaredPhasePassesAndIsMarkedNotDeclared() {
+        var fold = RunHookEventFold()
+        XCTAssertTrue(fold.consume(event(RunHookOutcome.notDeclaredEventKind)).isEmpty)
+        let outcome = fold.outcome(exitStatus: 0, timedOutAfter: nil, phase: .before, stderrTail: nil)
+        XCTAssertTrue(outcome.passed)
+        XCTAssertFalse(outcome.declared)
+        var declared = RunHookEventFold()
+        _ = declared.consume(event("scenarioFinished") { $0.passed = true })
+        XCTAssertTrue(declared.outcome(exitStatus: 0, timedOutAfter: nil, phase: .before, stderrTail: nil).declared)
+    }
+
+    /// 子の側: 宣言の無い段は断らずに知らせて戻る(exit 64 で断ると親が beforeRun の失敗として run を止める)
+    func testRunnerAnswersAnUndeclaredPhaseWithoutFailing() throws {
+        let hook = try source("Sources/FTScenarioRunner/RunHookRun.swift")
+        XCTAssertTrue(hook.contains("ScenarioEvent(kind: RunHookOutcome.notDeclaredEventKind)"))
+        XCTAssertFalse(hook.contains("declares no"), "宣言の無い段を失敗にしている")
+    }
+
     func testTimeoutBeatsAFinishedEventAndKeepsTheOpsThatArrived() {
         var fold = RunHookEventFold()
         _ = fold.consume(event("runMemoWrite") { $0.memoKey = "k"; $0.memoValue = "v" })

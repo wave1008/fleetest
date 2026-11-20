@@ -11,44 +11,23 @@ final class RunLockRemoteTests: XCTestCase {
 
     func testUnknownExclusiveOwnerFailsEveryWaiterAndEveryNewRequestAtOnce() {
         var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .exclusive)
-        _ = table.acquire(connection: 2, requestID: 1, keys: ["k"], mode: .shared)
-        _ = table.acquire(connection: 3, requestID: 1, keys: ["k"], mode: .exclusive)
+        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"])
+        _ = table.acquire(connection: 2, requestID: 1, keys: ["k"])
+        _ = table.acquire(connection: 3, requestID: 1, keys: ["k"])
         let effects = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
-        XCTAssertEqual(Set(effects.failures.map(\.owner)), [owner(2), owner(3)], "待っていた共有も排他も失敗")
+        XCTAssertEqual(Set(effects.failures.map(\.owner)), [owner(2), owner(3)], "待っていた要求は全部失敗")
         XCTAssertTrue(effects.failures.allSatisfy { $0.reason.contains("machine M1 lost its connection") }, "\(effects.failures)")
         XCTAssertTrue(table.isGranted(owner(1)), "持ち主不明の持ち分は残る(向こうが走っているかもしれない)")
-        for mode in [RunLockTable.Mode.shared, .exclusive] {
-            let late = table.acquire(connection: 4, requestID: mode == .shared ? 1 : 2, keys: ["k"], mode: mode)
-            XCTAssertEqual(late.failures.count, 1, "新しい要求(\(mode))もすぐ失敗")
-            XCTAssertEqual(late.grants, [])
-        }
+        let late = table.acquire(connection: 4, requestID: 1, keys: ["k"])
+        XCTAssertEqual(late.failures.count, 1, "新しい要求もすぐ失敗")
+        XCTAssertEqual(late.grants, [])
         XCTAssertEqual(table.unknownKeyCount(scope: "S1"), 1)
-    }
-
-    func testUnknownSharedOwnerStillGrantsSharedAndFailsExclusiveAtOnce() {
-        var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .shared)
-        _ = table.acquire(connection: 2, requestID: 1, keys: ["k"], mode: .exclusive)  // 共有を持つ人が居るので待つ
-        let effects = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
-        XCTAssertEqual(effects.failures.map(\.owner), [owner(2)], "待っていた排他は失敗")
-        XCTAssertEqual(table.acquire(connection: 3, requestID: 1, keys: ["k"], mode: .shared).grants, [owner(3)], "共有は渡す")
-        XCTAssertEqual(table.acquire(connection: 4, requestID: 1, keys: ["k"], mode: .exclusive).failures.map(\.owner), [owner(4)],
-                       "新しい排他はすぐ失敗")
-    }
-
-    func testAnUnknownExclusiveOwnerAlsoFailsAWaitingSharedRequest() {
-        var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .exclusive)
-        _ = table.acquire(connection: 2, requestID: 1, keys: ["k"], mode: .shared)
-        // 排他の持ち主が不明になると共有の待ちも失敗する(排他の不明は全部断る)
-        XCTAssertEqual(table.markUnknown(connection: 1, scope: "S1", machine: "M1").failures.map(\.owner), [owner(2)])
     }
 
     func testAMultiKeyRequestThatHitsAnUnknownKeyFailsAndReleasesTheKeysItAlreadyHad() {
         var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["b"], mode: .exclusive)
-        _ = table.acquire(connection: 2, requestID: 1, keys: ["a", "b"], mode: .exclusive)  // a を取って b を待つ
+        _ = table.acquire(connection: 1, requestID: 1, keys: ["b"])
+        _ = table.acquire(connection: 2, requestID: 1, keys: ["a", "b"])  // a を取って b を待つ
         XCTAssertEqual(table.holders(of: "a"), [owner(2)])
         let effects = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
         XCTAssertEqual(effects.failures.map(\.owner), [owner(2)])
@@ -57,7 +36,7 @@ final class RunLockRemoteTests: XCTestCase {
 
     func testReleaseUnknownFreesTheKeysAndMarksThemForEveryLaterGrant() {
         var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .exclusive)
+        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"])
         _ = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
         // 別の機械の不明は外さない
         XCTAssertEqual(table.releaseUnknown(scope: "S2").keys, 0)
@@ -65,42 +44,32 @@ final class RunLockRemoteTests: XCTestCase {
         let released = table.releaseUnknown(scope: "S1")
         XCTAssertEqual(released.keys, 1)
         XCTAssertEqual(table.unknownKeyCount(scope: "S1"), 0)
-        let next = table.acquire(connection: 2, requestID: 1, keys: ["k"], mode: .exclusive)
+        let next = table.acquire(connection: 2, requestID: 1, keys: ["k"])
         XCTAssertEqual(next.grants, [owner(2)])
         XCTAssertEqual(next.lossMarked[owner(2)], ["k"], "外した後の次の取得は印つき")
         _ = table.release(connection: 2, requestID: 1)
-        XCTAssertEqual(table.acquire(connection: 3, requestID: 1, keys: ["k"], mode: .shared).lossMarked[owner(3)], ["k"],
+        XCTAssertEqual(table.acquire(connection: 3, requestID: 1, keys: ["k"]).lossMarked[owner(3)], ["k"],
                        "印はその後の取得にも付く(run の終わりまで)")
-        XCTAssertNil(table.acquire(connection: 4, requestID: 1, keys: ["other"], mode: .exclusive).lossMarked[owner(4)], "他のキーには付かない")
-    }
-
-    func testReleaseUnknownGrantsTheRequestsThatWereWaitingForTheSharedKey() {
-        var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .shared)
-        _ = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
-        XCTAssertEqual(table.acquire(connection: 2, requestID: 1, keys: ["k"], mode: .shared).grants, [owner(2)])
-        _ = table.release(connection: 2, requestID: 1)
-        _ = table.releaseUnknown(scope: "S1")
-        XCTAssertEqual(table.holders(of: "k"), [])
+        XCTAssertNil(table.acquire(connection: 4, requestID: 1, keys: ["other"]).lossMarked[owner(4)], "他のキーには付かない")
     }
 
     func testReleaseAllMarksOnlyWhatWasHeldAndDropsWaiters() {
         var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["held"], mode: .exclusive)
-        _ = table.acquire(connection: 9, requestID: 1, keys: ["busy"], mode: .exclusive)
-        _ = table.acquire(connection: 1, requestID: 2, keys: ["busy"], mode: .exclusive)  // 待ち
+        _ = table.acquire(connection: 1, requestID: 1, keys: ["held"])
+        _ = table.acquire(connection: 9, requestID: 1, keys: ["busy"])
+        _ = table.acquire(connection: 1, requestID: 2, keys: ["busy"])  // 待ち
         _ = table.releaseAll(connection: 1)
         XCTAssertEqual(table.holders(of: "held"), [])
         XCTAssertEqual(table.queue(of: "busy"), [], "待ちは消える")
-        XCTAssertEqual(table.acquire(connection: 2, requestID: 1, keys: ["held"], mode: .exclusive).lossMarked[owner(2)], ["held"])
+        XCTAssertEqual(table.acquire(connection: 2, requestID: 1, keys: ["held"]).lossMarked[owner(2)], ["held"])
         _ = table.release(connection: 9, requestID: 1)
-        XCTAssertNil(table.acquire(connection: 3, requestID: 1, keys: ["busy"], mode: .exclusive).lossMarked[owner(3)],
+        XCTAssertNil(table.acquire(connection: 3, requestID: 1, keys: ["busy"]).lossMarked[owner(3)],
                      "待っていただけのキーには印を付けない")
     }
 
     func testAConnectionThatClosesAfterBeingMarkedUnknownIsNotReportedHeldAgain() {
         var table = RunLockTable()
-        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"], mode: .exclusive)
+        _ = table.acquire(connection: 1, requestID: 1, keys: ["k"])
         _ = table.markUnknown(connection: 1, scope: "S1", machine: "M1")
         XCTAssertEqual(table.connectionClosed(1).held, [], "不明にした持ち分を pid 待ちへ回さない")
     }
@@ -147,9 +116,9 @@ final class RunLockRemoteTests: XCTestCase {
         try RunLockClient.connect(path: path, scenario: name, machine: machine, device: "d", token: token)
     }
 
-    private func take(_ client: RunLockClient, _ key: String, _ mode: RunLockTable.Mode = .exclusive,
+    private func take(_ client: RunLockClient, _ key: String,
                       timeout: Duration = .seconds(5)) throws -> (id: Int, outcome: RunLockClient.Outcome) {
-        let id = try client.request(keys: [key], mode: mode).get()
+        let id = try client.request(keys: [key]).get()
         return (id, client.wait(id: id, timeout: timeout))
     }
 
@@ -180,7 +149,7 @@ final class RunLockRemoteTests: XCTestCase {
         var remoteHolder: RunLockClient? = try connect(remotePath, "Remote.scn", claiming: "local")
         XCTAssertEqual(try take(try XCTUnwrap(remoteHolder), "k").outcome, .granted)
         let waiter = try connect(server.socketPath, "Waiter.scn")
-        let id = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiter.request(keys: ["k"]).get()
         remoteHolder = nil
         XCTAssertEqual(waiter.wait(id: id, timeout: .seconds(5)),
                        .failed(RunLockTable.unknownOwnerReason(key: "k", machine: "M1")), "待っていた要求がすぐ失敗")
@@ -204,7 +173,7 @@ final class RunLockRemoteTests: XCTestCase {
         let liar = try connect(remotePath, "Liar")
         XCTAssertTrue(liar.sendNote(.sshEnded(listener: remotePath)))
         let waiter = try connect(server.socketPath, "Waiter.scn")
-        let id = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiter.request(keys: ["k"]).get()
         XCTAssertEqual(waiter.wait(id: id, timeout: .milliseconds(500)), .timedOut, "持ち主は不明にされず、待つだけ")
         // 持ち主不明にしてから(リモートの持ち主が外さずに閉じる)、リモートの接続が `remoteRunEnded` を名乗っても外さない
         // (`remoteRunEnded` は不明のキーしか外さない = 不明のキーが無い状態では読み捨てても受け付けても見分けられない)
@@ -212,12 +181,12 @@ final class RunLockRemoteTests: XCTestCase {
         XCTAssertEqual(try take(try XCTUnwrap(unknownHolder), "u").outcome, .granted)
         unknownHolder = nil
         let probe = try connect(server.socketPath, "Probe.scn")
-        let firstProbe = try probe.request(keys: ["u"], mode: .exclusive).get()
+        let firstProbe = try probe.request(keys: ["u"]).get()
         XCTAssertEqual(probe.wait(id: firstProbe, timeout: .seconds(5)),
                        .failed(RunLockTable.unknownOwnerReason(key: "u", machine: "M1")), "外さずに閉じたリモートの持ち主は不明")
         XCTAssertTrue(liar.sendNote(.remoteRunEnded(listener: remotePath)))
         usleep(200_000)
-        let secondProbe = try probe.request(keys: ["u"], mode: .exclusive).get()
+        let secondProbe = try probe.request(keys: ["u"]).get()
         XCTAssertEqual(probe.wait(id: secondProbe, timeout: .seconds(5)),
                        .failed(RunLockTable.unknownOwnerReason(key: "u", machine: "M1")), "リモートからの remoteRunEnded で外していない")
     }
@@ -229,7 +198,7 @@ final class RunLockRemoteTests: XCTestCase {
         var holder: RunLockClient? = try connect(remotePath, "Remote.scn", token: "T1")
         XCTAssertEqual(try take(try XCTUnwrap(holder), "k").outcome, .granted)
         let waiter = try connect(server.socketPath, "Waiter.scn", token: "T2")
-        let id = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiter.request(keys: ["k"]).get()
         server.scenarioEnded(token: "T1")  // 親が見届けた(接続はまだ開いている)
         XCTAssertEqual(waiter.wait(id: id, timeout: .milliseconds(300)), .timedOut, "接続が閉じるまで外さない")
         holder = nil  // 放さずに閉じた
@@ -352,7 +321,7 @@ final class RunLockRemoteTests: XCTestCase {
         let holder = try connect(remotePath, "Remote.scn", token: "T1")
         XCTAssertEqual(try take(holder, "k").outcome, .granted)
         let waiter = try connect(server.socketPath, "Waiter.scn")
-        let id = try waiter.request(keys: ["k"], mode: .exclusive).get()
+        let id = try waiter.request(keys: ["k"]).get()
         XCTAssertEqual(waiter.wait(id: id, timeout: .milliseconds(200)), .timedOut)
         // 中継役(手元のプロセス): ssh が終わった
         let control = try RunLockControl.connect(path: server.socketPath)

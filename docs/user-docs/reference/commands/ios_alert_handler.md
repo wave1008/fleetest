@@ -21,6 +21,7 @@ iosAlertHandler(alert: "*wants to track*||*トラッキング*",
 
 ## Notes
 
+- **You may register the same title several times with different buttons**; the one that matches a button on the alert actually shown is pressed (for example an OS update nag that appears as two alerts, with "Later" and "Remind Me Tomorrow").
 - **An empty alternative, or one with nothing but `*` and invisible characters (for example `"\u{200B}*"`), fails at the declaration** — it would match any alert.
 
 ## Why this exists

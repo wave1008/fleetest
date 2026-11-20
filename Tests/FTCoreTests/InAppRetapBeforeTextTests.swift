@@ -38,6 +38,25 @@ final class InAppRetapBeforeTextTests: XCTestCase {
         }
     }
 
+    /// replace(ref 付きの clear → type)で、clear が焦点を立てて空にした欄を type が叩き直さない(叩き直すと CMP が
+    /// 編集メニュー Select All を残し、結果の文字を覆う・続く探索がメニューの消滅を「動いた」と数える)。記録は空にできたときだけ作る
+    func testClearRecordsTheFocusForTheFollowingTypeOnlyWhenCleared() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let bridge = try String(contentsOf: root.appendingPathComponent("InAppBridge/Sources/InAppBridge.swift"),
+                                encoding: .utf8)
+        guard let start = bridge.range(of: "private func handleClear("),
+              let end = bridge.range(of: "private static func splitTrailingNewline(", range: start.upperBound..<bridge.endIndex)
+        else { return XCTFail("handleClear の範囲が見つかりません") }
+        let body = bridge[start.upperBound..<end.lowerBound]
+        let clear = body.range(of: "cleared = FTClearTextInFirstResponder()")
+        let record = body.range(of: "if cleared, let focusRecord { lastRefTap = focusRecord }")
+        XCTAssertNotNil(record, "handleClear が空にした欄の焦点の記録を残していない")
+        if let clear, let record { XCTAssertLessThan(clear.lowerBound, record.lowerBound, "記録は空にした後") }
+        XCTAssertTrue(body.contains("focusedFrom = landedByPriorTap ? prior?.before : before"),
+                      "叩き直さなかった clear は前の tap の記録の受け口を引き継ぐ")
+    }
+
     /// 焦点を動かしうる要求(pressEnter 等)を挟んだら記録を捨てる(探索: tap(姓) → pressEnter → clearInput(姓) が叩き直さずに
     /// 名を消して ok)。読むだけ・記録を作る tap・記録を使う type / clear は残す
     func testPriorTapRecordIsKeptOnlyAcrossReadsAndTheTextRequests() {

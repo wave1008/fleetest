@@ -115,13 +115,13 @@ final class RunLockWaitTimeTests: XCTestCase {
         let state = RunLockScenarioState()
         state.access = .socket(server.socketPath)
         state.waitCapSeconds = 30
-        guard case .success(let free) = state.enter(keys: ["free"], mode: .exclusive, waitSeconds: nil) else { return XCTFail("free") }
+        guard case .success(let free) = state.enter(keys: ["free"], waitSeconds: nil) else { return XCTFail("free") }
         state.leave(free)
         XCTAssertEqual(state.totalWaitedMs, 0, "すぐ渡された呼び出しは 0")
-        let heldID = try holder.request(keys: ["busy"], mode: .exclusive).get()
+        let heldID = try holder.request(keys: ["busy"]).get()
         XCTAssertEqual(holder.wait(id: heldID, timeout: .seconds(5)), .granted)
         Thread { usleep(300_000); holder.release(id: heldID) }.start()
-        guard case .success(let waited) = state.enter(keys: ["busy"], mode: .exclusive, waitSeconds: nil) else { return XCTFail("busy") }
+        guard case .success(let waited) = state.enter(keys: ["busy"], waitSeconds: nil) else { return XCTFail("busy") }
         state.leave(waited)
         XCTAssertGreaterThanOrEqual(state.totalWaitedMs, 250)
         XCTAssertLessThan(state.totalWaitedMs, 5_000)
@@ -142,16 +142,16 @@ final class RunLockWaitTimeTests: XCTestCase {
         let second = try server.openRemoteListener(machine: "M1")
         let local = try RunLockClient.connect(path: server.socketPath, scenario: "L", machine: "m", device: "d")
         for key in ["k1", "k2"] {
-            let id = try local.request(keys: [key], mode: .exclusive).get()
+            let id = try local.request(keys: [key]).get()
             XCTAssertEqual(local.wait(id: id, timeout: .seconds(5)), .granted)
         }
         let control = try RunLockControl.connect(path: server.socketPath)
         XCTAssertEqual(control.waitedMs(listener: first), 0)
         let a = try RunLockClient.connect(path: first, scenario: "A", machine: "m", device: "d")
         let b = try RunLockClient.connect(path: first, scenario: "B", machine: "m", device: "d")
-        _ = try a.request(keys: ["k1"], mode: .exclusive).get()
+        _ = try a.request(keys: ["k1"]).get()
         usleep(100_000)
-        _ = try b.request(keys: ["k2"], mode: .exclusive).get()
+        _ = try b.request(keys: ["k2"]).get()
         usleep(700_000)
         let waited = try XCTUnwrap(control.waitedMs(listener: first))
         XCTAssertGreaterThanOrEqual(waited, 700)
@@ -166,11 +166,11 @@ final class RunLockWaitTimeTests: XCTestCase {
         defer { server.stop() }
         let listener = try server.openRemoteListener(machine: "M1")
         let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
-        let heldID = try holder.request(keys: ["k"], mode: .exclusive).get()
+        let heldID = try holder.request(keys: ["k"]).get()
         XCTAssertEqual(holder.wait(id: heldID, timeout: .seconds(5)), .granted)
         let control = try RunLockControl.connect(path: server.socketPath)
         var waiter: RunLockClient? = try RunLockClient.connect(path: listener, scenario: "W", machine: "m", device: "d")
-        let id = try XCTUnwrap(waiter).request(keys: ["k"], mode: .exclusive).get()
+        let id = try XCTUnwrap(waiter).request(keys: ["k"]).get()
         usleep(300_000)
         let during = try XCTUnwrap(control.waitedMs(listener: listener))
         usleep(300_000)
@@ -229,13 +229,13 @@ final class RunLockWaitTimeTests: XCTestCase {
         defer { server.stop() }
         let listener = try server.openRemoteListener(machine: "M1")
         let holder = try RunLockClient.connect(path: server.socketPath, scenario: "H", machine: "m", device: "d")
-        let heldID = try holder.request(keys: ["k"], mode: .exclusive).get()
+        let heldID = try holder.request(keys: ["k"]).get()
         XCTAssertEqual(holder.wait(id: heldID, timeout: .seconds(5)), .granted)
         let fd = try UnixSocket.connect(path: listener)
         XCTAssertTrue(RunLockLineChannel.writeAll(fd, RunLockMessage.hello(scenario: "W", machine: "m", device: "d", token: "").encodedLine()))
         // 同じ番号の要求を2回送る(2回目は重複で断られる)
         for _ in 0..<2 {
-            XCTAssertTrue(RunLockLineChannel.writeAll(fd, RunLockMessage.acquire(id: 1, keys: ["k"], mode: .exclusive).encodedLine()))
+            XCTAssertTrue(RunLockLineChannel.writeAll(fd, RunLockMessage.acquire(id: 1, keys: ["k"]).encodedLine()))
         }
         usleep(300_000)
         let control = try RunLockControl.connect(path: server.socketPath)

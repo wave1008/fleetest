@@ -1,78 +1,39 @@
 // RunLockScenarioState.swift
 // シナリオのプロセスの側のロックの状態(RR-8.5)。**DSL スレッド専有**(`FTDriveCore` が1つ持つ)。
-// 持っているキーの積み(規則②③。I/O なし = `RunLockHoldings`)と、サーバーとの接続(`RunLockClient`)をまとめる。
+// 持っているキー(入れ子の禁止。I/O なし = `RunLockHoldings`)と、サーバーとの接続(`RunLockClient`)をまとめる。
 // DSL のコマンド(FTDSL/CommandsLock.swift)はここを呼んで、ステップの記録と本体の実行だけを行う。
 
 import Foundation
 
-/// 今持っているキーの積み。キーの同一性は UTF-8 のバイト列(`String` の等価は Unicode の正規化に依るので使わない)
+/// 今持っているキー。キーの同一性は UTF-8 のバイト列(`String` の等価は Unicode の正規化に依るので使わない)。入れ子は全面禁止なので、持つのは1回の呼び出しの分だけ
 public struct RunLockHoldings: Sendable {
-    private struct Entry {
-        var mode: RunLockTable.Mode
-        var count: Int
-    }
-
-    /// 1回の呼び出し。`keys` は検査済み(名前の順・重複なし)。`newKeys` はまだ持っていないキー = サーバーへ頼むもの
+    /// 1回の呼び出し。`keys` は検査済み(名前の順・重複なし)
     public struct Plan: Equatable, Sendable {
         public let keys: [String]
-        public let newKeys: [String]
-        public let mode: RunLockTable.Mode
     }
 
-    private var entries: [[UInt8]: Entry] = [:]
+    private var held: [String] = []
 
     public init() {}
 
-    public var isEmpty: Bool { entries.isEmpty }
-    public var holdsExclusive: Bool { entries.values.contains { $0.mode == .exclusive } }
+    public var isEmpty: Bool { held.isEmpty }
 
-    /// 取ろうとした時点の判定。違反は競合の有無に関わらずエラー(規則②③)
-    public func plan(keys: [String], mode: RunLockTable.Mode) -> Result<Plan, RunLockError> {
-        var newKeys: [String] = []
-        for key in keys {
-            if let held = entries[Array(key.utf8)] {
-                if held.mode == .shared, mode == .exclusive {
-                    return .failure(RunLockError(
-                        "cannot take \"\(key)\" exclusively inside a shared lock on it (a shared lock cannot be upgraded);"
-                        + " take the exclusive lock in the outer call"))
-                }
-            } else {
-                newKeys.append(key)
-            }
+    /// 取ろうとした時点の判定。何か持っていれば競合の有無に関わらずエラー
+    public func plan(keys: [String]) -> Result<Plan, RunLockError> {
+        if !held.isEmpty {
+            let heldNames = held.map { "\"\($0)\"" }.joined(separator: ", ")
+            return .failure(RunLockError(
+                "withExclusiveLock cannot be called inside another withExclusiveLock (held: \(heldNames));"
+                + " take all the keys in one call, e.g. withExclusiveLock(\"a\", \"b\") { ... }"))
         }
-        if let highest = entries.keys.max(by: { $0.lexicographicallyPrecedes($1) }) {
-            for key in newKeys where Array(key.utf8).lexicographicallyPrecedes(highest) {
-                let heldName = String(decoding: highest, as: UTF8.self)
-                return .failure(RunLockError(
-                    "taking \"\(key)\" inside the lock on \"\(heldName)\" can deadlock: keys are ordered by name (UTF-8 bytes),"
-                    + " and a key that sorts before one you already hold cannot be taken inside it."
-                    + " Take all the keys in one call instead, e.g. withExclusiveLock(\"\(key)\", \"\(heldName)\") { ... }"))
-            }
-        }
-        return .success(Plan(keys: keys, newKeys: newKeys, mode: mode))
+        return .success(Plan(keys: keys))
     }
 
-    /// 取れた(または再入で何もしない)
-    public mutating func commit(_ plan: Plan) {
-        for key in plan.keys {
-            let id = Array(key.utf8)
-            if entries[id] != nil {
-                entries[id]?.count += 1
-            } else {
-                entries[id] = Entry(mode: plan.mode, count: 1)
-            }
-        }
-    }
+    /// 取れた(または dry-run / その場で渡す)
+    public mutating func commit(_ plan: Plan) { held = plan.keys }
 
-    /// ブロックを抜けた。持つ回数が 0 になったキーを外す
-    public mutating func leave(_ plan: Plan) {
-        for key in plan.keys {
-            let id = Array(key.utf8)
-            guard var entry = entries[id] else { continue }
-            entry.count -= 1
-            if entry.count <= 0 { entries.removeValue(forKey: id) } else { entries[id] = entry }
-        }
-    }
+    /// ブロックを抜けた
+    public mutating func leave(_ plan: Plan) { held = [] }
 }
 
 public final class RunLockScenarioState {
@@ -119,7 +80,6 @@ public final class RunLockScenarioState {
         /// 前の持ち主が接続を失った(持ち主不明から外した)キー。そのキーの書き込みが欠けているかもしれない(注記。失敗ではない)
         public var lostKeys: [String] = []
         public var keys: [String] { plan.keys }
-        public var mode: RunLockTable.Mode { plan.mode }
     }
 
     public var isHolding: Bool { !holdings.isEmpty }
@@ -129,7 +89,7 @@ public final class RunLockScenarioState {
     static let minimumCapSeconds = 1
 
     /// ロックのブロックに入る。取れなければ理由(英語)を返す = 本体を実行しない
-    public func enter(keys rawKeys: [String], mode: RunLockTable.Mode, waitSeconds: Double?) -> Result<Entry, RunLockError> {
+    public func enter(keys rawKeys: [String], waitSeconds: Double?) -> Result<Entry, RunLockError> {
         if let waitSeconds, !(waitSeconds > 0 && waitSeconds.isFinite) {
             return .failure(RunLockError("waitSeconds must be a positive number of seconds (got \(waitSeconds))"))
         }
@@ -139,7 +99,7 @@ public final class RunLockScenarioState {
         case .failure(let error): return .failure(error)
         }
         let plan: RunLockHoldings.Plan
-        switch holdings.plan(keys: keys, mode: mode) {
+        switch holdings.plan(keys: keys) {
         case .success(let value): plan = value
         case .failure(let error): return .failure(error)
         }
@@ -166,13 +126,9 @@ public final class RunLockScenarioState {
     public var usesServerMemo: Bool { client != nil && isHolding }
 
     /// ロックの中の run メモの書き込みを断る理由。断らないなら nil。**全ての構成で同じ規則**(1台の run で通って複数台で赤にならない):
-    /// 排他を1つも持っていない(共有だけ)・1件が `RunMemoWire.maxPieces` を超える
+    /// 1件が `RunMemoWire.maxPieces` を超える
     public func memoWriteRejection(command: String, op: RunMemoOp) -> String? {
         guard isHolding else { return nil }
-        if !holdings.holdsExclusive {
-            return "\(command) needs an exclusive lock: inside withSharedLock only, a read-modify-write would lose updates."
-                + " Use withSharedLock only to read, or hold an exclusive lock on some key"
-        }
         if RunMemoWire.pieces(for: op).count > RunMemoWire.maxPieces {
             return "\(command): the value is too large to share across the run"
                 + " (over \(RunMemoWire.maxPieces) pieces of \(RunMemoWire.pieceCharacters) characters when encoded)"
@@ -251,15 +207,11 @@ public final class RunLockScenarioState {
         if client.isBroken {
             return .failure(RunLockError("the run lock connection is broken; every lock call in this scenario fails"))
         }
-        if plan.newKeys.isEmpty {
-            holdings.commit(plan)
-            return .success(Entry(plan: plan, requestID: nil, waited: 0))
-        }
         let limit = min(cap, waitSeconds ?? cap)
         let clock = SuspendingClock()
         let started = clock.now
         let id: Int
-        switch client.request(keys: plan.newKeys, mode: plan.mode) {
+        switch client.request(keys: plan.keys) {
         case .success(let value): id = value
         case .failure(let error): return .failure(error)
         }
@@ -281,7 +233,7 @@ public final class RunLockScenarioState {
             return .success(entry)
         case .timedOut:
             client.cancel(id: id)
-            let names = plan.newKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+            let names = plan.keys.map { "\"\($0)\"" }.joined(separator: ", ")
             return .failure(RunLockError(
                 "timed out waiting for run lock \(names) after \(String(format: "%.1f", waited))s"
                 + " (limit \(String(format: "%.0f", limit))s)"))

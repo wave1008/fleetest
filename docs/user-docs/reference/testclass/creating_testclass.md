@@ -106,6 +106,8 @@ report, but it does not count toward the test results.
 scenario of any machine and after all of them (for example resetting a server that every machine shares, or writing a value that every test reads), put it in a class marked `@RunHooks`.
 
 ```swift
+import FTDSL   // required: without it, a class in a separate file fails with `unknown attribute 'RunHooks'`
+
 @RunHooks
 class RunWide {
     func beforeRun() {
@@ -122,7 +124,7 @@ class RunWide {
 }
 ```
 
-- You can write `beforeRun()`, `afterRun()` or both. They take no arguments and must be neither `async` nor `throws` (`func beforeRun()`; anything else is a compile error). A project can have **one** `@RunHooks` class (two or more is an error before the run starts, dry-run included), and it cannot also be a `@TestClass`.
+- You can write `beforeRun()`, `afterRun()` or both (a phase you do not write does nothing). They take no arguments and must be neither `async` nor `throws` (`func beforeRun()`; anything else is a compile error). A project can have **one** `@RunHooks` class (two or more is an error before the run starts, dry-run included), and it cannot also be a `@TestClass`.
 - **Where and how often**: once per run per project, on the machine where you started fleetest (for `run --runner <machine>`, the runner machine). A run that spans several machines still runs them once.
   The run prints one line saying which machine ran it. `beforeRun()` finishes before any scenario starts on any machine.
   **They do not run** in a debug run, in a run without a profile, or in a dry-run. They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
@@ -199,7 +201,7 @@ class OrderFlow {
   they still collide (use a separate account per scenario).
 - **`@RunInOrder`** runs the tests on one device in `@Order` order. It hinders parallelism, the rest of the class is not run once a test
   fails, and a retest starts from the first test of the class. Use it only when needed — **first ask whether the flow can be folded into a
-  single `@Test`**.
+  single `@Test`**. The tests of the class run on one device in turn, so unless a later test calls `launchApp()` / `clearAppData()`, the app screen the earlier test left behind carries over into it as it is.
 
 The flow in this example is normally folded into one `@Test`. Split it only when it is too long and you want to see a failure in the middle separately.
 
@@ -243,7 +245,7 @@ Both can be attached to the class or to an individual `@Test` method.
 
 - `@RunOnSingleMachine` stops the load from being split between machines. Use it only to gather `beforeAll()` or data on one machine; you cannot write which machine (it is the one that received the first test).
 - `@RunOnSingleDevice` removes the class's parallelism and defines no order. It prevents only simultaneous runs inside that class; another class using the same account still collides.
-- `@RunInOrder` hinders parallelism, the rest of the class is not run after a failure, and a retest starts from the class's first test. First ask whether the flow fits in one `@Test`; `@Order` is required on every test (integer, no repeats), and only the whole class or a range from the first test can be selected.
+- `@RunInOrder` hinders parallelism, the rest of the class is not run after a failure, and a retest starts from the class's first test. First ask whether the flow fits in one `@Test`; `@Order` is required on every test (integer, no repeats), and only the whole class or a range from the first test can be selected. The app screen state carries over between its tests unless a later test calls `launchApp()` / `clearAppData()`.
 - `beforeRun()` / `afterRun()` do not run in a debug run, a run without a profile or a dry-run, and cannot pass a value to each other through a class `var` (separate processes); use the run memo.
 - `beforeRun()` cannot use the device or the servers of compose.yaml, and the allowed domains and dataset overrides are those of the machine it ran on; per-machine preparation goes in `run-setup.sh` / `beforeAll()`.
 - `afterRun()` also runs after failed tests; it is skipped only in an interrupted run or after an abnormal end, and it is not counted in the results; do not make it a precondition of a pass. A `--fleet` run with `@RunHooks` is refused.
