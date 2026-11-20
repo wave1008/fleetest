@@ -56,9 +56,9 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   `account()` の値をレポートで `***` に伏せるのはマシン側の `redactAccountValues` で、**既定は伏せない**。
   `~/.config/fleetest/` はエージェントが書かない(🧑 が書く)
 - **ファイル直下に `var` を書かない**(Swift 6 で `is not concurrency-safe` のコンパイルエラー)。各 `@Test` は
-  別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` は1つのテストの中だけ)
+  別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` はテスト関数の中だけ。`--fleet` の run では run メモはマシンごとに分かれる)
 - **run 全体のロック** `withRunLock("キー", ...) { }`(ブロック形のみ・キーは文字列。`waitSeconds:` 任意)。
-  主な用途は、1つしかない資源(例: OTP の受信箱)をデバイスの操作をまたいで占有すること: `withRunLock("otp-inbox") { tap("#send_otp"); let otp = readOtpFromInbox() /* 利用者が書く関数 */; tap("#otp_input"); type(otp) }`。
+  主な用途は、1つしかない資源(例: OTP の受信箱)をデバイスの操作をまたいで占有すること: `withRunLock("otp-inbox") { tap("#send_otp"); let otp = readOtpFromInbox() /* 利用者が書く関数 */; type("#otp_input", otp) }`。
   データだけの排他(カウンタ等)はテスト用サーバーの DB でもできる。クラス単位で直列にすれば足りるなら `@RunOnSingleDevice` / `@RunInOrder`(`@RunInOrder` のクラスのテストは1台のデバイスで順に走るので、後のテストが `launchApp()` / `clearAppData()` をしなければ前のテストが残した画面の状態が持ち越される)。画面から読む値を run で1回だけ読み全マシンで共有するなら(`beforeRun()` はデバイス不可)各テストの先頭で `withRunLock("shop") { if readRunMemo("shop").isEmpty { select("#shop_name").runMemoTextAs("shop") } }`。run メモのカウンタ: `withRunLock("counter") { let n = Int(readRunMemo("count")) ?? 0; writeRunMemo("count", String(n + 1)) }`
   - 複数キーは1回の呼び出しで名前の順(UTF-8 バイト)に取る。**入れ子は全面禁止**(ロックの中でロックを呼ぶとキーが同じでも別でも・競合が無くても・dry-run でもエラー。要るキーは全部1回の呼び出しで渡す。ロックを取るヘルパー関数をロックの中から呼ぶ書き方もできない(入れ子)。ロックの外から呼ぶのは可)
   - 待ちは `scenarioTimeout` に数えず、1回の待ちの上限はその run の最長の `scenarioTimeout`(台数が多く激しく取り合うと当たる。重い排他・run をまたぐ排他はテスト用サーバーの DB)。他のテストの完了待ちに使わない。`waitSeconds:` は省略すると上限まで待ち、0 より大きい値だけ(0 や負はエラーで「1回だけ試す」にはならない)・上限を短くするだけで延ばせない

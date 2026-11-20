@@ -81,7 +81,7 @@ class SignInExample {
   `thisIs` で検証する。localhost へはそのまま届く。外部の宛先は、その Mac の `sandbox.allowedDomains` に
   載っているものだけ([シナリオから外部へ通信する](../writing/network_access_ja.md))。
 - ファイル直下に `var` を書かない(Swift 6 のコンパイルエラーになる)。各 `@Test` は別プロセスで動くので、
-  値は持ち越せない。テスト間で渡すなら `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` は1つのテストの中だけ)。
+  値は持ち越せない。テスト間で渡すなら `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` はテスト関数の中だけ)。
 
 ## セレクタ
 

@@ -4,7 +4,7 @@
 
 値を受け渡します。`@Test` は1本ずつ別プロセスで動くので Swift の変数は引き継がれません。メモは2種類あります。
 
-- **メモ(`writeMemo` など)**は、**テスト1本の中**(`beforeEach()`・本体・`afterEach()`)だけで使えます。同じテストの中で、ある手順から別の手順へ値を持ち越すときに使います。
+- **メモ(`writeMemo` など)**は、**テスト関数の中**(`beforeEach()`・本体・`afterEach()`)だけで使えます。同じテストの中で、ある手順から別の手順へ値を持ち越すときに使います。
 - **run メモ(`writeRunMemo` など)**は、**run のすべてのシナリオ(どのデバイスでも・どのマシンでも)**で共有されます。他のテストへ値を渡すときに使います。
 
 ## 関数
@@ -26,53 +26,36 @@
 
 ### メモ(`writeMemo` など)
 
-- 範囲はテスト1本です。`beforeEach()`・本体・`afterEach()` で共有され、次のテストは空のメモから始まります。他のシナリオへは渡りません。
-- **テストの外での読み書きは失敗になります。** `beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()` が対象で、ヘルパー関数を経由しても止まります。
-  エラーには「run 全体で共有するなら `writeRunMemo` / `readRunMemo` を使う」と出ます。
+- 範囲はテスト関数の中だけです。`beforeEach()`・本体・`afterEach()` で共有され、次のテストは空のメモから始まります。他のシナリオへは渡りません。
 
 ### run メモ(`writeRunMemo` など)
 
-- **run のすべてのシナリオ(どのデバイスでも。マシンをまたぐ run ではマシンをまたいで)**共有されます。次の run へは持ち越しません。
-  MCP の `ft_run_scenario` は1回の呼び出しが1つの run で、その run メモは空(またはその呼び出しの `beforeRun()` が書いたもの)から始まり、その呼び出しのシナリオで共有されます。ランナーを手で直接起動した実行は空の run メモから始まります。
-- 確実な使い方は「**[`@RunHooks`](../testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun) のクラスの `beforeRun()` で `writeRunMemo` し、各テストで `readRunMemo` する**」です。
-  `beforeRun()` は1回の run でどのマシンのどのシナリオよりも前に1回だけ走るので、全テストが最初の行から値を読めます。アプリやそのマシンが要る値は、`@RunOnSingleMachine` を付けたクラスの `beforeAll()` でだけ書きます(`beforeAll()` はクラスごとに走り、マシンをまたぐ run ではマシンごとに1回走るので、別のマシンの `beforeAll()` が値を上書きすることがあります。run 全体の値は `beforeRun()` に置きます)。
-  `beforeAll()` は、そのマシンのデバイスで走るそのクラスのどのシナリオよりも前に走り、他のデバイスは終わるまで待ちます。
-  `beforeRun()` が走らない実行(デバッグ実行・プロファイルなしの run・dry-run)では、そのキーを `readRunMemo` で読むと失敗ではなく `""` が返るので、読んだ直後に確かめます(例: `readRunMemo("token").thisIsNotEmpty()`)。
-- `afterRun()` も `afterAll()` と同じく、run メモを読めます(最終の値)が書けません。`beforeRun()` と `afterRun()` では、テスト単位のメモ(`writeMemo` など)も使えません。
-- **ある `@Test` から別の `@Test` へ値を渡すなら、`@RunInOrder` のクラスにして、先のテストで `writeRunMemo` します。** それ以外のクラスは、順番も走るデバイスも決まっていません
-  ([クラスのテストを1か所で・順番に流す](../testclass/creating_testclass_ja.md#クラスのテストを1か所で順番に流すrunonsinglemachine--runonsingledevice--runinorder))。
-- **`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`afterRun()` での run メモの書き込み(`writeRunMemo`・`runMemoTextAs`・`clearRunMemo`)は失敗になります。**(`beforeRun()` では書けます。)
-  `setUpDevice()` の書き込みは他のデバイスの値で上書きされ、`tearDownDevice()`・`afterAll()`・`afterRun()` の書き込みはテストが終わった後で、読むテストがないためです。読むのはかまいません
-  (`afterAll()` は全デバイスの仕事が終わった後に走るので、最後の値が見えます)。無いキーを `readRunMemo` で読むと `""` を返します。
-- run メモは **run ごとに空から始まります**(前の run の値は残りません)。
-- シナリオが受け取る run メモは**そのシナリオの開始時点のもの**(と、そのシナリオ自身の書き込み)で、走っている間に別のデバイスが書いた値は見えません。
-- **マシンをまたぐと、書き込みは別のマシンへ少し遅れて届きます。** 書いたマシンは次のシナリオから自分の書き込みが見え、別のマシンは届いた後に始まるシナリオから見えます。
-  最後はどのマシンも同じ履歴が同じ順にそろいます。
-- **普通の run メモの書き込みは排他されません。** 書き込みは消えず、届いた順に追記されますが、読んでから書くまでの間に別のシナリオが書く割り込みや、同じキーへの同時の書き込みのどちらが最後になるかは保証しません。
-  **1つのキーに書くのは1か所にします** —— キーをテストごとに分けてください(例: `"orderId_S0010"`)。排他が要るとき(カウンター・「この品を取る」の取り合い)は、軽いものは [run 全体のロック](run_lock_ja.md)、重いもの・run をまたぐものはテスト用サーバーの DB を使います。
-- **[run 全体のロック](run_lock_ja.md)の中の書き込み**(`writeRunMemo` / `clearRunMemo` / `runMemoTextAs`)は、確定してから次のステップへ進み、ロックの中の `readRunMemo` は最新の値を返します(ロックを出た後もその値が見えます)。
-- `clearRunMemo()` は、その時点の run メモ(自分のまだ確定していない書き込みを含む)を消します。
-- **複数のマシンのデバイスを持つ実行プロファイルで回す run**(デバイスの `machine` に別のマシンを書いた実行プロファイル。→ [リモート実行](../../fleet/remote_runners_ja.md)。`--runner` で別のマシンへ送る run も)では、run メモはマシンをまたいで1つです。
-  **例外は `--fleet` の run** で、`--split` の有無に関わらず、run メモはマシンをまたがず、マシンごとの共有です(run の開始時にそのことを示す1行が出ます)。
-- テストクラスのプロパティ(`var`)で値を渡そうとすると、ビルド時に警告が出ます。ある `@Test` で書いて別の `@Test` で読む、`beforeAll()` で書いて各テストで読む、のように、書いた側と読む側が別のプロセスで走る形です(`beforeEach()` で書いて同じテストの本体や `afterEach()` で読む形は正しく動くので出ません)。ヘルパー関数経由の書き込みや `x.append(…)` のような変更は検知しないので、警告が出ないことは安全の保証ではありません。
-- `beforeAll()` が失敗すると、その run のそのクラスの残りのシナリオは実行されずに失敗として記録され、再試行しません。
-  `setUpDevice()` が失敗すると、そのデバイスで同じクラスの残りのシナリオは実行されずに失敗として記録されます。
+- run メモは run の中のすべてのシナリオで共有されます(デバイスやマシンが違っても同じです)。run を始めるたびに初期化され、前の run の値は残りません。
+- おすすめの使い方は、**[`@RunHooks`](../testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun) を付けたクラスの `beforeRun()` で `writeRunMemo` を使って値を書き、各テストで `readRunMemo` を使って読む**方法です。
+- シナリオが読めるのは、**そのシナリオが始まった時点の run メモ**と、そのシナリオ自身が書いた値です。テストの実行中に別のシナリオが書いた値は読めません。
+- **書き込みは排他されません。** 排他が必要な場合は、[run 全体のロック](run_lock_ja.md)を使います。
 
 ## 例
 
 ```swift
+import FTDSL
+
+@RunHooks
+class RunSetup {
+    func beforeRun() {
+        writeRunMemo("shop", data("[shop1].name"))
+    }
+}
+
 @TestClass
 class OrderFlow {
-    func beforeAll() {
-        launchApp()
-        select("#shop_name").runMemoTextAs("shop")
-    }
-
     @Test("レシートに店名が出る")
     func S0010() {
         scenario {
             scene(1, "確認する") {
-                expectation { select("#receipt_shop").textIs(readRunMemo("shop")) }
+                expectation {
+                    select("#receipt_shop").textIs(readRunMemo("shop"))
+                }
             }
         }
     }
@@ -81,17 +64,19 @@ class OrderFlow {
     func S0020() {
         scenario {
             scene(1, "覚える") {
-                action { select("#order_no").memoTextAs("orderNo") }
+                action {
+                    select("#order_no").memoTextAs("orderNo")
+                }
             }
             scene(2, "確認する") {
-                expectation { select("#receipt_order_no").textIs(readMemo("orderNo")) }
+                expectation {
+                    select("#receipt_order_no").textIs(readMemo("orderNo"))
+                }
             }
         }
     }
 }
 ```
-
-この例では、どのマシンも `beforeAll()` から同じ店名を書くので、重複した書き込みは無害です。マシンごとに違う値は、クラスに `@RunOnSingleMachine` を付けるか `beforeRun()` で書きます。
 
 ### Link
 - [index](../../index_ja.md)

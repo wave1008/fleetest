@@ -87,7 +87,7 @@ class SignInExample {
   `status` / `text` / `json` with `thisIs`. localhost is reachable as is; external hosts only when they are in that
   Mac's `sandbox.allowedDomains` ([Network access from scenarios](../writing/network_access.md)).
 - Do not declare a `var` at file level (Swift 6 rejects it at compile time). Each `@Test` runs in its own process, so
-  values do not carry over; to pass a value between tests, use `writeRunMemo` / `readRunMemo` (`writeMemo` / `readMemo` live only within one test).
+  values do not carry over; to pass a value between tests, use `writeRunMemo` / `readRunMemo` (`writeMemo` / `readMemo` live only within one test function).
 
 ## Selectors
 

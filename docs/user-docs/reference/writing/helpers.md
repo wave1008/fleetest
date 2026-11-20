@@ -13,7 +13,7 @@ instead. All of them work inside the sandbox as they are.
 | Use CSV, JSON or images as files | `dataFile()` |
 | Put photos and videos on the device | `addMedia()` |
 | Prepare test data or clean up through an API | `httpRequest` / `fleetestURLSession` |
-| Pass values between scenarios | `writeRunMemo` / `readRunMemo` (within one test: `writeMemo` / `readMemo`) |
+| Pass values between scenarios | `writeRunMemo` / `readRunMemo` (within one test function: `writeMemo` / `readMemo`) |
 | Keep secrets out of reports | `redactAccountValues` |
 | Use external Swift packages | `fleetestScenarioDependencies` |
 | Prepare a DB or stub server around a run | `scripts/compose.yaml` / `run-setup.sh` / `run-teardown.sh` |
@@ -77,7 +77,7 @@ Details: [HTTP request (httpRequest)](../commands/http_request.md), [Network acc
 ## Passing values between scenarios (memo)
 
 Pass values prepared in `beforeRun()` (once per run) or, for a class with `@RunOnSingleMachine`, in `beforeAll()` (per class) to the other scenarios of the run (on any device and any machine) with `writeRunMemo` / `readRunMemo`. You do not need to write and exchange
-files yourself. `writeMemo` / `readMemo` carry a value only within one test. In a run that spans machines, `beforeAll()` runs once per machine and a later machine can overwrite the value, so do not pass an app-made or machine-made value from `beforeAll()` unless the class has `@RunOnSingleMachine`.
+files yourself. `writeMemo` / `readMemo` carry a value only within one test function. In a run that spans machines, `beforeAll()` runs once per machine and a later machine can overwrite the value, so do not pass an app-made or machine-made value from `beforeAll()` unless the class has `@RunOnSingleMachine`.
 
 Details: [Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](../commands/memo.md)
 

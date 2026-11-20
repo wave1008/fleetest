@@ -37,7 +37,7 @@ fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。
 | 待機 | `wait` / `waitForDisplay` / `waitForClose` |
 | 記録・フロー | `procedure`、`screenshot`、`verify`、`@Deleted` |
 | 前後処理 | `beforeEach` / `afterEach` |
-| メモ | `writeMemo` / `readMemo` / `clearMemo` / `memoTextAs`(範囲はテスト1本) |
+| メモ | `writeMemo` / `readMemo` / `clearMemo` / `memoTextAs`(範囲はテスト関数の中だけ) |
 | run メモ | `writeRunMemo` / `readRunMemo` / `clearRunMemo` / `runMemoTextAs` |
 | ログのフォルダ | `TestLog.directoryForLog` |
 
