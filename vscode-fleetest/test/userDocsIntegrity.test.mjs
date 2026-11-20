@@ -256,6 +256,45 @@ test("折りたたみの直後に本文が続くときは <br> で1行あける"
   assert.deepEqual(problems, []);
 });
 
+// 太字の `**` が開き・閉じとして働くかの判定(CommonMark の left/right-flanking)。日本語は語の間に空白が無いので、
+// `**メモ(…)**は` のように「記号の後ろの閉じ」「文字の後ろの開き」が太字にならずに `**` のまま見える(プレビューで実際に踏んだ)。
+// 段落ごとに `**` を開き・閉じの順に数える(太字が行をまたぐので行単位では順番がずれる)。コード(ブロック・インライン)は見ない
+const PUNCT = /[\p{P}\p{S}]/u;
+function brokenBold(source) {
+  const problems = [];
+  const body = source.replace(/```[\s\S]*?```/g, "");
+  for (const para of body.split(/\n\s*\n|\n(?=\s*(?:[-|]|\d+\.))/)) {
+    const s = para.replace(/`[^`\n]*`/g, "C");
+    const marks = [...s.matchAll(/(?<!\*)\*\*(?!\*)/g)].map((m) => m.index);
+    marks.forEach((i, k) => {
+      const before = i > 0 ? s[i - 1] : " ";
+      const after = i + 2 < s.length ? s[i + 2] : " ";
+      const space = (c) => /\s/.test(c);
+      const ok = k % 2 === 0
+        ? !space(after) && (!PUNCT.test(after) || space(before) || PUNCT.test(before))
+        : !space(before) && (!PUNCT.test(before) || space(after) || PUNCT.test(after));
+      if (!ok) problems.push(`${k % 2 === 0 ? "開き" : "閉じ"}: ${s.slice(Math.max(0, i - 20), i + 12).replace(/\n/g, " ")}`);
+    });
+  }
+  return problems;
+}
+
+test("太字の ** がプレビューで太字になる(記号の後ろの閉じ・文字の後ろの開きが無い)", () => {
+  // 直し方: 括弧を太字の外へ出す(`**メモ**(…)は`)・閉じの直後に空白を置く(`。** 次の文`)・開きの前に読点や空白を置く
+  const problems = pages.flatMap((page) => brokenBold(readPage(page)).map((p) => `${page}: ${p}`));
+  assert.deepEqual(problems, []);
+});
+
+test("太字の検出器は崩れを拾い、正しい形を通す", () => {
+  assert.equal(brokenBold("**メモ(`writeMemo` など)**は使えます").length, 1, "記号の後ろの閉じ");
+  assert.equal(brokenBold("ただし**「こと」で終わる行**に入れる").length, 1, "文字の後ろの開き");
+  assert.deepEqual(brokenBold("**メモ**(`writeMemo` など)は使えます"), []);
+  assert.deepEqual(brokenBold("**排他されません。** 次の文"), []);
+  assert.deepEqual(brokenBold("ただし、**「こと」で終わる行**に入れる"), []);
+  assert.deepEqual(brokenBold("- **行を\n  またぐ太字**です。**次の太字**も"), [], "行をまたいでも順番がずれない");
+  assert.deepEqual(brokenBold("```\n**(a)**b\n```"), [], "コードブロックは見ない");
+});
+
 // コマンドのページ(reference/commands/)の節の型。規則の本文は .claude/rules/dsl-commands.md。
 // 人は見出しで飛べ、シナリオを書く AI は同じ位置に同じ情報がある前提で読める(崩れると黙って読み落とす)。
 const COMMAND_SECTIONS = {
