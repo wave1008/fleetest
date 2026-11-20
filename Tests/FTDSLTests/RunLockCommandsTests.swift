@@ -294,4 +294,25 @@ final class RunLockCommandsTests: XCTestCase {
         withExclusiveLock("other") {}
         XCTAssertFalse((steps(core).last?.description ?? "").contains("[note:"), "印の無いキーには付かない")
     }
+
+    /// 発行元の正本が通し番号を振る構成: ロックの中の書き込みは通し番号つきの確定を親へ運ぶ。1台の run(番号なし)は何も出さない
+    func testInsideLockWritesCarryTheHubsSequenceNumberToTheParentOnlyWhenThereIsAHub() throws {
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let hubServer = try RunLockServer(memoFor: { _ in RunMemoHubLockBackend(hub: hub) }, waitCapSeconds: { 5 }, log: { _ in })
+        servers.append(hubServer)
+        let sink = Sink()
+        _ = makeCore(sink: sink, access: .socket(hubServer.socketPath))
+        withExclusiveLock("c") { writeRunMemo("n", "1"); clearRunMemo() }
+        let committed = sink.events.filter { $0.kind == "runMemoCommitted" }
+        XCTAssertEqual(committed.map(\.memoSeq), [1, 2])
+        XCTAssertEqual(committed.first?.memoKey, "n")
+        XCTAssertNil(committed.last?.memoKey, "clear")
+        XCTAssertFalse(sink.events.contains { $0.kind == "runMemoWrite" || $0.kind == "runMemoClear" }, "ロックの外の書き込みの数には数えない")
+        FTRuntime.tearDown()
+        let plainSink = Sink()
+        let server = try startServer()
+        _ = makeCore(sink: plainSink, access: .socket(server.socketPath))
+        withExclusiveLock("c") { writeRunMemo("n", "1") }
+        XCTAssertFalse(plainSink.events.contains { $0.kind == "runMemoCommitted" }, "1台の run は親のストアへ直接入る")
+    }
 }

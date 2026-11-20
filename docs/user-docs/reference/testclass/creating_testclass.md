@@ -79,7 +79,7 @@ not be skipped when a scenario is aborted mid-way.
 
 `func beforeAll()` (optional) runs **once per run, per class** (in a run that spans machines, once per machine), before any scenario of that class on
 any device — for per-class preparation (for example creating the test data of that class; values it
-writes with `writeRunMemo` are shared, see [memo](../commands/memo.md)). Preparation that must happen once for the whole run goes in
+writes with `writeRunMemo` are shared, see [memo](../commands/memo.md)). In a run that spans machines, another machine's `beforeAll()` can overwrite a value this one wrote, so pass a value made by the app or by one machine from `beforeAll()` only in a class with `@RunOnSingleMachine`. Preparation that must happen once for the whole run goes in
 [`beforeRun()`](#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun). Other devices that
 pick up a scenario of that class wait until it finishes. If it fails, the remaining scenarios of
 that class in the run are recorded as failed without running.
@@ -92,7 +92,7 @@ interrupted run.
 `func setUpDevice()` (optional) runs **at most once per run, per device, per class**, before
 `beforeEach()` of the first scenario of that class that lands on the device — for preparation that
 should not repeat for every test but is needed on each device (for example switching the app's language). Each scenario is
-its own process, so instance properties set there are visible only to that first scenario; `setUpDevice()` cannot write the run memo (it can only read it); pass values by writing them with `writeRunMemo` in `beforeAll()` (see [memo](../commands/memo.md)).
+its own process, so instance properties set there are visible only to that first scenario; `setUpDevice()` cannot write the run memo (it can only read it); pass values by writing them with `writeRunMemo` in `beforeAll()` of a class with `@RunOnSingleMachine`, or in `beforeRun()` for a run-wide value (see [memo](../commands/memo.md)).
 
 `func tearDownDevice()` (optional) runs **once, after the device has finished all of its scenarios
 in the run**, if at least one scenario of that class ran on the device — for cleaning up what
@@ -127,18 +127,20 @@ class RunWide {
   The run prints one line saying which machine ran it. `beforeRun()` finishes before any scenario starts on any machine.
   **They do not run** in a debug run, in a run without a profile, or in a dry-run. They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
   Each of them runs in a process of its own, so **a value cannot be passed from `beforeRun()` to `afterRun()` through a `var` of the class** — use the run memo.
+  When `beforeRun()` does not run, `readRunMemo` of the keys it would have written returns `""` (not a failure), so check right after reading, for example `readRunMemo("token").thisIsNotEmpty()`.
 - **What you can use**: the run memo (`writeRunMemo` / `readRunMemo`; values written in `beforeRun()` are visible to every test from its first line), `httpRequest`, `data()` / `account()`, `wait`, and value assertions (`thisIs` etc.).
   `httpRequest` is refused unless the host is in `allowedDomains` of the machine that ran the hook ([Sandbox](../../security/sandbox.md); check `response.status` as in the example).
   **Commands that operate a device fail** (the message names the command), and **the servers of compose.yaml are not reachable** (they are per machine).
   Allowed domains (`allowedDomains`) and the per-machine override of the dataset are those of **the machine that ran it** and can differ from the machines that run the tests.
-- **A failing `beforeRun()` stops the run**: no scenario runs, the run ends with exit code 1 and the reason in the run's result, and it is not recorded as a failed test.
+- **A failing `beforeRun()` stops the run**: no scenario runs, the run ends with exit code 1 and the reason in the run's result, and it is not recorded as a failed test. With `--target` over several projects, only the scenarios of that project stop; the other projects continue, the exit code is 1, and the JUnit report gets a failed `beforeRun` testcase for each failing project.
+- **Time limit**: `beforeRun()` and `afterRun()` are cut off at the run profile's `scenarioTimeout` (the longest among the profiles; `@Test(scenarioTimeout:)` does not count) and then count as failed.
 - **`afterRun()` runs when it can**: after every machine has finished its work (including each `afterAll()`), even if `beforeRun()` failed or tests failed (a red run) — so it can clean up what a half-done `beforeRun()` created. It is skipped **only** in
   an interrupted run or when a machine's run ended abnormally (the run prints "afterRun did not run: ..."). Its result is written to the log and a report but is not counted in the test results.
   Do not make cleanup a precondition of a pass.
 - **To record a value the run used**, call `readRunMemo("key")` in `afterRun()`. The value it reads is written as a step line (`readRunMemo "key" → "value"`)
   in the run log and the report. You do not need a value assertion (such as `thisIsNotEmpty`) just to leave the record.
 - **A run with no scenarios, and a `--fleet` run, are not supported**: nothing runs when no scenario runs, and `--fleet` is refused at the start when the project has `@RunHooks`.
-- **MCP**: `ft_run_scenario` is a run too, so the hooks run on every call of it.
+- **MCP**: `ft_run_scenario` is a run too, so the hooks run on every call of it. The run memo of a call starts empty or with what that call's `beforeRun()` wrote, and is shared by the scenarios of that call. Calls running at the same time on one MCP server have separate run memos, but [run-wide locks](../commands/memo.md) are shared within a project, and `beforeRun()` / `afterRun()` are not protected by locks (they can clean up state another call is using inside an exclusive lock).
 - **A `beforeRun()` that resets a shared server can break another run that is using the same server at the same time** (another terminal, the extension, MCP). A run in progress elsewhere is not protected.
 - **Order with `run-setup.sh` / `run-teardown.sh`**: in a run on one machine, `run-setup.sh` finishes first, then `beforeRun()` runs just before the first scenario; `afterRun()` runs after the tests and `afterAll()`, then `run-teardown.sh` runs.
   In a run that spans machines, `beforeRun()` runs while the other machines are still preparing, so the order against their `run-setup.sh` is not fixed; `afterRun()` runs after every machine's `run-teardown.sh` has finished.
@@ -148,7 +150,7 @@ Which one to use:
 | | `beforeRun()` / `afterRun()` | `beforeAll()` / `afterAll()` | `setUpDevice()` / `tearDownDevice()` | `run-setup.sh` / `run-teardown.sh` |
 |---|---|---|---|---|
 | How often | once per run per project | once per run per class (per machine in a multi-machine run) | once per run per device per class | once per machine |
-| Runs on | the machine where you started fleetest | each machine that runs a scenario of the class | the device | each machine |
+| Runs on | the machine where you started fleetest (the runner machine for `run --runner`) | each machine that runs a scenario of the class | the device | each machine |
 | Device commands | no | yes | yes | no (a script) |
 | compose.yaml servers | no | yes | yes | before / after they start (see [services](../writing/services.md)) |
 | Use it for | a server shared by every machine; values for the run memo | per-class preparation that needs the app or this machine's servers | per-device preparation (language, permissions) | per-machine preparation |

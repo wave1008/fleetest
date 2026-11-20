@@ -825,7 +825,7 @@ struct RemoteRunDispatcher {
         case .released: log("==> the run on \(hostLabel ?? host.sshTarget) has ended; its lost lock owners were released")
         case .gaveUp:
             log("==> could not confirm that the run on \(hostLabel ?? host.sshTarget) has ended; keys its scenarios held stay unavailable until the run ends")
-        case .noUnknownKeys, .unreachable, .issuerClosed, .interrupted: break
+        case .noUnknownKeys, .unreachable, .issuerClosed, .interrupted, .noOneElse: break
         }
     }
 

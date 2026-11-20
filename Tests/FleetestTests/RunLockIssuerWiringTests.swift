@@ -165,21 +165,24 @@ final class RunLockIssuerWiringTests: XCTestCase {
         // 複数対象はプロジェクトごとに1つ(同じプロジェクトの対象は同じ hub・同じサーバー)
         XCTAssertTrue(multi.contains("lockIssuersByProject[unit.project.name]"))
         XCTAssertTrue(multi.contains("for unit in units where lockIssuers[unit.project.name] == nil"))
+        XCTAssertTrue(multi.contains("issuer.setMoreWorkProbe"), "配り残しがあるうちは中継役の確かめ直しを続ける")
         // 待ちの上限は配るシナリオの @Test の値を含めて求める
         XCTAssertTrue(device.contains("listedScenarioTimeouts.value = selected.map(\\.scenarioTimeout)"))
         XCTAssertTrue(api.contains("listedScenarioTimeouts.value = selected.map(\\.scenarioTimeout)"))
         XCTAssertTrue(multi.contains("scenarioTimeouts: sameProject.flatMap { $0.infos.map(\\.scenarioTimeout) }"))
     }
 
-    func testWaitCapUsesTheLongestEffectiveTimeoutIncludingTestOverridesAndTheExplicitFlag() {
+    /// 子の watchdog と同じ優先順位: @Test の指定 > プロファイル > 既定。プロファイル経路の子は `--scenario-timeout` を使わないので見ない
+    func testWaitCapUsesTheLongestEffectiveTimeoutIncludingTestOverridesAndIgnoresTheFlagOnTheProfilePath() throws {
         let project = TestProject(name: "NoSuchProject", rootURL: URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)"))
-        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(
-            project: project, profiles: ["p"], setOverrides: [:], explicitScenarioTimeout: 300, scenarioTimeouts: [nil, 1200, 60]), 1200)
-        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(
-            project: project, profiles: ["p"], setOverrides: [:], explicitScenarioTimeout: 300, scenarioTimeouts: [nil]), 300)
-        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(
-            project: project, profiles: ["p"], setOverrides: [:], scenarioTimeouts: []), ScenarioHost.defaultScenarioTimeout,
-                       "プロファイルを読めなければ既定")
+        // プロファイルを読めなければ既定(600)
+        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(project: project, profiles: ["p"], setOverrides: [:], scenarioTimeouts: [nil, 1200, 60]), 1200)
+        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(project: project, profiles: ["p"], setOverrides: [:], scenarioTimeouts: [60]), 60)
+        XCTAssertEqual(RunLockIssuerSetup.waitCapSeconds(project: project, profiles: ["p"], setOverrides: [:], scenarioTimeouts: []),
+                       ScenarioHost.defaultScenarioTimeout)
+        XCTAssertFalse(try source("Sources/fleetest/ApiRunMachineFanout.swift").contains("explicitScenarioTimeout"),
+                       "api run のプロファイル経路は --scenario-timeout を子が使わない = 上限にも使わない")
+        XCTAssertFalse(try source("Sources/fleetest/RunLockIssuerSetup.swift").contains("explicitScenarioTimeout"))
     }
 
     // MARK: 中継役の期限の延長(ロックの待ち)
@@ -188,7 +191,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
         var waited: [Int?]
         private(set) var asked = 0
         init(_ waited: [Int?]) { self.waited = waited }
-        func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+        func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? { nil }
         func remoteRunEnded(listener: String) -> Bool { false }
         func waitedMs(listener: String) -> Int? { asked += 1; return waited.isEmpty ? nil : waited.removeFirst() }
         func issuerClosed() -> Bool { false }
@@ -260,7 +263,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
             final class Growing: RunLockRelayControl {
                 let world: FakeWorld, start: UInt64
                 init(_ w: FakeWorld, _ s: UInt64) { world = w; start = s }
-                func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+                func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? { nil }
                 func remoteRunEnded(listener: String) -> Bool { false }
                 func waitedMs(listener: String) -> Int? { Int((world.nowNs - start) / 1_000_000) }
                 func issuerClosed() -> Bool { false }
@@ -284,7 +287,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
         final class Slow: RunLockRelayControl {
             let world: FakeWorld, start: UInt64
             init(_ w: FakeWorld, _ s: UInt64) { world = w; start = s }
-            func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+            func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? { nil }
             func remoteRunEnded(listener: String) -> Bool { false }
             func waitedMs(listener: String) -> Int? { Int((world.nowNs - start) / 1_000_000 / 50) }
             func issuerClosed() -> Bool { false }

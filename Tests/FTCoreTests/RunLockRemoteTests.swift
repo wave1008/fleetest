@@ -302,6 +302,21 @@ final class RunLockRemoteTests: XCTestCase {
         XCTAssertEqual(try take(local, "a").outcome, .granted)
     }
 
+    /// 発行元のサーバーは run の間ずっと居るので、終わったシナリオの適用数を持ち続けない
+    func testTheServerForgetsAScenariosAppliedCountWhenItsEndIsReported() throws {
+        let applied = RunLockAppliedOps()
+        let server = try RunLockServer(memoFor: { _ in NullMemo() }, applied: applied, log: { _ in })
+        servers.append(server)
+        let forwarder = try connect(try server.openRemoteListener(machine: "M1"), "forwarder")
+        XCTAssertTrue(forwarder.sendOutsideApplied(token: "T1"))
+        let deadline = Date().addingTimeInterval(5)
+        while applied.count(token: "T1") == 0, Date() < deadline { usleep(10_000) }
+        XCTAssertEqual(applied.count(token: "T1"), 1)
+        XCTAssertTrue(forwarder.sendNote(.scenarioEnded(token: "T1")))
+        while applied.count(token: "T1") != 0, Date() < deadline { usleep(10_000) }
+        XCTAssertEqual(applied.count(token: "T1"), 0, "見届けたら数を捨てる")
+    }
+
     func testConnectionCloseDecidesTheOwnerInOneAtomicStep() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunLockServer.swift"), encoding: .utf8)
@@ -371,6 +386,8 @@ final class RunLockRemoteTests: XCTestCase {
     private final class FakeControl: RunLockRelayControl, @unchecked Sendable {
         var counts: [Int]
         var capSeconds: Int
+        var othersActive = true
+        var onSshEnded: () -> Void = {}
         var closed: Bool
         private(set) var sshEndedCalls = 0
         private(set) var remoteEndedCalls = 0
@@ -379,10 +396,11 @@ final class RunLockRemoteTests: XCTestCase {
             self.capSeconds = capSeconds
             self.closed = closed
         }
-        func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? {
+        func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? {
             sshEndedCalls += 1
+            onSshEnded()
             let value = counts.isEmpty ? 0 : counts.removeFirst()
-            return (value, capSeconds)
+            return (value, capSeconds, othersActive)
         }
         func remoteRunEnded(listener: String) -> Bool { remoteEndedCalls += 1; return true }
         func waitedMs(listener: String) -> Int? { nil }
@@ -442,9 +460,54 @@ final class RunLockRemoteTests: XCTestCase {
         XCTAssertEqual(again.remoteEndedCalls, 0)
     }
 
+    /// 発行元にほかの動いている仕事が無いなら確かめ直さない(誰も不明のキーを待てない。発行元の終わりを遅らせない)。不明のキーは外さない
+    func testRecheckStopsWhenTheIssuerHasNoOtherActivityAndNeverReleases() {
+        let control = FakeControl(counts: [2, 2])
+        control.othersActive = false
+        var checks = 0
+        XCTAssertEqual(RunLockRecheck.run(listener: "L1", control: control, runEnded: { checks += 1; return true }, sleep: { _ in }),
+                       .noOneElse)
+        XCTAssertEqual(checks, 0, "向こうの run を確かめに行かない")
+        XCTAssertEqual(control.remoteEndedCalls, 0, "確かめていないので不明のキーは外さない(安全側)")
+        // 途中でほかの仕事が尽きた
+        let later = FakeControl(counts: [2, 2, 2])
+        var calls = 0
+        later.onSshEnded = { calls += 1; if calls >= 2 { later.othersActive = false } }
+        XCTAssertEqual(RunLockRecheck.run(listener: "L1", control: later, runEnded: { false }, sleep: { _ in }), .noOneElse)
+        XCTAssertEqual(later.remoteEndedCalls, 0)
+        // ほかの仕事があれば、これまでどおり確かめ直して外す
+        let busy = FakeControl(counts: [2, 2])
+        XCTAssertEqual(RunLockRecheck.run(listener: "L1", control: busy, runEnded: { true }, sleep: { _ in }), .released)
+    }
+
+    func testTheServerReportsOthersActiveFromRunningChildrenMinusLingeringOnesAndTheMoreWorkProbe() throws {
+        let server = try makeServer()
+        let first = try server.openRemoteListener(machine: "M1")
+        let second = try server.openRemoteListener(machine: "M2")
+        let control = try RunLockControl.connect(path: server.socketPath)
+        server.childLaunched()  // 中継役 1(first)
+        server.childLaunched()  // 中継役 2(second)
+        // first の ssh が終わった: 走っている 2 のうち first 自身は確かめ直しの段 → second が残っている
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: first)).othersActive, true)
+        // second も終わった: 残りは確かめ直しの段の 2 つだけ
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: second)).othersActive, false)
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: first)).othersActive, false)
+        // まだ起こしていない仕事が残るなら true
+        let more = LockedValue(true)
+        server.setMoreWorkProbe { more.value }
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: first)).othersActive, true)
+        more.value = false
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: first)).othersActive, false)
+        // 子が終わって待ち受けを閉じたら確かめ直しの段から外れる(別の子が残っていれば true)
+        server.closeRemoteListener(path: second)
+        server.childExited()
+        server.childLaunched()  // 新しい子
+        XCTAssertEqual(try XCTUnwrap(control.sshEnded(listener: first)).othersActive, true)
+    }
+
     func testRecheckReportsUnreachableWhenTheServerDoesNotAnswer() {
         struct Dead: RunLockRelayControl {
-            func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? { nil }
+            func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? { nil }
             func remoteRunEnded(listener: String) -> Bool { false }
             func waitedMs(listener: String) -> Int? { nil }
             func issuerClosed() -> Bool { false }

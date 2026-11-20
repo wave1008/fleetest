@@ -8,7 +8,7 @@ import Foundation
 public protocol RunLockRelayControl {
     /// ssh が終わった。サーバーはそのディスパッチ(`listener` = 向こうの待ち受けのパス)の残りの持ち分を持ち主不明にして、
     /// 不明のキーの数と待ちの上限(秒)を返す。nil = 届かなかった
-    func sshEnded(listener: String) -> (count: Int, capSeconds: Int)?
+    func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)?
     /// 向こうの run が終わったと確かめた(そのディスパッチの)。送れたか
     func remoteRunEnded(listener: String) -> Bool
     /// そのディスパッチの待ちの和集合の累計(ミリ秒)。nil = 接続が無い・届かなかった(延長しない)
@@ -38,7 +38,7 @@ public final class RunLockControl: RunLockRelayControl, @unchecked Sendable {
         return control
     }
 
-    public func sshEnded(listener: String) -> (count: Int, capSeconds: Int)? {
+    public func sshEnded(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? {
         guard send(.sshEnded(listener: listener)) else { return nil }
         return awaitUnknownKeys(listener: listener)
     }
@@ -69,13 +69,13 @@ public final class RunLockControl: RunLockRelayControl, @unchecked Sendable {
     /// 返事の待ちの上限(秒)。根拠: サーバーは手元の待ち受けで即座に答える(判定は表の操作だけ)。数秒答えなければ詰まっている
     static let replyTimeoutMs: Int32 = 10_000
 
-    private func awaitUnknownKeys(listener: String) -> (count: Int, capSeconds: Int)? {
+    private func awaitUnknownKeys(listener: String) -> (count: Int, capSeconds: Int, othersActive: Bool)? {
         lock.withLock {
             while true {
                 switch channel.readLine(timeoutMs: Self.replyTimeoutMs) {
                 case .line(let data):
-                    if case .unknownKeys(let name, let count, let cap)? = RunLockMessage.decode(line: data), name == listener {
-                        return (count, cap)
+                    if case .unknownKeys(let name, let count, let cap, let others)? = RunLockMessage.decode(line: data), name == listener {
+                        return (count, cap, others)
                     }
                 case .timeout, .closed: return nil
                 }
@@ -104,6 +104,9 @@ public enum RunLockRecheck {
         case gaveUp
         /// 中断された(中断の後は誰もそのキーを待てない = 確かめ直しを続けない)
         case interrupted
+        /// 発行元にほかの動いている仕事が無い(不明のキーを待てる者が居ない = 確かめ直しても得が無い)。**不明のキーは外さない**
+        /// (向こうの run の終わりを確かめていないので。run の終わりまで不明のまま)
+        case noOneElse
     }
 
     /// 確かめ直しの間隔(秒)。根拠: 向こうの run の後始末は実測 2 秒(`RemoteRunDispatcher.remoteRunEndWaitLimitSeconds` の根拠)。
@@ -120,6 +123,7 @@ public enum RunLockRecheck {
         -> Outcome {
         guard let first = control.sshEnded(listener: listener) else { return .unreachable }
         if first.count == 0 { return .noUnknownKeys }
+        if !first.othersActive { return .noOneElse }
         let clock = SuspendingClock()
         let deadline = clock.now.advanced(by: .seconds(first.capSeconds + teardownGraceSeconds))
         while true {
@@ -130,7 +134,10 @@ public enum RunLockRecheck {
             sleep(interval)
             // シナリオの終わりの報告(`scenarioEnded`)で不明が無くなっていれば止める
             if interrupted() { return .interrupted }
-            if let again = control.sshEnded(listener: listener), again.count == 0 { return .noUnknownKeys }
+            if let again = control.sshEnded(listener: listener) {
+                if again.count == 0 { return .noUnknownKeys }
+                if !again.othersActive { return .noOneElse }
+            }
         }
     }
 }

@@ -129,6 +129,8 @@ public struct ScenarioEvent: Codable, Sendable {
     /// kind == runMemoWrite。writeRunMemo のキーと値(DeviceSessionHandoff.swift)
     public var memoKey: String?
     public var memoValue: String?
+    /// kind == runMemoCommitted: ロックの中の書き込みが発行元の正本で確定した通し番号(memoKey / memoValue があれば書き込み・無ければ clear)
+    public var memoSeq: Int?
     /// kind == step。[occlusion-guard] このステップが `occlusionFlip` の `visibilityGuardActive`
     /// 判定を通ったか(StepOutcome.guardEntered)。action など occlusionFlip を通らないステップでは
     /// false(意味を持つのは assert のみ)。後発の追加フィールドで Optional = 旧クライアント互換

@@ -19,9 +19,13 @@ extension FTDriveCore {
         let op = RunMemoOp.write(key: key, value: text)
         if let reason = runLocks.memoWriteRejection(command: command, op: op) { return reason }
         if runLocks.usesServerMemo {
-            if let failure = runLocks.serverMemoWrite(op) { return failure.message }
-            runMemo[key, default: []].append(text)
-            return nil
+            switch runLocks.serverMemoWrite(op) {
+            case .failure(let failure): return failure.message
+            case .success(let seq):
+                runMemo[key, default: []].append(text)
+                emitCommittedRunMemo(seq: seq, key: key, value: text)
+                return nil
+            }
         }
         runMemo[key, default: []].append(text)
         var event = ScenarioEvent(kind: "runMemoWrite")
@@ -32,12 +36,28 @@ extension FTDriveCore {
         return nil
     }
 
+    /// ロックの中の書き込みがマシンをまたぐ run の発行元の正本に確定した(通し番号つき)。書いたマシンの親へ確定分として運ぶ:
+    /// 正本が配り返すのを待たずに、同じマシンの次のシナリオの写しに入る(1台の run と同じ見え方)。配りの戻り(同じ通し番号)は台帳が重複として無視する。
+    /// 通し番号が無い(1台の run)ときは何も出さない(書き込みは既にこのプロセスの親のストアへ直接入っている)
+    private func emitCommittedRunMemo(seq: Int?, key: String?, value: String?) {
+        guard let seq else { return }
+        var event = ScenarioEvent(kind: "runMemoCommitted")
+        event.memoSeq = seq
+        event.memoKey = key
+        event.memoValue = value
+        emit(event)
+    }
+
     func runMemoRemoveAll(command: String) -> String? {
         if let reason = runLocks.memoWriteRejection(command: command, op: .clear) { return reason }
         if runLocks.usesServerMemo {
-            if let failure = runLocks.serverMemoWrite(.clear) { return failure.message }
-            runMemo.removeAll()
-            return nil
+            switch runLocks.serverMemoWrite(.clear) {
+            case .failure(let failure): return failure.message
+            case .success(let seq):
+                runMemo.removeAll()
+                emitCommittedRunMemo(seq: seq, key: nil, value: nil)
+                return nil
+            }
         }
         runMemo.removeAll()
         runLocks.noteOutsideMemoOp()

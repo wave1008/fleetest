@@ -14,7 +14,7 @@ struct RunMemoRelay: Sendable {
     let writers: [Int: ChildStdinWriter]
 
     /// `writers` のキー = 子のエントリ番号(DynamicDispatcher のエントリと同じ)。対象が1つなので hub の鍵の target は "" 。
-    /// `gateMode` の既定 `startOnHello` = 起動の知らせを受けたらすぐ開始の行を送る(開始を決める呼び出しを配線するまでの形)
+    /// `gateMode`: `startOnHello` = 起動の知らせを受けたらすぐ開始の行を送る(`@RunHooks` が無い run)・`awaitDecision` = beforeRun の結果が出るまで保留する
     init(writers: [Int: ChildStdinWriter], gateMode: RunMemoHub.GateMode) {
         self.writers = writers
         hub = RunMemoHub(mode: gateMode, send: { child, lines in

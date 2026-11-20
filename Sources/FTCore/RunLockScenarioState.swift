@@ -195,10 +195,11 @@ public final class RunLockScenarioState {
         return withMemoWindow { cap, onPending in client.memoRead(outsideOps: ops, cap: cap, onPending: onPending) }
     }
 
-    public func serverMemoWrite(_ op: RunMemoOp) -> RunLockError? {
-        guard let client else { return RunLockError("the run lock connection is not open") }
+    /// サーバーへ書く。成功したら確定の通し番号(発行元の正本が振った番号。1台の run は nil)
+    public func serverMemoWrite(_ op: RunMemoOp) -> Result<Int?, RunLockError> {
+        guard let client else { return .failure(RunLockError("the run lock connection is not open")) }
         let ops = outsideMemoOps
-        return withMemoWindow { cap, onPending in client.memoWrite(op, outsideOps: ops, cap: cap, onPending: onPending) }
+        return withMemoWindow { cap, onPending in client.memoWriteCommitted(op, outsideOps: ops, cap: cap, onPending: onPending) }
     }
 
     // MARK: サーバー

@@ -76,7 +76,7 @@ response.status.thisIs(201)
 
 ## シナリオ間で値を渡す(memo)
 
-`beforeRun()`(run で1回)や `beforeAll()`(クラスごと)で用意した値を、run の他のシナリオへ(どのデバイスでも・どのマシンでも)`writeRunMemo` / `readRunMemo` で渡します。ファイルを自分で書いて受け渡す必要はありません。`writeMemo` / `readMemo` は1つのテストの中だけで値を持ち越します。
+`beforeRun()`(run で1回)や、`@RunOnSingleMachine` を付けたクラスの `beforeAll()`(クラスごと)で用意した値を、run の他のシナリオへ(どのデバイスでも・どのマシンでも)`writeRunMemo` / `readRunMemo` で渡します。ファイルを自分で書いて受け渡す必要はありません。`writeMemo` / `readMemo` は1つのテストの中だけで値を持ち越します。マシンをまたぐ run では `beforeAll()` がマシンごとに走り、後のマシンが値を上書きすることがあるため、アプリやマシンが作る値は `@RunOnSingleMachine` を付けたクラスでなければ `beforeAll()` から渡さないでください。
 
 詳細: [メモ(writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](../commands/memo_ja.md)
 

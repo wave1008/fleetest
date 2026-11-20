@@ -1,7 +1,7 @@
 // RemoteLockLink.swift
 // run 全体のロック(RR-8.5)を ssh 越しのリモートの機械へ届ける、中継役(`RemoteRunDispatcher`)の側の部品。
-// 発行元は機械ごとの待ち受けを持ち(`RunLockServer.remoteSocketPaths`)、中継役は今の ssh に unix ソケットの転送
-// (`-R <向こうのパス>:<その機械の待ち受け>`)を足し、向こうのパスをリモートの run へ `--lock-socket` として渡す。
+// 発行元はディスパッチ(中継役の起動)ごとに待ち受けを開き(`RunLockServer.openRemoteListener`)、中継役は今の ssh に unix ソケットの転送
+// (`-R <向こうのパス>:<そのディスパッチの待ち受け>`)を足し、向こうのパスをリモートの run へ `--lock-socket` として渡す。
 // 向こうの run は手元の子と同じに、そのパスへつなぐ(出どころは「どの待ち受けで受けたか」だけで決まる)。
 
 import FTCore

@@ -76,8 +76,8 @@ Details: [HTTP request (httpRequest)](../commands/http_request.md), [Network acc
 
 ## Passing values between scenarios (memo)
 
-Pass values prepared in `beforeRun()` (once per run) or `beforeAll()` (per class) to the other scenarios of the run (on any device and any machine) with `writeRunMemo` / `readRunMemo`. You do not need to write and exchange
-files yourself. `writeMemo` / `readMemo` carry a value only within one test.
+Pass values prepared in `beforeRun()` (once per run) or, for a class with `@RunOnSingleMachine`, in `beforeAll()` (per class) to the other scenarios of the run (on any device and any machine) with `writeRunMemo` / `readRunMemo`. You do not need to write and exchange
+files yourself. `writeMemo` / `readMemo` carry a value only within one test. In a run that spans machines, `beforeAll()` runs once per machine and a later machine can overwrite the value, so do not pass an app-made or machine-made value from `beforeAll()` unless the class has `@RunOnSingleMachine`.
 
 Details: [Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)](../commands/memo.md)
 

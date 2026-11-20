@@ -142,13 +142,15 @@ struct RunCommonOptions: ParsableArguments {
             visibility: .hidden))
     var fleetEntry = false
 
-    /// **手で打つものではない**。マシンをまたぐ run の発行元が、**自分と同じマシンで起こす子(`--runner local`)にだけ**渡す、
-    /// 発行元のロックのサーバー(unix ソケット)のパス。親とつながった子はこれを受けたときだけ run 全体のロックを使える
-    /// (受けていない = ssh 越しのリモートの子は「呼んだら失敗」)。ssh 越しの子へは中継しない(`RemoteRunArgs` に載せない)
+    /// **手で打つものではない**。マシンをまたぐ run の発行元が子へ渡す、ロックのサーバー(unix ソケット)のパス。親とつながった子はこれを
+    /// 受けたときだけ run 全体のロックを使える(受けていない子は「呼んだら失敗」)。値の意味は子の種類で違う:
+    /// 手元の子(`--runner local`)= 発行元の手元の待ち受け(その子が直接つなぐ)・リモートの機械向けの子(中継役。`--lock-control-socket` と組)=
+    /// **そのディスパッチの待ち受け**(ssh の `-R` の転送先と識別子)。中継役は向こうの run へ転送元のパスを `RemoteRunArgs` で渡し直す
     @Option(name: .customLong("lock-socket"),
             help: ArgumentHelp(
-            "Internal: path of the run lock server of the parent of a multi-machine run "
-            + "(local children only). Set by the parent; not for hand use",
+            "Internal: path of the run lock server socket the parent of a multi-machine run hands to this child "
+            + "(for a relay to a remote machine, the socket of that dispatch, which the relay forwards over ssh). "
+            + "Set by the parent; not for hand use",
             visibility: .hidden))
     var lockSocket: String?
 

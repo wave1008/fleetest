@@ -13,6 +13,16 @@ import Foundation
 public protocol RunLockMemoBackend: Sendable {
     func snapshot() -> [String: [String]]
     func apply(_ op: RunMemoOp)
+    /// 書いて、**確定の通し番号**を返す(発行元の正本 = hub が振った番号。無ければ nil = 1台の run など)。
+    /// 通し番号を受けたシナリオは、書いたマシンの次のシナリオから届くまでの間も見えるよう、親へ確定分として運ぶ
+    func applyCommitted(_ op: RunMemoOp) -> Int?
+}
+
+extension RunLockMemoBackend {
+    public func applyCommitted(_ op: RunMemoOp) -> Int? {
+        apply(op)
+        return nil
+    }
 }
 
 extension RunMemoStore: RunLockMemoBackend {
@@ -129,6 +139,8 @@ public final class RunLockServer: @unchecked Sendable {
         var waitUnion: [String: RunLockWaitUnion] = [:]
         /// 待ち受けを閉じた範囲。待ちが尽きたら `waitUnion` から外す
         var closedScopes: Set<String> = []
+        /// `sshEnded` を送った(= 自分のシナリオは終わり、確かめ直しの段にいる)ディスパッチ。発行元の「ほかの仕事」から除く
+        var lingeringScopes: Set<String> = []
         var stopped = false
         var closedHolders: [Int: ClosedHolder] = [:]
         /// 親が見届けた(reap した)シナリオの起動の印。**持ち分を外すのはその接続が閉じたとき**(接続の EOF は、その接続の
@@ -239,6 +251,7 @@ public final class RunLockServer: @unchecked Sendable {
             allPaths.removeAll { $0 == path }
             return remoteLoops.removeValue(forKey: path)
         }
+        lock.withLock { _ = state.lingeringScopes.remove(path) }
         loop?.stop()
         Self.removeSocketFile(path)
         lock.withLock {
@@ -251,15 +264,6 @@ public final class RunLockServer: @unchecked Sendable {
         for loop in acceptLoops { loop.requestStop() }
         reporterWake.signal()
         for path in allPaths { Self.removeSocketFile(path) }
-    }
-
-    /// 全ての接続が同じ run メモを使う形(テスト・1つの run だけを受け持つ呼び手)
-    public convenience init(memo: RunLockMemoBackend, log: @escaping @Sendable (String) -> Void,
-                            directory: String = TemporaryDirectory.url.path,
-                            reportInterval: Duration = RunLockServer.defaultReportInterval,
-                            pidExitWaiter: @escaping PidExitWaiter = RunLockServer.kqueueExitWaiter) throws {
-        try self.init(memoFor: { _ in memo }, log: log, directory: directory, reportInterval: reportInterval,
-                      pidExitWaiter: pidExitWaiter)
     }
 
     // MARK: 外から
@@ -405,8 +409,8 @@ public final class RunLockServer: @unchecked Sendable {
                 conn.send(.failed(id: id, reason: reason))
                 return
             }
-            memoBackend(conn)?.apply(op.runMemoOp)
-            conn.send(.committed(id: id))
+            let seq = memoBackend(conn)?.applyCommitted(op.runMemoOp)
+            conn.send(.committed(id: id, seq: seq))
         case .outsideApplied(let token):
             applied.note(token: token)
         case .scenarioEnded(let token):
@@ -414,7 +418,9 @@ public final class RunLockServer: @unchecked Sendable {
         case .sshEnded(let listener):
             guard conn.origin == .local else { return }  // 中継役は手元のプロセス(手元の待ち受け以外の主張は読まない)
             var count = 0
+            var others = false
             perform { state, lines in
+                state.lingeringScopes.insert(listener)
                 var effects = RunLockTable.Effects.none
                 var machine = listener
                 for open in state.conns.values {
@@ -430,9 +436,10 @@ public final class RunLockServer: @unchecked Sendable {
                     lines.append("run lock: ssh to \(machine) ended while its scenarios held \(count) key(s);"
                         + " they are unavailable until that dispatch's run is confirmed to have ended")
                 }
+                others = othersActive(state)
                 return effects
             }
-            conn.send(.unknownKeys(listener: listener, count: count, capSeconds: max(1, waitCapSeconds())))
+            conn.send(.unknownKeys(listener: listener, count: count, capSeconds: max(1, waitCapSeconds()), othersActive: others))
         case .remoteRunEnded(let listener):
             guard conn.origin == .local else { return }
             perform { state, lines in
@@ -444,7 +451,8 @@ public final class RunLockServer: @unchecked Sendable {
                 }
                 return released.effects
             }
-            conn.send(.unknownKeys(listener: listener, count: 0, capSeconds: max(1, waitCapSeconds())))
+            let others = lock.withLock { othersActive(state) }
+            conn.send(.unknownKeys(listener: listener, count: 0, capSeconds: max(1, waitCapSeconds()), othersActive: others))
         case .waitedQuery(let listener):
             guard conn.origin == .local else { return }
             let ms = lock.withLock { state.waitUnion[listener]?.totalMs(nowMs: Self.nowMs()) ?? 0 }
@@ -452,6 +460,22 @@ public final class RunLockServer: @unchecked Sendable {
         case .queued, .pending, .granted, .grantedAfterLoss, .failed, .memo, .committed, .unknownKeys, .waited:
             break
         }
+    }
+
+    /// 発行元の子の数(`childLaunched` / `childExited`)。確かめ直しをやめてよいかの判断(`unknownKeys` の `othersActive`)に使う
+    private let runningChildren = LockedValue(0)
+    private let moreWorkProbe = LockedValue<(@Sendable () -> Bool)?>(nil)
+
+    /// 発行元が子(手元・リモートの中継役)を起こした / 子が終わった
+    public func childLaunched() { runningChildren.withLock { $0 += 1 } }
+    public func childExited() { runningChildren.withLock { $0 = max(0, $0 - 1) } }
+    /// まだ起こしていない子が残る仕事があるか(複数対象の run の配り残し)。無ければ nil(= 子の数だけで判断)
+    public func setMoreWorkProbe(_ probe: @escaping @Sendable () -> Bool) { moreWorkProbe.value = probe }
+
+    /// このディスパッチ以外に動いている仕事があるか = 走っている子のうち確かめ直しの段(`sshEnded` 済み)でないものがある、
+    /// またはまだ起こしていない子が残る。呼び手が `lock` を持っている前提
+    private func othersActive(_ state: State) -> Bool {
+        runningChildren.value - state.lingeringScopes.count > 0 || (moreWorkProbe.value?() ?? false)
     }
 
     private func memoBackend(_ conn: Conn) -> RunLockMemoBackend? {
@@ -481,6 +505,7 @@ public final class RunLockServer: @unchecked Sendable {
     /// 既に閉じていて持ち分(持ち主不明・pid 待ち)が残っていれば、ここで外す(閉じたまま持っていた = 印が付く)
     public func scenarioEnded(token: String) {
         guard !token.isEmpty else { return }
+        applied.forget(token: token)  // 終わったシナリオの適用数を持ち続けない(発行元のサーバーは run の間ずっと居る)
         perform { state, _ in
             state.endedTokens.insert(token)
             var effects = RunLockTable.Effects.none

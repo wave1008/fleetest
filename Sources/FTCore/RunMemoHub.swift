@@ -93,21 +93,24 @@ public final class RunMemoHub: Sendable {
     /// 開始の決定の前に呼ぶ(後に呼んでも起動済みの子へ配る)。入れた件数を返す
     @discardableResult
     public func seedConfirmed(_ ops: [RunMemoOp]) -> Int {
+        ops.reduce(0) { $0 + (commit($1) == nil ? 0 : 1) }
+    }
+
+    /// 1件を確定分として入れ、**振った通し番号**を返す(読めない・大きすぎて共有できないものは入れずに nil)。
+    /// ロックの中の書き込み(`RunMemoHubLockBackend`)が、書いたマシンの次のシナリオへ配りの戻りを待たずに見せるために使う
+    @discardableResult
+    public func commit(_ op: RunMemoOp) -> Int? {
         let send = self.send
-        return state.withLock { s -> Int in
-            var accepted = 0
-            for op in ops {
-                let pieces = RunMemoWire.pieces(for: op)
-                guard pieces.count <= RunMemoWire.maxPieces, RunMemoWire.op(fromPieces: pieces) == op else { continue }
-                s.seeded += 1
-                s.seq += 1
-                let confirmed = Entry(seq: s.seq, src: Self.seedSource, lid: s.seeded, pieces: pieces)
-                s.history.append(confirmed)
-                accepted += 1
-                let lines = Self.lines(confirmed)
-                for target in s.joined.sorted() { send(target, lines) }
-            }
-            return accepted
+        return state.withLock { s -> Int? in
+            let pieces = RunMemoWire.pieces(for: op)
+            guard pieces.count <= RunMemoWire.maxPieces, RunMemoWire.op(fromPieces: pieces) == op else { return nil }
+            s.seeded += 1
+            s.seq += 1
+            let confirmed = Entry(seq: s.seq, src: Self.seedSource, lid: s.seeded, pieces: pieces)
+            s.history.append(confirmed)
+            let lines = Self.lines(confirmed)
+            for target in s.joined.sorted() { send(target, lines) }
+            return s.seq
         }
     }
 

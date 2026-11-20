@@ -957,6 +957,7 @@ inconclusive はシナリオを中断しない。レポート・ログには ❓
 | `func tearDownDevice()` | テストクラスに書くと、**そのデバイスがその run の仕事を終えた後**(キューを掃き切った後)に、そのデバイスでそのクラスのシナリオが1本でも走っていれば**1回だけ**、専用のプロセスで走る(共有キューでは「このデバイスでのクラス最後のシナリオ」が取り出し時点で決まらないため、シナリオのプロセスの中では走らせない)。`setUpDevice` の成否に関わらず走る(片付け)。run メモは読める。**デバイスが途中で離脱した・中断した run では走らない**。結果は results / JUnit に載らず、run ログの1行(失敗なら ⚠️ と最初の失敗ステップ・レポートのパス)とレポート(`<クラス>.tearDownDevice`)に残る(合否・exit code は変えない) |
 | `func afterAll()` | テストクラスに書くと、**1回の run × 1クラスで1回だけ**、run の**全デバイスの仕事が終わった後**(各デバイスの `tearDownDevice()` の後)に、専用のプロセスで走る。走るのは、その run でそのクラスのシナリオが1本でも走っていたときだけ。走らせるデバイスは、そのクラスのシナリオが走った OS で、仕事を最後まで終えたデバイスのうち1台。`beforeAll()` の成否に関わらず走る(片付け)。run メモは読める。**中断した run では走らない**。走らせるデバイスが残っていなければ走らせず、run ログに「was not run」と1行残す。結果は results / JUnit に載らず、run ログの1行とレポート(`<クラス>.afterAll`)に残る(合否・exit code は変えない)。run が複数のマシンに分かれるとマシンごとに1回 |
 | `@RunHooks` + `func beforeRun()` / `func afterRun()` | `@RunHooks` を付けたクラス(プロジェクトに1つ。2つ以上は一覧の段でエラー・`@TestClass` と併用はコンパイルエラー)に書くと、**1回の run × 1プロジェクトで1回だけ**、**fleetest を起動したマシン**(1台のマシンの run ならそのマシン・`run --runner <機>` ならランナー機)で、専用のシナリオ実行バイナリの口(`--run-hook before|after`)で走る(DR-209・RR-8.4)。ドライバを持たない: **デバイスを操作するコマンドは「beforeRun()/afterRun() cannot use the device (<コマンド名>)」で失敗**し、compose.yaml のサーバーへの通り道も渡さない。使えるのは run メモ・`httpRequest`(宛先は走ったマシンの `sandbox.allowedDomains`。応答は `status` を確かめる)・`data()` / `account()`・`wait`・値の検証(`thisIs` 等)。メソッドは引数なし・非 async・非 throws(違えばコンパイルエラー)。`beforeRun` と `afterRun` は別プロセスなのでクラスの `var` では値を渡せない(run メモを使う)。デバッグ実行・プロファイルなしの run・dry-run では走らない。`run-setup.sh` との順: 1台の run では run-setup.sh → beforeRun、afterRun → run-teardown.sh(ProfileRunner+Supply.swift の `RunHookRunner.begin` が供給段・`SingleMachineRunHooks.begin` はその後、`runHooks.finish` は終了処理 `cleanup.run()` の前)。マシンをまたぐ run では beforeRun と各マシンの run-setup.sh の前後は不定、afterRun は全子の終了後。宛先の許可・データセットの上書きは**走ったマシンの設定**。`beforeRun` は最初のシナリオをどのマシンへも渡す前に終わり、書いた run メモは全シナリオの開始前に確定する。**失敗したら** run は止まる(シナリオは1本も流さず終了コード 1・abortReason・失敗テストとして記録しない)。`afterRun` は全マシンの子が終了コード 0 か 1 で終わったとき(テストが失敗した run も含む。`beforeRun` が失敗していても走る)に走り、中断・異常終了では「afterRun did not run: <理由>」を1行出して走らない。結果は run ログとレポートに残り合否に数えない。`afterRun` の中の `writeRunMemo` は失敗(読むだけ)。**`@RunHooks` があるプロジェクトの `--fleet` は開始時に断る**・シナリオ0本の run では走らせない・MCP の `ft_run_scenario` は呼び出しごとに走る |
+| `@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder`(クラス)・`@Order(n)`(`@Test`) | テストクラスの置き方の属性(DR-206・RR-8.3)。**クラスに付けられるのは3つのうち1つだけ**・`@TestClass` と同じクラスにだけ付ける。`@RunOnSingleMachine` は同じクラスのシナリオを1台のマシンにまとめ、`@RunOnSingleDevice` は1台のデバイスにまとめ、`@RunInOrder` は1台のデバイスで `@Order` の順に流す。**デバイスに束ねる2つ(`@RunOnSingleDevice` / `@RunInOrder`)は全 `@Test` の実効の対象 OS が同じ**でないとコンパイルエラー。**`@RunInOrder` は全 `@Test` に `@Order` が必須・重複不可・整数リテラルだけ**(定数や式はコンパイルエラー・負の整数リテラルは可)。`@RunInOrder` の無いクラスの `@Order` はコンパイルエラー。使い方は user-docs の `reference/testclass/creating_testclass` |
 | `@TestClass(platform:)` / `@Test(platform:)` | **対象 OS の宣言**(`"ios"` / `"android"`)。両方あるとメソッド側が勝つ。宣言した OS を回さない実行プロファイルでは**そのシナリオを実行せず skipped(対象外)として記録する**(失敗ではなく、exit code も汚さない)。「iOS では意味がないテスト」(Wi-Fi プロキシ設定など)を、`ios { }` を空にして緑にする代わりに意図として残すためのもの。**実行プロファイルを使う run でだけ効く** —— `--port` / `--serial` の直指定は「この run が回す OS の集合」を宣言しないので従来どおり |
 | `@Test(scenarioTimeout:)` | **そのシナリオ1本だけの全体の打ち切り秒**(メソッドのみ・整数)。実行プロファイルの `scenarioTimeout`(`fleetest run` は `--set scenarioTimeout=`、`--scenario-timeout` は `fleetest api run` だけのフラグ。既定 600)より優先し、短くする向きも効く。0 以下はコンパイルエラー(式で渡して実行時に 0 以下なら、そのシナリオを起動せずに赤)。打ち切りの行には値の出所(`@Test scenarioTimeout` / `run profile scenarioTimeout` / `default`)が付く |
 | `@Deleted("理由")` | テストクラスまたは `@Test` メソッドに付けて**論理削除**する。一覧には「削除済み」として残り、全実行・フォルダ実行・クラス名指定の一括実行から**除外**される。完全一致 ID の明示指定でだけ実行できる。コードは残るので復活はアノテーションを外すだけ |
@@ -993,24 +994,34 @@ inconclusive はシナリオを中断しない。レポート・ログには ❓
 | `clearRunMemo()` | run メモを全部消す |
 | `element.runMemoTextAs(key)` | 掴んだ要素のテキストを run メモへ書き、要素を返す。要素を掴めていなければ失敗 |
 | `string.runMemoTextAs(key)` | 文字列を run メモへ書き、その文字列を返す |
-| `withExclusiveLock(キー..., waitSeconds:) { }` | run 全体の排他ロック(DR-210・RR-8.5)。ブロックの間、run の他のシナリオはそのキーを持てない。キーは名前の順(UTF-8 のバイト列)に1つずつ取る。入れ子は後ろのキーだけ(違反は競合が無くてもエラー)・同じキーの取り直しは何もしない・共有の中の排他はエラー。待ちは `scenarioTimeout` から外し、上限はその run の最長の `scenarioTimeout`(`waitSeconds:` は短くするだけ)。ロックの中の run メモの書き込みは確定を待つ・読みは最新の値。失敗した後はブロックを実行しない |
-| `withSharedLock(キー..., waitSeconds:) { }` | 共有ロック(範囲: 1台のマシンの run と、マシンをまたぐ run の全マシン。ssh 越しのリモートのマシンも効く = 2b 第1ステップ)。共有どうしは同時に持てる。排他を持たない間の run メモの書き込み(`writeRunMemo`・`clearRunMemo`・`runMemoTextAs`)はエラー(読むだけに使う)。マシンをまたぐ run では発行元のロックのサーバーが効き(手元の子は `--lock-socket`・リモートのマシンは ssh の unix ソケットの転送)、`--fleet` のエントリは呼ぶと失敗する。リモートの接続が途中で切れたキーは「持ち主不明」になり、向こうの run の終わりを確かめるまで取れず、外した後の最初の取得のステップには注記が付く |
+| `withExclusiveLock(キー..., waitSeconds:) { }` | run 全体の排他ロック(DR-210・RR-8.5)。ブロックの間、run の他のシナリオはそのキーを持てない。キーは名前の順(UTF-8 のバイト列)に1つずつ取る。入れ子は後ろのキーだけ(違反は競合が無くてもエラー)・同じキーの取り直しは何もしない・同じキーを共有で持ったまま排他で取り直す格上げはエラー(別のキーなら、持っているキーより名前の順で後ろの限り共有の中でも排他を取れる)。待ちは `scenarioTimeout` から外し、上限はその run の最長の `scenarioTimeout`(`waitSeconds:` は短くするだけ)。ロックの中の run メモの書き込みは確定を待つ・読みは最新の値。失敗した後はブロックを実行しない。共通の事項は表の下の「ロックの共通事項」 |
+| `withSharedLock(キー..., waitSeconds:) { }` | 共有ロック。共有どうしは同時に持てる。排他を1つも持たずに共有だけを持っている間の run メモの書き込み(`writeRunMemo`・`clearRunMemo`・`runMemoTextAs`)はエラー(読むだけに使う。ロックの外の書き込みは従来どおり)。範囲・ロックのサーバー・持ち主不明は表の下の「ロックの共通事項」 |
+
+**ロックの共通事項**(`withExclusiveLock` / `withSharedLock` 共通)
+
+- **`waitSeconds:`**: 省略可(省略すると上限 = その run の最長の `scenarioTimeout` まで待つ)。0 より大きい値だけで、0 や負はエラー(「1回だけ試す」にはならない)。上限を短くするだけで延ばせない
+- **キー**: 1個以上・空白だけは不可・制御文字は不可・1個 120 バイト(UTF-8)まで・1回の呼び出しで重複を除いて 8 個まで
+- **使える条件**: プロジェクトの `scenarios/` の下(`_disabled/`・コメント・文字列を除く)に `withExclusiveLock` / `withSharedLock` の呼び出しが見つかったときだけロックのサーバーが起動する。無いと呼んだ時点で理由つきの失敗(Package.swift で足した別のターゲット・パッケージにだけ書いても失敗する)
+- **すぐ通る場面**: `beforeRun()` / `afterRun()` の中とデバッグ実行では、待たずにすぐ通る(排他は効かない)
+- **値の大きさ**: run メモの1つの値がエンコード後で約 1.4 MB を超えると、ロックの中ではエラー。ロックの外ではそのマシンに留まり警告が1行出る
+- **範囲**: 1台のマシンの run と、マシンをまたぐ run の全マシン(ssh 越しのリモートのマシンも効く)。マシンをまたぐ run では発行元のロックのサーバーが効く(手元の子は `--lock-socket`・リモートのマシンは ssh の unix ソケットの転送)。`--fleet` のエントリは呼ぶと失敗する。MCP の `ft_run_scenario` は同じ MCP サーバー・同じプロジェクトの呼び出しどうしで排他が効く
+- **持ち主不明**: リモートの接続が途中で切れたキーは「持ち主不明」になり、向こうの run の終わりを確かめるまで取れず、外した後の最初の取得のステップには注記が付く
 
 - **メモの範囲はテスト1本**(そのテストの `beforeEach()`・本体・`afterEach()`)。シナリオのプロセスの中で完結し、親へ通知しない。
   次のテストは空から始まる。**テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()`)では読み書きとも実行時のエラー**
   (判定は実行中のフェーズなのでヘルパー関数を経由しても止まる。エラー文は「run 全体で共有するなら `writeRunMemo` / `readRunMemo`」と対処を言う)
 - **run メモの共有範囲は「1回の run のすべてのシナリオ(どのデバイスでも・マシンをまたぐ run ではマシンをまたいで)」**。run をまたいでは持ち越さない。
-  MCP の単発呼び出し・人がランナーを直接起動した実行は空から始まる(`ft_batch` はメモ・run メモのコマンドを受けない)
+  MCP の `ft_run_scenario` は呼び出しごとに1回の run で、run メモはその呼び出しの `beforeRun()` が書いたものから始まり(無ければ空)、その呼び出しのシナリオどうしで共有する。人がランナーを直接起動した実行は空から始まる(`ft_batch` はメモ・run メモのコマンドを受けない)
 - **確実な使い方は「`@RunHooks` の `beforeRun()` で `writeRunMemo` し、各テストで `readRunMemo`」**(run 全体で1回・どのシナリオよりも前に確定)。
-  アプリやそのマシンが要る値は「`beforeAll()` で `writeRunMemo`」(クラスごと・マシンをまたぐ run ではマシンごとに走るので run 全体の値には使わない)。`beforeAll()` はどのシナリオよりも前に
+  アプリやそのマシンが作る値を `beforeAll()` から渡すのは `@RunOnSingleMachine` のクラスだけにする(`beforeAll()` はクラスごと・マシンをまたぐ run ではマシンごとに走り、別のマシンの `beforeAll()` の書き込みで上書きされうる。run 全体の値は `beforeRun()`)。`beforeAll()` はどのシナリオよりも前に
   1回だけ走る(他のデバイスは終わるまで待つ)ので、どのシナリオがどのデバイスに配られても読める。
   テスト間で値を渡すなら `@RunInOrder` のクラスで先のテストが `writeRunMemo` する
 - **書き込みを断る場所**: `setUpDevice()`・`tearDownDevice()`・`afterAll()`・`afterRun()` での `writeRunMemo`・`runMemoTextAs`・`clearRunMemo` はエラー(読むのは可。DR-207)。`tearDownDevice()` / `afterAll()` / `afterRun()` はテストが終わった後なので、文言は「the tests have already finished. Write it in beforeRun() or in the tests instead」。
   `beforeAll()` と各テストでは読み書きできる
 - **制約**: シナリオが受け取る run メモは**そのシナリオの開始時点のもの**(走っている間に別デバイスが書いた値は見えない)。
   **マシンをまたぐと書き込みは別のマシンへ少し遅れて届く**(正本は発行元。書いたマシンは次のシナリオから自分の書き込みが見え、最後は全マシンで同じ順にそろう)。
-  **排他は持たない**(書き込みは消えない・届いた順に追記するが、読んでから書く間の割り込みや同じキーへの同時書き込みの勝ち負けは保証しない。
-  1つのキーへ書くのは1か所にしてキーをテストごとに分ける・排他が要るならテスト用サーバーの DB を使う)。
+  **ロックの外には排他が無い**(書き込みは消えない・届いた順に追記するが、読んでから書く間の割り込みや同じキーへの同時書き込みの勝ち負けは保証しない。
+  1つのキーへ書くのは1か所にしてキーをテストごとに分ける。軽い排他は `withExclusiveLock`、重い排他や run をまたぐ排他はテスト用サーバーの DB)。
   `clearRunMemo()` は、その時点の確定分と自分の未確定分を消す。
   **`--fleet` は(`--split` の有無に関わらず)発行元と各マシンの子がつながっていないため、マシンごとの共有にとどめる**(run の開始時に1行出す)
 - `beforeAll()` が失敗したら、その run のそのクラスの残りのシナリオは**走らせずに失敗として記録する**。

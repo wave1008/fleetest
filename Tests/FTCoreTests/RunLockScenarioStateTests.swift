@@ -18,7 +18,7 @@ final class RunLockScenarioStateTests: XCTestCase {
     }
 
     private func makeServer() throws -> RunLockServer {
-        let server = try RunLockServer(memo: NullMemo(), log: { _ in })
+        let server = try RunLockServer(memoFor: { _ in NullMemo() }, log: { _ in })
         servers.append(server)
         return server
     }

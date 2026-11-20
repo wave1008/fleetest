@@ -5,7 +5,7 @@
 ## With a run profile
 
 **The parallelism level equals the number of resolved devices.** Each device in a run profile
-becomes a worker; scenarios are shared out across them. When only a few scenarios run, the number of devices prepared is cut to the number of scenarios (`--broadcast` is not cut down). If some devices cannot be prepared, the run continues on the rest; it stops only when no device of that OS could be prepared. iOS reuses any already-running bridge
+becomes a worker; scenarios are shared out across them. When only a few scenarios run, the number of devices prepared is cut to the number of scenarios (`--broadcast` is not cut down; a `@RunOnSingleDevice` / `@RunInOrder` class counts as one scenario). If some devices cannot be prepared, the run continues on the rest; it stops only when no device of that OS could be prepared. iOS reuses any already-running bridge
 and only starts what's missing. A run profile can mix iOS and Android devices in the same
 `devices` list to use iOS and Android devices together in one run (each scenario runs on only one of the two OSes — see below; see [profiles.md](../project/profiles.md)).
 

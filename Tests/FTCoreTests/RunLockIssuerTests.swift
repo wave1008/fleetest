@@ -154,7 +154,7 @@ final class RunLockIssuerTests: XCTestCase {
         let store = RunMemoStore(link: link)
         let session = RunDeviceSession(shared: RunSharedSession(runMemo: store))
         XCTAssertTrue(session.apply(writeEvent("k", "v"), className: "C", lockOwnerToken: "tok"))
-        XCTAssertFalse(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 1, timeout: .zero), "発行元に確定するまで数えない")
+        XCTAssertFalse(session.shared.locks.appliedOps.count(token: "tok") >= 1, "発行元に確定するまで数えない")
         // 発行元が確定して配り返した行(自分の印・書き込み番号 1)
         let published = try XCTUnwrap(sent.value.first)
         let piece = try XCTUnwrap(WorkQueueProtocol.decodeMemoPiece(try XCTUnwrap(published.split(separator: "\n").first.map(String.init))))
@@ -163,13 +163,13 @@ final class RunLockIssuerTests: XCTestCase {
             link.receive(line: WorkQueueProtocol.encode(
                 WorkQueueProtocol.MemoPiece(src: raw.src, lid: raw.lid, seq: 1, i: raw.i, n: raw.n, d: raw.d)))
         }
-        XCTAssertTrue(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 1, timeout: .zero))
+        XCTAssertTrue(session.shared.locks.appliedOps.count(token: "tok") >= 1)
     }
 
     func testWithoutALinkTheWriteCountsAsAppliedAtOnce() {
         let session = RunDeviceSession(shared: RunSharedSession(runMemo: RunMemoStore()))
         XCTAssertTrue(session.apply(writeEvent("k", "v"), className: "C", lockOwnerToken: "tok"))
-        XCTAssertTrue(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 1, timeout: .zero))
+        XCTAssertTrue(session.shared.locks.appliedOps.count(token: "tok") >= 1)
     }
 
     func testLinkedChildWithoutAnIssuerSocketRefusesWithAReasonThatNamesTheCauses() {
@@ -211,7 +211,7 @@ final class RunLockIssuerTests: XCTestCase {
         event.memoValue = String(repeating: "x", count: RunMemoWire.maxPieces * RunMemoWire.pieceCharacters)
         XCTAssertTrue(session.apply(event, className: "C", lockOwnerToken: "tok"))
         XCTAssertEqual(warned.value.count, 1)
-        XCTAssertTrue(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 1, timeout: .zero))
+        XCTAssertTrue(session.shared.locks.appliedOps.count(token: "tok") >= 1)
     }
 
     /// 同じプロセスのストアを複数のセッションが使っても、確定の観測を奪い合わない
@@ -232,10 +232,10 @@ final class RunLockIssuerTests: XCTestCase {
             }
         }
         try confirm(sent.value[1], seq: 1, value: .write(key: "b", value: "2"))
-        XCTAssertTrue(two.shared.locks.appliedOps.wait(token: "two", atLeast: 1, timeout: .zero))
-        XCTAssertFalse(one.shared.locks.appliedOps.wait(token: "one", atLeast: 1, timeout: .zero), "他のセッションの確定で数えない")
+        XCTAssertTrue(two.shared.locks.appliedOps.count(token: "two") >= 1)
+        XCTAssertFalse(one.shared.locks.appliedOps.count(token: "one") >= 1, "他のセッションの確定で数えない")
         try confirm(sent.value[0], seq: 2, value: .write(key: "a", value: "1"))
-        XCTAssertTrue(one.shared.locks.appliedOps.wait(token: "one", atLeast: 1, timeout: .zero))
+        XCTAssertTrue(one.shared.locks.appliedOps.count(token: "one") >= 1)
     }
 
     /// 発行元へ送れない間は控えて再送する(つなぐのが一時的に失敗しても適用の知らせを落とさない)
@@ -308,5 +308,39 @@ final class RunLockIssuerTests: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
         while !received.value.contains(.scenarioEnded(token: "T9")), Date() < deadline { usleep(20_000) }
         XCTAssertTrue(received.value.contains(.scenarioEnded(token: "T9")))
+    }
+
+    /// ロックの中の書き込みは、書いたマシンの次のシナリオの写しに、発行元の配りの戻りを待たずに入る(1台の run と同じ見え方)。
+    /// 後から戻る同じ通し番号の配りは重複として無視される
+    func testAnInsideLockWriteIsVisibleToTheNextScenarioBeforeTheBroadcastComesBackAndIsNotDuplicatedAfter() throws {
+        let link = RunMemoLink(send: { _ in })
+        let store = RunMemoStore(link: link)
+        let session = RunDeviceSession(shared: RunSharedSession(runMemo: store))
+        var event = ScenarioEvent(kind: "runMemoCommitted")
+        event.memoSeq = 5
+        event.memoKey = "count"
+        event.memoValue = "1"
+        XCTAssertTrue(session.apply(event, className: "C", lockOwnerToken: "tok"))
+        XCTAssertEqual(session.shared.runMemoSnapshot(), ["count": ["1"]], "配りの戻りの前に、次のシナリオへ渡す写しに入っている")
+        // 発行元の配り(同じ通し番号・src は run-hook)が後から届く
+        for line in memoLines(src: "run-hook", lid: 1, op: .write(key: "count", value: "1")) {
+            let raw = try XCTUnwrap(WorkQueueProtocol.decodeMemoPiece(line))
+            link.receive(line: WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: raw.src, lid: raw.lid, seq: 5, i: raw.i, n: raw.n, d: raw.d)))
+        }
+        XCTAssertEqual(session.shared.runMemoSnapshot(), ["count": ["1"]], "同じ通し番号の配りは重複として足さない")
+        // clear も同じ
+        var clear = ScenarioEvent(kind: "runMemoCommitted")
+        clear.memoSeq = 6
+        XCTAssertTrue(session.apply(clear, className: "C", lockOwnerToken: "tok"))
+        XCTAssertEqual(session.shared.runMemoSnapshot(), [:])
+        XCTAssertFalse(session.shared.locks.appliedOps.count(token: "tok") >= 1, "ロックの外の書き込みの数には数えない")
+    }
+
+    func testTheHubBackendReturnsTheSequenceNumberItAssigned() {
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let backend = RunMemoHubLockBackend(hub: hub)
+        XCTAssertEqual(backend.applyCommitted(.write(key: "a", value: "1")), 1)
+        XCTAssertEqual(backend.applyCommitted(.write(key: "a", value: "2")), 2)
+        XCTAssertNil(RunMemoStore().applyCommitted(.write(key: "a", value: "1")), "正本が無い構成は通し番号が無い")
     }
 }

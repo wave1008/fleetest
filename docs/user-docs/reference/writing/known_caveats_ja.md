@@ -34,7 +34,7 @@
 - [beforeAll() で設定したプロパティは他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値の受け渡しは `writeRunMemo` / `readRunMemo` を使い、失敗するとそのクラスの残りは実行されず失敗になります。
 - [setUpDevice() で設定したプロパティも他のシナリオから見えない](../commands/descriptors_ja.md#注意点) — 値は `writeRunMemo` / `readRunMemo` で渡し(`setUpDevice()` では書けません)、失敗すると同デバイスの同クラスの残りは失敗として記録されます。
 - [afterEach() は @Test が失敗した後でも実行される](../commands/descriptors_ja.md#注意点) — アプリの終了など、成否に関わらず必要な後片付けに使います。
-- [tearDownDevice() は専用プロセスで走り、合否に数えない](../commands/descriptors_ja.md#注意点) — デバイスが使えなくなった場合や run を中断した場合は走りません。
+- [tearDownDevice() は専用プロセスで走り、合否に数えない](../commands/descriptors_ja.md#注意点) — run メモを読めます。`setUpDevice()` が失敗しても走ります。デバイスが使えなくなった場合や run を中断した場合は走りません。
 - [@Deleted / @Draft は一括実行から除外される](../commands/descriptors_ja.md#注意点) — 完全一致 ID を明示したときだけ実行できます。
 - [手順の説明は scene の題名に書く](../commands/descriptors_ja.md#注意点) — 説明は scene の題名に書きます。
 
@@ -271,9 +271,9 @@
 - [beforeRun() はデバイスも compose.yaml のサーバーも使えない](../testclass/creating_testclass_ja.md#注意点) — 1回の run で fleetest を起動したマシンで1回走り、宛先の許可とデータセットの上書きはそのマシンのものです。マシンごとの準備は `run-setup.sh` / `beforeAll()` に置きます。
 - [afterRun() は失敗した run でも走る](../testclass/creating_testclass_ja.md#注意点) — 中断・異常終了のときだけ走らず、合否にも数えません。`@RunHooks` があるプロジェクトの `--fleet` は断られます。
 - [共有サーバーを初期化する beforeRun() は、同時に使う別の run を壊すことがある](../testclass/creating_testclass_ja.md#注意点) — MCP は `ft_run_scenario` の呼び出しごとに走ります。他の run が動いていても壊れない形で書きます。
-- [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときだけ使います。
+- [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときと、beforeAll() から run メモ経由で値を渡すクラスにだけ使います。
 - [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
-- [run 全体のロックで守るキーは、ロックの中でだけ書く](../commands/memo_ja.md#注意点) — ロックの外の書き込みは後から届いて、中で書いた値を上書きすることがあります。
+- [run 全体のロックで守るキーは、ロックの中でだけ書く](../commands/memo_ja.md#注意点) — ロックの外での書き込み(別のシナリオの書き込みや、ロックを出た後の書き込み)はロックで順序が決まらず、中で書いた値を上書きすることがあります。
 - [withSharedLock は読むだけに使う](../commands/memo_ja.md#注意点) — 共有ロックだけを持って run メモへ書くとエラーです。再実行されたシナリオはロックのブロックをもう一度実行します。
 - [run 全体のロックは --fleet では効かない](../commands/memo_ja.md#注意点) — 呼んだ時点で理由つきの失敗になります(ssh 越しのマシンでは効きます。リモートの持ち主の接続が切れたキーは、向こうの run の終わりを確かめるまで取れません)。激しく取り合うと待ちの上限に当たるので、重い排他や run をまたぐ排他はテスト用サーバーの DB を使い、他のテストの完了待ちにロックを使わないでください。
 - [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。

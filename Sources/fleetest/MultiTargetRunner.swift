@@ -337,6 +337,11 @@ enum MultiTargetRunner {
                 log: { FleetRunner.log("[\(name)] " + $0) })
         }
         let lockIssuersByProject = lockIssuers
+        // まだ起こしていない子が残る仕事(配り残し)があるうちは、確かめ直しを続ける(RR-8.5)
+        for (name, issuer) in lockIssuersByProject {
+            let dispatchers = units.filter { $0.project.name == name }.map(\.dispatcher)
+            issuer.setMoreWorkProbe { dispatchers.contains { !$0.handablePendingScenarios.isEmpty } }
+        }
         defer { lockIssuersByProject.values.forEach { $0.stop() } }
         let lockInterruptRelays = lockIssuersByProject.values.map { issuer in
             InterruptRelay.observing(catchUp: true) { issuer.interrupt() }

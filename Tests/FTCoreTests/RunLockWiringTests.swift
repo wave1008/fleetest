@@ -35,15 +35,31 @@ final class RunLockWiringTests: XCTestCase {
         book.shared.locks.stop()
     }
 
-    func testHostOverridesTheAccessForDryRunAndDebugBeforeTheSocketReachesTheSandbox() throws {
+    /// dry-run / debug 実行はサーバーを起こさずに値を決める(起こしてから上書きしない)
+    func testDryRunAndDebugOverrideTheAccessWithoutStartingTheServer() async throws {
         let host = try source("Sources/FTCore/ScenarioHost.swift")
-        let dry = try XCTUnwrap(host.range(of: "if dryRun {\n            handoff.lockAccess = .passThrough"))
-        XCTAssertTrue(host[dry.upperBound...].prefix(120).contains("else if debug != nil"), "debug は dry-run でない run だけ")
-        XCTAssertTrue(host.contains("handoff.lockAccess = .immediate"))
-        // 上書きの後で、その値(socket)を枠へ名指しする。逆順だと dry-run の子にソケットが開く
-        let override = host.distance(from: host.startIndex, to: dry.lowerBound)
+        let override = try XCTUnwrap(host.range(of: "let lockOverride: RunLockAccess? = dryRun ? .passThrough : (debug != nil ? .immediate : nil)"))
+        let handoff = try XCTUnwrap(host.range(of: "deviceSession.handoff(className: className, classHasBeforeAll: classHasBeforeAll, lockOverride: lockOverride)"))
+        let tearDown = try XCTUnwrap(host.range(of: "deviceSession.tearDownHandoff(lockOverride: lockOverride)"))
+        XCTAssertLessThan(override.upperBound, handoff.lowerBound, "起こす前に決める")
+        XCTAssertLessThan(override.upperBound, tearDown.lowerBound)
+        // 上書きの値を枠へ名指しする(dry-run の子にソケットが開かない)
         let sandbox = try XCTUnwrap(host.range(of: "lockSocket: { if case .socket(let path) = handoff.lockAccess"))
-        XCTAssertLessThan(override, host.distance(from: host.startIndex, to: sandbox.lowerBound))
+        XCTAssertLessThan(override.upperBound, sandbox.lowerBound)
+
+        let session = RunDeviceSession()
+        session.shared.locks.configure(usesLocks: true, waitCapSeconds: 5, linkedToParent: false, issuerSocket: nil) { _ in }
+        defer { session.shared.locks.stop() }
+        guard case .launch(let dry) = await session.handoff(className: "C", classHasBeforeAll: false, lockOverride: .passThrough) else {
+            return XCTFail("launch expected")
+        }
+        XCTAssertEqual(dry.lockAccess, .passThrough)
+        XCTAssertFalse(session.shared.locks.serverStartedForTesting, "dry-run はサーバーを起こさない")
+        XCTAssertEqual(session.tearDownHandoff(lockOverride: .immediate).lockAccess, .immediate)
+        XCTAssertFalse(session.shared.locks.serverStartedForTesting)
+        guard case .launch(let real) = await session.handoff(className: "C", classHasBeforeAll: false) else { return XCTFail("launch expected") }
+        guard case .socket = real.lockAccess else { return XCTFail("通常の起動はサーバーを起こす") }
+        XCTAssertTrue(session.shared.locks.serverStartedForTesting)
     }
 
     func testAppliedOutsideOpsAreCountedPerTokenAfterTheStoreWrite() async throws {
@@ -53,9 +69,9 @@ final class RunLockWiringTests: XCTestCase {
         write.memoValue = "v"
         XCTAssertTrue(session.apply(write, className: "C", lockOwnerToken: "tok"))
         XCTAssertTrue(session.apply(ScenarioEvent(kind: "runMemoClear"), className: "C", lockOwnerToken: "tok"))
-        XCTAssertTrue(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 2, timeout: .zero))
-        XCTAssertFalse(session.shared.locks.appliedOps.wait(token: "tok", atLeast: 3, timeout: .zero))
-        XCTAssertFalse(session.shared.locks.appliedOps.wait(token: "other", atLeast: 1, timeout: .zero))
+        XCTAssertTrue(session.shared.locks.appliedOps.count(token: "tok") >= 2)
+        XCTAssertFalse(session.shared.locks.appliedOps.count(token: "tok") >= 3)
+        XCTAssertFalse(session.shared.locks.appliedOps.count(token: "other") >= 1)
         let host = try source("Sources/FTCore/ScenarioHost.swift")
         XCTAssertTrue(host.contains("lockOwnerToken: handoff.lockOwnerToken) { continue }"))
         XCTAssertTrue(host.contains("deviceSession.shared.locks.unregister(token: handoff.lockOwnerToken)"))
@@ -133,6 +149,18 @@ final class RunLockWiringTests: XCTestCase {
         XCTAssertFalse(event.encodedLine().contains("lockWaitMs"), "待たなければ載せない")
         event.lockWaitMs = 1_011
         XCTAssertEqual(ScenarioEvent.decode(line: event.encodedLine())?.lockWaitMs, 1_011)
+    }
+
+    /// 発行元への転送(接続・書き込み)は呼び元の読み手のスレッドでしない: ホストの直列キューで行う
+    func testTheForwardToTheIssuerRunsOnTheHostsOwnQueue() throws {
+        let host = try source("Sources/FTCore/RunLockHost.swift")
+        let start = try XCTUnwrap(host.range(of: "private func forward(_ message: RunLockMessage, path issuerPath: String) {"))
+        let body = host[start.upperBound...].prefix(700)
+        XCTAssertTrue(body.contains("forwardQueue.async"))
+        XCTAssertTrue(body.contains("pendingNotes.append(message)"))
+        let queued = try XCTUnwrap(body.range(of: "forwardQueue.async"))
+        let flush = try XCTUnwrap(body.range(of: "flushPendingNotesLocked"))
+        XCTAssertLessThan(queued.lowerBound, flush.lowerBound, "呼び元で同期に送らない(接続・書き込みはキューの中)")
     }
 
     func testHookChildrenGetTheirLocksAtOnce() throws {

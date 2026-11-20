@@ -211,7 +211,7 @@ enum ApiRunMachineFanout {
         // run 全体のロック(RR-8.5)のサーバー(ソースがロックを使うときだけ。子が全員終わるまで持つ)
         let lockIssuer = RunLockIssuerSetup.start(
             project: project, profiles: [profileName], setOverrides: options.setOverrides,
-            explicitScenarioTimeout: options.scenarioTimeout, scenarioTimeouts: listedScenarioTimeouts.value,
+            scenarioTimeouts: listedScenarioTimeouts.value,
             hub: memoRelay.hub,
             log: { logStderr($0) })
         defer { lockIssuer?.stop() }

@@ -46,10 +46,12 @@ public final class RunSharedSession: @unchecked Sendable {
     }
 
     /// 子へ渡すロックの扱い(`DeviceSessionHandoff` の3欄)。起動ごとの印を作り、この起動の run メモを登録する
-    func lockHandoff() -> (access: RunLockAccess, capSeconds: Int, token: String) {
+    /// `override` を渡すと、その値をそのまま使いサーバーを起こさない(dry-run = 取らずに通す・debug 実行 = その場で渡す。
+    /// 起こしてから上書きすると、使わないソケットを作る)
+    func lockHandoff(override: RunLockAccess? = nil) -> (access: RunLockAccess, capSeconds: Int, token: String) {
         let token = UUID().uuidString
         locks.register(token: token, memo: runMemo)
-        return (locks.access(), locks.currentWaitCapSeconds, token)
+        return (override ?? locks.access(), locks.currentWaitCapSeconds, token)
     }
 
     func declareAfterAll(className: String, platform: String?) {
@@ -86,6 +88,8 @@ public final class RunSharedSession: @unchecked Sendable {
         let locks = self.locks
         runMemo.write(key: key, value: value) { locks.noteOutsideApplied(token: token) }
     }
+
+    func confirmCommittedRunMemo(seq: Int, op: RunMemoOp) { runMemo.confirmCommitted(seq: seq, op: op) }
 
     func clearRunMemo(token: String) {
         let locks = self.locks
@@ -199,7 +203,8 @@ public final class RunDeviceSession: @unchecked Sendable {
     /// 起動の可否と子へ渡す写し。`classHasBeforeAll`(`ScenarioInfo.beforeAll`)のクラスは、別のデバイスが
     /// beforeAll を受け持っている間ここで待つ。setUpDevice を持たないクラスは deviceSetUp を出さず未試行のままなので、
     /// 毎回 runSetUpDevice = true になる(子が無視する。クラスごとの有無は追跡しない)
-    public func handoff(className: String, classHasBeforeAll: Bool) async -> HandoffDecision {
+    public func handoff(className: String, classHasBeforeAll: Bool,
+                        lockOverride: RunLockAccess? = nil) async -> HandoffDecision {
         var runBeforeAll = false
         if classHasBeforeAll {
             switch await shared.takeBeforeAll(className: className) {
@@ -215,7 +220,7 @@ public final class RunDeviceSession: @unchecked Sendable {
             if runBeforeAll { releaseBeforeAll(className: className) }
             return .setUpDeviceFailed
         }
-        let lock = shared.lockHandoff()
+        let lock = shared.lockHandoff(override: lockOverride)
         return .launch(DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: state == nil,
                                             runBeforeAll: runBeforeAll,
                                             lockAccess: lock.access, lockWaitCapSeconds: lock.capSeconds,
@@ -235,6 +240,16 @@ public final class RunDeviceSession: @unchecked Sendable {
         case "runMemoWrite":
             if let key = event.memoKey, let value = event.memoValue {
                 shared.appendRunMemo(key: key, value: value, token: lockOwnerToken)
+            }
+            return true
+        case "runMemoCommitted":
+            // ロックの中の書き込み(発行元の正本が確定した通し番号つき)。ロックの外の書き込みの数(`outsideApplied`)には数えない
+            if let seq = event.memoSeq {
+                if let key = event.memoKey, let value = event.memoValue {
+                    shared.confirmCommittedRunMemo(seq: seq, op: .write(key: key, value: value))
+                } else {
+                    shared.confirmCommittedRunMemo(seq: seq, op: .clear)
+                }
             }
             return true
         case "runMemoClear":
@@ -271,8 +286,8 @@ public final class RunDeviceSession: @unchecked Sendable {
     }
 
     /// tearDownDevice 専用の子へ渡す写し(setUpDevice も beforeAll も走らせない・失敗済みでも片付けは走らせる)
-    public func tearDownHandoff() -> DeviceSessionHandoff {
-        let lock = shared.lockHandoff()
+    public func tearDownHandoff(lockOverride: RunLockAccess? = nil) -> DeviceSessionHandoff {
+        let lock = shared.lockHandoff(override: lockOverride)
         return DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: false, runBeforeAll: false,
                                     lockAccess: lock.access, lockWaitCapSeconds: lock.capSeconds,
                                     lockOwnerToken: lock.token)

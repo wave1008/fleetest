@@ -174,6 +174,15 @@ If you set your name in `issuerId` in `~/.config/fleetest/config.json`, that nam
 messages. For setting up a runner shared by several people, see "When several people share one
 runner" in [Adding a Mac](adding_mac.md).
 
+## What is shared in a run across machines
+
+The lock on this page (`--wait-lock`, `remote unlock`) is the **runner occupancy lock**: it only decides who may use a runner now. It is not the `withExclusiveLock` / `withSharedLock` of scenarios ([memo](../reference/commands/memo.md#run-wide-locks-withexclusivelock-withsharedlock)).
+
+- **The run memo** is one per run, shared by every machine of the run. `beforeAll()` runs once per machine, so pass a machine-made value from it only in a class with `@RunOnSingleMachine`.
+- **`beforeRun()` / `afterRun()`** run once, on the machine where you started fleetest (the runner machine for `run --runner <machine>`) ([run-wide preparation and cleanup](../reference/testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun)).
+- **`withExclusiveLock` / `withSharedLock`** work across the machines of the run.
+- **In a `--fleet` run**, a project with `@RunHooks` is refused at the start, a lock call fails at once with a reason, the run memo is per machine, and without `--split` the placement attributes (`@RunOnSingleMachine` etc.) do not apply.
+
 ## Good to know
 
 ### Runners on another network (across a router)

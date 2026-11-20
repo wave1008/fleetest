@@ -34,7 +34,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`beforeAll()` instance properties are not shared](../commands/descriptors.md#notes) — it runs in the first scenario's process; pass values with `writeRunMemo` / `readRunMemo`, and if it fails the class's remaining scenarios fail unrun.
 - [`setUpDevice()` instance properties are not shared](../commands/descriptors.md#notes) — pass values with `writeRunMemo` / `readRunMemo` (`setUpDevice()` cannot write it); a failure fails the class's remaining scenarios on that device and is never retried.
 - [`afterEach()` runs even after a failure](../commands/descriptors.md#notes) — use it for cleanup that must always happen, such as terminating the app.
-- [`tearDownDevice()` has its own process](../commands/descriptors.md#notes) — it can read the run memo and runs even if `setUpDevice()` failed, but not on dropped devices; its result is not counted in the test results.
+- [`tearDownDevice()` has its own process](../commands/descriptors.md#notes) — it reads the run memo; runs even if `setUpDevice()` failed; does not run on dropped devices or in an interrupted run; its result is not counted in the test results.
 - [`@Deleted` / `@Draft` are excluded from bulk runs](../commands/descriptors.md#notes) — they can only be run by exact ID, so a scenario marked this way silently does not run in all/folder/class runs.
 - [Describe steps in the scene title](../commands/descriptors.md#notes) — write the steps in the scene's title string.
 
@@ -271,10 +271,10 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`beforeRun()` cannot use the device or compose.yaml servers](../testclass/creating_testclass.md#notes) — it runs once per run on the machine where you started fleetest; allowed domains and dataset overrides are that machine's; per-machine preparation goes in `run-setup.sh` / `beforeAll()`.
 - [`afterRun()` also runs after failed tests](../testclass/creating_testclass.md#notes) — skipped only in an interrupted run or after an abnormal end; not counted in the results; `--fleet` with `@RunHooks` is refused.
 - [A `beforeRun()` that resets a shared server can break another run using it at the same time](../testclass/creating_testclass.md#notes) — MCP runs it on every `ft_run_scenario` call; write it to be safe while other runs are in progress.
-- [`@RunOnSingleMachine` stops the load from being split between machines](../testclass/creating_testclass.md#notes) — use it only to gather `beforeAll()` or data on one machine.
+- [`@RunOnSingleMachine` stops the load from being split between machines](../testclass/creating_testclass.md#notes) — use it only to gather `beforeAll()` or data on one machine, and also for a class that passes a value from `beforeAll()` through the run memo.
 - [`@RunOnSingleDevice` removes the class's parallelism and defines no order](../testclass/creating_testclass.md#notes) — it prevents only simultaneous runs inside that class.
-- [Write a key that a run-wide lock guards only inside the lock](../commands/memo.md#notes) — a write outside the lock can arrive later and overwrite the value written inside.
-- [Use `withSharedLock` only to read](../commands/memo.md#notes) — writing the run memo with only shared locks held is an error; a retried scenario runs the lock block again.
+- [Write a key that a run-wide lock guards only inside the lock](../commands/memo.md#notes) — a write to that key outside any lock (by another scenario, or after you leave the lock) is not ordered by the lock and can overwrite the value written inside.
+- [Use `withSharedLock` only to read](../commands/memo.md#notes) — writing the run memo with only shared locks held is an error; a scenario that is run again (requeued or retried) runs the lock block again.
 - [Run-wide locks do not work in `--fleet`](../commands/memo.md#notes) — the call fails at once with an explanation (on machines reached over ssh they work; a key whose remote owner lost its connection stays unavailable until that machine's run has ended); heavy contention can reach the wait cap, so use the test server's database for heavy or run-spanning exclusion, and never wait for another test with a lock.
 - [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test.
 

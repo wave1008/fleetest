@@ -76,6 +76,12 @@ public final class RunMemoStore: Sendable {
 
     public func snapshot() -> [String: [String]] { ledger.withLock { $0.view() } }
 
+    /// 発行元が確定した通し番号つきの書き込みを、配りの戻りを待たずに確定分として入れる(ロックの中の書き込み)。
+    /// 同じ通し番号の配りの戻りは `RunMemoLedger.confirm` が重複として無視する
+    public func confirmCommitted(seq: Int, op: RunMemoOp) {
+        _ = ledger.withLock { $0.confirm(seq: seq, op: op, ownLid: nil) }
+    }
+
     /// 書く。`onConfirmed` = 発行元の確定が戻った時点で1回呼ぶ(`RunSharedSession` がロックの外の書き込みの適用の観測に使う)。
     /// **確定が来ない書き込みは確定を待たずその場で呼ぶ**: 発行元とつながっていない(書いた時点で確定と同じ)・
     /// 大きすぎて上げなかった(`RunMemoLink.publish` が1行警告してこのマシンだけに残す。発行元は確定しないので、

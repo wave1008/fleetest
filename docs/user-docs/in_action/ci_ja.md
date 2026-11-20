@@ -71,6 +71,7 @@ ios-run を --quiet --junit reports/junit.xml 付きで回して。終了コー�
   シナリオのビルドで落ちたときは `build` という名前の失敗が1件だけ載ります。`beforeRun()` が失敗した run では `beforeRun` という名前の失敗が載ります
   (→ [run 全体の準備と片付け](../reference/testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun))。コマンドラインの誤り(存在しないシナリオ名・
   フォルダ名)では JUnit は書かれません。
+- **`afterRun()`**: `afterRun()` の失敗は終了コードにも JUnit にも影響せず(ログに「⚠️ afterRun() failed」と1行出るだけ)、run を中断したときやどこかのマシンの run が異常終了したときは走りません。共有サーバーの片付けは、最後の `afterRun()` だけでなく `beforeRun()` の冒頭でも行うと、途中で打ち切られたジョブが次のジョブへ汚れたサーバーを残しません。
 - デバイスの供給(Simulator 起動・ブリッジ)は `--profile` 実行が自動で行います。連続ジョブでは
   稼働中のブリッジが再利用され、コールドスタートは初回だけです。
 - **失敗の調査**: `TestProjects/<name>/reports/` に失敗ごとの Markdown レポート(要素一覧・

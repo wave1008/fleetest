@@ -1548,10 +1548,10 @@ struct RunScenarios: AsyncParsableCommand {
         var deviceSessions: [String: RunDeviceSession] = [:]
         // メモと beforeAll の済み印は run 全体で1つ(OS ごとのセッションが同じものを持つ)
         let sharedSession = RunSharedSession()
-        // run 全体のロック(RR-8.5)。この経路は scenarioTimeout の設定を持たない(対象ごとの @Test の値と既定だけ)
+        // run 全体のロック(RR-8.5)。待ちの上限は子の watchdog と同じ解決(@Test の値 > `--set scenarioTimeout=`(`settings`) > 既定)
         defer { sharedSession.locks.stop() }
         sharedSession.locks.configure(project: project, scenarioTimeouts: items.map(\.info.scenarioTimeout),
-                                      settingsTimeout: nil) { ConsoleOut.out($0) }
+                                      settingsTimeout: settings.scenarioTimeout) { ConsoleOut.out($0) }
         var sessionConnections: [String: DriverConnection] = [:]
         for (index, item) in orderedItems.enumerated() {
             if interruptState.isStopped {

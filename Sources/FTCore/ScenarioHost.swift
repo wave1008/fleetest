@@ -663,9 +663,12 @@ public enum ScenarioHost {
         // tearDownDevice は setUpDevice の成否に関わらず走らせる(片付け)。setUpDevice も beforeAll も走らせない
         // クラスの片付けだけを走らせる専用の子(tearDownDevice / afterAll)。シナリオではない
         let lifecycleOnly = deviceTearDownOnly || afterAllOnly
+        // ロック(RR-8.5): dry-run は取らずに通す・debug 実行は1シナリオ・1台なのでその場で渡す(他の起動はセッションの値)。
+        // **起こす前に決める**(セッションのサーバーを起こしてから上書きしない)
+        let lockOverride: RunLockAccess? = dryRun ? .passThrough : (debug != nil ? .immediate : nil)
         let handoffDecision: RunDeviceSession.HandoffDecision = lifecycleOnly
-            ? .launch(deviceSession.tearDownHandoff())
-            : await deviceSession.handoff(className: className, classHasBeforeAll: classHasBeforeAll)
+            ? .launch(deviceSession.tearDownHandoff(lockOverride: lockOverride))
+            : await deviceSession.handoff(className: className, classHasBeforeAll: classHasBeforeAll, lockOverride: lockOverride)
         // 受け持った beforeAll を、子を起こさずに抜ける経路でも手放す(待っている他のデバイスが受け持ち直す)。
         // 子を起こした後は scenarioEnded が先に手放すので、ここは何もしない
         defer { deviceSession.releaseBeforeAll(className: className) }
@@ -748,7 +751,7 @@ public enum ScenarioHost {
         if let reason = ScenarioTimeoutResolution.invalidScenarioValueReason(scenarioTimeoutOverride) {
             return abortBeforeLaunch(reason)
         }
-        var handoff: DeviceSessionHandoff
+        let handoff: DeviceSessionHandoff
         switch handoffDecision {
         case .launch(let value):
             handoff = value
@@ -759,13 +762,6 @@ public enum ScenarioHost {
             return abortBeforeLaunch("beforeAll of \(className) failed earlier in this run,"
                                      + " so this scenario was not run")
         }
-        // ロック(RR-8.5): dry-run は取らずに通す・debug 実行は1シナリオ・1台なのでその場で渡す(他の起動はセッションの値)
-        if dryRun {
-            handoff.lockAccess = .passThrough
-        } else if debug != nil {
-            handoff.lockAccess = .immediate
-        }
-
         let runner: URL
         do {
             runner = try runnerURL(project: project)

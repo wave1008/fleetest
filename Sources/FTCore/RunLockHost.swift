@@ -1,10 +1,11 @@
 // RunLockHost.swift
 // run 全体のロック(RR-8.5)を run の親のプロセスで受け持つ入口。`RunSharedSession` が1つ持ち、受け渡しの行(`DeviceSessionHandoff.lockAccess`)の値を決める。
 //
-// 方針(ユーザー決定済みの範囲の第2a段・1台のマシンの run):
+// 方針:
 //  - サーバーは**プロジェクトのソースがロックのコマンドを使うときだけ**、最初のシナリオを起こす時に起こす(使わない run に待ち受けを増やさない)。
 //    ソースの走査(`RunLockUsage`)が見落とした呼び方で呼ばれても、ソケットを渡されない子は**待たずに英語で失敗する**(黙って割れない・止まらない)
-//  - 親とつながった子(マシンをまたぐ run の子)は発行元がまだ答えを持たないので「呼んだら失敗」(第2段で発行元が `--lock-socket` を渡す)
+//  - 親とつながった子(マシンをまたぐ run の子)は、発行元から `--lock-socket` を受けたときだけ発行元のサーバーへつなぐ。受けていなければ
+//    「呼んだら失敗」(自前のサーバーを起こすとマシンごとに別のロックになって誤った緑)
 
 import Foundation
 
@@ -30,18 +31,12 @@ public enum RunLockUsage {
 
     /// `_disabled/` はビルドされない(Package.swift の exclude)ので見ない
     public static func projectUsesLocks(_ project: TestProject) -> Bool {
-        guard let files = FileManager.default.enumerator(at: project.scenariosDir, includingPropertiesForKeys: nil) else { return false }
-        let disabled = project.disabledDir.standardizedFileURL.path + "/"
-        for case let url as URL in files where url.pathExtension == "swift" {
-            if url.standardizedFileURL.path.hasPrefix(disabled) { continue }
-            if let text = try? String(contentsOf: url, encoding: .utf8), sourceUsesLocks(text) { return true }
-        }
-        return false
+        RunWideHookPlan.anyScenarioSource(in: project, where: sourceUsesLocks)
     }
 
     /// 同じプロジェクトの別の run がこのマシンで進行中のときの警告(英語。無ければ nil)。数え方は `RunWideHookPlan.overlappingRunsLine` と同じ
     public static func overlapLine(project: String, ownPid: Int32, records: [RunProgressRecord]) -> String? {
-        let others = Set(records.filter { $0.project == project && $0.pid != ownPid }.map(\.pid)).sorted()
+        let others = RunWideHookPlan.otherRunPids(project: project, ownPid: ownPid, records: records)
         guard !others.isEmpty else { return nil }
         return "⚠️ \(others.count) other run(s) of project \(project) are in progress on this machine"
             + " (pid \(others.map(String.init).joined(separator: ", "))):"
@@ -128,10 +123,6 @@ public final class RunLockAppliedOps: @unchecked Sendable {
         }
         return .reached
     }
-
-    public func wait(token: String, atLeast: Int, timeout: Duration) -> Bool {
-        waitResult(token: token, atLeast: atLeast, timeout: timeout) == .reached
-    }
 }
 
 public final class RunLockHost: @unchecked Sendable {
@@ -145,7 +136,8 @@ public final class RunLockHost: @unchecked Sendable {
         case issuer(String)
     }
 
-    /// 発行元から `--lock-socket` を受けた印(隠しフラグ。親とつながった**ローカルの**子だけが受ける。リモートの子は受けない)
+    /// 発行元から `--lock-socket` を受けた印(隠しフラグ)。手元の子は発行元の手元の待ち受けを、リモートの機械の run は中継役が ssh の転送で
+    /// 張った向こうのパスを受ける。受けていない親とつながった子は「呼んだら失敗」
     private static let issuerSocket = LockedValue<String?>(nil)
     public static func markIssuerSocket(_ path: String) { issuerSocket.value = path }
     /// `configure` の `issuerSocket` の既定(プロセスで受けた `--lock-socket`)
@@ -168,6 +160,8 @@ public final class RunLockHost: @unchecked Sendable {
     public static let fleetEntryRefusal = "--fleet runs do not share locks across machines"
     private static let fleetEntry = LockedValue(false)
     public static func markFleetEntry() { fleetEntry.value = true }
+    /// この run が `--fleet` のエントリか(`RunWideHookPlan.hooksClassToRun` の2つ目の門が見る)
+    public static var isFleetEntry: Bool { fleetEntry.value }
 
     /// 発行元から `--lock-socket` を受けていない親とつながった子(ソースがロックを使うと見えなかった・ssh の転送を張れなかった)
     public static let linkedChildRefusal = "the parent of this multi-machine run did not hand over a run lock socket"
@@ -191,6 +185,7 @@ public final class RunLockHost: @unchecked Sendable {
     private var configured = false
     // 発行元のサーバーへの1本の接続(子のプロセスで1つ)。forwardLock の内側
     private let forwardLock = NSLock()
+    private let forwardQueue = DispatchQueue(label: "fleetest.run-lock.forward")
     private var forwarder: RunLockClient?
     private var pendingNotes: [RunLockMessage] = []
     private var retrying = false
@@ -210,7 +205,8 @@ public final class RunLockHost: @unchecked Sendable {
         appliedOps.forget(token: token)
     }
 
-    /// run の入口が1回呼ぶ。**親とつながった子は常に「呼んだら失敗」**。`usesLocks` が false(走査が見なかった)なら `notDetectedRefusal`。
+    /// run の入口が1回呼ぶ。**親とつながった子は、発行元のソケット(`issuerSocket`)を受けていなければ「呼んだら失敗」**。
+    /// `usesLocks` が false(走査が見なかった)なら `notDetectedRefusal`。
     /// `merge`: 設定済みなら上書きせず足し込む(使う宣言は OR・上限は大きいほう)= プロセスで1つのホストを複数の呼び出しが共有する形(MCP)
     public func configure(usesLocks: Bool, waitCapSeconds: Int, linkedToParent: Bool, merge: Bool = false,
                           issuerSocket: String? = RunLockHost.markedIssuerSocket,
@@ -246,6 +242,9 @@ public final class RunLockHost: @unchecked Sendable {
                   overlapWarning: { RunLockUsage.currentOverlapLine(project: name) },
                   log: log)
     }
+
+    /// テスト用: サーバーを起こしたか(dry-run / debug の上書きが、起こしてから上書きする形に戻らないことを確かめる)
+    var serverStartedForTesting: Bool { lock.withLock { server != nil } }
 
     public var currentWaitCapSeconds: Int { lock.withLock { waitCapSeconds } }
 
@@ -320,13 +319,19 @@ public final class RunLockHost: @unchecked Sendable {
         }
     }
 
+    /// 呼び元(親の stdin を読むスレッド・子の出力を読むスレッド)で接続・書き込みをしない: **ホストが持つ直列キュー**で行う
+    /// (詰まった転送が、開始の行・配りの返事の処理を止めない)
     private func forward(_ message: RunLockMessage, path issuerPath: String) {
         forwardLock.lock()
         pendingNotes.append(message)
-        let startRetry = !flushPendingNotesLocked(path: issuerPath) && !retrying
-        if startRetry { retrying = true }
         forwardLock.unlock()
-        if startRetry { retryForwarding(path: issuerPath) }
+        forwardQueue.async { [self] in
+            forwardLock.lock()
+            let startRetry = !flushPendingNotesLocked(path: issuerPath) && !retrying
+            if startRetry { retrying = true }
+            forwardLock.unlock()
+            if startRetry { retryForwarding(path: issuerPath) }
+        }
     }
 
     /// 送れる分を送る。全部送れたら true。forwardLock を持って呼ぶ
@@ -410,7 +415,9 @@ public struct RunMemoHubLockBackend: RunLockMemoBackend {
 
     public func snapshot() -> [String: [String]] { hub.finalValues() }
 
-    public func apply(_ op: RunMemoOp) { hub.seedConfirmed([op]) }
+    public func apply(_ op: RunMemoOp) { hub.commit(op) }
+
+    public func applyCommitted(_ op: RunMemoOp) -> Int? { hub.commit(op) }
 }
 
 /// 発行元(マシンをまたぐ run の親)が持つロックのサーバー。プロジェクトのソースがロックを使うときだけ起こす。
@@ -423,6 +430,11 @@ public final class RunLockIssuer: @unchecked Sendable {
     /// リモートの機械へのディスパッチ1回ぶんの待ち受けを開く(中継役の子を起こす直前)。ssh の `-R` の転送先になり、
     /// 同時に**そのディスパッチの識別子**(`sshEnded` / `remoteRunEnded` に使う)。nil = 開けなかった(子はロックを使えない)
     public func openRemoteListener(machine: String) -> String? { try? server.openRemoteListener(machine: machine) }
+
+    /// 子を起こした / 子が終わった(`unknownKeys` の `othersActive` の材料)。まだ起こしていない仕事が残るかの問い合わせ
+    public func childLaunched() { server.childLaunched() }
+    public func childExited() { server.childExited() }
+    public func setMoreWorkProbe(_ probe: @escaping @Sendable () -> Bool) { server.setMoreWorkProbe(probe) }
 
     /// 中継役の子が終わった後に閉じる(受けた接続と持ち主不明は残る)
     public func closeRemoteListener(path: String) { server.closeRemoteListener(path: path) }

@@ -96,7 +96,7 @@ final class RunLockServerTests: XCTestCase {
             .hello(scenario: "S.a", machine: "m", device: "ios:1", token: "t"), .queued(id: 3),
             .acquire(id: 3, keys: ["a", "é"], mode: .shared), .cancel(id: 3), .release(id: 3), .memoRead(id: 6, outsideOps: 2),
             .memoWrite(id: 4, op: .write(key: "k", value: "line1\nline2"), outsideOps: 1), .memoWrite(id: 5, op: .clear, outsideOps: 0),
-            .granted(id: 3), .failed(id: 3, reason: "r"), .memo(values: ["k": ["1", "2"]]), .committed(id: 4),
+            .granted(id: 3), .failed(id: 3, reason: "r"), .memo(values: ["k": ["1", "2"]]), .committed(id: 4, seq: 9), .committed(id: 5, seq: nil),
         ]
         for message in messages {
             let line = message.encodedLine()

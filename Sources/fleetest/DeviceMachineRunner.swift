@@ -555,7 +555,7 @@ enum DeviceMachineRunner {
         if host == "local" {
             args += ["--skip-build"]
             if let reportDir { args += ["--report-dir", reportDir] }
-            // 発行元のロックのサーバー(RR-8.5)。**ローカルの子だけ**(リモートの子へは渡さない = 第2b段まで呼んだら失敗)
+            // 発行元のロックのサーバー(RR-8.5): 手元の子はその待ち受けへ直接つなぐ
             if let lockSocket { args += ["--lock-socket", lockSocket] }
         } else if let lockSocket, let lockControlSocket {
             // リモートの機械(ssh 越し): 子 = 中継役へ、**その機械の待ち受け**(ssh の `-R` の転送先)と手元の待ち受け(終わりの知らせ用)を渡す。

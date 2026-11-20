@@ -9,10 +9,30 @@ public enum RunWideHookPlan {
     /// - シナリオが0本の run では走らせない(何も流れない run の準備をしない)
     /// - dry-run では走らせない(フックは副作用を持つ。dry-run はデバイスにも外部にも触れない)
     /// - 親とつながった子(`linkedToParent`)では走らせない(走らせるのは発行元。子が走らせると全マシンで重複する)
+    /// - `--fleet` のエントリ(`fleetEntry`)では走らせない(各エントリは別々の run で、マシンごとにばらばらの時刻に走ってしまう。
+    ///   入口の検査 `fleetRefusal` に加えた2つ目の門 = 入口の検査をすり抜けた形でも走らせない)
     public static func hooksClassToRun(hooksClass: String?, scenarioCount: Int, dryRun: Bool,
-                                       linkedToParent: Bool) -> String? {
-        guard let hooksClass, scenarioCount > 0, !dryRun, !linkedToParent else { return nil }
+                                       linkedToParent: Bool, fleetEntry: Bool = RunLockHost.isFleetEntry) -> String? {
+        guard let hooksClass, scenarioCount > 0, !dryRun, !linkedToParent, !fleetEntry else { return nil }
         return hooksClass
+    }
+
+    /// プロジェクトのシナリオのソース(`scenarios/` の `.swift`。`_disabled/` はビルドされない = Package.swift の exclude なので見ない)を
+    /// 1つずつ読み、`predicate` が真になるものがあるか。**ソースを走査する検査(`@RunHooks` の宣言・ロックの使用)の唯一の歩き方**
+    public static func anyScenarioSource(in project: TestProject, where predicate: (String) -> Bool) -> Bool {
+        guard let files = FileManager.default.enumerator(at: project.scenariosDir, includingPropertiesForKeys: nil) else { return false }
+        let disabled = project.disabledDir.standardizedFileURL.path + "/"
+        for case let url as URL in files where url.pathExtension == "swift" {
+            if url.standardizedFileURL.path.hasPrefix(disabled) { continue }
+            if let text = try? String(contentsOf: url, encoding: .utf8), predicate(text) { return true }
+        }
+        return false
+    }
+
+    /// 同じプロジェクトの別の run が進行中の pid(自分の pid は数えない。昇順・重複なし)。**重なり警告の唯一の数え方**
+    /// (`overlappingRunsLine` と `RunLockUsage.overlapLine` が文言だけ変えて使う)
+    public static func otherRunPids(project: String, ownPid: Int32, records: [RunProgressRecord]) -> [Int32] {
+        Set(records.filter { $0.project == project && $0.pid != ownPid }.map(\.pid)).sorted()
     }
 
     public enum AfterVerdict: Equatable, Sendable {
@@ -55,10 +75,6 @@ public enum RunWideHookPlan {
     }
 
     /// 開始の行(発行元 → 子)。beforeRun が通れば開始・失敗か中断なら取りやめ
-    public static func gateSignal(beforeRun outcome: RunHookOutcome, interrupted: Bool) -> WorkQueueProtocol.StartSignal {
-        gateSignal(for: classify(outcome: outcome, interrupted: interrupted))
-    }
-
     public static func gateSignal(for verdict: BeforeVerdict) -> WorkQueueProtocol.StartSignal {
         switch verdict {
         case .passed: return .start
@@ -164,7 +180,7 @@ extension RunWideHookPlan {
     /// DS-18.11 のジョブの台帳ではなく、生きた pid の記録)で、**自分の pid は数えない**。
     /// 別のマシン・別の利用者の run は台帳に無いので見えない(範囲外 = RR-8.4「別々の run」)
     public static func overlappingRunsLine(project: String, ownPid: Int32, records: [RunProgressRecord]) -> String? {
-        let others = Set(records.filter { $0.project == project && $0.pid != ownPid }.map(\.pid)).sorted()
+        let others = otherRunPids(project: project, ownPid: ownPid, records: records)
         guard !others.isEmpty else { return nil }
         return "⚠️ \(others.count) other run(s) of project \(project) are in progress on this machine"
             + " (pid \(others.map(String.init).joined(separator: ", "))):"

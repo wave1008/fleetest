@@ -71,6 +71,7 @@ Run ios-run with --quiet --junit reports/junit.xml. Also tell me the exit code a
   devices lists each scenario as a failure, and a failure to build the scenarios shows up as a single failed
   testcase named `build`. When `beforeRun()` fails, a failed testcase named `beforeRun` is written
   (→ [run-wide preparation and cleanup](../reference/testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun)). Mistakes in the command line itself (an unknown scenario or folder name) write no JUnit.
+- **`afterRun()`**: a failure of `afterRun()` changes neither the exit code nor the JUnit (only the log line "⚠️ afterRun() failed"), and it does not run when the run is interrupted or a machine's run ended abnormally. If `beforeRun()` also cleans a shared server at its start (not only `afterRun()` at the end), a job that was killed midway does not leave the next job a dirty server.
 - Device provisioning (Simulator boot, bridge) is handled automatically by a `--profile` run.
   Consecutive jobs reuse an already-running bridge; only the first run pays the cold-start cost.
 - **Investigating a failure**: `TestProjects/<name>/reports/` holds a Markdown report per failure

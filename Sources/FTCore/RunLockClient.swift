@@ -148,20 +148,28 @@ public final class RunLockClient: @unchecked Sendable {
     /// 届いたかもしれない旨を返す(DR-136)
     public func memoWrite(_ op: RunMemoOp, outsideOps: Int, cap: Duration = .seconds(ScenarioHost.defaultScenarioTimeout),
                           onPending: () -> Void = {}) -> RunLockError? {
-        if let reason = lock.withLock({ brokenReason }) { return RunLockError(reason) }
+        if case .failure(let error) = memoWriteCommitted(op, outsideOps: outsideOps, cap: cap, onPending: onPending) { return error }
+        return nil
+    }
+
+    /// `memoWrite` と同じで、成功したら確定の通し番号(正本が無い構成は nil)を返す
+    public func memoWriteCommitted(_ op: RunMemoOp, outsideOps: Int, cap: Duration = .seconds(ScenarioHost.defaultScenarioTimeout),
+                                   onPending: () -> Void = {}) -> Result<Int?, RunLockError> {
+        if let reason = lock.withLock({ brokenReason }) { return .failure(RunLockError(reason)) }
         let id = lock.withLock { () -> Int in
             defer { nextID += 1 }
             return nextID
         }
         guard send(.memoWrite(id: id, op: RunLockMemoOp(op), outsideOps: outsideOps)) else {
-            return RunLockError("the run memo write could not be sent to the run lock server (it was not written)")
+            return .failure(RunLockError("the run memo write could not be sent to the run lock server (it was not written)"))
         }
-        switch awaitReply(id: id, cap: cap, onPending: onPending, isReply: { if case .committed(let done) = $0 { return done == id } else { return false } }) {
-        case .reply: return nil
-        case .failed(let reason): return RunLockError(reason)
+        switch awaitReply(id: id, cap: cap, onPending: onPending, isReply: { if case .committed(let done, _) = $0 { return done == id } else { return false } }) {
+        case .reply(.committed(_, let seq)): return .success(seq)
+        case .reply: return .success(nil)
+        case .failed(let reason): return .failure(RunLockError(reason))
         case .broken:
-            return RunLockError("the connection to the run lock server broke after the run memo write was sent:"
-                + " the value may or may not have been written (it is not sent again)")
+            return .failure(RunLockError("the connection to the run lock server broke after the run memo write was sent:"
+                + " the value may or may not have been written (it is not sent again)"))
         }
     }
 

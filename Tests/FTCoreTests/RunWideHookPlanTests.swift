@@ -70,12 +70,18 @@ final class RunWideHookPlanTests: XCTestCase {
         XCTAssertEqual(RunWideHookPlan.timeoutSeconds(profileScenarioTimeouts: []), ScenarioHost.defaultScenarioTimeout)
     }
 
+    func testFleetEntriesNeverRunTheHooks() {
+        XCTAssertEqual(RunWideHookPlan.hooksClassToRun(hooksClass: "Hooks", scenarioCount: 3, dryRun: false, linkedToParent: false, fleetEntry: false), "Hooks")
+        XCTAssertNil(RunWideHookPlan.hooksClassToRun(hooksClass: "Hooks", scenarioCount: 3, dryRun: false, linkedToParent: false, fleetEntry: true),
+                     "--fleet のエントリは入口の検査をすり抜けても走らせない")
+    }
+
     func testGateSignalCancelsOnFailureOrInterruptAndStartsOtherwise() {
         let ok = RunHookOutcome(passed: true)
         let bad = RunHookOutcome(passed: false, failureReason: "boom")
-        XCTAssertEqual(RunWideHookPlan.gateSignal(beforeRun: ok, interrupted: false), .start)
-        XCTAssertEqual(RunWideHookPlan.gateSignal(beforeRun: bad, interrupted: false), .cancel(reason: "beforeRun() failed: boom"))
-        XCTAssertEqual(RunWideHookPlan.gateSignal(beforeRun: ok, interrupted: true), .cancel(reason: "interrupted before the run started"))
+        XCTAssertEqual(RunWideHookPlan.gateSignal(for: RunWideHookPlan.classify(outcome: ok, interrupted: false)), .start)
+        XCTAssertEqual(RunWideHookPlan.gateSignal(for: RunWideHookPlan.classify(outcome: bad, interrupted: false)), .cancel(reason: "beforeRun() failed: boom"))
+        XCTAssertEqual(RunWideHookPlan.gateSignal(for: RunWideHookPlan.classify(outcome: ok, interrupted: true)), .cancel(reason: "interrupted before the run started"))
         XCTAssertEqual(RunWideHookPlan.ranLine(.before, machine: "m1"), "beforeRun ran on m1")
     }
 

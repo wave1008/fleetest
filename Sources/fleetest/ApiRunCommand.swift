@@ -399,6 +399,10 @@ struct ApiRunCommand: AsyncParsableCommand {
             // 1つの ID は高々1本なので本数が決まる。クラス名指定・全件は絞らない
             // (そこは並列度が要る場面で、絞ると遅くなる)。platform はまだ分からないので両方に同じ数を使う
             // (0 = 本数も分からない → nil = 絞らない)
+            // **`fleetest run` の `scenarioCounts(_:)`(`@RunOnSingleDevice` / `@RunInOrder` のクラスを1本と数える)をここでは使えない**:
+            // `api run` は一覧(`ScenarioInfo`)を得る前にここで供給を始める(`run` も、ビルドが要るときの先行構築は同じ
+            // `ApiRun.exactScenarioCount`。一覧が先に取れる `run` の通常経路だけが `scenarioCounts` を通す)。
+            // 結果として明示 ID が1台に寄せるクラスを含むときは、必要より多めに台数を用意しうる(余った台は使われずに残る)
             let exactCount = ApiRun.exactScenarioCount(scenarios)
             let estimate: Int? = exactCount > 0 ? exactCount : nil
             // dry-run はデバイスに触らないので MCP のデバイスを避ける理由が無い(印を読むと simctl/adb を引き、

@@ -9,7 +9,7 @@ import Foundation
 public enum RunLockAccess: Codable, Sendable, Equatable {
     /// このパスの unix ソケットへつないで答えをもらう
     case socket(String)
-    /// その場で渡す(他と競合しない起動: beforeRun / afterRun・debug 実行・MCP)
+    /// その場で渡す(他と競合しない起動: beforeRun / afterRun・debug 実行。MCP は同時に走りうるのでプロジェクトごとのサーバーを持つ)
     case immediate
     /// 取らずに本体を通す(dry-run)
     case passThrough
@@ -49,7 +49,9 @@ public enum RunLockMessage: Codable, Equatable, Sendable {
     case waited(listener: String, ms: Int)
     /// `sshEnded` / `remoteRunEnded` への返事: そのディスパッチの持ち主不明のキーの数(0 = 確かめ直しは要らない)
     /// `capSeconds` = ロックの待ちの絶対上限(中継役が確かめ直しの上限を決める材料)
-    case unknownKeys(listener: String, count: Int, capSeconds: Int)
+    /// `othersActive` = 発行元にこのディスパッチ以外の動いている仕事(走っている・まだ起こしていない子)が残っているか。
+    /// false なら不明のキーを待てる者は居ないので、中継役は確かめ直しをやめる(発行元の終わりを遅らせない)
+    case unknownKeys(listener: String, count: Int, capSeconds: Int, othersActive: Bool)
     /// 渡し。**印のあるキー**(持ち主不明から外した = 前の持ち主の書き込みが欠けているかもしれない)を含むときはこちら
     case grantedAfterLoss(id: Int, keys: [String])
     /// run メモの読み書きが、親が適用し終えていない「ロックの外の操作」を待っている(クライアントは待ちの窓を開く)。
@@ -60,7 +62,8 @@ public enum RunLockMessage: Codable, Equatable, Sendable {
     case granted(id: Int)
     case failed(id: Int, reason: String)
     case memo(values: [String: [String]])
-    case committed(id: Int)
+    /// `seq` = 発行元の正本が振った通し番号(正本が無い構成は nil)
+    case committed(id: Int, seq: Int?)
 
     public func encodedLine() -> Data {
         let encoder = JSONEncoder()

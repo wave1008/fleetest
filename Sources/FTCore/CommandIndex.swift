@@ -488,14 +488,16 @@ public enum DSLCommandIndex {
         .init("withExclusiveLock", "control", "withExclusiveLock(keys..., waitSeconds:) { }",
               "Takes an exclusive run-wide lock on the keys (in UTF-8 byte order of the names, one by one) and runs the block, so"
                   + " no other scenario of the run holds any of them meanwhile. Waits until it is free (at most the longest scenarioTimeout"
-                  + " of the run; waitSeconds: shortens it). Keys: 1 or more, not blank, no control characters, at most 120 bytes each and 8 per call."
+                  + " of the run; waitSeconds: (optional, must be > 0 — 0 is an error, not a try-once) shortens it). Keys: 1 or more, not blank, no control characters, at most 120 bytes each and 8 per call."
                   + " Nested: a key you do not hold yet must sort after every key you hold, else it is an error (take all keys in one call)."
                   + " Inside it, writeRunMemo / clearRunMemo / runMemoTextAs are committed before the next step and readRunMemo returns the latest value."
-                  + " Not accepted by ft_batch."),
+                  + " Works only when a call is written under the project's scenarios/ (not _disabled/); granted at once (no exclusion)"
+                  + " inside beforeRun/afterRun and in a debug run. Fails when called in a --fleet run. Not accepted by ft_batch."),
         .init("withSharedLock", "control", "withSharedLock(keys..., waitSeconds:) { }",
               "Like withExclusiveLock but shared: other scenarios may hold the same keys shared at the same time, no exclusive holder is"
                   + " let in. Use it to read: writeRunMemo / clearRunMemo / runMemoTextAs inside it are an error unless an exclusive lock is held too."
-                  + " Taking a key exclusively inside a shared lock on it (upgrade) is an error."),
+                  + " Re-taking the same key exclusively while holding it shared (upgrade) is an error; another key may be taken exclusively"
+                  + " if it sorts after the keys held."),
 
         // MARK: memo (test-scoped: inside one test; run-scoped: shared by the whole run on every machine)
         .init("writeMemo", "memo", "writeMemo(key, text)",
@@ -509,11 +511,13 @@ public enum DSLCommandIndex {
               "Clears the whole memo of the test. An error outside a test."),
         .init("memoTextAs", "memo", "element.memoTextAs(key) / string.memoTextAs(key)",
               "Writes an element's text (the first non-empty of label and value) or a String to the test's memo under the key and"
-                  + " returns the element or string, so it chains: select(\"#total\").memoTextAs(\"total\")."),
+                  + " returns the element or string, so it chains: select(\"#total\").memoTextAs(\"total\")."
+                  + " Fails when no element was grabbed; an error outside a test."),
         .init("writeRunMemo", "memo", "writeRunMemo(key, text)",
               "Appends a value to the key's history in the run memo, shared by every scenario of one run on every"
-                  + " machine (write run-wide values in beforeRun of an @RunHooks class; beforeAll for per-class values). A scenario"
-                  + " sees the run memo as it was when it started; writes are not serialized (no locking). An error in"
+                  + " machine (write run-wide values in beforeRun of an @RunHooks class; beforeAll runs once per machine, so pass a value"
+                  + " made there only from a class with @RunOnSingleMachine). A scenario sees the run memo as it was when it started;"
+                  + " writes outside withExclusiveLock are not serialized (inside it they are committed in lock order). An error in"
                   + " setUpDevice, tearDownDevice, afterAll and afterRun."),
         .init("readRunMemo", "memo", "readRunMemo(key)",
               "Returns the last value written under the key in the run memo, or \"\" when there is none (not a failure;"
@@ -522,7 +526,8 @@ public enum DSLCommandIndex {
               "Clears the whole run memo. An error in setUpDevice, tearDownDevice, afterAll and afterRun."),
         .init("runMemoTextAs", "memo", "element.runMemoTextAs(key) / string.runMemoTextAs(key)",
               "Writes an element's text (the first non-empty of label and value) or a String to the run memo under the key and"
-                  + " returns the element or string, so it chains: select(\"#total\").runMemoTextAs(\"total\")."),
+                  + " returns the element or string, so it chains: select(\"#total\").runMemoTextAs(\"total\")."
+                  + " Fails when no element was grabbed; an error in setUpDevice, tearDownDevice, afterAll and afterRun."),
 
         // MARK: data (account / test data datasets, and outbound HTTP)
         .init("account", "data", "account(longKey) / account(datasetName, attributeName)",

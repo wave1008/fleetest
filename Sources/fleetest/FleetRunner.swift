@@ -46,13 +46,7 @@ enum FleetRunner {
     /// プロジェクトのシナリオのソースに `@RunHooks` の宣言があるか(`RunWideHookPlan.sourceDeclaresRunHooks`)。
     /// `_disabled/` はビルドされない(Package.swift の exclude)ので見ない = 退避しただけのクラスで --fleet を断らない
     static func declaresRunHooks(project: TestProject) -> Bool {
-        guard let files = FileManager.default.enumerator(at: project.scenariosDir, includingPropertiesForKeys: nil) else { return false }
-        let disabled = project.disabledDir.standardizedFileURL.path + "/"
-        for case let url as URL in files where url.pathExtension == "swift" {
-            if url.standardizedFileURL.path.hasPrefix(disabled) { continue }
-            if let text = try? String(contentsOf: url, encoding: .utf8), RunWideHookPlan.sourceDeclaresRunHooks(text) { return true }
-        }
-        return false
+        RunWideHookPlan.anyScenarioSource(in: project, where: RunWideHookPlan.sourceDeclaresRunHooks)
     }
 
     /// 全エントリを並行起動し、1画面の集計を出す。戻り値 = FleetProfile.aggregateExitCode
