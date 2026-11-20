@@ -135,6 +135,8 @@ class RunWide {
 - **`afterRun()` runs when it can**: after every machine has finished its work (including each `afterAll()`), even if `beforeRun()` failed or tests failed (a red run) — so it can clean up what a half-done `beforeRun()` created. It is skipped **only** in
   an interrupted run or when a machine's run ended abnormally (the run prints "afterRun did not run: ..."). Its result is written to the log and a report but is not counted in the test results.
   Do not make cleanup a precondition of a pass.
+- **To record a value the run used**, call `readRunMemo("key")` in `afterRun()`. The value it reads is written as a step line (`readRunMemo "key" → "value"`)
+  in the run log and the report. You do not need a value assertion (such as `thisIsNotEmpty`) just to leave the record.
 - **A run with no scenarios, and a `--fleet` run, are not supported**: nothing runs when no scenario runs, and `--fleet` is refused at the start when the project has `@RunHooks`.
 - **MCP**: `ft_run_scenario` is a run too, so the hooks run on every call of it.
 - **A `beforeRun()` that resets a shared server can break another run that is using the same server at the same time** (another terminal, the extension, MCP). A run in progress elsewhere is not protected.
