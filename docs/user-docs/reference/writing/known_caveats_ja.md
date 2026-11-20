@@ -273,6 +273,9 @@
 - [共有サーバーを初期化する beforeRun() は、同時に使う別の run を壊すことがある](../testclass/creating_testclass_ja.md#注意点) — MCP は `ft_run_scenario` の呼び出しごとに走ります。他の run が動いていても壊れない形で書きます。
 - [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときだけ使います。
 - [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
+- [run 全体のロックで守るキーは、ロックの中でだけ書く](../commands/memo_ja.md#注意点) — ロックの外の書き込みは後から届いて、中で書いた値を上書きすることがあります。
+- [withSharedLock は読むだけに使う](../commands/memo_ja.md#注意点) — 共有ロックだけを持って run メモへ書くとエラーです。再実行されたシナリオはロックのブロックをもう一度実行します。
+- [run 全体のロックは ssh 越しのマシンと --fleet では効かない](../commands/memo_ja.md#注意点) — 呼んだ時点で理由つきの失敗になります。激しく取り合うと待ちの上限に当たるので、重い排他や run をまたぐ排他はテスト用サーバーの DB を使い、他のテストの完了待ちにロックを使わないでください。
 - [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。
 
 ## UI 部品ごとの癖(現時点の制約)

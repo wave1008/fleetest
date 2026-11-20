@@ -34,7 +34,7 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
 | テストデータ・外部 API | `account("[user1].password")` / `data("[order1].item")`(値は `TestProjects/<proj>/dataset/accounts.json`・`data.json` に `{ "[user1]": { "id": "…", "password": "…" } }` の形で置き、その Mac の `~/.config/fleetest/dataset/<proj>/` の同名ファイルが属性単位で上書きする。dry-run はキーをそのまま返す)/ `dataFile("csv/users.csv")`(キーと値で表せない CSV・JSON・画像の `URL`。置き場は同じ `dataset/`・マシン側はファイル単位で差し替え)/ `addMedia("photo.png")`(データセットのフォルダの画像 jpg/jpeg/png/heic/gif・動画 mp4/mov を写真ライブラリへ入れる。iOS Simulator と Android だけ・iOS 実機は失敗・入れたものを消すコマンドは無い)/ `httpRequest(url, method:, headers:, body:, waitSeconds:)`(テストデータを API で準備する。応答の `status` / `text` / `json` を `thisIs` で検証。localhost へはそのまま届く・外部の宛先はその Mac の `sandbox.allowedDomains` に載っているものだけ) |
 | 記録 | `screenshot(filename?)`(ファイル名はラベル無し)(現在の画面を撮り、このステップ直後にレポートへ埋め込む) |
 | 前後処理 | テストクラスに `func beforeEach()` / `func afterEach()`(引数なし)を書くと各 `@Test` の前後で自動実行 |
-| run 全体の準備・片付け | `@RunHooks` を付けたクラス(プロジェクトに1つ・`@TestClass` と別)に `func beforeRun()` / `func afterRun()` を書くと、1回の run で1回だけ、どのシナリオより前(`beforeRun`)・全マシンの仕事の後(`afterRun`。テストが失敗した run でも走る・中断や異常終了では走らない)に走る。fleetest を起動したマシンで走る。**デバイスのコマンドと compose.yaml のサーバーは使えない**(run メモ・`httpRequest`(宛先は `allowedDomains` に要る。`status` を確かめる)・`data()` / `account()`・値の検証 `thisIs` 等だけ)。引数なし・非 async・非 throws。`beforeRun` と `afterRun` は別プロセスで、クラスの `var` では値を渡せない(run メモを使う)。デバッグ実行・プロファイルなしの run・dry-run では走らない。`run-setup.sh` の後に `beforeRun`・`afterRun` の後に `run-teardown.sh`(1台の run)。`beforeRun` の失敗は run を止める。`--fleet` では使えない |
+| run 全体の準備・片付け | `@RunHooks` を付けたクラス(プロジェクトに1つ・`@TestClass` と別)に `func beforeRun()` / `func afterRun()` を書くと、1回の run で1回だけ、どのシナリオより前(`beforeRun`)・全マシンの仕事の後(`afterRun`。テストが失敗した run でも走る・中断や異常終了では走らない)に走る。fleetest を起動したマシンで走る。**デバイスのコマンドと compose.yaml のサーバーは使えない**(run メモ・`httpRequest`(宛先は `allowedDomains` に要る。`status` を確かめる)・`data()` / `account()`・値の検証 `thisIs` 等だけ)。引数なし・非 async・非 throws。`beforeRun` と `afterRun` は別プロセスで、クラスの `var` では値を渡せない(run メモを使う)。デバッグ実行・プロファイルなしの run・dry-run では走らない。`run-setup.sh` の後に `beforeRun`・`afterRun` の後に `run-teardown.sh`(1台の run)。`beforeRun` の失敗は run を止める。`--fleet` では使えない。**run で使った値を最後に記録へ残すなら `afterRun` で `readRunMemo("キー")` を呼ぶだけ**(読んだ値がステップの行 `readRunMemo "キー" → "値"` としてログとレポートに残る。記録のためだけの値の検証は要らない)。run メモは run ごとに空から始まる(前の run の値は残らない) |
 
 - **要素が見つからなければ失敗**(シナリオ中断)。**唯一の例外は `select`**(空要素を返す。`.isEmpty` で分岐。ただし Android でアプリが前面に無い間は断られて失敗する)。
   「出るか不定」を表す引数は無いので、アプリ内メッセージは `irregularHandler`、その場限りの分岐は
@@ -57,6 +57,13 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   `~/.config/fleetest/` はエージェントが書かない(🧑 が書く)
 - **ファイル直下に `var` を書かない**(Swift 6 で `is not concurrency-safe` のコンパイルエラー)。各 `@Test` は
   別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` は1つのテストの中だけ)
+- **run 全体のロック** `withExclusiveLock("キー", ...) { }` / `withSharedLock("キー", ...) { }`(ブロック形のみ・キーは文字列。`waitSeconds:` 任意)。
+  カウンタの加算など「読んで書く」を排他する: `withExclusiveLock("counter") { let n = Int(readRunMemo("count")) ?? 0; writeRunMemo("count", String(n + 1)) }`
+  - 複数キーは1回の呼び出しで名前の順(UTF-8 バイト)に取る。入れ子は、持っているどのキーより名前の順で後ろのキーだけ(違反はエラー)。持っているキーの取り直しは可・共有→排他の格上げはエラー
+  - 待ちは `scenarioTimeout` に数えず、1回の待ちの上限はその run の最長の `scenarioTimeout`(台数が多く激しく取り合うと当たる。重い排他・run をまたぐ排他はテスト用サーバーの DB)。他のテストの完了待ちに使わない
+  - ロックの中の `readRunMemo` は最新の値・書き込みはロックを外す前に確定。**ロックで守るキーはロックの中でだけ書く**。共有ロックは読むだけ(共有だけを持って run メモへ書くとエラー)
+  - 再実行されたシナリオはブロックをもう一度実行する。ブロックの中で失敗したら残りの DSL は飛ばされ、ロックはブロックを抜けたとき外れる
+  - 効くのは1台のマシンの run と、マシンをまたぐ run の fleetest を起動したマシン。ssh 越しのリモートのマシンと `--fleet` では呼ぶと即エラー。MCP `ft_run_scenario` は可・`ft_batch` は不可・dry-run は取らずに通す
 - 同じ手順を関数に切り出して使い回してよい(private func。例: 不定ダイアログの `dismiss…IfAny()`)。
 - `procedure` は任意 Swift(データ準備等)を1ステップとして記録。throw すると NG 扱いでシナリオ中断。
 

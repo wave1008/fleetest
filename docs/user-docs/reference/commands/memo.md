@@ -43,12 +43,13 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
 - **Writing the run memo (`writeRunMemo`, `runMemoTextAs`, `clearRunMemo`) in `setUpDevice()`, `tearDownDevice()`, `afterAll()` or `afterRun()` fails.** (`beforeRun()` can write.) A write in
   `setUpDevice()` is overwritten by other devices' values, and a write made in `tearDownDevice()`, `afterAll()` or `afterRun()` comes after the tests have finished, so no test reads it. Reading is fine
   (`afterAll()` runs after every device has finished the run, so it sees the final values). `readRunMemo` on a missing key still returns `""`.
+- The run memo **starts empty in every run** (values from a previous run are not kept).
 - A scenario sees the run memo as it was **when the scenario started** (plus what it writes itself) — values another device writes while it runs are not visible to it.
 - **Across machines a write reaches the other machines a little later.** A machine sees its own write from the next scenario on; the other machines see it
   from a scenario that starts after it arrives. In the end every machine holds the same history in the same order.
-- **There is no locking.** Writes are never lost and are appended in the order they arrive, but the run memo does not guarantee anything about another scenario writing
+- **Plain run memo writes are not locked.** Writes are never lost and are appended in the order they arrive, but the run memo does not guarantee anything about another scenario writing
   between your read and your write, or about which of two simultaneous writes to one key comes last. **Write each key from one place** — make the key per test
-  (for example `"orderId_S0010"`). When you need real exclusion (a counter, a "claim this item" step), use the database of your test server.
+  (for example `"orderId_S0010"`). When you need exclusion (a counter, a "claim this item" step), use [run-wide locks](#run-wide-locks-withexclusivelock-withsharedlock) for light cases, or the database of your test server for heavy or run-spanning ones.
 - `clearRunMemo()` clears the run memo as it stands at that point, including your own writes not yet confirmed.
 - **In a run whose run profile has devices on several machines** (and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
   **The exception is a `--fleet` run**: with or without `--split`, its run memo is shared per machine, not across machines (the run prints one line at the start saying so).
@@ -121,6 +122,12 @@ class OrderFlow {
     }
 }
 ```
+
+## Notes
+
+- Write a key that a run-wide lock guards only inside the lock (see [Run-wide locks](#run-wide-locks-withexclusivelock-withsharedlock)).
+- Use `withSharedLock` only to read; a retried scenario runs the lock block again.
+- Run-wide locks do not work on machines reached over ssh or in `--fleet`; use the test server's database for heavy or run-spanning exclusion.
 
 ### Link
 - [index](../../index.md)

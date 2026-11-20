@@ -245,7 +245,7 @@ class ログインできること {
 - 順番が要る流れは、まず1つの `@Test` にまとめる。属性は必要な場合だけ(`@RunInOrder` は並列化を妨げ、失敗すると残りは実行されず、再テストもクラスの最初から。
   `@RunOnSingleDevice` は順番を決めず、防ぐのはそのクラスの中の同時実行だけ。`@RunOnSingleMachine` はマシン間の負荷分散を失う)
 - `@RunInOrder` のクラスは全 `@Test` に `@Order(整数)` が必須(整数をそのまま書く・重複不可)。途中の1本だけは流せないので、確かめるときはクラスごと流し、まだ書いていない後ろは `@Draft`
-- メモ(`writeMemo` 等)の範囲はテスト1本で、テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()`)では読み書きとも失敗になる。run 全体で共有する値は `writeRunMemo` / `readRunMemo`(マシンをまたいで1つ・排他なし・同じキーへ書くのは1か所)で、確実なのは `@RunHooks` クラスの `beforeRun()`(run 全体で1回・全シナリオより前。デバイスと compose.yaml のサーバーは使えない)で書いて各テストで読む形(`beforeAll()` はクラスごと・マシンごとに走るので、アプリやそのマシンが要る値だけ)。`setUpDevice()` / `tearDownDevice()` / `afterAll()` / `afterRun()` では run メモも書けない。テスト間で値を渡せるのは `@RunInOrder` のクラスで `writeRunMemo` した場合だけ
+- メモ(`writeMemo` 等)の範囲はテスト1本で、テスト関数の外(`beforeAll()`・`setUpDevice()`・`tearDownDevice()`・`afterAll()`・`beforeRun()`・`afterRun()`)では読み書きとも失敗になる。run 全体で共有する値は `writeRunMemo` / `readRunMemo`(マシンをまたいで1つ・排他なし・同じキーへ書くのは1か所)で、確実なのは `@RunHooks` クラスの `beforeRun()`(run 全体で1回・全シナリオより前。デバイスと compose.yaml のサーバーは使えない)で書いて各テストで読む形(`beforeAll()` はクラスごと・マシンごとに走るので、アプリやそのマシンが要る値だけ)。`setUpDevice()` / `tearDownDevice()` / `afterAll()` / `afterRun()` では run メモも書けない。テスト間で値を渡せるのは `@RunInOrder` のクラスで `writeRunMemo` した場合だけ。run メモの「読んで書く」の排他は `withExclusiveLock`(dsl-reference.md)
 
 - 属性のコンパイルエラーが出たら、属性を足して黙らせる前に、まず属性を外してテストを独立させられないか考える
 
