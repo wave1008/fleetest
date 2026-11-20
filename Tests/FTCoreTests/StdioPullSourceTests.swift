@@ -151,4 +151,76 @@ final class StdioPullSourceTests: XCTestCase {
         for _ in 0..<200 where store.snapshot().isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(store.snapshot(), ["k": ["v"]])
     }
+
+    // MARK: - 開始の門(ParentStartGate。RR-8.4)
+
+    private static func waitOrTimeout(_ gate: ParentStartGate) async -> String {
+        let box = LockedValue<CheckedContinuation<String, Never>?>(nil)
+        return await withCheckedContinuation { continuation in
+            box.withLock { $0 = continuation }
+            Task {
+                let signal = await gate.wait()
+                box.withLock { $0?.resume(returning: "\(signal)"); $0 = nil }
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                box.withLock { $0?.resume(returning: "timeout"); $0 = nil }
+            }
+        }
+    }
+
+    /// 開始の行が来るまで待ち、来たら解ける。同じ stdin に混ざった他の行は読み捨てる
+    func testGateWaitsForTheStartLineAndIgnoresOtherLines() async {
+        let input = makePipe()
+        let reader = ParentLinkReader(fd: input.read)
+        let gate = ParentStartGate()
+        gate.attach(to: reader)
+        reader.start()
+        async let outcome = Self.waitOrTimeout(gate)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, id: "A")), to: input.write)
+        send("garbage", to: input.write)
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(gate.current, "開始の行が来る前に解けている")
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.start), to: input.write)
+        let result = await outcome
+        XCTAssertEqual(result, "start")
+    }
+
+    /// 取りやめの行は理由つきで解ける。最初に決まった結果が全て(後の開始・EOF は無視)
+    func testGateCancelCarriesTheReasonAndTheFirstOutcomeWins() async {
+        let input = makePipe()
+        let reader = ParentLinkReader(fd: input.read)
+        let gate = ParentStartGate()
+        gate.attach(to: reader)
+        reader.start()
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.cancel(reason: "beforeRun() failed")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.start), to: input.write)
+        close(input.write)
+        let result = await Self.waitOrTimeout(gate)
+        XCTAssertEqual(result, "cancel(reason: \"beforeRun() failed\")")
+        let again = await gate.wait()
+        XCTAssertEqual(again, .cancel(reason: "beforeRun() failed"))
+    }
+
+    /// 開始の行が来ないまま stdin が閉じたら(親が死んだ)、取りやめとして解ける = 待ち続けて止まらない
+    func testGateResolvesAsCancelWhenTheLinkClosesBeforeTheStart() async {
+        let input = makePipe()
+        let reader = ParentLinkReader(fd: input.read)
+        let gate = ParentStartGate()
+        gate.attach(to: reader)
+        reader.start()
+        async let outcome = Self.waitOrTimeout(gate)
+        close(input.write)
+        let result = await outcome
+        XCTAssertTrue(result.hasPrefix("cancel("), result)
+    }
+
+    /// 開始の行が先に届いていても、その後に待ち始めた側が取りこぼさない
+    func testGateReturnsAnAlreadyDecidedOutcomeImmediately() async {
+        let gate = ParentStartGate()
+        gate.receive(line: WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.start))
+        let result = await gate.wait()
+        XCTAssertEqual(result, .start)
+        XCTAssertEqual(gate.current, .start)
+    }
 }

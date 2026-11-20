@@ -14,7 +14,7 @@ final class RunMemoRelayTests: XCTestCase {
         return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
 
-    private func piece(src: String, lid: Int, d: String = "e2s6MX0=") -> String {
+    private func piece(src: String, lid: Int, d: String = "eyJrIjoiYSIsInYiOiJiIn0=") -> String {  // {"k":"a","v":"b"} = 読める中身(読めない断片の組には番号を振らない)
         WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: src, lid: lid, seq: nil, i: 0, n: 1, d: d))
     }
 
@@ -45,12 +45,13 @@ final class RunMemoRelayTests: XCTestCase {
     func testMemoLinesAreNumberedAndRelayedToEveryJoinedChildWithoutADispatcher() throws {
         let zero = attachedWriter()
         let one = attachedWriter()
-        let relay = RunMemoRelay(writers: [0: zero.writer, 1: one.writer])
+        let relay = RunMemoRelay(writers: [0: zero.writer, 1: one.writer], gateMode: .startOnHello)
         let hello = { (src: String) in WorkQueueProtocol.encode(WorkQueueProtocol.MemoHello(src: src)) }
         XCTAssertTrue(relay.intercept(line: hello("a"), entry: 0, dispatcher: nil))
         XCTAssertTrue(relay.intercept(line: hello("b"), entry: 1, dispatcher: nil))
         XCTAssertTrue(relay.intercept(line: piece(src: "b", lid: 1) + "\r", entry: 1, dispatcher: nil))
-        relay.hub.flush()
+        zero.writer.flush()
+        one.writer.flush()
         for reader in [zero.reader, one.reader] {
             let received = lines(from: reader).compactMap(WorkQueueProtocol.decodeMemoPiece)
             XCTAssertEqual(received.map(\.seq), [1])
@@ -60,7 +61,7 @@ final class RunMemoRelayTests: XCTestCase {
 
     /// 子の `{"ftWork"` の行は全部消費する(表示・NDJSON へ出さない)。配り手の無い形の `want` は答えずに捨てる。ログ行は消費しない
     func testEveryWorkLineIsConsumedButOrdinaryLinesAreNot() {
-        let relay = RunMemoRelay(writers: [:])
+        let relay = RunMemoRelay(writers: [:], gateMode: .startOnHello)
         let want = WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))
         XCTAssertTrue(relay.intercept(line: want, entry: 0, dispatcher: nil))
         XCTAssertTrue(relay.intercept(line: #"{"ftWork":{"unknown":true}}"#, entry: 0, dispatcher: nil))
@@ -76,16 +77,128 @@ final class RunMemoRelayTests: XCTestCase {
             scenarios: [DynamicSplit.Scenario(id: "A.S0010", platform: "ios")],
             estimateMs: { _, _ in 1000 }, lpt: false,
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
-        let relay = RunMemoRelay(writers: [0: zero.writer])
+        let relay = RunMemoRelay(writers: [0: zero.writer], gateMode: .startOnHello)
         let want = WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))
         XCTAssertTrue(relay.intercept(line: want, entry: 0, dispatcher: dispatcher))
+        zero.writer.flush()
         let answered = lines(from: zero.reader).compactMap(WorkQueueProtocol.decodeReply)
         XCTAssertEqual(answered.first?.scenarioID, "A.S0010", "want が配り手へ渡っていない")
         XCTAssertTrue(relay.intercept(line: piece(src: "a", lid: 1), entry: 0, dispatcher: dispatcher))
         XCTAssertEqual(relay.hub.confirmedCount, 1, "メモの行が hub へ渡っていない")
     }
 
+    /// hub の配りと配り手の返事は同じ子の書き手へ呼んだ順に積まれる(別のキューを挟むと返事が書き込みを追い越す)
+    func testHubWritesAndDispatcherRepliesReachTheChildInTheOrderTheyWereQueued() {
+        let zero = attachedWriter()
+        let relay = RunMemoRelay(writers: [0: zero.writer], gateMode: .startOnHello)
+        XCTAssertTrue(relay.intercept(
+            line: WorkQueueProtocol.encode(WorkQueueProtocol.MemoHello(src: "a")), entry: 0, dispatcher: nil))
+        relay.hub.seedConfirmed([.write(key: "k", value: "v")])
+        zero.writer.write(line: "REPLY")
+        relay.hub.seedConfirmed([.write(key: "k", value: "w")])
+        zero.writer.write(line: "REPLY2")
+        zero.writer.flush()
+        let all = lines(from: zero.reader)
+        XCTAssertEqual(all.count, 5, "\(all)")
+        XCTAssertEqual(WorkQueueProtocol.decodeStartSignal(all[0]), .start)
+        XCTAssertEqual(WorkQueueProtocol.decodeMemoPiece(all[1])?.seq, 1)
+        XCTAssertEqual(all[2], "REPLY")
+        XCTAssertEqual(WorkQueueProtocol.decodeMemoPiece(all[3])?.seq, 2)
+        XCTAssertEqual(all[4], "REPLY2")
+    }
+
+    /// 起動の知らせを受けた子へ、履歴の後ろに開始の行を送る(開始を決める呼び出しの配線が無い既定の形 = 子が待って止まらない)
+    func testHelloIsAnsweredWithTheStartLine() {
+        let zero = attachedWriter()
+        let relay = RunMemoRelay(writers: [0: zero.writer], gateMode: .startOnHello)
+        XCTAssertTrue(relay.intercept(
+            line: WorkQueueProtocol.encode(WorkQueueProtocol.MemoHello(src: "a")), entry: 0, dispatcher: nil))
+        zero.writer.flush()
+        let received = lines(from: zero.reader).compactMap(WorkQueueProtocol.decodeStartSignal)
+        XCTAssertEqual(received, [.start])
+    }
+
+    // MARK: - ChildStdinWriter(独立した直列のキュー)
+
+    /// attach の前に積んだ行は捨てず、attach で積んだ順に流す。その後の行も順序どおり
+    func testWriterKeepsLinesWrittenBeforeAttachAndFlushesThemInOrder() {
+        let pipe = Pipe()
+        let writer = ChildStdinWriter()
+        writer.write(line: "one")
+        writer.write(line: "two")
+        writer.attach(pipe.fileHandleForWriting)
+        writer.write(line: "three")
+        writer.flush()
+        XCTAssertEqual(lines(from: pipe.fileHandleForReading), ["one", "two", "three"])
+    }
+
+    /// 書き込みは呼んだスレッドをブロックしない: 読み手の居ない詰まったパイプへ大量に書いても write(line:) は戻る
+    func testWriteDoesNotBlockTheCallerWhenThePipeIsFull() {
+        let pipe = Pipe()
+        let writer = ChildStdinWriter()
+        writer.attach(pipe.fileHandleForWriting)
+        let line = String(repeating: "x", count: 900)
+        let started = Date()
+        for _ in 0..<2000 { writer.write(line: line) }   // 約 1.8 MB = パイプの容量(64 KB 前後)を大きく超える
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2.0, "呼んだスレッドが詰まったパイプで止まっている")
+        // 後始末: 読み手を閉じて詰まった書き込みを EPIPE で終わらせる
+        try? pipe.fileHandleForReading.close()
+        writer.close()
+        writer.flush()
+    }
+
+    /// 書き手ごとに独立: 1つの子の書き込みが詰まっても、別の子の書き手は流れる
+    func testWritersAreIndependentOfEachOther() {
+        let stuck = Pipe()
+        let stuckWriter = ChildStdinWriter()
+        stuckWriter.attach(stuck.fileHandleForWriting)
+        let line = String(repeating: "x", count: 900)
+        for _ in 0..<2000 { stuckWriter.write(line: line) }
+        let healthy = attachedWriter()
+        healthy.writer.write(line: "hello")
+        healthy.writer.flush()
+        XCTAssertEqual(lines(from: healthy.reader), ["hello"])
+        try? stuck.fileHandleForReading.close()
+        stuckWriter.close()
+        stuckWriter.flush()
+    }
+
+    /// 閉じるのもキューの中: 積んだ行を書いてから閉じ、閉じた後の行は捨てる(attach 前に閉じても fd は残さない)
+    func testCloseRunsInTheQueueAfterPendingWrites() {
+        let pipe = Pipe()
+        let writer = ChildStdinWriter()
+        writer.attach(pipe.fileHandleForWriting)
+        writer.write(line: "last")
+        writer.close()
+        writer.write(line: "dropped")
+        writer.flush()
+        XCTAssertEqual(lines(from: pipe.fileHandleForReading), ["last"])
+        var byte: UInt8 = 0
+        XCTAssertEqual(read(pipe.fileHandleForReading.fileDescriptor, &byte, 1), 0, "書き込み端が閉じていない(EOF にならない)")
+    }
+
     // MARK: - 子へ渡す引数と stdin の配線
+
+    /// 親とつながった子は、手元で走ると決まった後(中継役の分岐より後)・ビルドの前に起動を知らせ、最初のワーカーの前に開始を待つ。
+    /// 取りやめた子は終了コード 1 で終わる(run / api run の両方)
+    func testLinkedChildAnnouncesEarlyWaitsForStartAndExitsOneWhenCancelled() throws {
+        for file in ["Fleetest", "ApiRunCommand"] {
+            let text = try source("Sources/fleetest/\(file).swift")
+            let announce = try XCTUnwrap(text.range(of: "ParentLink.announce()"), "\(file): 起動の知らせを出していない")
+            let relay = try XCTUnwrap(text.range(of: "try await dispatchToRemoteHost("), file)
+            XCTAssertLessThan(relay.lowerBound, announce.lowerBound, "\(file): 中継役の分岐より前で知らせている(stdin を ssh へ渡せなくなる)")
+            // 取りやめの理由は RunSummary(`startCancelled`)から読む = static の ParentLink には残さない
+            // (中断で開始待ちを抜けた後に届いた取りやめの行を、取りやめと読まない)
+            XCTAssertFalse(text.contains("ParentLink.startCancelReason"), "\(file): static の取りやめの印を判定に使っている")
+            XCTAssertTrue(text.contains("startCancelled")
+                          && (text.contains("nothingRan") || text.contains("|| hookCancelReason != nil { throw ExitCode(1) }")),
+                          "\(file): 取りやめた子が終了コード 1 にならない")
+        }
+        for file in ["ProfileRunner", "ApiRunCommand"] {
+            let text = try source("Sources/fleetest/\(file).swift")
+            XCTAssertTrue(text.contains("startGate: ParentLink.startGate()"), "\(file): 開始の行を待たずに流し始める")
+        }
+    }
 
     func testChildArgsCarryTheMemoLinkOnlyWhenAsked() {
         func args(link: Bool) -> [String] {

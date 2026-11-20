@@ -14,7 +14,8 @@
    自分専用のアカウントと、一意な名前で作ったデータだけを用意します
    (例外は [`@RunInOrder`](../testclass/creating_testclass_ja.md#クラスのテストを1か所で順番に流すrunonsinglemachine--runonsingledevice--runinorder) のクラスで、順番に値を渡せます)。
 2. **マシン単位の準備(`run-setup.sh` と `beforeAll()`)は、何度走っても・同時に走っても壊れない形で書きます。** 「無ければ作る」は良く、
-   「全部消して入れ直す」は駄目です。共有サーバーを全体で戻したいときは、fleetest の外(CI の前段など)で run の前に1回だけ行います。
+   「全部消して入れ直す」は駄目です。共有サーバーを全体で戻したいときは、1回の run に1回だけ、[`@RunHooks`](../testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun) のクラスの `beforeRun()` で行います
+   (fleetest の外、CI の前段などで run の前に行ってもかまいません)。ただし `beforeRun()` での初期化は、同じサーバーを同時に使っている別の run を壊します。
 3. **片付け(`afterEach()`・`afterAll()`・`run-teardown.sh`)を合否の前提にしません。** 自分が作ったものだけを消し、
    片付けが走らなくてもデータが残るだけで合否に響かないようにします。
 
@@ -53,7 +54,7 @@ let itemName = "order-" + UUID().uuidString.prefix(8)
 ## 注意点
 
 - テストは書き換えるデータを自分専用のアカウント・一意な名前で自分で用意します。順番に渡せるのは `@RunInOrder` のクラスだけです。
-- `run-setup.sh` と `beforeAll()` は何度走っても・同時に走っても壊れない形で書きます(「全部消して入れ直す」は共有サーバーで他のマシンのデータを消します)。
+- `run-setup.sh` と `beforeAll()` は何度走っても・同時に走っても壊れない形で書きます(「全部消して入れ直す」は共有サーバーで他のマシンのデータを消します)。run 全体で1回だけ行うことは `beforeRun()` に置きます。
 - 片付けを合否の前提にしません。自分が作ったものだけを消します。
 
 ### Link

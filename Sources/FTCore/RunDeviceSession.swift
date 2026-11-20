@@ -54,7 +54,17 @@ public final class RunSharedSession: @unchecked Sendable {
         return pending.map { ($0, afterAllPlatforms[$0] ?? []) }
     }
 
-    func runMemoSnapshot() -> [String: [String]] { runMemo.snapshot() }
+    public func runMemoSnapshot() -> [String: [String]] { runMemo.snapshot() }
+
+    /// beforeRun の書き込みを run メモへ入れる(1台のマシンだけの run。レーンを起こす前に呼ぶ)
+    public func seedRunMemo(_ ops: [RunMemoOp]) {
+        for op in ops {
+            switch op {
+            case .write(let key, let value): runMemo.write(key: key, value: value)
+            case .clear: runMemo.clear()
+            }
+        }
+    }
 
     func appendRunMemo(key: String, value: String) { runMemo.write(key: key, value: value) }
 

@@ -7,7 +7,22 @@
 import Foundation
 import FTCore
 
+/// 警告を出した鍵(種類ごとに1回。フックの子は1プロセス1フェーズなのでプロセス単位でよい)
+private let runHookOverrideWarned = LockedValue<Set<String>>([])
+
 extension FTDriveCore {
+    /// beforeRun() / afterRun() の中で、走ったマシンだけの上書きがあるデータを読んだら警告を1行(読んだ種類ごとに1回。
+    /// 各マシンのシナリオが引く値と食い違いうる。禁止はしない = RR-8.4)
+    func warnIfRunHookReadsMachineOverride(what: String, kind: ScenarioDataset.Kind?, filename: String?) {
+        guard inRunHook, let projectDir = executor.visionClassifierProjectRoot,
+              ScenarioDataset.machineOverrideExists(kind: kind, filename: filename, projectDir: projectDir)
+        else { return }
+        let key = filename ?? kind?.rawValue ?? what
+        let first = runHookOverrideWarned.withLock { $0.insert(key).inserted }
+        guard first else { return }
+        emit(.log(ScenarioDataset.hookOverrideWarning(phase: currentSection ?? "beforeRun", what: what)))
+    }
+
     func datasetValue(_ kind: ScenarioDataset.Kind, longKey: String, command: String,
                       file: StaticString, line: UInt) -> String {
         if scenarioAborted {
@@ -17,6 +32,7 @@ extension FTDriveCore {
         }
         // dry-run・一覧ではファイルを読まず longKey をそのまま返す(Shirates の TestMode.isNoLoadRun)
         if dryRun { return longKey }
+        warnIfRunHookReadsMachineOverride(what: "\(command)()", kind: kind, filename: nil)
         let dataset = datasets.withLock { cache -> ScenarioDataset in
             if let loaded = cache[kind] { return loaded }
             let loaded = ScenarioDataset(kind: kind, projectDir: executor.visionClassifierProjectRoot)
@@ -92,6 +108,7 @@ public func dataFile(_ filename: String,
     }
     switch ScenarioDataset.resolveFile(filename, projectDir: core.executor.visionClassifierProjectRoot) {
     case .success(let url):
+        if !core.dryRun { core.warnIfRunHookReadsMachineOverride(what: "dataFile()", kind: nil, filename: filename) }
         return url
     case .failure(let failure):
         if core.dryRun { return null }

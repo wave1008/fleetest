@@ -95,3 +95,12 @@ public macro RunInOrder(_ reason: String = "") =
 @attached(peer)
 public macro Order(_ value: Int) =
     #externalMacro(module: "FTDSLMacros", type: "OrderMacro")
+
+/// run 全体の準備と片付けのクラス(プロジェクトに1つだけ)。`func beforeRun()` / `func afterRun()`(片方だけでもよい・
+/// 引数なし・非async・非throws)を書く。**発行元のマシンで run に1回だけ**走り、デバイスを操作するコマンドは使えない
+/// (使えるのは run メモ・`httpRequest`・`data()` / `account()`・`wait` 等)。`@TestClass` と同じクラスには付けられない。
+/// 付与先クラスには引数なし init() が必要。
+@attached(extension, conformances: FTRunHooksDefinition, names: named(ftRunHooksDescriptor))
+@attached(peer, names: prefixed(__FTRunHooksReg_))
+public macro RunHooks() =
+    #externalMacro(module: "FTDSLMacros", type: "RunHooksMacro")

@@ -151,7 +151,7 @@ public enum Shell {
     public static let outputDrainGraceSeconds: Double = 1.0
 
     /// SIGTERM から SIGKILL へ上げるまでの猶予(秒)。InterruptRelay の ssh と同じ 2 秒
-    static let killGraceSeconds: Double = 2.0
+    public static let killGraceSeconds: Double = 2.0
 
     static func runRaw(_ args: [String], cwd: URL? = nil,
                        mergeStderr: Bool = true, timeout: Double? = nil,

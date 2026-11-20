@@ -331,32 +331,51 @@ final class DynamicDispatcher: Sendable {
     }
 }
 
-/// 子プロセスの stdin への書き込み口。書き込みは直列化し、子が死んでいても落とさない(EPIPE は黙って捨てる)
+/// 子プロセスの stdin への書き込み口。**書き手ごとに独立した直列のキュー**で非同期に書く(呼んだスレッドをブロックしない =
+/// 子の stdout を読むスレッドが、詰まった子の stdin で止まらない。1台の詰まりが他の子への行を止めない)。
+/// 同じ子への行(割り振りの返事・run メモ・開始の行)は全部ここを通すので、積んだ順に届く。
+/// `attach` の前に来た行は捨てずに溜め、attach で順に流す。子が死んでいても落とさない(EPIPE は黙って捨てる)
 final class ChildStdinWriter: @unchecked Sendable {
-    // @unchecked の根拠: handle は lock の下でしか触らない
-    private let lock = NSLock()
+    // @unchecked の根拠: handle / backlog / closed は queue の上でしか触らない
+    private let queue = DispatchQueue(label: "fleetest.child-stdin-writer")
     private var handle: FileHandle?
+    private var backlog: [String] = []
+    private var closed = false
 
     /// 起動直後に1回。F_SETNOSIGPIPE で親が SIGPIPE で落ちないようにする(ScenarioHost と同じ)
     func attach(_ handle: FileHandle) {
         _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
-        lock.lock()
-        self.handle = handle
-        lock.unlock()
+        queue.async {
+            guard !self.closed else { try? handle.close(); return }
+            self.handle = handle
+            let pending = self.backlog
+            self.backlog = []
+            for line in pending { Self.send(line, to: handle) }
+        }
     }
 
     func write(line: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let handle else { return }
-        try? handle.write(contentsOf: Data((line + "\n").utf8))
+        queue.async {
+            guard !self.closed else { return }
+            if let handle = self.handle { Self.send(line, to: handle) } else { self.backlog.append(line) }
+        }
     }
 
+    /// 閉じるのもキューの中(積んだ行を書いてから閉じる)。閉じた後の書き込みは捨てる
     func close() {
-        lock.lock()
-        defer { lock.unlock() }
-        try? handle?.close()
-        handle = nil
+        queue.async {
+            self.closed = true
+            try? self.handle?.close()
+            self.handle = nil
+            self.backlog = []
+        }
+    }
+
+    /// 積んだ書き込みが済むまで待つ(テスト用)
+    func flush() { queue.sync {} }
+
+    private static func send(_ line: String, to handle: FileHandle) {
+        try? handle.write(contentsOf: Data((line + "\n").utf8))
     }
 }
 

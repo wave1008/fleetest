@@ -66,7 +66,7 @@ final class MemoLifecycleWriteRejectionTests: XCTestCase {
         let setUp = FTDriveCore.runMemoWriteRejection(command: "clearRunMemo", section: "setUpDevice") ?? ""
         XCTAssertTrue(setUp.contains("clearRunMemo") && setUp.contains("overwritten") && setUp.contains("beforeAll()"), setUp)
         let after = FTDriveCore.runMemoWriteRejection(command: "writeRunMemo", section: "afterAll") ?? ""
-        XCTAssertTrue(after.contains("nothing reads") && after.contains("beforeAll()"), after)
+        XCTAssertTrue(after.contains("the tests have already finished") && after.contains("beforeRun()"), after)
         let test = FTDriveCore.testMemoRejection(command: "writeMemo", section: "beforeAll") ?? ""
         XCTAssertTrue(test.contains("writeMemo") && test.contains("writeRunMemo / readRunMemo"), test)
     }

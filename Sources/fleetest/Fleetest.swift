@@ -602,6 +602,8 @@ struct RunScenarios: AsyncParsableCommand {
         }
         // ここから先は手元の run(dry-run を含む)= 揃える・照合する宛先が無い
         try common.rejectToolSyncOutsideSingleRemote()
+        // 親とつながった子は、ビルドと供給より前に起動を知らせる(親が開始を決める材料。開始を待つのは流し始める直前)
+        ParentLink.announce()
         PhaseLog.mark("start")
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // validateProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない。
@@ -754,12 +756,15 @@ struct RunScenarios: AsyncParsableCommand {
         }
         PhaseLog.mark("build")
         let all: [ScenarioInfo]
+        let runHooksClass: String?
         do {
-            all = try ScenarioHost.listForRun(
+            let listing = try ScenarioHost.listForRun(
                 project: testProject, dryRun: dryRun,
                 compilesOCR: ScenarioHost.ocrCompileNeeded(
                     fmTextVisibilityCheck: earlyResolved?.fm.fmTextVisibilityCheck ?? noProfileSettings.fm.fmTextVisibilityCheck,
                     ocrTextVisibilityCheck: earlyResolved?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck))
+            all = listing.scenarios
+            runHooksClass = listing.runHooksClass
         } catch {
             writeJUnitForEarlyFailure(project: testProject, phase: "scenario list", error: error)
             throw error
@@ -947,6 +952,7 @@ struct RunScenarios: AsyncParsableCommand {
                     project: testProject, profileName: profile, items: items,
                     setOverrides: profileOverrides,
                     reportDirOverride: reportDir,
+                    runHooksClass: runHooksClass,
                     quiet: quiet, lpt: !common.noLPT,
                     lptHistoryRuns: common.lptHistoryRuns ?? LPTOrdering.defaultHistoryRuns,
                     performanceMode: performanceMode,
@@ -1002,7 +1008,9 @@ struct RunScenarios: AsyncParsableCommand {
             // (対象外の件数は ProfileRunner が「Skipped N scenario(s) …」で出している)
             // 計測モードは各シナリオを繰り返すので ranCount が items.count を超えうる(負の件数にしない)
             // --work-queue の子は渡された候補のうち配られた分だけ回す(残りは他のマシンの担当)= 差は対象外ではない
-            let notApplicable = broadcast || common.workQueue ? 0 : max(0, items.count - ranCount)
+            // beforeRun の失敗(自分の・親の取りやめ)で1本も流さなかった run は、流さなかった分を未実行の本数に数えない
+            let hookCancelReason: String? = runSummary.startCancelled ?? (runSummary.beforeRunFailed ? runSummary.abortReason : nil)
+            let notApplicable = broadcast || common.workQueue || hookCancelReason != nil ? 0 : max(0, items.count - ranCount)
             PhaseLog.mark("profile-run-done")
             let slowWorkers = recorder.finish(total: ranCount + notApplicable, passed: ranCount - failedCount - runSummary.skipped, failed: failedCount,
                             degradedWorkers: runSummary.degradedWorkers,
@@ -1020,7 +1028,12 @@ struct RunScenarios: AsyncParsableCommand {
                             interrupted: runSummary.interrupted,
                             abortReason: runSummary.abortReason)
             PhaseLog.mark("recorder-finish")
-            try writeJUnitIfRequested(project: testProject, recorder: recorder)
+            // beforeRun の失敗(RR-8.4)は1本も流れていない = 記録の無い JUnit になるので、段階の失敗として書く
+            if runSummary.beforeRunFailed, let reason = runSummary.abortReason {
+                writeJUnitForEarlyFailure(project: testProject, phase: "beforeRun", reason: reason)
+            } else {
+                try writeJUnitIfRequested(project: testProject, recorder: recorder)
+            }
             // 保持容量の掃除は**結果を書き終えた後に背景の別プロセスで**(テストの実行時間に含めない)
             RunCompletionSweep.spawn(activeRunID: recorder.runID) { ConsoleOut.out($0) }
             let skipNotes = [notApplicable > 0 ? "\(notApplicable) skipped: declared for another platform" : "",
@@ -1031,7 +1044,8 @@ struct RunScenarios: AsyncParsableCommand {
             // 24 passed」に見える
             let unit = broadcast ? "scenario run(s) (one per scenario per device)" : "scenario(s)"
             ConsoleOut.out(RunTotalsLine.noScenarioRan(ranCount: ranCount, workQueue: common.workQueue,
-                                                       abortReason: runSummary.abortReason)
+                                                       abortReason: runSummary.abortReason,
+                                                       startCancelReason: hookCancelReason)
                 ?? (failedCount == 0
                   ? "✅ All \(ranCount - runSummary.skipped) \(unit) passed\(skippedSuffix)"
                   : "❌ \(failedCount) of \(ranCount) \(unit) failed\(skippedSuffix)"
@@ -1067,10 +1081,16 @@ struct RunScenarios: AsyncParsableCommand {
             }
             // デバイスそのものが遅いことの観測(SlowWorkerDetector)。自動では何もしない・除外もしない
             for finding in slowWorkers { ConsoleOut.out(finding.consoleWarning) }
-            if failedCount > 0 { throw ExitCode(1) }
+            // 親の取りやめ(beforeRun の失敗)で1本も流さなかった子は赤として終わる(失敗の数には数えない)
+            if failedCount > 0 || hookCancelReason != nil { throw ExitCode(1) }
             return
         }
 
+        // プロファイル無しの run(`--port` / `--serial` 直指定)は beforeRun / afterRun を走らせない(実行設定とレポート先の
+        // 取り方がプロファイルの run と別の経路)。宣言があるのに黙って飛ばさない
+        if runHooksClass != nil, !ParentLink.isLinked {
+            ConsoleOut.out(RunWideHookPlan.unsupportedModeLine(mode: "a run without --profile"))
+        }
         // `--report-dir` が優先(validate() が両方指定を既にエラーにしている)。次点は
         // `--set reportDir=`。`defaultTimeout`/`scenarioTimeout` はこの経路(RunScenarios)に
         // 専用フラグが無いため `--set` だけが口
@@ -1324,10 +1344,13 @@ struct RunScenarios: AsyncParsableCommand {
     /// --junit: シナリオ一覧が得られる前(ビルド・一覧の取得)に落ちた run の JUnit。段階を1つの `<failure>` にする。
     /// 打ち間違い(シナリオ名・フォルダ名)と中断は CI の失敗ではないので呼ばない。書き込み失敗は warn だけ
     private func writeJUnitForEarlyFailure(project: TestProject, phase: String, error: Error) {
+        writeJUnitForEarlyFailure(project: project, phase: phase, reason: error.localizedDescription)
+    }
+
+    private func writeJUnitForEarlyFailure(project: TestProject, phase: String, reason: String) {
         guard let junit else { return }
         let url = URL(fileURLWithPath: junit)
-        let xml = JUnitReportWriter.xml(project: project.name, failedPhase: phase,
-                                        reason: error.localizedDescription)
+        let xml = JUnitReportWriter.xml(project: project.name, failedPhase: phase, reason: reason)
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

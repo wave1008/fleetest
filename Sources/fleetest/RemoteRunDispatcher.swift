@@ -181,6 +181,11 @@ struct RemoteRunDispatcher {
             // ssh-disconnect path below), never unconditionally
             lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
             if !lockReleasedEarly { logKeptDispatchLock(afterCollecting: false) }
+            // 打ち切りは例外のまま投げず専用の終了コードで返す(1 と取り違えると発行元が afterRun を撃つ)
+            if case RemoteDispatchError.remoteRunTimedOut = error {
+                log("error: \(describe(error))")
+                return RemoteDispatchExit.runUnconfirmed
+            }
             throw error
         }
         lockReleasedEarly = awaitRemoteRunEnd(
@@ -276,6 +281,11 @@ struct RemoteRunDispatcher {
             // 理由は dispatch() の同じ catch 参照(timeout でも生きていれば外さない)
             lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
             if !lockReleasedEarly { logKeptDispatchLock(afterCollecting: false) }
+            // 打ち切りは例外のまま投げず専用の終了コードで返す(1 と取り違えると発行元が afterRun を撃つ)
+            if case RemoteDispatchError.remoteRunTimedOut = error {
+                log("error: \(describe(error))")
+                return RemoteDispatchExit.runUnconfirmed
+            }
             throw error
         }
         lockReleasedEarly = awaitRemoteRunEnd(
@@ -1564,8 +1574,8 @@ struct RemoteRunDispatcher {
             }
             readDone.wait()
             if let remaining = splitter.flush() { relayLine(remaining) }
-            throw RemoteDispatchError.remoteSetupFailed(
-                "remote run timed out after \(timeoutSeconds ?? 0)s (the remote process was signalled;"
+            throw RemoteDispatchError.remoteRunTimedOut(
+                "after \(timeoutSeconds ?? 0)s (the remote process was signalled;"
                 + " run `fleetest remote clean <host>` if devices remain busy)")
         }
         readDone.wait()

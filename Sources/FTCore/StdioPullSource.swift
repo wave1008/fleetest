@@ -1,6 +1,7 @@
 // マシンをまたぐ run の子の側の、親(発行元)との stdin / stdout の通り道。
 // - `--work-queue`: シナリオの要求を stdout へ1行、返事を stdin から1行(WorkQueueProtocol)。待たせる = 親が返事を遅らせる
 // - `--run-memo-link`(--work-queue も含む): run メモの書き込みと確定の行(RunMemoStore.swift)
+// - 親から開始の行を受けるまでシナリオを流し始めない(`ParentStartGate`。RR-8.4)。起動の知らせ(memoHello)は run の入口ですぐ出す
 // 書き込みは ConsoleOut.out を通す(text run / api run とも stdout の書き手はそこへ集約されていて、1回の write(2) で行が裂けない)。
 // **stdin を読むスレッドは1プロセスに1本**(`ParentLink`)。2本で同じ fd を読むと親の行を取り合う。
 
@@ -127,6 +128,56 @@ public final class ParentLinkReader: Sendable {
     }
 }
 
+/// 親(発行元)の開始の行・取りやめの行を待つ門。**最初に決まった結果が全て**(後から来た行・EOF は無視)。
+/// EOF は取りやめとして扱う(親が開始を出さずに stdin を閉じた = 親は死んだ。ssh -tt の先では EOF が来ないことがあるので、
+/// EOF に頼らない側は親の死の検知 = `ParentDeathWatch` が受け持つ)
+public final class ParentStartGate: Sendable {
+    private struct State {
+        var outcome: WorkQueueProtocol.StartSignal?
+        var waiters: [CheckedContinuation<WorkQueueProtocol.StartSignal, Never>] = []
+    }
+
+    private let state = LockedValue(State())
+
+    public init() {}
+
+    /// 読み手へ登録する(行の受け取りと EOF)
+    public func attach(to reader: ParentLinkReader) {
+        reader.addLineHandler { [weak self] line in self?.receive(line: line) }
+        reader.addEOFHandler { [weak self] in self?.resolve(.cancel(reason: "the parent closed the link before the start signal")) }
+    }
+
+    public func receive(line: String) {
+        guard let signal = WorkQueueProtocol.decodeStartSignal(line.trimmingCharacters(in: .whitespacesAndNewlines)) else { return }
+        resolve(signal)
+    }
+
+    /// 結果が出ていればそれ(待たない)
+    public var current: WorkQueueProtocol.StartSignal? { state.withLock { $0.outcome } }
+
+    /// 結果が出るまで待つ。中断で解く側は呼び手(`RunOrchestrator` の `awaitUnlessInterrupted`)
+    public func wait() async -> WorkQueueProtocol.StartSignal {
+        await withCheckedContinuation { continuation in
+            let ready: WorkQueueProtocol.StartSignal? = state.withLock { s in
+                if let outcome = s.outcome { return outcome }
+                s.waiters.append(continuation)
+                return nil
+            }
+            if let ready { continuation.resume(returning: ready) }
+        }
+    }
+
+    private func resolve(_ signal: WorkQueueProtocol.StartSignal) {
+        let waiters = state.withLock { s -> [CheckedContinuation<WorkQueueProtocol.StartSignal, Never>] in
+            guard s.outcome == nil else { return [] }
+            s.outcome = signal
+            defer { s.waiters = [] }
+            return s.waiters
+        }
+        for waiter in waiters { waiter.resume(returning: signal) }
+    }
+}
+
 /// 親(マシンをまたぐ run の発行元)とつながっている子のプロセスの印と、その run メモの通り道。
 /// **`enable()` は run の入口で最初に(stdin を移すため)・読み始めるのは必要になった最初の1回**(`StdioPullSource` か `RunSharedSession`)
 /// —— 親へ中継するだけのプロセス(`run --runner <機>`)は stdin をそのまま ssh へ渡すので、読み始めてはいけない
@@ -134,6 +185,7 @@ public enum ParentLink {
     private struct Opened: Sendable {
         let reader: ParentLinkReader
         let memoStore: RunMemoStore
+        let startGate: ParentStartGate
     }
 
     private static let enabled = LockedValue(false)
@@ -151,6 +203,25 @@ public enum ParentLink {
         return open().reader
     }
 
+    /// このプロセスが親(マシンをまたぐ run の発行元)とつながっているか。つながった子は beforeRun / afterRun を走らせない
+    public static var isLinked: Bool { enabled.value }
+
+    /// 起動を発行元へすぐ知らせる(読み始めて memoHello を出す。何度呼んでもよい)。**ビルドと供給より前**に呼ぶ ——
+    /// 発行元は知らせを受けてから開始を決めるので、遅れると他のマシンの開始まで待たせる。つながっていなければ何もしない。
+    /// 親へ中継するだけのプロセス(`run --runner <機>`)が呼んではいけない(stdin を ssh へ渡す)ので、手元で走ると決まった後に呼ぶ
+    public static func announce() {
+        guard enabled.value else { return }
+        _ = open()
+    }
+
+    /// 開始の行を待つ関数(`RunOrchestrator.run(startGate:)` へ渡す)。つながっていなければ nil = 待たない。
+    /// 取りやめを受けたかは `RunSummary.startCancelled` で読む(ここには残さない = 中断で抜けた後に届いた行を取りやめと読まない)
+    public static func startGate() -> (@Sendable () async -> WorkQueueProtocol.StartSignal)? {
+        guard enabled.value else { return nil }
+        let gate = open().startGate
+        return { await gate.wait() }
+    }
+
     /// マシンをまたぐ run の子の run メモ(発行元とつながっている1つ)。つながっていなければ nil
     public static func memoStore() -> RunMemoStore? {
         enabled.value ? open().memoStore : nil
@@ -163,10 +234,12 @@ public enum ParentLink {
             let link = RunMemoLink(send: { ConsoleOut.out($0) })
             let store = RunMemoStore(link: link)
             reader.addLineHandler { line in link.receive(line: line) }
+            let gate = ParentStartGate()
+            gate.attach(to: reader)
             reader.start()
             // 読み始めてから知らせる(親の履歴の再送が来ても受けられる)
             link.hello()
-            let created = Opened(reader: reader, memoStore: store)
+            let created = Opened(reader: reader, memoStore: store, startGate: gate)
             current = created
             return created
         }

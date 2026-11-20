@@ -68,7 +68,7 @@ procedure("テスト用の注文を API で作る") {
   [`irregularHandler`](../commands/irregular_handler_ja.md) を宣言しておくと自動で閉じます。
   割り込みに遮られたかもしれない操作をツールは再試行しないので、復帰が要るなら関数で書きます。
   **もう一度実行しても安全な操作(画面遷移のタップなど)だけ**にしてください。送信・購入を再試行すると二重に実行されることがあります。
-- クラスの前後処理は `beforeEach()` / `afterEach()`、run で1回だけの準備は `beforeAll()`、デバイスごとに1回だけの準備と片付けは
+- クラスの前後処理は `beforeEach()` / `afterEach()`、クラス単位の準備は `beforeAll()`、run 全体で1回だけの準備は `@RunHooks` のクラスの `beforeRun()`、デバイスごとに1回だけの準備と片付けは
   `setUpDevice()` / `tearDownDevice()` に書きます。
 
 ## 3. テストデータ・外部のサーバーとつなぐ
@@ -79,7 +79,7 @@ procedure("テスト用の注文を API で作る") {
 | `dataFile()` | CSV・JSON・画像などをファイルのまま使います |
 | `addMedia()` | 写真・動画をデバイスの写真ライブラリへ入れます(iOS 実機には入れられません) |
 | `httpRequest` / `fleetestURLSession` | API でテストデータを用意する・後片付けする・サーバー側の状態を読む |
-| [`writeRunMemo` / `readRunMemo`](../commands/memo_ja.md) | `beforeAll()` で用意した値を他のシナリオへ渡す |
+| [`writeRunMemo` / `readRunMemo`](../commands/memo_ja.md) | `beforeRun()` / `beforeAll()` で用意した値を他のシナリオへ渡す |
 
 よくある使い方:
 

@@ -248,6 +248,8 @@ const EXTERNAL_CODE_NAMES = new Set([
   "PasswordAuthentication", "PermitRootLogin", "PermitUserEnvironment", "StrictHostKeyChecking",
   // UI フレームワーク・エージェントの名前
   "FlingBehavior", "ReactEditText", "AskUserQuestion",
+  // 他のテストツールの名前(DR の理由に挙げた慣例)
+  "BeforeSuite",
   // Shirates 側の名前(shirates-parity.md の対応表)
   "InScanResults", "TestElement.swipeTo",
   // 撤去済みと明記した文脈・監査の回の記録(当時の名前)

@@ -15,7 +15,8 @@ touch the same database at the same time). Write the scenarios by these three ru
    (the exception is a [`@RunInOrder`](../testclass/creating_testclass.md#running-a-class-in-one-place-or-in-order-runonsinglemachine--runonsingledevice--runinorder) class, which can pass values along in order).
 2. **Per-machine preparation (`run-setup.sh` and `beforeAll()`) must be safe to run repeatedly and at the same time.**
    "Create it if it is missing" is fine; "delete everything and load it again" is not. If a shared server has to be reset as
-   a whole, do that once, before the run, outside fleetest (for example in an earlier CI step).
+   a whole, do that once per run in the `beforeRun()` of an [`@RunHooks`](../testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun) class (or before the run, outside fleetest, for example in an earlier CI step) —
+   but a reset in `beforeRun()` breaks another run that is using the same server at the same time.
 3. **Do not make cleanup (`afterEach()`, `afterAll()`, `run-teardown.sh`) a precondition of a pass.** Delete only what you
    created, and make sure the data left behind does not affect the result when cleanup did not run.
 
@@ -54,7 +55,7 @@ If a flow needs an order, first fold it into a single `@Test`. Only when that is
 ## Notes
 
 - A test prepares the data it changes itself, with an account of its own and unique names; only a `@RunInOrder` class can pass values in order.
-- Write `run-setup.sh` and `beforeAll()` so they are safe to repeat and to run at the same time ("delete everything and reload" erases the data of other machines on a shared server).
+- Write `run-setup.sh` and `beforeAll()` so they are safe to repeat and to run at the same time ("delete everything and reload" erases the data of other machines on a shared server). Work that must happen once for the whole run goes in `beforeRun()`.
 - Do not make cleanup a precondition of a pass: delete only what you created.
 
 ### Link

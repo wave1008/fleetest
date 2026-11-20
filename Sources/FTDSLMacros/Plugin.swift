@@ -13,5 +13,6 @@ struct FTDSLPlugin: CompilerPlugin {
         RunOnSingleDeviceMacro.self,
         RunInOrderMacro.self,
         OrderMacro.self,
+        RunHooksMacro.self,
     ]
 }

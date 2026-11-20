@@ -68,7 +68,8 @@ ios-run を --quiet --junit reports/junit.xml 付きで回して。終了コー�
 
 - **exit code**: `0` = 全シナリオ成功 / `1` = 失敗あり(JUnit は失敗時も書かれます)。
   シナリオが1本も始まる前に落ちた run でも JUnit は書かれます。デバイスの準備で落ちたときは各シナリオが失敗として載り、
-  シナリオのビルドで落ちたときは `build` という名前の失敗が1件だけ載ります。コマンドラインの誤り(存在しないシナリオ名・
+  シナリオのビルドで落ちたときは `build` という名前の失敗が1件だけ載ります。`beforeRun()` が失敗した run では `beforeRun` という名前の失敗が載ります
+  (→ [run 全体の準備と片付け](../reference/testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun))。コマンドラインの誤り(存在しないシナリオ名・
   フォルダ名)では JUnit は書かれません。
 - デバイスの供給(Simulator 起動・ブリッジ)は `--profile` 実行が自動で行います。連続ジョブでは
   稼働中のブリッジが再利用され、コールドスタートは初回だけです。

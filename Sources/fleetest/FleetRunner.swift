@@ -43,6 +43,15 @@ enum FleetRunner {
         return (FleetProfileDocument(runs: kept), skipped)
     }
 
+    /// プロジェクトのシナリオのソースに `@RunHooks` の宣言があるか(`RunWideHookPlan.sourceDeclaresRunHooks`)
+    static func declaresRunHooks(project: TestProject) -> Bool {
+        guard let files = FileManager.default.enumerator(at: project.scenariosDir, includingPropertiesForKeys: nil) else { return false }
+        for case let url as URL in files where url.pathExtension == "swift" {
+            if let text = try? String(contentsOf: url, encoding: .utf8), RunWideHookPlan.sourceDeclaresRunHooks(text) { return true }
+        }
+        return false
+    }
+
     /// 全エントリを並行起動し、1画面の集計を出す。戻り値 = FleetProfile.aggregateExitCode
     static func run(
         project: TestProject, fleetName: String, fleet: FleetProfileDocument,
@@ -53,6 +62,9 @@ enum FleetRunner {
         split: Bool, quiet: Bool, junit: String?
     ) async throws -> Int32 {
         try preflightFolders(folders, project: project, fleetName: fleetName)
+        // `@RunHooks`(beforeRun / afterRun)のあるプロジェクトは開始時に断る(RR-8.4)。--fleet の親は一覧を作らない(plain は
+        // ビルドもしない)ので、ビルドせずにシナリオのソースを走査して見る
+        if declaresRunHooks(project: project) { throw ValidationError(RunWideHookPlan.fleetRefusal) }
 
         // --junit: 各エントリの子プロセスへ一時パスの --junit を渡し、全エントリ終了後に
         // FTCore.JUnitMerge で1本へ結合する(RR-8)。--split でも同じ
@@ -133,7 +145,8 @@ enum FleetRunner {
         healCollection.finish(project: project) { log($0) }
         if let junit, let junitTempDir {
             mergeAndWriteJUnit(junit: junit, project: project.name, tempDir: junitTempDir,
-                                entries: fleet.runs.enumerated().map { (host: $0.element.host, index: $0.offset) })
+                                entries: fleet.runs.enumerated().map { (host: $0.element.host, index: $0.offset) },
+                                beforeRunFailures: [])  // --fleet は @RunHooks を断る(RunWideHookPlan.fleetRefusal)
         }
         return fleetExitCode(outcomes)
     }
@@ -300,7 +313,8 @@ enum FleetRunner {
         // 「出力が無い」合成失敗の対象に含めない)
         if let junit, let junitTempDir {
             mergeAndWriteJUnit(junit: junit, project: project.name, tempDir: junitTempDir,
-                                entries: active.map { (host: $0.1.host, index: $0.0) })
+                                entries: active.map { (host: $0.1.host, index: $0.0) },
+                                beforeRunFailures: [])  // --fleet は @RunHooks を断る(RunWideHookPlan.fleetRefusal)
         }
         return fleetExitCode(outcomes)
     }
@@ -540,13 +554,19 @@ enum FleetRunner {
     /// (= --junit を付けて子プロセスを起動した)エントリだけにする** —— --split で0本割当のため
     /// 送らなかったエントリまで含めると「出力が無い」合成失敗にされ、走らせてもいない結果が
     /// 赤として報告される。書き込み失敗は run の成否を変えない(warn のみ。単発 --junit と同じ規律)
+    /// - beforeRunFailures: beforeRun が失敗したプロジェクトと理由(RR-8.4)。子は1本も流さずに終わる(記録の無い JUnit)ので、
+    ///   載せないと CI には失敗の理由の無い結果だけが届く。プロジェクトごとに段階の失敗を1件足す
     static func mergeAndWriteJUnit(
-        junit: String, project: String, tempDir: URL, entries: [(host: String, index: Int)]
+        junit: String, project: String, tempDir: URL, entries: [(host: String, index: Int)],
+        beforeRunFailures: [(project: String, reason: String)]
     ) {
         let merged = entries.map { entry -> JUnitMerge.Entry in
             let path = tempDir.appendingPathComponent("entry-\(entry.index).xml").path
             let xml = try? String(contentsOfFile: path, encoding: .utf8)
             return JUnitMerge.Entry(host: entry.host, xml: (xml?.isEmpty == false) ? xml : nil)
+        } + beforeRunFailures.map {
+            JUnitMerge.Entry(host: "\($0.project) beforeRun",
+                             xml: JUnitReportWriter.xml(project: $0.project, failedPhase: "beforeRun", reason: $0.reason))
         }
         do {
             let xml = JUnitMerge.merge(merged, project: project)

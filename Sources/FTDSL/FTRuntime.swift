@@ -900,9 +900,8 @@ public final class FTDriveCore {
                  heldElement: ElementInfo? = nil,
                  paced: Bool = true,
                  file: StaticString, line: UInt) -> PerformResult {
-        // 全コマンドの唯一の合流点(セレクタを取らないコマンドも含む)なので、ここで一度だけ
-        // ブロックの文脈を埋める。tap/scrollTo は明示引数を effectiveContainerInference 済みで
-        // 渡してくるため、ここでは非 nil で二重に通っても変わらない
+        // 全コマンドの唯一の合流点なので、ここで一度だけブロックの文脈を埋める
+        // (tap/scrollTo は解決済みの明示引数を渡すため、二重に通っても変わらない)
         var step = step
         if step.containerInference == nil {
             step.containerInference = effectiveContainerInference(nil)
@@ -930,9 +929,9 @@ public final class FTDriveCore {
             if step.countsAsAssertion { noteAssertion() }
             return PerformResult(status: status, element: nil)
         }
-        // 構文検証はデバイスに触る前(dry-run でも)に行う。パースは失敗しない契約のため、
-        // `:rigth(x)` のような誤りは「そんなラベルは無い」に化け、notExist/countIs(x,0) では
-        // 緑になってしまう。ここで落とすのが唯一の防波堤(FTSelector.preflightError 参照)
+        if let refused = refuseDeviceCommandInRunHook(command: command, description: description, file: filePath, line: Int(line)) { return PerformResult(status: refused, element: nil) }
+        // 構文検証はデバイスに触る前(dry-run でも)に行う。パースは失敗しない契約のため `:rigth(x)` のような誤りは
+        // 「そんなラベルは無い」に化け、notExist/countIs(x,0) では緑になる。ここが唯一の防波堤(FTSelector.preflightError)
         if let error = selectorError ?? commandError {
             let reason = selectorError == nil ? error : "invalid selector syntax: \(error)"
             let status = StepResult.Status.failed(reason)
@@ -1468,6 +1467,7 @@ public final class FTDriveCore {
                        command: command)
             return status
         }
+        if let refused = refuseDeviceCommandInRunHook(command: command, description: description, file: filePath, line: Int(line)) { return refused }
         if dryRun {
             // durationMs を必ず付与する理由は perform() 内の同種コメント参照
             let clock = ContinuousClock()
@@ -1595,10 +1595,10 @@ public final class FTDriveCore {
         debugCheckpoint(description: description, file: filePath, line: Int(line))
         if scenarioAborted {
             let status = StepResult.Status.skipped(skipReason)
-            recordStep(description: description, status: status, file: filePath, line: Int(line),
-                       command: "screenshot")
+            recordStep(description: description, status: status, file: filePath, line: Int(line), command: "screenshot")
             return status
         }
+        if let refused = refuseDeviceCommandInRunHook(command: "screenshot", description: description, file: filePath, line: Int(line)) { return refused }
         if dryRun {
             recordStep(description: description, status: .passed, file: filePath, line: Int(line),
                        command: "screenshot")

@@ -147,6 +147,8 @@ public enum ScenarioHostError: Error, LocalizedError {
     case packageRootNotFound
     case listFailed(String)
     case dryRunFailed(String)
+    /// `@RunHooks` のクラスが2つ以上(一覧の段で止める。run の開始前・dry-run も)
+    case multipleRunHooks([String])
 
     public var errorDescription: String? {
         switch self {
@@ -162,6 +164,8 @@ public enum ScenarioHostError: Error, LocalizedError {
             return "cannot list scenarios: \(detail)"
         case .dryRunFailed(let detail):
             return "cannot list steps: \(detail)"
+        case .multipleRunHooks(let classNames):
+            return RunHookCount.multipleMessage(classNames: classNames)
         }
     }
 }
@@ -531,8 +535,8 @@ public enum ScenarioHost {
     /// `compilesOCR`: その run でテキストの可視性検証(FM の段か OCR の段)が有効か(`ocrCompileNeeded`。既定値を置かない =
     /// 呼び手が run の設定から決める)。**切った run でコンパイルを起こさない** —— プロファイルで OCR を切っても、MCP が `--set` で
     /// 切っても、ここが設定を見ずに 20〜45 秒 × 2 のコンパイルを起こしていた
-    public static func listForRun(project: TestProject, dryRun: Bool, compilesOCR: Bool) throws -> [ScenarioInfo] {
-        let all = try list(project: project)
+    public static func listForRun(project: TestProject, dryRun: Bool, compilesOCR: Bool) throws -> ScenarioListing {
+        let all = try listing(project: project)
         if !dryRun, compilesOCR { startOCRModelCompile(project: project) }
         return all
     }
@@ -545,6 +549,11 @@ public enum ScenarioHost {
     private static let ocrCompileStarted = Mutex(false)
 
     public static func list(project: TestProject) throws -> [ScenarioInfo] {
+        try listing(project: project).scenarios
+    }
+
+    /// `list` に加えて `@RunHooks` のクラス名を返す。**`@RunHooks` が2つ以上なら throw**(`list` も同じ = 一覧を作る全経路で止まる)
+    public static func listing(project: TestProject) throws -> ScenarioListing {
         let runner = try runnerURL(project: project)
         var command = [runner.path, "list", "--json"]
         do {
@@ -568,8 +577,9 @@ public enum ScenarioHost {
               let data = jsonLine.data(using: .utf8) else {
             throw ScenarioHostError.listFailed("no JSON in the output: \(result.tail)")
         }
-        struct ListResponse: Codable { let scenarios: [ScenarioInfo] }
-        return try JSONDecoder().decode(ListResponse.self, from: data).scenarios
+        struct ListResponse: Codable { let scenarios: [ScenarioInfo]; let runHooks: [String] }
+        let response = try JSONDecoder().decode(ListResponse.self, from: data)
+        return ScenarioListing(scenarios: response.scenarios, runHooksClass: try RunHookCount.single(response.runHooks))
     }
 
     /// シナリオを 1 つ実行し、NDJSON イベントを onEvent へ流す。戻り値: passed。

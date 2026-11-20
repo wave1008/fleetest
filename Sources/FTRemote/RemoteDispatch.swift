@@ -14,6 +14,8 @@ public enum RemoteDispatchError: Error, LocalizedError {
     case invalidRemoteDir(String)
     case incompatible([String])
     case remoteSetupFailed(String)
+    /// run 中の打ち切り(`--remote-timeout`)。向こうの run がまだ生きているかもしれない
+    case remoteRunTimedOut(String)
     case invalidIssuer(String)
 
     public var errorDescription: String? {
@@ -31,10 +33,19 @@ public enum RemoteDispatchError: Error, LocalizedError {
                 .joined(separator: "\n")
         case .remoteSetupFailed(let detail):
             return "remote setup failed: \(detail)"
+        case .remoteRunTimedOut(let detail):
+            return "remote run timed out: \(detail)"
         case .invalidIssuer(let detail):
             return "invalid issuer: \(detail)"
         }
     }
+}
+
+/// 中継役(`run --runner M` / `api run --runner M`)の終了コードのうち、向こうの run の終わりを確かめられない終わり方。
+/// 発行元の afterRun の条件(`RunWideHookPlan.afterRunVerdict` は 0/1 以外を異常と数える)が、1(= テストの失敗)と
+/// 取り違えないための専用の値。124 = timeout(1) の慣例(打ち切り)
+public enum RemoteDispatchExit {
+    public static let runUnconfirmed: Int32 = 124
 }
 
 public struct RemoteHostSpec: Equatable, Sendable {

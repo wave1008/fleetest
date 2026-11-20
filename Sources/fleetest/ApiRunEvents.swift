@@ -205,6 +205,10 @@ struct RunOutcome {
     var interrupted = false
     /// ツールが異常として run を止めた理由(RunSummary.abortReason。中断とは別の事実)
     var abortReason: String?
+    /// beforeRun() が失敗して1本も流さずに終えた(`abortReason` に理由。RunSummary.beforeRunFailed と同じ)
+    var beforeRunFailed = false
+    /// 親の取りやめを受けて1本も流さずに止めた理由(RunSummary.startCancelled と同じ)
+    var startCancelled: String?
 }
 
 /// flowStarted〜flowFinished から testSeconds(最初の開始〜最後の完了)と

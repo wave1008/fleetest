@@ -71,10 +71,11 @@ struct ListScenarios: AsyncParsableCommand {
         let classes = ScenarioDiscovery.allTestClasses()
         if json {
             let entries = classes.flatMap(\.scenarioInfos)
-            struct ListResponse: Codable { let scenarios: [ScenarioInfo] }
+            struct ListResponse: Codable { let scenarios: [ScenarioInfo]; let runHooks: [String] }
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-            let data = try encoder.encode(ListResponse(scenarios: entries))
+            let data = try encoder.encode(ListResponse(scenarios: entries,
+                                                       runHooks: ScenarioDiscovery.allRunHooks().map(\.className)))
             ConsoleOut.out(String(data: data, encoding: .utf8)!)
         } else {
             guard !classes.isEmpty else {
@@ -269,6 +270,10 @@ struct RunScenario: AsyncParsableCommand {
           help: "Run only the afterAll() of the test class named by --scenario (set by ScenarioHost after every device finished the run)")
     var afterAllOnly = false
 
+    @Option(name: .customLong("run-hook"),
+            help: "Run the beforeRun() / afterRun() of the @RunHooks class named by --scenario (before or after; no device is driven; set by ScenarioHost on the machine that schedules the run)")
+    var runHook: String?
+
     func run() async throws {
         let runTunables = try Self.decodeTunables(tunables)
         let runHostLoadPacing = try Self.decodeHostLoadPacing(hostLoadPacing)
@@ -288,6 +293,10 @@ struct RunScenario: AsyncParsableCommand {
         //   - --debug の paused イベントがパイプに滞留するとホストと相互待ちでデッドロックする
         // ホスト側 stdout も同様に常時行バッファ(ApiRunCommand.swift の setvbuf(_IOLBF))。
         setvbuf(stdout, nil, _IOLBF, 0)
+        if let runHook {
+            try await runRunHook(runHook, deviceSession: deviceSession, tunables: runTunables)
+            return
+        }
         let testClass: FTTestClassDescriptor
         let scenarioID: String
         let scenarioTitle: String
@@ -926,29 +935,35 @@ final class LazyFMDelegate: ReplayDelegate {
     }
 }
 
-// MARK: - dry-run 用のドライバ(呼ばれない前提。万一呼ばれたら明示エラー)
+// MARK: - dry-run と run フックの子のドライバ(呼ばれない前提。万一呼ばれたら明示エラー)
 
+/// `unavailableMessage` は呼ばれたときの失敗の文言。run フックの子は「<フック>() cannot use the device」を渡す
+/// (コマンドの入口の断り = `refuseDeviceCommandInRunHook` を通らない経路の砦。dry-run の文言が出ると利用者が原因を誤る)
 struct NullDriver: AppDriver {
+    var unavailableMessage = "the driver is unavailable during a dry-run"
+
     struct Unavailable: Error, LocalizedError {
-        var errorDescription: String? { "the driver is unavailable during a dry-run" }
+        let message: String
+        var errorDescription: String? { message }
     }
+    private var unavailable: Unavailable { Unavailable(message: unavailableMessage) }
 
     func status() async throws -> StatusResponse {
         StatusResponse(ready: true, device: "dry-run", osVersion: "-", sessionBundleID: nil)
     }
-    func install(packagePath: String) async throws -> String? { throw Unavailable() }
-    func uninstall(bundleID: String) async throws { throw Unavailable() }
-    func launch(bundleID: String) async throws { throw Unavailable() }
-    func snapshot() async throws -> SnapshotResponse { throw Unavailable() }
-    func tap(ref: Int) async throws { throw Unavailable() }
-    func tap(x: Double, y: Double) async throws { throw Unavailable() }
-    func type(ref: Int?, text: String) async throws { throw Unavailable() }
-    func swipe(_ direction: FTSwipeDirection) async throws { throw Unavailable() }
-    func press(ref: Int, duration: Double) async throws { throw Unavailable() }
-    func screenshot() async throws -> Data { throw Unavailable() }
-    func terminate() async throws { throw Unavailable() }
-    func isAppForeground(bundleID: String) async throws -> Bool { throw Unavailable() }
-    func foregroundAppID() async -> Probe<String> { .failed(Unavailable().localizedDescription) }
+    func install(packagePath: String) async throws -> String? { throw unavailable }
+    func uninstall(bundleID: String) async throws { throw unavailable }
+    func launch(bundleID: String) async throws { throw unavailable }
+    func snapshot() async throws -> SnapshotResponse { throw unavailable }
+    func tap(ref: Int) async throws { throw unavailable }
+    func tap(x: Double, y: Double) async throws { throw unavailable }
+    func type(ref: Int?, text: String) async throws { throw unavailable }
+    func swipe(_ direction: FTSwipeDirection) async throws { throw unavailable }
+    func press(ref: Int, duration: Double) async throws { throw unavailable }
+    func screenshot() async throws -> Data { throw unavailable }
+    func terminate() async throws { throw unavailable }
+    func isAppForeground(bundleID: String) async throws -> Bool { throw unavailable }
+    func foregroundAppID() async -> Probe<String> { .failed(unavailableMessage) }
 }
 
 // (人間向けログ整形は FTCore.ScenarioLogFormatter を使用 — MCP 応答と共通)

@@ -69,7 +69,8 @@ Run ios-run with --quiet --junit reports/junit.xml. Also tell me the exit code a
 - **Exit code**: `0` = every scenario passed, `1` = at least one failure (JUnit is still written
   on failure). When the run fails before any scenario starts, JUnit is written too: a failure while preparing
   devices lists each scenario as a failure, and a failure to build the scenarios shows up as a single failed
-  testcase named `build`. Mistakes in the command line itself (an unknown scenario or folder name) write no JUnit.
+  testcase named `build`. When `beforeRun()` fails, a failed testcase named `beforeRun` is written
+  (→ [run-wide preparation and cleanup](../reference/testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun)). Mistakes in the command line itself (an unknown scenario or folder name) write no JUnit.
 - Device provisioning (Simulator boot, bridge) is handled automatically by a `--profile` run.
   Consecutive jobs reuse an already-running bridge; only the first run pays the cold-start cost.
 - **Investigating a failure**: `TestProjects/<name>/reports/` holds a Markdown report per failure

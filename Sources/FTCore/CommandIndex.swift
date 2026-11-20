@@ -489,7 +489,7 @@ public enum DSLCommandIndex {
         .init("writeMemo", "memo", "writeMemo(key, text)",
               "Appends a value to the key's history in the test's memo. The memo lives inside one test (beforeEach, the"
                   + " test body and afterEach) and is empty at the start of every test; it is an error outside a test"
-                  + " (beforeAll, setUpDevice, tearDownDevice, afterAll). Use writeRunMemo to share across tests."),
+                  + " (beforeAll, setUpDevice, tearDownDevice, afterAll, beforeRun, afterRun). Use writeRunMemo to share across tests."),
         .init("readMemo", "memo", "readMemo(key)",
               "Returns the last value written under the key in the test's memo, or \"\" when there is none (not a failure;"
                   + " the step carries the memo-key-not-found note). An error outside a test."),
@@ -500,13 +500,14 @@ public enum DSLCommandIndex {
                   + " returns the element or string, so it chains: select(\"#total\").memoTextAs(\"total\")."),
         .init("writeRunMemo", "memo", "writeRunMemo(key, text)",
               "Appends a value to the key's history in the run memo, shared by every scenario of one run on every"
-                  + " machine (write shared values in beforeAll). A scenario sees the run memo as it was when it"
-                  + " started; writes are not serialized (no locking). An error in setUpDevice, tearDownDevice and afterAll."),
+                  + " machine (write run-wide values in beforeRun of an @RunHooks class; beforeAll for per-class values). A scenario"
+                  + " sees the run memo as it was when it started; writes are not serialized (no locking). An error in"
+                  + " setUpDevice, tearDownDevice, afterAll and afterRun."),
         .init("readRunMemo", "memo", "readRunMemo(key)",
               "Returns the last value written under the key in the run memo, or \"\" when there is none (not a failure;"
                   + " the step carries the run-memo-key-not-found note). Readable in every phase."),
         .init("clearRunMemo", "memo", "clearRunMemo()",
-              "Clears the whole run memo. An error in setUpDevice, tearDownDevice and afterAll."),
+              "Clears the whole run memo. An error in setUpDevice, tearDownDevice, afterAll and afterRun."),
         .init("runMemoTextAs", "memo", "element.runMemoTextAs(key) / string.runMemoTextAs(key)",
               "Writes an element's text (the first non-empty of label and value) or a String to the run memo under the key and"
                   + " returns the element or string, so it chains: select(\"#total\").runMemoTextAs(\"total\")."),

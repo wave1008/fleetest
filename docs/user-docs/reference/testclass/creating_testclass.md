@@ -78,8 +78,9 @@ class LoginTest {
 not be skipped when a scenario is aborted mid-way.
 
 `func beforeAll()` (optional) runs **once per run, per class** (in a run that spans machines, once per machine), before any scenario of that class on
-any device — for preparation shared by the whole run (for example creating test data and writing
-the values it produces with `writeRunMemo`; see [memo](../commands/memo.md)). Other devices that
+any device — for per-class preparation (for example creating the test data of that class; values it
+writes with `writeRunMemo` are shared, see [memo](../commands/memo.md)). Preparation that must happen once for the whole run goes in
+[`beforeRun()`](#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun). Other devices that
 pick up a scenario of that class wait until it finishes. If it fails, the remaining scenarios of
 that class in the run are recorded as failed without running.
 
@@ -98,6 +99,57 @@ in the run**, if at least one scenario of that class ran on the device — for c
 `setUpDevice()` prepared (it runs even if `setUpDevice()` failed). It does not run on a device that
 dropped out mid-run or when the run is interrupted. Its result is written to the execution log and a
 report, but it does not count toward the test results.
+
+## Run-wide preparation and cleanup (@RunHooks / beforeRun / afterRun)
+
+`beforeAll()` runs once per class (once per machine in a run that spans machines). When you need something done **once for the whole run**, before any
+scenario of any machine and after all of them (for example resetting a server that every machine shares, or writing a value that every test reads), put it in a class marked `@RunHooks`.
+
+```swift
+@RunHooks
+class RunWide {
+    func beforeRun() {
+        let response = httpRequest("https://test-server.example.com/login")
+        response.status.thisIs(200)
+        writeRunMemo("token", response.text)
+    }
+
+    func afterRun() {
+        // reads the final run memo; it cannot write it
+        let response = httpRequest("https://test-server.example.com/cleanup?token=\(readRunMemo("token"))")
+        response.status.thisIs(200)
+    }
+}
+```
+
+- You can write `beforeRun()`, `afterRun()` or both. They take no arguments and must be neither `async` nor `throws` (`func beforeRun()`; anything else is a compile error). A project can have **one** `@RunHooks` class (two or more is an error before the run starts, dry-run included), and it cannot also be a `@TestClass`.
+- **Where and how often**: once per run per project, on the machine where you started fleetest (for `run --runner <machine>`, the runner machine). A run that spans several machines still runs them once.
+  The run prints one line saying which machine ran it. `beforeRun()` finishes before any scenario starts on any machine.
+  **They do not run** in a debug run, in a run without a profile, or in a dry-run. They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
+  Each of them runs in a process of its own, so **a value cannot be passed from `beforeRun()` to `afterRun()` through a `var` of the class** — use the run memo.
+- **What you can use**: the run memo (`writeRunMemo` / `readRunMemo`; values written in `beforeRun()` are visible to every test from its first line), `httpRequest`, `data()` / `account()`, `wait`, and value assertions (`thisIs` etc.).
+  `httpRequest` is refused unless the host is in `allowedDomains` of the machine that ran the hook ([Sandbox](../../security/sandbox.md); check `response.status` as in the example).
+  **Commands that operate a device fail** (the message names the command), and **the servers of compose.yaml are not reachable** (they are per machine).
+  Allowed domains (`allowedDomains`) and the per-machine override of the dataset are those of **the machine that ran it** and can differ from the machines that run the tests.
+- **A failing `beforeRun()` stops the run**: no scenario runs, the run ends with exit code 1 and the reason in the run's result, and it is not recorded as a failed test.
+- **`afterRun()` runs when it can**: after every machine has finished its work (including each `afterAll()`), even if `beforeRun()` failed or tests failed (a red run) — so it can clean up what a half-done `beforeRun()` created. It is skipped **only** in
+  an interrupted run or when a machine's run ended abnormally (the run prints "afterRun did not run: ..."). Its result is written to the log and a report but is not counted in the test results.
+  Do not make cleanup a precondition of a pass.
+- **A run with no scenarios, and a `--fleet` run, are not supported**: nothing runs when no scenario runs, and `--fleet` is refused at the start when the project has `@RunHooks`.
+- **MCP**: `ft_run_scenario` is a run too, so the hooks run on every call of it.
+- **A `beforeRun()` that resets a shared server can break another run that is using the same server at the same time** (another terminal, the extension, MCP). A run in progress elsewhere is not protected.
+- **Order with `run-setup.sh` / `run-teardown.sh`**: in a run on one machine, `run-setup.sh` finishes first, then `beforeRun()` runs just before the first scenario; `afterRun()` runs after the tests and `afterAll()`, then `run-teardown.sh` runs.
+  In a run that spans machines, `beforeRun()` runs while the other machines are still preparing, so the order against their `run-setup.sh` is not fixed; `afterRun()` runs after every machine's `run-teardown.sh` has finished.
+
+Which one to use:
+
+| | `beforeRun()` / `afterRun()` | `beforeAll()` / `afterAll()` | `setUpDevice()` / `tearDownDevice()` | `run-setup.sh` / `run-teardown.sh` |
+|---|---|---|---|---|
+| How often | once per run per project | once per run per class (per machine in a multi-machine run) | once per run per device per class | once per machine |
+| Runs on | the machine where you started fleetest | each machine that runs a scenario of the class | the device | each machine |
+| Device commands | no | yes | yes | no (a script) |
+| compose.yaml servers | no | yes | yes | before / after they start (see [services](../writing/services.md)) |
+| Use it for | a server shared by every machine; values for the run memo | per-class preparation that needs the app or this machine's servers | per-device preparation (language, permissions) | per-machine preparation |
 
 ## Running a class in one place or in order (@RunOnSingleMachine / @RunOnSingleDevice / @RunInOrder)
 
@@ -188,6 +240,10 @@ Both can be attached to the class or to an individual `@Test` method.
 - `@RunOnSingleMachine` stops the load from being split between machines. Use it only to gather `beforeAll()` or data on one machine; you cannot write which machine (it is the one that received the first test).
 - `@RunOnSingleDevice` removes the class's parallelism and defines no order. It prevents only simultaneous runs inside that class; another class using the same account still collides.
 - `@RunInOrder` hinders parallelism, the rest of the class is not run after a failure, and a retest starts from the class's first test. First ask whether the flow fits in one `@Test`; `@Order` is required on every test (integer, no repeats), and only the whole class or a range from the first test can be selected.
+- `beforeRun()` / `afterRun()` do not run in a debug run, a run without a profile or a dry-run, and cannot pass a value to each other through a class `var` (separate processes); use the run memo.
+- `beforeRun()` cannot use the device or the servers of compose.yaml, and the allowed domains and dataset overrides are those of the machine it ran on; per-machine preparation goes in `run-setup.sh` / `beforeAll()`.
+- `afterRun()` also runs after failed tests; it is skipped only in an interrupted run or after an abnormal end, and it is not counted in the results; do not make it a precondition of a pass. A `--fleet` run with `@RunHooks` is refused.
+- A `beforeRun()` that resets a shared server can break another run using the same server at the same time (MCP runs `beforeRun()` on every `ft_run_scenario` call); make it safe to run while other runs are in progress.
 
 ### Link
 - [index](../../index.md)

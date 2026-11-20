@@ -49,7 +49,7 @@ final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
         let runExit = RunExitGuard()
         let (summary, effectiveSettings) = try await ProfileRunner.run(
             project: project, profileName: "iosOnly", items: [androidOnly],
-            reportDirOverride: nil, supplyProgress: RunSupplyProgress(),
+            reportDirOverride: nil, runHooksClass: nil, supplyProgress: RunSupplyProgress(),
             interruptState: RunInterruptState(recorder: nil), early: nil, runExit: runExit)
         await runExit.finish()
 

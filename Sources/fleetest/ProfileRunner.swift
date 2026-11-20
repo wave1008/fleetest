@@ -320,6 +320,8 @@ enum ProfileRunner {
     static func run(project: TestProject, profileName: String, items rawItems: [ScenarioRunItem],
                     setOverrides: [String: RunProfileSetValue] = [:],
                     reportDirOverride: String?,
+                    // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)。**既定値を置かない**(渡し忘れでフックが黙って走らない)
+                    runHooksClass: String?,
                     quiet: Bool = false, lpt: Bool = true,
                     lptHistoryRuns: Int = LPTOrdering.defaultHistoryRuns,
                     performanceMode: Bool = false,
@@ -457,6 +459,24 @@ enum ProfileRunner {
             }
         }
 
+        // beforeRun(RR-8.4): どのレーンもシナリオを流し始める前に1回(供給は並行で進んでいる。**Android の供給の待ちとレーンの検査の後** = api run と同じ順)。親とつながった子・0本の run では走らせない
+        // (判断は RunHookPlan の1箇所)。失敗なら1本も流さず専用の終わり方(abortReason・終了コード 1)。afterRun は失敗でも走る
+        let runHooks = await SingleMachineRunHooks.begin(
+            hooksClass: runHooksClass, scenarioCount: items.count, dryRun: false, project: project,
+            settings: ScenarioExecutionSettings(resolved), reportDir: reportDir.path,
+            profileScenarioTimeout: resolved.scenarioTimeout, interruptState: interruptState,
+            log: { ConsoleOut.out($0) })
+        if let abortReason = runHooks.abortReason {
+            scenariosHandedToOrchestrator = true  // 流していないシナリオは `--failed` の対象に記録しない
+            ConsoleOut.out("❌ Run stopped: \(abortReason)")
+            await runHooks.finish(runMemo: RunWideHookPlan.memoValues(afterOps: runHooks.seedOps),
+                                  interruptState: interruptState, log: { ConsoleOut.out($0) })
+            return (RunSummary(total: 0, failed: 0, performanceMode: performanceMode,
+                               effectiveSettings: effectiveSettings, interrupted: interruptState.isStopped,
+                               abortReason: abortReason, beforeRunFailed: true),
+                    effectiveSettings)
+        }
+
         // 3. 両OS同時並列実行(platform 別キューは RunOrchestrator がそのまま担う)
         // 台数の見積りと同じ規則(`undeclaredScenarioPlatform`)。iOS の供給が全滅しても android へ倒さない ——
         // 見積りが未宣言のシナリオを iOS にだけ数えるので、倒す先の台は用意されていない
@@ -509,6 +529,7 @@ enum ProfileRunner {
         // **新しい InterruptRelay は登録しない**(1プロセス1組。呼び出し元が既に登録済み)。
         // 供給中に既に中断済みならここで即 orchestrator.requestInterrupt() が呼ばれる
         interruptState.attachLateSubscriber { orchestrator.requestInterrupt() }
+        orchestrator.seedRunMemo(runHooks.seedOps)
         PhaseLog.mark("orchestrator-setup")
         // レーン = 絞り込み後の全デバイス(供給に失敗して参加しなかったデバイスのぶんは、orchestrator が
         // 「never joined」でそのレーンの本数を失敗として残す = 準備できなかったデバイスが緑に紛れない)
@@ -526,7 +547,7 @@ enum ProfileRunner {
         progressHandedToOrchestrator = true
         scenariosHandedToOrchestrator = true
         async let summary = orchestrator.run(items: itemsToRun, defaultPlatform: defaultPlatform,
-                                             dispatch: dispatch)
+                                             dispatch: dispatch, startGate: ParentLink.startGate())
 
         // シナリオ毎にバッファして完了時に一括表示(並列時のステップ行の混線防止)。
         // quiet: 成功シナリオは結果1行のみ・失敗シナリオはバッファ全体(失敗詳細)を出す
@@ -584,6 +605,9 @@ enum ProfileRunner {
 
         let finalSummary = await summary
         if let abortReason = finalSummary.abortReason { ConsoleOut.out("❌ Run stopped: \(abortReason)") }
+        // afterRun(afterAll の後。中断された run では走らせず理由を1行言う = RunHookPlan。失敗は合否に数えない)
+        await runHooks.finish(runMemo: orchestrator.runMemoSnapshot(), interruptState: interruptState,
+                              log: { ConsoleOut.out($0) })
         await responseTrace?.finish(runDir: recorder?.runDir) { ConsoleOut.out($0) }
         if finalSummary.failed > 0 { servicesSession?.saveLogs(to: servicesLogDir) { ConsoleOut.out($0) } }
         if !finalSummary.degradedWorkers.isEmpty {
@@ -622,7 +646,8 @@ enum ProfileRunner {
                                  interrupted: finalSummary.interrupted,
                                  abortReason: finalSummary.abortReason,
                                  servicesWarnings: servicesSession?.warnings ?? [],
-                                 responseMeasurement: ResponseMeasurementPolicy.runInfo(resolved: resolved))
+                                 responseMeasurement: ResponseMeasurementPolicy.runInfo(resolved: resolved),
+                                 startCancelled: finalSummary.startCancelled)
         return (resultSummary, effectiveSettings)
     }
 

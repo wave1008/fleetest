@@ -85,7 +85,7 @@ enum MultiTargetRunner {
         let entryByMachine: [Int: Int]
         let resolved: [DynamicSplit.Scenario]
         let dispatcher: DynamicDispatcher
-        /// この対象の run メモの正本(対象 = 1つの run なので対象ごとに持つ。DR-208)
+        /// この対象のプロジェクトの run メモの正本(同じプロジェクトの対象で1つ。子の鍵は (対象, エントリ番号)。DR-208・RR-8.4)
         let memoHub: RunMemoHub
         let estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double
         let healCollection: HealSourceWriteBack.Collection
@@ -93,6 +93,32 @@ enum MultiTargetRunner {
     }
 
     private static func writerKey(_ unit: String, _ entry: Int) -> String { "\(unit)\u{1}\(entry)" }
+
+    /// 1つのプロジェクトの beforeRun / afterRun(RR-8.4)。beforeRun はそのプロジェクトの最初の対象の子を起こすときに1回
+    private final class ProjectHook: @unchecked Sendable {
+        let parent: RunHookParent
+        let hub: RunMemoHub
+        // @unchecked の根拠: beforeRunTask は lock の下でしか触らない
+        private let lock = NSLock()
+        private var beforeRunTask: Task<RunHookOutcome, Never>?
+
+        init(parent: RunHookParent, hub: RunMemoHub) {
+            self.parent = parent
+            self.hub = hub
+        }
+
+        func startBeforeRunIfNeeded() {
+            lock.lock()
+            defer { lock.unlock() }
+            if beforeRunTask == nil { beforeRunTask = parent.start(hub: hub) }
+        }
+
+        var beforeRun: Task<RunHookOutcome, Never>? {
+            lock.lock()
+            defer { lock.unlock() }
+            return beforeRunTask
+        }
+    }
 
     private struct ChildOutcome {
         let unit: String
@@ -153,6 +179,9 @@ enum MultiTargetRunner {
 
         let clock = DynamicDispatcher.monotonicClock()
         let writers = LockedValue<[String: ChildStdinWriter]>([:])
+        // プロジェクトごとの beforeRun / afterRun と run メモの正本(`@RunHooks` が無いプロジェクトは hub だけ。鍵 = プロジェクト名)
+        let projectHooks = LockedValue<[String: ProjectHook]>([:])
+        defer { for hook in projectHooks.withLock({ Array($0.values) }) { hook.parent.close() } }
         // 前段(入口の印・チケット・手元のロックの先取り・ビルド・使用中の待ち・全マシンの Prelock)は
         // MachineFanoutFrontHalf の1箇所。ここが持つのは差分 = プロジェクトごとのビルドと対象ごとの配り手
         guard let (held, built) = try MachineFanoutFrontHalf.run(
@@ -163,6 +192,7 @@ enum MultiTargetRunner {
                 // 2. 手元で1回ずつビルドして一覧を出す(プロジェクトごと)。中断はプロジェクトの境目で拾う
                 var builtProjects: Set<String> = []
                 var listed: [String: [ScenarioInfo]] = [:]
+                var hooksClassByProject: [String: String] = [:]
                 var healByProject: [String: HealSourceWriteBack.Collection] = [:]
                 // 先に1回の swift build でまとめて作る(1本ずつ起こすと起動の固定費を本数ぶん払う。下の build は指紋の一致で抜ける)
                 if !skipBuild {
@@ -177,14 +207,41 @@ enum MultiTargetRunner {
                         if !skipBuild { try ScenarioHost.build(project: target.project, log: { FleetRunner.log($0) }) }
                         return try ScenarioHost.listForRun(project: target.project, dryRun: false, compilesOCR: false)
                     }
-                    guard !found.isEmpty else {
+                    guard !found.scenarios.isEmpty else {
                         throw ValidationError(
                             "no scenarios (add a @TestClass under TestProjects/\(target.project.name)/scenarios/)")
                     }
+                    if let hooksClass = found.runHooksClass { hooksClassByProject[target.project.name] = hooksClass }
                     // 通常の入口と同じ選択(`@Draft` / `@Deleted` を外す)。子へは完全一致の ID で渡すので、子の側では外れない。
                     // 外して空になった対象は飛ばす(通常の入口も外して空なら成功で終わる)= 下の「当てはまるシナリオが無い」で抜ける
-                    listed[target.project.name] = try ScenarioSelection.resolve([], from: found)
+                    listed[target.project.name] = try ScenarioSelection.resolve([], from: found.scenarios)
                     healByProject[target.project.name] = HealSourceWriteBack.Collection()
+                }
+
+                // プロジェクトごとの run メモの正本。`@RunHooks` があれば開始の行を beforeRun の結果が出るまで保留する。
+                // 対象がある(= シナリオが1本以上ある)プロジェクトの分だけ、最初の対象を作るときに作る
+                var hubs: [String: RunMemoHub] = [:]
+                func projectHub(for project: TestProject) -> RunMemoHub {
+                    if let hub = hubs[project.name] { return hub }
+                    let className = RunWideHookPlan.hooksClassToRun(
+                        hooksClass: hooksClassByProject[project.name], scenarioCount: 1, dryRun: false,
+                        linkedToParent: ParentLink.isLinked)
+                    let hub = RunMemoHub(mode: className == nil ? .startOnHello : .awaitDecision, send: { child, lines in
+                        writers.withLock { $0[MultiTargetRunner.writerKey(child.target, child.entry)] }?
+                            .write(line: lines.joined(separator: "\n"))
+                    })
+                    hubs[project.name] = hub
+                    if let className {
+                        let parent = RunHookParent(
+                            context: RunHookSetup.context(
+                                project: project, className: className,
+                                profiles: resolvedTargets.filter { $0.project.name == project.name }.map(\.profile),
+                                setOverrides: setOverrides, reportDirOverride: reportDir,
+                                log: { FleetRunner.log("[\(project.name)] " + $0) }),
+                            log: { FleetRunner.log("[\(project.name)] " + $0) })
+                        projectHooks.withLock { $0[project.name] = ProjectHook(parent: parent, hub: hub) }
+                    }
+                    return hub
                 }
 
                 // 3. 対象ごとの配り手
@@ -230,10 +287,7 @@ enum MultiTargetRunner {
                         send: { entry, reply in
                             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
                         })
-                    let memoHub = RunMemoHub(send: { entry, lines in
-                        writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?
-                            .write(line: lines.joined(separator: "\n"))
-                    })
+                    let memoHub = projectHub(for: target.project)
                     units.append(TargetUnit(
                         id: id, project: target.project, profile: target.profile, groups: target.groups,
                         entryByMachine: entryByMachine, resolved: resolved, dispatcher: dispatcher, memoHub: memoHub,
@@ -303,6 +357,18 @@ enum MultiTargetRunner {
         let launch: MultiTargetCoordinator.Launch = { targetID, machine, finished in
             guard let unit = targetByID[targetID], let entry = unit.entryByMachine[machine] else { finished(127); return }
             let group = unit.groups[entry]
+            // beforeRun(RR-8.4): プロジェクトの最初の対象の子を起こすときに1回。失敗したプロジェクトの対象は以後起こさない
+            // (別のプロジェクトは続ける。起こさない対象は「失敗(exit 1)」として表に残し、配れなかった分は失敗と数えない)
+            let hook = projectHooks.withLock { $0[unit.project.name] }
+            if let hook {
+                if hook.parent.beforeRunFailed {
+                    FleetRunner.log("[\(unit.id)] not started on \(group.machineLabel): beforeRun() failed for \(unit.project.name)")
+                    outcomes.withLock { $0.append(ChildOutcome(unit: targetID, machine: machine, exitCode: 1, duration: 0)) }
+                    finished(1)
+                    return
+                }
+                hook.startBeforeRunIfNeeded()
+            }
             let label = "\(group.machineLabel):\(unit.id)"
             let writer = ChildStdinWriter()
             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] = writer }
@@ -329,9 +395,10 @@ enum MultiTargetRunner {
                     binary: binary, args: args, hostLabel: label, ticket: ticket, lockMarker: marker,
                     healCollection: heal, stdin: writer,
                     lineInterceptor: { line in
-                        RunMemoRelay.intercept(line: line, hub: memoHub, entry: entry, dispatcher: dispatcher, writer: writer)
+                        RunMemoRelay.intercept(line: line, hub: memoHub, child: .init(target: targetID, entry: entry),
+                                               dispatcher: dispatcher, writer: writer)
                     })
-                memoHub.entryExited(entry)
+                memoHub.entryExited(.init(target: targetID, entry: entry))
                 outcomes.withLock {
                     $0.append(ChildOutcome(unit: targetID, machine: machine, exitCode: code,
                                            duration: Date().timeIntervalSince(started)))
@@ -367,13 +434,29 @@ enum MultiTargetRunner {
         let results = outcomes.withLock { $0 }
         var lastExit: [String: Int32] = [:]
         for outcome in results { lastExit[machineLabels[outcome.machine]] = outcome.exitCode }
-        prelock.releaseAll(exitCodes: lastExit)
+        // afterRun(プロジェクトごとに1回。そのプロジェクトの全対象の全マシンの子が正常に終わったときだけ。条件は RunWideHookPlan)。
+        // **ロックを持ったまま**走らせる(1台の run と同じ。解放は下の releaseAll)。
+        // beforeRun が失敗したプロジェクトは1本も流れていないので、配れなかった分・結果の無い分を失敗として数えない
+        var hookFailedProjects: Set<String> = []
+        var hookInterrupted = false
+        let unitProject = Dictionary(uniqueKeysWithValues: units.map { ($0.id, $0.project.name) })
+        for (name, hook) in projectHooks.withLock({ $0 }).sorted(by: { $0.key < $1.key }) {
+            guard let beforeRun = hook.beforeRun else { continue }
+            _ = await beforeRun.value
+            if hook.parent.beforeRunFailed { hookFailedProjects.insert(name) }
+            if hook.parent.beforeRunInterrupted { hookInterrupted = true }
+            await hook.parent.finish(
+                hub: hook.hub, beforeRun: beforeRun,
+                childExitCodes: results.filter { unitProject[$0.unit] == name }.map(\.exitCode), interrupted: interrupted)
+        }
 
+        prelock.releaseAll(exitCodes: lastExit)
         var neverHandedFailure = false
-        var interruptedWithWorkLeft = false
+        // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
+        var interruptedWithWorkLeft = hookInterrupted
         for unit in units {
             let ids = unit.dispatcher.unhandedIDs
-            guard !ids.isEmpty else { continue }
+            guard !ids.isEmpty, !hookFailedProjects.contains(unit.project.name) else { continue }
             FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
             if let line = DynamicDispatcher.keptUnhandedLine(unit.dispatcher.keptUnhanded) {
                 FleetRunner.log("[\(unit.id)] " + line)
@@ -386,7 +469,7 @@ enum MultiTargetRunner {
                 }
             }
         }
-        let neverStarted = coordinator.unstartedTargets
+        let neverStarted = coordinator.unstartedTargets.filter { id in !hookFailedProjects.contains(unitProject[id] ?? "") }
         // 走り終えて終端になっていない対象(配り切れなかった・中断)と、一度も起こさなかった対象
         for unit in units {
             if neverStarted.contains(unit.id) {
@@ -410,7 +493,7 @@ enum MultiTargetRunner {
                 collection.finish(project: project) { FleetRunner.log($0) }
             }
         }
-        for unit in units {
+        for unit in units where !hookFailedProjects.contains(unit.project.name) {
             let assigned: [(Int, DeviceMachineRunner.Group, [String])] = unit.entryByMachine
                 .sorted(by: { $0.key < $1.key })
                 .map { ($0.value, unit.groups[$0.value], unit.dispatcher.assignedIDs(entry: $0.value)) }
@@ -424,7 +507,10 @@ enum MultiTargetRunner {
         if let junit, let junitTempDir {
             let names = Array(Set(units.map(\.project.name))).sorted().joined(separator: "+")
             FleetRunner.mergeAndWriteJUnit(
-                junit: junit, project: names, tempDir: junitTempDir, entries: childHosts.withLock { $0 })
+                junit: junit, project: names, tempDir: junitTempDir, entries: childHosts.withLock { $0 },
+                beforeRunFailures: projectHooks.withLock { $0 }.sorted { $0.key < $1.key }.compactMap { name, hook in
+                    hook.parent.beforeRunFailureReason.map { (project: name, reason: $0) }
+                })
         }
         return DeviceMachineRunner.parentExitCode(
             childCodes: results.map(\.exitCode), neverHandedFailure: neverHandedFailure,

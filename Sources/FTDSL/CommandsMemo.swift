@@ -32,7 +32,7 @@ extension FTDriveCore {
     /// 読みも書きも断る。触ってよい場所なら nil。判定は実行中のフェーズ(`currentSection`)で行う = ヘルパー関数を経由しても止まる
     static func testMemoRejection(command: String, section: String?) -> String? {
         switch section {
-        case "beforeAll", "setUpDevice", "tearDownDevice", "afterAll":
+        case "beforeAll", "setUpDevice", "tearDownDevice", "afterAll", "beforeRun", "afterRun":
             return "\(command) is not allowed in \(section ?? "")(): the memo lives inside one test"
                 + " (beforeEach(), the test body and afterEach()). To share a value across the run, use"
                 + " writeRunMemo / readRunMemo instead"
@@ -49,8 +49,11 @@ extension FTDriveCore {
             return "\(command) is not allowed in setUpDevice(): the value would be overwritten by the other devices' values."
                 + " Write it in beforeAll() instead"
         case "tearDownDevice", "afterAll":
-            return "\(command) is not allowed in \(section ?? "")(): nothing reads the run memo after it."
-                + " Write it in beforeAll() and read it in the tests instead"
+            return "\(command) is not allowed in \(section ?? "")(): the tests have already finished."
+                + " Write it in beforeRun() or in the tests instead"
+        case "afterRun":
+            return "\(command) is not allowed in afterRun(): the tests have already finished."
+                + " Write it in beforeRun() or in the tests instead"
         default:
             return nil
         }

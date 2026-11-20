@@ -109,31 +109,73 @@ open class FTScenarioRegistration: NSObject {
     }
 }
 
+/// `@RunHooks` のクラスのメタデータ(マクロ生成)。親は `--run-hook before|after` の専用の子でだけ呼ぶ
+/// (シナリオの子・一覧の子では呼ばない)
+public struct FTRunHooksDescriptor {
+    public let className: String
+    /// クラスの beforeRun()(無ければ nil)
+    public let beforeRun: (@Sendable () -> Void)?
+    /// クラスの afterRun()(無ければ nil)
+    public let afterRun: (@Sendable () -> Void)?
+
+    public init(className: String,
+                beforeRun: (@Sendable () -> Void)? = nil,
+                afterRun: (@Sendable () -> Void)? = nil) {
+        self.className = className
+        self.beforeRun = beforeRun
+        self.afterRun = afterRun
+    }
+}
+
+/// @RunHooks が生成する conformance。手書きでの適合も可能(マクロはこの糖衣)
+public protocol FTRunHooksDefinition {
+    static var ftRunHooksDescriptor: FTRunHooksDescriptor { get }
+}
+
+/// objc ランタイム発見用の基底クラス。@RunHooks が __FTRunHooksReg_<クラス名> サブクラスを生成する。
+/// `FTScenarioRegistration` とは別の基底 = シナリオの一覧には載らない
+open class FTRunHooksRegistration: NSObject {
+    open class var descriptor: FTRunHooksDescriptor {
+        fatalError("override FTRunHooksRegistration.descriptor")
+    }
+}
+
 public enum ScenarioDiscovery {
-    /// プロセスに読み込まれた全 FTScenarioRegistration 派生クラスから descriptor を収集する。
+    /// プロセスに読み込まれた全クラスのうち、`base` の派生クラスを返す。
     /// 重要: 未実現(unrealized)クラスへメッセージを送ると壊れるクラスがあるため、
     /// 判定は class_getSuperclass の C API 走査のみで行う(isSubclass(of:) 等は使わない)。
-    public static func allTestClasses() -> [FTTestClassDescriptor] {
+    private static func subclasses(of base: AnyClass) -> [AnyClass] {
         var count: UInt32 = 0
         guard let listPtr = objc_copyClassList(&count) else { return [] }
         defer { free(UnsafeMutableRawPointer(listPtr)) }
         let buffer = UnsafeBufferPointer(start: listPtr, count: Int(count))
 
-        var result: [FTTestClassDescriptor] = []
+        var result: [AnyClass] = []
         for cls in buffer {
             var superclass: AnyClass? = class_getSuperclass(cls)
-            var isRegistration = false
             while let s = superclass {
-                if s == FTScenarioRegistration.self {
-                    isRegistration = true
+                if s == base {
+                    result.append(cls)
                     break
                 }
                 superclass = class_getSuperclass(s)
             }
-            guard isRegistration, let regType = cls as? FTScenarioRegistration.Type else { continue }
-            result.append(regType.descriptor)
         }
-        return result.sorted { $0.className < $1.className }
+        return result
+    }
+
+    public static func allTestClasses() -> [FTTestClassDescriptor] {
+        subclasses(of: FTScenarioRegistration.self)
+            .compactMap { ($0 as? FTScenarioRegistration.Type)?.descriptor }
+            .sorted { $0.className < $1.className }
+    }
+
+    /// `@RunHooks` のクラス(クラス名の順)。**1つに絞る検査はここではしない**(一覧の段 = `list --json` の `runHooks` と
+    /// `--run-hook` の入口が数える)
+    public static func allRunHooks() -> [FTRunHooksDescriptor] {
+        subclasses(of: FTRunHooksRegistration.self)
+            .compactMap { ($0 as? FTRunHooksRegistration.Type)?.descriptor }
+            .sorted { $0.className < $1.className }
     }
 
     /// ID(クラス名.メソッド名)でシナリオを探す。クラス名のみでシナリオが 1 つならそれを返す

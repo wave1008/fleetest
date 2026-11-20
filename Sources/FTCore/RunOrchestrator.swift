@@ -299,6 +299,12 @@ public struct RunSummary: Sendable {
     /// 計測モードの run の識別(RunMetaRecord.responseMeasurement にそのまま焼き込む)。orchestrator は知らないので
     /// 常に nil —— 呼び手(ProfileRunner)が resolve 済みの値で自分の RunSummary へ埋める
     public let responseMeasurement: ResponseMeasurementRunInfo?
+    /// beforeRun() が失敗して1本も流さずに終えた(`abortReason` に理由)。中断とも失敗の数とも別の終わり方 = 終了コード 1・
+    /// 流さなかったシナリオは未実行として数えず `--failed` の対象にも記録しない(RR-8.4)
+    public let beforeRunFailed: Bool
+    /// 親の取りやめ(beforeRun の失敗)を受けて1本も流さずに止めた理由(nil = 取りやめを受けていない)。
+    /// 中断が先に開始待ちを抜けた run では、後から取りやめの行が届いても立てない
+    public let startCancelled: String?
 
     public init(total: Int, failed: Int, skipped: Int = 0, degradedWorkers: [String] = [],
                 freezeRetries: [String] = [],
@@ -311,7 +317,9 @@ public struct RunSummary: Sendable {
                 interrupted: Bool = false,
                 abortReason: String? = nil,
                 servicesWarnings: [String] = [],
-                responseMeasurement: ResponseMeasurementRunInfo? = nil) {
+                responseMeasurement: ResponseMeasurementRunInfo? = nil,
+                beforeRunFailed: Bool = false,
+                startCancelled: String? = nil) {
         self.total = total
         self.failed = failed
         self.skipped = skipped
@@ -329,6 +337,8 @@ public struct RunSummary: Sendable {
         self.abortReason = abortReason
         self.servicesWarnings = servicesWarnings
         self.responseMeasurement = responseMeasurement
+        self.beforeRunFailed = beforeRunFailed
+        self.startCancelled = startCancelled
     }
 
     /// FM の呼び出しが**全部失敗した**か(呼び出しが1件も無いときは false = 使っていないだけ)
@@ -399,38 +409,6 @@ actor RunInterruptFlag {
         let pending = waiters
         waiters.removeAll()
         pending.forEach { $0.resume(returning: value) }
-    }
-}
-
-/// `work` の結果を待つ。**ただし中断が先に来たら待たずに `fallback` を返す**(`work` は背後で最後まで
-/// 走る = 取り消す口の無い仕事でも呼び手は抜けられる)。`work` が先に終われば待ち手を片付けてから返す
-func awaitUnlessInterrupted<T: Sendable>(
-    _ work: @escaping @Sendable () async -> T, interrupted flag: RunInterruptFlag, fallback: T
-) async -> T {
-    await withCheckedContinuation { continuation in
-        let first = FirstResumer(continuation)
-        Task {
-            let value = await work()
-            await flag.stopWaiting()
-            first.resume(value)
-        }
-        Task {
-            if await flag.waitUntilRequested() { first.resume(fallback) }
-        }
-    }
-}
-
-/// 2つの async のうち先に終わったほうの値(一度だけ resume する)
-private final class FirstResumer<Value: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Value, Never>?
-    init(_ continuation: CheckedContinuation<Value, Never>) { self.continuation = continuation }
-    func resume(_ value: Value) {
-        lock.lock()
-        let pending = continuation
-        continuation = nil
-        lock.unlock()
-        pending?.resume(returning: value)
     }
 }
 
@@ -1019,10 +997,12 @@ public final class RunOrchestrator: Sendable {
     /// registerChildProcess 経由でホスト(fleetest ターゲット)が直接持つ登録簿を撃つ。ここに
     /// 二重に持たない)。立った後は通常の完了経路(録画の停止・index.json・lease 解放・
     /// drain)をそのまま通る —— 新規に何かを分岐させない
-    private let interruptRequested = RunInterruptFlag()
+    let interruptRequested = RunInterruptFlag()
     /// 遅延参加が1台も来なかったときの中止理由(nil = 中止していない)。**中止も interruptRequested を立てて
     /// 配布を止める**が、利用者の中断ではないので、中断のときだけ省く後始末は `stoppedByUser` で見分ける
-    private let lateJoinAbort = LockedValue<String?>(nil)
+    let lateJoinAbort = LockedValue<String?>(nil)
+    /// 親の取りやめで1本も流さずに止めた理由(`awaitStartGate` で取りやめが中断に勝ったときだけ入る。`lateJoinAbort` にも入る)
+    let startCancelled = LockedValue<String?>(nil)
     /// pulled の配り手(中断で待ちを解く相手)。requestInterrupt と run の設定のどちらが先でも解けるよう、中断済みかを一緒に持つ
     private let pullInterrupt = LockedValue<(source: (any ScenarioPullSource)?, interrupted: Bool)>((nil, false))
     /// ScenarioHost.run(registerChildProcess:) への素通し(呼び出し側が実行中の子を SIGTERM
@@ -1183,6 +1163,12 @@ public final class RunOrchestrator: Sendable {
         await interruptRequested.isRequested() && lateJoinAbort.withLock { $0 } == nil
     }
 
+    /// beforeRun の書き込みを run メモへ入れる(1台のマシンだけの run。`run` を呼ぶ前に)
+    public func seedRunMemo(_ ops: [RunMemoOp]) { deviceSessions.shared.seedRunMemo(ops) }
+
+    /// この run の run メモの今の値(afterRun が読む。`run` が終わった後に)
+    public func runMemoSnapshot() -> [String: [String]] { deviceSessions.shared.runMemoSnapshot() }
+
     public func requestInterrupt() {
         Task { await interruptRequested.request() }
         let source = pullInterrupt.withLock { p -> (any ScenarioPullSource)? in
@@ -1283,8 +1269,10 @@ public final class RunOrchestrator: Sendable {
     ///   外の配り手から1本ずつもらう。total は配られた本数)/ `.broadcast`(レーン別キュー。
     ///   `fleetest run --broadcast`)。**違うのはキューの切り方と、ワーカーがどのキューを
     ///   取るかだけ** —— スタッガ・CPU 門・復帰・lease・録画・ドレインは同じ経路を通る
+    /// - startGate: 親の開始の行を待つ関数(nil = 待たない)。詳細は `awaitStartGate`
     public func run(items: [ScenarioRunItem], defaultPlatform: String,
-                    dispatch: ScenarioDispatch = .shared) async -> RunSummary {
+                    dispatch: ScenarioDispatch = .shared,
+                    startGate: (@Sendable () async -> WorkQueueProtocol.StartSignal)? = nil) async -> RunSummary {
         // Vision の特徴量の救済用の補助プロセス(run / api run / リモートのランナー機の run が共有する唯一の入口。
         // デバッグ実行では起こさない)。見本を持たないプロジェクトでは何も起こらない(VisionHelperHost)
         if case .broadcast = dispatch { detachesRendering.withLock { $0 = false } }
@@ -1434,6 +1422,8 @@ public final class RunOrchestrator: Sendable {
                 }
             } : nil
 
+        await awaitStartGate(startGate)
+
         failed += await withTaskGroup(of: Int.self, returning: Int.self) { group in
             // **ワーカーは一斉に起こさない**。各シナリオは `condition { launchApp() }`
             // から始まるので、N 本のワーカーを同時に積むと**最初の launch が N 本同時**に走る。
@@ -1519,7 +1509,9 @@ public final class RunOrchestrator: Sendable {
         // そのデバイスの lease は runWorker が外し済みなので、走らせる間だけ取り直す(モニターを割り込ませない)
         // 遅延参加の中止は利用者の中断ではない(走り終えたレーンの afterAll は撃つ)
         let abortReason = lateJoinAbort.withLock { $0 }
-        if await !stoppedByUser() {
+        let startCancelReason = startCancelled.value
+        let cancelledBeforeStart = startCancelReason != nil
+        if await !stoppedByUser(), !cancelledBeforeStart {
             let lanes = finishedLanes.withLock { $0 }
             // 選んだデバイスの名前(runAfterAlls はクラスごとに target を1回ずつ申告順に呼び、結果も同じ順で返す)
             let chosenLabels = LockedValue<[String]>([])
@@ -1578,6 +1570,7 @@ public final class RunOrchestrator: Sendable {
                 drain.reason = RunRecorder.interruptedBeforeStartReason
             }
             while let item = await queue.nextLocal() {
+                if cancelledBeforeStart { continue }
                 continuation.yield(.flowSkipped(flowURL: item.url, reason: drain.reason))
                 recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title,
                                         platform: drain.platform, worker: drain.worker,
@@ -1601,7 +1594,8 @@ public final class RunOrchestrator: Sendable {
                                  fmUnavailableScenarios: await fmUnavailable.snapshot(),
                                  workerAnomalies: await anomalies.snapshot(),
                                  interrupted: interrupted,
-                                 abortReason: abortReason)
+                                 abortReason: abortReason,
+                                 startCancelled: startCancelReason)
         continuation.yield(.runFinished(passed: summary.passed, failed: summary.failed,
                                         skipped: summary.skipped))
         continuation.finish()

@@ -27,20 +27,21 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
 ### The memo (`writeMemo` etc.)
 
 - It exists only in one test: `beforeEach()`, the body and `afterEach()` share it, and the next test starts with an empty memo. It is never passed to another scenario.
-- **Reading and writing it outside a test fails** — in `beforeAll()`, `setUpDevice()`, `tearDownDevice()` and `afterAll()` (it is stopped even when made through a helper function).
+- **Reading and writing it outside a test fails** — in `beforeAll()`, `setUpDevice()`, `tearDownDevice()`, `afterAll()`, `beforeRun()` and `afterRun()` (it is stopped even when made through a helper function).
   The error tells you to use `writeRunMemo` / `readRunMemo` to share a value across the run.
 
 ### The run memo (`writeRunMemo` etc.)
 
 - It is shared by **every scenario of the run, on every device and, in a run that spans machines, across the machines too**. Nothing carries over to the next run.
   A single invocation (an MCP call, or running the scenario runner by hand) starts with an empty run memo.
-- The reliable pattern is **write with `writeRunMemo` in `beforeAll()`, read with `readRunMemo` in each test**: `beforeAll()` runs once per
-  run per class (once per machine in a run that spans machines), before any scenario of that class on that machine's devices (other devices wait until it
-  finishes), so the value exists wherever the scenarios land.
+- The reliable pattern is **write with `writeRunMemo` in `beforeRun()` of an [`@RunHooks`](../testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun) class, read with `readRunMemo` in each test**:
+  `beforeRun()` runs once per run, before any scenario on any machine, so every test sees the value from its first line. For a value that needs the app or the machine, write it in `beforeAll()` instead (it is per class, and once per machine in a run that spans machines, so do not use it for a run-wide value):
+  it runs once per run per class (once per machine in a run that spans machines), before any scenario of that class on that machine's devices (other devices wait until it finishes).
+- `afterRun()` can read the run memo (the final values) but cannot write it, like `afterAll()`. `beforeRun()` and `afterRun()` cannot use the per-test memo (`writeMemo` etc.) either.
 - **To pass a value from one `@Test` to another, use a `@RunInOrder` class and `writeRunMemo` in the earlier test.** In any other class neither the order nor the device is
   fixed ([Running a class in one place or in order](../testclass/creating_testclass.md#running-a-class-in-one-place-or-in-order-runonsinglemachine--runonsingledevice--runinorder)).
-- **Writing the run memo (`writeRunMemo`, `runMemoTextAs`, `clearRunMemo`) in `setUpDevice()`, `tearDownDevice()` or `afterAll()` fails.** A write in
-  `setUpDevice()` is overwritten by other devices' values, and nobody reads a write made in `tearDownDevice()` or `afterAll()`. Reading is fine
+- **Writing the run memo (`writeRunMemo`, `runMemoTextAs`, `clearRunMemo`) in `setUpDevice()`, `tearDownDevice()`, `afterAll()` or `afterRun()` fails.** (`beforeRun()` can write.) A write in
+  `setUpDevice()` is overwritten by other devices' values, and a write made in `tearDownDevice()`, `afterAll()` or `afterRun()` comes after the tests have finished, so no test reads it. Reading is fine
   (`afterAll()` runs after every device has finished the run, so it sees the final values). `readRunMemo` on a missing key still returns `""`.
 - A scenario sees the run memo as it was **when the scenario started** (plus what it writes itself) — values another device writes while it runs are not visible to it.
 - **Across machines a write reaches the other machines a little later.** A machine sees its own write from the next scenario on; the other machines see it
@@ -49,7 +50,8 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
   between your read and your write, or about which of two simultaneous writes to one key comes last. **Write each key from one place** — make the key per test
   (for example `"orderId_S0010"`). When you need real exclusion (a counter, a "claim this item" step), use the database of your test server.
 - `clearRunMemo()` clears the run memo as it stands at that point, including your own writes not yet confirmed.
-- **In a `--fleet` run (without `--split`) the run memo is shared per machine, not across machines.** The run prints one line at the start saying so.
+- **In a run whose run profile has devices on several machines** (and a run sent to another machine with `--runner`), the run memo is one memo across the machines.
+  **The exception is a `--fleet` run**: with or without `--split`, its run memo is shared per machine, not across machines (the run prints one line at the start saying so).
 - Trying to pass a value through a test-class property (`var`) produces a build warning when the writer
   and the reader run in different processes — written in one `@Test` and read in another, or written in
   `beforeAll()` and read in the tests. Writing in `beforeEach()` and reading in the same test or

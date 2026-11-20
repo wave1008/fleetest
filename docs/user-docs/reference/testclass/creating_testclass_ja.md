@@ -77,8 +77,9 @@ class ログインテスト {
 困る後処理をここに置きます。
 
 `func beforeAll()`(任意)は、**1回の run × 1クラスで1回だけ**(マシンをまたぐ run ではマシンごとに1回)、そのクラスのどのシナリオよりも前に
-(どのデバイスでも)自動実行されます。run 全体で共有する準備(テストデータの作成と、できた値の `writeRunMemo` など。
-[メモ](../commands/memo_ja.md))に使います。そのクラスのシナリオを受け取った他のデバイスは終わるまで待ちます。
+(どのデバイスでも)自動実行されます。クラス単位の準備(そのクラスのテストデータの作成など。`writeRunMemo` で書いた値は共有されます。
+[メモ](../commands/memo_ja.md))に使います。run 全体で1回だけ行う準備は
+[`beforeRun()`](#run-全体の準備と片付けrunhooks--beforerun--afterrun) に書きます。そのクラスのシナリオを受け取った他のデバイスは終わるまで待ちます。
 失敗すると、その run のそのクラスの残りのシナリオは実行されずに失敗として記録されます。
 
 `func afterAll()`(任意)は、**1回の run × 1クラスで1回だけ**(マシンをまたぐ run ではマシンごとに1回)、run の全デバイスの仕事が終わった後に
@@ -95,6 +96,58 @@ class ログインテスト {
 そのクラスのシナリオが1本でも走っていれば**1回だけ**自動実行されます。`setUpDevice()` で用意したものの片付けに
 使います(`setUpDevice()` が失敗していても走ります)。デバイスが途中で使えなくなった場合や、run を中断した場合は
 走りません。結果は run のログとレポートに残りますが、テストの合否には数えません。
+
+## run 全体の準備と片付け(@RunHooks / beforeRun / afterRun)
+
+`beforeAll()` はクラスごとに(複数のマシンにまたがる run ではマシンごとに)走ります。**run 全体で1回だけ**、どのマシンのどのシナリオよりも前に、
+またすべての仕事が終わった後に行いたいこと(全マシンが共有するサーバーの初期化、全テストが読む値の用意など)は、`@RunHooks` を付けたクラスに書きます。
+
+```swift
+@RunHooks
+class RunWide {
+    func beforeRun() {
+        let response = httpRequest("https://test-server.example.com/login")
+        response.status.thisIs(200)
+        writeRunMemo("token", response.text)
+    }
+
+    func afterRun() {
+        // 最終の run メモを読めます(書くことはできません)
+        let response = httpRequest("https://test-server.example.com/cleanup?token=\(readRunMemo("token"))")
+        response.status.thisIs(200)
+    }
+}
+```
+
+- `beforeRun()` と `afterRun()` は、どちらか片方だけでも書けます。引数なし・`async` でも `throws` でもない形(`func beforeRun()`)だけで、それ以外はコンパイルエラーです。`@RunHooks` のクラスは**プロジェクトに1つだけ**です(2つ以上だと run の開始前に
+  エラーになります。dry-run も同じです)。同じクラスを `@TestClass` にすることはできません。
+- **走る場所と回数**: **1回の run × 1プロジェクトで1回**、fleetest を起動したマシンで走ります(`run --runner <マシン>` ではランナー機)。
+  複数のマシンにまたがる run でも1回です。どのマシンで走ったかを示す1行が run のログに出ます。`beforeRun()` は、どのマシンでもシナリオが始まる前に終わります。
+  **デバッグ実行・プロファイルなしの run・dry-run では走りません。** `fleetest run --profile ...`・`fleetest api run --profile ...`・MCP `ft_run_scenario` の毎回の呼び出しでは走ります。
+  それぞれ別のプロセスで走るので、**`beforeRun()` から `afterRun()` へクラスの `var` で値は渡せません**。run メモを使います。
+- **使えるもの**: run メモ(`writeRunMemo` / `readRunMemo`。`beforeRun()` で書いた値は全テストが最初の行から読めます)・`httpRequest`・`data()` / `account()`・`wait`・値の検証(`thisIs` など)。
+  `httpRequest` は、宛先が走ったマシンの `allowedDomains` に入っていないと断られます(→ [サンドボックス](../../security/sandbox_ja.md)。例のように `response.status` を確かめます)。
+  **デバイスを操作するコマンドは失敗になります**(エラーにコマンド名が出ます)。**compose.yaml のサーバーには届きません**(マシンごとにあるため)。
+  宛先の許可(`allowedDomains`)とデータセットのマシンごとの上書きは**走ったマシンの設定**で、テストを走らせるマシンのものとは違うことがあります。
+- **`beforeRun()` が失敗すると run は止まります**: シナリオは1本も流れず、終了コード 1 で終わり、理由が run の結果に残ります(失敗したテストとしては記録しません)。
+- **`afterRun()` は走れたら走ります**: 全マシンの仕事(各 `afterAll()` を含む)が終わった後に、`beforeRun()` が失敗していても・テストが失敗していても走るので、
+  途中まで作った分を片付けられます(赤の run でも走ります)。**run を中断したとき・どこかのマシンの run が異常終了したときは走りません**(「afterRun did not run: ...」と1行出ます)。
+  結果は run のログとレポートに残りますが、テストの合否には数えません。片付けを合否の前提にしないでください。
+- **シナリオが0本の run と `--fleet` の run は対象外です**: シナリオが1本も走らない run では走りません。`@RunHooks` があるプロジェクトの `--fleet` は開始時に断られます。
+- **MCP**: `ft_run_scenario` も1回の run なので、呼び出しのたびにフックが走ります。
+- **共有サーバーを初期化する `beforeRun()` は、同じサーバーを同時に使っている別の run(別のターミナル・拡張・MCP)を壊すことがあります。** 別に走っている run は守られません。
+- **`run-setup.sh` / `run-teardown.sh` との順序**: 1台のマシンの run では、`run-setup.sh` が終わってから、最初のシナリオの直前に `beforeRun()` が走ります。`afterRun()` はテストと `afterAll()` の後に走り、その後に `run-teardown.sh` が走ります。
+  マシンをまたぐ run では、`beforeRun()` は他のマシンが準備している間に走るので、各マシンの `run-setup.sh` との前後は決まっていません。`afterRun()` は全マシンの `run-teardown.sh` が終わった後に走ります。
+
+使い分け:
+
+| | `beforeRun()` / `afterRun()` | `beforeAll()` / `afterAll()` | `setUpDevice()` / `tearDownDevice()` | `run-setup.sh` / `run-teardown.sh` |
+|---|---|---|---|---|
+| 回数 | 1回の run × プロジェクトで1回 | 1回の run × クラスで1回(複数マシンの run ではマシンごと) | 1回の run × デバイス × クラスで1回 | マシンごとに1回 |
+| 走る場所 | fleetest を起動したマシン | そのクラスのシナリオが走る各マシン | そのデバイス | 各マシン |
+| デバイスのコマンド | 使えない | 使える | 使える | 使えない(スクリプト) |
+| compose.yaml のサーバー | 届かない | 届く | 届く | サーバーの起動の前後(→ [サーバー](../writing/services_ja.md)) |
+| 向いていること | 全マシンが共有するサーバー・run メモの値の用意 | アプリやそのマシンのサーバーが要るクラス単位の準備 | デバイスごとの準備(言語・権限) | マシンごとの準備 |
 
 ## クラスのテストを1か所で・順番に流す(@RunOnSingleMachine / @RunOnSingleDevice / @RunInOrder)
 
@@ -179,6 +232,10 @@ class 注文フロー {
 - `@RunOnSingleMachine` はマシン間で負荷を分けられなくなります。`beforeAll()` やデータを1つにまとめたいときだけ使い、寄せる先はコードに書けません(最初の1本を受け取ったマシンに寄ります)。
 - `@RunOnSingleDevice` はそのクラスの並列が無くなり、順番も決まっていません。防げるのはそのクラスの中の同時実行だけで、同じアカウントを別のクラスも使えばぶつかります。
 - `@RunInOrder` は並列化を妨げ、失敗すると残りは実行されず、再テストもクラスの最初からになります。まず1つの `@Test` にまとめられないかを考え、`@Order` は全テストに必須(整数・重複不可)で、選べるのはクラス全体か先頭から連続した範囲だけです。
+- `beforeRun()` / `afterRun()` はデバッグ実行・プロファイルなしの run・dry-run では走らず、クラスの `var` では値を渡し合えません(別のプロセス)。run メモを使います。
+- `beforeRun()` はデバイスも compose.yaml のサーバーも使えず、宛先の許可とデータセットの上書きは走ったマシンのものです。マシンごとの準備は `run-setup.sh` / `beforeAll()` に置きます。
+- `afterRun()` はテストが失敗した run でも走ります(中断・異常終了では走らず、合否にも数えません)。合否の前提にしないでください。`@RunHooks` があるプロジェクトの `--fleet` は断られます。
+- 共有サーバーを初期化する `beforeRun()` は、同じサーバーを同時に使う別の run を壊すことがあります(MCP は `ft_run_scenario` の呼び出しごとに `beforeRun()` が走ります)。他の run が動いていても壊れない形で書きます。
 
 ### Link
 - [index](../../index_ja.md)

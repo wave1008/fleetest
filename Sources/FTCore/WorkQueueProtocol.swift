@@ -3,6 +3,8 @@
 // ssh -tt を通る(端末の行規律に載る)ので、1行は短く保つ(シナリオ ID 1つ)・改行を含めない。
 // 同じ口に run メモ(DR-208)の行も載る: 子 → 親は `memoHello`(起動の知らせ)と `memo`(書き込みの断片。seq 無し)、
 // 親 → 子は `memo`(発行元が通し番号 seq を振って全マシンへ配り返す断片)。符号化は RunMemoStore.swift の RunMemoWire。
+// 親 → 子にはもう1種類: 開始の行 `{"ftWork":{"op":"start"}}` と取りやめの行 `{"ftWork":{"op":"cancel","reason":"…"}}`(RR-8.4)。
+// 子は開始の行を受けるまでシナリオを流し始めない(StartGate)。
 
 import Foundation
 
@@ -77,6 +79,20 @@ public enum WorkQueueProtocol {
         }
     }
 
+    /// 親 → 子。子がシナリオを流し始めてよいか(`start`)、1本も流さずに終わるか(`cancel` + 理由)
+    public enum StartSignal: Equatable, Sendable {
+        case start
+        case cancel(reason: String)
+    }
+
+    /// 取りやめの理由の最大文字数。根拠: 1行は ssh -tt の行規律の約 1024 バイトに収める(日本語など3バイト文字で 3 倍・印と JSON の括りで約 50 バイト)
+    public static let maxCancelReasonCharacters = 200
+
+    struct StartBody: Codable, Equatable {
+        let op: String
+        let reason: String?
+    }
+
     private struct Envelope<Body: Codable>: Codable { let ftWork: Body }
 
     /// 行の先頭の印。`isWorkLine` の判定と、中継(表示・NDJSON から抜く / 透過する)が共有する
@@ -88,6 +104,18 @@ public enum WorkQueueProtocol {
     public static func encode(_ reply: Reply) -> String { encodeBody(reply) }
     public static func encode(_ piece: MemoPiece) -> String { encodeBody(piece) }
     public static func encode(_ hello: MemoHello) -> String { encodeBody(hello) }
+
+    /// 開始・取りやめの行。理由は改行を空白に直して `maxCancelReasonCharacters` で切る(空なら "cancelled")
+    public static func encode(_ signal: StartSignal) -> String {
+        switch signal {
+        case .start:
+            return encodeBody(StartBody(op: "start", reason: nil))
+        case .cancel(let reason):
+            let flat = String(reason.map { $0.isNewline ? " " : $0 }.prefix(maxCancelReasonCharacters))
+            let trimmed = flat.trimmingCharacters(in: .whitespaces)
+            return encodeBody(StartBody(op: "cancel", reason: trimmed.isEmpty ? "cancelled" : trimmed))
+        }
+    }
 
     private static func encodeBody<Body: Codable>(_ body: Body) -> String {
         let encoder = JSONEncoder()
@@ -119,6 +147,16 @@ public enum WorkQueueProtocol {
     public static func decodeMemoHello(_ line: String) -> MemoHello? {
         guard isWorkLine(line), let hello = decodeBody(MemoHello.self, line), hello.op == "memoHello" else { return nil }
         return hello
+    }
+
+    /// `start` / `cancel` 以外の行・壊れた行は nil
+    public static func decodeStartSignal(_ line: String) -> StartSignal? {
+        guard isWorkLine(line), let body = decodeBody(StartBody.self, line) else { return nil }
+        switch body.op {
+        case "start": return .start
+        case "cancel": return .cancel(reason: body.reason ?? "cancelled")
+        default: return nil
+        }
     }
 
     private static func decodeBody<Body: Codable>(_ type: Body.Type, _ line: String) -> Body? {

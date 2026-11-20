@@ -13,31 +13,33 @@ struct RunMemoRelay: Sendable {
     let hub: RunMemoHub
     let writers: [Int: ChildStdinWriter]
 
-    /// `writers` のキー = 子のエントリ番号(DynamicDispatcher のエントリと同じ)
-    init(writers: [Int: ChildStdinWriter]) {
+    /// `writers` のキー = 子のエントリ番号(DynamicDispatcher のエントリと同じ)。対象が1つなので hub の鍵の target は "" 。
+    /// `gateMode` の既定 `startOnHello` = 起動の知らせを受けたらすぐ開始の行を送る(開始を決める呼び出しを配線するまでの形)
+    init(writers: [Int: ChildStdinWriter], gateMode: RunMemoHub.GateMode) {
         self.writers = writers
-        hub = RunMemoHub(send: { entry, lines in
-            writers[entry]?.write(line: lines.joined(separator: "\n"))
+        hub = RunMemoHub(mode: gateMode, send: { child, lines in
+            writers[child.entry]?.write(line: lines.joined(separator: "\n"))
         })
     }
 
     /// 子の標準出力の1行を受ける共通の口。戻り値 true = 消費した(表示しない)。行末の `\r`(pty)は落としてから見る
     func intercept(line: String, entry: Int, dispatcher: DynamicDispatcher?) -> Bool {
-        Self.intercept(line: line, hub: hub, entry: entry, dispatcher: dispatcher, writer: writers[entry])
+        Self.intercept(line: line, hub: hub, child: RunMemoHub.Child(target: "", entry: entry),
+                       dispatcher: dispatcher, writer: writers[entry])
     }
 
     /// 書き込み口を子ごとの表で持たない発行元(MultiTargetRunner = 対象ごとに hub を持つ)用の同じ判定
-    static func intercept(line: String, hub: RunMemoHub, entry: Int,
+    static func intercept(line: String, hub: RunMemoHub, child: RunMemoHub.Child,
                           dispatcher: DynamicDispatcher?, writer: ChildStdinWriter?) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard WorkQueueProtocol.isWorkLine(trimmed) else { return false }
-        if hub.receive(line: trimmed, fromEntry: entry) { return true }
+        if hub.receive(line: trimmed, from: child) { return true }
         if let dispatcher, let writer {
-            return dispatcher.intercept(line: trimmed, entry: entry, writer: writer)
+            return dispatcher.intercept(line: trimmed, entry: child.entry, writer: writer)
         }
         return true
     }
 
     /// 子が終わった(以後は配らない)
-    func childExited(entry: Int) { hub.entryExited(entry) }
+    func childExited(entry: Int) { hub.entryExited(RunMemoHub.Child(target: "", entry: entry)) }
 }

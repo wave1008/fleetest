@@ -317,6 +317,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
         // ここから先は手元の run = 揃える・照合する宛先が無い
         try common.rejectToolSyncOutsideSingleRemote()
+        // 親とつながった子は、ビルドと供給より前に起動を知らせる(親が開始を決める材料。開始を待つのは流し始める直前)
+        ParentLink.announce()
 
         if !dryRun {
             try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios, requireSingle: debug)
@@ -557,11 +559,22 @@ struct ApiRunCommand: AsyncParsableCommand {
             throw RunInterruptedBeforeStartError(phase: "after the scenario build")
         }
 
-        let all = try ScenarioHost.listForRun(
+        let listing = try ScenarioHost.listForRun(
             project: testProject, dryRun: dryRun,
             compilesOCR: ScenarioHost.ocrCompileNeeded(
                 fmTextVisibilityCheck: resolvedProfile?.fm.fmTextVisibilityCheck ?? noProfileSettings.fm.fmTextVisibilityCheck,
                 ocrTextVisibilityCheck: resolvedProfile?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck))
+        let all = listing.scenarios
+        // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
+        let runHooksClass = listing.runHooksClass
+        // プロファイル無しの run とデバッグ実行は beforeRun / afterRun を走らせない(`fleetest run` と同じ。宣言があることだけ言う)
+        if runHooksClass != nil, !ParentLink.isLinked {
+            if debugOptions != nil {
+                logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a debug run"))
+            } else if resolvedProfile == nil {
+                logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a run without --profile"))
+            }
+        }
         // FM の常駐プロセス(画像を伴う FM の呼び出しを1つのプロセスに集める。FTCore/FMServe.swift 冒頭)。
         // シナリオのプロセスを起こす前に用意する(子の環境とサンドボックスの許可がソケットのパスを読む)
         let fmForServe = resolvedProfile?.fm ?? noProfileSettings.fm
@@ -703,7 +716,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                         hasLateIOS: hasLateIOS))
                     responseTrace = await ResponseTraceSession.startIfNeeded(resolved: resolvedProfile) { logStderr($0) }
                     outcome = try await runWithProfileParallel(
-                        resolved: resolvedProfile, project: testProject, selected: selected,
+                        resolved: resolvedProfile, project: testProject, selected: selected, runHooksClass: runHooksClass,
                         workers: androidWorkers + eagerIOSWorkers, iosWorkersTask: effectiveIosWorkersTask,
                         recorder: recorder, supplyLease: supplyLease, supplyProgress: supplyProgress,
                         interruptState: interruptState)
@@ -750,7 +763,9 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 赤の run はサービスのログの末尾も記録へ(ProfileRunner.run と同じ。片付けの前に読む)
         if outcome.failed > 0, let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
         // effectiveSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
-        let slowWorkers = recorder?.finish(total: selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
+        // beforeRun の失敗(自分の・親の取りやめ)で1本も流さなかった run は、流さなかった分を未実行の本数に数えない
+        let nothingRan = outcome.beforeRunFailed || outcome.startCancelled != nil
+        let slowWorkers = recorder?.finish(total: nothingRan ? 0 : selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
                          degradedWorkers: outcome.degradedWorkers,
                          freezeRetries: outcome.freezeRetries,
                          blankRepairs: outcome.blankRepairs,
@@ -788,7 +803,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                                     project: testProject) { logStderr($0) }
         }
         emitLine(ApiRunFinishedEvent(passed: outcome.passed, failed: outcome.failed,
-                                     skipped: outcome.skipped + declaredNotApplicableCount,
+                                     skipped: outcome.skipped + (nothingRan ? 0 : declaredNotApplicableCount),
                                      testSeconds: outcome.testSeconds,
                                      scenarioTotalSeconds: outcome.scenarioTotalSeconds,
                                      runID: recorder?.runID))
@@ -799,7 +814,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             RunCompletionSweep.spawn(activeRunID: recorder.runID) { logStderr($0) }
         }
 
-        if outcome.failed > 0 {
+        // 親の取りやめ(beforeRun の失敗)で1本も流さなかった子は赤として終わる(失敗の数には数えない)
+        if outcome.failed > 0 || nothingRan {
             throw ExitCode(1)
         }
     }
@@ -1237,7 +1253,7 @@ struct ApiRunCommand: AsyncParsableCommand {
     /// ScenarioEvent 相当の NDJSON 行に変換する(失われる情報がある点に注意)。
     /// workers はビルドと並行して呼び出し側(run())が先行構築済みのもの
     private func runWithProfileParallel(
-        resolved: ResolvedProfile, project: TestProject, selected: [ScenarioInfo],
+        resolved: ResolvedProfile, project: TestProject, selected: [ScenarioInfo], runHooksClass: String?,
         workers: [RunWorker], iosWorkersTask: Task<[RunWorker], Never>?, recorder: RunRecorder?,
         supplyLease: SupplyLeaseHolder?, supplyProgress: RunSupplyProgress, interruptState: RunInterruptState
     ) async throws -> RunOutcome {
@@ -1263,6 +1279,20 @@ struct ApiRunCommand: AsyncParsableCommand {
         // シナリオが platform 未指定のときの既定 platform(台数の見積り・`fleetest run` と同じ規則。
         // iOS は遅延参加なのでワーカーではなくデバイス構成から決める)
         let defaultPlatform = resolved.undeclaredScenarioPlatform
+
+        // beforeRun(RR-8.4): どのレーンもシナリオを流し始める前に1回(供給は並行で進んでいる)。失敗なら1本も流さず専用の終わり方。
+        // afterRun は失敗でも走る。親とつながった子・0本の run では走らせない(判断は RunWideHookPlan の1箇所)
+        let runHooks = await SingleMachineRunHooks.begin(
+            hooksClass: runHooksClass, scenarioCount: selected.count, dryRun: false, project: project,
+            settings: ScenarioExecutionSettings(resolved), reportDir: reportDirURL.path,
+            profileScenarioTimeout: resolved.scenarioTimeout, interruptState: interruptState,
+            log: { logStderr($0) })
+        if let abortReason = runHooks.abortReason {
+            await runHooks.finish(runMemo: RunWideHookPlan.memoValues(afterOps: runHooks.seedOps),
+                                  interruptState: interruptState, log: { logStderr($0) })
+            return RunOutcome(passed: 0, failed: 0, skipped: 0, interrupted: interruptState.isStopped,
+                              abortReason: abortReason, beforeRunFailed: true)
+        }
 
         // 長いシナリオを先に流すと末尾の遊休が減る(LPTOrdering。--no-lpt で元の ID 順)
         let lptItems = LPTOrdering.apply(selected.map { ScenarioRunItem(info: $0) },
@@ -1328,6 +1358,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 中断口を合流させる(**新しい InterruptRelay は登録しない** —— 1プロセス1組。
         // 供給中に既に中断済みならここで即 orchestrator.requestInterrupt() が呼ばれる)
         interruptState.attachLateSubscriber { orchestrator.requestInterrupt() }
+        orchestrator.seedRunMemo(runHooks.seedOps)
         // ここから先は RunOrchestrator.run() が必ず finish() まで進む(non-throwing)ので、
         // "preparing" の後始末は orchestrator 側の finish()/remove に委ねる
         progressHandedToOrchestrator = true
@@ -1335,7 +1366,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         defer { pullSource?.restoreTerminal() }
         async let summary = orchestrator.run(
             items: items, defaultPlatform: defaultPlatform,
-            dispatch: pullSource.map { ScenarioDispatch.pulled(source: $0) } ?? .shared)
+            dispatch: pullSource.map { ScenarioDispatch.pulled(source: $0) } ?? .shared,
+            startGate: ParentLink.startGate())
 
         var timing = ScenarioTimingTracker()
         for await event in orchestrator.events {
@@ -1346,6 +1378,9 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
 
         let result = await summary
+        // afterRun(afterAll の後。中断された run では走らせず理由を1行言う = RunWideHookPlan。失敗は合否に数えない)
+        await runHooks.finish(runMemo: orchestrator.runMemoSnapshot(), interruptState: interruptState,
+                              log: { logStderr($0) })
         return RunOutcome(passed: result.passed, failed: result.failed, skipped: result.skipped,
                           testSeconds: timing.testSeconds,
                           scenarioTotalSeconds: timing.scenarioTotalSeconds,
@@ -1353,7 +1388,8 @@ struct ApiRunCommand: AsyncParsableCommand {
                           freezeRetries: result.freezeRetries,
                           workerAnomalies: result.workerAnomalies,
                           interrupted: result.interrupted,
-                          abortReason: result.abortReason)
+                          abortReason: result.abortReason,
+                          startCancelled: result.startCancelled)
     }
 
     /// workersReady の devices 配列を組み立てる(id 形式は ApiWorkersReadyEvent 参照)

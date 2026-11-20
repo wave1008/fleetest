@@ -267,6 +267,10 @@
 - [テストは他のテストが作ったデータに頼らない](../writing/test_data_placement_ja.md#注意点) — 書き換えるデータは自分専用のアカウント・一意な名前で `beforeEach()` か `condition` に用意します。
 - [run-setup.sh と beforeAll() は何度走っても・同時に走っても壊れない形で書く](../writing/test_data_placement_ja.md#注意点) — 「無ければ作る」は良く、「全部消して入れ直す」は共有サーバーで互いのデータを消します。
 - [片付けを合否の前提にしない](../writing/test_data_placement_ja.md#注意点) — 自分が作ったものだけを消し、残っても合否に響かないようにします。
+- [beforeRun() / afterRun() はデバッグ実行・プロファイルなしの run・dry-run では走らない](../testclass/creating_testclass_ja.md#注意点) — クラスの `var` では値を渡し合えません(別のプロセス)。run メモを使います。
+- [beforeRun() はデバイスも compose.yaml のサーバーも使えない](../testclass/creating_testclass_ja.md#注意点) — 1回の run で fleetest を起動したマシンで1回走り、宛先の許可とデータセットの上書きはそのマシンのものです。マシンごとの準備は `run-setup.sh` / `beforeAll()` に置きます。
+- [afterRun() は失敗した run でも走る](../testclass/creating_testclass_ja.md#注意点) — 中断・異常終了のときだけ走らず、合否にも数えません。`@RunHooks` があるプロジェクトの `--fleet` は断られます。
+- [共有サーバーを初期化する beforeRun() は、同時に使う別の run を壊すことがある](../testclass/creating_testclass_ja.md#注意点) — MCP は `ft_run_scenario` の呼び出しごとに走ります。他の run が動いていても壊れない形で書きます。
 - [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときだけ使います。
 - [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
 - [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。

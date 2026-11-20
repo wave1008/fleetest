@@ -772,6 +772,8 @@ async function executeRun(
   let sawEnd = false;
   // 異常終了・キャンセル時に未終端項目へ付けるメッセージ(正常終了時は undefined)。
   let abnormalMessage: string | undefined;
+  // CLI が stderr に出す「❌ Run stopped: <理由>」(beforeRun の失敗など、1本も流さずに止めた理由)。NDJSON の欄は増やさず、未終端の項目の失敗の文言に使う
+  let runStoppedReason: string | undefined;
   let reducerState = createRunReducerState();
   // workersReady(並列実行時のみ)で埋まる worker id → デバイス名。output のプレフィックスに使う。
   const workerNames = new Map<string, string>();
@@ -907,6 +909,10 @@ async function executeRun(
       onLog: (line, stream) => {
         outputChannel.appendLine(`[${stream}] ${line}`);
         if (stream === "stderr") {
+          const stopped = /Run stopped:\s*(.+)$/.exec(line);
+          if (stopped) {
+            runStoppedReason = stopped[1];
+          }
           stderrTail.push(line);
           if (stderrTail.length > 8) {
             stderrTail.shift();
@@ -946,7 +952,7 @@ async function executeRun(
       } else {
         run.errored(
           item,
-          new vscode.TestMessage(abnormalMessage ?? t("run.result.missing")),
+          new vscode.TestMessage(abnormalMessage ?? runStoppedReason ?? t("run.result.missing")),
         );
       }
     }

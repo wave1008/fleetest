@@ -17,14 +17,14 @@ final class RunMemoHubTests: XCTestCase {
         private let holding = LockedValue(false)
         let sentLines = LockedValue<[(entry: Int, lines: [String])]>([])
 
-        init(machines: Int) {
+        init(machines: Int, mode: RunMemoHub.GateMode = .startOnHello) {
             let box = Box()
-            hub = RunMemoHub(send: { entry, lines in box.send(entry, lines) })
+            hub = RunMemoHub(mode: mode, send: { child, lines in box.send(child.entry, lines) })
             for entry in 0..<machines {
                 let link = RunMemoLink(
                     source: "m\(entry)",
                     send: { [hub] text in
-                        for line in text.split(separator: "\n") { hub.receive(line: String(line), fromEntry: entry) }
+                        for line in text.split(separator: "\n") { hub.receive(line: String(line), from: RunMemoHub.Child(target: "", entry: entry)) }
                     },
                     warn: { _ in })
                 links.append(link)
@@ -59,7 +59,7 @@ final class RunMemoHubTests: XCTestCase {
         }
 
         func hello(_ entry: Int) { links[entry].hello() }
-        func settle() { hub.flush() }
+        func settle() {}
     }
 
     /// 起動を知らせた全マシンへ(書いたマシンにも)通し番号の順で配り返され、全マシンの履歴が同じ順にそろう
@@ -140,7 +140,9 @@ final class RunMemoHubTests: XCTestCase {
     func testExitedEntryIsNoLongerSentTo() {
         let cluster = Cluster(machines: 2)
         for entry in 0..<2 { cluster.hello(entry) }
-        cluster.hub.entryExited(1)
+        cluster.settle()
+        cluster.sentLines.withLock { $0.removeAll() }  // hello への開始の行は数えない(見るのは終わった後の配り)
+        cluster.hub.entryExited(RunMemoHub.Child(target: "", entry: 1))
         cluster.stores[0].write(key: "k", value: "v")
         cluster.settle()
         XCTAssertFalse(cluster.sentLines.withLock { $0.contains { $0.entry == 1 } })
@@ -148,31 +150,138 @@ final class RunMemoHubTests: XCTestCase {
 
     /// memo 以外の行は消費しない(呼び手が配り手へ回す)。端末のエコーで戻ってきた seq 付きの行は消費だけして読まない
     func testHubOnlyConsumesMemoLinesAndIgnoresEchoedOnes() {
-        let hub = RunMemoHub(send: { _, _ in })
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let zero = RunMemoHub.Child(target: "", entry: 0)
         XCTAssertFalse(hub.receive(
-            line: WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios")), fromEntry: 0))
-        XCTAssertFalse(hub.receive(line: "some log line", fromEntry: 0))
+            line: WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios")), from: zero))
+        XCTAssertFalse(hub.receive(line: "some log line", from: zero))
+        // 開始・取りやめの行の戻り(端末のエコー)も消費だけする
+        XCTAssertTrue(hub.receive(line: WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.start) + "\r", from: zero))
+        XCTAssertTrue(hub.receive(line: WorkQueueProtocol.encode(WorkQueueProtocol.StartSignal.cancel(reason: "x")), from: zero))
         let echoed = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: "x", lid: 1, seq: 5, i: 0, n: 1, d: "e30="))
-        XCTAssertTrue(hub.receive(line: echoed + "\r", fromEntry: 0))
-        hub.flush()
+        XCTAssertTrue(hub.receive(line: echoed + "\r", from: zero))
         XCTAssertEqual(hub.confirmedCount, 0)
         // 壊れた断片(n が 0 など)も消費して捨てる
         let broken = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: "x", lid: 1, seq: nil, i: 0, n: 0, d: ""))
-        XCTAssertTrue(hub.receive(line: broken, fromEntry: 0))
+        XCTAssertTrue(hub.receive(line: broken, from: zero))
         XCTAssertEqual(hub.confirmedCount, 0)
     }
 
     /// 断片が全部そろうまでは確定しない(途中の断片だけでは通し番号を振らない)
     func testPartialPiecesDoNotConfirm() {
-        let hub = RunMemoHub(send: { _, _ in })
-        let first = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: "x", lid: 1, seq: nil, i: 0, n: 2, d: "AAAA"))
-        XCTAssertTrue(hub.receive(line: first, fromEntry: 0))
-        XCTAssertEqual(hub.confirmedCount, 0)
-        let second = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: "x", lid: 1, seq: nil, i: 1, n: 2, d: "BBBB"))
-        XCTAssertTrue(hub.receive(line: second, fromEntry: 0))
-        XCTAssertEqual(hub.confirmedCount, 1)
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let zero = RunMemoHub.Child(target: "", entry: 0)
+        let pieces = RunMemoWire.pieces(for: .write(key: "k", value: String(repeating: "v", count: 1000)))
+        XCTAssertEqual(pieces.count, 2 + 1, "断片が3つに割れる大きさの値")
+        for (index, piece) in pieces.enumerated() {
+            let line = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(
+                src: "x", lid: 1, seq: nil, i: index, n: pieces.count, d: piece))
+            XCTAssertTrue(hub.receive(line: line, from: zero))
+            XCTAssertEqual(hub.confirmedCount, index == pieces.count - 1 ? 1 : 0)
+        }
     }
 
+    /// 中身が読めない断片の組には通し番号を振らない(受け手が捨てて番号が抜けるのを防ぐ)
+    func testUnreadablePieceSetIsNotNumbered() {
+        let hub = RunMemoHub(mode: .startOnHello, send: { _, _ in })
+        let line = WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(src: "x", lid: 1, seq: nil, i: 0, n: 1, d: "AAAA"))
+        XCTAssertTrue(hub.receive(line: line, from: RunMemoHub.Child(target: "", entry: 0)))
+        XCTAssertEqual(hub.confirmedCount, 0)
+    }
+
+    // MARK: - 開始の行(RR-8.4)
+
+    private func decoded(_ lines: [String]) -> [String] {
+        lines.map { line in
+            if let signal = WorkQueueProtocol.decodeStartSignal(line) {
+                switch signal {
+                case .start: return "start"
+                case .cancel(let reason): return "cancel:\(reason)"
+                }
+            }
+            if let piece = WorkQueueProtocol.decodeMemoPiece(line) { return "memo#\(piece.seq ?? -1)" }
+            return "?"
+        }
+    }
+
+    /// 開始を決める呼び出しが無い形の既定: 起動の知らせを受けたらすぐ「履歴 → 開始」(既存の run が開始を待って止まらない)
+    func testDefaultModeStartsAChildAsSoonAsItSaysHello() {
+        let cluster = Cluster(machines: 2)
+        cluster.hub.seedConfirmed([.write(key: "k", value: "seed")])
+        cluster.hello(0)
+        cluster.settle()
+        let sent = cluster.sentLines.withLock { $0 }
+        XCTAssertEqual(sent.map(\.entry), [0])
+        XCTAssertEqual(decoded(sent[0].lines), ["memo#1", "start"])
+    }
+
+    /// 決定を待つモード: 決定の前に来た知らせは保留(何も送らない)。決定で「履歴 → 開始」の順に全部の子へ
+    func testAwaitDecisionHoldsHelloUntilTheDecisionThenSendsHistoryBeforeStart() {
+        let cluster = Cluster(machines: 2, mode: .awaitDecision)
+        XCTAssertEqual(cluster.hub.seedConfirmed([.write(key: "a", value: "1"), .write(key: "a", value: "2")]), 2)
+        cluster.hello(0)
+        cluster.hello(1)
+        cluster.settle()
+        XCTAssertTrue(cluster.sentLines.withLock { $0.isEmpty }, "決定の前に開始や履歴を送っている")
+        cluster.hub.decideGate(.start)
+        cluster.settle()
+        let sent = cluster.sentLines.withLock { $0 }
+        XCTAssertEqual(Set(sent.map(\.entry)), [0, 1])
+        for item in sent { XCTAssertEqual(decoded(item.lines), ["memo#1", "memo#2", "start"], "履歴が開始より後ろ") }
+        for store in cluster.stores { XCTAssertEqual(store.snapshot(), ["a": ["1", "2"]]) }
+    }
+
+    /// 決定の後に来た知らせは、その場で「履歴 → 開始」。決定は最初の1回だけ有効
+    func testHelloAfterTheDecisionIsAnsweredAtOnceAndOnlyTheFirstDecisionCounts() {
+        let cluster = Cluster(machines: 2, mode: .awaitDecision)
+        cluster.hub.seedConfirmed([.write(key: "k", value: "v")])
+        cluster.hub.decideGate(.start)
+        cluster.hub.decideGate(.cancel(reason: "late"))
+        cluster.hello(1)
+        cluster.settle()
+        let sent = cluster.sentLines.withLock { $0 }
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertEqual(decoded(sent[0].lines), ["memo#1", "start"])
+    }
+
+    /// 取りやめ: 履歴は送らず取りやめの行だけ・以後その子へ確定を配らない
+    func testCancelSendsOnlyTheCancelLineAndNeverJoinsTheChild() {
+        let cluster = Cluster(machines: 2, mode: .awaitDecision)
+        cluster.hub.seedConfirmed([.write(key: "k", value: "v")])
+        cluster.hello(0)
+        cluster.hub.decideGate(.cancel(reason: "beforeRun() failed"))
+        cluster.hello(1)
+        cluster.settle()
+        let sent = cluster.sentLines.withLock { $0 }
+        XCTAssertEqual(sent.map(\.entry).sorted(), [0, 1])
+        for item in sent { XCTAssertEqual(decoded(item.lines), ["cancel:beforeRun() failed"]) }
+        cluster.hub.seedConfirmed([.write(key: "j", value: "w")])
+        cluster.settle()
+        XCTAssertEqual(cluster.sentLines.withLock { $0.count }, 2, "取りやめた子へ確定を配っている")
+    }
+
+    /// 鍵は (対象, エントリ番号): 別の対象の同じ番号の子が終わっても、走っている子は配り先から外れない
+    func testChildKeyIncludesTheTarget() {
+        let sent = LockedValue<[String]>([])
+        let hub = RunMemoHub(mode: .startOnHello, send: { child, _ in sent.withLock { $0.append("\(child.target)/\(child.entry)") } })
+        let hello = WorkQueueProtocol.encode(WorkQueueProtocol.MemoHello(src: "s"))
+        let a = RunMemoHub.Child(target: "A", entry: 0)
+        let b = RunMemoHub.Child(target: "B", entry: 0)
+        hub.receive(line: hello, from: a)
+        hub.receive(line: hello, from: b)
+        hub.entryExited(b)
+        sent.withLock { $0.removeAll() }
+        hub.seedConfirmed([.write(key: "k", value: "v")])
+        XCTAssertEqual(sent.withLock { $0 }, ["A/0"])
+    }
+
+    /// `beforeRun` の書き込みは通し番号の先頭・読めないものは番号を振らない
+    func testSeedConfirmedNumbersFromTheFrontAndSkipsWhatCannotBeShared() {
+        let hub = RunMemoHub(mode: .awaitDecision, send: { _, _ in })
+        let huge = String(repeating: "x", count: RunMemoWire.pieceCharacters * RunMemoWire.maxPieces)
+        XCTAssertEqual(hub.seedConfirmed([.write(key: "a", value: "1"), .write(key: "big", value: huge), .clear]), 2)
+        XCTAssertEqual(hub.confirmedCount, 2)
+    }
     /// 上限を超える値はマシンをまたがず、そのマシンだけに残る(1行言う)
     func testOversizedValueStaysLocalAndWarns() {
         let warned = LockedValue<[String]>([])

@@ -24,6 +24,8 @@
 - RR-8.1 マシン間でシナリオを1本ずつ配る(動的な割り振り)
 - RR-8.2 複数の対象を1回で回す(run を丸ごと配る段とシナリオを配る段の統合)
 - RR-8.3 クラスを1台のマシン・デバイスへ寄せる(`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder`)
+- RR-8.4 run 全体の準備・片付け(`beforeRun` / `afterRun`)—— 第1段
+- RR-8.5 run 全体のロック(`withExclusiveLock` / `withSharedLock`)—— 第2段
 - RR-11 GUI(vscode-fleetest モニター)への影響
 
 ### [13.md](13.md) — リモート実行: フリート実行と多ホスト GUI(RR-13)

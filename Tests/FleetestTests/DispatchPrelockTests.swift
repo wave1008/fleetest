@@ -644,7 +644,8 @@ final class DispatchPrelockTests: XCTestCase {
         XCTAssertEqual(DispatchPrelock.combinedExitCode([1, 137]), 137)
     }
 
-    /// 1ラベル1子の fan-out は、子が終わるたびに解放を撃つこと(全子の収集後にまとめて撃たない)
+    /// 1ラベル1子の fan-out は、子が終わるたびに解放を撃つこと(全子の収集後にまとめて撃たない)。
+    /// afterRun を撃つ run(RR-8.4)だけは手元のロックを afterRun の後まで持つので、その条件付きの形も受ける(リモートは子ごとに外す)
     func testFanoutsReleaseEachMachineAsItsChildEnds() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -653,7 +654,9 @@ final class DispatchPrelockTests: XCTestCase {
             let text = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
                 .components(separatedBy: .whitespacesAndNewlines).joined()
             XCTAssertTrue(text.contains("collected[index]=outcomeprelock.release(afterChildOf:outcome.host,exitCode:outcome.exitCode)")
-                          || text.contains("collected[position]=outcomeprelock.release(afterChildOf:outcome.host,exitCode:outcome.exitCode)"),
+                          || text.contains("collected[position]=outcomeprelock.release(afterChildOf:outcome.host,exitCode:outcome.exitCode)")
+                          || text.contains("ifhookParent==nil||outcome.host!=DeviceMachineGrouping.localDisplayName{"
+                                           + "prelock.release(afterChildOf:outcome.host,exitCode:outcome.exitCode)}"),
                           "\(file): 子の終了ごとの解放が無い")
         }
     }

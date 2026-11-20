@@ -226,7 +226,8 @@ extension MCPServer {
         if !(args["skipBuild"] as? Bool ?? false) {
             try ScenarioHost.build(project: project)
         }
-        let all = try ScenarioHost.list(project: project)
+        let listing = try ScenarioHost.listing(project: project)
+        let all = listing.scenarios
         let resolved: [ScenarioInfo]
         do {
             resolved = try ScenarioSelection.resolve([id], from: all, scenariosDir: project.scenariosDir)
@@ -354,6 +355,27 @@ extension MCPServer {
         var outcomes: [(id: String, passed: Bool, reportPath: String?, skipped: Bool)] = []
         // 1回の呼び出し = 1デバイス(connection は1つ)= 1セッション
         let deviceSession = RunDeviceSession()
+        // beforeRun(RR-8.4。ft_run_scenario も run なので1本流すたびに走る。判断・上限は CLI の run と同じ `RunWideHookPlan`)。
+        // 失敗なら1本も流さず afterRun だけ走らせて失敗で返す
+        let hookContext = RunWideHookPlan.hooksClassToRun(
+            hooksClass: listing.runHooksClass, scenarioCount: infos.count, dryRun: false, linkedToParent: false
+        ).map { className in
+            RunHookContext(project: project, className: className, settings: exec, reportDir: reportDir,
+                           timeoutSeconds: RunWideHookPlan.timeoutSeconds(profileScenarioTimeouts: [exec.scenarioTimeout]))
+        }
+        if let hookContext {
+            // MCP の呼び出しに中断の購読は無い(interrupted は常に false = 失敗は失敗として返す)
+            let before = (await RunHookFlow.runBefore(hookContext, registerChildProcess: nil, interrupted: { false }) {
+                lines.append($0)
+            }).outcome
+            deviceSession.shared.seedRunMemo(before.runMemoOps)
+            if !before.passed {
+                await RunHookFlow.finish(hookContext, runMemo: deviceSession.shared.runMemoSnapshot(), childExitCodes: [],
+                                         interrupted: false, registerChildProcess: nil) { lines.append($0) }
+                throw MCPToolFailure(content: text(MCPMessageText.forMCP(lines.joined(separator: "\n")))
+                    + [Self.structuredMarker(Self.scenarioRunSummary([]))])
+            }
+        }
         // 自己修復の修正提案(この経路は run を通らないので、書き戻しもここで行う。`HealSourceWriteBack`)
         var healSuggestions: [HealWriteBack.Suggestion] = []
         for info in infos {
@@ -402,6 +424,11 @@ extension MCPServer {
                                                        appName: appName, appBundleID: appBundleID) },
             settings: exec, reportDir: reportDir, dryRun: false, registerChildProcess: nil) {
             lines.append(ScenarioHost.describe(outcome))
+        }
+        // afterRun(afterAll の後。失敗は合否に数えない)
+        if let hookContext {
+            await RunHookFlow.finish(hookContext, runMemo: deviceSession.shared.runMemoSnapshot(), childExitCodes: [],
+                                     interrupted: false, registerChildProcess: nil) { lines.append($0) }
         }
         HealSourceWriteBack.run(suggestions: healSuggestions, project: project) { lines.append($0) }
         if infos.count > 1 {

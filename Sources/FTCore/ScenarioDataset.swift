@@ -51,6 +51,30 @@ public struct ScenarioDataset: Sendable {
             .appendingPathComponent("\(kind.rawValue).json")
     }
 
+    /// マシン側(`~/.config/fleetest/dataset/<プロジェクト名>/`)に上書きのファイルがあるか。
+    /// `filename` が nil なら `<kind>.json`・あれば `dataFile` の相対パス。beforeRun / afterRun が読む値が、
+    /// 各マシンのシナリオが引く値と食い違いうる(走ったマシンの上書きだけが効く)ことを警告する材料
+    public static func machineOverrideExists(kind: Kind?, filename: String? = nil, projectDir: URL,
+                                             home: String = ScenarioSandbox.realHome()) -> Bool {
+        let base = URL(fileURLWithPath: home)
+            .appendingPathComponent(".config/fleetest/dataset")
+            .appendingPathComponent(projectDir.standardizedFileURL.lastPathComponent)
+        var isDirectory: ObjCBool = false
+        if let filename {
+            return FileManager.default.fileExists(atPath: base.appendingPathComponent(filename).path, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
+        }
+        guard let kind else { return false }
+        return FileManager.default.fileExists(atPath: base.appendingPathComponent("\(kind.rawValue).json").path)
+    }
+
+    /// 警告の文(英語)。`what` = 読んだ関数(`data()` / `account()` / `dataFile()`)
+    public static func hookOverrideWarning(phase: String, what: String) -> String {
+        "⚠️ \(phase)() read \(what) on a machine that has its own override under ~/.config/fleetest/dataset/:"
+            + " the scenarios on other machines may read different values."
+            + " Share values through the run memo (writeRunMemo) instead"
+    }
+
     /// `dataFile()` の解決。**ファイル単位の差し替え**(マシン側に同名があればそれ、無ければプロジェクト側)。
     /// 中身を混ぜないのは、CSV や画像は属性の単位を持たないため。`filename` は dataset フォルダからの相対パスだけ
     /// (先頭の `/`・`~`・`..` を断る = dataset フォルダの外を指させない)

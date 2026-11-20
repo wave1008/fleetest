@@ -61,6 +61,8 @@ enum ApiRunMachineFanout {
         typealias DynamicPlan = (scenarios: [DynamicSplit.Scenario],
                                  estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)
         let totalScenarios = LockedValue(0)
+        // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
+        let listedHooksClass = LockedValue<String?>(nil)
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .apiRun, remoteDir: options.remoteDir, forceLock: false, waitLock: options.waitLock,
@@ -74,10 +76,12 @@ enum ApiRunMachineFanout {
             build: { parentInterrupt -> (built: (Active, DynamicPlan?), plan: MachineFanoutFrontHalf.Plan)? in
                 // 割り当てを決めるにはシナリオ一覧が要る(DeviceMachineRunner.run と同じ理由。ここで1回だけ
                 // ローカルビルドする。ローカルの子には --skip-build を渡す = 下の buildChildArgs 参照)
-                let all = try parentInterrupt.stage("the scenario build", log: { logStderr($0) }) {
+                let listing = try parentInterrupt.stage("the scenario build", log: { logStderr($0) }) {
                     try ScenarioHost.build(project: project) { logStderr($0) }
-                    return try ScenarioHost.list(project: project)
+                    return try ScenarioHost.listing(project: project)
                 }
+                listedHooksClass.value = listing.runHooksClass
+                let all = listing.scenarios
                 guard !all.isEmpty else {
                     throw ValidationError(
                         "no scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)")
@@ -188,7 +192,19 @@ enum ApiRunMachineFanout {
         // 子ごとの stdin 書き込み口(キーは groups の添字 = 配り手のエントリ番号。run メモの通り道 = どの形の子にも開ける。DR-208)と、
         // 動的な割り振りの配り手。中断は親が受けて全要求へ none を返す(子も自分の待ちを解く = ScenarioPullSource.stopWaiting)
         let writers: [Int: ChildStdinWriter] = Dictionary(uniqueKeysWithValues: active.map { ($0.index, ChildStdinWriter()) })
-        let memoRelay = RunMemoRelay(writers: writers)
+        // beforeRun / afterRun(RR-8.4): 走らせるときは開始の行を beforeRun の結果が出るまで保留する。ログは stderr(stdout は NDJSON 専用)
+        let hookParent = RunWideHookPlan.hooksClassToRun(
+            hooksClass: listedHooksClass.value, scenarioCount: active.reduce(0) { $0 + $1.ids.count },
+            dryRun: false, linkedToParent: ParentLink.isLinked
+        ).map { className in
+            RunHookParent(
+                context: RunHookSetup.context(project: project, className: className, profiles: [profileName],
+                                              setOverrides: options.setOverrides, reportDirOverride: nil,
+                                              log: { logStderr($0) }),
+                log: { logStderr($0) })
+        }
+        defer { hookParent?.close() }
+        let memoRelay = RunMemoRelay(writers: writers, gateMode: hookParent == nil ? .startOnHello : .awaitDecision)
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !options.noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
@@ -202,7 +218,7 @@ enum ApiRunMachineFanout {
         // シナリオが failed として赤く出る。キャンセル≠失敗)
         async let multiplexed = consume(
             stream: stream, groupMachines: groupMachines, assignedScenarioIDs: active.map { $0.ids },
-            isCancelled: { registry.isCancelled })
+            isCancelled: { registry.isCancelled || hookParent?.beforeRunFailed == true })
         // 中断(拡張のキャンセル = SIGTERM・端末の SIGINT)で子を止めて配るのをやめる。catchUp: ロックの取得中
         // (DispatchPrelock の購読が受けた)の中断も、ここで伝える = 自前のシグナルソースは過去の中断を知らない。
         // **stdin の EOF を打ち切りの合図に使わない** —— api run は --debug 以外 stdin を読まず、拡張は stdio[0] を
@@ -214,6 +230,7 @@ enum ApiRunMachineFanout {
         defer { cancelRelay.stop() }
         // 購読の登録より前の中断は子を起こす前に抜ける(DeviceMachineRunner.run の同じ箇所)
         try held.exitIfInterruptedBeforeLaunch(log: { logStderr($0) })
+        let beforeRun = hookParent?.start(hub: memoRelay.hub)
 
         let isInterrupted = parentInterrupt.isSet
         let interruptedAtLastExit = LockedValue(false)
@@ -244,27 +261,40 @@ enum ApiRunMachineFanout {
                 // ロックの解放(ssh で秒単位)より前に取る = 最後の子が終わった時点の値(MultiTargetRunner と同じ時点)
                 interruptedAtLastExit.withLock { $0 = isInterrupted() }
                 collected[position] = outcome
-                prelock.release(afterChildOf: outcome.host, exitCode: outcome.exitCode)
+                // afterRun を撃つ run は、**afterRun が走るこの機械(手元)のロックだけ**を afterRun の後まで持つ(解放は下の releaseAll)。
+                // リモートは子が終わり次第外す(全部の子の終わりまで持つと、先に終えたランナー機が他の人の run を待たせる)
+                if hookParent == nil || outcome.host != DeviceMachineGrouping.localDisplayName {
+                    prelock.release(afterChildOf: outcome.host, exitCode: outcome.exitCode)
+                }
             }
             return (0..<active.count).compactMap { collected[$0] }
         }
         // 子が全員終わった時点の値で仕分ける(後の解放・多重化の待ちの間に来た中断で、本物の欠落を中断に読み替えない。
         // DeviceMachineRunner.run と同じ)。配り手の印・registry の取り消しを立てるのも中断の購読だけ
         let interruptedWhileChildrenRan = interruptedAtLastExit.value
-        // 残りの安全網(各機械は子の終了時に解放済み。理由は DeviceMachineRunner.run と同じ)
+        // afterRun(全部の子が正常に終わったときだけ。条件は RunWideHookPlan)。**ロックを持ったまま**走らせる(1台の run と同じ。
+        // 解放は下の releaseAll)。beforeRun が失敗した run は1本も流れていないので、配れなかった分・終わりを知らせなかった分を
+        // 失敗として数えない(専用の終わり方 = 中断とも混ぜない)。中断で止められた beforeRun は失敗ではない(下で 130 に寄せる)
+        if let hookParent, let beforeRun {
+            await hookParent.finish(hub: memoRelay.hub, beforeRun: beforeRun, childExitCodes: outcomes.map { $0.exitCode },
+                                    interrupted: interruptedWhileChildrenRan)
+        }
+        let beforeRunFailed = hookParent?.beforeRunFailed ?? false
+        // 残りの安全網(afterRun を撃たない run の各機械は子の終了時に解放済み。理由は DeviceMachineRunner.run と同じ)
         prelock.releaseAll(exitCodes: Dictionary(
             outcomes.map { ($0.host, $0.exitCode) }, uniquingKeysWith: { first, _ in first }))
         // 全部の子が終わっても誰にも渡せなかった分は失敗として報告する(中断なら失敗にしない)
         var neverHandedFailure = false
-        var interruptedWithWorkLeft = false
+        // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
+        var interruptedWithWorkLeft = hookParent?.beforeRunInterrupted ?? false
         if let dispatcher {
             let ids = dispatcher.unhandedIDs
             if !ids.isEmpty {
                 let interrupted = interruptedWhileChildrenRan
-                interruptedWithWorkLeft = interrupted
-                logStderr(DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
-                if let line = DynamicDispatcher.keptUnhandedLine(dispatcher.keptUnhanded) { logStderr(line) }
-                if !interrupted {
+                interruptedWithWorkLeft = interruptedWithWorkLeft || interrupted
+                if !beforeRunFailed { logStderr(DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted)) }
+                if let line = DynamicDispatcher.keptUnhandedLine(dispatcher.keptUnhanded), !beforeRunFailed { logStderr(line) }
+                if !interrupted, !beforeRunFailed {
                     neverHandedFailure = true
                     continuation.yield(.neverHanded(ids))
                 }

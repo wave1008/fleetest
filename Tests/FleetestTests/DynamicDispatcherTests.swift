@@ -318,6 +318,7 @@ final class DynamicDispatcherTests: XCTestCase {
         writer.write(line: "x")
         writer.close()
         writer.write(line: "y")
+        writer.flush()
     }
 
     /// 動的な割り振りでは、子が終わったときの「未完了」は渡したシナリオだけで数える
