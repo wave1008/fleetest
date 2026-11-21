@@ -102,7 +102,7 @@ final class TunnelOnlyPortSweepTests: XCTestCase {
     func testSweepUsesTheOwnershipCheckedStop() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/FTBridgeClient/BridgeProvisioner.swift"), encoding: .utf8)
+            .appendingPathComponent("Sources/FTBridgeClient/StaleLedgerSweep.swift"), encoding: .utf8)
         let start = try XCTUnwrap(source.range(of: "static func sweepTunnelOnlyPorts("))
         let end = try XCTUnwrap(source.range(of: "static func sweepIproxyPidFiles(",
                                              range: start.upperBound..<source.endIndex))

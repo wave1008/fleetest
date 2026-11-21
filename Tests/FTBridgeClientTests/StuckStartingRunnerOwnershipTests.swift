@@ -82,7 +82,7 @@ final class StuckStartingRunnerOwnershipTests: XCTestCase {
     func testSweepReadsTheReadyMarkBoundToTheCurrentRunnerPid() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/FTBridgeClient/BridgeProvisioner.swift")
+            .appendingPathComponent("Sources/FTBridgeClient/StaleLedgerSweep.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         let start = try XCTUnwrap(source.range(of: "func sweepStuckStartingRunners"))
         let body = source[start.upperBound...].prefix(4000)

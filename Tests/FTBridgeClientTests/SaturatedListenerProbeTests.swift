@@ -48,7 +48,7 @@ final class SaturatedListenerProbeTests: XCTestCase {
                 callers.append(url.lastPathComponent)
             }
         }
-        XCTAssertEqual(Set(callers), ["BridgeProvisioner.swift", "DoctorCommand.swift"],
+        XCTAssertEqual(Set(callers), ["StaleLedgerSweep.swift", "DoctorCommand.swift"],
                        "isBound folds 'cannot tell' into 'nobody there' — use mayBeListening for liveness/ownership")
     }
 }
