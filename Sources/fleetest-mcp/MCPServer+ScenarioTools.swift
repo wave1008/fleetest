@@ -72,9 +72,11 @@ extension MCPServer {
                 + (info.deleted ? " [deleted @Deleted — excluded from bulk runs]"
                    : (info.draft ? " [draft @Draft — excluded from bulk runs]" : ""))
         }
-        return text(lines.isEmpty
+        // 古いバイナリから読んだ一覧は、消したシナリオを「ある」と言う(dry-run / run と同じ注記を先頭に)
+        let staleNote = skipBuildStaleNote(args, project: project).map { $0 + "\n" } ?? ""
+        return text(staleNote + (lines.isEmpty
                     ? "No scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)"
-                    : "Project: \(project.name)\n" + lines.joined(separator: "\n"))
+                    : "Project: \(project.name)\n" + lines.joined(separator: "\n")))
             + [Self.structuredMarker([
                 "project": project.name,
                 "scenarios": scenarios.map { info -> [String: Any] in

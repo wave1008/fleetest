@@ -47,6 +47,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`countIs` inside a scrolling list (`count-in-scrolling-list`)](../commands/existence_assertion.md#notes) — the number of rows on the screen depends on its size and orientation, so the count can differ on another device; count what does not depend on the screen.
 - [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis (`text-ellipsized`) or more than half drawn (`text-partially-hidden`) passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
 - [`exist` with several matching elements](../commands/existence_assertion.md#notes) — passes if the text of any match is visible (the remaining matches are checked when the first is not); `[n]` and relative selectors check only that one.
+- [A failing `screen rendering check` is not a scenario mistake](../commands/existence_assertion.md#notes) — the iOS Simulator stopped drawing text; run again without rewriting, and restart the Simulator if it repeats.
 
 ### Find by image (findImage, findImages, existImage)
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.

@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 4 | OI-340・OI-342・OI-343・OI-344 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 2 | OI-340・OI-342 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-235・OI-320・OI-321・OI-329・OI-345・OI-346 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
@@ -63,29 +63,6 @@
 - 観測: iPhone Duo -02 の上で、1本目(`unfold()` が通って緑)の後の3本の `unfold()` が `fold / unfold / hinge need a foldable device` で対象外になった。直後の `xcrun devicectl device info displays --device <Duo-02>` は内蔵の画面(`type.integrated`)を **1枚**(内側の LCD・`active: false`)しか返さない。判定(`FoldControl.observe(fromDevicectlJSON:)`)は「内蔵の画面が2枚以上なら折りたためる」なので `.notFoldable`。SpringBoard が落ち続けた後の Duo(OI-184)で画面の構成が崩れた状態と見られる
 - 材料: デバイスタイプの定義(`/Library/Developer/CoreSimulator/Profiles/DeviceTypes/<名>.simdevicetype/Contents/Resources/capabilities.plist` の `displays` の `displayType: integrated`)は Duo で2枚・iPhone 18 Pro で1枚 = 機種名に頼らず「折りたためる機種か」を決められる
 - 次の一手: 折りたためるかはデバイスタイプの定義(内蔵の画面の数)で決め、折りたためる機種なのに devicectl が2枚を返さないときは `.unknown`(読めなかった = 送らずに赤)にする。判定はシナリオのプロセス(サンドボックスの中)で動くので、親がデバイスタイプを読んで子へ渡す(子に simctl / ファイルの読みを足さない)
-
-### OI-343 `ft_list_scenarios(skipBuild: true)` が古いバイナリの中身を注記なしで返す(無いシナリオを一覧に出す)
-- 状態: 再現済み
-- 確認: 72aa89cbf(2026-11-22)
-- 属性: 着手可
-- 運用: 回避可 — skipBuild を付けずに呼ぶ
-- 優先度: 中 — 作成の判断を誤らせる(「もう作ってある」)
-
-出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
-- 観測: r6_e2ex_rn_emu の作業開始時の `ft_list_scenarios(skipBuild: true)` が、`_Main.swift` しか無いプロジェクトで 12 本(前回の評価で同じ名前のプロジェクトにあったシナリオ)を返した。skipBuild なしでは `No scenarios`
-- 原因(コードで確認): 古いバイナリの注記(`MCPServer.skipBuildStaleNote` = 判定は `ScenarioHost.skipBuildStaleness`)を付けるのは `ft_dry_run` と `ft_run_scenario` だけで、`ft_list_scenarios` は付けない。古さの判定はシナリオのフォルダの要約なので、ソースの削除も検知できる
-- 次の一手: `ft_list_scenarios` の応答の先頭にも同じ注記を付ける
-
-### OI-344 末尾の描画の検査(`screen rendering check`)の赤の読み方が known_caveats に無い
-- 状態: 再現済み
-- 確認: 72aa89cbf(2026-11-22)
-- 属性: 着手可
-- 運用: 合否に響かない — 作成の手戻りだけ
-- 優先度: 低 — docs
-
-出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
-- 観測: 作成時の `ft_run_scenario` の末尾で `screen rendering check` だけが赤になったセッションが 12。うち 4 が原因を秘匿欄・キーボードと推測してシナリオを書き換えた(2 は後で自分で打ち消した)。説明は text_visibility_check のページにだけあり、シナリオを書く AI が必ず読む known_caveats に行が無い
-- 次の一手: known_caveats に1行(負荷の下の Simulator で画面の文字が描かれなくなった事実を示す赤で、シナリオの手順の誤りではない。撮り直して同じなら run を回し直す)を足す
 
 ## 要測定
 

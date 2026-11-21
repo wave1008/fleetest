@@ -51,6 +51,7 @@ expectation {
     that hides most of a text on purpose, use `requireVisible: false`
   - For examples with images, see [How the text visibility check decides](../testclass/text_visibility_check.md)
 - **When several elements match the selector of `exist`, it passes if the text of any one of them is visible.** If the first match is judged not visible, the remaining matches are checked in order (for example, a product image whose description equals the product name and comes first). A selector with an index `[n]` or a relative selector checks only that one element (text assertions do the same, checking only matches whose value fits the expectation).
+- **A step named `screen rendering check (…)` that fails is not a mistake in the scenario steps.** It is a screenshot showing that the iOS Simulator stopped drawing (the app area is one colour, or no text is drawn at all). Run the scenario again without rewriting it, and restart the app or the Simulator if it keeps failing. See [Screen rendering check](../testclass/text_visibility_check.md#screen-rendering-check-ios-simulator-only).
 
 ### Link
 - [index](../../index.md)
