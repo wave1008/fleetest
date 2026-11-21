@@ -33,6 +33,21 @@ enum ProfileRunner {
             ocrTextVisibilityCheck: resolved.ocrTextVisibilityCheck)
     }
 
+    /// プロファイル無しの run の実効設定(`DeviceIndependentRunSettings` から同じ4欄を写す)
+    static func effectiveSettingsRecord(settings: DeviceIndependentRunSettings) -> EffectiveSettingsRecord {
+        EffectiveSettingsRecord(
+            heal: settings.heal,
+            fmTextVisibilityCheck: settings.fm.fmTextVisibilityCheck,
+            screenLooksLike: settings.fm.screenLooksLike,
+            ocrTextVisibilityCheck: settings.ocrTextVisibilityCheck)
+    }
+
+    /// 解決済みのプロファイルがあればその実効値、無ければプロファイル無しの設定から写す
+    static func effectiveSettingsRecord(resolved: ResolvedProfile?,
+                                        otherwise settings: DeviceIndependentRunSettings) -> EffectiveSettingsRecord {
+        resolved.map { effectiveSettingsRecord(resolved: $0) } ?? effectiveSettingsRecord(settings: settings)
+    }
+
     /// この run が使おうとしているデバイスの run-lease(`.fleetest/run-<key>.lease`)に、
     /// 生きた別プロセスが既に居ないか確かめて、居ればデバイス+保持者 pid を名指しして拒否する
     /// (ユーザー決定「拒否して止める」)。

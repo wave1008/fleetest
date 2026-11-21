@@ -479,36 +479,17 @@ struct RunScenarios: AsyncParsableCommand {
     /// 読むだけなので二重に払っても正しさに影響しない(プロファイルのファイルがロック待ち〜ビルドの
     /// 間に書き換わる可能性は無視する。次の run で気づく程度の実害しかない)
     /// 戻り値は解決したプロファイル(`--set` 適用済み。OCR のコンパイルの要否に使う)。`--profile` 無しは nil
-    @discardableResult
-    private func validateProfileDevicesBeforeLock() throws -> ResolvedProfile? {
+    private func validateProfileDevicesBeforeLock() throws -> RunCommonOptions.PreLockProfileResolution? {
         guard let profile = common.profile else { return nil }
         let testProject = try ScenarioHost.project(named: common.project)
-        let resolvedAll = try ProfileResolver.resolve(
-            project: testProject, runName: profile,
-            workspaceOverride: common.workspace, overrides: try RunProfileSetOverride.parse(setOverrides))
-        if broadcast, resolvedAll.responseMeasurement {
-            throw ValidationError(ResponseMeasurementPolicy.combinationRejection(flag: "--broadcast"))
-        }
-        // 明示 --runner local はこの機械で走らせる指定なので、ホスト混在プロファイルでは
-        // local 枠だけに絞る(理由は run() 本編の同じ判定の宣言参照)
-        var effectiveDeviceFilter = common.devices
-        var effectiveDeviceHost = common.deviceMachine
-        if common.deviceMachine == nil, MachineDispatch.isExplicitLocal(runner) {
-            (effectiveDeviceFilter, effectiveDeviceHost) = try machineScopedDeviceFilter(
-                project: testProject, profile: profile,
-                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: common.devices)
-        }
-        let full = resolvedAll.filteringDevices(names: effectiveDeviceFilter, deviceMachine: effectiveDeviceHost)
-        // 絞り込みを指定したときだけ「合致0」を言う(指定なしで0台はプロファイル自体の誤りで、
-        // resolve / ProfileRunner.run が自分の言葉で報告する)。文言は ProfileRunner.run と同じ形
-        try common.rejectDeviceFilterMatchingNothing(
-            profile: profile, resolvedAll: resolvedAll, filtered: full,
-            devices: effectiveDeviceFilter, deviceMachine: effectiveDeviceHost)
-        // 計測は絞った後の台数で1台(機械をまたいで数える = 配る前。ResponseMeasurementPolicy の冒頭。api run と同じ)
-        if full.responseMeasurement {
-            try ResponseMeasurementPolicy.validateDevices(full.devices, run: full.runName)
-        }
-        return resolvedAll
+        return try common.resolveProfileDevicesBeforeLock(
+            project: testProject, profile: profile, overrides: try RunProfileSetOverride.parse(setOverrides),
+            runner: runner,
+            beforeFiltering: { resolvedAll in
+                if broadcast, resolvedAll.responseMeasurement {
+                    throw ValidationError(ResponseMeasurementPolicy.combinationRejection(flag: "--broadcast"))
+                }
+            })
     }
 
     func run() async throws {
@@ -613,8 +594,9 @@ struct RunScenarios: AsyncParsableCommand {
         // `--device-machine` を素通しする既存の挙動(下の `if dryRun` 分岐。`--profile` の実在
         // だけ確かめて devices は見ない)のままにする。ロックを取らない dry-run はそもそも
         // 待たせる問題が起きない経路なので、ここで新しい検証を割り込ませない
-        var earlyResolved: ResolvedProfile?
-        if !dryRun { earlyResolved = try validateProfileDevicesBeforeLock() }
+        var earlyResolution: RunCommonOptions.PreLockProfileResolution?
+        if !dryRun { earlyResolution = try validateProfileDevicesBeforeLock() }
+        let earlyResolved = earlyResolution?.resolvedAll
         // project の解決とシナリオ名指しの検査もロックの前(`api run` と同じ順。待った後で打ち間違いを知らせない)
         let testProject = try ScenarioHost.project(named: common.project)
         if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
@@ -688,20 +670,10 @@ struct RunScenarios: AsyncParsableCommand {
         if interruptState.isStopped {
             throw RunInterruptedBeforeStartError(phase: "before the scenario build")
         }
-        // 明示 --runner local はこの機械で走らせる指定なので、ホスト混在プロファイルでは
-        // local 枠だけに絞る(他ホスト担当分まで手元で解決すると存在しないデバイスを掴む。
-        // マシン別サブ実行は --device/--device-machine を持つのでこの分岐に入らない)。
-        // **明示 --device があっても絞る** —— 名前だけでは同名のデバイスが別の機械にもあるとき
-        // そちらのエントリに解決し、向こうの UDID を手元で探して
-        // "no simulator with that UDID" で止まる(受け手報告)。判定は
-        // --runner <リモート> と同じ machineScopedDeviceFilter(RemoteDispatchExplicitDeviceScope)
-        var effectiveDeviceFilter = common.devices
-        var effectiveDeviceHost = common.deviceMachine
-        if let profile = common.profile, !dryRun, common.deviceMachine == nil, MachineDispatch.isExplicitLocal(runner) {
-            (effectiveDeviceFilter, effectiveDeviceHost) = try machineScopedDeviceFilter(
-                project: testProject, profile: profile,
-                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: common.devices)
-        }
+        // 明示 --runner local の手元の枠への絞り込み(理由は RunCommonOptions.resolveProfileDevicesBeforeLock)。
+        // 絞った値はロックの前の検証(`earlyResolution`。`--profile` があり dry-run でないときだけある)が求めたもの
+        let effectiveDeviceFilter = earlyResolution?.deviceFilter ?? common.devices
+        let effectiveDeviceHost = earlyResolution.map(\.deviceMachine) ?? common.deviceMachine
         // **ビルドが要る回は、ビルドの前に供給を起こしてビルドと並行に進める**(`api run` と同じ形。準備の段は
         // ProfileRunner+Supply.swift)。台数はいま分かっている本数(`--scenario` の `Class.method` の明示だけ)で絞る。
         // 要らない回は一覧の後に ProfileRunner.run が正確な本数で絞る(並行にしても得が無く、絞り込みだけ緩む)。
@@ -982,12 +954,8 @@ struct RunScenarios: AsyncParsableCommand {
                 failedServices?.saveLogs(to: recorder.runDir) { ConsoleOut.out($0) }
                 recorder.finish(total: items.count, passed: 0, failed: items.count,
                                 performanceMode: performanceMode,
-                                effectiveSettings: EffectiveSettingsRecord(
-                                    heal: effective?.heal ?? noProfileSettings.heal,
-                                    fmTextVisibilityCheck: (effective?.fm ?? noProfileSettings.fm).fmTextVisibilityCheck,
-                                    screenLooksLike: (effective?.fm ?? noProfileSettings.fm).screenLooksLike,
-                                    ocrTextVisibilityCheck: effective?.ocrTextVisibilityCheck
-                                        ?? noProfileSettings.ocrTextVisibilityCheck),
+                                effectiveSettings: ProfileRunner.effectiveSettingsRecord(
+                                    resolved: effective, otherwise: noProfileSettings),
                                 setOverrides: profileOverrides.mapValues(\.token),
                                 servicesWarnings: failedServices?.warnings ?? [],
                                 // resolve 前の失敗で計測モードかどうかを断定できない
@@ -1114,11 +1082,7 @@ struct RunScenarios: AsyncParsableCommand {
 
         // 供給段の例外(AndroidDriver 初期化等)は run.json を完了させずに投げていた。
         // effectiveSettings は下の finish 呼び出しと同じ noProfileSettings 由来の値なので先に計算する
-        let noProfileEffectiveSettings = EffectiveSettingsRecord(
-            heal: noProfileSettings.heal,
-            fmTextVisibilityCheck: noProfileSettings.fm.fmTextVisibilityCheck,
-            screenLooksLike: noProfileSettings.fm.screenLooksLike,
-            ocrTextVisibilityCheck: noProfileSettings.ocrTextVisibilityCheck)
+        let noProfileEffectiveSettings = ProfileRunner.effectiveSettingsRecord(settings: noProfileSettings)
         let failedCount: Int
         let skippedCount: Int
         let interrupted: Bool
@@ -1219,33 +1183,16 @@ struct RunScenarios: AsyncParsableCommand {
             try applyFlagPolicy(RemoteDispatchFlagPolicy.skipBuild(origin: origin))
         }
 
-        let resolved = try resolveRemoteTarget(dispatch, remoteDirOverride: common.remoteDir)
-        resolved.announce()
-        let testProject = try ScenarioHost.project(named: common.project)
-        let localRoot = try RepoRoot.find()
-        try common.rejectUnresolvableToolRev(repoRoot: localRoot)
-        // `--align`: 宛先を手元(`--tool-rev` があればその版)へ揃えてから、今のディスパッチの経路へ進む
-        // (照合が揃えた結果を確かめる)。`api run` と同じ呼び出し・出力先だけ違う
-        if common.align {
-            _ = try RemoteAlign.execute(resolved: resolved, repoRoot: localRoot, toolRev: common.toolRev,
-                                        guarded: true, io: .stdout)
-        }
+        let prepared = try common.prepareRemoteDispatch(
+            dispatch, profile: profile, toStderr: false,
+            project: { try ScenarioHost.project(named: common.project) })
         let dispatcher = RemoteRunDispatcher(
-            host: resolved.hostSpec, remoteDirRaw: resolved.remoteDirRaw, localRepoRoot: localRoot,
+            host: prepared.resolved.hostSpec, remoteDirRaw: prepared.resolved.remoteDirRaw,
+            localRepoRoot: prepared.localRoot,
             forceLock: forceLock, waitLock: waitLock, hostLabel: dispatch.rawTarget, toolRev: common.toolRev)
-        var scopedDevices = common.devices
-        var scopedDeviceHost = common.deviceMachine
-        if common.deviceMachine == nil {
-            (scopedDevices, scopedDeviceHost) = try machineScopedDeviceFilter(
-                project: testProject, profile: profile, targetMachine: dispatch.rawTarget,
-                requestedDevices: common.devices)
-        } else if let deviceMachine = common.deviceMachine {
-            try rejectDisabledNamedDevices(project: testProject, profile: profile, deviceMachine: deviceMachine,
-                                           devices: common.devices)
-        }
         let exitCode = try await dispatcher.dispatch(
-            project: testProject, profile: profile, scenarios: scenarios, folders: folders,
-            deviceNames: scopedDevices, deviceMachine: scopedDeviceHost,
+            project: prepared.project, profile: profile, scenarios: scenarios, folders: folders,
+            deviceNames: prepared.devices, deviceMachine: prepared.deviceMachine,
             setOverrides: dispatchOverrides,
             noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
             performanceMode: performanceMode, broadcast: broadcast, workQueue: common.workQueue,
@@ -1261,14 +1208,7 @@ struct RunScenarios: AsyncParsableCommand {
     /// RemoteRunDispatcher.log と同じ規律。stdout が端末でないと libc の行バッファが効かず
     /// 出力が遅延・欠落しうる。他の書き手とロックを共有するのでここだけ直書きにしない)
     private func applyFlagPolicy(_ decision: RemoteDispatchFlagPolicy.Decision) throws {
-        switch decision {
-        case .allowed:
-            return
-        case .ignoredWithNote(let note):
-            ConsoleOut.out(note)
-        case .rejected(let message):
-            throw ValidationError(message)
-        }
+        try decision.apply(note: { ConsoleOut.out($0) })
     }
 
     /// `--fleet`: profiles/fleets/<name>.json の全エントリを並行実行する(docs/remote-runner/

@@ -6,7 +6,7 @@
 // 実際の実効値を運ぶことを固定する。
 
 import XCTest
-import FTCore
+@testable import FTCore
 @testable import fleetest
 
 final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
@@ -61,4 +61,30 @@ final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
         XCTAssertFalse(effectiveSettings.screenLooksLike)
         XCTAssertFalse(effectiveSettings.ocrTextVisibilityCheck)
     }
+
+    /// プロファイル無しの実効設定は DeviceIndependentRunSettings の4欄をそのまま写す。
+    /// 4欄とも既定と逆の値にして、どれか1つでも別の欄・既定を写せば落ちるようにする
+    func testNoProfileRecordCopiesEachFieldFromTheSettings() {
+        func settings(heal: Bool, fmVisibility: Bool, looksLike: Bool, ocr: Bool) -> DeviceIndependentRunSettings {
+            DeviceIndependentRunSettings(
+                fm: FMConfig(enabled: true, fmTextVisibilityCheck: fmVisibility, screenLooksLike: looksLike),
+                heal: heal, ocrTextVisibilityCheck: ocr, preferCheckStateClassifier: true,
+                iosPreActionPing: true, containerInference: true, enableAnimations: false, responseMeasurement: false,
+                responseRepeat: 5, playProtectBypass: true, homeOnStart: true, record: false, recordFailuresOnly: false,
+                recordFullResolution: false, reportDir: nil, defaultTimeout: nil, scenarioTimeout: nil,
+                recordBitrateKbps: nil)
+        }
+        for (heal, fmVisibility, looksLike, ocr) in [(true, false, false, false), (false, true, false, false),
+                                                      (false, false, true, false), (false, false, false, true)] {
+            let record = ProfileRunner.effectiveSettingsRecord(
+                settings: settings(heal: heal, fmVisibility: fmVisibility, looksLike: looksLike, ocr: ocr))
+            XCTAssertEqual([record.heal, record.fmTextVisibilityCheck, record.screenLooksLike, record.ocrTextVisibilityCheck],
+                           [heal, fmVisibility, looksLike, ocr])
+            let viaFallback = ProfileRunner.effectiveSettingsRecord(
+                resolved: nil, otherwise: settings(heal: heal, fmVisibility: fmVisibility, looksLike: looksLike, ocr: ocr))
+            XCTAssertEqual([viaFallback.heal, viaFallback.fmTextVisibilityCheck, viaFallback.screenLooksLike,
+                            viaFallback.ocrTextVisibilityCheck], [heal, fmVisibility, looksLike, ocr])
+        }
+    }
+
 }

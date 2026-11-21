@@ -18,15 +18,20 @@ final class ResponseTraceWiringTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     /// 計測の台数は両方の入口で、`--device` / `--runner local` で絞った `full` に当てる(resolve は台数を見ない)。
-    /// 片方に無いと、その入口では2台の計測プロファイルがそのまま並行に走る
+    /// 片方に無いと、その入口では2台の計測プロファイルがそのまま並行に走る。
+    /// 検査は両方の入口が共有する `RunCommonOptions.resolveProfileDevicesBeforeLock` の1か所にある
     func testBothEntrancesCheckMeasurementDevicesAfterNarrowing() throws {
+        let shared = try Self.code("Sources/fleetest/RunCommonOptions.swift")
+        let start = try XCTUnwrap(shared.firstIndex { $0.hasPrefix("func resolveProfileDevicesBeforeLock(") },
+                                  "共有の検証が無い")
+        let narrow = try XCTUnwrap(shared[start...].firstIndex { $0.hasPrefix("let full = resolvedAll.filteringDevices(") },
+                                   "共有の検証に filteringDevices の行が無い")
+        let check = shared[start...].firstIndex { $0.contains("ResponseMeasurementPolicy.validateDevices(full.devices") }
+        XCTAssertNotNil(check, "共有の検証に絞った後の台数の検査が無い")
+        if let check { XCTAssertGreaterThan(check, narrow, "検査は絞った後") }
         for path in ["Sources/fleetest/Fleetest.swift", "Sources/fleetest/ApiRunCommand.swift"] {
-            let lines = try Self.code(path)
-            let narrow = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("let full = resolvedAll.filteringDevices(") },
-                                       "\(path): filteringDevices の行が無い")
-            let check = lines.firstIndex { $0.contains("ResponseMeasurementPolicy.validateDevices(full.devices") }
-            XCTAssertNotNil(check, "\(path): 絞った後の台数の検査が無い")
-            if let check { XCTAssertGreaterThan(check, narrow, "\(path): 検査は絞った後") }
+            XCTAssertTrue(try Self.code(path).contains { $0.contains("try common.resolveProfileDevicesBeforeLock(") },
+                          "\(path): 共有の検証を通っていない")
         }
     }
 

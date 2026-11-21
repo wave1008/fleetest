@@ -349,6 +349,48 @@ extension RunCommonOptions {
             + " (available: \(resolvedAll.devices.map(\.name).joined(separator: ", ")))")
     }
 
+    /// ロックの前に済ませる `--profile` の読むだけの検証(`run` の `validateProfileDevicesBeforeLock` と
+    /// `api run` の `resolveProfileDevicesBeforeLock` が共有する。書き込みは含めない)。
+    /// resolve → `beforeFiltering`(run の `--broadcast` との併用検査のように、絞る前に断るもの)→
+    /// 明示 `--runner local` なら手元の機械の枠へ絞る → 絞り込みの合致0 → 計測の台数、の順で断る。
+    /// **明示 `--runner local` は `--device` があっても絞る** —— 名前だけでは同名のデバイスが別の機械のエントリに
+    /// 解決し、向こうの UDID を手元で探して "no simulator with that UDID" で止まる(判定は `--runner <リモート>` と
+    /// 同じ `machineScopedDeviceFilter`)。`--device-machine` を持つマシン別サブ実行はこの分岐に入らない
+    func resolveProfileDevicesBeforeLock(
+        project: TestProject, profile: String, overrides: [String: RunProfileSetValue], runner: String?,
+        beforeFiltering: (ResolvedProfile) throws -> Void
+    ) throws -> PreLockProfileResolution {
+        let resolvedAll = try ProfileResolver.resolve(
+            project: project, runName: profile, workspaceOverride: workspace, overrides: overrides)
+        try beforeFiltering(resolvedAll)
+        var effectiveDevices = devices
+        var effectiveDeviceMachine = deviceMachine
+        if deviceMachine == nil, MachineDispatch.isExplicitLocal(runner) {
+            (effectiveDevices, effectiveDeviceMachine) = try machineScopedDeviceFilter(
+                project: project, profile: profile,
+                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: devices)
+        }
+        let full = resolvedAll.filteringDevices(names: effectiveDevices, deviceMachine: effectiveDeviceMachine)
+        try rejectDeviceFilterMatchingNothing(
+            profile: profile, resolvedAll: resolvedAll, filtered: full,
+            devices: effectiveDevices, deviceMachine: effectiveDeviceMachine)
+        // 計測は絞った後の台数で1台(機械をまたいで数える = 配る前。ResponseMeasurementPolicy の冒頭)
+        if full.responseMeasurement {
+            try ResponseMeasurementPolicy.validateDevices(full.devices, run: full.runName)
+        }
+        return PreLockProfileResolution(resolvedAll: resolvedAll, full: full,
+                                        deviceFilter: effectiveDevices, deviceMachine: effectiveDeviceMachine)
+    }
+
+    /// `resolveProfileDevicesBeforeLock` の結果。`deviceFilter` / `deviceMachine` は実際に絞った値
+    /// (`--runner local` が機械の枠へ絞った実効の値 = フラグそのままではない)
+    struct PreLockProfileResolution {
+        let resolvedAll: ResolvedProfile
+        let full: ResolvedProfile
+        let deviceFilter: [String]
+        let deviceMachine: String?
+    }
+
     /// `--work-queue` は実行プロファイルの経路(ProfileRunner / api run のワーカー構築)でだけ効く。
     /// `broadcast` / `hasFleet` は run だけが持つフラグ(api run は false を渡す)
     func validateWorkQueue(broadcast: Bool, hasFleet: Bool) throws {

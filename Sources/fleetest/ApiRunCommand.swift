@@ -193,36 +193,12 @@ struct ApiRunCommand: AsyncParsableCommand {
     private func resolveProfileDevicesBeforeLock(
         testProject: TestProject, profile: String, profileOverrides: [String: RunProfileSetValue]
     ) throws -> (resolvedAll: ResolvedProfile, full: ResolvedProfile) {
-        let resolvedAll = try ProfileResolver.resolve(
-            project: testProject, runName: profile,
-            workspaceOverride: common.workspace, overrides: profileOverrides)
-        // --device / --device-machine: ApiRunMachineFanout の子(マシン別サブ実行)が自分のぶんだけを
-        // 回すのに使う(ProfileRunner.run と同じ順序・同じメッセージ規律 —— ホストで絞らないと
-        // 別の機械の同名デバイスまで掴む。filteringDevices の宣言)
-        //
-        // 明示 --runner local はこの機械で走らせる指定なので、ホスト混在プロファイルでは
-        // local 枠だけに絞る(他ホスト担当分まで手元で解決すると存在しないデバイスを掴む。
-        // マシン別サブ実行は --device/--device-machine を持つのでこの分岐に入らない)。
-        // **明示 --device があっても絞る**(RunScenarios.run と同型。受け手報告:
-        // 名前だけでは同名のデバイスが別の機械のエントリに解決し、向こうの UDID を手元で探す)
-        var effectiveDevices = common.devices
-        var effectiveDeviceHost = common.deviceMachine
-        if common.deviceMachine == nil, MachineDispatch.isExplicitLocal(runner) {
-            (effectiveDevices, effectiveDeviceHost) = try machineScopedDeviceFilter(
-                project: testProject, profile: profile,
-                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: common.devices)
-        }
-        let full = resolvedAll.filteringDevices(names: effectiveDevices, deviceMachine: effectiveDeviceHost)
-        // 絞り込みを指定したときだけ「合致0」を報告する。指定していないのに0台なのは
-        // プロファイル自体の誤りで、それは resolve 側が自分の言葉で報告する
-        try common.rejectDeviceFilterMatchingNothing(
-            profile: profile, resolvedAll: resolvedAll, filtered: full,
-            devices: effectiveDevices, deviceMachine: effectiveDeviceHost)
-        // 計測は絞った後の台数で1台(機械をまたいで数える = 配る前。ResponseMeasurementPolicy の冒頭。run と同じ)
-        if full.responseMeasurement {
-            try ResponseMeasurementPolicy.validateDevices(full.devices, run: full.runName)
-        }
-        return (resolvedAll, full)
+        // --device / --device-machine は ApiRunMachineFanout の子(マシン別サブ実行)が自分のぶんだけを
+        // 回すのに使う(ホストで絞らないと別の機械の同名デバイスまで掴む。filteringDevices の宣言)
+        let resolution = try common.resolveProfileDevicesBeforeLock(
+            project: testProject, profile: profile, overrides: profileOverrides, runner: runner,
+            beforeFiltering: { _ in })
+        return (resolution.resolvedAll, resolution.full)
     }
 
     func run() async throws {
@@ -658,21 +634,9 @@ struct ApiRunCommand: AsyncParsableCommand {
         // (DeviceIndependentRunSettings)のどちらもここへ来る前に当て済みなので、
         // ここで CLI 由来の override を二重に適用しない(run.json には実効値がそのまま乗る)。
         // 供給段の abort 記録(下の catch)にも要るためここで先に計算する(元は outcome 確定後だった)
-        let effectiveSettings: EffectiveSettingsRecord
-        if let resolvedProfile {
-            let fm = resolvedProfile.fm
-            effectiveSettings = EffectiveSettingsRecord(
-                heal: resolvedProfile.heal, fmTextVisibilityCheck: fm.fmTextVisibilityCheck,
-                screenLooksLike: fm.screenLooksLike,
-                ocrTextVisibilityCheck: resolvedProfile.ocrTextVisibilityCheck)
-        } else {
-            // runDirect と同じ設定(DeviceIndependentRunSettings)
-            let fm = noProfileSettings.fm
-            effectiveSettings = EffectiveSettingsRecord(
-                heal: noProfileSettings.heal, fmTextVisibilityCheck: fm.fmTextVisibilityCheck,
-                screenLooksLike: fm.screenLooksLike,
-                ocrTextVisibilityCheck: noProfileSettings.ocrTextVisibilityCheck)
-        }
+        // プロファイル無しは runDirect と同じ設定(DeviceIndependentRunSettings)
+        let effectiveSettings = ProfileRunner.effectiveSettingsRecord(resolved: resolvedProfile,
+                                                                      otherwise: noProfileSettings)
 
         var outcome: RunOutcome
         do {
@@ -860,34 +824,17 @@ struct ApiRunCommand: AsyncParsableCommand {
             try applyFlagPolicy(RemoteDispatchFlagPolicy.skipBuild(origin: origin))
         }
 
-        let resolved = try resolveRemoteTarget(dispatch, remoteDirOverride: common.remoteDir)
-        // stdout は NDJSON 専用の契約(RemoteRunDispatcher.log の apiRun 分岐と同じ規律)なので、
-        // アナウンスは stderr へ出す
-        resolved.announce(toStderr: true)
-        let localRoot = try RepoRoot.find()
-        try common.rejectUnresolvableToolRev(repoRoot: localRoot)
-        // `--align`: `fleetest run` と同じ。stdout は NDJSON 専用なので進行は stderr
-        if common.align {
-            _ = try RemoteAlign.execute(resolved: resolved, repoRoot: localRoot, toolRev: common.toolRev,
-                                        guarded: true, io: .stderr)
-        }
+        // stdout は NDJSON 専用の契約なので、告知・揃えの進行は stderr へ出す
+        let prepared = try common.prepareRemoteDispatch(dispatch, profile: profile, toStderr: true,
+                                                        project: { project })
         var dispatcher = RemoteRunDispatcher(
-            host: resolved.hostSpec, remoteDirRaw: resolved.remoteDirRaw, localRepoRoot: localRoot,
+            host: prepared.resolved.hostSpec, remoteDirRaw: prepared.resolved.remoteDirRaw,
+            localRepoRoot: prepared.localRoot,
             mode: .apiRun, hostLabel: dispatch.rawTarget, toolRev: common.toolRev)
         dispatcher.waitLock = waitLock
-        var scopedDevices = common.devices
-        var scopedDeviceHost = common.deviceMachine
-        if common.deviceMachine == nil {
-            (scopedDevices, scopedDeviceHost) = try machineScopedDeviceFilter(
-                project: project, profile: profile, targetMachine: dispatch.rawTarget,
-                requestedDevices: common.devices)
-        } else if let deviceMachine = common.deviceMachine {
-            try rejectDisabledNamedDevices(project: project, profile: profile, deviceMachine: deviceMachine,
-                                           devices: common.devices)
-        }
         let exitCode = try await dispatcher.dispatchApi(
-            project: project, profile: profile, scenarios: scenarios,
-            deviceNames: scopedDevices, deviceMachine: scopedDeviceHost,
+            project: prepared.project, profile: profile, scenarios: scenarios,
+            deviceNames: prepared.devices, deviceMachine: prepared.deviceMachine,
             setOverrides: dispatchOverrides,
             noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
             performanceMode: performanceMode,
@@ -1673,13 +1620,6 @@ struct ApiRunCommand: AsyncParsableCommand {
     /// RemoteDispatchFlagPolicy.Decision の適用。stdout は NDJSON 専用の契約なので注記も stderr へ
     /// (dispatchToRemoteHost の announce と同じ規律)
     private func applyFlagPolicy(_ decision: RemoteDispatchFlagPolicy.Decision) throws {
-        switch decision {
-        case .allowed:
-            return
-        case .ignoredWithNote(let note):
-            logStderr(note)
-        case .rejected(let message):
-            throw ValidationError(message)
-        }
+        try decision.apply(note: { logStderr($0) })
     }
 }
