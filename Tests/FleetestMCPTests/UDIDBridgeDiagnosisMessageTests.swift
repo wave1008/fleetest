@@ -501,7 +501,7 @@ extension UDIDBridgeDiagnosisMessageTests {
     /// 配線の走査: 畳み込みが Simulator の「何も居ない」でだけ起動し直しを頼み(実機の張り直しと同じ位置)、
     /// call() がその閉包を渡し、起動し直した呼び出しの応答(成功・失敗とも)に注記が載る
     func testUDIDFoldingAsksForTheSimulatorBridgeRebuildAndTheResponseCarriesTheNote() throws {
-        let driver = try Self.sourceWithoutComments("Sources/fleetest-mcp/MCPServer+Driver.swift")
+        let driver = try Self.sourceWithoutComments("Sources/fleetest-mcp/MCPServer+BridgeResolution.swift")
         XCTAssertTrue(driver.contains("Self.nothingListensFor(diagnosis), diagnosis.lookup == .simulator"), "畳み込みの門")
         XCTAssertTrue(driver.contains("await rebuildSimulatorBridge?(udid, diagnosis)"), "閉包の呼び出し")
         // 予算切れの診断は 1 回だけし直し、その後に起動し直しの門を見る(Simulator を起動した直後の空振りを拾う)

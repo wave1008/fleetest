@@ -81,7 +81,7 @@ final class PhysicalTunnelRestoreScanTests: XCTestCase {
     /// MCP の udid の宛先解決も、「居ない」と言う前に張り直しを試す(実機・何も待ち受けていないときだけ)。
     /// 無いと生きたランナーに「no running bridge・bridge up しろ」と言い続ける(2026-10-15 の負荷テスト)
     func testMCPRestoresTheTunnelBeforeSayingNoBridge() throws {
-        let text = try source("Sources/fleetest-mcp/MCPServer+Driver.swift")
+        let text = try source("Sources/fleetest-mcp/MCPServer+BridgeResolution.swift")
         let resolve = try body(of: text, from: "static func portForIOS(", to: "static func nothingListensFor(")
         guard let restore = resolve.range(of: "restoreMissingPhysicalTunnel(udid: udid)"),
               let last = resolve.range(of: "udidPorts: udidPorts, diagnosis: diagnosis)", options: .backwards) else {

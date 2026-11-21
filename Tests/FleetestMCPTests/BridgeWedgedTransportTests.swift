@@ -180,7 +180,7 @@ final class BridgeWedgedTransportTests: XCTestCase {
     func testProbedUDIDBridgeDiagnosisUsesProbeStatusForClassification() throws {
         let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Driver.swift"), encoding: .utf8)
+            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+BridgeResolution.swift"), encoding: .utf8)
         let start = try XCTUnwrap(
             source.range(of: "private static func probedUDIDBridgeDiagnosis("),
             "probedUDIDBridgeDiagnosis が見つからない")
