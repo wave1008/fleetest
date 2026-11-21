@@ -30,6 +30,7 @@ import {
 } from "./dashboardModel";
 import { type OneShotResult, type PipeProcess, runOneShot } from "./oneShotCli";
 import { selectWorkspaceProject } from "./projectSelection";
+import { errorMessage } from "./guards";
 
 const RESULTS_MIN_RUNS = 3;
 
@@ -59,10 +60,6 @@ export interface MonitorDashboardControllerDeps {
   refreshStorage(id: number): void;
   /** 集計期間の記憶(workspaceState の DASHBOARD_SINCE_STATE_KEY)。get は検証前の生の値 */
   readonly sinceStore: { get(): unknown; set(since: SinceOption): void };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export class MonitorDashboardController {

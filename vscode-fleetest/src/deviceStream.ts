@@ -37,6 +37,7 @@ import type { Readable, Writable } from "node:stream";
 import type { OutputChannel } from "vscode";
 import { childEnv } from "./childEnv";
 import { t } from "./i18n";
+import { errorMessage } from "./guards";
 
 /** stdin/stdout/stderr すべてパイプの helper プロセス(stdin の EOF が helper への終了指示)。 */
 type StreamProcess = ChildProcessByStdio<Writable, Readable, Readable>;
@@ -129,10 +130,6 @@ export interface StreamPipelineOptions {
    * 落ちた(負荷で wedge が一斉に発火した)とき、全部が `RESTART_DELAY_MS` 後にそろってエンコードのセッションを開き直す**。
    * 未定義なら待たない */
   readonly admitRestart?: () => number;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** proc を SIGTERM(graceMs 後に SIGKILL)で止める。stdin EOF は呼び出し側で別途送る。 */

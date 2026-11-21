@@ -34,7 +34,7 @@ import {
   validateNewProjectName,
   validateNewRunProfileName,
 } from "./monitorModel";
-import { isRecord } from "./monitorDeviceModel";
+import { isRecord } from "./guards";
 import { type HookScaffoldResult, resolveWorkspaceDir, writeHookScriptTemplates } from "./runHookScaffold";
 import type { MonitorPanelDeps } from "./monitorPanel";
 import {

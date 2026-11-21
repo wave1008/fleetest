@@ -8,6 +8,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isRecordingIndex, type RecordingIndex } from "./recordingsModel";
+import { isRecord } from "./guards";
 
 export interface RecordingSessionSummary {
   readonly project: string;
@@ -36,10 +37,6 @@ export interface RecordingSessionSummary {
 
 /** 一覧の表示上限(新しい順)。 */
 const SESSION_LIMIT = 50;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 async function readJson(filePath: string): Promise<unknown | null> {
   try {

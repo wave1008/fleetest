@@ -16,6 +16,7 @@
 
 import { t, type MessageKey } from "./i18n";
 import type { MonitorDeviceState, MonitorPlatform } from "./monitorModel";
+import { isRecord } from "./guards";
 
 export type LivePlatform = MonitorPlatform;
 /** デバイスの実体種別(list-devices の kind)。 */
@@ -26,10 +27,6 @@ export type LiveDeviceState = MonitorDeviceState;
 const PLATFORMS: ReadonlySet<string> = new Set<LivePlatform>(["ios", "android"]);
 const DEVICE_STATES: ReadonlySet<string> = new Set<LiveDeviceState>(["connected", "booted", "offline"]);
 const DEVICE_KINDS: ReadonlySet<string> = new Set<LiveDeviceKind>(["virtual", "physical"]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 // ---- list-devices ------------------------------------------------------------------
 

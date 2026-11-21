@@ -10,9 +10,7 @@
 // (recordingsModel.ts の buildRecordingTree/groupTreeByClass)は de-dup せず全ファイルを
 // それぞれ1行として startedAt 昇順に並べる契約なので、本レポートも同じ規則を踏襲する。
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isRecord } from "./guards";
 
 function pushDistinct(list: string[], seen: Set<string>, value: string | null): void {
   if (value === null || value === "" || seen.has(value)) {

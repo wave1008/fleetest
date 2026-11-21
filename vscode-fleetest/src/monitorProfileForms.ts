@@ -5,7 +5,8 @@
 // I/O(ファイル読み書き・CLI 呼び出し)は monitorPanel.ts/monitorProfilesController.ts 側の責務。
 
 import { t } from "./i18n";
-import { isRecord, type MonitorPlatform } from "./monitorDeviceModel";
+import { isRecord } from "./guards";
+import type { MonitorPlatform } from "./monitorDeviceModel";
 
 // ---- 実行プロファイルの追加/コピー(名前検証・テンプレート生成) ------------------------------
 // monitorPanel.ts の profileAdd/profileCopy ハンドラが使う純粋ロジック(ファイル I/O は呼び出し側)。

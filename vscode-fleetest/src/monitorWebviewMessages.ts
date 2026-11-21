@@ -22,8 +22,8 @@ import {
   isRetentionPatch, type RetentionConfigured, type RetentionPatch, type RetentionUsage, type RetentionValues,
 } from "./retentionModel";
 import type { ResidentProcess } from "./residentProcesses";
+import { isRecord } from "./guards";
 import {
-  isRecord,
   type MonitorDevice,
   type MonitorEvent,
   type MonitorPlatform,

@@ -59,6 +59,7 @@ import {
 import type { LiveDeps } from "./liveDeps";
 import { NdjsonParser } from "./ndjson";
 import { type OneShotResult, type PipeProcess, runOneShot } from "./oneShotCli";
+import { errorMessage } from "./guards";
 
 /**
  * serve プロセス用: stdin もパイプで保持する(monitorProcessManager.ts の MonitorProcess/host-metrics
@@ -109,10 +110,6 @@ function serveClosedMessage(): string {
 }
 function isConnectionClassMessage(message: string): boolean {
   return message === serveUnavailableMessage() || message === serveTimeoutMessage() || message === serveClosedMessage();
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** sendServeCommand() が返す1リクエスト分の結果。action は refresh(アクション無し)のときのみ

@@ -7,6 +7,8 @@
 // Optional をキー省略でエンコードするため、値が無いフィールドは undefined(null ではない)で
 // 届く想定だが、型ガードは null も許容し双方に耐える。
 
+import { isRecord, isStringArray } from "./guards";
+
 export interface RunMetaRecord {
   readonly schemaVersion: number;
   readonly runID: string;
@@ -460,10 +462,6 @@ export type DashboardToWebviewMessage =
 
 // ---- 型ガード ---------------------------------------------------------------------
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isOptString(value: unknown): value is string | undefined | null {
   return value === undefined || value === null || typeof value === "string";
 }
@@ -629,10 +627,6 @@ function isInsightRecord(value: unknown): value is InsightRecord {
     isOptNumber(value.count) &&
     isOptNumber(value.deltaPct)
   );
-}
-
-function isStringArray(value: unknown): value is readonly string[] {
-  return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
 
 function isOptStringArray(value: unknown): value is readonly string[] | undefined | null {

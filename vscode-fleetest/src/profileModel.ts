@@ -10,6 +10,8 @@
 //   ]}
 // 検証エラーがあっても exit 0(errors 非空 = そのファイルにエラーあり、の意味)。
 
+import { isRecord, isStringArray } from "./guards";
+
 /** ProfileFileKind.directoryName(Sources/FTCore/RunProfile.swift)と同じ語彙。
  */
 export type ProfileKind = "apps" | "runs";
@@ -28,14 +30,6 @@ export interface ValidateProfileResult {
 export interface ValidateProfileOutput {
   readonly project: string;
   readonly results: readonly ValidateProfileResult[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isValidateProfileResult(value: unknown): value is ValidateProfileResult {

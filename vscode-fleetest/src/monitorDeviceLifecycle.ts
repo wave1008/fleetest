@@ -4,7 +4,7 @@
 // (spawn 自体は monitorPanel.ts 側)。vscode に依存しない(monitorPanel.ts と
 // test/monitorModel.test.mjs の両方から使うため)。
 
-import { isRecord } from "./monitorDeviceModel";
+import { isRecord } from "./guards";
 
 // ---- デバイス個別起動/停止(fleetest api start-device / stop-device) ------------------------
 // 契約(Sources/fleetest/ApiDeviceCommands.swift): `fleetest api start-device --name <論理名>

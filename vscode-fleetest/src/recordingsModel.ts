@@ -22,6 +22,8 @@
 //   scene/sceneTitle/at/durationMs は要素ごとに欠落しうる。**古い記録には timeline 自体が無い**
 //   → buildRecordingTree はその場合 scenes:[] のシナリオ単独ノードを返す(ツリーはリーフのみ)。
 
+import { isRecord } from "./guards";
+
 export interface RecordingSegment {
   readonly startedAt: string;
   readonly durationMs: number;
@@ -161,10 +163,6 @@ export interface RecordingErrorEntry {
   readonly worker: string;
   readonly at: string;
   readonly offsetMs: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isRecordingSegment(value: unknown): value is RecordingSegment {

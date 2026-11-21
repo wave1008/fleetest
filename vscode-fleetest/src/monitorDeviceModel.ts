@@ -27,12 +27,7 @@
 // re-export の窓口は monitorModel.ts(拡張側 import は全てそちら経由)。
 
 import type { MonitorDeviceFilter } from "./config";
-
-/** value がプレーンオブジェクトか(配列・null 除く)。monitorWebviewMessages.ts/monitorDeviceLifecycle.ts/
- * monitorProfileForms.ts も同じ判定基準を使うためここから import する。 */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isRecord } from "./guards";
 
 export type MonitorPlatform = "ios" | "android";
 /** "unknown" は**誰も観測していない**の意味(この機械のものではなく、その機械の monitor も
