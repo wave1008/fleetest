@@ -26,13 +26,13 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 2 | OI-340・OI-342 |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-320・OI-321・OI-329 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 4 | OI-340・OI-342・OI-343・OI-344 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-235・OI-320・OI-321・OI-329・OI-345・OI-346 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 36 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 44 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
 
@@ -50,6 +50,7 @@
 - 決定: DR-214(11/22)= 対象外で終わったシナリオは同じ run のまだ試していない台へ回し直し、回せる台が落ちて残っていなければ失敗。最初から対象の台が居ない run は今までどおり対象外(緑)
 - 次の一手(3層・`run` と `api run` の両方): ①機械の中 —— `RunOrchestrator` の notApplicable の分岐で、同じ OS の生きたレーンのうちその item を試していないものがあれば結果を確定させずに戻す(`ScenarioQueue` に item ごとの「試したレーンの集合」を持たせ、`avoidedLane` の優先ではなく除外として効かせる。setUpDevice の対象外はそのレーンの同じクラスを即座に対象外にする = 11/22 の直し)。試していないレーンが離脱で消えたら失敗で確定(`@RunInOrder` の「could not be revived」と同じ出口)②マシンをまたぐ run —— 子が対象外の結果を親へ返す行を `WorkQueueProtocol` に足し(子 → 親。id・lane・理由)、`DynamicDispatcher` がまだ試していない entry へ配り直す。全 entry が試して対象外なら親が対象外で確定・試していない entry が落ちていれば失敗で確定 ③結果 JSON・run の集計・NDJSON で「回し直した対象外」を数え直す(`runSkipped` の二重計上をしない)。陽性対照: Duo と普通の iPhone を混ぜたプロファイルで fold のシナリオが Duo に回ること・Duo を止めた run が赤になること・Duo の無いプロファイルは緑のまま
 - 11/22: 機械の中と機械をまたぐ run の回し直しを入れた(判定 `NotApplicableHandoff.decide` の1箇所・`run` / `api run` 共通)。デバイスで確かめた: iPhone Duo -02 + 折りたためない Sim -08 のプロファイルで、-08 で対象外になった3本が「結果を捨てて未試行の台へ」回り Duo で走った・Duo の無いプロファイルは今までどおり4本とも対象外で緑。残り: ①同じマシンで、他のレーンが合流した後に供給で落ちた台は数えない(その台は居ない扱いで対象外 = 緑のまま。供給の失敗を `RunOrchestrator` へ渡す入口が要る。duo_memo_cmp の形 = 手元の台が全滅して子ごと終わる形は親が数えて失敗になる)②`beforeAll()` の同型 ③マシンをまたぐ run のデバイスでの確認(次の評価の本番で見る)
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): マシンをまたぐ run の回し直しは働いた(duo-12: M1Max で対象外 → 手元の Duo -01 で走った・手元の Duo が落ちた duo-3 は「never handed」で赤)。**同じマシンの Duo -02 が供給で落ちた run は2回とも 0 本実行の緑**(duo-2 `✅ All 2 passed (2 skipped)`・duo-5 `✅ All 0 scenario(s) passed (4 skipped)`)。原因(コードで確認): `ScenarioQueue.departedLanes` は合流した後に終わったレーンだけを数え、呼び手は合流したワーカーだけ = 残り①は「合流の後」に限らず供給で合流できなかった台も数えていない
 
 ### OI-342 iPhone Duo の Simulator が、内蔵の画面を1枚しか申告しない状態で「折りたためない」と判定され、fold / unfold が対象外(緑)になる
 - 状態: 再現済み
@@ -63,7 +64,69 @@
 - 材料: デバイスタイプの定義(`/Library/Developer/CoreSimulator/Profiles/DeviceTypes/<名>.simdevicetype/Contents/Resources/capabilities.plist` の `displays` の `displayType: integrated`)は Duo で2枚・iPhone 18 Pro で1枚 = 機種名に頼らず「折りたためる機種か」を決められる
 - 次の一手: 折りたためるかはデバイスタイプの定義(内蔵の画面の数)で決め、折りたためる機種なのに devicectl が2枚を返さないときは `.unknown`(読めなかった = 送らずに赤)にする。判定はシナリオのプロセス(サンドボックスの中)で動くので、親がデバイスタイプを読んで子へ渡す(子に simctl / ファイルの読みを足さない)
 
+### OI-343 `ft_list_scenarios(skipBuild: true)` が古いバイナリの中身を注記なしで返す(無いシナリオを一覧に出す)
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 着手可
+- 運用: 回避可 — skipBuild を付けずに呼ぶ
+- 優先度: 中 — 作成の判断を誤らせる(「もう作ってある」)
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: r6_e2ex_rn_emu の作業開始時の `ft_list_scenarios(skipBuild: true)` が、`_Main.swift` しか無いプロジェクトで 12 本(前回の評価で同じ名前のプロジェクトにあったシナリオ)を返した。skipBuild なしでは `No scenarios`
+- 原因(コードで確認): 古いバイナリの注記(`MCPServer.skipBuildStaleNote` = 判定は `ScenarioHost.skipBuildStaleness`)を付けるのは `ft_dry_run` と `ft_run_scenario` だけで、`ft_list_scenarios` は付けない。古さの判定はシナリオのフォルダの要約なので、ソースの削除も検知できる
+- 次の一手: `ft_list_scenarios` の応答の先頭にも同じ注記を付ける
+
+### OI-344 末尾の描画の検査(`screen rendering check`)の赤の読み方が known_caveats に無い
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 着手可
+- 運用: 合否に響かない — 作成の手戻りだけ
+- 優先度: 低 — docs
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: 作成時の `ft_run_scenario` の末尾で `screen rendering check` だけが赤になったセッションが 12。うち 4 が原因を秘匿欄・キーボードと推測してシナリオを書き換えた(2 は後で自分で打ち消した)。説明は text_visibility_check のページにだけあり、シナリオを書く AI が必ず読む known_caveats に行が無い
+- 次の一手: known_caveats に1行(負荷の下の Simulator で画面の文字が描かれなくなった事実を示す赤で、シナリオの手順の誤りではない。撮り直して同じなら run を回し直す)を足す
+
 ## 要測定
+
+### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回・11/22 の評価で 7 回)
+- 状態: 再現済み
+- 確認: 6e1dce9ec(2026-11-15)
+- 属性: 要測定・環境側
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
+
+出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
+- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
+- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
+- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
+- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
+- **原因(11/15 の回帰で観測)**: 測る口が出した理由は `(not read again: Vision was not ready, and an earlier wait in this run had already timed out)`(手元の E2E-CMP の Android「WebViewの中身を操作できること」S0010・Pixel 10 Pro -03・`_work/regress-20261115d`)。そのステップの OCR の所要は 10,661ms = Vision が読めるまでの待ち(上限 10 秒)をこのステップの中で使い切り、判定の取り直しで 2 回目に通ったときは尽きていた。切り抜きには `wv_result=-` がはっきり写っている = **はっきり描かれた文字を、同じプロセスの Vision(10 秒探っても空)と FM(空の転写)が同時に読めなかった**。手元の負荷が高く、エミュレータの白紙・固まりが多発していた時間帯(同じ回帰で手元の Android 16 台ぶんが外れた)
+- 判断(据え置き): 読み手が 2 つとも読めないとツールには文字が見えていると確かめられない(赤が正しい)。待ちの上限(10 秒)を延ばすと、Vision が長く読めない機械で失敗のたびに 10 秒以上を払う
+- 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): **同じ形が 7 回**(lk2_e2e_cmp の --broadcast 手元 Sim 6/12・r5_e2ey_cmp_emu 1)。切り抜きは「E2E ホーム」等が鮮明・注記 `fm-empty-transcript-on-ink` と `ocr-shortcut-not-ready`・`ocrMs` 11,147(Vision の準備待ちを使い切った)・FM は4回呼んで失敗0 = 空の転写を返した。同じ run の M1Ultra は 4/4 緑。11 の作成セッションが並行する負荷の下 → 要測定へ戻す。次の一手: 残った切り抜き(`~/Library/Logs/fleetest/occlusion/`)を FM の常駐プロセスへ負荷なしで渡し直して空の転写が再現するかを測る(再現しなければ負荷の下の FM の取りこぼし)
+
+### OI-345 iOS の Simulator で画面全体が描かれていない赤に `screen-blank` が立たず、レーンの切り離し・振り直しが起きない
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 要測定
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 中 — 壊れた台が run に残り、後続のシナリオも赤になりうる
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
+- 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
+
+### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 要測定
+- 運用: 回避可 — 文中リンクは本番(`fleetest run`)で確かめる
+- 優先度: 低 — MCP だけ
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: 作成の 3 セッションが、MCP で文中リンクを押す `tap(linkText:)` の OCR が空(リンクの文字を見つけられない)と書き、文中リンクの検証を見送った。`fmAndVision: true` を渡しても同じ(セッションの記述・応答の文言は digest.md)
+- 次の一手: 同じ画面で MCP の `ft_tap(linkText:)` と DSL の `tap(linkText:)` を撃ち、OCR に渡る絵と読みを比べる
 
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
@@ -79,6 +142,7 @@
 - 本番の赤の内訳(結果 JSON の注記): 手元は `exist "FTトグル項目、未実行"` が `found-in-xcuitest-tree`(DR-199 の照会)で通り、赤は ①`ifCanSelect("…、実行済み")` が照会の対象外 = in-app の木で「無い」と判断して else 側の `tap("実行済みを表示")` へ進んだ(メニューは既に「実行済みを非表示」)②リストの行 `exist "FTテストリスト、*"` が `row-label-not-read`。M4Max は照会で見つけたが `xcuitest-tree-unverified`(見えていると確かめられず)で赤
 - 次の一手: in-app のセルで `accessibilityAttributedLabel` 等の別の経路から合成ラベルが取れるかをブリッジで測る(取れれば in-app の木に載せる。取れなければ ifCanSelect 系にも照会を広げるかを要判断へ)
 - 評価 6回目(11/21): builtin_ios(リマインダー・連絡先)の作成は緑で終えたが、本番の reminders-exec は作成セッションが上限で切れて回らず = 新しい材料なし。上の測る口(in-app のブリッジに合成ラベルの経路を試す一時の口)は未着手
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): r7_builtin_ios の本番 手元 1/3・M4Max 1/3(行がラベル無しの clickable = 同じ形)
 
 ### OI-320 Flutter の iOS で `type(sel, text, replace: true)` が「tapping the input field did not give it keyboard focus within 1.5s」で赤
 - 状態: 再現済み
@@ -96,7 +160,7 @@
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): CMP の iOS で replace なしの type が同じ「did not give it keyboard focus within 1.5s」の 422(lk_e2e_cmp・duo_memo_cmp の作成時。どちらも同じ Mac で 11 セッションが並行)
 - 測定(11/22 01:2x〜01:5x・Sim -06・`_work/scen-eval-20261121b/logs/m320-*`): CMP の iOS の入力画面で replace なしの type を4回(単一行・パスワード・単一行・複数行)× xcuitest モード 6 run・inapp-boost 6 run を、CPU を `yes` 22 本で埋めて回した = 48/48 の type が緑(1 run 約3分)。再現しない。観測した2回はどちらも同じ Mac で 11 の作成セッション(claude -p)と Simulator・Emulator が並行していた = CPU だけの負荷では作れない形
 - 測定(11/21 07:2x・Simulator -05・`_work/scen-eval-20261121/logs/m320b-*.log`): 同じ Mac で run は1本ずつしか走らないので、前回の「6 セッションが並行」の代わりに CPU を `yes` 22 本で埋め、`launchApp → tap(#nav_input) → type(#field_single, …, replace: true)` × 4 を 6 run = 24/24 緑(inapp-boost から XCUITest へ回る経路)。再現しない
-
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): 作成時の MCP で 4 セッション(CMP・Flutter の iOS)。本番では出ず
 
 ### OI-321 実機 SE3 の CMP のリストで、境界で薄く切られた行への `scrollTo("#row_15")` が「reached its end」で赤
 - 状態: 再現済み
@@ -140,7 +204,7 @@
 - 同じ材料の別の影響(11/22 に測定・Sim -06・E2E-CMP の入力画面で複数行の欄に打った直後): XCUITest の木は CMP の全画面の容器 `scrollView (0,0 402x874)` が下端まで残るので、キーボードで窓が縮んだ判定(`KeyboardOcclusion.windowResizedAboveKeyboard`)も立たない(in-app の木は最下端 538 = キーボードの上端で立つ)。DSL の not found の文言は `KeyboardWait.isShown` で「縮む作りなら消えうる・先に hideKeyboard()」を添えるようにした(判定は変えていない)
 - 次の一手(②): XCUITest の木で「ラベルが要素に比べて極端に切られている」を到達の判定に入れるかは、既存の SUT と実アプリのコーパスで反例を見分けられるか確かめてから(MN-108)
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): hk_sutstore_ios の本番 M1Ultra 0/4(登録直後の `exist "#btn_logout"`・赤の文言は「容器の外」を言う = ①の直しが効いた)・作成時の `#btn_save` の飲まれ(hk_sutstore_ios・r8_order_ios)。e2ey_rn_ios で入れ子のリストの下端のカードへの `tap(scroll: .down)` も同じ形で飲まれた
-
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): hk_sutstore_ios の本番 M1Ultra 1 本(赤の文言は「容器の枠の外」を名指し = 正しい赤)・作成時の `#btn_save` の飲まれ 2 セッション
 
 ### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
 - 状態: 再現済み
@@ -419,6 +483,7 @@
 - 11/13(⑤ の材料・53周目 duo F1): -01 の XCUITest ブリッジの起動が 2 run とも 180 秒の時間切れ(文言は「connection refused」だけ)。直後の 11:36〜11:37 に -01 の SpringBoard と InputUI は launchd の状態が -5・PID 無しのまま(7回確かめた。同じ時刻の -02 の SpringBoard は動いていた)= OI-184 の落ちを繰り返した後に起き直さなくなった形。最後の SpringBoard の .ips は 11:20:36。起動を試していた間ずっと止まっていたかは採っていない = 材料不足。次に出たら、起動の時間切れの文言に SpringBoard の生死(`launchctl list` の状態)を添えるかを、起動の最中の状態を採ってから決める
 - 11/13(⑤ の原因の観測・54周目 duo): 12:25〜12:27 に両 Duo の SpringBoard と InputUI が同時に止まり(`launchctl list` で `- -5`・PID 無し)、12:37 まで起き直さなかった(約 25 回採取。新しい .ips は出ず、10:44 の .ips の更新時刻だけが 12:27 に変わった)。その間に撃った Duo-02 の XCUITest ブリッジの起動は 180 秒の時間切れ(「connection refused」・xcodebuild は BUILD INTERRUPTED)で、起動の最中の 3 回の採取でも SpringBoard は止まっていた = **起動の時間切れは SpringBoard が止まったままの Simulator で起きる**(53周目の -01 と同じ形)。文言は SpringBoard を名指さない。次の一手: Simulator の XCUITest ブリッジの起動が時間切れになったら、そのデバイスの SpringBoard の生死(`launchctl list` の状態)を文言に添える・止まっていれば Simulator の起動し直しを勧める(起こし直しの自動化は別に判断)
 - 11/13(直し): Simulator の XCUITest ブリッジの起動が時間切れになったら、`launchctl list` の SpringBoard の行の PID 列が `-` のときだけ「SpringBoard が動いていない・止まっている間ランナーは上がらなかった・Simulator を止めて起動し直す」を文言に添える(`SimulatorAppProcess.springBoardStopped`・UDID のときだけ聞く)。行の読みは実測の形(`- -5 com.apple.SpringBoard`)で固定。端末で止まったままの SpringBoard を作れなかった(殺しても launchd が数秒で起こし直す)ので、時間切れの文言そのものは次に出たときに確かめる
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): Duo -02 の XCUITest ブリッジが本番の5回とも起動せず、ランナーが起動の見張りで kill された記録(0x8BADF00D)が 06:32:56 と 07:12:56(duo-4 の「TEST EXECUTE FAILED」と同じ時刻)
 ### OI-190 E2E-Flutter の Android で払いの向きが「下」と読まれる(低率)
 - 状態: 経路確定
 - 確認: 7161b1156(2026-11-11)
@@ -542,22 +607,6 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 ## 環境側
 
-### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回)
-- 状態: 据え置き
-- 確認: 6e1dce9ec(2026-11-15)
-- 属性: 環境側・低頻度・据え置き
-- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
-- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
-
-出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
-- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
-- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
-- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
-- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
-- **原因(11/15 の回帰で観測)**: 測る口が出した理由は `(not read again: Vision was not ready, and an earlier wait in this run had already timed out)`(手元の E2E-CMP の Android「WebViewの中身を操作できること」S0010・Pixel 10 Pro -03・`_work/regress-20261115d`)。そのステップの OCR の所要は 10,661ms = Vision が読めるまでの待ち(上限 10 秒)をこのステップの中で使い切り、判定の取り直しで 2 回目に通ったときは尽きていた。切り抜きには `wv_result=-` がはっきり写っている = **はっきり描かれた文字を、同じプロセスの Vision(10 秒探っても空)と FM(空の転写)が同時に読めなかった**。手元の負荷が高く、エミュレータの白紙・固まりが多発していた時間帯(同じ回帰で手元の Android 16 台ぶんが外れた)
-- 判断(据え置き): 読み手が 2 つとも読めないとツールには文字が見えていると確かめられない(赤が正しい)。待ちの上限(10 秒)を延ばすと、Vision が長く読めない機械で失敗のたびに 10 秒以上を払う
-- 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
-
 ### OI-234 iOS Simulator のワーカーの蘇生が、起動直後の遅さで始まる SpringBoard の起こし直しとブリッジの再起動の途中で、蘇生の枠(60 秒)に切られる(Duo-02 で 2 回中 2 回)
 - 状態: 据え置き
 - 確認: 35040589d(2026-11-15)
@@ -648,6 +697,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は OI-340
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): 05:48 に FBSDisplayMode の SpringBoard の落ち 1 件(DiagnosticReports)・Duo の作成 6 セッションが全部この落ちに当たった
 
 ## 据え置き
 
