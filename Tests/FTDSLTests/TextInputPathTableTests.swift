@@ -158,9 +158,12 @@ final class TextInputPathTableTests: XCTestCase {
             // 題名・ボタン名のパターン(`||` と `*`)。空の分岐と見えない文字だけの分岐を断る
             ("iosAlertHandler@alert", plainGate, { v in self.dslGate { iosAlertHandler(alert: v, button: "OK") } }),
             ("iosAlertHandler@button", plainGate, { v in self.dslGate { iosAlertHandler(alert: "*x*", button: v) } }),
-            // 入力する文字列: 空文字は replace 無しだと何も起きないので断る。空白だけは入力として正しい
-            ("type@text", typeGate, { v in self.dslGate { type(v) } }),
-            ("type@selector", typeGate, { v in self.dslGate { type("#a", v) } }),
+            // 入力する文字列: 空文字は replace 無しだと何も起きないので断る。空白だけは入力として正しい。
+            // **デバイスでの実行の門を直に呼ぶ**: dry-run は空の入力を注記つきで通す(DR-211・`DryRunEmptyValueNoteTests`)ので dslGate では測れない。
+            // 組み立ては production の `type(_:)` / `type(_:_:)` の commandError と同じ式
+            ("type@text", typeGate, { v in
+                FTSelector.selectorLikeInputError(v) ?? emptyTypeRefusal(v, replace: false, dryRun: false) == nil ? .accepted : .refused }),
+            ("type@selector", typeGate, { v in emptyTypeRefusal(v, replace: false, dryRun: false) == nil ? .accepted : .refused }),
         ]
 
         // 型付きセレクタ(Sel)

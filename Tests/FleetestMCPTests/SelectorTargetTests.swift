@@ -101,8 +101,9 @@ final class SelectorTargetTests: XCTestCase {
 
     // MARK: - 一致なし
 
-    /// 一致なしの断り: Android でキーボードが出ていれば「木から消える → ft_hide_keyboard」・それ以外は画面外の案内
-    func testNoMatchRefusalHintsAtTheKeyboardOnAndroidAndAtScrollToOtherwise() {
+    /// 一致なしの断り: キーボードが出ていれば(Android・iOS とも。iOS の Compose Multiplatform は窓を詰めて下の要素が木から消える)
+    /// 「→ ft_hide_keyboard」・出ていなければ画面外の案内
+    func testNoMatchRefusalHintsAtTheKeyboardWhenShownAndAtScrollToOtherwise() {
         var tree = snapshot([element(1, id: "field_name", label: "Name", y: 0)])
         tree.keyboardFrame = FTRect(x: 0, y: 500, width: 390, height: 344)
         func refusal(_ tree: SnapshotResponse, android: Bool) -> String {
@@ -113,8 +114,8 @@ final class SelectorTargetTests: XCTestCase {
         XCTAssertTrue(onAndroid.contains("ft_hide_keyboard"), onAndroid)
         XCTAssertFalse(onAndroid.contains("ft_scroll_to"), onAndroid)
         let onIOS = refusal(tree, android: false)
-        XCTAssertFalse(onIOS.contains("ft_hide_keyboard"), onIOS)
-        XCTAssertTrue(onIOS.contains("ft_scroll_to it first"), onIOS)
+        XCTAssertTrue(onIOS.contains("ft_hide_keyboard"), onIOS)
+        XCTAssertFalse(onIOS.contains("ft_scroll_to"), onIOS)
         tree.keyboardFrame = FTRect(x: 0, y: 900, width: 390, height: 344)
         let hidden = refusal(tree, android: true)
         XCTAssertFalse(hidden.contains("ft_hide_keyboard"), "画面の外の矩形 = 出ていない: \(hidden)")
