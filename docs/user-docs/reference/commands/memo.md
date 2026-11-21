@@ -7,6 +7,8 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
 - **The memo (`writeMemo` etc.)** lives only inside **one test function** (its `beforeEach()`, body and `afterEach()`). Use it to carry a value from one step to another of the same test.
 - **The run memo (`writeRunMemo` etc.)** is shared by **every scenario of the run, on every device and every machine**. Use it to hand a value to other tests.
 
+One `fleetest run` (one Run in the extension) is one run. A run profile that lists devices on several machines is still one run (the run memo is shared by all the machines).
+
 ## Functions
 
 | function | description |

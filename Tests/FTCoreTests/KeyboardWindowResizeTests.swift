@@ -95,14 +95,39 @@ final class KeyboardWindowResizeTests: XCTestCase {
         XCTAssertTrue(hint.contains("gone from the tree"), "脱落の事実を言うこと: \(hint)")
     }
 
-    func testKeyboardResizedHintIsEmptyWhenTheWindowHasNotResized() {
+    /// 縮みと言い切れない(キーボードの下へはみ出す要素がある)ときは、座標つきの「消えた」を言わず、
+    /// キーボードが出ている事実だけで「縮む作りなら消えうる・先に閉じる」を添える(MCP の hiddenOrOffscreenHint と同じ判定)
+    func testKeyboardResizedHintIsSoftWhenTheWindowHasNotResized() {
         let elements = [
             element(ref: 1, type: "other", id: "root", x: 0, y: 136, w: 1080, h: 1131),
             element(ref: 4, type: "button", id: "btn_submit", x: 0, y: 1400, w: 360, h: 132),
         ]
         let snap = snapshot(elements: elements,
                             keyboardFrame: FTRect(x: 0, y: 1267, width: 1080, height: 1073))
-        XCTAssertEqual(StepExecutor.keyboardResizedHint(snap), "")
+        let hint = StepExecutor.keyboardResizedHint(snap)
+        XCTAssertTrue(hint.contains("hideKeyboard()"), hint)
+        XCTAssertFalse(hint.contains("gone from the tree"), "縮みと言い切っている: \(hint)")
+    }
+
+    /// 実測(11/22・Sim・E2E-CMP の入力画面で複数行の欄に打った直後の XCUITest の木): CMP の全画面の容器
+    /// `scrollView (0,0 402x874)` が下端まで残るので幾何の判定は立たない(in-app の木では最下端 538 = キーボードの上端で立つ)。
+    /// それでも DSL の not found に閉じる手を添える
+    func testKeyboardHintIsGivenForTheXCUITestTreeOfComposeMultiplatform() {
+        var snap = SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 402, height: 874),
+                                    elements: [
+                                        element(ref: 1, type: "scrollView", x: 0, y: 0, w: 402, h: 874, depth: 1),
+                                        element(ref: 17, id: "tab_home", x: 0, y: 490, w: 134, h: 48),
+                                        element(ref: 23, type: "other", id: "inputView", x: 0, y: 538, w: 402, h: 336),
+                                    ], truncatedCount: 0)
+        snap.keyboardFrame = FTRect(x: 0, y: 583, width: 402, height: 233)
+        XCTAssertFalse(KeyboardOcclusion.resolve(reported: snap.keyboardFrame, in: snap.elements, screen: snap.screen)
+                        .windowResizedAboveKeyboard, "前提: XCUITest の木では縮みの判定が立たない")
+        XCTAssertTrue(StepExecutor.keyboardResizedHint(snap).contains("hideKeyboard()"))
+    }
+
+    func testKeyboardHintIsEmptyWhenTheKeyboardIsNotShown() {
+        let elements = [element(ref: 1, type: "other", id: "root", x: 0, y: 136, w: 1080, h: 1131)]
+        XCTAssertEqual(StepExecutor.keyboardResizedHint(snapshot(elements: elements, keyboardFrame: nil)), "")
     }
 
     func testKeyboardResizedHintIsEmptyWithoutASnapshot() {

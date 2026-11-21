@@ -140,6 +140,7 @@ public struct ScenarioEvent: Codable, Sendable {
     public var appCrash: AppCrashRecord?
     /// kind == scenarioFinished。子が「このシナリオはこの環境では成り立たない」と宣言した理由
     /// (FTRuntime.skipScenarioNotApplicable)。立つのは passed == true のときだけ。
+    /// kind == deviceSetUp の status "notApplicable" でも同じ理由を運ぶ(RunDeviceSession が後続を対象外にする)。
     /// 親は結果 JSON に `skipKind: notApplicable` + `skipReason` で残し、RunEvent.flowFinished と
     /// api NDJSON の scenarioFinished にも運ぶ(緑でも赤でもない = skipped。立たなければキーごと省略)
     public var notApplicableReason: String?

@@ -242,3 +242,4 @@
 - DR-211 dry-run では、値が空の `type` を断らず注記を付けて通し、文字の検証の空の期待値にも注記を付ける
 - DR-212 `ft_run_scenario` は profile と platform の併用を、プロファイルにその OS のデバイスがあれば受ける
 - DR-213 選択が空になった run(全部 `@Deleted` か `@Draft`)は、`run` も `api run` も失敗で終える
+- DR-214 対象外(fold・appSwitcher 等)で終わったシナリオは、同じ run でまだ試していない台へ回し直し、回せる台が落ちて残っていなければ失敗にする

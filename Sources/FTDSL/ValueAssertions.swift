@@ -44,6 +44,13 @@ extension Optional where Wrapped == Any {
             core.recordStep(description: description, status: .skipped(core.skipReason), file: "\(file)", line: Int(line), command: verb)
             return true
         }
+        // dry-run では断らない(DR-211。画面から読んだ値・run メモが空になるので、正しいシナリオが dry-run だけ赤になる)。
+        // 要素の検証と同じ注記 dry-run-empty-expected を残す(`FTDriveCore.dryRunEmptyValueNotes`)
+        if core.dryRun {
+            core.recordStep(description: description, status: .passed, file: "\(file)", line: Int(line),
+                            notes: [.dryRunEmptyExpected], command: verb)
+            return true
+        }
         core.recordStep(description: description, status: .failed(reason), file: "\(file)", line: Int(line), command: verb)
         core.handleFailure(stepDescription: description, reason: reason)
         return true

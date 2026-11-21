@@ -70,6 +70,35 @@ final class ValueAssertionOptionalTests: XCTestCase {
         }
     }
 
+    /// dry-run では空の期待値を断らず、注記 dry-run-empty-expected を付けて通す(DR-211。run メモ・画面から読んだ値は dry-run で空)
+    func testEmptyExpectationPassesWithANoteInDryRun() {
+        final class Events: @unchecked Sendable {
+            private let lock = NSLock()
+            private var items: [ScenarioEvent] = []
+            func append(_ e: ScenarioEvent) { lock.lock(); items.append(e); lock.unlock() }
+            var all: [ScenarioEvent] { lock.lock(); defer { lock.unlock() }; return items }
+        }
+        for verb in ["thisContains", "thisStartsWithNot"] {
+            let events = Events()
+            let core = FTDriveCore(driver: StubDriver(), platform: "ios", app: "com.example.app",
+                                   scenarioID: "T.S0010", scenarioTitle: "t",
+                                   delegate: nil, healingEnabled: false, tunables: RunTunables(), dryRun: true,
+                                   fingerprintCacheURL: URL(fileURLWithPath: NSTemporaryDirectory())
+                                       .appendingPathComponent("ft-value-optional-\(UUID().uuidString).json"),
+                                   emit: { events.append($0) })
+            FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+            let empty = ""
+            scenario { scene(1, "s") { action {
+                if verb == "thisContains" { empty.thisContains(empty) } else { empty.thisStartsWithNot(empty) }
+            } } }
+            FTRuntime.tearDown()
+            let step = core.finalRecord.scenes.flatMap(\.steps)[0]
+            XCTAssertFalse(isFailed(step), "dry-run で空の期待値が赤(\(verb)): \(step.status)")
+            let notes = events.all.filter { $0.kind == "step" }.flatMap { $0.notes ?? [] }
+            XCTAssertTrue(notes.contains { $0.contains("dry-run-empty-expected") }, "注記が無い(\(verb)): \(notes)")
+        }
+    }
+
     /// 正規表現のパターンからも見えない文字を除外する(値と同じ規則。45周目 duo・amax・alocal)
     func testPatternInvisibleCharactersAreExcludedLikeTheValue() {
         let value = "a\u{200B}b"

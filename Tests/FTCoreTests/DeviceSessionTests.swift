@@ -56,6 +56,27 @@ final class DeviceSessionTests: XCTestCase {
         XCTAssertEqual(decision, .setUpDeviceFailed)
     }
 
+    /// setUpDevice が対象外の宣言で終わったら、後続は失敗ではなく同じ理由の対象外
+    func testNotApplicableSetUpMakesTheClassNotApplicableNotFailed() async {
+        let session = RunDeviceSession()
+        var notApplicable = event("deviceSetUp", status: "notApplicable")
+        notApplicable.notApplicableReason = "fold needs a foldable device"
+        session.apply(event("deviceSetUp", status: "began"), className: "Fold")
+        session.apply(notApplicable, className: "Fold")
+        session.scenarioEnded(className: "Fold")
+        let decision = await session.handoff(className: "Fold", classHasBeforeAll: false)
+        XCTAssertEqual(decision, .setUpDeviceNotApplicable(reason: "fold needs a foldable device"))
+        let other = await Self.launch(session, "Other")
+        XCTAssertEqual(other?.runSetUpDevice, true, "対象外は宣言したクラスだけに効く")
+    }
+
+    func testNotApplicableSetUpWithoutReasonFallsBackToFailed() async {
+        let session = RunDeviceSession()
+        session.apply(event("deviceSetUp", status: "notApplicable"), className: "Fold")
+        let decision = await session.handoff(className: "Fold", classHasBeforeAll: false)
+        XCTAssertEqual(decision, .setUpDeviceFailed)
+    }
+
     func testBeganWithoutOutcomeBecomesFailedAtScenarioEnd() async {
         let session = RunDeviceSession()
         session.apply(event("deviceSetUp", status: "began"), className: "Login")
@@ -330,6 +351,39 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         XCTAssertTrue(sink.events.contains {
             ($0.message ?? "").contains("setUpDevice of Login failed earlier on this device")
         })
+    }
+
+    /// 同じデバイスの setUpDevice が対象外で終わったクラスの後続は、子を起こさず対象外(緑・notApplicableReason)で記録する
+    func testScenarioIsRecordedNotApplicableWhenSetUpDeviceWasNotApplicable() async throws {
+        try "// swift-tools-version: 6.0".write(
+            to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        let project = TestProject(name: "SessionHostNotApplicable",
+                                  rootURL: root.appendingPathComponent("TestProjects/SessionHostNotApplicable"))
+        setenv("FT_PACKAGE_ROOT", root.path, 1)
+        let session = RunDeviceSession()
+        var notApplicable = ScenarioEvent(kind: "deviceSetUp")
+        notApplicable.status = "notApplicable"
+        notApplicable.notApplicableReason = "fold / unfold / hinge need a foldable device"
+        session.apply(notApplicable, className: "Fold")
+
+        let sink = EventSink()
+        let passed = await ScenarioHost.run(
+            project: project, scenarioID: "Fold.S0020",
+            connection: DriverConnection(platform: "ios"),
+            deviceSession: session,
+            classHasBeforeAll: false,
+            scenarioTimeoutOverride: nil,
+            settings: ScenarioExecutionSettings(fm: FMConfig(enabled: false)),
+            reportDir: root.appendingPathComponent("reports").path) { sink.append($0) }
+
+        XCTAssertTrue(passed)
+        let finished = try XCTUnwrap(sink.events.last { $0.kind == "scenarioFinished" })
+        XCTAssertEqual(finished.passed, true)
+        XCTAssertEqual(finished.notApplicableReason, "fold / unfold / hinge need a foldable device")
+        XCTAssertTrue(sink.events.contains {
+            $0.kind == "step" && $0.status == "skipped" && $0.detail == "fold / unfold / hinge need a foldable device"
+        }, "skipped のステップは理由を detail で運ぶ(無いと「(skipped: )」と空で出る)")
+        XCTAssertFalse(sink.events.contains { ($0.message ?? "").contains("failed earlier") })
     }
 
     func testDeviceTearDownRunsTheClassOnceInATearDownOnlyChild() async throws {

@@ -106,5 +106,19 @@ iOS の SwiftUI・Compose Multiplatform・Flutter のアプリでは、画面の
 - 作るデータは実行のたびに違う値にする(同じメールアドレスでの2回目の登録が失敗しないように)
 - 送信・購入のような取り消せない操作は、2回届いても困らない環境(テスト用の決済・ステージングのサーバー)に向ける
 
+
+## 引数は決まった順に書く
+
+Swift は、名前を付けた引数でも定義の順に書かないとコンパイルエラーになります(`argument 'direction' must precede argument 'scrollFrame'` など)。fleetest のコマンドの引数は、どのコマンドも次の順に並んでいます。
+
+対象(名前なしの最初の引数)→ そのコマンドだけの引数(`direction:`・`scrollFrame:`・`holdSeconds:` など)→ `waitSeconds:` → `scroll:` → `maxSwipes:`
+
+```swift
+scrollTo("#row_15", direction: .up, scrollFrame: "#list")
+tap("#btn_save", waitSeconds: 5, scroll: .down)
+```
+
+迷ったら `ft_dsl_commands` の signature の順に書きます。
+
 ### Link
 - [index](../../index_ja.md)

@@ -83,6 +83,20 @@ final class DeviceSessionMemoTests: XCTestCase {
         XCTAssertEqual(setUpDeviceStatuses(sink), ["began", "failed"])
     }
 
+    /// 対象外の宣言(fold を折りたためない台で撃った等)で終わった setUpDevice は failed ではなく理由つきの notApplicable
+    func testNotApplicableSetUpDeviceEmitsNotApplicableWithReason() {
+        let sink = Sink()
+        let core = makeCore(sink: sink)
+        FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+        defer { FTRuntime.tearDown() }
+        ftRunSetUpDevice {
+            core.skipScenarioNotApplicable(description: "unfold", command: "unfold",
+                                           reason: "fold needs a foldable device", file: #filePath, line: #line)
+        }
+        XCTAssertEqual(setUpDeviceStatuses(sink), ["began", "notApplicable"])
+        XCTAssertEqual(sink.events.last { $0.kind == "deviceSetUp" }?.notApplicableReason, "fold needs a foldable device")
+    }
+
     func testAlreadyAbortedScenarioDoesNotRunSetUpDevice() {
         let sink = Sink()
         let core = makeCore(sink: sink)

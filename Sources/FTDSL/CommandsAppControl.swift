@@ -1163,6 +1163,14 @@ public func ftRunSetUpDevice(_ body: () -> Void) {
     }
     core.emit(event("began"))
     core.runLifecycle("setUpDevice", allowAfterFailure: false, body)
+    // 対象外の宣言(fold を折りたためない台で撃った等)も scenarioAborted を立てるので、失敗より先に見分ける。
+    // 親は同じデバイスの同じクラスの後続を同じ理由の対象外にする(RunDeviceSession.setUpDeviceNotApplicable)
+    if !core.deviceFrozen, !core.stoppedByUser, let reason = core.notApplicableReason {
+        var notApplicable = event("notApplicable")
+        notApplicable.notApplicableReason = reason
+        core.emit(notApplicable)
+        return
+    }
     core.emit(event(core.scenarioAborted || core.deviceFrozen || core.stoppedByUser ? "failed" : "passed"))
 }
 

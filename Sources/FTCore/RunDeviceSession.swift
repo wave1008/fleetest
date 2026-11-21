@@ -168,7 +168,9 @@ public final class RunSharedSession: @unchecked Sendable {
 }
 
 public final class RunDeviceSession: @unchecked Sendable {
-    private enum SetUpState { case began, passed, failed }
+    /// notApplicable = setUpDevice が対象外の宣言で終わった(fold を折りたためない台で撃った等)。失敗ではないので、
+    /// 同じデバイスの同じクラスの後続は同じ理由の対象外にする(failed と同じに扱うと後続が赤になる)
+    private enum SetUpState: Equatable { case began, passed, failed, notApplicable(String) }
 
     public let shared: RunSharedSession
     private let lock = NSLock()
@@ -196,6 +198,8 @@ public final class RunDeviceSession: @unchecked Sendable {
         case launch(DeviceSessionHandoff)
         /// このクラスの setUpDevice がこのデバイスで失敗済み
         case setUpDeviceFailed
+        /// このクラスの setUpDevice がこのデバイスで対象外の宣言で終わった(理由は子の宣言のまま)
+        case setUpDeviceNotApplicable(reason: String)
         /// このクラスの beforeAll がこの run で失敗済み
         case beforeAllFailed
     }
@@ -219,6 +223,10 @@ public final class RunDeviceSession: @unchecked Sendable {
         if state == .failed {
             if runBeforeAll { releaseBeforeAll(className: className) }
             return .setUpDeviceFailed
+        }
+        if case .notApplicable(let reason)? = state {
+            if runBeforeAll { releaseBeforeAll(className: className) }
+            return .setUpDeviceNotApplicable(reason: reason)
         }
         let lock = shared.lockHandoff(override: lockOverride)
         return .launch(DeviceSessionHandoff(runMemo: shared.runMemoSnapshot(), runSetUpDevice: state == nil,
@@ -272,6 +280,8 @@ public final class RunDeviceSession: @unchecked Sendable {
             case "began": next = .began
             case "passed": next = .passed
             case "failed": next = .failed
+            // 理由は子が notApplicableReason で運ぶ。欠けていたら対象外と言えないので失敗に倒す
+            case "notApplicable": next = event.notApplicableReason.map { .notApplicable($0) } ?? .failed
             default: next = nil
             }
             if let next {

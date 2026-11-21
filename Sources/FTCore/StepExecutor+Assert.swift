@@ -169,7 +169,13 @@ extension StepExecutor {
     static func keyboardResizedHint(_ snapshot: SnapshotResponse?) -> String {
         guard let snapshot else { return "" }
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements, screen: snapshot.screen)
-        guard occlusion.windowResizedAboveKeyboard, let kb = occlusion.frame else { return "" }
+        guard occlusion.windowResizedAboveKeyboard, let kb = occlusion.frame else {
+            // 縮みと言い切れないがキーボードは出ている(XCUITest の木は CMP の全画面の容器が下端まで残るので幾何の判定が立たない。
+            // in-app の木では立つ)。MCP の一致なしの断り(`hiddenOrOffscreenHint`)と同じ判定 `KeyboardWait.isShown` で「消えうる」と言う
+            guard KeyboardWait.isShown(snapshot) else { return "" }
+            return " (the soft keyboard is up — an app that shrinks its window above it (Compose Multiplatform) drops what"
+                + " sat below it from the tree. Close it first (hideKeyboard()), then retry.)"
+        }
         return " (the soft keyboard is up at (\(Int(saturating: kb.x)),\(Int(saturating: kb.y))"
             + " \(Int(saturating: kb.width))x\(Int(saturating: kb.height))) and the window has shrunk to fit above it,"
             + " so elements that sat below the keyboard are gone from the tree, not just covered."

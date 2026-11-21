@@ -26,19 +26,31 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-340 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-320・OI-321・OI-329 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-341 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 19 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327・OI-341 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 36 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
 
-(いまこの属性を持つ項目は無い)
+### OI-340 対象を走らせられる台(折りたためる端末)が供給で落ちると、fold を使うシナリオが全部ほかの台で対象外になり、0 本実行で ✅ exit 0
+- 状態: 再現済み
+- 確認: 4f5b96bd1(2026-11-21)
+- 属性: 着手可
+- 運用: 要注意 — 何も検証していない緑(run の行に「N skipped: not applicable」は出る)
+- 優先度: 中 — 誤った緑に近い
 
+出典: シナリオ作成の評価 6回目(2026-11-21・`_work/scen-eval-20261121b/`。一覧は同フォルダの `ISSUES.md`)
+- 観測: duo_memo_cmp の xm-exec(手元 iPhone Duo -01 + M1Max の iPhone 18 Pro)。Duo-01 は XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れで合流できず(OI-184 / OI-196)、動的な割り振りで 4 本とも M1Max へ → unfold で対象外 → `[M1Max] ✅ All 0 scenario(s) passed (4 skipped: not applicable)`・手元は `This machine ran no scenario`・全体 exit 0(`logs/run-duo-12-duo_memo_cmp-xm-exec.log`)
+- 関連: 作成セッションの 3 本が「折りたたみが要るクラスを Duo へ寄せる手段が無い(当たった台しだいで全部対象外)」と書いた。DR-213 は「OS が合わず対象外で 0 本」を正当な成功としたが、こちらは対象の台が居たのに落ちた結果
+- 同型(観測していない・コードで確認): `beforeAll()` の中で fold 等が対象外になると、`ftRunBeforeAll` は `scenarioAborted` を失敗と読み、run 全体でそのクラスが「beforeAll failed」になる(setUpDevice の同じ形は 11/22 に直した = 後続を同じ理由の対象外にする)。beforeAll は run に1回なので、別の台で撃ち直すかは途中まで走った準備の二重実行と合わせて決める
+- 決定: DR-214(11/22)= 対象外で終わったシナリオは同じ run のまだ試していない台へ回し直し、回せる台が落ちて残っていなければ失敗。最初から対象の台が居ない run は今までどおり対象外(緑)
+- 次の一手(3層・`run` と `api run` の両方): ①機械の中 —— `RunOrchestrator` の notApplicable の分岐で、同じ OS の生きたレーンのうちその item を試していないものがあれば結果を確定させずに戻す(`ScenarioQueue` に item ごとの「試したレーンの集合」を持たせ、`avoidedLane` の優先ではなく除外として効かせる。setUpDevice の対象外はそのレーンの同じクラスを即座に対象外にする = 11/22 の直し)。試していないレーンが離脱で消えたら失敗で確定(`@RunInOrder` の「could not be revived」と同じ出口)②マシンをまたぐ run —— 子が対象外の結果を親へ返す行を `WorkQueueProtocol` に足し(子 → 親。id・lane・理由)、`DynamicDispatcher` がまだ試していない entry へ配り直す。全 entry が試して対象外なら親が対象外で確定・試していない entry が落ちていれば失敗で確定 ③結果 JSON・run の集計・NDJSON で「回し直した対象外」を数え直す(`runSkipped` の二重計上をしない)。陽性対照: Duo と普通の iPhone を混ぜたプロファイルで fold のシナリオが Duo に回ること・Duo を止めた run が赤になること・Duo の無いプロファイルは緑のまま
 ## 要測定
+
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
 - 状態: 再現済み
@@ -52,6 +64,7 @@
 - **測定(11/21 07:0x・手元 Sim -04・`_work/scen-eval-20261121/logs/m329-inapp.log`)**: 1件足した直後の同じ画面を `fleetest snapshot --json` で両方のブリッジから読んだ。XCUITest は `clickable "M329項目、未実行" id=<x-apple-reminderkit://…> (0,168 402x44)` と子の `textField "タイトル" value="M329項目"`、in-app は同じ枠の `clickable`(ラベル無し)だけで子の textField も出ない(要素 8 対 10)。in-app は `accessibilityLabel` プロパティを直接読む(`InAppSnapshot.makeInfo`)ので、OS の読み上げの仕組みが子から合成するセルのラベルが取れない
 - 本番の赤の内訳(結果 JSON の注記): 手元は `exist "FTトグル項目、未実行"` が `found-in-xcuitest-tree`(DR-199 の照会)で通り、赤は ①`ifCanSelect("…、実行済み")` が照会の対象外 = in-app の木で「無い」と判断して else 側の `tap("実行済みを表示")` へ進んだ(メニューは既に「実行済みを非表示」)②リストの行 `exist "FTテストリスト、*"` が `row-label-not-read`。M4Max は照会で見つけたが `xcuitest-tree-unverified`(見えていると確かめられず)で赤
 - 次の一手: in-app のセルで `accessibilityAttributedLabel` 等の別の経路から合成ラベルが取れるかをブリッジで測る(取れれば in-app の木に載せる。取れなければ ifCanSelect 系にも照会を広げるかを要判断へ)
+- 評価 6回目(11/21): builtin_ios(リマインダー・連絡先)の作成は緑で終えたが、本番の reminders-exec は作成セッションが上限で切れて回らず = 新しい材料なし。上の測る口(in-app のブリッジに合成ラベルの経路を試す一時の口)は未着手
 
 ### OI-320 Flutter の iOS で `type(sel, text, replace: true)` が「tapping the input field did not give it keyboard focus within 1.5s」で赤
 - 状態: 再現済み
@@ -66,6 +79,8 @@
   観測した1回は6セッションが同じ Mac で並行していた(負荷の下)。単独では再現しない
 - 次の一手: 負荷の下(同じ Mac で並行の run)で反復し、出たときの焦点待ちの所要を採る
 - 評価 5回目(11/21・`_work/scen-eval-20261121/`): Flutter の iOS で replace 付きの type を書いたセッションはあったが出なかった
+- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): CMP の iOS で replace なしの type が同じ「did not give it keyboard focus within 1.5s」の 422(lk_e2e_cmp・duo_memo_cmp の作成時。どちらも同じ Mac で 11 セッションが並行)
+- 測定(11/22 01:2x〜01:5x・Sim -06・`_work/scen-eval-20261121b/logs/m320-*`): CMP の iOS の入力画面で replace なしの type を4回(単一行・パスワード・単一行・複数行)× xcuitest モード 6 run・inapp-boost 6 run を、CPU を `yes` 22 本で埋めて回した = 48/48 の type が緑(1 run 約3分)。再現しない。観測した2回はどちらも同じ Mac で 11 の作成セッション(claude -p)と Simulator・Emulator が並行していた = CPU だけの負荷では作れない形
 - 測定(11/21 07:2x・Simulator -05・`_work/scen-eval-20261121/logs/m320b-*.log`): 同じ Mac で run は1本ずつしか走らないので、前回の「6 セッションが並行」の代わりに CPU を `yes` 22 本で埋め、`launchApp → tap(#nav_input) → type(#field_single, …, replace: true)` × 4 を 6 run = 24/24 緑(inapp-boost から XCUITest へ回る経路)。再現しない
 
 
@@ -83,10 +98,22 @@
 - 次の一手: 作成セッションの直前の手順(同じ画面での前の操作)を再生して再現を探す
 - 測定(11/21 06:4x・SE3・`_work/scen-eval-20261121/logs/m321-*.log`): 作成セッションの直前の手順(入力画面で打って送る → 起動し直してリストの `scrollTo("#row_15")`)を 1 run に並べ、xcuitest モード・inapp-boost を 3 回ずつ = 6/6 緑。再現しない
 - 評価 5回目: se3_cmp の作成・本番(4/4)とも出ず
+- 評価 6回目(11/21): se3_cmp は週の利用上限で作成が始まらず(SE3 で CMP のリストを扱ったセッションは無し)= 材料なし
 
 ## 要判断
 
-(いまこの属性を持つ項目は無い)
+### OI-341 テキストの可視性検証が、画像の説明ラベル(staticText 型)の枠を読んで誤った赤
+- 状態: 再現済み
+- 確認: 4f5b96bd1(2026-11-21)
+- 属性: 要判断・木に材料なし
+- 運用: 回避可 — 一致が1つになるセレクタ(id)で書く
+- 優先度: 中 — 描かれている文字があるのに赤
+
+出典: シナリオ作成の評価 6回目(2026-11-21・`_work/scen-eval-20261121b/`。一覧は同フォルダの `ISSUES.md`・`logs/red-analysis.md`)
+- 観測: r8_order_and の本番(M1Ultra・Emulator)で `exist "*深夜の訪問者*"` が可視性検証の notRendered で赤。失敗時の木で一致が2つ = 商品画像の枠 `[5] staticText (48,676 264x264)` と、描かれている商品名 `[6] (360,676 …)`。検証の切り抜きは本の表紙の絵(SUT Store は画像の contentDescription に商品名を入れる)。作成時(検証なし)は緑・1/1
+- **測定(11/22・手元 Emu -05・SUT Store Android のカート画面・`_work/scen-eval-20261121b/logs/m341-*`)**: 同じ手順でカートまで進めて止め、ブリッジの木を読んだ。`[5] staticText "深夜の訪問者(ミステリー小説)" (48,676 264x264) depth 13`(商品画像)と `[6] staticText 同じラベル (360,676 752x61) depth 12`(商品名)。画像は SUT の商品画像の部品(Coil の非同期の画像に contentDescription = 商品名)
+- 原因(観測): ①Android ブリッジの型の写像(`AndroidRunner/.../SnapshotBuilder.mappedType`)は `ImageView` なら `Image`、役割を語らない葉の `android.view.View` が contentDescription を持てば `StaticText`(Flutter の文字のための規則)。[5] が StaticText で出た = Coil の画像の節点は画像の役割を申告していない(クラスは `ImageView` ではない)。Flutter の文字とクラス・欄で見分ける材料が木に無い ②可視性検証(`occlusionFlip`)は解決した要素1つだけを見る。木の順で先の [5] が選ばれ、絵の中に文字が無いので notRendered
+- 決めること: ①一致が複数あり、そのどれかの文字が見えていれば `exist` を緑にするか(判定の変更。既存の SUT と固定コーパスで、見えていない文字の緑が増えないかを先に確かめる)②ブリッジが画像の節点を見分ける材料(`AccessibilityNodeInfo` の roleDescription 等)をデバイスで探すか(材料が無ければ据え置き)
 
 ## 木に材料なし
 
@@ -107,7 +134,9 @@
 - **測定 ②(11/21 07:1x・同じ Sim・住所フォーム・`logs/m327b-*.log`)**: キーボードを閉じた後の `exist("#btn_save")` は両モードとも可視性検証の notRendered で赤(in-app の木: 容器 `other scroll (0,188 402x618)` = 下端 806・`#btn_save (16,789 370x48)` の中心 813 は外・ラベルは高さ 4pt / XCUITest の木: 容器は `scrollView (0,0 402x874)` で全画面・ラベル `staticText "保存" (187,801 28x4)`)。`tap("#btn_save", scroll: .down)` は **xcuitest は払わずに押して ✅、保存されずに次の検証で赤(1/1)**、inapp-boost は保存できた(1/1)
 - 原因 ②(観測): XCUITest の木では容器が全画面に申告され、ボタンは画面の中に見える。切られている材料はラベルの高さ(4pt)だけ = `scroll:` は到達済みと判断して中心(容器の外)を押す
 - ①(可視性検証の赤が「容器に切られている」を言わない)は直した(赤に「要素の中心が属するスクロール容器の枠の外 = scrollTo で送ってから確かめる」の事実を足した。判定は変えない。11/21 に同じ画面で文言を確認)
+- 同じ材料の別の影響(11/22 に測定・Sim -06・E2E-CMP の入力画面で複数行の欄に打った直後): XCUITest の木は CMP の全画面の容器 `scrollView (0,0 402x874)` が下端まで残るので、キーボードで窓が縮んだ判定(`KeyboardOcclusion.windowResizedAboveKeyboard`)も立たない(in-app の木は最下端 538 = キーボードの上端で立つ)。DSL の not found の文言は `KeyboardWait.isShown` で「縮む作りなら消えうる・先に hideKeyboard()」を添えるようにした(判定は変えていない)
 - 次の一手(②): XCUITest の木で「ラベルが要素に比べて極端に切られている」を到達の判定に入れるかは、既存の SUT と実アプリのコーパスで反例を見分けられるか確かめてから(MN-108)
+- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): hk_sutstore_ios の本番 M1Ultra 0/4(登録直後の `exist "#btn_logout"`・赤の文言は「容器の外」を言う = ①の直しが効いた)・作成時の `#btn_save` の飲まれ(hk_sutstore_ios・r8_order_ios)。e2ey_rn_ios で入れ子のリストの下端のカードへの `tap(scroll: .down)` も同じ形で飲まれた
 
 
 ### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
@@ -615,6 +644,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
+- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は OI-340
 
 ## 据え置き
 

@@ -115,5 +115,19 @@ scenario that passed just before is run again too. This cannot be turned off, so
 - Point operations that cannot be undone, such as sending or purchasing, at an environment where receiving them twice
   does no harm (test payments, a staging server)
 
+
+## Write arguments in their fixed order
+
+Swift requires arguments in the order of the definition even when they are labelled (otherwise a compile error such as `argument 'direction' must precede argument 'scrollFrame'`). Every fleetest command orders its arguments the same way:
+
+the target (the first, unlabelled argument) → arguments of that command only (`direction:`, `scrollFrame:`, `holdSeconds:` …) → `waitSeconds:` → `scroll:` → `maxSwipes:`
+
+```swift
+scrollTo("#row_15", direction: .up, scrollFrame: "#list")
+tap("#btn_save", waitSeconds: 5, scroll: .down)
+```
+
+When unsure, follow the order of the signature `ft_dsl_commands` shows.
+
 ### Link
 - [index](../../index.md)

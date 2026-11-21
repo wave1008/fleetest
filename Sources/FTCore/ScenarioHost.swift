@@ -762,6 +762,37 @@ public enum ScenarioHost {
             return false
         }
 
+        // 同じデバイスの同じクラスの setUpDevice が対象外の宣言で終わった後続。子は起こさず、子が対象外を宣言したときと
+        // 同じ形(skipped のステップ + scenarioFinished(passed: true, notApplicableReason))で記録する。走っていないので
+        // 直近の合否(LastResultsStore)は上書きしない(子の対象外の終わりと同じ = 下の `!notApplicable`)
+        let notApplicableBeforeLaunch: (String) -> Bool = { reason in
+            let logEvent = ScenarioEvent.log("⏭ \(reason)")
+            eventLog?.appendHost(logEvent)
+            emit(logEvent)
+            var step = ScenarioEvent(kind: "step")
+            step.scenario = scenarioID
+            step.index = 0
+            step.status = "skipped"
+            step.description = "setUpDevice of \(className) ended as not applicable on this device"
+            step.detail = reason
+            eventLog?.appendHost(step)
+            emit(step)
+            var finished = ScenarioEvent(kind: "scenarioFinished")
+            finished.scenario = scenarioID
+            finished.passed = true
+            finished.notApplicableReason = reason
+            eventLog?.appendHost(finished)
+            emit(finished)
+            if let recording, let builder {
+                let fileName = recording.recorder.record(builder.build(
+                    passed: true, timedOut: false, startedAt: startedAt,
+                    durationMs: DurationConversion.milliseconds(clock.now - clockStart), packageRoot: packageRoot(),
+                    humanOperations: humanOperations()))
+                eventLog?.finish(fileBase: fileName)
+            }
+            return true
+        }
+
         if let reason = ScenarioTimeoutResolution.invalidScenarioValueReason(scenarioTimeoutOverride) {
             return abortBeforeLaunch(reason)
         }
@@ -772,6 +803,8 @@ public enum ScenarioHost {
         case .setUpDeviceFailed:
             return abortBeforeLaunch("setUpDevice of \(className) failed earlier on this device in this run,"
                                      + " so this scenario was not run")
+        case .setUpDeviceNotApplicable(let reason):
+            return notApplicableBeforeLaunch(reason)
         case .beforeAllFailed:
             return abortBeforeLaunch("beforeAll of \(className) failed earlier in this run,"
                                      + " so this scenario was not run")
