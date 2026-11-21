@@ -953,9 +953,12 @@ struct EffectiveDispatchTarget {
 ///   DeviceMachineRunner が引き取っている)。読めなければ nil(ローカル実行の経路が同じ理由で落ちる)
 /// - `requireProfileMachine: false` かつ `--runner` 未指定なら常に nil(dry-run 等)
 /// `testProject` はテストが一時ディレクトリのプロジェクトを渡す口(本番は `project` 名から引く)
+/// `overrides` は `--set`(既定値を置かない)—— `--set app=` は対象の OS を変え、どのデバイスが走るかを変える。
+/// 機械分担の計画(DeviceMachineRunner.plan)と同じ上書きを見ないと、計画は1機械と言い、ここは機械をまたぐと言って、
+/// どちらも引き取らずに手元で走る
 func resolveEffectiveDispatchTarget(
     explicitTarget: String?, profile: String?, project: String?,
-    requireProfileMachine: Bool, testProject: TestProject? = nil
+    requireProfileMachine: Bool, overrides: [String: RunProfileSetValue], testProject: TestProject? = nil
 ) throws -> EffectiveDispatchTarget? {
     if explicitTarget != nil {
         guard let target = MachineDispatch.resolve(explicitTarget: explicitTarget).target else { return nil }
@@ -963,14 +966,16 @@ func resolveEffectiveDispatchTarget(
     }
     guard requireProfileMachine, let profile,
           let machine = try profileSoleMachine(
-              profile: profile, project: testProject ?? ScenarioHost.project(named: project)) else { return nil }
+              profile: profile, project: testProject ?? ScenarioHost.project(named: project),
+              overrides: overrides) else { return nil }
     return EffectiveDispatchTarget(rawTarget: machine, requiresRegisteredName: true)
 }
 
 /// 実行プロファイルの enabled のデバイスが全部同じ機械に居ればその機械(手元なら nil)。
 /// デバイスが無い・複数の機械にまたがるなら nil
-private func profileSoleMachine(profile: String, project: TestProject) -> String? {
-    let devices = ProfileResolver.runDeviceMachines(project: project, runProfileName: profile)
+private func profileSoleMachine(profile: String, project: TestProject,
+                                overrides: [String: RunProfileSetValue]) -> String? {
+    let devices = ProfileResolver.runDeviceMachines(project: project, runProfileName: profile, overrides: overrides)
     let machines = Set(devices.map { DeviceMachineGrouping.display($0.machine) })
     guard machines.count == 1, let only = machines.first,
           only != DeviceMachineGrouping.localDisplayName else { return nil }
@@ -1012,14 +1017,18 @@ func dryRunRunnerWarning(runner: String, entries: [RemoteHostEntry]) -> String? 
 
 /// `--device-machine` を明示した `--runner` のディスパッチ(`machineScopedDeviceFilter` を通らない)でも、名指しした端末が
 /// そのマシンで無効なら手元で断る。向こうは自分の端末だけに畳んだプロファイルを見るので「全部が無効」と事実と違うことを言っていた
-func rejectDisabledNamedDevices(project: TestProject, profile: String, deviceMachine: String, devices: [String]) throws {
+/// `overrides` は向こうの子へ中継する `--set`(既定値を置かない。resolveEffectiveDispatchTarget の宣言と同じ理由)
+func rejectDisabledNamedDevices(project: TestProject, profile: String, deviceMachine: String, devices: [String],
+                                overrides: [String: RunProfileSetValue]) throws {
     guard !devices.isEmpty else { return }
-    let enabledThere = Set(ProfileResolver.runDeviceMachines(project: project, runProfileName: profile)
+    let enabledThere = Set(ProfileResolver.runDeviceMachines(project: project, runProfileName: profile, overrides: overrides)
         .filter { DeviceMachineGrouping.display($0.machine) == deviceMachine }.map(\.name))
     if let note = disabledDevicesNote(
         missing: devices.filter { !enabledThere.contains($0) }, targetMachine: deviceMachine,
-        disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile,
-        physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(project: project, runProfileName: profile)) {
+        disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile, overrides: overrides),
+        profile: profile,
+        physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(
+            project: project, runProfileName: profile, overrides: overrides)) {
         throw RemoteDispatchError.invalidDevice(note)
     }
 }
@@ -1051,10 +1060,12 @@ func disabledDevicesNote(missing: [String], targetMachine: String, disabled: [Ru
 /// 明示 `--device`(空 = 無し)—— 混在プロファイルではそのマシンのデバイスに限定して渡す
 /// (同名のデバイスが他の機械にもあると、名前だけでは全機械ぶんを拾う)。
 /// プロファイルが読めないときは丸ごと(名前はそのまま・machine は付けない)
+/// `overrides` は向こうの子へ中継する `--set`(既定値を置かない。resolveEffectiveDispatchTarget の宣言と同じ理由)
 func machineScopedDeviceFilter(
-    project: TestProject, profile: String, targetMachine: String, requestedDevices: [String] = []
+    project: TestProject, profile: String, targetMachine: String, requestedDevices: [String] = [],
+    overrides: [String: RunProfileSetValue]
 ) throws -> (deviceNames: [String], deviceMachine: String?) {
-    let devices = ProfileResolver.runDeviceMachines(project: project, runProfileName: profile)
+    let devices = ProfileResolver.runDeviceMachines(project: project, runProfileName: profile, overrides: overrides)
     if !requestedDevices.isEmpty {
         switch RemoteDispatchExplicitDeviceScope.resolve(
             targetMachine: targetMachine, requested: requestedDevices, devices: devices) {
@@ -1068,8 +1079,10 @@ func machineScopedDeviceFilter(
             // 実行から外れている(enabled:false)名前は「割り当て外」ではなく無効なので、有効化の場所を言う
             let disabled = disabledDevicesNote(
                 missing: missing, targetMachine: targetMachine,
-                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile), profile: profile,
-                physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(project: project, runProfileName: profile))
+                disabled: ProfileResolver.disabledRunDevices(project: project, runProfileName: profile, overrides: overrides),
+                profile: profile,
+                physicallyExcluded: ProfileResolver.physicallyExcludedRunDevices(
+                    project: project, runProfileName: profile, overrides: overrides))
             if let disabled { throw RemoteDispatchError.invalidDevice(disabled) }
             throw RemoteDispatchError.invalidDevice(
                 "\(names) is not assigned to machine \"\(targetMachine)\" in profile \"\(profile)\""

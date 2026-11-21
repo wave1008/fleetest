@@ -20,7 +20,9 @@ struct PreparedRemoteDispatch {
 
 extension RunCommonOptions {
     /// `project` は宛先の告知の後に解く(run は告知 → project の順で断ってきた。打ち間違いが重なったときの文言を変えない)
-    func prepareRemoteDispatch(_ dispatch: EffectiveDispatchTarget, profile: String, toStderr: Bool,
+    /// `overrides` は向こうの子へ中継する `--set`(送るデバイスの絞り込みも同じ上書きで決める)
+    func prepareRemoteDispatch(_ dispatch: EffectiveDispatchTarget, profile: String,
+                               overrides: [String: RunProfileSetValue], toStderr: Bool,
                                project resolveProject: () throws -> TestProject) throws -> PreparedRemoteDispatch {
         let resolved = try resolveRemoteTarget(dispatch, remoteDirOverride: remoteDir)
         resolved.announce(toStderr: toStderr)
@@ -38,10 +40,10 @@ extension RunCommonOptions {
         if deviceMachine == nil {
             (scopedDevices, scopedDeviceMachine) = try machineScopedDeviceFilter(
                 project: project, profile: profile, targetMachine: dispatch.rawTarget,
-                requestedDevices: devices)
+                requestedDevices: devices, overrides: overrides)
         } else if let deviceMachine {
             try rejectDisabledNamedDevices(project: project, profile: profile, deviceMachine: deviceMachine,
-                                           devices: devices)
+                                           devices: devices, overrides: overrides)
         }
         return PreparedRemoteDispatch(resolved: resolved, localRoot: localRoot, project: project,
                                       devices: scopedDevices, deviceMachine: scopedDeviceMachine)

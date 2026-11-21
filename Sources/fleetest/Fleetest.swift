@@ -572,7 +572,7 @@ struct RunScenarios: AsyncParsableCommand {
         }
         if !dryRun, let dispatch = try resolveEffectiveDispatchTarget(
         explicitTarget: runner, profile: common.profile, project: common.project,
-            requireProfileMachine: true) {
+            requireProfileMachine: true, overrides: profileOverrides) {
             // 中継役をコピーから動かす(手元でビルドしても殺されない。DispatchSelfCopy の規律)
             if !common.linkedToParent { DispatchSelfCopy.reexecIfNeeded(log: { ConsoleOut.err($0) }) }
             try await dispatchToRemoteHost(dispatch)
@@ -1166,7 +1166,7 @@ struct RunScenarios: AsyncParsableCommand {
         }
 
         let prepared = try common.prepareRemoteDispatch(
-            dispatch, profile: profile, toStderr: false,
+            dispatch, profile: profile, overrides: dispatchOverrides, toStderr: false,
             project: { try ScenarioHost.project(named: common.project) })
         let dispatcher = RemoteRunDispatcher(
             host: prepared.resolved.hostSpec, remoteDirRaw: prepared.resolved.remoteDirRaw,

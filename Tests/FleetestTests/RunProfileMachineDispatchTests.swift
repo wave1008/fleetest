@@ -181,7 +181,7 @@ final class RunProfileMachineDispatchTests: XCTestCase {
     func testMachineScopedDeviceFilterPinsTheTargetMachinesDevices() throws {
         try writeMixed()
         let (names, machine) = try machineScopedDeviceFilter(
-            project: project, profile: "multi", targetMachine: "runner1")
+            project: project, profile: "multi", targetMachine: "runner1", overrides: [:])
         XCTAssertEqual(names, ["リモート機"])
         XCTAssertEqual(machine, "runner1")
     }
@@ -189,7 +189,7 @@ final class RunProfileMachineDispatchTests: XCTestCase {
     func testMachineScopedDeviceFilterRejectsAMachineWithNoDevices() throws {
         try writeMixed()
         XCTAssertThrowsError(try machineScopedDeviceFilter(
-            project: project, profile: "multi", targetMachine: "runner2"))
+            project: project, profile: "multi", targetMachine: "runner2", overrides: [:]))
     }
 
     /// `--device-machine` を明示したディスパッチでも、名指しした端末がそのマシンで無効なら手元で「無効」と言って断る
@@ -197,11 +197,11 @@ final class RunProfileMachineDispatchTests: XCTestCase {
     func testExplicitDeviceMachineRejectsANamedDisabledDevice() throws {
         try writeMixed()
         XCTAssertThrowsError(try rejectDisabledNamedDevices(
-            project: project, profile: "multi", deviceMachine: "runner2", devices: ["無効の機"])) { error in
+            project: project, profile: "multi", deviceMachine: "runner2", devices: ["無効の機"], overrides: [:])) { error in
             XCTAssertTrue("\(error)".contains("is disabled"), "\(error)")
         }
         XCTAssertNoThrow(try rejectDisabledNamedDevices(
-            project: project, profile: "multi", deviceMachine: "runner1", devices: ["リモート機"]))
+            project: project, profile: "multi", deviceMachine: "runner1", devices: ["リモート機"], overrides: [:]))
     }
 
     /// 全台が1つのリモートに居れば `--runner` なしでそこへ自動ディスパッチする(登録名のみ受ける)
@@ -212,7 +212,7 @@ final class RunProfileMachineDispatchTests: XCTestCase {
         """)
         let target = try resolveEffectiveDispatchTarget(
             explicitTarget: nil, profile: "remote-only", project: nil,
-            requireProfileMachine: true, testProject: project)
+            requireProfileMachine: true, overrides: [:], testProject: project)
         XCTAssertEqual(target?.rawTarget, "runner1")
         XCTAssertEqual(target?.requiresRegisteredName, true)
         XCTAssertEqual(target?.origin, .autoDispatch(machine: "runner1"))
@@ -224,7 +224,7 @@ final class RunProfileMachineDispatchTests: XCTestCase {
         for profile in ["multi", "local-only"] {
             XCTAssertNil(try resolveEffectiveDispatchTarget(
                 explicitTarget: nil, profile: profile, project: nil,
-                requireProfileMachine: true, testProject: project), profile)
+                requireProfileMachine: true, overrides: [:], testProject: project), profile)
         }
     }
 
@@ -232,18 +232,18 @@ final class RunProfileMachineDispatchTests: XCTestCase {
         try writeRun("remote-only", #"[ { "platform": "ios", "machine": "runner1", "name": "a" } ]"#)
         let explicit = try resolveEffectiveDispatchTarget(
             explicitTarget: "user@other", profile: "remote-only", project: nil,
-            requireProfileMachine: true, testProject: project)
+            requireProfileMachine: true, overrides: [:], testProject: project)
         XCTAssertEqual(explicit?.rawTarget, "user@other")
         XCTAssertEqual(explicit?.requiresRegisteredName, false)
         XCTAssertNil(try resolveEffectiveDispatchTarget(
             explicitTarget: "local", profile: "remote-only", project: nil,
-            requireProfileMachine: true, testProject: project))
+            requireProfileMachine: true, overrides: [:], testProject: project))
     }
 
     func testEffectiveTargetIgnoresTheProfileWhenNotRequired() throws {
         try writeRun("remote-only", #"[ { "platform": "ios", "machine": "runner1", "name": "a" } ]"#)
         XCTAssertNil(try resolveEffectiveDispatchTarget(
             explicitTarget: nil, profile: "remote-only", project: nil,
-            requireProfileMachine: false, testProject: project))
+            requireProfileMachine: false, overrides: [:], testProject: project))
     }
 }

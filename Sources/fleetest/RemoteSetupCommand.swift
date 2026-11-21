@@ -267,7 +267,7 @@ extension RemoteCommand {
                     hostLabel: runner)
                 do {
                     let (scopedNames, scopedHost) = try machineScopedDeviceFilter(
-                        project: resolvedProject, profile: profile, targetMachine: runner)
+                        project: resolvedProject, profile: profile, targetMachine: runner, overrides: [:])
                     let exitCode = try await dispatcher.dispatch(
                         project: resolvedProject, profile: profile,
                         scenarios: scenario.map { [$0] } ?? [], folders: [],

@@ -368,7 +368,8 @@ extension RunCommonOptions {
         if deviceMachine == nil, MachineDispatch.isExplicitLocal(runner) {
             (effectiveDevices, effectiveDeviceMachine) = try machineScopedDeviceFilter(
                 project: project, profile: profile,
-                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: devices)
+                targetMachine: DeviceMachineGrouping.localDisplayName, requestedDevices: devices,
+                overrides: overrides)
         }
         let full = resolvedAll.filteringDevices(names: effectiveDevices, deviceMachine: effectiveDeviceMachine)
         try rejectDeviceFilterMatchingNothing(

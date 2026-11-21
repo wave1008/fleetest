@@ -111,7 +111,7 @@ struct ApiRemoteCompatCommand: AsyncParsableCommand {
         }
         let dispatch = try? resolveEffectiveDispatchTarget(
         explicitTarget: nil, profile: profile, project: project.name,
-            requireProfileMachine: true)
+            requireProfileMachine: true, overrides: [:])
         return ApiRemoteCompat.remoteMachineLabels(planGroups: nil, autoDispatchMachine: dispatch?.rawTarget)
     }
 }
