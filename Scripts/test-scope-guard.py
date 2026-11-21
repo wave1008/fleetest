@@ -3,7 +3,7 @@
 # ユーザー方針(2026-10-11): 全体テストは作業の区切りにユーザーの運用で回す。修正の各ステップは、変更が通るテストクラスだけ。
 # 断るもの:
 #   - `swift test` に --filter が無い(全体)/ --filter の語がテストクラスの正確な名前でない(部分一致の語で無関係なクラスを拾う)
-#   - `swift build --build-tests`(swift test が同じビルドをやり直す = 二重払い。CLAUDE.md)
+#   - `swift build --build-tests`(swift test が同じビルドをやり直す = 無変更でも約12秒の二重払い)
 #   - 素の `npm test` / `npm run test`(全体)—— 1ファイルなら `node esbuild.mjs --tests && node --test out-test/<名前>.test.mjs`
 #   - `Scripts/mutation-check.sh <json>` の各 filter がクラスの正確な名前でない / 同じ filter に向けた変異の数が、
 #     その filter のテストファイルで新しく足したテスト関数の数を超える(新しいテストが無ければ 1 件まで)
@@ -388,7 +388,7 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
                                    "—— クラス名(または Class/testMethod)を正確に書く")
         if len(words) >= 2 and os.path.basename(words[0]) == "swift" and words[1] == "build" \
                 and "--build-tests" in words:
-            reasons.append("swift build --build-tests は打たない(swift test が同じビルドをやり直す = 二重払い。CLAUDE.md)")
+            reasons.append("swift build --build-tests は打たない(swift test が同じビルドをやり直す = 無変更でも約12秒の二重払い)。swift test --filter <Class> だけを打つ")
         if len(words) >= 2 and words[0] == "npm" and (words[1] == "test" or words[1:3] == ["run", "test"]) \
                 and not full_ok:
             reasons.append("npm test は全体(2000 件超)。1ファイルなら vscode-fleetest で"

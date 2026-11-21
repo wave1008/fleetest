@@ -17,8 +17,8 @@ import XCTest
 
 final class VocabularyPolarityTests: XCTestCase {
 
-    /// 判定・検知のどちら側とも読める語。**代わりに使う語は CLAUDE.md の表**(真陽性・誤検知・
-    /// 見逃し・誤った緑・誤った赤・誤反転)
+    /// 判定・検知のどちら側とも読める語。**代わりに使う語の定義元は下の失敗文**(真陽性・誤検知・
+    /// 見逃し・誤った緑・誤った赤・誤反転。CLAUDE.md には禁止の1行だけを置く)
     private static let bannedWords = ["偽陽性", "偽陰性"]
 
     private static let skippedDirectories: Set<String> = [

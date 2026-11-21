@@ -17,11 +17,10 @@
 直すときの規則だけを置く。
 
 - **利用者向けドキュメント(Shirates 流の en/ja 対)は docs/user-docs/**。入口は `index.md` /
-  `index_ja.md`。1ページ = `<name>.md`(英)+ `<name>_ja.md`(日)で**片方だけ変えない**
-  (`userDocsIntegrity.test.mjs` が対の欠落・切れたリンク・言語の混線・index 未掲載を検出)。
+  `index_ja.md`。1ページ = `<name>.md`(英)+ `<name>_ja.md`(日)で**片方だけ変えない**(`userDocsIntegrity.test.mjs`)。
   DSL の挙動を変えたら docs/commands.md と併せて該当ページも直す
   ・**`## 注意点` の項目や「現時点の制約」を足したら `reference/writing/known_caveats(_ja).md` にも1行足す**(シナリオを書く AI が
-  必ず読む一覧。`knownCaveatsIndex.test.mjs` が節ごとの件数の食い違いを落とす)
+  必ず読む一覧。`knownCaveatsIndex.test.mjs`)
 - **README.md(英)/ README_ja.md(日)は入口だけ**(何か・必要環境・利用者と保守者の入口)。仕様を書かない ——
   仕様は user-docs と docs/ に置き、README からは指すだけ
 - **受け手の配布口は最新リリースタグ**・main は開発線で版固定の導線は案内しない。`FLEETEST_REF` は
@@ -82,7 +81,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 
 **リポジトリ直下の `AGENTS.md` は Codex など AGENTS.md を読むエージェント向けの入口**で、CLAUDE.md と
 規則ファイルへ誘導するだけ(規則の本文は書かない。Claude Code は CLAUDE.md があると既定では読まない。
-`claudeRulesIndex.test.mjs` が本文の写し込み・索引と規則ファイルの食い違い・当たらない `paths:` を落とす)。
+`claudeRulesIndex.test.mjs`)。
 
 **規則を足すときの置き場**: どの作業でも効く規則(検証の進め方・判断の規律・コメント規約・
 「どこであれ新しいものを足すとき」の規律)だけをこのファイルに置き、特定の領域のファイルを触るときに
@@ -171,21 +170,16 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 
 - **単体テストの全体は `FT_FULL_TEST=1 Scripts/unit-tests.py`**(テストクラスごとに1プロセス・前回の所要時間で
   重いクラスだけ1件ずつ・長い順に投入。`swift test --parallel` は1件ごとに xctest を起動し、その起動だけで全体の大半を
-  払っていた = 実測 313s → 約 110s(既定の並列度 = コア数 - 2 = 22 並列)。2026-11-06)。**絞った実行は `swift test --filter <Class>`**(前に
-  `swift build --build-tests` を打たない —— `swift test` が同じビルドをやり直すので**無変更でも 12.3 秒を二重に払う**)。
+  払っていた = 実測 313s → 約 110s(既定の並列度 = コア数 - 2 = 22 並列)。2026-11-06)。**絞った実行は `swift test --filter <Class>`**。
   **5 SUT のシナリオもこのビルドで型チェックされる**ので、DSL の改名・シグネチャ変更の
   追随漏れもこれで捕まる。別途ビルドが要るのは変異テストの直後に製品バイナリを作り直すときだけ
   (`swift build --product <名>`)
 - **クラス単位で回すので、同じプロセスの中で前のテストの状態が残る**(`swift test --parallel` では1件1プロセスで
   見えなかった)。プロセス内の控え・static を使うテストは、テストごとに捨てる(例: `CheckStateClassifierTests` の
   `invokeTest`)。完了の行が出ないテストもランナーが赤に数える
-- **テストの範囲は PreToolUse フック `Scripts/test-scope-guard.py` が撃つ前に検査する**(`.claude/settings.json` に登録。
-  このファイルは git 管理外なので**クローンごとに登録する**。
-  `--filter` 無しの `swift test`・部分一致の語・素の `npm test`・`swift build --build-tests`・新しいテストの数を超える変異を断る。
-  **デバイス実行も見る**: `--scenario` / `--folder` / `--failed` の無い `fleetest run`・`--scenario` の無い `e2e-devices.sh`・
-  `--project` の無い `e2e-negative.sh`・**`e2e.sh` / `e2ex.sh` / `e2ey.sh` は引数に関係なく**(SUT・OS・モードで絞っても
-  その SUT のスイート全体を回す。絞った確認は `fleetest run --scenario` で書く)。**起動するスクリプトファイルと heredoc で書いたスクリプトの中身も読む**)。
-  全体テストは作業の区切りにユーザーが回す運用 —— **全実施を頼まれたときだけ**コマンドに `FT_FULL_TEST=1` を書く
+- **テストとデバイス実行の範囲は PreToolUse フック `Scripts/test-scope-guard.py` が撃つ前に検査し、断るときは理由と代わりを返す**
+  (`.claude/settings.json` は git 管理外なので**クローンごとに登録する**)。全体テストは作業の区切りにユーザーが回す運用 ——
+  **全実施を頼まれたときだけ**コマンドに `FT_FULL_TEST=1` を書く
 - **合否は exit code で見る**(パイプすると grep 等の exit code に化けて失敗を握りつぶす)
 - **並列はテストプロセスを分けるので、ホストの共有資源に触るテストは自分で隔離する**
   → MN-4.9。**隔離できないホストの実体**(simctl/adb・起動中の Simulator/Emulator・
@@ -261,7 +255,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 **e2e の実行範囲はリスクとコストで決める**(上のゲートは「最低限ここまでは回す」の下限で、
 常に全部回す意味ではない。フルスイートは10分超かかるので、**何も足さない実行はしない**)。
 範囲の欄のシナリオは **`fleetest run --project <P> --profile <prof> --scenario <クラス>` で、変更が通るものを名指しする**
-(`e2e.sh` 系は絞ってもスイート全体を回すのでフックが断る。全体は全実施を頼まれたときだけ `FT_FULL_TEST=1`):
+(`e2e.sh` 系は絞ってもスイート全体を回す):
 
 | 変更の性質 | 範囲 |
 |---|---|
@@ -321,9 +315,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   失敗モードが沈黙(誤った成功)なら塞ぐ価値がある**(その場合は「再現していない」と明記する)。
   可能なら**同型の再発を落とすテスト**まで足す(`SwipeForScrollForwardingTests` = ソース走査 /
   `BridgeRouterStatusContractTests` = 本数固定 / `AppDriverDefaultDispatchTests` = 宣言の突き合わせ)
-- **`AppDriver` に既定実装を足すときはプロトコル要件にも宣言する**。存在型越しの呼び出しは
-  要件でなければ**静的ディスパッチで既定実装に落ち**、ドライバ側の実装が呼ばれないまま黙って
-  既定値が返る(ビルドもテストも通る。`snapshot(bypassingCache:)` で実際に踏んだ)。`AppDriverDefaultDispatchTests` が検出する
+- **`AppDriver` に既定実装を足すときはプロトコル要件にも宣言する**(要件でないと存在型越しの呼び出しが黙って既定実装に落ちる。
+  `AppDriverDefaultDispatchTests`)
 
 - **探索・負荷の誤った成功と回復の失敗を直すときは、再現手順と別経路の形を `Scripts/replay-cases/` に足し、直しを外した版で赤を確かめてから完了とする**
   (修正の関門。所見の様式の「直しとの関係」も必須)→ docs/verification/testing.md「修正の関門」
@@ -372,13 +365,9 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   テストでしか踏まれずに腐り、**沈黙する縮退**(decode 失敗で機械1台ぶんの行が消える等)を作る
 - **`fleetest run` と `fleetest api run` は2実装**。共通のオプション宣言と検査は
   `RunCommonOptions`(`@OptionGroup`)に1つだが、片側だけのフラグと**配線(受け取った値を実行段へ渡す)は
-  別々**。片方だけに足した変更はどちらの経路も緑のまま通る(実行されるのは足したほうだけ)。
-  **両方で同じ意味のオプション・検査は `RunCommonOptions` へ足す**。**意図した差分は
-  `RunCommandFlagParityTests` が等号で固定する** —— 片側にフラグを足すと落ちる・両方へ別々に宣言しても
-  落ちるので、「`RunCommonOptions` に足す」か「片側だけ(または別々)でよい理由を表へ書く」かを必ず選ぶ。
-  **「併用不可・必須」の検査規則も両方に揃える**(`RunRejectionParityTests`)—— フラグ名が同じでも検査が片方に無いと、
-  同じ打鍵が片方で通り片方で落ちる(実際にそうなっていた: `--profile` + `--port` が `run` では
-  黙って無視され `api run` ではエラーだった)
+  別々**で、片方だけに足した変更はどちらの経路も緑のまま通る。**両方で同じ意味のオプション・検査は
+  `RunCommonOptions` へ足す**。フラグの差分と「併用不可・必須」の検査の揃いは `RunCommandFlagParityTests` /
+  `RunRejectionParityTests` が等号で固定する(落ちたら共通へ寄せるか、差分の理由を表へ書く)
 
 ### 判定は1箇所に置く
 
@@ -398,18 +387,9 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   SpringBoard の拡張を activate すると**ホーム画面が描画を失って真っ黒になり**、自アプリなら
   in-app の既定実装から launch = 注入付きの再起動へ落ちる(実測 2026-09-22 → MN-40)。
   `attach` の既定実装は activate へ倒さず 501 を投げる(向け直せないことより画面を壊すほうが害が大きい)
-- **FM の失敗トリアージ(分類・要約・修正案)は置かない**(DR-6)。照合相手の無い自由文で、
-  実レポート 30 件のうち要約 13 件が事実を誤り(数の向き・引用・帰属)、分類は環境の問題を `appBug` にし
-  (ブリッジ不達 5/6・a11y 無効 3/3)、修正案は別要素への差し替えを勧めた。「環境の問題」と「アプリの不具合」を
-  分けること自体、ツールには判定できない(失敗の記録に分類を置かないのと同じ理由)。起きたことはレポートに
-  事実として並ぶ(失敗文言・要素一覧・スクリーンショット)。`FMTriageRemovedTests` が Sources への再混入を落とす。
-  **戻すなら MN-21 の測り方で誤りの率を測ってから** → MN-21
-- **FM によるロケータ自己修復(FM ヒール)とヒールキャッシュは置かない**(DR-7)。採用門
-  (自己申告 confidence == "high")が実測で1度も開かず(日英 272 件で high 0 件・E2E の witness は全 run で却下)、
-  confidence は正誤と相関しない(正解に low・誤答に medium/high)ので門の置き場が無い。典型的なドリフト(id だけ
-  変わりラベル不変)は指紋照合が決定的に拾う。**`heal` は指紋照合だけのスイッチで、FM を使わないので FM の
-  トグルと独立**(DR-7)。`FMHealRemovedTests` が Sources への再混入を落とす。
-  **戻すなら MN-21 の測り方で誤りの率を測ってから** → MN-22
+- **FM の失敗トリアージ(分類・要約・修正案)と FM ヒール(ロケータ自己修復)・ヒールキャッシュは置かない**
+  (DR-6・DR-7。実測の誤りの率と見直す条件は DR に。`FMTriageRemovedTests` / `FMHealRemovedTests`)。
+  **`heal` は指紋照合だけのスイッチで、FM のトグルと独立**
 - **共有するのは「判定」であって「文言」ではない**。正しい形は**①判定・順序・当たり判定を
   FTCore に1つ ②文言は呼び手ごとに持つ**。**呼び手は中核を呼んで写すだけ**にする。中核は `TapTargetGeometry.advisoryKind` /
   `FTCore.SimilarLabels` / `FTCore.BackEffect` / `FTCore.SnapshotTruncation.remedy` /
@@ -426,17 +406,9 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 ### 個別の規律
 
 - **PCC(Private Cloud Compute)は完全に禁止**(DR-8)。FM で使ってよいのは
-  **オンデバイスの `SystemLanguageModel` だけ** —— `PrivateCloudComputeLanguageModel` を使うと
-  アプリの画面情報が Mac の外へ出る。受け手向けドキュメント(docs/user-docs/overview/
-  about の en/ja)が「画面情報は Mac の外に出ない」と**断定している**ので、
-  これは表現ではなく不変条件。**利用者向けのトグルも置かない**(選べる形にしない)。
-  **守っているのは型ではなく `LanguageModelSession` の init の既定値** —— `model:` を省くと
-  `SystemLanguageModel = .default` に束縛されるが、**汎用 init(`model: some LanguageModel`)には
-  既定値が無い**ので `model:` を1つ書くだけでクラウドへ出られる。門は
-  `PrivateCloudComputeProhibitionTests` のソース走査(①PCC の型名を名指ししない
-  ②セッションに `model:` を明示的に渡さない ③走査が Sources に届いていることの確認)。
-  **PCC のインスタンスは型名を書かずに得られない**ので①だけで経路は閉じ、②は二重の備え。
-  経緯と SDK の実地調査は DS-1.1 末尾
+  **オンデバイスの `SystemLanguageModel` だけ**・**利用者向けのトグルも置かない**(user-docs の about が
+  「画面情報は Mac の外に出ない」と断定している不変条件)。`LanguageModelSession` に `model:` を渡さない
+  (`PrivateCloudComputeProhibitionTests`。仕組みは DS-1.1 末尾)
 
 ## 実装の委譲
 
@@ -466,11 +438,7 @@ Sources は `SourceFileLineBudgetTests` がラチェットで止める(超過分
 規律は `.claude/rules/vscode-i18n.md`。どの作業でも効くのは次の1つ:
 
 - **CLI(`fleetest`)の表示文字列は英語だけ**(DR-9。切替機構は入れない)。
-  コメント・docs・SKILL.md・拡張 UI は日本語のまま。**`Sources/` の文字列リテラル**は
-  `CLIEnglishStringsScanTests` が走査し、日本語を正しく持つファイルだけを理由付きの表で通す
-  (ステップ説明の日英生成・日本語入力の照合表・FM の `@Guide`・生成物・受け手の Package.swift へ
-  書くマーカー)。**中黒 `・` を日本語と数えない**(英語の出力でも箇条書きに使う)
-  → MN-44.3
+  コメント・docs・SKILL.md・拡張 UI は日本語のまま(`CLIEnglishStringsScanTests`。例外は理由付きの表 → MN-44.3)
 
 ## コメント規約
 
@@ -497,10 +465,10 @@ Sources は `SourceFileLineBudgetTests` がラチェットで止める(超過分
 **「デバイスで動かした」と書きたくなった瞬間に、何の上で動かしたかを確認する**
 → MN-7
 
-**用語(iOS のモードとブリッジ)**: 利用者が選ぶ設定は**モード**(`iosMode` / `devices[].mode` の値 `inapp-boost` / `xcuitest`。
-「`inapp-boost` モード」= XCUITest ブリッジに in-app ブリッジを足したハイブリッド構成。in-app ブリッジで撃てる操作はそちらで速く撃ち、撃てない操作は XCUITest ブリッジで撃つ。`bridge: "inapp"` はブリッジの種類の値でモード名ではない。**モードの値を /status の `bridge` との比較へそのまま渡さない** —— 主ポートのブリッジは `IOSMode.primaryBridge(forMode:)` で引く)、部品は**ブリッジ**(「in-app ブリッジ」「XCUITest ブリッジ」と
-ハイフン付きで書く)。「エンジン」と、モード名としての hybrid は使わない(`platform: "hybrid"` = iOS と Android の両方、は別の語)。
-`IOSModeVocabularyTests` が走査で落とす
+**用語(iOS のモードとブリッジ)**: 利用者が選ぶ設定は**モード**(`inapp-boost` / `xcuitest`。`inapp-boost` = XCUITest ブリッジに
+in-app ブリッジを足し、in-app で撃てる操作はそちらで撃つ構成)、部品は**ブリッジ**(in-app / XCUITest。語は `IOSModeVocabularyTests`)。
+`bridge: "inapp"` はブリッジの種類の値でモード名ではない —— **モードの値を /status の `bridge` との比較へそのまま渡さない**
+(主ポートのブリッジは `IOSMode.primaryBridge(forMode:)`)
 
 **用語(モニターのペイン)**: 「デバイスモニター」タブは上から**ラインビュー**(タイルの並び)・
 **グリッドビュー**(選択したデバイスの拡大表示)・**実行ログビュー**(選択したデバイスの実行ログ)の
@@ -510,20 +478,10 @@ DS-12.6 が唯一の定義元**)。**両ビューに出るのはラインビュ�
 ペインを「フリート」と呼ばない —— **「フリート」は複数機械・
 `run --fleet` の製品概念**に取っておく。見出しの文言は中身を表す(「デバイス一覧」「選択したデバイス」「実行ログ」)
 
-**用語(利用者向けの表記)**: user-docs の ja・README・拡張の UI 文字列(i18n・package.nls.ja.json)では**サーバー**(長音付き)・
-ドライバ・フォルダ・インストーラ・モニター、機械そのものは**マシン**(リモートは「ランナー機」)、保守者の語「**受け手**」は書かない
-(user-docs では「あなた」)。`UserFacingSpellingTests` が落とす。保守者向けのコメント・docs は対象外
+**用語(利用者向けの表記)**: user-docs の ja・README・拡張の i18n の表記ゆれと保守者の内輪の語(受け手・木・撃つ 等)は
+`UserFacingSpellingTests` が置き換え先付きで落とす(表は同テスト・DR-182)。保守者向けのコメント・docs は対象外
 
-**用語(陽性/陰性)**: **「陽性/陰性」は検知の語彙**(発火したかどうか)で、**判定の結果(緑/赤)には
-使わない**。occlusion-guard だけが「発火すると赤になる検知」なので、同じ事象を検知として語るか
-判定として語るかで極性が反転し、`偽陽性` の一語が両側に跨っていた。使う語は5つ ——
-**真陽性**(検知が正しく発火)/ **誤検知**(検知が誤って発火)/ **見逃し**(発火すべきなのにしなかった。
-幾何の原理的限界は「取りこぼし」)/ **誤った緑・誤った赤**(判定そのものの誤り)/
-**誤反転**(occlusion-guard が可視な要素を反転)。**`偽陽性`・`偽陰性` は書かない**
-(`VocabularyPolarityTests` がソース走査で落とす)。**陽性対照**は1語の固有名詞として残す
-(単独の「陽性」は書かない)。**例外は置かない** —— occlusion guard の利用者向けの名前は
-**「テキストの可視性検証」**(英語 "text visibility check")、キーは **`fmTextVisibilityCheck` /
-`ocrTextVisibilityCheck`**(ユーザー決定 2026-09-15・名前・キー・フラグは 2026-10-14 に変更。拡張のチェックボックス・キー・CLI フラグ
-`--no-fm-text-visibility-check`・docs・コメントとも。OCR 段は「OCR を使ったテキストの可視性検証」)。**走査は受け手向けの面(docs/user-docs/・拡張の i18n 文字列)も含む** ——
-どちらも対の英語があるので、直すときは ja/en を同時に直す。**対象外は TestProjects/(ユーザー資産)と
-reports/(.gitignore 済み。Apple へ提出済みの資料)だけ** → MN-11
+**用語(陽性/陰性)**: **「陽性/陰性」は検知の語彙**(発火したかどうか)で、**判定の結果(緑/赤)には使わない**。
+**`偽陽性`・`偽陰性` は書かない**(代わりの語は `VocabularyPolarityTests` の失敗文・由来は MN-11)。**陽性対照**は1語の
+固有名詞として残す。occlusion guard の利用者向けの名前は**「テキストの可視性検証」**(キー `fmTextVisibilityCheck` /
+`ocrTextVisibilityCheck`)
