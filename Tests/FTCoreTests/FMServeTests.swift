@@ -220,13 +220,16 @@ final class FMServeTests: XCTestCase {
 
     /// run の2実装が、シナリオを起こす前に・dry-run でなく・FM の機能が有効なときだけ常駐プロセスを用意する
     func testBothRunImplementationsEnsureTheFMProcess() throws {
+        // 2つの run の実装は RunPreparation.listAndSelect を共有する(一覧の後・シナリオのプロセスより前に用意する)
+        let shared = "Sources/fleetest/RunPreparation.swift"
+        let text = try source(shared)
+        let list = try XCTUnwrap(text.range(of: "ScenarioHost.listForRun("), shared)
+        let ensure = try XCTUnwrap(text.range(of: "await FMServeHost.ensureRunning"), "\(shared) が FM の常駐プロセスを用意していない")
+        XCTAssertLessThan(list.lowerBound, ensure.lowerBound, shared)
+        XCTAssertTrue(text.contains("if !dryRun, FMServeHost.needed(fmTextVisibilityCheck:"),
+                      "\(shared) が設定を見ずに(または dry-run でも)常駐プロセスを起こす")
         for path in ["Sources/fleetest/Fleetest.swift", "Sources/fleetest/ApiRunCommand.swift"] {
-            let text = try source(path)
-            let list = try XCTUnwrap(text.range(of: "ScenarioHost.listForRun("), path)
-            let ensure = try XCTUnwrap(text.range(of: "await FMServeHost.ensureRunning"), "\(path) が FM の常駐プロセスを用意していない")
-            XCTAssertLessThan(list.lowerBound, ensure.lowerBound, path)
-            XCTAssertTrue(text.contains("if !dryRun, FMServeHost.needed(fmTextVisibilityCheck:"),
-                          "\(path) が設定を見ずに(または dry-run でも)常駐プロセスを起こす")
+            XCTAssertTrue(try source(path).contains("try await RunPreparation.listAndSelect("), "\(path) が共有の一覧を通らない")
         }
     }
 

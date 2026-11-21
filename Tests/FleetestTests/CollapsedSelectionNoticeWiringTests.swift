@@ -19,7 +19,15 @@ final class CollapsedSelectionNoticeWiringTests: XCTestCase {
             XCTAssertEqual(resolves, notices, "\(file.lastPathComponent): まとめた結果を言っていない入口がある")
             if resolves > 0 { reporting.append(file.lastPathComponent) }
         }
-        XCTAssertEqual(Set(reporting), ["Fleetest.swift", "ApiRunCommand.swift", "FleetRunner.swift",
+        // run と api run は RunPreparation.listAndSelect を共有する
+        XCTAssertEqual(Set(reporting), ["RunPreparation.swift", "FleetRunner.swift",
                                         "DeviceMachineRunner.swift", "ApiRunMachineFanout.swift"])
+        // 隔離フォルダ(_disabled)にあるクラスの名指しを、そこにあると言って断る(api run だけ渡し忘れていた)
+        XCTAssertTrue(try String(contentsOf: root.appendingPathComponent("RunPreparation.swift"), encoding: .utf8)
+            .contains("scenariosDir: project.scenariosDir"), "run / api run の照合が scenariosDir を渡していない")
+        for entry in ["Fleetest.swift", "ApiRunCommand.swift"] {
+            let code = try String(contentsOf: root.appendingPathComponent(entry), encoding: .utf8)
+            XCTAssertTrue(code.contains("try await RunPreparation.listAndSelect("), "\(entry) が共有の照合を通らない")
+        }
     }
 }

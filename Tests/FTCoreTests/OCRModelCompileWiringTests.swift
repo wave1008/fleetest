@@ -34,8 +34,9 @@ final class OCRModelCompileWiringTests: XCTestCase {
             if text.contains("ScenarioHost.listForRun(") { forRun.insert(name) }
             if text.contains("startOCRModelCompile(") && name != "ScenarioHost.swift" { direct.insert(name) }
         }
+        // run と api run は RunPreparation.listAndSelect を共有する。
         // MultiTargetRunner(--target の繰り返し)は DeviceMachineRunner と同じ機械分担の親で、compilesOCR: false で一覧だけ取る
-        XCTAssertEqual(forRun, ["Fleetest.swift", "ApiRunCommand.swift", "DeviceMachineRunner.swift", "MultiTargetRunner.swift"],
+        XCTAssertEqual(forRun, ["RunPreparation.swift", "DeviceMachineRunner.swift", "MultiTargetRunner.swift"],
                        "listForRun の呼び出し元が run の経路と一致しない(増減したらこの表と理由を更新する)")
         XCTAssertEqual(direct, [], "コンパイルは listForRun 経由でだけ起こす(直接呼ぶと一覧だけの経路にも漏れる)")
         // listForRun 自身がコンパイルを起こしていること(呼び出し元の走査だけだと、本体から消しても緑)
@@ -51,8 +52,12 @@ final class OCRModelCompileWiringTests: XCTestCase {
         func text(_ path: String) throws -> String {
             try String(contentsOf: sources.appendingPathComponent(path), encoding: .utf8)
         }
+        XCTAssertTrue(try text("fleetest/RunPreparation.swift").contains("compilesOCR: ScenarioHost.ocrCompileNeeded("))
+        // 2つの run の実装はどちらも共有の一覧を通り、自分の実効設定を渡す
         for path in ["fleetest/Fleetest.swift", "fleetest/ApiRunCommand.swift"] {
-            XCTAssertTrue(try text(path).contains("compilesOCR: ScenarioHost.ocrCompileNeeded("), path)
+            let code = try text(path)
+            XCTAssertEqual(code.components(separatedBy: "try await RunPreparation.listAndSelect(").count - 1, 1, path)
+            XCTAssertTrue(code.contains("ocrTextVisibilityCheck: ") && code.contains("?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck"), path)
         }
         XCTAssertTrue(try text("fleetest/DeviceMachineRunner.swift").contains("compilesOCR: false"))
         XCTAssertFalse(ScenarioHost.ocrCompileNeeded(fmTextVisibilityCheck: false, ocrTextVisibilityCheck: false))

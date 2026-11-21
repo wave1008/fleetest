@@ -729,36 +729,18 @@ struct RunScenarios: AsyncParsableCommand {
             throw RunInterruptedBeforeStartError(phase: "after the scenario build")
         }
         PhaseLog.mark("build")
-        let all: [ScenarioInfo]
-        let runHooksClass: String?
-        do {
-            let listing = try ScenarioHost.listForRun(
-                project: testProject, dryRun: dryRun,
-                compilesOCR: ScenarioHost.ocrCompileNeeded(
-                    fmTextVisibilityCheck: earlyResolved?.fm.fmTextVisibilityCheck ?? noProfileSettings.fm.fmTextVisibilityCheck,
-                    ocrTextVisibilityCheck: earlyResolved?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck))
-            all = listing.scenarios
-            runHooksClass = listing.runHooksClass
-        } catch {
-            writeJUnitForEarlyFailure(project: testProject, phase: "scenario list", error: error)
-            throw error
-        }
-        // FM の常駐プロセス(画像を伴う FM の呼び出しを1つのプロセスに集める。FTCore/FMServe.swift 冒頭)。
-        // シナリオのプロセスを起こす前に用意する(子の環境とサンドボックスの許可がソケットのパスを読む)
-        let fmForServe = earlyResolved?.fm ?? noProfileSettings.fm
-        if !dryRun, FMServeHost.needed(fmTextVisibilityCheck: fmForServe.fmTextVisibilityCheck,
-                                       screenLooksLike: fmForServe.screenLooksLike) {
-            await FMServeHost.ensureRunning { ConsoleOut.err($0) }
-        }
+        // 一覧 → FM の常駐プロセス → 名指しの照合(api run と共有)。一覧の失敗は JUnit に残す
+        let prepared = try await RunPreparation.listAndSelect(
+            project: testProject, scenarios: scenarios, dryRun: dryRun,
+            fm: earlyResolved?.fm ?? noProfileSettings.fm,
+            ocrTextVisibilityCheck: earlyResolved?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck,
+            log: { ConsoleOut.out($0) },
+            onListFailure: { writeJUnitForEarlyFailure(project: testProject, phase: "scenario list", error: $0) },
+            afterListing: { _ in })
         PhaseLog.mark("scenario-list")
-        guard !all.isEmpty else {
-            throw ValidationError(
-                "no scenarios (add a @TestClass under TestProjects/\(testProject.name)/scenarios/)")
-        }
-        let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all,
-                                                                         scenariosDir: testProject.scenariosDir)
-        var selected = resolution.selected
-        if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { ConsoleOut.out(notice) }
+        let all = prepared.all
+        let runHooksClass = prepared.runHooksClass
+        var selected = prepared.selected
         if scenarios.isEmpty {
             let deletedCount = all.filter(\.deleted).count
             if deletedCount > 0 {

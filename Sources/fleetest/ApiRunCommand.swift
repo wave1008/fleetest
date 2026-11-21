@@ -541,38 +541,26 @@ struct ApiRunCommand: AsyncParsableCommand {
             throw RunInterruptedBeforeStartError(phase: "after the scenario build")
         }
 
-        let listing = try ScenarioHost.listForRun(
-            project: testProject, dryRun: dryRun,
-            compilesOCR: ScenarioHost.ocrCompileNeeded(
-                fmTextVisibilityCheck: resolvedProfile?.fm.fmTextVisibilityCheck ?? noProfileSettings.fm.fmTextVisibilityCheck,
-                ocrTextVisibilityCheck: resolvedProfile?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck))
-        let all = listing.scenarios
-        // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
-        let runHooksClass = listing.runHooksClass
-        // プロファイル無しの run とデバッグ実行は beforeRun / afterRun を走らせない(`fleetest run` と同じ。宣言があることだけ言う)
-        if runHooksClass != nil, !ParentLink.isLinked {
-            if debugOptions != nil {
-                logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a debug run"))
-            } else if resolvedProfile == nil {
-                logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a run without --profile"))
-            }
-        }
-        // FM の常駐プロセス(画像を伴う FM の呼び出しを1つのプロセスに集める。FTCore/FMServe.swift 冒頭)。
-        // シナリオのプロセスを起こす前に用意する(子の環境とサンドボックスの許可がソケットのパスを読む)
-        let fmForServe = resolvedProfile?.fm ?? noProfileSettings.fm
-        if !dryRun, FMServeHost.needed(fmTextVisibilityCheck: fmForServe.fmTextVisibilityCheck,
-                                       screenLooksLike: fmForServe.screenLooksLike) {
-            await FMServeHost.ensureRunning { ConsoleOut.err($0) }
-        }
-        guard !all.isEmpty else {
-            throw ValidationError(
-                "no scenarios (add a @TestClass under TestProjects/\(testProject.name)/scenarios/)")
-        }
-        let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all,
-                                                                         scenariosDir: testProject.scenariosDir)
-        var selected = resolution.selected
-        // 重なった指定を1回に畳んだことは言う(`fleetest run` と同じ1行。NDJSON の契約には足さない)
-        if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { logStderr(notice) }
+        // 一覧 → FM の常駐プロセス → 名指しの照合(`fleetest run` と共有)。注記は stderr(stdout は NDJSON 専用)
+        let prepared = try await RunPreparation.listAndSelect(
+            project: testProject, scenarios: scenarios, dryRun: dryRun,
+            fm: resolvedProfile?.fm ?? noProfileSettings.fm,
+            ocrTextVisibilityCheck: resolvedProfile?.ocrTextVisibilityCheck ?? noProfileSettings.ocrTextVisibilityCheck,
+            log: { logStderr($0) },
+            onListFailure: { _ in },
+            afterListing: { runHooksClass in
+                // プロファイル無しの run とデバッグ実行は beforeRun / afterRun を走らせない(`fleetest run` と同じ。宣言があることだけ言う)
+                if runHooksClass != nil, !ParentLink.isLinked {
+                    if debugOptions != nil {
+                        logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a debug run"))
+                    } else if resolvedProfile == nil {
+                        logStderr(RunWideHookPlan.unsupportedModeLine(mode: "a run without --profile"))
+                    }
+                }
+            })
+        let all = prepared.all
+        let runHooksClass = prepared.runHooksClass
+        var selected = prepared.selected
         guard !selected.isEmpty else {
             throw ValidationError("nothing to run (every scenario is marked @Deleted or @Draft)")
         }
