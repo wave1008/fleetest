@@ -568,7 +568,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             throw ValidationError(
                 "no scenarios (add a @TestClass under TestProjects/\(testProject.name)/scenarios/)")
         }
-        let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all)
+        let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all,
+                                                                         scenariosDir: testProject.scenariosDir)
         var selected = resolution.selected
         // 重なった指定を1回に畳んだことは言う(`fleetest run` と同じ1行。NDJSON の契約には足さない)
         if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { logStderr(notice) }
