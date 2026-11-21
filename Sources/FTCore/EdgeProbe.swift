@@ -52,7 +52,7 @@ public enum EdgeProbe {
         case .left: lead = moving.max { $0.frame.x + $0.frame.width < $1.frame.x + $1.frame.width }!
         }
         let frames = new.filter { isStatic($0.key) }.map(\.value.frame)
-            .filter { StepExecutor.frame($0, containsX: lead.frame.centerX, y: lead.frame.centerY) }
+            .filter { $0.containsClosed(x: lead.frame.centerX, y: lead.frame.centerY) }
         guard let viewport = frames.min(by: { $0.width * $0.height < $1.width * $1.height }) else { return false }
         // **先頭が枠いっぱいなら読まない**: 1ページずつ吸着する一覧(縦のフィード)はどのページでも縁に揃い、短いドラッグは
         // 離すと同じページへ戻る(木が変わらない)= 途中を端と確定してしまう
@@ -75,7 +75,7 @@ public enum EdgeProbe {
         var out: [String: ElementInfo] = [:]
         for element in elements {
             guard let id = element.identifier, counts[id] == 1 else { continue }
-            if let region, !StepExecutor.frame(region, containsX: element.frame.centerX, y: element.frame.centerY) { continue }
+            if let region, !region.containsClosed(x: element.frame.centerX, y: element.frame.centerY) { continue }
             out[id] = element
         }
         return out
@@ -124,8 +124,8 @@ public enum EdgeProbe {
         let isMoved = { (e: ElementInfo) in e.identifier.map(moved.contains) ?? false }
         let unsafe = elements.filter { KeyboardDismissPoint.unsafeTypes.contains($0.type) && !isMoved($0) }.map(\.frame)
         func clear(_ x: Double, _ y: Double) -> Bool {
-            StepExecutor.frame(container, containsX: x, y: y)
-                && !unsafe.contains { StepExecutor.frame($0, containsX: x, y: y) }
+            container.containsClosed(x: x, y: y)
+                && !unsafe.contains { $0.containsClosed(x: x, y: y) }
         }
         let anchors = elements.filter(isMoved).sorted {
             hypot($0.frame.centerX - container.centerX, $0.frame.centerY - container.centerY)

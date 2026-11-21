@@ -513,7 +513,7 @@ extension StepExecutor {
         let vertical = finger == .up || finger == .down
         if let declared = scrollContainerElement(step: step, in: snapshot, vertical: vertical) { return declared.frame }
         guard let shaped = overflowingContainer(in: snapshot),
-              frame(shaped, containsX: snapshot.screen.centerX, y: snapshot.screen.centerY) else { return nil }
+              shaped.containsClosed(x: snapshot.screen.centerX, y: snapshot.screen.centerY) else { return nil }
         return shaped
     }
 
@@ -526,7 +526,7 @@ extension StepExecutor {
     /// 中心が `region` の中にある要素だけ(nil = 全部)
     static func elementsInside(_ region: FTRect?, _ elements: [ElementInfo]) -> [ElementInfo] {
         guard let region else { return elements }
-        return elements.filter { frame(region, containsX: $0.frame.centerX, y: $0.frame.centerY) }
+        return elements.filter { region.containsClosed(x: $0.frame.centerX, y: $0.frame.centerY) }
     }
 
     /// 探索の基準にするアプリ。始点の木が起こしたアプリのものでない(送る前から前面を離れていた = Android の木はランチャー)ときは
@@ -839,8 +839,8 @@ extension StepExecutor {
             guard candidate.selector != nil else { return false }
             // **申告した軸が縦横比に勝つ**: 横向きの低い縦の一覧(2282x411)は縦横比では横の容器に見え、勧められずに終わっていた
             let actions = snapshot.elements.first { $0.ref == candidate.ref }?.scrollActions
-            if declaresAxis(actions, vertical: vertical) { return true }
-            if declaresOnlyOtherAxis(actions, vertical: vertical) { return false }
+            if ScrollActionsAxis.declares(actions, vertical: vertical) { return true }
+            if ScrollActionsAxis.declaresOnlyOtherAxis(actions, vertical: vertical) { return false }
             // 向きを申告しない容器は中の子の並びが縦横比に勝つ(横向きの低い縦の一覧が横長に見える)
             if let element = snapshot.elements.first(where: { $0.ref == candidate.ref }),
                let flow = ContainerGeometry.childrenFlow(of: element, in: snapshot.elements) {
@@ -868,8 +868,8 @@ extension StepExecutor {
     static func scrollFrameRunsOtherAxis(step: FlowStep, in snapshot: SnapshotResponse, vertical: Bool) -> Bool {
         guard step.scrollFrame != nil || step.scrollFrameRect != nil,
               let container = scrollContainerElement(step: step, in: snapshot) else { return false }
-        if let actions = container.scrollActions, declaresAxis(actions, vertical: true) || declaresAxis(actions, vertical: false) {
-            return declaresOnlyOtherAxis(actions, vertical: vertical)
+        if let actions = container.scrollActions, ScrollActionsAxis.declares(actions, vertical: true) || ScrollActionsAxis.declares(actions, vertical: false) {
+            return ScrollActionsAxis.declaresOnlyOtherAxis(actions, vertical: vertical)
         }
         // **直下の子だけで並びを見る**: 子の中の文字(ボタンの中のラベル)まで数えると段がずれて並びを言えず、横のタブ列に
         // 縦の向きを案内した(CMP の iOS の `#stab_row`。scrollFrame の候補の判定 `StepExecutor+ScrollFrame` と同じ取り方)

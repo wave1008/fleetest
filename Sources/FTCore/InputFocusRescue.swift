@@ -130,9 +130,6 @@ public enum InputFocusRescue {
     }
 
     private static func contains(_ rect: FTRect, centreOf inner: FTRect) -> Bool {
-        let x = inner.x + inner.width / 2
-        let y = inner.y + inner.height / 2
-        return x >= rect.x && x <= rect.x + rect.width
-            && y >= rect.y && y <= rect.y + rect.height
+        rect.containsClosed(x: inner.centerX, y: inner.centerY)
     }
 }

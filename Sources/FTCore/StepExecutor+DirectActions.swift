@@ -583,7 +583,7 @@ extension StepExecutor {
             if let refusal = Self.offscreenTouchPointRefusal(operation: operation, x: x, y: y, screen: snapshot.screen) {
                 return StepOutcome(status: .failed(refusal))
             }
-            if !snapshot.elements.contains(where: { Self.frame($0.frame, containsX: x, y: y) }) {
+            if !snapshot.elements.contains(where: { $0.frame.containsClosed(x: x, y: y) }) {
                 try await fire(td)
                 phase.actionMs += Self.ms(clock.now - start)
                 return StepOutcome(status: .passed,
@@ -612,11 +612,6 @@ extension StepExecutor {
         let size = screen.map { " (\(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" } ?? ""
         return "\(operation): the point (\(x), \(y)) is outside the screen\(size), so nothing was sent."
             + " Use coordinates inside the screen"
-    }
-
-    /// 端ちょうどは含む(in-app ブリッジの画面内判定と同じ閉区間)
-    static func frame(_ frame: FTRect, containsX x: Double, y: Double) -> Bool {
-        x >= frame.x && x <= frame.x + frame.width && y >= frame.y && y <= frame.y + frame.height
     }
 
     /// 座標どうしのドラッグ(DSL の `swipePointToPoint` / ft_batch)。**撃つのは `dragWithFallback` だけ**

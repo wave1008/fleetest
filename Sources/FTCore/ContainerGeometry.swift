@@ -20,13 +20,13 @@ public enum ContainerGeometry {
             }
             // 向きを申告しない容器(Flutter の汎用 forward だけ・iOS)は中の子の並びで軸を決める。並びから決まらない容器は
             // 数える(推測で外さない)。横に並ぶ容器を縦の探索で数えると、縦の一覧と合わせて2つになり払い直しも案内も出なかった
-            if !StepExecutor.declaresAxis(element.scrollActions, vertical: true),
-               !StepExecutor.declaresAxis(element.scrollActions, vertical: false),
+            if !ScrollActionsAxis.declares(element.scrollActions, vertical: true),
+               !ScrollActionsAxis.declares(element.scrollActions, vertical: false),
                let flow = childrenFlow(of: element, in: snapshot.elements),
                vertical ? flow == .alongX : flow == .alongY { continue }
             // 横の払い直しは、横へ動くと言える容器(申告か子の横の並び)だけを数える(DR-190)。並びの決まらない全画面の容器を
             // 「横の唯一の容器」にして、縦の本体の中央をもう一度払っていた(SUT Store の iOS の並べ替えチップ・XCUITest の木)
-            if !vertical, !StepExecutor.declaresAxis(element.scrollActions, vertical: false),
+            if !vertical, !ScrollActionsAxis.declares(element.scrollActions, vertical: false),
                childrenFlow(of: element, in: snapshot.elements) != .alongX { continue }
             if found.contains(where: { sameFrame($0.frame, element.frame) }) { continue }
             found.append(element)

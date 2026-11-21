@@ -416,8 +416,7 @@ extension StepExecutor {
         let ownRefs = Set(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
         return elements[elements.index(after: index)...].first { other in
             guard !ownRefs.contains(other.ref) else { return false }
-            let f = other.frame
-            return x >= f.x && x <= f.x + f.width && y >= f.y && y <= f.y + f.height
+            return other.frame.containsClosed(x: x, y: y)
         }
     }
 
@@ -492,7 +491,7 @@ extension StepExecutor {
             .map { element -> String in
                 let base = "\(element.type)|\(element.frame.x),\(element.frame.y)"
                 if let region = contentRegion,
-                   !StepExecutor.frame(region, containsX: element.frame.centerX, y: element.frame.centerY) {
+                   !region.containsClosed(x: element.frame.centerX, y: element.frame.centerY) {
                     return base
                 }
                 if let id = element.identifier, idCounts[id] == 1,
@@ -515,7 +514,7 @@ extension StepExecutor {
         let screen = snapshot.screen
         return snapshot.elements
             .filter { $0.scrollable == true
-                && StepExecutor.frame($0.frame, containsX: screen.centerX, y: screen.centerY) }
+                && $0.frame.containsClosed(x: screen.centerX, y: screen.centerY) }
             .min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }?
             .frame
     }

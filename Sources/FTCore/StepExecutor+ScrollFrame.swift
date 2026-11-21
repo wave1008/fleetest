@@ -318,8 +318,8 @@ extension StepExecutor {
         return snapshot.elements
             .filter { element in
                 element.scrollable == true
-                    && StepExecutor.frame(element.frame, containsX: cx, y: cy)
-                    && !declaresOnlyOtherAxis(element.scrollActions, vertical: vertical)
+                    && element.frame.containsClosed(x: cx, y: cy)
+                    && !ScrollActionsAxis.declaresOnlyOtherAxis(element.scrollActions, vertical: vertical)
             }
             .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
     }
@@ -347,8 +347,8 @@ extension StepExecutor {
         return snapshot.elements
             .filter { element in
                 element.scrollable == true
-                    && StepExecutor.frame(element.frame, containsX: screen.centerX, y: screen.centerY)
-                    && !(vertical.map { Self.declaresOnlyOtherAxis(element.scrollActions, vertical: $0) } ?? false)
+                    && element.frame.containsClosed(x: screen.centerX, y: screen.centerY)
+                    && !(vertical.map { ScrollActionsAxis.declaresOnlyOtherAxis(element.scrollActions, vertical: $0) } ?? false)
             }
             .min { a, b in
                 let areaA = a.frame.width * a.frame.height, areaB = b.frame.width * b.frame.height
@@ -357,20 +357,9 @@ extension StepExecutor {
                 // 汎用の forward だけの容器が2つと up/down を申告する一覧。先頭を採ると縦の端と読み、
                 // scrollToTop が1本も払わずに終わった)
                 guard let vertical else { return false }
-                return Self.declaresAxis(a.scrollActions, vertical: vertical)
-                    && !Self.declaresAxis(b.scrollActions, vertical: vertical)
+                return ScrollActionsAxis.declares(a.scrollActions, vertical: vertical)
+                    && !ScrollActionsAxis.declares(b.scrollActions, vertical: vertical)
             }
-    }
-
-    static func declaresAxis(_ actions: [String]?, vertical: Bool) -> Bool {
-        let onAxis: Set<String> = vertical ? ["up", "down"] : ["left", "right"]
-        return actions?.contains(where: onAxis.contains) ?? false
-    }
-
-    /// 向きつきの申告(up/down/left/right)が、払う軸と違う側だけにあるか
-    static func declaresOnlyOtherAxis(_ actions: [String]?, vertical: Bool) -> Bool {
-        guard let actions else { return false }
-        return !declaresAxis(actions, vertical: vertical) && declaresAxis(actions, vertical: !vertical)
     }
 
     /// 払う前の木の申告から、`finger` へ送る払いが**既に効果が無い**と言えるか(scrollToEdge だけの判定。探索では使わない = 上端の一覧と RN の反転チャットが同じ申告で見分けられない)。

@@ -200,8 +200,8 @@ final class EdgeProbeTests: XCTestCase {
         let card = ElementInfo(ref: 1, type: "button", identifier: "card", label: nil, value: nil, placeholder: nil,
                                enabled: true, frame: FTRect(x: 0, y: 300, width: 400, height: 200), depth: 1)
         let path = try XCTUnwrap(EdgeProbe.path(in: container, finger: .down, avoiding: [card], moved: []))
-        XCTAssertFalse(StepExecutor.frame(card.frame, containsX: path.fromX, y: path.fromY), "\(path)")
-        XCTAssertFalse(StepExecutor.frame(card.frame, containsX: path.toX, y: path.toY), "\(path)")
+        XCTAssertFalse(card.frame.containsClosed(x: path.fromX, y: path.fromY), "\(path)")
+        XCTAssertFalse(card.frame.containsClosed(x: path.toX, y: path.toY), "\(path)")
         // 容器の全部が押せる要素なら撃たない(呼び手は全力の送りのまま)
         let wall = ElementInfo(ref: 2, type: "cell", identifier: nil, label: nil, value: nil, placeholder: nil,
                                enabled: true, frame: container, depth: 1)
@@ -221,9 +221,9 @@ final class EdgeProbeTests: XCTestCase {
         XCTAssertNil(EdgeProbe.path(in: table, finger: .down, avoiding: rows, moved: []), "動いた行が分からなければ押せる行の上は避ける")
         let path = try XCTUnwrap(EdgeProbe.path(in: table, finger: .down, avoiding: rows + [fab],
                                                 moved: ["row_01", "row_02", "row_03", "row_04", "row_05"]))
-        XCTAssertFalse(StepExecutor.frame(fab.frame, containsX: path.fromX, y: path.fromY), "\(path)")
-        XCTAssertFalse(StepExecutor.frame(fab.frame, containsX: path.toX, y: path.toY), "\(path)")
-        XCTAssertTrue(rows.contains { StepExecutor.frame($0.frame, containsX: path.fromX, y: path.fromY) }, "\(path)")
+        XCTAssertFalse(fab.frame.containsClosed(x: path.fromX, y: path.fromY), "\(path)")
+        XCTAssertFalse(fab.frame.containsClosed(x: path.toX, y: path.toY), "\(path)")
+        XCTAssertTrue(rows.contains { $0.frame.containsClosed(x: path.fromX, y: path.fromY) }, "\(path)")
     }
 
     /// 1ページずつ吸着する一覧(先頭が枠いっぱい)では揃いを読まない = 途中のページを端と確定しない

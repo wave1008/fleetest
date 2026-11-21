@@ -149,9 +149,9 @@ final class CoordinateTapRoutingTests: XCTestCase {
 
     func testFrameContainmentIncludesTheEdges() {
         let frame = FTRect(x: 10, y: 20, width: 30, height: 40)
-        XCTAssertTrue(StepExecutor.frame(frame, containsX: 10, y: 20))
-        XCTAssertTrue(StepExecutor.frame(frame, containsX: 40, y: 60))
-        XCTAssertFalse(StepExecutor.frame(frame, containsX: 40.5, y: 60))
+        XCTAssertTrue(frame.containsClosed(x: 10, y: 20))
+        XCTAssertTrue(frame.containsClosed(x: 40, y: 60))
+        XCTAssertFalse(frame.containsClosed(x: 40.5, y: 60))
     }
 }
 

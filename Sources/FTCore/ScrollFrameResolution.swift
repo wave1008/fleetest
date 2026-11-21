@@ -52,8 +52,8 @@ public enum ScrollFrameResolution {
             guard c.ref != element.ref, c.scrollable == true, c.frame.width > 0, c.frame.height > 0,
                   c.frame.contains(element.frame),
                   vertical ? c.frame.height > element.frame.height + 1 : c.frame.width > element.frame.width + 1,
-                  !StepExecutor.declaresOnlyOtherAxis(c.scrollActions, vertical: vertical) else { return false }
-            if !vertical, !StepExecutor.declaresAxis(c.scrollActions, vertical: false),
+                  !ScrollActionsAxis.declaresOnlyOtherAxis(c.scrollActions, vertical: vertical) else { return false }
+            if !vertical, !ScrollActionsAxis.declares(c.scrollActions, vertical: false),
                ContainerGeometry.childrenFlow(of: c, in: elements) != .alongX { return false }
             return true
         }

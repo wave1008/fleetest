@@ -112,8 +112,8 @@ public enum KeyboardDismissPoint {
             var y = bottom - step / 2
             while y > top {
                 for x in xs {
-                    guard !overlays.contains(where: { contains($0, x: x, y: y) }),
-                          !controlSlop.contains(where: { contains($0, x: x, y: y) }),
+                    guard !overlays.contains(where: { $0.containsClosed(x: x, y: y) }),
+                          !controlSlop.contains(where: { $0.containsClosed(x: x, y: y) }),
                           let container = emptySpotContainer(x: x, y: y, elements: elements, screen: screen,
                                                              keyboardTop: keyboard.y, keyboardRefs: keyboardRefs),
                           seenContainers.insert(container).inserted else { continue }
@@ -168,7 +168,7 @@ public enum KeyboardDismissPoint {
                                    keyboardTop: Double, keyboardRefs: Set<Int>) -> Int? {
         guard !isNearKeyboardEdgeControl(x: x, y: y, elements: elements, keyboardTop: keyboardTop,
                                          keyboardRefs: keyboardRefs, slop: edgeSlop(screen: screen)) else { return nil }
-        let containing = elements.filter { contains($0.frame, x: x, y: y) }
+        let containing = elements.filter { $0.frame.containsClosed(x: x, y: y) }
         guard !containing.contains(where: { unsafeTypes.contains($0.type) || isLeaf($0, in: elements)
                   || !isScreenWide($0, screen: screen) }) else { return nil }
         return containing.max(by: { $0.depth < $1.depth })?.ref ?? -1
@@ -187,7 +187,7 @@ public enum KeyboardDismissPoint {
             guard !keyboardRefs.contains(element.ref),
                   unsafeTypes.contains(element.type) || slopContainerTypes.contains(element.type),
                   element.frame.y + element.frame.height >= keyboardTop - slop else { return false }
-            return contains(inflated(element.frame, by: slop), x: x, y: y)
+            return inflated(element.frame, by: slop).containsClosed(x: x, y: y)
         }
     }
 
@@ -222,9 +222,5 @@ public enum KeyboardDismissPoint {
         guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return true }
         let next = elements.index(after: index)
         return next >= elements.endIndex || elements[next].depth <= element.depth
-    }
-
-    private static func contains(_ rect: FTRect, x: Double, y: Double) -> Bool {
-        x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
     }
 }
