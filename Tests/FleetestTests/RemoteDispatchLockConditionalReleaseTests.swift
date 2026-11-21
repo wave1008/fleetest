@@ -28,15 +28,36 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
             encoding: .utf8)
     }
 
-    /// timeout(`runRemoteAndRelay` の throw)は catch して `releaseLockIfRunEnded` を経由してから
-    /// rethrow する ―― 素通しで defer の無条件解放に落とさない
-    func testBothDispatchFunctionsCatchRunRemoteAndRelayAndCheckIfTheRunEndedBeforeRethrowing() throws {
+    /// `marker` で始まる関数の本体(次の4スペース字下げの閉じ括弧まで)
+    private static func functionBody(_ marker: String, in source: String) -> Substring? {
+        guard let start = source.range(of: marker),
+              let end = source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex)
+        else { return nil }
+        return source[start.lowerBound..<end.upperBound]
+    }
+
+    /// 入口(dispatch / dispatchApi)は共通本体 performDispatch を呼ぶ。呼ばない入口は自前の本体を持ち、
+    /// 共通本体の守り(catch → releaseLockIfRunEnded → rethrow・戻り値の捕捉)を通らない
+    func testBothDispatchEntryPointsCallThePerformDispatchBody() throws {
         let source = try Self.source()
         for marker in ["func dispatch(", "func dispatchApi("] {
-            guard let funcRange = source.range(of: marker) else {
+            guard let body = Self.functionBody(marker, in: source) else {
                 XCTFail("\(marker) not found"); continue
             }
-            let body = source[funcRange.lowerBound...]
+            XCTAssertTrue(body.contains("try await performDispatch("),
+                          "\(marker): must delegate to performDispatch — the shared body holds the"
+                          + " conditional-release guards")
+        }
+    }
+
+    /// timeout(`runRemoteAndRelay` の throw)は catch して `releaseLockIfRunEnded` を経由してから
+    /// rethrow する ―― 素通しで defer の無条件解放に落とさない
+    func testSharedDispatchBodyCatchesRunRemoteAndRelayAndChecksIfTheRunEndedBeforeRethrowing() throws {
+        let source = try Self.source()
+        for marker in ["private func performDispatch("] {
+            guard let body = Self.functionBody(marker, in: source) else {
+                XCTFail("\(marker) not found"); continue
+            }
             guard let callRange = body.range(of: "exitCode = try runRemoteAndRelay(") else {
                 XCTFail("\(marker): runRemoteAndRelay call not found"); continue
             }
@@ -60,7 +81,7 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
 
     /// `awaitRemoteRunEnd` は Bool を返し、`releaseLockIfRunEnded` を自分で呼ぶ
     /// (以前は待つだけでロックに一切触れず、呼び出し側の defer が無条件に外していた)。
-    /// 呼び出し側(dispatch/dispatchApi)は戻り値を `lockReleasedEarly` へ捕まえること
+    /// 呼び出し側(共通本体 performDispatch)は戻り値を `lockReleasedEarly` へ捕まえること
     func testAwaitRemoteRunEndIfDisconnectedReturnsBoolAndReleasesConditionally() throws {
         let source = try Self.source()
         guard let funcRange = source.range(of: "private func awaitRemoteRunEnd(")
@@ -83,9 +104,10 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
         }
         XCTAssertTrue(signatureEnd.upperBound < releaseRange.lowerBound)
 
-        for marker in ["func dispatch(", "func dispatchApi("] {
-            guard let funcRange = source.range(of: marker) else { continue }
-            let callerBody = source[funcRange.lowerBound...]
+        for marker in ["private func performDispatch("] {
+            guard let callerBody = Self.functionBody(marker, in: source) else {
+                XCTFail("\(marker) not found"); continue
+            }
             guard let assignRange = callerBody.range(of: "lockReleasedEarly = awaitRemoteRunEnd(")
             else {
                 XCTFail("\(marker): must capture awaitRemoteRunEnd's return value"

@@ -59,9 +59,20 @@ final class RemoteDeveloperDirWiringTests: XCTestCase {
     /// 捕まえていること(捕まえていなければ toolchain probe だけ使って走らない = 沈黙する退行)
     func testBothDispatchEntryPointsCaptureCheckCompatibilitysReturnValue() throws {
         let code = try Self.source
-        let occurrences = code.components(separatedBy: "let developerDir = try checkCompatibility(layout: layout)").count - 1
-        XCTAssertEqual(occurrences, 2,
-                       "dispatch()/dispatchApi() のどちらかが checkCompatibility の戻り値(developerDir)を捨てている")
+        func functionBody(_ marker: String) throws -> Substring {
+            let start = try XCTUnwrap(code.range(of: marker), marker)
+            let end = try XCTUnwrap(code.range(of: "\n    }\n", range: start.upperBound..<code.endIndex), marker)
+            return code[start.lowerBound..<end.upperBound]
+        }
+        for entry in ["func dispatch(", "func dispatchApi("] {
+            XCTAssertTrue(try functionBody(entry).contains("try await performDispatch("),
+                          "\(entry) が共通本体を通らない = developerDir を捕まえる経路から外れる")
+        }
+        let shared = try functionBody("private func performDispatch(")
+        XCTAssertEqual(shared.components(separatedBy: "let developerDir = try checkCompatibility(layout: layout)").count - 1, 1,
+                       "共通本体が checkCompatibility の戻り値(developerDir)を捨てている")
+        XCTAssertEqual(code.components(separatedBy: "let developerDir = try checkCompatibility(layout: layout)").count - 1, 1,
+                       "共通本体の外に checkCompatibility の呼び出しが増えた")
     }
 
     /// toolchain probe は resolveXcodeSelection が解決した developerDir を使うこと
@@ -71,13 +82,15 @@ final class RemoteDeveloperDirWiringTests: XCTestCase {
                       "toolchain probe が resolveXcodeSelection の結果を使っていない")
     }
 
-    /// 実際の run(remoteRunCommand)も同じ変数を使うこと。**両方の呼び出し**(dispatch/dispatchApi)を数える
+    /// 実際の run(remoteRunCommand)も同じ変数を使うこと。共通本体(dispatch/dispatchApi が共有)の
+    /// runRemoteAndRelay 呼び出しと、runRemoteAndRelay 内の remoteRunCommand への中継を数える
     func testActualRunUsesTheSameDeveloperDirVariable() throws {
         let code = try Self.source
+        XCTAssertEqual(code.components(separatedBy: "developerDir: developerDir, interruptFlag: interruptFlag,").count - 1, 1,
+                       "共通本体が runRemoteAndRelay へ developerDir を中継していない")
         let occurrences = code.components(separatedBy: "developerDir: developerDir)").count - 1
         XCTAssertGreaterThanOrEqual(occurrences, 2,
-                                    "runRemoteAndRelay への developerDir 中継が dispatch/dispatchApi の"
-                                    + "どちらかで欠けている")
+                                    "runRemoteAndRelay からの developerDir 中継が欠けている")
     }
 
     /// `.refused` は checkCompatibility の中で即座に止めること(later に埋もれさせない)

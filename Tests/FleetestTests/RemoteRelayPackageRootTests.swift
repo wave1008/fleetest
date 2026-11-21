@@ -20,7 +20,13 @@ final class RemoteRelayPackageRootTests: XCTestCase {
             .appendingPathComponent("Sources/fleetest/RemoteRunDispatcher.swift"), encoding: .utf8)
         XCTAssertFalse(source.contains("localRoot: localRepoRoot.path"))
         XCTAssertFalse(source.contains("let localRoot = localRepoRoot.path"))
-        XCTAssertEqual(source.components(separatedBy: "localRoot: Self.packageRoot(of: project).path").count - 1, 3)
+        // 共通本体 performDispatch に2箇所(runRemoteAndRelay への中継と JUnit の回収)。入口には置かない
+        let start = try XCTUnwrap(source.range(of: "private func performDispatch("))
+        let end = try XCTUnwrap(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let shared = source[start.lowerBound..<end.upperBound]
+        XCTAssertEqual(shared.components(separatedBy: "localRoot: Self.packageRoot(of: project).path").count - 1, 2)
+        XCTAssertEqual(source.components(separatedBy: "localRoot: Self.packageRoot(of: project).path").count - 1, 2,
+                       "共通本体の外に置換先の組み立てが増えた")
     }
 
     /// OI-269②: 可視性検証の切り抜きは回収されるレポートの下へ書かせる(既定の ~/Library/Logs はランナー機に残る)

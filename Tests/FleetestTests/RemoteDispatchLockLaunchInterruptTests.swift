@@ -33,12 +33,26 @@ final class RemoteDispatchLockLaunchInterruptTests: XCTestCase {
         return result
     }
 
-    /// dispatch()/dispatchApi() は `bailIfAlreadyInterrupted` を2回呼ぶ(ロック取得直後・
-    /// ssh でリモート run を起動する直前)。1回だけだと prepareWorkspace/transfer の間に届いた
-    /// 中断は誰も見ないまま起動まで進む
-    func testBothDispatchFunctionsCheckInterruptedBeforeAcquiringAndBeforeLaunchingTheRemoteRun() throws {
+    /// 入口(dispatch / dispatchApi)の本体は共通本体 performDispatch を呼ぶ(自前の本体を持つと
+    /// 下の中断確認を通らない)
+    func testBothDispatchEntryPointsCallThePerformDispatchBody() throws {
         let source = try Self.source()
         for marker in ["func dispatch(", "func dispatchApi("] {
+            guard let start = source.range(of: marker),
+                  let end = source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex)
+            else { XCTFail("\(marker) not found"); continue }
+            XCTAssertTrue(source[start.lowerBound..<end.upperBound].contains("try await performDispatch("),
+                          "\(marker): must delegate to performDispatch — the shared body holds the"
+                          + " interrupt checks")
+        }
+    }
+
+    /// 共通本体 performDispatch は `bailIfAlreadyInterrupted` を2回呼ぶ(ロック取得直後・
+    /// ssh でリモート run を起動する直前)。1回だけだと prepareWorkspace/transfer の間に届いた
+    /// 中断は誰も見ないまま起動まで進む
+    func testSharedDispatchBodyChecksInterruptedBeforeAcquiringAndBeforeLaunchingTheRemoteRun() throws {
+        let source = try Self.source()
+        for marker in ["private func performDispatch("] {
             guard let funcRange = source.range(of: marker) else {
                 XCTFail("\(marker) not found"); continue
             }
@@ -140,12 +154,12 @@ final class RemoteDispatchLockLaunchInterruptTests: XCTestCase {
         XCTAssertTrue(RemoteRunDispatcher.shouldLogKeptDispatchLock(parentHoldsLock: false))
     }
 
-    /// dispatch()/dispatchApi() の timeout catch と awaitRemoteRunEnd の3箇所とも、
+    /// performDispatch の timeout catch と awaitRemoteRunEnd の2箇所とも、
     /// 直書きの log(...) ではなく共有の logKeptDispatchLock を通す(2つ目の判定を作らない)
     func testAllThreeKeptDispatchLockSitesShareTheHelper() throws {
         let source = try Self.source()
         XCTAssertEqual(occurrences(of: "logKeptDispatchLock(afterCollecting:", in: source[...]).count,
-                      4, "expected 1 declaration + 3 call sites (dispatch's catch, dispatchApi's"
-                      + " catch, awaitRemoteRunEnd) sharing logKeptDispatchLock")
+                      3, "expected 1 declaration + 2 call sites (performDispatch's catch,"
+                      + " awaitRemoteRunEnd) sharing logKeptDispatchLock")
     }
 }

@@ -33,14 +33,34 @@ final class RemoteDispatchLockInterruptRelayTests: XCTestCase {
             encoding: .utf8)
     }
 
-    func testBothDispatchFunctionsObserveInterruptsBeforeAcquiringTheLock() throws {
+    /// `marker` で始まる関数の本体(次の4スペース字下げの閉じ括弧まで)
+    private static func functionBody(_ marker: String, in source: String) -> Substring? {
+        guard let start = source.range(of: marker),
+              let end = source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex)
+        else { return nil }
+        return source[start.lowerBound..<end.upperBound]
+    }
+
+    /// 入口(dispatch / dispatchApi)は共通本体 performDispatch を呼ぶ(自前の本体を持つと、
+    /// 共通本体に置いた中断の守りを通らない)
+    func testBothDispatchEntryPointsCallThePerformDispatchBody() throws {
         let source = try Self.source()
         for marker in ["func dispatch(", "func dispatchApi("] {
-            guard let funcRange = source.range(of: marker) else {
+            guard let body = Self.functionBody(marker, in: source) else {
+                XCTFail("\(marker) not found in RemoteRunDispatcher.swift"); continue
+            }
+            XCTAssertTrue(body.contains("try await performDispatch("),
+                          "\(marker): must delegate to performDispatch")
+        }
+    }
+
+    func testSharedDispatchBodyObservesInterruptsBeforeAcquiringTheLock() throws {
+        let source = try Self.source()
+        for marker in ["private func performDispatch("] {
+            guard let body = Self.functionBody(marker, in: source) else {
                 XCTFail("\(marker) not found in RemoteRunDispatcher.swift")
                 continue
             }
-            let body = source[funcRange.lowerBound...]
             guard let relayRange = body.range(of: "InterruptRelay.observing") else {
                 XCTFail("\(marker): no InterruptRelay.observing registration"
                         + " — a SIGINT during ssh/rsync steps after the lock is acquired"

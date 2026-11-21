@@ -80,11 +80,11 @@ struct RemoteRunDispatcher {
     var toolRev: String? = nil
 
     /// **中断済みならまだ何も走っていない前提で無条件にロックを外して抜ける**。
-    /// `dispatch()`/`dispatchApi()` の両方から2回ずつ呼ぶ ―― ロック取得の直後と、
+    /// `performDispatch` から2回呼ぶ ―― ロック取得の直後と、
     /// ssh でリモート run を起動する直前(runRemoteAndRelay の呼び出し前)。取得直後の
     /// チェックだけだと、その間の prepareWorkspace/transfer(rsync)の間に届いた中断は
     /// 誰も見ないまま起動まで進んでしまう。releaseDispatchLock 自身が「親が持っている
-    /// ロックは外さない」を見て no-op に倒すので、この呼び出しはどちらの経路でも安全
+    /// ロックは外さない」を見て no-op に倒すので、この呼び出しは dispatch / dispatchApi のどちらでも安全
     private func bailIfAlreadyInterrupted(
         interruptFlag: DispatchInterruptFlag, layout: RemoteLayout, lockReleasedEarly: inout Bool
     ) throws {
@@ -110,6 +110,62 @@ struct RemoteRunDispatcher {
                   lockSocket: String? = nil, lockControlSocket: String? = nil,
                   localJUnitPath: String?,
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
+        try await performDispatch(
+            project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
+            linkedToParent: workQueue || runMemoLink,
+            lockSocket: lockSocket, lockControlSocket: lockControlSocket,
+            localJUnitPath: localJUnitPath, remoteTimeoutSeconds: remoteTimeoutSeconds
+        ) { remoteReportDir, remoteWorkspace, remoteJUnitPath, lockRemotePath in
+            RemoteRunArgs.build(
+                project: project.name, profile: profile, scenarios: scenarios, folders: folders,
+                deviceNames: deviceNames, deviceMachine: deviceMachine,
+                setOverrides: setOverrides,
+                noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
+                performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
+                runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
+                remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
+                runGroup: runGroup)
+        }
+    }
+
+    /// `fleetest api run --runner`: dispatch と同じ流れ(レイアウト解決→適合チェック→転送→実行→回収)
+    /// だが JUnit は扱わない(拡張連携は NDJSON 中継のみで完結する)。戻り値 = リモート
+    /// `fleetest api run` の exit code
+    func dispatchApi(project: TestProject, profile: String, scenarios: [String],
+                     deviceNames: [String] = [], deviceMachine: String? = nil,
+                     setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
+                     performanceMode: Bool,
+                     defaultTimeout: Double?, scenarioTimeout: Double?,
+                     workQueue: Bool = false,
+                     runMemoLink: Bool = false,
+                     fleetEntry: Bool = false,
+                     lockSocket: String? = nil, lockControlSocket: String? = nil,
+                     remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
+        try await performDispatch(
+            project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
+            linkedToParent: workQueue || runMemoLink,
+            lockSocket: lockSocket, lockControlSocket: lockControlSocket,
+            localJUnitPath: nil, remoteTimeoutSeconds: remoteTimeoutSeconds
+        ) { remoteReportDir, remoteWorkspace, _, lockRemotePath in
+            RemoteRunArgs.buildApi(
+                project: project.name, profile: profile, scenarios: scenarios,
+                deviceNames: deviceNames, deviceMachine: deviceMachine,
+                setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
+                performanceMode: performanceMode,
+                defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
+                runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
+                reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
+        }
+    }
+
+    /// dispatch / dispatchApi の共通本体。`buildArgs` の引数は (リモートの reportDir, ミラー後の workspace,
+    /// リモートの JUnit パス(localJUnitPath が nil なら nil), 転送するロックのリモート側パス)
+    private func performDispatch(
+        project: TestProject, profile: String, scenarioCount: Int, runGroup: String?,
+        linkedToParent: Bool, lockSocket: String?, lockControlSocket: String?,
+        localJUnitPath: String?, remoteTimeoutSeconds: Int?,
+        buildArgs: (String, String?, String?, String?) -> [String]
+    ) async throws -> Int32 {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
         cacheHardwareUUID(project: project, session: session)
@@ -155,17 +211,9 @@ struct RemoteRunDispatcher {
             ? "\(layout.workDir)/.fleetest/dispatch/\(stamp)/junit.xml" : nil
         // run 全体のロック(RR-8.5): 発行元がこの機械の待ち受けを渡したときだけ、ssh に転送を足して向こうの run へ転送元のパスを渡す
         let lockLink = RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)
-        let fleetestArgs = RemoteRunArgs.build(
-            project: project.name, profile: profile, scenarios: scenarios, folders: folders,
-            deviceNames: deviceNames, deviceMachine: deviceMachine,
-            setOverrides: setOverrides,
-            noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
-            performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
-            runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockLink?.remotePath,
-            remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
-            runGroup: runGroup)
+        let fleetestArgs = buildArgs(remoteReportDir, remoteWorkspace, remoteJUnitPath, lockLink?.remotePath)
         let timeoutSeconds = RemoteTimeout.seconds(
-            explicit: remoteTimeoutSeconds, scenarioCount: scenarios.count)
+            explicit: remoteTimeoutSeconds, scenarioCount: scenarioCount)
         announceTimeout(timeoutSeconds)
         let overheadSeconds = Date().timeIntervalSince(setupStart)
         // ssh 起動の直前にもう一度見る(理由は取得直後のガードの宣言参照)
@@ -177,7 +225,7 @@ struct RemoteRunDispatcher {
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
                 developerDir: developerDir, interruptFlag: interruptFlag,
-                linkedToParent: workQueue || runMemoLink, lockLink: lockLink)
+                linkedToParent: linkedToParent, lockLink: lockLink)
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
         } catch {
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
@@ -218,103 +266,6 @@ struct RemoteRunDispatcher {
         // リモートで走った分の `--failed` 記録を手元へ書く。リモート側の
         // ScenarioHost.run() は手元の LastResultsStore を書けないので、回収した scenario JSON
         // (scenarioID/passed/profile)から直接書く
-        writeLastResults(texts: texts, project: project)
-        writeBackHealedSelectors(texts: texts, project: project)
-        cleanupDispatchDir(layout: layout, stamp: stamp)
-
-        log(Self.finishedLine(exitCode: exitCode, interrupted: interruptFlag.interrupted))
-        return exitCode
-    }
-
-    /// `fleetest api run --runner`: dispatch と同じ流れ(レイアウト解決→適合チェック→転送→実行→回収)
-    /// だが JUnit は扱わない(拡張連携は NDJSON 中継のみで完結する)。戻り値 = リモート
-    /// `fleetest api run` の exit code
-    func dispatchApi(project: TestProject, profile: String, scenarios: [String],
-                     deviceNames: [String] = [], deviceMachine: String? = nil,
-                     setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
-                     performanceMode: Bool,
-                     defaultTimeout: Double?, scenarioTimeout: Double?,
-                     workQueue: Bool = false,
-                     runMemoLink: Bool = false,
-                     fleetEntry: Bool = false,
-                     lockSocket: String? = nil, lockControlSocket: String? = nil,
-                     remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
-        let setupStart = Date()
-        let (layout, session) = try resolveLayout()
-        cacheHardwareUUID(project: project, session: session)
-        let developerDir = try checkCompatibility(layout: layout)
-
-        // 中断があっても解放の defer を必ず走らせる(理由・順序は dispatch() のコメント参照)。
-        // interruptFlag の理由も dispatch() と同じ
-        let interruptFlag = DispatchInterruptFlag()
-        let lockHeldRelay = InterruptRelay.observing { interruptFlag.mark() }
-        defer { lockHeldRelay.stop() }
-        try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)
-        var lockReleasedEarly = false
-        defer { if !lockReleasedEarly { releaseDispatchLock(layout: layout) } }
-        // 理由は dispatch() の同じガード参照(取得直後・ssh 起動直前の2箇所で見る)
-        try bailIfAlreadyInterrupted(
-            interruptFlag: interruptFlag, layout: layout, lockReleasedEarly: &lockReleasedEarly)
-        reapOrphanedHooksAcrossIssuers(layout: layout)
-
-        // 順序の理由は dispatch() のコメント参照(prepareWorkspace は transfer() より先)
-        let remoteWorkspace = try prepareWorkspace(project: project, profile: profile, layout: layout)
-        try transfer(project: project, layout: layout)
-
-        let stamp = Self.makeStamp()
-        let remoteReportDir = layout.dispatchReportDir(stamp: stamp)
-        let lockLink = RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)
-        let fleetestArgs = RemoteRunArgs.buildApi(
-            project: project.name, profile: profile, scenarios: scenarios,
-            deviceNames: deviceNames, deviceMachine: deviceMachine,
-            setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
-            performanceMode: performanceMode,
-            defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
-            runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockLink?.remotePath,
-            reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
-        let timeoutSeconds = RemoteTimeout.seconds(
-            explicit: remoteTimeoutSeconds, scenarioCount: scenarios.count)
-        announceTimeout(timeoutSeconds)
-        let overheadSeconds = Date().timeIntervalSince(setupStart)
-        // ssh 起動の直前にもう一度見る(理由は dispatch() の同じガード参照)
-        try bailIfAlreadyInterrupted(
-            interruptFlag: interruptFlag, layout: layout, lockReleasedEarly: &lockReleasedEarly)
-        let exitCode: Int32
-        do {
-            exitCode = try runRemoteAndRelay(
-                fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
-                stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
-                developerDir: developerDir, interruptFlag: interruptFlag,
-                linkedToParent: workQueue || runMemoLink, lockLink: lockLink)
-            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
-        } catch {
-            finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
-            // 理由は dispatch() の同じ catch 参照(timeout でも生きていれば外さない)
-            lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
-            if !lockReleasedEarly { logKeptDispatchLock(afterCollecting: false) }
-            // 打ち切りは例外のまま投げず専用の終了コードで返す(1 と取り違えると発行元が afterRun を撃つ)
-            if case RemoteDispatchError.remoteRunTimedOut = error {
-                log("error: \(describe(error))")
-                return RemoteDispatchExit.runUnconfirmed
-            }
-            throw error
-        }
-        lockReleasedEarly = awaitRemoteRunEnd(
-            exitCode: exitCode, interrupted: interruptFlag.interrupted, layout: layout,
-            reportDir: remoteReportDir)
-
-        collectReports(project: project, remoteReportDir: remoteReportDir,
-                      interrupted: interruptFlag.interrupted, exitCode: exitCode)
-        relinkCollectedReportTexts(project: project, stamp: stamp)
-        let transferredScenarioPaths = collectArtifacts(project: project, layout: layout)
-        // 理由は dispatch() と同じ(読むのは今回転送された分だけ・結果は1回だけ作って共有)
-        let texts = collectedScenarioTexts(
-            project: project, stamp: stamp, transferredScenarioPaths: transferredScenarioPaths)
-        // relink より先に撃つ(relink が reportPath を書き換えると stamp がファイルから消え、
-        // stamp 走査で machine を採れなくなる。実ディスパッチで machine 欠落を確認)
-        saveHostFacts(project: project, overheadSeconds: overheadSeconds, session: session, texts: texts)
-        relinkCollectedReports(project: project, stamp: stamp, texts: texts)
-        // 理由は dispatch() と同じ
         writeLastResults(texts: texts, project: project)
         writeBackHealedSelectors(texts: texts, project: project)
         cleanupDispatchDir(layout: layout, stamp: stamp)

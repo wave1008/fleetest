@@ -765,11 +765,63 @@ public enum RemoteRunArgs {
                              remoteJUnitPath: String?,
                              reportDir: String?, workspace: String? = nil,
                              runGroup: String? = nil) -> [String] {
-        // **リモート側は必ず「ここで走らせる」**(--runner local)。省略すると、向こうの fleetest が
+        var afterScenarios: [String] = []
+        for folder in folders { afterScenarios += ["--folder", folder] }
+        // 中継しないとリモートは共有キューで走る = 「全台で1回ずつ」が黙って「分配」に化ける
+        let afterPerformance = broadcast ? ["--broadcast"] : []
+        let beforeRunGroup = remoteJUnitPath.map { ["--junit", $0] } ?? []
+        return relayCommon(
+            head: ["run", "--project", project, "--profile", profile, "--quiet", "--runner", "local"],
+            scenarios: scenarios, deviceNames: deviceNames, deviceMachine: deviceMachine,
+            setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
+            performanceMode: performanceMode, workQueue: workQueue, runMemoLink: runMemoLink,
+            fleetEntry: fleetEntry, lockSocket: lockSocket, reportDir: reportDir,
+            workspace: workspace, runGroup: runGroup,
+            afterScenarios: afterScenarios, afterPerformance: afterPerformance,
+            beforeRunGroup: beforeRunGroup)
+    }
+
+    /// リモートで実行する `fleetest api run` の引数列("fleetest" 自体は含まない)。JUnit は
+    /// 扱わない(拡張連携は NDJSON 中継のみで完結する)
+    public static func buildApi(project: String, profile: String, scenarios: [String],
+                                deviceNames: [String] = [], deviceMachine: String? = nil,
+                                setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
+                                performanceMode: Bool,
+                                defaultTimeout: Double?, scenarioTimeout: Double?,
+                                workQueue: Bool = false,
+                                runMemoLink: Bool = false,
+                                fleetEntry: Bool = false,
+                                lockSocket: String? = nil,
+                                reportDir: String?, workspace: String? = nil,
+                                runGroup: String? = nil) -> [String] {
+        var afterPerformance: [String] = []
+        if let defaultTimeout { afterPerformance += ["--default-timeout", formatTimeout(defaultTimeout)] }
+        if let scenarioTimeout { afterPerformance += ["--scenario-timeout", formatTimeout(scenarioTimeout)] }
+        return relayCommon(
+            head: ["api", "run", "--project", project, "--profile", profile, "--runner", "local"],
+            scenarios: scenarios, deviceNames: deviceNames, deviceMachine: deviceMachine,
+            setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
+            performanceMode: performanceMode, workQueue: workQueue, runMemoLink: runMemoLink,
+            fleetEntry: fleetEntry, lockSocket: lockSocket, reportDir: reportDir,
+            workspace: workspace, runGroup: runGroup,
+            afterScenarios: [], afterPerformance: afterPerformance, beforeRunGroup: [])
+    }
+
+    /// run / api run が共有する中継フラグの並び。`head` の後ろに
+    /// report-dir → device → workspace → scenario → afterScenarios → set → lpt → performance →
+    /// afterPerformance → work-queue → ... → run-group の順で並べる(2つの入口の差は挿入口の3つだけ)
+    private static func relayCommon(
+        head: [String], scenarios: [String], deviceNames: [String], deviceMachine: String?,
+        setOverrides: [String: RunProfileSetValue], noLPT: Bool, lptHistoryRuns: Int?,
+        performanceMode: Bool, workQueue: Bool, runMemoLink: Bool, fleetEntry: Bool,
+        lockSocket: String?, reportDir: String?, workspace: String?, runGroup: String?,
+        afterScenarios: [String], afterPerformance: [String], beforeRunGroup: [String]
+    ) -> [String] {
+        // **リモート側は必ず「ここで走らせる」**(head の `--runner local`)。省略すると、向こうの fleetest が
         // 転送された実行プロファイルのデバイスの machine を読んで**もう一度ディスパッチしようとする**
         // 余地を残す。"local" は MachineDispatch.resolve が明示指定として止める
         // (FleetRunner が "local" エントリに --runner local を渡すのと同じ理由)
-        var args = ["run", "--project", project, "--profile", profile, "--quiet", "--runner", "local"]
+        var args = head
         if let reportDir { args += ["--report-dir", reportDir] }
         // **デバイスの絞り込みは中継しないと効かない** —— 向こうは同じ実行プロファイルを
         // 受け取るので、渡さないと**全ホストぶんのデバイス**を自分のものとして解決しようとする
@@ -785,7 +837,7 @@ public enum RemoteRunArgs {
         // ミラーしていない絶対パスを見に行く(この機能の動機になった不具合そのもの)
         if let workspace { args += ["--workspace", workspace] }
         for scenario in scenarios { args += ["--scenario", scenario] }
-        for folder in folders { args += ["--folder", folder] }
+        args += afterScenarios
         // **中継しないと黙って無視される**(リモート側はプロファイルの既定で走る)。
         // キーの値ごと渡すので、プロファイルの既定を打ち消す/明示で有効にするのどちらも
         // 同じ形で届く(--set の値は RunProfileDocument のキー名そのまま)。
@@ -804,8 +856,7 @@ public enum RemoteRunArgs {
         // プロファイルの既定で走る)。ここに載っていない run のフラグは、
         // dispatchToRemoteHost が ValidationError で明示的に拒否している
         if performanceMode { args.append("--performance") }
-        // 中継しないとリモートは共有キューで走る = 「全台で1回ずつ」が黙って「分配」に化ける
-        if broadcast { args.append("--broadcast") }
+        args += afterPerformance
         // 中継しないとリモートは自分の持ち分を静的に決めて走る(親の配りを待たない)。stdin の中継は RemoteRunDispatcher
         if workQueue { args.append("--work-queue") }
         // 中継しないとリモートの run メモが発行元とつながらず、そのマシンだけの値になる(stdin の中継は RemoteRunDispatcher)
@@ -815,55 +866,9 @@ public enum RemoteRunArgs {
         // 向こうの機械のロックの転送元のパス(RR-8.5)。ロックを使うプロジェクトで中継役が `-R` を張るときだけ渡す =
         // 向こうの run が手元の子と同じにそのパスへつなぐ。渡さなければ「呼んだら失敗」
         if let lockSocket { args += ["--lock-socket", lockSocket] }
-        if let remoteJUnitPath { args += ["--junit", remoteJUnitPath] }
+        args += beforeRunGroup
         // 束ね鍵は**中継しないと向こうの run.json に載らない** = リモートで撮った録画だけが
         // 束から外れる(RunMetaRecord.runGroup の宣言)
-        if let runGroup { args += ["--run-group", runGroup] }
-        return args
-    }
-
-    /// リモートで実行する `fleetest api run` の引数列("fleetest" 自体は含まない)。JUnit は
-    /// 扱わない(拡張連携は NDJSON 中継のみで完結する)
-    public static func buildApi(project: String, profile: String, scenarios: [String],
-                                deviceNames: [String] = [], deviceMachine: String? = nil,
-                                setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
-                                performanceMode: Bool,
-                                defaultTimeout: Double?, scenarioTimeout: Double?,
-                                workQueue: Bool = false,
-                                runMemoLink: Bool = false,
-                                fleetEntry: Bool = false,
-                                lockSocket: String? = nil,
-                                reportDir: String?, workspace: String? = nil,
-                                runGroup: String? = nil) -> [String] {
-        // --runner local の理由は build() のコメント(リモートでの再ディスパッチを止める)
-        var args = ["api", "run", "--project", project, "--profile", profile, "--runner", "local"]
-        if let reportDir { args += ["--report-dir", reportDir] }
-        // **デバイスの絞り込みは中継しないと効かない**(build() と同じ理由。ApiRunMachineFanout が
-        // 複数機械にまたがるプロファイルをホストごとの子へ分けるようになったため、`api run --runner`
-        // でも同名デバイスが別の機械に居りうる)。値が "local" 固定なのも build() と同じ
-        if !deviceNames.isEmpty { args += ["--device"] + deviceNames }
-        if deviceMachine != nil { args += ["--device-machine", DeviceMachineGrouping.localDisplayName] }
-        // 渡す条件・理由は build() の --workspace と同じ
-        if let workspace { args += ["--workspace", workspace] }
-        for scenario in scenarios { args += ["--scenario", scenario] }
-        // 理由・reportDir を落とす条件は build() と同じ(--set は run/api run で共有する単一の口)
-        for key in setOverrides.keys.sorted() where !(key == "reportDir" && reportDir != nil) {
-            args += ["--set", "\(key)=\(setOverrides[key]!.token)"]
-        }
-        if noLPT { args.append("--no-lpt") }
-        if let lptHistoryRuns { args += ["--lpt-history-runs", String(lptHistoryRuns)] }
-        if performanceMode { args.append("--performance") }
-        if let defaultTimeout { args += ["--default-timeout", formatTimeout(defaultTimeout)] }
-        if let scenarioTimeout { args += ["--scenario-timeout", formatTimeout(scenarioTimeout)] }
-        // 理由は build() の --work-queue と同じ
-        if workQueue { args.append("--work-queue") }
-        // 理由は build() の --run-memo-link と同じ
-        if runMemoLink { args.append("--run-memo-link") }
-        // 理由は build() の --fleet-entry と同じ
-        if fleetEntry { args.append("--fleet-entry") }
-        // 理由は build() の --lock-socket と同じ
-        if let lockSocket { args += ["--lock-socket", lockSocket] }
-        // 中継の理由は build() の --run-group と同じ
         if let runGroup { args += ["--run-group", runGroup] }
         return args
     }

@@ -56,9 +56,22 @@ final class RunHookWiringTests: XCTestCase {
     }
 
     /// 中継役の打ち切りは専用の終了コード(1 と取り違えると発行元が afterRun を撃つ)。dispatch と dispatchApi の2経路とも
+    /// 共通本体 performDispatch を通り、その本体が返す
     func testRelayTimeoutEndsWithTheDedicatedExitCodeInBothDispatchPaths() throws {
         let body = try text("fleetest/RemoteRunDispatcher.swift")
-        XCTAssertEqual(body.components(separatedBy: "return RemoteDispatchExit.runUnconfirmed").count - 1, 2)
+        func functionBody(_ marker: String) throws -> Substring {
+            let start = try XCTUnwrap(body.range(of: marker), marker)
+            let end = try XCTUnwrap(body.range(of: "\n    }\n", range: start.upperBound..<body.endIndex), marker)
+            return body[start.lowerBound..<end.upperBound]
+        }
+        for entry in ["func dispatch(", "func dispatchApi("] {
+            XCTAssertTrue(try functionBody(entry).contains("try await performDispatch("),
+                          "\(entry): 共通本体を通らない経路は打ち切りの終了コードを返せない")
+        }
+        XCTAssertEqual(try functionBody("private func performDispatch(")
+            .components(separatedBy: "return RemoteDispatchExit.runUnconfirmed").count - 1, 1)
+        XCTAssertEqual(body.components(separatedBy: "return RemoteDispatchExit.runUnconfirmed").count - 1, 1,
+                       "共通本体の外に打ち切りの返し方が増えた")
         XCTAssertTrue(body.contains("RemoteDispatchError.remoteRunTimedOut("))
         XCTAssertFalse(body.contains("remote run timed out"), "打ち切りを remoteSetupFailed(終了コード 1)で投げている")
     }

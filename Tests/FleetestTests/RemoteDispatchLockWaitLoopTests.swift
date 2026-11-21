@@ -70,16 +70,36 @@ final class RemoteDispatchLockWaitLoopTests: XCTestCase {
                      + " so an interrupted wait never reaches the sleep for one more cycle")
     }
 
-    /// 取得の直後(dispatch()/dispatchApi() 側)にも中断を見て、既に取ったロックを外してから
-    /// 抜けることを固定する。**取得より後・prepareWorkspace より前**であること —— 順序が違うと
-    /// 中断済みのまま実際のリモート run(prepareWorkspace 以降)まで進んでしまう
-    func testBothDispatchFunctionsRecheckInterruptRightAfterAcquiringBeforeStartingTheRemoteRun() throws {
+    /// `marker` で始まる関数の本体(次の4スペース字下げの閉じ括弧まで)
+    private static func functionBody(_ marker: String, in source: String) -> Substring? {
+        guard let start = source.range(of: marker),
+              let end = source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex)
+        else { return nil }
+        return source[start.lowerBound..<end.upperBound]
+    }
+
+    /// 入口(dispatch / dispatchApi)は共通本体 performDispatch を呼ぶ(自前の本体を持つと、
+    /// 共通本体に置いた中断の守りを通らない)
+    func testBothDispatchEntryPointsCallThePerformDispatchBody() throws {
         let source = try Self.source()
         for marker in ["func dispatch(", "func dispatchApi("] {
-            guard let funcRange = source.range(of: marker) else {
+            guard let body = Self.functionBody(marker, in: source) else {
+                XCTFail("\(marker) not found in RemoteRunDispatcher.swift"); continue
+            }
+            XCTAssertTrue(body.contains("try await performDispatch("),
+                          "\(marker): must delegate to performDispatch")
+        }
+    }
+
+    /// 取得の直後(共通本体 performDispatch 側)にも中断を見て、既に取ったロックを外してから
+    /// 抜けることを固定する。**取得より後・prepareWorkspace より前**であること —— 順序が違うと
+    /// 中断済みのまま実際のリモート run(prepareWorkspace 以降)まで進んでしまう
+    func testSharedDispatchBodyRechecksInterruptRightAfterAcquiringBeforeStartingTheRemoteRun() throws {
+        let source = try Self.source()
+        for marker in ["private func performDispatch("] {
+            guard let body = Self.functionBody(marker, in: source) else {
                 XCTFail("\(marker) not found"); continue
             }
-            let body = source[funcRange.lowerBound...]
             guard let acquireRange = body.range(of: "try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)")
             else { XCTFail("\(marker): acquireDispatchLock call not found"); continue }
             guard let recheckRange = body.range(of: "try bailIfAlreadyInterrupted(") else {

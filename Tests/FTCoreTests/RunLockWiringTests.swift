@@ -109,9 +109,19 @@ final class RunLockWiringTests: XCTestCase {
     func testFleetEntriesAreMarkedAndTheMarkIsRelayedToRemoteRuns() throws {
         XCTAssertTrue(try source("Sources/fleetest/FleetRunner.swift").contains("if fleetEntry { args.append(\"--fleet-entry\") }"))
         XCTAssertTrue(try source("Sources/fleetest/RunCommonOptions.swift").contains("customLong(\"fleet-entry\")"))
+        // run / api run の中継は RemoteRunArgs.relayCommon の1つ。両方の入口がそれを通ることと、そこで1回足すことを見る
         let remote = try source("Sources/FTRemote/RemoteDispatch.swift")
-        XCTAssertEqual(remote.components(separatedBy: "if fleetEntry { args.append(\"--fleet-entry\") }").count - 1, 2,
-                       "run と api run の両方の中継")
+        func body(after marker: String) throws -> Substring {
+            let start = try XCTUnwrap(remote.range(of: marker), marker)
+            let end = try XCTUnwrap(remote.range(of: "\n    }\n", range: start.upperBound..<remote.endIndex), marker)
+            return remote[start.upperBound..<end.lowerBound]
+        }
+        for entry in ["public static func build(project:", "public static func buildApi(project:"] {
+            XCTAssertTrue(try body(after: entry).contains("return relayCommon("), "\(entry) が共通の中継を通らない")
+        }
+        XCTAssertEqual(try body(after: "private static func relayCommon(")
+            .components(separatedBy: "if fleetEntry { args.append(\"--fleet-entry\") }").count - 1, 1,
+                       "run と api run の共通の中継で --fleet-entry を足す")
         for file in ["Sources/fleetest/ApiRunCommand.swift", "Sources/fleetest/Fleetest.swift"] {
             let text = try source(file)
             XCTAssertTrue(text.contains("if common.fleetEntry { RunLockHost.markFleetEntry() }"), file)

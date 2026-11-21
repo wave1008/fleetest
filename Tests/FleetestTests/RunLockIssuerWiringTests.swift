@@ -112,9 +112,24 @@ final class RunLockIssuerWiringTests: XCTestCase {
 
     func testBothRelayPathsBuildTheForwardAndRecheckRightAfterSshEndsBeforeTheRunEndWaitAndStopOnInterrupt() throws {
         let relay = try source("Sources/fleetest/RemoteRunDispatcher.swift")
-        XCTAssertEqual(relay.components(separatedBy: "RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)").count - 1, 2,
-                       "dispatch と dispatchApi の両方")
-        XCTAssertEqual(relay.components(separatedBy: "lockSocket: lockLink?.remotePath").count - 1, 2)
+        func functionBody(_ marker: String) throws -> Substring {
+            let start = try XCTUnwrap(relay.range(of: marker), marker)
+            let end = try XCTUnwrap(relay.range(of: "\n    }\n", range: start.upperBound..<relay.endIndex), marker)
+            return relay[start.lowerBound..<end.upperBound]
+        }
+        for entry in ["func dispatch(", "func dispatchApi("] {
+            let body = try functionBody(entry)
+            XCTAssertTrue(body.contains("try await performDispatch("), "\(entry): 共通本体を通らない")
+            XCTAssertEqual(body.components(separatedBy: "lockSocket: lockSocket, lockControlSocket: lockControlSocket").count - 1, 1,
+                           "\(entry): 待ち受けのパスを共通本体へ渡している必要がある")
+            XCTAssertEqual(body.components(separatedBy: "lockSocket: lockRemotePath").count - 1, 1,
+                           "\(entry): 共通本体が作ったリモート側のパスを引数列へ渡している必要がある")
+        }
+        let shared = try functionBody("private func performDispatch(")
+        XCTAssertEqual(shared.components(separatedBy: "RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)").count - 1, 1,
+                       "共通本体が1回だけ転送を作る")
+        XCTAssertEqual(shared.components(separatedBy: "lockLink?.remotePath").count - 1, 1,
+                       "共通本体が作ったリモート側のパスを引数列の組み立てへ渡す")
         XCTAssertTrue(relay.contains("sshRunBase + (lockLink?.sshArgs ?? [])"))
         XCTAssertTrue(relay.contains("rm -f \\(RemoteShell.quote(link.remotePath))"), "向こうのソケットのファイルを best effort で消す")
         // 順序: 各経路で、ssh の終わり(通常の戻りと打ち切りの throw の両方)の直後に確かめ直し、その後に run の終わりの待ち(`awaitRemoteRunEnd`)・回収
@@ -131,7 +146,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
                 XCTAssertLessThan(thrown.lowerBound, waitRange.lowerBound, "打ち切りの確かめ直しも run の終わりの待ちより前")
                 from = start.upperBound
             }
-            XCTAssertEqual(paths, 2, "dispatch と dispatchApi の両方")
+            XCTAssertEqual(paths, 1, "共通本体(dispatch と dispatchApi が共有)の1経路")
         }
         // 中断を渡して確かめ直しを止める・細かく眠って中断に気付く
         XCTAssertTrue(relay.contains("interrupted: { interruptFlag.interrupted }"))

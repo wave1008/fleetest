@@ -248,7 +248,17 @@ final class RunMemoRelayTests: XCTestCase {
         XCTAssertTrue(text.contains("process.standardInput = linkedToParent"))
         XCTAssertFalse(text.contains("process.standardInput = workQueue"))
         XCTAssertEqual(text.components(separatedBy: "linkedToParent: workQueue || runMemoLink").count - 1, 2,
-                       "run / api run の両方の中継が --run-memo-link を渡している必要がある")
+                       "run / api run の両方の入口が共通本体へ linkedToParent を渡している必要がある")
+        let start = try XCTUnwrap(text.range(of: "private func performDispatch("))
+        let end = try XCTUnwrap(text.range(of: "\n    }\n", range: start.upperBound..<text.endIndex))
+        let shared = text[start.lowerBound..<end.upperBound]
+        XCTAssertEqual(shared.components(separatedBy: "linkedToParent: linkedToParent").count - 1, 1,
+                       "共通本体が受け取った linkedToParent を runRemoteAndRelay へ渡している必要がある")
+        for entry in ["func dispatch(", "func dispatchApi("] {
+            let entryStart = try XCTUnwrap(text.range(of: entry), entry)
+            let entryEnd = try XCTUnwrap(text.range(of: "\n    }\n", range: entryStart.upperBound..<text.endIndex), entry)
+            XCTAssertTrue(text[entryStart.lowerBound..<entryEnd.upperBound].contains("try await performDispatch("), entry)
+        }
         let options = try source("Sources/fleetest/RunCommonOptions.swift")
         XCTAssertTrue(options.contains("var linkedToParent: Bool { workQueue || runMemoLink }"))
     }
