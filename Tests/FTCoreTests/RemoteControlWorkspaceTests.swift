@@ -270,7 +270,7 @@ final class RemoteControlWorkspaceTests: XCTestCase {
         { "app": "sampleapp", "devices": [ { "platform": "ios", "machine": "local", "name": "d1", "osVersion": "iOS 27.0" } ] }
         """, to: project.runsDir, name: "r")
 
-        let paths = ProfileResolver.declaredAppPaths(project: project, runName: "r")
+        let paths = ProfileResolver.declaredAppPaths(project: project, runName: "r", overrides: [:])
         XCTAssertEqual(paths[DeclaredAppPath(platform: "ios", physical: false)]?.source,
                        tempDir.appendingPathComponent("apps/SampleApp.app").path)
         // declared は resolvePath 前の生文字列(installPath の名前空間の入力。両ホストで一致する)
@@ -291,15 +291,32 @@ final class RemoteControlWorkspaceTests: XCTestCase {
         { "app": "sampleapp", "devices": [ { "platform": "ios", "machine": "local", "name": "d1", "osVersion": "iOS 27.0" } ] }
         """, to: project.runsDir, name: "r")
 
-        let paths = ProfileResolver.declaredAppPaths(project: project, runName: "r")
+        let paths = ProfileResolver.declaredAppPaths(project: project, runName: "r", overrides: [:])
         XCTAssertEqual(paths[DeclaredAppPath(platform: "ios", physical: true)]?.source,
                        tempDir.appendingPathComponent("apps/device/SampleApp.app").path)
         XCTAssertEqual(paths[DeclaredAppPath(platform: "ios", physical: true)]?.declared,
                        "apps/device/SampleApp.app")
     }
 
+    /// **`--set app=` は運ぶ原本を変える**(向こうの子は同じ上書きで別のアプリを解決する)。
+    /// 上書きを見ないと元のアプリの原本を運び、向こうは前の run の古い原本で黙って走るか落ちる
+    func testDeclaredAppPathsFollowsTheAppOverride() throws {
+        try writeApp(appPath: "apps/SampleApp.app")
+        try write("""
+        { "ios": { "app": "com.example.other", "appPath": "apps/Other.app" } }
+        """, to: project.appsDir, name: "other")
+        try write("""
+        { "app": "sampleapp", "devices": [ { "platform": "ios", "machine": "local", "name": "d1", "osVersion": "iOS 27.0" } ] }
+        """, to: project.runsDir, name: "r")
+
+        let paths = ProfileResolver.declaredAppPaths(project: project, runName: "r", overrides: ["app": .string("other")])
+        XCTAssertEqual(paths[DeclaredAppPath(platform: "ios", physical: false)]?.declared, "apps/Other.app")
+        let unchanged = ProfileResolver.declaredAppPaths(project: project, runName: "r", overrides: [:])
+        XCTAssertEqual(unchanged[DeclaredAppPath(platform: "ios", physical: false)]?.declared, "apps/SampleApp.app")
+    }
+
     func testDeclaredAppPathsEmptyWhenAppOrProfileMissing() {
-        XCTAssertEqual(ProfileResolver.declaredAppPaths(project: project, runName: "nope"), [:])
+        XCTAssertEqual(ProfileResolver.declaredAppPaths(project: project, runName: "nope", overrides: [:]), [:])
     }
 
     // MARK: - validate(): remoteControl 内の未知キーは警告(タイポ検出)

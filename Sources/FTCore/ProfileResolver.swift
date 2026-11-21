@@ -120,10 +120,6 @@ public enum ProfileResolver {
             projectRoot: project.rootURL, repoRoot: repoRoot)
     }
 
-    /// ステージング対象(appPath の原本)だけを軽量に読む。マシン/デバイス解決を経由しない
-    /// (declaredWorkspace と同じ理由 —— RemoteRunDispatcher はミラー直前にここだけ要る)。
-    /// 戻り値: platform("ios"/"android") → (原本の絶対パス, 生の宣言文字列)
-    /// (appPath 未指定の platform は含まない)。プロファイル/アプリ定義が読めなければ空を返す
     /// 実行プロファイルが指すアプリの、その OS のアプリ ID を軽量に読む(デバイスを解決しない)。読めなければ nil
     public static func declaredAppID(project: TestProject, runName: String, platform: String) -> String? {
         guard let runData = try? Data(contentsOf: project.runsDir.appendingPathComponent("\(runName).json")),
@@ -133,12 +129,19 @@ public enum ProfileResolver {
         return appProfile.section(for: platform).app
     }
 
-    public static func declaredAppPaths(project: TestProject,
-                                        runName: String) -> [DeclaredAppPath: DeclaredAppPathEntry] {
+    /// ステージング対象(appPath の原本)だけを軽量に読む。マシン/デバイス解決を経由しない
+    /// (declaredWorkspace と同じ理由 —— RemoteRunDispatcher はミラー直前にここだけ要る)。
+    /// 戻り値: platform("ios"/"android") → (原本の絶対パス, 生の宣言文字列)
+    /// (appPath 未指定の platform は含まない)。プロファイル/アプリ定義が読めなければ空を返す
+    /// - overrides: `--set` の上書き。**向こうの子へ中継するものと同じものを渡す**(既定値を置かない)——
+    ///   `--set app=` は向こうの resolve が別のアプリを選ぶので、渡さないと元のアプリの原本を運び、
+    ///   向こうは前の run が置いた古い原本で黙って走るか、原本が無くて落ちる
+    public static func declaredAppPaths(project: TestProject, runName: String,
+                                        overrides: [String: RunProfileSetValue]) -> [DeclaredAppPath: DeclaredAppPathEntry] {
         guard let runData = try? Data(
                 contentsOf: project.runsDir.appendingPathComponent("\(runName).json")),
-              let runDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData),
-              let appRef = runDoc.app else { return [:] }
+              let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData),
+              let appRef = loadedRunDoc.applyingOverrides(overrides).app else { return [:] }
         guard let appData = try? Data(
                 contentsOf: project.appsDir.appendingPathComponent("\(appRef).json")),
               let appProfile = try? JSONDecoder().decode(AppProfile.self, from: appData) else { return [:] }

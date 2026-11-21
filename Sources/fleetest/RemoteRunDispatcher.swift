@@ -112,7 +112,7 @@ struct RemoteRunDispatcher {
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
-            linkedToParent: workQueue || runMemoLink,
+            linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
             lockSocket: lockSocket, lockControlSocket: lockControlSocket,
             localJUnitPath: localJUnitPath, remoteTimeoutSeconds: remoteTimeoutSeconds
         ) { remoteReportDir, remoteWorkspace, remoteJUnitPath, lockRemotePath in
@@ -143,7 +143,7 @@ struct RemoteRunDispatcher {
                      remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
         try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
-            linkedToParent: workQueue || runMemoLink,
+            linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
             lockSocket: lockSocket, lockControlSocket: lockControlSocket,
             localJUnitPath: nil, remoteTimeoutSeconds: remoteTimeoutSeconds
         ) { remoteReportDir, remoteWorkspace, _, lockRemotePath in
@@ -162,7 +162,8 @@ struct RemoteRunDispatcher {
     /// リモートの JUnit パス(localJUnitPath が nil なら nil), 転送するロックのリモート側パス)
     private func performDispatch(
         project: TestProject, profile: String, scenarioCount: Int, runGroup: String?,
-        linkedToParent: Bool, lockSocket: String?, lockControlSocket: String?,
+        linkedToParent: Bool, setOverrides: [String: RunProfileSetValue],
+        lockSocket: String?, lockControlSocket: String?,
         localJUnitPath: String?, remoteTimeoutSeconds: Int?,
         buildArgs: (String, String?, String?, String?) -> [String]
     ) async throws -> Int32 {
@@ -202,7 +203,8 @@ struct RemoteRunDispatcher {
         // ワークスペースの用意(ステージング)は project の rsync より先に行う。ワークスペースは
         // 既定でプロジェクトルート配下(prepareWorkspace 参照)なので、順序を逆にすると
         // 直前にステージングしたファイルが transfer() の対象から漏れる
-        let remoteWorkspace = try prepareWorkspace(project: project, profile: profile, layout: layout)
+        let remoteWorkspace = try prepareWorkspace(project: project, profile: profile, setOverrides: setOverrides,
+                                                   layout: layout)
         try transfer(project: project, layout: layout)
 
         let stamp = Self.makeStamp()
@@ -914,7 +916,7 @@ struct RemoteRunDispatcher {
     /// リポジトリ外(TestProjects/ の隣・上位等)に置く場合はプロジェクト転送の対象に
     /// 含まれないため
     private func prepareWorkspace(
-        project: TestProject, profile: String, layout: RemoteLayout
+        project: TestProject, profile: String, setOverrides: [String: RunProfileSetValue], layout: RemoteLayout
     ) throws -> String {
         let localWorkspaceURL = ProfileResolver.effectiveWorkspaceRoot(project: project, runName: profile)
         let created = (try? WorkspaceScaffold.ensure(root: localWorkspaceURL)) ?? []
@@ -927,7 +929,8 @@ struct RemoteRunDispatcher {
         // installPath には entry.declared(宣言の生文字列)を渡す —— entry.source(絶対パス)は
         // このホストの repoRoot を含むため、リモートの子が自分自身で resolve() し直したときと
         // 名前空間がずれてしまう(WorkspaceAppStaging.installPath の doc)
-        for (key, entry) in ProfileResolver.declaredAppPaths(project: project, runName: profile)
+        // `--set` は向こうの子へ中継するものと同じ上書きを当てる(`--set app=` は運ぶ原本を変える)
+        for (key, entry) in ProfileResolver.declaredAppPaths(project: project, runName: profile, overrides: setOverrides)
             .sorted(by: { ($0.key.platform, $0.key.physical ? 1 : 0)
                           < ($1.key.platform, $1.key.physical ? 1 : 0) }) {
             let dest = WorkspaceAppStaging.installPath(declared: entry.declared,
