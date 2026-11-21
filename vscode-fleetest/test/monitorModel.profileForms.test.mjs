@@ -1190,7 +1190,7 @@ test("updateRunProfileInObject: scenarioTimeout は空文字でキー削除(既�
   assert.equal(added.object.scenarioTimeout, 900);
   assert.equal(typeof added.object.scenarioTimeout, "number");
 
-  // Swift 側(RunProfile.swift)は正の整数だけ通す。ここで通すと保存できて run の読み込みで落ちる
+  // Swift 側(ProfileResolver.swift の validate)は正の整数だけ通す。ここで通すと保存できて run の読み込みで落ちる
   for (const invalid of ["0", "-1", "1.5", "abc", "1e3", "99999999999999999999"]) {
     const result = updateRunProfileInObject({}, { ...BASE_RUN_PROFILE_FIELDS, scenarioTimeout: invalid });
     assert.equal(result.ok, false, `scenarioTimeout=${invalid} は不正値としてエラーになるべき`);

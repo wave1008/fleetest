@@ -8,7 +8,9 @@
 #   Scripts/split-scan-check.py <元のファイル> <移した先のファイル>...
 #   例: Scripts/split-scan-check.py Sources/FTCore/StepExecutor+Actions.swift Sources/FTCore/StepExecutor+KeyboardCover.swift
 #
-# 判定は近似: テストの文字列リテラル(8文字以上)が移した先に現れるかだけを見る。挙がったテストは1本ずつ読み、
+# 走査の対象は Tests/ の Swift と vscode-fleetest/test/ の .mjs(拡張のテストも Swift のソースを名指しで読む)と、
+# Scripts/*.json の監視の表。.mjs は名指ししていれば全部挙げる(正規表現リテラルで抜くので文字列の一致では拾えない)。
+# Swift の判定は近似: テストの文字列リテラル(8文字以上)が移した先に現れるかだけを見る。挙がったテストは1本ずつ読み、
 # 移した塊の中身を検査しているなら、移した先も読むように直す(本体だけを読むテストは extension を全部読む形へ)。
 # 汎用の語(clearInput 等)の一致は誤検知なので読んで外す。挙がらなかったテストを「影響なし」と断じない
 # (正規表現・組み立てた文字列での検査は拾えない)。
@@ -41,11 +43,18 @@ def main() -> int:
 
     candidates = 0
     scanned = 0
-    for test in sorted(glob.glob("Tests/**/*.swift", recursive=True)):
+    tests = sorted(glob.glob("Tests/**/*.swift", recursive=True)) \
+        + sorted(glob.glob("vscode-fleetest/test/**/*.mjs", recursive=True))
+    for test in tests:
         source = open(test, encoding="utf-8").read()
         if not names_original.search(source):
             continue
         scanned += 1
+        # 拡張のテスト(.mjs)は正規表現リテラルで抜き出すことが多く、文字列の一致では拾えない。名指ししていれば全部挙げる
+        if test.endswith(".mjs"):
+            candidates += 1
+            print(f"== {test}  (names {name}; JS test — string matching is unreliable here, read it)")
+            continue
         already = [os.path.basename(p) for p in moved_paths
                    if re.search(r'["/]' + re.escape(os.path.basename(p)) + r'"', source)]
         hits = set()
@@ -68,7 +77,11 @@ def main() -> int:
         print(f"== {test}{note}")
         for moved_name, where, text in sorted(hits):
             print(f"    [{moved_name} / {where}] {text}")
-    print(f"\n{scanned} test files name {name}; {candidates} check strings that now live in the moved-to files")
+    # 変わったら検証を回し直す監視の表(negative-controls.json の watches 等)。移した先を足すかを決める
+    for listing in sorted(glob.glob("Scripts/*.json")):
+        if names_original.search(open(listing, encoding="utf-8").read()):
+            print(f"== {listing}  (watch/list file names {name}; add the moved-to files where the moved code is what it watches)")
+    print(f"\n{scanned} test files name {name}; {candidates} need reading (Swift: check strings that now live in the moved-to files)")
     return 0
 
 

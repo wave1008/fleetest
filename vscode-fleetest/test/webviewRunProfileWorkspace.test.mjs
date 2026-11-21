@@ -3,7 +3,7 @@
 // DOM E2E(jsdom)。ハーネスの作り(renderHtml を vscode スタブ付きで bundle → main.js を
 // window.eval)は test/webviewRecordingsTab.test.mjs と同じ。
 //
-// 既定値の透かしは Sources/FTCore/RunProfile.swift の ProfileResolver.resolveWorkspaceRoot
+// 既定値の透かしは Sources/FTCore/ProfileResolver.swift の ProfileResolver.resolveWorkspaceRoot
 // (未指定なら <プロジェクトルート>/workspace)と同期する契約。相対パスはリポジトリルート基準
 // なので "TestProjects/<project>/workspace" はそのまま入力しても既定と同じ場所を指す。
 

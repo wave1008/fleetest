@@ -52,7 +52,7 @@
       "class": "システムアラートの陽性対照",
       "resetPhotos": "com.ftester.e2e.ios",
       "guards": "OS の権限アラートが覆っている間は背面のアプリへの操作を撃たない(登録はあるがボタンが一致しない形)",
-      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+Assert.swift"],
+      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+Assert.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "tap", "failureKind": "system-ui-covered",
                    "detailContains": ["system UI is covering the app", "Buttons on this alert:"] }
@@ -63,7 +63,7 @@
       "class": "未登録のシステムアラート",
       "resetPhotos": "com.ftester.e2e.ios",
       "guards": "iosAlertHandler の登録が無いままアラートが前面にあるとき、注記を残し失敗文言に題名を添える",
-      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+JudgmentCapture.swift"],
+      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+JudgmentCapture.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "exist", "failureKind": "not-found",
                    "notesContains": ["system-alert-present"],
