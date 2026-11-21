@@ -5,138 +5,6 @@
 import Foundation
 import FTCore
 
-// MARK: - 実行記録
-
-public struct DSLStepRecord: Sendable {
-    public let index: Int
-    /// condition / action / expectation(CAE ブロック外は nil)
-    public let section: String?
-    public let description: String
-    public let status: StepResult.Status
-    public let file: String
-    public let line: Int
-    /// レポートの時間列に使う。欠測条件は recordStep のコメント参照
-    public let durationMs: Int?
-    /// screenshot() コマンドが撮った画像。ScenarioReportWriter がこのステップの直後に埋め込む。
-    /// 他コマンドは常に nil(failureScreenshot とは別経路)
-    public let screenshotData: Data?
-    public let screenshotLabel: String?
-    /// `procedure { }` の中で記録したステップ。レポート(.md)は成功・skip を畳む(Shirates の procedure = describe + silent)。
-    /// 結果 JSON・イベントには全部残す(事実は省かない)
-    public let insideProcedure: Bool
-    /// 応答時間計測の記録(計測モードの計測ステップだけ)。t2 は次の計測ステップで後から入る(`applyingReadyUpdate`)
-    public var response: ResponseMeasurementRecord?
-
-    public init(index: Int, section: String?, description: String, status: StepResult.Status,
-                file: String, line: Int, durationMs: Int? = nil,
-                screenshotData: Data? = nil, screenshotLabel: String? = nil, insideProcedure: Bool = false,
-                response: ResponseMeasurementRecord? = nil) {
-        self.index = index
-        self.section = section
-        self.description = description
-        self.status = status
-        self.file = file
-        self.line = line
-        self.durationMs = durationMs
-        self.screenshotData = screenshotData
-        self.screenshotLabel = screenshotLabel
-        self.insideProcedure = insideProcedure
-        self.response = response
-    }
-}
-
-extension Array where Element == SceneRecordData {
-    /// 添字が `stepIndex` のステップへ t2 の確定を当てる(前の scene・区分のステップも探す。無ければ何もしない)
-    mutating func applyReadyUpdate(_ update: ResponseReadyUpdate, toStepIndex stepIndex: Int) {
-        for s in indices {
-            guard let i = self[s].steps.firstIndex(where: { $0.index == stepIndex }),
-                  let current = self[s].steps[i].response else { continue }
-            self[s].steps[i].response = current.applying(update)
-            return
-        }
-    }
-}
-
-/// セレクタの修正提案(自己修復(指紋照合)・フォールバック通過から導出)
-public struct FixSuggestion: Sendable {
-    /// 強い提案(healed)か弱い提案(passedViaFallback)か
-    public let isStrong: Bool
-    public let message: String
-}
-
-public struct SceneRecordData: Sendable {
-    public let number: Int
-    public let title: String
-    public var steps: [DSLStepRecord] = []
-    public var failureScreenshot: Data?
-    /// 失敗時証跡スクショが白フレームでエビデンス無効。ScenarioReportWriter が警告表示する。
-    public var evidenceBlank: Bool = false
-    /// その失敗が前面のシステムアラート(`StepNote.systemAlertPresent`)を伴っていたか。
-    /// 白の原因を「凍結」と書くかどうかを `FrozenFrameJudgement` で決めるための材料
-    /// (アラート中の in-app スクショはアプリの非アクティブ化で白くなる)
-    public var failureUnderSystemAlert: Bool = false
-    /// 失敗時点の要素一覧(SnapshotRenderer の1要素1行テキスト)。スクリーンショットからは
-    /// `#id` を読み取れないため、直すための情報はこちらが本体(レポートに折りたたみで載せる)
-    public var failureElements: String?
-    /// 失敗時にアプリより手前にあった**別プロセスの window**(手前が先)。
-    /// これが空でないなら「操作がそこに吸われて ✅ のまま何も起きなかった」を第一に疑う
-    /// (アプリの a11y ツリーには他プロセスの window が出ないため、要素一覧では気付けない)
-    public var failureForegroundWindows: [String] = []
-    /// 失敗時にアプリの process が既に無かった(Android のみ。クラッシュの疑い)ことの表示行。
-    /// 空 = 言うことなし。中身は appProcessEvidence のクロージャが決める(FTDSL は FTAndroid に
-    /// 依存しないため、行の組み立ては FTScenarioRunner 側)
-    public var failureAppProcess: [String] = []
-    /// 失敗時の絵について言える事実(`FailureScreenshotFacts`)。失敗したステップの NDJSON は絵を撮る前に出ているので、ステップの
-    /// `notes` ではなくここに載せる(レポートの絵の直前に1行出す)
-    public var failureScreenshotNote: StepNote?
-
-    public var passed: Bool {
-        steps.allSatisfy {
-            if case .failed = $0.status { return false }
-            return true
-        }
-    }
-
-    /// 「実行されなかった scene」の唯一の定義(手順を1つ以上持ち、全部 skipped)。
-    /// 打ち切りで本体を飛ばした scene は失敗した手順を持たず `passed` が true のままなので、
-    /// 成功と区別する印はこれ。sceneFinished の `skipped`・結果 JSON・レポートの印はここから導く
-    public var isSkipped: Bool {
-        !steps.isEmpty && steps.allSatisfy {
-            if case .skipped = $0.status { return true }
-            return false
-        }
-    }
-}
-
-public struct ScenarioRecordData: Sendable {
-    public let id: String
-    public let title: String
-    public let app: String
-    public let platform: String
-    /// 実行プロファイル上のデバイス論理名(profiles/runs/ の devices[].name)。orchestrator 経由でない
-    /// 実行(--port 直指定等)では取得できず nil
-    public let deviceName: String?
-    /// 技術識別子(Android: adb serial / iOS: シミュレータ UDID)。取得できなければ nil
-    public let deviceIdentifier: String?
-    public var scenes: [SceneRecordData] = []
-    public var fixSuggestions: [FixSuggestion] = []
-
-    public init(id: String, title: String, app: String, platform: String,
-                deviceName: String? = nil, deviceIdentifier: String? = nil,
-                scenes: [SceneRecordData] = [], fixSuggestions: [FixSuggestion] = []) {
-        self.id = id
-        self.title = title
-        self.app = app
-        self.platform = platform
-        self.deviceName = deviceName
-        self.deviceIdentifier = deviceIdentifier
-        self.scenes = scenes
-        self.fixSuggestions = fixSuggestions
-    }
-
-    public var passed: Bool { scenes.allSatisfy(\.passed) }
-}
-
 // MARK: - ランタイム
 
 // 可変メンバー(core / dslThread)は全て `lock` の下でだけ触る
@@ -187,19 +55,6 @@ public final class FTRuntime: @unchecked Sendable {
         }
         return core
     }
-}
-
-/// perform() の内部戻り値。status は既存呼び出し元がそのまま使い、element は exist 系
-/// (FTElement.text/value/id)だけが読む
-struct PerformResult {
-    let status: StepResult.Status
-    let element: ElementInfo?
-    /// `select` が見えないと判定した要素(StepOutcome.notVisibleSelection)
-    var notVisibleSelection: ElementInfo? = nil
-    /// findImage / findImages が見つけた要素(StepOutcome.imageMatches)
-    var imageMatches: [FindImage.Match]? = nil
-    /// ステップの機械可読な注記(StepOutcome.notes)。waitForSettle が「諦めて通った」ことを読む
-    var notes: [StepNote] = []
 }
 
 // MARK: - ドライブコア(コマンドの実体)
@@ -1745,25 +1600,6 @@ public final class FTDriveCore {
 
     /// 分岐評価(記録のみ、実行はしない): セレクタが現在画面で解決できるか。
     /// waitSeconds: 0 = 即時1回判定(repeat-while が最低1回は回る契約は変えない)
-    /// 条件判定の結果。**閉じた割り込みも運ぶ** —— 不成立の記録に注記を残さないと、
-    /// 「本当に無い」のか「覆われていた」のかを読み手が区別できない
-    struct CanSelectOutcome {
-        let found: Bool
-        /// 判定中に閉じた割り込み(検出セレクタの要約と回数)。閉じていなければ nil
-        let dismissed: (key: String, count: Int)?
-        /// **画面を読めなかった**ときの事実(`found == false` と同時にだけ立つ)。読めなかったことを
-        /// 「無い」と言わない —— クラッシュ・接続断・固まりの後に不成立で緑へ抜ける
-        var unread: SnapshotReadFailure? = nil
-        /// 読めなかったが、**このシナリオが `terminateApp()` で止めたアプリ**なので「無い」として扱った(`unread` は nil)
-        var stoppedByScenario = false
-    }
-
-    /// canSelect の最後の読みが失敗した理由。kind は**エラーの型**から採る(文言で仕分けない)
-    struct SnapshotReadFailure {
-        let reason: String
-        let kind: StepFailureKind?
-    }
-
     func canSelect(_ selector: FTSelector, waitSeconds: Double) -> CanSelectOutcome {
         // dry-run では成立側を列挙する(`.ifElse` 側は FTBranch が dry-run のときだけ併せて列挙する)
         if dryRun { return CanSelectOutcome(found: true, dismissed: nil) }
@@ -2146,17 +1982,5 @@ public final class FTDriveCore {
     func relativePath(_ path: String) -> String {
         let cwd = FileManager.default.currentDirectoryPath + "/"
         return path.hasPrefix(cwd) ? String(path.dropFirst(cwd.count)) : path
-    }
-}
-
-
-/// 失敗時の絵が写さないと言える事実の判定(MCP・DSL で共有する置き場。実行機の static にしない)
-enum FailureScreenshotFacts {
-    /// 失敗時の木でキーボードが出ていて、焦点の要素が secureTextField か。OS は secure 入力の間、キーボードとパスワードの中身を
-    /// 画面の撮影から除く(木は `keyboardShown` と値を答える。測定: 焦点が secure かどうかと 18/18 で一致)。
-    /// 焦点を申告しない木・キーボードが出ていない木は false(黙る)
-    static func omitsSecureKeyboard(_ snapshot: SnapshotResponse) -> Bool {
-        guard KeyboardWait.isShown(snapshot) else { return false }
-        return snapshot.elements.contains { $0.focused == true && $0.type == "secureTextField" }
     }
 }

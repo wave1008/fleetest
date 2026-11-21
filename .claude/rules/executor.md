@@ -30,6 +30,8 @@ paths:
   - "Sources/FTCore/SystemUIGate*.swift"
   - "Sources/FTCore/SystemUIGate.swift"
   - "Sources/FTDSL/FTRuntime.swift"
+  - "Sources/FTDSL/FTDriveCoreTypes.swift"
+  - "Sources/FTDSL/DSLRunRecords.swift"
   - "Tests/FTCoreTests/AppDriverDefaultDispatchTests.swift"
   - "Tests/FTCoreTests/DriverErrorMessageTests.swift"
   - "Tests/FTCoreTests/OCRShortcutSkipNoteTests.swift"

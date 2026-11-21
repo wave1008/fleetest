@@ -8,6 +8,8 @@ paths:
   - "Sources/FTDSL/**"
   - "Sources/FTDSL/Commands.swift"
   - "Sources/FTDSL/FTRuntime.swift"
+  - "Sources/FTDSL/FTDriveCoreTypes.swift"
+  - "Sources/FTDSL/DSLRunRecords.swift"
   - "Sources/FTDSL/UnavailableCommands.swift"
   - "Sources/FTDSLMacros/**"
   - "Tests/FTDSLTests/**"
