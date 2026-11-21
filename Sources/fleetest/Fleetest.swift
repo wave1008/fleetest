@@ -795,8 +795,8 @@ struct RunScenarios: AsyncParsableCommand {
                     throw ValidationError(message)
                 }
             }
-            ConsoleOut.out("Nothing to run (every scenario is marked @Deleted or @Draft)")
-            return
+            // 1本も走らない run を成功で終えない(CI で誤った緑になる。api run と同じ文言・DR-213)
+            throw ValidationError("nothing to run (every scenario is marked @Deleted or @Draft)")
         }
         // クラスの寄せ方(RR-8.3)の選び方の検査。dry-run はデバイスを使わないので掛けない(api run と同じ関数)
         if !dryRun {
@@ -1286,8 +1286,8 @@ struct RunScenarios: AsyncParsableCommand {
         }
     }
 
-    /// --folder が選択を空にしたときの断り文。nil = フォルダの中が @Deleted / @Draft だけ(従来どおり「Nothing to run」で
-    /// exit 0 = 理由を言い違えない)。それ以外(合致が0本・--scenario との積が空)は名指しの選択が空なので CI で拾えるよう非ゼロ
+    /// --folder が選択を空にしたときの断り文。nil = フォルダの中が @Deleted / @Draft だけ(呼び手が「nothing to run」の断りへ進む
+    /// = 理由を言い違えない)。それ以外(合致が0本・--scenario との積が空)は名指しの選択が空であることを言う
     static func emptyFolderSelectionError(folders: [String], scenarios: [String],
                                           inFolders: [ScenarioInfo]) -> String? {
         if scenarios.isEmpty, !inFolders.isEmpty, inFolders.allSatisfy({ $0.deleted || $0.draft }) { return nil }

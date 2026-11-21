@@ -98,6 +98,7 @@ The generated class carries `@Draft`.
 - `@Draft` marks work in progress. **It stays in the list as "work in progress"** and is **excluded** from full runs, folder runs
   and runs by class name. **It runs only when you give an exact ID** (`--scenario <Class>.<method>`), which is the way to run it on
   its own while you finish it.
+  A run that has nothing left after these are excluded ends as a failure, not a success (so a run that ran nothing is not missed).
 - Selectors come out as `#TODO`. `#TODO` is an id that can never be resolved, so if you forget to replace one and remove
   `@Draft`, the scenario **always fails with "cannot resolve the locator"** (this is intended: failing is better than going green
   on an empty implementation).

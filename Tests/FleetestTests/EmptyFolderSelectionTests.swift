@@ -2,8 +2,8 @@ import XCTest
 import FTCore
 @testable import fleetest
 
-/// `run --folder` が選択を空にした理由を言い違えない: フォルダの中が @Deleted / @Draft だけなら従来どおり exit 0 の
-/// 「Nothing to run」(nil)、合致が0本・--scenario との積が空なら断る
+/// `run --folder` が選択を空にした理由を言い違えない: フォルダの中が @Deleted / @Draft だけなら「nothing to run」の断り
+/// (nil = 呼び手の断りへ進む。DR-213)、合致が0本・--scenario との積が空ならフォルダの合致の断り
 final class EmptyFolderSelectionTests: XCTestCase {
     func testFolderOfOnlyDraftsIsNotAFolderMatchError() {
         let inFolder = [ScenarioInfo(id: "A", title: "A", draft: true), ScenarioInfo(id: "B", title: "B", deleted: true)]
