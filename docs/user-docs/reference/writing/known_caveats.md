@@ -46,6 +46,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Absence read on another app (`absence-checked-on-another-app`)](../commands/existence_assertion.md#notes) — on Android, `notExist` passes with this note while another app is in front and says nothing about your app; bring your app back first.
 - [`countIs` inside a scrolling list (`count-in-scrolling-list`)](../commands/existence_assertion.md#notes) — the number of rows on the screen depends on its size and orientation, so the count can differ on another device; count what does not depend on the screen.
 - [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis (`text-ellipsized`) or more than half drawn (`text-partially-hidden`) passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
+- [`exist` with several matching elements](../commands/existence_assertion.md#notes) — passes if the text of any match is visible (the remaining matches are checked when the first is not); `[n]` and relative selectors check only that one.
 
 ### Find by image (findImage, findImages, existImage)
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.

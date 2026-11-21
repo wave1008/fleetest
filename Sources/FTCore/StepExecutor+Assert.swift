@@ -117,6 +117,29 @@ extension StepExecutor {
         return " (the target is covered by \(label))"
     }
 
+    /// `exist` の可視性検証が最初の一致で赤になったとき、同じセレクタの**残りの一致**を木の順に同じ検証へ通し、
+    /// 文字が見えていると確かめられた最初の要素を返す(無ければ nil)。序数(`[n]`)と相対ステップのあるセレクタは
+    /// 「どの1つか」を書き手が決めているので見ない。代わりを探すのは主のロケータだけ(フォールバックは見ない)。
+    /// `expectedText` = その要素で検証する文字(nil = その要素は検証の答えに合わないので見ない。文字の検証は実際の値の一致を先に見る)
+    func visibleOtherMatch(of step: FlowStep, besides element: ElementInfo, in snapshot: SnapshotResponse,
+                           expectedText: (ElementInfo) -> String?,
+                           phase: inout PhaseAccumulator) async throws -> ElementInfo? {
+        guard let locator = step.locator, locator.index == nil, locator.relative?.isEmpty ?? true,
+              let matches = LocatorResolver.candidates(locator, elements: snapshot.elements) else { return nil }
+        for other in matches where other.ref != element.ref {
+            guard let text = expectedText(other) else { continue }
+            let flip = try await occlusionFlip(
+                element: other, expectedText: text,
+                elements: snapshot.elements, screen: snapshot.screen,
+                keyboardShown: KeyboardWait.isShown(snapshot), keyboard: snapshot.keyboardFrame,
+                looseMatch: LocatorResolver.quality(of: other, for: locator) == .substring,
+                perStepGuard: step.occlusionGuard,
+                expectedIsUserText: locator.label != nil, phase: &phase)
+            if flip == nil, !guardFrameStaleThisEval { return other }
+        }
+        return nil
+    }
+
     /// 待ちの途中で一度は見つかったが、**最後の読みでは木に無かった**ときの失敗。途中の値で「不一致」「違反」と
     /// 言うと、最後の観測(要素が無い)と食い違う文言になる(負荷テストの実例: expected "state=idle", actual
     /// "state=idle"・両方の比較が一致、なのに赤)。最後の観測を主に、途中で見えた値は事実として添える
@@ -567,6 +590,16 @@ extension StepExecutor {
                     // #4: label セレクタ一致はユーザー期待値。結合ラベル `, ` 規則を当てず
                     // exist("Hello, World") でガードがスキップされる欠陥を防ぐ(textEquals と同契約)。
                     expectedIsUserText: step.locator?.label != nil, phase: &phase) {
+                    // 同じセレクタの別の一致の文字が見えていれば緑(画像の説明ラベルが文字の型で木に出て、木の順で先に掴まれる形)。
+                    // 別の一致も同じ検証を通すので、見えていない文字の緑は増えない
+                    if let other = try await visibleOtherMatch(of: step, besides: d.element, in: snapshot,
+                                                               expectedText: { $0.label ?? step.locator?.label ?? "" },
+                                                               phase: &phase) {
+                        resolvedElementThisStep = other
+                        if guardCostExtended { noteCodesThisStep.insert(.guardRetaken) }
+                        if let fallback = d.usedFallback { return .passedViaFallback(fallback) }
+                        return .passed
+                    }
                     lastOcclusion = flip   // 覆われている: 可視化を待つ(下の sleep へ)
                     staleUntilDeadline = nil
                 } else if guardFrameStaleThisEval, Date() < deadline {
@@ -787,6 +820,20 @@ extension StepExecutor {
                         keyboardShown: KeyboardWait.isShown(snapshot), keyboard: snapshot.keyboardFrame,
                         looseMatch: loose, perStepGuard: step.occlusionGuard,
                         expectedIsUserText: true, phase: &phase) {
+                        // 同じセレクタの別の一致で、値が同じ答えに合い文字が見えていれば緑(exist の `visibleOtherMatch` と同じ)
+                        if let other = try await visibleOtherMatch(
+                            of: step, besides: element, in: snapshot,
+                            expectedText: { other in
+                                let value = assert == "idEquals" ? other.identifier
+                                    : (assert.hasPrefix("value") ? TypeReadback.assertedValue(of: other, in: snapshot.elements) : other.label)
+                                return LocatorResolver.matchedText(value, expected: expected, assert: assert,
+                                                                   normalization: Self.textNormalization(for: step))
+                            }, phase: &phase) {
+                            resolvedElementThisStep = other
+                            if guardCostExtended { noteCodesThisStep.insert(.guardRetaken) }
+                            if let fallback { return .passedViaFallback(fallback) }
+                            return .passed
+                        }
                         lastOcclusion = flip   // 覆われている: 可視化を待つ
                         staleUntilDeadline = nil
                     } else if guardFrameStaleThisEval, Date() < deadline {
