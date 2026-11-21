@@ -250,6 +250,8 @@ public final class StdioPullSource: ScenarioPullSource {
     private struct State {
         var nextReq = 1
         var waiters: [Int: CheckedContinuation<String?, Never>] = [:]
+        /// 対象外の問い合わせ(`na`)の返事待ち。req は `waiters` と同じ採番
+        var verdictWaiters: [Int: CheckedContinuation<NotApplicableHandoff.Verdict, Never>] = [:]
         /// stdin が閉じた(以後の要求は即 nil)
         var eof = false
     }
@@ -299,6 +301,23 @@ public final class StdioPullSource: ScenarioPullSource {
         }
     }
 
+    public func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+                                     departedUntried: Bool) async -> NotApplicableHandoff.Verdict {
+        reader.start()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<NotApplicableHandoff.Verdict, Never>) in
+            let request: Int? = state.withLock { s in
+                if s.eof { return nil }
+                let req = s.nextReq
+                s.nextReq += 1
+                s.verdictWaiters[req] = continuation
+                return req
+            }
+            guard let request else { continuation.resume(returning: .skipped); return }
+            write(WorkQueueProtocol.encode(WorkQueueProtocol.NotApplicable(
+                req: request, id: scenarioID, lane: lane, platform: platform, dep: departedUntried)))
+        }
+    }
+
     public func stopWaiting() { resolveAllWaiters() }
 
     /// 端末のエコーを戻す(ssh -tt の先でだけ変えている)。何度呼んでもよい
@@ -306,15 +325,22 @@ public final class StdioPullSource: ScenarioPullSource {
 
     /// 待っている要求と以後の要求を全部 nil にする(EOF・中断)
     private func resolveAllWaiters() {
-        let remaining = state.withLock { s -> [CheckedContinuation<String?, Never>] in
+        let (remaining, verdicts) = state.withLock { s
+            -> ([CheckedContinuation<String?, Never>], [CheckedContinuation<NotApplicableHandoff.Verdict, Never>]) in
             s.eof = true
-            defer { s.waiters = [:] }
-            return Array(s.waiters.values)
+            defer { s.waiters = [:]; s.verdictWaiters = [:] }
+            return (Array(s.waiters.values), Array(s.verdictWaiters.values))
         }
         for continuation in remaining { continuation.resume(returning: nil) }
+        for continuation in verdicts { continuation.resume(returning: .skipped) }
     }
 
     private func deliver(_ reply: WorkQueueProtocol.Reply) {
+        if let wire = reply.verdict {
+            let continuation = state.withLock { $0.verdictWaiters.removeValue(forKey: reply.req) }
+            continuation?.resume(returning: NotApplicableHandoff.Verdict(wire: wire) ?? .skipped)
+            return
+        }
         let continuation = state.withLock { $0.waiters.removeValue(forKey: reply.req) }
         continuation?.resume(returning: reply.scenarioID)
     }

@@ -19,6 +19,8 @@ final class PulledDispatchTests: XCTestCase {
         }
         let stops = LockedValue(0)
         func stopWaiting() { stops.withLock { $0 += 1 } }
+        func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+                                  departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
     }
 
     private func makeQueue(_ catalog: [ScenarioRunItem], source: FakeSource,
@@ -81,6 +83,8 @@ final class PulledDispatchTests: XCTestCase {
                 await withCheckedContinuation { continuation in waiter.withLock { $0 = continuation } }
             }
             func stopWaiting() {}
+            func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
             func answer(_ id: String?) { waiter.withLock { $0?.resume(returning: id); $0 = nil } }
         }
         let source = GatedSource()

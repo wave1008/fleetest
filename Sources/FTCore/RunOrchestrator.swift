@@ -265,6 +265,9 @@ public final class RunOrchestrator: Sendable {
     private let runPasses = Counter()
     /// 子が対象外を宣言したシナリオ数(summary.skipped)。`runPasses` にも数える(レーンは健全)
     private let runSkipped = Counter()
+    /// pulled で配られた本数(= この run の total)。shared / broadcast では使わない。
+    /// 対象外を親へ返して他のマシンの台へ回し直した分は引く(`resolveNotApplicable`。その結果はこの子のものでなくなる)
+    private let handedOut = LockedValue<Int>(0)
     /// 呼び出し側(ローカル `api run`/`run`)が SIGINT/SIGTERM を受けたときに立てる。
     /// 新しいシナリオの配布だけを止める(実行中の子プロセスの SIGTERM は呼び出し側の責務 ——
     /// registerChildProcess 経由でホスト(fleetest ターゲット)が直接持つ登録簿を撃つ。ここに
@@ -558,8 +561,6 @@ public final class RunOrchestrator: Sendable {
         let visionHelper = debug == nil ? VisionHelperHost.acquire(project: project) : nil
         defer { visionHelper?.release() }
         var failed = 0
-        /// pulled で配られた本数(= この run の total)。shared / broadcast では使わない
-        let handedOut = LockedValue<Int>(0)
         var isPulled = false
         /// キューの key(shared = platform / broadcast = レーン key)。ワーカーがどれを取るかは queueKey
         let queues: [String: ScenarioQueue]
@@ -613,7 +614,7 @@ public final class RunOrchestrator: Sendable {
                 result[entry.key] = ScenarioQueue(pulled: ScenarioQueue.PullState(
                     source: source, platform: entry.key, catalog: LockedValue(catalog),
                     onHandOut: { [weak self] _ in
-                        handedOut.withLock { $0 += 1 }
+                        self?.handedOut.withLock { $0 += 1 }
                         await self?.progressState?.growTotal()
                     },
                     onUnknownID: { [weak self] id in
@@ -850,10 +851,14 @@ public final class RunOrchestrator: Sendable {
             }
             while let item = await queue.nextLocal() {
                 if cancelledBeforeStart { continue }
-                continuation.yield(.flowSkipped(flowURL: item.url, reason: drain.reason))
+                // 対象外で戻されたまま試していない台が居なくなった item は、その事実を理由にする(DR-214)
+                let reason = (abortReason == nil && !interrupted)
+                    ? await queue.declaredReason(for: item).map(NotApplicableHandoff.notRunReason(declared:)) ?? drain.reason
+                    : drain.reason
+                continuation.yield(.flowSkipped(flowURL: item.url, reason: reason))
                 recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title,
                                         platform: drain.platform, worker: drain.worker,
-                                        reason: drain.reason,
+                                        reason: reason,
                                         kind: interrupted ? .interrupted : .noWorker)
                 failed += 1
             }
@@ -879,6 +884,43 @@ public final class RunOrchestrator: Sendable {
                                         skipped: summary.skipped))
         continuation.finish()
         return summary
+    }
+
+    /// 対象外で終わった item の行き先(DR-214)。判定は `NotApplicableHandoff.decide`(機械の中は `ScenarioQueue`・機械をまたぐ run は親が同じ関数)。
+    /// 機械の中に回し直す先が無く、キューが親の配り手につながっていれば親へ聞く(`viaParent` = 親が他のマシンの台へ回す)。
+    /// **デバイスに束ねたクラスと `@RunOnSingleMachine` は機械の外へ出さない**(`placement != nil`)
+    private func resolveNotApplicable(_ item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue,
+                                      declared: String) async -> (verdict: NotApplicableHandoff.Verdict, viaParent: Bool) {
+        let lane = ScenarioQueue.lane(of: worker)
+        let local = await queue.noteNotApplicable(item, lane: lane, reason: declared)
+        guard local != .handOn, item.info.placement == nil, let target = await queue.pullTarget() else { return (local, false) }
+        let verdict = await target.source.declareNotApplicable(
+            platform: target.platform, lane: lane, scenarioID: item.info.id,
+            departedUntried: await queue.hasDepartedUntried(item))
+        return (verdict, verdict == .handOn)
+    }
+
+    /// 対象外の結果を確定させずに片付ける: 記録を捨て、回し直す(`.handOn`)か実行しなかった赤にする(`.notRun`)。戻り値 = 失敗に数える本数
+    private func applyNotApplicableFollowUp(
+        _ followUp: (verdict: NotApplicableHandoff.Verdict, declared: String, viaParent: Bool),
+        item: ScenarioRunItem, worker: RunWorker, progressLaneKey: String) async -> Int {
+        recorder?.discardLast(scenarioID: item.info.id, worker: ScenarioRunner.recordingWorker(worker))
+        switch followUp.verdict {
+        case .handOn:
+            let note = NotApplicableHandoff.discardedReason(declared: followUp.declared, device: worker.label, handedOn: true)
+            await retries.add("\(item.info.id): \(note)")
+            continuation.yield(.workerLog(worker: worker.label, message: "\(item.info.id): \(note)"))
+            if followUp.viaParent {
+                handedOut.withLock { $0 -= 1 }
+                await progressState?.handedBack(laneKey: progressLaneKey)
+            } else {
+                await progressState?.laneIdled(laneKey: progressLaneKey)
+            }
+            return 0
+        case .notRun, .skipped:
+            await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
+            return recordNotRun([item], worker: worker) { _ in NotApplicableHandoff.notRunReason(declared: followUp.declared) }
+        }
     }
 
     /// 使用不能デバイス(画面凍結・実行中の消失)のシナリオを結果取り消し+別デバイス再キュー。
@@ -1265,9 +1307,10 @@ public final class RunOrchestrator: Sendable {
                     if case .flowStarted(let worker, let flowURL, _, _) = event {
                         continuation.yield(.flowStartedAt(worker: worker, flowURL: flowURL, at: Date()))
                     }
-                    if case .flowFinished(let worker, let flowURL, _, _, _, _, _, _) = event {
+                    if case .flowFinished(let worker, let flowURL, _, _, _, _, let declaredNotApplicable, _) = event {
                         let at = Date()
-                        if holdsFinish {
+                        // 対象外の終了も保留する: 回し直す・実行しなかった赤にするかは終わってから決まる(DR-214)
+                        if holdsFinish || declaredNotApplicable != nil {
                             heldFinish.withLock { $0 = (event, at) }
                             return
                         }
@@ -1320,6 +1363,16 @@ public final class RunOrchestrator: Sendable {
                         scenarioID: item.info.id, reason: message, cause: .rendering))
                 }
             }
+            // 対象外の行き先(DR-214)。凍結・描画崩壊が確定した回は結果を捨てる側が先(対象外では起きない形だが順序を固定する)
+            var notApplicableFollowUp: (verdict: NotApplicableHandoff.Verdict, declared: String, viaParent: Bool)?
+            if outcome == .notApplicable, displayFreeze == nil, renderingDetach == nil,
+               let held = heldFinish.withLock({ $0 }),
+               case .flowFinished(_, _, _, _, _, _, let declared?, _) = held.event {
+                let resolved = await resolveNotApplicable(item, worker: worker, queue: queue, declared: declared)
+                if resolved.verdict != .skipped {
+                    notApplicableFollowUp = (resolved.verdict, declared, resolved.viaParent)
+                }
+            }
             // 保留した終了イベントを流す(凍結が確定したら失敗として。振り直しの requeued はこの後に続く = 凍結の失敗と同じ並び)
             if let held = heldFinish.withLock({ $0 }),
                case .flowFinished(let heldWorker, let heldURL, let heldPassed, let heldReport, _, _, _, _) = held.event {
@@ -1330,6 +1383,13 @@ public final class RunOrchestrator: Sendable {
                     continuation.yield(Self.failedFinish(held.event, discardReason: discardReason))
                     // レポートは子が緑のまま書き終えている。親だけが捨てたことを知っている
                     if heldPassed, let heldReport { ScenarioReportNotice.addDiscarded(reason: discardReason, to: heldReport) }
+                } else if let followUp = notApplicableFollowUp,
+                          case .flowFinished(let w, let u, _, let report, let fm, let crash, _, _) = held.event {
+                    continuation.yield(.flowFinished(
+                        worker: w, flowURL: u, passed: false, reportURL: report, fm: fm, appCrash: crash,
+                        notApplicableReason: nil,
+                        resultDiscardedReason: NotApplicableHandoff.discardedReason(
+                            declared: followUp.declared, device: worker.label, handedOn: followUp.verdict == .handOn)))
                 } else {
                     continuation.yield(held.event)
                 }
@@ -1357,12 +1417,17 @@ public final class RunOrchestrator: Sendable {
                                             invalidatesPassedRecord: outcome == .passed)
             }
             if outcome == .passed || outcome == .notApplicable {
-                if outcome == .notApplicable { await runSkipped.increment() }
+                if outcome == .notApplicable, notApplicableFollowUp == nil { await runSkipped.increment() }
                 breaker.recordPass()
                 if let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
                 if outcome == .passed { _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true) }
                 await runPasses.increment()
-                await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: true)
+                if let followUp = notApplicableFollowUp {
+                    failed += await applyNotApplicableFollowUp(
+                        followUp, item: item, worker: worker, progressLaneKey: progressLaneKey)
+                } else {
+                    await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: true)
+                }
                 // **レーンが空いている今だけ測り直す**(次の 1 件をまだ取っていない)。
                 // 失敗の経路は除く —— 離脱すれば revive が供給を通り、そこで同じ 1 問が測る。
                 // 中断中・残りが無いときは撃たない(起動し直しは数十秒かかり、次の run の再利用が測る)

@@ -27,6 +27,11 @@ public protocol ScenarioPullSource: Sendable {
     /// 中断: 返事を待っている要求と以後の要求を全部 nil で終わらせる。**親の返事を当てにしない** ——
     /// 渡し済みの返事が届かなかったレーンは、親が中断で none を返す相手にならず、子が終わらなくなる
     func stopWaiting()
+    /// 対象外(DR-214): 機械の中に回し直す先が無かった対象外の item を、機械の外(他のマシンの未試行の台)へ回せるか親に聞く。
+    /// `departedUntried` = このキューの中で試していない台が落ちている。中断・親の消失は `.skipped`(従来の確定)。
+    /// **既定実装を置かない**(新しい配り手が問い合わせを忘れると、対象外が確定のまま 0 本実行の緑になる)
+    func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+                              departedUntried: Bool) async -> NotApplicableHandoff.Verdict
 }
 
 /// ブロードキャストの1レーン = 実行プロファイルの1デバイス

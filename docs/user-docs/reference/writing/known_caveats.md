@@ -132,6 +132,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`fold` / `unfold` / `hinge` need a foldable device](../commands/navigation.md#notes) — only the iPhone Duo Simulator and foldable Android Emulators work; a physical iPhone is skipped, and a physical foldable Android fails.
 - [Non-foldable devices are skipped, not failed](../commands/navigation.md#notes) — the scenario is recorded as not applicable from that step on, so do not read it as a pass.
 - [Fold state is restored automatically](../commands/navigation.md#notes) — like `rotateTo`, it reverts at the end of the scenario.
+- [A not-applicable scenario is handed to a device that has not tried it](../commands/navigation.md#notes) — a scenario that is not applicable on one device (e.g. `fold()` on a non-foldable one) is moved to another device of the same run; it is recorded as skipped only when every device tried it, and as failed (`not run`) when the devices that had not tried it dropped out.
 - [Foldable Android lock screen](../commands/navigation.md#notes) — `fold()` dismisses the swipe-up lock screen; a PIN or pattern lock cannot be dismissed.
 - [`hinge` does not verify which screen shows](../commands/navigation.md#notes) — the switch angle depends on the previous state; use `fold()` / `unfold()` when you need a specific screen.
 - [iOS fold uses an undocumented hinge event](../commands/navigation.md#notes) — a future Xcode may stop accepting it, and `fold` / `unfold` would then fail loudly, never pass silently.

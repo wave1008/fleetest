@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-340 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 2 | OI-340・OI-342 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-320・OI-321・OI-329 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
@@ -49,6 +49,20 @@
 - 同型(観測していない・コードで確認): `beforeAll()` の中で fold 等が対象外になると、`ftRunBeforeAll` は `scenarioAborted` を失敗と読み、run 全体でそのクラスが「beforeAll failed」になる(setUpDevice の同じ形は 11/22 に直した = 後続を同じ理由の対象外にする)。beforeAll は run に1回なので、別の台で撃ち直すかは途中まで走った準備の二重実行と合わせて決める
 - 決定: DR-214(11/22)= 対象外で終わったシナリオは同じ run のまだ試していない台へ回し直し、回せる台が落ちて残っていなければ失敗。最初から対象の台が居ない run は今までどおり対象外(緑)
 - 次の一手(3層・`run` と `api run` の両方): ①機械の中 —— `RunOrchestrator` の notApplicable の分岐で、同じ OS の生きたレーンのうちその item を試していないものがあれば結果を確定させずに戻す(`ScenarioQueue` に item ごとの「試したレーンの集合」を持たせ、`avoidedLane` の優先ではなく除外として効かせる。setUpDevice の対象外はそのレーンの同じクラスを即座に対象外にする = 11/22 の直し)。試していないレーンが離脱で消えたら失敗で確定(`@RunInOrder` の「could not be revived」と同じ出口)②マシンをまたぐ run —— 子が対象外の結果を親へ返す行を `WorkQueueProtocol` に足し(子 → 親。id・lane・理由)、`DynamicDispatcher` がまだ試していない entry へ配り直す。全 entry が試して対象外なら親が対象外で確定・試していない entry が落ちていれば失敗で確定 ③結果 JSON・run の集計・NDJSON で「回し直した対象外」を数え直す(`runSkipped` の二重計上をしない)。陽性対照: Duo と普通の iPhone を混ぜたプロファイルで fold のシナリオが Duo に回ること・Duo を止めた run が赤になること・Duo の無いプロファイルは緑のまま
+- 11/22: 機械の中と機械をまたぐ run の回し直しを入れた(判定 `NotApplicableHandoff.decide` の1箇所・`run` / `api run` 共通)。デバイスで確かめた: iPhone Duo -02 + 折りたためない Sim -08 のプロファイルで、-08 で対象外になった3本が「結果を捨てて未試行の台へ」回り Duo で走った・Duo の無いプロファイルは今までどおり4本とも対象外で緑。残り: ①同じマシンで、他のレーンが合流した後に供給で落ちた台は数えない(その台は居ない扱いで対象外 = 緑のまま。供給の失敗を `RunOrchestrator` へ渡す入口が要る。duo_memo_cmp の形 = 手元の台が全滅して子ごと終わる形は親が数えて失敗になる)②`beforeAll()` の同型 ③マシンをまたぐ run のデバイスでの確認(次の評価の本番で見る)
+
+### OI-342 iPhone Duo の Simulator が、内蔵の画面を1枚しか申告しない状態で「折りたためない」と判定され、fold / unfold が対象外(緑)になる
+- 状態: 再現済み
+- 確認: a59733452 + 作業ツリー(2026-11-22)
+- 属性: 着手可
+- 運用: 要注意 — 何も検証していない緑(ステップに `fold / unfold / hinge need a foldable device` が出る)
+- 優先度: 高 — 折りたためる端末の上で fold のシナリオが黙って検証されない
+
+出典: OI-340 の陽性対照(11/22 04:0x・`_work/scen-eval-20261121b/logs/pc340-mix.log`)
+- 観測: iPhone Duo -02 の上で、1本目(`unfold()` が通って緑)の後の3本の `unfold()` が `fold / unfold / hinge need a foldable device` で対象外になった。直後の `xcrun devicectl device info displays --device <Duo-02>` は内蔵の画面(`type.integrated`)を **1枚**(内側の LCD・`active: false`)しか返さない。判定(`FoldControl.observe(fromDevicectlJSON:)`)は「内蔵の画面が2枚以上なら折りたためる」なので `.notFoldable`。SpringBoard が落ち続けた後の Duo(OI-184)で画面の構成が崩れた状態と見られる
+- 材料: デバイスタイプの定義(`/Library/Developer/CoreSimulator/Profiles/DeviceTypes/<名>.simdevicetype/Contents/Resources/capabilities.plist` の `displays` の `displayType: integrated`)は Duo で2枚・iPhone 18 Pro で1枚 = 機種名に頼らず「折りたためる機種か」を決められる
+- 次の一手: 折りたためるかはデバイスタイプの定義(内蔵の画面の数)で決め、折りたためる機種なのに devicectl が2枚を返さないときは `.unknown`(読めなかった = 送らずに赤)にする。判定はシナリオのプロセス(サンドボックスの中)で動くので、親がデバイスタイプを読んで子へ渡す(子に simctl / ファイルの読みを足さない)
+
 ## 要測定
 
 

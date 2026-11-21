@@ -163,6 +163,8 @@ final class ScenarioQueueClassPlacementTests: XCTestCase {
                 return lane == "L1" ? "O.s2" : nil
             }
             func stopWaiting() {}
+            func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
         }
         let source = PerLaneSource()
         let catalog = ["O.s2": [item("O.s2", .inOrder, order: 2)]]

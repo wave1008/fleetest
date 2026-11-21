@@ -337,3 +337,10 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   **rsync の `-F`(dir-merge)は使わない** → MN-3.4。
   **3つの転送(run ディスパッチ・fan-out の `RemoteProjectSync`・プロジェクト外ミラー)が
   同じ走査を通る**(`rsyncArgs` の `ignore:` は既定値無し = 読み忘れはコンパイルで止まる)
+- **対象外(`notApplicableReason`)で終わったシナリオは確定させず、同じ run の未試行の台へ回す**(DR-214。判定は `NotApplicableHandoff.decide` の1箇所 =
+  機械の中は `ScenarioQueue.noteNotApplicable`・機械をまたぐ run は `DynamicDispatcher.handleNotApplicable`)。守る規律3つ: **①子は機械の中に回す先が無いときだけ
+  親へ `na` を撃ち、返事(`verdict`)が来るまで結果を確定しない**(`ScenarioPullSource.declareNotApplicable` は既定実装を置かない。中断・EOF は従来の対象外)/
+  **②尽きたレーンを終わらせない** —— 他のレーン(親は他のエントリ)が束ねていないシナリオを走らせていて、それを自分がまだ試していない間は保留する
+  (対象外で戻ってくるため。保留しないと健全な台が尽きて終わった後に「未試行の台が落ちた」と読まれて赤になる)/
+  **③`@RunInOrder` / `@RunOnSingleDevice` は動かさず、`@RunOnSingleMachine` は機械の中だけ**。回し直した分は子の割り当て(`assigned`)から外す
+  (結果の照合に残すと「結果が無い」になる)

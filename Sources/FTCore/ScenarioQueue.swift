@@ -75,6 +75,7 @@ actor ScenarioQueue {
     private func take(at i: Int, lane: String) -> ScenarioRunItem {
         let item = items.remove(at: i)
         avoidedLane[item.id] = nil
+        if !Self.bindsDevice(item) { running[lane] = item }
         if Self.bindsDevice(item), classLane[Self.className(item)] == nil { classLane[Self.className(item)] = lane }
         return item
     }
@@ -89,14 +90,65 @@ actor ScenarioQueue {
     /// 別のレーンが全部終われば `laneEnded` で待ちが解ける)
     static let avoidedItemRecheckInterval: Duration = .milliseconds(200)
 
-    func laneJoined(_ lane: String?) { if let lane, !lane.isEmpty { liveLanes.insert(lane) } }
+    /// 対象外(DR-214)の記帳。item → それを試して対象外と宣言したレーン。**回し直しの除外として効く**(`avoidedLane` の優先と違い、
+    /// 別のレーンが居なくなっても戻さない = 戻すと同じ台で同じ対象外を繰り返す)
+    private var triedLanes: [URL: Set<String>] = [:]
+    /// item → 最後の対象外の宣言の理由(`.notRun` の失敗文言・ドレインの理由に使う)
+    private var declaredReasons: [URL: String] = [:]
+    /// 参加した後に終わった(離脱・尽き)レーン。再参加(`laneJoined`)で外す
+    private var departedLanes: Set<String> = []
+    /// レーン → いま走らせている**デバイスに束ねていない** item(`next` を呼んだ時点で空く)。ほかのレーンの対象外の結果が
+    /// 自分へ戻ってくるかもしれない間、尽きたレーンが終わらずに待つための印
+    private var running: [String: ScenarioRunItem] = [:]
+
+    func laneJoined(_ lane: String?) {
+        if let lane, !lane.isEmpty { liveLanes.insert(lane); departedLanes.remove(lane) }
+    }
+
+    private func isExcluded(_ item: ScenarioRunItem, lane: String) -> Bool {
+        triedLanes[item.id]?.contains(lane) ?? false
+    }
+
+    /// 他のレーンが走らせている item が、対象外で自分(未試行)へ戻ってくるかもしれないか
+    private func othersMayHandBack(to lane: String) -> Bool {
+        running.contains { $0.key != lane && liveLanes.contains($0.key) && !isExcluded($0.value, lane: lane) }
+    }
+
+    /// item が対象外で終わった(DR-214)。判定は `NotApplicableHandoff.decide`(機械をまたぐ親と同じ関数)。
+    /// `.handOn` のときだけ item を除外つきで戻す(呼び手は記録を捨てる)。デバイスに束ねたクラス(`@RunInOrder` / `@RunOnSingleDevice`)は
+    /// 別の台へ動かさず従来どおり `.skipped`
+    func noteNotApplicable(_ item: ScenarioRunItem, lane: String?, reason: String) -> NotApplicableHandoff.Verdict {
+        let lane = lane ?? ""
+        triedLanes[item.id, default: []].insert(lane)
+        declaredReasons[item.id] = reason
+        guard !Self.bindsDevice(item) else { return .skipped }
+        let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes)
+        if verdict == .handOn { items.append(item) }
+        return verdict
+    }
+
+    /// 試していない台が(このキューの中で)落ちているか。機械をまたぐ親へ問い合わせるときの申告(親の判定の `departed` に足される)
+    func hasDepartedUntried(_ item: ScenarioRunItem) -> Bool {
+        !departedLanes.subtracting(triedLanes[item.id] ?? []).isEmpty
+    }
+
+    /// 親の配り手につながっているときだけ(対象外を機械の外へ回せるか聞く相手)
+    func pullTarget() -> (source: any ScenarioPullSource, platform: String)? {
+        pull.map { (source: $0.source, platform: $0.platform) }
+    }
+
+    func declaredReason(for item: ScenarioRunItem) -> String? { declaredReasons[item.id] }
 
     /// レーンが終わった。**そのレーンに束ねたクラスの残りを取り除いて返す**(別のレーンへ移さない = 移すと流し直しと残りが
     /// 2台で同時に走る)。呼び手が `ClassPlacementRules.orphanReason` で失敗として記録する。
     /// `orphaning: false`(中断で止まった)なら取り除かず、ドレインが中断として記録する
     @discardableResult
     func laneEnded(_ lane: String?, orphaning: Bool = true) -> [ScenarioRunItem] {
-        if let lane { liveLanes.remove(lane) }
+        if let lane {
+            liveLanes.remove(lane)
+            running[lane] = nil
+            if !lane.isEmpty { departedLanes.insert(lane) }
+        }
         guard orphaning else { return [] }
         let key = lane ?? ""
         let mine = Set(classLane.filter { $0.value == key }.keys)
@@ -117,7 +169,7 @@ actor ScenarioQueue {
             }
         }
         guard let i = items.firstIndex(where: {
-            !isBlocked($0, lane: lane) && (lane.isEmpty || avoidedLane[$0.id] != lane)
+            !isBlocked($0, lane: lane) && !isExcluded($0, lane: lane) && (lane.isEmpty || avoidedLane[$0.id] != lane)
         }) else { return nil }
         return take(at: i, lane: lane)
     }
@@ -152,6 +204,7 @@ actor ScenarioQueue {
     func next(lane: String? = nil, shouldStop: (@Sendable () async -> Bool)? = nil) async -> ScenarioRunItem? {
         let lane = lane ?? ""
         while true {
+            running[lane] = nil
             if let item = takeAllowed(lane: lane) { return item }
             if pull != nil, !pullExhaustedLanes.contains(lane) {
                 if let item = await pullNext(lane: lane) { return item }
@@ -159,10 +212,23 @@ actor ScenarioQueue {
                 // ドレインで未実行の失敗になる)
                 continue
             }
-            // 残りが無いか、他のレーンに束ねたクラスだけなら待たずに終える
-            guard let rest = items.firstIndex(where: { !isBlocked($0, lane: lane) }) else { return nil }
-            // 残りは自分が落とした item だけ
-            guard liveLanes.contains(where: { $0 != lane }) else { return take(at: rest, lane: lane) }
+            // 残りが無いか、他のレーンに束ねたクラスだけなら、他のレーンの対象外の結果が戻ってくる見込みが無い限り待たずに終える
+            let candidates = items.indices.filter { !isBlocked(items[$0], lane: lane) }
+            if candidates.isEmpty {
+                guard othersMayHandBack(to: lane) else { return nil }
+            } else {
+                let takeable = candidates.filter { !isExcluded(items[$0], lane: lane) }
+                if takeable.isEmpty {
+                    // 残りは自分が試して対象外だった item だけ。ほかに取れるレーンが居なければ手元に残す(ドレインが実行しなかった赤にする)
+                    let someoneElse = candidates.contains { index in
+                        liveLanes.contains { $0 != lane && !isExcluded(items[index], lane: $0) }
+                    }
+                    guard someoneElse else { return nil }
+                } else if !liveLanes.contains(where: { $0 != lane }) {
+                    // 残りは自分が落とした item だけ
+                    return take(at: takeable[0], lane: lane)
+                }
+            }
             if await shouldStop?() == true { return nil }
             try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
         }
@@ -185,6 +251,7 @@ actor ScenarioQueue {
             if let item {
                 await pull.onHandOut(item)
                 if Self.bindsDevice(item), classLane[Self.className(item)] == nil { classLane[Self.className(item)] = lane }
+                if !Self.bindsDevice(item) { running[lane] = item }
                 return item
             }
             pull.onUnknownID(id)

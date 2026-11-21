@@ -5,6 +5,8 @@
 // - 状態は全部 LockedValue の中。要求は子ごとの読み取りスレッド・タイマー・終了通知から並行に来る
 // - 返事は臨界区間の外で送る(送り先の書き込みが詰まっても他の判断を止めない)
 // - 子の stdin が `ssh -tt` の先では EOF が当てにならないので、**要求には必ず答える**(もう無ければ none)
+// - 対象外(DR-214): 子が「機械の中に回し直す先が無い」対象外のシナリオを `na` で返してきたら、`NotApplicableHandoff.decide` で
+//   他のエントリの未試行の台へ回す(pending へ戻し、試したエントリを除外)/ 対象外で確定 / 実行しなかった赤で確定を答える
 // - 子が落ちても、渡したシナリオは回し直さない(途中まで走ったかもしれない)。まだ誰にも渡していない分だけ残りへ配る
 
 import FTCore
@@ -26,8 +28,16 @@ final class DynamicDispatcher: Sendable {
         let since: Double
     }
 
+    /// シナリオ ID ごとの対象外の記帳(DR-214)。`tried` = 試して対象外と宣言したエントリ(回し直しの除外)・
+    /// `departedInChild` = 子の中で試していない台が落ちている(その子の申告)
+    private struct NotApplicableRecord {
+        var tried: Set<Int> = []
+        var departedInChild = false
+    }
+
     private struct State {
         var pending: [DynamicSplit.Scenario]
+        var notApplicable: [String: NotApplicableRecord] = [:]
         /// 要求を出したことのあるレーンだけ(供給中のレーンを空きと数えない)。値 nil = 空いて返事待ち
         var lanes: [DynamicSplit.Lane: Busy?] = [:]
         var held: [Held] = []
@@ -42,6 +52,8 @@ final class DynamicDispatcher: Sendable {
     }
 
     private let state: LockedValue<State>
+    /// ID → 配るシナリオ(対象外の問い合わせで pending へ戻す元。子の中で別のレーンへ回った分は、親が割り当てたレーンの印と一致しない)
+    private let scenariosByID: [String: DynamicSplit.Scenario]
     private let estimateMs: @Sendable (DynamicSplit.Scenario, Int) -> Double
     private let nowMs: @Sendable () -> Double
     private let timer: Timer
@@ -71,6 +83,7 @@ final class DynamicDispatcher: Sendable {
         self.entryLabel = entryLabel
         self.log = log
         state = LockedValue(State(pending: scenarios))
+        scenariosByID = Dictionary(scenarios.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.estimateMs = estimateMs
         self.nowMs = nowMs
         self.timer = timer
@@ -99,6 +112,37 @@ final class DynamicDispatcher: Sendable {
             }
         }
         return mine
+    }
+
+    /// 子からの対象外の問い合わせ(DR-214)。**必ず即答する**(`want` と違い保留しない)。
+    /// 回し直す(`.handOn`)ときは pending へ戻し、その子の割り当てから外す(子は結果を捨てる = 結果の照合に残さない)
+    func handleNotApplicable(_ na: WorkQueueProtocol.NotApplicable, fromEntry entry: Int) -> WorkQueueProtocol.Reply {
+        var verdict: NotApplicableHandoff.Verdict = .skipped
+        let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
+            // 親が割り当てたシナリオだけ(子は機械の中で別のレーンへ回すので、宣言したレーンは親の割り当てのレーンと限らない)
+            guard s.assigned[entry]?.contains(na.id) == true, let scenario = scenariosByID[na.id],
+                  scenario.group == nil else { return [] }
+            var record = s.notApplicable[na.id] ?? NotApplicableRecord()
+            record.tried.insert(entry)
+            record.departedInChild = record.departedInChild || na.dep
+            s.notApplicable[na.id] = record
+            let known = Set(entryPlatforms.filter { $0.value.contains(na.platform) }.keys)
+                .union(s.lanes.keys.filter { $0.platform == na.platform }.map(\.entry))
+                .union(record.tried)
+            let left = known.intersection(s.exited)
+            verdict = NotApplicableHandoff.decide(
+                tried: Set(record.tried.map(String.init)),
+                live: Set(known.subtracting(left).map(String.init)),
+                departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []))
+            guard verdict == .handOn else { return [] }
+            s.pending.append(scenario)
+            if let index = s.assigned[entry]?.lastIndex(of: na.id) { s.assigned[entry]?.remove(at: index) }
+            // 親がそのシナリオを走らせていると記録しているレーンは空く(次の要求で再び数える)
+            for (key, busy) in s.lanes where key.entry == entry && busy?.scenario.id == na.id { s.lanes[key] = .some(nil) }
+            return drainLocked(&s)
+        }
+        for (held, reply) in answers { send(held.lane.entry, reply) }
+        return .init(req: na.req, verdict: verdict)
     }
 
     /// 子が終わった。そのレーンと保留中の要求を捨てる。渡し済みのシナリオは回し直さない
@@ -213,9 +257,13 @@ final class DynamicDispatcher: Sendable {
                         busy.map { (scenario: $0.scenario, since: $0.since) }
                     laneStates.append(DynamicSplit.LaneState(lane: lane, busy: info))
                 }
-                let decision = DynamicSplit.decide(
-                    for: held.lane, now: now, pending: s.pending, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
+                // 対象外で戻された(試したエントリが除外の)シナリオは、そのエントリへ渡さない
+                let reachable = s.pending.filter { !(s.notApplicable[$0.id]?.tried.contains(held.lane.entry) ?? false) }
+                var decision = DynamicSplit.decide(
+                    for: held.lane, now: now, pending: reachable, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
                     bindings: s.bindings, entryPlatforms: entryPlatforms)
+                // 尽きたレーンは、他のエントリが走らせているシナリオが対象外で自分(未試行)へ戻ってくるかもしれない間は終わらせない
+                if case .none = decision, Self.mayReceiveHandBack(held.lane, s) { decision = .hold(reconsiderAt: nil) }
                 switch decision {
                 case .assign(let id):
                     guard let index = s.pending.firstIndex(where: { $0.id == id }) else { continue }
@@ -249,6 +297,15 @@ final class DynamicDispatcher: Sendable {
             s.cancelTimer = timer(max(earliest - now, 0)) { [weak self] in self?.timerFired() }
         }
         return answers
+    }
+
+    /// 他のエントリのレーンが、束ねていないシナリオを走らせていて、それを自分のエントリがまだ試していない(= 対象外で戻ってくる)か
+    private static func mayReceiveHandBack(_ requester: DynamicSplit.Lane, _ s: State) -> Bool {
+        s.lanes.contains { lane, busy in
+            guard lane.platform == requester.platform, lane.entry != requester.entry,
+                  !s.exited.contains(lane.entry), let busy, busy.scenario.group == nil else { return false }
+            return !(s.notApplicable[busy.scenario.id]?.tried.contains(requester.entry) ?? false)
+        }
     }
 
     /// 束ねた瞬間の1行(英語)。マシンに寄せるならマシン名、デバイスに寄せるならマシン名 / レーン
@@ -388,6 +445,9 @@ extension DynamicDispatcher {
         if let want = WorkQueueProtocol.decodeWant(trimmed),
            let reply = handle(want, fromEntry: entry) {
             writer.write(line: WorkQueueProtocol.encode(reply))
+        }
+        if let na = WorkQueueProtocol.decodeNotApplicable(trimmed) {
+            writer.write(line: WorkQueueProtocol.encode(handleNotApplicable(na, fromEntry: entry)))
         }
         return true
     }

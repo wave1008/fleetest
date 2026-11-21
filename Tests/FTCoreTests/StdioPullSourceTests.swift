@@ -223,4 +223,24 @@ final class StdioPullSourceTests: XCTestCase {
         XCTAssertEqual(result, .start)
         XCTAssertEqual(gate.current, .start)
     }
+    /// 対象外の問い合わせ(DR-214): `na` の行が出て、返事の verdict が req で待ち手へ届く。中断・EOF は従来の確定(skipped)
+    func testNotApplicableQueryResolvesWithTheParentsVerdictAndFallsBackToSkippedOnStop() async {
+        let input = makePipe()
+        let written = LockedValue<[String]>([])
+        let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
+        async let verdict = source.declareNotApplicable(platform: "ios", lane: "pro", scenarioID: "F.S1", departedUntried: true)
+        for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
+        let na = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeNotApplicable)
+        XCTAssertEqual(na?.id, "F.S1")
+        XCTAssertEqual(na?.dep, true)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: na?.req ?? -1, verdict: .handOn)), to: input.write)
+        let handed = await verdict
+        XCTAssertEqual(handed, .handOn)
+
+        async let pending = source.declareNotApplicable(platform: "ios", lane: "pro", scenarioID: "F.S2", departedUntried: false)
+        for _ in 0..<200 where written.withLock({ $0.count < 2 }) { try? await Task.sleep(for: .milliseconds(10)) }
+        source.stopWaiting()
+        let stopped = await pending
+        XCTAssertEqual(stopped, .skipped)
+    }
 }

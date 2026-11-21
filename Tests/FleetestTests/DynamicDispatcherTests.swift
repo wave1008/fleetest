@@ -55,6 +55,9 @@ final class DynamicDispatcherTests: XCTestCase {
         XCTAssertEqual(h.timers.value, [10_000], "速いレーンが空く見込みの時刻に1回だけ張る")
         h.clock.value = 10_000
         XCTAssertEqual(h.dispatcher.handle(want(2, lane: "a"), fromEntry: 0), .init(req: 2, id: "S"))
+        // 速いマシンが S を走らせている間は、対象外で戻ってくるかもしれないので none にせず保留する(DR-214)。S が終われば none
+        XCTAssertEqual(h.sent.value, [])
+        XCTAssertEqual(h.dispatcher.handle(want(3, lane: "a"), fromEntry: 0), .init(req: 3, none: true))
         XCTAssertEqual(h.sent.value, ["1:" + WorkQueueProtocol.encode(none(1))])
     }
 

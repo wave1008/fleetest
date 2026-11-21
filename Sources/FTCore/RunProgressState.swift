@@ -100,6 +100,12 @@ actor RunProgressState {
         flush()
     }
 
+    /// pulled で配られたシナリオを、対象外のため親へ返して他のマシンの台へ回した(DR-214)。この run の分でなくなるので total から引く
+    func handedBack(laneKey: String) {
+        total -= 1
+        laneIdled(laneKey: laneKey)
+    }
+
     /// デバイスで状態を検出した(凍結で離脱・白紙・文字消え)。同じデバイスの同じ状態は1回しか数えない
     func deviceStateObserved(deviceKey: String, state: RunDeviceState) {
         guard devicesByState[state, default: []].insert(deviceKey).inserted else { return }

@@ -3,6 +3,8 @@
 // ssh -tt を通る(端末の行規律に載る)ので、1行は短く保つ(シナリオ ID 1つ)・改行を含めない。
 // 同じ口に run メモ(DR-208)の行も載る: 子 → 親は `memoHello`(起動の知らせ)と `memo`(書き込みの断片。seq 無し)、
 // 親 → 子は `memo`(発行元が通し番号 seq を振って全マシンへ配り返す断片)。符号化は RunMemoStore.swift の RunMemoWire。
+// 対象外(DR-214): 子 → 親 `na`(機械の中に回し直す先が無かった対象外のシナリオを、他のマシンの未試行の台へ回せるかの問い合わせ)と、
+// 親 → 子の返事 `verdict`(hand / skip / fail。判定は NotApplicableHandoff.decide)。親子は常に同じ版(align)なので互換の読み替えは置かない。
 // 親 → 子にはもう1種類: 開始の行 `{"ftWork":{"op":"start"}}` と取りやめの行 `{"ftWork":{"op":"cancel","reason":"…"}}`(RR-8.4)。
 // 子は開始の行を受けるまでシナリオを流し始めない(StartGate)。
 
@@ -24,22 +26,52 @@ public enum WorkQueueProtocol {
         }
     }
 
-    /// 親 → 子(stdin)。`id` が無く `none == true` = もう無い
+    /// 子 → 親。対象外で終わったシナリオ `id` を、機械の外の未試行の台へ回せるかの問い合わせ。
+    /// `dep` = 子の中で試していない台が落ちている(親の判定の「落ちた台」に足す)。理由の文は運ばない(行を短く保つ。子が持っている)
+    public struct NotApplicable: Codable, Equatable, Sendable {
+        public let op: String
+        public let req: Int
+        public let id: String
+        public let lane: String
+        public let platform: String
+        public let dep: Bool
+
+        public init(req: Int, id: String, lane: String, platform: String, dep: Bool) {
+            self.op = "na"
+            self.req = req
+            self.id = id
+            self.lane = lane
+            self.platform = platform
+            self.dep = dep
+        }
+    }
+
+    /// 親 → 子(stdin)。`id` が無く `none == true` = もう無い。`verdict` = `na` への返事(`NotApplicableHandoff.Verdict.wire`)
     public struct Reply: Codable, Equatable, Sendable {
         public let req: Int
         public let id: String?
         public let none: Bool?
+        public let verdict: String?
 
         public init(req: Int, id: String) {
             self.req = req
             self.id = id
             self.none = nil
+            self.verdict = nil
         }
 
         public init(req: Int, none: Bool) {
             self.req = req
             self.id = nil
             self.none = none ? true : nil
+            self.verdict = nil
+        }
+
+        public init(req: Int, verdict: NotApplicableHandoff.Verdict) {
+            self.req = req
+            self.id = nil
+            self.none = nil
+            self.verdict = verdict.wire
         }
 
         /// 配るシナリオ ID。「もう無い」・壊れた返事は nil
@@ -107,6 +139,7 @@ public enum WorkQueueProtocol {
 
     public static func encode(_ want: Want) -> String { encodeBody(want) }
     public static func encode(_ reply: Reply) -> String { encodeBody(reply) }
+    public static func encode(_ na: NotApplicable) -> String { encodeBody(na) }
     public static func encode(_ piece: MemoPiece) -> String { encodeBody(piece) }
     public static func encode(_ hello: MemoHello) -> String { encodeBody(hello) }
 
@@ -144,10 +177,15 @@ public enum WorkQueueProtocol {
         return want
     }
 
+    public static func decodeNotApplicable(_ line: String) -> NotApplicable? {
+        guard isWorkLine(line), let na = decodeBody(NotApplicable.self, line), na.op == "na" else { return nil }
+        return na
+    }
+
     /// `want` の行・他の JSON は nil(req が無い返事は返事として読まない)
     public static func decodeReply(_ line: String) -> Reply? {
         guard isWorkLine(line), let reply = decodeBody(Reply.self, line),
-              reply.id != nil || reply.none == true else { return nil }
+              reply.id != nil || reply.none == true || reply.verdict != nil else { return nil }
         return reply
     }
 
