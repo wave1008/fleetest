@@ -604,8 +604,10 @@ extension MCPServer {
         ], required: ["id"], scope: .project),
         tool("ft_run_scenario", "Quick check of a scenario (or a class, minus @Deleted/@Draft) while "
             + "writing it; builds first. On failure returns the failing step's error, tree, screenshot "
-            + "and report path. Unlike ft_start_run it skips setup/teardown scripts, going home first and "
-            + "results/; it installs the app only for an iOS profile with autoInstall (else ft_install). "
+            + "and report path. Unlike ft_start_run it skips the setup/teardown scripts, the home press at the "
+            + "start and results/, but runs @RunHooks beforeRun()/afterRun() once per call. A class name as id "
+            + "runs the class (@RunInOrder: in @Order, app state carried over between its tests). "
+            + "It installs the app only for an iOS profile with autoInstall (else ft_install). "
             + "When the user asks to run tests, use ft_start_run", [
             "id": scenarioIdProperty,
             "project": defaultProjectProperty,

@@ -32,6 +32,16 @@ withRunLock("shop") {
 
 Inside the lock `readRunMemo` returns the latest value, so every later test finds it filled and skips the read.
 
+When you need several resources at once, pass the keys in one call. The keys are taken in a fixed order, so two scenarios that take the same keys cannot deadlock.
+
+```swift
+withRunLock("resource-a", "resource-b") {
+    // work that uses both resources
+}
+```
+
+`withRunLock` can be written in any of condition, action and expectation. To keep an assertion inside the exclusive section, put the lock where the assertion is (for example in expectation), wrapping both the operation and the check. It returns nothing: to take a value out, assign it to a local `var` inside the block, or read it with `readRunMemo`. Outside the lock `readRunMemo` returns the run memo as it was when the scenario started (except the scenario's own writes); inside it returns the latest value (see [Memo](memo.md#scope)).
+
 ## Notes
 
 - You cannot call a lock inside the block of a lock (nest it).

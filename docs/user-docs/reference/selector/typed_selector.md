@@ -48,6 +48,7 @@ relative step that's the anchor, after a relative step that's the resolved candi
   worst).
 - **`scrollFrame:` stays string-only** — there is no `Sel` overload for that one argument,
   even on commands that otherwise have a full `Sel` overload.
+- **Do not narrow an element that has an #id by type** (`#pager_main`, not `.collectionView#pager_main`). On iOS the same element can report a different type in the XCUITest bridge (what MCP `ft_*` tools always use) and in inapp-boost mode (a SwiftUI `TabView(.page)` is `collectionView` in XCUITest and `other` in inapp-boost). A type filter then passes through MCP and matches nothing in the real run. When the same id matches several elements, pick with `[n]` or an ancestor.
 - Generated code (from agent-driven scenario authoring) writes the **string form by default**. `Sel` is there for people who
   prefer to write it by hand.
 

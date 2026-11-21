@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { findLatestReport, listRecentReports, reportsDir } from "../src/scenarioReports";
+import { findLatestReport, listRecentReports, reportSlug, reportsDir } from "../src/scenarioReports";
 
 function makeDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "fleetest-scenarioreports-test-"));
@@ -89,6 +89,31 @@ test("listRecentReports: 複数シナリオを新しい順(ファイル名降順
       ["B.S0001", "A.S0001"],
     );
     assert.equal(results[0].fileName, "scenario-20260716-150000-000-B_S0001.md");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Swift の ReportSlugContractTests.table と同じ表(片方だけ変えない)
+const SLUG_TABLE = [
+  ["Demo.S0001", "Demo_S0001"],
+  ["デモ_iOS設定.S0030", "デモ_iOS設定_S0030"],
+  ["時計のストップウォッチを操作できること.S0010", "時計のストップウォッチを操作できること_S0010"],
+  ["ああああああああああああああああああああああああああああああああああああああああ.S0010", "ああああああああああああああああああああああああああああああ_S0010"],
+  ["foo bar", "foo_bar"],
+];
+
+test("reportSlug: Swift の ScenarioReportWriter.slug と同じ形を作る", () => {
+  for (const [id, slug] of SLUG_TABLE) assert.equal(reportSlug(id), slug, id);
+});
+
+test("findLatestReport: 長いクラス名のシナリオでも S 番号の残った名前で見つかる", () => {
+  const dir = makeDir();
+  try {
+    const id = "ああああああああああああああああああああああああああああああああああああああああ.S0010";
+    const fileName = "scenario-20261121-054714-678-ああああああああああああああああああああああああああああああ_S0010.md";
+    fs.writeFileSync(path.join(dir, fileName), "");
+    assert.equal(findLatestReport(dir, id), path.join(dir, fileName));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

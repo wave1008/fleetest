@@ -31,8 +31,10 @@ Pass values around. Every `@Test` runs as its own process, so a Swift variable d
 ### The run memo (`writeRunMemo` etc.)
 
 - It is shared by every scenario of the run (on any device, across machines). It starts empty in each run and is not carried over to the next run.
+- When `fleetest run --target` runs several run profiles of the same project in one go (for example Android and iOS), they all share one run memo. To keep values apart per profile, put the OS or similar into the key (decide the key inside `ios { }` / `android { }`).
 - The reliable pattern is **write with `writeRunMemo` in `beforeRun()` of an [`@RunHooks`](../testclass/creating_testclass.md#run-wide-preparation-and-cleanup-runhooks--beforerun--afterrun) class, and read with `readRunMemo` in each test**.
 - A scenario reads **the run memo as it was when the scenario started** (plus its own writes); values that other scenarios write while it runs are not visible.
+- `afterRun()` can read the run memo but not write it. To leave one combined line at the end of a run, have the tests write a combined key (inside `withRunLock` when several scenarios update it) and read that one key in `afterRun()`.
 - **Writes are not exclusive.** When you need exclusion, use a [run-wide lock](run_lock.md).
 
 ## Example

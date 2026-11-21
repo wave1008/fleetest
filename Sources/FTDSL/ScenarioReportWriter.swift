@@ -262,8 +262,27 @@ public enum ScenarioReportWriter {
         return text
     }
 
-    /// シナリオ ID からファイル名用スラッグを作る(日本語可、記号は _ に)
+    /// シナリオ ID からファイル名用スラッグを作る(日本語可、記号は _ に)。**拡張の `scenarioReports.ts` の `reportSlug` と同じ規則**
+    /// (拡張はこの名前でレポートを探す。表 `ReportSlugContractTests` / `scenarioReports.test.mjs` を両側で同じにする)。
+    /// 長さはバイトで切る: 最も長い名前 `scenario-<stamp>-<slug>-scene<n>-step<m>-<slug>.png` が NAME_MAX(255 バイト)に収まる上限。
+    /// 切るのは最後の `.` より前(クラス名)の側で、後ろ(`S0010`)は残す(文字数 24 で切っていた頃は長いクラス名で `_S001` になった)
+    static let slugByteBudget = 96
+
     static func slug(_ text: String) -> String {
+        if let dot = text.lastIndex(of: "."), dot != text.startIndex {
+            let head = sanitizedSlug(String(text[..<dot])), tail = sanitizedSlug(String(text[text.index(after: dot)...]))
+            if !head.isEmpty, !tail.isEmpty {
+                let whole = head + "_" + tail
+                if whole.utf8.count <= slugByteBudget { return whole }
+                let headBudget = slugByteBudget - tail.utf8.count - 1
+                if headBudget > 0 { return byteTruncated(head, to: headBudget) + "_" + tail }
+            }
+        }
+        let whole = sanitizedSlug(text)
+        return whole.isEmpty ? "scenario" : byteTruncated(whole, to: slugByteBudget)
+    }
+
+    private static func sanitizedSlug(_ text: String) -> String {
         var sanitized = ""
         for scalar in text.unicodeScalars {
             if CharacterSet.alphanumerics.contains(scalar) ||
@@ -277,7 +296,16 @@ public enum ScenarioReportWriter {
         while sanitized.contains("__") {
             sanitized = sanitized.replacingOccurrences(of: "__", with: "_")
         }
-        let trimmed = String(sanitized.trimmingCharacters(in: CharacterSet(charactersIn: "_")).prefix(24))
-        return trimmed.isEmpty ? "scenario" : trimmed
+        return sanitized.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
+    /// 文字(書記素)の境目でだけ切る(バイトの途中で切ると UTF-8 として壊れる)。末尾の `_` は落とす
+    private static func byteTruncated(_ text: String, to budget: Int) -> String {
+        var out = ""
+        for ch in text {
+            if out.utf8.count + String(ch).utf8.count > budget { break }
+            out.append(ch)
+        }
+        return out.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
     }
 }

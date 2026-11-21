@@ -139,7 +139,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### pressEnter, hideKeyboard
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.
 - [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost sends no Enter.
-- [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched.
+- [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched. MCP `ft_tap` / `ft_type` do not close it, so call `ft_hide_keyboard` first.
 - [Keyboard state is a separate assertion](../commands/press_enter_hide_keyboard.md#notes) — verify whether it is showing with the keyboard assertions.
 - [`settle: false` skips the settle wait](../commands/press_enter_hide_keyboard.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
@@ -261,6 +261,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### Typed selector (Sel)
 - [Misspelled member is a compile error](../selector/typed_selector.md#notes) — unlike the string form, `.buton` fails at compile time instead of silently becoming a literal label.
 - [`scrollFrame:` stays string-only](../selector/typed_selector.md#notes) — there is no `Sel` overload for that argument, even on commands with a full `Sel` overload.
+- [Do not narrow an element with an #id by type](../selector/typed_selector.md#notes) — on iOS the type can differ between the XCUITest bridge (MCP) and inapp-boost mode (`TabView(.page)` is `collectionView` vs `other`), so a type filter passes through MCP and matches nothing in the real run; if the id matches several elements, pick with `[n]` or an ancestor.
 - [Generated code uses the string form](../selector/typed_selector.md#notes) — `Sel` is for people who prefer to write selectors by hand.
 
 ## Test data and running a class in one place

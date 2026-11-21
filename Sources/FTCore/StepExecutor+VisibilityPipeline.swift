@@ -764,7 +764,8 @@ extension StepExecutor {
                              + " observed=\"\(v.observedText)\""
                              + e.emptyTranscriptOnInk
                              + Self.undrawnScreenFact(screenshot: e.screenshot, elements: e.elements, screen: e.screen,
-                                                      keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold)),
+                                                      keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold)
+                             + Self.scrollContainerClipFact(element: e.element, elements: e.elements)),
                      .consume(visible: false, sd: e.sd))
     }
 
@@ -830,6 +831,16 @@ extension StepExecutor {
         return " — the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen,"
             + " not just at this element)"
     }
+
+    /// 可視性検証の赤に添える「スクロール容器に切られている」の事実(判定は `TapTargetGeometry.centreOutsideScrollContainer`)
+    static func scrollContainerClipFact(element: ElementInfo, elements: [ElementInfo]) -> String {
+        guard let scroller = TapTargetGeometry.centreOutsideScrollContainer(element, in: elements) else { return "" }
+        let f = scroller.frame
+        let frame = "(\(Int(saturating: f.x.rounded())),\(Int(saturating: f.y.rounded())) \(Int(saturating: f.width.rounded()))x\(Int(saturating: f.height.rounded())))"
+        return " — the element's centre is outside the scroll container it belongs to (\(TapTargetGeometry.describe(scroller))"
+            + " \(frame)), so the container cuts it off: bring it into view with scrollTo (or tap(…, scroll:)) before checking it"
+    }
+
 
     /// 失敗文へ添える「画面全体が描かれていない」の事実。一色(`blankAppAreaFact`)でなければ、**枠は描けて文字だけが
     /// 画面のどこにも描かれていない**形(描画崩壊の `RenderCollapse.noTextDrawn` と同じ基準 = 描画崩壊の判定と
@@ -929,7 +940,8 @@ extension StepExecutor {
                                  + " present in the tree but not visually visible [\(state.rawValue)]"
                                  + " observed=\"\(ocrReading.map { $0.lines.joined(separator: " ") } ?? "")\""
                                  + Self.undrawnScreenFact(screenshot: screenshot, elements: elements, screen: screen,
-                                                          keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold)),
+                                                          keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold)
+                                 + Self.scrollContainerClipFact(element: element, elements: elements)),
                          .consume(visible: false, sd: ink))
         case .undetermined:
             if countsAsSkipped { noteCodesThisStep.insert(.visibilityGuardSkipped) }

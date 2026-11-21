@@ -209,6 +209,19 @@ public enum TapTargetGeometry {
         return scroller
     }
 
+    /// 可視性検証の赤に添える事実(判定は変えない): 要素の中心が、属する最寄りのスクロール容器の枠の外 = 容器に切られて見えない。
+    /// 木だけで言える(容器と子孫の枠)。例: SUT Store のアカウント画面の `#btn_logout (16,717 370x43)` は容器 `(0,188 402x538)`
+    /// (下端 726)の子孫で、文字は 728〜752 = 描かれない。送れば出るので「scrollTo で送る」と言える
+    public static func centreOutsideScrollContainer(_ element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
+        guard element.frame.width > 0, element.frame.height > 0,
+              let scroller = ancestors(of: element, in: elements).first(where: { $0.scrollable == true }),
+              scroller.frame.width > 0, scroller.frame.height > 0,
+              isKeptDescendant(element, of: scroller, in: elements) else { return nil }
+        let f = element.frame
+        let centre = FTRect(x: f.x + f.width / 2, y: f.y + f.height / 2, width: 0, height: 0)
+        return scroller.frame.contains(centre) ? nil : scroller
+    }
+
     /// ブリッジの keptDepth で見て `element` が `container` の部分木に居るか(`LocatorResolver.scopeDescendants`)。
     /// 木に keptDepth の無い要素があれば(XCUITest の木・固定コーパス)判断できないので true = 従来の depth の判定に任せる
     static func isKeptDescendant(_ element: ElementInfo, of container: ElementInfo, in elements: [ElementInfo]) -> Bool {

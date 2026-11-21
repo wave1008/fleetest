@@ -31,8 +31,10 @@
 ### run メモ(`writeRunMemo` など)
 
 - run メモは run の中のすべてのシナリオで共有されます(デバイスやマシンが違っても同じです)。run を始めるたびに初期化され、前の run の値は残りません。
+- `fleetest run --target` で同じプロジェクトの複数の実行プロファイル(たとえば Android と iOS)を1回で回すと、run メモはその全部で1つです。プロファイルごとに値を分けたいときは、キーに OS などを付けます(`ios { }` / `android { }` の中でキーを決める)。
 - おすすめの使い方は、**[`@RunHooks`](../testclass/creating_testclass_ja.md#run-全体の準備と片付けrunhooks--beforerun--afterrun) を付けたクラスの `beforeRun()` で `writeRunMemo` を使って値を書き、各テストで `readRunMemo` を使って読む**方法です。
 - シナリオが読めるのは、**そのシナリオが始まった時点の run メモ**と、そのシナリオ自身が書いた値です。テストの実行中に別のシナリオが書いた値は読めません。
+- `afterRun()` は run メモを読めますが書けません。run の最後に合算した1行を残すには、各テストが合算のキーへ書き(複数のシナリオが更新するなら `withRunLock` の中で)、`afterRun()` でその1つのキーを読みます。
 - **書き込みは排他されません。** 排他が必要な場合は、[run 全体のロック](run_lock_ja.md)を使います。
 
 ## 例

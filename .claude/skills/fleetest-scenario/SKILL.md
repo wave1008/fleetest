@@ -254,7 +254,7 @@ class ログインできること {
 ### 4. コンパイル検証ゲート
 
 - MCP: `ft_list_scenarios`(project 指定)を呼ぶ。自動ビルドされ、**コンパイルエラーはそのまま返る**。
-  緑なら新シナリオ ID(`クラス名.S0010`)が一覧に出る。
+  緑なら新シナリオ ID(`クラス名.S0010`)が一覧に出る。エディタ(SourceKit)の `No such module 'FTDSL'` はビルドの結果ではない。`ft_list_scenarios` / `ft_dry_run` の結果を信じる。
 - CLI: `swift build --product fleetest-scenarios-<proj>`(exit code で判定。`--target` は不可 = リンクしない)。
 
 エラーが出たら直して再検証。緑になるまで次へ進まない。

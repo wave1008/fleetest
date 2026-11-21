@@ -46,6 +46,7 @@ tap(.type(.button).not(.text("キャンセル")))         // .button&&text!=キ�
   良くて実行時の構文エラー、悪ければ黙って生ラベル扱いになります。
 - **`scrollFrame:` だけは文字列版のみ**です —— 他の引数が `Sel` 版を持つコマンドでも、
   この引数には `Sel` 版がありません。
+- **#id のある要素は型で絞りません**(`.collectionView#pager_main` ではなく `#pager_main`)。iOS では同じ要素が、XCUITest ブリッジ(MCP の `ft_*` ツールが常に使う)と inapp-boost モードで別の型になることがあります(SwiftUI の `TabView(.page)` は XCUITest では `collectionView`、inapp-boost では `other`)。型で絞ると MCP では通り、本番の run で何にも一致しません。同じ id が複数の要素に一致するときは、`[n]` か祖先で選びます。
 - 生成されるコード(エージェントによるシナリオ作成)は
   **既定で文字列版を出力します**。`Sel` は手書きで型指定を好む人のための選択肢です。
 

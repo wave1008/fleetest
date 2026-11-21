@@ -127,7 +127,7 @@ class RunWide {
 - You can write `beforeRun()`, `afterRun()` or both (a phase you do not write does nothing). They take no arguments and must be neither `async` nor `throws` (`func beforeRun()`; anything else is a compile error). A project can have **one** `@RunHooks` class (two or more is an error before the run starts, dry-run included), and it cannot also be a `@TestClass`.
 - **Where and how often**: once per run per project, on the machine where you started fleetest (for `run --runner <machine>`, the runner machine). A run that spans several machines still runs them once.
   The run prints one line saying which machine ran it. `beforeRun()` finishes before any scenario starts on any machine.
-  **They do not run** in a debug run, in a run without a profile, or in a dry-run. They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
+  **They do not run** in a debug run, in a run without a profile, or in a dry-run (a dry-run does run `beforeAll()`, but not `beforeRun()` / `afterRun()`). They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
   Each of them runs in a process of its own, so **a value cannot be passed from `beforeRun()` to `afterRun()` through a `var` of the class** — use the run memo.
   When `beforeRun()` does not run, `readRunMemo` of the keys it would have written returns `""` (not a failure), so check right after reading, for example `readRunMemo("token").thisIsNotEmpty()`.
 - **What you can use**: the run memo (`writeRunMemo` / `readRunMemo`; values written in `beforeRun()` are visible to every test from its first line), `httpRequest`, `data()` / `account()`, `wait`, and value assertions (`thisIs` etc.).
@@ -142,7 +142,7 @@ class RunWide {
 - **To record a value the run used**, call `readRunMemo("key")` in `afterRun()`. The value it reads is written as a step line (`readRunMemo "key" → "value"`)
   in the run log and the report. You do not need a value assertion (such as `thisIsNotEmpty`) just to leave the record.
 - **A run with no scenarios, and a `--fleet` run, are not supported**: nothing runs when no scenario runs, and `--fleet` is refused at the start when the project has `@RunHooks`.
-- **MCP**: `ft_run_scenario` is a run too, so the hooks run on every call of it. The run memo of a call starts empty or with what that call's `beforeRun()` wrote, and is shared by the scenarios of that call. Calls running at the same time on one MCP server have separate run memos, but [run-wide locks](../commands/memo.md) are shared within a project, and `beforeRun()` / `afterRun()` are not protected by locks (they can clean up state another call is using inside an exclusive lock).
+- **MCP**: `ft_run_scenario` is a run too, so `beforeRun()` and `afterRun()` run once per call (a value written in `beforeRun()` is new on every call). The run memo of a call starts empty or with what that call's `beforeRun()` wrote, and is shared by the scenarios of that call. Calls running at the same time on one MCP server have separate run memos, but [run-wide locks](../commands/memo.md) are shared within a project, and `beforeRun()` / `afterRun()` are not protected by locks (they can clean up state another call is using inside an exclusive lock).
 - **A `beforeRun()` that resets a shared server can break another run that is using the same server at the same time** (another terminal, the extension, MCP). A run in progress elsewhere is not protected.
 - **Order with `run-setup.sh` / `run-teardown.sh`**: in a run on one machine, `run-setup.sh` finishes first, then `beforeRun()` runs just before the first scenario; `afterRun()` runs after the tests and `afterAll()`, then `run-teardown.sh` runs.
   In a run that spans machines, `beforeRun()` runs while the other machines are still preparing, so the order against their `run-setup.sh` is not fixed; `afterRun()` runs after every machine's `run-teardown.sh` has finished.
@@ -221,7 +221,7 @@ back and reruns the interrupted test; if it cannot come back, the remaining test
 - In a `@RunOnSingleDevice` / `@RunInOrder` class, tests whose OS declarations (`@TestClass(platform:)` / `@Test(platform:)`) are not uniform
   (all undeclared, or all the same OS; compile error). `@Test(platform: nil)` is treated the same as not writing it.
 - Selecting a `@RunInOrder` class in any form other than the whole class or a range from its first test (for example running one test from the
-  middle with `--scenario`, or a debug run from the extension's tree). The run is refused at start. To check a middle test, run the whole class; mark the
+  middle with `--scenario`, or a debug run from the extension's tree). The run is refused at start. To check a middle test, run the whole class (with MCP `ft_run_scenario`, pass the class name alone as the id: its tests run in `@Order` order, and the app state carries over between them unless a test calls `launchApp()` / `clearAppData()`); mark the
   later tests you are still writing with `@Draft`.
 - A `@RunInOrder` class in a [response-measurement](../running/response_measurement.md) run (refused at start).
 - A `@RunOnSingleMachine` class with tests for both OSes when no machine has devices of both OSes (refused at start; split the class by OS

@@ -81,9 +81,26 @@ extension MCPServer {
         }
         let foreground = Self.statusForegroundText(ForegroundState.judge(facts), launched: launched,
                                                    session: status.sessionBundleID)
+        let profileApp = (args["project"] as? String).flatMap { try? ScenarioHost.project(named: $0) }.flatMap { project in
+            (args["profile"] as? String).flatMap {
+                ProfileResolver.declaredAppID(project: project, runName: $0,
+                                              platform: foregroundDriver is AndroidDriver ? "android" : "ios")
+            }
+        }
         return text(withPendingWarnings(
             "ready: \(status.ready) / \(status.device) (\(status.osVersion))\(endpoint)"
-            + " / session: \(session)\(foreground)\(await Self.fmLivenessNote())", args: args))
+            + " / session: \(session)\(foreground)"
+            + Self.profileAppMismatchNote(session: status.sessionBundleID, profileApp: profileApp)
+            + "\(await Self.fmLivenessNote())", args: args))
+    }
+
+    /// session はその台で最後にセッションを張ったアプリ(前のセッション・別のプロジェクトが起動したものでありうる)。
+    /// プロファイルのアプリと違えば言う(前のセッションのアプリを自分の対象の前面と読み違える)。
+    /// SpringBoard・システムのダイアログは session が付け替わっただけなので言わない
+    static func profileAppMismatchNote(session: String?, profileApp: String?) -> String {
+        guard let session, let profileApp, !profileApp.isEmpty, session != profileApp,
+              session != ForegroundState.springboard, !systemDialogPackages.contains(session) else { return "" }
+        return " (not this profile's app \(profileApp) — ft_launch it to drive it)"
     }
 
     func ftListDevices(_ args: [String: Any]) async throws -> [[String: Any]] {

@@ -125,7 +125,7 @@ class RunWide {
   エラーになります。dry-run も同じです)。同じクラスを `@TestClass` にすることはできません。
 - **走る場所と回数**: **1回の run × 1プロジェクトで1回**、fleetest を起動したマシンで走ります(`run --runner <マシン>` ではランナー機)。
   複数のマシンにまたがる run でも1回です。どのマシンで走ったかを示す1行が run のログに出ます。`beforeRun()` は、どのマシンでもシナリオが始まる前に終わります。
-  **デバッグ実行・プロファイルなしの run・dry-run では走りません。** `fleetest run --profile ...`・`fleetest api run --profile ...`・MCP `ft_run_scenario` の毎回の呼び出しでは走ります。
+  **デバッグ実行・プロファイルなしの run・dry-run では走りません**(dry-run は `beforeAll()` は走らせ、`beforeRun()` / `afterRun()` は走らせません)。 `fleetest run --profile ...`・`fleetest api run --profile ...`・MCP `ft_run_scenario` の毎回の呼び出しでは走ります。
   それぞれ別のプロセスで走るので、**`beforeRun()` から `afterRun()` へクラスの `var` で値は渡せません**。run メモを使います。
   `beforeRun()` が走らないとき、そのキーを `readRunMemo` で読むと `""` が返ります(失敗にはなりません)。読んだ直後に `readRunMemo("token").thisIsNotEmpty()` のように確かめてください。
 - **使えるもの**: run メモ(`writeRunMemo` / `readRunMemo`。`beforeRun()` で書いた値は全テストが最初の行から読めます)・`httpRequest`・`data()` / `account()`・`wait`・値の検証(`thisIs` など)。
@@ -140,7 +140,7 @@ class RunWide {
 - **run で使った値を最後に記録に残すには**、`afterRun()` で `readRunMemo("キー")` を呼びます。読んだ値がステップの行(`readRunMemo "キー" → "値"`)として
   run のログとレポートに残ります。記録を残すためだけの値の検証(`thisIsNotEmpty` など)を重ねる必要はありません。
 - **シナリオが0本の run と `--fleet` の run は対象外です**: シナリオが1本も走らない run では走りません。`@RunHooks` があるプロジェクトの `--fleet` は開始時に断られます。
-- **MCP**: `ft_run_scenario` も1回の run なので、呼び出しのたびにフックが走ります。run メモは呼び出しごとに、空から(またはその呼び出しの `beforeRun()` が書いた値から)始まり、その呼び出しのシナリオ間で共有されます。同じ MCP サーバーで同時に走る別の呼び出しとは run メモが別々なのに、[run 全体のロック](../commands/memo_ja.md)は同じプロジェクトどうしで共有され、`beforeRun()` / `afterRun()` はロックで守られません(別の呼び出しの排他ロックの中の状態を片付けうる)。
+- **MCP**: `ft_run_scenario` も1回の run なので、呼び出しのたびに `beforeRun()` と `afterRun()` が1回ずつ走ります(`beforeRun()` で書いた値は呼び出しごとに新しくなります)。run メモは呼び出しごとに、空から(またはその呼び出しの `beforeRun()` が書いた値から)始まり、その呼び出しのシナリオ間で共有されます。同じ MCP サーバーで同時に走る別の呼び出しとは run メモが別々なのに、[run 全体のロック](../commands/memo_ja.md)は同じプロジェクトどうしで共有され、`beforeRun()` / `afterRun()` はロックで守られません(別の呼び出しの排他ロックの中の状態を片付けうる)。
 - **共有サーバーを初期化する `beforeRun()` は、同じサーバーを同時に使っている別の run(別のターミナル・拡張・MCP)を壊すことがあります。** 別に走っている run は守られません。
 - **`run-setup.sh` / `run-teardown.sh` との順序**: 1台のマシンの run では、`run-setup.sh` が終わってから、最初のシナリオの直前に `beforeRun()` が走ります。`afterRun()` はテストと `afterAll()` の後に走り、その後に `run-teardown.sh` が走ります。
   マシンをまたぐ run では、`beforeRun()` は他のマシンが準備している間に走るので、各マシンの `run-setup.sh` との前後は決まっていません。`afterRun()` は全マシンの `run-teardown.sh` が終わった後に走ります。
@@ -214,7 +214,7 @@ class 注文フロー {
 - `@RunOnSingleDevice` / `@RunInOrder` のクラスで、テストの OS の宣言(`@TestClass(platform:)` / `@Test(platform:)`)がそろっていない
   (全部が未宣言か、全部が同じ OS でなければなりません。コンパイルエラー)。`@Test(platform: nil)` は書かないのと同じ扱いです。
 - `@RunInOrder` のクラスを、クラス全体か先頭から連続した範囲以外の形で選んだ(`--scenario` で途中の1本だけを流す、拡張のツリーからの途中の1本のデバッグ実行、など。run の開始時に断られます)。
-  途中のテストを確かめるときは、クラスごと流します。書きかけの後ろのテストには `@Draft` を付けておきます。
+  途中のテストを確かめるときは、クラスごと流します(MCP の `ft_run_scenario` ではクラス名だけを id に渡します。クラスのテストは `@Order` の順に走り、テストが `launchApp()` / `clearAppData()` をしない限りアプリの状態は次のテストへ持ち越されます)。書きかけの後ろのテストには `@Draft` を付けておきます。
 - [レスポンス計測](../running/response_measurement_ja.md)の run に `@RunInOrder` のクラスがある(run の開始時に断られます)。
 - 両方の OS のテストを持つ `@RunOnSingleMachine` のクラスで、両方の OS のデバイスを持つマシンが無い(run の開始時に断られます。
   `@TestClass(platform:)` でクラスを OS ごとに分けるか、1台のマシンに両方の OS のデバイスをそろえます)。

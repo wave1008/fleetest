@@ -31,12 +31,17 @@ extension MCPServer {
             + " scoped/indexed form (ft_snapshot's \"write one of these instead\" notes list writable ones).\n")
     }
 
-    /// 一致なしの断りに添える「木に無い理由の候補」。Android でキーボードが出ていれば、窓が縮んで下の要素が木から消えている
-    /// (iOS は覆われても木に残るので言わない)。それ以外は画面外の要素 = ft_scroll_to。判定は共有の `KeyboardWait.isShown`
+    /// 一致なしの断りに添える「木に無い理由の候補」。キーボードが出ていれば、窓が縮んで下の要素が木から消えている
+    /// (Android と、iOS の Compose Multiplatform = 窓をキーボードの上へ詰める。iOS の他の作りは覆われても木に残るので「消えうる」と言う)。
+    /// MCP の ft_tap / ft_type はキーボードを閉じない(シナリオの tap / type は閉じる)ので、閉じる手を先に言う。判定は共有の `KeyboardWait.isShown`
     static func hiddenOrOffscreenHint(in snapshot: SnapshotResponse, isAndroid: Bool) -> String {
-        if isAndroid && KeyboardWait.isShown(snapshot) {
-            return " The soft keyboard is up — on Android, what sits below it leaves the tree: close it with"
-                + " ft_hide_keyboard and look again."
+        if KeyboardWait.isShown(snapshot) {
+            if isAndroid {
+                return " The soft keyboard is up — on Android, what sits below it leaves the tree: close it with"
+                    + " ft_hide_keyboard and look again."
+            }
+            return " The soft keyboard is up — an app that shrinks its window above it (Compose Multiplatform) drops what"
+                + " sat below it from the tree: close it with ft_hide_keyboard and look again."
         }
         return " If it is outside the visible part of a list, ft_scroll_to it first, then act on it."
     }
