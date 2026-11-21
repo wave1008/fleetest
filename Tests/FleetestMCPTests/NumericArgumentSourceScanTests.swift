@@ -16,7 +16,7 @@ final class NumericArgumentSourceScanTests: XCTestCase {
     /// であって「型が違う」ではない(resolveScrollFrameArg のコメント参照。型の拒否は
     /// 入口の validateScrollFrameArg が別途行う)
     private static let exempt: Set<String> = [
-        #"Sources/fleetest-mcp/MCPServer+Snapshot.swift#if let ref = args["scrollFrame"] as? Int {"#,
+        #"Sources/fleetest-mcp/MCPServer+ScrollTools.swift#if let ref = args["scrollFrame"] as? Int {"#,
     ]
 
     private static let pattern = try! NSRegularExpression(

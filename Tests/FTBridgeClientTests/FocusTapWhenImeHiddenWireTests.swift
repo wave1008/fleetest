@@ -55,7 +55,7 @@ final class FocusTapWhenImeHiddenWireTests: FTBridgeClientSourceScanCase {
         let bridge = try Self.readSource("Sources/FTAndroid/AndroidBridge.swift")
         XCTAssertGreaterThanOrEqual(bridge.components(separatedBy: "setAppUIFramework(appUIFramework)").count - 1, 2,
                                     "withBridge が (再接続後も含め) ブリッジへ渡していない")
-        let snapshot = try Self.readSource("Sources/fleetest-mcp/MCPServer+Snapshot.swift")
+        let snapshot = try Self.readSource("Sources/fleetest-mcp/MCPServer+ScrollTools.swift")
         let screen = try Self.readSource("Sources/fleetest-mcp/MCPServer+ScreenTools.swift")
         XCTAssertTrue(snapshot.contains("wireAndroidUIFramework("), "MCP の ft_batch 経路の配線が無い")
         XCTAssertGreaterThanOrEqual(screen.components(separatedBy: "wireAndroidUIFramework(").count - 1, 1)

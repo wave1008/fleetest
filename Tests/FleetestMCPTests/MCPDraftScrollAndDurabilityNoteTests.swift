@@ -23,7 +23,7 @@ final class MCPDraftScrollAndDurabilityNoteTests: XCTestCase {
 
     /// 失敗の経路が、スワイプを撃った探索を下書きへ残す配線
     func testFailedScrollToRecordsATodoWhenItSwiped() throws {
-        let source = try String(contentsOfFile: Self.path("Sources/fleetest-mcp/MCPServer+Snapshot.swift"), encoding: .utf8)
+        let source = try String(contentsOfFile: Self.path("Sources/fleetest-mcp/MCPServer+ScrollTools.swift"), encoding: .utf8)
         let failure = try XCTUnwrap(source.range(of: "guard StepExecutor.isSuccess(outcome.status) else {"))
         let recorded = try XCTUnwrap(source.range(of: "failedScrollTodo(selector: selectorText, swipes: swipes)"))
         XCTAssertLessThan(failure.lowerBound, recorded.lowerBound)

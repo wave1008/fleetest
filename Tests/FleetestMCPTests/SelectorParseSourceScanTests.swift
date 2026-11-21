@@ -20,7 +20,7 @@ final class SelectorParseSourceScanTests: XCTestCase {
         // matchedElements: セレクタ解決の共有ユーティリティ。呼び手は scrollTo の selector
         // (ゲート後)と waitFor(ゲート後)のみで、いずれも呼ばれる前に
         // parseSelectorArgument を通っている
-        #"Sources/fleetest-mcp/MCPServer+Snapshot.swift#let parsed = FTSelector.parse(selectorText)"#,
+        #"Sources/fleetest-mcp/MCPServer+ScrollTools.swift#let parsed = FTSelector.parse(selectorText)"#,
         // scrollAreaHint: ft_scroll_to 内でのみ呼ばれ、同じ args["scrollFrame"] は
         // validateScrollFrameArg が既にゲート済み
         #"Sources/fleetest-mcp/MCPServer+Hints.swift#let locator = FTSelector.parse(frame).primary"#,

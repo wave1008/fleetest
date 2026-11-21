@@ -210,7 +210,8 @@ final class TapRefGuardTests: XCTestCase {
         for (name, count) in relocates where count > 0 {
             XCTAssertEqual(entries[name], count, "\(name): relocate の結果が retargetNote を通っていない")
         }
-        XCTAssertEqual(entries["MCPServer+Snapshot.swift"], 2, "verifiedRef と scrollFrame の ref")
+        XCTAssertEqual(entries["MCPServer+Snapshot.swift"], 1, "verifiedRef")
+        XCTAssertEqual(entries["MCPServer+ScrollTools.swift"], 1, "scrollFrame の ref")
         XCTAssertEqual(entries["MCPServer+Dispatch.swift"], 1, "verifiedElement")
     }
 
@@ -224,9 +225,11 @@ final class TapRefGuardTests: XCTestCase {
                 .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         }
         let snapshot = try source("MCPServer+Snapshot.swift")
-        // 3つ目は、シートを広げた ft_scroll_to が一致を容器の外にしか見つけられなかった回に、広げた後の木を返す口
-        XCTAssertEqual(snapshot.components(separatedBy: "markLastGenerationDelivered(args: args)").count - 1, 3,
-                       "snapshotBody と ft_scroll_to の木(着いた回・広げた木を返す回)が返した世代の印を付けていない")
+        XCTAssertEqual(snapshot.components(separatedBy: "markLastGenerationDelivered(args: args)").count - 1, 1,
+                       "snapshotBody が返した世代の印を付けていない")
+        // 2つ目は、シートを広げた ft_scroll_to が一致を容器の外にしか見つけられなかった回に、広げた後の木を返す口
+        XCTAssertEqual(try source("MCPServer+ScrollTools.swift").components(separatedBy: "markLastGenerationDelivered(args: args)").count - 1, 2,
+                       "ft_scroll_to の木(着いた回・広げた木を返す回)が返した世代の印を付けていない")
         let screen = try source("MCPServer+ScreenTools.swift")
         XCTAssertEqual(screen.components(separatedBy: "refusalForRefLessInputOnOtherApp(").count - 1, 2,
                        "ft_type と ft_clear_input の ref なしが前面を確かめていない")

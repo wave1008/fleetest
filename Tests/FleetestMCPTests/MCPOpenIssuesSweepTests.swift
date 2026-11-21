@@ -93,7 +93,7 @@ final class MCPOpenIssuesSweepTests: XCTestCase {
     }
 
     func testScrollToWiresTheKeyboardJudgementFromTheSameOcclusionAsTheNote() throws {
-        let snapshot = try source("Sources/fleetest-mcp/MCPServer+Snapshot.swift")
+        let snapshot = try source("Sources/fleetest-mcp/MCPServer+ScrollTools.swift")
         XCTAssertTrue(snapshot.contains("landedUnderKeyboard = KeyboardOcclusion.resolve("))
         XCTAssertEqual(snapshot.components(separatedBy: "underKeyboard: landedUnderKeyboard").count - 1, 2,
                        "両方の成功本文(アラート前面・通常)が同じ判定を渡す")

@@ -105,7 +105,7 @@ final class SheetExpansionRevealTests: XCTestCase {
     /// ft_scroll_to の救済の分岐が、外の一致を .passed にしない(判定を外す変異で落ちる)
     func testRescueBranchDoesNotPassAnOutsideMatch() throws {
         let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp/MCPServer+Snapshot.swift")
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest-mcp/MCPServer+ScrollTools.swift")
         let text = try String(contentsOf: file, encoding: .utf8)
         let guardRange = try XCTUnwrap(text.range(of: "if Self.matchIsOutsideScrollFrame(alreadyThere"))
         let rest = text[guardRange.upperBound...]

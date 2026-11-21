@@ -17,7 +17,7 @@ final class ScrollToTypeKeyboardWaitTests: XCTestCase {
     }
 
     func testScrollToConsumesThePendingTypeKeyboardCheckBeforeSearching() throws {
-        let code = try Self.source("Sources/fleetest-mcp/MCPServer+Snapshot.swift")
+        let code = try Self.source("Sources/fleetest-mcp/MCPServer+ScrollTools.swift")
         let search = try XCTUnwrap(code.range(of: "SlowCallWatchdog.mark(\"scroll search\")"),
                                    "ft_scroll_to の探索の始まりが見つからない(走査の前提が崩れた)")
         let before = String(code[code.startIndex..<search.lowerBound])

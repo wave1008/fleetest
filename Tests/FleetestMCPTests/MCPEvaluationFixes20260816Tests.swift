@@ -94,10 +94,10 @@ final class MCPWaitTimeoutRemedyTests: XCTestCase {
 
 final class MCPSheetRescueMarkerTests: XCTestCase {
 
-    private static func snapshotSource() throws -> String {
+    private static func scrollToolsSource() throws -> String {
         try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Snapshot.swift"), encoding: .utf8)
+            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+ScrollTools.swift"), encoding: .utf8)
     }
 
     /// **1つの文字列で「起きたか」と「いくらかかったか」の両方が拾える**こと。
@@ -113,7 +113,7 @@ final class MCPSheetRescueMarkerTests: XCTestCase {
     /// すべてマーカー経由であること。1つでも生リテラルに戻ると、その形だけ機械判定から漏れる
     /// —— 漏れたことは応答を読まない限り分からない(注記は出ているので、見た目は正常)
     func testEveryRescueNoteGoesThroughTheMarker() throws {
-        let source = try Self.snapshotSource()
+        let source = try Self.scrollToolsSource()
         let assignments = source.components(separatedBy: "\n")
             .filter { $0.contains("sheetNote = ") && !$0.contains("var sheetNote") }
         XCTAssertEqual(assignments.count, 5,   // 11/12 +1: 広げた後の一致が scrollFrame の外(見つかった扱いにしない)
