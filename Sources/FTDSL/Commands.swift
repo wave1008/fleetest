@@ -401,19 +401,30 @@ public func type(_ text: String, replace: Bool = false, settle: Bool = true,
     // **改行等はログ・レポート表示のためにエスケープする** —— 生のまま埋めると
     // `type("xyz\n")` の描画行がそこで割れる。ステップ自身に送るテキスト(`step.text`)は
     // 生のまま(実際に打鍵する内容は変えない)
-    FTRuntime.requireCore(command: "type")
-        .perform(step: step,
+    let core = FTRuntime.requireCore(command: "type")
+    core.perform(step: step,
                  description: "type \"\(StepDescription.escapingControlCharacters(text))\"\(suffix)",
                  command: "type",
-                 commandError: FTSelector.selectorLikeInputError(text) ?? emptyTypeRefusal(text, replace: replace),
+                 commandError: FTSelector.selectorLikeInputError(text)
+                     ?? emptyTypeRefusal(text, replace: replace, dryRun: core.isDryRun),
                  file: file, line: line)
 }
 
 /// 空文字の入力は replace: true のときだけ通す(欄を空にする形)。replace 無しは何も起きないので断る(`ft_batch` の `type` と同じ)。
-/// 空白だけの文字列は入力として正しい(空白を打つ)ので断らない
-func emptyTypeRefusal(_ text: String, replace: Bool) -> String? {
-    guard text.isEmpty, !replace else { return nil }
+/// 空白だけの文字列は入力として正しい(空白を打つ)ので断らない。**dry-run では断らない**(DR-211。画面から読んだ値・run メモが
+/// 空になるので、正しいシナリオが dry-run だけ赤になる。注記 `dry-run-empty-text` は `FTDriveCore.perform` の dry-run の分岐が付ける)
+func emptyTypeRefusal(_ text: String, replace: Bool, dryRun: Bool) -> String? {
+    guard text.isEmpty, !replace, !dryRun else { return nil }
     return "type: nothing to type (the text is empty) — to empty a field use clearInput(), or pass replace: true with an empty string"
+}
+
+extension FTDriveCore {
+    /// dry-run で値が空だった行の注記(DR-211。付けるのは `perform` の dry-run の分岐)。空の入力(replace 無し)と、文字の検証の空の期待値
+    static func dryRunEmptyValueNotes(_ step: FlowStep) -> [StepNote] {
+        if step.action == "type", (step.text ?? "").isEmpty, step.replace != true { return [.dryRunEmptyText] }
+        if step.countsAsAssertion, let expected = step.expected, expected.isEmpty { return [.dryRunEmptyExpected] }
+        return []
+    }
 }
 
 /// フォーカス中の入力欄で Enter を押す(IME の改行/送信アクション相当。Shirates pressEnter 対応。
@@ -467,7 +478,8 @@ func typeImpl(_ selector: FTSelector, _ text: String, replace: Bool, settle: Boo
     // 表示だけエスケープする(打鍵内容の `step.text` は生のまま)
     let result = perform("type", selector, step: step,
                          description: "type \"\(selector.text)\" \"\(StepDescription.escapingControlCharacters(text))\"\(suffix)",
-                         commandError: emptyTypeRefusal(text, replace: replace),
+                         commandError: emptyTypeRefusal(text, replace: replace,
+                                                        dryRun: FTRuntime.requireCore(command: "type").isDryRun),
                          file: file, line: line)
     return FTElement(selector: selector, matched: result.element)
 }

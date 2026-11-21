@@ -537,6 +537,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (緑の run では黙る)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者(文言が直し方を言う)。判定は変えない
     case coveredTouchBeforeFailure = "covered-touch-before-failure"
 
+    /// dry-run で `type` の文字が空だった(DR-211)。デバイスを使わない dry-run では画面から読んだ値と run メモ(beforeRun が走らない)が
+    /// 空になるので断らずに通し、事実を残す。デバイスでの実行は replace 無しの空の入力を今までどおり断る
+    case dryRunEmptyText = "dry-run-empty-text"
+
+    /// dry-run で文字の検証の期待値が空だった(DR-211)。dry-run は検証を実際の値と比べないので、空の期待値でも緑になったことを残す
+    case dryRunEmptyExpected = "dry-run-empty-expected"
+
     /// `.openURLSessionNotRestored` を示す `AppDriver.lastActionNote` の先頭。BridgeClient が組み、DSL の openURL が判別する(1箇所で共有)
     public static let openURLSessionNotRestoredPrefix = "the session could not be pointed back at "
 
@@ -798,6 +805,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " (a tap during the transition is dropped)"
         case .memoKeyNotFound:
             return "nothing was written under this key in this test (the memo lives inside one test)"
+        case .dryRunEmptyText:
+            return "the text is empty in this dry-run (values read from the screen or the run memo are empty when no device runs);"
+                + " a device run refuses typing an empty text without replace: true"
+        case .dryRunEmptyExpected:
+            return "the expected value is empty in this dry-run (values read from the screen or the run memo are empty when no device runs);"
+                + " a dry-run does not compare it with the screen"
         case .runMemoKeyNotFound:
             return "nothing was written under this key in the run memo as it was when this scenario started"
         case .unchangedTapBeforeFailure:

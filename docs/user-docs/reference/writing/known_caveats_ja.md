@@ -223,7 +223,7 @@
 - [チェーンした検証は取得した時点の値でまず判定する](../commands/text_assertion_ja.md#注意点) — 満たしていればデバイスを見に行かず、説明に `(from the grabbed value)` が付きます。
 
 ### type
-- [type("") は打つ前に失敗する](../commands/type_ja.md#注意点) — 欄を空にするなら `clearInput()` か `type("", replace: true)` を使います。
+- [type("") は打つ前に失敗する](../commands/type_ja.md#注意点) — 欄を空にするなら `clearInput()` か `type("", replace: true)` を使います。dry-run では画面から読んだ値と run メモが空になるので、失敗にせず注記を付けて通します。
 - [Android で欄が候補一覧などの下にあると打つ前に失敗する](../commands/type_ja.md#注意点) — 焦点を当てるタップが候補を選んでしまうので、先に一覧を閉じます。
 - [入力欄でない要素(ボタン等)を指すと打つ前に失敗する](../commands/type_ja.md#注意点) — 事前タップで送信・購入ボタンを押す事故を防ぐための断りです。入力欄を指して書きます。
 - [値の入っている欄への type は追記で、失敗しない](../commands/type_ja.md#注意点) — 置き換えるなら `replace: true` か先に `clearInput(sel)` を呼びます。

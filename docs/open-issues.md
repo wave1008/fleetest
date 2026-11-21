@@ -28,7 +28,7 @@
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-320・OI-321・OI-329 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 2 | OI-323・OI-324 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 36 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-235・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
@@ -86,29 +86,7 @@
 
 ## 要判断
 
-### OI-323 dry-run では画面から読んだ値と run メモが空になり、それを `type` すると「nothing to type」で dry-run が赤になる
-- 状態: 再現済み
-- 確認: 667a5a9 + 作業ツリー(2026-11-20)
-- 属性: 要判断
-- 運用: 回避可 — 空なら打たない分岐を書く
-- 優先度: 低 — dry-run だけ
-
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
-- 観測: once_flutter_ios。`type: nothing to type (the text is empty)`。r2_order_rn_ios では replace 付きで空を打って緑・`thisIsNotEmpty ""` も dry-run では緑
-- 決めること: dry-run で値が空のときの type を ①今のまま失敗 ②注記つきで通す のどちらにするか
-- 評価 5回目(11/21・`_work/scen-eval-20261121/`): 4 セッションで再出。once_flutter_ios・r2_order_rn_ios は `type: nothing to type (the text is empty)` で dry-run が赤(replace: true で回避)/ ord2_flutter_se3 は `textIs "#txt_radio" == ""` が dry-run で素通り / memo_rn_sim は run メモをつないだ id `#radio_` に「見たことがない id」の警告
-
-### OI-324 `ft_run_scenario` だけ `profile` と `platform` の併用を断る(他の ft_* は受ける)
-- 状態: 再現済み
-- 確認: 667a5a9 + 作業ツリー(2026-11-20)
-- 属性: 要判断
-- 運用: 回避可 — profile だけ渡す
-- 優先度: 低 — MCP だけ・文言で直せる
-
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
-- 観測: mix_cmp_emu。`profile cannot be combined with platform/port/serial/udid (the profile picks the device)`。CLI の `--profile` + `--platform` の併用エラーに合わせた意図的な設計(`MCPServer.profileConflict`)
-- 決めること: プロファイルの OS と同じ platform なら受けるか、今のまま断るか
-- 評価 5回目(11/21・`_work/scen-eval-20261121/`): phys_and_4a・r6_e2ex_and_3a で再出。`ft_dry_run` は platform 無しのシナリオで既定 ios になるので platform が要るのに、`ft_run_scenario` は profile があると platform を断る、と読まれた
+(いまこの属性を持つ項目は無い)
 
 ## 木に材料なし
 

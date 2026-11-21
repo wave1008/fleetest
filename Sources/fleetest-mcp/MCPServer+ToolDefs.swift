@@ -612,7 +612,7 @@ extension MCPServer {
             "id": scenarioIdProperty,
             "project": defaultProjectProperty,
             "profile": ["type": "string", "description": "Run profile (picks device, heal and report "
-                + "destination); not with platform/port/serial/udid"],
+                + "destination); not with port/serial/udid, and platform only if the profile has that OS"],
             "heal": ["type": "boolean", "description": "Override fingerprint-based locator self-healing "
                 + "(default: the profile's setting, else false). A healed step's selector is written back to the"
                 + " scenario source at the end (review with git diff)"],

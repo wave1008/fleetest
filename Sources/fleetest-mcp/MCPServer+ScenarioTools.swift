@@ -194,18 +194,30 @@ extension MCPServer {
         return text(lines.joined(separator: "\n")) + structured
     }
 
-    /// `profile` と platform/port/serial/udid の併用を拒否する(profile がデバイスを決めるため。
-    /// CLI の `--profile` + `--platform/--port/--serial` 併用エラーと同じ規律)。
-    /// **args だけを見る純粋関数**(runScenario の先頭で呼ぶ)。udid は入口の
-    /// `foldingUDIDIntoPort` が port へ畳むが、profile があっても畳み自体は起きる
-    /// (`foldInRememberedDevice` だけが profile 有りで注入を止める)ので、畳まれた後も
-    /// 元の "udid" キーは args に残っており、ここでも拾える
-    static func profileConflict(_ args: [String: Any]) -> String? {
-        guard args["profile"] != nil,
-              args["platform"] != nil || args["port"] != nil
-                || args["serial"] != nil || args["udid"] != nil
-        else { return nil }
-        return "profile cannot be combined with platform/port/serial/udid (the profile picks the device)"
+    /// `profile` と port/serial/udid の併用を拒否する(profile がデバイスを決めるため)。**platform はプロファイルにその OS のデバイスが
+    /// あれば受け、無ければ断る**(DR-212。プロファイルの枝では platform 引数を使わない = OS はシナリオの宣言とプロファイルで決まるので、
+    /// 重ねて書いても意味は変わらない)。`profilePlatforms` = プロファイルの有効なデバイスの OS(読めなければ nil で、platform は断る)。
+    /// **args だけを見る純粋関数**(runScenario の先頭で呼ぶ)。udid は入口の `foldingUDIDIntoPort` が port へ畳むが、
+    /// 畳まれた後も元の "udid" キーは args に残っており、ここでも拾える
+    static func profileConflict(_ args: [String: Any], profilePlatforms: Set<String>?) -> String? {
+        guard let profile = args["profile"] as? String else { return nil }
+        if args["port"] != nil || args["serial"] != nil || args["udid"] != nil {
+            return "profile cannot be combined with port/serial/udid (the profile picks the device)"
+        }
+        guard let platform = args["platform"] as? String, !(profilePlatforms?.contains(platform) ?? false) else { return nil }
+        if let profilePlatforms {
+            return "platform \"\(platform)\" does not match profile \"\(profile)\", whose devices are "
+                + "\(profilePlatforms.sorted().joined(separator: "/")) — drop platform (the profile picks the device)"
+        }
+        return "platform cannot be checked against profile \"\(profile)\" (its devices could not be read) — drop platform"
+            + " (the profile picks the device)"
+    }
+
+    /// プロファイルの有効なデバイスの OS の集合(`profileConflict` の材料)。読めなければ nil
+    static func profilePlatforms(profile: String, project projectName: String?) -> Set<String>? {
+        guard let project = try? ScenarioHost.project(named: projectName) else { return nil }
+        let platforms = Set(ProfileResolver.runDeviceMachines(project: project, runProfileName: profile).map(\.platform))
+        return platforms.isEmpty ? nil : platforms
     }
 
     /// シナリオ実行(自動ビルド込み)。サブプロセス(fleetest-scenarios)に委譲する。
@@ -222,7 +234,10 @@ extension MCPServer {
 
     func runScenario(_ args: [String: Any]) async throws -> [[String: Any]] {
         let id = try Self.requiredStringArgument(args, "id")
-        if let conflict = Self.profileConflict(args) { throw MCPError(conflict) }
+        let profilePlatforms = (args["profile"] as? String).flatMap {
+            Self.profilePlatforms(profile: $0, project: args["project"] as? String)
+        }
+        if let conflict = Self.profileConflict(args, profilePlatforms: profilePlatforms) { throw MCPError(conflict) }
         let project = try ScenarioHost.project(named: args["project"] as? String)
         if !(args["skipBuild"] as? Bool ?? false) {
             try ScenarioHost.build(project: project)

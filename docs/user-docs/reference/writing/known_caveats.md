@@ -223,7 +223,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Chained checks use the grabbed value first](../commands/text_assertion.md#notes) — if it already satisfies the assertion the step records `(from the grabbed value)` with no device round trip; otherwise it polls up to `waitSeconds`.
 
 ### type
-- [`type("")` fails before typing](../commands/type.md#notes) — it would do nothing; to empty a field use `clearInput()` or `type("", replace: true)`.
+- [`type("")` fails before typing](../commands/type.md#notes) — it would do nothing; to empty a field use `clearInput()` or `type("", replace: true)`. A dry-run does not fail it but notes it, since values read from the screen and the run memo are empty there.
 - [Android: field under a popup window](../commands/type.md#notes) — the focusing tap would select the suggestion, so the step fails before typing; close the popup first.
 - [Non-input target fails before typing](../commands/type.md#notes) — `type` taps first, so a button would be pressed; an element wrapping exactly one input types into it with a warning.
 - [Typing into a filled field appends](../commands/type.md#notes) — the step stays green with only a note; use `replace: true` or `clearInput(sel)` first when replacing.

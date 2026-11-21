@@ -950,7 +950,7 @@ public final class FTDriveCore {
             let start = clock.now
             recordStep(description: description, status: .passed, file: filePath, line: Int(line),
                        durationMs: DurationConversion.milliseconds(clock.now - start),
-                       command: command)
+                       notes: Self.dryRunEmptyValueNotes(step), command: command)
             noteAssertionUnlessSkipped(.passed)
             return PerformResult(status: .passed, element: nil)
         }

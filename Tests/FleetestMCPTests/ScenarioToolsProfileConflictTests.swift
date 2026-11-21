@@ -1,38 +1,44 @@
 import XCTest
 @testable import fleetest_mcp
 
-/// `MCPServer.profileConflict` — profile が platform/port/serial/udid と併用されたら拒否する
-/// (CLI の `--profile` + `--platform/--port/--serial` 併用エラーと同じ規律を MCP へ広げたもの)。
-/// **args だけを見る純粋関数を直接叩く**(呼び出し経路(runScenario 冒頭)越しではなく、
-/// 判定そのものを固定する)
+/// `MCPServer.profileConflict` — profile が port/serial/udid と併用されたら拒否し、platform はプロファイルにその OS が
+/// あれば受ける(DR-212)。**args とプロファイルの OS だけを見る純粋関数を直接叩く**
 final class ScenarioToolsProfileConflictTests: XCTestCase {
 
     func testNoProfileNeverConflicts() {
-        XCTAssertNil(MCPServer.profileConflict([:]))
-        XCTAssertNil(MCPServer.profileConflict(["platform": "ios", "port": 8100]))
+        XCTAssertNil(MCPServer.profileConflict([:], profilePlatforms: nil))
+        XCTAssertNil(MCPServer.profileConflict(["platform": "ios", "port": 8100], profilePlatforms: nil))
     }
 
     func testProfileAloneDoesNotConflict() {
-        XCTAssertNil(MCPServer.profileConflict(["profile": "ios"]))
+        XCTAssertNil(MCPServer.profileConflict(["profile": "ios"], profilePlatforms: ["ios"]))
     }
 
-    func testProfileWithPlatformConflicts() {
-        let message = MCPServer.profileConflict(["profile": "ios", "platform": "ios"])
-        XCTAssertEqual(message,
-                       "profile cannot be combined with platform/port/serial/udid (the profile picks the device)")
+    func testPlatformTheProfileHasIsAccepted() {
+        XCTAssertNil(MCPServer.profileConflict(["profile": "ios-run", "platform": "ios"], profilePlatforms: ["ios"]))
+        XCTAssertNil(MCPServer.profileConflict(["profile": "mixed", "platform": "android"], profilePlatforms: ["ios", "android"]))
+    }
+
+    func testPlatformTheProfileLacksIsRefused() {
+        let message = MCPServer.profileConflict(["profile": "ios-run", "platform": "android"], profilePlatforms: ["ios"])
+        XCTAssertEqual(message, "platform \"android\" does not match profile \"ios-run\", whose devices are ios"
+                       + " — drop platform (the profile picks the device)")
+    }
+
+    func testPlatformWithUnreadableProfileIsRefused() {
+        XCTAssertNotNil(MCPServer.profileConflict(["profile": "missing", "platform": "ios"], profilePlatforms: nil))
     }
 
     func testProfileWithPortConflicts() {
-        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "port": 8100]))
+        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "port": 8100], profilePlatforms: ["ios"]))
     }
 
     func testProfileWithSerialConflicts() {
-        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "serial": "ABC123"]))
+        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "serial": "ABC123"], profilePlatforms: ["android"]))
     }
 
     func testProfileWithUDIDConflicts() {
-        // foldingUDIDIntoPort が port へ畳んでも元の "udid" キーは args に残るので、
-        // ここでも拾えることを固定する
-        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "udid": "0000-1111"]))
+        // foldingUDIDIntoPort が port へ畳んでも元の "udid" キーは args に残るので、ここでも拾えることを固定する
+        XCTAssertNotNil(MCPServer.profileConflict(["profile": "ios", "udid": "0000-1111"], profilePlatforms: ["ios"]))
     }
 }
