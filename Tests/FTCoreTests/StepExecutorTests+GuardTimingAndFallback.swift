@@ -107,7 +107,7 @@ extension StepExecutorTests {
         }
     }
 
-    /// **申告 keyboardFrame はキー面だけ**(TapTargetGeometry.effectiveKeyboardFrame の doc)。
+    /// **申告 keyboardFrame はキー面だけ**(KeyboardOcclusion.resolve の doc)。
     /// MCP 側(MCPRefGuardTests.testTapWarnsWhenTheCentreIsOnlyUnderTheExpandedKeyboardChrome)と
     /// 同じ witness を DSL 側(StepExecutor+Actions.swift)でも固定する —— 呼び出し元が申告のまま
     /// 渡すよう後退すると、覆われていると見ずにキーボードを撃ち、閉じる手順を通らず落ちる

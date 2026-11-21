@@ -5,15 +5,6 @@
 import type { MessageDict } from "../core";
 
 export const monitorStrings = {
-  // ---- monitorModel.ts: deviceOpMenuItem ----
-  "monitor.deviceOp.labelQueued": { ja: "待機中...", en: "Waiting..." },
-  "monitor.deviceOp.labelStarting": { ja: "起動中...", en: "Starting..." },
-  "monitor.deviceOp.labelStopping": { ja: "停止中...", en: "Stopping..." },
-  "monitor.deviceOp.labelWiping": { ja: "Wipe Data 実行中...", en: "Wiping data..." },
-  "monitor.deviceOp.labelRestartingBridge": { ja: "ブリッジを起動し直し中...", en: "Restarting bridge..." },
-  "monitor.deviceOp.labelStart": { ja: "起動", en: "Start" },
-  "monitor.deviceOp.labelStop": { ja: "停止", en: "Stop" },
-
   // ---- monitorModel.ts: validateNewRunProfileName / updateRunProfileInObject ----
   "monitor.runProfile.nameNoSpaces": {
     ja: "プロファイル名の前後に空白を含めることはできません。",

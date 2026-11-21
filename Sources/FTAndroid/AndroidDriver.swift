@@ -1631,11 +1631,6 @@ public final class AndroidDriver: AppDriver {
         return GestureRequest(fingers: [GestureFinger(points: points)])
     }
 
-    static func dragDistance(_ fromX: Int32, _ fromY: Int32, _ toX: Int32, _ toY: Int32) -> Double {
-        let dx = Double(toX) - Double(fromX), dy = Double(toY) - Double(fromY)
-        return (dx * dx + dy * dy).squareRoot()
-    }
-
     /// 表示の座標 → gRPC タッチの座標(`AndroidTouchRotation`)。回転は撃つ直前の `dumpsys window displays` から引く
     /// (アプリ・OS が回すので控えない。約 0.13 秒)。読めない・範囲外なら nil = gRPC を撃たず adb で撃つ
     func nativeTouchPoint(x: Int32, y: Int32) async -> (x: Int32, y: Int32)? {

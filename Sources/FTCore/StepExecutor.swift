@@ -1609,10 +1609,6 @@ public final class StepExecutor {
         return abs(delta) > 1 ? delta : nil
     }
 
-    /// 判定の本体は `TapTargetGeometry.straddleJump`(MCP と共有)
-    static func straddleJump(for element: ElementInfo, container: FTRect) -> Double? {
-        TapTargetGeometry.straddleJump(for: element, container: container)
-    }
 
     /// **報告された frame の中心が容器の外に落ちるとき、実際に見えている部分の矩形**を返す。
     /// 判定の本体は `TapTargetGeometry.visibleTapRect`(MCP の ft_tap と共有)。理由・実測はそちらの doc。

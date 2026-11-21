@@ -1074,7 +1074,7 @@ select("#btn_ok"); textIs("OK")                 // 暗黙(トップレベルの�
   黙る** —— 使ってよいのは true を見つけたときだけで、
   「false = スクロールできない」と読むと誤報になる
 - **scrollTo の「シートを広げろ」ヒントは `scrollFrame` 未指定でも出す**。`step.scrollFrame != nil` を入口にすると、同じ画面でも指定した2回目にしか出ない(実測: Apple マップの経路手順で、未指定の1回目は
-  「content no longer moved」としか言わなかった)。未指定のときは `StepExecutor.partialHeightSheetExists` が**申告のあるスクロール容器の高さ**で判定する —— 帯は画面の 15〜80%
+  「content no longer moved」としか言わなかった)。未指定のときは `SheetGeometry.declaredSheetExists` が**申告のあるスクロール容器の高さ**で判定する —— 帯は画面の 15〜80%
   (下端はチップ行・横カルーセル ≒5% を落とし、上端は全画面リストを落とす)。実測でヒントが要った容器は 22%(`#TransitDirectionsListView`)と 37%(`#directions_group_list`)
 - **`scrollFrame` fail-fast の範囲と細部**(`ScrollSearchResult.scrollFrameMissing`。上の「画面に1件も無い scrollFrame は全画面スワイプへ落とさず失敗させる」の続き):
   scrollTo 探索だけでなく `scrollDown` 等の単発スクロール・`scrollToBottom` 等の端送り・flick 系・`withScroll*` 配下の探索も同じ(全画面退化はどれでもボタン誤発火になり得る)。**`select` 系だけは例外**

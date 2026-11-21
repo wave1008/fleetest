@@ -91,13 +91,6 @@ extension StepExecutor {
     /// **子がはみ出している clip 領域**を探す —— はみ出しはスクロールで外へ出た子の姿で、
     /// 静止した木にも残る。iOS(Compose)は id 集合も frame も変わらないことがあり、
     /// `changedContentContainer` / `movedContentContainer` がどちらも nil になる
-    /// 半開きシートらしいスクロール容器が画面に居るか(`scrollFrame` 未指定のときの
-    /// シート展開ヒントのゲート)。判定は `SheetGeometry` の 1 箇所(下端が画面下端に接し、
-    /// 上端が画面の上 1/4 より下。申告された scrollable 容器だけを見る)
-    static func partialHeightSheetExists(in snapshot: SnapshotResponse) -> Bool {
-        SheetGeometry.declaredSheetExists(in: snapshot)
-    }
-
     static func overflowingContainer(in snapshot: SnapshotResponse) -> FTRect? {
         var tally: [String: (rect: FTRect, count: Int)] = [:]
         for element in snapshot.elements {

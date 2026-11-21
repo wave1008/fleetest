@@ -1970,11 +1970,6 @@ extension MCPServer {
         StaleFrameDetector.treeFingerprint(of: snapshot.elements)
     }
 
-    /// PNG 生バイトのハッシュ(ft_screenshot の鮮度判定用)。定義元は FTCore.StaleFrameDetector.hashBytes
-    static func hashBytes(_ data: Data) -> Int {
-        StaleFrameDetector.hashBytes(data)
-    }
-
     /// セッションのアプリが前面に居ないときの注記(居るとき・判定できないときは空)。
     /// 判定は 1 往復(/appstate)なので snapshot の1割程度。**黙って嘘を返すよりは安い**
     ///
@@ -2144,12 +2139,6 @@ extension MCPServer {
             + " Leaving the app (back from its first screen, home, an app switch) hands the"
             + " tools to whatever is in front now — and sibling test apps can look identical."
             + " ft_launch \(launched) before trusting these refs\n"
-    }
-
-    /// 木の判定は FTCore.SystemUITreeKind(Android の systemui の木)に1つ。ここは転送
-    static func isNotificationShadeTree(_ snapshot: SnapshotResponse) -> Bool {
-        SystemUITreeKind.isNotificationShade(sessionBundleID: snapshot.sessionBundleID,
-                                             identifiers: snapshot.elements.map(\.identifier))
     }
 
     static func isLockScreenOrAlwaysOnTree(_ snapshot: SnapshotResponse) -> Bool {

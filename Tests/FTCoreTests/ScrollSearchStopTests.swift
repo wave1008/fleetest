@@ -252,19 +252,19 @@ final class ScrollSearchStopTests: XCTestCase {
     /// `#TransitDirectionsListView` は 189/874 = 22%。scrollFrame を渡していない1回目でも
     /// 「シートを広げろ」に辿り着けること
     func testPartialHeightSheetIsFoundWithoutAnExplicitScrollFrame() {
-        XCTAssertTrue(StepExecutor.partialHeightSheetExists(
+        XCTAssertTrue(SheetGeometry.declaredSheetExists(
             in: snapshot([scroller(1, y: 676, height: 189)])))
     }
 
     /// 全画面リストは対象外(末尾到達で毎回シートを探しに行かせない)
     func testFullHeightListIsNotASheet() {
-        XCTAssertFalse(StepExecutor.partialHeightSheetExists(
+        XCTAssertFalse(SheetGeometry.declaredSheetExists(
             in: snapshot([scroller(1, y: 0, height: 800)])))
     }
 
     /// チップ行・横カルーセル(実測 5% 前後)も対象外 —— これを拾うと Android のほぼ全画面で鳴る
     func testAThinCarouselIsNotASheet() {
-        XCTAssertFalse(StepExecutor.partialHeightSheetExists(
+        XCTAssertFalse(SheetGeometry.declaredSheetExists(
             in: snapshot([scroller(1, y: 305, height: 126)], height: 2361)))
     }
 
@@ -273,12 +273,12 @@ final class ScrollSearchStopTests: XCTestCase {
         let plain = ElementInfo(ref: 1, type: "other", identifier: "list", label: nil, value: nil,
                                 placeholder: nil, enabled: true,
                                 frame: FTRect(x: 0, y: 676, width: 402, height: 189), depth: 2)
-        XCTAssertFalse(StepExecutor.partialHeightSheetExists(in: snapshot([plain])))
+        XCTAssertFalse(SheetGeometry.declaredSheetExists(in: snapshot([plain])))
     }
 
     // MARK: - [F7b] SheetGeometry(位置ベースの幾何判定。runScrollSearch が実際に呼ぶ側)
     //
-    // 上の `partialHeightSheetExists`(高さ比だけ)は、下端が画面下端から離れた固定高リストや
+    // 上の `SheetGeometry.declaredSheetExists`(高さ比だけ)は、下端が画面下端から離れた固定高リストや
     // シートの無い通常画面の容器にも中〜広い高さ比のものがあり誤って発火した
     // (2026-09-15 実測: 見つかった `scrollTo`/`tap` と、リストもシートも無いホーム画面の `tap`
     // の両方に sheet-collapsed が付いた)。StepExecutor+ScrollSearch.swift は

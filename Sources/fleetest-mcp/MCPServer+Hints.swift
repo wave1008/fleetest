@@ -820,14 +820,7 @@ extension MCPServer {
     /// 定義元(DSL 側の `LocatorResolver.candidateHint` と共有する)。
     /// ここは MCP 応答の文言(`"note: similar labels on screen: …"`)の組み立てだけを持つ ——
     /// **この文言は既存の MCP テスト・NoteBudgetTests のバイト数ゲート対象で1文字も変えない**
-    static func isSimilarText(_ a: String, _ b: String) -> Bool {
-        SimilarLabels.isSimilarText(a, b)
-    }
-
-    static func editDistance(_ a: String, _ b: String) -> Int {
-        SimilarLabels.editDistance(a, b)
-    }
-
+    ///
     /// waitFor が空振りしたとき、画面に**近い**ラベル/id を最大3件挙げる。
     /// 実測: 経路ボタンを `waitFor "経路"` と推測したら実ラベルは「計画」で5秒空振りした。
     /// **断定しない**(「これのことでは」とは書かない) —— 似ているというだけで、

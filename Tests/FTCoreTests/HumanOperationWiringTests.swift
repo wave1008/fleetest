@@ -29,8 +29,11 @@ final class HumanOperationWiringTests: XCTestCase {
 
     /// ScenarioRecording を作る箇所は全部、台帳の置き場を渡す(runOne の素通しを含む)
     func testEveryScenarioRecordingCarriesTheLedgerLocation() throws {
-        for path in ["Sources/fleetest/ApiRunCommand.swift", "Sources/FTCore/RunOrchestrator.swift"] {
-            let code = try source(path)
+        // RunOrchestrator の runWorker と、その先の ScenarioRunner.runOne は1つの経路として数える
+        for paths in [["Sources/fleetest/ApiRunCommand.swift"],
+                      ["Sources/FTCore/RunOrchestrator.swift", "Sources/FTCore/ScenarioRunner.swift"]] {
+            let code = try paths.map { try source($0) }.joined(separator: "\n")
+            let path = paths.joined(separator: " + ")
             let constructions = count("ScenarioRecording(", in: code)
             XCTAssertGreaterThan(constructions, 0, path)
             XCTAssertGreaterThanOrEqual(count("humanOperationsStateDir:", in: code), constructions, path)

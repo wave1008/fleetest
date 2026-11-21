@@ -1376,10 +1376,10 @@ final class MCPRefGuardTests: XCTestCase {
         XCTAssertFalse(text.contains("drawn over the app"), text)
     }
 
-    /// **申告 keyboardFrame はキー面だけ**(TapTargetGeometry.effectiveKeyboardFrame の doc)。
+    /// **申告 keyboardFrame はキー面だけ**(KeyboardOcclusion.resolve の doc)。
     /// この経路(ft_tap → verifiedRef → RefGuard.preTapWarnings)が申告のまま渡すよう後退すると、
     /// このテストは警告が付かず落ちる ——「拡張後の矩形を使っているか」の配線テスト
-    /// (`effectiveKeyboardFrame` 自体の単体テストは TapTargetAdvisoryTests にある)
+    /// (`KeyboardOcclusion.resolve` の帯の単体テストは TapTargetAdvisoryTests にある)
     func testTapWarnsWhenTheCentreIsOnlyUnderTheExpandedKeyboardChrome() async throws {
         var withKeyboard = screen([
             element(ref: 1, id: "tab_home", label: "ホーム", x: 0, y: 548, w: 134, h: 62),

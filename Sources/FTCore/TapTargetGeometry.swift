@@ -726,7 +726,7 @@ public enum TapTargetGeometry {
     /// 推定する —— 送った結果は呼び手が撮り直して再判定するので、外れても撃つ前に戻せる。
     ///
     /// **画面の下端に接している帯だけ**採る(同名要素が画面の別の場所にあると矩形が暴発する。
-    /// `effectiveKeyboardFrame` の同名 chrome の扱いと同じ警戒)
+    /// `KeyboardOcclusion.resolve` の同名 chrome の扱いと同じ警戒)
     public static func keyboardBandFromChrome(in elements: [ElementInfo], screen: FTRect,
                                               tolerance: Double = 4) -> FTRect? {
         let chrome = elements.filter {
@@ -1475,12 +1475,6 @@ public enum TapTargetGeometry {
     /// キーボード chrome とみなす identifier。**申告 keyboardFrame と交差するものだけ**を
     /// 対象にする(無条件に identifier で拾うと、画面の別の場所にある同名要素で矩形が暴発する)
     public static let keyboardChromeIdentifiers: Set<String> = ["inputView", "SystemInputAssistantView"]
-
-    /// `KeyboardOcclusion.resolve(reported:in:screen:).frame` の薄いラッパー(既存呼び出し・単体テスト互換用)
-    public static func effectiveKeyboardFrame(reported: FTRect?, in elements: [ElementInfo],
-                                              screen: FTRect?) -> FTRect? {
-        KeyboardOcclusion.resolve(reported: reported, in: elements, screen: screen).frame
-    }
 
     /// 「中心が画面上端の安全領域(ステータスバー・ノッチ・Dynamic Island の帯)の中」の**中心点だけの判定**。
     /// 材料はブリッジが申告する `SnapshotResponse.safeAreaTop` だけ —— 帯の高さは木に載らず機種で違うので、

@@ -17,13 +17,6 @@ private func say(_ message: String) {
     ConsoleOut.out(message)
 }
 
-/// `remote exec` の宛先解決アナウンス専用。stdout は転送先コマンドの出力(機械可読の場合が
-/// ある: `-- api device-catalog` 等)そのままの契約なので、stdout に混ぜない
-private func sayStderr(_ message: String) {
-    ConsoleOut.err(message)
-}
-
-
 /// 作業フォルダの Package.swift のツール依存を今のクローンへ向け直す(`RemoteSetupPlan.repointedToolDependency`)。
 /// 読みは stdout だけ(ssh の警告を中身に混ぜて書き戻さない)。直すものが無ければ skip
 private func repointWorkManifest(hostSpec: RemoteHostSpec,

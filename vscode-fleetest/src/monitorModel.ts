@@ -5,11 +5,13 @@
 //   - monitorWebviewMessages.ts:  extension ⇔ webview の postMessage 契約(型)・検証・変換
 //   - monitorDeviceLifecycle.ts:  start-device/stop-device 等の NDJSON イベント型・デバイスライフサイクルの直列キュー
 //   - monitorProfileForms.ts:     実行/アプリプロファイルのフォーム解析・検証・デバイスカタログ
+//   - deviceOpMenuModel.ts:       タイル右クリックメニューの項目(webview も import する)
 // 拡張側の import はこのファイル経由でよい(このファイル自体は re-export のみで挙動を持たない)。
-// webview 側(src/webview/monitor/*.js)は CSP で import できないため、上記各ファイルのロジックを
-// 個別に複製している(複製元コメントは対応する分割後ファイルを指す)。
+// webview 側(src/webview/monitor/*.js)は esbuild でバンドルされるので、vscode 非依存の .ts は直接 import できる
+// (このファイル経由にはしない = vscode を引き込むモジュールまで連れてこないため)。
 
 export * from "./monitorDeviceModel";
 export * from "./monitorWebviewMessages";
 export * from "./monitorDeviceLifecycle";
+export * from "./deviceOpMenuModel";
 export * from "./monitorProfileForms";

@@ -760,74 +760,54 @@ test("isDevicesUpEvent: 未知のkind・フィールド欠落/型不一致は fa
   assert.equal(isDevicesUpEvent(null), false);
 });
 
-// ---- deviceOpMenuItem ----
+// ---- deviceOpMenuItem(定義は deviceOpMenuModel.ts。webview の deviceTiles.js が import する本番の1つ) ----
 
-test("deviceOpMenuItem: busy 無し・offline は「起動」(op:up)、connected/booted は「停止」(op:down)", () => {
-  assert.deepEqual(deviceOpMenuItem("offline", undefined), { label: "起動", op: "up", disabled: false });
-  assert.deepEqual(deviceOpMenuItem("connected", undefined), { label: "停止", op: "down", disabled: false });
-  assert.deepEqual(deviceOpMenuItem("booted", undefined), { label: "停止", op: "down", disabled: false });
+const K = (k) => `wvMonitor.deviceOpMenu.${k}`;
+
+test("deviceOpMenuItem: busy 無し・offline/unknown は「起動」(op:up)、connected/booted は「停止」(op:down)", () => {
+  assert.deepEqual(deviceOpMenuItem("offline", undefined, false), { labelKey: K("start"), op: "up", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("unknown", undefined, false), { labelKey: K("start"), op: "up", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("connected", undefined, false), { labelKey: K("stop"), op: "down", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("booted", undefined, false), { labelKey: K("stop"), op: "down", disabled: false });
+});
+
+test("deviceOpMenuItem: 実機は端末でなくブリッジの起動/停止と名乗る", () => {
+  assert.deepEqual(deviceOpMenuItem("offline", undefined, true), { labelKey: K("startBridge"), op: "up", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("connected", undefined, true), { labelKey: K("stopBridge"), op: "down", disabled: false });
 });
 
 test("deviceOpMenuItem: busy.status='running' なら state に関わらず実行中表示(disabled:true)", () => {
-  assert.deepEqual(deviceOpMenuItem("offline", { op: "up", status: "running" }), {
-    label: "起動中...",
-    op: "up",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("connected", { op: "up", status: "running" }), {
-    label: "起動中...",
-    op: "up",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("offline", { op: "down", status: "running" }), {
-    label: "停止中...",
-    op: "down",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("connected", { op: "down", status: "running" }), {
-    label: "停止中...",
-    op: "down",
-    disabled: true,
-  });
+  for (const state of ["offline", "connected"]) {
+    assert.deepEqual(deviceOpMenuItem(state, { op: "up", status: "running" }, false),
+      { labelKey: K("startingUp"), op: "up", disabled: true });
+    assert.deepEqual(deviceOpMenuItem(state, { op: "down", status: "running" }, false),
+      { labelKey: K("stoppingDown"), op: "down", disabled: true });
+  }
 });
 
-test("deviceOpMenuItem: busy.op='wipe' は「Wipe Data 実行中...」(タイルからの起動/停止を塞ぐ)", () => {
-  assert.deepEqual(deviceOpMenuItem("connected", { op: "wipe", status: "running" }), {
-    label: "Wipe Data 実行中...",
-    op: "wipe",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("offline", { op: "wipe", status: "running" }), {
-    label: "Wipe Data 実行中...",
-    op: "wipe",
-    disabled: true,
-  });
+test("deviceOpMenuItem: 起動中・起動待ちの1台(cancellable)は取り消せる。バッチ(cancellable 無し)は押せない", () => {
+  assert.deepEqual(deviceOpMenuItem("offline", { op: "up", status: "running", cancellable: true }, false),
+    { labelKey: K("cancelStart"), op: "cancelUp", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("offline", { op: "up", status: "queued", cancellable: true }, false),
+    { labelKey: K("cancelStart"), op: "cancelUp", disabled: false });
+  assert.deepEqual(deviceOpMenuItem("offline", { op: "down", status: "running", cancellable: true }, false),
+    { labelKey: K("stoppingDown"), op: "down", disabled: true });
 });
 
-test("deviceOpMenuItem: busy.op='restartBridge' は「ブリッジを起動し直し中...」(タイルからの起動/停止を塞ぐ)", () => {
-  assert.deepEqual(deviceOpMenuItem("connected", { op: "restartBridge", status: "running" }), {
-    label: "ブリッジを起動し直し中...",
-    op: "restartBridge",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("booted", { op: "restartBridge", status: "running" }), {
-    label: "ブリッジを起動し直し中...",
-    op: "restartBridge",
-    disabled: true,
-  });
+test("deviceOpMenuItem: busy.op='wipe' / 'restartBridge' はタイルからの起動/停止を塞ぐ", () => {
+  for (const state of ["connected", "offline", "booted"]) {
+    assert.deepEqual(deviceOpMenuItem(state, { op: "wipe", status: "running" }, false),
+      { labelKey: K("wiping"), op: "wipe", disabled: true });
+    assert.deepEqual(deviceOpMenuItem(state, { op: "restartBridge", status: "running" }, false),
+      { labelKey: K("restartingBridge"), op: "restartBridge", disabled: true });
+  }
 });
 
 test("deviceOpMenuItem: busy.status='queued' なら op に関わらず「待機中...」(disabled:true)", () => {
-  assert.deepEqual(deviceOpMenuItem("offline", { op: "up", status: "queued" }), {
-    label: "待機中...",
-    op: "up",
-    disabled: true,
-  });
-  assert.deepEqual(deviceOpMenuItem("connected", { op: "down", status: "queued" }), {
-    label: "待機中...",
-    op: "down",
-    disabled: true,
-  });
+  assert.deepEqual(deviceOpMenuItem("offline", { op: "up", status: "queued" }, false),
+    { labelKey: K("queued"), op: "up", disabled: true });
+  assert.deepEqual(deviceOpMenuItem("connected", { op: "down", status: "queued" }, false),
+    { labelKey: K("queued"), op: "down", disabled: true });
 });
 
 // ---- DeviceLifecycleQueue: スケジューラの純粋ロジック(promote/finish・device 2並行) ----

@@ -340,35 +340,4 @@ final class MCPSimilarLabelsHintTests: XCTestCase {
         XCTAssertFalse(hint.contains("南口"), hint)
         XCTAssertFalse(hint.contains("北口"), hint)
     }
-
-    // MARK: - isSimilarText / editDistance(純粋関数)
-
-    func testIsSimilarTextMatchesSubstringEitherDirection() {
-        XCTAssertTrue(MCPServer.isSimilarText("sign in", "Sign In Button"))
-        XCTAssertTrue(MCPServer.isSimilarText("Sign In Button", "sign in"))
-    }
-
-    func testIsSimilarTextMatchesShortEditDistance() {
-        XCTAssertTrue(MCPServer.isSimilarText("経路", "計画"))
-        // **2文字同士は避ける**: 全く違う2文字語でも編集距離は高々2(両方置換すれば済む)なので
-        // どの組でも真になる —— それ自体が「経路」/「計画」の実例が成立する理由でもある。
-        // 無関係の確認には長さの違う語を使う(編集距離が6まで開く)
-        XCTAssertFalse(MCPServer.isSimilarText("経路", "設定確認画面"))
-    }
-
-    /// 6文字を超える語は編集距離では拾わない(部分文字列関係が無い限り無関係とみなす)
-    func testIsSimilarTextDoesNotApplyEditDistanceToLongStrings() {
-        XCTAssertFalse(MCPServer.isSimilarText("abcdefg", "abcdefx"))
-    }
-
-    func testIsSimilarTextRejectsIdenticalStrings() {
-        XCTAssertFalse(MCPServer.isSimilarText("経路", "経路"))
-    }
-
-    func testEditDistanceKnownValues() {
-        XCTAssertEqual(MCPServer.editDistance("kitten", "sitting"), 3)
-        XCTAssertEqual(MCPServer.editDistance("", "abc"), 3)
-        XCTAssertEqual(MCPServer.editDistance("abc", ""), 3)
-        XCTAssertEqual(MCPServer.editDistance("abc", "abc"), 0)
-    }
 }

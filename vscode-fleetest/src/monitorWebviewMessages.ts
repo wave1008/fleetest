@@ -1274,7 +1274,6 @@ export function isMonitorFromWebviewMessage(value: unknown): value is MonitorFro
       return typeof value.id === "number" && typeof value.name === "string";
     case "nameInputCancel":
       return typeof value.id === "number";
-    case "setKeepPhysicalDevicesAwake":
     case "setPollingMode":
     case "setShowMachineCapacity":
     case "setUsePhysicalDevices":

@@ -686,7 +686,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         XCTAssertNil(TapTargetGeometry.keyboardCoveredAdvisory(target, keyboardFrame: nil))
     }
 
-    // MARK: - effectiveKeyboardFrame
+    // MARK: - KeyboardOcclusion.resolve(...).frame
     //
     // 申告 keyboardFrame は `.keyboard` ノードの frame だけ(キー面のみ)で、上のサジェストバー
     // (`SystemInputAssistantView`)と地球儀/Dictate 行を含む `inputView` の下端を取りこぼす
@@ -700,7 +700,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
             element(1, "inputView", "other", 0, 546, 402, 328),               // 546..874
             element(2, "SystemInputAssistantView", "other", 0, 546, 402, 44), // 546..590
         ]
-        let effective = TapTargetGeometry.effectiveKeyboardFrame(reported: reported, in: elements, screen: nil)
+        let effective = KeyboardOcclusion.resolve(reported: reported, in: elements, screen: nil).frame
         XCTAssertEqual(effective, FTRect(x: 0, y: 546, width: 402, height: 328), "546..874 まで広がること")
     }
 
@@ -709,7 +709,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
     func testEffectiveKeyboardFrameFallsBackToReportedWithoutChrome() {
         let reported = FTRect(x: 0, y: 583, width: 402, height: 233)
         let elements = [element(1, "unrelated", "button", 16, 100, 100, 40)]
-        XCTAssertEqual(TapTargetGeometry.effectiveKeyboardFrame(reported: reported, in: elements, screen: nil),
+        XCTAssertEqual(KeyboardOcclusion.resolve(reported: reported, in: elements, screen: nil).frame,
                        reported)
     }
 
@@ -718,14 +718,14 @@ final class TapTargetAdvisoryTests: XCTestCase {
     func testEffectiveKeyboardFrameIgnoresChromeThatDoesNotIntersectTheReportedFrame() {
         let reported = FTRect(x: 0, y: 590, width: 402, height: 226) // 590..816
         let elements = [element(1, "inputView", "other", 0, 0, 402, 50)] // 0..50、交差しない
-        XCTAssertEqual(TapTargetGeometry.effectiveKeyboardFrame(reported: reported, in: elements, screen: nil),
+        XCTAssertEqual(KeyboardOcclusion.resolve(reported: reported, in: elements, screen: nil).frame,
                        reported, "交差しない chrome は無視すること")
     }
 
     /// keyboardFrame が nil → nil のまま(「キーボード無し」の意味を変えない)
     func testEffectiveKeyboardFrameStaysNilWithoutAReportedFrame() {
         let elements = [element(1, "inputView", "other", 0, 546, 402, 328)]
-        XCTAssertNil(TapTargetGeometry.effectiveKeyboardFrame(reported: nil, in: elements, screen: nil))
+        XCTAssertNil(KeyboardOcclusion.resolve(reported: nil, in: elements, screen: nil).frame)
     }
 
     /// **witness の再現**(実害): `#tab_home` 相当の要素は中心 (67,579) が申告 590..816 の外に
@@ -741,7 +741,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let tabHome = element(3, "tab_home", "button", 0, 548, 134, 62) // 中心 (67, 579)
         XCTAssertNil(TapTargetGeometry.keyboardCoveredAdvisory(tabHome, keyboardFrame: reported),
                      "申告のままでは中心 579 が 590..816 の外 = 無警告(これが実害)")
-        let effective = TapTargetGeometry.effectiveKeyboardFrame(reported: reported, in: elements, screen: nil)
+        let effective = KeyboardOcclusion.resolve(reported: reported, in: elements, screen: nil).frame
         XCTAssertNotNil(TapTargetGeometry.keyboardCoveredAdvisory(tabHome, keyboardFrame: effective),
                         "実効矩形(546..874)では中心 579 が中に入り、警告が出ること")
     }

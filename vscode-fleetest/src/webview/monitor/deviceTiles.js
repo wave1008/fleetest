@@ -20,7 +20,8 @@ import {
 // 「起動中のデバイス」の判定はホストと**同じ1つの定義**を通す(複製すると、どの state を
 // 起動中と見るかが2箇所で食い違う)。この .ts は拡張と webview の両バンドルに入るので
 // vscode を引き込む import を足さないこと(runBoardModel.ts と同じ制約)。
-import { filterMonitorDevices, rebootAdviceSummary } from '../../monitorDeviceModel';
+import { filterMonitorDevices, rebootAdviceSummary, RUNNING_DEVICES_PROFILE_VALUE } from '../../monitorDeviceModel';
+import { deviceOpMenuItem } from '../../deviceOpMenuModel';
 
 // bridgeWatch(拡張ホストの自動修復ウォッチドッグ、契約は main.js の 'bridgeWatch' ケース参照)の
 // phase→footer表示。'ok'はここに含めず通常表示へフォールバックさせる。
@@ -60,37 +61,6 @@ const WIPE_STATUS_LABEL = {
   rebooting: { label: t('wvMonitor.footer.wipeRebooting'), warn: false },
   failed: { label: t('wvMonitor.footer.wipeFailed'), warn: true },
 };
-
-// src/monitorDeviceLifecycle.ts の deviceOpMenuItem の複製(webview は CSP で import 不可のため)。変更時は
-// 両方を同期すること。busy は { op, status }('queued'|'running')または undefined。
-// physical: 実機は端末そのものを起動・停止しない(DeviceBooter の実機分岐)。操作対象は
-// **ブリッジだけ**なのでラベルで明示する(「起動/停止」だと端末の電源だと誤解される)。
-// 項目自体は隠さない: 隠すとモニターから実機のブリッジを起動できなくなる(タイルが
-// 「接続中」のまま何もできない状態になる実害)
-function deviceOpMenuItem(state, busy, physical) {
-  // 起動中・起動待ちの1台は取り消せる(未起動へ戻す。MonitorDeviceOps.cancelDeviceUp)。
-  // 一括起動・再起動のバッチのデバイス(cancellable 無し)は従来どおり押せない「起動中」
-  if (busy && busy.op === 'up' && busy.cancellable) { return { label: t('wvMonitor.deviceOpMenu.cancelStart'), op: 'cancelUp', disabled: false }; }
-  if (busy && busy.status === 'queued') { return { label: t('wvMonitor.deviceOpMenu.queued'), op: busy.op, disabled: true }; }
-  if (busy && busy.op === 'up') { return { label: t('wvMonitor.deviceOpMenu.startingUp'), op: 'up', disabled: true }; }
-  if (busy && busy.op === 'down') { return { label: t('wvMonitor.deviceOpMenu.stoppingDown'), op: 'down', disabled: true }; }
-  if (busy && busy.op === 'wipe') { return { label: t('wvMonitor.deviceOpMenu.wiping'), op: 'wipe', disabled: true }; }
-  // restartBridge は自動修復専用(monitorBridgeLogRotation.ts)でタイル右クリックからは撃てない。
-  // 進行中に「起動/停止」を出すと二重操作の入口になるため busy 表示だけ足す。
-  if (busy && busy.op === 'restartBridge') {
-    return { label: t('wvMonitor.deviceOpMenu.restartingBridge'), op: 'restartBridge', disabled: true };
-  }
-  if (state === 'offline' || state === 'unknown') {
-    return {
-      label: t(physical ? 'wvMonitor.deviceOpMenu.startBridge' : 'wvMonitor.deviceOpMenu.start'),
-      op: 'up', disabled: false,
-    };
-  }
-  return {
-    label: t(physical ? 'wvMonitor.deviceOpMenu.stopBridge' : 'wvMonitor.deviceOpMenu.stop'),
-    op: 'down', disabled: false,
-  };
-}
 
 // iOS と Android で判定の出所が違う(揃えたのは「実機でブリッジが無ければ絵を出さない」結果だけ):
 // - iOS 実機の state==='booted' は「端末は接続済みだがブリッジが1本も無い」の意味
@@ -1010,7 +980,7 @@ export function renderDeviceOpMenuItem() {
   // 項目は隠さず理由を出す(隠すと「なぜ起動が無いか」が分からない)。拡張側にも同じ門がある(monitorPanel.ts の deviceOp)
   const machineOff = item.op === 'up' && !item.disabled && isMachineDisabled(device.machine);
   // ラベルはspanに書く(ボタン直のtextContent代入はアイコンSVGを消す)。data-opはCSSのアイコン切替も担う。
-  deviceOpMenuItemLabel.textContent = machineOff ? t('wvMonitor.deviceOpMenu.startMachineDisabled') : item.label;
+  deviceOpMenuItemLabel.textContent = machineOff ? t('wvMonitor.deviceOpMenu.startMachineDisabled') : t(item.labelKey);
   deviceOpMenuItemBtn.disabled = item.disabled || machineOff;
   deviceOpMenuItemBtn.dataset.op = item.op;
 }
@@ -2249,10 +2219,8 @@ export function setBusy(busy, bulkOp) {
 const PROJECT_PLACEHOLDER_LABEL = t('wvMonitor.project.placeholder');
 const PROFILE_NONE_LABEL = t('wvMonitor.profile.none');
 const PROFILE_RUNNING_LABEL = t('wvMonitor.profile.running');
-// src/monitorDeviceModel.ts の RUNNING_DEVICES_PROFILE_VALUE の複製(webview は CSP で import 不可)。
-// 変更時は両方揃える。実行プロファイルではなく表示フィルタで、送信先の分解は
-// monitorProfilesController.selectProfile が行う。
-const PROFILE_RUNNING_VALUE = '@running';
+// 「起動中のデバイス」の選択肢の値(RUNNING_DEVICES_PROFILE_VALUE)。実行プロファイルではなく表示フィルタで、
+// 送信先の分解は monitorProfilesController.selectProfile が行う。
 
 // 実在する実行プロファイル名(直近の profileInfo)。「テストを実行」を押せるかの判定に使う。
 let knownProfiles = new Set();
@@ -2273,7 +2241,7 @@ export function applyProfileInfo(message) {
   profileSelect.appendChild(noneOption);
 
   const runningOption = document.createElement('option');
-  runningOption.value = PROFILE_RUNNING_VALUE;
+  runningOption.value = RUNNING_DEVICES_PROFILE_VALUE;
   runningOption.textContent = PROFILE_RUNNING_LABEL;
   profileSelect.appendChild(runningOption);
 
@@ -2293,7 +2261,7 @@ export function applyProfileInfo(message) {
     unknownOption.textContent = current;
     profileSelect.appendChild(unknownOption);
   }
-  profileSelect.value = runningFilterActive ? PROFILE_RUNNING_VALUE : current;
+  profileSelect.value = runningFilterActive ? RUNNING_DEVICES_PROFILE_VALUE : current;
   profileInfoReceived = true;
   knownProfiles = new Set(profiles);
   refreshRunTestsButton();

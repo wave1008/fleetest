@@ -242,7 +242,7 @@ final class StraddleNudgeTests: XCTestCase {
     /// 寄せ自体が不発になり、Compose の小さいまたぎで元の対策が効かなくなる)
     func testStraddleJumpFloorsSmallBottomOverflow() {
         // 下端 700 に対し要素の下端 720 = はみ出し 20 + margin 12 = 32 → 床上げで 60
-        XCTAssertEqual(StepExecutor.straddleJump(for: element(y: 660, height: 60),
+        XCTAssertEqual(TapTargetGeometry.straddleJump(for: element(y: 660, height: 60),
                                                  container: container), 60)
     }
 
@@ -250,20 +250,20 @@ final class StraddleNudgeTests: XCTestCase {
     /// 2026-08-08 実害: E2E-iOS で echo ラベルが仮想化の外へ流れた)
     func testStraddleJumpUsesActualOverflowWhenLarge() {
         // 要素の下端 900 - 容器の下端 700 = 200 + margin 12 = 212
-        XCTAssertEqual(StepExecutor.straddleJump(for: element(y: 840, height: 60),
+        XCTAssertEqual(TapTargetGeometry.straddleJump(for: element(y: 840, height: 60),
                                                  container: container), 212)
     }
 
     /// 上端またぎは負(内容を下へ)
     func testStraddleJumpIsNegativeForTopOverflow() {
         // 上端 100 - 要素の上端 70 = 30 + margin 12 = 42 → 床上げで -60
-        XCTAssertEqual(StepExecutor.straddleJump(for: element(y: 70, height: 60),
+        XCTAssertEqual(TapTargetGeometry.straddleJump(for: element(y: 70, height: 60),
                                                  container: container), -60)
     }
 
     /// 完全に中なら nil(寄せない)
     func testStraddleJumpIsNilWhenFullyInside() {
-        XCTAssertNil(StepExecutor.straddleJump(for: element(y: 300, height: 60),
+        XCTAssertNil(TapTargetGeometry.straddleJump(for: element(y: 300, height: 60),
                                                container: container))
     }
 }

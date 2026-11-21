@@ -2,7 +2,7 @@
 // 「プロファイル」タブの実行プロファイル節にある「デバイス」一覧(#run-profile-devices)を担う。
 // projectDeviceCatalog(プロジェクトのデバイスカタログ。全実行プロファイルの devices[] の和集合)・
 // 選択中デバイス・行の描画・右クリックメニューの書き込みはこのモジュールのみで
-// 行う。runProfilesTab.js・modals.js からは projectDeviceCatalog/findCatalogEntry を読み取り専用で参照する。
+// 行う。runProfilesTab.js・modals.js からは projectDeviceCatalog を読み取り専用で参照する。
 //
 // 1つの行が2つの役目を持つ: チェックボックスは「このデバイスが
 // 選択中の実行プロファイルに含まれる(かつ enabled)か」、行本体のクリックは選択
@@ -37,11 +37,6 @@ export function catalogEntries() {
 // デバイスの同一性。**一意なのは (platform, machine, name)**(machine 省略=手元)。
 function refKey(ref) {
   return `${ref.platform}\t${ref.machine ?? ''}\t${ref.name}`;
-}
-
-export function findCatalogEntry(key) {
-  const target = refKey(key);
-  return projectDeviceCatalog.find((entry) => refKey(entry) === target) || null;
 }
 
 /** 選択中の実行プロファイルと同じ機械のデバイス名(重複判定・デバイス追加モーダルが使う)。

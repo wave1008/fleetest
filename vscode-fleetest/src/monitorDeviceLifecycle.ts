@@ -4,8 +4,7 @@
 // (spawn 自体は monitorPanel.ts 側)。vscode に依存しない(monitorPanel.ts と
 // test/monitorModel.test.mjs の両方から使うため)。
 
-import { t } from "./i18n";
-import { isRecord, type MonitorDeviceState } from "./monitorDeviceModel";
+import { isRecord } from "./monitorDeviceModel";
 
 // ---- デバイス個別起動/停止(fleetest api start-device / stop-device) ------------------------
 // 契約(Sources/fleetest/ApiDeviceCommands.swift): `fleetest api start-device --name <論理名>
@@ -173,49 +172,10 @@ export function isDevicesRestartEvent(value: unknown): value is DevicesRestartEv
   }
 }
 
-/** タイル右クリックメニューの唯一の項目の表示状態。op はクリック時に実行する操作(disabled:true の間はクリック不可)。 */
-export interface DeviceOpMenuItem {
-  readonly label: string;
-  readonly op: DeviceOpKind;
-  readonly disabled: boolean;
-}
-
 /** タイルで実行中/待機中の操作(deviceOpBusy メッセージ・DeviceLifecycleQueue の状態から作る)。 */
 export interface DeviceOpBusyState {
   readonly op: DeviceOpKind;
   readonly status: DeviceOpQueueStatus;
-}
-
-/**
- * タイル右クリックメニュー項目を決める(monitorPanel.ts 本体・webview 複製で使用)。
- * MonitorDeviceState の全パターンをカバーするため戻り値は null にならない。
- */
-export function deviceOpMenuItem(
-  state: MonitorDeviceState,
-  busy: DeviceOpBusyState | undefined,
-): DeviceOpMenuItem {
-  if (busy?.status === "queued") {
-    return { label: t("monitor.deviceOp.labelQueued"), op: busy.op, disabled: true };
-  }
-  if (busy?.op === "up") {
-    return { label: t("monitor.deviceOp.labelStarting"), op: "up", disabled: true };
-  }
-  if (busy?.op === "down") {
-    return { label: t("monitor.deviceOp.labelStopping"), op: "down", disabled: true };
-  }
-  if (busy?.op === "wipe") {
-    return { label: t("monitor.deviceOp.labelWiping"), op: "wipe", disabled: true };
-  }
-  if (busy?.op === "restartBridge") {
-    // restartBridge は自動修復専用(monitorBridgeLogRotation.ts)でタイル右クリックからは
-    // 撃てない。進行中に「起動/停止」を出すと二重操作の入口になるため busy 表示だけ足す。
-    return { label: t("monitor.deviceOp.labelRestartingBridge"), op: "restartBridge", disabled: true };
-  }
-  // unknown(リモートで観測できていない)は「起動」を出す —— 止めようがない状態で「停止」を
-  // 出すより、起動を撃てるほうが役に立つ(起動は fan-out でその機械へ届く)
-  return state === "offline" || state === "unknown"
-    ? { label: t("monitor.deviceOp.labelStart"), op: "up", disabled: false }
-    : { label: t("monitor.deviceOp.labelStop"), op: "down", disabled: false };
 }
 
 // ---- デバイスライフサイクル操作の直列キュー ------------------------------------------------

@@ -54,7 +54,17 @@ final class SimilarLabelsTests: XCTestCase {
     func testEditDistanceIsClassicLevenshtein() {
         XCTAssertEqual(SimilarLabels.editDistance("kitten", "sitting"), 3)
         XCTAssertEqual(SimilarLabels.editDistance("", "abc"), 3)
+        XCTAssertEqual(SimilarLabels.editDistance("abc", ""), 3)
         XCTAssertEqual(SimilarLabels.editDistance("abc", "abc"), 0)
+    }
+
+    func testIsSimilarTextIsSymmetricForSubstrings() {
+        XCTAssertTrue(SimilarLabels.isSimilarText("Sign In Button", "sign in"))
+    }
+
+    /// 6文字を超える語は編集距離では拾わない(部分文字列関係が無い限り無関係とみなす)
+    func testIsSimilarTextDoesNotApplyEditDistanceToLongStrings() {
+        XCTAssertFalse(SimilarLabels.isSimilarText("abcdefg", "abcdefx"))
     }
 
     /// 装飾葉(bulk fold と同じ isDecorativeLeaf 判定)は候補プールから除く。

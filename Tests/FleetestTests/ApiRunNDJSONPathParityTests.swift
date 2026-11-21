@@ -92,7 +92,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
         XCTAssertEqual(parallel, try object(seq.encodedLine()))
     }
 
-    /// RunOrchestrator が子の scenarioFinished の appCrash を RunEvent へ渡していること
+    /// RunOrchestrator(1シナリオの実行は ScenarioRunner.runOne)が子の scenarioFinished の appCrash を RunEvent へ渡していること
     /// (ScenarioHost 越しなので単体では通せない = 型の効かない継ぎ目のソース走査)
     /// 並列経路は RunEvent から scenarioFinished を再構築するので、対象外の宣言も明示的に写す
     /// (落とすと拡張・fan-out には緑に見える)
@@ -123,7 +123,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
     func testRunOrchestratorForwardsAppCrash() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/RunOrchestrator.swift"),
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/ScenarioRunner.swift"),
                                 encoding: .utf8)
         XCTAssertTrue(source.contains("appCrash = event.appCrash"))
         XCTAssertTrue(source.contains("fm: fmUsage, appCrash: appCrash,"))
