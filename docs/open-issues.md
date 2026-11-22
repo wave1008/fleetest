@@ -60,7 +60,7 @@
 - 観測: 外観を変えても画面へ届かない端末がある。設定の値は正しく書かれ、`devicectl` も `simctl ui` も「設定できた・読み返しても dark」と答えるが、設定アプリもステータスバーもライトのまま。SpringBoard を起こし直す(`simctl spawn <udid> launchctl kickstart -k system/com.apple.SpringBoard`)と直る(前面のアプリと XCUITest ランナーも終了する)。cfprefsd の起こし直しでは直らない。ツールの経路で起動し直した直後は 8 台とも正常で、run の途中でこの状態になる
 - 試して再現しなかったこと: 連打・負荷・simctl の多用
 - 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
-- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)。xcuitest モードと Android は確かめない
+- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)・その失敗の結果を捨てて1回だけ振り直す(cause `displayNotApplied`。レーンは離脱させない。`RunOrchestrator.requeuesForDisplayNotApplied`)。xcuitest モードと Android は確かめない
 - 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
 
 ### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す

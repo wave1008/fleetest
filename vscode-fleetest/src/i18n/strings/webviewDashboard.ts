@@ -119,6 +119,7 @@ export const webviewDashboardStrings = {
   "wvDashboard.deviceHealth.cause.accessibilityFault": { ja: "アクセシビリティ異常", en: "Accessibility fault" },
   "wvDashboard.deviceHealth.cause.rendering": { ja: "白紙・文字消え", en: "Blank or textless screen" },
   "wvDashboard.deviceHealth.cause.noResponse": { ja: "応答なし", en: "No response" },
+  "wvDashboard.deviceHealth.cause.displayNotApplied": { ja: "表示条件がアプリへ届かない", en: "Display settings not reaching the app" },
   "wvDashboard.deviceHealth.recovery.runnerRestart": { ja: "ランナーの起動し直し", en: "Runner restart" },
   "wvDashboard.deviceHealth.recovery.workerRevive": { ja: "ワーカーの復帰", en: "Worker revive" },
   "wvDashboard.deviceHealth.recovery.displaySleepWake": { ja: "表示の sleep/wake", en: "Display sleep/wake" },

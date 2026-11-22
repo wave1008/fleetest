@@ -121,12 +121,35 @@ final class DisplayAppCheckTests: XCTestCase {
         let orchestrator = try source("Sources/FTCore/RunOrchestrator.swift")
         let request = try XCTUnwrap(orchestrator.range(of: "DisplayRecoveryRequests.shared.request(label: worker.label)"))
         let before = String(orchestrator[orchestrator.index(request.lowerBound, offsetBy: -260)..<request.lowerBound])
-        XCTAssertTrue(before.contains("!worker.connection.physical"), "実機は回復しない")
-        XCTAssertTrue(before.contains("StepFailureKind.displayNotApplied.rawValue"))
+        XCTAssertTrue(before.contains("Self.requeuesForDisplayNotApplied("), "回復の要求と振り直しは同じ判定で決める")
         let factory = try source("Sources/FTAndroid/ProfileWorkerFactory.swift")
         let take = try XCTUnwrap(factory.range(of: "DisplayRecoveryRequests.shared.take(label: worker.label)"))
         let respring = try XCTUnwrap(factory.range(of: "purpose: .displayNotApplied", range: take.upperBound..<factory.endIndex))
         let gate = try XCTUnwrap(factory.range(of: "DisplayAppInjection.recoveryAllowed(", range: take.upperBound..<factory.endIndex))
         XCTAssertLessThan(gate.lowerBound, respring.lowerBound, "注入の回は許可が無ければ撃たない")
+    }
+
+    /// 回復の要求と振り直しの対象は iOS Simulator の `display-not-applied` だけ(実機は起こし直せない・Android は検出しない)
+    func testRequeueAndRecoveryOnlyForSimulatorDisplayNotApplied() {
+        let kind = StepFailureKind.displayNotApplied.rawValue
+        XCTAssertTrue(RunOrchestrator.requeuesForDisplayNotApplied(platform: "ios", physical: false, failedStepKinds: [nil, kind]))
+        XCTAssertFalse(RunOrchestrator.requeuesForDisplayNotApplied(platform: "ios", physical: true, failedStepKinds: [kind]))
+        XCTAssertFalse(RunOrchestrator.requeuesForDisplayNotApplied(platform: "android", physical: false, failedStepKinds: [kind]))
+        XCTAssertFalse(RunOrchestrator.requeuesForDisplayNotApplied(platform: "ios", physical: false, failedStepKinds: [nil, "assertion"]))
+        XCTAssertFalse(RunOrchestrator.requeuesForDisplayNotApplied(platform: "ios", physical: false, failedStepKinds: []))
+    }
+
+    /// 振り直しは失敗の回だけ・離脱させない(回復は次のシナリオの前)・原因は型で立てる。凍結・環境異常の分岐より前に置く必要は無いが、
+    /// 環境異常より前に置いて「届かなかった」の失敗をブレーカの連続失敗に数えない
+    func testOrchestratorRequeuesDisplayNotAppliedWithoutRetiring() throws {
+        let orchestrator = try source("Sources/FTCore/RunOrchestrator.swift")
+        let branch = try XCTUnwrap(orchestrator.range(of: "if outcome == .failed, Self.requeuesForDisplayNotApplied("))
+        let tail = String(orchestrator[branch.lowerBound..<orchestrator.index(branch.lowerBound, offsetBy: 900)])
+        XCTAssertTrue(tail.contains("cause: .displayNotApplied"))
+        XCTAssertFalse(tail.contains("avoidingThisLane: true"), "同じレーンへ戻ってよい(回復の後に走る)")
+        XCTAssertFalse(tail.contains("retireUnusable"), "レーンは離脱させない")
+        XCTAssertTrue(tail.contains("continue"))
+        let breaker = try XCTUnwrap(orchestrator.range(of: "WorkerCircuitBreaker.countsAsLaneFailure("))
+        XCTAssertLessThan(branch.lowerBound, breaker.lowerBound, "ブレーカの数えより前で抜ける")
     }
 }

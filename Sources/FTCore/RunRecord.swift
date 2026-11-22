@@ -32,6 +32,8 @@ public enum WorkerAnomalyCause: String, Codable, Sendable {
     case noResponse
     /// 描画の状態(白紙・文字消え。`DeviceScreenState`)
     case rendering
+    /// 表示条件(外観・文字サイズ)がアプリへ届かなかった iOS Simulator(OI-347。`display-not-applied`)
+    case displayNotApplied
 }
 
 /// `WorkerAnomalyRecord.recovery`(任意。kind == "recovered" のときだけ持つ)の値の集合。

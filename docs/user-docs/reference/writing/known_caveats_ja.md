@@ -137,7 +137,7 @@
 - [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
 - [`beforeEach` / `afterEach` の中では `setAppearance` / `setTextSize` を使える](../commands/navigation_ja.md#注意点) — テストごとに走るので、クラスの全テストに効きます。
 - [`setAppearance` / `setTextSize` が確かめるのは端末の設定値で、アプリの表示ではない](../commands/navigation_ja.md#注意点) — 配色を外観に追従させないアプリはダークで文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗)。
-- [iOS の `inapp-boost` モードでは `setAppearance` / `setTextSize` がアプリへ届いたかも確かめる](../commands/navigation_ja.md#注意点) — 変更を届けない Simulator ではステップが `display-not-applied` で失敗し、次のシナリオの前に回復します。`xcuitest` モードと Android は端末の設定値だけを確かめます。
+- [iOS の `inapp-boost` モードでは `setAppearance` / `setTextSize` がアプリへ届いたかも確かめる](../commands/navigation_ja.md#注意点) — 変更を届けない Simulator ではステップが `display-not-applied` で失敗し、次のシナリオの前に回復します。`fleetest run` ではそのシナリオを1回だけ回し直します。`xcuitest` モードと Android は端末の設定値だけを確かめます。
 - [文字サイズの名前は各 OS の段階に対応する](../commands/navigation_ja.md#注意点) — iOS は文字サイズの段階(`.accessibility` は「より大きな文字」も有効にし、シナリオの終わりに戻す)・Android は `font_scale` 0.85〜2.0 で、Android 14 以降は見た目の比が倍率と一致しません。
 - [fold / unfold / hinge は折りたたみ端末が必要](../commands/navigation_ja.md#注意点) — iPhone Duo の Simulator か折りたたみの Emulator です。iOS 実機はそのシナリオが対象外(skipped)になります。折りたたみの Android 実機は非対応として失敗します。
 - [折りたためないデバイスでは失敗でなく以降を skipped にする](../commands/navigation_ja.md#注意点) — 緑でも実行されていないステップがあるので、レポートで確認します。

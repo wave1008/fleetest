@@ -1000,6 +1000,12 @@ public final class RunOrchestrator: Sendable {
         return attempt
     }
 
+    /// 表示条件がアプリへ届かなかった赤(`display-not-applied`)を、回復の要求と振り直しの対象にするか。
+    /// iOS Simulator だけ(実機は SpringBoard を起こし直せない = 失敗のまま。Android はこの検出を持たない)
+    static func requeuesForDisplayNotApplied(platform: String, physical: Bool, failedStepKinds: [String?]) -> Bool {
+        platform == "ios" && !physical && failedStepKinds.contains(StepFailureKind.displayNotApplied.rawValue)
+    }
+
     /// retired ワーカーを reviveWorker で復帰させ、同じ queue の消化を継続する。
     /// runWorker が .completed を返すまで(または復帰を諦めるまで)ループする。
     private func superviseWorker(_ worker: RunWorker, queue: ScenarioQueue) async -> Int {
@@ -1344,8 +1350,8 @@ public final class RunOrchestrator: Sendable {
                 })
             // 表示条件がアプリへ届かなかった iOS Simulator は、次のシナリオの前に SpringBoard を起こし直す(`clearResidualSystemAlert` の口が取り出す)。
             // 実機は回復しない(失敗のまま)。失敗したシナリオは振り直さない
-            if worker.platform == "ios", !worker.connection.physical,
-               failedStepKinds.withLock({ $0.contains(StepFailureKind.displayNotApplied.rawValue) }) {
+            if Self.requeuesForDisplayNotApplied(platform: worker.platform, physical: worker.connection.physical,
+                                                 failedStepKinds: failedStepKinds.withLock { $0 }) {
                 DisplayRecoveryRequests.shared.request(label: worker.label)
             }
             // 録画の区間の終わりは**確認の前**の時刻(確認・回復の時間をシナリオの区間に入れない)。合否は確認の後に決める ——
@@ -1492,6 +1498,24 @@ public final class RunOrchestrator: Sendable {
             // 同じ failureKind で来る(実測: エミュレータの qemu を kill すると driver-unreachable →
             // 消失)ので、下の事後プローブ(消失・凍結)を先に通してからでないと、**死んだレーンを
             // 離脱させずに振り直し続ける**ことになる
+            // **表示条件がアプリへ届かなかった iOS Simulator**(OI-347)は結果を捨てて1回だけ振り直す。端末の設定は読み返しで合い、
+            // アプリは別の値を報告した = 観測で確定した端末の不調で、テスト対象の情報が無い。回復(SpringBoard の起こし直し)は
+            // このレーンの次のシナリオの前に走る(上の DisplayRecoveryRequests)ので、レーンは離脱させない。
+            // 同じレーンへ戻っても回復の後に走る。上限の回は失敗を残す(回復できない台で振り直し続けない)
+            if outcome == .failed, Self.requeuesForDisplayNotApplied(
+                platform: worker.platform, physical: worker.connection.physical,
+                failedStepKinds: failedStepKinds.withLock { $0 }) {
+                let requeued = await discardAndRequeue(item, worker: worker, queue: queue,
+                                                       reason: "display settings that did not reach the app",
+                                                       cause: .displayNotApplied)
+                if requeued {
+                    await progressState?.laneIdled(laneKey: progressLaneKey)
+                } else {
+                    await progressState?.scenarioFinished(laneKey: progressLaneKey, passed: false)
+                    failed += await failureCount(item, worker: worker, queue: queue)
+                }
+                continue
+            }
             if outcome == .environmentFault {
                 let requeued = await discardAndRequeue(item, worker: worker, queue: queue,
                                                        reason: "a transient accessibility fault",
