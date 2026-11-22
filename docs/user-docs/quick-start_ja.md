@@ -63,15 +63,6 @@ https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone �
 続けて bash ../sut-ec-mobile/fleetest/build.sh を実行してアプリをビルドして。
 ```
 
-期待する結果:
-
-- Apple Container がインストールされます。
-- サーバーのコンテナイメージがダウンロードされます。
-- テストプロジェクト `project1` が作成されます。
-- `TestProjects/project1/workspace/scripts/compose.yaml` が作成されます。
-- アプリのビルドに使う JDK 25 がインストールされます。
-- アプリがビルドされます。iOS のランタイムが未導入なら、数 GB の取得で数分〜数十分かかります。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -92,6 +83,16 @@ bash ../sut-ec-mobile/fleetest/build.sh
 `build.sh` は Android SDK が無ければ iOS だけをビルドします。片方の OS だけをビルドするときは `ios` か `android` を渡します(例: `bash ../sut-ec-mobile/fleetest/build.sh ios`)。
 
 </details>
+<br>
+
+期待する結果:
+
+- Apple Container がインストールされます。
+- サーバーのコンテナイメージがダウンロードされます。
+- テストプロジェクト `project1` が作成されます。
+- `TestProjects/project1/workspace/scripts/compose.yaml` が作成されます。
+- アプリのビルドに使う JDK 25 がインストールされます。
+- アプリがビルドされます。iOS のランタイムが未導入なら、数 GB の取得で数分〜数十分かかります。
 
 ## 5. プロファイルを用意する
 
@@ -160,17 +161,6 @@ project1 のサーバーを起動して。
 iOS のデバイス1台に SUT Store アプリを入れて起動して。
 ```
 
-- MCPの許可ダイアログが表示された場合は許可してください。
-- Android で実行したい場合は「iOS」を「Android」に読み替えてください。
-
-続けて、デバイスモニターで操作します。
-
-グリッドビュー(選択したデバイス)に出たアプリの画面を操作できます。いろいろ操作してみてください
-
-<img src="images/quick_start/ja/live_control.png" width="1200" alt="デバイスモニターのグリッドビューでアプリを操作しているところ">
-
-サーバーは止めるまで動き続け、次のステップのシナリオ作成でもそのまま使います。止めるときは「project1 のサーバーを止めて」と指示します。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -184,6 +174,18 @@ iOS のデバイス1台に SUT Store アプリを入れて起動して。
 デバイスモニターの操作は[VSCode で見る](tutorial/watching_in_vscode_ja.md)の「自分の手で触る(ライブ操作)」を参照してください。
 
 </details>
+<br>
+
+- MCPの許可ダイアログが表示された場合は許可してください。
+- Android で実行したい場合は「iOS」を「Android」に読み替えてください。
+
+続けて、デバイスモニターで操作します。
+
+グリッドビュー(選択したデバイス)に出たアプリの画面を操作できます。いろいろ操作してみてください
+
+<img src="images/quick_start/ja/live_control.png" width="1200" alt="デバイスモニターのグリッドビューでアプリを操作しているところ">
+
+サーバーは止めるまで動き続け、次のステップのシナリオ作成でもそのまま使います。止めるときは「project1 のサーバーを止めて」と指示します。
 
 ## 7. シナリオを作る
 
@@ -196,15 +198,6 @@ project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS
 ホームから商品を1つ開いて商品詳細が表示されるまでの基本ルート(正常に進む流れ)を確かめる。アプリを日本語モードに切り替える処理は setUpDevice に書いて。
 シナリオのファイル名を報告したら終わりにして。
 ```
-
-- MCPの許可ダイアログが表示された場合は許可してください。
-- `setUpDevice` は、テストの前にデバイスごとに1回だけ行う準備を書く場所(関数)です。
-- Android の場合は「iOS で」を「Android で」に読み替えてください。
-- AIアシスタントはデバイス上でアプリを起動し、画面を操作しながら要素を読み取って、その流れをシナリオに落とします。
-
-期待する結果:
-
-- `scenarios/` にシナリオが1本できます。
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -219,8 +212,16 @@ project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS
 ```
 
 </details>
-
 <br>
+
+- MCPの許可ダイアログが表示された場合は許可してください。
+- `setUpDevice` は、テストの前にデバイスごとに1回だけ行う準備を書く場所(関数)です。
+- Android の場合は「iOS で」を「Android で」に読み替えてください。
+- AIアシスタントはデバイス上でアプリを起動し、画面を操作しながら要素を読み取って、その流れをシナリオに落とします。
+
+期待する結果:
+
+- `scenarios/` にシナリオが1本できます。
 
 <img src="images/quick_start/ja/create_scenario.png" width="600" alt="AIアシスタントがシナリオを作成しているところ">
 
@@ -233,16 +234,6 @@ project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS
 ```text
 project1 のシナリオを ios-run プロファイルで実行して。
 ```
-
-- MCPの許可ダイアログが表示された場合は許可してください。
-
-※Android で作ったシナリオなら「android-run プロファイルで実行して」と指示します。
-
-<img src="images/quick_start/ja/run_in_progress.png" width="640" alt="デバイスモニターで実行している最中">
-
-期待する結果:
-
-- テストセッションタブに結果が出ます。
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -259,6 +250,17 @@ VSCode からは **Test Explorer** でシナリオを選び、**実行**をク�
 選んでおきます。実行プロファイルが1つしか無いときは、選ばずに実行してもそれが自動で選ばれます。
 
 </details>
+<br>
+
+- MCPの許可ダイアログが表示された場合は許可してください。
+
+※Android で作ったシナリオなら「android-run プロファイルで実行して」と指示します。
+
+<img src="images/quick_start/ja/run_in_progress.png" width="640" alt="デバイスモニターで実行している最中">
+
+期待する結果:
+
+- テストセッションタブに結果が出ます。
 
 ## 9. 結果を見る
 
@@ -277,10 +279,6 @@ VSCode からは **Test Explorer** でシナリオを選び、**実行**をク�
 project1 の直近の実行結果を要約し、失敗があればレポートから原因を調べて。シナリオはまだ直さないで。
 ```
 
-期待する結果:
-
-- 失敗の要約が返ります。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -288,6 +286,11 @@ project1 の直近の実行結果を要約し、失敗があればレポート�
 開けます。
 
 </details>
+<br>
+
+期待する結果:
+
+- 失敗の要約が返ります。
 
 ## 10. トラブルシュート
 

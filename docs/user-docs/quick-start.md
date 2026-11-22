@@ -63,15 +63,6 @@ Clone https://github.com/wave1008/sut-ec-mobile next to this folder (if it is al
 Then run bash ../sut-ec-mobile/fleetest/build.sh to build the app.
 ```
 
-Expected result:
-
-- Apple Container is installed.
-- The server's container images are downloaded.
-- The test project `project1` is created.
-- `TestProjects/project1/workspace/scripts/compose.yaml` is created.
-- JDK 25, used to build the app, is installed.
-- The app is built. If no iOS runtime is installed, fetching it takes several GB and a few minutes to tens of minutes.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -92,6 +83,16 @@ To use a different test project name, pass it like `bash ../sut-ec-mobile/fleete
 Without the Android SDK, `build.sh` builds only the iOS app. To build for one OS only, pass `ios` or `android` (for example, `bash ../sut-ec-mobile/fleetest/build.sh ios`).
 
 </details>
+<br>
+
+Expected result:
+
+- Apple Container is installed.
+- The server's container images are downloaded.
+- The test project `project1` is created.
+- `TestProjects/project1/workspace/scripts/compose.yaml` is created.
+- JDK 25, used to build the app, is installed.
+- The app is built. If no iOS runtime is installed, fetching it takes several GB and a few minutes to tens of minutes.
 
 ## 5. Prepare the profiles
 
@@ -161,17 +162,6 @@ Start project1's server.
 Install the SUT Store app on one iOS device and launch it.
 ```
 
-- If an MCP permission dialog appears, allow it.
-- To run it on Android, read "iOS" as "Android".
-
-Then operate the device from the Device Monitor.
-
-You can operate the app screen shown in the grid view (the selected device). Try out various operations.
-
-<img src="images/quick_start/en/live_control.png" width="1200" alt="Operating the app in the grid view of the Device Monitor">
-
-The server keeps running until you stop it, and the next step uses it as it is to create the scenario. To stop it, tell the AI "stop the server project1 uses".
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -185,6 +175,18 @@ Start and stop the server in your work folder.
 For operating the device from the Device Monitor, see "Touch it yourself (Live Control)" in [Watching in VSCode](tutorial/watching_in_vscode.md).
 
 </details>
+<br>
+
+- If an MCP permission dialog appears, allow it.
+- To run it on Android, read "iOS" as "Android".
+
+Then operate the device from the Device Monitor.
+
+You can operate the app screen shown in the grid view (the selected device). Try out various operations.
+
+<img src="images/quick_start/en/live_control.png" width="1200" alt="Operating the app in the grid view of the Device Monitor">
+
+The server keeps running until you stop it, and the next step uses it as it is to create the scenario. To stop it, tell the AI "stop the server project1 uses".
 
 ## 7. Create the scenarios
 
@@ -197,15 +199,6 @@ In project1, create one "open-product-details test" for the SUT Store app on iOS
 It checks the happy path (the normal flow) of opening a product from the home screen until its product details are shown. Put the step that switches the app to English mode in setUpDevice.
 Stop once you've told me the file name of the new scenario.
 ```
-
-- If an MCP permission dialog appears, allow it.
-- `setUpDevice` is the place (a function) where you put the preparation that is done once per device before the tests.
-- For Android, read "on iOS" as "on Android".
-- The AI assistant launches the app on a device, reads the elements of the screens while operating them, and turns that flow into a scenario.
-
-Expected result:
-
-- One scenario is created in `scenarios/`.
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -220,8 +213,16 @@ Start the server by hand, create the test, and stop it when you are done.
 ```
 
 </details>
-
 <br>
+
+- If an MCP permission dialog appears, allow it.
+- `setUpDevice` is the place (a function) where you put the preparation that is done once per device before the tests.
+- For Android, read "on iOS" as "on Android".
+- The AI assistant launches the app on a device, reads the elements of the screens while operating them, and turns that flow into a scenario.
+
+Expected result:
+
+- One scenario is created in `scenarios/`.
 
 <img src="images/quick_start/en/create_scenario.png" width="600" alt="The AI assistant creating a scenario">
 
@@ -234,16 +235,6 @@ Let's run the scenarios you created.
 ```text
 Run the scenarios of project1 with the ios-run profile.
 ```
-
-- If an MCP permission dialog appears, allow it.
-
-For scenarios created on Android, ask "with the android-run profile" instead.
-
-<img src="images/quick_start/en/run_in_progress.png" width="640" alt="The Device Monitor while the run is in progress">
-
-Expected result:
-
-- The result appears in the Test Sessions tab.
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -260,6 +251,17 @@ Before the first run, choose the run profile to use (for example `ios-run`) with
 Command Palette. When the project has only one run profile, it is selected automatically on the first run.
 
 </details>
+<br>
+
+- If an MCP permission dialog appears, allow it.
+
+For scenarios created on Android, ask "with the android-run profile" instead.
+
+<img src="images/quick_start/en/run_in_progress.png" width="640" alt="The Device Monitor while the run is in progress">
+
+Expected result:
+
+- The result appears in the Test Sessions tab.
 
 ## 9. Read the results
 
@@ -277,10 +279,6 @@ Let's summarize the reports and analyze the test results.
 Summarize the latest run of project1. If anything failed, use the report to find out why. Do not fix the scenario yet.
 ```
 
-Expected result:
-
-- A summary of the failures comes back.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -288,6 +286,11 @@ Open the report in `reports/`. In VSCode, the Test Explorer shows pass/fail on e
 can open the report from there.
 
 </details>
+<br>
+
+Expected result:
+
+- A summary of the failures comes back.
 
 ## 10. Troubleshooting
 
