@@ -102,6 +102,9 @@ actor ScenarioQueue {
     /// レーン → いま走らせている**デバイスに束ねていない** item(`next` を呼んだ時点で空く)。ほかのレーンの対象外の結果が
     /// 自分へ戻ってくるかもしれない間、尽きたレーンが終わらずに待つための印
     private var running: [String: ScenarioRunItem] = [:]
+    /// 配り手から来た item のうち、対象外で機械の中の別の台へ回し直している最中のもの(親へ `kept` を知らせた分)。
+    /// 親はそのレーンの次の要求で配った単位を忘れるので、知らせないと他のマシンの尽きたレーンが待たずに終わる(DR-214 ②)
+    private var keptUnits: Set<URL> = []
 
     func laneJoined(_ lane: String?) {
         if let lane, !lane.isEmpty { liveLanes.insert(lane); departedLanes.remove(lane) }
@@ -132,7 +135,13 @@ actor ScenarioQueue {
         declaredReasons[item.id] = reason
         guard !Self.bindsDevice(item) else { return .skipped }
         let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes)
-        if verdict == .handOn { items.append(item) }
+        if verdict == .handOn {
+            items.append(item)
+            // 機械の外へ出しうる item だけ(束ねたクラス・@RunOnSingleMachine は親へ問い合わせない = 親の待ちにも関わらない)
+            if let pull, item.info.placement == nil, keptUnits.insert(item.id).inserted {
+                pull.source.noteKept(unit: item.unitKey, on: true)
+            }
+        }
         return verdict
     }
 
@@ -155,7 +164,7 @@ actor ScenarioQueue {
     func laneEnded(_ lane: String?, orphaning: Bool = true) -> [ScenarioRunItem] {
         if let lane {
             liveLanes.remove(lane)
-            running[lane] = nil
+            settleRunning(lane: lane)
             if !lane.isEmpty { departedLanes.insert(lane) }
         }
         guard orphaning else { return [] }
@@ -213,9 +222,18 @@ actor ScenarioQueue {
     /// `shouldStop` が真なら待たずに nil(残りは手元に残る)
     func next(lane: String? = nil, shouldStop: (@Sendable () async -> Bool)? = nil) async -> ScenarioRunItem? {
         let lane = lane ?? ""
+        settleRunning(lane: lane)
         while true {
             running[lane] = nil
             if let item = takeAllowed(lane: lane) { return item }
+            // 手元で回し直し中(親へ `kept` を知らせた)の item を別のレーンが走らせていて、自分がまだ試していないなら、親へ頼まず手元で待つ
+            // (DR-214 ②)。親は他のマシンの回し直しを理由に要求を保留しうるので、頼むと対象外で戻ってくる item を取れるレーンが減り、
+            // 2台のマシンが互いの回し直しを待ち合う形に近づく。保留中に回し直しが始まった分は親が `recheck` で起こす
+            if pull != nil, awaitsKeptItem(lane: lane) {
+                if await shouldStop?() == true { return nil }
+                try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
+                continue
+            }
             if pull != nil, !pullExhaustedLanes.contains(lane) {
                 if let item = await pullNext(lane: lane) { return item }
                 // 返事を待つ間に別のレーンが離脱して再キューした分を拾う(拾わずに終わると、回せる健全なレーンが居たのに
@@ -244,13 +262,36 @@ actor ScenarioQueue {
         }
     }
 
+    /// 別のレーンが走らせている回し直し中の item を、このレーンがまだ試していないか
+    private func awaitsKeptItem(lane: String) -> Bool {
+        running.contains { other, item in
+            other != lane && liveLanes.contains(other) && keptUnits.contains(item.id) && !isExcluded(item, lane: lane)
+        }
+    }
+
+    /// レーンの走らせていた item が終わった。回し直し中と親へ知らせた item が、手元のどこにも残っていなければ(回し直しで
+    /// 戻っていない・別のレーンが走らせていない)回し直しの終わりを知らせる。親へ対象外を問い合わせた分は親が先に忘れている(重ねて害は無い)
+    private func settleRunning(lane: String) {
+        guard let item = running.removeValue(forKey: lane), keptUnits.contains(item.id),
+              !items.contains(where: { $0.id == item.id }), !running.values.contains(where: { $0.id == item.id }) else { return }
+        keptUnits.remove(item.id)
+        pull?.source.noteKept(unit: item.unitKey, on: false)
+    }
+
     /// 配り手から1本。配り手が尽きたら nil
     private func pullNext(lane: String) async -> ScenarioRunItem? {
         guard let pull else { return nil }
         while !pullExhaustedLanes.contains(lane) {
-            guard let unit = await pull.source.next(platform: pull.platform, lane: lane) else {
+            let unit: ScenarioUnitKey
+            switch await pull.source.next(platform: pull.platform, lane: lane) {
+            case .exhausted:
                 pullExhaustedLanes.insert(lane)
                 return nil
+            case .recheck:
+                // 呼び手(`next`)が手元のキューを見直してから聞き直す
+                return nil
+            case .unit(let given):
+                unit = given
             }
             let item = pull.catalog.withLock { catalog -> ScenarioRunItem? in
                 guard var list = catalog[unit], !list.isEmpty else { return nil }

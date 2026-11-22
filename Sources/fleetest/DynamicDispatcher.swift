@@ -42,6 +42,9 @@ final class DynamicDispatcher: Sendable {
         var lanes: [DynamicSplit.Lane: Busy?] = [:]
         var held: [Held] = []
         var assigned: [Int: [ScenarioUnitKey]] = [:]
+        /// エントリ → 配った単位のうち、子が機械の中で回し直している最中と知らせてきたもの(`kept`。DR-214 ②)。
+        /// レーンの印(`lanes`)はそのレーンの次の要求で消えるので、回し直し中の単位はこちらでしか見えない
+        var kept: [Int: Set<ScenarioUnitKey>] = [:]
         var exited: Set<Int> = []
         var interrupted = false
         var cancelTimer: Cancel?
@@ -123,6 +126,8 @@ final class DynamicDispatcher: Sendable {
             let unit = na.unit
             guard s.assigned[entry]?.contains(unit) == true, let scenario = scenariosByUnit[unit],
                   scenario.group == nil else { return [] }
+            // 子の中の回し直しは尽きた(親へ聞いてきた)。保留している他のエントリの要求は、どの判定でも見直す
+            s.kept[entry]?.remove(unit)
             var record = s.notApplicable[unit] ?? NotApplicableRecord()
             record.tried.insert(entry)
             record.departedInChild = record.departedInChild || na.dep
@@ -135,7 +140,7 @@ final class DynamicDispatcher: Sendable {
                 tried: Set(record.tried.map(String.init)),
                 live: Set(known.subtracting(left).map(String.init)),
                 departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []))
-            guard verdict == .handOn else { return [] }
+            guard verdict == .handOn else { return drainLocked(&s) }
             s.pending.append(scenario)
             if let index = s.assigned[entry]?.lastIndex(of: unit) { s.assigned[entry]?.remove(at: index) }
             // 親がそのシナリオを走らせていると記録しているレーンは空く(次の要求で再び数える)
@@ -146,10 +151,30 @@ final class DynamicDispatcher: Sendable {
         return .init(req: na.req, verdict: verdict)
     }
 
+    /// 子が、配った単位を機械の中で回し直し始めた / 終えた(`kept`。返事なし)。割り当てていない単位は無視する(偽の知らせで待たせない)
+    func handleKept(_ kept: WorkQueueProtocol.Kept, fromEntry entry: Int) {
+        let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
+            guard !s.exited.contains(entry) else { return [] }
+            if kept.on {
+                guard s.assigned[entry]?.contains(kept.unit) == true else { return [] }
+                s.kept[entry, default: []].insert(kept.unit)
+                // そのマシンで保留している要求は起こして手元を見直させる(保留中のレーンは手元に戻った item を取れない。
+                // 互いの回し直しを待ち合う2台のマシンは、これが無いと終わらない)
+                let mine = s.held.filter { $0.lane.entry == entry }
+                s.held.removeAll { $0.lane.entry == entry }
+                return mine.map { ($0, WorkQueueProtocol.Reply(req: $0.req, again: true)) }
+            }
+            guard s.kept[entry]?.remove(kept.unit) != nil else { return [] }
+            return drainLocked(&s)
+        }
+        for (held, reply) in answers { send(held.lane.entry, reply) }
+    }
+
     /// 子が終わった。そのレーンと保留中の要求を捨てる。渡し済みのシナリオは回し直さない
     func childExited(entry: Int) {
         let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
             s.exited.insert(entry)
+            s.kept[entry] = nil
             s.lanes = s.lanes.filter { $0.key.entry != entry }
             s.held.removeAll { $0.lane.entry == entry }
             return drainLocked(&s)
@@ -264,7 +289,9 @@ final class DynamicDispatcher: Sendable {
                     for: held.lane, now: now, pending: reachable, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
                     bindings: s.bindings, entryPlatforms: entryPlatforms)
                 // 尽きたレーンは、他のエントリが走らせているシナリオが対象外で自分(未試行)へ戻ってくるかもしれない間は終わらせない
-                if case .none = decision, Self.mayReceiveHandBack(held.lane, s) { decision = .hold(reconsiderAt: nil) }
+                if case .none = decision, Self.mayReceiveHandBack(held.lane, s, scenariosByUnit: scenariosByUnit) {
+                    decision = .hold(reconsiderAt: nil)
+                }
                 switch decision {
                 case .assign(let unit):
                     guard let index = s.pending.firstIndex(where: { $0.unitKey == unit }) else { continue }
@@ -300,12 +327,29 @@ final class DynamicDispatcher: Sendable {
         return answers
     }
 
-    /// 他のエントリのレーンが、束ねていないシナリオを走らせていて、それを自分のエントリがまだ試していない(= 対象外で戻ってくる)か
-    private static func mayReceiveHandBack(_ requester: DynamicSplit.Lane, _ s: State) -> Bool {
-        s.lanes.contains { lane, busy in
-            guard lane.platform == requester.platform, lane.entry != requester.entry,
+    /// 他のレーンが束ねていないシナリオを走らせている(レーンの印)か、他のエントリが機械の中で回し直している(`kept`)最中で、
+    /// それを自分のエントリがまだ試していない(= 対象外で戻ってくる)か。
+    /// **レーンの印は同じエントリの別のレーンも数える** —— 1回の見直しで同じ子の1本へ単位を渡し、残りへ none を返すと、子は
+    /// 渡した単位をまだ走らせていると記帳する前に none を処理してレーンを終わらせうる(子の `othersMayHandBack` が空振り)。
+    /// 終わったレーンは子の中で「試していない台が落ちた」になり、全台が試した後に赤になった(11/23 の確認の手元の4台)
+    private static func mayReceiveHandBack(_ requester: DynamicSplit.Lane, _ s: State,
+                                           scenariosByUnit: [ScenarioUnitKey: DynamicSplit.Scenario]) -> Bool {
+        func untried(_ unit: ScenarioUnitKey) -> Bool {
+            !(s.notApplicable[unit]?.tried.contains(requester.entry) ?? false)
+        }
+        let running = s.lanes.contains { lane, busy in
+            guard lane.platform == requester.platform, lane != requester,
                   !s.exited.contains(lane.entry), let busy, busy.scenario.group == nil else { return false }
-            return !(s.notApplicable[busy.scenario.unitKey]?.tried.contains(requester.entry) ?? false)
+            return untried(busy.scenario.unitKey)
+        }
+        if running { return true }
+        return s.kept.contains { entry, units in
+            guard entry != requester.entry, !s.exited.contains(entry) else { return false }
+            return units.contains { unit in
+                guard let scenario = scenariosByUnit[unit], scenario.platform == requester.platform,
+                      scenario.group == nil else { return false }
+                return untried(unit)
+            }
         }
     }
 
@@ -465,6 +509,7 @@ extension DynamicDispatcher {
         if let na = WorkQueueProtocol.decodeNotApplicable(trimmed) {
             writer.write(line: WorkQueueProtocol.encode(handleNotApplicable(na, fromEntry: entry)))
         }
+        if let kept = WorkQueueProtocol.decodeKept(trimmed) { handleKept(kept, fromEntry: entry) }
         return true
     }
 }

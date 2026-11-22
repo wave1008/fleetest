@@ -225,13 +225,14 @@ final class ScenarioQueueClassPlacementTests: XCTestCase {
     func testNoneForOneLaneDoesNotStopAnotherLaneFromAsking() async {
         final class PerLaneSource: ScenarioPullSource {
             let asked = LockedValue<[String]>([])
-            func next(platform: String, lane: String) async -> ScenarioUnitKey? {
+            func next(platform: String, lane: String) async -> PullAnswer {
                 asked.withLock { $0.append(lane) }
-                return lane == "L1" ? ScenarioUnitKey(id: "O.s2", variant: nil) : nil
+                return lane == "L1" ? .unit(ScenarioUnitKey(id: "O.s2", variant: nil)) : .exhausted
             }
             func stopWaiting() {}
             func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                       departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+            func noteKept(unit: ScenarioUnitKey, on: Bool) {}
         }
         let source = PerLaneSource()
         let catalog = [ScenarioUnitKey(id: "O.s2", variant: nil): [item("O.s2", .inOrder, order: 2)]]

@@ -19,11 +19,27 @@ public enum ScenarioDispatch: Sendable {
     case pulled(source: any ScenarioPullSource)
 }
 
-/// `ScenarioDispatch.pulled` の配り手。nil = その platform にはもう無い。
+/// 配り手の返事(`ScenarioPullSource.next`)。
+public enum PullAnswer: Equatable, Sendable {
+    case unit(ScenarioUnitKey)
+    /// その platform にはもう無い(以後そのレーンは聞き直さない)
+    case exhausted
+    /// 配る物は今は無いが尽きてもいない。手元のキューを見直してから聞き直す(DR-214 ②: このマシンが対象外の回し直しを始めたとき、
+    /// 親が保留していたこのマシンの要求へ返す。返さないと、保留中のレーンが手元に戻った item を取れず、2台のマシンが互いの回し直しを
+    /// 待ち合って終わらない)
+    case recheck
+
+    public var unit: ScenarioUnitKey? {
+        if case .unit(let unit) = self { return unit }
+        return nil
+    }
+}
+
+/// `ScenarioDispatch.pulled` の配り手。
 /// **呼び出しは並行に来る**(同じ platform の複数ワーカー)・待たせる = 返事を遅らせる
 public protocol ScenarioPullSource: Sendable {
     /// lane = `RunWorker.logicalName`(空いたデバイスの名前。無ければ空文字)
-    func next(platform: String, lane: String) async -> ScenarioUnitKey?
+    func next(platform: String, lane: String) async -> PullAnswer
     /// 中断: 返事を待っている要求と以後の要求を全部 nil で終わらせる。**親の返事を当てにしない** ——
     /// 渡し済みの返事が届かなかったレーンは、親が中断で none を返す相手にならず、子が終わらなくなる
     func stopWaiting()
@@ -32,6 +48,9 @@ public protocol ScenarioPullSource: Sendable {
     /// **既定実装を置かない**(新しい配り手が問い合わせを忘れると、対象外が確定のまま 0 本実行の緑になる)
     func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                               departedUntried: Bool) async -> NotApplicableHandoff.Verdict
+    /// 対象外(DR-214): 配られた単位を機械の中の別の台へ回し直し始めた(`on: true`)・終わった(`on: false`)ことを親へ知らせる(返事なし)。
+    /// **既定実装を置かない**(知らせ忘れると、親が他のマシンの尽きたレーンを終わらせ、後の対象外が「未試行の台が落ちた」赤になる)
+    func noteKept(unit: ScenarioUnitKey, on: Bool)
 }
 
 /// ブロードキャストの1レーン = 実行プロファイルの1デバイス

@@ -249,7 +249,7 @@ public enum ParentLink {
 public final class StdioPullSource: ScenarioPullSource {
     private struct State {
         var nextReq = 1
-        var waiters: [Int: CheckedContinuation<ScenarioUnitKey?, Never>] = [:]
+        var waiters: [Int: CheckedContinuation<PullAnswer, Never>] = [:]
         /// 対象外の問い合わせ(`na`)の返事待ち。req は `waiters` と同じ採番
         var verdictWaiters: [Int: CheckedContinuation<NotApplicableHandoff.Verdict, Never>] = [:]
         /// stdin が閉じた(以後の要求は即 nil)
@@ -284,9 +284,9 @@ public final class StdioPullSource: ScenarioPullSource {
 
     deinit { restoreTerminal() }
 
-    public func next(platform: String, lane: String) async -> ScenarioUnitKey? {
+    public func next(platform: String, lane: String) async -> PullAnswer {
         reader.start()
-        return await withCheckedContinuation { (continuation: CheckedContinuation<ScenarioUnitKey?, Never>) in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<PullAnswer, Never>) in
             // 登録してから書く(返事が登録より先に届いても取りこぼさない)・EOF 済みなら即 nil
             let request: Int? = state.withLock { s in
                 if s.eof { return nil }
@@ -295,7 +295,7 @@ public final class StdioPullSource: ScenarioPullSource {
                 s.waiters[req] = continuation
                 return req
             }
-            guard let request else { continuation.resume(returning: nil); return }
+            guard let request else { continuation.resume(returning: .exhausted); return }
             write(WorkQueueProtocol.encode(
                 WorkQueueProtocol.Want(req: request, lane: lane, platform: platform)))
         }
@@ -318,6 +318,11 @@ public final class StdioPullSource: ScenarioPullSource {
         }
     }
 
+    public func noteKept(unit: ScenarioUnitKey, on: Bool) {
+        if state.withLock({ $0.eof }) { return }
+        write(WorkQueueProtocol.encode(WorkQueueProtocol.Kept(unit: unit, on: on)))
+    }
+
     public func stopWaiting() { resolveAllWaiters() }
 
     /// 端末のエコーを戻す(ssh -tt の先でだけ変えている)。何度呼んでもよい
@@ -326,12 +331,12 @@ public final class StdioPullSource: ScenarioPullSource {
     /// 待っている要求と以後の要求を全部 nil にする(EOF・中断)
     private func resolveAllWaiters() {
         let (remaining, verdicts) = state.withLock { s
-            -> ([CheckedContinuation<ScenarioUnitKey?, Never>], [CheckedContinuation<NotApplicableHandoff.Verdict, Never>]) in
+            -> ([CheckedContinuation<PullAnswer, Never>], [CheckedContinuation<NotApplicableHandoff.Verdict, Never>]) in
             s.eof = true
             defer { s.waiters = [:]; s.verdictWaiters = [:] }
             return (Array(s.waiters.values), Array(s.verdictWaiters.values))
         }
-        for continuation in remaining { continuation.resume(returning: nil) }
+        for continuation in remaining { continuation.resume(returning: .exhausted) }
         for continuation in verdicts { continuation.resume(returning: .skipped) }
     }
 
@@ -342,6 +347,10 @@ public final class StdioPullSource: ScenarioPullSource {
             return
         }
         let continuation = state.withLock { $0.waiters.removeValue(forKey: reply.req) }
-        continuation?.resume(returning: reply.unit)
+        if reply.again == true {
+            continuation?.resume(returning: .recheck)
+        } else {
+            continuation?.resume(returning: reply.unit.map(PullAnswer.unit) ?? .exhausted)
+        }
     }
 }

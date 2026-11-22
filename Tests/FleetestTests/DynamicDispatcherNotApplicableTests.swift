@@ -117,4 +117,52 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertEqual(d.assignedUnits(entry: 1), [])
         XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
     }
+
+    private func kept(_ id: String, on: Bool) -> WorkQueueProtocol.Kept {
+        WorkQueueProtocol.Kept(unit: ScenarioUnitKey(id: id, variant: nil), on: on)
+    }
+
+    /// 子が機械の中で回し直している最中(`kept`)は、宣言したレーンが次を求めて親のレーンの印が消えても、未試行の他のエントリを
+    /// 終わらせない(回帰の E2E-Android: 手元の6台が順に試す間に M1Max が終わり、最後に「未試行の台が落ちた」赤になった)
+    func testKeptUnitHoldsTheUntriedEntryAfterTheAssignedLaneMovesOn() {
+        let sent = LockedValue<[String]>([])
+        let d = makeDispatcher([fold], entries: 2, sent: sent)
+        XCTAssertEqual(d.handle(want(1, lane: "a"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+        d.handleKept(kept("Fold.S1", on: true), fromEntry: 1)
+        // 子の中で b へ回した後、a は次を求める(親のレーンの印からは Fold が消える)
+        XCTAssertEqual(d.handle(want(2, lane: "a"), fromEntry: 1), .init(req: 2, none: true))
+        XCTAssertNil(d.handle(want(1, lane: "duo"), fromEntry: 0), "回し直し中の分が戻ってくるかもしれないので終わらせない")
+        // 子の中で尽きて親へ聞いてきた: 未試行のエントリ 0 へ回す
+        XCTAssertEqual(d.handleNotApplicable(na(3, id: "Fold.S1", lane: "b"), fromEntry: 1), .init(req: 3, verdict: .handOn))
+        XCTAssertEqual(sent.value, ["0:" + WorkQueueProtocol.encode(.init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))])
+    }
+
+    /// 回し直しが子の中で終わった(`kept off`)ら、保留していた未試行のエントリの要求を見直して終わらせる
+    func testKeptOffReleasesTheHeldEntry() {
+        let sent = LockedValue<[String]>([])
+        let d = makeDispatcher([fold], entries: 2, sent: sent)
+        _ = d.handle(want(1, lane: "a"), fromEntry: 1)
+        d.handleKept(kept("Fold.S1", on: true), fromEntry: 1)
+        _ = d.handle(want(2, lane: "a"), fromEntry: 1)
+        XCTAssertNil(d.handle(want(1, lane: "duo"), fromEntry: 0))
+        d.handleKept(kept("Fold.S1", on: false), fromEntry: 1)
+        XCTAssertEqual(sent.value, ["0:" + WorkQueueProtocol.encode(.init(req: 1, none: true))])
+    }
+
+    /// 割り当てていない単位の `kept` は無視する(偽の知らせで他のエントリを待たせない)
+    func testKeptForAnUnassignedUnitIsIgnored() {
+        let d = makeDispatcher([], entries: 2)
+        d.handleKept(kept("Other.S9", on: true), fromEntry: 1)
+        XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, none: true))
+    }
+
+    /// 同じエントリの別のレーンが走らせている未試行のシナリオも待つ理由に数える(1回の見直しで同じ子の1本へ渡し、残りへ none を
+    /// 返すと、子が渡した単位を記帳する前に none でレーンを終わらせ、後で「試していない台が落ちた」赤になる)
+    func testSiblingLaneOfTheSameEntryRunningAnUntriedScenarioHoldsTheRequester() {
+        let d = makeDispatcher([fold], entries: 2)
+        XCTAssertEqual(d.handle(want(1, lane: "a"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+        XCTAssertNil(d.handle(want(2, lane: "b"), fromEntry: 1), "同じマシンの a が走らせている Fold が対象外で戻ってくるかもしれない")
+        // a が普通に終わって次を求めたら待つ理由は無い
+        XCTAssertEqual(d.handle(want(3, lane: "a"), fromEntry: 1), .init(req: 3, none: true))
+    }
 }

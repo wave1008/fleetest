@@ -5,6 +5,9 @@
 // 親 → 子は `memo`(発行元が通し番号 seq を振って全マシンへ配り返す断片)。符号化は RunMemoStore.swift の RunMemoWire。
 // 対象外(DR-214): 子 → 親 `na`(機械の中に回し直す先が無かった対象外のシナリオを、他のマシンの未試行の台へ回せるかの問い合わせ)と、
 // 親 → 子の返事 `verdict`(hand / skip / fail。判定は NotApplicableHandoff.decide)。親子は常に同じ版(align)なので互換の読み替えは置かない。
+// 子 → 親 `kept`(返事なし): 親が配った単位を機械の中の別の台へ回し直し始めた(`on: true`)・その回し直しが終わった(`on: false`)。
+// 親は配った単位を「そのレーンの次の要求」で忘れるので、これが無いと回し直し中の単位を知らず、他のマシンの尽きたレーンを終わらせる
+// (後で対象外が親へ届いたとき、未試行の台が「落ちた」と読まれて赤になる)。
 // 親 → 子にはもう1種類: 開始の行 `{"ftWork":{"op":"start"}}` と取りやめの行 `{"ftWork":{"op":"cancel","reason":"…"}}`(RR-8.4)。
 // 子は開始の行を受けるまでシナリオを流し始めない(StartGate)。
 
@@ -51,13 +54,33 @@ public enum WorkQueueProtocol {
         public var unit: ScenarioUnitKey { ScenarioUnitKey(id: id, variant: variant) }
     }
 
-    /// 親 → 子(stdin)。`id` が無く `none == true` = もう無い。`verdict` = `na` への返事(`NotApplicableHandoff.Verdict.wire`)
+    /// 子 → 親(返事なし)。配られた単位を機械の中で回し直している最中か(DR-214。ファイル冒頭)
+    public struct Kept: Codable, Equatable, Sendable {
+        public let op: String
+        public let id: String
+        /// 単位のバリアント(バリアントの無い run では行に載らない)
+        public let variant: String?
+        public let on: Bool
+
+        public init(unit: ScenarioUnitKey, on: Bool) {
+            self.op = "kept"
+            self.id = unit.id
+            self.variant = unit.variant
+            self.on = on
+        }
+
+        public var unit: ScenarioUnitKey { ScenarioUnitKey(id: id, variant: variant) }
+    }
+
+    /// 親 → 子(stdin)。`id` が無く `none == true` = もう無い。`again == true` = 手元を見直して聞き直す(`PullAnswer.recheck`)。
+    /// `verdict` = `na` への返事(`NotApplicableHandoff.Verdict.wire`)
     public struct Reply: Codable, Equatable, Sendable {
         public let req: Int
         public let id: String?
         /// 配る単位のバリアント(バリアントの無い run では行に載らない)
         public let variant: String?
         public let none: Bool?
+        public let again: Bool?
         public let verdict: String?
 
         public init(req: Int, unit: ScenarioUnitKey) {
@@ -65,6 +88,7 @@ public enum WorkQueueProtocol {
             self.id = unit.id
             self.variant = unit.variant
             self.none = nil
+            self.again = nil
             self.verdict = nil
         }
 
@@ -73,6 +97,16 @@ public enum WorkQueueProtocol {
             self.id = nil
             self.variant = nil
             self.none = none ? true : nil
+            self.again = nil
+            self.verdict = nil
+        }
+
+        public init(req: Int, again: Bool) {
+            self.req = req
+            self.id = nil
+            self.variant = nil
+            self.none = nil
+            self.again = again ? true : nil
             self.verdict = nil
         }
 
@@ -81,6 +115,7 @@ public enum WorkQueueProtocol {
             self.id = nil
             self.variant = nil
             self.none = nil
+            self.again = nil
             self.verdict = verdict.wire
         }
 
@@ -150,6 +185,7 @@ public enum WorkQueueProtocol {
     public static func encode(_ want: Want) -> String { encodeBody(want) }
     public static func encode(_ reply: Reply) -> String { encodeBody(reply) }
     public static func encode(_ na: NotApplicable) -> String { encodeBody(na) }
+    public static func encode(_ kept: Kept) -> String { encodeBody(kept) }
     public static func encode(_ piece: MemoPiece) -> String { encodeBody(piece) }
     public static func encode(_ hello: MemoHello) -> String { encodeBody(hello) }
 
@@ -192,10 +228,15 @@ public enum WorkQueueProtocol {
         return na
     }
 
+    public static func decodeKept(_ line: String) -> Kept? {
+        guard isWorkLine(line), let kept = decodeBody(Kept.self, line), kept.op == "kept" else { return nil }
+        return kept
+    }
+
     /// `want` の行・他の JSON は nil(req が無い返事は返事として読まない)
     public static func decodeReply(_ line: String) -> Reply? {
         guard isWorkLine(line), let reply = decodeBody(Reply.self, line),
-              reply.id != nil || reply.none == true || reply.verdict != nil else { return nil }
+              reply.id != nil || reply.none == true || reply.again == true || reply.verdict != nil else { return nil }
         return reply
     }
 

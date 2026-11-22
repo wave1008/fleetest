@@ -35,6 +35,31 @@ final class WorkQueueProtocolTests: XCTestCase {
         XCTAssertFalse(WorkQueueProtocol.encode(plain).contains("variant"), "バリアントの無い行に variant を載せない")
     }
 
+    /// `kept`(子 → 親・返事なし)の往復。他の種類の行として読まれない・他の行を kept と読まない
+    func testKeptRoundTripAndIsNotConfusedWithOtherLines() {
+        let unit = ScenarioUnitKey(id: "Fold.S1", variant: "dark")
+        let line = WorkQueueProtocol.encode(WorkQueueProtocol.Kept(unit: unit, on: true))
+        XCTAssertTrue(WorkQueueProtocol.isWorkLine(line))
+        XCTAssertEqual(WorkQueueProtocol.decodeKept(line), WorkQueueProtocol.Kept(unit: unit, on: true))
+        XCTAssertNil(WorkQueueProtocol.decodeWant(line))
+        XCTAssertNil(WorkQueueProtocol.decodeNotApplicable(line))
+        XCTAssertNil(WorkQueueProtocol.decodeReply(line))
+        let off = WorkQueueProtocol.encode(WorkQueueProtocol.Kept(unit: ScenarioUnitKey(id: "A.b", variant: nil), on: false))
+        XCTAssertEqual(WorkQueueProtocol.decodeKept(off)?.on, false)
+        XCTAssertFalse(off.contains("variant"), "バリアントの無い行に variant を載せない")
+        XCTAssertNil(WorkQueueProtocol.decodeKept(WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))))
+    }
+
+    /// 見直しの返事(`again`)は返事として読め、「もう無い」とも単位とも混ざらない
+    func testReplyAgainRoundTrip() {
+        let line = WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 7, again: true))
+        let reply = WorkQueueProtocol.decodeReply(line)
+        XCTAssertEqual(reply?.again, true)
+        XCTAssertNil(reply?.none)
+        XCTAssertNil(reply?.unit)
+        XCTAssertFalse(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 7, none: true)).contains("again"))
+    }
+
     func testReplyNoneRoundTrip() {
         let reply = WorkQueueProtocol.Reply(req: 4, none: true)
         let line = WorkQueueProtocol.encode(reply)

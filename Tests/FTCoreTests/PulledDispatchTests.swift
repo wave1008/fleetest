@@ -13,15 +13,17 @@ final class PulledDispatchTests: XCTestCase {
         private let replies: LockedValue<[String?]>
         let asked = LockedValue<[String]>([])
         init(_ replies: [String?]) { self.replies = LockedValue(replies) }
-        func next(platform: String, lane: String) async -> ScenarioUnitKey? {
+        func next(platform: String, lane: String) async -> PullAnswer {
             asked.withLock { $0.append("\(platform):\(lane)") }
             return replies.withLock { $0.isEmpty ? nil : $0.removeFirst() }.flatMap { $0 }
-                .map { ScenarioUnitKey(id: $0, variant: nil) }
+                .map { PullAnswer.unit(ScenarioUnitKey(id: $0, variant: nil)) } ?? .exhausted
         }
         let stops = LockedValue(0)
         func stopWaiting() { stops.withLock { $0 += 1 } }
         func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                   departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+        let kept = LockedValue<[String]>([])
+        func noteKept(unit: ScenarioUnitKey, on: Bool) { kept.withLock { $0.append("\(unit.id):\(on)") } }
     }
 
     private func makeQueue(_ catalog: [ScenarioRunItem], source: FakeSource,
@@ -80,12 +82,14 @@ final class PulledDispatchTests: XCTestCase {
         final class GatedSource: ScenarioPullSource, @unchecked Sendable {
             // @unchecked の根拠: 可変状態は LockedValue の中
             let waiter = LockedValue<CheckedContinuation<ScenarioUnitKey?, Never>?>(nil)
-            func next(platform: String, lane: String) async -> ScenarioUnitKey? {
+            func next(platform: String, lane: String) async -> PullAnswer {
                 await withCheckedContinuation { continuation in waiter.withLock { $0 = continuation } }
+                    .map(PullAnswer.unit) ?? .exhausted
             }
             func stopWaiting() {}
             func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                       departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+            func noteKept(unit: ScenarioUnitKey, on: Bool) {}
             func answer(_ unit: ScenarioUnitKey?) { waiter.withLock { $0?.resume(returning: unit); $0 = nil } }
         }
         let source = GatedSource()
@@ -209,5 +213,65 @@ final class PulledDispatchTests: XCTestCase {
         XCTAssertEqual(source.stops.value, 1, "run より前の中断で待ちを解いていない")
         orchestrator.requestInterrupt()
         XCTAssertEqual(source.stops.value, 2, "run が配り手を持った後の中断で待ちを解いていない")
+    }
+
+    /// 配られた item を対象外で機械の中の別の台へ回し直したら親へ `kept on` を知らせ、回し直した先で終わったら `kept off` を知らせる
+    /// (DR-214 ②。知らせないと親はそのレーンの次の要求で配った単位を忘れ、他のマシンの尽きたレーンを待たずに終わらせる)
+    func testLocalHandOnTellsTheParentUntilTheItemSettles() async {
+        let source = FakeSource(["Fold"])
+        let queue = makeQueue([item("Fold")], source: source)
+        await queue.laneJoined("a")
+        await queue.laneJoined("b")
+        let first = await queue.next(lane: "a")
+        XCTAssertEqual(first?.info.id, "Fold")
+        let verdict = await queue.noteNotApplicable(item("Fold"), lane: "a", reason: "needs a foldable device")
+        XCTAssertEqual(verdict, .handOn)
+        XCTAssertEqual(source.kept.value, ["Fold:true"], "機械の中で回し直し始めたことを親へ知らせる")
+        // 宣言したレーン a が次を取りに行っても、回し直しの最中なので終わりは知らせない
+        let none = await queue.next(lane: "a", shouldStop: { true })
+        XCTAssertNil(none)
+        XCTAssertEqual(source.kept.value, ["Fold:true"])
+        let second = await queue.next(lane: "b")
+        XCTAssertEqual(second?.info.id, "Fold")
+        // b で走り終えた(次を取りに行った)= 回し直しの終わり
+        _ = await queue.next(lane: "b", shouldStop: { true })
+        XCTAssertEqual(source.kept.value, ["Fold:true", "Fold:false"])
+    }
+
+    /// 回し直し中の item を別のレーンが走らせていて、自分がまだ試していないレーンは親へ頼まず手元で待つ(DR-214 ②)。
+    /// 頼むと親に保留されうる = 対象外で手元へ戻ったときに取れず、親の見直し(`recheck`)は回し直しの始まりにしか来ない
+    func testUntriedLaneWaitsLocallyWhileAnotherLaneRunsAKeptItem() async {
+        let source = FakeSource(["Fold"])
+        let queue = makeQueue([item("Fold")], source: source)
+        for lane in ["a", "b", "c"] { await queue.laneJoined(lane) }
+        _ = await queue.next(lane: "a")
+        let verdict = await queue.noteNotApplicable(item("Fold"), lane: "a", reason: "needs a foldable device")
+        XCTAssertEqual(verdict, .handOn)
+        let taken = await queue.next(lane: "b")
+        XCTAssertEqual(taken?.info.id, "Fold")
+        let waited = await queue.next(lane: "c", shouldStop: { true })
+        XCTAssertNil(waited)
+        XCTAssertFalse(source.asked.value.contains("ios:c"), "回し直し中の item を試していないレーンが親へ頼んだ")
+    }
+
+    /// 親の `recheck` は尽きの印を付けない(手元を見直してから聞き直す)
+    func testRecheckDoesNotExhaustTheLane() async {
+        final class RecheckOnce: ScenarioPullSource, @unchecked Sendable {
+            // @unchecked の根拠: 可変状態は LockedValue の中
+            let answers = LockedValue<[PullAnswer]>([.recheck, .unit(ScenarioUnitKey(id: "A", variant: nil))])
+            func next(platform: String, lane: String) async -> PullAnswer {
+                answers.withLock { $0.isEmpty ? .exhausted : $0.removeFirst() }
+            }
+            func stopWaiting() {}
+            func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
+                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+            func noteKept(unit: ScenarioUnitKey, on: Bool) {}
+        }
+        let a = item("A")
+        let queue = ScenarioQueue(pulled: ScenarioQueue.PullState(
+            source: RecheckOnce(), platform: "ios", catalog: LockedValue([a.unitKey: [a]]),
+            onHandOut: { _ in }, onUnknownID: { _ in }))
+        let got = await queue.next(lane: "x")
+        XCTAssertEqual(got?.info.id, "A", "見直しの返事でレーンが尽きた扱いになった")
     }
 }

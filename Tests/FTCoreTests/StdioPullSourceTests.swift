@@ -21,7 +21,7 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let id = source.next(platform: "ios", lane: "iPhone 17")
+        async let id = source.next(platform: "ios", lane: "iPhone 17").unit
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         let lines = written.withLock { $0 }
         XCTAssertEqual(lines.count, 1)
@@ -38,9 +38,9 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let first = source.next(platform: "android", lane: "a")
+        async let first = source.next(platform: "android", lane: "a").unit
         for _ in 0..<200 where written.withLock({ $0.count < 1 }) { try? await Task.sleep(for: .milliseconds(10)) }
-        async let second = source.next(platform: "android", lane: "b")
+        async let second = source.next(platform: "android", lane: "b").unit
         for _ in 0..<200 where written.withLock({ $0.count < 2 }) { try? await Task.sleep(for: .milliseconds(10)) }
         let wants = written.withLock { $0 }.compactMap(WorkQueueProtocol.decodeWant)
         XCTAssertEqual(wants.map(\.lane), ["a", "b"])
@@ -56,12 +56,12 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let waiting = source.next(platform: "ios", lane: "a")
+        async let waiting = source.next(platform: "ios", lane: "a").unit
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         close(input.write)
         let first = await waiting
         XCTAssertNil(first)
-        let later = await source.next(platform: "ios", lane: "a")
+        let later = await source.next(platform: "ios", lane: "a").unit
         XCTAssertNil(later)
         XCTAssertEqual(written.withLock { $0.count }, 1, "EOF 後の要求は書かずに nil にする")
     }
@@ -77,7 +77,7 @@ final class StdioPullSourceTests: XCTestCase {
             return await withCheckedContinuation { continuation in
                 box.withLock { $0 = continuation }
                 Task {
-                    let value = await source.next(platform: "android", lane: "a")
+                    let value = await source.next(platform: "android", lane: "a").unit
                     box.withLock { $0?.resume(returning: value); $0 = nil }
                 }
                 Task {
@@ -118,7 +118,7 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let id = source.next(platform: "ios", lane: "a")
+        async let id = source.next(platform: "ios", lane: "a").unit
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         let req = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeWant)?.req ?? -1
         send(#"{"kind":"step"}"#, to: input.write)
@@ -139,7 +139,7 @@ final class StdioPullSourceTests: XCTestCase {
         let link = RunMemoLink(source: "me", send: { _ in }, warn: { _ in })
         let store = RunMemoStore(link: link)
         reader.addLineHandler { line in link.receive(line: line) }
-        async let id = source.next(platform: "ios", lane: "a")
+        async let id = source.next(platform: "ios", lane: "a").unit
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         let req = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeWant)?.req ?? -1
         let pieces = RunMemoWire.pieces(for: .write(key: "k", value: "v"))
