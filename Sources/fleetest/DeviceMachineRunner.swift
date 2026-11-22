@@ -105,7 +105,7 @@ enum DeviceMachineRunner {
         performanceMode: Bool,
         forceLock: Bool, waitLock: Int?, remoteDir: String?, remoteTimeout: Int?,
         quiet: Bool, junit: String?, broadcast: Bool = false,
-        failed: Bool = false, reportDir: String? = nil
+        failed: Bool = false, reportDir: String? = nil, variantNames: [String] = []
     ) async throws -> Int32 {
         let junitTempDir = try FleetRunner.makeJUnitTempDir(requested: junit)
         defer { if let junitTempDir { try? FileManager.default.removeItem(at: junitTempDir) } }
@@ -140,8 +140,12 @@ enum DeviceMachineRunner {
                     throw ValidationError(
                         "no scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)")
                 }
-                let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all)
+                let resolution = try ScenarioSelection.resolveReportingCollapsed(
+                    ScenarioSelection.idsStrippingVariants(scenarios), from: all)
                 if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { FleetRunner.log(notice) }
+                var plan = try RunCommonOptions.variantPlan(
+                    project: project, profile: profileName, overrides: setOverrides,
+                    variantNames: variantNames, selectors: scenarios)
                 var selected = resolution.selected
                 if !folders.isEmpty {
                     selected = try RunScenarios.filterByFolders(selected, folders: folders,
@@ -153,10 +157,11 @@ enum DeviceMachineRunner {
                 if failed {
                     // Fleetest.swift の単機経路と同じ判定・同じ文言(LastResultsStore.failedIDs は
                     // (project, profile) 単位。この分割経路もここでしか failed を見ないので1回だけ絞る)
-                    // バリアントの宣言はまだ読まない(空 = ID の記録 = variant nil の単位)
                     let failedSet = ClassPlacementRules.expandingFailed(
-                        LastResultsStore.failedIDs(project: project, profile: profileName, declaredVariants: []), all: all)
-                    selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
+                        LastResultsStore.failedIDs(project: project, profile: profileName,
+                                                   declaredVariants: plan.declaredNames), all: all)
+                    plan = plan.restrictingToFailed(failedSet)
+                    selected = plan.infos(selected)
                     guard !selected.isEmpty else {
                         FleetRunner.log(LastResultsStore.nothingFailedMessage(
                             recordedCount: LastResultsStore.recordedCount(project: project, profile: profileName),
@@ -179,7 +184,7 @@ enum DeviceMachineRunner {
                 if broadcast {
                     // ブロードキャストは分割しない —— 各機械の各デバイスが全件を回す(分けると「全台で1回ずつ」が
                     // 機械ごとの部分集合に化ける)
-                    let ids = selected.map { $0.unitKey(variant: nil) }
+                    let ids = plan.units(of: selected)
                     active = groups.indices.map { ($0, groups[$0], ids) }
                     for (_, group, ids) in active {
                         FleetRunner.log("    \(group.machineLabel): \(ids.count) scenario(s)"
@@ -189,10 +194,10 @@ enum DeviceMachineRunner {
                     broadcast: broadcast,
                     measuresResponse: ProfileResolver.declaresResponseMeasurement(
                         project: project, runName: profileName, overrides: setOverrides)) {
-                    let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups)
+                    let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable, variant: nil, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
+                        runnable, plan: plan, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
                         let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
                         return ids.isEmpty ? nil : (index, groups[index], ids)
@@ -207,7 +212,7 @@ enum DeviceMachineRunner {
                         + " — each free device takes the next scenario")
                 } else {
                     let (buckets, basis, notApplicable) = try assign(
-                        project: project, groups: groups, selected: selected, lptHistoryRuns: lptHistoryRuns)
+                        project: project, groups: groups, selected: selected, plan: plan, lptHistoryRuns: lptHistoryRuns)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
                         let ids = buckets[index].units
@@ -233,7 +238,7 @@ enum DeviceMachineRunner {
                     let ids = Set(local.2)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.1.deviceNames,
-                        localScenarios: selected.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: broadcast))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: broadcast))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.1.machineLabel }, prelockProject: project))
@@ -501,7 +506,8 @@ enum DeviceMachineRunner {
         try RunPlacementPreflight.check(selected: selected, all: all, measuresResponse: measuresResponse,
                                         broadcast: broadcast, log: log)
         if broadcast { return }
-        let runnable = splitApplicable(selected: selected, groups: groups).runnable
+        // 対象外は ID 単位の判定(バリアントに依らない)
+        let runnable = splitApplicable(selected: selected, groups: groups, plan: .none).runnable
         if let message = DynamicDispatcher.coverageError(selected: runnable, groups: groups) {
             throw ValidationError(message)
         }
@@ -582,20 +588,20 @@ enum DeviceMachineRunner {
     /// 単機と同じ文言でスキップを出す。子 run には渡さない —— api 経路の MachineFanoutMultiplexer は
     /// 子に渡した ID のうちイベントが来なかったものを failed に合成するため、渡すと赤になる
     static func assign(project: TestProject, groups: [Group],
-                       selected: [ScenarioInfo], lptHistoryRuns: Int?)
+                       selected: [ScenarioInfo], plan: RunVariantPlan, lptHistoryRuns: Int?)
         throws -> (buckets: [FleetSplit.Bucket], basis: [FleetSplit.EstimateBasis],
                    notApplicable: [ScenarioInfo]) {
-        let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups)
+        let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
         let inputs = estimationInputs(project: project, groups: groups, lptHistoryRuns: lptHistoryRuns)
         do {
             let plan = try FleetSplit.plan(
-                scenarios: runnable.map { (id: $0.id, variant: nil, platform: $0.platform) },
+                scenarios: unitTuples(runnable, plan: plan),
                 durations: inputs.durations,
                 entryPlatforms: groups.map(\.platforms),
                 unknownDurationMs: inputs.unknownDurationMs,
                 entryCapacities: groups.map { Double($0.deviceNames.count) },
                 machineContext: inputs.machineContext,
-                groups: DynamicDispatcher.groups(of: runnable, variant: nil))
+                groups: DynamicDispatcher.groups(of: runnable, plan: plan))
             return (plan.buckets, plan.basis, notApplicable)
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("profile \"\(project.name)\": \(error.localizedDescription)")
@@ -603,14 +609,26 @@ enum DeviceMachineRunner {
     }
 
     /// 宣言 platform のデバイスがどのグループにも無いシナリオ(対象外)を外す。静的・動的の両方が通る
-    static func splitApplicable(selected: [ScenarioInfo], groups: [Group])
+    static func splitApplicable(selected: [ScenarioInfo], groups: [Group], plan: RunVariantPlan)
         -> (runnable: [ScenarioInfo], notApplicable: [ScenarioInfo]) {
         let split = FleetSplit.applicability(
-            scenarios: selected.map { (id: $0.id, variant: nil, platform: $0.platform) },
+            scenarios: unitTuples(selected, plan: plan),
             entryPlatforms: groups.map(\.platforms))
-        let runnable = Set(split.runnable.map { ScenarioUnitKey(id: $0.id, variant: $0.variant) })
-        return (selected.filter { runnable.contains($0.unitKey(variant: nil)) },
-                selected.filter { !runnable.contains($0.unitKey(variant: nil)) })
+        // 対象外は OS の宣言で決まる = シナリオ(ID)単位。バリアントには依らない
+        let runnable = Set(split.runnable.map(\.id))
+        return (selected.filter { runnable.contains($0.id) }, selected.filter { !runnable.contains($0.id) })
+    }
+
+    /// 単位ごとに1つのシナリオ(台数の見積り・使用中の検査は単位の数で数える)
+    static func infos(forUnits units: some Collection<ScenarioUnitKey>, from infos: [ScenarioInfo]) -> [ScenarioInfo] {
+        let byID = Dictionary(infos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return units.compactMap { byID[$0.id] }
+    }
+
+    /// 割り当て・対象外の仕分けへ渡す単位(シナリオ × バリアント)
+    static func unitTuples(_ infos: [ScenarioInfo], plan: RunVariantPlan) -> [(id: String, variant: String?, platform: String?)] {
+        let byID = Dictionary(infos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return plan.units(of: infos).map { (id: $0.id, variant: $0.variant, platform: byID[$0.id]?.platform) }
     }
 
     /// 見積りの入力(静的な割り当てと動的な割り振りが共有する。同じ材料でなければ両者の見込みが食い違う)。

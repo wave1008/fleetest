@@ -120,7 +120,7 @@ final class RunProfileSetOverrideParseTests: XCTestCase {
     /// 断る —— 利用者が `<key>=<value>` で書けると誤解しないよう、プロファイル JSON を編集する
     /// よう案内する
     func testArrayAndObjectKeysGetADedicatedError() {
-        for key in ["devices", "remoteControl"] {
+        for key in ["devices", "remoteControl", "variants"] {
             XCTAssertThrowsError(try RunProfileSetOverride.parse(["\(key)=x"])) { error in
                 guard case RunProfileSetOverrideError.arrayOrObjectKey(let reportedKey) = error else {
                     return XCTFail("expected arrayOrObjectKey for \(key), got \(error)")
@@ -217,7 +217,7 @@ final class RunProfileSetOverrideKeysTests: XCTestCase {
             .union(byKind["double"] ?? [])
             .union(byKind["string"] ?? [])
         XCTAssertEqual(scalarFields, RunProfileDocument.overridableKeys)
-        XCTAssertEqual(byKind["other"] ?? [], ["devices", "remoteControl"],
+        XCTAssertEqual(byKind["other"] ?? [], ["devices", "remoteControl", "variants"],
                        "配列/オブジェクト欄が増減した —— --set から弾く/受け付ける対応を決めて"
                        + " arrayOrObjectKeys かこのテストの期待値を更新する")
     }

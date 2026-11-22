@@ -294,6 +294,8 @@
 
 - [各シナリオはライト・標準の文字サイズで始まる](../project/run_profile_ja.md#注意点) — プロファイルに書かなくても各シナリオの前後に端末を読んで設定し、run の後もそのまま。ダークや大きな文字を保つなら `appearance` / `textSize` を書く。MCP の `ft_run_scenario` も同じ。
 - [書いた値を設定できないとシナリオが失敗する](../project/run_profile_ja.md#注意点) — 書いていない値を戻せないときは警告だけ。確かめた版は iOS 26.6.2 の実機と iOS 27.2 の Simulator。
+- [フックと run メモはバリアントをまたいで共有する](../project/run_profile_ja.md#注意点) — `beforeAll` / `afterAll` はクラスごとに run で1回、run メモは run 全体で1つ。バリアントごとに分けたい値は `currentVariant` をキーに含める。
+- [寄せる属性のクラスは全バリアントで同じ台に寄り、バリアントごとに続けて回る](../project/run_profile_ja.md#注意点) — `@RunInOrder` の途中の失敗で止まるのは同じバリアントの残りだけ。
 - [iOS の「このアプリのみ」の文字サイズは見えない](../project/run_profile_ja.md#注意点) — コントロールセンターでアプリ単位に設定した大きさはツールから読めない。各結果の `displaySettings` に期待・読んだ値・設定したキーが残る。
 
 ## UI 部品ごとの癖(現時点の制約)

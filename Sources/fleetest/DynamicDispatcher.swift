@@ -352,9 +352,14 @@ final class DynamicDispatcher: Sendable {
 
     /// 寄せる属性のクラスのシナリオには group を載せる(RR-8.3)。属性が無ければ上と同じ
     /// ScenarioInfo は ID だけなので variant は呼び手が決める(バリアントの無い経路は nil)
-    static func resolve(_ scenarios: [ScenarioInfo], variant: String?, defaultPlatform: String) -> [DynamicSplit.Scenario] {
-        scenarios.map {
-            DynamicSplit.Scenario(id: $0.id, variant: variant, platform: $0.platform ?? defaultPlatform, group: group(of: $0))
+    /// バリアントは `plan` が展開する(シナリオの順 × 宣言の順。`variantRank` = 宣言の番号)
+    static func resolve(_ scenarios: [ScenarioInfo], plan: RunVariantPlan, defaultPlatform: String) -> [DynamicSplit.Scenario] {
+        let byID = Dictionary(scenarios.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return plan.units(of: scenarios).compactMap { unit in
+            byID[unit.id].map {
+                DynamicSplit.Scenario(id: $0.id, variant: unit.variant, platform: $0.platform ?? defaultPlatform,
+                                      group: group(of: $0), variantRank: plan.rank(of: unit.variant))
+            }
         }
     }
 
@@ -365,6 +370,15 @@ final class DynamicDispatcher: Sendable {
     }
 
     /// 静的な割り当て(FleetSplit.plan の groups:)用。キー = 単位(ID × バリアント)
+    static func groups(of infos: [ScenarioInfo], plan: RunVariantPlan) -> [ScenarioUnitKey: DynamicSplit.Group] {
+        var result: [ScenarioUnitKey: DynamicSplit.Group] = [:]
+        for info in infos {
+            guard let g = group(of: info) else { continue }
+            for unit in plan.units(of: [info]) { result[unit] = g }
+        }
+        return result
+    }
+
     static func groups(of infos: [ScenarioInfo], variant: String?) -> [ScenarioUnitKey: DynamicSplit.Group] {
         var result: [ScenarioUnitKey: DynamicSplit.Group] = [:]
         for info in infos { if let g = group(of: info) { result[info.unitKey(variant: variant)] = g } }

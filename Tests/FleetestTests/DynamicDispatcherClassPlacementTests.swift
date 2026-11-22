@@ -89,9 +89,9 @@ final class DynamicDispatcherClassPlacementTests: XCTestCase {
     func testResolveCarriesTheGroupOfAPlacedClass() {
         let info = ScenarioInfo(id: "C.a", title: "t", placement: .inOrder, order: 3)
         let plain = ScenarioInfo(id: "P.a", title: "t")
-        let resolved = DynamicDispatcher.resolve([info, plain], variant: nil, defaultPlatform: "ios")
+        let resolved = DynamicDispatcher.resolve([info, plain], plan: .none, defaultPlatform: "ios")
         XCTAssertEqual(resolved[0].group, Group(name: "C", placement: .inOrder, order: 3))
         XCTAssertNil(resolved[1].group)
-        XCTAssertEqual(DynamicDispatcher.groups(of: [info, plain], variant: nil), [ScenarioUnitKey(id: "C.a", variant: nil): Group(name: "C", placement: .inOrder, order: 3)])
+        XCTAssertEqual(DynamicDispatcher.groups(of: [info, plain], plan: .none), [ScenarioUnitKey(id: "C.a", variant: nil): Group(name: "C", placement: .inOrder, order: 3)])
     }
 }

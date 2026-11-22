@@ -168,6 +168,26 @@
       "enum": ["small", "default", "large", "extraLarge", "accessibility"],
       "description": "各シナリオの開始時に端末へ設定する文字サイズ(本文の文字の大きさの比で iOS の段階と Android の倍率を対応させた名前)。終わりに標準へ戻す。省略 = default(標準)。accessibility は iOS の「より大きな文字」を一時的に有効にする。"
     },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "description": "バリアント(名前付きの表示条件の一覧)。実行の単位はシナリオ × バリアントで、各シナリオが宣言の順にバリアントごとに回る。書かないキーはプロファイルの最上位の同じキー → 基準の値(light / default)に解決され、解決した値は指定ありとして扱う(合わせられなければそのシナリオを失敗にする)。どれかのバリアントが orientation を書くなら全バリアントが書く(または最上位に orientation を置く)。variants のあるプロファイルでは --set の appearance / textSize / orientation / variants を受け付けない。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "バリアント名(一意。先頭は英小文字・英小文字と数字とハイフン)。結果・レポートのファイル名は <シナリオID>@<名前>、--variant と --scenario <ID>@<名前> で指す。"
+          },
+          "appearance": { "type": "string", "enum": ["light", "dark"], "description": "このバリアントの外観。省略 = 最上位の appearance、それも無ければ light。" },
+          "textSize": { "type": "string", "enum": ["small", "default", "large", "extraLarge", "accessibility"], "description": "このバリアントの文字サイズ。省略 = 最上位の textSize、それも無ければ default。" },
+          "orientation": { "type": "string", "enum": ["portrait", "landscape"], "description": "このバリアントの向き(各シナリオの起動直後に回す)。" }
+        }
+      }
+    },
     "homeOnStart": {
       "type": "boolean",
       "description": "run 開始時に各デバイスへ home() を1回撃つ(既定 true = 撃つ)。一斉に launch した直後の端末は「描画要求が無いだけ」で画面が黒いまま止まることがあり、そのままだと凍結と見分けが付かない。入力を1回入れておくと描画が動き出すので予防になる。デバイスあたり1回だけなので実行時間への影響はほぼ無い。",

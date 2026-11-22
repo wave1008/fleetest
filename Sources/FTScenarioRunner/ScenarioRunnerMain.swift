@@ -635,6 +635,7 @@ struct RunScenario: AsyncParsableCommand {
         } else {
             displayAppExpectation = nil
         }
+        CurrentVariant.set(variant)
         let core = FTDriveCore(driver: countedDriver, platform: runPlatform, app: appBundleID,
                                scenarioID: scenarioID, scenarioTitle: scenarioTitle,
                                delegate: delegate, healingEnabled: heal,

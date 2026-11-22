@@ -426,6 +426,23 @@ final class RemoteDispatchTests: XCTestCase {
             sshTarget: "user@host", ignore: .none).contains("--safe-links"))
     }
 
+    /// `--variant` はリモートへ中継する(渡さないと全バリアントで走り、絞り込みが黙って落ちる)。run / api run の両方
+    func testVariantNamesAreRelayedToTheRemote() {
+        let run = RemoteRunArgs.build(project: "E2E", profile: "p", scenarios: ["A.s@dark"], folders: [],
+                                      noLPT: false, lptHistoryRuns: nil, performanceMode: false,
+                                      remoteJUnitPath: nil, reportDir: nil, variantNames: ["dark", "large-text"])
+        XCTAssertTrue(run.joined(separator: " ").contains("--variant dark --variant large-text"), "\(run)")
+        XCTAssertTrue(run.contains("A.s@dark"), "ID@variant の名指しはそのまま渡る")
+        let api = RemoteRunArgs.buildApi(project: "E2E", profile: "p", scenarios: ["A.s"], noLPT: false,
+                                         lptHistoryRuns: nil, performanceMode: false, defaultTimeout: nil,
+                                         scenarioTimeout: nil, reportDir: nil, variantNames: ["dark"])
+        XCTAssertTrue(api.joined(separator: " ").contains("--variant dark"), "\(api)")
+        let none = RemoteRunArgs.build(project: "E2E", profile: "p", scenarios: [], folders: [],
+                                       noLPT: false, lptHistoryRuns: nil, performanceMode: false,
+                                       remoteJUnitPath: nil, reportDir: nil)
+        XCTAssertFalse(none.contains("--variant"))
+    }
+
     // MARK: - RemoteRunArgs.build
 
     func testRemoteRunArgsMinimal() {

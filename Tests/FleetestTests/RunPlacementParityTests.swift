@@ -37,7 +37,7 @@ final class RunPlacementParityTests: XCTestCase {
     }
 
     func testStaticSplitsPassTheGroups() throws {
-        XCTAssertTrue(try source("DeviceMachineRunner.swift").contains("groups: DynamicDispatcher.groups(of: runnable, variant: nil)"))
+        XCTAssertTrue(try source("DeviceMachineRunner.swift").contains("groups: DynamicDispatcher.groups(of: runnable, plan: plan)"))
         XCTAssertTrue(try source("FleetRunner.swift").contains("groups: DynamicDispatcher.groups(of: selected, variant: nil)"))
     }
 

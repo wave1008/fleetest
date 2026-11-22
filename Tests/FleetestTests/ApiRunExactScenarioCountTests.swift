@@ -12,30 +12,39 @@ import XCTest
 final class ApiRunExactScenarioCountTests: XCTestCase {
 
     func testAllExactIDsGiveTheirCount() {
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010"]), 1)
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010", "B.S0020", "C.S0030"]), 3)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010"], variantCount: 1), 1)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010", "B.S0020", "C.S0030"], variantCount: 1), 3)
     }
 
     /// クラス名が1つでも混ざれば「分からない」= 絞らない(0)
     /// 同じ ID の重複は1回に畳まれる(ScenarioSelection)ので台数に数えない(数えると回らないデバイスまで起こす)
     func testDuplicateIDsAreCountedOnce() {
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A.m", "A.m", "A.m"]), 1)
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A.m", "B.n", "A.m"]), 2)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.m", "A.m", "A.m"], variantCount: 1), 1)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.m", "B.n", "A.m"], variantCount: 1), 2)
     }
 
     func testClassNameSelectorDisablesTheCap() {
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A"]), 0)
-        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010", "B"]), 0)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A"], variantCount: 1), 0)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010", "B"], variantCount: 1), 0)
     }
 
     /// 指定なし(全件)も絞らない
     func testEmptySelectionDisablesTheCap() {
-        XCTAssertEqual(ApiRun.exactScenarioCount([]), 0)
+        XCTAssertEqual(ApiRun.exactScenarioCount([], variantCount: 1), 0)
     }
 
     /// 日本語のクラス名・メソッド名でも同じ(この repo のシナリオは日本語名)
     func testJapaneseIdentifiersAreHandled() {
-        XCTAssertEqual(ApiRun.exactScenarioCount(["横向きでも操作できること.S0010"]), 1)
-        XCTAssertEqual(ApiRun.exactScenarioCount(["横向きでも操作できること"]), 0)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["横向きでも操作できること.S0010"], variantCount: 1), 1)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["横向きでも操作できること"], variantCount: 1), 0)
+    }
+
+    /// 台数は単位(シナリオ × バリアント)の数で数える。ID@variant はその1単位だけ
+    func testCountsUnitsAcrossVariants() {
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010", "B.S0020"], variantCount: 3), 6)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010@dark"], variantCount: 3), 1)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010@dark", "A.S0010@dark"], variantCount: 3), 1)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A.S0010@dark", "B.S0020"], variantCount: 2), 3)
+        XCTAssertEqual(ApiRun.exactScenarioCount(["A"], variantCount: 3), 0, "クラス名は本数が分からない = 絞らない")
     }
 }

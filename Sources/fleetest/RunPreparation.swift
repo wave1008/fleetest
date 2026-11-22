@@ -53,7 +53,7 @@ enum RunPreparation {
                 "no scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)")
         }
         // scenariosDir を渡す = 隔離フォルダ(_disabled)にあるクラスの名指しを、そこにあると言って断る
-        let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all,
+        let resolution = try ScenarioSelection.resolveReportingCollapsed(ScenarioSelection.idsStrippingVariants(scenarios), from: all,
                                                                          scenariosDir: project.scenariosDir)
         // 重なった指定を1回に畳んだことは言う(NDJSON の契約には足さない)
         if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { log(notice) }

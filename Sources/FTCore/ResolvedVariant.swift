@@ -26,4 +26,9 @@ public struct ResolvedVariant: Hashable, Sendable {
 extension Optional where Wrapped == ResolvedVariant {
     /// 記録・イベントへ載せる名前(バリアントの無い run は nil = 欄ごと省く)
     public var variantName: String? { self?.name }
+
+    /// 子へ渡す向き。バリアントの向きが先(全バリアントが明示する規則なので前のシナリオの向きは必ず上書きされる)、無ければプロファイルの `orientation`
+    public func childOrientation(fallback: FTOrientation?) -> FTOrientation? {
+        self?.orientation.flatMap(FTOrientation.parse) ?? fallback
+    }
 }

@@ -113,7 +113,7 @@ public enum ArgumentBounds {
     public static let mustNotBeEmpty: Set<String> = [
         "bundleId", "bundle", "launch", "url", "packagePath", "path", "id", "selector", "steps",
         "label", "classifier", "name", "profile", "runner", "query", "since", "runId", "alertButton", "value",
-        "linkText",
+        "linkText", "variant",
     ]
 
     /// 違反なら文言、範囲内(または値域を持たない引数)なら nil

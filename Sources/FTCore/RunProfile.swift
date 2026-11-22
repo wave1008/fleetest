@@ -462,6 +462,9 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
     /// 各シナリオの開始時の文字サイズ(`small` / `default` / `large` / `extraLarge` / `accessibility`)。**既定は指定なし = 標準(`default`)**。
     /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
     public var textSize: String?
+    /// バリアント(名前付きの表示条件の一覧。実行の単位はシナリオ × バリアント)。書かないキーは最上位の同じキー → 基準の値。
+    /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
+    public var variants: [RunVariantEntry]?
     /// Android の `adb install` で Play Protect の照会を通さないか(**既定 true**)。true で
     /// install の間だけ `verifier_verify_adb_installs` を 0 にして元へ戻す(AdbInstallVerifier。
     /// テスト対象アプリを Google へ送らない = ユーザー決定)。**false はキルスイッチ**:
@@ -498,7 +501,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
                 containerInference: Bool? = nil,
                 enableAnimations: Bool? = nil, responseMeasurement: Bool? = nil, responseRepeat: Int? = nil,
                 homeOnStart: Bool? = nil, orientation: String? = nil,
-                appearance: String? = nil, textSize: String? = nil,
+                appearance: String? = nil, textSize: String? = nil, variants: [RunVariantEntry]? = nil,
                 playProtectBypass: Bool? = nil, record: Bool? = nil,
                 recordFailuresOnly: Bool? = nil, recordBitrateKbps: Int? = nil,
                 recordFullResolution: Bool? = nil, remoteControl: RemoteControlSection? = nil) {
@@ -527,6 +530,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         self.orientation = orientation
         self.appearance = appearance
         self.textSize = textSize
+        self.variants = variants
         self.playProtectBypass = playProtectBypass
         self.record = record
         self.recordFailuresOnly = recordFailuresOnly
@@ -543,7 +547,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         "iosMode", "wipeDataOnBloat", "updateWebView", "wipeDataThresholdGB",
         "recoverCpuFallbackToGpu", "locale",
         "iosPreActionPing", "enableAnimations", "responseMeasurement", "responseRepeat", "homeOnStart", "orientation",
-        "appearance", "textSize",
+        "appearance", "textSize", "variants",
         "playProtectBypass",
         "containerInference",
         "record", "recordFailuresOnly", "recordBitrateKbps", "recordFullResolution", "remoteControl",
@@ -582,7 +586,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
     ]
 
     /// 配列・オブジェクトの欄。`key=value` で表せないので専用のエラーで断る(未知キー扱いにしない)
-    fileprivate static let arrayOrObjectKeys: Set<String> = ["devices", "remoteControl"]
+    fileprivate static let arrayOrObjectKeys: Set<String> = ["devices", "remoteControl", "variants"]
 
     /// `fleetest run --set <key>=<value>` / `fleetest api run --set` が受け付けるキー全部
     /// (Bool 18 + スカラー11。キー名はプロファイル JSON のキーそのもの ——

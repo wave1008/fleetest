@@ -158,6 +158,9 @@ public enum DSLCommandIndex {
                 + "(threshold: nil returns every candidate). Looks at the current screen once."),
         .init("lastElement", "operation", "lastElement",
               "The element the last single-element command grabbed. Values are frozen at grab time and cleared between scenes."),
+        .init("currentVariant", "operation", "currentVariant",
+              "The name of the run profile variant this scenario runs as (String?; nil in a run without variants)."
+                  + " Run memos are shared across variants, so put the name in the memo key to keep values apart."),
         .init("type", "operation",
               "type(selector, text, replace:, settle:, waitSeconds:, scroll:, maxSwipes:) / type(text, replace:, settle:)",
               "Types text. Prefer type(selector, text): one step resolves, focuses, types and reads the value"

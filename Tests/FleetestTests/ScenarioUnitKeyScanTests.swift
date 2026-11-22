@@ -42,6 +42,8 @@ final class ScenarioUnitKeyScanTests: XCTestCase {
         ("Sources/FTCore/ClassPlacementRules.swift", "let inOrderIDs = Set(all.filter", "全メンバー(ScenarioInfo)に @RunInOrder があるかの判定"),
         // 複数対象の `--target` の重複検査(対象 = プロファイルの id。シナリオの単位ではない)
         ("Sources/fleetest/MultiTargetRunner.swift", "var seenIDs: Set<String>", "target id の重複検査"),
+        // 宣言 platform の対象外はシナリオ(ID)単位の判定でバリアントに依らない(単位の鍵は `unitTuples` が持つ)
+        ("Sources/fleetest/DeviceMachineRunner.swift", "let runnable = Set(split.runnable.map(\\.id))", "OS の対象外はシナリオ単位"),
         // JUnit のクラス別のまとまり(表示の分け方。単位の鍵ではない)
         ("Sources/FTCore/JUnitReportWriter.swift", "Dictionary(grouping: sorted)", "classname ごとの testsuite"),
         // 実績(LPT / 見積り)の索引は ID + platform の鍵。結果に variant を足す段で「そのバリアントの履歴が無ければ無しの履歴」を足す(仕様 6.6)

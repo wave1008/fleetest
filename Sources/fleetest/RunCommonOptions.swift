@@ -26,6 +26,12 @@ struct RunCommonOptions: ParsableArguments {
 
     var profile: String? { profiles.first }
 
+    /// 実行プロファイルの `variants` の名前で絞る(繰り返し可)。知らない名前・`variants` の無いプロファイルは実行前にエラー。
+    /// `--scenario ID@variant`・`--failed` と併用したら積集合(`RunVariantPlan`)
+    @Option(name: .customLong("variant"),
+            help: "Run only these variants of the run profile's \"variants\" (repeatable; default: every variant). Combined with --scenario ID@variant or --failed it keeps the units both select")
+    var variantNames: [String] = []
+
     @Flag(name: .customLong("skip-build"), help: "Skip the swift build before running")
     var skipBuild = false
 
@@ -244,6 +250,20 @@ extension RunCommonOptions {
         }
     }
 
+    /// プロファイルのバリアントの宣言と `--variant` / `--scenario ID@variant` の検査(未知の名前・`variants` の無いプロファイル)から展開の計画を作る。
+    /// `fleetest run` / `api run` / 機械分担 / 複数対象が共有する入口(ID だけの選択は `ScenarioSelection.idsStrippingVariants`)
+    static func variantPlan(project: TestProject, profile: String?, overrides: [String: RunProfileSetValue],
+                            variantNames: [String], selectors: [String]) throws -> RunVariantPlan {
+        let declared = try profile.map {
+            try ProfileResolver.declaredVariants(project: project, runName: $0, overrides: overrides)
+        } ?? []
+        do {
+            return try RunVariantPlan.make(declared: declared, variantNames: variantNames, selectors: selectors, profile: profile)
+        } catch let error as RunVariantPlanError {
+            throw ValidationError(error.localizedDescription)
+        }
+    }
+
     /// `--performance` は --profile が要る。`hasFleet`: `--fleet` を持つのは run だけ(各エントリが
     /// 自分の --profile を持つので run は --fleet でもよい)。api run は false を渡す。
     /// 文言は `acceptsFleet` で決まる(run: "--profile or --fleet" / api run: "--profile")
@@ -390,6 +410,15 @@ extension RunCommonOptions {
         let full: ResolvedProfile
         let deviceFilter: [String]
         let deviceMachine: String?
+    }
+
+    /// `--variant` は実行プロファイルの `variants` の名前。プロファイルが無ければ絞る相手が無い(黙って無視しない)。
+    /// `--fleet` の各エントリは自分のプロファイルを持ち、親は単位へ展開しないので併用しない。
+    /// 名前の実在はプロファイルを読む `variantPlan` が断る
+    func validateVariants(hasFleet: Bool) throws {
+        guard !variantNames.isEmpty else { return }
+        if hasFleet { throw ValidationError("--variant cannot be combined with --fleet (variants belong to each entry's run profile)") }
+        if profile == nil { throw ValidationError("--variant requires --profile (variants come from the run profile's \"variants\")") }
     }
 
     /// `--work-queue` は実行プロファイルの経路(ProfileRunner / api run のワーカー構築)でだけ効く。

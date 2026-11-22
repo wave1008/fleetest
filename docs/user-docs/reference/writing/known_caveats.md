@@ -294,6 +294,8 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 - [Every scenario starts in light and the default text size](../project/run_profile.md#notes) — the device is read and set before and after each scenario, also when the profile says nothing, and stays that way after the run; write `appearance` / `textSize` to keep dark or large text, and note that the MCP `ft_run_scenario` does the same.
 - [A value you wrote that cannot be set fails the scenario](../project/run_profile.md#notes) — an unwritten one that cannot be reset only warns; verified on an iOS 26.6.2 physical device and an iOS 27.2 Simulator.
+- [Hooks and the run memo are shared across variants](../project/run_profile.md#notes) — `beforeAll` / `afterAll` run once per class per run and the run memo is one for the whole run; put `currentVariant` in the key to keep values apart per variant.
+- [Placement-bound classes stay on one device across all variants and run variant by variant](../project/run_profile.md#notes) — a failure in the middle of `@RunInOrder` stops only the rest of the same variant.
 - [iOS "this app only" text size is invisible](../project/run_profile.md#notes) — a size set from Control Center for one app is not read by the tool; `displaySettings` in each result shows what was expected, read and changed.
 
 ## UI component quirks (current limitations)

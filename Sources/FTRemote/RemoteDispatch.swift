@@ -764,7 +764,8 @@ public enum RemoteRunArgs {
                              lockSocket: String? = nil,
                              remoteJUnitPath: String?,
                              reportDir: String?, workspace: String? = nil,
-                             runGroup: String? = nil) -> [String] {
+                             runGroup: String? = nil,
+                             variantNames: [String] = []) -> [String] {
         var afterScenarios: [String] = []
         for folder in folders { afterScenarios += ["--folder", folder] }
         // 中継しないとリモートは共有キューで走る = 「全台で1回ずつ」が黙って「分配」に化ける
@@ -776,7 +777,7 @@ public enum RemoteRunArgs {
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, workQueue: workQueue, runMemoLink: runMemoLink,
             fleetEntry: fleetEntry, lockSocket: lockSocket, reportDir: reportDir,
-            workspace: workspace, runGroup: runGroup,
+            workspace: workspace, runGroup: runGroup, variantNames: variantNames,
             afterScenarios: afterScenarios, afterPerformance: afterPerformance,
             beforeRunGroup: beforeRunGroup)
     }
@@ -793,7 +794,8 @@ public enum RemoteRunArgs {
                                 fleetEntry: Bool = false,
                                 lockSocket: String? = nil,
                                 reportDir: String?, workspace: String? = nil,
-                                runGroup: String? = nil) -> [String] {
+                                runGroup: String? = nil,
+                                variantNames: [String] = []) -> [String] {
         var afterPerformance: [String] = []
         if let defaultTimeout { afterPerformance += ["--default-timeout", formatTimeout(defaultTimeout)] }
         if let scenarioTimeout { afterPerformance += ["--scenario-timeout", formatTimeout(scenarioTimeout)] }
@@ -803,7 +805,7 @@ public enum RemoteRunArgs {
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, workQueue: workQueue, runMemoLink: runMemoLink,
             fleetEntry: fleetEntry, lockSocket: lockSocket, reportDir: reportDir,
-            workspace: workspace, runGroup: runGroup,
+            workspace: workspace, runGroup: runGroup, variantNames: variantNames,
             afterScenarios: [], afterPerformance: afterPerformance, beforeRunGroup: [])
     }
 
@@ -814,7 +816,7 @@ public enum RemoteRunArgs {
         head: [String], scenarios: [String], deviceNames: [String], deviceMachine: String?,
         setOverrides: [String: RunProfileSetValue], noLPT: Bool, lptHistoryRuns: Int?,
         performanceMode: Bool, workQueue: Bool, runMemoLink: Bool, fleetEntry: Bool,
-        lockSocket: String?, reportDir: String?, workspace: String?, runGroup: String?,
+        lockSocket: String?, reportDir: String?, workspace: String?, runGroup: String?, variantNames: [String],
         afterScenarios: [String], afterPerformance: [String], beforeRunGroup: [String]
     ) -> [String] {
         // **リモート側は必ず「ここで走らせる」**(head の `--runner local`)。省略すると、向こうの fleetest が
@@ -837,6 +839,8 @@ public enum RemoteRunArgs {
         // ミラーしていない絶対パスを見に行く(この機能の動機になった不具合そのもの)
         if let workspace { args += ["--workspace", workspace] }
         for scenario in scenarios { args += ["--scenario", scenario] }
+        // 中継しないとリモートは全バリアントで走る(`--variant` の絞り込みが黙って落ちる)
+        for name in variantNames { args += ["--variant", name] }
         args += afterScenarios
         // **中継しないと黙って無視される**(リモート側はプロファイルの既定で走る)。
         // キーの値ごと渡すので、プロファイルの既定を打ち消す/明示で有効にするのどちらも

@@ -235,6 +235,29 @@ extension MCPServer {
         return ClassPlacementRules.ordered(selected)
     }
 
+    /// `ft_run_scenario` の `variant`。バリアントのあるプロファイルでだけ受け(省略は宣言の最初)、それ以外で指定されたら断る。
+    /// **宣言の誤りでプロファイルが読めないときは空として扱う**(後段の resolve が自分の言葉で断る)
+    static func variantChoice(profile: String?, requested: String?, declared: [ResolvedVariant]) throws
+        -> (variant: ResolvedVariant?, note: String?) {
+        guard !declared.isEmpty else {
+            if let requested {
+                throw MCPError(profile == nil
+                    ? "variant \"\(requested)\" needs a profile that declares variants (pass profile)"
+                    : "variant \"\(requested)\": profile \(profile!) declares no variants")
+            }
+            return (nil, nil)
+        }
+        if let requested {
+            guard let found = declared.first(where: { $0.name == requested }) else {
+                throw MCPError("unknown variant \"\(requested)\" (available: \(declared.map(\.name).joined(separator: ", ")))")
+            }
+            return (found, "ℹ️ ran the variant \"\(found.name)\" of profile \(profile ?? "")")
+        }
+        let first = declared[0]
+        return (first, "ℹ️ profile \(profile ?? "") declares \(declared.count) variants; ran the first, \"\(first.name)\""
+            + " (pass variant: <name> to choose: \(declared.map(\.name).joined(separator: ", ")))")
+    }
+
     func runScenario(_ args: [String: Any]) async throws -> [[String: Any]] {
         let id = try Self.requiredStringArgument(args, "id")
         let profilePlatforms = (args["profile"] as? String).flatMap {
@@ -242,6 +265,14 @@ extension MCPServer {
         }
         if let conflict = Self.profileConflict(args, profilePlatforms: profilePlatforms) { throw MCPError(conflict) }
         let project = try ScenarioHost.project(named: args["project"] as? String)
+        var prologue: [String] = []
+        // バリアントのあるプロファイルでは1つを選んで1回走らせる(省略 = 宣言の最初。応答に言う)
+        let variantChoice = try Self.variantChoice(
+            profile: args["profile"] as? String, requested: try Self.stringArgument(args, "variant"),
+            declared: (args["profile"] as? String).map {
+                (try? ProfileResolver.declaredVariants(project: project, runName: $0)) ?? []
+            } ?? [])
+        if let note = variantChoice.note { prologue.append(note) }
         if !(args["skipBuild"] as? Bool ?? false) {
             try ScenarioHost.build(project: project)
         }
@@ -260,7 +291,6 @@ extension MCPServer {
         var exec = ScenarioExecutionSettings(heal: args["heal"] as? Bool ?? false)
         var reportDir = project.reportsDir.path
         var connection: DriverConnection
-        var prologue: [String] = []
         // アプリ解決(FTCore.ScenarioAppResolution)に必要な3つ。
         // installHandler は渡さない(MCP の run はホスト install の RPC を持たない —
         // ft_install か profile のブリッジ準備(autoInstall)で入れ済みという前提。appPath は installApp() の引数省略時のフォールバックにも
@@ -401,7 +431,7 @@ extension MCPServer {
         // 自己修復の修正提案(この経路は run を通らないので、書き戻しもここで行う。`HealSourceWriteBack`)
         var healSuggestions: [HealWriteBack.Suggestion] = []
         for info in infos {
-            if let reason = placementGate.skipReason(for: info, variant: nil, lane: "") {
+            if let reason = placementGate.skipReason(for: info, variant: variantChoice.variant?.name, lane: "") {
                 lines.append("❌ \(info.id): \(reason)")
                 outcomes.append((info.id, false, nil, false))
                 failedCount += 1
@@ -409,7 +439,7 @@ extension MCPServer {
             }
             var declaredNotApplicable = false
             let passed = await ScenarioHost.run(project: project, scenarioID: info.id,
-                                       variant: nil,
+                                       variant: variantChoice.variant,
                                        connection: connection,
                                        deviceSession: deviceSession,
                                        classHasBeforeAll: info.beforeAll,
@@ -430,7 +460,7 @@ extension MCPServer {
                     outcomes.append((event.scenario ?? info.id, event.passed == true, event.reportPath, skipped))
                 }
             }
-            placementGate.record(info, variant: nil, lane: "", passed: passed)
+            placementGate.record(info, variant: variantChoice.variant?.name, lane: "", passed: passed)
             if passed && declaredNotApplicable { skippedCount += 1 }
             else if passed { passedCount += 1 } else { failedCount += 1 }
         }

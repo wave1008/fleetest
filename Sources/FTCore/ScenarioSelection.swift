@@ -42,7 +42,7 @@ public enum ScenarioSelection {
             }
         }
         for id in ids {
-            // `ID@variant`(単位の名指し。`ScenarioUnitKey.parse`)。プロファイルの variants を受け付ける段まで、受け先が無い
+            // `ID@variant`(単位の名指し)は run / api run の入口が `idsStrippingVariants` で外してから来る。ここへ来たものは受け先が無い
             if id.contains("@") { throw ScenarioSelectionError.variantSelectorUnsupported(selector: id) }
             if let exact = all.first(where: { $0.id == id }) {
                 append([exact])
@@ -95,7 +95,7 @@ public enum ScenarioSelectionError: Error, LocalizedError, CustomStringConvertib
         case .notFoundInScenariosDir(let id, let available, let scenariosDir):
             return ScenarioFolders.notFoundMessage(id: id, available: available, scenariosDir: scenariosDir)
         case .variantSelectorUnsupported(let selector):
-            return "\(selector): the ID@variant form needs a run profile that declares variants (none does yet)"
+            return "\(selector): the ID@variant form names a unit of a run profile's variants and is accepted by `run` / `api run` with --profile only"
         case .notFound(let id, let available):
             return "scenario not found: \(id) (available: \(available.joined(separator: ", ")))"
         }

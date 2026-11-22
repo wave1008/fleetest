@@ -109,7 +109,8 @@ struct RemoteRunDispatcher {
                   fleetEntry: Bool = false,
                   lockSocket: String? = nil, lockControlSocket: String? = nil,
                   localJUnitPath: String?,
-                  remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
+                  remoteTimeoutSeconds: Int?, runGroup: String? = nil,
+                  variantNames: [String] = []) async throws -> Int32 {
         try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
             linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
@@ -124,7 +125,7 @@ struct RemoteRunDispatcher {
                 performanceMode: performanceMode, broadcast: broadcast, workQueue: workQueue,
                 runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
                 remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
-                runGroup: runGroup)
+                runGroup: runGroup, variantNames: variantNames)
         }
     }
 
@@ -140,7 +141,8 @@ struct RemoteRunDispatcher {
                      runMemoLink: Bool = false,
                      fleetEntry: Bool = false,
                      lockSocket: String? = nil, lockControlSocket: String? = nil,
-                     remoteTimeoutSeconds: Int?, runGroup: String? = nil) async throws -> Int32 {
+                     remoteTimeoutSeconds: Int?, runGroup: String? = nil,
+                     variantNames: [String] = []) async throws -> Int32 {
         try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
             linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
@@ -154,7 +156,8 @@ struct RemoteRunDispatcher {
                 performanceMode: performanceMode,
                 defaultTimeout: defaultTimeout, scenarioTimeout: scenarioTimeout, workQueue: workQueue,
                 runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
-                reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup)
+                reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup,
+                variantNames: variantNames)
         }
     }
 

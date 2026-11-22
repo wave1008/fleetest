@@ -616,6 +616,8 @@ extension MCPServer {
             "heal": ["type": "boolean", "description": "Override fingerprint-based locator self-healing "
                 + "(default: the profile's setting, else false). A healed step's selector is written back to the"
                 + " scenario source at the end (review with git diff)"],
+            "variant": ["type": "string", "description": "With a profile that declares variants: the variant (name) to run "
+                + "once. Omitted = the first declared variant (the response says so). Refused for a profile without variants"],
             "skipBuild": skipBuildProperty,
             "fmAndVision": fmAndVisionProperty,
         ], required: ["id"]),
@@ -627,9 +629,12 @@ extension MCPServer {
             "runner": ["type": "string", "description": "Run on this machine registered with `fleetest "
                 + "remote machines add`, or local (raw hosts are refused)"],
             "scenario": ["type": "array", "items": ["type": "string"],
-                         "description": "Only these (class or Class.method; default all)"],
+                         "description": "Only these (class, Class.method, or Class.method@variant for one variant unit; default all)"],
             "folder": ["type": "array", "items": ["type": "string"],
                        "description": "Only scenarios under these folders of scenarios/"],
+            "variant": ["type": "array", "items": ["type": "string"],
+                        "description": "Only these variants of the run profile's \"variants\" (names; default every variant). "
+                            + "An unknown name, or a profile without variants, is refused before the run"],
             "failed": ["type": "boolean", "description": "Only the scenarios that failed last time"],
             "broadcast": ["type": "boolean", "description": "Run each selected scenario on every device "
                 + "instead of splitting them"],

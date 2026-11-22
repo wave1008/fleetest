@@ -218,6 +218,19 @@ public var lastElement: FTElement {
     return element
 }
 
+/// このシナリオが走っているバリアントの名前(実行プロファイルの `variants` の `name`)。バリアントの無い run は `nil`。
+/// run メモのキーにバリアント名を含めるのに使う(run メモは全バリアント・全マシンで共有される)。
+///
+///     runMemo(key: "cart-\(currentVariant ?? "base")")
+public var currentVariant: String? { CurrentVariant.name }
+
+/// 1つのシナリオ実行プロセスは1つのバリアントだけを走らせる(`--variant`)ので、プロセスに1つ持つ(`ScenarioRunnerMain` が起動時に1回だけ設定する)
+public enum CurrentVariant {
+    private static let value = LockedValue<String?>(nil)
+    static var name: String? { value.value }
+    public static func set(_ name: String?) { value.value = name }
+}
+
 // MARK: - 検証コマンド(**対象は直前に掴んだ要素** = 暗黙の lastElement)
 
 // 検証はすべて「掴んでから検証する」形に統一されている(ユーザー決定)。

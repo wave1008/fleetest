@@ -58,7 +58,7 @@ final class ScenarioExecutionSettingsTests: XCTestCase {
             recordBitrateKbps: 2500,
             orientation: .landscape, appearance: .dark, textSize: .extraLarge)
         // findImagePrewarm はプロファイルの設定ではない(MCP が呼び出しごとに切る = MCPServer.withoutFMAndVision)
-        assertNoFieldStaysDefault(ScenarioExecutionSettings(nonDefault), excluding: ["profileName", "findImagePrewarm"])
+        assertNoFieldStaysDefault(ScenarioExecutionSettings(nonDefault), excluding: ["profileName", "findImagePrewarm", "variants"])  // variants はプロファイルの欄(profile-less に無い)
     }
 
     /// profile-less の変換は `profileName` を nil のまま運ぶ(LastResultsStore.noProfileKey の区分へ)
@@ -91,7 +91,8 @@ final class ScenarioExecutionSettingsTests: XCTestCase {
             enableAnimations: false, responseMeasurement: true, responseRepeat: 5,
             homeOnStart: true, playProtectBypass: true, record: false, recordFailuresOnly: false,
             recordBitrateKbps: 1500, recordFullResolution: false, warnings: [],
-            orientation: .landscape, appearance: .dark, textSize: .extraLarge)
+            orientation: .landscape, appearance: .dark, textSize: .extraLarge,
+            variants: [ResolvedVariant(name: "dark", appearance: .dark, textSize: .default, orientation: nil)])
         assertNoFieldStaysDefault(ScenarioExecutionSettings(profile), excluding: ["findImagePrewarm"])
     }
 }

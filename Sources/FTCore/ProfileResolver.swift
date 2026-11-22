@@ -94,6 +94,25 @@ public enum ProfileResolver {
         return doc.applyingOverrides(overrides).responseMeasurement == true
     }
 
+    /// 実行プロファイルのバリアント(解決済み。宣言順)。`variants` が無ければ空。**読めない・無いプロファイルは空**(別の段が断る)。
+    /// 宣言の誤りと `--set` の併用は投げる。run の入口(`run` / `api run` / 機械分担 / 複数対象)がバリアントの展開に使う1箇所
+    public static func declaredVariants(project: TestProject, runName: String,
+                                        overrides: [String: RunProfileSetValue] = [:]) throws -> [ResolvedVariant] {
+        let runURL = project.runsDir.appendingPathComponent("\(runName).json")
+        guard let data = try? Data(contentsOf: runURL),
+              let loaded = try? JSONDecoder().decode(RunProfileDocument.self, from: data) else { return [] }
+        return try resolveVariants(loaded: loaded, overrides: overrides, run: runName)
+    }
+
+    static func resolveVariants(loaded: RunProfileDocument, overrides: [String: RunProfileSetValue],
+                                run: String) throws -> [ResolvedVariant] {
+        guard let entries = loaded.variants else { return [] }
+        try RunVariantResolution.rejectSetOverrides(overrides, run: run)
+        return try RunVariantResolution.resolve(
+            entries: entries, topAppearance: loaded.appearance, topTextSize: loaded.textSize,
+            topOrientation: loaded.orientation, run: run)
+    }
+
     /// runProfileName の実行プロファイルが宣言する `remoteControl.workspace`(trim 後非空)を返す。
     /// ファイルが無い/デコード不能/未宣言・空文字列なら nil。**マシン解決を必要としないので
     /// フルの resolve() を経由しない** —— リモートディスパッチ(Sources/fleetest/
@@ -216,6 +235,7 @@ public enum ProfileResolver {
         // `--set` はここで一度だけ当てる(読み込み直後・解決より前)。以降の全処理はこの
         // runDoc だけを見るので、全キーが個別の配線無しで効く(RunProfileDocument.applyingOverrides)
         let runDoc = loadedRunDoc.applyingOverrides(overrides)
+        let variants = try resolveVariants(loaded: loadedRunDoc, overrides: overrides, run: runName)
         guard let appRef = runDoc.app else {
             throw ProfileError.missingAppReference(run: runName)
         }
@@ -483,7 +503,8 @@ public enum ProfileResolver {
             warnings: warnings,
             reportDirDeclared: runDoc.reportDir != nil,
             orientation: settings.orientation,
-            appearance: settings.appearance, textSize: settings.textSize)
+            appearance: settings.appearance, textSize: settings.textSize,
+            variants: variants)
     }
 
     /// 実機デバイスの整合検査。enabled のデバイスにのみ適用する
@@ -608,6 +629,10 @@ public enum ProfileResolver {
                 }
                 if let raw = doc.textSize, FTTextSize.parse(raw) == nil {
                     errors.append("\"textSize\" \(FTTextSize.rule)")
+                }
+                if let entries = doc.variants {
+                    errors += RunVariantResolution.problems(entries: entries, topOrientation: doc.orientation)
+                        .map { "\"variants\": \($0)" }
                 }
             } else {
                 let reason: String

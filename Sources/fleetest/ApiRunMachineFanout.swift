@@ -27,6 +27,8 @@ enum ApiRunMachineFanout {
     /// --report-dir を子へ渡していない(既存の踏襲)
     struct Options {
         var setOverrides: [String: RunProfileSetValue] = [:]
+        /// `--variant`(名前。空 = 全バリアント)
+        var variantNames: [String] = []
         var defaultTimeout: Double?
         var scenarioTimeout: Int?
         var noLPT: Bool
@@ -88,8 +90,12 @@ enum ApiRunMachineFanout {
                     throw ValidationError(
                         "no scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)")
                 }
-                let resolution = try ScenarioSelection.resolveReportingCollapsed(scenarios, from: all)
+                let resolution = try ScenarioSelection.resolveReportingCollapsed(
+                    ScenarioSelection.idsStrippingVariants(scenarios), from: all)
                 if let notice = ScenarioSelection.collapsedNotice(resolution.collapsed) { logStderr(notice) }
+                let plan = try RunCommonOptions.variantPlan(
+                    project: project, profile: profileName, overrides: options.setOverrides,
+                    variantNames: options.variantNames, selectors: scenarios)
                 let selected = resolution.selected
                 listedScenarioTimeouts.value = selected.map(\.scenarioTimeout)
                 guard !selected.isEmpty else {
@@ -111,10 +117,10 @@ enum ApiRunMachineFanout {
                     broadcast: false,
                     measuresResponse: ProfileResolver.declaresResponseMeasurement(
                         project: project, runName: profileName, overrides: options.setOverrides)) {
-                    let split = DeviceMachineRunner.splitApplicable(selected: selected, groups: groups)
+                    let split = DeviceMachineRunner.splitApplicable(selected: selected, groups: groups, plan: plan)
                     notApplicable = split.notApplicable
                     let resolved = DynamicDispatcher.resolve(
-                        split.runnable, variant: nil,
+                        split.runnable, plan: plan,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index in
                         let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
@@ -127,7 +133,7 @@ enum ApiRunMachineFanout {
                     }
                 } else {
                     let (buckets, basis, notApplicableStatic) = try DeviceMachineRunner.assign(
-                        project: project, groups: groups, selected: selected,
+                        project: project, groups: groups, selected: selected, plan: plan,
                         lptHistoryRuns: options.lptHistoryRuns)
                     notApplicable = notApplicableStatic
                     active = groups.indices.compactMap { index in
@@ -161,13 +167,13 @@ enum ApiRunMachineFanout {
                     }
                 }
 
-                totalScenarios.withLock { $0 = selected.count - notApplicable.count }
+                totalScenarios.withLock { $0 = plan.units(of: selected).count - plan.units(of: notApplicable).count }
                 var leaseChecks: [MachineFanoutFrontHalf.LeaseCheck] = []
                 if let local = active.first(where: { $0.group.machine == nil }) {
                     let ids = Set(local.ids)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.group.deviceNames,
-                        localScenarios: selected.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: false))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: false))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.group.machineLabel }, prelockProject: project))

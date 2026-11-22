@@ -16,7 +16,7 @@ enum MCPMessageText {
     /// MCP のツール引数として実在する名前だけを書き換える(CLI にしかないフラグは触らない)。
     /// 長い名前を先に見る = `--project-dir` を `--project` として拾わないための順序ではなく、
     /// 境界チェック(`isFlagBoundary`)が本体。順序は最左一致を安定させるためだけ
-    static let argumentFlags = ["scenario", "platform", "profile", "project", "serial", "port"]
+    static let argumentFlags = ["scenario", "platform", "profile", "project", "serial", "port", "variant"]
 
     static func forMCP(_ message: String) -> String {
         message.split(separator: "\n", omittingEmptySubsequences: false)

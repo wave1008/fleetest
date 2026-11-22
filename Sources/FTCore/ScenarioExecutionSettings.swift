@@ -33,6 +33,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
     /// 親が `ScenarioHost.run` で子を起こす前後に端末へ設定する(子へは運ばない)
     public var appearance: FTAppearance?
     public var textSize: FTTextSize?
+    /// 解決済みのバリアント(宣言順。`ScenarioRunner.runOne` が `item.variant` の名前で引き、`ScenarioHost.run` へ値ごと渡す)。空 = バリアントの無い run
+    public var variants: [ResolvedVariant]
 
     /// 既定値はこの1箇所だけに置く。他の層(ScenarioHost/RunOrchestrator/CLI)に既定を書かない。
     /// `homeOnStart` はデバイスに触る工程の設定なのでここには入れない
@@ -42,7 +44,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                 tunables: RunTunables = RunTunables(),
                 scenarioTimeout: Int? = nil, profileName: String? = nil,
                 orientation: FTOrientation? = nil,
-                appearance: FTAppearance? = nil, textSize: FTTextSize? = nil) {
+                appearance: FTAppearance? = nil, textSize: FTTextSize? = nil,
+                variants: [ResolvedVariant] = []) {
         self.fm = fm
         self.heal = heal
         self.occlusionOCR = occlusionOCR
@@ -56,6 +59,7 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
         self.orientation = orientation
         self.appearance = appearance
         self.textSize = textSize
+        self.variants = variants
     }
 
     public init(_ settings: DeviceIndependentRunSettings) {
@@ -79,6 +83,7 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                   responseMeasurement: resolved.responseMeasurement,
                   tunables: t, scenarioTimeout: resolved.scenarioTimeout,
                   profileName: resolved.runName, orientation: resolved.orientation,
-                  appearance: resolved.appearance, textSize: resolved.textSize)
+                  appearance: resolved.appearance, textSize: resolved.textSize,
+                  variants: resolved.variants)
     }
 }

@@ -179,6 +179,8 @@ public struct ResolvedProfile: Sendable {
     /// RunProfileDocument.appearance / textSize(既定 nil = 指定なし)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
     public var appearance: FTAppearance? = nil
     public var textSize: FTTextSize? = nil
+    /// 解決済みのバリアント(宣言順。空 = バリアントの無い run)。各値は「指定あり」(RunVariantResolution)。既定値付きの `var`(memberwise init を直に呼ぶ既存テストのため)
+    public var variants: [ResolvedVariant] = []
 
     public var iosDevices: [ResolvedDevice] { devices.filter { $0.platform == "ios" } }
     /// platform を宣言していないシナリオをどちらの OS で走らせるか(iOS のデバイスがあれば ios)。**唯一の規則** ——

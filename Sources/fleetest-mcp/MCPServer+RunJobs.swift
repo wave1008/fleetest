@@ -126,7 +126,7 @@ enum MCPRunJobs {
     /// `fmAndVision`: false(MCP の既定)なら FM と Vision を使う4つのキーを `--set` で切り、run の開始時の
     /// OCR のコンパイルも止める(`FT_OCCLUSION_OCR=off`。`ScenarioHost.startOCRModelCompile` はプロファイルを見ない)
     static func arguments(profile: String, project: String?, runner: String?, scenarios: [String],
-                          folders: [String], failed: Bool, broadcast: Bool, fmAndVision: Bool,
+                          folders: [String], variants: [String], failed: Bool, broadcast: Bool, fmAndVision: Bool,
                           waitLockSeconds: Int?) -> [String] {
         // 環境変数は手元の run とその子にだけ効く(別の機械へは `--set` だけが届き、OCR のコンパイルはそれで止まる)
         var args = fmAndVision ? [] : ["FT_OCCLUSION_OCR=off", "FT_FIND_IMAGE_PREWARM=off"]
@@ -136,6 +136,7 @@ enum MCPRunJobs {
         if let runner { args += ["--runner", runner] }
         if !scenarios.isEmpty { args += ["--scenario"] + scenarios }
         if !folders.isEmpty { args += ["--folder"] + folders }
+        for name in variants { args += ["--variant", name] }
         if failed { args.append("--failed") }
         if broadcast { args.append("--broadcast") }
         if let waitLockSeconds { args += ["--wait-lock", String(waitLockSeconds)] }
@@ -150,10 +151,11 @@ enum MCPRunJobs {
     /// 読まれ、`runnerRefusal` を素通りして登録外の機械へ送れる(`--junit=<任意のパス>` も同じ)。
     /// シナリオ ID・フォルダ・プロファイル名・機械名に `-` 始まりの正当な値は無い
     static func optionLikeValueRefusal(profile: String, runner: String?, scenarios: [String],
-                                       folders: [String]) -> String? {
+                                       folders: [String], variants: [String] = []) -> String? {
         let named: [(String, String)] = [("profile", profile)] + (runner.map { [("runner", $0)] } ?? [])
             + scenarios.enumerated().map { ("scenario[\($0.offset)]", $0.element) }
             + folders.enumerated().map { ("folder[\($0.offset)]", $0.element) }
+            + variants.enumerated().map { ("variant[\($0.offset)]", $0.element) }
         guard let (key, value) = named.first(where: {
             $0.1.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("-")
         }) else { return nil }
@@ -451,9 +453,10 @@ extension MCPServer {
         let profile = try Self.requiredStringArgument(args, "profile")
         let scenarios = try Self.stringListArgument(args, "scenario")
         let folders = try Self.stringListArgument(args, "folder")
+        let variants = try Self.stringListArgument(args, "variant")
         let runner = try Self.stringArgument(args, "runner")
         if let refusal = MCPRunJobs.optionLikeValueRefusal(
-            profile: profile, runner: runner, scenarios: scenarios, folders: folders) {
+            profile: profile, runner: runner, scenarios: scenarios, folders: folders, variants: variants) {
             throw MCPError(refusal)
         }
         if let runner, let refusal = MCPRunJobs.runnerRefusal(
@@ -472,7 +475,7 @@ extension MCPServer {
         }
         let project = try ScenarioHost.project(named: args["project"] as? String)
         let arguments = MCPRunJobs.arguments(
-            profile: profile, project: project.name, runner: runner, scenarios: scenarios, folders: folders,
+            profile: profile, project: project.name, runner: runner, scenarios: scenarios, folders: folders, variants: variants,
             failed: failed, broadcast: broadcast, fmAndVision: args["fmAndVision"] as? Bool == true,
             waitLockSeconds: try Self.intArgument(args, "waitLockSeconds"))
 

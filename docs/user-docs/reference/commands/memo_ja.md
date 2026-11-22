@@ -1,4 +1,4 @@
-# メモ(writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)
+# メモ(writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs, currentVariant)
 
 [in English](memo.md)
 
@@ -23,6 +23,7 @@
 | `clearRunMemo()` | run メモを全部消します。 |
 | `element.runMemoTextAs(key)` | 取得した要素のテキストを run メモへ書き、要素を返します。要素を取得できていなければ失敗します。 |
 | `string.runMemoTextAs(key)` | 文字列を run メモへ書き、その文字列を返します。 |
+| `currentVariant` | このシナリオが走っている実行プロファイルの[バリアント](../project/run_profile_ja.md#バリアント)の名前(`String?`。バリアントの無い run では `nil`)。run メモは全バリアントで共有されるので、値を分けたいときはキーに含めます: `writeRunMemo("cart-\(currentVariant ?? "base")", text)`。 |
 
 ## 共有の範囲
 

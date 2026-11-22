@@ -130,7 +130,7 @@ enum MultiTargetRunner {
     static func run(
         targets: [Target], setOverrides: [String: RunProfileSetValue], noLPT: Bool, lptHistoryRuns: Int?,
         performanceMode: Bool, forceLock: Bool, waitLock: Int?, remoteDir: String?, remoteTimeout: Int?,
-        quiet: Bool, junit: String?, skipBuild: Bool, reportDir: String?
+        quiet: Bool, junit: String?, skipBuild: Bool, reportDir: String?, variantNames: [String]
     ) async throws -> Int32 {
         let junitTempDir = try FleetRunner.makeJUnitTempDir(requested: junit)
         defer { if let junitTempDir { try? FileManager.default.removeItem(at: junitTempDir) } }
@@ -249,7 +249,15 @@ enum MultiTargetRunner {
                 for target in resolvedTargets {
                     let id = "\(target.project.name)/\(target.profile)"
                     let all = listed[target.project.name] ?? []
-                    let (runnable, notApplicable) = DeviceMachineRunner.splitApplicable(selected: all, groups: target.groups)
+                    // `--variant` の名前を持たないプロファイルが1つでもあれば、どの対象も始める前にエラー
+                    let plan: RunVariantPlan
+                    do {
+                        plan = try RunCommonOptions.variantPlan(
+                            project: target.project, profile: target.profile, overrides: setOverrides,
+                            variantNames: variantNames, selectors: [])
+                    } catch { throw ValidationError("[\(id)] \(error.localizedDescription)") }
+                    let (runnable, notApplicable) = DeviceMachineRunner.splitApplicable(
+                        selected: all, groups: target.groups, plan: plan)
                     if !notApplicable.isEmpty { FleetRunner.log("==> \(id)") }
                     for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: target.groups) {
                         FleetRunner.log(line)
@@ -263,7 +271,7 @@ enum MultiTargetRunner {
                         throw ValidationError("[\(id)] " + message)
                     }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable, variant: nil,
+                        runnable, plan: plan,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: target.groups))
                     guard !resolved.isEmpty else {
                         FleetRunner.log("==> \(id): no scenario applies to this profile's devices; skipping")
@@ -306,7 +314,7 @@ enum MultiTargetRunner {
                     let ids = Set(DynamicDispatcher.candidateUnits(for: local, in: unit.resolved))
                     leaseChecks.append(.init(
                         project: unit.project, profileName: unit.profile, localDeviceNames: local.deviceNames,
-                        localScenarios: unit.infos.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: false))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: unit.infos), broadcast: false))
                 }
                 return ((units, healByProject), .init(
                     leaseChecks: leaseChecks,

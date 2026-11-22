@@ -338,9 +338,17 @@ struct ScenarioTimingTracker {
 /// クラス名指定や全件は本数が分からないので **0 = 絞らない**
 /// (そこは並列度が要る場面で、絞ると遅くなる)
 enum ApiRun {
-    static func exactScenarioCount(_ selectors: [String]) -> Int {
+    /// `variantCount` = 1 本のシナリオが展開される単位の数(`--variant` で絞った後のバリアント数。バリアントの無い run は 1)。
+    /// `ID@variant` はその1単位だけ。台数は単位の数で数える
+    static func exactScenarioCount(_ selectors: [String], variantCount: Int) -> Int {
         guard !selectors.isEmpty, selectors.allSatisfy({ $0.contains(".") }) else { return 0 }
-        return Set(selectors).count
+        var units = Set<String>()
+        for selector in selectors {
+            guard let key = ScenarioUnitKey.parse(selector) else { continue }
+            if let variant = key.variant { units.insert("\(key.id)@\(variant)"); continue }
+            for index in 0..<max(1, variantCount) { units.insert("\(key.id)#\(index)") }
+        }
+        return units.count
     }
 
     /// dry-run のレポートを捨てる一時フォルダ(呼び手が処理の終わりに消す)。ランナーは dry-run でもレポートを書く。

@@ -168,6 +168,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         try common.validateRunnerAndMachines(runner: runner, hasFleet: false)
         try common.validateToolSync(runner: runner, hasFleet: false)
         try common.validateWorkQueue(broadcast: false, hasFleet: false)
+        try common.validateVariants(hasFleet: false)
         // `--set` の検査(型・専用フラグとの衝突・--profile 無し時の profile-only キーと record)は run と共有。
         // この経路(runDirect)は RunOrchestrator を経由せず各シナリオを直接の接続で流すため録画セッションが無い
         // (FTCore.RunProfileDocument.recordNeedsRejecting 参照)
@@ -267,7 +268,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             let exitCode = try await ApiRunMachineFanout.run(
                 project: testProject, profileName: profile, groups: groups, scenarios: scenarios,
                 options: ApiRunMachineFanout.Options(
-                    setOverrides: profileOverrides, defaultTimeout: defaultTimeout,
+                    setOverrides: profileOverrides, variantNames: common.variantNames, defaultTimeout: defaultTimeout,
                     scenarioTimeout: scenarioTimeout,
                     noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns, performanceMode: performanceMode,
                     remoteDir: common.remoteDir, remoteTimeout: common.remoteTimeout,
@@ -298,8 +299,13 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 親とつながった子は、ビルドと供給より前に起動を知らせる(親が開始を決める材料。開始を待つのは流し始める直前)
         ParentLink.announce()
 
+        // バリアントの展開の計画(宣言・`--variant`・`--scenario ID@variant` の検査もロックの前)
+        let variantPlan = try RunCommonOptions.variantPlan(
+            project: testProject, profile: common.profile, overrides: profileOverrides,
+            variantNames: common.variantNames, selectors: scenarios)
         if !dryRun {
-            try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios, requireSingle: debug)
+            try ScenarioPreflight.rejectUnknownScenarios(
+                project: testProject, scenarios: ScenarioSelection.idsStrippingVariants(scenarios), requireSingle: debug)
         }
         // **--profile の読むだけの検証はロックを取るより前**(理由は
         // resolveProfileDevicesBeforeLock の宣言参照)。書き込みはまだ何もしていない
@@ -379,7 +385,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             // `api run` は一覧(`ScenarioInfo`)を得る前にここで供給を始める(`run` も、ビルドが要るときの先行構築は同じ
             // `ApiRun.exactScenarioCount`。一覧が先に取れる `run` の通常経路だけが `scenarioCounts` を通す)。
             // 結果として明示 ID が1台に寄せるクラスを含むときは、必要より多めに台数を用意しうる(余った台は使われずに残る)
-            let exactCount = ApiRun.exactScenarioCount(scenarios)
+            let exactCount = ApiRun.exactScenarioCount(scenarios, variantCount: max(1, variantPlan.variants.count))
             let estimate: Int? = exactCount > 0 ? exactCount : nil
             // dry-run はデバイスに触らないので MCP のデバイスを避ける理由が無い(印を読むと simctl/adb を引き、
             // 「奪う」と嘘の警告を出す)
@@ -585,7 +591,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             ? RunRecorder.begin(project: testProject, profile: common.profile, trigger: "api",
                                 runGroup: common.runGroup,
                                 lastResultsDir: LastResultsStore.stateDir(project: testProject,
-                                                                          profile: common.profile))
+                                                                          profile: common.profile),
+                                declaredVariants: variantPlan.declaredNames)
             : nil
         if let recorder { interruptState.attachRecorder(recorder) }
         // 計測 run の識別は finish を待たず run.json に書く(殺された run にも残す。ProfileRunner.run と同じ)
@@ -607,17 +614,22 @@ struct ApiRunCommand: AsyncParsableCommand {
                 let reason = PlatformApplicability.reason(declared: declared,
                                                           runPlatforms: runPlatforms)
                 logStderr("→ \(info.id): \(reason)")
-                recorder?.recordSkipped(unit: info.unitKey(variant: nil), title: info.title,
-                                        platform: declared, worker: nil, reason: reason,
-                                        kind: .notApplicable)
+                // 単位ごとに記録する(バリアントの無い run は1単位)
+                for unit in variantPlan.units(of: [info]) {
+                    recorder?.recordSkipped(unit: unit, title: info.title,
+                                            platform: declared, worker: nil, reason: reason,
+                                            kind: .notApplicable)
+                }
             }
-            declaredNotApplicableCount = applicability.notApplicable.count
+            declaredNotApplicableCount = variantPlan.units(of: applicability.notApplicable).count
             selected = applicability.runnable
         }
 
+        // 実行の単位(シナリオ × バリアント)の数。dry-run / debug の逐次実行はバリアントに依らず1本ずつ
+        let unitCount = (dryRun || debugOptions != nil) ? selected.count : variantPlan.units(of: selected).count
         // 計測モードは各シナリオを responseRepeat 回回すので、total は展開後の本数(完了イベントの数と揃える)
         let measuredCopies = resolvedProfile.flatMap { $0.responseMeasurement ? $0.responseRepeat : nil } ?? 1
-        emitLine(ApiRunStartedEvent(total: selected.count * measuredCopies))
+        emitLine(ApiRunStartedEvent(total: unitCount * measuredCopies))
         // 供給フェーズは runStarted より前に走り始めるので、貯めた進行行をここで流す
         Self.supplyRelay.start { Self.writeLineLocked($0) }
 
@@ -678,6 +690,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                     responseTrace = await ResponseTraceSession.startIfNeeded(resolved: resolvedProfile) { logStderr($0) }
                     outcome = try await runWithProfileParallel(
                         resolved: resolvedProfile, project: testProject, selected: selected, runHooksClass: runHooksClass,
+                        variantPlan: variantPlan,
                         workers: androidWorkers + eagerIOSWorkers, iosWorkersTask: effectiveIosWorkersTask,
                         recorder: recorder, supplyLease: supplyLease, supplyProgress: supplyProgress,
                         interruptState: interruptState)
@@ -695,7 +708,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             // total 分すべて未実行という分かっている事実だけを記録してから rethrow する
             // run-setup.sh やサービスの起動の失敗 = サービスのログも証跡に残す(run の記録があるときだけ)
             if let runDir = recorder?.runDir { cleanup.servicesSession?.saveLogs(to: runDir) { logStderr($0) } }
-            recorder?.finish(total: selected.count, passed: 0, failed: selected.count,
+            recorder?.finish(total: unitCount, passed: 0, failed: unitCount,
                              performanceMode: performanceMode, effectiveSettings: effectiveSettings,
                              setOverrides: profileOverrides.mapValues(\.token),
                              servicesWarnings: cleanup.servicesSession?.warnings ?? [],
@@ -703,7 +716,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                              abortReason: error.localizedDescription)
             // `--failed` が拾えるよう、始まらなかった分を直近失敗として残す(`run` の供給段は
             // ProfileRunner.run の defer が同じ記録を書く。**対象外は selected に既に居ない**)
-            recorder?.recordLastResultsFailed(selected.map { $0.unitKey(variant: nil) })
+            recorder?.recordLastResultsFailed(variantPlan.units(of: selected))
             throw error
         }
 
@@ -726,7 +739,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // effectiveSettings は上(do/catch より前)で計算済み —— 供給段の abort 記録もここを使うため
         // beforeRun の失敗(自分の・親の取りやめ)で1本も流さなかった run は、流さなかった分を未実行の本数に数えない
         let nothingRan = outcome.beforeRunFailed || outcome.startCancelled != nil
-        let slowWorkers = recorder?.finish(total: nothingRan ? 0 : selected.count * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
+        let slowWorkers = recorder?.finish(total: nothingRan ? 0 : unitCount * measuredCopies + declaredNotApplicableCount, passed: outcome.passed, failed: outcome.failed,
                          degradedWorkers: outcome.degradedWorkers,
                          freezeRetries: outcome.freezeRetries,
                          blankRepairs: outcome.blankRepairs,
@@ -834,7 +847,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             workQueue: common.workQueue,
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
-            remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
+            remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup,
+            variantNames: common.variantNames)
         if exitCode != 0 {
             throw ExitCode(exitCode)
         }
@@ -1204,6 +1218,7 @@ struct ApiRunCommand: AsyncParsableCommand {
     /// workers はビルドと並行して呼び出し側(run())が先行構築済みのもの
     private func runWithProfileParallel(
         resolved: ResolvedProfile, project: TestProject, selected: [ScenarioInfo], runHooksClass: String?,
+        variantPlan: RunVariantPlan,
         workers: [RunWorker], iosWorkersTask: Task<[RunWorker], Never>?, recorder: RunRecorder?,
         supplyLease: SupplyLeaseHolder?, supplyProgress: RunSupplyProgress, interruptState: RunInterruptState
     ) async throws -> RunOutcome {
@@ -1233,7 +1248,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         // beforeRun(RR-8.4): どのレーンもシナリオを流し始める前に1回(供給は並行で進んでいる)。失敗なら1本も流さず専用の終わり方。
         // afterRun は失敗でも走る。親とつながった子・0本の run では走らせない(判断は RunWideHookPlan の1箇所)
         let runHooks = await SingleMachineRunHooks.begin(
-            hooksClass: runHooksClass, scenarioCount: selected.count, dryRun: false, project: project,
+            hooksClass: runHooksClass, scenarioCount: variantPlan.units(of: selected).count, dryRun: false, project: project,
             settings: ScenarioExecutionSettings(resolved), reportDir: reportDirURL.path,
             profileScenarioTimeout: resolved.scenarioTimeout, interruptState: interruptState,
             log: { logStderr($0) })
@@ -1245,7 +1260,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
 
         // 長いシナリオを先に流すと末尾の遊休が減る(LPTOrdering。--no-lpt で元の ID 順)
-        let lptItems = LPTOrdering.apply(selected.map { ScenarioRunItem(info: $0, variant: nil) },
+        let lptItems = LPTOrdering.apply(variantPlan.items(of: selected),
                                       project: project, defaultPlatform: defaultPlatform,
                                       enabled: !common.noLPT,
                                       historyRuns: common.lptHistoryRuns ?? LPTOrdering.defaultHistoryRuns,

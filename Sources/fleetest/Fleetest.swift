@@ -440,6 +440,7 @@ struct RunScenarios: AsyncParsableCommand {
         try common.validateRunnerAndMachines(runner: runner, hasFleet: fleet != nil)
         try common.validateToolSync(runner: runner, hasFleet: fleet != nil)
         try common.validateWorkQueue(broadcast: broadcast, hasFleet: fleet != nil)
+        try common.validateVariants(hasFleet: fleet != nil)
         if fleet != nil {
             if runner != nil { throw ValidationError("--fleet cannot be combined with --runner") }
             if common.profile != nil {
@@ -505,7 +506,8 @@ struct RunScenarios: AsyncParsableCommand {
                 noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns,
                 performanceMode: performanceMode, forceLock: forceLock, waitLock: waitLock,
                 remoteDir: common.remoteDir, remoteTimeout: common.remoteTimeout,
-                quiet: quiet, junit: junit, skipBuild: common.skipBuild, reportDir: reportDir)
+                quiet: quiet, junit: junit, skipBuild: common.skipBuild, reportDir: reportDir,
+                variantNames: common.variantNames)
             if exitCode != 0 { throw ExitCode(exitCode) }
             return
         }
@@ -566,7 +568,7 @@ struct RunScenarios: AsyncParsableCommand {
                 performanceMode: performanceMode, forceLock: forceLock, waitLock: waitLock,
                 remoteDir: common.remoteDir, remoteTimeout: common.remoteTimeout,
                 quiet: quiet, junit: junit,
-                broadcast: broadcast, failed: failed, reportDir: reportDir)
+                broadcast: broadcast, failed: failed, reportDir: reportDir, variantNames: common.variantNames)
             if exitCode != 0 { throw ExitCode(exitCode) }
             return
         }
@@ -599,7 +601,14 @@ struct RunScenarios: AsyncParsableCommand {
         let earlyResolved = earlyResolution?.resolvedAll
         // project の解決とシナリオ名指しの検査もロックの前(`api run` と同じ順。待った後で打ち間違いを知らせない)
         let testProject = try ScenarioHost.project(named: common.project)
-        if !dryRun { try ScenarioPreflight.rejectUnknownScenarios(project: testProject, scenarios: scenarios) }
+        // バリアントの展開の計画(宣言・`--variant`・`--scenario ID@variant` の検査もロックの前)
+        var variantPlan = try RunCommonOptions.variantPlan(
+            project: testProject, profile: common.profile, overrides: profileOverrides,
+            variantNames: common.variantNames, selectors: scenarios)
+        if !dryRun {
+            try ScenarioPreflight.rejectUnknownScenarios(
+                project: testProject, scenarios: ScenarioSelection.idsStrippingVariants(scenarios))
+        }
         // **この Mac のロックを、デバイスにもビルドにも触る前に取る**(ユーザー決定
         // 「1つのマシンで同時に複数の run は走らせない」)。リモートへのディスパッチが
         // dispatch.lock で守っていた不変条件を、手元で直接打った run にも同じロックで掛ける。
@@ -686,7 +695,7 @@ struct RunScenarios: AsyncParsableCommand {
                     workspaceOverride: common.workspace, deviceFilter: effectiveDeviceFilter,
                     deviceMachine: effectiveDeviceHost, broadcast: broadcast)
                 // 一覧の前なので OS が分からない = 明示 ID の本数を両 OS に数える(0 = 本数も分からない → 絞らない)
-                let exactCount = ApiRun.exactScenarioCount(scenarios)
+                let exactCount = ApiRun.exactScenarioCount(scenarios, variantCount: max(1, variantPlan.variants.count))
                 let estimate: Int? = exactCount > 0 ? exactCount : nil
                 ConsoleOut.out("→ Preparing the devices while the scenarios build")
                 let supply = try await ProfileRunner.prepareSupply(
@@ -770,10 +779,12 @@ struct RunScenarios: AsyncParsableCommand {
                     throw ProfileError.runProfileNotFound(name: profile, available: names)
                 }
             }
-            // バリアントの宣言は段3の後続でプロファイルから読む。それまでは空 = ID の記録(variant nil の単位)
+            // バリアントのあるプロファイルは単位の記録(`<profile>/variants/<variant>/<ID>`)から読む。`--variant` で絞る前の宣言全体を母集団にする
             let failedSet = ClassPlacementRules.expandingFailed(
-                LastResultsStore.failedIDs(project: testProject, profile: common.profile, declaredVariants: []), all: all)
-            selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
+                LastResultsStore.failedIDs(project: testProject, profile: common.profile,
+                                           declaredVariants: variantPlan.declaredNames), all: all)
+            variantPlan = variantPlan.restrictingToFailed(failedSet)
+            selected = variantPlan.infos(selected)
             guard !selected.isEmpty else {
                 // 記録は消えたシナリオのファイルを消さない。今のプロジェクトに無い ID は「範囲の外の失敗」に数えない
                 let projectIDs = Set(all.map(\.id))
@@ -811,12 +822,14 @@ struct RunScenarios: AsyncParsableCommand {
         // LPT 投入順の適用は実行経路ごとに行う(実効 platform が確定してからでないと
         // 別 platform の実績で並べてしまう): --profile は ProfileRunner.run、--port は runParallel。
         // 逐次実行は並列度が無いので並べ替えない
-        let items = selected.map { ScenarioRunItem(info: $0, variant: nil) }
+        let items = variantPlan.items(of: selected)
 
         // dry-run はデバイスにも FM にも触れないので、供給・接続・FM 診断・結果記録を全部飛ばす。
         // **RunRecorder を作らない**(実行していない結果を results DB と --failed の判断材料に
         // 混ぜないため。ScenarioHost も dryRun では LastResultsStore へ書かない)
         if dryRun {
+            // dry-run は構文と対象の検査でバリアントに依らない = シナリオごとに1回(単位へは展開しない)
+            let items = selected.map { ScenarioRunItem(info: $0, variant: nil) }
             var dryRunPlatform = resolvedPlatform
             var dryRunDevices: [CommandTargetCheck.Device] = []
             var dryRunProfileReportDir: URL?
@@ -893,7 +906,8 @@ struct RunScenarios: AsyncParsableCommand {
         let recorder = RunRecorder.begin(project: testProject, profile: common.profile, trigger: "cli",
                                          runGroup: common.runGroup,
                                          lastResultsDir: LastResultsStore.stateDir(project: testProject,
-                                                                                   profile: common.profile))
+                                                                                   profile: common.profile),
+                                         declaredVariants: variantPlan.declaredNames)
         PhaseLog.mark("recorder-begin")
         // **interruptState はロック取得の直後(build より前)に登録済み**(このコメントより上、
         // dispatchLock の直前)。ここでは作った recorder を繋ぐだけ(`attachRecorder`。既に
@@ -1181,7 +1195,8 @@ struct RunScenarios: AsyncParsableCommand {
             performanceMode: performanceMode, broadcast: broadcast, workQueue: common.workQueue,
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
-            localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup)
+            localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup,
+            variantNames: common.variantNames)
         if exitCode != 0 {
             throw ExitCode(exitCode)
         }

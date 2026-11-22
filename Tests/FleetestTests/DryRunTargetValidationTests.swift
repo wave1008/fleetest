@@ -14,7 +14,8 @@ final class DryRunTargetValidationTests: XCTestCase {
     /// run の dry-run 分岐は、使わないプロファイル・フリートでも実在を確かめる
     func testRunDryRunStillValidatesProfileAndFleetNames() throws {
         let code = try source("Fleetest.swift")
-        guard let start = code.range(of: "if dryRun {\n            var dryRunPlatform = resolvedPlatform\n"),
+        // dry-run の分岐の入口(`if dryRun {` の直後にバリアントへ展開しない単位の組み立てが入る = DR-225)。宛先の検査は dryRunPlatform から
+        guard let start = code.range(of: "            var dryRunPlatform = resolvedPlatform\n"),
               let end = code.range(of: "so --fleet is not used", range: start.upperBound..<code.endIndex) else {
             return XCTFail("run の dry-run 分岐が見当たらない — テストを見直すこと")
         }

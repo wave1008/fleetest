@@ -26,16 +26,17 @@ final class MCPRunJobsTests: XCTestCase {
     func testArgumentsWithEveryOption() {
         let args = MCPRunJobs.arguments(
             profile: "smoke", project: "Shop", runner: "M1Max", scenarios: ["Login", "Cart.add"],
-            folders: ["checkout"], failed: true, broadcast: true, fmAndVision: true, waitLockSeconds: 600)
+            folders: ["checkout"], variants: ["dark", "large-text"], failed: true, broadcast: true, fmAndVision: true,
+            waitLockSeconds: 600)
         XCTAssertEqual(args, [
             "swift", "run", "fleetest", "run", "--project", "Shop", "--profile", "smoke", "--runner", "M1Max",
-            "--scenario", "Login", "Cart.add", "--folder", "checkout", "--failed", "--broadcast", "--wait-lock", "600",
+            "--scenario", "Login", "Cart.add", "--folder", "checkout", "--variant", "dark", "--variant", "large-text", "--failed", "--broadcast", "--wait-lock", "600",
         ])
     }
 
     func testArgumentsOmitUnsetOptionals() {
         let args = MCPRunJobs.arguments(
-            profile: "smoke", project: nil, runner: nil, scenarios: [], folders: [], failed: false, broadcast: false,
+            profile: "smoke", project: nil, runner: nil, scenarios: [], folders: [], variants: [], failed: false, broadcast: false,
             fmAndVision: true, waitLockSeconds: nil)
         XCTAssertEqual(args, ["swift", "run", "fleetest", "run", "--profile", "smoke"])
     }
@@ -43,7 +44,7 @@ final class MCPRunJobsTests: XCTestCase {
     /// **MCP の run は既定で FM と Vision を使わない**: 4つのキーを `--set` で切り、run の開始時の OCR のコンパイルも止める
     func testArgumentsTurnFMAndVisionOffByDefault() {
         let args = MCPRunJobs.arguments(
-            profile: "smoke", project: nil, runner: nil, scenarios: [], folders: [], failed: false, broadcast: false,
+            profile: "smoke", project: nil, runner: nil, scenarios: [], folders: [], variants: [], failed: false, broadcast: false,
             fmAndVision: false, waitLockSeconds: nil)
         XCTAssertEqual(args, ["FT_OCCLUSION_OCR=off", "FT_FIND_IMAGE_PREWARM=off", "swift", "run", "fleetest", "run", "--profile", "smoke",
                               "--set", "fmTextVisibilityCheck=false", "--set", "screenLooksLike=false",
@@ -412,5 +413,27 @@ final class MCPRunJobsTests: XCTestCase {
         XCTAssertEqual(registry.state(of: 43).state, .running)
         registry.recordExit(pid: 44, reason: .uncaughtSignal, status: 15)
         XCTAssertEqual(registry.state(of: 44).state, .signaled(15))
+    }
+}
+
+final class MCPVariantChoiceTests: XCTestCase {
+    private func declared(_ names: [String]) -> [ResolvedVariant] {
+        names.map { ResolvedVariant(name: $0, appearance: .light, textSize: .default, orientation: nil) }
+    }
+
+    func testOmittedVariantRunsTheFirstDeclaredAndSaysSo() throws {
+        let choice = try MCPServer.variantChoice(profile: "p", requested: nil, declared: declared(["a", "b"]))
+        XCTAssertEqual(choice.variant?.name, "a")
+        XCTAssertTrue(choice.note?.contains("ran the first") == true, "\(String(describing: choice.note))")
+    }
+
+    func testNamedVariantAndRefusals() throws {
+        XCTAssertEqual(try MCPServer.variantChoice(profile: "p", requested: "b", declared: declared(["a", "b"])).variant?.name, "b")
+        XCTAssertThrowsError(try MCPServer.variantChoice(profile: "p", requested: "zz", declared: declared(["a"])))
+        XCTAssertThrowsError(try MCPServer.variantChoice(profile: "p", requested: "a", declared: []))
+        XCTAssertThrowsError(try MCPServer.variantChoice(profile: nil, requested: "a", declared: []))
+        let none = try MCPServer.variantChoice(profile: "p", requested: nil, declared: [])
+        XCTAssertNil(none.variant)
+        XCTAssertNil(none.note)
     }
 }

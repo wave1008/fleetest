@@ -1,4 +1,4 @@
-# Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs)
+# Memo (writeMemo, readMemo, clearMemo, memoTextAs, writeRunMemo, readRunMemo, clearRunMemo, runMemoTextAs, currentVariant)
 
 [in Japanese(日本語)](memo_ja.md)
 
@@ -23,6 +23,7 @@ One `fleetest run` (one Run in the extension) is one run. A run profile that lis
 | `clearRunMemo()` | Clears the whole run memo. |
 | `element.runMemoTextAs(key)` | Writes the grabbed element's text to the run memo and returns the element. Fails if no element was grabbed. |
 | `string.runMemoTextAs(key)` | Writes the string to the run memo and returns it. |
+| `currentVariant` | The name of the run profile [variant](../project/run_profile.md#variants) this scenario runs as (`String?`; `nil` in a run without variants). The run memo is shared by every variant, so put it in the key to keep values apart: `writeRunMemo("cart-\(currentVariant ?? "base")", text)`. |
 
 ## Scope
 

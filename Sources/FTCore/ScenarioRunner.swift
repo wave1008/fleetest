@@ -89,8 +89,10 @@ public enum ScenarioRunner {
         var appInBackgroundFailure = false
         let passed = await ScenarioHost.run(
             project: project, scenarioID: item.info.id,
-            // 値(外観・文字サイズ・向き)の解決はプロファイルの variants を読む後続の段。それまで item.variant は常に nil
-            variant: item.variant.map { ResolvedVariant(name: $0, appearance: nil, textSize: nil, orientation: nil) },
+            // 値はプロファイルの variants の解決結果(展開は同じプロファイルから作るので必ず引ける)
+            variant: item.variant.map { name in
+                settings.variants.first { $0.name == name } ?? ResolvedVariant(name: name, appearance: nil, textSize: nil, orientation: nil)
+            },
             connection: worker.connection,
             deviceSession: deviceSession,
             classHasBeforeAll: item.info.beforeAll,

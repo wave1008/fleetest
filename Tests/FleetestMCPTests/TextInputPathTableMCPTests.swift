@@ -45,7 +45,7 @@ final class TextInputPathTableMCPTests: XCTestCase {
         func add(_ names: [String], _ reason: String) { for name in names { table[name] = reason } }
         add(["udid", "serial", "device", "platform", "project", "profile", "runner", "target", "scenario", "runId", "since",
              "name", "title", "state", "category", "className", "classifier", "filter", "query", "action", "finger",
-             "direction", "orientation"],
+             "direction", "orientation", "variant"],
             "identifier / enum / free-form filter, not a compared screen text")
         add(["bundleId", "packagePath", "url", "launch"], "app identifier / path / URL")
         add(["text"], "text typed into the app; the read-back compares both sides with TextNormalization.text (ft_type note)")
