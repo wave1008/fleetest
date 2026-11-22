@@ -1147,6 +1147,17 @@ public func ftRunBeforeAll(_ body: () -> Void) {
     core.emit(event(core.scenarioAborted || core.deviceFrozen || core.stoppedByUser ? "failed" : "passed"))
 }
 
+extension FTDriveCore {
+    /// `beforeAll()` の中の対象外の宣言を失敗にするときの文(`skipScenarioNotApplicable`)。beforeAll は run に1回・始めたら撃ち直さない
+    /// (at-most-once)ので、対象外にすると最初のシナリオだけが別の台へ回され(DR-214)、残りは「beforeAll failed」になって割れる。
+    /// 台に依る手順の置き場(setUpDevice = 対象外ならその台の同じクラスを対象外にする)を示す
+    static func beforeAllNotApplicableMessage(reason: String) -> String {
+        "\(reason) — beforeAll() runs once per run, on whichever device takes the class's first scenario, and is not run again"
+            + " on another device. Put device-dependent steps (fold(), unfold(), appSwitcher()) in setUpDevice() instead:"
+            + " it runs on each device, and a not-applicable result there skips that device's scenarios of the class"
+    }
+}
+
 /// @TestClass マクロが setUpDevice() の呼び出しを包むために生成する(利用者が直接書くものではない)。
 /// 走らせるかは親が決める(`core.runSetUpDevice`)。**親は「試行した」時点で済み印を付ける**ので、
 /// 結果が不明でも同じデバイスで撃ち直されない。失敗はシナリオ中断(後続シナリオは親が走らせずに落とす)。
