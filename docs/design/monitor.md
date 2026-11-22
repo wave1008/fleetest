@@ -17,6 +17,7 @@ VSCode 拡張のデバイスモニターの設計。
 - DS-12.4.2 iOS Simulator の PosterBoard スナップショットキャッシュの掃除(起動前)
 - DS-12.4.3 iOS Simulator の統合ログ(Special)の整理(起動前)
 - DS-12.4.4 iOS Simulator のニュースのウィジェットのタイムライン項目の掃除(起動前)
+- DS-12.4.5 PosterBoard が落ち続けている iOS Simulator の検出と停止(run の開始時・モニターの周期)
 - DS-12.5 タイルペインの auto-fit と「非表示中は実測しない」規律
 - DS-12.6 「デバイスモニター」タブの3ペイン(ラインビュー / グリッドビュー / 実行ログビュー)
 - DS-18 デバイスモニターの run ボード(フリート横断の実行状況)
@@ -596,6 +597,32 @@ backboardd のこのエラーは、モニターが画面を配信しているデ
 - 同じ棚卸しで見た残りは触らない: `private/var/MobileAsset`(Siri・言語などの資産 2.6〜2.8GB。消しても
   落とし直すだけ)/ `var/db/uuidtext`(ログの文字列表。古いランタイムの `dsc` が更新1回あたり約 90MB 残るが、
   使っていないものの判定が重く量も小さい)/ `Library/Caches`(寄せ集めで最大 163MB)
+
+### DS-12.4.5 PosterBoard が落ち続けている iOS Simulator の検出と停止(run の開始時・モニターの周期)
+
+壊れた Simulator は PosterBoard(壁紙の管理プロセス)が数秒〜数分おきに落ち続け、落ちるたびに launchd_sim が起こし直して
+壁紙の拡張(`*Poster*.appex`)が一斉に起動し直す。観測した1台で合計約 6.4 コア・load average 38 になり、同じ Mac の
+Android Emulator が白紙・固まりを繰り返して E2E が赤になった。
+
+- **読むもの**: `~/Library/Logs/DiagnosticReports/` と その `Retired/`(記録は書かれて間もなく移される)の `PosterBoard-*.ips` のうち mtime が窓の中のものだけ。ヘッダ(1行目 JSON)の
+  `timestamp` と本体の `coalitionName`(`com.apple.CoreSimulator.SimDevice.<UDID>`)から (UDID, 時刻) を作る。読めないファイルは飛ばす
+  (`PosterBoardCrashLoop.readCrashes`)
+- **判定**: 直近 **30 分**(`windowSeconds` = 1800)に **10 回以上**(`threshold`)落ちた UDID(`PosterBoardCrashLoop.looping`。純粋関数)。
+  実測(11/14〜11/22 の全 .ips・`Retired/` を含む・11 台): 健全な 10 台は 10・30・60 分のどの窓でも最大 4 回(ほとんどは 1 回)。
+  壊れた台は1日 24〜69 回で毎日続く(データが壊れた状態)・嵐の日の最大は 10 分の窓で 8〜34 回(10 分では当たらない日が 2 日)・
+  30 分の窓で 16〜46 回。記録は実際に落ちた回数より少ない(ReportCrash が間引く)
+- **止める**(`FTAndroid.PosterBoardCrashLoopGuard`): 当たった UDID のうち simctl で Booted(途中の状態を含む)の台を
+  `DeviceBooter.shutdownOne` で止める。**run か MCP が使っている台は止めず警告だけ**(`DeviceBooter.deviceInUseRefusal`。
+  lease の鍵は UDID)。Booted でない台には何も撃たず何も言わない。一覧が読めなければ何もしない。**消去はしない**
+  (アプリとデータが消える)。出す行は台の名前・UDID・回数・窓・止めたか止めなかったか(理由)と、
+  「データが壊れていれば次の起動でも同じことが起きる。直すには消去する(`fleetest api wipe-device --platform ios --udid <UDID>`・
+  モニターの Wipe Data)」の案内
+- **呼ぶ場所**: ①run の開始時、供給の前(`fleetest run` = `ProfileRunner.prepareSupply`・`fleetest api run` = 同じ位置。
+  `BackendHealthCheck.warnIfUnreachable` の直後)②モニターの周期(`PosterBoardCrashLoopSampler`。周期は `scheduleIfDue()` を呼ぶだけで、
+  走査と simctl は背景の Task。**間隔 120 秒** = しきい値に届いてから止めるまでの遅れの上限)。
+  モニターの出力は stderr の1行だけ(NDJSON に新しい行種・欄を足さない = ワイヤ形式と `ProtocolVersion` は変えない)。
+  使用中の警告は台ごとに判定の間1回だけ
+- **止めない場合**: 使用中(run・MCP)/ Booted でない / 回数が閾値未満 / 窓の外の記録 / 実機。誤判定の害は「その台を止める」まで
 
 ### DS-12.5 タイルペインの auto-fit と「非表示中は実測しない」規律
 

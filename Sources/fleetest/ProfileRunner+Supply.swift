@@ -226,6 +226,8 @@ extension ProfileRunner {
 
         let repoRoot = try RepoRoot.find()
         await BackendHealthCheck.warnIfUnreachable(resolved: resolved) { ConsoleOut.out($0) }
+        // 供給の前に、PosterBoard が落ち続けている Simulator を止める(DS-12.4.5。api run の同じ位置と対)
+        await PosterBoardCrashLoopGuard.enforce(log: { ConsoleOut.out($0) })
         // 供給フェーズ(install・凍結triage)の間も run-lease を保つ。RunOrchestrator の lease は
         // シナリオ実行中しか書かれず、その手前に start-device が割り込む穴が空くため。best-effort: リポジトリ外
         // 実行等で root が取れない場合は書かない(monitor 側の inRun 判定が false になるだけで安全)

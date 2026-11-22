@@ -198,6 +198,8 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         let bridgeLogRotationSampler = BridgeLogRotationSampler(toolRoot: monitorRepoRoot)
         var lastBridgeLogRotationCandidate: ApiMonitorBridgeLogRotationEvent.Candidate?
         var hasEmittedBridgeLogRotation = false
+        // PosterBoard が落ち続けている Simulator の検出と停止(PosterBoardCrashLoopSampler の doc。出力は stderr の1行だけ)
+        let posterBoardCrashLoopSampler = PosterBoardCrashLoopSampler(log: { MonitorOutput.shared.writeStderr("[monitor] \($0)") })
 
         // 直近の hold 状態(変化したときだけ monitorHold イベントと stderr を出す)
         var lastHoldActive = false
@@ -238,6 +240,7 @@ struct ApiMonitorCommand: AsyncParsableCommand {
         while !stop.isSet {
             // 待たない(BridgeLogRotationSampler の doc)。間隔が経っていれば背景で測り始めるだけ
             bridgeLogRotationSampler.scheduleIfDue()
+            posterBoardCrashLoopSampler.scheduleIfDue()
             let occupancy = HostOccupancy.read(myIssuer: myIssuer)
             if occupancy != lastOccupancy {
                 lastOccupancy = occupancy

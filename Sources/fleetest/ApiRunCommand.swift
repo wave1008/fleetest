@@ -462,6 +462,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         // 警告することになり、**本当に落ちているときの警告が埋もれる**(受け手からの報告)
         if let resolved = resolvedProfile, !dryRun {
             await BackendHealthCheck.warnIfUnreachable(resolved: resolved) { logStderr($0) }
+            // 供給の前に、PosterBoard が落ち続けている Simulator を止める(DS-12.4.5。ProfileRunner.prepareSupply の同じ位置と対)
+            await PosterBoardCrashLoopGuard.enforce(log: { logStderr($0) })
         }
 
         // ワーカー並列実行経路のときだけビルドと並行してワーカー(iOSブリッジ起動/Android照合+
