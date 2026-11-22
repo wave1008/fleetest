@@ -492,11 +492,6 @@ enum MultiTargetRunner {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookInterrupted
         for unit in units {
-            // 対象外で確定した分は失敗でも残りでもない(記録もしない = 子が対象外で確定したときと同じ)
-            let notApplicableIds = unit.dispatcher.notApplicableOnlyUnjoined
-            if !notApplicableIds.isEmpty, !hookFailedProjects.contains(unit.project.name) {
-                FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.notApplicableOnlyUnjoinedLine(ids: notApplicableIds))
-            }
             let ids = unit.dispatcher.unhandedUnits
             guard !ids.isEmpty, !hookFailedProjects.contains(unit.project.name) else { continue }
             FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))

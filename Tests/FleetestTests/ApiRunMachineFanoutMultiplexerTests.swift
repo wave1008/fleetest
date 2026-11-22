@@ -34,21 +34,6 @@ final class ApiRunMachineFanoutMultiplexerTests: XCTestCase {
         XCTAssertEqual(mux.totalSkipped, 0)
     }
 
-    /// 対象外で確定した分は skipped のステップ + scenarioFinished(passed: true, notApplicableReason) で、failed に数えない
-    func testNotApplicableOnlyUnjoinedIsSynthesizedAsSkipped() {
-        var mux = MachineFanoutMultiplexer(groupMachines: [nil])
-        XCTAssertEqual(mux.notApplicableOnlyUnjoined([]), [])
-        let lines = mux.notApplicableOnlyUnjoined([ScenarioUnitKey(id: "Fold.S1", variant: nil)])
-        XCTAssertEqual(lines.count, 2)
-        XCTAssertEqual(jsonObject(lines[0])["status"] as? String, "skipped")
-        let finished = jsonObject(lines[1])
-        XCTAssertEqual(finished["kind"] as? String, "scenarioFinished")
-        XCTAssertEqual(finished["passed"] as? Bool, true)
-        XCTAssertNotNil(finished["notApplicableReason"] as? String)
-        XCTAssertEqual(mux.totalSkipped, 1)
-        XCTAssertEqual(mux.totalFailed, 0)
-    }
-
     func testSkippedIsSummedAcrossHostsAndRequired() {
         var mux = MachineFanoutMultiplexer(groupMachines: [nil, "M1Max"])
         XCTAssertEqual(mux.ingest(childIndex: 0, line: #"{"kind":"runFinished","passed":2,"failed":0,"skipped":1}"#), [])

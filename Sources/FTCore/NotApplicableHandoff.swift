@@ -42,18 +42,6 @@ public enum NotApplicableHandoff {
         return .skipped
     }
 
-    /// 全部の子が終わった後の、対象外の記帳がある配れなかった単位の判定。
-    /// - tried: 試して対象外と宣言した台(空なら対象外の確定ではない = `.notRun`)
-    /// - untriedNeverLaunched: 未試行で、この対象の子を一度も起動しなかった台(合流しなかったマシン。数えない)
-    /// - untriedLaunched: 未試行で、子を起動した(参加した)後に離脱・合流できなかった台(子の中の離脱の申告を含む)
-    /// `.skipped` = 対象外で確定(緑)・`.notRun` = 従来どおり「配れなかった」失敗
-    public static func decideAtEnd(tried: Set<String>, untriedNeverLaunched: Set<String>,
-                                   untriedLaunched: Set<String>) -> Verdict {
-        _ = untriedNeverLaunched
-        if tried.isEmpty || !untriedLaunched.isEmpty { return .notRun }
-        return .skipped
-    }
-
     /// `.notRun` の失敗の理由(結果 JSON の `failedSteps` と run ログに出る)。`declared` = 対象外の宣言の理由
     public static func notRunReason(declared: String) -> String {
         "not run: the devices that had not tried it dropped out of the run"

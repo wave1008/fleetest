@@ -310,12 +310,6 @@ enum ApiRunMachineFanout {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookParent?.beforeRunInterrupted ?? false
         if let dispatcher {
-            // 対象外で確定した分(参加しなかったマシンの台は未試行に数えない)。skipped の終わりを流す。失敗でも残りでもない
-            let notApplicableIds = dispatcher.notApplicableOnlyUnjoined
-            if !notApplicableIds.isEmpty, !beforeRunFailed {
-                logStderr(DeviceMachineRunner.notApplicableOnlyUnjoinedLine(ids: notApplicableIds))
-                continuation.yield(.notApplicableOnlyUnjoined(notApplicableIds))
-            }
             let ids = dispatcher.unhandedUnits
             if !ids.isEmpty {
                 let interrupted = interruptedWhileChildrenRan
@@ -421,8 +415,6 @@ enum ApiRunMachineFanout {
         case exited(index: Int, status: Int32, assigned: [ScenarioUnitKey]?)
         /// 全部の子が終わっても誰にも渡せなかったシナリオ(失敗として合成する)
         case neverHanded([ScenarioUnitKey])
-        /// 対象外で確定したシナリオ(skipped として合成する)
-        case notApplicableOnlyUnjoined([ScenarioUnitKey])
     }
 
     /// 子と発行元の間の通り道(run メモの中継と、動的な割り振りの配り手)。writer = 子の stdin への書き込み口
@@ -563,9 +555,6 @@ enum ApiRunMachineFanout {
             case .neverHanded(let ids):
                 guard !isCancelled() else { continue }
                 for line in multiplexer.neverHanded(ids) { writeLine(line) }
-            case .notApplicableOnlyUnjoined(let ids):
-                guard !isCancelled() else { continue }
-                for line in multiplexer.notApplicableOnlyUnjoined(ids) { writeLine(line) }
             }
         }
         return (multiplexer.totalPassed, multiplexer.totalFailed, multiplexer.totalSkipped,
@@ -742,33 +731,6 @@ struct MachineFanoutMultiplexer {
             finished.scenario = scenario.id
             finished.variant = scenario.variant
             finished.passed = false
-            lines.append(finished.encodedLine())
-        }
-        return lines
-    }
-
-    /// 対象外で確定したシナリオ(試した台が全部対象外・未試行は参加しなかったマシンだけ)を skipped として合成する。
-    /// 形は子が対象外で確定したときと同じ(skipped のステップ + scenarioFinished(passed: true, notApplicableReason))。数は totalSkipped
-    mutating func notApplicableOnlyUnjoined(_ ids: [ScenarioUnitKey]) -> [String] {
-        guard !ids.isEmpty else { return [] }
-        totalSkipped += ids.count
-        let reason = "not applicable on every device that ran it; machines that never joined this target were not tried"
-        var lines: [String] = []
-        for scenario in ids {
-            var step = ScenarioEvent(kind: "step")
-            step.scenario = scenario.id
-            step.variant = scenario.variant
-            step.index = 0
-            step.status = "skipped"
-            step.description = "not applicable on any device that joined this run"
-            step.detail = reason
-            lines.append(step.encodedLine())
-
-            var finished = ScenarioEvent(kind: "scenarioFinished")
-            finished.scenario = scenario.id
-            finished.variant = scenario.variant
-            finished.passed = true
-            finished.notApplicableReason = reason
             lines.append(finished.encodedLine())
         }
         return lines

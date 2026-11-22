@@ -363,11 +363,6 @@ enum DeviceMachineRunner {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookParent?.beforeRunInterrupted ?? false
         if let dispatcher {
-            // 対象外で確定した分は失敗でも残りでもない。子が対象外で確定したときと同じく直近の合否は記録しない(`ScenarioHost` の `!notApplicable`)
-            let notApplicableIds = dispatcher.notApplicableOnlyUnjoined
-            if !notApplicableIds.isEmpty, !beforeRunFailed {
-                FleetRunner.log(notApplicableOnlyUnjoinedLine(ids: notApplicableIds))
-            }
             let ids = dispatcher.unhandedUnits
             if !ids.isEmpty {
                 let interrupted = interruptedWhileChildrenRan
@@ -535,15 +530,6 @@ enum DeviceMachineRunner {
         return interrupted
             ? "⚠️ interrupted: \(ids.count) scenario(s) were not handed to any device: \(listed)\(suffix)"
             : "⚠️ \(ids.count) scenario(s) were never handed to a device: \(listed)\(suffix)"
-    }
-
-    /// 一度も参加しなかったマシンの台が未試行のまま、参加した台が全部対象外と宣言した分の1行(純粋関数。対象外で確定 = 失敗でも残りでもない)
-    static func notApplicableOnlyUnjoinedLine(ids: [ScenarioUnitKey]) -> String {
-        let maxListed = 5
-        let listed = ids.prefix(maxListed).map(\.description).joined(separator: ", ")
-        let suffix = ids.count > maxListed ? ", …" : ""
-        return "ℹ️ \(ids.count) scenario(s) were not applicable on every device that ran them;"
-            + " machines that never joined this target were not tried: \(listed)\(suffix)"
     }
 
     /// マシン別サブ実行1本分の引数(純粋関数。単体テスト対象)。`FleetRunner.buildArgs`

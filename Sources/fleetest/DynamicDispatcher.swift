@@ -33,8 +33,6 @@ final class DynamicDispatcher: Sendable {
     private struct NotApplicableRecord {
         var tried: Set<Int> = []
         var departedInChild = false
-        /// 申告の OS(終わりの判定で「同じ OS の台」を引く)
-        var platform = ""
     }
 
     private struct State {
@@ -127,7 +125,6 @@ final class DynamicDispatcher: Sendable {
                   scenario.group == nil else { return [] }
             var record = s.notApplicable[unit] ?? NotApplicableRecord()
             record.tried.insert(entry)
-            record.platform = na.platform
             record.departedInChild = record.departedInChild || na.dep
             s.notApplicable[unit] = record
             let known = Set(entryPlatforms.filter { $0.value.contains(na.platform) }.keys)
@@ -188,26 +185,7 @@ final class DynamicDispatcher: Sendable {
     func assignedUnits(entry: Int) -> [ScenarioUnitKey] { state.withLock { $0.assigned[entry] ?? [] } }
     var assignedCounts: [Int: Int] { state.withLock { $0.assigned.mapValues(\.count) } }
     /// 誰にも渡さなかったシナリオ(全部の子が終わった後に読む)
-    /// ただし対象外で確定した分(`notApplicableOnlyUnjoined`)は含めない(残りでも失敗でもない)
-    var unhandedUnits: [ScenarioUnitKey] {
-        state.withLock { s in s.pending.map(\.unitKey).filter { !self.isNotApplicableOnlyUnjoined($0, s) } }
-    }
-    /// 試した台が全部対象外と宣言し、未試行の台は一度もこの対象の子を起動しなかったマシンだけの単位(DR-214)。対象外(緑・skipped)で確定する。
-    /// 「起動した」= `childExited` が呼ばれたエントリ(3つの呼び手とも、子を起こした経路は必ず呼ぶ)。全部の子が終わった後に読む
-    var notApplicableOnlyUnjoined: [ScenarioUnitKey] {
-        state.withLock { s in s.pending.map(\.unitKey).filter { self.isNotApplicableOnlyUnjoined($0, s) } }
-    }
-
-    private func isNotApplicableOnlyUnjoined(_ unit: ScenarioUnitKey, _ s: State) -> Bool {
-        guard let record = s.notApplicable[unit], !record.tried.isEmpty else { return false }
-        let known = Set(entryPlatforms.filter { $0.value.contains(record.platform) }.keys).union(record.tried)
-        let untried = known.subtracting(record.tried)
-        let launched = untried.intersection(s.exited)
-        return NotApplicableHandoff.decideAtEnd(
-            tried: Set(record.tried.map(String.init)),
-            untriedNeverLaunched: Set(untried.subtracting(launched).map(String.init)),
-            untriedLaunched: Set(launched.map(String.init)).union(record.departedInChild ? ["child-local"] : [])) == .skipped
-    }
+    var unhandedUnits: [ScenarioUnitKey] { state.withLock { $0.pending.map(\.unitKey) } }
     var isInterrupted: Bool { state.withLock { $0.interrupted } }
     /// まだ誰にも渡していないシナリオ(複数対象の配り手 MultiTargetRunner が仕事の残りの見込みに使う。読むだけ)
     var pendingScenarios: [DynamicSplit.Scenario] { state.withLock { $0.pending } }
