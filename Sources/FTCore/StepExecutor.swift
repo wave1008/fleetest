@@ -883,6 +883,7 @@ public final class StepExecutor {
         observedCheckedThisStep = nil
         guardEnteredThisStep = false
         pixelsShowedTextThisStep = false
+        readableVisionWaitRanOutThisStep = false
         resolvedElementThisStep = nil
         lastTreeOwnerThisStep = nil
         notVisibleSelectionThisStep = nil
@@ -1263,6 +1264,9 @@ public final class StepExecutor {
     /// このステップの検証が、**画素に文字が描かれている**と確かめたか(テキストの可視性検証の合格のうち、文字の型のインク・
     /// OCR・FM が読めた回だけ)。描画崩壊の確かめ(`renderCollapseVerdict`)の義務を下ろす根拠。execute が毎ステップ false へ戻す
     var pixelsShowedTextThisStep = false
+    /// このステップで Vision の待ち(`awaitReadableVision`)が上限まで読めずに尽きたか。失敗文の事実だけに使う
+    /// (`visionWaitFact`)。execute が毎ステップ false へ戻す
+    var readableVisionWaitRanOutThisStep = false
     /// 描画崩壊を確かめるか(Simulator の iOS だけ。FTRuntime が立てる。既定は確かめない)
     public var renderCollapseCheckEnabled = false
     /// 描画の状態(白紙・文字消え)を公表する口(FTRuntime が `DeviceScreenStateStore` へ繋ぐ)。nil = 公表しない

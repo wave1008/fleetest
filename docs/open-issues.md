@@ -147,8 +147,9 @@
 - 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): **同じ形が 7 回**(lk2_e2e_cmp の --broadcast 手元 Sim 6/12・r5_e2ey_cmp_emu 1)。切り抜きは「E2E ホーム」等が鮮明・注記 `fm-empty-transcript-on-ink` と `ocr-shortcut-not-ready`・`ocrMs` 11,147(Vision の準備待ちを使い切った)・FM は4回呼んで失敗0 = 空の転写を返した。同じ run の M1Ultra は 4/4 緑。11 の作成セッションが並行する負荷の下 → 要測定へ戻す。次の一手: 残った切り抜き(`~/Library/Logs/fleetest/occlusion/`)を FM の常駐プロセスへ負荷なしで渡し直して空の転写が再現するかを測る(再現しなければ負荷の下の FM の取りこぼし)
 - **測定(11/22 08:2x・`Scripts/occlusion-repro.swift` で本番と同じ指示・負荷なし)**: lk2_e2e_cmp の切り抜き6枚は 18/18 で「E2E ホーム」と転写した = 本番の空の転写は負荷の下の FM の取りこぼし。r5_e2ey_cmp_emu の「再生中: トラック 1」の1枚は負荷なしでも 3/3 空 = この絵は FM が決定的に読まない。本番の失敗文はどれも `OCR found no text there (not read again: Vision was not ready, and an earlier wait in this run had already timed out)` = 確かめの OCR は、同じ run で前に Vision の待ちが時間切れになったので待たずに諦めた(その後の FM の訊き直しも空)
-- 原因(観測): FM の空の転写(負荷の下・特定の絵)と、run の中で持ち越される Vision の待ちの時間切れの重なり。ツールは設計どおり赤にしている(黙った緑ではない)
-- 決めること: ①今のまま赤 ②Vision の待ちの時間切れを run の中で持ち越さず、ステップごとに待ち直す(負荷の下で待ちが伸びる)③FM が空で OCR も使えない回は「判定できない」(`visibility-guard-skipped` を立てて緑)にする(文字が描かれていない画面の赤を落とす)
+- **訂正(11/22 11:0x・結果 JSON の段ごとの所要)**: lk2 の赤のステップ(S0020 の 17 本目 `exist "#txt_home_marker"`)は `ocrMs` 11,147 で、前のステップの `ocrMs` はどれも 0 = **Vision の待ち(10 秒)はこのステップの中で使い切り**、失敗文の「earlier wait」は同じステップの評価のやり直しで出ていた(11/15 の回帰の形と同じ)。前のステップからの持ち越しではないので、ステップごとに待ち直しても救えない。失敗文はこの2つを分けて言うよう直した(`StepExecutor.visionWaitFact` の `ranOutEarlierThisStep`。`(… this step had already waited 10.0 seconds for it)` / `(… a wait in an earlier step of this scenario had already timed out)`)
+- 原因(観測): 負荷の下で、FM の空の転写と、10 秒探っても空を返す Vision が同じステップで重なった。ツールは設計どおり赤にしている(黙った緑ではない)
+- 決めること: ①今のまま赤 ②待ちの上限(10 秒)を延ばす(Vision が長く読めない機械で、失敗のたびにその分を払う)③FM が空で OCR も使えない回は「判定できない」(`visibility-guard-skipped` を立てて緑)にする(文字が描かれていない画面の赤を落とす)
 
 ## 木に材料なし
 

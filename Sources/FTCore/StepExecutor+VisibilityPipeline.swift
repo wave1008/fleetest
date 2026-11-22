@@ -665,6 +665,7 @@ extension StepExecutor {
             if Self.confirmationSawNothing(confirmation) {
                 let wait = await awaitReadableVision()
                 visionWait = wait
+                if wait == .waitedUnreadable { readableVisionWaitRanOutThisStep = true }
                 if wait == .ready {
                     confirmation = await RegionText.resolveWithinBudget(
                         expected: expectedText, pngData: screenshot, frame: element.frame, screen: screen,
@@ -679,7 +680,8 @@ extension StepExecutor {
                 pixelsShowedTextThisStep = true
                 return .pass(.consume(visible: true, sd: sd))
             }
-            ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation) + Self.visionWaitFact(visionWait)
+            ocrConfirmationFact = Self.emptyTranscriptOCRFact(confirmation)
+                + Self.visionWaitFact(visionWait, ranOutEarlierThisStep: readableVisionWaitRanOutThisStep)
         }
         // **OCR で確かめられなかった回は FM に1回だけ訊き直す**: OCR の段がオフ、またはオンでも確かめの読みが読めなかった
         // (Vision が空を返した = 突き合わせる相手が居ない)
@@ -789,13 +791,18 @@ extension StepExecutor {
     }
 
     /// 確かめの読みが空だった回に、読み直したか・読み直さなかった理由(OI-235 の測る口。待たなかった回 = nil は空文字)。
-    /// `.ready` は読み直した後もこの事実が付く = 「Vision が読める状態でも空だった」
-    static func visionWaitFact(_ wait: RegionText.ReadableVisionWait?) -> String {
+    /// `.ready` は読み直した後もこの事実が付く = 「Vision が読める状態でも空だった」。
+    /// 待ちの控えはシナリオのプロセスで1つ(`RegionText.readableVisionWaitExhausted`)。**同じステップの中で尽きた**(判定の
+    /// 取り直しの2回目)と前のステップで尽きたを分けて言う —— 分けないと「前に尽きていたので待たなかった」と読め、
+    /// ステップごとに待ち直せば救えると誤って判断した(OI-235・11/22: 赤のステップ自身が 10 秒待ち切っていた)
+    static func visionWaitFact(_ wait: RegionText.ReadableVisionWait?, ranOutEarlierThisStep: Bool) -> String {
         switch wait {
         case nil: return ""
         case .ready: return " (read again once Vision was ready)"
+        case .waitAlreadyExhausted where ranOutEarlierThisStep:
+            return " (not read again: Vision was not ready, and this step had already waited \(RegionText.readableVisionWaitCap) for it)"
         case .waitAlreadyExhausted:
-            return " (not read again: Vision was not ready, and an earlier wait in this run had already timed out)"
+            return " (not read again: Vision was not ready, and a wait in an earlier step of this scenario had already timed out)"
         case .waitedUnreadable:
             return " (not read again: Vision was still not ready after waiting \(RegionText.readableVisionWaitCap))"
         case .noProbe: return " (not read again: Vision's readiness could not be checked)"
