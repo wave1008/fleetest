@@ -134,6 +134,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Non-foldable devices are skipped, not failed](../commands/navigation.md#notes) — the scenario is recorded as not applicable from that step on, so do not read it as a pass.
 - [Fold state is restored automatically](../commands/navigation.md#notes) — like `rotateTo`, it reverts at the end of the scenario.
 - [A not-applicable scenario is handed to a device that has not tried it](../commands/navigation.md#notes) — a scenario that is not applicable on one device (e.g. `fold()` on a non-foldable one) is moved to another device of the same run; it is recorded as skipped only when every device tried it, and as failed (`not run`) when the devices that had not tried it dropped out.
+- [Not applicable inside `beforeAll()` is a failure](../commands/navigation.md#notes) — `beforeAll()` runs once per run and is not run again on another device. Put device-dependent preparation such as `fold()` in `setUpDevice()`.
 - [Foldable Android lock screen](../commands/navigation.md#notes) — `fold()` dismisses the swipe-up lock screen; a PIN or pattern lock cannot be dismissed.
 - [`hinge` does not verify which screen shows](../commands/navigation.md#notes) — the switch angle depends on the previous state; use `fold()` / `unfold()` when you need a specific screen.
 - [iOS fold uses an undocumented hinge event](../commands/navigation.md#notes) — a future Xcode may stop accepting it, and `fold` / `unfold` would then fail loudly, never pass silently.

@@ -1592,15 +1592,30 @@ public final class FTDriveCore {
 
     /// 呼び元のコマンドを skipped で記録し、残りの手順を打ち切る(`scenarioAborted`)。
     /// **失敗ではないので handleFailure(スクショ・失敗の証跡)は呼ばない**。
-    /// 最初の宣言だけが理由になる
+    /// 最初の宣言だけが理由になる。
+    /// **`beforeAll()` の中では対象外にせず失敗にする**: beforeAll は run に1回・始めたら撃ち直さない(at-most-once)ので、
+    /// 対象外にすると最初のシナリオだけが別の台へ回され(DR-214)、残りは「beforeAll failed」になって割れる。
+    /// 台に依る手順の置き場(setUpDevice = 対象外ならその台の同じクラスを対象外にする)を失敗文で示す(DR-214)
     func skipScenarioNotApplicable(description: String, command: String, reason: String,
                                    file: StaticString, line: UInt) {
+        if currentSection == "beforeAll" {
+            recordStep(description: description, status: .failed(Self.beforeAllNotApplicableMessage(reason: reason)),
+                       file: relativePath("\(file)"), line: Int(line), command: command)
+            scenarioAborted = true
+            return
+        }
         stateLock.lock()
         if _notApplicableReason == nil { _notApplicableReason = reason }
         stateLock.unlock()
         recordStep(description: description, status: .skipped(reason),
                    file: relativePath("\(file)"), line: Int(line), command: command)
         scenarioAborted = true
+    }
+
+    static func beforeAllNotApplicableMessage(reason: String) -> String {
+        "\(reason) — beforeAll() runs once per run, on whichever device takes the class's first scenario, and is not run again"
+            + " on another device. Put device-dependent steps (fold(), unfold(), appSwitcher()) in setUpDevice() instead:"
+            + " it runs on each device, and a not-applicable result there skips that device's scenarios of the class"
     }
 
     /// 分岐評価(記録のみ、実行はしない): セレクタが現在画面で解決できるか。

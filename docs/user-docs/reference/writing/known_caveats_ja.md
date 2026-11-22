@@ -134,6 +134,7 @@
 - [折りたためないデバイスでは失敗でなく以降を skipped にする](../commands/navigation_ja.md#注意点) — 緑でも実行されていないステップがあるので、レポートで確認します。
 - [折りたたみ状態は終了時に自動で元へ戻る](../commands/navigation_ja.md#注意点) — `rotateTo` の向きと同じ扱いです。
 - [対象外のシナリオは、まだ試していないデバイスへ回し直される](../commands/navigation_ja.md#注意点) — 1台で対象外になったシナリオ(折りたためないデバイスでの `fold()` など)は同じ run の別のデバイスへ回されます。対象外(skipped)になるのは全デバイスが試したときだけで、試していないデバイスが落ちたときは失敗(`not run`)になります。
+- [`beforeAll()` の中の対象外は失敗になる](../commands/navigation_ja.md#注意点) — `beforeAll()` は run に1回だけ走り、別のデバイスでは走り直しません。`fold()` などデバイスで結果が変わる準備は `setUpDevice()` に書きます。
 - [Android の折りたたみ機は閉じるとロック画面が出る](../commands/navigation_ja.md#注意点) — `fold()` はスワイプで外して進みますが、PIN やパターンのロックは外せません。
 - [hinge はどちらの画面が出るかを確かめない](../commands/navigation_ja.md#注意点) — 切り替わる角度は直前の状態に依存します。特定の画面が要るなら `fold()` / `unfold()` を使います。
 - [iOS の fold / unfold は非公開のヒンジイベントを送る](../commands/navigation_ja.md#注意点) — 将来の Xcode で受け付けなくなる可能性がありますが、切り替わりを確かめるので黙って通らず失敗します。

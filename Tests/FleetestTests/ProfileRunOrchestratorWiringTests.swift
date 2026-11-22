@@ -35,7 +35,7 @@ final class ProfileRunOrchestratorWiringTests: XCTestCase {
         }
     }
 
-    /// 供給で合流しなかった台を DR-214 の「落ちた台」へ記帳する配線(OI-340)。宣言したデバイスの一覧を渡さないと、
+    /// 供給で合流しなかった台を DR-214 の「落ちた台」へ記帳する配線。宣言したデバイスの一覧を渡さないと、
     /// 合流できなかった台が居ない扱いになり、全部が別の台で対象外 = 0 本実行の緑になる
     func testPlannedLanesAreHandedToTheOrchestratorAndRegisteredAfterSupply() throws {
         let make = try Self.codeWithoutComments("Sources/fleetest/ProfileRunOrchestrator.swift")

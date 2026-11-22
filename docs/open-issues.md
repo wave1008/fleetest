@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-340 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-320・OI-321・OI-329・OI-345・OI-346 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-235 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
@@ -35,23 +35,6 @@
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 44 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
-
-### OI-340 対象を走らせられる台(折りたためる端末)が供給で落ちると、fold を使うシナリオが全部ほかの台で対象外になり、0 本実行で ✅ exit 0
-- 状態: 再現済み
-- 確認: 4f5b96bd1(2026-11-21)
-- 属性: 着手可
-- 運用: 要注意 — 何も検証していない緑(run の行に「N skipped: not applicable」は出る)
-- 優先度: 中 — 誤った緑に近い
-
-出典: シナリオ作成の評価 6回目(2026-11-21・`_work/scen-eval-20261121b/`。一覧は同フォルダの `ISSUES.md`)
-- 観測: duo_memo_cmp の xm-exec(手元 iPhone Duo -01 + M1Max の iPhone 18 Pro)。Duo-01 は XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れで合流できず(OI-184 / OI-196)、動的な割り振りで 4 本とも M1Max へ → unfold で対象外 → `[M1Max] ✅ All 0 scenario(s) passed (4 skipped: not applicable)`・手元は `This machine ran no scenario`・全体 exit 0(`logs/run-duo-12-duo_memo_cmp-xm-exec.log`)
-- 関連: 作成セッションの 3 本が「折りたたみが要るクラスを Duo へ寄せる手段が無い(当たった台しだいで全部対象外)」と書いた。DR-213 は「OS が合わず対象外で 0 本」を正当な成功としたが、こちらは対象の台が居たのに落ちた結果
-- 同型(観測していない・コードで確認): `beforeAll()` の中で fold 等が対象外になると、`ftRunBeforeAll` は `scenarioAborted` を失敗と読み、run 全体でそのクラスが「beforeAll failed」になる(setUpDevice の同じ形は 11/22 に直した = 後続を同じ理由の対象外にする)。beforeAll は run に1回なので、別の台で撃ち直すかは途中まで走った準備の二重実行と合わせて決める
-- 決定: DR-214(11/22)= 対象外で終わったシナリオは同じ run のまだ試していない台へ回し直し、回せる台が落ちて残っていなければ失敗。最初から対象の台が居ない run は今までどおり対象外(緑)
-- 次の一手(3層・`run` と `api run` の両方): ①機械の中 —— `RunOrchestrator` の notApplicable の分岐で、同じ OS の生きたレーンのうちその item を試していないものがあれば結果を確定させずに戻す(`ScenarioQueue` に item ごとの「試したレーンの集合」を持たせ、`avoidedLane` の優先ではなく除外として効かせる。setUpDevice の対象外はそのレーンの同じクラスを即座に対象外にする = 11/22 の直し)。試していないレーンが離脱で消えたら失敗で確定(`@RunInOrder` の「could not be revived」と同じ出口)②マシンをまたぐ run —— 子が対象外の結果を親へ返す行を `WorkQueueProtocol` に足し(子 → 親。id・lane・理由)、`DynamicDispatcher` がまだ試していない entry へ配り直す。全 entry が試して対象外なら親が対象外で確定・試していない entry が落ちていれば失敗で確定 ③結果 JSON・run の集計・NDJSON で「回し直した対象外」を数え直す(`runSkipped` の二重計上をしない)。陽性対照: Duo と普通の iPhone を混ぜたプロファイルで fold のシナリオが Duo に回ること・Duo を止めた run が赤になること・Duo の無いプロファイルは緑のまま
-- 11/22: 機械の中と機械をまたぐ run の回し直しを入れた(判定 `NotApplicableHandoff.decide` の1箇所・`run` / `api run` 共通)。デバイスで確かめた: iPhone Duo -02 + 折りたためない Sim -08 のプロファイルで、-08 で対象外になった3本が「結果を捨てて未試行の台へ」回り Duo で走った・Duo の無いプロファイルは今までどおり4本とも対象外で緑。残り: ①同じマシンで、他のレーンが合流した後に供給で落ちた台は数えない(その台は居ない扱いで対象外 = 緑のまま。供給の失敗を `RunOrchestrator` へ渡す入口が要る。duo_memo_cmp の形 = 手元の台が全滅して子ごと終わる形は親が数えて失敗になる)②`beforeAll()` の同型 ③マシンをまたぐ run のデバイスでの確認(次の評価の本番で見る)
-- 評価 7回目(11/22・`_work/scen-eval-20261122/`): マシンをまたぐ run の回し直しは働いた(duo-12: M1Max で対象外 → 手元の Duo -01 で走った・手元の Duo が落ちた duo-3 は「never handed」で赤)。**同じマシンの Duo -02 が供給で落ちた run は2回とも 0 本実行の緑**(duo-2 `✅ All 2 passed (2 skipped)`・duo-5 `✅ All 0 scenario(s) passed (4 skipped)`)。原因(コードで確認): `ScenarioQueue.departedLanes` は合流した後に終わったレーンだけを数え、呼び手は合流したワーカーだけ = 残り①は「合流の後」に限らず供給で合流できなかった台も数えていない
-- 11/22(残り①の直し): プロファイルが宣言した全デバイスを `RunOrchestrator` へ渡し(`plannedLanes`)、その OS の供給が済んでも合流しなかった台を `ScenarioQueue.laneNeverJoined` で「試していない台が落ちた」と記帳する(初期ワーカーは走らせる前・遅延参加は合流の前。供給中の台は数えない)。残り: ②`beforeAll()` の同型 ③マシンをまたぐ run のデバイスでの確認
 
 ## 要測定
 
@@ -665,7 +648,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 同じ落ちで出た形(どれも Duo だけ・1〜2回): `unfold()` の直後の `fold()` が「devicectl reports 0 active built-in displays」で撃たずに赤・同時に in-app ブリッジが落ちてワーカーが2回離脱(21周目 duo F1・1/1)/ MCP の `ft_fold unfold` の後に誰も触らず畳んだ状態へ戻り揺れ続ける(25周目 duo F3・2/2。SpringBoard が 12〜20 秒おきに落ちて起き直す)/ 開いた Duo で `back()` の直後の `exist` が「Lost connection to the application」の 500(27周目 duo F1・2/2)/ MCP の `ft_launch` が「checking the simulator's SpringBoard」の段のまま 184 秒以上返らず、中継を止めた後も子の fleetest-mcp が残る・開いた Duo の `ft_snapshot` が「screen: 951x951 pt」と言う(28周目 duo F2・F3・各 1/1。個々の赤と落ちの時刻の対応は未確認)/ MCP の `ft_fold` の unfold の直後から SpringBoard が約 18 秒おきに落ち続け(FBSDisplayMode の初期化で SIGTRAP・9 件以上)、`ft_fold` は「Lost connection to the application」か「Unfolded.」と返し、続く `ft_snapshot` が 123.5 秒塞がる・`ft_status` / `ft_snapshot` は SpringBoard を名指さない(40周目 duo F1・41周目 duo F1 で -02 でも・計 3/3。DSL の unfold・fold・hinge では 0/1 = 落ちの起点の候補)
 - 53周目の前(11/13): 開いた Duo で `hideKeyboard()` が注記なし 0.00 秒の ✅ のままキーボードが残った件(52周目 2/2)は、この落ちが原因と観測した —— 52周目は `hideKeyboard` の約 3.8 秒前(04:46:16)に両方の Duo で InputUI が同じ FBSDisplayMode の assert で落ちていた(Retired の .ips)= その瞬間はキーボードが本当に無く、in-app の木の「出ていない」は事実(後で InputUI が起き直して出直した)。11/13 に再現: `unfold()` の後に SpringBoard と InputUI が約 18 秒おきに落ち続け、アプリが背景に回って in-app ブリッジが 423(-02 で 1/1・-01 で 2/2・`unfold()` 無しの対照は 2/2 緑)。入力の無い unfold だけでも起きる。**直し**: シナリオの間にそのシミュレータの SpringBoard / InputUI の .ips が出ていたら、緑・赤どちらのレポートにも回数・時刻・報告ファイルを添える(`SimulatorCrashReport.systemCrashes`・Duo の -01 で 2/2 に出て、落ちなかった -02 には出ないことを確かめた)。利用者向けの注意点(navigation の fold)にも足した
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
-- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は OI-340
+- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は DR-214 で失敗にした
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): 05:48 に FBSDisplayMode の SpringBoard の落ち 1 件(DiagnosticReports)・Duo の作成 6 セッションが全部この落ちに当たった
 
 ## 据え置き
