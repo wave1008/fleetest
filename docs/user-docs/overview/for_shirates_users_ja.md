@@ -85,6 +85,7 @@ fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。
 | `beforeAllAfterSetup` | `setUpDevice()` |
 | `setEventHandlers` | `beforeEach()` の中で書く |
 | `typeChars` | 不要 |
+| `internetOn/Off`・`wiFiOn/Off`・`mobileOn/Off` | 無い —— iOS では Simulator も実機も外から通信を切れないため、どの構成でも同じ書き方で動く形にできない。自分で管理しているサーバーの失敗は、[compose.yaml](../reference/writing/services_ja.md) で起動したテスト用サーバーを [`httpRequest`](../reference/commands/http_request_ja.md) で失敗を返す状態に切り替えて作る。外部サイトへの通信の失敗は再現できない |
 
 ## まだ無いもの(足す予定)
 
@@ -92,7 +93,6 @@ fleetest の Swift DSL は Shirates(Classic)の慣習に準拠しています。
 
 | Shirates | 状況 |
 |---|---|
-| `internetOn/Off`・`wiFiOn/Off`・`mobileOn/Off` | 足す予定 |
 | `pressSearch`・`pressTab`・`pressKeys`・`pressAndroid` | 足す予定 |
 | `tapCenterOfScreen`・`tapCenterOf`・`tapOffset` | 足す予定 |
 

@@ -209,7 +209,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | `installApp` / `removeApp` | `installApp(path?)` / `removeApp(id?)` | ✅ 2026-08-03 DSL 化。`installApp` は実行をオーケストレータ(親プロセス)へ委譲し、パス省略時はアプリプロファイルの `<platform>.appPath` を解決する(Shirates の `appPackageFile` 既定に一致)。オーケストレータ無しの単独実行だけ引数必須(省略時は明示エラー)。`removeApp` は id 省略を実行中アプリの既定 bundleID/package に解決する |
 | `isAppInstalled` / `launchAppByShell` | CLI 側(`fleetest install`)。DSL には無い | ➖ **導入はシナリオの外**(2026-08-21 判定)。アプリプロファイルの `appPath` + `autoInstall` が run の前に面倒を見るので、シナリオが導入状態を分岐に使う形は増やさない(`installApp` / `removeApp` は明示的に操作したいとき用に既にある) |
 | `goPreviousApp` | `appSwitcher()`(スイッチャーを開くだけ) | 🟡 |
-| `internetOn/Off` / `wiFiOn/Off` / `mobileOn/Off` | — | ⏳ **足す**(2026-08-21 判定。基準①=回避策が無い唯一の項目)。**通信断の状態を作れない**ので、オフライン時の表示・再試行・エラーダイアログを検証できない。**実害**: 受け手のアプリは規約画面を外部サイトから読み、通信が失敗するとエラーダイアログを出す —— それが偶発的にテストを落とすのに、**意図的に再現することも防ぐこともできない**。**Android のみ**(`adb shell svc wifi/data`)で、**iOS シミュレータはホストのネットワークを共有するため同等の手段が無い**(実機も同様)。足すときは 🟡(Android 限定)として書く |
+| `internetOn/Off` / `wiFiOn/Off` / `mobileOn/Off` | — | ➖ **置かない**(DR-219。端末の状態を設定する機能は iOS 実機でも同じ書き方で動くことが条件)。通信を切れるのは Android だけ(`adb shell svc wifi/data`)で、iOS Simulator はホストのネットワークを共有し、iOS 実機も外から切る口が無い(devicectl にも無い)。Android だけの命令を置くと、Android で書いたシナリオを iOS で回すたびに書き直しになる。**代わり**: 自前のサーバーの失敗は、compose.yaml で起こしたテスト用サーバーを `httpRequest` で失敗を返す状態に切り替えて作る(サーバー側なので全構成で同じ書き方)。**外部サイトへの通信の失敗**(受け手のアプリの規約画面など)は再現できないまま残る。見直す条件は DR-219 と同じ(iOS 実機で通信を切る手段が出たとき) |
 | `shell` / `shellAsync` | `procedure { }` 内で任意の Swift(同期のブロック) | 🟡 |
 | `screenshot` | `screenshot(filename?)` | ✅ 2026-08-03(**ファイル名はラベル無しの1形だけ** = 2026-09-19。Kotlin は名前付き引数を位置でも渡せるので `screenshot("a.png")` がそのまま通る。`filename:` のラベル形は置かない)**`filename` のみ**(他3引数(`force`/`onChangedOnly`/`withXmlSource`)は Shirates の auto-screenshot 機構の制御で、fleetest は毎操作の自動撮影を持たない)。画像はレポートの該当ステップ直後に埋め込む。失敗時の証跡・MCP `ft_screenshot` とは別経路 |
 | — | `home()` / `back()` | 🟢 OS 差を吸収した1コマンド |
@@ -319,8 +319,8 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 
 ## 足す価値がある残り
 
-**今は書けないものは2つだけ**で、どちらも上の表で「⏳ 足す」と判定済み(足す条件もそこに書いてある):
-キー操作(`pressTab` / `pressKeys` / `pressAndroid`)と通信断(`internetOn/Off` 系)。
+**今は書けないものはキー操作(`pressTab` / `pressKeys` / `pressAndroid`)だけ**で、上の表で「⏳ 足す」と判定済み(足す条件もそこに書いてある)。
+通信断(`internetOn/Off` 系)は DR-219 で置かないと決めた(上の表の行に代わりの書き方)。
 それ以外の残りはどれも「あると便利」の範疇で、**こちらから実装を提案しない**:
 
 | 項目 | 状態 |

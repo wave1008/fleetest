@@ -86,6 +86,7 @@ present, and what only fleetest has.
 | `beforeAllAfterSetup` | `setUpDevice()` |
 | `setEventHandlers` | write it inside `beforeEach()` |
 | `typeChars` | not needed |
+| `internetOn/Off`, `wiFiOn/Off`, `mobileOn/Off` | not available — on iOS neither the Simulator nor a physical device can have its network cut from outside, so it cannot be written the same way on every setup. To make your own server fail, switch the test server started from [compose.yaml](../reference/writing/services.md) into a failing state with [`httpRequest`](../reference/commands/http_request.md). Failures reaching external sites cannot be reproduced |
 
 ## Not yet present (planned)
 
@@ -93,7 +94,6 @@ There is no way to write these in the meantime.
 
 | Shirates | Status |
 |---|---|
-| `internetOn/Off`, `wiFiOn/Off`, `mobileOn/Off` | planned |
 | `pressSearch`, `pressTab`, `pressKeys`, `pressAndroid` | planned |
 | `tapCenterOfScreen`, `tapCenterOf`, `tapOffset` | planned |
 
