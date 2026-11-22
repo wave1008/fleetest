@@ -481,6 +481,7 @@ public final class WebViewDelegatingDriver: AppDriver {
     }
     // in-app の状態は primary(in-app)だけが答える(XCUITest 側は nil)
     public func inAppApplicationState() async -> String? { await primary.inAppApplicationState() }
+    public func inAppDisplayReport() async -> InAppDisplayReport? { await primary.inAppDisplayReport() }
     /// **転送必須**: 素性と枠の照会は XCUITest(`delegated`)だけが答える。ref を使わないのでモードに関わらず同じ宛先
     /// (inapp-boost のシナリオ実行はこの型を最外に組む = 既定実装に落ちると照会が一度も届かない。`HitTestQueryForwardingTests`)
     public func hitTest(query: HitTestQuery) async -> HitTestAnswer { await delegated.hitTest(query: query) }

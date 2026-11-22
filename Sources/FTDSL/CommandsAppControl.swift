@@ -58,6 +58,7 @@ public func launchApp(_ appID: String? = nil, url: String? = nil,
                        }) {
         try refuseBridgeItself(command: "launchApp", bundleID: bundle)
         try await driver.launch(bundleID: bundle)
+        try await core.awaitDisplayReachedApp()
         if let url {
             deliveredBeforeUI = try await !core.executor.awaitInteractiveUI(
                 timeoutMs: Int(core.defaultTimeout * 1000))
@@ -112,6 +113,7 @@ public func restartApp(_ appID: String? = nil,
         try refuseBridgeItself(command: "restartApp", bundleID: bundle)
         try? await driver.terminate()
         try await driver.launch(bundleID: bundle)
+        try await core.awaitDisplayReachedApp()
     }
     applyProfileOrientation(core, file: file, line: line)
 }

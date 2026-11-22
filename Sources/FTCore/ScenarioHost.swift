@@ -996,6 +996,15 @@ public enum ScenarioHost {
             for line in started.notices { hostLog(line) }
             builder?.displaySettings = started.record
             displayStarted = started.didNothing ? nil : started
+            // 子がアプリへ届いたかを確かめる期待(DisplayAppCheck)。**開始時の結果を見てから渡す**: 合わせられなかった指定の無いキーは
+            // 基準の状態ではないので確かめない(警告だけで続ける扱いと揃える)。子の引数の末尾へ足す(サンドボックスの包みも実行ファイルの引数は最後)
+            let appExpected = DisplayAppExpectation(
+                expected: displayExpected,
+                handled: DisplaySettingsPlan.handledKeys(
+                    expected: displayExpected, baselineUnreachable: deviceSession.displaySettings.baselineUnreachable))
+            if let argument = appExpected.argument {
+                process.arguments = (process.arguments ?? []) + ["--display-expected", argument]
+            }
             if let detail = started.failureDetail {
                 finishDisplaySettings()
                 return abortBeforeLaunch(DisplaySettingsStart.failureSummary(displayExpected), detail: detail)

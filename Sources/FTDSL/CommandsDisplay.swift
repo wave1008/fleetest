@@ -41,6 +41,36 @@ extension FTDriveCore {
         }
     }
 
+    /// 期待の表示条件を、in-app のアプリが受け取るまで待つ。尽きたら `DriverError.displayNotApplied`(そのステップの失敗)。
+    /// **何もしない**: 期待が無い・dry-run・in-app が答えない(xcuitest・Android・旧ブリッジ・通信断)・申告の欄が無い
+    func awaitDisplayReachedApp(limitSeconds: TimeInterval = DisplaySettingsLimits.appPropagationSeconds) async throws {
+        guard !dryRun, let expected = displayAppExpectation.value else { return }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let limit = limitSeconds
+        while true {
+            guard let report = await driver.inAppDisplayReport(), !report.isEmpty else { return }
+            let mismatches = DisplayAppCheck.mismatches(expected: expected, report: report)
+            if mismatches.isEmpty { return }
+            let elapsed = DurationConversion.seconds(clock.now - start)
+            if elapsed >= limit {
+                throw DriverError.displayNotApplied(
+                    detail: DisplayAppCheck.failureDetail(mismatches: mismatches, waitedSeconds: limit))
+            }
+            try await Task.sleep(nanoseconds: UInt64(DisplaySettingsLimits.appPropagationPollSeconds * 1_000_000_000))
+        }
+    }
+
+    /// DSL で変えた値を以後の確かめの期待にする(確かめる対象でなかった = nil のキーも、変えた時点から確かめる)
+    func updateDisplayExpectation(appearance: FTAppearance? = nil, textSize: FTTextSize? = nil) {
+        displayAppExpectation.withLock { current in
+            var next = current ?? DisplayAppExpectation()
+            if let appearance { next.appearance = appearance }
+            if let textSize { next.textSize = textSize }
+            current = next
+        }
+    }
+
     private func displayTransport() -> DisplaySettingsTransport? {
         guard let id = deviceIdentifier, !id.isEmpty else { return nil }
         switch platform {
@@ -64,6 +94,8 @@ public func setAppearance(_ appearance: FTAppearance,
     core.performCustom(description: description, command: "setAppearance", file: file, line: line) {
         try core.applyDisplaySetting(command: "setAppearance", key: .appearance, expected: appearance.rawValue,
                                      change: DisplayChange(appearance: appearance))
+        core.updateDisplayExpectation(appearance: appearance)
+        try await core.awaitDisplayReachedApp()
     }
 }
 
@@ -80,5 +112,7 @@ public func setTextSize(_ size: FTTextSize,
         let change = DisplaySettingsPlan.change(keys: [.textSize], target: DisplayExpectation(appearance: nil, textSize: size),
                                                 restoreLarger: nil)
         try core.applyDisplaySetting(command: "setTextSize", key: .textSize, expected: size.rawValue, change: change)
+        core.updateDisplayExpectation(textSize: size)
+        try await core.awaitDisplayReachedApp()
     }
 }

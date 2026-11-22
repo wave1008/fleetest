@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 301
+    public static let bridgeProtocolVersion = 302
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -880,11 +880,9 @@ public struct StatusResponse: Codable, Sendable {
     public var bridge: String?
     /// BridgeAPI.bridgeProtocolVersion。旧ブリッジは返さない → nil 許容(=旧版扱い)。
     public var protocolVersion: Int?
-    /// このブリッジが載っているシミュレータの UDID(`SIMULATOR_UDID` 環境変数)。
-    /// **iOS のツールをポートではなく udid で指すために要る**(H): ft_list_devices は
-    /// udid と port を両方出すのに、操作系が受けるのは port だけで、ホストは port から udid を
-    /// 確定できなかった。**実機とシミュレータ以外では nil**(実機のランナーにこの環境変数は無い)。
-    /// 追加 optional フィールドのみなので単独なら版を上げる必要は無いが、61 に相乗りさせている
+    /// このブリッジが載っているシミュレータの UDID(`SIMULATOR_UDID`)。ツールをポートではなく udid で指すための申告
+    /// (ft_list_devices は udid と port を両方出すが、操作系は port しか受けず、port から udid を確定できなかった)。
+    /// **実機とシミュレータ以外では nil**。追加 optional のみなので単独なら版は不要だが 61 に相乗りさせている
     public var udid: String?
     /// UIApplication.applicationState の文字列化("active"/"inactive"/"background")。
     /// inapp 専用診断(背面 suspend でハングしていないかの申告)。xcuitest ブリッジは返さない → nil 許容。
@@ -894,11 +892,9 @@ public struct StatusResponse: Codable, Sendable {
     /// を通す(申告は注入先アプリのもの)
     public var uiFramework: String?
     /// **最後に画面が進んでからの秒数**(iOS=CADisplayLink / Android=Choreographer の tick)。
-    /// **ホストは凍結判定に使わない。採り直さないこと** —— 本物の wedge でも拍動は回り続ける
-    /// (測っているのは「vsync を要求しているか」で「表示が進んだか」ではない。反証の実測は
-    /// docs/verification/)。計器の撤去は版上げを伴うため次のブリッジ変更に便乗する。
-    /// 計器を持たないブリッジ・旧ブリッジは返さない → nil 許容。
-    /// 通信の `idleSeconds`(下)とは別物 —— あちらは「無通信秒数」で画面とは無関係
+    /// **ホストは凍結判定に使わない。採り直さないこと** —— 本物の wedge でも拍動は回り続ける(測っているのは
+    /// 「vsync を要求しているか」で「表示が進んだか」ではない。反証の実測は docs/verification/)。計器の撤去は
+    /// 版上げを伴うので次のブリッジ変更に便乗する。持たない・旧ブリッジは nil。通信の `idleSeconds`(下)とは別物
     public var displayIdleSeconds: Double?
     /// Android ブリッジ APK の versionCode(BridgeRouter.java handleStatus)。稼働中の旧ブリッジを
     /// probe 時に検知して自動更新するために使う。iOS ブリッジ・旧 Android ブリッジは返さない → nil 許容。
@@ -908,12 +904,10 @@ public struct StatusResponse: Codable, Sendable {
     public var quiescenceControlAvailable: Bool?
     /// このブリッジが**この対象アプリでは実行できない**アクション名(FlowStep.action と同じ語:
     /// "swipe" / "press" 等)。ホストはこれを見て代替ドライバへ回す/明示的に失敗させる。
-    /// 「compose なら swipe 不可」のような知識をホストへ散らかさず、事情を知っている
-    /// ブリッジ側に集約するための申告。返さない実装は nil(=制約なしとみなす)。
+    /// 「compose なら swipe 不可」のような知識をホストへ散らかさず、ブリッジ側に集約する申告。返さない実装は nil(=制約なし)。
     public var unsupportedActions: [String]?
-    /// 起動元リポジトリのルートパス(iOS=FT_OWNER_REPO 環境変数 / Android=-e owner)。
-    /// doctor の刈り取り判定が依存: パスが実在しなければ確定ゾンビとして自動停止できる。
-    /// 旧ブリッジは返さない → nil 許容(=起動元不明・報告のみ)
+    /// 起動元リポジトリのルートパス(iOS=FT_OWNER_REPO / Android=-e owner)。doctor の刈り取りが依存
+    /// (パスが実在しなければ確定ゾンビとして自動停止)。旧ブリッジは nil(=起動元不明・報告のみ)
     public var ownerRepo: String?
     /// ランナープロセスの pid(iOS のみ。ホスト上のプロセスなので doctor が直接停止できる)。
     /// Android は device 内 pid になり意味が違うため返さない
@@ -933,6 +927,10 @@ public struct StatusResponse: Codable, Sendable {
     /// `/screenshot` は `display=<表示中の displayId>` を要求する**(ランナーはどちらが表示中か確かに言えず、主画面を撮ると
     /// 開いている間は外側の絵になる。Runner/.../DisplayRouting.swift)。他は nil(= 1枚)
     public var multiDisplay: Bool?
+    /// 端末の外観("light"/"dark")。in-app だけ(画面の trait = アプリの overrideUserInterfaceStyle に左右されない)。省く = 読んでいない
+    public var screenAppearance: String?
+    /// アプリが受け取っている文字サイズ(`preferredContentSizeCategory.rawValue`)。in-app だけ。省く = 読んでいない
+    public var contentSizeCategory: String?
 
     public init(ready: Bool, device: String, osVersion: String, sessionBundleID: String?,
                 bridge: String? = nil, protocolVersion: Int? = nil, applicationState: String? = nil,
@@ -941,7 +939,7 @@ public struct StatusResponse: Codable, Sendable {
                 quiescenceControlAvailable: Bool? = nil, unsupportedActions: [String]? = nil,
                 ownerRepo: String? = nil, ownerPid: Int? = nil, idleSeconds: Double? = nil,
                 timingEnabled: Bool? = nil, udid: String? = nil,
-                orientation: FTOrientation? = nil, multiDisplay: Bool? = nil) {
+                orientation: FTOrientation? = nil, multiDisplay: Bool? = nil, screenAppearance: String? = nil, contentSizeCategory: String? = nil) {
         self.ready = ready
         self.device = device
         self.osVersion = osVersion
@@ -961,6 +959,8 @@ public struct StatusResponse: Codable, Sendable {
         self.udid = udid
         self.orientation = orientation
         self.multiDisplay = multiDisplay
+        self.screenAppearance = screenAppearance
+        self.contentSizeCategory = contentSizeCategory
     }
 }
 

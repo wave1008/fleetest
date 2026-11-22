@@ -287,8 +287,23 @@ public enum ProfileWorkerFactory {
         worker: RunWorker, profile: (resolved: ResolvedProfile, repoRoot: URL)?
     ) async -> String? {
         guard let client = systemUIClient(for: worker) else { return nil }
-        let probe = await probeSystemAlert(client)
         let device = profile?.resolved.iosDevices.first { $0.name == worker.logicalName }
+        // 前のシナリオが「表示条件がアプリへ届かない」で失敗した Simulator は、アラートの有無に関わらず SpringBoard を起こし直す
+        // (RunOrchestrator が要求を入れる。注入(DisplayAppInjection)の回は明示の許可が無ければ撃たない)
+        if DisplayRecoveryRequests.shared.take(label: worker.label) {
+            let environment = ProcessInfo.processInfo.environment
+            guard DisplayAppInjection.recoveryAllowed(environment: environment) else {
+                return DisplayRecoveryRequests.injectedNotRestartedMessage(label: worker.label)
+            }
+            guard let device, let (resolved, repoRoot) = profile, let udid = worker.connection.udid else {
+                return DisplayRecoveryRequests.failedMessage(
+                    label: worker.label, reason: "no device definition to rebuild the bridge from")
+            }
+            return await respringAndRebuild(
+                worker: worker, client: client, purpose: .displayNotApplied, udid: udid,
+                device: (device.name, device.spec), resolved: resolved, repoRoot: repoRoot)
+        }
+        let probe = await probeSystemAlert(client)
         let plan = ResidualSystemAlertClearing.plan(
             probe: probe, label: worker.label, physical: worker.connection.physical,
             canRebuildBridge: device != nil && worker.connection.udid != nil)
@@ -310,7 +325,7 @@ public enum ProfileWorkerFactory {
                 return nil
             }
             return await respringAndRebuild(
-                worker: worker, client: client, alert: alert, udid: udid,
+                worker: worker, client: client, purpose: .systemAlert(alert), udid: udid,
                 device: (device.name, device.spec), resolved: resolved, repoRoot: repoRoot)
         }
     }
@@ -378,16 +393,35 @@ public enum ProfileWorkerFactory {
             label: label, alert: alert, reason: "it is still there after pressing \u{201C}\(button)\u{201D}")
     }
 
+    /// SpringBoard を起こし直す理由。文言だけが違う(手順は同じ)
+    enum RespringPurpose {
+        case systemAlert(String)
+        case displayNotApplied
+
+        func failed(label: String, reason: String) -> String {
+            switch self {
+            case .systemAlert(let alert): return ResidualSystemAlertClearing.failedMessage(label: label, alert: alert, reason: reason)
+            case .displayNotApplied: return DisplayRecoveryRequests.failedMessage(label: label, reason: reason)
+            }
+        }
+
+        func done(label: String, seconds: Double) -> String {
+            switch self {
+            case .systemAlert(let alert): return ResidualSystemAlertClearing.clearedMessage(label: label, alert: alert, seconds: seconds)
+            case .displayNotApplied: return DisplayRecoveryRequests.restartedMessage(label: label, seconds: seconds)
+            }
+        }
+    }
+
     /// SpringBoard を起こし直して消し(ボタンを押さない)、一緒に死ぬ XCUITest ランナーを作り直す
-    static func respringAndRebuild(worker: RunWorker, client: BridgeClient, alert: String, udid: String,
+    static func respringAndRebuild(worker: RunWorker, client: BridgeClient, purpose: RespringPurpose, udid: String,
                                    device: (name: String, spec: DeviceSpec), resolved: ResolvedProfile,
                                    repoRoot: URL) async -> String {
         let clock = ContinuousClock()
         let start = clock.now
         let respring = SimulatorSpringBoard.restart(udid: udid)
         guard respring.ok else {
-            return ResidualSystemAlertClearing.failedMessage(
-                label: worker.label, alert: alert, reason: "restarting SpringBoard failed (\(respring.detail))")
+            return purpose.failed(label: worker.label, reason: "restarting SpringBoard failed (\(respring.detail))")
         }
         // `api restart-bridge` と同じ手順(止めてから同じデバイスへ供給し直す)。同じポートで戻らないと
         // ワーカーのドライバが別の宛先を指したままになるので確かめる
@@ -399,33 +433,30 @@ public enum ProfileWorkerFactory {
             log: { line in provisionLog.withLock { $0.append(line) } })
         let lastProvisionLine = provisionLog.withLock { $0.last } ?? "no output"
         guard let rebuilt = provisioned?.first else {
-            return ResidualSystemAlertClearing.failedMessage(
-                label: worker.label, alert: alert,
+            return purpose.failed(
+                label: worker.label,
                 reason: "the bridge did not come back after restarting SpringBoard (\(lastProvisionLine))")
         }
         let expectedPort = worker.connection.xcuiPort ?? worker.connection.port
         guard (rebuilt.xcuiPort ?? rebuilt.port) == expectedPort else {
-            return ResidualSystemAlertClearing.failedMessage(
-                label: worker.label, alert: alert,
+            return purpose.failed(
+                label: worker.label,
                 reason: "the bridge came back on port \(rebuilt.xcuiPort ?? rebuilt.port) instead of"
                     + " \(expectedPort.map(String.init) ?? "?")")
         }
         // **答えが取れたときだけ「消えた」と言う**(取れない = ブリッジが戻っていない。nil を「無い」に倒すと
         // 死んだランナーのまま「消せた」と報告する。実測: 別のワークスペースが起こしたランナーで起きた)
         guard let after = await probeSystemAlert(client) else {
-            return ResidualSystemAlertClearing.failedMessage(
-                label: worker.label, alert: alert,
+            return purpose.failed(
+                label: worker.label,
                 reason: "the XCUITest bridge does not answer after restarting SpringBoard (\(lastProvisionLine))")
         }
-        if after.present {
-            return ResidualSystemAlertClearing.failedMessage(
-                label: worker.label, alert: alert,
+        if case .systemAlert = purpose, after.present {
+            return purpose.failed(
+                label: worker.label,
                 reason: "it is still there after restarting SpringBoard (\(ResidualSystemAlertClearing.describe(after)))")
         }
-        let elapsed = clock.now - start
-        return ResidualSystemAlertClearing.clearedMessage(
-            label: worker.label, alert: alert,
-            seconds: DurationConversion.seconds(elapsed))
+        return purpose.done(label: worker.label, seconds: DurationConversion.seconds(clock.now - start))
     }
 
     /// `/systemalert` を 5 秒で打ち切る(固まったブリッジに各シナリオの前で待たされない。打ち切り = 判定しない)

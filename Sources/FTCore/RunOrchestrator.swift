@@ -1342,6 +1342,12 @@ public final class RunOrchestrator: Sendable {
                     }
                     continuation.yield(event)
                 })
+            // 表示条件がアプリへ届かなかった iOS Simulator は、次のシナリオの前に SpringBoard を起こし直す(`clearResidualSystemAlert` の口が取り出す)。
+            // 実機は回復しない(失敗のまま)。失敗したシナリオは振り直さない
+            if worker.platform == "ios", !worker.connection.physical,
+               failedStepKinds.withLock({ $0.contains(StepFailureKind.displayNotApplied.rawValue) }) {
+                DisplayRecoveryRequests.shared.request(label: worker.label)
+            }
             // 録画の区間の終わりは**確認の前**の時刻(確認・回復の時間をシナリオの区間に入れない)。合否は確認の後に決める ——
             // 凍結が確定した成功は録画にとっても失敗(recordFailuresOnly で問題の区間を残すため)
             let scenarioEndedAt = Date()

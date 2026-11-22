@@ -146,6 +146,7 @@ public final class ActionCountingDriver: AppDriver {
         await base.touchLands(x: x, y: y, refs: refs)
     }
     public func inAppApplicationState() async -> String? { await base.inAppApplicationState() }
+    public func inAppDisplayReport() async -> InAppDisplayReport? { await base.inAppDisplayReport() }
     public func waitForSettle(_ request: WaitForSettleRequest, timeoutSeconds: Double) async throws -> WaitForSettleResponse {
         try await base.waitForSettle(request, timeoutSeconds: timeoutSeconds)
     }

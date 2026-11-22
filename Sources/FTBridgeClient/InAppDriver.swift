@@ -166,6 +166,8 @@ public final class InAppDriver: AppDriver {
     }
     /// 1回の聞き取りの上限(秒)。前面の in-app は数 ms で答える(実測 1〜17ms)。停止したアプリは答えないので、ここで切れた = 外れた
     static let leaveProbeTimeout: TimeInterval = 0.5
+    /// 表示条件の申告を読む /status の上限[秒]。尽きたら nil = 判定しない(黙って通る側なので leaveProbeTimeout より長く取る)
+    static let displayReportTimeout: TimeInterval = 2
 
     /// 別のアプリが開きうる URL なら true = 外れるのを待つ。自分のスキームなら false(自アプリのディープリンクで毎回上限を払わない)。
     /// **アプリのスキームが分からない(nil)ときは待つ**: 実機は Info.plist を読む口が無く(deliverURL が simctl の宛先を返さない)、
@@ -381,6 +383,12 @@ public final class InAppDriver: AppDriver {
     }
     public func inAppApplicationState() async -> String? {
         try? await client.status(timeout: Self.leaveProbeTimeout).applicationState
+    }
+    public func inAppDisplayReport() async -> InAppDisplayReport? {
+        guard let status = try? await client.status(timeout: Self.displayReportTimeout) else { return nil }
+        let report = InAppDisplayReport(screenAppearance: status.screenAppearance,
+                                        contentSizeCategory: status.contentSizeCategory)
+        return DisplayAppInjection.apply(to: report, environment: ProcessInfo.processInfo.environment)
     }
     public var lastLaunchTiming: LaunchTiming? { lastLaunchTimingValue }
     public func backGestureEdgeWidths() async -> (left: Double, right: Double, bottom: Double)? {

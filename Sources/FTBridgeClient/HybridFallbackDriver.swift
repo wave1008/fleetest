@@ -449,4 +449,5 @@ public final class HybridFallbackDriver: AppDriver {
     }
     // in-app の状態は primary(in-app)だけが答える(XCUITest 側は nil)
     public func inAppApplicationState() async -> String? { await primary.inAppApplicationState() }
+    public func inAppDisplayReport() async -> InAppDisplayReport? { await primary.inAppDisplayReport() }
 }

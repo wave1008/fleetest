@@ -20,7 +20,7 @@ extension AndroidDriver {
             return .deliveryUnknown(context: context, detail: "\(note) The Enter key was not sent. \(detail)")
         case .deliveryUnknown(let context, let detail):
             return .deliveryUnknown(context: context, detail: "\(note) \(detail)")
-        case .bridgeConnectionRefused, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected:
+        case .bridgeConnectionRefused, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected, .displayNotApplied:
             return error
         }
     }

@@ -63,6 +63,11 @@ public enum StepFailureKind: String, Sendable, Codable, CaseIterable {
     /// もう1つの出どころは `appSwitcher()` の後にスイッチャーが前面のままのステップ(`StepExecutor.appSwitcherRefusal`。
     /// XCUITest の覆いの照会で `SBSwitcherWindow` を見たときだけ)
     case systemUICovered = "system-ui-covered"
+
+    /// **端末の表示条件(外観・文字サイズ)を設定したのに、in-app のアプリが受け取っていなかった**(`/status` の申告と期待の不一致が
+    /// `DisplaySettingsLimits.appPropagationSeconds` 続いた)。設定値の読み返しは合っている。iOS の inapp-boost モードだけ。
+    /// 親は次のシナリオの前に Simulator の SpringBoard を起こし直す(`DisplayRecoveryRequests`)
+    case displayNotApplied = "display-not-applied"
 }
 
 /// **エラー自身が素性を名乗る**。`failureKind(thrown:)` が文言ではなくこれを見るので、

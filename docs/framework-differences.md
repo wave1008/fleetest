@@ -353,6 +353,7 @@ Android の4 SUT と RN iOS は、どの部品もオン/オフとも a11y が判
 | View/XML(E2EAppAndroid) | 外観も文字サイズも Activity が作り直される(ナビ状態は引き継ぐ) | B | 何もしない |
 | Compose Multiplatform(iOS) | アプリが配色を外観に追従させていないと、ダークにしたとき背景だけ黒になり、テーマの既定色の文字(黒)が読めなくなる(E2E の SUT は2つの表示を白地・黒の文字に固定している) | B | テキストの可視性検証が「木にはあるが描かれていない」と赤にする(正しい赤) |
 | 全部(iOS) | `#txt_text_size` の値の形が割れる: ネイティブ・CMP は `UIContentSizeCategory` の rawValue・Flutter・RN は倍率 | B | シナリオは生の値を決め打ちせず、開始時の値から変わったことで比べる |
+| iOS の inapp-boost モードとそれ以外 | in-app ブリッジは `/status` で、アプリが受け取っている外観・文字サイズを申告する(`screenAppearance` / `contentSizeCategory`)。xcuitest モードのランナー・Android は申告しない(Android は設定値の読み返しだけ) | C | inapp-boost の iOS は launchApp / restartApp / setAppearance / setTextSize の後に申告が期待と一致するまで最大 5 秒待ち、届かなければ `display-not-applied` で失敗(Simulator は次のシナリオの前に SpringBoard を起こし直す)。それ以外は端末の設定値だけを確かめる |
 
 ## FD-3 待ちと鮮度
 

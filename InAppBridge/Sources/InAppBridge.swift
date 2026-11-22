@@ -252,7 +252,17 @@ final class FTInAppBridge {
                 // 載っているシミュレータの UDID(H)。ホストが port ではなく udid で宛先を
                 // 指せるようにするための申告。実機には SIMULATOR_UDID が無いので nil
                 udid: ProcessInfo.processInfo.environment["SIMULATOR_UDID"],
-                orientation: self.keyWindow()?.windowScene?.interfaceOrientation.ftOrientation))
+                orientation: self.keyWindow()?.windowScene?.interfaceOrientation.ftOrientation,
+                // 端末が今アプリへ届けている外観と文字サイズ(DisplayAppCheck.swift)。ウィンドウの trait ではなく画面の trait =
+                // アプリの overrideUserInterfaceStyle に左右されない
+                screenAppearance: {
+                    switch UIScreen.main.traitCollection.userInterfaceStyle {
+                    case .light: return "light"
+                    case .dark: return "dark"
+                    default: return nil
+                    }
+                }(),
+                contentSizeCategory: UIApplication.shared.preferredContentSizeCategory.rawValue))
         }
     }
 

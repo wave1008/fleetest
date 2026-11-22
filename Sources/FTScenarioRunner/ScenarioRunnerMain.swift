@@ -192,6 +192,10 @@ struct RunScenario: AsyncParsableCommand {
             help: "Rotate once right after the first launchApp/restartApp: portrait or landscape (set by ScenarioHost from the run profile's orientation; omitted = leave the orientation alone)")
     var orientation: String?
 
+    @Option(name: .customLong("display-expected"),
+            help: "Display settings the app must report right after launchApp/restartApp/setAppearance/setTextSize, e.g. appearance=light,textSize=default (set by ScenarioHost; omitted = not checked)")
+    var displayExpected: String?
+
     @Flag(name: .customLong("no-ocr-text-visibility-check"), help: "Disable the Vision OCR stage of the occlusion guard (FM only; with --no-fm-text-visibility-check too, no guard)")
     var noOcclusionOCR = false
 
@@ -618,6 +622,15 @@ struct RunScenario: AsyncParsableCommand {
         } else {
             profileOrientation = nil
         }
+        let displayAppExpectation: DisplayAppExpectation?
+        if let displayExpected {
+            guard let parsed = DisplayAppExpectation.parse(displayExpected) else {
+                throw ValidationError("--display-expected must look like appearance=light,textSize=default: \(displayExpected)")
+            }
+            displayAppExpectation = parsed
+        } else {
+            displayAppExpectation = nil
+        }
         let core = FTDriveCore(driver: countedDriver, platform: runPlatform, app: appBundleID,
                                scenarioID: scenarioID, scenarioTitle: scenarioTitle,
                                delegate: delegate, healingEnabled: heal,
@@ -631,6 +644,7 @@ struct RunScenario: AsyncParsableCommand {
                                preferCheckStateClassifier: !noPreferCheckStateClassifier,
                                findImagePrewarm: !noFindImagePrewarm,
                                profileOrientation: profileOrientation,
+                               displayExpected: displayAppExpectation,
                                dryRun: dryRun,
                                fingerprintCacheURL: fingerprintCacheURL,
                                selectorInventoryURL: selectorInventoryURL,

@@ -99,6 +99,7 @@ public final class FTDriveCore {
     private var _foldOriginalState: FoldState?
     /// 実行プロファイルの `orientation`(`--orientation`)。nil = 何もしない
     public let profileOrientation: FTOrientation?
+    let displayAppExpectation: LockedValue<DisplayAppExpectation?>  // `--display-expected`(DisplayAppCheck)。nil = 確かめない
     let appBundleID: String
     let executor: StepExecutor
     let scenarioID: String
@@ -400,6 +401,7 @@ public final class FTDriveCore {
                 findImagePrewarm: Bool = true,
                 // 実行プロファイルの orientation(ScenarioExecutionSettings.orientation)
                 profileOrientation: FTOrientation? = nil,
+                displayExpected: DisplayAppExpectation? = nil,
                 dryRun: Bool = false,
                 fingerprintCacheURL: URL? = nil,
                 selectorInventoryURL: URL? = nil,
@@ -486,6 +488,7 @@ public final class FTDriveCore {
             : nil
         self.tunables = tunables
         self.profileOrientation = profileOrientation
+        self.displayAppExpectation = LockedValue(displayExpected)
         self.defaultTimeout = tunables.defaultTimeout
         // DSL コマンドの壁時計の締切(FTSync はプロセス大域)。シナリオから書き換えられないよう FTSync は
         // internal のままここで設定する(DSL コマンドは core を組んだ後にしか走らない)

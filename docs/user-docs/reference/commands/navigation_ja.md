@@ -81,6 +81,7 @@ hinge(130)              // 半開きのブック姿勢
 - **`beforeEach()` / `afterEach()` の中では使えます。** テストごとに走るので、クラスの全テストに効きます。
 - **Android では画面が作り直されることがあります。** アプリが `configChanges` に `uiMode`(`setAppearance`)や `fontScale`(`setTextSize`)を宣言していないと、表示中の Activity が破棄されて作り直され、メモリにだけ持っている状態は失われます。シナリオの終わりに戻すときも同じです。画面の状態を保存しないアプリは、そのとき最初の画面に戻ります。表示条件はシナリオの最初(目的の画面へ移る前)に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
 - **ステップが確かめるのは端末の設定値で、アプリの表示ではありません。** 配色を外観に追従させないアプリは、ダークにすると背景だけ暗くなって文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗です。アプリの配色を確かめてください)。
+- **iOS の `inapp-boost` モードでは、アプリが設定を受け取ったかも確かめます。** `launchApp()` / `restartApp()` の直後と `setAppearance` / `setTextSize` の後に、アプリが受け取っている外観と文字サイズを in-app ブリッジに聞き、一致するまで最大 5 秒待ちます。一致しなければそのステップは `failureKind=display-not-applied` で失敗し、次のシナリオの前にその Simulator の SpringBoard を起こし直して(動いていたアプリと XCUITest ブリッジも一緒に起動し直します)実行ログに残します。失敗したシナリオは再実行しません。実機の iPhone は起こし直さず、ステップが失敗するだけです。`xcuitest` モードと Android では、端末の設定値だけを確かめます。
 - **文字サイズの名前は各 OS の段階に対応します。** iOS: `.small` = `small`・`.default` = `large`(iOS の標準)・`.large` = `extra-large`・`.extraLarge` = `extra-extra-extra-large`・`.accessibility` = `accessibility-large`(「より大きな文字」も有効にし、シナリオの終わりに元の値へ戻します)。Android: `font_scale` が 0.85 / 1.0 / 1.15 / 1.3 / 2.0 で、Android 14 以降は OS が文字を非線形に拡大するので、見た目の大きさの比は倍率と一致しません。確かめた環境は iPhone の実機(iOS 26.6.2)・iOS 27.2 の Simulator・Android の Emulator と実機です。
 - **`fold` / `unfold` / `hinge` は折りたたみ端末が必要です。**
   - iOS: iPhone Duo の **Simulator**(Xcode 27.2 以降)。XCUITest ブリッジ経由で送るので、どちらの iOS モードでも使えます。

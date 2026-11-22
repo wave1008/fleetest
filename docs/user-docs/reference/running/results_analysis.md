@@ -109,7 +109,7 @@ The tool records only observable facts — it does not guess whether a failure w
 never resolved, even after scroll search), `assertion` (value/state mismatch), `driver-unreachable`
 (bridge unreachable), `driver-error` (bridge returned an error), `timeout`, `app-not-installed`, `app-stopped-by-session` (the scenario acted on an app it stopped with `terminateApp` without launching it again), `app-in-background` (on iOS, the scenario acted on the app after `home()` or after leaving for another app, without bringing it back first),
 `system-ui-covered` (an OS system UI was covering the app: a permission alert while
-`iosAlertHandler` was registered, or the app switcher opened by `appSwitcher()`). A missing `failureKind` means the tool could not tell —
+`iosAlertHandler` was registered, or the app switcher opened by `appSwitcher()`), `display-not-applied` (on iOS in `inapp-boost` mode, the app had not received the appearance or text size that was set). A missing `failureKind` means the tool could not tell —
 it is left out rather than guessed.
 
 ```bash

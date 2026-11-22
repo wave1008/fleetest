@@ -205,6 +205,10 @@ public protocol AppDriver {
     /// 使うのは openURL の後に別のアプリが前へ出る途中を待つ門だけ(`StepExecutor.backgroundedAppRefusal`)。
     /// **覆いの有無の判定には使わない** —— 権限アラートでは端末により active のまま(SystemUIGate の doc)
     func inAppApplicationState() async -> String?
+    /// in-app ブリッジが申告する、アプリが今受け取っている外観・文字サイズ(`/status`。`DisplayAppCheck`)。
+    /// 答えられない(in-app でない・旧ブリッジ・通信断)は nil。**プロトコル要件として宣言すること・包むドライバは素通しすること**
+    /// (inAppApplicationState と同じ理由)
+    func inAppDisplayReport() async -> InAppDisplayReport?
     /// 2点間ドラッグ(座標は snapshot の screen と同じ座標系)。pressSeconds=押下静止時間、
     /// durationSeconds=移動時間(実機ジェスチャの速度・長押しに反映される)。
     func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
@@ -366,7 +370,7 @@ extension DriverError {
         switch self {
         case .bridgeUnreachable, .deliveryUnknown: return true
         case .bridgeConnectionRefused, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected,
-             .notDelivered:
+             .notDelivered, .displayNotApplied:
             return false
         }
     }
@@ -388,7 +392,8 @@ extension DriverError {
                 context: context,
                 detail: "An earlier gesture of this step had already been delivered; this failure came from a later"
                     + " read of the screen, not from that gesture. \(localizedDescription)")
-        case .bridgeUnreachable, .deliveryUnknown, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected:
+        case .bridgeUnreachable, .deliveryUnknown, .badResponse, .bridgeIdentityMismatch, .staleRef, .systemAlertBlocked, .argumentRejected,
+             .displayNotApplied:
             return self
         }
     }
@@ -413,6 +418,7 @@ extension DriverError: StepFailureKindProviding {
         case .staleRef: return .staleRef
         case .systemAlertBlocked: return .systemUICovered
         case .argumentRejected: return .argumentRejected
+        case .displayNotApplied: return .displayNotApplied
         }
     }
 }
@@ -603,6 +609,9 @@ public enum DriverError: Error, LocalizedError {
     case notDelivered(context: DriverErrorContext, detail: String)
     /// **ブリッジ以外の理由で、届いたか分からない**(gRPC の途中の失敗等)。ブリッジの生死は言わない。撃ち直さない
     case deliveryUnknown(context: DriverErrorContext, detail: String)
+    /// 端末の表示条件(外観・文字サイズ)が設定されたのに、in-app のアプリが受け取っていない(`DisplayAppCheck`)。
+    /// ブリッジは答えている・操作は撃っていない。detail は期待値とアプリの申告の事実だけの完成文
+    case displayNotApplied(detail: String)
 
     public var errorDescription: String? {
         switch self {
@@ -628,6 +637,8 @@ public enum DriverError: Error, LocalizedError {
             return "The action was not sent: the device could not be reached, and nothing was sent to it. \(detail)"
         case .deliveryUnknown(_, let detail):
             return "Whether the action reached the device is unknown. \(detail)"
+        case .displayNotApplied(let detail):
+            return detail
         }
     }
 
@@ -715,6 +726,7 @@ public extension AppDriver {
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? { nil }
     func inAppApplicationState() async -> String? { nil }
+    func inAppDisplayReport() async -> InAppDisplayReport? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }
     func hitTest(query: HitTestQuery) async -> HitTestAnswer { .unavailable }

@@ -27,11 +27,11 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-320・OI-321・OI-329・OI-345・OI-346 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-320・OI-321・OI-329・OI-345・OI-346・OI-347 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 10 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
@@ -49,6 +49,18 @@
 - 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
 - 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
 - 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
+
+### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
+- 状態: 再現済み(回復手段は確認済み・きっかけは未特定)
+- 確認: 2026-11-22(回帰の後の Simulator 8 台中 5 台)
+- 属性: 要測定・環境側
+- 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
+- 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま
+
+- 観測: 外観を変えても画面へ届かない端末がある。設定の値は正しく書かれ、`devicectl` も `simctl ui` も「設定できた・読み返しても dark」と答えるが、設定アプリもステータスバーもライトのまま。SpringBoard を起こし直す(`simctl spawn <udid> launchctl kickstart -k system/com.apple.SpringBoard`)と直る(前面のアプリと XCUITest ランナーも終了する)。cfprefsd の起こし直しでは直らない。ツールの経路で起動し直した直後は 8 台とも正常で、run の途中でこの状態になる
+- 試して再現しなかったこと: 連打・負荷・simctl の多用
+- 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
+- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)。xcuitest モードと Android は確かめない
 
 ### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す
 - 状態: 再現済み
