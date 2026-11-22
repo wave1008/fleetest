@@ -56,4 +56,12 @@ final class NotApplicableHandoffTests: XCTestCase {
         XCTAssertNil(WorkQueueProtocol.decodeNotApplicable(WorkQueueProtocol.encode(
             WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))))
     }
+
+    func testDecideAtEndTable() {
+        typealias H = NotApplicableHandoff
+        XCTAssertEqual(H.decideAtEnd(tried: ["0"], untriedNeverLaunched: ["1"], untriedLaunched: []), .skipped, "未試行が全部未起動")
+        XCTAssertEqual(H.decideAtEnd(tried: ["0"], untriedNeverLaunched: ["1"], untriedLaunched: ["2"]), .notRun, "起動して終わった未試行がある")
+        XCTAssertEqual(H.decideAtEnd(tried: ["0", "1"], untriedNeverLaunched: [], untriedLaunched: []), .skipped, "未試行なし")
+        XCTAssertEqual(H.decideAtEnd(tried: [], untriedNeverLaunched: [], untriedLaunched: []), .notRun, "対象外の宣言が無い")
+    }
 }

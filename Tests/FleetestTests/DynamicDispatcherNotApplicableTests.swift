@@ -106,7 +106,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         _ = d.handle(want(1, lane: "pro"), fromEntry: 1)
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 1), .init(req: 2, verdict: .handOn))
         XCTAssertEqual(d.handle(want(3, lane: "pro"), fromEntry: 1), .init(req: 3, none: true))
-        XCTAssertEqual(d.unhandedUnits, [ScenarioUnitKey(id: "Fold.S1", variant: nil)], "試していないエントリへ渡る機会を残す")
+        XCTAssertEqual(d.pendingScenarios.map(\.unitKey), [ScenarioUnitKey(id: "Fold.S1", variant: nil)], "試していないエントリへ渡る機会を残す")
     }
 
     /// 子の中で別のレーンへ回った分: 宣言するレーンは親が割り当てたレーンと限らない(親はエントリで見る)
@@ -116,5 +116,40 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "b"), fromEntry: 1), .init(req: 2, verdict: .handOn))
         XCTAssertEqual(d.assignedUnits(entry: 1), [])
         XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+    }
+
+    // MARK: - 一度も参加しなかったマシンの台は未試行に数えない(DR-214 の補い)
+
+    private let unit = ScenarioUnitKey(id: "Fold.S1", variant: nil)
+
+    /// 未試行のエントリ 1 は子を起動しなかった(want も exit も無い): 対象外で確定し「配れなかった」に残さない
+    func testNeverLaunchedUntriedEntryDoesNotCountAsUnhanded() {
+        let d = makeDispatcher([fold], entries: 2)
+        _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        d.childExited(entry: 0)
+        XCTAssertEqual(d.unhandedUnits, [])
+        XCTAssertEqual(d.notApplicableOnlyUnjoined, [unit])
+    }
+
+    /// 対照: 未試行のエントリ 1 が子を起動して終わった: 従来どおり配れなかった
+    func testLaunchedUntriedEntryStillCountsAsUnhanded() {
+        let d = makeDispatcher([fold], entries: 2)
+        _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        d.childExited(entry: 1)  // 参加して(子を起動して)、取らないまま終わった
+        d.childExited(entry: 0)
+        XCTAssertEqual(d.unhandedUnits, [unit])
+        XCTAssertEqual(d.notApplicableOnlyUnjoined, [])
+    }
+
+    /// 子の中で試していない台が落ちている申告(dep)は、参加しなかったマシンがあっても失敗のまま
+    func testDepartedInChildKeepsItUnhanded() {
+        let d = makeDispatcher([fold], entries: 2)
+        _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", dep: true), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        d.childExited(entry: 0)
+        XCTAssertEqual(d.unhandedUnits, [unit])
+        XCTAssertEqual(d.notApplicableOnlyUnjoined, [])
     }
 }
