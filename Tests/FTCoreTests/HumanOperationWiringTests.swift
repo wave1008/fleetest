@@ -13,15 +13,15 @@ final class HumanOperationWiringTests: XCTestCase {
         text.components(separatedBy: needle).count - 1
     }
 
-    /// 記録の確定点(起動前の失敗・タイムアウト・通常終了)は全部、台帳から引いた操作を builder へ渡す
+    /// 記録の確定点(起動前の失敗・起動前の対象外(setUpDevice の対象外の後続)・タイムアウト・通常終了)は全部、台帳から引いた操作を builder へ渡す
     func testEveryRecordingPointOfScenarioHostPassesHumanOperations() throws {
         let code = try source("Sources/FTCore/ScenarioHost.swift")
-        XCTAssertEqual(count("recording.recorder.record(", in: code), 3, "確定点の数が変わった — このテストと配線を見直すこと")
-        XCTAssertEqual(count("builder.build(", in: code), 3)
-        XCTAssertEqual(count("humanOperations: humanOperations()", in: code), 2)
+        XCTAssertEqual(count("recording.recorder.record(", in: code), 4, "確定点の数が変わった — このテストと配線を見直すこと")
+        XCTAssertEqual(count("builder.build(", in: code), 4)
+        XCTAssertEqual(count("humanOperations: humanOperations()", in: code), 3)
         XCTAssertEqual(count("humanOperations: operations", in: code), 1)
-        // 通常終了は引いた値を patch にも使うので一度変数に受ける。**引くこと自体**も3回(空の配列で置き換えると落ちる)
-        XCTAssertEqual(count("humanOperations()", in: code), 3, "確定点3つが毎回台帳を引く")
+        // 通常終了は引いた値を patch にも使うので一度変数に受ける。**引くこと自体**も4回(空の配列で置き換えると落ちる)
+        XCTAssertEqual(count("humanOperations()", in: code), 4, "確定点4つが毎回台帳を引く")
         XCTAssertTrue(code.contains("HumanOperationLedger.entries("))
         XCTAssertTrue(code.contains("connection.serial ?? connection.udid"), "鍵は run-lease と同じ")
         XCTAssertTrue(code.contains("HumanOperationReport.patch("))

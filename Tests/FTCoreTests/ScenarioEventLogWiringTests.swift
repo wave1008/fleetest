@@ -31,12 +31,12 @@ final class ScenarioEventLogWiringTests: XCTestCase {
                        "子の stderr の行を実行ログへ書く呼び出しが無い(または二重)")
     }
 
-    /// 記録を書く3経路(起動前の中止・タイムアウト・通常終了)すべてで、record の戻り値の
+    /// 記録を書く4経路(起動前の中止・起動前の対象外・タイムアウト・通常終了)すべてで、record の戻り値の
     /// ファイル名で rename していること。1つ欠けるとその経路の実行ログだけ .inflight のまま残る
     func testEveryRecordSiteFinishesTheEventLog() throws {
         let text = try compactHostSource()
         let recordSites = occurrences(of: "letfileName=recording.recorder.record(", in: text)
-        XCTAssertEqual(recordSites, 3, "記録を書く経路の数が変わった(このテストの前提を見直す)")
+        XCTAssertEqual(recordSites, 4, "記録を書く経路の数が変わった(このテストの前提を見直す)")
         XCTAssertEqual(occurrences(of: "eventLog?.finish(fileBase:fileName)", in: text), recordSites,
                        "記録を書く経路の数と、実行ログを確定させる呼び出しの数が一致しない")
     }

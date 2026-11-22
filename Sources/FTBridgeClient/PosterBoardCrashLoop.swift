@@ -3,7 +3,7 @@
 // 起動し直して数コアを使い続け、同じ Mac の Android Emulator を白紙・固まりに巻き込む(観測: load average 38)。
 //
 // 入力はホスト Mac のクラッシュ記録 ~/Library/Logs/DiagnosticReports/PosterBoard-*.ips。
-// 1行目 = ヘッダ JSON("timestamp":"2026-11-22 10:41:57.00 +0900")、2行目以降 = 本体 JSON。
+// 1行目 = ヘッダ JSON("timestamp" = `timestampFormat` の形)、2行目以降 = 本体 JSON。
 // 本体の coalitionName が "com.apple.CoreSimulator.SimDevice.<UDID>"(= どの Simulator か)。
 // 判定(`looping`)は純粋関数・読み(`readCrashes`)は I/O。止める側は FTAndroid.PosterBoardCrashLoopGuard。
 
@@ -20,7 +20,7 @@ public struct PosterBoardCrashRecord: Equatable, Sendable {
 }
 
 public enum PosterBoardCrashLoop {
-    /// 数える窓(秒)。実測(2026-11-14〜11-22 の全 .ips・`Retired/` を含む・11 台): 健全な 10 台は 10・30・60 分のどの窓でも
+    /// 数える窓(秒)。実測(8 日間の全 .ips・`Retired/` を含む・11 台): 健全な 10 台は 10・30・60 分のどの窓でも
     /// 最大 4 回(Duo の 1 台)・ほとんどは 1 回。壊れた台は嵐の日の最大が 10 分の窓で 8〜34 回(8 回の日が 2 日ある = 10 分では
     /// 検出できない日が出る)・30 分の窓で 16〜46 回。記録は落ちた回数より少ない(ReportCrash が間引く。拡張は数秒おきに起動し直していた)
     public static let windowSeconds: TimeInterval = 1800
@@ -30,7 +30,7 @@ public enum PosterBoardCrashLoop {
     /// 窓の外へ古い記録が出れば自然に判定から外れる
     public static let threshold = 10
 
-    /// ヘッダの時刻の書式("2026-11-22 10:41:57.00 +0900")
+    /// ヘッダの時刻の書式(年月日・時分秒・百分の一秒・時差。例は DR-217 の調べた .ips)
     static let timestampFormat = "yyyy-MM-dd HH:mm:ss.SS Z"
     static let coalitionPrefix = "com.apple.CoreSimulator.SimDevice."
     static let reportPrefix = "PosterBoard-"
