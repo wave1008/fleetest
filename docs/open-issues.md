@@ -28,11 +28,11 @@
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-320・OI-321・OI-329・OI-345・OI-346 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-235 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 9 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 44 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
 
@@ -112,27 +112,6 @@
 - 評価 6回目(11/21): se3_cmp は週の利用上限で作成が始まらず(SE3 で CMP のリストを扱ったセッションは無し)= 材料なし
 
 ## 要判断
-
-### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回・11/22 の評価で 7 回)
-- 状態: 再現済み
-- 確認: 6e1dce9ec(2026-11-15)
-- 属性: 要判断・環境側
-- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
-- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
-
-出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
-- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
-- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
-- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
-- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
-- **原因(11/15 の回帰で観測)**: 測る口が出した理由は `(not read again: Vision was not ready, and an earlier wait in this run had already timed out)`(手元の E2E-CMP の Android「WebViewの中身を操作できること」S0010・Pixel 10 Pro -03・`_work/regress-20261115d`)。そのステップの OCR の所要は 10,661ms = Vision が読めるまでの待ち(上限 10 秒)をこのステップの中で使い切り、判定の取り直しで 2 回目に通ったときは尽きていた。切り抜きには `wv_result=-` がはっきり写っている = **はっきり描かれた文字を、同じプロセスの Vision(10 秒探っても空)と FM(空の転写)が同時に読めなかった**。手元の負荷が高く、エミュレータの白紙・固まりが多発していた時間帯(同じ回帰で手元の Android 16 台ぶんが外れた)
-- 判断(据え置き): 読み手が 2 つとも読めないとツールには文字が見えていると確かめられない(赤が正しい)。待ちの上限(10 秒)を延ばすと、Vision が長く読めない機械で失敗のたびに 10 秒以上を払う
-- 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
-- 評価 7回目(11/22・`_work/scen-eval-20261122/`): **同じ形が 7 回**(lk2_e2e_cmp の --broadcast 手元 Sim 6/12・r5_e2ey_cmp_emu 1)。切り抜きは「E2E ホーム」等が鮮明・注記 `fm-empty-transcript-on-ink` と `ocr-shortcut-not-ready`・`ocrMs` 11,147(Vision の準備待ちを使い切った)・FM は4回呼んで失敗0 = 空の転写を返した。同じ run の M1Ultra は 4/4 緑。11 の作成セッションが並行する負荷の下 → 要測定へ戻す。次の一手: 残った切り抜き(`~/Library/Logs/fleetest/occlusion/`)を FM の常駐プロセスへ負荷なしで渡し直して空の転写が再現するかを測る(再現しなければ負荷の下の FM の取りこぼし)
-- **測定(11/22 08:2x・`Scripts/occlusion-repro.swift` で本番と同じ指示・負荷なし)**: lk2_e2e_cmp の切り抜き6枚は 18/18 で「E2E ホーム」と転写した = 本番の空の転写は負荷の下の FM の取りこぼし。r5_e2ey_cmp_emu の「再生中: トラック 1」の1枚は負荷なしでも 3/3 空 = この絵は FM が決定的に読まない。本番の失敗文はどれも `OCR found no text there (not read again: Vision was not ready, and an earlier wait in this run had already timed out)` = 確かめの OCR は、同じ run で前に Vision の待ちが時間切れになったので待たずに諦めた(その後の FM の訊き直しも空)
-- **訂正(11/22 11:0x・結果 JSON の段ごとの所要)**: lk2 の赤のステップ(S0020 の 17 本目 `exist "#txt_home_marker"`)は `ocrMs` 11,147 で、前のステップの `ocrMs` はどれも 0 = **Vision の待ち(10 秒)はこのステップの中で使い切り**、失敗文の「earlier wait」は同じステップの評価のやり直しで出ていた(11/15 の回帰の形と同じ)。前のステップからの持ち越しではないので、ステップごとに待ち直しても救えない。失敗文はこの2つを分けて言うよう直した(`StepExecutor.visionWaitFact` の `ranOutEarlierThisStep`。`(… this step had already waited 10.0 seconds for it)` / `(… a wait in an earlier step of this scenario had already timed out)`)
-- 原因(観測): 負荷の下で、FM の空の転写と、10 秒探っても空を返す Vision が同じステップで重なった。ツールは設計どおり赤にしている(黙った緑ではない)
-- 決めること: ①今のまま赤 ②待ちの上限(10 秒)を延ばす(Vision が長く読めない機械で、失敗のたびにその分を払う)③FM が空で OCR も使えない回は「判定できない」(`visibility-guard-skipped` を立てて緑)にする(文字が描かれていない画面の赤を落とす)
 
 ## 木に材料なし
 
@@ -652,6 +631,27 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): 05:48 に FBSDisplayMode の SpringBoard の落ち 1 件(DiagnosticReports)・Duo の作成 6 セッションが全部この落ちに当たった
 
 ## 据え置き
+
+### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回・11/22 の評価で 7 回)
+- 状態: 再現済み
+- 確認: 6e1dce9ec(2026-11-15)
+- 属性: 据え置き・環境側
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 中 — 読める文字が赤になり、普通の書き方では避けられない
+
+出典: `_work/vis-pipeline/regress.log`(11/15 の全マシンの回帰)。E2EY-Android「反転チャットを扱えること」S0040 の `textIs("#msg_60" == "着信 60")` が「FM transcribed nothing, but the element's area is not blank (luminance stdDev 20.9); OCR found no text there」で赤。手元の Pixel 10 Pro(Android 17)-04。注記は `fm-empty-transcript-on-ink`・`ocr-shortcut-not-ready`、`ocrMs` 679。切り抜き(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-15T05-34-42.701Z.png`)には「着信 60」がはっきり写り、失敗の時点の木にも `msg_60` がある
+- 通った経路(コードで確認): V16 の近道は準備ができておらず撃たず → FM が空の転写 → V21 の確かめの OCR(`RegionText.resolveWithinBudget`)が行を返さず → `awaitReadableVision()` が読み直しを許さず → FM の訊き直しも可視と言わず → 赤。V21 の処理は可視性検証の組み替え(ec4eeae58)の前後で同じ
+- 頻度: 結果 JSON の集計で、`fm-empty-transcript-on-ink` の付いた赤は 10/18〜11/15 に 123 件(10/18〜10/23 に多く、11 月は 1〜5 件/日)。`ocr-shortcut-not-ready` を伴う回は 11/9・11/10 の E2E-RN・E2EX-RN・E2EX-Flutter にもある。起き方の型は MN-92.1・MN-84.4
+- 測る口(11/15): 確かめの読みが空だった回の失敗文に、読み直したか・読み直さなかった理由を足した(`RegionText.ReadableVisionWait` を `StepExecutor.visionWaitFact` が写す。`(read again once Vision was ready)` = 読める Vision でも空 / `(not read again: … an earlier wait in this run had already timed out)` = このプロセスの前の待ちで尽きていた / `(not read again: Vision was still not ready after waiting 10.0 seconds)` = この回に待ち切った / `(not read again: Vision's readiness could not be checked)`)。デバイスでは未通過(この赤が起きていない)
+- 再現の試み(11/15): M1Ultra の 6 台へ「反転チャットを扱えること」を 4 周 broadcast(96 回)で全部緑 = 再現せず(`_work/oi235`)
+- **原因(11/15 の回帰で観測)**: 測る口が出した理由は `(not read again: Vision was not ready, and an earlier wait in this run had already timed out)`(手元の E2E-CMP の Android「WebViewの中身を操作できること」S0010・Pixel 10 Pro -03・`_work/regress-20261115d`)。そのステップの OCR の所要は 10,661ms = Vision が読めるまでの待ち(上限 10 秒)をこのステップの中で使い切り、判定の取り直しで 2 回目に通ったときは尽きていた。切り抜きには `wv_result=-` がはっきり写っている = **はっきり描かれた文字を、同じプロセスの Vision(10 秒探っても空)と FM(空の転写)が同時に読めなかった**。手元の負荷が高く、エミュレータの白紙・固まりが多発していた時間帯(同じ回帰で手元の Android 16 台ぶんが外れた)
+- 判断(据え置き): 読み手が 2 つとも読めないとツールには文字が見えていると確かめられない(赤が正しい)。待ちの上限(10 秒)を延ばすと、Vision が長く読めない機械で失敗のたびに 10 秒以上を払う
+- 見直す条件: 負荷の低い機械・時間帯でも同じ理由の赤が出たら
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): **同じ形が 7 回**(lk2_e2e_cmp の --broadcast 手元 Sim 6/12・r5_e2ey_cmp_emu 1)。切り抜きは「E2E ホーム」等が鮮明・注記 `fm-empty-transcript-on-ink` と `ocr-shortcut-not-ready`・`ocrMs` 11,147(Vision の準備待ちを使い切った)・FM は4回呼んで失敗0 = 空の転写を返した。同じ run の M1Ultra は 4/4 緑。11 の作成セッションが並行する負荷の下 → 要測定へ戻す。次の一手: 残った切り抜き(`~/Library/Logs/fleetest/occlusion/`)を FM の常駐プロセスへ負荷なしで渡し直して空の転写が再現するかを測る(再現しなければ負荷の下の FM の取りこぼし)
+- **測定(11/22 08:2x・`Scripts/occlusion-repro.swift` で本番と同じ指示・負荷なし)**: lk2_e2e_cmp の切り抜き6枚は 18/18 で「E2E ホーム」と転写した = 本番の空の転写は負荷の下の FM の取りこぼし。r5_e2ey_cmp_emu の「再生中: トラック 1」の1枚は負荷なしでも 3/3 空 = この絵は FM が決定的に読まない。本番の失敗文はどれも `OCR found no text there (not read again: Vision was not ready, and an earlier wait in this run had already timed out)` = 確かめの OCR は、同じ run で前に Vision の待ちが時間切れになったので待たずに諦めた(その後の FM の訊き直しも空)
+- **訂正(11/22 11:0x・結果 JSON の段ごとの所要)**: lk2 の赤のステップ(S0020 の 17 本目 `exist "#txt_home_marker"`)は `ocrMs` 11,147 で、前のステップの `ocrMs` はどれも 0 = **Vision の待ち(10 秒)はこのステップの中で使い切り**、失敗文の「earlier wait」は同じステップの評価のやり直しで出ていた(11/15 の回帰の形と同じ)。前のステップからの持ち越しではないので、ステップごとに待ち直しても救えない。失敗文はこの2つを分けて言うよう直した(`StepExecutor.visionWaitFact` の `ranOutEarlierThisStep`。`(… this step had already waited 10.0 seconds for it)` / `(… a wait in an earlier step of this scenario had already timed out)`)
+- 原因(観測): 負荷の下で、FM の空の転写と、10 秒探っても空を返す Vision が同じステップで重なった。ツールは設計どおり赤にしている(黙った緑ではない)
+- 決定(11/22・DR-216): ①今のまま赤。待ちの上限は延ばさず、両方の読み手が読めない回を判定不能の緑にもしない。見直す条件は DR-216
 
 ### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
 - 状態: 再現済み
