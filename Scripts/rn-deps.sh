@@ -2,7 +2,7 @@
 # RN の SUT のビルド前に、入っている依存(node_modules・Pods)をリポジトリの lock に揃える。
 # E2E*AppRN/scripts/build-*.sh が SUT ディレクトリを cwd にして source する:
 #   rn_sync_node_modules   # iOS / Android とも
-#   rn_sync_pods           # iOS だけ(node_modules の後 = Podfile が node_modules を読む)
+#   rn_sync_pods           # iOS だけ(node_modules の後 = Podfile が node_modules を読む)。先に .xcode.env.local の node を直す
 #
 # - ビルドは入っている依存をそのまま使う。lock だけ新しい版になった機械(align で package-lock.json だけ
 #   変わったリモート等)では、揃えないと古い版の RN で「作り直した」アプリになり、黙って古い版で回る
@@ -45,7 +45,21 @@ except (OSError, ValueError, KeyError):
 sys.exit(0 if os.path.realpath(root) == os.path.realpath(".") else 1)'
 }
 
+# ios/.xcode.env.local は pod install が書く(git 管理外)。NODE_BINARY に解決済みの実体のパス(Homebrew の Cellar/<版>)が入るので、
+# node を更新すると消えたパスを指したまま残り、Hermes を差し替えるビルドフェーズが「No such file or directory」で落ちる
+# (Pods が lock と一致していると pod install は走らず、作り直されない)。指す先が実行できなければ今の node に書き直す
+rn_sync_xcode_env() {
+  local env=ios/.xcode.env.local old node
+  [ -f "$env" ] || return 0
+  old=$(sed -n 's/^export NODE_BINARY=//p' "$env" | tail -1)
+  if [ -n "$old" ] && [ -x "$old" ]; then return 0; fi
+  node=$(command -v node) || { echo "node が見つかりません" >&2; return 1; }
+  echo "→ ios/.xcode.env.local の NODE_BINARY が実行できない(${old:-空})ので、今の node($node)に書き直します"
+  printf 'export NODE_BINARY=%s\n' "$node" > "$env"
+}
+
 rn_sync_pods() {
+  rn_sync_xcode_env
   # Manifest.lock は pod install が Pods/ に書く Podfile.lock の写し(CocoaPods 自身の同期判定と同じ)
   if cmp -s ios/Podfile.lock ios/Pods/Manifest.lock; then
     _rn_autolinking_matches_checkout && return 0
