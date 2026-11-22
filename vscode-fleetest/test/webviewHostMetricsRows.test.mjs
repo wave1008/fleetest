@@ -1124,3 +1124,20 @@ test("ホストのグラフの行は設定タブのマシン一覧の順に並�
   send(window, { type: "remoteConfig", hosts: [{ machine: "mac2", host: "u@2", dir: "" }, { machine: "mac3", host: "u@3", dir: "" }] });
   assert.deepEqual(machineLabels(document), ["local", "mac2", "mac3"]);
 });
+
+test("保持中(monitorHold)はデバイス一覧が空の間の案内を「停止中」に差し替え、解除で「待機」に戻す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const empty = document.getElementById("empty");
+  const lanesWaiting = document.getElementById("lanes-waiting");
+  const waitingText = empty.textContent;
+  assert.match(waitingText, /デバイスを待機しています/);
+
+  send(window, { type: "monitorHold", active: true });
+  assert.match(empty.textContent, /モニターを停止しています/);
+  assert.equal(lanesWaiting.textContent, empty.textContent, "下のペインの案内も同じ文言");
+
+  send(window, { type: "monitorHold", active: false });
+  assert.equal(empty.textContent, waitingText);
+  assert.equal(lanesWaiting.textContent, waitingText);
+});

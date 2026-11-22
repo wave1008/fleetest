@@ -804,7 +804,9 @@ Android Emulator が白紙・固まりを繰り返して E2E が赤になった�
 - **選択0台は両ペインに「デバイスを選択して下さい」**。実行ログビュー側は**全体レーンに行があるときは
   出さない**(供給の進行と重なる)。**出し入れはクラス(CSS)で行い inline の `display` を書かない**
   —— inline は畳みの規則に勝つので、畳んでも消えない形が静かにできる(例外は `waitingNote.js` が
-  inline で出し入れする `#lanes-waiting` だけで、畳みの反映も同じ1箇所で解く)
+  inline で出し入れする `#lanes-waiting` だけで、畳みの反映も同じ1箇所で解く)。**`fleetest monitor pause` の保持中は
+  `#empty` と `#lanes-waiting` の文言を「待機」から停止中の案内へ差し替える**(ホストの `monitorHold` メッセージ。
+  デバイスが来ないのは止めているからで、待っても来ない。起動時と webview 再読込で配り直す)
 - **永続化は `tilePaneHeight` と同じ契約**(webview → `setRunBoardHeight` / `setLogPaneHeight` /
   `setLogViewVisible` / `setGridViewVisible`、host → `runBoardHeight` / `logPaneHeight` /
   `logViewVisible` / `gridViewVisible`。既定はどちらも「表示」で、webview の `!== false` と host の

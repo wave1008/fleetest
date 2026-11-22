@@ -6,10 +6,20 @@
 // グリッドビューを畳んだかどうかもこの1箇所で解く。
 
 import { emptyMessage, lanesWaiting } from './domRefs.js';
+import { t } from '../i18n.js';
 
 let waiting = false;
 let lineViewHidden = false;
 let gridViewHidden = false;
+// 待機の文言は静的 HTML(monitorHtml.ts)が描く。保持中に差し替えて、解除で戻すため控える
+const waitingText = emptyMessage.textContent;
+
+/** `fleetest monitor pause` の保持中か(供給元はホストの monitorHold メッセージ)。文言だけを差し替える。 */
+export function setMonitorHeld(value) {
+  const text = value ? t('wvMonitor2.waiting.held') : waitingText;
+  emptyMessage.textContent = text;
+  lanesWaiting.textContent = text;
+}
 
 function render() {
   const shown = waiting && lineViewHidden && !gridViewHidden;

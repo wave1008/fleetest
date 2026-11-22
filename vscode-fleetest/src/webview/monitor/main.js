@@ -80,7 +80,7 @@ import { activateTab, currentTab, HIDDEN_AT_STARTUP, TAB_IDS, switchTab } from '
 import { applyGridLiveMessage } from './gridLiveControls.js';
 import { setTilePaneHeight, setFleetVisible, isFleetVisible, setLogPaneHeight, setRunBoardHeight, setLogViewVisible, setGridViewVisible } from './splitter.js';
 import { adoptTitleHoverTips } from './hoverTip.js';
-import { setDevicesWaiting } from './waitingNote.js';
+import { setDevicesWaiting, setMonitorHeld } from './waitingNote.js';
 import { handleDashboardMessage } from './dashboardTab.js';
 
 const recordingsFinalizingNote = document.getElementById('run-recordings-finalizing');
@@ -142,6 +142,9 @@ window.addEventListener('message', (event) => {
     case 'machineLock':
       // その機械の占有(錠前)。配信はホスト側で畳まれるので、ここは表示だけ
       setMachineLock(message.machine, message.held, message.issuer, message.mine);
+      break;
+    case 'monitorHold':
+      setMonitorHeld(!!message.active);
       break;
     case 'hostMetricsMachines':
       // 行の集合(手元 + リモート機)。値より先に届くので、観測が来る前から行が見える

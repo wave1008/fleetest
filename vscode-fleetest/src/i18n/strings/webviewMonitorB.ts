@@ -100,6 +100,12 @@ export const webviewMonitorBStrings = {
   // wvMonitor.lineView.deviceCount は全台)。数える対象は違うが形は揃える
   "wvMonitor2.laneLog.selectedCount": { ja: "{count}台", en: "{count} devices" },
 
+  // waitingNote.js(デバイス一覧が空の間の案内。保持中は「待機」と言わない = 来ないのは止めているから)
+  "wvMonitor2.waiting.held": {
+    ja: "テスト実行中の負荷を下げるためモニターを停止しています",
+    en: "The monitor is paused to reduce load while tests run",
+  },
+
   // hostCharts.js
   "wvMonitor2.hostCharts.lockOther": {
     ja: "{machine} で {issuer} の run が実行中",

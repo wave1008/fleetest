@@ -159,7 +159,9 @@ focus はアプリのまま。検知は真陽性で、requeue と guest restart 
 **止め方は `fleetest monitor pause`(2026-08-24 追加)。** kill では止まらない ——
 拡張が `api monitor` も配信ヘルパーも数秒で再起動する(受け手はこれで無人計測の条件が
 作れなかった)。保持ファイル(`.fleetest/monitor-hold.json` = `FTCore.MonitorHold`)を
-`api monitor` が毎周期見て、hold 中は観測を止め全タイルを state:"unknown" で出す。
+`api monitor` が毎周期見て、hold 中は観測を止め手元の登録済みのタイルを state:"unknown" で出す
+(**リモートのデバイスは一覧から外す** = 配信を張らせない。ツールバーのグラフは hold の直前に行があった機械を残す = RR-13。
+一覧が空なら拡張は「待機」の代わりに停止中の案内を出す = `monitorHold` メッセージ)。
 unknown のタイルには拡張が配信ヘルパーを張らない(qualifying 判定)ので、ヘルパーも
 子の screenrecord も畳まれる。解除は `fleetest monitor resume` か `--for <分>` の期限:
 

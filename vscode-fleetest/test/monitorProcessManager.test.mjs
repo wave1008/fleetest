@@ -425,6 +425,100 @@ test("リモート機のデバイスが消えたらその機械の子を止め�
   assert.deepEqual(posts.filter((m) => m.type === "hostMetricsMachines").at(-1).machines, []);
 });
 
+test("保持(monitorHold)の有無を webview へ配り、webview 再読込の配り直しにも載せる", () => {
+  const procs = [];
+  const spawnFn = () => {
+    const proc = makeFakeProc();
+    procs.push(proc);
+    return proc;
+  };
+  const posts = [];
+  const manager = new MonitorProcessManager(makeDeps({ post: (m) => posts.push(m) }), spawnFn);
+  manager.startMonitorProcess();
+  const holds = () => posts.filter((m) => m.type === "monitorHold").map((m) => m.active);
+  assert.deepEqual(holds(), [false], "起動時は保持なしで始める");
+
+  feedLine(procs[0], { kind: "monitorHold", active: true });
+  assert.deepEqual(holds(), [false, true]);
+  manager.postHostMetricsMachines();
+  assert.deepEqual(holds(), [false, true, true], "配り直しでも保持中を伝える");
+
+  feedLine(procs[0], { kind: "monitorHold", active: false });
+  assert.equal(holds().at(-1), false);
+});
+
+/** host-metrics の1サンプル(全欄そろい)。 */
+function hostMetricsSample(cpu) {
+  return Buffer.from(JSON.stringify({
+    kind: "hostMetrics", ts: 1, cpu, cpuCores: 8, gpu: 0.1, gpuCores: 10, memUsedBytes: 2, memTotalBytes: 4,
+    fmCalls: null, fmFailures: null, fmTotalMs: null, fmTextState: null, fmVisionState: null, fmVisionSupported: true, fmDeadReason: null, fmCheckedAt: null, videoEncoderState: null, videoEncoderError: null, videoEncoderCheckedAt: null, visionOCRState: null, visionOCRError: null, visionOCRCheckedAt: null, visionFeaturePrintState: null, visionFeaturePrintError: null, visionFeaturePrintCheckedAt: null, visionCalls: null, visionFailures: null, visionTotalMs: null, ocrCompiling: 0,
+  }) + "\n");
+}
+
+test("行の集合から外した機械の子が遅れて吐いたサンプルは webview へ送らない(値の来ない行を作り直させない)", () => {
+  const procs = [];
+  const spawnFn = () => {
+    const proc = makeFakeProc();
+    procs.push(proc);
+    return proc;
+  };
+  const posts = [];
+  const manager = new MonitorProcessManager(makeDeps({ post: (m) => posts.push(m) }), spawnFn);
+  manager.startAll();
+  feedMonitorDevices(procs[0], [{ id: "ios:mac2/A", name: "A", machine: "mac2" }]);
+  const remoteProc = procs[2];
+  remoteProc.stdout.emit("data", hostMetricsSample(0.4));
+  assert.equal(posts.filter((m) => m.type === "hostMetrics" && m.machine === "mac2").length, 1, "行がある間は送る");
+
+  feedMonitorDevices(procs[0], [{ id: "ios:local1", name: "local1" }]);
+  remoteProc.stdout.emit("data", hostMetricsSample(0.9)); // SIGTERM 後に届いた行
+
+  assert.equal(posts.filter((m) => m.type === "hostMetrics" && m.machine === "mac2").length, 1);
+});
+
+test("保持中(monitor pause)は一覧からリモートのデバイスが消えても、観測できている機械のグラフの行を残す", () => {
+  const procs = [];
+  const spawnFn = () => {
+    const proc = makeFakeProc();
+    procs.push(proc);
+    return proc;
+  };
+  const posts = [];
+  const manager = new MonitorProcessManager(makeDeps({ post: (m) => posts.push(m) }), spawnFn);
+  manager.startAll();
+  feedLine(procs[0], { kind: "monitorLock", machine: "mac2", observed: true, held: false, mine: false });
+  feedLine(procs[0], { kind: "monitorLock", machine: "mac3", observed: true, held: false, mine: false });
+  feedMonitorDevices(procs[0], [
+    { id: "ios:mac2/A", name: "A", machine: "mac2" },
+    { id: "ios:mac3/B", name: "B", machine: "mac3" },
+  ]);
+  let killed = 0;
+  procs[2].kill = () => { killed += 1; };
+
+  // 保持の始まり: mac3 の監視の子は落ちた(観測できない)
+  feedLine(procs[0], { kind: "monitorHold", active: true });
+  feedLine(procs[0], { kind: "monitorLock", machine: "mac3", observed: false, held: false, mine: false });
+  feedMonitorDevices(procs[0], [{ id: "ios:local1", name: "local1", state: "unknown" }]);
+
+  assert.deepEqual(posts.filter((m) => m.type === "hostMetricsMachines").at(-1).machines, ["mac2"],
+    "観測できている mac2 は残し、観測できない mac3 は外す");
+  assert.equal(killed, 0, "mac2 の子は止めない");
+  procs[2].stdout.emit("data", hostMetricsSample(0.7));
+  assert.equal(posts.filter((m) => m.type === "hostMetrics" && m.machine === "mac2").at(-1).cpu, 0.7, "値も届く");
+
+  // 保持前に行の無かった機械は、占有を観測できていても保持中に足さない(fan-out は登録簿の全機械へ張る)
+  const spawnedBefore = procs.length;
+  feedLine(procs[0], { kind: "monitorLock", machine: "mac4", observed: true, held: false, mine: false });
+  feedMonitorDevices(procs[0], [{ id: "ios:local1", name: "local1", state: "unknown" }]);
+  assert.deepEqual(posts.filter((m) => m.type === "hostMetricsMachines").at(-1).machines, ["mac2"]);
+  assert.equal(procs.length, spawnedBefore, "mac4 の host-metrics を立てない");
+
+  // 保持の解除後は従来どおりデバイスの居る機械だけ
+  feedLine(procs[0], { kind: "monitorHold", active: false });
+  feedMonitorDevices(procs[0], [{ id: "ios:local1", name: "local1" }]);
+  assert.deepEqual(posts.filter((m) => m.type === "hostMetricsMachines").at(-1).machines, []);
+});
+
 test("同じ機械の集合が続く間は子を立て直さない(監視サイクル毎の ssh churn を作らない)", () => {
   const calls = [];
   const procs = [];

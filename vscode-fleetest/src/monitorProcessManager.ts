@@ -219,6 +219,8 @@ export type HostMetricsToWebviewMessage =
     }
   /** 行の集合(手元 + このリモート機。値より先に配る)。消えた機械の行は webview 側で捨てる。 */
   | { readonly type: "hostMetricsMachines"; readonly machines: readonly string[] }
+  /** `fleetest monitor pause` の保持中か。webview はデバイス一覧が空の間の案内を「停止中」に差し替える */
+  | { readonly type: "monitorHold"; readonly active: boolean }
   /** その機械で誰かの run が走っているか(RR-18.7 M2)。
    *  ツールバーの機械の行に錠前を出す(**手元の行も同じ** —— machine は LOCAL_MACHINE_KEY =
    *  空文字で、hostCharts.js の行キーと一致する)。**held:false は「空き」**で、控えを消す
@@ -420,6 +422,7 @@ export class MonitorProcessManager {
     // 保持の控えも同じ寿命(新しいプロセスが最初のサイクルで出し直す。lastHoldActive は
     // false 始まりなので、保持中に起動し直せば active=true が改めて届く)
     this.monitorHoldActive = false;
+    this.deps.post({ type: "monitorHold", active: false });
     this.deps.notifyMachineLocks(this.machineLocks);
     // run ボード(DS-18)の控えも同じ寿命 —— webview 側は runBoardModel.ts の状態を
     // 持つ独立モジュールなので、ホスト側に控えは無く明示的なリセット合図で畳む。
@@ -445,8 +448,9 @@ export class MonitorProcessManager {
         let value = rawValue;
         if (value.kind === "monitorHold") {
           this.monitorHoldActive = value.active;
-          // webview へは送らない: 配信の停止は hold 中の全タイル state:"unknown" 化で
-          // applyDevices の qualifying 判定(state !== "connected")が畳む。ここはログだけ
+          // 配信の停止は hold 中の全タイル state:"unknown" 化で applyDevices の qualifying 判定
+          // (state !== "connected")が畳む。webview へ送るのは一覧が空の間の案内の差し替えのため
+          this.deps.post({ type: "monitorHold", active: value.active });
           this.deps.outputChannel.appendLine(
             t(value.active ? "deviceOps.log.monitorHoldActive" : "deviceOps.log.monitorHoldReleased"),
           );
@@ -737,9 +741,16 @@ export class MonitorProcessManager {
   private syncHostMetricsMachines(devices: readonly MonitorDevice[]): void {
     // 行の集合が変わらなくても毎回見る(ランナーの再起動では集合は変わらず state だけが戻る)
     this.applyHostMetricsObservations(devices);
+    // 保持中(`fleetest monitor pause`)の monitorDevices はリモートのデバイスを含まない(配信を止めるため)。
+    // グラフは保持と無関係に出す契約なので、**保持の直前に行があった機械**のうち占有を観測できている
+    // (fan-out の子が生きている)ものを残す。新しくは足さない —— fan-out は登録簿の全機械へ張るので、
+    // 占有から足すとデバイスの無い機械の行と ssh が保持の間だけ増える
+    const heldMachines = this.monitorHoldActive
+      ? this.hostMetricsMachines.filter((machine) => this.machineLocks.get(machine)?.observed === true)
+      : [];
     const wanted = [
-      ...new Set(devices.map((device) => device.machine).filter((machine): machine is string =>
-        typeof machine === "string" && machine !== "")),
+      ...new Set([...devices.map((device) => device.machine), ...heldMachines]
+        .filter((machine): machine is string => typeof machine === "string" && machine !== "")),
     ].sort();
     const current = this.hostMetricsMachines;
     if (wanted.length === current.length && wanted.every((machine, i) => machine === current[i])) {
@@ -831,6 +842,8 @@ export class MonitorProcessManager {
    *  webview の再読込(パネル生成・言語切替)で行が消えるので sendInitialState から呼ぶ。 */
   postHostMetricsMachines(): void {
     this.deps.post({ type: "hostMetricsMachines", machines: this.hostMetricsMachines });
+    // 保持の案内も webview 再読込で消えるので一緒に配り直す
+    this.deps.post({ type: "monitorHold", active: this.monitorHoldActive });
     this.postMachineLocks();
   }
 
@@ -985,6 +998,11 @@ export class MonitorProcessManager {
           this.deps.outputChannel.appendLine(
             t("deviceOps.log.unknownLine", { label, value: JSON.stringify(value) }),
           );
+          return;
+        }
+        // 行の集合から外した機械の子は SIGTERM 後も数行吐きうる。webview は届いたサンプルで行を作り直すので、
+        // 流すと値の来ない行が残る
+        if (machine && !this.hostMetricsMachines.includes(machine)) {
           return;
         }
         this.deps.post({
