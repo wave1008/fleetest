@@ -86,7 +86,7 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
 - When a script or CI pipeline that starts several runs in turn declares its plan, a **job** (the list of runs about to be started) appears on the run board.
   In the run board header, to the right of the tachometer, you see "N/M runs done", the number of failed runs (❌, only when some failed),
   how many of the job's runs are running and **waiting**, and the elapsed time. With two or more jobs, each job's title comes before its counts.
-  Hovering over "runs done" lists every run of the job, including the unfinished ones, with its state (passed, failed, running, waiting, …).
+  Hovering over "runs done" lists every run of the job, including the unfinished ones, with its state (passed, failed, running, waiting, …), finished runs first, then running, then waiting.
   Hovering over "running" and "waiting" lists just those runs (for runs started with several `--target`s, running runs also show their machine). Each list shows up to 30 runs. Beyond that, runs that already finished without failing are left out first (failed and unfinished runs stay), and the number left out is shown at the top. No time left is shown for a job.
   A job appears when a script declares its planned runs with `fleetest job begin` (see the [CLI](cli.md#showing-waiting-runs-with-a-job)) and when you run
   several targets at once with `fleetest run --target … --target …` (or a repeated `--profile`; titled `run`).

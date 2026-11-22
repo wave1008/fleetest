@@ -1300,9 +1300,9 @@ test("ジョブ: 「run 済」は終わっていない run も含めた全件を
   const [jobEl] = jobHeadsOf(document);
   assert.equal(jobEl.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"),
     ["run の一覧(8 本・済 4)", "1. E2E-CMP / ios — 成功", "2. E2E-CMP / android — 失敗",
-      "3. E2E-Flutter / android(M1Ultra) — 実行中", "4. E2E-RN / ios — 待機", "5. E2E-RN / android — 待機",
-      "6. X / p — 中止", "7. Y / p — スキップ", "8. Z / p — 待機"].join("\n"),
-    "分母の 8 本と同じ全件(未知の state も待機として落とさない)。マシン名は実行中の run だけ");
+      "3. X / p — 中止", "4. Y / p — スキップ", "5. E2E-Flutter / android(M1Ultra) — 実行中",
+      "6. E2E-RN / ios — 待機", "7. E2E-RN / android — 待機", "8. Z / p — 待機"].join("\n"),
+    "分母の 8 本と同じ全件を済 → 実行中 → 待機の順(同じ段は宣言順)で。未知の state も待機として落とさない。マシン名は実行中の run だけ");
   assert.equal(jobEl.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"),
     ["実行中の run(1 本)", "1. E2E-Flutter / android(M1Ultra)"].join("\n"));
 
@@ -1314,6 +1314,22 @@ test("ジョブ: 「run 済」は終わっていない run も含めた全件を
   assert.match(after.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip") || "",
     /^run の一覧\(8 本・済 0\)\n1\. E2E-CMP \/ ios — 待機\n/);
   assert.equal(after.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"), null);
+});
+
+test("ジョブ: 「run 済」の一覧は実行中と待機が交互に宣言されていても、実行中を先に・待機を後に並べ、番号は並べた順に振る", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const job = { ...jobFixture(), runs: [
+    { project: "A", profile: "ios", state: "running", machines: ["local"] },
+    { project: "A", profile: "android", state: "pending", machines: [] },
+    { project: "B", profile: "ios", state: "running", machines: ["M1Max"] },
+    { project: "B", profile: "android", state: "pending", machines: [] },
+    { project: "C", profile: "ios", state: "passed", machines: ["M4Max"] },
+  ] };
+  post(window, monitorRunsMessage({ jobs: [job] }));
+  assert.equal(jobHeadsOf(document)[0].querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"),
+    ["run の一覧(5 本・済 1)", "1. C / ios — 成功", "2. A / ios(local) — 実行中", "3. B / ios(M1Max) — 実行中",
+      "4. A / android — 待機", "5. B / android — 待機"].join("\n"));
 });
 
 test("ジョブ: ホバーの一覧が 30 行を超えたら、成功・スキップ・中止の run を前から必要な分だけ省き、失敗と未了は残す", (t) => {

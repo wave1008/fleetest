@@ -957,17 +957,23 @@ function updateJobRow(row, job, showTitle) {
 const JOB_TIP_MAX_RUN_LINES = 30;
 
 /** 上限を超えたときに前から省いてよい状態(済で失敗でないもの)。失敗と未了(実行中・待機)は省かない =
- * run はおおむね宣言順に終わるので、後ろで切ると見たい未了の run が先に消える */
+ * 一覧は済 → 実行中 → 待機の順なので、後ろで切ると見たい未了の run が先に消える */
 const JOB_TIP_OMITTABLE_KINDS = ['passed', 'skipped', 'canceled'];
 
-/** 見出しの数のホバー: kinds に当たる run の一覧(宣言順。番号は一覧の中の宣言順で、省いた分は飛ぶ)。kinds = null は全件
+/** 一覧の並びの段: 済(終端の4状態)→ 実行中 → 待機 = 実行された/される順。同じ段の中は宣言順 */
+const jobTipStage = (kind) => (kind === 'pending' ? 2 : kind === 'running' ? 1 : 0);
+
+/** 見出しの数のホバー: kinds に当たる run の一覧(jobTipStage の順・同じ段は宣言順。番号は並べた順で、省いた分は飛ぶ)。kinds = null は全件
  * (jobCounts の total と同じ集合)。detail = 'state'(状態を添える。実行中はマシン名も)/ 'machines'(マシン名を添える)/ 'none'。
  * done は見出しの {done} に入れる数。上限を超えたら JOB_TIP_OMITTABLE_KINDS を前から省き(先頭に省いた本数)、
  * それでも超える分は末尾を「…ほか N 本」に畳む。該当が無ければ空(ツールチップを出さない) */
 function jobRunsTip(job, kinds, titleKey, detail, done = 0) {
   const runs = kinds === null ? job.runs : job.runs.filter((run) => kinds.includes(jobRunKind(run.state)));
   if (runs.length === 0) return '';
-  const all = runs.map((run, index) => ({ run, index, kind: jobRunKind(run.state) }));
+  // Array.prototype.sort は安定(ES2019)なので同じ段の中は宣言順のまま
+  const all = runs.map((run) => ({ run, kind: jobRunKind(run.state) }))
+    .sort((a, b) => jobTipStage(a.kind) - jobTipStage(b.kind))
+    .map((entry, index) => ({ ...entry, index }));
   let omitted = 0;
   const kept = all.filter((entry) => {
     if (all.length - omitted > JOB_TIP_MAX_RUN_LINES && JOB_TIP_OMITTABLE_KINDS.includes(entry.kind)) {
