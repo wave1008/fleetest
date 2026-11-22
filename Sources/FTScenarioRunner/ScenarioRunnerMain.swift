@@ -690,6 +690,7 @@ struct RunScenario: AsyncParsableCommand {
             core.runLocks.configure(handoff: deviceSession, scenarioID: scenarioID,
                                     device: "\(runPlatform):\(serial ?? String(port))")
         }
+        core.variantName = variant
         core.redactAccountValues = redactAccountValues
         core.hostLoadPacing = runHostLoadPacing
         core.actionCounter = actionCounter

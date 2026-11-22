@@ -240,6 +240,29 @@ public enum FindImage {
         return (sorted.filter(forThisPlatform) + sorted.filter { !forThisPlatform($0) }).map(\.url)
     }
 
+    // MARK: - バリアント用のテンプレート(DR-225 の画像の側)
+
+    /// バリアント用の画像のファイル名の印。`ft_capture_element` の `variant` が付け、失敗文の言い分けが探す(定義元はここ1箇所)
+    public static func variantFileMarker(_ variant: String) -> String { "-variant-\(variant)" }
+
+    /// そのラベルのフォルダに、このバリアントで撮った画像(`-variant-<name>` 付き)があるか
+    public static func hasVariantTemplate(variant: String, label: String, classifierDirectory: URL) -> Bool {
+        let marker = variantFileMarker(variant) + "."
+        return templateFiles(label: label, classifierDirectory: classifierDirectory, isAndroid: false)
+            .contains { $0.lastPathComponent.contains(marker) }
+    }
+
+    /// バリアントの run で照合が失敗したときの言い分け。バリアントの無い run は nil。
+    /// 無い → 足せる(撮るのは `ft_capture_element` の `variant`)/ ある → 合わなかったとだけ言う(崩れた画面を正解に取り込ませない)
+    public static func variantTemplateHint(variant: String?, label: String, hasVariantTemplate: Bool) -> String? {
+        guard let variant else { return nil }
+        if hasVariantTemplate {
+            return "this run is variant \"\(variant)\" and a template image taken for it exists for \"\(label)\", so it did not match"
+        }
+        return "this run is variant \"\(variant)\" and no template image taken for it (a file named *\(variantFileMarker(variant)).png)"
+            + " exists for \"\(label)\"; one can be added with ft_capture_element and variant \"\(variant)\""
+    }
+
     // MARK: - 候補
 
     /// Shirates の filterByAspectRatio と同じ式(幅と高さを逆向きに ±許容幅 だけ振った比の範囲)

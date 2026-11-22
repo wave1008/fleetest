@@ -53,6 +53,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.
 - [Same-shape parts differing only in text](../commands/find_image.md#notes) — a different row can be grabbed under the default `threshold` (0.15); check distances and tighten it, for example 0.03.
 - [Capture samples per OS version and scale](../commands/find_image.md#notes) — the same row looks different across versions; put a sample for each version or state in the label folder.
+- [In a variant run, add templates taken for that variant to the same folder](../commands/find_image.md#notes) — when `existImage` or `imageIs` fails and the variant has no image of its own, the failure message says one can be added with `ft_capture_element` and `variant`; if one exists and still does not match, do not add another and check the screen for breakage. `findImage` / `findImages` do not say it: read the template file name in the record's note (`nearest template …`).
 - [`waitSeconds` defaults to 0](../commands/find_image.md#notes) — it looks once; pass `waitSeconds: 3` or similar right after a screen transition.
 - [Failure message and attached screenshot](../commands/find_image.md#notes) — a failed `existImage` reports the nearest distance and `threshold` and attaches the judged screenshot.
 - [Inside `withScrollDown { }` it scrolls](../commands/find_image.md#notes) — pass `scroll: .noScroll` to look at the current screen only.
@@ -80,6 +81,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### Image assertion (imageIs)
 - [No matching samples fails immediately](../commands/image_assertion.md#notes) — without samples whose label contains `label`, the check fails at once.
 - [Failure shows label and confidence](../commands/image_assertion.md#notes) — the message states what the image was classified as and how confident it was.
+- [In a variant run, an `imageIs` failure says whether the variant has its own image](../commands/image_assertion.md#notes) — add one with `ft_capture_element` and `variant` only when it has none.
 
 ### installApp, removeApp, clearAppData
 - [Call `launchApp()` after `installApp()` on iOS inapp-boost](../commands/install_app.md#notes) — the install ends the in-app bridge, so `tap` and similar do not reach the app until the next `launchApp()`.
@@ -295,7 +297,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Every scenario starts in light and the default text size](../project/run_profile.md#notes) — the device is read and set before and after each scenario, also when the profile says nothing, and stays that way after the run; write `appearance` / `textSize` to keep dark or large text, and note that the MCP `ft_run_scenario` does the same.
 - [A value you wrote that cannot be set fails the scenario](../project/run_profile.md#notes) — an unwritten one that cannot be reset only warns; verified on an iOS 26.6.2 physical device and an iOS 27.2 Simulator.
 - [Hooks and the run memo are shared across variants](../project/run_profile.md#notes) — `beforeAll` / `afterAll` run once per class per run and the run memo is one for the whole run; put `currentVariant` in the key to keep values apart per variant.
-- [Placement-bound classes stay on one device across all variants and run variant by variant](../project/run_profile.md#notes) — a failure in the middle of `@RunInOrder` stops only the rest of the same variant.
+- [Classes with placement attributes stay on one device across all variants and run variant by variant](../project/run_profile.md#notes) — a failure in the middle of `@RunInOrder` stops only the rest of the same variant.
 - [iOS "this app only" text size is invisible](../project/run_profile.md#notes) — a size set from Control Center for one app is not read by the tool; `displaySettings` in each result shows what was expected, read and changed.
 
 ## UI component quirks (current limitations)

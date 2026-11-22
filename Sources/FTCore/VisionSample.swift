@@ -102,11 +102,15 @@ public enum VisionSample {
         return await driver.foregroundAppID().value
     }
 
-    public static func defaultFileName(_ date: Date) -> String {
+    public static func timestamp(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        return "capture-\(formatter.string(from: date)).png"
+        return formatter.string(from: date)
+    }
+
+    public static func defaultFileName(_ date: Date) -> String {
+        "capture-\(timestamp(date)).png"
     }
 
     /// 切り出した画像を見本として保存する。同じ短いラベルが別のフォルダにあれば(学習できない設定の誤り)、

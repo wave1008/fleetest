@@ -70,6 +70,7 @@ select("#settings_camera").imageIs("[Camera Icon]")
 
 - Without samples, or without samples whose label contains `label`, the check fails immediately.
 - The failure message shows the label the image was classified as and its confidence.
+- In a variant run, a failure also says whether the label folder has an image taken for that variant (a file named `*-variant-<name>.png`). If it has none, add one with `ft_capture_element` and `variant`; if it has one, check the screen for breakage instead of adding another.
 
 ### Link
 - [index](../../index.md)

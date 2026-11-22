@@ -167,7 +167,8 @@ public final class RunRecorder: @unchecked Sendable {
             trigger: trigger, startedAt: startedAt,
             pid: Int(ProcessInfo.processInfo.processIdentifier),
             issuer: issuer, runGroup: runGroup,
-            responseMeasurement: info)
+            responseMeasurement: info,
+            variants: declaredVariants.isEmpty ? nil : declaredVariants)
         RunResultsStore.writeMeta(meta, runDir: runDir)
     }
 
@@ -392,7 +393,8 @@ public final class RunRecorder: @unchecked Sendable {
             // 無ければ書かない(欄が無い = 警告なし、または この版より前の記録)
             servicesWarnings: servicesWarnings.isEmpty ? nil : servicesWarnings,
             responseMeasurement: responseMeasurement ?? remembered,
-            workerModes: modes.isEmpty ? nil : modes)
+            workerModes: modes.isEmpty ? nil : modes,
+            variants: declaredVariants.isEmpty ? nil : declaredVariants)
         RunResultsStore.writeMeta(meta, runDir: runDir)
         return slowFindings
     }

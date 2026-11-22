@@ -886,8 +886,91 @@ extension MCPServer {
         if let raw = args["selector"] as? String {
             _ = try Self.parseSelectorArgument(raw, argument: "selector")
         }
+        let variantName = try Self.stringArgument(args, "variant")
+        if let refusal = VariantCapture.refusal(
+            variant: variantName, selector: args["selector"] as? String, ref: try Self.intArgument(args, "ref"),
+            name: try Self.stringArgument(args, "name"), profile: args["profile"] as? String) {
+            throw MCPError(refusal)
+        }
         let project = try ScenarioHost.project(named: args["project"] as? String)
+        var variant: ResolvedVariant?
+        if let variantName, let profile = args["profile"] as? String {
+            do {
+                variant = try VariantCapture.resolve(
+                    name: variantName, profile: profile,
+                    declared: try ProfileResolver.declaredVariants(project: project, runName: profile))
+            } catch {
+                throw MCPError(ErrorText.user(error))
+            }
+        }
         let d = try await driver(args)
+        guard let variant else {
+            return text(try await captureElementBody(args, project: project, classifier: classifier, label: label,
+                                                     driver: d, variant: nil))
+        }
+        // ①〜③ 開始時の値を読む → バリアントの値へ設定して読み返す。⑦ どの終わり方でも開始時の値へ戻す
+        let key = Self.sessionKey(args)
+        let transport: DisplaySettingsTransport
+        if (args["platform"] as? String) == "android" {
+            guard let serial = connectedAndroidSerials[key] else {
+                throw MCPError("variant: the Android device's serial is not known for this session, so its display settings cannot be changed")
+            }
+            transport = AndroidDisplaySettingsTransport(serial: serial)
+        } else {
+            guard let udid = udids[key] ?? nil, !udid.isEmpty else {
+                throw MCPError("variant: the iOS device's UDID is not known for this session, so its display settings cannot be changed")
+            }
+            transport = IOSDisplaySettingsTransport(udid: udid)
+        }
+        var session = VariantDisplaySession(transport: transport, variant: variant)
+        var failure: String? = session.begin()
+        var message = ""
+        if failure == nil {
+            do {
+                if let unsettled = try await waitForStillScreen(d, args: args) {
+                    failure = unsettled
+                } else {
+                    message = try await captureElementBody(args, project: project, classifier: classifier, label: label,
+                                                           driver: d, variant: variant)
+                }
+            } catch {
+                failure = ErrorText.user(error)
+            }
+        }
+        let restored = session.restore()
+        if let failure { throw MCPError(failure + "\n" + restored) }
+        return text(message + "\n" + restored)
+    }
+
+    /// ③ 画面の静止を待つ。段1 = ブリッジの画像の静止判定(DSL の waitForSettle と同じ部品・窓は同じ既定)、
+    /// 段2 = 木が絵に追いつくまで(連続する2枚の署名が同じ。文字サイズで枠が動く = 切り出す枠を古い木から取らない)。
+    /// 外観だけの切り替えは枠が動かないので段2では分からない = 段1が本体。上限はどちらも `isScreen` の既定の待ちの中。
+    /// nil = 静止した。非 nil = 保存しない理由
+    private func waitForStillScreen(_ d: AppDriver, args: [String: Any]) async throws -> String? {
+        let isAndroid = (args["platform"] as? String) == "android"
+        let quietMs = Int(WaitForSettleDefaults.quietSeconds(framework: knownUIFramework(args: args),
+                                                            isAndroid: isAndroid) * 1000)
+        let waitSeconds = FlowStep.defaultIsScreenWaitSeconds
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(waitSeconds))
+        let response = try await d.waitForSettle(WaitForSettleRequest(region: nil, quietMs: quietMs,
+                                                                     timeoutMs: Int(waitSeconds * 1000)),
+                                                 timeoutSeconds: waitSeconds + 5)
+        let unsettled = "nothing was saved: the screen kept changing for \(Int(waitSeconds)) s after the display"
+            + " settings changed; an image of a moving screen is not kept"
+        guard response.settled else { return unsettled }
+        var previous = VariantCapture.signature(try await freshSnapshot(d, args: args).elements)
+        while clock.now < deadline {
+            let current = VariantCapture.signature(try await freshSnapshot(d, args: args).elements)
+            if current == previous { return nil }
+            previous = current
+        }
+        return unsettled
+    }
+
+    /// 要素を探し(variant の回は ④ 撮り直した木からセレクタで引き直す)、切り出して保存する。返すのは応答の本文
+    private func captureElementBody(_ args: [String: Any], project: TestProject, classifier: String, label: String,
+                                    driver d: AppDriver, variant: ResolvedVariant?) async throws -> String {
         let element: ElementInfo
         let screen: FTRect
         let elements: [ElementInfo]
@@ -908,7 +991,9 @@ extension MCPServer {
             let step = FlowStep(assert: "exists", locator: parsed.primary,
                                 fallbacks: parsed.fallbacks.isEmpty ? nil : parsed.fallbacks)
             guard let (found, _) = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true) else {
-                throw MCPError("no element matches \(selector) on the current screen")
+                // ⑤ 見つからなければ保存しない
+                throw MCPError((variant.map { "nothing was saved: no element matches \(selector) on the current screen"
+                    + " under variant \"\($0.name)\"" }) ?? "no element matches \(selector) on the current screen")
             }
             element = found
             screen = snapshot.screen
@@ -927,7 +1012,7 @@ extension MCPServer {
         guard let image = VisionClassifier.crop(png: png, frame: element.frame, screen: screen) else {
             throw MCPError(VisionClassifier.cropFailureReason(png: png, screen: screen))
         }
-        let captureName = try Self.stringArgument(args, "name")
+        let captureName = try variant.map { VariantCapture.fileName(variant: $0.name) } ?? Self.stringArgument(args, "name")
         let file: URL
         do {
             file = try VisionSample.save(image, projectRoot: project.rootURL, classifier: classifier,
@@ -936,7 +1021,7 @@ extension MCPServer {
             throw MCPError(ErrorText.user(error))
         }
         let report = await VisionSample.report(projectRoot: project.rootURL, classifier: classifier)
-        return text("saved \(image.width)x\(image.height) px of \(RefGuard.describe(element)) to \(file.path)."
-            + refNote + "\n" + report.lines.joined(separator: "\n"))
+        return "saved \(image.width)x\(image.height) px of \(RefGuard.describe(element)) to \(file.path)."
+            + refNote + "\n" + report.lines.joined(separator: "\n")
     }
 }

@@ -45,6 +45,10 @@ existImage("[Share Icon]", scroll: .down).tap()
   apart. `findImage` / `existImage` try every sample in the label folder, so adding a sample for each version to the
   same folder finds the element on both devices (you can keep `threshold` tight). The same goes for `findImages`: for
   parts whose look changes with their state (on / off), put a sample for each state and both are returned.
+- **In a variant run, add templates taken for that variant to the same label folder.** Appearance and text size change how the same part looks. The file name of the template that was used (the nearest one when nothing was found) appears in the run log and in the result's notes.
+  When `existImage` fails in a variant run, the failure message says whether the label folder has an image taken for that variant (a file whose name carries `-variant-<name>`); `findImage` / `findImages` do not say it, so look at the file name of the template used in the record's note (`nearest template …`).
+  If it has none, an AI assistant can add one with the MCP tool `ft_capture_element` and `variant` (it puts the device in that variant's display settings, captures, and returns the device to what it was).
+  If one exists and still does not match, do not add another: check whether the screen is broken (so that a broken screen is not taken in as the correct one).
 - `waitSeconds` defaults to 0: it looks at the current screen once (it does not follow the run profile's default wait). To wait for the
   image to appear, for example right after a screen transition, pass seconds such as `waitSeconds: 3`. While scrolling, it looks once per position.
 - When `existImage` fails, the failure message says the nearest distance and the `threshold`, and the screenshot it judged is

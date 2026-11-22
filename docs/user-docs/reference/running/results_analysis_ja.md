@@ -29,8 +29,8 @@ results/runs/<YYYY-MM>/<runID>/
 | コマンド | 説明 |
 |---|---|
 | `fleetest results list [--since <期間>] [--limit <n>]` | run を新しい順に一覧する |
-| `fleetest results summary [--scenario <id>]` | シナリオ別の実行回数・成功率・所要時間を集計する(成功率が低い順)。run を中断したせいで始まらなかったシナリオは成功率に入れない。`--scenario` にはシナリオ ID かクラス名(そのクラスの全シナリオ)を指定できる。`flaky` と同じく (シナリオ, プラットフォーム) ごとの行になる |
-| `fleetest results flaky [--min-runs <n>]` | 成功も失敗もするシナリオを、不安定な順に一覧する((シナリオ, プラットフォーム) ごとに1行) |
+| `fleetest results summary [--scenario <id>]` | シナリオ別の実行回数・成功率・所要時間を集計する(成功率が低い順)。run を中断したせいで始まらなかったシナリオは成功率に入れない。`--scenario` にはシナリオ ID かクラス名(そのクラスの全シナリオ)を指定できる。`flaky` と同じく (シナリオ, バリアント, プラットフォーム) ごとの行になる(`variants` の無い run にバリアントは無い) |
+| `fleetest results flaky [--min-runs <n>]` | 成功も失敗もするシナリオを、不安定な順に一覧する((シナリオ, バリアント, プラットフォーム) ごとに1行) |
 | `fleetest results trend --scenario <id>` | 1シナリオの実行履歴を時系列で表示する(`--scenario` は `Class.method` の完全なシナリオ ID。バーはプラットフォームごとの尺度) |
 | `fleetest results devices` | ワーカー(デバイス。マシンごと —— 別のマシンの同名のデバイスは別の行)別・プラットフォーム別の実行回数と成功率を集計する |
 | `fleetest results slow [--limit <n>]` | シナリオを平均所要時間が長い順に一覧する(`--since` の窓の全体で集計) |
@@ -40,7 +40,7 @@ results/runs/<YYYY-MM>/<runID>/
 
 すべて `--project` を受け付け、`log` 以外は `--since <期間>`(`30d`/`12h` のような相対値、または
 `YYYY-MM-DD` —— その日の **UTC** 0時。表の時刻はローカル時刻。既定 `90d`)と単一行 JSON で出す `--json` も受け付けます。正確なフラグは
-`fleetest results <サブコマンド> --help` で確認してください。
+`fleetest results <サブコマンド> --help` で確認してください。どのサブコマンドも `--variant <名前>` を受け付け、実行プロファイルの `variants` に宣言したそのバリアントの記録だけに絞ります(`variants` の無い run の記録にバリアントは無いので、除かれます)。
 
 ## シナリオの実行ログを読む
 

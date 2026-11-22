@@ -58,6 +58,12 @@ public struct ScenarioRunItem: Identifiable, Sendable {
         if !query.isEmpty { string += "?" + query.joined(separator: "&") }
         return URL(string: string) ?? URL(fileURLWithPath: "/scenario")
     }
+
+    /// `url(for:…)` が載せた variant を読み戻す(無ければ nil)。実行ログの見出しが同じ ID の単位を区別するため
+    public static func variant(in url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first { $0.name == "variant" }?.value
+    }
 }
 
 /// 並列ワーカー定義。platform が一致するシナリオだけをキューから消化する

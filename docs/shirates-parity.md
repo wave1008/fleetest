@@ -64,7 +64,7 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | `tapWithoutScroll` | `tap(sel, scroll: .noScroll)` | 🟡 関数は置かない(DR-30: スクロールの指定は `scroll:` に寄せる。Shirates の名前は `UnavailableCommands.swift` が書き方を返す) |
 | `select` / `selectWithScroll*` / `selectWithoutScroll` | `select`(`selectWithScroll*` は `select(sel, scroll: .down)`・`selectWithoutScroll` は `scroll: .noScroll`) | ✅ `exist`(検証)では代用にならないため実装(2026-07-31)。**掴めなければ失敗させず空要素を返す**(見つからないときも、見えないときも同じ。`requireVisible: false` で可視性照合を外せる)。Shirates の `throwsException` に相当する引数は持たない = 常に非 throw |
 | `TestDriver.lastElement` / `it` | `lastElement` | ✅ 2026-08-04 に実装 = DR-108(それ以前は「概念を持たない」が承認済み差分)。要素を1つに定めて解決したコマンドが差し替える(`notExist` / `countIs` とセレクタを取らないコマンドは差し替えない)。**値は掴んだ時点の凍結値**・**掴めなければ空で上書き**・**scene を跨ぐと空**・一度も掴んでいない読み出しは空+警告。`it` の別名は置かない(Swift では読み手が識別子を追えない) |
-| (対応物なし) | `currentVariant` | Shirates に対応物は無い(fleetest 固有)。実行プロファイルの `variants`(DR-223)のバリアント名を `String?` で返す。バリアントの無い run では `nil` |
+| — | `currentVariant` | 🟢 **Shirates に無い拡張**。実行プロファイルの `variants`(DR-223)のバリアント名を `String?` で返す。バリアントの無い run では `nil` |
 | `canSelect` / `canSelectWithScroll*` / `canSelectNot` | 単独コマンドは無い(`ifCanSelect` / `repeatWhileCanSelect` に内包) | 🟡 |
 | `existAll` / `canSelectAll` / `dontExistAll` | — | ➖ **実装しない**(DR-35)。`exist` のチェーンで書く方が保守しやすく、要素ごとに `waitSeconds:` / `scroll:` 等のオプションも指定できる。**再提案しない** |
 | `scanElements` / `*InScanResults` | — | ➖ **画面全体の棚卸しはシナリオの仕事ではない**(2026-08-21 判定)。要素一覧は `fleetest api snapshot` と MCP の `ft_snapshot` にあり、そちらは**書く前に調べる**側の道具。シナリオ内で全要素を走査して条件分岐すると、木の揺れがそのまま実行の揺れになる |

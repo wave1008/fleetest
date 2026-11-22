@@ -1557,8 +1557,17 @@ extension StepExecutor {
             }
             return .failed("the element image could not be classified (screenshot or crop failed): \(step.locatorSummary)")
         }
+        var variantHint = ""
+        if let variantName, let root = visionClassifierProjectRoot,
+           let hint = FindImage.variantTemplateHint(
+               variant: variantName, label: expected,
+               hasVariantTemplate: FindImage.hasVariantTemplate(
+                   variant: variantName, label: expected,
+                   classifierDirectory: VisionClassifier.directory(projectRoot: root, name: DefaultClassifier.name))) {
+            variantHint = "; " + hint
+        }
         return .failed("the element image is classified as \"\(VisionClassifier.shortLabel(lastClassification.label))\""
             + " (label \"\(lastClassification.label)\", confidence \(String(format: "%.2f", lastClassification.confidence))),"
-            + " not \"\(expected)\": \(step.locatorSummary) (the screenshot it judged is attached to the report)")
+            + " not \"\(expected)\": \(step.locatorSummary)\(variantHint) (the screenshot it judged is attached to the report)")
     }
 }

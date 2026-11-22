@@ -20,8 +20,10 @@ public enum RunLogFormatter {
             // 復活したデバイスへ再キューされることがあり、「別のデバイス」と断定すると事実と違う
             // (元の物理デバイスのまま・ポートだけ新しいケースがある)
             return ["  🔁 Re-queued because of \(reason) (\(attempt)/\(limit))"]
-        case .flowStarted(let worker, _, let flowName, let isDirty):
-            var lines = ["▶ \(flowName) [\(worker)\(mode.map { " \($0)" } ?? "")]"]
+        case .flowStarted(let worker, let flowURL, let flowName, let isDirty):
+            // バリアントの run は同じ ID が並ぶので `ID@variant` で出す(バリアントの無い run は今のまま)
+            let unit = ScenarioUnitKey(id: flowName, variant: ScenarioRunItem.variant(in: flowURL))
+            var lines = ["▶ \(unit) [\(worker)\(mode.map { " \($0)" } ?? "")]"]
             if isDirty { lines.append("  ⚠️ This flow is dirty (needs review)") }
             return lines
         case .step(_, _, let result):

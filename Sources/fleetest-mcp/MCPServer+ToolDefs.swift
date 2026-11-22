@@ -581,6 +581,12 @@ extension MCPServer {
                                + "DefaultClassifier (any folder ending with a bracketed name, e.g. @i/Settings/[Camera Icon])"],
             "label": ["type": "string", "description": "Label folder under the classifier"],
             "name": ["type": "string", "description": "Sample file name (default capture-<date>.png)"],
+            "variant": ["type": "string", "description": "A variant (name) declared by the run profile (pass profile; selector "
+                + "required, ref refused; appearance / textSize only): the device is set to that variant's display settings, "
+                + "the screen is waited on until still and the element found again by selector, the crop is saved as "
+                + "<date>-variant-<name>.png, "
+                + "and the display settings go back to what they were at the start. Add it only when the label folder has no "
+                + "image for this variant yet"],
             "project": projectProperty,
         ], required: ["classifier", "label"]),
         tool("ft_terminate", "Terminate the app (fails if neither bundleId nor a prior ft_launch names it)", [

@@ -29,8 +29,8 @@ suffix, so results from different machines/branches merge without conflicts.
 | Command | Description |
 |---|---|
 | `fleetest results list [--since <period>] [--limit <n>]` | List runs, newest first |
-| `fleetest results summary [--scenario <id>]` | Aggregate run count, pass rate and duration per scenario (lowest pass rate first). Scenarios that never started because you interrupted the run are left out of the pass rate. `--scenario` takes a scenario ID or a class name (all of its scenarios). Like `flaky`, rows are per (scenario, platform) |
-| `fleetest results flaky [--min-runs <n>]` | Scenarios that both pass and fail, most flaky first (one row per scenario and platform) |
+| `fleetest results summary [--scenario <id>]` | Aggregate run count, pass rate and duration per scenario (lowest pass rate first). Scenarios that never started because you interrupted the run are left out of the pass rate. `--scenario` takes a scenario ID or a class name (all of its scenarios). Like `flaky`, rows are per (scenario, variant, platform) (a run without `variants` has no variant) |
+| `fleetest results flaky [--min-runs <n>]` | Scenarios that both pass and fail, most flaky first (one row per scenario, variant and platform) |
 | `fleetest results trend --scenario <id>` | One scenario's run history in chronological order (`--scenario` is a full scenario ID such as `Class.method`; bars are scaled per platform) |
 | `fleetest results devices` | Run count and pass rate per worker (device, per machine — the same device name on two machines is two rows) and per platform |
 | `fleetest results slow [--limit <n>]` | Scenarios by average duration, slowest first (over the whole `--since` window) |
@@ -40,7 +40,7 @@ suffix, so results from different machines/branches merge without conflicts.
 
 All of them accept `--project`, and (except `log`) `--since <period>` (a relative value like
 `30d`/`12h`, or `YYYY-MM-DD` — midnight **UTC** of that date, while the tables show local time; default `90d`) and `--json` for single-line JSON output. Run
-`fleetest results <subcommand> --help` for the exact flags.
+`fleetest results <subcommand> --help` for the exact flags. Every subcommand also accepts `--variant <name>` to keep only the records of that variant declared in the run profile's `variants` (records of runs without variants have none, so they are left out).
 
 ## Reading a scenario's execution log
 

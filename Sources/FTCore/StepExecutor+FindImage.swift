@@ -95,10 +95,16 @@ extension StepExecutor {
         }
         notes.insert(Self.findImageNote(scan, single: single, threshold: threshold), at: 0)
         notes.insert("\(scan.compared) compared", at: 1)
+        if let used = Self.templateNote(scan, single: single) { notes.insert(used, at: 2) }
         if action == "existImage", scan.found.isEmpty {
+            let hint = FindImage.variantTemplateHint(
+                variant: variantName, label: label,
+                hasVariantTemplate: variantName.map {
+                    FindImage.hasVariantTemplate(variant: $0, label: label, classifierDirectory: directory)
+                } ?? false)
             return StepOutcome(status: failed(.notFound, Self.existImageFailure(
                 label: label, scan: scan, threshold: threshold,
-                attached: classifierScreenshotThisStep != nil)),
+                attached: classifierScreenshotThisStep != nil, variantHint: hint)),
                                driverFallback: notes.dropFirst().joined(separator: " / "))
         }
         imageMatchesThisStep = scan.found
@@ -272,9 +278,25 @@ extension StepExecutor {
 
     /// existImage の失敗文言。距離と閾値を必ず出す(照合をやり直さずに閾値を決め直せるように)。
     /// **距離は撮り直し・スクロールの全周回の最小**で、添えるスクリーンショットは最後の1枚(別の周回のことがある)
-    static func existImageFailure(label: String, scan: ImageScan, threshold: Double?, attached: Bool) -> String {
+    static func existImageFailure(label: String, scan: ImageScan, threshold: Double?, attached: Bool,
+                                  variantHint: String? = nil) -> String {
         "image \"\(label)\" does not exist: \(findImageNote(scan, single: true, threshold: threshold))"
+            + (templateNote(scan, single: true).map { " (\($0))" } ?? "")
+            + (variantHint.map { "; \($0)" } ?? "")
             + (attached ? "; the screenshot it judged is attached to the report" : "")
+    }
+
+    /// 照合に使った(見つからなければ最も近かった)テンプレート画像のファイル名。実行ログと結果の注記に残す
+    static func templateNote(_ scan: ImageScan, single: Bool) -> String? {
+        if single {
+            if let match = scan.found.first { return "template \(match.template.lastPathComponent)" }
+            return scan.nearest.map { "nearest template \($0.template.lastPathComponent)" }
+        }
+        var names: [String] = []
+        for match in scan.found where !names.contains(match.template.lastPathComponent) {
+            names.append(match.template.lastPathComponent)
+        }
+        return names.isEmpty ? nil : "templates \(names.joined(separator: ", "))"
     }
 
     /// 記録の括弧書き(見つけた距離・見つからなかった理由)。数字は照合をやり直さずに閾値を

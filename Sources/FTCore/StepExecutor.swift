@@ -1242,6 +1242,8 @@ public final class StepExecutor {
     /// 画像分類器(`vision/classifiers/<分類器名>/`)を探すプロジェクトのルート。nil = 使わない。
     /// FTDriveCore が実行バイナリの `--project-dir` から渡す(CheckStateClassifier / DefaultClassifier)
     public var visionClassifierProjectRoot: URL?
+    /// このシナリオが走っているバリアントの名前(バリアントの無い run は nil)。画像の照合が失敗したときの言い分けにだけ使う
+    public var variantName: String?
     /// 分類器が使えるとき、a11y が状態を報告する要素でも分類器を優先するか(プロファイルの
     /// `preferCheckStateClassifier`。**既定 true**)。false なら状態を報告しない要素にだけ使う
     public var preferCheckStateClassifier = true

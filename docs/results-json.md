@@ -788,7 +788,7 @@ machineHealth の行しか要らないので、**プロジェクトごとの行*
 ## `--failed` の記録(`.fleetest/last-results/`)
 
 `<project>/<profile>/<ID>` に `passed` / `failed`(`FTCore.LastResultsStore`。profile 無しの run は `_no-profile`)。バリアントのある run は
-**単位ごとの記録を `<profile>/variants/<variant>/<ID>` に置き**(1行目 = `passed` / `failed`・2行目 = run の ID)、**ID の記録はそのプロファイルの
+**単位ごとの記録を `<profile>/variants/<variant>/<ID>` に置き**(1行目 = `passed` / `failed`・2行目 = run の ID。**run の ID が分かるときだけ**書く)、**ID の記録はそのプロファイルの
 宣言(run.json の `variants`)のバリアントの単位の記録から集約して作り直す**(1つでも `failed` なら `failed`。単位を書くたびに)。
 同じ run の中で同じ単位を複数の端末が書いたとき(`--broadcast`)は `failed` を優先し、後の `passed` で上書きしない(run の ID で見分ける)。
 `variants/` はディレクトリなので、ID の記録を読む側(拡張の `lastResults.ts`)はファイルだけを読む。`variants` を消したプロファイルは ID の記録が

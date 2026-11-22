@@ -435,6 +435,21 @@ final class ArgumentBoundsTests: XCTestCase {
         }
     }
 
+    /// variant は selector 必須・ref 不可・profile 必須(デバイスに触る前に断る)
+    func testCaptureElementVariantIsRefusedAtTheEntrance() async {
+        let base: [String: Any] = ["classifier": "DefaultClassifier", "label": "[Logo]", "variant": "dark"]
+        for (extra, fragment) in [(["ref": 1, "profile": "p"] as [String: Any], "ref"),
+                                  (["profile": "p"], "requires selector"),
+                                  (["selector": "#a"], "needs profile")] {
+            do {
+                _ = try await server.call(tool: "ft_capture_element", args: base.merging(extra) { $1 })
+                XCTFail("\(extra) が通った")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains(fragment), error.localizedDescription)
+            }
+        }
+    }
+
     /// **省略可**は omit のヒントを添える(必須の "must not be empty" とは文言が違う)
     func testOmittableBundleIdEmptyStringGetsTheOmitHint() async {
         do {

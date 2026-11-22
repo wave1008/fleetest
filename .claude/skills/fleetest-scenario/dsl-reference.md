@@ -55,6 +55,7 @@ fleetest-scenario スキル(SKILL.md)のステップ3「シナリオ .swift を�
   置いてもらう)。データセットファイルが無ければ、作る前に 🧑 に値を聞く(推測した値を置かない)。
   `account()` の値をレポートで `***` に伏せるのはマシン側の `redactAccountValues` で、**既定は伏せない**。
   `~/.config/fleetest/` はエージェントが書かない(🧑 が書く)
+- **`currentVariant`**(`String?`): 実行プロファイルの `variants` のうちこのシナリオが走っているバリアントの名前(バリアントの無い run は `nil`)。期待値をバリアントで切り替える(`currentVariant == "dark" ? "dark" : "light"`)・run メモのキーに含めて値を分ける(run メモは全バリアントで共有)ときに使う。バリアントの run で画像のテンプレートが合わないときは SKILL.md ステップ3の画像の項
 - **ファイル直下に `var` を書かない**(Swift 6 で `is not concurrency-safe` のコンパイルエラー)。各 `@Test` は
   別プロセスで動くので値は持ち越せない。変えない値は `let`、テスト間の受け渡しは `writeRunMemo` / `readRunMemo`(`writeMemo` / `readMemo` はテスト関数の中だけ。`--fleet` の run では run メモはマシンごとに分かれる)
 - **run 全体のロック** `withRunLock("キー", ...) { }`(ブロック形のみ・キーは文字列。`waitSeconds:` 任意)。

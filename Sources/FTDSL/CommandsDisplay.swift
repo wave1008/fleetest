@@ -6,6 +6,12 @@ import Foundation
 import FTCore
 
 extension FTDriveCore {
+    /// このシナリオのバリアントの名前(画像の照合の失敗文の言い分けに使う。executor へ渡す)
+    public var variantName: String? {
+        get { executor.variantName }
+        set { executor.variantName = newValue }
+    }
+
     /// フックの中で表示条件の変更を断る理由。断らないなら nil。判定は実行中のフェーズ(`currentSection`)で行う =
     /// 補助関数を経由しても止まる。終わりの処理が基準へ戻すので、フックで変えても1本目にしか効かない
     static func displaySettingRejection(command: String, section: String?) -> String? {

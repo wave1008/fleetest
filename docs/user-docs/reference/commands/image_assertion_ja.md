@@ -67,6 +67,7 @@ select("#settings_camera").imageIs("[Camera Icon]")
 
 - 学習用画像が無い、または `label` を含むラベルの学習用画像が無いときは、待たずに失敗します。
 - 失敗の文言には、分類されたラベルと確信度が出ます。
+- バリアントの run での失敗には、ラベルのフォルダにそのバリアントで撮った画像(`*-variant-<名前>.png`)があるかどうかも出ます。無いときは `ft_capture_element` の `variant` で撮り足し、あるときは撮り足さずに画面の崩れを確かめます。
 
 ### Link
 - [index](../../index_ja.md)

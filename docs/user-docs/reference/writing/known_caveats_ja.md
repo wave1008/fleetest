@@ -53,6 +53,7 @@
 - [記録の距離を threshold の目安にする](../commands/find_image_ja.md#注意点) — 記録には距離と比べた候補の数が出ます。見つからないときは最も近かった距離が出ます。
 - [文字だけが違う同じ形の部品は別の行を取得することがある](../commands/find_image_ja.md#注意点) — 距離が既定の `threshold`(0.15)を下回るためです。記録の距離を見て `threshold: 0.03` などに絞ります。
 - [テンプレート画像は OS の版・画面の倍率ごとに採る](../commands/find_image_ja.md#注意点) — 版が違うと距離が離れます。版ごとのテンプレート画像を同じラベルのフォルダへ足せば、両方の端末で取得できます。
+- [バリアントの run ではそのバリアントで撮ったテンプレート画像を同じフォルダへ足す](../commands/find_image_ja.md#注意点) — `existImage` / `imageIs` が失敗したとき、そのバリアントの画像が無ければ失敗文が `ft_capture_element` の `variant` で足せると言います。既にあって合わないときは撮り足さず、画面の崩れを確かめます。`findImage` / `findImages` は言わないので、記録の注記(`nearest template …`)の使ったテンプレート画像のファイル名を見ます。
 - [waitSeconds の既定は 0(今の画面を1回だけ見る)](../commands/find_image_ja.md#注意点) — 画面切り替え直後は `waitSeconds: 3` のように秒数を渡して待ちます。
 - [existImage の失敗時は最も近かった距離と使った画像が出る](../commands/find_image_ja.md#注意点) — 失敗文言に距離と `threshold` が出て、判定に使ったスクリーンショットがレポートに添えられます。
 - [withScrollDown { } の中ではスクロールしながら探す](../commands/find_image_ja.md#注意点) — 今の画面だけを見るなら `scroll: .noScroll` を渡します。
@@ -80,6 +81,7 @@
 ### 画像の検証(imageIs)
 - [学習用画像が無いと待たずに失敗する](../commands/image_assertion_ja.md#注意点) — `label` を含むラベルの学習用画像も必要で、無いと待たずに失敗します。
 - [失敗の文言に分類されたラベルと確信度が出る](../commands/image_assertion_ja.md#注意点) — 文言を見て、学習用画像とのずれを判断します。
+- [バリアントの run の `imageIs` の失敗は、そのバリアントの画像の有無も示す](../commands/image_assertion_ja.md#注意点) — 無いときだけ `ft_capture_element` の `variant` で撮り足します。
 
 ### installApp, removeApp, clearAppData
 - [iOS の inapp-boost では installApp() の直後に launchApp() を呼ぶ](../commands/install_app_ja.md#注意点) — インストールでアプリの中のブリッジが終了し、再起動まで tap などが届きません。
@@ -295,7 +297,7 @@
 - [各シナリオはライト・標準の文字サイズで始まる](../project/run_profile_ja.md#注意点) — プロファイルに書かなくても各シナリオの前後に端末を読んで設定し、run の後もそのまま。ダークや大きな文字を保つなら `appearance` / `textSize` を書く。MCP の `ft_run_scenario` も同じ。
 - [書いた値を設定できないとシナリオが失敗する](../project/run_profile_ja.md#注意点) — 書いていない値を戻せないときは警告だけ。確かめた版は iOS 26.6.2 の実機と iOS 27.2 の Simulator。
 - [フックと run メモはバリアントをまたいで共有する](../project/run_profile_ja.md#注意点) — `beforeAll` / `afterAll` はクラスごとに run で1回、run メモは run 全体で1つ。バリアントごとに分けたい値は `currentVariant` をキーに含める。
-- [寄せる属性のクラスは全バリアントで同じ台に寄り、バリアントごとに続けて回る](../project/run_profile_ja.md#注意点) — `@RunInOrder` の途中の失敗で止まるのは同じバリアントの残りだけ。
+- [配置を固定する属性のクラスは全バリアントを同じデバイス(同じマシン)で回し、バリアントごとに続けて回る](../project/run_profile_ja.md#注意点) — `@RunInOrder` の途中の失敗で止まるのは同じバリアントの残りだけ。
 - [iOS の「このアプリのみ」の文字サイズは見えない](../project/run_profile_ja.md#注意点) — コントロールセンターでアプリ単位に設定した大きさはツールから読めない。各結果の `displaySettings` に期待・読んだ値・設定したキーが残る。
 
 ## UI 部品ごとの癖(現時点の制約)
