@@ -28,9 +28,9 @@ final class StdioPullSourceTests: XCTestCase {
         let want = lines.first.flatMap(WorkQueueProtocol.decodeWant)
         XCTAssertEqual(want?.lane, "iPhone 17")
         XCTAssertEqual(want?.platform, "ios")
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: want?.req ?? -1, id: "A.S0010")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: want?.req ?? -1, unit: ScenarioUnitKey(id: "A.S0010", variant: nil))), to: input.write)
         let resolved = await id
-        XCTAssertEqual(resolved, "A.S0010")
+        XCTAssertEqual(resolved, ScenarioUnitKey(id: "A.S0010", variant: nil))
     }
 
     /// 返事の順序が要求と逆でも req で振り分ける
@@ -44,11 +44,11 @@ final class StdioPullSourceTests: XCTestCase {
         for _ in 0..<200 where written.withLock({ $0.count < 2 }) { try? await Task.sleep(for: .milliseconds(10)) }
         let wants = written.withLock { $0 }.compactMap(WorkQueueProtocol.decodeWant)
         XCTAssertEqual(wants.map(\.lane), ["a", "b"])
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: wants[1].req, id: "B")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: wants[1].req, unit: ScenarioUnitKey(id: "B", variant: nil))), to: input.write)
         send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: wants[0].req, none: true)), to: input.write)
         let (a, b) = await (first, second)
         XCTAssertNil(a)
-        XCTAssertEqual(b, "B")
+        XCTAssertEqual(b, ScenarioUnitKey(id: "B", variant: nil))
     }
 
     /// stdin の EOF で待っている要求も以後の要求も nil(もう無い)
@@ -72,8 +72,8 @@ final class StdioPullSourceTests: XCTestCase {
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
         // 解けないと永遠に待つので、2 秒で打ち切って "timeout" を返す(タスクグループは子が終わるまで抜けないので使わない)
-        func nextOrTimeout() async -> String? {
-            let box = LockedValue<CheckedContinuation<String?, Never>?>(nil)
+        func nextOrTimeout() async -> ScenarioUnitKey? {
+            let box = LockedValue<CheckedContinuation<ScenarioUnitKey?, Never>?>(nil)
             return await withCheckedContinuation { continuation in
                 box.withLock { $0 = continuation }
                 Task {
@@ -82,7 +82,7 @@ final class StdioPullSourceTests: XCTestCase {
                 }
                 Task {
                     try? await Task.sleep(for: .seconds(2))
-                    box.withLock { $0?.resume(returning: "timeout"); $0 = nil }
+                    box.withLock { $0?.resume(returning: ScenarioUnitKey(id: "timeout", variant: nil)); $0 = nil }
                 }
             }
         }
@@ -123,10 +123,10 @@ final class StdioPullSourceTests: XCTestCase {
         let req = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeWant)?.req ?? -1
         send(#"{"kind":"step"}"#, to: input.write)
         send("garbage", to: input.write)
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req + 100, id: "STRAY")), to: input.write)
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req, id: "A")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req + 100, unit: ScenarioUnitKey(id: "STRAY", variant: nil))), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req, unit: ScenarioUnitKey(id: "A", variant: nil))), to: input.write)
         let resolved = await id
-        XCTAssertEqual(resolved, "A")
+        XCTAssertEqual(resolved, ScenarioUnitKey(id: "A", variant: nil))
     }
 
     /// 同じ stdin に返事と run メモの確定が混ざっても、読み手1本が振り分ける(返事は待っている要求へ・確定は store へ)。
@@ -145,9 +145,9 @@ final class StdioPullSourceTests: XCTestCase {
         let pieces = RunMemoWire.pieces(for: .write(key: "k", value: "v"))
         send(WorkQueueProtocol.encode(WorkQueueProtocol.MemoPiece(
             src: "other", lid: 1, seq: 1, i: 0, n: pieces.count, d: pieces[0])), to: input.write)
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req, id: "A")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: req, unit: ScenarioUnitKey(id: "A", variant: nil))), to: input.write)
         let resolved = await id
-        XCTAssertEqual(resolved, "A")
+        XCTAssertEqual(resolved, ScenarioUnitKey(id: "A", variant: nil))
         for _ in 0..<200 where store.snapshot().isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(store.snapshot(), ["k": ["v"]])
     }
@@ -177,7 +177,7 @@ final class StdioPullSourceTests: XCTestCase {
         gate.attach(to: reader)
         reader.start()
         async let outcome = Self.waitOrTimeout(gate)
-        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, id: "A")), to: input.write)
+        send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, unit: ScenarioUnitKey(id: "A", variant: nil))), to: input.write)
         send("garbage", to: input.write)
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertNil(gate.current, "開始の行が来る前に解けている")
@@ -228,7 +228,7 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let verdict = source.declareNotApplicable(platform: "ios", lane: "pro", scenarioID: "F.S1", departedUntried: true)
+        async let verdict = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S1", variant: nil), departedUntried: true)
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         let na = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeNotApplicable)
         XCTAssertEqual(na?.id, "F.S1")
@@ -237,7 +237,7 @@ final class StdioPullSourceTests: XCTestCase {
         let handed = await verdict
         XCTAssertEqual(handed, .handOn)
 
-        async let pending = source.declareNotApplicable(platform: "ios", lane: "pro", scenarioID: "F.S2", departedUntried: false)
+        async let pending = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S2", variant: nil), departedUntried: false)
         for _ in 0..<200 where written.withLock({ $0.count < 2 }) { try? await Task.sleep(for: .milliseconds(10)) }
         source.stopWaiting()
         let stopped = await pending

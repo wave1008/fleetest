@@ -218,7 +218,7 @@ enum FleetRunner {
 
         // 宣言 platform のデバイスが fleet のどのエントリにも無いシナリオは対象外(単機と同じ規律)
         let split = FleetSplit.applicability(
-            scenarios: selected.map { (id: $0.id, platform: $0.platform) }, entryPlatforms: entryPlatforms)
+            scenarios: selected.map { (id: $0.id, variant: nil, platform: $0.platform) }, entryPlatforms: entryPlatforms)
         if !split.notApplicable.isEmpty {
             let runPlatforms = FleetSplit.runPlatforms(entryPlatforms: entryPlatforms)
             log("→ Skipped \(split.notApplicable.count) scenario(s) declared for another platform"
@@ -238,7 +238,7 @@ enum FleetRunner {
                 // 実績ゼロ = unknownDurationMs が単位重みのときは context を落とす(ms の offset が
                 // 重み1.0を支配して全シナリオが local へ寄る。FleetSplit.machineContext の宣言)
                 machineContext: FleetSplit.machineContext(machineContext, ifHistoryExists: durations),
-                groups: DynamicDispatcher.groups(of: selected))
+                groups: DynamicDispatcher.groups(of: selected, variant: nil))
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("fleet \"\(fleetName)\" --split: \(error.localizedDescription)")
         }
@@ -246,8 +246,8 @@ enum FleetRunner {
         printAssignment(fleetName: fleetName, fleet: fleet, buckets: buckets, basis: basis,
                         hasHistory: hasHistory)
 
-        let byEntryIndex = Dictionary(uniqueKeysWithValues: buckets.map { ($0.entryIndex, $0.scenarioIDs) })
-        let active = fleet.runs.enumerated().compactMap { index, entry -> (Int, FleetRunEntry, [String])? in
+        let byEntryIndex = Dictionary(uniqueKeysWithValues: buckets.map { ($0.entryIndex, $0.units) })
+        let active = fleet.runs.enumerated().compactMap { index, entry -> (Int, FleetRunEntry, [ScenarioUnitKey])? in
             let ids = byEntryIndex[index] ?? []
             return ids.isEmpty ? nil : (index, entry, ids)
         }
@@ -280,7 +280,7 @@ enum FleetRunner {
                 group.addTask {
                     let args = buildArgs(
                         project: project.name, host: entry.host, profile: entry.profile, fleetEntry: true,
-                        scenarios: ids, folders: [],
+                        scenarios: ids.map(\.description), folders: [],
                         setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                         performanceMode: performanceMode, forceLock: forceLock,
                         remoteDir: remoteDir, remoteTimeout: remoteTimeout,
@@ -394,7 +394,7 @@ enum FleetRunner {
                                 : ["HOST", "PROFILE", "SCENARIOS"]
         var rows = [header]
         for (index, entry) in fleet.runs.enumerated() {
-            let count = byIndex[index]?.scenarioIDs.count ?? 0
+            let count = byIndex[index]?.units.count ?? 0
             var row = [entry.host, entry.profile, count == 0 ? "0 (skip)" : String(count)]
             if hasHistory {
                 row.append(String(format: "%.1fs", (byIndex[index]?.estimatedMs ?? 0) / 1000))
@@ -403,7 +403,7 @@ enum FleetRunner {
             rows.append(row)
         }
         let widths = (0..<header.count).map { col in rows.map { $0[col].count }.max() ?? 0 }
-        let total = buckets.reduce(0) { $0 + $1.scenarioIDs.count }
+        let total = buckets.reduce(0) { $0 + $1.units.count }
         var lines = ["==> fleet \"\(fleetName)\" --split: assignment (\(total) scenario(s) across "
             + "\(fleet.runs.count) entr\(fleet.runs.count == 1 ? "y" : "ies"))"]
         for row in rows {
@@ -420,7 +420,7 @@ enum FleetRunner {
         fleetName: String, fleet: FleetProfileDocument,
         outcomes: [FleetEntryOutcome], buckets: [FleetSplit.Bucket]
     ) {
-        let byIndex = Dictionary(uniqueKeysWithValues: buckets.map { ($0.entryIndex, $0.scenarioIDs.count) })
+        let byIndex = Dictionary(uniqueKeysWithValues: buckets.map { ($0.entryIndex, $0.units.count) })
         let outcomeByHost = Dictionary(uniqueKeysWithValues: outcomes.map { ($0.host, $0) })
         // 静的割り当ての偏り(ストラグラー)を再配分機構を作る前に実測で貯める
         let maxDuration = outcomes.map(\.duration).max() ?? 0

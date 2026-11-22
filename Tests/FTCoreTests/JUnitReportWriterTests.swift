@@ -101,7 +101,7 @@ final class JUnitReportWriterTests: XCTestCase {
             skipKind: .notApplicable)
         let xml = JUnitReportWriter.xml(
             project: "E2E", records: [notApplicable],
-            unstarted: [("ログイン.S0010", "ログインできる", "ios"), ("設定.S0020", nil, "android")],
+            unstarted: [(ScenarioUnitKey(id: "ログイン.S0010", variant: nil), "ログインできる", "ios"), (ScenarioUnitKey(id: "設定.S0020", variant: nil), nil, "android")],
             abortReason: "no usable devices")
         XCTAssertTrue(xml.contains(
             #"<testsuites name="E2E" tests="2" failures="1" errors="0" skipped="1""#), xml)

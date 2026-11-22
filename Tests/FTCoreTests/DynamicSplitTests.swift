@@ -9,7 +9,7 @@ final class DynamicSplitTests: XCTestCase {
     private typealias L = DynamicSplit.Lane
     private typealias State = DynamicSplit.LaneState
 
-    private func scenario(_ id: String, _ platform: String = "ios") -> S { S(id: id, platform: platform) }
+    private func scenario(_ id: String, _ platform: String = "ios") -> S { S(id: id, variant: nil, platform: platform) }
     private func lane(_ entry: Int, _ name: String, _ platform: String = "ios") -> L {
         L(entry: entry, lane: name, platform: platform)
     }
@@ -25,7 +25,7 @@ final class DynamicSplitTests: XCTestCase {
             for: fast, now: 0, pending: [scenario("short"), scenario("long")],
             lanes: [State(lane: fast, busy: nil), State(lane: other, busy: nil)],
             estimateMs: table(["short": [10_000, 10_000], "long": [60_000, 60_000]]))
-        XCTAssertEqual(decision, .assign("long"))
+        XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "long", variant: nil)))
     }
 
     func testSlowMachineHoldsWhileFastLaneIsIdle() {
@@ -57,7 +57,7 @@ final class DynamicSplitTests: XCTestCase {
         XCTAssertEqual(
             DynamicSplit.decide(for: slow, now: 50_000, pending: [scenario("s1"), scenario("s2")],
                                 lanes: lanes, estimateMs: estimate),
-            .assign("s2"))
+            .assign(ScenarioUnitKey(id: "s2", variant: nil)))
     }
 
     func testSlowMachineTakesShortScenarioRatherThanWaiting() {
@@ -67,7 +67,7 @@ final class DynamicSplitTests: XCTestCase {
             lanes: [State(lane: fast, busy: (scenario("run"), 0)), State(lane: slow, busy: nil)],
             estimateMs: table(["s": [5_000, 10_000], "run": [30_000, 60_000]]))
         // slow なら 10s・fast を待つと 30s + 5s = 35s
-        XCTAssertEqual(decision, .assign("s"))
+        XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 
     /// 相手の見込みの時刻ちょうどでも、次に判定し直す時刻を作る(作らないとタイマーが消えて待ちが続く)
@@ -89,7 +89,7 @@ final class DynamicSplitTests: XCTestCase {
             for: fast, now: 0, pending: [scenario("Z.long"), scenario("A.short")],
             lanes: [State(lane: fast, busy: nil), State(lane: other, busy: nil)],
             estimateMs: table(["A.short": [10_000, 10_000], "Z.long": [60_000, 60_000]]), lpt: false)
-        XCTAssertEqual(decision, .assign("A.short"))
+        XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "A.short", variant: nil)))
     }
 
     func testOverdueLaneEventuallyLetsSlowLaneTake() {
@@ -104,7 +104,7 @@ final class DynamicSplitTests: XCTestCase {
         // その時刻: alt = (120s + 60s) + 60s = 240s = here → 渡す
         let second = DynamicSplit.decide(for: slow, now: 120_000, pending: [scenario("s")],
                                          lanes: lanes, estimateMs: estimate)
-        XCTAssertEqual(second, .assign("s"))
+        XCTAssertEqual(second, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 
     func testPlatformFilter() {
@@ -123,7 +123,7 @@ final class DynamicSplitTests: XCTestCase {
             for: a, now: 0, pending: [scenario("z"), scenario("m")],
             lanes: [State(lane: a, busy: nil), State(lane: b, busy: nil)],
             estimateMs: table(["z": [5_000, 5_000], "m": [5_000, 5_000]]))
-        XCTAssertEqual(decision, .assign("m"))
+        XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "m", variant: nil)))
     }
 
     func testNoOtherLanesOfPlatformNeverHolds() {
@@ -132,6 +132,6 @@ final class DynamicSplitTests: XCTestCase {
             for: requester, now: 0, pending: [scenario("s")],
             lanes: [State(lane: requester, busy: nil), State(lane: android, busy: nil)],
             estimateMs: table(["s": [1_000, 999_000]]))
-        XCTAssertEqual(decision, .assign("s"))
+        XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 }

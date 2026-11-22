@@ -18,7 +18,7 @@ final class RunStartGateOrchestratorTests: XCTestCase {
     }
 
     private func item(_ id: String) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"), variant: nil)
     }
 
     private static func events(_ orchestrator: RunOrchestrator) async -> (skipped: [String], logs: [String]) {

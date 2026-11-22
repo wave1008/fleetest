@@ -4,7 +4,7 @@ import XCTest
 /// 対象外で終わった item の回し直し(DR-214)のキュー側。回し直しは `avoidedLane` の優先でなく**除外**として効く
 final class ScenarioQueueNotApplicableTests: XCTestCase {
     private func item(_ id: String, placement: ClassPlacement? = nil) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "ios", placement: placement))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "ios", placement: placement), variant: nil)
     }
     /// 待ちが解けない退行でテストが止まらず落ちるための上限(期待どおりなら 0.1〜0.3 秒で返る)
     private static func deadline(_ seconds: Double = 5) -> @Sendable () async -> Bool {

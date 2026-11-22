@@ -45,7 +45,7 @@ final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
           "fmTextVisibilityCheck": false, "screenLooksLike": false, "ocrTextVisibilityCheck": false }
         """, to: project.runsDir, name: "iosOnly")
 
-        let androidOnly = ScenarioRunItem(info: ScenarioInfo(id: "A.S0010", title: "S0010", platform: "android"))
+        let androidOnly = ScenarioRunItem(info: ScenarioInfo(id: "A.S0010", title: "S0010", platform: "android"), variant: nil)
         let runExit = RunExitGuard()
         let (summary, effectiveSettings) = try await ProfileRunner.run(
             project: project, profileName: "iosOnly", items: [androidOnly],

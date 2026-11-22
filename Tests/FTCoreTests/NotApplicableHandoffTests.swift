@@ -43,7 +43,7 @@ final class NotApplicableHandoffTests: XCTestCase {
 
     /// 親子のワイヤ: 問い合わせ(`na`)と返事(`verdict`)が往復し、`want` / 通常の返事と取り違えない
     func testWireLinesRoundTrip() {
-        let na = WorkQueueProtocol.NotApplicable(req: 7, id: "C.S1", lane: "Duo-01", platform: "ios", dep: true)
+        let na = WorkQueueProtocol.NotApplicable(req: 7, unit: ScenarioUnitKey(id: "C.S1", variant: nil), lane: "Duo-01", platform: "ios", dep: true)
         let line = WorkQueueProtocol.encode(na)
         XCTAssertEqual(WorkQueueProtocol.decodeNotApplicable(line), na)
         XCTAssertNil(WorkQueueProtocol.decodeWant(line), "na を want と読まない")
@@ -52,7 +52,7 @@ final class NotApplicableHandoffTests: XCTestCase {
         let reply = WorkQueueProtocol.Reply(req: 7, verdict: .notRun)
         let replyLine = WorkQueueProtocol.encode(reply)
         XCTAssertEqual(WorkQueueProtocol.decodeReply(replyLine)?.verdict, "fail")
-        XCTAssertNil(WorkQueueProtocol.decodeReply(replyLine)?.scenarioID)
+        XCTAssertNil(WorkQueueProtocol.decodeReply(replyLine)?.unit)
         XCTAssertNil(WorkQueueProtocol.decodeNotApplicable(WorkQueueProtocol.encode(
             WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))))
     }

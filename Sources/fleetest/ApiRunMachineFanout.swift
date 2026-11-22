@@ -57,7 +57,7 @@ enum ApiRunMachineFanout {
         // ここが持つのは差分 = NDJSON の出し口・シナリオ一覧の取得と配分・runStarted。
         // runStarted を Prelock の後へ動かさないのは、待っている間の total を拡張に出すため(runStarted は拡張のレーン状態を
         // 作り直す合図なので、待ちの dispatchWaiting より前に要る)
-        typealias Active = [(index: Int, group: DeviceMachineRunner.Group, ids: [String])]
+        typealias Active = [(index: Int, group: DeviceMachineRunner.Group, ids: [ScenarioUnitKey])]
         typealias DynamicPlan = (scenarios: [DynamicSplit.Scenario],
                                  estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)
         let totalScenarios = LockedValue(0)
@@ -104,7 +104,7 @@ enum ApiRunMachineFanout {
 
                 // 動的な割り振り(RR-8.1。DeviceMachineRunner.run と同じ分岐。FT_STATIC_SPLIT=1 で静的へ戻る)
                 let notApplicable: [ScenarioInfo]
-                let active: [(index: Int, group: DeviceMachineRunner.Group, ids: [String])]
+                let active: [(index: Int, group: DeviceMachineRunner.Group, ids: [ScenarioUnitKey])]
                 var dynamicPlan: (scenarios: [DynamicSplit.Scenario],
                                   estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)?
                 if DeviceMachineRunner.dynamicSplitEnabled(
@@ -114,10 +114,10 @@ enum ApiRunMachineFanout {
                     let split = DeviceMachineRunner.splitApplicable(selected: selected, groups: groups)
                     notApplicable = split.notApplicable
                     let resolved = DynamicDispatcher.resolve(
-                        split.runnable,
+                        split.runnable, variant: nil,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index in
-                        let ids = DynamicDispatcher.candidateIDs(for: groups[index], in: resolved)
+                        let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     if !active.isEmpty {
@@ -131,7 +131,7 @@ enum ApiRunMachineFanout {
                         lptHistoryRuns: options.lptHistoryRuns)
                     notApplicable = notApplicableStatic
                     active = groups.indices.compactMap { index in
-                        let ids = buckets[index].scenarioIDs
+                        let ids = buckets[index].units
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     // CLI と同じ「見積りの根拠」を拡張の OUTPUT にも出す(片方だけ見える情報を作らない)
@@ -167,7 +167,7 @@ enum ApiRunMachineFanout {
                     let ids = Set(local.ids)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.group.deviceNames,
-                        localScenarios: selected.filter { ids.contains($0.id) }, broadcast: false))
+                        localScenarios: selected.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: false))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.group.machineLabel }, prelockProject: project))
@@ -229,7 +229,7 @@ enum ApiRunMachineFanout {
         // 合成 failed を抑止する(キャンセルで子は非0終了するため、抑止しないと中断した
         // シナリオが failed として赤く出る。キャンセル≠失敗)
         async let multiplexed = consume(
-            stream: stream, groupMachines: groupMachines, assignedScenarioIDs: active.map { $0.ids },
+            stream: stream, groupMachines: groupMachines, assignedUnits: active.map { $0.ids },
             isCancelled: { registry.isCancelled || hookParent?.beforeRunFailed == true })
         // 中断(拡張のキャンセル = SIGTERM・端末の SIGINT)で子を止めて配るのをやめる。catchUp: ロックの取得中
         // (DispatchPrelock の購読が受けた)の中断も、ここで伝える = 自前のシグナルソースは過去の中断を知らない。
@@ -254,7 +254,7 @@ enum ApiRunMachineFanout {
                     let lockSockets = lockIssuer?.openChildSockets(machineLabel: group.machineLabel)
                     let args = buildArgs(
                         project: project.name, profileName: profileName, group: group,
-                        scenarioIDs: ids, options: options, runGroup: runGroup,
+                        units: ids, options: options, runGroup: runGroup,
                         workQueue: dispatcher != nil, runMemoLink: true,
                         lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
                     let childLink = ChildLink(relay: memoRelay, dispatcher: dispatcher, entry: groupIndex,
@@ -304,7 +304,7 @@ enum ApiRunMachineFanout {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookParent?.beforeRunInterrupted ?? false
         if let dispatcher {
-            let ids = dispatcher.unhandedIDs
+            let ids = dispatcher.unhandedUnits
             if !ids.isEmpty {
                 let interrupted = interruptedWhileChildrenRan
                 interruptedWithWorkLeft = interruptedWithWorkLeft || interrupted
@@ -353,7 +353,7 @@ enum ApiRunMachineFanout {
     /// internal: 束ね鍵の中継を RunGroupPlumbingTests が等号で固定する
     static func buildArgs(
         project: String, profileName: String, group: DeviceMachineRunner.Group,
-        scenarioIDs: [String], options: Options, runGroup: String, workQueue: Bool = false,
+        units: [ScenarioUnitKey], options: Options, runGroup: String, workQueue: Bool = false,
         runMemoLink: Bool = false, lockSocket: String? = nil, lockControlSocket: String? = nil
     ) -> [String] {
         let machineLabel = group.machineLabel
@@ -383,7 +383,7 @@ enum ApiRunMachineFanout {
         // **ホストも渡す**(一意なのは (host, name)。ApiRunCommand.deviceMachine の宣言参照)
         args += ["--device"] + group.deviceNames
         args += ["--device-machine", machineLabel]
-        args += ["--scenario"] + scenarioIDs
+        args += ["--scenario"] + units.map(\.description)
         // 動的な割り振り(RR-8.1)の子だけ。--scenario は全候補で、回すのは親が1本ずつ渡した分
         if workQueue { args += ["--work-queue"] }
         // run メモ(DR-208)を発行元の通し番号の順に全マシンへそろえる通り道(DeviceMachineRunner.childArgs と同じ)
@@ -406,9 +406,9 @@ enum ApiRunMachineFanout {
     private enum ChildEvent {
         case line(index: Int, text: String)
         /// assigned = 動的な割り振りで実際に渡したシナリオ(静的は nil = 起動時の担当)
-        case exited(index: Int, status: Int32, assigned: [String]?)
+        case exited(index: Int, status: Int32, assigned: [ScenarioUnitKey]?)
         /// 全部の子が終わっても誰にも渡せなかったシナリオ(失敗として合成する)
-        case neverHanded([String])
+        case neverHanded([ScenarioUnitKey])
     }
 
     /// 子と発行元の間の通り道(run メモの中継と、動的な割り振りの配り手)。writer = 子の stdin への書き込み口
@@ -449,7 +449,7 @@ enum ApiRunMachineFanout {
             link.relay.childExited(entry: link.entry)
             link.dispatcher?.childExited(entry: link.entry)
             continuation.yield(.exited(index: index, status: 130,
-                                       assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
+                                       assigned: link.dispatcher.map { $0.assignedUnits(entry: link.entry) }))
             return 130
         }
         do {
@@ -459,7 +459,7 @@ enum ApiRunMachineFanout {
             link.relay.childExited(entry: link.entry)
             link.dispatcher?.childExited(entry: link.entry)
             continuation.yield(.exited(index: index, status: 127,
-                                       assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
+                                       assigned: link.dispatcher.map { $0.assignedUnits(entry: link.entry) }))
             return 127
         }
         if let writer = link.writer, let stdinPipe {
@@ -492,7 +492,7 @@ enum ApiRunMachineFanout {
         link.relay.childExited(entry: link.entry)
         link.dispatcher?.childExited(entry: link.entry)
         continuation.yield(.exited(index: index, status: process.terminationStatus,
-                                   assigned: link.dispatcher.map { $0.assignedIDs(entry: link.entry) }))
+                                   assigned: link.dispatcher.map { $0.assignedUnits(entry: link.entry) }))
         return process.terminationStatus
     }
 
@@ -531,10 +531,10 @@ enum ApiRunMachineFanout {
     // MARK: - 多重化(I/O 側。純粋な状態機械は MachineFanoutMultiplexer)
 
     private static func consume(
-        stream: AsyncStream<ChildEvent>, groupMachines: [String?], assignedScenarioIDs: [[String]],
+        stream: AsyncStream<ChildEvent>, groupMachines: [String?], assignedUnits: [[ScenarioUnitKey]],
         isCancelled: @escaping @Sendable () -> Bool
     ) async -> (passed: Int, failed: Int, skipped: Int, runID: String?, testSeconds: Double?, unfinished: Int) {
-        var multiplexer = MachineFanoutMultiplexer(groupMachines: groupMachines, assignedScenarioIDs: assignedScenarioIDs)
+        var multiplexer = MachineFanoutMultiplexer(groupMachines: groupMachines, assignedUnits: assignedUnits)
         for await event in stream {
             switch event {
             case .line(let index, let text):
@@ -593,10 +593,10 @@ enum ApiRunMachineFanout {
 /// (沈黙のまま「走っていない」を作らない)。
 struct MachineFanoutMultiplexer {
     private let groupMachines: [String?]
-    /// 子 index → 担当シナリオ ID(合成 failed の対象を知るため)
-    private var assignedScenarioIDs: [[String]]
+    /// 子 index → 担当した単位(ID × バリアント。合成 failed の対象を知るため)
+    private var assignedUnits: [[ScenarioUnitKey]]
     private var workersByIndex: [[ApiWorkerInfo]]
-    private var finishedByIndex: [Set<String>]
+    private var finishedByIndex: [Set<ScenarioUnitKey>]
     private(set) var totalPassed = 0
     private(set) var totalFailed = 0
     private(set) var totalSkipped = 0
@@ -625,11 +625,11 @@ struct MachineFanoutMultiplexer {
     private var exitedIndices: Set<Int> = []
     private var finalizingRelayed = false
 
-    init(groupMachines: [String?], assignedScenarioIDs: [[String]] = []) {
+    init(groupMachines: [String?], assignedUnits: [[ScenarioUnitKey]] = []) {
         self.groupMachines = groupMachines
-        self.assignedScenarioIDs = assignedScenarioIDs.isEmpty
+        self.assignedUnits = assignedUnits.isEmpty
             ? Array(repeating: [], count: groupMachines.count)
-            : assignedScenarioIDs
+            : assignedUnits
         self.workersByIndex = Array(repeating: [], count: groupMachines.count)
         self.finishedByIndex = Array(repeating: [], count: groupMachines.count)
     }
@@ -668,7 +668,7 @@ struct MachineFanoutMultiplexer {
     /// 子プロセスの終了。担当していたが scenarioFinished が来ないまま終わったシナリオを
     /// failed として合成する(正常に全部完了していれば空配列)
     /// assigned = 動的な割り振りで実際に渡したシナリオ(渡した分だけが「担当」。nil は初期の担当のまま)
-    mutating func childExited(_ index: Int, exitCode: Int32, assigned: [String]? = nil) -> [String] {
+    mutating func childExited(_ index: Int, exitCode: Int32, assigned: [ScenarioUnitKey]? = nil) -> [String] {
         let unfinished = noteExit(index, assigned: assigned)
         guard !unfinished.isEmpty else {
             return relayFinalizingIfAllDone(ScenarioEvent(kind: "recordingFinalizing").encodedLine())
@@ -681,14 +681,14 @@ struct MachineFanoutMultiplexer {
         var lines = [log.encodedLine()]
         for scenario in unfinished {
             var step = ScenarioEvent(kind: "step")
-            step.scenario = scenario
+            step.scenario = scenario.id
             step.status = "failed"
             step.description = "the sub-run on \(machineLabel) exited (status \(exitCode)) before this "
                 + "scenario finished — see the fleetest OUTPUT panel for the dispatch error"
             lines.append(step.encodedLine())
 
             var finished = ScenarioEvent(kind: "scenarioFinished")
-            finished.scenario = scenario
+            finished.scenario = scenario.id
             finished.passed = false
             lines.append(finished.encodedLine())
         }
@@ -696,16 +696,16 @@ struct MachineFanoutMultiplexer {
     }
 
     /// 子の終了を控え、終わりの知らせが来なかった担当を返す(数は unfinishedTotal へ)。キャンセルで合成しないときもこれだけは呼ぶ
-    mutating func noteExit(_ index: Int, assigned: [String]? = nil) -> [String] {
+    mutating func noteExit(_ index: Int, assigned: [ScenarioUnitKey]? = nil) -> [ScenarioUnitKey] {
         exitedIndices.insert(index)
-        if let assigned { assignedScenarioIDs[index] = assigned }
-        let unfinished = assignedScenarioIDs[index].filter { !finishedByIndex[index].contains($0) }
+        if let assigned { assignedUnits[index] = assigned }
+        let unfinished = assignedUnits[index].filter { !finishedByIndex[index].contains($0) }
         unfinishedTotal += unfinished.count
         return unfinished
     }
 
     /// 全部の子が終わっても誰にも渡せなかったシナリオ(動的な割り振り)を failed として合成する
-    mutating func neverHanded(_ ids: [String]) -> [String] {
+    mutating func neverHanded(_ ids: [ScenarioUnitKey]) -> [String] {
         guard !ids.isEmpty else { return [] }
         totalFailed += ids.count
         var log = ScenarioEvent(kind: "log")
@@ -713,13 +713,13 @@ struct MachineFanoutMultiplexer {
         var lines = [log.encodedLine()]
         for scenario in ids {
             var step = ScenarioEvent(kind: "step")
-            step.scenario = scenario
+            step.scenario = scenario.id
             step.status = "failed"
             step.description = "no device took this scenario before every sub-run exited"
             lines.append(step.encodedLine())
 
             var finished = ScenarioEvent(kind: "scenarioFinished")
-            finished.scenario = scenario
+            finished.scenario = scenario.id
             finished.passed = false
             lines.append(finished.encodedLine())
         }
@@ -743,7 +743,7 @@ struct MachineFanoutMultiplexer {
         /// finishedScenario: kind == scenarioFinished のときだけシナリオ ID(childExited の
         /// 未完了判定に使う)
         /// kind: 時刻の採取(scenarioStarted / scenarioFinished)に使う。読めない行は nil
-        case other(String, finishedScenario: String?, kind: String?)
+        case other(String, finishedScenario: ScenarioUnitKey?, kind: String?)
     }
 
     /// **worker フィールドの書き換えは JSON を構造として読み書きする**(文字列置換にすると、
@@ -783,7 +783,9 @@ struct MachineFanoutMultiplexer {
             }
             return .workersReady(workers)
         default:
-            let finishedScenario = kind == "scenarioFinished" ? obj["scenario"] as? String : nil
+            // イベントにはまだ variant が無い(この段ではバリアントを展開しない)ので nil。ScenarioEvent に足す段でここも読む
+            let finishedScenario = kind == "scenarioFinished"
+                ? (obj["scenario"] as? String).map { ScenarioUnitKey(id: $0, variant: nil) } : nil
             guard let worker = obj["worker"] as? String,
                   let colon = worker.firstIndex(of: ":") else {
                 // **worker を持たない log は機械を名乗らせる**(中継する側が machine を埋める規律。

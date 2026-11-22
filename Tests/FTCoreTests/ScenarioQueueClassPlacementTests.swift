@@ -4,7 +4,7 @@ import XCTest
 /// クラスの寄せ方(RR-8.3)のマシンの中のキュー: 束ね・続けて取る・振り直し・離脱の残り・@RunInOrder の失敗の後
 final class ScenarioQueueClassPlacementTests: XCTestCase {
     private func item(_ id: String, _ placement: ClassPlacement? = nil, order: Int? = nil) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "ios", placement: placement, order: order))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "ios", placement: placement, order: order), variant: nil)
     }
 
     private func ids(_ items: [ScenarioRunItem]) -> [String] { items.map(\.info.id) }
@@ -153,21 +153,88 @@ final class ScenarioQueueClassPlacementTests: XCTestCase {
         XCTAssertEqual(second?.info.id, "P.s1", "束ねたクラスは論理名の無い別のワーカーへ渡らない")
     }
 
+    // MARK: - バリアント(実行の単位 = シナリオ × バリアント)
+
+    private func unit(_ id: String, _ variant: String?, _ placement: ClassPlacement? = nil, order: Int? = nil) -> ScenarioRunItem {
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "ios", placement: placement, order: order), variant: variant)
+    }
+
+    private func drain(_ queue: ScenarioQueue, lane: String) async -> [String] {
+        var keys: [String] = []
+        while let next = await queue.next(lane: lane, shouldStop: { true }) { keys.append(next.unitKey.description) }
+        return keys
+    }
+
+    /// 寄せるクラスは同じ台のまま「バリアントごとに続けて(宣言順)→ その中は order 順」に並ぶ
+    func testInOrderClassRunsVariantByVariantOnOneLane() async {
+        let queue = ScenarioQueue([
+            unit("O.t2", "v1", .inOrder, order: 2), unit("P.x", "v1"), unit("O.t1", "v2", .inOrder, order: 1),
+            unit("O.t1", "v1", .inOrder, order: 1), unit("O.t2", "v2", .inOrder, order: 2),
+        ])
+        await queue.laneJoined("L1")
+        await queue.laneJoined("L2")
+        let first = await queue.next(lane: "L1")
+        XCTAssertEqual(first?.unitKey.description, "O.t1@v1")
+        let rest = await drain(queue, lane: "L1")
+        XCTAssertEqual(rest, ["O.t2@v1", "O.t1@v2", "O.t2@v2", "P.x@v1"], "束ねたレーンが他を挟まずクラスの全バリアントを続けて取る")
+    }
+
+    /// 順番の途中の失敗で止めるのは同じバリアントのまとまりの中だけ。母数もまとまりの中で数える
+    func testInOrderFailureStopsOnlyTheSameVariantGroup() async {
+        let queue = ScenarioQueue([
+            unit("O.t1", "v1", .inOrder, order: 1), unit("O.t2", "v1", .inOrder, order: 2),
+            unit("O.t1", "v2", .inOrder, order: 1), unit("O.t2", "v2", .inOrder, order: 2),
+        ])
+        await queue.laneJoined("L1")
+        let first = await queue.next(lane: "L1")!
+        XCTAssertEqual(first.unitKey.description, "O.t1@v1")
+        let notice = await queue.positionNotice(for: first)
+        XCTAssertEqual(notice, "@RunInOrder: test 1 of 2 in O", "母数はバリアントのまとまりの中(4本ではなく2本)")
+        let abandoned = await queue.abandonInOrderClass(after: first, lane: "L1")
+        XCTAssertEqual(abandoned.map { $0.unitKey.description }, ["O.t2@v1"])
+        let rest = await drain(queue, lane: "L1")
+        XCTAssertEqual(rest, ["O.t1@v2", "O.t2@v2"], "v1 の失敗が v2 を止めない")
+        let v1 = await queue.inOrderSkipReason(for: unit("O.t2", "v1", .inOrder, order: 2), lane: "L1")
+        let v2 = await queue.inOrderSkipReason(for: unit("O.t2", "v2", .inOrder, order: 2), lane: "L1")
+        XCTAssertNotNil(v1)
+        XCTAssertNil(v2)
+    }
+
+    /// バリアントが全部 nil のキューの並びは、ScenarioInfo だけで並べた従来の並びと同じ
+    func testNilVariantsKeepTheExistingOrder() async {
+        let items = [item("A.1"), item("C.b", .inOrder, order: 2), item("B.1"), item("C.a", .inOrder, order: 1)]
+        let queue = ScenarioQueue(items)
+        await queue.laneJoined("L1")
+        let got = await drain(queue, lane: "L1")
+        XCTAssertEqual(got, ClassPlacementRules.ordered(items.map(\.info)).map(\.id))
+    }
+
+    /// 作り直し(lane / repeat)は variant を落とさず、URL にも載る
+    func testRebuildingAnItemKeepsTheVariant() {
+        let base = unit("A.s", "dark")
+        XCTAssertEqual(base.with(lane: "L1").variant, "dark")
+        XCTAssertEqual(base.with(repeatIndex: 2).variant, "dark")
+        XCTAssertNotEqual(base.url, unit("A.s", nil).url, "同じ ID でもバリアントが違えば別キー")
+        XCTAssertTrue(base.url.absoluteString.contains("variant=dark"))
+        XCTAssertEqual(base.with(lane: "L1").with(repeatIndex: 3).repeatIndex, 3)
+        XCTAssertEqual(base.with(repeatIndex: 3).with(lane: "L1").repeatIndex, 3, "lane の作り直しが repeatIndex を落とさない")
+    }
+
     /// 配り手から受け取る経路: 親は「残りは別のレーンに束ねた分だけ」のレーンに nil を返す。1つのレーンの nil を全レーンの尽きと
     /// 読むと、束ねたレーンが残りを聞きに行かずに終わる(回帰で実測: @RunInOrder の3本目が誰にも渡らなかった)
     func testNoneForOneLaneDoesNotStopAnotherLaneFromAsking() async {
         final class PerLaneSource: ScenarioPullSource {
             let asked = LockedValue<[String]>([])
-            func next(platform: String, lane: String) async -> String? {
+            func next(platform: String, lane: String) async -> ScenarioUnitKey? {
                 asked.withLock { $0.append(lane) }
-                return lane == "L1" ? "O.s2" : nil
+                return lane == "L1" ? ScenarioUnitKey(id: "O.s2", variant: nil) : nil
             }
             func stopWaiting() {}
-            func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+            func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                       departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
         }
         let source = PerLaneSource()
-        let catalog = ["O.s2": [item("O.s2", .inOrder, order: 2)]]
+        let catalog = [ScenarioUnitKey(id: "O.s2", variant: nil): [item("O.s2", .inOrder, order: 2)]]
         let queue = ScenarioQueue(pulled: ScenarioQueue.PullState(
             source: source, platform: "ios", catalog: LockedValue(catalog),
             onHandOut: { _ in }, onUnknownID: { _ in }))

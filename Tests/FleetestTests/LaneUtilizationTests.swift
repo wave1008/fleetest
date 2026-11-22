@@ -11,7 +11,7 @@ final class LaneUtilizationTests: XCTestCase {
     private let base = Date(timeIntervalSince1970: 1_700_000_000)
     private func at(_ offset: Double) -> Date { base.addingTimeInterval(offset) }
 
-    private func url(_ id: String) -> URL { ScenarioRunItem.url(for: id) }
+    private func url(_ id: String) -> URL { ScenarioRunItem.url(for: id, variant: nil) }
 
     /// worker で id のシナリオを start..finish の間だけ走らせる。
     private func run(_ tracker: inout ScenarioTimingTracker, _ id: String,

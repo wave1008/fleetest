@@ -19,21 +19,36 @@ public enum ClassPlacementRules {
         return l != r ? l < r : lhs.id < rhs.id
     }
 
-    /// デバイスに寄せるクラスのメンバーを、そのクラスの最初のメンバーの位置へ連続して集める。
-    /// inOrder は order 順、singleDevice は元の相対順。singleMachine と属性無しは動かさない(安定)
+    /// デバイスに寄せるクラスのメンバーを、そのクラスの最初のメンバーの位置へ連続して集める(`ordered(_:info:variant:)` の
+    /// バリアントの無い版)
     public static func ordered(_ items: [ScenarioInfo]) -> [ScenarioInfo] {
-        func binds(_ info: ScenarioInfo) -> Bool { info.placement?.bindsDevice == true }
-        var members: [String: [ScenarioInfo]] = [:]
-        for info in items where binds(info) { members[className(of: info.id), default: []].append(info) }
+        ordered(items, info: { $0 }, variant: { _ in nil })
+    }
+
+    /// 単位(シナリオ × バリアント)の並べ替え。デバイスに寄せるクラスの全単位を、そのクラスの最初の単位の位置へ連続して集める。
+    /// **並びは「バリアントの出現順 → その中は inOrder なら order 順・singleDevice なら元の相対順」**(RR-8.3 の寄せる属性 =
+    /// バリアントごとに続けて並べる)。singleMachine と属性無しは動かさない(安定)。バリアントが全部 nil なら従来と同じ並び。
+    /// T を直接並べる(ID を鍵にした引き当てを持たない = 同じ ID の単位が複数あっても取り違えない)
+    public static func ordered<T>(_ items: [T], info: (T) -> ScenarioInfo, variant: (T) -> String?) -> [T] {
+        func binds(_ item: T) -> Bool { info(item).placement?.bindsDevice == true }
+        var members: [String: [T]] = [:]
+        for item in items where binds(item) { members[className(of: info(item).id), default: []].append(item) }
         var emitted = Set<String>()
-        var result: [ScenarioInfo] = []
-        for info in items {
-            guard binds(info) else { result.append(info); continue }
-            let name = className(of: info.id)
+        var result: [T] = []
+        for item in items {
+            guard binds(item) else { result.append(item); continue }
+            let name = className(of: info(item).id)
             guard emitted.insert(name).inserted else { continue }
             let group = members[name] ?? []
-            result += group.contains(where: { $0.placement == .inOrder })
-                ? group.sorted(by: inOrderPrecedes) : group
+            var variantOrder: [String?] = []
+            for member in group where !variantOrder.contains(where: { $0 == variant(member) }) {
+                variantOrder.append(variant(member))
+            }
+            for v in variantOrder {
+                let sameVariant = group.filter { variant($0) == v }
+                result += sameVariant.contains(where: { info($0).placement == .inOrder })
+                    ? sameVariant.sorted { inOrderPrecedes(info($0), info($1)) } : sameVariant
+            }
         }
         return result
     }
@@ -65,15 +80,17 @@ public enum ClassPlacementRules {
         return nil
     }
 
-    /// --failed の展開: 失敗 ID を含む @RunInOrder のクラスは、そのクラスの全メンバー(@Deleted / @Draft を除く)を足す
-    public static func expandingFailed(_ failedIDs: Set<String>, all: [ScenarioInfo]) -> Set<String> {
-        let failedClasses = Set(all.filter { $0.placement == .inOrder && failedIDs.contains($0.id) }
-            .map { className(of: $0.id) })
-        guard !failedClasses.isEmpty else { return failedIDs }
-        var result = failedIDs
-        for info in all where info.placement == .inOrder && !info.deleted && !info.draft
-            && failedClasses.contains(className(of: info.id)) {
-            result.insert(info.id)
+    /// --failed の展開: 失敗した単位を含む @RunInOrder のクラスは、同じバリアントのそのクラスの全メンバー(@Deleted / @Draft を除く)を足す
+    public static func expandingFailed(_ failed: Set<ScenarioUnitKey>, all: [ScenarioInfo]) -> Set<ScenarioUnitKey> {
+        let inOrderIDs = Set(all.filter { $0.placement == .inOrder }.map(\.id))
+        let failedClasses = Set(failed.filter { inOrderIDs.contains($0.id) }
+            .map { ClassVariantKey(className: className(of: $0.id), variant: $0.variant) })
+        guard !failedClasses.isEmpty else { return failed }
+        var result = failed
+        for info in all where info.placement == .inOrder && !info.deleted && !info.draft {
+            for key in failedClasses where key.className == className(of: info.id) {
+                result.insert(ScenarioUnitKey(id: info.id, variant: key.variant))
+            }
         }
         return result
     }
@@ -135,21 +152,25 @@ public enum ClassPlacementRules {
     }
 }
 
-/// @RunInOrder の「失敗したら残りは実行しない」の記帳。レーンごとに、失敗したクラス → 失敗したテストの ID
+/// @RunInOrder の「失敗したら残りは実行しない」の記帳。レーンごとに、失敗したクラス × バリアント → 失敗した単位
+/// (他のバリアントのまとまりは止めない)
 public struct InOrderGate: Sendable {
-    private var failed: [String: [String: String]] = [:]
+    private var failed: [String: [ClassVariantKey: ScenarioUnitKey]] = [:]
 
     public init() {}
 
-    public func skipReason(for info: ScenarioInfo, lane: String) -> String? {
-        guard info.placement == .inOrder,
-              let failedID = failed[lane]?[ClassPlacementRules.className(of: info.id)] else { return nil }
-        return ClassPlacementRules.notRunReason(failedID: failedID)
+    private static func key(_ info: ScenarioInfo, _ variant: String?) -> ClassVariantKey {
+        ClassVariantKey(className: ClassPlacementRules.className(of: info.id), variant: variant)
     }
 
-    public mutating func record(_ info: ScenarioInfo, lane: String, passed: Bool) {
+    public func skipReason(for info: ScenarioInfo, variant: String?, lane: String) -> String? {
+        guard info.placement == .inOrder, let failedUnit = failed[lane]?[Self.key(info, variant)] else { return nil }
+        return ClassPlacementRules.notRunReason(failedID: failedUnit.description)
+    }
+
+    public mutating func record(_ info: ScenarioInfo, variant: String?, lane: String, passed: Bool) {
         guard !passed, info.placement == .inOrder else { return }
-        let name = ClassPlacementRules.className(of: info.id)
-        if failed[lane]?[name] == nil { failed[lane, default: [:]][name] = info.id }
+        let key = Self.key(info, variant)
+        if failed[lane]?[key] == nil { failed[lane, default: [:]][key] = ScenarioUnitKey(id: info.id, variant: variant) }
     }
 }

@@ -19,7 +19,7 @@ extension FTTextSize {
 }
 
 extension DisplaySettingsLimits {
-    /// 設定が in-app のアプリへ届くのを待つ上限[秒]。根拠: 健全な Simulator では設定から約 2 秒以内に届いた(実測 2026-11-22)の約 2.5 倍。
+    /// 設定が in-app のアプリへ届くのを待つ上限[秒]。根拠: 健全な Simulator では設定から約 2 秒以内に届いた(実測)の約 2.5 倍。
     /// 尽きたらそのステップを失敗(`display-not-applied`)にする
     public static let appPropagationSeconds: TimeInterval = 5
     /// 届いたかの読み直しの間隔[秒]。/status は軽い問い合わせ(1往復)

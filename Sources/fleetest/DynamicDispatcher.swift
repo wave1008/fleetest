@@ -28,7 +28,7 @@ final class DynamicDispatcher: Sendable {
         let since: Double
     }
 
-    /// シナリオ ID ごとの対象外の記帳(DR-214)。`tried` = 試して対象外と宣言したエントリ(回し直しの除外)・
+    /// 単位(ID × バリアント)ごとの対象外の記帳(DR-214)。`tried` = 試して対象外と宣言したエントリ(回し直しの除外)・
     /// `departedInChild` = 子の中で試していない台が落ちている(その子の申告)
     private struct NotApplicableRecord {
         var tried: Set<Int> = []
@@ -37,11 +37,11 @@ final class DynamicDispatcher: Sendable {
 
     private struct State {
         var pending: [DynamicSplit.Scenario]
-        var notApplicable: [String: NotApplicableRecord] = [:]
+        var notApplicable: [ScenarioUnitKey: NotApplicableRecord] = [:]
         /// 要求を出したことのあるレーンだけ(供給中のレーンを空きと数えない)。値 nil = 空いて返事待ち
         var lanes: [DynamicSplit.Lane: Busy?] = [:]
         var held: [Held] = []
-        var assigned: [Int: [String]] = [:]
+        var assigned: [Int: [ScenarioUnitKey]] = [:]
         var exited: Set<Int> = []
         var interrupted = false
         var cancelTimer: Cancel?
@@ -52,8 +52,8 @@ final class DynamicDispatcher: Sendable {
     }
 
     private let state: LockedValue<State>
-    /// ID → 配るシナリオ(対象外の問い合わせで pending へ戻す元。子の中で別のレーンへ回った分は、親が割り当てたレーンの印と一致しない)
-    private let scenariosByID: [String: DynamicSplit.Scenario]
+    /// 単位 → 配るシナリオ(対象外の問い合わせで pending へ戻す元。子の中で別のレーンへ回った分は、親が割り当てたレーンの印と一致しない)
+    private let scenariosByUnit: [ScenarioUnitKey: DynamicSplit.Scenario]
     private let estimateMs: @Sendable (DynamicSplit.Scenario, Int) -> Double
     private let nowMs: @Sendable () -> Double
     private let timer: Timer
@@ -83,7 +83,7 @@ final class DynamicDispatcher: Sendable {
         self.entryLabel = entryLabel
         self.log = log
         state = LockedValue(State(pending: scenarios))
-        scenariosByID = Dictionary(scenarios.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        scenariosByUnit = Dictionary(scenarios.map { ($0.unitKey, $0) }, uniquingKeysWith: { first, _ in first })
         self.estimateMs = estimateMs
         self.nowMs = nowMs
         self.timer = timer
@@ -120,12 +120,13 @@ final class DynamicDispatcher: Sendable {
         var verdict: NotApplicableHandoff.Verdict = .skipped
         let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
             // 親が割り当てたシナリオだけ(子は機械の中で別のレーンへ回すので、宣言したレーンは親の割り当てのレーンと限らない)
-            guard s.assigned[entry]?.contains(na.id) == true, let scenario = scenariosByID[na.id],
+            let unit = na.unit
+            guard s.assigned[entry]?.contains(unit) == true, let scenario = scenariosByUnit[unit],
                   scenario.group == nil else { return [] }
-            var record = s.notApplicable[na.id] ?? NotApplicableRecord()
+            var record = s.notApplicable[unit] ?? NotApplicableRecord()
             record.tried.insert(entry)
             record.departedInChild = record.departedInChild || na.dep
-            s.notApplicable[na.id] = record
+            s.notApplicable[unit] = record
             let known = Set(entryPlatforms.filter { $0.value.contains(na.platform) }.keys)
                 .union(s.lanes.keys.filter { $0.platform == na.platform }.map(\.entry))
                 .union(record.tried)
@@ -136,9 +137,9 @@ final class DynamicDispatcher: Sendable {
                 departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []))
             guard verdict == .handOn else { return [] }
             s.pending.append(scenario)
-            if let index = s.assigned[entry]?.lastIndex(of: na.id) { s.assigned[entry]?.remove(at: index) }
+            if let index = s.assigned[entry]?.lastIndex(of: unit) { s.assigned[entry]?.remove(at: index) }
             // 親がそのシナリオを走らせていると記録しているレーンは空く(次の要求で再び数える)
-            for (key, busy) in s.lanes where key.entry == entry && busy?.scenario.id == na.id { s.lanes[key] = .some(nil) }
+            for (key, busy) in s.lanes where key.entry == entry && busy?.scenario.unitKey == unit { s.lanes[key] = .some(nil) }
             return drainLocked(&s)
         }
         for (held, reply) in answers { send(held.lane.entry, reply) }
@@ -181,20 +182,20 @@ final class DynamicDispatcher: Sendable {
 
     // MARK: - 読み出し
 
-    func assignedIDs(entry: Int) -> [String] { state.withLock { $0.assigned[entry] ?? [] } }
+    func assignedUnits(entry: Int) -> [ScenarioUnitKey] { state.withLock { $0.assigned[entry] ?? [] } }
     var assignedCounts: [Int: Int] { state.withLock { $0.assigned.mapValues(\.count) } }
     /// 誰にも渡さなかったシナリオ(全部の子が終わった後に読む)
-    var unhandedIDs: [String] { state.withLock { $0.pending.map(\.id) } }
+    var unhandedUnits: [ScenarioUnitKey] { state.withLock { $0.pending.map(\.unitKey) } }
     var isInterrupted: Bool { state.withLock { $0.interrupted } }
     /// まだ誰にも渡していないシナリオ(複数対象の配り手 MultiTargetRunner が仕事の残りの見込みに使う。読むだけ)
     var pendingScenarios: [DynamicSplit.Scenario] { state.withLock { $0.pending } }
 
     /// 束ねた先のエントリが終わった(子が落ちた)ため、他へ移さずに残るシナリオ(RR-8.3。decide がもう他へ渡さない)
-    var keptUnhanded: [(id: String, placement: ClassPlacement)] {
+    var keptUnhanded: [(unit: ScenarioUnitKey, placement: ClassPlacement)] {
         state.withLock { s in
-            s.pending.compactMap { scenario -> (id: String, placement: ClassPlacement)? in
+            s.pending.compactMap { scenario -> (unit: ScenarioUnitKey, placement: ClassPlacement)? in
                 guard let group = Self.keptGroup(scenario, s) else { return nil }
-                return (id: scenario.id, placement: group.placement)
+                return (unit: scenario.unitKey, placement: group.placement)
             }
         }
     }
@@ -216,11 +217,11 @@ final class DynamicDispatcher: Sendable {
     }
 
     /// 束ねたクラスの残りを他へ移さなかった旨の1行(英語)。`neverHandedLine` の後に出す
-    static func keptUnhandedLine(_ kept: [(id: String, placement: ClassPlacement)]) -> String? {
+    static func keptUnhandedLine(_ kept: [(unit: ScenarioUnitKey, placement: ClassPlacement)]) -> String? {
         guard !kept.isEmpty else { return nil }
         let attributes = Set(kept.map { $0.placement.attributeName }).sorted().joined(separator: ", ")
         let maxListed = 5
-        let listed = kept.prefix(maxListed).map(\.id).joined(separator: ", ")
+        let listed = kept.prefix(maxListed).map { $0.unit.description }.joined(separator: ", ")
         let suffix = kept.count > maxListed ? ", …" : ""
         return "ℹ️ \(kept.count) of them were not moved to another \(kept.contains { $0.placement.bindsDevice } ? "device or machine" : "machine")"
             + " because their class is kept on the one that ended (\(attributes)): \(listed)\(suffix)"
@@ -258,15 +259,15 @@ final class DynamicDispatcher: Sendable {
                     laneStates.append(DynamicSplit.LaneState(lane: lane, busy: info))
                 }
                 // 対象外で戻された(試したエントリが除外の)シナリオは、そのエントリへ渡さない
-                let reachable = s.pending.filter { !(s.notApplicable[$0.id]?.tried.contains(held.lane.entry) ?? false) }
+                let reachable = s.pending.filter { !(s.notApplicable[$0.unitKey]?.tried.contains(held.lane.entry) ?? false) }
                 var decision = DynamicSplit.decide(
                     for: held.lane, now: now, pending: reachable, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
                     bindings: s.bindings, entryPlatforms: entryPlatforms)
                 // 尽きたレーンは、他のエントリが走らせているシナリオが対象外で自分(未試行)へ戻ってくるかもしれない間は終わらせない
                 if case .none = decision, Self.mayReceiveHandBack(held.lane, s) { decision = .hold(reconsiderAt: nil) }
                 switch decision {
-                case .assign(let id):
-                    guard let index = s.pending.firstIndex(where: { $0.id == id }) else { continue }
+                case .assign(let unit):
+                    guard let index = s.pending.firstIndex(where: { $0.unitKey == unit }) else { continue }
                     let scenario = s.pending.remove(at: index)
                     if let group = scenario.group {
                         let wasBound = group.placement == .singleMachine
@@ -275,9 +276,9 @@ final class DynamicDispatcher: Sendable {
                         if !wasBound { s.logs.append(keptLine(group, lane: held.lane)) }
                     }
                     s.lanes[held.lane] = .some(Busy(scenario: scenario, since: now))
-                    s.assigned[held.lane.entry, default: []].append(id)
+                    s.assigned[held.lane.entry, default: []].append(unit)
                     s.held.remove(at: position)
-                    answers.append((held, .init(req: held.req, id: id)))
+                    answers.append((held, .init(req: held.req, unit: unit)))
                     progressed = true
                 case .none:
                     s.lanes.removeValue(forKey: held.lane)
@@ -304,7 +305,7 @@ final class DynamicDispatcher: Sendable {
         s.lanes.contains { lane, busy in
             guard lane.platform == requester.platform, lane.entry != requester.entry,
                   !s.exited.contains(lane.entry), let busy, busy.scenario.group == nil else { return false }
-            return !(s.notApplicable[busy.scenario.id]?.tried.contains(requester.entry) ?? false)
+            return !(s.notApplicable[busy.scenario.unitKey]?.tried.contains(requester.entry) ?? false)
         }
     }
 
@@ -344,15 +345,16 @@ final class DynamicDispatcher: Sendable {
         groups.contains(where: { $0.platforms.contains("ios") }) ? "ios" : "android"
     }
 
-    static func resolve(_ scenarios: [(id: String, platform: String?)],
+    static func resolve(_ scenarios: [(id: String, variant: String?, platform: String?)],
                         defaultPlatform: String) -> [DynamicSplit.Scenario] {
-        scenarios.map { DynamicSplit.Scenario(id: $0.id, platform: $0.platform ?? defaultPlatform) }
+        scenarios.map { DynamicSplit.Scenario(id: $0.id, variant: $0.variant, platform: $0.platform ?? defaultPlatform) }
     }
 
     /// 寄せる属性のクラスのシナリオには group を載せる(RR-8.3)。属性が無ければ上と同じ
-    static func resolve(_ scenarios: [ScenarioInfo], defaultPlatform: String) -> [DynamicSplit.Scenario] {
+    /// ScenarioInfo は ID だけなので variant は呼び手が決める(バリアントの無い経路は nil)
+    static func resolve(_ scenarios: [ScenarioInfo], variant: String?, defaultPlatform: String) -> [DynamicSplit.Scenario] {
         scenarios.map {
-            DynamicSplit.Scenario(id: $0.id, platform: $0.platform ?? defaultPlatform, group: group(of: $0))
+            DynamicSplit.Scenario(id: $0.id, variant: variant, platform: $0.platform ?? defaultPlatform, group: group(of: $0))
         }
     }
 
@@ -362,10 +364,10 @@ final class DynamicDispatcher: Sendable {
                                   order: info.order)
     }
 
-    /// 静的な割り当て(FleetSplit.plan の groups:)用。キー = シナリオ ID
-    static func groups(of infos: [ScenarioInfo]) -> [String: DynamicSplit.Group] {
-        var result: [String: DynamicSplit.Group] = [:]
-        for info in infos { if let g = group(of: info) { result[info.id] = g } }
+    /// 静的な割り当て(FleetSplit.plan の groups:)用。キー = 単位(ID × バリアント)
+    static func groups(of infos: [ScenarioInfo], variant: String?) -> [ScenarioUnitKey: DynamicSplit.Group] {
+        var result: [ScenarioUnitKey: DynamicSplit.Group] = [:]
+        for info in infos { if let g = group(of: info) { result[info.unitKey(variant: variant)] = g } }
         return result
     }
 
@@ -382,9 +384,9 @@ final class DynamicDispatcher: Sendable {
     }
 
     /// そのグループの子へ `--scenario` として渡す全候補(子がビルド・一覧に使う)。実際に回すのは配られた分だけ
-    static func candidateIDs(for group: DeviceMachineRunner.Group,
-                             in scenarios: [DynamicSplit.Scenario]) -> [String] {
-        scenarios.filter { group.platforms.contains($0.platform) }.map(\.id)
+    static func candidateUnits(for group: DeviceMachineRunner.Group,
+                               in scenarios: [DynamicSplit.Scenario]) -> [ScenarioUnitKey] {
+        scenarios.filter { group.platforms.contains($0.platform) }.map(\.unitKey)
     }
 }
 

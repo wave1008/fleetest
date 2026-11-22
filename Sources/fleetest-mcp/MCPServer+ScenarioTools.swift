@@ -400,7 +400,7 @@ extension MCPServer {
         // 自己修復の修正提案(この経路は run を通らないので、書き戻しもここで行う。`HealSourceWriteBack`)
         var healSuggestions: [HealWriteBack.Suggestion] = []
         for info in infos {
-            if let reason = placementGate.skipReason(for: info, lane: "") {
+            if let reason = placementGate.skipReason(for: info, variant: nil, lane: "") {
                 lines.append("❌ \(info.id): \(reason)")
                 outcomes.append((info.id, false, nil, false))
                 failedCount += 1
@@ -428,7 +428,7 @@ extension MCPServer {
                     outcomes.append((event.scenario ?? info.id, event.passed == true, event.reportPath, skipped))
                 }
             }
-            placementGate.record(info, lane: "", passed: passed)
+            placementGate.record(info, variant: nil, lane: "", passed: passed)
             if passed && declaredNotApplicable { skippedCount += 1 }
             else if passed { passedCount += 1 } else { failedCount += 1 }
         }

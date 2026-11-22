@@ -9,7 +9,7 @@ final class LPTSchedulerTests: XCTestCase {
 
     private func item(_ id: String) -> ScenarioRunItem {
         ScenarioRunItem(info: ScenarioInfo(id: id, title: id,
-                                           platform: nil, deleted: false))
+                                           platform: nil, deleted: false), variant: nil)
     }
 
     private func ids(_ items: [ScenarioRunItem]) -> [String] { items.map(\.info.id) }
@@ -81,7 +81,7 @@ final class LPTSchedulerTests: XCTestCase {
 
     private func iosItem(_ id: String) -> ScenarioRunItem {
         ScenarioRunItem(info: ScenarioInfo(id: id, title: id,
-                                           platform: "ios", deleted: false))
+                                           platform: "ios", deleted: false), variant: nil)
     }
 
     func testUsesTheDurationOfThePlatformTheScenarioRunsOn() {

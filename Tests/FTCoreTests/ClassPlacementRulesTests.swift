@@ -103,9 +103,10 @@ final class ClassPlacementRulesTests: XCTestCase {
         let all = [info("O.t1", .inOrder, order: 1), info("O.t2", .inOrder, order: 2),
                    info("O.t3", .inOrder, order: 3, deleted: true), info("O.t4", .inOrder, order: 4, draft: true),
                    info("D.a", .singleDevice), info("D.b", .singleDevice), info("P.x")]
-        XCTAssertEqual(ClassPlacementRules.expandingFailed(["O.t2", "D.a"], all: all),
-                       ["O.t1", "O.t2", "D.a"])
-        XCTAssertEqual(ClassPlacementRules.expandingFailed(["D.a", "P.x"], all: all), ["D.a", "P.x"])
+        func keys(_ ids: String...) -> Set<ScenarioUnitKey> { Set(ids.map { ScenarioUnitKey(id: $0, variant: nil) }) }
+        XCTAssertEqual(ClassPlacementRules.expandingFailed(keys("O.t2", "D.a"), all: all),
+                       keys("O.t1", "O.t2", "D.a"))
+        XCTAssertEqual(ClassPlacementRules.expandingFailed(keys("D.a", "P.x"), all: all), keys("D.a", "P.x"))
     }
 
     // MARK: - measurement / notices
@@ -179,23 +180,75 @@ final class ClassPlacementRulesTests: XCTestCase {
     func testGateStopsRestOfFailedClassOnThatLaneOnly() {
         var gate = InOrderGate()
         let t1 = info("O.t1", .inOrder, order: 1), t2 = info("O.t2", .inOrder, order: 2)
-        XCTAssertNil(gate.skipReason(for: t2, lane: "A"))
-        gate.record(t1, lane: "A", passed: false)
-        XCTAssertEqual(gate.skipReason(for: t2, lane: "A"), ClassPlacementRules.notRunReason(failedID: "O.t1"))
-        XCTAssertNil(gate.skipReason(for: t2, lane: "B"))
-        XCTAssertNil(gate.skipReason(for: info("P.x"), lane: "A"))
+        XCTAssertNil(gate.skipReason(for: t2, variant: nil, lane: "A"))
+        gate.record(t1, variant: nil, lane: "A", passed: false)
+        XCTAssertEqual(gate.skipReason(for: t2, variant: nil, lane: "A"), ClassPlacementRules.notRunReason(failedID: "O.t1"))
+        XCTAssertNil(gate.skipReason(for: t2, variant: nil, lane: "B"))
+        XCTAssertNil(gate.skipReason(for: info("P.x"), variant: nil, lane: "A"))
     }
 
     func testGateIgnoresPassesAndNonInOrderFailuresAndKeepsFirstFailure() {
         var gate = InOrderGate()
         let t1 = info("O.t1", .inOrder, order: 1), t2 = info("O.t2", .inOrder, order: 2)
-        gate.record(t1, lane: "A", passed: true)
-        gate.record(info("D.a", .singleDevice), lane: "A", passed: false)
-        XCTAssertNil(gate.skipReason(for: t2, lane: "A"))
-        XCTAssertNil(gate.skipReason(for: info("D.b", .singleDevice), lane: "A"))
-        gate.record(t1, lane: "A", passed: false)
-        gate.record(t2, lane: "A", passed: false)
-        XCTAssertEqual(gate.skipReason(for: info("O.t3", .inOrder, order: 3), lane: "A"),
+        gate.record(t1, variant: nil, lane: "A", passed: true)
+        gate.record(info("D.a", .singleDevice), variant: nil, lane: "A", passed: false)
+        XCTAssertNil(gate.skipReason(for: t2, variant: nil, lane: "A"))
+        XCTAssertNil(gate.skipReason(for: info("D.b", .singleDevice), variant: nil, lane: "A"))
+        gate.record(t1, variant: nil, lane: "A", passed: false)
+        gate.record(t2, variant: nil, lane: "A", passed: false)
+        XCTAssertEqual(gate.skipReason(for: info("O.t3", .inOrder, order: 3), variant: nil, lane: "A"),
                        ClassPlacementRules.notRunReason(failedID: "O.t1"))
+    }
+
+    // MARK: - バリアント(実行の単位 = シナリオ × バリアント)
+
+    private struct Unit { let info: ScenarioInfo; let variant: String? }
+
+    private func order(_ units: [Unit]) -> [String] {
+        ClassPlacementRules.ordered(units, info: \.info, variant: \.variant)
+            .map { ScenarioUnitKey(id: $0.info.id, variant: $0.variant).description }
+    }
+
+    /// 寄せるクラスは「バリアントの出現順 → その中は order 順」で連続する(v1: t1,t2 → v2: t1,t2)。他は動かさない
+    func testOrderedKeepsAClassTogetherVariantByVariant() {
+        let t1 = info("O.t1", .inOrder, order: 1), t2 = info("O.t2", .inOrder, order: 2), p = info("P.x")
+        let units = [Unit(info: t2, variant: "v1"), Unit(info: p, variant: "v1"), Unit(info: t2, variant: "v2"),
+                     Unit(info: t1, variant: "v2"), Unit(info: t1, variant: "v1")]
+        XCTAssertEqual(order(units), ["O.t1@v1", "O.t2@v1", "O.t1@v2", "O.t2@v2", "P.x@v1"])
+    }
+
+    /// バリアントが全部 nil なら、ScenarioInfo だけの並べ替えと同じ並び
+    func testOrderedWithNilVariantsEqualsTheInfoOnlyOrder() {
+        let infos = [info("A.1"), info("C.b", .inOrder, order: 2), info("B.1"), info("C.a", .inOrder, order: 1)]
+        XCTAssertEqual(order(infos.map { Unit(info: $0, variant: nil) }),
+                       ClassPlacementRules.ordered(infos).map(\.id))
+    }
+
+    /// 失敗で止めるのは同じバリアントのまとまりの中だけ
+    func testGateStopsOnlyTheSameVariantGroup() {
+        var gate = InOrderGate()
+        let t1 = info("O.t1", .inOrder, order: 1), t2 = info("O.t2", .inOrder, order: 2)
+        gate.record(t1, variant: "v1", lane: "A", passed: false)
+        XCTAssertEqual(gate.skipReason(for: t2, variant: "v1", lane: "A"),
+                       ClassPlacementRules.notRunReason(failedID: "O.t1@v1"))
+        XCTAssertNil(gate.skipReason(for: t2, variant: "v2", lane: "A"), "他のバリアントのまとまりは続ける")
+        XCTAssertNil(gate.skipReason(for: t2, variant: nil, lane: "A"))
+    }
+
+    /// --failed の展開は同じバリアントのクラスの全メンバーだけを足す
+    func testExpandingFailedStaysWithinTheVariant() {
+        let all = [info("O.t1", .inOrder, order: 1), info("O.t2", .inOrder, order: 2), info("P.x")]
+        let failed: Set = [ScenarioUnitKey(id: "O.t2", variant: "v2")]
+        XCTAssertEqual(ClassPlacementRules.expandingFailed(failed, all: all),
+                       [ScenarioUnitKey(id: "O.t1", variant: "v2"), ScenarioUnitKey(id: "O.t2", variant: "v2")])
+    }
+
+    func testUnitKeyDescriptionAndParseRoundTrip() {
+        XCTAssertEqual(ScenarioUnitKey(id: "S0010", variant: nil).description, "S0010")
+        XCTAssertEqual(ScenarioUnitKey(id: "S0010", variant: "dark").description, "S0010@dark")
+        XCTAssertEqual(ScenarioUnitKey.parse("S0010@dark"), ScenarioUnitKey(id: "S0010", variant: "dark"))
+        XCTAssertEqual(ScenarioUnitKey.parse("Class.m"), ScenarioUnitKey(id: "Class.m", variant: nil))
+        XCTAssertNil(ScenarioUnitKey.parse("S0010@"))
+        XCTAssertNil(ScenarioUnitKey.parse("@dark"))
     }
 }

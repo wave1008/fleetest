@@ -14,49 +14,51 @@ actor ScenarioQueue {
     struct PullState: Sendable {
         let source: any ScenarioPullSource
         let platform: String
-        /// シナリオ ID → 配れる item(同じ ID が複数あれば先頭から。計測の繰り返し展開)
-        let catalog: LockedValue<[String: [ScenarioRunItem]]>
+        /// 単位(ID × バリアント)→ 配れる item(同じ単位が複数あれば先頭から。計測の繰り返し展開)
+        let catalog: LockedValue<[ScenarioUnitKey: [ScenarioRunItem]]>
         /// 配った1本ごと(total を増やす)
         let onHandOut: @Sendable (ScenarioRunItem) async -> Void
-        /// カタログに無い ID が来た(ワーカーログへ出して聞き直す)
-        let onUnknownID: @Sendable (String) -> Void
+        /// カタログに無い単位が来た(ワーカーログへ出して聞き直す)
+        let onUnknownID: @Sendable (ScenarioUnitKey) -> Void
     }
 
     /// デバイスに寄せたクラス(`placement.bindsDevice`)→ 最初の1本を取ったレーン(空文字 = レーン名の無い経路)。
-    /// 束ねたレーンだけがそのクラスを取り、そのクラスの残りがあれば他を挟まず次に取る(RR-8.3)
+    /// 束ねたレーンだけがそのクラスを取り、そのクラスの残りがあれば他を挟まず次に取る(RR-8.3)。
+    /// **鍵はクラス名のまま(バリアントを含めない)**: 寄せる属性のクラスはバリアントをまたいで同じ台に載せる(6.3)
     private var classLane: [String: String] = [:]
     /// @RunInOrder の失敗の後の記帳(pulled は配り手が以後もそのクラスを渡すので、渡されたものを `inOrderSkipReason` で止める)
     private var inOrderGate = InOrderGate()
-    /// @RunInOrder のクラス → そのキューが初期化時に持っていたメンバー(実行順の注記の「何本中の何番目」の母数)
-    private let inOrderMembers: [String: [ScenarioInfo]]
+    /// @RunInOrder のクラス × バリアント → そのキューが初期化時に持っていたメンバー(実行順の注記の「何本中の何番目」の母数。
+    /// 母数はバリアントのまとまりの中で数える)
+    private let inOrderMembers: [ClassVariantKey: [ScenarioInfo]]
 
     init(_ items: [ScenarioRunItem]) {
         self.items = Self.arranged(items)
         self.pull = nil
-        self.inOrderMembers = Self.groupInOrder(of: items.map(\.info))
+        self.inOrderMembers = Self.groupInOrder(of: items)
     }
     init(pulled: PullState) {
         self.items = []
         self.pull = pulled
-        self.inOrderMembers = Self.groupInOrder(of: pulled.catalog.withLock { $0.values.flatMap { $0 } }.map(\.info))
+        self.inOrderMembers = Self.groupInOrder(of: pulled.catalog.withLock { $0.values.flatMap { $0 } })
     }
 
-    /// 寄せるクラスを連続させる(`ClassPlacementRules.ordered`)。属性が1つも無いキューは並びに触らない。
-    /// 同じ ID の item(計測の繰り返し)は並べ直した順に1つずつ対応させる
+    /// 寄せるクラスを連続させる(`ClassPlacementRules.ordered`。バリアントごとに続けて並べる)。属性が1つも無いキューは並びに触らない
     private static func arranged(_ items: [ScenarioRunItem]) -> [ScenarioRunItem] {
         guard items.contains(where: { $0.info.placement != nil }) else { return items }
-        var byID: [String: [ScenarioRunItem]] = [:]
-        for item in items { byID[item.info.id, default: []].append(item) }
-        return ClassPlacementRules.ordered(items.map(\.info)).compactMap { info -> ScenarioRunItem? in
-            guard var list = byID[info.id], !list.isEmpty else { return nil }
-            let first = list.removeFirst()
-            byID[info.id] = list
-            return first
-        }
+        return ClassPlacementRules.ordered(items, info: \.info, variant: \.variant)
     }
 
-    private static func groupInOrder(of infos: [ScenarioInfo]) -> [String: [ScenarioInfo]] {
-        Dictionary(grouping: infos.filter { $0.placement == .inOrder }) { ClassPlacementRules.className(of: $0.id) }
+    private static func groupInOrder(of items: [ScenarioRunItem]) -> [ClassVariantKey: [ScenarioInfo]] {
+        var result: [ClassVariantKey: [ScenarioInfo]] = [:]
+        for item in items where item.info.placement == .inOrder {
+            result[classVariant(item), default: []].append(item.info)
+        }
+        return result
+    }
+
+    private static func classVariant(_ item: ScenarioRunItem) -> ClassVariantKey {
+        ClassVariantKey(className: className(item), variant: item.variant)
     }
 
     /// キューに渡すレーン名。**論理名が無い経路(`--port` 直指定)はラベル(ポート込みで一意)**にする —— 空のままだと全ワーカーが
@@ -185,22 +187,23 @@ actor ScenarioQueue {
     /// `notRunReason` で失敗として記録する)、以後このクラスが配り手から来ても `inOrderSkipReason` が止める
     func abandonInOrderClass(after item: ScenarioRunItem, lane: String?) -> [ScenarioRunItem] {
         guard item.info.placement == .inOrder else { return [] }
-        inOrderGate.record(item.info, lane: lane ?? "", passed: false)
-        let name = Self.className(item)
-        let rest = items.filter { Self.className($0) == name }
-        items.removeAll { Self.className($0) == name }
+        inOrderGate.record(item.info, variant: item.variant, lane: lane ?? "", passed: false)
+        // 止めるのは同じバリアントのまとまりの中だけ(他のバリアントのまとまりは続ける)
+        let key = Self.classVariant(item)
+        let rest = items.filter { Self.classVariant($0) == key }
+        items.removeAll { Self.classVariant($0) == key }
         return rest
     }
 
     /// 配り手から受け取った @RunInOrder のテストが、同じレーンで先に失敗したクラスのものなら実行しない理由
     func inOrderSkipReason(for item: ScenarioRunItem, lane: String?) -> String? {
-        inOrderGate.skipReason(for: item.info, lane: lane ?? "")
+        inOrderGate.skipReason(for: item.info, variant: item.variant, lane: lane ?? "")
     }
 
     /// @RunInOrder のテストの実行順の注記(何本中の何番目)。それ以外は nil
     func positionNotice(for item: ScenarioRunItem) -> String? {
         guard item.info.placement == .inOrder else { return nil }
-        return ClassPlacementRules.positionNotice(item.info, classMembers: inOrderMembers[Self.className(item)] ?? [])
+        return ClassPlacementRules.positionNotice(item.info, classMembers: inOrderMembers[Self.classVariant(item)] ?? [])
     }
 
     /// 再キューされたもの(pulled では常に先)→ 配り手。`lane` = `RunWorker.logicalName`(配り手が
@@ -245,14 +248,14 @@ actor ScenarioQueue {
     private func pullNext(lane: String) async -> ScenarioRunItem? {
         guard let pull else { return nil }
         while !pullExhaustedLanes.contains(lane) {
-            guard let id = await pull.source.next(platform: pull.platform, lane: lane) else {
+            guard let unit = await pull.source.next(platform: pull.platform, lane: lane) else {
                 pullExhaustedLanes.insert(lane)
                 return nil
             }
             let item = pull.catalog.withLock { catalog -> ScenarioRunItem? in
-                guard var list = catalog[id], !list.isEmpty else { return nil }
+                guard var list = catalog[unit], !list.isEmpty else { return nil }
                 let first = list.removeFirst()
-                catalog[id] = list
+                catalog[unit] = list
                 return first
             }
             if let item {
@@ -261,7 +264,7 @@ actor ScenarioQueue {
                 if !Self.bindsDevice(item) { running[lane] = item }
                 return item
             }
-            pull.onUnknownID(id)
+            pull.onUnknownID(unit)
         }
         return nil
     }

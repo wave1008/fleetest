@@ -31,7 +31,7 @@ private struct UnusedDriver: AppDriver {
 final class BroadcastPlanTests: XCTestCase {
 
     private func item(_ id: String, platform: String? = nil) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform, deleted: false))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform, deleted: false), variant: nil)
     }
 
     private let lanes = [
@@ -51,6 +51,16 @@ final class BroadcastPlanTests: XCTestCase {
         XCTAssertEqual(plan.queues["Pixel-01"]?.map(\.info.id), ["Warm.all", "Warm.android"])
         XCTAssertEqual(plan.total, 6)
         XCTAssertTrue(plan.unassigned.isEmpty)
+    }
+
+    /// 作り直しがバリアントと繰り返し番号を落とさない(同じ ID の別バリアント・別回が1本に潰れない)
+    func testRebuildKeepsVariantAndRepeatIndex() {
+        let base = ScenarioRunItem(info: ScenarioInfo(id: "A.s", title: "A.s", platform: "ios"), repeatIndex: 2, variant: "dark")
+        let plan = BroadcastPlan.make(items: [base], lanes: lanes)
+        let built = plan.queues["iPhone-01"]?.first
+        XCTAssertEqual(built?.variant, "dark")
+        XCTAssertEqual(built?.repeatIndex, 2)
+        XCTAssertEqual(built?.lane, "iPhone-01")
     }
 
     /// 入力の順序(LPT が並べた順)をレーン内でそのまま保つ
@@ -90,7 +100,7 @@ final class BroadcastPlanTests: XCTestCase {
         XCTAssertEqual(a.lane, "iPhone-01")
         XCTAssertEqual(b.lane, "iPhone-02")
         XCTAssertNotEqual(a.url, b.url)
-        XCTAssertNotEqual(a.url, ScenarioRunItem(info: a.info).url, "lane 無しの URL とも別キー")
+        XCTAssertNotEqual(a.url, ScenarioRunItem(info: a.info, variant: nil).url, "lane 無しの URL とも別キー")
         XCTAssertEqual(a.url.lastPathComponent, "Warm.all")
         XCTAssertEqual(a.url.scheme, "scenario")
     }
@@ -104,7 +114,7 @@ final class BroadcastPlanTests: XCTestCase {
         XCTAssertEqual(url.scheme, "scenario")
         XCTAssertEqual(url.lastPathComponent, "日本語.S0010")
         XCTAssertTrue(url.absoluteString.contains("?lane="))
-        XCTAssertNotEqual(url, ScenarioRunItem(info: plan.queues[name]!.first!.info).url)
+        XCTAssertNotEqual(url, ScenarioRunItem(info: plan.queues[name]!.first!.info, variant: nil).url)
     }
 
     // MARK: - ワーカーとレーンの突き合わせ

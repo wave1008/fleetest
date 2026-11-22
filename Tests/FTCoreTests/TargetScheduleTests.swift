@@ -158,7 +158,7 @@ final class TargetScheduleTests: XCTestCase {
     }
 
     private func scenarios(_ ids: String...) -> [DynamicSplit.Scenario] {
-        ids.map { DynamicSplit.Scenario(id: $0, platform: "ios") }
+        ids.map { DynamicSplit.Scenario(id: $0, variant: nil, platform: "ios") }
     }
 
     func testJoinGainIsNilWhenFastMembersTakeEverythingBeforeJoinerArrives() {
@@ -170,7 +170,7 @@ final class TargetScheduleTests: XCTestCase {
 
     func testJoinGainIgnoresScenariosNeitherSideCanRun() {
         // x は android(担当にも加わる側にも回せない = 他のマシンの担当分)。積まずに ios の4本だけで見る → 15 早まる
-        let pending = scenarios("a", "b", "c", "d") + [DynamicSplit.Scenario(id: "x", platform: "android")]
+        let pending = scenarios("a", "b", "c", "d") + [DynamicSplit.Scenario(id: "x", variant: nil, platform: "android")]
         XCTAssertEqual(TargetSchedule.joinGain(
             pending: pending, members: [joinLane(0, devices: 1, at: 0)],
             joiner: joinLane(1, devices: 1, at: 5), estimateMs: { _, _ in 10 }), 15)

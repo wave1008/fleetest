@@ -31,22 +31,19 @@ struct SequentialPlacementGate {
 
     init() {}
 
-    /// 寄せるクラスのメンバーを連続させ、@RunInOrder は @Order の順にする(属性が無ければ元の並び)
+    /// 寄せるクラスのメンバーを連続させ、@RunInOrder は @Order の順にする(属性が無ければ元の並び。バリアントごとに続けて並べる)
     static func ordered(_ items: [ScenarioRunItem]) -> [ScenarioRunItem] {
-        var byID: [String: [ScenarioRunItem]] = [:]
-        for item in items { byID[item.info.id, default: []].append(item) }
-        return ClassPlacementRules.ordered(items.map(\.info)).compactMap { info in
-            guard var list = byID[info.id], !list.isEmpty else { return nil }
-            let item = list.removeFirst()
-            byID[info.id] = list
-            return item
-        }
+        ClassPlacementRules.ordered(items, info: \.info, variant: \.variant)
     }
 
     static func ordered(_ infos: [ScenarioInfo]) -> [ScenarioInfo] { ClassPlacementRules.ordered(infos) }
 
     /// 実行せずに失敗として記録する理由(英語)。無ければ nil
-    func skipReason(for info: ScenarioInfo) -> String? { gate.skipReason(for: info, lane: "") }
+    func skipReason(for info: ScenarioInfo, variant: String?) -> String? {
+        gate.skipReason(for: info, variant: variant, lane: "")
+    }
 
-    mutating func record(_ info: ScenarioInfo, passed: Bool) { gate.record(info, lane: "", passed: passed) }
+    mutating func record(_ info: ScenarioInfo, variant: String?, passed: Bool) {
+        gate.record(info, variant: variant, lane: "", passed: passed)
+    }
 }

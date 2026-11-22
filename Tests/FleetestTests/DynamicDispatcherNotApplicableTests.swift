@@ -24,24 +24,24 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
     }
 
     private func na(_ req: Int, id: String, lane: String, dep: Bool = false) -> WorkQueueProtocol.NotApplicable {
-        WorkQueueProtocol.NotApplicable(req: req, id: id, lane: lane, platform: "ios", dep: dep)
+        WorkQueueProtocol.NotApplicable(req: req, unit: ScenarioUnitKey(id: id, variant: nil), lane: lane, platform: "ios", dep: dep)
     }
 
-    private let fold = Scenario(id: "Fold.S1", platform: "ios")
+    private let fold = Scenario(id: "Fold.S1", variant: nil, platform: "ios")
 
     /// 他のエントリが未試行で生きている: 回し直す。pending へ戻り、試したエントリへは渡さず、未試行のエントリが取る
     func testHandsOnToTheUntriedEntryAndNeverBackToTheOneThatTried() {
         let sent = LockedValue<[String]>([])
         let d = makeDispatcher([fold], entries: 2, sent: sent)
-        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 1), .init(req: 1, id: "Fold.S1"))
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
         // 未試行のエントリ 0 の要求は、エントリ 1 が走らせている間は終わらせず保留する(対象外で戻ってくるかもしれない)
         XCTAssertNil(d.handle(want(1, lane: "duo"), fromEntry: 0))
         let reply = d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 1)
         XCTAssertEqual(reply, .init(req: 2, verdict: .handOn))
-        XCTAssertEqual(sent.value, ["0:" + WorkQueueProtocol.encode(.init(req: 1, id: "Fold.S1"))],
+        XCTAssertEqual(sent.value, ["0:" + WorkQueueProtocol.encode(.init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))],
                        "保留していたエントリ 0 の要求に戻ってきたシナリオが渡る")
-        XCTAssertEqual(d.assignedIDs(entry: 1), [], "子は結果を捨てるので、結果の照合に残さない")
-        XCTAssertEqual(d.assignedIDs(entry: 0), ["Fold.S1"])
+        XCTAssertEqual(d.assignedUnits(entry: 1), [], "子は結果を捨てるので、結果の照合に残さない")
+        XCTAssertEqual(d.assignedUnits(entry: 0), [ScenarioUnitKey(id: "Fold.S1", variant: nil)])
         // 試したエントリ 1 の次の要求には戻さない
         XCTAssertEqual(d.handle(want(3, lane: "pro"), fromEntry: 1), .init(req: 3, none: true),
                        "試したエントリ 1 には戻さず、エントリ 0 が走らせているぶんを待つ理由も無い")
@@ -52,7 +52,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         let d = makeDispatcher([fold], entries: 2)
         _ = d.handle(want(1, lane: "pro"), fromEntry: 1)
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 1), .init(req: 2, verdict: .handOn))
-        XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, id: "Fold.S1"))
+        XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "duo"), fromEntry: 0), .init(req: 2, verdict: .skipped))
     }
 
@@ -80,7 +80,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
 
     /// デバイスに束ねたクラスのシナリオは機械の外へ回さない(従来どおり対象外)
     func testBoundClassIsNotHandedOn() {
-        let bound = Scenario(id: "C.S1", platform: "ios",
+        let bound = Scenario(id: "C.S1", variant: nil, platform: "ios",
                              group: .init(name: "C", placement: .singleDevice, order: 0))
         let d = makeDispatcher([bound], entries: 2)
         _ = d.handle(want(1, lane: "pro"), fromEntry: 1)
@@ -92,7 +92,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         let d = makeDispatcher([fold], entries: 2)
         _ = d.handle(want(1, lane: "pro"), fromEntry: 1)
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Other.S9", lane: "pro"), fromEntry: 1), .init(req: 2, verdict: .skipped))
-        XCTAssertEqual(d.unhandedIDs, [])
+        XCTAssertEqual(d.unhandedUnits, [])
     }
 
     /// 戻ってくる見込みが無ければ従来どおり none で終わる(保留しない)
@@ -106,15 +106,15 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         _ = d.handle(want(1, lane: "pro"), fromEntry: 1)
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 1), .init(req: 2, verdict: .handOn))
         XCTAssertEqual(d.handle(want(3, lane: "pro"), fromEntry: 1), .init(req: 3, none: true))
-        XCTAssertEqual(d.unhandedIDs, ["Fold.S1"], "試していないエントリへ渡る機会を残す")
+        XCTAssertEqual(d.unhandedUnits, [ScenarioUnitKey(id: "Fold.S1", variant: nil)], "試していないエントリへ渡る機会を残す")
     }
 
     /// 子の中で別のレーンへ回った分: 宣言するレーンは親が割り当てたレーンと限らない(親はエントリで見る)
     func testDeclaringLaneMayDifferFromTheLaneTheParentAssigned() {
         let d = makeDispatcher([fold], entries: 2)
-        XCTAssertEqual(d.handle(want(1, lane: "a"), fromEntry: 1), .init(req: 1, id: "Fold.S1"))
+        XCTAssertEqual(d.handle(want(1, lane: "a"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "b"), fromEntry: 1), .init(req: 2, verdict: .handOn))
-        XCTAssertEqual(d.assignedIDs(entry: 1), [])
-        XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, id: "Fold.S1"))
+        XCTAssertEqual(d.assignedUnits(entry: 1), [])
+        XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
     }
 }

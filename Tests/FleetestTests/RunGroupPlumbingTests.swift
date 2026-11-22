@@ -48,7 +48,7 @@ final class RunGroupPlumbingTests: XCTestCase {
                 machine: machine, deviceNames: ["Pixel 3a"], platforms: ["android"])
             let args = ApiRunMachineFanout.buildArgs(
                 project: "E2E-Android", profileName: "android", group: group,
-                scenarioIDs: ["A.S0010"],
+                units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
                 options: ApiRunMachineFanout.Options(
                     defaultTimeout: nil, scenarioTimeout: nil, noLPT: false,
                     lptHistoryRuns: nil, performanceMode: false, remoteDir: nil,
@@ -83,7 +83,7 @@ final class RunGroupPlumbingTests: XCTestCase {
                 project: "E2E-Android", profileName: "android",
                 group: DeviceMachineRunner.Group(
                     machine: machine, deviceNames: ["Pixel 3a"], platforms: ["android"]),
-                scenarioIDs: ["A.S0010"],
+                units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
                 options: ApiRunMachineFanout.Options(
                     defaultTimeout: nil, scenarioTimeout: nil, noLPT: false,
                     lptHistoryRuns: nil, performanceMode: false, remoteDir: nil,

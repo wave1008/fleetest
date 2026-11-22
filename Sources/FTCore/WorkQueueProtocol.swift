@@ -26,36 +26,44 @@ public enum WorkQueueProtocol {
         }
     }
 
-    /// 子 → 親。対象外で終わったシナリオ `id` を、機械の外の未試行の台へ回せるかの問い合わせ。
+    /// 子 → 親。対象外で終わった単位(`id` × `variant`)を、機械の外の未試行の台へ回せるかの問い合わせ。
     /// `dep` = 子の中で試していない台が落ちている(親の判定の「落ちた台」に足す)。理由の文は運ばない(行を短く保つ。子が持っている)
     public struct NotApplicable: Codable, Equatable, Sendable {
         public let op: String
         public let req: Int
         public let id: String
+        /// 単位のバリアント(バリアントの無い run では行に載らない)
+        public let variant: String?
         public let lane: String
         public let platform: String
         public let dep: Bool
 
-        public init(req: Int, id: String, lane: String, platform: String, dep: Bool) {
+        public init(req: Int, unit: ScenarioUnitKey, lane: String, platform: String, dep: Bool) {
             self.op = "na"
             self.req = req
-            self.id = id
+            self.id = unit.id
+            self.variant = unit.variant
             self.lane = lane
             self.platform = platform
             self.dep = dep
         }
+
+        public var unit: ScenarioUnitKey { ScenarioUnitKey(id: id, variant: variant) }
     }
 
     /// 親 → 子(stdin)。`id` が無く `none == true` = もう無い。`verdict` = `na` への返事(`NotApplicableHandoff.Verdict.wire`)
     public struct Reply: Codable, Equatable, Sendable {
         public let req: Int
         public let id: String?
+        /// 配る単位のバリアント(バリアントの無い run では行に載らない)
+        public let variant: String?
         public let none: Bool?
         public let verdict: String?
 
-        public init(req: Int, id: String) {
+        public init(req: Int, unit: ScenarioUnitKey) {
             self.req = req
-            self.id = id
+            self.id = unit.id
+            self.variant = unit.variant
             self.none = nil
             self.verdict = nil
         }
@@ -63,6 +71,7 @@ public enum WorkQueueProtocol {
         public init(req: Int, none: Bool) {
             self.req = req
             self.id = nil
+            self.variant = nil
             self.none = none ? true : nil
             self.verdict = nil
         }
@@ -70,12 +79,13 @@ public enum WorkQueueProtocol {
         public init(req: Int, verdict: NotApplicableHandoff.Verdict) {
             self.req = req
             self.id = nil
+            self.variant = nil
             self.none = nil
             self.verdict = verdict.wire
         }
 
-        /// 配るシナリオ ID。「もう無い」・壊れた返事は nil
-        public var scenarioID: String? { id }
+        /// 配る単位(ID × バリアント)。「もう無い」・壊れた返事は nil
+        public var unit: ScenarioUnitKey? { id.map { ScenarioUnitKey(id: $0, variant: variant) } }
     }
 
     /// run メモの書き込み1件の断片(RunMemoWire)。`seq` は発行元が配り返す行にだけ付く。`src` + `lid` = 書いたプロセスの印と

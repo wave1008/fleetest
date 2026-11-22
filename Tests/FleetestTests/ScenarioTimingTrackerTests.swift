@@ -14,7 +14,7 @@ final class ScenarioTimingTrackerTests: XCTestCase {
 
     private func item(_ id: String) -> ScenarioRunItem {
         ScenarioRunItem(info: ScenarioInfo(id: id, title: id,
-                                           platform: nil, deleted: false))
+                                           platform: nil, deleted: false), variant: nil)
     }
 
     // MARK: - 逐次(明示的な時刻)

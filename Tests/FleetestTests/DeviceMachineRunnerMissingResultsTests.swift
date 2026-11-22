@@ -22,32 +22,36 @@ private func makeScenarioRecord(scenarioID: String, runID: String, interrupted: 
 
 final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
 
-    // MARK: - unrecordedScenarioIDs(純粋関数)
+    /// ID の並び → 単位の並び(この段の記録は variant を持たない)
+    private func u(_ ids: String...) -> [ScenarioUnitKey] { u(ids) }
+    private func u(_ ids: [String]) -> [ScenarioUnitKey] { ids.map { ScenarioUnitKey(id: $0, variant: nil) } }
+
+    // MARK: - unrecordedUnits(純粋関数)
 
     func testUnrecordedScenarioIDsReturnsEmptyWhenAllRecorded() {
-        let missing = DeviceMachineRunner.unrecordedScenarioIDs(
-            assigned: ["A.s1", "A.s2"], recorded: ["A.s1", "A.s2"])
-        XCTAssertEqual(missing, [])
+        let missing = DeviceMachineRunner.unrecordedUnits(
+            assigned: u("A.s1", "A.s2"), recorded: Set(u("A.s1", "A.s2")))
+        XCTAssertEqual(missing, u())
     }
 
     func testUnrecordedScenarioIDsFindsTheGap() {
-        let missing = DeviceMachineRunner.unrecordedScenarioIDs(
-            assigned: ["A.s1", "A.s2", "A.s3"], recorded: ["A.s1"])
-        XCTAssertEqual(missing, ["A.s2", "A.s3"])
+        let missing = DeviceMachineRunner.unrecordedUnits(
+            assigned: u("A.s1", "A.s2", "A.s3"), recorded: Set(u("A.s1")))
+        XCTAssertEqual(missing, u("A.s2", "A.s3"))
     }
 
     /// 順序は assigned のまま(recorded は Set なので並びを持たない)
     func testUnrecordedScenarioIDsPreservesAssignedOrder() {
-        let missing = DeviceMachineRunner.unrecordedScenarioIDs(
-            assigned: ["Z.s1", "A.s1", "M.s1"], recorded: [])
-        XCTAssertEqual(missing, ["Z.s1", "A.s1", "M.s1"])
+        let missing = DeviceMachineRunner.unrecordedUnits(
+            assigned: u("Z.s1", "A.s1", "M.s1"), recorded: Set(u()))
+        XCTAssertEqual(missing, u("Z.s1", "A.s1", "M.s1"))
     }
 
     // MARK: - missingResultsLine(純粋関数)
 
     func testMissingResultsLineListsAllIDsUnderTheCap() {
         let line = DeviceMachineRunner.missingResultsLine(
-            machineLabel: "M1Ultra", exitCode: 255, ids: ["A.s1", "A.s2"])
+            machineLabel: "M1Ultra", exitCode: 255, ids: u("A.s1", "A.s2"))
         XCTAssertTrue(line.contains("M1Ultra"))
         XCTAssertTrue(line.contains("2 scenario(s)"))
         XCTAssertTrue(line.contains("sub-run exited 255"))
@@ -57,7 +61,7 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
 
     /// 5件を超えたら先頭5件 + "…"(全件の本数は "N scenario(s)" に必ず出る)
     func testMissingResultsLineTruncatesLongLists() {
-        let ids = (1...9).map { "A.s\($0)" }
+        let ids = u(Array(1...9).map { "A.s\($0)" })
         let line = DeviceMachineRunner.missingResultsLine(
             machineLabel: "M1Ultra", exitCode: 255, ids: ids)
         XCTAssertTrue(line.contains("9 scenario(s)"))
@@ -70,7 +74,7 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
 
     func testInterruptedResultsLineListsAllIDsUnderTheCap() {
         let line = DeviceMachineRunner.interruptedResultsLine(
-            machineLabel: "M1Max", exitCode: 137, ids: ["A.s1"])
+            machineLabel: "M1Max", exitCode: 137, ids: u("A.s1"))
         XCTAssertTrue(line.contains("M1Max"))
         XCTAssertTrue(line.contains("1 scenario(s) were interrupted"))
         XCTAssertTrue(line.contains("sub-run exited 137"))
@@ -79,7 +83,7 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
     }
 
     func testInterruptedResultsLineTruncatesLongLists() {
-        let ids = (1...9).map { "A.s\($0)" }
+        let ids = u(Array(1...9).map { "A.s\($0)" })
         let line = DeviceMachineRunner.interruptedResultsLine(
             machineLabel: "M1Max", exitCode: 137, ids: ids)
         XCTAssertTrue(line.contains("9 scenario(s) were interrupted"))
@@ -88,7 +92,7 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         XCTAssertTrue(line.hasSuffix("…"))
     }
 
-    // MARK: - recordedScenarioIDs(results/ ツリーからの集計)
+    // MARK: - recordedUnits(results/ ツリーからの集計)
 
     var repoRoot: URL!
     var project: TestProject!
@@ -130,10 +134,10 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         RunResultsStore.writeScenario(makeScenarioRecord(scenarioID: "B.s2", runID: remoteRunID),
                                       runDir: remoteRunDir, fileName: "B.s2")
 
-        let recorded = DeviceMachineRunner.recordedScenarioIDs(
+        let recorded = DeviceMachineRunner.recordedUnits(
             project: project, runGroup: group,
             since: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!)
-        XCTAssertEqual(recorded, ["A.s1", "B.s1", "B.s2"])
+        XCTAssertEqual(recorded, Set(u("A.s1", "B.s1", "B.s2")))
     }
 
     /// ランナー機の時計が窓(5分)より遅れて startedAt が窓の外でも、渡した ID の結果があれば欠落と読まない
@@ -145,11 +149,11 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         RunResultsStore.writeMeta(makeMeta(runID: runID, startedAt: "2026-01-01T00:54:10Z", runGroup: group), runDir: runDir)
         RunResultsStore.writeScenario(makeScenarioRecord(scenarioID: "A.s1", runID: runID), runDir: runDir, fileName: "A.s1")
         let since = ISO8601DateFormatter().date(from: "2026-01-01T01:00:00Z")!
-        XCTAssertEqual(DeviceMachineRunner.scanRecordedScenarios(project: project, runGroup: group, since: since).all, [],
+        XCTAssertEqual(DeviceMachineRunner.scanRecordedScenarios(project: project, runGroup: group, since: since).all, Set(u()),
                        "前提: 窓だけの走査では見えない")
         let recorded = DeviceMachineRunner.scanRecordedScenarios(
-            project: project, runGroup: group, since: since, expected: ["A.s1"])
-        XCTAssertEqual(recorded.all, ["A.s1"], "時計の遅れたランナー機の正常な結果を欠落と読んだ")
+            project: project, runGroup: group, since: since, expected: u("A.s1"))
+        XCTAssertEqual(recorded.all, Set(u("A.s1")), "時計の遅れたランナー機の正常な結果を欠落と読んだ")
     }
 
     /// profile を渡すと、同じ runGroup の別プロファイルの記録を混ぜない(複数対象の run)
@@ -165,8 +169,8 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         }
         let recorded = DeviceMachineRunner.scanRecordedScenarios(
             project: project, runGroup: group, since: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!,
-            profile: "android", expected: ["A.android", "A.ios"])
-        XCTAssertEqual(recorded.all, ["A.android"])
+            profile: "android", expected: u("A.android", "A.ios"))
+        XCTAssertEqual(recorded.all, Set(u("A.android")))
     }
 
     /// 別の runGroup(=別の実行)の記録は混ぜない
@@ -190,15 +194,15 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         RunResultsStore.writeScenario(makeScenarioRecord(scenarioID: "C.s1", runID: otherRunID),
                                       runDir: otherRunDir, fileName: "C.s1")
 
-        let recorded = DeviceMachineRunner.recordedScenarioIDs(
+        let recorded = DeviceMachineRunner.recordedUnits(
             project: project, runGroup: group,
             since: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!)
-        XCTAssertEqual(recorded, ["A.s1"])
+        XCTAssertEqual(recorded, Set(u("A.s1")))
     }
 
     /// クラッシュを模す: 割り当てた3本のうち1本しか scenario record が無い run ディレクトリから、
     /// 欠落2本を正しく突き止める(reportMissingResults が読む2段(recordedScenarioIDs →
-    /// unrecordedScenarioIDs)の結合)
+    /// unrecordedUnits)の結合)
     func testRecordedScenarioIDsReflectsAPartiallyCrashedSubRun() {
         let group = "20260101-000000Z-abcd1234"
         let runID = "20260101-000100Z-mach-0001"
@@ -211,12 +215,12 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
                                       runDir: runDir, fileName: "A.s1")
         // A.s2 / A.s3 は書かれる前にサブ実行が SIGKILL された想定(意図的に書かない)
 
-        let recorded = DeviceMachineRunner.recordedScenarioIDs(
+        let recorded = DeviceMachineRunner.recordedUnits(
             project: project, runGroup: group,
             since: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!)
-        let missing = DeviceMachineRunner.unrecordedScenarioIDs(
-            assigned: ["A.s1", "A.s2", "A.s3"], recorded: recorded)
-        XCTAssertEqual(missing, ["A.s2", "A.s3"])
+        let missing = DeviceMachineRunner.unrecordedUnits(
+            assigned: u("A.s1", "A.s2", "A.s3"), recorded: recorded)
+        XCTAssertEqual(missing, u("A.s2", "A.s3"))
     }
 
     // M7b: 中断されたまま記録が残った分は `all`(=「記録あり」)には数えられるが missing には
@@ -240,10 +244,10 @@ final class DeviceMachineRunnerMissingResultsTests: XCTestCase {
         let recorded = DeviceMachineRunner.scanRecordedScenarios(
             project: project, runGroup: group,
             since: ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z")!)
-        XCTAssertEqual(recorded.all, ["A.s1", "A.s2"], "中断された分も「記録あり」に数える")
-        XCTAssertEqual(recorded.interrupted, ["A.s2"])
+        XCTAssertEqual(recorded.all, Set(u("A.s1", "A.s2")), "中断された分も「記録あり」に数える")
+        XCTAssertEqual(recorded.interrupted, Set(u("A.s2")))
         // missing(assigned - all)には出ない — 記録はある
-        XCTAssertEqual(DeviceMachineRunner.unrecordedScenarioIDs(
-            assigned: ["A.s1", "A.s2"], recorded: recorded.all), [])
+        XCTAssertEqual(DeviceMachineRunner.unrecordedUnits(
+            assigned: u("A.s1", "A.s2"), recorded: recorded.all), [])
     }
 }

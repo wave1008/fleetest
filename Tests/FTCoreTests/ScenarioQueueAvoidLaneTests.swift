@@ -4,7 +4,7 @@ import XCTest
 /// ブリッジ不達で振り直した item は、落としたレーン以外が生きている間そのレーンへ戻さない(OI-163 ⑪)
 final class ScenarioQueueAvoidLaneTests: XCTestCase {
     private func makeItem(_ id: String) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"), variant: nil)
     }
     /// 待ちが解けない退行でテストが止まらず落ちるための上限(期待どおりなら 0.1〜0.3 秒で返る)
     private static func deadline(_ seconds: Double = 5) -> @Sendable () async -> Bool {

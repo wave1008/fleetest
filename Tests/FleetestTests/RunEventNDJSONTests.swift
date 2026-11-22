@@ -22,7 +22,7 @@ final class RunEventNDJSONTests: XCTestCase {
     private let scenarioID = "ログインテスト.S0010"
     private var item: ScenarioRunItem {
         ScenarioRunItem(info: ScenarioInfo(id: scenarioID, title: "ログインできる",
-                                           platform: nil, deleted: false))
+                                           platform: nil, deleted: false), variant: nil)
     }
     private var flowURL: URL { item.url }
     private var itemByURL: [URL: ScenarioRunItem] { [flowURL: item] }
@@ -217,7 +217,7 @@ final class RunEventNDJSONTests: XCTestCase {
 
     func testFlowRequeuedForUnknownScenarioEmitsNothing() {
         // 対応する run item が無ければ「どの項目を待機中に戻すか」が決まらないので出さない
-        let unknown = ScenarioRunItem.url(for: "知らないシナリオ")
+        let unknown = ScenarioRunItem.url(for: "知らないシナリオ", variant: nil)
         XCTAssertEqual(lines(.flowRequeued(worker: workerLabel, flowURL: unknown,
                                            reason: "x", attempt: 1, limit: 3)), [])
     }

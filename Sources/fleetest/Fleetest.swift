@@ -770,17 +770,19 @@ struct RunScenarios: AsyncParsableCommand {
                     throw ProfileError.runProfileNotFound(name: profile, available: names)
                 }
             }
+            // --failed の記録は ID の記録(この段では variant が無い)
             let failedSet = ClassPlacementRules.expandingFailed(
-                LastResultsStore.failedIDs(project: testProject, profile: common.profile), all: all)
-            selected = selected.filter { failedSet.contains($0.id) }
+                Set(LastResultsStore.failedIDs(project: testProject, profile: common.profile)
+                    .map { ScenarioUnitKey(id: $0, variant: nil) }), all: all)
+            selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
             guard !selected.isEmpty else {
                 // 記録は消えたシナリオのファイルを消さない。今のプロジェクトに無い ID は「範囲の外の失敗」に数えない
                 let projectIDs = Set(all.map(\.id))
                 ConsoleOut.out(LastResultsStore.nothingFailedMessage(
                     recordedCount: LastResultsStore.recordedCount(project: testProject, profile: common.profile),
-                    failedCount: failedSet.filter { projectIDs.contains($0) }.count,
+                    failedCount: failedSet.filter { projectIDs.contains($0.id) }.count,
                     hasSelection: !scenarios.isEmpty || !folders.isEmpty,
-                    staleCount: failedSet.filter { !projectIDs.contains($0) }.count))
+                    staleCount: failedSet.filter { !projectIDs.contains($0.id) }.count))
                 return
             }
             ConsoleOut.out("→ Re-running the \(selected.count) scenario(s) that failed last time")
@@ -810,7 +812,7 @@ struct RunScenarios: AsyncParsableCommand {
         // LPT 投入順の適用は実行経路ごとに行う(実効 platform が確定してからでないと
         // 別 platform の実績で並べてしまう): --profile は ProfileRunner.run、--port は runParallel。
         // 逐次実行は並列度が無いので並べ替えない
-        let items = selected.map { ScenarioRunItem(info: $0) }
+        let items = selected.map { ScenarioRunItem(info: $0, variant: nil) }
 
         // dry-run はデバイスにも FM にも触れないので、供給・接続・FM 診断・結果記録を全部飛ばす。
         // **RunRecorder を作らない**(実行していない結果を results DB と --failed の判断材料に
@@ -1252,7 +1254,7 @@ struct RunScenarios: AsyncParsableCommand {
         let xml = abortedBeforeStart.map { aborted in
             JUnitReportWriter.xml(
                 project: project.name, records: records,
-                unstarted: aborted.items.map { ($0.info.id, $0.info.title, $0.info.platform ?? "") },
+                unstarted: aborted.items.map { ($0.unitKey, $0.info.title, $0.info.platform ?? "") },
                 abortReason: aborted.reason)
         } ?? JUnitReportWriter.xml(project: project.name, records: records)
         let url = URL(fileURLWithPath: junit)
@@ -1484,7 +1486,7 @@ struct RunScenarios: AsyncParsableCommand {
                 break
             }
             let platform = item.info.platform ?? resolvedPlatform
-            if let reason = placementGate.skipReason(for: item.info) {
+            if let reason = placementGate.skipReason(for: item.info, variant: item.variant) {
                 recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title, platform: platform,
                                         worker: nil, reason: reason)
                 ConsoleOut.out("❌ \(item.info.id): \(reason)")
@@ -1535,7 +1537,7 @@ struct RunScenarios: AsyncParsableCommand {
                     ConsoleOut.out(buffer.joined(separator: "\n"))
                 }
             }
-            placementGate.record(item.info, passed: outcome == .passed || outcome == .notApplicable)
+            placementGate.record(item.info, variant: item.variant, passed: outcome == .passed || outcome == .notApplicable)
             if outcome == .notApplicable { skippedCount += 1 }
             else if outcome != .passed { failedCount += 1 }
         }

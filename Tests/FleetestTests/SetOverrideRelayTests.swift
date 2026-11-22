@@ -43,7 +43,7 @@ final class SetOverrideRelayTests: XCTestCase {
             machine: "M1Ultra", deviceNames: ["Pixel 3a"], platforms: ["android"])
         let args = ApiRunMachineFanout.buildArgs(
             project: "E2E-Android", profileName: "android", group: group,
-            scenarioIDs: ["A.S0010"],
+            units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
             options: ApiRunMachineFanout.Options(
                 setOverrides: ["fmTextVisibilityCheck": false, "screenLooksLike": true],
                 defaultTimeout: nil, scenarioTimeout: nil, noLPT: false,
@@ -64,7 +64,7 @@ final class SetOverrideRelayTests: XCTestCase {
             machine: nil, deviceNames: ["Pixel 3a"], platforms: ["android"])
         let args = ApiRunMachineFanout.buildArgs(
             project: "E2E-Android", profileName: "android", group: group,
-            scenarioIDs: ["A.S0010"],
+            units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
             options: ApiRunMachineFanout.Options(
                 defaultTimeout: nil, scenarioTimeout: nil, noLPT: false,
                 lptHistoryRuns: nil, performanceMode: false, remoteDir: nil,

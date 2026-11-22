@@ -30,13 +30,25 @@ public enum DynamicSplit {
     /// 配る単位。platform は呼び手が解決済み(未宣言は run の既定 platform。子の run と同じ規則)
     public struct Scenario: Hashable, Sendable {
         public let id: String
+        /// バリアント(nil = バリアントの無い run)。実行の単位は ID × バリアント
+        public let variant: String?
         public let platform: String
         public let group: Group?
-        public init(id: String, platform: String, group: Group? = nil) {
+        /// バリアントの宣言順(束ねたクラスの並び「バリアントごとに続けて」の鍵。バリアントの無い run では 0)
+        public let variantRank: Int
+        public init(id: String, variant: String?, platform: String, group: Group? = nil, variantRank: Int = 0) {
             self.id = id
+            self.variant = variant
             self.platform = platform
             self.group = group
+            self.variantRank = variantRank
         }
+        public var unitKey: ScenarioUnitKey { ScenarioUnitKey(id: id, variant: variant) }
+    }
+
+    /// 単位の決定的な並び(ID 昇順 → バリアント名。同着の解き方の唯一の定義)
+    static func idPrecedes(_ lhs: Scenario, _ rhs: Scenario) -> Bool {
+        lhs.id != rhs.id ? lhs.id < rhs.id : (lhs.variant ?? "") < (rhs.variant ?? "")
     }
 
     /// マシン(エントリ)の中の1レーン(デバイス)。entry = FleetSplit.Estimator の entry 番号
@@ -63,7 +75,7 @@ public enum DynamicSplit {
 
     public enum Decision: Equatable, Sendable {
         /// このシナリオ ID を渡す
-        case assign(String)
+        case assign(ScenarioUnitKey)
         /// 渡さず待たせる。この時刻[ms]になったら判断が変わりうる(nil = 他のレーンの知らせを待つだけ)
         case hold(reconsiderAt: Double?)
         /// このレーンが回せるシナリオはもう無い(レーンは終わる)
@@ -104,8 +116,9 @@ public enum DynamicSplit {
     }
 
     private static func precedes(_ lhs: Scenario, _ rhs: Scenario) -> Bool {
+        if lhs.variantRank != rhs.variantRank { return lhs.variantRank < rhs.variantRank }
         let l = lhs.group?.order ?? Int.max, r = rhs.group?.order ?? Int.max
-        return l != r ? l < r : lhs.id < rhs.id
+        return l != r ? l < r : idPrecedes(lhs, rhs)
     }
 
     public static func decide(
@@ -117,7 +130,7 @@ public enum DynamicSplit {
 
         // 規則1: このレーンに束ねたクラスが残っていれば、他を挟まずその次を渡す
         for name in bindings.device.filter({ $0.value == requester }).keys.sorted() {
-            if let next = sameOS.filter({ $0.group?.name == name }).min(by: precedes) { return .assign(next.id) }
+            if let next = sameOS.filter({ $0.group?.name == name }).min(by: precedes) { return .assign(next.unitKey) }
         }
 
         // 規則2: 他へ束ねたクラスは候補から外す。束ねる前の singleMachine のクラスは、全メンバーの OS を持たないエントリへ渡さない
@@ -169,7 +182,7 @@ public enum DynamicSplit {
         let candidates = jobs.compactMap { job -> (job: Job, here: Double)? in
             costOn(job, requester).map { (job: job, here: $0) }
         }
-            .sorted { lpt && $0.here != $1.here ? $0.here > $1.here : $0.job.head.id < $1.job.head.id }
+            .sorted { lpt && $0.here != $1.here ? $0.here > $1.here : idPrecedes($0.job.head, $1.job.head) }
         if candidates.isEmpty { return .none }
 
         let others = lanes.filter { $0.lane.platform == requester.platform && $0.lane != requester }
@@ -185,7 +198,7 @@ public enum DynamicSplit {
             jobs: candidates.map(\.job), requester: requester, requesterAvailable: now,
             workers: others.map { (worker: $0.lane, available: freeAt($0)) },
             cost: { job, lane in costOn(job, lane) })
-        if let first = placed.first { return .assign(first.head.id) }
+        if let first = placed.first { return .assign(first.head.unitKey) }
         let placedOn = Dictionary(placed.placements.map { ($0.job, $0) }, uniquingKeysWith: { first, _ in first })
 
         // 規則が反転しうる最も早い時刻。空いている他レーンは時刻を作らない(そのレーンの要求で判断される)

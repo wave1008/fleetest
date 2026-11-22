@@ -118,7 +118,7 @@ enum DeviceMachineRunner {
         let healCollection = HealSourceWriteBack.Collection()
         // 前段(入口の印・チケット・手元のロックの先取り・ビルド・使用中の待ち・Prelock)は MachineFanoutFrontHalf の1箇所。
         // ここが持つのは差分 = シナリオ一覧の取得と配分だけ
-        typealias Active = [(Int, Group, [String])]
+        typealias Active = [(Int, Group, [ScenarioUnitKey])]
         // 動的な割り振りのときだけ入る(RR-8.1)
         typealias DynamicPlan = (scenarios: [DynamicSplit.Scenario], estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)
         // 一覧の段で得た `@RunHooks` のクラス名(beforeRun / afterRun。RR-8.4)
@@ -153,9 +153,11 @@ enum DeviceMachineRunner {
                 if failed {
                     // Fleetest.swift の単機経路と同じ判定・同じ文言(LastResultsStore.failedIDs は
                     // (project, profile) 単位。この分割経路もここでしか failed を見ないので1回だけ絞る)
+                    // --failed の記録は ID の記録(この段では variant が無い)
                     let failedSet = ClassPlacementRules.expandingFailed(
-                        LastResultsStore.failedIDs(project: project, profile: profileName), all: all)
-                    selected = selected.filter { failedSet.contains($0.id) }
+                        Set(LastResultsStore.failedIDs(project: project, profile: profileName)
+                            .map { ScenarioUnitKey(id: $0, variant: nil) }), all: all)
+                    selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
                     guard !selected.isEmpty else {
                         FleetRunner.log(LastResultsStore.nothingFailedMessage(
                             recordedCount: LastResultsStore.recordedCount(project: project, profile: profileName),
@@ -172,13 +174,13 @@ enum DeviceMachineRunner {
                         project: project, runName: profileName, overrides: setOverrides),
                     log: { FleetRunner.log($0) })
 
-                let active: [(Int, Group, [String])]
+                let active: [(Int, Group, [ScenarioUnitKey])]
                 // 動的な割り振りのときだけ入る(RR-8.1)
                 var dynamicPlan: (scenarios: [DynamicSplit.Scenario], estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)?
                 if broadcast {
                     // ブロードキャストは分割しない —— 各機械の各デバイスが全件を回す(分けると「全台で1回ずつ」が
                     // 機械ごとの部分集合に化ける)
-                    let ids = selected.map(\.id)
+                    let ids = selected.map { $0.unitKey(variant: nil) }
                     active = groups.indices.map { ($0, groups[$0], ids) }
                     for (_, group, ids) in active {
                         FleetRunner.log("    \(group.machineLabel): \(ids.count) scenario(s)"
@@ -191,9 +193,9 @@ enum DeviceMachineRunner {
                     let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
-                    active = groups.indices.compactMap { index -> (Int, Group, [String])? in
-                        let ids = DynamicDispatcher.candidateIDs(for: groups[index], in: resolved)
+                        runnable, variant: nil, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
+                    active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
+                        let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     guard !active.isEmpty else {
@@ -208,8 +210,8 @@ enum DeviceMachineRunner {
                     let (buckets, basis, notApplicable) = try assign(
                         project: project, groups: groups, selected: selected, lptHistoryRuns: lptHistoryRuns)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
-                    active = groups.indices.compactMap { index -> (Int, Group, [String])? in
-                        let ids = buckets[index].scenarioIDs
+                    active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
+                        let ids = buckets[index].units
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     guard !active.isEmpty else {
@@ -232,7 +234,7 @@ enum DeviceMachineRunner {
                     let ids = Set(local.2)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.1.deviceNames,
-                        localScenarios: selected.filter { ids.contains($0.id) }, broadcast: broadcast))
+                        localScenarios: selected.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: broadcast))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.1.machineLabel }, prelockProject: project))
@@ -293,7 +295,7 @@ enum DeviceMachineRunner {
                     let args = childArgs(
                         project: project.name, host: group.machineLabel, profile: profileName,
                         deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
-                        scenarios: ids, folders: [],
+                        scenarios: ids.map(\.description), folders: [],
                         setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                         performanceMode: performanceMode, forceLock: forceLock,
                         remoteDir: remoteDir, remoteTimeout: remoteTimeout,
@@ -348,8 +350,8 @@ enum DeviceMachineRunner {
             outcomes.map { ($0.host, $0.exitCode) }, uniquingKeysWith: { first, _ in first }))
 
         // 動的なら「実際に配られた分」が各機械の担当(欠落の報告・集計の本数)
-        let assignedActive: [(Int, Group, [String])] = dispatcher == nil ? active
-            : active.map { ($0.0, $0.1, dispatcher?.assignedIDs(entry: $0.0) ?? []) }
+        let assignedActive: [(Int, Group, [ScenarioUnitKey])] = dispatcher == nil ? active
+            : active.map { ($0.0, $0.1, dispatcher?.assignedUnits(entry: $0.0) ?? []) }
         let ranCounts: [String: Int]? = dispatcher == nil ? nil
             : Dictionary(assignedActive.map { ($0.1.machineLabel, $0.2.count) }, uniquingKeysWith: { first, _ in first })
         // 全部の子が終わっても誰にも渡せなかった分。中断なら失敗にしない(中断した事実が別に出る)
@@ -357,7 +359,7 @@ enum DeviceMachineRunner {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookParent?.beforeRunInterrupted ?? false
         if let dispatcher {
-            let ids = dispatcher.unhandedIDs
+            let ids = dispatcher.unhandedUnits
             if !ids.isEmpty {
                 let interrupted = interruptedWhileChildrenRan
                 interruptedWithWorkLeft = interruptedWithWorkLeft || interrupted
@@ -365,15 +367,15 @@ enum DeviceMachineRunner {
                 if let line = DynamicDispatcher.keptUnhandedLine(dispatcher.keptUnhanded), !beforeRunFailed { FleetRunner.log(line) }
                 if !interrupted, !beforeRunFailed {
                     neverHandedFailure = true
-                    for id in ids {
-                        LastResultsStore.record(project: project, scenarioID: id, passed: false, profile: profileName)
+                    for unit in ids {
+                        LastResultsStore.record(project: project, scenarioID: unit.id, passed: false, profile: profileName)
                     }
                 }
             }
         }
 
         printSummary(profileName: profileName, outcomes: outcomes, ran: ranCounts,
-                     workLeftUnhanded: !(dispatcher?.unhandedIDs.isEmpty ?? true))
+                     workLeftUnhanded: !(dispatcher?.unhandedUnits.isEmpty ?? true))
         healCollection.finish(project: project) { FleetRunner.log($0) }
         // **broadcast はここを呼ばない** —— 同じ ID を台数ぶん走らせるので、1台でも記録が
         // あれば「走った」であり「欠落」の意味が変わる(呼び手で分岐。実装を分けない)
@@ -515,9 +517,9 @@ enum DeviceMachineRunner {
     }
 
     /// 誰にも渡されなかったシナリオの1行(純粋関数。5件で切る = missingResultsLine と同じ)
-    static func neverHandedLine(ids: [String], interrupted: Bool) -> String {
+    static func neverHandedLine(ids: [ScenarioUnitKey], interrupted: Bool) -> String {
         let maxListed = 5
-        let listed = ids.prefix(maxListed).joined(separator: ", ")
+        let listed = ids.prefix(maxListed).map(\.description).joined(separator: ", ")
         let suffix = ids.count > maxListed ? ", …" : ""
         return interrupted
             ? "⚠️ interrupted: \(ids.count) scenario(s) were not handed to any device: \(listed)\(suffix)"
@@ -587,13 +589,13 @@ enum DeviceMachineRunner {
         let inputs = estimationInputs(project: project, groups: groups, lptHistoryRuns: lptHistoryRuns)
         do {
             let plan = try FleetSplit.plan(
-                scenarios: runnable.map { (id: $0.id, platform: $0.platform) },
+                scenarios: runnable.map { (id: $0.id, variant: nil, platform: $0.platform) },
                 durations: inputs.durations,
                 entryPlatforms: groups.map(\.platforms),
                 unknownDurationMs: inputs.unknownDurationMs,
                 entryCapacities: groups.map { Double($0.deviceNames.count) },
                 machineContext: inputs.machineContext,
-                groups: DynamicDispatcher.groups(of: runnable))
+                groups: DynamicDispatcher.groups(of: runnable, variant: nil))
             return (plan.buckets, plan.basis, notApplicable)
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("profile \"\(project.name)\": \(error.localizedDescription)")
@@ -604,11 +606,11 @@ enum DeviceMachineRunner {
     static func splitApplicable(selected: [ScenarioInfo], groups: [Group])
         -> (runnable: [ScenarioInfo], notApplicable: [ScenarioInfo]) {
         let split = FleetSplit.applicability(
-            scenarios: selected.map { (id: $0.id, platform: $0.platform) },
+            scenarios: selected.map { (id: $0.id, variant: nil, platform: $0.platform) },
             entryPlatforms: groups.map(\.platforms))
-        let runnableIDs = Set(split.runnable.map(\.id))
-        return (selected.filter { runnableIDs.contains($0.id) },
-                selected.filter { !runnableIDs.contains($0.id) })
+        let runnable = Set(split.runnable.map { ScenarioUnitKey(id: $0.id, variant: $0.variant) })
+        return (selected.filter { runnable.contains($0.unitKey(variant: nil)) },
+                selected.filter { !runnable.contains($0.unitKey(variant: nil)) })
     }
 
     /// 見積りの入力(静的な割り当てと動的な割り振りが共有する。同じ材料でなければ両者の見込みが食い違う)。
@@ -710,7 +712,7 @@ enum DeviceMachineRunner {
     @discardableResult
     private static func reportMissingResults(
         project: TestProject, profileName: String, runGroup: String, since: Date,
-        active: [(Int, Group, [String])], outcomes: [FleetEntryOutcome]
+        active: [(Int, Group, [ScenarioUnitKey])], outcomes: [FleetEntryOutcome]
     ) -> Int {
         var missingTotal = 0
         let recorded = scanRecordedScenarios(project: project, runGroup: runGroup, since: since,
@@ -721,13 +723,13 @@ enum DeviceMachineRunner {
         let exitCodes = Dictionary(outcomes.map { ($0.host, $0.exitCode) }, uniquingKeysWith: { first, _ in first })
         for (_, group, ids) in active {
             let exitCode = exitCodes[group.machineLabel] ?? -1
-            let missing = unrecordedScenarioIDs(assigned: ids, recorded: recorded.all)
+            let missing = unrecordedUnits(assigned: ids, recorded: recorded.all)
             missingTotal += missing.count
             if !missing.isEmpty {
                 FleetRunner.log(missingResultsLine(
                     machineLabel: group.machineLabel, exitCode: exitCode, ids: missing))
-                for id in missing {
-                    LastResultsStore.record(project: project, scenarioID: id, passed: false, profile: profileName)
+                for unit in missing {
+                    LastResultsStore.record(project: project, scenarioID: unit.id, passed: false, profile: profileName)
                 }
             }
             // M7b: 中断された記録は「記録あり」に数えられて missing に出ない(missing は「1件も
@@ -757,8 +759,8 @@ enum DeviceMachineRunner {
     /// だったもの(サブ実行が ssh の断・kill 等で終わり、リモート側が「中断」として書いた途中版が
     /// 回収されたケース。M7b)
     struct RecordedScenarios {
-        var all: Set<String> = []
-        var interrupted: Set<String> = []
+        var all: Set<ScenarioUnitKey> = []
+        var interrupted: Set<ScenarioUnitKey> = []
     }
 
     /// **ファイル名でなく JSON の中身で照合する**(日本語ファイル名は NFD 保存で glob・文字列一致が
@@ -768,7 +770,7 @@ enum DeviceMachineRunner {
     /// - expected: 渡した ID。**時刻の窓で欠落が出たら窓なしで照合し直す** —— 窓は走査量を絞るだけで、欠落は終了コードを
     ///   左右する(1 / 130)ので、ランナー機の時計が clockSkewMargin より遅れて startedAt が窓の外に出ても正常な結果を欠落と読まない
     static func scanRecordedScenarios(project: TestProject, runGroup: String, since: Date,
-                                      profile: String? = nil, expected: [String] = []) -> RecordedScenarios {
+                                      profile: String? = nil, expected: [ScenarioUnitKey] = []) -> RecordedScenarios {
         let resultsDir = RunResultsStore.resultsDir(projectRoot: project.rootURL)
         func scan(since window: Date?) -> RecordedScenarios {
             let metas = (window == nil ? windowlessMetas(resultsDir: resultsDir, runGroup: runGroup)
@@ -778,8 +780,8 @@ enum DeviceMachineRunner {
             for meta in metas {
                 let runDir = RunResultsStore.runDir(resultsDir: resultsDir, runID: meta.runID)
                 for record in RunResultsStore.records(runDir: runDir) {
-                    result.all.insert(record.scenarioID)
-                    if record.interrupted == true { result.interrupted.insert(record.scenarioID) }
+                    result.all.insert(record.unitKey)
+                    if record.interrupted == true { result.interrupted.insert(record.unitKey) }
                 }
             }
             return result
@@ -802,22 +804,22 @@ enum DeviceMachineRunner {
         return metas
     }
 
-    /// `all` だけでよい呼び手向け(unrecordedScenarioIDs の入力)
-    static func recordedScenarioIDs(project: TestProject, runGroup: String, since: Date) -> Set<String> {
+    /// `all` だけでよい呼び手向け(unrecordedUnits の入力)
+    static func recordedUnits(project: TestProject, runGroup: String, since: Date) -> Set<ScenarioUnitKey> {
         scanRecordedScenarios(project: project, runGroup: runGroup, since: since).all
     }
 
-    /// `assigned` のうち `recorded` に無い ID(順序は assigned のまま)。純粋関数(単体テスト対象)
-    static func unrecordedScenarioIDs(assigned: [String], recorded: Set<String>) -> [String] {
+    /// `assigned` のうち `recorded` に無い単位(順序は assigned のまま)。純粋関数(単体テスト対象)
+    static func unrecordedUnits(assigned: [ScenarioUnitKey], recorded: Set<ScenarioUnitKey>) -> [ScenarioUnitKey] {
         assigned.filter { !recorded.contains($0) }
     }
 
     /// 「結果が1件も無かった」ことを知らせる1行(純粋関数。単体テスト対象)。
     /// 5件を超えたら先頭5件 + "…" に切る(負荷テストの実測で1機に11本の割り当ては普通に起きる。
     /// 全件出すとログが埋まる。件数自体は先頭の "N scenario(s)" に必ず出る)
-    static func missingResultsLine(machineLabel: String, exitCode: Int32, ids: [String]) -> String {
+    static func missingResultsLine(machineLabel: String, exitCode: Int32, ids: [ScenarioUnitKey]) -> String {
         let maxListed = 5
-        let listed = ids.prefix(maxListed).joined(separator: ", ")
+        let listed = ids.prefix(maxListed).map(\.description).joined(separator: ", ")
         let suffix = ids.count > maxListed ? ", …" : ""
         return "⚠️ \(machineLabel): \(ids.count) scenario(s) produced no result"
             + " (sub-run exited \(exitCode)): \(listed)\(suffix)"
@@ -826,9 +828,9 @@ enum DeviceMachineRunner {
     /// 「記録はあるが中断されたまま残った」ことを知らせる1行(純粋関数。単体テスト対象)。
     /// missingResultsLine と同じ5件で切る規則。**呼び出し側が exit code 0 では呼ばないこと**
     /// (正常終了で中断記録が残ることは無い想定)
-    static func interruptedResultsLine(machineLabel: String, exitCode: Int32, ids: [String]) -> String {
+    static func interruptedResultsLine(machineLabel: String, exitCode: Int32, ids: [ScenarioUnitKey]) -> String {
         let maxListed = 5
-        let listed = ids.prefix(maxListed).joined(separator: ", ")
+        let listed = ids.prefix(maxListed).map(\.description).joined(separator: ", ")
         let suffix = ids.count > maxListed ? ", …" : ""
         return "⚠️ \(machineLabel): \(ids.count) scenario(s) were interrupted"
             + " (sub-run exited \(exitCode)): \(listed)\(suffix)"

@@ -12,7 +12,7 @@ public enum ResponseMeasurementRepeat {
         result.reserveCapacity(items.count * count)
         for item in items {
             for index in 1...count {
-                result.append(ScenarioRunItem(info: item.info, lane: item.lane, repeatIndex: index))
+                result.append(item.with(repeatIndex: index))
             }
         }
         return result

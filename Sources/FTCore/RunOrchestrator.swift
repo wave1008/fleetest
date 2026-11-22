@@ -616,17 +616,17 @@ public final class RunOrchestrator: Sendable {
             // shared と違い、担当ワーカーのない platform のシナリオを失敗にしない —— 配られていない
             // シナリオはこの子のものではない(他のマシンが回す)。配り手はその platform を聞かれない
             queues = grouped.filter { workerPlatforms.contains($0.key) }.reduce(into: [:]) { result, entry in
-                var catalog: [String: [ScenarioRunItem]] = [:]
-                for item in entry.value { catalog[item.info.id, default: []].append(item) }
+                var catalog: [ScenarioUnitKey: [ScenarioRunItem]] = [:]
+                for item in entry.value { catalog[item.unitKey, default: []].append(item) }
                 result[entry.key] = ScenarioQueue(pulled: ScenarioQueue.PullState(
                     source: source, platform: entry.key, catalog: LockedValue(catalog),
                     onHandOut: { [weak self] _ in
                         self?.handedOut.withLock { $0 += 1 }
                         await self?.progressState?.growTotal()
                     },
-                    onUnknownID: { [weak self] id in
+                    onUnknownID: { [weak self] unit in
                         self?.continuation.yield(.workerLog(
-                            worker: "run", message: "work queue handed out an unknown scenario id: \(id)"))
+                            worker: "run", message: "work queue handed out an unknown scenario id: \(unit)"))
                     }))
             }
             total = 0
@@ -919,7 +919,7 @@ public final class RunOrchestrator: Sendable {
         let local = await queue.noteNotApplicable(item, lane: lane, reason: declared)
         guard local != .handOn, item.info.placement == nil, let target = await queue.pullTarget() else { return (local, false) }
         let verdict = await target.source.declareNotApplicable(
-            platform: target.platform, lane: lane, scenarioID: item.info.id,
+            platform: target.platform, lane: lane, unit: item.unitKey,
             departedUntried: await queue.hasDepartedUntried(item))
         return (verdict, verdict == .handOn)
     }
@@ -1131,7 +1131,7 @@ public final class RunOrchestrator: Sendable {
     /// 失敗が確定した @RunInOrder のテストの後、同じクラスの残りを実行しない(振り直す分では呼ばない)。戻り値 = 失敗に数える本数
     private func abandonInOrder(after item: ScenarioRunItem, worker: RunWorker, queue: ScenarioQueue) async -> Int {
         let rest = await queue.abandonInOrderClass(after: item, lane: ScenarioQueue.lane(of: worker))
-        return recordNotRun(rest, worker: worker) { _ in ClassPlacementRules.notRunReason(failedID: item.info.id) }
+        return recordNotRun(rest, worker: worker) { _ in ClassPlacementRules.notRunReason(failedID: item.unitKey.description) }
     }
 
     /// 失敗が確定した1本ぶん(1)+@RunInOrder で実行しなかった残り

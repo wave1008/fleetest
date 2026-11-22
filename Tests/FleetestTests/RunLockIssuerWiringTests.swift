@@ -39,7 +39,7 @@ final class RunLockIssuerWiringTests: XCTestCase {
             ApiRunMachineFanout.buildArgs(
                 project: "E2E", profileName: "p",
                 group: DeviceMachineRunner.Group(machine: machine, deviceNames: ["d"], platforms: ["android"]),
-                scenarioIDs: ["A.S0010"],
+                units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
                 options: ApiRunMachineFanout.Options(
                     defaultTimeout: nil, scenarioTimeout: nil, noLPT: false, lptHistoryRuns: nil,
                     performanceMode: false, remoteDir: nil, remoteTimeout: nil, waitLock: nil),

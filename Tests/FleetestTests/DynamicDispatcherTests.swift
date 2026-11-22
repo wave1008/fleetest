@@ -43,18 +43,18 @@ final class DynamicDispatcherTests: XCTestCase {
         WorkQueueProtocol.Want(req: req, lane: lane, platform: platform)
     }
 
-    private func ios(_ id: String) -> Scenario { Scenario(id: id, platform: "ios") }
+    private func ios(_ id: String) -> Scenario { Scenario(id: id, variant: nil, platform: "ios") }
 
     private func none(_ req: Int) -> WorkQueueProtocol.Reply { .init(req: req, none: true) }
 
     /// 遅いマシンは速いマシンが終わる見込みのほうが早ければ待たされ、速いマシンが戻ると渡されず none で終わる
     func testSlowMachineHeldThenAnsweredNoneWhenPendingEmpties() {
         let h = harness(scenarios: [ios("L"), ios("S")], base: ["L": 10_000, "S": 1_000], factors: [1, 20])
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, id: "L"))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "L", variant: nil)))
         XCTAssertNil(h.dispatcher.handle(want(1, lane: "b"), fromEntry: 1))
         XCTAssertEqual(h.timers.value, [10_000], "速いレーンが空く見込みの時刻に1回だけ張る")
         h.clock.value = 10_000
-        XCTAssertEqual(h.dispatcher.handle(want(2, lane: "a"), fromEntry: 0), .init(req: 2, id: "S"))
+        XCTAssertEqual(h.dispatcher.handle(want(2, lane: "a"), fromEntry: 0), .init(req: 2, unit: ScenarioUnitKey(id: "S", variant: nil)))
         // 速いマシンが S を走らせている間は、対象外で戻ってくるかもしれないので none にせず保留する(DR-214)。S が終われば none
         XCTAssertEqual(h.sent.value, [])
         XCTAssertEqual(h.dispatcher.handle(want(3, lane: "a"), fromEntry: 0), .init(req: 3, none: true))
@@ -65,33 +65,33 @@ final class DynamicDispatcherTests: XCTestCase {
     func testSlowMachineGetsShortScenarioWhileFastIsBusy() {
         let h = harness(scenarios: [ios("L"), ios("S"), ios("T")],
                         base: ["L": 10_000, "S": 1_000, "T": 500], factors: [1, 20])
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, id: "L"))
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "b"), fromEntry: 1), .init(req: 1, id: "T"))
-        XCTAssertEqual(h.dispatcher.unhandedIDs, ["S"])
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "L", variant: nil)))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "b"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "T", variant: nil)))
+        XCTAssertEqual(h.dispatcher.unhandedUnits, [ScenarioUnitKey(id: "S", variant: nil)])
     }
 
     /// `--no-lpt` は親の配る順に効く(子のカタログの並びでは変わらない)
     func testNoLPTHandsOutInIDOrder() {
         let h = harness(scenarios: [ios("Z.long"), ios("A.short")], base: ["Z.long": 10_000, "A.short": 1_000],
                         factors: [1], lpt: false)
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, id: "A.short"))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "A.short", variant: nil)))
     }
 
     /// 要求を出していないレーン(供給中)は空きと数えない
     func testLaneThatNeverJoinedIsNotCounted() {
         let h = harness(scenarios: [ios("X")], base: ["X": 10_000], factors: [10, 0.1])
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, id: "X"))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "X", variant: nil)))
     }
 
     /// 子が落ちたらそのレーンと保留を捨てる。渡し済みは回し直さず、残りは他のマシンへ配る
     func testChildExitDropsLanesAndDoesNotRedispatch() {
         let h = harness(scenarios: [ios("L"), ios("S")], base: ["L": 10_000, "S": 1_000], factors: [1, 20])
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, id: "L"))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "L", variant: nil)))
         XCTAssertNil(h.dispatcher.handle(want(1, lane: "b"), fromEntry: 1))
         h.dispatcher.childExited(entry: 0)
-        XCTAssertEqual(h.sent.value, ["1:" + WorkQueueProtocol.encode(.init(req: 1, id: "S"))])
-        XCTAssertEqual(h.dispatcher.assignedIDs(entry: 0), ["L"])
-        XCTAssertEqual(h.dispatcher.unhandedIDs, [])
+        XCTAssertEqual(h.sent.value, ["1:" + WorkQueueProtocol.encode(.init(req: 1, unit: ScenarioUnitKey(id: "S", variant: nil)))])
+        XCTAssertEqual(h.dispatcher.assignedUnits(entry: 0), [ScenarioUnitKey(id: "L", variant: nil)])
+        XCTAssertEqual(h.dispatcher.unhandedUnits, [])
         // 落ちた子の遅れた要求には答えない(書き込み先が無い)
         XCTAssertNil(h.dispatcher.handle(want(2, lane: "a"), fromEntry: 0))
     }
@@ -101,7 +101,7 @@ final class DynamicDispatcherTests: XCTestCase {
         let h = harness(scenarios: [ios("L"), ios("S")], base: ["L": 10_000, "S": 1_000], factors: [1, 1])
         _ = h.dispatcher.handle(want(1, lane: "a"), fromEntry: 0)
         h.dispatcher.childExited(entry: 0)
-        XCTAssertEqual(h.dispatcher.unhandedIDs, ["S"])
+        XCTAssertEqual(h.dispatcher.unhandedUnits, [ScenarioUnitKey(id: "S", variant: nil)])
     }
 
     /// platform: 未宣言は run の既定。レーンの platform と違うシナリオは渡さない(none)
@@ -112,16 +112,16 @@ final class DynamicDispatcherTests: XCTestCase {
         XCTAssertEqual(DynamicDispatcher.undeclaredPlatform(groups: [androidGroup]), "android")
 
         let resolved = DynamicDispatcher.resolve(
-            [(id: "U", platform: nil), (id: "D", platform: "android")], defaultPlatform: "ios")
-        XCTAssertEqual(resolved, [Scenario(id: "U", platform: "ios"), Scenario(id: "D", platform: "android")])
-        XCTAssertEqual(DynamicDispatcher.candidateIDs(for: iosGroup, in: resolved), ["U"])
-        XCTAssertEqual(DynamicDispatcher.candidateIDs(for: androidGroup, in: resolved), ["D"])
+            [(id: "U", variant: nil, platform: nil), (id: "D", variant: nil, platform: "android")], defaultPlatform: "ios")
+        XCTAssertEqual(resolved, [Scenario(id: "U", variant: nil, platform: "ios"), Scenario(id: "D", variant: nil, platform: "android")])
+        XCTAssertEqual(DynamicDispatcher.candidateUnits(for: iosGroup, in: resolved), [ScenarioUnitKey(id: "U", variant: nil)])
+        XCTAssertEqual(DynamicDispatcher.candidateUnits(for: androidGroup, in: resolved), [ScenarioUnitKey(id: "D", variant: nil)])
 
         let h = harness(scenarios: resolved, base: [:], factors: [1, 1])
         XCTAssertEqual(h.dispatcher.handle(want(1, lane: "a", platform: "android"), fromEntry: 1),
-                       .init(req: 1, id: "D"))
+                       .init(req: 1, unit: ScenarioUnitKey(id: "D", variant: nil)))
         XCTAssertEqual(h.dispatcher.handle(want(2, lane: "a", platform: "android"), fromEntry: 1), none(2))
-        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "i"), fromEntry: 0), .init(req: 1, id: "U"))
+        XCTAssertEqual(h.dispatcher.handle(want(1, lane: "i"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "U", variant: nil)))
     }
 
     /// 中断: 保留中の要求にも以後の要求にも none。渡していない分は残る(呼び手が「中断」として報告する)
@@ -134,7 +134,7 @@ final class DynamicDispatcherTests: XCTestCase {
         XCTAssertEqual(h.dispatcher.handle(want(2, lane: "a"), fromEntry: 0), none(2))
         XCTAssertEqual(h.dispatcher.handle(want(3, lane: "c"), fromEntry: 2), none(3))
         XCTAssertTrue(h.dispatcher.isInterrupted)
-        XCTAssertEqual(h.dispatcher.unhandedIDs, ["S"])
+        XCTAssertEqual(h.dispatcher.unhandedUnits, [ScenarioUnitKey(id: "S", variant: nil)])
     }
 
     /// タイマーが鳴っても状況が変わらなければ保留のまま(見込み通りに空かないなら次の時刻へ張り直す)
@@ -307,9 +307,9 @@ final class DynamicDispatcherTests: XCTestCase {
     }
 
     func testNeverHandedLineWording() {
-        XCTAssertTrue(DeviceMachineRunner.neverHandedLine(ids: ["A", "B"], interrupted: false)
+        XCTAssertTrue(DeviceMachineRunner.neverHandedLine(ids: ["A", "B"].map { ScenarioUnitKey(id: $0, variant: nil) }, interrupted: false)
             .contains("2 scenario(s) were never handed to a device: A, B"))
-        XCTAssertTrue(DeviceMachineRunner.neverHandedLine(ids: ["A"], interrupted: true).contains("interrupted"))
+        XCTAssertTrue(DeviceMachineRunner.neverHandedLine(ids: ["A"].map { ScenarioUnitKey(id: $0, variant: nil) }, interrupted: true).contains("interrupted"))
     }
 
     /// 子が死んで読み手の無いパイプへ書いても落ちない・閉じた後の書き込みは何もしない
@@ -326,12 +326,12 @@ final class DynamicDispatcherTests: XCTestCase {
 
     /// 動的な割り振りでは、子が終わったときの「未完了」は渡したシナリオだけで数える
     func testMultiplexerUsesAssignedIDsAndSynthesizesNeverHanded() {
-        var mux = MachineFanoutMultiplexer(groupMachines: [nil], assignedScenarioIDs: [["A.a", "A.b", "A.c"]])
-        let lines = mux.childExited(0, exitCode: 1, assigned: ["A.a"])
+        var mux = MachineFanoutMultiplexer(groupMachines: [nil], assignedUnits: [["A.a", "A.b", "A.c"].map { ScenarioUnitKey(id: $0, variant: nil) }])
+        let lines = mux.childExited(0, exitCode: 1, assigned: ["A.a"].map { ScenarioUnitKey(id: $0, variant: nil) })
         XCTAssertEqual(mux.totalFailed, 1)
         XCTAssertTrue(lines.contains { $0.contains("A.a") })
         XCTAssertFalse(lines.contains { $0.contains("A.b") })
-        let more = mux.neverHanded(["A.b", "A.c"])
+        let more = mux.neverHanded(["A.b", "A.c"].map { ScenarioUnitKey(id: $0, variant: nil) })
         XCTAssertEqual(mux.totalFailed, 3)
         XCTAssertTrue(more.contains { $0.contains("scenarioFinished") })
     }

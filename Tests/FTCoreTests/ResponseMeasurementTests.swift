@@ -128,7 +128,7 @@ final class ResponseMeasurementTests: XCTestCase {
 
     // MARK: 繰り返しの展開
 
-    private func runItem(_ id: String) -> ScenarioRunItem { ScenarioRunItem(info: ScenarioInfo(id: id, title: id)) }
+    private func runItem(_ id: String) -> ScenarioRunItem { ScenarioRunItem(info: ScenarioInfo(id: id, title: id), variant: nil) }
 
     func testExpandRepeatsEachItemBackToBackWithUniqueURLs() {
         let out = ResponseMeasurementRepeat.expand([runItem("A.S1"), runItem("日本語.S2")], count: 3)
@@ -139,8 +139,16 @@ final class ResponseMeasurementTests: XCTestCase {
         XCTAssertTrue(out[1].url.absoluteString.hasSuffix("?repeat=2"))
     }
 
+    /// 繰り返し展開がバリアントを落とさない(落とすと全部バリアント無しの単位に化ける)
+    func testExpandKeepsVariant() {
+        let item = ScenarioRunItem(info: ScenarioInfo(id: "A.S1", title: "A.S1"), variant: "dark")
+        let out = ResponseMeasurementRepeat.expand([item], count: 2)
+        XCTAssertEqual(out.map(\.variant), ["dark", "dark"])
+        XCTAssertEqual(out.map(\.repeatIndex), [1, 2])
+    }
+
     func testExpandKeepsLaneAndCountOneIsIdentity() {
-        let laned = ScenarioRunItem(info: ScenarioInfo(id: "A.S1", title: "t"), lane: "dev(1)")
+        let laned = ScenarioRunItem(info: ScenarioInfo(id: "A.S1", title: "t"), lane: "dev(1)", variant: nil)
         let out = ResponseMeasurementRepeat.expand([laned], count: 2)
         XCTAssertTrue(out[1].url.absoluteString.contains("lane=dev"))
         XCTAssertTrue(out[1].url.absoluteString.hasSuffix("&repeat=2"))

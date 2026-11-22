@@ -12,12 +12,27 @@ final class WorkQueueProtocolTests: XCTestCase {
     }
 
     func testReplyWithIDRoundTrip() {
-        let reply = WorkQueueProtocol.Reply(req: 3, id: "Login.S0010")
+        let reply = WorkQueueProtocol.Reply(req: 3, unit: ScenarioUnitKey(id: "Login.S0010", variant: nil))
         let line = WorkQueueProtocol.encode(reply)
         XCTAssertEqual(line, #"{"ftWork":{"id":"Login.S0010","req":3}}"#)
         let decoded = WorkQueueProtocol.decodeReply(line)
         XCTAssertEqual(decoded, reply)
-        XCTAssertEqual(decoded?.scenarioID, "Login.S0010")
+        XCTAssertEqual(decoded?.unit, ScenarioUnitKey(id: "Login.S0010", variant: nil))
+    }
+
+    /// バリアント付きの単位は `variant` を足した形で往復する(バリアントの無い行の形は上のテストが固定)
+    func testReplyAndNotApplicableCarryTheVariantOnTheWire() {
+        let unit = ScenarioUnitKey(id: "Login.S0010", variant: "dark")
+        let reply = WorkQueueProtocol.Reply(req: 3, unit: unit)
+        let line = WorkQueueProtocol.encode(reply)
+        XCTAssertEqual(line, #"{"ftWork":{"id":"Login.S0010","req":3,"variant":"dark"}}"#)
+        XCTAssertEqual(WorkQueueProtocol.decodeReply(line)?.unit, unit)
+        let na = WorkQueueProtocol.NotApplicable(req: 5, unit: unit, lane: "a", platform: "ios", dep: false)
+        let naLine = WorkQueueProtocol.encode(na)
+        XCTAssertTrue(naLine.contains(#""variant":"dark""#))
+        XCTAssertEqual(WorkQueueProtocol.decodeNotApplicable(naLine)?.unit, unit)
+        let plain = WorkQueueProtocol.NotApplicable(req: 5, unit: ScenarioUnitKey(id: "A.b", variant: nil), lane: "a", platform: "ios", dep: false)
+        XCTAssertFalse(WorkQueueProtocol.encode(plain).contains("variant"), "バリアントの無い行に variant を載せない")
     }
 
     func testReplyNoneRoundTrip() {
@@ -26,11 +41,11 @@ final class WorkQueueProtocolTests: XCTestCase {
         XCTAssertEqual(line, #"{"ftWork":{"none":true,"req":4}}"#)
         let decoded = WorkQueueProtocol.decodeReply(line)
         XCTAssertEqual(decoded, reply)
-        XCTAssertNil(decoded?.scenarioID)
+        XCTAssertNil(decoded?.unit)
     }
 
     func testNonAsciiScenarioIDRoundTrips() {
-        let reply = WorkQueueProtocol.Reply(req: 1, id: "ログイン.S0010")
+        let reply = WorkQueueProtocol.Reply(req: 1, unit: ScenarioUnitKey(id: "ログイン.S0010", variant: nil))
         XCTAssertEqual(WorkQueueProtocol.decodeReply(WorkQueueProtocol.encode(reply)), reply)
     }
 
@@ -53,7 +68,7 @@ final class WorkQueueProtocolTests: XCTestCase {
         XCTAssertNil(WorkQueueProtocol.decodeReply("not json"))
         // want の行は返事ではない・返事の行は want ではない
         let want = WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))
-        let reply = WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, id: "A.B"))
+        let reply = WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, unit: ScenarioUnitKey(id: "A.B", variant: nil)))
         XCTAssertNil(WorkQueueProtocol.decodeReply(want))
         XCTAssertNil(WorkQueueProtocol.decodeWant(reply))
         // 中身が id も none も持たない返事は返事として読まない
@@ -69,7 +84,7 @@ final class WorkQueueProtocolTests: XCTestCase {
         XCTAssertEqual(cancel, #"{"ftWork":{"op":"cancel","reason":"beforeRun() failed"}}"#)
         XCTAssertEqual(WorkQueueProtocol.decodeStartSignal(cancel), .cancel(reason: "beforeRun() failed"))
         for other in [WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios")),
-                      WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, id: "A")),
+                      WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: 1, unit: ScenarioUnitKey(id: "A", variant: nil))),
                       WorkQueueProtocol.encode(WorkQueueProtocol.MemoHello(src: "a")),
                       #"{"kind":"step"}"#, "garbage"] {
             XCTAssertNil(WorkQueueProtocol.decodeStartSignal(other), other)

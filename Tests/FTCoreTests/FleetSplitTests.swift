@@ -21,16 +21,16 @@ final class FleetSplitTests: XCTestCase {
         let durations = [
             duration("A.one", 5_000), duration("B.two", 3_000), duration("C.three", 4_000, "android"),
         ]
-        let scenarios: [(id: String, platform: String?)] = [
-            ("A.one", nil), ("B.two", nil), ("C.three", nil), ("D.four", nil), ("E.five", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("A.one", nil, nil), ("B.two", nil, nil), ("C.three", nil, nil), ("D.four", nil, nil), ("E.five", nil, nil),
         ]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: durations,
             entryPlatforms: [["ios", "android"], ["ios", "android"]], unknownDurationMs: 1_000)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["A.one", "D.four", "E.five"], estimatedMs: 7_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["C.three", "B.two"], estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["A.one", "D.four", "E.five"]), estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["C.three", "B.two"]), estimatedMs: 7_000),
         ])
     }
 
@@ -42,22 +42,22 @@ final class FleetSplitTests: XCTestCase {
         // AndroidOnly.one は entry1 にしか入らない → entry1(0→1000)。
         // Either.one はどちらでも良く、entry0 が軽い(0<1000)ので entry0(0→1000)。
         // IosOnly.one は entry0 にしか入らない → entry0(1000→2000)。
-        let scenarios: [(id: String, platform: String?)] = [
-            ("IosOnly.one", "ios"), ("AndroidOnly.one", "android"), ("Either.one", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("IosOnly.one", nil, "ios"), ("AndroidOnly.one", nil, "android"), ("Either.one", nil, nil),
         ]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [],
             entryPlatforms: [["ios"], ["android"]], unknownDurationMs: 1_000)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["Either.one", "IosOnly.one"], estimatedMs: 2_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["AndroidOnly.one"], estimatedMs: 1_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["Either.one", "IosOnly.one"]), estimatedMs: 2_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["AndroidOnly.one"]), estimatedMs: 1_000),
         ])
     }
 
     func testThrowsWhenNoEntryFitsTheScenariosPlatform() {
         XCTAssertThrowsError(try FleetSplit.partition(
-            scenarios: [("X.one", "android")], durations: [],
+            scenarios: [("X.one", nil, "android")], durations: [],
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000)
         ) { error in
             XCTAssertEqual(error as? FleetSplit.FleetSplitError,
@@ -69,7 +69,7 @@ final class FleetSplitTests: XCTestCase {
 
     func testApplicabilitySkipsDeclaredPlatformsTheFleetCannotRun() {
         let split = FleetSplit.applicability(
-            scenarios: [("X.android", "android"), ("X.ios", "ios"), ("X.any", nil)],
+            scenarios: [("X.android", nil, "android"), ("X.ios", nil, "ios"), ("X.any", nil, nil)],
             entryPlatforms: [["ios"], ["ios"]])
         XCTAssertEqual(split.runnable.map(\.id), ["X.ios", "X.any"],
                        "platform 未宣言は常に runnable・fleet が持つ platform の宣言も runnable")
@@ -82,7 +82,7 @@ final class FleetSplitTests: XCTestCase {
 
     func testApplicabilityKeepsEverythingWhenNoEntryHasAnyPlatform() {
         // 全エントリ空 = runPlatforms 空 → 全件 runnable のまま partition が設定ミスとして throw する
-        let split = FleetSplit.applicability(scenarios: [("X.one", "android")], entryPlatforms: [[], []])
+        let split = FleetSplit.applicability(scenarios: [("X.one", nil, "android")], entryPlatforms: [[], []])
         XCTAssertEqual(split.runnable.map(\.id), ["X.one"])
         XCTAssertTrue(split.notApplicable.isEmpty)
         XCTAssertThrowsError(try FleetSplit.partition(
@@ -91,7 +91,7 @@ final class FleetSplitTests: XCTestCase {
 
     func testThrowsWhenNoEntriesExistAtAll() {
         XCTAssertThrowsError(try FleetSplit.partition(
-            scenarios: [("X.one", nil)], durations: [],
+            scenarios: [("X.one", nil, nil)], durations: [],
             entryPlatforms: [], unknownDurationMs: 1_000)
         ) { error in
             XCTAssertEqual(error as? FleetSplit.FleetSplitError,
@@ -107,20 +107,20 @@ final class FleetSplitTests: XCTestCase {
             entryPlatforms: [["ios", "android"], ["ios"]], unknownDurationMs: 1_000)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: [], estimatedMs: 0),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: [], estimatedMs: 0),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys([]), estimatedMs: 0),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys([]), estimatedMs: 0),
         ])
     }
 
     func testMoreEntriesThanScenariosLeavesSomeBucketsEmpty() throws {
         let buckets = try FleetSplit.partition(
-            scenarios: [("A.one", nil)], durations: [],
+            scenarios: [("A.one", nil, nil)], durations: [],
             entryPlatforms: [["ios"], ["ios"], ["ios"]], unknownDurationMs: 1_000)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["A.one"], estimatedMs: 1_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: [], estimatedMs: 0),
-            FleetSplit.Bucket(entryIndex: 2, scenarioIDs: [], estimatedMs: 0),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["A.one"]), estimatedMs: 1_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys([]), estimatedMs: 0),
+            FleetSplit.Bucket(entryIndex: 2, units: unitKeys([]), estimatedMs: 0),
         ])
     }
 
@@ -136,16 +136,16 @@ final class FleetSplitTests: XCTestCase {
             duration("Filler.one", 4_000, "ios"),
             duration("Filler.two", 4_000, "ios"),
         ]
-        let scenarios: [(id: String, platform: String?)] = [
-            ("Mixed.one", nil), ("Filler.one", nil), ("Filler.two", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("Mixed.one", nil, nil), ("Filler.one", nil, nil), ("Filler.two", nil, nil),
         ]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: durations,
             entryPlatforms: [["ios", "android"], ["ios", "android"]], unknownDurationMs: 1_000)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["Mixed.one"], estimatedMs: 9_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["Filler.one", "Filler.two"], estimatedMs: 8_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["Mixed.one"]), estimatedMs: 9_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["Filler.one", "Filler.two"]), estimatedMs: 8_000),
         ])
     }
 }
@@ -157,8 +157,8 @@ extension FleetSplitTests {
     /// FleetRunner は「根拠のある秒数」を選ぶ必要が無い(unknownDurationUnitWeight の項)。
     /// 値を変えても同じ割り当てになることを固定する
     func testAllUnknownDurationsSplitByCountRegardlessOfWeight() throws {
-        let scenarios: [(id: String, platform: String?)] = [
-            ("A.S0010", nil), ("B.S0010", nil), ("C.S0010", nil), ("D.S0010", nil), ("E.S0010", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("A.S0010", nil, nil), ("B.S0010", nil, nil), ("C.S0010", nil, nil), ("D.S0010", nil, nil), ("E.S0010", nil, nil),
         ]
         let platforms: [Set<String>] = [["ios"], ["ios"]]
 
@@ -167,9 +167,9 @@ extension FleetSplitTests {
         let withSeconds = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: platforms, unknownDurationMs: 60_000.0)
 
-        XCTAssertEqual(withUnitWeight.map(\.scenarioIDs), withSeconds.map(\.scenarioIDs))
+        XCTAssertEqual(withUnitWeight.map(\.units), withSeconds.map(\.units))
         // 本数の均等割り(5本 → 3 + 2)
-        XCTAssertEqual(withUnitWeight.map(\.scenarioIDs.count).sorted(), [2, 3])
+        XCTAssertEqual(withUnitWeight.map(\.units.count).sorted(), [2, 3])
     }
 }
 
@@ -180,8 +180,8 @@ extension FleetSplitTests {
     /// 既定(省略)は全員 1 = 従来の「負荷合計が最小のエントリへ」。ここが変わると
     /// --fleet --split の割り当てが黙って変わるので、明示の 1 と省略が一致することを固定する
     func testOmittedCapacitiesBehaveExactlyLikeAllOnes() throws {
-        let scenarios: [(id: String, platform: String?)] =
-            [("A.one", nil), ("B.two", nil), ("C.three", nil)]
+        let scenarios: [(id: String, variant: String?, platform: String?)] =
+            [("A.one", nil, nil), ("B.two", nil, nil), ("C.three", nil, nil)]
         let platforms: [Set<String>] = [["ios"], ["ios"]]
         let omitted = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: platforms, unknownDurationMs: 1_000)
@@ -194,23 +194,23 @@ extension FleetSplitTests {
     /// 台数が3倍のホストには3倍のシナリオが行く。総量で均すと、台数の少ない側だけが
     /// 最後まで走り続けて壁時計が縮まない(混在プロファイルの分散はこれが目的)
     func testCapacitySendsMoreScenariosToTheMachineWithMoreDevices() throws {
-        let scenarios: [(id: String, platform: String?)] = (1...8).map { ("S.\($0)", nil) }
+        let scenarios: [(id: String, variant: String?, platform: String?)] = (1...8).map { ("S.\($0)", nil, nil) }
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["ios"]],
             unknownDurationMs: 1_000, entryCapacities: [3, 1])
-        XCTAssertEqual(buckets.map(\.scenarioIDs.count), [6, 2])
+        XCTAssertEqual(buckets.map(\.units.count), [6, 2])
     }
 
     /// 台数で重み付けても platform 適合は曲げない(走らせられない機械へ配ると
     /// 「走ったつもりで走っていない」になる)
     func testCapacityNeverOverridesPlatformAffinity() throws {
-        let scenarios: [(id: String, platform: String?)] =
-            [("A.ios", "ios"), ("B.ios", "ios"), ("C.android", "android")]
+        let scenarios: [(id: String, variant: String?, platform: String?)] =
+            [("A.ios", nil, "ios"), ("B.ios", nil, "ios"), ("C.android", nil, "android")]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["android"]],
             unknownDurationMs: 1_000, entryCapacities: [1, 10])
-        XCTAssertEqual(buckets[0].scenarioIDs.sorted(), ["A.ios", "B.ios"])
-        XCTAssertEqual(buckets[1].scenarioIDs, ["C.android"])
+        XCTAssertEqual(buckets[0].units.map(\.id).sorted(), ["A.ios", "B.ios"])
+        XCTAssertEqual(buckets[1].units, unitKeys(["C.android"]))
     }
 }
 
@@ -228,8 +228,8 @@ extension FleetSplitTests {
         let durations = [
             duration("A.one", 5_000), duration("B.two", 3_000), duration("C.three", 4_000, "android"),
         ]
-        let scenarios: [(id: String, platform: String?)] = [
-            ("A.one", nil), ("B.two", nil), ("C.three", nil), ("D.four", nil), ("E.five", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("A.one", nil, nil), ("B.two", nil, nil), ("C.three", nil, nil), ("D.four", nil, nil), ("E.five", nil, nil),
         ]
         let entryPlatforms: [Set<String>] = [["ios", "android"], ["ios", "android"]]
 
@@ -242,8 +242,8 @@ extension FleetSplitTests {
 
         XCTAssertEqual(omitted, explicitNil)
         XCTAssertEqual(omitted, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["A.one", "D.four", "E.five"], estimatedMs: 7_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["C.three", "B.two"], estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["A.one", "D.four", "E.five"]), estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["C.three", "B.two"]), estimatedMs: 7_000),
         ])
     }
 
@@ -255,12 +255,12 @@ extension FleetSplitTests {
             entryMachines: ["fast", nil], entryFixedOffsetsMs: [0, 0], machineDurations: machineDurations)
 
         let buckets = try FleetSplit.partition(
-            scenarios: [("S", nil)], durations: durations,
+            scenarios: [("S", nil, nil)], durations: durations,
             entryPlatforms: [["ios"], ["ios"]], unknownDurationMs: 1_000, machineContext: context)
 
         // entry0(同一機の実測 2,000ms)が entry1(混合中央値 10,000ms)より軽く見積もられて S を引き受ける
-        XCTAssertEqual(buckets[0], FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["S"], estimatedMs: 2_000))
-        XCTAssertEqual(buckets[1], FleetSplit.Bucket(entryIndex: 1, scenarioIDs: [], estimatedMs: 0))
+        XCTAssertEqual(buckets[0], FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["S"]), estimatedMs: 2_000))
+        XCTAssertEqual(buckets[1], FleetSplit.Bucket(entryIndex: 1, units: unitKeys([]), estimatedMs: 0))
     }
 
     /// 同一機の実績が無いシナリオは mixed × factor で見積もる(factor は他シナリオの共通観測から)
@@ -273,11 +273,11 @@ extension FleetSplitTests {
             entryMachines: ["slow"], entryFixedOffsetsMs: [0], machineDurations: machineDurations)
 
         let buckets = try FleetSplit.partition(
-            scenarios: [("NoHistory", nil)], durations: durations,
+            scenarios: [("NoHistory", nil, nil)], durations: durations,
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000, machineContext: context)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["NoHistory"], estimatedMs: 10_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["NoHistory"]), estimatedMs: 10_000),
         ])
     }
 
@@ -289,12 +289,12 @@ extension FleetSplitTests {
         let context = FleetSplit.MachineContext(
             entryMachines: [nil, nil], entryFixedOffsetsMs: [50_000, 0], machineDurations: [])
         let buckets = try FleetSplit.partition(
-            scenarios: [("S", nil)], durations: [duration("S", 10_000)],
+            scenarios: [("S", nil, nil)], durations: [duration("S", 10_000)],
             entryPlatforms: [["ios"], ["ios"]], unknownDurationMs: 1_000,
             entryCapacities: [3, 1], machineContext: context)
 
-        XCTAssertEqual(buckets[0].scenarioIDs, [])
-        XCTAssertEqual(buckets[1].scenarioIDs, ["S"])
+        XCTAssertEqual(buckets[0].units, unitKeys([]))
+        XCTAssertEqual(buckets[1].units, unitKeys(["S"]))
     }
 
     func testMachineContextProducesDeterministicOutput() throws {
@@ -302,7 +302,7 @@ extension FleetSplitTests {
         let machineDurations = [machineDuration("A", 10_000, machine: "M")]
         let context = FleetSplit.MachineContext(
             entryMachines: ["M", nil], entryFixedOffsetsMs: [1_000, 0], machineDurations: machineDurations)
-        let scenarios: [(id: String, platform: String?)] = [("A", nil), ("B", nil), ("C", nil)]
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [("A", nil, nil), ("B", nil, nil), ("C", nil, nil)]
 
         let first = try FleetSplit.partition(
             scenarios: scenarios, durations: durations, entryPlatforms: [["ios"], ["ios"]],
@@ -353,19 +353,19 @@ extension FleetSplitTests {
         XCTAssertEqual(kept.entryMachines, [nil, "M"])
         XCTAssertEqual(kept.entryFixedOffsetsMs, [0, 2_500], "実績があれば offsets はそのまま")
 
-        let scenarios: [(id: String, platform: String?)] = [
-            ("A.S0010", nil), ("B.S0010", nil), ("C.S0010", nil), ("D.S0010", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("A.S0010", nil, nil), ("B.S0010", nil, nil), ("C.S0010", nil, nil), ("D.S0010", nil, nil),
         ]
         let skewed = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["ios"]],
             unknownDurationMs: 1.0, machineContext: context)
-        XCTAssertEqual(skewed.map(\.scenarioIDs.count), [4, 0],
+        XCTAssertEqual(skewed.map(\.units.count), [4, 0],
                        "ガードを通さない実績ゼロ + ms offset は全シナリオが片側へ寄る(これが守っている事故)")
         let guarded = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["ios"]],
             unknownDurationMs: 1.0,
             machineContext: FleetSplit.machineContext(context, ifHistoryExists: []))
-        XCTAssertEqual(guarded.map(\.scenarioIDs.count), [2, 2], "ガードを通せば本数の均等割りが保たれる")
+        XCTAssertEqual(guarded.map(\.units.count), [2, 2], "ガードを通せば本数の均等割りが保たれる")
     }
 }
 
@@ -378,14 +378,14 @@ extension FleetSplitTests {
         let context = FleetSplit.MachineContext(
             entryMachines: ["fast", "slow"], entryFixedOffsetsMs: [0, 0], machineDurations: [],
             entryFallbackFactors: [1.0, 2.0])
-        let scenarios: [(id: String, platform: String?)] = (1...8).map { ("S.\($0)", nil) }
+        let scenarios: [(id: String, variant: String?, platform: String?)] = (1...8).map { ("S.\($0)", nil, nil) }
         let guardedContext = FleetSplit.machineContext(context, ifHistoryExists: [])
 
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["ios"]],
             unknownDurationMs: 1_000, machineContext: guardedContext)
 
-        XCTAssertGreaterThan(buckets[0].scenarioIDs.count, buckets[1].scenarioIDs.count,
+        XCTAssertGreaterThan(buckets[0].units.count, buckets[1].units.count,
                              "\(buckets)")
     }
 
@@ -401,17 +401,17 @@ extension FleetSplitTests {
             entryFallbackFactors: [4.0])
 
         let buckets = try FleetSplit.partition(
-            scenarios: [("NoHistory", nil)], durations: durations,
+            scenarios: [("NoHistory", nil, nil)], durations: durations,
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000, machineContext: context)
 
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["NoHistory"], estimatedMs: 5_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["NoHistory"]), estimatedMs: 5_000),
         ])
     }
 
     /// fallback 省略(nil)は従来挙動と同一(全員 1.0 = 混合見積りそのまま)
     func testOmittedFallbackFactorsMatchAllOnes() throws {
-        let scenarios: [(id: String, platform: String?)] = (1...6).map { ("S.\($0)", nil) }
+        let scenarios: [(id: String, variant: String?, platform: String?)] = (1...6).map { ("S.\($0)", nil, nil) }
         let entryPlatforms: [Set<String>] = [["ios"], ["ios"]]
 
         let omitted = FleetSplit.MachineContext(
@@ -446,7 +446,7 @@ extension FleetSplitTests {
             entryMachines: ["M"], entryFixedOffsetsMs: [0], machineDurations: machineDurations)
 
         let iosOnly = try FleetSplit.partition(
-            scenarios: [("Long.one", nil)], durations: durations,
+            scenarios: [("Long.one", nil, nil)], durations: durations,
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000, machineContext: context)
         XCTAssertEqual(iosOnly[0].estimatedMs, 120_000,
                        "ios しか回せないエントリに android の中央値を使ってはいけない")
@@ -454,7 +454,7 @@ extension FleetSplitTests {
         // 両方回すエントリでは scope が両 platform = 従来どおり max(安全側)。ここが変わると
         // 既存の --fleet --split の割り当てが黙って動く
         let both = try FleetSplit.partition(
-            scenarios: [("Long.one", nil)], durations: durations,
+            scenarios: [("Long.one", nil, nil)], durations: durations,
             entryPlatforms: [["ios", "android"]], unknownDurationMs: 1_000, machineContext: context)
         XCTAssertEqual(both[0].estimatedMs, 30_000,
                        "両 platform を回すエントリは同一機の実績をそのまま使う(従来と同一)")
@@ -470,7 +470,7 @@ extension FleetSplitTests {
         let context = FleetSplit.MachineContext(
             entryMachines: ["M"], entryFixedOffsetsMs: [0], machineDurations: machineDurations)
         let buckets = try FleetSplit.partition(
-            scenarios: [("S.one", "android")], durations: durations,
+            scenarios: [("S.one", nil, "android")], durations: durations,
             entryPlatforms: [["ios", "android"]], unknownDurationMs: 1_000, machineContext: context)
         XCTAssertEqual(buckets[0].estimatedMs, 20_000)
     }
@@ -481,7 +481,7 @@ extension FleetSplitTests {
     func testMixedEstimateFallsBackAcrossPlatformsWhenTheScopeHasNoHistory() throws {
         let durations = [duration("S.one", 45_000, "android")]
         let buckets = try FleetSplit.partition(
-            scenarios: [("S.one", nil)], durations: durations,
+            scenarios: [("S.one", nil, nil)], durations: durations,
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000)
         XCTAssertEqual(buckets[0].estimatedMs, 45_000,
                        "ios の実績が無ければ android の実績を使う(unknown へ落とさない)")
@@ -495,10 +495,10 @@ extension FleetSplitTests {
             duration("B.long", 50_000, "ios"), duration("B.long", 1_000, "android"),
         ]
         let buckets = try FleetSplit.partition(
-            scenarios: [("A.short", nil), ("B.long", nil)], durations: durations,
+            scenarios: [("A.short", nil, nil), ("B.long", nil, nil)], durations: durations,
             entryPlatforms: [["ios"], ["ios"]], unknownDurationMs: 1_000)
-        XCTAssertEqual(buckets[0].scenarioIDs, ["B.long"], "ios の実績で長い方が先に配られる")
-        XCTAssertEqual(buckets[1].scenarioIDs, ["A.short"])
+        XCTAssertEqual(buckets[0].units, unitKeys(["B.long"]), "ios の実績で長い方が先に配られる")
+        XCTAssertEqual(buckets[1].units, unitKeys(["A.short"]))
     }
 }
 
@@ -515,7 +515,7 @@ extension FleetSplitTests {
             entryMachines: ["M"], entryFixedOffsetsMs: [0], machineDurations: machineDurations)
 
         let plan = try FleetSplit.plan(
-            scenarios: [("Own", nil), ("Scaled", nil), ("Unknown", nil)], durations: durations,
+            scenarios: [("Own", nil, nil), ("Scaled", nil, nil), ("Unknown", nil, nil)], durations: durations,
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000, machineContext: context)
 
         XCTAssertEqual(plan.basis, [FleetSplit.EstimateBasis(
@@ -532,7 +532,7 @@ extension FleetSplitTests {
             entryMachines: ["M"], entryFixedOffsetsMs: [0], machineDurations: [],
             entryFallbackFactors: [2.5])
         let plan = try FleetSplit.plan(
-            scenarios: [("S.one", nil)], durations: [duration("S.one", 4_000)],
+            scenarios: [("S.one", nil, nil)], durations: [duration("S.one", 4_000)],
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000, machineContext: context)
         XCTAssertEqual(plan.basis[0].coefficientSource, .hardware)
         XCTAssertEqual(plan.basis[0].coefficient, 2.5)
@@ -542,7 +542,7 @@ extension FleetSplitTests {
     /// machineContext 無し = 補正なし。summary も係数を主張しない
     func testBasisSaysNoneWithoutAMachineContext() throws {
         let plan = try FleetSplit.plan(
-            scenarios: [("S.one", nil)], durations: [duration("S.one", 4_000)],
+            scenarios: [("S.one", nil, nil)], durations: [duration("S.one", 4_000)],
             entryPlatforms: [["ios"]], unknownDurationMs: 1_000)
         XCTAssertEqual(plan.basis[0].coefficientSource, .none)
         XCTAssertEqual(plan.basis[0].summary, "1 scaled x1.00 (none)")
@@ -552,7 +552,7 @@ extension FleetSplitTests {
     /// partition は plan の buckets そのもの(2つの割り当て実装を持たない)
     func testPartitionReturnsThePlansBuckets() throws {
         let durations = [duration("A", 5_000), duration("B", 3_000)]
-        let scenarios: [(id: String, platform: String?)] = [("A", nil), ("B", nil), ("C", nil)]
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [("A", nil, nil), ("B", nil, nil), ("C", nil, nil)]
         let platforms: [Set<String>] = [["ios"], ["ios"]]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: durations, entryPlatforms: platforms,

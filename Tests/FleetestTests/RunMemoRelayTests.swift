@@ -74,7 +74,7 @@ final class RunMemoRelayTests: XCTestCase {
         let zero = attachedWriter()
         let sent = LockedValue<[String]>([])
         let dispatcher = DynamicDispatcher(
-            scenarios: [DynamicSplit.Scenario(id: "A.S0010", platform: "ios")],
+            scenarios: [DynamicSplit.Scenario(id: "A.S0010", variant: nil, platform: "ios")],
             estimateMs: { _, _ in 1000 }, lpt: false,
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
         let relay = RunMemoRelay(writers: [0: zero.writer], gateMode: .startOnHello)
@@ -82,7 +82,7 @@ final class RunMemoRelayTests: XCTestCase {
         XCTAssertTrue(relay.intercept(line: want, entry: 0, dispatcher: dispatcher))
         zero.writer.flush()
         let answered = lines(from: zero.reader).compactMap(WorkQueueProtocol.decodeReply)
-        XCTAssertEqual(answered.first?.scenarioID, "A.S0010", "want が配り手へ渡っていない")
+        XCTAssertEqual(answered.first?.unit, ScenarioUnitKey(id: "A.S0010", variant: nil), "want が配り手へ渡っていない")
         XCTAssertTrue(relay.intercept(line: piece(src: "a", lid: 1), entry: 0, dispatcher: dispatcher))
         XCTAssertEqual(relay.hub.confirmedCount, 1, "メモの行が hub へ渡っていない")
     }
@@ -218,7 +218,7 @@ final class RunMemoRelayTests: XCTestCase {
             ApiRunMachineFanout.buildArgs(
                 project: "E2E", profileName: "p",
                 group: DeviceMachineRunner.Group(machine: "M1Ultra", deviceNames: ["Pixel"], platforms: ["android"]),
-                scenarioIDs: ["A.S0010"],
+                units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
                 options: ApiRunMachineFanout.Options(
                     defaultTimeout: nil, scenarioTimeout: nil, noLPT: false, lptHistoryRuns: nil,
                     performanceMode: false, remoteDir: nil, remoteTimeout: nil, waitLock: nil),

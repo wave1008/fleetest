@@ -34,16 +34,16 @@ import Foundation
 
 public enum FleetSplit {
 
-    /// 1エントリへの割り当て結果。scenarioIDs は投入順(見積り降順)のまま保持する ——
+    /// 1エントリへの割り当て結果。units は投入順(見積り降順)のまま保持する ——
     /// 呼び出し側がそのまま --scenario へ渡せば、そのエントリ内でも長い順に投入される
     public struct Bucket: Equatable, Sendable {
         public let entryIndex: Int
-        public let scenarioIDs: [String]
+        public let units: [ScenarioUnitKey]
         public let estimatedMs: Double
 
-        public init(entryIndex: Int, scenarioIDs: [String], estimatedMs: Double) {
+        public init(entryIndex: Int, units: [ScenarioUnitKey], estimatedMs: Double) {
             self.entryIndex = entryIndex
-            self.scenarioIDs = scenarioIDs
+            self.units = units
             self.estimatedMs = estimatedMs
         }
     }
@@ -149,8 +149,8 @@ public enum FleetSplit {
     /// 全エントリが空集合なら runPlatforms が空 = 全件 runnable のまま partition へ渡り、
     /// 設定ミスとして throw される(黙って全件スキップの緑にしない)
     public static func applicability(
-        scenarios: [(id: String, platform: String?)], entryPlatforms: [Set<String>]
-    ) -> PlatformApplicability.Partition<(id: String, platform: String?)> {
+        scenarios: [(id: String, variant: String?, platform: String?)], entryPlatforms: [Set<String>]
+    ) -> PlatformApplicability.Partition<(id: String, variant: String?, platform: String?)> {
         PlatformApplicability.partition(scenarios, runPlatforms: runPlatforms(entryPlatforms: entryPlatforms)) {
             $0.platform
         }
@@ -184,13 +184,13 @@ public enum FleetSplit {
     ///   (機械非依存 = 決定的。エントリごとに順序が割れない)。nil(既定)は
     ///   offsets 全 0・machine 全 nil と同じ経路を通る。
     public static func partition(
-        scenarios: [(id: String, platform: String?)],
+        scenarios: [(id: String, variant: String?, platform: String?)],
         durations: [LPTScheduler.Duration],
         entryPlatforms: [Set<String>],
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
         machineContext: MachineContext? = nil,
-        groups: [String: DynamicSplit.Group] = [:]
+        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:]
     ) throws -> [Bucket] {
         try plan(scenarios: scenarios, durations: durations, entryPlatforms: entryPlatforms,
                  unknownDurationMs: unknownDurationMs, entryCapacities: entryCapacities,
@@ -201,13 +201,13 @@ public enum FleetSplit {
     /// **根拠は割り当てが決まらないと数えられない**(どのシナリオがどのエントリへ行ったかで
     /// 通る分岐が変わる)ので、後から作り直せる形にはしない。
     public static func plan(
-        scenarios: [(id: String, platform: String?)],
+        scenarios: [(id: String, variant: String?, platform: String?)],
         durations: [LPTScheduler.Duration],
         entryPlatforms: [Set<String>],
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
         machineContext: MachineContext? = nil,
-        groups: [String: DynamicSplit.Group] = [:]
+        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:]
     ) throws -> (buckets: [Bucket], basis: [EstimateBasis]) {
         let capacities = entryCapacities ?? [Double](repeating: 1, count: entryPlatforms.count)
         precondition(capacities.count == entryPlatforms.count,
@@ -223,11 +223,15 @@ public enum FleetSplit {
         let factors = estimator.factors
 
         // 投入の単位。group の無いシナリオは1本ずつ、同じクラスのメンバーは1つの塊(メンバーは order 昇順 → ID)
-        typealias Item = (id: String, platform: String?)
+        typealias Item = (id: String, variant: String?, platform: String?)
         var units: [[Item]] = []
         var classUnits: [String: [Item]] = [:]
+        func keyOf(_ item: Item) -> ScenarioUnitKey { ScenarioUnitKey(id: item.id, variant: item.variant) }
+        // バリアントの出現順(寄せるクラスの塊の並び「バリアントごとに続けて」の鍵)
+        var variantRank: [String: Int] = [:]
+        for scenario in scenarios { if let v = scenario.variant, variantRank[v] == nil { variantRank[v] = variantRank.count } }
         for scenario in scenarios {
-            if let group = groups[scenario.id] {
+            if let group = groups[keyOf(scenario)] {
                 classUnits[group.name, default: []].append(scenario)
             } else {
                 units.append([scenario])
@@ -235,8 +239,10 @@ public enum FleetSplit {
         }
         for members in classUnits.values {
             units.append(members.sorted {
-                let l = groups[$0.id]?.order ?? Int.max, r = groups[$1.id]?.order ?? Int.max
-                return l != r ? l < r : $0.id < $1.id
+                let lv = $0.variant.flatMap { variantRank[$0] } ?? -1, rv = $1.variant.flatMap { variantRank[$0] } ?? -1
+                if lv != rv { return lv < rv }
+                let l = groups[keyOf($0)]?.order ?? Int.max, r = groups[keyOf($1)]?.order ?? Int.max
+                return l != r ? l < r : ($0.id, $0.variant ?? "") < ($1.id, $1.variant ?? "")
             })
         }
         // 見積り降順(塊は和)、同着は先頭の scenario ID 昇順(決定的)。machine 非依存の混合見積りで決める
@@ -244,14 +250,14 @@ public enum FleetSplit {
         func mixedWeight(_ unit: [Item]) -> Double {
             unit.reduce(0) { $0 + estimator.mixedMs(id: $1.id, platform: $1.platform) }
         }
-        let weights = Dictionary(units.map { ($0[0].id, mixedWeight($0)) }, uniquingKeysWith: { first, _ in first })
+        let weights = Dictionary(units.map { (keyOf($0[0]), mixedWeight($0)) }, uniquingKeysWith: { first, _ in first })
         let ordered = units.sorted { lhs, rhs in
-            let l = weights[lhs[0].id] ?? 0, r = weights[rhs[0].id] ?? 0
+            let l = weights[keyOf(lhs[0])] ?? 0, r = weights[keyOf(rhs[0])] ?? 0
             if l != r { return l > r }
-            return lhs[0].id < rhs[0].id
+            return (lhs[0].id, lhs[0].variant ?? "") < (rhs[0].id, rhs[0].variant ?? "")
         }
 
-        var scenarioIDs = [[String]](repeating: [], count: entryPlatforms.count)
+        var assignedUnits = [[ScenarioUnitKey]](repeating: [], count: entryPlatforms.count)
         var totals = [Double](repeating: 0, count: entryPlatforms.count)
         var sources = [[EstimateSource]](repeating: [], count: entryPlatforms.count)
 
@@ -276,19 +282,19 @@ public enum FleetSplit {
             }) else {
                 let platforms = Set(unit.compactMap(\.platform))
                 throw FleetSplitError.noFittingEntry(
-                    scenarioID: unit[0].id,
+                    scenarioID: ScenarioUnitKey(id: unit[0].id, variant: unit[0].variant).description,
                     platform: platforms.isEmpty ? "ios/android" : platforms.sorted().joined(separator: "+"))
             }
             for scenario in unit {
                 let assigned = estimator.estimate(id: scenario.id, platform: scenario.platform, entry: target)
-                scenarioIDs[target].append(scenario.id)
+                assignedUnits[target].append(ScenarioUnitKey(id: scenario.id, variant: scenario.variant))
                 totals[target] += assigned.ms
                 sources[target].append(assigned.source)
             }
         }
 
         let buckets = entryPlatforms.indices.map {
-            Bucket(entryIndex: $0, scenarioIDs: scenarioIDs[$0], estimatedMs: totals[$0])
+            Bucket(entryIndex: $0, units: assignedUnits[$0], estimatedMs: totals[$0])
         }
         let basis = entryPlatforms.indices.map { index -> EstimateBasis in
             let machine = entryMachines[index]

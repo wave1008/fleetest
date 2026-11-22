@@ -4,7 +4,7 @@ import XCTest
 final class ScenarioQueueTests: XCTestCase {
 
     private func makeItem(id: String) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"), variant: nil)
     }
 
     func testRequeueAllowsUpToCapThenReturnsNil() async {
@@ -65,7 +65,7 @@ final class ScenarioQueueTests: XCTestCase {
 final class RequeueRecordDiscardTests: XCTestCase {
 
     private func makeItem(id: String) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: "android"), variant: nil)
     }
 
     private func makeRecorder() throws -> (RunRecorder, URL) {

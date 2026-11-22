@@ -50,13 +50,13 @@ public enum JUnitReportWriter {
     /// **記録は書かない**(結果 DB には run.json の abortReason だけが残る = 集計を変えない)。
     /// 足す形は `.noWorker` の合成レコード = `isSkipped` が `<failure>` に倒す形と対
     public static func xml(project: String, records: [ScenarioRunRecord],
-                           unstarted: [(id: String, title: String?, platform: String)],
+                           unstarted: [(unit: ScenarioUnitKey, title: String?, platform: String)],
                            abortReason: String) -> String {
-        let recorded = Set(records.map(\.scenarioID))
+        let recorded = Set(records.map(\.unitKey))
         let startedAt = ISO8601DateFormatter().string(from: Date())
-        let synthetic = unstarted.filter { !recorded.contains($0.id) }.map {
+        let synthetic = unstarted.filter { !recorded.contains($0.unit) }.map {
             ScenarioRunRecord(
-                scenarioID: $0.id, title: $0.title, platform: $0.platform, passed: false,
+                scenarioID: $0.unit.id, title: $0.title, platform: $0.platform, passed: false,
                 startedAt: startedAt, durationMs: 0, steps: StepCountsRecord(total: 1, skipped: 1),
                 failedSteps: [FailedStepRecord(
                     index: 0, description: "the run aborted before this scenario started: " + abortReason)],

@@ -15,19 +15,36 @@ public struct ScenarioRunItem: Identifiable, Sendable {
     /// 計測モードの繰り返し(`ResponseMeasurementRepeat.expand`)で「何回目か」(1 始まり)。通常は nil。
     /// lane と同じく URL のクエリに載り、同じシナリオ ID の複数回分が別キーになる。URL を読み戻す側は無い
     public let repeatIndex: Int?
+    /// バリアント(シナリオ × バリアントが実行の単位。nil = バリアントの無い run)。lane・repeat と同じく URL のクエリに載る。
+    /// **既定値なし**(作り直す所が落とすとバリアントが黙って消える。作り直しは `with(lane:)` / `with(repeatIndex:)` を使う)
+    public let variant: String?
     public let url: URL
     public var id: URL { url }
+    /// ID × バリアント(並べ替え・割り振り・欠落の照合の鍵。lane・repeat は含めない)
+    public var unitKey: ScenarioUnitKey { ScenarioUnitKey(id: info.id, variant: variant) }
 
-    public init(info: ScenarioInfo, lane: String? = nil, repeatIndex: Int? = nil) {
+    public init(info: ScenarioInfo, lane: String? = nil, repeatIndex: Int? = nil, variant: String?) {
         self.info = info
         self.lane = lane
         self.repeatIndex = repeatIndex
-        self.url = Self.url(for: info.id, lane: lane, repeatIndex: repeatIndex)
+        self.variant = variant
+        self.url = Self.url(for: info.id, lane: lane, repeatIndex: repeatIndex, variant: variant)
     }
 
-    /// シナリオ ID(日本語可)→ 一意キー URL。lane があれば `?lane=<名>`、repeatIndex があれば `repeat=<n>` を
-    /// クエリに付ける(両方なら `?lane=<名>&repeat=<n>`)
-    public static func url(for scenarioID: String, lane: String? = nil, repeatIndex: Int? = nil) -> URL {
+    /// lane だけ差し替えた item(variant・repeatIndex は引き継ぐ)
+    public func with(lane: String?) -> ScenarioRunItem {
+        ScenarioRunItem(info: info, lane: lane, repeatIndex: repeatIndex, variant: variant)
+    }
+
+    /// repeatIndex だけ差し替えた item(variant・lane は引き継ぐ)
+    public func with(repeatIndex: Int?) -> ScenarioRunItem {
+        ScenarioRunItem(info: info, lane: lane, repeatIndex: repeatIndex, variant: variant)
+    }
+
+    /// シナリオ ID(日本語可)→ 一意キー URL。lane があれば `?lane=<名>`、repeatIndex があれば `repeat=<n>`、
+    /// variant があれば `variant=<名>` をクエリに付ける(順は lane・repeat・variant)
+    public static func url(for scenarioID: String, lane: String? = nil, repeatIndex: Int? = nil,
+                           variant: String?) -> URL {
         let encoded = scenarioID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
             ?? "scenario"
         var string = "scenario://run/\(encoded)"
@@ -37,6 +54,7 @@ public struct ScenarioRunItem: Identifiable, Sendable {
             query.append("lane=" + (lane.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "lane"))
         }
         if let repeatIndex { query.append("repeat=\(repeatIndex)") }
+        if let variant { query.append("variant=" + (variant.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "variant")) }
         if !query.isEmpty { string += "?" + query.joined(separator: "&") }
         return URL(string: string) ?? URL(fileURLWithPath: "/scenario")
     }

@@ -54,10 +54,10 @@ final class FleetSplitEstimatorTests: XCTestCase {
     func testPlanUsesSameEstimates() throws {
         let (e, context, durations) = fixture()
         let result = try FleetSplit.plan(
-            scenarios: [("D", nil)], durations: durations,
+            scenarios: [("D", nil, nil)], durations: durations,
             entryPlatforms: [["ios"], ["ios"], ["ios"]], unknownDurationMs: 1_000, machineContext: context)
         // 見込み終了が最小(10,000)の entry1 へ入り、バケツの見積りは Estimator と同じ値
-        XCTAssertEqual(result.buckets[1].scenarioIDs, ["D"])
+        XCTAssertEqual(result.buckets[1].units, unitKeys(["D"]))
         XCTAssertEqual(result.buckets[1].estimatedMs, e.estimateMs(id: "D", platform: nil, entry: 1))
         XCTAssertEqual(result.basis[1].scaled, 1)
     }

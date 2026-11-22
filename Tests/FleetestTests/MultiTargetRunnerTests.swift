@@ -31,7 +31,7 @@ final class MultiTargetRunnerTests: XCTestCase {
              msPerScenario: [Int: Double] = [:], overheadMs: [Int: Double] = [:]) {
             for (unit, count) in scenarios {
                 pending.withLock {
-                    $0[unit] = (0..<count).map { DynamicSplit.Scenario(id: "\(unit).s\($0)", platform: "ios") }
+                    $0[unit] = (0..<count).map { DynamicSplit.Scenario(id: "\(unit).s\($0)", variant: nil, platform: "ios") }
                 }
             }
             let specs = order.map { id -> MultiTargetCoordinator.TargetUnit in

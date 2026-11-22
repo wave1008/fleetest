@@ -10,9 +10,9 @@ final class FleetSplitClassPlacementTests: XCTestCase {
     }
 
     private func groups(_ name: String, _ ids: [String], _ placement: ClassPlacement = .singleMachine)
-        -> [String: DynamicSplit.Group] {
+        -> [ScenarioUnitKey: DynamicSplit.Group] {
         Dictionary(uniqueKeysWithValues: ids.enumerated().map {
-            ($0.element, DynamicSplit.Group(name: name, placement: placement, order: placement == .inOrder ? $0.offset : nil))
+            (ScenarioUnitKey(id: $0.element, variant: nil), DynamicSplit.Group(name: name, placement: placement, order: placement == .inOrder ? $0.offset : nil))
         })
     }
 
@@ -20,41 +20,41 @@ final class FleetSplitClassPlacementTests: XCTestCase {
         // M.a/M.b/M.c(各 3000 = 塊 9000)と X(5000)・Y(4000)。塊は9000で最も重く先に置く → entry0。
         // X → entry1(0→5000)、Y → entry1(5000→9000)。塊の分割は起きない
         let durations = ["M.a", "M.b", "M.c"].map { duration($0, 3_000) } + [duration("X.x", 5_000), duration("Y.y", 4_000)]
-        let scenarios: [(id: String, platform: String?)] = [
-            ("M.a", nil), ("M.b", nil), ("M.c", nil), ("X.x", nil), ("Y.y", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("M.a", nil, nil), ("M.b", nil, nil), ("M.c", nil, nil), ("X.x", nil, nil), ("Y.y", nil, nil),
         ]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: durations, entryPlatforms: [["ios"], ["ios"]],
             unknownDurationMs: 1_000, groups: groups("M", ["M.a", "M.b", "M.c"]))
         XCTAssertEqual(buckets, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["M.a", "M.b", "M.c"], estimatedMs: 9_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["X.x", "Y.y"], estimatedMs: 9_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["M.a", "M.b", "M.c"]), estimatedMs: 9_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["X.x", "Y.y"]), estimatedMs: 9_000),
         ])
     }
 
     func testInOrderMembersAreListedInOrderWithinBucket() throws {
-        let scenarios: [(id: String, platform: String?)] = [("O.c", nil), ("O.a", nil), ("O.b", nil)]
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [("O.c", nil, nil), ("O.a", nil, nil), ("O.b", nil, nil)]
         // order は groups の並びの添字: O.b=0, O.c=1, O.a=2
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"]], unknownDurationMs: 1_000,
             groups: groups("O", ["O.b", "O.c", "O.a"], .inOrder))
-        XCTAssertEqual(buckets[0].scenarioIDs, ["O.b", "O.c", "O.a"])
+        XCTAssertEqual(buckets[0].units, unitKeys(["O.b", "O.c", "O.a"]))
     }
 
     func testClassIsNotPlacedOnEntryMissingAnyMemberOS() throws {
         // entry0 = ios のみ(空いている)、entry1 = ios + android。両 OS のクラスは entry1 へ
-        let scenarios: [(id: String, platform: String?)] = [
-            ("M.a", "ios"), ("M.b", "android"), ("X.x", "ios"),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("M.a", nil, "ios"), ("M.b", nil, "android"), ("X.x", nil, "ios"),
         ]
         let buckets = try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["ios", "android"]],
             unknownDurationMs: 1_000, groups: groups("M", ["M.a", "M.b"]))
-        XCTAssertEqual(buckets[1].scenarioIDs, ["M.a", "M.b"])
-        XCTAssertEqual(buckets[0].scenarioIDs, ["X.x"])
+        XCTAssertEqual(buckets[1].units, unitKeys(["M.a", "M.b"]))
+        XCTAssertEqual(buckets[0].units, unitKeys(["X.x"]))
     }
 
     func testClassWithNoFittingEntryThrows() {
-        let scenarios: [(id: String, platform: String?)] = [("M.a", "ios"), ("M.b", "android")]
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [("M.a", nil, "ios"), ("M.b", nil, "android")]
         XCTAssertThrowsError(try FleetSplit.partition(
             scenarios: scenarios, durations: [], entryPlatforms: [["ios"], ["android"]],
             unknownDurationMs: 1_000, groups: groups("M", ["M.a", "M.b"]))) { error in
@@ -65,7 +65,7 @@ final class FleetSplitClassPlacementTests: XCTestCase {
 
     func testEstimateBasisCountsPerMember() throws {
         let durations = [duration("M.a", 3_000)]
-        let scenarios: [(id: String, platform: String?)] = [("M.a", nil), ("M.b", nil)]
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [("M.a", nil, nil), ("M.b", nil, nil)]
         let plan = try FleetSplit.plan(
             scenarios: scenarios, durations: durations, entryPlatforms: [["ios"]], unknownDurationMs: 1_000,
             groups: groups("M", ["M.a", "M.b"]))
@@ -77,8 +77,8 @@ final class FleetSplitClassPlacementTests: XCTestCase {
 
     func testEmptyGroupsGivesSameResultAsBefore() throws {
         let durations = [duration("A.one", 5_000), duration("B.two", 3_000), duration("C.three", 4_000, "android")]
-        let scenarios: [(id: String, platform: String?)] = [
-            ("A.one", nil), ("B.two", nil), ("C.three", nil), ("D.four", nil), ("E.five", nil),
+        let scenarios: [(id: String, variant: String?, platform: String?)] = [
+            ("A.one", nil, nil), ("B.two", nil, nil), ("C.three", nil, nil), ("D.four", nil, nil), ("E.five", nil, nil),
         ]
         let entries: [Set<String>] = [["ios", "android"], ["ios", "android"]]
         let without = try FleetSplit.partition(scenarios: scenarios, durations: durations,
@@ -87,8 +87,8 @@ final class FleetSplitClassPlacementTests: XCTestCase {
                                             unknownDurationMs: 1_000, groups: [:])
         XCTAssertEqual(without, with)
         XCTAssertEqual(with, [
-            FleetSplit.Bucket(entryIndex: 0, scenarioIDs: ["A.one", "D.four", "E.five"], estimatedMs: 7_000),
-            FleetSplit.Bucket(entryIndex: 1, scenarioIDs: ["C.three", "B.two"], estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 0, units: unitKeys(["A.one", "D.four", "E.five"]), estimatedMs: 7_000),
+            FleetSplit.Bucket(entryIndex: 1, units: unitKeys(["C.three", "B.two"]), estimatedMs: 7_000),
         ])
     }
 }

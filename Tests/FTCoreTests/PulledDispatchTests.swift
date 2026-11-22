@@ -5,7 +5,7 @@ import XCTest
 final class PulledDispatchTests: XCTestCase {
 
     private func item(_ id: String, platform: String = "ios") -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform), variant: nil)
     }
 
     /// 配り手の偽物。返す ID の列を順に返し、聞かれた (platform, lane) を控える
@@ -13,25 +13,26 @@ final class PulledDispatchTests: XCTestCase {
         private let replies: LockedValue<[String?]>
         let asked = LockedValue<[String]>([])
         init(_ replies: [String?]) { self.replies = LockedValue(replies) }
-        func next(platform: String, lane: String) async -> String? {
+        func next(platform: String, lane: String) async -> ScenarioUnitKey? {
             asked.withLock { $0.append("\(platform):\(lane)") }
-            return replies.withLock { $0.isEmpty ? nil : $0.removeFirst() }
+            return replies.withLock { $0.isEmpty ? nil : $0.removeFirst() }.flatMap { $0 }
+                .map { ScenarioUnitKey(id: $0, variant: nil) }
         }
         let stops = LockedValue(0)
         func stopWaiting() { stops.withLock { $0 += 1 } }
-        func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+        func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                   departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
     }
 
     private func makeQueue(_ catalog: [ScenarioRunItem], source: FakeSource,
                            handedOut: LockedValue<[String]> = LockedValue([]),
                            unknown: LockedValue<[String]> = LockedValue([])) -> ScenarioQueue {
-        var map: [String: [ScenarioRunItem]] = [:]
-        for item in catalog { map[item.info.id, default: []].append(item) }
+        var map: [ScenarioUnitKey: [ScenarioRunItem]] = [:]
+        for item in catalog { map[item.unitKey, default: []].append(item) }
         return ScenarioQueue(pulled: ScenarioQueue.PullState(
             source: source, platform: "ios", catalog: LockedValue(map),
             onHandOut: { item in handedOut.withLock { $0.append(item.info.id) } },
-            onUnknownID: { id in unknown.withLock { $0.append(id) } }))
+            onUnknownID: { unit in unknown.withLock { $0.append(unit.id) } }))
     }
 
     func testNothingRunsUntilTheSourceHandsItOut() async {
@@ -78,19 +79,19 @@ final class PulledDispatchTests: XCTestCase {
     func testRequeueWhileWaitingForTheSourceIsPickedUp() async {
         final class GatedSource: ScenarioPullSource, @unchecked Sendable {
             // @unchecked の根拠: 可変状態は LockedValue の中
-            let waiter = LockedValue<CheckedContinuation<String?, Never>?>(nil)
-            func next(platform: String, lane: String) async -> String? {
+            let waiter = LockedValue<CheckedContinuation<ScenarioUnitKey?, Never>?>(nil)
+            func next(platform: String, lane: String) async -> ScenarioUnitKey? {
                 await withCheckedContinuation { continuation in waiter.withLock { $0 = continuation } }
             }
             func stopWaiting() {}
-            func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+            func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                       departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
-            func answer(_ id: String?) { waiter.withLock { $0?.resume(returning: id); $0 = nil } }
+            func answer(_ unit: ScenarioUnitKey?) { waiter.withLock { $0?.resume(returning: unit); $0 = nil } }
         }
         let source = GatedSource()
         let a = item("A")
         let queue = ScenarioQueue(pulled: ScenarioQueue.PullState(
-            source: source, platform: "ios", catalog: LockedValue(["A": [a]]),
+            source: source, platform: "ios", catalog: LockedValue([a.unitKey: [a]]),
             onHandOut: { _ in }, onUnknownID: { _ in }))
         async let got = queue.next(lane: "healthy")
         for _ in 0..<200 where source.waiter.withLock({ $0 == nil }) { try? await Task.sleep(for: .milliseconds(10)) }

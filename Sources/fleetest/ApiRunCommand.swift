@@ -922,7 +922,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                 break
             }
             let scenarioPlatform = info.platform ?? effectivePlatform
-            if !dryRun, debugOptions == nil, let reason = placementGate.skipReason(for: info) {
+            if !dryRun, debugOptions == nil, let reason = placementGate.skipReason(for: info, variant: nil) {
                 recorder?.recordSkipped(scenarioID: info.id, title: info.title, platform: scenarioPlatform,
                                         worker: nil, reason: reason)
                 logStderr("❌ \(info.id): \(reason)")
@@ -960,7 +960,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             }
             let scenarioEnd = Date()
             timing.recordSequential(start: scenarioStart, finish: scenarioEnd)
-            placementGate.record(info, passed: passed)
+            placementGate.record(info, variant: nil, passed: passed)
             if passed && declaredNotApplicable { skippedCount += 1 }
             else if passed { passedCount += 1 } else { failedCount += 1 }
         }
@@ -1245,7 +1245,7 @@ struct ApiRunCommand: AsyncParsableCommand {
         }
 
         // 長いシナリオを先に流すと末尾の遊休が減る(LPTOrdering。--no-lpt で元の ID 順)
-        let lptItems = LPTOrdering.apply(selected.map { ScenarioRunItem(info: $0) },
+        let lptItems = LPTOrdering.apply(selected.map { ScenarioRunItem(info: $0, variant: nil) },
                                       project: project, defaultPlatform: defaultPlatform,
                                       enabled: !common.noLPT,
                                       historyRuns: common.lptHistoryRuns ?? LPTOrdering.defaultHistoryRuns,

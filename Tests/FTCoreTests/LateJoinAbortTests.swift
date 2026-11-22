@@ -22,7 +22,7 @@ final class LateJoinAbortTests: XCTestCase {
     }
 
     private func item(_ id: String, platform: String) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, platform: platform), variant: nil)
     }
 
     private static func skipReasons(_ orchestrator: RunOrchestrator) async -> [String] {

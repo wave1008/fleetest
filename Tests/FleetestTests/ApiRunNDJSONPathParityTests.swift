@@ -14,7 +14,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
     private let scenarioID = "ログインテスト.S0010"
     private let workerLabel = "ios:8123"
     private var item: ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: scenarioID, title: "t", platform: nil, deleted: false))
+        ScenarioRunItem(info: ScenarioInfo(id: scenarioID, title: "t", platform: nil, deleted: false), variant: nil)
     }
 
     private func object(_ line: String) throws -> NSDictionary {
@@ -147,7 +147,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
     }
 
     func testFanoutTestSecondsIgnoresSynthesizedFailures() {
-        var mux = MachineFanoutMultiplexer(groupMachines: [nil], assignedScenarioIDs: [["A.S1"]])
+        var mux = MachineFanoutMultiplexer(groupMachines: [nil], assignedUnits: [["A.S1"]].map { ids in ids.map { ScenarioUnitKey(id: $0, variant: nil) } })
         _ = mux.childExited(0, exitCode: 1)
         XCTAssertNil(mux.testSeconds, "走っていないシナリオの合成 failed は時間に数えない")
     }

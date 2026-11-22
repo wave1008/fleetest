@@ -263,7 +263,7 @@ enum MultiTargetRunner {
                         throw ValidationError("[\(id)] " + message)
                     }
                     let resolved = DynamicDispatcher.resolve(
-                        runnable,
+                        runnable, variant: nil,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: target.groups))
                     guard !resolved.isEmpty else {
                         FleetRunner.log("==> \(id): no scenario applies to this profile's devices; skipping")
@@ -303,10 +303,10 @@ enum MultiTargetRunner {
                 var leaseChecks: [MachineFanoutFrontHalf.LeaseCheck] = []
                 for unit in units {
                     guard let local = unit.groups.first(where: { $0.machine == nil }) else { continue }
-                    let ids = Set(DynamicDispatcher.candidateIDs(for: local, in: unit.resolved))
+                    let ids = Set(DynamicDispatcher.candidateUnits(for: local, in: unit.resolved))
                     leaseChecks.append(.init(
                         project: unit.project, profileName: unit.profile, localDeviceNames: local.deviceNames,
-                        localScenarios: unit.infos.filter { ids.contains($0.id) }, broadcast: false))
+                        localScenarios: unit.infos.filter { ids.contains($0.unitKey(variant: nil)) }, broadcast: false))
                 }
                 return ((units, healByProject), .init(
                     leaseChecks: leaseChecks,
@@ -375,7 +375,7 @@ enum MultiTargetRunner {
             let codes = outcomes.withLock { $0.filter { $0.unit == unit.id }.map(\.exitCode) }
             job.mark(project: unit.project.name, profile: unit.profile,
                      state: MultiTargetJobTracker.finalState(
-                        codes: codes, started: true, hasUnhanded: !unit.dispatcher.unhandedIDs.isEmpty,
+                        codes: codes, started: true, hasUnhanded: !unit.dispatcher.unhandedUnits.isEmpty,
                         interrupted: interrupted))
         }
         let launch: MultiTargetCoordinator.Launch = { targetID, machine, finished in
@@ -406,7 +406,7 @@ enum MultiTargetRunner {
             let args = DeviceMachineRunner.childArgs(
                 project: unit.project.name, host: group.machineLabel, profile: unit.profile,
                 deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
-                scenarios: DynamicDispatcher.candidateIDs(for: group, in: unit.resolved), folders: [],
+                scenarios: DynamicDispatcher.candidateUnits(for: group, in: unit.resolved).map(\.description), folders: [],
                 setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                 performanceMode: performanceMode, forceLock: forceLock,
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
@@ -484,7 +484,7 @@ enum MultiTargetRunner {
         // 中断で止められた beforeRun(子は取りやめで終わった)は、既存の中断の終わり方 = 130
         var interruptedWithWorkLeft = hookInterrupted
         for unit in units {
-            let ids = unit.dispatcher.unhandedIDs
+            let ids = unit.dispatcher.unhandedUnits
             guard !ids.isEmpty, !hookFailedProjects.contains(unit.project.name) else { continue }
             FleetRunner.log("[\(unit.id)] " + DeviceMachineRunner.neverHandedLine(ids: ids, interrupted: interrupted))
             if let line = DynamicDispatcher.keptUnhandedLine(unit.dispatcher.keptUnhanded) {
@@ -493,8 +493,8 @@ enum MultiTargetRunner {
             if interrupted { interruptedWithWorkLeft = true }
             if !interrupted {
                 neverHandedFailure = true
-                for id in ids {
-                    LastResultsStore.record(project: unit.project, scenarioID: id, passed: false, profile: unit.profile)
+                for unitKey in ids {
+                    LastResultsStore.record(project: unit.project, scenarioID: unitKey.id, passed: false, profile: unit.profile)
                 }
             }
         }
@@ -523,9 +523,9 @@ enum MultiTargetRunner {
             }
         }
         for unit in units where !hookFailedProjects.contains(unit.project.name) {
-            let assigned: [(Int, DeviceMachineRunner.Group, [String])] = unit.entryByMachine
+            let assigned: [(Int, DeviceMachineRunner.Group, [ScenarioUnitKey])] = unit.entryByMachine
                 .sorted(by: { $0.key < $1.key })
-                .map { ($0.value, unit.groups[$0.value], unit.dispatcher.assignedIDs(entry: $0.value)) }
+                .map { ($0.value, unit.groups[$0.value], unit.dispatcher.assignedUnits(entry: $0.value)) }
             let missing = reportMissingResults(unit: unit, runGroup: runGroup, since: dispatchStart, assigned: assigned,
                                                outcomes: results, machineLabels: machineLabels)
             // 渡したのに結果が無い分(子が受け取る前の中断など)。中断なら 130・それ以外は 1
@@ -565,7 +565,7 @@ enum MultiTargetRunner {
     /// 戻り値 = 結果の無いシナリオの数(親の終了コードに載せる)
     @discardableResult
     private static func reportMissingResults(
-        unit: TargetUnit, runGroup: String, since: Date, assigned: [(Int, DeviceMachineRunner.Group, [String])],
+        unit: TargetUnit, runGroup: String, since: Date, assigned: [(Int, DeviceMachineRunner.Group, [ScenarioUnitKey])],
         outcomes: [ChildOutcome], machineLabels: [String]
     ) -> Int {
         guard assigned.contains(where: { !$0.2.isEmpty }) else { return 0 }
@@ -577,12 +577,12 @@ enum MultiTargetRunner {
             let machine = machineLabels.firstIndex(of: group.machineLabel)
             let exitCode = outcomes.last(where: { $0.unit == unit.id && $0.machine == machine })?.exitCode ?? -1
             let label = "\(group.machineLabel):\(unit.id)"
-            let missing = DeviceMachineRunner.unrecordedScenarioIDs(assigned: ids, recorded: recorded.all)
+            let missing = DeviceMachineRunner.unrecordedUnits(assigned: ids, recorded: recorded.all)
             missingTotal += missing.count
             if !missing.isEmpty {
                 FleetRunner.log(DeviceMachineRunner.missingResultsLine(machineLabel: label, exitCode: exitCode, ids: missing))
-                for id in missing {
-                    LastResultsStore.record(project: unit.project, scenarioID: id, passed: false, profile: unit.profile)
+                for unitKey in missing {
+                    LastResultsStore.record(project: unit.project, scenarioID: unitKey.id, passed: false, profile: unit.profile)
                 }
             }
             guard exitCode != 0 else { continue }
@@ -603,7 +603,7 @@ enum MultiTargetRunner {
             let code = FleetProfile.aggregateExitCode(mine.map(\.exitCode))
             let used = Dictionary(grouping: mine, by: \.machine).keys.sorted().map { machine -> String in
                 let entry = unit.entryByMachine[machine]
-                return "\(machineLabels[machine])(\(entry.map { unit.dispatcher.assignedIDs(entry: $0).count } ?? 0))"
+                return "\(machineLabels[machine])(\(entry.map { unit.dispatcher.assignedUnits(entry: $0).count } ?? 0))"
             }.joined(separator: ", ")
             let result = mine.isEmpty ? "not run" : (code == 0 ? "✅ pass" : "❌ fail (exit \(code))")
             FleetRunner.log("\(unit.id): \(result)  machines(scenarios): \(used.isEmpty ? "-" : used)")

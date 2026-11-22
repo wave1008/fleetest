@@ -249,7 +249,7 @@ public enum ParentLink {
 public final class StdioPullSource: ScenarioPullSource {
     private struct State {
         var nextReq = 1
-        var waiters: [Int: CheckedContinuation<String?, Never>] = [:]
+        var waiters: [Int: CheckedContinuation<ScenarioUnitKey?, Never>] = [:]
         /// 対象外の問い合わせ(`na`)の返事待ち。req は `waiters` と同じ採番
         var verdictWaiters: [Int: CheckedContinuation<NotApplicableHandoff.Verdict, Never>] = [:]
         /// stdin が閉じた(以後の要求は即 nil)
@@ -284,9 +284,9 @@ public final class StdioPullSource: ScenarioPullSource {
 
     deinit { restoreTerminal() }
 
-    public func next(platform: String, lane: String) async -> String? {
+    public func next(platform: String, lane: String) async -> ScenarioUnitKey? {
         reader.start()
-        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<ScenarioUnitKey?, Never>) in
             // 登録してから書く(返事が登録より先に届いても取りこぼさない)・EOF 済みなら即 nil
             let request: Int? = state.withLock { s in
                 if s.eof { return nil }
@@ -301,7 +301,7 @@ public final class StdioPullSource: ScenarioPullSource {
         }
     }
 
-    public func declareNotApplicable(platform: String, lane: String, scenarioID: String,
+    public func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict {
         reader.start()
         return await withCheckedContinuation { (continuation: CheckedContinuation<NotApplicableHandoff.Verdict, Never>) in
@@ -314,7 +314,7 @@ public final class StdioPullSource: ScenarioPullSource {
             }
             guard let request else { continuation.resume(returning: .skipped); return }
             write(WorkQueueProtocol.encode(WorkQueueProtocol.NotApplicable(
-                req: request, id: scenarioID, lane: lane, platform: platform, dep: departedUntried)))
+                req: request, unit: unit, lane: lane, platform: platform, dep: departedUntried)))
         }
     }
 
@@ -326,7 +326,7 @@ public final class StdioPullSource: ScenarioPullSource {
     /// 待っている要求と以後の要求を全部 nil にする(EOF・中断)
     private func resolveAllWaiters() {
         let (remaining, verdicts) = state.withLock { s
-            -> ([CheckedContinuation<String?, Never>], [CheckedContinuation<NotApplicableHandoff.Verdict, Never>]) in
+            -> ([CheckedContinuation<ScenarioUnitKey?, Never>], [CheckedContinuation<NotApplicableHandoff.Verdict, Never>]) in
             s.eof = true
             defer { s.waiters = [:]; s.verdictWaiters = [:] }
             return (Array(s.waiters.values), Array(s.verdictWaiters.values))
@@ -342,6 +342,6 @@ public final class StdioPullSource: ScenarioPullSource {
             return
         }
         let continuation = state.withLock { $0.waiters.removeValue(forKey: reply.req) }
-        continuation?.resume(returning: reply.scenarioID)
+        continuation?.resume(returning: reply.unit)
     }
 }

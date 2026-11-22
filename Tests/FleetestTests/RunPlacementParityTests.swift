@@ -37,12 +37,12 @@ final class RunPlacementParityTests: XCTestCase {
     }
 
     func testStaticSplitsPassTheGroups() throws {
-        XCTAssertTrue(try source("DeviceMachineRunner.swift").contains("groups: DynamicDispatcher.groups(of: runnable)"))
-        XCTAssertTrue(try source("FleetRunner.swift").contains("groups: DynamicDispatcher.groups(of: selected)"))
+        XCTAssertTrue(try source("DeviceMachineRunner.swift").contains("groups: DynamicDispatcher.groups(of: runnable, variant: nil)"))
+        XCTAssertTrue(try source("FleetRunner.swift").contains("groups: DynamicDispatcher.groups(of: selected, variant: nil)"))
     }
 
     private func item(_ id: String, _ placement: ClassPlacement? = nil, order: Int? = nil) -> ScenarioRunItem {
-        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, placement: placement, order: order))
+        ScenarioRunItem(info: ScenarioInfo(id: id, title: id, placement: placement, order: order), variant: nil)
     }
 
     func testSequentialOrderGroupsAClassAtItsFirstMemberInOrder() {
@@ -56,18 +56,18 @@ final class RunPlacementParityTests: XCTestCase {
         let b = ScenarioInfo(id: "C.b", title: "b", placement: .inOrder, order: 2)
         let other = ScenarioInfo(id: "D.a", title: "a", placement: .inOrder, order: 1)
         let plain = ScenarioInfo(id: "P.a", title: "p")
-        XCTAssertNil(gate.skipReason(for: b))
-        gate.record(a, passed: false)
-        XCTAssertEqual(gate.skipReason(for: b), ClassPlacementRules.notRunReason(failedID: "C.a"))
-        XCTAssertNil(gate.skipReason(for: other))
-        XCTAssertNil(gate.skipReason(for: plain))
+        XCTAssertNil(gate.skipReason(for: b, variant: nil))
+        gate.record(a, variant: nil, passed: false)
+        XCTAssertEqual(gate.skipReason(for: b, variant: nil), ClassPlacementRules.notRunReason(failedID: "C.a"))
+        XCTAssertNil(gate.skipReason(for: other, variant: nil))
+        XCTAssertNil(gate.skipReason(for: plain, variant: nil))
     }
 
     func testGateIgnoresFailureOfNonInOrderClasses() {
         var gate = SequentialPlacementGate()
         let a = ScenarioInfo(id: "C.a", title: "a", placement: .singleDevice)
-        gate.record(a, passed: false)
-        XCTAssertNil(gate.skipReason(for: ScenarioInfo(id: "C.b", title: "b", placement: .singleDevice)))
+        gate.record(a, variant: nil, passed: false)
+        XCTAssertNil(gate.skipReason(for: ScenarioInfo(id: "C.b", title: "b", placement: .singleDevice), variant: nil))
     }
 
     func testPreflightRefusesAMiddleTestAndNoticesBroadcast() {
