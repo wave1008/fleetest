@@ -36,7 +36,7 @@ fleetest をインストールし、サンプルアプリを対象に、テス�
 3. AIアシスタント(Claude Code 拡張など)を起動して次のように指示します(所要時間: 約5分)
 
 ```text
-https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
+https://github.com/wave1008/fleetest をこのフォルダの隣にcloneして
 ../fleetest/.claude/skills/fleetest-setup/SKILL.md の手順でセットアップして。
 ```
 
@@ -59,7 +59,7 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 ### AIへの指示文
 
 ```text
-https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣に clone して(既にあれば git pull で最新にして)、このフォルダで bash ../sut-ec-mobile/fleetest/prepare.sh を実行して。
+https://github.com/wave1008/sut-ec-mobile をこのフォルダの隣にcloneして(既にあればgit pullで最新にして)、このフォルダで bash ../sut-ec-mobile/fleetest/prepare.sh を実行して。
 続けて bash ../sut-ec-mobile/fleetest/build.sh を実行してアプリをビルドして。
 ```
 
@@ -101,10 +101,10 @@ bash ../sut-ec-mobile/fleetest/build.sh
 ### AIへの指示文
 
 ```text
-project1 に、sut-ec-mobile のアプリのプロファイルを作成して。
+project1に、sut-ec-mobileのアプリのプロファイルを作成して。
 
 iOSアプリのプロファイル
-表示名： SUT Store
+表示名：SUT Store
 アプリID: com.sutec.mobile.ios
 アプリの配布場所： ../sut-ec-mobile/build/ios-sim/Build/Products/Debug-iphonesimulator/iosApp.app
 Simulator 2台
@@ -157,8 +157,8 @@ VSCode のデバイスモニターの「プロファイル」タブを開き、�
 ### AIへの指示文
 
 ```text
-project1 のサーバーを起動して。
-iOS のデバイス1台に SUT Store アプリを入れて起動して。
+project1のサーバーを起動して。
+iOSのデバイス1台にSUT Storeアプリを入れて起動して。
 ```
 
 <details>
@@ -194,8 +194,8 @@ iOS のデバイス1台に SUT Store アプリを入れて起動して。
 ### AIへの指示文
 
 ```text
-project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS で1本作成して。ファイル名は 商品詳細を開く.swift にして。
-ホームから商品を1つ開いて商品詳細が表示されるまでの基本ルート(正常に進む流れ)を確かめる。アプリを日本語モードに切り替える処理は setUpDevice に書いて。
+project1で、SUT Storeアプリの「商品詳細を開くテスト」をiOSで1本作成して。ファイル名は 商品詳細を開く.swiftにして。
+ホームから商品を1つ開いて商品詳細が表示されるまでの基本ルート(正常に進む流れ)を確かめる。アプリを日本語モードに切り替える処理はsetUpDeviceに書いて。
 シナリオのファイル名を報告したら終わりにして。
 ```
 
@@ -232,7 +232,7 @@ project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS
 ### AIへの指示文
 
 ```text
-project1 のシナリオを ios-run プロファイルで実行して。
+project1のシナリオをios-runプロファイルで実行して。
 ```
 
 <details>
@@ -276,7 +276,7 @@ VSCode からは **Test Explorer** でシナリオを選び、**実行**をク�
 ### AIへの指示文
 
 ```text
-project1 の直近の実行結果を要約し、失敗があればレポートから原因を調べて。シナリオはまだ直さないで。
+project1の直近の実行結果を要約し、失敗があればレポートから原因を調べて。シナリオはまだ直さないで。
 ```
 
 <details>
