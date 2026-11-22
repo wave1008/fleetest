@@ -14,6 +14,13 @@ command -v flutter >/dev/null 2>&1 || { echo "flutter 未インストール('bre
 
 flutter pub get
 
+# Generated.xcconfig は git 管理外で、作ったときのクローンの場所を FLUTTER_APPLICATION_PATH に焼き込む。リポジトリを移した・
+# 改名した後は古い場所を指したまま残り、xcodebuild の 'Run Prepare Flutter Framework Script' が
+# 'ProcessException: No such file or directory' で落ちる(ソースが変わって作り直しが走るまで表に出ない)。今の場所と違えば作り直す
+if ! grep -qx "FLUTTER_APPLICATION_PATH=$(pwd -P)" ios/Flutter/Generated.xcconfig 2>/dev/null; then
+  flutter build ios --config-only --simulator --debug
+fi
+
 xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath build/ios-derived \
