@@ -157,12 +157,12 @@ Start the sample app's server, launch the app on a device, and operate it yourse
 ### Prompt for the AI
 
 ```text
-Start the server that project1 uses.
-Using the ios-run profile, install the SUT Store app on one device, launch it, and tell me which device it is running on.
+Start project1's server.
+Install the SUT Store app on one iOS device and launch it.
 ```
 
 - If an MCP permission dialog appears, allow it.
-- To run it on Android, read "ios-run" as "android-run".
+- To run it on Android, read "iOS" as "Android".
 
 Then operate the device from the Device Monitor.
 
