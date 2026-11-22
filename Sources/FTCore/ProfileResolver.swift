@@ -435,6 +435,12 @@ public enum ProfileResolver {
         if let raw = runDoc.orientation, FTOrientation.parse(raw) == nil {
             throw ProfileError.invalidOrientation(run: runName, value: raw)
         }
+        if let raw = runDoc.appearance, FTAppearance.parse(raw) == nil {
+            throw ProfileError.invalidAppearance(run: runName, value: raw)
+        }
+        if let raw = runDoc.textSize, FTTextSize.parse(raw) == nil {
+            throw ProfileError.invalidTextSize(run: runName, value: raw)
+        }
 
         // デバイスに依存しない実効設定(FM の子トグルからの合成含む)は `--profile` 無しの直接実行
         // (`fleetest run`/`fleetest api run` の profile-less パス)と1つの関数を共有する
@@ -476,7 +482,8 @@ public enum ProfileResolver {
             teardownHook: teardownHook,
             warnings: warnings,
             reportDirDeclared: runDoc.reportDir != nil,
-            orientation: settings.orientation)
+            orientation: settings.orientation,
+            appearance: settings.appearance, textSize: settings.textSize)
     }
 
     /// 実機デバイスの整合検査。enabled のデバイスにのみ適用する
@@ -595,6 +602,12 @@ public enum ProfileResolver {
                 }
                 if let raw = doc.orientation, FTOrientation.parse(raw) == nil {
                     errors.append("\"orientation\" \(RunProfileDocument.orientationRule)")
+                }
+                if let raw = doc.appearance, FTAppearance.parse(raw) == nil {
+                    errors.append("\"appearance\" \(FTAppearance.rule)")
+                }
+                if let raw = doc.textSize, FTTextSize.parse(raw) == nil {
+                    errors.append("\"textSize\" \(FTTextSize.rule)")
                 }
             } else {
                 let reason: String

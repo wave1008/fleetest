@@ -106,7 +106,7 @@ E2E テストツールです。
     - [installApp, removeApp, clearAppData](reference/commands/install_app_ja.md)
     - [launchApp, restartApp, terminateApp, openURL](reference/commands/launch_app_ja.md)
 - ナビゲーション
-    - [home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge](reference/commands/navigation_ja.md)
+    - [home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge](reference/commands/navigation_ja.md)
 - 画面のスワイプ/スクロール
     - [swipe, swipePointToPoint, swipeElementToElement, swipeBy](reference/commands/swipe_ja.md)
     - [スクロール(scrollTo, scrollDown, withScrollDown, scrollFrame, …)](reference/commands/scroll_ja.md)

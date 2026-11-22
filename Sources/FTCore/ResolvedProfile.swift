@@ -176,6 +176,9 @@ public struct ResolvedProfile: Sendable {
     public var reportDirDeclared = false
     /// RunProfileDocument.orientation(既定 nil = 向きに触らない)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
     public var orientation: FTOrientation? = nil
+    /// RunProfileDocument.appearance / textSize(既定 nil = 指定なし)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
+    public var appearance: FTAppearance? = nil
+    public var textSize: FTTextSize? = nil
 
     public var iosDevices: [ResolvedDevice] { devices.filter { $0.platform == "ios" } }
     /// platform を宣言していないシナリオをどちらの OS で走らせるか(iOS のデバイスがあれば ios)。**唯一の規則** ——

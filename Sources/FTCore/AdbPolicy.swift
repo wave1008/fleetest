@@ -125,7 +125,7 @@ public enum AdbPolicy {
     static let logcatTimePattern = #"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}\z"#
 
     /// 引数を持たない(または値が固定の)形
-    static let exactCommands: Set<[String]> = [
+    static let fixedCommands: Set<[String]> = [
         ["shell", "true"], ["shell", "wm", "density"], ["shell", "wm", "dismiss-keyguard"],
         ["shell", "dumpsys", "window", "windows"], ["shell", "dumpsys", "window", "displays"],
         ["shell", "dumpsys", "activity", "service", "com.android.systemui/.SystemUIService"],
@@ -145,6 +145,18 @@ public enum AdbPolicy {
         ["forward", "tcp:0", "tcp:8123"], ["forward", "--list"],
         ["get-serialno"], ["get-state"],
     ]
+    static let exactCommands: Set<[String]> = fixedCommands.union(displayCommands)
+
+    /// 表示条件(`DisplaySettingsCommands.android*` と1対1)。`settings put system` は font_scale の5つの倍率だけ(任意のキーは許さない)
+    static let displayCommands: Set<[String]> = {
+        var set: Set<[String]> = [
+            ["shell", "cmd", "uimode", "night"],
+            ["shell", "settings", "get", "system", "font_scale"],
+        ]
+        for appearance in FTAppearance.allCases { set.insert(["shell", "cmd", "uimode", "night", appearance.androidNight]) }
+        for size in FTTextSize.allCases { set.insert(["shell", "settings", "put", "system", "font_scale", size.androidScaleArgument]) }
+        return set
+    }()
 
     static let keyEvents: Set<String> = ["KEYCODE_APP_SWITCH", "KEYCODE_HOME", "KEYCODE_BACK", "KEYCODE_WAKEUP", "66"]
     static let animationKeys: Set<String> = ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]

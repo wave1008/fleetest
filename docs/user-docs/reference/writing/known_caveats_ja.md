@@ -115,7 +115,7 @@
 - [初回の openURL で iOS Simulator の確認アラートが出ることがある](../commands/launch_app_ja.md#注意点) — 自動了承されます。向け直せなかった場合は注記 `open-url-session…` が付き、続く操作が届かないことがあります。
 - [未起動のアプリへの openURL は想定用途ではない](../commands/launch_app_ja.md#注意点) — 未起動から URL で開く検証には `launchApp(url:)` を使います。
 
-### home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
+### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [home() 等の後はアプリを前面へ戻してから操作する](../commands/navigation_ja.md#注意点) — iOS の inapp-boost と Android で、アプリが前面にない間は `select` や `notExist` などが断られます。
 - [back(settle:) の確実さは画面による](../commands/navigation_ja.md#注意点) — iOS の自前描画のナビバーの画面は戻れないことがあります(アプリ内の戻るボタンを `tap()`)。Android はキーボードが開いていると1回目の `back()` がそれを閉じるだけで消費されます。
 - [back() の前後で画面が変わらなくても失敗しない](../commands/navigation_ja.md#注意点) — 注記が付くだけです。アプリ自身の戻るボタンを `tap` するか、`back()` をもう一度呼びます。
@@ -130,6 +130,12 @@
 - [アプリがその向きを許可していないと回らない](../commands/navigation_ja.md#注意点) — Android は禁じていれば待たずに失敗し、理由にアプリの宣言を示します。
 - [回転の間、Android は自動回転を切る](../commands/navigation_ja.md#注意点) — 切らないと角度が保持されないためです。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/navigation_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
+- [`setAppearance` / `setTextSize` は端末全体を変え、シナリオごとの終わりに元へ戻る](../commands/navigation_ja.md#注意点) — 終わりに light / `.default` へ戻ります。全シナリオに効かせるなら実行プロファイルの `appearance` / `textSize` を使います。
+- [`setAppearance` / `setTextSize` は run や端末のフックの中では使えない](../commands/navigation_ja.md#注意点) — `beforeRun` / `afterRun` / `setUpDevice` / `tearDownDevice` / `beforeAll` / `afterAll` の中ではステップが失敗します(各シナリオの後に基準へ戻すので、最初のテストにしか効かないため)。
+- [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
+- [`beforeEach` / `afterEach` の中では `setAppearance` / `setTextSize` を使える](../commands/navigation_ja.md#注意点) — テストごとに走るので、クラスの全テストに効きます。
+- [`setAppearance` / `setTextSize` が確かめるのは端末の設定値で、アプリの表示ではない](../commands/navigation_ja.md#注意点) — 配色を外観に追従させないアプリはダークで文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗)。
+- [文字サイズの名前は各 OS の段階に対応する](../commands/navigation_ja.md#注意点) — iOS は文字サイズの段階(`.accessibility` は「より大きな文字」も有効にし、シナリオの終わりに戻す)・Android は `font_scale` 0.85〜2.0 で、Android 14 以降は見た目の比が倍率と一致しません。
 - [fold / unfold / hinge は折りたたみ端末が必要](../commands/navigation_ja.md#注意点) — iPhone Duo の Simulator か折りたたみの Emulator です。iOS 実機はそのシナリオが対象外(skipped)になります。折りたたみの Android 実機は非対応として失敗します。
 - [折りたためないデバイスでは失敗でなく以降を skipped にする](../commands/navigation_ja.md#注意点) — 緑でも実行されていないステップがあるので、レポートで確認します。
 - [折りたたみ状態は終了時に自動で元へ戻る](../commands/navigation_ja.md#注意点) — `rotateTo` の向きと同じ扱いです。
@@ -282,6 +288,12 @@
 - [ロックの中でロックを呼ぶとエラーになる](../commands/run_lock_ja.md#注意点) — 入れ子はキーが同じでも別でもエラーです。要るキーは全部1回の呼び出しで渡します(ロックを取るヘルパー関数をロックの中から呼ぶのも入れ子です)。
 - [同時に走らせる必要が無いテストはロックより @RunInOrder を検討する](../commands/run_lock_ja.md#注意点) — `@RunInOrder` のクラスはテストを1台のデバイスで順に流すので、ロックが要りません。
 - [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。後のテストが `launchApp()` / `clearAppData()` をしなければ、アプリの画面の状態がそのまま次のテストに持ち越されます。
+
+## 実行プロファイル
+
+- [各シナリオはライト・標準の文字サイズで始まる](../project/run_profile_ja.md#注意点) — プロファイルに書かなくても各シナリオの前後に端末を読んで設定し、run の後もそのまま。ダークや大きな文字を保つなら `appearance` / `textSize` を書く。MCP の `ft_run_scenario` も同じ。
+- [書いた値を設定できないとシナリオが失敗する](../project/run_profile_ja.md#注意点) — 書いていない値を戻せないときは警告だけ。確かめた版は iOS 26.6.2 の実機と iOS 27.2 の Simulator。
+- [iOS の「このアプリのみ」の文字サイズは見えない](../project/run_profile_ja.md#注意点) — コントロールセンターでアプリ単位に設定した大きさはツールから読めない。各結果の `displaySettings` に期待・読んだ値・設定したキーが残る。
 
 ## UI 部品ごとの癖(現時点の制約)
 

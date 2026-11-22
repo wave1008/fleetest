@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum Screen {
-    case selector, input, gesture, map, scroll, async, dialog, lifecycle, heal, diagnostics, noid, webview, cover, keyboardCover
+    case selector, input, gesture, map, scroll, async, dialog, lifecycle, heal, diagnostics, noid, webview, cover, keyboardCover, display
 }
 
 private enum Tab { case home, controls, about }
@@ -45,6 +45,7 @@ struct AppShell: View {
             case .webview: return "WebView"
             case .cover: return "覆い"
             case .keyboardCover: return "キーボードの覆い"
+            case .display: return "表示条件"
             }
         }
     }
@@ -105,13 +106,14 @@ struct AppShell: View {
             case .scroll: ScrollScreen()
             case .async: AsyncScreen()
             case .dialog: DialogScreen()
-            case .lifecycle: LifecycleScreen()
+            case .lifecycle: LifecycleScreen(onOpenDisplay: { homeChild = .display })
             case .heal: HealScreen()
             case .diagnostics: DiagnosticsScreen()
             case .noid: NoIdScreen()
             case .webview: WebViewScreen()
             case .cover: CoverScreen()
             case .keyboardCover: KeyboardCoverScreen()
+            case .display: DisplayScreen()
             }
         }
     }

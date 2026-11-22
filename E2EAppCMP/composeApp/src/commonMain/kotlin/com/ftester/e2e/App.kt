@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +24,7 @@ import com.ftester.e2e.screens.AboutScreen
 import com.ftester.e2e.screens.AsyncScreen
 import com.ftester.e2e.screens.ControlsScreen
 import com.ftester.e2e.screens.DialogScreen
+import com.ftester.e2e.screens.DisplayScreen
 import com.ftester.e2e.screens.DiagnosticsScreen
 import com.ftester.e2e.screens.GestureScreen
 import com.ftester.e2e.screens.HealScreen
@@ -44,7 +46,7 @@ import com.ftester.e2e.util.exposeTestTagsAsResourceId
 
 enum class Screen {
     HOME, SELECTOR, INPUT, GESTURE, MAP, SCROLL, JUMP, ASYNC, DIALOG, LIFECYCLE, HEAL, DIAGNOSTICS,
-    NOID, WEBVIEW, CONTROLS, ABOUT
+    NOID, WEBVIEW, DISPLAY, CONTROLS, ABOUT
 }
 
 private enum class Tab { HOME, CONTROLS, ABOUT }
@@ -67,6 +69,7 @@ private fun titleFor(tab: Tab, homeChild: Screen?): String = when (tab) {
         Screen.DIAGNOSTICS -> "診断"
         Screen.NOID -> "ID なし"
         Screen.WEBVIEW -> "WebView"
+        Screen.DISPLAY -> "表示条件"
         else -> "ホーム"
     }
 }
@@ -75,8 +78,9 @@ private fun titleFor(tab: Tab, homeChild: Screen?): String = when (tab) {
 fun App() {
     LaunchCounter.ensureCounted()
 
-    var tab by remember { mutableStateOf(Tab.HOME) }
-    var homeChild by remember { mutableStateOf<Screen?>(null) }
+    // rememberSaveable: 文字サイズの変更で Activity が作り直されても表示条件画面に留まる(プロセス起動時は従来どおりホーム)。
+    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var homeChild by rememberSaveable { mutableStateOf<Screen?>(null) }
 
     fun switchTab(next: Tab) {
         tab = next
@@ -133,11 +137,12 @@ fun App() {
                         Screen.JUMP -> JumpScreen()
                         Screen.ASYNC -> AsyncScreen()
                         Screen.DIALOG -> DialogScreen()
-                        Screen.LIFECYCLE -> LifecycleScreen()
+                        Screen.LIFECYCLE -> LifecycleScreen(onOpenDisplay = { homeChild = Screen.DISPLAY })
                         Screen.HEAL -> HealScreen()
                         Screen.DIAGNOSTICS -> DiagnosticsScreen(onOpenJump = { homeChild = Screen.JUMP })
                         Screen.NOID -> NoIdScreen()
                         Screen.WEBVIEW -> WebViewScreen()
+                        Screen.DISPLAY -> DisplayScreen()
                         else -> HomeScreen(onNavigate = { screen -> homeChild = screen })
                     }
                 }

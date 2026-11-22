@@ -29,6 +29,10 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
     /// 実行プロファイルの `orientation`。nil = 向きに触らない。子へは `--orientation <portrait|landscape>` で運び、
     /// launchApp / restartApp のたびに直後に `rotateTo` する(FTDSL の `applyProfileOrientation`)
     public var orientation: FTOrientation?
+    /// 実行プロファイルの `appearance` / `textSize`。nil = 指定なし(各シナリオはライト・標準の文字サイズで始まる = 基準の状態。DR-221)。
+    /// 親が `ScenarioHost.run` で子を起こす前後に端末へ設定する(子へは運ばない)
+    public var appearance: FTAppearance?
+    public var textSize: FTTextSize?
 
     /// 既定値はこの1箇所だけに置く。他の層(ScenarioHost/RunOrchestrator/CLI)に既定を書かない。
     /// `homeOnStart` はデバイスに触る工程の設定なのでここには入れない
@@ -37,7 +41,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                 containerInference: Bool = true, responseMeasurement: Bool = false,
                 tunables: RunTunables = RunTunables(),
                 scenarioTimeout: Int? = nil, profileName: String? = nil,
-                orientation: FTOrientation? = nil) {
+                orientation: FTOrientation? = nil,
+                appearance: FTAppearance? = nil, textSize: FTTextSize? = nil) {
         self.fm = fm
         self.heal = heal
         self.occlusionOCR = occlusionOCR
@@ -49,6 +54,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
         self.scenarioTimeout = scenarioTimeout
         self.profileName = profileName
         self.orientation = orientation
+        self.appearance = appearance
+        self.textSize = textSize
     }
 
     public init(_ settings: DeviceIndependentRunSettings) {
@@ -59,7 +66,8 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                   containerInference: settings.containerInference,
                   responseMeasurement: settings.responseMeasurement,
                   tunables: t, scenarioTimeout: settings.scenarioTimeout,
-                  orientation: settings.orientation)
+                  orientation: settings.orientation,
+                  appearance: settings.appearance, textSize: settings.textSize)
     }
 
     public init(_ resolved: ResolvedProfile) {
@@ -70,6 +78,7 @@ public struct ScenarioExecutionSettings: Sendable, Equatable {
                   containerInference: resolved.containerInference,
                   responseMeasurement: resolved.responseMeasurement,
                   tunables: t, scenarioTimeout: resolved.scenarioTimeout,
-                  profileName: resolved.runName, orientation: resolved.orientation)
+                  profileName: resolved.runName, orientation: resolved.orientation,
+                  appearance: resolved.appearance, textSize: resolved.textSize)
     }
 }

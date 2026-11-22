@@ -1,8 +1,8 @@
-# home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
+# home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 
 [in English](navigation.md)
 
-ホーム画面・戻る・アプリスイッチャー・ホーム画面のアイコン・画面回転・折りたたみ端末の開閉など OS レベルの操作です。
+ホーム画面・戻る・アプリスイッチャー・ホーム画面のアイコン・画面回転・端末の外観と文字サイズ・折りたたみ端末の開閉など OS レベルの操作です。
 
 ## 関数
 
@@ -13,6 +13,8 @@
 | `appSwitcher()` | アプリスイッチャーを開きます。ホームボタンの iPhone(iPhone SE など)ではスイッチャーがハードのダブルプレスで送れないため、失敗にせず、この step 以降を対象外(skipped)としてシナリオを記録します。 |
 | `tapAppIcon(name?)` | ホーム画面のアプリアイコンを探してタップします。`name` はホーム画面のアイコンの下に出る名前と**完全一致**で照合します。省略時はアプリプロファイルのその OS の `appName`(`ios.appName` / `android.appName`)です。 |
 | `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | 画面をその向きへ回します。値はこの2つだけです。書かずに全シナリオを横向きで回すなら、[実行プロファイル](../project/run_profile_ja.md)の `orientation` を使います。 |
+| `setAppearance(.light)` / `setAppearance(.dark)` | **端末の**外観を切り替えて読み返し、読み返した値が指定と違えば失敗します(既にその値なら成功)。シナリオの終わりに light へ戻ります。 |
+| `setTextSize(.small / .default / .large / .extraLarge / .accessibility)` | **端末の**文字サイズを切り替えて読み返し、読み返した値が指定と違えば失敗します(既にその値なら成功)。シナリオの終わりに `.default` へ戻ります。 |
 | `fold(waitSeconds:)` | 折りたたみ端末を外側の画面へ畳み、デバイスが切り替わったと報告するまで待ちます(上限 `waitSeconds`・省略時は実行の既定タイムアウト)。切り替わらなければ失敗します。 |
 | `unfold(waitSeconds:)` | 内側の(大きい)画面へ開きます。ルールは `fold` と同じです。 |
 | `hinge(_ degrees)` | ヒンジ角を 0(閉じる)〜180(全開)で設定します。約 130 が半開きのブック姿勢です。どちらの画面が出るかは確かめません。 |
@@ -28,6 +30,8 @@ tapAppIcon()             // アプリプロファイルの名前でアイコン�
 appSwitcher()
 rotateTo(.landscape)
 rotateTo(.portrait)
+setAppearance(.dark)    // ダークモード(シナリオの終わりに light へ戻る)
+setTextSize(.extraLarge)
 fold()                  // 折りたたみ端末のみ
 unfold()
 hinge(130)              // 半開きのブック姿勢
@@ -72,7 +76,12 @@ hinge(130)              // 半開きのブック姿勢
   Android は前面のアプリがその向きを禁じていれば待たずに失敗し、理由にアプリの宣言を示します。
 - このコマンドで回すあいだ、Android は自動回転を切ります(切らないと角度が保持されません)。
 - **`settle: false`** を渡すと、このコマンドの操作後の「画面が落ち着くまでの待ち」を省きます(次のステップは動いている最中の画面を見ることがあります)。詳細は [tap](./tap_ja.md) 参照。
-
+- **`setAppearance` / `setTextSize` は端末全体を変え、シナリオごとの終わりに元へ戻ります。** 各シナリオの終わりにツールが端末をライト・標準の文字サイズ(`.default`)へ戻します(戻せなければ実行ログに警告を出します)。全シナリオをダークモードや大きい文字で回すなら、代わりに[実行プロファイル](../project/run_profile_ja.md)の `appearance` / `textSize` を使います。
+- **`beforeRun()` / `afterRun()` / `setUpDevice()` / `tearDownDevice()` / `beforeAll()` / `afterAll()` の中では使えません。** 各シナリオの後に基準の状態(ライト・標準の文字サイズ)へ戻すので、そこで変えても最初のテストにしか効きません。ステップはその旨のメッセージで失敗します。run 全体に効かせるなら実行プロファイルの `appearance` / `textSize` を使います。dry-run では端末を変えません。
+- **`beforeEach()` / `afterEach()` の中では使えます。** テストごとに走るので、クラスの全テストに効きます。
+- **Android では画面が作り直されることがあります。** アプリが `configChanges` に `uiMode`(`setAppearance`)や `fontScale`(`setTextSize`)を宣言していないと、表示中の Activity が破棄されて作り直され、メモリにだけ持っている状態は失われます。シナリオの終わりに戻すときも同じです。画面の状態を保存しないアプリは、そのとき最初の画面に戻ります。表示条件はシナリオの最初(目的の画面へ移る前)に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
+- **ステップが確かめるのは端末の設定値で、アプリの表示ではありません。** 配色を外観に追従させないアプリは、ダークにすると背景だけ暗くなって文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗です。アプリの配色を確かめてください)。
+- **文字サイズの名前は各 OS の段階に対応します。** iOS: `.small` = `small`・`.default` = `large`(iOS の標準)・`.large` = `extra-large`・`.extraLarge` = `extra-extra-extra-large`・`.accessibility` = `accessibility-large`(「より大きな文字」も有効にし、シナリオの終わりに元の値へ戻します)。Android: `font_scale` が 0.85 / 1.0 / 1.15 / 1.3 / 2.0 で、Android 14 以降は OS が文字を非線形に拡大するので、見た目の大きさの比は倍率と一致しません。確かめた環境は iPhone の実機(iOS 26.6.2)・iOS 27.2 の Simulator・Android の Emulator と実機です。
 - **`fold` / `unfold` / `hinge` は折りたたみ端末が必要です。**
   - iOS: iPhone Duo の **Simulator**(Xcode 27.2 以降)。XCUITest ブリッジ経由で送るので、どちらの iOS モードでも使えます。
   - Android: 折りたたみの **Emulator**(ヒンジセンサー付きの AVD。Pixel 9 Pro Fold など)。

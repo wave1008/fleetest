@@ -766,6 +766,33 @@ Compose の a11y ツリーが interop ビューを1ノードに畳み、中身�
 CMP Android=約6秒 / Flutter Android=約8秒)。
 **行は `行 01` 形式のゼロ詰め**(`*行 1*` が `行 12` に contains 一致する事故を避ける。他画面と同じ)。
 
+## 表示条件画面(タイトル `表示条件`)
+
+アプリが**今受け取っている**外観と文字サイズを表示する画面(fleetest が端末へ設定した外観・文字サイズが
+アプリに届いたことの確認用)。**配色・レイアウトは外観や文字サイズに追従させない**(表示する値だけ)。
+**ホームにナビ行を足さない**(ホーム節の規約)ため、**ライフサイクル画面の末尾の `#btn_open_display` から開く**
+(全 SUT 共通。ライフサイクル画面は `#nav_lifecycle` → `#btn_open_display`)。
+
+| tag | 種別 | ラベル/テキスト | 備考 |
+|---|---|---|---|
+| `#btn_open_display` | Button | `表示条件` | **ライフサイクル画面**の最後の要素 |
+| `#txt_appearance` | Text | `light` / `dark` | システムの外観の受け取り値(SwiftUI `colorScheme` / Android `Configuration.uiMode` の night ビット / Flutter `MediaQuery.platformBrightness` / RN `useColorScheme()` / CMP `isSystemInDarkTheme()`) |
+| `#txt_text_size` | Text | OS の生の文字サイズ(下表) | 実行中に変わったら追従する |
+
+`#txt_text_size` の値(**ツール側の段階名 ↔ 倍率の対応表を SUT に持たない**。OS が返す値をそのまま出す):
+
+| SUT / OS | 値の出所 | 例 |
+|---|---|---|
+| E2EAppIOS | `UIApplication.preferredContentSizeCategory.rawValue`(`UIContentSizeCategory.didChangeNotification` で更新) | `UICTContentSizeCategoryL` |
+| E2EAppAndroid | `Configuration.fontScale`(小数2桁。`configChanges` 非宣言なので変更時は Activity が作り直される。ナビ状態は引き継がれる) | `1.00` / `1.30` |
+| E2EAppCMP / Android | `LocalConfiguration.current.fontScale`(小数2桁) | `1.30` |
+| E2EAppCMP / iOS | `UIApplication.preferredContentSizeCategory`(`Density.fontScale` の変化で読み直す) | `UICTContentSizeCategoryL` |
+| E2EAppFlutter / 両 OS | `PlatformDispatcher.textScaleFactor`(小数2桁。iOS の段階名は Flutter から取れない) | `1.00` |
+| E2EAppRN / 両 OS | `useWindowDimensions().fontScale`(小数2桁。iOS の段階名は RN から取れない) | `1.00` |
+
+- iOS 以外・Flutter/RN の iOS は**倍率**で、段階名ではない(OS 間・SUT 間で同じ形にならない)。シナリオは SUT ごとに期待値を書く。
+- CMP Android は `rememberSaveable` でナビ状態を持つ(文字サイズ変更で Activity が作り直されても本画面に留まる)。
+
 ## 情報タブ(タイトル `情報`)
 
 | tag | 種別 | ラベル/テキスト | 備考 |

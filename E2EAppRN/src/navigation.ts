@@ -10,4 +10,5 @@ export type HomeChildScreen =
   | 'heal'
   | 'diagnostics'
   | 'noid'
-  | 'webview';
+  | 'webview'
+  | 'display';

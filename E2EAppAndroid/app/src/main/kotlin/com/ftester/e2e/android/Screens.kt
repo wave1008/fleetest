@@ -110,7 +110,7 @@ private fun EditText.onTextChanged(block: (String) -> Unit) {
     })
 }
 
-fun buildLifecycleScreen(activity: Activity, parent: ViewGroup): View {
+fun buildLifecycleScreen(activity: Activity, parent: ViewGroup, onOpenDisplay: () -> Unit = {}): View {
     val v = activity.inflate(R.layout.screen_lifecycle, parent)
     val launch = v.findViewById<TextView>(R.id.txt_launch_count)
     val session = v.findViewById<TextView>(R.id.txt_session_count)
@@ -120,6 +120,7 @@ fun buildLifecycleScreen(activity: Activity, parent: ViewGroup): View {
         session.text = "session=${SessionCounter.value}"
         lastDeeplink.text = "deeplink=${DeepLinkState.lastUrl}"
     }
+    v.findViewById<Button>(R.id.btn_open_display).setOnClickListener { onOpenDisplay() }
     v.findViewById<Button>(R.id.btn_session_inc).setOnClickListener {
         SessionCounter.value += 1
         render()
@@ -129,6 +130,18 @@ fun buildLifecycleScreen(activity: Activity, parent: ViewGroup): View {
         render()
     }
     render()
+    return v
+}
+
+// 契約: docs/ui-contract.md「表示条件画面」。外観(uiMode の night ビット)と fontScale は Activity の
+// Configuration から読む。configChanges を宣言していないので変更時は Activity が作り直され、画面は再構築される。
+fun buildDisplayScreen(activity: Activity, parent: ViewGroup): View {
+    val v = activity.inflate(R.layout.screen_display, parent)
+    val config = activity.resources.configuration
+    val night = (config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+    v.findViewById<TextView>(R.id.txt_appearance).text = if (night) "dark" else "light"
+    v.findViewById<TextView>(R.id.txt_text_size).text = String.format(java.util.Locale.US, "%.2f", config.fontScale)
     return v
 }
 

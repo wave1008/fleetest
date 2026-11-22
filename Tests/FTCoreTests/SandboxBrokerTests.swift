@@ -394,6 +394,7 @@ final class DevicectlPolicyTests: XCTestCase {
             "list devices --json-output", "device info apps", "device info lockState", "device info details",
             "device info processes", "device install app", "device uninstall app", "device process openURL",
             "device info displays", "device copy to", "device process launch", "device process terminate",
+            "device info appearance", "device settings appearance",
         ]
         var found: [String] = []
         for module in ["FTBridgeClient", "FTCore", "FTAndroid", "FTScenarioRunner", "FTDSL"] {

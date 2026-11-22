@@ -678,7 +678,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         case schemaVersion, runID, scenarioID, title, platform, worker, host, profile
         case passed, timedOut, startedAt, durationMs, scenes, steps, reportPath, failedSteps
         case fixSuggestions, errorLogs, fm, timeline, skipKind, skipReason, interrupted, appCrash, mode
-        case humanOperations, lockWaitMs
+        case humanOperations, lockWaitMs, displaySettings
     }
 
     public init(from decoder: Decoder) throws {
@@ -710,6 +710,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         mode = try c.decodeIfPresent(String.self, forKey: .mode)
         humanOperations = try c.decodeIfPresent([HumanOperationRecord].self, forKey: .humanOperations)
         lockWaitMs = try c.decodeIfPresent(Int.self, forKey: .lockWaitMs)
+        displaySettings = try c.decodeIfPresent(DisplaySettingsRecord.self, forKey: .displaySettings)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -741,6 +742,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         try c.encodeIfPresent(mode, forKey: .mode)
         try c.encodeIfPresent(humanOperations, forKey: .humanOperations)
         try c.encodeIfPresent(lockWaitMs, forKey: .lockWaitMs)
+        try c.encodeIfPresent(displaySettings, forKey: .displaySettings)
     }
 
     public var schemaVersion: Int
@@ -806,6 +808,10 @@ public struct ScenarioRunRecord: Codable, Sendable {
     /// この分を引いた値を使う(`estimateDurationMs`): ロックの待ちは同時に走る他のシナリオの数で決まり、シナリオ自身の仕事量ではない。
     /// 数えるのは「行列に入って待った」時間だけ(すぐ渡された呼び出しは数えない)
     public var lockWaitMs: Int?
+    /// 端末の表示条件(外観・文字サイズ)の期待と開始時の実測(`DisplaySettingsRecord`)。**シナリオの開始時の処理が走ったときだけ書く**
+    /// (欄が無い = 何もしなかった: dry-run・片付けだけの子・宛先の無い接続・「合わせられない」端末で指定なし。古い記録も同じ =
+    /// 欄が無いこと自体が意味を持つので互換の読み替えではない = DR-75。docs/results-json.md)
+    public var displaySettings: DisplaySettingsRecord?
 
     /// 所要の見積りに使う値 = `durationMs` からロックの待ちを引いたもの(欄が無ければ引かない。最小 1。0 にすると「短いシナリオ」と誤認される)
     public var estimateDurationMs: Int { max(1, durationMs - (lockWaitMs ?? 0)) }
@@ -825,8 +831,10 @@ public struct ScenarioRunRecord: Codable, Sendable {
                 appCrash: AppCrashRecord? = nil,
                 mode: String? = nil,
                 humanOperations: [HumanOperationRecord]? = nil,
-                lockWaitMs: Int? = nil) {
+                lockWaitMs: Int? = nil,
+                displaySettings: DisplaySettingsRecord? = nil) {
         self.lockWaitMs = lockWaitMs
+        self.displaySettings = displaySettings
         self.mode = mode
         self.humanOperations = humanOperations
         self.fm = fm
@@ -874,6 +882,8 @@ public struct ScenarioRecordBuilder {
     private var appCrash: AppCrashRecord?
     private var notApplicableReason: String?
     private var lockWaitMs: Int?
+    /// 開始時の表示条件の処理の結果。`ScenarioHost.run` が子を起こす前に直接入れる(子のイベントではない)
+    public var displaySettings: DisplaySettingsRecord?
     /// 全ステップのタイムライン(成否によらず到着順で蓄積。build() で timeline へ)
     private var timeline: [TimelineStepRecord] = []
 
@@ -1036,7 +1046,8 @@ public struct ScenarioRecordBuilder {
             appCrash: appCrash,
             mode: mode,
             humanOperations: humanOperations.isEmpty ? nil : humanOperations,
-            lockWaitMs: lockWaitMs)
+            lockWaitMs: lockWaitMs,
+            displaySettings: displaySettings)
     }
 
     private static func relativize(_ path: String?, packageRoot: URL?) -> String? {

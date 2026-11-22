@@ -21,6 +21,8 @@ final class AppLeftGateEntryTableTests: XCTestCase {
         "installApp": "ホストの外部コマンド(読まない・触らない)",
         "clearAppData": "ホストの外部コマンド(読まない・触らない)",
         "addMedia": "ホストの外部コマンド(読まない・触らない)",
+        "setAppearance": "ホストの外部コマンド(読まない・触らない)",
+        "setTextSize": "ホストの外部コマンド(読まない・触らない)",
         "wait": "待つだけ",
         "appIs": "前面のアプリそのものを確かめる検証",
         "fold/unfold/hinge": "端末側の操作(StepExecutor.runsWithoutTheApp と同じ扱い)",

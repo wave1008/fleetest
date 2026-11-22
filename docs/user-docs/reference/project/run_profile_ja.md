@@ -43,6 +43,8 @@
 | `responseMeasurement` | bool | `false` | **Android か iOS の実機 1 台**を対象にしたレスポンス計測モード。使う有効なデバイス(`--device` で絞った後)が 1 台で、`kind: physical` でなければ run を断る。アプリのアニメーションを残し(`enableAnimations` を強制的に有効)、iOS は xcuitest モードで走らせ、`fmTextVisibilityCheck`・`ocrTextVisibilityCheck`・`screenLooksLike`・`record`・ホスト負荷による減速を止め、run が終わるまでデバイスモニターを止める。`enableAnimations: false` や、`iosMode`(またはデバイスの `mode`)を `inapp-boost`、FM・OCR・`record` のキーを `true` にした併用はエラー。`--broadcast`・`--fleet`・`--split` とは併用できない。[レスポンス計測](../running/response_measurement_ja.md)参照 |
 | `responseRepeat` | int | `5` | `responseMeasurement: true` のときだけ指定できます(無しで指定するとエラー)。各シナリオをデバイス上で続けて回す回数で、`1` 〜 `50`。どの回も計測します。結果ファイルは `<id>`、`<id>~2`、`<id>~3`、… の名前で並びます |
 | `orientation` | string | 未指定(向きに触らない) | `portrait` / `landscape`(`rotateTo` と同じ値)。各シナリオの `launchApp` / `restartApp` のたびにその直後に回し(起動し直すと向きが残らないことがあるため)、シナリオの終わりに最初の元の向きへ戻す。`--set orientation=landscape` でも指定でき、`--profile` の有無は問わない。それ以外の値(大文字を含む)はエラーで、実行を断る。回すのは通常の [`rotateTo`](../commands/navigation_ja.md) のステップとしてで、レポートにもその行が載る。アプリがその向きを許可していないとそのステップで失敗する。`launchApp` / `restartApp` を呼ばないシナリオでは回らない |
+| `appearance` | string | 未指定(ライト) | `light` / `dark`。各シナリオの開始時の外観。未指定でも各シナリオはライトで始まるので、ダークのまま残っている端末も開始前にライトへ戻る。`--set appearance=dark` でも指定でき、`--profile` の有無は問わない。それ以外の値はエラーで、実行を断る。iOS は Simulator も実機も Xcode の `devicectl`・Android は `cmd uimode night` で設定する。[注意点](#注意点)も参照 |
+| `textSize` | string | 未指定(`default`) | `small` / `default` / `large` / `extraLarge` / `accessibility`。各シナリオの開始時の文字サイズ。名前は本文の文字の大きさでそろえてあり、iOS の段階(`devicectl` の名前)と Android の倍率で、`small` は small・0.85、`default` は iOS の標準(large)・1.0、`large` は extra-large・1.15、`extraLarge` は extra-extra-extra-large・1.3、`accessibility` は accessibility-large・2.0。Android 14 以降は大きい文字ほど拡大が控えめになるので、見た目の大きさが両 OS で一致するとは限らない。iOS の `accessibility` は、そのシナリオの間だけ「より大きな文字」を有効にし、終わりに元の値へ戻す。`--set textSize=extraLarge` でも指定できる。それ以外の値はエラーで、実行を断る。[注意点](#注意点)も参照 |
 | `homeOnStart` | bool | `--profile` 実行は `true`・プロファイル無しの素の `fleetest run` は `false` | 実行開始時に各デバイスへ Home を1回送る(一斉起動直後に画面が黒いまま止まるのを防ぐ) |
 | `playProtectBypass` | bool | `true` | Android の `adb install` で Play Protect の照会(「アプリをセキュリティ確認のために送信しますか?」)を通さない。インストールの間だけ「USB 経由でアプリを確認」を切って元に戻す(アプリを Google へ送らない)。`false` はキルスイッチ: ツールは端末の設定に触らず、release 署名の APK は端末側のダイアログで止まったままになる(ツールはそのダイアログに答えない) |
 | `record` | bool | `true` | 各ワーカーの画面を run 全体で録画し、シナリオごとの clip に切り出す。物理 iPhone は動画を取り出す手段が無いので、最初の操作の直前と、操作したステップ・失敗したステップの直後に撮った画面を時刻どおりに並べた clip になる(コマ送り。撮影1回ごとに約 50ms かかる)。Android の実機は通常どおり録画する。シミュレータ・エミュレータ・Android 実機で画面録画を起動できなかったデバイスも、警告を出してこのコマ送りに切り替える |
@@ -50,6 +52,12 @@
 | `recordBitrateKbps` | int | `1000` | 保存する clip の再エンコード bitrate |
 | `recordFullResolution` | bool | `false` | `record: true` のとき、半分解像度化をスキップする。テストの所要時間は変わらないが、クリップの容量と、全テストが終わった後のクリップの切り出しの待ちが増える。どちらも画面の動きが多いほど大きい |
 | `remoteControl` | object | — | ワークスペースの宣言(`{ "workspace": "<path>" }`)。ワークスペースは常に有効で、省略時は `TestProjects/<プロジェクト>/workspace`。手元の run でもここに `appPath` の原本をステージングし、`scripts/run-setup.sh` / `run-teardown.sh` と `scripts/compose.yaml` をここから読みます。[リモート実行](../../fleet/remote_runners_ja.md) 参照 |
+
+## 注意点
+
+- プロファイルに書かなくても、各シナリオはどの端末でもライト・標準の文字サイズで始まる。ツールが各シナリオの前後に端末の値を読み、違っているものを設定する。各シナリオの後はプロファイルの指定に関わらずライト・標準の文字サイズへ戻すので、run の後の端末はライト・標準のままで、run の前の値へは戻さない。ダークモードや大きな文字で回していたときは、プロファイルに `appearance` / `textSize` を書く(書かないと、ダークで撮ったテンプレート画像は合わなくなる)。MCP の `ft_run_scenario` も同じなので、他の `ft_*` での探索で端末を自分の状態のままにできるのは、最初の `ft_run_scenario` までになる。
+- 書いた値(`appearance` / `textSize`)を設定できない、または読み返して確かめられないときは、そのシナリオは始める前に失敗する。何も書いていないのにライト・標準へ戻せないときは、実行ログに警告を出して run を続け、何かの設定が成功するまでその端末では試みない。確かめた環境は iOS 26.6.2 の実機・iOS 27.2 の Simulator・Android の Emulator と実機で、それより古い iOS や Simulator のランタイムは未確認。
+- iOS で、コントロールセンターから「このアプリのみ」に設定した文字サイズはツールからは見えない。各シナリオの結果の `displaySettings` に、期待した値・読んだ値・開始前に設定したキー(シナリオの途中の `setAppearance` / `setTextSize` は含まない)が残る。
 
 ## FM の使われ方
 

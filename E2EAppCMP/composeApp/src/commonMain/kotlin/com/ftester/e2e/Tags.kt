@@ -144,6 +144,7 @@ object Tags {
     const val TXT_SESSION_COUNT = "txt_session_count"
     const val BTN_SESSION_INC = "btn_session_inc"
     const val BTN_RESET_PERSISTED = "btn_reset_persisted"
+    const val BTN_OPEN_DISPLAY = "btn_open_display"
     const val TXT_PLATFORM = "txt_platform"
     const val TXT_LAST_DEEPLINK = "txt_last_deeplink"
 
@@ -170,6 +171,10 @@ object Tags {
     const val BTN_CRASH = "btn_crash"
     const val BTN_CRASH_CONFIRM = "btn_crash_confirm"
     const val BTN_CRASH_CANCEL = "btn_crash_cancel"
+
+    // 表示条件(ライフサイクル画面から開く)
+    const val TXT_APPEARANCE = "txt_appearance"
+    const val TXT_TEXT_SIZE = "txt_text_size"
 
     // 情報
     const val TXT_ABOUT_MARKER = "txt_about_marker"

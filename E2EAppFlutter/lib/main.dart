@@ -69,7 +69,8 @@ enum Screen {
   heal,
   diagnostics,
   noid,
-  webview
+  webview,
+  display
 }
 
 enum AppTab { home, controls, about }
@@ -178,6 +179,8 @@ class _AppShellState extends State<AppShell> {
             return 'ID なし';
           case Screen.webview:
             return 'WebView';
+          case Screen.display:
+            return '表示条件';
         }
     }
   }
@@ -214,7 +217,9 @@ class _AppShellState extends State<AppShell> {
           case Screen.dialog:
             return const DialogScreen();
           case Screen.lifecycle:
-            return const LifecycleScreen();
+            return LifecycleScreen(
+                onOpenDisplay: () =>
+                    setState(() => _homeChild = Screen.display));
           case Screen.heal:
             return const HealScreen();
           case Screen.diagnostics:
@@ -223,6 +228,8 @@ class _AppShellState extends State<AppShell> {
             return const NoIdScreen();
           case Screen.webview:
             return const WebViewScreen();
+          case Screen.display:
+            return const DisplayScreen();
         }
     }
   }

@@ -115,7 +115,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [First `openURL` on a Simulator](../commands/launch_app.md#notes) — a one-time "Open in …?" alert is dismissed automatically; if the session could not be re-pointed at the app, the step passes with `open-url-session-not-restored`.
 - [`openURL` while the app is not running](../commands/launch_app.md#notes) — the OS launches it, but that is not the command's purpose; use `launchApp(url:)`.
 
-### home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
+### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [Bring the app back after leaving it](../commands/navigation.md#notes) — on iOS inapp-boost and Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until `launchApp()` or `tapAppIcon()`.
 - [`back(settle:)` depends on the screen](../commands/navigation.md#notes) — custom navigation may need an edge swipe, and Android's first `back` closes an open keyboard; tap the app's own back button where it cannot go back.
 - [Unchanged screen after `back()` only adds a note](../commands/navigation.md#notes) — the step does not fail when the app ignores system back; tap its own back button or call `back()` again.
@@ -130,6 +130,12 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [The app must allow the orientation](../commands/navigation.md#notes) — otherwise it will not rotate; on Android a forbidden orientation fails right away naming the app's declaration.
 - [Android auto-rotate is disabled while rotating](../commands/navigation.md#notes) — otherwise the angle would not hold.
 - [`settle: false` skips the settle wait](../commands/navigation.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
+- [`setAppearance` / `setTextSize` change the whole device and are undone after each scenario](../commands/navigation.md#notes) — the device returns to light / `.default` at the end of every scenario; use the run profile's `appearance` / `textSize` to apply it to every scenario.
+- [`setAppearance` / `setTextSize` cannot be used in run or device hooks](../commands/navigation.md#notes) — in `beforeRun` / `afterRun` / `setUpDevice` / `tearDownDevice` / `beforeAll` / `afterAll` the step fails, because the baseline is restored after each scenario and it would only affect the first test.
+- [On Android `setAppearance` / `setTextSize` may recreate the screen](../commands/navigation.md#notes) — unless the app declares `uiMode` / `fontScale` in `configChanges`, the activity is destroyed and created again and in-memory state is lost.  A stateless app then returns to its first screen: change the display condition at the start of the scenario, or relaunch the app and reopen the target screen.
+- [`beforeEach` / `afterEach` can use `setAppearance` / `setTextSize`](../commands/navigation.md#notes) — they run for every test, so the change applies to every test of the class.
+- [`setAppearance` / `setTextSize` check the device setting, not the app's look](../commands/navigation.md#notes) — an app whose colours do not follow the appearance becomes unreadable in dark mode and the text visibility check fails the step (a correct failure).
+- [Text size names map to each OS's own steps](../commands/navigation.md#notes) — iOS uses its text size steps (`.accessibility` also turns on Larger Accessibility Sizes and puts it back at the end of the scenario); Android uses `font_scale` 0.85 to 2.0, and the on-screen ratio is not exactly the scale since Android 14.
 - [`fold` / `unfold` / `hinge` need a foldable device](../commands/navigation.md#notes) — only the iPhone Duo Simulator and foldable Android Emulators work; a physical iPhone is skipped, and a physical foldable Android fails.
 - [Non-foldable devices are skipped, not failed](../commands/navigation.md#notes) — the scenario is recorded as not applicable from that step on, so do not read it as a pass.
 - [Fold state is restored automatically](../commands/navigation.md#notes) — like `rotateTo`, it reverts at the end of the scenario.
@@ -282,6 +288,12 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Calling a lock inside a lock is an error](../commands/run_lock.md#notes) — nesting is an error whether the key is the same or not; pass all the keys you need in one call (calling a helper that takes a lock from inside a lock is nesting too).
 - [Consider `@RunInOrder` instead of a lock when the tests need not run at the same time](../commands/run_lock.md#notes) — a `@RunInOrder` class runs its tests one after another on one device, so no lock is needed.
 - [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test; the app screen state carries over between tests unless a later test calls `launchApp()` / `clearAppData()`.
+
+## Run profile
+
+- [Every scenario starts in light and the default text size](../project/run_profile.md#notes) — the device is read and set before and after each scenario, also when the profile says nothing, and stays that way after the run; write `appearance` / `textSize` to keep dark or large text, and note that the MCP `ft_run_scenario` does the same.
+- [A value you wrote that cannot be set fails the scenario](../project/run_profile.md#notes) — an unwritten one that cannot be reset only warns; verified on an iOS 26.6.2 physical device and an iOS 27.2 Simulator.
+- [iOS "this app only" text size is invisible](../project/run_profile.md#notes) — a size set from Control Center for one app is not read by the tool; `displaySettings` in each result shows what was expected, read and changed.
 
 ## UI component quirks (current limitations)
 

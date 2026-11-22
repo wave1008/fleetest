@@ -191,7 +191,7 @@ public final class RunRecorder: @unchecked Sendable {
 
     private let interruptLock = NSLock()
     private var interruptMarked = false
-    private var isInterrupted: Bool {
+    var isInterrupted: Bool {
         interruptLock.lock()
         defer { interruptLock.unlock() }
         return interruptMarked

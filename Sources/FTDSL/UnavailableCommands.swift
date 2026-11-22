@@ -281,3 +281,20 @@ public func swipeRight() { fatalError() }
 
 @available(*, unavailable, message: "fleetest has no screen nickname mechanism. To check the screen by sight, write screenLooksLike(description) (Foundation Models). To identify a screen deterministically, write exist() on an element unique to it")
 public func screenIs(_ nickname: String) { fatalError() }
+
+// 端末の外観・文字サイズ(DR-220)。他ツールの頻出名を実在の名前へ案内する
+
+@available(*, unavailable, message: "fleetest spells this setAppearance(.dark) / setAppearance(.light)")
+public func setDarkMode(_ enabled: Bool = true) { fatalError() }
+
+@available(*, unavailable, message: "fleetest spells this setAppearance(.dark)")
+public func enableDarkMode() { fatalError() }
+
+@available(*, unavailable, message: "fleetest spells this setAppearance(.light)")
+public func disableDarkMode() { fatalError() }
+
+@available(*, unavailable, message: "fleetest spells this setTextSize(.small / .default / .large / .extraLarge / .accessibility)")
+public func setFontScale(_ scale: Double) { fatalError() }
+
+@available(*, unavailable, message: "fleetest spells this setTextSize(.small / .default / .large / .extraLarge / .accessibility)")
+public func setContentSize(_ size: String) { fatalError() }

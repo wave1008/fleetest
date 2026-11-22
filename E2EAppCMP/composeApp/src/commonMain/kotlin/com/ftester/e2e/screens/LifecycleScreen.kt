@@ -18,7 +18,7 @@ private object SessionCounter {
 }
 
 @Composable
-fun LifecycleScreen() {
+fun LifecycleScreen(onOpenDisplay: () -> Unit = {}) {
     ScreenColumn(scrollable = true) {
         TaggedText(Tags.TXT_LAUNCH_COUNT, "launch=${LaunchCounter.value}")
         TaggedText(Tags.TXT_SESSION_COUNT, "session=${SessionCounter.value}")
@@ -30,5 +30,6 @@ fun LifecycleScreen() {
         }
         TaggedText(Tags.TXT_PLATFORM, "platform=${platformName()}")
         TaggedText(Tags.TXT_LAST_DEEPLINK, "deeplink=${DeepLinkRouter.lastUrl ?: "-"}")
+        TaggedButton(Tags.BTN_OPEN_DISPLAY, "表示条件", onClick = onOpenDisplay)
     }
 }

@@ -68,6 +68,7 @@ struct ControlsScreen: View {
 }
 
 struct LifecycleScreen: View {
+    var onOpenDisplay: () -> Void = {}
     @ObservedObject private var launch = LaunchCounter.shared
     @ObservedObject private var session = SessionCounter.shared
     @ObservedObject private var deeplink = DeepLinkState.shared
@@ -80,6 +81,23 @@ struct LifecycleScreen: View {
             TaggedButton(tag: Tags.btnResetPersisted, label: "永続カウンタをリセット") { launch.reset() }
             TaggedText(tag: Tags.txtPlatform, text: "platform=iOS")
             TaggedText(tag: Tags.txtLastDeeplink, text: "deeplink=\(deeplink.lastURL)")
+            TaggedButton(tag: Tags.btnOpenDisplay, label: "表示条件") { onOpenDisplay() }
+        }
+    }
+}
+
+// 契約: docs/ui-contract.md「表示条件画面」。アプリが受け取った外観と文字サイズ(UIContentSizeCategory の rawValue)を出すだけ。
+struct DisplayScreen: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var sizeCategory = UIApplication.shared.preferredContentSizeCategory.rawValue
+
+    var body: some View {
+        ScreenColumn {
+            TaggedText(tag: Tags.txtAppearance, text: colorScheme == .dark ? "dark" : "light")
+            TaggedText(tag: Tags.txtTextSize, text: sizeCategory)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIContentSizeCategory.didChangeNotification)) { _ in
+            sizeCategory = UIApplication.shared.preferredContentSizeCategory.rawValue
         }
     }
 }

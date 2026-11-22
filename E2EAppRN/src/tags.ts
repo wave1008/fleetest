@@ -121,6 +121,11 @@ export const Tags = {
   btnResetPersisted: 'btn_reset_persisted',
   txtPlatform: 'txt_platform',
   txtLastDeeplink: 'txt_last_deeplink',
+  btnOpenDisplay: 'btn_open_display',
+
+  // 表示条件(ライフサイクル画面から開く)
+  txtAppearance: 'txt_appearance',
+  txtTextSize: 'txt_text_size',
 
   // 自己修復。ラベルは不変で id だけ入れ替わる(schema トグル)のが検証の核。
   swHealSchema: 'sw_heal_schema',

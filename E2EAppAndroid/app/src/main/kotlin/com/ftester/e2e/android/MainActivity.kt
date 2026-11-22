@@ -9,7 +9,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
-enum class Screen { SELECTOR, INPUT, GESTURE, MAP, SCROLL, ASYNC, DIALOG, LIFECYCLE, HEAL, DIAGNOSTICS, NOID, WEBVIEW }
+enum class Screen { SELECTOR, INPUT, GESTURE, MAP, SCROLL, ASYNC, DIALOG, LIFECYCLE, HEAL, DIAGNOSTICS, NOID, WEBVIEW, DISPLAY }
 
 private enum class Tab { HOME, CONTROLS, ABOUT }
 
@@ -117,11 +117,12 @@ class MainActivity : AppCompatActivity() {
                 Screen.SCROLL -> buildScrollScreen(this, container)
                 Screen.ASYNC -> buildAsyncScreen(this, container)
                 Screen.DIALOG -> buildDialogScreen(this, container)
-                Screen.LIFECYCLE -> buildLifecycleScreen(this, container)
+                Screen.LIFECYCLE -> buildLifecycleScreen(this, container) { navigate(Screen.DISPLAY) }
                 Screen.HEAL -> buildHealScreen(this, container)
                 Screen.DIAGNOSTICS -> buildDiagnosticsScreen(this, container)
                 Screen.NOID -> buildNoIdScreen(this, container)
                 Screen.WEBVIEW -> buildWebviewScreen(this, container)
+                Screen.DISPLAY -> buildDisplayScreen(this, container)
             }
         }
         container.addView(view)
@@ -155,6 +156,7 @@ class MainActivity : AppCompatActivity() {
             Screen.DIAGNOSTICS -> "診断"
             Screen.NOID -> "ID なし"
             Screen.WEBVIEW -> "WebView"
+            Screen.DISPLAY -> "表示条件"
         }
     }
 }

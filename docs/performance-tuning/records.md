@@ -2,7 +2,7 @@
 
 | 種別 | 範囲 | 読む場面 | 扱わないこと |
 |---|---|---|---|
-| 記録 | 個別の実測(ブラウザ DOM・実機 iOS の tap・xcuitest のスクロール探索)とドライバ改良の A/B 再計測(PT-9〜12) | 過去の実測を確かめるとき | 調整ノブと現在の既定(→ [guide.md](guide.md)) |
+| 記録 | 個別の実測(ブラウザ DOM・実機 iOS の tap・xcuitest のスクロール探索)とドライバ改良の A/B 再計測・表示設定と devicectl / simctl の所要(PT-9〜13) | 過去の実測を確かめるとき | 調整ノブと現在の既定(→ [guide.md](guide.md)) |
 
 現在の仕様ではない。日付はその時点のもの。
 
@@ -149,3 +149,64 @@ FT_EVENT_LOG_PATH=<file> fleetest run --project sut-ec-mobile \
 
 計測口の詳細は PT-4、改良の経緯・不採用判断は同 PT-6/PT-7 と
 `poc/appium-driver-benchmark` ブランチの docs/poc-appium-benchmark.md を参照。
+
+## PT-13 端末の表示設定と、iOS Simulator での devicectl と simctl の所要(2026-11-22 実測)
+
+確認環境: macOS 27.2.1・Xcode 27.2・M2 Ultra・iOS Simulator(iPhone 17・iOS 27.2 のランタイム)・iOS 実機 SE3(iOS 26.6.2・USB)・
+Android Emulator(API 37)・Pixel 4a(API 33・USB)。**静かな機械で1台ずつ**(他の run・負荷なし)。5回(一部3回)の値。
+
+**Xcode 27.2 の `devicectl` は iOS Simulator にも使え、同じ操作の `simctl` より約3倍速い。** 並列の run(E2E)の最中は未計測。8台へ同時に呼んだときは下の追試(`devicectl` はほとんど伸びない)。
+
+| 操作(Simulator) | simctl | devicectl |
+|---|---|---|
+| 外観 + 文字サイズの設定 | 1.3 秒(`ui appearance` と `ui content_size` が各 0.6。同じ値でも 0.55。起動直後の1回目は 6.2) | 0.2〜0.3 秒(`device settings appearance` の1コマンド) |
+| 外観の読み取り | 0.5 秒(`ui appearance`) | 0.26 秒(`device info appearance`) |
+| 入っているアプリの一覧 | 0.5〜0.6 秒(`listapps`。初回 2.1) | 0.16〜0.21 秒(`device info apps`。初回 0.59) |
+| プロセスの一覧 | 0.7〜0.9 秒(`spawn launchctl list`) | 0.26〜0.29 秒(`device info processes`) |
+| スクリーンショット | 0.82〜0.89 秒(`io screenshot`) | 0.53〜0.55 秒(`device capture screenshot`) |
+| URL を開く | 0.6〜0.9 秒(`openurl`。1回 3.1) | 0.19〜0.32 秒(`device process openURL`) |
+| 向きの読み取り | — | 0.15 秒(`device orientation get`。初回 0.46) |
+| データコンテナの場所 | 0.6〜0.9 秒(`get_app_container`) | (対応する口なし) |
+| アプリを止める | 0.47〜0.61 秒(`terminate`) | `device process terminate` は pid が要る(一覧と合わせると差が無い) |
+
+表示設定(外観・文字サイズ)の実地:
+
+- iOS の実機・Simulator とも `devicectl device settings appearance --device <udid> --mode <light|dark> --text-size <段階名>` で、
+  前面のアプリがその場で反映した。実機 SE3 は 0.27〜0.32 秒。
+- iOS で accessibility の段階(`accessibility-large` 等)を設定するには `--larger-accessibility-sizes on` が要る。無いと
+  「Enable Larger Accessibility Sizes on the device before setting an accessibility text size」(CoreDeviceError 21063)で失敗する。
+  同じコマンドで `--larger-accessibility-sizes on --text-size accessibility-large` を渡すと 0.31 秒で効いた(SE3)。
+- `devicectl device settings appearance` のヘルプは対応の条件を「(if supported)」としか書かない。効く最低の iOS の版は不明。
+- Liquid Glass の項目は版で変わる: SE3(iOS 26.6.2)は「Clear / Tinted Liquid Glass」の2種類、Simulator(iOS 27.2)は
+  「Liquid Glass」1種類と不透明度(50%)。
+- Android は `cmd uimode night yes|no` と `settings put system font_scale <倍率>` の2つで、Emulator 0.08〜0.16 秒・
+  Pixel 4a 0.15〜0.30 秒。Android 13(Pixel 4a)でも `font_scale 2.0` が効いた(設定画面の上限は 1.3)。
+  `am get-config` の構成の文字列には倍率が出ない(画面で確かめた)。
+
+同時に呼んだとき(2026-11-22 追試。同じ機械・iPhone 18 Pro の Simulator 8台・iOS 27.2・ブリッジなし。8台へ同じ操作を同時に撃つのを
+5ラウンド。1台あたりの所要の中央値 / 最大):
+
+| 条件 | devicectl 読み取り | devicectl 設定 | simctl ui 読み取り | simctl ui 設定(外観 + 文字サイズ) |
+|---|---|---|---|---|
+| モニター停止(`monitor pause`) | 0.27 / 0.34 | 0.39〜0.46 / 0.67 | 3.63 / 3.80 | 1.60〜4.43 / 5.39 |
+| モニターが8台を配信中(load average 約 500) | 0.97 / 2.08 | 0.45〜0.65 / 1.42 | 8.71 / 21.83 | 17〜20 / 31.94 |
+| 実機 SE3 + Simulator 8台を同時(モニター停止) | 0.22 / 1.20 | 0.57〜0.72 / 1.44 | — | — |
+
+- **`devicectl` は同時に呼んでもほとんど伸びない。`simctl ui` は同時に呼ぶと桁で伸びる**(1台 0.5〜0.6 秒 → 8台同時で数秒〜30 秒)。
+- 同時に設定した直後に `simctl ui` で読み返すと、4回とも8台すべて設定どおり(`devicectl` が反映を待たずに返っているのではない)。
+- 繰り返し切り替えても PosterBoard の落ちた記録(.ips)は 0 件。
+- `devicectl` の `--timeout` は整数の秒だけ(0.1 などは「invalid」で終了コード 64)。
+- `devicectl` を途中で強制終了した場合: 要求が届く前(0.03・0.08 秒)なら反映されず、届いた後(0.15 秒)なら止めた時点で反映済み。
+  3 秒後に遅れて反映されることは無かった。
+- CoreDevice が詰まった状態は人工的に起こせなかった(過去の記録では SE3 で 60〜170 秒応答しなかった = MN-50.4 の周辺)。
+- 並列の run(E2E)の最中には測っていない。上の「モニターが8台を配信中」は、負荷の高い状態の代わりとして読む。
+
+`simctl` を `devicectl` に置き換える候補(2026-11-22 時点で未着手。並列の run の最中の計測が先。8台同時の単独の計測では `devicectl` は伸びなかった):
+
+- 速くする余地がある経路: DSL の `openURL` / `launchApp(url:)` の Simulator 側(実機は既に `devicectl`)・凍結の監視
+  (`DisplayFreezeWatch`)とモニターのブリッジの無い Simulator の撮影(`io screenshot`)・アプリの生死の照会
+  (`SimulatorAppProcess` の `launchctl list`。失敗の切り分けと回復の経路)・`ft_list_apps`(`listapps`)。
+- 置き換えても速くならない経路: 起動・起動前の検査は既に CoreSimulator を直接呼んでいる(`simctl get_app_container` 703ms → ほぼ 0ms。
+  launch の内訳は PT-3)。止める操作は pid が要るので差が無い。
+- 撮影は `SimulatorActiveDisplay` が画面の選択(iPhone Duo の複数の画面)を `simctl io` の引数で渡しているので、`devicectl` で同じ
+  選択ができるかを先に確かめる。

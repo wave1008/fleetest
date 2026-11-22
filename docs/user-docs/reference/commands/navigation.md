@@ -1,8 +1,8 @@
-# home, back, appSwitcher, tapAppIcon, rotateTo, fold, unfold, hinge
+# home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 
 [in Japanese(日本語)](navigation_ja.md)
 
-OS-level navigation: home screen, back, app switcher, home screen icon, screen rotation, and folding a foldable device.
+OS-level navigation: home screen, back, app switcher, home screen icon, screen rotation, the device's appearance and text size, and folding a foldable device.
 
 ## Functions
 
@@ -13,6 +13,8 @@ OS-level navigation: home screen, back, app switcher, home screen icon, screen r
 | `appSwitcher()` | Opens the app switcher. On a home-button iPhone (e.g. iPhone SE) the switcher is a hardware double-press that cannot be sent, so the scenario is recorded as skipped (not applicable) from that step on instead of failing. |
 | `tapAppIcon(name?)` | Finds and taps the app icon on the home screen. `name` is matched **exactly** against the name shown under the icon on the home screen. When omitted it is the app profile's `appName` for that OS (`ios.appName` / `android.appName`). |
 | `rotateTo(.portrait, settle:)` / `rotateTo(.landscape, settle:)` | Rotates the app UI to that orientation. Only these two values exist. To run every scenario in landscape without writing this, set `orientation` in the [run profile](../project/run_profile.md). |
+| `setAppearance(.light)` / `setAppearance(.dark)` | Switches the **device's** appearance and reads it back; the step fails if the value read back differs from the one requested (it succeeds if the device already had it). The device returns to light at the end of the scenario. |
+| `setTextSize(.small / .default / .large / .extraLarge / .accessibility)` | Switches the **device's** text size and reads it back; the step fails if the value read back differs from the one requested (it succeeds if the device already had it). The device returns to `.default` at the end of the scenario. |
 | `fold(waitSeconds:)` | Folds a foldable device to the outer screen and waits until the device reports it switched (up to `waitSeconds`, default = the run's default timeout). Fails if it does not switch. |
 | `unfold(waitSeconds:)` | Unfolds to the inner (large) screen. Same rules as `fold`. |
 | `hinge(_ degrees)` | Sets the hinge angle, 0 (folded) to 180 (unfolded); about 130 is the half-open book posture. Does not check which screen shows. |
@@ -28,6 +30,8 @@ tapAppIcon()             // find and tap the app icon by the app profile's name
 appSwitcher()
 rotateTo(.landscape)
 rotateTo(.portrait)
+setAppearance(.dark)    // dark mode (back to light after the scenario)
+setTextSize(.extraLarge)
 fold()                  // foldable devices only
 unfold()
 hinge(130)              // half-open book posture
@@ -84,7 +88,12 @@ hinge(130)              // half-open book posture
 - Android disables auto-rotate while rotating through this command, since the angle would not
   otherwise hold.
 - **`settle: false`** skips this command's post-action wait for the screen to settle (the next step may see a moving screen). See [tap](./tap.md) for details.
-
+- **`setAppearance` / `setTextSize` change the whole device and are undone at the end of every scenario.** At the end of every scenario the tool returns the device to light and the default text size (`.default`), and logs a warning in the run log if it cannot. To run every scenario in dark mode or at a larger text size, set `appearance` / `textSize` in the [run profile](../project/run_profile.md) instead.
+- **They cannot be used in `beforeRun()` / `afterRun()` / `setUpDevice()` / `tearDownDevice()` / `beforeAll()` / `afterAll()`.** The device is returned to the baseline (light, default text size) after each scenario, so a change made there would only affect the first test; the step fails with a message saying so. Use the run profile's `appearance` / `textSize` for the whole run. A dry run does not change the device.
+- **They can be used in `beforeEach()` / `afterEach()`.** Those run for every test, so the change applies to every test of the class.
+- **On Android the screen may be recreated.** Unless the app declares `uiMode` (for `setAppearance`) or `fontScale` (for `setTextSize`) in its `configChanges`, the activity on screen is destroyed and created again, so state kept only in memory is lost. The same applies when the device is returned at the end of the scenario. An app that does not save its screen state then returns to its first screen, so change the display condition at the very start of the scenario (before moving to the target screen), or relaunch the app after changing it and reopen the target screen.
+- **The step checks the device's setting, not how the app looks.** An app whose colours do not follow the appearance can become unreadable in dark mode (only the background goes dark), and the text visibility check then fails the step. That is a correct failure: check the app's colours.
+- **Text size names map to each OS's own steps.** iOS: `.small` = `small`, `.default` = `large` (the iOS standard), `.large` = `extra-large`, `.extraLarge` = `extra-extra-extra-large`, `.accessibility` = `accessibility-large` (it also turns on "Larger Accessibility Sizes", which goes back to its earlier value at the end of the scenario). Android: `font_scale` 0.85 / 1.0 / 1.15 / 1.3 / 2.0; since Android 14 the OS scales text non-linearly, so the on-screen size ratio is not exactly the scale. Confirmed on a physical iPhone (iOS 26.6.2), the iOS 27.2 Simulator and Android Emulator/physical devices.
 - **`fold` / `unfold` / `hinge` need a foldable device.**
   - iOS: the iPhone Duo **Simulator** (Xcode 27.2+), sent through the XCUITest bridge, which both iOS modes support.
   - Android: a foldable **Emulator** (an AVD with a hinge sensor, e.g. Pixel 9 Pro Fold).

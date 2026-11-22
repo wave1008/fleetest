@@ -506,6 +506,14 @@ window/transition/animator の `*_scale` はチューニングノブではなく
 候補ではない(in-app 常駐ブリッジ・inapp-boost モードは既定で動いている)。候補として読むのは各行の
 ✅/❌/不採用の印が無いものだけ。
 
+- **iOS Simulator の `simctl` 呼び出しを `devicectl` へ置き換える**(未着手)。
+  Xcode 27.2 の `devicectl` は Simulator にも効き、同じ操作が約3倍速い(静かな機械・1台の実測。表は PT-13)。
+  候補の経路: DSL の `openURL` / `launchApp(url:)` の Simulator 側(0.6〜0.9 → 0.2 秒。実機は既に `devicectl`)・
+  凍結の監視(`DisplayFreezeWatch`)とモニターのブリッジの無い Simulator の撮影(0.85 → 0.54 秒)・
+  アプリの生死の照会(`SimulatorAppProcess`。0.8 → 0.27 秒。失敗と回復の経路だけ)・`ft_list_apps`(0.55 → 0.2 秒)。
+  **着手の前に**: ①並列の run(E2E・8台)の最中に同じ比較を測る(8台同時の単独の計測では `devicectl` は伸びなかった = PT-13)②撮影は iPhone Duo の画面の選択(`SimulatorActiveDisplay`)が `devicectl` でできるか ③iOS 27.2 より古い Simulator の
+  ランタイムで使えるか。置き換えても速くならない経路(起動・起動前の検査 = 既に CoreSimulator を直接呼ぶ / 止める操作 = pid が要る)は対象外
+
 - ✅ **SpringBoard の劣化を検知して起こし直す**(PT-3.36 で実装)。効果がどれだけ続くか(再劣化までの時間)は未計測 ——
   再劣化が早いならシミュレータの再起動へ切り替える(既に供給の経路は「起動し直しで直らなかった」印でシミュレータを再起動する)
 - **iOS 並列度の上限設定(実行プロファイル)** → **2026-07-29 に不採用 = DR-122**(PT-6)。

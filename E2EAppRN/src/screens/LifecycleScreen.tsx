@@ -10,12 +10,14 @@ export function LifecycleScreen({
   lastDeeplink,
   onSessionIncrement,
   onResetLaunch,
+  onOpenDisplay,
 }: {
   launchCount: number;
   sessionCount: number;
   lastDeeplink: string;
   onSessionIncrement: () => void;
   onResetLaunch: () => void;
+  onOpenDisplay: () => void;
 }) {
   return (
     <ScreenContainer>
@@ -25,6 +27,7 @@ export function LifecycleScreen({
       <TaggedButton testID={Tags.btnResetPersisted} label="永続カウンタをリセット" onPress={onResetLaunch} />
       <EchoText testID={Tags.txtPlatform}>{`platform=${Platform.OS === 'ios' ? 'iOS' : 'Android'}`}</EchoText>
       <EchoText testID={Tags.txtLastDeeplink}>{`deeplink=${lastDeeplink}`}</EchoText>
+      <TaggedButton testID={Tags.btnOpenDisplay} label="表示条件" onPress={onOpenDisplay} />
     </ScreenContainer>
   );
 }

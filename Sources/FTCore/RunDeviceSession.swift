@@ -173,6 +173,8 @@ public final class RunDeviceSession: @unchecked Sendable {
     private enum SetUpState: Equatable { case began, passed, failed, notApplicable(String) }
 
     public let shared: RunSharedSession
+    /// 端末の表示条件の「基準へ合わせられない」印(DR-221。デバイスごと・この run の間で、設定が1回成功するまで)
+    public let displaySettings = DisplaySettingsLaneState()
     private let lock = NSLock()
     /// 試行済みのクラスだけを持つ(キー無し = 未試行)
     private var setUpStates: [String: SetUpState] = [:]

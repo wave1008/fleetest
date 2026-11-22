@@ -342,6 +342,18 @@ Android の4 SUT と RN iOS は、どの部品もオン/オフとも a11y が判
 | 状態を持たない要素(ただのボタン)を指した checkIsON/OFF | 既定(分類器を優先)では、画像からどちらかの判定が付いてしまう(以前は「報告なし」で落ちるか素通り) | 状態を持つ部品だけを指す |
 | 見切れた要素(枠が画面外にはみ出す) | 切り出せないので a11y の判定に戻る(a11y も不明なら不明) | 画面内へ送ってから検証する |
 
+### FD-2.7 端末の外観・文字サイズ(`setAppearance` / `setTextSize`)
+
+確認環境: 2026-11-22 の E2E(この Mac・5 SUT・両 OS・iOS は inapp-boost モード)で「表示条件を切り替えられること」の2本が全部通った環境: macOS 27.2.1・Xcode 27.2・Simulator iPhone 18 Pro / iOS 27.2・iOS 実機 SE3 / iOS 26.6.2(E2E-iOS だけ)・Emulator Pixel 10 Pro / Android 17(API 37)・iOS ブリッジ v301・Android ブリッジ VERSION_CODE 144。xcuitest モードは未確認(SUT の画面は `E2EAppCMP/docs/ui-contract.md` の表示条件画面。シナリオは各 E2E プロジェクトの「表示条件を切り替える」)。
+
+| フレームワーク | 違い | 区分 | ツールの動き |
+|---|---|---|---|
+| Flutter(Android) | `uiMode` も `fontScale` も `configChanges` に持つので、外観・文字サイズのどちらを変えても Activity を作り直さない | B | 何もしない(待ちは他の操作と同じ整定だけ) |
+| React Native・Compose Multiplatform(Android) | 外観は作り直さない・**文字サイズだけ Activity が作り直される**(CMP はナビ状態を `rememberSaveable` で引き継ぐ。**RN の SUT はホームへ戻る** = 画面の状態を持たないアプリは文字サイズの変更で最初の画面に戻る) | B | 何もしない。メモリだけの状態は文字サイズの変更で失われる |
+| View/XML(E2EAppAndroid) | 外観も文字サイズも Activity が作り直される(ナビ状態は引き継ぐ) | B | 何もしない |
+| Compose Multiplatform(iOS) | アプリが配色を外観に追従させていないと、ダークにしたとき背景だけ黒になり、テーマの既定色の文字(黒)が読めなくなる(E2E の SUT は2つの表示を白地・黒の文字に固定している) | B | テキストの可視性検証が「木にはあるが描かれていない」と赤にする(正しい赤) |
+| 全部(iOS) | `#txt_text_size` の値の形が割れる: ネイティブ・CMP は `UIContentSizeCategory` の rawValue・Flutter・RN は倍率 | B | シナリオは生の値を決め打ちせず、開始時の値から変わったことで比べる |
+
 ## FD-3 待ちと鮮度
 
 確認環境: 2026-10-25 の E2E(この Mac の全 SUT・両 OS・iOS は inapp-boost モード)で、この節の witness を含むシナリオが全部通った環境: macOS 27.2(26B118)・Xcode 27.2(27B48)・Simulator iPhone 17 Pro / iOS 27.0・Emulator Pixel 9 / Android 15・Compose Multiplatform 1.12.1・Kotlin 2.4.21・Flutter 3.47.7・React Native 0.87.1・iOS ブリッジ v214・Android ブリッジ VERSION_CODE 109。xcuitest モードでの差は未確認

@@ -185,6 +185,17 @@ public enum DSLCommandIndex {
               "rotateTo(.portrait / .landscape, settle:)",
               "Rotates the app UI to that orientation. Reverted automatically to "
                   + "the original orientation at the end of the scenario."),
+        .init("setAppearance", "operation", "setAppearance(.light / .dark)",
+              "Switches the device's appearance (iOS: devicectl on Simulator and physical devices; Android: cmd uimode night),"
+                  + " then reads it back and fails the step if it differs. The device is returned to light at the end of the"
+                  + " scenario. Not allowed in beforeRun / afterRun / setUpDevice / tearDownDevice / beforeAll / afterAll"
+                  + " (use the run profile's appearance for the whole run). Dry-run sends nothing."
+                  + " On Android the screen is recreated unless the app declares uiMode in configChanges."),
+        .init("setTextSize", "operation", "setTextSize(.small / .default / .large / .extraLarge / .accessibility)",
+              "Switches the device's text size (iOS: devicectl text-size step, .accessibility also enables larger accessibility"
+                  + " sizes; Android: font_scale 0.85 / 1.0 / 1.15 / 1.3 / 2.0), then reads it back and fails the step if it"
+                  + " differs. The device is returned to .default at the end of the scenario. Same restrictions as setAppearance."
+                  + " On Android the screen is recreated unless the app declares fontScale in configChanges."),
         .init("fold", "operation", "fold(waitSeconds:)",
               "Folds a foldable device (iPhone Duo simulator / foldable Android Emulator) to the outer "
                   + "screen and waits until it switches. Skipped as not applicable on other devices. "

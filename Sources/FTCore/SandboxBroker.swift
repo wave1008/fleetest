@@ -256,9 +256,39 @@ public enum DevicectlPolicy {
                 && a[5] == "--pid" && a[7] == "-q":
             return device(a[4]) ?? (!a[6].isEmpty && a[6].allSatisfy(\.isASCII) && a[6].allSatisfy(\.isNumber)
                 ? nil : refuse("not a process id: \(a[6])"))
+        // 表示条件(外観・文字サイズ)の読み取りと設定。組み立ては `DisplaySettingsCommands`(`DisplaySettingsDevice` が撃つ)
+        case let a where a.count == 10 && Array(a[0..<4]) == ["device", "info", "appearance", "--device"]
+                && a[5] == "--timeout" && isDisplayTimeout(a[6]) && Array(a[7...]) == ["--json-output", "-", "-q"]:
+            return device(a[4])
+        case let a where a.count >= 10 && Array(a[0..<4]) == ["device", "settings", "appearance", "--device"]
+                && a[5] == "--timeout" && isDisplayTimeout(a[6]) && a[7] == "-q" && displaySettingPairsAllowed(Array(a[8...])):
+            return device(a[4])
         default:
             return refuse("devicectl \(args.prefix(3).joined(separator: " ")) is not allowed from a sandboxed scenario")
         }
+    }
+
+    /// `--timeout` の値(整数の秒)
+    static func isDisplayTimeout(_ token: String) -> Bool {
+        !token.isEmpty && token.count <= 3 && token.allSatisfy(\.isASCII) && token.allSatisfy(\.isNumber)
+    }
+
+    /// `--mode` / `--text-size` / `--larger-accessibility-sizes` の組(各1回まで・1組以上・値は語彙の段階名か on/off だけ)
+    static func displaySettingPairsAllowed(_ rest: [String]) -> Bool {
+        guard !rest.isEmpty, rest.count % 2 == 0 else { return false }
+        let allowed: [String: Set<String>] = [
+            "--mode": Set(FTAppearance.allCases.map(\.iosMode)),
+            "--text-size": Set(FTTextSize.allCases.map(\.iosStep)),
+            "--larger-accessibility-sizes": ["on", "off"],
+        ]
+        var seen: Set<String> = []
+        var index = 0
+        while index < rest.count {
+            guard let values = allowed[rest[index]], values.contains(rest[index + 1]), seen.insert(rest[index]).inserted
+            else { return false }
+            index += 2
+        }
+        return true
     }
 }
 

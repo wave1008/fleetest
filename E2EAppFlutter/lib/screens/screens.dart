@@ -163,7 +163,9 @@ class _InputScreenState extends State<InputScreen> {
 }
 
 class LifecycleScreen extends StatefulWidget {
-  const LifecycleScreen({super.key});
+  const LifecycleScreen({required this.onOpenDisplay, super.key});
+
+  final VoidCallback onOpenDisplay;
 
   @override
   State<LifecycleScreen> createState() => _LifecycleScreenState();
@@ -189,7 +191,28 @@ class _LifecycleScreenState extends State<LifecycleScreen> {
           builder: (context, value, _) =>
               TaggedText(Tags.txtLastDeeplink, 'deeplink=$value'),
         ),
+        TaggedButton(Tags.btnOpenDisplay, '表示条件', onTap: widget.onOpenDisplay),
       ]);
+}
+
+/// 契約: docs/ui-contract.md「表示条件画面」。アプリが受け取った外観と文字サイズの生の値を出すだけ。
+/// 文字サイズは OS の倍率(PlatformDispatcher.textScaleFactor。Android = fontScale、iOS = UIContentSizeCategory
+/// から Flutter エンジンが算出した倍率。段階名は Flutter から取れない)。
+/// MediaQuery を購読するので、外観・文字サイズの変更で再構築される。
+class DisplayScreen extends StatelessWidget {
+  const DisplayScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = MediaQuery.platformBrightnessOf(context);
+    MediaQuery.textScalerOf(context); // 購読のみ(値は下で OS の生の倍率を読む)
+    final scale = View.of(context).platformDispatcher.textScaleFactor;
+    return ScreenColumn(children: [
+      TaggedText(Tags.txtAppearance,
+          brightness == Brightness.dark ? 'dark' : 'light'),
+      TaggedText(Tags.txtTextSize, scale.toStringAsFixed(2)),
+    ]);
+  }
 }
 
 class HealScreen extends StatefulWidget {

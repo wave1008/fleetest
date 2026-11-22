@@ -30,6 +30,8 @@ public enum ProfileError: Error, LocalizedError {
     case emptyReportDir(run: String)
     case invalidLocale(run: String)
     case invalidOrientation(run: String, value: String)
+    case invalidAppearance(run: String, value: String)
+    case invalidTextSize(run: String, value: String)
     /// iosMode / devices[].mode が `IOSMode.all` のどれでもない(device = nil は iosMode)
     case invalidIOSMode(run: String, device: String?, value: String)
     /// kind=physical なのに同定に必要な識別子(iOS=udid / Android=serial)が無い
@@ -86,6 +88,10 @@ public enum ProfileError: Error, LocalizedError {
             return "locale in run profile \(run) must look like ja_JP"
         case .invalidOrientation(let run, let value):
             return "orientation \"\(value)\" in run profile \(run) \(RunProfileDocument.orientationRule)"
+        case .invalidAppearance(let run, let value):
+            return "appearance \"\(value)\" in run profile \(run) \(FTAppearance.rule)"
+        case .invalidTextSize(let run, let value):
+            return "textSize \"\(value)\" in run profile \(run) \(FTTextSize.rule)"
         case .invalidIOSMode(let run, let device, let value):
             let key = device.map { "mode of device \"\($0)\"" } ?? "iosMode"
             return "\(key) in run profile \(run) is \"\(value)\" — use \"inapp-boost\" or \"xcuitest\""
@@ -139,7 +145,8 @@ extension ProfileError {
     public func isCoveredByStaticRunValidation(runFileName: String) -> Bool {
         switch self {
         case .emptyReportDir, .duplicateDeviceName, .missingAppReference, .missingDevices,
-             .invalidWipeDataThreshold, .invalidLocale, .invalidOrientation, .physicalDeviceMissingIdentifier:
+             .invalidWipeDataThreshold, .invalidLocale, .invalidOrientation, .invalidAppearance, .invalidTextSize,
+             .physicalDeviceMissingIdentifier:
             return true
         case .decodeFailed(let url, _):
             return url.deletingPathExtension().lastPathComponent == runFileName

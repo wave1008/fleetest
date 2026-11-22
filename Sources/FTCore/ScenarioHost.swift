@@ -720,9 +720,21 @@ public enum ScenarioHost {
                   let key = connection.serial ?? connection.udid else { return [] }
             return HumanOperationLedger.entries(stateDir: stateDir, key: key, from: startedAt, to: Date())
         }
+        // シナリオが表示条件の DSL(setAppearance / setTextSize)を撃ったか。開始時の処理が何もしなかった回(「合わせられない」端末で
+        // 指定なし)でも、撃ったなら終わりに基準へ戻す(戻さないと次のシナリオへ持ち越す。DR-221)
+        let displayCommandRan = LockedValue(false)
         let emit: (ScenarioEvent) -> Void = { event in
+            if event.kind == "step", let command = event.command, DisplaySettingsDSL.commands.contains(command) {
+                displayCommandRan.value = true
+            }
             builder?.consume(event)
             onEvent(event)
+        }
+        // 親が足す1行(子のイベントではないので eventLog へは host として書く)
+        let hostLog: (String) -> Void = { line in
+            let event = ScenarioEvent.log(line)
+            eventLog?.appendHost(event)
+            emit(event)
         }
 
         // ランナーを起こせなかった失敗も**記録に残す**(scenarios/*.json → JUnit・`--failed` の材料)。
@@ -732,8 +744,9 @@ public enum ScenarioHost {
         // どれも事実と違う(結果 JSON は事実だけ。言えないときは欄ごと省く)。
         // ここで合成する3イベントは子の stdout 由来ではない(まだ子すら起きていない)ので
         // eventLog へは stream:"host" で書く(appendStdout との二重書きにはならない)
-        let abortBeforeLaunch: (String) -> Bool = { reason in
-            let logEvent = ScenarioEvent.log("❌ \(reason)")
+        // `detail` = 失敗のステップの詳細(表示条件の失敗のようにコマンドの終了コード・出力を載せるとき)
+        func abortBeforeLaunch(_ reason: String, detail: String? = nil) -> Bool {
+            let logEvent = ScenarioEvent.log("❌ \(reason)" + (detail.map { ": \($0)" } ?? ""))
             eventLog?.appendHost(logEvent)
             emit(logEvent)
             var step = ScenarioEvent(kind: "step")
@@ -741,6 +754,7 @@ public enum ScenarioHost {
             step.index = 0
             step.status = "failed"
             step.description = reason
+            step.detail = detail
             eventLog?.appendHost(step)
             emit(step)
             var finished = ScenarioEvent(kind: "scenarioFinished")
@@ -953,10 +967,46 @@ public enum ScenarioHost {
         }
         let keepsStdinOpen = debug != nil || installHandler != nil
 
+        // 端末の表示条件(外観・文字サイズ)を子を起こす直前に合わせる(DR-221)。何もしない経路は transport が nil。
+        // **起動前の他の検査より後に置く** = この後に子を起こせず抜ける経路は下の process.run の失敗だけで、そこでも戻す
+        let displayExpected = DisplayExpectation(appearance: settings.appearance, textSize: settings.textSize)
+        let displayTransport = displaySettingsTransport(connection: connection, dryRun: dryRun, lifecycleOnly: lifecycleOnly)
+        var displayStarted: DisplaySettingsStart?
+        // 子の終了後と、起動前に失敗する経路(一部だけ設定できた後)で端末を基準へ戻す。失敗は警告だけ
+        let finishDisplaySettings: () -> Void = {
+            guard let displayTransport else { return }
+            let started: DisplaySettingsStart
+            if let displayStarted {
+                started = displayStarted
+            } else if displayCommandRan.value {
+                // 開始時は何もしなかったがシナリオが変えた = 「合わせられない」の印を外して戻す(撃てたなら届く端末)
+                deviceSession.displaySettings.noteSetSucceeded()
+                started = DisplaySettingsStart(record: nil, notices: [], failureDetail: nil, changed: [], largerAtStart: nil)
+            } else {
+                return
+            }
+            let lines = DisplaySettingsEngine.end(
+                started: started, expected: displayExpected, interrupted: recording?.recorder.isInterrupted ?? false,
+                transport: displayTransport, lane: deviceSession.displaySettings)
+            for line in lines { hostLog(line) }
+        }
+        if let displayTransport {
+            let started = DisplaySettingsEngine.start(
+                expected: displayExpected, transport: displayTransport, lane: deviceSession.displaySettings)
+            for line in started.notices { hostLog(line) }
+            builder?.displaySettings = started.record
+            displayStarted = started.didNothing ? nil : started
+            if let detail = started.failureDetail {
+                finishDisplaySettings()
+                return abortBeforeLaunch(DisplaySettingsStart.failureSummary(displayExpected), detail: detail)
+            }
+        }
+
         let processExited = ProcessExitWait.prepare(process)
         do {
             try process.run()
         } catch {
+            finishDisplaySettings()
             return abortBeforeLaunch("Cannot start the runner: \(error.localizedDescription)")
         }
         // 中断が来ていれば即 SIGTERM(register 自体と中断到着の競合を取りこぼさない。
@@ -1155,6 +1205,7 @@ public enum ScenarioHost {
         for line in errLines where !line.isEmpty {
             emit(.log(line.hasPrefix("⚠️") ? line : "⚠️ \(line)"))
         }
+        finishDisplaySettings()
 
         // タイムアウト時は子がレポートも scenarioFinished も出さずに死ぬ。失敗可視化の契約:
         // 合成 scenarioFinished(passed:false) を emit で流し、通常失敗と同じ経路で集計・

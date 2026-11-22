@@ -23,6 +23,7 @@ import { AsyncScreen } from './src/screens/AsyncScreen';
 import { ControlsScreen } from './src/screens/ControlsScreen';
 import { DiagnosticsScreen } from './src/screens/DiagnosticsScreen';
 import { DialogScreen } from './src/screens/DialogScreen';
+import { DisplayScreen } from './src/screens/DisplayScreen';
 import { GestureScreen } from './src/screens/GestureScreen';
 import { HealScreen } from './src/screens/HealScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -73,6 +74,7 @@ const HOME_TITLES: Record<HomeChildScreen, string> = {
   diagnostics: '診断',
   noid: 'ID なし',
   webview: 'WebView',
+  display: '表示条件',
 };
 
 // プロセス起動ごとに state が初期値へ戻る = 「起動時は必ずホームタブのルートに戻る」契約が成立する。
@@ -169,6 +171,7 @@ function AppShell({ initialPersisted }: { initialPersisted: PersistedState }) {
             lastDeeplink={lastDeeplink}
             onSessionIncrement={() => setSessionCount(c => c + 1)}
             onResetLaunch={handleResetLaunch}
+            onOpenDisplay={() => setHomeChild('display')}
           />
         );
         break;
@@ -183,6 +186,9 @@ function AppShell({ initialPersisted }: { initialPersisted: PersistedState }) {
         break;
       case 'webview':
         content = <WebViewScreen />;
+        break;
+      case 'display':
+        content = <DisplayScreen />;
         break;
     }
   }

@@ -455,6 +455,13 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
     /// 起動し直すと残らない経路(iOS inapp-boost)があるので毎回撃つ。profile-less でも `--set orientation=` で効く。
     /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
     public var orientation: String?
+    /// 各シナリオの開始時に端末へ設定する外観(`light` / `dark`)。**既定は指定なし = 基準の状態(ライト)**。シナリオの終わりに基準へ戻す
+    /// (DR-221)。iOS は Simulator も実機も `devicectl`・Android は `cmd uimode night`。profile-less でも `--set appearance=` で効く。
+    /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
+    public var appearance: String?
+    /// 各シナリオの開始時の文字サイズ(`small` / `default` / `large` / `extraLarge` / `accessibility`)。**既定は指定なし = 標準(`default`)**。
+    /// 同期相手: vscode-fleetest/schemas/run-profile.schema.json
+    public var textSize: String?
     /// Android の `adb install` で Play Protect の照会を通さないか(**既定 true**)。true で
     /// install の間だけ `verifier_verify_adb_installs` を 0 にして元へ戻す(AdbInstallVerifier。
     /// テスト対象アプリを Google へ送らない = ユーザー決定)。**false はキルスイッチ**:
@@ -491,6 +498,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
                 containerInference: Bool? = nil,
                 enableAnimations: Bool? = nil, responseMeasurement: Bool? = nil, responseRepeat: Int? = nil,
                 homeOnStart: Bool? = nil, orientation: String? = nil,
+                appearance: String? = nil, textSize: String? = nil,
                 playProtectBypass: Bool? = nil, record: Bool? = nil,
                 recordFailuresOnly: Bool? = nil, recordBitrateKbps: Int? = nil,
                 recordFullResolution: Bool? = nil, remoteControl: RemoteControlSection? = nil) {
@@ -517,6 +525,8 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         self.responseRepeat = responseRepeat
         self.homeOnStart = homeOnStart
         self.orientation = orientation
+        self.appearance = appearance
+        self.textSize = textSize
         self.playProtectBypass = playProtectBypass
         self.record = record
         self.recordFailuresOnly = recordFailuresOnly
@@ -533,6 +543,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         "iosMode", "wipeDataOnBloat", "updateWebView", "wipeDataThresholdGB",
         "recoverCpuFallbackToGpu", "locale",
         "iosPreActionPing", "enableAnimations", "responseMeasurement", "responseRepeat", "homeOnStart", "orientation",
+        "appearance", "textSize",
         "playProtectBypass",
         "containerInference",
         "record", "recordFailuresOnly", "recordBitrateKbps", "recordFullResolution", "remoteControl",
@@ -567,7 +578,7 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
         "recordFullResolution": .bool,
         "reportDir": .string, "defaultTimeout": .double, "scenarioTimeout": .int,
         "recordBitrateKbps": .int, "responseRepeat": .int, "app": .string, "locale": .string, "iosMode": .string,
-        "orientation": .string, "wipeDataThresholdGB": .double,
+        "orientation": .string, "wipeDataThresholdGB": .double, "appearance": .string, "textSize": .string,
     ]
 
     /// 配列・オブジェクトの欄。`key=value` で表せないので専用のエラーで断る(未知キー扱いにしない)
@@ -601,6 +612,8 @@ public struct RunProfileDocument: Codable, Sendable, Equatable {
             case ("responseMeasurement", .bool(let v)): copy.responseMeasurement = v
             case ("homeOnStart", .bool(let v)): copy.homeOnStart = v
             case ("orientation", .string(let v)): copy.orientation = v
+            case ("appearance", .string(let v)): copy.appearance = v
+            case ("textSize", .string(let v)): copy.textSize = v
             case ("playProtectBypass", .bool(let v)): copy.playProtectBypass = v
             case ("updateWebView", .bool(let v)): copy.updateWebView = v
             case ("wipeDataOnBloat", .bool(let v)): copy.wipeDataOnBloat = v
@@ -744,6 +757,14 @@ public enum RunProfileSetOverride {
                     throw RunProfileSetOverrideError.outOfRange(
                         key: key, value: rawValue, reason: RunProfileDocument.orientationRule)
                 }
+                if key == "appearance", FTAppearance.parse(rawValue) == nil {
+                    throw RunProfileSetOverrideError.outOfRange(
+                        key: key, value: rawValue, reason: FTAppearance.rule)
+                }
+                if key == "textSize", FTTextSize.parse(rawValue) == nil {
+                    throw RunProfileSetOverrideError.outOfRange(
+                        key: key, value: rawValue, reason: FTTextSize.rule)
+                }
                 result[key] = .string(rawValue)
             }
         }
@@ -856,6 +877,9 @@ public struct DeviceIndependentRunSettings: Sendable, Equatable {
     public let recordBitrateKbps: Int?
     /// RunProfileDocument.orientation(既定 nil = 向きに触らない)。**既定値付きの `var`**(memberwise init を直に呼ぶ既存テストのため)
     public var orientation: FTOrientation? = nil
+    /// RunProfileDocument.appearance / textSize(既定 nil = 指定なし)。既定値付きの `var`(memberwise init を直に呼ぶ既存テストのため)
+    public var appearance: FTAppearance? = nil
+    public var textSize: FTTextSize? = nil
 
     /// `--profile` を使わない実行(`--port`/`--serial` 直指定)の基底。**プロファイルの既定を
     /// そのまま使わない** —— 3つだけ意図的に違う(`fmTextVisibilityCheck` はプロファイルと同じ既定 true。
@@ -902,6 +926,8 @@ public struct DeviceIndependentRunSettings: Sendable, Equatable {
             defaultTimeout: doc.defaultTimeout,
             scenarioTimeout: doc.scenarioTimeout,
             recordBitrateKbps: doc.recordBitrateKbps,
-            orientation: doc.orientation.flatMap(FTOrientation.parse))
+            orientation: doc.orientation.flatMap(FTOrientation.parse),
+            appearance: doc.appearance.flatMap(FTAppearance.parse),
+            textSize: doc.textSize.flatMap(FTTextSize.parse))
     }
 }
