@@ -158,7 +158,7 @@ Start the sample app's server, launch the app on a device, and operate it yourse
 
 ```text
 Start the server with project1's ios-run profile.
-Install the SUT Store app on one device of ios-run, launch it, and tell me which device it is running on.
+Using the ios-run profile, install the SUT Store app on one device, launch it, and tell me which device it is running on.
 ```
 
 - If an MCP permission dialog appears, allow it.
