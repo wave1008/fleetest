@@ -16,7 +16,7 @@ TestProjects/myshop/workspace/scripts/compose.yaml of the fleetest test project 
 If you use Apple Container, first enlarge the builder VM with `container builder stop && container builder start --cpus 6 --memory 8g`.
 Make the app's server address switchable in the build settings: http://127.0.0.1:8080 for the iOS Simulator build and http://10.0.2.2:8080 for the Android Emulator build.
 Rebuild both and update the paths in the app profile.
-Check the start-up with fleetest services up --project myshop --profile ios-run, confirm that /health returns ok, then services down and report the result.
+Check the start-up with fleetest services up --project myshop, confirm that /health returns ok, then services down and report the result.
 ```
 
 Expected result:

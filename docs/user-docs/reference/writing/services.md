@@ -189,7 +189,7 @@ For exploring, Live Control and writing scenarios, a person can start the servic
 | `fleetest services status [--project <p>] [--profile <pf>]` | Shows the record, the lock and the resources on the runtime, with the size of each named volume and of the images fleetest built (the `build:` images of this workspace and the relay image). Nothing is deleted automatically; use `reset` when they have grown |
 | `fleetest services reset [--project <p>] [--profile <pf>] [--force]` | Deletes this workspace's containers, networks, **volumes** and record. `--force` is needed while an `up` holds them (it stops that `up` first). While a run holds them, even `--force` deletes nothing (wait for the run to finish) |
 
-`up`, `down`, `status` and `reset` can omit `--profile` when the project has only one profile (with several, they stop with `--profile is required`). Omitting `--project` picks `project1`.
+`--profile` is used only to find where the services live (the workspace). `up`, `down`, `status` and `reset` can omit `--profile` when every run profile uses the same workspace (any of them gives the same services); when the workspaces differ, they stop with `--profile is required`. Omitting `--project` picks `project1`.
 
 Services started with `up` show on their machine's row of the run board in the VSCode extension's monitor as "Servers up".
 
@@ -199,7 +199,7 @@ starts them again itself and stops them itself (so that the result is reproducib
 with `fleetest services status`). After an interrupted run it does not, so run `fleetest services up` again. While a run
 holds the services, `services down` is refused.
 
-From MCP, `ft_services` does the same: `action` is `up` / `down` / `status`, `profile` is required for `up` / `down`,
+From MCP, `ft_services` does the same: `action` is `up` / `down` / `status`, `profile` can be omitted when every run profile uses the same workspace,
 and `project`, `physical` and `androidSerials` (an array of strings) are optional. Like `ft_start_run`, it asks for approval
 ([MCP server](../tools/mcp_server.md#sandbox-and-approval)).
 

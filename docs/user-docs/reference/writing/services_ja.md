@@ -179,7 +179,7 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 | `fleetest services status [--project <p>] [--profile <pf>]` | 控え・ロック・ランタイム上の資源を見ます。名前付きボリュームと、fleetest がビルドしたイメージ(このワークスペースの `build:` と中継のイメージ)は大きさつきで出ます。自動では消さないので、大きくなっていたら `reset` で消します |
 | `fleetest services reset [--project <p>] [--profile <pf>] [--force]` | このワークスペースのコンテナ・ネットワーク・**ボリューム**・控えを全部消します。`up` が握っている間は `--force` が要ります(先にその `up` を止めてから消します)。run が握っている間は `--force` でも消しません(run の終了を待ってください) |
 
-`up` / `down` / `status` / `reset` は、プロジェクトにプロファイルが1つなら `--profile` を省略できます(複数あると `--profile is required` で止まります)。`--project` を省くと `project1` が選ばれます。
+`--profile` はサービスの置き場(ワークスペース)を探すためだけに使います。`up` / `down` / `status` / `reset` は、すべての実行プロファイルが同じワークスペースを使うなら `--profile` を省略できます(どれを指定しても同じサービスです)。ワークスペースが分かれていると `--profile is required` で止まります。`--project` を省くと `project1` が選ばれます。
 
 `up` で起動したサービスは、VSCode 拡張のモニターの run ボードで、そのマシンの行に「サーバー稼働中」と出ます。
 
@@ -188,7 +188,7 @@ fleetest-services port api 8080            # 公開先の host:port を印字(UD
 起動し直します(サーバーが使える状態に戻るのを run は待ちません。`fleetest services status` で確かめてください)。
 中断した run の後は起動し直さないので、`fleetest services up` を打ち直してください。run が握っている間の `services down` は断られます。
 
-MCP では `ft_services` が同じことをします。`action` は `up` / `down` / `status`、`profile` は `up` / `down` で必須、
+MCP では `ft_services` が同じことをします。`action` は `up` / `down` / `status`、`profile` はすべての実行プロファイルが同じワークスペースなら省略でき、
 `project`・`physical`・`androidSerials`(文字列の配列)は任意です。`ft_start_run` と同じく承認を求めます
 ([MCP サーバー](../tools/mcp_server_ja.md#サンドボックスと承認))。
 

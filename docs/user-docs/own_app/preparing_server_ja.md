@@ -16,7 +16,7 @@ TestProjects/myshop/workspace/scripts/compose.yaml に宣言して。Dockerfile 
 Apple Container を使うなら、先に `container builder stop && container builder start --cpus 6 --memory 8g` でビルダー VM を増やして。
 アプリの接続先は、iOS Simulator 向けのビルドでは http://127.0.0.1:8080、Android Emulator 向けでは http://10.0.2.2:8080 に
 なるようビルド設定で切り替えられるようにして、両方ビルドし直してアプリプロファイルのパスを更新して。
-fleetest services up --project myshop --profile ios-run で起動を確かめ、/health が ok を返すことを確認したら services down して、結果を報告して。
+fleetest services up --project myshop で起動を確かめ、/health が ok を返すことを確認したら services down して、結果を報告して。
 ```
 
 期待する結果:

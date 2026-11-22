@@ -34,9 +34,9 @@ services down して、結果を報告して。
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
 ```bash
-../fleetest/.build/debug/fleetest services up --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services up --project project1
 curl http://127.0.0.1:8090/health     # 印字された公開ポートへ
-../fleetest/.build/debug/fleetest services down --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services down --project project1
 ```
 
 </details>

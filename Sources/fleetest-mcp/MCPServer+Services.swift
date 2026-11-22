@@ -86,10 +86,8 @@ extension MCPServer {
             throw MCPError("action must be one of \(MCPServices.actions.joined(separator: ", ")) (got \(action.debugDescription))")
         }
         let project = try Self.stringArgument(args, "project")
+        // 省略は CLI に任せる(全プロファイルが同じワークスペースなら省略可・分かれていれば CLI が候補つきで断る = `ServicesCommand.defaultProfile`)
         let profile = try Self.stringArgument(args, "profile")
-        if action != "status", profile == nil {
-            throw MCPError("profile is required for action \(action)")
-        }
         let physical = try Self.flagArgument(args, "physical")
         let serials = try Self.stringListArgument(args, "androidSerials")
         if let refusal = MCPServices.optionLikeValueRefusal(project: project, profile: profile, serials: serials) {

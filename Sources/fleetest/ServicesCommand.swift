@@ -24,25 +24,63 @@ struct ServicesCommand: AsyncParsableCommand {
         let project: String
     }
 
-    /// `--project` / `--profile` は run と同じ解決(プロジェクトは唯一・または既定、プロファイルは唯一なら省略可)。
+    /// `--project` は run と同じ解決(唯一・または既定)。`--profile` は作業フォルダを探すためだけに使う
+    /// (サービスは作業フォルダの実体のパスごと = 接頭辞)ので、全プロファイルが同じ作業フォルダなら省略可(`defaultProfile`。DR-218)。
     static func resolveTarget(project: String?, profile: String?) throws -> Target {
         let testProject = try ScenarioHost.project(named: project)
         let names = ProfileResolver.runProfileNames(project: testProject)
-        let profileName: String
+        let resolved: ResolvedProfile
         if let profile {
-            profileName = profile
-        } else if names.count == 1, let only = names.first {
-            profileName = only
+            resolved = try ProfileResolver.resolve(project: testProject, runName: profile)
         } else if names.isEmpty {
             throw ValidationError("this project has no run profiles (profiles/runs/*.json); services need one to find the workspace")
         } else {
-            throw ValidationError("--profile is required (available: \(names.joined(separator: ", ")))")
+            // 作業フォルダの比較は軽い読み(デバイス・アプリを解かない = 無効のデバイスしか無いプロファイルでも答える)。
+            // `effectiveWorkspaceRoot` は読めない JSON を黙って既定の作業フォルダに倒すので、読めるかを先に確かめる
+            _ = try defaultProfile(names: names) { name in
+                Result {
+                    let url = testProject.runsDir.appendingPathComponent("\(name).json")
+                    _ = try JSONDecoder().decode(RunProfileDocument.self, from: Data(contentsOf: url))
+                    return ServicesFacts.workspaceRealpath(
+                        ServicesWorkspace(root: ProfileResolver.effectiveWorkspaceRoot(project: testProject, runName: name)))
+                }
+            }
+            // 同じ作業フォルダと確かめた後は、丸ごと解けるもの(名前順で最初)を使う。全部解けなければ最初の理由
+            var picked: ResolvedProfile?
+            var firstError: Error?
+            for name in names where picked == nil {
+                do { picked = try ProfileResolver.resolve(project: testProject, runName: name) } catch { firstError = firstError ?? error }
+            }
+            guard let picked else { throw firstError! }
+            resolved = picked
         }
-        let resolved = try ProfileResolver.resolve(project: testProject, runName: profileName)
         let workspace = ServicesFacts.workspace(for: resolved)
         let prefix = ServicePlanner.prefix(forWorkspace: ServicesFacts.workspaceRealpath(workspace))
         let stateDir = try RepoRoot.find().appendingPathComponent(".fleetest")
         return Target(resolved: resolved, workspace: workspace, prefix: prefix, stateDir: stateDir, project: testProject.name)
+    }
+
+    /// `--profile` 省略時に使うプロファイル。全部が同じ作業フォルダを指すときだけ先頭(名前順)を返す。
+    /// 1つでも解決できなければ同じと言えないので断る(どれを選んでも同じサービス、が成り立つときだけ省略を許す)。
+    /// 拒否を投げる行は1つに保つ(`ServicesRefusalExitCodeTests` が ValidationError を投げる行数を等号で固定)
+    static func defaultProfile(names: [String], workspaceOf: (String) -> Result<String, Error>) throws -> String {
+        var workspaces: [(name: String, path: String)] = []
+        var reason: String?
+        for name in names {
+            switch workspaceOf(name) {
+            case .success(let path): workspaces.append((name, path))
+            case .failure(let error):
+                reason = "cannot resolve run profile \(name) to tell whether the profiles share one workspace: \(error.localizedDescription)"
+            }
+            if reason != nil { break }
+        }
+        if reason == nil, let first = workspaces.first {
+            if workspaces.allSatisfy({ $0.path == first.path }) { return first.name }
+            reason = "the run profiles use different workspaces ("
+                + workspaces.map { "\($0.name): \($0.path)" }.joined(separator: ", ") + ")"
+        }
+        throw ValidationError("--profile is required (available: \(names.joined(separator: ", ")))"
+            + (reason.map { " — \($0)" } ?? ""))
     }
 
     struct Listing {
@@ -149,7 +187,7 @@ struct ServicesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Test project (defaults to the only one in TestProjects/, or the default project)")
         var project: String?
 
-        @Option(name: .long, help: "Run profile (optional when the project has exactly one)")
+        @Option(name: .long, help: "Run profile (optional when every run profile uses the same workspace)")
         var profile: String?
 
         @Flag(help: "Also publish the ports on this Mac's LAN address (services.publishForPhysicalDevices) for physical devices")
@@ -278,7 +316,7 @@ struct ServicesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Test project (defaults to the only one in TestProjects/, or the default project)")
         var project: String?
 
-        @Option(name: .long, help: "Run profile (optional when the project has exactly one)")
+        @Option(name: .long, help: "Run profile (optional when every run profile uses the same workspace)")
         var profile: String?
 
         func run() async throws {
@@ -347,7 +385,7 @@ struct ServicesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Test project (defaults to the only one in TestProjects/, or the default project)")
         var project: String?
 
-        @Option(name: .long, help: "Run profile (optional when the project has exactly one)")
+        @Option(name: .long, help: "Run profile (optional when every run profile uses the same workspace)")
         var profile: String?
 
         @Flag(help: "Pull every declared image again, replacing the local copy")
@@ -414,7 +452,7 @@ struct ServicesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Test project (defaults to the only one in TestProjects/, or the default project)")
         var project: String?
 
-        @Option(name: .long, help: "Run profile (optional when the project has exactly one)")
+        @Option(name: .long, help: "Run profile (optional when every run profile uses the same workspace)")
         var profile: String?
 
         func run() async throws {
@@ -481,7 +519,7 @@ struct ServicesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Test project (defaults to the only one in TestProjects/, or the default project)")
         var project: String?
 
-        @Option(name: .long, help: "Run profile (optional when the project has exactly one)")
+        @Option(name: .long, help: "Run profile (optional when every run profile uses the same workspace)")
         var profile: String?
 
         @Flag(help: "Stop a resident `services up` first, then remove everything (a running run is never interrupted; a lease that cannot be read is removed only once its process has exited)")

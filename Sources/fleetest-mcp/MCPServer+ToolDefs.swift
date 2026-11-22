@@ -651,8 +651,9 @@ extension MCPServer {
             + "for a workspace without compose.yaml. status reads with the already-built fleetest (no rebuild, so it can be "
             + "an older build than the sources); up and down rebuild first. Requires approval like ft_start_run.", [
             "action": ["type": "string", "enum": ["up", "down", "status"],
-                       "description": "up / down need profile; status can omit it when the project has one profile"],
-            "profile": ["type": "string", "description": "Run profile (profiles/runs/<name>.json); required for up and down"],
+                       "description": "up starts, down stops, status inspects"],
+            "profile": ["type": "string", "description": "Run profile (profiles/runs/<name>.json), used only to find the "
+                + "workspace; omit it when every run profile uses the same workspace (any of them gives the same services)"],
             "project": defaultProjectProperty,
             "physical": ["type": "boolean", "description": "up only: also publish the ports on this Mac's LAN address "
                 + "(services.publishForPhysicalDevices in the machine settings) so physical devices can reach them"],

@@ -178,8 +178,8 @@ The server keeps running until you stop it, and the next step uses it as it is t
 Start and stop the server in your work folder.
 
 ```bash
-../fleetest/.build/debug/fleetest services up --project project1 --profile ios-run
-../fleetest/.build/debug/fleetest services down --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services up --project project1
+../fleetest/.build/debug/fleetest services down --project project1
 ```
 
 For operating the device from the Device Monitor, see "Touch it yourself (Live Control)" in [Watching in VSCode](tutorial/watching_in_vscode.md).
@@ -215,8 +215,8 @@ To write it yourself, see [Creating a test class](reference/testclass/creating_t
 Start the server by hand, create the test, and stop it when you are done.
 
 ```bash
-../fleetest/.build/debug/fleetest services up --profile ios-run
-../fleetest/.build/debug/fleetest services down --profile ios-run
+../fleetest/.build/debug/fleetest services up
+../fleetest/.build/debug/fleetest services down
 ```
 
 </details>

@@ -177,8 +177,8 @@ iOS のデバイス1台に SUT Store アプリを入れて起動して。
 サーバーは作業フォルダで起動・停止します。
 
 ```bash
-../fleetest/.build/debug/fleetest services up --project project1 --profile ios-run
-../fleetest/.build/debug/fleetest services down --project project1 --profile ios-run
+../fleetest/.build/debug/fleetest services up --project project1
+../fleetest/.build/debug/fleetest services down --project project1
 ```
 
 デバイスモニターの操作は[VSCode で見る](tutorial/watching_in_vscode_ja.md)の「自分の手で触る(ライブ操作)」を参照してください。
@@ -214,8 +214,8 @@ project1 で、SUT Store アプリの「商品詳細を開くテスト」を iOS
 サーバーを手で起動してからテストを作り、終わったら止めます。
 
 ```bash
-../fleetest/.build/debug/fleetest services up --profile ios-run
-../fleetest/.build/debug/fleetest services down --profile ios-run
+../fleetest/.build/debug/fleetest services up
+../fleetest/.build/debug/fleetest services down
 ```
 
 </details>

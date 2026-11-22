@@ -76,12 +76,12 @@ final class MCPServicesToolTests: XCTestCase {
 
     /// **`project` に実在しない名前を添える** —— 入口の検査が(変異などで)抜けても、プロジェクトの解決で止まり、
     /// 本物の `swift run fleetest services …` を起こさない(起こすと `swift test` のビルドロックと待ち合って止まる)
-    func testBadActionAndMissingProfileAreRefused() async {
+    func testBadActionIsRefusedAndMissingProfileIsLeftToTheCLI() async {
         let noProject = "no-such-project-for-this-test"
         await assertRefused(["action": "restart", "profile": "ios", "project": noProject], contains: "action must be one of up, down, status")
         await assertRefused(["project": noProject], contains: "action is required")
-        await assertRefused(["action": "up", "project": noProject], contains: "profile is required for action up")
-        await assertRefused(["action": "down", "project": noProject], contains: "profile is required for action down")
+        // profile の省略は入口で断らない(CLI が判断する)。実在しないプロジェクトの解決で止まる
+        await assertRefused(["action": "up", "project": noProject], contains: noProject)
     }
 
     func testResponseTextKeepsTheExitCodeAndTheTail() {
