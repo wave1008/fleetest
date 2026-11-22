@@ -52,7 +52,7 @@
 
 ### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
 - 状態: 再現済み
-- 確認: コミット未記録(2026-11-22。回帰の後の Simulator 8 台中 5 台。回復手段は確認済み・きっかけは未特定)
+- 確認: d3c382e39(2026-11-22。回帰の後の Simulator 8 台中 5 台・夜の回帰でリモートの3機すべて。回復手段は確認済み・きっかけは未特定)
 - 属性: 要測定・環境側
 - 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
 - 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま
@@ -61,6 +61,7 @@
 - 試して再現しなかったこと: 連打・負荷・simctl の多用
 - 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
 - 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)。xcuitest モードと Android は確かめない
+- 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
 
 ### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す
 - 状態: 再現済み
