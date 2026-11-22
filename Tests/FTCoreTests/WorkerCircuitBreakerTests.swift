@@ -111,28 +111,28 @@ final class WorkerCircuitBreakerTests: XCTestCase {
     /// 別のデバイスでも落ちたシナリオは数えない・同じデバイスだけ/記録の無いシナリオは数える・通ったら消える
     func testScenarioFailingOnAnotherDeviceDoesNotCount() {
         var w = ScenarioFailureWitnesses()
-        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p1"), "記録の無いシナリオは数える")
-        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p1"), "同じデバイスだけで落ちるなら数える")
-        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p2"), "別のデバイスでも落ちた")
-        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p1"))
-        XCTAssertTrue(w.recordFailure(scenario: "B", worker: "android:p1"), "シナリオごと")
-        w.recordPass(scenario: "A", worker: "android:p3")
-        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "android:p2"), "通った後は1台目から")
-        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "ios:x"), "別の OS のデバイスの失敗は根拠にしない")
-        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "ios:y"))
-        w.recordPass(scenario: "A", worker: "ios:z")
-        XCTAssertFalse(w.recordFailure(scenario: "A", worker: "android:p4"), "iOS の緑は Android の記録を消さない")
-        XCTAssertTrue(w.recordFailure(scenario: "A", worker: "ios:x"), "iOS の記録は消えた")
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p1"), "記録の無いシナリオは数える")
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p1"), "同じデバイスだけで落ちるなら数える")
+        XCTAssertFalse(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p2"), "別のデバイスでも落ちた")
+        XCTAssertFalse(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p1"))
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "B", variant: nil), worker: "android:p1"), "シナリオごと")
+        w.recordPass(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p3")
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p2"), "通った後は1台目から")
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:x"), "別の OS のデバイスの失敗は根拠にしない")
+        XCTAssertFalse(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:y"))
+        w.recordPass(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:z")
+        XCTAssertFalse(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "android:p4"), "iOS の緑は Android の記録を消さない")
+        XCTAssertTrue(w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:x"), "iOS の記録は消えた")
     }
 
     func testScenarioFailureWitnessesPersistPerScope() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sfw-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         var w = ScenarioFailureWitnesses()
-        _ = w.recordFailure(scenario: "A", worker: "ios:x")
+        _ = w.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:x")
         w.save(stateDir: dir, scope: "P 1")
         var loaded = ScenarioFailureWitnesses.load(stateDir: dir, scope: "P 1")
-        XCTAssertFalse(loaded.recordFailure(scenario: "A", worker: "ios:y"), "run をまたいで覚えている")
+        XCTAssertFalse(loaded.recordFailure(unit: ScenarioUnitKey(id: "A", variant: nil), worker: "ios:y"), "run をまたいで覚えている")
         XCTAssertEqual(ScenarioFailureWitnesses.load(stateDir: dir, scope: "other"), ScenarioFailureWitnesses())
         ScenarioFailureWitnesses().save(stateDir: dir, scope: "P 1")
         XCTAssertFalse(FileManager.default.fileExists(
@@ -144,9 +144,9 @@ final class WorkerCircuitBreakerTests: XCTestCase {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(code.contains("await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: false) {\n"
+        XCTAssertTrue(code.contains("await witnessOutcome(unit: item.unitKey, worker: streakKey, passed: false) {\n"
                                     + "                let verdict = breaker.recordFailure("))
-        XCTAssertTrue(code.contains("if outcome == .passed { _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true) }"),
+        XCTAssertTrue(code.contains("if outcome == .passed { _ = await witnessOutcome(unit: item.unitKey, worker: streakKey, passed: true) }"),
                       "対象外(notApplicable)は記録を消さない")
     }
 

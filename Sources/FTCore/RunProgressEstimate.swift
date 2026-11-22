@@ -11,12 +11,14 @@
 import Foundation
 
 public enum RunProgressEstimate {
-    /// `LPTScheduler.Duration` と同じ鍵((scenarioID, platform))。表を引きやすくするためだけの型
+    /// `LPTScheduler.Duration` と同じ鍵((scenarioID, variant, platform))。表を引きやすくするためだけの型
     public struct ScenarioKey: Hashable, Sendable {
         public let scenarioID: String
+        public let variant: String?
         public let platform: String
 
-        public init(scenarioID: String, platform: String) {
+        public init(scenarioID: String, variant: String?, platform: String) {
+            self.variant = variant
             self.scenarioID = scenarioID
             self.platform = platform
         }
@@ -31,12 +33,13 @@ public enum RunProgressEstimate {
         durations: [LPTScheduler.Duration], scenarios: [ScenarioKey]
     ) -> [ScenarioKey: Double] {
         var table = Dictionary(
-            durations.map { (ScenarioKey(scenarioID: $0.scenarioID, platform: $0.platform), $0.medianMs) },
+            durations.map { (ScenarioKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform), $0.medianMs) },
             uniquingKeysWith: { first, _ in first })
         guard !table.isEmpty else { return [:] }
         let fallback = median(of: Array(table.values))
         for key in scenarios where table[key] == nil {
-            table[key] = fallback
+            // そのバリアントの履歴が無ければバリアント無しの履歴(LPTScheduler.order と同じ)
+            table[key] = table[ScenarioKey(scenarioID: key.scenarioID, variant: nil, platform: key.platform)] ?? fallback
         }
         return table
     }

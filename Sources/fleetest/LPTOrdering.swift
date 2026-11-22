@@ -62,9 +62,12 @@ enum LPTOrdering {
 
         let ordered = LPTScheduler.order(items, durations: durations,
                                          defaultPlatform: defaultPlatform)
-        let known = Set(durations.map { "\($0.scenarioID)\u{1}\($0.platform)" })
+        let known = Set(durations.map { "\($0.scenarioID)\u{1}\($0.variant ?? "")\u{1}\($0.platform)" })
         let withHistory = items.filter {
-            known.contains("\($0.info.id)\u{1}\($0.info.platform ?? defaultPlatform)")
+            let platform = $0.info.platform ?? defaultPlatform
+            // バリアントの履歴が無ければバリアント無しの履歴(LPTScheduler.order と同じ)
+            return known.contains("\($0.info.id)\u{1}\($0.variant ?? "")\u{1}\(platform)")
+                || known.contains("\($0.info.id)\u{1}\u{1}\(platform)")
         }.count
         log("🔀 LPT ordering: \(withHistory)/\(items.count) with history"
             + " (up to \(maxRuns) run(s) per scenario in the last \(Int(RunResultsStore.lptHistoryDays)) day(s), "

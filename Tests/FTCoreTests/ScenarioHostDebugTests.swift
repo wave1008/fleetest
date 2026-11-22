@@ -56,6 +56,7 @@ final class ScenarioHostDebugTests: XCTestCase {
         let runTask = Task {
             await ScenarioHost.run(
                 project: project, scenarioID: "ログイン画面.S0010",
+                variant: nil,
                 connection: DriverConnection(platform: "ios"),
                 deviceSession: RunDeviceSession(),
                 classHasBeforeAll: false,

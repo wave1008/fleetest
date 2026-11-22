@@ -102,6 +102,7 @@ struct ApiLocalDevicesWaitingEvent: Encodable {
 struct ApiScenarioRequeuedEvent: Encodable {
     let kind = "scenarioRequeued"
     let scenario: String
+    let variant: String?
     let worker: String
     let reason: String
     let attempt: Int

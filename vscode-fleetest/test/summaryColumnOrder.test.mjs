@@ -17,6 +17,7 @@ const EXPECTED = [
   ["colRuns", "row.runs"],
   ["colSuccessRate", "row.successRate"],
   ["colAvgSec", "row.avgDurationMs"],
+  ["colVariant", "row.variant"], // バリアントのある run だけ表示(無い run は hidden)。最後に置いて他の列を動かさない
 ];
 
 function headerKeys() {

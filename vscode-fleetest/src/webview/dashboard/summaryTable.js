@@ -24,10 +24,12 @@ const SORT_GETTERS = {
   lastRunAt: (r) => r.lastRunAt || '',
   runs: (r) => r.runs,
   successRate: (r) => r.successRate,
+  variant: (r) => r.variant || '',
   avgDurationMs: (r) => (typeof r.avgDurationMs === 'number' ? r.avgDurationMs : -1),
 };
 
 let currentRows = [];
+let hasVariantRows = false;
 let sortKey = null;
 let sortDir = 1;
 
@@ -74,10 +76,19 @@ function summaryRow(row) {
     tdNum(formatPercentInteger(row.successRate)),
     tdNum(formatDurationSeconds(row.avgDurationMs)),
   );
+  // バリアントの列は最後(位置で対応する見出しを動かさない)。バリアントのある行が1つも無い run では隠す
+  const variantCell = td(row.variant ?? '');
+  variantCell.hidden = !hasVariantRows;
+  tr.append(variantCell);
   return tr;
 }
 
 function renderRows() {
+  hasVariantRows = currentRows.some((row) => row.variant);
+  const variantHeader = document.getElementById('summary-col-variant');
+  if (variantHeader) {
+    variantHeader.hidden = !hasVariantRows;
+  }
   const filtered = sortRows(applyFilters(currentRows));
   syncChildren(body, filtered.map(summaryRow));
   if (countEl) {

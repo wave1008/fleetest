@@ -76,6 +76,7 @@ final class ScenarioHostRegisterChildProcessTests: XCTestCase {
                                          captureHostMetrics: false)
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: RunDeviceSession(),
             classHasBeforeAll: false,
@@ -105,6 +106,7 @@ final class ScenarioHostRegisterChildProcessTests: XCTestCase {
                                          captureHostMetrics: false)
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: RunDeviceSession(),
             classHasBeforeAll: false,

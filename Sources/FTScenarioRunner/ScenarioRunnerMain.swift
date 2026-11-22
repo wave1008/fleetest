@@ -192,6 +192,10 @@ struct RunScenario: AsyncParsableCommand {
             help: "Rotate once right after the first launchApp/restartApp: portrait or landscape (set by ScenarioHost from the run profile's orientation; omitted = leave the orientation alone)")
     var orientation: String?
 
+    @Option(name: .customLong("variant"),
+            help: "The variant name this scenario runs as (set by ScenarioHost; omitted = a run without variants). Only names the report")
+    var variant: String?
+
     @Option(name: .customLong("display-expected"),
             help: "Display settings the app must report right after launchApp/restartApp/setAppearance/setTextSize, e.g. appearance=light,textSize=default (set by ScenarioHost; omitted = not checked)")
     var displayExpected: String?
@@ -890,7 +894,7 @@ struct RunScenario: AsyncParsableCommand {
         }
         let reportURL = try? ScenarioReportWriter.write(
             record: record, to: URL(fileURLWithPath: reportDir), notices: reportNotices,
-            notApplicableReason: passed ? core.notApplicableReason : nil)
+            notApplicableReason: passed ? core.notApplicableReason : nil, variant: variant)
         var finished = ScenarioEvent(kind: "scenarioFinished")
         finished.scenario = scenarioID
         finished.passed = passed

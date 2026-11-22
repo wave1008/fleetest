@@ -65,7 +65,7 @@ final class WorkerModeRecordTests: XCTestCase {
 
     /// 欄は古い記録に無い(nil = 不明)。書いた値が読み戻せること
     func testRecordsRoundTripTheNewFields() throws {
-        let builder = ScenarioRecordBuilder(scenarioID: "T.S0010", platform: "ios", title: nil, worker: "ios:SE3",
+        let builder = ScenarioRecordBuilder(scenarioID: "T.S0010", variant: nil, platform: "ios", title: nil, worker: "ios:SE3",
                                             mode: "inapp-boost")
         let record = builder.build(passed: true, timedOut: false, startedAt: Date(), durationMs: 1, packageRoot: nil)
         let decoded = try JSONDecoder().decode(ScenarioRunRecord.self, from: JSONEncoder().encode(record))

@@ -41,7 +41,7 @@ final class FailureFactsTests: XCTestCase {
     // MARK: - 失敗ステップの素性が results/ まで運ばれるか
 
     func testFailedStepCarriesPhaseCommandKindAndNotes() {
-        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", variant: nil, platform: "ios",
                                             title: nil, worker: nil, mode: nil)
         builder.consume(stepEvent(index: 1, status: "passed", section: "condition",
                                   command: "launchApp"))
@@ -68,7 +68,7 @@ final class FailureFactsTests: XCTestCase {
 
     /// 注記が無いステップに空配列を書かない(旧レコードと同じ形を保つ)
     func testFailedStepWithoutNotesOmitsTheKey() {
-        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", variant: nil, platform: "ios",
                                             title: nil, worker: nil, mode: nil)
         var failure = stepEvent(index: 1, status: "failed", section: "expectation",
                                 command: "textIs")

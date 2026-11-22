@@ -80,7 +80,7 @@ final class HealSuggestionRecordingTests: XCTestCase {
         XCTAssertEqual(suggestion.newSelector, "#new_id")
 
         // ② シナリオは**通っている**。そのうえで記録に残ること
-        var builder = ScenarioRecordBuilder(scenarioID: "Heal.S0010", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "Heal.S0010", variant: nil, platform: "ios",
                                             title: nil, worker: nil, mode: nil)
         for event in events { builder.consume(event) }
         let record = builder.build(passed: true, timedOut: false, startedAt: Date(),

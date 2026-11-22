@@ -51,8 +51,8 @@
 - 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
 
 ### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
-- 状態: 再現済み(回復手段は確認済み・きっかけは未特定)
-- 確認: 2026-11-22(回帰の後の Simulator 8 台中 5 台)
+- 状態: 再現済み
+- 確認: コミット未記録(2026-11-22。回帰の後の Simulator 8 台中 5 台。回復手段は確認済み・きっかけは未特定)
 - 属性: 要測定・環境側
 - 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
 - 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま

@@ -8,6 +8,7 @@
 // アイコンは Sources/FTCore/RunLogFormatter.swift と揃えている
 // (✅ 成功 / ❌ 失敗 / ⚠️ スキップ / ❓ inconclusive / 🔧 自己修復 / 💡 修正提案 / ▶ 開始 / ⏸ 一時停止)。
 
+import { scenarioUnitKey } from "./scenarioUnitKey";
 import { isRunEvent, type RunEvent, type WorkerInfo } from "./model";
 import { dispatchWaitingLine, localDevicesWaitingLine, tLane } from "./i18n/strings/lane";
 
@@ -24,14 +25,14 @@ export interface RunFailureMessage {
 }
 
 export type RunAction =
-  | { type: "started"; scenario: string }
-  | { type: "output"; text: string; scenario?: string; location?: RunLocation; worker?: string }
-  | { type: "passed"; scenario: string; durationMs: number; healedSteps: number }
-  | { type: "failed"; scenario: string; messages: RunFailureMessage[]; durationMs: number }
-  | { type: "skipped"; scenario: string; reason: string; durationMs: number }
+  | { type: "started"; scenario: string; variant?: string }
+  | { type: "output"; text: string; scenario?: string; variant?: string; location?: RunLocation; worker?: string }
+  | { type: "passed"; scenario: string; variant?: string; durationMs: number; healedSteps: number }
+  | { type: "failed"; scenario: string; variant?: string; messages: RunFailureMessage[]; durationMs: number }
+  | { type: "skipped"; scenario: string; variant?: string; reason: string; durationMs: number }
   | { type: "end"; passed: number; failed: number; skipped: number }
   /** 振り直し(scenarioRequeued): 項目を「待機中」へ戻す(runHandler が run.enqueued を呼ぶ)。 */
-  | { type: "requeued"; scenario: string }
+  | { type: "requeued"; scenario: string; variant?: string }
   /** workersReady から発生(--profile 並列実行時のみ)。 */
   | { type: "workers"; workers: WorkerInfo[] };
 
@@ -42,8 +43,18 @@ interface ScenarioProgress {
   healedSteps: number;
 }
 
+/** variant があるときだけ欄を足す(無い run のアクションは今の形のまま)。 */
+function variantOf(event: { variant?: string }): { variant?: string } {
+  return event.variant ? { variant: event.variant } : {};
+}
+
+function unitKeyOf(event: { scenario: string; variant?: string }): string {
+  return scenarioUnitKey(event.scenario, event.variant);
+}
+
 /** reduceRunEvent が使い回す内部状態。中身は runHandler.ts からは触らない。 */
 export interface RunReducerState {
+  /** 鍵は scenarioUnitKey(ID / ID@variant)。同じ ID が複数台・複数バリアントで走っても混ざらない。 */
   scenarios: Map<string, ScenarioProgress>;
 }
 
@@ -93,11 +104,12 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [{ type: "workers", workers: event.workers }];
 
     case "scenarioStarted": {
-      state.scenarios.set(event.scenario, { startedAtMs: nowMs, messages: [], healedSteps: 0 });
-      const label = event.title ? `${event.title} [${event.scenario}]` : event.scenario;
+      state.scenarios.set(unitKeyOf(event), { startedAtMs: nowMs, messages: [], healedSteps: 0 });
+      const label = (event.title ? `${event.title} [${event.scenario}]` : event.scenario)
+        + (event.variant ? ` [${event.variant}]` : "");
       return [
-        { type: "started", scenario: event.scenario },
-        { type: "output", scenario: event.scenario, text: `▶ ${label}`, worker: event.worker },
+        { type: "started", scenario: event.scenario, ...variantOf(event) },
+        { type: "output", scenario: event.scenario, ...variantOf(event), text: `▶ ${label}`, worker: event.worker },
       ];
     }
 
@@ -107,7 +119,7 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [
         {
           type: "output",
-          scenario: event.scenario,
+          scenario: event.scenario, ...variantOf(event),
           text: tLane("lane.sceneStarted", { scene, title }),
           worker: event.worker,
         },
@@ -123,7 +135,7 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [
         {
           type: "output",
-          scenario: event.scenario,
+          scenario: event.scenario, ...variantOf(event),
           text: tLane("lane.sceneFinished", { mark, scene, label }),
           worker: event.worker,
         },
@@ -134,12 +146,12 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       const text = tLane("lane.fixSuggestion", { detail: event.detail ?? event.description ?? "" });
       const location = toLocation(event.file, event.line);
       const actions: RunAction[] = [
-        { type: "output", scenario: event.scenario, text, location, worker: event.worker },
+        { type: "output", scenario: event.scenario, ...variantOf(event), text, location, worker: event.worker },
       ];
       if (event.oldSelector && event.newSelector) {
         actions.push({
           type: "output",
-          scenario: event.scenario,
+          scenario: event.scenario, ...variantOf(event),
           text: `     ${event.oldSelector} → ${event.newSelector}`,
           location,
           worker: event.worker,
@@ -155,7 +167,7 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [
         {
           type: "output",
-          scenario: event.scenario,
+          scenario: event.scenario, ...variantOf(event),
           text: tLane("lane.paused", { description: event.description ?? "" }),
           location: toLocation(event.file, event.line),
         },
@@ -169,7 +181,7 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       if (message.length === 0) {
         return [];
       }
-      return [{ type: "output", scenario: event.scenario, text: `  ${message}`, worker: event.worker }];
+      return [{ type: "output", scenario: event.scenario, ...variantOf(event), text: `  ${message}`, worker: event.worker }];
     }
 
     case "runFinished":
@@ -209,11 +221,11 @@ function actionsFor(state: RunReducerState, event: RunEvent, nowMs: number): Run
       return [
         {
           type: "output",
-          scenario: event.scenario,
+          scenario: event.scenario, ...variantOf(event),
           text: tLane("lane.requeued", { reason: event.reason, attempt: event.attempt, limit: event.limit }),
           worker: event.worker,
         },
-        { type: "requeued", scenario: event.scenario },
+        { type: "requeued", scenario: event.scenario, ...variantOf(event) },
       ];
 
   }
@@ -227,17 +239,17 @@ function stepActions(
   const index = event.index != null ? `${String(event.index)}. ` : "";
   const location = toLocation(event.file, event.line);
   if (event.status === "healed") {
-    const progress = state.scenarios.get(event.scenario);
+    const progress = state.scenarios.get(unitKeyOf(event));
     if (progress) {
       progress.healedSteps += 1;
     } else {
-      state.scenarios.set(event.scenario, { startedAtMs: 0, messages: [], healedSteps: 1 });
+      state.scenarios.set(unitKeyOf(event), { startedAtMs: 0, messages: [], healedSteps: 1 });
     }
   }
   const actions: RunAction[] = [
     {
       type: "output",
-      scenario: event.scenario,
+      scenario: event.scenario, ...variantOf(event),
       text: `  ${mark} ${index}${event.description ?? ""}`,
       location,
       worker: event.worker,
@@ -264,7 +276,7 @@ function stepActions(
     }
     actions.push({
       type: "output",
-      scenario: event.scenario,
+      scenario: event.scenario, ...variantOf(event),
       text: detailLine,
       location,
       worker: event.worker,
@@ -272,7 +284,7 @@ function stepActions(
   }
 
   if (event.status === "failed") {
-    const progress = state.scenarios.get(event.scenario);
+    const progress = state.scenarios.get(unitKeyOf(event));
     const text = event.detail ? `${event.description ?? ""}\n${event.detail}` : (event.description ?? tLane("lane.failedText"));
     const message: RunFailureMessage = { text, location };
     if (progress) {
@@ -280,7 +292,7 @@ function stepActions(
     } else {
       // scenarioStarted を観測する前に step が来ることは無い想定だが、
       // 念のため見失わないよう即席の progress を用意しておく
-      state.scenarios.set(event.scenario, { startedAtMs: 0, messages: [message], healedSteps: 0 });
+      state.scenarios.set(unitKeyOf(event), { startedAtMs: 0, messages: [message], healedSteps: 0 });
     }
   }
 
@@ -292,19 +304,19 @@ function scenarioFinishedActions(
   event: Extract<RunEvent, { kind: "scenarioFinished" }>,
   nowMs: number,
 ): RunAction[] {
-  const progress = state.scenarios.get(event.scenario);
+  const progress = state.scenarios.get(unitKeyOf(event));
   const durationMs = progress ? Math.max(0, nowMs - progress.startedAtMs) : 0;
-  state.scenarios.delete(event.scenario);
+  state.scenarios.delete(unitKeyOf(event));
 
   if (event.passed && event.notApplicableReason !== undefined) {
     return [
       {
         type: "output",
-        scenario: event.scenario,
+        scenario: event.scenario, ...variantOf(event),
         text: tLane("lane.notApplicable", { reason: event.notApplicableReason }),
         worker: event.worker,
       },
-      { type: "skipped", scenario: event.scenario, reason: event.notApplicableReason, durationMs },
+      { type: "skipped", scenario: event.scenario, ...variantOf(event), reason: event.notApplicableReason, durationMs },
     ];
   }
 
@@ -313,7 +325,7 @@ function scenarioFinishedActions(
     const actions: RunAction[] = [
       {
         type: "output",
-        scenario: event.scenario,
+        scenario: event.scenario, ...variantOf(event),
         text: `${tLane("lane.passed")} (${String(durationMs)}ms)`,
         worker: event.worker,
       },
@@ -321,12 +333,12 @@ function scenarioFinishedActions(
     if (healedSteps > 0) {
       actions.push({
         type: "output",
-        scenario: event.scenario,
+        scenario: event.scenario, ...variantOf(event),
         text: tLane("lane.passedViaHeal", { count: healedSteps }),
         worker: event.worker,
       });
     }
-    actions.push({ type: "passed", scenario: event.scenario, durationMs, healedSteps });
+    actions.push({ type: "passed", scenario: event.scenario, ...variantOf(event), durationMs, healedSteps });
     return actions;
   }
 
@@ -345,7 +357,7 @@ function scenarioFinishedActions(
   return [
     {
       type: "output",
-      scenario: event.scenario,
+      scenario: event.scenario, ...variantOf(event),
       text: `${
         event.resultDiscardedReason !== undefined
           ? tLane("lane.resultDiscarded", { reason: event.resultDiscardedReason })
@@ -353,7 +365,7 @@ function scenarioFinishedActions(
       }${reportSuffix}`,
       worker: event.worker,
     },
-    { type: "failed", scenario: event.scenario, messages, durationMs },
+    { type: "failed", scenario: event.scenario, ...variantOf(event), messages, durationMs },
   ];
 }
 

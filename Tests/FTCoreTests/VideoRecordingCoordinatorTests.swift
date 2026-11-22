@@ -116,7 +116,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
     private func registerInterval(_ coordinator: VideoRecordingCoordinator, worker: RunWorker,
                                   scenarioID: String, offsetSeconds: TimeInterval = 1) async {
         await coordinator.scenarioStarted(
-            workerLabel: worker.label, scenarioID: scenarioID,
+            workerLabel: worker.label, unit: ScenarioUnitKey(id: scenarioID, variant: nil),
             at: recordStart.addingTimeInterval(offsetSeconds))
         await coordinator.scenarioFinished(
             workerLabel: worker.label, at: recordStart.addingTimeInterval(offsetSeconds + 4),
@@ -208,7 +208,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         XCTAssertTrue(dir.path.hasPrefix(tmp.appendingPathComponent("recordings").path), dir.path)
 
         let t0 = Date().addingTimeInterval(-3)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "T.S0010", at: t0)
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "T.S0010", variant: nil), at: t0)
         let capture = StillFrameCapture(dir: dir)
         capture.save(try Self.png(width: 100, height: 200), at: t0.addingTimeInterval(0.2))
         capture.save(try Self.png(width: 100, height: 200), at: t0.addingTimeInterval(0.8))
@@ -254,7 +254,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         let dir = try XCTUnwrap(maybeDir, "切り替えたのに子へ渡す撮影先が無い")
 
         let t0 = Date().addingTimeInterval(-3)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "T.S0010", at: t0)
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "T.S0010", variant: nil), at: t0)
         let capture = StillFrameCapture(dir: dir)
         capture.save(try Self.png(width: 100, height: 200), at: t0.addingTimeInterval(0.2))
         capture.save(try Self.png(width: 100, height: 200), at: t0.addingTimeInterval(0.8))
@@ -611,7 +611,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         let worker = makeWorker(1)
         let started = await coordinator.start(worker)
         XCTAssertTrue(started)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "TailOnly.S0010",
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "TailOnly.S0010", variant: nil),
                                           at: start.addingTimeInterval(3))
         await coordinator.scenarioFinished(workerLabel: worker.label, at: start.addingTimeInterval(4), passed: false)
         await coordinator.stop(worker)
@@ -646,7 +646,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
             })
         let worker = makeWorker(1)
         _ = await coordinator.start(worker)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "Parts.S0010", at: start.addingTimeInterval(3))
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "Parts.S0010", variant: nil), at: start.addingTimeInterval(3))
         await coordinator.scenarioFinished(workerLabel: worker.label, at: start.addingTimeInterval(9), passed: false)
         await coordinator.stop(worker)
         await coordinator.finish()
@@ -854,7 +854,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         let worker = makeWorker(1)
         let started = await coordinator.start(worker)
         XCTAssertTrue(started)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "Tail.S0010",
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "Tail.S0010", variant: nil),
                                           at: start.addingTimeInterval(1))
         await coordinator.scenarioFinished(workerLabel: worker.label, at: start.addingTimeInterval(4), passed: false)
         await coordinator.stop(worker)
@@ -906,7 +906,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
         let worker = makeWorker(1)
         let started = await coordinator.start(worker)
         XCTAssertTrue(started)
-        await coordinator.scenarioStarted(workerLabel: worker.label, scenarioID: "SkipTest.S0010",
+        await coordinator.scenarioStarted(workerLabel: worker.label, unit: ScenarioUnitKey(id: "SkipTest.S0010", variant: nil),
                                           at: recordStart.addingTimeInterval(1))
         await coordinator.scenarioFinished(workerLabel: worker.label,
                                            at: recordStart.addingTimeInterval(5), passed: true)

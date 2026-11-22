@@ -91,7 +91,7 @@ actor VideoRecordingCoordinator {
     /// passed は scenarioFinished 到着時に確定(未着のまま run が終わった場合は nil = 不明。
     /// recordFailuresOnly では「不明」も安全側に倒して保存対象にする)
     private struct ScenarioInterval {
-        let scenarioID: String
+        let unit: ScenarioUnitKey
         let start: Date
         var end: Date?
         var passed: Bool?
@@ -198,7 +198,7 @@ actor VideoRecordingCoordinator {
     /// 切り出し待ちのクリップ。失敗(期限内に false)したら1回だけソフトウェアで切り出し直す(読むだけなのでデバイスへの
     /// 撃ち直しには当たらない)。実測: 復号の失敗(-11821 Cannot Decode)は同じソースへの切り出し 200 回で再現しなかった
     private struct PendingClip: Sendable {
-        let scenarioID: String
+        let unit: ScenarioUnitKey
         let workerID: String
         let platform: String
         let files: [RecordingClipSource]
@@ -362,9 +362,9 @@ actor VideoRecordingCoordinator {
     }
 
     /// RunOrchestrator のワーカーループが ScenarioRunner.runOne 呼び出し直前に通知する
-    func scenarioStarted(workerLabel: String, scenarioID: String, at: Date) {
+    func scenarioStarted(workerLabel: String, unit: ScenarioUnitKey, at: Date) {
         scenarioIntervals[workerLabel, default: []].append(
-            ScenarioInterval(scenarioID: scenarioID, start: at, end: nil, passed: nil))
+            ScenarioInterval(unit: unit, start: at, end: nil, passed: nil))
     }
 
     /// RunOrchestrator のワーカーループが ScenarioRunner.runOne 呼び出し直後に通知する。
@@ -455,7 +455,7 @@ actor VideoRecordingCoordinator {
                 // そのワーカーの録画はあるのに、このシナリオに重なるファイルが1本も無い = 録画が失われた。**黙って飛ばさない**
                 clipsAttempted += 1
                 clipsFailed += 1
-                ConsoleOut.err("⚠️ [recording] \(interval.scenarioID): no readable recording covers this scenario")
+                ConsoleOut.err("⚠️ [recording] \(interval.unit): no readable recording covers this scenario")
                 continue
             }
 
@@ -472,11 +472,11 @@ actor VideoRecordingCoordinator {
             let clipSegments = RecordingWallClock.intersect(segments, range: (clipWallStart, clipWallEnd))
             clipsAttempted += 1
             clips.append(PendingClip(
-                scenarioID: interval.scenarioID, workerID: entry.workerID, platform: entry.platform,
+                unit: interval.unit, workerID: entry.workerID, platform: entry.platform,
                 files: zip(overlapping, segments).map { RecordingClipSource(url: $0.0.url, durationMs: $0.1.durationMs) },
                 clipStartMs: clipStartMs, clipEndMs: clipEndMs,
                 sourceTotalMs: segments.reduce(0) { $0 + $1.durationMs }, segments: clipSegments,
-                file: "\(RecordingIndexIO.directoryName)/\(uniqueClipStem(for: interval.scenarioID)).mp4"))
+                file: "\(RecordingIndexIO.directoryName)/\(uniqueClipStem(for: interval.unit)).mp4"))
         }
         return clips
     }
@@ -541,11 +541,11 @@ actor VideoRecordingCoordinator {
             outcome = await extract(clip, encoder: .software).outcome
         }
         if outcome == .failed {
-            ConsoleOut.err("⚠️ [recording] \(clip.scenarioID): clip extraction failed — retrying once"
+            ConsoleOut.err("⚠️ [recording] \(clip.unit): clip extraction failed — retrying once"
                 + (hardware ? " with the software encoder" : ""))
             outcome = await extract(clip, encoder: .software).outcome
             if outcome == .ok {
-                ConsoleOut.err("⚠️ [recording] \(clip.scenarioID): clip extraction succeeded on the retry")
+                ConsoleOut.err("⚠️ [recording] \(clip.unit): clip extraction succeeded on the retry")
             }
         }
         switch outcome {
@@ -554,7 +554,7 @@ actor VideoRecordingCoordinator {
         case .failed:
             clipsFailed += 1
             keptSources.formUnion(clip.files.map(\.url))
-            ConsoleOut.err("⚠️ [recording] \(clip.scenarioID): clip extraction failed again on the retry")
+            ConsoleOut.err("⚠️ [recording] \(clip.unit): clip extraction failed again on the retry")
         case .timedOut:
             giveUp(after: clip, deadline: exportDeadline(clip.sourceTotalMs))
         case .abandoned:
@@ -574,7 +574,7 @@ actor VideoRecordingCoordinator {
             VideoEncoderLiveness.record(.init(state: .alive, checkedAt: Date().timeIntervalSince1970, source: .call))
         case .failed, .timedOut:
             VideoEncoderHistory.append(event: outcome == .timedOut ? .callTimedOut : .callFailed,
-                                       source: .call, detail: clip.scenarioID)
+                                       source: .call, detail: clip.unit.description)
             if outcome == .timedOut {
                 VideoEncoderLiveness.record(.init(
                     state: .dead, checkedAt: Date().timeIntervalSince1970, source: .call,
@@ -582,7 +582,7 @@ actor VideoRecordingCoordinator {
             }
             if !hardwareAbandoned {
                 hardwareAbandoned = true
-                ConsoleOut.err("⚠️ [recording] \(clip.scenarioID): the hardware video encoder "
+                ConsoleOut.err("⚠️ [recording] \(clip.unit): the hardware video encoder "
                     + (outcome == .timedOut ? "did not finish in time" : "failed")
                     + " — using the software encoder for the rest of this run")
             }
@@ -600,7 +600,7 @@ actor VideoRecordingCoordinator {
 
     private func record(_ clip: PendingClip) {
         entries.append(RecordingIndexEntry(
-            scenarioID: clip.scenarioID, worker: clip.workerID, platform: clip.platform,
+            scenarioID: clip.unit.id, variant: clip.unit.variant, worker: clip.workerID, platform: clip.platform,
             file: clip.file, segments: clip.segments))
     }
 
@@ -611,7 +611,7 @@ actor VideoRecordingCoordinator {
         clipsFailed += 1
         if !exportsAbandoned {
             exportsAbandoned = true
-            ConsoleOut.err("⚠️ [recording] \(clip.scenarioID): clip extraction did not finish within "
+            ConsoleOut.err("⚠️ [recording] \(clip.unit): clip extraction did not finish within "
                 + "\(Int(deadline))s. Giving up on the remaining clips of this run")
         }
     }
@@ -697,8 +697,8 @@ actor VideoRecordingCoordinator {
         return count == 1 ? base : "\(base)~\(count)"
     }
 
-    private func uniqueClipStem(for scenarioID: String) -> String {
-        let base = RecordingIndexIO.sanitizedFileName(for: scenarioID)
+    private func uniqueClipStem(for unit: ScenarioUnitKey) -> String {
+        let base = RecordingIndexIO.sanitizedFileName(for: unit.description)
         let key = RecordingIndexIO.collisionKey(for: base)
         let count = (clipFileNameCounts[key] ?? 0) + 1
         clipFileNameCounts[key] = count

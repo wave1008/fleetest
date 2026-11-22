@@ -26,6 +26,7 @@ import { findLatestReport, listRecentReports, reportsDir } from "./scenarioRepor
 import { FORCE_KILL_REQUEST, type ScenarioFinishedEventBody, STILL_RUNNING_EVENT } from "./debugAdapter";
 import { isRunEvent } from "./model";
 import { type RunEventBus } from "./runEventBus";
+import { failureMessageText } from "./scenarioUnitKey";
 import { workerDisplayLabel } from "./runLaneModel";
 import {
   createRunReducerState,
@@ -769,6 +770,8 @@ async function executeRun(
   const finished = new Set<string>();
   // 各シナリオの直近の終端結果を再適用するクロージャ(reconcile で未終端項目を埋める)。
   const reapplyTerminal = new Map<string, () => void>();
+  // バリアント付きで赤になったシナリオ ID(項目はシナリオ単位なので、後続のバリアントの緑で隠さない)
+  const failedVariantScenarios = new Set<string>();
   let sawEnd = false;
   // 異常終了・キャンセル時に未終端項目へ付けるメッセージ(正常終了時は undefined)。
   let abnormalMessage: string | undefined;
@@ -811,7 +814,8 @@ async function executeRun(
       case "passed": {
         finished.add(action.scenario);
         const item = targets.get(action.scenario);
-        if (item) {
+        // シナリオ単位の項目は、どれかのバリアントが赤なら赤のまま(後の緑で上書きしない)
+        if (item && !failedVariantScenarios.has(action.scenario)) {
           const durationMs = action.durationMs;
           reapplyTerminal.set(action.scenario, () => run.passed(item, durationMs));
           run.passed(item, durationMs);
@@ -831,9 +835,13 @@ async function executeRun(
       case "failed": {
         finished.add(action.scenario);
         const item = targets.get(action.scenario);
+        if (action.variant) {
+          failedVariantScenarios.add(action.scenario);
+        }
         if (item) {
           const messages = action.messages.map((m) => {
-            const message = new vscode.TestMessage(m.text);
+            // バリアントのある run だけ、どのバリアントで赤になったかを先頭に付ける
+            const message = new vscode.TestMessage(failureMessageText(m.text, action.variant));
             message.location = toLocation(m.location);
             return message;
           });

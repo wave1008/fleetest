@@ -383,7 +383,7 @@ enum ProfileRunner {
             for item in applicability.notApplicable {
                 let declared = item.info.platform ?? ""
                 recorder?.recordSkipped(
-                    scenarioID: item.info.id, title: item.info.title, platform: declared,
+                    unit: item.unitKey, title: item.info.title, platform: declared,
                     worker: nil,
                     reason: PlatformApplicability.reason(declared: declared,
                                                          runPlatforms: runPlatforms),
@@ -405,7 +405,7 @@ enum ProfileRunner {
         // 以後の未実行は RunOrchestrator が recordSkipped で残す。api run の catch と対
         var scenariosHandedToOrchestrator = false
         defer {
-            if !scenariosHandedToOrchestrator { recorder?.recordLastResultsFailed(items.map(\.info.id)) }
+            if !scenariosHandedToOrchestrator { recorder?.recordLastResultsFailed(items.map(\.unitKey)) }
         }
 
         // 2. 準備の段(台数の絞り込み・サービス・開始スクリプト・供給のタスクの起動)。本数はここで確定している

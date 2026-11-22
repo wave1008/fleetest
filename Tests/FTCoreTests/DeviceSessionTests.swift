@@ -304,6 +304,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         let sink = EventSink()
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: session,
             classHasBeforeAll: false,
@@ -340,6 +341,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         let sink = EventSink()
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: session,
             classHasBeforeAll: false,
@@ -369,6 +371,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         let sink = EventSink()
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Fold.S0020",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: session,
             classHasBeforeAll: false,

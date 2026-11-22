@@ -671,3 +671,16 @@ test("initialSince: 記憶した集計期間を使い、無い・選択肢に無
   assert.equal(initialSince("14d"), "16h");
   assert.equal(initialSince(7), "16h");
 });
+
+test("isApiResultsPayload: summary/flaky/slow/run の variant・variants は省略可で、型違いは false", () => {
+  const base = validPayload();
+  const withVariant = validPayload({
+    runs: [{ ...base.runs[0], variants: ["light", "dark"] }],
+    summary: [{ ...base.summary[0], variant: "dark" }],
+    flaky: [{ ...base.flaky[0], variant: "dark" }],
+    slow: [{ scenarioID: "Login", variant: "dark", platform: "ios", runs: 4, avgDurationMs: 10, p90DurationMs: 20 }],
+  });
+  assert.equal(isApiResultsPayload(withVariant), true);
+  assert.equal(isApiResultsPayload(validPayload({ summary: [{ ...base.summary[0], variant: 3 }] })), false);
+  assert.equal(isApiResultsPayload(validPayload({ runs: [{ ...base.runs[0], variants: "dark" }] })), false);
+});

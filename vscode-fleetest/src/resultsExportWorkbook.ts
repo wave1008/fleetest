@@ -301,6 +301,13 @@ function renderScenariosSheet(workbook: XlsxWorkbook, sheet: XlsxSheet, model: R
     "resultsExport.scenarios.header.notes",
   ] as const;
   headerKeys.forEach((key, i) => sheet.setString(1, i + 1, t(key), headerStyle));
+  // バリアントの列は最後に足し、バリアントのある行が1つでもあるときだけ出す(無い run の出力は変えない)
+  const variantColumn = headerKeys.length + 1;
+  const hasVariant = model.scenarios.some((row) => row.variant);
+  if (hasVariant) {
+    sheet.setColumnWidth(variantColumn, 14);
+    sheet.setString(1, variantColumn, t("resultsExport.scenarios.header.variant"), headerStyle);
+  }
 
   const plainStyle = workbook.registerStyle({ font: baseFont(), border: DATA_BORDER });
   const wrapStyle = workbook.registerStyle({
@@ -352,9 +359,13 @@ function renderScenariosSheet(workbook: XlsxWorkbook, sheet: XlsxSheet, model: R
     else sheet.setStyleOnly(r, 15, wrapStyle);
     if (row.failedStepNotes.length > 0) sheet.setString(r, 16, row.failedStepNotes.join(", "), plainStyle);
     else sheet.setStyleOnly(r, 16, plainStyle);
+    if (hasVariant) {
+      if (row.variant) sheet.setString(r, variantColumn, row.variant, plainStyle);
+      else sheet.setStyleOnly(r, variantColumn, plainStyle);
+    }
   });
 
-  sheet.setAutoFilter(`A1:P${model.scenarios.length + 1}`);
+  sheet.setAutoFilter(`A1:${hasVariant ? "Q" : "P"}${model.scenarios.length + 1}`);
 }
 
 function renderStepsSheet(workbook: XlsxWorkbook, sheet: XlsxSheet, model: ResultsExportModel): void {

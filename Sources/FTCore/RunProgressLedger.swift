@@ -46,9 +46,12 @@ public struct RunProgressLane: Codable, Equatable, Sendable {
     /// 読み手(`api monitor`)が fd で開いて実行ログビューへ流す(イベントログにデバイスの情報は無いので、対応は親が台帳で持つ)。
     /// 待機中・記録の無い経路(dry-run 等)は nil
     public let eventLog: String?
+    /// 実行中のシナリオのバリアント名(`scenario` と対。バリアントの無い run・待機中は欄ごと省く = DR-75)
+    public let variant: String?
 
     public init(key: String, name: String, platform: String?, scenario: String?,
-               scenarioStartedAt: String?, expectedSeconds: Int?, eventLog: String? = nil) {
+               scenarioStartedAt: String?, expectedSeconds: Int?, eventLog: String? = nil, variant: String? = nil) {
+        self.variant = variant
         self.key = key
         self.name = name
         self.platform = platform

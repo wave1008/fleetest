@@ -55,7 +55,7 @@ final class RunProgressStateTests: XCTestCase {
     /// 出すと何も動いていない間に減っていく)。待ちを抜けたら "running" と残りが戻る
     func testCompileWaitShowsCompilingWithoutEtaThenRunning() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, total: 2, estimates: [key: 10_000], pendingScenarios: [key, key])
         await state.ocrCompileWaitBegan()
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
@@ -75,7 +75,7 @@ final class RunProgressStateTests: XCTestCase {
     /// 全シナリオの後の動画の切り出しの間は進みを載せて残りを出さない(phase は running のまま)
     func testVideoClipsProgressIsCarriedAndHidesEta() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, total: 1, estimates: [key: 10_000], pendingScenarios: [key])
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
         XCTAssertNil(journal.writes.last?.videoClips)
@@ -100,7 +100,7 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertEqual(journal.writes.count, 3)
         XCTAssertEqual(journal.writes.last?.done, 1)
@@ -122,7 +122,7 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.laneIdled(laneKey: "UDID-A")
         XCTAssertEqual(journal.writes.last?.done, 0)
         XCTAssertEqual(journal.writes.last?.failed, 0)
@@ -236,18 +236,18 @@ final class RunProgressStateTests: XCTestCase {
     /// pending から引き、scenarioFinished では戻さない —— だけを見る)
     func testEtaSecondsDecreasesAsScenariosFinish() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, total: 3,
                               estimates: [key: 10_000], pendingScenarios: [key, key, key])
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
         XCTAssertEqual(journal.writes.last?.etaSeconds, 30,
                        "3本×10秒・1レーンの下界は総和(max(10, 30/1))")
 
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertEqual(journal.writes.last?.etaSeconds, 20, "1本終わって残り2本×10秒")
 
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertEqual(journal.writes.last?.etaSeconds, 10, "2本終わって残り1本×10秒")
     }
@@ -256,10 +256,10 @@ final class RunProgressStateTests: XCTestCase {
     /// 減ったまま戻らない、という誤りを防ぐ
     func testLaneIdledRestoresTheScenarioToPending() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, total: 1, estimates: [key: 10_000], pendingScenarios: [key])
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.laneIdled(laneKey: "UDID-A")
         XCTAssertEqual(journal.writes.last?.etaSeconds, 10,
                        "振り直しでまだ未着手ぶんに戻っている(消えていない)")
@@ -272,7 +272,7 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.laneIdled(laneKey: "UDID-A")
         XCTAssertEqual(journal.writes.last?.requeued, 1)
         XCTAssertEqual(journal.writes.last?.laneDropouts, 0)
@@ -293,7 +293,7 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertEqual(journal.writes.last?.requeued, 0)
         XCTAssertEqual(journal.writes.last?.laneDropouts, 0)
@@ -304,9 +304,9 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.laneIdled(laneKey: "UDID-A")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.laneIdled(laneKey: "UDID-A")
         XCTAssertEqual(journal.writes.last?.requeued, 2)
 
@@ -320,10 +320,10 @@ final class RunProgressStateTests: XCTestCase {
     /// シナリオ開始時、実績表にあれば expectedSeconds を秒(切り上げ)で持つ
     func testScenarioStartedSetsExpectedSecondsFromTheEstimateTable() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, estimates: [key: 70_500])
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         XCTAssertEqual(journal.writes.last?.lanes.first?.expectedSeconds, 71,
                        "70.5秒 → 切り上げで71秒(RunProgressEstimate と同じ丸め)")
     }
@@ -333,18 +333,18 @@ final class RunProgressStateTests: XCTestCase {
         let journal = Journal()
         let state = makeState(journal)
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         XCTAssertNil(journal.writes.last?.lanes.first?.expectedSeconds)
     }
 
     /// 待機中のレーン(join 直後・再キュー後・完了直後)は expectedSeconds も nil
     func testIdleLanesHaveNilExpectedSeconds() async {
         let journal = Journal()
-        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", platform: "ios")
+        let key = RunProgressEstimate.ScenarioKey(scenarioID: "05_検索", variant: nil, platform: "ios")
         let state = makeState(journal, estimates: [key: 10_000])
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
         XCTAssertNil(journal.writes.last?.lanes.first?.expectedSeconds, "join 直後は待機中")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "05_検索", variant: nil, at: Date())
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertNil(journal.writes.last?.lanes.first?.expectedSeconds, "完了後は待機中へ戻る")
     }
@@ -362,19 +362,19 @@ final class RunProgressStateTests: XCTestCase {
         await state.laneJoined(key: "UDID-A", name: "iPhone 17-01", platform: "ios")
         await state.setLaneEventLog(laneKey: "UDID-A", path: "/r/events/.inflight-0.ndjson")
         XCTAssertNil(journal.writes.last?.lanes.first?.eventLog, "シナリオの無いレーンには載せない(遅れて届いた通知)")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "A", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "A", variant: nil, at: Date())
         XCTAssertNil(journal.writes.last?.lanes.first?.eventLog, "scenarioStarted の時点では未設定")
         await state.setLaneEventLog(laneKey: "UDID-A", path: "/r/events/.inflight-1.ndjson")
         XCTAssertEqual(journal.writes.last?.lanes.first?.eventLog, "/r/events/.inflight-1.ndjson")
         XCTAssertEqual(journal.writes.last?.lanes.first?.scenario, "A", "他の欄は保つ")
         await state.scenarioFinished(laneKey: "UDID-A", passed: true)
         XCTAssertNil(journal.writes.last?.lanes.first?.eventLog, "完了後の待機では nil")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "B", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "B", variant: nil, at: Date())
         XCTAssertNil(journal.writes.last?.lanes.first?.eventLog, "次のシナリオへ移ったら前のパスを持ち越さない")
         await state.setLaneEventLog(laneKey: "UDID-A", path: "/r/events/.inflight-2.ndjson")
         await state.laneIdled(laneKey: "UDID-A")
         XCTAssertNil(journal.writes.last?.lanes.first?.eventLog, "再キューでも nil")
-        await state.scenarioStarted(laneKey: "UDID-A", scenario: "C", at: Date())
+        await state.scenarioStarted(laneKey: "UDID-A", scenario: "C", variant: nil, at: Date())
         await state.setLaneEventLog(laneKey: "UDID-A", path: "/r/events/.inflight-3.ndjson")
         await state.laneLeft(key: "UDID-A")
         XCTAssertTrue(journal.writes.last?.lanes.isEmpty ?? false, "離脱したレーンごと消える")

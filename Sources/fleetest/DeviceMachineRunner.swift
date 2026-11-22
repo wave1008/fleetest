@@ -153,10 +153,9 @@ enum DeviceMachineRunner {
                 if failed {
                     // Fleetest.swift の単機経路と同じ判定・同じ文言(LastResultsStore.failedIDs は
                     // (project, profile) 単位。この分割経路もここでしか failed を見ないので1回だけ絞る)
-                    // --failed の記録は ID の記録(この段では variant が無い)
+                    // バリアントの宣言はまだ読まない(空 = ID の記録 = variant nil の単位)
                     let failedSet = ClassPlacementRules.expandingFailed(
-                        Set(LastResultsStore.failedIDs(project: project, profile: profileName)
-                            .map { ScenarioUnitKey(id: $0, variant: nil) }), all: all)
+                        LastResultsStore.failedIDs(project: project, profile: profileName, declaredVariants: []), all: all)
                     selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
                     guard !selected.isEmpty else {
                         FleetRunner.log(LastResultsStore.nothingFailedMessage(
@@ -368,7 +367,8 @@ enum DeviceMachineRunner {
                 if !interrupted, !beforeRunFailed {
                     neverHandedFailure = true
                     for unit in ids {
-                        LastResultsStore.record(project: project, scenarioID: unit.id, passed: false, profile: profileName)
+                        LastResultsStore.record(project: project, unit: unit, passed: false, profile: profileName,
+                                                runID: nil, declaredVariants: [])
                     }
                 }
             }
@@ -675,7 +675,7 @@ enum DeviceMachineRunner {
             durations: inputs.durations, entryPlatforms: groups.map(\.platforms),
             unknownDurationMs: inputs.unknownDurationMs, machineContext: inputs.machineContext)
         return { scenario, entry in
-            estimator.estimateMs(id: scenario.id, platform: scenario.platform, entry: entry)
+            estimator.estimateMs(id: scenario.id, variant: scenario.variant, platform: scenario.platform, entry: entry)
         }
     }
 
@@ -729,7 +729,8 @@ enum DeviceMachineRunner {
                 FleetRunner.log(missingResultsLine(
                     machineLabel: group.machineLabel, exitCode: exitCode, ids: missing))
                 for unit in missing {
-                    LastResultsStore.record(project: project, scenarioID: unit.id, passed: false, profile: profileName)
+                    LastResultsStore.record(project: project, unit: unit, passed: false, profile: profileName,
+                                                runID: nil, declaredVariants: [])
                 }
             }
             // M7b: 中断された記録は「記録あり」に数えられて missing に出ない(missing は「1件も

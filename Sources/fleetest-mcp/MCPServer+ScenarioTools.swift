@@ -148,6 +148,7 @@ extension MCPServer {
             // dry-run は NullDriver 固定なので接続情報は使われない(platform だけが ios { } / android { } を分ける)
             let passed = await ScenarioHost.run(
                 project: project, scenarioID: info.id,
+                variant: nil,
                 connection: DriverConnection(platform: info.platform ?? fallbackPlatform),
                 deviceSession: deviceSession,
                 classHasBeforeAll: info.beforeAll,
@@ -408,6 +409,7 @@ extension MCPServer {
             }
             var declaredNotApplicable = false
             let passed = await ScenarioHost.run(project: project, scenarioID: info.id,
+                                       variant: nil,
                                        connection: connection,
                                        deviceSession: deviceSession,
                                        classHasBeforeAll: info.beforeAll,

@@ -494,7 +494,8 @@ enum MultiTargetRunner {
             if !interrupted {
                 neverHandedFailure = true
                 for unitKey in ids {
-                    LastResultsStore.record(project: unit.project, scenarioID: unitKey.id, passed: false, profile: unit.profile)
+                    LastResultsStore.record(project: unit.project, unit: unitKey, passed: false, profile: unit.profile,
+                                            runID: nil, declaredVariants: [])
                 }
             }
         }
@@ -582,7 +583,8 @@ enum MultiTargetRunner {
             if !missing.isEmpty {
                 FleetRunner.log(DeviceMachineRunner.missingResultsLine(machineLabel: label, exitCode: exitCode, ids: missing))
                 for unitKey in missing {
-                    LastResultsStore.record(project: unit.project, scenarioID: unitKey.id, passed: false, profile: unit.profile)
+                    LastResultsStore.record(project: unit.project, unit: unitKey, passed: false, profile: unit.profile,
+                                            runID: nil, declaredVariants: [])
                 }
             }
             guard exitCode != 0 else { continue }

@@ -28,27 +28,27 @@ final class FleetSplitEstimatorTests: XCTestCase {
 
     func testOwnHistoryWins() {
         let (e, _, _) = fixture()
-        XCTAssertEqual(e.estimateMs(id: "A", platform: nil, entry: 0), 7_000)
-        XCTAssertEqual(e.estimateMs(id: "A", platform: "ios", entry: 1), 5_000)
+        XCTAssertEqual(e.estimateMs(id: "A", variant: nil, platform: nil, entry: 0), 7_000)
+        XCTAssertEqual(e.estimateMs(id: "A", variant: nil, platform: "ios", entry: 1), 5_000)
     }
 
     func testMeasuredSpeedFactorScalesMixed() {
         let (e, _, _) = fixture()
-        XCTAssertEqual(e.estimateMs(id: "D", platform: nil, entry: 1), 10_000, accuracy: 1e-9)
-        XCTAssertEqual(e.estimateMs(id: "B", platform: nil, entry: 0), 7_000, accuracy: 1e-9)
+        XCTAssertEqual(e.estimateMs(id: "D", variant: nil, platform: nil, entry: 1), 10_000, accuracy: 1e-9)
+        XCTAssertEqual(e.estimateMs(id: "B", variant: nil, platform: nil, entry: 0), 7_000, accuracy: 1e-9)
     }
 
     func testFallbackFactorAndUnknownDuration() {
         let (e, _, _) = fixture()
-        XCTAssertEqual(e.estimateMs(id: "D", platform: nil, entry: 2), 30_000, accuracy: 1e-9)
-        XCTAssertEqual(e.estimateMs(id: "X", platform: nil, entry: 2), 1_500, accuracy: 1e-9)
-        XCTAssertEqual(e.estimateMs(id: "X", platform: nil, entry: 1), 500, accuracy: 1e-9)
+        XCTAssertEqual(e.estimateMs(id: "D", variant: nil, platform: nil, entry: 2), 30_000, accuracy: 1e-9)
+        XCTAssertEqual(e.estimateMs(id: "X", variant: nil, platform: nil, entry: 2), 1_500, accuracy: 1e-9)
+        XCTAssertEqual(e.estimateMs(id: "X", variant: nil, platform: nil, entry: 1), 500, accuracy: 1e-9)
     }
 
     func testMixedMsIsMachineIndependent() {
         let (e, _, _) = fixture()
-        XCTAssertEqual(e.mixedMs(id: "D", platform: nil), 20_000)
-        XCTAssertEqual(e.mixedMs(id: "X", platform: "ios"), 1_000)
+        XCTAssertEqual(e.mixedMs(id: "D", variant: nil, platform: nil), 20_000)
+        XCTAssertEqual(e.mixedMs(id: "X", variant: nil, platform: "ios"), 1_000)
     }
 
     func testPlanUsesSameEstimates() throws {
@@ -58,7 +58,7 @@ final class FleetSplitEstimatorTests: XCTestCase {
             entryPlatforms: [["ios"], ["ios"], ["ios"]], unknownDurationMs: 1_000, machineContext: context)
         // 見込み終了が最小(10,000)の entry1 へ入り、バケツの見積りは Estimator と同じ値
         XCTAssertEqual(result.buckets[1].units, unitKeys(["D"]))
-        XCTAssertEqual(result.buckets[1].estimatedMs, e.estimateMs(id: "D", platform: nil, entry: 1))
+        XCTAssertEqual(result.buckets[1].estimatedMs, e.estimateMs(id: "D", variant: nil, platform: nil, entry: 1))
         XCTAssertEqual(result.basis[1].scaled, 1)
     }
 }

@@ -67,7 +67,7 @@ final class RunLockWaitTimeTests: XCTestCase {
 
     func testTheBuilderFoldsTheChildsLockWaitFromScenarioFinishedAndLeavesItAbsentWhenNoneWasReported() {
         func build(_ wait: Int?) -> ScenarioRunRecord {
-            var builder = ScenarioRecordBuilder(scenarioID: "A.S1", platform: "ios", title: nil, worker: nil, mode: nil)
+            var builder = ScenarioRecordBuilder(scenarioID: "A.S1", variant: nil, platform: "ios", title: nil, worker: nil, mode: nil)
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.passed = true
             finished.lockWaitMs = wait

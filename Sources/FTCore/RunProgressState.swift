@@ -155,7 +155,7 @@ actor RunProgressState {
                       let startedText = lane.scenarioStartedAt,
                       let laneStartedAt = ISO8601DateFormatter().date(from: startedText)
                 else { return nil }
-                let key = RunProgressEstimate.ScenarioKey(scenarioID: scenario, platform: platform)
+                let key = RunProgressEstimate.ScenarioKey(scenarioID: scenario, variant: lane.variant, platform: platform)
                 return (key, max(0, Date().timeIntervalSince(laneStartedAt)))
             }
         return RunProgressEstimate.etaSeconds(
@@ -169,9 +169,9 @@ actor RunProgressState {
 
     /// 記録用(画面には出さない): 実行中シナリオの実績中央値(秒)。実績表に無ければ nil ——
     /// 推測値は書かない。ms→秒は `RunProgressEstimate.etaSeconds` と同じ丸め(切り上げ)
-    private func expectedSeconds(scenario: String, platform: String?) -> Int? {
+    private func expectedSeconds(scenario: String, variant: String?, platform: String?) -> Int? {
         guard let platform else { return nil }
-        guard let ms = estimates[RunProgressEstimate.ScenarioKey(scenarioID: scenario, platform: platform)]
+        guard let ms = estimates[RunProgressEstimate.ScenarioKey(scenarioID: scenario, variant: variant, platform: platform)]
         else { return nil }
         return Int((ms / 1000).rounded(.up))
     }
@@ -219,21 +219,22 @@ actor RunProgressState {
         lanesByKey[laneKey] = RunProgressLane(
             key: lane.key, name: lane.name, platform: lane.platform, scenario: lane.scenario,
             scenarioStartedAt: lane.scenarioStartedAt, expectedSeconds: lane.expectedSeconds,
-            eventLog: path)
+            eventLog: path, variant: lane.variant)
         flush()
     }
 
-    func scenarioStarted(laneKey: String, scenario: String, at: Date) {
+    func scenarioStarted(laneKey: String, scenario: String, variant: String?, at: Date) {
         guard let lane = lanesByKey[laneKey] else { return }
         // 未着手 → 実行中(pendingCounts から1つ引く。lane.platform は laneJoined で
         // worker.platform から常に埋まる —— nil なら鍵が作れないので寄与させない)
         if let platform = lane.platform {
-            decrementPending(RunProgressEstimate.ScenarioKey(scenarioID: scenario, platform: platform))
+            decrementPending(RunProgressEstimate.ScenarioKey(scenarioID: scenario, variant: variant, platform: platform))
         }
         lanesByKey[laneKey] = RunProgressLane(
             key: lane.key, name: lane.name, platform: lane.platform, scenario: scenario,
             scenarioStartedAt: ISO8601DateFormatter().string(from: at),
-            expectedSeconds: expectedSeconds(scenario: scenario, platform: lane.platform))
+            expectedSeconds: expectedSeconds(scenario: scenario, variant: variant, platform: lane.platform),
+            variant: variant)
         flush()
     }
 
@@ -244,7 +245,7 @@ actor RunProgressState {
     func laneIdled(laneKey: String) {
         guard let lane = lanesByKey[laneKey] else { return }
         if let scenario = lane.scenario, let platform = lane.platform {
-            let key = RunProgressEstimate.ScenarioKey(scenarioID: scenario, platform: platform)
+            let key = RunProgressEstimate.ScenarioKey(scenarioID: scenario, variant: lane.variant, platform: platform)
             pendingCounts[key, default: 0] += 1
         }
         requeuedCount += 1

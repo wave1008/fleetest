@@ -67,7 +67,7 @@ public enum ResultsRendering {
         guard !rows.isEmpty else { return "No matching scenarios" }
         let headers = ["scenario", "platform", "runs", "pass rate", "avg ms", "median ms", "last run", "last result"]
         let tableRows = rows.map { row -> [String] in
-            [row.scenarioID, row.platform, String(row.runs), String(format: "%.1f%%", row.successRate),
+            [ScenarioUnitKey(id: row.scenarioID, variant: row.variant).description, row.platform, String(row.runs), String(format: "%.1f%%", row.successRate),
              row.avgDurationMs.map { String(format: "%.0f", $0) } ?? "-",
              row.medianDurationMs.map { String(format: "%.0f", $0) } ?? "-",
              row.lastRunAt.map(formatLocal) ?? "-",
@@ -84,7 +84,7 @@ public enum ResultsRendering {
         }
         let headers = ["scenario", "platform", "runs", "fail rate", "flip score", "recent results (new→old)"]
         let tableRows = rows.map { row -> [String] in
-            [row.scenarioID, row.platform, String(row.runs), String(format: "%.1f%%", row.failureRate),
+            [ScenarioUnitKey(id: row.scenarioID, variant: row.variant).description, row.platform, String(row.runs), String(format: "%.1f%%", row.failureRate),
              String(format: "%.2f", row.flakinessScore),
              row.recentResults.map { $0 ? "✅" : "❌" }.joined()]
         }
@@ -145,7 +145,7 @@ public enum ResultsRendering {
             } else {
                 slowestScene = "-"
             }
-            return [row.scenarioID, row.platform, String(row.runs), String(format: "%.0f", row.avgDurationMs),
+            return [ScenarioUnitKey(id: row.scenarioID, variant: row.variant).description, row.platform, String(row.runs), String(format: "%.0f", row.avgDurationMs),
                     String(format: "%.0f", row.p90DurationMs), delta, slowestScene]
         }
         return SimpleTable.render(headers: headers, rows: tableRows)

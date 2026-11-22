@@ -21,6 +21,8 @@ export interface RunBoardLane {
   readonly platform?: "ios" | "android";
   /** 実行中のシナリオ ID。**省略 = 待機中**(直前の1本を終えて次を待つ)。 */
   readonly scenario?: string;
+  /** 実行中の単位のバリアント名。バリアントの無い run では省略(表示は scenarioUnitLabel)。 */
+  readonly variant?: string;
   /** `scenario` が無いときは省略。 */
   readonly scenarioElapsedSeconds?: number;
 }

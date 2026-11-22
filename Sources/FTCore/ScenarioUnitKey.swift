@@ -45,7 +45,6 @@ extension ScenarioInfo {
 }
 
 extension ScenarioRunRecord {
-    /// 記録の単位の鍵。**この段では記録に variant が無いので nil**(欠落の照合は「記録の ID + variant(無ければ nil)」で作る)。
-    /// 記録に variant を足す段でここを変える(欠落の照合・集計はこの1か所を通す)
-    public var unitKey: ScenarioUnitKey { ScenarioUnitKey(id: scenarioID, variant: nil) }
+    /// 記録の単位の鍵(欠落の照合・集計・`--failed` の記帳はこの1か所を通す)
+    public var unitKey: ScenarioUnitKey { ScenarioUnitKey(id: scenarioID, variant: variant) }
 }

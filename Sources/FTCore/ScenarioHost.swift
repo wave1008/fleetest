@@ -623,6 +623,9 @@ public enum ScenarioHost {
     }
 
     public static func run(project: TestProject, scenarioID: String,
+                           /// このシナリオの単位のバリアント(nil = バリアントの無い run)。結果・イベント・`--failed` の記録の鍵になる。
+                           /// 既定値を置かない = 渡し忘れで記録が ID だけの鍵へ黙って落ちるのをコンパイルで止める
+                           variant: ResolvedVariant?,
                            connection: DriverConnection,
                            /// このデバイスの setUpDevice の済み印と、run 全体で共有するメモ・beforeAll の済み印。
                            /// 既定値を置かない = 渡し忘れ(デバイスごとに別のセッションを作る誤配線)をコンパイルで止める
@@ -701,7 +704,7 @@ public enum ScenarioHost {
         // dry-run は LastResultsStore と同じく記録対象外。builder は emit 全経路(合成
         // scenarioFinished 含む)を素通しで受け取り、2 箇所の記録確定点でのみ recorder へ渡す
         var builder: ScenarioRecordBuilder? = (recording != nil && !dryRun)
-            ? ScenarioRecordBuilder(scenarioID: scenarioID, platform: connection.platform,
+            ? ScenarioRecordBuilder(scenarioID: scenarioID, variant: variant.variantName, platform: connection.platform,
                                     title: recording?.title, worker: recording?.worker,
                                     mode: connection.recordedMode)
             : nil
@@ -723,7 +726,11 @@ public enum ScenarioHost {
         // シナリオが表示条件の DSL(setAppearance / setTextSize)を撃ったか。開始時の処理が何もしなかった回(「合わせられない」端末で
         // 指定なし)でも、撃ったなら終わりに基準へ戻す(戻さないと次のシナリオへ持ち越す。DR-221)
         let displayCommandRan = LockedValue(false)
+        let unit = ScenarioUnitKey(id: scenarioID, variant: variant.variantName)
+        let declaredVariants = recording?.recorder.declaredVariants ?? []
         let emit: (ScenarioEvent) -> Void = { event in
+            var event = event
+            if event.variant == nil, event.scenario != nil { event.variant = unit.variant }
             if event.kind == "step", let command = event.command, DisplaySettingsDSL.commands.contains(command) {
                 displayCommandRan.value = true
             }
@@ -751,6 +758,7 @@ public enum ScenarioHost {
             emit(logEvent)
             var step = ScenarioEvent(kind: "step")
             step.scenario = scenarioID
+            step.variant = unit.variant
             step.index = 0
             step.status = "failed"
             step.description = reason
@@ -759,12 +767,13 @@ public enum ScenarioHost {
             emit(step)
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = scenarioID
+            finished.variant = unit.variant
             finished.passed = false
             eventLog?.appendHost(finished)
             emit(finished)
             if !dryRun, !lifecycleOnly {
-                LastResultsStore.record(project: project, scenarioID: scenarioID, passed: false,
-                                        profile: settings.profileName)
+                LastResultsStore.record(project: project, unit: unit, passed: false, profile: settings.profileName,
+                                        runID: recording?.recorder.runID, declaredVariants: declaredVariants)
             }
             if let recording, let builder {
                 let fileName = recording.recorder.record(builder.build(
@@ -785,6 +794,7 @@ public enum ScenarioHost {
             emit(logEvent)
             var step = ScenarioEvent(kind: "step")
             step.scenario = scenarioID
+            step.variant = unit.variant
             step.index = 0
             step.status = "skipped"
             step.description = "setUpDevice of \(className) ended as not applicable on this device"
@@ -793,6 +803,7 @@ public enum ScenarioHost {
             emit(step)
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = scenarioID
+            finished.variant = unit.variant
             finished.passed = true
             finished.notApplicableReason = reason
             eventLog?.appendHost(finished)
@@ -892,6 +903,7 @@ public enum ScenarioHost {
         if !containerInference { args.append("--no-container-inference") }
         if responseMeasurement { args.append("--response-measurement") }
         if let orientation = settings.orientation { args += ["--orientation", orientation.rawValue] }
+        if let variant { args += ["--variant", variant.name] }
         // occlusion guard の OCR 事前判定(FMConfig の外。fmTextVisibilityCheck が off なら guard 自体が
         // 走らないためこの値は無意味 —— 別ゲートは追加しない)
         if !occlusionOCR { args.append("--no-ocr-text-visibility-check") }
@@ -969,7 +981,7 @@ public enum ScenarioHost {
 
         // 端末の表示条件(外観・文字サイズ)を子を起こす直前に合わせる(DR-221)。何もしない経路は transport が nil。
         // **起動前の他の検査より後に置く** = この後に子を起こせず抜ける経路は下の process.run の失敗だけで、そこでも戻す
-        let displayExpected = DisplayExpectation(appearance: settings.appearance, textSize: settings.textSize)
+        let displayExpected = DisplayExpectation(appearance: variant?.appearance ?? settings.appearance, textSize: variant?.textSize ?? settings.textSize)
         let displayTransport = displaySettingsTransport(connection: connection, dryRun: dryRun, lifecycleOnly: lifecycleOnly)
         var displayStarted: DisplaySettingsStart?
         // 子の終了後と、起動前に失敗する経路(一部だけ設定できた後)で端末を基準へ戻す。失敗は警告だけ
@@ -1236,12 +1248,13 @@ public enum ScenarioHost {
             emit(logEvent)
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = scenarioID
+            finished.variant = unit.variant
             finished.passed = false
             eventLog?.appendHost(finished)
             emit(finished)
             if !dryRun, !lifecycleOnly {
-                LastResultsStore.record(project: project, scenarioID: scenarioID, passed: false,
-                                        profile: settings.profileName)
+                LastResultsStore.record(project: project, unit: unit, passed: false, profile: settings.profileName,
+                                        runID: recording?.recorder.runID, declaredVariants: declaredVariants)
             }
             if let recording, let builder {
                 let fileName = recording.recorder.record(builder.build(
@@ -1257,8 +1270,8 @@ public enum ScenarioHost {
         // dry-run は実機能を動かしていないため直近結果を上書きしない(実失敗を消さない)。
         // 対象外の宣言(notApplicable)も同じ —— 走っていないので直近の合否を上書きしない
         if !dryRun, !lifecycleOnly, !notApplicable {
-            LastResultsStore.record(project: project, scenarioID: scenarioID, passed: result,
-                                    profile: settings.profileName)
+            LastResultsStore.record(project: project, unit: unit, passed: result, profile: settings.profileName,
+                                    runID: recording?.recorder.runID, declaredVariants: declaredVariants)
         }
         if let recording, let builder {
             let operations = humanOperations()
@@ -1307,7 +1320,7 @@ public enum ScenarioHost {
 
         var events: [ScenarioEvent] = []
         // dry-run は NullDriver 固定のため接続情報は使われない(platform はダミー)
-        let passed = await run(project: project, scenarioID: scenarioID,
+        let passed = await run(project: project, scenarioID: scenarioID, variant: nil,
                                connection: DriverConnection(platform: "ios"),
                                deviceSession: RunDeviceSession(),
                                // 1本だけの使い捨てのセッションなので受け持っても待つ相手がいない。

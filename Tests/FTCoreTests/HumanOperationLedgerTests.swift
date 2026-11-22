@@ -120,7 +120,7 @@ final class HumanOperationLedgerTests: XCTestCase {
     }
 
     func testHumanOperationsAreOmittedWhenEmptyAndRoundTripWhenPresent() throws {
-        let builder = ScenarioRecordBuilder(scenarioID: "A.b", platform: "ios", title: nil, worker: nil, mode: nil)
+        let builder = ScenarioRecordBuilder(scenarioID: "A.b", variant: nil, platform: "ios", title: nil, worker: nil, mode: nil)
         let none = builder.build(passed: true, timedOut: false, startedAt: base, durationMs: 1, packageRoot: nil)
         XCTAssertNil(none.humanOperations, "空なら欄ごと省く")
         let json = try String(decoding: JSONEncoder().encode(none), as: UTF8.self)

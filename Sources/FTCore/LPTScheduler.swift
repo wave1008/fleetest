@@ -27,12 +27,15 @@ public enum LPTScheduler {
     /// 実績の代表値。中央値を使う(平均は 1 回の外れ値=振り直し・コールド起動に引きずられる)。
     public struct Duration: Sendable, Equatable {
         public let scenarioID: String
+        /// バリアント(nil = バリアント無しの履歴)。単位の鍵は `scenarioID` + `variant`
+        public let variant: String?
         /// "ios" / "android"。記録が持つ実行 platform。
         public let platform: String
         public let medianMs: Double
 
-        public init(scenarioID: String, platform: String, medianMs: Double) {
+        public init(scenarioID: String, variant: String? = nil, platform: String, medianMs: Double) {
             self.scenarioID = scenarioID
+            self.variant = variant
             self.platform = platform
             self.medianMs = medianMs
         }
@@ -40,18 +43,21 @@ public enum LPTScheduler {
 
     private struct Key: Hashable {
         let scenarioID: String
+        let variant: String?
         let platform: String
     }
 
     /// (scenarioID, platform, machine) ごとの実績の代表値。FleetSplit の機械別見積りに使う。
     public struct MachineDuration: Sendable, Equatable {
         public let scenarioID: String
+        public let variant: String?
         public let platform: String
         public let machine: String
         public let medianMs: Double
 
-        public init(scenarioID: String, platform: String, machine: String, medianMs: Double) {
+        public init(scenarioID: String, variant: String? = nil, platform: String, machine: String, medianMs: Double) {
             self.scenarioID = scenarioID
+            self.variant = variant
             self.platform = platform
             self.machine = machine
             self.medianMs = medianMs
@@ -60,6 +66,7 @@ public enum LPTScheduler {
 
     private struct MachineKey: Hashable {
         let scenarioID: String
+        let variant: String?
         let platform: String
         let machine: String
     }
@@ -84,12 +91,14 @@ public enum LPTScheduler {
                              defaultPlatform: String) -> [ScenarioRunItem] {
         guard !items.isEmpty else { return [] }
         let medianByKey = Dictionary(
-            durations.map { (Key(scenarioID: $0.scenarioID, platform: $0.platform), $0.medianMs) },
+            durations.map { (Key(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform), $0.medianMs) },
             uniquingKeysWith: { first, _ in first })
 
         func median(of item: ScenarioRunItem) -> Double? {
-            medianByKey[Key(scenarioID: item.info.id,
-                            platform: item.info.platform ?? defaultPlatform)]
+            let platform = item.info.platform ?? defaultPlatform
+            // そのバリアントの履歴が無ければバリアント無しの履歴を使う
+            return medianByKey[Key(scenarioID: item.info.id, variant: item.variant, platform: platform)]
+                ?? medianByKey[Key(scenarioID: item.info.id, variant: nil, platform: platform)]
         }
 
         // enumerated() で元 index を持ち、比較が同値のときは index 順に倒して安定ソートにする。
@@ -128,7 +137,7 @@ public enum LPTScheduler {
             !RunResultsQuery.isSkippedSynthetic($0) && $0.durationMs > 0 && !$0.platform.isEmpty
         }
         let grouped = Dictionary(grouping: usable) {
-            Key(scenarioID: $0.scenarioID, platform: $0.platform)
+            Key(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform)
         }
         return grouped.compactMap { key, group -> Duration? in
             var group = group
@@ -137,12 +146,15 @@ public enum LPTScheduler {
                 if !sameMachine.isEmpty { group = sameMachine }
             }
             guard !group.isEmpty else { return nil }
-            return Duration(scenarioID: key.scenarioID, platform: key.platform,
+            return Duration(scenarioID: key.scenarioID, variant: key.variant, platform: key.platform,
                             medianMs: median(of: group.map { Double($0.estimateDurationMs) }))
         }
         // 集計順は Dictionary 由来で不定なので、呼び出し側が決定的に扱えるよう並べておく
-        .sorted { $0.scenarioID == $1.scenarioID ? $0.platform < $1.platform
-                                                 : $0.scenarioID < $1.scenarioID }
+        .sorted {
+            if $0.scenarioID != $1.scenarioID { return $0.scenarioID < $1.scenarioID }
+            if $0.platform != $1.platform { return $0.platform < $1.platform }
+            return ($0.variant ?? "") < ($1.variant ?? "")
+        }
     }
 
     /// (scenarioID, platform, machine) ごとの中央値。durations(from:) と同じフィルタ
@@ -154,16 +166,17 @@ public enum LPTScheduler {
             !RunResultsQuery.isSkippedSynthetic($0) && $0.durationMs > 0 && !$0.platform.isEmpty
         }
         let grouped = Dictionary(grouping: usable) {
-            MachineKey(scenarioID: $0.scenarioID, platform: $0.platform, machine: $0.host)
+            MachineKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform, machine: $0.host)
         }
         return grouped.map { key, group in
-            MachineDuration(scenarioID: key.scenarioID, platform: key.platform, machine: key.machine,
+            MachineDuration(scenarioID: key.scenarioID, variant: key.variant, platform: key.platform, machine: key.machine,
                             medianMs: median(of: group.map { Double($0.estimateDurationMs) }))
         }
         // 集計順は Dictionary 由来で不定なので、呼び出し側が決定的に扱えるよう並べておく
         .sorted {
             if $0.scenarioID != $1.scenarioID { return $0.scenarioID < $1.scenarioID }
             if $0.platform != $1.platform { return $0.platform < $1.platform }
+            if $0.variant != $1.variant { return ($0.variant ?? "") < ($1.variant ?? "") }
             return $0.machine < $1.machine
         }
     }

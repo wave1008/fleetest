@@ -110,6 +110,8 @@ public enum RunResultsQuery {
         public let medianDurationMs: Double?
         public let lastRunAt: String?
         public let lastPassed: Bool?
+        /// バリアント名(バリアントの無い run は欄ごと省く = DR-75)。行の鍵は scenarioID + variant + platform
+        public var variant: String? = nil
     }
 
     /// シナリオ別に集計する。成功率昇順(問題のあるものが上)。同率は scenarioID 昇順。
@@ -121,7 +123,7 @@ public enum RunResultsQuery {
     ) -> [ScenarioSummaryRow] {
         let window = max(1, recentRuns)
         let grouped = Dictionary(grouping: records.filter { !isOutsideSuccessRate($0) }) {
-            ScenarioPlatformKey(scenarioID: $0.scenarioID, platform: $0.platform)
+            ScenarioPlatformKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform)
         }
         let rows = grouped.map { key, allRecords -> ScenarioSummaryRow in
             let group = Array(
@@ -133,11 +135,12 @@ public enum RunResultsQuery {
             return ScenarioSummaryRow(
                 scenarioID: key.scenarioID, platform: key.platform, runs: group.count, successRate: successRate,
                 avgDurationMs: average(durations), medianDurationMs: median(durations),
-                lastRunAt: latest?.startedAt, lastPassed: latest?.passed)
+                lastRunAt: latest?.startedAt, lastPassed: latest?.passed, variant: key.variant)
         }
         return rows.sorted {
             if $0.successRate != $1.successRate { return $0.successRate < $1.successRate }
-            return $0.scenarioID == $1.scenarioID ? $0.platform < $1.platform : $0.scenarioID < $1.scenarioID
+            if $0.scenarioID != $1.scenarioID { return $0.scenarioID < $1.scenarioID }
+            return $0.platform == $1.platform ? ($0.variant ?? "") < ($1.variant ?? "") : $0.platform < $1.platform
         }
     }
 
@@ -160,6 +163,8 @@ public enum RunResultsQuery {
         public let flakinessScore: Double
         /// 新しい順、最大 10 件
         public let recentResults: [Bool]
+        /// バリアント名(バリアントの無い run は欄ごと省く)
+        public var variant: String? = nil
     }
 
     /// 窓の中で pass/fail が混在し、実行回数が minRuns 以上のシナリオを不安定度降順で返す。
@@ -171,7 +176,7 @@ public enum RunResultsQuery {
     ) -> [FlakyRow] {
         let window = max(1, recentRuns)
         let grouped = Dictionary(grouping: records.filter { !isInterruptedRecord($0) && !isDeclaredNotApplicable($0) }) {
-            ScenarioPlatformKey(scenarioID: $0.scenarioID, platform: $0.platform)
+            ScenarioPlatformKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform)
         }
         let rows = grouped.compactMap { key, allRecords -> FlakyRow? in
             let group = Array(
@@ -192,11 +197,12 @@ public enum RunResultsQuery {
 
             return FlakyRow(
                 scenarioID: key.scenarioID, platform: key.platform, runs: chronological.count, failureRate: failureRate,
-                flakinessScore: flakinessScore, recentResults: Array(recentResults))
+                flakinessScore: flakinessScore, recentResults: Array(recentResults), variant: key.variant)
         }
         return rows.sorted {
             if $0.flakinessScore != $1.flakinessScore { return $0.flakinessScore > $1.flakinessScore }
-            return $0.scenarioID == $1.scenarioID ? $0.platform < $1.platform : $0.scenarioID < $1.scenarioID
+            if $0.scenarioID != $1.scenarioID { return $0.scenarioID < $1.scenarioID }
+            return $0.platform == $1.platform ? ($0.variant ?? "") < ($1.variant ?? "") : $0.platform < $1.platform
         }
     }
 
@@ -393,6 +399,8 @@ public enum RunResultsQuery {
     /// LPT の見積りは platform で分けている(RR-8)のに合わせる
     private struct ScenarioPlatformKey: Hashable {
         let scenarioID: String
+        /// バリアント(nil = バリアントの無い run)。バリアントごとに別の行(成功率・所要が違うのが目的の機能なので混ぜない)
+        let variant: String?
         let platform: String
     }
 
@@ -424,6 +432,8 @@ public enum RunResultsQuery {
         /// scene 平均所要時間が最大の scene タイトルとその平均(scene データが無ければ nil)
         public let slowestScene: String?
         public let slowestSceneAvgMs: Double?
+        /// バリアント名(バリアントの無い run は欄ごと省く)
+        public var variant: String? = nil
     }
 
     /// avgDurationMs 降順。isSkippedSynthetic は除外。**束ねる鍵は (scenarioID, platform)**
@@ -435,7 +445,7 @@ public enum RunResultsQuery {
     ) -> [SlowTestRow] {
         let window = max(1, recentRuns)
         let grouped = Dictionary(grouping: records.filter { !isSkippedSynthetic($0) }) {
-            ScenarioPlatformKey(scenarioID: $0.scenarioID, platform: $0.platform)
+            ScenarioPlatformKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform)
         }
         let rows = grouped.compactMap { key, group -> SlowTestRow? in
             let chronological = Array(
@@ -446,12 +456,13 @@ public enum RunResultsQuery {
             return SlowTestRow(
                 scenarioID: key.scenarioID, platform: key.platform, runs: chronological.count, avgDurationMs: avg,
                 p90DurationMs: percentile(durations, 0.9), deltaPct: durationDeltaPct(chronological),
-                slowestScene: slowestScene, slowestSceneAvgMs: slowestSceneAvgMs)
+                slowestScene: slowestScene, slowestSceneAvgMs: slowestSceneAvgMs, variant: key.variant)
         }
         return Array(rows.sorted { lhs, rhs in
             if lhs.avgDurationMs != rhs.avgDurationMs { return lhs.avgDurationMs > rhs.avgDurationMs }
             if lhs.scenarioID != rhs.scenarioID { return lhs.scenarioID < rhs.scenarioID }
-            return lhs.platform < rhs.platform
+            if lhs.platform != rhs.platform { return lhs.platform < rhs.platform }
+            return (lhs.variant ?? "") < (rhs.variant ?? "")
         }.prefix(max(0, limit)))
     }
 
@@ -544,7 +555,7 @@ public enum RunResultsQuery {
         public let kind: String
         /// "critical" | "warn" | "info"
         public let severity: String
-        public let scenarioID: String?
+        public var scenarioID: String?
         /// scenarioID が付く行(scenarioID を持たない unfinishedRuns/retiredScenarios を除く全種)
         /// では必ず付く。**scenarioID だけでは行の対象を一意に決められない**(同じ scenarioID を
         /// 複数 platform で回すプロジェクトでは、これが無いと iOS/Android を混ぜた行に見える)
@@ -556,6 +567,8 @@ public enum RunResultsQuery {
         public let message: String
         public let count: Int?
         public let deltaPct: Double?
+        /// バリアント名(バリアントの無い run は欄ごと省く)。**scenarioID + variant + platform が行の対象**
+        public var variant: String? = nil
     }
 
     /// severity 順(critical→warn→info)、同 severity 内は count 降順(同数は kind→scenarioID 昇順で決定的に)
@@ -580,23 +593,32 @@ public enum RunResultsQuery {
         // 束ねると、同じ scenarioID を複数 platform で回すプロジェクト(E2E-CMP 等)の前後半比較・
         // 連続失敗・偏り判定が platform を混ぜて誤った行を出す
         let grouped = Dictionary(grouping: records) {
-            ScenarioPlatformKey(scenarioID: $0.scenarioID, platform: $0.platform)
+            ScenarioPlatformKey(scenarioID: $0.scenarioID, variant: $0.variant, platform: $0.platform)
         }
 
         for (key, group) in grouped {
             let chronological = group.sorted { date(from: $0.startedAt) < date(from: $1.startedAt) }
+            // 文言の見出しにバリアントが入るよう、検査へは `ID@variant` を渡し、行を足した後で scenarioID と variant に割り直す
+            let label = ScenarioUnitKey(id: key.scenarioID, variant: key.variant).description
+            let start = rows.count
             rows.append(contentsOf: failureStreakInsights(
-                scenarioID: key.scenarioID, platform: key.platform, chronological: chronological))
+                scenarioID: label, platform: key.platform, chronological: chronological))
             rows.append(contentsOf: infraFailureInsights(
-                scenarioID: key.scenarioID, platform: key.platform, chronological: chronological))
-            if let row = selectorDecayInsight(scenarioID: key.scenarioID, platform: key.platform, group: group) {
+                scenarioID: label, platform: key.platform, chronological: chronological))
+            if let row = selectorDecayInsight(scenarioID: label, platform: key.platform, group: group) {
                 rows.append(row)
             }
-            rows.append(contentsOf: deviceBiasInsights(scenarioID: key.scenarioID, platform: key.platform, group: group))
-            if let row = unsettledStepsInsight(scenarioID: key.scenarioID, platform: key.platform, group: group) {
+            rows.append(contentsOf: deviceBiasInsights(scenarioID: label, platform: key.platform, group: group))
+            if let row = unsettledStepsInsight(scenarioID: label, platform: key.platform, group: group) {
                 rows.append(row)
             }
-            rows.append(contentsOf: healRelianceInsights(scenarioID: key.scenarioID, platform: key.platform, group: group))
+            rows.append(contentsOf: healRelianceInsights(scenarioID: label, platform: key.platform, group: group))
+            if key.variant != nil {
+                for i in start..<rows.count {
+                    rows[i].scenarioID = key.scenarioID
+                    rows[i].variant = key.variant
+                }
+            }
         }
 
         // slowTests 自体が (scenarioID, platform) で束ねている(同じ理由。上の doc 参照)ので、
@@ -607,21 +629,21 @@ public enum RunResultsQuery {
         let hostsInInput = Set(records.map(\.host))
         var hostsPerScenario: [ScenarioPlatformKey: Set<String>] = [:]
         for record in records where !isSkippedSynthetic(record) {  // slowTests と同じ記録で数える(合成の埋め合わせを機械に数えない)
-            hostsPerScenario[ScenarioPlatformKey(scenarioID: record.scenarioID, platform: record.platform), default: []]
+            hostsPerScenario[ScenarioPlatformKey(scenarioID: record.scenarioID, variant: record.variant, platform: record.platform), default: []]
                 .insert(record.host)
         }
         for host in hostsInInput.sorted() {
             for row in slowTests(records.filter { $0.host == host }, limit: .max,
                                      recentRuns: recentScenarioRunsWindow) {
                 guard let deltaPct = row.deltaPct, deltaPct >= durationRegressionPct else { continue }
-                let scenarioHosts = hostsPerScenario[ScenarioPlatformKey(scenarioID: row.scenarioID, platform: row.platform)]
+                let scenarioHosts = hostsPerScenario[ScenarioPlatformKey(scenarioID: row.scenarioID, variant: row.variant, platform: row.platform)]
                 let hostSuffix = (scenarioHosts?.count ?? 0) > 1 ? " on \(host)" : ""
                 rows.append(InsightRow(
                     kind: "durationRegression", severity: "warn", scenarioID: row.scenarioID,
                     platform: row.platform, worker: nil, host: host,
-                    message: "\(scenarioLabel(row.scenarioID, row.platform))\(hostSuffix): duration regressed"
+                    message: "\(scenarioLabel(ScenarioUnitKey(id: row.scenarioID, variant: row.variant).description, row.platform))\(hostSuffix): duration regressed"
                         + " (+\(String(format: "%.0f", deltaPct))% vs the first half of the last \(recentScenarioRunsWindow) runs)",
-                    count: nil, deltaPct: deltaPct))
+                    count: nil, deltaPct: deltaPct, variant: row.variant))
             }
         }
 
@@ -774,6 +796,8 @@ public enum RunResultsQuery {
         public let previousMs: Int
         /// (latest - previous) / previous * 100。previous==0 の組は比較から除外する(発散)
         public let deltaPct: Double
+        /// バリアント名(バリアントの無い run は欄ごと省く)
+        public var variant: String? = nil
     }
 
     public struct PerformanceReport: Codable, Sendable, Equatable {
@@ -787,6 +811,7 @@ public enum RunResultsQuery {
 
     private struct PerfScenarioKey: Hashable {
         let scenarioID: String
+        let variant: String?
         let platform: String
     }
 
@@ -904,12 +929,14 @@ public enum RunResultsQuery {
                 / Double(previousValue.durationMs) * 100
             deltas.append(PerfScenarioDelta(
                 scenarioID: key.scenarioID, platform: key.platform,
-                latestMs: latestValue.durationMs, previousMs: previousValue.durationMs, deltaPct: deltaPct))
+                latestMs: latestValue.durationMs, previousMs: previousValue.durationMs, deltaPct: deltaPct,
+                variant: key.variant))
         }
         return deltas.sorted { lhs, rhs in
             if lhs.deltaPct != rhs.deltaPct { return lhs.deltaPct > rhs.deltaPct }
             if lhs.scenarioID != rhs.scenarioID { return lhs.scenarioID < rhs.scenarioID }
-            return lhs.platform < rhs.platform
+            if lhs.platform != rhs.platform { return lhs.platform < rhs.platform }
+            return (lhs.variant ?? "") < (rhs.variant ?? "")
         }
     }
 
@@ -922,7 +949,7 @@ public enum RunResultsQuery {
     ) -> [PerfScenarioKey: (durationMs: Int, startedAt: String)] {
         var result: [PerfScenarioKey: (durationMs: Int, startedAt: String)] = [:]
         for record in records where runIDs.contains(record.runID) && record.passed && !isSkippedSynthetic(record) {
-            let key = PerfScenarioKey(scenarioID: record.scenarioID, platform: record.platform)
+            let key = PerfScenarioKey(scenarioID: record.scenarioID, variant: record.variant, platform: record.platform)
             if let existing = result[key] {
                 if date(from: record.startedAt) > date(from: existing.startedAt) {
                     result[key] = (record.durationMs, record.startedAt)

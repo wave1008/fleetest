@@ -62,6 +62,7 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         tunables.commandTimeout = 1  // idle budget = 2s(子の起動の揺れ = 負荷時の bash 起動より十分大きく取る)
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: RunDeviceSession(),
             classHasBeforeAll: false,

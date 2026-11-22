@@ -155,6 +155,8 @@ export interface MonitorRunLane {
   readonly platform?: MonitorPlatform;
   /** 実行中のシナリオ ID。**省略 = 待機中**(直前の1本を終えて次を待つ・まだ何も取っていない)。 */
   readonly scenario?: string;
+  /** 実行中の単位のバリアント名。バリアントの無い run では省略。 */
+  readonly variant?: string;
   /** `scenario` が無いときは省略(待機中は経過も無い)。 */
   readonly scenarioElapsedSeconds?: number;
 }
@@ -452,6 +454,9 @@ function isMonitorRunLane(value: unknown): value is MonitorRunLane {
   if (value.scenario === null) {
     value.scenario = undefined;
   }
+  if (value.variant === null) {
+    value.variant = undefined;
+  }
   if (value.scenarioElapsedSeconds === null) {
     value.scenarioElapsedSeconds = undefined;
   }
@@ -460,6 +465,7 @@ function isMonitorRunLane(value: unknown): value is MonitorRunLane {
     typeof value.name === "string" &&
     (value.platform === undefined || (typeof value.platform === "string" && PLATFORMS.has(value.platform))) &&
     (value.scenario === undefined || typeof value.scenario === "string") &&
+    (value.variant === undefined || typeof value.variant === "string") &&
     (value.scenarioElapsedSeconds === undefined || typeof value.scenarioElapsedSeconds === "number")
   );
 }

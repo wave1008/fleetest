@@ -62,6 +62,8 @@ public final class RunRecorder: @unchecked Sendable {
     /// (凍結・環境エラーの再実行で同じシナリオが2回書かれる。引かないと二重計上になる)
     private var liveFiles: [String: [(fileName: String, worker: String?,
                                       guarded: Int, guardSkipped: Int, guardStaleFrame: Int)]] = [:]
+    /// プロファイルが宣言したバリアント名(宣言の順。無ければ空)。run.json の `variants` と `--failed` の ID の集約の母集団
+    public let declaredVariants: [String]
     private let hostMetrics: HostMetricsRecorder?
     /// `--failed` の記録(`LastResultsStore`)の置き場。nil = 書かない。ScenarioHost が書けない
     /// 「始まらなかったシナリオ」(recordSkipped / 供給段の例外)を失敗として残すための口
@@ -77,7 +79,8 @@ public final class RunRecorder: @unchecked Sendable {
     private init(runID: String, projectName: String, profile: String?, machine: String,
                 trigger: String, startedAt: String, runDir: URL,
                 hostMetrics: HostMetricsRecorder?, issuer: String?, toolchain: String?,
-                runGroup: String?, lastResultsDir: URL?) {
+                runGroup: String?, lastResultsDir: URL?, declaredVariants: [String]) {
+        self.declaredVariants = declaredVariants
         self.runID = runID
         self.projectName = projectName
         self.profile = profile
@@ -98,7 +101,8 @@ public final class RunRecorder: @unchecked Sendable {
     public static func begin(project: TestProject, profile: String?, trigger: String,
                              captureHostMetrics: Bool = true,
                              runGroup: String? = nil,
-                             lastResultsDir: URL? = nil) -> RunRecorder {
+                             lastResultsDir: URL? = nil,
+                             declaredVariants: [String] = []) -> RunRecorder {
         let machine = resolveMachine()
         let runID = makeRunID()
         let resultsDir = RunResultsStore.resultsDir(projectRoot: project.rootURL)
@@ -118,7 +122,7 @@ public final class RunRecorder: @unchecked Sendable {
             runID: runID, projectName: project.name, profile: profile, machine: machine,
             trigger: trigger, startedAt: startedAt, runDir: runDir, hostMetrics: hostMetrics,
             issuer: issuer, toolchain: toolchain, runGroup: runGroup,
-            lastResultsDir: lastResultsDir)
+            lastResultsDir: lastResultsDir, declaredVariants: declaredVariants)
 
         let meta = RunMetaRecord(
             runID: runID, project: project.name, profile: profile, host: machine,
@@ -126,7 +130,7 @@ public final class RunRecorder: @unchecked Sendable {
             trigger: trigger, startedAt: startedAt,
             // 未完了の run を「実行中」と「クラッシュ」に読み分けるための pid(RunMetaRecord.pid)
             pid: Int(ProcessInfo.processInfo.processIdentifier),
-            issuer: issuer, runGroup: runGroup)
+            issuer: issuer, runGroup: runGroup, variants: declaredVariants.isEmpty ? nil : declaredVariants)
         RunResultsStore.writeMeta(meta, runDir: runDir)
         return recorder
     }
@@ -200,26 +204,26 @@ public final class RunRecorder: @unchecked Sendable {
     /// 実行に至らなかったシナリオの合成レコード。kind の既定は `.noWorker`(インフラ都合)で、
     /// **`.notApplicable`(platform 宣言による対象外)は呼び出し側が明示する** ——
     /// 取り違えると意図された未実行と事故が同じ顔になる(ScenarioSkipKind の宣言)
-    public func recordSkipped(scenarioID: String, title: String?, platform: String,
+    public func recordSkipped(unit: ScenarioUnitKey, title: String?, platform: String,
                               worker: String?, reason: String,
                               kind: ScenarioSkipKind = .noWorker) {
         let record = ScenarioRunRecord(
-            runID: runID, scenarioID: scenarioID, title: title, platform: platform, worker: worker,
+            runID: runID, scenarioID: unit.id, variant: unit.variant, title: title, platform: platform, worker: worker,
             host: machine, profile: profile, passed: kind == .notApplicable, timedOut: false,
             startedAt: ISO8601DateFormatter().string(from: Date()), durationMs: 0,
             steps: StepCountsRecord(total: 1, skipped: 1),
             failedSteps: [FailedStepRecord(index: 0, description: reason)],
             skipKind: kind, skipReason: kind == .notApplicable ? reason : nil)
         write(record)
-        if kind.countsAsFailedLastTime { recordLastResultsFailed([scenarioID]) }
+        if kind.countsAsFailedLastTime { recordLastResultsFailed([unit]) }
     }
 
     /// 直前に書いた成功の記録を、**後から信用できないと分かった失敗**へ書き換える(RunOrchestrator の境目の表示の確認が
     /// 凍結を確定し、振り直しの上限で取り消せなかった回)。記録は消さない(実行の証跡)。`passed` を false にし、
     /// 理由を `failedSteps` の 1 行(index 0 = シナリオのステップではない)と `errorLogs` に置く。`--failed` の記録も失敗へ。
     /// 書き換えた記録が無ければ(既に取り消された・書いていない)何もしない
-    public func markLastFailed(scenarioID: String, worker: String?, reason: String) {
-        let baseName = Self.sanitizeFileName(scenarioID)
+    public func markLastFailed(unit: ScenarioUnitKey, worker: String?, reason: String) {
+        let baseName = Self.sanitizeFileName(unit)
         lock.lock()
         let entry = liveFiles[baseName].flatMap { entries in
             worker == nil ? entries.last : entries.last(where: { $0.worker == worker })
@@ -233,14 +237,15 @@ public final class RunRecorder: @unchecked Sendable {
         record.failedSteps = (record.failedSteps ?? []) + [FailedStepRecord(index: 0, description: reason)]
         record.errorLogs = (record.errorLogs ?? []) + [reason]
         RunResultsStore.writeScenario(record, runDir: runDir, fileName: entry.fileName)
-        recordLastResultsFailed([scenarioID])
+        recordLastResultsFailed([unit])
     }
 
     /// `--failed` 用の「直近失敗」を書く(best-effort)。始まらなかったシナリオ用
-    public func recordLastResultsFailed(_ scenarioIDs: [String]) {
+    public func recordLastResultsFailed(_ units: [ScenarioUnitKey]) {
         guard let lastResultsDir else { return }
-        for id in scenarioIDs {
-            LastResultsStore.record(stateDir: lastResultsDir, scenarioID: id, passed: false)
+        for unit in units {
+            LastResultsStore.record(stateDir: lastResultsDir, unit: unit, passed: false,
+                                    runID: runID, declaredVariants: declaredVariants)
         }
     }
 
@@ -252,9 +257,9 @@ public final class RunRecorder: @unchecked Sendable {
     /// 中断で始まらなかったシナリオを `skipKind: interrupted` で記録する(逐次経路は中断を受けると
     /// ループを抜けるだけなので、呼び手が残りをここへ渡す)。**呼び手は同じ本数を失敗数に足す** ——
     /// 足さないと「全体 - 失敗」で数える経路が走っていない分を合格と数え、「All N passed」で exit 0 になる
-    public func recordInterruptedBeforeStart(_ scenarios: [ScenarioInfo], defaultPlatform: String) {
-        for info in scenarios {
-            recordSkipped(scenarioID: info.id, title: info.title,
+    public func recordInterruptedBeforeStart(_ scenarios: [(info: ScenarioInfo, variant: String?)], defaultPlatform: String) {
+        for (info, variant) in scenarios {
+            recordSkipped(unit: info.unitKey(variant: variant), title: info.title,
                           platform: info.platform ?? defaultPlatform, worker: nil,
                           reason: Self.interruptedBeforeStartReason, kind: .interrupted)
         }
@@ -269,8 +274,8 @@ public final class RunRecorder: @unchecked Sendable {
     ///   **並列の呼び手は必ず渡す** —— nil は「この ID の最新」を消す(逐次実行・旧呼び手向け)。
     /// 連番は「消したのが最新」のときだけ巻き戻す(途中を消したときは欠番のまま残す。巻き戻すと
     /// 次の書き込みが残っている番号と衝突して上書きする)
-    public func discardLast(scenarioID: String, worker: String? = nil) {
-        let baseName = Self.sanitizeFileName(scenarioID)
+    public func discardLast(unit: ScenarioUnitKey, worker: String? = nil) {
+        let baseName = Self.sanitizeFileName(unit)
         lock.lock()
         guard var entries = liveFiles[baseName],
               let index = worker == nil ? entries.indices.last
@@ -411,7 +416,7 @@ public final class RunRecorder: @unchecked Sendable {
 
     @discardableResult
     private func write(_ record: ScenarioRunRecord) -> String {
-        let baseName = Self.sanitizeFileName(record.scenarioID)
+        let baseName = Self.sanitizeFileName(record.unitKey)
         lock.lock()
         let count = (fileNameCounts[baseName] ?? 0) + 1
         fileNameCounts[baseName] = count
@@ -436,8 +441,10 @@ public final class RunRecorder: @unchecked Sendable {
         count == 1 ? baseName : "\(baseName)~\(count)"
     }
 
-    private static func sanitizeFileName(_ scenarioID: String) -> String {
-        String(scenarioID.map { $0 == "/" || $0 == ":" ? "_" : $0 })
+    /// 結果のファイル名(`<ID>` / `<ID>@<variant>`。バリアントの無い run は今のまま)。**この名前が scenarios/・events/・レポート・
+    /// 録画のクリップの鍵**(`ScenarioUnitKey.description` と同じ形)
+    static func sanitizeFileName(_ unit: ScenarioUnitKey) -> String {
+        String(unit.description.map { $0 == "/" || $0 == ":" ? "_" : $0 })
     }
 
     /// 結果に付ける「どの機械で走ったか」。優先順位: FT_MACHINE > **ホスト名** > "unknown"。

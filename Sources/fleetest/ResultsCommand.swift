@@ -33,8 +33,17 @@ struct ResultsQueryOptions: ParsableArguments {
     @Option(help: "Start of the period: a duration (e.g. 90s/30m/2h/30d), a date (YYYY-MM-DD, UTC midnight) or an epoch (@1757280000)")
     var since: String = ResultsRendering.defaultSince
 
+    @Option(help: "Only the records of this variant (the variant name declared in the run profile's variants; records of runs without variants have none)")
+    var variant: String?
+
     @Flag(help: "Print the result as a single line of JSON")
     var json = false
+
+    /// `--variant` で記録を絞る(指定なしは全部。バリアントの無い記録は variant 指定で除かれる)
+    func filtered(_ records: [ScenarioRunRecord]) -> [ScenarioRunRecord] {
+        guard let variant else { return records }
+        return records.filter { $0.variant == variant }
+    }
 
     /// プロジェクト・resultsDir・since の Date を解決する。--since 形式不正はここで弾く
     func resolve() throws -> (project: TestProject, resultsDir: URL, sinceDate: Date) {
@@ -108,7 +117,7 @@ struct ResultsSummaryCommand: AsyncParsableCommand {
 
     func run() throws {
         let (_, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         let filtered = scenario.map { id in records.filter { ScenarioSelection.selects(id, scenarioID: $0.scenarioID) } } ?? records
         // CLI は --since の窓をそのまま集計する(ダッシュボードだけが直近 N 回へ絞る)
         let rows = RunResultsQuery.scenarioSummary(filtered, recentRuns: .max)
@@ -134,7 +143,7 @@ struct ResultsFlakyCommand: AsyncParsableCommand {
 
     func run() throws {
         let (_, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         // CLI は --since の窓をそのまま見る(ダッシュボードだけが直近 N 回へ絞る)
         let rows = RunResultsQuery.flakyScenarios(records, minRuns: minRuns, recentRuns: .max)
 
@@ -158,7 +167,7 @@ struct ResultsTrendCommand: AsyncParsableCommand {
 
     func run() throws {
         let (_, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         let rows = RunResultsQuery.trend(records, scenarioID: scenario)
         // run の --scenario はクラス名で全メソッドを選べるが、trend は1シナリオの履歴なので
         // クラス名だと不在と同じ「履歴なし」になって見分けが付かない。完全な ID を名指しして断る
@@ -185,7 +194,7 @@ struct ResultsDevicesCommand: AsyncParsableCommand {
 
     func run() throws {
         let (_, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         let report = RunResultsQuery.deviceSummary(records)
 
         if options.json {
@@ -211,7 +220,7 @@ struct ResultsSlowCommand: AsyncParsableCommand {
 
     func run() throws {
         let (_, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         // CLI は --since の窓をそのまま集計する(summary / flaky と同じ。ダッシュボードだけが直近 N 回へ絞る)
         let rows = RunResultsQuery.slowTests(records, limit: limit, recentRuns: .max)
 
@@ -236,7 +245,7 @@ struct ResultsResponseCommand: AsyncParsableCommand {
         let (_, resultsDir, sinceDate) = try options.resolve()
         // 全文の記録を読む(縮約版は timeline の response を持たない)
         let runs = RunResultsStore.scanRuns(resultsDir: resultsDir, since: sinceDate)
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         let rows = ResponseMeasurementQuery.rows(runs: runs, records: records)
 
         if options.json {
@@ -258,7 +267,7 @@ struct ResultsInsightsCommand: AsyncParsableCommand {
 
     func run() throws {
         let (project, resultsDir, sinceDate) = try options.resolve()
-        let records = RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate)
+        let records = options.filtered(RunResultsStore.scanRecords(resultsDir: resultsDir, since: sinceDate))
         let runs = RunResultsStore.scanRuns(resultsDir: resultsDir, since: sinceDate)
         let rows = RunResultsQuery.insights(records: records, runs: runs,
                                             definedClasses: definedScenarioClasses(of: project))

@@ -6,6 +6,7 @@
 // runReducer.ts とは別の状態を持つ独立モジュールだが、アイコンは STATUS_MARK を再利用して揃える。
 
 import { sceneFinishedMarkLabel, STATUS_MARK } from "./runReducer";
+import { scenarioUnitKey } from "./scenarioUnitKey";
 import { dispatchWaitingLine, localDevicesWaitingLine, overallLaneName, tLane } from "./i18n/strings/lane";
 import type { RunEvent, WorkerInfo } from "./model";
 
@@ -223,13 +224,14 @@ export function reduceLaneEvent(state: RunLaneState, event: RunEvent, nowMs: num
       return applyWorkers(state, event.workers);
 
     case "scenarioStarted": {
-      state.scenarioTimings.set(event.scenario, { worker: event.worker, startedAtMs: nowMs });
+      state.scenarioTimings.set(scenarioUnitKey(event.scenario, event.variant), { worker: event.worker, startedAtMs: nowMs });
       const actions: LaneAction[] = [];
       if (event.worker) {
         state.runningWorkers.add(event.worker);
         actions.push({ type: "workerRunning", workerId: event.worker, running: true });
       }
-      const label = event.title ? `${event.title} [${event.scenario}]` : event.scenario;
+      const label = (event.title ? `${event.title} [${event.scenario}]` : event.scenario)
+        + (event.variant ? ` [${event.variant}]` : "");
       actions.push(...pushLine(state, laneIdOf(event), `▶ ${label}`));
       return actions;
     }
@@ -275,8 +277,8 @@ export function reduceLaneEvent(state: RunLaneState, event: RunEvent, nowMs: num
 
     case "scenarioFinished": {
       const laneId = laneIdOf(event);
-      const timing = state.scenarioTimings.get(event.scenario);
-      state.scenarioTimings.delete(event.scenario);
+      const timing = state.scenarioTimings.get(scenarioUnitKey(event.scenario, event.variant));
+      state.scenarioTimings.delete(scenarioUnitKey(event.scenario, event.variant));
       const actions: LaneAction[] = [];
       if (event.passed && event.notApplicableReason !== undefined) {
         actions.push(...pushLine(state, laneId, tLane("lane.notApplicable", { reason: event.notApplicableReason })));

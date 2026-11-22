@@ -115,6 +115,8 @@ struct MCPFailedScenario: Equatable {
     let platform: String
     let reason: String?
     let reportPath: String?
+    /// バリアント名(バリアントの無い run は nil。出力は `ID@variant`)
+    var variant: String? = nil
 }
 
 enum MCPRunJobs {
@@ -276,7 +278,8 @@ enum MCPRunJobs {
                 path.hasPrefix("/") ? path : packageRoot.appendingPathComponent(path).path
             }
             return MCPFailedScenario(id: record.scenarioID, platform: record.platform,
-                                     reason: reason.map { truncated($0, 160) }, reportPath: report)
+                                     reason: reason.map { truncated($0, 160) }, reportPath: report,
+                                     variant: record.variant)
         }
     }
 
@@ -306,6 +309,7 @@ enum MCPRunJobs {
     /// 「始まらなかった」が台数ぶん同じ行で並ぶのを防ぐ。初出順を保つ
     struct FailureGroup: Equatable {
         let id: String
+        let variant: String?
         let platform: String
         let reason: String?
         var count: Int
@@ -316,14 +320,14 @@ enum MCPRunJobs {
         var groups: [FailureGroup] = []
         for failure in failures {
             if let index = groups.firstIndex(where: {
-                $0.id == failure.id && $0.platform == failure.platform && $0.reason == failure.reason
+                $0.id == failure.id && $0.variant == failure.variant && $0.platform == failure.platform && $0.reason == failure.reason
             }) {
                 groups[index].count += 1
                 if let report = failure.reportPath, !groups[index].reportPaths.contains(report) {
                     groups[index].reportPaths.append(report)
                 }
             } else {
-                groups.append(FailureGroup(id: failure.id, platform: failure.platform, reason: failure.reason,
+                groups.append(FailureGroup(id: failure.id, variant: failure.variant, platform: failure.platform, reason: failure.reason,
                                            count: 1, reportPaths: failure.reportPath.map { [$0] } ?? []))
             }
         }
@@ -334,7 +338,7 @@ enum MCPRunJobs {
     static let failureRowReportLimit = 3
 
     static func failureRow(_ group: FailureGroup) -> String {
-        var row = "- \(group.id) (\(group.platform))"
+        var row = "- \(ScenarioUnitKey(id: group.id, variant: group.variant)) (\(group.platform))"
         if group.count > 1 { row += " on \(group.count) devices" }
         if let reason = group.reason { row += ": \(reason)" }
         if group.reportPaths.count > failureRowReportLimit {

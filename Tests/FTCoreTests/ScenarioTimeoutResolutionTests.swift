@@ -100,6 +100,7 @@ final class ScenarioHostPerScenarioTimeoutTests: XCTestCase {
         let sink = LogSink()
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: RunDeviceSession(),
             classHasBeforeAll: false,

@@ -488,7 +488,7 @@ public enum RunResultsStore {
                     continue
                 }
                 if let cap = maxObservationsPerScenario {
-                    let cacheKey = "\(record.scenarioID)\u{1}\(record.platform)\u{1}\(record.host)"
+                    let cacheKey = "\(record.scenarioID)\u{1}\(record.variant ?? "")\u{1}\(record.platform)\u{1}\(record.host)"
                     let seen = observations[cacheKey] ?? 0
                     if seen >= cap { continue }
                     observations[cacheKey] = seen + 1

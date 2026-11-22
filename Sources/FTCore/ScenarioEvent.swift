@@ -29,6 +29,9 @@ public struct ScenarioEvent: Codable, Sendable {
     public var worker: String?
     /// シナリオ ID(クラス名.メソッド名)
     public var scenario: String?
+    /// バリアント名(`scenario` と対で単位の鍵 = `ScenarioUnitKey`)。バリアントの無い run は欄ごと省く(DR-75)。
+    /// 親が付ける(子のイベントには無い): 親が合成するイベントと、api NDJSON へ流すときの scenarioStarted ほか
+    public var variant: String?
     /// シナリオのタイトル(@Test の引数)
     public var title: String?
     public var scene: Int?

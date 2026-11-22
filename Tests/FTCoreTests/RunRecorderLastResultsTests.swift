@@ -35,16 +35,16 @@ final class RunRecorderLastResultsTests: XCTestCase {
 
     func testRecordSkippedNoWorkerAndInterruptedAreFailedLastTime() {
         let recorder = makeRecorder(lastResultsDir: stateDir)
-        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil,
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "A.one", variant: nil), title: nil, platform: "ios", worker: nil,
                                reason: "no worker available (platform: ios)")
-        recorder.recordSkipped(scenarioID: "B.two", title: nil, platform: "ios", worker: nil,
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "B.two", variant: nil), title: nil, platform: "ios", worker: nil,
                                reason: RunRecorder.interruptedBeforeStartReason, kind: .interrupted)
         XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["A.one", "B.two"])
     }
 
     func testRecordSkippedNotApplicableIsNotFailedLastTime() {
         let recorder = makeRecorder(lastResultsDir: stateDir)
-        recorder.recordSkipped(scenarioID: "C.three", title: nil, platform: "android", worker: nil,
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "C.three", variant: nil), title: nil, platform: "android", worker: nil,
                                reason: "declared for another platform", kind: .notApplicable)
         XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), [])
         XCTAssertEqual(LastResultsStore.recordedCount(stateDir: stateDir), 0, "対象外は記録自体を作らない")
@@ -53,9 +53,9 @@ final class RunRecorderLastResultsTests: XCTestCase {
     /// 宣言による対象外の合成レコードも、子が宣言した形と同じく `skipReason` を持つ(noWorker は持たない)
     func testDeclaredNotApplicableRecordCarriesSkipReason() throws {
         let recorder = makeRecorder(lastResultsDir: nil)
-        recorder.recordSkipped(scenarioID: "C.three", title: nil, platform: "android", worker: nil,
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "C.three", variant: nil), title: nil, platform: "android", worker: nil,
                                reason: "not applicable: declared platform ios", kind: .notApplicable)
-        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil, reason: "no worker")
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "A.one", variant: nil), title: nil, platform: "ios", worker: nil, reason: "no worker")
         let dir = recorder.runDir.appendingPathComponent("scenarios")
         var reasons: [String: String?] = [:]
         for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
@@ -71,29 +71,29 @@ final class RunRecorderLastResultsTests: XCTestCase {
     func testSkippedOverwritesAnEarlierPass() {
         LastResultsStore.record(stateDir: stateDir, scenarioID: "A.one", passed: true)
         let recorder = makeRecorder(lastResultsDir: stateDir)
-        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil, reason: "x")
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "A.one", variant: nil), title: nil, platform: "ios", worker: nil, reason: "x")
         XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["A.one"])
     }
 
     func testRecordInterruptedBeforeStartWritesFailures() {
         let recorder = makeRecorder(lastResultsDir: stateDir)
         let infos = [ScenarioInfo(id: "D.four", title: "t", platform: nil)]
-        recorder.recordInterruptedBeforeStart(infos, defaultPlatform: "ios")
+        recorder.recordInterruptedBeforeStart(infos.map { ($0, nil) }, defaultPlatform: "ios")
         XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["D.four"])
     }
 
     /// 供給段の例外で始まらなかった分(`recordLastResultsFailed`)
     func testRecordLastResultsFailedMarksEveryGivenScenario() {
         let recorder = makeRecorder(lastResultsDir: stateDir)
-        recorder.recordLastResultsFailed(["E.five", "F.six"])
+        recorder.recordLastResultsFailed(["E.five", "F.six"].map { ScenarioUnitKey(id: $0, variant: nil) })
         XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["E.five", "F.six"])
     }
 
     /// 置き場を渡さない recorder(テスト・既定)は何も書かない
     func testNoLastResultsDirWritesNothing() {
         let recorder = makeRecorder(lastResultsDir: nil)
-        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil, reason: "x")
-        recorder.recordLastResultsFailed(["B.two"])
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "A.one", variant: nil), title: nil, platform: "ios", worker: nil, reason: "x")
+        recorder.recordLastResultsFailed([ScenarioUnitKey(id: "B.two", variant: nil)])
         XCTAssertEqual(LastResultsStore.recordedCount(stateDir: stateDir), 0)
     }
 

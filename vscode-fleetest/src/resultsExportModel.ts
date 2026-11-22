@@ -51,6 +51,8 @@ export interface ResultsExportScenarioSource {
   readonly className: string;
   readonly methodName: string;
   readonly title: string | null;
+  /** バリアント名(バリアントの無い run の記録は欄ごと無い = null)。 */
+  readonly variant: string | null;
   /** "ios" / "android" / 読めなければ null。 */
   readonly platform: string | null;
   readonly worker: string | null;
@@ -143,6 +145,7 @@ export function extractResultsExportScenarioSource(
     className,
     methodName,
     title: typeof raw.title === "string" && raw.title !== "" ? raw.title : null,
+    variant: typeof raw.variant === "string" && raw.variant !== "" ? raw.variant : null,
     platform: typeof raw.platform === "string" ? raw.platform : null,
     worker: typeof raw.worker === "string" ? raw.worker : null,
     machine,
@@ -190,6 +193,8 @@ export interface ResultsExportScenarioRow {
   readonly className: string;
   readonly method: string;
   readonly title: string | null;
+  /** バリアント名。バリアントの無い run では null(ワークブックは列ごと出さない)。 */
+  readonly variant: string | null;
   readonly platform: string | null;
   readonly worker: string | null;
   readonly machine: string | null;
@@ -291,6 +296,7 @@ function buildScenarioRow(source: ResultsExportScenarioSource): ResultsExportSce
     className: source.className,
     method: source.methodName,
     title: source.title,
+    variant: source.variant,
     platform: source.platform,
     worker: source.worker,
     machine: source.machine,

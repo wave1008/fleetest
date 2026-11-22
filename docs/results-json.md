@@ -245,6 +245,7 @@ tr '\n' '\0' < /tmp/suite.txt | xargs -0 \
   書いた直後に、stderr を読み終えてから `<fileBase>.ndjson` へ rename する。**kill されると
   `.inflight-*` のまま残る** —— 中途の証跡なので消さない(どのシナリオかは中の `event.scenario` で分かる)
 - **対応**: `events/<fileBase>.ndjson` ⇔ `scenarios/<fileBase>.json`(`RunRecorder.record` の戻り値を共有)
+- **バリアントのある run のファイル名**: `<fileBase>` は `<ID>@<variant>`(バリアントの無い run は `<ID>` のまま)。`ScenarioEvent` にも省略可の `variant` が付く(NDJSON は `scenario` と対)
 - **振り直しの退避**: `RunRecorder.discardLast` は取り消す記録を削除せず `superseded/<fileBase>.<k>.json` と
   `events/superseded/<fileBase>.<k>.ndjson` へ**同じ k** で移す(`RunResultsStore.supersedeScenario`)。
   k は 1 からの空き番号(discardLast は連番を巻き戻すので同じ fileBase が再利用される)。
@@ -289,6 +290,7 @@ tr '\n' '\0' < /tmp/suite.txt | xargs -0 \
 | responseMeasurement | ResponseMeasurementRunInfo? | **レスポンス計測モード(プロファイルの `responseMeasurement: true`)の run だけ**書く。無い = 計測モードの run ではない(旧い記録も同じ意味)。前回比は同じデバイス・同じ `host` の run どうしだけを比べるので、デバイスを論理名ではなく端末で識別する。欄: `deviceName`(プロファイル上の論理名)・`serial`(Android の adb serial。省略あり)・`udid`(iOS の UDID。省略あり。前回比の「同じ端末」は `serial ?? udid ?? deviceName`)・`model` / `osVersion`(プロファイルに書かれていれば。端末から読み直さない。省略あり)・`repeatCount`(各シナリオを続けて回した回数 = `responseRepeat`)。繰り返しの結果ファイルは `<id>`、`<id>~2`、… で、`total` / `passed` / `failed` は繰り返しを含む本数 |
 | servicesWarnings | [String]? | **サービス(`scripts/compose.yaml`)の起動時に出た警告**(Android 実機への `adb reverse` が張れなかった 等。英語の文言そのまま。UDP の経路が届かないのは警告でなく起動の失敗 = `abortReason`)。**合否は変えない**(警告だけ)。警告が無い run と、この版より前の記録では省略 |
 | workerModes | [WorkerModeRecord]? | **iOS のデバイスごとの実効モード**(参加した順)。欄: `worker`(`scenarios/*.json` の `worker` と同じ規則 = join できる)・`requested`(実行プロファイルが頼んだモード `inapp-boost` / `xcuitest`)・`effective`(実際に使ったモード)・`reason`(**requested と effective が違うときだけ**。供給が縮退を決めた一次情報の文言。例: 実機の in-app が注入できず XCUITest で走った `in-app injection is not available (the app's signing certificate (…) is not in this machine's keychain)`)。記録は参加したデバイスだけ(供給に失敗して参加しなかったデバイスは載らない)。Android だけの run・iOS が1台も参加しなかった run・この版より前の記録では省略 |
+| variants | [String]? | **プロファイルが宣言したバリアントの名前**(宣言の順。`variants` の無い run は欄ごと省く = DR-75)。`--failed` の ID の記録(`<profile>/<ID>`)を、この宣言のバリアントの単位の記録から集約する母集団 |
 | slowWorkers | [String]? | **デバイスそのものが遅いことの観測**(`FTCore.SlowWorkerDetector`。`worker: median snapshot <N>ms over <M> samples (other lanes <K>ms)` の1行×デバイス)。ワーカーごとの in-app snapshot 所要(`scenarios/*.json` の `timeline[].snapshotMs`)の中央値が、標本8件以上かつ**同じ run の他ワーカー全体の中央値の10倍以上・かつ絶対値1,000ms以上**のときだけ載る(相対だけだとホスト負荷で全台が遅い run を1台のせいにし、絶対だけだと元から遅い環境で毎回鳴るため、両方を要求する)。**警告のみで除外・自動修復はしない** —— 既存の劣化検知(XCUITestランナーの遅いa11y照会での起動し直し・凍結トリアージ)は原理的にこの帯(ステップtimeout未満の遅さ)を見ないので、これが唯一の痕跡になる。**他ワーカーが1台も無い(単機の)runでは常に省略**(相対比較ができない)。CLI/`api run` はこの配列が1件でもあれば末尾に `⚠️ slow lane: …` を追加で出す(既存の劣化警告とは別行)。**2つ目の形(間欠的に詰まるデバイス)も同じ欄に載る**(2026-09-16): 中央値は正常でも `worker: <N> of <M> snapshots took 2000ms+ (p90 <P>ms, other lanes <K> of <L>)` の1行。標本8件以上・2秒超が5本以上かつ20%以上・他レーン全体の2秒超の割合がこのレーンの1/10以下、の全部を満たすときだけ(実測: 劣化デバイスは26〜43%・健全なレーンは最大9%(22標本中2本))。中央値判定が立ったデバイスには出さない(1台1件) |
 
 ### effectiveSettings(`EffectiveSettingsRecord`)
@@ -370,6 +372,7 @@ Android の凍結事後判定(`AndroidHealthProbe.observeBlankAndRepair`)が試�
 | フィールド | 型 | 意味 |
 |---|---|---|
 | schemaVersion / runID / scenarioID | | シナリオ ID = クラス名.メソッド名 |
+| variant | String? | **バリアント名**(実行の単位 = `scenarioID` + `variant`)。`variants` の無い run は欄ごと省く(DR-75。省いた記録のファイル名・JUnit・`--failed` の記録は変わらない)。`scenarios/<ID>@<variant>.json`・`events/` の対応・レポート・録画のクリップ名・`recordings/index.json` の `variant` も同じ。JUnit の testcase 名は `S0010[dark]`(`--broadcast` のように同じ単位が複数の端末で回った run は ` (<worker>)` も付く)。`results summary` / `flaky` / `slow` / `insights` / `compare` の行と LPT・残り見積もり・「別のデバイスでも落ちている」の判定の鍵は (scenarioID, variant, platform)(そのバリアントの履歴が無ければバリアント無しの履歴で見積もる)。`fleetest results … --variant <name>` で絞る |
 | title | String? | `@Test` のタイトル |
 | platform | String | `ios` / `android` |
 | worker | String? | `"<platform>:<デバイス論理名>"`(並列実行時)。**`fleetest run --broadcast`(ブロードキャスト)では同じ `scenarioID` が台数ぶん並ぶ**(ファイルは `~N` 連番)ので、デバイスごとの合否はこの欄で引く |
@@ -781,6 +784,15 @@ machineHealth の行しか要らないので、**プロジェクトごとの行*
   他プロジェクトの列挙順**で渡せば、全プロジェクトを連結してまとめて数えた結果と一致する(`MachineHealthMergeTests` が
   乱数のデータ 200 通りで固定)。出力キャッシュの `oldestIncludedStartedAt` は各部分結果の最古も含める
 - **`--no-cache` は部分結果も読まない**(書き直しは行う)。確認方法は同じ = `--no-cache` の出力と一致すること
+
+## `--failed` の記録(`.fleetest/last-results/`)
+
+`<project>/<profile>/<ID>` に `passed` / `failed`(`FTCore.LastResultsStore`。profile 無しの run は `_no-profile`)。バリアントのある run は
+**単位ごとの記録を `<profile>/variants/<variant>/<ID>` に置き**(1行目 = `passed` / `failed`・2行目 = run の ID)、**ID の記録はそのプロファイルの
+宣言(run.json の `variants`)のバリアントの単位の記録から集約して作り直す**(1つでも `failed` なら `failed`。単位を書くたびに)。
+同じ run の中で同じ単位を複数の端末が書いたとき(`--broadcast`)は `failed` を優先し、後の `passed` で上書きしない(run の ID で見分ける)。
+`variants/` はディレクトリなので、ID の記録を読む側(拡張の `lastResults.ts`)はファイルだけを読む。`variants` を消したプロファイルは ID の記録が
+今まで通り上書きされ、`variants/` の下は残っても読まない。バリアントの無い run は今のまま(`<profile>/<ID>` に `passed` / `failed` だけ)。
 
 ## git での扱い
 

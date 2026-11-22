@@ -15,7 +15,7 @@
 import Foundation
 
 public struct ScenarioFailureWitnesses: Codable, Equatable, Sendable {
-    /// シナリオ ID → 最後に通ってから落ちたデバイス(`RunOrchestrator.workerID`)
+    /// 単位の鍵(`ID` / `ID@variant` = `ScenarioUnitKey.description`。バリアントの無い run は ID のまま)→ 最後に通ってから落ちたデバイス(`RunOrchestrator.workerID`)
     public private(set) var failedOn: [String: Set<String>] = [:]
 
     public init(failedOn: [String: Set<String>] = [:]) {
@@ -24,7 +24,8 @@ public struct ScenarioFailureWitnesses: Codable, Equatable, Sendable {
 
     /// 失敗を記録し、レーンの連続失敗に数えるかを返す。「別のデバイス」は**同じ OS のデバイスだけ**(鍵の `<platform>:` が同じ)。
     /// OS の片方だけの不具合で落ちたシナリオが、もう片方の不調機の失敗を見逃させない
-    public mutating func recordFailure(scenario: String, worker: String) -> Bool {
+    public mutating func recordFailure(unit: ScenarioUnitKey, worker: String) -> Bool {
+        let scenario = unit.description
         let before = failedOn[scenario, default: []]
         failedOn[scenario, default: []].insert(worker)
         let platform = Self.platform(of: worker)
@@ -36,7 +37,8 @@ public struct ScenarioFailureWitnesses: Codable, Equatable, Sendable {
     }
 
     /// 通ったデバイスと同じ OS の記録だけ消す(片方の OS でだけ壊れたシナリオの記録を、もう片方の OS の緑で消さない)
-    public mutating func recordPass(scenario: String, worker: String) {
+    public mutating func recordPass(unit: ScenarioUnitKey, worker: String) {
+        let scenario = unit.description
         let platform = Self.platform(of: worker)
         failedOn[scenario] = failedOn[scenario]?.filter { Self.platform(of: $0) != platform }
         if failedOn[scenario]?.isEmpty == true { failedOn[scenario] = nil }

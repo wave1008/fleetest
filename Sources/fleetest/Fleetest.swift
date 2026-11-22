@@ -770,10 +770,9 @@ struct RunScenarios: AsyncParsableCommand {
                     throw ProfileError.runProfileNotFound(name: profile, available: names)
                 }
             }
-            // --failed の記録は ID の記録(この段では variant が無い)
+            // バリアントの宣言は段3の後続でプロファイルから読む。それまでは空 = ID の記録(variant nil の単位)
             let failedSet = ClassPlacementRules.expandingFailed(
-                Set(LastResultsStore.failedIDs(project: testProject, profile: common.profile)
-                    .map { ScenarioUnitKey(id: $0, variant: nil) }), all: all)
+                LastResultsStore.failedIDs(project: testProject, profile: common.profile, declaredVariants: []), all: all)
             selected = selected.filter { failedSet.contains($0.unitKey(variant: nil)) }
             guard !selected.isEmpty else {
                 // 記録は消えたシナリオのファイルを消さない。今のプロジェクトに無い ID は「範囲の外の失敗」に数えない
@@ -1384,6 +1383,7 @@ struct RunScenarios: AsyncParsableCommand {
             var steps: [CommandTargetCheck.Step] = []
             let passed = await ScenarioHost.run(
                 project: project, scenarioID: item.info.id,
+                variant: nil,
                 connection: DriverConnection(platform: platform),
                 deviceSession: deviceSession,
                 classHasBeforeAll: item.info.beforeAll,
@@ -1480,14 +1480,14 @@ struct RunScenarios: AsyncParsableCommand {
         for (index, item) in orderedItems.enumerated() {
             if interruptState.isStopped {
                 // 始まらなかった分を記録して失敗に数える(RunRecorder.recordInterruptedBeforeStart)
-                let notStarted = orderedItems[index...].map(\.info)
+                let notStarted = orderedItems[index...].map { (info: $0.info, variant: $0.variant) }
                 recorder?.recordInterruptedBeforeStart(notStarted, defaultPlatform: resolvedPlatform)
                 failedCount += notStarted.count
                 break
             }
             let platform = item.info.platform ?? resolvedPlatform
             if let reason = placementGate.skipReason(for: item.info, variant: item.variant) {
-                recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title, platform: platform,
+                recorder?.recordSkipped(unit: item.unitKey, title: item.info.title, platform: platform,
                                         worker: nil, reason: reason)
                 ConsoleOut.out("❌ \(item.info.id): \(reason)")
                 failedCount += 1

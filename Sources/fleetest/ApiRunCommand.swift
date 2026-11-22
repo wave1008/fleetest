@@ -607,7 +607,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                 let reason = PlatformApplicability.reason(declared: declared,
                                                           runPlatforms: runPlatforms)
                 logStderr("→ \(info.id): \(reason)")
-                recorder?.recordSkipped(scenarioID: info.id, title: info.title,
+                recorder?.recordSkipped(unit: info.unitKey(variant: nil), title: info.title,
                                         platform: declared, worker: nil, reason: reason,
                                         kind: .notApplicable)
             }
@@ -703,7 +703,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                              abortReason: error.localizedDescription)
             // `--failed` が拾えるよう、始まらなかった分を直近失敗として残す(`run` の供給段は
             // ProfileRunner.run の defer が同じ記録を書く。**対象外は selected に既に居ない**)
-            recorder?.recordLastResultsFailed(selected.map(\.id))
+            recorder?.recordLastResultsFailed(selected.map { $0.unitKey(variant: nil) })
             throw error
         }
 
@@ -917,13 +917,13 @@ struct ApiRunCommand: AsyncParsableCommand {
             if interruptState.isStopped {
                 // 始まらなかった分を記録して失敗に数える(RunRecorder.recordInterruptedBeforeStart)
                 let notStarted = Array(orderedSelected[index...])
-                recorder?.recordInterruptedBeforeStart(notStarted, defaultPlatform: effectivePlatform)
+                recorder?.recordInterruptedBeforeStart(notStarted.map { ($0, nil) }, defaultPlatform: effectivePlatform)
                 failedCount += notStarted.count
                 break
             }
             let scenarioPlatform = info.platform ?? effectivePlatform
             if !dryRun, debugOptions == nil, let reason = placementGate.skipReason(for: info, variant: nil) {
-                recorder?.recordSkipped(scenarioID: info.id, title: info.title, platform: scenarioPlatform,
+                recorder?.recordSkipped(unit: info.unitKey(variant: nil), title: info.title, platform: scenarioPlatform,
                                         worker: nil, reason: reason)
                 logStderr("❌ \(info.id): \(reason)")
                 failedCount += 1
@@ -942,7 +942,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             let scenarioStart = Date()
             var declaredNotApplicable = false
             let passed = await ScenarioHost.run(
-                project: project, scenarioID: info.id, connection: connection,
+                project: project, scenarioID: info.id, variant: nil, connection: connection,
                 deviceSession: deviceSessions.session(for: scenarioPlatform),
                 classHasBeforeAll: info.beforeAll,
                 scenarioTimeoutOverride: info.scenarioTimeout,
@@ -1073,7 +1073,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             if interruptState.isStopped {
                 // 始まらなかった分を記録して失敗に数える(RunRecorder.recordInterruptedBeforeStart)
                 let notStarted = Array(selected[index...])
-                recorder?.recordInterruptedBeforeStart(notStarted, defaultPlatform: defaultPlatform)
+                recorder?.recordInterruptedBeforeStart(notStarted.map { ($0, nil) }, defaultPlatform: defaultPlatform)
                 failedCount += notStarted.count
                 break
             }
@@ -1098,7 +1098,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                     + " (workers in profile \(profileName): \(workerList))"
                 logStderr("⚠️ \(info.id): \(reason)")
                 emitMissingWorkerFailure(info: info, reason: reason)
-                recorder?.recordSkipped(scenarioID: info.id, title: info.title,
+                recorder?.recordSkipped(unit: info.unitKey(variant: nil), title: info.title,
                                         platform: scenarioPlatform, worker: nil, reason: reason)
                 failedCount += 1
                 continue
@@ -1116,7 +1116,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var declaredNotApplicable = false
             var dryRunSteps: [CommandTargetCheck.Step] = []
             let passed = await ScenarioHost.run(
-                project: project, scenarioID: info.id, connection: connection,
+                project: project, scenarioID: info.id, variant: nil, connection: connection,
                 deviceSession: deviceSessions.session(for: sessionKey),
                 classHasBeforeAll: info.beforeAll,
                 scenarioTimeoutOverride: info.scenarioTimeout,
@@ -1385,6 +1385,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var started = ScenarioEvent(kind: "sceneStarted")
             started.worker = workerID.id(for: worker)
             started.scenario = itemByURL[flowURL]?.info.id
+            started.variant = itemByURL[flowURL]?.variant
             started.scene = scene
             started.sceneTitle = sceneTitle
             return [started.encodedLine()]
@@ -1393,6 +1394,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var finished = ScenarioEvent(kind: "sceneFinished")
             finished.worker = workerID.id(for: worker)
             finished.scenario = itemByURL[flowURL]?.info.id
+            finished.variant = itemByURL[flowURL]?.variant
             finished.scene = scene
             finished.sceneTitle = sceneTitle
             finished.passed = passed
@@ -1417,7 +1419,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             // (契約: vscode-fleetest/src/model.ts ScenarioRequeuedEvent / runReducer の "requeued")
             guard let scenario = itemByURL[flowURL]?.info.id else { return [] }
             guard let data = try? JSONEncoder().encode(ApiScenarioRequeuedEvent(
-                scenario: scenario, worker: workerID.id(for: worker),
+                scenario: scenario, variant: itemByURL[flowURL]?.variant, worker: workerID.id(for: worker),
                 reason: reason, attempt: attempt, limit: limit)),
                 let text = String(data: data, encoding: .utf8) else { return [] }
             return [text]
@@ -1427,6 +1429,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var started = ScenarioEvent(kind: "scenarioStarted")
             started.worker = workerID.id(for: worker)
             started.scenario = flowName
+            started.variant = itemByURL[flowURL]?.variant
             started.title = itemByURL[flowURL]?.info.title
             return [started.encodedLine()]
 
@@ -1442,6 +1445,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                 var log = ScenarioEvent(kind: "log")
                 log.worker = workerIDValue
                 log.scenario = scenario
+                log.variant = itemByURL[flowURL]?.variant
                 log.message = result.description
                 return [log.encodedLine()]
             }
@@ -1449,6 +1453,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var step = ScenarioEvent(kind: "step")
             step.worker = workerIDValue
             step.scenario = scenario
+            step.variant = itemByURL[flowURL]?.variant
             step.index = result.index
             step.scene = result.scene
             step.sceneTitle = result.sceneTitle
@@ -1495,11 +1500,12 @@ struct ApiRunCommand: AsyncParsableCommand {
             step.response = result.response
             return [step.encodedLine()]
 
-        case .fixSuggestion(let worker, _, let scenarioID, let command, let file, let line,
+        case .fixSuggestion(let worker, let flowURL, let scenarioID, let command, let file, let line,
                             let oldSelector, let newSelector, let message):
             var suggestion = ScenarioEvent(kind: "fixSuggestion")
             suggestion.worker = workerID.id(for: worker)
             suggestion.scenario = scenarioID
+            suggestion.variant = itemByURL[flowURL]?.variant
             suggestion.description = command
             suggestion.file = file
             suggestion.line = line
@@ -1513,6 +1519,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.worker = workerID.id(for: worker)
             finished.scenario = itemByURL[flowURL]?.info.id
+            finished.variant = itemByURL[flowURL]?.variant
             finished.passed = passed
             finished.reportPath = reportURL?.path
             // 再構築なので明示的に写す(落とすとモニターの FM グラフが 0 のままになる。実害あり)
@@ -1526,18 +1533,22 @@ struct ApiRunCommand: AsyncParsableCommand {
             // 担当ワーカーが無い/全滅したシナリオ。emitMissingWorkerFailure と同形のイベント列を
             // 合成する(worker フィールドは付けない)
             let info = itemByURL[flowURL]?.info
+            let variant = itemByURL[flowURL]?.variant
             var started = ScenarioEvent(kind: "scenarioStarted")
             started.scenario = info?.id
+            started.variant = variant
             started.title = info?.title
 
             var step = ScenarioEvent(kind: "step")
             step.scenario = info?.id
+            step.variant = variant
             step.description = "worker not found"
             step.status = "failed"
             step.detail = reason
 
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = info?.id
+            finished.variant = variant
             finished.passed = false
 
             return [started, step, finished].map { $0.encodedLine() }

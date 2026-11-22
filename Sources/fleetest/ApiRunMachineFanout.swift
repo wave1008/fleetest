@@ -682,6 +682,7 @@ struct MachineFanoutMultiplexer {
         for scenario in unfinished {
             var step = ScenarioEvent(kind: "step")
             step.scenario = scenario.id
+            step.variant = scenario.variant
             step.status = "failed"
             step.description = "the sub-run on \(machineLabel) exited (status \(exitCode)) before this "
                 + "scenario finished — see the fleetest OUTPUT panel for the dispatch error"
@@ -689,6 +690,7 @@ struct MachineFanoutMultiplexer {
 
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = scenario.id
+            finished.variant = scenario.variant
             finished.passed = false
             lines.append(finished.encodedLine())
         }
@@ -714,12 +716,14 @@ struct MachineFanoutMultiplexer {
         for scenario in ids {
             var step = ScenarioEvent(kind: "step")
             step.scenario = scenario.id
+            step.variant = scenario.variant
             step.status = "failed"
             step.description = "no device took this scenario before every sub-run exited"
             lines.append(step.encodedLine())
 
             var finished = ScenarioEvent(kind: "scenarioFinished")
             finished.scenario = scenario.id
+            finished.variant = scenario.variant
             finished.passed = false
             lines.append(finished.encodedLine())
         }
@@ -785,7 +789,7 @@ struct MachineFanoutMultiplexer {
         default:
             // イベントにはまだ variant が無い(この段ではバリアントを展開しない)ので nil。ScenarioEvent に足す段でここも読む
             let finishedScenario = kind == "scenarioFinished"
-                ? (obj["scenario"] as? String).map { ScenarioUnitKey(id: $0, variant: nil) } : nil
+                ? (obj["scenario"] as? String).map { ScenarioUnitKey(id: $0, variant: obj["variant"] as? String) } : nil
             guard let worker = obj["worker"] as? String,
                   let colon = worker.firstIndex(of: ":") else {
                 // **worker を持たない log は機械を名乗らせる**(中継する側が machine を埋める規律。

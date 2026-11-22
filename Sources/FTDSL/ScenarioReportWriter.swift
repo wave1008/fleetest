@@ -13,15 +13,16 @@ public enum ScenarioReportWriter {
     /// notApplicableReason: 子が対象外を宣言した理由(FTDriveCore.notApplicableReason)。非 nil なら
     /// Result を skipped にして理由を載せる(合否は変えない)
     public static func write(record: ScenarioRecordData, to dir: URL, notices: [String] = [],
-                             notApplicableReason: String? = nil) throws -> URL {
+                             notApplicableReason: String? = nil, variant: String? = nil) throws -> URL {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let baseName = try reserveBaseName(scenarioSlug: slug(record.id), at: Date(), in: dir)
+        let baseName = try reserveBaseName(scenarioSlug: slug(variant.map { "\(record.id)@\($0)" } ?? record.id), at: Date(), in: dir)
 
         // `account()` の値を Markdown と証跡 JSON(失敗時の要素一覧)から伏せる。画素(スクリーンショット)は伏せられない
         let secrets = SecretRedactor.shared
         var md = "# Scenario run report\n\n"
         md += "- Scenario: \(record.id)"
+        if let variant { md += " [\(variant)]" }
         if !record.title.isEmpty { md += " — \(record.title)" }
         md += "\n"
         md += "- App: \(record.app)\n"

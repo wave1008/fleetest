@@ -213,7 +213,7 @@ final class ScenarioHostBridgeRelayTests: XCTestCase {
         let connection = DriverConnection(platform: "ios", port: port, udid: "00008110-000000000000001E",
                                           physical: true, host: "192.0.2.1")
         let passed = await ScenarioHost.run(
-            project: project, scenarioID: "Relay.S0010", connection: connection,
+            project: project, scenarioID: "Relay.S0010", variant: nil, connection: connection,
             deviceSession: RunDeviceSession(), classHasBeforeAll: false, scenarioTimeoutOverride: nil,
             settings: ScenarioExecutionSettings(fm: FMConfig(enabled: false)),
             reportDir: root.appendingPathComponent("reports").path) { _ in }

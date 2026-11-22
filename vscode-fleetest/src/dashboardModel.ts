@@ -56,6 +56,8 @@ export interface RunMetaRecord {
   /** `--performance` 付きで走った run か(Swift 側 RunMetaRecord.performanceMode と対)。
    * 本フィールド追加前の CLI ではキー欠落。 */
   readonly performanceMode?: boolean | null;
+  /** バリアントの宣言(名前の並び)。バリアントの無い run では省略。 */
+  readonly variants?: readonly string[] | null;
 }
 
 /** api results の summary は直近 N run の窓で集計されている
@@ -63,6 +65,8 @@ export interface RunMetaRecord {
  *  窓を切らないので、同じシナリオでも数字は一致しない。 */
 export interface ScenarioSummaryRow {
   readonly scenarioID: string;
+  /** バリアント名。バリアントの無い run の行では省略(その行は ID だけで束ねる)。 */
+  readonly variant?: string | null;
   /** `ios` / `android`。同じ scenarioID でも platform ごとに別行(OS 別に束ねる = RunResultsQuery.scenarioSummary)。 */
   readonly platform: string;
   /** 集計に使った run 数(窓の上限まで)。窓内の総実行回数ではない。 */
@@ -77,6 +81,7 @@ export interface ScenarioSummaryRow {
 
 export interface FlakyRow {
   readonly scenarioID: string;
+  readonly variant?: string | null;
   /** `ios` / `android`。summary と同じく platform ごとに別行。 */
   readonly platform: string;
   readonly runs: number;
@@ -228,6 +233,7 @@ export interface HumanOperationRecord {
 /** 各欄は直近 N run の窓だけで計算されている(N = RunResultsQuery.recentScenarioRunsWindow)。 */
 export interface SlowScenarioRow {
   readonly scenarioID: string;
+  readonly variant?: string | null;
   /** `ios` / `android`。同じ scenarioID を複数 platform で回すプロジェクトでは platform ごとに
    * 別行になる。本フィールド追加前の CLI ではキー欠落。 */
   readonly platform?: string | null;
@@ -488,7 +494,8 @@ function isRunMetaRecord(value: unknown): value is RunMetaRecord {
     isOptNumber(value.total) &&
     isOptNumber(value.passed) &&
     isOptNumber(value.failed) &&
-    isOptBoolean(value.performanceMode)
+    isOptBoolean(value.performanceMode) &&
+    isOptStringArray(value.variants)
   );
 }
 
@@ -496,6 +503,7 @@ function isScenarioSummaryRow(value: unknown): value is ScenarioSummaryRow {
   if (!isRecord(value)) return false;
   return (
     typeof value.scenarioID === "string" &&
+    isOptString(value.variant) &&
     typeof value.platform === "string" &&
     typeof value.runs === "number" &&
     typeof value.successRate === "number" &&
@@ -510,6 +518,7 @@ function isFlakyRow(value: unknown): value is FlakyRow {
   if (!isRecord(value)) return false;
   return (
     typeof value.scenarioID === "string" &&
+    isOptString(value.variant) &&
     typeof value.platform === "string" &&
     typeof value.runs === "number" &&
     typeof value.failureRate === "number" &&
@@ -585,6 +594,7 @@ function isSlowScenarioRow(value: unknown): value is SlowScenarioRow {
   if (!isRecord(value)) return false;
   return (
     typeof value.scenarioID === "string" &&
+    isOptString(value.variant) &&
     isOptString(value.platform) &&
     typeof value.runs === "number" &&
     typeof value.avgDurationMs === "number" &&

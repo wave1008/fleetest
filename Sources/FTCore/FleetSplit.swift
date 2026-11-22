@@ -248,7 +248,7 @@ public enum FleetSplit {
         // 見積り降順(塊は和)、同着は先頭の scenario ID 昇順(決定的)。machine 非依存の混合見積りで決める
         // (scope は fleet 全体の和集合 = エントリを跨いでも同じ値になる)
         func mixedWeight(_ unit: [Item]) -> Double {
-            unit.reduce(0) { $0 + estimator.mixedMs(id: $1.id, platform: $1.platform) }
+            unit.reduce(0) { $0 + estimator.mixedMs(id: $1.id, variant: $1.variant, platform: $1.platform) }
         }
         let weights = Dictionary(units.map { (keyOf($0[0]), mixedWeight($0)) }, uniquingKeysWith: { first, _ in first })
         let ordered = units.sorted { lhs, rhs in
@@ -274,7 +274,7 @@ public enum FleetSplit {
             func finishIfAssigned(_ index: Int) -> Double {
                 entryOffsets[index]
                     + (totals[index] + unit.reduce(0) {
-                        $0 + estimator.estimate(id: $1.id, platform: $1.platform, entry: index).ms
+                        $0 + estimator.estimate(id: $1.id, variant: $1.variant, platform: $1.platform, entry: index).ms
                     }) / max(capacities[index], 1)
             }
             guard let target = fitting.min(by: {
@@ -286,7 +286,7 @@ public enum FleetSplit {
                     platform: platforms.isEmpty ? "ios/android" : platforms.sorted().joined(separator: "+"))
             }
             for scenario in unit {
-                let assigned = estimator.estimate(id: scenario.id, platform: scenario.platform, entry: target)
+                let assigned = estimator.estimate(id: scenario.id, variant: scenario.variant, platform: scenario.platform, entry: target)
                 assignedUnits[target].append(ScenarioUnitKey(id: scenario.id, variant: scenario.variant))
                 totals[target] += assigned.ms
                 sources[target].append(assigned.source)
@@ -353,13 +353,13 @@ public enum FleetSplit {
                                     scope: Set<String> = []) -> [String: Double] {
         var mixed: [PlatformKey: Double] = [:]
         for duration in durations {
-            let key = PlatformKey(scenarioID: duration.scenarioID, platform: duration.platform)
+            let key = PlatformKey(scenarioID: ScenarioUnitKey(id: duration.scenarioID, variant: duration.variant).description, platform: duration.platform)
             mixed[key] = max(mixed[key] ?? 0, duration.medianMs)
         }
         var inScope: [String: [Double]] = [:]
         var anyPlatform: [String: [Double]] = [:]
         for duration in machineDurations {
-            let key = PlatformKey(scenarioID: duration.scenarioID, platform: duration.platform)
+            let key = PlatformKey(scenarioID: ScenarioUnitKey(id: duration.scenarioID, variant: duration.variant).description, platform: duration.platform)
             guard let mixedMs = mixed[key], mixedMs > 0 else { continue }
             let ratio = duration.medianMs / mixedMs
             anyPlatform[duration.machine, default: []].append(ratio)
@@ -388,14 +388,20 @@ public enum FleetSplit {
         return byPlatform.filter { scope.contains($0.key) }.values.max()
     }
 
-    /// scenarioID → platform → 中央値(platform を潰さない索引)
+    /// 実績の索引の鍵(`ID` / `ID@variant` = `ScenarioUnitKey.description`)。引くときは単位の鍵 → ID(バリアント無しの履歴)の順
+    fileprivate static func lookupKeys(id: String, variant: String?) -> [String] {
+        variant.map { [ScenarioUnitKey(id: id, variant: $0).description, id] } ?? [id]
+    }
+
+    /// scenarioID(バリアントがあれば `ID@variant`)→ platform → 中央値(platform を潰さない索引)
     fileprivate static func medianByPlatform(
         _ durations: [LPTScheduler.Duration]
     ) -> [String: [String: Double]] {
         var result: [String: [String: Double]] = [:]
         for duration in durations {
-            let existing = result[duration.scenarioID]?[duration.platform] ?? 0
-            result[duration.scenarioID, default: [:]][duration.platform] =
+            let id = ScenarioUnitKey(id: duration.scenarioID, variant: duration.variant).description
+            let existing = result[id]?[duration.platform] ?? 0
+            result[id, default: [:]][duration.platform] =
                 max(existing, duration.medianMs)
         }
         return result
@@ -407,8 +413,9 @@ public enum FleetSplit {
     ) -> [String: [String: [String: Double]]] {
         var result: [String: [String: [String: Double]]] = [:]
         for duration in machineDurations {
-            let existing = result[duration.machine]?[duration.scenarioID]?[duration.platform] ?? 0
-            result[duration.machine, default: [:]][duration.scenarioID, default: [:]][duration.platform] =
+            let id = ScenarioUnitKey(id: duration.scenarioID, variant: duration.variant).description
+            let existing = result[duration.machine]?[id]?[duration.platform] ?? 0
+            result[duration.machine, default: [:]][id, default: [:]][duration.platform] =
                 max(existing, duration.medianMs)
         }
         return result
@@ -473,8 +480,9 @@ extension FleetSplit {
         /// (その platform をまだ1度も回していないプロジェクトで実績を捨てないため)。
         /// 退化してもよいのは混合側だけ —— 同一機側で同じことをすると、他機が持っている
         /// 正しい platform の実績より、その機械の別 platform の実績が勝ってしまう
-        private func mixed(id: String, scope: Set<String>) -> (ms: Double, known: Bool) {
-            guard let byPlatform = mixedByScenario[id], !byPlatform.isEmpty else {
+        private func mixed(id: String, variant: String?, scope: Set<String>) -> (ms: Double, known: Bool) {
+            guard let byPlatform = FleetSplit.lookupKeys(id: id, variant: variant)
+                .compactMap({ mixedByScenario[$0] }).first(where: { !$0.isEmpty }) else {
                 return (unknownDurationMs, false)
             }
             if let inScope = FleetSplit.maxWithin(byPlatform, scope: scope) { return (inScope, true) }
@@ -483,26 +491,27 @@ extension FleetSplit {
 
         /// machine 非依存の混合見積り(plan の投入順に使っている値)。
         /// scope は宣言した platform、未宣言なら fleet 全体の和集合
-        public func mixedMs(id: String, platform: String?) -> Double {
-            mixed(id: id, scope: platform.map { [$0] } ?? runScope).ms
+        public func mixedMs(id: String, variant: String?, platform: String?) -> Double {
+            mixed(id: id, variant: variant, scope: platform.map { [$0] } ?? runScope).ms
         }
 
         /// そのエントリでそのシナリオを回したときの見込み[ms](今の plan と同じ優先順)
-        public func estimateMs(id: String, platform: String?, entry: Int) -> Double {
-            estimate(id: id, platform: platform, entry: entry).ms
+        public func estimateMs(id: String, variant: String?, platform: String?, entry: Int) -> Double {
+            estimate(id: id, variant: variant, platform: platform, entry: entry).ms
         }
 
         /// 見積りと、その根拠(EstimateBasis の集計元)。
         /// machine 不明(nil)でも fallback は使う —— ハードウェアの事前係数はプローブ由来で、
         /// レコード由来の machine 名が無くても得られる
-        func estimate(id: String, platform: String?, entry: Int) -> (ms: Double, source: EstimateSource) {
+        func estimate(id: String, variant: String?, platform: String?, entry: Int) -> (ms: Double, source: EstimateSource) {
             let scope = scopeFor(platform: platform, entry: entry)
             if let machine = entryMachines[entry],
-               let ownMs = FleetSplit.maxWithin(sameByMachine[machine]?[id], scope: scope) {
+               let ownMs = FleetSplit.lookupKeys(id: id, variant: variant)
+                .lazy.compactMap({ FleetSplit.maxWithin(sameByMachine[machine]?[$0], scope: scope) }).first {
                 return (ownMs, .ownHistory)
             }
             let coefficient = entryMachines[entry].flatMap { factors[$0] } ?? entryFallback[entry]
-            let m = mixed(id: id, scope: scope)
+            let m = mixed(id: id, variant: variant, scope: scope)
             return (m.ms * coefficient, m.known ? .scaled : .unknown)
         }
     }

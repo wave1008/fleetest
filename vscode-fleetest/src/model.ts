@@ -145,6 +145,8 @@ export interface RunStartedEvent {
 export interface ScenarioStartedEvent {
   kind: "scenarioStarted";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   title?: string;
   /** 並列実行時のみ付与される担当ワーカー id(WorkersReadyEvent.workers[].id と同一規則)。 */
   worker?: string;
@@ -154,6 +156,8 @@ export interface ScenarioStartedEvent {
 export interface SceneStartedEvent {
   kind: "sceneStarted";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   scene?: number;
   sceneTitle?: string;
   worker?: string;
@@ -163,6 +167,8 @@ export interface SceneStartedEvent {
 export interface StepEvent {
   kind: "step";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   scene?: number;
   sceneTitle?: string;
   section?: RunStepSection;
@@ -182,6 +188,8 @@ export interface StepEvent {
 export interface SceneFinishedEvent {
   kind: "sceneFinished";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   scene?: number;
   sceneTitle?: string;
   passed: boolean;
@@ -195,6 +203,8 @@ export interface SceneFinishedEvent {
 export interface FixSuggestionEvent {
   kind: "fixSuggestion";
   scenario?: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   description?: string;
   detail?: string;
   file?: string;
@@ -208,6 +218,8 @@ export interface FixSuggestionEvent {
 export interface PausedEvent {
   kind: "paused";
   scenario?: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   index?: number;
   description?: string;
   /** コマンド呼び出し元のソース位置(リポジトリルート相対)。 */
@@ -222,6 +234,8 @@ export interface PausedEvent {
 export interface ScenarioFinishedEvent {
   kind: "scenarioFinished";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   passed: boolean;
   reportPath?: string;
   worker?: string;
@@ -248,6 +262,8 @@ export interface ScenarioFinishedEvent {
 export interface LogEvent {
   kind: "log";
   scenario?: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   message?: string;
   worker?: string;
 }
@@ -288,6 +304,8 @@ export interface WipeStatusEvent {
 export interface ScenarioRequeuedEvent {
   kind: "scenarioRequeued";
   scenario: string;
+  /** バリアント名(バリアントの無い run では欄ごと無い)。鍵は scenarioUnitKey.ts。 */
+  variant?: string;
   worker?: string;
   reason: string;
   attempt: number;

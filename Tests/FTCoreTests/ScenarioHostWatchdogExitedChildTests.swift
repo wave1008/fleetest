@@ -53,6 +53,7 @@ final class ScenarioHostWatchdogExitedChildTests: XCTestCase {
         let sink = EventSink()
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
+            variant: nil,
             connection: DriverConnection(platform: "ios"),
             deviceSession: RunDeviceSession(),
             classHasBeforeAll: false,

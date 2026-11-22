@@ -38,7 +38,11 @@ export function readAllResults(dir: string): Map<string, ResultState> {
   for (const profileDir of profileDirs) {
     let names: string[];
     try {
-      names = fs.readdirSync(path.join(dir, profileDir));
+      // `variants/`(バリアントごとの単位の記録。LastResultsStore が新設)はディレクトリなのでシナリオ ID と
+      // 読み違えない。ID の記録はその単位の記録から集約済みなので、ここは今までどおり直下のファイルだけを読む。
+      names = fs.readdirSync(path.join(dir, profileDir), { withFileTypes: true })
+        .filter((entry) => !entry.isDirectory())
+        .map((entry) => entry.name);
     } catch {
       continue;
     }

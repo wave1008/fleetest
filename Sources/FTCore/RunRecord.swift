@@ -180,7 +180,7 @@ public struct RunMetaRecord: Codable, Sendable {
         case measurementInvalid, measurementInvalidReasons, workerAnomalies, issuer, runGroup
         case performanceMode, fmDead, fmDeadReason
         case guarded, guardSkipped, guardStaleFrame, effectiveSettings, setOverrides
-        case interrupted, abortReason, slowWorkers, servicesWarnings, responseMeasurement, workerModes
+        case interrupted, abortReason, slowWorkers, servicesWarnings, responseMeasurement, workerModes, variants
     }
 
     public init(from decoder: Decoder) throws {
@@ -221,6 +221,7 @@ public struct RunMetaRecord: Codable, Sendable {
         servicesWarnings = try c.decodeIfPresent([String].self, forKey: .servicesWarnings)
         responseMeasurement = try c.decodeIfPresent(ResponseMeasurementRunInfo.self, forKey: .responseMeasurement)
         workerModes = try c.decodeIfPresent([WorkerModeRecord].self, forKey: .workerModes)
+        variants = try c.decodeIfPresent([String].self, forKey: .variants)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -261,6 +262,7 @@ public struct RunMetaRecord: Codable, Sendable {
         try c.encodeIfPresent(servicesWarnings, forKey: .servicesWarnings)
         try c.encodeIfPresent(responseMeasurement, forKey: .responseMeasurement)
         try c.encodeIfPresent(workerModes, forKey: .workerModes)
+        try c.encodeIfPresent(variants, forKey: .variants)
     }
 
     public var schemaVersion: Int
@@ -375,6 +377,8 @@ public struct RunMetaRecord: Codable, Sendable {
     /// (実機の in-app が注入できず黙って XCUITest で走った、を後から確かめられるように)。
     /// 参加したデバイスが無い・Android だけ・古い記録は nil
     public var workerModes: [WorkerModeRecord]?
+    /// プロファイルが宣言したバリアントの名前(宣言の順)。`variants` の無い run は欄ごと省く(DR-75。`--failed` の ID の集約の母集団)
+    public var variants: [String]?
 
     public init(schemaVersion: Int = RunRecordSchema.current, runID: String, project: String,
                 profile: String?, host: String, toolchain: String? = nil, trigger: String, startedAt: String,
@@ -394,7 +398,9 @@ public struct RunMetaRecord: Codable, Sendable {
                 slowWorkers: [String]? = nil,
                 servicesWarnings: [String]? = nil,
                 responseMeasurement: ResponseMeasurementRunInfo? = nil,
-                workerModes: [WorkerModeRecord]? = nil) {
+                workerModes: [WorkerModeRecord]? = nil,
+                variants: [String]? = nil) {
+        self.variants = variants
         self.schemaVersion = schemaVersion
         self.runID = runID
         self.project = project
@@ -678,7 +684,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         case schemaVersion, runID, scenarioID, title, platform, worker, host, profile
         case passed, timedOut, startedAt, durationMs, scenes, steps, reportPath, failedSteps
         case fixSuggestions, errorLogs, fm, timeline, skipKind, skipReason, interrupted, appCrash, mode
-        case humanOperations, lockWaitMs, displaySettings
+        case humanOperations, lockWaitMs, displaySettings, variant
     }
 
     public init(from decoder: Decoder) throws {
@@ -686,6 +692,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
         runID = try c.decode(String.self, forKey: .runID)
         scenarioID = try c.decode(String.self, forKey: .scenarioID)
+        variant = try c.decodeIfPresent(String.self, forKey: .variant)
         title = try c.decodeIfPresent(String.self, forKey: .title)
         platform = try c.decode(String.self, forKey: .platform)
         worker = try c.decodeIfPresent(String.self, forKey: .worker)
@@ -718,6 +725,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         try c.encode(schemaVersion, forKey: .schemaVersion)
         try c.encode(runID, forKey: .runID)
         try c.encode(scenarioID, forKey: .scenarioID)
+        try c.encodeIfPresent(variant, forKey: .variant)
         try c.encodeIfPresent(title, forKey: .title)
         try c.encode(platform, forKey: .platform)
         try c.encodeIfPresent(worker, forKey: .worker)
@@ -749,6 +757,8 @@ public struct ScenarioRunRecord: Codable, Sendable {
     /// Builder 段階では ""。RunRecorder.record が焼き込む
     public var runID: String
     public var scenarioID: String
+    /// バリアント名。`variants` の無い run は欄ごと省く(DR-75)。単位の鍵は `unitKey`
+    public var variant: String?
     public var title: String?
     public var platform: String
     /// "<platform>:<デバイス論理名>"(ScenarioEvent.worker と同一規則)
@@ -817,7 +827,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
     public var estimateDurationMs: Int { max(1, durationMs - (lockWaitMs ?? 0)) }
 
     public init(schemaVersion: Int = RunRecordSchema.current, runID: String = "",
-                scenarioID: String, title: String? = nil, platform: String, worker: String? = nil,
+                scenarioID: String, variant: String? = nil, title: String? = nil, platform: String, worker: String? = nil,
                 host: String = "", profile: String? = nil, passed: Bool, timedOut: Bool? = nil,
                 startedAt: String, durationMs: Int, scenes: [SceneResultRecord] = [],
                 steps: StepCountsRecord, reportPath: String? = nil,
@@ -843,6 +853,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
         self.schemaVersion = schemaVersion
         self.runID = runID
         self.scenarioID = scenarioID
+        self.variant = variant
         self.title = title
         self.platform = platform
         self.worker = worker
@@ -868,6 +879,7 @@ public struct ScenarioRunRecord: Codable, Sendable {
 /// 末尾で scenarioFinished(reportPath)。順序が崩れても欠けたフィールドは nil/0 になるだけで例外は出さない。
 public struct ScenarioRecordBuilder {
     private let scenarioID: String
+    private let variant: String?
     private let platform: String
     private let title: String?
     private let worker: String?
@@ -894,8 +906,9 @@ public struct ScenarioRecordBuilder {
     private var errorLogs: [String] = []
 
     /// `mode` = iOS の実効モード(Android は nil)。**既定値を置かない**(呼び手の渡し忘れで記録が黙って欠ける)
-    public init(scenarioID: String, platform: String, title: String?, worker: String?, mode: String?) {
+    public init(scenarioID: String, variant: String?, platform: String, title: String?, worker: String?, mode: String?) {
         self.scenarioID = scenarioID
+        self.variant = variant
         self.platform = platform
         self.title = title
         self.worker = worker
@@ -1024,7 +1037,7 @@ public struct ScenarioRecordBuilder {
             steps.guardStaleFrame = steps.guardStaleFrame ?? 0
         }
         return ScenarioRunRecord(
-            scenarioID: scenarioID, title: title, platform: platform, worker: worker,
+            scenarioID: scenarioID, variant: variant, title: title, platform: platform, worker: worker,
             passed: passed, timedOut: timedOut, startedAt: formatter.string(from: startedAt),
             durationMs: durationMs, scenes: scenes, steps: steps,
             reportPath: Self.relativize(reportPath, packageRoot: packageRoot),

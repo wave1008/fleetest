@@ -34,7 +34,7 @@ final class NotApplicableHandoffWiringTests: XCTestCase {
         XCTAssertLessThan(resolve.lowerBound, release.lowerBound, "終了イベントを流す前に行き先を決める")
         XCTAssertTrue(text.contains("if outcome == .notApplicable, notApplicableFollowUp == nil { await runSkipped.increment() }"),
                       "回し直す・赤にする対象外を skipped に数えない")
-        XCTAssertTrue(text.contains("recorder?.discardLast(scenarioID: item.info.id, worker: ScenarioRunner.recordingWorker(worker))"),
+        XCTAssertTrue(text.contains("recorder?.discardLast(unit: item.unitKey, worker: ScenarioRunner.recordingWorker(worker))"),
                       "確定させない対象外の記録を捨てていない")
         // デバイスに束ねたクラス・@RunOnSingleMachine は機械の外へ出さない
         XCTAssertTrue(text.contains("item.info.placement == nil"))

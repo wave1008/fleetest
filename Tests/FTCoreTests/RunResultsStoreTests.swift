@@ -482,7 +482,7 @@ final class RunResultsStoreTests: XCTestCase {
         recorder.record(makeScenarioRecord(scenarioID: "Foo.bar", runID: "", passed: false))
         recorder.record(makeScenarioRecord(scenarioID: "Foo.bar", runID: "", passed: false))
         recorder.recordSkipped(
-            scenarioID: "Foo.skipped", title: nil, platform: "ios", worker: nil, reason: "対象外")
+            unit: ScenarioUnitKey(id: "Foo.skipped", variant: nil), title: nil, platform: "ios", worker: nil, reason: "対象外")
 
         let runDir = RunResultsStore.runDir(resultsDir: resultsDir, runID: recorder.runID)
         let scenariosDir = runDir.appendingPathComponent("scenarios")
@@ -510,7 +510,7 @@ final class RunResultsStoreTests: XCTestCase {
     func testRecordInterruptedBeforeStartWritesInterruptedSkipRecords() {
         let recorder = RunRecorder.begin(project: project, profile: "default", trigger: "cli", captureHostMetrics: false)
         recorder.recordInterruptedBeforeStart(
-            [ScenarioInfo(id: "Foo.a", title: "a", platform: "android"), ScenarioInfo(id: "Foo.b", title: "b")],
+            [(ScenarioInfo(id: "Foo.a", title: "a", platform: "android"), nil), (ScenarioInfo(id: "Foo.b", title: "b"), nil)],
             defaultPlatform: "ios")
         let scenariosDir = RunResultsStore.runDir(resultsDir: resultsDir, runID: recorder.runID)
             .appendingPathComponent("scenarios")
@@ -609,7 +609,7 @@ final class RunResultsStoreTests: XCTestCase {
         let scenariosDir = runDir.appendingPathComponent("scenarios")
         XCTAssertTrue(FileManager.default.fileExists(atPath: scenariosDir.appendingPathComponent("Foo.bar.json").path))
 
-        recorder.discardLast(scenarioID: "Foo.bar")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Foo.bar", variant: nil))
         XCTAssertFalse(FileManager.default.fileExists(atPath: scenariosDir.appendingPathComponent("Foo.bar.json").path))
 
         // 連番カウンタが巻き戻り、再実行の記録が base 名(サフィックス無し)で書かれる
@@ -632,7 +632,7 @@ final class RunResultsStoreTests: XCTestCase {
         XCTAssertTrue(exists("Warm.up.json") && exists("Warm.up~2.json"))
 
         // A(先に書いた方)の取り消し: B の ~2 は残る
-        recorder.discardLast(scenarioID: "Warm.up", worker: "ios:A")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Warm.up", variant: nil), worker: "ios:A")
         XCTAssertFalse(exists("Warm.up.json"), "A の記録が消えていない")
         XCTAssertTrue(exists("Warm.up~2.json"), "B の記録が巻き添えで消えた")
 
@@ -649,7 +649,7 @@ final class RunResultsStoreTests: XCTestCase {
     func testDiscardLastWithUnknownWorkerIsNoop() {
         let recorder = RunRecorder.begin(project: project, profile: "default", trigger: "cli", captureHostMetrics: false)
         recorder.record(makeScenarioRecord(scenarioID: "Warm.up", runID: "", passed: true, worker: "ios:A"))
-        recorder.discardLast(scenarioID: "Warm.up", worker: "ios:Z")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Warm.up", variant: nil), worker: "ios:Z")
         let scenariosDir = RunResultsStore.runDir(resultsDir: resultsDir, runID: recorder.runID)
             .appendingPathComponent("scenarios")
         XCTAssertTrue(FileManager.default.fileExists(atPath: scenariosDir.appendingPathComponent("Warm.up.json").path))
@@ -657,7 +657,7 @@ final class RunResultsStoreTests: XCTestCase {
 
     func testDiscardLastOnUnrecordedScenarioIsNoop() {
         let recorder = RunRecorder.begin(project: project, profile: "default", trigger: "cli", captureHostMetrics: false)
-        recorder.discardLast(scenarioID: "Never.recorded")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Never.recorded", variant: nil))
         // クラッシュ・例外を起こさないことのみ確認する
     }
 

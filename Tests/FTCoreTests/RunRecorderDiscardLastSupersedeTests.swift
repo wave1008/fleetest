@@ -72,7 +72,7 @@ final class RunRecorderDiscardLastSupersedeTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: scenarioJSONURL(recorder, fileName).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: eventsURL(recorder, fileName).path))
 
-        recorder.discardLast(scenarioID: "Foo.bar")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Foo.bar", variant: nil))
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: scenarioJSONURL(recorder, fileName).path),
                        "scenarios/ からは消えている")
@@ -97,7 +97,7 @@ final class RunRecorderDiscardLastSupersedeTests: XCTestCase {
         let fileName = recorder.record(makeRecord(scenarioID: "Foo.baz", passed: true))
         // events/ ファイルは作らない(ScenarioEventLog が動かなかった/dry-run 等を模す)
 
-        recorder.discardLast(scenarioID: "Foo.baz")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Foo.baz", variant: nil))
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: scenarioJSONURL(recorder, fileName).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: supersededJSONURL(recorder, fileName, 1).path))
@@ -114,14 +114,14 @@ final class RunRecorderDiscardLastSupersedeTests: XCTestCase {
         // 1 回目: 記録 → 退避(discardLast は連番を巻き戻すので、次の record も同じ fileName になる)
         let fileName1 = recorder.record(makeRecord(scenarioID: "Foo.bar", passed: false))
         try writeEventsFile(recorder, fileName: fileName1, content: "first")
-        recorder.discardLast(scenarioID: "Foo.bar")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Foo.bar", variant: nil))
         XCTAssertTrue(FileManager.default.fileExists(atPath: supersededJSONURL(recorder, "Foo.bar", 1).path))
 
         // 2 回目: 同じ scenarioID を再度記録(連番が巻き戻っているので fileName は同じ "Foo.bar")
         let fileName2 = recorder.record(makeRecord(scenarioID: "Foo.bar", passed: true))
         XCTAssertEqual(fileName1, fileName2, "discardLast は連番を巻き戻すので同じ fileName が再利用される")
         try writeEventsFile(recorder, fileName: fileName2, content: "second")
-        recorder.discardLast(scenarioID: "Foo.bar")
+        recorder.discardLast(unit: ScenarioUnitKey(id: "Foo.bar", variant: nil))
 
         // 両方とも残っている(上書きされていない)
         let firstJSON = supersededJSONURL(recorder, "Foo.bar", 1)

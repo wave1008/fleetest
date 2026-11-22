@@ -231,6 +231,10 @@ export const exploreHealStrings = {
     ja: "platform",
     en: "platform",
   },
+  "exploreHeal.dashboard.colVariant": {
+    ja: "バリアント",
+    en: "Variant",
+  },
   "exploreHeal.dashboard.colPrevious": {
     ja: "前回",
     en: "Previous",

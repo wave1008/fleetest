@@ -325,13 +325,13 @@ public final class RunOrchestrator: Sendable {
 
     /// 通過・失敗を ScenarioFailureWitnesses に写し、失敗はブレーカに数えるかを返す。鍵(論理名)が無いレーンは常に数える。
     /// 中断で終わった失敗は記録しない(persistStreak と同じ)
-    private func witnessOutcome(scenario: String, worker key: String?, passed: Bool) async -> Bool {
+    private func witnessOutcome(unit: ScenarioUnitKey, worker key: String?, passed: Bool) async -> Bool {
         guard let key, await !stoppedByUser() else { return true }
         // 書き込みも錠の中(錠の外で写しを書くと、後から書いたレーンの古い写しが新しい記録を上書きする)
         return failureWitnesses.withLock { w -> Bool in
             let counts: Bool
-            if passed { w.recordPass(scenario: scenario, worker: key); counts = true }
-            else { counts = w.recordFailure(scenario: scenario, worker: key) }
+            if passed { w.recordPass(unit: unit, worker: key); counts = true }
+            else { counts = w.recordFailure(unit: unit, worker: key) }
             if let dir = laneStreakStateDir { w.save(stateDir: dir, scope: project.name) }
             return counts
         }
@@ -591,7 +591,7 @@ public final class RunOrchestrator: Sendable {
                 for item in list {
                     let reason = "no worker available (platform: \(platform))"
                     continuation.yield(.flowSkipped(flowURL: item.url, reason: reason))
-                    recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title,
+                    recorder?.recordSkipped(unit: item.unitKey, title: item.info.title,
                                             platform: platform, worker: nil, reason: reason)
                 }
                 failed += list.count
@@ -602,7 +602,7 @@ public final class RunOrchestrator: Sendable {
             queueKey = { $0.platform }
             drainInfo = { platform, _ in (platform, nil, "no usable workers") }
             runnableScenarios = runnable.flatMap { platform, list in
-                list.map { RunProgressEstimate.ScenarioKey(scenarioID: $0.info.id, platform: platform) }
+                list.map { RunProgressEstimate.ScenarioKey(scenarioID: $0.info.id, variant: $0.variant, platform: platform) }
             }
         case .pulled(let source):
             isPulled = true
@@ -639,7 +639,7 @@ public final class RunOrchestrator: Sendable {
                 let platform = item.info.platform ?? defaultPlatform
                 let reason = "no device available (platform: \(platform))"
                 continuation.yield(.flowSkipped(flowURL: item.url, reason: reason))
-                recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title,
+                recorder?.recordSkipped(unit: item.unitKey, title: item.info.title,
                                         platform: platform, worker: nil, reason: reason)
                 failed += 1
             }
@@ -661,7 +661,7 @@ public final class RunOrchestrator: Sendable {
             // platform で複数回計上される —— 実際に各レーンで1回ずつ走るジョブなので正しい
             runnableScenarios = plan.queues.flatMap { key, list in
                 list.map { RunProgressEstimate.ScenarioKey(
-                    scenarioID: $0.info.id, platform: lanePlatform[key] ?? defaultPlatform) }
+                    scenarioID: $0.info.id, variant: $0.variant, platform: lanePlatform[key] ?? defaultPlatform) }
             }
         }
         /// broadcast のドレイン文言用(参加したレーンの key)。shared では使わない
@@ -870,7 +870,7 @@ public final class RunOrchestrator: Sendable {
                     ? await queue.declaredReason(for: item).map(NotApplicableHandoff.notRunReason(declared:)) ?? drain.reason
                     : drain.reason
                 continuation.yield(.flowSkipped(flowURL: item.url, reason: reason))
-                recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title,
+                recorder?.recordSkipped(unit: item.unitKey, title: item.info.title,
                                         platform: drain.platform, worker: drain.worker,
                                         reason: reason,
                                         kind: interrupted ? .interrupted : .noWorker)
@@ -928,7 +928,7 @@ public final class RunOrchestrator: Sendable {
     private func applyNotApplicableFollowUp(
         _ followUp: (verdict: NotApplicableHandoff.Verdict, declared: String, viaParent: Bool),
         item: ScenarioRunItem, worker: RunWorker, progressLaneKey: String) async -> Int {
-        recorder?.discardLast(scenarioID: item.info.id, worker: ScenarioRunner.recordingWorker(worker))
+        recorder?.discardLast(unit: item.unitKey, worker: ScenarioRunner.recordingWorker(worker))
         switch followUp.verdict {
         case .handOn:
             let note = NotApplicableHandoff.discardedReason(declared: followUp.declared, device: worker.label, handedOn: true)
@@ -995,7 +995,7 @@ public final class RunOrchestrator: Sendable {
                                         discardRecord: Bool, avoiding lane: String? = nil) async -> Int? {
         guard let attempt = await queue.requeue(item, avoiding: lane) else { return nil }
         if discardRecord {
-            recorder?.discardLast(scenarioID: item.info.id, worker: worker)
+            recorder?.discardLast(unit: item.unitKey, worker: worker)
         }
         return attempt
     }
@@ -1122,7 +1122,7 @@ public final class RunOrchestrator: Sendable {
         for item in items {
             let text = reason(item)
             continuation.yield(.flowSkipped(flowURL: item.url, reason: text))
-            recorder?.recordSkipped(scenarioID: item.info.id, title: item.info.title, platform: worker.platform,
+            recorder?.recordSkipped(unit: item.unitKey, title: item.info.title, platform: worker.platform,
                                     worker: ScenarioRunner.recordingWorker(worker), reason: text)
         }
         return items.count
@@ -1159,7 +1159,7 @@ public final class RunOrchestrator: Sendable {
             if invalidatesPassedRecord {
                 let message = "the result is not trusted: \(reason) was found right after this scenario passed, and the"
                     + " retry limit was reached, so it is recorded as failed"
-                recorder?.markLastFailed(scenarioID: item.info.id,
+                recorder?.markLastFailed(unit: item.unitKey,
                                          worker: ScenarioRunner.recordingWorker(worker), reason: message)
                 continuation.yield(.workerLog(worker: worker.label, message: "❌ \(item.info.id): \(message)"))
             }
@@ -1269,9 +1269,9 @@ public final class RunOrchestrator: Sendable {
             // 動画のシナリオ毎クリップ切り出し用の壁時計区間通知(録画無効時は no-op)。
             // ワーカーの録画プロセス自体は起動しっぱなしで、ここでは区間だけ記録する
             await videoRecording?.scenarioStarted(
-                workerLabel: worker.label, scenarioID: item.info.id, at: Date())
+                workerLabel: worker.label, unit: item.unitKey, at: Date())
             await progressState?.scenarioStarted(laneKey: progressLaneKey, scenario: item.info.id,
-                                                 at: Date())
+                                                 variant: item.variant, at: Date())
             let slowestStep = SlowestStepSnapshot()
             let observedScreenStates = LockedValue<Set<DeviceScreenState>>([])
             let failedStepKinds = LockedValue<[String?]>([])
@@ -1450,7 +1450,7 @@ public final class RunOrchestrator: Sendable {
                 if outcome == .notApplicable, notApplicableFollowUp == nil { await runSkipped.increment() }
                 breaker.recordPass()
                 if let s = laneStreakKey(streakKey) { LaneFailureStreakStore.clear(stateDir: s.dir, key: s.key) }
-                if outcome == .passed { _ = await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: true) }
+                if outcome == .passed { _ = await witnessOutcome(unit: item.unitKey, worker: streakKey, passed: true) }
                 await runPasses.increment()
                 if let followUp = notApplicableFollowUp {
                     failed += await applyNotApplicableFollowUp(
@@ -1590,7 +1590,7 @@ public final class RunOrchestrator: Sendable {
             // デバイスに触れずに落ちたと確定できる失敗だけのシナリオも数えない(WorkerCircuitBreaker.countsAsLaneFailure)
             if unusableReason == nil,
                WorkerCircuitBreaker.countsAsLaneFailure(failedStepKinds: failedStepKinds.withLock { $0 }),
-               await witnessOutcome(scenario: item.info.id, worker: streakKey, passed: false) {
+               await witnessOutcome(unit: item.unitKey, worker: streakKey, passed: false) {
                 let verdict = breaker.recordFailure(runPasses: await runPasses.snapshot())
                 await persistStreak(breaker, key: streakKey)
                 switch verdict {

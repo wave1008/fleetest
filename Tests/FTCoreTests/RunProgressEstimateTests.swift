@@ -11,7 +11,7 @@ import XCTest
 final class RunProgressEstimateTests: XCTestCase {
 
     private func key(_ id: String, _ platform: String = "ios") -> RunProgressEstimate.ScenarioKey {
-        RunProgressEstimate.ScenarioKey(scenarioID: id, platform: platform)
+        RunProgressEstimate.ScenarioKey(scenarioID: id, variant: nil, platform: platform)
     }
 
     // MARK: - etaSeconds

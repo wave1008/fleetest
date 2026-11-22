@@ -1263,6 +1263,8 @@ struct RemoteRunDispatcher {
     }
 
     func writeLastResults(texts: [(url: URL, text: String)], project: TestProject) {
+        // 回収した記録に現れたバリアントを、ID の記録の集約の母集団にする(リモート機の run.json は読まない)
+        let declared = Array(Set(texts.compactMap { Self.recordedField(in: $0.text, key: "variant") })).sorted()
         for (_, text) in texts {
             guard let scenarioID = Self.recordedField(in: text, key: "scenarioID"),
                   let passed = Self.recordedBoolField(in: text, key: "passed") else { continue }
@@ -1270,8 +1272,11 @@ struct RemoteRunDispatcher {
             // (ローカルの RunRecorder.recordSkipped と同じ判定 = ScenarioSkipKind.countsAsFailedLastTime)
             if let raw = Self.recordedField(in: text, key: "skipKind"),
                let kind = ScenarioSkipKind(rawValue: raw), !kind.countsAsFailedLastTime { continue }
-            LastResultsStore.record(project: project, scenarioID: scenarioID, passed: passed,
-                                    profile: Self.recordedField(in: text, key: "profile"))
+            LastResultsStore.record(
+                project: project,
+                unit: ScenarioUnitKey(id: scenarioID, variant: Self.recordedField(in: text, key: "variant")),
+                passed: passed, profile: Self.recordedField(in: text, key: "profile"),
+                runID: Self.recordedField(in: text, key: "runID"), declaredVariants: declared)
         }
     }
 

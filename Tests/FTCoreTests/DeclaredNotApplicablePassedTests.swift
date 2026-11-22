@@ -10,9 +10,9 @@ final class DeclaredNotApplicablePassedTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let recorder = RunRecorder.begin(project: TestProject(name: "P", rootURL: root), profile: "ios", trigger: "test",
                                          captureHostMetrics: false, lastResultsDir: nil)
-        recorder.recordSkipped(scenarioID: "C.three", title: nil, platform: "android", worker: nil,
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "C.three", variant: nil), title: nil, platform: "android", worker: nil,
                                reason: "not applicable", kind: .notApplicable)
-        recorder.recordSkipped(scenarioID: "A.one", title: nil, platform: "ios", worker: nil, reason: "no worker")
+        recorder.recordSkipped(unit: ScenarioUnitKey(id: "A.one", variant: nil), title: nil, platform: "ios", worker: nil, reason: "no worker")
         var passedByID: [String: Bool] = [:]
         let dir = recorder.runDir.appendingPathComponent("scenarios")
         for file in try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {

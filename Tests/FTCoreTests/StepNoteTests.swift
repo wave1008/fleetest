@@ -64,7 +64,7 @@ final class StepNoteTests: XCTestCase {
     // MARK: - 永続化(results/ まで運ばれるか)
 
     func testRecordBuilderCarriesNotesAndCountsHeldValue() {
-        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "Foo.a", variant: nil, platform: "ios",
                                             title: nil, worker: nil, mode: nil)
         builder.consume(stepEvent(index: 1, notes: [StepNote.settleCapped.rawValue]))
         builder.consume(stepEvent(index: 2, notes: [StepNote.heldValue.rawValue]))

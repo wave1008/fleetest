@@ -35,6 +35,8 @@ public struct RecordingIndexSegment: Codable, Sendable {
 public struct RecordingIndexEntry: Codable, Sendable {
     /// クラス名.メソッド名(ScenarioInfo.id と同一)
     public var scenarioID: String
+    /// バリアント名(バリアントの無い run は欄ごと省く。DR-75)。単位の鍵は `scenarioID` + `variant`
+    public var variant: String?
     /// "<platform>:<デバイス論理名>"(RunOrchestrator.swift:204 の worker id 規則と同一)
     public var worker: String
     public var platform: String
@@ -42,9 +44,10 @@ public struct RecordingIndexEntry: Codable, Sendable {
     public var file: String
     public var segments: [RecordingIndexSegment]
 
-    public init(scenarioID: String, worker: String, platform: String, file: String,
+    public init(scenarioID: String, variant: String? = nil, worker: String, platform: String, file: String,
                 segments: [RecordingIndexSegment]) {
         self.scenarioID = scenarioID
+        self.variant = variant
         self.worker = worker
         self.platform = platform
         self.file = file

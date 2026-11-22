@@ -16,6 +16,7 @@ import {
   LOCAL_MACHINE_LABEL,
 } from './machineColors.js';
 import { compareMachineOrder } from '../../monitorDeviceModel';
+import { scenarioUnitLabel } from '../../scenarioUnitKey';
 import { setHoverTip } from './hoverTip.js';
 import {
   deviceIdForLane, selectOnlyDevices, devicesOnMachine, setRunningDevices,
@@ -709,7 +710,7 @@ function appendDeviceLane(row, machine, name, lane, receivedAtMs, platform) {
   // scenario 省略 = そのレーンに今の割り当てが無い(直前の1本を終えて次を待つ。
   // FTCore.RunProgressLane の契約)。**レーンごとの残り本数は持たない**(DS-18.1)。
   const idle = lane !== undefined && lane.scenario === undefined;
-  scenarioEl.textContent = lane === undefined ? '' : (idle ? t('runBoard.laneIdle') : `▶ ${lane.scenario}`);
+  scenarioEl.textContent = lane === undefined ? '' : (idle ? t('runBoard.laneIdle') : `▶ ${scenarioUnitLabel(lane.scenario, lane.variant)}`);
 
   const elapsedEl = document.createElement('span');
   elapsedEl.className = 'run-board-lane-elapsed';

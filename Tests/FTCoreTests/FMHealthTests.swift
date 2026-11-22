@@ -136,7 +136,7 @@ final class FMHealthTests: XCTestCase {
         finished.fm = FMHealth.usage()
         finished.reportPath = "/tmp/r.md"
 
-        var builder = ScenarioRecordBuilder(scenarioID: "S.T", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "S.T", variant: nil, platform: "ios",
                                             title: "t", worker: "ios:dev-01", mode: nil)
         builder.consume(finished)
         let record = builder.build(passed: true, timedOut: false, startedAt: Date(),
@@ -160,7 +160,7 @@ final class FMHealthTests: XCTestCase {
         var finished = ScenarioEvent(kind: "scenarioFinished")
         finished.fm = FMHealth.usage()
 
-        var builder = ScenarioRecordBuilder(scenarioID: "S.T", platform: "ios",
+        var builder = ScenarioRecordBuilder(scenarioID: "S.T", variant: nil, platform: "ios",
                                             title: nil, worker: nil, mode: nil)
         builder.consume(finished)
         let record = builder.build(passed: true, timedOut: false, startedAt: Date(),

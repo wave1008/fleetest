@@ -389,7 +389,7 @@ extension ScenarioHost {
         for className in deviceSession.takePendingTearDowns() {
             var reportPath: String?
             var failure: String?
-            let passed = await run(project: project, scenarioID: "\(className).tearDownDevice",
+            let passed = await run(project: project, scenarioID: "\(className).tearDownDevice", variant: nil,
                                    connection: connection, deviceSession: deviceSession,
                                    classHasBeforeAll: false,
                                    scenarioTimeoutOverride: nil,
@@ -447,7 +447,7 @@ extension ScenarioHost {
             var reportPath: String?
             var failure: String?
             await acquire(chosen.connection)
-            let passed = await run(project: project, scenarioID: "\(className).afterAll",
+            let passed = await run(project: project, scenarioID: "\(className).afterAll", variant: nil,
                                    connection: chosen.connection,
                                    deviceSession: RunDeviceSession(shared: shared),
                                    classHasBeforeAll: false,

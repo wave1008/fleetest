@@ -15,10 +15,12 @@ public enum JUnitReportWriter {
     /// records から JUnit XML(testsuites)を組み立てる。
     /// 出力は決定的(クラス名・scenarioID でソート)。records が空でも妥当な XML を返す
     public static func xml(project: String, records: [ScenarioRunRecord]) -> String {
-        let sorted = records.sorted { ($0.scenarioID, $0.startedAt) < ($1.scenarioID, $1.startedAt) }
+        let sorted = records.sorted { ($0.scenarioID, $0.variant ?? "", $0.startedAt) < ($1.scenarioID, $1.variant ?? "", $1.startedAt) }
         let grouped = Dictionary(grouping: sorted) { className(of: $0.scenarioID) }
         let classNames = grouped.keys.sorted()
 
+        // 同じ単位(ID × バリアント)が複数の端末で回った run(`--broadcast`)は、testcase 名に端末も入れて区別する
+        let broadcast = Dictionary(grouping: sorted, by: \.unitKey).values.contains { Set($0.compactMap(\.worker)).count > 1 }
         var suites: [String] = []
         var totals = Counts()
         for name in classNames {
@@ -30,7 +32,7 @@ public enum JUnitReportWriter {
                 + " failures=\"\(counts.failures)\" errors=\"0\" skipped=\"\(counts.skipped)\""
                 + " time=\"\(seconds(counts.totalMs))\">")
             for record in records {
-                lines.append(testcase(record, className: name))
+                lines.append(testcase(record, className: name, includeWorker: broadcast))
             }
             lines.append("  </testsuite>")
             suites.append(lines.joined(separator: "\n"))
@@ -56,7 +58,7 @@ public enum JUnitReportWriter {
         let startedAt = ISO8601DateFormatter().string(from: Date())
         let synthetic = unstarted.filter { !recorded.contains($0.unit) }.map {
             ScenarioRunRecord(
-                scenarioID: $0.unit.id, title: $0.title, platform: $0.platform, passed: false,
+                scenarioID: $0.unit.id, variant: $0.unit.variant, title: $0.title, platform: $0.platform, passed: false,
                 startedAt: startedAt, durationMs: 0, steps: StepCountsRecord(total: 1, skipped: 1),
                 failedSteps: [FailedStepRecord(
                     index: 0, description: "the run aborted before this scenario started: " + abortReason)],
@@ -114,10 +116,18 @@ public enum JUnitReportWriter {
             && (record.steps.inconclusive ?? 0) == record.steps.total
     }
 
-    private static func testcase(_ record: ScenarioRunRecord, className: String) -> String {
-        let method = record.scenarioID.firstIndex(of: ".")
+    /// testcase 名 = `<メソッド>` + バリアントがあれば `[variant]` + broadcast の run なら ` (worker)`
+    static func caseName(_ record: ScenarioRunRecord, includeWorker: Bool) -> String {
+        var name = record.scenarioID.firstIndex(of: ".")
             .map { String(record.scenarioID[record.scenarioID.index(after: $0)...]) }
             ?? record.scenarioID
+        if let variant = record.variant { name += "[\(variant)]" }
+        if includeWorker, let worker = record.worker { name += " (\(worker))" }
+        return name
+    }
+
+    private static func testcase(_ record: ScenarioRunRecord, className: String, includeWorker: Bool) -> String {
+        let method = caseName(record, includeWorker: includeWorker)
         let open = "    <testcase classname=\"\(escape(className))\" name=\"\(escape(method))\""
             + " time=\"\(seconds(record.durationMs))\""
         if record.passed {

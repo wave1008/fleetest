@@ -55,6 +55,7 @@ export const resultsExportStrings = {
   "resultsExport.class.header.durationSeconds": { ja: "所要(秒)", en: "Duration (s)" },
 
   "resultsExport.scenarios.header.no": { ja: "No", en: "No" },
+  "resultsExport.scenarios.header.variant": { ja: "バリアント", en: "Variant" },
   "resultsExport.scenarios.header.class": { ja: "クラス", en: "Class" },
   "resultsExport.scenarios.header.method": { ja: "シナリオ", en: "Scenario" },
   "resultsExport.scenarios.header.title": { ja: "タイトル", en: "Title" },
