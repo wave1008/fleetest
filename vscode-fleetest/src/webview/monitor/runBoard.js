@@ -933,7 +933,8 @@ function updateJobRow(row, job, showTitle) {
     const doneEl = jobCountSpan('run-board-job-count run-board-job-count-done', t('runBoard.jobDone', {
       done: String(counts.finished), total: String(counts.total),
     }));
-    setHoverTip(doneEl, jobRunsTip(job, JOB_FINISHED_KINDS, 'runBoard.jobDoneTip', 'state'));
+    // 「run 済 N/M」のホバーは M 本の全件(終わっていない run も状態付きで)
+    setHoverTip(doneEl, jobRunsTip(job, null, 'runBoard.jobAllTip', 'state', counts.finished));
     row.leadEl.append(doneEl);
     if (counts.failed > 0) {
       const failedEl = jobCountSpan('run-board-counts-failed', `❌${counts.failed}`);
@@ -942,7 +943,7 @@ function updateJobRow(row, job, showTitle) {
     }
     const runningEl = jobCountSpan('run-board-job-count run-board-job-count-running', t('runBoard.jobRunning', { count: String(counts.running) }));
     setHoverTip(runningEl, jobRunsTip(job, ['running'], 'runBoard.jobRunningTip', 'machines'));
-    // 待機中の run は数のホバーで全件(並びの行は置かない)
+    // 待機中の run は数のホバーで一覧する(並びの行は置かない)
     const pendingEl = jobCountSpan('run-board-job-count run-board-job-count-pending', t('runBoard.jobPending', { count: String(counts.pending) }));
     setHoverTip(pendingEl, jobRunsTip(job, ['pending'], 'runBoard.jobPendingTip', 'none'));
     row.leadEl.append(runningEl, pendingEl);
@@ -950,24 +951,48 @@ function updateJobRow(row, job, showTitle) {
   renderJobTime(row);
 }
 
-/** 「run 済」に数える終端の4状態(jobCounts の finished と同じ集合) */
-const JOB_FINISHED_KINDS = ['passed', 'failed', 'canceled', 'skipped'];
+/** 見出しの数のホバーに並べる run の行数の上限。
+ * 根拠: .hover-tip は 12px × line-height 1.4 ≈ 17px/行で高さの上限もスクロールも無い(pointer-events: none)ので、
+ * 30行 + 見出し + 省略の行 ≈ 550px = 600px 程度のパネルに収まる。低いパネルでは下が切れる(見出しは常に見える) */
+const JOB_TIP_MAX_RUN_LINES = 30;
 
-/** 見出しの数のホバー: kinds に当たる run の一覧(宣言順・番号付き)。detail = 'state'(状態を添える)/ 'machines'(マシン名を添える)/ 'none'。
- * 該当が無ければ空(ツールチップを出さない) */
-function jobRunsTip(job, kinds, titleKey, detail) {
-  const runs = job.runs.filter((run) => kinds.includes(jobRunKind(run.state)));
+/** 上限を超えたときに前から省いてよい状態(済で失敗でないもの)。失敗と未了(実行中・待機)は省かない =
+ * run はおおむね宣言順に終わるので、後ろで切ると見たい未了の run が先に消える */
+const JOB_TIP_OMITTABLE_KINDS = ['passed', 'skipped', 'canceled'];
+
+/** 見出しの数のホバー: kinds に当たる run の一覧(宣言順。番号は一覧の中の宣言順で、省いた分は飛ぶ)。kinds = null は全件
+ * (jobCounts の total と同じ集合)。detail = 'state'(状態を添える。実行中はマシン名も)/ 'machines'(マシン名を添える)/ 'none'。
+ * done は見出しの {done} に入れる数。上限を超えたら JOB_TIP_OMITTABLE_KINDS を前から省き(先頭に省いた本数)、
+ * それでも超える分は末尾を「…ほか N 本」に畳む。該当が無ければ空(ツールチップを出さない) */
+function jobRunsTip(job, kinds, titleKey, detail, done = 0) {
+  const runs = kinds === null ? job.runs : job.runs.filter((run) => kinds.includes(jobRunKind(run.state)));
   if (runs.length === 0) return '';
-  const lines = runs.map((run, index) => {
+  const all = runs.map((run, index) => ({ run, index, kind: jobRunKind(run.state) }));
+  let omitted = 0;
+  const kept = all.filter((entry) => {
+    if (all.length - omitted > JOB_TIP_MAX_RUN_LINES && JOB_TIP_OMITTABLE_KINDS.includes(entry.kind)) {
+      omitted += 1;
+      return false;
+    }
+    return true;
+  });
+  const lines = kept.slice(0, JOB_TIP_MAX_RUN_LINES).map(({ run, index, kind }) => {
     let text = jobRunScope(run);
-    if (detail === 'state') {
-      text += ` — ${t(`runBoard.jobState.${jobRunKind(run.state)}`)}`;
-    } else if (detail === 'machines' && run.machines.length > 0) {
+    if ((detail === 'machines' || (detail === 'state' && kind === 'running')) && run.machines.length > 0) {
       text = t('runBoard.jobRunWithMachines', { scope: text, machines: run.machines.join(', ') });
+    }
+    if (detail === 'state') {
+      text += ` — ${t(`runBoard.jobState.${kind}`)}`;
     }
     return `${index + 1}. ${text}`;
   });
-  return [t(titleKey, { count: String(runs.length) }), ...lines].join('\n');
+  if (omitted > 0) {
+    lines.unshift(t('runBoard.jobTipOmittedDone', { count: String(omitted) }));
+  }
+  if (kept.length > JOB_TIP_MAX_RUN_LINES) {
+    lines.push(t('runBoard.jobTipMore', { count: String(kept.length - JOB_TIP_MAX_RUN_LINES) }));
+  }
+  return [t(titleKey, { count: String(runs.length), done: String(done) }), ...lines].join('\n');
 }
 
 function renderJobTime(row) {

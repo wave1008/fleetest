@@ -1275,7 +1275,7 @@ test("ジョブ: 数(run 済・失敗・実行中・待機)と経過だけを見
   assert.equal(runRows(document).length, 1, "run の行はマシンの行のまま");
 });
 
-test("ジョブ: 「待機 N」にマウスを載せると、待機中の run を省略なしで番号付きで出す", (t) => {
+test("ジョブ: 「待機 N」にマウスを載せると、待機中の run を番号付きで出す(上限の行数までは省略しない)", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   const many = jobFixture();
@@ -1293,23 +1293,64 @@ test("ジョブ: 「待機 N」にマウスを載せると、待機中の run �
   assert.equal(jobHeadsOf(document)[0].querySelector(".run-board-job-count-pending").getAttribute("data-hover-tip"), null);
 });
 
-test("ジョブ: 「run 済」は終わった run を状態つきで、「実行中」は走っている run をマシン名つきで、マウスを載せると出す", (t) => {
+test("ジョブ: 「run 済」は終わっていない run も含めた全件を状態つき(実行中はマシン名も)で、「実行中」は走っている run をマシン名つきで、マウスを載せると出す", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, monitorRunsMessage({ jobs: [jobFixture()] }));
   const [jobEl] = jobHeadsOf(document);
   assert.equal(jobEl.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"),
-    ["終わった run(4 本)", "1. E2E-CMP / ios — 成功", "2. E2E-CMP / android — 失敗", "3. X / p — 中止", "4. Y / p — スキップ"].join("\n"));
+    ["run の一覧(8 本・済 4)", "1. E2E-CMP / ios — 成功", "2. E2E-CMP / android — 失敗",
+      "3. E2E-Flutter / android(M1Ultra) — 実行中", "4. E2E-RN / ios — 待機", "5. E2E-RN / android — 待機",
+      "6. X / p — 中止", "7. Y / p — スキップ", "8. Z / p — 待機"].join("\n"),
+    "分母の 8 本と同じ全件(未知の state も待機として落とさない)。マシン名は実行中の run だけ");
   assert.equal(jobEl.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"),
     ["実行中の run(1 本)", "1. E2E-Flutter / android(M1Ultra)"].join("\n"));
 
-  // 該当が無ければツールチップを外す
+  // 全部待機でも「run 済」は全件を出す(済 0)。実行中が無ければそちらのツールチップは外す
   const fresh = jobFixture();
   fresh.runs = fresh.runs.map((run) => ({ ...run, state: "pending", machines: [] }));
   post(window, monitorRunsMessage({ jobs: [fresh] }));
   const [after] = jobHeadsOf(document);
-  assert.equal(after.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip"), null);
+  assert.match(after.querySelector(".run-board-job-count-done").getAttribute("data-hover-tip") || "",
+    /^run の一覧\(8 本・済 0\)\n1\. E2E-CMP \/ ios — 待機\n/);
   assert.equal(after.querySelector(".run-board-job-count-running").getAttribute("data-hover-tip"), null);
+});
+
+test("ジョブ: ホバーの一覧が 30 行を超えたら、成功・スキップ・中止の run を前から必要な分だけ省き、失敗と未了は残す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const doneTip = () => jobHeadsOf(document)[0].querySelector(".run-board-job-count-done").getAttribute("data-hover-tip").split("\n");
+  // 宣言順に終わった 33 本 + 待機 2 本: 前の 5 本だけ省けば 30 行に収まる(後ろの未了は残る)
+  const job = { ...jobFixture(), runs: [] };
+  for (let i = 1; i <= 33; i++) job.runs.push({ project: `P${i}`, profile: "p", state: "passed", machines: [] });
+  job.runs.push({ project: "Q1", profile: "p", state: "running", machines: ["M1Ultra"] }, { project: "Q2", profile: "p", state: "pending", machines: [] });
+  post(window, monitorRunsMessage({ jobs: [job] }));
+  let lines = doneTip();
+  assert.equal(lines[0], "run の一覧(35 本・済 33)");
+  assert.equal(lines[1], "…済の 5 本を省略");
+  assert.equal(lines[2], "6. P6 / p — 成功", "番号はジョブの中の宣言順のまま");
+  assert.deepEqual(lines.slice(-2), ["34. Q1 / p(M1Ultra) — 実行中", "35. Q2 / p — 待機"], "未了は切られない");
+  assert.equal(lines.length, 2 + 30);
+
+  // 失敗は省かない: 省ける分を全部省いても超える分だけ末尾を畳む
+  const fx = jobFixture();   // 8 本のうち省けるのは成功・中止・スキップの 3 本
+  for (let i = 1; i <= 27; i++) fx.runs.push({ project: `W${i}`, profile: "p", state: "pending", machines: [] });
+  post(window, monitorRunsMessage({ jobs: [fx] }));
+  lines = doneTip();
+  assert.equal(lines[0], "run の一覧(35 本・済 4)");
+  assert.equal(lines[1], "…済の 3 本を省略");
+  assert.equal(lines[2], "2. E2E-CMP / android — 失敗");
+  assert.equal(lines[31], "33. W25 / p — 待機");
+  assert.equal(lines[32], "…ほか 2 本");
+  assert.equal(lines.length, 2 + 30 + 1);
+
+  // ちょうど上限なら何も省かない
+  fx.runs.length = 30;
+  post(window, monitorRunsMessage({ jobs: [fx] }));
+  lines = doneTip();
+  assert.equal(lines.length, 1 + 30);
+  assert.equal(lines[1], "1. E2E-CMP / ios — 成功");
+  assert.equal(lines[30], "30. W22 / p — 待機");
 });
 
 test("ジョブ: ジョブが続いている間は run が 0 本でもタコメーターを隠さない(右の数が左右に動かない)。ジョブが終われば従来どおり隠す", async (t) => {
