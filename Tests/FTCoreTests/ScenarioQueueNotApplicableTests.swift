@@ -49,6 +49,75 @@ final class ScenarioQueueNotApplicableTests: XCTestCase {
         XCTAssertEqual(verdict, .skipped, "最初から他の台が居なければ従来どおり対象外")
     }
 
+    func testLaneThatNeverJoinedFinalizesNotRun() async {
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("pro")
+        await queue.laneNeverJoined("duo")
+        let verdict = await queue.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(verdict, .notRun, "供給で合流しなかった台は試していない台が落ちたもの")
+    }
+
+    func testLaneStillSupplyingIsNotCountedAsDeparted() async {
+        // 供給中の台は記帳しない(遅れて合流できる)。記帳前の判定は従来どおり対象外
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("pro")
+        let verdict = await queue.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(verdict, .skipped)
+    }
+
+    func testNeverJoinedLaneThatLaterJoinsIsLive() async {
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("pro")
+        await queue.laneNeverJoined("duo")
+        await queue.laneJoined("duo")
+        let verdict = await queue.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(verdict, .handOn)
+    }
+
+    func testRegisterNeverJoinedOnlyMissingLanesOfThePlatform() async {
+        let ios = ScenarioQueue([])
+        let android = ScenarioQueue([])
+        await ios.laneJoined("pro")
+        await RunOrchestrator.registerNeverJoined(
+            planned: [(lane: "pro", platform: "ios"), (lane: "duo", platform: "ios"), (lane: "pix", platform: "android")],
+            joinedLanes: ["pro"], queues: ["ios": ios, "android": android], isShared: true)
+        let i = await ios.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(i, .notRun)
+        await android.laneJoined("x")
+        let a = await android.noteNotApplicable(item("S2"), lane: "x", reason: "r")
+        XCTAssertEqual(a, .notRun, "android の pix も合流していない")
+    }
+
+    func testNeverJoinedIgnoresAnAlreadyLiveLane() async {
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("pro")
+        await queue.laneJoined("duo")
+        await queue.laneNeverJoined("duo")
+        let verdict = await queue.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(verdict, .handOn, "合流済みの台は落ちた台にしない")
+        let departed = await queue.hasDepartedUntried(item("S1"))
+        XCTAssertFalse(departed, "合流済みの台を落ちた台として数えない")
+    }
+
+    func testRegisterNeverJoinedDoesNotCountLanesAboutToJoin() async {
+        // 記帳は合流(laneJoined)より前に行う。これから合流する台(joinedLanes)を落ちた台にすると、開始ゲートを待つ間に失敗と読まれる
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("other")
+        await RunOrchestrator.registerNeverJoined(
+            planned: [(lane: "pro", platform: "ios")], joinedLanes: ["pro"], queues: ["ios": queue], isShared: true)
+        let departed = await queue.hasDepartedUntried(item("S1"))
+        XCTAssertFalse(departed)
+    }
+
+    func testRegisterNeverJoinedSkipsBroadcast() async {
+        let q = ScenarioQueue([])
+        await q.laneJoined("pro")
+        await RunOrchestrator.registerNeverJoined(planned: [(lane: "duo", platform: "ios")], joinedLanes: [],
+                                                  queues: ["ios": q], isShared: false)
+        let v = await q.noteNotApplicable(item("S1"), lane: "pro", reason: "r")
+        XCTAssertEqual(v, .skipped)
+    }
+
     func testUntriedLaneThatLeftFinalizesNotRun() async {
         let queue = ScenarioQueue([])
         await queue.laneJoined("duo")

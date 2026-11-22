@@ -34,4 +34,15 @@ final class ProfileRunOrchestratorWiringTests: XCTestCase {
                            "\(path) が供給の前に段階「準備中」を書いていない")
         }
     }
+
+    /// 供給で合流しなかった台を DR-214 の「落ちた台」へ記帳する配線(OI-340)。宣言したデバイスの一覧を渡さないと、
+    /// 合流できなかった台が居ない扱いになり、全部が別の台で対象外 = 0 本実行の緑になる
+    func testPlannedLanesAreHandedToTheOrchestratorAndRegisteredAfterSupply() throws {
+        let make = try Self.codeWithoutComments("Sources/fleetest/ProfileRunOrchestrator.swift")
+        XCTAssertEqual(count("plannedLanes: resolved.devices.map", in: make), 1)
+        let orchestrator = try Self.codeWithoutComments("Sources/FTCore/RunOrchestrator.swift")
+        XCTAssertEqual(count("await Self.registerNeverJoined(", in: orchestrator), 2,
+                       "初期ワーカーの前と遅延参加の合流の前の2箇所で記帳する")
+        XCTAssertEqual(count("await queues[entry.platform]?.laneNeverJoined(entry.lane)", in: orchestrator), 1)
+    }
 }

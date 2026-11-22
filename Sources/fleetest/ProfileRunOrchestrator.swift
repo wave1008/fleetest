@@ -236,6 +236,7 @@ enum ProfileRunOrchestrator {
                                                   repoRoot: repoRoot, log: log)
             },
             lateWorkers: lateWorkers,
+            plannedLanes: resolved.devices.map { (lane: $0.name, platform: $0.platform) },
             installHandler: InstallHandlerFactory.make(apps: resolved.apps),
             appBundleIDs: resolved.apps.mapValues(\.bundleID),
             appTargets: resolved.apps,

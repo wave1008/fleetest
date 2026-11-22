@@ -1084,7 +1084,7 @@ struct ApiLiveServe: AsyncParsableCommand {
             }
             observe = {
                 ResidentProcessGuard.noteCommandProgress()
-                return FoldControl.observeIOSSimulator(udid: udid)
+                return FoldControl.observeIOSSimulator(udid: udid, foldableModel: FoldControl.foldableModel(udid: udid))
             }
         }
         do {

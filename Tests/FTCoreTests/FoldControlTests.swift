@@ -20,28 +20,103 @@ final class FoldControlTests: XCTestCase {
     func testDuoShowingTheOuterScreenIsFolded() {
         let data = displays([integrated("LCD", [1398, 2034], active: true),
                              integrated("LCD-1", [2007, 2853], active: false)])
-        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data), .state(.folded))
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data, foldableModel: nil), .state(.folded))
     }
 
     func testDuoShowingTheInnerScreenIsUnfolded() {
         let data = displays([integrated("LCD", [1398, 2034], active: false),
                              integrated("LCD-1", [2007, 2853], active: true)])
-        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data), .state(.unfolded))
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data, foldableModel: nil), .state(.unfolded))
     }
 
     /// 単画面の機種は active 欄を持たない(iPhone 17 Pro の実測)
     func testSingleDisplayIsNotFoldable() {
         let data = displays([integrated("LCD", [1206, 2622], active: nil)])
-        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data), .notFoldable)
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data, foldableModel: nil), .notFoldable)
     }
 
     /// 画面の電源を simctl で触ると active 欄ごと消える(実測)= 読めない。推測で片方に倒さない
     func testMissingActiveFlagsAreUnreadable() {
         let data = displays([integrated("LCD", [1398, 2034], active: nil),
                              integrated("LCD-1", [2007, 2853], active: nil)])
-        guard case .unknown = FoldControl.observe(fromDevicectlJSON: data) else {
+        guard case .unknown = FoldControl.observe(fromDevicectlJSON: data, foldableModel: nil) else {
             return XCTFail("two built-in displays without an active one must be unreadable")
         }
+    }
+
+    // MARK: - 機種が決める折りたたみ
+
+    /// 崩れた Duo = 内蔵画面を1枚しか申告しない(実測)
+    private var brokenDuo: Data { displays([integrated("LCD-1", [2007, 2853], active: false)]) }
+
+    func testFoldableModelWithOneReportedDisplayIsUnknownNotNotFoldable() {
+        guard case .unknown(let detail) = FoldControl.observe(fromDevicectlJSON: brokenDuo, foldableModel: true) else {
+            return XCTFail("a foldable model with one built-in display must be unreadable (red), never notFoldable")
+        }
+        XCTAssertTrue(detail.contains("foldable"), detail)
+    }
+
+    func testUnknownModelKeepsDevicectlOnlyVerdict() {
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: brokenDuo, foldableModel: nil), .notFoldable)
+    }
+
+    func testNonFoldableModelIsNotFoldable() {
+        let single = displays([integrated("LCD", [1206, 2622], active: nil)])
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: single, foldableModel: false), .notFoldable)
+    }
+
+    /// 機種が折りたたみでないと言えば、devicectl が内蔵画面を2枚申告しても折りたたみ機にしない(機種が決める)
+    func testNonFoldableModelWinsOverTwoReportedDisplays() {
+        let data = displays([integrated("LCD", [1398, 2034], active: true),
+                             integrated("LCD-1", [2007, 2853], active: false)])
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data, foldableModel: false), .notFoldable)
+    }
+
+    func testFoldableModelWithBothDisplaysReadsTheState() {
+        let data = displays([integrated("LCD", [1398, 2034], active: true),
+                             integrated("LCD-1", [2007, 2853], active: false)])
+        XCTAssertEqual(FoldControl.observe(fromDevicectlJSON: data, foldableModel: true), .state(.folded))
+    }
+
+    /// capabilities.plist の displays 部分(Xcode 27.2 beta の iPhone Duo / iPhone 18 Pro を縮めたもの)
+    private func capabilities(_ types: [String]) -> Data {
+        let entries = types.map { "<dict><key>displayType</key><string>\($0)</string><key>scale</key><integer>3</integer></dict>" }
+            .joined()
+        return Data("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0"><dict><key>capabilities</key><dict><key>displays</key><array>\(entries)</array></dict></dict></plist>
+            """.utf8)
+    }
+
+    func testDuoCapabilitiesCountTwoIntegratedDisplays() {
+        let duo = capabilities(["integrated", "integrated", "tvOut", "carPlay", "scene"])
+        XCTAssertEqual(FoldControl.integratedDisplayCount(capabilitiesPlist: duo), 2)
+        XCTAssertEqual(FoldControl.isFoldableModel(integratedDisplayCount: 2), true)
+    }
+
+    func testSingleScreenCapabilitiesCountOne() {
+        let phone = capabilities(["integrated", "tvOut", "carPlay", "scene"])
+        XCTAssertEqual(FoldControl.integratedDisplayCount(capabilitiesPlist: phone), 1)
+        XCTAssertEqual(FoldControl.isFoldableModel(integratedDisplayCount: 1), false)
+    }
+
+    func testUnreadableCapabilitiesGiveNoAnswer() {
+        XCTAssertNil(FoldControl.integratedDisplayCount(capabilitiesPlist: Data("garbage".utf8)))
+        XCTAssertNil(FoldControl.integratedDisplayCount(
+            capabilitiesPlist: Data("<plist version=\"1.0\"><dict/></plist>".utf8)))
+        XCTAssertNil(FoldControl.isFoldableModel(integratedDisplayCount: nil))
+    }
+
+    func testDeviceTypeBundlePathIsFoundThroughTheDevicesTypeIdentifier() {
+        let json: [String: Any] = [
+            "devicetypes": [["identifier": "T.Duo", "bundlePath": "/x/iPhone Duo.simdevicetype"],
+                            ["identifier": "T.Pro", "bundlePath": "/x/iPhone 18 Pro.simdevicetype"]],
+            "devices": ["iOS-27": [["udid": "A", "deviceTypeIdentifier": "T.Duo"],
+                                   ["udid": "B", "deviceTypeIdentifier": "T.Pro"]]],
+        ]
+        XCTAssertEqual(FoldControl.deviceTypeBundlePath(simctlJSON: json, udid: "A"), "/x/iPhone Duo.simdevicetype")
+        XCTAssertEqual(FoldControl.deviceTypeBundlePath(simctlJSON: json, udid: "B"), "/x/iPhone 18 Pro.simdevicetype")
+        XCTAssertNil(FoldControl.deviceTypeBundlePath(simctlJSON: json, udid: "C"))
     }
 
     // MARK: - Android(device_state)

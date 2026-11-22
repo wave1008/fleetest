@@ -105,6 +105,13 @@ actor ScenarioQueue {
         if let lane, !lane.isEmpty { liveLanes.insert(lane); departedLanes.remove(lane) }
     }
 
+    /// 宣言されたのに供給で合流しなかったレーン。何も試していない台が落ちたものとして数える(`laneJoined` で外れる)。
+    /// 呼ぶのはそのレーンの供給が終わってから(供給中の台を数えると、遅れて合流する台へ回し直せるのに失敗にしてしまう)
+    func laneNeverJoined(_ lane: String) {
+        guard !lane.isEmpty, !liveLanes.contains(lane) else { return }
+        departedLanes.insert(lane)
+    }
+
     private func isExcluded(_ item: ScenarioRunItem, lane: String) -> Bool {
         triedLanes[item.id]?.contains(lane) ?? false
     }

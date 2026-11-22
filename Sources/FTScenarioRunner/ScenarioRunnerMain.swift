@@ -136,6 +136,10 @@ struct RunScenario: AsyncParsableCommand {
     @Flag(help: "The target is a physical device (disables the simctl-based fast launch and the not-installed preflight)")
     var physical = false
 
+    @Option(name: .customLong("foldable-model"),
+            help: "Whether the iOS Simulator's device type is foldable (true/false; read by the orchestrator, which is outside the sandbox)")
+    var foldableModel: Bool?
+
     @Option(name: .customLong("still-frames-dir"),
             help: "Save a screenshot after each action step into this directory (still-frame recording; passed in by the orchestrator)")
     var stillFramesDir: String?
@@ -637,6 +641,7 @@ struct RunScenario: AsyncParsableCommand {
                                homeScreenDriver: countedHomeScreenDriver,
                                deviceName: deviceName, deviceIdentifier: deviceIdentifier,
                                physical: physical,
+                               foldableModel: foldableModel,
                                screenStateDirectory: (try? RepoRoot.find())?.appendingPathComponent(".fleetest"),
                                uiFramework: uiFrameworkHint,
                                emit: emit)

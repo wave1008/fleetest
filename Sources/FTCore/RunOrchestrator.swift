@@ -237,6 +237,9 @@ public final class RunOrchestrator: Sendable {
     /// ドレインが「実行できるワーカーがありません」で失敗確定する)。
     /// Android を iOS 供給(壊れたブリッジの置き換え=数十秒)の完了待ちにしないための機構。
     private let lateWorkers: (platforms: Set<String>, provider: @Sendable () async -> [RunWorker])?
+    /// プロファイルが宣言した全デバイス(レーン名 = `RunWorker.logicalName`)。供給が済んでも参加しなかったデバイスを
+    /// 「試していない台が落ちた」(DR-214)として `ScenarioQueue.laneNeverJoined` へ記帳する元。空 = 記帳しない
+    private let plannedLanes: [(lane: String, platform: String)]
     /// installApp() の親実行ハンドラ(RPC)。nil なら子は --host-install 無しで起動し、
     /// フォールバック(--app-path・明示引数・明示エラー)に委ねる(ScenarioHost.run 参照)。
     /// 呼び出し側(fleetest ターゲット)が InstallHandlerFactory 経由で注入する
@@ -379,6 +382,7 @@ public final class RunOrchestrator: Sendable {
                 excludedBeforeRun: (@Sendable () -> Set<String>)? = nil,
                 recheckRunner: RunnerRecheck? = nil,
                 lateWorkers: (platforms: Set<String>, provider: @Sendable () async -> [RunWorker])? = nil,
+                plannedLanes: [(lane: String, platform: String)] = [],
                 installHandler: (@Sendable (RunWorker, String?) async
                                   -> (ok: Bool, message: String))? = nil,
                 appBundleIDs: [String: String] = [:],
@@ -423,6 +427,7 @@ public final class RunOrchestrator: Sendable {
         self.clearResidualSystemAlert = clearResidualSystemAlert
         self.recheckRunner = recheckRunner
         self.lateWorkers = lateWorkers
+        self.plannedLanes = plannedLanes
         self.installHandler = installHandler
         self.appBundleIDs = appBundleIDs
         self.appTargets = appTargets
@@ -572,6 +577,8 @@ public final class RunOrchestrator: Sendable {
         /// 残り見積もり(DS-18.4)の未着手初期値。**即スキップ分(担当ワーカーなし)は
         /// 含めない** —— どのレーンにも一生取られないので、含めると見積もりが下がりきらないまま残る
         var runnableScenarios: [RunProgressEstimate.ScenarioKey] = []
+        let isSharedDispatch: Bool
+        if case .broadcast = dispatch { isSharedDispatch = false } else { isSharedDispatch = true }
         switch dispatch {
         case .shared:
             let grouped = Dictionary(grouping: items) { $0.info.platform ?? defaultPlatform }
@@ -745,6 +752,10 @@ public final class RunOrchestrator: Sendable {
             await testingSlots.open()
             // キューが無いワーカー(shared: その platform のシナリオが無い / broadcast: レーンの
             // ぶんが 0 本、または計画に無いデバイス)は参加させない
+            // 供給が済んだ OS(遅延参加でない)で、宣言されたのに参加しない台は、最初のワーカーを走らせる前に落ちた台として記帳する
+            // (走らせてからだと、最初の対象外の判定に間に合わず「全部試した」と読まれて緑で確定する)
+            await Self.registerNeverJoined(planned: plannedLanes.filter { !(lateWorkers?.platforms.contains($0.platform) ?? false) },
+                                           joinedLanes: Set(workers.map { ScenarioQueue.lane(of: $0) }), queues: queues, isShared: isSharedDispatch)
             for worker in workers {
                 guard let queue = queues[queueKey(worker)] else { continue }
                 await joinedKeys.insert(queueKey(worker))
@@ -772,6 +783,9 @@ public final class RunOrchestrator: Sendable {
                         await interruptRequested.request()
                     }
                 }
+                // 供給が終わっても合流しなかった台(供給失敗・凍結 triage で除外など)。合流するワーカーを走らせる前に記帳する
+                await Self.registerNeverJoined(planned: plannedLanes.filter { late.platforms.contains($0.platform) },
+                                               joinedLanes: Set(joiners.map { ScenarioQueue.lane(of: $0) }), queues: queues, isShared: isSharedDispatch)
                 for worker in joiners {
                     guard let queue = queues[queueKey(worker)] else { continue }
                     await joinedKeys.insert(queueKey(worker))
@@ -884,6 +898,16 @@ public final class RunOrchestrator: Sendable {
                                         skipped: summary.skipped))
         continuation.finish()
         return summary
+    }
+
+    /// 宣言されたのに合流しなかった台を、その OS のキューへ「落ちた台」として記帳する(DR-214)。
+    /// shared / pulled のキューは OS ごと(キー = platform)。broadcast は1レーン1キューで回し直しが無いので記帳しない
+    static func registerNeverJoined(planned: [(lane: String, platform: String)], joinedLanes: Set<String>,
+                                    queues: [String: ScenarioQueue], isShared: Bool) async {
+        guard isShared else { return }
+        for entry in planned where !joinedLanes.contains(entry.lane) {
+            await queues[entry.platform]?.laneNeverJoined(entry.lane)
+        }
     }
 
     /// 対象外で終わった item の行き先(DR-214)。判定は `NotApplicableHandoff.decide`(機械の中は `ScenarioQueue`・機械をまたぐ run は親が同じ関数)。

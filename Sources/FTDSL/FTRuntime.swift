@@ -93,6 +93,8 @@ public final class FTDriveCore {
     public let physical: Bool
     /// iOS = udid / Android = シリアル(開閉の観測が使う。iOS Simulator の開閉は devicectl で読む)
     let deviceIdentifier: String?
+    /// iOS Simulator の機種が折りたたみ機か(親が `FoldControl.foldableModel` で読んで `--foldable-model` で渡す。nil = 読めていない)
+    let foldableModel: Bool?
     /// シナリオで最初に開閉を送る前の状態(シナリオの終わりに戻す。restoreFoldIfNeeded)。stateLock の下
     private var _foldOriginalState: FoldState?
     /// 実行プロファイルの `orientation`(`--orientation`)。nil = 何もしない
@@ -411,6 +413,7 @@ public final class FTDriveCore {
                 deviceName: String? = nil,
                 deviceIdentifier: String? = nil,
                 physical: Bool = false,
+                foldableModel: Bool? = nil,
                 // 描画の状態の公表先(`.fleetest/`。ツール本体側 = モニターが読む場所)。nil = 公表しない
                 screenStateDirectory: URL? = nil,
                 // StepExecutor の空打ちゲート(shouldEmptyDrag)へ渡す答え。呼び出し側
@@ -420,6 +423,7 @@ public final class FTDriveCore {
         self.driver = driver
         self.platform = platform
         self.physical = physical
+        self.foldableModel = foldableModel
         self.deviceIdentifier = deviceIdentifier
         self.appBundleID = app
         self.homeScreenDriverOverride = homeScreenDriver
@@ -452,7 +456,8 @@ public final class FTDriveCore {
         executor.appUnderTestBundleID = app
         // iOS Simulator の開閉はドライバでは読めない(どの包みも nil を返す)ので、`observeFold` と同じ devicectl の読みを渡す
         if platform == "ios", !physical, let udid = deviceIdentifier {
-            executor.foldObserver = { FoldControl.observeIOSSimulator(udid: udid) }
+            let foldableModel = foldableModel
+            executor.foldObserver = { FoldControl.observeIOSSimulator(udid: udid, foldableModel: foldableModel) }
         }
         if !dryRun, StepExecutor.publishesScreenState(platform: platform, physical: physical),
            let stateDir = screenStateDirectory, let key = deviceIdentifier {
@@ -1110,7 +1115,7 @@ public final class FTDriveCore {
             guard !physical, let udid = deviceIdentifier else {
                 return .unknown("no simulator UDID for this run")
             }
-            return FoldControl.observeIOSSimulator(udid: udid)
+            return FoldControl.observeIOSSimulator(udid: udid, foldableModel: foldableModel)
         }
         return await systemDriver.foldObservation() ?? .unknown("this driver cannot read the fold state")
     }

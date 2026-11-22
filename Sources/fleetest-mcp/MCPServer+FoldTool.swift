@@ -57,7 +57,7 @@ extension MCPServer {
             observe = { await foldDriver.foldObservation() ?? .unknown("the driver does not report the fold state") }
         } else {
             let udid = try await foldSimulatorUDID(foldDriver, args: args)
-            observe = { FoldControl.observeIOSSimulator(udid: udid) }
+            observe = { FoldControl.observeIOSSimulator(udid: udid, foldableModel: FoldControl.foldableModel(udid: udid)) }
         }
         do {
             let outcome = try await FoldControl.apply(target, waitSeconds: wait,

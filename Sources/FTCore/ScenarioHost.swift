@@ -863,6 +863,11 @@ public enum ScenarioHost {
         if let inappBundleID = connection.inappBundleID { args += ["--inapp-app", inappBundleID] }
         if let deviceName = connection.deviceName { args += ["--device-name", deviceName] }
         if connection.physical { args.append("--physical") }
+        // 折りたたみ機かは親が読んで渡す(子は simctl もデバイスタイプの定義も読めない)
+        if let udid = connection.udid, connection.platform == "ios", !connection.physical, !dryRun,
+           let foldable = FoldControl.foldableModel(udid: udid) {
+            args += ["--foldable-model", String(foldable)]
+        }
         if let host = childConnection.host { args += ["--bridge-host", host] }
         do {
             args += ["--tunables", try tunablesArgument(tunables)]

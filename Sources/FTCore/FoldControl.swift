@@ -143,17 +143,26 @@ public enum FoldControl {
     // MARK: - iOS Simulator の観測
 
     /// `devicectl device info displays --json-output -` の全体 → 観測(純粋)。
-    /// 内蔵画面が1枚 = 折りたたみ機ではない。表示中(`active`)が**面積の小さい側 = 閉じている**
-    /// (Duo は外側 1398x2034px < 内側 2007x2853px)。表示中が1枚に決まらなければ unknown
+    /// 折りたたみ機かは**機種(デバイスタイプの定義)が決める**(`foldableModel`)。devicectl の内蔵画面の数だけで決めない:
+    /// SpringBoard が落ち続けた後の Duo は内蔵画面を1枚しか申告せず、「折りたためない」と読むと fold のシナリオが緑で素通りする。
+    /// - 折りたたみ機の機種で内蔵画面が2枚に満たない / 表示中が1枚に決まらない → unknown(読めなかった = 送らずに赤)
+    /// - 折りたたみでない機種 → notFoldable / 機種が分からない(nil)→ 内蔵画面が1枚以下なら notFoldable(従来)
+    /// 表示中(`active`)が**面積の小さい側 = 閉じている**(Duo は外側 1398x2034px < 内側 2007x2853px)。
     /// (`simctl io screenConfig power` で画面の電源を触ると `active` 欄ごと消える = 実測)
-    public static func observe(fromDevicectlJSON data: Data) -> FoldObservation {
+    public static func observe(fromDevicectlJSON data: Data, foldableModel: Bool?) -> FoldObservation {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = root["result"] as? [String: Any],
               let displays = result["displays"] as? [[String: Any]] else {
             return .unknown("devicectl did not return a display list")
         }
         let integrated = displays.filter { ($0["type"] as? [String: Any])?["integrated"] != nil }
-        guard integrated.count > 1 else { return .notFoldable }
+        if foldableModel == false { return .notFoldable }
+        guard integrated.count > 1 else {
+            if foldableModel == true {
+                return .unknown("this device model is foldable but devicectl reports \(integrated.count) built-in display(s)")
+            }
+            return .notFoldable
+        }
         func area(_ display: [String: Any]) -> Int {
             guard let size = display["nativeSize"] as? [Int], size.count == 2 else { return 0 }
             return size[0] * size[1]
@@ -166,8 +175,57 @@ public enum FoldControl {
         return .state(area(shown) == smallest ? .folded : .unfolded)
     }
 
-    /// iOS Simulator の観測(devicectl 1回・実測 0.14 秒)
-    public static func observeIOSSimulator(udid: String) -> FoldObservation {
+    // MARK: - 機種が折りたたみ機か(親だけが読む)
+
+    /// デバイスタイプの `capabilities.plist` → 内蔵画面(`displayType == "integrated"`)の枚数(純粋)。
+    /// `displays` は `capabilities` の下(実測: iPhone Duo 2 枚・iPhone 18 Pro 1 枚)。読めなければ nil
+    public static func integratedDisplayCount(capabilitiesPlist data: Data) -> Int? {
+        guard let root = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return nil }
+        let container = (root["capabilities"] as? [String: Any]) ?? root
+        guard let displays = container["displays"] as? [[String: Any]] else { return nil }
+        return displays.filter { ($0["displayType"] as? String) == "integrated" }.count
+    }
+
+    /// `simctl list -j devicetypes devices` → その udid の機種の bundlePath(純粋)
+    public static func deviceTypeBundlePath(simctlJSON json: [String: Any], udid: String) -> String? {
+        var typeID: String?
+        for list in ((json["devices"] as? [String: [[String: Any]]]) ?? [:]).values {
+            if let device = list.first(where: { ($0["udid"] as? String) == udid }) {
+                typeID = device["deviceTypeIdentifier"] as? String
+            }
+        }
+        guard let typeID else { return nil }
+        let type = ((json["devicetypes"] as? [[String: Any]]) ?? []).first { ($0["identifier"] as? String) == typeID }
+        return type?["bundlePath"] as? String
+    }
+
+    /// 内蔵画面が2枚以上の機種 = 折りたたみ機(純粋)。数えられなければ nil
+    public static func isFoldableModel(integratedDisplayCount: Int?) -> Bool? {
+        integratedDisplayCount.map { $0 >= 2 }
+    }
+
+    private static let foldableModelCache = LockedValue<[String: Bool]>([:])
+
+    /// udid の Simulator の機種が折りたたみ機か。**親(サンドボックスの外)だけが呼ぶ** —— シナリオの子へは
+    /// `--foldable-model` で結果だけを渡す(子に simctl・ファイルの読みを足さない)。1 udid = 1 機種なので結果は控える
+    /// (読めなかったときは控えない)。読めなければ nil = 判定は devicectl だけ(従来)
+    public static func foldableModel(udid: String) -> Bool? {
+        if let cached = foldableModelCache.value[udid] { return cached }
+        guard let list = try? Shell.run(["xcrun", "simctl", "list", "-j", "devicetypes", "devices"], timeout: 15),
+              list.status == 0,
+              let json = (list.output.data(using: .utf8))
+                .flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }),
+              let bundle = deviceTypeBundlePath(simctlJSON: json, udid: udid),
+              let plist = FileManager.default.contents(
+                atPath: bundle + "/Contents/Resources/capabilities.plist"),
+              let answer = isFoldableModel(integratedDisplayCount: integratedDisplayCount(capabilitiesPlist: plist))
+        else { return nil }
+        foldableModelCache.withLock { $0[udid] = answer }
+        return answer
+    }
+
+    /// iOS Simulator の観測(devicectl 1回・実測 0.14 秒)。`foldableModel` は親が `foldableModel(udid:)` で読んだ答え
+    public static func observeIOSSimulator(udid: String, foldableModel: Bool?) -> FoldObservation {
         guard let out = try? Shell.runData(
             ["xcrun", "devicectl", "device", "info", "displays", "--device", udid, "--quiet", "--json-output", "-"],
             timeout: 15) else {
@@ -176,6 +234,6 @@ public enum FoldControl {
         guard out.status == 0 else {
             return .unknown("devicectl device info displays exited with status \(out.status)")
         }
-        return observe(fromDevicectlJSON: out.data)
+        return observe(fromDevicectlJSON: out.data, foldableModel: foldableModel)
     }
 }

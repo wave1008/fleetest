@@ -46,7 +46,7 @@ final class DeviceFoldabilitySampler: @unchecked Sendable {
         self.init(probe: { kind in
             switch kind {
             case .iosSimulator(let udid):
-                return FoldControl.observeIOSSimulator(udid: udid)
+                return FoldControl.observeIOSSimulator(udid: udid, foldableModel: FoldControl.foldableModel(udid: udid))
             case .androidEmulator(let serial):
                 guard let adbPath = try? AndroidDriver.findADB(),
                       let output = try? Shell.run([adbPath, "-s", serial, "shell", AdbPolicy.foldStateCommand],
