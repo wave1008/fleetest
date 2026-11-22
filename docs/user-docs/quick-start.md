@@ -157,7 +157,7 @@ Start the sample app's server, launch the app on a device, and operate it yourse
 ### Prompt for the AI
 
 ```text
-Start the server with project1's ios-run profile.
+Start the server that project1 uses.
 Using the ios-run profile, install the SUT Store app on one device, launch it, and tell me which device it is running on.
 ```
 
