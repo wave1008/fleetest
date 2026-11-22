@@ -149,7 +149,7 @@ struct RemoteCompatMachineJSON: Encodable {
     let baseRevision: String?
     /// ランナーのスナップショットの発行者(スナップショットでなければ null)
     let snapshotIssuer: String?
-    /// ランナーのツールの中身の要約
+    /// ランナーのツールの全体の要約(`revisionCompatible` は判定用の要約 = docs 等を除いたもので比べる。DR-226)
     let digest: String?
     /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。要約が同じでも
     /// `revisionCompatible` は false になる)。ツールの照会が読めなければ null

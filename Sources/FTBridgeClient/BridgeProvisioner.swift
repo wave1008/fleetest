@@ -135,9 +135,13 @@ public struct BridgeProvisioner: Sendable {
     /// inapp 起動時に未インストールを検出したらその場で simctl install する
     /// (ProfileWorkerFactory.installIfNeeded は provision の後段のため、それより前にここで埋める)。
     /// 流れ: 差分判定(並列)→ プランニング(直列)→ 共有ビルド(直列)→ 起動(デバイス単位で並列)。
+    /// preferredXCUITestPorts: デバイス名 → XCUITest ブリッジの希望ポート(用意し直しで元のポートへ戻す口)。
+    /// 空き(台帳・pid・iproxy が空)のときだけ honor され、無いデバイスは従来どおり(xcuitest モードは `spec.port`・
+    /// inapp-boost モードは空きの一番若いポート)。
     public func provision(devices: [(name: String, spec: DeviceSpec)],
                           bundleID: String? = nil,
                           preinstallAppPath: String? = nil,
+                          preferredXCUITestPorts: [String: UInt16] = [:],
                           log: @escaping (String) -> Void) async throws -> [ProvisionedIOSDevice] {
         // 呼び出し側の log(logStderr / print 等)はスレッド安全の契約が無い。
         // 並列フェーズからは必ずこのロック付きラッパーを使う
@@ -237,24 +241,39 @@ public struct BridgeProvisioner: Sendable {
             var bridges: [(kind: String, plan: BridgePlan)] = []
             do {
                 if mode == IOSMode.inappBoost {
-                    // in-app(主)+ XCUITest(撃てない操作の回し先)の2ブリッジ
-                    bridges.append(("inapp", try planBridge(
-                        bridge: "inapp", preferred: target.spec.port, name: target.name,
-                        sim: target.sim, bundleID: bundleID, appIsCurrent: appIsCurrent,
-                        preinstallAppPath: preinstallAppPath,
-                        running: running, starting: startingByUDID, foreign: foreignByUDID,
-                        inappSourceDigest: inappSourceDigest,
-                        claimed: &claimed, usedPorts: &usedPorts)))
-                    bridges.append(("xcuitest", try planBridge(
-                        bridge: "xcuitest", preferred: nil, name: target.name,
-                        sim: target.sim, bundleID: bundleID, appIsCurrent: appIsCurrent,
-                        preinstallAppPath: preinstallAppPath,
-                        running: running, starting: startingByUDID, foreign: foreignByUDID,
-                        inappSourceDigest: inappSourceDigest,
-                        claimed: &claimed, usedPorts: &usedPorts)))
+                    // in-app(主)+ XCUITest(撃てない操作の回し先)の2ブリッジ。
+                    // 希望ポートがあるときは **XCUITest を先に採番する**(in-app が先だと、止めた直後で空いている
+                    // 希望ポートを自動採番で採ってしまい、希望が honor されない)。並びは常に in-app → XCUITest
+                    func planInApp() throws -> BridgePlan {
+                        try planBridge(
+                            bridge: "inapp", preferred: target.spec.port, name: target.name,
+                            sim: target.sim, bundleID: bundleID, appIsCurrent: appIsCurrent,
+                            preinstallAppPath: preinstallAppPath,
+                            running: running, starting: startingByUDID, foreign: foreignByUDID,
+                            inappSourceDigest: inappSourceDigest,
+                            claimed: &claimed, usedPorts: &usedPorts)
+                    }
+                    func planXCUITest() throws -> BridgePlan {
+                        try planBridge(
+                            bridge: "xcuitest", preferred: preferredXCUITestPorts[target.name], name: target.name,
+                            sim: target.sim, bundleID: bundleID, appIsCurrent: appIsCurrent,
+                            preinstallAppPath: preinstallAppPath,
+                            running: running, starting: startingByUDID, foreign: foreignByUDID,
+                            inappSourceDigest: inappSourceDigest,
+                            claimed: &claimed, usedPorts: &usedPorts)
+                    }
+                    if preferredXCUITestPorts[target.name] != nil {
+                        let xcui = try planXCUITest()
+                        bridges.append(("inapp", try planInApp()))
+                        bridges.append(("xcuitest", xcui))
+                    } else {
+                        bridges.append(("inapp", try planInApp()))
+                        bridges.append(("xcuitest", try planXCUITest()))
+                    }
                 } else {
                     bridges.append(("xcuitest", try planBridge(
-                        bridge: "xcuitest", preferred: target.spec.port, name: target.name,
+                        bridge: "xcuitest", preferred: preferredXCUITestPorts[target.name] ?? target.spec.port,
+                        name: target.name,
                         sim: target.sim, bundleID: bundleID, appIsCurrent: appIsCurrent,
                         preinstallAppPath: preinstallAppPath,
                         running: running, starting: startingByUDID, foreign: foreignByUDID,

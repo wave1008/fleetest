@@ -42,7 +42,7 @@ final class RemoteAlignPlanTests: XCTestCase {
 
     private func probeOutput(head: String = "h1", toolDigest: String = "d1d1d1", record: [String] = ["d1d1d1", "-", "Xcode 27.2 Build version 1", "h1"],
                              binary: String = "yes", xcode: String = "Xcode 27.2 Build version 1") -> String {
-        ([head, toolDigest, "h0", "-"] + record + [binary, xcode]).joined(separator: "\n") + "\n"
+        ([head, toolDigest, toolDigest, "h0", "-"] + record + [binary, xcode]).joined(separator: "\n") + "\n"
     }
 
     private func aligned(_ output: String, digest: String = "d1d1d1", developerDir: String? = nil) -> Bool {
@@ -98,7 +98,7 @@ final class RemoteAlignPlanTests: XCTestCase {
     func testNotAlignedWhenTheBinaryIsMissing() { XCTAssertFalse(aligned(probeOutput(binary: "no"))) }
     func testNotAlignedWhenTheLocalDigestDiffers() { XCTAssertFalse(aligned(probeOutput(), digest: "newer")) }
 
-    func testProbeCommandIsValidShellAndAsksForTenLines() throws {
+    func testProbeCommandIsValidShellAndAsksForElevenLines() throws {
         for developerDir in [nil, "/Applications/Xcode 27.app/Contents/Developer"] {
             let command = RemoteAlignPlan.probeCommand(layout: layout, developerDir: developerDir)
             let syntax = try Shell.run(["/bin/sh", "-n", "-c", command])
@@ -107,12 +107,12 @@ final class RemoteAlignPlanTests: XCTestCase {
         }
     }
 
-    /// 実走: 何も無いディレクトリでも常に10行(読めない値は `-`)を返し、`parseProbe` が読める
-    func testProbeCommandAlwaysPrintsTenLinesOnAnEmptyMachine() throws {
+    /// 実走: 何も無いディレクトリでも常に11行(読めない値は `-`)を返し、`parseProbe` が読める
+    func testProbeCommandAlwaysPrintsElevenLinesOnAnEmptyMachine() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let empty = RemoteLayout(base: root.appendingPathComponent("runner").path, issuer: "alice", home: root.path)
-        // ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh で同じ10行・空行なしを要る
+        // ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh で同じ11行・空行なしを要る
         for shell in ["/bin/sh", "/bin/zsh"] {
             let result = try Shell.runData([shell, "-c", RemoteAlignPlan.probeCommand(layout: empty, developerDir: nil)])
             let text = String(data: result.data, encoding: .utf8) ?? ""
@@ -144,7 +144,7 @@ final class RemoteAlignPlanTests: XCTestCase {
 
     private func state(digest: String? = "remote", built: Bool = true) -> RemoteAlignPlan.ProbeState {
         RemoteAlignPlan.ProbeState(
-            tool: AlignSnapshot.RemoteToolState(head: "h", digest: digest, base: "b", snapshotIssuer: nil, built: built),
+            tool: AlignSnapshot.RemoteToolState(head: "h", digest: digest, runDigest: digest, base: "b", snapshotIssuer: nil, built: built),
             record: nil, binaryExists: true, xcodeVersion: "x")
     }
 

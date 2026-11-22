@@ -32,7 +32,8 @@ final class AlignSnapshotTests: XCTestCase {
         try recordBuild(at: repo, digest: local.digest)
         let probed = try probe()
         XCTAssertEqual(probed, AlignSnapshot.RemoteToolState(head: local.head, digest: local.digest,
-                                                             base: local.head, snapshotIssuer: nil, built: true))
+                                                             runDigest: local.runDigest, base: local.head,
+                                                             snapshotIssuer: nil, built: true))
     }
 
     func testSnapshotCheckedOutOnTheRunnerReportsBaseIssuerAndTheSameDigest() throws {
@@ -55,7 +56,8 @@ final class AlignSnapshotTests: XCTestCase {
         try recordBuild(at: runner, digest: local.digest)
         let probed = try probe(at: runner)
         XCTAssertEqual(probed, AlignSnapshot.RemoteToolState(head: snapshot, digest: local.digest,
-                                                             base: local.head, snapshotIssuer: "alice", built: true))
+                                                             runDigest: local.runDigest, base: local.head,
+                                                             snapshotIssuer: "alice", built: true))
     }
 
     func testOnlyTestProjectsChangesKeepTheDigest() throws {
@@ -84,8 +86,50 @@ final class AlignSnapshotTests: XCTestCase {
     }
 
     func testParseRemoteProbeReadsTheUnbuiltPrefix() {
-        let state = AlignSnapshot.parseRemoteProbe(["h", "unbuilt:abc", "h", "-"])
-        XCTAssertEqual(state, AlignSnapshot.RemoteToolState(head: "h", digest: "abc", base: "h", snapshotIssuer: nil, built: false))
+        let state = AlignSnapshot.parseRemoteProbe(["h", "unbuilt:abc", "run1", "h", "-"])
+        XCTAssertEqual(state, AlignSnapshot.RemoteToolState(head: "h", digest: "abc", runDigest: "run1", base: "h",
+                                                            snapshotIssuer: nil, built: false))
+    }
+
+    /// 5行未満(旧形式の4行)は読まない。`-` の判定用の要約は nil(全体の要約が読めていても)
+    func testParseRemoteProbeNeedsFiveLinesAndReadsDashAsNilRunDigest() {
+        XCTAssertNil(AlignSnapshot.parseRemoteProbe(["h", "abc", "h", "-"]))
+        let state = AlignSnapshot.parseRemoteProbe(["h", "abc", "-", "h", "-"])
+        XCTAssertEqual(state?.digest, "abc")
+        XCTAssertNil(state?.runDigest)
+    }
+
+    /// 判定用の要約: docs・直下の .md・.claude の変更では変わらず(全体の要約は変わる)、Sources・直下のその他のファイル・入れ子の .md では変わる。
+    /// 手元(Swift)とランナー(awk。sh / zsh)が同じ値を出す。
+    /// 変異: 除外を外す(docs / .md / .claude のどれか)→ 「変わらない」側が落ちる / 常に全体と同じ要約を返す → 「全体は違う」側が落ちる /
+    /// 除外を広げる(Sources まで除く)→ 「変わる」側が落ちる / 片側(Swift か awk)だけ変える → 等価の assert が落ちる
+    func testRunDigestIgnoresDocsTopLevelMarkdownAndDotClaudeOnBothSides() throws {
+        let before = try AlignSnapshot.localTree(repoRoot: repo, includeTestProjects: false)
+        try write("docs/guide.md", "x\n")
+        try write("README.md", "x\n")
+        try write("CLAUDE.md", "x\n")
+        try write("AGENTS.md", "x\n")
+        try write(".claude/rules/a.md", "x\n")
+        let docsOnly = try AlignSnapshot.localTree(repoRoot: repo, includeTestProjects: false)
+        XCTAssertEqual(docsOnly.runDigest, before.runDigest)
+        XCTAssertNotEqual(docsOnly.digest, before.digest, "the whole-tree digest still sees docs")
+        try git(["add", "-A"])
+        try git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "docs"])
+        let probed = try XCTUnwrap(try probe())
+        XCTAssertEqual(probed.runDigest, before.runDigest, "the runner's awk applies the same rule")
+        XCTAssertEqual(probed.digest, docsOnly.digest)
+        let revision = try AlignSnapshot.revisionTree(repoRoot: repo, rev: "HEAD")
+        XCTAssertEqual(revision.runDigest, before.runDigest)
+
+        // run に使うもの(Sources・直下のその他のファイル・入れ子の .md)は変える
+        for (path, content) in [("Sources/a.swift", "let a = 5\n"), ("Package.swift", "// p\n"),
+                                ("Sources/note.md", "x\n")] {
+            let changed = try AlignSnapshot.localTree(repoRoot: repo, includeTestProjects: false)
+            try write(path, content)
+            let after = try AlignSnapshot.localTree(repoRoot: repo, includeTestProjects: false)
+            XCTAssertNotEqual(after.runDigest, changed.runDigest, path)
+            XCTAssertNotEqual(after.digest, changed.digest, path)
+        }
     }
 
     /// 照合だけの経路(TestProjects を `add -A` しない)と送る経路(含める)で要約が同じ。
@@ -113,14 +157,14 @@ final class AlignSnapshotTests: XCTestCase {
                 AlignSnapshot.remoteProbeCommand(quotedToolRoot: "\"\(missing)\"")])
             let lines = String(decoding: result.data, as: UTF8.self)
                 .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
-            XCTAssertEqual(lines, ["-", "-", "-", "-"], shell)
+            XCTAssertEqual(lines, ["-", "-", "-", "-", "-"], shell)
             XCTAssertNil(AlignSnapshot.parseRemoteProbe(lines))
         }
     }
 
     // MARK: - helpers
 
-    /// ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh の両方で同じ4行を要る
+    /// ランナーのログインシェルは zsh(`echo -` が空行になる)。sh と zsh の両方で同じ5行を要る
     private static let shells = ["/bin/sh", "/bin/zsh"]
 
     private func probe(at clone: URL? = nil) throws -> AlignSnapshot.RemoteToolState? {
@@ -132,7 +176,7 @@ final class AlignSnapshotTests: XCTestCase {
             // 空の要素を落とさない(空行が出たらここで数が合わず落ちる)
             let lines = String(decoding: result.data, as: UTF8.self)
                 .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
-            XCTAssertEqual(lines.count, 4, "\(shell): the probe must always print 4 lines: \(lines)")
+            XCTAssertEqual(lines.count, 5, "\(shell): the probe must always print 5 lines: \(lines)")
             XCTAssertFalse(lines.contains(where: \.isEmpty), "\(shell) printed an empty line: \(lines)")
             parsed.append(AlignSnapshot.parseRemoteProbe(lines))
         }
@@ -148,7 +192,9 @@ final class AlignSnapshotTests: XCTestCase {
     }
 
     private func write(_ relative: String, _ content: String) throws {
-        try content.write(to: repo.appendingPathComponent(relative), atomically: true, encoding: .utf8)
+        let url = repo.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
     @discardableResult

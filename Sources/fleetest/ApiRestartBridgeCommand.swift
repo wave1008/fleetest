@@ -119,7 +119,11 @@ struct ApiRestartBridgeCommand: AsyncParsableCommand {
         if stoppedPorts.isEmpty {
             log("✔ \(spec.name): no running bridge found on this device — provisioning a fresh one")
         }
-        _ = try await BridgeProvisioner(repoRoot: repoRoot).provision(devices: [(spec.name, spec)], log: log)
+        // 止めた XCUITest ブリッジのポートへ戻す(監視・ワーカーが同じポートを見続ける。inapp-boost モードは希望が無いと空きの一番若いポートで戻る)。
+        // 複数止めた(どれが XCUITest か分からない)ときは希望を渡さない
+        let returnPort = stoppedPorts.count == 1 ? UInt16(stoppedPorts[0]) : nil
+        _ = try await BridgeProvisioner(repoRoot: repoRoot).provision(
+            devices: [(spec.name, spec)], preferredXCUITestPorts: returnPort.map { [spec.name: $0] } ?? [:], log: log)
     }
 }
 

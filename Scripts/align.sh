@@ -7,7 +7,7 @@
 # **判断の余地を無くして機械に持たせる**。
 #
 # やること: ①対象の機械を決める ②ロック・到達性の確認 ③各機へ `remote align` を**同時に**投げる
-# ④`remote status --json` で各機の revisionCompatible(ツールの中身の要約の一致)が全部 true であることまで確かめる。
+# ④`remote status --json` で各機の revisionCompatible(判定用の要約の一致)と digestMatches(全体の要約の一致)が全部 true であることまで確かめる。
 #
 # 使い方: Scripts/align.sh [--force | --force-lock] [<machine>...]
 #   機械を省くと登録簿のうち有効(enabled)なものすべて。
@@ -116,7 +116,7 @@ for m in $MACHINES; do
        cp "$LOGDIR/$m.log" "/tmp/align-$m.log"; echo "     ログを /tmp/align-$m.log に残した"; fi
 done
 
-# **align の成功報告だけで終わらせない**: 中身が揃ったことは各機の revisionCompatible で確かめる
+# **align の成功報告だけで終わらせない**: 中身が揃ったことは各機の revisionCompatible と digestMatches で確かめる
 echo "==> verify"
 "$FLEETEST" remote status $HOST_ARGS 2>&1 || true
 RAW=$("$FLEETEST" remote status $HOST_ARGS --json 2>/dev/null | grep '^{' || true)
@@ -126,7 +126,9 @@ MATCHED=$(python3 - "$RAW" <<'PYEOF'
 import json, sys
 raw = sys.argv[1]
 hosts = json.loads(raw).get("hosts", []) if raw else []
-print(sum(1 for h in hosts if h.get("revisionCompatible") is True))
+# 参加できるか(revisionCompatible = 判定用の要約)だけでなく、align が揃える単位の全体の要約(digestMatches)の一致も見る
+# (docs だけ違って揃っていない機を緑と言わない)
+print(sum(1 for h in hosts if h.get("revisionCompatible") is True and h.get("digestMatches") is True))
 PYEOF
 )
 if [ "$MATCHED" != "$EXPECTED" ]; then

@@ -17,12 +17,12 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
     /// 要約は `d-<head>`(同じ head なら一致)
     private static func tool(_ head: String, digest: String? = nil, base: String? = nil,
                              issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
-        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
+        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", runDigest: digest ?? "d-\(head)", base: base ?? head,
                                       snapshotIssuer: issuer, built: true)
     }
 
     private static func local(_ head: String) -> RemoteCompat.LocalTool {
-        RemoteCompat.LocalTool(head: head, digest: "d-\(head)", isClean: true)
+        RemoteCompat.LocalTool(head: head, digest: "d-\(head)", runDigest: "d-\(head)", isClean: true)
     }
 
     /// REV 欄: スナップショットは `<head7>+wip(<issuer>)`・通常は HEAD そのまま・読めなければ nil
@@ -41,9 +41,9 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
             let row = HostRow(sshTarget: "host", reachable: true, detail: nil, status: status, fmOK: nil)
             return HostReport(row: row, localTool: local, localToolchain: "Xcode 27.0").revisionCompatible
         }
-        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", isClean: false),
+        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", runDigest: "x", isClean: false),
                               remote: Self.tool("abc", digest: "y")), false)
-        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", isClean: false),
+        XCTAssertEqual(compat(local: RemoteCompat.LocalTool(head: "abc", digest: "x", runDigest: "x", isClean: false),
                               remote: Self.tool("def", digest: "x", base: "abc", issuer: "wave")), true)
     }
 
@@ -154,16 +154,16 @@ final class RemoteStatusToolchainCellTests: XCTestCase {
         XCTAssertNil(r.xcodeSelectionRefusalReason)
     }
 
-    /// `remote status --json` の各ホスト: 足した4欄(digest / built / baseRevision / snapshotIssuer)は読めなくても必ず出る
+    /// `remote status --json` の各ホスト: 足した欄(digest / runDigest / digestMatches / built / baseRevision / snapshotIssuer)は読めなくても必ず出る
     /// (null)。全部 nil の最小のホストで、必須キーの集合を等号で固定する
     func testStatusHostJSONAlwaysCarriesTheDigestKeys() throws {
         let host = StatusHostJSON(
             host: "h", reachable: false, loggedIn: nil, consoleUser: nil, revision: nil, baseRevision: nil,
-            snapshotIssuer: nil, digest: nil, built: nil, revisionCompatible: nil, toolchain: nil, toolchainCompatible: nil,
+            snapshotIssuer: nil, digest: nil, runDigest: nil, digestMatches: nil, built: nil, revisionCompatible: nil, toolchain: nil, toolchainCompatible: nil,
             toolchainAdvisory: nil, runtime: nil, runtimeMatches: nil, fm: nil, fmState: nil,
             binaryPresent: nil, freeKB: nil, lock: nil, xcodeSelectionError: nil, error: nil)
         let data = try JSONEncoder().encode(host)
         let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual(Set(object.keys), ["host", "reachable", "baseRevision", "snapshotIssuer", "digest", "built"])
+        XCTAssertEqual(Set(object.keys), ["host", "reachable", "baseRevision", "snapshotIssuer", "digest", "runDigest", "digestMatches", "built"])
     }
 }

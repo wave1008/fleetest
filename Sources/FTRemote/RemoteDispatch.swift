@@ -170,14 +170,17 @@ public enum RemoteCompat {
     }
 
     /// 手元のツールの同一性。`isClean` = 作業ツリーが HEAD と同じ(未コミットの変更なし)。
-    /// 照合は `digest`(中身の要約)で行い、`head` は表示と向きの判定(基点)に使う
+    /// 参加を断るかの照合は `runDigest`(判定用の要約 = docs など run に使わないものを除く。DR-226)で行い、
+    /// `digest`(全体の要約)は align の側(送るか・送った後の検証)が使う。`head` は表示と向きの判定(基点)に使う
     public struct LocalTool: Equatable, Sendable {
         public let head: String
         public let digest: String
+        public let runDigest: String
         public let isClean: Bool
-        public init(head: String, digest: String, isClean: Bool) {
+        public init(head: String, digest: String, runDigest: String, isClean: Bool) {
             self.head = head
             self.digest = digest
+            self.runDigest = runDigest
             self.isClean = isClean
         }
     }
@@ -231,13 +234,13 @@ public enum RemoteCompat {
         return CompatVerdict(blocking: blocking, advisory: advisory)
     }
 
-    /// 要約の一致で決める。**文言の接頭辞 "git revision" を変えない**(HostReport.revisionCompatible 等が拾う)
+    /// 判定用の要約(`runDigest`)の一致で決める。**文言の接頭辞 "git revision" を変えない**(HostReport.revisionCompatible 等が拾う)
     private static func appendRevision(
         _ blocking: inout [String], local: LocalTool?, remote: AlignSnapshot.RemoteToolState?
     ) {
-        let remoteDigest = remote?.digest
+        let remoteDigest = remote?.runDigest
         switch (local, remoteDigest) {
-        case let (local?, remoteDigest?) where local.digest == remoteDigest:
+        case let (local?, remoteDigest?) where local.runDigest == remoteDigest:
             // 要約が同じでも、成功したビルドの記録が無いクローンは古いバイナリを持ちうる(build-command は checkout の後に
             // ビルドする。失敗・中断すると要約だけ手元と一致する)。**接頭辞は "git revision" のまま**
             if let remote, !remote.built { blocking.append(unbuiltReason(remote)) }
@@ -246,15 +249,15 @@ public enum RemoteCompat {
             let localLabel = short(local.head) + (local.isClean ? "" : "+uncommitted")
             let remoteLabel = short(remote?.head ?? "") + (remote?.isSnapshot == true ? "+snapshot" : "")
             blocking.append("git revision mismatch: the tool content differs"
-                + " (local=\(localLabel) digest=\(short(local.digest)),"
-                + " remote=\(remoteLabel) digest=\(short(remoteDigest)))")
+                + " (local=\(localLabel) run-digest=\(short(local.runDigest)),"
+                + " remote=\(remoteLabel) run-digest=\(short(remoteDigest)))")
         default:
             appendMissingValueReason(&blocking, label: "git revision",
-                                     local: local?.digest, remote: remoteDigest)
+                                     local: local?.runDigest, remote: remoteDigest)
         }
     }
 
-    /// 未ビルドで止める理由。`RemoteToolState.built == false` かつ要約が手元と同じときの文言(向きの案内は付けない)
+    /// 未ビルドで止める理由。`RemoteToolState.built == false` かつ判定用の要約が手元と同じときの文言(向きの案内は付けない)
     public static func unbuiltReason(_ remote: AlignSnapshot.RemoteToolState) -> String {
         "git revision: the runner's clone at \(short(remote.head)) has no record of a successful align build"
             + " for its current contents, so its binaries may not match them — run `fleetest remote align <host>`"
@@ -263,7 +266,7 @@ public enum RemoteCompat {
     /// 要約が手元と同じなのに未ビルドで止まるか(向きの案内が要らない。呼び手が `relationAdvice` を足すかの判定)
     public static func isUnbuiltOnly(local: LocalTool?, remote: AlignSnapshot.RemoteToolState?) -> Bool {
         guard let local, let remote else { return false }
-        return !remote.built && remote.digest == local.digest
+        return !remote.built && remote.runDigest == local.runDigest
     }
 
     private static func short(_ sha: String) -> String { String(sha.prefix(7)) }
@@ -1086,7 +1089,7 @@ public enum RemoteStatusProbe {
         let devDirPrefix = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         var steps = [
             "echo $HOME; \(RemoteProbe.consoleUserCommand); id -un",
-            // 4行(HEAD / 要約 / 基点 / スナップショットの issuer)。**同じブロックの中で行が増えるだけ**
+            // 5行(HEAD / 全体の要約 / 判定用の要約 / 基点 / スナップショットの issuer)。**同じブロックの中で行が増えるだけ**
             // (ブロックを足すと parse の固定位置が後ろ全部ずれる)。toolRoot は dquote で `$HOME` を遅延展開させる
             AlignSnapshot.remoteProbeCommand(quotedToolRoot: dquote(layout.toolRoot)),
             "xcodebuild -version",

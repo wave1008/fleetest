@@ -3,7 +3,9 @@
 // ディスパッチの照合に使う「ツールの中身の要約」。**手元とランナーで同じ規則を通す**(片方だけ変えない。
 // 等価性は AlignSnapshotTests が同じツリーに両方を当てて固定する)。
 //
-// 要約 = `git ls-tree <tree>` から TestProjects の行を除いた列の `git hash-object`。
+// 要約は2種類(DR-226): **全体の要約**(align の送る・ビルドの記録・送った後の検証)= `git ls-tree <tree>` から TestProjects の行を除いた列の
+// `git hash-object` と、**判定用の要約**(`runDigest`。参加を断るかの照合)= 全体から run に使わない直下の docs・`.md`・`.claude` も除いた列の
+// `git hash-object`。
 // コミットの SHA ではなく中身で比べる —— 未コミットの変更を送った回も、同じ中身を後からコミットした回も
 // 同じ値になり、「SHA は同じで中身が違う」(未コミットの変更が届かないまま緑)を作らない。
 
@@ -18,6 +20,9 @@ public enum AlignSnapshot {
     /// 要約から外すトップレベルの名前。TestProjects/<P> は run のたびに rsync で届く(RR-13)ので、
     /// ここを含めるとシナリオを直しただけでディスパッチが止まる
     public static let excludedTopLevel = "TestProjects"
+    /// 判定用の要約だけが更に外す直下の名前(run のディスパッチはこれらを読まない。実行時に docs を読むのは手元の MCP だけ)。
+    /// 直下の `.md` ファイルも外す(名前の一覧にしない)。ランナー側の awk と同じ規則
+    public static let runDigestExcludedTopLevel: [String] = ["docs", ".claude"]
     /// コミットの作者・日時を固定する名前(同じ中身から同じ SHA = align.sh が全機へ並列に作っても揃う)
     static let authorName = "fleetest"
     static let authorEmail = "fleetest@localhost"
@@ -27,10 +32,24 @@ public enum AlignSnapshot {
     /// `git ls-tree` の出力から要約の入力を作る。**ランナー側の `remoteProbeCommand` の awk と同じバイト列**
     /// (残した行 + 改行。ls-tree の行は `<mode> <type> <sha>\t<name>`)
     public static func digestInput(lsTree: String) -> String {
+        filteredInput(lsTree: lsTree) { _, name in name != excludedTopLevel }
+    }
+
+    /// 判定用の要約の入力。全体の入力から更に直下の `docs`・`.claude`・直下の `.md` ファイル(blob)の行を除く。
+    /// **ランナー側の `remoteProbeCommand` の2本目の awk と同じバイト列**
+    public static func runDigestInput(lsTree: String) -> String {
+        filteredInput(lsTree: lsTree) { meta, name in
+            if name == excludedTopLevel || runDigestExcludedTopLevel.contains(name) { return false }
+            let isBlob = meta.split(separator: " ", omittingEmptySubsequences: false).dropFirst().first == "blob"
+            return !(isBlob && name.hasSuffix(".md"))
+        }
+    }
+
+    private static func filteredInput(lsTree: String, keep: (_ meta: Substring, _ name: String) -> Bool) -> String {
         lsTree.split(separator: "\n", omittingEmptySubsequences: true)
             .filter { line in
                 guard let tab = line.firstIndex(of: "\t") else { return true }
-                return line[line.index(after: tab)...] != Substring(excludedTopLevel)
+                return keep(line[..<tab], String(line[line.index(after: tab)...]))
             }
             .map { $0 + "\n" }
             .joined()
@@ -43,7 +62,7 @@ public enum AlignSnapshot {
 
     /// ランナーの状態の照会の行数(`remoteProbeCommand` の出力。呼び手は**末尾のこの行数**で読む = シェル初期化ファイルが
     /// 先頭へ出す余計な行に位置をずらされない)
-    public static let probeLineCount = 4
+    public static let probeLineCount = 5
     /// ランナーの成功したビルドの記録(1行目 = ビルドしたツリーの要約)の `<toolRoot>` からの相対パス。
     /// 書くのは `RemoteAlignPlan.buildScript`、読むのは `remoteProbeCommand` と `RemoteAlignPlan.probeCommand`
     public static let builtRecordRelativePath = ".fleetest/align-built"
@@ -51,33 +70,39 @@ public enum AlignSnapshot {
     public static let unbuiltPrefix = "unbuilt:"
 
     /// ランナーの状態の照会。`toolRoot` は呼び手が引用済みの式で渡す(RemoteStatusProbe は `$HOME` を
-    /// 遅延展開させるため二重引用符で包む)。出力は4行: HEAD / 要約 / 基点 / スナップショットの issuer。
+    /// 遅延展開させるため二重引用符で包む)。出力は5行: HEAD / 全体の要約 / 判定用の要約 / 基点 / スナップショットの issuer。
     /// **2行目は、`<toolRoot>/.fleetest/align-built` の1行目が HEAD のツリーの要約と同じときだけ要約そのもの**で、
     /// 違う・記録が無いときは `unbuilt:<要約>`(build-command は checkout の後にビルドするので、ビルドが失敗・中断した
     /// クローンは要約が手元と一致したまま古いバイナリを残す。それを「一致」と言わない)。
-    /// 読めない値は `-`(行数は常に4 = 呼び手が固定位置で読める)。**`-` は `printf` で出す** —— ランナーの
+    /// 3行目(判定用の要約)は `unbuilt:` を付けない(ビルドの記録は全体の要約で付ける)。
+    /// 読めない値は `-`(行数は常に5 = 呼び手が固定位置で読める)。**`-` は `printf` で出す** —— ランナーの
     /// ログインシェルは zsh で、zsh の `echo -` / `echo "-"` は空行になる(末尾の空行は呼び手の trim で消え、
     /// きれいなクローンが3行 = 読めない扱いになって全ディスパッチが止まった。陽性対照で実測)
     public static func remoteProbeCommand(quotedToolRoot r: String) -> String {
         let record = "\(r)/\(builtRecordRelativePath)"
+        let digestAwk = "awk -F'\\t' 'NF > 0 && $2 != \"\(excludedTopLevel)\"'"
+        let runAwk = "awk -F'\\t' 'NF > 0 && $2 != \"\(excludedTopLevel)\"" + runDigestExcludedTopLevel.map { " && $2 != \"\($0)\"" }.joined()
+            + " { split($1, m, \" \"); if (!(m[2] == \"blob\" && $2 ~ /[.]md$/)) print }'"
         return "if h=$(git -C \(r) rev-parse HEAD 2>/dev/null); then echo \"$h\"; "
-            + "d=$(git -C \(r) ls-tree HEAD 2>/dev/null | awk -F'\\t' '$2 != \"\(excludedTopLevel)\"' "
-            + "| git hash-object --stdin 2>/dev/null) || d=; "
+            + "d=; u=; if l=$(git -C \(r) ls-tree HEAD 2>/dev/null); then "
+            + "d=$(printf '%s\\n' \"$l\" | \(digestAwk) | git hash-object --stdin 2>/dev/null) || d=; "
+            + "u=$(printf '%s\\n' \"$l\" | \(runAwk) | git hash-object --stdin 2>/dev/null) || u=; fi; "
             + "if [ -z \"$d\" ]; then printf '%s\\n' -; "
             + "elif [ \"$(sed -n 1p \(record) 2>/dev/null)\" = \"$d\" ]; then printf '%s\\n' \"$d\"; "
             + "else printf '%s%s\\n' \(unbuiltPrefix) \"$d\"; fi; "
+            + "printf '%s\\n' \"${u:--}\"; "
             + "if [ \"$(git -C \(r) log -1 --format=%s HEAD 2>/dev/null)\" = \(marker) ]; then "
             + "git -C \(r) rev-parse HEAD^1 2>/dev/null || printf '%s\\n' -; "
             + "i=$(git -C \(r) log -1 --format=%b HEAD 2>/dev/null | sed -n 's/^issuer: //p' | head -1); "
             + "printf '%s\\n' \"${i:--}\"; "
             + "else echo \"$h\"; printf '%s\\n' -; fi; "
-            + "else printf '%s\\n' - - - -; fi"
+            + "else printf '%s\\n' - - - - -; fi"
     }
 
-    /// `remoteProbeCommand` の4行を読む。HEAD が `-` なら nil(クローンが無い・git が読めない)
+    /// `remoteProbeCommand` の5行を読む。HEAD が `-` なら nil(クローンが無い・git が読めない)
     public static func parseRemoteProbe(_ lines: [String]) -> RemoteToolState? {
         let values = lines.map { $0.trimmingCharacters(in: .whitespaces) }
-        guard values.count >= 4 else { return nil }
+        guard values.count >= probeLineCount else { return nil }
         func value(_ index: Int) -> String? { values[index] == "-" || values[index].isEmpty ? nil : values[index] }
         guard let head = value(0) else { return nil }
         var digest = value(1)
@@ -86,8 +111,8 @@ public enum AlignSnapshot {
             digest = String(raw.dropFirst(unbuiltPrefix.count))
             built = false
         }
-        return RemoteToolState(head: head, digest: digest, base: value(2) ?? head, snapshotIssuer: value(3),
-                               built: built)
+        return RemoteToolState(head: head, digest: digest, runDigest: value(2), base: value(3) ?? head,
+                               snapshotIssuer: value(4), built: built)
     }
 
     public struct RemoteToolState: Equatable, Sendable {
@@ -96,6 +121,8 @@ public enum AlignSnapshot {
         /// ツールの中身の要約(読めなければ nil = 照合は不一致として止める)。**照合には使わない値ではなく、クローンの HEAD の中身**
         /// (`built` が false でもこの値は読める)
         public let digest: String?
+        /// 判定用の要約(docs など run に使わないものを除く。参加を断るかの照合はこれで行う)。読めなければ nil
+        public let runDigest: String?
         /// 向きの判定に使うコミット(スナップショットなら HEAD^1 = 作った人の HEAD、そうでなければ HEAD)
         public let base: String
         /// スナップショットを置いた発行者(スナップショットでなければ nil)
@@ -104,9 +131,10 @@ public enum AlignSnapshot {
         /// **既定値を置かない**(true を既定にすると、新しい作り手の渡し忘れが未ビルドを「ビルド済み」と読む = 安全側に倒れない)
         public let built: Bool
 
-        public init(head: String, digest: String?, base: String, snapshotIssuer: String?, built: Bool) {
+        public init(head: String, digest: String?, runDigest: String?, base: String, snapshotIssuer: String?, built: Bool) {
             self.head = head
             self.digest = digest
+            self.runDigest = runDigest
             self.base = base
             self.snapshotIssuer = snapshotIssuer
             self.built = built
@@ -122,8 +150,10 @@ public enum AlignSnapshot {
         public let tree: String
         /// HEAD のツリーと同じか(同じならスナップショットを作らず HEAD をそのまま送る)
         public let isClean: Bool
-        /// 要約
+        /// 全体の要約
         public let digest: String
+        /// 判定用の要約
+        public let runDigest: String
     }
 
     public enum SnapshotError: Error, LocalizedError {
@@ -155,9 +185,10 @@ public enum AlignSnapshot {
         _ = try git(repoRoot, addArguments, env: env)
         let tree = try git(repoRoot, ["write-tree"], env: env)
         let treeDigest = try digest(repoRoot: repoRoot, tree: tree)
+        let treeRunDigest = try runDigest(repoRoot: repoRoot, tree: tree)
         // 除外した経路のツリーは TestProjects の変更を持たない(インデックス由来の分だけ残る)ので、ツリーの一致でなく要約で比べる
         let isClean = includeTestProjects ? tree == headTree : treeDigest == (try digest(repoRoot: repoRoot, tree: headTree))
-        return LocalTree(head: head, tree: tree, isClean: isClean, digest: treeDigest)
+        return LocalTree(head: head, tree: tree, isClean: isClean, digest: treeDigest, runDigest: treeRunDigest)
     }
 
     /// `--tool-rev` の指すコミットとそのツリーの要約。**コミットそのものを送る**(スナップショットは作らない)。
@@ -166,6 +197,7 @@ public enum AlignSnapshot {
         public let commit: String
         public let tree: String
         public let digest: String
+        public let runDigest: String
     }
 
     public static func revisionTree(repoRoot: URL, rev: String) throws -> RevisionTree {
@@ -181,10 +213,17 @@ public enum AlignSnapshot {
             throw SnapshotError.git("--tool-rev \(trimmed) does not name a commit in this clone")
         }
         let tree = try git(repoRoot, ["rev-parse", "\(commit)^{tree}"])
-        return RevisionTree(commit: commit, tree: tree, digest: try digest(repoRoot: repoRoot, tree: tree))
+        return RevisionTree(commit: commit, tree: tree, digest: try digest(repoRoot: repoRoot, tree: tree),
+                            runDigest: try runDigest(repoRoot: repoRoot, tree: tree))
     }
 
-    /// ツリーの要約(ランナーの `remoteProbeCommand` と同じ規則)
+    /// ツリーの判定用の要約(ランナーの `remoteProbeCommand` の2本目の awk と同じ規則)
+    public static func runDigest(repoRoot: URL, tree: String) throws -> String {
+        let listing = try git(repoRoot, ["ls-tree", tree])
+        return try git(repoRoot, ["hash-object", "--stdin"], stdin: Data(runDigestInput(lsTree: listing + "\n").utf8))
+    }
+
+    /// ツリーの全体の要約(ランナーの `remoteProbeCommand` と同じ規則)
     public static func digest(repoRoot: URL, tree: String) throws -> String {
         let listing = try git(repoRoot, ["ls-tree", tree])
         return try git(repoRoot, ["hash-object", "--stdin"], stdin: Data(digestInput(lsTree: listing + "\n").utf8))

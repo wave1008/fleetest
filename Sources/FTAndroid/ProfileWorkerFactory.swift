@@ -427,9 +427,13 @@ public enum ProfileWorkerFactory {
         // ワーカーのドライバが別の宛先を指したままになるので確かめる
         _ = BridgeLauncher.stopRunnersMatching(udid: udid, repoRoot: repoRoot)
         let iosApp = resolved.apps["ios"]
+        // 元の XCUITest ブリッジのポートを希望として渡す(渡さないと inapp-boost モードは空きの一番若いポートで戻り、
+        // ワーカーのドライバが指す宛先とずれる)
+        let expectedPort = worker.connection.xcuiPort ?? worker.connection.port
         let provisionLog = LockedValue<[String]>([])
         let provisioned = try? await BridgeProvisioner(repoRoot: repoRoot).provision(
             devices: [device], bundleID: iosApp?.bundleID, preinstallAppPath: nil,
+            preferredXCUITestPorts: expectedPort.map { [device.name: $0] } ?? [:],
             log: { line in provisionLog.withLock { $0.append(line) } })
         let lastProvisionLine = provisionLog.withLock { $0.last } ?? "no output"
         guard let rebuilt = provisioned?.first else {
@@ -437,7 +441,6 @@ public enum ProfileWorkerFactory {
                 label: worker.label,
                 reason: "the bridge did not come back after restarting SpringBoard (\(lastProvisionLine))")
         }
-        let expectedPort = worker.connection.xcuiPort ?? worker.connection.port
         guard (rebuilt.xcuiPort ?? rebuilt.port) == expectedPort else {
             return purpose.failed(
                 label: worker.label,

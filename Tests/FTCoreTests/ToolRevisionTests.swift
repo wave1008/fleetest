@@ -68,6 +68,7 @@ final class ToolRevisionTests: XCTestCase {
             .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
         let state = try XCTUnwrap(AlignSnapshot.parseRemoteProbe(lines))
         XCTAssertEqual(state.digest, revision.digest)
+        XCTAssertEqual(state.runDigest, revision.runDigest)
         XCTAssertEqual(state.base, revision.commit)
         XCTAssertNil(state.snapshotIssuer)
     }

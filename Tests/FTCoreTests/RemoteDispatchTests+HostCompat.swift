@@ -136,12 +136,12 @@ extension RemoteDispatchTests {
 
     /// digest は `d-<head>` を既定にする(同じ head なら同じ要約)。中身だけ違うケースは digest を明示する
     static func localTool(_ head: String, digest: String? = nil, clean: Bool = true) -> RemoteCompat.LocalTool {
-        RemoteCompat.LocalTool(head: head, digest: digest ?? "d-\(head)", isClean: clean)
+        RemoteCompat.LocalTool(head: head, digest: digest ?? "d-\(head)", runDigest: digest ?? "d-\(head)", isClean: clean)
     }
 
     static func remoteTool(_ head: String, digest: String? = nil, base: String? = nil,
                            issuer: String? = nil) -> AlignSnapshot.RemoteToolState {
-        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", base: base ?? head,
+        AlignSnapshot.RemoteToolState(head: head, digest: digest ?? "d-\(head)", runDigest: digest ?? "d-\(head)", base: base ?? head,
                                       snapshotIssuer: issuer, built: true)
     }
 
@@ -165,8 +165,8 @@ extension RemoteDispatchTests {
                                 remote: Self.remoteTool("abcdef1234", digest: "2222222999"))
         XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
         XCTAssertTrue(v.blocking[0].hasPrefix("git revision mismatch"), v.blocking[0])
-        XCTAssertTrue(v.blocking[0].contains("local=abcdef1+uncommitted digest=1111111"), v.blocking[0])
-        XCTAssertTrue(v.blocking[0].contains("remote=abcdef1 digest=2222222"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("local=abcdef1+uncommitted run-digest=1111111"), v.blocking[0])
+        XCTAssertTrue(v.blocking[0].contains("remote=abcdef1 run-digest=2222222"), v.blocking[0])
         let snapshot = revisionVerdict(local: Self.localTool("abcdef1234", digest: "1111111999"),
                                        remote: Self.remoteTool("fedcba9876", digest: "2222222999",
                                                                base: "abcdef1234", issuer: "wave"))
@@ -175,7 +175,7 @@ extension RemoteDispatchTests {
 
     /// ランナーの要約が読めない(HEAD は読めた)ときも fail-closed
     func testVerdictRemoteDigestUnreadableIsBlocking() {
-        let remote = AlignSnapshot.RemoteToolState(head: "abc", digest: nil, base: "abc", snapshotIssuer: nil, built: true)
+        let remote = AlignSnapshot.RemoteToolState(head: "abc", digest: "x", runDigest: nil, base: "abc", snapshotIssuer: nil, built: true)
         let v = revisionVerdict(local: Self.localTool("abc"), remote: remote)
         XCTAssertEqual(v.blocking.count, 1, "\(v.blocking)")
         XCTAssertTrue(v.blocking[0].contains("could not determine the remote value"), v.blocking[0])
@@ -569,8 +569,8 @@ extension RemoteDispatchTests {
 
     private func statusOutput(session: String, revision: String, xcodeVersion: String,
                               sdkBuild: String, binary: String, df: String?) -> String {
-        // 照会は4行(HEAD / 要約 / 基点 / 発行者)。"-" は読めない(4行とも `-`)
-        let probe = revision == "-" ? "-\n-\n-\n-" : "\(revision)\nd-\(revision)\n\(revision)\n-"
+        // 照会は5行(HEAD / 全体の要約 / 判定用の要約 / 基点 / 発行者)。"-" は読めない(5行とも `-`)
+        let probe = revision == "-" ? "-\n-\n-\n-\n-" : "\(revision)\nd-\(revision)\nd-\(revision)\n\(revision)\n-"
         var blocks = [session, probe, xcodeVersion, sdkBuild, binary]
         if let df { blocks.append(df) }
         return blocks.joined(separator: "\n\(Self.statusSeparator)\n")
@@ -601,13 +601,13 @@ extension RemoteDispatchTests {
     /// 照会の4行(HEAD / 要約 / 基点 / 発行者)が読まれ、**後ろのブロックがずれない**
     /// (toolchain・binary・df が同じ出力から正しく読める)。スナップショットなら基点と発行者が入る
     func testStatusProbeParsesTheFourLineToolBlockWithoutShiftingLaterBlocks() {
-        let output = ["/Users/ci\nalice\nalice", "snap111\ndig222\nbase333\nwave",
+        let output = ["/Users/ci\nalice\nalice", "snap111\ndig222\nrun222\nbase333\nwave",
                       "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes",
                       "/dev/disk3s1s1  965538800 542000000 400000000   58%    /"]
             .joined(separator: "\n\(Self.statusSeparator)\n")
         let status = RemoteStatusProbe.parse(output)
         XCTAssertEqual(status.tool, AlignSnapshot.RemoteToolState(
-            head: "snap111", digest: "dig222", base: "base333", snapshotIssuer: "wave", built: true))
+            head: "snap111", digest: "dig222", runDigest: "run222", base: "base333", snapshotIssuer: "wave", built: true))
         XCTAssertEqual(status.toolchain, "Xcode 27.0 Build version 27A5228h / iphonesimulator 27A5228h")
         XCTAssertTrue(status.binaryPresent)
         XCTAssertEqual(status.freeKB, 400_000_000)
@@ -615,11 +615,11 @@ extension RemoteDispatchTests {
 
     /// 読めない値は `-`: 要約だけ読めない・スナップショットでない(基点 = HEAD・発行者 nil)
     func testStatusProbeToolBlockWithUnreadableDigest() {
-        let output = ["/Users/ci\nalice\nalice", "head111\n-\nhead111\n-",
+        let output = ["/Users/ci\nalice\nalice", "head111\n-\n-\nhead111\n-",
                       "Xcode 27.0\nBuild version 27A5228h", "27A5228h", "yes", "x y z 100"]
             .joined(separator: "\n\(Self.statusSeparator)\n")
         let tool = RemoteStatusProbe.parse(output).tool
-        XCTAssertEqual(tool, AlignSnapshot.RemoteToolState(head: "head111", digest: nil, base: "head111", snapshotIssuer: nil, built: true))
+        XCTAssertEqual(tool, AlignSnapshot.RemoteToolState(head: "head111", digest: nil, runDigest: nil, base: "head111", snapshotIssuer: nil, built: true))
         XCTAssertEqual(tool?.isSnapshot, false)
     }
 

@@ -236,6 +236,8 @@ struct RemoteCommand: AsyncParsableCommand {
                     baseRevision: r.status?.tool?.base,
                     snapshotIssuer: r.status?.tool?.snapshotIssuer,
                     digest: r.status?.tool?.digest,
+                    runDigest: r.status?.tool?.runDigest,
+                    digestMatches: r.digestMatches,
                     built: r.status?.tool?.built,
                     revisionCompatible: r.revisionCompatible,
                     toolchain: r.status?.toolchain,
@@ -1202,9 +1204,14 @@ struct HostReport {
     let verdict: RemoteCompat.CompatVerdict
     /// row.xcodeSelectionRefusalReason をそのまま運ぶ(印字用。判定自体は verdict.blocking を見る)
     let xcodeSelectionRefusalReason: String?
+    /// 全体の要約(align が揃える単位)が手元と一致するか。nil = 比べられない(未到達・どちらかが読めない)。
+    /// `revisionCompatible`(判定用の要約 = docs 等を除く)と別 —— docs だけ違う機は参加できるが、align 済みとは言えない
+    let digestMatches: Bool?
 
     init(row: HostRow, localTool: RemoteCompat.LocalTool?, localToolchain: String?) {
         sshTarget = row.sshTarget
+        digestMatches = row.reachable
+            ? row.status?.tool?.digest.flatMap { remote in localTool.map { $0.digest == remote } } : nil
         reachable = row.reachable
         detail = row.detail
         status = row.status
@@ -1252,10 +1259,14 @@ struct StatusHostJSON: Encodable {
     let snapshotIssuer: String?
     /// ランナーのツールの中身の要約(照合はこれで行う)。読めなければ null
     let digest: String?
-    /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。`digest` が手元と同じでも
+    /// ランナーの判定用の要約(docs など run に使わないものを除く。`revisionCompatible` はこれで比べる)。読めなければ null
+    let runDigest: String?
+    /// 全体の要約 `digest` が手元と一致するか(align が揃えた状態。Scripts/align.sh の検証はこれを見る)。比べられなければ null
+    let digestMatches: Bool?
+    /// 成功したビルドの記録がクローンの HEAD の要約と一致するか(false = 未ビルド・ビルドの失敗・中断。要約が手元と同じでも
     /// `revisionCompatible` は false)。ツールの照会が読めなければ null
     let built: Bool?
-    /// 要約が手元と一致するか(blocking で止まるか)
+    /// 判定用の要約が手元と一致するか(blocking で止まるか。ディスパッチはこれで参加を断る)
     let revisionCompatible: Bool?
     let toolchain: String?
     /// blocking で止まるか(advisory = ベータ seed だけの差は true のまま)
@@ -1282,12 +1293,12 @@ struct StatusHostJSON: Encodable {
     let error: String?
 
     private enum CodingKeys: String, CodingKey {
-        case host, reachable, loggedIn, consoleUser, revision, baseRevision, snapshotIssuer, digest, built,
+        case host, reachable, loggedIn, consoleUser, revision, baseRevision, snapshotIssuer, digest, runDigest, digestMatches, built,
              revisionCompatible, toolchain, toolchainCompatible, toolchainAdvisory, runtime, runtimeMatches,
              fm, fmState, binaryPresent, freeKB, lock, xcodeSelectionError, error
     }
 
-    /// 従来の欄は nil で省く(synthesized と同じ)。**足した4欄(baseRevision / snapshotIssuer / digest / built)は
+    /// 従来の欄は nil で省く(synthesized と同じ)。**足した欄(baseRevision / snapshotIssuer / digest / runDigest / digestMatches / built)は
     /// 必須 = 読めなくても null で出す**(拡張・スクリプトがキー欠落と null を区別せずに読める)
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -1299,6 +1310,8 @@ struct StatusHostJSON: Encodable {
         try c.encode(baseRevision, forKey: .baseRevision)
         try c.encode(snapshotIssuer, forKey: .snapshotIssuer)
         try c.encode(digest, forKey: .digest)
+        try c.encode(runDigest, forKey: .runDigest)
+        try c.encode(digestMatches, forKey: .digestMatches)
         try c.encode(built, forKey: .built)
         try c.encodeIfPresent(revisionCompatible, forKey: .revisionCompatible)
         try c.encodeIfPresent(toolchain, forKey: .toolchain)

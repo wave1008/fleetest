@@ -300,13 +300,13 @@ final class RemoteHostRegistryTests: XCTestCase {
     /// 「リモートの登録名」は見ない
     func testVerdictChecksRevisionAndToolchainOnly() {
         XCTAssertEqual(
-            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", isClean: true),
-                                 remoteTool: AlignSnapshot.RemoteToolState(head: "abc", digest: "d", base: "abc", snapshotIssuer: nil, built: true),
+            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", runDigest: "d", isClean: true),
+                                 remoteTool: AlignSnapshot.RemoteToolState(head: "abc", digest: "d", runDigest: "d", base: "abc", snapshotIssuer: nil, built: true),
                                  localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0"),
             RemoteCompat.CompatVerdict())
         XCTAssertEqual(
-            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", isClean: true),
-                                 remoteTool: AlignSnapshot.RemoteToolState(head: "def", digest: "e", base: "def", snapshotIssuer: nil, built: true),
+            RemoteCompat.verdict(local: RemoteCompat.LocalTool(head: "abc", digest: "d", runDigest: "d", isClean: true),
+                                 remoteTool: AlignSnapshot.RemoteToolState(head: "def", digest: "e", runDigest: "e", base: "def", snapshotIssuer: nil, built: true),
                                  localToolchain: "Xcode 27.0", remoteToolchain: "Xcode 27.0").blocking.count,
             1)
     }

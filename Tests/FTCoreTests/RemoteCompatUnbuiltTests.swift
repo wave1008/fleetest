@@ -5,10 +5,10 @@ import XCTest
 import FTRemote
 
 final class RemoteCompatUnbuiltTests: XCTestCase {
-    private let local = RemoteCompat.LocalTool(head: "aaaaaaa1111", digest: "dg", isClean: true)
+    private let local = RemoteCompat.LocalTool(head: "aaaaaaa1111", digest: "dg", runDigest: "dg", isClean: true)
 
     private func verdict(built: Bool, digest: String = "dg") -> RemoteCompat.CompatVerdict {
-        let remote = AlignSnapshot.RemoteToolState(head: "bbbbbbb2222", digest: digest, base: "bbbbbbb2222",
+        let remote = AlignSnapshot.RemoteToolState(head: "bbbbbbb2222", digest: digest, runDigest: digest, base: "bbbbbbb2222",
                                                    snapshotIssuer: nil, built: built)
         return RemoteCompat.verdict(local: local, remoteTool: remote, localToolchain: "t", remoteToolchain: "t")
     }
@@ -35,11 +35,27 @@ final class RemoteCompatUnbuiltTests: XCTestCase {
 
     func testIsUnbuiltOnly() {
         func remote(_ built: Bool, _ digest: String) -> AlignSnapshot.RemoteToolState {
-            AlignSnapshot.RemoteToolState(head: "h", digest: digest, base: "h", snapshotIssuer: nil, built: built)
+            AlignSnapshot.RemoteToolState(head: "h", digest: digest, runDigest: digest, base: "h", snapshotIssuer: nil, built: built)
         }
         XCTAssertTrue(RemoteCompat.isUnbuiltOnly(local: local, remote: remote(false, "dg")))
         XCTAssertFalse(RemoteCompat.isUnbuiltOnly(local: local, remote: remote(true, "dg")))
         XCTAssertFalse(RemoteCompat.isUnbuiltOnly(local: local, remote: remote(false, "other")))
         XCTAssertFalse(RemoteCompat.isUnbuiltOnly(local: nil, remote: remote(false, "dg")))
+    }
+
+    /// 参加を断る照合は判定用の要約(DR-226)。全体の要約だけ違う(= docs だけの違い)なら断らず、判定用が違えば断る。
+    /// 変異: 照合を全体の要約へ戻す → 1件目が落ちる / 照合を常に通す → 2件目が落ちる /
+    /// 判定用が一致のとき built を見ない → 3件目が落ちる
+    func testMatchingUsesTheRunDigestNotTheWholeDigest() {
+        func verdict(digest: String, runDigest: String, built: Bool = true) -> RemoteCompat.CompatVerdict {
+            let remote = AlignSnapshot.RemoteToolState(head: "h", digest: digest, runDigest: runDigest, base: "h",
+                                                       snapshotIssuer: nil, built: built)
+            return RemoteCompat.verdict(local: local, remoteTool: remote, localToolchain: "t", remoteToolchain: "t")
+        }
+        XCTAssertTrue(verdict(digest: "docs-differ", runDigest: "dg").isCompatible, "only docs differ")
+        let blocked = verdict(digest: "other", runDigest: "other-run")
+        XCTAssertEqual(blocked.blocking.count, 1)
+        XCTAssertTrue(blocked.blocking[0].hasPrefix("git revision mismatch"), blocked.blocking[0])
+        XCTAssertFalse(verdict(digest: "docs-differ", runDigest: "dg", built: false).isCompatible, "unbuilt still blocks")
     }
 }

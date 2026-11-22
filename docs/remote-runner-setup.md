@@ -198,7 +198,7 @@ fleetest remote setup <ユーザー>@<ホスト> --project <プロジェクト�
 
 ## ステップ3: 版を揃える
 
-ディスパッチは **ツールの中身**(手元の作業ツリーの要約。`TestProjects/` は除く)と **Xcode の指紋**(`xcodebuild -version` と iOS Simulator SDK の
+ディスパッチは **ツールの中身**(手元の作業ツリーの要約。`TestProjects/` と、docs・直下の `.md`・`.claude` など run に使わないものは除く)と **Xcode の指紋**(`xcodebuild -version` と iOS Simulator SDK の
 ビルド番号。**macOS の版は含まない**)の2つを照合する。**ツールの中身の不一致は何も実行せずに
 止まる**(黙って古い版で走らせないため)。**Xcode の指紋は仕分けが1段深い**: 製品版(26.x /
 27.x)が違えば同じく止まる。**製品版が同じで build 番号だけ違う(ベータの seed 違い)は警告

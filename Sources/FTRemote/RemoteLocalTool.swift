@@ -13,9 +13,9 @@ extension RemoteCompat {
     public static func localTool(repoRoot: URL, toolRev: String?) throws -> LocalTool {
         if let toolRev {
             let revision = try AlignSnapshot.revisionTree(repoRoot: repoRoot, rev: toolRev)
-            return LocalTool(head: revision.commit, digest: revision.digest, isClean: true)
+            return LocalTool(head: revision.commit, digest: revision.digest, runDigest: revision.runDigest, isClean: true)
         }
         let tree = try AlignSnapshot.localTree(repoRoot: repoRoot, includeTestProjects: false)
-        return LocalTool(head: tree.head, digest: tree.digest, isClean: tree.isClean)
+        return LocalTool(head: tree.head, digest: tree.digest, runDigest: tree.runDigest, isClean: tree.isClean)
     }
 }

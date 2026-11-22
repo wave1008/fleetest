@@ -117,12 +117,12 @@ public enum RemoteAlignPlan {
 
     // MARK: - 照会(ssh 1往復)
 
-    /// 照会の出力の行数: `AlignSnapshot.remoteProbeCommand` の4行 + 記録の4行 + 実行ファイルの有無(yes/no) +
+    /// 照会の出力の行数: `AlignSnapshot.remoteProbeCommand` の5行 + 記録の4行 + 実行ファイルの有無(yes/no) +
     /// 今の `xcodebuild -version`
     public static let probeLineCount = AlignSnapshot.probeLineCount + 6
 
-    /// ランナーの状態を1往復で読む。出力は `probeLineCount`(10)行(`parseProbe`)。
-    /// 読めない値は `-`(行数は常に10)。`developerDir` はビルドと同じ値(別に解決しない)
+    /// ランナーの状態を1往復で読む。出力は `probeLineCount`(11)行(`parseProbe`)。
+    /// 読めない値は `-`(行数は常に11)。`developerDir` はビルドと同じ値(別に解決しない)
     public static func probeCommand(layout: RemoteLayout, developerDir: String?) -> String {
         let record = RemoteShell.quote(builtRecordPath(layout: layout))
         let binary = RemoteShell.quote(layout.binary)
@@ -172,13 +172,15 @@ public enum RemoteAlignPlan {
         while all.last?.isEmpty == true { all.removeLast() }
         guard all.count >= probeLineCount else { return nil }
         let lines = Array(all.suffix(probeLineCount))
+        // 先頭の `AlignSnapshot.probeLineCount` 行は `parseRemoteProbe` が読む。その後ろ: 記録4行・実行ファイル・Xcode の版
+        let n = AlignSnapshot.probeLineCount
         func value(_ index: Int) -> String? { lines[index].isEmpty || lines[index] == unknown ? nil : lines[index] }
         let record: BuildRecord? = {
-            guard let digest = value(4), let xcode = value(6), let commit = value(7) else { return nil }
-            return BuildRecord(digest: digest, developerDir: value(5), xcodeVersion: xcode, commit: commit)
+            guard let digest = value(n), let xcode = value(n + 2), let commit = value(n + 3) else { return nil }
+            return BuildRecord(digest: digest, developerDir: value(n + 1), xcodeVersion: xcode, commit: commit)
         }()
         return ProbeState(tool: AlignSnapshot.parseRemoteProbe(Array(lines[0..<AlignSnapshot.probeLineCount])),
-                          record: record, binaryExists: lines[8] == "yes", xcodeVersion: value(9) ?? unknown)
+                          record: record, binaryExists: lines[n + 4] == "yes", xcodeVersion: value(n + 5) ?? unknown)
     }
 
     /// **同じなら何もしない**の判定。全部を満たすときだけ true(1つでも違えば送ってビルドする):

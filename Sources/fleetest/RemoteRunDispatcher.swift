@@ -339,7 +339,7 @@ struct RemoteRunDispatcher {
     /// 必ずこの1つの戻り値を使う** —— 別々に解決すると、ここで照合した Xcode と実際に走る Xcode が
     /// 食い違う(緑のまま別の Xcode で走る沈黙の退行)
     private func checkCompatibility(layout: RemoteLayout) throws -> String? {
-        // 照合は作業ツリーの要約で行う(コミットの SHA ではない)。取れなければ fail-closed で止める
+        // 照合は作業ツリーの判定用の要約で行う(コミットの SHA ではない。DR-226)。取れなければ fail-closed で止める
         // (手元の git が壊れているのに緑で走らせない)
         let localTool: RemoteCompat.LocalTool
         do {
@@ -349,8 +349,8 @@ struct RemoteRunDispatcher {
                 ["git revision: could not compute the local tool digest: \(describe(error))"])
         }
 
-        // 4行(HEAD / 要約 / 基点 / 発行者)。先頭の余計な出力(シェル初期化ファイルの echo 等)に
-        // 読み位置をずらされないよう末尾の4行を採る
+        // 5行(HEAD / 全体の要約 / 判定用の要約 / 基点 / 発行者)。先頭の余計な出力(シェル初期化ファイルの echo 等)に
+        // 読み位置をずらされないよう末尾の5行を採る
         let toolProbe = probeRemote("git revision") {
             try sshCapture(AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)))
         }
