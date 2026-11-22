@@ -35,11 +35,6 @@ and check that the quantity of that product in the cart is 3.
 Run it on iOS (ios-run) to confirm.
 ```
 
-Expected result:
-
-- A second test is added to `AddToCart.swift`.
-- The test runs and its result is reported.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -47,6 +42,11 @@ To write it yourself, see [Creating a test class](../reference/testclass/creatin
 
 </details>
 <br>
+
+Expected result:
+
+- A second test is added to `AddToCart.swift`.
+- The test runs and its result is reported.
 
 If the behavior you ask for is not in the app, the AI assistant reports the actual behavior and leaves the decision of whether that matches the specification to you.
 

@@ -70,9 +70,6 @@ then press "Update" again.
 Update fleetest to the latest version.
 ```
 
-To only find out whether an update exists, ask "Is there a fleetest update?" (the clone is not changed).
-The reload in step 3 is still needed afterwards.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -90,6 +87,9 @@ bash ../fleetest/Scripts/update.sh
 
 </details>
 <br>
+
+To only find out whether an update exists, ask "Is there a fleetest update?" (the clone is not changed).
+The reload in step 3 is still needed afterwards.
 
 ## Updating on a closed network
 

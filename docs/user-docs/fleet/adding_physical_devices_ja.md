@@ -158,16 +158,6 @@ iOS の場合:
 USB でつないだ iPhone 15 を、fleetest の実行プロファイル ios-physical に登録して。
 ```
 
-Android の場合:
-
-```text
-USB でつないだ Android の実機を、fleetest の実行プロファイル android-physical に登録して。
-```
-
-AIアシスタントは、つながっている実機から UDID(iOS)や serial(Android)を調べて登録します。実機用のアプリのパス
-(iOS は実機向けに署名したビルド。ステップ3)も、あわせて伝えてください。ランナー機につないだ実機のときは、
-マシン名も伝えます。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -198,6 +188,16 @@ AIアシスタントは、つながっている実機から UDID(iOS)や serial(
 
 </details>
 <br>
+
+Android の場合:
+
+```text
+USB でつないだ Android の実機を、fleetest の実行プロファイル android-physical に登録して。
+```
+
+AIアシスタントは、つながっている実機から UDID(iOS)や serial(Android)を調べて登録します。実機用のアプリのパス
+(iOS は実機向けに署名したビルド。ステップ3)も、あわせて伝えてください。ランナー機につないだ実機のときは、
+マシン名も伝えます。
 
 期待する結果:
 

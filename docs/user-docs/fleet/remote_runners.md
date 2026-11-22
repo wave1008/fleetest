@@ -50,12 +50,6 @@ You do not need `--runner`.
 Run the scenario <scenario name> with the run profile ios-run.
 ```
 
-To send just this one run to a different machine, name the machine:
-
-```text
-Run the scenario <scenario name> on M1Max with the run profile ios-run.
-```
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -88,6 +82,12 @@ In a fleet definition you write the machine name under the `host` key (the key d
 
 </details>
 <br>
+
+To send just this one run to a different machine, name the machine:
+
+```text
+Run the scenario <scenario name> on M1Max with the run profile ios-run.
+```
 
 The first run takes a few minutes to start, because the runner builds the scenarios and so on. Later runs start within seconds.
 

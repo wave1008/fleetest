@@ -29,8 +29,6 @@ Confirm that /health on the published port returns ok.
 Run services down and report the result.
 ```
 
-- If an MCP permission dialog appears, allow it.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -42,6 +40,8 @@ curl http://127.0.0.1:8090/health     # at the published port that was printed
 
 </details>
 <br>
+
+- If an MCP permission dialog appears, allow it.
 
 Expected result:
 

@@ -124,12 +124,6 @@ If anything is still missing, `fleetest remote setup` in Step 3 lists it for you
 Set up SSH so that I can connect to user@192.168.xxx.xxx
 ```
 
-Typing the password is needed, so the AI assistant may stop partway and ask you to enter it.
-
-Expected result:
-
-- `ssh -o BatchMode=yes <destination> 'echo ok'` prints `ok` without a password
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -142,6 +136,12 @@ ssh -o BatchMode=yes user@192.168.xxx.xxx 'echo ok'    # printing ok means you a
 
 </details>
 <br>
+
+Typing the password is needed, so the AI assistant may stop partway and ask you to enter it.
+
+Expected result:
+
+- `ssh -o BatchMode=yes <destination> 'echo ok'` prints `ok` without a password
 
 fleetest connects without entering a password, so the second line must succeed without one.
 Also accept the host key here, the first time you connect.
@@ -160,10 +160,6 @@ refer to the runner by this name.
 ```text
 Register the machine M1Max (user@192.168.xxx.xxx) in fleetest.
 ```
-
-Expected result:
-
-- `fleetest remote machines` lists the machine name
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -222,6 +218,11 @@ The CLI and the extension read and write the same registry (`~/.config/fleetest/
 so either way gives the same result.
 
 </details>
+<br>
+
+Expected result:
+
+- `fleetest remote machines` lists the machine name
 
 ## Step 3: Install fleetest on the runner (on your Mac)
 
@@ -233,14 +234,6 @@ You do not need to log in to the runner over SSH yourself.
 ```text
 Set up fleetest remote runs on M1Max (ssh user@192.168.xxx.xxx). The project is project1.
 ```
-
-If something from Step 0 is still missing, the AI assistant lists the missing items and stops. Finish them on the
-runner, then give the same prompt again.
-
-Expected result:
-
-- `✅ [ok] verify: dispatch to … passed` appears and the exit code is 0
-- Or the exit code is 2 and only warnings for unfinished items remain
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -275,6 +268,15 @@ The exit code tells you how it ended:
 | `1` | Failed | Read the message and fix it (see "Troubleshooting" below) |
 
 </details>
+<br>
+
+If something from Step 0 is still missing, the AI assistant lists the missing items and stops. Finish them on the
+runner, then give the same prompt again.
+
+Expected result:
+
+- `✅ [ok] verify: dispatch to … passed` appears and the exit code is 0
+- Or the exit code is 2 and only warnings for unfinished items remain
 
 ## Step 4: Add the runner's devices to your run profile (on your Mac)
 
@@ -287,10 +289,6 @@ automatically on every run. You never need to edit files on the runner.
 ```text
 Find the devices on M1Max and add them to the run profile ios-run.
 ```
-
-Expected result:
-
-- The run profile's `devices` has devices with `"machine": "M1Max"`
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -324,6 +322,11 @@ Expected result:
    ```
 
 </details>
+<br>
+
+Expected result:
+
+- The run profile's `devices` has devices with `"machine": "M1Max"`
 
 ### Things to keep in mind
 
@@ -341,11 +344,6 @@ Expected result:
 ```text
 Check the state of the runner M1Max and whether it can be reached.
 ```
-
-Expected result:
-
-- `REACHABLE` and `LOGIN` are `yes`, and `BINARY` is `yes`
-- If ⚠️ or ❌ appears, fix it by the table below
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -383,6 +381,12 @@ with a badge showing the machine name.
 - The toolbar graphs (MEM/CPU and so on) get one row per machine.
 
 </details>
+<br>
+
+Expected result:
+
+- `REACHABLE` and `LOGIN` are `yes`, and `BINARY` is `yes`
+- If ⚠️ or ❌ appears, fix it by the table below
 
 ## Step 6: Run your first test (on your Mac)
 
@@ -394,11 +398,6 @@ Later runs start within seconds. Reports, recordings and logs are brought back t
 ```text
 Run the scenario <scenario name> on M1Max with the run profile ios-run.
 ```
-
-Expected result:
-
-- The scenario runs on the runner and produces a result
-- Reports, recordings and logs are brought back to your Mac
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -437,6 +436,12 @@ your Mac.
   Xcode beta build number alone does not stop the run** — it is only a warning.
 
 </details>
+<br>
+
+Expected result:
+
+- The scenario runs on the runner and produces a result
+- Reports, recordings and logs are brought back to your Mac
 
 ## After you update fleetest
 

@@ -24,15 +24,6 @@ For devices, use Simulators / Emulators with the newest OS available on this Mac
 When you're done, tell me the names of the run profiles you created. There's no need to run any tests.
 ```
 
-- Use the display name exactly as it appears under the icon on the home screen.
-- If you already have builds, give their paths (`.app` / `.apk`) instead of the source.
-- Name the test project (`myshop`) in your later prompts too.
-
-Expected result:
-
-- The AI assistant reports the run profile names (such as `ios-run`).
-- In VSCode, switch to `myshop` with `fleetest: Select Project` in the Command Palette, and they appear in the **Profiles** tab of the Device Monitor.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -50,6 +41,16 @@ build React Native apps in the Release configuration), then run these in the wor
 If the Android system image is not installed yet, add `--accept-licenses` to `profile setup`.
 
 </details>
+<br>
+
+- Use the display name exactly as it appears under the icon on the home screen.
+- If you already have builds, give their paths (`.app` / `.apk`) instead of the source.
+- Name the test project (`myshop`) in your later prompts too.
+
+Expected result:
+
+- The AI assistant reports the run profile names (such as `ios-run`).
+- In VSCode, switch to `myshop` with `fleetest: Select Project` in the Command Palette, and they appear in the **Profiles** tab of the Device Monitor.
 
 ## 2. When you rebuild the app
 

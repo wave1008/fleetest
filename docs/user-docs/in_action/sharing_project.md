@@ -65,8 +65,6 @@ it is an absolute path (`/Users/<you>/...`), so change it before you commit to a
 If the .package(path:) in Package.swift is an absolute path, change it to ../fleetest. Pick only what should go in from git status and commit it. Leave out results/, reports/ and workspace/apps/. Don't push yet; show me what the commit contains.
 ```
 
-Once you have checked the contents, tell it to push.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -80,6 +78,8 @@ git push
 </details>
 <br>
 
+Once you have checked the contents, tell it to push.
+
 ## 3. The second person clones and sets up
 
 The second person clones the repository on their own Mac and opens it in VSCode. Each person has their own clone of fleetest,
@@ -91,8 +91,6 @@ so they set up with the same prompt as step 3 of the Quick Start.
 Clone https://github.com/wave1008/fleetest next to this folder and
 set it up following ../fleetest/.claude/skills/fleetest-setup/SKILL.md.
 ```
-
-When setup is done, check that the `.package(path:)` in `Package.swift` points at your own clone (`../fleetest` if you cloned it next to the work folder).
 
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
@@ -110,6 +108,8 @@ If you did not share `Package.swift`, run `project sync` first. It scans `TestPr
 
 </details>
 <br>
+
+When setup is done, check that the `.package(path:)` in `Package.swift` points at your own clone (`../fleetest` if you cloned it next to the work folder).
 
 Expected result:
 

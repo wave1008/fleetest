@@ -53,16 +53,6 @@ switch that loosens the sandbox lives there). Finding the address is something y
 Tell me this Mac's LAN IPv4 address.
 ```
 
-Expected result:
-
-- You know the LAN IPv4 address
-
-Then write it yourself in `~/.config/fleetest/config.json` (create the file if it does not exist).
-
-```json
-{ "services": { "publishForPhysicalDevices": "192.168.1.10" } }
-```
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -72,6 +62,16 @@ ipconfig getifaddr en0        # e.g. 192.168.1.10 (en0 for Wi-Fi, en1 or similar
 
 </details>
 <br>
+
+Expected result:
+
+- You know the LAN IPv4 address
+
+Then write it yourself in `~/.config/fleetest/config.json` (create the file if it does not exist).
+
+```json
+{ "services": { "publishForPhysicalDevices": "192.168.1.10" } }
+```
 
 The examples below use `192.168.1.10`. Replace it with your own address.
 

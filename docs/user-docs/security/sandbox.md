@@ -39,8 +39,6 @@ S0010 writes ~/Desktop/fleetest-sandbox-check.txt, S0020 reads the contents of ~
 Write each inside a procedure and throw errors as they are. Then run it on iOS and show me the three failure messages.
 ```
 
-On a Mac without `~/.ssh`, you cannot tell "unreadable" from "not there". Check with `ls -d ~/.ssh` first.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -104,6 +102,8 @@ To run just one, pass `class.method`, such as `--scenario SandboxCheck.S0030`.
 
 </details>
 <br>
+
+On a Mac without `~/.ssh`, you cannot tell "unreadable" from "not there". Check with `ls -d ~/.ssh` first.
 
 Running it makes all three **fail** (that is the expected result). The report (`TestProjects/project1/reports/`) shows these failure messages.
 

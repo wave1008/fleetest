@@ -163,16 +163,6 @@ For iOS:
 Register the iPhone 15 connected over USB in the fleetest run profile ios-physical.
 ```
 
-For Android:
-
-```text
-Register the Android physical device connected over USB in the fleetest run profile android-physical.
-```
-
-The AI assistant looks up the UDID (iOS) or serial (Android) from the connected devices and registers it. Also tell it
-the path of the app for the device (on iOS, the build signed for a physical device; Step 3). For a device connected to a
-runner machine, give the machine name too.
-
 <details>
 <summary><b>If you do it manually (click to show details)</b></summary>
 
@@ -205,6 +195,16 @@ Add the device to the run profile's `devices` with `"kind": "physical"` and its 
 
 </details>
 <br>
+
+For Android:
+
+```text
+Register the Android physical device connected over USB in the fleetest run profile android-physical.
+```
+
+The AI assistant looks up the UDID (iOS) or serial (Android) from the connected devices and registers it. Also tell it
+the path of the app for the device (on iOS, the build signed for a physical device; Step 3). For a device connected to a
+runner machine, give the machine name too.
 
 Expected result:
 

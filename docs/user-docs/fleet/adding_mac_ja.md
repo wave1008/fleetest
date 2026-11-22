@@ -122,12 +122,6 @@ fleetest は代わりに行いません。
 user@192.168.xxx.xxx へSSHで接続できるようにして
 ```
 
-パスワードの入力が要るので、AIアシスタントが途中で止まって入力を求めることがあります。
-
-期待する結果:
-
-- `ssh -o BatchMode=yes user@192.168.xxx.xxx 'echo ok'` がパスワードなしで `ok` と表示される
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -140,6 +134,12 @@ ssh -o BatchMode=yes user@192.168.xxx.xxx 'echo ok'  # ok と表示されれば�
 
 </details>
 <br>
+
+パスワードの入力が要るので、AIアシスタントが途中で止まって入力を求めることがあります。
+
+期待する結果:
+
+- `ssh -o BatchMode=yes user@192.168.xxx.xxx 'echo ok'` がパスワードなしで `ok` と表示される
 
 fleetest はパスワードを入力せずに接続するので、2行目はパスワードなしで成功する必要があります。
 初めて接続するときのホスト鍵の受け入れも、ここで済ませてください。
@@ -157,10 +157,6 @@ fleetest はパスワードを入力せずに接続するので、2行目はパ�
 ```text
 fleetest にマシン M1Max(user@192.168.xxx.xxx)を登録して。
 ```
-
-期待する結果:
-
-- `fleetest remote machines` の一覧にマシン名が出る
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -215,6 +211,11 @@ fleetest remote machines        # 登録を確認する
 CLI と拡張は同じ登録簿(`~/.config/fleetest/config.json`)を読み書きします。どちらで登録しても結果は同じです。
 
 </details>
+<br>
+
+期待する結果:
+
+- `fleetest remote machines` の一覧にマシン名が出る
 
 ## ステップ3: ランナー機に fleetest を入れる
 
@@ -228,14 +229,6 @@ CLI と拡張は同じ登録簿(`~/.config/fleetest/config.json`)を読み書き
 ```text
 fleetest のリモート実行を M1Max(ssh user@192.168.xxx.xxx)にセットアップして。プロジェクトは project1。
 ```
-
-ステップ0の準備が残っていると、AIアシスタントは足りない項目を一覧にして止まります。ランナー機で済ませてから、
-同じ指示をもう一度渡してください。
-
-期待する結果:
-
-- `✅ [ok] verify: dispatch to … passed` と出て、終了コード 0 で終わる
-- または終了コード 2 で、未実施の警告だけが残る
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -268,6 +261,15 @@ fleetest remote setup <マシン名> --project <プロジェクト>
 | `1` | 失敗 | メッセージを読んで直す(下の「うまくいかないとき」を見てください) |
 
 </details>
+<br>
+
+ステップ0の準備が残っていると、AIアシスタントは足りない項目を一覧にして止まります。ランナー機で済ませてから、
+同じ指示をもう一度渡してください。
+
+期待する結果:
+
+- `✅ [ok] verify: dispatch to … passed` と出て、終了コード 0 で終わる
+- または終了コード 2 で、未実施の警告だけが残る
 
 ## ステップ4: ランナー機のデバイスを実行プロファイルに入れる
 
@@ -282,10 +284,6 @@ fleetest remote setup <マシン名> --project <プロジェクト>
 ```text
 M1Max にあるデバイスを調べて、実行プロファイル ios-run に追加して。
 ```
-
-期待する結果:
-
-- 実行プロファイルの `devices` に、`"machine": "M1Max"` の付いたデバイスが入っている
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -318,6 +316,11 @@ M1Max にあるデバイスを調べて、実行プロファイル ios-run に�
    ```
 
 </details>
+<br>
+
+期待する結果:
+
+- 実行プロファイルの `devices` に、`"machine": "M1Max"` の付いたデバイスが入っている
 
 ### プロファイルを作るときの注意
 
@@ -334,11 +337,6 @@ M1Max にあるデバイスを調べて、実行プロファイル ios-run に�
 ```text
 M1Max に接続できるか、ランナー機の状態を確認して。
 ```
-
-期待する結果:
-
-- `REACHABLE` と `LOGIN` が `yes`、`BINARY` が `yes` になる
-- ⚠️ や ❌ が出ていれば、下の表に従って直す
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -377,6 +375,12 @@ user@mac2     yes        yes    ✅ 9655a21…  ✅ Xcode27…   ✅ iOS 27.0: 2
 - ツールバーのグラフ(MEM/CPU など)には、マシンごとの行が出ます。
 
 </details>
+<br>
+
+期待する結果:
+
+- `REACHABLE` と `LOGIN` が `yes`、`BINARY` が `yes` になる
+- ⚠️ や ❌ が出ていれば、下の表に従って直す
 
 ## ステップ6: 最初のテストを実行する(手元の Mac で)
 
@@ -388,11 +392,6 @@ user@mac2     yes        yes    ✅ 9655a21…  ✅ Xcode27…   ✅ iOS 27.0: 2
 ```text
 実行プロファイル ios-run で、M1Max にシナリオ <シナリオ名> を実行して。
 ```
-
-期待する結果:
-
-- シナリオがランナー機で実行され、結果が出る
-- レポート・録画・ログが手元の Mac へ回収される
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -427,6 +426,12 @@ fleetest remote exec M1Max -- devices up --profile <実行プロファイル>
   **Xcode がベータのビルド番号だけ違うときは実行は止まりません**(警告だけ)。
 
 </details>
+<br>
+
+期待する結果:
+
+- シナリオがランナー機で実行され、結果が出る
+- レポート・録画・ログが手元の Mac へ回収される
 
 ## fleetest を更新したとき
 

@@ -39,8 +39,6 @@ S0010 は ~/Desktop/fleetest-sandbox-check.txt へ書く、S0020 は ~/.ssh の�
 それぞれ procedure の中で書いて、エラーはそのまま throw して。作ったら iOS で実行して、3本の失敗文を見せて。
 ```
 
-`~/.ssh` が無い Mac では、無いから読めないのと区別がつきません。先に `ls -d ~/.ssh` で在ることを確かめてください。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -104,6 +102,8 @@ class サンドボックス確認 {
 
 </details>
 <br>
+
+`~/.ssh` が無い Mac では、無いから読めないのと区別がつきません。先に `ls -d ~/.ssh` で在ることを確かめてください。
 
 実行すると、3本とも**失敗**します(それが期待どおりの結果です)。レポート(`TestProjects/project1/reports/`)には次の失敗文が出ます。
 

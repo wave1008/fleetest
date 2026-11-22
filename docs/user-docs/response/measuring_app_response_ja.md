@@ -52,16 +52,6 @@ USB でつないだ Android の実機が adb に device として見えている
 この Mac の LAN の IPv4 アドレスを教えて。
 ```
 
-期待する結果:
-
-- LAN の IPv4 アドレスが分かる
-
-次に、`~/.config/fleetest/config.json`(無ければ作ります)に自分で書きます。
-
-```json
-{ "services": { "publishForPhysicalDevices": "192.168.1.10" } }
-```
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -71,6 +61,16 @@ ipconfig getifaddr en0        # 例: 192.168.1.10(Wi-Fi は en0、有線は en1 
 
 </details>
 <br>
+
+期待する結果:
+
+- LAN の IPv4 アドレスが分かる
+
+次に、`~/.config/fleetest/config.json`(無ければ作ります)に自分で書きます。
+
+```json
+{ "services": { "publishForPhysicalDevices": "192.168.1.10" } }
+```
 
 以降の例では `192.168.1.10` と書きます。自分のアドレスに読み替えてください。
 

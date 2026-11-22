@@ -65,8 +65,6 @@ TestProjects/*/workspace/apps/
 Package.swift の .package(path:) が絶対パスなら ../fleetest に直して。git status で入れてよいものだけを選んで commit して。results/ と reports/ と workspace/apps/ は入れないで。push はまだしないで、commit の内容を見せて。
 ```
 
-内容を確かめたら、push を指示します。
-
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
 
@@ -80,6 +78,8 @@ git push
 </details>
 <br>
 
+内容を確かめたら、push を指示します。
+
 ## 3. 2人目が clone してセットアップする
 
 2人目は、自分の Mac でリポジトリを clone し、VSCode で開きます。fleetest のクローンは各自が持つので、
@@ -91,9 +91,6 @@ git push
 https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 ../fleetest/.claude/skills/fleetest-setup/SKILL.md の手順でセットアップして。
 ```
-
-セットアップが終わったら、`Package.swift` の `.package(path:)` が自分のクローン(隣に clone したなら `../fleetest`)を
-指しているか確かめます。
 
 <details>
 <summary><b>手動で実行する場合(クリックで詳細表示)</b></summary>
@@ -111,6 +108,9 @@ https://github.com/wave1008/fleetest をこのフォルダの隣に clone して
 
 </details>
 <br>
+
+セットアップが終わったら、`Package.swift` の `.package(path:)` が自分のクローン(隣に clone したなら `../fleetest`)を
+指しているか確かめます。
 
 期待する結果:
 
