@@ -66,9 +66,9 @@ docs/user-docs/reference/testclass/testcode_structure_ja.md と docs/user-docs/r
   (中で DSL のコマンドを実行するブロックで、1つのステップではない。`doUntilTrue` が止まるのは自分の `waitSeconds:` / `maxLoopCount:` だけ)。
   長い処理はステップを分けるか、外部プロセスに逃がして完了だけを待つ形にする
 - **シナリオ全体の上限は2つ**(実行プロファイル `scenarioTimeout`(既定 600 秒。シナリオごとは `@Test(scenarioTimeout:)`)と、
-  **出力の途切れ** = ステップの結果もログも 1 コマンドの上限の 2 倍(240 秒)出ないと止まったとみなして打ち切る)。
+  **出力の途切れ** = ステップの結果もログも 1 コマンドの上限に打ち切った後の止まり切る待ち(`RunTunables.commandCancelUnwindSeconds` 5 秒)を足した長さの 2 倍(250 秒)出ないと止まったとみなして打ち切る)。
   遅くてもステップが進んでいれば止めない。`ifCanSelect` / `repeatWhileCanSelect` の `waitSeconds:`・`httpRequest`・
-  `doUntilTrue` の待ちは申告されるのでその長さの間は止めない。**`procedure { }` の中の素の Swift が 240 秒を超えて黙るなら
+  `doUntilTrue` の待ちは申告されるのでその長さの間は止めない。**`procedure { }` の中の素の Swift が 250 秒を超えて黙るなら
   `print()` を挟む**(長さが分からないので申告されない)
 - スクロールの方向は**すべてコンテンツ基準**(`.down` = 下に読み進める = 指は上へ動く)。
   **例外は `swipe` だけ**(生のジェスチャなので指の動き)

@@ -15,8 +15,9 @@ enum FTSync {
     private static let commandTimeoutStorage = Mutex<TimeInterval>(RunTunables().commandTimeout)
 
     /// DSL スレッドの op を協調プールへ渡す包み。@unchecked の根拠 = DSL スレッドは op の完了まで
-    /// semaphore で止まっている(op の捕捉物に同時に触る者がいない)。**例外は時間切れ** —— cancel は
-    /// 送るが op は走り切りうるので、その間だけ DSL スレッドの次の命令と重なる(既知・run の注記の通り)
+    /// semaphore で止まっている(op の捕捉物に同時に触る者がいない)。**例外は時間切れ** —— cancel の後、
+    /// 巻き戻りを `cancelUnwindGraceSeconds` まで待つ。待ち切れなかった回だけ DSL スレッドの次の命令と重なりうる
+    /// (`TimeoutReport.unwindOverran` で失敗文に言う)
     private struct UncheckedOperation<T>: @unchecked Sendable {
         let body: () async -> T
     }
@@ -37,11 +38,42 @@ enum FTSync {
         var milliseconds: Int? { lock.lock(); defer { lock.unlock() }; return value }
     }
 
+    /// 打ち切った op の巻き戻りを待つ上限(秒)。根拠と、親の無出力の監視(`ScenarioIdleBudget`)が足していることは
+    /// `RunTunables.commandCancelUnwindSeconds` の doc(子は `apply` で親と同じ値を受け取る = 監視の上限と食い違わせない)
+    static var cancelUnwindGraceSeconds: TimeInterval {
+        get { cancelUnwindStorage.withLock { $0 } }
+        set { cancelUnwindStorage.withLock { $0 = newValue } }
+    }
+    private static let cancelUnwindStorage = Mutex<TimeInterval>(RunTunables().commandCancelUnwindSeconds)
+
+    /// 子が親から受けた RunTunables のうち FTSync の上限を写す(コマンドの上限と止まり切る待ちを別々に写し忘れない)
+    static func apply(_ tunables: RunTunables) {
+        commandTimeout = tunables.commandTimeout
+        cancelUnwindGraceSeconds = tunables.commandCancelUnwindSeconds
+    }
+
+    /// 時間切れの後始末の事実を呼び手へ持ち帰る箱(書くのは DSL スレッド = run の中だけ)
+    final class TimeoutReport: @unchecked Sendable {
+        /// cancel の後 `unwindGrace` まで待っても op が戻らなかった
+        var unwindOverran = false
+        /// 打ち切りを決めた時刻(巻き戻りの待ちの前)。失敗の時刻 `at` に使う = 待った分だけ録画の再生位置をずらさない
+        var decidedAt: Date?
+    }
+
+    /// 打ち切ったステップの失敗文。止まり切らなかった回は、後続(afterEach を含む)と重なりうることを言う
+    static func timedOutMessage(_ report: TimeoutReport) -> String {
+        "the command timed out (\(Int(commandTimeout))s)"
+            + (report.unwindOverran
+                ? "; it was still running \(Int(cancelUnwindGraceSeconds))s after it was stopped, so the"
+                    + " steps after it (including afterEach) may have overlapped with it"
+                : "")
+    }
+
     /// タイムアウト時は nil。**そのとき op は必ず cancel する** — 放置すると諦めたはずの
     /// tap/snapshot が**後続ステップの最中にブリッジへ着弾**し、記録に残らないまま画面を動かす
-    /// (原因不明の一発ずれになる)。cancel は届く: 通信は cancel 対応の `URLSession.data(for:)`、
-    /// 待ちは `Task.sleep`(cancel で throw)なので、掴んだままのループも巻き戻る。
-    /// 相手が cancel を見ない処理(Process 実行等)では走り切るだけで、悪化はしない。
+    /// (原因不明の一発ずれになる)。cancel は通信(cancel 対応の `URLSession.data(for:)`)には届くので、毎周通信を挟むループは
+    /// そこで抜ける(`try? await Task.sleep` は cancel を握りつぶして眠りを明けるだけ = ループを止めるのは通信の失敗のほう)。
+    /// 相手が cancel を見ない処理(Process 実行等)は走り切るので、戻る前に `unwindGrace` まで止まり切るのを待つ。
     ///
     /// **`DeadlineExclusion` に積まれた分だけ締め切りを延ばす**(OCR 近道のコンパイル待ち等、
     /// ツールの都合で払った時間を締め切りから外すため)。延長できるのは実際に差し引かれた分だけ
@@ -49,6 +81,8 @@ enum FTSync {
     /// たびに「そこから新たに差し引かれた分」だけ待ちを継ぎ足す(継ぎ足しが 0 なら本当のタイムアウト)
     static func run<T>(timeout: TimeInterval = FTSync.commandTimeout,
                        scheduleDelay: ScheduleDelay? = nil,
+                       timeoutReport: TimeoutReport? = nil,
+                       unwindGrace: TimeInterval = FTSync.cancelUnwindGraceSeconds,
                        _ op: @escaping () async -> T) -> T? {
         let semaphore = DispatchSemaphore(value: 0)
         let box = Box<T>()
@@ -72,7 +106,12 @@ enum FTSync {
                 let excludedSeconds = DurationConversion.seconds(DeadlineExclusion.excluded(since: exclusionSnapshot))
                 let newExtra = excludedSeconds - grantedExtraSeconds
                 guard newExtra > 0 else {
+                    timeoutReport?.decidedAt = Date()
                     task.cancel()
+                    // **止まり切るまで待ってから戻る**(上限つき)。値は捨てる(打ち切りの意味は変えない)
+                    if semaphore.wait(timeout: .now() + max(0, unwindGrace)) != .success {
+                        timeoutReport?.unwindOverran = true
+                    }
                     return nil
                 }
                 grantedExtraSeconds = excludedSeconds

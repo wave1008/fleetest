@@ -492,7 +492,7 @@ public final class FTDriveCore {
         self.defaultTimeout = tunables.defaultTimeout
         // DSL コマンドの壁時計の締切(FTSync はプロセス大域)。シナリオから書き換えられないよう FTSync は
         // internal のままここで設定する(DSL コマンドは core を組んだ後にしか走らない)
-        FTSync.commandTimeout = tunables.commandTimeout
+        FTSync.apply(tunables)
         let serializedEmit = SerializedSink(emit)
         let emit: @Sendable (ScenarioEvent) -> Void = { serializedEmit($0) }
         self.emit = emit
@@ -873,7 +873,8 @@ public final class FTDriveCore {
         let stallStart = StallMeter.shared.threadStallMilliseconds
         let poolStallStart = StallMeter.shared.poolStallMilliseconds
         if step.action != nil { captureStillFrameBeforeFirstAction() }
-        let outcome = FTSync.run(scheduleDelay: scheduleDelay) {
+        let timeoutReport = FTSync.TimeoutReport()
+        let outcome = FTSync.run(scheduleDelay: scheduleDelay, timeoutReport: timeoutReport) {
             await executor.execute(step, fingerprint: cachedFingerprint)
         }
         let cpuMs = ProcessCPUTime.delta(from: cpuStart, to: ProcessCPUTime.milliseconds())
@@ -884,9 +885,8 @@ public final class FTDriveCore {
         let poolStallMs = max(0, StallMeter.shared.poolStallMilliseconds - poolStallStart)
         // `at` は**失敗確定時刻**(docs/results-json.md。録画の再生位置に使う)なので打ち切りが
         // 決まった瞬間を採る —— 開始時刻を入れると再生位置がコマンド上限のぶん(120秒)ずれる
-        let hostFinishedAt = ISO8601Millis.string(from: Date())
-        let status = outcome?.status
-            ?? .failed("the command timed out (\(Int(FTSync.commandTimeout))s)")
+        let hostFinishedAt = ISO8601Millis.string(from: timeoutReport.decidedAt ?? Date())
+        let status = outcome?.status ?? .failed(FTSync.timedOutMessage(timeoutReport))
         // select は木から要素を掴むだけの検証としても使われる。画素で文字を確かめていなければ義務に数える
         if outcome != nil, step.action == "select" {
             executor.noteTreeReadCheck("select", step: step, status: status, afterExecution: true)

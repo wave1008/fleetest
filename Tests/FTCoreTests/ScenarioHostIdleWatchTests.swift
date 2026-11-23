@@ -60,6 +60,7 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         let sink = EventSink()
         var tunables = RunTunables()
         tunables.commandTimeout = 1  // idle budget = 2s(子の起動の揺れ = 負荷時の bash 起動より十分大きく取る)
+        tunables.commandCancelUnwindSeconds = 0  // 止まり切る待ちは足さない(予算を 2 秒に保つ)
         let passed = await ScenarioHost.run(
             project: project, scenarioID: "Login.S0010",
             variant: nil,
@@ -91,7 +92,7 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         XCTAssertEqual(result.record?.timedOut, true)
         let line = result.logs.first { $0.contains("was killed") }
         XCTAssertTrue(line?.hasPrefix("⏱ The scenario produced no output for ") == true, "\(result.logs)")
-        XCTAssertTrue(line?.contains("(allowed 2.0s = 2 × commandTimeout + open waits 0.0s)") == true, "\(line ?? "")")
+        XCTAssertTrue(line?.contains("(allowed 2.0s = 2 × (commandTimeout + cancel unwind) + open waits 0.0s)") == true, "\(line ?? "")")
         // 予算 2 秒 + 猶予で止まる(8 秒の sleep を待ち切っていない)。**子の最初の出力から測る** —— 開始から測ると
         // RunRecorder.begin の ToolchainFingerprint(xcodebuild -version。負荷の下で十数秒)まで数えて誤った赤になる。
         // 6 秒 = 予算 2 + SIGTERM を無視されたときの猶予 Shell.killGraceSeconds 2 + 余裕 2(打ち切らなければ sleep の 8 秒)

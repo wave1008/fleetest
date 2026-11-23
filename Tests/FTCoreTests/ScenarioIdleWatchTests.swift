@@ -14,8 +14,10 @@ final class ScenarioIdleWatchTests: XCTestCase {
     }
 
     func testBudgetIsTwiceCommandTimeoutPinned() {
-        XCTAssertEqual(ScenarioIdleBudget.seconds(commandTimeout: 120), 240)
-        XCTAssertEqual(ScenarioIdleBudget.seconds(commandTimeout: 0.25), 0.5)
+        // 打ち切ったコマンドが止まり切るのを待つ分(commandCancelUnwindSeconds)を 2 本ぶん足す
+        XCTAssertEqual(ScenarioIdleBudget.seconds(RunTunables()), 250)
+        XCTAssertEqual(ScenarioIdleBudget.seconds(RunTunables(commandTimeout: 0.25, commandCancelUnwindSeconds: 0)), 0.5)
+        XCTAssertEqual(RunTunables().commandCancelUnwindSeconds, 5)
     }
 
     func testSilenceUpToBudgetIsAllowed() {

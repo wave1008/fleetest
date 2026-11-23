@@ -1,10 +1,13 @@
 import Foundation
 
-/// 子の無出力が許される長さ(秒)。1 ステップは `FTSync.run` が commandTimeout で切り、失敗したステップの
-/// 証跡採取が 2 本目の `FTSync` (最大 commandTimeout) を使うので、健全な子の出力間隔は 2 × commandTimeout まで。
+/// 子の無出力が許される長さ(秒)。1 ステップは `FTSync.run` が commandTimeout で切り(止まり切るのを
+/// `RunTunables.commandCancelUnwindSeconds` まで待つ)、失敗したステップの証跡採取が 2 本目の `FTSync` (同じ上限)を使うので、
+/// 健全な子の出力間隔は 2 × (commandTimeout + commandCancelUnwindSeconds) まで。
 /// `deadlineExclusion` の窓(OCR コンパイル待ち等)は含まない —— `ScenarioIdleWatch` が開いている窓の上限を別に足す
 public enum ScenarioIdleBudget {
-    public static func seconds(commandTimeout: Double) -> Double { 2 * commandTimeout }
+    public static func seconds(_ tunables: RunTunables) -> Double {
+        2 * (tunables.commandTimeout + tunables.commandCancelUnwindSeconds)
+    }
 }
 
 /// 予算を超えた無出力の区間。`allowed` = budget + その時点で開いている除外窓の上限 + 申告中の待ちの上限

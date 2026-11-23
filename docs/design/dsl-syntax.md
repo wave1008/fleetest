@@ -40,7 +40,7 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
     1ステップの上限 + 失敗時の証跡の上限)+ **いま開いている** `deadlineExclusion` の上限 + **子が申告した待ち**
     (`FTCore.IdleAllowance` → `idleAllowance` イベント。canSelect 系の waitSeconds・httpRequest・doUntilTrue。
     入れ子は最大を採る。締め切りからは差し引かない)の上限を超えたら止める(`FTCore.ScenarioIdleWatch`)。
-    長さの分からない素の Swift(procedure の中など)は申告しない = 240 秒を超えて黙れば止まる(利用者向けに明記)。行は `⏱ The scenario produced no output for <S>s (allowed <A>s = …) and was killed`。
+    長さの分からない素の Swift(procedure の中など)は申告しない = 250 秒を超えて黙れば止まる(利用者向けに明記)。行は `⏱ The scenario produced no output for <S>s (allowed <A>s = …) and was killed`。
     **遅いだけで出力を続ける子は止めない**。出力の到着は**パイプの受け口**(`lineStream(onChunk:)`)で数える ——
     読み取りループで数えると、ループが installRequest を待つ間と、親が止まっていた直後の未消化の行を「無出力」と
     見る。打つ直前にパイプの未読(`hasUnreadOutput` = poll)も見る(親の再開と同時に起きた killer が先に走る形)。

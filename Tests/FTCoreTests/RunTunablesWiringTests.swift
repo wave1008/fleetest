@@ -77,8 +77,12 @@ final class RunTunablesWiringTests: XCTestCase {
     func testDriveCoreHandsTheTunablesToTheExecutor() throws {
         let runtime = try source("Sources/FTDSL/FTRuntime.swift")
         XCTAssertTrue(runtime.contains("tunables: tunables,"), "StepExecutor へ tunables を渡していない")
-        XCTAssertTrue(runtime.contains("FTSync.commandTimeout = tunables.commandTimeout"),
-                      "commandTimeout を DSL の締切へ反映していない")
+        XCTAssertTrue(runtime.contains("FTSync.apply(tunables)"),
+                      "commandTimeout・commandCancelUnwindSeconds を DSL の締切へ反映していない")
+        let sync = try source("Sources/FTDSL/FTSync.swift")
+        XCTAssertTrue(sync.contains("commandTimeout = tunables.commandTimeout"), "FTSync.apply が commandTimeout を写していない")
+        XCTAssertTrue(sync.contains("cancelUnwindGraceSeconds = tunables.commandCancelUnwindSeconds"),
+                      "FTSync.apply が止まり切る待ちを写していない(親の無出力の監視の上限と食い違う)")
         XCTAssertTrue(runtime.contains("commandTimeoutSeconds: tunables.commandTimeout"),
                       "StepExecutor の締切が tunables と別の出どころになっている")
     }

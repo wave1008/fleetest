@@ -10,6 +10,12 @@ public struct RunTunables: Codable, Sendable, Equatable {
     /// 長すぎると固まったコマンド1つが全レーンを止め、短すぎると正常な長い操作
     /// (アプリ起動・インストール)を打ち切る。内側の待ち(110s 等)はこの値より小さく保つ
     public var commandTimeout: Double
+    /// 打ち切ったコマンドが止まり切るのを `FTSync.run` が待つ上限(秒)。cancel は通信(`URLSession.data(for:)`)と
+    /// `Task.sleep` にはミリ秒で届くが、届かない処理(子プロセスの照会・Vision)は走り切るまで戻らない。その代表である子プロセスの照会の
+    /// 上限(`SimulatorAppProcess.launchctlListTimeoutSeconds` 5 秒)を待ち切れる値。待たずに戻ると、止まり切る前のコマンドが
+    /// 後片付け(afterEach)のステップと同じ StepExecutor の状態を同時に書く。尽きたら諦めて戻り、失敗文に重なりうると書く。
+    /// 親の無出力の監視(`ScenarioIdleBudget`)がこの分を足す(FTSync の1回は commandTimeout + これまでかかる)
+    public var commandCancelUnwindSeconds: Double
     /// in-app ブリッジへの起動時プローブ(注入先アプリの判別)の締切(秒)。
     /// 待ちは判断の正しさと引き換え: 短いと冷えた実機ブリッジを「無応答」と誤読し、
     /// 長いと suspend 中のアプリ(TCP は受理して答えない)でその秒数を丸ごと払う
@@ -55,6 +61,7 @@ public struct RunTunables: Codable, Sendable, Equatable {
 
     public init(defaultTimeout: Double = DefaultWait.seconds,
                 commandTimeout: Double = 120,
+                commandCancelUnwindSeconds: Double = 5,
                 injectedAppProbeTimeout: Double = 10,
                 defaultMaxSwipes: Int = FlowStep.defaultMaxSwipes,
                 defaultSwipeDuration: Double = FlowStep.defaultSwipeDurationSeconds,
@@ -72,6 +79,7 @@ public struct RunTunables: Codable, Sendable, Equatable {
                 responseObserveMs: Int = 10000) {
         self.defaultTimeout = defaultTimeout
         self.commandTimeout = commandTimeout
+        self.commandCancelUnwindSeconds = commandCancelUnwindSeconds
         self.injectedAppProbeTimeout = injectedAppProbeTimeout
         self.defaultMaxSwipes = defaultMaxSwipes
         self.defaultSwipeDuration = defaultSwipeDuration

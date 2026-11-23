@@ -59,10 +59,10 @@ func S0010() { scenario { /* … */ } }
 ```
 
 A scenario is also stopped **when its output stops**. If no step result or log line appears for longer than twice
-the per-step cap (240 seconds by default), it is treated as stuck and fails. A slow scenario whose steps keep
+the per-step cap plus a few seconds (250 seconds by default), it is treated as stuck and fails. A slow scenario whose steps keep
 progressing is not stopped. Commands where you write how long to wait (`waitSeconds` of `ifCanSelect` /
 `repeatWhileCanSelect`, `httpRequest`, `doUntilTrue`) are not stopped while they wait within that length. If code whose
-length is unknown, such as Swift inside `procedure("description") { }`, stays silent for more than 240 seconds, emit output such as
+length is unknown, such as Swift inside `procedure("description") { }`, stays silent for more than 250 seconds, emit output such as
 `print()` along the way.
 
 ## Structuring and passing values

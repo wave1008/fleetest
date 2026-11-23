@@ -1063,7 +1063,7 @@ public enum ScenarioHost {
         let extensionTracker = WatchdogExtensionTracker()
         var killer: Task<Void, Never>?
         let idleClock = SuspendingClock()
-        let idleBudgetSeconds = ScenarioIdleBudget.seconds(commandTimeout: settings.tunables.commandTimeout)
+        let idleBudgetSeconds = ScenarioIdleBudget.seconds(settings.tunables)
         let idleTracker: ScenarioIdleWatchTracker? = watchdogSeconds == nil ? nil
             : ScenarioIdleWatchTracker(budget: .seconds(idleBudgetSeconds), start: idleClock.now)
         var idleKiller: Task<Void, Never>?
@@ -1237,7 +1237,7 @@ public enum ScenarioHost {
             let message: String
             if let gap = idleTracker?.idleKill {
                 message = "⏱ The scenario produced no output for \(idleSeconds(gap.silentFor))s "
-                    + "(allowed \(idleSeconds(gap.allowed))s = 2 × commandTimeout + open waits "
+                    + "(allowed \(idleSeconds(gap.allowed))s = 2 × (commandTimeout + cancel unwind) + open waits "
                     + "\(idleSeconds(gap.allowed - .seconds(idleBudgetSeconds)))s) and was killed"
             } else {
                 let silenceNote = idleTracker?.silenceAtKill
