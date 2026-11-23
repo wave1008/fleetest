@@ -30,9 +30,9 @@ terminateApp()
   brings the app to the foreground. Every call starts at the entry screen — except for **apps that restore their previous screen on launch** (OS stock apps such as Contacts and Notes): a search screen in Contacts, the previously opened note in Notes, the previous display state of the Calculator, and a stopwatch that kept running have been observed to be restored.
   For such apps, put steps right after `launchApp()` that return to the list (for example, press the back button with `ifCanSelect`).
 - **OS stock apps change their screens with the device's OS version, language and existing data.** A different version changes ids and
-  layout, a different language changes labels and display formats (a stopwatch shows `00:00.00` on one and `00` on another), and events or
-  alarms already on the device change the order of lists. Run the scenario on devices with the same OS version and language as the one you
-  wrote it on, and do not depend on existing data (target the data you created, by its unique name).
+  layout, a different language changes labels and display formats (a stopwatch shows `00:00.00` on one and `00` on another), events or
+  alarms already on the device change the order of lists, and an app opened for the first time on a device starts with its first-run screens (welcome, sign-in prompts). Run the scenario on devices with the same OS version and language as the one you
+  wrote it on, do not depend on existing data (target the data you created, by its unique name), and close first-run screens with `ifCanSelect`.
 - **`launchApp` does not erase the app's data** (saved content, login state, and so on). Only the
   process and the screen state are lost. To erase data, use `clearAppData()`.
 - **On iOS in the default mode (inapp-boost), `launchApp` / `restartApp` of an app other than the scenario's own app

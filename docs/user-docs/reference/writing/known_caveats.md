@@ -112,7 +112,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### launchApp, restartApp, terminateApp, openURL
 - [`launchApp` always terminates first](../commands/launch_app.md#notes) — it never just foregrounds the app, so every call starts at the entry screen. Apps that restore their previous screen (OS stock apps such as Contacts and Notes) are the exception: put steps right after it that return to the list.
-- [OS stock apps change with the OS version, language and existing data](../commands/launch_app.md#notes) — run on the same version and language you wrote on, and target the data you created by a unique name.
+- [OS stock apps change with the OS version, language, existing data and first-run screens](../commands/launch_app.md#notes) — run on the same version and language you wrote on, target the data you created by a unique name, and close first-run screens with `ifCanSelect`.
 - [`launchApp` keeps app data](../commands/launch_app.md#notes) — saved content and login state remain; use `clearAppData()` to erase.
 - [iOS inapp-boost: other apps fail mid-scenario](../commands/launch_app.md#notes) — the in-app bridge cannot drive another app; put steps on other apps (such as Settings) in a separate scenario under a profile naming that app.
 - [fleetest's own bridge cannot be the target](../commands/launch_app.md#notes) — passing the bridge's ID to `launchApp` / `restartApp` fails without sending anything.

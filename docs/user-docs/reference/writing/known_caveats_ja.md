@@ -112,7 +112,7 @@
 
 ### launchApp, restartApp, terminateApp, openURL
 - [launchApp は起動済みでも常にプロセスを終了して起動し直す](../commands/launch_app_ja.md#注意点) — 前面化ではないので、どの呼び出しもエントリー画面から始まります。ただし前の画面を復元するアプリ(OS の標準アプリの連絡先・メモ等)は復元されるので、直後に一覧へ戻す手順を置きます。
-- [OS の標準アプリは端末の版・言語・既存のデータで画面が変わる](../commands/launch_app_ja.md#注意点) — 作成した端末と同じ版・言語で回し、自分で作ったデータを固有の名前で指します。
+- [OS の標準アプリは端末の版・言語・既存のデータ・初回の案内で画面が変わる](../commands/launch_app_ja.md#注意点) — 作成した端末と同じ版・言語で回し、自分で作ったデータを固有の名前で指し、初回の案内は `ifCanSelect` で閉じます。
 - [launchApp はアプリのデータを消さない](../commands/launch_app_ja.md#注意点) — 消えるのはプロセスと画面の状態だけです。データを消すのは `clearAppData()` です。
 - [iOS の inapp-boost で他のアプリを launchApp / restartApp すると失敗する](../commands/launch_app_ja.md#注意点) — in-app ブリッジは別のアプリを駆動できません。そのアプリの手順は別のシナリオに分けます。
 - [fleetest 自身のブリッジは launchApp / restartApp の対象にできない](../commands/launch_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。
