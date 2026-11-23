@@ -256,7 +256,8 @@ extension MCPServer {
                 let installNote = try await created.install(packagePath: packagePath)
                 Self.logStderr("installed \(iosApp.bundleID) from \(packagePath) (the profile's autoInstall)")
                 if let installNote { Self.logStderr(installNote) }
-            } else if let (bundleID, appPath, freshness) = await installedAppFreshness(
+            } else if Self.currentTool != "ft_install",   // 入れ直す前の比較を入れ直しの応答に載せない(次の呼び出しで比べ直す)
+                      let (bundleID, appPath, freshness) = await installedAppFreshness(
                 target: target, resolved: resolvedProfile, driver: created, args: args) {
                 // 入っているものが appPath と違っても入れ直さない(探索中の画面を失う)。注記で知らせる(応答に1度だけ)
                 if let note = Self.staleInstalledAppNote(

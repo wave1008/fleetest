@@ -30,6 +30,19 @@ final class ViewportCountTests: XCTestCase {
         XCTAssertTrue(ViewportCount.dependsOnViewport(matches: Array(list[1...2]), in: list))
     }
 
+    /// Android は切れた行を見えている部分だけの枠で申告する(縁を跨がない)。一覧自身の「いま動かせる向き」の申告が
+    /// 空でなければ続きがある(Pixel 4a の RN の FlatList で注記が付かなかった)。空の申告(動けない)・申告なし(iOS)は幾何のまま
+    func testAndroidListThatDeclaresItCanScrollDependsOnTheViewport() {
+        var clipped = [e(1, "scrollView", 44, 676, 992, 1159, scrollable: true),
+                       e(2, "button", label: "行", 44, 676, 992, 154),
+                       e(3, "button", label: "行", 44, 1793, 992, 42)]   // 下の縁で切られ、縁で終わる枠
+        XCTAssertFalse(ViewportCount.dependsOnViewport(matches: Array(clipped[1...2]), in: clipped), "幾何だけでは続きが見えない")
+        clipped[0].scrollActions = ["forward", "down"]
+        XCTAssertTrue(ViewportCount.dependsOnViewport(matches: Array(clipped[1...2]), in: clipped))
+        clipped[0].scrollActions = []
+        XCTAssertFalse(ViewportCount.dependsOnViewport(matches: Array(clipped[1...2]), in: clipped), "動けない一覧は全部見えている")
+    }
+
     func testMatchesInAListThatFitsDoNotDependOnTheViewport() {
         let list = fittingList
         XCTAssertFalse(ViewportCount.dependsOnViewport(matches: Array(list[1...2]), in: list))

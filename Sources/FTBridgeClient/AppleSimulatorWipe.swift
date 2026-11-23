@@ -69,6 +69,9 @@ public enum AppleSimulatorWipe {
                 + report.groups.map { "\($0.id) (\($0.itemsRemoved) item(s))" }.joined(separator: ", ") + ".")
         }
         for problem in report.problems { lines.append("NOT done: \(problem)") }
+        // 消したのは容器2種だけ。連絡先は端末全体のストアに残る(Simulator の Library/AddressBook。他のアプリも読むので消さない)
+        lines.append("NOT touched: device-wide stores outside these containers (for example the contacts in the simulator's"
+            + " Library/AddressBook, which every app shares), so data the app keeps there remains.")
         return lines.joined(separator: "\n")
     }
 

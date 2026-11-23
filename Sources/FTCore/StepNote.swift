@@ -544,6 +544,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// dry-run で文字の検証の期待値が空だった(DR-211)。dry-run は検証を実際の値と比べないので、空の期待値でも緑になったことを残す
     case dryRunEmptyExpected = "dry-run-empty-expected"
 
+    /// dry-run で値の検証(`thisIs` 等)が一致しなかった。dry-run は画面の値・run メモが空なので比べた結果で赤にしない(DR-211)が、
+    /// 注記なしの ✅ だと run メモのキーの綴り誤りや `thisIsNotEmpty()` のガードまで「確かめた」に見える
+    case dryRunNotCompared = "dry-run-not-compared"
+
     /// `.openURLSessionNotRestored` を示す `AppDriver.lastActionNote` の先頭。BridgeClient が組み、DSL の openURL が判別する(1箇所で共有)
     public static let openURLSessionNotRestoredPrefix = "the session could not be pointed back at "
 
@@ -811,6 +815,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .dryRunEmptyExpected:
             return "the expected value is empty in this dry-run (values read from the screen or the run memo are empty when no device runs);"
                 + " a dry-run does not compare it with the screen"
+        case .dryRunNotCompared:
+            return "this comparison does not hold in this dry-run, but a dry-run does not judge it (values read from the screen or"
+                + " the run memo are empty when no device runs, and beforeRun() does not run); a device run compares it"
         case .runMemoKeyNotFound:
             return "nothing was written under this key in the run memo as it was when this scenario started"
         case .unchangedTapBeforeFailure:

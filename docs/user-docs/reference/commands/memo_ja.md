@@ -83,5 +83,10 @@ class OrderFlow {
 }
 ```
 
+## 注意点
+
+- **入力欄に `memoTextAs` / `runMemoTextAs` を当てると、`textIs` と同じ読み方で placeholder を控えることがあります。** 入力欄の中身を控えるときは、`.value`(`String?`。[取得した要素の値を読む](reading_values_ja.md))を文字列にして `writeMemo` で書き、`readMemo` の値を `thisIs` で確かめます(React Native で観測)。
+- **dry-run では `beforeRun()` が走らないので、`readRunMemo` は空を返します。** `readRunMemo(…).thisIsNotEmpty()` のガードも dry-run では効かず(✅ になります)、値を使った検証も比べられません。run メモに頼る手順は run で確かめます([dry-run](../running/dry_run_ja.md))。
+
 ### Link
 - [index](../../index_ja.md)

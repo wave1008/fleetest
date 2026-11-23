@@ -99,6 +99,32 @@ final class ValueAssertionOptionalTests: XCTestCase {
         }
     }
 
+    /// dry-run で一致しなかった値の検証は ✅ のまま注記 dry-run-not-compared を付ける。一致したものには付けない
+    func testMismatchInDryRunPassesWithANote() {
+        func notes(_ body: @escaping () -> Void) -> (failed: Bool, notes: [String]) {
+            let events = LockedValue<[ScenarioEvent]>([])
+            let core = FTDriveCore(driver: StubDriver(), platform: "ios", app: "com.example.app",
+                                   scenarioID: "T.S0010", scenarioTitle: "t",
+                                   delegate: nil, healingEnabled: false, tunables: RunTunables(), dryRun: true,
+                                   fingerprintCacheURL: URL(fileURLWithPath: NSTemporaryDirectory())
+                                       .appendingPathComponent("ft-value-dryrun-\(UUID().uuidString).json"),
+                                   emit: { event in events.withLock { $0.append(event) } })
+            FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+            scenario { scene(1, "s") { action { body() } } }
+            FTRuntime.tearDown()
+            let step = core.finalRecord.scenes.flatMap(\.steps)[0]
+            return (isFailed(step), events.value.filter { $0.kind == "step" }.flatMap { $0.notes ?? [] })
+        }
+        let memo = ""
+        let mismatch = notes { memo.thisIs("AUTUMN") }
+        XCTAssertFalse(mismatch.failed, "dry-run で赤にしない(DR-211)")
+        XCTAssertTrue(mismatch.notes.contains { $0.contains("dry-run-not-compared") }, "\(mismatch.notes)")
+        let guardLine = notes { memo.thisIsNotEmpty() }
+        XCTAssertTrue(guardLine.notes.contains { $0.contains("dry-run-not-compared") }, "\(guardLine.notes)")
+        let match = notes { "AUTUMN".thisIs("AUTUMN") }
+        XCTAssertFalse(match.notes.contains { $0.contains("dry-run-not-compared") }, "\(match.notes)")
+    }
+
     /// 正規表現のパターンからも見えない文字を除外する(値と同じ規則。45周目 duo・amax・alocal)
     func testPatternInvisibleCharactersAreExcludedLikeTheValue() {
         let value = "a\u{200B}b"

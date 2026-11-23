@@ -14,6 +14,9 @@ public enum ViewportCount {
             guard let container = scrollers
                 .filter({ $0.ref != match.ref && $0.frame.contains(centre) })
                 .min(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }) else { continue }
+            // Android の木は切れた行を見えている部分だけの枠で申告する(縁を跨がない)ので、幾何だけでは続きが見えない。
+            // 容器自身の申告(いま動かせる向き。空 = 動けない・nil = 申告なし = iOS)が空でなければ中身は枠の外へ続いている
+            if let actions = container.scrollActions, !actions.isEmpty { return true }
             if contentContinuesPastEdge(of: container, in: elements) { return true }
         }
         return false

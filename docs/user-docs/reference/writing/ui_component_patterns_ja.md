@@ -191,12 +191,12 @@ notExist("#menu_item_copy")   // 閉じたことを確かめる
 | CMP | `ExposedDropdownMenuBox` | **`.value`**。`.text` は iOS では欄のラベル(例: `果物`)、Android では `nil` |
 | Flutter | `DropdownMenu` | id は外側のコンテナに付き、**選んだ値は内側のノードにだけ出る(iOS)**。**Android のツリーには値が出ない** |
 | RN | `Pressable` + 読み取り専用 `TextInput` | 外側の `View` に `accessibilityValue` で出す実装(アプリ側の作り。フィールド自体の値は iOS で消えることがある) |
-| Android View | `MaterialAutoCompleteTextView` | **ツリーに値が出ない**。アプリ自身の echo 表示で確かめる |
+| Android View | `MaterialAutoCompleteTextView` | **値がラベルに出た**(例: `clickable "バナナ" id=field_fruit`。評価1回の観測)。出ない場合に備え、アプリ自身の echo 表示でも確かめる |
 | SwiftUI(iOS) | `Picker(.pickerStyle: .menu)` | **選択結果はラベル自体に出る**(例: `果物, バナナ`)。`.value` は無い |
 
 ```swift
 select("#field_fruit").valueContains("バナナ")   // ○ CMP(両OS)
-// Android View / Flutter(Android)はツリーに値が出ないので、アプリの echo で確かめる
+// Flutter(Android)はツリーに値が出ないので、アプリの echo で確かめる(Android View も echo で確かめておくと確実)
 select("#txt_fruit_result").textIs("fruit=banana")
 ```
 
@@ -213,6 +213,10 @@ id が無い(`ListPopupWindow` の無名行)ので、候補はラベルで選ぶ
 tap("*1月20日*||*January 20, 2026*")
 tap("OK")
 ```
+
+- 実際のラベルはこの例と違うことがあります。RN の iOS と SwiftUI(英語ロケール)の日付セルは `Tuesday, January 20`(曜日付き・年なし)で、
+  上の2つの候補のどちらにも一致しません。`*January 20*` と書くと見出し `January 2026` にも当たります。**スナップショットで実ラベルを採って**指し、
+  日付そのものはアプリの echo(`date=2026-01-20` 等)で確かめます
 
 | フレームワーク | 部品・差分 |
 |---|---|
@@ -310,7 +314,7 @@ tap("OK")
 ## スワイプで削除
 
 - 行の上で横にスワイプする: `swipeBy("#row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`。
-  比率の上限は片側 0.9
+  比率の上限は片側 0.9。**速い・幅の広い払いは行を消すまで走ります**(下の「途中までのスワイプ」は逆に、止めたいときにゆっくり動かす)
 - 無効な向きへスワイプしても何も起きないこと(行が残ること)も確かめられる
 
 | フレームワーク | 部品・差分 |
@@ -338,7 +342,7 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 |---|---|
 | CMP | `PrimaryTabRow` / `ScrollableTabRow` / `NavigationBar`。共通 |
 | Flutter | `TabBar` / `TabBar(isScrollable: true)` / `NavigationBar`。**タブのラベルに「Tab 3 of 3」のような文言が付く**ため、完全一致ではなく**部分一致 `*タブC*` で指す** |
-| RN | `material-top-tabs` / `bottom-tabs`。**ラベルに「tab, 2 of 3」が付く**ため同様に部分一致で指す |
+| RN | `material-top-tabs` / `bottom-tabs`。**下部タブのラベルには「tab, 2 of 3」が付く**(iOS で `探す, tab, 2 of 3`)ため部分一致で指す。上部タブには付かなかった(iOS)。Android では素の `#id` で指せた |
 | Android View | `TabLayout`(fixed + scrollable)/ `BottomNavigationView`。共通 |
 | SwiftUI(iOS) | 固定タブは `Picker(.segmented)`、横スクロールタブは横 `ScrollView` のボタン列、下部は埋め込み `TabView`。**下部ナビゲーションバーの識別子が実際のタブボタンまで届くかは iOS バージョン依存で不安定** —— 届かない場合はラベルで指す |
 
@@ -351,13 +355,13 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 | フレームワーク | 部品・差分 |
 |---|---|
 | CMP | `AnimatedVisibility`(非表示で composition から外れる = ツリーから消える)/ `AnimatedContent` |
-| Flutter | `AnimatedOpacity`(**非表示でも要素はツリーに残ったまま透明度だけ動く**。CMP と違い要素の有無では判定できないので、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
+| Flutter | `AnimatedOpacity`(**iOS では非表示でも要素はツリーに残ったまま透明度だけ動く**。**Android(実機・Emulator)ではツリーから消えた**。OS で結果が割れるので要素の有無では判定できず、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
 | RN | `react-native-reanimated` の `FadeIn`/`FadeOut`。**カウンタ切り替えは `key` によるコンポーネントの再マウント方式**なので、切り替え中は新旧2つの要素が一瞬同時にツリーへ乗ることがある(CMP の `AnimatedContent` と同じ特性) |
 | Android View | `Fade`(`TransitionManager`)/ `TextSwitcher`。共通 |
 | SwiftUI(iOS) | `withAnimation` + `.transition(.opacity)` / `.contentTransition(.numericText())`。共通 |
 
-**現時点の制約**: Flutter の `AnimatedOpacity` は非表示化しても要素をツリーから消さないため、
-「要素が無いこと」を可視性の根拠にしないでください。この画面に限らず、Flutter でフェードによる
+**現時点の制約**: Flutter の `AnimatedOpacity` は、iOS では非表示化しても要素をツリーから消さず、Android では消えます。
+同じ `notExist` が Android では緑・iOS では赤になるので、「要素が無いこと」を可視性の根拠にしないでください。この画面に限らず、Flutter でフェードによる
 表示切り替えを検証するときは、アプリが出す状態の echo(または `checkIsON`/`checkIsOFF` が使える
 部品ならそちら)で判定してください。
 
@@ -380,7 +384,8 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 
 ## チップと分割ボタン
 
-- FilterChip / SegmentedButton の選択状態は `checkIsON()` / `checkIsOFF()` で読める
+- FilterChip / SegmentedButton の選択状態は `checkIsON()` / `checkIsOFF()` で読める。**ただし SegmentedButton の既定の選択は読めないことがある**
+  (Android で既定で選ばれている `#seg_day` が `switch "日" value="0"` で `checkIsON` が赤。タップの後だけ `value="1" checked`)。初期選択はアプリの echo で確かめる
 - RangeSlider(範囲スライダー)のつまみには `#id` を付けられません。値はアプリが出している
   表示で確かめる
 
@@ -493,10 +498,14 @@ tap("#btn_time_ok")
 | `#id` | 種類 | 結果 |
 |---|---|---|
 | `#btn_alert` | 確認アラート(OK/キャンセル) | `alert=ok` / `alert=cancel` |
-| `#btn_prompt` | 入力欄つき(`#field_prompt`) | `prompt=<入力>` / `prompt=cancel` |
+| `#btn_prompt` | 入力欄つき(`#field_prompt`。**Flutter では id が欄でなく入れ物に付き、SwiftUI では安定したセレクタが無い**。下記) | `prompt=<入力>` / `prompt=cancel` |
 | `#btn_action_sheet` | アクションシート | `sheet=camera` / `sheet=library` / `sheet=cancel` |
 | `#btn_fullscreen` | 全画面ダイアログ | `fullscreen=saved` / `fullscreen=closed` |
 | `#btn_toast` | OS のトースト | `toast=shown` |
+
+`#field_prompt` で入力できるのは、入力欄に id が付くフレームワークだけです。Flutter(iOS)では入力欄は id の無い `textField` で、`#field_prompt` は
+それを包む入れ物に付きます。SwiftUI(iOS)の `.alert` + `TextField` は `no stable selector for this element` で、id を付けられません。
+どちらも、ダイアログの表示中に入力欄が1つなら型で指します: `type(".textField", "hello")`。入力欄が複数出る画面では `[n]` に頼る形になり脆くなります。
 
 ```swift
 tap("#btn_alert")
@@ -567,7 +576,7 @@ select("#txt_reorder_result").textMatches("^order=2,")
 | `#field_bottom` | 画面下端(キーボードに隠れる) | `bottom=<値>` |
 
 ```swift
-type("#field_number", "123")
+type("#field_number >> .textField", "123")   // Flutter は #field_number が入れ物に付くので中の欄を指す(下記)
 select("#txt_number_echo").textIs("number=123")
 
 type("#field_first", "山田")
@@ -586,6 +595,8 @@ select("#txt_focus_echo").textIs("focus=second")
 - **Flutter では `#field_*` の id が入力欄を包むコンテナ(型 `other`)に付きます**(Android で確認)。`type` は
   `type("#field_number >> .textField", "123")` のように中の入力欄を指します。コンテナを指すと、焦点が中の欄に立つことに頼る形になり、
   ツールが警告します(入れた値が意図とずれることがあります)。
+- **Flutter のパスワード欄(`#field_password`)は `>> .textField` で解けません**(`cannot resolve the locator: id=field_password >> textField`)。
+  `>> .input`(通常の欄もパスワード欄も指す型)で通りました。
 - **オートコンプリートの候補は、打った後に遅れて出ます**(非同期)。候補を押すときは出るまで待ちます。
   待たないと、遅いマシンでだけ「候補が見つからない」で落ちます。
 
@@ -639,10 +650,11 @@ select("#txt_fab_result").textIs("fab=add")
 
 **現時点の制約**: Android(View)の `BottomAppBar` は、FAB のカドル分の余白を差し引いた残り幅が
 足りないと項目を「その他のオプション」の1アイコンへ畳みます。畳まれた行は `ListPopupWindow` の
-無名行なので id を持てません。回避策:
+無名行なので id を持てません。オーバーフローのラベルは端末の言語で変わり(英語の端末は `More options`)、`tap("その他のオプション")` だけでは英語の端末で
+`no element matches` になります。両方を `||` で並べます。回避策:
 
 ```swift
-tap("その他のオプション")   // 畳まれていたら先にオーバーフローを開く
+tap("More options||その他のオプション")   // 畳まれていたら先にオーバーフローを開く(ラベルは端末の言語で変わる)
 tap("検索")
 ```
 
@@ -757,7 +769,10 @@ select("#txt_links_result").textIs("link=terms")
 
 ## 読み込み中の骨組み(スケルトン)
 
-- 読み込み中も本物と同じ `#id`・ラベルの行を出す作りでは、`exist` は骨組みの時点で通る
+- 読み込み中も本物と同じ `#id`・ラベルの行を出す作りでは、`exist` は骨組みの時点で通る。**だから `exist` を読み込み完了の判定に使わない**
+  (`enabledIsTrue()` か、読み込み済みの件数の echo(`loaded=30` 等)で確かめる)
+- 一瞬で終わる途中の状態(`state=loading` 等)の検証は、端末の速さで緑と赤に割れます。検証値が `(from the grabbed value)` と出るのは、
+  読み取った時点の値で比べたという意味で、後から画面が変わっても結果は変わりません。詳しくは [注意点のまとめ](known_caveats_ja.md)
 - `tap` は対象が押せるようになるまで待ってから実行するので、読み込み直した直後に `tap` してよい
   (骨組みが無効として公開されていれば、本物に変わってから押される)
 - 一覧の末尾に一時的に出る「読み込み中」「再試行」の行は、再試行を押してから続きを探す
@@ -776,14 +791,18 @@ select("#txt_loading_result").textIs("loading=row_l_03")
 tap("#fab_hiding", scroll: .up)
 ```
 
-**現時点の制約**: Flutter の `AnimatedSlide` で隠すバーは、隠れている間もツリーでは元の位置に居ると申告されるため、探索がスクロールせずにタップし、見た目には無いボタンを押すことがある。
+**現時点の制約**: Flutter の `AnimatedSlide` で隠すバーは、iOS では隠れている間もツリーでは元の位置に居ると申告されるため、探索がスクロールせずにタップし、見た目には無いボタンを押すことがある。Android の Flutter(実機・Emulator)では、隠れている間ボタンがツリーから消えた。
 
 **現時点の制約**: Compose Multiplatform の iOS では、隠れた下部のバーと FAB はツリーで画面の下端の外に残り、`scroll: .up` で少し戻しても出てこない(バーはスクロールの向きで出し入れされる)。先頭まで戻して(`scrollTo` で一覧の先頭の行へ)バーを出してから押す。
 
 ## 途中までのスワイプ(ボタンを出す・返信)
 
 - 途中までスワイプするときは**ゆっくり**スワイプする(`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`)。
-  速く離すと部品の fling が次の段(削除まで)へ送る
+  速く離すと部品の fling が次の段(削除まで)へ送る。**速い・幅の広いスワイプは途中で止まらず削除まで走りうる**(画面の幅で変わる。
+  `durationSeconds: 0.12` の Android Emulator と、`dx=-700`・0.1 秒の iPad で行が消えた。iPhone では途中で止まった)。
+  上の「スワイプで削除」の `durationSeconds: 0.3` は削除させたい書き方で、止めたい用途には使わない
+- **`swipeBy` などのスワイプ系のステップは、動いた結果を確かめずに緑になる**。行が残ったか・消えたかは、件数の echo
+  (`rows=5` のような表示)で確かめる
 - `swipeBy` の比率は片側 0.9 で頭打ち。シートを引き上げるように対象より遠くへスワイプするときは
   `swipeElementToElement("#mini_player", "#txt_sheet_state")`
 

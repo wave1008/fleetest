@@ -320,7 +320,10 @@ final class CommandDispatchTests: XCTestCase {
     /// checked を報告しない要素(ただのボタン等)への checkIsOFF は**何を書いても成功する**。
     /// notExist の id typo と同じ構造の穴なので、run 終了時の警告で気付けるようにする
     func testIsNotCheckedOnStatelessElementIsWarned() {
-        let core = makeCore(driver: RecordingDriver())   // checked を返さない要素だけの画面
+        let logs = LockedValue<[String]>([])
+        let core = makeCore(driver: RecordingDriver(), emit: { event in   // checked を返さない要素だけの画面
+            if event.kind == "log", let text = event.message { logs.withLock { $0.append(text) } }
+        })
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
 
@@ -334,6 +337,9 @@ final class CommandDispatchTests: XCTestCase {
         let messages = core.finalRecord.fixSuggestions.map(\.message)
         XCTAssertEqual(messages.contains { $0.contains("never reported a check state") }, true,
                        "\(messages)")
+        // 提案(レポート)だけでなく ⚠️ の行も出す = run と ft_run_scenario の出力に届く
+        let logged = logs.value
+        XCTAssertTrue(logged.contains { $0.contains("⚠️") && $0.contains("never reported a check state") }, "\(logged)")
     }
 
     /// **綴りを確かめろの提案は、通った否定にだけ付ける**(前提は「綴り誤りでも通る」)。赤の否定(要素が在った・背面で

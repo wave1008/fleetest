@@ -47,6 +47,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`countIs` inside a scrolling list (`count-in-scrolling-list`)](../commands/existence_assertion.md#notes) — the number of rows on the screen depends on its size and orientation, so the count can differ on another device; count what does not depend on the screen.
 - [Truncated text on the visibility check](../commands/existence_assertion.md#notes) — ellipsis (`text-ellipsized`) or more than half drawn (`text-partially-hidden`) passes with a note, half or less fails; use `requireVisible: false` if hiding is intended.
 - [`exist` with several matching elements](../commands/existence_assertion.md#notes) — passes if the text of any match is visible (the remaining matches are checked when the first is not); `[n]` and relative selectors check only that one.
+- [Skeleton rows share the real rows' id, so `exist` passes before loading ends](../commands/existence_assertion.md#notes) — do not use it as the completion check; use `enabledIsTrue()` or a count echo of the loaded rows.
 - [A failing `screen rendering check` is not a scenario mistake](../commands/existence_assertion.md#notes) — the iOS Simulator stopped drawing text; run again without rewriting, and restart the Simulator if it repeats.
 
 ### Find by image (findImage, findImages, existImage)
@@ -108,7 +109,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Unknown keyboard state is never "hidden"](../commands/keyboard_assertion.md#notes) — `keyboardIsNotShown` can fail with "cannot determine the keyboard state" in iOS xcuitest mode; use inapp-boost or Android when you must confirm hiding.
 
 ### launchApp, restartApp, terminateApp, openURL
-- [`launchApp` always terminates first](../commands/launch_app.md#notes) — it never just foregrounds the app, so every call starts at the entry screen.
+- [`launchApp` always terminates first](../commands/launch_app.md#notes) — it never just foregrounds the app, so every call starts at the entry screen. Apps that restore their previous screen (OS stock apps such as Contacts and Notes) are the exception: put steps right after it that return to the list.
 - [`launchApp` keeps app data](../commands/launch_app.md#notes) — saved content and login state remain; use `clearAppData()` to erase.
 - [iOS inapp-boost: other apps fail mid-scenario](../commands/launch_app.md#notes) — the in-app bridge cannot drive another app; put steps on other apps (such as Settings) in a separate scenario under a profile naming that app.
 - [fleetest's own bridge cannot be the target](../commands/launch_app.md#notes) — passing the bridge's ID to `launchApp` / `restartApp` fails without sending anything.
@@ -134,7 +135,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`settle: false` skips the settle wait](../commands/navigation.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 - [`setAppearance` / `setTextSize` change the whole device and are undone after each scenario](../commands/navigation.md#notes) — the device returns to light / `.default` at the end of every scenario; use the run profile's `appearance` / `textSize` to apply it to every scenario.
 - [`setAppearance` / `setTextSize` cannot be used in run or device hooks](../commands/navigation.md#notes) — in `beforeRun` / `afterRun` / `setUpDevice` / `tearDownDevice` / `beforeAll` / `afterAll` the step fails, because the baseline is restored after each scenario and it would only affect the first test.
-- [On Android `setAppearance` / `setTextSize` may recreate the screen](../commands/navigation.md#notes) — unless the app declares `uiMode` / `fontScale` in `configChanges`, the activity is destroyed and created again and in-memory state is lost.  A stateless app then returns to its first screen: change the display condition at the start of the scenario, or relaunch the app and reopen the target screen.
+- [On Android `setAppearance` / `setTextSize` may recreate the screen](../commands/navigation.md#notes) — unless the app declares `uiMode` / `fontScale` in `configChanges`, the activity is destroyed and created again and in-memory state is lost.  A stateless app then returns to its first screen: change the display condition at the start of the scenario, or relaunch the app and reopen the target screen. It is not limited to Android: on React Native on iOS (an iPad) the app went back to the home screen after the change (one observation). Reopen with `launchApp()` after changing it.
 - [A state set by `unfold()` in `setUpDevice()` does not carry over to the second and later tests](../commands/navigation.md#notes) — it is restored after the first test; put `unfold()` in `beforeEach()`.
 - [`beforeEach` / `afterEach` can use `setAppearance` / `setTextSize`](../commands/navigation.md#notes) — they run for every test, so the change applies to every test of the class.
 - [`setAppearance` / `setTextSize` check the device setting, not the app's look](../commands/navigation.md#notes) — an app whose colours do not follow the appearance becomes unreadable in dark mode and the text visibility check fails the step (a correct failure).
@@ -156,6 +157,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`pressEnter` newline vs. commit depends on the field](../commands/press_enter_hide_keyboard.md#notes) — the field decides, not the command; see `type` for the same question about a trailing `\n`.
 - [iOS `hideKeyboard()` differs by framework](../commands/press_enter_hide_keyboard.md#notes) — a background tap or the following Enter closes it, and that Enter fires the field's return-key action (search, submit); it fails if neither closes it; React Native inapp-boost sends no Enter.
 - [A target under the keyboard](../commands/press_enter_hide_keyboard.md#notes) — `tap` / `type` / `clearInput` scroll first, then close the keyboard without side effects; if that fails, `tap` presses the visible part and `type` / `clearInput` fail untouched. MCP `ft_tap` / `ft_type` do not close it, so call `ft_hide_keyboard` first.
+- [Assertions do not close the keyboard](../commands/press_enter_hide_keyboard.md#notes) — only `tap` / `type` / `clearInput` do. To verify an element below the keyboard after typing, call `hideKeyboard()` first (MCP `ft_type` closes it on Android, so this does not show while writing).
 - [Keyboard state is a separate assertion](../commands/press_enter_hide_keyboard.md#notes) — verify whether it is showing with the keyboard assertions.
 - [`settle: false` skips the settle wait](../commands/press_enter_hide_keyboard.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
@@ -205,7 +207,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### swipe, swipePointToPoint, swipeElementToElement, swipeBy
 - [`swipe` direction is the finger's movement](../commands/swipe.md#notes) — it is the only command not content-based; every `scroll*` command uses content direction, so `.down` moves the finger up.
-- [`swipe` does not check that anything moved](../commands/swipe.md#notes) — the step stays green when there is nothing to move; verify afterwards with `exist` or similar.
+- [`swipe` does not check that anything moved](../commands/swipe.md#notes) — the step stays green when there is nothing to move; verify afterwards with `exist` or similar. A fast or wide swipe may not stop partway and can run through to a delete (it depends on the screen width), so confirm with a count echo.
 - [Building blocks for maps and canvases](../commands/swipe.md#notes) — `swipeBy` and `swipeElementToElement` serve maps, image viewers and drawing canvases; see gestures.
 - [`settle: false` skips the settle wait](../commands/swipe.md#notes) — the next step may see a moving screen; use it only when the next step does not depend on final positions.
 
@@ -269,9 +271,17 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`waitForDisplay` judges visibility like `exist`](../commands/wait.md#notes) — it has no `requireVisible: false`; use `exist(sel, requireVisible: false, waitSeconds: 15)` to skip the visibility check.
 - [`waitForDisplay` / `waitForClose` never scroll](../commands/wait.md#notes) — scroll first or use `scrollTo` if the element may be off-screen.
 
+### Memo (writeMemo, readMemo, memoTextAs, writeRunMemo, readRunMemo, ...)
+- [`memoTextAs` on an input field may store the placeholder](../commands/memo.md#notes) — it reads like `textIs`. Store the field's content by writing its `.value` with `writeMemo`.
+- [A dry-run does not run `beforeRun()`, so `readRunMemo` is empty](../commands/memo.md#notes) — a `thisIsNotEmpty()` guard does not work in a dry-run either. Check anything that depends on the run memo in a run.
+
+### dry-run (fleetest run --dry-run / ft_dry_run)
+- [A dry-run does not compare values in assertions](../running/dry_run.md#notes) — a mismatch still shows ✅. A dry-run checks the shape (selector spelling and the like); check anything that depends on values or the run memo in a run.
+
 ## Selectors
 
 ### Selector expressions
+- [A partial-match selector can hit a search's "no results" message](../selector/selector_expression.md#notes) — the message echoes the query. Narrow it by type, such as `.clickable&&*…*`.
 - [The ancestor of a scope (>>) must have its contents under it in the tree](../selector/selector_expression.md#notes) — on iOS, a Compose Multiplatform Row/Column with only a `testTag` matches nothing as an ancestor (only on iOS). Write a unique `#id`, a label, or a relative selector instead.
 
 ### Typed selector (Sel)
@@ -326,7 +336,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Android is unaffected](ui_component_patterns.md#pull-to-refresh) — `scrollToTop()` / `scrollToBottom()` use accessibility scroll actions and never overscroll into a pull.
 
 ### Animation (fade, switch)
-- [Flutter `AnimatedOpacity` keeps hidden elements in the tree](ui_component_patterns.md#animation-fade-switch) — do not use "the element is absent" as a visibility check; judge by the app's state echo or `checkIsON` / `checkIsOFF`.
+- [Flutter `AnimatedOpacity` keeps hidden elements in the tree on iOS](ui_component_patterns.md#animation-fade-switch) — on Android (real device and Emulator) they drop out. The result differs by OS, so do not use "the element is absent" as a visibility check; judge by the app's state echo or `checkIsON` / `checkIsOFF`.
 
 ### Navigation
 - [Android View: toolbar back may not go back one level](ui_component_patterns.md#navigation) — with stacked detail screens the tap sometimes does nothing; use the OS `back()` in multi-level stack scenarios.
@@ -341,13 +351,13 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [RN iOS suggestion below the field may not be tappable](ui_component_patterns.md#types-of-input-fields) — in inapp-boost the keyboard stays up after `pressEnter()` and hides the suggestion (under investigation); lay out the screen to avoid it or check the value via the app's echo.
 
 ### FAB (floating action button)
-- [Android View `BottomAppBar` folds items into "More options"](ui_component_patterns.md#fab-floating-action-button) — folded rows cannot carry an id; `tap("More options")` to open the overflow first.
+- [Android View `BottomAppBar` folds items into "More options"](ui_component_patterns.md#fab-floating-action-button) — folded rows cannot carry an id; `tap("More options||<the other language's label>")` to open the overflow first (the label follows the device language).
 
 ### Infinite scroll
 - [RN `FlatList` can load pages without scrolling](ui_component_patterns.md#infinite-scroll) — `onEndReached` may fire when initial data fits one screen; there is no scenario-side workaround, so keep it in mind when asserting an exact initial row count.
 
 ### Bars that hide on scroll
-- [Flutter `AnimatedSlide` bar stays at its original place](ui_component_patterns.md#bars-that-hide-on-scroll) — the search does not scroll and the tap may land where the button no longer is.
+- [Flutter `AnimatedSlide` bar stays at its original place on iOS](ui_component_patterns.md#bars-that-hide-on-scroll) — on Android with Flutter (real device and Emulator) it dropped out of the tree. On iOS the search does not scroll and the tap may land where the button no longer is.
 - [Compose Multiplatform hidden bottom bar on iOS does not come back with scroll: .up](ui_component_patterns.md#bars-that-hide-on-scroll) — scroll back to the top of the list so the bar shows, then tap.
 
 ### Link

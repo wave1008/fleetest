@@ -21,4 +21,16 @@ final class StaleInstalledAppNoteTests: XCTestCase {
     func testNotComparableGivesNoNote() { XCTAssertNil(note(.notComparable)) }
 
     func testSecondCheckInTheSameSessionGivesNoNote() { XCTAssertNil(note(.differs, again: true)) }
+
+    /// ft_install が最初の呼び出しだと、入れ直す前の比較が入れ直しの応答に載り「入れ直しても古いと言われる」と読まれた。
+    /// ft_install では比べず(済みの印も付けない)、次の呼び出しで比べ直す
+    func testInstallCallDoesNotCarryTheNoteFromBeforeItInstalled() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Driver.swift"), encoding: .utf8)
+        let skip = try XCTUnwrap(source.range(of: "Self.currentTool != \"ft_install\","))
+        let check = try XCTUnwrap(source.range(of: "await installedAppFreshness("))
+        XCTAssertLessThan(skip.lowerBound, check.lowerBound)
+        XCTAssertLessThan(source.distance(from: skip.lowerBound, to: check.lowerBound), 300, "同じ条件の中で比べる前に断つ")
+    }
 }

@@ -373,9 +373,12 @@ extension MCPServer {
         // 通らず udids[]/connectedAndroidSerials[] に何も記録しないため、resolveProfileTarget/
         // 直指定で得た `connection` から直接引く。dry-run(NullDriver・上の dryRun 関数)は
         // ここへ来ない = 実機を掴んでいないので書かない
+        // 開始時に run が握っていたか(終わりに「途中で取られた」を言うかの基準)
+        var runHolderAtStart: Int32?
         if let stateDir = deviceLeaseStateDir,
            let deviceKey = connection.udid ?? connection.serial, !deviceKey.isEmpty {
             let pid = ProcessInfo.processInfo.processIdentifier
+            runHolderAtStart = RunLease.holderPID(stateDir: stateDir, key: deviceKey)
             let warning = MCPDeviceLease.writeAndWarnIfInUse(stateDir: stateDir, key: deviceKey, pid: pid)
             // **args が同じ udid/serial を直接名乗っている呼び出しだけ**は、call() の後処理
             // (`markDeviceInUse`)が同じ鍵を args から拾って同じ警告をもう一度応答の先頭へ足す
@@ -484,6 +487,12 @@ extension MCPServer {
                                      interrupted: false, registerChildProcess: nil) { lines.append($0) }
         }
         HealSourceWriteBack.run(suggestions: healSuggestions, project: project) { lines.append($0) }
+        // 使用中の確認は開始時の1回だけなので、呼び出しの途中で run が台を取ると黙ったまま 503/422 の赤になった。
+        // 終わりにも確かめ、開始時に居なかった run が今握っていれば言う(取った時刻は分からないので「この呼び出しの間に」と言う)
+        if let stateDir = deviceLeaseStateDir, let deviceKey = connection.udid ?? connection.serial, !deviceKey.isEmpty,
+           let holder = RunLease.holderPID(stateDir: stateDir, key: deviceKey), holder != runHolderAtStart {
+            lines.append(Self.runTookDeviceDuringCallNote(holderPID: holder))
+        }
         if infos.count > 1 {
             lines.append("\(passedCount) passed / \(failedCount) failed"
                 + (skippedCount > 0 ? " / \(skippedCount) skipped" : ""))
@@ -504,6 +513,14 @@ extension MCPServer {
             throw MCPToolFailure(content: body + evidence)
         }
         return body
+    }
+
+    /// 呼び出しの間に別の `fleetest run` がこのデバイスを使い始めた。run はアプリを入れ直して起動し直すので、
+    /// 途中の赤(アプリが動いていない・前面に居ない)はシナリオではなく run の操作から来ている可能性がある
+    static func runTookDeviceDuringCallNote(holderPID: Int32) -> String {
+        "⚠️ a fleetest run (pid \(holderPID)) started using this device during this call — it reinstalls and relaunches"
+            + " the app, so a failure above such as \"the target app is not running\" or \"not in the foreground\" may come"
+            + " from the run rather than from the scenario. Wait for the run to finish, or use another device, and run it again."
     }
 
     /// ft_run_scenario / ft_dry_run の構造化データ(structuredContent。既定では出さない = toolCallResult)

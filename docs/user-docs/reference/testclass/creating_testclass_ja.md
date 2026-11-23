@@ -127,7 +127,7 @@ class RunWide {
   複数のマシンにまたがる run でも1回です。どのマシンで走ったかを示す1行が run のログに出ます。`beforeRun()` は、どのマシンでもシナリオが始まる前に終わります。
   **デバッグ実行・プロファイルなしの run・dry-run では走りません**(dry-run は `beforeAll()` は走らせ、`beforeRun()` / `afterRun()` は走らせません)。 `fleetest run --profile ...`・`fleetest api run --profile ...`・MCP `ft_run_scenario` の毎回の呼び出しでは走ります。
   それぞれ別のプロセスで走るので、**`beforeRun()` から `afterRun()` へクラスの `var` で値は渡せません**。run メモを使います。
-  `beforeRun()` が走らないとき、そのキーを `readRunMemo` で読むと `""` が返ります(失敗にはなりません)。読んだ直後に `readRunMemo("token").thisIsNotEmpty()` のように確かめてください。
+  `beforeRun()` が走らないとき、そのキーを `readRunMemo` で読むと `""` が返ります(失敗にはなりません)。読んだ直後に `readRunMemo("token").thisIsNotEmpty()` のように確かめてください。**dry-run は `beforeRun()` を走らせないので、このガードも dry-run では効かず(✅ になる)、値の検証も比べられません。run メモに頼る手順は run で確かめます。**
 - **使えるもの**: run メモ(`writeRunMemo` / `readRunMemo`。`beforeRun()` で書いた値は全テストが最初の行から読めます)・`httpRequest`・`data()` / `account()`・`wait`・値の検証(`thisIs` など)。
   `httpRequest` は、宛先が走ったマシンの `allowedDomains` に入っていないと断られます(→ [サンドボックス](../../security/sandbox_ja.md)。例のように `response.status` を確かめます)。
   **デバイスを操作するコマンドは失敗になります**(エラーにコマンド名が出ます)。**compose.yaml のサーバーには届きません**(マシンごとにあるため)。

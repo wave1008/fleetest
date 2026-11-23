@@ -50,6 +50,8 @@ final class AppleSimulatorWipeTests: XCTestCase {
         let ok = AppleSimulatorWipe.summary(bundleID: "com.apple.Maps", report: report)
         XCTAssertTrue(ok.contains("3 item(s)") && ok.contains("group.com.apple.Maps (5 item(s))"), ok)
         XCTAssertFalse(ok.contains("NOT done"), ok)
+        // 連絡先は容器の外(端末全体のストア)に残る。成功と言い切らない
+        XCTAssertTrue(ok.contains("NOT touched: device-wide stores") && ok.contains("Library/AddressBook"), ok)
         report.problems = ["could not list the app group containers"]
         let partial = AppleSimulatorWipe.summary(bundleID: "com.apple.Maps", report: report)
         XCTAssertTrue(partial.contains("NOT done: could not list the app group containers"), partial)

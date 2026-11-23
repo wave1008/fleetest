@@ -1227,14 +1227,13 @@ public final class FTDriveCore {
         }
         for (selector, description) in notCheckedOnlySelectors.sorted(by: { $0.key < $1.key })
         where !checkedObservedSelectors.contains(selector) {
-            addSuggestion(FixSuggestion(
-                isStrong: false,
-                message: "`\(selector)` passed checkIsOFF, but the element never reported a check state "
-                    + "(on or off) during this scenario (\(description)). If it points at an element with no "
-                    + "check state (a plain button) or at an implementation that reports only \"on\" or nothing "
-                    + "(custom-drawn SwiftUI buttons; Compose checkboxes on iOS), **any assertion passes**. "
-                    + "Turn it on and verify checkIsON as well"),
-                emitEvent: false, file: "", line: 0)
+            let message = "`\(selector)` passed checkIsOFF, but the element never reported a check state "
+                + "(on or off) during this scenario (\(description)). If it points at an element with no "
+                + "check state (a plain button) or at an implementation that reports only \"on\" or nothing "
+                + "(custom-drawn SwiftUI buttons; Compose checkboxes on iOS), **any assertion passes**. "
+                + "Turn it on and verify checkIsON as well"
+            emit(.log("⚠️ " + message))  // 提案だけだとレポートにしか残らず、run と ft_run_scenario の出力に出ない
+            addSuggestion(FixSuggestion(isStrong: false, message: message), emitEvent: false, file: "", line: 0)
         }
         // 見本はあるのに分類器を学習・読み込みできなかった = checkIsON/OFF は黙って a11y へ倒れている(注記
         // vision-classifier-unavailable)。理由は分類器の言ったことをそのまま出す(原因を推測して書き足さない)

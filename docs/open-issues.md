@@ -27,55 +27,16 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-329・OI-345・OI-347・OI-358・OI-360 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-361 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-329・OI-345・OI-347・OI-358・OI-366 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 2 | OI-361・OI-372 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 19 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327・OI-361 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 37 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-346・OI-359 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 40 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 11 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 46 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370 |
 
 ## 着手可
 
 ## 要測定
-
-### OI-360 機械をまたぐ run で、全機械の全端末が対象外と答えたシナリオが「どの端末にも渡されなかった」の赤で終わる
-- 状態: 再現済み
-- 確認: 63dafc71c(2026-11-23)
-- 属性: 要測定
-- 運用: 回避不可 — 対象外のシナリオだけで run が赤になる(折りたたみ端末をプロファイルに持たないときの回帰)
-- 優先度: 中 — 誤った赤(対象外は本来「飛ばした」で緑)
-
-出典: 11/23 昼の回帰(`_work/regress-20261123b/regress.log`・24 対象・4 機械)
-- 観測: E2E-iOS / ios-inapp-boost の `折りたたみの開閉を跨いで操作できること.S0010` / `S0020`(折りたためる端末が無い = 全台で対象外)。M1Max の4台・M4Max の2台・手元の8台がすべて試して `result discarded: not applicable`(手元の子の「Results discarded and requeued (16)」)。手元の子は `All 0 scenario(s) passed` で終わり **`(2 skipped: not applicable)` が付かず**、親が `2 scenario(s) were never handed to a device` を出して run の終了コードが非ゼロ(regress.py の「回帰に失敗があります」)。対象の一覧は 24 件すべて pass
-- 対照: 同じ日の朝の回帰では同じ2本が手元で `skipped: not applicable` として確定し緑。同じ回の E2E-Android の同じシナリオも手元の子が `All 0 scenario(s) passed (2 skipped: not applicable)` で緑 = 全機械が尽きた最後の判定(`verdict`)が、この回の E2E-iOS では手元の子へ届かなかったか、子が記帳しなかった
-- 今日の変更(スクロールの数え方・XCUITest の付け方・ランナーの記録)はこの経路を通らない(割り振りは DR-214 の `NotApplicableHandoff` / `DynamicDispatcher.handleNotApplicable`)
-- **原因(11/23・ログとコードで確定)**: E2E-iOS のプロファイルには M1Ultra の iOS 6台が居るが、回帰のログに `[M1Ultra:E2E-iOS` の行は 0(子が一度も起こされていない)。配り手の対象外の判定(`DynamicDispatcher.handleNotApplicable`)は「試していない生きたエントリ」に `entryPlatforms` の全エントリを数えるので、M1Ultra が残る限り `handOn` で `pending` へ戻す。一方、複数対象の配り手(`MultiTargetCoordinator`)は M1Ultra が他の対象を終えた時点で E2E-iOS の残りが空だったので `.finished` にし、見直すのは `.idle` のマシンだけ = 戻った2本を誰も取らず `unhandedUnits` に残った(朝の回帰は手元が最後に試して `skipped` で確定した = 未試行のエントリが残らなかった)
-- **直し(11/23)**: `MultiTargetCoordinator.childFinished` で、担当0台の対象に残りがあって未着手へ戻すとき、生きていてその対象をまだ起こしていない `.finished` のマシンを `.idle` へ戻す(子が落ちて残った分も同じ型)。`MultiTargetRunnerTests.testWorkHandedBackAfterAMachineFinishedRevivesThatMachine`(直しを外すと赤を確認)。**デバイスでは未確認** —— 次の回帰で E2E-iOS の折りたたみ2本が M1Ultra でも試されて `skipped` で確定することを見てから項目を消す
-
-### OI-358 Android でアプリの面が描かれずキーボードだけ描かれた回は「全面一色」にならず、白紙として扱われない
-- 状態: 再現済み
-- 確認: 7b57ed9b5(2026-11-23)
-- 属性: 要測定・環境側
-- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
-- 優先度: 低 — 赤の理由の言い方とレーンの扱いだけ
-
-出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
-- 観測: dc_native_emu の本番(手元 Emu -07)で `textIs "#txt_echo_single"` が `[notRendered]` で赤。失敗時の画面はアプリの面が真っ黒でキーボードだけ描かれている(Emu -07/-08 の面が描かれない不調・7回目の評価と同じ)。「全面一色」の注記が付かず、白紙の扱い(レーンの切り離し・振り直し)にならない
-- 次の一手: キーボードの枠を除いたアプリの面だけで一色かを判定しているかをコードで確かめる
-- **読み(2026-11-23・評価 8回目の後の処理)**: 失敗文の「全面一色」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`)で、キーボードの枠を受け取らない = キーボードだけ描かれた回は一色にならない。続く `RenderCollapse.judge` は keyboard を受け取るが、この回は何も添えなかった(Android のキーボードの枠を持っていたか・文字の要素の数が下限に届いたかは未観測)。run のレーンの白紙の扱いは別の経路で、この回に働かなかった理由は未観測。次の一手: 同じ形(キーボードだけ描かれた白紙)の結果 JSON の注記と、そのときの `guardKeyboardFrame` を残して読む
-
-### OI-345 iOS の Simulator で画面全体が描かれていない赤に `screen-blank` が立たず、レーンの切り離し・振り直しが起きない
-- 状態: 再現済み
-- 確認: 72aa89cbf(2026-11-22)
-- 属性: 要測定
-- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
-- 優先度: 中 — 壊れた台が run に残り、後続のシナリオも赤になりうる
-
-出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
-- 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
-- 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
-- 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
-- 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、据え置き
 
 ### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
 - 状態: 再現済み
@@ -91,6 +52,7 @@
 - 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
 - 評価 8回目(11/23・`_work/scen-eval-20261123/`): 本番(inapp-boost)で2回出て、どちらも検出 → SpringBoard の起こし直し → 回し直しで回復した(手元 Sim -08 の dc_cmp_ios・M1Ultra の va_e2ey_cmp_ios = 回し直しの後 6/6 緑)。作成側(MCP = xcuitest モード)では確かめないので、`setAppearance(.dark)` が端末では dark・アプリは light のまま赤になり、作成者は理由が分からなかった(dc_cmp_ios の Sim -04・dc_flutter_ios の Sim -05・va_cmp_ios_img。文字サイズは同じ時刻に届いた)。docs の注意点は navigation に足した
 - 処理(2026-11-23・評価 8回目の後の処理): きっかけを測る材料(状態になる直前のログ)は今回も残せていない。評価では本番の検出と回復が 2/2 で働いた(上の 8回目の行)
+- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim の dc_cmp_ios)で `display-not-applied` が検出された。作成側(MCP)では 14 プロジェクトが「読み返しは dark・アプリが届いたかは見ない」を挙げ、dc_flutter_ios はアプリが light のまま赤(作成者は理由が分からない)
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
 - 状態: 再現済み
@@ -109,6 +71,24 @@
 - 処理(2026-11-23・評価 8回目の後の処理): 未着手(次の一手は in-app のブリッジに測る口を足す作業で、評価の後の処理の時間に収まらなかった)。評価 8回目では出ていない(リマインダーを触った builtin_ios・r5_builtin_ios の本番は今回回していない)
 
 ## 要判断
+
+- 評価 9回目(11/23 夜): リマインダーの本番は時間の都合で回していない(材料なし)
+### OI-372 ツールの限界で書けないテスト(評価 9回目で挙がったもの)を、ツールに足すかどうか
+- 状態: 再現済み
+- 確認: 07d7fc00a(2026-11-23)
+- 属性: 要判断
+- 運用: 回避可 — アプリの echo を読む・最終状態だけ確かめる(どれも弱い)
+- 優先度: 低 — 不具合ではない。足すかの判断
+
+出典: シナリオ作成の評価 9回目(2026-11-23 17:05〜20:30・`_work/scen-eval-20261123b/`。版 07d7fc00a = 0.24.0。作成 86 セッション・本番は手元・M1Max・M1Ultra・M4Max・iPad・Duo・SE3。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-aa〜ae.md`・観測メモは `findings.md`)
+足せそうなもの(見立て):
+1. 要素の寸法・位置の検証(折りたたみの開閉で幅が変わった・特大文字で行が伸びた。木には frame があるが検証のコマンドが無い)— 8 プロジェクト
+2. MCP で探索中に外観・文字サイズを変える道具(`ft_rotate` / `ft_fold` はある)— dc_cmp_and ほか 3
+3. MCP から Simulator を起こし直す口(Duo の SpringBoard の落ち・描画の落ちで無人の作成が止まる。今は人に起こし直しを頼む文言だけ)— Duo 8・描画 5
+4. 作成中に run 全体の機能を確かめる手段(`ft_run_scenario` は呼ぶたびに1 run・1台 = カウンタが積み上がらない・ロックの排他・マシンをまたぐ値が見えない)— lk3_flutter_emu・hk_e2e_cmp・ord_cmp_ios
+5. 2回読んだ値を比べる書き方(ティッカーが増える・止まる)の例 — e2e_and5 ほか 4
+原理的に難しい・アプリの協力が要るもの: 配色がダークに追従したか(色を読むコマンドが無い・画像の照合は端末依存)・伏せ字で描かれているか・読み込み中の骨組みを確かめる(止める手段が無い)・通知・音・アラームの鳴動・時計を進める
+- 次の一手: 1〜5 を足すかを決める(足さないものは DR に理由を残す)
 
 ### OI-361 Android の Flutter で、緑のタップに「後ろの一覧の行に覆われている」の注記が付く
 - 状態: 再現済み
@@ -288,6 +268,45 @@
 出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。
 
 ## 低頻度
+
+### OI-366 `ft_swipe` の「nothing on the screen moved」が、横の容器で中身が1枚ずれていても出る
+- 状態: 再現済み
+- 確認: 07d7fc00a(2026-11-23)
+- 属性: 低頻度・要測定
+- 運用: 合否に響かない — MCP の注記だけ。端に着いたと読ませる
+- 優先度: 低 — 注記・文言だけ
+
+出典: シナリオ作成の評価 9回目(2026-11-23 17:05〜20:30・`_work/scen-eval-20261123b/`。版 07d7fc00a = 0.24.0。作成 86 セッション・本番は手元・M1Max・M1Ultra・M4Max・iPad・Duo・SE3。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-aa〜ae.md`・観測メモは `findings.md`)
+- 観測: e2ey_cmp_3a。`swipe left sent inside id=shelf_5. (nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction)` の同じ応答の木で `card_5_00/01/02` → `card_5_01/02/03/04`
+- 測定(11/23 夜): 判定は `scrollFrame:` を書いた払いなら枠の中だけを比べる(`StepExecutor+DirectActions.swift` の `sameContentInSearchRegion`)。Emulator(Pixel 10 Pro・Android 17)の E2EY-CMP の同じ画面で、`#shelf_1` を4回・下端にかかった `#shelf_4` を1回払い、5回とも注記は出なかった(中身は正しく1枚ずつずれた)= この台では再現しない
+- 測定(11/23 夜・Pixel 3a の実機): 報告の台で `#list_nested` を送って `#shelf_5` を出し、`ft_swipe finger: left scrollFrame: #shelf_5` → 注記なし(中身は1枚ずれた)。Emulator の5回と合わせて6回とも再現しない → 低頻度へ移す。出たら、払う前後の枠の中の木を残す
+
+### OI-358 Android でアプリの面が描かれずキーボードだけ描かれた回は「全面一色」にならず、白紙として扱われない
+- 状態: 再現済み
+- 確認: 7b57ed9b5(2026-11-23)
+- 属性: 低頻度・要測定・環境側
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 低 — 赤の理由の言い方とレーンの扱いだけ
+
+出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
+- 観測: dc_native_emu の本番(手元 Emu -07)で `textIs "#txt_echo_single"` が `[notRendered]` で赤。失敗時の画面はアプリの面が真っ黒でキーボードだけ描かれている(Emu -07/-08 の面が描かれない不調・7回目の評価と同じ)。「全面一色」の注記が付かず、白紙の扱い(レーンの切り離し・振り直し)にならない
+- 次の一手: キーボードの枠を除いたアプリの面だけで一色かを判定しているかをコードで確かめる
+- **読み(2026-11-23・評価 8回目の後の処理)**: 失敗文の「全面一色」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`)で、キーボードの枠を受け取らない = キーボードだけ描かれた回は一色にならない。続く `RenderCollapse.judge` は keyboard を受け取るが、この回は何も添えなかった(Android のキーボードの枠を持っていたか・文字の要素の数が下限に届いたかは未観測)。run のレーンの白紙の扱いは別の経路で、この回に働かなかった理由は未観測。次の一手: 同じ形(キーボードだけ描かれた白紙)の結果 JSON の注記と、そのときの `guardKeyboardFrame` を残して読む
+- 評価 9回目(11/23 夜): 本番(手元 Emu -08・va_rn_and)の「アプリの面が一色」の可視性検証の赤は、白紙として公表され `renderingHeld`(他に Android のレーンが無い)を記録した。キーボードだけ描かれた元の形は出ていない → 低頻度へ移す
+
+### OI-345 iOS の Simulator で画面全体が描かれていない赤に `screen-blank` が立たず、レーンの切り離し・振り直しが起きない
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 低頻度・要測定
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 中 — 壊れた台が run に残り、後続のシナリオも赤になりうる
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
+- 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
+- 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
+- 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、据え置き
+- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim -08・inapp-boost・dc_cmp_ios)で外観をダークにした後、末尾の描画の検査が `the whole screenshot is a single colour, status bar included` の赤。この回は白紙として公表され、run が `renderingHeld`(他に iOS のレーンが無いので切り離さない)を記録した = 公表と判定は働いた。可視性検証の赤で `screen-blank` が立たない元の形は 2 回の評価で出ていない → 低頻度へ移す(出たら同じ手で測る)
 
 ### OI-359 Flutter の iOS(inapp-boost)で `clearAppData` が「could not delete 1 item(s) in the data container … : Library」の 500 で赤
 - 状態: 再現済み
@@ -704,6 +723,19 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 ## 据え置き
 
+### OI-370 リモートで回した run の失敗文のクラス名が、濁点の分かれた形(NFD)で出る
+- 状態: 据え置き
+- 確認: 07d7fc00a(2026-11-23)
+- 属性: 据え置き
+- 運用: 合否に響かない — fleetest の照合は Swift の比較(正準等価)で通る。出力を文字列で拾う側(スクリプト)だけが一致しない
+- 優先度: 低 — 注記・文言だけ
+
+出典: シナリオ作成の評価 9回目(2026-11-23 17:05〜20:30・`_work/scen-eval-20261123b/`。版 07d7fc00a = 0.24.0。作成 86 セッション・本番は手元・M1Max・M1Ultra・M4Max・iPad・Duo・SE3。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-aa〜ae.md`・観測メモは `findings.md`)
+- 観測: M1Ultra へのディスパッチで `Error: every scenario of スクラッチダーク確認 is a draft (@Draft)` の「ダ」が `タ` + 結合の濁点(e3 82 bf e3 82 99)。ソースのクラス名は NFC(e3 83 80)。評価のキットの `q2.sh` が名前の一致で外せず、同じ断りを8回繰り返した
+- 原因(11/23・確認): Foundation の `Process` は引数を NFD に分解して子へ渡す(`Process` で `printf` に「ダ」(e3 83 80)を渡すと e3 82 bf e3 82 99 が返る)。リモートへの `ssh` も子なので、受け取った `--scenario` の名前を文言にそのまま出すと NFD になる
+- 範囲(11/23・評価 9回目の結果 JSON 2,979 個・日本語の値 57,026 個): NFC でない値は `reportPath`(リモートから集めたレポートのパス)の 1,260 個だけで、シナリオの ID 等の識別子は全部 NFC
+- 据え置きの理由: 照合は Swift の比較(正準等価)で通り、APFS も正規化を区別せずに開く = 合否・表示・ファイルを開く操作に響かない。響くのは出力をバイト列で比べるスクリプトだけ。見直す条件: 識別子(シナリオ ID・バリアント名)に NFD が混ざり、拡張などの文字列比較で取りこぼす実例が出たとき
+
 ### OI-235 OCR の近道が準備できていない回に FM が空の転写を返すと、確かめの OCR も「文字なし」を返し、描かれている文字が赤になる(E2EY-Android・11/15 の回帰で 1 回・11/22 の評価で 7 回)
 - 状態: 再現済み
 - 確認: 6e1dce9ec(2026-11-15)
@@ -763,6 +795,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 決定: in-app の /drag を終点で止める直しは不採用の決定どおり(速さで決まる部品を壊す)。docs(gestures の注意点・known_caveats)に「離す速さで結果が変わる部品はモードで割れる・本番と同じモードで確かめる・ボタンだけなら小さめの比率」を足した。スキルの「完了の前に本番と同じ経路で回す」(DR-196)が効く形(評価は `ft_start_run` を禁じた構成)
 - 評価 5回目(11/21・`_work/scen-eval-20261121/`): e2ey_flutter_ios(Flutter の iOS・作成時の XCUITest)で、`swipeBy` の大きい比率が Dismissible を削除まで走らせ、snapshotAfter は行のボタンが並んだ中間の状態を返した(シナリオでも `exist "#btn_sw_archive_1"` が赤・既に action=row1:delete)
 
+- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): e2ey_cmp_ios の `flickRightToLeft(scrollFrame: "スワイプ行 1")` が本番(inapp-boost)で M1Max 2回・手元 Sim -08 1回とも、続く `exist "#btn_sw_delete_1"` は ✅・`tap "#btn_sw_delete_1"` が「見つからない」の赤。失敗時の木は `action=row1:delete`・`rows=5` = 払いが削除まで走り、`exist` は消えていく行のボタンを読んだ(払った後に「スワイプ行 1」が木に無いことも測定で確認)。作成時の MCP(XCUITest)はボタンで止まって緑。flick(速い払い)でも同じ型。docs の「途中までのスワイプ」と「スワイプで削除」を相互に参照させ、速い払いは削除まで走りうると書いた
 ### OI-291 scrollFrame の枠の外にある固定要素を探すと、最初の読みで枠の外と分かっていても払い切る
 - 状態: 再現済み
 - 確認: 657e032d1(2026-11-19)

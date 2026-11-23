@@ -129,7 +129,7 @@ class RunWide {
   The run prints one line saying which machine ran it. `beforeRun()` finishes before any scenario starts on any machine.
   **They do not run** in a debug run, in a run without a profile, or in a dry-run (a dry-run does run `beforeAll()`, but not `beforeRun()` / `afterRun()`). They run in `fleetest run --profile ...`, `fleetest api run --profile ...` and every call of MCP `ft_run_scenario`.
   Each of them runs in a process of its own, so **a value cannot be passed from `beforeRun()` to `afterRun()` through a `var` of the class** — use the run memo.
-  When `beforeRun()` does not run, `readRunMemo` of the keys it would have written returns `""` (not a failure), so check right after reading, for example `readRunMemo("token").thisIsNotEmpty()`.
+  When `beforeRun()` does not run, `readRunMemo` of the keys it would have written returns `""` (not a failure), so check right after reading, for example `readRunMemo("token").thisIsNotEmpty()`. **A dry-run does not run `beforeRun()`, so this guard does not work in a dry-run either (it shows ✅) and value assertions are not compared. Check anything that depends on the run memo in a run.**
 - **What you can use**: the run memo (`writeRunMemo` / `readRunMemo`; values written in `beforeRun()` are visible to every test from its first line), `httpRequest`, `data()` / `account()`, `wait`, and value assertions (`thisIs` etc.).
   `httpRequest` is refused unless the host is in `allowedDomains` of the machine that ran the hook ([Sandbox](../../security/sandbox.md); check `response.status` as in the example).
   **Commands that operate a device fail** (the message names the command), and **the servers of compose.yaml are not reachable** (they are per machine).

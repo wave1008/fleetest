@@ -67,7 +67,7 @@ cwd(あなたのパッケージ)とは別物です。
 | `ft_hide_keyboard` | ソフトキーボードを閉じる(Android は戻る操作。iOS はキーボードの上の空いた所をタップし、閉じなければ失敗にする。Return は送らない) |
 | `ft_open_url` | アプリを再起動せずディープリンクを配送する(`ft_launch` は逆に必ず再起動する)。配送は非同期なので、`snapshotAfter: true` は画面が変わるのを待ってから読む(目的地固有の物を待つなら `waitFor`、待たずに読むなら `waitForChange: false`) |
 | `ft_clear_input` | 入力欄を空にする。欄は `selector` か `ref` で指せる(既定はフォーカス中のもの)(`ft_type` は追記なので、置き換えるならまず消す) |
-| `ft_clear_app_data` | アプリのデータと権限をリセットする(iOS 実機は `ft_install` のパスか `packagePath:` で uninstall + install に振り替える)。Apple のアプリ(`com.apple.*`)は iOS Simulator でだけ消せる(データコンテナとそのアプリグループのコンテナ。消せたものと消せなかったものは応答に並ぶ)。iPhone 実機・SpringBoard・Simulator と確かめられない宛先(`udid` を渡す)では断られる |
+| `ft_clear_app_data` | アプリのデータと権限をリセットする(iOS 実機は `ft_install` のパスか `packagePath:` で uninstall + install に振り替える)。Apple のアプリ(`com.apple.*`)は iOS Simulator でだけ消せる(データコンテナとそのアプリグループのコンテナ。消せたものと消せなかったものは応答に並ぶ。連絡先のように端末全体のストアに置かれたデータは残る)。iPhone 実機・SpringBoard・Simulator と確かめられない宛先(`udid` を渡す)では断られる |
 | `ft_dsl_commands` | DSL コマンドの索引(名前と署名)。書く前に存在確認できる |
 | `ft_double_tap` / `ft_pinch` / `ft_drag` | ダブルタップ(`selector`・`ref`・x/y で指せる)・ピンチ・任意方向のドラッグ。MCP の iOS は常に XCUITest なので、Compose の iOS アプリのダブルタップは MCP からは届きません(シナリオを inapp-boost モードで回せば成立します)。拡大が目的なら `ft_pinch` を使う([ジェスチャ](../commands/gestures_ja.md))。`ft_drag` は `fromRef`(要素の中心から)と `dx`/`dy`(移動量)でも書ける(半開きのボトムシートはグラバーを引き上げて広げる)。`ft_pinch` は `ref` でも `x`/`y` でも対象を指せる(地図は要素としてツリーに無い。対象を省くと指が画面全体に開き、手前のシートが取得されることがある) |
 | `ft_gesture` | 指ごとの時刻つき経路を1本の連続タッチとして再生する(区切りで指を離さない)—— パターンロック・長押しからのドラッグ・独自の複数指ジェスチャ用。絶対座標のみ・ref/セレクタ形は無い |

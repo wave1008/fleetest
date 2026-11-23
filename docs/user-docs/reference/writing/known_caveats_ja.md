@@ -41,6 +41,7 @@
 ### exist, notExist, countIs
 - [exist の戻り値は text・value・id の検証にチェーンできる](../commands/existence_assertion_ja.md#注意点) — 各検証コマンドのページを参照してチェーンします。
 - [exist / notExist / countIs は常にセレクタを取る](../commands/existence_assertion_ja.md#注意点) — 直前に取得した要素へ暗黙に効く形は無いので、毎回セレクタを書きます。
+- [読み込み中の骨組みの行は本物と同じ id で、exist が読み込み前に通る](../commands/existence_assertion_ja.md#注意点) — 完了の判定に使わず、`enabledIsTrue()` か読み込み済みの件数の echo で確かめます。
 - [notExist は可視性を見ない](../commands/existence_assertion_ja.md#注意点) — 別のモーダルに覆われてツリーに残っている要素は「まだ在る」と扱われ、待ち時間後に失敗します。
 - [モーダルの裏で通った「無い」には absence-behind-modal の注記が付く](../commands/existence_assertion_ja.md#注意点) — 裏の要素がツリーから外れると、要素が在っても `notExist` が通ります。合否は変わらないので注記を確認します。
 - [Android で別アプリの画面を読んで通った「無い」には注記が付く](../commands/existence_assertion_ja.md#注意点) — 前面がテスト対象でないと、検証は対象について何も言っていません。合否は変わらないので注記を確認します。
@@ -108,7 +109,7 @@
 - [表示 / 非表示はブリッジが申告する枠で決まる](../commands/keyboard_assertion_ja.md#注意点) — 枠が画面の外なら非表示で、どちらも不明なときは失敗します。iOS の xcuitest モードでは閉じたことを確定できないことがあるので、閉じた確認は inapp-boost モード(または Android)で書きます。
 
 ### launchApp, restartApp, terminateApp, openURL
-- [launchApp は起動済みでも常にプロセスを終了して起動し直す](../commands/launch_app_ja.md#注意点) — 前面化ではないので、どの呼び出しもエントリー画面から始まります。
+- [launchApp は起動済みでも常にプロセスを終了して起動し直す](../commands/launch_app_ja.md#注意点) — 前面化ではないので、どの呼び出しもエントリー画面から始まります。ただし前の画面を復元するアプリ(OS の標準アプリの連絡先・メモ等)は復元されるので、直後に一覧へ戻す手順を置きます。
 - [launchApp はアプリのデータを消さない](../commands/launch_app_ja.md#注意点) — 消えるのはプロセスと画面の状態だけです。データを消すのは `clearAppData()` です。
 - [iOS の inapp-boost で他のアプリを launchApp / restartApp すると失敗する](../commands/launch_app_ja.md#注意点) — in-app ブリッジは別のアプリを駆動できません。そのアプリの手順は別のシナリオに分けます。
 - [fleetest 自身のブリッジは launchApp / restartApp の対象にできない](../commands/launch_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。
@@ -134,7 +135,7 @@
 - [settle: false は操作後の落ち着き待ちを省く](../commands/navigation_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 - [`setAppearance` / `setTextSize` は端末全体を変え、シナリオごとの終わりに元へ戻る](../commands/navigation_ja.md#注意点) — 終わりに light / `.default` へ戻ります。全シナリオに効かせるなら実行プロファイルの `appearance` / `textSize` を使います。
 - [`setAppearance` / `setTextSize` は run や端末のフックの中では使えない](../commands/navigation_ja.md#注意点) — `beforeRun` / `afterRun` / `setUpDevice` / `tearDownDevice` / `beforeAll` / `afterAll` の中ではステップが失敗します(各シナリオの後に基準へ戻すので、最初のテストにしか効かないため)。
-- [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
+- [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。Android に限らず、React Native の iOS(iPad)でも変更の後にアプリがホームへ戻った例があります(観測1件)。変えた後は `launchApp()` で開き直します。
 - [`beforeEach` / `afterEach` の中では `setAppearance` / `setTextSize` を使える](../commands/navigation_ja.md#注意点) — テストごとに走るので、クラスの全テストに効きます。
 - [`setAppearance` / `setTextSize` が確かめるのは端末の設定値で、アプリの表示ではない](../commands/navigation_ja.md#注意点) — 配色を外観に追従させないアプリはダークで文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗)。
 - [MCP(`ft_run_scenario`)の確認では、アプリへ外観が届いたかを確かめない](../commands/navigation_ja.md#注意点) — 端末は dark なのにアプリが light のままになる Simulator の状態があります(設定をアプリへ届けない状態)。本番の run(`inapp-boost`)は `display-not-applied` で検出して回復します。
@@ -156,6 +157,7 @@
 - [pressEnter が改行か確定アクションかはフィールドが決める](../commands/press_enter_hide_keyboard_ja.md#注意点) — コマンド側では選べません。`type` の末尾 `\n` も同じです。
 - [iOS の hideKeyboard はフレームワークで閉じ方が違う](../commands/press_enter_hide_keyboard_ja.md#注意点) — 背景タップで閉じるか Enter で閉じるかが違います。React Native の inapp-boost は Enter を送りません。閉じなければ失敗します。
 - [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと `type` / `clearInput` は触らず失敗し、`tap` は見えている部分だけを押します。リターンキーが要るなら先に `pressEnter()` を呼びます。探索の MCP `ft_tap` / `ft_type` は閉じないので、先に `ft_hide_keyboard` を呼びます。
+- [検証はキーボードを閉じない](../commands/press_enter_hide_keyboard_ja.md#注意点) — 閉じるのは `tap` / `type` / `clearInput` だけです。入力の後にキーボードより下の要素を検証するなら、先に `hideKeyboard()` を呼びます(探索の MCP `ft_type` は Android で閉じるので、作成中は再現しません)。
 - [キーボードが出ているかの検証は別のコマンド](../commands/press_enter_hide_keyboard_ja.md#注意点) — `keyboardIsShown` / `keyboardIsNotShown` を使います。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/press_enter_hide_keyboard_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
@@ -205,7 +207,7 @@
 
 ### swipe, swipePointToPoint, swipeElementToElement, swipeBy
 - [swipe だけが指の動きを方向として扱う](../commands/swipe_ja.md#注意点) — `scroll*` 系はコンテンツ基準です(`.down` は指が上へ動きます)。向きを取り違えないでください。
-- [swipe は何かが動いたかを確かめない](../commands/swipe_ja.md#注意点) — 動くものが無くても失敗しません。後続の `exist` などで検証します。
+- [swipe は何かが動いたかを確かめない](../commands/swipe_ja.md#注意点) — 動くものが無くても失敗しません。速い・幅の広いスワイプは途中で止まらず削除まで走りうるので(画面の幅で変わる)、件数の echo などで確かめます。
 - [swipeBy と swipeElementToElement は地図・画像ビューア等の土台](../commands/swipe_ja.md#注意点) — パンやズームの詳細は gestures のページを参照します。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/swipe_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
@@ -269,9 +271,17 @@
 - [waitForDisplay の判定は exist と同じ可視性込み](../commands/wait_ja.md#注意点) — 可視性の判定を外して待ちたいなら `exist(sel, requireVisible: false, waitSeconds: 15)` を使います。
 - [waitForDisplay / waitForClose はスクロールして探さない](../commands/wait_ja.md#注意点) — 画面外にありうるなら、先にスクロールするか `scrollTo` を使います。
 
+### メモ(writeMemo, readMemo, memoTextAs, writeRunMemo, readRunMemo, …)
+- [入力欄への memoTextAs は placeholder を控えることがある](../commands/memo_ja.md#注意点) — `textIs` と同じ読み方になるためです。入力欄の中身は `.value` を `writeMemo` で控えます。
+- [dry-run では beforeRun() が走らず、readRunMemo は空](../commands/memo_ja.md#注意点) — `thisIsNotEmpty()` のガードも dry-run では効きません。run メモに頼る手順は run で確かめます。
+
+### dry-run(fleetest run --dry-run / ft_dry_run)
+- [dry-run は値の検証を比べない](../running/dry_run_ja.md#注意点) — 一致しなくても ✅ になります。dry-run が確かめるのはセレクタの綴りなどの形で、値や run メモに頼る手順は run で確かめます。
+
 ## セレクタ
 
 ### セレクタ式
+- [部分一致のセレクタは検索・絞り込みの「0件」の案内文にも当たる](../selector/selector_expression_ja.md#注意点) — 案内文がクエリを反響するためです。`.clickable&&*…*` のように型で絞ります。
 - [スコープ(>>)の祖先はツリーの上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
 
 ### 型付きセレクタ(Sel)
@@ -326,7 +336,7 @@
 - [Android は全フレームワークで起きない](ui_component_patterns_ja.md#引っ張って更新) — `scrollToTop()` / `scrollToBottom()` は a11y のスクロール操作で送るので、端を越えた引っ張りにならないためです。
 
 ### アニメーション(フェード・切り替え)
-- [Flutter の AnimatedOpacity は非表示にしてもツリーから消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — 「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
+- [Flutter の AnimatedOpacity は iOS では非表示にしてもツリーから消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — Android(実機・Emulator)では消えます。OS で結果が割れるので、「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
 
 ### 画面遷移(ナビゲーション)
 - [Android View の NavHostFragment でツールバーの戻るが1つ戻らないことがある](ui_component_patterns_ja.md#画面遷移ナビゲーション) — 調査中です。複数階層を検証するシナリオでは、ツールバーのタップではなく OS の `back()` を使います。
@@ -341,13 +351,13 @@
 - [RN の iOS(inapp-boost)で欄の直下の候補を押せないことがある](ui_component_patterns_ja.md#入力の種類) — 調査中です。候補がキーボードに隠れない画面構成にするか、確定後の値をアプリの echo で確かめます。
 
 ### FAB(フローティングアクションボタン)
-- [Android View の BottomAppBar は幅が足りないと項目を1アイコンへ畳む](ui_component_patterns_ja.md#fabフローティングアクションボタン) — 畳まれた行は id を持てないので、先に `tap("その他のオプション")` でオーバーフローを開いてから押します。
+- [Android View の BottomAppBar は幅が足りないと項目を1アイコンへ畳む](ui_component_patterns_ja.md#fabフローティングアクションボタン) — 畳まれた行は id を持てないので、先に `tap("More options||その他のオプション")` でオーバーフローを開いてから押します(ラベルは端末の言語で変わります)。
 
 ### 無限スクロール
 - [RN の FlatList の onEndReached は初期表示だけで発火することがある](ui_component_patterns_ja.md#無限スクロール) — 回避策は無く、初期読み込み件数を厳密に assert するならアプリの対処に依存します。
 
 ### スクロールで隠れるバー
-- [Flutter の AnimatedSlide で隠すバーはツリーでは元の位置に居ると申告される](ui_component_patterns_ja.md#スクロールで隠れるバー) — 見た目には無いボタンを押すことがあります。隠れている間は押さず、バーが出たことを確かめてから押します。
+- [Flutter の AnimatedSlide で隠すバーは iOS ではツリーでは元の位置に居ると申告される](ui_component_patterns_ja.md#スクロールで隠れるバー) — 見た目には無いボタンを押すことがあります。Android の Flutter(実機・Emulator)ではツリーから消えました。隠れている間は押さず、バーが出たことを確かめてから押します。
 - [Compose Multiplatform の iOS で隠れた下部のバーは scroll: .up で出てこない](ui_component_patterns_ja.md#スクロールで隠れるバー) — 一覧の先頭まで戻してバーを出してから押します。
 
 ### Link

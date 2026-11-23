@@ -22,8 +22,9 @@ extension Optional where Wrapped == Any {
             return
         }
         if core.dryRun {
+            // 比べた結果では赤にしない(DR-211)が、一致しなかったことは注記で残す
             core.recordStep(description: description, status: .passed,
-                            file: "\(file)", line: Int(line), command: verb)
+                            file: "\(file)", line: Int(line), notes: passed ? [] : [.dryRunNotCompared], command: verb)
             return
         }
         core.recordStep(description: description,

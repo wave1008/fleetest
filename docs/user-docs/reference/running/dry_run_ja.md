@@ -63,5 +63,9 @@ VSCode 拡張の dry-run では、警告は出力パネルに出ます(Test Expl
 exit code `1` になります。そのため `--scenario` を付けない `fleetest run --dry-run` は、
 プロジェクト全体をデバイス実行の前に安く通すゲートとして使えます。
 
+## 注意点
+
+- **dry-run では値の検証(`thisIs`・`textIs` 等)を比べません。** 画面の値が空でも、比べた結果が一致しなくても ✅ になります。値の検証(`thisIs` 等)が一致しなかった行には注記 `dry-run-not-compared` が付きます。`beforeRun()` も走らないので `readRunMemo` は空を返し、`thisIsNotEmpty()` のガードも効きません。dry-run が確かめるのはセレクタの綴りなどの形で、値や run メモに頼る手順は run で確かめます。
+
 ### Link
 - [index](../../index_ja.md)

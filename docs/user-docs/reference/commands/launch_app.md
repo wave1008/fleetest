@@ -27,7 +27,8 @@ terminateApp()
 ## Notes
 
 - **`launchApp` always terminates first, even if the app is already running** — it never just
-  brings the app to the foreground. Every call starts at the entry screen.
+  brings the app to the foreground. Every call starts at the entry screen — except for **apps that restore their previous screen on launch** (OS stock apps such as Contacts and Notes): a search screen in Contacts, the previously opened note in Notes, the previous display state of the Calculator, and a stopwatch that kept running have all been restored.
+  For such apps, put steps right after `launchApp()` that return to the list (for example, press the back button with `ifCanSelect`).
 - **`launchApp` does not erase the app's data** (saved content, login state, and so on). Only the
   process and the screen state are lost. To erase data, use `clearAppData()`.
 - **On iOS in the default mode (inapp-boost), `launchApp` / `restartApp` of an app other than the scenario's own app

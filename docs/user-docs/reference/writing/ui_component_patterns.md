@@ -202,12 +202,12 @@ framework**.
 | CMP | `ExposedDropdownMenuBox` | **`.value`**. `.text` is the field's label on iOS (e.g. the localized "Fruit" text) and `nil` on Android |
 | Flutter | `DropdownMenu` | The id sits on the outer container; **the chosen value only shows up on an inner node, on iOS**. **On Android the tree carries no value at all** |
 | RN | `Pressable` + a read-only `TextInput` | The app exposes it as `accessibilityValue` on the outer `View` (an app-implementation choice; the field itself may drop out of the tree on iOS) |
-| Android View | `MaterialAutoCompleteTextView` | **No value in the tree**. Confirm through the app's own echo instead |
+| Android View | `MaterialAutoCompleteTextView` | **The value showed up in the label** (e.g. `clickable "Banana" id=field_fruit`; observed in one evaluation). In case it does not, confirm through the app's own echo too |
 | SwiftUI (iOS) | `Picker(.pickerStyle: .menu)` | **The chosen value appears in the label itself** (e.g. "Fruit, Banana"). There is no `.value` |
 
 ```swift
 select("#field_fruit").valueContains("Banana")   // OK on CMP (both OSes)
-// Android View / Flutter (Android) put no value in the tree; verify via the app's echo instead
+// Flutter (Android) puts no value in the tree; verify via the app's echo instead (doing so on Android View too is safer)
 select("#txt_fruit_result").textIs("fruit=banana")
 ```
 
@@ -224,6 +224,8 @@ suggestions are the same — label is the reliable choice.
 tap("<the day cell's label from a snapshot>||20")
 tap("OK")
 ```
+
+- The real labels can differ from what you expect. On RN iOS and SwiftUI (English locale) a day cell reads `Tuesday, January 20` (weekday, no year), which does not match a pattern such as `*January 20, 2026*`. `*January 20*` also matches the header `January 2026`. **Take the real label from a snapshot**, and confirm the date itself through the app's echo (e.g. `date=2026-01-20`)
 
 | Framework | Component / difference |
 |---|---|
@@ -324,7 +326,7 @@ Same across every framework (CMP `LazyVerticalGrid`, Flutter `GridView.builder`,
 ## Swipe to dismiss
 
 - Swipe horizontally on the row: `swipeBy("#row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`.
-  The ratio is capped at 0.9 per side
+  The ratio is capped at 0.9 per side. **A fast or wide swipe runs all the way to deleting the row** ("Partial swipes" below is the opposite case: slow down to stop partway)
 - You can also verify that a swipe in the disabled direction does nothing (the row stays)
 
 | Framework | Component / difference |
@@ -352,7 +354,7 @@ ios { tap("<the delete button's label from a snapshot>") }
 |---|---|
 | CMP | `PrimaryTabRow` / `ScrollableTabRow` / `NavigationBar`. Same as above |
 | Flutter | `TabBar` / `TabBar(isScrollable: true)` / `NavigationBar`. **Tab labels carry a suffix such as "Tab 3 of 3"**, so target them with a **partial match** (`*Tab C*`) instead of an exact match |
-| RN | `material-top-tabs` / `bottom-tabs`. **Labels carry a suffix such as "tab, 2 of 3"**, so target them the same way with a partial match |
+| RN | `material-top-tabs` / `bottom-tabs`. **Bottom-tab labels carry a suffix such as "tab, 2 of 3"** (on iOS, `Explore, tab, 2 of 3`), so target them with a partial match. Top tabs did not carry it (iOS). On Android a plain `#id` worked |
 | Android View | `TabLayout` (fixed + scrollable) / `BottomNavigationView`. Same as above |
 | SwiftUI (iOS) | Fixed tabs use `Picker(.segmented)`, the horizontal-scroll tabs use a row of buttons in a `ScrollView`, and the bottom one is an embedded `TabView`. **Whether the bottom navigation bar's identifier reaches the actual tab button is iOS-version dependent and known to be flaky** — target by label when it does not reach |
 
@@ -366,13 +368,13 @@ ios { tap("<the delete button's label from a snapshot>") }
 | Framework | Component / difference |
 |---|---|
 | CMP | `AnimatedVisibility` (removed from composition when hidden, so it drops out of the tree) / `AnimatedContent` |
-| Flutter | `AnimatedOpacity` (**the element stays mounted in the tree even when hidden** — only its opacity moves. Unlike CMP, presence in the tree cannot be used as the visibility check, so **read the visibility echo instead**, e.g. `visible=true`/`visible=false`) / `AnimatedSwitcher` |
+| Flutter | `AnimatedOpacity` (**on iOS the element stays mounted in the tree even when hidden** — only its opacity moves. **On Android (real device and Emulator) it dropped out of the tree**. The result differs by OS, so presence in the tree cannot be used as the visibility check; **read the visibility echo instead**, e.g. `visible=true`/`visible=false`) / `AnimatedSwitcher` |
 | RN | `react-native-reanimated`'s `FadeIn`/`FadeOut`. **A counter switch is implemented as a remount keyed on the value**, so the old and new elements can briefly coexist in the tree during the transition (the same property as CMP's `AnimatedContent`) |
 | Android View | `Fade` (`TransitionManager`) / `TextSwitcher`. Same as above |
 | SwiftUI (iOS) | `withAnimation` + `.transition(.opacity)` / `.contentTransition(.numericText())`. Same as above |
 
-**Current limitation**: Flutter's `AnimatedOpacity` does not remove the element from the tree when
-hidden, so do not use "the element is absent" as a visibility check. Beyond this screen, whenever you
+**Current limitation**: on iOS, Flutter's `AnimatedOpacity` does not remove the element from the tree when
+hidden; on Android it does. The same `notExist` passes on Android and fails on iOS, so do not use "the element is absent" as a visibility check. Beyond this screen, whenever you
 verify a fade-based visibility toggle in Flutter, judge it by the state echo the app shows (or by
 `checkIsON`/`checkIsOFF` for components that support it).
 
@@ -395,7 +397,7 @@ while the finger is down is already gone by then. `hold { }` runs its block whil
 
 ## Chips and segmented buttons
 
-- A FilterChip's / SegmentedButton's selection can be read with `checkIsON()` / `checkIsOFF()`
+- A FilterChip's / SegmentedButton's selection can be read with `checkIsON()` / `checkIsOFF()`. **The default selection of a SegmentedButton may not be readable** (on Android, `#seg_day`, selected by default, was `switch "Day" value="0"` and `checkIsON` failed; only after a tap did it read `value="1" checked`). Confirm the initial selection through the app's echo
 - A range slider's thumbs cannot carry an `#id`. Check the value with the label the app shows
 
 | Framework | Component / difference |
@@ -510,10 +512,12 @@ tap("#btn_time_ok")
 | `#id` | Kind | Result |
 |---|---|---|
 | `#btn_alert` | Confirmation alert (OK/Cancel) | `alert=ok` / `alert=cancel` |
-| `#btn_prompt` | With an input field (`#field_prompt`) | `prompt=<input>` / `prompt=cancel` |
+| `#btn_prompt` | With an input field (`#field_prompt`; **on Flutter the id sits on the container, not the field, and on SwiftUI there is no stable selector** — see below) | `prompt=<input>` / `prompt=cancel` |
 | `#btn_action_sheet` | Action sheet | `sheet=camera` / `sheet=library` / `sheet=cancel` |
 | `#btn_fullscreen` | Full-screen dialog | `fullscreen=saved` / `fullscreen=closed` |
 | `#btn_toast` | OS toast | `toast=shown` |
+
+`#field_prompt` works only on frameworks where the id lands on the input field. On Flutter (iOS) the field is a `textField` without an id and `#field_prompt` sits on the container around it. On SwiftUI (iOS), an `.alert` + `TextField` reports `no stable selector for this element` and cannot carry an id. In both cases, while the dialog is showing and only one input field is on it, target by type: `type(".textField", "hello")`. On a screen with several input fields this leans on `[n]` and is fragile.
 
 ```swift
 tap("#btn_alert")
@@ -588,7 +592,7 @@ keyboard)**.
 | `#field_bottom` | Bottom of the screen (hidden by the keyboard) | `bottom=<value>` |
 
 ```swift
-type("#field_number", "123")
+type("#field_number >> .textField", "123")   // on Flutter #field_number sits on the container, so target the field inside it (below)
 select("#txt_number_echo").textIs("number=123")
 
 type("#field_first", "Smith")
@@ -607,6 +611,7 @@ select("#txt_focus_echo").textIs("focus=second")
 - **On Flutter, the `#field_*` id sits on the container that wraps the input field (type `other`)** (confirmed on Android).
   Target the field inside it for `type`, as in `type("#field_number >> .textField", "123")`. Targeting the container relies on
   focus landing on the field inside it, and the tool warns about it (the value can end up different from what you typed).
+- **A Flutter password field (`#field_password`) is not resolved by `>> .textField`** (`cannot resolve the locator: id=field_password >> textField`). `>> .input` (the type that covers both plain and password fields) worked.
 - **Autocomplete suggestions show up a moment after you type** (they are asynchronous). Wait for the
   suggestion before tapping it; without the wait, the step fails with "not found" only on slower machines.
 
@@ -663,10 +668,10 @@ select("#txt_fab_result").textIs("fab=add")
 
 **Current limitation**: Android (View)'s `BottomAppBar` folds its items into a single "More options"
 icon when the remaining width, after subtracting the FAB's cradle, is not enough. A folded row is an
-unnamed `ListPopupWindow` row and cannot carry an id. Workaround:
+unnamed `ListPopupWindow` row and cannot carry an id. The overflow's label follows the device language (`More options` on an English device; a Japanese device shows its Japanese equivalent), so a label written for one language fails with `no element matches` on a device in the other. List both with `||`. Workaround:
 
 ```swift
-tap("More options")   // open the overflow first if items are folded
+tap("More options||<the label on a device in another language>")   // open the overflow first if items are folded (the label follows the device language)
 tap("Search")
 ```
 
@@ -785,7 +790,8 @@ select("#txt_links_result").textIs("link=terms")
 
 ## Loading skeletons
 
-- When the placeholder rows carry the same `#id` and labels as the real rows, `exist` already passes while loading
+- When the placeholder rows carry the same `#id` and labels as the real rows, `exist` already passes while loading. **So do not use `exist` as the check that loading has finished** (use `enabledIsTrue()` or a count echo of the loaded rows, e.g. `loaded=30`)
+- Verifying a transient state that ends quickly (e.g. `state=loading`) splits into pass and fail depending on the device's speed. The `(from the grabbed value)` note on a result means the comparison used the value read at that moment, so a later screen change does not alter it. See [known caveats](known_caveats.md)
 - `tap` waits until its target is enabled, so you can `tap` right after reloading (if the skeleton is exposed as
   disabled, the tap lands once the real row appears)
 - For lists that show a temporary "loading" / "retry" row at the end, press retry before searching further
@@ -805,14 +811,15 @@ select("#txt_loading_result").textIs("loading=row_l_03")
 tap("#fab_hiding", scroll: .up)
 ```
 
-**Current limitation**: a bar hidden with Flutter's `AnimatedSlide` is still reported at its original place in the tree while hidden, so the search does not scroll and the tap may land where the button no longer is.
+**Current limitation**: on iOS, a bar hidden with Flutter's `AnimatedSlide` is still reported at its original place in the tree while hidden, so the search does not scroll and the tap may land where the button no longer is. On Android (real device and Emulator) with Flutter, the button dropped out of the tree while hidden.
 
 **Current limitation**: on iOS with Compose Multiplatform, a hidden bottom bar and FAB stay in the tree below the bottom edge of the screen, and `scroll: .up` does not bring them back (the bar follows the scroll direction). Scroll back to the top first (`scrollTo` the first row of the list) so the bar shows, then tap.
 
 ## Partial swipes (revealing buttons, swipe to reply)
 
 - Swipe **slowly** for a partial swipe (`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`).
-  A fast release lets the component fling to the next stop (all the way to delete)
+  A fast release lets the component fling to the next stop (all the way to delete). **A fast or wide swipe may not stop partway and can run through to the delete** (it depends on the screen width: with `durationSeconds: 0.12` on an Android Emulator, and with `dx=-700` in 0.1 s on an iPad, the row was deleted; on an iPhone it stopped partway). The `durationSeconds: 0.3` in "Swipe to dismiss" above is for when you want the delete, not for stopping partway
+- **Swipe steps such as `swipeBy` do not check what the swipe did and pass**. Confirm whether the row is still there with a count echo (e.g. `rows=5`)
 - `swipeBy` caps its ratio at 0.9 per side. To drag further than the element itself (for example pulling up a
   sheet) use `swipeElementToElement("#mini_player", "#txt_sheet_state")`
 

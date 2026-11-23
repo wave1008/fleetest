@@ -64,5 +64,9 @@ Only cases decided by **the command name alone** are warned about. These cannot 
 failed check sets exit code `1` — so `fleetest run --dry-run` (with no `--scenario`) is a cheap
 gate to run before every device run across a whole project.
 
+## Notes
+
+- **A dry-run does not compare values in assertions (`thisIs`, `textIs`, and so on).** Even when the value on screen is empty and the comparison does not match, the step shows ✅. A value assertion (`thisIs` and so on) that does not match gets the note `dry-run-not-compared`. `beforeRun()` does not run either, so `readRunMemo` returns an empty string and a `thisIsNotEmpty()` guard does not work. A dry-run checks the shape (selector spelling and the like); check anything that depends on values or the run memo in a run.
+
 ### Link
 - [index](../../index.md)

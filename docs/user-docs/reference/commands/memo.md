@@ -83,5 +83,10 @@ class OrderFlow {
 }
 ```
 
+## Notes
+
+- **`memoTextAs` / `runMemoTextAs` on an input field may store the placeholder, the same way `textIs` reads it.** To store what is in an input field, turn its `.value` (a `String?`; see [Reading a grabbed element's value](reading_values.md)) into a string and write it with `writeMemo`, then check the value from `readMemo` with `thisIs` (observed on React Native).
+- **A dry-run does not run `beforeRun()`, so `readRunMemo` returns an empty string.** A `readRunMemo(…).thisIsNotEmpty()` guard does not work in a dry-run either (it shows ✅), and value assertions are not compared. Check anything that depends on the run memo in a run ([dry-run](../running/dry_run.md)).
+
 ### Link
 - [index](../../index.md)
