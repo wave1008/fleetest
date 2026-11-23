@@ -58,8 +58,20 @@ public final class AppAttachDriver: AppDriver {
                     timeout: BridgeLauncher.quickProbeTimeoutSeconds))?.sessionBundleID,
                   session != bundleID else { return }
         }
-        try await activateRunningApp()
+        try await attachOrActivate()
         attached = true
+    }
+
+    /// **前面に居るなら activate せず付けるだけ**(attachOnly = 前面の確認だけ)。iPad では activate の直後のタッチが
+    /// 飲まれる(文中リンクの OCR の点を撃つ tap が activate の約 70ms 後で毎回効かず、activate の無い2回目は
+    /// 同じ点・同じ合成で効いた。iPhone では起きない)。前面に居ない・照会に答えない・付けられないときは従来どおり activate
+    /// (home の後の背面のアプリを前へ戻す役はそちら)。前面の照会を先にするのは、attachOnly が前面に来るまで 5 秒待つため
+    private func attachOrActivate() async throws {
+        if (try? await client.isAppForeground(bundleID: bundleID)) == true,
+           (try? await client.attach(bundleID: bundleID)) != nil {
+            return
+        }
+        try await activateRunningApp()
     }
 
     /// 409(セッション無し)と 503(セッションはあるがアプリが起動していない)は

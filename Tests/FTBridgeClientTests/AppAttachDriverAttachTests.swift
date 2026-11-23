@@ -127,7 +127,8 @@ final class AppAttachDriverAttachTests: XCTestCase {
                 XCTAssertEqual(error.stepFailureKind, .appStoppedBySession)
             }
         }
-        XCTAssertEqual(stub.paths, [], "activate(/session)も操作も撃たない: \(stub.paths)")
+        // 前面の照会(/appstate = 読むだけ)は撃ってよい
+        XCTAssertEqual(stub.paths.filter { $0 != "POST /appstate" }, [], "activate(/session)も操作も撃たない: \(stub.paths)")
     }
 
     /// 断り文が無い(nil)・口が無い(ライブ操作)ときはこれまでどおり activate してから撃つ
@@ -139,8 +140,27 @@ final class AppAttachDriverAttachTests: XCTestCase {
                                          bundleID: "com.example.target", physicalUDID: nil)
             driver.revivalRefusal.withLock { $0 = gate }
             try await driver.swipe(.up)
-            XCTAssertEqual(stub.paths, ["POST /session", "POST /swipe"])
+            // 照会の答え({"ok":true})に foreground が無い = 前面と言えない → activate
+            XCTAssertEqual(stub.paths, ["POST /appstate", "POST /session", "POST /swipe"])
+            XCTAssertTrue(stub.body(for: "POST /session")?.contains("\"activate\":true") == true,
+                          stub.body(for: "POST /session") ?? "-")
         }
+    }
+
+    /// **前面に居るアプリには activate を撃たず attachOnly で付ける**(iPad では activate の直後のタッチが飲まれ、
+    /// 文中リンクの OCR の点への tap が毎回効かなかった)
+    func testForegroundAppIsAttachedWithoutActivating() async throws {
+        let stub = try RecordingStubServer(body: #"{"ok":true,"foreground":true}"#)
+        defer { stub.stop() }
+        let driver = AppAttachDriver(port: stub.port, host: BridgeEndpoint.loopbackHost,
+                                     bundleID: "com.example.target", physicalUDID: nil)
+
+        try await driver.tap(x: 10, y: 20)
+
+        XCTAssertEqual(stub.paths, ["POST /appstate", "POST /session", "POST /tap"], "\(stub.paths)")
+        let session = stub.body(for: "POST /session") ?? "-"
+        XCTAssertTrue(session.contains("\"attachOnly\":true"), "attachOnly で付けること: \(session)")
+        XCTAssertFalse(session.contains("\"activate\":true"), "前面のアプリに activate を撃った: \(session)")
     }
 
     /// 最初の swipe の前に /session(activate)を打つこと。snapshot を経ないシナリオ
@@ -153,7 +173,7 @@ final class AppAttachDriverAttachTests: XCTestCase {
 
         try await driver.swipe(.up)
 
-        XCTAssertEqual(stub.paths, ["POST /session", "POST /swipe"],
+        XCTAssertEqual(stub.paths, ["POST /appstate", "POST /session", "POST /swipe"],
                        "swipe の前に attach すること: \(stub.paths)")
     }
 

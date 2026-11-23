@@ -905,9 +905,20 @@ final class BridgeRouter {
         // SystemUIDriver が `/session springboard` で撃つアラートのボタン = iosAlertHandler・tap("許可しない"))なので、
         // 送る口の門(アラートが前面なら一律 422)に断られて押せない。下の `coordinate.tap()` は押せる
         if CoordinatePinch.isAvailable, sessionBundleID != "com.apple.springboard" {
+            let orientation = synthesisOrientation()
+            // 測る口: 座標で撃つ回だけ1行(合成へ渡す点・向き・本来の向きへ回した点・画面の辺・アプリの枠・相手)。
+            // 座標タップが効かない回の切り分けに使う(iPad の activate 直後のタッチの飲み込みは、この行が当たった回と同じ値だったことで分かった)
+            if req.ref == nil {
+                let sides = BridgeRouter.displaySides.map { "\(Int($0.short))x\(Int($0.long))" } ?? "nil"
+                NSLog("[fleetest] coordTap point=(%.1f,%.1f) orientation=%d native=%@ sides=%@ appFrame=%@ device=%d session=%@",
+                      point.x, point.y, orientation.rawValue,
+                      NSCoder.string(for: CoordinatePinch.nativePoint(point, interface: orientation)),
+                      sides, NSCoder.string(for: app.frame), XCUIDevice.shared.orientation.rawValue,
+                      sessionBundleID ?? "nil")
+            }
             try CoordinatePinch.tapOnMainScreen(
                 at: point, touchSeconds: Self.tapTouchDuration,
-                orientation: synthesisOrientation())
+                orientation: orientation)
             return .json(OKResponse(note: QuiescenceWait.takeCapNote(), hitAreaMiss: moved))
         }
         // 縮退経路の計測: `tap()` は「イベント合成」と「暗黙の quiescence 待ち」の両方を含む1呼び出しで、
