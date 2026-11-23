@@ -508,7 +508,8 @@ extension StepExecutor {
         case "keyboardShown", "keyboardNotShown":
             return try await executeAssertKeyboardShown(assert, step: step, phase: &phase)
         default:
-            return .skipped("unknown assertion: \(assert)")
+            // **スキップにしない** —— 分岐の足し忘れが「検証しないまま緑」になる。素性は言えないので立てない
+            return failedWithoutKind(Self.unknownStepMessage(kind: "assertion", name: assert))
         }
     }
 

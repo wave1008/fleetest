@@ -105,7 +105,7 @@ extension StepExecutor {
                 }
             }
         default:
-            return StepOutcome(status: .skipped("unknown gesture: \(action)"))
+            return StepOutcome(status: failedWithoutKind(Self.unknownStepMessage(kind: "gesture", name: action)))
         }
         let settled = skippingSettle(step) ? true : try await settledSignature(phase: &phase).settled
         var notes: [String] = []

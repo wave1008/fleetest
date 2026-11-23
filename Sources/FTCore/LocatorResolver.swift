@@ -306,9 +306,12 @@ public enum LocatorResolver {
             return !text.hasSuffix(want)
         case "textMatchesNot", "valueMatchesNot":
             return TextNormalization.regexMatch(actual ?? "", pattern: want, under: normalization) == nil
-        default:   // textNotEquals / valueNotEquals
+        case "textNotEquals", "valueNotEquals":
             guard comparableText(actual, assert: assert) != nil else { return expected != nil }
             return text != want
+        default:
+            // 知らない否定形を「!=」として読まない(足し忘れが意図しない比較で緑になる)。満たさない = 失敗側
+            return false
         }
     }
 

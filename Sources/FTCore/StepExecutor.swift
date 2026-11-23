@@ -1381,6 +1381,12 @@ public final class StepExecutor {
         return .failed(message)
     }
 
+    /// 実行機が知らない操作・検証・ジェスチャの名前(DSL と実行機の分岐の食い違い = fleetest 側の不具合)の失敗文
+    static func unknownStepMessage(kind: String, name: String) -> String {
+        "unknown \(kind): \(name) — this fleetest build does not implement it, so the step fails"
+            + " instead of passing without doing anything. Update fleetest or report this as a fleetest bug"
+    }
+
     /// 素性を立てつつ失敗を返す。`return .failed(…)` の形を保ったまま素性だけ足せる
     func failed(_ kind: StepFailureKind, _ message: String) -> StepResult.Status {
         markFailure(kind)

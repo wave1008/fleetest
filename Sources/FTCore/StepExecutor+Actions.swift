@@ -1919,7 +1919,8 @@ extension StepExecutor {
                 driverFallback = Self.joinNotes(driverFallback, settleNotes.joined(separator: " / "))
             }
         default:
-            return StepOutcome(status: .skipped("unknown action: \(action)"))
+            // **スキップにしない** —— 分岐の足し忘れが「操作しないまま緑」になる
+            return StepOutcome(status: failedWithoutKind(Self.unknownStepMessage(kind: "action", name: action)))
         }
         return StepOutcome(status: status, healedStep: healedStep,
                            healedByFingerprint: healedByFingerprint,
