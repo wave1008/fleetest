@@ -149,7 +149,7 @@ extension MCPServer {
             var prologue: [String] = []
             // profile 指定の初回はブリッジ provision を伴い、コールドスタートは分単位かかりうる
             // (既存ブリッジ再利用時は数秒。進捗は stderr に出る)
-            let (_, _, target) = try await resolveProfileTarget(
+            let (_, resolvedProfile, target) = try await resolveProfileTarget(
                 project: project, profileName: profileName,
                 platformArg: args["platform"] as? String, fallback: .firstDevice, prologue: &prologue)
             prologue.forEach(Self.logStderr)
@@ -253,6 +253,15 @@ extension MCPServer {
                 let installNote = try await created.install(packagePath: packagePath)
                 Self.logStderr("installed \(iosApp.bundleID) from \(packagePath) (the profile's autoInstall)")
                 if let installNote { Self.logStderr(installNote) }
+            } else if let (bundleID, appPath, freshness) = await installedAppFreshness(
+                target: target, resolved: resolvedProfile, driver: created, args: args) {
+                // 入っているものが appPath と違っても入れ直さない(探索中の画面を失う)。注記で知らせる(応答に1度だけ)
+                if let note = Self.staleInstalledAppNote(
+                    freshness: freshness, bundleID: bundleID, appPath: appPath,
+                    alreadyChecked: installedAppFreshnessChecked.contains(key)) {
+                    pendingWarnings[key, default: []].append(note)
+                }
+                installedAppFreshnessChecked.insert(key)
             }
             return created
         }
@@ -722,6 +731,16 @@ extension MCPServer {
         }
     }
 
+    /// 呼び手がこの呼び出しで台そのものを名指したか(= ポートが別の台へ移っていても、名指した台へ解き直してよい)。
+    /// `udid` の明示に加え、**profile も台を名指す**(プロファイルの台へ解き直すので、黙って別の台に固定しない)。
+    /// profile は udid と併用できない(`profileWithExplicitTargetRefusal`)ので、これを外すと profile の呼び出しは
+    /// 「udid を明示するまで断る」から抜けられない(Duo の SpringBoard の落ちの後にポートが再利用された実例)
+    static func callerNamesDevice(_ args: [String: Any]) -> Bool {
+        if let udid = args["udid"] as? String, !udid.isEmpty { return true }
+        if let profile = args["profile"] as? String, !profile.isEmpty { return true }
+        return false
+    }
+
     /// `primaryBridgeOutcome` の I/O 込みの入口。**`.unchanged` 以外は `forgetDeviceState`**
     /// (旧ブリッジの ref はどの道無効。`.rebuildSilently` でも捨てる — 呼び出し元はこの call を
     /// 下の生成で再解決させるだけで、拒否文を返す理由は無い)。
@@ -729,7 +748,7 @@ extension MCPServer {
     /// `keyChangedDevice` の previous が nil になって**黙って別のデバイスに固定される**。残して毎回断る
     func primaryBridgeCheck(_ key: String, args: [String: Any]) async -> PrimaryBridgeCheck {
         let drift = await primaryBridgeDrift(key)
-        let callerNamedUDID = (args["udid"] as? String).map { !$0.isEmpty } ?? false
+        let callerNamedUDID = Self.callerNamesDevice(args)
         let outcome = Self.primaryBridgeOutcome(
             drift: drift, usesRememberedDeviceState: Self.usesRememberedDeviceState(args),
             port: connectedPorts[key], expectedBridge: bridges[key], expectedUDID: udids[key] ?? nil,

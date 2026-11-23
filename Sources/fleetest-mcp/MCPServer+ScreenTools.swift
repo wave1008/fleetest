@@ -911,7 +911,8 @@ extension MCPServer {
         // ①〜③ 開始時の値を読む → バリアントの値へ設定して読み返す。⑦ どの終わり方でも開始時の値へ戻す
         let key = Self.sessionKey(args)
         let transport: DisplaySettingsTransport
-        if (args["platform"] as? String) == "android" {
+        // OS はプロファイルからも決める(platform を省いた Android のプロファイルを iOS と読まない)
+        if Self.platformName(args) == "android" {
             guard let serial = connectedAndroidSerials[key] else {
                 throw MCPError("variant: the Android device's serial is not known for this session, so its display settings cannot be changed")
             }
@@ -947,7 +948,7 @@ extension MCPServer {
     /// 外観だけの切り替えは枠が動かないので段2では分からない = 段1が本体。上限はどちらも `isScreen` の既定の待ちの中。
     /// nil = 静止した。非 nil = 保存しない理由
     private func waitForStillScreen(_ d: AppDriver, args: [String: Any]) async throws -> String? {
-        let isAndroid = (args["platform"] as? String) == "android"
+        let isAndroid = Self.platformName(args) == "android"
         let quietMs = Int(WaitForSettleDefaults.quietSeconds(framework: knownUIFramework(args: args),
                                                             isAndroid: isAndroid) * 1000)
         let waitSeconds = FlowStep.defaultIsScreenWaitSeconds

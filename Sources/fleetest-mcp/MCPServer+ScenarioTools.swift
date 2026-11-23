@@ -721,6 +721,9 @@ extension MCPServer {
                 + " Chain-only: \(DSLCommandIndex.chainOnlyNames.sorted().joined(separator: ", "))."
                 + " Values of a grabbed element (pass category: \"\(DSLCommandIndex.propertyCategory)\" for details): "
                 + DSLCommandIndex.elementProperties.map(\.signature).joined(separator: ", ")
+        // 署名の記法: 素の名前はラベル無しで渡す。凡例が無いと `hinge(degrees)` を `hinge(degrees: 90)` と書いてコンパイルエラーになった
+        header += ". In signatures a name with a colon (waitSeconds:) is a labelled argument and a bare name"
+            + " (selector, degrees) is passed without a label, e.g. hinge(130)"
         if !projectCommands.isEmpty {
             header += ". \(projectCommands.count) from the project (marked [project: file:line]) —"
                 + " these are real, written by the project itself; ft_batch cannot run them"

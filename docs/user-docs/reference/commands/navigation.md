@@ -17,7 +17,19 @@ OS-level navigation: home screen, back, app switcher, home screen icon, screen r
 | `setTextSize(.small / .default / .large / .extraLarge / .accessibility)` | Switches the **device's** text size and reads it back; the step fails if the value read back differs from the one requested (it succeeds if the device already had it). The device returns to `.default` at the end of the scenario. |
 | `fold(waitSeconds:)` | Folds a foldable device to the outer screen and waits until the device reports it switched (up to `waitSeconds`, default = the run's default timeout). Fails if it does not switch. |
 | `unfold(waitSeconds:)` | Unfolds to the inner (large) screen. Same rules as `fold`. |
-| `hinge(_ degrees)` | Sets the hinge angle, 0 (folded) to 180 (unfolded); about 130 is the half-open book posture. Does not check which screen shows. |
+| `hinge(90)` | Sets the hinge angle, 0 (folded) to 180 (unfolded); about 130 is the half-open book posture. Does not check which screen shows. |
+
+## setTextSize steps
+
+The value the tool sets on the device for each name. What the app shows (how much larger it draws) is up to the app; an app that does not follow the text size looks unchanged.
+
+| Name | iOS step (the name passed to `devicectl`) | iOS `UIContentSizeCategory` (what the app receives) | Android `font_scale` |
+|---|---|---|---|
+| `.small` | `small` | `UICTContentSizeCategoryS` | 0.85 |
+| `.default` | `large` (the iOS standard) | `UICTContentSizeCategoryL` | 1.0 |
+| `.large` | `extra-large` | `UICTContentSizeCategoryXL` | 1.15 |
+| `.extraLarge` | `extra-extra-extra-large` | `UICTContentSizeCategoryXXXL` | 1.3 |
+| `.accessibility` | `accessibility-large` (also turns on "Larger Accessibility Sizes") | `UICTContentSizeCategoryAccessibilityL` | 2.0 |
 
 ## Example
 
@@ -34,7 +46,7 @@ setAppearance(.dark)    // dark mode (back to light after the scenario)
 setTextSize(.extraLarge)
 fold()                  // foldable devices only
 unfold()
-hinge(130)              // half-open book posture
+hinge(130)              // half-open book posture (no argument label: hinge(degrees: 130) does not compile)
 ```
 
 ## Notes
@@ -92,9 +104,10 @@ hinge(130)              // half-open book posture
 - **They cannot be used in `beforeRun()` / `afterRun()` / `setUpDevice()` / `tearDownDevice()` / `beforeAll()` / `afterAll()`.** The device is returned to the baseline (light, default text size) after each scenario, so a change made there would only affect the first test; the step fails with a message saying so. Use the run profile's `appearance` / `textSize` for the whole run. A dry run does not change the device.
 - **They can be used in `beforeEach()` / `afterEach()`.** Those run for every test, so the change applies to every test of the class.
 - **On Android the screen may be recreated.** Unless the app declares `uiMode` (for `setAppearance`) or `fontScale` (for `setTextSize`) in its `configChanges`, the activity on screen is destroyed and created again, so state kept only in memory is lost. The same applies when the device is returned at the end of the scenario. An app that does not save its screen state then returns to its first screen, so change the display condition at the very start of the scenario (before moving to the target screen), or relaunch the app after changing it and reopen the target screen.
+- **A check through MCP (`ft_run_scenario`) does not verify that the app received the appearance.** On iOS `ft_run_scenario` runs through XCUITest (like `xcuitest` mode), so it does not detect a Simulator state where the device is dark but the app stays light. If the device is dark and the app is still light, the Simulator is not delivering the setting to the app. A real run (`inapp-boost`) detects it with `display-not-applied` and recovers (next item).
 - **The step checks the device's setting, not how the app looks.** An app whose colours do not follow the appearance can become unreadable in dark mode (only the background goes dark), and the text visibility check then fails the step. That is a correct failure: check the app's colours.
 - **On iOS in `inapp-boost` mode the step also checks that the app received the setting.** Right after `launchApp()` / `restartApp()` and after `setAppearance` / `setTextSize`, the tool asks the in-app bridge which appearance and text size the app is getting and waits up to 5 seconds for it to match. If it never does, the step fails with `failureKind=display-not-applied`, and before the next scenario the tool restarts that Simulator's SpringBoard (the running app and the XCUITest bridge are restarted with it) and says so in the run log. In `fleetest run` the failed scenario's result is discarded and the scenario is run once more (on the same Simulator it runs after the restart); if the setting still does not reach the app, the failure stands. A physical iPhone is not restarted (the step just fails). In `xcuitest` mode and on Android only the device's setting is checked.
-- **Text size names map to each OS's own steps.** iOS: `.small` = `small`, `.default` = `large` (the iOS standard), `.large` = `extra-large`, `.extraLarge` = `extra-extra-extra-large`, `.accessibility` = `accessibility-large` (it also turns on "Larger Accessibility Sizes", which goes back to its earlier value at the end of the scenario). Android: `font_scale` 0.85 / 1.0 / 1.15 / 1.3 / 2.0; since Android 14 the OS scales text non-linearly, so the on-screen size ratio is not exactly the scale. Confirmed on a physical iPhone (iOS 26.6.2), the iOS 27.2 Simulator and Android Emulator/physical devices.
+- **Text size names map to each OS's own steps (see the table "setTextSize steps" above).** iOS: `.small` = `small`, `.default` = `large` (the iOS standard), `.large` = `extra-large`, `.extraLarge` = `extra-extra-extra-large`, `.accessibility` = `accessibility-large` (it also turns on "Larger Accessibility Sizes", which goes back to its earlier value at the end of the scenario). Android: `font_scale` 0.85 / 1.0 / 1.15 / 1.3 / 2.0; since Android 14 the OS scales text non-linearly, so the on-screen size ratio is not exactly the scale. Confirmed on a physical iPhone (iOS 26.6.2), the iOS 27.2 Simulator and Android Emulator/physical devices.
 - **`fold` / `unfold` / `hinge` need a foldable device.**
   - iOS: the iPhone Duo **Simulator** (Xcode 27.2+), sent through the XCUITest bridge, which both iOS modes support.
   - Android: a foldable **Emulator** (an AVD with a hinge sensor, e.g. Pixel 9 Pro Fold).
@@ -103,7 +116,9 @@ hinge(130)              // half-open book posture
 - **On a non-foldable device the scenario is recorded as skipped (not applicable), not failed**, from that step on (same treatment as `appSwitcher()` on a home-button iPhone). The reason reads: `fold / unfold / hinge need a foldable device (the iPhone Duo simulator or a foldable Android Emulator)`. When this happens inside `setUpDevice()`, the remaining tests of the same class on that device are recorded as skipped (not applicable) with the same reason.
 - **A not-applicable scenario is handed to a device that has not tried it yet, within the same run.** When a scenario declares itself not applicable (`fold()` on a non-foldable device, `appSwitcher()` on a home-button iPhone), the result is not finalized: the scenario goes to another device of the same OS in the run (another device on the same machine or a device on another machine) that has not tried it. It is recorded as skipped (not applicable) only when every device of that OS in the run has tried it, or when no other device of that OS existed in the run. If a device that had not tried it dropped out of the run (it could not join, or left), the scenario is recorded as **failed** (`not run: …`) instead of passing with nothing executed. Scenarios of a class bound to one device (`@RunInOrder` / `@RunOnSingleDevice`) are not moved to another device, and `@RunOnSingleMachine` stays within its machine. The discarded attempt is listed in the run's retries.
 - **Inside `beforeAll()`, it fails instead of becoming not applicable.** `beforeAll()` runs once per run, on the device that takes the class's first scenario, and is not run again on another device. Put preparation whose outcome depends on the device, such as `fold()` / `unfold()` / `appSwitcher()`, in `setUpDevice()` (it runs on each device; a not-applicable result there makes that device's scenarios of the class not applicable).
-- **The fold state is restored automatically at the end of the scenario** (like `rotateTo`'s orientation).
+- **The fold state is restored automatically at the end of the scenario** (like `rotateTo`'s orientation). What is restored is the state before the scenario's first `fold` / `unfold` / `hinge`.
+- **`fold()` / `unfold()` do not fail when the device is already in that state.** The tool reads the state first, still sends the hinge event, and passes once it confirms the device is in that state.
+- **A state set by `unfold()` in `setUpDevice()` does not carry over to the second and later tests of the class.** `setUpDevice()` runs inside the first test that lands on the device, and the end-of-scenario restore puts the fold state back after that test, so later tests start in the original state. To start every test on the unfolded screen, put `unfold()` in `beforeEach()`.
 - **A foldable Android device shows a lock screen ("swipe up to continue") over the app when it is folded.** `fold()` dismisses it so the app is on the outer screen before the next step (the same unlock fleetest does before each scenario; a PIN or pattern lock cannot be dismissed).
 - **`hinge` does not verify which screen shows.** On the iPhone Duo Simulator the switch depends on the previous state (measured: opening switches between 120 and 150 degrees, closing between 20 and 10 degrees). On a foldable Android Emulator the posture follows angle ranges (Pixel 9 Pro Fold AVD: 0-30 closed, 30-150 half-opened, 150-180 opened). Use `fold()` / `unfold()` when the scenario needs a specific screen.
 - **iOS mechanism**: Apple provides no public API to fold the Simulator, so fleetest sends the same undocumented hinge event as Xcode's DeviceHub. A future Xcode may stop accepting it; `fold` / `unfold` verify the switch, so they would then fail loudly, never pass silently.

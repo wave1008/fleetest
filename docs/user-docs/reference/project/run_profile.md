@@ -75,6 +75,7 @@ for how `--profile` selects one.
 - With `variants`, `--set appearance=` / `textSize=` / `orientation=` / `variants=` are refused (the name would no longer match what ran). Add a variant instead.
 - The results, reports and recordings of a variant are named `<scenario ID>@<variant>` (for example `<Class>.S0010@dark`); a JUnit test case name is only the method name plus `[variant]` (`S0010[dark]`, without the class). A run without `variants` is unchanged.
 - Pick variants with `--variant <name>` (repeatable) and units with `--scenario <Class>.S0010@dark` or `--scenario <Class>@dark` (see [Running scenarios](../running/running_scenarios.md)). `--failed` re-runs the units (scenario × variant) that failed.
+- **To check the other display condition once while you are still writing a scenario, pass `variant: "<name>"` to the MCP tool `ft_run_scenario`** (with `profile` set to that profile). The tool sets the device to that variant's display settings and runs the scenario once. Without `variant` the first declared variant runs, and the response says so. Passing `variant` with a profile that has no `variants` is an error. An MCP check differs from the real run's default (`inapp-boost`), so run it as a real run too before you finish.
 - A scenario that needs different values per variant reads `currentVariant` ([Memo](../commands/memo.md)).
 
 ## Notes

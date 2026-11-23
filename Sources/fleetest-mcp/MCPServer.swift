@@ -83,6 +83,7 @@ final class MCPServer {
     var webPageCeilingLatched: SessionFlags { SessionFlags(server: self, path: \.webPageCeilingLatched) }
     var preparedPhysicalAndroid: SessionFlags { SessionFlags(server: self, path: \.preparedPhysicalAndroid) }
     var bridgeRecoveryFailed: SessionFlags { SessionFlags(server: self, path: \.bridgeRecoveryFailed) }
+    var installedAppFreshnessChecked: SessionFlags { SessionFlags(server: self, path: \.installedAppFreshnessChecked) }
     var loadingRefNoteShown: SessionFlags { SessionFlags(server: self, path: \.loadingRefNoteShown) }
     var lastRepeatedNotes: SessionMap<[String: String]> { SessionMap(server: self, path: \.lastRepeatedNotes) }
 

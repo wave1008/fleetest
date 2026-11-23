@@ -113,7 +113,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
 - **inapp-boost モードの予備(XCUITest ブリッジ)ポートも使うたびに本人確認する**(`FTBridgeClient.HybridFallbackIdentity` を
   MCP のキャッシュ命中とライブ操作の命令ごとが共有。主の udid だけ見ると、起動し直しで予備ポートが別のデバイス・
   in-app に化けても home/drag を撃ち続ける。**`BridgeIdentityCheck.verdict` は udid が両側にあるとブリッジの種別を
-  見ない**ので、種別の決まった片側は `hybridFallbackDrift` で先に見る)。**ずれは3値で扱う** (`BridgeIdentityCheck.HybridFallbackDrift`: none / sameDeviceBridgeChanged / differentDevice)—— **別のデバイス(differentDevice)は ref の有無を問わず断り、記憶を捨てない**(捨てると次の同じ呼び出しが `keyChangedDevice` の previous=nil を通って黙って別のデバイスに固定される。抜けるのは呼び手が `udid` を明示したとき)。ライブ操作も別のデバイスなら同じポートで作り直さず、そのコマンドを撃たずに失敗を返す。**udid の診断が予算切れなら
+  見ない**ので、種別の決まった片側は `hybridFallbackDrift` で先に見る)。**ずれは3値で扱う** (`BridgeIdentityCheck.HybridFallbackDrift`: none / sameDeviceBridgeChanged / differentDevice)—— **別のデバイス(differentDevice)は ref の有無を問わず断り、記憶を捨てない**(捨てると次の同じ呼び出しが `keyChangedDevice` の previous=nil を通って黙って別のデバイスに固定される。抜けるのは呼び手が `udid` を明示したときと、`profile` で台を名指したとき = `callerNamesDevice`。profile は udid と併用できないので、外すと抜け道が無くなる)。ライブ操作も別のデバイスなら同じポートで作り直さず、そのコマンドを撃たずに失敗を返す。**udid の診断が予算切れなら
   「確認できなかった」と言い、不在も `bridge up` も言わない**(`diagnosisTimedOut`)→ MN-51
 - **座標を整数へ畳む所は trap しない側に倒す**(座標は `.unbounded`。入口の画面内判定
   `TapTargetGeometry.isPointOnScreen` は MCP とライブ操作が共有するが、DSL も届くので最後の砦

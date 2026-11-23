@@ -17,7 +17,19 @@
 | `setTextSize(.small / .default / .large / .extraLarge / .accessibility)` | **端末の**文字サイズを切り替えて読み返し、読み返した値が指定と違えば失敗します(既にその値なら成功)。シナリオの終わりに `.default` へ戻ります。 |
 | `fold(waitSeconds:)` | 折りたたみ端末を外側の画面へ畳み、デバイスが切り替わったと報告するまで待ちます(上限 `waitSeconds`・省略時は実行の既定タイムアウト)。切り替わらなければ失敗します。 |
 | `unfold(waitSeconds:)` | 内側の(大きい)画面へ開きます。ルールは `fold` と同じです。 |
-| `hinge(_ degrees)` | ヒンジ角を 0(閉じる)〜180(全開)で設定します。約 130 が半開きのブック姿勢です。どちらの画面が出るかは確かめません。 |
+| `hinge(90)` | ヒンジ角を 0(閉じる)〜180(全開)で設定します。約 130 が半開きのブック姿勢です。どちらの画面が出るかは確かめません。 |
+
+## setTextSize の段階
+
+名前ごとに端末へ設定する値です。アプリに何が見えるか(どれだけ大きく描かれるか)はアプリ次第で、アプリが文字サイズに追従しない作りなら見た目は変わりません。
+
+| 名前 | iOS の段階(`devicectl` に渡す名前) | iOS の `UIContentSizeCategory`(アプリが受け取る値) | Android の `font_scale` |
+|---|---|---|---|
+| `.small` | `small` | `UICTContentSizeCategoryS` | 0.85 |
+| `.default` | `large`(iOS の標準) | `UICTContentSizeCategoryL` | 1.0 |
+| `.large` | `extra-large` | `UICTContentSizeCategoryXL` | 1.15 |
+| `.extraLarge` | `extra-extra-extra-large` | `UICTContentSizeCategoryXXXL` | 1.3 |
+| `.accessibility` | `accessibility-large`(「より大きな文字」も有効) | `UICTContentSizeCategoryAccessibilityL` | 2.0 |
 
 ## 例
 
@@ -34,7 +46,7 @@ setAppearance(.dark)    // ダークモード(シナリオの終わりに light 
 setTextSize(.extraLarge)
 fold()                  // 折りたたみ端末のみ
 unfold()
-hinge(130)              // 半開きのブック姿勢
+hinge(130)              // 半開きのブック姿勢(引数のラベルは書かない。hinge(degrees: 130) はコンパイルエラー)
 ```
 
 ## 注意点
@@ -80,9 +92,10 @@ hinge(130)              // 半開きのブック姿勢
 - **`beforeRun()` / `afterRun()` / `setUpDevice()` / `tearDownDevice()` / `beforeAll()` / `afterAll()` の中では使えません。** 各シナリオの後に基準の状態(ライト・標準の文字サイズ)へ戻すので、そこで変えても最初のテストにしか効きません。ステップはその旨のメッセージで失敗します。run 全体に効かせるなら実行プロファイルの `appearance` / `textSize` を使います。dry-run では端末を変えません。
 - **`beforeEach()` / `afterEach()` の中では使えます。** テストごとに走るので、クラスの全テストに効きます。
 - **Android では画面が作り直されることがあります。** アプリが `configChanges` に `uiMode`(`setAppearance`)や `fontScale`(`setTextSize`)を宣言していないと、表示中の Activity が破棄されて作り直され、メモリにだけ持っている状態は失われます。シナリオの終わりに戻すときも同じです。画面の状態を保存しないアプリは、そのとき最初の画面に戻ります。表示条件はシナリオの最初(目的の画面へ移る前)に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
+- **MCP(`ft_run_scenario`)の確認では、アプリへ外観が届いたかを確かめません。** `ft_run_scenario` は iOS では XCUITest で走る(`xcuitest` モード相当)ので、端末は dark なのにアプリが light のままの Simulator の状態があっても検出しません。端末は dark なのにアプリが light のままなら、Simulator がアプリへ設定を届けていない状態です。本番の run(`inapp-boost`)は `display-not-applied` で検出して回復します(次の項目)。
 - **ステップが確かめるのは端末の設定値で、アプリの表示ではありません。** 配色を外観に追従させないアプリは、ダークにすると背景だけ暗くなって文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗です。アプリの配色を確かめてください)。
 - **iOS の `inapp-boost` モードでは、アプリが設定を受け取ったかも確かめます。** `launchApp()` / `restartApp()` の直後と `setAppearance` / `setTextSize` の後に、アプリが受け取っている外観と文字サイズを in-app ブリッジに聞き、一致するまで最大 5 秒待ちます。一致しなければそのステップは `failureKind=display-not-applied` で失敗し、次のシナリオの前にその Simulator の SpringBoard を再起動して(動いていたアプリと XCUITest ブリッジも一緒に再起動します)実行ログに残します。`fleetest run` では、失敗したシナリオの結果を捨てて1回だけ回し直します(同じ Simulator なら再起動の後に回ります)。回し直しても届かなければ失敗のまま残ります。実機の iPhone は再起動せず、ステップが失敗するだけです。`xcuitest` モードと Android では、端末の設定値だけを確かめます。
-- **文字サイズの名前は各 OS の段階に対応します。** iOS: `.small` = `small`・`.default` = `large`(iOS の標準)・`.large` = `extra-large`・`.extraLarge` = `extra-extra-extra-large`・`.accessibility` = `accessibility-large`(「より大きな文字」も有効にし、シナリオの終わりに元の値へ戻します)。Android: `font_scale` が 0.85 / 1.0 / 1.15 / 1.3 / 2.0 で、Android 14 以降は OS が文字を非線形に拡大するので、見た目の大きさの比は倍率と一致しません。確かめた環境は iPhone の実機(iOS 26.6.2)・iOS 27.2 の Simulator・Android の Emulator と実機です。
+- **文字サイズの名前は各 OS の段階に対応します(表は上の「setTextSize の段階」)。** iOS: `.small` = `small`・`.default` = `large`(iOS の標準)・`.large` = `extra-large`・`.extraLarge` = `extra-extra-extra-large`・`.accessibility` = `accessibility-large`(「より大きな文字」も有効にし、シナリオの終わりに元の値へ戻します)。Android: `font_scale` が 0.85 / 1.0 / 1.15 / 1.3 / 2.0 で、Android 14 以降は OS が文字を非線形に拡大するので、見た目の大きさの比は倍率と一致しません。確かめた環境は iPhone の実機(iOS 26.6.2)・iOS 27.2 の Simulator・Android の Emulator と実機です。
 - **`fold` / `unfold` / `hinge` は折りたたみ端末が必要です。**
   - iOS: iPhone Duo の **Simulator**(Xcode 27.2 以降)。XCUITest ブリッジ経由で送るので、どちらの iOS モードでも使えます。
   - Android: 折りたたみの **Emulator**(ヒンジセンサー付きの AVD。Pixel 9 Pro Fold など)。
@@ -91,7 +104,9 @@ hinge(130)              // 半開きのブック姿勢
 - **折りたためないデバイスでは、失敗にせず、この step 以降を対象外(skipped)としてシナリオを記録します**(ホームボタンの iPhone での `appSwitcher()` と同じ扱い)。理由は `fold / unfold / hinge need a foldable device (the iPhone Duo simulator or a foldable Android Emulator)` です。`setUpDevice()` の中で対象外になったときは、同じデバイスで流れる同じクラスの残りのテストも同じ理由の対象外になります。
 - **対象外のシナリオは、同じ run のまだ試していないデバイスへ回し直されます。** シナリオが対象外を宣言したとき(折りたためないデバイスでの `fold()`・ホームボタンの iPhone での `appSwitcher()`)、その結果はすぐには確定せず、同じ run の同じ OS のデバイス(同じマシンの別のデバイスか別のマシンのデバイス)のうち、まだ試していないものへ回されます。対象外(skipped)として記録されるのは、その OS のデバイスが全部試して対象外だった場合と、その run に他の同じ OS のデバイスが最初から居なかった場合だけです。試していないデバイスが run から落ちた(合流できなかった・離脱した)ときは、何も実行しないまま通る代わりに**失敗**(`not run: …`)として記録されます。1台に寄せるクラス(`@RunInOrder` / `@RunOnSingleDevice`)は別のデバイスへ動かさず、`@RunOnSingleMachine` は同じマシンの中だけで回し直します。捨てた試行は run の再実行の一覧に載ります。
 - **`beforeAll()` の中では、対象外にならず失敗します。** `beforeAll()` は run に1回、そのクラスの最初のシナリオを受け取ったデバイスで走り、別のデバイスでは走り直さないためです。`fold()` / `unfold()` / `appSwitcher()` のようにデバイスで結果が変わる準備は `setUpDevice()` に書きます(デバイスごとに走り、対象外ならそのデバイスのそのクラスのシナリオが対象外になります)。
-- **折りたたみ状態はシナリオ終了時に自動で元へ戻ります**(`rotateTo` の向きと同じ)。
+- **折りたたみ状態はシナリオ終了時に自動で元へ戻ります**(`rotateTo` の向きと同じ)。戻すのはシナリオで最初に `fold` / `unfold` / `hinge` を呼ぶ前の状態です。
+- **`fold()` / `unfold()` を既にその状態で呼んでも失敗しません。** 呼ぶ前に状態を読み、そのまま信号を送って、その状態になっていることを確かめて通ります。
+- **`setUpDevice()` で `unfold()` した状態は、クラスの2本目以降のテストには残りません。** `setUpDevice()` は、デバイスで最初に走るテストのプロセスの中で走り、シナリオの終わりの戻しがそのテストの後に開閉を元へ戻します(2本目以降は元の状態で始まります)。全テストを開いた画面で始めるなら `beforeEach()` に `unfold()` を書きます。
 - **Android の折りたたみ機は、閉じるとアプリの上にロック画面(「上にスワイプで続行」)が出ます。** `fold()` はそれを外してアプリを外側の画面に出してから次へ進みます(画面ロックの解除と同じ操作。PIN やパターンのロックは外せません)。
 - **`hinge` はどちらの画面が出るかを確かめません。** iPhone Duo の Simulator は切り替わりが直前の状態に依存します(実測: 開く方向は 120° と 150° の間、閉じる方向は 20° と 10° の間で切り替わる)。折りたたみ Android の Emulator は姿勢が角度の範囲で決まります(Pixel 9 Pro Fold の AVD: 0〜30 が閉じ・30〜150 が半開き・150〜180 が開き)。特定の画面が要るシナリオは `fold()` / `unfold()` を使ってください。
 - **iOS の仕組み**: Simulator を畳む公開 API は Apple にありません。fleetest は Xcode の DeviceHub と同じ非公開のヒンジイベントを送ります。将来の Xcode が受け付けなくなる可能性がありますが、`fold` / `unfold` は切り替わりを確かめるので、その場合は黙って通らず失敗として表に出ます。

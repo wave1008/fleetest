@@ -598,7 +598,8 @@ extension MCPServer {
             "skipBuild": skipBuildProperty,
         ], scope: .project),
         tool("ft_dry_run", "Check a scenario without a device, in seconds: errors on selector syntax; "
-            + "warns (⚠️) on empty expectation blocks and #ids never seen in ft_snapshot — fix those too. "
+            + "warns (⚠️) on empty expectation blocks and #ids never seen in ft_snapshot — fix those too "
+            + "(silent when over a third of the scenario's #ids were never captured, so no warning does not prove an id right). "
             + "Run it after ft_list_scenarios and before ft_run_scenario; it cannot tell whether a "
             + "selector matches. A class name runs all its scenarios except @Deleted/@Draft", [
             "id": scenarioIdProperty,

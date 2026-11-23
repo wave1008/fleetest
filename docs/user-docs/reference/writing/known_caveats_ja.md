@@ -137,6 +137,7 @@
 - [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。
 - [`beforeEach` / `afterEach` の中では `setAppearance` / `setTextSize` を使える](../commands/navigation_ja.md#注意点) — テストごとに走るので、クラスの全テストに効きます。
 - [`setAppearance` / `setTextSize` が確かめるのは端末の設定値で、アプリの表示ではない](../commands/navigation_ja.md#注意点) — 配色を外観に追従させないアプリはダークで文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗)。
+- [MCP(`ft_run_scenario`)の確認では、アプリへ外観が届いたかを確かめない](../commands/navigation_ja.md#注意点) — 端末は dark なのにアプリが light のままになる Simulator の状態があります(設定をアプリへ届けない状態)。本番の run(`inapp-boost`)は `display-not-applied` で検出して回復します。
 - [iOS の `inapp-boost` モードでは `setAppearance` / `setTextSize` がアプリへ届いたかも確かめる](../commands/navigation_ja.md#注意点) — 変更を届けない Simulator ではステップが `display-not-applied` で失敗し、次のシナリオの前に回復します。`fleetest run` ではそのシナリオを1回だけ回し直します。`xcuitest` モードと Android は端末の設定値だけを確かめます。
 - [文字サイズの名前は各 OS の段階に対応する](../commands/navigation_ja.md#注意点) — iOS は文字サイズの段階(`.accessibility` は「より大きな文字」も有効にし、シナリオの終わりに戻す)・Android は `font_scale` 0.85〜2.0 で、Android 14 以降は見た目の比が倍率と一致しません。
 - [fold / unfold / hinge は折りたたみ端末が必要](../commands/navigation_ja.md#注意点) — iPhone Duo の Simulator か折りたたみの Emulator です。iOS 実機はそのシナリオが対象外(skipped)になります。折りたたみの Android 実機は非対応として失敗します。
@@ -145,6 +146,8 @@
 - [対象外のシナリオは、まだ試していないデバイスへ回し直される](../commands/navigation_ja.md#注意点) — 1台で対象外になったシナリオ(折りたためないデバイスでの `fold()` など)は同じ run の別のデバイスへ回されます。対象外(skipped)になるのは全デバイスが試したときだけで、試していないデバイスが落ちたときは失敗(`not run`)になります。
 - [`beforeAll()` の中の対象外は失敗になる](../commands/navigation_ja.md#注意点) — `beforeAll()` は run に1回だけ走り、別のデバイスでは走り直しません。`fold()` などデバイスで結果が変わる準備は `setUpDevice()` に書きます。
 - [Android の折りたたみ機は閉じるとロック画面が出る](../commands/navigation_ja.md#注意点) — `fold()` はスワイプで外して進みますが、PIN やパターンのロックは外せません。
+- [既にその状態の `fold()` / `unfold()` は失敗しない](../commands/navigation_ja.md#注意点) — 状態を読んでから信号を送り、その状態になっていることを確かめて通ります。
+- [`setUpDevice()` で `unfold()` した状態は2本目以降のテストに残らない](../commands/navigation_ja.md#注意点) — 最初のテストの後に元へ戻ります。全テストで開くなら `beforeEach()` に `unfold()` を書きます。
 - [hinge はどちらの画面が出るかを確かめない](../commands/navigation_ja.md#注意点) — 切り替わる角度は直前の状態に依存します。特定の画面が要るなら `fold()` / `unfold()` を使います。
 - [iOS の fold / unfold は非公開のヒンジイベントを送る](../commands/navigation_ja.md#注意点) — 将来の Xcode で受け付けなくなる可能性がありますが、切り替わりを確かめるので黙って通らず失敗します。
 - [iPhone Duo の Simulator は開くと落ち続けることがある](../commands/navigation_ja.md#注意点) — `unfold()` の後に SpringBoard とキーボードが落ちて起き直す間は、アプリが背景に回りキーボードも消えます。レポートに回数と時刻が載るので、操作の結果を検証で確かめます。

@@ -75,6 +75,16 @@ final class HybridFallbackDriftTests: XCTestCase {
     // sameDeviceBridgeChanged は「記憶に依る呼び出しだけ拒否・依らなければ黙って作り直し」、
     // differentDevice は ref の有無を問わず常に拒否
 
+    /// profile は台を名指す(udid と併用できない)ので、ポートが別の台へ移っていてもプロファイルの台へ解き直す。
+    /// 名指しの無い呼び出し(port だけ・記憶だけ)は今まで通り断る
+    func testProfileCountsAsNamingTheDeviceButPortAloneDoesNot() {
+        XCTAssertTrue(MCPServer.callerNamesDevice(["profile": "duo-device", "project": "p"]))
+        XCTAssertTrue(MCPServer.callerNamesDevice(["udid": "SIM-1"]))
+        XCTAssertFalse(MCPServer.callerNamesDevice(["port": 8123]))
+        XCTAssertFalse(MCPServer.callerNamesDevice(["profile": "", "udid": ""]))
+        XCTAssertFalse(MCPServer.callerNamesDevice([:]))
+    }
+
     func testPrimaryBridgeOutcomeIsUnchangedWithoutDrift() {
         let outcome = MCPServer.primaryBridgeOutcome(
             drift: .none, usesRememberedDeviceState: true, port: 8123, expectedBridge: "xcuitest",

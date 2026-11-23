@@ -64,7 +64,8 @@ public enum ScrollFrameResolution {
     }
 
     /// 注記の見分けの鍵(`StepExecutor.scrollFrameSwitchNote` が読む)
-    static let enclosingScrollableMarker = "is a row inside a scroll container"
+    /// 渡した要素は行とは限らない(スクロールを申告しない CMP の一覧 `#list_rows` も来る)ので「行」と呼ばない(呼ぶと作成者が指定を誤ったと受け取った)
+    static let enclosingScrollableMarker = "does not scroll itself and sits inside a scroll container"
 
     /// `enclosingScrollable` へ切り替えたときの注記(DSL と MCP が共有)
     public static func enclosingScrollableNote(frame: String, container: ElementInfo) -> String {

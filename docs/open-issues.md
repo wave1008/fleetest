@@ -27,16 +27,40 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-320・OI-321・OI-329・OI-345・OI-346・OI-347 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-329・OI-345・OI-347・OI-356・OI-358 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 2 | OI-354・OI-355 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 10 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 37 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-346・OI-359 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 11 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 45 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298 |
 
 ## 着手可
 
 ## 要測定
+
+### OI-356 iPad の inapp-boost で、`tap(linkText:)` の OCR で見つけた位置へのタップが当たらない
+- 状態: 再現済み
+- 確認: 7b57ed9b5(2026-11-23)
+- 属性: 要測定
+- 運用: 回避不可 — 文中リンクを押せない(iPad)
+- 優先度: 中 — 赤になる(何も押さずに次へは進まない)
+
+出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
+- 観測: ip_e2ey_swiftui の「文中リンク」で `tap("#txt_terms", linkText: "利用規約")` が `link text "利用規約" located by ocr at (102, 138) / sent via XCUITest` と報告して画面が変わらず、続く `textIs("link=terms")` が赤(手元 iPad Air 13・M1Ultra の iPad Pro 13 の 2/2)。作成時の MCP(XCUITest)は木の中のリンクで解決して緑。iPhone の inapp-boost では未観測
+- 次の一手: iPad で OCR の読みの座標と `#txt_terms` の枠・リンクの描かれた位置を並べ、座標の換算(画面の倍率)を確かめる
+- **測定(2026-11-23・評価 8回目の後の処理)**: ①手元の iPad Air 13 で本番の経路(inapp-boost)のまま再現 3/3。②MCP(XCUITest)の木ではリンク「利用規約」の枠が (76,130 48x15) = 中心 (100,137.5)。OCR の点 (102,138) は合っている。③MCP から XCUITest で同じ座標 (100,137) を撃つとリンクが効いた(`link=terms`)。④タップの前に 2 秒待っても本番の経路は外れた(時刻ではない)。⑤その点を含む木の節は本文とリンクの2つだけ(画面の外のサイドバーではない)。⑥同じ run の iPhone(ipad-mix-exec の Sim -09)は同じ経路で緑。本番の経路は `StepExecutor+LinkText` の `td.tap(x:y:)`(XCUITest の座標タップ)で、MCP の座標タップと同じ道具 = 残る違いはランナーがどのアプリ・座標系に対して合成するか。次の一手: ランナー側で座標タップの要求(座標・対象のアプリ・向き)を記録する口を足し、MCP と本番で比べる
+
+### OI-358 Android でアプリの面が描かれずキーボードだけ描かれた回は「全面一色」にならず、白紙として扱われない
+- 状態: 再現済み
+- 確認: 7b57ed9b5(2026-11-23)
+- 属性: 要測定・環境側
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 低 — 赤の理由の言い方とレーンの扱いだけ
+
+出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
+- 観測: dc_native_emu の本番(手元 Emu -07)で `textIs "#txt_echo_single"` が `[notRendered]` で赤。失敗時の画面はアプリの面が真っ黒でキーボードだけ描かれている(Emu -07/-08 の面が描かれない不調・7回目の評価と同じ)。「全面一色」の注記が付かず、白紙の扱い(レーンの切り離し・振り直し)にならない
+- 次の一手: キーボードの枠を除いたアプリの面だけで一色かを判定しているかをコードで確かめる
+- **読み(2026-11-23・評価 8回目の後の処理)**: 失敗文の「全面一色」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`)で、キーボードの枠を受け取らない = キーボードだけ描かれた回は一色にならない。続く `RenderCollapse.judge` は keyboard を受け取るが、この回は何も添えなかった(Android のキーボードの枠を持っていたか・文字の要素の数が下限に届いたかは未観測)。run のレーンの白紙の扱いは別の経路で、この回に働かなかった理由は未観測。次の一手: 同じ形(キーボードだけ描かれた白紙)の結果 JSON の注記と、そのときの `guardKeyboardFrame` を残して読む
 
 ### OI-345 iOS の Simulator で画面全体が描かれていない赤に `screen-blank` が立たず、レーンの切り離し・振り直しが起きない
 - 状態: 再現済み
@@ -49,6 +73,7 @@
 - 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
 - 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
 - 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
+- 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、据え置き
 
 ### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
 - 状態: 再現済み
@@ -62,18 +87,8 @@
 - 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
 - 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)・その失敗の結果を捨てて1回だけ振り直す(cause `displayNotApplied`。レーンは離脱させない。`RunOrchestrator.requeuesForDisplayNotApplied`)。xcuitest モードと Android は確かめない
 - 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
-
-### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す
-- 状態: 再現済み
-- 確認: 72aa89cbf(2026-11-22)
-- 属性: 要測定
-- 運用: 回避可 — 文中リンクは本番(`fleetest run`)で確かめる
-- 優先度: 低 — MCP だけ
-
-出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
-- 観測: 作成の 3 セッションが、MCP で文中リンクを押す `tap(linkText:)` の OCR が空(リンクの文字を見つけられない)と書き、文中リンクの検証を見送った。`fmAndVision: true` を渡しても同じ(セッションの記述・応答の文言は digest.md)
-- 次の一手: 同じ画面で MCP の `ft_tap(linkText:)` と DSL の `tap(linkText:)` を撃ち、OCR に渡る絵と読みを比べる
-
+- 評価 8回目(11/23・`_work/scen-eval-20261123/`): 本番(inapp-boost)で2回出て、どちらも検出 → SpringBoard の起こし直し → 回し直しで回復した(手元 Sim -08 の dc_cmp_ios・M1Ultra の va_e2ey_cmp_ios = 回し直しの後 6/6 緑)。作成側(MCP = xcuitest モード)では確かめないので、`setAppearance(.dark)` が端末では dark・アプリは light のまま赤になり、作成者は理由が分からなかった(dc_cmp_ios の Sim -04・dc_flutter_ios の Sim -05・va_cmp_ios_img。文字サイズは同じ時刻に届いた)。docs の注意点は navigation に足した
+- 処理(2026-11-23・評価 8回目の後の処理): きっかけを測る材料(状態になる直前のログ)は今回も残せていない。評価では本番の検出と回復が 2/2 で働いた(上の 8回目の行)
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
 - 状態: 再現済み
@@ -89,42 +104,33 @@
 - 次の一手: in-app のセルで `accessibilityAttributedLabel` 等の別の経路から合成ラベルが取れるかをブリッジで測る(取れれば in-app の木に載せる。取れなければ ifCanSelect 系にも照会を広げるかを要判断へ)
 - 評価 6回目(11/21): builtin_ios(リマインダー・連絡先)の作成は緑で終えたが、本番の reminders-exec は作成セッションが上限で切れて回らず = 新しい材料なし。上の測る口(in-app のブリッジに合成ラベルの経路を試す一時の口)は未着手
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): r7_builtin_ios の本番 手元 1/3・M4Max 1/3(行がラベル無しの clickable = 同じ形)
-
-### OI-320 Flutter の iOS で `type(sel, text, replace: true)` が「tapping the input field did not give it keyboard focus within 1.5s」で赤
-- 状態: 再現済み
-- 確認: 667a5a9 + 作業ツリー(2026-11-20)
-- 属性: 要測定・低頻度
-- 運用: 回避可 — 空の欄なら replace を外す
-- 優先度: 中 — docs の書き方で赤
-
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
-- 観測: once_flutter_ios(Simulator・MCP の ft_run_scenario = XCUITest)。素の type(追記)は同じ欄で通る
-- 測定(2026-11-20 23:45 頃・Simulator -05・単独): `launchApp → tap(#nav_input) → type(#field_single, replace: true)` を xcuitest モード 3 回・inapp-boost 3 回 = 6/6 緑。
-  観測した1回は6セッションが同じ Mac で並行していた(負荷の下)。単独では再現しない
-- 次の一手: 負荷の下(同じ Mac で並行の run)で反復し、出たときの焦点待ちの所要を採る
-- 評価 5回目(11/21・`_work/scen-eval-20261121/`): Flutter の iOS で replace 付きの type を書いたセッションはあったが出なかった
-- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): CMP の iOS で replace なしの type が同じ「did not give it keyboard focus within 1.5s」の 422(lk_e2e_cmp・duo_memo_cmp の作成時。どちらも同じ Mac で 11 セッションが並行)
-- 測定(11/22 01:2x〜01:5x・Sim -06・`_work/scen-eval-20261121b/logs/m320-*`): CMP の iOS の入力画面で replace なしの type を4回(単一行・パスワード・単一行・複数行)× xcuitest モード 6 run・inapp-boost 6 run を、CPU を `yes` 22 本で埋めて回した = 48/48 の type が緑(1 run 約3分)。再現しない。観測した2回はどちらも同じ Mac で 11 の作成セッション(claude -p)と Simulator・Emulator が並行していた = CPU だけの負荷では作れない形
-- 測定(11/21 07:2x・Simulator -05・`_work/scen-eval-20261121/logs/m320b-*.log`): 同じ Mac で run は1本ずつしか走らないので、前回の「6 セッションが並行」の代わりに CPU を `yes` 22 本で埋め、`launchApp → tap(#nav_input) → type(#field_single, …, replace: true)` × 4 を 6 run = 24/24 緑(inapp-boost から XCUITest へ回る経路)。再現しない
-- 評価 7回目(11/22・`_work/scen-eval-20261122/`): 作成時の MCP で 4 セッション(CMP・Flutter の iOS)。本番では出ず
-
-### OI-321 実機 SE3 の CMP のリストで、境界で薄く切られた行への `scrollTo("#row_15")` が「reached its end」で赤
-- 状態: 再現済み
-- 確認: 667a5a9 + 作業ツリー(2026-11-20)
-- 属性: 要測定・低頻度
-- 運用: 回避可 — 行を名指しせず端まで送る
-- 優先度: 低 — 赤になる側(誤った緑ではない)
-
-出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
-- 観測: se3_cmp の作成時。失敗時の木に `#row_15` が 31pt で出ていた。`round 2: (16,197 343x56) ... the settle wait was cut off and the re-read did not show it touchable`
-- 測定(2026-11-20 23:50 頃・SE3・単独): `launchApp → tap(#nav_scroll) → scrollTo(#row_15, maxSwipes: 12)` を inapp-boost 2 回・xcuitest 1 回 = 3/3 緑。
-  観測した1回は作成中の MCP(XCUITest)で、直前の手順が違う。単独では再現しない
-- 次の一手: 作成セッションの直前の手順(同じ画面での前の操作)を再生して再現を探す
-- 測定(11/21 06:4x・SE3・`_work/scen-eval-20261121/logs/m321-*.log`): 作成セッションの直前の手順(入力画面で打って送る → 起動し直してリストの `scrollTo("#row_15")`)を 1 run に並べ、xcuitest モード・inapp-boost を 3 回ずつ = 6/6 緑。再現しない
-- 評価 5回目: se3_cmp の作成・本番(4/4)とも出ず
-- 評価 6回目(11/21): se3_cmp は週の利用上限で作成が始まらず(SE3 で CMP のリストを扱ったセッションは無し)= 材料なし
+- 処理(2026-11-23・評価 8回目の後の処理): 未着手(次の一手は in-app のブリッジに測る口を足す作業で、評価の後の処理の時間に収まらなかった)。評価 8回目では出ていない(リマインダーを触った builtin_ios・r5_builtin_ios の本番は今回回していない)
 
 ## 要判断
+
+### OI-355 FM が日本語の漢字を簡体字で転写し、可視性検証が `textMismatch` で赤にする
+- 状態: 再現済み
+- 確認: 7b57ed9b5(2026-11-23)
+- 属性: 要判断
+- 運用: 回避不可 — 同じ絵では繰り返す(期待値を変えても字形は選べない)
+- 優先度: 高 — 描かれている文字が赤になる
+
+出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
+- 観測: RN の入力欄の placeholder「単一行」が、dc_rn_ios(手元 Sim・dark-large)・ip_dc_rn(手元 iPad Air 13 では「单行」・M1Max の iPad)・fd_xm_rn(M1Ultra の Duo)の4回、`[textMismatch] the text drawn there reads "单一行", not the expected text` で赤
+- 次の一手: 残った切り抜きを負荷なしで FM と OCR に渡し、どちらが「单」と読むか・決定的かを測る。字形の違い(単/单)を同じ文字とみなす比べ方の範囲を決める材料にする
+- **測定(2026-11-23・評価 8回目の後の処理)**: 切り抜きを負荷なしで FM に 3 回ずつ渡すと、「单一行」3/3・「单行」3/3・空 3/3 = FM の字形の取り違えは決定的(負荷と無関係)。同じ切り抜きを Vision の OCR(日本語・accurate・言語補正あり)で読むと、3 枚は何も読めず 1 枚は「行」だけ(placeholder が白地に薄い灰色)。誤読の救済(`TranscriptMatch.isNearMiss` → OCR が丸ごと読めれば緑。OcclusionVerifier)は既にあるが、OCR が薄い文字を読めないので働かない。原因は観測済み → 要判断。選択肢: ①比べる前に字形の違う同じ漢字(単/单・拡/擴 等)を同じとみなす(表の範囲・誤った緑の危険を決める)②今のまま赤(描かれている文字が赤になる)
+
+### OI-354 作成(MCP)で届く `scrollTo` が、本番(inapp-boost)では払いの回数を使い切って赤
+- 状態: 再現済み
+- 確認: 7b57ed9b5(2026-11-23)
+- 属性: 要判断
+- 運用: 回避可 — `maxSwipes:` を上げる
+- 優先度: 高 — 作成で緑のシナリオが本番で赤になり、作成者には気づけない
+
+出典: シナリオ作成の評価 8回目(2026-11-23・`_work/scen-eval-20261123/`。作成 80 セッション・@Test 661 本・本番 147 回・延べ 644 本・緑 587。一覧は同フォルダの `ISSUES.md`・作成の所見の要約は `digest-a/b/c.md`・本番の赤は `logs/red-list.txt`)
+- 観測: e2e_ios_sim(SwiftUI)の `scrollTo("#row_40", scrollFrame: "#list_rows")` が、手元 Sim -08 と M1Max の iPhone 17e の両方で `element not found after 8 scroll(s) (the content was still moving when the last swipe was used, so the end was not reached — raise maxSwipes (now 8) …)`。8 回とも `moved 198 of 395`(容器の半分)。作成時の MCP(XCUITest)では緑。ip_rn の iPhone の横向きの `scrollTo("#row_20")`(15 回)も同じ文言。OI-161① は横向きの低い一覧の同じ型
+- 次の一手: 同じ一覧で xcuitest と inapp-boost の1回の払いの移動量を測り、既定の maxSwipes で届く行数を比べる(in-app の払いが容器の半分に留まる理由をコードで確かめる)
+- **測定(2026-11-23・評価 8回目の後の処理)**: 作成の MCP(XCUITest)は同じ `#row_40` へ 6 回の払い+遅いドラッグ1回で届いた(上限 8 のぎりぎり)。本番の in-app の払いは毎回 `moved 198 of 395`(慣性が無く容器の半分)で 8 回では届かない。ツール自身の E2E(E2E-iOS `05_スクロール`)は同じ行へ `maxSwipes: 15` を書いている = 既定の 8 は in-app では 40 行に足りないことは既知。原因は観測済み → 要判断。選択肢: ①既定の maxSwipes を上げる(C 層の `defaultMaxSwipes`)②in-app の払いを長くする(PT-3.19 で2度撤回)③MCP の確認(`ft_run_scenario`・`ft_scroll_to`)で、払いの回数が上限の半分を超えたら「本番の in-app の払いは約半分しか動かない」と注記する
 
 ## 木に材料なし
 
@@ -241,6 +247,7 @@
 - 11/7: ①払いは容器の高さの 69%(88px)・送り量 ≈ 指の移動 − タッチの遊び 24px・行は 168px で容器より高い = 行が容器より高い低い一覧の形。直すなら払いの長さ
 - 11/7: ⑧レンダーツリー(debug ビルドの `debugDumpRenderTree`)で欄は Column の箱の完全に外にあり、a11y の木には出ない(座標で直接撃って 6/6 無反応)
 - ③④(払いの始点の形)は OI-58 へ
+- 評価 8回目(11/23): 縦向きでも、作成(MCP)では届き本番(inapp-boost)では届かない形が出た → OI-354
 
 ### OI-129 SwiftUI のスライダへの `swipeBy` が動かない
 - 状態: 再現済み
@@ -291,6 +298,65 @@
 
 ## 低頻度
 
+### OI-359 Flutter の iOS(inapp-boost)で `clearAppData` が「could not delete 1 item(s) in the data container … : Library」の 500 で赤
+- 状態: 再現済み
+- 確認: 7b57ed9b5 + 作業ツリー(2026-11-23)
+- 属性: 低頻度
+- 運用: 再実行で吸収 — 赤になる(誤った緑ではない)
+- 優先度: 低 — 1回・単独の再実行は緑
+
+出典: 11/23 の全マシンの回帰(`_work/regress-20261123/regress.log`・`.fleetest/regress/20261123-070214`)。E2E-Flutter の ios-inapp-boost「ライフサイクルとプラットフォーム分岐が正しく働くこと」S0040 の 10 本目 `clearAppData com.ftester.e2e.flutter` が `The driver returned an error (500): could not delete 1 item(s) in the data container of com.ftester.e2e.flutter: Library`、続けて `The app process is not running — it may have crashed`。手元の iPhone 18 Pro -06
+- 同じシナリオを手元で単独に回し直すと緑(1/1)
+- 次の一手: 出たら、そのときの Library の中で消せなかった項目の名前とエラー(権限・使用中)を残す
+
+### OI-346 MCP の `tap(linkText:)` の OCR が `fmAndVision: true` でも空を返す
+- 状態: 再現済み
+- 確認: 72aa89cbf(2026-11-22)
+- 属性: 低頻度
+- 運用: 回避可 — 文中リンクは本番(`fleetest run`)で確かめる
+- 優先度: 低 — MCP だけ
+
+出典: シナリオ作成の評価 7回目(2026-11-22・`_work/scen-eval-20261122/`。作成 76 セッション・@Test 358 本・本番 118 回・延べ 571 本・緑 538。一覧は同フォルダの `ISSUES.md`・本番の赤の分析は `logs/red-analysis.md`)
+- 観測: 作成の 3 セッションが、MCP で文中リンクを押す `tap(linkText:)` の OCR が空(リンクの文字を見つけられない)と書き、文中リンクの検証を見送った。`fmAndVision: true` を渡しても同じ(セッションの記述・応答の文言は digest.md)
+- 次の一手: 同じ画面で MCP の `ft_tap(linkText:)` と DSL の `tap(linkText:)` を撃ち、OCR に渡る絵と読みを比べる
+- **測定(2026-11-23・評価 8回目の後の処理)**: 負荷の無い手元 Emu -05 の E2EY-Android で `ft_tap(selector: "#txt_terms", linkText: "利用規約", fmAndVision: true)` が `located by ocr inside #txt_terms; done`(初回 25.6 秒 = OCR の準備込み)。iPhone の SwiftUI は木で解決して OCR を使わない。再現しない = 作成時の空の読みは 13 セッション並行の負荷の下の回 → 低頻度へ
+
+### OI-321 実機 SE3 の CMP のリストで、境界で薄く切られた行への `scrollTo("#row_15")` が「reached its end」で赤
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 低頻度
+- 運用: 回避可 — 行を名指しせず端まで送る
+- 優先度: 低 — 赤になる側(誤った緑ではない)
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: se3_cmp の作成時。失敗時の木に `#row_15` が 31pt で出ていた。`round 2: (16,197 343x56) ... the settle wait was cut off and the re-read did not show it touchable`
+- 測定(2026-11-20 23:50 頃・SE3・単独): `launchApp → tap(#nav_scroll) → scrollTo(#row_15, maxSwipes: 12)` を inapp-boost 2 回・xcuitest 1 回 = 3/3 緑。
+  観測した1回は作成中の MCP(XCUITest)で、直前の手順が違う。単独では再現しない
+- 次の一手: 作成セッションの直前の手順(同じ画面での前の操作)を再生して再現を探す
+- 測定(11/21 06:4x・SE3・`_work/scen-eval-20261121/logs/m321-*.log`): 作成セッションの直前の手順(入力画面で打って送る → 起動し直してリストの `scrollTo("#row_15")`)を 1 run に並べ、xcuitest モード・inapp-boost を 3 回ずつ = 6/6 緑。再現しない
+- 評価 5回目: se3_cmp の作成・本番(4/4)とも出ず
+- 評価 6回目(11/21): se3_cmp は週の利用上限で作成が始まらず(SE3 で CMP のリストを扱ったセッションは無し)= 材料なし
+- 評価 8回目(2026-11-23・評価 8回目の後の処理): SE3 の作成・本番で 0 回(`reached its end` の赤なし)→ 要測定から外し低頻度へ
+
+### OI-320 Flutter の iOS で `type(sel, text, replace: true)` が「tapping the input field did not give it keyboard focus within 1.5s」で赤
+- 状態: 再現済み
+- 確認: 667a5a9 + 作業ツリー(2026-11-20)
+- 属性: 低頻度
+- 運用: 回避可 — 空の欄なら replace を外す
+- 優先度: 中 — docs の書き方で赤
+
+出典: シナリオ作成の評価 2026-11-20 夜(`_work/scen-eval-20261120d/`・本日改修した機能 = run メモ・@RunHooks・withRunLock・配置の属性。作成 10 セッション・本番 16 回)
+- 観測: once_flutter_ios(Simulator・MCP の ft_run_scenario = XCUITest)。素の type(追記)は同じ欄で通る
+- 測定(2026-11-20 23:45 頃・Simulator -05・単独): `launchApp → tap(#nav_input) → type(#field_single, replace: true)` を xcuitest モード 3 回・inapp-boost 3 回 = 6/6 緑。
+  観測した1回は6セッションが同じ Mac で並行していた(負荷の下)。単独では再現しない
+- 次の一手: 負荷の下(同じ Mac で並行の run)で反復し、出たときの焦点待ちの所要を採る
+- 評価 5回目(11/21・`_work/scen-eval-20261121/`): Flutter の iOS で replace 付きの type を書いたセッションはあったが出なかった
+- 評価 6回目(11/21・`_work/scen-eval-20261121b/`): CMP の iOS で replace なしの type が同じ「did not give it keyboard focus within 1.5s」の 422(lk_e2e_cmp・duo_memo_cmp の作成時。どちらも同じ Mac で 11 セッションが並行)
+- 測定(11/22 01:2x〜01:5x・Sim -06・`_work/scen-eval-20261121b/logs/m320-*`): CMP の iOS の入力画面で replace なしの type を4回(単一行・パスワード・単一行・複数行)× xcuitest モード 6 run・inapp-boost 6 run を、CPU を `yes` 22 本で埋めて回した = 48/48 の type が緑(1 run 約3分)。再現しない。観測した2回はどちらも同じ Mac で 11 の作成セッション(claude -p)と Simulator・Emulator が並行していた = CPU だけの負荷では作れない形
+- 測定(11/21 07:2x・Simulator -05・`_work/scen-eval-20261121/logs/m320b-*.log`): 同じ Mac で run は1本ずつしか走らないので、前回の「6 セッションが並行」の代わりに CPU を `yes` 22 本で埋め、`launchApp → tap(#nav_input) → type(#field_single, …, replace: true)` × 4 を 6 run = 24/24 緑(inapp-boost から XCUITest へ回る経路)。再現しない
+- 評価 7回目(11/22・`_work/scen-eval-20261122/`): 作成時の MCP で 4 セッション(CMP・Flutter の iOS)。本番では出ず
+- 評価 8回目(2026-11-23・評価 8回目の後の処理): 作成 80 セッション・本番 147 回で 0 回 → 要測定から外し低頻度へ(出たら焦点待ちの所要を採る)
+
 ### OI-326 全体の単体テストで `AndroidScreenVideoRecorderConfirmTests.testConfirmationWaitEndsWhenItsSegmentDies` が赤(1回・単独では緑)
 - 状態: 再現済み
 - 確認: 667a5a9 + 作業ツリー(2026-11-21)
@@ -325,6 +391,7 @@
 - 観測: ①`検索バーで検索できること.S0040` が「The driver returned an error (422): could not empty the field (12 character(s) still there after 4 round(s))」②`検索バーで検索できること.S0030` が「clearInput reported success but the value remained: "検索候補は次のとおりです"」。②の残った値は入力した文字ではなく、検索候補の読み上げの文に見える
 - 次の一手: 失敗時の木(欄の value に何が入っているか・候補の窓が前面か)を M4Max で採る。他の機械で出ない理由(OS の版・負荷)を確かめる。原因を観測するまで直さない(MN-108)
 - 回帰 11/21 08:01(`_work/regress-20261121/regress.log`・24 対象・全マシン): M4Max で再出(3回目)。`検索バーで検索できること.S0040` の `clearInput "#field_search"` と S0030 の `type "ap" (replace)` の 2 本
+- 11/23 の全マシンの回帰: M4Max の E2EX-CMP(iOS・inapp-boost)「検索バーで検索できること」S0030・S0040 で同じ形(`could not empty the field (12 character(s) still there after 4 round(s))`・`clearInput reported success but the value remained`)
 
 ### OI-314 行き過ぎて引き返した探索が、行を貼り付く見出しの下で止め、タップが見出しに吸われた(Flutter・xcuitest モード・回帰の負荷の下で1回)
 - 状態: 再現済み
@@ -642,6 +709,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/19: 蘇生の入口で SpringBoard の落ち続け・止まったままを判定し、その Simulator を止めてその run では蘇生しないようにした(DR-200)。止めた台は次の run の起動で戻ることを手元の Duo-01 で確かめた
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は DR-214 で失敗にした
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): 05:48 に FBSDisplayMode の SpringBoard の落ち 1 件(DiagnosticReports)・Duo の作成 6 セッションが全部この落ちに当たった
+- 評価 8回目(11/23): 作成の 8 セッションで開いた後に SpringBoard が落ち続け、MCP では起こし直せず探索が止まった(duo_lk_rn・duo_swiftui はシナリオ 0 本)。本番の Duo -02 は供給で合流できず `no iOS device joined the run … Run stopped`(0 本の緑にはならない)。05:30 に手で止めた後の fd_* の本番は 13 回中 11 回緑。M1Ultra の Duo は開いた後に `devicectl reports 0 active built-in displays` で送らずに赤(19d06abd3 どおり)。手元の Duo -02 は run の中で `SpringBoard restarted 5 time(s) in 45s … shutting the simulator down` で切り離された
 
 ## 据え置き
 
@@ -665,6 +733,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - **訂正(11/22 11:0x・結果 JSON の段ごとの所要)**: lk2 の赤のステップ(S0020 の 17 本目 `exist "#txt_home_marker"`)は `ocrMs` 11,147 で、前のステップの `ocrMs` はどれも 0 = **Vision の待ち(10 秒)はこのステップの中で使い切り**、失敗文の「earlier wait」は同じステップの評価のやり直しで出ていた(11/15 の回帰の形と同じ)。前のステップからの持ち越しではないので、ステップごとに待ち直しても救えない。失敗文はこの2つを分けて言うよう直した(`StepExecutor.visionWaitFact` の `ranOutEarlierThisStep`。`(… this step had already waited 10.0 seconds for it)` / `(… a wait in an earlier step of this scenario had already timed out)`)
 - 原因(観測): 負荷の下で、FM の空の転写と、10 秒探っても空を返す Vision が同じステップで重なった。ツールは設計どおり赤にしている(黙った緑ではない)
 - 決定(11/22・DR-216): ①今のまま赤。待ちの上限は延ばさず、両方の読み手が読めない回を判定不能の緑にもしない。見直す条件は DR-216
+- 評価 8回目(11/23): 本番で同じ形が 4 回(dc_rn_ios の手元 Sim -08・ip_va_cmp の手元 iPad Air 13 で 2 回・r2_e2ey_cmp_4a の手元 Emu)。切り抜きはどれも文字が鮮明。マシンの Vision は alive・ホストの負荷 25〜40(13 の作成セッションが並行)。DR-216 の見直す条件(負荷の低い機械・時間帯)には当たらない
 
 ### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
 - 状態: 再現済み

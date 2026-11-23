@@ -118,7 +118,7 @@ When you copy an operation you confirmed with `ft_*` into a scenario (DSL), adju
 | `ft_tap` has no `scroll:` | `tap("#id", scroll: .down)` | While exploring, bring it into view with `ft_scroll_to`, then `ft_tap`. In the scenario, write the single line `tap(..., scroll:)` |
 | `ft_type` with `pressEnter: true` | `type` has no Enter argument | Put `pressEnter()` on the line after `type("#id", "text")` |
 | A target under the keyboard | A target under the keyboard | Both close the keyboard without sending Enter and then press it (MCP refuses if it cannot close it) |
-| Installing the app automatically (`autoInstall`) | As the run profile says | In MCP only an iOS profile's `autoInstall` takes effect. On Android install it with `ft_install` |
+| Installing the app automatically (`autoInstall`) | As the run profile says | In MCP only an iOS profile's `autoInstall` takes effect. On Android install it with `ft_install`. When the installed app differs from `appPath`, it is not reinstalled (that would lose the screen being explored); the first response for the profile carries a note instead. To explore the current build, use `ft_install` |
 | `waitFor` / `waitForChange` and `waitSeconds` | Each command's `waitSeconds:` | In MCP `waitSeconds` only bounds the `waitFor` / `waitForChange` wait and does nothing on its own. On an action tool, pass `waitFor` together with `snapshotAfter: true`. In the scenario, write `waitSeconds:` on the command that waits |
 
 `waitFor` also matches at once an element that already had the same text before the action (so it did not wait for the
