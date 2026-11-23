@@ -79,16 +79,15 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
         }
     }
 
-    /// `awaitRemoteRunEnd` は Bool を返し、`releaseLockIfRunEnded` を自分で呼ぶ
-    /// (以前は待つだけでロックに一切触れず、呼び出し側の defer が無条件に外していた)。
-    /// 呼び出し側(共通本体 performDispatch)は戻り値を `lockReleasedEarly` へ捕まえること
+    /// `awaitRemoteRunEnd` はロックの行き先(`LockDisposition`)を返し、`releaseLockIfRunEnded` を自分で呼ぶ。
+    /// 呼び出し側(共通本体 performDispatch)は戻り値を `lockDisposition` へ捕まえること
     func testAwaitRemoteRunEndIfDisconnectedReturnsBoolAndReleasesConditionally() throws {
         let source = try Self.source()
         guard let funcRange = source.range(of: "private func awaitRemoteRunEnd(")
         else { return XCTFail("function not found") }
         let body = source[funcRange.lowerBound...]
-        guard let signatureEnd = body.range(of: "-> Bool {") else {
-            return XCTFail("awaitRemoteRunEnd must return Bool (released-early) —"
+        guard let signatureEnd = body.range(of: "-> LockDisposition {") else {
+            return XCTFail("awaitRemoteRunEnd must return LockDisposition —"
                           + " the caller needs to know whether it may skip the unconditional"
                           + " defer release")
         }
@@ -108,10 +107,10 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
             guard let callerBody = Self.functionBody(marker, in: source) else {
                 XCTFail("\(marker) not found"); continue
             }
-            guard let assignRange = callerBody.range(of: "lockReleasedEarly = awaitRemoteRunEnd(")
+            guard let assignRange = callerBody.range(of: "lockDisposition = awaitRemoteRunEnd(")
             else {
                 XCTFail("\(marker): must capture awaitRemoteRunEnd's return value"
-                        + " into lockReleasedEarly — otherwise the unconditional defer release"
+                        + " into lockDisposition — otherwise the unconditional defer release"
                         + " still fires underneath it")
                 continue
             }
@@ -145,6 +144,32 @@ final class RemoteDispatchLockConditionalReleaseTests: XCTestCase {
         }
         XCTAssertTrue(normalCheckRange.upperBound < livePIDsRange.lowerBound,
                       "liveDispatchedRunPIDs must be checked inside the non-normal-exit-code branch")
+    }
+
+    /// defer が外すのは「未決定」だけ。「残す」と判断したロックを関数末尾で外すと、後始末中の run に次の run が重なる
+    func testExitReleasesOnlyUndecidedLock() {
+        XCTAssertTrue(RemoteRunDispatcher.LockDisposition.undecided.releasesAtExit)
+        XCTAssertFalse(RemoteRunDispatcher.LockDisposition.kept.releasesAtExit)
+        XCTAssertFalse(RemoteRunDispatcher.LockDisposition.releasedEarly.releasesAtExit)
+    }
+
+    /// 「残す」の経路(打ち切りの catch・run の終わりの待ち)は `.kept` を立てる。立てずに Bool の false 等で
+    /// 表すと defer の解放に落ちる
+    func testKeptPathsSetKeptDisposition() throws {
+        let source = try Self.source()
+        guard let body = Self.functionBody("private func performDispatch(", in: source) else {
+            return XCTFail("performDispatch not found")
+        }
+        XCTAssertTrue(body.contains("defer { if lockDisposition.releasesAtExit { releaseDispatchLock(layout: layout) } }"))
+        guard let catchRange = body.range(of: "} catch {"),
+              let keptRange = body.range(of: "lockDisposition = .kept", range: catchRange.upperBound..<body.endIndex)
+        else { return XCTFail("the timeout catch must set lockDisposition = .kept when the lock is not released") }
+        _ = keptRange
+        guard let awaitBody = Self.functionBody("private func awaitRemoteRunEnd(", in: source) else {
+            return XCTFail("awaitRemoteRunEnd not found")
+        }
+        XCTAssertTrue(awaitBody.contains("return .kept"),
+                      "awaitRemoteRunEnd must return .kept when releaseLockIfRunEnded could not release")
     }
 
     /// 中断したら exit 0/1 でも待つ(ssh は即座に閉じるが向こうは後始末中 = 待たないと開始欄だけを回収する)。

@@ -86,14 +86,27 @@ struct RemoteRunDispatcher {
     /// 誰も見ないまま起動まで進んでしまう。releaseDispatchLock 自身が「親が持っている
     /// ロックは外さない」を見て no-op に倒すので、この呼び出しは dispatch / dispatchApi のどちらでも安全
     private func bailIfAlreadyInterrupted(
-        interruptFlag: DispatchInterruptFlag, layout: RemoteLayout, lockReleasedEarly: inout Bool
+        interruptFlag: DispatchInterruptFlag, layout: RemoteLayout, lockDisposition: inout LockDisposition
     ) throws {
         guard interruptFlag.interrupted else { return }
         releaseDispatchLock(layout: layout)
-        lockReleasedEarly = true
+        lockDisposition = .releasedEarly
         throw RemoteDispatchError.remoteSetupFailed(
             "interrupted before dispatching to \(host.sshTarget) — stopping without starting"
             + " a remote run")
+    }
+
+    /// `performDispatch` の終わりでディスパッチのロックをどうするか。**1つの Bool で「外した」と「残す」を
+    /// 兼ねない** —— 兼ねると「残す」(false)が defer の無条件解放に落ち、後始末中の run に次の run が重なる
+    enum LockDisposition: Equatable {
+        /// 正常終了・取得後の例外。defer が外す
+        case undecided
+        /// 途中で外した(中断の bail・run の終わりを確かめて外した)
+        case releasedEarly
+        /// 向こうの run が生きているかもしれないので残す(次のディスパッチの自動回収に任せる)
+        case kept
+
+        var releasesAtExit: Bool { self == .undecided }
     }
 
     /// 戻り値 = リモート `fleetest run` の exit code
@@ -192,15 +205,15 @@ struct RemoteRunDispatcher {
         let lockHeldRelay = InterruptRelay.observing { interruptFlag.mark() }
         defer { lockHeldRelay.stop() }
         try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)
-        var lockReleasedEarly = false
-        defer { if !lockReleasedEarly { releaseDispatchLock(layout: layout) } }
+        var lockDisposition = LockDisposition.undecided
+        defer { if lockDisposition.releasesAtExit { releaseDispatchLock(layout: layout) } }
         // **取得の直後にもう一度見る**: 待機列で待っている間の中断はループ内(acquireDispatchLock)
         // で捕まえて外に出るが、待たずに一発で取れた場合や、待機列を抜けた直後に中断が来た場合は
         // ロックを持ったまま関数末尾まで来てしまう。**ここで拾っても安心しない** —— このあとの
         // prepareWorkspace/transfer の間に届く分は誰も見ないので、ssh 起動の直前でもう一度
         // 同じ判定を通す(bailIfAlreadyInterrupted の呼び出しがもう1箇所ある)
         try bailIfAlreadyInterrupted(
-            interruptFlag: interruptFlag, layout: layout, lockReleasedEarly: &lockReleasedEarly)
+            interruptFlag: interruptFlag, layout: layout, lockDisposition: &lockDisposition)
         reapOrphanedHooksAcrossIssuers(layout: layout)
 
         // ワークスペースの用意(ステージング)は project の rsync より先に行う。ワークスペースは
@@ -223,7 +236,7 @@ struct RemoteRunDispatcher {
         let overheadSeconds = Date().timeIntervalSince(setupStart)
         // ssh 起動の直前にもう一度見る(理由は取得直後のガードの宣言参照)
         try bailIfAlreadyInterrupted(
-            interruptFlag: interruptFlag, layout: layout, lockReleasedEarly: &lockReleasedEarly)
+            interruptFlag: interruptFlag, layout: layout, lockDisposition: &lockDisposition)
         let exitCode: Int32
         do {
             exitCode = try runRemoteAndRelay(
@@ -238,8 +251,12 @@ struct RemoteRunDispatcher {
             // alive — the ssh session was just signalled, but the runner's teardown is
             // asynchronous. Release only if it has actually ended (same M7 judgment as the
             // ssh-disconnect path below), never unconditionally
-            lockReleasedEarly = releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir)
-            if !lockReleasedEarly { logKeptDispatchLock(afterCollecting: false) }
+            if releaseLockIfRunEnded(layout: layout, reportDir: remoteReportDir) {
+                lockDisposition = .releasedEarly
+            } else {
+                lockDisposition = .kept
+                logKeptDispatchLock(afterCollecting: false)
+            }
             // 打ち切りは例外のまま投げず専用の終了コードで返す(1 と取り違えると発行元が afterRun を撃つ)
             if case RemoteDispatchError.remoteRunTimedOut = error {
                 log("error: \(describe(error))")
@@ -247,7 +264,7 @@ struct RemoteRunDispatcher {
             }
             throw error
         }
-        lockReleasedEarly = awaitRemoteRunEnd(
+        lockDisposition = awaitRemoteRunEnd(
             exitCode: exitCode, interrupted: interruptFlag.interrupted, layout: layout,
             reportDir: remoteReportDir)
 
@@ -798,8 +815,8 @@ struct RemoteRunDispatcher {
     /// 終わっていれば待ちは1周で抜ける。
     /// **待った後、外せるなら外す**(`releaseLockIfRunEnded` と同じ「run が終わっていたら外す」
     /// 判定を通す ―― 生きているかもしれない run に、次の run を無条件で重ねない(呼び出し側の
-    /// defer は無条件に `rm -rf` するので、その前にここで判定を通す)。戻り値 = 外したか
-    /// (呼び出し側が `lockReleasedEarly` へそのまま渡す)。
+    /// defer は `.undecided` のとき `rm -rf` するので、その前にここで判定を通す)。戻り値 = ロックの行き先
+    /// (待たない正常終了は `.undecided` = defer が外す。呼び出し側が `lockDisposition` へそのまま渡す)。
     /// 待たずに回収へ進むと、リモートの後始末(run.json への interrupted/finishedAt の書き込み)
     /// より先に手元が途中版を回収し、結果 DB でその run が走り続けているように見える
     /// (実測: M1Max へのディスパッチの ssh を SIGKILL してネットワーク断を模した)。
@@ -811,8 +828,8 @@ struct RemoteRunDispatcher {
     }
 
     private func awaitRemoteRunEnd(exitCode: Int32, interrupted: Bool, layout: RemoteLayout,
-                                   reportDir: String) -> Bool {
-        guard Self.shouldAwaitRemoteRunEnd(exitCode: exitCode, interrupted: interrupted) else { return false }
+                                   reportDir: String) -> LockDisposition {
+        guard Self.shouldAwaitRemoteRunEnd(exitCode: exitCode, interrupted: interrupted) else { return .undecided }
         let deadline = Date().addingTimeInterval(Self.remoteRunEndWaitLimitSeconds)
         waitLoop: while Date() < deadline {
             guard let output = try? sshCapture(RemoteDispatchLock.runEndedCommand(reportDir: reportDir))
@@ -820,9 +837,11 @@ struct RemoteRunDispatcher {
             if RemoteDispatchLock.runHasEnded(output) { break waitLoop }
             sleep(Self.remoteRunEndPollIntervalSeconds)
         }
-        let released = releaseLockIfRunEnded(layout: layout, reportDir: reportDir)
-        if !released { logKeptDispatchLock(afterCollecting: true) }
-        return released
+        guard releaseLockIfRunEnded(layout: layout, reportDir: reportDir) else {
+            logKeptDispatchLock(afterCollecting: true)
+            return .kept
+        }
+        return .releasedEarly
     }
 
     /// **`releaseLockIfRunEnded` が外せなかったときに、この不確実な注記を出してよいか**
