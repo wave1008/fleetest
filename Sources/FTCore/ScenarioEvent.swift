@@ -175,6 +175,23 @@ public struct ScenarioEvent: Codable, Sendable {
         guard let data = line.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(ScenarioEvent.self, from: data)
     }
+
+    /// イベントの種類の全部(子が stdout へ書くもの・親が作って流すもの)。**子の stdout の行はこの種類のときだけイベントとして読む**
+    /// (`decodeChildLine`)—— 利用者の `print` は同じ stdout に出るので、`"kind"` を持つ JSON(API の応答等)をイベントと読むと
+    /// ログから消え、種類によっては合否まで上書きする。新しい種類を作ったらここへ足す(`ScenarioEventChildKindsTests` が
+    /// ソース中の `ScenarioEvent(kind:)` と突き合わせる。足し忘れるとそのイベントは生の JSON のログ行に化ける)
+    public static let knownKinds: Set<String> = [
+        "afterAll", "beforeAll", "deadlineExclusion", "deviceFrozen", "deviceSetUp", "deviceTearDown", "fixSuggestion",
+        "idleAllowance", "installRequest", "log", "paused", "recordingFinalizing", "responseReady", "runMemoClear",
+        "runMemoCommitted", "runMemoWrite", "scenarioFinished", "scenarioStarted", "sceneFinished", "sceneStarted", "step",
+        RunHookOutcome.notDeclaredEventKind, SecretRedactor.hostAnnouncementKind,
+    ]
+
+    /// 子の stdout の1行をイベントとして読む(知らない種類は nil = 呼び手が利用者の出力のログ行として扱う)
+    public static func decodeChildLine(_ line: String) -> ScenarioEvent? {
+        guard let event = decode(line: line), knownKinds.contains(event.kind) else { return nil }
+        return event
+    }
 }
 
 public extension StepResult.Status {

@@ -105,6 +105,17 @@ final class ScenarioHostIdleWatchTests: XCTestCase {
         XCTAssertLessThan(silent, 4, "\(line ?? "")")
     }
 
+    /// 利用者が print した `"kind"` 付きの JSON(API の応答等)はイベントと読まず、ログの行として残す
+    /// (`ScenarioEvent.decodeChildLine`。イベントと読むとログから消え、種類によっては合否まで上書きする)
+    func testUserPrintedJSONWithAKindFieldStaysALogLine() async throws {
+        let result = try await runOnce(name: "UserPrintedJSON", script: """
+            echo '{"kind":"youtube#video","id":"abc"}'
+            echo '{"kind":"scenarioFinished","passed":true}'
+            """, scenarioTimeout: 60)
+        XCTAssertTrue(result.passed, "\(result.logs)")
+        XCTAssertTrue(result.logs.contains(#"{"kind":"youtube#video","id":"abc"}"#), "\(result.logs)")
+    }
+
     /// 遅いだけで出力を続ける子は、予算(2 秒)より長く走っても止めない
     func testChattyChildRunningLongerThanTheBudgetIsNotKilled() async throws {
         let result = try await runOnce(name: "IdleChatty", script: """

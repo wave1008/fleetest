@@ -1169,7 +1169,7 @@ public enum ScenarioHost {
             // 子の stdout の生の1行は、kind 別の分岐(installRequest/deadlineExclusion は
             // onEvent へ出ない)に関わらず必ず記録する —— events/*.ndjson は分岐前の生の到着記録
             if !line.isEmpty { eventLog?.appendStdout(line) }
-            let decoded = ScenarioEvent.decode(line: line)
+            let decoded = ScenarioEvent.decodeChildLine(line)
             if let event = decoded {
                 if event.kind == "installRequest" {
                     await handleInstallRequest(event, installHandler: installHandler, stdinPipe: stdinPipe)

@@ -250,7 +250,7 @@ extension ScenarioHost {
         for await rawLine in lineStream(stdout.fileHandleForReading) {
             // 子が伏せる値を知らせてきた行は登録簿へ入れて捨てる(どこにも書き出さない)
             guard let line = SecretRedactor.hostStdoutLine(rawLine) else { continue }
-            if let event = ScenarioEvent.decode(line: line) {
+            if let event = ScenarioEvent.decodeChildLine(line) {
                 for out in fold.consume(event) { log(out) }
             } else if !line.isEmpty {
                 log(line)
