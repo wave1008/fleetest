@@ -8,6 +8,7 @@ paths:
   - "Runner/FleetestRunner.xcodeproj/project.xcproj"
   - "Sources/FTAndroid/ProfileWorkerFactory.swift"
   - "Sources/FTBridgeClient/**"
+  - "Sources/FTScenarioRunner/ScenarioRunnerMain.swift"
   - "Sources/FTBridgeClient/BridgeDiscovery.swift"
   - "Sources/FTBridgeClient/BridgeLauncher.swift"
   - "Sources/FTBridgeClient/BridgeProvisioner.swift"

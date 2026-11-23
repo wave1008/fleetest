@@ -7,6 +7,7 @@ paths:
   - "TestProjects/E2E-iOS/scenarios/19_OCRで読める薄いテキスト.swift"
   - "Scripts/fm-flap-monitor.swift"
   - "Sources/FTCore/*Occlusion*.swift"
+  - "Sources/FTCore/KeyboardWait.swift"
   - "Sources/FTCore/DeadlineExclusion.swift"
   - "Sources/FTCore/FM*.swift"
   - "Sources/FTCore/FMCallAdmission.swift"
