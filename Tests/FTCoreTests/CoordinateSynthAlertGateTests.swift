@@ -38,7 +38,10 @@ final class CoordinateSynthAlertGateTests: XCTestCase {
         let callers = lines.indices.filter { lines[$0].contains("CoordinatePinch.tapOnMainScreen(") }
         XCTAssertEqual(callers.count, 1, "走査が主画面の tap の直接合成に届いていない")
         for index in callers {
-            let guardLine = lines[index - 1]
+            // 呼び出しを囲む `if`(直前の行とは限らない = 間に記録の行が入る)
+            guard let ifIndex = (0..<index).reversed().first(where: { lines[$0].contains("if CoordinatePinch.isAvailable") })
+            else { return XCTFail("BridgeRouter.swift:\(index + 1) の直接合成を囲む if が見つからない") }
+            let guardLine = lines[ifIndex]
             XCTAssertTrue(guardLine.contains("sessionBundleID != \"com.apple.springboard\""),
                           "BridgeRouter.swift:\(index) の直接合成の分岐が SpringBoard のセッションを除いていない: \(guardLine)")
         }
