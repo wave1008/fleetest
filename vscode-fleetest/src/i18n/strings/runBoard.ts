@@ -5,7 +5,7 @@
 import type { MessageDict } from "../core";
 
 export const runBoardStrings = {
-  "runBoard.title": { ja: "実行中 {count}", en: "Running {count}" },
+  "runBoard.title": { ja: "実行状況", en: "Run status" },
   // ツールチップと aria-label が共有。**ON/OFF で入れ替えない**(ユーザー決定)——
   // このボタンは「いま開く」ではなく「開いた状態を保つ」モードのスイッチ
   "runBoard.expandAll": { ja: "全て展開を維持", en: "Keep all expanded" },
@@ -57,7 +57,7 @@ export const runBoardStrings = {
     en: "~0:00 left (+{time} over)",
   },
   "runBoard.encodingVideo": { ja: "動画を編集中 {done}/{total}", en: "Encoding videos {done}/{total}" },
-  // アクション/秒メーター(見出し「実行中 N」の右)。ja の「マシン」は利用者向け表記
+  // アクション/秒メーター(見出し「実行状況」の右)。ja の「マシン」は利用者向け表記
   "runBoard.tachometerUnit": { ja: "アクション/秒", en: "actions/s" },
   "runBoard.tachometerAria": { ja: "タコメーター {value} アクション/秒", en: "Tachometer {value} actions/s" },
   "runBoard.tachometerTipTotal": { ja: "{value} アクション/秒", en: "{value} actions/s" },

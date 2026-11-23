@@ -531,7 +531,7 @@ button.bulk-cancel:hover:not(:disabled) {
   /* 見出し行(20px)に収める。中身はアイコンだけなので正方形 */
   width: 20px;
   height: 20px;
-  /* 見出し(「実行中 N」)から離す。行の gap(6px)に足して 16px */
+  /* 見出し(「実行状況」)から離す。行の gap(6px)に足して 16px */
   margin-left: 10px;
 }
 /* 台数(.header-count)から離す。行の gap(6px)に足して 16px —— run ボードの
@@ -570,11 +570,6 @@ html[lang="en"] .header-count {
   flex: 0 0 auto;
   font-weight: 600;
   white-space: nowrap;
-}
-/* 「実行中 N」の桁数で右の並び(全て展開・表示フィルタ)が動かないよう最小幅を固定する。
-   **#run-board-title だけ** —— .run-board-title はラインビューの見出しにも付いている */
-#run-board-title {
-  min-width: 56px;
 }
 /* タコメーターと点灯マーク(.run-lamp)の共通の色。VSCode が body に付けるテーマのクラスで切り替える
    (既定 = ライト)。点灯マークは iOS が --tacho-low・Android が --run-lamp-android(ユーザー決定) */
@@ -932,9 +927,7 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
   white-space: nowrap;
   font-weight: 600;
 }
-.run-board-job-count-running {
-  color: var(--vscode-charts-blue, #3794ff);
-}
+.run-board-job-count-running,
 .run-board-job-count-pending {
   color: var(--vscode-descriptionForeground);
 }

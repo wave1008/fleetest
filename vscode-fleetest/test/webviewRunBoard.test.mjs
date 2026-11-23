@@ -129,8 +129,8 @@ test("1行 = 1機械。run のある機械は同じ行に範囲と進捗、無�
   assert.equal(document.getElementById("run-board-machines"), null, "ヘッダの要約は置かない");
 });
 
-// 機械分担の run は機械ごとに行が分かれ、それぞれが自分の進捗を出す。件数は run の数のまま
-test("機械分担の run は機械ごとの行になり、件数は1本と数える", (t) => {
+// 機械分担の run は機械ごとに行が分かれ、それぞれが自分の進捗を出す
+test("機械分担の run は機械ごとの行になる", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
@@ -139,7 +139,6 @@ test("機械分担の run は機械ごとの行になり、件数は1本と数�
                  runs: [{ ...base, runGroup: "g-1", total: 10, done: 3, failed: 0 }] });
   post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [],
                  runs: [{ ...base, pid: 99, runID: "run-2", runGroup: "g-1", total: 8, done: 5, failed: 0 }] });
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
   assert.deepEqual(runRows(document).map((el) =>
     `${badgeOf(el)}:${el.querySelector(".run-board-counts").textContent}`), ["local:3/10", "M1Max:5/8"]);
 });
@@ -159,8 +158,6 @@ test("準備中の run は本数でなく「準備中」を出し、進捗バー
   const [runRow] = runRows(document);
   assert.equal(runRow.querySelector(".run-board-counts").textContent, "デバイスの準備を開始します");
   assert.equal(runRow.querySelector(".run-board-progress").style.display, "none");
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 1",
-    "準備中も「実行中」の件数に数える(走っているので)");
   // その機械は「空き」の一覧から外れる
   post(window, { type: "hostMetricsMachines", machines: ["M1Max"] });
   const idle = machineRows(document);
@@ -384,19 +381,19 @@ test("ヘッダ行はどこを押しても開閉する(三角だけが当たり�
   assert.equal(toggle.dataset.expanded, "true");
 });
 
-test("run 0本でもヘッダは残る(「モニターが見ていない」と「走っていない」を区別できるように)", (t) => {
+test("run 0本でもヘッダは残り、件数は出さない", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 0");
+  assert.equal(document.getElementById("run-board-title").textContent, "実行状況");
 });
 
-test("monitorRuns を受けるとヘッダの件数と行が増える。行クリックでラインビューの台を選択する", (t) => {
+test("monitorRuns を受けると行が増える。行クリックでラインビューの台を選択する", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   sendLocalDevice(window);
   post(window, monitorRunsMessage());
 
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
+  assert.equal(document.getElementById("run-board-title").textContent, "実行状況", "件数は出さない");
   const summary = document.querySelector(".run-board-row-summary");
   assert.ok(summary, "run 1件ぶんの行ができる");
   assert.match(summary.querySelector(".run-board-scope").textContent, /ec-mobile \/ ios-smoke/);
@@ -506,23 +503,22 @@ test("台の行を押してもラインビューの選択は動かない", (t) =
   assert.equal(css.includes(".run-board-lane:hover {"), false, "hover の地色も付けない");
 });
 
-test("observed:false は run を消さず「不明」に倒す(件数から外れる)", (t) => {
+test("observed:false は run を消さず「不明」に倒す(run の行から外れる)", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, monitorRunsMessage({ machine: "M1Max" }));
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
+  assert.equal(runRows(document).length, 1);
   post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: false, services: [], runs: [] });
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 0",
-    "観測できなくなった機械の run は数えない(不明を実行中に混ぜない)");
+  assert.equal(runRows(document).length, 0,
+    "観測できなくなった機械の run は run の行に出さない(不明を実行中に混ぜない)");
 });
 
 test("runBoardReset は控えを丸ごと畳む(モニター再起動と同じ寿命)", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, monitorRunsMessage());
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 1");
+  assert.equal(runRows(document).length, 1);
   post(window, { type: "runBoardReset" });
-  assert.equal(document.getElementById("run-board-title").textContent, "実行中 0");
   assert.equal(runRows(document).length, 0);
 });
 

@@ -345,8 +345,8 @@ function updateTachometerVisibility(activeCount) {
 }
 
 function renderHeader(groups, jobCount) {
-  runBoardTitle.textContent = t('runBoard.title', { count: String(groups.length) });
-  // タコメーターは run が実行中(「実行中 N」の N ≥ 1。準備中も含む)のときだけ出す(ユーザー決定)。
+  runBoardTitle.textContent = t('runBoard.title');
+  // タコメーターは run が実行中(run が1本以上。準備中も含む)のときだけ出す(ユーザー決定)。
   // **ジョブが続いている間は run が 0 本でも隠さない**(ユーザー決定)—— run と run のあいだ(次の SUT のビルド中等)に
   // 隠すと、右のジョブの数が左へ寄り、次の run で元の位置へ戻る動きになる。
   // hidden 属性は .run-board-tachometer の display に負けるので style で切る。隠している間も数え続ける
@@ -753,7 +753,7 @@ function supplyLabel(supply, whilePreparing) {
 
 // run のある機械の行。**1行に「(マシン名) プロジェクト / 実行プロファイル  進捗  経過 / 残り」**
 // (ユーザー決定)。値はこの機械の run のもの —— 機械分担の run は機械ごとに行が分かれ、
-// それぞれが自分の進捗を出す(束ねた合計は「実行中 N」の件数だけが使う)。
+// それぞれが自分の進捗を出す。
 function updateRow(row, run) {
   row.run = run;
   row.idle = null;
@@ -1117,7 +1117,7 @@ function renderLeadWidth() {
   runBoard.style.setProperty('--rb-lead', widest + 'px');
 }
 
-// ---- アクション/秒メーター(見出しの「実行中 N」の右。純粋ロジックは actionTachometerModel.ts) ----
+// ---- アクション/秒メーター(見出しの「実行状況」の右。純粋ロジックは actionTachometerModel.ts) ----
 // 中身は最初に1回だけ作り、以後は属性と textContent だけ更新する(周期描画で要素を作り直さない規律。
 // マウスを載せている間にツールチップが消えて点滅するのを避ける)。
 const SVG_NS = 'http://www.w3.org/2000/svg';
