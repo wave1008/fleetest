@@ -63,6 +63,40 @@ if e.isNotEmpty { 合計 = e.text }   // 無い・見えていなければ空要
 - 検証ステップをレポートに残したくないときは、`exist` の代わりに `select` を使ってください。
   `select` は取得するだけで検証ステップとしては記録されません(`select("#total").text`)。
 
+## 2回読んで比べる(増えた・止まった)
+
+カウンタやティッカーのように、期待値を書けない値は「間を置いて2回読み、数字を比べる」と確かめられます。
+文字列から数字だけを取り出して `Int` にし、`thisIsGreaterThan` / `thisIs` で比べます。
+
+```swift
+scene(1, "動いている間は増える") {
+    action { tap("#btn_ticker_toggle") }
+    .expectation {
+        let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        wait(1.0)
+        let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        after.thisIsGreaterThan(Double(before))   // "ticker=19" → "ticker=32" なら緑
+    }
+}
+scene(2, "止めると増えない") {
+    action {
+        tap("#btn_ticker_toggle")
+        wait(0.5)                                  // 止めた直後に1つ進むことがあるので、少し置いてから読む
+    }.expectation {
+        let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        wait(1.0)
+        let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        after.thisIs(before)
+    }
+}
+```
+
+- `select` は検証のステップとして記録しないので、読むだけに使えます。読んだ値は `select` した時点のものです。
+- 取り出すのは ASCII の数字だけです(`1,200` は `1200` になります。小数点・マイナス記号は落ちます)。
+  読めなかったときは `-1` になるので、比べるところで失敗します。
+- 間隔(`wait`)は、その値が確実に変わる長さにします。負荷の高い端末では進みが遅くなるので、
+  「何回増えたか」の数までは比べないでください。
+
 ## 直前に取得した要素(`lastElement`)
 
 戻り値を受けていなくても、直前に取得した要素は `lastElement` で読めます。

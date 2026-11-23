@@ -231,7 +231,7 @@
 - [settle: false はそのコマンド1回だけ操作後の待ちを省く](../commands/tap_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見て位置がずれることがあります。
 
 ### テキストの検証(textIs, textContains, …)
-- [比べ方の約束は4つ](../commands/text_assertion_ja.md#注意点) — 見えているとおりに比較・半角と全角スペースと改行は区別・空の期待値は不可・正規表現は書いたとおりです。
+- [比べ方の約束は4つ](../commands/text_assertion_ja.md#注意点) — 見えているとおりに比較・半角と全角スペースと改行は区別(`ft_snapshot` の行は改行を空白で表示する)・空の期待値は不可・正規表現は書いたとおりです。
 - [正規表現が空だと比べる前に失敗する](../commands/text_assertion_ja.md#注意点) — 空文字・空白だけ・見えない文字だけのパターンはどんな文字にも一致してしまうためです。
 - [期待値が空の Contains / StartsWith / EndsWith 系も比べる前に失敗する](../commands/text_assertion_ja.md#注意点) — どんな文字にも当てはまるためで、`value…` / `this…` も同じです。
 - [比較は見た目が完全に一致していれば同じ](../commands/text_assertion_ja.md#注意点) — ゼロ幅などは無視し、半角と全角スペース・連続空白は別物です。NBSP は半角と同じで、`strict: true` で正規化なしにできます。

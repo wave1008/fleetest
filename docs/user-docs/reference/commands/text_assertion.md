@@ -50,6 +50,7 @@ exist("#total")
 - **Four rules for comparing text.**
   1. Text is compared as it looks on the screen (characters you cannot see are ignored).
   2. Half-width spaces, full-width spaces and line breaks are told apart (a selector that finds an element does not tell them apart).
+     A line of MCP's `ft_snapshot` shows a line break as a half-width space so that each element fits on one line. The value of a multi-line field keeps its line breaks, so even when the line shows `value="a b"`, write the expectation with the line break: `valueIs("a\nb")`.
   3. An empty expected value cannot be used with contains / starts-with / ends-with (it fails as an error).
   4. A regular expression is used exactly as written, and matches the text as it looks even when the screen text contains invisible characters.
 - **An empty regular expression fails before comparing** in `textMatches` / `valueMatches` / `thisMatches` and their `Not` forms (empty, only spaces, or only invisible characters would match any text).

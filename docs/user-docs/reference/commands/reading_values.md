@@ -68,6 +68,41 @@ if e.isNotEmpty { total = e.text }   // absent or invisible → an empty element
   `exist` — `select` only grabs and does not appear as a verification step in the report
   (`select("#total").text`).
 
+## Read twice and compare (it went up / it stopped)
+
+For a value you cannot write an expected value for, such as a counter or a ticker, read it twice with a pause in
+between and compare the numbers. Take only the digits out of the text, turn them into an `Int`, and compare with
+`thisIsGreaterThan` / `thisIs`.
+
+```swift
+scene(1, "It goes up while running") {
+    action { tap("#btn_ticker_toggle") }
+    .expectation {
+        let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        wait(1.0)
+        let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        after.thisIsGreaterThan(Double(before))   // passes for "ticker=19" → "ticker=32"
+    }
+}
+scene(2, "It stops going up once stopped") {
+    action {
+        tap("#btn_ticker_toggle")
+        wait(0.5)                                  // it can tick once right after stopping, so read a little later
+    }.expectation {
+        let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        wait(1.0)
+        let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        after.thisIs(before)
+    }
+}
+```
+
+- `select` is not recorded as an assertion step, so it can be used just to read. The value is the one at the moment of `select`.
+- Only ASCII digits are taken (`1,200` becomes `1200`; a decimal point or minus sign is dropped).
+  When nothing can be read the value is `-1`, so the comparison fails.
+- Make the pause (`wait`) long enough for the value to change for sure. On a busy device the value advances
+  more slowly, so do not compare how many times it went up.
+
 ## The last grabbed element (`lastElement`)
 
 Even without capturing the return value, the element grabbed last is readable via `lastElement`.

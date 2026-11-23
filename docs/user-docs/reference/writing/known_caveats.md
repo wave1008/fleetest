@@ -231,7 +231,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`settle: false` skips the settle wait](../commands/tap.md#notes) — the next step may see a moving screen; use it only when speed matters and the next step does not depend on final positions.
 
 ### Text assertion (textIs, textContains, ...)
-- [Four rules for comparing text](../commands/text_assertion.md#notes) — compared as it looks on screen, half-width/full-width spaces and line breaks differ, empty expected values cannot be used with contains-style checks, and regexes are used as written.
+- [Four rules for comparing text](../commands/text_assertion.md#notes) — compared as it looks on screen, half-width/full-width spaces and line breaks differ (a line of `ft_snapshot` shows a line break as a space), empty expected values cannot be used with contains-style checks, and regexes are used as written.
 - [Empty regular expression fails before comparing](../commands/text_assertion.md#notes) — empty, spaces-only or invisible-only patterns would match any text, so `textMatches` and its siblings reject them.
 - [Empty expected value fails before comparing](../commands/text_assertion.md#notes) — for contains/starts/ends-with checks an empty or invisible-only string would hold for any text; invisible characters are removed from both sides.
 - [Comparison is "same if it looks the same"](../commands/text_assertion.md#notes) — invisible characters are ignored, half-width and full-width spaces differ, NBSP equals a space; `strict: true` disables the normalization.
