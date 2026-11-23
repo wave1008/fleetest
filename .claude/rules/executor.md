@@ -98,7 +98,8 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   安全網の上限は入れない。読むのは `StepExecutor` / `FTDriveCore` の `tunables` で、
   `?? FlowStep.defaultXxx` の固定値へ落とさない(`RunTunablesWiringTests`)。**コード生成は
   プロファイルを持たないので `FlowStep` の定数のまま**。**MCP は `profile` で作ったセッションだけそのプロファイルの値**
-  (`DeviceSession.profileExecution` に `ScenarioExecutionSettings(resolved)` から `RunTunables` と容器推定を覚え、executor の組み立てと
+  (`DeviceSession.profileExecution` に `ScenarioExecutionSettings(resolved)` から `RunTunables` と容器推定を覚え(**以後の宛先を省いた呼び出しが
+  来る port / serial の直接の鍵にも置く** = `rememberProfileExecution`)、executor の組み立てと
   セレクタ解決が `MCPServer.executionDefaults(args)` / `containerInferenceEnabled(args)` で読む。udid / serial の直指定は既定。
   既定の `RunTunables()` を直に渡すと ft_batch で通った手順が run で赤になる = `MCPProfileExecutionDefaultsTests`)
 - **システムアラートの判定は2段**: 登録がある間は `SystemUIGate` が毎ステップ止める / 登録が

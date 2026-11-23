@@ -49,6 +49,20 @@ final class MCPServer {
     var knownScreens: SessionMap<FTRect> { SessionMap(server: self, path: \.knownScreen) }
     var uiFrameworkHints: SessionMap<UIFrameworkHint> { SessionMap(server: self, path: \.uiFrameworkHint) }
     var profileExecutions: SessionMap<ProfileExecutionDefaults> { SessionMap(server: self, path: \.profileExecution) }
+    /// profile で作ったセッションの設定を覚える。**以後の宛先を省いた呼び出しは、記憶した port / serial の直接の鍵で来る**
+    /// (`foldInRememberedDevice` が profile を引数に足さずに port / serial を足す)ので、同じ設定をその鍵にも置く
+    /// (置かないと、最初の1回だけ profile を渡す普通の使い方で2回目以降が既定値に戻る)
+    func rememberProfileExecution(_ settings: ProfileExecutionDefaults, profileKey: String,
+                                  iosPort: UInt16?, androidSerial: String?) {
+        profileExecutions[profileKey] = settings
+        if let iosPort {
+            profileExecutions[Self.driverCacheKey(platform: "ios", port: Int(iosPort), serial: nil)] = settings
+        }
+        if let androidSerial {
+            profileExecutions[Self.driverCacheKey(platform: "android", port: nil, serial: androidSerial)] = settings
+        }
+    }
+
     /// このセッションの executor に渡す設定(profile で作ったセッションはそのプロファイルの値・それ以外は既定)
     func executionDefaults(_ args: [String: Any]) -> ProfileExecutionDefaults {
         profileExecutions[Self.sessionKey(args)] ?? ProfileExecutionDefaults()

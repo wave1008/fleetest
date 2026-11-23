@@ -166,7 +166,6 @@ extension MCPServer {
                 created = try await androidDriver(serial: serial, key: key, args: args)
             }
             drivers[key] = created
-            profileExecutions[key] = ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile))
             bridges[key] = {
                 if case .ios = target { "xcuitest" }   // MCP の iOS は常に XCUITest(iosDriver)
                 else { "android" }
@@ -201,6 +200,9 @@ extension MCPServer {
             if case .android(let serial, _) = target {
                 connectedAndroidSerials[key] = serial
             }
+            // **機の入れ替わりでセッションを捨てた(forgetDeviceState)後に覚える**(前に置くと捨てる側に消される)
+            rememberProfileExecution(ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile)), profileKey: key,
+                                     iosPort: connectedPorts[key], androidSerial: connectedAndroidSerials[key])
             // profile 経由なら対象 bundleID が分かるので、bridge を問わず静的に判定して覚える
             // (DSL と同じ AppUIFrameworkQuery。静的に決まらなければ resolveExecutorHints が
             // in-app の自己申告まで問う)。実機は appPathPhysical(.app / .ipa)か台帳で答える

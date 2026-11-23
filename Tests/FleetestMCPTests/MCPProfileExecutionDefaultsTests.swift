@@ -21,6 +21,26 @@ final class MCPProfileExecutionDefaultsTests: XCTestCase {
         XCTAssertFalse(server.containerInferenceEnabled(profileArgs))
     }
 
+    /// 最初の1回だけ profile を渡し、以後は宛先を省いた呼び出し(記憶した port / serial が足される = 直接の鍵)でも
+    /// 同じプロファイルの設定を使う。鍵は `sessionKey` と同じ作り方で引く(作り方がずれると黙って既定値に戻る)
+    func testCallsThatOmitTheTargetAfterAProfileCallKeepItsSettings() {
+        let server = MCPServer()
+        var tunables = RunTunables()
+        tunables.defaultTimeout = 3
+        server.rememberProfileExecution(ProfileExecutionDefaults(ScenarioExecutionSettings(containerInference: false,
+                                                                                            tunables: tunables)),
+                                        profileKey: MCPServer.sessionKey(profileArgs), iosPort: 8131, androidSerial: "emulator-5556")
+        // foldInRememberedDevice が足す形(iOS は port と platform・Android は serial と platform)
+        let iosFolded: [String: Any] = ["platform": "ios", "port": 8131]
+        let androidFolded: [String: Any] = ["platform": "android", "serial": "emulator-5556"]
+        for folded in [iosFolded, androidFolded] {
+            XCTAssertEqual(server.executionDefaults(folded).tunables.defaultTimeout, 3, "\(folded)")
+            XCTAssertFalse(server.containerInferenceEnabled(folded), "\(folded)")
+        }
+        XCTAssertEqual(server.executionDefaults(["platform": "ios", "port": 8123]).tunables.defaultTimeout,
+                       RunTunables().defaultTimeout, "別の機は既定のまま")
+    }
+
     /// profile を使っていないセッション(udid / serial の直指定)は既定のまま
     func testSessionWithoutAProfileUsesTheDefaults() {
         let server = MCPServer()
@@ -53,6 +73,10 @@ final class MCPProfileExecutionDefaultsTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(executorSites, 6)
         let driverSource = try String(contentsOf: dir.appendingPathComponent("MCPServer+Driver.swift"), encoding: .utf8)
-        XCTAssertTrue(driverSource.contains("profileExecutions[key] = ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile))"))
+        XCTAssertTrue(driverSource.contains("rememberProfileExecution(ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile)), profileKey: key,"))
+        // 機の入れ替わりで捨てる(forgetDeviceState)より後に覚える
+        let forget = try XCTUnwrap(driverSource.range(of: "forgetDeviceState(key)\n                    pendingWarnings[key, default: []].append("))
+        let remember = try XCTUnwrap(driverSource.range(of: "rememberProfileExecution(ProfileExecutionDefaults("))
+        XCTAssertLessThan(forget.lowerBound, remember.lowerBound, "覚えた設定を機の入れ替わりの後始末が消す")
     }
 }
