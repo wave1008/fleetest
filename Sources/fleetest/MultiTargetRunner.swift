@@ -745,6 +745,14 @@ final class MultiTargetCoordinator: Sendable {
                 if pendingLeft, !s.unstarted.contains(unit) {
                     s.unstarted.append(unit)
                     s.anchor[unit] = nil   // 始め直す側の見込みで覚え直す(古い時刻のままだと始めた直後から期限切れに見える)
+                    // **配る物が無くて先に終えた(.finished)マシンも起こし直す**(生きていて、この対象をまだ起こしていないものだけ)。
+                    // 残りは配り終えた後に戻ってくる: 対象外の回し直し(DR-214)は試していないマシンへ戻し、そのマシンが既に
+                    // 終えていると誰も取らず「どの端末にも渡されなかった」の赤になった(11/23 昼の回帰の E2E-iOS の折りたたみ2本 =
+                    // M1Ultra は他の対象を終えた時点で E2E-iOS の残りが空だった)。見直すのは .idle だけなので、戻さないと届かない
+                    for m in s.status.indices where s.status[m] == .finished && !s.dead.contains(m)
+                        && units[unit]?.lanes[m] != nil && !s.launched.contains(Pair(unit: unit, machine: m)) {
+                        s.status[m] = .idle
+                    }
                 }
             }
             // 0(全緑)と 1(シナリオの失敗)以外は子が異常終了した印。そのマシンには以後配らない

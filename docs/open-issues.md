@@ -27,7 +27,7 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 4 | OI-329・OI-345・OI-347・OI-358 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-329・OI-345・OI-347・OI-358・OI-360 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 | |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 37 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-346・OI-359 |
@@ -37,6 +37,20 @@
 ## 着手可
 
 ## 要測定
+
+### OI-360 機械をまたぐ run で、全機械の全端末が対象外と答えたシナリオが「どの端末にも渡されなかった」の赤で終わる
+- 状態: 再現済み
+- 確認: 63dafc71c(2026-11-23)
+- 属性: 要測定
+- 運用: 回避不可 — 対象外のシナリオだけで run が赤になる(折りたたみ端末をプロファイルに持たないときの回帰)
+- 優先度: 中 — 誤った赤(対象外は本来「飛ばした」で緑)
+
+出典: 11/23 昼の回帰(`_work/regress-20261123b/regress.log`・24 対象・4 機械)
+- 観測: E2E-iOS / ios-inapp-boost の `折りたたみの開閉を跨いで操作できること.S0010` / `S0020`(折りたためる端末が無い = 全台で対象外)。M1Max の4台・M4Max の2台・手元の8台がすべて試して `result discarded: not applicable`(手元の子の「Results discarded and requeued (16)」)。手元の子は `All 0 scenario(s) passed` で終わり **`(2 skipped: not applicable)` が付かず**、親が `2 scenario(s) were never handed to a device` を出して run の終了コードが非ゼロ(regress.py の「回帰に失敗があります」)。対象の一覧は 24 件すべて pass
+- 対照: 同じ日の朝の回帰では同じ2本が手元で `skipped: not applicable` として確定し緑。同じ回の E2E-Android の同じシナリオも手元の子が `All 0 scenario(s) passed (2 skipped: not applicable)` で緑 = 全機械が尽きた最後の判定(`verdict`)が、この回の E2E-iOS では手元の子へ届かなかったか、子が記帳しなかった
+- 今日の変更(スクロールの数え方・XCUITest の付け方・ランナーの記録)はこの経路を通らない(割り振りは DR-214 の `NotApplicableHandoff` / `DynamicDispatcher.handleNotApplicable`)
+- **原因(11/23・ログとコードで確定)**: E2E-iOS のプロファイルには M1Ultra の iOS 6台が居るが、回帰のログに `[M1Ultra:E2E-iOS` の行は 0(子が一度も起こされていない)。配り手の対象外の判定(`DynamicDispatcher.handleNotApplicable`)は「試していない生きたエントリ」に `entryPlatforms` の全エントリを数えるので、M1Ultra が残る限り `handOn` で `pending` へ戻す。一方、複数対象の配り手(`MultiTargetCoordinator`)は M1Ultra が他の対象を終えた時点で E2E-iOS の残りが空だったので `.finished` にし、見直すのは `.idle` のマシンだけ = 戻った2本を誰も取らず `unhandedUnits` に残った(朝の回帰は手元が最後に試して `skipped` で確定した = 未試行のエントリが残らなかった)
+- **直し(11/23)**: `MultiTargetCoordinator.childFinished` で、担当0台の対象に残りがあって未着手へ戻すとき、生きていてその対象をまだ起こしていない `.finished` のマシンを `.idle` へ戻す(子が落ちて残った分も同じ型)。`MultiTargetRunnerTests.testWorkHandedBackAfterAMachineFinishedRevivesThatMachine`(直しを外すと赤を確認)。**デバイスでは未確認** —— 次の回帰で E2E-iOS の折りたたみ2本が M1Ultra でも試されて `skipped` で確定することを見てから項目を消す
 
 ### OI-358 Android でアプリの面が描かれずキーボードだけ描かれた回は「全面一色」にならず、白紙として扱われない
 - 状態: 再現済み

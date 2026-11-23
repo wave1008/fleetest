@@ -211,6 +211,27 @@ final class MultiTargetRunnerTests: XCTestCase {
         XCTAssertEqual(h.coordinator.unstartedTargets, [], "一度起こした対象を「一度も起こしていない」と数えている")
     }
 
+    /// **配り終えた後に戻ってきた残りは、先に仕事が無くて終えたマシンも取る**(対象外の回し直し = DR-214 は試していないマシンへ戻す)。
+    /// 11/23 昼の回帰: M1Ultra は B を終えた時点で A の残りが空で終わり、A の折りたたみ2本が戻っても誰も取らず赤になった
+    func testWorkHandedBackAfterAMachineFinishedRevivesThatMachine() {
+        let h = Harness(machines: 3, lanes: ["A": [0, 1, 2], "B": [2]],
+                        scenarios: ["A": 2, "B": 1], order: ["A", "B"])
+        h.coordinator.start()
+        XCTAssertTrue(h.launched.contains("B@2"), "前提: マシン 2 は B を回す: \(h.launched)")
+        let aMachines = h.launched.filter { $0.hasPrefix("A@") }
+        XCTAssertFalse(aMachines.isEmpty, "前提: A はマシン 0/1 で回る: \(h.launched)")
+        // A の残りを配り切った後に B が終わる → マシン 2 には配る物が無く終わる
+        h.pending.withLock { $0["A"] = [] }
+        h.finish("B", 2)
+        XCTAssertEqual(h.coordinator.statuses[2], .finished, "前提: 配る物が無いマシンは終わる")
+        // 対象外の回し直しで A の1本が戻ってきた状態のまま、A の子が全部終わる
+        h.pending.withLock { $0["A"] = [DynamicSplit.Scenario(id: "A.back", variant: nil, platform: "ios")] }
+        for name in aMachines { h.finish("A", Int(name.dropFirst(2))!, drain: false) }
+        XCTAssertTrue(h.launched.contains("A@2"), "戻ってきた残りを、まだ A を起こしていないマシン 2 が取っていない: \(h.launched)")
+        XCTAssertFalse(h.launched.filter { $0 == "A@0" || $0 == "A@1" }.count > aMachines.count,
+                       "一度 A を回したマシンで A を起こし直した: \(h.launched)")
+    }
+
     func testExitCodeOneIsAScenarioFailureNotACrash() {
         let h = Harness(machines: 1, lanes: ["A": [0], "B": [0]],
                         scenarios: ["A": 1, "B": 1], order: ["A", "B"])
