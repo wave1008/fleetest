@@ -120,8 +120,9 @@ final class DispatchTicketPlumbingTests: XCTestCase {
     // MARK: - 配線(ソース走査)
 
     /// **チケットを採る場所は1箇所だけ**。`DispatchTicket.now` / `RemoteDispatchQueue.resolveTicket`
-    /// を呼んでよいのは、発行の1箇所(DispatchTicketIssuer)と、実際に待機列へ並ぶ子の側
-    /// (RemoteRunDispatcher)だけ —— 3つ目が増えると、そこだけ別の時刻で並ぶ
+    /// を呼んでよいのは、発行の1箇所(DispatchTicketIssuer)と、実際に待機列へ並ぶ側
+    /// (RemoteRunDispatcher・LocalDispatchLock・align / setup の RemoteAlign)だけ —— それ以外が増えると、そこだけ別の時刻で並ぶ。
+    /// align は機械をまたぐ run の一部ではないので、自分の時刻のチケットで1回だけ並ぶ(RR-18.9「待たない取得も列を通す」)
     func testOnlyTwoPlacesResolveATicket() throws {
         let dir = Self.repoRoot.appendingPathComponent("Sources/fleetest")
         let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
@@ -133,8 +134,9 @@ final class DispatchTicketPlumbingTests: XCTestCase {
                 resolvers.append(name)
             }
         }
-        XCTAssertEqual(resolvers, ["DispatchTicketIssuer.swift", "LocalDispatchLock.swift", "RemoteRunDispatcher.swift"],
-                       "チケットを採る場所が増減した(発行の1箇所 + 待機列に並ぶ2箇所 = リモート/手元)")
+        XCTAssertEqual(resolvers, ["DispatchTicketIssuer.swift", "LocalDispatchLock.swift", "RemoteAlign.swift",
+                                   "RemoteRunDispatcher.swift"],
+                       "チケットを採る場所が増減した(発行の1箇所 + 待機列に並ぶ3箇所 = リモート/手元/align)")
     }
 
     /// 親は **`withTaskGroup` の外で1回だけ** チケットを採る。子ごとの closure の中で採ると、
