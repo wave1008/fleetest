@@ -203,25 +203,32 @@ func remoteReach(hostSpec: RemoteHostSpec)
 // RemoteRunDispatcher.acquireDispatchLock と違い強制取得の分岐を持たない。
 
 /// 取得。成功なら nil、失敗ならそのまま表示できるメッセージ文字列を返す
-/// (RemoteRunDispatcher.acquireDispatchLock と同じ status 判定: 255 = ssh 到達不能、
-/// それ以外の非0 = ロック保持中 → readCommand で保持者を読んで alignHeldMessage を組み立てる)
+/// (255 = ssh 到達不能。それ以外は待機列の結果を `RemoteDispatchLock.alignRefusal` が文言にする)
 func acquireRemoteDispatchLock(hostSpec: RemoteHostSpec, layout: RemoteLayout) -> String? {
     let info = RemoteDispatchLockInfo.now(
         issuerHost: ProcessInfo.processInfo.hostName, pid: ProcessInfo.processInfo.processIdentifier,
         issuer: LocalConfig.resolveIssuerId())
+    // **待機列を1回だけ通す**(待たない取得も列を通す = RR-18.9。直接 mkdir すると先頭で待っている run を追い越し、
+    // その run が照合した版のランナーを開始前に差し替える)。取れなければ自分のチケットを消して断る
+    let ticket = RemoteDispatchQueue.resolveTicket(
+        environment: ProcessInfo.processInfo.environment, issuer: LocalConfig.resolveIssuerId(),
+        runGroup: nil, pid: ProcessInfo.processInfo.processIdentifier, now: Date())
     guard let result = try? Shell.run(setupSSHBase + [hostSpec.sshTarget,
-        RemoteDispatchLock.acquireCommand(home: layout.home, info: info)]) else {
+        RemoteDispatchQueue.enqueueAndTryAcquireCommand(home: layout.home, ticket: ticket, info: info)]) else {
         return "ssh failed to run"
     }
-    guard result.status == 0 else {
-        guard result.status != 255 else {
-            return "cannot reach \(hostSpec.sshTarget) over ssh (status 255)\n\(result.tail)"
-        }
-        let existing = try? Shell.run(setupSSHBase + [hostSpec.sshTarget, RemoteDispatchLock.readCommand(home: layout.home)])
-        let existingInfo = existing.flatMap { RemoteDispatchLock.decode($0.output.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        return RemoteDispatchLock.alignHeldMessage(existingInfo)
+    guard result.status != 255 else {
+        return "cannot reach \(hostSpec.sshTarget) over ssh (status 255)\n\(result.tail)"
     }
-    return nil
+    let outcome = RemoteDispatchQueue.parseOutcome(result.output, ticket: ticket)
+    if outcome != .acquired {
+        _ = try? Shell.run(setupSSHBase + [hostSpec.sshTarget,
+                                           RemoteDispatchQueue.dequeueCommand(home: layout.home, ticket: ticket)])
+    }
+    guard let outcome else {
+        return "could not read the dispatch queue on \(hostSpec.sshTarget) (status \(result.status))\n\(result.tail)"
+    }
+    return RemoteDispatchLock.alignRefusal(outcome)
 }
 
 /// 解放。失敗しても警告1行(run の成否を変えない。RemoteRunDispatcher.releaseDispatchLock と同じ規律)

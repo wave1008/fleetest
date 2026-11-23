@@ -47,7 +47,7 @@ final class RemoteDispatchLockWaitLoopTests: XCTestCase {
         let source = try Self.source()
         XCTAssertTrue(
             source.contains("private func acquireDispatchLock(layout: RemoteLayout, runGroup: String?,")
-            && source.contains("interruptFlag: DispatchInterruptFlag) throws {"),
+            && source.contains("interruptFlag: DispatchInterruptFlag) throws -> Bool {"),
             "acquireDispatchLock must take the caller's interruptFlag — without it, a Ctrl-C while"
             + " queued for the lock can't be observed inside the wait loop")
     }

@@ -69,9 +69,12 @@ final class RemoteDeveloperDirWiringTests: XCTestCase {
                           "\(entry) が共通本体を通らない = developerDir を捕まえる経路から外れる")
         }
         let shared = try functionBody("private func performDispatch(")
-        XCTAssertEqual(shared.components(separatedBy: "let developerDir = try checkCompatibility(layout: layout)").count - 1, 1,
+        // 照合はロックの前に1回 + 待機列で待った後に1回(待つ間に別の align がツールを差し替えうる)。どちらも同じ変数へ受ける
+        XCTAssertEqual(shared.components(separatedBy: "var developerDir = try checkCompatibility(layout: layout)").count - 1, 1,
                        "共通本体が checkCompatibility の戻り値(developerDir)を捨てている")
-        XCTAssertEqual(code.components(separatedBy: "let developerDir = try checkCompatibility(layout: layout)").count - 1, 1,
+        XCTAssertEqual(shared.components(separatedBy: "if waitedForLock { developerDir = try checkCompatibility(layout: layout) }").count - 1, 1,
+                       "待った後の照合し直しの戻り値を run が使う developerDir へ入れていない")
+        XCTAssertEqual(code.components(separatedBy: "try checkCompatibility(layout: layout)").count - 1, 2,
                        "共通本体の外に checkCompatibility の呼び出しが増えた")
     }
 

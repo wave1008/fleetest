@@ -186,7 +186,7 @@ struct RemoteRunDispatcher {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
         cacheHardwareUUID(project: project, session: session)
-        let developerDir = try checkCompatibility(layout: layout)
+        var developerDir = try checkCompatibility(layout: layout)
 
         // **ロック取得の前から観測を張る**(中断があっても、これから登録する
         // `defer { releaseDispatchLock }` を必ず走らせるため)。ここから下は Shell.run 越しの
@@ -204,9 +204,12 @@ struct RemoteRunDispatcher {
         let interruptFlag = DispatchInterruptFlag()
         let lockHeldRelay = InterruptRelay.observing { interruptFlag.mark() }
         defer { lockHeldRelay.stop() }
-        try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)
+        let waitedForLock = try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)
         var lockDisposition = LockDisposition.undecided
         defer { if lockDisposition.releasesAtExit { releaseDispatchLock(layout: layout) } }
+        // **待った後はランナーのツールを照合し直す**(照合はロックを取る前の1回だけ。待っている間に別の `remote align` が
+        // ランナーのツールを差し替えうる = 照合していない版で走る)。不一致なら throw → 上の defer がロックを外す
+        if waitedForLock { developerDir = try checkCompatibility(layout: layout) }
         // **取得の直後にもう一度見る**: 待機列で待っている間の中断はループ内(acquireDispatchLock)
         // で捕まえて外に出るが、待たずに一発で取れた場合や、待機列を抜けた直後に中断が来た場合は
         // ロックを持ったまま関数末尾まで来てしまう。**ここで拾っても安心しない** —— このあとの
@@ -516,13 +519,15 @@ struct RemoteRunDispatcher {
     /// **待機ループは毎周 `interruptFlag` を見る**(`LocalDispatchLock.acquire` と同じ挙動へ揃える)。
     /// 見ないと、待機列で順番待ちの間に Ctrl-C を受けても止まらず、順番が来た瞬間にロックを取って
     /// 実際のリモート run(prepareWorkspace 以降)まで進んでしまう
+    /// 戻り値 = 取るまでに待機列で待ったか(待った後は呼び手がランナーのツールを照合し直す)
+    @discardableResult
     private func acquireDispatchLock(layout: RemoteLayout, runGroup: String?,
-                                     interruptFlag: DispatchInterruptFlag) throws {
+                                     interruptFlag: DispatchInterruptFlag) throws -> Bool {
         if parentHoldsThisLock {
             // 親(fan-out)が全機械ぶんを順序どおりに取り切ってから起こした子。ここで取りに行くと
             // **自分の親が握っているロックを待って**進まない
             log("==> the dispatch lock on \(host.sshTarget) is already held by this run's parent")
-            return
+            return false
         }
         log("==> acquiring dispatch lock on \(host.sshTarget)")
         let info = RemoteDispatchLockInfo.now(
@@ -537,7 +542,7 @@ struct RemoteRunDispatcher {
             // 奪う側が列に残り続けないよう、先に自分のチケットを消す
             dequeueTicket(layout: layout, ticket: ticket)
             _ = try sshCapture(RemoteDispatchLock.forceAcquireCommand(home: layout.home, info: info))
-            return
+            return false
         }
         var announcedKeptLock = false
         var elapsed = 0
@@ -564,7 +569,7 @@ struct RemoteRunDispatcher {
             switch outcome {
             case .acquired:
                 // 向こうで自分のチケットは消えている(enqueueAndTryAcquireCommand が消す)
-                return
+                return elapsed > 0
             case .waiting(let p, let t, let h), .held(let p, let t, let h):
                 position = p
                 total = t

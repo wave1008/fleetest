@@ -125,6 +125,23 @@ public enum RemoteDispatchLock {
             + " Wait for it to finish and retry (RR-18.3)"
     }
 
+    /// align / setup のロック取得(待機列を1回だけ通す = 待たない)の結果から断り文を決める。nil = 取れた。
+    /// **列を通すのは先頭で待っている人を追い越さないため**(RR-18.9「待たない取得も列を通す」)—— 追い越すと、待っている run が
+    /// 照合した版のランナーを、その run の開始前に差し替える
+    public static func alignRefusal(_ outcome: RemoteDispatchQueue.Outcome) -> String? {
+        switch outcome {
+        case .acquired:
+            return nil
+        case .held(_, _, let holder):
+            return alignHeldMessage(holder)
+        case .waiting(let position, _, let holder):
+            return "\(position - 1) dispatch(es) are waiting for this remote host ahead of this align"
+                + (holder.map { " (the lock is held: \(holderDescription($0)))" } ?? "")
+                + " — aligning now would replace the tool they were checked against before they start."
+                + " Wait for them to run and retry (RR-18.9)"
+        }
+    }
+
     private static func holderDescription(_ info: RemoteDispatchLockInfo?) -> String {
         guard let info else { return "holder unknown (its lock info could not be read)" }
         return "started by \(info.issuer) (from \(info.issuerHost), pid \(info.pid)) at \(info.acquiredAt)"
