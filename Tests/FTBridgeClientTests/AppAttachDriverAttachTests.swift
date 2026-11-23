@@ -25,6 +25,13 @@ final class RecordingStubServer: @unchecked Sendable {
     /// 以降の応答の本文を差し替える(リクエストの合間に変えられる)
     func setBody(_ body: String) { lock.lock(); _responseBody = body; lock.unlock() }
     private var responseBody: String { lock.lock(); defer { lock.unlock() }; return _responseBody }
+    /// "METHOD path" ごとに応答のステータスと本文を差し替える(無ければ 200 と `responseBody`)
+    private var _overrides: [String: (status: Int, body: String)] = [:]
+    func setResponse(status: Int, body: String, for path: String) { lock.lock(); _overrides[path] = (status, body); lock.unlock() }
+    fileprivate func override(for path: String?) -> (status: Int, body: String)? {
+        guard let path else { return nil }
+        lock.lock(); defer { lock.unlock() }; return _overrides[path]
+    }
 
     /// 応答を返すまでの待ち(秒)。クライアントのタイムアウトが効くかを見るテスト用(受付スレッドは1本なので直列に待つ)
     private let delaySeconds: Double
@@ -69,6 +76,7 @@ final class RecordingStubServer: @unchecked Sendable {
                 // **本文まで読み切る**(URLSession はヘッダと本文を別のセグメントで送りうる)。
                 // 縮めると POST の本文が空のまま記録される
                 var raw = Data()
+                var requestPath: String?
                 var buffer = [UInt8](repeating: 0, count: 8192)
                 while true {
                     let n = read(c, &buffer, buffer.count)
@@ -84,6 +92,7 @@ final class RecordingStubServer: @unchecked Sendable {
                     guard requestBody.utf8.count >= length else { continue }
                     let head = header.split(separator: " ")
                     if head.count >= 2 {
+                        requestPath = "\(head[0]) \(head[1])"
                         self?.lock.lock()
                         self?._paths.append("\(head[0]) \(head[1])")
                         self?._bodies["\(head[0]) \(head[1])"] = requestBody
@@ -92,8 +101,10 @@ final class RecordingStubServer: @unchecked Sendable {
                     break
                 }
                 if delay > 0 { Thread.sleep(forTimeInterval: delay) }
-                let body = self?.responseBody ?? #"{"ok":true}"#
-                let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                let override = self?.override(for: requestPath)
+                let body = override?.body ?? self?.responseBody ?? #"{"ok":true}"#
+                let status = override.map { "\($0.status) Error" } ?? "200 OK"
+                let response = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\n"
                     + "Content-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
                 _ = response.withCString { write(c, $0, strlen($0)) }
                 close(c)

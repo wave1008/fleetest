@@ -38,10 +38,14 @@ public final class AppAttachDriver: AppDriver {
     /// **このシナリオが止めた対象アプリを activate で起こさない**。XCUITest の activate は止まったアプリを起動するが、そのアプリには
     /// in-app ブリッジが載らない(注入は InAppLauncher の起動だけ)ので、操作は ✅ のまま後続が全部届かず、run はそれを
     /// ブリッジ不達として振り直した(`terminateApp()` → `rotateTo()` が M1Ultra 6/6。プロセスは居るのに答えない)
-    private func activateRunningApp() async throws {
+    /// `checkingProcess`: activate の前にプロセスの生死を聞くか(前面に居ない・回復のときだけ true。snapshot ごとの activate では
+    /// 聞かない = 5 秒上限の照会を毎回払わない)。**止めたアプリの断りを先に見る**(このシナリオが止めたアプリは
+    /// `appStoppedBySession` で断る。生死の照会を先にすると汎用の 503 に化ける)
+    private func activateRunningApp(checkingProcess: Bool) async throws {
         if let gate = revivalRefusal.withLock({ $0 }), let message = await gate() {
             throw StoppedAppRefusal(message: message)
         }
+        if checkingProcess { try await refuseIfAppGone() }
         try await client.activate(bundleID: bundleID)
     }
 
@@ -71,15 +75,44 @@ public final class AppAttachDriver: AppDriver {
            (try? await client.attach(bundleID: bundleID)) != nil {
             return
         }
-        try await activateRunningApp()
+        try await activateRunningApp(checkingProcess: true)
     }
 
-    /// 409(セッション無し)と 503(セッションはあるがアプリが起動していない)は
-    /// どちらも「attach し直せば通る」= 回復対象。**ref を使う操作では使わない**
-    private static func isRecoverableSession(_ error: Error) -> Bool {
-        guard let error = error as? DriverError,
-              case .badResponse(let code, _) = error else { return false }
-        return code == 409 || code == 503
+    /// ref を使わない操作の失敗からの回復(activate して呼び手が1回だけ撃ち直す)。**ref を使う操作では使わない**。
+    /// 409 = セッション無し → 付け直せば通る。503 = **セッションのアプリが動いていない**(BridgeRouter.requireLiveApp)——
+    /// セッションが自分のアプリを指していれば、そのアプリが落ちている事実なので起こさずに投げる(activate は in-app ブリッジ無しで
+    /// 最初の画面から起動し、撃ち直しが読んでいない画面で成功する)。別のアプリを指していた(付け直しが照会に答えず揃わなかった)ときだけ
+    /// 付け直す。照会に答えないときは投げる側(落ちたアプリを起こすほうが害が大きい)
+    private func recoverSession(after error: Error) async throws {
+        guard let driverError = error as? DriverError,
+              case .badResponse(let code, _) = driverError else { throw error }
+        switch code {
+        case 409:
+            break
+        case 503:
+            let session = (try? await client.status(timeout: BridgeLauncher.quickProbeTimeoutSeconds))?.sessionBundleID
+            guard let session, session != bundleID else { throw error }
+        default:
+            throw error
+        }
+        try await activateRunningApp(checkingProcess: true)
+    }
+
+    /// activate の前に聞くアプリのプロセスの生死(true = 居る / false = 居ない / nil = 判定できない)。呼び手が注入する
+    /// (シナリオ実行 = Simulator の launchctl。無ければ判定しない)。**前面に居ない・回復のときだけ聞く**(毎回の activate では聞かない =
+    /// snapshot ごとに 5 秒上限の照会を払わない)
+    public let appIsRunning = LockedValue<(@Sendable (String) async -> Bool?)?>(nil)
+
+    /// 居ないと確かめられたら activate を撃たない(冷間起動 = in-app ブリッジ無しで最初の画面から起動し、この手が別の画面で成功する)
+    private func refuseIfAppGone() async throws {
+        guard let probe = appIsRunning.withLock({ $0 }), await probe(bundleID) == false else { return }
+        throw DriverError.badResponse(status: 503, body: Self.appGoneMessage(bundleID: bundleID))
+    }
+
+    static func appGoneMessage(bundleID: String) -> String {
+        "the app \(bundleID) is not running (it crashed or exited), so this step was not sent. It is not relaunched here:"
+            + " a relaunch starts from the first screen without the in-app bridge, so the step would act on a screen the"
+            + " scenario did not read. Start it again with launchApp"
     }
 
     public func snapshot() async throws -> SnapshotResponse {
@@ -108,7 +141,7 @@ public final class AppAttachDriver: AppDriver {
     }
 
     public func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
-        try await activateRunningApp()
+        try await activateRunningApp(checkingProcess: false)
         attached = true
         var response = try await client.snapshot(bypassingCache: bypassingCache)
         response.elements = SnapshotDedupe.wrapperScrollMerge(response.elements)
@@ -147,8 +180,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.type(ref: nil, text: text)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.type(ref: nil, text: text)
         }
     }
@@ -159,8 +191,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.pressEnter()
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.pressEnter()
         }
     }
@@ -178,8 +209,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.hideKeyboard()
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.hideKeyboard()
         }
     }
@@ -192,8 +222,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.clearInput(ref: nil)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.clearInput(ref: nil)
         }
     }
@@ -205,8 +234,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.back()
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.back()
         }
     }
@@ -231,8 +259,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.swipe(direction, intent: intent, path: path)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.swipe(direction, intent: intent, path: path)
         }
     }
@@ -245,8 +272,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.drag(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
                                   pressSeconds: pressSeconds, durationSeconds: durationSeconds)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.drag(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
                                   pressSeconds: pressSeconds, durationSeconds: durationSeconds)
         }
@@ -261,8 +287,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.press(x: x, y: y, duration: duration)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.press(x: x, y: y, duration: duration)
         }
     }
@@ -275,8 +300,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.hold(x: x, y: y, duration: duration)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.hold(x: x, y: y, duration: duration)
         }
     }
@@ -288,8 +312,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.doubleTap(x: x, y: y)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.doubleTap(x: x, y: y)
         }
     }
@@ -301,8 +324,7 @@ public final class AppAttachDriver: AppDriver {
             try await client.pinch(frame: frame, identifier: identifier, scale: scale,
                                    durationSeconds: durationSeconds)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.pinch(frame: frame, identifier: identifier, scale: scale,
                                    durationSeconds: durationSeconds)
         }
@@ -317,8 +339,7 @@ public final class AppAttachDriver: AppDriver {
             return try await client.setPickerValue(ref: ref, frame: frame, identifier: identifier,
                                                    currentValue: currentValue, value: value)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             return try await client.setPickerValue(ref: ref, frame: frame, identifier: identifier,
                                                    currentValue: currentValue, value: value)
         }
@@ -331,8 +352,7 @@ public final class AppAttachDriver: AppDriver {
             return try await client.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
                                                    currentValue: currentValue, value: value)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             return try await client.setSliderValue(ref: ref, frame: frame, area: area, identifier: identifier,
                                                    currentValue: currentValue, value: value)
         }
@@ -344,8 +364,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             try await client.gesture(request)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             try await client.gesture(request)
         }
     }
@@ -356,8 +375,7 @@ public final class AppAttachDriver: AppDriver {
         do {
             return try await client.rotate(to: orientation)
         } catch {
-            guard Self.isRecoverableSession(error) else { throw error }
-            try await activateRunningApp()
+            try await recoverSession(after: error)
             return try await client.rotate(to: orientation)
         }
     }

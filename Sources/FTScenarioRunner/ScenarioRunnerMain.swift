@@ -380,6 +380,9 @@ struct RunScenario: AsyncParsableCommand {
         var typeDriver: AppDriver?
         // inapp-boost の XCUITest 側のドライバ。core を作った後で「止めたアプリを起こさない」断りの口を渡す(AppAttachDriver.revivalRefusal)
         var revivalGatedAttach: AppAttachDriver?
+        // 回復・付け直しの activate の前に聞くアプリの生死(Simulator だけ = launchctl はサンドボックスの許可表にある。
+        // 実機の devicectl の照会は子から撃たない)。居ないと確かめられたら起こさない(冷間起動で別の画面に撃って成功しない)
+        let simulatorAppProbe = SimulatorAppProcess.recoveryProbe(simulatorUDID: physical ? nil : udid)
         var preferTypeDriver = false
         // Compose は合成タッチで時間・移動を伴うジェスチャ(swipe/press)を駆動できない
         // (tap/type は通る。実験で確定済み)。probe の uiFramework=="compose" 検出時のみ true
@@ -438,7 +441,8 @@ struct RunScenario: AsyncParsableCommand {
                         // 主ドライバと同じく SessionRecoveryDriver で包む(ランナーの起動し直しの 409 から戻る・
                         // a11y の一時停止の読み直し)。MCP の同じ経路(foreignApp)も包んでいる
                         driver = SessionRecoveryDriver(
-                            base: udid.map { LaunchPreflightDriver(base: client, udid: $0) as AppDriver } ?? client)
+                            base: udid.map { LaunchPreflightDriver(base: client, udid: $0) as AppDriver } ?? client,
+                            appIsRunning: simulatorAppProbe)
                     } else {
                         // in-app は launch=simctl 再起動+dylib 注入(自己再起動できないため)
                         let repoRoot = try RepoRoot.find()
@@ -454,6 +458,7 @@ struct RunScenario: AsyncParsableCommand {
                                                      bundleID: appBundleID,
                                                      physicalUDID: physical ? udid : nil)
                         revivalGatedAttach = attach
+                        attach.appIsRunning.withLock { $0 = simulatorAppProbe }
                         typeDriver = attach
                         // WebView 画面だけドライバごと XCUITest へ委譲する(in-app は WKWebView の
                         // 中身を原理的に採れない)。attach は typeDriver と**同じインスタンス**を
@@ -495,7 +500,7 @@ struct RunScenario: AsyncParsableCommand {
                     let preflighted: AppDriver = physical
                         ? inner
                         : (udid.map { LaunchPreflightDriver(base: inner, udid: $0) as AppDriver } ?? client)
-                    driver = SessionRecoveryDriver(base: preflighted)
+                    driver = SessionRecoveryDriver(base: preflighted, appIsRunning: simulatorAppProbe)
                     // 通常ドライバのセッションは対象アプリに縛られ、home() 後の snapshot が
                     // 背面アプリ照会でハングする(実機で確認)。springboard 参照専用を渡す
                     // 同じインスタンスをシステム UI のフォールバックにも使う。
