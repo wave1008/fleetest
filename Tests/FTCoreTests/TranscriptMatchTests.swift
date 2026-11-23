@@ -198,3 +198,29 @@ final class TranscriptMatchTests: XCTestCase {
         XCTAssertEqual(TranscriptMatch.approximateSubstringDistance(haystack: "", needle: "abc"), 3)
     }
 }
+
+/// 漢字だけが違う読み(単 → 单)は赤のまま、失敗文に字形の取り違えの可能性を添える
+final class TranscriptCJKVariantHintTests: XCTestCase {
+    private let hint = "only CJK ideographs differ"
+
+    func testTraditionalReadAsSimplifiedChineseGetsTheHint() {
+        XCTAssertTrue(TranscriptMatch.judge(transcript: "扩張機能", expected: "拡張機能").reason.contains(hint))
+    }
+
+    func testSimplifiedFormStaysRedWithAHint() {
+        let verdict = TranscriptMatch.judge(transcript: "单一行", expected: "単一行")
+        XCTAssertFalse(verdict.visible)
+        XCTAssertEqual(verdict.state, .textMismatch)
+        XCTAssertTrue(verdict.reason.contains(hint), verdict.reason)
+    }
+
+    /// かな・英字の違い、長さの違い、漢字の違いが多すぎる読み、読んだ字が日本語の漢字の読みには添えない
+    func testOtherMismatchesGetNoHint() {
+        // 検定: 読んだ字が日本語にある = 別の文字 / 天地人: 違いが多すぎる
+        for (transcript, expected) in [("検定", "検索"), ("tap=3", "tap=0"), ("单行", "単一行"), ("あいう", "かきく"),
+                                       ("天地人", "日月星"), ("拡張", "擴張")] {
+            let verdict = TranscriptMatch.judge(transcript: transcript, expected: expected)
+            XCTAssertFalse(verdict.reason.contains(hint), "\(transcript) / \(expected): \(verdict.reason)")
+        }
+    }
+}

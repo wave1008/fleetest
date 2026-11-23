@@ -126,8 +126,33 @@ public enum TranscriptMatch {
             return Verdict(visible: false, state: .covered,
                            reason: "only the tail \"\(transcript)\" of the expected text is drawn; its beginning is covered")
         }
+        // 漢字だけが違う読みは字形の取り違え(単 → 单)のことがあるので、合否は変えずにその可能性を添える
+        let variantHint = differsOnlyInCJKIdeographs(o, e)
+            ? " (only CJK ideographs differ and the character read is not a Japanese one: the reader may have read the"
+                + " simplified Chinese form of the same character — look at the screenshot before changing the expected text)"
+            : ""
         return Verdict(visible: false, state: .textMismatch,
-                       reason: "the text drawn there reads \"\(transcript)\", not the expected text")
+                       reason: "the text drawn there reads \"\(transcript)\", not the expected text" + variantHint)
+    }
+
+    /// 正規化後の転写と期待が同じ長さで、違う位置がどれも「期待は日本語の漢字・読んだ字は日本語の文字集合に無い漢字」か
+    /// (単 → 单。日本語の文字集合 = Shift_JIS で表せるか)。字形の対応表は持たない(どの字が異体かは決めない =
+    /// 合否に使わず、失敗文に可能性を添えるだけ)。読んだ字が日本語にある字(検索 → 検定)は別の文字と見て添えない。
+    /// ICU の繁簡変換は日本の新字体(単・検・拡)を知らず、単/单 を結べないので使わない。
+    /// 違いが期待の長さ ÷ misreadDivisor(最低 1)を超えるなら別の文字列と見て false
+    static func differsOnlyInCJKIdeographs(_ transcript: String, _ expected: String) -> Bool {
+        let o = Array(transcript), e = Array(expected)
+        guard o.count == e.count, !e.isEmpty else { return false }
+        let differing = zip(o, e).filter { $0 != $1 }
+        guard !differing.isEmpty, differing.count <= max(1, e.count / misreadDivisor) else { return false }
+        return differing.allSatisfy { read, wanted in
+            isCJKIdeograph(read) && isCJKIdeograph(wanted)
+                && String(wanted).canBeConverted(to: .shiftJIS) && !String(read).canBeConverted(to: .shiftJIS)
+        }
+    }
+
+    private static func isCJKIdeograph(_ character: Character) -> Bool {
+        character.unicodeScalars.count == 1 && character.unicodeScalars.first!.properties.isIdeographic
     }
 
     /// `judge` が退けた転写のうち、**誤読の可能性が残る**もの(1 文字、または len÷5 文字までの差。

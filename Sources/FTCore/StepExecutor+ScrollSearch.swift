@@ -326,7 +326,9 @@ extension StepExecutor {
         let vertical = direction == .up || direction == .down
         let limit = max(0, step.maxSwipes ?? defaultMaxSwipes)
         // 打ち切ったときは**実際の回数**を出す(上限を名乗ると「8回も振ったのに」と読めてしまう)
+        // 回数切れも実数: 容器に満たない払いは動いた割合だけ数えるので、払った本数は上限を超えうる(ScrollSearchBudget.weight)
         let swipes = result?.stoppedUnmoving == true || result?.appLeftForeground != nil || result?.screenResized == true
+            || result?.exhaustedWhileMoving == true
             ? (result?.swipes ?? limit) : limit
         if let scope = result?.scopeHint, !scope.isEmpty, result?.appLeftForeground == nil {
             // 容器が木に無くて止まった回は stoppedUnmoving 等の印が立たず、上限を名乗ると記録(1回)と食い違う
@@ -371,7 +373,12 @@ extension StepExecutor {
                 + " the scroll area moved; nothing is known about the end of the list; take a fresh snapshot and search again)"
         } else if result?.exhaustedWhileMoving == true, result?.scrollFrameOtherAxis != true {
             // 天井では「上げろ」と言わない(MCP の入口が断る)
-            stopped = " (the content was still moving when the last swipe was used, so the end was not reached —"
+            // 上限より多く払ったときは理由を言う(「maxSwipes 8 なのに 16 回」を不具合と読ませない)
+            let shortSwipes = swipes > limit
+                ? " swipes that moved the content less than the scroll area's length count only for the part they moved, so"
+                    + " \(swipes) were sent for maxSwipes \(limit);"
+                : ""
+            stopped = " (the content was still moving when the last swipe was used, so the end was not reached —" + shortSwipes
                 + (Double(limit) >= ArgumentBounds.swipeCountCeiling
                     ? " \(limit) swipes is the ceiling: scroll part of the way first, or search from nearer the target)"
                     : " raise maxSwipes (now \(limit)) to search further)")
@@ -1089,6 +1096,12 @@ extension StepExecutor {
         // 直前の払いが木を動かしたか。動かさなかった払いは回数に数えない(ScrollSearchBudget)。
         // 周回ごとに「数える」へ戻す = 比べていない周回(初回・引き直しの外れ・寄せの後)の払いは数える
         var previousSwipeMoved = true
+        // 容器に満たない払いの端数(ScrollSearchBudget.weight)。重みは払った後の最初の読みで1回だけ量る
+        // (払わずに読み直す周回で同じ払いを二度量らない)。量った周回のうちに戻す = 最後の払いの端数も上限の判定に効く
+        var swipeAwaitingWeight = false
+        var budgetCredit = 0.0
+        let strokeRatio = 1 - FTScrollDefaults.startMarginRatio(intent: .search, vertical: direction == .up || direction == .down)
+            - FTScrollDefaults.endMarginRatio(intent: .search, vertical: direction == .up || direction == .down)
         scrollSearchBuriedCover = nil
         scrollSearchTrace = []
         while attempt < maxSwipes {
@@ -1225,7 +1238,7 @@ extension StepExecutor {
             // 既定経路の飛び越しをホスト側で塞ぐには座標スワイプを常用するしかなく、それは
             // 2度撤回済み(PT-3.19)。**ここを既定経路へ広げないこと**
             let vertical = direction == .up || direction == .down
-            // 記録に添える移動量(前の回と重なっていたか = 飛び越しの有無を後から読むための測る口。判定には使わない)
+            // 記録に添える移動量(前の回と重なっていたか = 飛び越しの有無を後から読むための測る口。端・飛び越しの判定には使わず、払いの回数の重みにだけ使う)
             var travelTrace = ""
             if let previousSnapshot {
                 let container = scrollContainer(step: step, in: snapshot, vertical: vertical)
@@ -1237,12 +1250,21 @@ extension StepExecutor {
                     let heading = Self.measuredContentDirection(before: previousSnapshot, after: snapshot, vertical: vertical)
                         .map { ", content went \($0)" } ?? ""
                     travelTrace = " (moved \(Int(saturating: moved.rounded())) of \(Int(saturating: extent.rounded()))\(heading))"
+                    // 動いた要素が無い(heading が nil)なら量らない: 容器ぶん以上動いて行が入れ替わった払いは、共通に残るのが
+                    // 動かない要素(容器自身・固定ヘッダ)だけになり「0 動いた」と読める = 1本と数える側(nil)へ倒す
+                    if swipeAwaitingWeight, extent > 0, heading != "" {
+                        attempt = ScrollSearchBudget.attemptAfterMovedSwipe(
+                            attempt: attempt,
+                            weight: ScrollSearchBudget.weight(travelRatio: moved / extent, strokeRatio: strokeRatio),
+                            credit: &budgetCredit)
+                    }
                     if travel > extent * Self.travelCeilingRatio {
                         spanScale = max(Self.minSpanScale, spanScale * Self.spanShrinkFactor)
                     }
                 } else {
                     travelTrace = " (moved ? of \(Int(saturating: extent.rounded())) — no element in common with the previous read)"
                 }
+                swipeAwaitingWeight = false
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
             var traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
@@ -1770,6 +1792,7 @@ extension StepExecutor {
                 swipes += 1
                 previousSnapshot = snapshot
                 attempt = ScrollSearchBudget.attemptAfterSending(attempt: attempt, previousSwipeMoved: previousSwipeMoved)
+                swipeAwaitingWeight = true
             }
         }
         // **弾切れでも逆走査を1回だけ試す**(実測: 端のバウンスで内容署名が毎周

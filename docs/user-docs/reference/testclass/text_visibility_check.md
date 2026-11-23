@@ -111,6 +111,7 @@ left. FM judges those. Where FM is unavailable, they pass unverified.
 - A short truncation that shows only the first few characters can fail: OCR may read `…` as a single
   dot, which does not count as an ellipsis.
 - A translucent overlay counts as visible as long as the text under it can be read.
+- FM sometimes reads a Japanese kanji as the simplified Chinese form of the same character. If OCR reads the whole text the step still passes, but OCR cannot read faint text (an input field's placeholder, for example), so text that is drawn can fail. When the failure says `only CJK ideographs differ`, check the drawn character in the failure screenshot before changing the expected text.
 - On iOS, when a list row (cell) has no text child element, the label is checked in the row's own frame, by OCR alone (FM is not used). If some text is read but
   the expected text is missing or only its beginning is read, the step fails and the note `row-label-not-read` is left in the result JSON (a clipped row, a row under
   the tab bar, or a list squashed flat in landscape so the rows are not drawn). A reading that differs only in upper/lower case or in glyphs OCR easily confuses (`o` and `0`; `l`, `i`, `|` and `1`) does not fail (for example, a drawn "yo1" read as "Y01"). A row where no text is read at all (an icon, an image, or a plain colour box drawn without text) does not fail. With the OCR check turned off (`ocrTextVisibilityCheck: false`) this check does not run. Buttons are not checked this way (an icon button's label is a description that is not drawn).

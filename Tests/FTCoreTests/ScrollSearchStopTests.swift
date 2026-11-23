@@ -179,14 +179,16 @@ final class ScrollSearchStopTests: XCTestCase {
     }
 
     /// **動いている間は打ち切らない**(上限まで使う)。ここが縮むと、
-    /// 遅れて現れる行に届かなくなる
+    /// 遅れて現れる行に届かなくなる。この偽の一覧は1本で画面の 40pt しか動かないので、払いは動いた割合だけ数えられ
+    /// (ScrollSearchBudget.weight)、本数は上限より多く・探索の刻みの比(0.5)で割った 2 倍以内になる
     func testSearchKeepsGoingWhileTheContentMoves() async throws {
         let driver = MovingDriver()
 
         _ = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables()).execute(scrollTo("missing", maxSwipes: 5))
 
-        XCTAssertEqual(driver.swipeCount, 5,
-                       "動いているのに打ち切った: \(driver.swipeCount) 回")
+        XCTAssertGreaterThanOrEqual(driver.swipeCount, 5,
+                                    "動いているのに打ち切った: \(driver.swipeCount) 回")
+        XCTAssertLessThanOrEqual(driver.swipeCount, 10, "短い払いの数え方が上限の 2 倍を超えた: \(driver.swipeCount) 回")
     }
 
     /// **明示 scrollFrame が解決できないなら、1本も振らずに失敗させる**。

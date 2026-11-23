@@ -40,4 +40,23 @@ public enum ScrollSearchBudget {
     public static func attemptAfterSending(attempt: Int, previousSwipeMoved: Bool) -> Int {
         previousSwipeMoved ? attempt : attempt - 1
     }
+
+    /// 動いた払いの重み(1本 = 1)。**容器の長さに満たない移動しかしなかった払いは、動いた割合だけ数える**。
+    /// in-app の払いは慣性が無く刻み(探索は容器の 0.5)ぶんしか動かず、同じ maxSwipes で XCUITest(慣性で容器以上動く)の
+    /// 半分の距離しか探せなかった = 作成(MCP・XCUITest)で届いた scrollTo が本番(inapp-boost)で回数切れ。
+    /// 下限は払いの刻みの比(`strokeRatio`): 払いの数は maxSwipes ÷ 刻みの比を超えない(探索の刻み 0.5 なら 2 倍まで)。
+    /// 測れない(共通の id が無い)回は nil = 1本と数える(従来どおり)
+    public static func weight(travelRatio: Double?, strokeRatio: Double) -> Double {
+        guard let travelRatio else { return 1 }
+        return min(1, max(travelRatio, strokeRatio, 0.01))
+    }
+
+    /// 動いた払いの端数を貯め、1本ぶん貯まったら `attempt` を1つ戻す。`credit` は探索ごとに 0 から
+    public static func attemptAfterMovedSwipe(attempt: Int, weight: Double, credit: inout Double) -> Int {
+        credit += 1 - weight
+        // 浮動小数の誤差で 0.5 + 0.5 が 1 に届かない形を拾う
+        guard credit >= 1 - 1e-9 else { return attempt }
+        credit -= 1
+        return attempt - 1
+    }
 }
