@@ -53,6 +53,9 @@ expectation {
 - **When several elements match the selector of `exist`, it passes if the text of any one of them is visible.** If the first match is judged not visible, the remaining matches are checked in order (for example, a product image whose description equals the product name and comes first). A selector with an index `[n]` or a relative selector checks only that one element (text assertions do the same, checking only matches whose value fits the expectation).
 - **A step named `screen rendering check (…)` that fails is not a mistake in the scenario steps.** It is a screenshot showing that the iOS Simulator stopped drawing (the app area is one colour, or no text is drawn at all). Run the scenario again without rewriting it, and restart the app or the Simulator if it keeps failing. See [Screen rendering check](../testclass/text_visibility_check.md#screen-rendering-check-ios-simulator-only).
 - **In an app that shows skeleton rows with the same `#id` as the real rows while loading, `exist` passes before loading finishes.** Do not use it as the completion check; use `enabledIsTrue()` (when the skeleton is exposed as disabled) or a count echo of the loaded rows. Verifying a transient state that ends quickly (`state=loading` and the like) splits into pass and fail depending on the device's speed ([UI component quirks](../writing/ui_component_patterns.md#loading-skeletons)).
+- **Even when you target an element by `#id`, the text visibility check looks for its label drawn on screen.** An element whose label is
+  only read aloud and never drawn (such as `No formula` on the empty formula field of the Android calculator) fails. To check only that it exists,
+  write `exist("#formula", requireVisible: false)`. The MCP check while writing does not run the visibility check, so this first fails in the real run.
 
 ### Link
 - [index](../../index.md)

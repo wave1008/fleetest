@@ -49,6 +49,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`exist` with several matching elements](../commands/existence_assertion.md#notes) — passes if the text of any match is visible (the remaining matches are checked when the first is not); `[n]` and relative selectors check only that one.
 - [Skeleton rows share the real rows' id, so `exist` passes before loading ends](../commands/existence_assertion.md#notes) — do not use it as the completion check; use `enabledIsTrue()` or a count echo of the loaded rows.
 - [A failing `screen rendering check` is not a scenario mistake](../commands/existence_assertion.md#notes) — the iOS Simulator stopped drawing text; run again without rewriting, and restart the Simulator if it repeats.
+- [The visibility check looks for the label even with `#id`](../commands/existence_assertion.md#notes) — an element whose label is only read aloud and never drawn fails; use `requireVisible: false` to check only that it exists.
 
 ### Find by image (findImage, findImages, existImage)
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.
@@ -97,6 +98,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### iosAlertHandler
 - [The same title can be registered several times with different buttons](../commands/ios_alert_handler.md#notes) — the one matching a button on the alert shown is pressed.
 - [Empty or all-wildcard alternative fails at declaration](../commands/ios_alert_handler.md#notes) — an empty alternative or one of only `*` and invisible characters would match any alert, so declare concrete text.
+- [The permission alerts while writing and in the run can differ](../commands/ios_alert_handler.md#notes) — each device remembers the answers, so register every permission the app may ask for, one call per alert.
 
 ### irregularHandler
 - [Fires during operation and assertion waits](../commands/irregular_handler.md#notes) — assertions poll the current tree, so a modal opening during `exist` / `textIs` is closed too.
@@ -110,6 +112,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### launchApp, restartApp, terminateApp, openURL
 - [`launchApp` always terminates first](../commands/launch_app.md#notes) — it never just foregrounds the app, so every call starts at the entry screen. Apps that restore their previous screen (OS stock apps such as Contacts and Notes) are the exception: put steps right after it that return to the list.
+- [OS stock apps change with the OS version, language and existing data](../commands/launch_app.md#notes) — run on the same version and language you wrote on, and target the data you created by a unique name.
 - [`launchApp` keeps app data](../commands/launch_app.md#notes) — saved content and login state remain; use `clearAppData()` to erase.
 - [iOS inapp-boost: other apps fail mid-scenario](../commands/launch_app.md#notes) — the in-app bridge cannot drive another app; put steps on other apps (such as Settings) in a separate scenario under a profile naming that app.
 - [fleetest's own bridge cannot be the target](../commands/launch_app.md#notes) — passing the bridge's ID to `launchApp` / `restartApp` fails without sending anything.
@@ -282,6 +285,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### Selector expressions
 - [A partial-match selector can hit a search's "no results" message](../selector/selector_expression.md#notes) — the message echoes the query. Narrow it by the result row's type, such as `.clickable&&*…*` (the type differs by OS; check it in a snapshot).
+- [`*` works only at the start and the end](../selector/selector_expression.md#notes) — a `*` in the middle is compared as the character itself; use `textMatches=` to skip a middle part.
 - [The ancestor of a scope (>>) must have its contents under it in the tree](../selector/selector_expression.md#notes) — on iOS, a Compose Multiplatform Row/Column with only a `testTag` matches nothing as an ancestor (only on iOS). Write a unique `#id`, a label, or a relative selector instead.
 
 ### Typed selector (Sel)

@@ -73,6 +73,8 @@ equivalent of this same notation.
 
 - **The ancestor of a scope (`>>`) must have its contents under it in the tree.** On iOS, Compose Multiplatform shows a Row/Column that only has a `testTag` as an element with nothing under it, and lists its contents beside it (at the same level). A scope on such an ancestor matches nothing on iOS (it matches on Android). When the failure message says `the scope's container … has nothing under it`, this is the case. Drop the scope and write a unique `#id`, a label, or a relative selector from an element next to it (such as `#btn_qty_decrement:right`). When a scenario that runs on both OSes uses a scope, check that it passes on iOS too before keeping it.
 - **A partial-match selector can also hit the "no results" message of a search or filter.** That message echoes the query you typed ("No results for …"), so `*query*` can find the message instead of a result row (observed in a stock app). Narrow it by the result row's type (the first word of the snapshot line: `.clickable` on Android, `.cell` or `.button` and so on on iOS), for example `.clickable&&*…*`, so it only matches result rows.
+- **`*` works only at the start and the end.** A `*` in the middle is compared as the character itself (`*Taro*no results` means "ends with `Taro*no results`").
+  To skip a middle part, use a regular expression such as `textMatches=Taro.*no results`.
 
 ### Link
 - [index](../../index.md)

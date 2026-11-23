@@ -49,6 +49,7 @@
 - [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 末尾が省略記号なら緑(`text-ellipsized`)、描かれたのが期待の半分より多いと緑(`text-partially-hidden`)、半分以下は失敗です。大部分を隠す画面は `requireVisible: false` を使います。
 - [exist のセレクタに一致する要素が複数あれば、どれか1つの文字が見えていれば緑](../commands/existence_assertion_ja.md#注意点) — 最初の一致が見えなければ残りの一致を確かめます。`[n]` と相対セレクタはその1つだけを確かめます。
 - [screen rendering check の赤はシナリオの誤りではない](../commands/existence_assertion_ja.md#注意点) — iOS Simulator の描画が壊れて文字が描かれていない事実です。書き換えずにもう一度実行し、続けば Simulator を起動し直します。
+- [`#id` で指しても可視性検証はラベルが描かれているかを見る](../commands/existence_assertion_ja.md#注意点) — 読み上げ用で描かれないラベルの要素は失敗します。在ることだけなら `requireVisible: false` です。
 
 ### 画像で探す(findImage, findImages, existImage)
 - [記録の距離を threshold の目安にする](../commands/find_image_ja.md#注意点) — 記録には距離と比べた候補の数が出ます。見つからないときは最も近かった距離が出ます。
@@ -97,6 +98,7 @@
 ### iOS のシステムアラート(iosAlertHandler)
 - [同じタイトルにボタン違いで複数登録してよい](../commands/ios_alert_handler_ja.md#注意点) — 出ているアラートのボタンに合うものが押されます。
 - [空または * と見えない文字だけの分岐は宣言時に失敗する](../commands/ios_alert_handler_ja.md#注意点) — どのアラートにも一致してしまうためです。具体的な文言を書きます。
+- [作成中と本番で出る許可のアラートは同じとは限らない](../commands/ios_alert_handler_ja.md#注意点) — 許可は端末ごとに覚えられるので、アプリが求めうる許可を1枚ずつ登録します。
 
 ### irregularHandler
 - [操作の待機中・検証の待機中のどちらでも発火する](../commands/irregular_handler_ja.md#注意点) — 検証のポーリング中に開いたモーダルも、タップ中に開いたものと同じように閉じられます。
@@ -110,6 +112,7 @@
 
 ### launchApp, restartApp, terminateApp, openURL
 - [launchApp は起動済みでも常にプロセスを終了して起動し直す](../commands/launch_app_ja.md#注意点) — 前面化ではないので、どの呼び出しもエントリー画面から始まります。ただし前の画面を復元するアプリ(OS の標準アプリの連絡先・メモ等)は復元されるので、直後に一覧へ戻す手順を置きます。
+- [OS の標準アプリは端末の版・言語・既存のデータで画面が変わる](../commands/launch_app_ja.md#注意点) — 作成した端末と同じ版・言語で回し、自分で作ったデータを固有の名前で指します。
 - [launchApp はアプリのデータを消さない](../commands/launch_app_ja.md#注意点) — 消えるのはプロセスと画面の状態だけです。データを消すのは `clearAppData()` です。
 - [iOS の inapp-boost で他のアプリを launchApp / restartApp すると失敗する](../commands/launch_app_ja.md#注意点) — in-app ブリッジは別のアプリを駆動できません。そのアプリの手順は別のシナリオに分けます。
 - [fleetest 自身のブリッジは launchApp / restartApp の対象にできない](../commands/launch_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。
@@ -282,6 +285,7 @@
 
 ### セレクタ式
 - [部分一致のセレクタは検索・絞り込みの「0件」の案内文にも当たる](../selector/selector_expression_ja.md#注意点) — 案内文がクエリを反響するためです。`.clickable&&*…*` のように結果の行の型で絞ります(型は OS で違うのでスナップショットで確かめます)。
+- [`*` が効くのは先頭と末尾だけ](../selector/selector_expression_ja.md#注意点) — 途中の `*` は文字そのものとして比べます。途中を飛ばすなら `textMatches=` の正規表現で書きます。
 - [スコープ(>>)の祖先はツリーの上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
 
 ### 型付きセレクタ(Sel)

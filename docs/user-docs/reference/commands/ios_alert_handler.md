@@ -23,6 +23,9 @@ iosAlertHandler(alert: "*wants to track*||*トラッキング*",
 
 - **You may register the same title several times with different buttons**; the one that matches a button on the alert actually shown is pressed (for example an OS update nag that appears as two alerts, with "Later" and "Remind Me Tomorrow").
 - **An empty alternative, or one with nothing but `*` and invisible characters (for example `"\u{200B}*"`), fails at the declaration** — it would match any alert.
+- **The permission alerts you saw while writing are not necessarily the ones the real run shows.** Each device remembers the answers, so an alert
+  you answered on the device you wrote on does not appear again, while the run's device may show another permission first (location, contacts,
+  notifications and so on). Register each permission the app may ask for, one call per alert.
 
 ## Why this exists
 

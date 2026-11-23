@@ -10,8 +10,20 @@ public enum AlertTreeScope {
     /// アプリの木の中の alert。いちばん手前 = 木の順で最後の1つ。**画面に描かれているものだけ**(枠が0・画面の外の
     /// alert は閉じた後の残りかもしれない。それで木を伏せると、読み手には押しても何も起きないアラートだけの画面が見え続ける)
     public static func frontInAppAlert(in snapshot: SnapshotResponse) -> ElementInfo? {
+        front(of: ["alert"], in: snapshot)
+    }
+
+    /// 手前の alert と手前のアクションシート(`sheet` = UIAlertController の actionSheet)を**別々に**(在るものだけ)。
+    /// **`/hittable` が中のボタンを引き当てない面の判定だけに使う**(カレンダーの削除確認シートで押せば届くのに引き当てられなかった)。
+    /// 型ごとに取る = 両方が描かれているとき、木の順で後ろの片方だけを見ると、もう片方のボタンが除外から外れる。
+    /// 閉じた後の古い面が新しい画面の裏に残っている形は見分けられない(塗り順が木に無い)。木を伏せる・ボタンを並べる側は alert のまま
+    public static func frontInAppAlertAndActionSheet(in snapshot: SnapshotResponse) -> [ElementInfo] {
+        [front(of: ["alert"], in: snapshot), front(of: ["sheet"], in: snapshot)].compactMap { $0 }
+    }
+
+    private static func front(of types: Set<String>, in snapshot: SnapshotResponse) -> ElementInfo? {
         snapshot.elements.last {
-            ElementInfo.normalizedType($0.type) == "alert" && $0.frame.width > 0 && $0.frame.height > 0
+            types.contains(ElementInfo.normalizedType($0.type)) && $0.frame.width > 0 && $0.frame.height > 0
                 && ScrollGeometry.intersection($0.frame, snapshot.screen) != nil
         }
     }

@@ -1232,6 +1232,35 @@ final class MCPRefGuardTests: XCTestCase {
         XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, text)
     }
 
+    /// アクションシート(`sheet`)のボタンも同じ。iOS のカレンダーの削除確認シートで `/hittable` が引き当てず、押せば届いて予定が消えた
+    func testTapOnAnActionSheetButtonDoesNotClaimTheAppIsGone() async throws {
+        driver.snapshotResponse = screen([
+            element(ref: 1, type: "button", id: "btn_back", label: "戻る", x: 16, y: 60, depth: 2),
+            element(ref: 2, type: "sheet", label: "この予定を削除してもよろしいですか?", x: 81, y: 652, w: 240, h: 146, depth: 1),
+            element(ref: 3, type: "button", id: "delete-alert-button", label: "予定を削除", x: 97, y: 734, w: 208, h: 48, depth: 2),
+        ])
+        driver.hitTestAnswer = .unresolvable
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 3]))
+        XCTAssertFalse(text.contains("no longer the one being queried"), text)
+        XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, text)
+    }
+
+    /// アラートとアクションシートが両方描かれ、シートが木の順で後ろでも、アラートのボタンは除外のまま(後ろの片方だけを見ると外れた)
+    func testAlertButtonStaysExcludedWhenAnActionSheetFollowsIt() async throws {
+        driver.snapshotResponse = screen([
+            element(ref: 1, type: "alert", label: "確認", x: 60, y: 300, w: 270, h: 180, depth: 1),
+            element(ref: 2, type: "button", id: "btn_alert_ok", label: "OK", x: 60, y: 430, w: 135, h: 44, depth: 2),
+            element(ref: 3, type: "sheet", label: "操作", x: 81, y: 652, w: 240, h: 146, depth: 1),
+            element(ref: 4, type: "button", id: "btn_sheet_delete", label: "削除", x: 97, y: 734, w: 208, h: 48, depth: 2),
+        ])
+        driver.hitTestAnswer = .unresolvable
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = Self.text(try await server.call(tool: "ft_tap", args: ["ref": 2]))
+        XCTAssertFalse(text.contains("no longer the one being queried"), text)
+        XCTAssertTrue(actions.contains { $0.hasPrefix("tap") }, text)
+    }
+
     /// **引き当てられたときは黙る**(検出器が常時発火していないこと)
     func testTapStaysQuietWhenThePlatformResolvesTheElement() async throws {
         driver.snapshotResponse = screen([

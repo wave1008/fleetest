@@ -948,8 +948,9 @@ extension MCPServer {
     /// 「アプリスイッチャーが開いている」という**誤った説明**を並べてしまう。
     /// 面が分かっているならそちらが正確なので、当たったほうだけを言う。
     /// 覆っているときは `hitTest` を聞かずに済むので往復も1つ減る
-    /// `insideInAppAlert`: 対象がアプリ内アラート(`AlertTreeScope.frontInAppAlert`)の部分木に居る。そのボタンは
-    /// `/hittable` が引き当てられないことがあり(実機 SE3・SwiftUI の `.alert` で 5/5。押せば届いて閉じた)、
+    /// `insideInAppAlert`: 対象が手前のアプリ内アラートかアクションシート(`AlertTreeScope.frontInAppAlertAndActionSheet`。
+    /// `frontInAppAlert` に揃えない = シートが外れる)の部分木に居る。そのボタンは
+    /// `/hittable` が引き当てられないことがあり(実機 SE3・SwiftUI の `.alert` で 5/5・カレンダーの削除確認シート。押せば届いて閉じた)、
     /// 「アプリスイッチャー/別アプリ」と断じて撃ち直しを誘っていた。木がアラートを前面と言っている以上、
     /// 問い合わせ対象が外れたという推論は成り立たないので聞かない(覆いは聞く)
     /// `operation` = 文言の操作名(ft_tap の経路は "tap"。ref のジェスチャは "double tap" / "drag" / "pinch")
@@ -988,9 +989,9 @@ extension MCPServer {
         if let memo = lastScreenProbe[key], memo.fingerprint == fingerprint {
             return memo.warning
         }
-        let insideAlert = AlertTreeScope.frontInAppAlert(in: fresh).map { alert in
-            AlertTreeScope.alertOnly(alert, in: fresh).elements.contains { $0.ref == found.ref }
-        } ?? false
+        let insideAlert = AlertTreeScope.frontInAppAlertAndActionSheet(in: fresh).contains { panel in
+            AlertTreeScope.alertOnly(panel, in: fresh).elements.contains { $0.ref == found.ref }
+        }
         let others = fresh.elements.filter { $0.ref != found.ref && !($0.label ?? "").isEmpty && TapTargetGeometry.platformShouldResolve($0) }
             .prefix(2).map { nativeRef($0.ref, args: args) }
         let warning = await Self.screenNotRepresentedWarning(found, nativeRef: nativeRef(found.ref, args: args), otherNativeRefs: others,
