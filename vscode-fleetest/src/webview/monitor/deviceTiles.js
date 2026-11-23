@@ -15,7 +15,7 @@ import { clampMenuPosition } from './menu.js';
 import { setHoverTip, flashTip } from './hoverTip.js';
 import { isDragDistance, marqueeRect, idsInMarquee, mergeMarqueeSelection, rectContains, autoScrollVelocity, autoScrollStep } from './marqueeModel.js';
 import {
-  isMachineDisabled, onMachineEnablementChanged, paintMachineBadge, LOCAL_MACHINE_LABEL,
+  isMachineDisabled, onMachineEnablementChanged, disabledMachinesKey, paintMachineBadge, LOCAL_MACHINE_LABEL,
 } from './machineColors.js';
 // 「起動中のデバイス」の判定はホストと**同じ1つの定義**を通す(複製すると、どの state を
 // 起動中と見るかが2箇所で食い違う)。この .ts は拡張と webview の両バンドルに入るので
@@ -976,21 +976,12 @@ export function renderDeviceOpMenuItem() {
     return;
   }
   deviceOpMenuItemBtn.style.display = '';
-  // 「マシン有効」off の機械のデバイスは起動させない(実機のブリッジ起動も同じ)。停止は残す。
-  // 項目は隠さず理由を出す(隠すと「なぜ起動が無いか」が分からない)。拡張側にも同じ門がある(monitorPanel.ts の deviceOp)
-  const machineOff = item.op === 'up' && !item.disabled && isMachineDisabled(device.machine);
+  // 「マシン有効」off の機械のタイルは出さない(tileDevices)ので、ここでは見ない。起動を断る門は拡張側(monitorPanel.ts の deviceOp)
   // ラベルはspanに書く(ボタン直のtextContent代入はアイコンSVGを消す)。data-opはCSSのアイコン切替も担う。
-  deviceOpMenuItemLabel.textContent = machineOff ? t('wvMonitor.deviceOpMenu.startMachineDisabled') : t(item.labelKey);
-  deviceOpMenuItemBtn.disabled = item.disabled || machineOff;
+  deviceOpMenuItemLabel.textContent = t(item.labelKey);
+  deviceOpMenuItemBtn.disabled = item.disabled;
   deviceOpMenuItemBtn.dataset.op = item.op;
 }
-
-// 開いている間に「マシン有効」が切り替わったら項目を作り直す
-onMachineEnablementChanged(() => {
-  if (deviceOpMenuOpen) {
-    renderDeviceOpMenuItem();
-  }
-});
 
 // 「開いているか」は entry では判定できない —— 空きエリアの右クリックでは entry が無いまま開く。
 let deviceOpMenuOpen = false;
@@ -1662,13 +1653,26 @@ function renderRebootAdvice(devices) {
   setHoverTip(rebootAdvice, summary && summary.names.length > REBOOT_ADVICE_NAMES_SHOWN ? summary.names.join('\n') : '');
 }
 
-/** タイルに出すデバイス(= 表示フィルタを両方通したもの)。run ボードのツリーは通さない。 */
+/** タイルに出すデバイス(= 表示フィルタを両方通したもの)。run ボードのツリーは通さない。
+ *  「マシン有効」off の機械のデバイスも出さない(隠すのは表示だけ = デバイスは止めない。DR-228) */
 function tileDevices() {
   return filterMonitorDevices(
-    lastDevices.filter((device) => isPlatformVisible(device.platform)),
+    lastDevices.filter((device) => isPlatformVisible(device.platform) && !isMachineDisabled(device.machine)),
     deviceStateFilter,
   );
 }
+
+// 「マシン有効」が切り替わったらタイルを作り直す(次の devices サイクルを待たない)。
+// **無効な機械の集合が変わったときだけ** —— 通知は remoteConfig のたび(色・並べ替え・保存)に鳴り、
+// applyVisibleDevices は呼ぶたびに観測1回と数える(bridgeStoppedLocally 等の数え上げが古い lastDevices で進む)
+let tileDisabledMachinesKey = '';
+onMachineEnablementChanged(() => {
+  // 鍵は設定の集合そのもの(lastDevices から作ると、デバイスより先に届いた off を見落とし、on に戻しても描き直さない)
+  const key = disabledMachinesKey();
+  if (key === tileDisabledMachinesKey) { return; }
+  tileDisabledMachinesKey = key;
+  applyVisibleDevices(tileDevices());
+});
 
 function applyVisibleDevices(devices) {
   // 全選択が ON(= 今の全タイルが選択済み)の間は、**後から現れたデバイスも選択に足す**

@@ -136,9 +136,9 @@ test("「デバイスを全て起動」の restartNames にリモートの CPU �
     "start-all-devices --restart は手元へしか中継されないので、リモートの名前は手元の同名の台を再起動してしまう");
 });
 
-// 「マシン有効」off の機械のデバイスは、タイルの右クリックから起動できない(停止は残す)
-test("マシン有効が off の機械の台は、右クリックの「起動」が理由付きで押せない(停止・有効な機械は従来どおり)", (t) => {
-  const { window, document, sent } = createWebview();
+// 「マシン有効」off の機械のデバイスはタイルを出さない(DR-228)= 右クリックの対象にもならない。有効な機械の台は従来どおり
+test("マシン有効が off の機械の台はタイルが出ず、有効な機械の台は右クリックから起動できる", (t) => {
+  const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, {
     type: "devices",
@@ -155,22 +155,11 @@ test("マシン有効が off の機械の台は、右クリックの「起動」
     { machine: "M1mini", host: "u@mini", dir: "", enabled: false },
     { machine: "M1Max", host: "u@max", dir: "", enabled: true },
   ] });
-  const [offMini, onMini, offMax] = document.querySelectorAll("#grid .tile");
+  const tiles = document.querySelectorAll("#grid .tile");
+  assert.equal(tiles.length, 1, "無効な機械の2台は出さない");
   const item = document.getElementById("device-op-menu-item");
-  const openMenu = (tile) => tile.dispatchEvent(
+  tiles[0].dispatchEvent(
     new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
-
-  openMenu(offMini);
-  assert.equal(item.disabled, true, "無効な機械の未起動の台は起動できない");
-  assert.match(item.textContent, /マシン無効|machine off/);
-  item.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
-  assert.equal(sent.some((m) => m.type === "deviceOp"), false, "押しても送らない");
-
-  openMenu(onMini);
-  assert.equal(item.disabled, false, "無効な機械でも起動中の台は停止できる");
-  assert.equal(item.dataset.op, "down");
-
-  openMenu(offMax);
   assert.equal(item.disabled, false, "有効な機械の台は起動できる");
   assert.equal(item.dataset.op, "up");
 });

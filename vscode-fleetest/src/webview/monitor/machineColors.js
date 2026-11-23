@@ -69,6 +69,11 @@ export function isMachineDisabled(machine) {
   return disabledMachines.has(machine || 'local');
 }
 
+/** 「マシン有効」off の機械の集合を比べるための鍵(並びに依らない)。remoteConfig のたびに鳴る通知から「集合が変わったか」を見る呼び手用 */
+export function disabledMachinesKey() {
+  return [...disabledMachines].sort().join('\n');
+}
+
 /** remoteConfig を受けるたびに呼ぶ(有効/無効が変わりうる)。表示を作り直す箇所が登録する。 */
 export function onMachineEnablementChanged(listener) {
   machineEnablementListeners.push(listener);

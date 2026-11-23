@@ -192,3 +192,48 @@ test("リモート宛のキュー状態が手元のタイルを書き換えな�
   assert.doesNotMatch(local, /シャットダウン中/,
     "『M2Ultra の台を停止』で手元のタイルに『シャットダウン中』が出た形");
 });
+
+// 「マシン有効」off の機械のデバイスはラインビュー・グリッドビューに出さない(止めはしない。DR-228)。
+// 有効に戻したら次の devices サイクルを待たずに戻る。手元(local)も同じ規律
+test("無効にした機械のデバイスはタイルを出さない(有効に戻すとその場で戻る)", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  sendMixedDevices(window);
+  assert.equal(placeholderTexts(document).length, 2, "前提: 2台とも出る");
+
+  post(window, { type: "remoteConfig", machineColors: [], hosts: [{ machine: "M1Max", enabled: false }] });
+  assert.equal(placeholderTexts(document).length, 1, "M1Max のタイルが消える");
+  assert.match(placeholderTexts(document)[0], /未起動/, "残るのは手元の台");
+
+  post(window, { type: "remoteConfig", machineColors: [], hosts: [{ machine: "M1Max", enabled: true }],
+                 local: { enabled: false } });
+  assert.equal(placeholderTexts(document).length, 1, "手元を無効にすると手元の台が消える");
+  assert.doesNotMatch(placeholderTexts(document)[0], /未起動/, "残るのは M1Max の台");
+});
+
+// remoteConfig は色・並べ替え・保存のたびに届く。無効な機械の集合が変わらないなら作り直さない ——
+// 作り直しは観測1回と数えられ、起動直後の「起動中」の保持(次の観測まで)が古い一覧で畳まれる
+test("無効な機械が変わらない remoteConfig では、起動直後の「起動中」を畳まない", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  sendMixedDevices(window);
+  post(window, { type: "deviceOpBusy", name: "Dev 1", op: "up", status: "running" });
+  post(window, { type: "deviceOpBusy", name: "Dev 1", op: null, status: null });
+  assert.match(placeholderTexts(document)[0], /起動中/, "前提: 次の観測までは起動中を保つ");
+
+  post(window, { type: "remoteConfig", machineColors: [], hosts: [{ machine: "M1Max", enabled: true, color: "blue" }] });
+  assert.match(placeholderTexts(document)[0], /起動中/, "色だけの remoteConfig は観測ではない");
+});
+
+// 起動時は remoteConfig がデバイスより先に届くことがある。off を先に受けて後から来たデバイスを隠したあと、
+// on に戻したらその場で戻す(鍵をデバイスの一覧から作ると、off を見落として描き直さない)
+test("デバイスより先に off を受けても、on に戻すとその場でタイルが戻る", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  post(window, { type: "remoteConfig", machineColors: [], hosts: [{ machine: "M1Max", enabled: false }] });
+  sendMixedDevices(window);
+  assert.equal(placeholderTexts(document).length, 1, "前提: M1Max の台は隠れている");
+
+  post(window, { type: "remoteConfig", machineColors: [], hosts: [{ machine: "M1Max", enabled: true }] });
+  assert.equal(placeholderTexts(document).length, 2, "on に戻したら次のサイクルを待たずに戻る");
+});

@@ -802,8 +802,8 @@ export function filterMonitorDevices(
 
 /** 「マシン有効」off の機械(手元は "local")。`api remote-machines` の hosts[].enabled / local.enabled が正
  *  (CLI の FTCore.MachineEnablement と同じ集合。webview 側の複製は machineColors.js の disabledMachines)。
- *  読み手は monitorPanel のデバイス起動を断る門(deviceOp の up)と webview の「⊘無効」の印。
- *  **表示は隠さない**(操作メニューを無効化するだけで、タイル自体は見せる)。
+ *  読み手は monitorPanel のデバイス起動を断る門(deviceOp の up)と webview(タイル・run ボード・マシンの健全性の「⊘無効」)。
+ *  webview はその機械のデバイスをラインビュー・グリッドビューに出さない(deviceTiles.js の tileDevices。止めはしない = DR-228)。
  *  欠落は有効(RemoteHostEntry は設定タブの編集とも型を共有し、そちらは enabled を持たないことがある) */
 export function disabledMachineSet(
   hosts: readonly { readonly machine: string; readonly enabled?: boolean }[],
