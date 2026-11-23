@@ -147,6 +147,10 @@ struct DeviceSession {
     /// プロファイル解決で出た警告(未解決のデバイス名など)。**次に返す応答へ1度だけ**混ぜる。
     /// stderr だけに出していたときは MCP クライアントに一切届かなかった
     var pendingWarnings: [String]?
+    /// **profile 経由で作ったセッションの実行時設定**(DSL と同じ写像 = `ScenarioExecutionSettings(resolved)`)。
+    /// 無い(udid / serial の直指定)ときは既定。executor の組み立てとセレクタ解決が `MCPServer.executionDefaults` で読む
+    /// (読まないと ft_batch で通った手順が run では待ち・容器推定が変わって赤になる)
+    var profileExecution: ProfileExecutionDefaults?
     /// ref を撃つ直前の覆い探針(`screenNotRepresentedWarning` = 覆う面とヒットテスト。
     /// `/systemalert` は含まない = 毎回聞く)を木の指紋ごとに覚える。**健全性の上限**: 木がバイト同一のまま
     /// 覆う面が出た/消えた画面(静止画面へ出た Control Center 等)は、次に木が変わるまで
@@ -204,6 +208,23 @@ struct DeviceSession {
 struct UIFrameworkHint {
     let bundleID: String
     let framework: AppUIFramework
+}
+
+/// 実行プロファイルから MCP の executor へ渡す設定(`defaultTimeout` 等の `RunTunables` と容器推定)
+struct ProfileExecutionDefaults {
+    var tunables: RunTunables
+    var containerInference: Bool
+
+    init(_ settings: ScenarioExecutionSettings) {
+        tunables = settings.tunables
+        containerInference = settings.containerInference
+    }
+
+    /// profile を使っていないセッション(既定の定義元は `RunTunables.init` と `RunProfileDocument` の容器推定の既定 true)
+    init() {
+        tunables = RunTunables()
+        containerInference = true
+    }
 }
 
 struct SessionMap<Value> {

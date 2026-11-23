@@ -39,11 +39,11 @@ final class SelectorTargetTests: XCTestCase {
                                                   element(3, id: "cancel", label: "Cancel", y: 100)])
         let step = FlowStep(action: "tap", locator: FTSelector.parse("Save").primary)
         let dsl = try XCTUnwrap(LocatorResolver.resolve(step: step, in: tree)).0
-        let picked = try MCPServer.resolveSelectorTarget("Save", in: tree, isAndroid: false)
+        let picked = try MCPServer.resolveSelectorTarget("Save", in: tree, isAndroid: false, inferring: true)
         XCTAssertEqual(picked.element.ref, dsl.ref)
         XCTAssertTrue(picked.note.contains("matched 2 separate elements; acted on [\(dsl.ref)]"), picked.note)
         XCTAssertTrue(picked.note.contains("a scenario line would pick"), picked.note)
-        XCTAssertEqual(try MCPServer.resolveSelectorTarget("#cancel", in: tree, isAndroid: false).note, "", "一意なら注記なし")
+        XCTAssertEqual(try MCPServer.resolveSelectorTarget("#cancel", in: tree, isAndroid: false, inferring: true).note, "", "一意なら注記なし")
     }
 
     /// ボタンとその中の文字が同じラベル(入れ子)= 同じ部品なので複数一致と言わない(実測: Apple マップの「今はしない」)
@@ -52,7 +52,7 @@ final class SelectorTargetTests: XCTestCase {
                              ElementInfo(ref: 2, type: "staticText", identifier: nil, label: "Later", value: nil,
                                          placeholder: nil, enabled: true,
                                          frame: FTRect(x: 10, y: 5, width: 100, height: 30), depth: 2)])
-        let picked = try MCPServer.resolveSelectorTarget("Later", in: tree, isAndroid: false)
+        let picked = try MCPServer.resolveSelectorTarget("Later", in: tree, isAndroid: false, inferring: true)
         XCTAssertEqual(picked.element.ref, 1)
         XCTAssertEqual(picked.note, "")
     }
@@ -61,7 +61,7 @@ final class SelectorTargetTests: XCTestCase {
     func testOrdinalSelectorIsNotReportedAsAmbiguous() throws {
         let tree = snapshot([element(1, id: nil, label: "Save", y: 0),
                                                   element(2, id: nil, label: "Save", y: 50)])
-        let picked = try MCPServer.resolveSelectorTarget(".button[2]", in: tree, isAndroid: false)
+        let picked = try MCPServer.resolveSelectorTarget(".button[2]", in: tree, isAndroid: false, inferring: true)
         XCTAssertEqual(picked.element.ref, 2)
         XCTAssertEqual(picked.note, "")
     }
@@ -107,7 +107,7 @@ final class SelectorTargetTests: XCTestCase {
         var tree = snapshot([element(1, id: "field_name", label: "Name", y: 0)])
         tree.keyboardFrame = FTRect(x: 0, y: 500, width: 390, height: 344)
         func refusal(_ tree: SnapshotResponse, android: Bool) -> String {
-            do { _ = try MCPServer.resolveSelectorTarget("#field_phone", in: tree, isAndroid: android); return "" }
+            do { _ = try MCPServer.resolveSelectorTarget("#field_phone", in: tree, isAndroid: android, inferring: true); return "" }
             catch { return "\(error)" }
         }
         let onAndroid = refusal(tree, android: true)

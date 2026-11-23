@@ -716,7 +716,8 @@ extension MCPServer {
         let beforeBatch = launchBaselineStale.contains(Self.sessionKey(args)) ? nil : lastSnapshots[Self.sessionKey(args)]
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(batchDriver, args: args)
         let executor = StepExecutor(driver: batchDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid,
-                                    isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFrameworkHint)
+                                    isAndroid: isAndroid, tunables: executionDefaults(args).tunables, uiFramework: uiFrameworkHint,
+                                    containerInference: executionDefaults(args).containerInference)
         executor.notesLandscapeWithoutRotate = false
         wireAppGoneGuard(executor, driver: batchDriver, isAndroid: isAndroid, args: args)
 

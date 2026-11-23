@@ -44,12 +44,12 @@ final class MCPAndroidCoverParityTests: XCTestCase {
         let tree = sheetTree()
         let target = tree.elements[1]
         guard case .refuse(let message) = MCPServer.coveredRefTouch(target, in: tree, scale: 3, ref: 2, operation: "tap",
-                                                                    paintOrderIsReal: true) else {
+                                                                    paintOrderIsReal: true, inferring: true) else {
             return XCTFail("塗り順が本物の木で、覆われた行を撃とうとした")
         }
         XCTAssertTrue(message.contains("queue_row_14"), message)
         guard case .none = MCPServer.coveredRefTouch(target, in: tree, scale: 3, ref: 2, operation: "tap",
-                                                    paintOrderIsReal: false) else {
+                                                    paintOrderIsReal: false, inferring: true) else {
             return XCTFail("塗り順の無い木で手前を推測した")
         }
     }

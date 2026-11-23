@@ -151,14 +151,15 @@ extension MCPServer {
     }
 
     static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
-                                ref: Int, operation: String, paintOrderIsReal: Bool) -> CoveredRefTouch {
+                                ref: Int, operation: String, paintOrderIsReal: Bool,
+                                inferring: Bool) -> CoveredRefTouch {
         guard let snapshot else { return .none }
         // 触れない形(覆いの下・外側の一覧に切り取られた)は DSL の撃つ前の断りと同じ判定(`TapTargetGeometry.touchBlock`)で断る。
         // MCP の ref は撃つと覆いや画面の上端に当たり、何も押さずに done だった(11周目の探索 ilocal F4)
         // 手前の推測で断る・見えている部分へずらすのは塗り順が本物の木だけ(`refTreePaintOrderIsReal` = DSL と同じ門)
         if let block = TapTargetGeometry.touchBlock(element, in: snapshot.elements, screen: snapshot.screen,
                                                     safeAreaTop: snapshot.safeAreaTop, scale: scale,
-                                                    inferring: ContainerGeometry.containerInferenceEnabled, searchFinger: nil,
+                                                    inferring: inferring, searchFinger: nil,
                                                     paintOrderIsReal: paintOrderIsReal) {
             return .refuse("[\(ref)] was not touched: its centre is under \(block.cover), so a \(operation) there would land on"
                 + " something else. Scroll the list \(block.scroll.dropFirst()) first (ft_swipe, or ft_scroll_to with direction) until it"
@@ -166,7 +167,7 @@ extension MCPServer {
         }
         guard paintOrderIsReal else { return .none }
         switch TapTargetGeometry.coveredTouch(for: element, in: snapshot.elements, screen: snapshot.screen,
-                                              inferring: ContainerGeometry.containerInferenceEnabled, scale: scale,
+                                              inferring: inferring, scale: scale,
                                               zIsPaintOrder: true) {
         case nil:
             return .none
@@ -232,7 +233,8 @@ extension MCPServer {
                let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == target.ref }) {
                 switch Self.coveredRefTouch(element, in: tree, scale: d.pointScale, ref: ref, operation: "tap",
-                                            paintOrderIsReal: refTreePaintOrderIsReal(tree, driver: d, args: args)) {
+                                            paintOrderIsReal: refTreePaintOrderIsReal(tree, driver: d, args: args),
+                                        inferring: containerInferenceEnabled(args)) {
                 case .none:
                     if let message = await otherLayerRefTouchRefusal(element, in: tree, ref: ref, operation: "tap",
                                                                      driver: d, args: args) { throw MCPError(message) }

@@ -265,8 +265,9 @@ extension MCPServer {
         // sheetCollapsed なら下でシートを展開して再試行し、その再試行が全画面高で同じ救済を
         // 持つので、畳まれた視界での逆走査(実測 7.8s)は丸損になる
         let executor = StepExecutor(driver: scrollDriver,
-                                    occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
+                                    occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: executionDefaults(args).tunables,
                                     uiFramework: uiFrameworkHint,
+                                    containerInference: executionDefaults(args).containerInference,
                                     defersPartialSheetRecovery: true)
         executor.notesLandscapeWithoutRotate = false
         wireAppGoneGuard(executor, driver: scrollDriver, isAndroid: isAndroid, args: args)
@@ -403,8 +404,9 @@ extension MCPServer {
                 // **再試行は逆走査つき**(defers... を外した別 executor)。展開後も稀に部分高の
                 // ままのことがあり、そこで再び後回しにすると救済がどこにも無くなる
                 let retryExecutor = StepExecutor(driver: scrollDriver,
-                                                 occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
-                                                 uiFramework: uiFrameworkHint)
+                                                 occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: executionDefaults(args).tunables,
+                                                 uiFramework: uiFrameworkHint,
+                                                 containerInference: executionDefaults(args).containerInference)
                 retryExecutor.notesLandscapeWithoutRotate = false
                 wireAppGoneGuard(retryExecutor, driver: scrollDriver, isAndroid: isAndroid, args: args)
                 SlowCallWatchdog.mark("sheet rescue: searching again")

@@ -166,6 +166,7 @@ extension MCPServer {
                 created = try await androidDriver(serial: serial, key: key, args: args)
             }
             drivers[key] = created
+            profileExecutions[key] = ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile))
             bridges[key] = {
                 if case .ios = target { "xcuitest" }   // MCP の iOS は常に XCUITest(iosDriver)
                 else { "android" }

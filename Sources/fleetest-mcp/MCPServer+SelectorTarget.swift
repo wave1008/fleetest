@@ -12,9 +12,13 @@ extension MCPServer {
 
     /// 撮り直した木で selector を DSL と同じ解決(`LocatorResolver.resolveDetailed`)にかけ、当たった要素と複数一致の注記を返す。
     /// 一致なしは何も撃たずに断る。**複数一致は DSL の tap と同じ要素(ツリー順で `[n]` 番目・既定は先頭)を採る**
-    static func resolveSelectorTarget(_ text: String, in snapshot: SnapshotResponse, isAndroid: Bool) throws -> (element: ElementInfo, note: String) {
+    /// `inferring`: 容器推定(`containerInferenceEnabled(args)` = プロファイルの値。ステップに載せないと解決が環境変数だけを見る)
+    static func resolveSelectorTarget(_ text: String, in snapshot: SnapshotResponse, isAndroid: Bool,
+                                      inferring: Bool) throws -> (element: ElementInfo, note: String) {
         let parsed = try parseSelectorArgument(text, argument: "selector")
-        guard let resolved = LocatorResolver.resolveDetailed(step: selectorStep(parsed), in: snapshot) else {
+        var step = selectorStep(parsed)
+        step.containerInference = inferring
+        guard let resolved = LocatorResolver.resolveDetailed(step: step, in: snapshot) else {
             throw MCPError("no element matches \(text) on the current screen — nothing was sent."
                 + notationHint(text, in: snapshot) + similarLabelsHint(text, in: snapshot)
                 + childlessScopeHint(parsed.primary, in: snapshot, isAndroid: isAndroid)
@@ -61,7 +65,8 @@ extension MCPServer {
         var attempt = 0
         while true {
             do {
-                target = try Self.resolveSelectorTarget(selector, in: snapshot, isAndroid: isAndroid)
+                target = try Self.resolveSelectorTarget(selector, in: snapshot, isAndroid: isAndroid,
+                                                        inferring: containerInferenceEnabled(args))
                 break
             } catch let miss as MCPError {
                 let parses = (try? Self.parseSelectorArgument(selector, argument: "selector")) != nil

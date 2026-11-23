@@ -64,8 +64,8 @@ extension MCPServer {
             }
             let step = FlowStep(action: "swipe", direction: direction.rawValue)
             let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
-            let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
-                                        uiFramework: uiFrameworkHint)
+            let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: executionDefaults(args).tunables,
+                                        uiFramework: uiFrameworkHint, containerInference: executionDefaults(args).containerInference)
             executor.notesLandscapeWithoutRotate = false
             let outcome = await executor.execute(step)
             guard StepExecutor.isSuccess(outcome.status) else {
@@ -96,8 +96,8 @@ extension MCPServer {
             : "note: the scrollFrame ref was re-checked against the current tree\(scrollFrameArg.note).\n"
         let step = Self.swipeScrollFrameStep(direction: direction, scrollFrameArg: scrollFrameArg)
         let (isAndroid, uiFrameworkHint) = await resolveExecutorHints(swipeDriver, args: args)
-        let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: RunTunables(),
-                                    uiFramework: uiFrameworkHint)
+        let executor = StepExecutor(driver: swipeDriver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid, isAndroid: isAndroid, tunables: executionDefaults(args).tunables,
+                                    uiFramework: uiFrameworkHint, containerInference: executionDefaults(args).containerInference)
         executor.notesLandscapeWithoutRotate = false
         let outcome = await executor.execute(step)
         guard StepExecutor.isSuccess(outcome.status) else {
@@ -280,7 +280,8 @@ extension MCPServer {
     func hideKeyboardExecutor(_ driver: AppDriver, args: [String: Any]) async -> (executor: StepExecutor, isAndroid: Bool) {
         let (isAndroid, uiFramework) = await resolveExecutorHints(driver, args: args)
         let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, releasesScrollTouch: !isAndroid,
-                                    isAndroid: isAndroid, tunables: RunTunables(), uiFramework: uiFramework)
+                                    isAndroid: isAndroid, tunables: executionDefaults(args).tunables, uiFramework: uiFramework,
+                                    containerInference: executionDefaults(args).containerInference)
         executor.hideKeyboardFallsBackToEnter = false
         executor.notesLandscapeWithoutRotate = false
         return (executor, isAndroid)
@@ -487,7 +488,8 @@ extension MCPServer {
             let doubleTapTree = lastSnapshots[Self.sessionKey(args)]
             switch Self.coveredRefTouch(element, in: doubleTapTree, scale: doubleTapDriver.pointScale, ref: ref,
                                         operation: "double tap",
-                                        paintOrderIsReal: refTreePaintOrderIsReal(doubleTapTree, driver: doubleTapDriver, args: args)) {
+                                        paintOrderIsReal: refTreePaintOrderIsReal(doubleTapTree, driver: doubleTapDriver, args: args),
+                                        inferring: containerInferenceEnabled(args)) {
             case .none:
                 if let message = await otherLayerRefTouchRefusal(element, in: doubleTapTree, ref: ref,
                                                                  operation: "double tap", driver: doubleTapDriver, args: args) {
@@ -645,7 +647,8 @@ extension MCPServer {
             var coverNote = ""
             let dragTree = lastSnapshots[Self.sessionKey(args)]
             switch Self.coveredRefTouch(element, in: dragTree, scale: dragDriver.pointScale, ref: ref, operation: "drag",
-                                        paintOrderIsReal: refTreePaintOrderIsReal(dragTree, driver: dragDriver, args: args)) {
+                                        paintOrderIsReal: refTreePaintOrderIsReal(dragTree, driver: dragDriver, args: args),
+                                        inferring: containerInferenceEnabled(args)) {
             case .none:
                 if let message = await otherLayerRefTouchRefusal(element, in: dragTree, ref: ref,
                                                                  operation: "drag", driver: dragDriver, args: args) {
@@ -922,7 +925,8 @@ extension MCPServer {
             if let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == pressTarget.ref }) {
                 switch Self.coveredRefTouch(element, in: tree, scale: pressDriver.pointScale, ref: ref, operation: "long press",
-                                            paintOrderIsReal: refTreePaintOrderIsReal(tree, driver: pressDriver, args: args)) {
+                                            paintOrderIsReal: refTreePaintOrderIsReal(tree, driver: pressDriver, args: args),
+                                        inferring: containerInferenceEnabled(args)) {
                 case .none:
                     if let message = await otherLayerRefTouchRefusal(element, in: tree, ref: ref, operation: "long press",
                                                                      driver: pressDriver, args: args) { throw MCPError(message) }

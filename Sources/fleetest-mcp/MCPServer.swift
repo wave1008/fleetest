@@ -48,6 +48,16 @@ final class MCPServer {
     var treesBeforeLastTap: SessionMap<[ElementInfo]> { SessionMap(server: self, path: \.treeBeforeLastTap) }
     var knownScreens: SessionMap<FTRect> { SessionMap(server: self, path: \.knownScreen) }
     var uiFrameworkHints: SessionMap<UIFrameworkHint> { SessionMap(server: self, path: \.uiFrameworkHint) }
+    var profileExecutions: SessionMap<ProfileExecutionDefaults> { SessionMap(server: self, path: \.profileExecution) }
+    /// このセッションの executor に渡す設定(profile で作ったセッションはそのプロファイルの値・それ以外は既定)
+    func executionDefaults(_ args: [String: Any]) -> ProfileExecutionDefaults {
+        profileExecutions[Self.sessionKey(args)] ?? ProfileExecutionDefaults()
+    }
+    /// セレクタ解決・覆いの判定に渡す実効の容器推定(殺しスイッチの環境変数 AND プロファイル。
+    /// StepExecutor の入口の合成と同じ = 同じ画面で MCP と DSL の判断を割らない)
+    func containerInferenceEnabled(_ args: [String: Any]) -> Bool {
+        ContainerGeometry.containerInferenceEnabled && executionDefaults(args).containerInference
+    }
     /// `bundleID` のアプリについて覚えている判定(別のアプリの判定は返さない)
     func uiFrameworkHint(_ key: String, bundleID: String) -> AppUIFramework? {
         uiFrameworkHints[key].flatMap { $0.bundleID == bundleID ? $0.framework : nil }
