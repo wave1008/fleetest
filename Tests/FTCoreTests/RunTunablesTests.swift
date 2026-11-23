@@ -52,13 +52,13 @@ final class RunTunablesTests: XCTestCase {
 
     func testHostArgumentIsSortedKeyJSON() throws {
         let json = try ScenarioHost.tunablesArgument(
-            RunTunables(defaultTimeout: 7.5, commandTimeout: 33, injectedAppProbeTimeout: 4,
+            RunTunables(defaultTimeout: 7.5, commandTimeout: 33, commandCancelUnwindSeconds: 2, injectedAppProbeTimeout: 4,
                         defaultMaxSwipes: 3, defaultSwipeDuration: 2.5, defaultFlickDuration: 0.75,
                         defaultFlickInterval: 0.6, defaultPinchDuration: 1.25, defaultHoldDuration: 4,
                         screenWaitTimeout: 21, doUntilTrueTimeout: 12, doUntilTrueInterval: 0.75,
                         doUntilTrueMaxLoopCount: 7, httpRequestTimeout: 9,
                         responseQuietMs: 250, responseQuietTimeoutMs: 4000, responseObserveMs: 6000))
-        XCTAssertEqual(json, #"{"commandTimeout":33,"defaultFlickDuration":0.75,"defaultFlickInterval":0.6,"#
+        XCTAssertEqual(json, #"{"commandCancelUnwindSeconds":2,"commandTimeout":33,"defaultFlickDuration":0.75,"defaultFlickInterval":0.6,"#
             + #""defaultHoldDuration":4,"defaultMaxSwipes":3,"defaultPinchDuration":1.25,"#
             + #""defaultSwipeDuration":2.5,"defaultTimeout":7.5,"doUntilTrueInterval":0.75,"#
             + #""doUntilTrueMaxLoopCount":7,"doUntilTrueTimeout":12,"httpRequestTimeout":9,"injectedAppProbeTimeout":4,"#
