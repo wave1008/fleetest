@@ -46,3 +46,12 @@ test("AGENTS.md は規則の本文を持たず、CLAUDE.md と規則ファイル
   // 本文を写し始めたら膨らむ(規則は CLAUDE.md と規則ファイルの側にだけ置く)
   assert.ok(Buffer.byteLength(agents) < 4096, `AGENTS.md が ${Buffer.byteLength(agents)} バイトある`);
 });
+
+// CLAUDE.md は全セッション・全サブエージェントが毎回読む(MN-52。文章だけの「肥大させない」では 151KB まで膨らんだ)。
+// 上限はラチェット: 超えたら領域の規則を .claude/rules/ へ移して収める・減ったら上限を下げる。数字を上げて通さない。
+const CLAUDE_MD_MAX_BYTES = 48_000;
+
+test("CLAUDE.md は上限のバイト数を超えない(超えたら領域の規則を .claude/rules/ へ移す)", () => {
+  const bytes = Buffer.byteLength(readFileSync(path.join(ROOT, "CLAUDE.md"), "utf8"));
+  assert.ok(bytes <= CLAUDE_MD_MAX_BYTES, `CLAUDE.md が ${bytes} バイトある(上限 ${CLAUDE_MD_MAX_BYTES})`);
+});
