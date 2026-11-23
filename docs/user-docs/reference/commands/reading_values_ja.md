@@ -84,6 +84,7 @@ scene(2, "止めると増えない") {
         wait(0.5)                                  // 止めた直後に1つ進むことがあるので、少し置いてから読む
     }.expectation {
         let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        before.thisIsGreaterThanOrEqual(0)            // 読めたことを先に確かめる(読めないと両方 -1 で下が通る)
         wait(1.0)
         let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
         after.thisIs(before)
@@ -93,7 +94,8 @@ scene(2, "止めると増えない") {
 
 - `select` は検証のステップとして記録しないので、読むだけに使えます。読んだ値は `select` した時点のものです。
 - 取り出すのは ASCII の数字だけです(`1,200` は `1200` になります。小数点・マイナス記号は落ちます)。
-  読めなかったときは `-1` になるので、比べるところで失敗します。
+  読めなかったときは `-1` になります。`thisIsGreaterThan` はそこで失敗しますが、`thisIs` は2回とも `-1` なら通ってしまうので、
+  「変わらない」を確かめるときは先に `before.thisIsGreaterThanOrEqual(0)` で読めたことを確かめます。
 - 間隔(`wait`)は、その値が確実に変わる長さにします。負荷の高い端末では進みが遅くなるので、
   「何回増えたか」の数までは比べないでください。
 

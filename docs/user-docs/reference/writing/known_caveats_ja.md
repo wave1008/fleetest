@@ -135,7 +135,7 @@
 - [settle: false は操作後の落ち着き待ちを省く](../commands/navigation_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 - [`setAppearance` / `setTextSize` は端末全体を変え、シナリオごとの終わりに元へ戻る](../commands/navigation_ja.md#注意点) — 終わりに light / `.default` へ戻ります。全シナリオに効かせるなら実行プロファイルの `appearance` / `textSize` を使います。
 - [`setAppearance` / `setTextSize` は run や端末のフックの中では使えない](../commands/navigation_ja.md#注意点) — `beforeRun` / `afterRun` / `setUpDevice` / `tearDownDevice` / `beforeAll` / `afterAll` の中ではステップが失敗します(各シナリオの後に基準へ戻すので、最初のテストにしか効かないため)。
-- [Android では `setAppearance` / `setTextSize` で画面が作り直されることがある](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。Android に限らず、React Native の iOS(iPad)でも変更の後にアプリがホームへ戻った例があります(観測1件)。変えた後は `launchApp()` で開き直します。
+- [`setAppearance` / `setTextSize` で画面が作り直されることがある(多くは Android)](../commands/navigation_ja.md#注意点) — アプリが `configChanges` に `uiMode` / `fontScale` を宣言していないと Activity が作り直され、メモリだけの状態は失われます。画面の状態を保存しないアプリは最初の画面に戻るので、表示条件はシナリオの最初に変えるか、変えた後にアプリを起動し直して目的の画面を開き直してください。Android に限らず、React Native の iOS(iPad)でも変更の後にアプリがホームへ戻った例があります(観測1件)。目的の画面へ移った後で変えたときは `launchApp()` で開き直します。
 - [`beforeEach` / `afterEach` の中では `setAppearance` / `setTextSize` を使える](../commands/navigation_ja.md#注意点) — テストごとに走るので、クラスの全テストに効きます。
 - [`setAppearance` / `setTextSize` が確かめるのは端末の設定値で、アプリの表示ではない](../commands/navigation_ja.md#注意点) — 配色を外観に追従させないアプリはダークで文字が読めなくなり、テキストの可視性検証がステップを失敗にします(正しい失敗)。
 - [MCP(`ft_run_scenario`)の確認では、アプリへ外観が届いたかを確かめない](../commands/navigation_ja.md#注意点) — 端末は dark なのにアプリが light のままになる Simulator の状態があります(設定をアプリへ届けない状態)。本番の run(`inapp-boost`)は `display-not-applied` で検出して回復します。
@@ -156,8 +156,8 @@
 ### pressEnter, hideKeyboard
 - [pressEnter が改行か確定アクションかはフィールドが決める](../commands/press_enter_hide_keyboard_ja.md#注意点) — コマンド側では選べません。`type` の末尾 `\n` も同じです。
 - [iOS の hideKeyboard はフレームワークで閉じ方が違う](../commands/press_enter_hide_keyboard_ja.md#注意点) — 背景タップで閉じるか Enter で閉じるかが違います。React Native の inapp-boost は Enter を送りません。閉じなければ失敗します。
-- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと `type` / `clearInput` は触らず失敗し、`tap` は見えている部分だけを押します。リターンキーが要るなら先に `pressEnter()` を呼びます。探索の MCP `ft_tap` / `ft_type` は閉じないので、先に `ft_hide_keyboard` を呼びます。
-- [検証はキーボードを閉じない](../commands/press_enter_hide_keyboard_ja.md#注意点) — 閉じるのは `tap` / `type` / `clearInput` だけです。入力の後にキーボードより下の要素を検証するなら、先に `hideKeyboard()` を呼びます(探索の MCP `ft_type` は Android で閉じるので、作成中は再現しません)。
+- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと `type` / `clearInput` は触らず失敗し、`tap` は見えている部分だけを押します。リターンキーが要るなら先に `pressEnter()` を呼びます。探索の MCP `ft_tap` / `ft_type` も同じく Enter を送らずに閉じてから操作します。
+- [検証はキーボードを閉じない](../commands/press_enter_hide_keyboard_ja.md#注意点) — 閉じるのは `tap` / `type` / `clearInput` と、スクロールして探すときだけです。入力の後にキーボードより下の要素を検証するなら、先に `hideKeyboard()` を呼びます(探索の MCP の操作は手順によって閉じるので、作成中は再現しないことがあります)。
 - [キーボードが出ているかの検証は別のコマンド](../commands/press_enter_hide_keyboard_ja.md#注意点) — `keyboardIsShown` / `keyboardIsNotShown` を使います。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/press_enter_hide_keyboard_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。
 
@@ -281,7 +281,7 @@
 ## セレクタ
 
 ### セレクタ式
-- [部分一致のセレクタは検索・絞り込みの「0件」の案内文にも当たる](../selector/selector_expression_ja.md#注意点) — 案内文がクエリを反響するためです。`.clickable&&*…*` のように型で絞ります。
+- [部分一致のセレクタは検索・絞り込みの「0件」の案内文にも当たる](../selector/selector_expression_ja.md#注意点) — 案内文がクエリを反響するためです。`.clickable&&*…*` のように結果の行の型で絞ります(型は OS で違うのでスナップショットで確かめます)。
 - [スコープ(>>)の祖先はツリーの上で中身を子に持っている必要がある](../selector/selector_expression_ja.md#注意点) — iOS の Compose Multiplatform で `testTag` だけの Row/Column を祖先にすると、iOS だけ何にも一致しません。一意な `#id`・ラベル・相対セレクタで書きます。
 
 ### 型付きセレクタ(Sel)
@@ -336,7 +336,7 @@
 - [Android は全フレームワークで起きない](ui_component_patterns_ja.md#引っ張って更新) — `scrollToTop()` / `scrollToBottom()` は a11y のスクロール操作で送るので、端を越えた引っ張りにならないためです。
 
 ### アニメーション(フェード・切り替え)
-- [Flutter の AnimatedOpacity は iOS では非表示にしてもツリーから消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — Android(実機・Emulator)では消えます。OS で結果が割れるので、「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
+- [Flutter の AnimatedOpacity は iOS では非表示にしてもツリーから消えない](ui_component_patterns_ja.md#アニメーションフェード切り替え) — Android(実機・Emulator)では消えます。OS で結果が違うので、「要素が無いこと」を可視性の根拠にせず、アプリの echo か `checkIsON` / `checkIsOFF` で判定します。
 
 ### 画面遷移(ナビゲーション)
 - [Android View の NavHostFragment でツールバーの戻るが1つ戻らないことがある](ui_component_patterns_ja.md#画面遷移ナビゲーション) — 調査中です。複数階層を検証するシナリオでは、ツールバーのタップではなく OS の `back()` を使います。

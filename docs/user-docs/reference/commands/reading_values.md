@@ -90,6 +90,7 @@ scene(2, "It stops going up once stopped") {
         wait(0.5)                                  // it can tick once right after stopping, so read a little later
     }.expectation {
         let before = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
+        before.thisIsGreaterThanOrEqual(0)            // make sure it was read (if not, both are -1 and the line below passes)
         wait(1.0)
         let after = Int((select("#txt_ticker").text ?? "").filter { $0.isASCII && $0.isNumber }) ?? -1
         after.thisIs(before)
@@ -99,7 +100,8 @@ scene(2, "It stops going up once stopped") {
 
 - `select` is not recorded as an assertion step, so it can be used just to read. The value is the one at the moment of `select`.
 - Only ASCII digits are taken (`1,200` becomes `1200`; a decimal point or minus sign is dropped).
-  When nothing can be read the value is `-1`, so the comparison fails.
+  When nothing can be read the value is `-1`. `thisIsGreaterThan` then fails, but `thisIs` passes when both reads are `-1`,
+  so when you check that a value did not change, first make sure it was read with `before.thisIsGreaterThanOrEqual(0)`.
 - Make the pause (`wait`) long enough for the value to change for sure. On a busy device the value advances
   more slowly, so do not compare how many times it went up.
 

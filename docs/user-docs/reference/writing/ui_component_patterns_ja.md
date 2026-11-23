@@ -313,8 +313,8 @@ tap("OK")
 
 ## スワイプで削除
 
-- 行の上で横にスワイプする: `swipeBy("#row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`。
-  比率の上限は片側 0.9。**速い・幅の広い払いは行を消すまで走ります**(下の「途中までのスワイプ」は逆に、止めたいときにゆっくり動かす)
+- 行の上で横にスワイプする: `swipeBy("#swipe_row_3", dxRatio: -0.5, dyRatio: 0, durationSeconds: 0.3)`。
+  比率の上限は片側 0.9。**速い・幅の広いスワイプは、行を消すまで走ることがあります**(画面の幅で変わる。下の「途中までのスワイプ」は逆に、止めたいときにゆっくり動かす)
 - 無効な向きへスワイプしても何も起きないこと(行が残ること)も確かめられる
 
 | フレームワーク | 部品・差分 |
@@ -355,7 +355,7 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 | フレームワーク | 部品・差分 |
 |---|---|
 | CMP | `AnimatedVisibility`(非表示で composition から外れる = ツリーから消える)/ `AnimatedContent` |
-| Flutter | `AnimatedOpacity`(**iOS では非表示でも要素はツリーに残ったまま透明度だけ動く**。**Android(実機・Emulator)ではツリーから消えた**。OS で結果が割れるので要素の有無では判定できず、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
+| Flutter | `AnimatedOpacity`(**iOS では非表示でも要素はツリーに残ったまま透明度だけ動く**。**Android(実機・Emulator)ではツリーから消えた**。OS で結果が違うので要素の有無では判定できず、**表示状態は echo(`visible=true/false`)で確かめる**)/ `AnimatedSwitcher` |
 | RN | `react-native-reanimated` の `FadeIn`/`FadeOut`。**カウンタ切り替えは `key` によるコンポーネントの再マウント方式**なので、切り替え中は新旧2つの要素が一瞬同時にツリーへ乗ることがある(CMP の `AnimatedContent` と同じ特性) |
 | Android View | `Fade`(`TransitionManager`)/ `TextSwitcher`。共通 |
 | SwiftUI(iOS) | `withAnimation` + `.transition(.opacity)` / `.contentTransition(.numericText())`。共通 |
@@ -385,7 +385,7 @@ ios { tap("<削除ボタンのラベル。スナップショットから採る>"
 ## チップと分割ボタン
 
 - FilterChip / SegmentedButton の選択状態は `checkIsON()` / `checkIsOFF()` で読める。**ただし SegmentedButton の既定の選択は読めないことがある**
-  (Android で既定で選ばれている `#seg_day` が `switch "日" value="0"` で `checkIsON` が赤。タップの後だけ `value="1" checked`)。初期選択はアプリの echo で確かめる
+  (Android View の `MaterialButtonToggleGroup` で既定で選ばれている `#seg_day` が `switch "日" value="0"` で `checkIsON` が赤。タップの後だけ `value="1" checked`)。初期選択はアプリの echo で確かめる
 - RangeSlider(範囲スライダー)のつまみには `#id` を付けられません。値はアプリが出している
   表示で確かめる
 
@@ -504,7 +504,7 @@ tap("#btn_time_ok")
 | `#btn_toast` | OS のトースト | `toast=shown` |
 
 `#field_prompt` で入力できるのは、入力欄に id が付くフレームワークだけです。Flutter(iOS)では入力欄は id の無い `textField` で、`#field_prompt` は
-それを包む入れ物に付きます。SwiftUI(iOS)の `.alert` + `TextField` は `no stable selector for this element` で、id を付けられません。
+それを包む入れ物に付きます。SwiftUI(iOS)の `.alert` + `TextField` は MCP の応答で `no stable selector for this element` と出て、id を付けられません。
 どちらも、ダイアログの表示中に入力欄が1つなら型で指します: `type(".textField", "hello")`。入力欄が複数出る画面では `[n]` に頼る形になり脆くなります。
 
 ```swift
@@ -576,7 +576,7 @@ select("#txt_reorder_result").textMatches("^order=2,")
 | `#field_bottom` | 画面下端(キーボードに隠れる) | `bottom=<値>` |
 
 ```swift
-type("#field_number >> .textField", "123")   // Flutter は #field_number が入れ物に付くので中の欄を指す(下記)
+type("#field_number", "123")   // Flutter は #field_number が入れ物に付くので "#field_number >> .textField"(下記)
 select("#txt_number_echo").textIs("number=123")
 
 type("#field_first", "山田")
@@ -771,8 +771,8 @@ select("#txt_links_result").textIs("link=terms")
 
 - 読み込み中も本物と同じ `#id`・ラベルの行を出す作りでは、`exist` は骨組みの時点で通る。**だから `exist` を読み込み完了の判定に使わない**
   (`enabledIsTrue()` か、読み込み済みの件数の echo(`loaded=30` 等)で確かめる)
-- 一瞬で終わる途中の状態(`state=loading` 等)の検証は、端末の速さで緑と赤に割れます。検証値が `(from the grabbed value)` と出るのは、
-  読み取った時点の値で比べたという意味で、後から画面が変わっても結果は変わりません。詳しくは [注意点のまとめ](known_caveats_ja.md)
+- 一瞬で終わる途中の状態(`state=loading` 等)の検証は、端末の速さで緑になったり赤になったりします。検証に `(from the grabbed value)` が付いたのは、
+  取得した時点の値で緑になったという意味です(その後の画面は見ていません)。詳しくは [テキストの検証](../commands/text_assertion_ja.md#注意点)
 - `tap` は対象が押せるようになるまで待ってから実行するので、読み込み直した直後に `tap` してよい
   (骨組みが無効として公開されていれば、本物に変わってから押される)
 - 一覧の末尾に一時的に出る「読み込み中」「再試行」の行は、再試行を押してから続きを探す
@@ -799,7 +799,7 @@ tap("#fab_hiding", scroll: .up)
 
 - 途中までスワイプするときは**ゆっくり**スワイプする(`swipeBy("#sw_row_3", dxRatio: -0.45, dyRatio: 0, durationSeconds: 2.0)`)。
   速く離すと部品の fling が次の段(削除まで)へ送る。**速い・幅の広いスワイプは途中で止まらず削除まで走りうる**(画面の幅で変わる。
-  `durationSeconds: 0.12` の Android Emulator と、`dx=-700`・0.1 秒の iPad で行が消えた。iPhone では途中で止まった)。
+  `durationSeconds: 0.12` の Android Emulator と、MCP の `ft_swipe`(`dx: -700`・0.1 秒)の iPad で行が消えた。iPhone では途中で止まった)。
   上の「スワイプで削除」の `durationSeconds: 0.3` は削除させたい書き方で、止めたい用途には使わない
 - **`swipeBy` などのスワイプ系のステップは、動いた結果を確かめずに緑になる**。行が残ったか・消えたかは、件数の echo
   (`rows=5` のような表示)で確かめる

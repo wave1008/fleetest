@@ -69,7 +69,6 @@
 - 評価 6回目(11/21): builtin_ios(リマインダー・連絡先)の作成は緑で終えたが、本番の reminders-exec は作成セッションが上限で切れて回らず = 新しい材料なし。上の測る口(in-app のブリッジに合成ラベルの経路を試す一時の口)は未着手
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): r7_builtin_ios の本番 手元 1/3・M4Max 1/3(行がラベル無しの clickable = 同じ形)
 - 処理(2026-11-23・評価 8回目の後の処理): 未着手(次の一手は in-app のブリッジに測る口を足す作業で、評価の後の処理の時間に収まらなかった)。評価 8回目では出ていない(リマインダーを触った builtin_ios・r5_builtin_ios の本番は今回回していない)
-
 - 評価 9回目(11/23 夜): リマインダーの本番は時間の都合で回していない(材料なし)
 
 ## 要判断
@@ -255,7 +254,7 @@
 
 ### OI-366 `ft_swipe` の「nothing on the screen moved」が、横の容器で中身が1枚ずれていても出る
 - 状態: 再現済み
-- 確認: 07d7fc00a(2026-11-23)
+- 確認: 07d7fc00a(2026-11-23。評価で1回観測・再現の試み 6 回は出ず)
 - 属性: 低頻度・要測定
 - 運用: 合否に響かない — MCP の注記だけ。端に着いたと読ませる
 - 優先度: 低 — 注記・文言だけ
@@ -289,8 +288,8 @@
 - 観測: e2e_cmp_ios5(06:13)・e2ex_cmp_ios(06:34)の Sim -08 の本番で、`text visibility check failed … the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen, not just at this element)` の赤。失敗時の画面写真はステータスバーとキーボードだけ描かれアプリの面が無地。結果 JSON の注記は `first-frame-timeout` だけで `screen-blank` が無く、レーンの切り離しも振り直しも起きていない(Android の Emulator -07/-08 の白紙は切り離されている)
 - 次の一手: iOS の白紙の判定(描画の状態を報告する経路)が、この形(ステータスバーは描かれアプリの面だけ無地)をなぜ白紙と言わないかを、残った画面写真と判定の入力で測る
 - 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
-- 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、据え置き
-- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim -08・inapp-boost・dc_cmp_ios)で外観をダークにした後、末尾の描画の検査が `the whole screenshot is a single colour, status bar included` の赤。この回は白紙として公表され、run が `renderingHeld`(他に iOS のレーンが無いので切り離さない)を記録した = 公表と判定は働いた。可視性検証の赤で `screen-blank` が立たない元の形は 2 回の評価で出ていない → 低頻度へ移す(出たら同じ手で測る)
+- 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、材料待ち
+- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim -08・inapp-boost・dc_cmp_ios)で外観をダークにした後、末尾の描画の検査が `the whole screenshot is a single colour, status bar included` の赤。run は `renderingHeld`(他に iOS のレーンが無いので切り離さない)を記録したが、この赤(全画面の一色)は公表しない型(`RenderCollapse.screenState` が nil を返す)なので、どのステップの公表かは未確認。可視性検証の赤で `screen-blank` が立たない元の形は 2 回の評価で出ていない → 低頻度へ移す(出たら同じ手で測る)
 
 ### OI-359 Flutter の iOS(inapp-boost)で `clearAppData` が「could not delete 1 item(s) in the data container … : Library」の 500 で赤
 - 状態: 再現済み
@@ -764,11 +763,11 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - ③の測定(11/19 夜・固定コーパス 53 画面の全要素に `pinnedBandCovering` を当てた): **94 件発火し、ほぼ全部が貼り付く見出しではない**(設定の行の題名が同じ行の説明文を覆う・天気の日付の文字片どうし・地図の候補の行の題名が行のボタンを覆う 等 = 同じ行の中の兄弟)。94 件中 89 件は容器が申告の無い推定(`clippingContainer(inferring: true)` が行そのものを容器と読み、行の上端の題名を「容器の上端に貼り付いた帯」と読む)。witness(E2EX-RN・Flutter の sticky の単体テストの木)はどちらも容器が scrollable を申告している。**直しの候補**: MCP の注記(`pinnedBandNote`)は申告された容器のときだけ出す。**未確認なのは反例側** —— scrollable を申告しない CMP iOS(XCUITest)の sticky で witness を落とさないか。反例側を測った(11/19 夜・E2EX-CMP の iOS Simulator・XCUITest の木): 申告された容器は画面全体の `scrollView`(0,0 402x874)だけで、貼り付いた `#hdr_A` は y=182 = 容器の縁に揃わない。**申告された容器に限ると CMP iOS の本物の貼り付く見出しを見逃す**ので、申告だけでは誤検知と witness を見分けられない(MN-108)。**決めてほしいこと**: (a) 注記だけの見逃しとして CMP iOS を諦めて申告された容器に限る (b) 推定の容器でも、帯が行の兄弟(同じ行の中の題名)でないことを別の材料で見分ける形を探す(材料は未発見)(c) 据え置き
 - 11/19 深夜(ユーザー決定「おすすめで」= (a)): MCP の貼り付く見出しの注記(`TapTargetGeometry.pinnedBandNote`)を、容器が scrollable を申告した要素の枠のときだけ出すようにした。固定コーパスの発火は 94 → 5 件(`PinnedBandNoteCorpusTests` が上限 5 で固定)。代償として CMP iOS の本物の貼り付く見出しには注記を出さない。DSL の撃つ前の送りは変えていない。**残りは据え置き**: OTP の装飾の重なりの「may have hit #otp_box_1」(入力は通る・注記だけ)と⑧(文言が両方の可能性を言っている)
 
-### OI-298 inapp-boost の `swipeBy(dxRatio: -0.6)` が CMP の iOS で行を払い切り、削除を確定させる(作成時の XCUITest では途中で止まる)
+### OI-298 inapp-boost の `swipeBy(dxRatio: -0.6)` が CMP の iOS で行を払い切り、削除を確定させる(作成時の XCUITest では途中で止まる。flick も同じ型)
 - 状態: 再現済み
 - 確認: 作業ツリー(91c8c035e + RR-8.3 の実装。2026-11-19)
 - 属性: 据え置き
-- 運用: 回避可 — 本番と同じモードで確かめ、ボタンだけなら小さめの比率(docs の gestures の注意点・known_caveats に記載)
+- 運用: 回避可 — 本番と同じモードで確かめ、ボタンを出すだけなら flick ではなく小さめの比率の swipeBy(docs の gestures の注意点・known_caveats に記載)
 - 優先度: 高 — 誤った操作
 
 出典: シナリオ作成の評価 4回目(2026-11-19・`_work/scen-eval-20261119b/`。67 セッション・本番 98 回・延べ 482 本・緑 442。一覧は同フォルダの `ISSUES.md`・各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
@@ -778,8 +777,8 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - **測定(11/19 21:0x・手元 Sim -08/-09・同じ swipeBy の比率だけ変え、払った 2 秒後の結果)**: inapp-boost は `-0.3`・`-0.4` でボタンが出て止まり、`-0.5`・`-0.6` で `action=row1:delete`(削除まで走る)。xcuitest は 4 つとも止まる。行は Compose の `AnchoredDraggable`(Closed / Actions = -160dp / Full = -行幅)で、Actions を越えて離したとき離す速さが閾値を越えれば Full へ走る。in-app の /drag は位置も速さも届け、XCUITest の合成は最後の移動が離す操作と同着になり Compose が捨てる(inapp-drag-selfrendered の 10/22 の測定と同じ)= **人の指に近いのは in-app 側**。作成時の確認(MCP は iOS で常に XCUITest)だけが止まって見え、AI は `-0.6` を「途中まで」と書いた
 - 決定: in-app の /drag を終点で止める直しは不採用の決定どおり(速さで決まる部品を壊す)。docs(gestures の注意点・known_caveats)に「離す速さで結果が変わる部品はモードで割れる・本番と同じモードで確かめる・ボタンだけなら小さめの比率」を足した。スキルの「完了の前に本番と同じ経路で回す」(DR-196)が効く形(評価は `ft_start_run` を禁じた構成)
 - 評価 5回目(11/21・`_work/scen-eval-20261121/`): e2ey_flutter_ios(Flutter の iOS・作成時の XCUITest)で、`swipeBy` の大きい比率が Dismissible を削除まで走らせ、snapshotAfter は行のボタンが並んだ中間の状態を返した(シナリオでも `exist "#btn_sw_archive_1"` が赤・既に action=row1:delete)
-
 - 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): e2ey_cmp_ios の `flickRightToLeft(scrollFrame: "スワイプ行 1")` が本番(inapp-boost)で M1Max 2回・手元 Sim -08 1回とも、続く `exist "#btn_sw_delete_1"` は ✅・`tap "#btn_sw_delete_1"` が「見つからない」の赤。失敗時の木は `action=row1:delete`・`rows=5` = 払いが削除まで走り、`exist` は消えていく行のボタンを読んだ(払った後に「スワイプ行 1」が木に無いことも測定で確認)。作成時の MCP(XCUITest)はボタンで止まって緑。flick(速い払い)でも同じ型。docs の「途中までのスワイプ」と「スワイプで削除」を相互に参照させ、速い払いは削除まで走りうると書いた
+
 ### OI-291 scrollFrame の枠の外にある固定要素を探すと、最初の読みで枠の外と分かっていても払い切る
 - 状態: 再現済み
 - 確認: 657e032d1(2026-11-19)
