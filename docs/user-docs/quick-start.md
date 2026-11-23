@@ -149,7 +149,7 @@ Open the "Profiles" tab of the VSCode Device Monitor and check that the app prof
 
 Expected result:
 
-- The run profiles ios-run and android-run (two devices each) are created on the "Profiles" tab. Without the Android SDK, only ios-run is created.
+- The run profiles ios-run and android-run (two devices each) are created on the "Profiles" tab.
 
 ## 6. Launch the sample app
 
