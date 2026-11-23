@@ -119,8 +119,9 @@
 
 出典: 設計上の欠陥の調査(2026-11-23)で「Android の自前描画の `z` を塗り順として扱う近道(`OcclusionGeometry.overlayCovering` の包む相手の分岐)」を読み、手元の E2E の結果で裏を取った
 - 観測: 手元の結果の events に「the target's centre is covered by …, so this may have hit … instead」が、Android では Flutter の SUT にだけ付いていた(E2EY-Flutter 419 ファイル・E2EX-Flutter 88・E2E-Flutter 12。CMP の Android は 0)。例: E2EX-Flutter `37_FAB…` の `tap "#fab_extended"` が緑で `covered by #row_f_10`(10/31)・E2EY-Flutter `スクロールで隠れるバーを扱えること.S0010` の `tap "#btn_bottom_b"` が緑で `covered by #row_h_12`(10/30)。FAB と下のバーは一覧の行より手前に描かれるので、名指しは誤り
-- 経路(コード): 行は FAB・ボタンを包まないので、包む相手の分岐(z の近道)は通らない。出どころは `OcclusionGeometry.overlayCovering` の「包まずに中心へ重なる相手は塗り順を見ずに覆い」(`guard TapTargetGeometry.contains(...) else { return true }`)。Android の Flutter の `z` は木の順と同じで塗り順ではない(FD-1.4)ので、後ろの行が覆いに数えられる。iOS の塗り順の無い木(SwiftUI・CMP・Flutter)も同じ分岐を通る(iOS の 388 件等が誤りかは未確認)
-- 判断が要る点: 直し方は「塗り順の無い木で手前をどう扱うか」(11/4 の決定 = 推測を足さない・OI-170)に当たる。候補は ①塗り順が本物の木(`PaintOrder.isReal`)では包まない重なりにも `drawnAbove` を要る ②塗り順の無い木では包まない重なりを覆いと名指さない(注記を出さない)。どちらも固定コーパス(`SweepHarnessTests`)の発火の増減を1件ずつ見る必要がある
+- 経路(コード): `OcclusionGeometry.occluder` が中心に重なる相手(包まない重なりを含む)から最も手前の1つを選び、`overlayCovering` が `PaintOrder.drawnAbove(相手, 対象)` を確かめる。**塗り順が本物の木(iOS の in-app の UIKit・RN = `z`)では奥の相手を覆いと言わない形が既にある**。Android の Flutter の `z` は木の順と同じで塗り順ではない(FD-1.4)ので、木で後ろに並ぶ一覧の行が、手前に描かれる FAB・下のバーより「手前」と判定される
+- 結果の数え方の注意: 緑のシナリオに付いた注記を「誤り」と数えてはいけない —— 覆われていない部分を押す・覆われていない候補へ替える補いで、正しい注記でも緑になる(RN の iOS は塗り順が本物で、緑に 162 件あった)。誤りと確かめたのは上の Flutter の2例(手前に描かれる部品を後ろの行が覆うと言った)
+- 判断が要る点: 直し方は「塗り順の無い木で手前をどう扱うか」(11/4 の決定 = 推測を足さない・OI-170)に当たる。候補は、塗り順の無い木では木の順で手前を決めて名指さない(注記を出さない)こと。ただし Android は UI フレームワークが分からないと `PaintOrder.isReal` が false に倒れるので、そのまま絞るとネイティブ View のアプリ(固定コーパスの Android の木)の正しい警告まで消える。**フレームワークが自前描画と分かっているときに限る**形にし、iOS の塗り順の無い木(SwiftUI・CMP・Flutter)で今出ている注記に正しいものがあるかを材料で確かめてから決める
 
 ## 木に材料なし
 
