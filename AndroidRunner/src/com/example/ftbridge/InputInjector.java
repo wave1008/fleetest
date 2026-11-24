@@ -156,14 +156,17 @@ final class InputInjector {
         boolean lastRefreshOK = false;  // 以下3つは期限切れの文言に載せる事実(failureFacts)
         String lastRead = null;
         int accepted = 0;
-        boolean refindFailed = false;  // 直近の周回で見つけ直せなかった(期限切れの文言に候補の事実を添える。OI-378)
+        boolean refindFailed = false;  // 直近の周回で控えのノードを取り直せなかった(期限切れの文言に候補の事実を添える。OI-378)
+        // 最初の SET_TEXT が受理されたノード。以後の読み・撃ちはこのノードだけ(引き直すと、受理後に焦点が次の欄へ移るアプリ
+        // (OTP 等)で次々の欄へ同じ文字列を書いて誤った緑になる)。受理の前は何も届いていないので引き直してよい
+        AccessibilityNodeInfo pinned = null;
         Rect bounds = new Rect();
         while (true) {
             try {
                 AccessibilityNodeInfo root = ua.getRootInActiveWindow();
-                AccessibilityNodeInfo target = root == null ? null
+                AccessibilityNodeInfo target = pinned != null ? pinned
+                        : root == null ? null
                         : findEditable(root, shortId, (int) x, (int) y, bounds);
-                refindFailed = target == null && accepted > 0;
                 // **読む前に必ず取り直す**。a11y ノードはキャッシュから供給され、とくに
                     // WebView(Chromium)は DOM 変更のイベントを遅れて出すため、取り直さないと
                     // getText() が**変更前の値を返し続ける**(SnapshotBuilder.collect の
@@ -172,6 +175,7 @@ final class InputInjector {
                     // (2026-07-31 実測: WebView 入力欄で 20%。値は実際には入っていた)。
                 // 1ノード1 IPC。通常経路は 1〜2 周で終わるのでコストは無視できる
                 boolean fresh = target != null && target.refresh();
+                refindFailed = pinned != null && !fresh;
                 if (target != null) {
                     lastRefreshOK = fresh;
                     if (!fresh) lastState = STALE_READ;
@@ -219,6 +223,7 @@ final class InputInjector {
                                 AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, combined);
                         if (target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
                             accepted++;
+                            if (pinned == null) pinned = target;
                             if (firstFireAt == 0) firstFireAt = SystemClock.uptimeMillis();
                             lastState = focused ? "ACTION_SET_TEXT was accepted but the read-back never showed the new value"
                                                 : "ACTION_SET_TEXT on an unfocused field did not take effect";
@@ -776,12 +781,13 @@ final class InputInjector {
         boolean lastRefreshOK = false;  // 以下3つは期限切れの文言に載せる事実(failureFacts)
         String lastRead = null;
         int accepted = 0;
+        AccessibilityNodeInfo pinned = null;  // 最初の SET_TEXT が受理されたノード。以後はこのノードだけ(setTextAppendingAt の同名の変数と同じ理由)
         while (true) {
             try {
-                AccessibilityNodeInfo root = SnapshotBuilder.waitForRoot(ua, FOCUS_ROOT_WAIT_MS);
+                AccessibilityNodeInfo root = pinned != null ? null : SnapshotBuilder.waitForRoot(ua, FOCUS_ROOT_WAIT_MS);
                 // 入れ物へ倒れた findFocus から combined を作ると空読み + 拒否で 2 秒待って 500
                 // (focusedEditable の doc)
-                AccessibilityNodeInfo focus = root == null ? null : focusedEditable(root);
+                AccessibilityNodeInfo focus = pinned != null ? pinned : root == null ? null : focusedEditable(root);
                 // 読む前に取り直す(理由は setTextAppendingAt の同じ位置のコメント)
                 boolean fresh = focus != null && focus.refresh();
                 if (focus != null) {
@@ -807,6 +813,7 @@ final class InputInjector {
                             AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, combined);
                     if (focus.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
                         accepted++;
+                        if (pinned == null) pinned = focus;
                         lastState = "ACTION_SET_TEXT was accepted but the read-back never showed the new value";
                     } else {
                         lastState = "this field does not accept ACTION_SET_TEXT (a WebView, for example)";

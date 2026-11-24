@@ -2013,9 +2013,12 @@ public struct ScrollActionRequest: Codable {
 public struct ScrollActionResponse: Codable {
     public var performed: Bool
     public var atEdge: Bool?
-    public init(performed: Bool, atEdge: Bool? = nil) {
+    /// 宛先を代えて送った事実(入れ子の容器へ送った等。BridgeRouter.handleScrollAction)。省略可 = 通常の経路
+    public var note: String?
+    public init(performed: Bool, atEdge: Bool? = nil, note: String? = nil) {
         self.performed = performed
         self.atEdge = atEdge
+        self.note = note
     }
 }
 

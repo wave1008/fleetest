@@ -856,10 +856,11 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         if (node.isScrollable() && bounds.contains(x, y)) {
             // **操作の申告はキャッシュから読まない**: 直前のスクロールの後、キャッシュのノードは送れる向きが
             // 古いままのことがあり、動かせる一覧を「もう端」と答える(Compose の a11y キャッシュ遅れと同じ型)
-            node.refresh();
+            // refresh() が false なら古いまま = 候補にしない(古い一覧で「もう端」と誤答しない)
+            boolean fresh = node.refresh();
             node.getBoundsInScreen(bounds);
             int axis = scrollAxis(node);
-            if (axis == (vertical ? 1 : 2)) {
+            if (fresh && axis == (vertical ? 1 : 2)) {
                 best = node;
                 bestArea = (long) bounds.width() * bounds.height();
             }

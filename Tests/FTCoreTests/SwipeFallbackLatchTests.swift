@@ -24,6 +24,12 @@ private final class SwipeRecordingDriver: AppDriver {
     }
 
     func swipe(_ direction: FTSwipeDirection) async throws { plainSwipes += 1 }
+    /// swipe の応答に載った注記を模す(読むと消える = AndroidDriver の pendingTypeNote と同じ一回読みの控え)
+    var noteAfterSwipe: String?
+    var lastActionNote: String? {
+        defer { noteAfterSwipe = nil }
+        return noteAfterSwipe
+    }
     func snapshot() async throws -> SnapshotResponse {
         SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
                          elements: [], truncatedCount: 0)
@@ -85,5 +91,21 @@ final class SwipeFallbackLatchTests: XCTestCase {
     func testInnerContainerMayAccept() {
         XCTAssertTrue(ScrollPointReach.mayAccept(frame: FTRect(x: 16, y: 226, width: 370, height: 470),
                                                  rootWidth: 402, rootHeight: 874))
+    }
+
+    /// swipe の応答の注記(/scrollAction の「入れ子の容器へ送った」等)は撃った直後に消費する
+    /// (ドライバの控えに残すと次の tap/type の説明に付く = executeDirectType の doc の罠)。同じ注記は1回だけ
+    func testSwipeBridgeNoteIsConsumedRightAfterTheSwipe() async throws {
+        let primary = SwipeRecordingDriver(rejectsPath: false)
+        let fallback = SwipeRecordingDriver(rejectsPath: false)
+        let executor = StepExecutor(driver: primary, typeDriver: fallback, isAndroid: true, tunables: RunTunables())
+        var phase = StepExecutor.PhaseAccumulator()
+        primary.noteAfterSwipe = "scrolled the nested list instead"
+        _ = try await executor.swipeWithFallback(.up, phase: &phase)
+        XCTAssertEqual(executor.swipeBridgeNoteThisStep, "scrolled the nested list instead")
+        XCTAssertNil(primary.lastActionNote, "撃った直後に消費する(次の操作へ持ち越さない)")
+        primary.noteAfterSwipe = "scrolled the nested list instead"
+        _ = try await executor.swipeWithFallback(.up, phase: &phase)
+        XCTAssertEqual(executor.swipeBridgeNoteThisStep, "scrolled the nested list instead", "同じ注記は繰り返さない")
     }
 }

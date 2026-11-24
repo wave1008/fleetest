@@ -15,6 +15,8 @@ public enum AndroidDataWiperError: Error, LocalizedError, Equatable {
     /// 走っているかどうかを決められない(**1バイトも消していない**)。qemu のプロセスは居るのに
     /// adb が serial を出さない・ps が読めず offline のデバイスがある等、止める宛先を引けない形
     case runningStateUnknown(device: String, avd: String, reason: String)
+    /// 停止後の削除で1件以上失敗した(**消えていないものが残っている**。成功・done を出さない)。failures = 「対象: 理由」
+    case removalFailed(device: String, failures: [String])
 
     public var errorDescription: String? {
         switch self {
@@ -26,6 +28,10 @@ public enum AndroidDataWiperError: Error, LocalizedError, Equatable {
         case .runningStateUnknown(let device, let avd, let reason):
             return "\(device): cannot tell whether \(avd) is running (\(reason)); not deleting"
                 + " — nothing was wiped. Stop it and try again"
+        case .removalFailed(let device, let failures):
+            return "\(device): could not delete \(failures.count) wipe target(s): "
+                + failures.joined(separator: "; ")
+                + " — the emulator was stopped but the data was not fully wiped"
         }
     }
 }
@@ -151,9 +157,8 @@ public enum AndroidDataWiper {
         // (実際に起きた: デバイスが止まっただけで中身は残り、利用者には ok:true が返った)
         let running = try await stopIfRunning(avdID: avdID, deviceName: name, log: log)
 
-        for target in targets {
-            try? FileManager.default.removeItem(at: target)
-        }
+        // 削除の失敗は握りつぶさない(残ったまま「data wiped」と done を出すのが最も避けたい誤った緑)
+        try removeTargets(targets, deviceName: name)
 
         if running == .wasRunning {
             log("🧹 \(name): data wiped (freed \(sizeGB)GB). "
@@ -169,6 +174,22 @@ public enum AndroidDataWiper {
                 + "not running, so no reboot)")
         }
         status?("done")
+    }
+
+    /// 削除を全件試し、1件でも失敗したら全失敗を載せて throw する。remove は単体テスト用の差し替え口
+    static func removeTargets(
+        _ targets: [URL], deviceName: String,
+        remove: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+    ) throws {
+        var failures: [String] = []
+        for target in targets {
+            do { try remove(target) } catch {
+                failures.append("\(target.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if !failures.isEmpty {
+            throw AndroidDataWiperError.removalFailed(device: deviceName, failures: failures)
+        }
     }
 
     /// 停止確認の締切(秒)。**この時間内に消えなければ削除へ進まない**(消したい相手より
@@ -206,7 +227,9 @@ public enum AndroidDataWiper {
         // gRPC SHUTDOWN 優先(adb 経路死亡でも届く)・不可なら従来の emu kill
         if await !EmulatorControl.shutdown(serial: serial) {
             let adb = try AndroidDriver.findADB()
-            _ = try? Shell.run([adb, "-s", serial, "emu", "kill"])
+            // 期限: gRPC が届かない = adb が詰まりやすい状況で入る経路。無期限だと wipe 全体が固まるので、
+            // 端末の応答待ちの共通の上限(秒)で切る。尽きても停止確認のループが serial / qemu の消失を見て中止か続行を決める
+            _ = try? Shell.run([adb, "-s", serial, "emu", "kill"], timeout: AndroidDriver.deviceAnswerTimeoutSeconds)
         }
 
         let deadline = Date().addingTimeInterval(TimeInterval(stopConfirmSeconds))

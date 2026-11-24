@@ -162,6 +162,33 @@ final class AndroidDataWiperTests: XCTestCase {
         XCTAssertTrue(message.contains("60"), message)
     }
 
+    /// 削除に1件でも失敗したら throw する(performWipe はこの throw を伝え、成功の文言と done を出さない)。失敗は全件を載せ、残りの削除は続ける
+    func testRemoveTargetsThrowsWhenAnyDeletionFails() throws {
+        let a = try writeFile("userdata-qemu.img", bytes: 1)
+        let b = try writeFile("cache.img", bytes: 1)
+        struct Boom: Error, LocalizedError { var errorDescription: String? { "permission denied" } }
+        var attempted: [String] = []
+        XCTAssertThrowsError(try AndroidDataWiper.removeTargets([a, b], deviceName: "エミュ1") { url in
+            attempted.append(url.lastPathComponent)
+            if url == a { throw Boom() }
+            try FileManager.default.removeItem(at: url)
+        }) { error in
+            guard case AndroidDataWiperError.removalFailed(let device, let failures) = error else {
+                return XCTFail("unexpected error \(error)")
+            }
+            XCTAssertEqual(device, "エミュ1")
+            XCTAssertEqual(failures, ["userdata-qemu.img: permission denied"])
+        }
+        XCTAssertEqual(attempted, ["userdata-qemu.img", "cache.img"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: b.path))
+    }
+
+    func testRemoveTargetsSucceedsWhenAllDeleted() throws {
+        let a = try writeFile("cache.img", bytes: 1)
+        try AndroidDataWiper.removeTargets([a], deviceName: "エミュ1")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: a.path))
+    }
+
     func testWipeTargetsListsOnlyExistingCandidates() throws {
         _ = try writeFile("userdata-qemu.img.qcow2", bytes: 10)
         _ = try writeFile("cache.img", bytes: 10)

@@ -49,6 +49,7 @@
 - 測定(2026-11-24・手元 Emulator -05・`adb shell uiautomator dump` で `text` と `content-desc` を分けて読んだ): 自前 SUT のホーム画面で、**Compose・View** は描かれた文字がすべて `text`(説明は空)、**React Native** はボタンが説明 = ラベルを持ち、子の TextView が同じ文字を `text` に持つ、**Flutter** は描かれた文字が説明にだけ入る(`text` は空)。評価で赤になった2例(電卓の `No formula`・マップのアイコンのボタン)はネイティブ View の説明だけのラベル
 - 処理(2026-11-24・評価 11回目の後の処理): ブリッジがラベルの出どころを送り(`ElementInfo.labelSource = "desc"`・Android のブリッジの版 145)、可視性検証は `DescriptionOnlyLabel.skipsDrawnTextCheck` が真の要素で描かれた文字を求めない(注記 `description-only-label-not-checked`)。条件は上の測定の3つの形をそのまま書いたもの(説明だけ・Flutter でない・子孫に同じ文字の `text` が無い)。**UI フレームワークが不明なら従来どおり検証する** —— Android のフレームワークの判定はプロファイルの `appPath` の APK だけから行う(`AppUIFrameworkQuery`)ので、評価で赤になった標準アプリ(電卓・マップ = `appPath` が無い)にはこの直しは効かない
 - 次の一手: 端末に入っているパッケージの APK を(`adb shell pm path` → 取り出し)判定の材料にできるかを決める(子のサンドボックスの `AdbPolicy` に取り出しを足す・取り出しの所要)。決まるまで標準アプリの説明だけのラベルは `requireVisible: false` で書く
+
 ## 要測定
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
@@ -130,6 +131,7 @@
 - 優先度: 低 — 1回・リモートの1台だけ
 
 出典: シナリオ作成の評価 11回目(2026-11-24・`_work/scen-eval-20261124c/`。作成 53 セッション(完了前の `ft_start_run` を初めて許した回)・本番 147 回・延べ 467 本・緑 353。各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
+- 直しの見込み(未測定): `setTextAppendingAt` / `setTextAppending` は最初の ACTION_SET_TEXT が受理されたノードを控えて以後はそのノードだけを読む・撃つ形にした(二重入力の予防が目的)。控えたノードを固定するので「見つけ直し」自体が要らなくなり、この症状も消える見込み。控えを取り直せない(refresh が false)まま期限が来たときだけ、従来の文言 + refindFacts で赤になる。測ってから消す
 - 観測: s_contacts_and(M1Max の Pixel 10 Pro(Android 17) Emulator)の `type ".textField&&placeholder=名||.textField[3]" "タロウ"` が `cannot type into the field that was tapped (the field could not be found again after ACTION_SET_TEXT was accepted, 4000ms waited; read back "", refresh ok, ACTION_SET_TEXT accepted 2 times, the IME window is in front …)` で赤。失敗時の木では名の欄が `value="タロウ" ph="名"`、よみがなの欄にも `value="タロウ"`(入力で画面が変わった)。手元の同じ OS の Emulator は緑。作成者の「入力でプレースホルダが消えて指し直せない」は誤り(入力後の木にも `ph="名"` があり、見つけ直しはセレクタを使わない)
 - 材料: 見つけ直しは `AndroidRunner/…/InputInjector.java` の `findEditable(root, shortId, x, y, bounds)`。id の無い欄はタップ座標で追う。どの候補を拾った(拾えなかった)かの記録は無い
 - 次の一手: 見つけ直しの候補の数と座標を注記に残す口を足し、次に出たとき「座標が外れたのか・欄が作り直されたのか」を分ける

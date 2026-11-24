@@ -604,6 +604,8 @@ final class SnapshotBuilder {
             AccessibilityNodeInfo child = picker.getChild(i);
             if (child == null) continue;
             if ("android.widget.EditText".contentEquals(charSeq(child.getClassName()))) {
+                // 取り直せていない(false)読みは古い値なので読まない
+                if (!child.refresh()) return "";
                 return charSeq(child.getText());
             }
         }
@@ -759,7 +761,8 @@ final class SnapshotBuilder {
         int remaining = n;
         for (int tier = 2; tier >= 0 && remaining > max; tier--) {
             for (int i = n - 1; i >= 0 && remaining > max; i--) {
-                if (!keep[i] || priorityTier(included.get(i)) != tier) continue;
+                // scrollable は間引かない(落とすと scrollFrame の解決と容器推定が退化する。Swift 側 BridgeSnapshotThinning と同じ規則。数個なので max を僅かに超えてよい)
+                if (!keep[i] || included.get(i).scrollable || priorityTier(included.get(i)) != tier) continue;
                 keep[i] = false;
                 remaining--;
             }

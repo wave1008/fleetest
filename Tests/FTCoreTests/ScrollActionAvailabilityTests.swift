@@ -136,4 +136,19 @@ final class ScrollActionAvailabilityTests: XCTestCase {
         let outer = scrollable(ref: 1, y: 168, height: 2256, actions: ["forward"])
         XCTAssertFalse(ScrollActionAvailability.atEdge(container: list, enclosing: [outer], forSwipe: .down))
     }
+
+    // MARK: - /scrollAction の応答の note(入れ子の容器へ代わりに送った事実)
+
+    func testScrollActionResponseDecodesNote() throws {
+        let json = #"{"performed":true,"note":"scrolled the nested container"}"#
+        let response = try JSONDecoder().decode(ScrollActionResponse.self, from: Data(json.utf8))
+        XCTAssertTrue(response.performed)
+        XCTAssertEqual(response.note, "scrolled the nested container")
+    }
+
+    func testScrollActionResponseWithoutNoteDecodesAsNil() throws {
+        let response = try JSONDecoder().decode(ScrollActionResponse.self, from: Data(#"{"performed":false,"atEdge":true}"#.utf8))
+        XCTAssertNil(response.note)
+        XCTAssertEqual(response.atEdge, true)
+    }
 }

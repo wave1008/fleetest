@@ -731,6 +731,7 @@ extension StepExecutor {
             let start = clock.now
             try await td.swipe(direction, intent: intent, path: path)
             gestureDeliveredThisStep = true
+            consumeSwipeBridgeNote(from: td)
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
             swipeInertiaDirection = direction
@@ -740,6 +741,7 @@ extension StepExecutor {
             let start = clock.now
             try await driver.swipe(direction, intent: intent, path: path)
             gestureDeliveredThisStep = true
+            consumeSwipeBridgeNote(from: driver)
             phase.actionMs += Self.ms(clock.now - start)
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: false)
             swipeInertiaDirection = direction
@@ -753,12 +755,20 @@ extension StepExecutor {
             let start = clock.now
             try await td.swipe(direction, intent: intent, path: path)
             gestureDeliveredThisStep = true
+            consumeSwipeBridgeNote(from: td)
             phase.actionMs += Self.ms(clock.now - start)
             if path == nil { swipeFallbackLatched = true } else { pathSwipeFallbackLatched = true }
             swipeInertiaPending = !swipeLeavesNoInertia(swipedViaXCUITest: true)
             swipeInertiaDirection = direction
             return true
         }
+    }
+
+    /// swipe の応答の注記(`/scrollAction` の「入れ子の容器へ送った」等)を**撃った直後に消費**して
+    /// このステップの `swipeBridgeNoteThisStep` へ合流する。同じ注記の繰り返し(長い探索)は1回だけ残す
+    private func consumeSwipeBridgeNote(from acting: AppDriver) {
+        guard let note = acting.lastActionNote, swipeBridgeNoteThisStep?.contains(note) != true else { return }
+        swipeBridgeNoteThisStep = [swipeBridgeNoteThisStep, note].compactMap { $0 }.joined(separator: " / ")
     }
 }
 

@@ -1215,6 +1215,8 @@ public final class AndroidDriver: AppDriver {
             // a11y の操作の直後はキャッシュのノードが送れる向きを古いまま持つことがある。次の端の判定
             // (ScrollActionAvailability)が古い申告で「もう端」と誤らないよう、次の1枚だけ迂回する
             if answer.atEdge == true || answer.performed { nextSnapshotBypassesCache = true }
+            // 入れ子の容器へ代わりに送った事実(ブリッジの note)。lastActionNote の合流先(type の注記と同じ控え)へ
+            if let note = answer.note { pendingTypeNote = note }
             if answer.atEdge == true {
                 atEdgeOnLastSwipe = true
                 return

@@ -879,6 +879,7 @@ public final class StepExecutor {
         hideKeyboardFoundNoKeyboard = false
         // 探索の注記は段ごと(消さないと、探索しなかった後続の段にも前の段の注記が付き続けた)
         scrollSearchNote = nil
+        swipeBridgeNoteThisStep = nil
         suppressedInterruptionSeenThisStep = false
         observedCheckedThisStep = nil
         guardEnteredThisStep = false
@@ -1233,6 +1234,10 @@ public final class StepExecutor {
     /// 内蔵スクロール探索が XCUITest 経由の swipe に落ちたときの注記(execute が載せる)。
     /// StepExecutor+Assert.swift の executeAssertExists からも書くため internal。
     var scrollSearchNote: String?
+    /// swipe を撃ったブリッジの注記(Android の /scrollAction が「点の容器でなく入れ子の容器へ送った」等)。
+    /// **撃った直後に消費して持ち越さない**(ドライバの控えは読むまで残るので、残すと次の tap/type の説明に付く
+    /// = executeDirectType の doc の罠)。探索の最後に代入される scrollSearchNote とは別に持つ(上書きされない)
+    var swipeBridgeNoteThisStep: String?
     /// checked / notChecked が**チェック状態を観測したか**(execute が StepOutcome に載せる)。
     /// executeAssert は Status しか返さないためインスタンス変数で受け渡す
     /// (StepExecutor+Assert.swift の executeAssertChecked から書くため internal)。
@@ -1694,7 +1699,7 @@ public final class StepExecutor {
     /// ステップ横断の注記(内蔵スクロール探索・割り込み)を既存の driverFallback へ合流させる。
     /// `failed` のときは**読み手が原因に辿り着けるように**割り込みの意味を書き足す
     private func noteWithInterrupt(_ base: String?, failed: Bool = false) -> String? {
-        var parts = [base, scrollSearchNote].compactMap { $0 }
+        var parts = [base, scrollSearchNote, swipeBridgeNoteThisStep].compactMap { $0 }
         if let interruptNote {
             let times = interruptDismissalTotal > 1 ? " ×\(interruptDismissalTotal)" : ""
             parts.append("dismissed the interruption \(interruptNote)\(times)")
