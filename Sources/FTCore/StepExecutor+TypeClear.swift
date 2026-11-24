@@ -177,7 +177,14 @@ extension StepExecutor {
                 // 見える文字を送り損ねるより実害が小さい
                 let start = clock.now
                 // 読み返しで撮り直した後なので、その木の ref で撃つ(element.ref は別の要素を指しうる)
-                try await driver.type(ref: liveRef, text: missing)
+                // 主の type は届いた後。ここの断り(staleRef / systemAlertBlocked)を投げ直すと呼び手がステップごと
+                // やり直して主の type を再送する(二重入力 = DR-136)。失敗にして閉じる
+                do {
+                    try await driver.type(ref: liveRef, text: missing)
+                } catch let error as DriverError {
+                    if let refused = Self.readbackRefusal(error, action: "re-sending the missing text") { return refused }
+                    throw error
+                }
                 phase.actionMs += Self.ms(clock.now - start)
             case .deleteExcess where !checkedScreenForTypedText
                     && (Self.valueUnchangedByTyping(actual, element: element, baseline: consumptionBaseline) || actual == previous):
@@ -218,8 +225,13 @@ extension StepExecutor {
                     noteCodesThisStep.insert(.typeRetyped)
                 }
                 let start = clock.now
-                try await driver.clearInput(ref: liveRef)
-                try await driver.type(ref: liveRef, text: target)
+                do {
+                    try await driver.clearInput(ref: liveRef)
+                    try await driver.type(ref: liveRef, text: target)
+                } catch let error as DriverError {
+                    if let refused = Self.readbackRefusal(error, action: "retyping the field") { return refused }
+                    throw error
+                }
                 phase.actionMs += Self.ms(clock.now - start)
             }
             stagnantRounds = (actual == previous) ? stagnantRounds + 1 : 0
@@ -228,6 +240,18 @@ extension StepExecutor {
                 return "type reported success but the value did not settle after \(rounds) round(s)"
                     + " of readback (expected \(expected.count) character(s))"
             }
+        }
+    }
+
+    /// 読み返しの追送・打ち直しが「届けずに断られた」(staleRef / systemAlertBlocked)ときの失敗文。
+    /// 主の type は届いているので、投げ直さず失敗にする(ステップの再実行は主の type を再送する)。それ以外は nil
+    static func readbackRefusal(_ error: DriverError, action: String) -> String? {
+        switch error {
+        case .staleRef, .systemAlertBlocked:
+            return "type reported success but the field's value did not match the typed text, and \(action) was"
+                + " refused before it was delivered — not re-sent, so the field does not receive the same text twice"
+        default:
+            return nil
         }
     }
 

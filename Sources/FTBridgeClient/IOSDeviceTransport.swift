@@ -451,10 +451,17 @@ public enum IOSDeviceTransport {
             .map(\.port)
     }
 
-    /// startIproxy がトンネルを確立/再利用した直後に呼ぶ。実機は全ポートで bundle id が
-    /// 共通なので、1台に同居できる iproxy は1本 —— 同じ UDID を向いた**他ポート**の古いトンネルは
-    /// どれにも使われないまま残り続ける(実測: SE3 で iproxy が3本(現役1・前日以降の
-    /// 残骸2)生き残っていた)。**台帳に無い iproxy(利用者が手で起こしたもの)は触らない** ——
+    /// 台帳のポートのうち、**生きたブリッジの転送**として残すもの(純粋関数。単体テスト対象)。
+    /// in-app 側 = このデバイスの `.inapp` 記録がある / XCUITest 側 = `bridge-<port>.pid` の pid が生きている。
+    static func livePeerBridgePorts(facts: [(port: UInt16, inAppRecordedForDevice: Bool, runnerPidAlive: Bool)]) -> Set<UInt16> {
+        Set(facts.filter { $0.inAppRecordedForDevice || $0.runnerPidAlive }.map(\.port))
+    }
+
+    /// startIproxy がトンネルを確立/再利用した直後に呼ぶ。同じ UDID を向いた**他ポート**のうち、
+    /// どのブリッジにも使われない古いトンネルを止める(実測: SE3 で iproxy が3本(現役1・前日以降の
+    /// 残骸2)生き残っていた)。**inapp-boost の実機は1台に2本(in-app + XCUITest)が正常**なので、
+    /// 呼び手の keepPeerPorts に加え、台帳で生きたブリッジと分かるポート(`livePeerBridgePorts`)も残す
+    /// (片側の張り直しで相方を止めない)。**台帳に無い iproxy(利用者が手で起こしたもの)は触らない** ——
     /// `.fleetest/iproxy-*.pid` を列挙した分だけが対象。生死・iproxy 判定は isIproxy(pid:) を
     /// 再利用する(素の kill(pid,0) は禁止。StaleLedgerSweep と同じ「台帳はプロセスの実体で掃除する」規律)
     static func stopStalePeerTunnels(hostPort: UInt16, deviceUDID: String, repoRoot: URL, keepPeerPorts: Set<UInt16> = []) {
@@ -474,7 +481,16 @@ public enum IOSDeviceTransport {
             entries.append((port, ps.output))
             pidByPort[port] = pid
         }
-        for port in stalePeerPorts(entries: entries, hostPort: hostPort, deviceUDID: deviceUDID, keepPeerPorts: keepPeerPorts) {
+        let liveBridgePorts = livePeerBridgePorts(facts: entries.map { entry in
+            let runnerPid = (try? String(contentsOf: stateDir.appendingPathComponent("bridge-\(entry.port).pid"), encoding: .utf8))
+                .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            return (port: entry.port,
+                    inAppRecordedForDevice: InAppBridgeState.isRecordedForDevice(
+                        stateDir: stateDir, port: entry.port, udid: deviceUDID),
+                    runnerPidAlive: runnerPid.map { ProcessLiveness.isAlive($0) } ?? false)
+        })
+        for port in stalePeerPorts(entries: entries, hostPort: hostPort, deviceUDID: deviceUDID,
+                                   keepPeerPorts: keepPeerPorts.union(liveBridgePorts)) {
             if let pid = pidByPort[port] { kill(pid, SIGTERM) }
             try? FileManager.default.removeItem(at: pidURL(hostPort: port, repoRoot: repoRoot))
             ConsoleOut.err("stopped a stale USB tunnel for \(deviceUDID) on port \(port)"

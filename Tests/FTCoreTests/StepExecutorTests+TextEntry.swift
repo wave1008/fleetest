@@ -365,6 +365,38 @@ extension StepExecutorTests {
                        "取りこぼした分を1回だけ追送すること: \(log.entries)")
     }
 
+    /// 読み返しの追送が staleRef で断られても、ステップを最初からやり直さない(主の type は届いている =
+    /// やり直すと二重入力。DR-136)。type は主の1回だけ・失敗文に not re-sent
+    func testResendRefusedAsStaleRefFailsWithoutRetypingTheStep() async throws {
+        let log = CallLog()
+        let primary = FakeAppDriver(
+            name: "primary", log: log,
+            snapshotElements: [[inputField(ref: 1, id: "field", value: nil)],
+                              [inputField(ref: 1, id: "field", value: "h")]])
+        primary.verifiesTypedText = false
+        var mutations = 0
+        primary.onMutatingCall = {
+            mutations += 1
+            if mutations == 1 { primary.typeError = DriverError.staleRef(detail: "ref moved") }
+        }
+        let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables())
+
+        let outcome = await executor.execute(FlowStep(action: "type", locator: FlowLocator(id: "field"), text: "hi"))
+
+        guard case .failed(let message) = outcome.status else {
+            return XCTFail("追送が断られたら failed を期待したが \(outcome.status) だった")
+        }
+        XCTAssertTrue(message.contains("not re-sent"), message)
+        XCTAssertEqual(log.entries.filter { $0.hasPrefix("primary.type(ref:") }.count, 1,
+                       "主の type を再送しない: \(log.entries)")
+    }
+
+    func testReadbackRefusalCoversOnlyUndeliveredRefusals() {
+        XCTAssertNotNil(StepExecutor.readbackRefusal(.staleRef(detail: "x"), action: "a"))
+        XCTAssertNotNil(StepExecutor.readbackRefusal(.systemAlertBlocked(detail: "x"), action: "a"))
+        XCTAssertNil(StepExecutor.readbackRefusal(.argumentRejected(detail: "x"), action: "a"))
+    }
+
     /// **追送は読み返しで撮り直した木の番号で撃つ**(in-app も最後の snapshot の表しか持たない)。番号がずれた木で
     /// 元の番号のまま追送すると別の欄へ入る
     func testTypeResendsWithTheRefFromTheReadbackTree() async throws {

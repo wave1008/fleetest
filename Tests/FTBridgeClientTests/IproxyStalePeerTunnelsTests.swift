@@ -42,4 +42,26 @@ final class IproxyStalePeerTunnelsTests: XCTestCase {
         XCTAssertEqual(IOSDeviceTransport.stalePeerPorts(
             entries: [], hostPort: 8124, deviceUDID: "00008110-000260242EEB801E"), [])
     }
+
+    func testLivePeerBridgePortsKeepsInAppRecordedAndLiveRunnerButNotLeftovers() {
+        let live = IOSDeviceTransport.livePeerBridgePorts(facts: [
+            (port: 8125, inAppRecordedForDevice: true, runnerPidAlive: false),
+            (port: 8126, inAppRecordedForDevice: false, runnerPidAlive: true),
+            (port: 8127, inAppRecordedForDevice: false, runnerPidAlive: false),
+        ])
+        XCTAssertEqual(live, [8125, 8126], "in-app の記録か生きたランナーが無い残骸だけが止まる側に残る")
+    }
+
+    func testLiveBridgePeersSurviveStalePeerSelection() {
+        let udid = "00008110-000260242EEB801E"
+        let entries = [(port: UInt16(8125), command: sameUDIDCommand), (port: 8126, command: sameUDIDCommand),
+                       (port: 8127, command: sameUDIDCommand)]
+        let keep = IOSDeviceTransport.livePeerBridgePorts(facts: [
+            (port: 8125, inAppRecordedForDevice: true, runnerPidAlive: false),
+            (port: 8126, inAppRecordedForDevice: false, runnerPidAlive: true),
+            (port: 8127, inAppRecordedForDevice: false, runnerPidAlive: false),
+        ])
+        XCTAssertEqual(IOSDeviceTransport.stalePeerPorts(
+            entries: entries, hostPort: 8124, deviceUDID: udid, keepPeerPorts: keep), [8127])
+    }
 }

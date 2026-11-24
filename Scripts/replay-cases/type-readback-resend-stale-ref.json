@@ -1,0 +1,28 @@
+{
+  "id": "type-readback-resend-stale-ref",
+  "finding": "type の読み返しの追送(足りない分の再送・clearInput+打ち直し)が staleRef / systemAlertBlocked で断られると、ステップ全体が最初からやり直され、主の type がもう一度届いて二重入力になる(DR-136)",
+  "platform": "ios",
+  "redNote": "原因は StepExecutor+TypeClear.swift verifyTypedText の追送が断りを投げ直していたこと(コードの観測)。デバイスで再現するには、読み返しで1文字欠けた直後に追送が断られる必要があり、自然には起きない。手順: inapp-boost モードの iOS で、type の直後に木が入れ替わる欄(E2EY の再描画する入力欄)へ ft_type し、応答が失敗文 `not re-sent, so the field does not receive the same text twice` を返し欄の値が二重にならないことを見る。単体テスト testResendRefusedAsStaleRefFailsWithoutRetypingTheStep(偽ドライバ)が確定した再現。直しを外した版(verifyTypedText の do/catch を外す)でこの単体テストが赤になることはメインが確認する",
+  "setup": [
+    ["ft_launch", { "bundleId": "com.ftester.e2ey.ios" }]
+  ],
+  "reset": [
+    ["ft_terminate", { "bundleId": "com.ftester.e2ey.ios" }],
+    ["ft_launch", { "bundleId": "com.ftester.e2ey.ios" }]
+  ],
+  "resetSeconds": 1.5,
+  "rounds": 5,
+  "forms": [
+    {
+      "name": "ft_type で入力した欄の値が二重にならない(失敗するなら not re-sent を含む)",
+      "allowErrors": true,
+      "steps": [
+        ["ft_snapshot", {}],
+        ["ft_type", { "selector": ".textField", "text": "hello" }],
+        ["ft_snapshot", {}]
+      ],
+      "settleSeconds": 1,
+      "reject": ["hellohello"]
+    }
+  ]
+}
