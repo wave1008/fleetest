@@ -1104,7 +1104,7 @@ export class MonitorDeviceOps {
       // **バナーにも出す** —— ログだけだと利用者からは無反応に見える。理由は stderr の
       // 最後の実質行(CLI はそこに原因を書く。stderrDetailLine の doc 参照)
       if (!failureLogged && exitCode !== 0 && !upRun?.cancelled) {
-        const detail = stderrDetailLine(stderrText.text());
+        const detail = stderrDetailLine(stderr);
         // **exit 64 = 引数エラー**(ArgumentParser)。リモートで出たなら、ほぼ「向こうの fleetest が
         // 古くてこのサブコマンド/オプションを知らない」(spawnCreateDevice と同じ読み替え)
         const message = exitCode === 64 && machine !== undefined
