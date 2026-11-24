@@ -45,7 +45,7 @@ export interface CliResult {
   /** onNdjsonValue を指定しなかった場合の、stdout 全体を JSON.parse した結果。 */
   json: unknown;
   exitCode: number | null;
-  /** SIGTERM/SIGKILL によって終了させられた場合に true。 */
+  /** SIGTERM/SIGKILL によって終了させられた場合、または cancel() 済みで非ゼロ終了した場合(後始末のあと終了コードで終わる子)に true。 */
   cancelled: boolean;
 }
 
@@ -285,7 +285,9 @@ export class FleetestCli {
         }
         stderrParser.end();
 
-        const cancelled = signal === "SIGTERM" || signal === "SIGKILL";
+        // fleetest 自身の子は SIGTERM を InterruptRelay で受けて後始末をし、終了コードを返して終わる(signal は
+        // null)。利用者の中断を「異常終了」と読まないよう、cancel() 済みで非ゼロ終了も中断に数える
+        const cancelled = signal === "SIGTERM" || signal === "SIGKILL" || (task.cancelled && exitCode !== 0);
         let json: unknown;
         if (!parseNdjson) {
           const text = Buffer.concat(stdoutChunks).toString("utf8").trim();

@@ -35,6 +35,7 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import type { OutputChannel } from "vscode";
+import { Utf8LineSplitter } from "./utf8Chunks";
 import { childEnv } from "./childEnv";
 import { t } from "./i18n";
 import { errorMessage } from "./guards";
@@ -219,12 +220,9 @@ export class StreamPipeline implements LiveStreamPipeline {
 
     // stderr は行単位で outputChannel へ。チャンク境界が行の途中で切れても取りこぼさないよう
     // 未完の末尾行を持ち越し、close で flush する。
-    let stderrTail = "";
+    const stderrLines = new Utf8LineSplitter();
     proc.stderr.on("data", (chunk: Buffer) => {
-      stderrTail += chunk.toString("utf8");
-      const lines = stderrTail.split("\n");
-      stderrTail = lines.pop() ?? "";
-      for (const line of lines) {
+      for (const line of stderrLines.push(chunk)) {
         this.options.outputChannel.appendLine(`[${this.options.logPrefix}] ${line}`);
       }
     });
@@ -239,9 +237,9 @@ export class StreamPipeline implements LiveStreamPipeline {
       if (this.process !== proc) {
         return; // 既に別プロセスへ張り替え済み(通常起きない)
       }
-      if (stderrTail.length > 0) {
-        this.options.outputChannel.appendLine(`[${this.options.logPrefix}] ${stderrTail}`);
-        stderrTail = "";
+      const stderrRest = stderrLines.rest();
+      if (stderrRest.length > 0) {
+        this.options.outputChannel.appendLine(`[${this.options.logPrefix}] ${stderrRest}`);
       }
       this.process = undefined;
       this.clearWedgeTimer();

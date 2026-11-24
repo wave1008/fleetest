@@ -63,8 +63,6 @@ type MonitorProcess = ChildProcessByStdio<Writable, Readable, Readable>;
  */
 interface HostMetricsChild {
   proc: MonitorProcess | undefined;
-  /** stopHostMetricsProcess() 経由による意図した終了かどうか(stoppingMonitors と同じ役割)。 */
-  stopping: boolean;
   /** 再起動の多重起動ガード(restartPending と同じ役割)。 */
   restartPending: boolean;
   /** 予期しない終了後の自動再起動タイマー(5秒後)。dispose/stop 時に必ずクリアする。 */
@@ -246,6 +244,10 @@ export class MonitorProcessManager {
    * 新しい起動がフラグを下ろし、後から届いた古い close を予期しない死として失敗回数に数えていた
    */
   private stoppingMonitors = new WeakSet<MonitorProcess>();
+  /** stopHostMetricsProcess() が止めにいった子(意図した終了)。**子ごとに持つ** —— 機械ごとの1フラグだと、
+   * 古い子の close が届く前に新しい子を起こした時点でフラグが戻り、遅れて届いた古い close を予期しない終了と
+   * 読んで5秒後にもう1本起こす(参照を失った子は誰にも止められない)。stoppingMonitors と同じ理由 */
+  private stoppingHostMetrics = new WeakSet<MonitorProcess>();
   /**
    * 現在の monitor プロセスが実際に使っている監視スコープ("<project> <profile>" 形式。profile が
    * 空なら "<project> ")。fleetest.profile/project の変更で再起動が必要かどうかの判定に使う。
@@ -717,7 +719,6 @@ export class MonitorProcessManager {
     }
     const child: HostMetricsChild = {
       proc: undefined,
-      stopping: false,
       restartPending: false,
       restartTimer: undefined,
       startedAt: undefined,
@@ -987,7 +988,6 @@ export class MonitorProcessManager {
     // host-metrics まで EOF が届いて畳まれる。
     proc.stdin.on("error", () => undefined);
 
-    child.stopping = false;
     child.proc = proc;
     child.startedAt = Date.now();
 
@@ -1063,8 +1063,8 @@ export class MonitorProcessManager {
         child.proc = undefined;
       }
       // 意図した停止(dispose/再起動)かどうかはフラグだけで判定する(monitor と同じ理由)。
-      const selfInitiated = child.stopping;
-      child.stopping = false;
+      const selfInitiated = this.stoppingHostMetrics.has(proc);
+      this.stoppingHostMetrics.delete(proc);
       if (selfInitiated) {
         return;
       }
@@ -1141,7 +1141,7 @@ export class MonitorProcessManager {
     if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
       return;
     }
-    child.stopping = true;
+    this.stoppingHostMetrics.add(proc);
     proc.stdin.end();
     proc.kill("SIGTERM");
     setTimeout(() => {

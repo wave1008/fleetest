@@ -94,9 +94,9 @@ test(
       const finishedEvent = await driver.waitForEvent("fleetest.scenarioFinished", 30000);
       assert.equal(finishedEvent.body.passed, true);
 
-      await driver.waitForEvent("terminated", 15000);
-      const exitedEvent = await driver.waitForEvent("exited", 5000);
+      const exitedEvent = await driver.waitForEvent("exited", 15000);
       assert.equal(exitedEvent.body.exitCode, 0);
+      await driver.waitForEvent("terminated", 5000);
     } finally {
       if (!driver.messages.some((m) => m.type === "event" && m.event === "terminated")) {
         driver.send("terminate", {});

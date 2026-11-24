@@ -410,6 +410,29 @@ export function parseResidentProcesses(
   return out;
 }
 
+/** コマンド行が絶対パス dir を「パスとして」含むか。区切りを見ない前置一致だと `/x/fleetest` が
+ *  `/x/fleetest-runner/...` や `/x/fleetest2/...` にも当たり、別フォルダの常駐を SIGKILL で巻き込む。
+ *  直後は終端・`/`・空白・引用符のいずれか、直前はパス文字でないこと(`/y/x/fleetest` の中の部分一致を除く) */
+export function commandContainsPath(command: string, dir: string): boolean {
+  const base = dir.replace(/\/+$/, "");
+  if (base === "") {
+    return false;
+  }
+  let from = 0;
+  for (;;) {
+    const at = command.indexOf(base, from);
+    if (at < 0) {
+      return false;
+    }
+    const before = at === 0 ? "" : (command[at - 1] ?? "");
+    const after = command[at + base.length] ?? "";
+    if (/^(|[\s"'=:])$/.test(before) && /^(|[/\s"':])$/.test(after)) {
+      return true;
+    }
+    from = at + 1;
+  }
+}
+
 /** planResidentKill のオプション。isWorkspaceOwned は monitorPanel.ts の同名判定を注入する
  *  (この workspace / binaryDir 配下のコマンドだけを対象にする。他 repo・machine-wide への誤爆を避ける)。 */
 export interface ResidentKillPlanOptions {

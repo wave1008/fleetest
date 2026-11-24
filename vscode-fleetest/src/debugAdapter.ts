@@ -12,6 +12,7 @@
 // プロトコルは Sources/FTCore/ScenarioDebug.swift のコメントに準拠する。
 
 import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { constants as osConstants } from "node:os";
 import * as path from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
@@ -98,6 +99,19 @@ interface PausedInfo {
  * 受け手(runHandler.ts の executeDebugRun)が「強制終了」を利用者に選ばせ、FORCE_KILL_REQUEST を送る。
  */
 export const STILL_RUNNING_EVENT = "fleetest.stillRunning";
+/** ExitedEvent に載せる終了コード。シグナルで死んだ子は 128+番号(従来は 0 = 成功と報告していた)。
+ * コードもシグナルも無い(spawn 失敗等)ときは undefined(finishWithTerminated が 0 に倒す) */
+export function exitCodeForExited(exitCode: number | null, signal: NodeJS.Signals | null): number | undefined {
+  if (exitCode !== null) {
+    return exitCode;
+  }
+  if (signal !== null) {
+    const number = osConstants.signals[signal];
+    return typeof number === "number" ? 128 + number : undefined;
+  }
+  return undefined;
+}
+
 /** 利用者が強制終了を選んだときだけ送られるカスタム要求。子へ SIGKILL する。 */
 export const FORCE_KILL_REQUEST = "fleetest.forceKill";
 /**
@@ -455,11 +469,11 @@ export class FleetestDebugSession extends DebugSession {
       this.finishWithTerminated();
     });
 
-    child.on("close", (exitCode) => {
+    child.on("close", (exitCode, signal) => {
       stdoutParser.end();
       stderrParser.end();
       this.child = undefined;
-      this.finishWithTerminated(exitCode ?? undefined);
+      this.finishWithTerminated(exitCodeForExited(exitCode, signal));
     });
   }
 
@@ -531,8 +545,9 @@ export class FleetestDebugSession extends DebugSession {
       return;
     }
     this.terminatedSent = true;
-    this.sendEvent(new TerminatedEvent());
+    // DAP の慣例は exited → terminated(VSCode は terminated でセッションを畳み始めるので、後に送った exited は落ちうる)
     this.sendEvent(new ExitedEvent(exitCode ?? 0));
+    this.sendEvent(new TerminatedEvent());
   }
 
   // ---- NDJSON イベント処理 ---------------------------------------------------

@@ -41,6 +41,7 @@ import { NdjsonParser } from "./ndjson";
 import { DeviceActionNotices } from "./monitorDeviceActionNotice";
 import type { MonitorPanelDeps } from "./monitorPanel";
 import { type DeviceCommandSource, deviceCommandArgs } from "./remoteRunArgs";
+import { Utf8LineSplitter, Utf8Text } from "./utf8Chunks";
 import { firstLine, signingGuidance, stderrDetailLine, withSourceContext } from "./monitorDeviceOpsText";
 import {
   MonitorDeviceCreateOps,
@@ -579,11 +580,9 @@ export class MonitorDeviceOps {
       // **CLI が run-lease で断ったら通知で見せる**(押す前の門 bulkDownGate は monitor の観測に頼るので、
       // 観測の遅れ・一時停止中は CLI 側で初めて断られる。OUTPUT の1行だけだと「押しても何も起きない」)
       let refusal: string | undefined;
-      let partial = "";
+      const refusalLines = new Utf8LineSplitter();
       proc.stdout.on("data", (chunk: Buffer) => {
-        const lines = (partial + chunk.toString("utf8")).split("\n");
-        partial = lines.pop() ?? "";
-        for (const line of lines) {
+        for (const line of refusalLines.push(chunk)) {
           refusal = sweepRefusalDetail(line) ?? refusal;
         }
         appendLines("stdout", chunk);
@@ -600,7 +599,7 @@ export class MonitorDeviceOps {
         this.deps.outputChannel.appendLine(
           t("deviceOps.log.devicesClosed", { kind, exitCode: String(exitCode) }),
         );
-        refusal = sweepRefusalDetail(partial) ?? refusal;
+        refusal = sweepRefusalDetail(refusalLines.rest()) ?? refusal;
         if (exitCode !== 0 && refusal !== undefined) {
           void vscode.window.showWarningMessage(t("deviceOps.bulkDownRefused", { detail: refusal }));
         }
@@ -1105,7 +1104,7 @@ export class MonitorDeviceOps {
       // **バナーにも出す** —— ログだけだと利用者からは無反応に見える。理由は stderr の
       // 最後の実質行(CLI はそこに原因を書く。stderrDetailLine の doc 参照)
       if (!failureLogged && exitCode !== 0 && !upRun?.cancelled) {
-        const detail = stderrDetailLine(stderr);
+        const detail = stderrDetailLine(stderrText.text());
         // **exit 64 = 引数エラー**(ArgumentParser)。リモートで出たなら、ほぼ「向こうの fleetest が
         // 古くてこのサブコマンド/オプションを知らない」(spawnCreateDevice と同じ読み替え)
         const message = exitCode === 64 && machine !== undefined
@@ -1156,15 +1155,12 @@ export class MonitorDeviceOps {
       return;
     }
 
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
+    const stdoutText = new Utf8Text();
+    const stderrText = new Utf8Text();
+    proc.stdout.on("data", (chunk: Buffer) => stdoutText.push(chunk));
     proc.stderr.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      checkForDyldLaunchFailure(text, this.deps.workspaceRoot);
-      stderr += text;
+      checkForDyldLaunchFailure(chunk.toString("utf8"), this.deps.workspaceRoot);
+      stderrText.push(chunk);
     });
 
     // spawn 失敗時の 'error'+'close' 二重発火対策(executeBulkJob 参照)。二重 post を防ぐ。
@@ -1177,7 +1173,7 @@ export class MonitorDeviceOps {
       this.deps.post(message);
     };
     const flushStderr = (): void => {
-      const trimmed = stderr.trim();
+      const trimmed = stderrText.text().trim();
       if (trimmed.length > 0) {
         this.deps.outputChannel.appendLine(`[device-catalog stderr] ${trimmed}`);
       }
@@ -1195,7 +1191,7 @@ export class MonitorDeviceOps {
     proc.on("close", (exitCode) => {
       flushStderr();
       if (exitCode !== 0) {
-        const detail = stderrDetailLine(stderr);
+        const detail = stderrDetailLine(stderrText.text());
         const message = withSourceContext(
           detail === null
             ? t("deviceOps.cmdFailedExitCode", { cmd: "device-catalog", exitCode: String(exitCode) })
@@ -1208,7 +1204,7 @@ export class MonitorDeviceOps {
       }
       let parsed: unknown;
       try {
-        parsed = JSON.parse(stdout);
+        parsed = JSON.parse(stdoutText.text());
       } catch (error) {
         const message = withSourceContext(
           t("deviceOps.cmdParseFailed", { cmd: "device-catalog", error: String(error) }),
@@ -1252,18 +1248,13 @@ export class MonitorDeviceOps {
       return;
     }
 
-    let stdout = "";
-    let stderrTail = "";
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
+    const stdoutText = new Utf8Text();
+    const stderrLines = new Utf8LineSplitter();
+    proc.stdout.on("data", (chunk: Buffer) => stdoutText.push(chunk));
     // 行が途中で切れて届くので、改行までバッファしてから1行ずつ出す
     proc.stderr.on("data", (chunk: Buffer) => {
       checkForDyldLaunchFailure(chunk.toString("utf8"), this.deps.workspaceRoot);
-      stderrTail += chunk.toString("utf8");
-      const lines = stderrTail.split("\n");
-      stderrTail = lines.pop() ?? "";
-      for (const line of lines) {
+      for (const line of stderrLines.push(chunk)) {
         this.deps.outputChannel.appendLine(`[${cmd}] ${line}`);
       }
     });
@@ -1274,9 +1265,9 @@ export class MonitorDeviceOps {
         return;
       }
       responded = true;
-      if (stderrTail.trim().length > 0) {
-        this.deps.outputChannel.appendLine(`[${cmd}] ${stderrTail.trim()}`);
-        stderrTail = "";
+      const stderrRest = stderrLines.rest().trim();
+      if (stderrRest.length > 0) {
+        this.deps.outputChannel.appendLine(`[${cmd}] ${stderrRest}`);
       }
       this.deps.post({ type: "installCmdlineToolsResult", ok, error });
     };
@@ -1290,7 +1281,7 @@ export class MonitorDeviceOps {
       // 失敗時も stdout に ok:false の JSON が出る(理由文はそちらが具体的)。読めた方を優先する
       let parsed: { ok?: unknown; error?: unknown } | null = null;
       try {
-        parsed = JSON.parse(stdout.trim().split("\n").pop() ?? "") as { ok?: unknown; error?: unknown };
+        parsed = JSON.parse(stdoutText.text().trim().split("\n").pop() ?? "") as { ok?: unknown; error?: unknown };
       } catch {
         parsed = null;
       }
@@ -1336,15 +1327,12 @@ export class MonitorDeviceOps {
       return;
     }
 
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
+    const stdoutText = new Utf8Text();
+    const stderrText = new Utf8Text();
+    proc.stdout.on("data", (chunk: Buffer) => stdoutText.push(chunk));
     proc.stderr.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      checkForDyldLaunchFailure(text, this.deps.workspaceRoot);
-      stderr += text;
+      checkForDyldLaunchFailure(chunk.toString("utf8"), this.deps.workspaceRoot);
+      stderrText.push(chunk);
     });
 
     let responded = false;
@@ -1356,7 +1344,7 @@ export class MonitorDeviceOps {
       this.deps.post(message);
     };
     const flushStderr = (): void => {
-      const trimmed = stderr.trim();
+      const trimmed = stderrText.text().trim();
       if (trimmed.length > 0) {
         this.deps.outputChannel.appendLine(`[installed-devices stderr] ${trimmed}`);
       }
@@ -1374,7 +1362,7 @@ export class MonitorDeviceOps {
     proc.on("close", (exitCode) => {
       flushStderr();
       if (exitCode !== 0) {
-        const detail = stderrDetailLine(stderr);
+        const detail = stderrDetailLine(stderrText.text());
         const message = withSourceContext(
           detail === null
             ? t("deviceOps.cmdFailedExitCode", { cmd: "installed-devices", exitCode: String(exitCode) })
@@ -1387,7 +1375,7 @@ export class MonitorDeviceOps {
       }
       let parsed: unknown;
       try {
-        parsed = JSON.parse(stdout);
+        parsed = JSON.parse(stdoutText.text());
       } catch (error) {
         const message = withSourceContext(
           t("deviceOps.cmdParseFailed", { cmd: "installed-devices", error: String(error) }),

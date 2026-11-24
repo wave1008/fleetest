@@ -184,9 +184,11 @@ export class MonitorLiveController implements vscode.Disposable {
   /** serveProcess が実際にバインドされている(起動時に渡した)デバイス。selectServeProcess の
    * 「デバイスが変わったか」判定、および再起動時に同じデバイスへ再バインドするために保持する。 */
   private serveDevice: LiveDeviceRef | undefined;
-  /** stopServeProcess() 経由(dispose/再バインド)による意図した終了かどうか
-   * (monitorProcessManager.ts の stoppingMonitor と同じ役割)。 */
-  private stoppingServe = false;
+  /** 意図して止めにいった serve(dispose/再バインド/wedge 諦め)。**子ごとに持つ** —— 1フラグだと、古い子の
+   * close が届く前(待ちの上限で抜けた再バインド・掃討のタイムアウト)に新しい子を起こした時点でフラグが戻り、
+   * 遅れて届いた古い close を予期しない終了と読んで同じデバイスへ serve が2本になる
+   * (monitorProcessManager.ts の stoppingMonitors と同じ理由)。 */
+  private stoppingServe = new WeakSet<ServeProcess>();
   /** rebindServeProcess() の多重起動ガード(monitorProcessManager.ts の restartPending と
    * 同じ役割)。true の間に来た再バインド要求は serveDevice の更新だけ行い、進行中の切り替えが
    * 完了した時点の最新の serveDevice を使って起動する(restartMonitorProcess と同じ
@@ -666,7 +668,6 @@ export class MonitorLiveController implements vscode.Disposable {
     }
     proc.stdin.on("error", () => undefined);
 
-    this.stoppingServe = false;
     this.serveProcess = proc;
     this.serveStartedAt = Date.now();
 
@@ -696,8 +697,8 @@ export class MonitorLiveController implements vscode.Disposable {
       }
       this.failPendingServeRequest(serveClosedMessage());
       // 意図した停止(dispose/再バインド)かどうかはフラグだけで判定する(monitorProcessManager.ts と同じ理由)。
-      const selfInitiated = this.stoppingServe;
-      this.stoppingServe = false;
+      const selfInitiated = this.stoppingServe.has(proc);
+      this.stoppingServe.delete(proc);
       if (selfInitiated) {
         return;
       }
@@ -799,7 +800,7 @@ export class MonitorLiveController implements vscode.Disposable {
     if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
       return;
     }
-    this.stoppingServe = true;
+    this.stoppingServe.add(proc);
     proc.stdin.end();
     proc.kill("SIGTERM");
     setTimeout(() => {
@@ -821,7 +822,7 @@ export class MonitorLiveController implements vscode.Disposable {
     this.serveTimeoutKillStreak += 1;
     if (this.serveTimeoutKillStreak >= MAX_CONSECUTIVE_TIMEOUT_KILLS) {
       this.serveGaveUp = true;
-      this.stoppingServe = true; // close ハンドラに自己終了とみなさせ、再起動を抑止する
+      this.stoppingServe.add(proc); // close ハンドラに自己終了とみなさせ、再起動を抑止する
       this.deps.outputChannel.appendLine(t("live.serveGiveUpTimeout"));
       this.postActionError(serveUnavailableMessage());
     } else {

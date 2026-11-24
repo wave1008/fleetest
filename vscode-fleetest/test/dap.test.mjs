@@ -113,8 +113,8 @@ test("paused → stopped の reason は直前のコマンドで決まる(entry �
     const finishedEvent = await driver.waitForEvent("fleetest.scenarioFinished");
     assert.equal(finishedEvent.body.passed, true);
 
+    await driver.waitForEvent("exited"); // DAP の慣例: exited が terminated より先
     await driver.waitForEvent("terminated");
-    await driver.waitForEvent("exited");
   });
 });
 
@@ -185,6 +185,7 @@ test("terminate: stdin へ stop cmd を送り、プロセスが自発的に終�
     const finishedEvent = await driver.waitForEvent("fleetest.scenarioFinished");
     assert.equal(finishedEvent.body.passed, false);
 
+    await driver.waitForEvent("exited");
     const terminatedEvent = await driver.waitForEvent("terminated");
     const finishedIndex = driver.messages.indexOf(finishedEvent);
     const terminatedIndex = driver.messages.indexOf(terminatedEvent);
@@ -192,8 +193,6 @@ test("terminate: stdin へ stop cmd を送り、プロセスが自発的に終�
       finishedIndex < terminatedIndex,
       "scenarioFinished は terminated より先に届くはず(stop cmd による正常終了)",
     );
-
-    await driver.waitForEvent("exited");
   });
 });
 
@@ -208,10 +207,14 @@ test("突然死(NDJSON を出し切らないままプロセスが exit)しても
     });
     await driver.configurationDone();
 
-    const terminatedEvent = await driver.waitForEvent("terminated");
-    assert.ok(terminatedEvent);
     const exitedEvent = await driver.waitForEvent("exited");
     assert.equal(exitedEvent.body.exitCode, 1);
+    const terminatedEvent = await driver.waitForEvent("terminated");
+    assert.ok(terminatedEvent);
+    assert.ok(
+      driver.messages.indexOf(exitedEvent) < driver.messages.indexOf(terminatedEvent),
+      "exited は terminated より先(VSCode は terminated でセッションを畳み始め、後続の exited を取りこぼす)",
+    );
 
     // 突然死なので paused/scenarioFinished は一切発生しない
     assert.ok(!driver.messages.some((m) => m.type === "event" && m.event === "stopped"));
@@ -227,8 +230,8 @@ test("spawn 失敗(バイナリ不在)でも TerminatedEvent を出す", async (
       await driver.launch({ project: "Mock", scenario: "テスト.T4", skipBuild: true });
       await driver.configurationDone();
 
-      await driver.waitForEvent("terminated");
       await driver.waitForEvent("exited");
+      await driver.waitForEvent("terminated");
     },
   );
 });
@@ -282,8 +285,8 @@ test("terminate: stop → SIGTERM の後も自動では SIGKILL せず fleetest.
 
       driver.send(FORCE_KILL_REQUEST, {});
       await driver.waitForResponse(FORCE_KILL_REQUEST);
-      await driver.waitForEvent("terminated");
       await driver.waitForEvent("exited");
+      await driver.waitForEvent("terminated");
       } finally {
         t.mock.timers.reset(); // 失敗時も戻す(withDriver の後始末が実時間の timeout を使う)
       }

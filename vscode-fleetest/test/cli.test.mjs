@@ -205,3 +205,25 @@ test("enqueue().cancel(): 終了済みの呼び出しに対しては何もしな
   handle.cancel({ escalateAfterMs: 1 });
   assert.equal(result.cancelled, false);
 });
+
+test("enqueue().cancel(): SIGTERM を受けて後始末のあと非ゼロの終了コードで終わる子も cancelled になる(signal は null)", async () => {
+  const cli = new FleetestCli(makeOutputChannel());
+  let ready;
+  const readyPromise = new Promise((resolve) => {
+    ready = resolve;
+  });
+  const handle = cli.enqueue(process.execPath, CWD, {
+    args: ["-e", "process.on('SIGTERM',()=>process.exit(3));console.error('ready');setInterval(()=>{},1000)"],
+    onNdjsonValue: () => {},
+    onLog: (line) => {
+      if (line === "ready") {
+        ready();
+      }
+    },
+  });
+  await readyPromise;
+  handle.cancel();
+  const result = await handle.result;
+  assert.equal(result.exitCode, 3, "シグナルでなく終了コードで終わる");
+  assert.equal(result.cancelled, true, "cancel() 済みの非ゼロ終了は中断(異常終了の文言にしない)");
+});

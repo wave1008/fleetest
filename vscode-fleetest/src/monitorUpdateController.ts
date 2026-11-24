@@ -18,6 +18,7 @@ import { childEnv } from "./childEnv";
 import { t } from "./i18n";
 import { describeCurrent, parseKeyValues } from "./updateCheck";
 import { resolveToolRoot } from "./toolRootResolve";
+import { Utf8LineSplitter, Utf8Text } from "./utf8Chunks";
 
 /** 設定タブに出す更新の状態。`unavailable` はクローンやスクリプトが見つからない場合。 */
 export type UpdateState =
@@ -206,31 +207,34 @@ export class MonitorUpdateController {
         resolve({ stdout: "", exitCode: -1 });
         return;
       }
-      let stdout = "";
-      let pending = "";
-      const emit = (chunk: Buffer): void => {
-        const text = chunk.toString("utf8");
-        stdout += text;
+      // stdout と stderr は1本の列に混ぜて持つ(戻り値の stdout は従来どおり両方を含む)。チャンクは Buffer のまま
+      // 持ち、文字列化は行が確定してから(マルチバイトの分断で化けない。utf8Chunks.ts)
+      const all = new Utf8Text();
+      const splitters = { stdout: new Utf8LineSplitter(), stderr: new Utf8LineSplitter() };
+      const emit = (which: "stdout" | "stderr") => (chunk: Buffer): void => {
+        all.push(chunk);
         if (!stream) {
           return;
         }
         // 行が分割されて届くので、改行までバッファする(webview 側で1行=1要素にするため)
-        pending += text;
-        const lines = pending.split("\n");
-        pending = lines.pop() ?? "";
-        for (const line of lines) {
+        for (const line of splitters[which].push(chunk)) {
           this.deps.outputChannel.appendLine(line);
           onLine?.(line);
         }
       };
-      proc.stdout.on("data", emit);
-      proc.stderr.on("data", emit);
-      proc.on("error", () => resolve({ stdout, exitCode: -1 }));
+      proc.stdout.on("data", emit("stdout"));
+      proc.stderr.on("data", emit("stderr"));
+      proc.on("error", () => resolve({ stdout: all.text(), exitCode: -1 }));
       proc.on("close", (exitCode) => {
-        if (stream && pending.length > 0) {
-          this.deps.outputChannel.appendLine(pending);
+        if (stream) {
+          for (const which of ["stdout", "stderr"] as const) {
+            const rest = splitters[which].rest();
+            if (rest.length > 0) {
+              this.deps.outputChannel.appendLine(rest);
+            }
+          }
         }
-        resolve({ stdout, exitCode });
+        resolve({ stdout: all.text(), exitCode });
       });
     });
   }

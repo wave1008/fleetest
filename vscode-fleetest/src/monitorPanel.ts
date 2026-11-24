@@ -87,11 +87,13 @@ import {
   runCleanup,
   updateRetention,
 } from "./retentionController";
+import { Utf8LineSplitter } from "./utf8Chunks";
 import { fetchDeviceSettings, updateDeviceSettings } from "./deviceSettingsController";
 import { formatBytesAuto, type RetentionPatch } from "./retentionModel";
 import {
   TYPE_ORDER,
   parseAndroidBridges,
+  commandContainsPath,
   parseResidentProcesses,
   planResidentKill,
   type ResidentProcess,
@@ -660,6 +662,9 @@ export class MonitorPanelController implements vscode.Disposable {
     });
 
     this.pendingInitialTab = initialTab;
+    // 引き取ったパネルの表示状態を配信へ当てる(deviceStream は作り直し後のパネルへ使い回され、visible は
+    // 前のパネルの値のまま。VS Code は作成時に onDidChangeViewState を発火しない)
+    this.applyDeviceStreamVisibility();
     this.processManager.startAll();
     // 初期状態はここで送らない: html設定直後のpostMessageはwebview側のmessageリスナー登録前に
     // 届き握りつぶされる(VS Code既知のレース)。webviewからの"ready"を受けてsendInitialState()で送る。
@@ -1678,16 +1683,19 @@ export class MonitorPanelController implements vscode.Disposable {
         resolve({ exitCode: null });
         return;
       }
-      const onLine = (stream: string, chunk: Buffer): void => {
-        const text = chunk.toString("utf8");
-        if (stream === "stderr") {
-          checkForDyldLaunchFailure(text, this.workspaceRoot);
+      const splitters = { stdout: new Utf8LineSplitter(), stderr: new Utf8LineSplitter() };
+      const logLine = (stream: string, raw: string): void => {
+        const line = raw.trim();
+        if (line) {
+          this.outputChannel.appendLine(`[${tag} ${stream}] ${line}`);
         }
-        for (const raw of text.split("\n")) {
-          const line = raw.trim();
-          if (line) {
-            this.outputChannel.appendLine(`[${tag} ${stream}] ${line}`);
-          }
+      };
+      const onLine = (stream: "stdout" | "stderr", chunk: Buffer): void => {
+        if (stream === "stderr") {
+          checkForDyldLaunchFailure(chunk.toString("utf8"), this.workspaceRoot);
+        }
+        for (const raw of splitters[stream].push(chunk)) {
+          logLine(stream, raw);
         }
       };
       proc.stdout.on("data", (c: Buffer) => onLine("stdout", c));
@@ -1702,6 +1710,8 @@ export class MonitorPanelController implements vscode.Disposable {
       }, 120000);
       proc.on("close", (code) => {
         clearTimeout(timer);
+        logLine("stdout", splitters.stdout.rest());
+        logLine("stderr", splitters.stderr.rest());
         resolve({ exitCode: code });
       });
       proc.on("error", () => {
@@ -1717,10 +1727,10 @@ export class MonitorPanelController implements vscode.Disposable {
   // から起動されるため一致する。sim-runner / in-app はコマンドに workspace パスを持たない(sim
   // コンテナ内)ため一致せず、それらは step 2 の bridge down --all に委ねる。
   private isWorkspaceOwned(command: string): boolean {
-    if (command.includes(this.workspaceRoot)) {
+    if (commandContainsPath(command, this.workspaceRoot)) {
       return true;
     }
-    return binaryDirs(this.getConfig().binaryPath).some((dir) => path.isAbsolute(dir) && command.includes(dir));
+    return binaryDirs(this.getConfig().binaryPath).some((dir) => path.isAbsolute(dir) && commandContainsPath(command, dir));
   }
 
   // 掃討本体(確認ダイアログは killAllResidentProcessesAndClose が持つ)。
@@ -1729,6 +1739,9 @@ export class MonitorPanelController implements vscode.Disposable {
     this.deviceStream.disposeAllForDown();
     this.processManager.stopMonitorProcess();
     this.processManager.stopHostMetricsProcess();
+    // 1.5) 自分のライブ操作の serve も畳む(その印で `bridge down --all` が丸ごと断られ、ブリッジが残る。MN-48)。
+    //      この後タブを閉じるので resumeServeAfterSweep は要らない(serve は dispose で止まる)
+    await this.live.suspendServeForSweep();
     // 2) iOS ブリッジをシミュレータ本体を残してクリーン停止(xcuitest+inapp。pid/inapp ファイル基準で
     //    SIGTERM→simctl terminate。simctl shutdown はしない=「デバイスモニター」タブの領域)。
     //    lease/MCP の印で断られる(非 0 終了)ことがあるため、断られた側は手順4の SIGKILL 対象から外す

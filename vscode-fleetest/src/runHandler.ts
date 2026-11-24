@@ -28,6 +28,7 @@ import { isRunEvent } from "./model";
 import { type RunEventBus } from "./runEventBus";
 import { failureMessageText } from "./scenarioUnitKey";
 import { workerDisplayLabel } from "./runLaneModel";
+import { Utf8LineSplitter } from "./utf8Chunks";
 import {
   createRunReducerState,
   reduceRunEvent,
@@ -210,9 +211,12 @@ export function registerRunHandler(
           `[rerunFailed] include=${include ? include.map((i) => i.id).join(",") : t("run.label.all")}`);
         const request = new vscode.TestRunRequest(include, undefined, failedOnlyProfile);
         const tokenSource = new vscode.CancellationTokenSource();
-        void Promise.resolve(failedOnlyHandler(request, tokenSource.token)).finally(() =>
-          tokenSource.dispose(),
-        );
+        // runAllTests と同じく中断の口(fleetest.cancelTestRun)へ登録する(無いと「テストを中断」が効かない)
+        programmaticRunCancelSources.add(tokenSource);
+        void Promise.resolve(failedOnlyHandler(request, tokenSource.token)).finally(() => {
+          programmaticRunCancelSources.delete(tokenSource);
+          tokenSource.dispose();
+        });
       },
     ),
     vscode.commands.registerCommand(
@@ -448,14 +452,21 @@ export function formatMachineDetailValue(machine: RemoteCompatMachine): string {
 
 /** `fleetest remote align <name>` を単発 spawn し、stdout/stderr を `[<name>]` 接頭辞付きで
  * outputChannel へ流す(monitorUpdateController.ts の run() と同方式)。FleetestCli の直列
- * キューには乗せない(直後の `fleetest api run` とは別の単発コマンドのため待つ必要が無い)。 */
+ * キューには乗せない(直後の `fleetest api run` とは別の単発コマンドのため待つ必要が無い)。
+ * `cancelTokens` のどれかが取り消されたら SIGTERM を送る(fleetest 自身の子なので時限 SIGKILL はしない)。
+ * 取り消し済みなら spawn しない(null で解決)。 */
 function runRemoteAlign(
   binaryPath: string,
   workspaceRoot: string,
   hostName: string,
   outputChannel: vscode.OutputChannel,
+  cancelTokens: readonly vscode.CancellationToken[],
 ): Promise<number | null> {
   return new Promise((resolve) => {
+    if (cancelTokens.some((cancelToken) => cancelToken.isCancellationRequested)) {
+      resolve(null);
+      return;
+    }
     let proc: ReturnType<typeof spawn>;
     try {
       proc = spawn(binaryPath, ["remote", "align", hostName], {
@@ -469,25 +480,32 @@ function runRemoteAlign(
       resolve(-1);
       return;
     }
-    let pending = "";
-    const emit = (chunk: Buffer): void => {
-      pending += chunk.toString("utf8");
-      const lines = pending.split("\n");
-      pending = lines.pop() ?? "";
-      for (const line of lines) {
+    // stdout と stderr は別々に行を確定する(片方の途中の行にもう片方が割り込まない)
+    const stdoutLines = new Utf8LineSplitter();
+    const stderrLines = new Utf8LineSplitter();
+    const emit = (splitter: Utf8LineSplitter) => (chunk: Buffer): void => {
+      for (const line of splitter.push(chunk)) {
         outputChannel.appendLine(`[${hostName}] ${line}`);
       }
     };
-    proc.stdout?.on("data", emit);
-    proc.stderr?.on("data", emit);
+    proc.stdout?.on("data", emit(stdoutLines));
+    proc.stderr?.on("data", emit(stderrLines));
     proc.stderr?.on("data", (chunk: Buffer) => checkForDyldLaunchFailure(chunk.toString("utf8"), workspaceRoot));
+    const cancelListeners = cancelTokens.map((cancelToken) =>
+      cancelToken.onCancellationRequested(() => proc.kill("SIGTERM")),
+    );
+    const disposeCancelListeners = (): void => cancelListeners.forEach((listener) => listener.dispose());
     proc.on("error", (error) => {
+      disposeCancelListeners();
       outputChannel.appendLine(`[${hostName}] ${t("run.cli.executionError", { message: error.message })}`);
       resolve(-1);
     });
     proc.on("close", (exitCode) => {
-      if (pending.length > 0) {
-        outputChannel.appendLine(`[${hostName}] ${pending}`);
+      disposeCancelListeners();
+      for (const rest of [stdoutLines.rest(), stderrLines.rest()]) {
+        if (rest.length > 0) {
+          outputChannel.appendLine(`[${hostName}] ${rest}`);
+        }
       }
       resolve(exitCode);
     });
@@ -674,18 +692,22 @@ async function executeRun(
         return;
       }
       if (picked === updateItem) {
+        const alignProgress: { token?: vscode.CancellationToken } = {};
         const failure = await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
             title: t("run.remoteCompat.alignProgressTitle"),
-            cancellable: false,
+            cancellable: true,
           },
-          async (progress) => {
+          async (progress, progressToken) => {
+            alignProgress.token = progressToken;
             for (const hostName of decision.updatableMachines) {
               const label = t("run.remoteCompat.alignProgressHost", { name: hostName });
               progress.report({ message: label });
               outputChannel.appendLine(`[${hostName}] ${label}`);
-              const exitCode = await runRemoteAlign(config.binaryPath, workspaceRoot, hostName, outputChannel);
+              const exitCode = await runRemoteAlign(
+                config.binaryPath, workspaceRoot, hostName, outputChannel, [progressToken, token, run.token],
+              );
               if (exitCode !== 0) {
                 return { hostName, exitCode };
               }
@@ -693,6 +715,14 @@ async function executeRun(
             return undefined;
           },
         );
+        const alignCancelled =
+          token.isCancellationRequested || run.token.isCancellationRequested || alignProgress.token?.isCancellationRequested === true;
+        if (alignCancelled) {
+          // 利用者が止めた align は失敗として項目を赤くしない(「更新して実行」のキャンセルと同じく未実行のまま終える)
+          run.appendOutput(`${t("run.cancelled")}\r\n`);
+          run.end();
+          return;
+        }
         if (failure) {
           const message = t("run.remoteCompat.alignFailed", {
             name: failure.hostName,
@@ -893,6 +923,10 @@ async function executeRun(
     invocation?.cancel({ onStillRunning: offerForceKill });
   };
   const cancelListener = token.onCancellationRequested(cancelInvocation);
+  // 自前の CancellationTokenSource で起こした実行(runAllTests / rerunFailedTests)では、Test Explorer の停止ボタンが
+  // 取り消すのは createTestRun が返した run.token で、渡された token ではない。両方を同じ口へ流す
+  // (cancel() は冪等。プロファイル経由の実行では token と run.token が両方発火しても二重に撃たない)
+  const runTokenListener = run.token.onCancellationRequested(cancelInvocation);
 
   const runId = eventBus.beginRun(dryRun);
 
@@ -929,7 +963,7 @@ async function executeRun(
       },
     });
     // enqueue より前に取り消されていた分(リスナー登録〜enqueue の間)を拾う
-    if (token.isCancellationRequested) {
+    if (token.isCancellationRequested || run.token.isCancellationRequested) {
       cancelInvocation();
     }
     const result = await invocation.result;
@@ -969,6 +1003,7 @@ async function executeRun(
       resultRunID !== undefined ? { project: resolution.project, runID: resultRunID } : undefined,
     );
     cancelListener.dispose();
+    runTokenListener.dispose();
     watcher.setSuspended(false);
     activeRunCount -= 1;
     // キャンセル・異常終了でも経過は出す(TEST RESULTS の末尾行)
@@ -1066,9 +1101,19 @@ async function executeDebugRun(
   let session: vscode.DebugSession | undefined;
   let outcome: { passed: boolean; reportPath?: string; notApplicable: boolean } | undefined;
 
+  const cancelRequested = (): boolean => token.isCancellationRequested || run.token.isCancellationRequested;
+  const stopSession = (): void => {
+    if (session) {
+      void vscode.debug.stopDebugging(session);
+    }
+  };
   const startListener = vscode.debug.onDidStartDebugSession((started) => {
     if (matchesThisRun(started)) {
       session = started;
+      // セッション開始より前に取り消されていた分(その時点は session が未設定で空振りした)
+      if (cancelRequested()) {
+        stopSession();
+      }
     }
   });
   const customEventListener = vscode.debug.onDidReceiveDebugSessionCustomEvent((e) => {
@@ -1091,11 +1136,9 @@ async function executeDebugRun(
       notApplicable: body?.notApplicableReason !== undefined,
     };
   });
-  const cancelListener = token.onCancellationRequested(() => {
-    if (session) {
-      void vscode.debug.stopDebugging(session);
-    }
-  });
+  // プログラムから起こした実行は run.token でしか止まらない(executeRun の runTokenListener と同じ理由)
+  const cancelListener = token.onCancellationRequested(stopSession);
+  const runTokenListener = run.token.onCancellationRequested(stopSession);
 
   watcher.setSuspended(true);
   activeRunCount += 1;
@@ -1106,6 +1149,9 @@ async function executeDebugRun(
     if (!started) {
       run.errored(item, new vscode.TestMessage(t("run.debug.sessionStartFailed")));
       return;
+    }
+    if (cancelRequested()) {
+      stopSession();
     }
 
     await new Promise<void>((resolve) => {
@@ -1134,7 +1180,7 @@ async function executeDebugRun(
       // 正常時は terminateListener が先に発火するためこの経路は使わない。
       const GRACE_MS = 10_000;
       const poll = setInterval(() => {
-        if ((token.isCancellationRequested || outcome !== undefined) && !graceTimer) {
+        if ((cancelRequested() || outcome !== undefined) && !graceTimer) {
           graceTimer = setTimeout(finish, GRACE_MS);
         }
       }, 500);
@@ -1158,6 +1204,7 @@ async function executeDebugRun(
     startListener.dispose();
     customEventListener.dispose();
     cancelListener.dispose();
+    runTokenListener.dispose();
     watcher.setSuspended(false);
     activeRunCount -= 1;
     run.end();
