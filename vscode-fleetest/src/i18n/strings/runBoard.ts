@@ -37,7 +37,15 @@ export const runBoardStrings = {
   "runBoard.jobState.skipped": { ja: "スキップ", en: "skipped" },
   "runBoard.building": { ja: "シナリオをビルド中", en: "Building scenarios…" },
   "runBoard.requeued": { ja: "⟳{count}", en: "⟳{count}" },
+  "runBoard.requeuedTip": {
+    ja: "再実行 {count} 件: デバイス側の不調(画面の凍結・ブリッジに届かない等)で結果を捨て、シナリオを実行待ちへ戻した回数(同じデバイスで再実行することもある)",
+    en: "Re-queued {count}: times a scenario's result was discarded because of a device-side problem (frozen screen, bridge unreachable, …) and the scenario went back to the queue (it may run again on the same device)",
+  },
   "runBoard.laneDropouts": { ja: "レーン離脱 {count}", en: "{count} lane(s) dropped" },
+  "runBoard.laneDropoutsTip": {
+    ja: "デバイスが途中で実行から外れた回数(復帰して戻ることもある。外れている間のシナリオは他のデバイスが回す)",
+    en: "Times a device left the run partway (it may rejoin; meanwhile the other devices run the scenarios)",
+  },
   "runBoard.preparing": { ja: "デバイスの準備を開始します", en: "Starting device preparation…" },
   // 準備中の端末ごとの供給の段階(台帳の supply)。1つだけ出す(選び方は runBoardModel.currentSupplyStep・台数は出さない)
   "runBoard.supplyServices": { ja: "サーバーを起動中", en: "Starting the servers…" },

@@ -823,13 +823,18 @@ function updateRow(row, run) {
   // **詰まりは事実だけ**(0 のときは出さない)。「遅い」「異常」とは書かない ——
   // アプリが重いのか機械が混んでいるのかツールには分けられない(DS-18.5)
   const notes = [];
+  const noteTips = [];
   if (run.requeued > 0) {
     notes.push(t('runBoard.requeued', { count: String(run.requeued) }));
+    noteTips.push(t('runBoard.requeuedTip', { count: String(run.requeued) }));
   }
   if (run.laneDropouts > 0) {
     notes.push(t('runBoard.laneDropouts', { count: String(run.laneDropouts) }));
+    noteTips.push(t('runBoard.laneDropoutsTip'));
   }
   row.notesEl.textContent = notes.join('  ');
+  // 周期的に描き直すので title ではなく setHoverTip(.claude/rules/vscode-i18n.md)
+  setHoverTip(row.notesEl, noteTips.join('\n'));
   row.notesEl.style.display = notes.length > 0 ? '' : 'none';
 
   const showIssuer = !run.mine && Boolean(run.issuer);

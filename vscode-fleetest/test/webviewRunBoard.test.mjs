@@ -294,6 +294,25 @@ test("動画の切り出し中は残りの代わりに「動画を編集中 n/m�
   assert.match(runRow.querySelector(".run-board-time").textContent, /^2:5\d \/ 動画を編集中 12\/48$/);
 });
 
+test("再実行 ⟳n とレーン離脱には説明のツールチップが付き、0 に戻れば外れる", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const run = (requeued, laneDropouts) => ({
+    pid: 41233, runID: "run-1", mine: true, phase: "running", requeued, laneDropouts, actions: 0, supply: [],
+    project: "E2E-iOS", profile: "ios-inapp-boost", elapsedSeconds: 30, total: 4, done: 1, failed: 0, lanes: [],
+  });
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [run(1, 2)] });
+  let notesEl = runRows(document)[0].querySelector(".run-board-notes");
+  assert.equal(notesEl.textContent, "⟳1  レーン離脱 2");
+  const tip = notesEl.getAttribute("data-hover-tip");
+  assert.match(tip, /^再実行 1 件: /);
+  assert.match(tip, /\nデバイスが途中で実行から外れた回数/);
+
+  post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [run(0, 0)] });
+  notesEl = runRows(document)[0].querySelector(".run-board-notes");
+  assert.equal(notesEl.getAttribute("data-hover-tip"), null);
+});
+
 test("失敗があるときだけ ❌失敗数 を足し、無ければ本数だけ", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
