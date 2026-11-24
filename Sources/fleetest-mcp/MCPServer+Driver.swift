@@ -676,7 +676,8 @@ extension MCPServer {
             ?? BridgeEndpoint(port: port)
         guard let now = try? await BridgeClient(endpoint: endpoint, timeoutSeconds: 5).status().udid,
               let moved = Self.keyChangedDevice(previous: recorded, now: now) else { return nil }
-        forgetDeviceState(key)
+        // 記憶は捨てない(mcp.md: 捨てると宛先を省いた次の呼び出しが keyChangedDevice の previous=nil を通って
+        // 黙って新しいデバイスに固定される)。抜けるのは `callerNamesDevice` だけ
         return Self.movedDeviceRefusal(port: port, previousUDID: moved, nowUDID: now)
     }
 
@@ -818,14 +819,15 @@ extension MCPServer {
             port: port, expectedUDID: expectedUDID, repoRoot: try? RepoRoot.find()) != .none
     }
 
-    /// ポートが別の機へ移っていたときに呼び出しを断る文。**捨てたものを名指しする** ——
-    /// 「別の機だ」だけだと、読み手は手元の ref をそのまま撃ち直す
+    /// ポートが別の機へ移っていたときに呼び出しを断る文。**効かなくなった記憶(ref・起動アプリ)を名指しする** ——
+    /// 「別の機だ」だけだと、読み手は手元の ref をそのまま撃ち直す。記憶は保持しているので dropped とは言わない
     static func movedDeviceRefusal(port: UInt16?, previousUDID: String, nowUDID: String) -> String {
         let where_ = port.map { "port \($0)" } ?? "this bridge"
         return "\(where_) now belongs to a different simulator (was \(previousUDID), now \(nowUDID))"
             + " — refusing this call because it relies on state remembered for the previous device"
-            + " (a ref, or the launched app that ft_open_url defaults to). That state has been"
-            + " dropped. Take a fresh ft_snapshot and use the new refs."
+            + " (a ref, or the launched app that ft_open_url defaults to). That state is kept but no"
+            + " longer valid: calls that omit the device keep being refused. Pass udid explicitly to"
+            + " drive the new device, or take a fresh ft_snapshot and use the new refs."
     }
 
     /// **同じ sessionKey が別の機を指し始めたか**(非 nil = 前の udid。走査から切り離した純粋関数)。

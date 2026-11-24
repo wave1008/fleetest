@@ -53,7 +53,9 @@ extension MCPServer {
         do {
             return try await dispatch(tool: tool, args: args)
         } catch {
-            guard await attemptXCUITestBridgeRecovery(args: args, error: error) else { throw error }
+            // 起動し直した先のポートが古いポートと違うことがあるので、撃ち直しの args は復帰の側が書き換える
+            var args = args
+            guard await attemptXCUITestBridgeRecovery(args: &args, error: error) else { throw error }
             let content = try await dispatch(tool: tool, args: args)
             return [["type": "text", "text": Self.bridgeRebuiltNote]] + content
         }
@@ -90,7 +92,10 @@ extension MCPServer {
 
     /// 起動し直しの実行。判定は `shouldAttemptXCUITestBridgeRecovery` の1箇所(重複条件を書かない)。
     /// 成功時は `bridgeRecoveryFailed` へ insert しない——同じデバイスが後で再び死んだら、そのときはまた試してよい
-    func attemptXCUITestBridgeRecovery(args: [String: Any], error: Error) async -> Bool {
+    ///
+    /// **撃ち直し先は起動し直したポート**: `assignPort` は希望ポートが使用中なら次へ移るので、古い `connectedPorts[key]` へ
+    /// 撃ち直すと再び接続拒否になるか、後からそのポートに入った別のデバイスへ届く。`args` は撃ち直し用に書き換えて返す
+    func attemptXCUITestBridgeRecovery(args: inout [String: Any], error: Error) async -> Bool {
         guard makeDriver == nil else { return false }
         let isConnectionRefused: Bool
         if case DriverError.bridgeConnectionRefused = error { isConnectionRefused = true }
@@ -116,9 +121,13 @@ extension MCPServer {
             + " xcuitest bridge for \(udid) and retrying the call once")
         let spec = DeviceSpec(name: udid, udid: udid, port: port, mode: "xcuitest")
         do {
-            _ = try await BridgeProvisioner(repoRoot: repoRoot)
-                .provision(devices: [(udid, spec)], log: Self.logStderr)
-            Self.logStderr("bridge recovery: rebuilt the xcuitest bridge on port \(port) for \(udid)")
+            guard let provisioned = try await BridgeProvisioner(repoRoot: repoRoot)
+                .provision(devices: [(udid, spec)], log: Self.logStderr).first else {
+                // 戻りが空 = 付け替える先が無い。失敗として catch へ(従来の失敗経路)
+                throw NoBridgeProvisioned()
+            }
+            Self.logStderr("bridge recovery: rebuilt the xcuitest bridge on port \(provisioned.port) for \(udid)")
+            args = adoptRecoveredPort(key: key, args: args, oldPort: port, newPort: provisioned.port)
             return true
         } catch {
             bridgeRecoveryFailed.insert(key)
@@ -128,6 +137,33 @@ extension MCPServer {
                 + " \(Int(BridgeRecoveryFailureLedger.retryCooldownSeconds))s")
             return false
         }
+    }
+
+    private struct NoBridgeProvisioned: LocalizedError {
+        var errorDescription: String? { "provisioning returned no bridge" }
+    }
+
+    /// 起動し直したポートが古いポートと違うとき、記憶を新しいポートへ付け替えて撃ち直し用の args を返す。
+    /// 直接ポートの鍵(`direct:ios:<port>:`)は port を含むので新しい鍵は生成時に記録される —— 古い鍵は ref ごと死んでいるので捨てる。
+    /// profile の鍵は port を含まないのでドライバだけ捨てて生成し直させる。同じポートなら何も変えない
+    func adoptRecoveredPort(key: String, args: [String: Any], oldPort: UInt16, newPort: UInt16) -> [String: Any] {
+        guard newPort != oldPort else { return args }
+        var retryArgs = args
+        if args["profile"] is String {
+            sessions[key]?.driver = nil
+            connectedPorts[key] = newPort
+        } else {
+            retryArgs["port"] = Int(newPort)
+            forgetDeviceState(key)
+        }
+        if lastExplicitIOSTarget?.port == oldPort {
+            lastExplicitIOSTarget = (port: newPort, udid: lastExplicitIOSTarget?.udid)
+        }
+        if seenExplicitIOSPorts.remove(oldPort) != nil {
+            seenExplicitIOSPorts.insert(newPort)
+            seenExplicitIOSUDIDs[newPort] = seenExplicitIOSUDIDs.removeValue(forKey: oldPort)
+        }
+        return retryArgs
     }
 
     /// **純粋関数**: udid の畳み込みで「Simulator に何も待ち受けていない」とき、そのランナーを起動し直すかの判定材料
