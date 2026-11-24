@@ -64,10 +64,10 @@ final class RepollCacheBypassTests: XCTestCase {
     }
 
     func testFreshRetryBypassesFromTheSecondReadOnly() {
-        var on = AssertFreshRetry(bypassOnRepoll: true)
+        var on = AssertFreshRetry(bypassOnRepoll: true, bypassOnComposeTree: true)
         XCTAssertEqual([on.takeArmed(), on.takeArmed(), on.takeArmed()], [false, true, true],
                        "1 回目の読みは払わない")
-        var off = AssertFreshRetry(bypassOnRepoll: false)
+        var off = AssertFreshRetry(bypassOnRepoll: false, bypassOnComposeTree: false)
         XCTAssertEqual([off.takeArmed(), off.takeArmed()], [false, false])
     }
 
@@ -160,5 +160,129 @@ final class RepollCacheBypassTests: XCTestCase {
                                             timeout: 5, occlusionGuard: false))
         _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_async_reset")))
         XCTAssertFalse(driver.reads.contains(true), "\(driver.reads)")
+    }
+
+    // MARK: - 木の中の Compose の要素(renderer)で迂回する
+
+    /// 読むたびに script の次の木を返し、迂回したかを記録する(最後の木は繰り返す)
+    private final class ScriptedDriver: AppDriver {
+        let script: [[ElementInfo]]
+        private(set) var reads: [Bool] = []
+        init(script: [[ElementInfo]]) { self.script = script }
+        var supportsCacheBypass: Bool { true }
+        func status() async throws -> StatusResponse {
+            StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
+        }
+        func install(packagePath: String) async throws -> String? { nil }
+        func uninstall(bundleID: String) async throws {}
+        func isAppForeground(bundleID: String) async throws -> Bool { false }
+        func launch(bundleID: String) async throws {}
+        func snapshot() async throws -> SnapshotResponse { try await snapshot(bypassingCache: false) }
+        func snapshot(bypassingCache: Bool) async throws -> SnapshotResponse {
+            let tree = script[min(reads.count, script.count - 1)]
+            reads.append(bypassingCache)
+            return SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800),
+                                    elements: tree, truncatedCount: 0)
+        }
+        func tap(ref: Int) async throws {}
+        func tap(x: Double, y: Double) async throws {}
+        func type(ref: Int?, text: String) async throws {}
+        func swipe(_ direction: FTSwipeDirection) async throws {}
+        func press(ref: Int, duration: Double) async throws {}
+        func screenshot() async throws -> Data { Data() }
+        func terminate() async throws {}
+    }
+
+    private func other(renderer: String?) -> ElementInfo {
+        ElementInfo(ref: 9, type: "staticText", identifier: "other", label: "other", value: nil,
+                    placeholder: nil, enabled: true, frame: FTRect(x: 20, y: 100, width: 200, height: 48),
+                    depth: 1, renderer: renderer)
+    }
+
+    /// target が現れない待ち(期限で失敗)で、各読みが迂回したかを返す。期限切れ直前の取り直し(arm)を含めて
+    /// 数えないよう、読みの先頭 4 回だけ見る
+    private func readsWaiting(script: [[ElementInfo]], app: AppUIFramework?, isAndroid: Bool = true) async -> [Bool] {
+        let driver = ScriptedDriver(script: script)
+        _ = await StepExecutor(driver: driver, isAndroid: isAndroid, tunables: RunTunables(), uiFramework: app)
+            .execute(FlowStep(assert: "exists", locator: FlowLocator(id: "txt_delayed"), timeout: 1.5, occlusionGuard: false))
+        return Array(driver.reads.prefix(4))
+    }
+
+    /// 操作の探索の待ち(tap の対象が現れるまで読み直す = `freshSnapshot(.repoll…)`)も、アプリが不明でも compose の木を見たら迂回する
+    func testActionSearchWaitBypassesOnceComposeIsSeen() async {
+        for (renderer, expectBypass) in [("compose", true), ("view", false)] {
+            let driver = ScriptedDriver(script: [[other(renderer: renderer)]])
+            _ = await StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: nil)
+                .execute(FlowStep(action: "tap", locator: FlowLocator(id: "txt_delayed"), timeout: 1.5))
+            let reads = Array(driver.reads.prefix(3))
+            XCTAssertGreaterThan(reads.count, 2, "\(driver.reads)")
+            XCTAssertEqual(reads.dropFirst().contains(true), expectBypass, "\(renderer): \(driver.reads)")
+        }
+    }
+
+    func testFreshRetryLatchesComposeFromAnyObservedTree() {
+        var retry = AssertFreshRetry(bypassOnRepoll: false, bypassOnComposeTree: true)
+        retry.observe([other(renderer: "view")])
+        XCTAssertEqual([retry.takeArmed(), retry.takeArmed()], [false, false], "compose の要素が無ければ迂回しない")
+        retry.observe([other(renderer: "compose")])
+        XCTAssertTrue(retry.takeArmed(), "木 2 枚目で compose を見た後の読みから迂回する")
+        retry.observe([other(renderer: "view")])
+        XCTAssertTrue(retry.takeArmed(), "ラッチは待ちの間ずっと残る")
+        var notAndroid = AssertFreshRetry(bypassOnRepoll: false, bypassOnComposeTree: false)
+        notAndroid.observe([other(renderer: "compose")])
+        XCTAssertEqual([notAndroid.takeArmed(), notAndroid.takeArmed()], [false, false], "土台が許さなければ迂回しない")
+    }
+
+    func testAppAnswerStillBypassesFromTheSecondRead() async {
+        let reads = await readsWaiting(script: [[other(renderer: "view")]], app: .compose)
+        XCTAssertEqual(reads.prefix(3), [false, true, true])
+    }
+
+    func testComposeInFirstTreeBypassesFromTheSecondReadWithoutAnAppAnswer() async {
+        let reads = await readsWaiting(script: [[other(renderer: "compose")]], app: nil)
+        XCTAssertEqual(reads.prefix(3), [false, true, true])
+    }
+
+    func testComposeAppearingInTheSecondTreeBypassesFromTheThirdRead() async {
+        let reads = await readsWaiting(script: [[other(renderer: "view")], [other(renderer: "compose")]], app: nil)
+        XCTAssertEqual(reads.prefix(3), [false, false, true], "\(reads)")
+    }
+
+    func testNeverComposeNeverBypassesBeforeTheDeadlineRetake() async {
+        let reads = await readsWaiting(script: [[other(renderer: "view")]], app: nil)
+        XCTAssertEqual(reads.prefix(3), [false, false, false], "\(reads)")
+    }
+
+    func testIOSNeverBypassesOnComposeTrees() async {
+        let driver = ScriptedDriver(script: [[other(renderer: "compose")]])
+        _ = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables(), uiFramework: nil)
+            .execute(FlowStep(assert: "exists", locator: FlowLocator(id: "txt_delayed"), timeout: 1.5, occlusionGuard: false))
+        XCTAssertGreaterThan(driver.reads.count, 3)
+        // 最後の1回は期限の撮り直し(OS に関わらず既存の動き)なので除く
+        XCTAssertFalse(driver.reads.dropLast().contains(true), "\(driver.reads)")
+    }
+
+    /// 待ちの読みは `assertionSnapshot` の 1 箇所だけが通り、そこで observe する。直の `driver.snapshot` で
+    /// AssertFreshRetry の待ちを読むと、その木の compose を見落として迂回が黙って外れる
+    func testEveryFreshRetryLoopReadsThroughAssertionSnapshotWhichObserves() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let dir = root.appendingPathComponent("Sources/FTCore")
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasPrefix("StepExecutor") && $0.hasSuffix(".swift") }
+        var constructions = 0
+        for file in files {
+            let text = try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8)
+            let code = text.split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
+            let built = code.components(separatedBy: "AssertFreshRetry(bypassOnRepoll:").count - 1
+            constructions += built
+            let read = code.components(separatedBy: "assertionSnapshot(&freshRetry)").count - 1
+            XCTAssertEqual(built, read, "\(file): AssertFreshRetry を作る数と assertionSnapshot(&freshRetry) で読む数が違う")
+            if file == "StepExecutor+Assert.swift" {
+                XCTAssertTrue(code.contains("retry.observe(snapshot.elements)"), "assertionSnapshot が木を observe していない")
+            }
+        }
+        XCTAssertEqual(constructions, 8)
     }
 }

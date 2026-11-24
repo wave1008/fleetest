@@ -82,7 +82,7 @@ final class OverlayWindowOcclusionTests: XCTestCase {
         let note = TapTargetGeometry.advisory(
             for: para, in: [para], screen: screen,
             keyboardOcclusion: .none,
-            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false)
+            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("overlay window") == true, note ?? "")
     }
 
@@ -136,7 +136,7 @@ final class OverlayWindowOcclusionTests: XCTestCase {
         let note = TapTargetGeometry.advisory(
             for: para, in: [para], screen: screen,
             keyboardOcclusion: KeyboardOcclusion.resolve(reported: toolbar, in: [para], screen: nil),
-            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false)
+            overlayWindows: OverlayWindowOcclusion.resolve(reported: [toolbar]), safeAreaTop: .unknown, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("soft keyboard") == true, note ?? "")
     }
 }

@@ -31,7 +31,7 @@ final class EnclosedInputValueTests: XCTestCase {
 
     func testCoveringHintNeverNamesItsOwnDescendantOrEnclosedInput() {
         for tree in [[wrapper(), input(ref: 2, depth: 2)], [wrapper(), input(ref: 2, depth: 1)]] {
-            XCTAssertEqual(StepExecutor.coveringHint(element: tree[0], elements: tree, screen: screen), "")
+            XCTAssertEqual(StepExecutor.coveringHint(element: tree[0], elements: tree, screen: screen, isAndroid: false, framework: nil), "")
         }
     }
 
@@ -39,6 +39,6 @@ final class EnclosedInputValueTests: XCTestCase {
         let cover = ElementInfo(ref: 3, type: "other", identifier: "sheet", label: nil, value: nil, placeholder: nil,
                                 enabled: true, frame: frame, depth: 0)
         let tree = [wrapper(), input(ref: 2, depth: 2), cover]
-        XCTAssertTrue(StepExecutor.coveringHint(element: tree[0], elements: tree, screen: screen).contains("#sheet"))
+        XCTAssertTrue(StepExecutor.coveringHint(element: tree[0], elements: tree, screen: screen, isAndroid: false, framework: nil).contains("#sheet"))
     }
 }

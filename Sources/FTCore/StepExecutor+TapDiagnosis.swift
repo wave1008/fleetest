@@ -59,10 +59,33 @@ extension StepExecutor {
         return last.text + coveredTouchHint() + earlierTapsHint()
     }
 
+    /// 覆いの名指しを抑える組(`OccluderNaming`)に使う材料。**判定と撃ち方には使わない**(文言と案内だけ)
+    var occluderNaming: OccluderNamingContext { OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework) }
+
+    /// `TapTargetGeometry.occlusionAdvisory` の文言を返し、名指しを抑えたら事実として注記 `occluderNamingSuppressed` を残す
+    func occlusionAdvisoryNoted(for element: ElementInfo, in snapshot: SnapshotResponse) -> String? {
+        let result = TapTargetGeometry.occlusionAdvisoryResult(
+            for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid, framework: uiFramework)
+        if result.namingSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
+        return result.text
+    }
+
+    /// `coveringHint` を実行機の OS・アプリの答えで呼び、名指しを抑えたら注記を残す
+    func coveringHintNoted(element: ElementInfo?, elements: [ElementInfo], screen: FTRect) -> String {
+        let result = Self.coveringHintResult(element: element, elements: elements, screen: screen,
+                                             isAndroid: isAndroid, framework: uiFramework)
+        if result.namingSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
+        return result.hint
+    }
+
     /// 直前の触る操作が覆いの重なった疑いのまま撃たれていたら、それを名指して直し方を言う(失敗のときだけ呼ばれる)。
     /// **原因と断定しない**(「それが原因なら」)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者
     func coveredTouchHint() -> String {
-        guard let last = lastInteraction, let cover = last.coverSuspect else { return "" }
+        guard let last = lastInteraction else { return "" }
+        guard let cover = last.coverSuspect else {
+            if last.coverSuspectSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
+            return ""
+        }
         noteCodesThisStep.insert(.coveredTouchBeforeFailure)
         return " (when the preceding \(last.description) was fired, \(cover) overlapped the target's centre on this device,"
             + " so the touch may have landed on \(cover) instead — if that is why this step failed, fix the scenario so the"
@@ -166,6 +189,8 @@ extension StepExecutor {
                 let label = taken.identifier.map { "#\($0)" } ?? taken.label.map { "\"\($0)\"" }
                     ?? taken.type
                 text += " — its point was inside \(label), which is in front of the target"
+            } else if last.pointTakenSuppressed {
+                noteCodesThisStep.insert(.occluderNamingSuppressed)
             }
             return (text + ")", true)
         }

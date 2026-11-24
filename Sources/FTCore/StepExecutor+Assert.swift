@@ -22,13 +22,24 @@ struct AssertFreshRetry {
     private var failUsed = false
     private var passUsed = false
     private var armed = false
-    /// 2 回目以降の読みを常に迂回する(StepExecutor.repollBypassesCache)。**既定値を置かない** ——
+    /// アプリが自前描画と答えた(StepExecutor.repollBypassesCache)ので 2 回目以降の読みを常に迂回する。**既定値を置かない** ——
     /// 新しい待ちループが渡し忘れると、Compose の Android で出現の検出が 1 周期遅れたまま黙って緑になる
     private let bypassOnRepoll: Bool
+    /// 読んだ木に Compose の要素があれば迂回してよい土台か(StepExecutor.repollMayBypassOnComposeTree)。**既定値を置かない**
+    private let bypassOnComposeTree: Bool
+    /// この待ちで読んだ木のどれかに Compose の要素があった(ラッチ。待ちを越えて持たない)
+    private var seenCompose = false
     private var reads = 0
 
-    init(bypassOnRepoll: Bool) {
+    init(bypassOnRepoll: Bool, bypassOnComposeTree: Bool) {
         self.bypassOnRepoll = bypassOnRepoll
+        self.bypassOnComposeTree = bypassOnComposeTree
+    }
+
+    /// 読んだ木を教える。**読みは `StepExecutor.assertionSnapshot` だけが通す**(ここへの呼び出しもそこの1箇所 =
+    /// `RepollCacheBypassTests`)
+    mutating func observe(_ elements: [ElementInfo]) {
+        if bypassOnComposeTree, !seenCompose, ElementRenderer.containsCompose(elements) { seenCompose = true }
     }
 
     /// 期限到達時に呼ぶ。true なら「取り直してもう1周」
@@ -57,7 +68,7 @@ struct AssertFreshRetry {
     /// snapshot 取得時に呼ぶ(1 周 1 回)。arm/confirmPass した直後の1周、または bypassOnRepoll の 2 周目以降で true
     mutating func takeArmed() -> Bool {
         defer { armed = false; reads += 1 }
-        lastTakeWasRepollBypass = bypassOnRepoll && reads > 0
+        lastTakeWasRepollBypass = (bypassOnRepoll || seenCompose) && reads > 0
         return armed || lastTakeWasRepollBypass
     }
 }
@@ -87,6 +98,7 @@ extension StepExecutor {
         let bypass = retry.takeArmed() || afterOwnMove
         if retry.lastTakeWasRepollBypass || afterOwnMove { markRepollBypassed() }
         let snapshot = try await driver.snapshot(bypassingCache: bypass)
+        retry.observe(snapshot.elements)
         lastTreeOwnerThisStep = snapshot.sessionBundleID
         return snapshot
     }
@@ -104,17 +116,28 @@ extension StepExecutor {
     /// **アプリ内メッセージ・モーダルの検出はこれが唯一の手段**(同一プロセスなので
     /// AndroidForegroundWindows では捕まらない)。FM が落ちていても効く幾何判定。
     /// 過検出寄りなので**判定は変えず、文言を足すだけ**にする(ステップの成否には触らない)
-    static func coveringHint(element: ElementInfo?, elements: [ElementInfo], screen: FTRect) -> String {
+    /// **名指さない組(`OccluderNaming`)は括弧書き全体を出さない**(疑いの判定は変えない)
+    static func coveringHint(element: ElementInfo?, elements: [ElementInfo], screen: FTRect,
+                             isAndroid: Bool, framework: AppUIFramework?) -> String {
+        coveringHintResult(element: element, elements: elements, screen: screen,
+                           isAndroid: isAndroid, framework: framework).hint
+    }
+
+    /// `coveringHint` に、名指しを抑えたかを添えたもの(呼び手が注記 `occluderNamingSuppressed` を残す)
+    static func coveringHintResult(element: ElementInfo?, elements: [ElementInfo], screen: FTRect,
+                                   isAndroid: Bool, framework: AppUIFramework?) -> (hint: String, namingSuppressed: Bool) {
         guard let element,
               // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(
               // 固定領域の echo が「覆い」に見えるだけ)
               !Self.isClippedAwayByItsContainer(element, in: elements),
               let cover = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)
-        else { return "" }
+        else { return ("", false) }
+        guard OccluderNaming.mayName(occluder: cover, target: element, isAndroid: isAndroid, framework: framework)
+        else { return ("", true) }
         // **`TapTargetGeometry.describe` と同じ「名指し」**。失敗文言に混ぜる
         // 説明であって、読み手がそのまま貼れるセレクタである保証はしない(エスケープ未対応)
         let label = cover.identifier.map { "#\($0)" } ?? cover.label.map { "\"\($0)\"" } ?? cover.type
-        return " (the target is covered by \(label))"
+        return (" (the target is covered by \(label))", false)
     }
 
     /// `exist` の可視性検証が最初の一致で赤になったとき、同じセレクタの**残りの一致**を木の順に同じ検証へ通し、
@@ -528,7 +551,7 @@ extension StepExecutor {
         }
         var deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         var backoff = PollBackoff()
         var primaryMisses = 0
@@ -716,7 +739,7 @@ extension StepExecutor {
         }
         var deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         var lastActual: String?
         var found = false
@@ -916,8 +939,7 @@ extension StepExecutor {
                       + LocatorResolver.normalizationVerdict(actual: lastActual, expected: expected,
                                                   assert: assert)
                       + Self.fieldValueHint(assert: assert, element: lastElement)
-                      + Self.coveringHint(element: lastElement, elements: lastElements,
-                                          screen: lastScreen)
+                      + coveringHintNoted(element: lastElement, elements: lastElements, screen: lastScreen)
                       + tapDiagnosisHint(lastSnapshot?.elements)
                       + Self.webViewPathHint(lastSnapshot, precedingTapWasWeb: lastTapTarget?.web == true))
             : failed(.notFound, "element not found: \(step.locatorSummary)"
@@ -1005,7 +1027,7 @@ extension StepExecutor {
         // 可視性(occlusion)は見ない: ツリーから消えたことが唯一の判定。
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         // 否定形を通す前の確認は1周だけ(上の continue が deadline 検査を飛ばすため)
         var passConfirmed = false
@@ -1143,7 +1165,7 @@ extension StepExecutor {
         }
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         // 否定形を通す前の確認は1周だけ(上の continue が deadline 検査を飛ばすため)
         var passConfirmed = false
@@ -1234,8 +1256,7 @@ extension StepExecutor {
             return vanishedAfterSeenFailure(step, subject: subject, lastActual: lastActual,
                                             lastSnapshot: lastSnapshot)
         }
-        let hint = Self.coveringHint(element: lastElement, elements: lastElements,
-                                     screen: lastScreen)
+        let hint = coveringHintNoted(element: lastElement, elements: lastElements, screen: lastScreen)
             + tapDiagnosisHint(lastSeenElements)
         switch assert {
         case "textIsEmpty", "valueIsEmpty":
@@ -1272,7 +1293,7 @@ extension StepExecutor {
         let wantEnabled = assert == "enabled"
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         var backoff = PollBackoff()
         var found = false
@@ -1342,7 +1363,7 @@ extension StepExecutor {
         let wantShown = assert == "keyboardShown"
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         // 否定形を通す前の確認は1周だけ(上の continue が deadline 検査を飛ばすため)
         var passConfirmed = false
@@ -1410,7 +1431,7 @@ extension StepExecutor {
         let prefersClassifier = step.preferCheckStateClassifier ?? preferCheckStateClassifier
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         var backoff = PollBackoff()
         var found = false

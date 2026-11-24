@@ -49,7 +49,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`exist` with several matching elements](../commands/existence_assertion.md#notes) — passes if the text of any match is visible (the remaining matches are checked when the first is not); `[n]` and relative selectors check only that one.
 - [Skeleton rows share the real rows' id, so `exist` passes before loading ends](../commands/existence_assertion.md#notes) — do not use it as the completion check; use `enabledIsTrue()` or a count echo of the loaded rows.
 - [A failing `screen rendering check` is not a scenario mistake](../commands/existence_assertion.md#notes) — the iOS Simulator stopped drawing text; run again without rewriting, and restart the Simulator if it repeats.
-- [The visibility check looks for the label even with `#id`](../commands/existence_assertion.md#notes) — an element whose label is only read aloud and never drawn fails; use `requireVisible: false` to check only that it exists.
+- [The visibility check looks for the label even with `#id`](../commands/existence_assertion.md#notes) — spoken-only labels of Android View and Compose components are not required to be drawn; in Flutter apps and where the component kind cannot be told, an element whose label is never drawn fails; use `requireVisible: false` to check only that it exists.
 
 ### Find by image (findImage, findImages, existImage)
 - [Distance is recorded](../commands/find_image.md#notes) — read the recorded distance and number of candidates to choose `threshold`.

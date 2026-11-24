@@ -1011,7 +1011,7 @@ final class AssertKindsTests: XCTestCase {
     /// 予算は pass 側と fail 側で別々 —— pass の確認で使い切っても、期限切れの取り直しは残る。
     /// 共有にすると、塞いだ穴の隣に**誤った失敗**を作る
     func testPassConfirmationDoesNotConsumeTheFailureRetryBudget() async {
-        var retry = AssertFreshRetry(bypassOnRepoll: false)
+        var retry = AssertFreshRetry(bypassOnRepoll: false, bypassOnComposeTree: false)
         XCTAssertTrue(retry.confirmPass(ifSupported: true))
         XCTAssertTrue(retry.takeArmed())
         XCTAssertFalse(retry.confirmPass(ifSupported: true), "pass 側は1回だけ")

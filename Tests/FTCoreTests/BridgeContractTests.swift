@@ -147,7 +147,7 @@ final class BridgeContractTests: XCTestCase {
             "InAppBridge/Sources/boot.m": "b23fc93fbc99ce2579c9fd8ae75a6f9bbfd0ec6122bec60eb6cd00775dd635ef",
             "InAppBridge/build.sh": "8840d78ef646796b4ed1e8da9d288c1f8ad0545ed5b47a01f40d5a05dcc7cca1",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "02396349b4ff32453b3943cf87b04bb10341554afa0e4b9b64e55b49b39c4d4f",
+            "Sources/FTCore/BridgeDTO.swift": "4f2bc5bb6035e064c38347dd45853ffcf401b558aa2566f218e01da1d0410543",
             "Sources/FTCore/BridgeSnapshotThinning.swift": "b37e9afd96430312b8419566ec1a8d1327727b70416ebcd8ab8838820141ca64",
             "Sources/FTCore/TypeReadback.swift": "42a09f40d3f6280bc31b44a0859103308a75255893011fa6e2afedaa95783af1",
             "Sources/FTCore/UIFrameworkMarkers.swift": "6e40a5724138a0cc5b0b6f915e0cce19e5bb3468854cefe97893c7a152a742b6",
@@ -170,7 +170,7 @@ final class BridgeContractTests: XCTestCase {
             "Runner/FleetestRunnerUITests/ResponseMeasurement.swift": "6254e04c6f0a85d4504e45657f847f6d1a761fe2f635819b482457c34dd095b1",
             "Runner/FleetestRunnerUITests/VirtualHID.swift": "8ee358d73f27c9aabefbd6f98e41091dfde837ee8f15e5066997df1d97df802e",
             "Sources/FTCore/AXFrameRescale.swift": "eef63f86079f246da9f30f7543f4efb7e912eb70f6a01c721dde6789a1ebe7e7",
-            "Sources/FTCore/BridgeDTO.swift": "02396349b4ff32453b3943cf87b04bb10341554afa0e4b9b64e55b49b39c4d4f",
+            "Sources/FTCore/BridgeDTO.swift": "4f2bc5bb6035e064c38347dd45853ffcf401b558aa2566f218e01da1d0410543",
             "Sources/FTCore/BridgeSnapshotThinning.swift": "b37e9afd96430312b8419566ec1a8d1327727b70416ebcd8ab8838820141ca64",
             "Sources/FTCore/ResponseMeasurementWire.swift": "19f9ba212d1ce05ad3431dd350895329f0fc62a8bdbf6210c362583d22175dcd",
             "Sources/FTCore/SnapshotDedupe.swift": "f987a913f2010e8cd81e381c595c15242f58225c71a11a9be206590baccf8c9b",
@@ -190,7 +190,7 @@ final class BridgeContractTests: XCTestCase {
             "AndroidRunner/src/com/example/ftbridge/QuietWaiter.java": "b939eb89d48c6a3591a78b8457b31f851cd95c0f188fffdaa1668f557153347d",
             "AndroidRunner/src/com/example/ftbridge/ResponseObserver.java": "f2f52a49eb907786fc7a60b89a1c89b87d417fd0e07de0c9b01054a820574f09",
             "AndroidRunner/src/com/example/ftbridge/ResponseProbe.java": "1c49c669fdc21ca27da02833f82e2f65f56dfd209b3264a8dbb2ab9f756801c1",
-            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "1e6be6fa5954b9af158af37136f77fd6a5a8206959ce2d9044d3666363eab9bd",
+            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "cfafac321b87e36d6ccc8870b40fb95beaaa4e2fac394b2c2d70fa933bd2505b",
         ],
     ]
 

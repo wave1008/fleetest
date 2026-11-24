@@ -247,7 +247,7 @@ const EXTERNAL_CODE_NAMES = new Set([
   // sshd_config のキー
   "PasswordAuthentication", "PermitRootLogin", "PermitUserEnvironment", "StrictHostKeyChecking",
   // UI フレームワーク・エージェントの名前
-  "FlingBehavior", "ReactEditText", "AskUserQuestion",
+  "FlingBehavior", "ReactEditText", "AskUserQuestion", "AccessibilityNodeInfoCompat",
   // 他のテストツールの名前(DR の理由に挙げた慣例)
   "BeforeSuite",
   // Shirates 側の名前(shirates-parity.md の対応表)

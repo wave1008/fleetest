@@ -275,7 +275,9 @@ enum SnapshotFreshness {
     /// 要素が現れるのを待つ**再試行の周**(1 回目の解決で見つからなかった後)。
     /// 探索がスワイプを撃っていれば afterSearch と同じ理由で、撃っていなくても
     /// `repollBypassesCache` なら迂回する
-    case repoll(afterSearchSwiped: Bool)
+    /// `composeSeen` = この待ちで**これまでに読んだ木**のどれかに `renderer == "compose"` の要素があった
+    /// (アプリの答えが無くても Android の Compose の遅れを払う。呼び手の待ちのループが持つ局所のラッチで、実行機には残さない)
+    case repoll(afterSearchSwiped: Bool, composeSeen: Bool)
 }
 
 public final class StepExecutor {
@@ -690,8 +692,8 @@ public final class StepExecutor {
     let tunables: RunTunables
 
     /// 対象アプリの UI フレームワーク(`AppUIFrameworkQuery` の答え。nil = 不明)。
-    /// **使うのは空打ちの発火条件(shouldEmptyDrag・swipeLeavesNoInertia)と、整定のしきい値(restsWithinThreshold)と、
-    /// 待つ間の読み直しの迂回(repollBypassesCache)だけ**。他の判定には持ち込まない
+    /// アプリ単位の判定(空打ち・整定のしきい値・待つ間の読み直しの迂回・`PaintOrder.isReal` 等)の入力で、
+    /// 要素単位の申告(`ElementInfo.renderer`)が無い所の答え。不明のまま判定に持ち込まない
     let uiFramework: AppUIFramework?
 
     /// 要素が現れる・値が変わるのを**待つ間の 2 回目以降の読み**で、ドライバのキャッシュを迂回するか。
@@ -701,10 +703,15 @@ public final class StepExecutor {
     /// 50ms 刻みで読み続けると遅れは出ない = 読む頻度に依存する)。View/XML と Flutter の E2E では
     /// 遅れが出ていない。迂回は 1 回あたり約 +50ms(要素 19 個の画面で 8 → 50〜60ms)なので、
     /// **1 回目の読み(ふだんの経路)では払わず**、見つからずに待っている周だけ払う。
-    /// 自前描画で分ける(個別の値で分けると語彙を足した日に黙って外れる)。不明なら迂回しない
+    /// 自前描画で分ける(個別の値で分けると語彙を足した日に黙って外れる)。不明なら迂回しない。
+    /// **アプリの答え(これ)に加え、その待ちで読んだ木に Compose の要素があれば迂回する**(`repollMayBypassOnComposeTree`)
     var repollBypassesCache: Bool {
         driver.supportsCacheBypass && Self.repollBypassesCache(isAndroid: isAndroid, app: uiFramework)
     }
+
+    /// 木の中の Compose の要素(`renderer`)で迂回してよい土台(ドライバが対応し Android)。
+    /// 「見たか」のラッチは待ちのループだけが持つ(`AssertFreshRetry.observe` / `SnapshotFreshness.repoll`)
+    var repollMayBypassOnComposeTree: Bool { driver.supportsCacheBypass && isAndroid }
 
     static func repollBypassesCache(isAndroid: Bool, app: AppUIFramework?) -> Bool {
         isAndroid && app?.isSelfRendered == true
@@ -1138,7 +1145,8 @@ public final class StepExecutor {
         switch freshness {
         case .afterOwnMove: return true
         case .afterSearch(let swiped): return swiped
-        case .repoll(let swiped): return swiped || repollBypassesCache
+        case .repoll(let swiped, let composeSeen):
+            return swiped || repollBypassesCache || (composeSeen && repollMayBypassOnComposeTree)
         }
     }
 
@@ -1449,6 +1457,10 @@ public final class StepExecutor {
         /// 撃つ前に対象の中心へ覆いが重なっている疑いがあったときの覆いの名指し(`coveredTouchPlan` が控える)。
         /// 後続のステップが赤になったときだけ失敗の文言に出す(緑では黙る)
         var coverSuspect: String?
+        /// 名指しを抑えた(`OccluderNaming`)疑い・手前の要素があったか。**案内を出す場面になったときだけ**注記
+        /// `occluderNamingSuppressed` にする(記録の時点で付けると、何も出さない緑の手にも付く)
+        var coverSuspectSuppressed = false
+        var pointTakenSuppressed = false
     }
 
     /// 直前の操作(tap / 長押し)の記録。**読むのは失敗文言の組み立てだけ**。
@@ -1675,14 +1687,21 @@ public final class StepExecutor {
             }
         }
         tapTreeForRescue = snapshot.elements
+        // ブリッジは ref を frame の中心へ解決する(iOS/Android とも)。同じ点で判定する
+        var taker = Self.frontElementTakingPoint(
+            x: element.frame.centerX, y: element.frame.centerY,
+            of: element, in: snapshot.elements)
+        var takerSuppressed = false
+        if let front = taker, !occluderNaming.mayName(front, element) {
+            taker = nil
+            takerSuppressed = true
+        }
         lastInteraction = LastInteraction(
             description: "tap \(step.locatorSummary)",
             before: snapshot.elements,
-            // ブリッジは ref を frame の中心へ解決する(iOS/Android とも)。同じ点で判定する
-            pointTakenBy: Self.frontElementTakingPoint(
-                x: element.frame.centerX, y: element.frame.centerY,
-                of: element, in: snapshot.elements),
+            pointTakenBy: taker,
             target: element)
+        lastInteraction?.pointTakenSuppressed = takerSuppressed
     }
 
     /// 撃つ前の重なりの疑いを、この手の操作の記録(`lastInteraction`)に控える。記録が別の要素のもの(この手が記録を

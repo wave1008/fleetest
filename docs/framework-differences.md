@@ -34,6 +34,26 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 - 物理 iPhone ではアプリの中身が読めないので、材料が無ければ台帳、それも無ければ**掴んだ要素のクラス名**
   (`AccessibilityClassHint`。Compose / Flutter の要素は `UIAccessibilityElement`、RN は `UIView`、SwiftUI は `NSObject`)。
 
+### FD-0.1 要素単位の出どころ(実測 2026-11-24。使い方は DR-230)
+
+アプリ単位の答えが不明になる場面(Android の標準アプリ・難読化した APK、iOS の App Store のアプリ)を、要素ごとの事実で補う材料。
+規則に反する例は、下のどの確かめでも 0 件。
+
+- **Android**(ブリッジの `AccessibilityNodeInfo`。どのアプリでも取れる)
+  - `getSourceNodeId()`(隠し API のリフレクション。供給時の `hidden_api_policy=1` が前提で、設定できない端末では取れない)の上位32ビットが仮想 id。**-1 なら実体の View**(RN・AndroidComposeView / FlutterView / WebView の土台を含む)
+  - 仮想 + `getAvailableExtraData()` に `androidx.compose.ui.semantics.id` → Compose
+  - 仮想 + extras に `AccessibilityNodeInfo.unclipped*` / `chromeRole` → Web の中身(Chromium)
+  - 仮想 + extras が `androidx.view.accessibility.AccessibilityNodeInfoCompat.*` だけ → ExploreByTouchHelper(古い Compose も同じ形になりうるので Compose とは言わない)
+  - 仮想 + extras も availableExtraData も無い → Flutter が多いが、無いことからの判定なので申告しない
+  - **実体の View で resource-id に `pkg:id/` が無い → RN の testID**(片方向。testID の無い RN は手がかりが出ない)。`pkg:id/` の無い ID は仮想の要素にも出る(Compose の testTag・Flutter の識別子・HTML の id)ので、実体の View と組でしか使えない
+  - 確かめ: Pixel 4a・Pixel 3a・Emulator(Android 12・13・17)。起動画面 98 本・3,223 要素(答えは端末から取り出した APK)/ SUT 4 本の全画面とキーボード・ダイアログの状態 約 2,000 要素 / ID 付き約 10,000 要素(実体 + `pkg:id/` なしは RN の SUT 3 本だけ、RN 以外の実体 4,156 はすべて `pkg:id/`)
+- **iOS**(XCUITest。注入不要)
+  - 非公開の属性を名前で問う(`XCUIDevice.sharedDevice.accessibilityInterface` の `attributesForElement:attributes:error:`。番号では受け付けない)。`XC_kAXXCAttributeElementType` = **本当のクラス名**、`XC_kAXXCAttributeElementBaseType`(番号 5004)= 公開クラスの名前(今の `axClass`)、`XC_kAXXCAttributeViewControllerClassName`(番号 5042)= その View を持つ管理役のクラス名
+  - XCUITest の木には土台の View(`FlutterView`・`RCTSurfaceView`・`ComposeContainer`・`_UIHostingView`)も節として入るので、要素から祖先へたどって**最初に当たった目印**で決められる(CMP の SUT は SwiftUI の中、WebView は各フレームワークの中、キーボードはアプリの上)
+  - 公開クラスの名前(`axClass`)はフレームワークを言い当てない: `UIAccessibilityElement` は UIKit の自前の要素(地図のピン `VKPointFeatureAccessibilityElement`・キーボードのキー・カレンダーの時刻)にも出る。SwiftUI は iOS 26 で `UIResponder`、iOS 27 で `NSObject`
+  - 費用: `ElementType` は要素ごとの問い合わせで 1 要素約 1ms。1 画面の全要素で Simulator 57〜271ms・物理 160〜700ms。名前の変化は Xcode の版で起こりうるが、テストでは検出できない(保存した JSON しか読まない)
+  - 確かめ: Simulator(iOS 27.2)の標準アプリ 17 本 + SUT・物理 iPhone SE3(iOS 26.6.2)の標準アプリ 22 本 + SUT・SUT 4 本の全画面とキーボード・ダイアログ・WebView の状態
+
 ---
 
 ## FD-1 木の見え方(型・`#id`・ラベル)
@@ -495,6 +515,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| — | Android の Flutter と分かるアプリで、木の順で後ろの要素(一覧の行)を「覆い」と名指さない(z が木の順で塗り順でないため。DR-230)。名指す文言の出口(緑の tap の注記・失敗の文言・失敗後の案内・MCP の見本保存の断りと残像の警告)だけで止め、判定と撃ち方は変えない。抑えた事実は注記 `occluder-naming-suppressed`。別ウィンドウの組は名指す |
 | Android v134 | 読み取り専用の欄(inputType none・EditText を名乗らない・入力接続なし)への `type` に注記を付ける(FD-2.4) |
 | iOS v280 | in-app ブリッジの `POST /touchlands`: 点への本物のタッチ(UIKit の当たり判定)が各 ref の要素の view(かその子孫)に届くか。XCUITest の `isHittable` の `false` を inapp-boost モードで確かめる材料(FD-1.4 の行) |
 | Android v135 | 入力接続の有無を Android 12 の欄名(`mServedInputConnectionWrapper=`)でも読む(読み取り専用の欄の注記・閉じた接続への IME Enter の拒否が Android 12 でも効く。FD-2.4) |

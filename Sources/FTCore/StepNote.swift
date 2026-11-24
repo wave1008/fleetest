@@ -547,6 +547,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// (緑の run では黙る)。重なりは画面の大きさで変わるので、直すのは出たデバイスを見た利用者(文言が直し方を言う)。判定は変えない
     case coveredTouchBeforeFailure = "covered-touch-before-failure"
 
+    /// 覆いの名指し(「covered by …」「in front」等)を出す出口で、相手を名指さなかった(`OccluderNaming`)。Android の Flutter は
+    /// z が木の順で塗り順ではないので、同じウィンドウの中の「手前」を根拠にしない(DR-230)。判定・撃ち方は変えない。事実だけ
+    case occluderNamingSuppressed = "occluder-naming-suppressed"
+
     /// dry-run で `type` の文字が空だった(DR-211)。デバイスを使わない dry-run では画面から読んだ値と run メモ(beforeRun が走らない)が
     /// 空になるので断らずに通し、事実を残す。デバイスでの実行は replace 無しの空の入力を今までどおり断る
     case dryRunEmptyText = "dry-run-empty-text"
@@ -774,6 +778,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "could not consult the app's XCUITest tree (the foreground check did not answer or the tree could not be read)"
         case .foundInXCUITestTree:
             return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
+        case .occluderNamingSuppressed:
+            return "an overlapping element was not named: on an Android Flutter app the tree order is not the paint order"
         case .descriptionOnlyLabelNotChecked:
             return "the label comes only from the accessibility description, which is not drawn on the screen, so the drawn text was not checked"
         case .xcuitestTreeNoMatch:

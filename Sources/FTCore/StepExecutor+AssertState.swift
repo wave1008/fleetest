@@ -130,7 +130,7 @@ extension StepExecutor {
         let chain = [locator] + (step.fallbacks ?? [])
         let deadline = Date().addingTimeInterval(step.timeout ?? tunables.defaultTimeout)
         let stepStart = clock.now
-        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache)
+        var freshRetry = AssertFreshRetry(bypassOnRepoll: repollBypassesCache, bypassOnComposeTree: repollMayBypassOnComposeTree)
         var lastSnapshotMs = 0
         var backoff = PollBackoff()
         var actual = 0

@@ -26,29 +26,15 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 7 | OI-374・OI-379・OI-380・OI-381・OI-382・OI-383・OI-384 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 6 | OI-379・OI-380・OI-381・OI-382・OI-383・OI-384 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 9 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386 |
-| 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-361 |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 19 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327・OI-361 |
+| 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 43 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378・OI-385・OI-386 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358・OI-385 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 47 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-385 |
 
 ## 着手可
-
-### OI-374 Android の読み上げ用ラベル(contentDescription)を、可視性検証が画面の文字として探して赤にする
-- 状態: 再現済み
-- 確認: 74c07f117(2026-11-24)
-- 属性: 着手可
-- 運用: 回避可 — `exist(..., requireVisible: false)`(docs の existence_assertion の注意点に記載)。作成中の MCP は可視性検証をしないので本番で初めて赤になる
-- 優先度: 中 — 誤った赤。`#id` で指していても起きる
-
-出典: シナリオ作成の評価 10回目(2026-11-24・標準アプリと地図・`_work/scen-eval-20261124/`。一覧は同フォルダの `ISSUES.md`)
-- 観測: Pixel 4a の電卓の `exist("#formula")`(ラベル `No formula` = 空の数式欄の読み上げ用)が `notRendered`。Google マップ(Emulator)の `exist("#layers_fab||レイヤ")`(アイコンのボタン)が `textMismatch … reads "←+"`(手元と M1Max の2台)。どちらも作成時(MCP)は緑
-- 材料: Android のブリッジは `getText()` と `getContentDescription()` を別々に読んでいる(`SnapshotBuilder.java` の `n.text` / `n.contentDesc`)が、木にはどちらから来たラベルかを載せない。**Flutter は画面に描く文字も contentDescription に入れる**(同ファイルの Flutter の分岐)ので、「説明から来たラベル = 描かれない」とは決められない
-- 測定(2026-11-24・手元 Emulator -05・`adb shell uiautomator dump` で `text` と `content-desc` を分けて読んだ): 自前 SUT のホーム画面で、**Compose・View** は描かれた文字がすべて `text`(説明は空)、**React Native** はボタンが説明 = ラベルを持ち、子の TextView が同じ文字を `text` に持つ、**Flutter** は描かれた文字が説明にだけ入る(`text` は空)。評価で赤になった2例(電卓の `No formula`・マップのアイコンのボタン)はネイティブ View の説明だけのラベル
-- 処理(2026-11-24・評価 11回目の後の処理): ブリッジがラベルの出どころを送り(`ElementInfo.labelSource = "desc"`・Android のブリッジの版 145)、可視性検証は `DescriptionOnlyLabel.skipsDrawnTextCheck` が真の要素で描かれた文字を求めない(注記 `description-only-label-not-checked`)。条件は上の測定の3つの形をそのまま書いたもの(説明だけ・Flutter でない・子孫に同じ文字の `text` が無い)。**UI フレームワークが不明なら従来どおり検証する** —— Android のフレームワークの判定はプロファイルの `appPath` の APK だけから行う(`AppUIFrameworkQuery`)ので、評価で赤になった標準アプリ(電卓・マップ = `appPath` が無い)にはこの直しは効かない
-- 次の一手: 端末に入っているパッケージの APK を(`adb shell pm path` → 取り出し)判定の材料にできるかを決める(子のサンドボックスの `AdbPolicy` に取り出しを足す・取り出しの所要)。決まるまで標準アプリの説明だけのラベルは `requireVisible: false` で書く
 
 ### OI-379 iOS の in-app ブリッジのレビュー残(mainSync の上限・/clear のキャレット・長押しの ref 引き直し・DOM type の古い番号)
 - 状態: 推測
@@ -80,7 +66,7 @@
 - 確認: b7d8ff62e(2026-11-24・コードで経路を確認。デバイスで再現していない)
 - 属性: 着手可
 - 運用: ⑤⑥は要注意 — 別の的・別の欄に効きうる(観測例なし)。他は回復・起動の損だけ
-- 優先度: 低 — ⑤⑥のブリッジ変更は OI-374 の次の版上げに同乗させる(⑥は先に実アプリのコーパスで発火の全数を見る)
+- 優先度: 低 — ⑤⑥のブリッジ変更は次の Android ブリッジの版上げに同乗させる(147 は要素の出どころの申告 = DR-230 だけで上げた。⑥は先に実アプリのコーパスで発火の全数を見る)
 
 出典: リポジトリ全面レビュー(2026-11-24)
 - ①起動し直しが GPU モードを引き継がない(`startEmulator` を既定の "host" で呼ぶ → CPU 描画指定の台が回復・初期化の起動し直しで GPU 描画に戻る)
@@ -222,22 +208,9 @@
 - 観測: s_contacts_and(M1Max の Pixel 10 Pro(Android 17) Emulator)の `type ".textField&&placeholder=名||.textField[3]" "タロウ"` が `cannot type into the field that was tapped (the field could not be found again after ACTION_SET_TEXT was accepted, 4000ms waited; read back "", refresh ok, ACTION_SET_TEXT accepted 2 times, the IME window is in front …)` で赤。失敗時の木では名の欄が `value="タロウ" ph="名"`、よみがなの欄にも `value="タロウ"`(入力で画面が変わった)。手元の同じ OS の Emulator は緑。作成者の「入力でプレースホルダが消えて指し直せない」は誤り(入力後の木にも `ph="名"` があり、見つけ直しはセレクタを使わない)
 - 材料: 見つけ直しは `AndroidRunner/…/InputInjector.java` の `findEditable(root, shortId, x, y, bounds)`。id の無い欄はタップ座標で追う。どの候補を拾った(拾えなかった)かの記録は無い
 - 次の一手: 見つけ直しの候補の数と座標を注記に残す口を足し、次に出たとき「座標が外れたのか・欄が作り直されたのか」を分ける
-- 処理(2026-11-24): 次の一手(見つけ直しの候補を注記に残す口)は Android のブリッジの変更なので、OI-374 の着手(ブリッジがラベルの出どころを送る・版を上げる)と同じ版で入れる
+- 処理(2026-11-24): 次の一手(見つけ直しの候補を注記に残す口)は Android のブリッジの変更なので、次の Android ブリッジの版上げで入れる(147 は要素の出どころの申告 = DR-230 だけで上げ、同乗させていない)
 
 ## 要判断
-
-### OI-361 Android の Flutter で、緑のタップに「後ろの一覧の行に覆われている」の注記が付く
-- 状態: 再現済み
-- 確認: 4f5b4ff6f(2026-11-23)
-- 属性: 要判断・木に材料なし
-- 運用: 合否に響かない — ステップの説明の注記だけ(撃ち方・合否は変えない)
-- 優先度: 低 — 誤った名指しが読み手の調査を誤らせる。赤の失敗文に写ると直す先を取り違える
-
-出典: 設計上の欠陥の調査(2026-11-23)で「Android の自前描画の `z` を塗り順として扱う近道(`OcclusionGeometry.overlayCovering` の包む相手の分岐)」を読み、手元の E2E の結果で裏を取った
-- 観測: 手元の結果の events に「the target's centre is covered by …, so this may have hit … instead」が、Android では Flutter の SUT にだけ付いていた(E2EY-Flutter 419 ファイル・E2EX-Flutter 88・E2E-Flutter 12。CMP の Android は 0)。例: E2EX-Flutter `37_FAB…` の `tap "#fab_extended"` が緑で `covered by #row_f_10`(10/31)・E2EY-Flutter `スクロールで隠れるバーを扱えること.S0010` の `tap "#btn_bottom_b"` が緑で `covered by #row_h_12`(10/30)。FAB と下のバーは一覧の行より手前に描かれるので、名指しは誤り
-- 経路(コード): `OcclusionGeometry.occluder` が中心に重なる相手(包まない重なりを含む)から最も手前の1つを選び、`overlayCovering` が `PaintOrder.drawnAbove(相手, 対象)` を確かめる。**塗り順が本物の木(iOS の in-app の UIKit・RN = `z`)では奥の相手を覆いと言わない形が既にある**。Android の Flutter の `z` は木の順と同じで塗り順ではない(FD-1.4)ので、木で後ろに並ぶ一覧の行が、手前に描かれる FAB・下のバーより「手前」と判定される
-- 結果の数え方の注意: 緑のシナリオに付いた注記を「誤り」と数えてはいけない —— 覆われていない部分を押す・覆われていない候補へ替える補いで、正しい注記でも緑になる(RN の iOS は塗り順が本物で、緑に 162 件あった)。誤りと確かめたのは上の Flutter の2例(手前に描かれる部品を後ろの行が覆うと言った)
-- 判断が要る点: 直し方は「塗り順の無い木で手前をどう扱うか」(11/4 の決定 = 推測を足さない・OI-170)に当たる。候補は、塗り順の無い木では木の順で手前を決めて名指さない(注記を出さない)こと。ただし Android は UI フレームワークが分からないと `PaintOrder.isReal` が false に倒れるので、そのまま絞るとネイティブ View のアプリ(固定コーパスの Android の木)の正しい警告まで消える。**フレームワークが自前描画と分かっているときに限る**形にし、iOS の塗り順の無い木(SwiftUI・CMP・Flutter)で今出ている注記に正しいものがあるかを材料で確かめてから決める
 
 ## 木に材料なし
 

@@ -39,7 +39,8 @@ final class ElementInfoCodingTests: XCTestCase {
             inOverlayWindow: true,
             clickable: true,
             keptDepth: 3,
-            labelSource: "desc")
+            labelSource: "desc",
+            renderer: "virtual", renderHost: 17)
     }
 
     func testEveryFieldSurvivesAnEncodeDecodeRoundTrip() throws {

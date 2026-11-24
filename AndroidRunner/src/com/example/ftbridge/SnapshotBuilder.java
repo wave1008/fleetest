@@ -100,6 +100,10 @@ final class SnapshotBuilder {
         int[] zPath = new int[0];
         /** 塗り順(0 起点の通し番号。大きいほど手前)。BridgeDTO.ElementInfo.z 参照 */
         int z;
+        /** 出どころの申告 "view"/"compose"/"web"/"virtual"。null = 申告しない(BridgeDTO.ElementInfo.renderer 参照) */
+        String renderer;
+        /** renderer=="virtual" のとき、最も近い renderer=="view" の祖先(assignPaintOrder の後に z を読む)。null = 無い */
+        UINode renderHostNode;
         /** スライダー/プログレスの現在値と範囲(API21+ の RangeInfo)。**採っていないと
          *  Android ではスライダーの状態がまったく読めない** —— iOS は XCUIElement.value が
          *  "50%" を返すので、同じ SUT の同じ要素でプラットフォームごとに結果が違っていた
@@ -285,7 +289,7 @@ final class SnapshotBuilder {
         // 子孫を判定する preorder 走査)は、ある窓の末尾ノードから次の窓の root(depth=2)を
         // 子と誤認しない(root 自身以外は depth>2 なので、自分の depth が2以下でない限り
         // 次の窓の root へ継続しない。1窓あたり root は1つだけなので安全)
-        collect(root, 2, nodes, false, forceRefresh, new int[]{0});
+        collect(root, 2, nodes, false, forceRefresh, new int[]{0}, null);
         Rect activeWindowBounds = nodes.isEmpty() ? new Rect() : nodes.get(0).bounds;
         for (UINode node : nodes) node.ownerWindowBounds = activeWindowBounds;
 
@@ -301,7 +305,7 @@ final class SnapshotBuilder {
             AccessibilityNodeInfo overlayRoot = overlayWindow.getRoot();
             if (overlayRoot == null) continue;
             int before = nodes.size();
-            collect(overlayRoot, 2, nodes, false, forceRefresh, new int[]{windowRank});
+            collect(overlayRoot, 2, nodes, false, forceRefresh, new int[]{windowRank}, null);
             if (nodes.size() > before) {
                 Rect overlayBounds = nodes.get(before).bounds;
                 for (int i = before; i < nodes.size(); i++) {
@@ -313,6 +317,7 @@ final class SnapshotBuilder {
         }
 
         assignPaintOrder(nodes);
+        // renderHost は z が決まってから読む(祖先の UINode を控えてある)
         markChildren(nodes);
         adoptRoleFromMarkerChildren(nodes);
 
@@ -522,7 +527,8 @@ final class SnapshotBuilder {
      *  parentZPath の先頭はウィンドウランク(0=アクティブウィンドウ・1以降=手前のポップアップ。
      *  build 参照)で、再帰全体を通して不変 */
     private static void collect(AccessibilityNodeInfo node, int depth, List<UINode> out,
-                                boolean insideWebView, boolean forceRefresh, int[] parentZPath) {
+                                boolean insideWebView, boolean forceRefresh, int[] parentZPath,
+                                UINode realAncestor) {
         if (node == null) return;
 
         // a11y ノードはキャッシュ供給で古い値を返し続ける(Chromium は DOM 変更のイベントを
@@ -580,15 +586,58 @@ final class SnapshotBuilder {
         }
         node.getBoundsInScreen(n.bounds);
         n.depth = depth;
+        n.renderer = rendererOf(node);
+        if ("virtual".equals(n.renderer)) n.renderHostNode = realAncestor;
         int[] zPath = new int[parentZPath.length + 1];
         System.arraycopy(parentZPath, 0, zPath, 0, parentZPath.length);
         zPath[parentZPath.length] = node.getDrawingOrder();
         n.zPath = zPath;
         out.add(n);
 
+        UINode childRealAncestor = "view".equals(n.renderer) ? n : realAncestor;
         for (int i = 0; i < node.getChildCount(); i++) {
             collect(node.getChild(i), depth + 1, out, insideWebView || isWebView, forceRefresh,
-                    zPath);
+                    zPath, childRealAncestor);
+        }
+    }
+
+    // 出どころの申告(DR-230)。getSourceNodeId は隠し API の反射で、供給時の hidden_api_policy=1
+    // (AndroidBridge.swift)が前提。取れなければ全要素で renderer を出さない(省略 = 測っていない)
+    private static java.lang.reflect.Method sourceNodeIdMethod;
+    private static boolean sourceNodeIdTried;
+
+    private static synchronized java.lang.reflect.Method sourceNodeIdMethod() {
+        if (!sourceNodeIdTried) {
+            sourceNodeIdTried = true;
+            try {
+                java.lang.reflect.Method m = AccessibilityNodeInfo.class.getDeclaredMethod("getSourceNodeId");
+                m.setAccessible(true);
+                sourceNodeIdMethod = m;
+            } catch (Throwable ignored) {
+                sourceNodeIdMethod = null;
+            }
+        }
+        return sourceNodeIdMethod;
+    }
+
+    /** 仮想 id(sourceNodeId の上位 32bit)が -1 = 実体の View。仮想は extras / availableExtraData で compose・web を見分ける */
+    private static String rendererOf(AccessibilityNodeInfo node) {
+        java.lang.reflect.Method m = sourceNodeIdMethod();
+        if (m == null) return null;
+        try {
+            long id = ((Long) m.invoke(node)).longValue();
+            if ((int) (id >>> 32) == -1) return "view";
+            List<String> extra = node.getAvailableExtraData();
+            if (extra != null && extra.contains("androidx.compose.ui.semantics.id")) return "compose";
+            android.os.Bundle extras = node.getExtras();
+            if (extras != null) {
+                for (String key : extras.keySet()) {
+                    if (key.startsWith("AccessibilityNodeInfo.unclipped") || key.equals(EXTRA_CHROME_ROLE)) return "web";
+                }
+            }
+            return "virtual";
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
@@ -906,6 +955,9 @@ final class SnapshotBuilder {
         // clickable も同じ省略規約。型だけでは押せるかが言えない形(setOnClickListener を付けた TextView は StaticText に写る)を
         // ホストの覆いの判定が押せる覆いとして扱う(BridgeDTO.ElementInfo.clickable 参照)
         if (node.clickable) info.put("clickable", true);
+        // renderer / renderHost は申告できたときだけ(BridgeDTO.ElementInfo.renderer / renderHost 参照。z と同じ木の中でだけ比べる)
+        if (node.renderer != null) info.put("renderer", node.renderer);
+        if (node.renderHostNode != null) info.put("renderHost", node.renderHostNode.z);
         // scrollActions は scrollable な容器だけ(端で撃つ空振りの回避に使う。BridgeDTO.ElementInfo 参照)
         if (node.scrollActions != null) {
             JSONArray actions = new JSONArray();

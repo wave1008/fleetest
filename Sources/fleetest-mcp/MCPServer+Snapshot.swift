@@ -1423,7 +1423,8 @@ extension MCPServer {
                                         suppressKeyboardWarning: Self.typesWithoutTouching(found, in: fresh.elements),
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
-                + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen))
+                + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen,
+                                        naming: refOccluderNaming(fresh, driver: driver, args: args)))
         case .found(let found, let moved):
             if let refusal = Self.keyboardRefusal(found, keyboardOcclusion: keyboardOcclusion,
                                                       tree: fresh.elements, isAndroid: Self.platformName(args) == "android") {
@@ -1447,7 +1448,9 @@ extension MCPServer {
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,
-                                        isAndroid: Self.platformName(args) == "android", operation: operation)
+                                        isAndroid: Self.platformName(args) == "android",
+                                        framework: refOccluderNaming(fresh, driver: driver, args: args).framework,
+                                        operation: operation)
                 // 貼り付く見出しの下(DSL は送って外す。判定は TapTargetGeometry.pinnedBandNote)
                 + (TapTargetGeometry.pinnedBandNote(for: found, in: fresh.elements, operation: "touch") ?? "")
                 + (await Self.hiddenUnderChromeWarning(found, nativeRef: nativeRef(found.ref, args: args),

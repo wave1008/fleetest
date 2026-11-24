@@ -20,20 +20,35 @@ final class CoveringHintClippedRowTests: XCTestCase {
 
     func testNoCoveredClaimForARowPushedOutOfItsContainer() {
         let elements = tree(rowY: 420)   // 容器は 100..400。行は丸ごと外
-        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen)
+        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertEqual(hint, "")
     }
 
     func testStillCoveredClaimForARowInsideItsContainer() {
         let elements = tree(rowY: 350)   // 容器の内側
-        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen)
+        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(hint.contains("covered by"), hint)
     }
 
     /// 検証の失敗文は何も撃っていないので「操作が吸われた」と言わない(事実は覆っている要素の名指しだけ)
     func testHintDoesNotClaimAnInteractionWasSwallowed() {
         let elements = tree(rowY: 350)
-        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen)
+        let hint = StepExecutor.coveringHint(element: elements[1], elements: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertFalse(hint.contains("swallowed"), hint)
+    }
+
+    /// Android の Flutter の同じウィンドウでは覆いを名指さない(括弧書き全体を出さない)。疑いの判定は変えず、抑止を報告する
+    func testHintOmittedForFlutterButNotForOtherApps() {
+        let elements = tree(rowY: 350)
+        let flutter = StepExecutor.coveringHintResult(element: elements[1], elements: elements, screen: screen,
+                                                      isAndroid: true, framework: .flutter)
+        XCTAssertEqual(flutter.hint, "")
+        XCTAssertTrue(flutter.namingSuppressed)
+        for (isAndroid, fw) in [(true, AppUIFramework.compose), (true, nil), (false, .flutter)] as [(Bool, AppUIFramework?)] {
+            let r = StepExecutor.coveringHintResult(element: elements[1], elements: elements, screen: screen,
+                                                    isAndroid: isAndroid, framework: fw)
+            XCTAssertTrue(r.hint.contains("covered by"), r.hint)
+            XCTAssertFalse(r.namingSuppressed)
+        }
     }
 }

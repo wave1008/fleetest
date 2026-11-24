@@ -42,7 +42,7 @@ final class ChromePinnedOutsideTests: XCTestCase {
                        "容器は screen_home のはず(タブは間引きで子に再配線される)")
         XCTAssertFalse(ContainerGeometry.isOutsideContainer(tabHome, in: elements, screen: screen),
                        "下端に固定された chrome は ghost 扱いしないこと")
-        let kind = TapTargetGeometry.advisoryKind(for: tabHome, in: elements, screen: screen)
+        let kind = TapTargetGeometry.advisoryKind(for: tabHome, in: elements, screen: screen, naming: .alwaysName)
         if case .scrolledOut = kind {
             XCTFail("chrome-pinned なタブに scrolledOut 助言が出ている: \(String(describing: kind))")
         }

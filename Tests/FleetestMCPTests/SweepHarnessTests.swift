@@ -542,7 +542,7 @@ final class SweepHarnessTests: XCTestCase {
             // clippedAtContainerEdge を呼び直すと、その手前で勝つはずの強い判定
             // (zeroFrame〜stacked)を無視して二重計上する変異を見逃す
             if case .clippedByContainer = TapTargetGeometry.advisoryKind(
-                for: e, in: els, screen: snap.screen) {
+                for: e, in: els, screen: snap.screen, naming: .alwaysName) {
                 c.clippedByContainer += 1
             }
             if RefGuard.interactiveTypes.contains(e.type),
@@ -690,7 +690,7 @@ final class SweepHarnessTests: XCTestCase {
                     emit("   DETAIL \(name) scrolled \(who) outside \(RefGuard.describe(scroller))")
                 }
                 if case .clippedByContainer(let container) = TapTargetGeometry.advisoryKind(
-                    for: e, in: els, screen: snap.screen) {
+                    for: e, in: els, screen: snap.screen, naming: .alwaysName) {
                     let f = e.frame
                     emit("   DETAIL \(name) clipped  \(who) \(Int(f.width))x\(Int(f.height))"
                         + " in \(RefGuard.describe(container))")

@@ -45,7 +45,7 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
         let el = element(y: 0, h: 20)
         let note = TapTargetGeometry.advisory(
             for: el, in: [el], screen: screen, keyboardOcclusion: .none, overlayWindows: .none,
-            safeAreaTop: .measured(62), isAndroid: false)
+            safeAreaTop: .measured(62), isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("safe-area band") == true, note ?? "")
     }
 
@@ -56,7 +56,7 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
                              frame: FTRect(x: 16, y: 0, width: 85, height: 20), depth: 2)
         let note = TapTargetGeometry.advisory(
             for: el, in: [el], screen: screen, keyboardOcclusion: .none, overlayWindows: .none,
-            safeAreaTop: .measured(62), isAndroid: false)
+            safeAreaTop: .measured(62), isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("disabled") == true, note ?? "")
     }
 

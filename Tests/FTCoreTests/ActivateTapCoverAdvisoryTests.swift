@@ -21,7 +21,7 @@ final class ActivateTapCoverAdvisoryTests: XCTestCase {
     func testActivateDropsTheCentreCoverAdvisory() async {
         let (outcome, elements) = await run(.activate)
         guard case .overlayCovering? = TapTargetGeometry.advisoryKind(for: elements[0], in: elements,
-                                                                     screen: FTRect(x: 0, y: 0, width: 400, height: 800)) else {
+                                                                     screen: FTRect(x: 0, y: 0, width: 400, height: 800), naming: .alwaysName) else {
             return XCTFail("前提: 木の幾何は中心の覆いと読む")
         }
         XCTAssertTrue(StepExecutor.isSuccess(outcome.status), "\(outcome.status)")

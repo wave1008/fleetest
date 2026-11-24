@@ -97,7 +97,7 @@ final class PostSwipeSnapshotFreshnessTests: XCTestCase {
         // 再試行の周は `.repoll`(待つ間の迂回も兼ねる)で書く。どちらの語彙でも実引数は searchSwiped
         let gated = body.filter {
             $0.contains("freshSnapshot(.afterSearch(swiped: searchSwiped))")
-                || $0.contains("freshSnapshot(.repoll(afterSearchSwiped: searchSwiped))")
+                || $0.contains("freshSnapshot(.repoll(afterSearchSwiped: searchSwiped, composeSeen: composeSeenInWait))")
         }
         // 再試行2経路(timeout 指定 / 既定3回)の撮り直し。ghost の救済(sendGhostRescue)の後の撮り直しは各経路の
         // 次の周回が受け持つ(救済の中では撮らない)ので、この2箇所。初回の解決は三項で書くので下で別に見る

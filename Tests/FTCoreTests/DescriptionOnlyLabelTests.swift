@@ -1,4 +1,4 @@
-// OI-374: 説明(contentDescription)だけから来たラベルに、可視性検証が描かれた文字を求めない条件。
+// DR-230: 説明(contentDescription)だけから来たラベルに、可視性検証が描かれた文字を求めない条件。
 // 判定は `DescriptionOnlyLabel` の1箇所(DSL の V9 が呼ぶ)。
 
 import XCTest

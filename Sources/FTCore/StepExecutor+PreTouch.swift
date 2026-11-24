@@ -208,9 +208,14 @@ extension StepExecutor {
             // なったときだけ失敗の文言で名指す(`lastTapHint`)。重なりは画面の大きさで変わり書く時点では避けられないので、
             // 実際に効かなかった回(= 赤)にだけ、直す先(シナリオ)を案内する。判定は足さない(既存の疑いを写すだけ)
             var suspect: ElementInfo?
-            if case .overlayCovering(let over)? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements,
-                                                                                 screen: snapshot.screen) {
+            let kindResult = TapTargetGeometry.advisoryKindResult(for: element, in: snapshot.elements,
+                                                                  screen: snapshot.screen, naming: occluderNaming)
+            if case .overlayCovering(let over)? = kindResult.kind {
                 suspect = over
+            }
+            // 名指さない組(`OccluderNaming`)は疑いに記録しない。抑えた事実は赤の案内を組む時点で注記にする(`coveredTouchHint`)
+            if kindResult.namingSuppressed, lastInteraction?.target.ref == element.ref {
+                lastInteraction?.coverSuspectSuppressed = true
             }
             let covers = isAndroid ? [] : TapTargetGeometry.otherLayerCoverCandidates(element, in: snapshot.elements,
                                                                                      screen: snapshot.screen)
@@ -234,9 +239,12 @@ extension StepExecutor {
             }
             // 容器の縁に貼り付いた見出しの下(木の並びでは見出しが奥 = 上の2つは拾わない)。塗り順の無い木では送り出しを撃たない
             // (`liftCoveredTarget`)ので、赤になったときに名指す(E2EX の sticky・xcuitest = OI-216)
+            // 名指しを抑えたときは、推定した容器での判定を新しく動かさない(MCP の `pinnedBandNote` と同じ門 = OI-282)
             if suspect == nil,
                let container = ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
-                                                                   inferring: step.containerInference ?? true) {
+                                                                   inferring: step.containerInference ?? true),
+               !kindResult.namingSuppressed
+                   || TapTargetGeometry.isDeclaredScrollerFrame(container, in: snapshot.elements) {
                 suspect = TapTargetGeometry.pinnedBandCovering(element, in: snapshot.elements, container: container)
             }
             if let suspect { noteCoverSuspect(TapTargetGeometry.describe(suspect), for: element) }

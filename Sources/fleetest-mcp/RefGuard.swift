@@ -230,9 +230,11 @@ enum RefGuard {
     /// 押せる要素を押せなくする害は、誤操作を見逃す害と**別種で、こちらは確実に起きる**。
     /// 情報だけ渡して判断はエージェントに委ねる —— 一覧の行にも印が付いているので、
     /// 「怪しいものを撃った」ことは黙って通り過ぎない
-    static func ghostWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect) -> String {
+    static func ghostWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                             naming: OccluderNamingContext) -> String {
+        // 残像の判定は変えない。相手の名指しだけ `OccluderNaming` に従う
         let hit = occluder(of: found, in: elements, screen: screen)
-            .map { " (possibly \(describe($0)))" } ?? ""
+            .flatMap { naming.mayName($0, found) ? " (possibly \(describe($0)))" : nil } ?? ""
         return " (warning: \(describe(found)) is reported outside its scroll container, so this"
             + " may have hit whatever is really drawn there\(hit) — verify with ft_screenshot,"
             + " or use ft_scroll_to to bring it into view first)"
@@ -339,8 +341,10 @@ enum RefGuard {
     /// ツール名で逃げ道を書く)へ写すだけ —— 順序・当たり判定を書き直さない
     /// `operation` = 文言の操作名("tap" / "double tap" / "drag" / "type" 等。既定値を置かない = 呼び手に決めさせる)
     static func overlapWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
-                               isAndroid: Bool, operation: String) -> String {
-        guard let kind = TapTargetGeometry.advisoryKind(for: found, in: elements, screen: screen)
+                               isAndroid: Bool, framework: AppUIFramework?, operation: String) -> String {
+        guard let kind = TapTargetGeometry.advisoryKind(
+            for: found, in: elements, screen: screen,
+            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework))
         else { return "" }
         switch kind {
         case .zeroFrame:

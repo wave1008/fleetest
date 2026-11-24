@@ -142,12 +142,26 @@ extension MCPServer {
     /// 分かったときだけ true(分からなければ推測しない側)
     func refTreePaintOrderIsReal(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any]) -> Bool {
         guard let tree else { return false }
+        let material = refTreeFrameworkMaterial(tree, driver: driver, args: args)
+        return PaintOrder.isReal(in: tree.elements, isAndroid: material.isAndroid, framework: material.framework)
+    }
+
+    /// `refTreePaintOrderIsReal` と覆いの名指し(`OccluderNaming`)が共有する材料(OS と、木のアプリの UI フレームワーク。iOS は常に nil)
+    func refTreeFrameworkMaterial(_ tree: SnapshotResponse, driver: AppDriver,
+                                  args: [String: Any]) -> (isAndroid: Bool, framework: AppUIFramework?) {
         let key = Self.sessionKey(args)
         let isAndroid = bridges[key] == "android" || driver is AndroidDriver
         let framework = isAndroid
             ? (tree.sessionBundleID ?? launchedBundleIDs[key]).flatMap { androidUIFrameworkLookup($0, installedPackagePaths[key]) }
             : nil
-        return PaintOrder.isReal(in: tree.elements, isAndroid: isAndroid, framework: framework)
+        return (isAndroid, framework)
+    }
+
+    /// ref の操作の注記が名指しに使う材料。木が無ければ名指しを抑えない(`.alwaysName`)
+    func refOccluderNaming(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any]) -> OccluderNamingContext {
+        guard let tree else { return .alwaysName }
+        let material = refTreeFrameworkMaterial(tree, driver: driver, args: args)
+        return OccluderNamingContext(isAndroid: material.isAndroid, framework: material.framework)
     }
 
     static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
@@ -874,8 +888,15 @@ extension MCPServer {
 
     /// **手前の部品に中心を覆われた要素は見本にしない**(切り抜きは覆いの絵になる。保存は永続で、分類器が以後ずっと誤る)。
     /// 判定は DSL・タップの遮蔽と同じ OcclusionGeometry.overlayCovering。nil = 保存してよい
-    static func captureCoverRefusal(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect) -> String? {
+    /// 名指さない組(`OccluderNaming`)でも**断りは残す**(保存は永続)。文言から相手の名前と断言を外す(先頭の "nothing was saved" は保つ)
+    static func captureCoverRefusal(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                                    naming: OccluderNamingContext) -> String? {
         guard let cover = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen) else { return nil }
+        guard naming.mayName(cover, element) else {
+            return "nothing was saved: \(RefGuard.describe(element)) may be covered by another element on this screen"
+                + " (paint order is not known here), so its capture could show something else. Check with ft_screenshot"
+                + " that nothing is drawn over it, then capture again"
+        }
         return "nothing was saved: \(RefGuard.describe(element)) is covered by \(RefGuard.describe(cover))"
             + " drawn in front of it, so its crop would be a picture of that instead. Close or move what covers it,"
             + " then capture again"
@@ -979,6 +1000,7 @@ extension MCPServer {
         let element: ElementInfo
         let screen: FTRect
         let elements: [ElementInfo]
+        let naming: OccluderNamingContext
         var refNote = ""
         if let ref = try Self.intArgument(args, "ref") {
             let target = try await verifiedRef(ref, driver: d, args: args, operation: "capture")
@@ -989,6 +1011,7 @@ extension MCPServer {
             element = found
             screen = snapshot.screen
             elements = snapshot.elements
+            naming = refOccluderNaming(snapshot, driver: d, args: args)
             refNote = target.note
         } else if let selector = args["selector"] as? String {
             let snapshot = try await freshSnapshot(d, args: args)
@@ -1003,10 +1026,11 @@ extension MCPServer {
             element = found
             screen = snapshot.screen
             elements = snapshot.elements
+            naming = refOccluderNaming(snapshot, driver: d, args: args)
         } else {
             throw MCPError("ref or selector is required")
         }
-        if let refusal = Self.captureCoverRefusal(element, in: elements, screen: screen) { throw MCPError(refusal) }
+        if let refusal = Self.captureCoverRefusal(element, in: elements, screen: screen, naming: naming) { throw MCPError(refusal) }
         let png = try await d.screenshot()
         // **一色の絵は見本にしない**(判定は DSL の分類と同じ BlankFrameDetector.isUnjudgeable)。撮れていない・何も
         // 描かれていない絵の切り出しは OFF に似ていて、見本に入ると分類器が以後ずっと誤る(保存は永続)

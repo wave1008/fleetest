@@ -334,12 +334,37 @@ public enum TapTargetGeometry {
                                 keyboardOcclusion: KeyboardOcclusion,
                                 overlayWindows: OverlayWindowOcclusion,
                                 safeAreaTop: SafeAreaTop,
-                                isAndroid: Bool) -> String? {
-        keyboardOcclusion.advisory(for: element)
+                                isAndroid: Bool,
+                                framework: AppUIFramework?) -> String? {
+        advisoryResult(for: element, in: elements, screen: screen, keyboardOcclusion: keyboardOcclusion,
+                       overlayWindows: overlayWindows, safeAreaTop: safeAreaTop,
+                       isAndroid: isAndroid, framework: framework).text
+    }
+
+    /// `advisory` の答えに、名指しを抑えたか(`OccluderNaming`)を添える。抑えたかは座標の段まで届いたときだけ言う
+    public static func advisoryResult(for element: ElementInfo, in elements: [ElementInfo],
+                                      screen: FTRect,
+                                      keyboardOcclusion: KeyboardOcclusion,
+                                      overlayWindows: OverlayWindowOcclusion,
+                                      safeAreaTop: SafeAreaTop,
+                                      isAndroid: Bool,
+                                      framework: AppUIFramework?) -> OcclusionAdvisory {
+        if let early = keyboardOcclusion.advisory(for: element)
             ?? overlayWindows.advisory(for: element)
-            ?? disabledAdvisory(for: element)
-            ?? occlusionAdvisory(for: element, in: elements, screen: screen, isAndroid: isAndroid)
-            ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen)
+            ?? disabledAdvisory(for: element) {
+            return OcclusionAdvisory(text: early, namingSuppressed: false)
+        }
+        let occ = occlusionAdvisoryResult(for: element, in: elements, screen: screen,
+                                          isAndroid: isAndroid, framework: framework)
+        return OcclusionAdvisory(
+            text: occ.text ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen),
+            namingSuppressed: occ.namingSuppressed)
+    }
+
+    /// 文言と、覆いの名指しを抑えたか(`advisoryKindResult.namingSuppressed`)
+    public struct OcclusionAdvisory {
+        public let text: String?
+        public let namingSuppressed: Bool
     }
 
     /// **座標に依る警告の優先順チェーン、当たった形**(強い事実から先に、最初の1件だけ)。
@@ -360,33 +385,52 @@ public enum TapTargetGeometry {
         case sliver
     }
 
+    /// `advisoryKindResult` の答え。`namingSuppressed` = overlayCovering の段が覆いを見つけたが、名指してはいけない組
+    /// (`OccluderNaming`)だったので飛ばした(後段の答えは今どおり評価した結果)。呼び手が事実として残す
+    public struct TapAdvisoryResult {
+        public let kind: TapAdvisoryKind?
+        public let namingSuppressed: Bool
+    }
+
     /// **座標に依る警告の優先順チェーン**(強い事実から先に、最初の1件だけ)。
     /// 順序: zeroFrame → originPinned → offscreen → scrolledOut → overlayCovering → missedContent →
     /// nested → stacked → clippedByContainer → sliver。**frame の中心を撃つ経路でしか言えない**
-    /// (`StepExecutor.visibleTapRect` で寄せた場合は呼ばない —— 撃つ点が変わるので嘘になる)
+    /// (`StepExecutor.visibleTapRect` で寄せた場合は呼ばない —— 撃つ点が変わるので嘘になる)。
+    /// **`naming` に既定値を置かない**: 偽の組は overlayCovering の段だけ飛ばす(後段は今どおり)。
+    /// 撃ち方に使う呼び手は `.alwaysName` を渡す
     public static func advisoryKind(for element: ElementInfo, in elements: [ElementInfo],
-                                    screen: FTRect) -> TapAdvisoryKind? {
-        if element.frame.width <= 0 || element.frame.height <= 0 { return .zeroFrame }
-        if isPinnedToScreenOrigin(element, screen: screen) { return .originPinned }
-        if offscreenAdvisory(for: element, screen: screen) != nil { return .offscreen }
+                                    screen: FTRect, naming: OccluderNamingContext) -> TapAdvisoryKind? {
+        advisoryKindResult(for: element, in: elements, screen: screen, naming: naming).kind
+    }
+
+    public static func advisoryKindResult(for element: ElementInfo, in elements: [ElementInfo],
+                                          screen: FTRect, naming: OccluderNamingContext) -> TapAdvisoryResult {
+        var suppressed = false
+        func result(_ kind: TapAdvisoryKind?) -> TapAdvisoryResult {
+            TapAdvisoryResult(kind: kind, namingSuppressed: suppressed)
+        }
+        if element.frame.width <= 0 || element.frame.height <= 0 { return result(.zeroFrame) }
+        if isPinnedToScreenOrigin(element, screen: screen) { return result(.originPinned) }
+        if offscreenAdvisory(for: element, screen: screen) != nil { return result(.offscreen) }
         if let scroller = outsideDeclaredScroller(element, in: elements, screen: screen) {
-            return .scrolledOut(scroller)
+            return result(.scrolledOut(scroller))
         }
         if let over = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen) {
-            return .overlayCovering(over)
+            if naming.mayName(over, element) { return result(.overlayCovering(over)) }
+            suppressed = true
         }
         if let inner = missesItsOwnContent(element, in: elements, screen: screen) {
-            return .missedContent(inner)
+            return result(.missedContent(inner))
         }
         if let nested = nestedActionCoveringCentre(element, in: elements) {
-            return .nestedAction(nested)
+            return result(.nestedAction(nested))
         }
-        if OcclusionGeometry.stackedRefs(elements).contains(element.ref) { return .stacked }
+        if OcclusionGeometry.stackedRefs(elements).contains(element.ref) { return result(.stacked) }
         if let container = clippedAtContainerEdge(element, in: elements) {
-            return .clippedByContainer(container)
+            return result(.clippedByContainer(container))
         }
-        if isClippedSliver(element, screen: screen) { return .sliver }
-        return nil
+        if isClippedSliver(element, screen: screen) { return result(.sliver) }
+        return result(nil)
     }
 
     /// 枠が画面の原点(±0.5)から始まり、幅が画面の半分未満・高さが 1/4 未満の要素か。実測(iPhone SE3・XCUITest・メモの編集中):
@@ -490,8 +534,25 @@ public enum TapTargetGeometry {
     /// **DSL 用の文言**(ステップ注記なので主語は "the target")。`advisoryKind` の kind ごとに
     /// 写すだけで、判定そのものはしない
     public static func occlusionAdvisory(for element: ElementInfo, in elements: [ElementInfo],
-                                         screen: FTRect, isAndroid: Bool) -> String? {
-        guard let kind = advisoryKind(for: element, in: elements, screen: screen) else { return nil }
+                                         screen: FTRect, isAndroid: Bool, framework: AppUIFramework?) -> String? {
+        occlusionAdvisoryResult(for: element, in: elements, screen: screen,
+                                isAndroid: isAndroid, framework: framework).text
+    }
+
+    public static func occlusionAdvisoryResult(for element: ElementInfo, in elements: [ElementInfo],
+                                               screen: FTRect, isAndroid: Bool,
+                                               framework: AppUIFramework?) -> OcclusionAdvisory {
+        let result = advisoryKindResult(for: element, in: elements, screen: screen,
+                                        naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework))
+        return OcclusionAdvisory(
+            text: result.kind.flatMap { occlusionAdvisoryText(kind: $0, for: element, in: elements, screen: screen,
+                                                              isAndroid: isAndroid) },
+            namingSuppressed: result.namingSuppressed)
+    }
+
+    private static func occlusionAdvisoryText(kind: TapAdvisoryKind, for element: ElementInfo,
+                                              in elements: [ElementInfo], screen: FTRect,
+                                              isAndroid: Bool) -> String? {
         switch kind {
         case .zeroFrame:
             return "its reported frame has zero width/height — the tap may land on whatever"
@@ -820,7 +881,7 @@ public enum TapTargetGeometry {
     public static func overlayCoveringForUncover(_ element: ElementInfo, in elements: [ElementInfo],
                                                  screen: FTRect) -> ElementInfo? {
         guard case .overlayCovering(let over)? = advisoryKind(for: element, in: elements,
-                                                              screen: screen) else { return nil }
+                                                              screen: screen, naming: .alwaysName) else { return nil }
         return over
     }
 
@@ -885,6 +946,11 @@ public enum TapTargetGeometry {
         return nil
     }
 
+    /// 容器の枠が、scrollable を申告した要素の枠と一致するか(推定した容器と申告した容器を分ける門。`pinnedBandNote` と共有)
+    public static func isDeclaredScrollerFrame(_ container: FTRect, in elements: [ElementInfo]) -> Bool {
+        elements.contains(where: { $0.scrollable == true && frameContains($0.frame, container) && frameContains(container, $0.frame) })
+    }
+
     /// **貼り付く見出しが対象の中心を覆っているときの注記**(MCP の ref の経路が使う。DSL は `liftCoveredTarget` が送って外す)。
     /// 判定は `pinnedBandCovering` の1つ。容器が分からなければ nil。**警告のみ**。
     /// **容器が scrollable を申告した要素の枠のときだけ言う**: 推定の容器は行そのものになり、行の上端の題名を「容器の上端の帯」と
@@ -893,7 +959,7 @@ public enum TapTargetGeometry {
     public static func pinnedBandNote(for element: ElementInfo, in elements: [ElementInfo],
                                       inferContainer: Bool = true, operation: String) -> String? {
         guard let container = ContainerGeometry.clippingContainer(of: element, in: elements, inferring: inferContainer),
-              elements.contains(where: { $0.scrollable == true && frameContains($0.frame, container) && frameContains(container, $0.frame) }),
+              isDeclaredScrollerFrame(container, in: elements),
               let band = pinnedBandCovering(element, in: elements, container: container) else { return nil }
         return " (warning: \(describe(element))'s centre is under the sticky header \(describe(band)), so this \(operation)"
             + " may land on the header instead — scroll the element clear of it first with ft_scroll_to or by dragging)"

@@ -57,8 +57,7 @@ extension StepExecutor {
             snapshot = lifted.snapshot
             driverFallback = Self.joinNotes(driverFallback, lifted.note)
         }
-        adviseTarget(TapTargetGeometry.occlusionAdvisory(
-            for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
+        adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
         // 中心が容器の外に落ちる要素だけ、見えている部分の中心を撃つ(tap の座標タップ分岐と同じ規律)
         // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分に指を置く(薄ければ置かない)
         var coverPartRect: FTRect?

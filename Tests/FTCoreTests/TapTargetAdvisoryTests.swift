@@ -22,7 +22,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let off = element(1, "btn_always_disabled", "button", 42, 1544, 309, 126, enabled: false)
         let note = TapTargetGeometry.advisory(for: off, in: [off], screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil)
         XCTAssertEqual(note, "the target is disabled, so this almost certainly did nothing")
     }
 
@@ -49,7 +49,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
                      "ホイールの申告 frame は描画範囲ではないので遮蔽と言わないこと")
         XCTAssertNil(TapTargetGeometry.advisory(for: segment, in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil))
     }
 
     /// **入れ物ごと外したのではない**ことの対照: ピッカーの器そのものが中心を覆うなら
@@ -69,7 +69,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let on = element(1, "btn", "button", 20, 120, 100, 40)
         XCTAssertNil(TapTargetGeometry.advisory(for: on, in: [on], screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil))
     }
 
     /// 全幅の非対話コンテナで中身は右端の FAB だけ = 中心は地図の上
@@ -82,7 +82,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         let note = TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil)
         XCTAssertNotNil(note)
         XCTAssertTrue(note?.contains("#layers_fab") == true, note ?? "")
         XCTAssertTrue(note?.contains("behind it") == true, note ?? "")
@@ -97,7 +97,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         XCTAssertNil(TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false))
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil))
     }
 
     /// **覆いの目印**(デバイス上で「素の状態に出ない・その面で出る」を測った集合)。
@@ -230,7 +230,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let above = element(1, "slot_07", "button", 0, -46, 402, 56)
         let note = TapTargetGeometry.advisory(
             for: above, in: [above], screen: FTRect(x: 0, y: 0, width: 402, height: 874),
-            keyboardOcclusion: .none, overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false)
+            keyboardOcclusion: .none, overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil)
         XCTAssertNotNil(note)
         XCTAssertTrue(note?.contains("outside the visible screen") == true, note ?? "")
         XCTAssertTrue(note?.contains("(201, -18)") == true, note ?? "")
@@ -262,13 +262,13 @@ final class TapTargetAdvisoryTests: XCTestCase {
 
     func testZeroWidthFrameIsCalledOutByChain() {
         let e = element(1, "z", "button", 100, 100, 0, 40)
-        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("zero width/height") == true, note ?? "")
     }
 
     func testZeroHeightFrameIsCalledOutByChain() {
         let e = element(1, "z", "button", 100, 100, 40, 0)
-        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("zero width/height") == true, note ?? "")
     }
 
@@ -280,7 +280,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let overlay = ElementInfo(ref: 2, type: "clickable", identifier: "tab_controls", label: nil,
                                   value: nil, placeholder: nil, enabled: true,
                                   frame: FTRect(x: 134, y: 778, width: 134, height: 62), depth: 2)
-        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: [target, overlay], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: [target, overlay], screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("#tab_controls") == true, note ?? "")
         XCTAssertTrue(note?.contains("instead") == true, note ?? "")
     }
@@ -301,7 +301,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         // 除外されてしまい、この修正を1バイトも検証しないテストになる
         let ghosts = (0..<3).map { element(10 + $0, "", "clickable", 0, 0, 150, 100, depth: 2) }
         let elements = [container, target] + ghosts
-        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertNil(note, "実体の無いクランプ幽霊が覆っていると誤って名指しした: \(note ?? "-")")
     }
 
@@ -314,7 +314,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let overlay1 = element(10, "ad_row", "clickable", 0, 0, 150, 100, depth: 2)
         let overlay2 = element(11, "ad_row2", "clickable", 0, 0, 150, 100, depth: 2)
         let elements = [container, target, overlay1, overlay2]
-        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("#ad_row") == true, note ?? "-")
     }
 
@@ -336,12 +336,12 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let c = labelled(12, 120, 40, "広告 C")
         let elements = [container, a, b, c]
         for ghost in [a, b, c] {
-            let note = TapTargetGeometry.occlusionAdvisory(for: ghost, in: elements, screen: screen, isAndroid: false)
+            let note = TapTargetGeometry.occlusionAdvisory(for: ghost, in: elements, screen: screen, isAndroid: false, framework: nil)
             XCTAssertTrue(note?.contains("clamped leftovers") == true,
                           "原点クランプに印が付かない: \(note ?? "-")")
         }
         // **断定しない**: 大きさが違うので「完全一致」と言ってはいけない
-        let note = TapTargetGeometry.occlusionAdvisory(for: a, in: elements, screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: a, in: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertFalse(note?.contains("exact frame") == true, note ?? "-")
     }
 
@@ -368,7 +368,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let a = element(10, "", "staticText", 0, 100, 150, 20, depth: 2)
         let b = element(11, "", "staticText", 0, 100, 200, 30, depth: 2)
         XCTAssertFalse(OcclusionGeometry.isOriginClamped(a, in: [container, a, b]))
-        let note = TapTargetGeometry.occlusionAdvisory(for: a, in: [container, a, b], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: a, in: [container, a, b], screen: screen, isAndroid: false, framework: nil)
         XCTAssertFalse(note?.contains("clamped leftovers") == true,
                        "2件でクランプ扱いした(容器+子の普通の版組を巻き込む): \(note ?? "-")")
     }
@@ -383,7 +383,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         table.scrollable = true
         let row = element(3, "row_01", "clickable", 0, 103, 393, 128, depth: 3)
         let note = TapTargetGeometry.occlusionAdvisory(for: tab, in: [tab, table, row],
-                                                       screen: screen, isAndroid: false)
+                                                       screen: screen, isAndroid: false, framework: nil)
         XCTAssertNil(note, "中身の無い帯で覆っていると報告した: \(note ?? "-")")
     }
 
@@ -399,7 +399,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         // (2026-08-14 に変異が生き残って判明。**名指しの相手まで固定する**)
         let tile = element(3, "", "other", 300, 40, 90, 90, depth: 3)
         let note = TapTargetGeometry.occlusionAdvisory(for: link, in: [link, grid, tile],
-                                                       screen: screen, isAndroid: false)
+                                                       screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("#StartPageCollectionView") == true, note ?? "-")
     }
 
@@ -415,11 +415,11 @@ final class TapTargetAdvisoryTests: XCTestCase {
         more.label = "さらに表示"
         let elements = [close, list, firstRow, more]
         XCTAssertNil(TapTargetGeometry.occlusionAdvisory(for: close, in: elements, screen: screen,
-                                                         isAndroid: false))
+                                                         isAndroid: false, framework: nil))
         // 対照: 中身が上端より上へ送られていない(= くぐっている証拠が無い)なら従来どおり言う
         let unscrolled = [close, list, element(1767, "row", "other", 0, 72, 402, 72, depth: 9), more]
         let control = TapTargetGeometry.occlusionAdvisory(for: close, in: unscrolled, screen: screen,
-                                                          isAndroid: false)
+                                                          isAndroid: false, framework: nil)
         XCTAssertTrue(control?.contains("#Button") == true, control ?? "-")
     }
 
@@ -514,7 +514,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let child = ElementInfo(ref: 2, type: "button", identifier: "chip", label: nil, value: nil,
                                 placeholder: nil, enabled: true,
                                 frame: FTRect(x: 40, y: 240, width: 20, height: 20), depth: 3)
-        let note = TapTargetGeometry.occlusionAdvisory(for: parent, in: [parent, child], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: parent, in: [parent, child], screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("#chip") == true, note ?? "")
         XCTAssertTrue(note?.contains("instead") == true, note ?? "")
     }
@@ -528,7 +528,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
                         frame: FTRect(x: 300, y: 300, width: 30, height: 30), depth: 1)
         }
         let elements = (0..<3).map { stacked($0 + 1, "STACK\($0)") }
-        let note = TapTargetGeometry.occlusionAdvisory(for: elements[0], in: elements, screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: elements[0], in: elements, screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("clamped leftovers") == true, note ?? "")
     }
 
@@ -536,7 +536,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
     func testSliverIsCalledOutByChain() {
         var e = element(1, "tab_sunrise_seto", "tab", 1071, 100, 9, 137)
         e.label = "サンライズ瀬戸"
-        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: e, in: [e], screen: screen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("sliver") == true, note ?? "")
     }
 
@@ -550,7 +550,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let logout = element(4, "btn_logout", "button", 16, 687, 358, 43, depth: 1)
         let elements = [container, tall1, tall2, logout]
         let note = TapTargetGeometry.occlusionAdvisory(for: logout, in: elements, screen: screen,
-                                                        isAndroid: false)
+                                                        isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("cut off") == true, note ?? "-")
         XCTAssertTrue(note?.contains("land on whatever is drawn there instead") == true, note ?? "-")
     }
@@ -562,7 +562,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let logout = element(4, "btn_logout", "button", 16, 687, 358, 43, depth: 1)
         let elements = [container, tall1, tall2, logout]
         let note = TapTargetGeometry.occlusionAdvisory(for: logout, in: elements, screen: screen,
-                                                        isAndroid: true)
+                                                        isAndroid: true, framework: nil)
         XCTAssertTrue(note?.contains("cut off") == true, note ?? "-")
         XCTAssertTrue(note?.contains("most likely hit") == true, note ?? "-")
     }
@@ -578,7 +578,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
                                   frame: FTRect(x: 0, y: -60, width: 250, height: 80), depth: 2)
         let smallScreen = FTRect(x: 0, y: 0, width: 402, height: 874)
         let note = TapTargetGeometry.occlusionAdvisory(
-            for: target, in: [target, overlay], screen: smallScreen, isAndroid: false)
+            for: target, in: [target, overlay], screen: smallScreen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("outside the visible screen") == true, note ?? "")
         XCTAssertFalse(note?.contains("covered by") == true, note ?? "")
     }
@@ -605,7 +605,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
                                   value: nil, placeholder: nil, enabled: true,
                                   frame: FTRect(x: 0, y: 740, width: 300, height: 60), depth: 2)
         let elements = [scroller, rowA, rowB, target, overlay]
-        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: smallScreen, isAndroid: false)
+        let note = TapTargetGeometry.occlusionAdvisory(for: target, in: elements, screen: smallScreen, isAndroid: false, framework: nil)
         XCTAssertTrue(note?.contains("leftover from scrolling") == true, note ?? "")
         XCTAssertFalse(note?.contains("covered by") == true, note ?? "")
     }
@@ -635,13 +635,13 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let elements = [scroller, rowA, rowB, tabA, tabB]
 
         XCTAssertNil(TapTargetGeometry.occlusionAdvisory(for: tabA, in: elements, screen: screen,
-                                                          isAndroid: false),
+                                                          isAndroid: false, framework: nil),
                      "chrome-pinned なタブは scrolledOut を出さないこと")
         // **チェーンが飲み込まれていないこと**: disabled は occlusionAdvisory より前段で
         // 判定されるので、chrome-pinned の免除とは無関係に出続けるはず
         XCTAssertEqual(TapTargetGeometry.advisory(for: tabB, in: elements, screen: screen,
                                                   keyboardOcclusion: .none, overlayWindows: .none,
-                                                  safeAreaTop: .unknown, isAndroid: false),
+                                                  safeAreaTop: .unknown, isAndroid: false, framework: nil),
                        "the target is disabled, so this almost certainly did nothing")
     }
 
@@ -654,7 +654,7 @@ final class TapTargetAdvisoryTests: XCTestCase {
         ]
         XCTAssertEqual(TapTargetGeometry.advisory(for: elements[1], in: elements, screen: screen,
                                                     keyboardOcclusion: .none,
-                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false),
+                                                    overlayWindows: .none, safeAreaTop: .unknown, isAndroid: false, framework: nil),
                        "the target is disabled, so this almost certainly did nothing")
     }
 
@@ -1356,7 +1356,7 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
                             frame: FTRect(x: 100, y: -1000, width: 40, height: 0), depth: 2)
         XCTAssertNotNil(TapTargetGeometry.offscreenAdvisory(for: e, screen: screen),
                         "この形では offscreen 条件も同時に成り立つこと(対照の前提)")
-        guard case .zeroFrame = TapTargetGeometry.advisoryKind(for: e, in: [e], screen: screen) else {
+        guard case .zeroFrame = TapTargetGeometry.advisoryKind(for: e, in: [e], screen: screen, naming: .alwaysName) else {
             return XCTFail("zeroFrame が先に勝つべき")
         }
     }
@@ -1382,13 +1382,13 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
         XCTAssertNotNil(TapTargetGeometry.missesItsOwnContent(target, in: withOverlay, screen: screen),
                         "この形では missedContent 条件も同時に成り立つこと(対照の前提)")
         guard case .overlayCovering(let hit) = TapTargetGeometry.advisoryKind(
-            for: target, in: withOverlay, screen: screen) else {
+            for: target, in: withOverlay, screen: screen, naming: .alwaysName) else {
             return XCTFail("overlayCovering が先に勝つべき")
         }
         XCTAssertEqual(hit.ref, overlay.ref)
         // 陰性対照: overlay を除くと missedContent が代わりに発火する(条件自体は独立に成立)
         guard case .missedContent(let inner) = TapTargetGeometry.advisoryKind(
-            for: target, in: [target, child], screen: screen) else {
+            for: target, in: [target, child], screen: screen, naming: .alwaysName) else {
             return XCTFail("overlay が無ければ missedContent が発火するはず")
         }
         XCTAssertEqual(inner.ref, child.ref)
@@ -1414,14 +1414,14 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
         XCTAssertTrue(OcclusionGeometry.stackedRefs(elements).contains(target.ref),
                      "この形では stacked 条件も同時に成り立つこと(対照の前提)")
         guard case .nestedAction(let nested) = TapTargetGeometry.advisoryKind(
-            for: target, in: elements, screen: screen) else {
+            for: target, in: elements, screen: screen, naming: .alwaysName) else {
             return XCTFail("nestedAction が先に勝つべき")
         }
         XCTAssertEqual(nested.ref, chip.ref)
         // 陰性対照: chip を除くと stacked が代わりに発火する
         let withoutChip = [target, dup2, dup3]
         guard case .stacked = TapTargetGeometry.advisoryKind(
-            for: target, in: withoutChip, screen: screen) else {
+            for: target, in: withoutChip, screen: screen, naming: .alwaysName) else {
             return XCTFail("chip が無ければ stacked が発火するはず")
         }
     }
@@ -1440,13 +1440,13 @@ final class TapAdvisoryKindPriorityTests: XCTestCase {
         XCTAssertTrue(TapTargetGeometry.isClippedSliver(target, screen: screen),
                      "この形では sliver 条件も同時に成り立つこと(対照の前提)")
         guard case .stacked = TapTargetGeometry.advisoryKind(
-            for: target, in: elements, screen: screen) else {
+            for: target, in: elements, screen: screen, naming: .alwaysName) else {
             return XCTFail("stacked が先に勝つべき")
         }
         // 陰性対照: 2件だけ(stackedFrameMinimum 未満)なら sliver が代わりに発火する
         let onlyTwo = [elements[0], elements[1]]
         guard case .sliver = TapTargetGeometry.advisoryKind(
-            for: target, in: onlyTwo, screen: screen) else {
+            for: target, in: onlyTwo, screen: screen, naming: .alwaysName) else {
             return XCTFail("stacked の下限を割れば sliver が発火するはず")
         }
     }

@@ -1,4 +1,4 @@
-// Android の木で、ラベルが contentDescription だけから来た要素に、可視性検証が描かれた文字を求めてよいか(OI-374)。
+// Android の木で、ラベルが contentDescription だけから来た要素に、可視性検証が描かれた文字を求めてよいか(DR-230)。
 // DSL の `occlusionFlip`(V9 の足切りの直後)が呼び手。判定はここ1箇所(文言・注記は呼び手が持つ)。
 
 import Foundation
@@ -13,7 +13,7 @@ public enum DescriptionOnlyLabel {
     public static func skipsDrawnTextCheck(element: ElementInfo, expectedText: String,
                                            in elements: [ElementInfo], app: AppUIFramework?) -> Bool {
         guard element.labelSource == "desc", !expectedText.isEmpty, element.label == expectedText,
-              let app, app != .flutter else { return false }
+              DescriptionHoldsDrawnText.answer(element: element, framework: app) == false else { return false }
         return !LocatorResolver.descendants(of: element, in: elements).contains {
             $0.label == expectedText && $0.labelSource != "desc"
         }

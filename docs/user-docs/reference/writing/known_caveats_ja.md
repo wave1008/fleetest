@@ -49,7 +49,7 @@
 - [先頭だけが描かれた文字の扱い(省略記号・半分以上は緑、注記付き)](../commands/existence_assertion_ja.md#注意点) — 末尾が省略記号なら緑(`text-ellipsized`)、描かれたのが期待の半分より多いと緑(`text-partially-hidden`)、半分以下は失敗です。大部分を隠す画面は `requireVisible: false` を使います。
 - [exist のセレクタに一致する要素が複数あれば、どれか1つの文字が見えていれば緑](../commands/existence_assertion_ja.md#注意点) — 最初の一致が見えなければ残りの一致を確かめます。`[n]` と相対セレクタはその1つだけを確かめます。
 - [screen rendering check の赤はシナリオの誤りではない](../commands/existence_assertion_ja.md#注意点) — iOS Simulator の描画が壊れて文字が描かれていない事実です。書き換えずにもう一度実行し、続けば Simulator を起動し直します。
-- [`#id` で指しても可視性検証はラベルが描かれているかを見る](../commands/existence_assertion_ja.md#注意点) — 読み上げ用で描かれないラベルの要素は失敗します。在ることだけなら `requireVisible: false` です。
+- [`#id` で指しても可視性検証はラベルが描かれているかを見る](../commands/existence_assertion_ja.md#注意点) — Android の View・Compose の部品の読み上げ用のラベルは描かれた文字を求めません。Flutter のアプリと部品の種類が分からない端末では、描かれないラベルの要素は失敗します。在ることだけなら `requireVisible: false` です。
 
 ### 画像で探す(findImage, findImages, existImage)
 - [記録の距離を threshold の目安にする](../commands/find_image_ja.md#注意点) — 記録には距離と比べた候補の数が出ます。見つからないときは最も近かった距離が出ます。

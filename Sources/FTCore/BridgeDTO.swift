@@ -767,13 +767,27 @@ public struct ElementInfo: Codable, Sendable {
     /// (Android は AndroidBridge.expectedBridgeVersionCode を上げる)
     public var labelSource: String?
 
+    /// **要素の出どころの申告**(Android ブリッジだけが送る。省略 = 測っていない・iOS・旧ブリッジ = DR-75 の省略)。
+    /// `"view"`(実体の View)/ `"compose"` / `"web"` / `"virtual"`(Flutter・独自エンジン等の仮想ノード)。
+    /// 取得元は `AccessibilityNodeInfo.getSourceNodeId`(隠し API の反射。取れない端末は全要素で省略)。
+    /// **既存の `web`(in-app が DOM から作った要素)とは別物**。知らない値は読み手が nil 扱いにする。
+    /// 追加 optional フィールドなので bridgeProtocolVersion は据え置き(labelSource と同じ方針。
+    /// Android は AndroidBridge.expectedBridgeVersionCode を上げる)。DR-230
+    public var renderer: String?
+
+    /// 仮想ノードの、最も近い実体の祖先(`renderer == "view"`)の `z`。**同じ1枚の木の中でだけ比べてよい**
+    /// (z は撮るたびに振り直す)。実体の祖先が無い・実体のノード自身は省略
+    public var renderHost: Int?
+
     public init(ref: Int, type: String, identifier: String?, label: String?, value: String?,
                 placeholder: String?, enabled: Bool, frame: FTRect, depth: Int,
                 checked: Bool? = nil, web: Bool? = nil, focused: Bool? = nil,
                 scrollable: Bool? = nil, z: Int? = nil, range: String? = nil,
                 axClass: String? = nil, scrollActions: [String]? = nil,
                 inOverlayWindow: Bool? = nil, clickable: Bool? = nil, keptDepth: Int? = nil,
-                labelSource: String? = nil) {
+                labelSource: String? = nil, renderer: String? = nil, renderHost: Int? = nil) {
+        self.renderer = renderer
+        self.renderHost = renderHost
         self.labelSource = labelSource
         self.clickable = clickable
         self.keptDepth = keptDepth
@@ -820,6 +834,8 @@ public struct ElementInfo: Codable, Sendable {
         clickable = try container.decodeIfPresent(Bool.self, forKey: .clickable)
         keptDepth = try container.decodeIfPresent(Int.self, forKey: .keptDepth)
         labelSource = try container.decodeIfPresent(String.self, forKey: .labelSource)
+        renderer = try container.decodeIfPresent(String.self, forKey: .renderer)
+        renderHost = try container.decodeIfPresent(Int.self, forKey: .renderHost)
     }
 
     /// 先頭 1 文字だけ小文字化する(`StaticText` → `staticText`)。冪等なので二重適用しても安全

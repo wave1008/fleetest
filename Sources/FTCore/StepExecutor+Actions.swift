@@ -462,6 +462,8 @@ extension StepExecutor {
             return SameTargetResolution.resolve(step: step, original: rescuedFrom.element,
                                                 originalElements: rescuedFrom.elements, in: snapshot)
         }
+        // この待ちで読んだ木に Compose の要素があったか(ラッチ。ここから先の再読みごとに足す)
+        var composeSeenInWait = ElementRenderer.containsCompose(snapshot.elements)
         if resolved == nil || grabbedGhost(resolved) {
             if let timeout = step.timeout {
                 // timeout == 0: リトライなし(初回スナップショットのみ。ifCanSelect/select の空振り短縮用)
@@ -489,7 +491,8 @@ extension StepExecutor {
                         start = clock.now
                         // 探索後の再試行もキャッシュを捨てる。古い木は撮り直しても同じものが
                         // 返るので、素取得だと**再試行の予算をまるごと空振りに使う**
-                        snapshot = try await freshSnapshot(.repoll(afterSearchSwiped: searchSwiped))
+                        snapshot = try await freshSnapshot(.repoll(afterSearchSwiped: searchSwiped, composeSeen: composeSeenInWait))
+                        composeSeenInWait = composeSeenInWait || ElementRenderer.containsCompose(snapshot.elements)
                         phase.snapshotMs += Self.ms(clock.now - start)
                         // **探し直している間に湧いた割り込みも閉じる**(まだ撃つ前なので撃ち直しの問題は無い。
                         // 責務表の「操作可能になるのを待っている間」と同じ扱い)。実測(Apple マップ): 出発地を選んだ
@@ -521,7 +524,8 @@ extension StepExecutor {
                         rescuedFrom = (element, snapshot.elements)
                     }
                     start = clock.now
-                    snapshot = try await freshSnapshot(.repoll(afterSearchSwiped: searchSwiped))
+                    snapshot = try await freshSnapshot(.repoll(afterSearchSwiped: searchSwiped, composeSeen: composeSeenInWait))
+                    composeSeenInWait = composeSeenInWait || ElementRenderer.containsCompose(snapshot.elements)
                     phase.snapshotMs += Self.ms(clock.now - start)
                     try await dismissInterruption(in: &snapshot, phase: &phase)  // 上の timeout 付きの再試行と同じ
                     let previous = resolved
@@ -1095,8 +1099,7 @@ extension StepExecutor {
                 // 長押しは press(ref:) = ブリッジが frame の中心へ解決するので、座標に依る
                 // チェーン(画面外・遮蔽・中身外し等)が言える。**keyboard/disabled はここでは
                 // 足さない**(上ですでに1回付けている。ここで足すと同文が2回付く)
-                adviseTarget(TapTargetGeometry.occlusionAdvisory(
-                    for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
+                adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
                 // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない)
                 switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
@@ -1267,8 +1270,7 @@ extension StepExecutor {
                 if bandY != nil { driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote) }
             } else if let bandY = await bottomBandTapY(for: element.frame, screen: snapshot.screen) {
                 // ref で撃つと Android は frame の中心(帯の中)を押すので座標で撃つ
-                adviseTarget(TapTargetGeometry.occlusionAdvisory(
-                    for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid))
+                adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
                 try await actingDriver.tap(x: element.frame.centerX, y: bandY)
                 driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote)
             } else {
@@ -1277,16 +1279,25 @@ extension StepExecutor {
                 // ここで足すと同文が2回付く)
                 // 中心の覆いの注記は撃った後に決める: in-app が activate で押したら座標を撃っていない = 覆いに当たりえない
                 // (UIKit の縁の帯・SwiftUI の貼り付くタブで、押せているのに「may have hit」が付いた)。失敗後の案内の疑いも捨てる
-                let centreAdvisory = TapTargetGeometry.occlusionAdvisory(
-                    for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid)
+                let centreResult = TapTargetGeometry.occlusionAdvisoryResult(
+                    for: element, in: snapshot.elements, screen: snapshot.screen,
+                    isAndroid: isAndroid, framework: uiFramework)
+                let centreAdvisory = centreResult.text
+                // 抑止の事実は、注記を実際に出す所(下の2か所)でだけ残す
+                func adviseCentre() {
+                    adviseTarget(centreAdvisory)
+                    if centreResult.namingSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
+                }
                 var centreCoverOnly = false
-                if case .overlayCovering? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements, screen: snapshot.screen) {
+                // 撃ち方の判断なので名指しの抑止は掛けない(`.alwaysName`)
+                if case .overlayCovering? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements,
+                                                                           screen: snapshot.screen, naming: .alwaysName) {
                     centreCoverOnly = true
                 }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
                     let pressedByActivate = actingDriver.lastTapDelivery == .activate
-                    if !(centreCoverOnly && pressedByActivate) { adviseTarget(centreAdvisory) }
+                    if !(centreCoverOnly && pressedByActivate) { adviseCentre() }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {
                         let centre = "(\(Int(saturating: miss.x.rounded())), \(Int(saturating: miss.y.rounded())))"
@@ -1312,7 +1323,7 @@ extension StepExecutor {
                     // in-app が「activate 不発・合成タッチは効かない」(SwiftUI)で 501 を返したら、
                     // 今の木の枠の中心を XCUITest の座標タップで押す(ref は別名前空間なので渡さない)。
                     // 撃ち直しではない: 501 は in-app が何も撃たずに返した場合だけ
-                    adviseTarget(centreAdvisory)
+                    adviseCentre()
                     guard DriverError.isBridgeIncapable(error),
                           let td = typeDriver else { throw error }
                     // 長押しと同じく XCUITest の木で引き直して ref で押す(木を撮る段でランナーのセッションが
@@ -1694,17 +1705,19 @@ extension StepExecutor {
             // pinch / swipeBy は「要素を掴んで動かす」形で、無効でも意味があるので対象外
             // pinch / gesture は中心がキーボードの下ならそう言う(注記のみ。swipeBy は容器の枠がキーボードの下まで伸びるのが通常で、
             // 中心が下でも払いは画面の中で切られるので言わない = 毎回の注記にしない)
-            let gestureAdvisory = action == "doubleTap"
-                ? Self.joinNotes(
-                    TapTargetGeometry.advisory(for: element, in: snapshot.elements,
+            let doubleTapAdvisory = action == "doubleTap"
+                ? TapTargetGeometry.advisoryResult(for: element, in: snapshot.elements,
                                                screen: snapshot.screen,
                                                keyboardOcclusion: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame,
                                                   in: snapshot.elements, screen: snapshot.screen),
                                                overlayWindows: OverlayWindowOcclusion.resolve(
                                                   reported: snapshot.overlayWindowFrames),
                                                safeAreaTop: snapshot.safeAreaTop,
-                                               isAndroid: isAndroid),
-                    duplicateRegionAdvisory(element, in: snapshot))
+                                               isAndroid: isAndroid, framework: uiFramework)
+                : nil
+            if doubleTapAdvisory?.namingSuppressed == true { noteCodesThisStep.insert(.occluderNamingSuppressed) }
+            let gestureAdvisory = action == "doubleTap"
+                ? Self.joinNotes(doubleTapAdvisory?.text, duplicateRegionAdvisory(element, in: snapshot))
                 : (["pinchOut", "pinchIn", "gesture"].contains(action)
                     ? KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
                                                 screen: snapshot.screen)

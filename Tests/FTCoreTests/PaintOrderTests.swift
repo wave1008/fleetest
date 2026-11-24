@@ -101,7 +101,7 @@ final class CoveringHintPaintOrderTests: XCTestCase {
         // ツリー順ではシート(ref 17)が地図 chrome(ref 88)より前 = 「奥」に見えるので拾えなかった
         XCTAssertTrue(target.ref > 17)
         let hint = StepExecutor.coveringHint(element: target, elements: snap.elements,
-                                             screen: snap.screen)
+                                             screen: snap.screen, isAndroid: false, framework: nil)
         XCTAssertTrue(hint.contains("covered by"), hint)
         // **名指しは最前面**(z=124 の広告行)。これは事故のときに実際にタップを受け取って
         // Chrome を起動させた要素そのもの —— 包んでいるシート(z=76)より、こちらのほうが

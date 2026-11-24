@@ -16,13 +16,13 @@ final class CaptureCoverRefusalTests: XCTestCase {
     func testCoveredElementIsNotSaved() {
         let target = element(13, "sw_target", "switch", 60, 300, 116, 32)
         let cover = element(18, "", "datePicker", 41, 246.67, 320, 216)
-        let refusal = MCPServer.captureCoverRefusal(target, in: [target, cover], screen: screen)
+        let refusal = MCPServer.captureCoverRefusal(target, in: [target, cover], screen: screen, naming: .alwaysName)
         XCTAssertNotNil(refusal)
         XCTAssertTrue(refusal?.hasPrefix("nothing was saved") == true, refusal ?? "")
     }
 
     func testUncoveredElementIsSaved() {
         let target = element(13, "sw_target", "switch", 60, 300, 116, 32)
-        XCTAssertNil(MCPServer.captureCoverRefusal(target, in: [target], screen: screen))
+        XCTAssertNil(MCPServer.captureCoverRefusal(target, in: [target], screen: screen, naming: .alwaysName))
     }
 }
