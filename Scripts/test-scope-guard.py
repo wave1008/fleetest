@@ -87,6 +87,14 @@ def newlines_to_semicolons(command):
                 quote = None
         elif c in "'\"":
             quote = c
+        elif c == "#" and (not out or out[-1] in " \t;"):
+            # コメントは次の改行の手前まで落とす。改行を ; に変えた後に shlex のコメントに任せると、
+            # 改行が無いので文字列の残り全部(後続の行のコマンドごと)を飲み、検査から消える
+            j = command.find("\n", i)
+            if j == -1:
+                break
+            i = j
+            continue
         elif c == "\n":
             c = ";"
         out.append(c)
@@ -293,15 +301,20 @@ def device_run_problems(words, env, full_ok, depth):
     """E2E の全体と、起動するスクリプトの中身"""
     reasons = []
     words = [expand(w, env) for w in words]
-    while words and (words[0] == "nohup" or re.match(r"^\w+=", words[0])):
+    while words and (words[0] in ("nohup", "env") or re.match(r"^\w+=", words[0])):
         words = words[1:]
     if not words:
         return reasons
     # `bash Scripts/e2e.sh`(sh・zsh も)は先頭をスクリプト名に読み替えて、名前の規則を同じに通す
-    # (file_problems はリポジトリの Scripts/ の中身を読まないので、これが無いと名前の規則がどちらにも掛からない)
-    if os.path.basename(words[0]) in SHELLS and len(words) >= 2 and not words[1].startswith("-") \
-            and os.path.basename(words[1]) in FULL_SUITE_SCRIPTS + ("e2e-negative.sh", "regress.py", "unit-tests.py"):
-        words = words[1:]
+    # (file_problems はリポジトリの Scripts/ の中身を読まないので、これが無いと名前の規則がどちらにも掛からない)。
+    # シェルのフラグ(`bash -x`)は飛ばす。`-c` は次がスクリプト名でなく文字列なので読み替えない
+    if os.path.basename(words[0]) in SHELLS:
+        j = 1
+        while j < len(words) and words[j].startswith("-") and words[j] != "-c":
+            j += 1
+        if j < len(words) and not words[j].startswith("-") \
+                and os.path.basename(words[j]) in FULL_SUITE_SCRIPTS + ("e2e-negative.sh", "regress.py", "unit-tests.py"):
+            words = words[j:]
     head = os.path.basename(words[0])
     # `$@` / `$*` で引数を受け渡すだけの行は判定しない(包む関数の呼び出し行で見る = script_text_problems)
     passes_args = any(w in ("$@", "$*") for w in words)
