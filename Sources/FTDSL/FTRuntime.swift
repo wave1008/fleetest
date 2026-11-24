@@ -270,7 +270,7 @@ public final class FTDriveCore {
                               _ body: () -> Void) {
         if let scrollFrame, let error = FTSelector.scrollFrameLocator(scrollFrame).error {
             perform(step: FlowStep(action: "scroll"), description: "withScroll(scrollFrame: \"\(scrollFrame)\")",
-                    command: "withScroll", commandError: error, file: file, line: line)
+                    command: "withScroll", commandError: error, commandErrorKind: .selectorSyntax, file: file, line: line)
             return
         }
         scrollContextStack.append(context)

@@ -90,7 +90,7 @@ public func irregularHandler(_ detect: String, dismiss: String? = nil,
         ?? dismiss.flatMap { FTSelector.validationError($0) }.map { "irregularHandler dismiss: \($0)" }
     if let declarationError {
         rejectDeclaration(core, command: "irregularHandler", description: "irregularHandler \"\(detect)\"",
-                          error: declarationError, file: file, line: line)
+                          error: declarationError, kind: .selectorSyntax, file: file, line: line)
         return
     }
     // **セレクタ丸ごと渡す**(`||` / `(a|b)` の代替も)。primary だけだと日本語版の文言が閉じない
@@ -106,7 +106,7 @@ public func irregularHandler(_ detect: Sel, dismiss: Sel? = nil,
         ?? dismiss?.ftSelector.preflightError.map { "irregularHandler dismiss: \($0)" }
     if let declarationError {
         rejectDeclaration(core, command: "irregularHandler", description: "irregularHandler \"\(detect.ftSelector.text)\"",
-                          error: declarationError, file: file, line: line)
+                          error: declarationError, kind: .selectorSyntax, file: file, line: line)
         return
     }
     core.addInterruptHandler(detect: detect.ftSelector,
@@ -114,11 +114,12 @@ public func irregularHandler(_ detect: Sel, dismiss: Sel? = nil,
                              maxDismissals: maxDismissals)
 }
 
-/// 宣言(`irregularHandler` / `iosAlertHandler`)の誤りを、宣言の時点で失敗ステップとして落とす(登録はしない)
+/// 宣言(`irregularHandler` / `iosAlertHandler`)の誤りを、宣言の時点で失敗ステップとして落とす(登録はしない)。
+/// kind は呼び手が決める(irregularHandler = セレクタの構文 / iosAlertHandler = パターンの引数。既定を置かない)
 func rejectDeclaration(_ core: FTDriveCore, command: String, description: String, error: String,
-                       file: StaticString, line: UInt) {
+                       kind: StepFailureKind, file: StaticString, line: UInt) {
     core.perform(step: FlowStep(action: command), description: description, command: command,
-                 commandError: error, file: file, line: line)
+                 commandError: error, commandErrorKind: kind, file: file, line: line)
 }
 
 /// **出たら押してほしい OS のシステムアラート**(権限ダイアログ・ATT 等)を1枚ぶん予告する。
@@ -150,7 +151,7 @@ public func iosAlertHandler(alert: String, button: String,
     if let error = SystemAlertDismissal.patternError(alert, argument: "alert")
         ?? SystemAlertDismissal.patternError(button, argument: "button") {
         rejectDeclaration(core, command: "iosAlertHandler", description: "iosAlertHandler alert: \"\(alert)\" button: \"\(button)\"",
-                          error: error, file: file, line: line)
+                          error: error, kind: .argumentRejected, file: file, line: line)
         return
     }
     core.addSystemAlertRule(SystemAlertRule(alert: alert, button: button))
@@ -1108,7 +1109,8 @@ private func flickImpl(_ kind: FlickKind, scrollFrame: String?, startMarginRatio
                         startMarginRatio: startMarginRatio,
                         intervalSeconds: intervalSeconds)
     core.perform(step: step, description: name + (times > 1 ? " ×\(times)" : ""),
-                command: name, commandError: frame.error, file: file, line: line)
+                command: name, commandError: frame.error, commandErrorKind: .selectorSyntax,
+                file: file, line: line)
 }
 
 // MARK: - スクロール(Shirates 準拠のコマンド名)
@@ -1169,7 +1171,8 @@ private func scrollImpl(_ direction: FTScrollDirection, scrollFrame: String?,
     core.perform(step: step,
                  description: "scroll\(direction.rawValue.capitalized)"
                      + (times > 1 ? " ×\(times)" : ""),
-                 command: "scroll\(direction.rawValue.capitalized)", commandError: frame.error, file: file, line: line)
+                 command: "scroll\(direction.rawValue.capitalized)", commandError: frame.error,
+                 commandErrorKind: .selectorSyntax, file: file, line: line)
 }
 
 /// スクロール領域の端まで送る(**画面が変化しなくなるまで**。maxSwipes は暴走を止める上限で、
@@ -1225,7 +1228,8 @@ private func scrollToEdgeImpl(_ direction: FTScrollDirection, scrollFrame: Strin
                         scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio)
     core.perform(step: step, description: names[direction] ?? "scrollToEdge",
-                 command: names[direction] ?? "scrollToEdge", commandError: frame.error, file: file, line: line)
+                 command: names[direction] ?? "scrollToEdge", commandError: frame.error,
+                 commandErrorKind: .selectorSyntax, file: file, line: line)
 }
 
 /// ブロック内の `tap` / `exist` を**スクロールしながら**解決する(明示の `scroll:` があればそちらが優先)。
@@ -1315,7 +1319,7 @@ private func scrollToImpl(_ selector: FTSelector, direction: FTScrollDirection,
                         scrollFrame: frame.locator,
                         startMarginRatio: startMarginRatio, endMarginRatio: endMarginRatio)
     let result = perform("scrollTo", selector, step: step, description: "scrollTo \"\(selector.text)\"",
-                         commandError: frame.error, file: file, line: line)
+                         commandError: frame.error, commandErrorKind: .selectorSyntax, file: file, line: line)
     return FTElement(selector: selector, matched: result.element)
 }
 

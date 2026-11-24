@@ -1,5 +1,5 @@
-// B3 レビューの直し: コマンド引数の断りの failureKind・中断後の ifCanSelect / repeatWhileCanSelect の skip・
-// thisIs(nil) と文字列 "nil"・endResponseMeasurement の排他(ソース走査)。
+// 実行前の断りの記録: failureKind の仕分け(引数 = argumentRejected / セレクタの構文 = selectorSyntax)・
+// 中断後の ifCanSelect / repeatWhileCanSelect の skip・thisIs(nil) と文字列 "nil"・endResponseMeasurement の排他(ソース走査)。
 
 import XCTest
 @testable import FTDSL
@@ -73,16 +73,25 @@ final class DSLErrorRecordingTests: XCTestCase {
         XCTAssertEqual(step?.failureKind, StepFailureKind.argumentRejected.rawValue)
     }
 
-    /// セレクタの構文誤りは selectorSyntax のまま(終点セレクタ・ifCanSelect の構文誤りも)
+    /// セレクタの構文誤りは selectorSyntax のまま(終点セレクタ・ifCanSelect・scrollFrame・withScroll・
+    /// irregularHandler の宣言 = commandError でセレクタの構文を運ぶ全呼び手)
     func testSelectorSyntaxErrorsKeepSelectorSyntaxKind() {
-        let (sink, _, _) = run { _ in
-            swipeElementToElement("#a", "<通知>:rigthSwitch")
+        let cases: [(String, () -> Void)] = [
+            ("swipeElementToElement", { swipeElementToElement("#a", "<通知>:rigthSwitch") }),
+            ("ifCanSelect", { ifCanSelect("<通知>:rigthSwitch") {} }),
+            ("scrollDown", { scrollDown(scrollFrame: "<通知>:rigthSwitch") }),
+            ("withScroll", { withScrollDown(scrollFrame: "<通知>:rigthSwitch") {} }),
+            ("irregularHandler", { irregularHandler("<通知>:rigthSwitch") }),
+        ]
+        for (command, body) in cases {
+            let (sink, _, _) = run { _ in body() }
+            XCTAssertEqual(sink.steps.first { $0.command == command }?.failureKind,
+                           StepFailureKind.selectorSyntax.rawValue, command)
         }
-        XCTAssertEqual(sink.steps.first { $0.command == "swipeElementToElement" }?.failureKind,
-                       StepFailureKind.selectorSyntax.rawValue)
-        let (sink2, _, _) = run { _ in ifCanSelect("<通知>:rigthSwitch") {} }
-        XCTAssertEqual(sink2.steps.first { $0.command == "ifCanSelect" }?.failureKind,
-                       StepFailureKind.selectorSyntax.rawValue)
+        // 逆側: iosAlertHandler のパターンの誤り(空の代替)はセレクタではなく引数の断り
+        let (sink, _, _) = run { _ in iosAlertHandler(alert: "許可する*", button: "許可|| ") }
+        XCTAssertEqual(sink.steps.first { $0.command == "iosAlertHandler" }?.failureKind,
+                       StepFailureKind.argumentRejected.rawValue)
     }
 
     // MARK: - 中断後の ifCanSelect
