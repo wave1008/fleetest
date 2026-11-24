@@ -134,8 +134,11 @@ project's workspace. **Servers, databases and stubs are not started by a script*
   - For an Android physical device, fleetest sets up `adb reverse` itself.
 - The scripts receive the environment variables `FT_HOOK` (`setup` / `teardown`), `FT_WORKSPACE`, `FT_PROJECT`,
   `FT_PROFILE`, `FT_REPORT_DIR` (readable, not writable), `FT_IOS_DEVICES` and `FT_ANDROID_DEVICES`
-  (device names separated by spaces), and the names of the secrets that compose.yaml refers to. The variables are set
+  (device names, one per line; a name can contain spaces), and the names of the secrets that compose.yaml refers to. The variables are set
   even when they have no value. The Emulator's adb serial and the Simulator's UDID are not passed.
+- To loop over the devices, read the lines: `while IFS= read -r d; do echo "$d"; done <<< "$FT_IOS_DEVICES"`
+  (when the variable is empty the loop body runs once with an empty `d`; skip it with `[ -n "$d" ] || continue`).
+  A device name that contains a line break is refused when the profile is loaded.
 - For a run sent to a [runner machine](../../fleet/remote_runners.md), the scripts run on the runner machine.
 - They run with `fleetest run` and the MCP tool `ft_start_run`, but not with `ft_run_scenario` (the MCP tool that runs
   a single scenario).
@@ -157,6 +160,10 @@ project's workspace. **Servers, databases and stubs are not started by a script*
 | Start other apps or use adb / simctl directly from a scenario | fleetest itself performs a fixed set of operations on the scenario's behalf. adb can be opened with `allowDirectAdb` in this Mac's settings (see [Sandbox defaults](../running/sandbox_access.md)) |
 | Run a custom command through `ft_batch` | `ft_batch` only runs built-in commands. Write custom commands in a scenario `.swift` file and run that |
 | Read shell environment variables (tokens and so on) in a scenario | Scenarios only receive the variables fleetest uses. Put secrets in this Mac's `account()` files |
+
+## Notes
+
+- The device lists passed to the scripts are one name per line, not space separated — device names such as `iPhone 17 Pro (iOS 27.0)-01` contain spaces, so splitting on spaces breaks them; read them with `while IFS= read -r d; do ...; done <<< "$FT_IOS_DEVICES"`.
 
 ### Link
 - [index](../../index.md)

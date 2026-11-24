@@ -311,6 +311,9 @@ public enum ProfileResolver {
             }
             let device = ResolvedDevice(platform: entry.platform, spec: entry.spec)
             try validatePhysical(device, run: runName)
+            if hasLineBreak(entry.spec.name) {
+                throw ProfileError.deviceNameHasLineBreak(name: entry.spec.name, run: runName)
+            }
             if let value = device.spec.mode, !IOSMode.all.contains(value) {
                 throw ProfileError.invalidIOSMode(run: runName, device: entry.name, value: value)
             }
@@ -597,6 +600,9 @@ public enum ProfileResolver {
                 }
                 for entry in devices where entry.isEnabled {
                     errors += physicalDeviceErrors(entry.spec, platform: entry.platform)
+                    if hasLineBreak(entry.spec.name) {
+                        errors.append(deviceNameLineBreakMessage(entry.spec.name))
+                    }
                 }
                 if let threshold = doc.wipeDataThresholdGB, threshold <= 0 {
                     errors.append("\"wipeDataThresholdGB\" must be a positive number (GB)")
@@ -648,6 +654,17 @@ public enum ProfileResolver {
     }
 
     // MARK: - 内部ヘルパー
+
+    /// デバイス名の改行の検査(resolve と validate の共有。有効なデバイスだけに掛ける)。
+    /// `FT_IOS_DEVICES` / `FT_ANDROID_DEVICES` が改行区切りなので、名前の中の改行は区切りと見分けられない(DR-229)
+    static func hasLineBreak(_ name: String) -> Bool {
+        name.contains(where: \.isNewline)
+    }
+
+    static func deviceNameLineBreakMessage(_ name: String) -> String {
+        "device name \"\(name.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\r", with: "\\r"))\" contains a line break"
+            + " (the device list passed to run-setup.sh / run-teardown.sh is newline-separated)"
+    }
 
     /// エディタ用の実機検査(resolve 側の validatePhysical と同じ規則を文言だけ単体ファイル向けにしたもの)
     private static func physicalDeviceErrors(_ spec: DeviceSpec, platform: String) -> [String] {

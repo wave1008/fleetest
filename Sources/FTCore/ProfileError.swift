@@ -38,6 +38,8 @@ public enum ProfileError: Error, LocalizedError {
     case invalidIOSMode(run: String, device: String?, value: String)
     /// kind=physical なのに同定に必要な識別子(iOS=udid / Android=serial)が無い
     case physicalDeviceMissingIdentifier(name: String, platform: String, run: String)
+    /// デバイス名に改行を含む(run の前後スクリプトへの `FT_IOS_DEVICES` は改行区切りで、名前が改行を含むと分割が壊れる。DR-229)
+    case deviceNameHasLineBreak(name: String, run: String)
     /// kind=physical に inapp-boost モードが指定された(実機は注入不可)
     /// アプリプロファイルの platform が対象外にした結果、走らせるデバイスが 0 台
     case noDevicesForAppPlatform(run: String, app: String, scope: AppPlatformScope, ignored: Int)
@@ -99,6 +101,9 @@ public enum ProfileError: Error, LocalizedError {
         case .invalidIOSMode(let run, let device, let value):
             let key = device.map { "mode of device \"\($0)\"" } ?? "iosMode"
             return "\(key) in run profile \(run) is \"\(value)\" — use \"inapp-boost\" or \"xcuitest\""
+        case .deviceNameHasLineBreak(let name, let run):
+            return ProfileResolver.deviceNameLineBreakMessage(name)
+                + " in run profile \(run)"
         case .physicalDeviceMissingIdentifier(let name, let platform, let run):
             let field = platform == "ios" ? "udid" : "serial"
             let how = platform == "ios"
@@ -150,7 +155,7 @@ extension ProfileError {
         switch self {
         case .emptyReportDir, .duplicateDeviceName, .missingAppReference, .missingDevices,
              .invalidWipeDataThreshold, .invalidLocale, .invalidOrientation, .invalidAppearance, .invalidTextSize,
-             .invalidVariants, .physicalDeviceMissingIdentifier:
+             .invalidVariants, .physicalDeviceMissingIdentifier, .deviceNameHasLineBreak:
             return true
         case .decodeFailed(let url, _):
             return url.deletingPathExtension().lastPathComponent == runFileName

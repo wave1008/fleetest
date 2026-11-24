@@ -47,12 +47,22 @@ final class RunHookEnvironmentTests: XCTestCase {
         XCTAssertEqual(env["FT_REPORT_DIR"], "")
     }
 
-    func testDeviceNamesAreSpaceSeparated() {
+    /// DR-229: 既定名は空白を含むので改行で区切る。行で読めば元の名前が復元できる
+    func testDeviceNamesWithSpacesAreNewlineSeparatedAndRecoverable() {
+        let names = ["iPhone 17 Pro(iOS 27.0)-01", "iPhone 17 Pro(iOS 27.0)-02"]
+        let env = RunHookEnvironment.variables(
+            kind: .setup, workspace: URL(fileURLWithPath: "/ws"), project: "P", profile: "r",
+            reportDir: nil, iosDevices: names, androidDevices: [])
+        XCTAssertEqual(env["FT_IOS_DEVICES"]?.components(separatedBy: "\n"), names)
+        XCTAssertEqual(env["FT_ANDROID_DEVICES"], "")
+    }
+
+    func testDeviceNamesAreNewlineSeparated() {
         let env = RunHookEnvironment.variables(
             kind: .setup, workspace: URL(fileURLWithPath: "/ws"), project: "P", profile: "r",
             reportDir: URL(fileURLWithPath: "/ws/reports"),
             iosDevices: ["sim1", "sim2"], androidDevices: ["emu1"])
-        XCTAssertEqual(env["FT_IOS_DEVICES"], "sim1 sim2")
+        XCTAssertEqual(env["FT_IOS_DEVICES"], "sim1\nsim2")
         XCTAssertEqual(env["FT_ANDROID_DEVICES"], "emu1")
         XCTAssertEqual(env["FT_REPORT_DIR"], "/ws/reports")
     }

@@ -83,8 +83,9 @@ public enum RunHookEnvironment {
             "FT_PROJECT": project,
             "FT_PROFILE": profile,
             "FT_REPORT_DIR": reportDir?.path ?? "",
-            "FT_IOS_DEVICES": iosDevices.joined(separator: " "),
-            "FT_ANDROID_DEVICES": androidDevices.joined(separator: " "),
+            // 区切りは改行(既定名「iPhone 17 Pro(iOS 27.0)-01」が空白を含む)。名前に改行を含む定義は ProfileResolver が断る(DR-229)
+            "FT_IOS_DEVICES": iosDevices.joined(separator: "\n"),
+            "FT_ANDROID_DEVICES": androidDevices.joined(separator: "\n"),
         ]
     }
 

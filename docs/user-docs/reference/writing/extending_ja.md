@@ -129,9 +129,12 @@ run の前後でデータを用意する(シードの投入・準備用 API の�
   - 背景に残したプロセスは、run の後に止められます。
   - Android 実機の `adb reverse` は fleetest が行います。
 - スクリプトに渡る環境変数は `FT_HOOK`(`setup` / `teardown`)・`FT_WORKSPACE`・`FT_PROJECT`・`FT_PROFILE`・
-  `FT_REPORT_DIR`(読めますが書けません)・`FT_IOS_DEVICES`・`FT_ANDROID_DEVICES`(空白区切りのデバイス名)と、
+  `FT_REPORT_DIR`(読めますが書けません)・`FT_IOS_DEVICES`・`FT_ANDROID_DEVICES`(1行に1つのデバイス名。名前に空白を含みます)と、
   compose.yaml が参照した秘密の名前です。値が無いときも変数自体は渡ります。Emulator の adb serial・Simulator の UDID は
   渡りません。
+- デバイスを順に処理するには行で読みます: `while IFS= read -r d; do echo "$d"; done <<< "$FT_IOS_DEVICES"`
+  (変数が空のときも本体が1回、`d` が空で走るので、`[ -n "$d" ] || continue` で飛ばします)。
+  名前に改行を含むデバイスはプロファイルを読む時点で断られます。
 - [リモート実行](../../fleet/remote_runners_ja.md)へ送った run では、スクリプトはランナー機の上で走ります。
 - `fleetest run` と MCP の `ft_start_run` では走りますが、`ft_run_scenario`(シナリオを1本だけ回す MCP ツール)では
   走りません。
@@ -152,6 +155,10 @@ run の前後でデータを用意する(シードの投入・準備用 API の�
 | シナリオから他のアプリを起動する・adb や simctl を直接使う | 決まった操作だけを fleetest 本体が代わりに行います。adb はこの Mac の設定 `allowDirectAdb` で開けられます([サンドボックスの既定](../running/sandbox_access_ja.md)) |
 | 独自コマンドを `ft_batch` で実行する | `ft_batch` が実行するのは組み込みのコマンドだけです。独自コマンドはシナリオの `.swift` に書いて実行します |
 | シェルの環境変数(トークンなど)をシナリオで読む | シナリオには fleetest が使う変数しか渡りません。秘密は `account()` のこの Mac 側のファイルに置きます |
+
+## 注意点
+
+- スクリプトへ渡すデバイス一覧は空白区切りではなく1行に1つ — `iPhone 17 Pro(iOS 27.0)-01` のように名前が空白を含むので、空白で分けると壊れます。`while IFS= read -r d; do ...; done <<< "$FT_IOS_DEVICES"` で読みます。
 
 ### Link
 - [index](../../index_ja.md)

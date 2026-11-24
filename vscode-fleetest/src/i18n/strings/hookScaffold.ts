@@ -50,7 +50,7 @@ export const hookScaffoldStrings = {
 #   FT_PROFILE          実行プロファイル名
 #   FT_MACHINE          実行対象のマシン名(登録簿のエイリアス。手元は local)
 #   FT_REPORT_DIR       レポート出力先の絶対パス(読めるが書けない)
-#   FT_IOS_DEVICES      この run が使うデバイス名(空白区切り。空のこともある)
+#   FT_IOS_DEVICES      この run が使うデバイス名(1行に1つ。空のこともある)
 #   FT_ANDROID_DEVICES  同上、Android のぶん
 #
 # ワークスペースは丸ごとランナー機へ運ばれる。初期データは data/ に置いておけば向こうにも届く。
@@ -113,7 +113,7 @@ set -eu
 #   FT_PROFILE          run profile name
 #   FT_MACHINE          the target machine's registered alias ("local" for this Mac)
 #   FT_REPORT_DIR       absolute path of the report directory (readable, not writable)
-#   FT_IOS_DEVICES      device names this run will use, space separated (may be empty)
+#   FT_IOS_DEVICES      device names this run will use, one per line (may be empty)
 #   FT_ANDROID_DEVICES  same, for Android
 #
 # The whole workspace is copied to the remote runner, so keep seed data under data/ and it
@@ -179,7 +179,7 @@ set -eu
 #   FT_PROFILE          実行プロファイル名
 #   FT_MACHINE          実行対象のマシン名(登録簿のエイリアス。手元は local)
 #   FT_REPORT_DIR       レポート出力先の絶対パス(読めるが書けない)
-#   FT_IOS_DEVICES      この run が使うデバイス名(空白区切り。空のこともある)
+#   FT_IOS_DEVICES      この run が使うデバイス名(1行に1つ。空のこともある)
 #   FT_ANDROID_DEVICES  同上、Android のぶん
 #
 # ここでは "set -e" を使わない。1つ失敗しただけで残りの片付けを飛ばさないため。
@@ -240,7 +240,7 @@ set -u
 #   FT_PROFILE          run profile name
 #   FT_MACHINE          the target machine's registered alias ("local" for this Mac)
 #   FT_REPORT_DIR       absolute path of the report directory (readable, not writable)
-#   FT_IOS_DEVICES      device names this run will use, space separated (may be empty)
+#   FT_IOS_DEVICES      device names this run will use, one per line (may be empty)
 #   FT_ANDROID_DEVICES  same, for Android
 #
 # Do not use "set -e" here: one failing step should not skip the rest of the cleanup.

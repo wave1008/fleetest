@@ -312,6 +312,8 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Consider `@RunInOrder` instead of a lock when the tests need not run at the same time](../commands/run_lock.md#notes) — a `@RunInOrder` class runs its tests one after another on one device, so no lock is needed.
 - [`@RunInOrder` hinders parallelism and skips the rest after a failure](../testclass/creating_testclass.md#notes) — first try one `@Test`; `@Order` is required on every test; the app screen state carries over between tests unless a later test calls `launchApp()` / `clearAppData()`.
 
+- [The device lists passed to `run-setup.sh` / `run-teardown.sh` are one name per line](../writing/extending.md#notes) — names contain spaces, so read them with `while IFS= read -r d; do ...; done <<< "$FT_IOS_DEVICES"`.
+
 ## Run profile
 
 - [Every scenario starts in light and the default text size](../project/run_profile.md#notes) — the device is read and set before and after each scenario, also when the profile says nothing, and stays that way after the run; write `appearance` / `textSize` to keep dark or large text, and note that the MCP `ft_run_scenario` does the same.

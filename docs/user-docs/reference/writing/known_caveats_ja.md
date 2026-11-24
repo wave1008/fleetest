@@ -312,6 +312,8 @@
 - [同時に走らせる必要が無いテストはロックより @RunInOrder を検討する](../commands/run_lock_ja.md#注意点) — `@RunInOrder` のクラスはテストを1台のデバイスで順に流すので、ロックが要りません。
 - [@RunInOrder は並列化を妨げ、失敗すると残りは実行されない](../testclass/creating_testclass_ja.md#注意点) — まず1つの @Test にまとめられないかを考えます。@Order は全テストに必須です。後のテストが `launchApp()` / `clearAppData()` をしなければ、アプリの画面の状態がそのまま次のテストに持ち越されます。
 
+- [スクリプトへ渡すデバイス一覧は改行区切り](../writing/extending_ja.md#注意点) — 名前に空白を含むので、`while IFS= read -r d; do ...; done <<< "$FT_IOS_DEVICES"` で読みます。
+
 ## 実行プロファイル
 
 - [各シナリオはライト・標準の文字サイズで始まる](../project/run_profile_ja.md#注意点) — プロファイルに書かなくても各シナリオの前後に端末を読んで設定し、run の後もそのまま。ダークや大きな文字を保つなら `appearance` / `textSize` を書く。MCP の `ft_run_scenario` も同じ。

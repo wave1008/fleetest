@@ -592,7 +592,7 @@ TestProjects/<project>/workspace/scripts/run-teardown.sh   # テスト実行後�
 - **run-setup.sh が失敗したら、テストは1本も走らずに止まる**(依存サービスが無いまま流すと、
   全シナリオが「アプリの不具合」の顔で落ちるため)。run-teardown.sh の失敗は結果を変えない(警告のみ)
 - スクリプトが読める環境変数: `FT_HOOK`(setup/teardown)・`FT_WORKSPACE`・`FT_PROJECT`・
-  `FT_PROFILE`・`FT_REPORT_DIR`・`FT_IOS_DEVICES`・`FT_ANDROID_DEVICES`
+  `FT_PROFILE`・`FT_REPORT_DIR`・`FT_IOS_DEVICES`・`FT_ANDROID_DEVICES`(改行区切り)
 
 サービス(DB・スタブサーバ)は `workspace/scripts/compose.yaml` に宣言する。**親の fleetest が検査して
 起動・終了する**(書き方は user-docs/reference/writing/services_ja.md)。スクリプトは Seatbelt の中で動くので

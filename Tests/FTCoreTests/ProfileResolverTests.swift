@@ -331,6 +331,25 @@ final class ProfileResolverTests: XCTestCase {
                       "最上位の autoInstall は正当な設定場所なので警告は出ないはず: \(warnings)")
     }
 
+    /// DR-229: デバイス名に改行があると FT_IOS_DEVICES(改行区切り)が分割できない。validate と resolve の両方で断る
+    func testDeviceNameWithLineBreakIsRejectedByValidateAndResolve() throws {
+        let json = """
+        { "app": "sampleapp",
+          "devices": [ { "platform": "ios", "machine": "local", "name": "a\\nb", "osVersion": "iOS 27.0" } ] }
+        """
+        try write("""
+        { "ios": { "appName": "A", "app": "com.example.sampleapp" } }
+        """, to: project.appsDir, name: "sampleapp")
+        try write(json, to: project.runsDir, name: "br")
+        let (errors, _) = ProfileResolver.validate(kind: .run, data: json.data(using: .utf8)!, context: "runs/br.json")
+        XCTAssertTrue(errors.contains { $0.contains("contains a line break") }, "\(errors)")
+        XCTAssertThrowsError(try ProfileResolver.resolve(project: project, runName: "br")) {
+            XCTAssertTrue($0.localizedDescription.contains("contains a line break"), $0.localizedDescription)
+        }
+        XCTAssertTrue(ProfileResolver.hasLineBreak("a\rb"))
+        XCTAssertFalse(ProfileResolver.hasLineBreak("iPhone 17 Pro(iOS 27.0)-01"))
+    }
+
     /// enabled: false のデバイスは解決対象から外す(警告も出さない = 意図した状態)
     func testDisabledDeviceIsNotRun() throws {
         try writeStandardFixture()
