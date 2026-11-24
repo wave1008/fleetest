@@ -59,11 +59,22 @@ test("ローカルが先行しているだけなら失敗にしない(保守者�
 test("ローカル変更の破棄と分岐からの復旧は同じ条件を使う(片方だけ緩めない)", () => {
   const source = readFileSync(INSTALL_SH, "utf8");
   assert.match(source, /clone_is_disposable\(\) \{/, "条件が関数に括り出されていない");
-  const uses = source.match(/clone_is_disposable\b/g) ?? [];
+  // 走査はコメント行を落としてから(コメントの中の名前は参照ではない)
+  const code = source
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n");
+  const uses = code.match(/clone_is_disposable\b/g) ?? [];
   // 定義 1 + settle_local_changes 1 + 分岐からの復旧 1
   assert.equal(uses.length, 3, `clone_is_disposable の参照数が想定と違う: ${uses.length}`);
-  assert.ok(
-    !/\[ "\$WORK_DIR" != "\$TOOL_ROOT" \] && \[ "\$KEEP_LOCAL" = "0" \]\s*\n?\s*&&/.test(source),
-    "条件の直書きが残っている(clone_is_disposable を通すこと)",
+  assert.match(
+    source,
+    /clone_is_disposable\(\) \{\s*\n\s*\[ "\$WORK_DIR" != "\$TOOL_ROOT" \] && \[ "\$KEEP_LOCAL" = "0" \]/,
+    "clone_is_disposable の条件が変わった(WORK_DIR と TOOL_ROOT は物理パス化済み・子孫は手前で die する前提)",
   );
+  // 条件の直書きが関数の外に残っていない(定義の1箇所だけ)
+  const direct = source.match(/\[ "\$WORK_DIR" != "\$TOOL_ROOT" \] && \[ "\$KEEP_LOCAL" = "0" \]/g) ?? [];
+  assert.equal(direct.length, 1, "条件の直書きが関数の外にも残っている(clone_is_disposable を通すこと)");
+  // 前提: WORK_DIR が TOOL_ROOT の子孫なら、条件を評価する前に die する
+  assert.match(source, /"\$TOOL_ROOT"\/\*\) die "clone" "WORK_DIR/, "子孫の拒否が無い");
 });

@@ -230,31 +230,43 @@ public enum RemoteSetupPlan {
             + "--target-executable \(RemoteShell.quote(target)) --build-command \(RemoteShell.quote(build))"
     }
 
-    /// `remote teardown` が base ごと削除してよいかの判定(RR-14 撤去)。
-    /// 拒否理由: ①空・相対パス(想定外の解決) ②"/" 丸ごと ③$HOME そのもの(ランナーのホームごと
-    /// 消す) ④浅すぎる絶対パス(ルート直下1階層。例 "/tmp" "/etc" はシステムディレクトリ・
-    /// 他用途のディレクトリと衝突しやすい)。**$HOME 配下限定はしない** — `--remote-dir` は
-    /// home 外の専用ディスク(EC2 Mac 等)も許容する設計(RR-14)なので、
+    /// `remote teardown` が base ごと削除してよいかの判定(RR-14 撤去)。**返す正規化済みのパスを rm に渡す**
+    /// (検査した文字列と消す文字列を食い違わせない)。
+    /// 拒否理由: ①空・相対パス(想定外の解決) ②"/" 丸ごと ③$HOME そのものと**その祖先**(`/Users` 等。
+    /// ランナーのホームごと消える) ④`.` / `..` の要素(検査した先と違う所を指しうる) ⑤浅すぎる絶対パス
+    /// (ルート直下1階層。例 "/tmp" "/etc" はシステムディレクトリ・他用途のディレクトリと衝突しやすい)。
+    /// 末尾 `/`・重複 `/` は比較の前に畳む(`/Users/x/` が HOME との比較をすり抜けた)。
+    /// **$HOME 配下限定はしない** — `--remote-dir` は home 外の専用ディスク(EC2 Mac 等)も許容する設計(RR-14)なので、
     /// 深さと明白な危険パスだけで判定する
-    public static func validateUninstallBase(_ base: String, home: String) throws {
+    @discardableResult
+    public static func validateUninstallBase(_ base: String, home: String) throws -> String {
         guard !base.isEmpty else {
             throw RemoteSetupError.unsafeUninstallBase("base is empty")
         }
         guard base.hasPrefix("/") else {
             throw RemoteSetupError.unsafeUninstallBase("base must be an absolute path: \"\(base)\"")
         }
-        guard base != "/" else {
+        let components = base.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !components.contains(where: { $0 == "." || $0 == ".." }) else {
+            throw RemoteSetupError.unsafeUninstallBase("base must not contain \".\" or \"..\" components: \"\(base)\"")
+        }
+        let normalized = "/" + components.joined(separator: "/")
+        guard normalized != "/" else {
             throw RemoteSetupError.unsafeUninstallBase("refusing to delete \"/\"")
         }
-        let strippedHome = home.hasSuffix("/") ? String(home.dropLast()) : home
-        guard base != strippedHome else {
+        let homeNormalized = "/" + home.split(separator: "/", omittingEmptySubsequences: true).joined(separator: "/")
+        guard normalized != homeNormalized else {
             throw RemoteSetupError.unsafeUninstallBase("refusing to delete the HOME directory itself: \"\(base)\"")
         }
-        let components = base.split(separator: "/", omittingEmptySubsequences: true)
+        guard !homeNormalized.hasPrefix(normalized + "/") else {
+            throw RemoteSetupError.unsafeUninstallBase(
+                "refusing to delete an ancestor of the HOME directory (\(homeNormalized)): \"\(base)\"")
+        }
         guard components.count >= 2 else {
             throw RemoteSetupError.unsafeUninstallBase(
                 "path is too shallow to delete automatically (needs at least 2 path components): \"\(base)\"")
         }
+        return normalized
     }
 
     public static func uninstallCommand(base: String) -> String {

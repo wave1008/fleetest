@@ -92,6 +92,18 @@ if [ -z "$TOOL_ROOT" ]; then
   exit 1
 fi
 
+# 物理パスへ正規化し、WORK_DIR がクローンの子孫なら断る(install.sh と同じ検査。片方だけ変えない)。
+# 子孫のまま進むと下の `WORK_DIR != TOOL_ROOT` が「外部構成」と誤判定し、reset --hard + clean -fd が
+# クローンの未追跡資産(TestProjects/ 等)を消す
+TOOL_ROOT="$(cd "$TOOL_ROOT" && pwd -P)" || { echo "error: cannot resolve TOOL_ROOT: $TOOL_ROOT" >&2; exit 1; }
+WORK_DIR="$(cd "$WORK_DIR" && pwd -P)" || { echo "error: cannot resolve WORK_DIR: $WORK_DIR" >&2; exit 1; }
+case "$WORK_DIR" in
+  "$TOOL_ROOT"/*)
+    echo "❌ WORK_DIR ($WORK_DIR) is inside the fleetest clone ($TOOL_ROOT)." >&2
+    echo "   Run from the top of the clone (WORK_DIR = clone root), or point --work-dir outside the clone. → SKILL.md step 0.5" >&2
+    exit 1 ;;
+esac
+
 # 対の実装: Scripts/install.sh(共有する仕組みが無いので同一関数を複製。片方だけ変えない)
 # $1 が $2 より新しいとき 0(semver の数値順。install.sh / update-check.sh と同一本文)
 semver_newer() {

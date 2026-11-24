@@ -15,7 +15,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -160,4 +160,65 @@ test("on-disk 形: .git の無い置き場から未導入の WORK_DIR へは既�
 
   const resolved = resolveOnDiskForm({ selfCloneDir: path.join(dir, "plugin-cache"), workDir, isGitClone: false });
   assert.equal(resolved, `${workDir}/../fleetest`);
+});
+
+/** 物理化と包含拒否のブロックを切り出す(die はスタブ)。 */
+function containmentBlock() {
+  const source = readFileSync(INSTALL_SH, "utf8");
+  const start = source.indexOf('  TOOL_ROOT="$(cd "$TOOL_ROOT" && pwd -P)"');
+  assert.ok(start > 0, "install.sh の物理化ブロックが見つからない(走査の前提が崩れた)");
+  const end = source.indexOf("  # ---- /包含拒否 ----", start);
+  assert.ok(end > start, "包含拒否ブロックの終端が見つからない");
+  return source.slice(start, end);
+}
+
+function runContainment({ workDir, toolRoot }) {
+  const script = [
+    'die() { echo "DIE: $*"; exit 7; }',
+    `TOOL_ROOT_RAW=${JSON.stringify(toolRoot)}`,
+    `TOOL_ROOT=${JSON.stringify(toolRoot)}`,
+    `WORK_DIR=${JSON.stringify(workDir)}`,
+    containmentBlock(),
+    'printf \'%s\\n%s\' "$WORK_DIR" "$TOOL_ROOT"',
+  ].join("\n");
+  return spawnSync("bash", ["-s", "--"], { input: script, encoding: "utf8" });
+}
+
+test("WORK_DIR = クローンのサブフォルダ → die する(未追跡資産を破棄させない)", (t) => {
+  const dir = freshBase();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const clone = path.join(dir, "fleetest");
+  makeCloneMarker(clone);
+  const sub = path.join(clone, "TestProjects");
+  mkdirSync(sub, { recursive: true });
+  const res = runContainment({ workDir: sub, toolRoot: clone });
+  assert.equal(res.status, 7, `die しなかった: ${res.stdout}${res.stderr}`);
+  assert.match(res.stdout, /DIE: clone WORK_DIR .*inside the fleetest clone/);
+});
+
+test("WORK_DIR = クローンへのシンボリックリンク経由のサブフォルダでも die する", (t) => {
+  const dir = freshBase();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const clone = path.join(dir, "fleetest");
+  makeCloneMarker(clone);
+  mkdirSync(path.join(clone, "sub"), { recursive: true });
+  const link = path.join(dir, "alias");
+  symlinkSync(clone, link);
+  const res = runContainment({ workDir: path.join(link, "sub"), toolRoot: clone });
+  assert.equal(res.status, 7, `シンボリックリンク経由がすり抜けた: ${res.stdout}${res.stderr}`);
+});
+
+test("WORK_DIR = クローンの最上位 / 隣のフォルダ / 名前だけ前方一致する兄弟 は die しない", (t) => {
+  const dir = freshBase();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const clone = path.join(dir, "fleetest");
+  makeCloneMarker(clone);
+  const sibling = path.join(dir, "fleetest-work"); // 文字列の前方一致だけでは子孫でない
+  mkdirSync(sibling, { recursive: true });
+  const receiver = path.join(dir, "receiver");
+  mkdirSync(receiver, { recursive: true });
+  for (const workDir of [clone, sibling, receiver]) {
+    const res = runContainment({ workDir, toolRoot: clone });
+    assert.equal(res.status, 0, `${workDir} を誤って拒否した: ${res.stdout}${res.stderr}`);
+  }
 });

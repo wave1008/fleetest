@@ -308,6 +308,10 @@ extension RemoteCommand {
         @Flag(help: "Do not prompt for confirmation")
         var yes = false
 
+        @Flag(name: .customLong("ignore-lock"),
+              help: "Delete even while a dispatch holds the host's lock (this kills that run; RR-18.1)")
+        var ignoreLock = false
+
         func run() async throws {
             let resolved = try RemoteHostResolver.resolve(rawHost: runner, remoteDirOverride: remoteDir)
             let hostSpec = resolved.hostSpec
@@ -335,24 +339,44 @@ extension RemoteCommand {
                 throw ExitCode(1)
             }
 
+            let base: String
             do {
-                try RemoteSetupPlan.validateUninstallBase(layout.base, home: home)
+                base = try RemoteSetupPlan.validateUninstallBase(layout.base, home: home)
             } catch {
                 say(error.localizedDescription)
                 throw ExitCode(1)
             }
-            guard confirmUninstall(base: layout.base, host: hostSpec.sshTarget) else {
+            guard confirmUninstall(base: base, host: hostSpec.sshTarget) else {
                 say("cancelled (pass --yes to skip the confirmation prompt)")
                 throw ExitCode(1)
             }
-            say("==> teardown: deleting \(layout.base) on \(hostSpec.sshTarget)...")
-            let command = RemoteSetupPlan.uninstallCommand(base: layout.base)
+
+            // base ごと消すので、走っている dispatch の実行ファイルごと失う。`remote clean` は照会が読めなければ通す
+            // (掃除が永久にできなくなる害のほうが大きい)が、**teardown は読めないときも止まる**
+            // (消した後は取り返しがつかず、押し切りの口が --ignore-lock として別にある)。
+            // ロックは `~/.fleetest` にあり base の外なので、rm の後でも解放できる
+            var dispatchLockHeld = false
+            defer {
+                if dispatchLockHeld { releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout) }
+            }
+            if ignoreLock {
+                say("warning: --ignore-lock: not taking the dispatch lock; a dispatch running on this host will be killed")
+            } else if let failure = acquireRemoteDispatchLock(hostSpec: hostSpec, layout: layout) {
+                say(failure + "\nrefusing to delete \(base) while the dispatch lock cannot be taken"
+                    + " (pass --ignore-lock if you know it is stale; RR-18.1)")
+                throw ExitCode(1)
+            } else {
+                dispatchLockHeld = true
+            }
+
+            say("==> teardown: deleting \(base) on \(hostSpec.sshTarget)...")
+            let command = RemoteSetupPlan.uninstallCommand(base: base)
             let status = (try? runInheritedSSH(setupSSHBase + [hostSpec.sshTarget, command])) ?? -1
             guard status == 0 else {
                 say("rm exited with status \(status)")
                 throw ExitCode(1)
             }
-            say("✅ deleted \(layout.base)")
+            say("✅ deleted \(base)")
         }
 
         /// `--yes` があれば無条件に許可。無ければ TTY からのみ確認を取る(非対話セッションは

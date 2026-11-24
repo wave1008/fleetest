@@ -395,6 +395,48 @@ final class RemoteSetupTests: XCTestCase {
         }
     }
 
+    /// `resolveBase("~/")` が `/Users/ci/` を返しても HOME との比較をすり抜けない
+    func testValidateUninstallBaseRejectsHomeItselfWithTrailingSlashOnBase() {
+        for base in ["/Users/ci/", "/Users/ci//", "//Users//ci"] {
+            XCTAssertThrowsError(try RemoteSetupPlan.validateUninstallBase(base, home: "/Users/ci"), base) { error in
+                guard case RemoteSetupError.unsafeUninstallBase = error else {
+                    return XCTFail("expected unsafeUninstallBase for \(base), got \(error)")
+                }
+            }
+        }
+    }
+
+    func testValidateUninstallBaseRejectsDotComponents() {
+        for base in ["/Users/ci/.", "/Users/ci/..", "/Users/ci/./fleetest-runner", "/Users/ci/x/../..", "/opt/a/../b"] {
+            XCTAssertThrowsError(try RemoteSetupPlan.validateUninstallBase(base, home: "/Users/ci"), base) { error in
+                guard case RemoteSetupError.unsafeUninstallBase = error else {
+                    return XCTFail("expected unsafeUninstallBase for \(base), got \(error)")
+                }
+            }
+        }
+    }
+
+    /// HOME の祖先(`/Users`・`/Users/ci` の上位)は深さの検査を通る形(2要素以上)でも断る
+    func testValidateUninstallBaseRejectsAncestorsOfHome() {
+        for base in ["/Users", "/Users/", "/home/ci/work", "//"] {
+            let home = base.hasPrefix("/home") ? "/home/ci/work/deep" : "/Users/ci"
+            XCTAssertThrowsError(try RemoteSetupPlan.validateUninstallBase(base, home: home), base) { error in
+                guard case RemoteSetupError.unsafeUninstallBase = error else {
+                    return XCTFail("expected unsafeUninstallBase for \(base), got \(error)")
+                }
+            }
+        }
+    }
+
+    /// 返す正規化済みのパスが rm に渡る(重複 / と末尾 / を畳む)。HOME 配下・名前の前方一致は祖先でない
+    func testValidateUninstallBaseReturnsNormalizedPath() throws {
+        XCTAssertEqual(try RemoteSetupPlan.validateUninstallBase("/Users//ci/fleetest-runner/", home: "/Users/ci"),
+                       "/Users/ci/fleetest-runner")
+        XCTAssertEqual(try RemoteSetupPlan.validateUninstallBase("/Users/ci2/runner", home: "/Users/ci"),
+                       "/Users/ci2/runner")
+        XCTAssertEqual(try RemoteSetupPlan.validateUninstallBase("/Users/c", home: "/Users/ci"), "/Users/c")
+    }
+
     // MARK: - RemoteSetupPlan.uninstallCommand
 
     func testUninstallCommand() {

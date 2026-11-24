@@ -413,6 +413,15 @@ fi
 
 if [ -d "$TOOL_ROOT_RAW/.git" ] || [ -f "$TOOL_ROOT_RAW/Package.swift" ]; then
   TOOL_ROOT="$(abspath "$TOOL_ROOT_RAW")" || die "clone" "cannot resolve TOOL_ROOT: $TOOL_ROOT_RAW" 0.5
+  # 物理パスへ正規化してから包含を見る(シンボリックリンク経由でも文字列比較がすり抜けない)。
+  # WORK_DIR がクローンの子孫だと下の clone_is_disposable が「外部構成」と誤判定し、
+  # reset --hard + clean -fd がクローンの未追跡資産(TestProjects/ 等)を消す。update.sh にも同じ検査がある
+  TOOL_ROOT="$(cd "$TOOL_ROOT" && pwd -P)" || die "clone" "cannot resolve TOOL_ROOT: $TOOL_ROOT_RAW" 0.5
+  WORK_DIR="$(cd "$WORK_DIR" && pwd -P)" || die "prerequisites" "cannot resolve WORK_DIR: $WORK_DIR" 0
+  case "$WORK_DIR" in
+    "$TOOL_ROOT"/*) die "clone" "WORK_DIR ($WORK_DIR) is inside the fleetest clone ($TOOL_ROOT). Run from the top of the clone (WORK_DIR = clone root), or point --work-dir outside the clone" 0.5 ;;
+  esac
+  # ---- /包含拒否 ----
   # 既存クローンは更新してから使う(古いまま build して「入れ直したのに直らない」を防ぐ)。
   # マージコミットを勝手に作らないため ff-only。版固定(detached)は意図的とみなして触らない。
   # ローカル変更の始末(外部構成は自動破棄・それ以外は人に確認)。**REF 経路と pull 経路の
