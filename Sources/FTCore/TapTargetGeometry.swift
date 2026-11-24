@@ -1662,6 +1662,15 @@ public struct KeyboardOcclusion: Sendable {
                                     frame: expanded, excluded: excluded, in: elements))
     }
 
+    /// 実効矩形が要素の中心を覆っているか(chrome 自身・その部分木は覆われる側に数えない)。
+    /// 枠は同じ木の `elements` と同じ単位(iOS=pt / Android=px)で来るので、呼び手は同じスナップショットの値を渡す
+    public func coversCentre(of element: ElementInfo) -> Bool {
+        guard let frame, !excluded.contains(element.ref) else { return false }
+        let f = element.frame
+        let cx = f.x + f.width / 2, cy = f.y + f.height / 2
+        return cx >= frame.x && cx <= frame.x + frame.width && cy >= frame.y && cy <= frame.y + frame.height
+    }
+
     /// 画面より低い枠か(縦の座標系のまま横向きに申告された枠は画面より高くなる)。Runner の `isPlausibleKeyboard` の部分集合で、
     /// 幅・左右の位置は見ない(1pt 未満の食い違いで本物の chrome を落とさない)
     static func isPlausibleKeyboard(_ f: FTRect, screen: FTRect) -> Bool {

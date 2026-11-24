@@ -44,6 +44,13 @@ public final class LaunchPreflightDriver: AppDriver {
         self.udid = udid
     }
 
+    /// preflight は simctl 依存。**実機・udid 不明では包まない**(包むと launch / activate が必ず
+    /// 「not installed on the simulator」で失敗する)。XCUITest ランナーを駆る経路は全部これを通す
+    public static func wrapping(_ base: AppDriver, udid: String?, physical: Bool) -> AppDriver {
+        guard !physical, let udid else { return base }
+        return LaunchPreflightDriver(base: base, udid: udid)
+    }
+
     public func status() async throws -> StatusResponse { try await base.status() }
     @discardableResult
     public func install(packagePath: String) async throws -> String? { try await base.install(packagePath: packagePath) }

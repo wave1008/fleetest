@@ -279,6 +279,33 @@ final class VisibilityCheckCharacterizationTests: XCTestCase {
         check("V12 text type", await r.step(), "passed | notes=[] | fm=0 | gate=true | blank=false | pixels=true")
     }
 
+    /// V12 キーボード: キーボードの枠が要素の中心を覆うなら、絵にインク(キーの柄)があっても足切りで通さず FM へ回す。
+    /// 覆わない枠なら従来どおり足切りで素通り(FM を呼ばない)。画面は 400x800(`FakeAppDriver` 既定)
+    func testV12InkCutoffDefersWhenKeyboardCoversCentre() async {
+        // delegate は visible: true(false だと赤の再確認で FM が2回になり、数の検証がぶれる)
+        let covering = rig([[Self.element()]], shots: [inked], delegate: FakeVisibilityDelegate(visible: true))
+        covering.driver.keyboardFrame = FTRect(x: 0, y: 0, width: 400, height: 300)
+        _ = await covering.step()
+        XCTAssertEqual(covering.fmCalls(), 1, "キーボードが覆う要素をインクで素通しした")
+
+        let apart = rig([[Self.element()]], shots: [inked], delegate: FakeVisibilityDelegate(visible: false))
+        apart.driver.keyboardFrame = FTRect(x: 0, y: 500, width: 400, height: 300)
+        check("V12 keyboard apart", await apart.step(),
+              "passed | notes=[] | fm=0 | gate=false | blank=false | pixels=true")
+    }
+
+    /// coversCentre は木と同じ単位(Android=px)の枠どうしを比べる。chrome(覆う側)は覆われる側に数えない
+    func testKeyboardCoversCentreInPixelUnits() {
+        let screen = FTRect(x: 0, y: 0, width: 1080, height: 2400)
+        let under = Self.element(ref: 2, frame: FTRect(x: 100, y: 1700, width: 300, height: 60))
+        let above = Self.element(ref: 3, frame: FTRect(x: 100, y: 400, width: 300, height: 60))
+        let kb = KeyboardOcclusion.resolve(reported: FTRect(x: 0, y: 1500, width: 1080, height: 900),
+                                           in: [under, above], screen: screen)
+        XCTAssertTrue(kb.coversCentre(of: under))
+        XCTAssertFalse(kb.coversCentre(of: above))
+        XCTAssertFalse(KeyboardOcclusion.none.coversCentre(of: under))
+    }
+
     /// V12': 文字の型でない(入力欄)要素はインクで素通りしても pixelsShowedText を立てない
     func testV12InkCutoffNonTextTypeDoesNotMarkPixels() async {
         let delegate = FakeVisibilityDelegate(visible: false)

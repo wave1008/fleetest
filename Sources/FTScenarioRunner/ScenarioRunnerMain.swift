@@ -441,7 +441,7 @@ struct RunScenario: AsyncParsableCommand {
                         // 主ドライバと同じく SessionRecoveryDriver で包む(ランナーの起動し直しの 409 から戻る・
                         // a11y の一時停止の読み直し)。MCP の同じ経路(foreignApp)も包んでいる
                         driver = SessionRecoveryDriver(
-                            base: udid.map { LaunchPreflightDriver(base: client, udid: $0) as AppDriver } ?? client,
+                            base: LaunchPreflightDriver.wrapping(client, udid: udid, physical: physical),
                             appIsRunning: simulatorAppProbe)
                     } else {
                         // in-app は launch=simctl 再起動+dylib 注入(自己再起動できないため)
@@ -491,15 +491,13 @@ struct RunScenario: AsyncParsableCommand {
                     // launch は既定で simctl 化(FastLaunchDriver。実測 -14〜19%)。
                     // FT_NO_FAST_LAUNCH=1 で素の XCUIApplication.launch() に戻せる。
                     // preflight(未インストール検査)は fast launch の外側に置く。
-                    // **実機は両方とも simctl 依存なので必ず外す**(xcuitest モードなら実機で動く、と
+                    // **実機は両方とも simctl 依存なので必ず外す**(`LaunchPreflightDriver.wrapping`。xcuitest モードなら実機で動く、と
                     // 誤認しやすい罠。素の XCUIApplication.launch() 経路に落とす)
                     let inner = FastLaunchDriver.wrapping(client, simulatorUDID: physical ? nil : udid)
                     // SessionRecoveryDriver は最外側(回復時の activate に LaunchPreflightDriver の
                     // 未インストール検査を効かせるため)。inapp-boost モードの経路には入れない
                     // (InAppDriver は別プロトコルで 409 の意味が違う)。
-                    let preflighted: AppDriver = physical
-                        ? inner
-                        : (udid.map { LaunchPreflightDriver(base: inner, udid: $0) as AppDriver } ?? client)
+                    let preflighted = LaunchPreflightDriver.wrapping(inner, udid: udid, physical: physical)
                     driver = SessionRecoveryDriver(base: preflighted, appIsRunning: simulatorAppProbe)
                     // 通常ドライバのセッションは対象アプリに縛られ、home() 後の snapshot が
                     // 背面アプリ照会でハングする(実機で確認)。springboard 参照専用を渡す

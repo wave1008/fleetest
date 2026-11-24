@@ -415,7 +415,10 @@ extension StepExecutor {
         // 容器の縁に接した・外へ出た要素(行のラベル含む)は、切れて読めない文字でも枠の位置にインクがある(隣の要素のものを含む)ので足切りで通さず読ませる
         let atScrollEdge = OcclusionSuspicion.touchesScrollEdge(element: element, in: elements)
             || OcclusionSuspicion.isScrollLeftover(element: element, in: elements, screen: screen)
-        if !geo, !atScrollEdge, occlusionInkThreshold > 0 {
+        // キーボード表示中の判定の絵は全画面(キーの柄のインクを拾う)ので、キーボードが中心を覆う要素はインクで通さず後段へ回す(断定の赤にはしない)
+        let underKeyboard = KeyboardOcclusion.resolve(reported: guardKeyboardFrame, in: elements, screen: screen)
+            .coversCentre(of: element)
+        if !geo, !atScrollEdge, !underKeyboard, occlusionInkThreshold > 0 {
             sd = RegionInk.luminanceStdDev(pngData: e.screenshot, frame: element.frame, screen: screen)
             if let value = sd, value >= occlusionInkThreshold {
                 // 入力欄・ボタンは枠や背景で構造が出るので、文字が描けた証拠にするのは文字の型だけ
