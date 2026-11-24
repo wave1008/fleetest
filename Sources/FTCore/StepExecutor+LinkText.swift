@@ -85,6 +85,10 @@ extension StepExecutor {
                     + " no descendant in the tree has that label, and the text was not found in the element's pixels"
                     + " (\(read); \(ocrAttempts) OCR pass\(ocrAttempts == 1 ? "" : "es"))"))
         }
+        if let refusal = Self.linkTextPointCoverRefusal(x: point.x, y: point.y, snapshot: snapshot) {
+            return StepOutcome(status: failed(.notFound,
+                "cannot tap the link text \"\(linkText)\" inside \(TapTargetGeometry.describe(element)): \(refusal)"))
+        }
         // **OCR で決めた点は1つのノードの中の点**。in-app の座標タップは「点を含むノードを activate」するので、
         // 段落ノードの activate(= 押した位置と無関係なリンク)に化ける。inapp-boost モードでは本物のタッチ(XCUITest)で撃つ。
         // 木の子孫で決めた点はそのノード自身なので従来の経路でよい
@@ -107,6 +111,19 @@ extension StepExecutor {
                                tapped.driverFallback, waitedFact, unsettledFact))
     }
 
+    /// 撃つ点がソフトキーボードの枠・木に出ないオーバーレイ・ウィンドウの中なら、撃たない理由(撃つと別の物=キーを押す)。
+    /// linkText は tap 本線の reachPastKeyboard を通らないのでここで断る。木で決めた点・OCR で決めた点の両方に掛ける
+    static func linkTextPointCoverRefusal(x: Double, y: Double, snapshot: SnapshotResponse) -> String? {
+        if CoordinateGuards.keyboardFrame(containing: x, y, in: snapshot) != nil {
+            return "the link lies under the software keyboard — close it first (hideKeyboard()), then tap again"
+        }
+        let overlays = OverlayWindowOcclusion.resolve(reported: snapshot.overlayWindowFrames).frames
+        if overlays.contains(where: { x >= $0.x && x <= $0.x + $0.width && y >= $0.y && y <= $0.y + $0.height }) {
+            return "the link lies under an overlay window drawn above the app — dismiss it first"
+        }
+        return nil
+    }
+
     static func linkTextOCRUnsupportedMessage(linkText: String, element: ElementInfo) -> String {
         "cannot find the link text \"\(linkText)\" inside \(TapTargetGeometry.describe(element)):"
             + " no descendant in the tree has that label, and reading the element's pixels is unavailable"
@@ -122,7 +139,8 @@ extension StepExecutor {
         for attempt in 1...LinkTextLocator.ocrShotAttempts {
             if attempt > 1 { try? await Task.sleep(for: LinkTextLocator.ocrReshotInterval) }
             let start = clock.now
-            let png = try await driver.screenshot()
+            // キーボード表示中は XCUITest の絵(inapp-boost の in-app の絵はキーボードが写らず、キーボードの下の位置を読んで撃つ)
+            let png = try await judgmentScreenshot(keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
             phase.snapshotMs += Self.ms(clock.now - start)
             // 落ちたときの証跡は OCR が見た絵(StepOutcome.evidenceImage。失敗時の絵は判定の後に撮るので別物)
             classifierScreenshotThisStep = png

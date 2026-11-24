@@ -1,0 +1,28 @@
+{
+  "id": "linktext-under-keyboard",
+  "finding": "tap(linkText:) は reachPastKeyboard と撃つ前の門を通らず、OCR で読めない(キーボードの下の)文字は木の点の経路へ落ち、キーボードの下の点を本物のタッチで撃つ(キーが押されて文字が入る誤った成功)。直しは linkTextPointCoverRefusal = 点がキーボード/overlay の中なら撃たずに断る",
+  "platform": "ios",
+  "redNote": "直しを外した版の赤の形: ft_tap(linkText) が ok を返すが、実際はキーボードのキーを押していて #field_chat に文字が入る(#txt_chat_result は chat=none のまま)。直した版は 'under the software keyboard' の断りを返す。E2EY-CMP の反転チャット = 下端の #field_chat に焦点を置くとキーボードが上がり、最下部の新しいメッセージがその下に沈む。CMP が ime のインセットで一覧を縮める構成だったら、ft_snapshot の keyboardFrame に枠が重なるメッセージ(より古い番号)へ差し替えること",
+  "setup": [
+    ["ft_launch", { "bundleId": "com.ftester.e2ey" }],
+    ["ft_batch", { "steps": "tap '#nav_chat'" }]
+  ],
+  "reset": [
+    ["ft_hide_keyboard", {}],
+    ["ft_batch", { "steps": "clearInput '#field_chat'" }]
+  ],
+  "resetSeconds": 0.8,
+  "rounds": 3,
+  "forms": [
+    {
+      "name": "キーボードを出して、その下に沈んだメッセージを linkText で叩く",
+      "steps": [
+        ["ft_tap", { "selector": "#field_chat" }],
+        ["ft_tap", { "selector": "#list_chat", "linkText": "メッセージ 59" }]
+      ],
+      "allowErrors": true,
+      "replyOnly": true,
+      "replyExpect": ["under the software keyboard"]
+    }
+  ]
+}

@@ -40,9 +40,12 @@ final class StepExecutorLinkTextTests: XCTestCase {
     }
 
     private func run(screenshots: [Data], linkText: String, isAndroid: Bool = true,
-                     commandTimeoutSeconds: TimeInterval? = nil) async -> (StepOutcome, FakeAppDriver) {
+                     commandTimeoutSeconds: TimeInterval? = nil, keyboard: FTRect? = nil,
+                     overlays: [FTRect]? = nil) async -> (StepOutcome, FakeAppDriver) {
         let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[paragraph()]],
                                    screenshots: screenshots)
+        driver.keyboardFrame = keyboard
+        driver.overlayWindowFrames = overlays
         let executor = StepExecutor(driver: driver, occlusionOCRMode: .off, isAndroid: isAndroid, tunables: RunTunables(),
                                     commandTimeoutSeconds: commandTimeoutSeconds)
         var step = FlowStep(action: "tap", locator: FlowLocator(id: "terms"))
@@ -175,5 +178,32 @@ final class StepExecutorLinkTextTests: XCTestCase {
         let (android, androidDriver) = await run(screenshots: [mismatched], linkText: "Terms of Service")
         guard case .passed = android.status else { XCTFail("実際は \(android.status)"); return }
         XCTAssertEqual(androidDriver.screenshotCallCount, 1)
+    }
+
+    /// キーボードの枠の中の点は撃たずに失敗にする(撃つとキーを押して文字が入る)。枠の外は従来どおり撃つ
+    func testRefusesToTapAPointUnderTheKeyboardAndTapsOutsideIt() async throws {
+        let png = try shot("Please accept the Terms of Service")
+        let (under, underDriver) = await run(screenshots: [png], linkText: "Terms of Service",
+                                             keyboard: FTRect(x: 0, y: 340, width: 400, height: 460))
+        guard case .failed(let message) = under.status else { XCTFail("実際は \(under.status)"); return }
+        XCTAssertTrue(message.contains("under the software keyboard"), message)
+        XCTAssertTrue(underDriver.coordinateTaps.isEmpty, "キーボードの下の点を撃った")
+        let (clear, clearDriver) = await run(screenshots: [png], linkText: "Terms of Service",
+                                             keyboard: FTRect(x: 0, y: 600, width: 400, height: 200))
+        guard case .passed = clear.status else { XCTFail("実際は \(clear.status)"); return }
+        XCTAssertEqual(clearDriver.coordinateTaps.count, 1)
+    }
+
+    /// 木に出ないオーバーレイ・ウィンドウの中の点も同じく撃たない
+    func testRefusesToTapAPointUnderAnOverlayWindow() async throws {
+        let png = try shot("Please accept the Terms of Service")
+        let (under, driver) = await run(screenshots: [png], linkText: "Terms of Service",
+                                        overlays: [FTRect(x: 0, y: 300, width: 400, height: 200)])
+        guard case .failed(let message) = under.status else { XCTFail("実際は \(under.status)"); return }
+        XCTAssertTrue(message.contains("overlay window"), message)
+        XCTAssertTrue(driver.coordinateTaps.isEmpty)
+        let (clear, _) = await run(screenshots: [png], linkText: "Terms of Service",
+                                   overlays: [FTRect(x: 0, y: 600, width: 400, height: 100)])
+        guard case .passed = clear.status else { XCTFail("実際は \(clear.status)"); return }
     }
 }

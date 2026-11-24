@@ -1,6 +1,7 @@
 // 画像判定の絵を撮る唯一の口(撮り分けの判定は FTCore.JudgmentCapture)。
 // 使う側: テキストの可視性検証(guardScreenshot)・findImage / existImage / imageIs・分類器・screenLooksLike / screenIs。
-// **使わない側**: 打鍵の読み返しと linkText の OCR(入った文字・位置を読むのが目的で、覆いの有無を問わない)・
+// linkText の OCR も使う側(キーボードの下の位置を読んで撃たないよう、表示中は XCUITest の絵で読む)。
+// **使わない側**: 打鍵の読み返し(入った文字を読むのが目的で、覆いの有無を問わない)・
 // 描画崩壊の判定(アプリ自身の描画を見る)・凍結フレームの基準(Android だけ)。
 
 import Foundation
