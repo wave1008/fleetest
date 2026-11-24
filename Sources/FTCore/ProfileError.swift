@@ -26,6 +26,8 @@ public enum ProfileError: Error, LocalizedError {
     case duplicateDeviceName(name: String, deviceMachine: String?, run: String)
     case missingBundleID(platform: String, appProfile: String)
     case invalidWipeDataThreshold(run: String)
+    /// `scenarioTimeout` が 1 未満(ホスト watchdog が 0 秒・即トリガーになる)。validate と resolve で `ProfileResolver.isValidScenarioTimeout` を共有
+    case invalidScenarioTimeout(run: String)
     /// 空(空白のみ含む)の `reportDir`。resolvePath が "" をプロジェクトルートそのものに解くので、レポートがルート直下へ散らばる
     case emptyReportDir(run: String)
     case invalidLocale(run: String)
@@ -86,6 +88,8 @@ public enum ProfileError: Error, LocalizedError {
                 + " (add it in the \(platform) section)"
         case .invalidWipeDataThreshold(let run):
             return "wipeDataThresholdGB in run profile \(run) must be a positive number (GB)"
+        case .invalidScenarioTimeout(let run):
+            return ProfileResolver.scenarioTimeoutMessage + " in run profile \(run)"
         case .emptyReportDir(let run):
             return "reportDir in run profile \(run) must not be empty (omit it to use reports/)"
         case .invalidLocale(let run):
@@ -154,7 +158,7 @@ extension ProfileError {
     public func isCoveredByStaticRunValidation(runFileName: String) -> Bool {
         switch self {
         case .emptyReportDir, .duplicateDeviceName, .missingAppReference, .missingDevices,
-             .invalidWipeDataThreshold, .invalidLocale, .invalidOrientation, .invalidAppearance, .invalidTextSize,
+             .invalidWipeDataThreshold, .invalidScenarioTimeout, .invalidLocale, .invalidOrientation, .invalidAppearance, .invalidTextSize,
              .invalidVariants, .physicalDeviceMissingIdentifier, .deviceNameHasLineBreak:
             return true
         case .decodeFailed(let url, _):

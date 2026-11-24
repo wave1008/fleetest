@@ -473,8 +473,9 @@ public enum ProjectScaffold {
         MCP を初回に承認確認する → 許可すると `ft_*` ツールが使え、`/fleetest-scenario` が MCP 経由で動く。
 
         ## 更新(新しい版が出たとき)
-        clone した fleetest で `git pull` して `swift build` し直す(配布口は main の1本。
-        Package.swift の依存は clone のパスか main 追従なので、版を書き換える作業は無い)。
+        **`/fleetest-update`** を使う(受け手の配布口は最新リリースタグ。clone を最新タグへ移して
+        `swift build` し直し、Package.swift・拡張まで揃える)。clone で手動の `git pull` はしない
+        (タグに detached で置かれているので失敗するか、開発線の main を引く)。
         """
     }
 
@@ -532,7 +533,9 @@ public enum ProjectScaffold {
         ```
 
         ## 更新(新しい版が出たとき)
-        clone した fleetest で `git pull` して `swift build` し直す(配布口は main の1本)。
+        **`/fleetest-update`** を使う(受け手の配布口は最新リリースタグ。clone を最新タグへ移して
+        `swift build` し直し、Package.swift・拡張まで揃える)。clone で手動の `git pull` はしない
+        (タグに detached で置かれているので失敗するか、開発線の main を引く)。
         """
     }
 

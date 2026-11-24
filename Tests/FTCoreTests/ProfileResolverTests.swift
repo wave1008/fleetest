@@ -331,6 +331,27 @@ final class ProfileResolverTests: XCTestCase {
                       "最上位の autoInstall は正当な設定場所なので警告は出ないはず: \(warnings)")
     }
 
+    /// scenarioTimeout が 0 以下のプロファイルは validate と resolve の両方で断る(resolve だけ素通りしていた)
+    func testNonPositiveScenarioTimeoutIsRejectedByValidateAndResolve() throws {
+        try write("""
+        { "ios": { "appName": "A", "app": "com.example.sampleapp" } }
+        """, to: project.appsDir, name: "sampleapp")
+        for value in [0, -5] {
+            let json = """
+            { "app": "sampleapp", "scenarioTimeout": \(value),
+              "devices": [ { "platform": "ios", "machine": "local", "name": "d1", "osVersion": "iOS 27.0" } ] }
+            """
+            try write(json, to: project.runsDir, name: "st")
+            let (errors, _) = ProfileResolver.validate(kind: .run, data: json.data(using: .utf8)!, context: "runs/st.json")
+            XCTAssertTrue(errors.contains { $0.contains("scenarioTimeout") }, "\(errors)")
+            XCTAssertThrowsError(try ProfileResolver.resolve(project: project, runName: "st")) {
+                XCTAssertTrue($0.localizedDescription.contains("scenarioTimeout"), $0.localizedDescription)
+            }
+        }
+        XCTAssertTrue(ProfileResolver.isValidScenarioTimeout(1))
+        XCTAssertFalse(ProfileResolver.isValidScenarioTimeout(0))
+    }
+
     /// DR-229: デバイス名に改行があると FT_IOS_DEVICES(改行区切り)が分割できない。validate と resolve の両方で断る
     func testDeviceNameWithLineBreakIsRejectedByValidateAndResolve() throws {
         let json = """

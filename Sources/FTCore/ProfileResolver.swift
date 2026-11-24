@@ -446,6 +446,10 @@ public enum ProfileResolver {
         }
         let reportDir = reportDirectory(runDoc.reportDir, project: project)
 
+        if let scenarioTimeout = runDoc.scenarioTimeout, !isValidScenarioTimeout(scenarioTimeout) {
+            throw ProfileError.invalidScenarioTimeout(run: runName)
+        }
+
         let wipeDataThresholdGB = runDoc.wipeDataThresholdGB ?? 8
         guard wipeDataThresholdGB > 0 else {
             throw ProfileError.invalidWipeDataThreshold(run: runName)
@@ -616,8 +620,8 @@ public enum ProfileResolver {
                 }
                 // 負値・0・NaN はホストの watchdog(ScenarioHost.watchdogDuration)まで
                 // 届くと壊れた/意味の無い挙動になる(0 秒 watchdog・即トリガー)
-                if let scenarioTimeout = doc.scenarioTimeout, scenarioTimeout < 1 {
-                    errors.append("\"scenarioTimeout\" must be a positive number of seconds")
+                if let scenarioTimeout = doc.scenarioTimeout, !isValidScenarioTimeout(scenarioTimeout) {
+                    errors.append(scenarioTimeoutMessage)
                 }
                 // 検証待ち(defaultTimeout)の 0 は正当(初回スナップショットだけを見る)。負値だけ断る
                 if let defaultTimeout = doc.defaultTimeout, !(defaultTimeout >= 0 && defaultTimeout.isFinite) {
@@ -660,6 +664,11 @@ public enum ProfileResolver {
     static func hasLineBreak(_ name: String) -> Bool {
         name.contains(where: \.isNewline)
     }
+
+    /// scenarioTimeout の検査(resolve と validate の共有)。0 以下は ScenarioHost の watchdog が 0 秒・即トリガーになる
+    static func isValidScenarioTimeout(_ seconds: Int) -> Bool { seconds >= 1 }
+
+    static let scenarioTimeoutMessage = "\"scenarioTimeout\" must be a positive number of seconds"
 
     static func deviceNameLineBreakMessage(_ name: String) -> String {
         "device name \"\(name.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\r", with: "\\r"))\" contains a line break"

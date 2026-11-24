@@ -477,4 +477,15 @@ final class ProjectScaffoldTests: XCTestCase {
         XCTAssertTrue(added.isEmpty)
         XCTAssertEqual(try String(contentsOf: claudeSettingsURL, encoding: .utf8), invalid)
     }
+
+    /// 受け手の配布口は最新リリースタグ。更新の節は /fleetest-update へ導き、main 直指し・手動 git pull を案内しない
+    func testRecipientSkillsPointUpdateToFleetestUpdateNotMain() {
+        for (label, text) in [("with project", ProjectScaffold.recipientSetupSkill(projectName: "p1")),
+                              ("without project", ProjectScaffold.recipientSetupSkillWithoutProject())] {
+            XCTAssertTrue(text.contains("/fleetest-update"), label)
+            XCTAssertFalse(text.contains("配布口は main"), label)
+            XCTAssertFalse(text.contains("main 追従"), label)
+            XCTAssertFalse(text.contains("`git pull` して"), label)
+        }
+    }
 }
