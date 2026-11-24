@@ -57,7 +57,8 @@ TestProjects/ の全プロファイルで、M4Max の iOS -03 と Android -02・
 払うだけになる(実測 244 秒 = このスイートの重複分)。OS の絞り込みは `--ios` / `--android`。
 
 **印は回さなかった側に付く**: e2e.sh は `BridgeSourceSet` の digest を
-`.fleetest/<bridge>-e2e-verified` に記録し(**全部成功したときだけ**)、次の実行で
+`.fleetest/<bridge>-e2e-verified` に記録し(**全部成功し、かつ iOS のプロファイルを実際に回したときだけ** ——
+`--android-native` 等の iOS を1本も回さない実行では書かない)、次の実行で
 **回さない側**のモードのブリッジの入力が動いていれば開始時と終了時に警告する。落とさず警告だけ。
 
 **E2EX(`Scripts/e2ex.sh`)も同じ仕組みで別の印 `.fleetest/<bridge>-e2ex-verified` を書く**

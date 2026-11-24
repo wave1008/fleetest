@@ -76,6 +76,8 @@ class LoginTest {
 `beforeEach()` and `afterEach()` run automatically around every `@Test` in the class.
 **`afterEach()` still runs even after a failure** — it is the place to put cleanup that must
 not be skipped when a scenario is aborted mid-way.
+Lifecycle methods take no arguments and must be neither `async` nor `throws` — one declared
+with an effect is not picked up (the macro emits a compile-time warning).
 
 `func beforeAll()` (optional) runs **once per run, per class** (in a run that spans machines, once per machine), before any scenario of that class on
 any device — for per-class preparation (for example creating the test data of that class; values it
