@@ -118,8 +118,11 @@ final class MCPGestureTests: XCTestCase {
 
     /// JSON の true は NSNumber で来て `as? Double` が 1.0 として通す。
     /// 変異: `requiredGestureNumber` / `optionalGestureNumber` の `!isJSONBoolean(raw)` を外すと落ちる
-    func testBooleanWhereANumberIsExpectedIsRejectedAtEveryNestingLevel() async {
-        let boolTrue: Any = true
+    func testBooleanWhereANumberIsExpectedIsRejectedAtEveryNestingLevel() async throws {
+        // **JSON 経由の真偽値(NSNumber/CFBoolean)で撃つ** —— Swift ネイティブの Bool は `as? Double` で
+        // 元々通らないので、ガードを外した変異が見えない(ワイヤの形と違う入力では検証にならない)
+        let boolTrue = try XCTUnwrap(
+            (JSONSerialization.jsonObject(with: Data("[true]".utf8)) as? [Any])?.first)
         let topLevel: [[String: Any]] = [["x": boolTrue, "y": 200.0]]
         await assertRejected(["fingers": topLevel], contains: ["finger 1.x", "number"])
         let optional: [[String: Any]] = [["x": 10.0, "y": 20.0, "startSeconds": boolTrue]]
