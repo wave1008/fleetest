@@ -403,6 +403,13 @@ struct RunScenarios: AsyncParsableCommand {
         try asSingleTarget(first).validateSingleTarget()
     }
 
+    /// `--fleet` の子へ中継されないフラグ(FleetRunner.run は受け取らない)。検査の順 = 案内の順
+    static func fleetUnforwardedFlags(platform: String?, serial: String?, appID: String?, devices: [String],
+                                      deviceMachine: String?, allMachines: Bool) -> [(flag: String, given: Bool)] {
+        [("--platform", platform != nil), ("--serial", serial != nil), ("--app-id", appID != nil),
+         ("--device", !devices.isEmpty), ("--device-machine", deviceMachine != nil), ("--all-machines", allMachines)]
+    }
+
     private func validateSingleTarget() throws {
         try RunCommonOptions.rejectZeroPorts(ports)
         try RunCommonOptions.rejectDuplicatePorts(ports)
@@ -451,6 +458,12 @@ struct RunScenarios: AsyncParsableCommand {
             if failed { throw ValidationError("--fleet cannot be combined with --failed") }
             if reportDir != nil { throw ValidationError("--fleet cannot be combined with --report-dir") }
             if common.skipBuild { throw ValidationError("--fleet cannot be combined with --skip-build") }
+            // 各エントリは自分のプロファイルでデバイスを決め、FleetRunner は下のフラグを子へ中継しない(黙って全エントリの全デバイスで走る)
+            for (flag, given) in RunScenarios.fleetUnforwardedFlags(
+                platform: common.platform, serial: common.serial, appID: common.appID, devices: common.devices,
+                deviceMachine: common.deviceMachine, allMachines: common.allMachines) where given {
+                throw ValidationError("--fleet cannot be combined with \(flag) (set it per entry in the fleet file)")
+            }
         }
         if split, fleet == nil {
             throw ValidationError("--split requires --fleet")

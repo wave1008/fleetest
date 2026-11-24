@@ -272,7 +272,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                     scenarioTimeout: scenarioTimeout,
                     noLPT: common.noLPT, lptHistoryRuns: common.lptHistoryRuns, performanceMode: performanceMode,
                     remoteDir: common.remoteDir, remoteTimeout: common.remoteTimeout,
-                    waitLock: waitLock))
+                    waitLock: waitLock, reportDir: reportDir))
             if exitCode != 0 { throw ExitCode(exitCode) }
             return
         }

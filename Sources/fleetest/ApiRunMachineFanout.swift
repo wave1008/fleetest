@@ -20,11 +20,9 @@ import Foundation
 enum ApiRunMachineFanout {
 
     /// 子プロセスへ素通しするオプション。skipBuild/folders は無い —— ビルドは常にここで1回だけ
-    /// 行う(DeviceMachineRunner.run と同じ理由。シナリオ一覧が割り当てに要る)。--report-dir は
-    /// 意図的に含めない: リモートホストの子は `dispatchToRemoteHost` が --report-dir を
-    /// 常に拒否するため(RemoteDispatchFlagPolicy.rejected)、一部のホストにだけ効く/効かないが
-    /// 混在する形になる。CLI 側の多機械ディスパッチ(DeviceMachineRunner/FleetRunner)も同じ理由で
-    /// --report-dir を子へ渡していない(既存の踏襲)
+    /// 行う(DeviceMachineRunner.run と同じ理由。シナリオ一覧が割り当てに要る)。
+    /// `reportDir` は手元の子とフック文脈にだけ渡す(リモートの子は dispatchToRemoteHost が --report-dir を
+    /// 常に拒否するので渡さない。DeviceMachineRunner.childArgs と同じ)
     struct Options {
         var setOverrides: [String: RunProfileSetValue] = [:]
         /// `--variant`(名前。空 = 全バリアント)
@@ -40,6 +38,7 @@ enum ApiRunMachineFanout {
         /// (下の args 組み立てと RR-18.10)。ここに無いと、拡張の設定 `fleetest.remoteWaitLock` が
         /// **複数機械にまたがるプロファイルでだけ黙って落ちる** —— 共有フリートで一番待ちたい形がまさにそれ
         var waitLock: Int?
+        var reportDir: String?
     }
 
     /// 戻り値 = FleetProfile.aggregateExitCode(各ホストの exit code の集約)
@@ -208,7 +207,7 @@ enum ApiRunMachineFanout {
         ).map { className in
             RunHookParent(
                 context: RunHookSetup.context(project: project, className: className, profiles: [profileName],
-                                              setOverrides: options.setOverrides, reportDirOverride: nil,
+                                              setOverrides: options.setOverrides, reportDirOverride: options.reportDir,
                                               log: { logStderr($0) }),
                 log: { logStderr($0) })
         }
@@ -403,6 +402,9 @@ enum ApiRunMachineFanout {
         if options.performanceMode { args += ["--performance"] }
         if let defaultTimeout = options.defaultTimeout { args += ["--default-timeout", String(defaultTimeout)] }
         if let scenarioTimeout = options.scenarioTimeout { args += ["--scenario-timeout", String(scenarioTimeout)] }
+        if machineLabel == DeviceMachineGrouping.localDisplayName, let reportDir = options.reportDir {
+            args += ["--report-dir", reportDir]
+        }
         args += ["--run-group", runGroup]
         return args
     }

@@ -47,6 +47,22 @@ final class RunRejectionTests: XCTestCase {
     }
 
     /// 陰性対照: 正当な組み合わせは誤検知しない
+    /// --fleet の子へ中継されないフラグは入口で断る(黙って全エントリの全デバイスで走っていた)
+    func testRunRejectsFleetWithUnforwardedFlags() {
+        let cases: [(flag: String, args: [String])] = [
+            ("--platform", ["--platform", "ios"]), ("--serial", ["--serial", "R58M"]),
+            ("--app-id", ["--app-id", "com.example"]), ("--device", ["--device", "d1"]),
+            ("--device-machine", ["--device-machine", "m1"]), ("--all-machines", ["--all-machines"]),
+        ]
+        for c in cases {
+            XCTAssertThrowsError(try RunScenarios.parse(["--fleet", "f"] + c.args), c.flag) { error in
+                let message = String(describing: error)
+                XCTAssertTrue(message.contains("--fleet cannot be combined with \(c.flag)"), message)
+            }
+        }
+        XCTAssertNoThrow(try RunScenarios.parse(["--fleet", "f"]))
+    }
+
     func testRunAllowsLegitimateCombinations() {
         XCTAssertNoThrow(try RunScenarios.parse(["--profile", "ios"]))
         XCTAssertNoThrow(try RunScenarios.parse(["--port", "8200"]))

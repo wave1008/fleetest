@@ -72,4 +72,24 @@ final class SetOverrideRelayTests: XCTestCase {
             runGroup: "g")
         XCTAssertFalse(args.contains("--set"), "\(args)")
     }
+
+    /// `api run` の複数機械経路は --report-dir を手元の子にだけ渡す(`run` の DeviceMachineRunner.childArgs と同じ。
+    /// 黙って既定の reports/ へ書いていた)
+    func testApiRunMachineFanoutRelaysReportDirToLocalChildOnly() {
+        func args(machine: String?) -> [String] {
+            ApiRunMachineFanout.buildArgs(
+                project: "E2E-Android", profileName: "android",
+                group: DeviceMachineRunner.Group(machine: machine, deviceNames: ["Pixel 3a"], platforms: ["android"]),
+                units: [ScenarioUnitKey(id: "A.S0010", variant: nil)],
+                options: ApiRunMachineFanout.Options(
+                    noLPT: false, performanceMode: false, reportDir: "/tmp/out"),
+                runGroup: "g")
+        }
+        let local = args(machine: nil)
+        guard let index = local.firstIndex(of: "--report-dir") else {
+            return XCTFail("--report-dir が手元の子へ渡っていない: \(local)")
+        }
+        XCTAssertEqual(local[index + 1], "/tmp/out")
+        XCTAssertFalse(args(machine: "M1Ultra").contains("--report-dir"))
+    }
 }

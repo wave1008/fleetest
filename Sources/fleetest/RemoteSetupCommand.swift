@@ -448,13 +448,18 @@ extension RemoteCommand {
                   help: "The fleetest subcommand and its arguments to run remotely, e.g. -- doctor --fm-only")
         var args: [String] = []
 
+        /// `--runner X` と `--runner=X` の両方(ArgumentParser は `=` 形も受けるので、スペース形だけ見ると抜けられる)
+        static func relaysRunnerFlag(_ args: [String]) -> Bool {
+            args.contains { $0 == "--runner" || $0.hasPrefix("--runner=") }
+        }
+
         func run() async throws {
             var relayed = args
             if relayed.first == "--" { relayed.removeFirst() }
             guard !relayed.isEmpty else {
                 throw ValidationError("no fleetest subcommand given (usage: remote exec <runner> -- <subcommand> [args...])")
             }
-            guard !relayed.contains("--runner") else {
+            guard !Self.relaysRunnerFlag(relayed) else {
                 throw ValidationError("--runner cannot be relayed through `remote exec` (no nested dispatch to another runner)")
             }
             let resolved = try RemoteHostResolver.resolve(rawHost: runner, remoteDirOverride: remoteDir)

@@ -103,4 +103,13 @@ final class LocalDispatchLockWiringTests: XCTestCase {
         XCTAssertTrue(text.contains("home: String = NSHomeDirectory()"),
                       "ロックの置き場がこの機械のホームでない")
     }
+
+    /// 手元のロック解放は `Shell.run` の終了コードを見る(非ゼロで投げないので、見ないと消せなかったロックが無言で残る)
+    func testLocalReleaseChecksExitStatus() throws {
+        let text = try source("Sources/fleetest/LocalDispatchLock.swift")
+        let start = try XCTUnwrap(text.range(of: "private func makeHolder()"))
+        let body = String(text[start.lowerBound...].prefix(1200))
+        XCTAssertTrue(body.contains("result.status != 0"), "makeHolder が解放コマンドの終了コードを見ていない")
+        XCTAssertFalse(body.contains("_ = try Shell.run"), "makeHolder が Shell.run の結果を捨てている")
+    }
 }

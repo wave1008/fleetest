@@ -251,8 +251,14 @@ final class LocalDispatchLock {
         let log = self.log
         return Holder(releaseAction: {
             do {
-                _ = try Shell.run(["/bin/sh", "-c", RemoteDispatchLock.releaseCommand(home: home)],
-                                  timeout: Self.commandTimeoutSeconds)
+                // Shell.run は非ゼロで投げない。終了コードを見ないと、消せなかったロックが無言で残る
+                let result = try Shell.run(["/bin/sh", "-c", RemoteDispatchLock.releaseCommand(home: home)],
+                                           timeout: Self.commandTimeoutSeconds)
+                if result.status != 0 {
+                    log("warning: releasing the dispatch lock on this Mac exited with status \(result.status)"
+                        + " (\(result.output.trimmingCharacters(in: .whitespacesAndNewlines)))"
+                        + " — the next run releases it once this pid is gone")
+                }
             } catch {
                 log("warning: failed to release the dispatch lock on this Mac"
                     + " (\(error.localizedDescription)) — the next run releases it once this pid is gone")
