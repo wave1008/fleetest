@@ -179,7 +179,7 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   `FT_FIND_IMAGE_PREWARM=off` も渡す。findImage の見本の暖機も切る(`findImagePrewarm`)。`ft_doctor` は既定で撃たない。
   使うのは呼び手が `fmAndVision: true` を渡したときだけ。切った run の応答には `fmAndVisionOffNote` を必ず添える
   (黙ると、見えていない文字の緑を検証済みと読まれる)。**MCP の注記・判定に OCR/FM を足すときもこの既定に従う**
-  (`MCPFMAndVisionOffTests`)
+  (`MCPFMAndVisionOffTests`)。**例外は `ft_capture_element` だけ**(見本の作成が目的の明示の操作。DR-61。走査テストが許可リストで固定)
 - **`ft_services` は本物の CLI(`swift run fleetest services up|down|status …`。読むだけの `status` は隣の fleetest がビルド済みなら
   その実体を直接起こす = `swift run --skip-build` でも SwiftPM が .build の鍵を取り、シナリオのビルドを 100〜200 秒待った)を同期に起こす**(`MCPServer+Services.swift`。
   `up` は上がるまで待つ CLI なので応答も待つ)。承認は `ft_start_run` と同列の ask(`ProjectScaffold.mcpAskPermissions`)。

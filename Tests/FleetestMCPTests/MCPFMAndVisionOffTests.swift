@@ -58,4 +58,25 @@ final class MCPFMAndVisionOffTests: XCTestCase {
         }
         XCTAssertEqual(constructions, 6, "StepExecutor を作る経路が増減した: 新しい経路も OCR の段を切ること")
     }
+
+    /// **Vision の分類器(VisionSample / VisionClassifier)を参照する MCP のソースは ft_capture_element の実装ファイルだけ**
+    /// (DR-61 の例外: 見本の作成が目的の明示の操作。新しいファイルが使い始めたら落ちる = 例外が黙って広がらない)。
+    /// コメントは落としてから数える。OCR の RegionText は fmAndVision: true で別に切るので対象外
+    func testOnlyCaptureElementFileReferencesTheVisionClassifier() throws {
+        let dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/fleetest-mcp")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        XCTAssertFalse(files.isEmpty, "走査が Sources/fleetest-mcp に届いていない")
+        var users: [String] = []
+        for file in files {
+            let code = try String(contentsOf: file, encoding: .utf8).components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            if code.contains("VisionSample") || code.contains("VisionClassifier") { users.append(file.lastPathComponent) }
+        }
+        XCTAssertEqual(users.sorted(), ["MCPServer+ScreenTools.swift"],
+                       "Vision の分類器を使う MCP のファイルは ft_capture_element の実装だけ(DR-61 の例外)")
+    }
 }
