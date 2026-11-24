@@ -219,6 +219,12 @@ E2E では赤にならないが、書けないと**黙って効かなくなる**
 
 - `<root>/.fleetest/hooks/<pid>.json` は、次の run が読んで `run-teardown.sh` を枠の外で実行する。
   `.fleetest/` は書けるようにしたが、`hooks/` だけ拒否に戻した。
+- `~/.fleetest` 全体は書けるまま(意図した設計)にし、**親が実体を信じるものだけ名指しで閉じた**(2026-11-24 決定):
+  `fm.sock`(fm-serve の待ち受け)・`vision-<pid>.sock`(補助プロセスの待ち受け。pid が変わるので正規表現)・
+  `runs/`(run 進捗の台帳)・`streams/`(配信の控え)。書き手はどれも親側だけで、子が unlink・偽装できると
+  FM・Vision の応答や run の進捗・配信の占有を偽装できる。**`fm-usage/`(子が書く)と
+  `~/Library/Caches/fleetest/fm.lock.<n>`(子が flock する)は閉じない。** ソケットへの connect は network 系の許可
+  (`helperSockets` の path-literal)で決まり、file-write の拒否とは別。
 - `/private/tmp` は入れない(共有の置き場)。**ユーザーごとの一時領域(`/var/folders/xx/yy/`)も丸ごとは開けない**
   (他のツールが信じて読む `T/xcrun_db`・`C/clang` のモジュールキャッシュ・VSCode のシェル統合のファイルを
   書き換えられる)。開けるのは次の5つだけ:

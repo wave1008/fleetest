@@ -475,6 +475,17 @@ public enum ScenarioSandbox {
         }
     }
 
+    /// `~/.fleetest/vision-<pid>.sock`(画像判定の補助プロセスの待ち受け。bind するのは親が起こす補助自身)。
+    /// pid が変わるので正規表現。子が unlink・偽装できると Vision の応答を偽装される
+    static func visionSocketDenyRegex(_ scope: Scope) throws -> String {
+        let real = canonicalPath(scope.home)
+        guard !real.contains("\""),
+              !real.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) else {
+            throw ProfileError.unrepresentablePath(real)
+        }
+        return "^" + NSRegularExpression.escapedPattern(for: real) + "/\\.fleetest/vision-[0-9]+\\.sock$"
+    }
+
     /// 子が書いてよい `/dev` の中。**`/dev` を丸ごと開けない** —— 同じユーザーの他の端末(`/dev/ttys*`)へ
     /// 書けて、偽の表示やエスケープシーケンスを流し込める(実測)。`/dev/fd` は開いている記述子の別名だけ
     static let devWritableLiterals = ["/dev/null", "/dev/zero", "/dev/tty", "/dev/random", "/dev/urandom",
@@ -499,7 +510,11 @@ public enum ScenarioSandbox {
                 .map { root + "/.fleetest/" + $0 }
         } + [scope.projectRoot + "/.fleetest/" + HealWriteBack.lockFileName]
             // `services-leases/` = サーバーの控えの索引(`ServicesLeaseIndex`。親が書き、先の無い索引を消す = 子が symlink を置くと消す先を向け替えられる)
-            + ["ftbridge.apk", "dispatch.lock", "dispatch.queue", "retention-sweep.lock", "services-leases"]
+            // `fm.sock` = FM 常駐(fm-serve)の待ち受け / `runs/` = run 進捗の台帳(書くのは RunOrchestrator・ApiRunCommand。MCP は読むだけ)/
+            // `streams/` = 配信の控え(`StreamLease`。配信側が書く)。**どれも書き手は親側だけで、親が中身・実体を信じる**
+            // (子が unlink・偽装できると、FM の応答の偽装や run の進捗・配信の占有の偽装になる)。`fm-usage/` は子が書くので拒否しない
+            + ["ftbridge.apk", "dispatch.lock", "dispatch.queue", "retention-sweep.lock", "services-leases",
+               "fm.sock", "runs", "streams"]
             .map { scope.home + "/.fleetest/" + $0 }
             + ["Library/Caches/fleetest/webview", "Library/Logs/fleetest/emulator"].map { scope.home + "/" + $0 }
     }
@@ -638,7 +653,7 @@ public enum ScenarioSandbox {
                 + (try subpath(scope.home + "/Library/Caches/" + scope.runnerName)) + ")")
         }
         let denied = try writeDeniedPaths(scope).map { try subpath($0) }
-            + (try ledgerDenyRegexes(scope)).map { "(regex #\"" + $0 + "\")" }
+            + (try ledgerDenyRegexes(scope) + [visionSocketDenyRegex(scope)]).map { "(regex #\"" + $0 + "\")" }
             // 根そのもの(中身は書ける)。`prepareWritableRoots` の doc
             + (try writablePaths(scope).map { "(literal " + (try quoted(canonicalPath($0))) + ")" })
         lines.append("(deny file-write* " + denied.joined(separator: " ") + ")")

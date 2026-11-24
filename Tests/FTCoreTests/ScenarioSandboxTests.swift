@@ -509,6 +509,12 @@ final class ScenarioSandboxTests: XCTestCase {
         XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path("home/.fleetest/dispatch.lock")]), 0)
         XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path("home/.fleetest/dispatch.queue")]), 0)
         XCTAssertEqual(try touch("home/.fleetest/fm-liveness.json"), 0)
+        // 親が信じる実体(書き手は親側だけ)。fm-usage/ は子が書くので書ける
+        XCTAssertNotEqual(try touch("home/.fleetest/fm.sock"), 0)
+        XCTAssertNotEqual(try touch("home/.fleetest/vision-12345.sock"), 0)
+        XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path("home/.fleetest/runs")]), 0)
+        XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path("home/.fleetest/streams")]), 0)
+        XCTAssertEqual(try touch("home/.fleetest/vision-notes.txt"), 0, "regex は vision-<数字>.sock だけ")
         // 親だけが書く場所(子が symlink を置くと親が先を書き換える・消す)
         XCTAssertNotEqual(try touch("home/.fleetest/retention-sweep.lock"), 0)
         XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path("home/.fleetest/services-leases")]), 0)
