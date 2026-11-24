@@ -175,11 +175,13 @@ extension FTSelector {
 @discardableResult
 func perform(_ command: String, _ selector: FTSelector, step: FlowStep,
                      description: String, held: ElementInfo? = nil, commandError: String? = nil,
+                     commandErrorKind: StepFailureKind = .argumentRejected,
                      file: StaticString, line: UInt) -> PerformResult {
     let core = FTRuntime.requireCore(command: command)
     let result = core.perform(step: step, description: description, command: command,
                               selectorText: selector.text,
-                              selectorError: selector.preflightError, commandError: commandError, heldElement: held,
+                              selectorError: selector.preflightError, commandError: commandError,
+                              commandErrorKind: commandErrorKind, heldElement: held,
                               file: file, line: line)
     if definesSingleElement(step) {
         core.lastResolvedElement = FTElement(selector: selector, matched: result.element)
@@ -896,6 +898,7 @@ private func swipeElementToElementImpl(_ from: FTSelector, _ to: FTSelector,
     let result = perform("swipeElementToElement", from, step: step,
                          description: "swipeElementToElement \"\(from.text)\" → \"\(to.text)\"",
                          commandError: to.preflightError.map { "invalid selector syntax in the end selector: \($0)" },
+                         commandErrorKind: .selectorSyntax,
                          file: file, line: line)
     return FTElement(selector: from, matched: result.element)
 }

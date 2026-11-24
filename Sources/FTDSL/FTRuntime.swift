@@ -753,14 +753,14 @@ public final class FTDriveCore {
     @discardableResult
     /// selectorError: 実行前に落とす理由(FTSelector.preflightError)。
     /// nil = 検証済み・問題なし。セレクタを取らないコマンドも nil
-    /// commandError: セレクタ以外の引数の誤り。**メッセージをそのまま**失敗理由にする
-    /// (selectorError は "invalid selector syntax: " を前置するので用途が違う)
+    /// commandError: セレクタ以外の引数の誤り。**メッセージをそのまま**失敗理由にする(selectorError は "invalid selector syntax: "
+    /// を前置するので用途が違う)。failureKind は commandErrorKind(既定 = 引数の断り。swipeElementToElement の終点だけ .selectorSyntax)
     /// heldElement: **既に掴んである要素**(FTElement のチェーンだけが渡す)。満たしていれば
     /// デバイスを見ずに通す(下記の高速経路)。満たしていなければ実機で取り直す
     func perform(step: FlowStep, description: String, command: String? = nil,
                  selectorText: String? = nil,
                  selectorError: String? = nil, commandError: String? = nil,
-                 heldElement: ElementInfo? = nil,
+                 commandErrorKind: StepFailureKind = .argumentRejected, heldElement: ElementInfo? = nil,
                  paced: Bool = true,
                  file: StaticString, line: UInt) -> PerformResult {
         // 全コマンドの唯一の合流点なので、ここで一度だけブロックの文脈を埋める
@@ -801,7 +801,7 @@ public final class FTDriveCore {
             // **デバイスには1度も触っていない**失敗(実行前の構文検証)。端末の状態と無関係だと
             // 読み手が機械的に言い切れるよう素性を付ける
             recordStep(description: description, status: status, file: filePath, line: Int(line),
-                       command: command, failureKind: .selectorSyntax)
+                       command: command, failureKind: selectorError != nil ? .selectorSyntax : commandErrorKind)
             handleFailure(stepDescription: description, reason: reason)
             noteAssertionUnlessSkipped(status)
             return PerformResult(status: status, element: nil)
@@ -1171,9 +1171,11 @@ public final class FTDriveCore {
 
     /// シナリオの終わりに、計測の観測をブリッジに止めさせる(計測モードのときだけ効く・失敗は無視)
     public func endResponseMeasurement() async {
-        guard let update = await executor.endResponseMeasurement(), let target = pendingReadyStepIndex else { return }
-        pendingReadyStepIndex = nil
-        record.scenes.applyReadyUpdate(update, toStepIndex: target)
+        guard let update = await executor.endResponseMeasurement() else { return }
+        // record / pendingReadyStepIndex は DSL スレッドの recordStep と並行しうる = stateLock の中で触る(await は外)
+        guard let target = (withState { () -> Int? in
+            guard let t = pendingReadyStepIndex else { return nil }
+            pendingReadyStepIndex = nil; record.scenes.applyReadyUpdate(update, toStepIndex: t); return t }) else { return }
         var ready = ScenarioEvent(kind: "responseReady")
         ready.scenario = scenarioID
         ready.index = target
@@ -1619,7 +1621,6 @@ public final class FTDriveCore {
         if scenarioAborted { return CanSelectOutcome(found: false, dismissed: nil) }
         let step = FlowStep(locator: selector.primary,
                             fallbacks: selector.fallbacks.isEmpty ? nil : selector.fallbacks)
-        let driver = self.driver
         let executor = self.executor
         // スイッチャー・背面の間は読まずに断る(読むと inactive のアプリの木で分岐を決める = StepExecutor.appLeftRefusal)
         // 待ちは waitSeconds(前面へ戻る途中を断らない)

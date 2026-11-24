@@ -256,3 +256,35 @@ final class RenamedLifecycleDiagnosticsTests: XCTestCase {
         )
     }
 }
+
+/// async / throws のライフサイクルは黙って呼ばれない(@Test は同じ形をコンパイルエラーにする)ので警告する
+final class EffectfulLifecycleDiagnosticsTests: XCTestCase {
+    private func messages(_ source: String) -> [String] {
+        let file = Parser.parse(source: source)
+        guard let cls = file.statements.compactMap({ $0.item.as(ClassDeclSyntax.self) }).first else {
+            XCTFail("no class in source")
+            return []
+        }
+        let context = BasicMacroExpansionContext()
+        TestClassMacro.diagnoseEffectfulLifecycle(in: cls, context: context)
+        return context.diagnostics.map(\.message)
+    }
+
+    func testAsyncAndThrowsLifecycleAreFlagged() {
+        let found = messages("""
+        class T {
+            func beforeEach() async {}
+            func afterEach() throws {}
+            func setUpDevice() async throws {}
+            func beforeAll() {}
+            func other() async {}
+            func beforeEach(value: Int) async {}
+        }
+        """)
+        XCTAssertEqual(found, [
+            "beforeEach() is never called: lifecycle methods must not be async or throws — remove the effect specifier",
+            "afterEach() is never called: lifecycle methods must not be async or throws — remove the effect specifier",
+            "setUpDevice() is never called: lifecycle methods must not be async or throws — remove the effect specifier",
+        ])
+    }
+}

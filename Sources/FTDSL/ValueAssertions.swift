@@ -77,9 +77,7 @@ public extension Optional where Wrapped == Any {
         let actual = stringValue
         let expectedText = Self.text(expected)
         // **nil 同士は一致**(表示は "nil" だが文字列比較には掛けない = "nil" というラベルと混ぜない)
-        let matched = (actual == nil && expected == nil)
-            || FlowMatchMode.exact.matches(actual, expectedText,
-                                           normalization: strict ? .strict : .text)
+        let matched = Self.valueMatches(actual: actual, expected: expected, expectedText: expectedText, strict: strict)
         record("thisIs", "\"\(actual ?? "nil")\" == \"\(expectedText)\""
                + (matched ? "" : LocatorResolver.normalizationVerdict(
                    actual: actual, expected: expectedText, assert: "textEquals")),
@@ -90,9 +88,7 @@ public extension Optional where Wrapped == Any {
                    file: StaticString = #filePath, line: UInt = #line) {
         let actual = stringValue
         let expectedText = Self.text(expected)
-        let matched = (actual == nil && expected == nil)
-            || FlowMatchMode.exact.matches(actual, expectedText,
-                                           normalization: strict ? .strict : .text)
+        let matched = Self.valueMatches(actual: actual, expected: expected, expectedText: expectedText, strict: strict)
         record("thisIsNot", "\"\(actual ?? "nil")\" != \"\(expectedText)\"",
                !matched, file: file, line: line)
     }
@@ -220,6 +216,13 @@ public extension Optional where Wrapped == Any {
             ?? Double(stringValue ?? "")
         record(verb, "\(stringValue ?? "nil") vs \(other)",
                number.map { test($0, other) } ?? false, file: file, line: line)
+    }
+
+    /// 期待値 nil は「実際の値も nil」のときだけ一致する(文字列 "nil" とは混ぜない)。
+    /// 表示用の `text(nil)` = "nil" を比較へ流すと、実際の値が文字列 "nil" のときに一致してしまう
+    static func valueMatches(actual: String?, expected: Any?, expectedText: String, strict: Bool) -> Bool {
+        if expected == nil { return actual == nil }
+        return FlowMatchMode.exact.matches(actual, expectedText, normalization: strict ? .strict : .text)
     }
 
     private static func text(_ value: Any?) -> String {

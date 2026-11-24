@@ -92,6 +92,28 @@ public struct TestClassMacro {
         }
     }
 
+    /// `hasLifecycleMethod` が対象にするライフサイクル名(async / throws の食い違いの診断用)
+    static let lifecycleNames: Set<String> = ["beforeAll", "afterAll", "beforeEach", "afterEach",
+                                              "setUpDevice", "tearDownDevice"]
+
+    /// async / throws のライフサイクルは**黙って呼ばれない**(`hasLifecycleMethod` が対象外にする)。
+    /// @Test は同じ形をコンパイルエラーにするので、ここも名指しの警告にする
+    static func diagnoseEffectfulLifecycle(in declaration: some DeclGroupSyntax,
+                                           context: some MacroExpansionContext) {
+        for member in declaration.memberBlock.members {
+            guard let fn = member.decl.as(FunctionDeclSyntax.self),
+                  lifecycleNames.contains(fn.name.text),
+                  fn.signature.parameterClause.parameters.isEmpty,
+                  fn.signature.effectSpecifiers != nil else { continue }
+            context.diagnose(Diagnostic(
+                node: Syntax(fn.name),
+                message: FTDSLDiagnostic(
+                    "\(fn.name.text)() is never called: lifecycle methods must not be async or throws"
+                        + " — remove the effect specifier",
+                    id: "effectful-lifecycle", severity: .warning)))
+        }
+    }
+
     /// 型宣言のメンバーから @Test メソッドを収集する
     static func scenarioMethods(in declaration: some DeclGroupSyntax,
                                 context: some MacroExpansionContext) -> [ScenarioMethod] {
@@ -211,6 +233,7 @@ extension TestClassMacro: ExtensionMacro {
         let methods = scenarioMethods(in: declaration, context: context)
         // 診断は extension ロールの1箇所だけで出す(peer ロールでも出すと同じ警告が2回出る)
         diagnoseRenamedLifecycle(in: declaration, context: context)
+        diagnoseEffectfulLifecycle(in: declaration, context: context)
         SharedStateDiagnostics.diagnose(
             SharedStateDiagnostics.findings(in: declaration, className: className,
                                             testMethods: Set(methods.map(\.name))),

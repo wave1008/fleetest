@@ -848,6 +848,17 @@ private func rejectsOutOfRangeSeconds(_ core: FTDriveCore, _ values: KeyValuePai
     return true
 }
 
+/// シナリオが中断した後の ifCanSelect / repeatWhileCanSelect は**判定せず skipped で記録して返す**(true = 記録した)。
+/// canSelect は中断中 found:false を返すので、通すと「条件不成立」と記録され、run 終わりのサマリが
+/// 事実と違う「セレクタが古い」を提案する(tearDown など失敗後も走る本体で起きる)。perform の中断時の扱いと同じ
+private func recordSkippedAfterAbort(_ core: FTDriveCore, description: String, command: String,
+                                     file: StaticString, line: UInt) -> Bool {
+    guard core.scenarioAborted else { return false }
+    core.recordStep(description: description, status: .skipped(core.skipReason),
+                    file: "\(file)", line: Int(line), command: command)
+    return true
+}
+
 /// canSelect が画面を読めなかったときに失敗として記録する(true = 記録した)。
 /// 失敗の素性は読みが投げたエラーの型から(`SnapshotReadFailure.kind`)
 private func recordUnread(_ core: FTDriveCore, _ outcome: FTDriveCore.CanSelectOutcome, command: String,
@@ -866,6 +877,10 @@ private func ifCanSelectImpl(_ selector: FTSelector, waitSeconds: Double,
                              file: StaticString, line: UInt,
                              _ body: () -> Void) -> FTBranch {
     let core = FTRuntime.requireCore(command: "ifCanSelect")
+    if recordSkippedAfterAbort(core, description: "ifCanSelect \"\(selector.text)\"", command: "ifCanSelect",
+                               file: file, line: line) {
+        return FTBranch(taken: false)
+    }
     if rejectsOutOfRangeSeconds(core, ["waitSeconds": waitSeconds], description: "ifCanSelect \"\(selector.text)\"",
                                 command: "ifCanSelect", file: file, line: line) {
         return FTBranch(taken: false)
@@ -875,7 +890,7 @@ private func ifCanSelectImpl(_ selector: FTSelector, waitSeconds: Double,
     if let error = validationError(selector) {
         let reason = "invalid selector syntax: \(error)"
         core.recordStep(description: "ifCanSelect \"\(selector.text)\"", status: .failed(reason),
-                        file: "\(file)", line: Int(line), command: "ifCanSelect")
+                        file: "\(file)", line: Int(line), command: "ifCanSelect", failureKind: .selectorSyntax)
         core.handleFailure(stepDescription: "ifCanSelect \"\(selector.text)\"", reason: reason)
         return FTBranch(taken: false)
     }
@@ -1037,6 +1052,10 @@ private func repeatWhileCanSelectImpl(_ selector: FTSelector, maxLoopCount: Int,
                                       file: StaticString, line: UInt,
                                       _ body: () -> Void) {
     let core = FTRuntime.requireCore(command: "repeatWhileCanSelect")
+    if recordSkippedAfterAbort(core, description: "repeatWhileCanSelect \"\(selector.text)\"",
+                               command: "repeatWhileCanSelect", file: file, line: line) {
+        return
+    }
     if rejectsOutOfRangeSeconds(core, ["waitSeconds": waitSeconds],
                                 description: "repeatWhileCanSelect \"\(selector.text)\"",
                                 command: "repeatWhileCanSelect", file: file, line: line) {
@@ -1046,7 +1065,7 @@ private func repeatWhileCanSelectImpl(_ selector: FTSelector, maxLoopCount: Int,
         let reason = "invalid selector syntax: \(error)"
         core.recordStep(description: "repeatWhileCanSelect \"\(selector.text)\"",
                         status: .failed(reason), file: "\(file)", line: Int(line),
-                        command: "repeatWhileCanSelect")
+                        command: "repeatWhileCanSelect", failureKind: .selectorSyntax)
         core.handleFailure(stepDescription: "repeatWhileCanSelect \"\(selector.text)\"",
                            reason: reason)
         return
