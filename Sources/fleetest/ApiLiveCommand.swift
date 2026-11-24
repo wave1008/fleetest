@@ -991,6 +991,10 @@ struct ApiLiveServe: AsyncParsableCommand {
             guard let text = command.text else {
                 throw ServeCommandError.invalidArguments("type requires text")
             }
+            // 上限の判定は MCP / DSL と同じ1箇所(ArgumentBounds)。片方にだけ配線すると同じ入力の扱いが経路で割れる
+            if let violation = ArgumentBounds.typedTextViolation(text) {
+                throw ServeCommandError.invalidArguments(violation)
+            }
             try await driver.type(ref: nil, text: text)
         case "drag":
             guard let fromX = command.fromX, let fromY = command.fromY,

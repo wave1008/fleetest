@@ -101,6 +101,10 @@ extension StepExecutor {
             action: action, duration: step.duration, maxGestureSeconds: step.maxGestureSeconds) {
             return StepOutcome(status: .failed(violation))
         }
+        // type の文字数の上限もデバイスに触る前に入口で断る(超えるとランナーの見張りでブリッジごと落ちる)
+        if let violation = FlowStep.typedTextViolation(action: action, text: step.text) {
+            return StepOutcome(status: .failed(violation))
+        }
         // waitForSettle の quietSeconds / waitSeconds もデバイスに触る前に入口で断る(範囲は BridgeAPI が定義元)
         if action == "waitForSettle", let violation = waitForSettleViolation(for: step) {
             return StepOutcome(status: .failed(violation))

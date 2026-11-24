@@ -535,11 +535,15 @@ extension BridgeRouter {
             app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
                                  count: Self.invisibleContentDeleteBurst))
         }
-        let deadline = Date().addingTimeInterval(Self.clearBudgetSeconds)
+        let startedAt = Date()
+        // 長文は字数に比例して伸ばす(床だけだと 8 秒で打ち切られる)。ホストの待ちより小さい(ClearChunking の doc)
+        var deadline = startedAt.addingTimeInterval(Self.clearBudgetSeconds)
         var previous: String?
         var stagnantRounds = 0
         var rounds = 0
         while let text = try Self.presentRemainingText(of: focused), !text.isEmpty {
+            deadline = max(deadline, startedAt.addingTimeInterval(
+                ClearChunking.budgetSeconds(floor: Self.clearBudgetSeconds, characters: text.count)))
             // 「打っても減らない」が続いたら delete では消せない欄。deadline まで叩かず抜ける
             stagnantRounds = (text == previous) ? stagnantRounds + 1 : 0
             if stagnantRounds >= Self.clearMaxStagnantRounds || Date() >= deadline { break }
@@ -560,7 +564,7 @@ extension BridgeRouter {
             // 打鍵は app 全体へ(要素へ向けると、叩いた後に焦点が動いたとき要素スコープの失敗でランナーを落とし得る。
             // 入力先は叩いた欄 = 最前のレスポンダ。下の木で読み返す経路と同じ)
             ResponseMeasurement.noteInjection()
-            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count))
+            Self.typeDeletes(app, count: text.count, deadline: deadline)
         }
         if let residual = try Self.presentRemainingText(of: focused) {
             // 残った値そのものは出さない(パスワード欄も通る経路)。長さと周回数だけ出す
@@ -590,7 +594,7 @@ extension BridgeRouter {
                 }?.frame ?? target.frame
                 Self.tapBeforeTyping(coordinate(app, CGPoint(x: now.x + now.width - 4, y: now.y + now.height / 2)))
                 ResponseMeasurement.noteInjection()
-                app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: left.count))
+                Self.typeDeletes(app, count: left.count, deadline: deadline)
             }
         }
         // **控えの値も空にする**: /type は「入力前の値」を直近スナップショットの控え(refElements)から
@@ -699,6 +703,17 @@ extension BridgeRouter {
             + " If you passed a ref, it is probably not the input element itself — tapping a"
             + " container does not move focus. Tap the field (or pass the ref of the element"
             + " whose type is a text field) and try again")
+    }
+
+    /// delete を `ClearChunking.charactersPerChunk` 本ずつ送り、チャンクの間で打ち切り予算を見る(1回の typeText に
+    /// 全文字を載せると、その間は予算を見られず長文でホストの待ちを超える)。尽きたら残りを送らない
+    /// (呼び手が残りの文字数つきで 422 にする)
+    private static func typeDeletes(_ app: XCUIApplication, count: Int, deadline: Date) {
+        ResponseMeasurement.noteInjection()
+        for n in ClearChunking.chunks(for: count) {
+            if Date() >= deadline { return }
+            app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: n))
+        }
     }
 
     /// クリアの打ち切り時間(秒)。実測では 8 文字が 3 周で空になるので、

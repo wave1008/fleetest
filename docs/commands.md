@@ -825,6 +825,7 @@ let 合計 = httpRequest("https://api.example.com/total").text   // API から�
 単独で立つ書式文字・制御文字・既定で無視される文字 = 異体字セレクタ・CGJ 等。文字の後ろの表示の切り替え FE0E / FE0F は ASCII でない絵文字の後ろとキーキャップのときだけ残し、字形を変える IVS は残す = `TextNormalization.keepsPresentationSelector`。セレクタの事前の除外も同じ規則)を値と期待値の両方から除外し、見える空白(半角・全角・改行)は残す。
 正規表現(`thisMatches` / `textMatches` / セレクタの `textMatches=`)は**パターンを書き換えず**、値の「素のまま」と「見えない文字を除外した後」の両方に当て、どちらかで一致すれば一致(否定形はどちらにも一致しないとき成立。`TextNormalization.regexMatch`。`strict:` は素のままだけ)。パターンから文字を消すと空になる・量指定子が前の文字へ移る・`[]` に化ける(46周目)。セレクタの検査と解析は見えない文字を外した後の文字列で行う(正規表現のフィルタの値は書いたまま = `FTSelector.withoutInvisible`)。
 **正規表現の検証(`textMatches` / `valueMatches` / `thisMatches` と否定形)の空のパターン・`type("")`(`replace: true` なし)・DSL の `scrollFrame:`(構文の誤り・代替)・`irregularHandler` / `iosAlertHandler` の宣言の誤り(空の分岐・`*` と見えない文字だけ)・`swipeElementToElement` の終点の誤りも比べる前(宣言の時点)に失敗する**。ft_batch の明示の `''`(セレクタ・scrollFrame・dismiss)は「省略」と読まず断る。
+**`type` の本文は1000文字(書記素。`BridgeAPI.maxTypeCharacters`)まで** —— 超えると打つ前に失敗する(DSL は `executeAction` の入口・MCP は `ft_type` の入口。`ft_batch` の type は DSL と同じ入口)。ランナーの `typeText` は約 18〜28ms/字で、読み返しの打ち直しを含めても 75 秒の見張りに収める字数。長文は `type` を分けて追記する。
 **含む・前方・後方一致(と否定形)の期待値が空(空文字・空白だけ・見えない文字だけ)なら比べる前に失敗する**(`StepExecutor.emptyExpectationRefusal`。
 要素の検証 `text*` / `value*` も同じ。DR-46 = 何にでも緑になる検証を書かせない)。
 「空白のみ」は見えない文字を除外した残りが空白だけか(`TextNormalization.isBlank`。セレクタの空の判定と共有)。

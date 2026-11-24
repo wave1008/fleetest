@@ -250,6 +250,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`type("")` fails before typing](../commands/type.md#notes) — it would do nothing; to empty a field use `clearInput()` or `type("", replace: true)`. A dry-run does not fail it but notes it, since values read from the screen and the run memo are empty there.
 - [Android: field under a popup window](../commands/type.md#notes) — the focusing tap would select the suggestion, so the step fails before typing; close the popup first.
 - [Non-input target fails before typing](../commands/type.md#notes) — `type` taps first, so a button would be pressed; an element wrapping exactly one input types into it with a warning.
+- [A `type` over 1000 characters fails before typing](../commands/type.md#notes) — a cap so a long run of keystrokes cannot outlast the runner's watchdog and take the bridge down; split it into several `type` calls (it appends).
 - [Typing into a filled field appends](../commands/type.md#notes) — the step stays green with only a note; use `replace: true` or `clearInput(sel)` first when replacing.
 - [Line breaks (`\n`) follow the OS](../commands/type.md#notes) — newline versus commit depends on the field; to commit use `pressEnter()`, and on iOS xcuitest a middle newline is not read back, so split the text.
 - [The next action waits for the soft keyboard](../commands/type.md#notes) — up to 1.5 s before resolving its target, with `keyboard-not-shown-after-type` if it never appears; skipped when the text ends with a newline.

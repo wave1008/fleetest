@@ -326,3 +326,35 @@ public enum TypeReadback {
         return signature(before) != signature(after)
     }
 }
+
+/// /clear の削除を分けて送る単位と打ち切り予算(ランナーが使う純粋関数。ホストの待ちは `BridgeClient.clearAllowance`)。
+/// 全文字ぶんの delete を1回の typeText で送ると、その間は打ち切り予算を一度も見られず、長文でホストの待ち(20 秒)を超える。
+/// **削除も /type と同じ約 18〜28ms/字**(実測は `BridgeClient.typeSecondsPerCharacter`)なので、1チャンク 100 字 = 約 2〜3 秒に区切り、
+/// チャンクの間で予算を見る。**尽きたとき**: 以降の delete を送らず、残りの文字数つきの 422(ランナーの「could not empty the field」)
+public enum ClearChunking {
+    /// 1回の typeText で送る delete の本数。根拠: 約 28ms/字 × 100 = 約 2.8 秒(1チャンクが数秒以内)
+    public static let charactersPerChunk = 100
+    /// ホストの待ち(`BridgeClient.clearAllowance`)が字数に足す秒/字。ランナーの予算(`budgetSeconds`)はこれより小さく取る
+    public static let hostSecondsPerCharacter: Double = 0.05
+    /// ランナーの打ち切り予算が字数に足す秒/字。根拠: 実測の上限 28ms/字に余裕を足した値で、ホストの 0.05 より小さい
+    /// (ランナーが先に諦めて理由つきで返す。ホストの時間切れ = 何が起きたか分からない失敗にしない)
+    public static let runnerSecondsPerCharacter: Double = 0.04
+
+    /// `count` 本の delete を `charactersPerChunk` ずつの本数に分ける(0 以下は空)
+    public static func chunks(for count: Int) -> [Int] {
+        guard count > 0 else { return [] }
+        var remaining = count
+        var out: [Int] = []
+        while remaining > 0 {
+            let n = min(remaining, charactersPerChunk)
+            out.append(n)
+            remaining -= n
+        }
+        return out
+    }
+
+    /// 打ち切り予算(秒)。短い欄は固定の床(`floor`)、長文は字数に比例して伸ばす
+    public static func budgetSeconds(floor: Double, characters: Int) -> Double {
+        max(floor, Double(max(characters, 0)) * runnerSecondsPerCharacter)
+    }
+}

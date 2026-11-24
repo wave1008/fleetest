@@ -325,6 +325,8 @@ extension MCPServer {
         guard content != nil || wantsEnter else {
             throw MCPError("text is required (or pass pressEnter: true to fire Enter only)")
         }
+        // 文字数の上限はデバイスに触る前に断る(DSL の type と同じ判定。ft_batch の type は DSL と同じ executeAction の入口を通る)
+        if let content, let violation = ArgumentBounds.typedTextViolation(content) { throw MCPError(violation) }
         let typeDriver = try await driver(args)
         wireAndroidUIFramework(typeDriver, args: args)
         var targetRef = try Self.intArgument(args, "ref")

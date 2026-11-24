@@ -16,6 +16,8 @@ public final class BridgeClient: AppDriver, Sendable {
         var browserDOMCenters: [Int: (x: Double, y: Double)] = [:]
         /// このクライアントが最後に受けた /snapshot の ref → 期待(identifier・型)。ref を撃つ要求に添える
         var refExpectations: [Int: RefExpectation] = [:]
+        /// 同じ /snapshot の ref → 値の文字数(/clear の待ちに足す)
+        var refValueLengths: [Int: Int] = [:]
         /// 対象アプリの UI フレームワーク(ホストが `setAppUIFramework` で渡す)。ref なしの type / clear の
         /// `focusTapWhenImeHidden` を決める。nil = 不明
         var appUIFramework: AppUIFramework?
@@ -127,6 +129,13 @@ public final class BridgeClient: AppDriver, Sendable {
     /// 打つ文字数ぶんの時間を足した `/type` の予算(床は `interactionTimeout`)
     public static func typeAllowance(for text: String) -> TimeInterval {
         Double(text.count) * typeSecondsPerCharacter
+    }
+
+    /// `/clear` の予算。ランナーは欄の文字数ぶん delete を打つ(約 18〜28ms/字)ので、値の長さぶん足す(`/type` の
+    /// `typeAllowance` と同じ形)。**長さ = このクライアントが直近の木で見た ref の値**。引けない(木を撮っていない・ref 無し・
+    /// 値が無い)ときは足さず従来の固定。伏せ字・省略された値は実長より短く見える = 足りない側へ倒れるだけ(従来の固定と同じ)
+    static func clearTimeout(base: TimeInterval, valueLength: Int?) -> TimeInterval {
+        base + Double(max(valueLength ?? 0, 0)) * ClearChunking.hostSecondsPerCharacter
     }
 
     func timeout(forTypedText text: String) -> TimeInterval {
@@ -963,6 +972,10 @@ public final class BridgeClient: AppDriver, Sendable {
         // 別のクライアントが木を撮り直して表が入れ替わっていれば、ブリッジが撃たずに断る
         refExpectations = Dictionary(response.elements.map { ($0.ref, RefExpectation($0)) },
                                      uniquingKeysWith: { first, _ in first })
+        mutable.withLock {
+            $0.refValueLengths = Dictionary(response.elements.compactMap { e in e.value.map { (e.ref, $0.count) } },
+                                            uniquingKeysWith: { first, _ in first })
+        }
         // 取りこぼしの申告(クロスオリジン iframe 等)は記録に載せる。
         // **無申告なら触らない**: 直前アクションの note を消してしまわないため
         if let note = response.note { lastActionNote = note }
@@ -1168,7 +1181,8 @@ public final class BridgeClient: AppDriver, Sendable {
         if let ref { try refuseIfStepExpectationContradicts(ref) }
         let _: OKResponse = try await post("/clear", body: ClearRequest(ref: ref, expect: ref.flatMap { refExpectations[$0] },
                                                                   focusTapWhenImeHidden: Self.focusTapWhenImeHidden(for: mutable.withLock { $0.appUIFramework }, ref: ref)),
-                                           timeout: interactionTimeout)
+                                           timeout: Self.clearTimeout(base: interactionTimeout,
+                                                      valueLength: ref.flatMap { r in mutable.withLock { $0.refValueLengths[r] } }))
     }
 
     public func hideKeyboard() async throws {

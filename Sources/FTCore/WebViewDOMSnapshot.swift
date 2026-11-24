@@ -36,6 +36,10 @@ public enum WebViewDOM {
           width: vv ? vv.width : window.innerWidth,
           height: vv ? vv.height : window.innerHeight
         };
+        // getBoundingClientRect はレイアウトビューポート基準。ピンチズーム中の可視範囲は
+        // [offsetLeft, offsetLeft+width] × [offsetTop, offsetTop+height](width/height だけと比べると範囲がずれる)
+        var visRight = viewport.offsetLeft + viewport.width;
+        var visBottom = viewport.offsetTop + viewport.height;
         var state = document ? document.readyState : "none";
         if (!document || !document.body) {
           return emit({ readyState: state, viewport: viewport, crossOriginFrames: 0, nodes: [] });
@@ -129,10 +133,10 @@ public enum WebViewDOM {
         // 外の点に null を返す規定なので、寄せた点がそのまま false を導く。分岐を足すと
         // 呼び出し側の矩形ゲートに阻まれて**到達しない行**になり、変異で殺せない砦になる
         function hittable(el, rect) {
-          var left = Math.max(rect.left, 0);
-          var right = Math.min(rect.right, viewport.width);
-          var top = Math.max(rect.top, 0);
-          var bottom = Math.min(rect.bottom, viewport.height);
+          var left = Math.max(rect.left, viewport.offsetLeft);
+          var right = Math.min(rect.right, visRight);
+          var top = Math.max(rect.top, viewport.offsetTop);
+          var bottom = Math.min(rect.bottom, visBottom);
           var hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
           if (!hit) return false;
           return hit === el || el.contains(hit) || hit.contains(el);
@@ -167,8 +171,9 @@ public enum WebViewDOM {
           // **飛ばすのは実際に出せたときだけ** —— 可視判定で落ちた容器の中身まで捨てない
           if (roleOf(el) === "" && isInlineTextBlock(el)) {
             var br = el.getBoundingClientRect();
-            if (br.width >= 2 && br.height >= 2 && br.bottom > 0 && br.right > 0
-                && br.top < viewport.height && br.left < viewport.width && hittable(el, br)) {
+            if (br.width >= 2 && br.height >= 2
+                && br.bottom > viewport.offsetTop && br.right > viewport.offsetLeft
+                && br.top < visBottom && br.left < visRight && hittable(el, br)) {
               var block = { role: "staticText",
                             label: (el.textContent || "").replace(/\\s+/g, " ").trim(),
                             x: br.left, y: br.top, width: br.width, height: br.height,
@@ -197,8 +202,8 @@ public enum WebViewDOM {
             if (role !== "") {
               var r = el.getBoundingClientRect();
               if (r.width >= 2 && r.height >= 2
-                  && r.bottom > 0 && r.right > 0
-                  && r.top < viewport.height && r.left < viewport.width
+                  && r.bottom > viewport.offsetTop && r.right > viewport.offsetLeft
+                  && r.top < visBottom && r.left < visRight
                   && hittable(el, r)) {
                 var node = {
                   role: role,
@@ -212,7 +217,8 @@ public enum WebViewDOM {
                 if (role === "textField" || role === "secureTextField" || role === "textView") {
                   var ph = el.getAttribute("placeholder");
                   if (ph) node.placeholder = ph;
-                  if (el.value) node.value = el.value;
+                  // パスワード欄は値を出さない(a11y 経路も伏せる。DOM 経路だけ平文で漏らさない)
+                  if (el.value && role !== "secureTextField") node.value = el.value;
                   node.label = (el.getAttribute("aria-label") || "").trim();
                 } else if (role === "checkBox" || role === "switch") {
                   // 状態は value "1"/"0"/"2"(mixed)でも出す = WebKit の a11y(XCUITest)と同じ形。

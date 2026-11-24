@@ -35,6 +35,7 @@ mkdir -p "$OBJ"
 # 一覧は Sources/FTCore/BridgeSourceSet.swift(inApp)が唯一の定義元。ここに再掲すると needsBuild の鮮度判定とズレる
 SWIFT_SOURCES=(
   "$ROOT/Sources/FTCore/BridgeDTO.swift"
+  "$ROOT/Sources/FTCore/BridgeSnapshotThinning.swift"
   "$ROOT/Sources/FTCore/WebViewDOMSnapshot.swift"
   "$ROOT/Sources/FTCore/TypeReadback.swift"
   "$ROOT/Sources/FTCore/UIFrameworkMarkers.swift"

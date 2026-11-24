@@ -21,6 +21,7 @@ final class WebViewDOMVisibilityTests: XCTestCase {
     /// `spec`(JS のオブジェクトリテラル)を body に見立てて本番 JS を走らせ、写した Payload を返す。
     private func scan(body spec: String,
                       viewport: (width: Double, height: Double) = (402, 650),
+                      offset: (left: Double, top: Double) = (0, 0),
                       file: StaticString = #filePath, line: UInt = #line) throws -> WebViewDOM.Payload {
         let context = try XCTUnwrap(JSContext(), file: file, line: line)
         var failure: String?
@@ -32,6 +33,8 @@ final class WebViewDOMVisibilityTests: XCTestCase {
         document.body = new El(\(spec), null);
         window.visualViewport.width = \(viewport.width);
         window.visualViewport.height = \(viewport.height);
+        window.visualViewport.offsetLeft = \(offset.left);
+        window.visualViewport.offsetTop = \(offset.top);
         """)
         let value = context.evaluateScript(WebViewDOM.javaScript)
         if let failure { XCTFail("JS 例外: \(failure)", file: file, line: line) }
@@ -61,6 +64,37 @@ final class WebViewDOMVisibilityTests: XCTestCase {
         let block = try XCTUnwrap(node(payload, id: "msg"), "畳んだ塊に #msg が無い: \(payload.nodes ?? [])")
         XCTAssertEqual(block.role, "staticText")
         XCTAssertEqual(block.label, "Hello world")
+    }
+
+    // MARK: - パスワード欄・ズーム
+
+    /// パスワード欄の値は平文で出さない(a11y 経路は伏せる。DOM 経路だけ漏れていた)。通常の欄は出す
+    func testSecureTextFieldValueIsNotEmitted() throws {
+        let payload = try scan(body: """
+        { tag: "body", rect: { left: 0, top: 0, width: 402, height: 650 }, children: [
+          { tag: "input", id: "pw", rect: { left: 16, top: 40, width: 300, height: 44 },
+            attrs: { type: "password" }, value: "s3cret" },
+          { tag: "input", id: "plain", rect: { left: 16, top: 100, width: 300, height: 44 },
+            attrs: { type: "text" }, value: "visible" }
+        ] }
+        """)
+        let pw = try XCTUnwrap(node(payload, id: "pw"))
+        XCTAssertEqual(pw.role, "secureTextField")
+        XCTAssertNil(pw.value, "パスワード欄の値が平文で出ている")
+        XCTAssertEqual(node(payload, id: "plain")?.value, "visible")
+    }
+
+    /// ピンチズーム中の可視範囲は [offset, offset+size]。layout viewport 基準の矩形を width/height だけと
+    /// 比べると、右下へ寄せたズームで見えている要素が落ち、見えていない要素が残る
+    func testVisibilityRangeFollowsVisualViewportOffset() throws {
+        let payload = try scan(body: """
+        { tag: "body", rect: { left: 0, top: 0, width: 800, height: 1200 }, children: [
+          { tag: "button", id: "inView", text: "A", rect: { left: 500, top: 700, width: 60, height: 40 } },
+          { tag: "button", id: "leftOfView", text: "B", rect: { left: 10, top: 700, width: 60, height: 40 } }
+        ] }
+        """, viewport: (200, 300), offset: (450, 650))
+        XCTAssertNotNil(node(payload, id: "inView"), "オフセット先の可視範囲の要素が落ちた")
+        XCTAssertNil(node(payload, id: "leftOfView"), "可視範囲の外の要素が残った")
     }
 
     // MARK: - 上端・下端で切れた要素
@@ -296,7 +330,8 @@ final class WebViewDOMVisibilityTests: XCTestCase {
       // 当たってしまい、寄せを外す変異をテストが素通しする(2026-08-25 に実際に素通しした)
       elementFromPoint: function (x, y) {
         var vv = window.visualViewport;
-        if (x < 0 || y < 0 || x > vv.width || y > vv.height) return null;
+        if (x < vv.offsetLeft || y < vv.offsetTop
+            || x > vv.offsetLeft + vv.width || y > vv.offsetTop + vv.height) return null;
         var all = [document.body].concat(document.body.descendants());
         var hit = null;
         for (var i = 0; i < all.length; i++) {

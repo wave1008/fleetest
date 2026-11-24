@@ -190,7 +190,7 @@ final class FTInAppBridge {
     /// ホストが前面かを聞いて画面全体の絵で撮る = StepExecutor+JudgmentCapture の appInForeground)、/rotate(端末の向き)、/tapprobe(呼び手が誤りを nil =「答えられない」に畳むので、断ると理由が消える)
     static let refusedWhileInBackground: Set<String> = [
         "/snapshot", "/tap", "/type", "/clear", "/pressEnter", "/hidekeyboard", "/swipe", "/doubletap", "/pinch",
-        "/drag", "/press",
+        "/drag", "/press", "/sliderStep",
     ]
 
     /// 背面に回ったか。didEnterBackground で立て willEnterForeground で落とす(通知は構成子から張る = アプリの UI より先)。

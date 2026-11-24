@@ -128,6 +128,19 @@ final class BridgeClientTimeoutTests: XCTestCase {
         XCTAssertEqual(client.timeout(forTypedText: String(repeating: "🙂", count: 100)), 25, accuracy: 0.001)
     }
 
+    /// **/clear は値の長さぶん予算を足す**(引けないときは従来の固定)。率と、ランナーの予算より大きいことを固定する
+    func testClearTimeoutGrowsWithTheKnownValueLength() {
+        XCTAssertEqual(ClearChunking.hostSecondsPerCharacter, 0.05)
+        XCTAssertEqual(BridgeClient.clearTimeout(base: 20, valueLength: nil), 20)
+        XCTAssertEqual(BridgeClient.clearTimeout(base: 20, valueLength: 0), 20)
+        XCTAssertEqual(BridgeClient.clearTimeout(base: 20, valueLength: 3000), 170, accuracy: 0.001)
+        // ランナーが先に諦めて理由つきで返す(ホストの時間切れを先にしない)
+        for n in [0, 100, 1000, 3000] {
+            XCTAssertGreaterThan(BridgeClient.clearTimeout(base: 20, valueLength: n),
+                                 ClearChunking.budgetSeconds(floor: 8, characters: n))
+        }
+    }
+
     func testSessionEndpointUsesSessionBudget() async throws {
         let listener = try UnresponsiveTCPListener()
         defer { listener.stop() }

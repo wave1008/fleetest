@@ -285,6 +285,13 @@ public struct FlowStep: Codable, Sendable {
                                                           cap: cap, overridden: maxGestureSeconds != nil)
     }
 
+    /// `type` の本文が文字数の上限(`BridgeAPI.maxTypeCharacters`)を超えていないか。呼ぶのは
+    /// `StepExecutor.executeAction` の入口(`gestureDurationViolation` と同じ場所)。判定は `ArgumentBounds` の1箇所
+    public static func typedTextViolation(action: String, text: String?) -> String? {
+        guard action == "type", let text else { return nil }
+        return ArgumentBounds.typedTextViolation(text)
+    }
+
     /// 待ち・間隔の秒数(`timeout` = DSL の `waitSeconds:`・flick の `intervalSeconds:`)が 0〜`waitSecondsCeiling` の有限値か。
     /// 範囲外は下流の `.seconds(Double)` / `Int(秒 * 1000)` で trap し、シナリオ実行バイナリごと落ちる
     /// (DSL の値は MCP の `ArgumentBounds` を通らない)。呼ぶのは `StepExecutor.executeStep` の入口1箇所。

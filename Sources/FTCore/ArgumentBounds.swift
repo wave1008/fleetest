@@ -231,6 +231,15 @@ public enum ArgumentBounds {
         return CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
+    /// `type` の本文の文字数の上限の断り(MCP の ft_type・DSL の type が共有。判定の定義元は `BridgeAPI.maxTypeCharacters`)。
+    /// 文字数は書記素で数える(`BridgeClient.typeAllowance` と同じ)。上限ちょうどは通す
+    public static func typedTextViolation(_ text: String) -> String? {
+        let count = text.count
+        guard count > BridgeAPI.maxTypeCharacters else { return nil }
+        return "text is \(count) characters long, but type accepts at most \(BridgeAPI.maxTypeCharacters) characters"
+            + " at a time — split it into several type calls (type appends, so each call adds the next piece)"
+    }
+
     /// 文字列の欄の NUL の断り(MCP・ライブ操作が共有)。外部コマンドの引数へ流れると `Process` が ObjC 例外で
     /// abort する = サーバ / serve ごと落ちる(`Shell.runRaw` も断るが、`Process` を直に起こす経路がある)
     public static func nulViolation(_ key: String, _ text: String) -> String? {

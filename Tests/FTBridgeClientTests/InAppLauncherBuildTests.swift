@@ -20,6 +20,7 @@ final class InAppLauncherBuildTests: XCTestCase {
         try write("InAppBridge/build.sh")
         try write("InAppBridge/Sources/InAppSnapshot.swift")
         try write("Sources/FTCore/BridgeDTO.swift")
+        try write("Sources/FTCore/BridgeSnapshotThinning.swift")
         try write("Sources/FTCore/WebViewDOMSnapshot.swift")
         try write("Sources/FTCore/TypeReadback.swift")
         try write("Sources/FTCore/UIFrameworkMarkers.swift")

@@ -28,6 +28,7 @@ field.type("alice")                // same as type("#login_id", "alice")
 ## Notes
 
 - **`type("")` (empty text, without `replace: true`) fails before anything is typed** — it would do nothing. To empty a field use `clearInput()` or `type("", replace: true)`. A dry-run does not fail it but adds the note `dry-run-empty-text` (values read from the screen and the run memo are empty in a dry-run).
+- **A text longer than 1000 characters fails before anything is typed.** One `type` is capped so a long run of keystrokes cannot outlast the runner's watchdog and take the bridge down. Split it into several `type` calls (`type` appends, so each call adds the next piece).
 - **On Android, `type(sel, …)` into a field whose centre is under a popup window (such as autocomplete suggestions) fails before anything is typed.**
   The tap that focuses the field would select the suggestion instead. Close the popup first.
 - **Pointing it at a button or another non-input element fails before anything is typed.** `type` taps its target
