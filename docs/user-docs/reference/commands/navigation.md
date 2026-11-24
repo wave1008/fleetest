@@ -68,6 +68,8 @@ hinge(130)              // half-open book posture (no argument label: hinge(degr
   `tap()` on the app's own back button instead). On Android, if the soft keyboard is open,
   the first `back(settle:)` closes the keyboard instead of navigating (OS behavior) — call it twice
   when a field may still have focus.
+- **On Android, `back()` leaves the app when the app has no screen to go back to.** Calling `back()` on a browser's new tab (no history)
+  does not close the tab; it moves to the previous app. Write tab-closing checks with the close button of the tab list.
 - When the screen is unchanged before and after `back()`, the step gets a note (`the tree is identical to the one before back …`) — the shape of
   an app whose own navigation ignores the system back. The step does not fail; only the note is
   added. To deal with it, `tap` the app's own back button, or call `back()` once more.

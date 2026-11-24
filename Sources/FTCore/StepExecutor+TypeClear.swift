@@ -729,6 +729,8 @@ extension StepExecutor {
                 && e.frame.height < keyboard.y / 2
                 && !focused.contains { f in f.y >= e.frame.y - 1 && f.y + f.height <= e.frame.y + e.frame.height + 1 }
         }.map(\.frame)
+            // OS の入力補助バー(キー面から浮いていても。判定は KeyboardAccessoryDone の1か所)
+            + KeyboardAccessoryDone.toolbars(in: before.elements, keyboard: keyboard).map(\.frame)
         let attached = Set(before.elements.filter { e in
             bands.contains { b in e.frame.y >= b.y - 1 && e.frame.y + e.frame.height <= b.y + b.height + 1 }
         }.map { contents(of: SnapshotResponse(sessionBundleID: nil, screen: before.screen, elements: [$0], truncatedCount: 0)) }

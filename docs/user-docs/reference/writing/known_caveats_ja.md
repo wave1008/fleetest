@@ -118,12 +118,14 @@
 - [fleetest 自身のブリッジは launchApp / restartApp の対象にできない](../commands/launch_app_ja.md#注意点) — ブリッジの ID を渡すと何も送らずに失敗します。
 - [既定アプリは実行プロファイルの app → アプリプロファイル → platform の順で決まる](../commands/launch_app_ja.md#注意点) — `@TestClass` に `app:` は書けないので、同じシナリオを別プロファイルで回すとアプリが変わります。複数のアプリを扱うなら bundle ID を渡すか、アプリごとの実行プロファイルを使います。
 - [openURL はプロセスを再起動しない](../commands/launch_app_ja.md#注意点) — 起動済みのアプリへディープリンクを届ける用途です。`launchApp(url:)` は先に再起動します。
+- [ブラウザでは openURL で開いたページが履歴に積まれないことがある](../commands/launch_app_ja.md#注意点) — 戻る・進むの検証はリンクかアドレスバーで移ります。
 - [初回の openURL で iOS Simulator の確認アラートが出ることがある](../commands/launch_app_ja.md#注意点) — 自動了承されます。向け直せなかった場合は注記 `open-url-session…` が付き、続く操作が届かないことがあります。
 - [未起動のアプリへの openURL は想定用途ではない](../commands/launch_app_ja.md#注意点) — 未起動から URL で開く検証には `launchApp(url:)` を使います。
 
 ### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [home() 等の後はアプリを前面へ戻してから操作する](../commands/navigation_ja.md#注意点) — iOS の inapp-boost と Android で、アプリが前面にない間は `select` や `notExist` などが断られます。
 - [back(settle:) の確実さは画面による](../commands/navigation_ja.md#注意点) — iOS の自前描画のナビバーの画面は戻れないことがあります(アプリ内の戻るボタンを `tap()`)。Android はキーボードが開いていると1回目の `back()` がそれを閉じるだけで消費されます。
+- [Android の back() は戻れる画面が無いとアプリを抜ける](../commands/navigation_ja.md#注意点) — ブラウザの新しいタブでは、タブを閉じずに前のアプリへ移ります。タブはタブの一覧の閉じるボタンで閉じます。
 - [back() の前後で画面が変わらなくても失敗しない](../commands/navigation_ja.md#注意点) — 注記が付くだけです。アプリ自身の戻るボタンを `tap` するか、`back()` をもう一度呼びます。
 - [back() の注記(back-stayed-on-screen など)](../commands/navigation_ja.md#注意点) — 失敗にはならないので、注記が出たらどの画面に着いたかを自分で確かめます。
 - [tapAppIcon の探索順](../commands/navigation_ja.md#注意点) — 現在の画面、Android はドロワー、iOS はページ送りと App ライブラリの順に探します。

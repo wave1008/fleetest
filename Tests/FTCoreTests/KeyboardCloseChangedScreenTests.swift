@@ -51,6 +51,26 @@ final class KeyboardCloseChangedScreenTests: XCTestCase {
                        ["#dialog"])
     }
 
+    /// OS の入力補助バー(型 toolbar・識別子 Toolbar)は、予測変換の帯を挟んでキー面から浮いていても数えない。
+    /// 実測(iOS Simulator の Safari・Web の入力欄): キー面の上端 583・バー (0,480 402x48)。数えていた間は、閉じた後に対象を撃たず赤になった。
+    /// 識別子の違う浮いたバー(アプリの物)は従来どおり数える
+    func testOSAccessoryBarFloatingAboveTheKeyboardIsNotCounted() {
+        let keyboard = FTRect(x: 0, y: 583, width: 402, height: 233)
+        let bar = ElementInfo(ref: 2, type: "toolbar", identifier: "Toolbar", label: "ツールバー", value: nil, placeholder: nil,
+                              enabled: true, frame: FTRect(x: 0, y: 480, width: 402, height: 48), depth: 1)
+        let previous = ElementInfo(ref: 3, type: "button", identifier: nil, label: "前へ", value: nil, placeholder: nil,
+                                   enabled: true, frame: FTRect(x: 21, y: 485, width: 40, height: 38), depth: 2)
+        let done = ElementInfo(ref: 4, type: "button", identifier: nil, label: "完了", value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 341, y: 485, width: 40, height: 38), depth: 2)
+        let before = snap([el("TabBarItemTitle", y: 300), bar, previous, done])
+        let after = snap([el("TabBarItemTitle", y: 300)])
+        XCTAssertTrue(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: before, after: after).isEmpty)
+        var appBar = bar
+        appBar.identifier = "chat_composer"
+        XCTAssertFalse(StepExecutor.elementsGoneAfterKeyboardClose(keyboard: keyboard, before: snap([appBar, previous, done]),
+                                                                   after: snap([])).isEmpty)
+    }
+
     /// キーボードを避けて上端まで縮んだ全幅の容器は帯ではない = 中の消えた要素を数える(帯として除くと検出が効かない)
     func testShrunkContainerEndingAtTheKeyboardIsNotABand() {
         let container = ElementInfo(ref: 5, type: "scrollView", identifier: "content", label: nil, value: nil, placeholder: nil,

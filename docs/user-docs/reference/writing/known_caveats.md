@@ -118,12 +118,14 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [fleetest's own bridge cannot be the target](../commands/launch_app.md#notes) — passing the bridge's ID to `launchApp` / `restartApp` fails without sending anything.
 - [Default app resolution](../commands/launch_app.md#notes) — an omitted `appID` resolves from the run profile, app profile, then platform app; `@TestClass` has no `app:`, so running the same scenario under another profile changes the app; with several apps, pass the bundle ID or use a per-app profile.
 - [`openURL` does not restart the process](../commands/launch_app.md#notes) — use it for deep links to an open app, and `launchApp(url:)` to restart then deliver.
+- [In a browser, `openURL` may not add the page to the history](../commands/launch_app.md#notes) — to check back and forward, move with a link or the address bar.
 - [First `openURL` on a Simulator](../commands/launch_app.md#notes) — a one-time "Open in …?" alert is dismissed automatically; if the session could not be re-pointed at the app, the step passes with `open-url-session-not-restored`.
 - [`openURL` while the app is not running](../commands/launch_app.md#notes) — the OS launches it, but that is not the command's purpose; use `launchApp(url:)`.
 
 ### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [Bring the app back after leaving it](../commands/navigation.md#notes) — on iOS inapp-boost and Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until `launchApp()` or `tapAppIcon()`.
 - [`back(settle:)` depends on the screen](../commands/navigation.md#notes) — custom navigation may need an edge swipe, and Android's first `back` closes an open keyboard; tap the app's own back button where it cannot go back.
+- [Android `back()` leaves the app when there is nothing to go back to](../commands/navigation.md#notes) — on a browser's new tab it moves to the previous app instead of closing the tab; close tabs with the tab list's close button.
 - [Unchanged screen after `back()` only adds a note](../commands/navigation.md#notes) — the step does not fail when the app ignores system back; tap its own back button or call `back()` again.
 - [`back-stayed-on-screen` and similar notes](../commands/navigation.md#notes) — a `back()` that stayed on the same screen (iOS) or left the app for the launcher (Android `back-left-app`) stays green with a note; check where you landed.
 - [`tapAppIcon` search order](../commands/navigation.md#notes) — current screen, then the drawer or home pages, and the App Library on iOS; it fails with "App icon not found" if never found.

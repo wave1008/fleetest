@@ -53,6 +53,8 @@ terminateApp()
 - **`openURL` does not restart the process** — that is the difference from `launchApp(url:)`,
   which restarts first and then delivers. Use `openURL` to test deep links arriving while the
   app is already open.
+- **In a browser, a page opened with `openURL` may not be added to the history.** In iOS Safari, moving to another page with `openURL`
+  left the Back button disabled. To check back and forward, follow a link on the page or type into the address bar.
 - On an iOS Simulator, the first `openURL` delivery for an app can trigger a one-time system
   confirmation alert ("Open in \"App Name\"?"); both iOS modes dismiss it
   automatically. After that, consent for that device+app combination persists. If, after checking for

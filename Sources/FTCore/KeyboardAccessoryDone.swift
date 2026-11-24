@@ -16,13 +16,21 @@ public enum KeyboardAccessoryDone {
     /// 「すぐ上」= バーの下端とキー面の上端の差がバー2本分以内。間に予測変換の帯が挟まる(実測: バーの下端 528・キー面の上端 583・
     /// バーの高さ 48 = 差 55pt)。画面の上の方のバーはこの範囲に入らない
     public static func target(in elements: [ElementInfo], keyboard: FTRect) -> ElementInfo? {
-        for toolbar in elements where toolbar.type == "toolbar" && toolbar.identifier == toolbarIdentifier {
-            let bottom = toolbar.frame.y + toolbar.frame.height
-            guard toolbar.frame.height > 0, abs(bottom - keyboard.y) <= toolbar.frame.height * 2 else { continue }
+        for toolbar in toolbars(in: elements, keyboard: keyboard) {
             let buttons = LocatorResolver.descendants(of: toolbar, in: elements)
                 .filter { $0.type == "button" && $0.enabled && $0.frame.width > 0 && $0.frame.height > 0 }
             if let done = buttons.last { return done }
         }
         return nil
+    }
+
+    /// キー面のすぐ上の OS のバー(上の規則)。キーボードと一緒に消えるのが正当なので、閉じた後に「消えた要素」と数えない側も
+    /// この1か所を使う(`StepExecutor.allElementsGoneAfterKeyboardClose`。キー面に接した帯だけを見ると、予測変換の帯を挟んで
+    /// 浮いた Safari の Web の入力欄のバーが漏れ、閉じた後に対象を撃たず赤になった)
+    public static func toolbars(in elements: [ElementInfo], keyboard: FTRect) -> [ElementInfo] {
+        elements.filter { toolbar in
+            guard toolbar.type == "toolbar", toolbar.identifier == toolbarIdentifier, toolbar.frame.height > 0 else { return false }
+            return abs(toolbar.frame.y + toolbar.frame.height - keyboard.y) <= toolbar.frame.height * 2
+        }
     }
 }
