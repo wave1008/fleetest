@@ -39,7 +39,7 @@ struct ApiRemoteHostsCommand: AsyncParsableCommand {
 
     func run() async throws {
 
-        var config = LocalConfig.load()
+        var config = try (importJSON != nil || remove != nil || order != nil) ? LocalConfig.loadForUpdate() : LocalConfig.load()
         if let importJSON {
             let incoming = try Self.decodeImportEntries(importJSON)
             for raw in incoming {

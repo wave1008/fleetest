@@ -74,7 +74,7 @@ struct ProjectCommand: AsyncParsableCommand {
             let project = try ProjectMutation.rename(oldName: oldName, newName: newName, repoRoot: root)
             ConsoleOut.out("✅ Renamed \(oldName) → TestProjects/\(project.name)/")
 
-            var config = LocalConfig.load()
+            var config = try LocalConfig.loadForUpdate()
             if config.defaultProject == oldName {
                 config.defaultProject = newName
                 try config.save()
@@ -100,7 +100,7 @@ struct ProjectCommand: AsyncParsableCommand {
             let trashedURL = try ProjectMutation.delete(name: name, repoRoot: root)
             ConsoleOut.out("✅ Moved TestProjects/\(name)/ to the Trash: \(trashedURL.path)")
 
-            var config = LocalConfig.load()
+            var config = try LocalConfig.loadForUpdate()
             if config.defaultProject == name {
                 config.defaultProject = nil
                 try config.save()

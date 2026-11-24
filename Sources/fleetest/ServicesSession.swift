@@ -238,6 +238,7 @@ final class ServicesSession {
         try ServicesFacts.ensureDataDirectory(workspace)
         let privateDir = try ServicesFacts.makePrivateDirectory(home: home, pid: pid)
         var leaseWritten = false
+        var startedSession: ServicesSession?
         do {
             let prepared = try prepare(resolved: resolved, options: options, workspace: workspace, settings: settings,
                                        located: located, privateDir: privateDir, home: home, interrupt: interruptState, log: log)
@@ -247,9 +248,12 @@ final class ServicesSession {
                 declaredBuilds: prepared.declaredBuilds,
                 adbReverseSerials: options.adbReverseSerials, interrupt: interruptState,
                 allowedDomains: prepared.allowedDomains, proxyPort: prepared.proxyPort, lease: prepared.lease)
-            // run は `services up` の所有者を引き取る(排他の外で終了を待つ = 所有者も同じ排他の中で片付ける)
+            startedSession = session
+            // run は `services up` の所有者を引き取る(排他の外で終了を待つ = 所有者も同じ排他の中で片付ける)。
+            // 止めた分は待ちの途中で失敗しても失われないよう、止めた時点で控える(下の catch が起こし直す)
             if options.kind == .run {
-                session.takenOverOwners = try takeOverOwners(prefix: prepared.plan.prefix, stateDir: stateDir, log: log)
+                try takeOverOwners(prefix: prepared.plan.prefix, stateDir: stateDir,
+                                   collected: { session.takenOverOwners = $0 }, log: log)
             }
             // 排他の中で行うのは「確認 → 控えを書く」まで。作成(pull / build / 起動完了の待ち)は排他の外 ——
             // 握ったままだと、起動中の所有者へ `down` / 引き取りが SIGTERM を送る前の排他の取得で止まる(30 s で失敗)。
@@ -269,6 +273,9 @@ final class ServicesSession {
             return session
         } catch {
             if !leaseWritten { try? FileManager.default.removeItem(at: privateDir) }
+            // 引き取りの後(待ちの失敗・claimPrefix / persist の失敗)は run が始まらないので、止めた所有者をここで戻す。
+            // createAll の失敗は down が済ませている(`takenOverOwners` が空 = 何もしない)
+            startedSession?.restoreTakenOverOwners(log: log)
             throw error
         }
     }
@@ -488,6 +495,7 @@ final class ServicesSession {
     /// 片付けに失敗して残った控えは孤児として `claimPrefix` が拾う。待ちの上限は所有者の控えから(`ServicesTeardown.teardownBudgetSeconds`)。
     @discardableResult
     static func takeOverOwners(prefix: String, stateDir: URL, budgetOverrideSeconds: Double? = nil,
+                               collected: (([ServicesLease]) -> Void)? = nil,
                                isAlive: (Int32, String) -> Bool = ServicesProcessIdentity.isAlive,
                                terminate: (Int32) -> Void = { _ = kill($0, SIGTERM) },
                                log: (String) -> Void) throws -> [ServicesLease] {
@@ -503,6 +511,7 @@ final class ServicesSession {
                              budget: budgetOverrideSeconds ?? ServicesTeardown.teardownBudgetSeconds(lease: other), lease: other)
             }
         }
+        collected?(owners.map(\.lease))   // SIGTERM を送った後に待ちが失敗しても、呼び手が止めた分を戻せる
         for owner in owners {
             let deadline = now() + owner.budget
             while isAlive(owner.pid, owner.startedAt) {
@@ -1239,21 +1248,44 @@ final class ServicesSession {
         restoreTakenOverOwners(log: log)
     }
 
+    /// 起こし直しの判定(純粋)。起こし直さない理由は事実として言う
+    enum OwnerRestoreDecision: Equatable {
+        case nothing
+        case restore([OwnerRestore])
+        case skip(reason: String)
+    }
+
+    static func ownerRestoreDecision(taken: [ServicesLease], interrupted: Bool, ownServicesRemain: Bool,
+                                     executableFound: Bool) -> OwnerRestoreDecision {
+        let restores = ownerRestores(taken)
+        guard !restores.isEmpty else { return .nothing }
+        if interrupted { return .skip(reason: "the run was interrupted") }
+        if ownServicesRemain { return .skip(reason: "this run's services could not all be removed") }
+        if !executableFound { return .skip(reason: "the fleetest executable was not found") }
+        return .restore(restores)
+    }
+
     /// run の前に `services up` で上がっていたなら、片付けの後に同じ指定で起こし直す(DR-194。探索中の別のセッションがサーバーを
     /// 失わない)。**排他の外**で起こす(所有者も同じ排他で控えを書く)。上がるのは待たない(pull / build はネットワーク次第で、
     /// run の終わりを延ばさない)。中断した run・資源を消し切れなかった run は起こさず、その事実と手順を言う
-    private func restoreTakenOverOwners(log: (String) -> Void) {
-        let restores = Self.ownerRestores(takenOverOwners)
+    func restoreTakenOverOwners(log: (String) -> Void) {
+        let taken = takenOverOwners
         takenOverOwners = []
-        guard !restores.isEmpty else { return }
-        let reason: String? = interrupt?.isStopped == true ? "the run was interrupted"
-            : ServicesLeaseStore.entries(stateDir: stateDir, prefix: plan.prefix).contains { $0.lease?.pid == lease.pid }
-                ? "this run's services could not all be removed" : nil
-        guard reason == nil, let executable = ExecutablePath.current else {
-            log("⚠️ services: did not start `services up` again (\(reason ?? "the fleetest executable was not found"));"
+        let executable = ExecutablePath.current
+        let decision = Self.ownerRestoreDecision(
+            taken: taken, interrupted: interrupt?.isStopped == true,
+            ownServicesRemain: ServicesLeaseStore.entries(stateDir: stateDir, prefix: plan.prefix).contains { $0.lease?.pid == lease.pid },
+            executableFound: executable != nil)
+        let restores: [OwnerRestore]
+        switch decision {
+        case .nothing: return
+        case .skip(let reason):
+            log("⚠️ services: did not start `services up` again (\(reason)); the services that were up before this run are stopped;"
                 + " run `fleetest services up` to bring them back")
             return
+        case .restore(let list): restores = list
         }
+        guard let executable else { return }
         for restore in restores {
             let attemptLog = ServicesOwnerLaunch.attemptLogURL(stateDir: stateDir, prefix: plan.prefix)
             do {

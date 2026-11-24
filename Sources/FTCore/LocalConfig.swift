@@ -144,6 +144,29 @@ public struct LocalConfig: Codable, Sendable, Equatable {
         return config
     }
 
+    /// 設定ファイルが読めない・decode できない(内容が壊れている・型違い)ときのエラー。書き手が空設定で上書きして全設定を失うのを止める
+    public struct UnreadableError: Error, LocalizedError, Equatable {
+        public let path: String
+        public let reason: String
+        public var errorDescription: String? {
+            "cannot update \(path): the file exists but cannot be read (\(reason)); fix or remove it first (nothing was changed)"
+        }
+    }
+
+    /// 更新用の読み込み(load → 1欄変更 → save の書き手はこちら)。ファイルが無い・空 → 空設定。
+    /// **読めるが decode できない → 投げる**(`load` の空設定で保存すると全設定が消える)。読むだけの呼び手は `load`
+    public static func loadForUpdate(from url: URL = Self.url()) throws -> LocalConfig {
+        guard FileManager.default.fileExists(atPath: url.path) else { return LocalConfig() }
+        let data: Data
+        do { data = try Data(contentsOf: url) } catch {
+            throw UnreadableError(path: url.path, reason: error.localizedDescription)
+        }
+        if data.allSatisfy({ [0x20, 0x09, 0x0A, 0x0D].contains($0) }) { return LocalConfig() }
+        do { return try JSONDecoder().decode(LocalConfig.self, from: data) } catch {
+            throw UnreadableError(path: url.path, reason: String(describing: error))
+        }
+    }
+
     public func save(to url: URL = Self.url()) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

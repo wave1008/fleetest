@@ -79,6 +79,32 @@ final class ServicesOwnerTakeoverTests: XCTestCase {
                        [.init(project: "p", profile: "r", physical: true, serials: ["R1", "R2"])])
     }
 
+    /// 引き取り後に claimPrefix 等で開始が失敗した run は、止めた所有者を起こし直す(控えを失わない)
+    func testFailedStartAfterTakeoverInstructsRestoringTheOwners() {
+        let taken = [lease(pid: 5010, kind: .owner)]
+        XCTAssertEqual(ServicesSession.ownerRestoreDecision(taken: taken, interrupted: false, ownServicesRemain: false, executableFound: true),
+                       .restore([.init(project: "p", profile: "r", physical: false, serials: [])]))
+        XCTAssertEqual(ServicesSession.ownerRestoreDecision(taken: [], interrupted: false, ownServicesRemain: false, executableFound: true),
+                       .nothing)
+        XCTAssertEqual(ServicesSession.ownerRestoreDecision(taken: taken, interrupted: true, ownServicesRemain: false, executableFound: true),
+                       .skip(reason: "the run was interrupted"))
+        XCTAssertEqual(ServicesSession.ownerRestoreDecision(taken: taken, interrupted: false, ownServicesRemain: true, executableFound: true),
+                       .skip(reason: "this run's services could not all be removed"))
+        XCTAssertEqual(ServicesSession.ownerRestoreDecision(taken: taken, interrupted: false, ownServicesRemain: false, executableFound: false),
+                       .skip(reason: "the fleetest executable was not found"))
+    }
+
+    /// 待ちが尽きて投げても、止めた所有者は `collected` で呼び手に渡っている(途中失敗で失われない)
+    func testOwnersAreHandedOverBeforeAFailedWait() throws {
+        try place(lease(pid: 5011, kind: .owner))
+        var collected: [ServicesLease] = []
+        XCTAssertThrowsError(try ServicesSession.takeOverOwners(
+            prefix: prefix, stateDir: stateDir, budgetOverrideSeconds: 0,
+            collected: { collected = $0 },
+            isAlive: { _, _ in true }, terminate: { _ in }, log: { _ in }))
+        XCTAssertEqual(collected.map(\.pid), [5011])
+    }
+
     func testLiveRunLeaseIsNotSignalled() throws {
         try place(lease(pid: 5002, kind: .run))
         var signalled: [Int32] = []

@@ -790,7 +790,7 @@ struct RemoteCommand: AsyncParsableCommand {
                     let known = MachineBadgeColor.palette.map(\.key).joined(separator: ", ")
                     throw ValidationError("unknown color \"\(color)\" (known: \(known))")
                 }
-                var config = LocalConfig.load()
+                var config = try LocalConfig.loadForUpdate()
                 try RemoteHostRegistry.validateUniqueHost(
                     RemoteHostEntry(machine: machine, host: host), in: config.remoteHosts ?? [])
                 // **省略したら既存の値を保つ**。upsert なので「指定なし = nil で上書き」にすると、
@@ -819,7 +819,7 @@ struct RemoteCommand: AsyncParsableCommand {
             var machine: String
 
             func run() async throws {
-                var config = LocalConfig.load()
+                var config = try LocalConfig.loadForUpdate()
                 let before = config.remoteHosts ?? []
                 guard before.contains(where: { $0.machine == machine }) else {
                     throw ValidationError("no machine named \"\(machine)\" is registered")

@@ -64,6 +64,24 @@ final class ServicesReaperTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: privateDir))
     }
 
+    /// 排他の中で控えを読み直す: 一覧を取った後・排他を取った後に他者が消した控えには reapOne を呼ばない(書き戻さない)
+    func testLeaseRemovedBeforeTheLockedRereadIsNotReaped() throws {
+        let url = try place(lease(pid: deadPid))
+        let removed = LockedBox<Int>(0)
+        var lockHeldInside = false
+        let result = ServicesReaper.reap(stateDir: stateDir, home: home, isAlive: isAlive,
+                                         remover: { _ in removed.mutate { $0 += 1 }; return nil },
+                                         afterLock: { leaseURL in
+                                             lockHeldInside = ServicesLock.currentHolder(prefix: prefix, stateDir: stateDir) != nil
+                                             ServicesLeaseStore.remove(at: leaseURL, home: home)
+                                         }, log: { _ in })
+        XCTAssertTrue(lockHeldInside, "the re-read happens inside the prefix lock")
+        XCTAssertEqual(removed.value, 0, "a lease that vanished before the re-read is not reaped")
+        XCTAssertEqual(result.reaped, 0)
+        XCTAssertTrue(result.kept.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "nothing is written back")
+    }
+
     func testLiveOwnersLeaseIsLeftAlone() throws {
         let url = try place(lease(pid: livePid))
         let removed = LockedBox<Int>(0)

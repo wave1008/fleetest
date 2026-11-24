@@ -20,7 +20,7 @@ struct ApiDeviceSettingsCommand: AsyncParsableCommand {
     var usePhysicalDevices: Bool?
 
     func run() async throws {
-        var config = LocalConfig.load()
+        var config = try usePhysicalDevices != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
         if let usePhysicalDevices {
             Self.apply(usePhysicalDevices: usePhysicalDevices, to: &config)
             try config.save()

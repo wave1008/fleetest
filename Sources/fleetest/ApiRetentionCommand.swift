@@ -33,7 +33,7 @@ struct ApiRetentionCommand: AsyncParsableCommand {
 
     func run() async throws {
         let roots = try RetentionSweeper.Roots.resolve()
-        var config = LocalConfig.load()
+        var config = try importJSON != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
         if let importJSON {
             let update = try Self.decode(importJSON)
             try Self.validateMinimums(update)

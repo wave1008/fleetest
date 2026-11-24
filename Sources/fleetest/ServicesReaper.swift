@@ -238,13 +238,16 @@ enum ServicesReaper {
         }
     }
 
-    /// 死んだ run が残した控えを片付ける。`fleetest hooks reap` と、同じ接頭辞の run の開始から呼ぶ。
+    /// 死んだ run が残した控えを片付ける。`fleetest hooks reap` から呼ぶ。
     /// **読めない控えは消さない**(中身が分からないので、資源が残っているかも判定できない)。
+    /// **1件ごとにその接頭辞の `ServicesLock` を取り、中で控えを読み直してから消す**(`claimPrefix` / `services reset` と同じ排他。
+    /// 外で読んだ一覧のまま消すと、他者が消し終えた控えへ remaining を書き戻し、作ったばかりの同名資源を名前で消しうる)。
+    /// 呼び手は排他を握っていないこと(flock は同じプロセス内でも待ち合う)。`afterLock` は排他を取った直後・読み直しの前(テスト用)
     @discardableResult
     static func reap(
         stateDir: URL, home: String = NSHomeDirectory(),
         isAlive: (Int32, String) -> Bool = ServicesProcessIdentity.isAlive,
-        remover: Remover? = nil, log: @escaping (String) -> Void
+        remover: Remover? = nil, afterLock: (URL) -> Void = { _ in }, log: @escaping (String) -> Void
     ) -> ServicesReapResult {
         let remove = remover ?? defaultRemover(log: log)
         var result = ServicesReapResult()
@@ -254,11 +257,21 @@ enum ServicesReaper {
                 log("⚠️ services: unreadable lease \(entry.url.lastPathComponent) (\(reason)); not removed."
                     + " If its services are gone, run `fleetest services reset --force` for that workspace")
                 result.unreadable.append(entry.url)
-            case .readable(let lease):
-                guard ServicesLeaseFile.isOrphan(lease, isAlive: isAlive) else { continue }
-                if reapOne(entry: entry, lease: lease, home: home, remover: remove, log: log) {
-                    result.reaped += 1
-                } else {
+            case .readable(let first):
+                guard ServicesLeaseFile.isOrphan(first, isAlive: isAlive) else { continue }
+                do {
+                    try ServicesLock.withLock(prefix: entry.prefix, stateDir: stateDir) {
+                        afterLock(entry.url)
+                        guard let fresh = ServicesLeaseStore.entry(at: entry.url), let lease = fresh.lease,
+                              ServicesLeaseFile.isOrphan(lease, isAlive: isAlive) else { return }
+                        if reapOne(entry: fresh, lease: lease, home: home, remover: remove, log: log) {
+                            result.reaped += 1
+                        } else {
+                            result.kept.append(entry.url)
+                        }
+                    }
+                } catch {
+                    log("⚠️ \(error.localizedDescription) — the lease \(entry.url.lastPathComponent) was not removed")
                     result.kept.append(entry.url)
                 }
             }

@@ -210,3 +210,40 @@ final class LocalConfigSaveAtomicityTests: XCTestCase {
         XCTAssertEqual(tornReads.value, 0, "読み手が途中まで書かれた config.json を見た")
     }
 }
+
+/// 更新用の読み込み: 壊れた設定を空設定として上書き保存しない(全設定が消える)
+final class LocalConfigLoadForUpdateTests: XCTestCase {
+    private func tempURL() -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("LocalConfigUpdate-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("config.json")
+    }
+
+    func testBrokenJSONThrowsAndLeavesTheFileAlone() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let broken = #"{"usePhysicalDevices": "yes", "defaultProject": "keep-me"}"#
+        try broken.write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertThrowsError(try LocalConfig.loadForUpdate(from: url)) { error in
+            XCTAssertTrue(error is LocalConfig.UnreadableError)
+            XCTAssertTrue(error.localizedDescription.contains(url.path), "\(error)")
+        }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), broken)
+        XCTAssertEqual(LocalConfig.load(from: url), LocalConfig(), "the read-only path keeps falling back to the empty config")
+    }
+
+    func testMissingOrEmptyFileGivesAnEmptyConfig() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        XCTAssertEqual(try LocalConfig.loadForUpdate(from: url), LocalConfig())
+        try "  \n".write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertEqual(try LocalConfig.loadForUpdate(from: url), LocalConfig())
+    }
+
+    func testValidFileIsReadBack() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        try #"{"defaultProject": "p"}"#.write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertEqual(try LocalConfig.loadForUpdate(from: url).defaultProject, "p")
+    }
+}
