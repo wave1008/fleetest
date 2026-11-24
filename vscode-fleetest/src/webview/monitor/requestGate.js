@@ -3,18 +3,27 @@
 // 要求が1本ずつしか飛ばないので、届いた応答は必ず直近に撃った要求のもの(順序の入れ替わりが起きない)。
 // ホストは要求ごとに必ず1通返す前提(ok:false を含む。応答が来ないと次の要求は撃たれないまま)。
 
+// 応答の期限。ホスト側の子に期限の無い経路(CoreSimulator のハング等)で応答が永久に来ないと、
+// 開き直すたびに控えへ積むだけで二度と撃てなくなる。期限はホスト側の runTagged の kill タイマー
+// (monitorPanel.ts の 120s)と同じ値 —— 子が殺されて応答が来るか、来ないままかの分かれ目
+export const GATE_EXPIRY_MS = 120_000;
+
 export function createRequestGate() {
-  return { outstanding: false, stale: false, queued: null };
+  return { outstanding: false, stale: false, queued: null, sentAt: 0 };
 }
 
-/** 要求を撃つ。前の要求が飛んでいれば控え、その応答(捨てられる)の後で撃つ。 */
-export function gateSend(gate, send) {
-  if (gate.outstanding) {
+/** 要求を撃つ。前の要求が飛んでいれば控え、その応答(捨てられる)の後で撃つ。
+ *  期限を跨いだ要求は来ないものとみなして新しい要求を撃つ(期限後に古い応答が届いた場合は
+ *  同種のカタログなので誤って描いても害が小さく、新しい応答が直後に上書きする)。 */
+export function gateSend(gate, send, now = Date.now()) {
+  if (gate.outstanding && now - gate.sentAt < GATE_EXPIRY_MS) {
     gate.queued = send;
     return;
   }
   gate.outstanding = true;
   gate.stale = false;
+  gate.queued = null;
+  gate.sentAt = now;
   send();
 }
 

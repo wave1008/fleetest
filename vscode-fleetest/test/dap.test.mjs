@@ -230,7 +230,8 @@ test("spawn 失敗(バイナリ不在)でも TerminatedEvent を出す", async (
       await driver.launch({ project: "Mock", scenario: "テスト.T4", skipBuild: true });
       await driver.configurationDone();
 
-      await driver.waitForEvent("exited");
+      const exited = await driver.waitForEvent("exited");
+      assert.notEqual(exited.body.exitCode, 0, "起動していないのに exit 0(成功)を名乗らない");
       await driver.waitForEvent("terminated");
     },
   );

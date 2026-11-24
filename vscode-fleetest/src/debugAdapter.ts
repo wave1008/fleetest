@@ -395,7 +395,7 @@ export class FleetestDebugSession extends DebugSession {
     const args = this.launchArgs;
     if (!args) {
       this.log(t("run.debug.noLaunchArgs"), "stderr");
-      this.finishWithTerminated();
+      this.finishWithTerminated(1);  // 起動していないので exit 0(成功)を名乗らない
       return;
     }
 
@@ -442,7 +442,7 @@ export class FleetestDebugSession extends DebugSession {
       });
     } catch (error) {
       this.forwardStderrLine(t("run.cli.spawnFailed", { error: String(error) }));
-      this.finishWithTerminated();
+      this.finishWithTerminated(1);  // spawn 失敗 = 走っていない。exit 0 にすると成功に見える
       return;
     }
     this.child = child;
@@ -466,7 +466,7 @@ export class FleetestDebugSession extends DebugSession {
 
     child.on("error", (error) => {
       this.forwardStderrLine(t("run.debug.processError", { message: error.message }));
-      this.finishWithTerminated();
+      this.finishWithTerminated(1);  // spawn 失敗 = 走っていない。exit 0 にすると成功に見える
     });
 
     child.on("close", (exitCode, signal) => {
