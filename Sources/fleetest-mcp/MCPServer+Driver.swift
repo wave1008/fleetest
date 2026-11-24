@@ -1592,14 +1592,18 @@ extension MCPServer {
     /// セッションに繋いだ)ときは `AndroidAppProcessEvidenceQuery.defaultAttributionWindowSeconds` へ落ちる
     /// (無制限に戻すと元の欠陥に戻るので、「分からない」を「無限に遡ってよい」とは読まない)
     func androidProcessEvidenceForSwitch(launched: String?, snapshot: SnapshotResponse,
-                                         driver: AppDriver, args: [String: Any])
+                                         driver: AppDriver, args: [String: Any]) async
         -> AndroidAppProcessEvidence? {
         guard driver is AndroidDriver, let launched, let session = snapshot.sessionBundleID,
               session != launched else { return nil }
         let serial = (args["serial"] as? String) ?? connectedAndroidSerials[Self.sessionKey(args)]
-        guard let evidence = AndroidAppProcessEvidenceQuery.query(package: launched, serial: serial)
-        else { return nil }
-        return AndroidAppProcessEvidenceQuery.scoped(evidence, package: launched, serial: serial,
-                                                     since: launchTimestamps[Self.sessionKey(args)])
+        let since = launchTimestamps[Self.sessionKey(args)]
+        // **adb(pidof・logcat)は協調スレッドプールの外で払う**(MN-27。ブロッキングの外部コマンドをプールに載せると、
+        // 同時の呼び出しがプールの空きを待って止まる。`wireAppGoneGuard` と同じ形)
+        return await Self.runOffCooperativePool(name: "fleetest-mcp-process-evidence") { () -> AndroidAppProcessEvidence? in
+            guard let evidence = AndroidAppProcessEvidenceQuery.query(package: launched, serial: serial)
+            else { return nil }
+            return AndroidAppProcessEvidenceQuery.scoped(evidence, package: launched, serial: serial, since: since)
+        }
     }
 }

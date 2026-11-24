@@ -40,9 +40,16 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
     /// (撃った操作でアプリが落ち、ランナーが以後の読み取りを 422 で断る形を模す)
     var snapshotsFailAfterCallPrefix: String?
 
+    /// n 回目以降の snapshot 読みが throw する(1 始まり。整定の読み直しだけ失敗させる検証用)
+    var snapshotFailsFromReadNumber: Int?
+
     private func record(_ call: String, _ name: String) throws {
         calls.append(call)
         if failing.contains(name) { throw Boom(what: name) }
+        if let from = snapshotFailsFromReadNumber, name == "snapshot",
+           calls.filter({ $0.hasPrefix("snapshot") }).count >= from {
+            throw Boom(what: "snapshot read #\(from)")
+        }
         if let prefix = snapshotsFailAfterCallPrefix, name == "snapshot",
            calls.contains(where: { $0.hasPrefix(prefix) }) {
             throw Boom(what: "snapshot after \(prefix)")

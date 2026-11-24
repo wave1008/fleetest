@@ -664,9 +664,15 @@ extension MCPServer {
         try Self.checkDeclaredArgumentTypes(tool: tool, args: cleaned)
         if let refusal = Self.nulCharacterRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
         if let refusal = Self.requiredArgumentRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
+        // **配列・オブジェクト型の欄の中身は、型検査(`checkDeclaredArgumentTypes`)が見ない**ので、ft_gesture の指と段は
+        // ここで形を全数見る(型違い・未知のキー。宛先の解決より前 = ブリッジの起動を払ってから断らない)
+        if tool == "ft_gesture", cleaned["fingers"] != nil { _ = try Self.gestureFingersArgument(cleaned) }
         if let refusal = Self.enumValueRefusal(tool: tool, args: cleaned) { throw MCPError(refusal) }
         // **waitFor の構文は操作を撃つ前に断る**(操作の後の待ちで弾くと、撃ってから上限まで待った。`* *`・`=` が通った)
-        if let waitFor = cleaned["waitFor"] as? String {
+        // **検査は引用符を剥がした後の文字列で**(後段の `strippingSelectorQuotes` と同じ形。囲みの `"` が先頭にあると
+        // `*foo*` の `*` が文字の途中に見えて断っていた)
+        if let rawWaitFor = cleaned["waitFor"] as? String {
+            let waitFor = Self.strippedQuotes(rawWaitFor)
             _ = try Self.parseSelectorArgument(waitFor, argument: "waitFor")
             if let refusal = Self.innerWildcardWaitForRefusal(waitFor) { throw MCPError(refusal) }
         }

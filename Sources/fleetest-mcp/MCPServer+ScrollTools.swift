@@ -472,7 +472,7 @@ extension MCPServer {
             let failedLaunched = launchedBundleIDs[Self.sessionKey(args)]
             let failedSwitched = Self.switchedAppNote(
                 launched: failedLaunched, snapshot: after,
-                processEvidence: androidProcessEvidenceForSwitch(
+                processEvidence: await androidProcessEvidenceForSwitch(
                     launched: failedLaunched, snapshot: after, driver: scrollDriver, args: args),
                 stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
                 keyguardShowing: await Self.keyguardFact(for: after, driver: scrollDriver))
@@ -664,7 +664,7 @@ extension MCPServer {
         let scrollToLaunched = launchedBundleIDs[Self.sessionKey(args)]
         let switched = Self.switchedAppNote(
             launched: scrollToLaunched, snapshot: after,
-            processEvidence: androidProcessEvidenceForSwitch(
+            processEvidence: await androidProcessEvidenceForSwitch(
                 launched: scrollToLaunched, snapshot: after, driver: scrollDriver, args: args),
             stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
             keyguardShowing: await Self.keyguardFact(for: after, driver: scrollDriver))

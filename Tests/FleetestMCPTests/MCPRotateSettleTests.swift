@@ -72,6 +72,20 @@ final class MCPRotateSettleTests: XCTestCase {
         XCTAssertEqual(driver.calls.filter { $0 == "snapshot" }.count, 1, "\(driver.calls)")
     }
 
+    /// **整定の読み直しが失敗しても、回した呼び出しを失敗にしない**(回転は済んでいる)。
+    /// 変異: ループの `catch { …; break }` を `try` に戻す(読み直しの throw が呼び出し全体を失敗にする)と落ちる
+    func testRereadFailureAfterTheRotationKeepsTheCallSuccessful() async throws {
+        driver.scriptedSnapshots = [midRelayout(), midRelayout(), midRelayout()]
+        driver.snapshotFailsFromReadNumber = 2
+
+        let result = try await server.call(tool: "ft_rotate", args: ["orientation": "landscape"])
+
+        let message = Self.text(result)
+        XCTAssertTrue(message.hasPrefix("Rotated to landscape"), message)
+        XCTAssertTrue(message.contains("a re-read to check the layout settled failed"), message)
+        XCTAssertEqual(driver.calls.filter { $0 == "snapshot" }.count, 2, "失敗した読みで打ち切る(それ以上読み直さない): \(driver.calls)")
+    }
+
     /// **iOS(Android でないドライバ)は portrait へ戻しても復元しない**:
     /// `restoreOrientationIfNeeded` は Android では「auto-rotate 設定を戻すだけ」で無害だが、
     /// iOS の `FTBridgeClient.BridgeClient` では「rotate 前の向きへ実際に回転し直す」実装なので、

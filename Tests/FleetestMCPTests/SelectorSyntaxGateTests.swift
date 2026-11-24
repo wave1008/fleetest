@@ -67,6 +67,27 @@ final class SelectorSyntaxGateTests: XCTestCase {
         XCTAssertNil(MCPServer.innerWildcardWaitForRefusal("=a*b"), "文字どおりと明示した書き方は断らない")
     }
 
+    /// 囲みの引用符を剥がす前に検査すると、先頭の `"` のせいで `*foo*` の `*` が文字の途中に見えて断られていた。
+    /// 変異: 入口の `Self.strippedQuotes(rawWaitFor)` を生の文字列に戻すと落ちる
+    func testQuotedWaitForIsCheckedAfterTheQuotesAreStripped() async {
+        for quoted in ["\"*19:0*\"", "'19:0*'"] {
+            do {
+                _ = try await server.call(tool: "ft_tap", args: ["x": 10, "y": 10, "snapshotAfter": true,
+                                                                  "waitFor": quoted, "waitSeconds": 1])
+            } catch {
+                XCTAssertFalse(error.localizedDescription.contains("was refused before anything was sent"),
+                               "\(quoted): \(error.localizedDescription)")
+            }
+        }
+        // 引用符を剥がしても途中に * があるものは従来どおり断る
+        do {
+            _ = try await server.call(tool: "ft_tap", args: ["x": 10, "y": 10, "snapshotAfter": true, "waitFor": "\"19:* – *\""])
+            XCTFail("引用符付きでも文字の途中の * は断る")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("was refused before anything was sent"))
+        }
+    }
+
     func testBatchScrollToRejectsEmptyIdSelectorBeforeAnyStepRuns() async {
         do {
             _ = try await server.call(tool: "ft_batch", args: ["steps": "scrollTo '#'"])

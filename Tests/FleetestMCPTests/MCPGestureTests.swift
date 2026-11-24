@@ -116,6 +116,50 @@ final class MCPGestureTests: XCTestCase {
         XCTAssertEqual(driver.calls, [])
     }
 
+    /// JSON の true は NSNumber で来て `as? Double` が 1.0 として通す。
+    /// 変異: `requiredGestureNumber` / `optionalGestureNumber` の `!isJSONBoolean(raw)` を外すと落ちる
+    func testBooleanWhereANumberIsExpectedIsRejectedAtEveryNestingLevel() async {
+        let boolTrue: Any = true
+        let topLevel: [[String: Any]] = [["x": boolTrue, "y": 200.0]]
+        await assertRejected(["fingers": topLevel], contains: ["finger 1.x", "number"])
+        let optional: [[String: Any]] = [["x": 10.0, "y": 20.0, "startSeconds": boolTrue]]
+        await assertRejected(["fingers": optional], contains: ["finger 1.startSeconds", "number"])
+        let steps: [[String: Any]] = [["holdSeconds": boolTrue]]
+        let nested: [[String: Any]] = [["x": 10.0, "y": 20.0, "steps": steps]]
+        await assertRejected(["fingers": nested], contains: ["finger 1, step 1.holdSeconds", "number"])
+        XCTAssertEqual(driver.calls, [])
+    }
+
+    /// 未知のキーは黙って落ちて既定値で撃たれていた。変異: `rejectUnknownGestureKeys` の呼び出しを外すと落ちる
+    func testUnknownKeysInAFingerOrStepAreRejected() async {
+        let finger: [[String: Any]] = [["x": 10.0, "y": 20.0, "pressure": 0.5]]
+        await assertRejected(["fingers": finger], contains: ["finger 1", "unknown", "pressure"])
+        let steps: [[String: Any]] = [["x": 15.0, "y": 20.0, "duration": 0.3]]
+        let nested: [[String: Any]] = [["x": 10.0, "y": 20.0, "steps": steps]]
+        await assertRejected(["fingers": nested], contains: ["finger 1, step 1", "unknown", "duration"])
+        XCTAssertEqual(driver.calls, [])
+    }
+
+    /// 指・段のキー集合はスキーマの宣言と一致する(片方だけ変えると、宣言したキーを断る/宣言外を通す)
+    func testAllowedKeySetsMatchTheSchema() throws {
+        let definition = try XCTUnwrap(MCPServer.toolDefinitions.first { $0["name"] as? String == "ft_gesture" })
+        let schema = try XCTUnwrap(definition["inputSchema"] as? [String: Any])
+        let fingers = try XCTUnwrap((schema["properties"] as? [String: Any])?["fingers"] as? [String: Any])
+        let finger = try XCTUnwrap((fingers["items"] as? [String: Any]))
+        let fingerKeys = Set(((finger["properties"] as? [String: Any]) ?? [:]).keys)
+        XCTAssertEqual(fingerKeys, MCPServer.gestureFingerKeys)
+        let steps = try XCTUnwrap((finger["properties"] as? [String: Any])?["steps"] as? [String: Any])
+        let step = try XCTUnwrap(steps["items"] as? [String: Any])
+        XCTAssertEqual(Set(((step["properties"] as? [String: Any]) ?? [:]).keys), MCPServer.gestureStepKeys)
+    }
+
+    /// 入れ子の形は `call()` の入口(宛先の解決より前)で見る(型検査は配列・オブジェクト型の欄の中身を見ない)。
+    /// 変異: Dispatch の `tool == "ft_gesture"` の行を消すと落ちる
+    func testEntryChecksTheNestedShapeBeforeResolvingTheTarget() throws {
+        let code = try MCPServerSourceText.combined()
+        XCTAssertTrue(code.contains("if tool == \"ft_gesture\", cleaned[\"fingers\"] != nil { _ = try Self.gestureFingersArgument(cleaned) }"))
+    }
+
     // MARK: - 絶対座標のまま GestureRequest へ写る
 
     /// steps 無し = ただのタップ&リフト(TouchGesture.minimumContactSeconds ぶん置いて離す)

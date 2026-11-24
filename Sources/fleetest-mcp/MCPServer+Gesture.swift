@@ -39,6 +39,7 @@ extension MCPServer {
             guard let finger = rawFinger as? [String: Any] else {
                 throw MCPError("\(name) must be an object (got \(describeArgumentValue(rawFinger)))")
             }
+            try rejectUnknownGestureKeys(finger, allowed: gestureFingerKeys, in: name)
             let x = try requiredGestureNumber(finger, "x", in: name)
             let y = try requiredGestureNumber(finger, "y", in: name)
             let startSeconds = try optionalGestureNumber(finger, "startSeconds", in: name) ?? 0
@@ -52,6 +53,7 @@ extension MCPServer {
                     guard let step = rawStep as? [String: Any] else {
                         throw MCPError("\(stepName) must be an object (got \(describeArgumentValue(rawStep)))")
                     }
+                    try rejectUnknownGestureKeys(step, allowed: gestureStepKeys, in: stepName)
                     let isMove = step["x"] != nil || step["y"] != nil || step["durationSeconds"] != nil
                     let isHold = step["holdSeconds"] != nil
                     guard isMove || isHold else {
@@ -78,12 +80,24 @@ extension MCPServer {
         return fingers
     }
 
+    /// 指・段のキーの集合(**ToolDefs の `ft_gesture` スキーマと同期**)。未知のキー(`pressure`・`start` 等)は黙って落ちて既定値で撃たれるので断る
+    static let gestureFingerKeys: Set<String> = ["x", "y", "startSeconds", "steps"]
+    static let gestureStepKeys: Set<String> = ["x", "y", "durationSeconds", "holdSeconds"]
+
+    private static func rejectUnknownGestureKeys(_ dict: [String: Any], allowed: Set<String>,
+                                                 in context: String) throws {
+        let unknown = dict.keys.filter { !allowed.contains($0) }.sorted()
+        guard !unknown.isEmpty else { return }
+        throw MCPError("\(context) has unknown key(s) \(unknown.joined(separator: ", ")) — allowed: "
+            + allowed.sorted().joined(separator: ", ") + " — nothing was sent")
+    }
+
     private static func requiredGestureNumber(_ dict: [String: Any], _ key: String,
                                               in context: String) throws -> Double {
         guard let raw = dict[key] else {
             throw MCPError("\(context).\(key) is required")
         }
-        guard let value = raw as? Double else {
+        guard !isJSONBoolean(raw), let value = raw as? Double else {
             throw MCPError("\(context).\(key) must be a number (got \(describeArgumentValue(raw)))")
         }
         return value
@@ -92,7 +106,8 @@ extension MCPServer {
     private static func optionalGestureNumber(_ dict: [String: Any], _ key: String,
                                               in context: String) throws -> Double? {
         guard let raw = dict[key] else { return nil }
-        guard let value = raw as? Double else {
+        // JSON の true/false は NSNumber で来て `as? Double` が 1.0 / 0.0 として通すので先に弾く
+        guard !isJSONBoolean(raw), let value = raw as? Double else {
             throw MCPError("\(context).\(key) must be a number (got \(describeArgumentValue(raw)))")
         }
         return value

@@ -327,6 +327,11 @@ final class MCPServer {
         case "tools/call":
             let params = message["params"] as? [String: Any] ?? [:]
             let name = params["name"] as? String ?? ""
+            // **オブジェクトでない arguments は `[:]` に畳まない**(必須の引数を持たないツールが、記憶している端末へ既定値で撃たれる)
+            if let refusal = Self.nonObjectArgumentsRefusal(params["arguments"]) {
+                reply(id: id, result: Self.toolCallResult(.failure(MCPError(refusal)), emitStructured: emitsStructuredContent))
+                return
+            }
             let args = params["arguments"] as? [String: Any] ?? [:]
             do {
                 reply(id: id, result: Self.toolCallResult(.success(try await call(tool: name, args: args)),
@@ -337,6 +342,13 @@ final class MCPServer {
         default:
             reply(id: id, error: ["code": -32601, "message": "method not found: \(method)"])
         }
+    }
+
+    /// `arguments` が省略・null・オブジェクトのどれでもないときの断り文(それ以外は nil)。同じ id で isError の result を返す
+    static func nonObjectArgumentsRefusal(_ raw: Any?) -> String? {
+        guard let raw, !(raw is NSNull), !(raw is [String: Any]) else { return nil }
+        return "arguments must be a JSON object (got \(describeArgumentValue(raw))) — nothing was run."
+            + " Pass the tool's arguments as {\"name\": value, …}, or omit arguments for a tool that takes none."
     }
 
     /// tools/call の result。**失敗は RPC の error ではなく isError:true の result**(MCP 仕様)。

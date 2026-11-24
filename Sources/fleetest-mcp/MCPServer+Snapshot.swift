@@ -450,7 +450,7 @@ extension MCPServer {
         let switchedLaunched = launchedBundleIDs[Self.sessionKey(args)]
         let switchedNote = Self.switchedAppNote(
             launched: switchedLaunched, snapshot: snapshot,
-            processEvidence: androidProcessEvidenceForSwitch(
+            processEvidence: await androidProcessEvidenceForSwitch(
                 launched: switchedLaunched, snapshot: snapshot, driver: driver, args: args),
             stoppedByTool: toolStoppedBundleIDs[Self.sessionKey(args)],
             keyguardShowing: await Self.keyguardFact(for: snapshot, driver: driver))

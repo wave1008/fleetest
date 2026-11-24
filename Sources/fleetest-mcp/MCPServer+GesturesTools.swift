@@ -204,12 +204,22 @@ extension MCPServer {
                 + " \(settled.rawValue) (ft_rotate portrait to undo it)")
         }
         var settledFrames = false
+        var rereadFailure: String?
         let rotationSettlePollInterval = max(RotationSettle.pollIntervalSeconds, settleWaitSeconds)
         let rotationSettleMaxRereads = Int(rotationSettleDeadlineSeconds / rotationSettlePollInterval)
         for _ in 0..<rotationSettleMaxRereads {
             try await Task.sleep(
                 nanoseconds: UInt64(max(0, rotationSettlePollInterval) * 1_000_000_000))
-            let reread = try await freshSnapshot(rotateDriver, args: args)
+            // **読み直しの失敗で呼び出し全体を失敗にしない**(回転は済んでいる。最初の読みと同じ理由)。
+            // 読めた最後の木で打ち切り、整定は確認できなかったと言う(キャンセルは通す)
+            let reread: SnapshotResponse
+            do {
+                reread = try await freshSnapshot(rotateDriver, args: args)
+            } catch {
+                try Task.checkCancellation()
+                rereadFailure = error.localizedDescription
+                break
+            }
             let fits = RotationSettle.framesFitScreen(reread)
             let unchanged = BackEffect.treesAreIdentical(before: rotated.elements,
                                                          after: reread.elements)
@@ -249,7 +259,9 @@ extension MCPServer {
         // **未settleを「もう終わった」と嘘をつかない** —— waitForChange の
         // still-changing 注記と同じ立て付け(MCPServer+Snapshot.swift)
         let relayoutCaveat = settledFrames ? ""
-            : " note: the tree did not settle within the check budget — it may still be"
+            : rereadFailure.map { " note: a re-read to check the layout settled failed (\($0)) — these frames are the last"
+                + " ones read and may be mid-relayout; take another ft_snapshot before relying on them." }
+            ?? " note: the tree did not settle within the check budget — it may still be"
                 + " mid-relayout; take another ft_snapshot before relying on these frames."
         return text("Rotated to \(settled.rawValue). The frames below are in the new"
             + " coordinate system — prefer the refs below; a ref taken before the rotation is"
