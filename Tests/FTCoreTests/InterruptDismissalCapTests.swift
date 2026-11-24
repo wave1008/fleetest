@@ -20,10 +20,13 @@ private final class InterruptingDriver: AppDriver {
     /// 「閉じたのに即再一致」= 閉じられない相手と区別が付かず、打ち切り判定に当たってしまう)
     private var cleanSnapshotsLeft = 0
     private(set) var taps = 0
+    /// 最初の閉じるタップを、直前に出たシステムアラートでブリッジが届けずに断った形にする
+    private var blockedTapsLeft: Int
 
-    init(appearances: Int, dismissible: Bool = true) {
+    init(appearances: Int, dismissible: Bool = true, blockedTaps: Int = 0) {
         self.appearances = appearances
         self.dismissible = dismissible
+        self.blockedTapsLeft = blockedTaps
     }
 
     func status() async throws -> StatusResponse {
@@ -38,6 +41,10 @@ private final class InterruptingDriver: AppDriver {
     func type(ref: Int?, text: String) async throws {}
     func tap(ref: Int) async throws {
         taps += 1
+        if blockedTapsLeft > 0 {
+            blockedTapsLeft -= 1
+            throw DriverError.systemAlertBlocked(detail: "a system alert is in front of the app")
+        }
         guard dismissible else { return }
         dismissed += 1
         shown = false
@@ -164,6 +171,19 @@ final class InterruptDismissalCapTests: XCTestCase {
         let note = outcome.driverFallback ?? ""
         XCTAssertTrue(note.contains("dismissed the interruption"), note)
         XCTAssertTrue(note.contains("×2"), "閉じた回数が読めない: \(note)")
+    }
+
+    /// **閉じるタップがシステムアラートに届けずに断られても、ステップを赤にしない**。
+    /// その回は見送り、次の読みで割り込みをもう一度閉じる(断られたタップは数えない = 届いていない)
+    func testDismissalBlockedByASystemAlertIsRetriedOnTheNextRead() async throws {
+        let driver = InterruptingDriver(appearances: 1, blockedTaps: 1)
+        let outcome = await executor(driver).execute(waitForTarget())
+
+        guard case .passed = outcome.status else {
+            return XCTFail("断られた閉じるタップがステップの失敗になった: \(outcome.status)")
+        }
+        XCTAssertEqual(driver.taps, 2, "断られた後にもう一度閉じていない")
+        XCTAssertTrue(outcome.notes.contains(.interruptDismissBlockedByAlert), "\(outcome.notes)")
     }
 
     /// 1回で済むときは従来どおり(回数は書かない)

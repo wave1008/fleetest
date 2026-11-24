@@ -26,33 +26,30 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 6 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-374 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-374 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 8 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 1 | OI-361 |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 19 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327・OI-361 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 40 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 41 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 11 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 46 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370 |
 
 ## 着手可
 
-## 要測定
-
-### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
+### OI-374 Android の読み上げ用ラベル(contentDescription)を、可視性検証が画面の文字として探して赤にする
 - 状態: 再現済み
-- 確認: d3c382e39(2026-11-22。回帰の後の Simulator 8 台中 5 台・夜の回帰でリモートの3機すべて。回復手段は確認済み・きっかけは未特定)
-- 属性: 要測定・環境側
-- 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
-- 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま
+- 確認: 74c07f117(2026-11-24)
+- 属性: 着手可
+- 運用: 回避可 — `exist(..., requireVisible: false)`(docs の existence_assertion の注意点に記載)。作成中の MCP は可視性検証をしないので本番で初めて赤になる
+- 優先度: 中 — 誤った赤。`#id` で指していても起きる
 
-- 観測: 外観を変えても画面へ届かない端末がある。設定の値は正しく書かれ、`devicectl` も `simctl ui` も「設定できた・読み返しても dark」と答えるが、設定アプリもステータスバーもライトのまま。SpringBoard を起こし直す(`simctl spawn <udid> launchctl kickstart -k system/com.apple.SpringBoard`)と直る(前面のアプリと XCUITest ランナーも終了する)。cfprefsd の起こし直しでは直らない。ツールの経路で起動し直した直後は 8 台とも正常で、run の途中でこの状態になる
-- 試して再現しなかったこと: 連打・負荷・simctl の多用
-- 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
-- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)・その失敗の結果を捨てて1回だけ振り直す(cause `displayNotApplied`。レーンは離脱させない。`RunOrchestrator.requeuesForDisplayNotApplied`)。xcuitest モードと Android は確かめない
-- 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
-- 評価 8回目(11/23・`_work/scen-eval-20261123/`): 本番(inapp-boost)で2回出て、どちらも検出 → SpringBoard の起こし直し → 回し直しで回復した(手元 Sim -08 の dc_cmp_ios・M1Ultra の va_e2ey_cmp_ios = 回し直しの後 6/6 緑)。作成側(MCP = xcuitest モード)では確かめないので、`setAppearance(.dark)` が端末では dark・アプリは light のまま赤になり、作成者は理由が分からなかった(dc_cmp_ios の Sim -04・dc_flutter_ios の Sim -05・va_cmp_ios_img。文字サイズは同じ時刻に届いた)。docs の注意点は navigation に足した
-- 処理(2026-11-23・評価 8回目の後の処理): きっかけを測る材料(状態になる直前のログ)は今回も残せていない。評価では本番の検出と回復が 2/2 で働いた(上の 8回目の行)
-- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim の dc_cmp_ios)で `display-not-applied` が検出された。作成側(MCP)では 14 プロジェクトが「読み返しは dark・アプリが届いたかは見ない」を挙げ、dc_flutter_ios はアプリが light のまま赤(作成者は理由が分からない)
+出典: シナリオ作成の評価 10回目(2026-11-24・標準アプリと地図・`_work/scen-eval-20261124/`。一覧は同フォルダの `ISSUES.md`)
+- 観測: Pixel 4a の電卓の `exist("#formula")`(ラベル `No formula` = 空の数式欄の読み上げ用)が `notRendered`。Google マップ(Emulator)の `exist("#layers_fab||レイヤ")`(アイコンのボタン)が `textMismatch … reads "←+"`(手元と M1Max の2台)。どちらも作成時(MCP)は緑
+- 材料: Android のブリッジは `getText()` と `getContentDescription()` を別々に読んでいる(`SnapshotBuilder.java` の `n.text` / `n.contentDesc`)が、木にはどちらから来たラベルかを載せない。**Flutter は画面に描く文字も contentDescription に入れる**(同ファイルの Flutter の分岐)ので、「説明から来たラベル = 描かれない」とは決められない
+- 測定(2026-11-24・手元 Emulator -05・`adb shell uiautomator dump` で `text` と `content-desc` を分けて読んだ): 自前 SUT のホーム画面で、**Compose・View** は描かれた文字がすべて `text`(説明は空)、**React Native** はボタンが説明 = ラベルを持ち、子の TextView が同じ文字を `text` に持つ、**Flutter** は描かれた文字が説明にだけ入る(`text` は空)。評価で赤になった2例(電卓の `No formula`・マップのアイコンのボタン)はネイティブ View の説明だけのラベル
+- 処理(2026-11-24・評価 11回目の後の処理): ブリッジがラベルの出どころを送り(`ElementInfo.labelSource = "desc"`・Android のブリッジの版 145)、可視性検証は `DescriptionOnlyLabel.skipsDrawnTextCheck` が真の要素で描かれた文字を求めない(注記 `description-only-label-not-checked`)。条件は上の測定の3つの形をそのまま書いたもの(説明だけ・Flutter でない・子孫に同じ文字の `text` が無い)。**UI フレームワークが不明なら従来どおり検証する** —— Android のフレームワークの判定はプロファイルの `appPath` の APK だけから行う(`AppUIFrameworkQuery`)ので、評価で赤になった標準アプリ(電卓・マップ = `appPath` が無い)にはこの直しは効かない
+- 次の一手: 端末に入っているパッケージの APK を(`adb shell pm path` → 取り出し)判定の材料にできるかを決める(子のサンドボックスの `AdbPolicy` に取り出しを足す・取り出しの所要)。決まるまで標準アプリの説明だけのラベルは `requireVisible: false` で書く
+## 要測定
 
 ### OI-329 標準アプリのリマインダーが inapp-boost で赤(追加した行が in-app の木でラベルの無い clickable)
 - 状態: 再現済み
@@ -72,17 +69,71 @@
 - 評価 9回目(11/23 夜): リマインダーの本番は時間の都合で回していない(材料なし)
 - 評価 10回目(11/24・標準アプリ・`_work/scen-eval-20261124/`): 作成(MCP = XCUITest)で緑・本番(inapp-boost)で赤が4本、どれも in-app の木が XCUITest と違う形。リマインダー(`exist "*FT評価タスク、未実行*"` が無い = 同じ形)・ファイル(in-app の木は `clickable "FT評価フォルダ, フォルダ, 0項目" id=FT評価フォルダ, Folder` で、`exist("FT評価フォルダ")` の完全一致に当たらない)・連絡先(`exist("追加")` が無い)・ショートカット(iOS 27 のモーダル `accessibilityViewIsModal` が背面の要素を木から落とし `type(".textField")` が解決しない)。合成ラベルの経路を測る口は未着手のまま
 
-### OI-374 Android の読み上げ用ラベル(contentDescription)を、可視性検証が画面の文字として探して赤にする
-- 状態: 再現済み
-- 確認: 74c07f117(2026-11-24)
-- 属性: 要測定
-- 運用: 回避可 — `exist(..., requireVisible: false)`(docs の existence_assertion の注意点に記載)。作成中の MCP は可視性検証をしないので本番で初めて赤になる
-- 優先度: 中 — 誤った赤。`#id` で指していても起きる
+- 評価 11回目(11/24・`_work/scen-eval-20261124c/`): 作成時は緑・本番(inapp-boost)で赤の大半がこの系統(6 プロジェクト)。id が違う(マップの見出しが XCUITest の `#PlaceHeaderTitle` に対し in-app は `staticText "東京駅, 駅 · …" id=PlaceHeaderView`)・行のラベルが落ちる(リマインダー = 同じ形・ウェザーニュースのロゴのリンクは label 無しで子の image にだけ名前)・状態が落ちる(Safari の Yahoo のタブの `checked`。実機 SE3 の xcuitest では同じ式が緑)・メニュー/コンテキストメニューが in-app の木に出ない(カレンダーの `#list-view`・リマインダーの「リストを削除」)。**`exist` は通り直後の `select` / `textIs` が not found になる形**(マップ: `exist "#PlaceHeaderTitle"` が 6.67 秒で緑 → `textIs` が not found)は、DR-199 の XCUITest の木への照会が存在のアサーションだけにある(`StepExecutor+Assert.swift` の `foundInXCUITestTree`)ことによる = 原因はコードで確かめた。照会を `select` 系へ広げるかは上の次の一手と合わせて要判断
+- 測定(2026-11-24 13:3x・手元 Sim -04・in-app のブリッジに一時の測る口を足した dylib を作業用のコピーで作り、リマインダーへ注入して `/snapshot` を読んだ): ラベルの無い行(`clickable id=<x-apple-reminderkit://REMCDReminder/…> (0,168 402x44)`)は `accessibilityLabel` が空でも、**公開 API の `accessibilityAttributedLabel` の文字列が XCUITest と同じ「M329項目、未実行」**(非公開の `_accessibilityAXAttributedLabel` も同じ値)。= 合成ラベルは in-app から公開 API で取れる
+- 処理(2026-11-24・評価 11回目の後の処理): 行のラベルは直した(`InAppSnapshot.makeInfo` が `accessibilityLabel` の空のときに `accessibilityAttributedLabel` を使う)。手元 Sim -08 の s_reminders_ios(inapp-boost)で、直す前に赤だった行の確かめ(`exist "*FT評価完了タスク*"`・`exist "*未実行*"`)が緑になった(`_work/scen-eval-20261124c/logs/m329-after.log`)。同じ run の次の赤は長押しで出るメニュー(「実行済みにする」「削除」)が in-app の木に無い形 = 下の残り
+- 残り(この項目の続き): ①長押しのメニュー・コンテキストメニュー・ポップオーバーが in-app の木に出ない(リマインダー・カレンダーの `#list-view`)②マップの見出しの id が in-app では `PlaceHeaderView`(XCUITest は `PlaceHeaderTitle`)③Safari の Yahoo のタブの `checked` が in-app で落ちる ④DR-199 の XCUITest の木への照会が存在のアサーションにしか無い(`select` / `textIs` は照会しない)
+- 次の一手: ①は、メニューを出した直後に in-app のブリッジが読むウィンドウの一覧(キーウィンドウだけか・全ウィンドウか)と、メニューがどのウィンドウに載るかを測る。②〜④は測った後に、in-app で取れない形を XCUITest へ照会するかを要判断へ
 
-出典: シナリオ作成の評価 10回目(2026-11-24・標準アプリと地図・`_work/scen-eval-20261124/`。一覧は同フォルダの `ISSUES.md`)
-- 観測: Pixel 4a の電卓の `exist("#formula")`(ラベル `No formula` = 空の数式欄の読み上げ用)が `notRendered`。Google マップ(Emulator)の `exist("#layers_fab||レイヤ")`(アイコンのボタン)が `textMismatch … reads "←+"`(手元と M1Max の2台)。どちらも作成時(MCP)は緑
-- 材料: Android のブリッジは `getText()` と `getContentDescription()` を別々に読んでいる(`SnapshotBuilder.java` の `n.text` / `n.contentDesc`)が、木にはどちらから来たラベルかを載せない。**Flutter は画面に描く文字も contentDescription に入れる**(同ファイルの Flutter の分岐)ので、「説明から来たラベル = 描かれない」とは決められない
-- 次の一手: ブリッジがラベルの出どころを送ったとして、自前の SUT(Flutter・Compose・View)の描かれている文字と描かれていない説明を見分けられるかを先に確かめる(見分けられなければ判定にしない = MN-108)。見分けられるなら、説明から来たラベルの要素では可視性検証が文字を求めないようにするかを決める
+### OI-377 inapp-boost で Safari の Web のリンクをタップしても遷移しない(緑のタップの後の確認で赤)
+- 状態: 再現済み
+- 確認: ac3b32b62(2026-11-24)
+- 属性: 要測定
+- 運用: 回避可 — xcuitest モード(下の測定で 3/3 緑)
+- 優先度: 中 — タップが緑のまま次のステップで赤になる(タップの注記は「何も応答しなくても成功を記録する」と言っている)
+
+出典: シナリオ作成の評価 11回目(2026-11-24・`_work/scen-eval-20261124c/`。作成 53 セッション(完了前の `ft_start_run` を初めて許した回)・本番 147 回・延べ 467 本・緑 353。各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
+- 観測: s_wn_safari_ios(手元 Sim・M1Ultra の2台)で `tap ".link&&雨雲レーダー"` が緑(`activate did not fire -> synthetic touch`)・次の `exist "トップ"` が「did not change the screen at all」で赤。失敗時の木は TOP のまま・`BackButton` は disabled(遷移していない)。s_web_ipad(iPad・手元と M1Ultra)の `tap ".link&&国際"` も同じ形(注記 `WebView DOM path … records success even when nothing responds`)。同じモードの Yahoo の記事リンクは遷移した(M1Ultra の s_yahoo_safari_se3)
+- 測定(2026-11-24 13:0x・手元 Sim -08・`_work/scen-eval-20261124c/logs/m377-*.log`): 同じシナリオ(ウェザーニュースのトップのリンク3本)を同じ台で xcuitest モードは **3/3 緑**、inapp-boost は **2 回とも 2/3 赤**(同じ2本)。赤のタップは2回とも `activate did not fire -> synthetic touch` = アクセシビリティの activate が効かず、in-app の合成タッチへ落ちた回。Safari の Web の中身は in-app の合成タッチでは遷移しない(activate が効いた Yahoo の記事リンクは同じモードで遷移した)
+- 材料(コード・2026-11-24): 注記の `activate did not fire -> synthetic touch` は、DOM の経路で木に載せた Web の要素(アクセシビリティの部品を持たない)へのタップでは**必ず**付く(`InAppBridge.swift` の `tapByRef` が部品の無い ref を `synthFallback` へ回す)ので、「activate を試して効かなかった」印ではない。同じ合成タッチで Yahoo の記事リンクは遷移し、ウェザーニュースのリンクは遷移しない = 「合成タッチが Safari の Web の中身に届かない」とは言えない
+- 試して採らなかったこと(2026-11-24): Safari のバンドル ID を名指して Web の要素のタップを XCUITest へ回す直しを書いたが、特定のアプリに合わせた分岐(DR-3)で、原因も観測していないので戻した
+- 次の一手: 遷移するリンクとしないリンクの違いを測る(同じページで合成タッチの座標・押した先の DOM の要素(`document.elementFromPoint`)・リンクがクリックの処理を JS で持つか)。違いが分かるまで直さない
+
+### OI-376 RN の iOS の入力欄のプレースホルダ「単一行」を FM が「单一行」と読んだ赤を、OCR の読み直しが救わない
+- 状態: 再現済み
+- 確認: ac3b32b62(2026-11-24)
+- 属性: 要測定
+- 運用: 回避可 — `exist(..., requireVisible: false)`。作成中の MCP は可視性検証をしないので本番で初めて赤になる
+- 優先度: 中 — はっきり描かれている文字の誤った赤
+
+出典: シナリオ作成の評価 11回目(2026-11-24・`_work/scen-eval-20261124c/`。作成 53 セッション(完了前の `ft_start_run` を初めて許した回)・本番 147 回・延べ 467 本・緑 353。各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
+- 観測: `exist "#field_single"` が `[textMismatch] the text drawn there reads "单一行", not the expected text (only CJK ideographs differ …)` で赤。fd_xm_rn(iPhone Duo・inapp-boost)で 6 回・M1Ultra の Duo で 1 回・dc_rn_ios の dark-large で 1 回。fd_xm_rn の切り出し(`~/Library/Logs/fleetest/occlusion/occlusion-2026-11-24T03-09-12.849Z.png`)は白地に灰色の「単一行」がはっきり描かれている。dc_rn_ios の dark-large の切り出し(`…/occlusion-2026-11-24T02-52-47.112Z.png`)は白地にほぼ白で、こちらは本当に読みにくい
+- 材料: `TranscriptMatch.isNearMiss` は「FM の近い外れは OCR に読ませ、期待を丸ごと読めれば見えている側へ倒す」口で、同じ「単一行」を実測の例に挙げている。dc_rn_ios の赤のステップは `ocrMs` 1771(OCR は走った)で赤のまま = OCR が丸ごと読めなかったか、救う分岐へ入らなかった(どちらかを分ける記録が無い)
+- 測定(2026-11-24・切り出しを Vision の `RecognizeTextRequest`(accurate)へ単独で渡した。`scratchpad/ocr`): fd_xm_rn の切り出し(2547×174)をそのまま渡すと、言語・補正の6通りすべてで **1行も読めない**(2倍でも同じ)。切り方を変えると読めたり読めなかったりする —— 本番と同じ設定(ja-JP + en-US・言語補正あり)で、上下の端を落とした全幅の帯・幅 300〜1200 の帯は「単一行」を首位に読む(次点に「单一行」)が、**四辺を 6% ずつ削った帯(2483×110)は何も読めない**。= 「欄の枠線が原因」とは言えない(左右の枠線を含む全幅の帯は読め、枠線を外した帯が読めないことがある)。薄い灰色の小さな文字が横に極端に長い画像の中にあると Vision の読みが数ピクセルの切り方で揺れる、までしか分からない。dc_rn_ios の dark-large(白地にほぼ白)は「行」だけ読める = こちらは描かれ方そのものが読みにくい
+- 試して採らなかったこと(2026-11-24): `resolve` で ×1 が 0 行のときに frame の内側の帯(四辺を min(幅,高さ)×6% 削る)を1回読み直す直しを書いたが、上の実物の切り出しでその帯が読めないので戻した(1枚に合わせて削る幅を調整するのは数字の調整 = DR-4)
+- 次の一手: 文字の在りかに依らない切り方(例: Vision の文字領域の検出で文字の矩形を先に得て、その矩形だけを読む)で、この切り出しと固定の切り出しのコーパスが安定して読めるかを測る。測れるまで直さない
+
+### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
+- 状態: 再現済み
+- 確認: d3c382e39(2026-11-22。回帰の後の Simulator 8 台中 5 台・夜の回帰でリモートの3機すべて。回復手段は確認済み・きっかけは未特定)
+- 属性: 要測定・環境側
+- 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
+- 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま
+
+- 観測: 外観を変えても画面へ届かない端末がある。設定の値は正しく書かれ、`devicectl` も `simctl ui` も「設定できた・読み返しても dark」と答えるが、設定アプリもステータスバーもライトのまま。SpringBoard を起こし直す(`simctl spawn <udid> launchctl kickstart -k system/com.apple.SpringBoard`)と直る(前面のアプリと XCUITest ランナーも終了する)。cfprefsd の起こし直しでは直らない。ツールの経路で起動し直した直後は 8 台とも正常で、run の途中でこの状態になる
+- 試して再現しなかったこと: 連打・負荷・simctl の多用
+- 次の一手: 起きた端末で、状態になる直前までの run のログと SpringBoard のログを残し、きっかけを測る。推測のまま直さない
+- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)・その失敗の結果を捨てて1回だけ振り直す(cause `displayNotApplied`。レーンは離脱させない。`RunOrchestrator.requeuesForDisplayNotApplied`)。xcuitest モードと Android は確かめない
+- 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
+- 評価 8回目(11/23・`_work/scen-eval-20261123/`): 本番(inapp-boost)で2回出て、どちらも検出 → SpringBoard の起こし直し → 回し直しで回復した(手元 Sim -08 の dc_cmp_ios・M1Ultra の va_e2ey_cmp_ios = 回し直しの後 6/6 緑)。作成側(MCP = xcuitest モード)では確かめないので、`setAppearance(.dark)` が端末では dark・アプリは light のまま赤になり、作成者は理由が分からなかった(dc_cmp_ios の Sim -04・dc_flutter_ios の Sim -05・va_cmp_ios_img。文字サイズは同じ時刻に届いた)。docs の注意点は navigation に足した
+- 処理(2026-11-23・評価 8回目の後の処理): きっかけを測る材料(状態になる直前のログ)は今回も残せていない。評価では本番の検出と回復が 2/2 で働いた(上の 8回目の行)
+- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim の dc_cmp_ios)で `display-not-applied` が検出された。作成側(MCP)では 14 プロジェクトが「読み返しは dark・アプリが届いたかは見ない」を挙げ、dc_flutter_ios はアプリが light のまま赤(作成者は理由が分からない)
+
+- 評価 11回目(11/24): 本番の va_swiftui_ios(手元 Sim)で1 run に3回・fd_xm_rn(M1Max)で1回。検出 → SpringBoard の起こし直し → 振り直しで1件は緑に戻り、`コントロール操作.S0010@dark-large` は振り直しの上限(1回)で赤のまま。作成側(MCP)では ip_va_cmp が `setAppearance(.dark)` の緑のままアプリは light(文字サイズは届いた)
+- 処理(2026-11-24・評価 11回目の後の処理): 本番 8 run で検出(手元 4・M1Max 2・M1Ultra 1・iPad 1)。**8 run 中 4 run は、その台の最初のシナリオで既に届かない状態**(run の前から壊れていた = きっかけは run の外)。手元の va_swiftui_ios(Sim -09)は1 run の中で同じ台に **6 回**出た = SpringBoard の起こし直しで回復しても run の中で同じ状態へ戻る(回復が続かない)。きっかけを測る材料(状態になる直前の SpringBoard のログ)は今回も残せていない。次の一手は変えない
+
+### OI-378 Android の Emulator で、入力した欄を ACTION_SET_TEXT の後に見つけ直せず赤(文字は入っている)
+- 状態: 再現済み
+- 確認: ac3b32b62(2026-11-24)
+- 属性: 要測定・低頻度
+- 運用: 再実行で吸収 — 手元の同じ OS の Emulator では緑
+- 優先度: 低 — 1回・リモートの1台だけ
+
+出典: シナリオ作成の評価 11回目(2026-11-24・`_work/scen-eval-20261124c/`。作成 53 セッション(完了前の `ft_start_run` を初めて許した回)・本番 147 回・延べ 467 本・緑 353。各セッションの所見は `ws/TestProjects/<proj>/EVAL_REPORT.md`・本番のログは `logs/run-*.log`)
+- 観測: s_contacts_and(M1Max の Pixel 10 Pro(Android 17) Emulator)の `type ".textField&&placeholder=名||.textField[3]" "タロウ"` が `cannot type into the field that was tapped (the field could not be found again after ACTION_SET_TEXT was accepted, 4000ms waited; read back "", refresh ok, ACTION_SET_TEXT accepted 2 times, the IME window is in front …)` で赤。失敗時の木では名の欄が `value="タロウ" ph="名"`、よみがなの欄にも `value="タロウ"`(入力で画面が変わった)。手元の同じ OS の Emulator は緑。作成者の「入力でプレースホルダが消えて指し直せない」は誤り(入力後の木にも `ph="名"` があり、見つけ直しはセレクタを使わない)
+- 材料: 見つけ直しは `AndroidRunner/…/InputInjector.java` の `findEditable(root, shortId, x, y, bounds)`。id の無い欄はタップ座標で追う。どの候補を拾った(拾えなかった)かの記録は無い
+- 次の一手: 見つけ直しの候補の数と座標を注記に残す口を足し、次に出たとき「座標が外れたのか・欄が作り直されたのか」を分ける
+- 処理(2026-11-24): 次の一手(見つけ直しの候補を注記に残す口)は Android のブリッジの変更なので、OI-374 の着手(ブリッジがラベルの出どころを送る・版を上げる)と同じ版で入れる
 
 ## 要判断
 
@@ -276,6 +327,7 @@
 - 観測: e2ey_cmp_3a。`swipe left sent inside id=shelf_5. (nothing on the screen moved after the swipe(s) — the list may already be at its end in this direction)` の同じ応答の木で `card_5_00/01/02` → `card_5_01/02/03/04`
 - 測定(11/23 夜): 判定は `scrollFrame:` を書いた払いなら枠の中だけを比べる(`StepExecutor+DirectActions.swift` の `sameContentInSearchRegion`)。Emulator(Pixel 10 Pro・Android 17)の E2EY-CMP の同じ画面で、`#shelf_1` を4回・下端にかかった `#shelf_4` を1回払い、5回とも注記は出なかった(中身は正しく1枚ずつずれた)= この台では再現しない
 - 測定(11/23 夜・Pixel 3a の実機): 報告の台で `#list_nested` を送って `#shelf_5` を出し、`ft_swipe finger: left scrollFrame: #shelf_5` → 注記なし(中身は1枚ずれた)。Emulator の5回と合わせて6回とも再現しない → 低頻度へ移す。出たら、払う前後の枠の中の木を残す
+- 評価 11回目(2026-11-24): 作成 53 セッションのログに `nothing on the screen moved` は 0 回(材料なし)
 
 ### OI-358 Android でアプリの面が描かれずキーボードだけ描かれた回は「全面一色」にならず、白紙として扱われない
 - 状態: 再現済み
@@ -289,6 +341,7 @@
 - 次の一手: キーボードの枠を除いたアプリの面だけで一色かを判定しているかをコードで確かめる
 - **読み(2026-11-23・評価 8回目の後の処理)**: 失敗文の「全面一色」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`)で、キーボードの枠を受け取らない = キーボードだけ描かれた回は一色にならない。続く `RenderCollapse.judge` は keyboard を受け取るが、この回は何も添えなかった(Android のキーボードの枠を持っていたか・文字の要素の数が下限に届いたかは未観測)。run のレーンの白紙の扱いは別の経路で、この回に働かなかった理由は未観測。次の一手: 同じ形(キーボードだけ描かれた白紙)の結果 JSON の注記と、そのときの `guardKeyboardFrame` を残して読む
 - 評価 9回目(11/23 夜): 本番(手元 Emu -08・va_rn_and)の「アプリの面が一色」の可視性検証の赤は、白紙として公表され `renderingHeld`(他に Android のレーンが無い)を記録した。キーボードだけ描かれた元の形は出ていない → 低頻度へ移す
+- 評価 11回目(2026-11-24・本番 147 回): Android で画面が描かれない赤は 0 回(`notRendered` の赤は iOS の Duo と CMP の暗い外観だけ = 別の形)
 
 ### OI-345 iOS の Simulator で画面全体が描かれていない赤に `screen-blank` が立たず、レーンの切り離し・振り直しが起きない
 - 状態: 再現済み
@@ -303,6 +356,7 @@
 - 11/22 の読み(コード): 失敗文の「whole app area … single colour」は `StepExecutor.blankAppAreaFact`(`BlankFrameDetector.isUniform`・上端の帯は木から決める)で、状態の公表は可視性検証の赤の後の `publishScreenStateAfterNotRendered` → `RenderCollapse.judge`(文字の型の要素が `minimumTextElements` 以上・全画面の一色は凍結の担当で公表しない)= 判定が別。今回の画面がどの条件で外れたかは未観測。次の一手: 残った失敗時の画面写真と木を `RenderCollapse.judge` に通して、返る所見(nil / wholeScreenBlank / blankAppArea)を採る
 - 評価 8回目(2026-11-23・評価 8回目の後の処理): 本番(iOS の inapp-boost)で同じ形は 0 回。作成の MCP(XCUITest)では CMP iOS の白い画面(末尾の描画の検査の赤)が 12 セッション以上で出た = MCP の経路には白紙の公表もレーンも無い。測る材料(本番の iOS の白紙)が出ず、材料待ち
 - 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim -08・inapp-boost・dc_cmp_ios)で外観をダークにした後、末尾の描画の検査が `the whole screenshot is a single colour, status bar included` の赤。run は `renderingHeld`(他に iOS のレーンが無いので切り離さない)を記録したが、この赤(全画面の一色)は公表しない型(`RenderCollapse.screenState` が nil を返す)なので、どのステップの公表かは未確認。可視性検証の赤で `screen-blank` が立たない元の形は 2 回の評価で出ていない → 低頻度へ移す(出たら同じ手で測る)
+- 評価 11回目(2026-11-24・本番 147 回): `screen-blank` に当たる赤は 0 回(材料なし)
 
 ### OI-359 Flutter の iOS(inapp-boost)で `clearAppData` が「could not delete 1 item(s) in the data container … : Library」の 500 で赤
 - 状態: 再現済み
@@ -716,6 +770,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): Duo の作成 4 セッションと本番の 5 run 全部で出た(Duo-01 は SpringBoard が止まったまま約 20 分戻らず、XCUITest ブリッジの起動が `the simulator's SpringBoard is not running` の時間切れ = OI-196 と同じ形)。開いた画面のシナリオが Duo の上で本番を最後まで走ったものは 0 本。供給で落ちた後に全部が別の台で対象外になる形は DR-214 で失敗にした
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): 05:48 に FBSDisplayMode の SpringBoard の落ち 1 件(DiagnosticReports)・Duo の作成 6 セッションが全部この落ちに当たった
 - 評価 8回目(11/23): 作成の 8 セッションで開いた後に SpringBoard が落ち続け、MCP では起こし直せず探索が止まった(duo_lk_rn・duo_swiftui はシナリオ 0 本)。本番の Duo -02 は供給で合流できず `no iOS device joined the run … Run stopped`(0 本の緑にはならない)。05:30 に手で止めた後の fd_* の本番は 13 回中 11 回緑。M1Ultra の Duo は開いた後に `devicectl reports 0 active built-in displays` で送らずに赤(19d06abd3 どおり)。手元の Duo -02 は run の中で `SpringBoard restarted 5 time(s) in 45s … shutting the simulator down` で切り離された
+- 評価 11回目(11/24): 手元の Duo の本番の大半が落ち続けの区間で `423 … is in the background`・`no key window (409)`・`devicectl reports 0 active built-in displays` → 台の離脱 → `no usable workers`。duo2-19・duo2-21 は供給で SpringBoard が居らず0本(`Run stopped: no iOS device joined the run`)。同じプロジェクトを M1Ultra の Duo で回した run は全部緑。MCP の探索中に固まった fd_e2ey_swiftui は、注記が「Simulator の起動し直し」を勧めるが MCP に起動し直す道具が無く、探索が止まった
 
 ## 据え置き
 

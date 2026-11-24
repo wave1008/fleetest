@@ -38,7 +38,8 @@ final class ElementInfoCodingTests: XCTestCase {
             scrollActions: ["backward", "forward"],
             inOverlayWindow: true,
             clickable: true,
-            keptDepth: 3)
+            keptDepth: 3,
+            labelSource: "desc")
     }
 
     func testEveryFieldSurvivesAnEncodeDecodeRoundTrip() throws {

@@ -277,6 +277,12 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// **率を見たい注記**: 多ければ FM の書き起こしの取りこぼし、あるいは OCR が見逃しを作っている疑い
     case ocrReadWhatFMMissed = "ocr-read-what-fm-missed"
 
+    /// occlusion-guard が、**ラベルが読み上げ用の説明(contentDescription)だけから来た要素**(Android・Flutter 以外・
+    /// 子孫に同じ文字の `text` が無い)の描かれた文字を求めず、在ることと幾何だけで緑にした(`DescriptionOnlyLabel`)。
+    /// 説明は画面に描かれないことがある(電卓の空の数式欄・アイコンのボタン)ため。判定は緩める側にしか動かないので
+    /// **率を見たい注記**: 率が上がったら、アプリが説明と同じ文字を描いているのに検証を省いている(読み落とし)疑い
+    case descriptionOnlyLabelNotChecked = "description-only-label-not-checked"
+
     /// occlusion-guard の OCR と FM の判定が割れ、**OCR は見えないと言ったが FM は期待の文字を読めた**ので
     /// 緑にした。多ければ OCR の読み違い(短い文字列・字形)を疑う
     case fmReadWhatOCRMissed = "fm-read-what-ocr-missed"
@@ -396,6 +402,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// システムアラートが前面にあってブリッジが**届けずに**断り(`DriverError.systemAlertBlocked`)、登録(iosAlertHandler)で
     /// 閉じてから撃ち直した(`executeActionRetryingUndelivered`)。立つのは断りが1回でもあった回だけ
     case systemAlertRetried = "system-alert-retried"
+    /// `irregularHandler` の閉じるタップを、直前に出たシステムアラートでブリッジが**届けずに**断った(`systemAlertBlocked`)ので、
+    /// その回は見送った(待ちの次の読みでアラートを登録が閉じ、割り込みをもう一度閉じる)。
+    /// **率が上がったら、割り込みとシステムアラートが重なる画面(起動直後の許可と案内)が多い**
+    case interruptDismissBlockedByAlert = "interrupt-dismiss-blocked-by-alert"
     /// scrollToEdge の端の確かめを、全力の送りではなく短くゆっくりしたドラッグで撃った(`EdgeProbe`。端を申告しない
     /// 構成 = iOS の XCUITest で、直前の送りが指の移動量より動かなかったとき)。確かめの送りが上端で引っ張って更新に
     /// 化けないようにする経路が働いた回を数える印
@@ -588,6 +598,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .edgeProbedGently:
             return "the edge was confirmed with short slow drags instead of full swipes, so a pull-to-refresh at the edge"
                 + " was not triggered"
+        case .interruptDismissBlockedByAlert:
+            return "a system alert came up just before the irregularHandler dismissal tap, so the bridge refused it without"
+                + " delivering it; the dismissal was retried after the alert was handled"
         case .systemAlertRetried:
             return "a system alert came up just before the action, so the bridge refused it without delivering it;"
                 + " the alert was closed by iosAlertHandler and the action was sent again"
@@ -761,6 +774,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "could not consult the app's XCUITest tree (the foreground check did not answer or the tree could not be read)"
         case .foundInXCUITestTree:
             return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
+        case .descriptionOnlyLabelNotChecked:
+            return "the label comes only from the accessibility description, which is not drawn on the screen, so the drawn text was not checked"
         case .xcuitestTreeNoMatch:
             return "not in the in-app tree, and the app's XCUITest tree had no match either"
         case .xcuitestTreeUnverified:

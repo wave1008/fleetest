@@ -313,6 +313,12 @@ extension StepExecutor {
                                             value: e.element.value, placeholder: e.element.placeholder,
                                             web: e.element.web).ok
         else { return .pass(.keep) }
+        // 説明だけから来たラベルは描かれた文字を求めない(判定は `DescriptionOnlyLabel` の1箇所。フレームワーク不明は従来どおり検証する)
+        if DescriptionOnlyLabel.skipsDrawnTextCheck(element: e.element, expectedText: e.expectedText,
+                                                    in: e.elements, app: uiFramework) {
+            noteCodesThisStep.insert(.descriptionOnlyLabelNotChecked)
+            return .pass(.keep)
+        }
         return .next
     }
 

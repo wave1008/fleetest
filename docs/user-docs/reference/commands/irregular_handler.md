@@ -35,6 +35,11 @@ func beforeEach() {
 - **Does not touch OS system dialogs** (permission prompts, "Open in …?"). Those are drawn by a
   separate process and are outside what `irregularHandler` can see — see
   [iosAlertHandler](./ios_alert_handler.md).
+- **An iOS system alert that comes up just before the dismissal tap does not fail the step.** That tap was not
+  delivered, so the tool skips it, lets the alert be closed by its [iosAlertHandler](./ios_alert_handler.md)
+  registration, and then dismisses the interruption again (note `interrupt-dismiss-blocked-by-alert` in the report).
+  Without a registration for the alert, the step fails as an alert failure. This happens in apps that show a
+  permission alert and an in-app announcement together right after launch.
 - **Modals in a separate window (iOS)**: some in-app message SDKs draw on a separate `UIWindow`
   rather than the app's key window. The tool still sees these:
   - The modal itself is in the tree (`exist` finds it, `irregularHandler` can close it).

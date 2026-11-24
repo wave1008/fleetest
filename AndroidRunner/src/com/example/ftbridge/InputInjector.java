@@ -156,12 +156,14 @@ final class InputInjector {
         boolean lastRefreshOK = false;  // 以下3つは期限切れの文言に載せる事実(failureFacts)
         String lastRead = null;
         int accepted = 0;
+        boolean refindFailed = false;  // 直近の周回で見つけ直せなかった(期限切れの文言に候補の事実を添える。OI-378)
         Rect bounds = new Rect();
         while (true) {
             try {
                 AccessibilityNodeInfo root = ua.getRootInActiveWindow();
                 AccessibilityNodeInfo target = root == null ? null
                         : findEditable(root, shortId, (int) x, (int) y, bounds);
+                refindFailed = target == null && accepted > 0;
                 // **読む前に必ず取り直す**。a11y ノードはキャッシュから供給され、とくに
                     // WebView(Chromium)は DOM 変更のイベントを遅れて出すため、取り直さないと
                     // getText() が**変更前の値を返し続ける**(SnapshotBuilder.collect の
@@ -249,9 +251,56 @@ final class InputInjector {
                         + timeoutMs + "ms waited; "
                         + failureFacts(ua, lastRead, masked, lastRefreshOK, accepted)
                         + "; giving up rather than typing into the wrong field)" + movedFocusFact(ua, shortId)
+                        + (refindFailed ? refindFacts(ua, shortId, (int) x, (int) y) : "")
                         + deliveryUnknownNote(accepted));
             }
             SystemClock.sleep(RETRY_POLL_MS);
+        }
+    }
+
+    /**
+     * 見つけ直せなかった失敗に添える測定の事実(OI-378。座標が外れたのか・欄が作り直されたのかを分ける材料。判定は変えない)。
+     * 木の中の editable の数・同じ id の editable の数・タップ点に最も近い editable の bounds と点との距離。
+     */
+    private static String refindFacts(UiAutomation ua, String shortId, int x, int y) {
+        try {
+            AccessibilityNodeInfo root = ua.getRootInActiveWindow();
+            if (root == null) return "; refind: no active window root";
+            int editables = 0;
+            int sameId = 0;
+            Rect nearestBounds = null;
+            double nearestDistance = Double.MAX_VALUE;
+            Rect tmp = new Rect();
+            java.util.ArrayDeque<AccessibilityNodeInfo> queue = new java.util.ArrayDeque<>();
+            queue.add(root);
+            while (!queue.isEmpty()) {
+                AccessibilityNodeInfo node = queue.poll();
+                if (node == null) continue;
+                if (node.isEditable()) {
+                    editables++;
+                    String id = node.getViewIdResourceName();
+                    if (shortId != null && id != null) {
+                        int idx = id.indexOf("id/");
+                        if (shortId.equals(idx >= 0 ? id.substring(idx + 3) : id)) sameId++;
+                    }
+                    node.getBoundsInScreen(tmp);
+                    double dx = tmp.centerX() - x;
+                    double dy = tmp.centerY() - y;
+                    double distance = dx * dx + dy * dy;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestBounds = new Rect(tmp);
+                    }
+                }
+                for (int i = 0; i < node.getChildCount(); i++) queue.add(node.getChild(i));
+            }
+            String nearest = nearestBounds == null ? "none"
+                    : nearestBounds.toShortString() + " (centre " + (int) Math.sqrt(nearestDistance) + "px from the tap point)";
+            return "; refind: " + editables + " editable node(s) in the tree, " + sameId + " with id "
+                    + (shortId == null ? "(none)" : shortId) + ", tap point (" + x + "," + y + "), nearest editable bounds "
+                    + nearest;
+        } catch (RuntimeException e) {
+            return "; refind: facts unavailable (" + e.getClass().getSimpleName() + ")";
         }
     }
 

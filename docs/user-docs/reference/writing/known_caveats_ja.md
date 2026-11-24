@@ -105,6 +105,7 @@
 - [既定では1ステップ最大10回まで閉じる](../commands/irregular_handler_ja.md#注意点) — `maxDismissals:` で変えられます。2回閉じても残れば諦め、「完全には閉じられなかった」と記録します。
 - [条件判定も割り込みを閉じてから答える](../commands/irregular_handler_ja.md#注意点) — 閉じないと覆われた対象が黙って「無い」と読まれ、誤った分岐になります。
 - [OS のシステムダイアログ(権限の許可等)には効かない](../commands/irregular_handler_ja.md#注意点) — 別プロセスが描画するため対象外です。`iosAlertHandler` を使います。
+- [閉じるタップの直前に iOS のシステムアラートが出てもステップは失敗しない](../commands/irregular_handler_ja.md#注意点) — タップは届いていないので見送り、アラートを `iosAlertHandler` の登録で閉じてから閉じ直します。登録が無ければアラートの失敗になります。
 - [iOS の別ウィンドウのモーダルはツリーに現れるが、全面を覆うと背面がツリーから消える](../commands/irregular_handler_ja.md#注意点) — 背面の `exist` やタップは失敗するので誤成功にはならず、モーダルを閉じてから操作します。
 
 ### キーボードの検証(keyboardIsShown, keyboardIsNotShown)

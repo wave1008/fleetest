@@ -1763,7 +1763,17 @@ public final class StepExecutor {
                 continue
             }
             let start = clock.now
-            try await driver.tap(ref: target.ref)
+            do {
+                try await driver.tap(ref: target.ref)
+            } catch where Self.isUndeliveredBySystemAlert(error) {
+                // 閉じるタップの直前に出たシステムアラートで、ブリッジが**届けずに**断った(DR-136 の確定の印)。
+                // ステップを赤にせずこの回は見送る —— 呼び手の待ちの次の読みで、アラートは登録(iosAlertHandler)が閉じ、
+                // 登録が無ければ「登録が無い」の文言で落ちる。割り込みはその後の読みでもう一度閉じる(回数は数えない)。
+                // 見送らないと 422 がステップの失敗になり、登録したアラートを閉じる処理まで届かない(起動の直後の許可アラートと案内が重なる形で実測)
+                phase.actionMs += Self.ms(clock.now - start)
+                noteCodesThisStep.insert(.interruptDismissBlockedByAlert)
+                return
+            }
             phase.actionMs += Self.ms(clock.now - start)
             // **整定してから取り直す**(受け手報告)。閉じた直後の1枚は
             // **消えるアニメーションの最中**のことがあり、そのとき背面はまだ覆われている扱い =

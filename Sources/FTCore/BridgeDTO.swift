@@ -44,7 +44,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 303
+    public static let bridgeProtocolVersion = 304
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -1100,12 +1100,23 @@ public struct ElementInfo: Codable, Sendable {
     /// nil = ホストで組んだ木(固定コーパス・テストの木)で申告が無い。木に1つでも nil があれば `depth` で引く
     public var keptDepth: Int?
 
+    /// **ラベルの出どころ**。`"desc"` = ラベルが `contentDescription` から来て、`text` は空だった
+    /// (**Android だけが、その形のときだけ送る**。省略 = 描かれた文字から来た・iOS・旧形式)。
+    /// 読み上げ用の説明は画面に描かれないことがある(電卓の空の数式欄の `No formula`・アイコンのボタンの名前)ので、
+    /// 可視性検証が描かれた文字を求めてよいかの材料(`DescriptionOnlyLabel`)。
+    /// **Flutter は描く文字も説明にだけ入れる**ので、`"desc"` だけでは「描かれない」と言えない(判定側がフレームワークで分ける)。
+    /// 追加 optional フィールド(省略に「desc ではない」の意味がある)なので bridgeProtocolVersion は据え置き
+    /// (Android は AndroidBridge.expectedBridgeVersionCode を上げる)
+    public var labelSource: String?
+
     public init(ref: Int, type: String, identifier: String?, label: String?, value: String?,
                 placeholder: String?, enabled: Bool, frame: FTRect, depth: Int,
                 checked: Bool? = nil, web: Bool? = nil, focused: Bool? = nil,
                 scrollable: Bool? = nil, z: Int? = nil, range: String? = nil,
                 axClass: String? = nil, scrollActions: [String]? = nil,
-                inOverlayWindow: Bool? = nil, clickable: Bool? = nil, keptDepth: Int? = nil) {
+                inOverlayWindow: Bool? = nil, clickable: Bool? = nil, keptDepth: Int? = nil,
+                labelSource: String? = nil) {
+        self.labelSource = labelSource
         self.clickable = clickable
         self.keptDepth = keptDepth
         self.range = range
@@ -1150,6 +1161,7 @@ public struct ElementInfo: Codable, Sendable {
         inOverlayWindow = try container.decodeIfPresent(Bool.self, forKey: .inOverlayWindow)
         clickable = try container.decodeIfPresent(Bool.self, forKey: .clickable)
         keptDepth = try container.decodeIfPresent(Int.self, forKey: .keptDepth)
+        labelSource = try container.decodeIfPresent(String.self, forKey: .labelSource)
     }
 
     /// 先頭 1 文字だけ小文字化する(`StaticText` → `staticText`)。冪等なので二重適用しても安全

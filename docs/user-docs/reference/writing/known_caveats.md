@@ -105,6 +105,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [Up to 10 closes per step](../commands/irregular_handler.md#notes) — change with `maxDismissals:`; if the same thing remains after two closes, the tool gives up and records it was not fully closed.
 - [Conditions close interruptions first](../commands/irregular_handler.md#notes) — `ifCanSelect` and `repeatWhileCanSelect` close declared interruptions before judging so a covered target does not read as "not found".
 - [OS system dialogs are not touched](../commands/irregular_handler.md#notes) — permission prompts and "Open in …?" belong to `iosAlertHandler`, not this.
+- [An iOS system alert just before the dismissal tap does not fail the step](../commands/irregular_handler.md#notes) — the tap was not delivered, so it is skipped; the alert is closed by its `iosAlertHandler` registration and the interruption is dismissed again. Without a registration the step fails as an alert failure.
 - [iOS separate-window modals](../commands/irregular_handler.md#notes) — a fully covered screen drops out of the tree (so it never reads as a false pass), a partial cover leaves the rest, and taps reach the frontmost window.
 
 ### Keyboard assertion (keyboardIsShown, keyboardIsNotShown)

@@ -889,6 +889,9 @@ final class SnapshotBuilder {
         // isChecked を立てず isSelected だけで選択状態を出す widget がある(実測: Google マップ
         // 下部ナビ)。isChecked/isSelected どちらが立っても checkIsON の意味は同じ「選択中」
         if (node.checked || node.selected) info.put("checked", true);
+        // labelSource: ラベルが contentDescription だけから来た(text が空)ときだけ "desc" を送る(省略 = 描かれた文字から来た)。
+        // 可視性検証が説明だけのラベルに描かれた文字を求めないための材料(BridgeDTO.ElementInfo.labelSource 参照。上の label の決め方と対)
+        if (label != null && node.text.isEmpty() && !node.contentDesc.isEmpty()) info.put("labelSource", "desc");
         // focused も同じ省略規約(clearInput 事後検証用。BridgeDTO.ElementInfo.focused 参照)
         if (node.focused) info.put("focused", true);
         // scrollable も同じ省略規約(scrollFrame の空振り検出用)
