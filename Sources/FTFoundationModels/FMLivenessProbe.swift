@@ -142,16 +142,24 @@ public enum FMLivenessProbe {
         return false
     }
 
+    /// probeOnce の1回分の観測。`reachedTheModel` = false は**常駐プロセス(fleetest api fm-serve)に
+    /// 届かなかった**(モデルには訊いていない)—— 読み手(FMDoctor)はこの回に「モデル資産」の帰属を言わない
+    public struct ProbeObservation: Sendable {
+        public let verdict: FMLiveness.Verdict
+        public let reachedTheModel: Bool
+    }
+
     /// 1経路を実際に呼んで台帳へ写す。**門を通らない**(呼び出し側が明示的に死活を知りたい
     /// ときの入口。`fleetest doctor` / `ft_doctor` はこちら)。返り値は**この回の観測**で、
     /// 台帳に書いたかどうかとは別(閾値未満の失敗は返り値では dead・台帳は据え置き。`settle` の doc)
     @discardableResult
-    public static func probeOnce(path: FMLiveness.Path, now: Date = Date()) async -> FMLiveness.Verdict {
+    public static func probeOnce(path: FMLiveness.Path, now: Date = Date()) async -> ProbeObservation {
         let startedAt = Date()
         if path == .vision, !visionIsAvailableOnThisOS() {
             // 呼び出し側(refresh)は isSupported で弾いているので通らない(#available の分岐はコンパイラの要求)
-            return FMLiveness.Verdict(state: .dead, checkedAt: now.timeIntervalSince1970,
-                                      source: .availability, error: FMVisionSupport.requirement)
+            return ProbeObservation(verdict: FMLiveness.Verdict(
+                state: .dead, checkedAt: now.timeIntervalSince1970,
+                source: .availability, error: FMVisionSupport.requirement), reachedTheModel: false)
         }
         let outcome = await callOnce(path: path)
         // 観測の刻印は応答を受けた直後(I/O の前)に採る。後で採ると、その間に別プロセスで起きた失敗を
@@ -161,14 +169,17 @@ public enum FMLivenessProbe {
         switch outcome {
         case .answered:
             FMBreaker.recordSuccess()
-            return settle(path: path, error: nil, ms: ms, observed: observed)
+            return ProbeObservation(verdict: settle(path: path, error: nil, ms: ms, observed: observed),
+                                    reachedTheModel: true)
         case .failed(let description):
             FMBreaker.recordFailure()
-            return settle(path: path, error: description, ms: ms, observed: observed)
+            return ProbeObservation(verdict: settle(path: path, error: description, ms: ms, observed: observed),
+                                    reachedTheModel: true)
         case .unreachable(let description):
             // この回の観測だけ返す(doctor は exit 1 にする)。台帳は「不明」のまま = 次の refresh がまた確かめる
-            return FMLiveness.Verdict(state: .dead, checkedAt: now.timeIntervalSince1970, source: .probe,
-                                      error: description, ms: ms)
+            return ProbeObservation(verdict: FMLiveness.Verdict(
+                state: .dead, checkedAt: now.timeIntervalSince1970, source: .probe,
+                error: description, ms: ms), reachedTheModel: false)
         }
     }
 

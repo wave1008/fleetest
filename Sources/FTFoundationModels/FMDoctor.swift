@@ -37,17 +37,25 @@ public enum FMDoctor {
     public static func checkLive() async -> Report {
         let base = check()
         guard base.available else { return base }
-        let verdict = await FMLivenessProbe.probeOnce(path: .text)
-        guard verdict.state == .dead else {
+        let probe = await FMLivenessProbe.probeOnce(path: .text)
+        guard probe.verdict.state == .dead else {
             return Report(available: true, detail: "On-device model: available (confirmed by a live call)")
         }
-        return Report(
-            available: false,
-            detail: "On-device model: a live call failed"
+        return Report(available: false, detail: textLiveFailureDetail(
+            reachedTheModel: probe.reachedTheModel, error: probe.verdict.error))
+    }
+
+    /// **届かなかった回(reachedTheModel = false)に「モデル資産」の帰属を言わない**(fm-serve に届かなかった
+    /// だけで、モデルには訊けていない。検知の入力から導けない帰属を文言に入れない)
+    static func textLiveFailureDetail(reachedTheModel: Bool, error: String?) -> String {
+        let cause = reachedTheModel
+            ? "On-device model: a live call failed"
                 + " (availability reports available — check the model assets and the state of Apple Intelligence)"
-                // 入れ子を畳んでから出す。LanguageModelError の最上位は常に
-                // `Code=-1 "The operation couldn't be completed."` で、真因は入れ子の中にしかない
-                + "\n   Error: \(verdict.error ?? "unknown")")
+            : "On-device model: the FM process (fleetest api fm-serve) could not be reached"
+                + " — the model was not asked, so nothing is known about its assets"
+        // 入れ子を畳んでから出す。LanguageModelError の最上位は常に
+        // `Code=-1 "The operation couldn't be completed."` で、真因は入れ子の中にしかない
+        return cause + "\n   Error: \(error ?? "unknown")"
     }
 
     /// 画像入力(vision)経路を**実際に1回呼んで**確かめる。`visionReport` は OS の能力しか
@@ -55,18 +63,25 @@ public enum FMDoctor {
     /// 対応 OS でないときは visionReport をそのまま返す(それは死ではなく能力の話)
     public static func visionCheckLive() async -> Report {
         guard FMVisionSupport.isSupported else { return visionReport }
-        let verdict = await FMLivenessProbe.probeOnce(path: .vision)
-        guard verdict.state == .dead else {
+        let probe = await FMLivenessProbe.probeOnce(path: .vision)
+        guard probe.verdict.state == .dead else {
             return Report(available: true,
                           detail: "FM visual verification (image input): available"
                               + " (confirmed by a live call)")
         }
-        return Report(
-            available: false,
-            detail: "FM visual verification (image input): a live call failed."
-                + " occlusion-guard (the default requireVisible of exist) and screenLooksLike are"
-                + " disabled — scenario drafting and naming keep working (they are text-only)"
-                + "\n   Error: \(verdict.error ?? "unknown")")
+        return Report(available: false, detail: visionLiveFailureDetail(
+            reachedTheModel: probe.reachedTheModel, error: probe.verdict.error))
+    }
+
+    /// text 側(textLiveFailureDetail)と同じ規律。帰属が変わっても「guard が無効になる」事実は変わらないので言う
+    static func visionLiveFailureDetail(reachedTheModel: Bool, error: String?) -> String {
+        let cause = reachedTheModel
+            ? "a live call failed."
+            : "the FM process (fleetest api fm-serve) could not be reached (the model was not asked)."
+        return "FM visual verification (image input): " + cause
+            + " occlusion-guard (the default requireVisible of exist) and screenLooksLike are"
+            + " disabled — scenario drafting and naming keep working (they are text-only)"
+            + "\n   Error: \(error ?? "unknown")"
     }
 
     /// 画像入力(Attachment)の可否。FM 本体が使えても macOS 26 では視覚系
