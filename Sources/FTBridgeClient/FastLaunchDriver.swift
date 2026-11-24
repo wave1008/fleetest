@@ -139,6 +139,9 @@ public final class FastLaunchDriver: AppDriver {
     }
 
     /// **転送必須**(同上)
+    public func elementRenderer(ref: Int) async -> String? { await base.elementRenderer(ref: ref) }
+
+    /// **転送必須**(同上)
     public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
         await base.hitTest(query: query)
     }

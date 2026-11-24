@@ -904,6 +904,20 @@ public final class BridgeClient: AppDriver, Sendable {
         }
     }
 
+    /// `AppDriver.elementRenderer(ref:)`。`POST /renderer` に ref と期待(`refExpectations`。/tap と同じ)を送る。
+    /// 失敗(旧ブリッジの 404・通信断・古い ref)は全部 nil = 答えられない(throw しない・撃たない側へ倒れる)。
+    /// DOM の要素(`browserDOMCenters`)はランナーの木に無いので聞かない
+    public func elementRenderer(ref: Int) async -> String? {
+        if browserDOMCenters[ref] != nil { return nil }
+        do {
+            let answer: RendererResponse = try await post(
+                "/renderer", body: RendererRequest(ref: ref, expect: refExpectations[ref]), timeout: sessionTimeout)
+            return answer.renderer
+        } catch {
+            return nil
+        }
+    }
+
     /// `GET /hittable` の符号化済みクエリ(ランナーの `handleHittable` が `removingPercentEncoding` で1回戻す)。
     /// 非予約文字だけを残す = 結果は ASCII と `%XX` だけで、`percentEncodedQuery` に渡して壊れない
     static func hitTestQueryString(_ query: HitTestQuery) -> String {

@@ -261,7 +261,10 @@ final class MCPSelectorDurabilityTests: XCTestCase {
         // 2026-11-12: and-maps_transit_results(Google マップ Android の経路一覧)を足して 755 → 792(+37)。除外実験で増分はこの1枚に
         // 閉じている。経路カードが同じ構造で3枚繰り返され、ラベル(「埼京線」×6・「720円」×3)と id(`#trip_card_*` ×3)が重複するので
         // 一意に指せず、`#directions_group_list >> .clickable[2]` の索引形に落ちる = 格付けとして正しい
-        XCTAssertLessThanOrEqual(indexed, 792, "索引セレクタが増えている(実測 792)")
+        // 2026-11-25: and-flutter_fab / and-flutter_hide_bars(Android の Flutter)を足して 792 → 795(+3)。増分は and-flutter_hide_bars に閉じている
+        // (FT_SELECTOR_DURABILITY=1 の内訳: fab は indexed 0・hide_bars は indexed 3)。id もラベルも無い `button` 3つ(受信トレイの
+        // 並べ替え側・下部バーの「受信」「フォルダ」側の clickable な外枠。中のラベルだけが id を持つ)で、一意に指せず索引形に落ちる = 格付けとして正しい
+        XCTAssertLessThanOrEqual(indexed, 795, "索引セレクタが増えている(実測 795)")
         // **割合は千分率で見る**(2026-08-12 のレビュー指摘)。百分率の整数除算だと
         // 「4%以下」が実際には 4.99% まで通り、宣言した上限より1ポイント緩い砦になる
         // (実測 4.75% が「4」に切り捨てられて素通りしていた)

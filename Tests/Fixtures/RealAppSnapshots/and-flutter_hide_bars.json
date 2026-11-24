@@ -1,0 +1,529 @@
+{
+ "elements": [
+  {
+   "clickable": true,
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 154,
+    "x": 0,
+    "y": 136
+   },
+   "identifier": "btn_back",
+   "keptDepth": 0,
+   "label": "戻る",
+   "labelSource": "desc",
+   "ref": 1,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 14
+  },
+  {
+   "depth": 11,
+   "enabled": true,
+   "frame": {
+    "height": 77,
+    "width": 666,
+    "x": 198,
+    "y": 175
+   },
+   "identifier": "txt_screen_title",
+   "keptDepth": 0,
+   "label": "スクロールで隠れるバー",
+   "labelSource": "desc",
+   "ref": 2,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "staticText",
+   "z": 21
+  },
+  {
+   "depth": 9,
+   "enabled": true,
+   "frame": {
+    "height": 55,
+    "width": 185,
+    "x": 44,
+    "y": 312
+   },
+   "identifier": "txt_hide_result",
+   "keptDepth": 0,
+   "label": "hide=none",
+   "labelSource": "desc",
+   "ref": 3,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "staticText",
+   "z": 8
+  },
+  {
+   "depth": 9,
+   "enabled": true,
+   "frame": {
+    "height": 55,
+    "width": 217,
+    "x": 44,
+    "y": 367
+   },
+   "identifier": "txt_bars_state",
+   "keptDepth": 0,
+   "label": "bars=shown",
+   "labelSource": "desc",
+   "ref": 4,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "staticText",
+   "z": 9
+  },
+  {
+   "depth": 9,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 444
+   },
+   "identifier": "bar_top_hiding",
+   "keptDepth": 0,
+   "ref": 5,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "other",
+   "z": 10
+  },
+  {
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 72,
+    "width": 815,
+    "x": 44,
+    "y": 485
+   },
+   "keptDepth": 1,
+   "label": "受信トレイ",
+   "labelSource": "desc",
+   "ref": 6,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "staticText",
+   "z": 16
+  },
+  {
+   "clickable": true,
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 132,
+    "width": 221,
+    "x": 859,
+    "y": 455
+   },
+   "keptDepth": 1,
+   "ref": 7,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 17
+  },
+  {
+   "depth": 11,
+   "enabled": true,
+   "frame": {
+    "height": 55,
+    "width": 155,
+    "x": 892,
+    "y": 494
+   },
+   "identifier": "btn_top_action",
+   "keptDepth": 2,
+   "label": "並べ替え",
+   "labelSource": "desc",
+   "ref": 8,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 22
+  },
+  {
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 1830,
+    "width": 1080,
+    "x": 0,
+    "y": 444
+   },
+   "keptDepth": 0,
+   "ref": 9,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "scrollActions": [
+    "forward"
+   ],
+   "scrollable": true,
+   "type": "scrollView",
+   "z": 18
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 598
+   },
+   "identifier": "row_h_00",
+   "keptDepth": 1,
+   "label": "行 H00",
+   "labelSource": "desc",
+   "ref": 10,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 36
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 752
+   },
+   "identifier": "row_h_01",
+   "keptDepth": 1,
+   "label": "行 H01",
+   "labelSource": "desc",
+   "ref": 11,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 37
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 906
+   },
+   "identifier": "row_h_02",
+   "keptDepth": 1,
+   "label": "行 H02",
+   "labelSource": "desc",
+   "ref": 12,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 38
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1060
+   },
+   "identifier": "row_h_03",
+   "keptDepth": 1,
+   "label": "行 H03",
+   "labelSource": "desc",
+   "ref": 13,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 39
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1214
+   },
+   "identifier": "row_h_04",
+   "keptDepth": 1,
+   "label": "行 H04",
+   "labelSource": "desc",
+   "ref": 14,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 40
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1368
+   },
+   "identifier": "row_h_05",
+   "keptDepth": 1,
+   "label": "行 H05",
+   "labelSource": "desc",
+   "ref": 15,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 41
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1522
+   },
+   "identifier": "row_h_06",
+   "keptDepth": 1,
+   "label": "行 H06",
+   "labelSource": "desc",
+   "ref": 16,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 42
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1676
+   },
+   "identifier": "row_h_07",
+   "keptDepth": 1,
+   "label": "行 H07",
+   "labelSource": "desc",
+   "ref": 17,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 43
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1830
+   },
+   "identifier": "row_h_08",
+   "keptDepth": 1,
+   "label": "行 H08",
+   "labelSource": "desc",
+   "ref": 18,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 44
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 1984
+   },
+   "identifier": "row_h_09",
+   "keptDepth": 1,
+   "label": "行 H09",
+   "labelSource": "desc",
+   "ref": 19,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 45
+  },
+  {
+   "clickable": true,
+   "depth": 12,
+   "enabled": true,
+   "frame": {
+    "height": 136,
+    "width": 1080,
+    "x": 0,
+    "y": 2138
+   },
+   "identifier": "row_h_10",
+   "keptDepth": 1,
+   "label": "行 H10",
+   "labelSource": "desc",
+   "ref": 20,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 46
+  },
+  {
+   "depth": 9,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 1080,
+    "x": 0,
+    "y": 2120
+   },
+   "identifier": "bar_bottom_hiding",
+   "keptDepth": 0,
+   "ref": 21,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "other",
+   "z": 12
+  },
+  {
+   "clickable": true,
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 132,
+    "width": 176,
+    "x": 228,
+    "y": 2131
+   },
+   "keptDepth": 1,
+   "ref": 22,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 19
+  },
+  {
+   "depth": 11,
+   "enabled": true,
+   "frame": {
+    "height": 55,
+    "width": 77,
+    "x": 277,
+    "y": 2170
+   },
+   "identifier": "btn_bottom_a",
+   "keptDepth": 2,
+   "label": "受信",
+   "labelSource": "desc",
+   "ref": 23,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 34
+  },
+  {
+   "clickable": true,
+   "depth": 10,
+   "enabled": true,
+   "frame": {
+    "height": 132,
+    "width": 221,
+    "x": 631,
+    "y": 2131
+   },
+   "keptDepth": 1,
+   "ref": 24,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 20
+  },
+  {
+   "depth": 11,
+   "enabled": true,
+   "frame": {
+    "height": 55,
+    "width": 155,
+    "x": 664,
+    "y": 2170
+   },
+   "identifier": "btn_bottom_b",
+   "keptDepth": 2,
+   "label": "フォルダ",
+   "labelSource": "desc",
+   "ref": 25,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 35
+  },
+  {
+   "clickable": true,
+   "depth": 9,
+   "enabled": true,
+   "frame": {
+    "height": 154,
+    "width": 154,
+    "x": 882,
+    "y": 1922
+   },
+   "identifier": "fab_hiding",
+   "keptDepth": 0,
+   "label": "作成",
+   "labelSource": "desc",
+   "ref": 26,
+   "renderHost": 3,
+   "renderer": "virtual",
+   "type": "button",
+   "z": 13
+  },
+  {
+   "depth": 3,
+   "enabled": true,
+   "frame": {
+    "height": 66,
+    "width": 1080,
+    "x": 0,
+    "y": 2274
+   },
+   "identifier": "navigationBarBackground",
+   "keptDepth": 0,
+   "ref": 27,
+   "renderer": "view",
+   "type": "other",
+   "z": 47
+  }
+ ],
+ "safeAreaTop": {
+  "measured": true,
+  "top": 136
+ },
+ "screen": {
+  "height": 2340,
+  "width": 1080,
+  "x": 0,
+  "y": 0
+ },
+ "sessionBundleID": "com.ftester.e2ey.flutter",
+ "truncatedCount": 0
+}

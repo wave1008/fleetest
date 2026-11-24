@@ -109,11 +109,19 @@ public enum AppUIFrameworkQuery {
         return raw
     }
 
-    /// 掴んだ要素が自前描画のホストに属するか。アプリの答えが出ていればそれ、不明なら要素のクラス名
-    /// (AccessibilityClassHint。UIKit の実アプリにも少数出るので要素単位でしか使わない)、
-    /// それも無ければ nil(不明。呼び手は撃たない側へ倒す)
-    public static func hostsOwnTouches(_ element: ElementInfo, app: AppUIFramework?) -> Bool? {
+    /// `IOSRendererMarkers` が返す値の全部(これ以外の文字列は不明として読み、公開クラスへ落とす)
+    static let knownRenderers: Set<String> = [
+        "flutter", "compose", "reactNative", "swiftUI", "uikit", "keyboard", "web", "uikitCustom",
+    ]
+
+    /// 掴んだ要素が自前描画のホストに属するか。アプリの答えが出ていればそれ、不明なら**要素の本当のクラス名と祖先から決めた
+    /// 出どころ**(`renderer` = `AppDriver.elementRenderer`。XCUITest ランナーだけが答える。flutter / compose だけ true、
+    /// ほかの既知の値は false)、それも無ければ要素の公開クラス名
+    /// (AccessibilityClassHint。UIKit の自前の要素 = 地図のピン等も `UIAccessibilityElement` なので取り違える。要素単位でしか使わない)、
+    /// それも無ければ nil(不明。呼び手は撃たない側へ倒す)。**`renderer` に既定値を置かない**(渡し忘れをコンパイルで止める)
+    public static func hostsOwnTouches(_ element: ElementInfo, app: AppUIFramework?, renderer: String?) -> Bool? {
         if let app { return app.isSelfRendered }
+        if let renderer, knownRenderers.contains(renderer) { return renderer == "flutter" || renderer == "compose" }
         return AccessibilityClassHint.hostsOwnTouches(element)
     }
 

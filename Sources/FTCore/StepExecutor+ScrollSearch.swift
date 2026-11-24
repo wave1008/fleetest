@@ -1309,7 +1309,7 @@ extension StepExecutor {
                 // 中心が中なら撃つ、にはしない —— 見切れた行の中心を撃つと別の行に当たる(Compose iOS の実測・上の doc)。
                 // SwiftUI は含めない(下の +28% は SwiftUI の実測)
                 let pagesPerSwipe = typeDriver != nil
-                    && AppUIFrameworkQuery.hostsOwnTouches(element, app: uiFramework) == true
+                    && AppUIFrameworkQuery.hostsOwnTouches(element, app: uiFramework, renderer: nil) == true
                 if attempt < maxSwipes,
                    clipRecoveryUnmoved < Self.unmovedRoundsToStopSearch,
                    Self.isClippedByViewport(element, screen: viewport) {

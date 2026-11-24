@@ -175,3 +175,13 @@
 | ファイル | アーキタイプ | 由来 | 何を代表するか |
 |---|---|---|---|
 | `and-maps_transit_results` | map | Google マップの公共交通の経路一覧 / Android 17(Emulator・ブリッジ版136) | **間引きで横一列の容器の子に復元される**形。縦の一覧 `#directions_group_list` d19 の経路カード d23 の直前に条件の横カルーセル `#query_options_filter_carousel` d22 が並び、その本物の子 Switch 4つも d23 なので `hasSiblingsInside` を通っていた。見えているカード2枚(子孫を含め12件)に `scroll-leftover` が付き、押すと詳細が開く = 誤検知。`TapTargetGeometry.isOffTheRowAxis` の根拠 |
+
+**2026-11-25 に足した2枚**(Android の Flutter の witness。DR-230 / DR-230):
+
+| ファイル | アーキタイプ | 由来 | 何を代表するか |
+|---|---|---|---|
+| `and-flutter_fab` | feed | E2EX-Flutter の FAB 画面 / Pixel 4a・Android 13・ブリッジ版147 | **Android の Flutter は z が木の順で塗り順ではない**形。幾何は一覧の行(`#row_f_08`・`#row_f_09`)が FAB(`#fab_add`・`#fab_extended`)の中心を覆うと名指す(overlay 2。全件が誤った名指し = 実描画は FAB が手前)。幾何は DR-230 の決定で変えず、**名指しの出口だけが止める**。要素に `renderer` / `renderHost`(virtual・同じ土台)を持つ |
+| `and-flutter_hide_bars` | feed | E2EY-Flutter の「スクロールで隠れるバー」/ 同上 | 同じ形で、下部バー・その中のボタン・FAB を一覧の最終行(`#row_h_10`・`#row_h_09`)が覆うと幾何が名指す(overlay 6。全件が誤った名指し)。ほかに misses 1・nested 1・clippedByContainer 1(最終行が下端で切れる真陽性) |
+
+出口の件数(名指す数)はフレームワークと OS を渡して数える(`SweepHarnessTests.testNamedOverlayExitsDifferOnlyOnFlutter`・表は
+`RealAppSnapshotFrameworks`)。基準値(`baselines`)は幾何だけを測るのでフレームワークを渡さない。この2枚は名指しが 2→0 / 6→0 になり、それ以外の52枚は1件も動かない。

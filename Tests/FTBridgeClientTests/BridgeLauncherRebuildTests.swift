@@ -31,7 +31,7 @@ final class BridgeLauncherRebuildTests: XCTestCase {
                                  "Runner/FleetestRunnerApp/App.swift", "Sources/FTCore/BridgeDTO.swift",
                                  "Sources/FTCore/BridgeSnapshotThinning.swift", "Sources/FTCore/SnapshotDedupe.swift", "Sources/FTCore/TypeReadback.swift",
                                  "Sources/FTCore/AXFrameRescale.swift",
-                                 "Sources/FTCore/ResponseMeasurementWire.swift"]
+                                 "Sources/FTCore/ResponseMeasurementWire.swift", "Sources/FTCore/IOSRendererMarkers.swift"]
 
     private let toolchain = "Xcode X / sdk Y"
 

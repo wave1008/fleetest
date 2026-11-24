@@ -49,7 +49,8 @@ public enum BridgeSourceSet: String, CaseIterable, Sendable {
             return ["Sources/FTCore/BridgeDTO.swift", "Sources/FTCore/BridgeSnapshotThinning.swift",
                     "Sources/FTCore/SnapshotDedupe.swift",
                     "Sources/FTCore/TypeReadback.swift", "Sources/FTCore/AXFrameRescale.swift",
-                    "Sources/FTCore/ResponseMeasurementWire.swift"]
+                    "Sources/FTCore/ResponseMeasurementWire.swift",
+                    "Sources/FTCore/IOSRendererMarkers.swift"]
         case .android:
             return ["AndroidRunner/build.sh", "AndroidRunner/AndroidManifest.xml"]
         }

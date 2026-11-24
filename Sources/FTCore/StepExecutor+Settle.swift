@@ -273,7 +273,7 @@ extension StepExecutor {
         // 撮り直した木に対象が居なければ見つけた木の座標のまま(従来どおり)
         var element = element
         var snapshot = snapshot
-        if driver.treeLagsBehindMotion, shouldEmptyDrag(for: element) {
+        if driver.treeLagsBehindMotion, shouldEmptyDrag(for: element, renderer: await emptyDragRenderer(for: element)) {
             let fresh = try await freshSnapshot(.afterOwnMove)
             if let (moved, _) = SameTargetResolution.resolve(step: step, original: element, originalElements: snapshot.elements,
                                                               in: fresh, strictForAssert: true) {
@@ -286,7 +286,7 @@ extension StepExecutor {
                             snapshot.screen.y + snapshot.screen.height
                                 - Self.bottomUncoveredBand - 1)
         var drag: (from: (x: Double, y: Double), to: (x: Double, y: Double))?
-        if afterInertialMove, shouldEmptyDrag(for: element),
+        if afterInertialMove, shouldEmptyDrag(for: element, renderer: await emptyDragRenderer(for: element)),
            Self.emptyDragIsSafe(x: x, y: y, of: element,
                                 in: snapshot.elements, screen: snapshot.screen),
            let end = Self.emptyDragEnd(of: element, x: x, y: y, searching: step.direction,

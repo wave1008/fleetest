@@ -485,6 +485,8 @@ public final class WebViewDelegatingDriver: AppDriver {
     /// **転送必須**: 素性と枠の照会は XCUITest(`delegated`)だけが答える。ref を使わないのでモードに関わらず同じ宛先
     /// (inapp-boost のシナリオ実行はこの型を最外に組む = 既定実装に落ちると照会が一度も届かない。`HitTestQueryForwardingTests`)
     public func hitTest(query: HitTestQuery) async -> HitTestAnswer { await delegated.hitTest(query: query) }
+    /// **転送必須**。ref は操作と同じ screenDriver の最後の木のもの(inapp-boost では in-app = 既定の nil)
+    public func elementRenderer(ref: Int) async -> String? { await screenDriver.elementRenderer(ref: ref) }
     /// launch は常に primary(in-app)固定(launch(bundleID:) 参照)。screenDriver/mode の状態には無関係
     public var lastLaunchTiming: LaunchTiming? { primary.lastLaunchTiming }
 }

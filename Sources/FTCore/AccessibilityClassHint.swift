@@ -1,13 +1,16 @@
-// 空打ち(スクロール探索の終端で容器の1タッチを肩代わりする横抜けドラッグ)を撃つかの**第3段**。
+// 空打ち(スクロール探索の終端で容器の1タッチを肩代わりする横抜けドラッグ)を撃つかの**最後の段**。
 // 1段目 = パッケージ(.app / .ipa)/ 2段目 = 台帳(AppFrameworkLedger)で UI フレームワークが判れば
-// それに従う(StepExecutor.shouldEmptyDrag)。どちらも無い(材料の無い物理端末・他人のアプリ)ときだけ、
-// **掴んだ要素のクラス名**(ElementInfo.axClass = XCTest の非公開属性 5004)で決める。
+// それに従う(StepExecutor.shouldEmptyDrag)。どちらも無い(材料の無い物理端末・他人のアプリ)ときは、
+// 主のドライバが XCUITest なら**要素の本当のクラス名と祖先**(`IOSRendererMarkers`。ランナーの `POST /renderer`)を先に試す
+// (公開クラスは UIKit の自前の要素 = 地図のピン・キーボードのキーを自前描画と取り違えるため)。
+// それが答えない(旧ランナー・in-app・非公開属性の失敗)ときだけ、
+// **掴んだ要素の公開クラス名**(ElementInfo.axClass = XCTest の非公開属性 5004)で決める。
 //
 // 根拠(実測・予備シミュレータ・XCUITest): Compose / Flutter の要素は `UIAccessibilityElement`
 // (自前描画の上に置く a11y 要素 = ビューを持たず、タッチはホストのビューが自前で処理する = 次の1タッチを
-// 吸う側)。React Native は `UIView`、SwiftUI は `NSObject`、UIKit は実クラス名で、どれも空打ちが要らない
-// (RN は空打ちで行が押される側)。UIKit の実アプリにも `UIAccessibilityElement` は少数出る(地図 6/111・
-// メッセージ 2/60)ので、判定はアプリ全体ではなく**掴んだ要素**で行う。
+// 吸う側)。React Native は `UIView`、SwiftUI は `NSObject`(iOS 27。iOS 26 は `UIResponder`)、UIKit は実クラス名で、どれも空打ちが要らない
+// (RN は空打ちで行が押される側。今の判定は `UIAccessibilityElement` かどうかだけを見るので版差の影響は無い)。
+// UIKit の実アプリにも `UIAccessibilityElement` は少数出る(地図 6/111・メッセージ 2/60)ので、判定はアプリ全体ではなく**掴んだ要素**で行う。
 // **取れなければ不明 = 撃たない**(旧ランナー・in-app・Android・Xcode の版で属性が変わった場合)
 
 import Foundation

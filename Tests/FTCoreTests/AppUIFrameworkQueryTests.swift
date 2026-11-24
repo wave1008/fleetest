@@ -247,10 +247,27 @@ final class AppUIFrameworkQueryTests: XCTestCase {
         let hosted = element(1, axClass: "UIAccessibilityElement")
         let viewBacked = element(2, axClass: "UIView")
         let classless = element(3, axClass: nil)
-        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(hosted, app: .uikit), false, "アプリの答えが勝つ")
-        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(classless, app: .flutter), true)
-        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(hosted, app: nil), true)
-        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(viewBacked, app: nil), false)
-        XCTAssertNil(AppUIFrameworkQuery.hostsOwnTouches(classless, app: nil), "どちらも無ければ不明")
+        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(hosted, app: .uikit, renderer: nil), false, "アプリの答えが勝つ")
+        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(classless, app: .flutter, renderer: nil), true)
+        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(hosted, app: nil, renderer: nil), true)
+        XCTAssertEqual(AppUIFrameworkQuery.hostsOwnTouches(viewBacked, app: nil, renderer: nil), false)
+        XCTAssertNil(AppUIFrameworkQuery.hostsOwnTouches(classless, app: nil, renderer: nil), "どちらも無ければ不明")
+    }
+
+    func testRendererDecidesBetweenTheAppAndTheElementClass() {
+        let hosted = ElementInfo(ref: 1, type: "Button", identifier: nil, label: "pin", value: nil,
+                                 placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 0, width: 10, height: 10),
+                                 depth: 1, axClass: "UIAccessibilityElement")
+        func hosts(_ app: AppUIFramework?, _ renderer: String?) -> Bool? {
+            AppUIFrameworkQuery.hostsOwnTouches(hosted, app: app, renderer: renderer)
+        }
+        XCTAssertEqual(hosts(.uikit, "flutter"), false, "アプリの答えが勝つ")
+        XCTAssertEqual(hosts(.flutter, "uikitCustom"), true, "アプリの答えが勝つ")
+        for renderer in ["flutter", "compose"] { XCTAssertEqual(hosts(nil, renderer), true, renderer) }
+        for renderer in ["uikitCustom", "keyboard", "uikit", "reactNative", "swiftUI", "web"] {
+            XCTAssertEqual(hosts(nil, renderer), false, "公開クラスが UIAccessibilityElement でも \(renderer) は撃たない")
+        }
+        XCTAssertEqual(hosts(nil, nil), true, "答えが無ければ今までどおり公開クラス")
+        XCTAssertEqual(hosts(nil, "somethingNew"), true, "知らない値は不明として公開クラスへ落とす")
     }
 }

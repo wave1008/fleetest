@@ -187,6 +187,9 @@ public final class SessionRecoveryDriver: AppDriver {
         try await withRecovery { try await self.base.hitTest(ref: ref) }
     }
 
+    /// **転送必須**。throw しない照会なので回復は掛けない(失敗は nil = 答えられない)
+    public func elementRenderer(ref: Int) async -> String? { await base.elementRenderer(ref: ref) }
+
     /// **転送必須**(同上)。照会の失敗は `.unavailable` で返るので回復(withRecovery)は掛けない
     public func hitTest(query: HitTestQuery) async -> HitTestAnswer {
         await base.hitTest(query: query)

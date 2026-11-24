@@ -124,6 +124,11 @@ public protocol AppDriver {
     /// `hitTest(ref:)` の素性+枠版。ref を持たない呼び手(DSL は inapp-boost モードで in-app の番号しか持たない)用。
     /// 答えられない・失敗は全部 `.unavailable`(throw しない)。**プロトコル要件として宣言すること**(理由は上と同じ)
     func hitTest(query: HitTestQuery) async -> HitTestAnswer
+    /// 直近の木の `ref` の要素の描画の出どころ(`IOSRendererMarkers` の値: flutter / compose / reactNative / swiftUI / uikit / keyboard /
+    /// web / uikitCustom)。XCTest の非公開属性の本当のクラス名と祖先から決める = **XCUITest ランナーを話す BridgeClient だけ**が答える。
+    /// nil = 答えられない・古い ref・問い合わせの失敗(throw しない)。UI フレームワークが不明の iOS の空打ちの判断だけが聞く。
+    /// **プロトコル要件として宣言し、ラッパーは転送すること**(理由は hitTest と同じ)
+    func elementRenderer(ref: Int) async -> String?
     func tap(ref: Int) async throws
     func tap(x: Double, y: Double) async throws
     func type(ref: Int?, text: String) async throws
@@ -730,6 +735,7 @@ public extension AppDriver {
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func hitTest(ref: Int) async throws -> HitTestAnswer { .unavailable }
     func hitTest(query: HitTestQuery) async -> HitTestAnswer { .unavailable }
+    func elementRenderer(ref: Int) async -> String? { nil }
     var lastLaunchTiming: LaunchTiming? { nil }
 
     /// 既定は用途を落として通常 swipe に委譲する(ラッパードライバはこれで素通しになる)。

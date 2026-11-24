@@ -44,6 +44,10 @@ final class BridgeRouter {
     /// 直近スナップショットの ref→要素。handleType の読み返しが「対象の identifier」と
     /// 「入力前の値」をここから採る(ライブクエリを撃たずに済ませるため)
     var refElements: [Int: ElementInfo] = [:]
+    /// 直近の GET /snapshot の ref → 節と親の鎖(`POST /renderer` が本当のクラス名を祖先まで引くために保持する)。refElements と同じ寿命
+    var refNodeLinks: [Int: NodeLink] = [:]
+    /// `POST /renderer` の非公開属性の問い合わせが直近で通ったか(/status の `elementClassQuery`。nil = まだ問い合わせていない)
+    var elementClassQueryOutcome: Bool?
     /// 直近の GET /snapshot で焦点を持っていた ref(キーボードが画面に出ていたときだけ)。**次の POST の1回だけ使える**
     /// (`handle` が POST の入口で `focusedRefForThisRequest` へ移して捨てる = 撮った後に操作が挟まった焦点は信じない)。
     /// /type・/clear が「焦点が既にある欄を押し直さない」ために読む(押し直すと短い間隔の2回押しになり iOS の編集メニューが出て残る)
@@ -140,6 +144,7 @@ final class BridgeRouter {
             case ("POST", "/systemui/tap"): response = try handleSystemUITap(request.body)
             case ("POST", "/systemui/drag"): response = try handleSystemUIDrag(request.body)
             case ("POST", "/systemui/swipe"): response = try handleSystemUISwipe(request.body)
+            case ("POST", "/renderer"): response = try handleRenderer(request.body)
             case ("POST", "/tap"): response = try handleTap(request.body)
             case ("POST", "/type"): response = try handleType(request.body)
             case ("POST", "/clear"): response = try handleClear(request.body)
@@ -246,7 +251,8 @@ final class BridgeRouter {
             udid: ProcessInfo.processInfo.environment["SIMULATOR_UDID"],
             orientation: XCUIDevice.shared.orientation.ftOrientation,
             // 画面が2枚以上なら /screenshot に display= が要る(DisplayRouting)。数えるのは bounds だけ = 撮らない
-            multiDisplay: DisplayRouting.isMultiDisplay ? true : nil))
+            multiDisplay: DisplayRouting.isMultiDisplay ? true : nil,
+            elementClassQuery: elementClassQueryOutcome))
     }
 
     private func handleLaunch(_ body: Data) throws -> BridgeHTTPServer.Response {
@@ -260,6 +266,7 @@ final class BridgeRouter {
             refFrames = [:]
             refIdentity = [:]
             refElements = [:]
+            refNodeLinks = [:]
             return .json(OKResponse())
         }
         if req.attachOnly == true {
@@ -286,6 +293,7 @@ final class BridgeRouter {
         refFrames = [:]
         refIdentity = [:]
         refElements = [:]
+        refNodeLinks = [:]
         return .json(OKResponse())
     }
 
@@ -294,6 +302,8 @@ final class BridgeRouter {
         let frames: [Int: CGRect]
         /// `/hittable` が ref から要素を引き直すための手掛かり
         var identities: [Int: (identifier: String?, label: String?, type: String)] = [:]
+        /// ref → 節の鎖(`POST /renderer`)。`refNodeLinks` へ移る
+        var nodeLinks: [Int: NodeLink] = [:]
         let truncated: Int
         /// 捨てた候補の内訳(SnapshotResponse.truncatedTiers)。件数だけでは
         /// 「選べる物が消えたのか、飾りが消えただけか」をホストが区別できない
@@ -336,6 +346,7 @@ final class BridgeRouter {
         refIdentity = cap.identities
         // ref → 要素(handleType の読み返しが identifier / 直前の値を使う)。frame と同じ寿命
         refElements = Dictionary(uniqueKeysWithValues: zip(cap.elements.map(\.ref), cap.elements))
+        refNodeLinks = cap.nodeLinks
         let flagged = withFocusedFlag(cap.elements, app: app)
         // 隠れたキーボードは画面の外の矩形で来る(KeyboardWait.onScreen と同じ判定)
         let keyboardOnScreen = cap.keyboardFrame.map { $0.minY < cap.screen.maxY } ?? false
@@ -738,6 +749,7 @@ final class BridgeRouter {
         var elements: [ElementInfo] = []
         var frames: [Int: CGRect] = [:]
         var identities: [Int: (identifier: String?, label: String?, type: String)] = [:]
+        var nodeLinks: [Int: NodeLink] = [:]
         var truncated = 0
         var truncatedTiers: [String: Int] = [:]
         var bulkExempt = 0
@@ -749,7 +761,7 @@ final class BridgeRouter {
         lastContributingOverlayWindows = []
         lastOverlayWindowContent = [:]
         collect(root, depth: 0, screen: screen,
-                elements: &elements, frames: &frames, identities: &identities,
+                elements: &elements, frames: &frames, identities: &identities, nodeLinks: &nodeLinks,
                 truncated: &truncated,
                 truncatedTiers: &truncatedTiers, bulkExempt: &bulkExempt,
                 keyboardFrame: &keyboardFrame, offscreenHints: &offscreenHints,
@@ -767,7 +779,7 @@ final class BridgeRouter {
             return r.isNull ? overlay.frame : FTRect(x: r.minX, y: r.minY, width: r.width, height: r.height)
         }
         keyboardFrame = Self.plausibleKeyboardFrame(keyboardFrame, screen: screen, root: root)
-        return Captured(elements: elements, frames: frames, identities: identities,
+        return Captured(elements: elements, frames: frames, identities: identities, nodeLinks: nodeLinks,
                         truncated: truncated,
                         truncatedTiers: truncatedTiers, bulkExempt: bulkExempt, screen: screen,
                         keyboardFrame: keyboardFrame, offscreen: offscreenHints,
@@ -782,6 +794,7 @@ final class BridgeRouter {
         var elements: [ElementInfo] = []
         var frames: [Int: CGRect] = [:]
         var identities: [Int: (identifier: String?, label: String?, type: String)] = [:]
+        var nodeLinks: [Int: NodeLink] = [:]
         var truncated = 0
         var truncatedTiers: [String: Int] = [:]
         var bulkExempt = 0
@@ -790,7 +803,7 @@ final class BridgeRouter {
         lastContributingOverlayWindows = []
         for window in root.children where DisplayRouting.displayID(ofSnapshot: window) == display.displayID {
             collect(window, depth: 1, screen: display.nativeBounds,
-                    elements: &elements, frames: &frames, identities: &identities,
+                    elements: &elements, frames: &frames, identities: &identities, nodeLinks: &nodeLinks,
                     truncated: &truncated,
                     truncatedTiers: &truncatedTiers, bulkExempt: &bulkExempt,
                     keyboardFrame: &keyboardFrame, offscreenHints: &offscreenHints,
@@ -804,7 +817,7 @@ final class BridgeRouter {
             return copy
         }
         return Captured(elements: elements.map(rotated), frames: frames.mapValues(display.interfaceRect),
-                        identities: identities, truncated: truncated,
+                        identities: identities, nodeLinks: nodeLinks, truncated: truncated,
                         truncatedTiers: truncatedTiers, bulkExempt: bulkExempt,
                         screen: CGRect(origin: .zero, size: display.interfaceSize),
                         keyboardFrame: keyboardFrame.map(display.interfaceRect), offscreen: offscreenHints.map(rotated),
@@ -1887,6 +1900,7 @@ final class BridgeRouter {
         refFrames = [:]
         refIdentity = [:]
         refElements = [:]
+        refNodeLinks = [:]
         return .json(OKResponse())
     }
 

@@ -13,6 +13,19 @@ extension BridgeRouter {
     private struct Gathered {
         var info: ElementInfo
         var frame: CGRect
+        /// `POST /renderer` が祖先をたどるための節の鎖(ref 採番後に `refNodeLinks` へ移る)
+        var link: NodeLink? = nil
+    }
+
+    /// 取った木の節と親の鎖。XCUIElementSnapshot は親を持たないので走査中に作る。
+    /// 最後の /snapshot の分だけ `BridgeRouter.refNodeLinks` が保持する(ref の表と同じ寿命)
+    final class NodeLink {
+        let node: XCUIElementSnapshot
+        let parent: NodeLink?
+        init(_ node: XCUIElementSnapshot, parent: NodeLink?) {
+            self.node = node
+            self.parent = parent
+        }
     }
 
     /// **2パス化**: 1パス目(gather)は上限で打ち切らずに全件 preorder で集め、2パス目で
@@ -22,6 +35,7 @@ extension BridgeRouter {
     func collect(_ node: XCUIElementSnapshot, depth: Int, screen: CGRect,
                          elements: inout [ElementInfo], frames: inout [Int: CGRect],
                          identities: inout [Int: (identifier: String?, label: String?, type: String)],
+                         nodeLinks: inout [Int: NodeLink],
                          truncated: inout Int,
                          truncatedTiers: inout [String: Int],
                          bulkExempt: inout Int,
@@ -37,14 +51,16 @@ extension BridgeRouter {
         } else {
             // 根(アプリ)を自分で出してから窓ごとに辿る(手前の窓の中身に inOverlayWindow を付ける。
             // BridgeRouter.overlayWindows の doc)。順序・深さは gather(node) 1回と同じ
+            let rootLink = NodeLink(node, parent: nil)
             if shouldInclude(node, screen: screen) {
-                gathered.append(Gathered(info: makeInfo(node, ref: 0, depth: depth), frame: node.frame))
+                gathered.append(Gathered(info: makeInfo(node, ref: 0, depth: depth), frame: node.frame, link: rootLink))
             }
             var contributing = Set<Int>()
             var content: [Int: (union: CGRect, hasTextInput: Bool)] = [:]
             for (index, window) in node.children.enumerated() {
                 let start = gathered.count
                 gather(window, depth: depth + 1, screen: screen, insideWebView: insideWebView,
+                       parentLink: rootLink,
                        gathered: &gathered,
                        keyboardFrame: &keyboardFrame, offscreenHints: &offscreenHints)
                 if overlayWindowIndices.contains(index) {
@@ -101,6 +117,7 @@ extension BridgeRouter {
             info.ref = ref
             frames[ref] = deduped[index].frame
             identities[ref] = (info.identifier, info.label, info.type)
+            if let link = deduped[index].link { nodeLinks[ref] = link }
             elements.append(info)
         }
     }
@@ -113,6 +130,7 @@ extension BridgeRouter {
     private func gather(_ node: XCUIElementSnapshot, depth: Int, screen: CGRect,
                         insideWebView: Bool,
                         rescale inherited: AXFrameRescale? = nil,
+                        parentLink: NodeLink? = nil,
                         gathered: inout [Gathered],
                         keyboardFrame: inout CGRect?,
                         offscreenHints: inout [ElementInfo]) {
@@ -124,6 +142,7 @@ extension BridgeRouter {
             keyboardFrame = node.frame
         }
         if node.elementType == .keyboard || node.elementType == .key { return }
+        let link = NodeLink(node, parent: parentLink)
         // WebView は入れ子で複数出る(Compose iOS の interop ラッパで実測3重)。外側だけ残さないと
         // `.webView[1]` がどれを指すか読めない。Android ブリッジの nestedWebView と同じ規則
         let isWebView = node.elementType == .webView
@@ -135,6 +154,7 @@ extension BridgeRouter {
         if isWebView && insideWebView {
             for child in node.children {
                 gather(child, depth: depth, screen: screen, insideWebView: true, rescale: rescale,
+                       parentLink: link,
                        gathered: &gathered,
                        keyboardFrame: &keyboardFrame,
                        offscreenHints: &offscreenHints)
@@ -143,7 +163,7 @@ extension BridgeRouter {
         }
         if shouldInclude(node, frame: frame, screen: screen) {
             let info = makeInfo(node, frame: frame, ref: 0, depth: depth)
-            gathered.append(Gathered(info: info, frame: frame))
+            gathered.append(Gathered(info: info, frame: frame, link: link))
         } else if insideWebView, offscreenHints.count < BridgeAPI.maxSnapshotElements,
                   isOffscreenHintCandidate(node, screen: screen) {
             // ref 0(座標表に入れない・タップ対象にしない)。Captured.offscreen 参照。
@@ -153,6 +173,7 @@ extension BridgeRouter {
         for child in node.children {
             gather(child, depth: depth + 1, screen: screen,
                    insideWebView: insideWebView || isWebView, rescale: rescale,
+                   parentLink: link,
                    gathered: &gathered, keyboardFrame: &keyboardFrame,
                    offscreenHints: &offscreenHints)
         }

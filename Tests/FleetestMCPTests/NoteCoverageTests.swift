@@ -100,6 +100,9 @@ final class NoteCoverageTests: XCTestCase {
         // id を前提にした指標(前の木の id がどれだけ生き残るか)が**定義すらできない**盤面で、
         // 容器が無いので `ft_scroll_to` の逆走査(飛び越しの拾い直し)も走らない
         "and-apps_list": "dense-list",
+        // 2026-11-25 に足した Flutter(Android)の2枚。一覧 + FAB / 下部バーの形で、Android の Flutter は z が木の順
+        // (塗り順ではない)ので幾何は一覧の行が FAB・バーを覆うと名指す(DR-230 は名指しの出口だけで止める)
+        "and-flutter_fab": "feed", "and-flutter_hide_bars": "feed",
         // 2026-08-13 の監査(フォーム / ログイン)で足した1枚。Android 設定の
         // 「ネットワークを追加」で WPA を選び、キーボードが立ったまま採った木。
         // **操作ボタン(保存/キャンセル)がツリーから丸ごと消えている** —— フォームが伸びて

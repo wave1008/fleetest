@@ -195,6 +195,7 @@
 
 - 評価 11回目(11/24): 本番の va_swiftui_ios(手元 Sim)で1 run に3回・fd_xm_rn(M1Max)で1回。検出 → SpringBoard の起こし直し → 振り直しで1件は緑に戻り、`コントロール操作.S0010@dark-large` は振り直しの上限(1回)で赤のまま。作成側(MCP)では ip_va_cmp が `setAppearance(.dark)` の緑のままアプリは light(文字サイズは届いた)
 - 処理(2026-11-24・評価 11回目の後の処理): 本番 8 run で検出(手元 4・M1Max 2・M1Ultra 1・iPad 1)。**8 run 中 4 run は、その台の最初のシナリオで既に届かない状態**(run の前から壊れていた = きっかけは run の外)。手元の va_swiftui_ios(Sim -09)は1 run の中で同じ台に **6 回**出た = SpringBoard の起こし直しで回復しても run の中で同じ状態へ戻る(回復が続かない)。きっかけを測る材料(状態になる直前の SpringBoard のログ)は今回も残せていない。次の一手は変えない
+- 回帰 11/25 02:0x(`regress.py --ios-xcuitest`・全マシン): E2E-iOS・E2E-Flutter・E2E-RN の ios-xcuitest で「表示条件を切り替えられること」S0010 の `textIs "#txt_appearance" == "dark"` が `light` で赤(手元2・M1Max 1)。シナリオの後の読みは `appearance=dark` = 端末は暗くなったがアプリへ届かない同じ形。手元で xcuitest の同じシナリオを4回回して1回赤(E2E-Flutter)
 
 ### OI-378 Android の Emulator で、入力した欄を ACTION_SET_TEXT の後に見つけ直せず赤(文字は入っている)
 - 状態: 再現済み

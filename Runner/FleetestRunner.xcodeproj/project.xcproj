@@ -36,6 +36,7 @@
                 { "path": "AXFrameRescale.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
                 { "path": "BridgeDTO.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
                 { "path": "BridgeSnapshotThinning.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
+                { "path": "IOSRendererMarkers.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
                 { "path": "ResponseMeasurementWire.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
                 { "path": "SnapshotDedupe.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },
                 { "path": "TypeReadback.swift", "target-membership": [ "FleetestRunnerUITests/compile-sources" ] },

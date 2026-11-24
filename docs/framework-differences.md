@@ -31,8 +31,10 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
 - **分岐は「自前描画か」(`isSelfRendered` = compose / flutter)で書く**。個別の値で分けると、語彙を足した日に
   黙って外れる。
 - 不明なときは**安全側**に倒す(空打ちを撃たない・撃ち直しをする・迂回しない 等。各節の「不明なら」)。
-- 物理 iPhone ではアプリの中身が読めないので、材料が無ければ台帳、それも無ければ**掴んだ要素のクラス名**
-  (`AccessibilityClassHint`。Compose / Flutter の要素は `UIAccessibilityElement`、RN は `UIView`、SwiftUI は `NSObject`)。
+- 物理 iPhone ではアプリの中身が読めないので、材料が無ければ台帳、それも無ければ空打ちの判断だけ**要素の本当のクラス名と祖先**
+  (主のドライバが XCUITest のとき。ランナーの `POST /renderer` = 非公開属性 `ElementType`。判定の表は `IOSRendererMarkers`・FD-0.1)、
+  それも取れなければ**掴んだ要素の公開クラス名**(`AccessibilityClassHint`。Compose / Flutter の要素は `UIAccessibilityElement`、RN は `UIView`、
+  SwiftUI は iOS 27 で `NSObject`・iOS 26 で `UIResponder`。UIKit の自前の要素(地図のピン等)も `UIAccessibilityElement` なので取り違える)。
 
 ### FD-0.1 要素単位の出どころ(実測 2026-11-24。使い方は DR-230)
 
@@ -515,6 +517,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| iOS v306 | XCUITest ランナーの `POST /renderer`: 直近の木の ref の要素の出どころ(flutter / compose / reactNative / swiftUI / uikit / keyboard / web / uikitCustom)を、非公開属性の本当のクラス名と祖先から答える(古い ref・取れないときは不明)。iOS でアプリが不明・主のドライバが XCUITest のとき、空打ちの判断に公開クラス名より先に使う(地図のピンを自前描画と取り違えない)。`/status` の `elementClassQuery` が取れたかを申告する(DR-230) |
 | — | Android の Flutter と分かるアプリで、木の順で後ろの要素(一覧の行)を「覆い」と名指さない(z が木の順で塗り順でないため。DR-230)。名指す文言の出口(緑の tap の注記・失敗の文言・失敗後の案内・MCP の見本保存の断りと残像の警告)だけで止め、判定と撃ち方は変えない。抑えた事実は注記 `occluder-naming-suppressed`。別ウィンドウの組は名指す |
 | Android v134 | 読み取り専用の欄(inputType none・EditText を名乗らない・入力接続なし)への `type` に注記を付ける(FD-2.4) |
 | iOS v280 | in-app ブリッジの `POST /touchlands`: 点への本物のタッチ(UIKit の当たり判定)が各 ref の要素の view(かその子孫)に届くか。XCUITest の `isHittable` の `false` を inapp-boost モードで確かめる材料(FD-1.4 の行) |

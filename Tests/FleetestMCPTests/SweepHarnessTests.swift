@@ -503,12 +503,32 @@ final class SweepHarnessTests: XCTestCase {
         // (`KeyboardOcclusion.windowResizedAboveKeyboard`)。keyboard=0 が要点 —— 覆われた要素は
         // 木に無いので「キーボードの下」として数えられるものが1つも無い(消えたものは数えられない)。
         // 他の検知も全部 0 = 木そのものは健全(自前 SUT の View/XML)
+        // 2026-11-25 採取(Pixel 4a・ブリッジ版147)。**Android の Flutter の witness**: z は木の順で塗り順ではなく、
+        // 幾何は一覧の行が FAB・バーを「覆う」と名指す(DR-230)。下の overlay は**全件が幾何の誤った名指し**
+        // (実描画は FAB・バーが行の手前)で、幾何は DR-230 の決定で変えない —— 止めるのは名指しの出口だけ
+        // (`testNamedOverlayExitsDifferOnlyOnFlutter` と `testWarningDensityStaysLow` が表 `RealAppSnapshotFrameworks` を通す)。
+        // overlay 2 = `#fab_add` ← `#row_f_08`・`#fab_extended` ← `#row_f_09`(どちらも FAB の中心に行が重なる幾何)。他は全部 0
+        "and-flutter_fab": Counts(ghost: 0, overlay: 2, stacked: 0, misses: 0, disabled: 0,
+                                  offscreen: 0, warnedTappable: 2, keyboard: 0, sliver: 0,
+                                  nested: 0, scrolledOut: 0, clippedByContainer: 0),
+        // 同上(E2EY-Flutter「スクロールで隠れるバー」)。overlay 6 は全件が下部バー・FAB を一覧の行(`#row_h_10` ・`#row_h_09`)が
+        // 覆うという幾何の誤った名指し: `#bar_bottom_hiding` ← `#row_h_10`・無名の `button`(受信・フォルダ)2個 ← `#row_h_10`・
+        // `#btn_bottom_a`/`#btn_bottom_b` ← `#row_h_10`・`#fab_hiding` ← `#row_h_09`。
+        // misses 1 = `#bar_bottom_hiding`(中心が自分の中身 = 無名ボタンの外。ボタンは clickable で別名の行)・
+        // nested 1 = 無名 `button` の中心を子の `#btn_bottom_a` が占める(Flutter のボタン内のラベルで、実描画どおりの入れ子)・
+        // clippedByContainer 1 = 一覧の最終行 `#row_h_10`(1080x136)が scrollView 下端で切れている真陽性
+        "and-flutter_hide_bars": Counts(ghost: 0, overlay: 6, stacked: 0, misses: 1, disabled: 0,
+                                        offscreen: 0, warnedTappable: 5, keyboard: 0, sliver: 0,
+                                        nested: 1, scrolledOut: 0, clippedByContainer: 1),
         "and-e2e_input_keyboard_resized": Counts(ghost: 0, overlay: 0, stacked: 0, misses: 0, disabled: 0,
                                                   offscreen: 0, warnedTappable: 0, keyboard: 0, sliver: 0,
                                                   nested: 0, scrolledOut: 0, clippedByContainer: 0),
     ]
 
-    static func counts(_ snap: SnapshotResponse) -> Counts {
+    /// `naming` は利用者へ見える警告(覆いの名指しの出口)が使う材料。**幾何の件数(`overlay` 等)には効かず**、
+    /// `warnedTappable`(= 警告が付いたタップ対象の数)だけが名指しを止められた覆いを数えない。
+    /// 既定の `.alwaysName` は幾何だけを測る基準値の経路(`baselines`)
+    static func counts(_ snap: SnapshotResponse, naming: OccluderNamingContext = .alwaysName) -> Counts {
         let els = snap.elements
         let stacked = RefGuard.stackedRefs(els)
         // 申告 keyboardFrame はキー面だけ(KeyboardOcclusion の doc)。production
@@ -519,7 +539,9 @@ final class SweepHarnessTests: XCTestCase {
         var c = Counts()
         for e in els {
             let ghost = RefGuard.isUntappableGhost(e, in: els, screen: snap.screen)
-            let overlay = RefGuard.overlayCovering(e, in: els, screen: snap.screen) != nil
+            let overlayHit = RefGuard.overlayCovering(e, in: els, screen: snap.screen)
+            let overlay = overlayHit != nil
+            let overlayShown = overlayHit.map { naming.mayName($0, e) } ?? false
             let misses = RefGuard.missesItsOwnContent(e, in: els, screen: snap.screen) != nil
             if ghost { c.ghost += 1 }
             if overlay { c.overlay += 1 }
@@ -546,7 +568,7 @@ final class SweepHarnessTests: XCTestCase {
                 c.clippedByContainer += 1
             }
             if RefGuard.interactiveTypes.contains(e.type),
-               ghost || overlay || misses || stacked.contains(e.ref) || disabled || offscreen
+               ghost || overlayShown || misses || stacked.contains(e.ref) || disabled || offscreen
                 || nested || scrolledOut {
                 c.warnedTappable += 1
             }
@@ -631,7 +653,10 @@ final class SweepHarnessTests: XCTestCase {
             let file = name + ".json"
             let tappable = snap.elements.filter { RefGuard.interactiveTypes.contains($0.type) }
             guard !tappable.isEmpty else { continue }
-            let warned = Self.counts(snap).warnedTappable
+            // 利用者へ見える警告の密度: 名指しの出口と同じ材料(OS とアプリのフレームワーク)を渡す(DR-230)
+            let naming = OccluderNamingContext(isAndroid: RealAppSnapshotFrameworks.isAndroid(name),
+                                               framework: RealAppSnapshotFrameworks.table[name] ?? nil)
+            let warned = Self.counts(snap, naming: naming).warnedTappable
             let percent = warned * 100 / tappable.count
             if let exempt = Self.densityExemptions[file] {
                 XCTAssertEqual(percent, exempt,
@@ -642,6 +667,40 @@ final class SweepHarnessTests: XCTestCase {
             XCTAssertLessThanOrEqual(percent, 30,
                                      "\(file): タップ対象の \(percent)% に警告が付いている"
                                      + " —— 検知ではなく雑音になっていないか見ること")
+        }
+    }
+
+    /// 名指しの出口(`TapTargetGeometry.advisoryKindResult` の overlayCovering の段)が覆いを名指す対象の数
+    /// (`named`)と、見つけたが名指しを止めた数(`suppressed`)。幾何の `overlay` とは別の層を測る
+    static func namedOverlayCount(_ snap: SnapshotResponse, naming: OccluderNamingContext)
+        -> (named: Int, suppressed: Int) {
+        var named = 0, suppressed = 0
+        for e in snap.elements {
+            let r = TapTargetGeometry.advisoryKindResult(for: e, in: snap.elements, screen: snap.screen, naming: naming)
+            if case .overlayCovering = r.kind { named += 1 }
+            if r.namingSuppressed { suppressed += 1 }
+        }
+        return (named, suppressed)
+    }
+
+    /// **コーパス全数の前後差(DR-230)**: フレームワーク + OS を渡した出口の名指し件数と、渡さない件数を並べる。
+    /// Flutter の2枚は幾何の overlay(基準値)が残ったまま名指しだけが 0 になり、それ以外は1件も動かない
+    func testNamedOverlayExitsDifferOnlyOnFlutter() throws {
+        let flutter: Set<String> = ["and-flutter_fab", "and-flutter_hide_bars"]
+        for (name, snap) in try RealAppSnapshotCorpus.all() {
+            let withFramework = OccluderNamingContext(isAndroid: RealAppSnapshotFrameworks.isAndroid(name),
+                                                      framework: RealAppSnapshotFrameworks.table[name] ?? nil)
+            let before = Self.namedOverlayCount(snap, naming: .alwaysName)
+            let after = Self.namedOverlayCount(snap, naming: withFramework)
+            emit("NAMED \(name) before=\(before) after=\(after) geometryOverlay=\(Self.counts(snap).overlay)")
+            if flutter.contains(name) {
+                XCTAssertGreaterThan(before.named, 0, "\(name): 名指しを止める前の件数が0 = 陽性対照にならない")
+                XCTAssertEqual(after.named, 0, "\(name): Flutter の同じウィンドウの組は名指さない(DR-230)")
+                XCTAssertEqual(after.suppressed, before.named, "\(name): 止めた事実が件数と合っていない")
+            } else {
+                XCTAssertEqual(after.named, before.named, "\(name): Flutter 以外で名指しの件数が動いた")
+                XCTAssertEqual(after.suppressed, 0, "\(name): Flutter 以外で名指しを止めた")
+            }
         }
     }
 

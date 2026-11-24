@@ -746,9 +746,28 @@ public final class StepExecutor {
 
     /// 掴んだ要素に対して空打ちを撃つか。アプリのフレームワークが判っていればそれ、
     /// 不明なら**要素のクラス名**(`AppUIFrameworkQuery.hostsOwnTouches`)。どちらも無ければ撃たない
-    func shouldEmptyDrag(for element: ElementInfo) -> Bool {
+    /// `renderer` = `emptyDragRenderer(for:)` の答え(同期の判定の前に聞いておく。聞かない構成は nil)
+    func shouldEmptyDrag(for element: ElementInfo, renderer: String?) -> Bool {
         guard ProcessInfo.processInfo.environment["FT_EMPTY_DRAG"] != "off", releasesScrollTouch else { return false }
-        return AppUIFrameworkQuery.hostsOwnTouches(element, app: uiFramework) == true
+        return AppUIFrameworkQuery.hostsOwnTouches(element, app: uiFramework, renderer: renderer) == true
+    }
+
+    /// このステップで `emptyDragRenderer` が聞いた答え(対象の素性 → 聞いた ref と答え)。execute の入口で空に戻す
+    var rendererAsksThisStep: [String: (ref: Int, answer: String?)] = [:]
+
+    /// 空打ちの判断の前に、**アプリが不明の iOS で主のドライバが XCUITest のときだけ**要素の描画の出どころを聞く
+    /// (`AppDriver.elementRenderer`。要素の公開クラスは UIKit の自前の要素 = 地図のピン・キーボードのキーを自前描画と取り違える)。
+    /// 聞く意味の無い構成(Android・inapp-boost の in-app が主・アプリが判っている・空打ちの無い構成)では呼ばない。
+    /// **同じ対象(identifier・型・ラベル)はステップ内で1回**: 見つけた木(古い)と撮り直した木で同じ要素を引き直すので、
+    /// 答えが出たらそれを使い、nil(古い ref・答えられない)のときだけ ref が変わった次の問い合わせでもう1度聞く
+    func emptyDragRenderer(for element: ElementInfo) async -> String? {
+        guard !isAndroid, typeDriver == nil, uiFramework == nil, releasesScrollTouch,
+              ProcessInfo.processInfo.environment["FT_EMPTY_DRAG"] != "off" else { return nil }
+        let key = [element.identifier ?? "", element.type, element.label ?? ""].joined(separator: "\u{1F}")
+        if let asked = rendererAsksThisStep[key], asked.answer != nil || asked.ref == element.ref { return asked.answer }
+        let answer = await driver.elementRenderer(ref: element.ref)
+        rendererAsksThisStep[key] = (element.ref, answer)
+        return answer
     }
 
     /// **容器の推測に依存する補正**の既定(実行プロファイルの `containerInference`。既定 true)。
@@ -899,6 +918,7 @@ public final class StepExecutor {
         slowDragsThisStep = nil
         gestureDeliveredThisStep = false
         noteCodesThisStep = []
+        rendererAsksThisStep = [:]
         absenceReadWhileStoppedThisStep = nil
         firstFrameBlankObserved = false
         failureKindThisStep = nil

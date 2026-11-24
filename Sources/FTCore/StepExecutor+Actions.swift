@@ -564,7 +564,7 @@ extension StepExecutor {
         // **容器の外の要素には撃たない**(動いていない物に約 1.3 秒払う)。**Flutter には撃たない** —— 空打ち自身が慣性を作り(FD-2.2)、
         // この経路が無くても DSL の tap は 6/6 正しく押せた(空打ちを切った対照。CMP は 11/16 が押せていない)
         if inertiaFromPriorStep, uiFramework != .flutter, ghostSwipes == 0, !searchSwiped, !grabsOnly, Self.interactsByTouch(action),
-           var target = resolved?.0, shouldEmptyDrag(for: target),
+           var target = resolved?.0, shouldEmptyDrag(for: target, renderer: await emptyDragRenderer(for: target)),
            ContainerGeometry.clippingContainer(of: target, in: snapshot.elements,
                                                inferring: step.containerInference ?? true) != nil {
             if driver.treeLagsBehindMotion {
@@ -600,7 +600,8 @@ extension StepExecutor {
             }
         }
 
-        if ghostSwipes > 0, ghostLeftInertia, let target = resolved?.0, shouldEmptyDrag(for: target) {
+        if ghostSwipes > 0, ghostLeftInertia, let target = resolved?.0,
+           shouldEmptyDrag(for: target, renderer: await emptyDragRenderer(for: target)) {
             let x = target.frame.centerX
             let y = min(target.frame.centerY,
                         snapshot.screen.y + snapshot.screen.height - Self.bottomUncoveredBand - 1)

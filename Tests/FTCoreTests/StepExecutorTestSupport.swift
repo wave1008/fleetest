@@ -112,6 +112,13 @@ final class FakeAppDriver: AppDriver {
     /// `hitTest(ref:)` の答え(既定 = 答えられない = AppDriver の既定実装と同じ)
     var hitTestAnswer: HitTestAnswer = .unavailable
     func hitTest(ref: Int) async throws -> HitTestAnswer { hitTestAnswer }
+    /// `elementRenderer(ref:)` の答え(既定 nil = 答えられない = AppDriver の既定実装と同じ)と、聞かれた回数
+    var elementRendererAnswer: String?
+    private(set) var elementRendererCallCount = 0
+    func elementRenderer(ref: Int) async -> String? {
+        elementRendererCallCount += 1
+        return elementRendererAnswer
+    }
 
     func launch(bundleID: String) async throws {
         log.entries.append("\(name).launch")

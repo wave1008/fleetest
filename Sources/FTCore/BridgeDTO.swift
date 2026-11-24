@@ -50,7 +50,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 305
+    public static let bridgeProtocolVersion = 306
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -589,6 +589,9 @@ public struct StatusResponse: Codable, Sendable {
     public var screenAppearance: String?
     /// アプリが受け取っている文字サイズ(`preferredContentSizeCategory.rawValue`)。in-app だけ。省く = 読んでいない
     public var contentSizeCategory: String?
+    /// XCUITest ランナーだけ。`POST /renderer` が使う XCTest の非公開属性の問い合わせが直近で通ったか
+    /// (true = 要素の本当のクラス名が取れた / false = 取れなかった = Xcode の版で変わった等)。nil = まだ問い合わせていない
+    public var elementClassQuery: Bool?
 
     public init(ready: Bool, device: String, osVersion: String, sessionBundleID: String?,
                 bridge: String? = nil, protocolVersion: Int? = nil, applicationState: String? = nil,
@@ -597,7 +600,8 @@ public struct StatusResponse: Codable, Sendable {
                 quiescenceControlAvailable: Bool? = nil, unsupportedActions: [String]? = nil,
                 ownerRepo: String? = nil, ownerPid: Int? = nil, idleSeconds: Double? = nil,
                 timingEnabled: Bool? = nil, udid: String? = nil,
-                orientation: FTOrientation? = nil, multiDisplay: Bool? = nil, screenAppearance: String? = nil, contentSizeCategory: String? = nil) {
+                orientation: FTOrientation? = nil, multiDisplay: Bool? = nil, screenAppearance: String? = nil, contentSizeCategory: String? = nil,
+                elementClassQuery: Bool? = nil) {
         self.ready = ready
         self.device = device
         self.osVersion = osVersion
@@ -619,6 +623,7 @@ public struct StatusResponse: Codable, Sendable {
         self.multiDisplay = multiDisplay
         self.screenAppearance = screenAppearance
         self.contentSizeCategory = contentSizeCategory
+        self.elementClassQuery = elementClassQuery
     }
 }
 
@@ -1054,6 +1059,25 @@ public struct SystemUICoveringResponse: Codable, Sendable {
         self.covering = covering
         self.marker = marker
     }
+}
+
+/// POST /renderer(XCUITest ランナーだけ)。直近の /snapshot の `ref` の要素の描画の出どころを、本当のクラス名と祖先から答える。
+/// `expect` が控えと食い違うとき・ref が控えに無いときは断らず `renderer: nil`(= 不明。呼び手は撃たない側へ倒す)。
+/// ステータスは常に 200(409 は `requireApp()` 専用)
+public struct RendererRequest: Codable, Sendable {
+    public var ref: Int
+    public var expect: RefExpectation?
+    public init(ref: Int, expect: RefExpectation? = nil) {
+        self.ref = ref
+        self.expect = expect
+    }
+}
+
+/// `renderer` = `IOSRendererMarkers.renderer` の値(flutter / compose / reactNative / swiftUI / uikit / keyboard / web /
+/// uikitCustom)。nil(キーごと省かれる)= 不明・問い合わせの失敗
+public struct RendererResponse: Codable, Sendable {
+    public var renderer: String?
+    public init(renderer: String?) { self.renderer = renderer }
 }
 
 public struct TapRequest: Codable {
