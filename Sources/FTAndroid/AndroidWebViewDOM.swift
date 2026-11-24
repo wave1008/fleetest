@@ -320,6 +320,16 @@ public enum AndroidWebViewDOM {
         return map
     }
 
+    struct AdbNonZeroExit: Error { let args: [String]; let status: Int32; let output: String }
+
+    /// DOM 用 adb の出力の採り方(純粋)。**forward 系だけ終了コード非ゼロで投げる**(失敗した forward を成功と読むと、
+    /// 張れていない port へ続く HTTP が空振りして理由が消える)。probe の shell 命令は grep の不一致などで
+    /// 非ゼロになるのが普通なので、出力をそのまま返す(`resolveAppSocket` が出力の形で判定する)
+    static func outputRequiringSuccess(args: [String], status: Int32, output: String) throws -> String {
+        if args.first == "forward", status != 0 { throw AdbNonZeroExit(args: args, status: status, output: output) }
+        return output
+    }
+
     /// forward の host port の種(純粋)。**ブラウザは serial だけ**(既存の値を動かさない)。
     /// 自作アプリはソケット名を混ぜる —— 同じ端末のブラウザ経路と自作アプリ経路が
     /// 別プロセスから同時に forward されうるので、同じ port を取り合わせない

@@ -58,4 +58,25 @@ final class AndroidPointScaleTests: XCTestCase {
         XCTAssertTrue(body.contains("displayDensity()"),
                       "pointScale がデバイスの密度を見ていない(床の換算が効かなくなる): \(body)")
     }
+
+    /// **読めなかった回の 1 を控えない**: 失敗 → 成功の順に引いて、成功した値が返ること
+    /// (控えると、2.75 倍の端末でその寿命の間ずっと dp の床が px として使われる)
+    func testPointScaleCachesOnlyASuccessfulRead() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ft-ps-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let marker = dir.appendingPathComponent("ok").path
+        let adb = dir.appendingPathComponent("adb")
+        try "#!/bin/sh\nif [ -e '\(marker)' ]; then echo 'Physical density: 440'; exit 0; fi\necho 'adb: failed' >&2; exit 1\n"
+            .write(to: adb, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: adb.path)
+        let serial = "fake-\(UUID().uuidString.prefix(8))"
+        defer { try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory
+            .appendingPathComponent("fleetest-android-\(serial).json")) }
+        let driver = AndroidDriver(serial: serial, adbPath: adb.path)
+        XCTAssertNil(driver.displayDensity())
+        XCTAssertEqual(driver.pointScale, 1)
+        FileManager.default.createFile(atPath: marker, contents: Data())
+        XCTAssertEqual(driver.pointScale, 2.75, accuracy: 0.0001, "失敗した回の 1 を控えて、読めるようになっても使い続けている")
+    }
 }

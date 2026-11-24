@@ -151,9 +151,10 @@ public final class AndroidDriver: AppDriver {
     // MARK: - adb helpers
 
     /// 論理 px → 物理 px の倍率(DOM の CSS px を画面座標へ写すのに要る)
-    func displayDensity() -> Double {
+    /// 読めなかった(失敗・期限切れ・解析不能)ときは nil。**呼び手が 1 を控えない**ための nil(`pointScale`)
+    func displayDensity() -> Double? {
         guard let out = try? adbProbe(["shell", "wm", "density"], timeout: Self.deviceAnswerTimeoutSeconds).outputIfSucceeded,
-              let density = Self.parseDisplayDensity(out) else { return 1 }
+              let density = Self.parseDisplayDensity(out) else { return nil }
         return density
     }
 
@@ -201,6 +202,14 @@ public final class AndroidDriver: AppDriver {
         var full = [adbPath]
         if let serial { full += ["-s", serial] }
         return try Shell.run(full + args, timeout: timeout)
+    }
+
+    /// WebView DOM / CDP 用の期限つき adb(出力だけ返す)。**forward は終了コード 0 でなければ投げる**
+    /// (`Shell.run` は非ゼロで投げないので、そのまま `.output` を返すと失敗した forward を成功と読む)。
+    /// 期限切れは `adbAnswering` が投げる(呼び手は `try?` で nil = a11y のまま)
+    func adbForDOM(_ args: [String]) throws -> String {
+        let result = try adbAnswering(args)
+        return try AndroidWebViewDOM.outputRequiringSuccess(args: args, status: result.status, output: result.output)
     }
 
     /// 短く返るはずの端末側の命令(keyevent・force-stop・dumpsys window・settings)を期限つきで撃つ。
@@ -337,6 +346,7 @@ public final class AndroidDriver: AppDriver {
     /// 画面遷移を伴うため直前の ref は無効(launch と同じ理由: 次の snapshot 前に古い ref で
     /// タップされると誤爆する)
     public func openURL(_ url: String, bundleID: String?) async throws {
+        try requireDeviceAnswers()  // 凍結した端末で `am start -W` が返らず MCP 全体を握るのを入口で断る
         let result = try adb(try Self.amStartArgs(url: url, package: bundleID))
         guard result.status == 0, !Self.amStartIndicatesFailure(output: result.output) else {
             throw DriverError.badResponse(status: Int(result.status),
@@ -748,7 +758,8 @@ public final class AndroidDriver: AppDriver {
     /// 引けなければ 1 = 換算しない側(嘘の倍率を作らない)
     public var pointScale: Double {
         if let cachedPointScale { return cachedPointScale }
-        let value = displayDensity()
+        // **読めた回だけ控える**(adb の一時的な失敗の 1 を控えると、以後ずっと dp の床が px として使われる)
+        guard let value = displayDensity() else { return 1 }
         cachedPointScale = value
         return value
     }
@@ -866,12 +877,12 @@ public final class AndroidDriver: AppDriver {
                 if let payload = await AndroidWebViewDOM.read(
                     serial: serial ?? "", packageID: package, route: route, webViewLabel: webView?.label,
                     urlBarValue: AndroidWebViewDOM.urlBarValue(in: snapshot.elements),
-                    adb: { try self.adb($0).output }),
+                    adb: { try self.adbForDOM($0) }),
                    WebViewDOM.isUsable(payload) {
                     // nextRef は差し込み前の全要素から採る(落とす内側の要素も含めて衝突を避ける)
                     let nextRef = (snapshot.elements.map(\.ref).max() ?? 0) + 1
                     let added = WebViewDOM.elements(payload: payload, webViewFrame: frame,
-                                                    density: displayDensity(), startingRef: nextRef)
+                                                    density: pointScale, startingRef: nextRef)
                     var kept = snapshot.elements
                     if let webView {
                         // **自作アプリだけ、注入用の ref 対応表を作る**(理由は bridgeRefMap。
@@ -1276,7 +1287,7 @@ public final class AndroidDriver: AppDriver {
                                                  package: package) else { return false }
         let outcome = await AndroidWebViewDOM.scrollToEdge(
             serial: serial ?? "", packageID: package, route: .appWebView,
-            finger: direction, adb: { try self.adb($0).output })
+            finger: direction, adb: { try self.adbForDOM($0) })
         switch outcome {
         case .unavailable:
             webViewEdgeJumpUnavailableFor = package
@@ -1739,7 +1750,7 @@ public final class AndroidDriver: AppDriver {
         }
         guard let pagePNG = await AndroidWebViewDOM.capturePagePNG(
                 serial: serial ?? "", packageID: package, route: .appWebView,
-                webViewLabel: nil, urlBarValue: nil, adb: { try self.adb($0).output }),
+                webViewLabel: nil, urlBarValue: nil, adb: { try self.adbForDOM($0) }),
               let overlay = WebViewShotComposite.cgImage(fromPNG: pagePNG),
               let rect = WebViewShotComposite.pasteRect(
                 in: nodeRect ?? band, pageWidth: overlay.width, pageHeight: overlay.height,
@@ -1763,7 +1774,7 @@ public final class AndroidDriver: AppDriver {
         guard !WebViewShotComposite.hasWarnedBlankCapture(serial: serial) else { return }
         // 理由の引き直しは once の内側 = serial ごとに adb 1往復だけ
         let reason: WebViewShotComposite.BlankCaptureReason
-        switch AndroidWebViewDOM.appSocketResolution(packageID: package, adb: { try self.adb($0).output }) {
+        switch AndroidWebViewDOM.appSocketResolution(packageID: package, adb: { try self.adbForDOM($0) }) {
         case .socket: reason = .captureFailed
         case .noWebView: reason = .noDevtoolsSocket
         case .appNotRunning: reason = .appNotRunning
@@ -1787,7 +1798,7 @@ public final class AndroidDriver: AppDriver {
         guard WebViewDOMFallback.needsDiagnosis(serial: serial, package: package) else { return }
         // 診断は結論が出るまで miss ごとに adb 1往復(結論が出たらメモして以後払わない)
         let resolution = AndroidWebViewDOM.appSocketResolution(
-            packageID: package, adb: { try self.adb($0).output })
+            packageID: package, adb: { try self.adbForDOM($0) })
         guard WebViewDOMFallback.isConclusive(resolution) else { return }
         WebViewDOMFallback.markDiagnosed(serial: serial, package: package)
         // debuggable の事実はソケットが無いときだけ要る(ここだけ、もう1往復)
@@ -1795,7 +1806,7 @@ public final class AndroidDriver: AppDriver {
         var app: Bool? = nil
         if case .noWebView = resolution,
            let command = WebViewDOMFallback.probeCommand(packageID: package),
-           let output = try? adb(command).output {
+           let output = try? adbForDOM(command) {
             (system, app) = WebViewDOMFallback.parseProbe(output)
         }
         guard let reason = WebViewDOMFallback.reason(

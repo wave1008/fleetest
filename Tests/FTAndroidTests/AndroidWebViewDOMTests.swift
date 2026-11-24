@@ -419,4 +419,20 @@ final class AndroidWebViewDOMTests: XCTestCase {
         XCTAssertNotEqual(AndroidWebViewDOM.stablePort(seed: "emulator-5554"),
                           AndroidWebViewDOM.stablePort(seed: "emulator-5556"))
     }
+
+    // MARK: - DOM 用 adb の終了コード
+
+    /// forward が非ゼロで終わったら投げる(`Shell.run` は投げないので、`.output` だけ返すと失敗を成功と読む)
+    func testFailedForwardThrows() throws {
+        XCTAssertThrowsError(try AndroidWebViewDOM.outputRequiringSuccess(
+            args: ["forward", "tcp:12345", "localabstract:x"], status: 1, output: "adb: error: cannot bind"))
+        XCTAssertEqual(try AndroidWebViewDOM.outputRequiringSuccess(
+            args: ["forward", "tcp:12345", "localabstract:x"], status: 0, output: ""), "")
+    }
+
+    /// probe の shell 命令は非ゼロでも出力で判定する(grep の不一致が普通にある)
+    func testNonForwardCommandsKeepTheirOutputOnNonZeroExit() throws {
+        XCTAssertEqual(try AndroidWebViewDOM.outputRequiringSuccess(
+            args: ["shell", "cat /proc/net/unix"], status: 1, output: "partial"), "partial")
+    }
 }

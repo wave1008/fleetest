@@ -51,7 +51,7 @@ final class AndroidDeviceAnswerTimeoutScanTests: XCTestCase {
         // 免除 = 端末の応答を確かめずに撃つと決めたもの(等号で固定する。足すなら理由を書く)
         // 座標ジェスチャの `input swipe` は入口の門を通す(凍結した端末で他の端末まで塞いだ)
         let exempted: [String: String] = [:]
-        let regex = try NSRegularExpression(pattern: #"(?<![A-Za-z])adb\(\[[^\]\n]*"#)
+        let regex = try NSRegularExpression(pattern: #"(?<![A-Za-z])(?<!func )adb\([^\]\n]*"#)
         let ns = text as NSString
         var ungated: [String] = []
         var exemptHits = Set<String>()
@@ -65,7 +65,8 @@ final class AndroidDeviceAnswerTimeoutScanTests: XCTestCase {
             guard let funcStart = before.range(of: "func ", options: .backwards) else {
                 ungated.append(call); continue
             }
-            if !before[funcStart.lowerBound...].contains("requireDeviceAnswers()") {
+            let scope = before[funcStart.lowerBound...]
+            if !scope.contains("requireDeviceAnswers()") && !scope.contains("requireDeviceAnswersOffPool()") {
                 ungated.append(call)
             }
         }
@@ -73,6 +74,35 @@ final class AndroidDeviceAnswerTimeoutScanTests: XCTestCase {
         XCTAssertEqual(exemptHits, Set(exempted.keys), "免除表に、もう存在しない呼び出しが残っている")
         XCTAssertGreaterThan(regex.numberOfMatches(in: text, range: NSRange(location: 0, length: ns.length)), 5,
                              "走査の前提(素の adb の呼び出し)が見つからない")
+    }
+
+    /// 正規表現が `adb([` だけだと `adb(try Self.amStartArgs(...))`・`adb(pressArgs)`・`adb($0)` の形が素通りした(openURL の門抜け)。
+    /// 引数が配列リテラルでない形も拾うこと(拾えなくなったら、ここが落ちる)
+    func testScanRegexAlsoCatchesNonLiteralArgumentForms() throws {
+        let regex = try NSRegularExpression(pattern: #"(?<![A-Za-z])(?<!func )adb\([^\]\n]*"#)
+        for sample in ["try adb(try Self.amStartArgs(url: u))", "driver.value.adb(pressArgs)", "{ try self.adb($0).output }", "adb(command)"] {
+            XCTAssertEqual(regex.numberOfMatches(in: sample, range: NSRange(location: 0, length: (sample as NSString).length)), 1, sample)
+        }
+        for sample in ["func adb(_ args: [String])", "try adbAnswering([\"x\"])", "rawAdb(args)"] {
+            XCTAssertEqual(regex.numberOfMatches(in: sample, range: NSRange(location: 0, length: (sample as NSString).length)), 0, sample)
+        }
+    }
+
+    /// openURL は `am start -W`(遷移完了まで待つ = 長さが読めない)ので入口で門を通す
+    func testOpenURLChecksTheDeviceAnswersFirst() throws {
+        let text = try Self.source("AndroidDriver.swift")
+        let start = try XCTUnwrap(text.range(of: "public func openURL(_ url: String, bundleID: String?) async throws {"))
+        let body = text[start.upperBound...].prefix(300)
+        let gate = try XCTUnwrap(body.range(of: "try requireDeviceAnswers()"), "openURL に門が無い")
+        let fire = try XCTUnwrap(body.range(of: "adb(try Self.amStartArgs"))
+        XCTAssertLessThan(gate.lowerBound, fire.lowerBound)
+    }
+
+    /// WebView DOM / CDP の adb の閉包は期限つきの `adbForDOM` を通す(素の `self.adb($0)` は期限が無い)
+    func testWebViewDOMClosuresAreBounded() throws {
+        let text = try Self.driverSources()
+        XCTAssertFalse(text.contains("self.adb($0)"), "DOM 用の閉包が期限なしの adb を撃っている(adbForDOM を通す)")
+        XCTAssertTrue(text.contains("adb: { try self.adbForDOM($0) }"))
     }
 
     /// `pm clear` は所要が読めないので、入口で1回 端末が答えるかを確かめること
