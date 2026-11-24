@@ -140,9 +140,15 @@ public enum RunnerAccessibilityHealth {
     /// ランナーのプロセスには無い**(測った事実から言えるのはここまで)。以降このプロセスでは起動し直さない。
     /// 次の手としてシミュレータの再起動を挙げる根拠: -01 は起動し直しでは 2.7〜3.0 秒のまま、
     /// 再起動で 0.03 秒に戻った(同じ 3 シナリオの合計 42.3s → 22.1s)
-    public static func restartDidNotHelpMessage(name: String, port: UInt16, after: ProbeOutcome) -> String {
-        let tail = " — it is not restarted again in this run; rebooting the simulator is the next thing to try"
-        let prefix = "⚠️ \(name): after restarting SpringBoard (on a simulator) and the xcuitest bridge on port \(port), it"
+    public static func restartDidNotHelpMessage(name: String, port: UInt16, after: ProbeOutcome,
+                                                simulator: Bool) -> String {
+        let tail = simulator
+            ? " — it is not restarted again in this run; rebooting the simulator is the next thing to try"
+            : " — it is not restarted again in this run (this tool does not reboot a physical device;"
+                + " reboot it by hand if it stays slow)"
+        let prefix = simulator
+            ? "⚠️ \(name): after restarting SpringBoard (on a simulator) and the xcuitest bridge on port \(port), it"
+            : "⚠️ \(name): after restarting the xcuitest bridge on port \(port), it"
         switch after {
         case .answered(let seconds):
             return prefix + " still took \(String(format: "%.2f", seconds))s for a one-element accessibility query"
@@ -217,8 +223,11 @@ public enum RunnerAccessibilityHealth {
         case reuseWithoutRestarting
     }
 
-    public static func supplySlownessAction(persisted: RunnerSlowness?, hasForeignLease: Bool,
-                                            canWipe: Bool) -> SupplySlownessAction {
+    public static func supplySlownessAction(persisted: RunnerSlowness?, isSimulator: Bool,
+                                            hasForeignLease: Bool, canWipe: Bool) -> SupplySlownessAction {
+        // 実機にはシミュレータの再起動・初期化の段が無い(simctl は実機に撃てず、供給ごと落とす)。
+        // 印があっても通常の 1 問プローブへ —— 健全なら印を消し、劣化はランナーの起動し直しだけ(実機で効く唯一の手)
+        guard isSimulator else { return .proceedNormally }
         switch persisted {
         case nil: return .proceedNormally
         case .wipeDidNotHelp: return .reuseWithoutRestarting

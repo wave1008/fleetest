@@ -168,7 +168,7 @@ final class RunnerSlownessProvisioningWiringTests: XCTestCase {
             + "udid: sim.udid, stateDir: fleetestStateDir)")))
         XCTAssertTrue(text.contains(compact(
             "RunnerAccessibilityHealth.supplySlownessAction("
-            + "persisted: persisted, hasForeignLease: lease, canWipe: block == nil)")))
+            + "persisted: persisted, isSimulator: !sim.physical, hasForeignLease: lease, canWipe: block == nil)")))
         // 初期化してよいかも同じ実ファイル由来の lease から決める(定数にすり替えない)
         XCTAssertTrue(text.contains(compact(
             "let block = wipeBlock(sim: sim, hasForeignLease: lease, preinstallAppPath: preinstallAppPath)")))
@@ -206,6 +206,16 @@ final class RunnerSlownessProvisioningWiringTests: XCTestCase {
             "RunnerRestartFutility.shared.mark(udid: udid)")))
         XCTAssertTrue(text.contains(compact(
             "RunnerSlownessStore.mark(stateDir: fleetestStateDir, key: udid, state: state)")))
+    }
+
+    /// **測って健全なら run を跨ぐ印も消す**: 消し口は4箇所(escalate の再起動が効いた・初期化が効いた・
+    /// 通常プローブが健全・通常プローブ後の起動し直しが効いた)。実機は印があっても通常プローブへ来る
+    /// (supplySlownessAction)ので、後ろの2つが実機の唯一の消し口 —— 消えると、一度劣化した実機が
+    /// 回復した後も印が永久に残る
+    func testHealthyMeasurementsClearThePersistedMarkInAllFourPlaces() throws {
+        let text = compact(try source())
+        XCTAssertEqual(text.components(separatedBy: compact(
+            "RunnerSlownessStore.clear(stateDir: fleetestStateDir, key: sim.udid)")).count - 1, 4)
     }
 
     /// **効いたかを直後に測る**(CLAUDE.md の規律): シミュレータ再起動の結果で印を消す/更新する分岐が

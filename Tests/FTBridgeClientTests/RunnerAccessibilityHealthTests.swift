@@ -162,10 +162,21 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
     func testRestartDidNotHelpMessage() {
         XCTAssertEqual(
             RunnerAccessibilityHealth.restartDidNotHelpMessage(
-                name: "iPhone 17 Pro-01", port: 8124, after: .answered(2.7)),
+                name: "iPhone 17 Pro-01", port: 8124, after: .answered(2.7), simulator: true),
             "⚠️ iPhone 17 Pro-01: after restarting SpringBoard (on a simulator) and the xcuitest bridge on"
                 + " port 8124, it still took 2.70s for a one-element accessibility query (normal is under 0.3s)"
                 + " — it is not restarted again in this run; rebooting the simulator is the next thing to try")
+    }
+
+    /// 実機には「シミュレータの再起動」を次の一手に挙げない(SpringBoard も起こし直していないので言わない)
+    func testRestartDidNotHelpMessageOnAPhysicalDevice() {
+        XCTAssertEqual(
+            RunnerAccessibilityHealth.restartDidNotHelpMessage(
+                name: "iPhone SE3(実機)", port: 8126, after: .answered(2.7), simulator: false),
+            "⚠️ iPhone SE3(実機): after restarting the xcuitest bridge on port 8126, it still took 2.70s"
+                + " for a one-element accessibility query (normal is under 0.3s)"
+                + " — it is not restarted again in this run (this tool does not reboot a physical device;"
+                + " reboot it by hand if it stays slow)")
     }
 
     func testKeptSlowRunnerMessage() {
@@ -190,9 +201,10 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
 
     // MARK: - 印を run をまたいで持ち越す(supplySlownessAction)
 
-    private func action(_ persisted: RunnerSlowness?, lease: Bool, canWipe: Bool)
+    private func action(_ persisted: RunnerSlowness?, lease: Bool, canWipe: Bool, simulator: Bool = true)
         -> RunnerAccessibilityHealth.SupplySlownessAction {
-        RunnerAccessibilityHealth.supplySlownessAction(persisted: persisted, hasForeignLease: lease, canWipe: canWipe)
+        RunnerAccessibilityHealth.supplySlownessAction(persisted: persisted, isSimulator: simulator,
+                                                       hasForeignLease: lease, canWipe: canWipe)
     }
 
     /// 印なしは従来どおり(リースにも初期化の可否にも依らない)
@@ -229,6 +241,17 @@ final class RunnerAccessibilityHealthTests: XCTestCase {
     /// 初期化してよい状態でなければ(実機・アプリを入れ直さない供給)触らずそのまま使う
     func testSimulatorRestartFailedMarkWithoutWipePermissionReusesAsIs() {
         XCTAssertEqual(action(.simulatorRestartDidNotHelp, lease: false, canWipe: false), .reuseWithoutRestarting)
+    }
+
+    /// **実機はどの印でも通常の 1 問プローブへ**(シミュレータの再起動・初期化の段が無い。
+    /// 2026-11-24: 印 runnerRestartDidNotHelp の実機 SE3 に simctl の再起動を撃ち、供給ごと落とした)
+    func testPhysicalDeviceAlwaysProceedsNormally() {
+        for persisted in [RunnerSlowness.runnerRestartDidNotHelp, .simulatorRestartDidNotHelp, .wipeDidNotHelp] {
+            for lease in [false, true] {
+                XCTAssertEqual(action(persisted, lease: lease, canWipe: false, simulator: false),
+                               .proceedNormally, "\(persisted) lease=\(lease)")
+            }
+        }
     }
 
     /// 初期化しても直らなかった印は終端: 何も自動で撃たない

@@ -872,7 +872,8 @@ public struct BridgeProvisioner: Sendable {
         let after = await RunnerAccessibilityHealth.probe(port: restarted, repoRoot: repoRoot)
         guard !RunnerAccessibilityHealth.restartHelped(after: after) else { return (restarted, true, after) }
         recordRecoveryFailure(udid: sim.udid, after: after, state: .runnerRestartDidNotHelp)
-        log(RunnerAccessibilityHealth.restartDidNotHelpMessage(name: name, port: restarted, after: after))
+        log(RunnerAccessibilityHealth.restartDidNotHelpMessage(name: name, port: restarted, after: after,
+                                                               simulator: !sim.physical))
         return (restarted, false, after)
     }
 
@@ -949,7 +950,12 @@ public struct BridgeProvisioner: Sendable {
         let injected = RunnerAccessibilityHealth.injectedSlowPorts().contains(port)
         let probe = injected ? nil : await RunnerAccessibilityHealth.probe(port: port, repoRoot: repoRoot)
         guard injected || RunnerAccessibilityHealth.isDegraded(probe) else {
-            if case .answered = probe { RunnerRestartFutility.shared.clear(udid: sim.udid) }
+            if case .answered = probe {
+                RunnerRestartFutility.shared.clear(udid: sim.udid)
+                // 測って健全なら run を跨ぐ印も消す(実機は印があってもここへ来る = supplySlownessAction。
+                // 消さないと、一度劣化した実機が回復した後も毎 run「そのまま使う」の文を出し続ける)
+                RunnerSlownessStore.clear(stateDir: fleetestStateDir, key: sim.udid)
+            }
             return nil
         }
         if RunnerRestartFutility.shared.contains(udid: sim.udid) {
@@ -963,6 +969,7 @@ public struct BridgeProvisioner: Sendable {
         }
         log(RunnerAccessibilityHealth.restartMessage(name: name, port: port, probe: probe, injected: injected))
         let result = try await restartRunner(name: name, sim: sim, port: port, claimed: claimed, log: log)
+        if result.helped { RunnerSlownessStore.clear(stateDir: fleetestStateDir, key: sim.udid) }
         try failIfNotAnswering(name: name, port: result.port, after: result.after)
         return result.port
     }
@@ -1121,7 +1128,7 @@ public struct BridgeProvisioner: Sendable {
             let lease = RunnerAccessibilityHealth.hasForeignLease(udid: sim.udid, stateDir: fleetestStateDir)
             let block = wipeBlock(sim: sim, hasForeignLease: lease, preinstallAppPath: preinstallAppPath)
             let action = RunnerAccessibilityHealth.supplySlownessAction(
-                persisted: persisted, hasForeignLease: lease, canWipe: block == nil)
+                persisted: persisted, isSimulator: !sim.physical, hasForeignLease: lease, canWipe: block == nil)
             if action == .restartSimulator || action == .wipeSimulator {
                 return try await escalateStuckRunner(action: action, block: block, name: name, sim: sim,
                                                      port: launchPort, claimed: claimed, log: log)
@@ -1151,7 +1158,7 @@ public struct BridgeProvisioner: Sendable {
                 let lease = RunnerAccessibilityHealth.hasForeignLease(udid: sim.udid, stateDir: fleetestStateDir)
                 let block = wipeBlock(sim: sim, hasForeignLease: lease, preinstallAppPath: preinstallAppPath)
                 let action = RunnerAccessibilityHealth.supplySlownessAction(
-                    persisted: persisted, hasForeignLease: lease, canWipe: block == nil)
+                    persisted: persisted, isSimulator: !sim.physical, hasForeignLease: lease, canWipe: block == nil)
                 switch action {
                 case .restartSimulator, .wipeSimulator:
                     // **効いたかを直後に測る**(escalateStuckRunner が測っている): 健全なら印を消し、直らなければ印を進める
