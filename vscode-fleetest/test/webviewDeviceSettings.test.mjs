@@ -107,3 +107,26 @@ test("書き込みの失敗は理由を出し、CLI の値へ戻す", (t) => {
   post(window, { type: "deviceSettings", usePhysicalDevices: true });
   assert.equal(error.hidden, true);
 });
+
+test("押した後の応答に値が無くても(読み直しも失敗)、押す前の値へ戻して押せる状態に戻す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+
+  const box = document.getElementById("settings-use-physical-devices");
+  post(window, { type: "deviceSettings", usePhysicalDevices: true });
+  box.checked = false;
+  box.dispatchEvent(new window.Event("change", { bubbles: true }));
+  assert.equal(box.disabled, true);
+  post(window, { type: "deviceSettings", error: "boom" });
+  assert.equal(box.disabled, false, "固着しない");
+  assert.equal(box.checked, true, "押す前の値へ戻る");
+  assert.equal(document.getElementById("settings-device-settings-error").textContent, "boom");
+});
+
+test("一度も値が読めていない間の値の無い応答では、押せないまま", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const box = document.getElementById("settings-use-physical-devices");
+  post(window, { type: "deviceSettings", error: "boom" });
+  assert.equal(box.disabled, true);
+});

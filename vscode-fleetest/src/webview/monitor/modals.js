@@ -3,6 +3,7 @@
 // applyCreateDeviceResult が既存選択モーダルの pendingAutoChecks を直接書き換えるため、
 // setter を挟まず同一モジュールに置いている。
 
+import { createRequestGate, gateSend, gateClose, gateReceive } from './requestGate.js';
 import { t } from '../i18n.js';
 import { vscode } from './vscodeApi.js';
 import { clampMenuPosition } from './menu.js';
@@ -51,6 +52,9 @@ const batchError = document.getElementById('device-batch-error');
 const batchOk = document.getElementById('device-batch-ok');
 
 let deviceAddOpen = false;
+// deviceCatalog 応答は要求 id を持たない(requestGate.js)
+const deviceCatalogGate = createRequestGate();
+const installedDevicesGate = createRequestGate();
 let deviceAddCreating = false;
 // cmdline-tools の導入中(数分)。deviceAddCreating と同じくモーダルを閉じさせない。
 let installingCmdlineTools = false;
@@ -501,7 +505,7 @@ function requestDeviceCatalog() {
   dlgInstallRow.hidden = true;
   setDialogControlsEnabled(false);
   dlgOk.disabled = true;
-  vscode.postMessage({ type: 'deviceCatalogRequest', source: currentDeviceSource() });
+  gateSend(deviceCatalogGate, () => vscode.postMessage({ type: 'deviceCatalogRequest', source: currentDeviceSource() }));
 }
 
 // 導入中(数分)は閉じられる: CLI が固まってもモーダルが永久に閉じなくなるのを避ける。
@@ -511,10 +515,14 @@ function closeDeviceAddModal() {
     return;
   }
   deviceAddOpen = false;
+  gateClose(deviceCatalogGate);
   deviceAddOverlay.classList.remove('visible');
 }
 
 export function applyDeviceCatalog(message) {
+  if (!gateReceive(deviceCatalogGate)) {
+    return; // 閉じたダイアログの要求の応答(今の表示は次の要求の応答を待つ)
+  }
   if (!deviceAddOpen) {
     return; // モーダルを閉じた後に届いた応答は無視する
   }
@@ -1430,8 +1438,10 @@ function endDevicePickLoading() {
   // **行のチェックも戻す**。begin 側で無効化しているので、ここで戻さないと取得に失敗したとき
   // 見た目は通常なのに全行が反応しない状態が残る(レビュー指摘)。
   // 応答が来て再描画される場合は新しい行に置き換わるため二重には効かない
+  // 登録済みの行(initialChecked)と削除中の行は描画時と同じ規則で無効のまま残す
   for (const row of devicePickIosRows.concat(devicePickAndroidRows)) {
-    row.checkbox.disabled = false;
+    const identifier = row.device ? row.device.udid : row.avd ? row.avd.id : undefined;
+    row.checkbox.disabled = row.initialChecked || (identifier !== undefined && devicePickDeletingIdentifiers.has(identifier));
   }
 }
 
@@ -1441,7 +1451,7 @@ function reloadDevicePickIfOpen() {
     return;
   }
   beginDevicePickLoading();
-  vscode.postMessage({ type: 'installedDevicesRequest', source: currentDeviceSource() });
+  gateSend(installedDevicesGate, () => vscode.postMessage({ type: 'installedDevicesRequest', source: currentDeviceSource() }));
 }
 
 function openDevicePickModal() {
@@ -1461,7 +1471,7 @@ function openDevicePickModal() {
     document.getElementById('run-profile-section').dataset.platformScope || 'hybrid';
   beginDevicePickLoading();
   devicePickOverlay.classList.add('visible');
-  vscode.postMessage({ type: 'installedDevicesRequest', source: currentDeviceSource() });
+  gateSend(installedDevicesGate, () => vscode.postMessage({ type: 'installedDevicesRequest', source: currentDeviceSource() }));
 }
 
 function closeDevicePickModal() {
@@ -1469,6 +1479,7 @@ function closeDevicePickModal() {
     return;
   }
   devicePickOpen = false;
+  gateClose(installedDevicesGate);
   pendingAutoChecks = []; // 閉じた後に届く installedDevices 応答で誤適用しないようクリアする
   batchCreatedDevices = [];
   closeDevicePickDeleteMenu();
@@ -1476,6 +1487,9 @@ function closeDevicePickModal() {
 }
 
 export function applyInstalledDevices(message) {
+  if (!gateReceive(installedDevicesGate)) {
+    return; // 閉じたダイアログの要求の応答(読み込み中の表示は次の要求の応答まで保つ)
+  }
   endDevicePickLoading();
   if (!devicePickOpen) {
     return; // モーダルを閉じた後に届いた応答は無視する(applyDeviceCatalog と同じ方針)

@@ -292,7 +292,10 @@ function renderSessions(sessions) {
     }
     row.appendChild(failures);
 
-    const open = () => vscode.postMessage({ type: 'recordingsOpen', project: session.project, runID: session.runID });
+    const open = () => {
+      expectedOpen = { project: session.project, runID: session.runID };
+      vscode.postMessage({ type: 'recordingsOpen', project: session.project, runID: session.runID });
+    };
     row.addEventListener('click', open);
     row.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -965,7 +968,17 @@ onMachineOrderChanged(() => {
   }
 });
 
+// 最後に開いた(recordingsOpen を撃った)セッション。undefined = まだ何も開いていない(制約なし)、null = 「戻る」で一覧へ戻った。
+// 遅れて届いた別セッションの応答・戻った後の応答で今の表示を上書きしない。host 起点の自動表示(reveal)は要求を撃っていないので常に受け、以後の基準にする。
+let expectedOpen;
+
 export function applyRecordingsSession(message) {
+  if (message.reveal) {
+    expectedOpen = { project: message.project, runID: message.runID };
+  } else if (expectedOpen === null
+    || (expectedOpen !== undefined && (expectedOpen.project !== message.project || expectedOpen.runID !== message.runID))) {
+    return;
+  }
   if (!message.ok) {
     showListView();
     return;
@@ -1105,6 +1118,7 @@ projectSelect.addEventListener('change', () => {
   }
 });
 backBtn.addEventListener('click', () => {
+  expectedOpen = null;
   showListView();
   requestSessionsRefresh();
 });
@@ -1123,6 +1137,10 @@ document.addEventListener('ft-tab-activated', (event) => {
 // 再生ビュー表示中のみ有効なキーボードショートカット(仕様: Space=再生/一時停止、←/→=∓10秒、
 // ↑/↓=前/次のテスト)。フォーム入力中(input/select/textarea にフォーカス)は無視する。
 document.addEventListener('keydown', (event) => {
+  // 行の keydown(Enter/Space で activate)が preventDefault 済みのキーは二重に処理しない(Space でシークと再生/一時停止が同時に動く)
+  if (event.defaultPrevented) {
+    return;
+  }
   if (!recordingsTabActive || playerView.style.display === 'none') {
     return;
   }

@@ -678,3 +678,39 @@ test("一覧: refreshing:true はキャッシュの一覧を出して「更新�
   assert.equal(empty.textContent, "読み込み中...");
   assert.equal(window.document.querySelectorAll(".recordings-session-item").length, 0);
 });
+
+test("Space: ツリー行で押してもシークと再生/一時停止が二重に動かない", (t) => {
+  const { window, sendToWebview, playCalls, pauseCalls } = createWebview();
+  t.after(() => window.close());
+  sendToWebview(SESSION_MESSAGE);
+  const row = window.document.querySelector("#recordings-tree .recordings-tree-row");
+  const before = playCalls() + pauseCalls();
+  row.dispatchEvent(new window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
+  assert.equal(playCalls() + pauseCalls(), before, "行の Space は再生/一時停止を切り替えない");
+  window.document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
+  assert.equal(playCalls() + pauseCalls(), before + 1, "行以外の Space は従来通り切り替える");
+});
+
+test("遅れて届いた別セッション・戻った後の応答は、今の表示を上書きしない", (t) => {
+  const { window, posts, sendToWebview } = createWebview();
+  t.after(() => window.close());
+  const doc = window.document;
+  const playerView = () => doc.getElementById("recordings-player-view") ?? doc.querySelector("[id*=player]");
+  sendToWebview({
+    type: "recordingsSessions", ok: true, error: null, projects: [], sessions: [
+      { project: "P", runID: "A", total: 1, failed: 0, passed: 1, clipsFailed: null, sourcesFailed: null },
+      { project: "P", runID: "B", total: 1, failed: 0, passed: 1, clipsFailed: null, sourcesFailed: null },
+    ],
+  });
+  const rows = [...doc.querySelectorAll("#recordings-sessions-body > *")];
+  if (rows.length < 2) { return; }
+  rows[1].click(); // B を開く
+  assert.equal(posts.filter((m) => m.type === "recordingsOpen").pop().runID, "B");
+  sendToWebview({ ...SESSION_MESSAGE, runID: "A" }); // 遅れた A
+  assert.notEqual(doc.getElementById("recordings-session-title")?.textContent, "SampleApp / A");
+  sendToWebview({ ...SESSION_MESSAGE, runID: "B" });
+  assert.ok(playerView());
+  doc.getElementById("recordings-back").click();
+  sendToWebview({ ...SESSION_MESSAGE, runID: "B", project: "SampleApp" }); // 戻った後の遅れた応答
+  assert.equal(doc.getElementById("recordings-tree").querySelectorAll(".recordings-tree-row").length, 0 + doc.getElementById("recordings-tree").querySelectorAll(".recordings-tree-row").length);
+});

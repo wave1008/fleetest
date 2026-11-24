@@ -420,6 +420,7 @@ function updateIdleRow(row, entry) {
   row.leadEl.style.display = 'none';
   row.progressEl.style.display = 'none';
   row.countsEl.textContent = '';
+  row.countsKey = undefined;
   // 空でも箱を残すと列の gap と margin-right ぶん「空き」が右へずれる(ユーザー指摘)ので畳む
   row.countsEl.style.display = 'none';
   row.notesEl.style.display = 'none';
@@ -784,7 +785,15 @@ function updateRow(row, run) {
   row.progressEl.style.display = beforeRunning ? 'none' : '';
   // 供給の段階があれば準備中の文言を詳しくする(無ければ従来のまま。推測で埋めない)
   const supplyText = supplyLabel(run.supply, beforeRunning);
-  if (beforeRunning) {
+  // countsEl は中身の鍵が前回と同じなら触らない(textContent の代入は子の span を消す = ホバー中のツールチップが周期ごとに消えて出直す。MN-85)
+  const countsKey = beforeRunning
+    ? JSON.stringify([run.phase, supplyText])
+    : JSON.stringify([run.done, run.total, run.failed, RUN_DEVICE_STATES.map(([kind]) => run[kind] > 0 ? run[kind] : 0), supplyText]);
+  const countsUnchanged = row.countsKey === countsKey;
+  row.countsKey = countsKey;
+  if (countsUnchanged) {
+    // 変わっていない
+  } else if (beforeRunning) {
     // シナリオのビルド中・Vision のコンパイル中はその文言だけ(供給の段階は添えない)。準備中は段階があればそれを1つ
     row.countsEl.textContent = run.phase === 'building' ? t('runBoard.building')
       : run.phase === 'compiling' ? t('runBoard.compiling')

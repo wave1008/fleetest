@@ -221,3 +221,51 @@ test("devicePickDeviceDeleteResult(ok:false)は #device-pick-error にエラー�
   assert.ok(!simRow.classList.contains("deleting"), "失敗後は deleting 状態が解ける");
   assert.equal(simRow.querySelector("input[type=checkbox]").disabled, false);
 });
+
+test("取得が失敗しても、登録済みの行は外せないまま(initialChecked の不変条件)・削除中の行は無効のまま", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+
+  openDevicePickModal(window, document);
+  post(window, {
+    ...INSTALLED_DEVICES_WITH_ROWS,
+    data: {
+      ...INSTALLED_DEVICES_WITH_ROWS.data,
+      ios: { ...INSTALLED_DEVICES_WITH_ROWS.data.ios, devices: [
+        { name: "iPhone 17 Pro", udid: "SIM-UDID-1", os: "27.0", registeredName: "reg" },
+        { name: "iPhone 17", udid: "SIM-UDID-2", os: "27.0" },
+      ] },
+    },
+  });
+  const checkboxes = () => [...document.querySelectorAll("#device-pick-ios-body .device-pick-row input[type=checkbox]")];
+  const before = checkboxes().map((c) => c.disabled);
+
+  // 2件目(未登録)を削除中にして、取得失敗の応答を受ける
+  const rows = document.querySelectorAll("#device-pick-ios-body .device-pick-row");
+  rightClick(window, rows[rows.length - 1]);
+  document.getElementById("device-pick-delete-menu-item").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  post(window, { type: "installedDevices", ok: false, data: null, error: "boom" });
+  const after = checkboxes();
+  assert.equal(after[after.length - 1].disabled, true, "削除中の行は戻らない");
+  assert.equal(before.length, after.length);
+});
+
+test("閉じたダイアログの要求の応答は、開き直した表示を上書きしない(要求は1本ずつ・古い応答は捨てる)", (t) => {
+  const posted = [];
+  const { window, document } = createWebview((message) => posted.push(message));
+  t.after(() => window.close());
+  const requests = () => posted.filter((m) => m.type === "installedDevicesRequest").length;
+  const cancel = () => document.getElementById("device-pick-cancel").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  openDevicePickModal(window, document);
+  assert.equal(requests(), 1);
+  cancel(); // 応答前に閉じる
+  document.getElementById("btn-run-profile-device-add-existing").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  assert.equal(requests(), 1, "古い要求の応答が届くまで次の要求は撃たない");
+
+  post(window, INSTALLED_DEVICES_WITH_ROWS); // 古い要求の応答 → 捨てる
+  assert.equal(document.querySelectorAll("#device-pick-ios-body .device-pick-row").length, 0, "古い応答は描かない");
+  assert.equal(requests(), 2, "古い応答の後で新しい要求を撃つ");
+  post(window, INSTALLED_DEVICES_WITH_ROWS);
+  assert.ok(document.querySelectorAll("#device-pick-ios-body .device-pick-row").length > 0, "新しい応答は描く");
+});

@@ -50,7 +50,10 @@ showMachineCapacityCheckbox.addEventListener('change', () => {
 });
 
 // 確定値は CLI の応答(deviceSettings)で入れ直すので、応答までは押せなくする(連打で書き込みが交差しない)
+// 応答に値が無いとき(書き込みも読み直しも失敗)は押す前の値へ戻して必ず押せる状態に戻す(固着させない)
+let usePhysicalDevicesBeforePress = null;
 usePhysicalDevicesCheckbox.addEventListener('change', () => {
+  usePhysicalDevicesBeforePress = !usePhysicalDevicesCheckbox.checked;
   usePhysicalDevicesCheckbox.disabled = true;
   vscode.postMessage({ type: 'setUsePhysicalDevices', value: usePhysicalDevicesCheckbox.checked });
 });
@@ -58,8 +61,15 @@ usePhysicalDevicesCheckbox.addEventListener('change', () => {
 function applyDeviceSettings(message) {
   if (typeof message.usePhysicalDevices === 'boolean') {
     usePhysicalDevicesCheckbox.checked = message.usePhysicalDevices;
-    usePhysicalDevicesCheckbox.disabled = false;
+  } else if (usePhysicalDevicesBeforePress !== null) {
+    usePhysicalDevicesCheckbox.checked = usePhysicalDevicesBeforePress;
+  } else {
+    deviceSettingsError.hidden = !message.error;
+    deviceSettingsError.textContent = message.error ? message.error : '';
+    return; // まだ一度も値が読めていない(押した覚えも無い)なら押せないまま(未確定の値を見せない)
   }
+  usePhysicalDevicesBeforePress = null;
+  usePhysicalDevicesCheckbox.disabled = false;
   deviceSettingsError.hidden = !message.error;
   deviceSettingsError.textContent = message.error ? message.error : '';
 }

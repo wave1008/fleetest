@@ -1426,3 +1426,19 @@ test("ジョブ: 2つ以上なら見出しの数の前に題名を添える。�
   assert.equal(jobHeadsOf(document).length, 0);
   assert.equal(runRows(document).length, 1, "ジョブに属さない run は今まで通り");
 });
+
+test("run 行の ❄️/○/🫥 の件数バッジは、数が変わらない更新では作り直さない(ホバー中のツールチップが点滅する)", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const withBlank = (done) => monitorRunsMessage({ runs: [{ ...monitorRunsMessage().runs[0], done, blankDevices: 1 }] });
+  post(window, withBlank(7));
+  const badge = runRows(document)[0].querySelector(".run-board-counts-state");
+  assert.ok(badge, "白紙の件数が出る");
+  assert.ok(badge.getAttribute("data-hover-tip"), "説明が付く");
+  post(window, withBlank(7));
+  assert.equal(runRows(document)[0].querySelector(".run-board-counts-state"), badge, "同じ中身なら同じ要素");
+  post(window, withBlank(8));
+  assert.match(runRows(document)[0].querySelector(".run-board-counts").textContent, /8\/12/, "数が変われば描き直す");
+  post(window, monitorRunsMessage({ runs: [{ ...monitorRunsMessage().runs[0], blankDevices: 0 }] }));
+  assert.equal(runRows(document)[0].querySelector(".run-board-counts-state"), null, "0 になれば消える");
+});
