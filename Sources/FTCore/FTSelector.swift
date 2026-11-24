@@ -1077,6 +1077,14 @@ public struct FTSelector {
                 return error
             }
         }
+        // parseClauses は全段 × 対象の直積を maxExpansion で黙って打ち切る(後ろの候補が探されず notExist が緑になる)。
+        // 段ごとの検査(filterListError)では見えないので、`>>` の積をここで数える
+        if segments.count > 1, !segments.contains(where: { $0.hasPrefix("=") }) {
+            let product = segments.reduce(1) { $0 * max(1, parseSegments($1).count) }
+            if product >= maxExpansion {
+                return "too many `(a|b)` combinations across `>>` (\(product) in total, limit \(maxExpansion)): \"\(trimmed)\""
+            }
+        }
         return nil
     }
 

@@ -657,4 +657,14 @@ final class FTSelectorTests: XCTestCase {
         XCTAssertNotNil(FTSelector.validationError(".button&&idMatches!=["))
         XCTAssertNil(FTSelector.validationError("textMatches=^ok$"))
     }
+
+    func testScopeChainProductAtLimitIsRejected() {
+        // 6 × 6 = 36 は各段 < 32 だが積が上限を超え、parseClauses が黙って打ち切る
+        let error = FTSelector.validationError("(a|b|c|d|e|f) >> (g|h|i|j|k|l)")
+        XCTAssertNotNil(error)
+        XCTAssertTrue(error?.contains("too many") == true)
+        XCTAssertNotNil(FTSelector.validationError("(a|b|c|d) >> (g|h|i|j|k|l|m|n)"))  // 32
+        XCTAssertNil(FTSelector.validationError("(a|b|c|d|e) >> (g|h|i|j|k|l)"))  // 30
+        XCTAssertNil(FTSelector.validationError("(a|b|c|d|e|f) >> (g|h|i|j|k)"))  // 30
+    }
 }

@@ -48,24 +48,49 @@ public enum LastResultsStore {
     static func record(stateDir: URL, unit: ScenarioUnitKey, passed: Bool,
                        runID: String?, declaredVariants: [String]) {
         let fm = FileManager.default
-        guard let variant = unit.variant else {
-            // バリアントの無い run は今のまま(ID の記録だけ・内容は passed / failed)
-            try? fm.createDirectory(at: stateDir, withIntermediateDirectories: true)
-            try? (passed ? "passed" : "failed").write(
-                to: stateDir.appendingPathComponent(unit.id), atomically: true, encoding: .utf8)
-            return
+        try? fm.createDirectory(at: stateDir, withIntermediateDirectories: true)
+        // レーンごとの ScenarioHost が並行に呼ぶ(--broadcast)ので、読み→比べ→書きと aggregate を1つの錠で囲む。
+        // 錠は stateDir 直下の隠しファイル(ID の記録と読み違えない = recordFiles が "." 始まりを除く)
+        withLock(stateDir: stateDir) {
+            guard let variant = unit.variant else {
+                // バリアントの無い run: ID ファイルの中身は passed / failed だけ(拡張 lastResults.ts が厳密一致で読む)。
+                // runID は隠しの控え `.<ID>.run`(1行目 state・2行目 runID)に置く
+                let run = stateDir.appendingPathComponent(".\(unit.id).run")
+                let stamp = runID.map { "\n" + $0 } ?? ""
+                let previous = try? String(contentsOf: run, encoding: .utf8)
+                let keepFailed = passed && runID != nil && previous == "failed" + stamp
+                if keepFailed { return }
+                try? (passed ? "passed" : "failed").write(
+                    to: stateDir.appendingPathComponent(unit.id), atomically: true, encoding: .utf8)
+                if runID != nil {
+                    try? ((passed ? "passed" : "failed") + stamp).write(to: run, atomically: true, encoding: .utf8)
+                } else {
+                    try? fm.removeItem(at: run)
+                }
+                return
+            }
+            let dir = variantDir(stateDir: stateDir, variant: variant)
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let file = dir.appendingPathComponent(unit.id)
+            let stamp = runID.map { "\n" + $0 } ?? ""
+            let previous = try? String(contentsOf: file, encoding: .utf8)
+            // 同じ run の中の failed は passed で上書きしない
+            let keepFailed = passed && runID != nil && previous == "failed" + stamp
+            if !keepFailed {
+                try? ((passed ? "passed" : "failed") + stamp).write(to: file, atomically: true, encoding: .utf8)
+            }
+            aggregate(stateDir: stateDir, id: unit.id, variants: declaredVariants + [variant])
         }
-        let dir = variantDir(stateDir: stateDir, variant: variant)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let file = dir.appendingPathComponent(unit.id)
-        let stamp = runID.map { "\n" + $0 } ?? ""
-        let previous = try? String(contentsOf: file, encoding: .utf8)
-        // 同じ run の中の failed は passed で上書きしない
-        let keepFailed = passed && runID != nil && previous == "failed" + stamp
-        if !keepFailed {
-            try? ((passed ? "passed" : "failed") + stamp).write(to: file, atomically: true, encoding: .utf8)
-        }
-        aggregate(stateDir: stateDir, id: unit.id, variants: declaredVariants + [variant])
+    }
+
+    /// stateDir の `.lock` を flock(LOCK_EX・待つ)で囲む。**fd を開き直すので同一プロセスのスレッド間でも排他になる**
+    /// (flock は open file description 単位)。錠が取れなくても記録は best-effort で続ける
+    private static func withLock(stateDir: URL, _ body: () -> Void) {
+        let fd = open(stateDir.appendingPathComponent(".lock").path, O_RDWR | O_CREAT | O_NOFOLLOW, 0o644)
+        guard fd >= 0 else { body(); return }
+        defer { close(fd) }
+        while flock(fd, LOCK_EX) != 0 && errno == EINTR {}
+        body()
     }
 
     private static func variantDir(stateDir: URL, variant: String) -> URL {
@@ -132,6 +157,7 @@ public enum LastResultsStore {
     private static func recordFiles(stateDir: URL) -> [String] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return [] }
         return names.filter { name in
+            if name.hasPrefix(".") { return false }  // `.lock` / `.<ID>.run`(隠しの控え)は ID の記録ではない
             var isDir: ObjCBool = false
             return FileManager.default.fileExists(atPath: stateDir.appendingPathComponent(name).path, isDirectory: &isDir)
                 && !isDir.boolValue

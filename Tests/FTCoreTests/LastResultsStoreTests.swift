@@ -76,4 +76,32 @@ final class LastResultsStoreTests: XCTestCase {
         XCTAssertTrue(LastResultsStore.stateDir(project: project, profile: nil).path
             .hasSuffix("/\(LastResultsStore.noProfileKey)"))
     }
+
+    private func rec(_ passed: Bool, run: String?) {
+        LastResultsStore.record(stateDir: stateDir, unit: ScenarioUnitKey(id: "S.a", variant: nil), passed: passed,
+                                runID: run, declaredVariants: [])
+    }
+
+    func testSameRunFailedIsNotOverwrittenByPassedWithoutVariant() {
+        rec(false, run: "r1")
+        rec(true, run: "r1")
+        XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["S.a"])
+        let body = try? String(contentsOf: stateDir.appendingPathComponent("S.a"), encoding: .utf8)
+        XCTAssertEqual(body, "failed")
+    }
+
+    func testNextRunPassedOverwritesFailedWithoutVariant() {
+        rec(false, run: "r1")
+        rec(true, run: "r2")
+        XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), [])
+        XCTAssertEqual(LastResultsStore.recordedCount(stateDir: stateDir), 1)
+    }
+
+    func testConcurrentRecordsKeepFailed() {
+        rec(false, run: "r1")
+        DispatchQueue.concurrentPerform(iterations: 40) { i in
+            if i % 2 == 0 { rec(true, run: "r1") } else { rec(false, run: "r1") }
+        }
+        XCTAssertEqual(LastResultsStore.failedIDs(stateDir: stateDir), ["S.a"])
+    }
 }
