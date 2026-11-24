@@ -128,6 +128,8 @@ fi
 . "$ROOT/Scripts/sut-rebuild.sh"
 
 FAILED=0
+# iOS のプロファイルを1本も回さなかった実行(--android-native だけ等)は印を書かない(回していない経路を検証済みと言い張らない)。
+NO_IOS_RUN=1
 # 印を止める赤があったか。赤が全部 Scripts/mark_exclusions.py の表の行なら FAILED だけ立てて印は止めない(regress.py と共有)
 MARK_BLOCKED=0
 # ${RESULTS} と括る: bash 3.2 は $RESULTS の直後の絵文字の先頭バイトを変数名に含めて unbound で落ちる
@@ -136,6 +138,7 @@ run_profile() {  # $1 = プロジェクト名, $2 = プロファイル名
   if [ "$BUILD_ONLY" = 1 ]; then return 0; fi
   echo ""
   echo "═══ $1 / $2 ═══"
+  if [ "$2" = "$IOS_PROFILE" ]; then NO_IOS_RUN=0; fi
   local started excluded
   started=$(date +%s)
   if "$FLEETEST" run --project "$1" --profile "$2" --runner local $RECORD_FLAG; then
@@ -234,7 +237,7 @@ fi
 # **印を更新するのは全部成功したときだけ**(失敗したまま更新すると「検証済み」と言い張る装置になる)。例外は赤が全部
 # Scripts/mark_exclusions.py の表の行のときだけ(上の RESULTS で名指し済み・終了コードは赤のまま)。
 # `[ … ] && { … }` の形にしない(偽のとき終了ステータス 1 を残す。Scripts/e2e.sh の末尾と同じ理由)
-if [ "$MARK_BLOCKED" = 0 ] && [ "$RUN_IOS" = 1 ]; then
+if [ "$MARK_BLOCKED" = 0 ] && [ "$RUN_IOS" = 1 ] && [ "${NO_IOS_RUN:-0}" = 0 ]; then
   MARKER="$(bridge_marker "$RUN_MODE")"
   mkdir -p "$(dirname "$MARKER")"
   bridge_digest "$RUN_MODE" > "$MARKER"

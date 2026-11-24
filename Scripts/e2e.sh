@@ -194,6 +194,8 @@ if [ "$RUN_IOS" = 1 ]; then
 fi
 
 FAILED=0
+# iOS のプロファイルを1本も回さなかった実行(--android-native だけ等)は印を書かない(回していない経路を検証済みと言い張らない)。
+NO_IOS_RUN=1
 # このスイートが回す (プロジェクト, プロファイル) の並び。**下の実行ループと同じ規則**で、
 # --align が「どのランナーを見るか」を決めるためだけに使う(実行はしない)。
 # 片方だけ変えると align が見に行くプロファイルがズレるので、実行ループの最後で
@@ -291,6 +293,7 @@ run_profile() {  # $1 = プロジェクト名, $2 = プロファイル名
   echo "═══ $1 / $2 ═══"
   RAN_PROFILES="$RAN_PROFILES$1 $2
 "
+  if [ "$2" = "$IOS_PROFILE" ]; then NO_IOS_RUN=0; fi
 
   local profile="$2"
   local tmp_profile_path=""
@@ -300,7 +303,14 @@ run_profile() {  # $1 = プロジェクト名, $2 = プロファイル名
       profile="$2-record-tmp"
       tmp_profile_path="$ROOT/TestProjects/$1/profiles/runs/$profile.json"
       # 元のプロファイルは書き換えず、record:true を足した一時コピーを作る
-      jq '. + {record: true}' "$src_path" > "$tmp_profile_path"
+      # run_profile は `[ … ] && run_profile` の文脈から呼ばれて errexit が効かない = jq の失敗を自分で見る
+      # (壊れた一時プロファイルのまま run が走る・空のプロファイルで「成功」しない)
+      if ! jq '. + {record: true}' "$src_path" > "$tmp_profile_path"; then
+        rm -f "$tmp_profile_path"
+        echo "❌ $1 / $2: --record 用の一時プロファイルを作れませんでした(jq が失敗: $src_path)"
+        FAILED=1
+        return 0
+      fi
     else
       echo "⚠️ プロファイルが見つからないため --record をスキップします: $src_path" >&2
     fi
@@ -540,7 +550,7 @@ fi
 
 # **通した状態を覚えるのは全部成功したときだけ** —— 失敗したまま印を更新すると、
 # 次回から「検証済み」と言い張る装置になる
-if [ "$FAILED" = 0 ] && [ "$RUN_IOS" = 1 ]; then
+if [ "$FAILED" = 0 ] && [ "$RUN_IOS" = 1 ] && [ "${NO_IOS_RUN:-0}" = 0 ]; then
   MARKER="$(bridge_marker "$RUN_MODE")"
   mkdir -p "$(dirname "$MARKER")"
   bridge_digest "$RUN_MODE" > "$MARKER"

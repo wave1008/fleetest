@@ -16,15 +16,27 @@ CRASH_DIALOG_STATE="$HOME/.fleetest-crash-dialog"
 CRASH_DIALOG_HELD=""
 
 _crash_dialog_lock() {
-  local i=0
-  # mkdir は原子的。50 × 0.1s = 5 秒待っても取れなければ、死んだ保持者のロックとみなして奪う
+  local i=0 owner
+  # mkdir は原子的。取れたら lock/pid に自分の pid を書く。
+  # **奪うのは保持者が死んでいるときだけ**(生きている保持者が launchctl kickstart に5秒以上かかっても元の値の退避・復元を
+  # 競合させない)。pid が書かれる前に落ちたロック(pid ファイルが無いまま 5 秒 = 50 × 0.1s)と、
+  # 3000 × 0.1s = 5 分を超えた生きた保持者(pid の再利用・停止したままの保持者)の安全網だけは奪う。
+  # 奪うときは mv で自分専用の名前へ動かす(rm -rf で消すと、同時に奪いに来た別の待ち手が取り直した新しいロックを消す)
   until mkdir "$CRASH_DIALOG_STATE/lock" 2>/dev/null; do
     i=$((i + 1))
-    if [ "$i" -ge 50 ]; then rm -rf "$CRASH_DIALOG_STATE/lock"; i=0; fi
+    owner="$(cat "$CRASH_DIALOG_STATE/lock/pid" 2>/dev/null || true)"
+    if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } \
+        || { [ -z "$owner" ] && [ "$i" -ge 50 ]; } || [ "$i" -ge 3000 ]; then
+      if mv "$CRASH_DIALOG_STATE/lock" "$CRASH_DIALOG_STATE/lock.stale.$$" 2>/dev/null; then
+        rm -rf "$CRASH_DIALOG_STATE/lock.stale.$$"
+      fi
+      i=0
+    fi
     sleep 0.1
   done
+  printf '%s\n' "$$" > "$CRASH_DIALOG_STATE/lock/pid" 2>/dev/null || true
 }
-_crash_dialog_unlock() { rmdir "$CRASH_DIALOG_STATE/lock" 2>/dev/null || true; }
+_crash_dialog_unlock() { rm -rf "$CRASH_DIALOG_STATE/lock" 2>/dev/null || true; }
 
 _crash_dialog_prune() {
   local f

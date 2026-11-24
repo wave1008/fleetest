@@ -1288,12 +1288,14 @@ fi
 # 更新チェック本体(Scripts/update-check.sh)は git を直接見るのでこのファイルに依存しない。
 # ここに書くのは「いつ・どの版を入れたか」だけ。書けなくてもインストールは成功扱い
 if [ -d "$WORK_DIR/.fleetest" ]; then
+  # パスに `"` や `\` があっても JSON が壊れないよう値をエスケープする(\ を先に、次に ")
+  json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r'; }
   cat >"$WORK_DIR/.fleetest/state.json" 2>/dev/null <<EOF || true
 {
   "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "toolRoot": "$TOOL_ROOT",
+  "toolRoot": "$(json_str "$TOOL_ROOT")",
   "toolRootHead": "$(git -C "$TOOL_ROOT" rev-parse HEAD 2>/dev/null)",
-  "toolRootRef": "$(git -C "$TOOL_ROOT" symbolic-ref --short -q HEAD 2>/dev/null || echo detached)"
+  "toolRootRef": "$(json_str "$(git -C "$TOOL_ROOT" symbolic-ref --short -q HEAD 2>/dev/null || echo detached)")"
 }
 EOF
 fi

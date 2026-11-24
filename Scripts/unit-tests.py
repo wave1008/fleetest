@@ -13,13 +13,17 @@
 #   - Swift Testing(`import Testing`)は xctest では回らないので、Tests に現れたら断る
 #   - 毎回の所要・合否は .fleetest/unit-test-history.ndjson に1行ずつ追記する(ビルドの失敗も1行)
 # 使い方: FT_FULL_TEST=1 Scripts/unit-tests.py [--jobs N] [--skip-build]
-import argparse, concurrent.futures as cf, glob, json, os, re, subprocess, sys, time
+import argparse, concurrent.futures as cf, glob, json, os, re, signal, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DURATIONS = os.path.join(ROOT, ".fleetest", "unit-test-durations.json")
 LOG_DIR = os.path.join(ROOT, ".fleetest", "unit-tests")
 # 毎回の所要を1行ずつ追記する(LOG_DIR は毎回消すので外に置く)。欄は append_history の dict
 HISTORY = os.path.join(ROOT, ".fleetest", "unit-test-history.ndjson")
+# xctest 1プロセスの期限(秒)。根拠: 実測の最長は1プロセス約95秒(IOSSimulatorVideoRecorderStartTests。build_jobs の注記)で、
+# 負荷の下でもその約10倍に収まる。尽きたら process group ごと SIGKILL し、そのプロセスは「期限切れ」として赤に数える
+# (ハングを待ち続けて全体の結果も履歴も残らない形にしない)。--process-timeout で変えられる
+PROCESS_TIMEOUT_SECONDS = 900
 CASE_END = re.compile(r"^Test Case '-\[(\w+)\.(\w+) (\w+)\]' (passed|failed|skipped) \(([0-9.]+) seconds\)", re.M)
 
 
@@ -102,6 +106,8 @@ def main():
     # (FMServeAlignmentTests の 50 ms)・同じ機械のモニターや Simulator も遅くする
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 1) - 2))
     ap.add_argument("--skip-build", action="store_true")
+    ap.add_argument("--process-timeout", type=float, default=PROCESS_TIMEOUT_SECONDS,
+                    help="xctest 1プロセスの期限(秒)。超えたら殺して赤に数える")
     args = ap.parse_args()
 
     swift_testing = [p for p in glob.glob(os.path.join(ROOT, "Tests", "**", "*.swift"), recursive=True)
@@ -147,16 +153,32 @@ def main():
     def execute(job):
         _, bundle, selector, expected = job
         started = time.time()
-        r = subprocess.run([xctest, "-XCTest", selector, bundle], cwd=ROOT, capture_output=True, text=True)
-        return job, r.returncode, time.time() - started, r.stdout + r.stderr
+        # 孫がパイプを握ったままだと kill 後の communicate が戻らないので、新しいセッションにして group ごと殺す
+        proc = subprocess.Popen([xctest, "-XCTest", selector, bundle], cwd=ROOT, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, errors="replace", start_new_session=True)
+        timed_out = False
+        try:
+            out, _ = proc.communicate(timeout=args.process_timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                proc.kill()
+            try:
+                out, _ = proc.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                out = ""
+            out = (out or "") + f"\n[unit-tests.py] killed: exceeded {args.process_timeout:.0f}s\n"
+        return job, proc.returncode, time.time() - started, out, timed_out
 
     t1 = time.time()
-    new_durations, failed, missing, crashed, slow = {}, [], [], [], []
+    new_durations, failed, missing, crashed, slow, timed_out_jobs = {}, [], [], [], [], []
     executed = set()
     done = 0
     with cf.ThreadPoolExecutor(args.jobs) as pool:
         for future in cf.as_completed([pool.submit(execute, j) for j in jobs]):
-            job, rc, wall, out = future.result()
+            job, rc, wall, out, timed_out = future.result()
             _, bundle, selector, expected = job
             done += 1
             seen = set()
@@ -170,14 +192,17 @@ def main():
                     bad.append(key)
             lost = sorted(expected - seen)
             slow.append((wall, selector))
-            if "/" not in selector:
+            if "/" not in selector and not timed_out:
                 new_durations[selector] = wall  # クラス丸ごとの実時間(build_jobs の見込み)
             if bad or lost or rc != 0:
                 log = os.path.join(LOG_DIR, selector.replace("/", "__") + ".log")
                 open(log, "w").write(out)
                 failed += bad
                 missing += lost
-                if rc != 0 and not bad and not lost:
+                if timed_out:
+                    timed_out_jobs.append(selector)
+                    print(f"TIMEOUT {selector}: killed after {args.process_timeout:.0f}s (a hung test; partial log below)", flush=True)
+                elif rc != 0 and not bad and not lost:
                     crashed.append(selector)
                 errors = [l for l in out.splitlines() if " error: " in l][:5]
                 print(f"FAIL {selector} (exit {rc}) log: {os.path.relpath(log, ROOT)}", flush=True)
@@ -198,15 +223,15 @@ def main():
     slow.sort(reverse=True)
     print("slowest processes: " + ", ".join(f"{s} {w:.1f}s" for w, s in slow[:5]))
     print(f"executed {len(executed)}/{expected_total} tests, {len(failed)} failed, {len(missing)} did not finish,"
-          f" {len(crashed)} processes exited non-zero without a failed test;"
+          f" {len(crashed)} processes exited non-zero without a failed test, {len(timed_out_jobs)} processes timed out;"
           f" build {t_build:.1f}s, tests {time.time() - t1:.1f}s, total {time.time() - t0:.1f}s")
-    ok = not failed and not missing and not crashed and len(executed) == expected_total
+    ok = not failed and not missing and not crashed and not timed_out_jobs and len(executed) == expected_total
     append_history({"startedAt": started, "jobs": args.jobs, "skipBuild": args.skip_build,
                     "result": "passed" if ok else "failed",
                     "buildSeconds": None if args.skip_build else round(t_build, 1),
                     "testSeconds": round(time.time() - t1, 1), "totalSeconds": round(time.time() - t0, 1),
                     "tests": expected_total, "executed": len(executed), "processes": len(jobs),
-                    "failed": len(failed), "didNotFinish": len(missing), "crashedProcesses": len(crashed),
+                    "failed": len(failed), "didNotFinish": len(missing), "crashedProcesses": len(crashed), "timedOutProcesses": len(timed_out_jobs),
                     "slowest": [[s, round(w, 1)] for w, s in slow[:5]]})
     sys.exit(0 if ok else 1)
 

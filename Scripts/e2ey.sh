@@ -126,12 +126,15 @@ fi
 . "$ROOT/Scripts/sut-rebuild.sh"
 
 FAILED=0
+# iOS のプロファイルを1本も回さなかった実行(--android-native だけ等)は印を書かない(回していない経路を検証済みと言い張らない)。
+NO_IOS_RUN=1
 # ${RESULTS} と括る: bash 3.2 は $RESULTS の直後の絵文字の先頭バイトを変数名に含めて unbound で落ちる
 RESULTS=""
 run_profile() {  # $1 = プロジェクト名, $2 = プロファイル名
   if [ "$BUILD_ONLY" = 1 ]; then return 0; fi
   echo ""
   echo "═══ $1 / $2 ═══"
+  if [ "$2" = "$IOS_PROFILE" ]; then NO_IOS_RUN=0; fi
   if "$FLEETEST" run --project "$1" --profile "$2" --runner local $RECORD_FLAG; then
     RESULTS="${RESULTS}✅ $1 / $2
 "
@@ -221,7 +224,7 @@ else
 fi
 # **印を更新するのは全部成功したときだけ**(失敗したまま更新すると「検証済み」と言い張る装置になる)。
 # `[ … ] && { … }` の形にしない(偽のとき終了ステータス 1 を残す。Scripts/e2e.sh の末尾と同じ理由)
-if [ "$FAILED" = 0 ] && [ "$RUN_IOS" = 1 ]; then
+if [ "$FAILED" = 0 ] && [ "$RUN_IOS" = 1 ] && [ "${NO_IOS_RUN:-0}" = 0 ]; then
   MARKER="$(bridge_marker "$RUN_MODE")"
   mkdir -p "$(dirname "$MARKER")"
   bridge_digest "$RUN_MODE" > "$MARKER"

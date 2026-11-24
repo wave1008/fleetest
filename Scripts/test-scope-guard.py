@@ -69,8 +69,34 @@ def filter_problems(value, classes):
     return bad
 
 
+def newlines_to_semicolons(command):
+    """引用の外の改行を ; にする(shlex は改行を空白として扱うので、複数行のコマンドの2行目以降が1つの語の並びに混ざり、
+    words[0] 判定をすり抜けた)。行末の `\\` + 改行は継続行として空白にする"""
+    out, quote, i = [], None, 0
+    while i < len(command):
+        c = command[i]
+        if c == "\\" and quote != "'" and i + 1 < len(command):
+            if command[i + 1] == "\n" and quote is None:
+                out.append(" ")
+            else:
+                out.append(command[i:i + 2])
+            i += 2
+            continue
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c == "\n":
+            c = ";"
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def segments(command):
-    """; && || | で区切った単純コマンドの語の並び(引用の中の | は区切らない)"""
+    """; && || | 改行で区切った単純コマンドの語の並び(引用の中の | と改行は区切らない)"""
+    command = newlines_to_semicolons(command)
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
     lexer.whitespace_split = True
     out, cur = [], []
@@ -96,6 +122,17 @@ def option_value(tokens, name):
         if tok.startswith(name + "="):
             return tok[len(name) + 1:]
     return None
+
+
+def option_values(tokens, name):
+    """name の全ての値(--filter は繰り返しで和になる)"""
+    out = []
+    for i, tok in enumerate(tokens):
+        if tok == name and i + 1 < len(tokens):
+            out.append(tokens[i + 1])
+        elif tok.startswith(name + "="):
+            out.append(tok[len(name) + 1:])
+    return out
 
 
 def new_tests_in(files, root=ROOT):
@@ -260,6 +297,11 @@ def device_run_problems(words, env, full_ok, depth):
         words = words[1:]
     if not words:
         return reasons
+    # `bash Scripts/e2e.sh`(sh・zsh も)は先頭をスクリプト名に読み替えて、名前の規則を同じに通す
+    # (file_problems はリポジトリの Scripts/ の中身を読まないので、これが無いと名前の規則がどちらにも掛からない)
+    if os.path.basename(words[0]) in SHELLS and len(words) >= 2 and not words[1].startswith("-") \
+            and os.path.basename(words[1]) in FULL_SUITE_SCRIPTS + ("e2e-negative.sh", "regress.py", "unit-tests.py"):
+        words = words[1:]
     head = os.path.basename(words[0])
     # `$@` / `$*` で引数を受け渡すだけの行は判定しない(包む関数の呼び出し行で見る = script_text_problems)
     passes_args = any(w in ("$@", "$*") for w in words)
@@ -370,18 +412,17 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
         if len(words) >= 2 and os.path.basename(words[0]) == "swift" and words[1] == "test":
             if "--help" in words or "-h" in words:
                 continue
-            value = option_value(words, "--filter")
-            if value is not None:
-                value = expand(value, env)  # 同じコマンドの `T=Class; swift test --filter $T` を通す
-            if value is None:
+            values = [expand(v, env) for v in option_values(words, "--filter")]  # 同じコマンドの `T=Class; swift test --filter $T` を通す
+            if not values:
                 if not full_ok:
                     reasons.append("swift test に --filter が無い(全体)。全体テストは作業の区切りにユーザーが回す運用 ——"
                                    "変更が通るテストクラスを --filter '<Class>|<Class>' で名指しする"
                                    "(ユーザーが全体テストを頼んだときだけ FT_FULL_TEST=1 を書く)")
-            elif "$" in value:
-                reasons.append(f"--filter の値に展開できない変数がある({value})。フックは同じコマンドの代入しか読めないので、"
-                               "同じコマンドで代入するかクラス名を直接書く")
-            else:
+            for value in values:  # 繰り返した --filter は和として効く = 全部見る
+                if "$" in value:
+                    reasons.append(f"--filter の値に展開できない変数がある({value})。フックは同じコマンドの代入しか読めないので、"
+                                   "同じコマンドで代入するかクラス名を直接書く")
+                    continue
                 bad = filter_problems(value, classes_here())
                 if bad:
                     reasons.append(f"--filter の語がテストクラスの正確な名前でない: {bad}。部分一致の語は無関係なクラスまで拾う"
@@ -394,9 +435,14 @@ def check(command, env=None, full_ok=None, depth=0, cwd=None):
             reasons.append("npm test は全体(2000 件超)。1ファイルなら vscode-fleetest で"
                            " `node esbuild.mjs --tests && node --test out-test/<名前>.test.mjs`"
                            "(ユーザーが全体テストを頼んだときだけ FT_FULL_TEST=1 を書く)")
-        for i, tok in enumerate(words):
-            if os.path.basename(tok) == "mutation-check.sh" and i + 1 < len(words) and words[i + 1] != "--purge":
-                reasons.extend(mutation_problems(words[i + 1], classes_here(), root_here()))
+        # 起動している形だけ見る(行頭 / nohup・bash・sh・zsh・python の直後)。引数に名前が現れるだけ(wc・git add・cat 等)は見ない
+        mi = 0
+        while mi < len(words) and (words[mi] == "nohup" or os.path.basename(words[mi]) in SHELLS
+                                   or os.path.basename(words[mi]).startswith("python")):
+            mi += 1
+        if mi < len(words) and os.path.basename(words[mi]) == "mutation-check.sh" and mi + 1 < len(words) \
+                and words[mi + 1] != "--purge":
+            reasons.extend(mutation_problems(words[mi + 1], classes_here(), root_here()))
     if depth < MAX_DEPTH:
         for body in heredoc_scripts(command):
             reasons.extend(script_text_problems(body, env, full_ok, depth + 1))
