@@ -558,8 +558,10 @@ enum RefGuard {
     /// 要素の中心を含む他の要素の id とラベル(値は見ない = トグルの状態の変化を別の行と呼ばない)
     private static func enclosingRow(of element: ElementInfo, in tree: [ElementInfo]) -> Set<String> {
         let x = element.frame.x + element.frame.width / 2, y = element.frame.y + element.frame.height / 2
+        // 対象に id が無いときは id の比較を掛けない: nil == nil で id 無しの周り(ラベルだけの行・セル)を全部落とし、顔ぶれが空 = 同じ行になる
+        let ownID = element.identifier.flatMap { $0.isEmpty ? nil : $0 }
         return Set(tree.filter {
-            $0.ref != element.ref && $0.identifier != element.identifier
+            $0.ref != element.ref && (ownID == nil || $0.identifier != ownID)
                 && !isDescendant($0, of: element)
                 && x >= $0.frame.x && x <= $0.frame.x + $0.frame.width
                 && y >= $0.frame.y && y <= $0.frame.y + $0.frame.height

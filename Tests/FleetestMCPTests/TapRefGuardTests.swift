@@ -76,6 +76,19 @@ final class TapRefGuardTests: XCTestCase {
         XCTAssertTrue(refusal.contains("matched 1 element(s) with the same label and type when snapshotted, 1 now"), refusal)
     }
 
+    /// 周りの行も id 無し(UIKit のセル: ラベルだけ)。id の無い対象が別の行の同名ボタンへ付け替わったら断る・同じ行なら通す
+    func testIdlessTargetWithLabelOnlyRowsIsRefusedWhenRowChanges() throws {
+        func labelRow(_ ref: Int, _ label: String, y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "cell", identifier: nil, label: label, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 16, y: y, width: 370, height: 52), depth: 2)
+        }
+        let old = plain(1, "削除", y: 227)
+        let taken = [labelRow(2, "行1", y: 200), old]
+        XCTAssertEqual(try verdict(old, [labelRow(3, "行3", y: 305), plain(4, "削除", y: 332)], taken: taken),
+                       .differentRow(.label, taken: 1, now: 1))
+        XCTAssertEqual(try verdict(old, [labelRow(3, "行1", y: 150), plain(4, "削除", y: 177)], taken: taken), .proceed)
+    }
+
     /// 同じ行のまま動いた(親ごと動く)・動かない・ボタン系でない型は断らない
     func testIdlessSameRowOrStaticOrUnmovedPasses() throws {
         let old = plain(1, "削除", y: 227)
