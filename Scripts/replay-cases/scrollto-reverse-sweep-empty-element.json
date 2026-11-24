@@ -1,0 +1,27 @@
+{
+  "id": "scrollto-reverse-sweep-empty-element",
+  "finding": "scrollTo が逆走査(飛び越しの拾い直し)で対象を見つけた回、found は立つのに element が nil のまま返り、scrollTo(...).isNotEmpty が偽・.text が nil・指紋の記録が飛ぶ(黙った誤り)。あわせて逆走査の後の空打ちが元の探索の向きで抜き先を決めていた",
+  "platform": "android",
+  "redNote": "未確認。飛び越しは慣性の出方次第で、静かなマシンでは起きない周がある。直しを外した版(逆走査の戻りから element を落とす)でも、飛び越した周だけが赤になる。確かめるときは直しを外した fleetest-mcp で --rounds を増やし、replyReject の文言(scrolled to no element)が出るかを見る。決定的な確認は単体テスト ScrollReverseSweepEdgeStartTests.testSingleSwipeThatMovedPastTheTargetStillGetsTheReverseSweep(element の非 nil)と testEmptyDragAfterReverseSweepUsesTheBackDirection",
+  "setup": [["ft_launch", {"bundleId": "com.ftester.e2ey.flutter"}]],
+  "reset": [
+    ["ft_launch", {"bundleId": "com.ftester.e2ey.flutter"}],
+    ["ft_batch", {"steps": "tap '#nav_chat' scroll: .down"}]
+  ],
+  "resetSeconds": 1,
+  "rounds": 10,
+  "forms": [
+    {
+      "name": "scrollTo の直後に同じ要素を検査する(DSL / ft_batch)",
+      "steps": [["ft_batch", {"steps": "scrollTo '#msg_50' direction: .up maxSwipes: 15"}]],
+      "replyOnly": true,
+      "replyReject": ["scrolled to no element", "nothing moved at all"]
+    },
+    {
+      "name": "枠なしの scrollTo(MCP)",
+      "steps": [["ft_scroll_to", {"selector": "#msg_50", "direction": "up", "maxSwipes": 15}]],
+      "replyOnly": true,
+      "replyReject": ["scrolled to no element", "nothing moved at all"]
+    }
+  ]
+}

@@ -1744,7 +1744,8 @@ extension StepExecutor {
                         result.reverseSweepDrags = reverseSweepDragsSent
                         if let recovered = recoveredBySweep {
                             result.found = true
-                            result.fallback = recovered
+                            result.fallback = recovered.fallback
+                            result.element = recovered.element
                             result.reverseSweeps += 1
                             // 推測した容器に**申告済みの容器**が重なっていればその名前を出す。
                             // 重ならなければ nil のまま = 注記は総称に留める(推測した矩形を
@@ -1816,10 +1817,11 @@ extension StepExecutor {
             reverseSweepRan = reverseSweepDragsSent > 0
             reverseSweepDrags = reverseSweepDragsSent
             if let recovered = recoveredBySweep {
-                var result = ScrollSearchResult(found: true, fallback: recovered,
+                var result = ScrollSearchResult(found: true, fallback: recovered.fallback,
                                                 viaXCUITest: viaXCUITest,
                                                 hintJumps: hintJumps, swipes: swipes,
                                                 maxTruncatedDuringSearch: truncatedDuringSearch)
+                result.element = recovered.element
                 result.reverseSweeps = 1
                 result.suggestedScrollFrame = ScrollFrameCandidates.selector(matching: container,
                                                                              in: latest)

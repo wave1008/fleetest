@@ -108,9 +108,10 @@ extension StepExecutor {
     /// 容器は推測なので `containerInference` で切れる(呼び出し側で判定済み)
     /// **開始位置より先は探さない**(DR-189): 逆走査は飛び越した分の救済で、指定と逆の向きを探す機能ではない。
     /// `start`(送る前の木)にあった `#id` の要素が開始位置を越えて戻ったら、越えた帯で見つけた物は採らずに止める
+    /// 戻り値の `element` は逆走査が最後に読んだ木のもの(呼び手は `ScrollSearchResult.element` に必ず入れる。nil のままだと DSL の scrollTo が空の要素を返す)
     func reverseSweep(step: FlowStep, container: FTRect,
                               searching finger: FTSwipeDirection, start: SnapshotResponse?,
-                              phase: inout PhaseAccumulator) async throws -> FlowLocator?? {
+                              phase: inout PhaseAccumulator) async throws -> (fallback: FlowLocator?, element: ElementInfo)? {
         let back: FTSwipeDirection = switch finger {
         case .up: .down
         case .down: .up
@@ -156,13 +157,14 @@ extension StepExecutor {
                    TapTargetGeometry.offscreenScrollGateCentre(for: element,
                                                               screen: snapshot.screen) == nil,
                    !buriedUnderBarForTouch(element, step: reverseStep, in: snapshot) {
-                    _ = try await settleAfterFind(step: step, element: element,
+                    // 空打ちの抜き先・流れ続けの判定は**いま送っている指の向き**(reverseStep)で読む
+                    _ = try await settleAfterFind(step: reverseStep, element: element,
                                                   snapshot: snapshot, afterInertialMove: true, phase: &phase)
                     // **連続2回一致まで待つ**(settleAfterScroll より強い)。逆走査のドラッグは
                     // 遅い代わりに離した後もしばらく減速しながら動き、**掴んだ座標が
                     // タップまでにずれる**(実測: 176px ずれて隣の行を叩いた)
                     if !skippingSettle(step) { _ = try await settledSignature(phase: &phase) }
-                    return .some(fallback)
+                    return (fallback, element)
                 }
             }
             // 開始位置まで戻った = 飛び越した区間は見終えた

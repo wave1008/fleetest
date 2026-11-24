@@ -120,6 +120,29 @@ final class ScrollReverseSweepEdgeStartTests: XCTestCase {
         XCTAssertEqual(driver.swipes, 1)
         XCTAssertGreaterThan(driver.drags, 0, "1本が動いたのに逆走査を撃たなかった")
         XCTAssertTrue(result.found, "通り過ぎた対象を逆走査で拾えていない")
+        // 逆走査で拾った回も element を返す(nil だと DSL の scrollTo が空の要素を返す)
+        XCTAssertEqual(result.element?.identifier, "row_target", "逆走査で拾ったのに element が空")
+    }
+
+    /// 全幅の行を逆走査で拾ったときの空打ちは、逆走査の向き(back)で抜き先を決める
+    /// (元の探索の向きで決めると「探索と逆の向きへ抜かない」に反して、探索の指の側=上へ抜く)
+    func testEmptyDragAfterReverseSweepUsesTheBackDirection() async throws {
+        let driver = FullWidthSwipedPastDriver(screen: FTRect(x: 0, y: 0, width: 402, height: 874))
+        let executor = StepExecutor(driver: driver, releasesScrollTouch: true, isAndroid: false,
+                                    tunables: RunTunables(), uiFramework: .compose)
+        let step = FlowStep(action: "scrollTo", locator: FlowLocator(id: "row_target"),
+                            direction: "up", maxSwipes: 1)
+        var phase = StepExecutor.PhaseAccumulator()
+
+        let result = try await executor.runScrollSearch(step: step, phase: &phase)
+
+        XCTAssertTrue(result.found)
+        let empty = driver.dragsLog.filter { $0.durationSeconds == StepExecutor.emptyDragSeconds }
+        XCTAssertEqual(empty.count, 1, "空打ちが1回撃たれていない: \(driver.dragsLog)")
+        if let d = empty.first {
+            // 探索の指は up・逆走査は down。逆向き(上=y 減)へ抜かず、下(y 増)へ抜く
+            XCTAssertGreaterThan(d.toY, d.fromY, "空打ちが探索の向き(上)へ抜いた: \(d)")
+        }
     }
 
     /// 逆走査の最初の1本が撃てずに諦めた回は「逆走査した・画面は戻した位置のまま」と言わない(何も動かしていない)
@@ -233,6 +256,53 @@ private final class SwipedPastTargetDriver: AppDriver {
                                         value: nil, placeholder: nil, enabled: true,
                                         frame: FTRect(x: 16, y: 400, width: 368, height: 56), depth: 1))
         }
+        return SnapshotResponse(sessionBundleID: nil, screen: screen, elements: elements, truncatedCount: 0)
+    }
+}
+
+/// 全幅(横に抜けられない)の対象を、送り1本で通り過ぎ、逆走査のドラッグで拾う偽ドライバ。ドラッグの引数を全部記録する
+private final class FullWidthSwipedPastDriver: AppDriver {
+    private let screen: FTRect
+    private var swipes = 0
+    private var drags = 0
+    private(set) var dragsLog: [(fromY: Double, toY: Double, durationSeconds: Double)] = []
+
+    init(screen: FTRect) { self.screen = screen }
+
+    func status() async throws -> StatusResponse {
+        StatusResponse(ready: true, device: "fake", osVersion: "-", sessionBundleID: nil)
+    }
+    func install(packagePath: String) async throws -> String? { nil }
+    func uninstall(bundleID: String) async throws {}
+    func launch(bundleID: String) async throws {}
+    func isAppForeground(bundleID: String) async throws -> Bool { true }
+    func terminate() async throws {}
+    func screenshot() async throws -> Data { Data() }
+    func type(ref: Int?, text: String) async throws {}
+    func tap(ref: Int) async throws {}
+    func tap(x: Double, y: Double) async throws {}
+    func press(ref: Int, duration: Double) async throws {}
+    func swipe(_ direction: FTSwipeDirection) async throws { swipes += 1 }
+    func drag(fromX: Double, fromY: Double, toX: Double, toY: Double,
+              pressSeconds: Double, durationSeconds: Double) async throws {
+        drags += 1
+        dragsLog.append((fromY, toY, durationSeconds))
+    }
+
+    func snapshot() async throws -> SnapshotResponse {
+        let offset = Double(swipes) * 120
+        func row(_ ref: Int, _ id: String, _ y: Double) -> ElementInfo {
+            ElementInfo(ref: ref, type: "button", identifier: id, label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: y, width: 402, height: 56), depth: 1)
+        }
+        var elements = [
+            ElementInfo(ref: 1, type: "scrollView", identifier: "list", label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: 0, width: 402, height: 874), depth: 0, scrollable: true),
+            row(2, "row_01", 40 + offset), row(3, "row_02", 120 + offset),
+            ElementInfo(ref: 4, type: "button", identifier: "row_ghost", label: nil, value: nil, placeholder: nil,
+                        enabled: true, frame: FTRect(x: 0, y: -1000, width: 402, height: 56), depth: 1),
+        ]
+        if drags > 0 { elements.append(row(5, "row_target", 400)) }
         return SnapshotResponse(sessionBundleID: nil, screen: screen, elements: elements, truncatedCount: 0)
     }
 }
